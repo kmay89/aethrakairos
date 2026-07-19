@@ -1,0 +1,8 @@
+node_modules/
+__pycache__/
+*.pyc
+package-lock.json
+package.json
+masters/
+synthetic-deploy/
+tests/_tmp_*/

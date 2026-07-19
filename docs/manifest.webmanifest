@@ -1,0 +1,32 @@
+{
+  "name": "Aethra Kairos",
+  "short_name": "Aethra Kairos",
+  "description": "Aethra Kairos — the artist's own instrument, powered by the Möbius⁸ engine. The catalog, playable anywhere; music you can dance to with your eyes.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05060e",
+  "theme_color": "#05060e",
+  "categories": ["music", "entertainment"],
+  "shortcuts": [
+    { "name": "Going for a run", "url": "./?ritual=run",
+      "description": "Steady warm-up building into full drive",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Relaxing dinner", "url": "./?ritual=dinner",
+      "description": "Warm, low-key, unhurried",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Deep work", "url": "./?ritual=work",
+      "description": "Steady mid-energy, nothing startling",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Bedtime", "url": "./?ritual=bedtime",
+      "description": "A slow descent to the quietest thing you own",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

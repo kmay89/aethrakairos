@@ -1,0 +1,630 @@
+// Player unit tests — §10 acceptance items 1, 3 and 4.
+// The pure blocks are extracted straight out of docs/index.html between
+// @pure-start/@pure-end and @solver-start/@solver-end markers, so what is
+// tested IS what ships — no copies.
+//
+//   node tests/player.test.mjs
+
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import assert from 'assert';
+
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const html = readFileSync(join(root, 'docs/index.html'), 'utf8');
+
+function block(name){
+  const m = html.match(new RegExp(`// @${name}-start\\n([\\s\\S]*?)// @${name}-end`));
+  if (!m) throw new Error(`marker block ${name} not found`);
+  return m[1];
+}
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('dance') +
+  '\nreturn { mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
+  ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
+  ' RITUALS, ritualByKey, dealRitual,' +
+  ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
+  ' mixMatchScore, chartSet,' +
+  ' camelotHue, oklchToRgb, lerpOklch, colorPlan,' +
+  ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
+  ' makeSafeBeatState, safeBeatStep, countFlashes,' +
+  ' dancePulse, danceSway, danceTimeWarp };';
+const S = new Function(code)();
+
+let passed = 0, failed = 0;
+function test(name, fn){
+  try { fn(); passed++; console.log('  ok', name); }
+  catch (e){ failed++; console.error('  FAIL', name, '\n   ', e.message); }
+}
+
+// ---------------------------------------------------------------- fixtures
+
+function synthCatalog(n, rng){
+  // a spread through the feature space; durations 180–300 s
+  const tracks = [];
+  for (let i = 0; i < n; i++){
+    const t = n === 1 ? 0 : i / (n - 1);
+    tracks.push({
+      id: i + 1,
+      duration: 180 + Math.floor(rng() * 120),
+      sha256: 'sha' + (i + 1),
+      url: 'https://x/' + i, year: 2020 + (i % 6),
+      features: {
+        bpm: i % 7 === 0 ? 0 : 90 + Math.round(t * 80),   // every 7th is ambient
+        energy: Math.min(1, t + (rng() - 0.5) * 0.15),
+        brightness: Math.min(1, t + (rng() - 0.5) * 0.2),
+        entropy: 0.3 + rng() * 0.4,
+        onsets: Math.min(1, t * 0.8 + rng() * 0.2),
+      },
+    });
+  }
+  return tracks;
+}
+const rng0 = S.mulberry32(42);
+const CAT = synthCatalog(60, rng0);
+const featsById = new Map(CAT.map(t => [t.id, t.features]));
+
+// ---------------------------------------------------------------- journey
+
+test('endpoints honored', () => {
+  const r = S.dealJourney({ tracks: CAT, fromId: 1, toId: 60, targetSec: 3600,
+    heat: 0, rng: S.mulberry32(7) });
+  assert.equal(r.order[0], 1, 'first is FROM');
+  assert.equal(r.order[r.order.length - 1], 60, 'last is TO');
+});
+
+test('zero repeats within a deal', () => {
+  for (const seed of [1, 2, 3, 4, 5]){
+    const r = S.dealJourney({ tracks: CAT, fromId: 1, toId: 60, targetSec: 7200,
+      heat: 0.6, rng: S.mulberry32(seed) });
+    assert.equal(new Set(r.order).size, r.order.length, 'seed ' + seed);
+  }
+});
+
+test('duration lands within ±10% of the time target', () => {
+  for (const [seed, target] of [[11, 1800], [12, 3600], [13, 7200]]){
+    const r = S.dealJourney({ tracks: CAT, fromId: 1, toId: 60, targetSec: target,
+      heat: 0.3, rng: S.mulberry32(seed) });
+    const err = Math.abs(r.totalSec - target) / target;
+    assert.ok(err <= 0.10, `target ${target}: got ${r.totalSec} (${(err * 100).toFixed(1)}%)`);
+  }
+});
+
+test('monotonicity > 0.8 at HEAT 0 (synthetic catalogs)', () => {
+  for (const seed of [21, 22, 23]){
+    const cat = synthCatalog(80, S.mulberry32(seed * 100));
+    const from = cat[0], to = cat[cat.length - 1];
+    const r = S.dealJourney({ tracks: cat, fromId: from.id, toId: to.id,
+      targetSec: 5400, heat: 0, rng: S.mulberry32(seed) });
+    const m = S.monotonicity(r.order, new Map(cat.map(t => [t.id, t.features])), to.features);
+    assert.ok(m > 0.8, `seed ${seed}: monotonicity ${m.toFixed(3)}`);
+  }
+});
+
+test('HEAT 1 is statistically indistinguishable from the permutation bag', () => {
+  // at heat 1 every unused track must be equally likely at every step —
+  // check the first-slot distribution over many deals
+  const cat = synthCatalog(20, S.mulberry32(5));
+  const N = 2000;
+  const firstCount = new Map();
+  for (let i = 0; i < N; i++){
+    const r = S.dealJourney({ tracks: cat, targetCount: 20, heat: 1,
+      rng: S.mulberry32(i + 1) });
+    assert.equal(new Set(r.order).size, 20, 'still a full unique cycle');
+    firstCount.set(r.order[0], (firstCount.get(r.order[0]) || 0) + 1);
+  }
+  const exp = N / 20, sd = Math.sqrt(N * (1 / 20) * (19 / 20));
+  for (const t of cat){
+    const c = firstCount.get(t.id) || 0;
+    assert.ok(Math.abs(c - exp) < 4.5 * sd,
+      `track ${t.id} opened ${c}× (expected ~${exp} ± ${(4.5 * sd) | 0})`);
+  }
+});
+
+test('BPM 0 is a wildcard — no tempo term, eligible anywhere', () => {
+  const amb = { bpm: 0, energy: 0.5, brightness: 0.5, entropy: 0.5, onsets: 0.1 };
+  const fast = { bpm: 174, energy: 0.5, brightness: 0.5, entropy: 0.5, onsets: 0.1 };
+  const slow = { bpm: 87, energy: 0.5, brightness: 0.5, entropy: 0.5, onsets: 0.1 };
+  assert.equal(S.solverDist(amb, fast), S.solverDist(amb, slow), 'no tempo penalty on ambient');
+  // and mismatched pitched tempi DO cost (non-octave ratio)
+  const odd = { bpm: 130, energy: 0.5, brightness: 0.5, entropy: 0.5, onsets: 0.1 };
+  assert.ok(S.solverDist(odd, fast) > S.solverDist(amb, fast), 'pitched mismatch costs');
+  // ambient tracks actually get dealt at heat 0
+  const r = S.dealJourney({ tracks: CAT, fromId: 1, toId: 60, targetSec: 7200,
+    heat: 0, rng: S.mulberry32(3) });
+  assert.ok(r.order.some(id => featsById.get(id).bpm === 0), 'an ambient track made the journey');
+});
+
+test('a drawn curve is sampled by arc length', () => {
+  const wps = [
+    { energy: 0, brightness: 0 }, { energy: 1, brightness: 0 }, { energy: 1, brightness: 1 },
+  ];
+  const start = S.sampleWaypoint(wps, 0), mid = S.sampleWaypoint(wps, 0.5), end = S.sampleWaypoint(wps, 1);
+  assert.deepEqual([start.energy, start.brightness], [0, 0]);
+  assert.deepEqual([end.energy, end.brightness], [1, 1]);
+  assert.ok(Math.abs(mid.energy - 1) < 0.01 && Math.abs(mid.brightness) < 0.01, 'midpoint is the corner');
+});
+
+// ---------------------------------------------------------------- quantum
+
+test('quantum respects the unique-cycle pass and reports exhaustion', () => {
+  const used = new Set();
+  const cur = CAT[0].features;
+  for (let i = 0; i < CAT.length; i++){
+    const step = S.quantumStep({ tracks: CAT, currentFeat: cur, heat: 0.4,
+      rng: S.mulberry32(i), usedIds: used });
+    assert.ok(!step.exhausted, 'not exhausted at step ' + i);
+    assert.ok(!used.has(step.pickId), 'no repeat within the pass');
+    used.add(step.pickId);
+  }
+  const done = S.quantumStep({ tracks: CAT, currentFeat: cur, heat: 0.4,
+    rng: S.mulberry32(99), usedIds: used });
+  assert.ok(done.exhausted, 'pass complete reads exhausted');
+});
+
+test('quantum probabilities are a distribution; hearts weigh the dice', () => {
+  const cur = CAT[10].features;
+  const plain = S.quantumStep({ tracks: CAT, currentFeat: cur, heat: 0.3,
+    rng: () => 0.5, usedIds: new Set() });
+  const sum = plain.probs.reduce((a, p) => a + p.p, 0);
+  assert.ok(Math.abs(sum - 1) < 1e-9, 'probs sum to 1');
+  const favId = plain.probs[3].id;
+  const weighted = S.quantumStep({ tracks: CAT, currentFeat: cur, heat: 0.3,
+    rng: () => 0.5, usedIds: new Set(), favIds: new Set([favId]) });
+  const p0 = plain.probs.find(p => p.id === favId).p;
+  const p1 = weighted.probs.find(p => p.id === favId).p;
+  assert.ok(p1 > p0, 'a heart raises the draw probability');
+  assert.ok(p1 / p0 < 1.35, 'slightly — not a thumb on the scale');
+});
+
+test('quantum at HEAT 1 is uniform', () => {
+  const step = S.quantumStep({ tracks: CAT, currentFeat: CAT[0].features, heat: 1,
+    rng: () => 0.5, usedIds: new Set() });
+  const ps = step.probs.map(p => p.p);
+  assert.ok(Math.max(...ps) - Math.min(...ps) < 1e-9, 'flat distribution');
+});
+
+// ---------------------------------------------------------------- history
+
+test('play thresholds: ≥50% or 60 s counts, less is a skip', () => {
+  assert.equal(S.historyVerdict(59, 300), false);
+  assert.equal(S.historyVerdict(60, 300), true);
+  assert.equal(S.historyVerdict(45, 90), true);      // 50%
+  assert.equal(S.historyVerdict(44, 90), false);
+  assert.equal(S.historyVerdict(61, 0), true);       // unknown duration, 60 s rule
+});
+
+test('era-window eligibility math (release + history)', () => {
+  const rel = S.eraEligible(CAT, { mode: 'release', y0: 2021, y1: 2022 }, new Map());
+  assert.ok(rel.length > 0);
+  assert.ok(rel.every(t => t.year >= 2021 && t.year <= 2022));
+  const day = 86400000, now = 1700000000000;
+  const win = S.historyWindow(now, 30, 28);
+  assert.equal(win.to, now - 30 * day);
+  assert.equal(win.from, now - 58 * day);
+  const counts = new Map([['sha3', { plays: 5, last: 1 }], ['sha7', { plays: 1, last: 2 }]]);
+  const hist = S.eraEligible(CAT, { mode: 'history' }, counts);
+  assert.deepEqual(hist.map(t => t.id).sort((a, b) => a - b), [3, 7]);
+  const ordered = S.orderMemories(hist, counts, S.mulberry32(1));
+  assert.equal(ordered[0], 3, 'what mattered then leads');
+});
+
+test('history survives a republished path — events key on hash, not path', () => {
+  // the same sha under a new URL still matches the counts map
+  const moved = { ...CAT[2], url: 'https://elsewhere/newpath.mp3' };
+  const counts = new Map([['sha3', { plays: 2, last: 9 }]]);
+  const elig = S.eraEligible([moved], { mode: 'history' }, counts);
+  assert.equal(elig.length, 1);
+});
+
+// ---------------------------------------------------------------- rituals
+
+test('every ritual deals a unique, non-empty playlist near its target', () => {
+  const cat = synthCatalog(120, S.mulberry32(77));
+  for (const r of S.RITUALS){
+    const d = S.dealRitual(r, cat, S.mulberry32(7));
+    assert.ok(d.order.length > 0, r.key + ' dealt nothing');
+    assert.equal(new Set(d.order).size, d.order.length, r.key + ' repeats');
+    const err = Math.abs(d.totalSec - r.targetSec) / r.targetSec;
+    assert.ok(err <= 0.10, `${r.key}: ${d.totalSec}s vs ${r.targetSec}s (${(err * 100).toFixed(1)}%)`);
+  }
+});
+
+test('rituals are deterministic per seed — a saved ritual re-deals the same intent', () => {
+  const cat = synthCatalog(120, S.mulberry32(78));
+  const r = S.ritualByKey('run');
+  const a = S.dealRitual(r, cat, S.mulberry32(1234));
+  const b = S.dealRitual(r, cat, S.mulberry32(1234));
+  assert.deepEqual(a.order, b.order);
+});
+
+test('going for a run builds; bedtime descends; dinner stays quiet-handed', () => {
+  const cat = synthCatalog(120, S.mulberry32(79));
+  const feats = new Map(cat.map(t => [t.id, t.features]));
+  const mean = (ids, k) => ids.reduce((a, id) => a + feats.get(id)[k], 0) / ids.length;
+
+  const run = S.dealRitual(S.ritualByKey('run'), cat, S.mulberry32(2)).order;
+  const third = Math.max(1, Math.floor(run.length / 3));
+  assert.ok(mean(run.slice(-third), 'energy') > mean(run.slice(0, third), 'energy'),
+    'run: the back third must carry more energy than the front third');
+
+  const bed = S.dealRitual(S.ritualByKey('bedtime'), cat, S.mulberry32(3)).order;
+  const first = feats.get(bed[0]), last = feats.get(bed[bed.length - 1]);
+  assert.ok(last.energy < first.energy, 'bedtime: ends quieter than it starts');
+  const catMedianE = cat.map(t => t.features.energy).sort((a, b) => a - b)[cat.length >> 1];
+  assert.ok(last.energy < catMedianE, 'bedtime: lands below the catalog median');
+
+  const din = S.dealRitual(S.ritualByKey('dinner'), cat, S.mulberry32(4)).order;
+  const catMeanOnsets = cat.reduce((a, t) => a + t.features.onsets, 0) / cat.length;
+  assert.ok(mean(din, 'onsets') < catMeanOnsets, 'dinner: less percussive than the catalog at large');
+});
+
+// ---------------------------------------------------------------- mix planner
+
+function mkMixTrack(id, over){
+  return Object.assign({
+    id, duration: 300, sha256: 'mx' + id,
+    mix: Object.assign({
+      bpm: 126, grid: 0.4, key: '8A', mixable: 0.9, phrases: 32,
+      in: { start: 0.4, beats: 64 }, out: { start: 240.0, beats: 64 },
+    }, over && over.mix || {}),
+  }, over || {}, over && over.mix ? { mix: Object.assign({
+    bpm: 126, grid: 0.4, key: '8A', mixable: 0.9, phrases: 32,
+    in: { start: 0.4, beats: 64 }, out: { start: 240.0, beats: 64 },
+  }, over.mix) } : {});
+}
+
+test('camelot wheel math', () => {
+  assert.equal(S.camelotCompat('8A', '8A'), 0);
+  assert.equal(S.camelotCompat('8A', '8B'), 0.5);       // relative
+  assert.equal(S.camelotCompat('8A', '9A'), 1);          // adjacent
+  assert.equal(S.camelotCompat('8A', '9B'), 2);          // diagonal stretch
+  assert.equal(S.camelotCompat('12A', '1A'), 1);         // the wheel wraps
+  assert.equal(S.camelotCompat('8A', '3B'), 3);          // clash
+  assert.equal(S.camelotCompat('8A', null), 1.5);        // unknown ≠ clash
+});
+
+test('tempo folding: half-time is family, not a clash', () => {
+  assert.ok(Math.abs(S.tempoFoldRatio(140, 70) - 1) < 1e-9);
+  assert.ok(Math.abs(S.tempoFoldRatio(124, 126) - 124 / 126) < 1e-9);
+});
+
+test('planner gates: beatmix, tempo fade, key fade, piano rule', () => {
+  const A = mkMixTrack(1);
+  const good = S.planTransition(A, mkMixTrack(2, { mix: { bpm: 124, key: '8B' } }));
+  assert.equal(good.type, 'beatmix', JSON.stringify(good));
+  const farTempo = S.planTransition(A, mkMixTrack(3, { mix: { bpm: 152 } }));
+  assert.equal(farTempo.type, 'fade');
+  assert.match(farTempo.why, /tempo/);
+  const clash = S.planTransition(A, mkMixTrack(4, { mix: { key: '3B' } }));
+  assert.equal(clash.type, 'fade');
+  assert.match(clash.why, /key/);
+  const piano = S.planTransition(A, mkMixTrack(5, { mix: { mixable: 0.2 } }));
+  assert.equal(piano.type, 'fade');
+  assert.match(piano.why, /piano/);
+  const halfTime = S.planTransition(A, mkMixTrack(6, { mix: { bpm: 63 } }));
+  assert.equal(halfTime.type, 'beatmix', 'half-time folds into family');
+});
+
+test('planner: album sequence is gapless; overrides win', () => {
+  const A = mkMixTrack(1), B = mkMixTrack(2);
+  assert.equal(S.planTransition(A, B, { albumSequential: true }).type, 'gapless');
+  const forced = S.planTransition(A, mkMixTrack(3, { mix: { bpm: 152 } }),
+    { override: { type: 'beatmix', beats: 8 } });
+  assert.equal(forced.type, 'beatmix', 'your fix beats the gate');
+  assert.equal(forced.beats, 8);
+  const fadeFix = S.planTransition(A, B, { override: { type: 'fade', seconds: 6 } });
+  assert.equal(fadeFix.type, 'fade');
+  assert.equal(fadeFix.seconds, 6);
+});
+
+test('beatmix geometry: bar-aligned start, overlap fits, harmony sets length', () => {
+  const A = mkMixTrack(1), spb = 60 / 126;
+  const same = S.planTransition(A, mkMixTrack(2));               // same key
+  assert.equal(same.beats, 32, 'clean harmony affords 32 beats');
+  const adj = S.planTransition(A, mkMixTrack(3, { mix: { key: '9A' } }));
+  assert.equal(adj.beats, 16);
+  const stretch = S.planTransition(A, mkMixTrack(4, { mix: { key: '9B' } }));
+  assert.equal(stretch.beats, 8);
+  for (const p of [same, adj, stretch]){
+    const barErr = (p.startA - 0.4) % (4 * spb);
+    assert.ok(Math.min(barErr, 4 * spb - barErr) < 1e-6, 'starts on A\'s bar line');
+    assert.ok(p.startA + p.beats * spb <= 300 - 0.29, 'overlap fits inside A');
+  }
+  const shortRegion = S.planTransition(A, mkMixTrack(5, { mix: { in: { start: 0.4, beats: 8 } } }));
+  assert.equal(shortRegion.beats, 8, 'regions clamp the blend');
+});
+
+test('the master tempo curve glides and lands', () => {
+  const g0 = S.glideRates(126, 120, 0), g1 = S.glideRates(126, 120, 1);
+  assert.ok(Math.abs(g0.rateA - 1) < 1e-9, 'A starts untouched');
+  assert.ok(Math.abs(g1.rateB - 1) < 1e-9, 'B lands untouched');
+  assert.ok(g1.rateA < 1 && g0.rateB > 1, 'both stretch toward each other');
+  const half = S.glideRates(140, 70, 1);
+  assert.ok(Math.abs(half.rateB - 1) < 1e-9, 'half-time glide respects the fold');
+});
+
+test('drift trim is proportional, clamped, and signed right', () => {
+  assert.ok(S.driftTrim(0.01) > 0, 'behind → speed up');
+  assert.ok(S.driftTrim(-0.01) < 0, 'ahead → slow down');
+  assert.equal(S.driftTrim(1), 0.004, 'clamped up');
+  assert.equal(S.driftTrim(-1), -0.004, 'clamped down');
+});
+
+// ---------------------------------------------------------------- the crate
+
+function synthMixCatalog(n, rng){
+  // a club-shaped catalog: one tempo band, spread keys, a few unmixables
+  const tracks = [];
+  for (let i = 0; i < n; i++){
+    const bpm = 120 + Math.round(rng() * 12 * 2) / 2;
+    const dur = 200 + Math.floor(rng() * 100);
+    const unmixable = rng() < 0.12;
+    tracks.push({
+      id: i + 1, duration: dur, sha256: 'cs' + (i + 1),
+      features: { bpm, energy: rng(), brightness: rng(),
+                  entropy: 0.3 + rng() * 0.4, onsets: 0.4 + rng() * 0.5 },
+      mix: unmixable ? { mixable: 0.2, key: null } : {
+        bpm, grid: 0.4, key: (1 + ((i * 5) % 12)) + (i % 2 ? 'A' : 'B'),
+        keyConf: 0.8, phrases: 32, mixable: 0.85,
+        in: { start: 0.4, beats: 64 },
+        out: { start: dur - 64 * 60 / bpm, beats: 64 },
+      },
+    });
+  }
+  return tracks;
+}
+
+test('match scoring ranks like a DJ: clean mix > stretch > fade', () => {
+  const A = { id: 1, duration: 300, mix: { bpm: 124, grid: 0.4, key: '8A', mixable: 0.9,
+    in: { start: 0.4, beats: 64 }, out: { start: 240, beats: 64 } } };
+  const mk = (bpm, key, mixable) => ({ id: 2, duration: 300, mix: { bpm, key,
+    mixable: mixable == null ? 0.9 : mixable, grid: 0.4,
+    in: { start: 0.4, beats: 64 }, out: { start: 240, beats: 64 } } });
+  const clean = S.mixMatchScore(A, mk(124, '8A')).score;
+  const adjacent = S.mixMatchScore(A, mk(126, '9A')).score;
+  const stretch = S.mixMatchScore(A, mk(126, '9B')).score;
+  const clash = S.mixMatchScore(A, mk(124, '3B')).score;
+  const piano = S.mixMatchScore(A, mk(124, '8A', 0.2)).score;
+  assert.ok(clean > adjacent, 'same key beats adjacent');
+  assert.ok(adjacent > stretch, 'adjacent beats diagonal stretch');
+  assert.ok(stretch > clash, 'any beatmix beats a key-clash fade');
+  assert.ok(clash <= 0.2 && piano <= 0.2, 'fades score as fallbacks');
+});
+
+test('chartSet arranges the crate into a mostly-beatmixed line', () => {
+  const cat = synthMixCatalog(60, S.mulberry32(9));
+  const r = S.chartSet({ tracks: cat, fromId: 1, targetSec: 3600, rng: S.mulberry32(4) });
+  assert.equal(r.order[0], 1, 'starts from the chosen track');
+  assert.equal(new Set(r.order).size, r.order.length, 'no repeats');
+  assert.ok(Math.abs(r.totalSec - 3600) / 3600 <= 0.12, 'lands near the hour: ' + r.totalSec);
+  const frac = r.mixed / r.transitions.length;
+  assert.ok(frac >= 0.7, 'beatmixed fraction ' + frac.toFixed(2));
+});
+
+test('chartSet is deterministic per seed', () => {
+  const cat = synthMixCatalog(60, S.mulberry32(10));
+  const a = S.chartSet({ tracks: cat, fromId: 3, targetSec: 1800, rng: S.mulberry32(7) });
+  const b = S.chartSet({ tracks: cat, fromId: 3, targetSec: 1800, rng: S.mulberry32(7) });
+  assert.deepEqual(a.order, b.order);
+});
+
+// ---------------------------------------------------------------- restore
+
+test('restore reconciliation: keeps the living, counts the vanished', () => {
+  const byKey = new Map([['a', 1], ['c', 3]]);
+  const { kept, dropped } = S.reconcileQueue(['a', 'b', 'c', 'd'], byKey);
+  assert.deepEqual(kept, ['a', 'c']);
+  assert.equal(dropped, 2);
+});
+
+// ---------------------------------------------------------------- colour engine
+
+test('camelot wheel maps to the colour wheel — the crate chip mapping', () => {
+  const hues = [];
+  for (let n = 1; n <= 12; n++){
+    const h = S.camelotHue(n + 'A');
+    assert.equal(h, ((n - 1) / 12 * 300 + 40) % 360);
+    hues.push(h);
+  }
+  assert.equal(new Set(hues.map(h => h.toFixed(2))).size, 12);        // all distinct
+  // harmonic neighbours are chromatic neighbours: one wheel step = 25 degrees
+  assert.equal(Math.abs(S.camelotHue('9A') - S.camelotHue('8A')), 25);
+  // relative major/minor share the wheel position
+  assert.equal(S.camelotHue('8A'), S.camelotHue('8B'));
+  assert.equal(S.camelotHue('nope'), null);
+});
+
+test('colorPlan is deterministic per seed', () => {
+  const inp = { key: '8A', energy: 0.6, entropy: 0.4, brightness: 0.5, act: 0.5, seed: 99 };
+  assert.deepEqual(S.colorPlan(inp), S.colorPlan({ ...inp }));
+  const other = S.colorPlan({ ...inp, seed: 100, key: null });
+  const same = S.colorPlan({ ...inp, seed: 100, key: null });
+  assert.deepEqual(other, same);
+});
+
+test('the scheme follows the character: calm/driving/dense', () => {
+  const base = { key: '5B', brightness: 0.4, act: 0.5, seed: 1 };
+  assert.equal(S.colorPlan({ ...base, energy: 0.2, entropy: 0.3 }).scheme, 'analogous');
+  assert.equal(S.colorPlan({ ...base, energy: 0.8, entropy: 0.4 }).scheme, 'complement');
+  assert.equal(S.colorPlan({ ...base, energy: 0.8, entropy: 0.8 }).scheme, 'triad');
+});
+
+test('arousal drives chroma; the act raises the temperature', () => {
+  const base = { key: '5B', entropy: 0.3, brightness: 0.4, act: 0.4, seed: 1 };
+  const c1 = S.colorPlan({ ...base, energy: 0.1 }).root.c;
+  const c2 = S.colorPlan({ ...base, energy: 0.5 }).root.c;
+  const c3 = S.colorPlan({ ...base, energy: 0.9 }).root.c;
+  assert.ok(c1 < c2 && c2 < c3, 'chroma monotone in energy');
+  const quiet = S.colorPlan({ ...base, energy: 0.4, act: 0.1 }).root.c;
+  const apex  = S.colorPlan({ ...base, energy: 0.4, act: 1.0 }).root.c;
+  assert.ok(apex > quiet, 'apex act runs hotter than overture');
+});
+
+test('minor keys sit darker and cooler than their relative major', () => {
+  const inp = { energy: 0.5, entropy: 0.3, brightness: 0.4, act: 0.5, seed: 1 };
+  const minor = S.colorPlan({ ...inp, key: '8A' });
+  const major = S.colorPlan({ ...inp, key: '8B' });
+  assert.ok(minor.minor && !major.minor);
+  assert.ok(minor.root.l < major.root.l, 'minor is darker');
+  assert.notEqual(minor.root.h, major.root.h, 'mode tilts the temperature');
+});
+
+test('oklchToRgb stays in gamut by chroma reduction, and hue-lerps take the short arc', () => {
+  for (let h = 0; h < 360; h += 30){
+    const rgb = S.oklchToRgb(0.6, 0.4, h);           // deliberately out of gamut
+    assert.ok(rgb.every(v => v >= 0 && v <= 1), 'in gamut at hue ' + h);
+  }
+  const white = S.oklchToRgb(1, 0, 0), black = S.oklchToRgb(0, 0, 0);
+  assert.ok(white.every(v => v > 0.99) && black.every(v => v < 0.01));
+  const mid = S.lerpOklch({ l: 0.5, c: 0.1, h: 350 }, { l: 0.5, c: 0.1, h: 10 }, 0.5);
+  assert.equal(Math.round(mid.h), 0);                 // through red, not the rainbow
+});
+
+// ---------------------------------------------------------------- safety (§ SAFE)
+// WCAG 2.3.1 as a tested invariant, not a review note: the governor must hold
+// under a worst-case strobe no real track would produce.
+
+test('flash governor: a 30 Hz full-field strobe emerges under 3 flashes/sec', () => {
+  const st = S.makeSafeColorState(1);
+  const dt = 1 / 60;
+  const trace = [];
+  for (let i = 0; i < 120; i++){                       // 2 s of alternate black/white
+    const target = i % 2 ? [1, 1, 1] : [0, 0, 0];
+    trace.push(S.relLuma(S.safeColorStep(st, [target], dt)[0]));
+  }
+  // count flashes in every sliding 1 s (60-frame) window
+  for (let w = 0; w + 60 <= trace.length; w += 10){
+    const flashes = S.countFlashes(trace.slice(w, w + 60));
+    assert.ok(flashes <= 3, `window at ${w}: ${flashes} flashes`);
+  }
+});
+
+test('flash governor: an eight-beat glide passes through untouched', () => {
+  const st = S.makeSafeColorState(1);
+  const dt = 1 / 60;
+  let maxErr = 0;
+  for (let i = 0; i <= 240; i++){                      // 4 s glide, dark → bright
+    const k = i / 240;
+    const target = [0.1 + k * 0.5, 0.1 + k * 0.5, 0.1 + k * 0.5];
+    const out = S.safeColorStep(st, [target], dt)[0];
+    maxErr = Math.max(maxErr, Math.abs(S.relLuma(out) - S.relLuma(target)));
+  }
+  assert.ok(maxErr < 0.01, 'designed glides never feel the governor: err ' + maxErr);
+});
+
+test('flash governor: saturated red climbs at a strictly slower luminance rate', () => {
+  const stR = S.makeSafeColorState(1), stW = S.makeSafeColorState(1);
+  const dt = 1 / 60;
+  // both states start dark, then a full-brightness target appears; compare
+  // the PER-FRAME luminance step each is granted (red's hazard, red's leash)
+  S.safeColorStep(stR, [[0, 0, 0]], dt); S.safeColorStep(stW, [[0, 0, 0]], dt);
+  const dR = S.relLuma(S.safeColorStep(stR, [[1, 0, 0]], dt)[0]);
+  const dW = S.relLuma(S.safeColorStep(stW, [[1, 1, 1]], dt)[0]);
+  assert.ok(dR > 0 && dW > 0, 'both move');
+  assert.ok(dR < dW * 0.7, `red step ${dR.toFixed(4)} vs white step ${dW.toFixed(4)}`);
+  assert.ok(Math.abs(dR - S.SAFE_TUNING.redRate * dt) < 1e-6, 'red at the red rate');
+  assert.ok(Math.abs(dW - S.SAFE_TUNING.rate * dt) < 1e-6, 'white at the full rate');
+});
+
+test('beat shaper: a 10 Hz onset train passes at most 3 full pulses/sec', () => {
+  const st = S.makeSafeBeatState();
+  const dt = 1 / 60;
+  let raw = 0, full = 0;
+  let prev = 0;
+  for (let i = 0; i < 60; i++){                        // 1 s, onset every 6 frames
+    if (i % 6 === 0) raw = 1;
+    const v = S.safeBeatStep(st, raw, dt);
+    if (v >= 0.7 && prev < 0.7) full++;                // soft pulses cap at 0.45
+    prev = v;
+    raw *= Math.exp(-dt / 0.25);                       // source decay, as analyse() does
+  }
+  assert.ok(full <= 3, `${full} full pulses in one second`);
+});
+
+test('beat shaper: musical tempi pass at full amplitude, and hits ramp, never step', () => {
+  const st = S.makeSafeBeatState();
+  const dt = 1 / 60;
+  let raw = 0, full = 0, maxJump = 0, prev = 0;
+  for (let i = 0; i < 120; i++){                       // 2 s at 120 BPM (beat every 30 frames)
+    if (i % 30 === 0) raw = 1;
+    const v = S.safeBeatStep(st, raw, dt);
+    maxJump = Math.max(maxJump, v - prev);
+    if (v >= 0.7 && prev < 0.7) full++;                // well above the 0.45 soft cap
+    prev = v;
+    raw *= Math.exp(-dt / 0.25);
+  }
+  assert.equal(full, 4, 'every beat of 120 BPM lands at full amplitude');
+  assert.ok(maxJump < 0.35, 'rise is attack-limited (max frame jump ' + maxJump.toFixed(2) + ')');
+});
+
+test('countFlashes counts pairs of opposing >=0.1 transitions', () => {
+  assert.equal(S.countFlashes([0, 1, 0, 1, 0]), 2);
+  assert.equal(S.countFlashes([0, 0.05, 0, 0.05, 0]), 0);   // under threshold
+  assert.equal(S.countFlashes([0, 1]), 0);                   // one transition is not a flash
+  assert.equal(S.countFlashes([0.2, 0.8, 0.1, 0.9, 0.05, 0.95, 0.1]), 3);
+});
+
+// ---------------------------------------------------------------- dance engine
+
+test('the pulse has impact, release, and a pull-back before the next hit', () => {
+  const o = { art: 0.5, bounce: 0.5, amp: 1 };
+  const impact = S.dancePulse(0.02, o);
+  assert.ok(impact > 0.8, 'the hit lands hard: ' + impact.toFixed(2));
+  assert.ok(S.dancePulse(0.55, o) < impact - 0.4, 'the release lets go');
+  assert.ok(S.dancePulse(0.88, o) < 0, 'anticipation dips below rest before the next hit');
+  assert.ok(S.dancePulse(0.02, { ...o, down: true }) > impact, 'downbeats hit harder');
+});
+
+test('staccato snaps, legato carries — articulation shapes the release', () => {
+  const dMax = art => {
+    let m = 0;
+    for (let i = 0; i < 200; i++){
+      const a = S.dancePulse(i / 200, { art, bounce: 0 }), b = S.dancePulse((i + 1) / 200, { art, bounce: 0 });
+      m = Math.max(m, Math.abs(b - a));
+    }
+    return m;
+  };
+  assert.ok(dMax(1) > dMax(0) * 1.3, 'staccato moves sharper than legato');
+});
+
+test('follow-through: with bounce, the body rebounds after the hit', () => {
+  let fell = false, rebounded = false, prev = S.dancePulse(0.04, { art: 0.8, bounce: 1 });
+  for (let i = 5; i < 60; i++){
+    const v = S.dancePulse(i / 100, { art: 0.8, bounce: 1 });
+    if (v < prev - 1e-4) fell = true;
+    else if (fell && v > prev + 1e-4) rebounded = true;
+    prev = v;
+  }
+  assert.ok(fell && rebounded, 'a fall then a rebound inside the beat');
+});
+
+test('the sway leans with the bar and closes its loop', () => {
+  const a = S.danceSway(0, 0.3, { energy: 0.5 });
+  const b = S.danceSway(1, 0.3, { energy: 0.5 });
+  assert.ok(Math.abs(a.sway - b.sway) < 1e-9, 'bar sway is continuous across the barline');
+  assert.ok(Math.abs(S.danceSway(0.25, 0, { energy: 1 }).sway) > Math.abs(S.danceSway(0.25, 0, { energy: 0 }).sway) * 0.9,
+    'energy widens the lean');
+  const lift0 = S.danceSway(0, 0, {}).lift, liftMid = S.danceSway(0, 0.5, {}).lift;
+  assert.ok(liftMid > lift0, 'the phrase rises to its middle');
+});
+
+test('musical time surges but never runs backwards', () => {
+  for (const period of [0.35, 0.48, 0.8]){
+    let prev = -Infinity;
+    for (let i = 0; i <= 480; i++){
+      const t = i * (period / 240);                       // real time across 2 beats
+      const phi = (t / period) % 1;
+      const wt = t + S.danceTimeWarp(phi, period, 1);
+      assert.ok(wt > prev, 'monotone at period ' + period);
+      prev = wt;
+    }
+  }
+  assert.ok(Math.abs(S.danceTimeWarp(0, 0.5, 1) - S.danceTimeWarp(1, 0.5, 1)) < 1e-9, 'continuous at the wrap');
+  for (let i = 0; i < 20; i++)
+    assert.ok(Math.abs(S.danceTimeWarp(i / 20, 0.5, 1)) <= 0.045 + 1e-9, 'bounded to 45 ms');
+});
+
+console.log(`\n${passed} passed, ${failed} failed`);
+
+
+process.exit(failed ? 1 : 0);
