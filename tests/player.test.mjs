@@ -700,6 +700,17 @@ test('mix now: the seam starts on the NEXT BAR LINE of the playing grid', () => 
   assert.equal(plan.beats, 16, 'compatible keys earn sixteen beats');
 });
 
+test('mix now: NaN cannot leak — grid-less blocks refuse; intros clamp to the anchor', () => {
+  const A = { bpm: 120, grid: 0.5, key: '8B', mixable: 0.9, in: { start: 0.5, beats: 32 } };
+  const noGridB = { bpm: 121, key: '8B', mixable: 0.9 };          // no grid, no in
+  assert.equal(S.planMixNow(A, noGridB, 30, { durA: 240 }).why, 'no beat grid');
+  // deep intro: pos before the anchor must never schedule before it
+  const B = { bpm: 121, grid: 1, key: '8B', mixable: 0.9, in: { start: 1, beats: 32 } };
+  const early = S.planMixNow(Object.assign({}, A, { grid: 8.0 }), B, 0.2, { durA: 240 });
+  assert.equal(early.type, 'beatmix');
+  assert.ok(early.startA >= 8.0 - 1e-9, 'seam never before the anchor: ' + early.startA);
+});
+
 test('mix now: keys arguing shortens the seam; the gates still refuse', () => {
   const A = { bpm: 120, grid: 0.5, key: '8B', mixable: 0.9, in: { start: 0.5, beats: 32 } };
   const mk = (key, mixable, bpm) => ({ bpm: bpm || 121, grid: 1, key, mixable: mixable == null ? 0.9 : mixable, in: { start: 1, beats: 32 } });

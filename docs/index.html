@@ -3794,7 +3794,7 @@ function clockRead(c, wall){ return c.ok ? c.a + c.b * wall : null; }
 function planMixNow(A, B, pos, opts){
   const o = opts || {};
   const quick = { type: 'fade', seconds: o.quickFade == null ? 0.8 : o.quickFade };
-  if (!A || !B || !(A.bpm > 0) || !(B.bpm > 0) || A.grid == null)
+  if (!A || !B || !(A.bpm > 0) || !(B.bpm > 0) || A.grid == null || B.grid == null)
     return Object.assign(quick, { why: 'no beat grid' });
   const mixMin = o.mixableMin == null ? 0.5 : o.mixableMin;
   if ((A.mixable || 0) < mixMin || (B.mixable || 0) < mixMin)
@@ -3808,7 +3808,7 @@ function planMixNow(A, B, pos, opts){
   let beats = kc <= 1 ? 16 : 8;
   if (B.in && B.in.beats) beats = Math.max(4, Math.min(beats, B.in.beats));
   const lead = o.lead == null ? 0.18 : o.lead;       // scheduling headroom
-  const nBar = Math.ceil((pos + lead - A.grid) / barA);
+  const nBar = Math.max(0, Math.ceil((pos + lead - A.grid) / barA));
   const startA = A.grid + nBar * barA;
   const durA = o.durA == null ? Infinity : o.durA;
   if (startA + 4 * spbA > durA - 0.3)
@@ -8249,7 +8249,7 @@ const CLOCK = {
     const d = activeDeck();
     const tr = player.tracks[player.cur];
     const mix = (player.playing && !AE.mic.on && tr) ? mixOf(tr) : null;
-    if (!(mix && mix.bpm > 0 && d && isFinite(d.a.currentTime))){
+    if (!(mix && mix.bpm > 0 && mix.grid != null && d && isFinite(d.a.currentTime))){
       this.haveGrid = false; this.beats = -1; this.idx = -1;
       clockReset(this.mclk);
       return;
