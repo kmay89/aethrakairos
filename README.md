@@ -276,6 +276,34 @@ entropy and re-deals itself periodically. This is the contract a
 Sphere-class surface wants: features in, palette out, deterministic,
 testable, 60 fps cheap.
 
+## The console — a control surface that glows in the key
+
+The chrome is not a fixed theme; it is a pro-audio instrument that **lights up
+in the music's key**. The colour engine's live palette (derived from the
+track's detected key) drives a `--accent` variable each frame, so the play
+button, the active tabs, the volume, the now-playing row, the focus glow — the
+whole console — breathe in the key colour. Möbius Walking (7B) makes a teal
+instrument; a track in another key makes a different-coloured one. The UI and
+the art are one organism reading the same music.
+
+The seek is a **decoded whole-track waveform** — the DJ-deck overview. On load,
+the track is decoded off the playback clock into a peak envelope; the played
+portion lights in the key, the rest sits dim, a bright playhead rides the
+position, and you scrub the song by grabbing it. When there is no decodable
+buffer (the mic, an exotic codec) it falls back to a **live frequency-coloured
+scope** — lows warm, mids in the key, highs bright — so the seek is always alive.
+The same decoded envelope doubles as a reactivity fallback: on a platform with
+no live analyser and no shipped score, `driveFromEnvelope` feeds the field from
+the track's own low/mid/high bands, so local files dance too.
+
+The chrome is built in the platform's own visual language: **native system type**
+(SF on Apple, Segoe on Windows, Roboto on Android — the technical π/e/BPM readouts
+stay monospaced), **see-through frosted panels** with heavy blur and saturation
+so the field glows through them, an inner top sheen for depth, and neon-glow
+accents that light active tabs, icons and the play button in the key. On phones
+the top bar declutters into a ••• overflow sheet, the scene dots become a
+scroll strip, and the transport grows to full thumb size.
+
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
@@ -444,16 +472,19 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 ## Tests
 
 ```bash
-python3 tests/test_pipeline.py      # 29 tests: build, dedupe, gate, doctor, features, mix,
-                                    #   + the shipped catalog's hashes match the audio on disk
-node tests/player.test.mjs          # 38 tests: solver, quantum, history, restore, planner,
-                                    #   colour, dance (extracted from the shipped HTML, not a copy)
+python3 tests/test_pipeline.py      # 30 tests: build, dedupe, gate, doctor, features, mix,
+                                    #   the score's band envelopes, + the shipped catalog's
+                                    #   hashes match the audio on disk
+node tests/player.test.mjs          # 53 tests: solver, quantum, history, restore, planner,
+                                    #   colour, safety governor, clock, dance (extracted from
+                                    #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
-node tools/acceptance.mjs /tmp/mb8  # 30 browser checks: boot < 2 s warm, deal < 100 ms,
+node tools/acceptance.mjs /tmp/mb8  # 33 browser checks: boot < 2 s warm, deal < 100 ms,
                                     #   restore-paused, v1 rejection, SW audio bypass, crate,
-                                    #   13-scene sweep, acts, touch, colour, dance, real demo
+                                    #   15-scene sweep, acts, touch, colour, dance, real demo,
+                                    #   key-reactive accent, decoded waveform seek
 python3 tools/make_mix_fixture.py /tmp/mb8m
-node tools/mix_acceptance.mjs /tmp/mb8m      # 22 checks: grids, keys, live beatmix,
+node tools/mix_acceptance.mjs /tmp/mb8m      # 26 checks: grids, keys, live beatmix, MIX NOW,
                                     #   phase lock < 40 ms, gates, crate, mixfix
 node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update button →
                                     #   one tap → new build live, state intact
@@ -461,4 +492,4 @@ node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update butt
 
 Physical-device acceptance (iPhone lock screen ≥ 10 min, Bluetooth
 next/prev, CarPlay Now Playing, AirPlay routing, interruption recovery) needs
-hardware — see HANDOFF.md for the checklist and current status.
+hardware — see DESIGN.md for the current status.

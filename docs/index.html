@@ -29,8 +29,9 @@
    ============================================================ */
 :root{
   --void:#05060e;
-  --glass:rgba(11,14,26,.68);
-  --glass-hard:rgba(9,11,22,.86);
+  --glass:rgba(16,19,32,.52);
+  --glass-hard:rgba(10,13,24,.72);
+  --sheen:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 42%);
   --ink:#e9edf6;
   --dim:#9aa5bc;
   --faint:#5c657c;
@@ -42,9 +43,21 @@
   --pi-dim:rgba(255,180,84,.14);
   --e-dim:rgba(110,231,255,.14);
   --axis:linear-gradient(90deg,var(--pi),var(--e));
+  /* the LIVE accent — the colour engine overwrites these every frame with the
+     playing track's key colour, so the whole instrument glows in its key.
+     Defaults to ice so the console reads intentional before audio starts. */
+  --accent:#6ee7ff;
+  --accent-2:#c9f5ff;
+  --accent-ink:#04121a;
+  --accent-dim:rgba(110,231,255,.14);
+  --accent-glow:rgba(110,231,255,.5);
+  --accent-line:rgba(110,231,255,.34);
   --r:14px;
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --serif:'Spectral',Georgia,'Times New Roman',serif;
+  /* the interface speaks the platform's own voice — SF on Apple, Segoe on
+     Windows, Roboto on Android — so the chrome feels native everywhere */
+  --ui:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
   --shadow:0 12px 40px rgba(0,0,0,.5);
   --tap:34px;
 }
@@ -53,15 +66,16 @@ html,body{height:100%}
 body{
   background:var(--void);
   color:var(--ink);
-  font-family:var(--mono);
+  font-family:var(--ui);
   font-size:13px;
+  letter-spacing:-.005em;
   overflow:hidden;
   -webkit-font-smoothing:antialiased;
   overscroll-behavior:none;
 }
 button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
-button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px solid var(--e);outline-offset:2px;border-radius:6px}
-::selection{background:var(--e-dim)}
+button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+::selection{background:var(--accent-dim)}
 
 #glcanvas{position:fixed;inset:0;display:block;touch-action:none}
 body.zen #glcanvas{cursor:none}
@@ -88,34 +102,40 @@ body.zen .chrome{opacity:0;pointer-events:none}
 .wordmark .loop8{
   display:inline-block;font-style:normal;font-weight:700;font-size:.72em;
   transform:translateY(-.42em);transform-origin:50% 58%;
-  transition:transform .7s cubic-bezier(.23,1,.32,1);
-  color:var(--pi);
+  color:var(--accent);
+  transition:transform .7s cubic-bezier(.23,1,.32,1),color .8s ease;
 }
 .brand:hover .loop8{transform:translateY(-.42em) rotate(90deg);color:var(--e)}
 .brand-sub{
   font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:var(--dim);
   padding-left:2px;
 }
-.topactions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.topactions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;position:relative}
+/* desktop: the overflow is invisible to layout — every control flows inline */
+.overflow{display:contents}
+#btnMore{display:none}
+.mob-only{display:none}
 
 /* ============ buttons ============ */
 .btn{
   min-height:var(--tap);
   display:inline-flex;align-items:center;gap:7px;
-  padding:7px 13px;border-radius:10px;
+  padding:7px 14px;border-radius:12px;
   border:1px solid var(--line);
   background:var(--glass);
-  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-  font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
+  backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+  font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
   color:var(--dim);
-  transition:color .2s,border-color .2s,background .2s,transform .15s;
+  transition:color .2s,border-color .2s,background .2s,box-shadow .2s,transform .15s;
 }
-.btn:hover{color:var(--ink);border-color:rgba(180,200,240,.34)}
+.btn:hover{color:var(--ink);border-color:var(--accent-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 16px -6px var(--accent-glow)}
 .btn:active{transform:translateY(1px)}
 .btn.on{color:var(--ink);border-color:transparent;
   background:linear-gradient(var(--glass-hard),var(--glass-hard)) padding-box,
-             var(--axis) border-box;
+             linear-gradient(120deg,var(--accent),var(--accent-2)) border-box;
   border:1px solid transparent;
+  box-shadow:0 0 18px -6px var(--accent-glow);
 }
 .btn .k{font-size:8px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 4px}
 .btn.icon{padding:7px 10px}
@@ -166,12 +186,25 @@ body.zen .chrome{opacity:0;pointer-events:none}
   bottom:calc(14px + env(safe-area-inset-bottom));
   width:min(1060px,calc(100vw - 24px));
   z-index:50;
-  background:var(--glass);
-  border:1px solid var(--line);border-radius:18px;
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  box-shadow:var(--shadow);
-  padding:12px 16px 9px;
+  /* layered glass: a key-tinted top light, a hairline accent edge, a deep
+     drop shadow with an accent bloom — the panel feels lit from within */
+  background:
+    linear-gradient(180deg,color-mix(in oklab,var(--accent) 8%,transparent),transparent 40%),
+    var(--glass-hard);
+  border:1px solid var(--line);border-radius:20px;
+  backdrop-filter:blur(26px) saturate(1.3);-webkit-backdrop-filter:blur(26px) saturate(1.3);
+  box-shadow:
+    0 18px 60px rgba(0,0,0,.62),
+    0 0 40px -12px var(--accent-glow),
+    inset 0 1px 0 rgba(255,255,255,.06);
+  padding:11px 16px 9px;
   display:flex;flex-direction:column;gap:8px;
+  transition:box-shadow .8s ease;
+}
+#transport::before{
+  content:"";position:absolute;left:16px;right:16px;top:0;height:1px;border-radius:1px;
+  background:linear-gradient(90deg,transparent,var(--accent-line),transparent);
+  opacity:.7;pointer-events:none;
 }
 .t-row{display:flex;align-items:center;gap:14px}
 .t-left{display:flex;align-items:center;gap:4px;flex:none}
@@ -180,18 +213,20 @@ body.zen .chrome{opacity:0;pointer-events:none}
   display:inline-flex;align-items:center;justify-content:center;
   color:var(--dim);transition:color .15s,background .15s,transform .1s;
 }
-.tbtn:hover{color:var(--ink);background:rgba(255,255,255,.05)}
+.tbtn:hover{color:var(--ink);background:rgba(255,255,255,.06)}
+.tbtn:hover svg{filter:drop-shadow(0 0 6px var(--accent-glow))}
 .tbtn:active{transform:scale(.94)}
 .tbtn svg{width:15px;height:15px}
 .tbtn.play{
-  width:46px;height:46px;color:#0a0c16;
-  background:var(--axis);
-  box-shadow:0 0 22px rgba(255,180,84,.28),0 0 22px rgba(110,231,255,.24);
+  width:48px;height:48px;color:var(--accent-ink);
+  background:radial-gradient(120% 120% at 30% 25%,var(--accent-2),var(--accent) 70%);
+  box-shadow:0 0 26px -2px var(--accent-glow),0 6px 18px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.4);
+  transition:box-shadow .3s,filter .15s,transform .1s;
 }
-.tbtn.play:hover{filter:brightness(1.1)}
+.tbtn.play:hover{filter:brightness(1.08)}
 .tbtn.play svg{width:17px;height:17px}
 .tbtn.mode{width:32px;height:32px;position:relative}
-.tbtn.mode.on{color:var(--e)}
+.tbtn.mode.on{color:var(--accent);filter:drop-shadow(0 0 6px var(--accent-glow))}
 .tbtn.mode .sup{position:absolute;top:2px;right:3px;font-size:8px;font-weight:600}
 
 .t-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
@@ -202,24 +237,33 @@ body.zen .chrome{opacity:0;pointer-events:none}
 }
 #trackTitle.idle{color:var(--faint)}
 .badge{
-  flex:none;font-size:9px;letter-spacing:.12em;color:var(--dim);
+  flex:none;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--dim);
   border:1px solid var(--line);border-radius:5px;padding:2px 6px;
 }
 .badge.hide{display:none}
 #bpmBadge b{color:var(--beat);font-weight:600}
-.seekwrap{display:flex;align-items:center;gap:10px}
-.time{font-size:10px;color:var(--dim);min-width:38px;letter-spacing:.05em}
+.seekwrap{display:flex;align-items:center;gap:12px}
+.time{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:40px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
 .time.right{text-align:right}
 #seek{
-  position:relative;flex:1;height:16px;cursor:pointer;
-  display:flex;align-items:center;border-radius:8px;
+  position:relative;flex:1;height:40px;cursor:pointer;
+  display:flex;align-items:flex-end;border-radius:8px;
 }
-#seek .rail{position:absolute;left:0;right:0;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
-#seek .buf{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.10)}
-#seek .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--axis)}
+/* the live frequency-coloured scope fills the top band */
+#seek .wave{position:absolute;left:0;right:0;top:0;height:32px;width:100%;display:block;
+  border-radius:5px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);}
+/* the precise position rail sits under it */
+#seek .rail{position:absolute;left:0;right:0;bottom:2px;height:4px;border-radius:2px;background:rgba(255,255,255,.09);overflow:hidden}
+#seek .buf{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.12)}
+#seek .fill{position:absolute;left:0;top:0;bottom:0;width:0;
+  background:linear-gradient(90deg,color-mix(in oklab,var(--accent) 60%,transparent),var(--accent));
+  box-shadow:0 0 10px var(--accent-glow)}
 #seek .knob{
-  position:absolute;width:11px;height:11px;border-radius:50%;
-  background:#fff;box-shadow:0 0 10px rgba(160,220,255,.8);
+  position:absolute;bottom:-2px;width:12px;height:12px;border-radius:50%;
+  background:var(--accent-2);
+  box-shadow:0 0 12px var(--accent-glow),0 0 0 3px color-mix(in oklab,var(--accent) 30%,transparent);
   transform:translateX(-50%) scale(0);transition:transform .15s;left:0;
 }
 #seek:hover .knob,#seek.drag .knob{transform:translateX(-50%) scale(1)}
@@ -238,23 +282,23 @@ body.zen .chrome{opacity:0;pointer-events:none}
 #beatDot.hit{background:var(--beat);transform:scale(1.7);box-shadow:0 0 14px var(--beat)}
 .volwrap{display:flex;align-items:center;gap:8px;width:110px}
 #vol{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;
-  background:linear-gradient(90deg,var(--e) var(--vfill,80%),rgba(255,255,255,.1) var(--vfill,80%));
+  background:linear-gradient(90deg,var(--accent) var(--vfill,80%),rgba(255,255,255,.1) var(--vfill,80%));
   cursor:pointer}
-#vol::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#fff;box-shadow:0 0 8px rgba(110,231,255,.7)}
+#vol::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 8px var(--accent-glow)}
 #vol::-moz-range-thumb{width:11px;height:11px;border:none;border-radius:50%;background:#fff}
 
 /* -------- HUD readout: the instrument strip -------- */
 .hud{
   display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   border-top:1px solid var(--line-soft);padding-top:7px;
-  font-size:9.5px;letter-spacing:.1em;color:var(--faint);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--faint);
   user-select:none;
 }
 .hud .chip{
   border:1px solid var(--line);border-radius:6px;padding:2.5px 8px;
   letter-spacing:.18em;cursor:pointer;color:var(--dim);transition:all .2s;min-height:0;
 }
-.hud .chip.on{color:#0a0c16;background:var(--axis);border-color:transparent;font-weight:600}
+.hud .chip.on{color:var(--accent-ink);background:linear-gradient(120deg,var(--accent-2),var(--accent));border-color:transparent;font-weight:600;box-shadow:0 0 14px -3px var(--accent-glow)}
 .scenedots{display:flex;gap:5px;align-items:center}
 .sdot{
   width:22px;height:18px;border-radius:5px;border:1px solid var(--line);
@@ -347,9 +391,9 @@ body.zen .chrome{opacity:0;pointer-events:none}
 #playlist{
   position:fixed;top:0;right:0;bottom:0;z-index:60;
   width:min(360px,92vw);
-  background:var(--glass-hard);
+  background:var(--sheen),var(--glass-hard);
   border-left:1px solid var(--line);
-  backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  backdrop-filter:blur(34px) saturate(1.5);-webkit-backdrop-filter:blur(34px) saturate(1.5);
   transform:translateX(105%);transition:transform .45s cubic-bezier(.23,1,.32,1);
   display:flex;flex-direction:column;
   padding-top:env(safe-area-inset-top);
@@ -391,6 +435,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
 .eq i{width:2.5px;background:var(--axis);border-radius:1px;animation:eq .9s ease-in-out infinite;height:10px}
 .eq i:nth-child(2){animation-delay:.25s}.eq i:nth-child(3){animation-delay:.5s}
 @keyframes eq{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+@keyframes sheetIn{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:none}}
 .trk.now.paused .eq i{animation-play-state:paused;transform:scaleY(.35)}
 .trk .meta{flex:1;min-width:0}
 .trk .nm{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
@@ -493,9 +538,9 @@ body.zen .chrome{opacity:0;pointer-events:none}
 #library{
   position:fixed;top:0;left:0;bottom:0;z-index:60;
   width:min(400px,94vw);
-  background:var(--glass-hard);
+  background:var(--sheen),var(--glass-hard);
   border-right:1px solid var(--line);
-  backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  backdrop-filter:blur(34px) saturate(1.5);-webkit-backdrop-filter:blur(34px) saturate(1.5);
   transform:translateX(-105%);transition:transform .45s cubic-bezier(.23,1,.32,1);
   display:flex;flex-direction:column;
   padding-top:env(safe-area-inset-top);
@@ -541,7 +586,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
   content-visibility:auto;contain-intrinsic-size:auto 30px;
 }
 .lib-trk:hover{background:rgba(255,255,255,.04)}
-.lib-trk.now{background:linear-gradient(rgba(14,17,32,.9),rgba(14,17,32,.9)) padding-box,var(--axis) border-box;border:1px solid transparent}
+.lib-trk.now{background:linear-gradient(rgba(14,17,32,.92),rgba(14,17,32,.92)) padding-box,linear-gradient(120deg,var(--accent),var(--accent-2)) border-box;border:1px solid transparent;box-shadow:0 0 20px -8px var(--accent-glow)}
 .lib-trk .n{width:18px;flex:none;font-size:9px;color:var(--faint);text-align:right}
 .lib-trk .nm{flex:1;min-width:0;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lib-trk .tm{flex:none;font-size:9px;color:var(--faint)}
@@ -564,7 +609,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
 /* ============ The Crate (C) — the label on one table ============ */
 #crate{
   position:fixed;inset:0;z-index:94;display:none;flex-direction:column;
-  background:rgba(4,5,12,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  background:var(--sheen),rgba(6,8,18,.78);backdrop-filter:blur(30px) saturate(1.4);-webkit-backdrop-filter:blur(30px) saturate(1.4);
 }
 #crate.open{display:flex}
 .crate-head{
@@ -746,6 +791,41 @@ body.zen .chrome{opacity:0;pointer-events:none}
   .btn{padding:7px 10px}
   #toasts{bottom:calc(170px + env(safe-area-inset-bottom))}
 }
+/* --- phones: the top bar folds into a single More menu, the transport
+       breathes, the scene dots scroll, the telemetry steps aside --- */
+@media (max-width:600px){
+  .topbar{padding:calc(10px + env(safe-area-inset-top)) 12px 0}
+  .brand-sub{display:none}
+  .wordmark{font-size:19px}
+  .topactions{gap:7px;flex-wrap:nowrap}
+  #btnMore{display:inline-flex}
+  .overflow{
+    display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:70;
+    flex-direction:column;gap:2px;min-width:212px;padding:8px;
+    background:var(--sheen),var(--glass-hard);
+    border:1px solid var(--line);border-radius:16px;
+    backdrop-filter:blur(34px) saturate(1.5);-webkit-backdrop-filter:blur(34px) saturate(1.5);
+    box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 40px -12px var(--accent-glow);
+  }
+  .overflow.open{display:flex;animation:sheetIn .22s cubic-bezier(.2,.8,.2,1)}
+  .overflow .btn{width:100%;justify-content:flex-start;border:none;background:none;
+    box-shadow:none;border-radius:10px;padding:11px 12px;min-height:44px}
+  .overflow .btn:hover,.overflow .btn:active{background:rgba(255,255,255,.06);box-shadow:none}
+  .overflow .btn .lbl{display:inline;letter-spacing:.02em;text-transform:none;font-size:13px;font-weight:500}
+  .overflow .btn .k{display:none}
+  .mob-only{display:inline}
+  #transport{padding:12px 14px calc(10px + env(safe-area-inset-bottom))}
+  .tbtn{width:44px;height:44px}
+  .tbtn.play{width:56px;height:56px}
+  .tbtn.play svg{width:20px;height:20px}
+  .scenedots{flex-wrap:nowrap;overflow-x:auto;max-width:100%;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+  .scenedots::-webkit-scrollbar{display:none}
+  .sdot{flex:none}
+  .hud{gap:8px;font-size:9px}
+  .hud .ro:not(#mixNext){display:none}
+  .hud .sep{display:none}
+}
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms!important;animation-duration:.01ms!important}
 }
@@ -761,50 +841,59 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <div class="brand-sub">powered by Möbius⁸</div>
   </div>
   <nav class="topactions" aria-label="Main controls">
-    <button class="btn" id="btnAdd" aria-label="Add music files">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-      <span class="lbl">Add music</span>
-    </button>
-    <button class="btn" id="btnCatalog" aria-label="Load a catalog manifest">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/><path d="M3.6 9h16.8M3.6 15h16.8"/><path d="M12 3a14 14 0 0 0 0 18a14 14 0 0 0 0-18z"/></svg>
-      <span class="lbl">Catalog</span>
-    </button>
+    <!-- primary on mobile: browse + queue stay out; the rest fold into More -->
     <button class="btn" id="btnLibrary" aria-label="Toggle library" aria-expanded="false" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l4 .9-3.4 15.6-4-.9z"/></svg>
       <span class="lbl">Library <span class="k">B</span></span>
     </button>
-    <button class="btn" id="btnCrate" aria-label="Toggle the crate — every track, mix-scored" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 10h16M4 15h16M4 20h10"/></svg>
-      <span class="lbl">Crate <span class="k">C</span></span>
+    <button class="btn" id="btnPlaylist" aria-label="Toggle playlist" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 12h12M4 18h7"/><circle cx="18.5" cy="16.5" r="2.5"/><path d="M21 16.5V9l-4 1"/></svg>
+      <span class="lbl">Playlist</span>
     </button>
-    <button class="btn" id="btnConsole" aria-label="Toggle journey console" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3.4"/><path d="M8 5.6V3.4M8 9l1.8-1.8"/><circle cx="16" cy="15" r="3.4"/><path d="M16 18.4v2.2M16 15l-1.8 1.8"/></svg>
-      <span class="lbl">Console <span class="k">J</span></span>
-    </button>
-    <button class="btn" id="btnInstall" aria-label="Install Aethra Kairos on this device" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11M8 10l4 4 4-4M5 19h14"/></svg>
-      <span class="lbl">Install</span>
-    </button>
+    <!-- Update rides outside the overflow: a ready update should never hide -->
     <button class="btn on" id="btnUpdate" hidden
       aria-label="Apply the ready update"
       title="A new version is ready. Applying it saves your place first — everything restores, music resumes paused where it was.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3v4h-4"/></svg>
       <span class="lbl">Update</span>
     </button>
-    <button class="btn" id="btnMic" aria-label="Toggle live microphone input" aria-pressed="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-      <span class="lbl">Mic</span>
+    <button class="btn icon" id="btnMore" aria-label="More controls" aria-expanded="false" hidden>
+      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
     </button>
-    <button class="btn" id="btnPlaylist" aria-label="Toggle playlist" aria-expanded="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 12h12M4 18h7"/><circle cx="18.5" cy="16.5" r="2.5"/><path d="M21 16.5V9l-4 1"/></svg>
-      <span class="lbl">Playlist</span>
-    </button>
-    <button class="btn icon" id="btnHelp" aria-label="Help and keyboard shortcuts">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9.3 9a2.8 2.8 0 1 1 3.9 2.6c-.9.4-1.2 1-1.2 1.9"/><circle cx="12" cy="17.2" r=".4" fill="currentColor"/><circle cx="12" cy="12" r="9.2"/></svg>
-    </button>
-    <button class="btn icon" id="btnFull" aria-label="Toggle fullscreen">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
-    </button>
+    <div class="overflow" id="overflow" role="menu">
+      <button class="btn" id="btnAdd" role="menuitem" aria-label="Add music files">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="lbl">Add music</span>
+      </button>
+      <button class="btn" id="btnCatalog" role="menuitem" aria-label="Load a catalog manifest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/><path d="M3.6 9h16.8M3.6 15h16.8"/><path d="M12 3a14 14 0 0 0 0 18a14 14 0 0 0 0-18z"/></svg>
+        <span class="lbl">Catalog</span>
+      </button>
+      <button class="btn" id="btnCrate" role="menuitem" aria-label="Toggle the crate — every track, mix-scored" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 10h16M4 15h16M4 20h10"/></svg>
+        <span class="lbl">Crate <span class="k">C</span></span>
+      </button>
+      <button class="btn" id="btnConsole" role="menuitem" aria-label="Toggle journey console" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3.4"/><path d="M8 5.6V3.4M8 9l1.8-1.8"/><circle cx="16" cy="15" r="3.4"/><path d="M16 18.4v2.2M16 15l-1.8 1.8"/></svg>
+        <span class="lbl">Console <span class="k">J</span></span>
+      </button>
+      <button class="btn" id="btnMic" role="menuitem" aria-label="Toggle live microphone input" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        <span class="lbl">Mic</span>
+      </button>
+      <button class="btn" id="btnInstall" role="menuitem" aria-label="Install Aethra Kairos on this device" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11M8 10l4 4 4-4M5 19h14"/></svg>
+        <span class="lbl">Install</span>
+      </button>
+      <button class="btn icon" id="btnHelp" role="menuitem" aria-label="Help and keyboard shortcuts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9.3 9a2.8 2.8 0 1 1 3.9 2.6c-.9.4-1.2 1-1.2 1.9"/><circle cx="12" cy="17.2" r=".4" fill="currentColor"/><circle cx="12" cy="12" r="9.2"/></svg>
+        <span class="lbl mob-only">Help</span>
+      </button>
+      <button class="btn icon" id="btnFull" role="menuitem" aria-label="Toggle fullscreen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <span class="lbl mob-only">Fullscreen</span>
+      </button>
+    </div>
   </nav>
 </header>
 
@@ -1022,6 +1111,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
       <div class="seekwrap">
         <span class="time" id="tCur">0:00</span>
         <div id="seek" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+          <canvas class="wave" id="waveCv" aria-hidden="true"></canvas>
           <div class="rail"><div class="buf"></div><div class="fill"></div></div>
           <div class="knob"></div>
           <div id="seekTip">0:00</div>
@@ -1319,6 +1409,7 @@ const el = {
   fileInput: $('fileInput'),
   btnAdd: $('btnAdd'), btnChoose: $('btnChoose'), btnDemo: $('btnDemo'), btnCatalog: $('btnCatalog'),
   btnMic: $('btnMic'), btnPlaylist: $('btnPlaylist'), btnHelp: $('btnHelp'), btnFull: $('btnFull'),
+  btnMore: $('btnMore'), overflow: $('overflow'),
   playlist: $('playlist'), plList: $('plList'), plCount: $('plCount'), plTitle: $('plTitle'),
   plClose: $('plClose'), btnClear: $('btnClear'),
   nowArt: $('nowArt'), nowMeta: $('nowMeta'), sortLabel: null,
@@ -1328,7 +1419,7 @@ const el = {
   tCur: $('tCur'), tDur: $('tDur'),
   seek: $('seek'), seekFill: document.querySelector('#seek .fill'),
   seekBuf: document.querySelector('#seek .buf'), seekKnob: document.querySelector('#seek .knob'),
-  seekTip: $('seekTip'),
+  seekTip: $('seekTip'), waveCv: $('waveCv'),
   beatDot: $('beatDot'), btnShuffle: $('btnShuffle'), btnRepeat: $('btnRepeat'), rep1: $('rep1'),
   vol: $('vol'),
   chipAuto: $('chipAuto'), sceneDots: $('sceneDots'), sceneName: $('sceneName'),
@@ -1585,7 +1676,13 @@ function analyse(dt, now){
     const sc = (player.playing && tr && tr.env && d && isFinite(d.a.currentTime))
       ? envSample(tr.env, d.a.currentTime + 0.08) : null;
     AE.score = sc;
-    if (!sc){ f.beat *= Math.exp(-dt / 0.14); return; }
+    if (!sc){
+      // no shipped score for this track (local file, older catalog): fall back
+      // to decoding the track's own low/mid/high envelope in the browser
+      if (!AE.mic.on && typeof driveFromEnvelope === 'function'
+          && driveFromEnvelope(dt, now)) return;
+      f.beat *= Math.exp(-dt / 0.14); return;
+    }
     f.bass   = smooth(f.bass,   sc.bass,   dt, 0.06);
     f.mid    = smooth(f.mid,    sc.mid,    dt, 0.06);
     f.treble = smooth(f.treble, sc.treble, dt, 0.08);
@@ -3773,12 +3870,21 @@ function safeBeatStep(state, raw, dt, tuning){
     // only pulses that arrive faster than the gap get the soft cap
     state.cap = state.since >= T.pulseGap ? 1.5 : T.softAmp;
     if (state.cap > 1) state.since = 0;
+    // latch the hit's full height: the source pulse starts decaying while
+    // the attack ramp climbs, and at high frame rates (120 Hz displays,
+    // unthrottled harnesses) chasing the DECAYED source softens every
+    // downbeat to ~1.0 no matter how hot it was choreographed. Rise to the
+    // height the hit HAD at its edge — same rate, same cap, same count.
+    state.goal = Math.min(raw, state.cap);
   }
   state.prevRaw = raw;
   const target = Math.min(raw, state.cap);
-  if (target > state.v){
-    state.v = Math.min(target, state.v + dt / T.pulseAttack);
+  const goal = Math.max(target, Math.min(state.goal || 0, state.cap));
+  if (goal > state.v){
+    state.v = Math.min(goal, state.v + dt / T.pulseAttack);
+    if (state.v >= (state.goal || 0)) state.goal = 0;  // reached: follow the source again
   } else {
+    state.goal = 0;
     state.v = target;                        // decay follows the source
   }
   return state.v;
@@ -5653,7 +5759,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '44068c32f0';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '8f0b018ac7';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -5716,6 +5822,199 @@ window.addEventListener('online', () => toast('Back online'));
 /* ================================================================
    §7 · TRANSPORT UI — seek, volume, modes, chrome behaviour
    ================================================================ */
+/* THE WAVEFORM — a live, frequency-coloured scope of the signal, the way a
+   DJ deck shows it: newest at the right, low frequencies warm, mids in the
+   track's key, highs bright. It is the instrument's pulse made visible; the
+   thin rail beneath it carries the exact position. */
+const WAVE = {
+  cv: null, ctx: null, hist: [], cap: 220, accent: [110, 231, 255],
+  push(f){
+    const lvl = Math.min(1, (f.bass * 1.1 + f.mid + f.treble * 0.9) / 1.7 + f.beat * 0.18);
+    this.hist.push({ b: f.bass, m: f.mid, t: f.treble, l: lvl });
+    while (this.hist.length > this.cap) this.hist.shift();
+  },
+  draw(){
+    const cv = this.cv || (this.cv = el.waveCv);
+    if (!cv) return;
+    const ctx = this.ctx || (this.ctx = cv.getContext('2d'));
+    if (!ctx) return;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    // the whole-track OVERVIEW when we have decoded peaks for the current
+    // track (the pro-deck look — scrub the song, the played part lit in its
+    // key); the live frequency SCOPE otherwise (mic, or before peaks land).
+    const tr = player.tracks[player.cur], d = activeDeck();
+    if (tr && tr.url && !AE.mic.on && tr.url !== this._peekUrl
+        && !tr._peaks && !tr._peaksPending && !tr._peaksErr){
+      this._peekUrl = tr.url; computePeaks(tr);
+    }
+    if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d);
+    else this._scope(ctx, w, h);
+  },
+  _overview(ctx, w, h, pk, bands, d){
+    const n = pk.length, mid = h * 0.5;
+    const frac = (d && isFinite(d.a.duration) && d.a.duration > 0)
+      ? clamp01(d.a.currentTime / d.a.duration) : 0;
+    // the true DJ-deck read: every bar coloured by its FREQUENCY content —
+    // warm lows, the track's key on the mids, bright blue on the highs — so
+    // you see the song's shape (kick vs hats vs air), lit ahead of the
+    // playhead, dimmed behind. Serato's signature, keyed to the room.
+    const warm = [255, 120, 58], acc = this.accent, bright = [140, 214, 255];
+    const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
+    const cw = w / cols, bw = Math.max(1, cw * 0.72);
+    for (let c = 0; c < cols; c++){
+      const s = Math.floor(c * n / cols), e = Math.max(s + 1, Math.floor((c + 1) * n / cols));
+      let mx = 0, sl = 0, sm = 0, sh = 0;
+      for (let i = s; i < e; i++){
+        if (pk[i] > mx) mx = pk[i];
+        sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
+      }
+      const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
+      const played = (c + 0.5) / cols <= frac, dim = played ? 1 : 0.4;
+      const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
+      const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
+      const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
+      const bh = Math.max(0.7, Math.pow(mx, 0.9) * (h * 0.5));
+      ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.96 : 0.6})`;
+      ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
+    }
+    const a = this.accent;
+    // the playhead: a bright line with a soft key-coloured bloom
+    const px = frac * w;
+    const grd = ctx.createLinearGradient(px - 14, 0, px + 14, 0);
+    grd.addColorStop(0, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    grd.addColorStop(0.5, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.35)`);
+    grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    ctx.fillStyle = grd; ctx.fillRect(px - 14, 0, 28, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.75, 0, 1.5, h);
+  },
+  _scope(ctx, w, h){
+    this.cap = Math.max(90, Math.floor(w / 2.2));
+    while (this.hist.length < this.cap) this.hist.unshift({ b: .02, m: .02, t: .02, l: .03 });
+    while (this.hist.length > this.cap) this.hist.shift();
+    const n = this.hist.length, cw = w / this.cap, mid = h * 0.5;
+    const warm = [255, 138, 58], acc = this.accent, bright = [210, 246, 255];
+    for (let i = 0; i < n; i++){
+      const s = this.hist[i];
+      const tot = s.b + s.m + s.t + 1e-3;
+      const rB = s.b / tot, rM = s.m / tot, rT = s.t / tot;
+      const r = warm[0]*rB + acc[0]*rM + bright[0]*rT;
+      const g = warm[1]*rB + acc[1]*rM + bright[1]*rT;
+      const b = warm[2]*rB + acc[2]*rM + bright[2]*rT;
+      const bh = Math.max(0.7, Math.pow(s.l, 0.82) * (h * 0.5));
+      const fade = 0.4 + 0.6 * (i / n);
+      ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${(0.95 * fade).toFixed(3)})`;
+      ctx.fillRect(i * cw, mid - bh, Math.max(1, cw * 0.66), bh * 2);
+    }
+  },
+};
+
+/* Decode the current track once and reduce it to a peak envelope, so the
+   seek can show the whole song like a DJ deck. Fetches the (cached) file,
+   decodes off the playback clock, stores ~500 normalised peaks on the track.
+   Any failure (CORS, exotic codec, mic) silently leaves the live scope up. */
+async function computePeaks(track){
+  if (!track || track._peaks || track._peaksPending || track._peaksErr) return;
+  track._peaksPending = true;
+  try {
+    const res = await fetch(track.url);
+    if (!res.ok) throw new Error('fetch ' + res.status);
+    const buf = await res.arrayBuffer();
+    const ac = AE.ctx || new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
+    const audio = await ac.decodeAudioData(buf);
+    const ch = audio.getChannelData(0), sr = audio.sampleRate || 44100, N = 480;
+    const block = Math.max(1, Math.floor(ch.length / N));
+    const pk = new Float32Array(N), bL = new Float32Array(N), bM = new Float32Array(N), bH = new Float32Array(N);
+    // single-pass one-pole band split so each column carries its frequency
+    // makeup: low < ~250 Hz, mid ~250–2500 Hz, high > ~2500 Hz (RMS per band).
+    // Decimated by DEC (a 480-column colour doesn't need every sample) and the
+    // column loop yields to the main thread periodically, so even a 10-minute
+    // mix never blocks a frame — the live scope covers the gap until it lands.
+    const DEC = 4, sre = sr / DEC;
+    const a1 = Math.exp(-2 * Math.PI * 250 / sre), a2 = Math.exp(-2 * Math.PI * 2500 / sre);
+    let lp1 = 0, lp2 = 0;
+    for (let i = 0; i < N; i++){
+      let mx = 0, sl = 0, sm = 0, sh = 0, cnt = 0;
+      const s = i * block, e = Math.min(ch.length, s + block);
+      for (let j = s; j < e; j += DEC){
+        const x = ch[j];
+        lp1 = a1 * lp1 + (1 - a1) * x;
+        lp2 = a2 * lp2 + (1 - a2) * x;
+        const lo = lp1, md = lp2 - lp1, hi = x - lp2;
+        sl += lo * lo; sm += md * md; sh += hi * hi; cnt++;
+        const av = x < 0 ? -x : x; if (av > mx) mx = av;
+      }
+      pk[i] = mx;
+      bL[i] = cnt ? Math.sqrt(sl / cnt) : 0;
+      bM[i] = cnt ? Math.sqrt(sm / cnt) : 0;
+      bH[i] = cnt ? Math.sqrt(sh / cnt) : 0;
+      if ((i & 31) === 31) await new Promise(r => setTimeout(r));   // breathe
+    }
+    let mp = 0; for (let i = 0; i < N; i++) if (pk[i] > mp) mp = pk[i];
+    if (mp > 1e-4) for (let i = 0; i < N; i++) pk[i] = Math.min(1, pk[i] / mp);
+    // per-band maxima: the visual drive normalises against these so the field
+    // reads full-scale bass/mid/treble whatever the track's absolute level
+    let mL = 1e-4, mM = 1e-4, mH = 1e-4;
+    for (let i = 0; i < N; i++){ if (bL[i] > mL) mL = bL[i]; if (bM[i] > mM) mM = bM[i]; if (bH[i] > mH) mH = bH[i]; }
+    track._peaks = pk;
+    track._bands = { l: bL, m: bM, h: bH };
+    track._bmax = { l: mL, m: mM, h: mH };
+  } catch (e){ track._peaksErr = true; }
+  track._peaksPending = false;
+}
+
+/* The field's spectral drive WITHOUT a live analyser — the iPhone path.
+   On iOS the audio stays direct-to-output so the lock screen keeps playing,
+   which means the WebAudio analyser is silent. But the track is decoded for
+   the waveform, so its real low/mid/high envelope is already in hand: sample
+   it at the play position and the field dances to the actual bass, mids and
+   air of the song, grid-locked, with no audio graph at all. Returns false
+   when there's nothing decoded yet (caller idle-decays). */
+function driveFromEnvelope(dt, now){
+  const d = activeDeck(), tr = player.tracks[player.cur], f = AE.f;
+  if (!d || !tr || !tr._peaks || !tr._bands || !isFinite(d.a.duration) || d.a.duration <= 0) return false;
+  const N = tr._peaks.length;
+  const pos = clamp(d.a.currentTime / d.a.duration, 0, 1) * (N - 1);
+  const i0 = Math.floor(pos), i1 = Math.min(N - 1, i0 + 1), fr = pos - i0;
+  const bm = tr._bmax || { l: 1, m: 1, h: 1 };
+  const samp = arr => arr[i0] * (1 - fr) + arr[i1] * fr;
+  const gate = player.playing ? 1 : 0;
+  const amp = samp(tr._peaks) * gate;
+  const lo = Math.min(1, samp(tr._bands.l) / bm.l) * gate;
+  const md = Math.min(1, samp(tr._bands.m) / bm.m) * gate;
+  const hi = Math.min(1, samp(tr._bands.h) / bm.h) * gate;
+  f.bass   = smooth(f.bass,   lo,       dt, 0.05);
+  f.mid    = smooth(f.mid,    md,       dt, 0.05);
+  f.treble = smooth(f.treble, hi,       dt, 0.06);
+  const E = clamp(f.bass * 1.25 + f.mid * 1.0 + f.treble * 0.8, 0, 2) / 2;
+  f.energy = E;
+  f.calm   = smooth(f.calm,   E, dt, 2.5);
+  f.eShort = smooth(f.eShort, E, dt, 0.25);
+  f.eLong  = smooth(f.eLong,  E, dt, 8.0);
+  const tot = lo + md + hi + 1e-4;
+  f.centroid = smooth(f.centroid, clamp((md * 0.45 + hi * 1.35) / tot, 0, 1), dt, 0.4);
+  const feat = tr.features || {};
+  f.entropy  = smooth(f.entropy, feat.entropy != null ? feat.entropy : clamp(1 - Math.abs(lo - hi), 0, 1), dt, 0.6);
+  // onset from the amplitude rise (the grid clock hardens downbeats after this)
+  const rise = amp - (AE._envPrev || 0); AE._envPrev = amp;
+  f.onset = false;
+  if (player.playing && rise > 0.055 && now - f.lastOnsetAt > 0.14){ f.onset = true; f.lastOnsetAt = now; }
+  f.beat = Math.max(f.beat * Math.exp(-dt / 0.16), f.onset ? 1 : 0);
+  // π/e coupling from the band balance so the geometry keeps evolving
+  f.piE = smooth(f.piE, lo, dt, 0.12);
+  f.eE  = smooth(f.eE,  hi, dt, 0.12);
+  f.piAcc += f.piE * dt * 0.55; f.eAcc += f.eE * dt * 0.61;
+  f.piPhase = f.piAcc % 1; f.ePhase = f.eAcc % 1;
+  f.coupling = smooth(f.coupling,
+    Math.sqrt(Math.max(0, f.piE * f.eE)) * Math.abs(Math.cos((f.piAcc - f.eAcc) * 2 * PI)), dt, 0.2);
+  return true;
+}
+
 let seekDragging = false;
 
 function seekFracFromEvent(ev){
@@ -5850,6 +6149,18 @@ function toggleFullscreen(){
 }
 el.btnFull.addEventListener('click', toggleFullscreen);
 
+/* the mobile More menu — folds the secondary controls into one sheet */
+function setMore(open){
+  el.overflow.classList.toggle('open', open);
+  el.btnMore.setAttribute('aria-expanded', open ? 'true' : 'false');
+  el.btnMore.classList.toggle('on', open);
+}
+el.btnMore.addEventListener('click', ev => { ev.stopPropagation(); setMore(!el.overflow.classList.contains('open')); });
+el.overflow.addEventListener('click', ev => { if (ev.target.closest('.btn')) setMore(false); });
+document.addEventListener('click', ev => {
+  if (el.overflow.classList.contains('open') && !ev.target.closest('.topactions')) setMore(false);
+});
+
 /* drag & drop anywhere */
 let dragDepth = 0;
 window.addEventListener('dragenter', ev => {
@@ -5923,7 +6234,8 @@ window.addEventListener('keydown', ev => {
       break;
     case '?': case '/': openHelp(!el.help.classList.contains('open')); break;
     case 'Escape':
-      if (el.help.classList.contains('open')) openHelp(false);
+      if (el.overflow.classList.contains('open')) setMore(false);
+      else if (el.help.classList.contains('open')) openHelp(false);
       else if (CON.open) openConsole(false);
       else if (CRATE.open) openCrate(false);
       else if (el.library.classList.contains('open')) openLibrary(false);
@@ -8815,7 +9127,7 @@ function initThree(){
   el.chipAuto.classList.add('on');
 }
 
-let lastT = performance.now(), uiAccum = 0, frameMs = 16, govT = 0, persistAccum = 0, gridBeatIdx = -1;
+let lastT = performance.now(), uiAccum = 0, frameMs = 16, govT = 0, persistAccum = 0, gridBeatIdx = -1, accentAccum = 0;
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
@@ -8878,6 +9190,27 @@ function frame(now){
   // spectral centroid -> gentle hue rotation: brighter material drifts the palette
   U.uHue.value = (f.centroid - 0.25) * 1.4 + f.coupling * 0.25
     + (director.act >= 0 ? ACTS[director.act].warm : 0);
+
+  // the whole console glows in the track's key: the colour engine's live
+  // palette drives the chrome accent + the waveform's mid-band colour
+  WAVE.push(f);
+  if (COLOR._rgb){
+    const a = COLOR._rgb[0], c = COLOR._rgb[2];
+    const to255 = v => [Math.round(v[0]*255), Math.round(v[1]*255), Math.round(v[2]*255)];
+    const A = to255(a), C = to255(c);
+    accentAccum = (accentAccum || 0) + dt;
+    if (accentAccum > 0.08){                          // ~12 Hz — smooth, cheap
+      accentAccum = 0;
+      const rs = document.documentElement.style;
+      rs.setProperty('--accent', `rgb(${A[0]},${A[1]},${A[2]})`);
+      rs.setProperty('--accent-2', `rgb(${C[0]},${C[1]},${C[2]})`);
+      rs.setProperty('--accent-glow', `rgba(${A[0]},${A[1]},${A[2]},.5)`);
+      rs.setProperty('--accent-line', `rgba(${A[0]},${A[1]},${A[2]},.34)`);
+      rs.setProperty('--accent-dim', `rgba(${A[0]},${A[1]},${A[2]},.14)`);
+    }
+    WAVE.accent = A;
+  }
+  WAVE.draw();
 
   INTERACT.update(dt);
   DWELL.update(dt);

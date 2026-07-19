@@ -577,6 +577,27 @@ test('the governor must not blunt a danced impact (the regression that neutered 
     `emitted peak ${peakOut.toFixed(2)} vs choreographed ${peakIn.toFixed(2)}`);
 });
 
+test('the danced punch survives 120/240 Hz displays (edge-latched attack)', () => {
+  // at high frame rates the per-frame attack step is small, and a governor
+  // that chases the DECAYING source converges to ~1.0 no matter how hot the
+  // downbeat was choreographed. The rising edge latches the hit's height;
+  // the ramp climbs to THAT. Same rate, same cap, same pulse count.
+  for (const fps of [120, 240]){
+    const st = S.makeSafeBeatState();
+    const dt = 1 / fps, period = 60 / 126;
+    let peakIn = 0, peakOut = 0;
+    for (let i = 0; i < 4 * fps; i++){
+      const tSec = i * dt;
+      const phi = (tSec / period) % 1;
+      const raw = 1.35 * Math.exp(-phi / 0.1);         // hot downbeat, fast release
+      const v = S.safeBeatStep(st, raw, dt);
+      if (tSec > 0.6){ peakIn = Math.max(peakIn, raw); peakOut = Math.max(peakOut, v); }
+    }
+    assert.ok(peakOut >= peakIn * 0.95,
+      `${fps} fps: emitted peak ${peakOut.toFixed(2)} vs choreographed ${peakIn.toFixed(2)}`);
+  }
+});
+
 test('countFlashes counts pairs of opposing >=0.1 transitions', () => {
   assert.equal(S.countFlashes([0, 1, 0, 1, 0]), 2);
   assert.equal(S.countFlashes([0, 0.05, 0, 0.05, 0]), 0);   // under threshold
