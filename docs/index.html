@@ -508,6 +508,24 @@ body.zen .chrome{opacity:0;pointer-events:none}
   background:rgba(255,255,255,.06);border:1px solid var(--line-soft);
   border-radius:5px;padding:1px 5px;white-space:nowrap;
 }
+/* copy-paste command rows: the exact line, and a button that takes it */
+.help-card .cmd{
+  display:flex;align-items:center;gap:8px;margin:6px 0 10px;
+  background:rgba(0,0,0,.35);border:1px solid var(--line-soft);
+  border-radius:8px;padding:7px 8px 7px 12px;
+}
+.help-card .cmd code{
+  flex:1;font-family:var(--mono);font-size:10.5px;color:var(--ink);
+  overflow-x:auto;white-space:nowrap;scrollbar-width:none;
+}
+.help-card .cmd code::-webkit-scrollbar{display:none}
+.help-card .cmd-copy{
+  flex:none;font-size:8px;letter-spacing:.14em;color:var(--dim);
+  border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.help-card .cmd-copy:hover{color:var(--ink);border-color:var(--accent-line,rgba(110,231,255,.34))}
+.help-card .cmd-copy.ok{color:var(--e);border-color:var(--e)}
 .keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:7px 20px}
 .keyrow{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--dim)}
 .keyrow kbd{
@@ -1356,22 +1374,26 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <p class="lede"><b>This site is its own record label</b>, and publishing is a folder and one command.
     It runs on the studio machine, not on github.com — the analysis (beat grid, key, energy, the score
     the visuals dance to) happens locally before anything uploads.</p>
-    <p class="lede"><b>One-time setup:</b><br>
-    ①&nbsp;<span class="mono-inline">git clone https://github.com/kmay89/aethrakairos</span> — needs
-    <span class="mono-inline">python3</span>, <span class="mono-inline">numpy</span> and
-    <span class="mono-inline">ffmpeg</span> installed.<br>
-    ②&nbsp;The pipeline takes <b>MP3 only</b> (it refuses WAV/AIFF loudly and ignores AAC). In the Music
-    app set <i>Settings → Files → Import Using → MP3 Encoder</i> once; for songs that are already AAC
-    (<span class="mono-inline">.m4a</span>), select them and <i>File → Convert → Create MP3 Version</i>,
-    then use the MP3 copies.</p>
-    <p class="lede"><b>The loop — every time, forever:</b><br>
-    ①&nbsp;Drag songs from the Music app into <span class="mono-inline">masters/</span> — one folder per
-    album (<span class="mono-inline">masters/Spiral&nbsp;Transmission/…</span>; a
-    <span class="mono-inline">masters/Singles/</span> folder is fine for loose tracks). Dragging out of
-    Music copies the real files.<br>
-    ②&nbsp;Run <span class="mono-inline">./publish.sh</span> — it hashes, measures, renames, builds the
-    catalog, runs the doctor, commits and pushes. The site updates about a minute later; the porch's
-    <i>Fresh pressing</i> and the deck's pads pick the new tracks up on their own.</p>
+    <p class="lede"><b>One-time setup</b> — open Terminal and run these two, in order
+    (every command here is standalone: it works from any folder, any time):</p>
+    <div class="cmd"><code>git clone https://github.com/kmay89/aethrakairos.git ~/aethrakairos</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
+    <div class="cmd"><code>brew install ffmpeg &amp;&amp; python3 -m pip install numpy</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
+    <p class="lede">(The second needs <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a>;
+    macOS already has <span class="mono-inline">python3</span> and <span class="mono-inline">git</span>.)
+    Then the format rule, once: the pipeline takes <b>MP3 only</b> (it refuses WAV/AIFF loudly and
+    ignores AAC). In the Music app set <i>Settings → Files → Import Using → MP3 Encoder</i>; for songs
+    that are already AAC (<span class="mono-inline">.m4a</span>), select them and
+    <i>File → Convert → Create MP3 Version</i>, then use the MP3 copies.</p>
+    <p class="lede"><b>The loop — every time, forever.</b> ① Open the inbox:</p>
+    <div class="cmd"><code>open ~/aethrakairos/masters</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
+    <p class="lede">…and drag songs from the Music app into it — one folder per album
+    (a <span class="mono-inline">Singles</span> folder is fine for loose tracks). Dragging out of
+    Music copies the real files. ② Publish:</p>
+    <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; ./publish.sh</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
+    <p class="lede">It hashes, measures, renames, builds the catalog, runs the doctor, commits and
+    pushes. The site updates about a minute later; the porch's <i>Fresh pressing</i> and the deck's
+    pads pick the new tracks up on their own. Want the once-over without publishing?</p>
+    <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; python3 make_catalog.py doctor</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <p class="lede"><b>Re-drag your whole library any time — repeats cannot happen.</b> Every file is
     hashed (an exact repeat is a no-op; a known file at a new path is treated as a move), and a
     perceptual fingerprint gate catches <i>re-encodes</i>: the same song exported at a different
@@ -5948,7 +5970,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '2183d6aa13';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '6ee6123111';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -6892,6 +6914,27 @@ el.plClose.addEventListener('click', () => openPlaylist(false));
 function openHelp(open){ el.help.classList.toggle('open', open); }
 el.btnHelp.addEventListener('click', () => openHelp(true));
 el.helpClose.addEventListener('click', () => openHelp(false));
+/* the publish recipe's COPY buttons: exact command to the clipboard, with a
+   visible ✓ so there is never a question of whether it took */
+document.querySelectorAll('#help .cmd-copy').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const code = btn.parentElement.querySelector('code');
+    const text = code ? code.textContent : '';
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e){
+      // clipboard API refused (old browser, permissions): select + execCommand
+      try {
+        const r = document.createRange(); r.selectNodeContents(code);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.execCommand('copy'); s.removeAllRanges();
+      } catch (e2){}
+    }
+    btn.textContent = '✓ COPIED'; btn.classList.add('ok');
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('ok'); }, 1300);
+  });
+});
 document.getElementById('btnForget').addEventListener('click', () => forgetHistoryFlow());
 el.help.addEventListener('click', ev => { if (ev.target === el.help) openHelp(false); });
 
