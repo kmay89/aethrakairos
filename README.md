@@ -222,14 +222,24 @@ where the DJ is the machine and the crowd gets to watch it work.
 
 The booth is a full **performance deck**, drawn in homage to the drum-machine
 DJ controllers: two **jog platters that actually turn at each deck's playback
-rate** — when the engine bends tempo to lock a blend, you see the spin bend —
-each ringed by 24 LEDs carrying the track's position in its key colour, the
-hub breathing with the beat; a **red seven-segment BPM readout** that glides
-live through a mix as the master tempo hands over; a **16-step sequencer row**
-(four bars of four, the classic red/orange/yellow/cream quads) marching on
-the same CLOCK the shaders follow; channel VU bars riding the true
-equal-power gains; and **LOW lamps** that visibly hand the bassline over at
-the seam's midpoint — the one-bass rule, made watchable.
+rate** — when the engine bends tempo to lock a blend, you see the spin bend.
+**The LED ring around each platter is the song itself**: the track's decoded
+peaks wrap the wheel as 48 segments, each coloured by that slice's frequency
+makeup (warm lows, the key on the mids, bright highs) with loudness carried
+as intensity — you can see the drop coming around the wheel, the played arc
+burning bright behind a white-hot head LED. The platters press like tinted
+vinyl (grooves, key-coloured rim glow, a hub that breathes with the beat),
+and the whole device **wears the keys**: deck A's colour washes in from the
+left, deck B's from the right, each weighted by who owns the room. A **red
+seven-segment BPM readout in dark glass** glides live through a mix as the
+master tempo hands over; the **16-step sequencer row** (four bars of four,
+the classic red/orange/yellow/cream quads) marches on the same CLOCK the
+shaders follow; **segmented channel meters bounce with the music** in the
+green-amber-red every mixer speaks, weighted by the true equal-power gains;
+the **crossfader rail blends A's colour into B's** with a centre detent, so
+the handle's position and the colour under it always agree; and **LOW
+lamps** visibly hand the bassline over at the seam's midpoint — the
+one-bass rule, made watchable.
 
 **The playlist stays master — and you get override inserts.** Under the
 decks sits a row of **performance pads: the eight best next tracks from the

@@ -5918,7 +5918,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '77490dd606';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'ae3c80cd84';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -6265,6 +6265,12 @@ const BOOTH = {
   },
   _deckRow(side, tr, deck, state, live){
     const m = tr && mixOf(tr);
+    // the deck letter wears its track's key colour
+    const rgb = this.keyRGB(tr);
+    const row = el['boothNm' + side].parentElement;
+    const dk = row && row.querySelector('.dk');
+    const dc = tr ? `rgb(${rgb[0]},${rgb[1]},${rgb[2]})` : '';
+    if (dk && dk._c !== dc){ dk._c = dc; dk.style.color = dc; }
     this._set('boothNm' + side, tr ? tr.title : '—');
     this._set('boothKey' + side, (m && m.key) || '—');
     const kc = el['boothKey' + side];
@@ -6342,15 +6348,54 @@ const BOOTH = {
   /* the jog wheel: the platter actually TURNS at the deck's playback rate
      (bent tempo shows as bent spin), the LED ring is the track's position
      in its key colour, and the whole wheel breathes with the beat */
+  /* the song, wrapped around the wheel: the track's decoded peaks reduced
+     to 48 ring segments, each coloured by its frequency makeup (warm lows,
+     the key on the mids, bright highs) with amplitude carried as intensity.
+     Cached on the track — computed once, spun forever. */
+  _ring(tr, rgb){
+    if (!tr) return null;
+    if (tr._ring48 && tr._ringRgb === rgb.join()) return tr._ring48;
+    const pk = tr._peaks, bands = tr._bands;
+    if (!pk || !bands) return null;
+    const warm = [255, 120, 58], bright = [140, 214, 255];
+    const N = 48, n = pk.length, out = [];
+    for (let i = 0; i < N; i++){
+      const s = Math.floor(i * n / N), e = Math.max(s + 1, Math.floor((i + 1) * n / N));
+      let mx = 0, sl = 0, sm = 0, sh = 0;
+      for (let j = s; j < e; j++){
+        if (pk[j] > mx) mx = pk[j];
+        sl += bands.l[j]; sm += bands.m[j]; sh += bands.h[j];
+      }
+      const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
+      out.push([
+        (warm[0] * rL + rgb[0] * rM + bright[0] * rH) | 0,
+        (warm[1] * rL + rgb[1] * rM + bright[1] * rH) | 0,
+        (warm[2] * rL + rgb[2] * rM + bright[2] * rH) | 0,
+        Math.pow(mx, 0.8),
+      ]);
+    }
+    tr._ring48 = out; tr._ringRgb = rgb.join();
+    return out;
+  },
   _jog(ctx, cx, cy, r, deck, tr, rgb, pulse, dts, slot){
     const playing = deck && !deck.a.paused && isFinite(deck.a.duration) && deck.a.duration > 0;
     const rate = playing ? (deck.a.playbackRate || SPEED.rate) / SPEED.rate : 0;
     this[slot] = (this[slot] || 0) + dts * rate * (2 * PI * 33.333 / 60);
     const ang = this[slot];
-    // platter
-    ctx.fillStyle = 'rgba(8,10,18,0.92)';
+    // platter: vinyl-dark with the key colour breathing at the rim
+    const face = ctx.createRadialGradient(cx, cy, r * 0.1, cx, cy, r * 0.8);
+    face.addColorStop(0, 'rgba(14,16,26,0.95)');
+    face.addColorStop(0.75, 'rgba(8,10,18,0.94)');
+    face.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.16)`);
+    ctx.fillStyle = face;
     ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1;
+    // grooves — pressed vinyl, faintly tinted
+    ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.10)`;
+    ctx.lineWidth = 1;
+    for (const g of [0.34, 0.46, 0.58, 0.70]){
+      ctx.beginPath(); ctx.arc(cx, cy, r * g, 0, 2 * PI); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.stroke();
     // slipmat spokes — the spin made visible
     ctx.strokeStyle = 'rgba(255,255,255,0.10)';
@@ -6364,18 +6409,28 @@ const BOOTH = {
     // position marker dot
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * r * 0.62, cy + Math.sin(ang) * r * 0.62, 2.2, 0, 2 * PI); ctx.fill();
-    // LED progress ring in the key colour
+    // THE RING IS THE SONG: each LED carries that slice of the track's own
+    // spectrum — you can see the drop coming around the wheel. Played arc
+    // burns bright, the road ahead sits dim; the head LED rides the beat.
     const prog = playing || (deck && deck.a.currentTime > 0)
       ? clamp01((deck ? deck.a.currentTime : 0) / (deck && isFinite(deck.a.duration) ? deck.a.duration : 1)) : 0;
-    const SEGS = 24;
+    const ring = this._ring(tr, rgb);
+    const SEGS = 48;
+    const head = Math.floor(prog * SEGS);
     for (let i = 0; i < SEGS; i++){
       const lit = (i + 0.5) / SEGS <= prog;
-      const a0 = -PI / 2 + (i / SEGS) * 2 * PI, a1 = a0 + (2 * PI / SEGS) * 0.62;
-      ctx.strokeStyle = lit
-        ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.95)`
-        : `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.14)`;
-      ctx.lineWidth = lit ? 2.4 + pulse * 1.6 : 1.6;
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.93, a0, a1); ctx.stroke();
+      const a0 = -PI / 2 + (i / SEGS) * 2 * PI, a1 = a0 + (2 * PI / SEGS) * 0.7;
+      const c = ring ? ring[i] : [rgb[0], rgb[1], rgb[2], 0.6];
+      const amp = ring ? c[3] : 0.6;
+      ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${lit ? 0.55 + amp * 0.45 : 0.10 + amp * 0.12})`;
+      ctx.lineWidth = (lit ? 2.2 : 1.5) + amp * 1.6 + (i === head ? pulse * 2 : 0);
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.92, a0, a1); ctx.stroke();
+    }
+    // the head LED — where the needle is, white-hot on the hit
+    if (deck){
+      const ha = -PI / 2 + prog * 2 * PI;
+      ctx.fillStyle = `rgba(255,255,255,${0.5 + pulse * 0.5})`;
+      ctx.beginPath(); ctx.arc(cx + Math.cos(ha) * r * 0.92, cy + Math.sin(ha) * r * 0.92, 2 + pulse * 1.5, 0, 2 * PI); ctx.fill();
     }
     // the hub glows in the key and breathes with the beat
     const hub = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.22 + pulse * 3);
@@ -6409,6 +6464,9 @@ const BOOTH = {
       const rgb = this.keyRGB(t);
       b.style.setProperty('--pad-c', `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`);
       b.style.setProperty('--pad-glow', (0.3 + r.score * 0.65).toFixed(2));
+      // the pad glows from within on its own key; a strong match burns hotter
+      b.style.background = `linear-gradient(165deg, rgba(${rgb[0]},${rgb[1]},${rgb[2]},${(0.05 + r.score * 0.13).toFixed(3)}), rgba(255,255,255,0.02))`;
+      b.style.borderColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${(0.14 + r.score * 0.3).toFixed(3)})`;
       const bt = document.createElement('div'); bt.className = 'bt'; bt.textContent = t.title;
       const bk = document.createElement('div'); bk.className = 'bk';
       bk.textContent = (m.key || '—') + ' · '
@@ -6465,6 +6523,22 @@ const BOOTH = {
     const aG = Math.cos(clamp01(f) * PI / 2), bG = Math.sin(clamp01(f) * PI / 2);
     const beat = clamp01(AE.f.beat);
 
+    // ---- the device wears the keys: deck A's colour washes in from the
+    // left, deck B's from the right, each weighted by who owns the room —
+    // the whole surface leans toward whichever track is louder
+    {
+      const gA = ctx.createLinearGradient(0, 0, w * 0.55, 0);
+      gA.addColorStop(0, `rgba(${accA[0]},${accA[1]},${accA[2]},${0.055 * (running ? 0.35 + aG * 0.65 : 1)})`);
+      gA.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gA; ctx.fillRect(0, 0, w * 0.55, h);
+      if (tB){
+        const gB = ctx.createLinearGradient(w, 0, w * 0.45, 0);
+        gB.addColorStop(0, `rgba(${accB[0]},${accB[1]},${accB[2]},${0.055 * (running ? 0.35 + bG * 0.65 : 0.5)})`);
+        gB.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gB; ctx.fillRect(w * 0.45, 0, w * 0.55, h);
+      }
+    }
+
     // ---- top strip: the red voice + the step row
     const master = running && f > 0.5 ? { d: dB, t: tB } : { d: dA, t: tA };
     const mm = master.t && mixOf(master.t);
@@ -6475,10 +6549,15 @@ const BOOTH = {
     const bpmStr = bpmEff > 0 ? bpmEff.toFixed(1).padStart(5, ' ') : '---.-';
     let stepsX = 8;
     if (full){
-      const segW = this._seg7(ctx, 8, 8, 22, bpmStr, [255, 82, 64]);
+      // the display sits in dark glass, like the real thing
+      ctx.fillStyle = 'rgba(4,5,10,0.55)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(4, 4, 96, 32, 5); else ctx.rect(4, 4, 96, 32);
+      ctx.fill();
+      const segW = this._seg7(ctx, 10, 8, 22, bpmStr, [255, 82, 64]);
       ctx.globalAlpha = 0.4; ctx.font = '7px monospace'; ctx.fillStyle = '#ff5240';
-      ctx.fillText('BPM', 8, 38); ctx.globalAlpha = 1;
-      stepsX = 8 + segW + 22;
+      ctx.fillText('BPM', 10, 44); ctx.globalAlpha = 1;
+      stepsX = Math.max(108, 10 + segW + 22);
     }
     this._steps(ctx, stepsX, full ? 10 : 3, w - stepsX - 8, full ? 20 : 14);
 
@@ -6517,17 +6596,26 @@ const BOOTH = {
     // ---- bottom strip: channel levels, the LOW handover, the crossfader, the orb
     const cy = h - botH / 2;
     if (full){
-      // channel VU bars ride the real equal-power gains
+      // real channel meters: segmented, bouncing with the music, weighted
+      // by each deck's true equal-power gain — green through amber into
+      // red at the top, the meter language every mixer speaks
       const vuW = Math.min(120, laneW * 0.28);
-      const drawVu = (x, g, rgb, label) => {
-        ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x, cy - 3, vuW, 6);
-        ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.85)`;
-        ctx.fillRect(x, cy - 3, vuW * clamp01(g), 6);
+      const live = clamp01(AE.f.energy * 1.3 + beat * 0.25);
+      const drawVu = (x, g, label) => {
+        const CELLS = 14, cw2 = vuW / CELLS;
+        const lvl = clamp01(g) * (0.30 + 0.70 * live);
+        for (let i = 0; i < CELLS; i++){
+          const frac = (i + 1) / CELLS;
+          const col = frac <= 0.7 ? [86, 224, 120] : frac <= 0.87 ? [255, 190, 74] : [255, 92, 74];
+          const on = frac <= lvl;
+          ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${on ? 0.9 : 0.10})`;
+          ctx.fillRect(x + i * cw2, cy - 3.5, Math.max(2, cw2 * 0.68), 7);
+        }
         ctx.globalAlpha = 0.4; ctx.font = '7px monospace'; ctx.fillStyle = '#fff';
         ctx.fillText(label, x, cy - 8); ctx.globalAlpha = 1;
       };
-      drawVu(laneX, running ? aG : 1, accA, 'CH A');
-      drawVu(w - laneX - vuW, running ? bG : (armed ? 0 : 0), accB, 'CH B');
+      drawVu(laneX, running ? aG : 1, 'CH A');
+      drawVu(w - laneX - vuW, running ? bG : 0, 'CH B');
       // the one-bass rule, visible: LOW lamps hand over at the midpoint
       if (running && p && p.type === 'beatmix'){
         const swapBeats = 2 / Math.max(4, p.beats || 16);
@@ -6543,13 +6631,22 @@ const BOOTH = {
         lamp(w - laneX - vuW - 40, k);
       }
     }
-    // crossfader
+    // crossfader — the rail itself blends A's colour into B's, so the
+    // handle's position and the colour under it always agree
     const xf0 = w * 0.5 - Math.min(150, w * 0.17), xf1 = w * 0.5 + Math.min(150, w * 0.17);
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillRect(xf0, cy - 1, xf1 - xf0, 2);
+    const rail = ctx.createLinearGradient(xf0, 0, xf1, 0);
+    rail.addColorStop(0, `rgba(${accA[0]},${accA[1]},${accA[2]},0.55)`);
+    rail.addColorStop(1, tB ? `rgba(${accB[0]},${accB[1]},${accB[2]},0.55)` : 'rgba(255,255,255,0.12)');
+    ctx.fillStyle = rail;
+    ctx.fillRect(xf0, cy - 1.5, xf1 - xf0, 3);
+    // centre detent tick, like the hardware
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(w * 0.5 - 0.5, cy - 4, 1, 8);
     const hx = xf0 + (xf1 - xf0) * clamp01(f);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillRect(hx - 1.5, cy - 7, 3, 14);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillRect(hx - 2, cy - 7, 4, 14);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(hx - 0.5, cy - 5, 1, 10);
     ctx.font = '8px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillText('A', xf0 - 12, cy + 3); ctx.fillText('B', xf1 + 5, cy + 3);
 
