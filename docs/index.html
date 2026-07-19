@@ -5354,10 +5354,13 @@ const MIXER = {
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
       if (nd.shelf) nd.shelf.gain.value = -14;      // one-bass rule: B ducked in
     }
-    nd.a.play().catch(() => {
-      // the browser refused the incoming deck (autoplay policy, unblessed
-      // element): a silent seam is worse than an honest cut — collapse the
-      // overlap so finish() lands immediately, and say so
+    nd.a.play().catch(err => {
+      // AbortError = our own cancel/replan interrupted the load — the
+      // listener asked for something else; nothing is wrong. Only a real
+      // refusal (autoplay policy, unblessed element) on a STILL-RUNNING
+      // seam warrants collapsing the overlap and saying so.
+      if (err && err.name === 'AbortError') return;
+      if (this.phase !== 'running') return;
       this.overlap = 0.05;
       toast('The blend was refused — tap play if the music pauses');
     });
