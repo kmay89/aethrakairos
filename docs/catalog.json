@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "label": "ERRERlabs",
+  "artist": "Aethra Kairos",
+  "license": {
+    "code": "LICENSE-CODE",
+    "audio": "LICENSE-AUDIO"
+  },
+  "base": "audio",
+  "albums": [
+    {
+      "title": "Möbius Walking",
+      "tag": "mobius-walking",
+      "year": 2026,
+      "genre": "Electronic",
+      "art": "cover.png",
+      "accent": "oklch(0.62 0.14 190)",
+      "info": "Single · the first transmission from the Aethra Kairos catalog.",
+      "tracks": [
+        {
+          "title": "Möbius Walking",
+          "file": "01-mobius-walking.mp3",
+          "duration": 207.6,
+          "sha256": "97e151debe41b6e13e4e58038dd2541de92da437f1391d3e14e3bd0bc58e7bf6",
+          "published": "2026-07-19",
+          "mix": { "v": 1, "bpm": 126.05, "grid": 0.77, "key": "7B", "keyConf": 0.44, "phrases": 32,
+                   "in": { "start": 0.77, "beats": 64 }, "out": { "start": 175.939, "beats": 64 }, "mixable": 0.66 },
+          "features": { "bpm": 127.0, "energy": 0.598, "brightness": 0.337, "entropy": 0.34, "onsets": 0.9 }
+        }
+      ]
+    },
+    {
+      "title": "Breathing",
+      "tag": "breathing",
+      "year": 2026,
+      "genre": "Electronic",
+      "art": "cover.png",
+      "accent": "oklch(0.62 0.14 190)",
+      "info": "Single · the quiet one — in and out, 126 to the bar.",
+      "tracks": [
+        {
+          "title": "Breathing",
+          "file": "01-breathing.mp3",
+          "duration": 152.7,
+          "sha256": "7fa2cfac5cf4297e9f8a5ee6fd30a7761227e39676add57570ac529491ab62bd",
+          "published": "2026-07-19",
+          "mix": { "v": 1, "bpm": 126.05, "grid": 1.003, "key": "7B", "keyConf": 0.17, "phrases": 32,
+                   "in": { "start": 1.003, "beats": 64 }, "out": { "start": 120.955, "beats": 64 }, "mixable": 0.71 },
+          "features": { "bpm": 125.8, "energy": 0.455, "brightness": 0.338, "entropy": 0.349, "onsets": 0.9 }
+        }
+      ]
+    },
+    {
+      "title": "Finished Master",
+      "tag": "finished-master",
+      "year": 2026,
+      "genre": "Electronic",
+      "art": "cover.png",
+      "accent": "oklch(0.62 0.14 190)",
+      "info": "Single · the bright one, pressed and done.",
+      "tracks": [
+        {
+          "title": "Finished Master",
+          "file": "01-finished-master.mp3",
+          "duration": 184.4,
+          "sha256": "eedb6deaf0bb506dd6f5b471abba851d8806bc1eebf4cca3c4278d25cd6c1004",
+          "published": "2026-07-19",
+          "mix": { "v": 1, "bpm": 129.2, "grid": 0.445, "key": "7B", "keyConf": 0.36, "phrases": 32,
+                   "in": { "start": 0.445, "beats": 64 }, "out": { "start": 154.625, "beats": 64 }, "mixable": 0.68 },
+          "features": { "bpm": 128.0, "energy": 0.499, "brightness": 0.351, "entropy": 0.333, "onsets": 0.9 }
+        }
+      ]
+    }
+  ]
+}

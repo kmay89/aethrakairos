@@ -1,0 +1,27 @@
+LICENSE — AUDIO
+
+© ERRERlabs / Aethra Kairos — all rights reserved.
+
+Every audio recording distributed through this catalog (everything under
+audio/, and every file referenced by docs/catalog.json) is the property of
+ERRERlabs / Aethra Kairos.
+
+WHAT IS PERMITTED
+  · Streaming the recordings from this catalog, through this repository's
+    player or any client reading docs/catalog.json as published here.
+
+WHAT IS NOT PERMITTED without prior written permission
+  · Redistributing, re-hosting, or mirroring the audio files themselves
+  · Re-encoding, sampling, remixing, or creating derivative works
+  · Synchronization with video, use in advertising, or any commercial use
+  · Training machine-learning models on the recordings
+
+PROVENANCE
+  Each track's catalog entry carries its content SHA-256 and publication
+  date. A committed Haitsma–Kalker fingerprint index (dna/) makes any
+  re-encode of these works identifiable, and an optional minisign signature
+  (docs/catalog.sig) makes the catalog itself verifiable. A mirror of this
+  catalog is provably this catalog.
+
+The code that plays and publishes this audio is separately licensed —
+see LICENSE-CODE.
