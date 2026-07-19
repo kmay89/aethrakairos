@@ -24,7 +24,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' RITUALS, ritualByKey, dealRitual,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet,' +
-  ' camelotHue, oklchToRgb, lerpOklch, colorPlan,' +
+  ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp,' +
@@ -468,6 +468,46 @@ test('minor keys sit darker and cooler than their relative major', () => {
   assert.ok(minor.minor && !major.minor);
   assert.ok(minor.root.l < major.root.l, 'minor is darker');
   assert.notEqual(minor.root.h, major.root.h, 'mode tilts the temperature');
+});
+
+test('MOZART: intervals become angles — the log-map spells chords in light', () => {
+  assert.equal(S.intervalHue(2, 1), 0, 'the octave is an identity');
+  assert.ok(Math.abs(S.intervalHue(3, 2) - 210.59) < 0.1, 'the fifth: ' + S.intervalHue(3, 2).toFixed(2));
+  assert.ok(Math.abs(S.intervalHue(5, 4) - 115.89) < 0.1, 'the major third');
+  assert.ok(Math.abs(S.intervalHue(6, 5) - 94.74) < 0.1, 'the minor third');
+  assert.ok(Math.abs(S.intervalHue(45, 32) - 177.06) < 0.1,
+    'the tritone falls a hair off the complement — diabolus in musica');
+  assert.ok(Math.abs(S.intervalHue(16, 15) - 33.59) < 0.1, 'the semitone');
+});
+
+test('MOZART: a keyed palette is tuned — third to the harmony, fifth to the accent', () => {
+  const base = { energy: 0.8, entropy: 0.8, brightness: 0.4, act: 0.5, seed: 7 };
+  const dh = (a, b) => ((b - a + 720) % 360);
+  const maj = S.colorPlan({ ...base, key: '8B' });     // triad scheme, major
+  assert.equal(maj.scheme, 'triad');
+  assert.ok(Math.abs(dh(maj.colors[0].h, maj.colors[1].h) - S.intervalHue(5, 4)) < 0.1,
+    'major third to the harmony');
+  assert.ok(Math.abs(dh(maj.colors[0].h, maj.colors[2].h) - S.intervalHue(3, 2)) < 0.1,
+    'perfect fifth to the accent');
+  const min = S.colorPlan({ ...base, key: '8A' });     // minor spells the minor third
+  assert.ok(Math.abs(dh(min.colors[0].h, min.colors[1].h) - S.intervalHue(6, 5)) < 0.1,
+    'minor third to the harmony');
+  const drive = S.colorPlan({ ...base, entropy: 0.4, key: '8B' });   // complement scheme
+  assert.equal(drive.scheme, 'complement');
+  assert.ok(Math.abs(dh(drive.colors[0].h, drive.colors[1].h) - S.intervalHue(45, 32)) < 0.1,
+    'the driving complement is really the tritone');
+  const unkeyed = S.colorPlan({ ...base, key: null });
+  assert.ok(Math.abs(dh(unkeyed.colors[0].h, unkeyed.colors[2].h) - 240) < 0.1,
+    'unkeyed material keeps the classic art-school triad');
+});
+
+test('MOZART: the golden gate peaks at phi of the phrase and fades symmetrically', () => {
+  assert.ok(S.goldenGate(S.PHI) > 0.999, 'unity at the golden section');
+  assert.ok(S.goldenGate(0.5) < 0.15, 'quiet at mid-phrase');
+  assert.ok(S.goldenGate(0.0) < 0.01 && S.goldenGate(0.95) < 0.01, 'silent at the turnarounds');
+  const before = S.goldenGate(S.PHI - 0.05), after = S.goldenGate(S.PHI + 0.05);
+  assert.ok(Math.abs(before - after) < 1e-9, 'the swell is symmetric about phi');
+  assert.ok(Math.abs(S.goldenGate(1.618) - S.goldenGate(0.618)) < 1e-9, 'wraps the phrase');
 });
 
 test('oklchToRgb stays in gamut by chroma reduction, and hue-lerps take the short arc', () => {

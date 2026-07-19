@@ -3763,6 +3763,26 @@ function lerpOklch(A, B, t){
   return { l: A.l + (B.l - A.l) * t, c: A.c + (B.c - A.c) * t, h: (A.h + dh * t + 360) % 360 };
 }
 
+/* MOZART — the composer's numbers, wired to the light.
+   A pitch ratio r lands on the colour wheel at 360·frac(log2 r) — the same
+   log-map that makes octaves identities makes intervals ANGLES. So a keyed
+   palette spells the chord of the key in light: the just third at 94.7°
+   (minor, 6:5) or 115.9° (major, 5:4), the perfect fifth at 210.6° (3:2),
+   the semitone at 33.6° (16:15) — and the tritone, diabolus in musica,
+   falls at 177.1° (45:32): almost exactly the complement. Nobody's palette
+   generator uses these angles; the eye hears the consonance anyway. */
+const PHI = 0.618033988749895;   // where Mozart placed his arrivals
+function intervalHue(num, den){
+  const f = Math.log2(num / den);
+  return ((f - Math.floor(f)) * 360) % 360;
+}
+/* the golden gate: a smooth swell peaking at φ of the phrase, so the light's
+   biggest breath lands on the golden section — felt as placed, not scheduled */
+function goldenGate(frac){
+  const d = (((frac % 1) + 1) % 1) - PHI;
+  return Math.exp(-(d * d) / (2 * 0.055 * 0.055));
+}
+
 /* colorPlan — the designer's decision, pure.
    in : { key, energy, entropy, brightness, act, seed }
    out: { scheme, keyed, minor, root, colors:[a,b,c] } — OKLCH triple where
@@ -3787,14 +3807,24 @@ function colorPlan(inp){
   const C0 = 0.14 + e * 0.20 + act * 0.12;
   const L0 = lClamp((minor ? 0.50 : 0.56) + e * 0.08 + act * 0.05 - ent * 0.05);
   const H = (rootH + (minor ? 14 : -6) + 360) % 360;
-  const spread = scheme === 'analogous' ? 24 + rng() * 12 : (scheme === 'complement' ? 180 : 120);
+  // MOZART: a keyed room spells its chord in light — the harmony colour
+  // sits at the key's own just third, the accent at the fifth; a driving
+  // "complement" is really the TRITONE (177.1°, not 180 — the eye can't
+  // say why it's uneasy); calm analogous neighbours are a semitone apart.
+  // Unkeyed material (mic, unanalysed files) keeps the classic art-school
+  // spreads — the intervals are earned by knowing the key.
+  const spread = keyed
+    ? (scheme === 'analogous' ? intervalHue(16, 15)
+       : scheme === 'complement' ? intervalHue(45, 32)
+       : intervalHue(minor ? 6 : 5, minor ? 5 : 4))
+    : (scheme === 'analogous' ? 24 + rng() * 12 : (scheme === 'complement' ? 180 : 120));
   const a = { l: L0, c: C0, h: H };
   const b = { l: lClamp(L0 + (scheme === 'analogous' ? 0.06 : 0.04)), c: C0 * 0.9, h: (H + spread) % 360 };
   // even the bright accent carries real hue — a near-white accent is what
   // reads as "washed out" the moment particles stack additively
   const c = scheme === 'triad'
-    ? { l: lClamp(L0 + 0.16), c: C0 * 0.85, h: (H + 240) % 360 }
-    : { l: 0.85, c: 0.08 + e * 0.06, h: (H + (scheme === 'complement' ? 180 : -spread) + 360) % 360 };
+    ? { l: lClamp(L0 + 0.16), c: C0 * 0.85, h: (H + (keyed ? intervalHue(3, 2) : 240)) % 360 }
+    : { l: 0.85, c: 0.08 + e * 0.06, h: (H + (scheme === 'complement' ? spread : -spread) + 360) % 360 };
   return { scheme, keyed, minor: !!minor, root: a, colors: [a, b, c] };
 }
 // @color-end
@@ -5759,7 +5789,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '8f0b018ac7';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'd03a7cbc3d';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8857,13 +8887,52 @@ const COLOR = {
     this.bloom = (this.bloom || 0) * Math.exp(-dt / 1.4);
     const heat = (typeof director !== 'undefined') ? director.actT : 0.5;
     const phase = (typeof director !== 'undefined') ? director.phase : 'flow';
-    const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35
+    // MOZART, live — three tricks nobody expects light to do:
+    // 1 · the golden swell: chroma breathes hottest at φ of every 8-bar
+    //     phrase, the proportion Mozart built his arrivals on. Cues land
+    //     where the ear leans, a bar and a half before the phrase turns.
+    const golden = (typeof DANCE !== 'undefined' && DANCE.on && player.playing && DANCE.haveGrid)
+      ? goldenGate(DANCE.phraseFrac) : 0;
+    // 2 · the conjuror's wash: precognition sees a landing coming, so the
+    //     room INHALES toward the complement of its own palette. The
+    //     retina adapts against it, and when the hit cuts the brace the
+    //     true hues snap back and bloom hotter than any screen can paint —
+    //     an afterimage the player conjured on purpose. Luminance barely
+    //     moves, so the flash governor has nothing to object to. CALM
+    //     keeps a gentler inhale.
+    const brace = (typeof DANCE !== 'undefined') ? clamp01(DANCE.brace || 0) : 0;
+    const washMax = SAFE.calm ? 0.35 : 0.85;
+    this._wash = this._wash || 0;
+    const washGoal = brace * washMax;
+    // inhale over ~half a second (the eye needs time to adapt); the snap
+    // back on the landing is nearly instant — that snap IS the magic
+    this._wash += (washGoal - this._wash) * (1 - Math.exp(-dt / (washGoal > this._wash ? 0.45 : 0.06)));
+    if ((this._lastBrace || 0) > 0.5 && brace < 0.15){   // the landing cut the brace
+      this.bloom = Math.max(this.bloom, 1.25);           // the true colour arrives blazing
+      // 3 · dreimal: every third arrival answers three times, one echo per
+      //     beat, fading — the Magic Flute's threefold chord
+      this._arrivals = (this._arrivals || 0) + 1;
+      if (this._arrivals % 3 === 0 && typeof DANCE !== 'undefined' && DANCE.period > 0.2){
+        this._echoes = [{ at: DANCE.period, amp: 0.9 }, { at: DANCE.period * 2, amp: 0.6 }];
+      }
+    }
+    this._lastBrace = brace;
+    if (this._echoes && this._echoes.length){
+      for (const eo of this._echoes) eo.at -= dt;
+      while (this._echoes.length && this._echoes[0].at <= 0)
+        this.bloom = Math.max(this.bloom, this._echoes.shift().amp);
+    }
+    const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35 + golden * 0.22
       + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0));
     const mulL = 0.97 + heat * 0.05;
+    const w = this._wash;
+    const lit = w > 0.01
+      ? this.now.map(c => lerpOklch(c, { l: c.l * 0.94, c: c.c * 0.6, h: (c.h + 180) % 360 }, w))
+      : this.now;
     // the flash governor is the last hand on the light: hue passes freely,
     // luminance excursions are rate-limited (WCAG 2.3.1, enforced not reviewed)
     const rgb = safeColorStep(SAFE.colorState,
-      this.now.map(c => oklchToRgb(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),
+      lit.map(c => oklchToRgb(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),
       dt, SAFE.tuning());
     U.uColA.value.setRGB(rgb[0][0], rgb[0][1], rgb[0][2]);
     U.uColB.value.setRGB(rgb[1][0], rgb[1][1], rgb[1][2]);

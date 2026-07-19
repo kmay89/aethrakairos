@@ -270,6 +270,25 @@ the solver, portable to any surface that takes RGB):
   every change glides over **eight beats of the measured grid** through
   OKLCH's shortest hue arc — a lighting cue, not a crossfade through mud.
 
+- **The Mozart layer — the composer's numbers, wired to the light.** A pitch
+  ratio lands on the colour wheel at `360·frac(log₂ r)` — the log-map that
+  makes octaves identities makes intervals *angles*. A keyed palette spells
+  the chord of its key in light: the harmony colour sits at the key's just
+  third (94.7° minor, 115.9° major), the accent at the perfect fifth
+  (210.6°), calm analogous neighbours a semitone apart (33.6°) — and the
+  driving "complement" is really the **tritone** (177.1°, a hair off 180 —
+  diabolus in musica; the eye can't say why it's uneasy). No even-spaced
+  palette generator produces these angles. Three more numbers run live:
+  the **golden swell** breathes chroma hottest at φ of every 8-bar phrase
+  (the proportion Mozart placed his arrivals on); the **conjuror's wash**
+  uses precognition — when the score shows a landing coming, the room
+  inhales toward its own complement, the retina adapts against it, and on
+  the hit the true hues snap back and bloom *hotter than the screen can
+  paint* (a deliberate afterimage — luminance barely moves, so the flash
+  governor has nothing to object to, and CALM keeps a gentler inhale); and
+  **dreimal**, every third arrival answering three times, one fading echo
+  per beat — the Magic Flute's threefold chord.
+
 Three dots in the HUD show the live palette next to the key and scheme.
 Unkeyed material (local files, the mic) plans from live brightness and
 entropy and re-deals itself periodically. This is the contract a
@@ -475,7 +494,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 30 tests: build, dedupe, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 53 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 56 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
