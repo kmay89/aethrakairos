@@ -13,9 +13,10 @@ the lock screen, and remembering everything — locally, never on a server.
 The repo ships a real starter catalog — three Aethra Kairos singles (Möbius
 Walking, Breathing, Finished Master), each analysed by the same pipeline as
 any master and given a cover drawn from its own key. Hosting setup lives in
-`HOSTING.md`; the researched roadmap in `DESIGN.md`. The Möbius⁸ engine is
-developed in [kmay89/quantum_jukebox-](https://github.com/kmay89/quantum_jukebox-)
-and ported here — this repo is the artist's own distribution.
+`HOSTING.md`; the researched roadmap in `DESIGN.md`. This repo is the
+MASTER: the Möbius⁸ engine is developed here. Its original home,
+[kmay89/quantum_jukebox-](https://github.com/kmay89/quantum_jukebox-), is
+dormant and holds the history.
 
 ```
 docs/index.html            the player — one file
