@@ -1379,13 +1379,17 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <div class="cmd"><code>git clone https://github.com/kmay89/aethrakairos.git ~/aethrakairos</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <div class="cmd"><code>brew install ffmpeg &amp;&amp; python3 -m pip install numpy</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <p class="lede">(The second needs <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a>;
-    macOS already has <span class="mono-inline">python3</span> and <span class="mono-inline">git</span>.)
+    macOS already has <span class="mono-inline">python3</span> and <span class="mono-inline">git</span>.
+    pip's warnings about PATH or its own version are fine to ignore — the pipeline <i>imports</i>
+    numpy, it never runs its scripts.)
     Then the format rule, once: the pipeline takes <b>MP3 only</b> (it refuses WAV/AIFF loudly and
     ignores AAC). In the Music app set <i>Settings → Files → Import Using → MP3 Encoder</i>; for songs
     that are already AAC (<span class="mono-inline">.m4a</span>), select them and
     <i>File → Convert → Create MP3 Version</i>, then use the MP3 copies.</p>
-    <p class="lede"><b>The loop — every time, forever.</b> ① Open the inbox:</p>
-    <div class="cmd"><code>open ~/aethrakairos/masters</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
+    <p class="lede"><b>The loop — every time, forever.</b> ① Open the inbox — the
+    <span class="mono-inline">mkdir -p</span> creates it if it isn't there yet, so this works on a
+    fresh clone and in anyone's own fork:</p>
+    <div class="cmd"><code>mkdir -p ~/aethrakairos/masters &amp;&amp; open ~/aethrakairos/masters</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <p class="lede">…and drag songs from the Music app into it — one folder per album
     (a <span class="mono-inline">Singles</span> folder is fine for loose tracks). Dragging out of
     Music copies the real files. ② Publish:</p>
@@ -5970,7 +5974,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '6ee6123111';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '8d974be59c';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
