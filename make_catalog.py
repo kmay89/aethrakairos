@@ -359,20 +359,32 @@ def convert_masters(masters_dir):
         print(f"  ♫ converted: {src.name} → {dst.name} (320k web MP3)")
 
 
-def ask_clone(name, matched, ber):
-    """Same song, two names — the label picks which one the catalog keeps."""
-    print(f"\n  ⚠ same song, two names: {name} sounds identical to the "
-          f"published {matched} (window BER {ber}).")
-    print("    [k] keep the existing one — skip the new file        (default)")
-    print("    [n] use the NEW file and its name — replace the old entry, publish date kept")
-    print("    [b] keep both — force the new file in as its own track")
+def ask_clone(src, new_title, matched, old, ber):
+    """Same song, two names — spell out exactly which is which before the
+    label picks. Every option names the title it acts on, and the choice
+    is echoed back so there is never a doubt about what was decided."""
+    old_title = old["track"].get("title") or Path(matched).name if old else Path(matched).name
+    old_date = (old["track"].get("published") or "unknown date") if old else "not in the catalog"
+    print(f"\n  ⚠ same song, two names (window BER {ber}):")
+    print(f"      NEW file  : {src.name} — would publish as “{new_title}”")
+    print(f"      PUBLISHED : “{old_title}” — {matched}, on the site since {old_date}")
+    print(f"    [k] KEEP “{old_title}” — skip {src.name}   (default)")
+    if old:
+        print(f"    [n] NEW  — publish “{new_title}” and retire “{old_title}” "
+              "(its publish date carries over)")
+    print(f"    [b] BOTH — publish “{new_title}” alongside “{old_title}” as its own track")
+    keys = "[k/n/b]" if old else "[k/b]"
     while True:
-        a = input("    which name wins? [k/n/b] ").strip().lower()
+        a = input(f"    which name wins? {keys} ").strip().lower()
         if a in ("", "k"):
+            print(f"    → keeping “{old_title}” — {src.name} skipped")
             return "keep"
-        if a == "n":
+        if a == "n" and old:
+            print(f"    → “{new_title}” takes over — “{old_title}” retires, "
+                  "publish date carries")
             return "use-new"
         if a == "b":
+            print(f"    → keeping both — “{new_title}” joins the catalog")
             return "both"
 
 
@@ -530,13 +542,13 @@ def build(args):
                     if r["verdict"] == "CLONE":
                         # same song, two names — the label decides which
                         # one the catalog keeps
-                        choice = on_clone
-                        if choice == "ask":
-                            choice = (ask_clone(src.name, match_rel, r["window_ber"])
-                                      if sys.stdin.isatty() else "keep")
                         old = next((v for v in prior.values()
                                     if f"{v['album_tag']}/{v['track']['file']}" == match_rel),
                                    None)
+                        choice = on_clone
+                        if choice == "ask":
+                            choice = (ask_clone(src, title, match_rel, old, r["window_ber"])
+                                      if sys.stdin.isatty() else "keep")
                         if choice == "use-new" and old is None:
                             # matched audio is not a catalog entry (stray
                             # file) — nothing to replace; keep both instead
