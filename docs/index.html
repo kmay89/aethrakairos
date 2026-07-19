@@ -8273,7 +8273,7 @@ const CLOCK = {
 const DANCE = {
   on: true,
   phase: 0, barFrac: 0, phraseFrac: 0, haveGrid: false, period: 0.5,
-  pulse: 0, sway: 0, lift: 0, breath: 0, warp: 0,
+  pulse: 0, sway: 0, lift: 0, breath: 0, warp: 0, ear: 1,
   _freePhase: 0, _out: 0,
 
   update(dt, t){
@@ -8719,7 +8719,7 @@ function frame(now){
   U.uBeat.value = safeBeatStep(SAFE.beatState,
     // the live onset detector IS the music's own hit — it always punches
     // through; the danced grid pulse rides beneath it
-    DANCE.on ? Math.max(-0.25, Math.max(f.beat * 0.85, DANCE.pulse)) : f.beat,
+    DANCE.on ? Math.max(-0.25, f.beat * 0.85, DANCE.pulse) : f.beat,
     dt, SAFE.tuning());
   U.uPiPhase.value = f.piPhase; U.uEPhase.value = f.ePhase;
   U.uCoupling.value = f.coupling; U.uEntropy.value = f.entropy; U.uCentroid.value = f.centroid;
