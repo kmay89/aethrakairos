@@ -1512,14 +1512,19 @@ function primeDecks(){
   if (!IS_IOS || !AE.decks) return;
   for (const d of AE.decks){
     if (d.primed || d.priming) continue;
+    // NEVER touch a deck holding real content. Priming's muted play→pause
+    // raced the real play() riding the SAME gesture and paused the music
+    // the listener had just started — "press next and it pauses". A deck
+    // with a src is blessed by its own real play (the 'play' listener
+    // marks it primed); only an EMPTY deck needs the silent-WAV blessing.
+    if (d.a.src) continue;
     d.priming = true;
-    const bare = !d.a.src;
-    if (bare) d.a.src = PRIME_SRC;
+    d.a.src = PRIME_SRC;
     d.a.muted = true;
     const done = ok => {
       try { d.a.pause(); } catch (e){}
       d.a.muted = false;
-      if (bare){ d.a.removeAttribute('src'); try { d.a.load(); } catch (e){} }
+      d.a.removeAttribute('src'); try { d.a.load(); } catch (e){}
       d.primed = ok;
       d.priming = false;
     };
@@ -5349,7 +5354,13 @@ const MIXER = {
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
       if (nd.shelf) nd.shelf.gain.value = -14;      // one-bass rule: B ducked in
     }
-    nd.a.play().catch(() => {});
+    nd.a.play().catch(() => {
+      // the browser refused the incoming deck (autoplay policy, unblessed
+      // element): a silent seam is worse than an honest cut — collapse the
+      // overlap so finish() lands immediately, and say so
+      this.overlap = 0.05;
+      toast('The blend was refused — tap play if the music pauses');
+    });
     this.outDeck = od;
     AE.active = 1 - AE.active;
     player.commitMix(this.next);
@@ -5637,7 +5648,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '10a489734e';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '1098bb7a53';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
