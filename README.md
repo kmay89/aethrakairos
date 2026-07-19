@@ -203,6 +203,23 @@ canon on every device.
 A seamless hour is one tap: a ritual picks the arc, the solver deals the
 order, MIX compiles the transitions.
 
+## The Booth (key `D`) — watch the engine mix
+
+The mixer has always run two decks, planned the seam on the bar line and
+phase-locked the blend; the booth turns the lights on. A frosted panel over
+the field shows **both whole-track frequency-coloured waveforms** with the
+planned seam painted on each lane — a lit region with a beat-grid comb, so
+you can *see* where the engine will blend and count the bars it will take —
+both playheads, the deck states (`on air` · `loaded · cued` · `handing
+over` · `on air — blending`), the live tempo trim in percent, the crossfader
+riding the equal-power curve, and the **phase lock in milliseconds**.
+Between the decks sits the resonance orb: the two tracks' key colours orbit
+apart while the seam settles and **fuse into one glowing sphere as the phase
+error dies** — beat-lock, made visible. Idle, the booth narrates honestly:
+the planner arms 45 seconds before the end of every track, and you watch
+deck B load, cue to its mix-in downbeat, and take the room. A DJ booth
+where the DJ is the machine and the crowd gets to watch it work.
+
 ## The Crate (key `C`) — the whole label on one table
 
 An iTunes-density table of every track — title, album, time, BPM, key, energy
@@ -358,6 +375,19 @@ rather than a screensaver:
   (`uPtr` view-space warp in every point shader). All of it is optional —
   the director plays the whole show hands-free.
 
+## The front porch — fresh inspiration at the door
+
+The label is always pressing new music, so the library greets you with
+what's fresh instead of an alphabetical wall: **Hot this week** (the most
+played track on this device — your own honest taste, from the local
+history, never a server), **This month's crate** (the latest pressings by
+publish date, tappable as a ready-made set), and the **Fresh pressing**
+(the newest drop). All of it computes itself — the crate reads the
+catalog's `published` dates the build already stamps, the hot track reads
+the play history the player already keeps, and a slow month quietly widens
+the window so the porch is never empty. Publish music and the porch
+updates; play music and it learns.
+
 ## The player remembers
 
 All local (IndexedDB), never a server, never sync:
@@ -494,16 +524,16 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 30 tests: build, dedupe, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 56 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 57 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
-node tools/acceptance.mjs /tmp/mb8  # 33 browser checks: boot < 2 s warm, deal < 100 ms,
+node tools/acceptance.mjs /tmp/mb8  # 35 browser checks: boot < 2 s warm, deal < 100 ms,
                                     #   restore-paused, v1 rejection, SW audio bypass, crate,
                                     #   15-scene sweep, acts, touch, colour, dance, real demo,
                                     #   key-reactive accent, decoded waveform seek
 python3 tools/make_mix_fixture.py /tmp/mb8m
-node tools/mix_acceptance.mjs /tmp/mb8m      # 26 checks: grids, keys, live beatmix, MIX NOW,
+node tools/mix_acceptance.mjs /tmp/mb8m      # 27 checks: grids, keys, live beatmix, MIX NOW,
                                     #   phase lock < 40 ms, gates, crate, mixfix
 node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update button →
                                     #   one tap → new build live, state intact

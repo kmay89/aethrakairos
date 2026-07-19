@@ -560,6 +560,19 @@ body.zen .chrome{opacity:0;pointer-events:none}
 }
 #libFilter::placeholder{color:var(--faint)}
 .lib-tools{display:flex;gap:6px;padding:0 20px 10px;align-items:center}
+/* the front porch: what's hot, what's fresh — inspo before the list */
+#libFresh{display:flex;gap:8px;padding:0 14px 10px;overflow-x:auto;scrollbar-width:none;flex:none}
+#libFresh::-webkit-scrollbar{display:none}
+.fresh-card{
+  flex:0 0 auto;min-width:148px;max-width:225px;text-align:left;cursor:pointer;
+  border:1px solid var(--line);border-radius:12px;padding:9px 12px;
+  background:linear-gradient(135deg,var(--accent-dim,rgba(110,231,255,.10)),rgba(255,255,255,.03));
+  transition:border-color .15s,transform .15s;
+}
+.fresh-card:hover{border-color:var(--accent-line,rgba(110,231,255,.34));transform:translateY(-1px)}
+.fresh-card .tag{font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent,#6ee7ff)}
+.fresh-card .ti{font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.fresh-card .mt{font-size:9px;color:var(--faint);letter-spacing:.06em;margin-top:2px}
 #libList{flex:1;overflow-y:auto;padding:4px 12px 10px;scrollbar-width:thin;scrollbar-color:var(--faint) transparent}
 .alb{margin:6px 0 14px;content-visibility:auto;contain-intrinsic-size:auto 200px}
 .alb-head{display:flex;gap:16px;padding:10px 8px;border-radius:14px;align-items:center}
@@ -676,6 +689,32 @@ body.zen .chrome{opacity:0;pointer-events:none}
   border-top:1px solid var(--line);
 }
 .crate-foot .note{font-size:9.5px;color:var(--faint);letter-spacing:.05em;flex:1;min-width:200px;line-height:1.6}
+
+/* ============ The Booth (D) — watch the engine mix ============ */
+#booth{
+  position:fixed;left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:93;
+  display:none;flex-direction:column;gap:7px;max-width:980px;margin:0 auto;
+  background:var(--sheen),var(--glass-hard);border:1px solid var(--line);border-radius:18px;
+  padding:12px 16px 13px;box-shadow:var(--shadow);
+  backdrop-filter:blur(30px) saturate(1.45);-webkit-backdrop-filter:blur(30px) saturate(1.45);
+}
+#booth.open{display:flex}
+.booth-head{display:flex;align-items:baseline;gap:12px;min-width:0}
+.booth-title{font-family:var(--serif);font-style:italic;font-size:15px;font-weight:600}
+#boothPlan{flex:1;min-width:0;font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#boothLock{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.04em}
+.booth-deck{display:flex;align-items:center;gap:9px;min-width:0}
+.booth-deck .dk{font-size:8.5px;letter-spacing:.18em;color:var(--faint);width:12px;flex:none}
+.booth-deck .nm{font-size:11.5px;min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.booth-deck .meta{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.03em;flex:none}
+.booth-deck .st{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);flex:none}
+.booth-deck .st.live{color:var(--accent,#6ee7ff)}
+#boothCv{width:100%;height:150px;display:block;border-radius:10px}
+@media(max-width:600px){
+  #booth{left:6px;right:6px;padding:10px 12px 11px}
+  #boothCv{height:118px}
+}
 
 /* ============ Journey Console (J) ============ */
 #console{
@@ -961,6 +1000,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <button class="btn" id="libFavToggle" style="min-height:0;padding:4px 10px;font-size:8.5px" aria-pressed="false">♥ favorites</button>
     <span id="libCount" style="font-size:9px;color:var(--faint);letter-spacing:.12em"></span>
   </div>
+  <div id="libFresh" hidden aria-label="Fresh from the label"></div>
   <div id="libList" role="list"></div>
   <div class="lib-foot" id="libFoot"></div>
 </aside>
@@ -995,6 +1035,27 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <button class="btn on" id="btnChart" title="Arrange one continuous, beatmixed set starting from the playing track">Chart a set from here</button>
   </div>
 </div>
+
+<!-- ================= the booth (D) ================= -->
+<aside id="booth" class="chrome" role="dialog" aria-label="The booth — two decks, the seam, the phase lock: watch the engine mix">
+  <div class="booth-head">
+    <span class="booth-title">The Booth</span>
+    <span id="boothPlan">—</span>
+    <span id="boothLock"></span>
+    <button class="pl-x" id="boothClose" aria-label="Close the booth">✕</button>
+  </div>
+  <div class="booth-deck">
+    <span class="dk">A</span><span class="keychip" id="boothKeyA">—</span>
+    <span class="nm" id="boothNmA">—</span><span class="meta" id="boothMetaA"></span>
+    <span class="st" id="boothStA"></span>
+  </div>
+  <canvas id="boothCv" aria-hidden="true"></canvas>
+  <div class="booth-deck">
+    <span class="dk">B</span><span class="keychip" id="boothKeyB">—</span>
+    <span class="nm" id="boothNmB">—</span><span class="meta" id="boothMetaB"></span>
+    <span class="st" id="boothStB"></span>
+  </div>
+</aside>
 
 <!-- ================= journey console ================= -->
 <div id="console" class="chrome" role="dialog" aria-modal="true" aria-label="Journey console">
@@ -1146,6 +1207,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
   <div class="hud">
     <button class="chip on" id="chipAuto" title="Auto director — scenes, palettes and camera follow the music">AUTO</button>
     <button class="chip" id="chipMix" hidden title="Auto-mix — beatmixed transitions where the grids agree, honest fades where they don't">MIX</button>
+    <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
     <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
     <span class="meter" id="meterBar" role="img" aria-label="Beat meter — the downbeat dot lands heavier"><i></i><i></i><i></i><i></i></span>
@@ -1188,6 +1250,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
       <div class="keyrow"><kbd>L</kbd> Playlist</div>
       <div class="keyrow"><kbd>B</kbd> Library</div>
       <div class="keyrow"><kbd>J</kbd> Journey console</div>
+      <div class="keyrow"><kbd>D</kbd> The booth — watch the engine mix</div>
       <div class="keyrow"><kbd>M</kbd> Mute</div>
       <div class="keyrow"><kbd>F</kbd> Fullscreen</div>
       <div class="keyrow"><kbd>H</kbd> Hide interface</div>
@@ -1420,6 +1483,11 @@ const el = {
   seek: $('seek'), seekFill: document.querySelector('#seek .fill'),
   seekBuf: document.querySelector('#seek .buf'), seekKnob: document.querySelector('#seek .knob'),
   seekTip: $('seekTip'), waveCv: $('waveCv'),
+  booth: $('booth'), boothCv: $('boothCv'), boothClose: $('boothClose'),
+  boothPlan: $('boothPlan'), boothLock: $('boothLock'), chipBooth: $('chipBooth'),
+  boothKeyA: $('boothKeyA'), boothNmA: $('boothNmA'), boothMetaA: $('boothMetaA'), boothStA: $('boothStA'),
+  boothKeyB: $('boothKeyB'), boothNmB: $('boothNmB'), boothMetaB: $('boothMetaB'), boothStB: $('boothStB'),
+  libFresh: $('libFresh'),
   beatDot: $('beatDot'), btnShuffle: $('btnShuffle'), btnRepeat: $('btnRepeat'), rep1: $('rep1'),
   vol: $('vol'),
   chipAuto: $('chipAuto'), sceneDots: $('sceneDots'), sceneName: $('sceneName'),
@@ -3491,6 +3559,37 @@ function historyWindow(nowMs, backDays, spanDays){
   return { mode: 'history', from: to - (spanDays || 28) * day, to };
 }
 
+/* FRESH — the front porch. The label is always pressing new music, so the
+   door greets you with what's fresh: the hot track (play counts, supplied
+   windowed by the caller), this month's crate (publish dates from the
+   catalog — the artist's own drops), and the freshest pressing. Pure:
+   tracks + counts in, picks out.
+   → { hot, plays, crate, fresh } — hot null without history, crate widens
+   35 → 90 days when a slow month would leave it thin, demo tracks and
+   catalog duplicates never surface. */
+function freshPicks(tracks, counts, keyOf, nowMs){
+  const uniq = [], seen = new Set();
+  for (const t of tracks || []){
+    const k = keyOf(t);
+    if (!k || t.demo || seen.has(k)) continue;
+    seen.add(k); uniq.push(t);
+  }
+  const pub = t => { const p = t.published ? Date.parse(t.published) : NaN; return isFinite(p) ? p : null; };
+  const dated = uniq.filter(t => pub(t) != null).sort((a, b) => pub(b) - pub(a));
+  const fresh = dated[0] || null;
+  const windowed = days => dated.filter(t => nowMs - pub(t) < days * 86400000);
+  let crate = windowed(35);
+  if (crate.length < 3) crate = windowed(90);
+  crate = crate.slice(0, 12);
+  let hot = null, plays = 0;
+  for (const t of uniq){
+    const n = counts.get(keyOf(t)) || 0;
+    if (!n) continue;
+    if (!hot || n > plays || (n === plays && (pub(t) || 0) > (pub(hot) || 0))){ hot = t; plays = n; }
+  }
+  return { hot, plays, crate, fresh };
+}
+
 /* a play counts at ≥50% or 60 seconds — the history threshold rule */
 function historyVerdict(playedSeconds, duration){
   return playedSeconds >= 60 || (duration > 0 && playedSeconds >= duration * 0.5);
@@ -4334,6 +4433,7 @@ function renderPlaylistShelf(list){
 }
 
 function renderLibrary(){
+  renderFresh();
   const q = (el.libFilter.value || '').trim().toLowerCase();
   const list = el.libList;
   list.textContent = '';
@@ -5372,7 +5472,7 @@ const MIXER = {
   cancel(){
     if (this.phase === 'idle'){ syncMixHud(); return; }
     this.plan = null; this.next = -1; this.phase = 'idle';
-    this.outDeck = null; this.trim = 0; this.trimI = 0;
+    this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     clockReset(this._clkA); clockReset(this._clkB);
     if (AE.decks) AE.decks.forEach(d => {
       try { d.a.playbackRate = SPEED.rate; } catch (e){}
@@ -5503,6 +5603,7 @@ const MIXER = {
       toast('The blend was refused — tap play if the music pauses');
     });
     this.outDeck = od;
+    this.outTrack = player.tracks[player.cur] || null;   // the booth watches the handover
     AE.active = 1 - AE.active;
     player.commitMix(this.next);
     this.setVolumes(0);
@@ -5598,7 +5699,7 @@ const MIXER = {
       if (AE.graphLive) nd.gain.gain.value = nd.norm || 1;
     }
     this._lastRateA = this._lastRateB = 1;
-    this.plan = null; this.next = -1; this.outDeck = null; this.trim = 0;
+    this.plan = null; this.next = -1; this.outDeck = null; this.outTrack = null; this.trim = 0;
     this.phase = 'idle';
     applyVolume();
     syncMixHud();
@@ -5688,6 +5789,8 @@ el.chipMix.addEventListener('click', () => {
     ? '<b>MIX on</b> — beatmixed where the grids agree, honest fades where they don\'t'
     : 'MIX off — plain transitions');
 });
+el.chipBooth.addEventListener('click', () => BOOTH.toggle());
+el.boothClose.addEventListener('click', () => BOOTH.toggle(false));
 
 /* the tuner reads the pair the mixer has armed (or the next in order) */
 const MIXTUNE = { offsetBeats: 0 };
@@ -5789,7 +5892,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'd03a7cbc3d';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '13f30bb4d3';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -6045,6 +6148,266 @@ function driveFromEnvelope(dt, now){
   return true;
 }
 
+/* ================================================================
+   THE BOOTH (key D) — the engine's work, made watchable. The mixer
+   has always run two decks, planned the seam on the bar line and
+   phase-locked the blend; the booth just turns the lights on: both
+   whole-track waveforms with the planned seam painted on each, both
+   playheads, the crossfade riding, the live lock in milliseconds,
+   and a resonance orb — the two keys orbit apart and FUSE as the
+   phase error dies. A DJ booth where the DJ is the machine.
+   ================================================================ */
+function paintLane(ctx, x, y, w, h, tr, frac, accent){
+  const pk = tr && tr._peaks, bands = tr && tr._bands;
+  const mid = y + h / 2;
+  if (!pk || !bands){
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(x, mid - 0.5, w, 1);
+    return false;
+  }
+  // the Serato read, same as the seek: every column coloured by its
+  // frequency makeup — warm lows, the key on the mids, bright highs
+  const warm = [255, 120, 58], acc = accent, bright = [140, 214, 255];
+  const n = pk.length;
+  const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
+  const cw = w / cols, bw = Math.max(1, cw * 0.72);
+  for (let c = 0; c < cols; c++){
+    const s = Math.floor(c * n / cols), e = Math.max(s + 1, Math.floor((c + 1) * n / cols));
+    let mx = 0, sl = 0, sm = 0, sh = 0;
+    for (let i = s; i < e; i++){
+      if (pk[i] > mx) mx = pk[i];
+      sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
+    }
+    const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
+    const played = (c + 0.5) / cols <= frac, dim = played ? 1 : 0.42;
+    const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
+    const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
+    const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
+    const bh = Math.max(0.6, Math.pow(mx, 0.9) * (h * 0.48));
+    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.95 : 0.55})`;
+    ctx.fillRect(x + c * cw, mid - bh, bw, bh * 2);
+  }
+  return true;
+}
+
+const BOOTH = {
+  open: false, _txt: {},
+  toggle(on){
+    this.open = on == null ? !this.open : !!on;
+    el.booth.classList.toggle('open', this.open);
+    el.chipBooth.classList.toggle('on', this.open);
+    if (this.open) this.draw();
+  },
+  keyRGB(tr){
+    const m = tr && mixOf(tr);
+    const hue = m && m.key ? camelotHue(m.key) : null;
+    if (hue == null) return [110, 231, 255];
+    return oklchToRgb(0.72, 0.13, hue).map(v => Math.round(v * 255));
+  },
+  _set(id, s){                       // guarded DOM writes — draw runs per frame
+    if (this._txt[id] === s) return;
+    this._txt[id] = s; el[id].textContent = s;
+  },
+  /* the planned seam painted on a lane: a lit region from f0..f1 with a
+     beat-grid comb inside it — you can SEE where the engine will blend
+     and count the bars it will take */
+  _seam(ctx, y, h, w, f0, f1, beatF, rgb){
+    const x0 = clamp01(f0) * w, x1 = clamp01(f1) * w;
+    if (!(x1 > x0)) return;
+    ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.13)`;
+    ctx.fillRect(x0, y + 1, x1 - x0, h - 2);
+    ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.55)`;
+    ctx.fillRect(x0 - 0.5, y + 1, 1, h - 2);
+    ctx.fillRect(x1 - 0.5, y + 1, 1, h - 2);
+    if (beatF > 0){
+      ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.30)`;
+      const step = beatF * w;
+      let n = 0;
+      for (let x = x0 + step; x < x1 && n < 64; x += step, n++)
+        ctx.fillRect(x - 0.5, y + h * 0.28, 1, h * 0.44);
+    }
+  },
+  _playhead(ctx, y, h, w, frac, rgb){
+    const px = clamp01(frac) * w;
+    const g = ctx.createLinearGradient(px - 10, 0, px + 10, 0);
+    g.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+    g.addColorStop(0.5, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.30)`);
+    g.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+    ctx.fillStyle = g; ctx.fillRect(px - 10, y, 20, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(px - 0.6, y, 1.2, h);
+  },
+  _deckRow(side, tr, deck, state, live){
+    const m = tr && mixOf(tr);
+    this._set('boothNm' + side, tr ? tr.title : '—');
+    this._set('boothKey' + side, (m && m.key) || '—');
+    const kc = el['boothKey' + side];
+    const col = m && m.key && CRATE.camelotColor(m.key);
+    const bg = col ? col.bg : '';
+    if (kc._bg !== bg){
+      kc._bg = bg;
+      if (col){ kc.style.background = col.bg; kc.style.color = col.fg; kc.style.borderColor = 'transparent'; }
+      else { kc.style.background = ''; kc.style.color = ''; kc.style.borderColor = ''; }
+    }
+    let meta = m && m.bpm ? Math.round(m.bpm) + ' bpm' : '';
+    if (deck && isFinite(deck.a.duration) && deck.a.duration > 0){
+      const t = deck.a.currentTime;
+      meta += (meta ? ' · ' : '') + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+      if (deck.a.playbackRate && Math.abs(deck.a.playbackRate / SPEED.rate - 1) > 0.0008)
+        meta += ' · ' + (deck.a.playbackRate / SPEED.rate > 1 ? '+' : '')
+          + ((deck.a.playbackRate / SPEED.rate - 1) * 100).toFixed(1) + '%';
+    }
+    this._set('boothMeta' + side, meta);
+    this._set('boothSt' + side, state);
+    const st = el['boothSt' + side];
+    if (st._live !== !!live){ st._live = !!live; st.classList.toggle('live', !!live); }
+  },
+  draw(){
+    if (!this.open || !el.boothCv) return;
+    const running = MIXER.phase === 'running';
+    const armed = MIXER.phase === 'armed';
+    // lane A is always the deck that OWNS the room; B is the challenger.
+    // during a running seam the player has already committed to the incoming
+    // track, so the outgoing pair is the mixer's snapshot.
+    const dA = running ? MIXER.outDeck : activeDeck();
+    const tA = running ? MIXER.outTrack : player.tracks[player.cur];
+    const dB = running ? (AE.decks && AE.decks[AE.active]) : (armed ? AE.decks[1 - AE.active] : null);
+    const tB = running ? player.tracks[player.cur] : (armed ? player.tracks[MIXER.next] : null);
+    if (tB && tB.url && !tB._peaks && !tB._peaksPending && !tB._peaksErr) computePeaks(tB);
+
+    const cv = el.boothCv, ctx = this._ctx || (this._ctx = cv.getContext('2d'));
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h || !ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const midH = Math.min(34, h * 0.26);
+    const laneH = (h - midH) / 2;
+    const accA = this.keyRGB(tA), accB = this.keyRGB(tB);
+    const fracOf = d => (d && isFinite(d.a.duration) && d.a.duration > 0)
+      ? clamp01(d.a.currentTime / d.a.duration) : 0;
+    const p = MIXER.plan;
+
+    // ---- lane A (top) + its seam region
+    paintLane(ctx, 0, 0, w, laneH, tA, fracOf(dA), accA);
+    if (p && dA && isFinite(dA.a.duration) && dA.a.duration > 0){
+      const dur = dA.a.duration;
+      let s0 = null, s1 = null, spb = 0;
+      if (p.type === 'beatmix'){ spb = 60 / p.bpmA; s0 = p.startA; s1 = p.startA + (p.beats || 16) * spb; }
+      else if (p.type === 'fade'){ s0 = Math.max(0, dur - p.seconds); s1 = dur; }
+      if (s0 != null) this._seam(ctx, 0, laneH, w, s0 / dur, s1 / dur, spb / dur, accA);
+    }
+    this._playhead(ctx, 0, laneH, w, fracOf(dA), accA);
+
+    // ---- lane B (bottom) + its seam region
+    const yB = laneH + midH;
+    paintLane(ctx, 0, yB, w, laneH, tB, fracOf(dB), accB);
+    if (p && p.type === 'beatmix' && tB && dB && isFinite(dB.a.duration) && dB.a.duration > 0){
+      const dur = dB.a.duration, spb = 60 / p.bpmB;
+      this._seam(ctx, yB, laneH, w, p.startB / dur, (p.startB + (p.beats || 16) * spb) / dur, spb / dur, accB);
+    }
+    if (tB) this._playhead(ctx, yB, laneH, w, fracOf(dB), accB);
+
+    // ---- the strip between: crossfader + the resonance orb
+    const cy = laneH + midH / 2;
+    const f = running ? MIXER.lastF : 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(w * 0.08, cy - 1, w * 0.84, 2);
+    const hx = w * (0.08 + 0.84 * clamp01(f));
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillRect(hx - 1.5, cy - 6, 3, 12);
+    ctx.font = '8px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillText('A', w * 0.08 - 10, cy + 3); ctx.fillText('B', w * 0.92 + 5, cy + 3);
+
+    // the orb: two keys orbiting; phase error is DISTANCE; lock is fusion
+    const err = running && p && p.type === 'beatmix' && window.__mixPhaseErrMs != null
+      ? window.__mixPhaseErrMs : null;
+    const cx = w / 2;
+    const sep = err != null ? 3 + clamp01(err / 40) * 18
+      : armed ? 14 : 9 + Math.sin(performance.now() / 700) * 2;
+    const glow = err != null ? clamp01(1 - err / 6) : 0;
+    ctx.globalCompositeOperation = 'lighter';
+    const orb = (x, rgb, r) => {
+      const g = ctx.createRadialGradient(x, cy, 0, x, cy, r);
+      g.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.9)`);
+      g.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, cy, r, 0, 2 * PI); ctx.fill();
+    };
+    orb(cx - sep, accA, 8 + glow * 4);
+    if (tB) orb(cx + sep, accB, 8 + glow * 4);
+    if (glow > 0.5) orb(cx, [255, 255, 255], 5 + glow * 6);   // fused: the lock shines
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ---- the words
+    const hasNext = player.hasNext();
+    if (running && p){
+      this._deckRow('A', tA, dA, 'handing over', false);
+      this._deckRow('B', tB, dB, 'on air — blending', true);
+      this._set('boothPlan', (p.type === 'beatmix'
+        ? 'blending · ' + Math.round(f * 100) + '% · ' + (p.beats || 16) + ' beats'
+        : p.type + ' · ' + Math.round(f * 100) + '%'));
+      this._set('boothLock', err != null ? 'lock ' + err.toFixed(1) + ' ms' : '');
+    } else if (armed && p){
+      const wait = p.type === 'beatmix' && dA ? Math.max(0, p.startA - dA.a.currentTime) : null;
+      this._deckRow('A', tA, dA, 'on air', true);
+      this._deckRow('B', tB, dB, dB && dB.a.readyState >= 2 ? 'loaded · cued' : 'loading…', false);
+      this._set('boothPlan', p.type === 'beatmix'
+        ? 'beatmix · ' + (p.beats || 16) + ' beats · ' + (p.keys || '')
+          + (wait != null ? ' · seam in ' + wait.toFixed(0) + ' s' : '')
+        : p.type + (p.why ? ' — ' + p.why : ''));
+      this._set('boothLock', '');
+    } else {
+      this._deckRow('A', tA, dA, player.playing ? 'on air' : 'paused', player.playing);
+      this._deckRow('B', null, null, !player.playing ? '' :
+        MIXER.on ? (hasNext ? 'empty — arms 45 s out' : 'end of the queue') : 'MIX is off', false);
+      this._set('boothPlan', MIXER.on
+        ? 'watching the clock — the planner arms 45 s before the end'
+        : 'MIX is off — transitions play plain');
+      this._set('boothLock', '');
+    }
+  },
+};
+
+/* FRESH — the front porch, rendered. Hot this week comes from the local
+   play history (this device's honest taste); the crate and the pressing
+   come from the catalog's publish dates — the label's own drops. */
+function renderFresh(){
+  if (!el.libFresh) return;
+  const now = Date.now();
+  const wk = new Map();
+  for (const ev of HIST.events)
+    if (ev.type === 'play' && ev.startedAt > now - 7 * 86400000)
+      wk.set(ev.key, (wk.get(ev.key) || 0) + 1);
+  // the porch reads the LIBRARY, not the queue — the label's whole shelf
+  const picks = freshPicks(allTracks(), wk, trackKey, now);
+  el.libFresh.innerHTML = '';
+  const card = (tag, ti, mt, go) => {
+    const b = document.createElement('button');
+    b.className = 'fresh-card'; b.type = 'button';
+    const t1 = document.createElement('div'); t1.className = 'tag'; t1.textContent = tag;
+    const t2 = document.createElement('div'); t2.className = 'ti'; t2.textContent = ti;
+    const t3 = document.createElement('div'); t3.className = 'mt'; t3.textContent = mt;
+    b.append(t1, t2, t3);
+    b.addEventListener('click', go);
+    el.libFresh.appendChild(b);
+  };
+  const playOne = t => () => PLAYLISTS.playTracks([t], t.title);
+  if (picks.hot)
+    card('Hot this week', picks.hot.title,
+      picks.plays + (picks.plays === 1 ? ' play' : ' plays') + ' on this device', playOne(picks.hot));
+  if (picks.crate.length >= 2)
+    card("This month's crate", picks.crate.length + ' fresh tracks',
+      'the latest pressings, newest first',
+      () => PLAYLISTS.playTracks(picks.crate.slice(), "This month's crate"));
+  if (picks.fresh && picks.fresh !== picks.hot)
+    card('Fresh pressing', picks.fresh.title,
+      picks.fresh.published ? 'published ' + picks.fresh.published : 'the newest drop',
+      playOne(picks.fresh));
+  el.libFresh.hidden = !el.libFresh.children.length;
+}
+
 let seekDragging = false;
 
 function seekFracFromEvent(ev){
@@ -6254,6 +6617,7 @@ window.addEventListener('keydown', ev => {
     case 'b': case 'B': if (!el.btnLibrary.hidden) openLibrary(!el.library.classList.contains('open')); break;
     case 'c': case 'C': openCrate(!CRATE.open); break;
     case 'j': case 'J': openConsole(!CON.open); break;
+    case 'd': case 'D': BOOTH.toggle(); break;
     case 'm': case 'M': toggleMute(); break;
     case 'f': case 'F': toggleFullscreen(); break;
     case 'a': case 'A': director.setAuto(true); break;
@@ -6266,6 +6630,7 @@ window.addEventListener('keydown', ev => {
     case 'Escape':
       if (el.overflow.classList.contains('open')) setMore(false);
       else if (el.help.classList.contains('open')) openHelp(false);
+      else if (BOOTH.open) BOOTH.toggle(false);
       else if (CON.open) openConsole(false);
       else if (CRATE.open) openCrate(false);
       else if (el.library.classList.contains('open')) openLibrary(false);
@@ -9280,6 +9645,7 @@ function frame(now){
     WAVE.accent = A;
   }
   WAVE.draw();
+  BOOTH.draw();
 
   INTERACT.update(dt);
   DWELL.update(dt);

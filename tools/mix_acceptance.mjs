@@ -211,6 +211,10 @@ R('your fix beats the gate — forced beatmix 8', fixed.type === 'beatmix' && fi
 // bar line from HERE, the incoming enters on its own downbeat, and the cut
 // never happens
 const mixNow = await page.evaluate(() => {
+  // the auto-mixer may already have armed its own pick (beta is 30 s, the
+  // planner arms 45 s out) — clear it so MIX NOW draws the pinned track;
+  // an armed plan's pick is otherwise honoured by design
+  if (MIXER.phase !== 'idle') MIXER.cancel('test');
   const M = new Map(allTracks().map(t => [t.title, t]));
   player._committedNext = player.tracks.indexOf(M.get('alpha'));
   const d = activeDeck();
@@ -235,6 +239,25 @@ R('mix now seam sits on the next bar line',
   'startA ' + mixNow.plan.startA.toFixed(3) + ' (pos ' + mixNow.pos.toFixed(3)
   + ', bar ' + mixNow.barA.toFixed(3) + ', off-lattice ' + latticeOffMs.toFixed(2) + ' ms)');
 await page.waitForFunction('MIXER.phase === "running"', null, { timeout: 8000 });
+// the booth watches the live seam: open it mid-blend, read the room
+await page.evaluate(() => BOOTH.toggle(true));
+await page.waitForTimeout(350);
+const booth = await page.evaluate(() => {
+  const cv = document.getElementById('boothCv');
+  const cx = cv.getContext('2d');
+  const px = cx.getImageData(0, 0, cv.width, cv.height).data;
+  let lit = 0; for (let i = 3; i < px.length; i += 40) if (px[i] > 12) lit++;
+  const g = id => document.getElementById(id).textContent;
+  const out = { plan: g('boothPlan'), nmA: g('boothNmA'), nmB: g('boothNmB'),
+    stB: g('boothStB'), lit, running: MIXER.phase === 'running' };
+  BOOTH.toggle(false);
+  return out;
+});
+R('the booth watches the live seam — outgoing named, incoming on air, painted',
+  !booth.running || (/blending/.test(booth.plan) && booth.nmA === 'beta'
+    && booth.nmB === 'alpha' && /on air/.test(booth.stB) && booth.lit > 30),
+  booth.nmA + ' → ' + booth.nmB + ' · ' + booth.plan + ' · ' + booth.lit + ' lit'
+  + (booth.running ? '' : ' (seam already handed over — skipped)'));
 const nowErr = await page.evaluate(() => new Promise(res => {
   let best = Infinity, n = 0;
   const iv = setInterval(() => {

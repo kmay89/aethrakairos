@@ -21,7 +21,7 @@ function block(name){
 const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
   '\nreturn { mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
-  ' RITUALS, ritualByKey, dealRitual,' +
+  ' RITUALS, ritualByKey, dealRitual, freshPicks,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -257,6 +257,35 @@ test('going for a run builds; bedtime descends; dinner stays quiet-handed', () =
   const din = S.dealRitual(S.ritualByKey('dinner'), cat, S.mulberry32(4)).order;
   const catMeanOnsets = cat.reduce((a, t) => a + t.features.onsets, 0) / cat.length;
   assert.ok(mean(din, 'onsets') < catMeanOnsets, 'dinner: less percussive than the catalog at large');
+});
+
+// ---------------------------------------------------------------- fresh picks
+
+test('freshPicks: the front porch — hot by plays, crate by publish date, pressing newest', () => {
+  const NOW = Date.UTC(2026, 6, 19);
+  const day = 86400000;
+  const iso = d => new Date(NOW - d * day).toISOString().slice(0, 10);
+  const T = (sha, days, over) => Object.assign({ sha256: sha, title: sha, published: iso(days) }, over);
+  const key = t => t.sha256 || null;
+  const tracks = [
+    T('a', 3), T('b', 10), T('c', 30), T('d', 200),
+    T('demo', 1, { demo: true }),            // the demo never fronts the porch
+    T('a', 3),                                // catalog duplicate — surfaces once
+  ];
+  const counts = new Map([['c', 5], ['b', 5], ['d', 2]]);
+  const p = S.freshPicks(tracks, counts, key, NOW);
+  assert.equal(p.fresh.sha256, 'a', 'the pressing is the newest publish (demo excluded)');
+  assert.equal(p.hot.sha256, 'b', 'plays tie 5–5 → the newer publish takes hot');
+  assert.equal(p.plays, 5);
+  assert.deepEqual(p.crate.map(t => t.sha256), ['a', 'b', 'c'], 'a slow month widens 35 → 90 days');
+  const busy = [T('a', 3), T('b', 10), T('c', 30), T('e', 33), T('d', 80)];
+  const p2 = S.freshPicks(busy, new Map(), key, NOW);
+  assert.deepEqual(p2.crate.map(t => t.sha256), ['a', 'b', 'c', 'e'],
+    'a full month keeps the 35-day window — the 80-day track stays out');
+  assert.equal(p2.hot, null, 'no history, no hot — never invented');
+  const p3 = S.freshPicks([{ sha256: 'x', title: 'x' }], new Map([['x', 1]]), key, NOW);
+  assert.equal(p3.fresh, null, 'no publish dates → no pressing, no crate');
+  assert.equal(p3.hot.sha256, 'x', 'but local plays still crown a hot track');
 });
 
 // ---------------------------------------------------------------- mix planner

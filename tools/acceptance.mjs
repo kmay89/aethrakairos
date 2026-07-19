@@ -365,7 +365,33 @@ R('the console accent is driven by the live key colour',
 R('the seek is a decoded, rendered whole-track waveform',
   surf.peaks >= 400 && surf.lit > 50,
   surf.peaks + ' peak columns · ' + surf.lit + ' lit samples');
+
+// ---- 6e · the booth (key D) + the front porch
+await pageD.keyboard.press('d');
+await pageD.waitForTimeout(400);
+const booth = await pageD.evaluate(() => {
+  const cv = document.getElementById('boothCv');
+  const cx = cv.getContext('2d');
+  const px = cx.getImageData(0, 0, cv.width, cv.height).data;
+  let lit = 0; for (let i = 3; i < px.length; i += 40) if (px[i] > 12) lit++;
+  const g = id => document.getElementById(id).textContent;
+  return { open: document.getElementById('booth').classList.contains('open'),
+    nmA: g('boothNmA'), keyA: g('boothKeyA'), plan: g('boothPlan'), lit };
+});
+R('the booth opens on D — lane A carries the playing track, painted',
+  booth.open && booth.nmA === 'Möbius Walking' && booth.keyA === '7B' && booth.lit > 40,
+  booth.nmA + ' · ' + booth.keyA + ' · ' + booth.lit + ' lit · ' + booth.plan);
 await ctxD.close();
+
+// ---- 6f · the front porch (needs the real catalog — the main page)
+const fresh = await page.evaluate(() => {
+  renderFresh();
+  const box = document.getElementById('libFresh');
+  const cards = [...box.querySelectorAll('.fresh-card')].map(b => b.querySelector('.tag').textContent);
+  return { hidden: box.hidden, cards };
+});
+R("the porch greets with the label's drops — fresh cards render",
+  !fresh.hidden && fresh.cards.length >= 1, fresh.cards.join(' · ') || 'none');
 
 // ---- 7 · service worker registered + audio requests bypass it
 const swState = await page.evaluate(async () => {
