@@ -541,20 +541,39 @@ test('beat shaper: a 10 Hz onset train passes at most 3 full pulses/sec', () => 
   assert.ok(full <= 3, `${full} full pulses in one second`);
 });
 
-test('beat shaper: musical tempi pass at full amplitude, and hits ramp, never step', () => {
+test('beat shaper: musical tempi land at full amplitude, snapping within 3 frames', () => {
   const st = S.makeSafeBeatState();
   const dt = 1 / 60;
-  let raw = 0, full = 0, maxJump = 0, prev = 0;
+  let raw = 0, full = 0, prev = 0;
   for (let i = 0; i < 120; i++){                       // 2 s at 120 BPM (beat every 30 frames)
     if (i % 30 === 0) raw = 1;
     const v = S.safeBeatStep(st, raw, dt);
-    maxJump = Math.max(maxJump, v - prev);
-    if (v >= 0.7 && prev < 0.7) full++;                // well above the 0.45 soft cap
+    if (v >= 0.7 && prev < 0.7){
+      full++;
+      assert.ok(i % 30 <= 2, 'the hit lands within 3 frames of the beat (frame ' + (i % 30) + ')');
+    }
     prev = v;
     raw *= Math.exp(-dt / 0.25);
   }
   assert.equal(full, 4, 'every beat of 120 BPM lands at full amplitude');
-  assert.ok(maxJump < 0.35, 'rise is attack-limited (max frame jump ' + maxJump.toFixed(2) + ')');
+});
+
+test('the governor must not blunt a danced impact (the regression that neutered the room)', () => {
+  // a dancePulse-shaped waveform at 126 BPM: instant impact, exponential
+  // release, anticipation dip. The emitted peak must stay within 10% of the
+  // choreographed peak — the governor gates STROBES, not choreography.
+  const st = S.makeSafeBeatState();
+  const dt = 1 / 60, period = 60 / 126;
+  let peakIn = 0, peakOut = 0;
+  for (let i = 0; i < 240; i++){
+    const tSec = i * dt;
+    const phi = (tSec / period) % 1;
+    const raw = 1.1 * Math.exp(-phi / 0.2) - 0.15 * S.clamp01((phi - 0.72) / 0.2);
+    const v = S.safeBeatStep(st, raw, dt);
+    if (i > 30){ peakIn = Math.max(peakIn, raw); peakOut = Math.max(peakOut, v); }
+  }
+  assert.ok(peakOut >= peakIn * 0.9,
+    `emitted peak ${peakOut.toFixed(2)} vs choreographed ${peakIn.toFixed(2)}`);
 });
 
 test('countFlashes counts pairs of opposing >=0.1 transitions', () => {

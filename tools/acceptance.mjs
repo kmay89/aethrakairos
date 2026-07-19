@@ -199,7 +199,7 @@ const story = await page.evaluate(() => ({
   dots: document.querySelectorAll('#sceneDots .sdot').length,
   act: document.getElementById('actName').textContent,
 }));
-R('14 scene dots render', story.dots === 14, story.dots + ' dots');
+R('15 scene dots render', story.dots === 15, story.dots + ' dots');
 // sweep every scene: each must compile its shaders and survive two frames
 for (let i = 0; i < story.dots; i++){
   await page.evaluate(n => director.setScene(n, true), i);
@@ -207,7 +207,7 @@ for (let i = 0; i < story.dots; i++){
 }
 const sweep = await page.evaluate(() =>
   ({ name: document.getElementById('sceneName').textContent, n: scenes.length }));
-R('all scenes render without shader errors', shaderErrs.length === 0 && sweep.n === 14,
+R('all scenes render without shader errors', shaderErrs.length === 0 && sweep.n === 15,
   sweep.n + ' scenes swept, last ' + sweep.name
   + (shaderErrs.length ? ' — ' + shaderErrs[0] : ''));
 R('story act readout is live', /OVERTURE|RISING|APEX|TURN|RESOLVE/.test(story.act), story.act);
@@ -309,13 +309,14 @@ R('demo plays Möbius Walking with its measured grid and key',
 
 // ---- 6c · the dance engine performs on the demo's real, stable grid
 const dance = await pageD.evaluate(async () => {
-  const pulse = [], sway = [], times = [];
+  const pulse = [], sway = [], times = [], emitted = [];
   let gridFrames = 0;
   await new Promise(res => {
     let n = 0;
     const tick = () => {
       if (DANCE.haveGrid) gridFrames++;
       pulse.push(DANCE.pulse); sway.push(DANCE.sway); times.push(U.uTime.value);
+      emitted.push(U.uBeat.value);
       if (++n < 130) requestAnimationFrame(tick); else res();
     };
     requestAnimationFrame(tick);
@@ -323,6 +324,7 @@ const dance = await pageD.evaluate(async () => {
   return {
     gridFrames, frames: pulse.length,
     pMin: Math.min(...pulse), pMax: Math.max(...pulse),
+    eMax: Math.max(...emitted),
     sSpan: Math.max(...sway) - Math.min(...sway),
     monotone: times.every((v, i) => i === 0 || v > times[i - 1]),
     roll: Math.abs(pageDcamZ()),
@@ -333,6 +335,11 @@ R('dance engine rides the grid: impact, release, anticipation',
   dance.gridFrames > dance.frames * 0.8 && dance.pMax > 0.45 && dance.pMin < 0.05,
   'pulse ' + dance.pMin.toFixed(2) + '..' + dance.pMax.toFixed(2)
   + ' · grid ' + dance.gridFrames + '/' + dance.frames);
+// the check that would have caught the neutering: what the SHADERS receive
+// (post-governor uBeat) must keep the choreographed punch at musical tempi
+R('the governed beat keeps the danced punch (emitted uBeat)',
+  dance.eMax >= dance.pMax * 0.85,
+  'emitted peak ' + dance.eMax.toFixed(2) + ' vs danced ' + dance.pMax.toFixed(2));
 R('the room sways through the bar and musical time stays monotone',
   dance.sSpan > 0.05 && dance.monotone && Math.abs(dance.roll) > 0.0005,
   'sway span ' + dance.sSpan.toFixed(2) + ' · lean ' + dance.roll.toFixed(3) + ' rad');
