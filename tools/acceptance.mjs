@@ -343,6 +343,28 @@ R('the governed beat keeps the danced punch (emitted uBeat)',
 R('the room sways through the bar and musical time stays monotone',
   dance.sSpan > 0.05 && dance.monotone && Math.abs(dance.roll) > 0.0005,
   'sway span ' + dance.sSpan.toFixed(2) + ' · lean ' + dance.roll.toFixed(3) + ' rad');
+
+// ---- 6d · the console glows in the key + a scrubbable waveform overview
+await pageD.waitForFunction(() => {
+  const t = player.tracks[player.cur];
+  return t && t._peaks && t._peaks.length > 0;
+}, null, { timeout: 8000 }).catch(() => {});
+const surf = await pageD.evaluate(() => {
+  const t = player.tracks[player.cur];
+  const acc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  const cv = document.getElementById('waveCv');
+  const cx = cv.getContext('2d');
+  // is anything actually drawn? sample the canvas alpha coverage
+  const px = cx.getImageData(0, 0, cv.width, cv.height).data;
+  let lit = 0; for (let i = 3; i < px.length; i += 40) if (px[i] > 12) lit++;
+  return { peaks: t && t._peaks ? t._peaks.length : 0, accent: acc, lit };
+});
+R('the console accent is driven by the live key colour',
+  /^rgb\(/.test(surf.accent) && surf.accent !== 'rgb(110, 231, 255)',
+  surf.accent);
+R('the seek is a decoded, rendered whole-track waveform',
+  surf.peaks >= 400 && surf.lit > 50,
+  surf.peaks + ' peak columns · ' + surf.lit + ' lit samples');
 await ctxD.close();
 
 // ---- 7 · service worker registered + audio requests bypass it

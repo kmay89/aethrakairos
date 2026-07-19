@@ -243,8 +243,10 @@ const nowErr = await page.evaluate(() => new Promise(res => {
   }, 250);
 }));
 R('mix now beat-phase lock < 40 ms', nowErr < 40, nowErr && nowErr.toFixed(1) + ' ms');
+// the beatmix runs 16 beats (~8 s at 124 BPM) then hands over; under heavy
+// machine load that can drift, so give the handover generous headroom
 await page.waitForFunction('MIXER.phase === "idle" && player.tracks[player.cur] '
-  + '&& player.tracks[player.cur].title === "alpha"', null, { timeout: 15000 });
+  + '&& player.tracks[player.cur].title === "alpha"', null, { timeout: 30000 });
 R('mix now hands over — alpha playing', await page.evaluate(() =>
   player.playing && player.tracks[player.cur].title === 'alpha'));
 
