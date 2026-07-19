@@ -297,6 +297,25 @@ await page.waitForTimeout(500);
 R('MIX on survives relaunch', await page.evaluate(() =>
   MIXER.on && el.chipMix.classList.contains('on')));
 
+// ---- 9 · the pad insert: tap a pad → the draw is pinned; auto-mix continues
+const padPin = await page.evaluate(() => {
+  BOOTH.toggle(true);
+  BOOTH.refreshPads();
+  const pads = [...document.querySelectorAll('#boothPads .bpad')];
+  const target = pads.find(b => b.querySelector('.bt').textContent === 'gamma');
+  if (target) target.click();
+  const gi = player.tracks.findIndex(t => t.title === 'gamma');
+  const out = { pads: pads.length, found: !!target,
+    committed: player._committedNext, gi,
+    armedAt: MIXER.phase === 'armed' ? MIXER.next : null };
+  BOOTH.toggle(false);
+  return out;
+});
+R('a pad tap pins the draw — gamma is the committed next (or already armed)',
+  padPin.found && (padPin.committed === padPin.gi || padPin.armedAt === padPin.gi),
+  padPin.pads + ' pads · committed ' + padPin.committed + ' / armed ' + padPin.armedAt
+  + ' vs gamma@' + padPin.gi);
+
 await browser.close();
 server.close();
 const fails = results.filter(r => !r.ok);

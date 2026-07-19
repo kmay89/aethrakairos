@@ -710,10 +710,26 @@ body.zen .chrome{opacity:0;pointer-events:none}
 .booth-deck .meta{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.03em;flex:none}
 .booth-deck .st{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);flex:none}
 .booth-deck .st.live{color:var(--accent,#6ee7ff)}
-#boothCv{width:100%;height:150px;display:block;border-radius:10px}
+#boothCv{width:100%;height:216px;display:block;border-radius:10px}
+/* the pad row — the next-up crate, RGB performance pads */
+#boothPads{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.bpad{
+  position:relative;min-height:44px;border-radius:9px;text-align:left;cursor:pointer;
+  border:1px solid var(--line);padding:6px 8px 9px;overflow:hidden;
+  background:rgba(255,255,255,.03);transition:transform .1s,border-color .15s,background .15s;
+}
+.bpad:hover{transform:translateY(-1px);border-color:var(--pad-c,#6ee7ff);background:rgba(255,255,255,.06)}
+.bpad:active{transform:translateY(0) scale(.98)}
+.bpad .bt{font-size:9.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bpad .bk{font-size:8px;letter-spacing:.1em;color:var(--faint);margin-top:2px;font-family:var(--mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bpad i{position:absolute;left:7px;right:7px;bottom:4px;height:2.5px;border-radius:2px;
+  background:var(--pad-c,#6ee7ff);opacity:var(--pad-glow,.75)}
 @media(max-width:600px){
   #booth{left:6px;right:6px;padding:10px 12px 11px}
-  #boothCv{height:118px}
+  #boothCv{height:132px}
+  #boothPads{grid-template-columns:repeat(4,1fr)}
+  .bpad:nth-child(n+5){display:none}
 }
 
 /* ============ Journey Console (J) ============ */
@@ -1055,6 +1071,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <span class="nm" id="boothNmB">—</span><span class="meta" id="boothMetaB"></span>
     <span class="st" id="boothStB"></span>
   </div>
+  <div id="boothPads" role="group" aria-label="Next up — tap a pad to mix it in; the auto-mix continues after"></div>
 </aside>
 
 <!-- ================= journey console ================= -->
@@ -1483,7 +1500,7 @@ const el = {
   seek: $('seek'), seekFill: document.querySelector('#seek .fill'),
   seekBuf: document.querySelector('#seek .buf'), seekKnob: document.querySelector('#seek .knob'),
   seekTip: $('seekTip'), waveCv: $('waveCv'),
-  booth: $('booth'), boothCv: $('boothCv'), boothClose: $('boothClose'),
+  booth: $('booth'), boothCv: $('boothCv'), boothClose: $('boothClose'), boothPads: $('boothPads'),
   boothPlan: $('boothPlan'), boothLock: $('boothLock'), chipBooth: $('chipBooth'),
   boothKeyA: $('boothKeyA'), boothNmA: $('boothNmA'), boothMetaA: $('boothMetaA'), boothStA: $('boothStA'),
   boothKeyB: $('boothKeyB'), boothNmB: $('boothNmB'), boothMetaB: $('boothMetaB'), boothStB: $('boothStB'),
@@ -3755,6 +3772,15 @@ function mixMatchScore(A, B, opts){
   return { score: 0.12, plan: p };                // a fade is a fallback, not a match
 }
 
+/* the pad row's brain: rank candidates against the playing track with the
+   SAME judge that performs the mix, best first. Pure — takes mix-wrapped
+   tracks, returns indices into the candidate array with score + plan. */
+function nextUp(cands, cur, n){
+  const rows = cands.map((c, i) => ({ i, m: mixMatchScore(cur, c, {}) }));
+  rows.sort((a, b) => b.m.score - a.m.score);
+  return rows.slice(0, n || 8).map(r => ({ i: r.i, score: r.m.score, plan: r.m.plan }));
+}
+
 /* chart a set: a greedy best-match walk with a little seeded looseness —
    the whole crate arranged into one mixable line, energy kept to an arc
    rather than a lurch. Returns the order AND the planned transitions. */
@@ -5892,7 +5918,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '13f30bb4d3';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '77490dd606';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -6211,8 +6237,9 @@ const BOOTH = {
   /* the planned seam painted on a lane: a lit region from f0..f1 with a
      beat-grid comb inside it — you can SEE where the engine will blend
      and count the bars it will take */
-  _seam(ctx, y, h, w, f0, f1, beatF, rgb){
-    const x0 = clamp01(f0) * w, x1 = clamp01(f1) * w;
+  _seam(ctx, y, h, w, f0, f1, beatF, rgb, xOff){
+    const o = xOff || 0;
+    const x0 = o + clamp01(f0) * w, x1 = o + clamp01(f1) * w;
     if (!(x1 > x0)) return;
     ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.13)`;
     ctx.fillRect(x0, y + 1, x1 - x0, h - 2);
@@ -6227,8 +6254,8 @@ const BOOTH = {
         ctx.fillRect(x - 0.5, y + h * 0.28, 1, h * 0.44);
     }
   },
-  _playhead(ctx, y, h, w, frac, rgb){
-    const px = clamp01(frac) * w;
+  _playhead(ctx, y, h, w, frac, rgb, xOff){
+    const px = (xOff || 0) + clamp01(frac) * w;
     const g = ctx.createLinearGradient(px - 10, 0, px + 10, 0);
     g.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
     g.addColorStop(0.5, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.30)`);
@@ -6261,8 +6288,147 @@ const BOOTH = {
     const st = el['boothSt' + side];
     if (st._live !== !!live){ st._live = !!live; st.classList.toggle('live', !!live); }
   },
+  /* seven-segment digits, the instrument's red voice — ghost segments stay
+     faintly lit the way real LED displays do */
+  _seg7(ctx, x, y, s, str, rgb){
+    const SEG = { '0':0x3F, '1':0x06, '2':0x5B, '3':0x4F, '4':0x66, '5':0x6D,
+                  '6':0x7D, '7':0x07, '8':0x7F, '9':0x6F, '-':0x40, ' ':0x00 };
+    const dw = s * 0.52, t = Math.max(1.5, s * 0.10);
+    let cx = x;
+    ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    for (const ch of str){
+      if (ch === '.'){
+        ctx.globalAlpha = 0.95; ctx.fillRect(cx, y + s - t, t, t); cx += t * 2.2; continue;
+      }
+      const m = SEG[ch] || 0;
+      const seg = (sx, sy, sw, sh, b) => {
+        ctx.globalAlpha = (m >> b) & 1 ? 0.95 : 0.09;
+        ctx.fillRect(cx + sx, y + sy, sw, sh);
+      };
+      seg(t, 0, dw - 2 * t, t, 0);
+      seg(dw - t, t, t, s / 2 - 1.5 * t, 1);
+      seg(dw - t, s / 2 + t / 2, t, s / 2 - 1.5 * t, 2);
+      seg(t, s - t, dw - 2 * t, t, 3);
+      seg(0, s / 2 + t / 2, t, s / 2 - 1.5 * t, 4);
+      seg(0, t, t, s / 2 - 1.5 * t, 5);
+      seg(t, s / 2 - t / 2, dw - 2 * t, t, 6);
+      cx += dw + t * 1.6;
+    }
+    ctx.globalAlpha = 1;
+    return cx - x;
+  },
+  /* the step row: sixteen cells, four bars of four, the drum machine's
+     signature quads (red, orange, yellow, cream) marching with the CLOCK */
+  _steps(ctx, x, y, w, h){
+    const QUAD = [[255, 90, 74], [255, 152, 66], [255, 216, 88], [240, 238, 222]];
+    const idx = CLOCK.haveGrid ? ((CLOCK.idx % 16) + 16) % 16 : -1;
+    const cw = w / 16;
+    for (let i = 0; i < 16; i++){
+      const q = QUAD[Math.floor(i / 4)];
+      const down = i % 4 === 0;
+      const cur = i === idx;
+      const ch = down ? h : h * 0.72;
+      ctx.globalAlpha = cur ? 0.98 : 0.15;
+      ctx.fillStyle = `rgb(${q[0]},${q[1]},${q[2]})`;
+      const bw = Math.max(2, cw * 0.62);
+      ctx.fillRect(x + i * cw + (cw - bw) / 2, y + (h - ch), bw, ch);
+      if (cur){
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect(x + i * cw + (cw - bw) / 2 - 1.5, y + (h - ch) - 1.5, bw + 3, ch + 3);
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+  /* the jog wheel: the platter actually TURNS at the deck's playback rate
+     (bent tempo shows as bent spin), the LED ring is the track's position
+     in its key colour, and the whole wheel breathes with the beat */
+  _jog(ctx, cx, cy, r, deck, tr, rgb, pulse, dts, slot){
+    const playing = deck && !deck.a.paused && isFinite(deck.a.duration) && deck.a.duration > 0;
+    const rate = playing ? (deck.a.playbackRate || SPEED.rate) / SPEED.rate : 0;
+    this[slot] = (this[slot] || 0) + dts * rate * (2 * PI * 33.333 / 60);
+    const ang = this[slot];
+    // platter
+    ctx.fillStyle = 'rgba(8,10,18,0.92)';
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.stroke();
+    // slipmat spokes — the spin made visible
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    for (let k = 0; k < 3; k++){
+      const a = ang + k * (2 * PI / 3);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r * 0.2, cy + Math.sin(a) * r * 0.2);
+      ctx.lineTo(cx + Math.cos(a) * r * 0.72, cy + Math.sin(a) * r * 0.72);
+      ctx.stroke();
+    }
+    // position marker dot
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * r * 0.62, cy + Math.sin(ang) * r * 0.62, 2.2, 0, 2 * PI); ctx.fill();
+    // LED progress ring in the key colour
+    const prog = playing || (deck && deck.a.currentTime > 0)
+      ? clamp01((deck ? deck.a.currentTime : 0) / (deck && isFinite(deck.a.duration) ? deck.a.duration : 1)) : 0;
+    const SEGS = 24;
+    for (let i = 0; i < SEGS; i++){
+      const lit = (i + 0.5) / SEGS <= prog;
+      const a0 = -PI / 2 + (i / SEGS) * 2 * PI, a1 = a0 + (2 * PI / SEGS) * 0.62;
+      ctx.strokeStyle = lit
+        ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.95)`
+        : `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.14)`;
+      ctx.lineWidth = lit ? 2.4 + pulse * 1.6 : 1.6;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.93, a0, a1); ctx.stroke();
+    }
+    // the hub glows in the key and breathes with the beat
+    const hub = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.22 + pulse * 3);
+    hub.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.7 + pulse * 0.25})`);
+    hub.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+    ctx.fillStyle = hub;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.22 + pulse * 3, 0, 2 * PI); ctx.fill();
+  },
+  /* the pad row: the eight best next tracks from the whole shelf, judged by
+     the planner that will perform the mix. Tap one — it pins the draw and
+     blends in from the next bar line; the auto-mix simply continues after. */
+  refreshPads(){
+    if (!el.boothPads) return;
+    const cur = player.tracks[player.cur];
+    el.boothPads.innerHTML = '';
+    if (!cur) return;
+    const curW = Object.assign({}, cur, { mix: mixOf(cur) });
+    const seen = new Set([trackKey(cur)].filter(Boolean));
+    const pool = [];
+    for (const t of allTracks()){
+      const k = trackKey(t);
+      if (t.demo || !k || seen.has(k)) continue;
+      seen.add(k); pool.push(t);
+    }
+    const ranked = nextUp(pool.map(t => Object.assign({}, t, { mix: mixOf(t) })), curW, 8);
+    for (const r of ranked){
+      const t = pool[r.i];
+      const m = mixOf(t) || {};
+      const b = document.createElement('button');
+      b.className = 'bpad'; b.type = 'button';
+      const rgb = this.keyRGB(t);
+      b.style.setProperty('--pad-c', `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`);
+      b.style.setProperty('--pad-glow', (0.3 + r.score * 0.65).toFixed(2));
+      const bt = document.createElement('div'); bt.className = 'bt'; bt.textContent = t.title;
+      const bk = document.createElement('div'); bk.className = 'bk';
+      bk.textContent = (m.key || '—') + ' · '
+        + (r.plan.type === 'beatmix' ? (r.plan.beats || 16) + ' beats' : r.plan.type);
+      b.title = 'Mix in “' + t.title + '” — blends on the bar, then the auto-mix continues';
+      const glow = document.createElement('i');
+      b.append(bt, bk, glow);
+      b.addEventListener('click', () => this._padPlay(t));
+      el.boothPads.appendChild(b);
+    }
+  },
+  _padPlay(t){
+    crateMixNext(t);                     // pin the draw (adds to the queue if needed)
+    if (MIXER.on && player.playing && MIXER.phase !== 'running') MIXER.tryMixNow();
+  },
   draw(){
     if (!this.open || !el.boothCv) return;
+    const nowMs = performance.now();
+    const dts = Math.min(0.1, (nowMs - (this._lastDraw || nowMs)) / 1000);
+    this._lastDraw = nowMs;
     const running = MIXER.phase === 'running';
     const armed = MIXER.phase === 'armed';
     // lane A is always the deck that OWNS the room; B is the challenger.
@@ -6274,6 +6440,11 @@ const BOOTH = {
     const tB = running ? player.tracks[player.cur] : (armed ? player.tracks[MIXER.next] : null);
     if (tB && tB.url && !tB._peaks && !tB._peaksPending && !tB._peaksErr) computePeaks(tB);
 
+    // the pad row follows what's playing
+    const pcur = player.tracks[player.cur];
+    const pkey = pcur ? (trackKey(pcur) || pcur.url || String(pcur.id)) : null;
+    if (pkey !== this._padKey){ this._padKey = pkey; this.refreshPads(); }
+
     const cv = el.boothCv, ctx = this._ctx || (this._ctx = cv.getContext('2d'));
     const w = cv.clientWidth, h = cv.clientHeight;
     if (!w || !h || !ctx) return;
@@ -6282,50 +6453,112 @@ const BOOTH = {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    const midH = Math.min(34, h * 0.26);
-    const laneH = (h - midH) / 2;
+    const full = h >= 150 && w >= 560;         // phones get the essential read
+    const topH = full ? 40 : 22;
+    const botH = full ? 34 : 26;
+    const hMid = h - topH - botH;
     const accA = this.keyRGB(tA), accB = this.keyRGB(tB);
     const fracOf = d => (d && isFinite(d.a.duration) && d.a.duration > 0)
       ? clamp01(d.a.currentTime / d.a.duration) : 0;
     const p = MIXER.plan;
+    const f = running ? MIXER.lastF : 0;
+    const aG = Math.cos(clamp01(f) * PI / 2), bG = Math.sin(clamp01(f) * PI / 2);
+    const beat = clamp01(AE.f.beat);
 
-    // ---- lane A (top) + its seam region
-    paintLane(ctx, 0, 0, w, laneH, tA, fracOf(dA), accA);
+    // ---- top strip: the red voice + the step row
+    const master = running && f > 0.5 ? { d: dB, t: tB } : { d: dA, t: tA };
+    const mm = master.t && mixOf(master.t);
+    let bpmEff = 0;
+    if (mm && mm.bpm > 0 && master.d && master.d.a.playbackRate)
+      bpmEff = mm.bpm * (master.d.a.playbackRate / SPEED.rate);
+    else if (CLOCK.haveGrid) bpmEff = CLOCK.bpm;
+    const bpmStr = bpmEff > 0 ? bpmEff.toFixed(1).padStart(5, ' ') : '---.-';
+    let stepsX = 8;
+    if (full){
+      const segW = this._seg7(ctx, 8, 8, 22, bpmStr, [255, 82, 64]);
+      ctx.globalAlpha = 0.4; ctx.font = '7px monospace'; ctx.fillStyle = '#ff5240';
+      ctx.fillText('BPM', 8, 38); ctx.globalAlpha = 1;
+      stepsX = 8 + segW + 22;
+    }
+    this._steps(ctx, stepsX, full ? 10 : 3, w - stepsX - 8, full ? 20 : 14);
+
+    // ---- the decks: jogs flanking the two lanes
+    const jog = full ? Math.min(hMid / 2 - 4, 66) : 0;
+    const laneX = full ? jog * 2 + 22 : 0;
+    const laneW = w - laneX * 2;
+    const laneH = (hMid - 8) / 2;
+    const yA = topH, yB2 = topH + laneH + 8;
+    if (full){
+      this._jog(ctx, jog + 6, topH + hMid / 2, jog, dA, tA, accA, beat * aG, dts, '_angA');
+      this._jog(ctx, w - jog - 6, topH + hMid / 2, jog, dB, tB, accB, beat * bG, dts, '_angB');
+    }
+    paintLane(ctx, laneX, yA, laneW, laneH, tA, fracOf(dA), accA);
     if (p && dA && isFinite(dA.a.duration) && dA.a.duration > 0){
       const dur = dA.a.duration;
       let s0 = null, s1 = null, spb = 0;
       if (p.type === 'beatmix'){ spb = 60 / p.bpmA; s0 = p.startA; s1 = p.startA + (p.beats || 16) * spb; }
       else if (p.type === 'fade'){ s0 = Math.max(0, dur - p.seconds); s1 = dur; }
-      if (s0 != null) this._seam(ctx, 0, laneH, w, s0 / dur, s1 / dur, spb / dur, accA);
+      if (s0 != null){
+        ctx.save(); ctx.beginPath(); ctx.rect(laneX, yA, laneW, laneH); ctx.clip();
+        this._seam(ctx, yA, laneH, laneW, s0 / dur, s1 / dur, spb / dur, accA, laneX);
+        ctx.restore();
+      }
     }
-    this._playhead(ctx, 0, laneH, w, fracOf(dA), accA);
-
-    // ---- lane B (bottom) + its seam region
-    const yB = laneH + midH;
-    paintLane(ctx, 0, yB, w, laneH, tB, fracOf(dB), accB);
+    this._playhead(ctx, yA, laneH, laneW, fracOf(dA), accA, laneX);
+    paintLane(ctx, laneX, yB2, laneW, laneH, tB, fracOf(dB), accB);
     if (p && p.type === 'beatmix' && tB && dB && isFinite(dB.a.duration) && dB.a.duration > 0){
       const dur = dB.a.duration, spb = 60 / p.bpmB;
-      this._seam(ctx, yB, laneH, w, p.startB / dur, (p.startB + (p.beats || 16) * spb) / dur, spb / dur, accB);
+      ctx.save(); ctx.beginPath(); ctx.rect(laneX, yB2, laneW, laneH); ctx.clip();
+      this._seam(ctx, yB2, laneH, laneW, p.startB / dur, (p.startB + (p.beats || 16) * spb) / dur, spb / dur, accB, laneX);
+      ctx.restore();
     }
-    if (tB) this._playhead(ctx, yB, laneH, w, fracOf(dB), accB);
+    if (tB) this._playhead(ctx, yB2, laneH, laneW, fracOf(dB), accB, laneX);
 
-    // ---- the strip between: crossfader + the resonance orb
-    const cy = laneH + midH / 2;
-    const f = running ? MIXER.lastF : 0;
+    // ---- bottom strip: channel levels, the LOW handover, the crossfader, the orb
+    const cy = h - botH / 2;
+    if (full){
+      // channel VU bars ride the real equal-power gains
+      const vuW = Math.min(120, laneW * 0.28);
+      const drawVu = (x, g, rgb, label) => {
+        ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x, cy - 3, vuW, 6);
+        ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.85)`;
+        ctx.fillRect(x, cy - 3, vuW * clamp01(g), 6);
+        ctx.globalAlpha = 0.4; ctx.font = '7px monospace'; ctx.fillStyle = '#fff';
+        ctx.fillText(label, x, cy - 8); ctx.globalAlpha = 1;
+      };
+      drawVu(laneX, running ? aG : 1, accA, 'CH A');
+      drawVu(w - laneX - vuW, running ? bG : (armed ? 0 : 0), accB, 'CH B');
+      // the one-bass rule, visible: LOW lamps hand over at the midpoint
+      if (running && p && p.type === 'beatmix'){
+        const swapBeats = 2 / Math.max(4, p.beats || 16);
+        const k = clamp01((f - 0.5) / swapBeats + 0.5);
+        const lamp = (x, on) => {
+          ctx.globalAlpha = 0.15 + 0.8 * on;
+          ctx.fillStyle = '#ffb054';
+          ctx.beginPath(); ctx.arc(x, cy, 3.4, 0, 2 * PI); ctx.fill();
+          ctx.globalAlpha = 0.4; ctx.font = '7px monospace';
+          ctx.fillText('LOW', x + 7, cy + 2.5); ctx.globalAlpha = 1;
+        };
+        lamp(laneX + vuW + 14, 1 - k);
+        lamp(w - laneX - vuW - 40, k);
+      }
+    }
+    // crossfader
+    const xf0 = w * 0.5 - Math.min(150, w * 0.17), xf1 = w * 0.5 + Math.min(150, w * 0.17);
     ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillRect(w * 0.08, cy - 1, w * 0.84, 2);
-    const hx = w * (0.08 + 0.84 * clamp01(f));
+    ctx.fillRect(xf0, cy - 1, xf1 - xf0, 2);
+    const hx = xf0 + (xf1 - xf0) * clamp01(f);
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillRect(hx - 1.5, cy - 6, 3, 12);
+    ctx.fillRect(hx - 1.5, cy - 7, 3, 14);
     ctx.font = '8px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fillText('A', w * 0.08 - 10, cy + 3); ctx.fillText('B', w * 0.92 + 5, cy + 3);
+    ctx.fillText('A', xf0 - 12, cy + 3); ctx.fillText('B', xf1 + 5, cy + 3);
 
     // the orb: two keys orbiting; phase error is DISTANCE; lock is fusion
     const err = running && p && p.type === 'beatmix' && window.__mixPhaseErrMs != null
       ? window.__mixPhaseErrMs : null;
     const cx = w / 2;
     const sep = err != null ? 3 + clamp01(err / 40) * 18
-      : armed ? 14 : 9 + Math.sin(performance.now() / 700) * 2;
+      : armed ? 14 : 9 + Math.sin(nowMs / 700) * 2;
     const glow = err != null ? clamp01(1 - err / 6) : 0;
     ctx.globalCompositeOperation = 'lighter';
     const orb = (x, rgb, r) => {

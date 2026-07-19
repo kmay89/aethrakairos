@@ -393,6 +393,21 @@ const fresh = await page.evaluate(() => {
 R("the porch greets with the label's drops — fresh cards render",
   !fresh.hidden && fresh.cards.length >= 1, fresh.cards.join(' · ') || 'none');
 
+// ---- 6g · the deck's pad row: eight best-next candidates from the shelf
+const pads = await page.evaluate(() => {
+  BOOTH.toggle(true);
+  BOOTH.refreshPads();
+  const rows = [...document.querySelectorAll('#boothPads .bpad')].map(b => ({
+    title: b.querySelector('.bt').textContent,
+    tag: b.querySelector('.bk').textContent,
+  }));
+  BOOTH.toggle(false);
+  return rows;
+});
+R('the pad row deals eight next-up candidates, planner-tagged',
+  pads.length === 8 && pads.every(r => r.title && /·/.test(r.tag)),
+  pads.length + ' pads · first: ' + (pads[0] ? pads[0].title + ' [' + pads[0].tag + ']' : '—'));
+
 // ---- 7 · service worker registered + audio requests bypass it
 const swState = await page.evaluate(async () => {
   const regs = await navigator.serviceWorker.getRegistrations();
