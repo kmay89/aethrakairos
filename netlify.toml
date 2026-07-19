@@ -1,0 +1,17 @@
+# The site IS the player, and it lives in docs/ (player, manifest, service
+# worker, icons, catalog.json, audio) — publish that, not the repo root.
+# Canonical hosting is GitHub Pages at aethrakairos.com (see HOSTING.md);
+# Netlify serves deploy previews for pull requests against this repo.
+[build]
+  publish = "docs"
+
+# the service worker must never be served stale, or updates stall
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/catalog.json"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
