@@ -79,17 +79,35 @@ pasted into `MB8_SIGNING_PUBKEY` in the player and Ed25519 WebCrypto support.)
 python3 make_catalog.py doctor    # the monthly once-over
 ```
 
+**Drop songs as they are** — MP3, WAV, or M4A (AIFF and FLAC too). Anything
+that isn't MP3 becomes a 320k web MP3 on the way in (`ffmpeg`, tags and the
+file's own dates carried over); a same-stem `.mp3` already beside a source
+wins. The public tree still serves only web MP3s, and masters still never
+enter the repo.
+
+**The dates are the artist's story.** A new track's `published` date is read
+from the file itself (birth time where the OS records one, else modification
+time — carried through conversion), sanity-clamped to `[2000, today]`. The
+player's *"The progression — first pressing to now"* smart list plays the
+catalog oldest-first: the arc, in order.
+
 Duplicate-proof at three levels:
 
 1. **Ingest** — the wizard's SHA-256 IndexedDB ledger catches exact re-drops.
 2. **Catalog** — `make_catalog.py` hashes every file. A known hash at a new
    path is a **move** (path updates, `published` survives, DNA references stay
    intact); a known hash at the same path is a no-op; two entries with one
-   hash cannot be emitted.
-3. **Perceptual** — the Haitsma–Kalker gate runs on every *new* hash. A CLONE
-   verdict (best-10-second-window bit-error rate < 0.14) refuses the add **by
-   name**; `--force` overrides and stamps the override into the catalog entry
-   so honesty survives.
+   hash cannot be emitted. Titles are tidied (unicode normalized, control
+   characters and underscores out), and two different songs can never claim
+   one public filename — collisions step to `-2`, `-3`, …
+3. **Perceptual** — the Haitsma–Kalker gate runs on every *new* hash. On a
+   CLONE verdict (best-10-second-window bit-error rate < 0.14) — the same
+   song under two names — an interactive publish **asks which name wins**:
+   keep the existing entry (default), `use-new` (the new file and name
+   replace the old entry; the publish date survives, the retired audio and
+   fingerprint leave the tree), or `both`. Scripted runs pick with
+   `--on-clone keep|use-new|both`; `--force` still means `both`, and every
+   override is stamped into the catalog entry so honesty survives.
 
 Features come from the wizard's JSON report when present, else from
 `features.py` (BS.1770-4 K-weighted loudness with the wizard's exact 48 kHz
@@ -106,7 +124,8 @@ the 500 KB gzip budget, and N sampled track URLs probed for
 is nonzero on any failure, and `publish.sh` is gated on it.
 
 **Masters never enter the public repo.** Any `.wav` under `docs/audio/` fails
-the build loudly; `publish.sh` refuses wizard ZIPs containing one.
+the build loudly. (ZIPs may carry WAV/M4A freely — they unpack into
+`masters/`, which stays on the machine, and convert on the way in.)
 
 ## The Journey Console (key `J`)
 
@@ -552,7 +571,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 ## Tests
 
 ```bash
-python3 tests/test_pipeline.py      # 30 tests: build, dedupe, gate, doctor, features, mix,
+python3 tests/test_pipeline.py      # 37 tests: build, dedupe, ingest-convert, name-pick, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
 node tests/player.test.mjs          # 58 tests: solver, quantum, history, restore, planner,

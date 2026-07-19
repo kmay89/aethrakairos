@@ -14,6 +14,7 @@ import json
 import os
 import shutil
 import struct
+import subprocess
 import sys
 import unittest
 import wave
@@ -97,11 +98,13 @@ class TmpRepo(unittest.TestCase):
                 samples = synth_track(spec) if isinstance(spec, int) else spec
                 write_wav(Path("masters") / album / name, samples)
 
-    def build(self, force=False):
+    def build(self, force=False, extra=None):
         argv = ["masters", "--artist", "Aethra Kairos", "--label", "ERRERlabs",
                 "--base", "audio"]
         if force:
             argv.append("--force")
+        if extra:
+            argv.extend(extra)
         return mc.main(argv)
 
     def catalog(self):
@@ -361,6 +364,112 @@ class TestCatalogBuild(TmpRepo):
             self.build()
 
 
+FFMPEG = (os.environ.get("MB8_FFMPEG") or shutil.which("ffmpeg")
+          or (str(Path.home() / "bin" / "ffmpeg")
+              if (Path.home() / "bin" / "ffmpeg").exists() else None))
+
+
+class TestNamesAndDates(TmpRepo):
+    def test_clone_use_new_replaces_and_keeps_the_date(self):
+        x = synth_track(61)
+        self.masters({"A": {"01-first-name.mp3": x}})
+        self.build()
+        old = [tr for _, tr in self.flat() if "first-name" in tr["file"]][0]
+        clone = np.concatenate([np.zeros(int(0.2 * 44100)), 0.7 * x])
+        clone += 0.002 * np.random.default_rng(2).standard_normal(len(clone))
+        write_wav("masters/A/01-better-name.mp3", clone)
+        self.build(extra=["--on-clone", "use-new"])
+        cat = self.catalog()
+        files = [tr["file"] for _, tr in self.flat(cat)]
+        self.assertNotIn(old["file"], files, "the old name retires")
+        new = [tr for _, tr in self.flat(cat) if "better-name" in tr["file"]]
+        self.assertEqual(len(new), 1)
+        self.assertEqual(new[0]["published"], old["published"],
+                         "the publish date survives the rename — same song")
+        self.assertIn("replaced", new[0]["fingerprint_override"])
+        self.assertFalse((Path("docs/audio/a") / old["file"]).exists(),
+                         "the retired audio leaves the public tree")
+
+    def test_clone_default_keeps_existing_without_a_terminal(self):
+        x = synth_track(62)
+        self.masters({"A": {"01-original.mp3": x}})
+        self.build()
+        clone = np.concatenate([np.zeros(int(0.15 * 44100)), 0.72 * x])
+        clone += 0.002 * np.random.default_rng(3).standard_normal(len(clone))
+        write_wav("masters/A/01-duplicate.mp3", clone)
+        self.build()                       # --on-clone ask, no TTY → keep
+        files = [tr["file"] for _, tr in self.flat()]
+        self.assertIn("01-original.mp3", files)
+        self.assertTrue(all("duplicate" not in f for f in files), files)
+
+    def test_filename_collision_steps_past_a_different_song_on_disk(self):
+        self.masters({"A": {"01-t.mp3": 63}})
+        self.build()
+        shutil.rmtree("masters")
+        self.masters({"A": {"01-t.mp3": 199}})   # a DIFFERENT song, same name
+        self.build()
+        files = [tr["file"] for _, tr in self.flat()]
+        self.assertEqual(files, ["01-t-2.mp3"],
+                         "two songs never share a public filename")
+
+    def test_titles_are_tidied(self):
+        self.assertEqual(mc.tidy_title("  mobius__walking   (bounce)​ "),
+                         "mobius walking (bounce)")
+        self.assertEqual(mc.tidy_title("— Final Countdown —"), "Final Countdown")
+        self.assertEqual(mc.tidy_title("‎"), "Untitled")
+
+    def test_published_reads_the_files_own_date(self):
+        self.masters({"A": {"01-old.mp3": 65}})
+        ts = mc._dt.datetime(2025, 9, 1, 12, 0).timestamp()
+        os.utime("masters/A/01-old.mp3", (ts, ts))
+        self.build()
+        tr = self.flat()[0][1]
+        self.assertEqual(tr["published"], "2025-09-01",
+                         "the catalog carries the day the song was made")
+
+    def test_insane_file_dates_fall_back_to_today(self):
+        self.masters({"A": {"01-epoch.mp3": 66}})
+        os.utime("masters/A/01-epoch.mp3", (1, 1))          # 1970
+        self.build()
+        self.assertEqual(self.flat()[0][1]["published"], mc.today())
+
+
+@unittest.skipUnless(FFMPEG, "ffmpeg not available")
+class TestIngestConversion(TmpRepo):
+    def setUp(self):
+        super().setUp()
+        os.environ["MB8_FFMPEG"] = FFMPEG
+        self._path = os.environ.get("PATH", "")
+        os.environ["PATH"] = str(Path(FFMPEG).parent) + os.pathsep + self._path
+
+    def tearDown(self):
+        os.environ.pop("MB8_FFMPEG", None)
+        os.environ["PATH"] = self._path
+        super().tearDown()
+
+    def test_wav_and_m4a_become_web_mp3s_and_keep_their_dates(self):
+        write_wav("masters/A/01-fromwav.wav", synth_track(70))
+        write_wav("scratch.wav", synth_track(171))
+        subprocess.run([FFMPEG, "-nostdin", "-loglevel", "error",
+                        "-i", "scratch.wav", "-c:a", "aac",
+                        "masters/A/02-fromaac.m4a"], check=True)
+        ts = mc._dt.datetime(2025, 11, 5, 10, 0).timestamp()
+        os.utime("masters/A/01-fromwav.wav", (ts, ts))
+        os.utime("masters/A/02-fromaac.m4a", (ts, ts))
+        self.build()
+        cat = self.catalog()
+        files = sorted(tr["file"] for _, tr in self.flat(cat))
+        self.assertEqual(files, ["01-fromwav.mp3", "02-fromaac.mp3"])
+        for _, tr in self.flat(cat):
+            self.assertEqual(tr["published"], "2025-11-05",
+                             "conversion must not erase the day it was made")
+        pub_audio = [p for p in Path("docs/audio").rglob("*") if p.is_file()]
+        self.assertTrue(all(p.suffix == ".mp3" for p in pub_audio), pub_audio)
+        # a re-run converts nothing (mp3 twins exist) and adds nothing
+        self.build()
+        self.assertEqual(len(self.flat()), 2)
+
+
 class TestCatalogMix(TmpRepo):
     def test_tracks_carry_mix_blocks(self):
         self.masters({"A": {"01-x.mp3": synth_beat_track(126.0), "02-y.mp3": 12}})
@@ -413,7 +522,9 @@ class TestCatalogMix(TmpRepo):
 class TestDoctor(TmpRepo):
     def seed(self):
         self.masters({"Album One": {"01-alpha.mp3": 61, "02-beta.mp3": 62}})
-        write_wav("masters/Album One/cover_src.wav", synth_track(1, dur=1.0))
+        # a stray non-audio file in masters is ignored by the scan
+        # (.wav is no longer junk — it converts — so the stray is a .txt)
+        Path("masters/Album One/session-notes.txt").write_text("takes 3 and 7")
         # give the album explicit art so doctor's art check passes
         Path("masters/Album One/cover.png").write_bytes(
             b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)

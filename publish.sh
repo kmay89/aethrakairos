@@ -30,10 +30,8 @@ unpack() {
 import sys, zipfile, pathlib
 zf, dest = sys.argv[1], pathlib.Path(sys.argv[2])
 with zipfile.ZipFile(zf) as z:
-    for m in z.namelist():
-        if m.lower().endswith(('.wav', '.aif', '.aiff')):
-            sys.exit(f"refusing {zf}: contains a master ({m}) — "
-                     "the public pipeline takes web MP3s only")
+    # WAV/M4A/AIFF/FLAC are welcome in masters/ — make_catalog converts
+    # them to web MP3s on the way in; the PUBLIC tree still refuses masters
     z.extractall(dest)
 PY
 }
