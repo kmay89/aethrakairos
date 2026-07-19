@@ -55,6 +55,9 @@ for f in (ROOT / "docs").iterdir():
         shutil.copyfile(f, DEST / f.name)
 shutil.copytree(ROOT / "docs" / "icons", DEST / "icons", dirs_exist_ok=True)
 shutil.copyfile(DEST / "docs" / "catalog.json", DEST / "catalog.json")
+# the build writes the public tree under docs/ (same-origin hosting); this
+# fixture serves from its root, so the audio tree must sit beside the catalog
+shutil.copytree(DEST / "docs" / "audio", DEST / "audio", dirs_exist_ok=True)
 idx = (DEST / "index.html").read_text()
 idx = idx.replace("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
                   "three.min.js")

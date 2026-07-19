@@ -62,7 +62,8 @@ full-track streams. If GitHub's bandwidth emails start arriving:
 
 ## Provenance
 
-This repo is the artist's distribution: the site, the music, the pipeline.
-The Möbius⁸ engine itself is developed in
-[kmay89/quantum_jukebox-](https://github.com/kmay89/quantum_jukebox-);
-engine work lands there first and is ported here.
+**This repo is the master.** The site, the music, the pipeline, and the
+Möbius⁸ engine itself are all developed here. The engine's original home,
+[kmay89/quantum_jukebox-](https://github.com/kmay89/quantum_jukebox-),
+is dormant — it holds the history and can be brought back to parity
+later, but new work lands here and only here.

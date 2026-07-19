@@ -2282,6 +2282,10 @@ const player = {
       const d = activeDeck(); if (d){ d.a.currentTime = 0; d.a.play().catch(()=>{}); }
       return;
     }
+    // the listener said "next": if the mixer can blend from here — the next
+    // bar line, the incoming's own downbeat, sixteen beats of seam — the
+    // blend owns the transition and the cut never happens
+    if (!auto && typeof MIXER !== 'undefined' && MIXER.tryMixNow()) return;
     const i = this.pickNext();
     if (i === -1){
       HIST.leave(this.tracks[this.cur], auto ? 'ended' : 'skip');
@@ -3445,12 +3449,18 @@ function planTransition(A, B, opts){
   const spbA = 60 / mA.bpm, spbB = 60 / mB.bpm;
   const durA = A.duration || 0;
   const barA = 4 * spbA;
-  // start on the LAST bar line of A's grid that leaves room for the overlap
-  const lastUsable = Math.min(
-    mA.out.start + ((mA.out.beats || beats) - beats) * spbA,
-    durA - beats * spbA - 0.30);
-  if (lastUsable < mA.grid + barA) return fade('no room to mix');
-  const startA = mA.grid + Math.floor((lastUsable - mA.grid) / barA) * barA;
+  // start on the LAST bar line of A's grid that leaves room for the overlap.
+  // Quantize against the REGION bound (a lattice-anchored time, so a grid
+  // fix slides the plan by exactly the fix), then step back whole bars only
+  // if the duration cliff truly demands it — flooring against the raw
+  // duration made a 20 ms nudge able to re-quantize the seam a bar away.
+  const regionEnd = mA.out.start + ((mA.out.beats || beats) - beats) * spbA;
+  const durEnd = durA - beats * spbA - 0.30;
+  if (Math.min(regionEnd, durEnd) < mA.grid + barA) return fade('no room to mix');
+  let startA = mA.grid + Math.floor((regionEnd - mA.grid) / barA + 1e-9) * barA;
+  if (startA > durEnd + 1e-9)
+    startA -= Math.ceil((startA - durEnd - 1e-9) / barA) * barA;
+  if (startA < mA.grid + barA) return fade('no room to mix');
   const startB = Math.max(0, (mB.in.start || 0) + (opts.offsetBeats || 0) * spbB);
   return {
     type: 'beatmix', beats,
@@ -3617,15 +3627,20 @@ function colorPlan(inp){
   // character → scheme
   const scheme = ent > 0.62 ? 'triad' : (e > 0.55 ? 'complement' : 'analogous');
   // arousal → chroma; mode → lightness + temperature
-  const C0 = 0.05 + e * 0.13 + act * 0.10;
-  const L0 = lClamp((minor ? 0.56 : 0.64) + e * 0.10 + act * 0.06 - ent * 0.05);
+  // RADIANT, not pastel: chroma lives in OKLCH's vivid range (0.12–0.4 —
+  // the gamut mapper walks it down safely where sRGB can't follow), and
+  // lightness sits a touch lower so saturation reads as glow, not chalk.
+  const C0 = 0.14 + e * 0.20 + act * 0.12;
+  const L0 = lClamp((minor ? 0.50 : 0.56) + e * 0.08 + act * 0.05 - ent * 0.05);
   const H = (rootH + (minor ? 14 : -6) + 360) % 360;
   const spread = scheme === 'analogous' ? 24 + rng() * 12 : (scheme === 'complement' ? 180 : 120);
   const a = { l: L0, c: C0, h: H };
-  const b = { l: lClamp(L0 + (scheme === 'analogous' ? 0.10 : 0.06)), c: C0 * 0.85, h: (H + spread) % 360 };
+  const b = { l: lClamp(L0 + (scheme === 'analogous' ? 0.06 : 0.04)), c: C0 * 0.9, h: (H + spread) % 360 };
+  // even the bright accent carries real hue — a near-white accent is what
+  // reads as "washed out" the moment particles stack additively
   const c = scheme === 'triad'
-    ? { l: lClamp(L0 + 0.16), c: C0 * 0.8, h: (H + 240) % 360 }
-    : { l: 0.90, c: 0.045 + e * 0.035, h: (H + (scheme === 'complement' ? 180 : -spread) + 360) % 360 };
+    ? { l: lClamp(L0 + 0.16), c: C0 * 0.85, h: (H + 240) % 360 }
+    : { l: 0.85, c: 0.08 + e * 0.06, h: (H + (scheme === 'complement' ? 180 : -spread) + 360) % 360 };
   return { scheme, keyed, minor: !!minor, root: a, colors: [a, b, c] };
 }
 // @color-end
@@ -3725,6 +3740,93 @@ function countFlashes(trace){
   return flashes;
 }
 // @safe-end
+
+// @clock-start
+/* ================================================================
+   MEDIA CLOCK + MIX-NOW PLANNER — pure, node-tested.
+   currentTime is coarse and jittery (quantized, ~4 updates/frame at
+   best); the industry fix (W3C MediaSync) is to regress media time
+   against wall time over a short ring buffer: duplicates rejected,
+   the slope IS the measured true rate, the intercept gives a smooth
+   sub-millisecond position estimate. Every clock consumer — the
+   beat clock the visuals dance to, the mixer's phase lock — reads
+   the regression, never the raw property.
+   ================================================================ */
+function makeMediaClock(){
+  return { tw: [], tm: [], i: 0, n: 0, lastRaw: -1, a: 0, b: 1, ok: false };
+}
+/* the ONLY correct way to reset: the regression reads indices 0..n-1, so a
+   reset that leaves the write index i standing lets stale samples corrupt
+   the next fit (found in review — all reset sites go through here) */
+function clockReset(c){ c.n = 0; c.i = 0; c.ok = false; c.lastRaw = -1; }
+function clockSample(c, wall, media){
+  if (!(media > 0) || media === c.lastRaw) return;   // duplicate = no information
+  // discontinuity (seek, new track): the old window is a lie — start over
+  if (c.ok && Math.abs((c.a + c.b * wall) - media) > 0.25) clockReset(c);
+  c.lastRaw = media;
+  c.tw[c.i] = wall; c.tm[c.i] = media;
+  c.i = (c.i + 1) % 12;
+  if (c.n < 12) c.n++;
+  if (c.n >= 4){
+    let sw = 0, sm = 0, sww = 0, swm = 0;
+    for (let k = 0; k < c.n; k++){ sw += c.tw[k]; sm += c.tm[k]; }
+    const mw = sw / c.n, mm = sm / c.n;
+    for (let k = 0; k < c.n; k++){
+      const dw = c.tw[k] - mw;
+      sww += dw * dw; swm += dw * (c.tm[k] - mm);
+    }
+    if (sww > 1e-6){
+      c.b = swm / sww;
+      c.a = mm - c.b * mw;
+      c.ok = c.b > 0.5 && c.b < 2.5;                 // a sane playing clock
+    }
+  }
+}
+function clockRead(c, wall){ return c.ok ? c.a + c.b * wall : null; }
+
+/* The MIX NOW plan: the listener said "next" — blend from HERE, not from
+   the end of the track. Same gates as planTransition (the piano rule, the
+   tempo gap, the key clash), different geometry: the seam starts on the
+   NEXT BAR LINE of the playing track (phrase arithmetic on the constant
+   grid — the MixMeister move), the incoming enters on its own mix-in
+   downbeat, and the blend runs 16 beats (8 when the keys argue). When a
+   gate refuses, the fallback is a SHORT fade — "next" must stay prompt. */
+function planMixNow(A, B, pos, opts){
+  const o = opts || {};
+  const quick = { type: 'fade', seconds: o.quickFade == null ? 0.8 : o.quickFade };
+  if (!A || !B || !(A.bpm > 0) || !(B.bpm > 0) || A.grid == null || B.grid == null)
+    return Object.assign(quick, { why: 'no beat grid' });
+  const mixMin = o.mixableMin == null ? 0.5 : o.mixableMin;
+  if ((A.mixable || 0) < mixMin || (B.mixable || 0) < mixMin)
+    return Object.assign(quick, { why: 'not beat-stable' });
+  const fold = tempoFoldRatio(A.bpm, B.bpm);
+  if (Math.abs(fold - 1) > (o.maxTempo == null ? 0.08 : o.maxTempo))
+    return Object.assign(quick, { why: 'tempo gap' });
+  const kc = camelotCompat(A.key, B.key);
+  if (kc > 2) return Object.assign(quick, { why: 'key clash' });
+  const spbA = 60 / A.bpm, spbB = 60 / B.bpm, barA = spbA * 4;
+  let beats = kc <= 1 ? 16 : 8;
+  if (B.in && B.in.beats) beats = Math.max(4, Math.min(beats, B.in.beats));
+  const lead = o.lead == null ? 0.18 : o.lead;       // scheduling headroom
+  const nBar = Math.max(0, Math.ceil((pos + lead - A.grid) / barA));
+  const startA = A.grid + nBar * barA;
+  const durA = o.durA == null ? Infinity : o.durA;
+  if (startA + 4 * spbA > durA - 0.3)
+    return Object.assign(quick, { why: 'no room to mix' });
+  while (beats > 4 && startA + beats * spbA > durA - 0.3) beats -= 4;
+  const startB = B.in ? B.in.start : B.grid;
+  return {
+    type: 'beatmix', now: true, beats,
+    startA: Math.round(startA * 1000) / 1000,
+    startB: Math.round(startB * 1000) / 1000,
+    bpmA: A.bpm, bpmB: B.bpm,
+    fold: Math.round(fold * 10000) / 10000,
+    seconds: Math.round(beats * (spbA + spbB) / 2 * 100) / 100,
+    keys: (A.key || '?') + '→' + (B.key || '?'),
+    compat: kc,
+  };
+}
+// @clock-end
 
 /* SAFE runtime — always on; CALM makes it stricter. The governor sits at
    the two choke points every scene inherits (palette rgb + the beat
@@ -5031,7 +5133,13 @@ function mixOf(t){
   if (!t || !t.mix) return null;
   const delta = MIXFIX.gridDelta(t);
   if (!delta) return t.mix;
-  return Object.assign({}, t.mix, { grid: t.mix.grid + delta, gridFixed: true });
+  // a grid fix moves the whole LATTICE: the mix-in and mix-out regions are
+  // grid-anchored times, so they shift with it — otherwise the bar
+  // quantizer can land the mix point a full bar away from a 10 ms nudge
+  const m = Object.assign({}, t.mix, { grid: t.mix.grid + delta, gridFixed: true });
+  if (m.in) m.in = Object.assign({}, m.in, { start: m.in.start + delta });
+  if (m.out) m.out = Object.assign({}, m.out, { start: m.out.start + delta });
+  return m;
 }
 
 const MIXER = {
@@ -5039,8 +5147,9 @@ const MIXER = {
   phase: 'idle',                 // idle | armed | running
   plan: null, next: -1,
   outDeck: null, startedAt: 0, overlap: 0,
-  lastF: 0, trim: 0, lastBeatCheck: 0,
+  lastF: 0, trim: 0, trimI: 0, lastBeatCheck: 0,
   _lastRateA: 1, _lastRateB: 1,
+  _clkA: makeMediaClock(), _clkB: makeMediaClock(),
 
   available(){ return allTracks().some(t => t.mix && t.mix.mixable >= 0.5); },
 
@@ -5054,7 +5163,8 @@ const MIXER = {
   cancel(){
     if (this.phase === 'idle'){ syncMixHud(); return; }
     this.plan = null; this.next = -1; this.phase = 'idle';
-    this.outDeck = null; this.trim = 0;
+    this.outDeck = null; this.trim = 0; this.trimI = 0;
+    clockReset(this._clkA); clockReset(this._clkB);
     if (AE.decks) AE.decks.forEach(d => {
       try { d.a.playbackRate = SPEED.rate; } catch (e){}
       if (d.shelf) d.shelf.gain.value = 0;
@@ -5104,6 +5214,12 @@ const MIXER = {
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
     this.plan = plan;
     this.next = i;
+    this._preload(B, plan);
+    this.phase = 'armed';
+    syncMixHud();
+  },
+
+  _preload(B, plan){
     const nd = AE.decks[1 - AE.active];
     nd.a.src = B.url;
     const seekTo = plan.type === 'beatmix' ? plan.startB : 0;
@@ -5113,8 +5229,37 @@ const MIXER = {
     };
     nd.a.addEventListener('loadedmetadata', once);
     try { nd.a.load(); } catch (e){}
+  },
+
+  /* MIX NOW — the listener said "next": blend from HERE. The seam starts on
+     the playing track's next bar line (phrase arithmetic on the constant
+     grid), the incoming enters on its own mix-in downbeat, sixteen beats of
+     seam, eight when the keys argue. Returns true when the blend owns the
+     transition; false hands the moment back to the plain path — and puts
+     the drawn track back so the fallback plays the SAME track. */
+  tryMixNow(){
+    if (!this.on || !player.playing || AE.mic.on || document.hidden) return false;
+    const d = activeDeck();
+    if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return false;
+    if (this.phase === 'running') return false;        // one seam at a time
+    const A = player.tracks[player.cur];
+    const i = this.phase === 'armed' && this.next >= 0 ? this.next : player.pickNext();
+    if (i === -1 || !player.tracks[i]){ return false; }
+    const B = player.tracks[i];
+    const plan = planMixNow(mixOf(A), mixOf(B), d.a.currentTime,
+      { durA: d.a.duration, quickFade: 0.8 });
+    if (plan.type !== 'beatmix'){
+      player._committedNext = i;                        // same draw, plain path
+      return false;
+    }
+    if (this.phase === 'armed') this.cancel('replan');
+    this.plan = plan;
+    this.next = i;
+    this._preload(B, plan);
     this.phase = 'armed';
+    toast('On the bar — <b>' + escapeHTML(B.title) + '</b> · ' + plan.beats + ' beats · ' + escapeHTML(plan.keys));
     syncMixHud();
+    return true;
   },
 
   fire(now){
@@ -5128,7 +5273,8 @@ const MIXER = {
     }
     this.overlap = p.type === 'gapless' ? 0.06 : p.seconds;
     this.startedAt = now;
-    this.lastF = 0; this.trim = 0; this.lastBeatCheck = now;
+    this.lastF = 0; this.trim = 0; this.trimI = 0; this.lastBeatCheck = now;
+    clockReset(this._clkA); clockReset(this._clkB);
     try { nd.a.currentTime = p.type === 'beatmix' ? p.startB : 0; } catch (e){}
     if (p.type === 'beatmix'){
       try { od.a.preservesPitch = true; nd.a.preservesPitch = true; } catch (e){}
@@ -5173,19 +5319,28 @@ const MIXER = {
       const rA = g.rateA, rB = g.rateB * (1 + this.trim);
       if (Math.abs(rA * SPEED.rate - this._lastRateA) > 0.0004){ od.a.playbackRate = rA * SPEED.rate; this._lastRateA = rA * SPEED.rate; }
       if (Math.abs(rB * SPEED.rate - this._lastRateB) > 0.0004){ nd.a.playbackRate = rB * SPEED.rate; this._lastRateB = rB * SPEED.rate; }
-      // the bass swap: one decisive move at the midpoint
+      // the bass swap: at the midpoint boundary, over ~two beats — decisive
+      // but not a step. One bassline at a time is the rule; HOW it hands
+      // over is what separates a mix from a collision.
       if (AE.graphLive && od.shelf && nd.shelf){
-        const swapped = f >= 0.5;
-        od.shelf.gain.value = swapped ? -14 : 0;
-        nd.shelf.gain.value = swapped ? 0 : -14;
+        const swapBeats = 2 / Math.max(4, p.beats || 16);
+        const k = clamp01((f - 0.5) / swapBeats + 0.5);
+        od.shelf.gain.value = -14 * k;
+        nd.shelf.gain.value = -14 * (1 - k);
       }
-      // drift lock, once per beat: compare grid phases. Two stages, like
-      // every sync button ever shipped — while the newcomer is still quiet
-      // (early envelope), a bad start (play() latency varies) is corrected
-      // HARD with a micro-seek; after that, gentle rate trim holds the lock.
+      // the phase lock: both decks feed regression-filtered media clocks
+      // every frame (raw currentTime is quantized and jittery), and once a
+      // beat the PLL corrects — two stages, like every sync button ever
+      // shipped: while the newcomer is still quiet a bad start is corrected
+      // HARD with a micro-seek; after that a proportional trim plus a tiny
+      // integrator (residual-tempo learner) holds the lock, with a 3 ms
+      // deadband so an already-locked seam is never touched at all.
+      clockSample(this._clkA, now, od.a.currentTime);
+      clockSample(this._clkB, now, nd.a.currentTime);
       if (now - this.lastBeatCheck >= 60 / p.bpmB){
         this.lastBeatCheck = now;
-        const tA = od.a.currentTime, tB = nd.a.currentTime;
+        const tA = this._clkA.ok ? clockRead(this._clkA, now) : od.a.currentTime;
+        const tB = this._clkB.ok ? clockRead(this._clkB, now) : nd.a.currentTime;
         if (isFinite(tA) && isFinite(tB)){
           const phA = (((tA - p.startA) / (60 / p.bpmA)) % 1 + 1) % 1;
           const phB = (((tB - p.startB) / (60 / p.bpmB)) % 1 + 1) % 1;
@@ -5194,10 +5349,15 @@ const MIXER = {
           if (err < -0.5) err += 1;
           const errSec = err * (60 / p.bpmB);
           if (Math.abs(errSec) > 0.030 && f < 0.35){
-            try { nd.a.currentTime = tB + errSec; } catch (e){}
-            this.trim = 0;
+            try { nd.a.currentTime = nd.a.currentTime + errSec; } catch (e){}
+            clockReset(this._clkB);                     // the window died with the seek
+            this.trim = 0; this.trimI = 0;
+          } else if (Math.abs(errSec) < 0.003){
+            this.trim = this.trimI;                     // in lock: integrator only
           } else {
-            this.trim = driftTrim(errSec);
+            this.trimI = Math.max(-0.002, Math.min(0.002,
+              this.trimI + errSec * 0.08));             // learns residual tempo error
+            this.trim = driftTrim(errSec) + this.trimI;
           }
           window.__mixPhaseErrMs = Math.abs(errSec) * 1000;  // acceptance probe
         }
@@ -5411,7 +5571,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'e7f794ee15';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'fe4a0c106c';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8066,6 +8226,50 @@ const DWELL = {
    camera on it. Paused, everything settles to breath — a dancer at
    rest is still breathing.
    ================================================================ */
+/* ================================================================
+   CLOCK — the master beat clock. ONE authoritative mapping from wall
+   time to (beat, bar, phrase) per frame, and every consumer — the
+   HUD meter, the haptics, the shader uniforms, the dance engine, the
+   colour conductor — reads THIS, never the deck property directly.
+   Built on the regression-filtered media clock (sub-ms, jitter-free)
+   and compensated for the audio output path where the platform
+   admits to one (outputLatency; Safari confesses only baseLatency),
+   so the eye and the ear agree about where the beat IS. The decks
+   slave to each other in the MIXER; everything else slaves to this.
+   ================================================================ */
+const CLOCK = {
+  haveGrid: false, beats: -1, idx: -1, phase: 0, barPhase: 0, phrasePhase: 0,
+  bpm: 0, period: 0.5, mclk: makeMediaClock(),
+  latency(){
+    if (AE.graphLive && AE.ctx)
+      return AE.ctx.outputLatency || AE.ctx.baseLatency || 0;
+    return 0;                        // iOS direct-out: unknown, claim nothing
+  },
+  update(nowSec){
+    const d = activeDeck();
+    const tr = player.tracks[player.cur];
+    const mix = (player.playing && !AE.mic.on && tr) ? mixOf(tr) : null;
+    if (!(mix && mix.bpm > 0 && mix.grid != null && d && isFinite(d.a.currentTime))){
+      this.haveGrid = false; this.beats = -1; this.idx = -1;
+      clockReset(this.mclk);
+      return;
+    }
+    clockSample(this.mclk, nowSec, d.a.currentTime);
+    const rate = d.a.playbackRate || 1;
+    const pos = this.mclk.ok ? clockRead(this.mclk, nowSec) : d.a.currentTime;
+    const b = (pos - this.latency() * rate - mix.grid) / (60 / mix.bpm);
+    if (b < 0){ this.haveGrid = false; this.beats = -1; this.idx = -1; return; }
+    this.haveGrid = true;
+    this.beats = b;
+    this.idx = Math.floor(b);
+    this.phase = b % 1;
+    this.barPhase = (b / 4) % 1;
+    this.phrasePhase = (b / ((mix.phrases || 32))) % 1;
+    this.bpm = mix.bpm * rate;
+    this.period = 60 / this.bpm;
+  },
+};
+
 const DANCE = {
   on: true,
   phase: 0, barFrac: 0, phraseFrac: 0, haveGrid: false, period: 0.5,
@@ -8074,17 +8278,15 @@ const DANCE = {
 
   update(dt, t){
     const f = AE.f;
-    const d = activeDeck();
     const tr = player.tracks[player.cur];
-    const mix = (player.playing && !AE.mic.on && tr) ? mixOf(tr) : null;
     let phi = null, beats = 0;
-    if (mix && mix.bpm > 0 && d && isFinite(d.a.currentTime)){
-      const b = (d.a.currentTime - mix.grid) / (60 / mix.bpm);
-      if (b >= 0){
-        beats = b; phi = b % 1;
-        this.period = 60 / (mix.bpm * (d.a.playbackRate || 1));
-        this.haveGrid = true;
-      } else this.haveGrid = false;
+    // the dancer follows the master CLOCK — the same authoritative read the
+    // meter, the haptics and the shaders get, latency and jitter already
+    // handled in one place
+    if (CLOCK.haveGrid){
+      beats = CLOCK.beats; phi = CLOCK.phase;
+      this.period = CLOCK.period;
+      this.haveGrid = true;
     } else this.haveGrid = false;
     if (phi == null){
       // freewheel on the guessed tempo; strong onsets pull the phase home
@@ -8188,8 +8390,8 @@ const COLOR = {
     this.bloom = (this.bloom || 0) * Math.exp(-dt / 1.4);
     const heat = (typeof director !== 'undefined') ? director.actT : 0.5;
     const phase = (typeof director !== 'undefined') ? director.phase : 'flow';
-    const mulC = 0.75 + heat * 0.5 + this.bloom * 0.35
-      + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.12 : 0));
+    const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35
+      + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0));
     const mulL = 0.97 + heat * 0.05;
     // the flash governor is the last hand on the light: hue passes freely,
     // luminance excursions are rate-limited (WCAG 2.3.1, enforced not reviewed)
@@ -8317,7 +8519,16 @@ const director = {
       const s = scenes[i];
       if (!s.group.visible) continue;
       let op = i === this.active ? this.transT : (i === this.prev ? 1 - this.transT : 0);
-      s.group.traverse(o => { if (o.material && o.material.uniforms) o.material.uniforms.uOpacity.value = op; });
+      // additive scenes: hundreds of sprites SUM in the framebuffer, and a
+      // channel that clips bleaches to white — the real "washed out". Trim
+      // each sprite's contribution so the sums stay in gamut and stacked
+      // light reads as radiant colour, not chalk. Normal-blend scenes
+      // (OP-ART, PULSE, PARLOR) composite once and need no trim.
+      s.group.traverse(o => {
+        if (!o.material || !o.material.uniforms) return;
+        const trim = o.material.blending === THREE.AdditiveBlending ? 0.55 : 1;
+        o.material.uniforms.uOpacity.value = op * trim;
+      });
       s.update(dt);
     }
     // auto scene switching on dwell + section boundary
@@ -8460,41 +8671,30 @@ function frame(now){
   analyse(dt, t);
   uploadAudioTexture();
 
-  // Grid-locked beat clock: when the catalog MEASURED this track, the pulse
-  // and the BPM readout follow the measured 4/4 grid — a metronome on the
-  // bars, downbeats hitting harder — instead of the live onset guesser
-  // (which re-guesses every beat and flashes). The guesser still serves
-  // local files and the mic, which have no grid.
-  {
-    const gd = activeDeck();
-    const gTrack = player.tracks[player.cur];
-    const gMix = (player.playing && !AE.mic.on && gTrack) ? mixOf(gTrack) : null;
-    if (gMix && gMix.bpm > 0 && gd && isFinite(gd.a.currentTime)){
-      const rate = gd.a.playbackRate || 1;
-      const beatsIn = (gd.a.currentTime - gMix.grid) / (60 / gMix.bpm);
-      if (beatsIn >= 0){
-        const idx = Math.floor(beatsIn);
-        if (idx !== gridBeatIdx){
-          gridBeatIdx = idx;
-          AE.f.beat = Math.max(AE.f.beat, idx % 4 === 0 ? 1 : 0.75);
-          // the visible meter + the felt beat: the same clock the shaders
-          // read drives the HUD meter dots and the vibration pattern, so a
-          // listener who cannot hear the track can SEE and FEEL the bar
-          METER.tick(idx % 4);
-          HAPTICS.pulse(idx % 4 === 0);
-        }
-        AE.f.bpm = gMix.bpm * rate;      // steady; glides honestly during a mix
-        U.uBeatIdx.value = idx % 4;
-        U.uBarPhase.value = (beatsIn / 4) % 1;
-      } else {
-        gridBeatIdx = -1;
-        U.uBeatIdx.value = -1;
-      }
-    } else {
-      if (gridBeatIdx !== -1) METER.clear();
-      gridBeatIdx = -1;
-      U.uBeatIdx.value = -1;
+  // THE beat clock: one authoritative read per frame (regression-filtered,
+  // output-latency compensated) — the HUD meter, the haptics, the shader
+  // uniforms, the dance engine and the colour conductor all follow CLOCK,
+  // so the eye, the hand and the ear agree about where the beat is. The
+  // live onset guesser still serves local files and the mic (no grid).
+  CLOCK.update(t);
+  if (CLOCK.haveGrid){
+    const idx = CLOCK.idx;
+    if (idx !== gridBeatIdx){
+      gridBeatIdx = idx;
+      AE.f.beat = Math.max(AE.f.beat, idx % 4 === 0 ? 1 : 0.75);
+      // the visible meter + the felt beat: the same clock the shaders
+      // read drives the HUD meter dots and the vibration pattern, so a
+      // listener who cannot hear the track can SEE and FEEL the bar
+      METER.tick(idx % 4);
+      HAPTICS.pulse(idx % 4 === 0);
     }
+    AE.f.bpm = CLOCK.bpm;                // steady; glides honestly during a mix
+    U.uBeatIdx.value = idx % 4;
+    U.uBarPhase.value = CLOCK.barPhase;
+  } else {
+    if (gridBeatIdx !== -1) METER.clear();
+    gridBeatIdx = -1;
+    U.uBeatIdx.value = -1;
   }
 
   DANCE.update(dt, t);

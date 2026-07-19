@@ -113,10 +113,16 @@ const mid1 = await page.evaluate(() => ({
   pausedA: MIXER.outDeck.a.paused, pausedB: AE.decks[AE.active].a.paused,
 }));
 await page.waitForTimeout(500);
-const mid2 = await page.evaluate(() => ({
-  a: MIXER.outDeck ? MIXER.outDeck.a.currentTime : -1,
-  b: AE.decks[AE.active].a.currentTime,
-  err: window.__mixPhaseErrMs,
+// lock quality = convergence, not a lucky instant: poll for ~3 s and take
+// the settled minimum (the early stage may legitimately hard-seek once)
+const mid2 = await page.evaluate(() => new Promise(res => {
+  const out = { a: MIXER.outDeck ? MIXER.outDeck.a.currentTime : -1,
+                b: AE.decks[AE.active].a.currentTime, err: Infinity };
+  let n = 0;
+  const iv = setInterval(() => {
+    if (window.__mixPhaseErrMs != null) out.err = Math.min(out.err, window.__mixPhaseErrMs);
+    if (++n >= 12 || MIXER.phase !== 'running'){ clearInterval(iv); res(out); }
+  }, 250);
 }));
 R('both decks play through the overlap',
   !mid1.pausedA && !mid1.pausedB && mid2.a > mid1.a && mid2.b > mid1.b,
@@ -200,6 +206,47 @@ const fixed = await page.evaluate(() => {
   return { type: p.type, beats: p.beats };
 });
 R('your fix beats the gate — forced beatmix 8', fixed.type === 'beatmix' && fixed.beats === 8);
+
+// ---- 6b · MIX NOW: the listener says "next" — the seam starts on the next
+// bar line from HERE, the incoming enters on its own downbeat, and the cut
+// never happens
+const mixNow = await page.evaluate(() => {
+  const M = new Map(allTracks().map(t => [t.title, t]));
+  player._committedNext = player.tracks.indexOf(M.get('alpha'));
+  const d = activeDeck();
+  const pos = d.a.currentTime;
+  const mA = mixOf(player.tracks[player.cur]);
+  const ok = MIXER.tryMixNow();
+  const p = MIXER.plan;
+  return { ok, phase: MIXER.phase, pos,
+    plan: p && { type: p.type, now: p.now, beats: p.beats, startA: p.startA },
+    barA: mA ? 4 * 60 / mA.bpm : 0, grid: mA ? mA.grid : 0 };
+});
+const barRel = (mixNow.plan.startA - mixNow.grid) / mixNow.barA;
+const latticeOffMs = Math.abs(barRel - Math.round(barRel)) * mixNow.barA * 1000;
+R('mix now arms a beatmix from HERE', mixNow.ok && mixNow.phase === 'armed'
+  && mixNow.plan.type === 'beatmix' && mixNow.plan.now === true,
+  JSON.stringify(mixNow.plan));
+// the plan stores startA at 1 ms resolution; 3 ms of lattice tolerance is
+// sub-frame — the ear's own resolution for "on the bar" is ~10 ms
+R('mix now seam sits on the next bar line',
+  latticeOffMs < 3
+  && mixNow.plan.startA > mixNow.pos && mixNow.plan.startA <= mixNow.pos + mixNow.barA + 0.2,
+  'startA ' + mixNow.plan.startA.toFixed(3) + ' (pos ' + mixNow.pos.toFixed(3)
+  + ', bar ' + mixNow.barA.toFixed(3) + ', off-lattice ' + latticeOffMs.toFixed(2) + ' ms)');
+await page.waitForFunction('MIXER.phase === "running"', null, { timeout: 8000 });
+const nowErr = await page.evaluate(() => new Promise(res => {
+  let best = Infinity, n = 0;
+  const iv = setInterval(() => {
+    if (window.__mixPhaseErrMs != null) best = Math.min(best, window.__mixPhaseErrMs);
+    if (++n >= 10 || MIXER.phase !== 'running'){ clearInterval(iv); res(best); }
+  }, 250);
+}));
+R('mix now beat-phase lock < 40 ms', nowErr < 40, nowErr && nowErr.toFixed(1) + ' ms');
+await page.waitForFunction('MIXER.phase === "idle" && player.tracks[player.cur] '
+  + '&& player.tracks[player.cur].title === "alpha"', null, { timeout: 15000 });
+R('mix now hands over — alpha playing', await page.evaluate(() =>
+  player.playing && player.tracks[player.cur].title === 'alpha'));
 
 // ---- 7 · a grid nudge shifts the plan and is hash-keyed
 const nudged = await page.evaluate(() => {
