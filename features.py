@@ -215,7 +215,7 @@ def estimate_bpm(flux, onsets, sr):
 # mixable in/out regions aligned to downbeats, and a `mixable` confidence
 # that tells the player when NOT to beatmix (the piano rule).
 
-MIX_VERSION = 1
+MIX_VERSION = 2      # v2: constant-grid least-squares fit (bpm+anchor), gridRms/gridDrift/downConf
 
 # Krumhansl–Kessler key profiles (major, minor)
 _KK_MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09,
@@ -313,6 +313,36 @@ def beat_track(flux, sr, hop=HOP):
 GRID_LATENCY = 0.0505
 
 
+def fit_constant_grid(beat_times):
+    """Count the grid from the beginning — the MixMeister move. Fit the
+    tracked beat times to one constant lattice t = t0 + n*spb by iterated
+    least squares (beat indices re-derived from cumulative rounded IBIs each
+    pass, so a missed or doubled beat cannot shear the fit). Electronically
+    produced music IS a constant grid; fitting the whole track at once
+    averages the per-beat onset jitter away and yields a sub-millisecond
+    anchor the per-beat tracker cannot reach.
+
+    Returns (t0, spb, rms, drift):
+      t0     lattice phase (time of beat index 0, may be < first tracked beat)
+      spb    seconds per beat of the fitted lattice
+      rms    RMS residual of tracked beats vs the lattice (seconds) — jitter
+      drift  |mean residual, second half - first half| (seconds) — a tempo
+             that is NOT constant shows here; the fit is then untrustworthy
+    """
+    t = np.asarray(beat_times, dtype=float)
+    spb = float(np.median(np.diff(t)))
+    for _ in range(3):
+        n = np.concatenate([[0], np.cumsum(np.maximum(1, np.round(np.diff(t) / spb)))])
+        A = np.vstack([n, np.ones_like(n)]).T
+        (slope, intercept), *_ = np.linalg.lstsq(A, t, rcond=None)
+        spb = float(slope)
+        t0 = float(intercept)
+    r = t - (t0 + n * spb)
+    half = len(r) // 2
+    drift = abs(float(r[half:].mean() - r[:half].mean())) if half >= 4 else 0.0
+    return t0, spb, float(np.sqrt((r ** 2).mean())), drift
+
+
 def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
     """The catalog `mix` block for one decoded track (None = not mixable)."""
     if spec is None:
@@ -331,6 +361,12 @@ def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
     # onset support: fraction of beats landing on a real onset peak
     support = float(np.mean(flux[np.clip(beats, 0, len(flux) - 1)]
                             > np.median(flux) * 1.1))
+    # the constant-grid fit: one lattice for the whole track. The fitted
+    # tempo/anchor replace the per-beat estimates — steadier by construction —
+    # and the residuals tell the truth about whether a constant grid is even
+    # the right model (live drummers drift; DAWs do not).
+    t0, spb_fit, grid_rms, grid_drift = fit_constant_grid(beat_times)
+    bpm = round(60.0 / spb_fit, 3)
     # downbeat = the beat phase (mod 4) carrying the most low-end energy.
     # The beat frame marks the onset RISE; the kick's low-frequency body
     # develops over the following frames, so score a short window after
@@ -345,21 +381,33 @@ def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
         if len(sel):
             phase_score[ph] = float(np.mean([beat_bass(b) for b in sel]))
     down = int(np.argmax(phase_score))
-    grid = float(beat_times[down])
-    mixable = max(0.0, min(1.0, np.exp(-8 * cv) * support))
-    spb = 60.0 / bpm
+    # downbeat confidence: how decisively the winning phase beats the runner-up
+    ps = np.sort(phase_score)[::-1]
+    down_conf = float(max(0.0, min(1.0, (ps[0] - ps[1]) / (ps[0] + 1e-9) * 3)))
+    # the anchor snaps to the fitted lattice at the downbeat phase — the
+    # first beat of the measure, counted from the beginning
+    n_down = round((beat_times[down] - t0) / spb_fit)
+    grid = float(t0 + n_down * spb_fit)
+    # a drifting tempo makes the constant grid a lie: fold it into mixable,
+    # alongside the per-beat jitter (cv) and onset support
+    drift_pen = np.exp(-grid_drift / 0.03)
+    mixable = max(0.0, min(1.0, np.exp(-8 * cv) * support * drift_pen))
+    spb = spb_fit
     n_beats = int((dur - grid) / spb)
     region = min(64, max(8, (n_beats // 2) // 4 * 4))     # ≤16 bars, bar-aligned
     out_start = grid + max(0, ((n_beats - region) // 4) * 4) * spb
     return {
         "v": MIX_VERSION,
-        "bpm": round(bpm, 2),
-        "grid": round(grid, 3),
+        "bpm": round(bpm, 3),
+        "grid": round(grid, 4),
         "key": key, "keyConf": key_conf,
         "phrases": 32,
         "in": {"start": round(grid, 3), "beats": int(region)},
         "out": {"start": round(out_start, 3), "beats": int(region)},
         "mixable": round(mixable, 2),
+        "gridRms": round(grid_rms * 1000, 1),      # ms — per-beat jitter vs the lattice
+        "gridDrift": round(grid_drift * 1000, 1),  # ms — constant-tempo honesty check
+        "downConf": round(down_conf, 2),
     }
 
 

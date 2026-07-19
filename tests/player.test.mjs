@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('dance') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
   '\nreturn { mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual,' +
@@ -27,7 +27,8 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
-  ' dancePulse, danceSway, danceTimeWarp };';
+  ' dancePulse, danceSway, danceTimeWarp,' +
+  ' makeMediaClock, clockReset, clockSample, clockRead, planMixNow };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -641,6 +642,77 @@ test('musical time surges but never runs backwards', () => {
   assert.ok(Math.abs(S.danceTimeWarp(0, 0.5, 1) - S.danceTimeWarp(1, 0.5, 1)) < 1e-9, 'continuous at the wrap');
   for (let i = 0; i < 20; i++)
     assert.ok(Math.abs(S.danceTimeWarp(i / 20, 0.5, 1)) <= 0.045 + 1e-9, 'bounded to 45 ms');
+});
+
+// ---------------------------------------------------------------- media clock + mix-now
+
+test('media clock: regression recovers a jittery quantized position to sub-2ms', () => {
+  const c = S.makeMediaClock();
+  let est = null;
+  for (let i = 0; i < 40; i++){
+    const wall = i * 0.0167;
+    const media = 10 + wall * 1.0;
+    // quantized to 5 ms steps + up to 2 ms of jitter — worse than real decks
+    const q = Math.floor((media + (i % 3) * 0.002) / 0.005) * 0.005;
+    S.clockSample(c, wall, q);
+    est = S.clockRead(c, wall);
+  }
+  const wall = 40 * 0.0167;
+  assert.ok(c.ok, 'clock locks');
+  assert.ok(Math.abs(S.clockRead(c, wall) - (10 + wall)) < 0.004,
+    'err ' + Math.abs(S.clockRead(c, wall) - (10 + wall)));
+  assert.ok(Math.abs(c.b - 1) < 0.02, 'measured rate ~1: ' + c.b);
+});
+
+test('media clock: duplicates carry no information; a seek resets the window', () => {
+  const c = S.makeMediaClock();
+  for (let i = 0; i < 20; i++) S.clockSample(c, i * 0.0167, 5 + i * 0.0167);
+  const nBefore = c.n;
+  S.clockSample(c, 21 * 0.0167, c.lastRaw);          // duplicate reading
+  assert.equal(c.n, nBefore, 'duplicate rejected');
+  S.clockSample(c, 22 * 0.0167, 99.0);               // a seek
+  assert.ok(c.n <= 1, 'discontinuity resets');
+});
+
+test('media clock: a reset clears the ring COMPLETELY — no stale-sample corruption', () => {
+  // the review catch: resetting n without the write index i let old samples
+  // haunt the next regression. Fill on one line, reset, refit on another.
+  const c = S.makeMediaClock();
+  for (let i = 0; i < 10; i++) S.clockSample(c, i * 0.0167, 100 + i * 0.0167);
+  S.clockReset(c);
+  assert.equal(c.i, 0, 'write index cleared');
+  for (let i = 0; i < 6; i++) S.clockSample(c, 10 + i * 0.0167, 5 + i * 0.0167);
+  const got = S.clockRead(c, 10 + 6 * 0.0167);
+  assert.ok(Math.abs(got - (5 + 6 * 0.0167)) < 0.004,
+    'fresh line wins cleanly: ' + got);
+});
+
+test('mix now: the seam starts on the NEXT BAR LINE of the playing grid', () => {
+  const A = { bpm: 120, grid: 0.5, key: '8B', mixable: 0.9, in: { start: 0.5, beats: 32 }, out: { start: 100, beats: 32 } };
+  const B = { bpm: 122, grid: 1.0, key: '8B', mixable: 0.9, in: { start: 1.0, beats: 32 }, out: { start: 90, beats: 32 } };
+  const plan = S.planMixNow(A, B, 33.33, { durA: 240 });
+  assert.equal(plan.type, 'beatmix');
+  const barA = (60 / 120) * 4;
+  const rel = (plan.startA - 0.5) / barA;
+  assert.ok(Math.abs(rel - Math.round(rel)) < 1e-6, 'startA is a bar line: ' + plan.startA);
+  assert.ok(plan.startA > 33.33 + 0.17 && plan.startA <= 33.33 + 0.18 + barA, 'the NEXT one');
+  assert.equal(plan.startB, 1.0, 'B enters on its own mix-in downbeat');
+  assert.equal(plan.beats, 16, 'compatible keys earn sixteen beats');
+});
+
+test('mix now: keys arguing shortens the seam; the gates still refuse', () => {
+  const A = { bpm: 120, grid: 0.5, key: '8B', mixable: 0.9, in: { start: 0.5, beats: 32 } };
+  const mk = (key, mixable, bpm) => ({ bpm: bpm || 121, grid: 1, key, mixable: mixable == null ? 0.9 : mixable, in: { start: 1, beats: 32 } });
+  assert.equal(S.planMixNow(A, mk('7A'), 30, { durA: 240 }).beats, 8, 'diagonal key = 8 beats');
+  assert.equal(S.planMixNow(A, mk('3B'), 30, { durA: 240 }).type, 'fade');
+  assert.equal(S.planMixNow(A, mk('8B', 0.2), 30, { durA: 240 }).why, 'not beat-stable');
+  assert.equal(S.planMixNow(A, mk('8B', 0.9, 150), 30, { durA: 240 }).why, 'tempo gap');
+  const tight = S.planMixNow(A, mk('8B'), 236, { durA: 240 });
+  assert.equal(tight.type, 'beatmix', 'near the edge: a tight blend, not a cut');
+  assert.equal(tight.beats, 4, 'clamped to the room that remains');
+  const none = S.planMixNow(A, mk('8B'), 239, { durA: 240 });
+  assert.equal(none.type, 'fade', 'truly out of road: fade');
+  assert.ok(none.seconds <= 1, 'and the fallback stays prompt');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
