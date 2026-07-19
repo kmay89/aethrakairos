@@ -503,6 +503,11 @@ body.zen .chrome{opacity:0;pointer-events:none}
 .help-card .lede b{color:var(--pi);font-weight:500}
 .help-card .lede i{color:var(--e);font-style:normal}
 .help-card h3{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--faint);margin:20px 0 10px}
+.help-card .mono-inline{
+  font-family:var(--mono);font-size:10.5px;color:var(--ink);
+  background:rgba(255,255,255,.06);border:1px solid var(--line-soft);
+  border-radius:5px;padding:1px 5px;white-space:nowrap;
+}
 .keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:7px 20px}
 .keyrow{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--dim)}
 .keyrow kbd{
@@ -1347,6 +1352,31 @@ body.zen .chrome{opacity:0;pointer-events:none}
     page into a front-end for a hosted library (title, artist, album, genre, year, art, duration).
     Only <b>src</b> is required per track; the rest degrades gracefully. Sort by any column in the
     playlist. <i>Shuffle plays every track once per pass</i> before anything repeats.</p>
+    <h3>Add your music — the label's loop</h3>
+    <p class="lede"><b>This site is its own record label</b>, and publishing is a folder and one command.
+    It runs on the studio machine, not on github.com — the analysis (beat grid, key, energy, the score
+    the visuals dance to) happens locally before anything uploads.</p>
+    <p class="lede"><b>One-time setup:</b><br>
+    ①&nbsp;<span class="mono-inline">git clone https://github.com/kmay89/aethrakairos</span> — needs
+    <span class="mono-inline">python3</span>, <span class="mono-inline">numpy</span> and
+    <span class="mono-inline">ffmpeg</span> installed.<br>
+    ②&nbsp;The pipeline takes <b>MP3 only</b> (it refuses WAV/AIFF loudly and ignores AAC). In the Music
+    app set <i>Settings → Files → Import Using → MP3 Encoder</i> once; for songs that are already AAC
+    (<span class="mono-inline">.m4a</span>), select them and <i>File → Convert → Create MP3 Version</i>,
+    then use the MP3 copies.</p>
+    <p class="lede"><b>The loop — every time, forever:</b><br>
+    ①&nbsp;Drag songs from the Music app into <span class="mono-inline">masters/</span> — one folder per
+    album (<span class="mono-inline">masters/Spiral&nbsp;Transmission/…</span>; a
+    <span class="mono-inline">masters/Singles/</span> folder is fine for loose tracks). Dragging out of
+    Music copies the real files.<br>
+    ②&nbsp;Run <span class="mono-inline">./publish.sh</span> — it hashes, measures, renames, builds the
+    catalog, runs the doctor, commits and pushes. The site updates about a minute later; the porch's
+    <i>Fresh pressing</i> and the deck's pads pick the new tracks up on their own.</p>
+    <p class="lede"><b>Re-drag your whole library any time — repeats cannot happen.</b> Every file is
+    hashed (an exact repeat is a no-op; a known file at a new path is treated as a move), and a
+    perceptual fingerprint gate catches <i>re-encodes</i>: the same song exported at a different
+    bitrate is refused by name. <span class="mono-inline">masters/</span> is the inbox,
+    <span class="mono-inline">./publish.sh</span> is the only button.</p>
     <h3>Notes</h3>
     <p class="lede">Audio never leaves this device. The interface fades while music plays — move the pointer to bring it back.
     The demo is <b>Möbius Walking</b> — a real Aethra Kairos track shipped beside the player and analysed
@@ -5918,7 +5948,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'ae3c80cd84';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '2183d6aa13';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
