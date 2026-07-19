@@ -8386,6 +8386,7 @@ const DANCE = {
   _freePhase: 0, _out: 0,
 
   update(dt, t){
+    dt = Math.max(0, dt);              // decay math must never see time run backward
     const f = AE.f;
     const tr = player.tracks[player.cur];
     let phi = null, beats = 0;
@@ -8808,7 +8809,8 @@ function frame(now){
       // the lattice keeps time but may not FAKE hits: its injected pulse
       // passes through the ear, so a silent bar stays a silent bar
       AE.f.beat = Math.max(AE.f.beat,
-        (idx % 4 === 0 ? 1 : 0.75) * (typeof DANCE !== 'undefined' ? DANCE.ear : 1));
+        (idx % 4 === 0 ? 1 : 0.75)
+        * (typeof DANCE !== 'undefined' && DANCE.ear >= 0 ? DANCE.ear : 1));
       // the visible meter + the felt beat: the same clock the shaders
       // read drives the HUD meter dots and the vibration pattern, so a
       // listener who cannot hear the track can SEE and FEEL the bar
