@@ -817,7 +817,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
 <section id="emptyState" class="chrome">
   <h1 class="hero-line">This is <em>Aethra Kairos</em>.</h1>
   <p class="hero-sub">Music that paints. Every frequency bin is projected through the Möbius⁸ field and placed
-  on the spiral — thirteen scenes, a beat-aware director, a colour engine that reads the key of the song.
+  on the spiral — fifteen scenes, a beat-aware director, a colour engine that reads the key of the song.
   Press play and dance with your eyes.</p>
   <div class="hero-actions">
     <button class="btn big" id="btnChoose">Choose audio files</button>
@@ -1148,11 +1148,23 @@ body.zen .chrome{opacity:0;pointer-events:none}
     whose spin direction is an argument you can win (drag sideways). <b>OP-ART</b> — a flat pattern
     machine that rolls between an isometric cube tessellation, a circular labyrinth around a black
     hole, and an infinity-mirror dance floor lit on the grid.</p>
+    <h3>The parlor</h3>
+    <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
+    science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
+    five-wave Penrose skeleton, Carlson's multi-scale Truchet arcs, a sunflower's golden-angle swarm,
+    moiré interference with its 57× leverage, and the café wall shearing into the Fraser false spiral —
+    optionally garnished with Kitaoka's peripheral-drift ladder (the colours are static; <i>your own
+    eyes</i> animate them) or the scintillating Hermann grid. Every illusion is geometry, never strobe.
+    And listen closely to what you see: several of these illusions have a measurable strength dial, and
+    it rides the song's long-term energy — <b>the picture lies harder as the music builds</b>, and
+    comes clean in the quiet.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
     it comes up — <i>form · surface · space</i>, so the readout shows something like <b>4·7·2</b>.
-    <b>Form</b> (d10): BULB, QUARTZ, SPIRE (mandelbulbs at powers 8/4/3), CUBE and VOID (mandelbox,
+    <b>Form</b> (d10): BULB, QUARTZ, SPIRE (mandelbulbs opening at powers 8/4/3, then <i>walking their
+    dimensionality</i> — eight beats standing on an integer rung, two beats morphing to the next, 3 through 9
+    and back, seam-free by construction), CUBE and VOID (mandelbox,
     positive and negative scale), SPONGE, TETRA, JULIA, OCTA, WEAVE.
     <b>Surface</b> (d10): orbit trap, shine and lighting — including <i>DUO</i>, which puts an amber π
     key against an ice e fill. Each surface routes the trap through a different pair of palette
@@ -1434,9 +1446,9 @@ function ensureCtx(){
   SPEED.apply();                 // decks are born at the listener's chosen speed
   // deck events — registered once, filtered to the active deck
   AE.decks.forEach((d, i) => {
-    d.a.addEventListener('ended', () => { if (i === AE.active && !AE.xfading) player.onEnded(); });
+    d.a.addEventListener('ended', () => { if (!d.priming && i === AE.active && !AE.xfading) player.onEnded(); });
     d.a.addEventListener('error', () => {
-      if (i !== AE.active) return;
+      if (d.priming || i !== AE.active) return;
       const t = player.tracks[player.cur];
       const offline = !navigator.onLine && t && !t.local;
       toast(offline
@@ -1448,10 +1460,12 @@ function ensureCtx(){
     // audio-session interruptions (phone call, Siri, another app): the system
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
-      if (i !== AE.active || AE.xfading) return;
+      if (d.priming || i !== AE.active || AE.xfading) return;
       if (player.playing && !d.a.ended){ player.playing = false; updatePlayIcon(); player.renderList(); }
     });
     d.a.addEventListener('play', () => {
+      if (d.priming) return;
+      d.primed = true;               // a real play blesses the element too
       if (i !== AE.active) return;
       ensureResume();
       if (!player.playing){ player.playing = true; updatePlayIcon(); player.renderList(); }
@@ -1483,8 +1497,35 @@ function applyVolume(){
 function ensureResume(){
   if (AE.ctx && AE.ctx.state !== 'running'){ AE.ctx.resume().catch(() => {}); }
 }
+
+/* iOS blesses a media element only after a gesture-driven play(). The decks
+   alternate, so the OTHER deck's first play is always programmatic — fired
+   from 'ended' when a track finishes — and an unblessed element can refuse
+   it: the music just stops after some track, no error a listener can see.
+   So on every real gesture, any deck that hasn't been blessed yet quietly
+   plays a 44-byte silent WAV, muted, and pauses — position untouched,
+   listeners guarded by d.priming. A failed attempt retries next gesture. */
+const PRIME_SRC = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+function primeDecks(){
+  if (!IS_IOS || !AE.decks) return;
+  for (const d of AE.decks){
+    if (d.primed || d.priming) continue;
+    d.priming = true;
+    const bare = !d.a.src;
+    if (bare) d.a.src = PRIME_SRC;
+    d.a.muted = true;
+    const done = ok => {
+      try { d.a.pause(); } catch (e){}
+      d.a.muted = false;
+      if (bare){ d.a.removeAttribute('src'); try { d.a.load(); } catch (e){} }
+      d.primed = ok;
+      d.priming = false;
+    };
+    d.a.play().then(() => done(true), () => done(false));
+  }
+}
 ['pointerdown', 'keydown', 'touchend'].forEach(evName =>
-  window.addEventListener(evName, ensureResume, { passive: true }));
+  window.addEventListener(evName, () => { ensureResume(); primeDecks(); }, { passive: true }));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) ensureResume(); });
 
 function escapeHTML(s){
@@ -3605,10 +3646,15 @@ const SAFE_TUNING = {
   rate: 0.9,        // max relative-luminance change per second, large fields
   redRate: 0.5,     // saturated red moves at nearly half speed (worst hazard)
   pulseGap: 0.34,   // s — full-amplitude beat pulses may not come faster
-  pulseAttack: 0.07,// s — a pulse RAMPS over ~4 frames; it never steps
+  pulseAttack: 0.012,// s — a hit SNAPS (one frame at 60 fps). WCAG constrains
+                     // flash FREQUENCY (the gap + soft cap below), not attack
+                     // speed: one pulse per beat at <=3/s is compliant however
+                     // hard it lands. A slower attack here once strangled the
+                     // dance engine's impact and neutered the room — never again.
   softAmp: 0.45,    // amplitude granted to pulses that arrive too soon
-  calm: {           // the visible "CALM" toggle: everything stricter
-    rate: 0.45, redRate: 0.3, pulseGap: 0.5, pulseAttack: 0.12, softAmp: 0.3,
+  calm: {           // the visible "CALM" toggle: stricter, never dead —
+                    // gap 0.42 only softens beats above ~143 BPM
+    rate: 0.45, redRate: 0.3, pulseGap: 0.42, pulseAttack: 0.03, softAmp: 0.4,
   },
 };
 function relLuma(rgb){          // linear-light rgb triple → relative luminance
@@ -3650,8 +3696,11 @@ function safeBeatStep(state, raw, dt, tuning){
   const T = tuning || SAFE_TUNING;
   state.since += dt;
   if (raw > state.prevRaw + 0.25){           // rising edge: a new pulse
-    state.cap = state.since >= T.pulseGap ? 1 : T.softAmp;
-    if (state.cap === 1) state.since = 0;
+    // a timely pulse passes at FULL choreographed amplitude (downbeats run
+    // hotter than 1 by design — 1.5 is the sanity rail, not a ceiling);
+    // only pulses that arrive faster than the gap get the soft cap
+    state.cap = state.since >= T.pulseGap ? 1.5 : T.softAmp;
+    if (state.cap > 1) state.since = 0;
   }
   state.prevRaw = raw;
   const target = Math.min(raw, state.cap);
@@ -5362,7 +5411,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '54c7f2b3d4';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'e7f794ee15';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -5631,7 +5680,7 @@ window.addEventListener('keydown', ev => {
 });
 
 /* ================================================================
-   §8 · THREE — the field, fourteen scenes, and the director
+   §8 · THREE — the field, fifteen scenes, and the director
    ================================================================ */
 let renderer, scene, camera, three_ok = true;
 
@@ -6488,52 +6537,60 @@ const MARCH_FRAG = GLSL_FRACTAL + `
   uniform float uTanFov;
   uniform vec3  uOff, uJuliaC;
   uniform float uTrap, uShine, uLight, uMirror, uOrbs, uSurfHue, uRoute, uInv;
+  uniform float uPowA, uPowB, uPowT;   // the dimensional walk: two integer powers + blend
   uniform float uBound, uBoxScale, uOrbR;
   uniform vec3  uOrb0, uOrb1, uOrb2;
   uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCoupling, uEntropy, uCentroid, uHue;
   uniform vec3  uColA, uColB, uColC;
   varying vec2 vUv;
 
-  #if FORM == 0
-    #define BPOW 8.0
-  #elif FORM == 1
-    #define BPOW 4.0
-  #elif FORM == 2
-    #define BPOW 3.0
+  #if FORM == 0 || FORM == 1 || FORM == 2 || FORM == 7
+  /* One bulb iteration at an INTEGER power bp (uniform-fed). Integer powers
+     keep the atan2 branch cut invisible — sin(bp·π) = sin(−bp·π) — so each
+     evaluated field is seam-free on its own. THE DIMENSIONAL WALK blends two
+     such fields: mix of 1-Lipschitz distance bounds is a 1-Lipschitz bound,
+     so marching stays safe while the bulb rotates through its dimensionality
+     one rung at a time — the morph a fractional exponent would crack. */
+  float bulbDE(vec3 p, vec3 cAdd, float bp, inout float trap){
+    vec3 z = p; float dr = 1.0; float r = 0.0;
+    for (int i = 0; i < 8; i++){
+      r = length(z);
+      if (r > 2.0) break;
+      float theta = acos(clamp(z.z / r, -1.0, 1.0));
+      float phi   = atan(z.y, z.x);
+      float zr    = pow(r, bp);
+      dr = pow(r, bp - 1.0) * bp * dr + 1.0;
+      theta *= bp; phi *= bp;
+      z = zr * vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)) + cAdd;
+      trap = min(trap, trapVal(z, uTrap));
+    }
+    return 0.5 * log(max(r, 1e-6)) * r / dr;
+  }
   #endif
 
   float formDE(vec3 p, out float trap){
     trap = 1e10;
 
   #if FORM == 0 || FORM == 1 || FORM == 2
-    vec3 z = p; float dr = 1.0; float r = 0.0;
-    for (int i = 0; i < 8; i++){
-      r = length(z);
-      if (r > 2.0) break;
-      float theta = acos(clamp(z.z / r, -1.0, 1.0));
-      float phi   = atan(z.y, z.x);
-      float zr    = pow(r, BPOW);
-      dr = pow(r, BPOW - 1.0) * BPOW * dr + 1.0;
-      theta *= BPOW; phi *= BPOW;
-      z = zr * vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)) + p + uOff;
-      trap = min(trap, trapVal(z, uTrap));
+    vec3 cAdd = p + uOff;
+    float d = bulbDE(p, cAdd, uPowA, trap);
+    if (uPowT > 0.001){
+      float trapB = 1e10;
+      float dB = bulbDE(p, cAdd, uPowB, trapB);
+      d = mix(d, dB, uPowT);
+      trap = mix(trap, trapB, uPowT);
     }
-    return 0.5 * log(max(r, 1e-6)) * r / dr;
+    return d;
 
   #elif FORM == 7
-    vec3 z = p; float dr = 1.0; float r = 0.0;
-    for (int i = 0; i < 8; i++){
-      r = length(z);
-      if (r > 2.0) break;
-      float theta = acos(clamp(z.z / r, -1.0, 1.0));
-      float phi   = atan(z.y, z.x);
-      float zr    = pow(r, 8.0);
-      dr = pow(r, 7.0) * 8.0 * dr + 1.0;
-      theta *= 8.0; phi *= 8.0;
-      z = zr * vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)) + uJuliaC;
-      trap = min(trap, trapVal(z, uTrap));
+    float d = bulbDE(p, uJuliaC, uPowA, trap);
+    if (uPowT > 0.001){
+      float trapB = 1e10;
+      float dB = bulbDE(p, uJuliaC, uPowB, trapB);
+      d = mix(d, dB, uPowT);
+      trap = mix(trap, trapB, uPowT);
     }
-    return 0.5 * log(max(r, 1e-6)) * r / dr;
+    return d;
 
   #elif FORM == 3 || FORM == 4
     vec3 z = p; float dr = 1.0;
@@ -6746,7 +6803,10 @@ function buildFractalField(){
     uOrb0:   { value: new THREE.Vector3() },
     uOrb1:   { value: new THREE.Vector3() },
     uOrb2:   { value: new THREE.Vector3() },
+    uPowA:   { value: 8 }, uPowB: { value: 8 }, uPowT: { value: 0 },
   };
+  // the dimensional walk's state: current rung, destination, morph progress
+  const dim = { a: 8, b: 8, t: null, wait: 0, dir: -1 };
 
   bulbMats = FORMS.map((f, i) => new THREE.ShaderMaterial({
     uniforms: Object.assign({}, U, bulbU),
@@ -6806,6 +6866,10 @@ function buildFractalField(){
       bulbU.uMirror.value = P.mirror; bulbU.uOrbs.value = P.orbs;
       bulbU.uBound.value = F.bound;
       bulbU.uBoxScale.value = D[0] === 4 ? -1.6 : 2.5;
+      // each bulb form starts the walk at its home rung
+      dim.a = dim.b = [8, 4, 3, 0, 0, 0, 0, 8][D[0]] || 8;
+      dim.t = null; dim.wait = 0; dim.dir = dim.a >= 8 ? -1 : 1;
+      bulbU.uPowA.value = dim.a; bulbU.uPowB.value = dim.a; bulbU.uPowT.value = 0;
       api.name = (D[0] + 1) + '·' + (D[1] + 1) + '·' + (D[2] + 1) +
                  '  ' + F.key + ' · ' + S.key + ' · ' + P.key;
       return api.name;
@@ -6823,7 +6887,34 @@ function buildFractalField(){
       const f = AE.f, u = bulbU, t = U.uTime.value;
       const F = FORMS[D[0]], P = SPACES[D[2]];
 
-      // Bulb powers are integers and stay that way — morph via c, not the exponent.
+      // THE DIMENSIONAL WALK — the bulb rotates through its dimensionality.
+      // Powers stay integers (the branch cut stays invisible); the WALK
+      // blends two integer-power fields, one rung at a time, 3..9 and back:
+      // eight beats standing on a rung, two beats travelling to the next.
+      // Between morphs uPowT is 0 and the second field costs nothing.
+      if (D[0] === 0 || D[0] === 1 || D[0] === 2 || D[0] === 7){
+        const beatSec = (typeof DANCE !== 'undefined' && DANCE.period > 0.2) ? DANCE.period : 0.5;
+        if (dim.t == null){
+          dim.wait += dt;
+          if (dim.wait > beatSec * 8){
+            dim.wait = 0;
+            if (dim.a >= 9) dim.dir = -1;
+            else if (dim.a <= 3) dim.dir = 1;
+            dim.b = dim.a + dim.dir;
+            dim.t = 0;
+          }
+        } else {
+          dim.t += dt / (beatSec * 2);
+          if (dim.t >= 1){
+            dim.a = dim.b; dim.t = null;
+            u.uPowA.value = dim.a; u.uPowT.value = 0;
+          } else {
+            const k = dim.t * dim.t * (3 - 2 * dim.t);
+            u.uPowB.value = dim.b; u.uPowT.value = k;
+          }
+        }
+      }
+
       off.set(
         Math.sin(t * 0.11) * 0.055 + f.bass * 0.05,
         Math.cos(t * 0.09) * 0.055 + f.mid * 0.04,
@@ -7537,6 +7628,298 @@ function buildPulse(){
   } };
 }
 
+/* =========================================================
+   Scene 15 — PARLOR  (the illusion machine)
+   A century of perceptual science, rolled like dice. Six FIELDS —
+   LIMIT (Escher circle-limit {p,q} hyperbolic tiling panned by true
+   Möbius transforms — the engine's own namesake math), PENTA (de
+   Bruijn's five interfering wave families, the Penrose quasicrystal's
+   skeleton), TRUCHET (Carlson multi-scale interlocking arcs), SWARM
+   (Vogel phyllotaxis, the sunflower's golden angle), MOIRE (two soft
+   gratings a whisper apart — 57× leverage on a one-degree twist),
+   CORD (café-wall shear morphing into the Fraser false spiral) —
+   crossed with three GARNISH layers: none, the SNAKE luminance
+   ladder (Kitaoka's 0·¼·1·¾ staircase — your own saccades animate
+   it; it works in print, no flicker anywhere), or the GHOST grid
+   (Hermann–Schrauf scintillation, generated by the viewer's retina,
+   not by frames). Every illusion here is geometry, not strobe —
+   safe under the governor by construction. And the sly mechanic no
+   demo uses: several illusions carry a known STRENGTH dial (the
+   café wall's mortar luminance, the cord's twist) — mapped to the
+   music's long-term energy, so the picture lies harder as the song
+   builds and comes clean in the quiet.
+   ========================================================= */
+function buildParlor(){
+  const group = new THREE.Group();
+  const varU = {
+    uAspect: { value: 1 },
+    uField:  { value: 0 }, uSpice: { value: 0 },
+    uSeedI:  { value: Math.random() * 100 },
+    uHypD:   { value: 1.2 }, uHypR: { value: 0.66 }, uHypP: { value: 5 },
+    uW:      { value: new THREE.Vector2(0, 0) },       // Möbius pan
+    uGamA:   { value: new THREE.Vector4(0.13, 0.31, 0.53, 0.71) },
+    uGamE:   { value: 0.27 }, uSymN: { value: 5 },
+    uPSub:   { value: 0.55 }, uTruW: { value: 0.11 },
+    uDelta:  { value: 2.39996323 },
+    uTheta:  { value: 0.02 }, uPhase: { value: 0 }, uGrating: { value: 0 },
+    uMorph:  { value: 0 }, uMortar: { value: 0.5 }, uTwist: { value: 0.35 },
+    uLie:    { value: 0.5 },                            // the strength dial
+  };
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const vert = `
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBeat, uEnergy, uBass, uTreble, uEntropy, uCentroid, uAct, uOpacity, uCalm;
+    uniform float uField, uSpice, uSeedI, uHypD, uHypR, uHypP;
+    uniform float uGamE, uSymN, uPSub, uTruW, uDelta, uTheta, uPhase, uGrating;
+    uniform float uMorph, uMortar, uTwist, uLie, uAspect;
+    uniform vec2 uW;
+    uniform vec4 uGamA;
+    uniform vec3 uColA, uColB, uColC;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
+
+    /* out: field value 0..1 for palette, drift = 1D coordinate the SNAKE
+       ladder rides, ink = line mask for crisp strokes */
+    void fieldLIMIT(vec2 p, out float v, out float drift, out float ink){
+      // Möbius pan: z -> (z - w)/(1 - conj(w) z) — the whole hyperbolic
+      // plane orbits, mathematically exact
+      vec2 z = p * 0.92;
+      float zl = dot(z, z);
+      if (zl > 1.0){ z /= zl; zl = 1.0 / zl; }          // mirror the outside in
+      vec2 num = z - uW;
+      vec2 den = vec2(1.0 - (uW.x * z.x + uW.y * z.y), uW.x * z.y - uW.y * z.x);
+      float dd = max(dot(den, den), 1e-6);
+      z = vec2(num.x * den.x + num.y * den.y, num.y * den.x - num.x * den.y) / dd;
+      float a = 3.14159265 / uHypP;
+      float par = 0.0; float edge = 1e9;
+      for (int i = 0; i < 20; i++){
+        float th = atan(z.y, z.x);
+        th = abs(mod(th + a, 2.0 * a) - a);
+        z = length(z) * vec2(cos(th), sin(th));
+        vec2 d2 = z - vec2(uHypD, 0.0);
+        float l2 = dot(d2, d2);
+        edge = min(edge, abs(sqrt(l2) - uHypR));
+        if (l2 < uHypR * uHypR){ z = vec2(uHypD, 0.0) + d2 * (uHypR * uHypR / l2); par += 1.0; }
+        else break;
+      }
+      v = mod(par, 2.0);
+      drift = par * 0.25 + length(z) * 3.0;
+      ink = 1.0 - smoothstep(0.004, 0.014 + uBass * 0.01, edge);
+      // the rim shrinks below pixels: fade to calm before it can shimmer
+      float rim = smoothstep(1.0, 0.92, length(p * 0.92));
+      v *= rim; ink *= rim;
+    }
+    void fieldPENTA(vec2 p, out float v, out float drift, out float ink){
+      float c = 0.0;
+      float freq = 9.0 + uCentroid * 8.0;
+      for (int j = 0; j < 11; j++){
+        if (float(j) >= uSymN) break;
+        float aj = 6.2831853 * float(j) / uSymN;
+        float g = (j == 0) ? uGamA.x : (j == 1) ? uGamA.y : (j == 2) ? uGamA.z : (j == 3) ? uGamA.w : uGamE;
+        c += cos(dot(p, vec2(cos(aj), sin(aj))) * freq + g * 6.2831853);
+      }
+      c /= uSymN;
+      v = 0.5 + 0.5 * c;
+      drift = c * 2.0;
+      float band = fract(c * 2.5);
+      ink = smoothstep(0.5, 0.62, abs(band - 0.5) * 2.0);
+    }
+    void fieldTRUCHET(vec2 p, out float v, out float drift, out float ink){
+      // Carlson multi-scale: each cell either DRAWS at its level or
+      // subdivides wholly — never both — and the terminating dots at edge
+      // midpoints are what let neighboring scales interlock seamlessly
+      vec2 q = p * 3.2; ink = 0.0; drift = 0.0; v = 0.0;
+      float w = uTruW * (1.0 + uBass * 0.5);
+      float sc = 1.0;
+      for (int L = 0; L < 3; L++){
+        vec2 cell = floor(q * sc);
+        if (L < 2 && hash21(cell + uSeedI) < uPSub){ sc *= 2.0; continue; }
+        vec2 uv = fract(q * sc);
+        if (hash21(cell + uSeedI * 1.7) < 0.5) uv.x = 1.0 - uv.x;
+        float d = min(abs(length(uv) - 0.5), abs(length(uv - vec2(1.0)) - 0.5));
+        d = min(d, length(uv - vec2(0.5, 0.0)) - w * 0.25);
+        d = min(d, length(uv - vec2(0.5, 1.0)) - w * 0.25);
+        ink = 1.0 - smoothstep(w - 0.025, w + 0.025, d);
+        drift = length(uv - 0.5) + hash21(cell) * 0.5;
+        v = ink * (0.55 + 0.45 * hash21(cell + 3.7));
+        break;
+      }
+    }
+    void fieldSWARM(vec2 p, out float v, out float drift, out float ink){
+      vec2 q = p * 3.0;
+      float r = length(q);
+      float n0 = floor(r * r * 6.9);                    // invert r = c*sqrt(n)
+      float best = 1e9; float bn = 0.0;
+      for (int k = 0; k < 9; k++){
+        float m = n0 + float(k) - 4.0;
+        if (m < 0.0) continue;
+        // fibonacci neighbors reach the parastichy arms
+        float mm = (k < 3) ? m : (k < 6) ? m + 8.0 * float(k - 3) - 8.0 : m - 8.0 * float(k - 6) + 8.0;
+        if (mm < 0.0) continue;
+        float ang = mm * uDelta;
+        vec2 f = sqrt(mm / 6.9) * vec2(cos(ang), sin(ang));
+        float d = length(q - f);
+        if (d < best){ best = d; bn = mm; }
+      }
+      float rad = 0.055 + uBass * 0.02;
+      ink = 1.0 - smoothstep(rad * 0.7, rad, best);
+      v = ink * (0.35 + 0.65 * mod(bn, 8.0) / 8.0);
+      drift = bn * 0.05;
+    }
+    void fieldMOIRE(vec2 p, out float v, out float drift, out float ink){
+      float f = 11.0 + uCentroid * 6.0;
+      float g1, g2;
+      if (uGrating < 0.5){
+        g1 = 0.5 + 0.5 * cos(6.2831853 * f * p.x + uPhase);
+        vec2 dir = vec2(cos(uTheta), sin(uTheta));
+        g2 = 0.5 + 0.5 * cos(6.2831853 * f * dot(p, dir));
+      } else if (uGrating < 1.5){
+        g1 = 0.5 + 0.5 * cos(6.2831853 * f * length(p - vec2(0.10, 0.0)) + uPhase);
+        g2 = 0.5 + 0.5 * cos(6.2831853 * f * length(p + vec2(0.10, 0.0)));
+      } else {
+        float a1 = atan(p.y, p.x), r1 = max(length(p), 1e-4);
+        g1 = 0.5 + 0.5 * cos(7.0 * a1 + 5.0 * log(r1) + uPhase);
+        g2 = 0.5 + 0.5 * cos(-7.0 * a1 + 5.0 * log(r1));
+      }
+      v = g1 * g2;
+      drift = (g1 - g2) * 3.0;
+      ink = smoothstep(0.62, 0.85, v);
+    }
+    void fieldCORD(vec2 p, out float v, out float drift, out float ink){
+      // café wall in cartesian ... Fraser rings in log-polar; uMorph blends
+      float N = 9.0;
+      float rowC = floor(p.y * N);
+      float shiftC = 0.25 * mod(rowC, 2.0) * uLie * 2.0;
+      float tileC = step(0.5, fract(p.x * N * 0.5 + shiftC));
+      float mortarC = step(fract(p.y * N), 0.10);
+      float ang = atan(p.y, p.x), rr = log(max(length(p), 1e-4));
+      float cord = step(0.0, sin(26.0 * (ang + uTwist * uLie * rr)));
+      float ringB = step(fract(rr * 3.0), 0.45);
+      float bgF = step(0.0, sin(10.0 * ang) * sin(9.0 * rr));
+      float vC = mix(tileC, mortarC > 0.5 ? uMortar : tileC, mortarC);
+      float vF = mix(bgF * 0.55 + 0.2, cord, ringB);
+      v = mix(vC, vF, uMorph);
+      drift = mix(p.y * N, rr * 6.0, uMorph);
+      ink = mix(mortarC, ringB * cord, uMorph);
+    }
+
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      p /= 1.0 + uBeat * 0.02;                           // the room leans in, gently
+      float v, drift, ink;
+      if      (uField < 0.5) fieldLIMIT(p, v, drift, ink);
+      else if (uField < 1.5) fieldPENTA(p, v, drift, ink);
+      else if (uField < 2.5) fieldTRUCHET(p, v, drift, ink);
+      else if (uField < 3.5) fieldSWARM(p, v, drift, ink);
+      else if (uField < 4.5) fieldMOIRE(p, v, drift, ink);
+      else                   fieldCORD(p, v, drift, ink);
+
+      vec3 col = mix(uColA * 0.16, mix(uColA, uColB, v), v * 0.9);
+      col = mix(col, uColC, ink * 0.85);
+
+      if (uSpice > 0.5 && uSpice < 1.5){
+        // SNAKE ladder: black -> dark-hue -> white -> light-hue along the
+        // field's own coordinate. Static luminance staircase — the motion
+        // is supplied by the viewer's saccades, not by frames.
+        float k = mod(floor(drift * 4.0) , 4.0);
+        float lum = k < 0.5 ? 0.02 : k < 1.5 ? 0.25 : k < 2.5 ? 1.0 : 0.75;
+        vec3 hue = (k > 0.5 && k < 1.5) ? uColA : (k > 2.5) ? uColB : vec3(1.0);
+        col = mix(col, normalize(hue + 0.001) * lum * 1.6, 0.55);
+      } else if (uSpice > 1.5){
+        // GHOST grid: gray lattice, white discs — the scintillation is
+        // endogenous, the retina's own gift
+        vec2 g = fract(p * 5.0);
+        float lines = max(1.0 - smoothstep(0.0, 0.05, abs(g.x - 0.5)),
+                          1.0 - smoothstep(0.0, 0.05, abs(g.y - 0.5)));
+        float disc = 1.0 - smoothstep(0.06, 0.09, length(g - 0.5));
+        col = mix(col, vec3(0.5), lines * 0.55);
+        col = mix(col, vec3(1.0), disc * lines * 0.9);
+      }
+      col *= 0.85 + uAct * 0.2;
+      gl_FragColor = vec4(col, uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const FIELD_NAMES = ['LIMIT', 'PENTA', 'TRUCHET', 'SWARM', 'MOIRE', 'CORD'];
+  const SPICE_NAMES = ['PURE', 'SNAKE', 'GHOST'];
+  // valid hyperbolic {p,q}: 1/p + 1/q < 1/2
+  const HYP = [[5, 4], [5, 5], [6, 4], [7, 3], [8, 3], [4, 5], [4, 6], [3, 7]];
+  let wAng = 0, prevBeat = 0, gamJ = 0;
+  const api = {
+    name: 'PARLOR', group, calm: true,
+    roll(){
+      const field = (Math.random() * 6) | 0;
+      // MOIRE full-field fringes ask the most of the governor; in CALM the
+      // parlor rolls among the certified-static illusions instead
+      varU.uField.value = (SAFE.calm && field === 4) ? 0 : field;
+      varU.uSpice.value = Math.random() < 0.45 ? 0 : (1 + ((Math.random() * 2) | 0));
+      varU.uSeedI.value = Math.random() * 100;
+      const [hp, hq] = HYP[(Math.random() * HYP.length) | 0];
+      const a = PI / hp, b = PI / hq;
+      const D = Math.cos(b) / Math.sqrt(Math.max(1e-6, Math.cos(a) * Math.cos(a) - Math.sin(b) * Math.sin(b)));
+      varU.uHypP.value = hp;
+      varU.uHypD.value = D;
+      varU.uHypR.value = Math.sqrt(Math.max(1e-6, D * D - 1));
+      varU.uSymN.value = [5, 7, 9, 11][(Math.random() * 4) | 0];
+      varU.uGamA.value.set(Math.random(), Math.random(), Math.random(), Math.random());
+      varU.uGamE.value = Math.random();
+      varU.uPSub.value = 0.35 + Math.random() * 0.45;
+      varU.uTruW.value = 0.08 + Math.random() * 0.07;
+      varU.uGrating.value = (Math.random() * 3) | 0;
+      varU.uMorph.value = Math.random() < 0.5 ? 0 : 1;
+      varU.uTwist.value = (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.25);
+      api.name = 'PARLOR · ' + FIELD_NAMES[varU.uField.value] + ' · ' + SPICE_NAMES[varU.uSpice.value];
+      return api.name;
+    },
+    update(dt){
+      varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+      const f = AE.f;
+      // the Möbius orbit: bass swells the reach, time walks the angle
+      wAng += dt * (0.05 + f.energy * 0.1) * (reducedMotion ? 0.4 : 1);
+      const wr = 0.12 + f.bass * 0.25;
+      varU.uW.value.set(Math.cos(wAng) * wr, Math.sin(wAng) * wr);
+      // beats: a pentagrid gamma slides one notch (dominoes ripple), the
+      // moiré carrier takes a phase kick — geometry events, never flashes
+      if (f.beat > 0.9 && prevBeat <= 0.9){
+        gamJ = (gamJ + 1) % 5;
+        const g = varU.uGamA.value;
+        if (gamJ === 0) g.x = (g.x + 0.2) % 1;
+        else if (gamJ === 1) g.y = (g.y + 0.2) % 1;
+        else if (gamJ === 2) g.z = (g.z + 0.2) % 1;
+        else if (gamJ === 3) g.w = (g.w + 0.2) % 1;
+        else varU.uGamE.value = (varU.uGamE.value + 0.2) % 1;
+        varU.uPhase.value += PI * 0.5;
+      }
+      prevBeat = f.beat;
+      // the sunflower: entropy detunes the golden angle; the drop snaps it
+      // toward a rational and spokes crystallize, then relax
+      const target = 2.39996323 + (f.entropy - 0.4) * 0.02 + (f.beat > 0.9 ? 0.012 : 0);
+      varU.uDelta.value += (target - varU.uDelta.value) * (1 - Math.exp(-dt / 0.8));
+      // moiré twist breathes on the bass — 57x leverage, so the leash is short
+      const thT = 0.012 + f.bass * 0.02;
+      varU.uTheta.value += (thT - varU.uTheta.value) * (1 - Math.exp(-dt / 1.2));
+      // the strength dial: the picture lies harder as the song builds
+      varU.uLie.value += (0.35 + f.eLong * 1.1 - varU.uLie.value) * (1 - Math.exp(-dt / 3));
+      varU.uMortar.value = 0.5;                          // max mischief mortar
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    ACTS — the five-act story arc, kept from the π-e engine.
    Progress through the track sets the act; each act leans the whole
@@ -7877,8 +8260,9 @@ const director = {
       if (i === 11) x += f.calm * 1.2 + (1 - f.energy) * 1.0;      // slinky: hypnotic
       if (i === 12) x += f.beat * 1.4 + f.treble * 1.0;            // op-art: sharp, rhythmic
       if (i === 13) x += f.beat * 1.0 + f.bass * 0.8;              // pulse: the visual instrument
+      if (i === 14) x += f.entropy * 1.2 + f.mid * 0.8 + (1 - f.beat) * 0.4;  // parlor: patient, perceptual
       // reduced-motion / CALM listeners live in the legible room by default
-      if (s.calm && (reducedMotion || SAFE.calm)) x *= 4;
+      if (s.calm && reducedMotion) x *= 2;
       // the act leans on the deal: the apex wants percussion, the edges want air
       if (this.act === 2 && (i === 3 || i === 5 || i === 8 || i === 12)) x *= 1.6;
       if ((this.act === 0 || this.act === 4) && (i === 4 || i === 6 || i === 9 || i === 11)) x *= 1.6;
@@ -8029,7 +8413,7 @@ function initThree(){
   initAudioTexture();
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
-              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse());
+              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor());
 
   // scene dots
   scenes.forEach((s, i) => {
