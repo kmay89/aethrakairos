@@ -220,6 +220,27 @@ the planner arms 45 seconds before the end of every track, and you watch
 deck B load, cue to its mix-in downbeat, and take the room. A DJ booth
 where the DJ is the machine and the crowd gets to watch it work.
 
+The booth is a full **performance deck**, drawn in homage to the drum-machine
+DJ controllers: two **jog platters that actually turn at each deck's playback
+rate** — when the engine bends tempo to lock a blend, you see the spin bend —
+each ringed by 24 LEDs carrying the track's position in its key colour, the
+hub breathing with the beat; a **red seven-segment BPM readout** that glides
+live through a mix as the master tempo hands over; a **16-step sequencer row**
+(four bars of four, the classic red/orange/yellow/cream quads) marching on
+the same CLOCK the shaders follow; channel VU bars riding the true
+equal-power gains; and **LOW lamps** that visibly hand the bassline over at
+the seam's midpoint — the one-bass rule, made watchable.
+
+**The playlist stays master — and you get override inserts.** Under the
+decks sits a row of **performance pads: the eight best next tracks from the
+whole shelf**, ranked by the same planner that performs the mix, each pad
+glowing in its track's key with the plan spelled on it (`9A · 16 beats`,
+`gapless`, `fade`). Tap a pad and that track is pinned as the draw and
+**blended in from the next bar line**; when the seam ends, the auto-mix
+simply continues from wherever you steered it. All anyone needs to have fun
+and make a great-sounding set: watch it work, and reach in when inspiration
+strikes.
+
 ## The Crate (key `C`) — the whole label on one table
 
 An iTunes-density table of every track — title, album, time, BPM, key, energy
@@ -524,16 +545,16 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 30 tests: build, dedupe, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 57 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 58 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
-node tools/acceptance.mjs /tmp/mb8  # 35 browser checks: boot < 2 s warm, deal < 100 ms,
+node tools/acceptance.mjs /tmp/mb8  # 36 browser checks: boot < 2 s warm, deal < 100 ms,
                                     #   restore-paused, v1 rejection, SW audio bypass, crate,
                                     #   15-scene sweep, acts, touch, colour, dance, real demo,
                                     #   key-reactive accent, decoded waveform seek
 python3 tools/make_mix_fixture.py /tmp/mb8m
-node tools/mix_acceptance.mjs /tmp/mb8m      # 27 checks: grids, keys, live beatmix, MIX NOW,
+node tools/mix_acceptance.mjs /tmp/mb8m      # 28 checks: grids, keys, live beatmix, MIX NOW,
                                     #   phase lock < 40 ms, gates, crate, mixfix
 node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update button →
                                     #   one tap → new build live, state intact

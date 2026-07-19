@@ -23,7 +23,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
-  ' mixMatchScore, chartSet,' +
+  ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
@@ -257,6 +257,26 @@ test('going for a run builds; bedtime descends; dinner stays quiet-handed', () =
   const din = S.dealRitual(S.ritualByKey('dinner'), cat, S.mulberry32(4)).order;
   const catMeanOnsets = cat.reduce((a, t) => a + t.features.onsets, 0) / cat.length;
   assert.ok(mean(din, 'onsets') < catMeanOnsets, 'dinner: less percussive than the catalog at large');
+});
+
+// ---------------------------------------------------------------- the pad row
+
+test('nextUp: the pads hold the best next tracks, judged by the mix planner', () => {
+  const cur = mkMixTrack(1);                                    // 126 · 8A
+  const cands = [
+    mkMixTrack(2, { mix: { mixable: 0.2 } }),                   // the piano rule → fade
+    mkMixTrack(3, { mix: { bpm: 124, key: '8B' } }),            // close tempo, friendly key
+    mkMixTrack(4, { mix: { bpm: 152 } }),                       // tempo gap → fade
+    mkMixTrack(5, { mix: { bpm: 126, key: '9A' } }),            // adjacent key
+  ];
+  const ranked = S.nextUp(cands, cur, 8);
+  assert.equal(ranked.length, 4);
+  assert.ok([1, 3].includes(ranked[0].i), 'a real beatmix leads');
+  assert.equal(ranked[0].plan.type, 'beatmix');
+  const fadeRanks = ranked.map((r, at) => ({ ...r, at })).filter(r => r.plan.type === 'fade');
+  assert.equal(fadeRanks.length, 2, 'the piano and the tempo gap fall to fades');
+  assert.ok(fadeRanks.every(r => r.at >= 2), 'fades sit at the back of the pad row');
+  assert.equal(S.nextUp(cands, cur, 2).length, 2, 'n caps the row');
 });
 
 // ---------------------------------------------------------------- fresh picks
