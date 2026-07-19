@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp,' +
-  ' makeMediaClock, clockReset, clockSample, clockRead, planMixNow };';
+  ' makeMediaClock, clockReset, clockSample, clockRead, planMixNow, envSample };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -642,6 +642,21 @@ test('musical time surges but never runs backwards', () => {
   assert.ok(Math.abs(S.danceTimeWarp(0, 0.5, 1) - S.danceTimeWarp(1, 0.5, 1)) < 1e-9, 'continuous at the wrap');
   for (let i = 0; i < 20; i++)
     assert.ok(Math.abs(S.danceTimeWarp(i / 20, 0.5, 1)) <= 0.045 + 1e-9, 'bounded to 45 ms');
+});
+
+// ---------------------------------------------------------------- the score
+
+test('the score: tonal voices interpolate, the punch holds its step', () => {
+  const env = { hz: 4, b: '09090', m: '00900', t: '90009', o: '00900' };
+  const mid = S.envSample(env, 0.125);           // halfway step 0 → 1
+  assert.ok(Math.abs(mid.bass - 0.5) < 1e-9, 'bass interpolates: ' + mid.bass);
+  const hit = S.envSample(env, 0.5);             // step 2
+  assert.ok(Math.abs(hit.punch - 1) < 1e-9, 'punch is step-held at the hit');
+  const off = S.envSample(env, 0.75);            // step 3
+  assert.equal(off.punch, 0, 'and silent off it');
+  assert.equal(S.envSample(env, 99).bass, 0, 'past the end reads the last step');
+  assert.equal(S.envSample(null, 1), null);
+  assert.equal(S.envSample({ hz: 4, b: '1' }, 1), null, 'partial env refused');
 });
 
 // ---------------------------------------------------------------- media clock + mix-now

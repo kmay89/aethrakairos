@@ -51,7 +51,7 @@ HOP = 512
 ONSET_ENV_HZ = 100.0
 BPM_LO, BPM_HI = 70.0, 180.0
 
-FEATURES_VERSION = 2      # bump when any definition changes: invalidates cache
+FEATURES_VERSION = 3      # v3: adds the band-envelope score (env) for graphless platforms
 
 
 # ------------------------------------------------------- BS.1770-4 loudness
@@ -413,6 +413,42 @@ def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
 
 # ------------------------------------------------------- top level
 
+def band_env(spec, freqs, flux, sr, hz=4.0):
+    """The SCORE — per-track band envelopes for platforms whose audio path
+    cannot be analysed live (iOS routes the decks straight to the speaker;
+    an AnalyserNode there hears nothing). Four voices at 4 Hz, each
+    normalized per track (95th percentile) and quantized to one digit —
+    a 4-minute track is ~4 KB raw and gzips to a few hundred bytes:
+      b  bass < 150 Hz   ·  m  mid 150–2000 Hz  ·  t  treble 2–8 kHz
+      o  onset punch (SuperFlux — the hits themselves)
+    The player samples these at currentTime and runs the SAME feature math
+    it runs on a live spectrum — the eye gets the truth either way."""
+    fps = sr / HOP
+    step = max(1, int(round(fps / hz)))
+    out = {}
+    for key, mask in (("b", freqs < 150),
+                      ("m", (freqs >= 150) & (freqs < 2000)),
+                      ("t", (freqs >= 2000) & (freqs < 8000))):
+        e = spec[:, mask].sum(axis=1)
+        n = len(e) // step
+        if n < 2:
+            return None
+        steps = np.sqrt(np.maximum(e[:n * step].reshape(n, step).mean(axis=1), 0))
+        ref = np.percentile(steps, 95) + 1e-12
+        out[key] = "".join(str(v) for v in
+                           np.clip(steps / ref * 9.49, 0, 9).astype(int))
+    fl = np.asarray(flux, dtype=float)
+    n = len(fl) // step
+    if n < 2:
+        return None
+    steps = fl[:n * step].reshape(n, step).max(axis=1)   # punch keeps the peak
+    ref = np.percentile(steps, 95) + 1e-12
+    out["o"] = "".join(str(v) for v in
+                       np.clip(steps / ref * 9.49, 0, 9).astype(int))
+    out["hz"] = hz
+    return out
+
+
 def extract(path):
     """Raw feature dict for one audio file (includes the mix block)."""
     mono, sr = decode_mono(path, sr=44100)
@@ -432,6 +468,7 @@ def extract(path):
         "entropy": round(entropy, 3),
         "onset_rate": round(onset_rate, 3),
         "bpm": bpm,
+        "env": band_env(spec, freqs, flux, sr),
         "mix": extract_mix(mono, sr, spec, freqs, flux),
     }
 

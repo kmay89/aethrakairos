@@ -466,6 +466,9 @@ def build(args):
         lufs = t["_raw"].get("lufs")
         if isinstance(lufs, (int, float)) and lufs > -70:
             t["gain"] = round(max(-12.0, min(6.0, -14.0 - lufs)), 2)
+        # the score: band envelopes for platforms that cannot analyse live
+        if isinstance(t["_raw"].get("env"), dict):
+            t["env"] = t["_raw"]["env"]
         del t["_raw"]
 
     # ---- mandatory-at-publish check (the player degrades; the build does not)

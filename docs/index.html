@@ -1405,7 +1405,9 @@ const AE = {
     entropy: 0, centroid: 0.2,
     piE: 0, eE: 0, piAcc: Math.random(), eAcc: Math.random(),
     piPhase: 0, ePhase: 0, coupling: 0,
+    scoreStep: -1,
   },
+  score: null,                     // last sampled band-envelope score (iOS truth)
   muted: false, volBeforeMute: 0.8,
 };
 
@@ -1564,9 +1566,55 @@ function activeDeck(){ return AE.decks ? AE.decks[AE.active] : null; }
 /* ---------------- feature extraction, once per frame ---------------- */
 function analyse(dt, now){
   const f = AE.f;
-  // no analyser, or playback routed direct-to-output with no mic: decay only.
-  // The field falls back to its synthesized idle wave — dark pocket, live music.
-  if (!AE.analyser || (!AE.graphLive && !AE.mic.on)){ f.beat *= Math.exp(-dt / 0.14); return; }
+  if (!AE.analyser || (!AE.graphLive && !AE.mic.on)){
+    // THE SCORE — platforms that route the decks straight to the speaker
+    // (iOS) cannot analyse live; an AnalyserNode there hears nothing, and
+    // for a long time the room just pulsed the grid like a heart. But the
+    // pipeline MEASURED every track. Sample the band envelopes at the
+    // playhead and run the same feature math a live spectrum gets — bass,
+    // mids, treble, hits, energy arcs: the eye gets the truth either way.
+    const d = activeDeck();
+    const tr = player.tracks[player.cur];
+    const sc = (player.playing && tr && tr.env && d && isFinite(d.a.currentTime))
+      ? envSample(tr.env, d.a.currentTime) : null;
+    AE.score = sc;
+    if (!sc){ f.beat *= Math.exp(-dt / 0.14); return; }
+    f.bass   = smooth(f.bass,   sc.bass,   dt, 0.06);
+    f.mid    = smooth(f.mid,    sc.mid,    dt, 0.06);
+    f.treble = smooth(f.treble, sc.treble, dt, 0.08);
+    const E = clamp(f.bass * 1.25 + f.mid * 1.0 + f.treble * 0.8, 0, 2) / 2;
+    f.energy = E;
+    f.calm   = smooth(f.calm,   E, dt, 2.5);
+    f.eShort = smooth(f.eShort, E, dt, 0.25);
+    f.eLong  = smooth(f.eLong,  E, dt, 8.0);
+    // the punch voice: a fresh step over threshold is an onset — real hits,
+    // straight from the analysis, not guessed and not metronomic
+    f.onset = false;
+    if (sc.punch > 0.55 && sc.step !== f.scoreStep && now - f.lastOnsetAt > 0.16){
+      f.scoreStep = sc.step;
+      f.onset = true;
+      f.lastOnsetAt = now;
+    }
+    f.beat = Math.max(f.beat * Math.exp(-dt / 0.16),
+      f.onset ? Math.min(1, 0.5 + sc.punch * 0.5) : 0);
+    // tonal shape stands in for the spectral statistics
+    const ft = tr.features || {};
+    f.centroid = smooth(f.centroid, 0.12 + sc.treble * 0.5 + sc.mid * 0.18, dt, 0.4);
+    f.entropy  = smooth(f.entropy,
+      (ft.entropy != null ? ft.entropy : 0.5) * (0.7 + sc.punch * 0.45), dt, 0.5);
+    // the pi/e taps ride the score's voices so the coupling stays alive
+    f.piE = smooth(f.piE, sc.bass * 0.7 + sc.punch * 0.2, dt, 0.12);
+    f.eE  = smooth(f.eE,  sc.treble * 0.7 + sc.mid * 0.2, dt, 0.12);
+    f.piAcc += f.piE * dt * 0.55;
+    f.eAcc  += f.eE  * dt * 0.61;
+    f.piPhase = f.piAcc % 1;
+    f.ePhase  = f.eAcc % 1;
+    f.coupling = smooth(f.coupling,
+      Math.sqrt(Math.max(0, f.piE * f.eE)) * Math.abs(Math.cos((f.piAcc - f.eAcc) * 2 * PI)),
+      dt, 0.2);
+    return;
+  }
+  AE.score = null;
   AE.analyser.getByteFrequencyData(AE.freq);
   const fr = AE.freq;
 
@@ -1691,6 +1739,7 @@ const DEMO_TRACK = {
   url: 'audio/mobius-walking/01-mobius-walking.mp3', duration: 207.6,
   sha256: '97e151debe41b6e13e4e58038dd2541de92da437f1391d3e14e3bd0bc58e7bf6',
   features: { bpm: 127.0, energy: 0.598, brightness: 0.337, entropy: 0.34, onsets: 0.9 },
+  env: {"b":"00000011111112332332333331110016865440000000000000000000101111111234678899777653223344442332221000000000000000698988864554443331100000000013334455542233445767676767666666667676767666667832432232210007611841386767649799896979797988887696969586777879786969879798958585252323277859688786968687877768685968686686768675867634544433333222777584757567573958384776748484643232322122222444445432221326987776530555433342222231034445354978888796969587877968696878778786959697877766534323322233338754444444444544444444445455459898877665432221110000000000497869788867968595978779776948686776769584857444433333333431778796969798887979596877769686858676786858484310000021313236988979797989889888978687887879987533333313110001010899998978999987542110453100000000000002423544433332222221112363599898999999998988776710000100000000","m":"00000012467886556455556633332224256666566655544555555555444444556568675662222111457679978899889777656666675468755444346555499969999777783198878887656655555344444444445444544444444445445577777888789996567445534343336737365645465573747565655758485755565683756552667667665667765585756455665656465567556565746465544355563567677767798787667767696777778585858687678967434556555566666565455555445555233436311885677766655667982425144253645565445536454544556473546444545847464556546656566656666666585737573789987587767768875566566667747474756566777666744465646466676545474555666575736564456455565898998899889899955656474646656534656474556555575857563566767666656554546687344554556464545544545634454443456899999899999899988746555564222255510005989518997965889989989999999876676657766649946758497687856334566511100001000000","t":"00000000001122334433344422222259336789988899999899677776654343221123444433321000011223332222225734344545434544633333211110033411235566662132211225687766767656565555656565767666675767677455556655555546466656747677773432343233324332468557555978763553463555355452376878969889864654644464346465544644464366536858955387795757575758777789746657665664676456556545664556555666778789888756666797888777111234100434333332111233472717175352215525526765456475527656764455575545659874985989897898975322121202120233234133423333351324454665848485767688989989755564563466387746644554566297758879534979975634444446666678756535654544555566979999998988798999879886867777876473646635252315234432554252335556566756345443433433336464656644454552111111100003111004455944534953104222599999999999777733435446564565557321122100000000000000","o":"02000111000011234300000100000111010110000000342332422332332200000001000101110011100000010000105235575765646745810110001010091000002210000154011111120001001021222121221211221212213121223445554454453455436233424133232199991999998791192947598332450179949857967720701104040402111586446635755802466448535743123260112326010226262563434442123383252236232553533273324232000000000000000000000032202221001000009022222120000100030906912114999587399969013922463371232013725664351234122231201111102217473959599576555545666557793646245452534343534526152323014563839583541226443749754541223242312324221235666555545332211496466659564914322132312226211211121113101011000030350502573969958395943454742212121101548466657566675837475756486230011111200009110009786009897309609000400444323334123214908599586973612002211100000001000000","hz":4.0},
   mix: { v: 1, bpm: 126.05, grid: 0.77, key: '7B', keyConf: 0.44, phrases: 32,
          in: { start: 0.77, beats: 64 }, out: { start: 175.939, beats: 64 }, mixable: 0.66 },
 };
@@ -1908,6 +1957,7 @@ const catalog = {
             art:    artUrl,
             sha256: t.sha256 || null, published: t.published || null,
             gain: Number.isFinite(Number(t.gain)) ? Number(t.gain) : null,
+            env: (t.env && typeof t.env === 'object' && t.env.b) ? t.env : null,
             features: feats,
             mix: (t.mix && typeof t.mix === 'object' && t.mix.bpm > 0) ? t.mix : null,
             ext: 'MP3',
@@ -3826,6 +3876,22 @@ function planMixNow(A, B, pos, opts){
     compat: kc,
   };
 }
+
+/* Sample the precomputed SCORE (per-track band envelopes) at time t:
+   linear interpolation for the tonal voices, step-held for the punch
+   voice (a hit must stay a hit, not smear). Null without a usable env. */
+function envSample(env, t){
+  if (!env || !(env.hz > 0) || !env.b || !env.m || !env.t) return null;
+  const x = Math.max(0, t * env.hz);
+  const i = Math.floor(x), fr = x - i;
+  const at = (str, j) => {
+    const c = str.charCodeAt(Math.min(j, str.length - 1)) - 48;
+    return c >= 0 && c <= 9 ? c / 9 : 0;
+  };
+  const lin = str => at(str, i) + (at(str, i + 1) - at(str, i)) * fr;
+  return { bass: lin(env.b), mid: lin(env.m), treble: lin(env.t),
+           punch: env.o ? at(env.o, i) : 0, step: i };
+}
 // @clock-end
 
 /* SAFE runtime — always on; CALM makes it stricter. The governor sits at
@@ -5571,7 +5637,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '6b9ff4d1eb';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '10a489734e';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -5595,24 +5661,39 @@ function registerSW(){
   // look for new releases when the app comes to the foreground (the
   // home-screen reality) and on a slow timer while it stays open
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+  window.addEventListener('pageshow', ev => { if (ev.persisted) checkForUpdate(); });
   setInterval(checkForUpdate, 30 * 60 * 1000);
 }
 function checkForUpdate(){ if (swReg) swReg.update().catch(() => {}); }
 function offerUpdate(){
-  if (!el.btnUpdate.hidden) return;
+  if (updateRequested) return;
   el.btnUpdate.hidden = false;
-  toast('A new version is ready — <b>Update</b> applies it whenever you like');
+  maybeAutoApply();
 }
-el.btnUpdate.addEventListener('click', () => {
+/* FORCED UPDATES — the iOS reality: a home-screen copy rarely "closes",
+   so a waiting worker used to wait forever behind a button nobody saw and
+   the app looked stuck on an old version. A ready update now applies
+   ITSELF at the first safe moment — paused or idle — through the same
+   save-everything path the button uses. Playback is never interrupted:
+   while music plays the button stays offered and we retry on the quiet. */
+function maybeAutoApply(){
+  if (updateRequested || !swReg || !swReg.waiting) return;
+  if (player.playing) return;
+  applyUpdate();
+}
+function applyUpdate(){
   if (!swReg || !swReg.waiting){ el.btnUpdate.hidden = true; return; }
   updateRequested = true;
   PERSIST.save();                                // the whole session restores after the swap
+  el.btnUpdate.hidden = false;
   el.btnUpdate.disabled = true;
   el.btnUpdate.querySelector('.lbl').textContent = 'Updating…';
   swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
   // belt and braces: if controllerchange never fires (unusual), reload anyway
   setTimeout(() => { if (updateRequested) location.reload(); }, 3000);
-});
+}
+setInterval(maybeAutoApply, 5000);
+el.btnUpdate.addEventListener('click', applyUpdate);
 window.addEventListener('offline', () => toast('Offline — the library stays; streaming is unavailable'));
 window.addEventListener('online', () => toast('Back online'));
 
@@ -5886,6 +5967,20 @@ function uploadAudioTexture(){
   const d = audioTex.image.data;
   const src = (AE.analyser && (AE.graphLive || AE.mic.on)) ? AE.freq : null;
   if (src){ for (let i = 0; i < 1024; i++) d[i] = src[i]; }
+  else if (AE.score){
+    // the score shapes a plausible spectrum: bass floor, mid body, treble
+    // tail, a punch shimmer — so every uAudio consumer (the PULSE ribbon,
+    // the spectral scenes) follows the real music on iOS too
+    const sc = AE.score, t = U.uTime.value;
+    for (let i = 0; i < 1024; i++){
+      const u = i / 1024;
+      const v = sc.bass * Math.max(0, 1 - u * 12)
+              + sc.mid * Math.exp(-Math.pow((u - 0.18) / 0.14, 2))
+              + sc.treble * Math.exp(-Math.pow((u - 0.55) / 0.3, 2)) * 0.8
+              + sc.punch * 0.15 * (0.5 + 0.5 * Math.sin(t * 7 + i * 0.6));
+      d[i] = Math.min(255, v * 235);
+    }
+  }
   else {
     const t = U.uTime.value;
     for (let i = 0; i < 1024; i++) d[i] = (Math.sin(t * 0.6 + i * 0.03) * 0.4 + 0.4) * 90 * (1 - i / 1400);

@@ -247,6 +247,25 @@ class TestMixAnalysis(unittest.TestCase):
         mix = self._mix(pad)
         self.assertLess(mix["mixable"], 0.5, mix)
 
+    def test_the_score_band_envelopes(self):
+        """env: four quantized voices at 4 Hz, sized to the track, with the
+        kick landing in the bass voice and hits in the punch voice."""
+        p = Path(__file__).parent / "_tmp_env.wav"
+        write_wav(p, synth_beat_track(124.0))
+        try:
+            raw = ft.extract(p)
+        finally:
+            p.unlink()
+        env = raw.get("env")
+        self.assertIsInstance(env, dict)
+        dur = raw["duration"]
+        for k in ("b", "m", "t", "o"):
+            self.assertIn(k, env)
+            self.assertGreaterEqual(len(env[k]), int(dur * env["hz"]) - 2)
+            self.assertTrue(all(c.isdigit() for c in env[k]))
+        self.assertEqual(max(env["b"]), "9")      # the kick maxes the bass voice
+        self.assertEqual(max(env["o"]), "9")      # and the punch voice sees hits
+
     def test_regions_sit_inside_the_track(self):
         mix = self._mix(synth_beat_track(128.0, dur=30.0))
         spb = 60.0 / mix["bpm"]
