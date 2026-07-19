@@ -413,10 +413,10 @@ def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
 
 # ------------------------------------------------------- top level
 
-def band_env(spec, freqs, flux, sr, hz=4.0):
+def band_env(spec, freqs, flux, sr, hz=12.0):
     """The SCORE — per-track band envelopes for platforms whose audio path
     cannot be analysed live (iOS routes the decks straight to the speaker;
-    an AnalyserNode there hears nothing). Four voices at 4 Hz, each
+    an AnalyserNode there hears nothing). Four voices at 12 Hz, each
     normalized per track (95th percentile) and quantized to one digit —
     a 4-minute track is ~4 KB raw and gzips to a few hundred bytes:
       b  bass < 150 Hz   ·  m  mid 150–2000 Hz  ·  t  treble 2–8 kHz
