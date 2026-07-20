@@ -6034,7 +6034,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '96c391d778';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '167893a72a';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -9558,7 +9558,7 @@ const CLOCK = {
 const DANCE = {
   on: true,
   phase: 0, barFrac: 0, phraseFrac: 0, haveGrid: false, period: 0.5,
-  pulse: 0, sway: 0, lift: 0, breath: 0, warp: 0, ear: 1, brace: 0,
+  pulse: 0, sway: 0, lift: 0, breath: 0, warp: 0, ear: 1, brace: 0, flow: 0,
   _freePhase: 0, _out: 0, _wasComing: 0,
 
   update(dt, t){
@@ -9666,11 +9666,24 @@ const DANCE = {
     this._out += (target - this._out) * k;
     this.pulse = this._out;
 
-    const sw = danceSway(this.barFrac, this.phraseFrac, { energy: f.energy, amp: playing ? 1 : 0.25 });
-    this.sway += (sw.sway - this.sway) * (1 - Math.exp(-dt / 0.25));
+    // THE MELODY — the violin, the lead, the riff live in the MOVING mid+
+    // treble contour and the travelling spectral centroid, not in the drum.
+    // Track that motion as a flow signal so a melodic passage makes the whole
+    // room lean and FLOW, not just punch on the beat: the body dances to the
+    // tune between the hits. (centroid drift = a run sweeping up or down.)
+    const melodic = clamp01(f.mid * 0.55 + f.treble * 0.85
+      + Math.abs(f.centroid - (this._cenSlow || f.centroid)) * 3.5);
+    this._cenSlow = (this._cenSlow == null ? f.centroid
+      : this._cenSlow + (f.centroid - this._cenSlow) * (1 - Math.exp(-dt / 0.9)));
+    this.flow = (this.flow || 0) + (melodic - (this.flow || 0)) * (1 - Math.exp(-dt / 0.16));
+    const sw = danceSway(this.barFrac, this.phraseFrac, {
+      energy: clamp01(f.energy + this.flow * 0.45),
+      amp: (playing ? 1 : 0.25) * (1 + this.flow * 0.55) });
+    this.sway += (sw.sway - this.sway) * (1 - Math.exp(-dt / 0.22));
     this.lift += (sw.lift - this.lift) * (1 - Math.exp(-dt / 0.4));
     this.breath = Math.sin(t * 0.88 + Math.sin(t * 0.213) * 1.7) * (0.35 + f.calm * 0.65);
-    this.warp = playing ? danceTimeWarp(phi, this.period, f.energy) : 0;
+    // the melody also bends musical time a touch — a subtle rubato on the riff
+    this.warp = playing ? danceTimeWarp(phi, this.period, clamp01(f.energy + this.flow * 0.3)) : 0;
   },
 };
 
@@ -10171,9 +10184,12 @@ function buildAurea(){
    ================================================================ */
 function initThree(){
   try {
-    renderer = new THREE.WebGLRenderer({ canvas: el.canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // MSAA (antialias) is a heavy per-edge cost on mobile GPUs and the
+    // additive/bloom look hides aliasing anyway — off on iOS buys frames the
+    // resolution governor spends where they show. Desktop keeps it.
+    renderer = new THREE.WebGLRenderer({ canvas: el.canvas, antialias: !IS_IOS, alpha: true, powerPreference: 'high-performance' });
   } catch (e){ three_ok = false; el.webglFail.style.display = 'flex'; return; }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  PERF.init();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x05060e, 1);
 
@@ -10220,12 +10236,45 @@ function initThree(){
   el.chipAuto.classList.add('on');
 }
 
+/* PERF — buttery by construction. The honest frame rate is the interval
+   between rAF callbacks (dt), NOT the CPU time to queue a frame: a fragment-
+   bound iOS GPU queues in a few ms while the GPU takes 20+, so CPU timing
+   reads "fast" and never adapts — the old bug behind the lag. This measures
+   the real period and DROPS RESOLUTION rather than frames, converging on the
+   highest pixel ratio that still holds ~60 fps. Retina density hides the
+   scale-down; the motion stays silky. */
+const PERF = {
+  periodMs: 16.7, pr: 1, maxPR: 2, minPR: 1, govT: 0,
+  init(){
+    const dpr = window.devicePixelRatio || 1;
+    this.maxPR = Math.min(dpr, 2);
+    this.minPR = Math.min(this.maxPR, IS_IOS ? 0.9 : 1);
+    // iOS starts a notch below the cap and the governor tunes from there
+    this.pr = IS_IOS ? Math.min(this.maxPR, 1.5) : this.maxPR;
+    renderer.setPixelRatio(this.pr);
+  },
+  tick(dt){
+    const ms = Math.min(100, dt * 1000);
+    this.periodMs += (ms - this.periodMs) * 0.08;      // ~0.8 s EMA
+    this.govT += dt;
+    if (this.govT < 0.6) return;
+    this.govT = 0;
+    if (this.periodMs > 19.5 && this.pr > this.minPR){        // < ~51 fps: shed pixels
+      this.pr = Math.max(this.minPR, Math.round((this.pr - 0.15) * 100) / 100);
+      renderer.setPixelRatio(this.pr); renderer.setSize(window.innerWidth, window.innerHeight);
+    } else if (this.periodMs < 17.2 && this.pr < this.maxPR){ // headroom at 60: reclaim
+      this.pr = Math.min(this.maxPR, Math.round((this.pr + 0.1) * 100) / 100);
+      renderer.setPixelRatio(this.pr); renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+  },
+};
 let lastT = performance.now(), uiAccum = 0, frameMs = 16, govT = 0, persistAccum = 0, gridBeatIdx = -1, accentAccum = 0;
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
   let dt = (now - lastT) / 1000; lastT = now;
   if (dt > 0.1) dt = 0.1;                 // clamp after tab-away
+  PERF.tick(dt);
   const t = now / 1000;
   U.uTime.value = t;
 
@@ -10333,8 +10382,10 @@ function frame(now){
     govT += dt;
     if (govT > 0.5){
       govT = 0;
-      if (frameMs > 22 && bulbScale > 0.3) bulbScale = Math.max(0.3, bulbScale - 0.1);
-      else if (frameMs < 11 && bulbScale < 0.85) bulbScale = Math.min(0.85, bulbScale + 0.05);
+      // gate on the REAL frame period (PERF), not CPU queue time — the
+      // raymarch is GPU-bound, so only the honest fps sees it choke
+      if (PERF.periodMs > 20 && bulbScale > 0.3) bulbScale = Math.max(0.3, bulbScale - 0.1);
+      else if (PERF.periodMs < 17.2 && bulbScale < 0.85) bulbScale = Math.min(0.85, bulbScale + 0.05);
     }
   }
 
