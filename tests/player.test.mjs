@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow,' +
-  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, planMixNow, envSample };';
+  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -891,6 +891,36 @@ test('media clock: duplicates carry no information; a seek resets the window', (
   assert.equal(c.n, nBefore, 'duplicate rejected');
   S.clockSample(c, 22 * 0.0167, 99.0);               // a seek
   assert.ok(c.n <= 1, 'discontinuity resets');
+});
+
+test('phaseLock: kicks on the beat lock with confidence; scattered kicks do not', () => {
+  const dt = 1 / 60;
+  // kicks landing right on the beat (phi ≈ 0) for ~4 s
+  let onbeat = null;
+  for (let i = 0; i < 240; i++) onbeat = S.phaseLock(onbeat, i % 30 === 0 ? 0.02 : 0.0,
+    i % 30 === 0 ? 1 : 0, dt);
+  assert.ok(onbeat.conc > 0.8, 'tight on-beat kicks → high confidence: ' + onbeat.conc.toFixed(2));
+  assert.ok(Math.abs(onbeat.off) < 0.03, 'and ~zero offset: ' + onbeat.off.toFixed(3));
+  // kicks landing a consistent 0.1 beat LATE → the grid is early, off > 0
+  let late = null;
+  for (let i = 0; i < 240; i++) late = S.phaseLock(late, 0.1, i % 30 === 0 ? 1 : 0, dt);
+  assert.ok(late.off > 0.06 && late.off < 0.14, 'a late kick reads a positive offset: ' + late.off.toFixed(3));
+  // kicks scattered all over the beat → low confidence, no trustworthy offset
+  let scatter = null, seed = 1;
+  for (let i = 0; i < 480; i++){
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    scatter = S.phaseLock(scatter, (seed / 0x7fffffff), i % 8 === 0 ? 1 : 0, dt);
+  }
+  assert.ok(scatter.conc < 0.4, 'scattered kicks → low confidence (no correction): ' + scatter.conc.toFixed(2));
+});
+
+test('phaseLock: the resultant wraps correctly — kicks just before the beat read negative', () => {
+  const dt = 1 / 60;
+  let early = null;
+  for (let i = 0; i < 240; i++) early = S.phaseLock(early, 0.95, i % 30 === 0 ? 1 : 0, dt);
+  assert.ok(early.off < -0.02 && early.off > -0.09,
+    'a kick at phi 0.95 folds to a small negative offset: ' + early.off.toFixed(3));
+  assert.ok(early.conc > 0.8, 'still confident');
 });
 
 test('media clock: a reset clears the ring COMPLETELY — no stale-sample corruption', () => {
