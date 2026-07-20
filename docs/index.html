@@ -5045,6 +5045,16 @@ function startNowPlayingHeartbeat(){
 function stopNowPlayingHeartbeat(){
   if (_nowPlayingBeat != null){ clearInterval(_nowPlayingBeat); _nowPlayingBeat = null; }
 }
+// The Now Playing pill iOS draws from this metadata — the Dynamic Island, the
+// lock screen, the status-bar chip that taps you straight back to the app from
+// the Home Screen — needs an image or it renders blank. A track without album
+// art must fall back to the app's own icon, so the pill is ALWAYS a branded,
+// tappable Aethra Kairos tile (relative paths resolve against the installed
+// PWA's scope, so they work standalone and in the browser alike).
+const APP_ARTWORK = [
+  { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+  { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+];
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
   const t = player.tracks[player.cur];
@@ -5052,7 +5062,7 @@ function updateMediaSession(){
   const art = t.art ? [96, 192, 512].map(s => ({
     src: t.art, sizes: s + 'x' + s,
     type: /\.png(\?|$)/i.test(t.art) ? 'image/png' : 'image/jpeg',
-  })) : [];
+  })) : APP_ARTWORK;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.title, artist: t.artist || '', album: t.album || '', artwork: art,
   });
