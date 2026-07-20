@@ -4852,7 +4852,6 @@ function initMediaSession(){
     else a.a.currentTime = d.seekTime;
     mediaSessionPosition();
   });
-  startNowPlayingHeartbeat();
 }
 /* the lock-screen LIVE heartbeat — the Now Playing card (lock screen · Control
    Center · the status-bar audio pill that taps back to the app) is drawn by
@@ -4863,15 +4862,21 @@ function initMediaSession(){
    the background, but an audio-playing page still gets ~1 Hz timers; so once a
    second we re-assert the play state and pin the position to the ACTIVE deck's
    true currentTime. It stays accurate through a locked screen and through the
-   mixer's deck hand-offs. */
+   mixer's deck hand-offs.
+   Its lifecycle rides mediaSessionPlaybackState() — the one function called on
+   every play/pause transition — so it runs ONLY while playing (no idle timer),
+   and it can never miss a start (which would re-rot the card). */
 let _nowPlayingBeat = null;
 function startNowPlayingHeartbeat(){
   if (_nowPlayingBeat != null || !('mediaSession' in navigator)) return;
   _nowPlayingBeat = setInterval(() => {
-    if (!player.playing) return;                     // paused card doesn't rot; leave it
+    if (!player.playing){ stopNowPlayingHeartbeat(); return; }   // self-heals if a stop was missed
     mediaSessionPlaybackState();                     // keep iOS certain we're playing
     mediaSessionPosition();                          // keep the scrubber on the real position
   }, 1000);
+}
+function stopNowPlayingHeartbeat(){
+  if (_nowPlayingBeat != null){ clearInterval(_nowPlayingBeat); _nowPlayingBeat = null; }
 }
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
@@ -4888,8 +4893,11 @@ function updateMediaSession(){
   mediaSessionPosition();
 }
 function mediaSessionPlaybackState(){
-  if ('mediaSession' in navigator)
-    navigator.mediaSession.playbackState = player.playing ? 'playing' : 'paused';
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.playbackState = player.playing ? 'playing' : 'paused';
+  // the heartbeat's lifecycle: on only while playing — this is the single
+  // chokepoint every play/pause path already routes through
+  if (player.playing) startNowPlayingHeartbeat(); else stopNowPlayingHeartbeat();
 }
 function mediaSessionPosition(){
   if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
@@ -6484,7 +6492,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'a88fea0dca';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'aa84c7f9ce';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
