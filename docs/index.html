@@ -1865,7 +1865,12 @@ body.zen #eqStrip{opacity:.85;height:18px}
 <div id="plChooser" role="menu" aria-label="Add to playlist"></div>
 <div id="webglFail"><div>Aethra Kairos needs WebGL to render the field,<br>and this browser has it disabled.<br><br>Audio playback still works — try enabling hardware acceleration.</div></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- The 3D engine ships WITH the app (same-origin, in the service-worker shell)
+     so boot never waits on a third-party CDN over a weak pipe — broadcast-grade
+     first paint. If the local copy is ever unreachable, fall back to the CDN as
+     a best effort; and if even that fails, the app degrades to audio-only (the
+     boot is wrapped in a try/catch). -->
+<script src="three.min.js" onerror="if(!window.__three2){window.__three2=1;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';document.head.appendChild(s);}"></script>
 <script>
 'use strict';
 /* ================================================================
@@ -2127,11 +2132,35 @@ function ensureCtx(){
     d.a.addEventListener('ended', () => { if (!d.priming && i === AE.active && !AE.xfading) player.onEnded(); });
     d.a.addEventListener('error', () => {
       if (d.priming || i !== AE.active) return;
-      LOADER.done();                 // the wait is over, even if it ended badly
       const t = player.tracks[player.cur];
       // the shipped demo file didn't load (missing/undecodable/offline cold
       // cache) — synthesize a loop instead of a dead end
-      if (t && t.demo && !t.local){ player.synthesizeDemo(); return; }
+      if (t && t.demo && !t.local){ LOADER.done(); player.synthesizeDemo(); return; }
+      // BROADCAST DURABILITY: a streaming glitch is NOT the end of the track. If
+      // we're online, rebuffer the SAME track at the exact spot it dropped and
+      // keep going — a few tries with a gentle backoff — before we ever skip.
+      // A live set rides straight through a weak-signal blip. (Sustained
+      // progress refills the retry budget, so a long track on a flaky pipe can
+      // recover as many times as it needs, as long as it keeps advancing.)
+      const streaming = t && !t.local && !t.demo;
+      if (streaming && navigator.onLine && player.playing){
+        t._netTries = (t._netTries || 0) + 1;
+        if (t._netTries <= 4){
+          t._errPos = isFinite(AE._lastGoodT) ? AE._lastGoodT : 0;
+          const wait = Math.min(4000, 400 * t._netTries);   // 0.4s → 1.6s
+          LOADER.begin();
+          toast('Weak signal — holding <b>' + escapeHTML(t.title) + '</b>…');
+          clearTimeout(d._reT);
+          d._reT = setTimeout(() => {
+            if (i !== AE.active) return;
+            try { d.a.src = t.url; d.a.load(); if (t._errPos > 0.2) d.a.currentTime = t._errPos; } catch (e){}
+            d.a.play().catch(() => {});
+          }, wait);
+          return;
+        }
+      }
+      clearTimeout(d._reT);          // give up any pending rebuffer so it can't reload the NEXT track's deck
+      LOADER.done();                 // the wait is over, even if it ended badly
       const offline = !navigator.onLine && t && !t.local;
       toast(offline
         ? 'Offline — streaming unavailable for <b>' + escapeHTML(t.title) + '</b>'
@@ -2159,7 +2188,16 @@ function ensureCtx(){
     d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
     // the loading spin clears the instant true audio flows (or stalls again)
     d.a.addEventListener('playing', () => { if (i === AE.active) LOADER.done(); });
-    d.a.addEventListener('timeupdate', () => { if (i === AE.active && d.a.currentTime > 0.05) LOADER.done(); });
+    d.a.addEventListener('timeupdate', () => {
+      if (i !== AE.active) return;
+      const ct = d.a.currentTime;
+      if (ct > 0.05){
+        LOADER.done();
+        AE._lastGoodT = ct;                       // the spot to rebuffer from if the stream drops
+        const t = player.tracks[player.cur];       // sustained progress past a blip refills the retry budget
+        if (t && t._netTries && ct > (t._errPos || 0) + 2){ t._netTries = 0; }
+      }
+    });
     d.a.addEventListener('waiting', () => { if (i === AE.active && player.playing) LOADER.begin(); });
   });
   applyVolume();
@@ -2947,6 +2985,8 @@ const player = {
     nd.norm = normLin(track);
     nd.a.currentTime = 0;
     LOADER.begin();            // arm the loading spin — it only shows if the sound takes a beat to arrive
+    if (track) track._netTries = 0;   // fresh track → fresh rebuffer budget
+    AE._lastGoodT = 0;
     nd.a.play().catch(err => {
       // A decode/network failure fires the element's 'error' event (handled
       // above). An autoplay BLOCK does not — it rejects here, silently. On the
@@ -6845,7 +6885,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '94ec36bbdc';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '42c8dca1e7';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
