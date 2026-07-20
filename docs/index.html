@@ -1737,7 +1737,8 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
     <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
     <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
-    <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; long-press the field to change it too.">VOID</button>
+    <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; in play mode, flick the orb.">VOID</button>
+    <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, moiré, iris. Tap to cycle (L).">◈ NONE</button>
     <span class="meter" id="meterBar" role="img" aria-label="Beat meter — the downbeat dot lands heavier"><i></i><i></i><i></i><i></i></span>
     <span class="scenedots" id="sceneDots" role="group" aria-label="Scene select"></span>
     <span class="sep"></span>
@@ -7044,7 +7045,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '50814b9096';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '1ab8a159e6';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8354,6 +8355,7 @@ window.addEventListener('keydown', ev => {
       else if (k === '0') director.setScene(9, true);
       else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, same answer as the gaze
       else if (k === 'f' || k === 'F') TOUCHFX.cycle(); // cycle the touch-FX force (keyboard equivalent of the TOUCH chip)
+      else if (k === 'l' || k === 'L') LENS.cycle();     // cycle the post-process lens
   }
 });
 
@@ -11695,6 +11697,9 @@ function initThree(){
   }
   const chipTouch = document.getElementById('chipTouch');
   if (chipTouch) chipTouch.addEventListener('click', () => TOUCHFX.cycle());
+  const chipLens = document.getElementById('chipLens');
+  if (chipLens) chipLens.addEventListener('click', () => LENS.cycle());
+  LENS.load();
   SAFE.set(SAFE.calm, false);              // paint the chip's initial state
   DB.kvGet('safeCalm').then(v => { if (v != null) SAFE.set(v === '1', false); }).catch(() => {});
   DB.kvGet('haptics').then(v => { if (v === '1') HAPTICS.set(true, false); }).catch(() => {});
@@ -11782,6 +11787,130 @@ function drawSafe(key, fn){
     if (!_drawWarned[key]){ _drawWarned[key] = true; console.warn('draw "' + key + '" failed (isolated):', e && e.message); }
   }
 }
+/* ================================================================
+   THE LENS ENGINE — composable post-process. The visualizer renders into
+   a texture; a chain of full-screen shader passes then reshapes it before
+   it hits the glass. Each lens is one math idea (mirrors, interference,
+   aperture), and because they read only a scene texture they slot onto
+   ANY scene and, in time, onto EACH OTHER — a few primitives that
+   multiply into endless looks. Zero cost when the lens is NONE: the
+   direct two-scene render path is exactly as before. Built iOS-safe per
+   research: LDR targets (no float FBO on iPhone), rendered at 0.7× and
+   upscaled, one full-screen triangle (no quad seam), depth/stencil off.
+   ================================================================ */
+const LENS_VERT = 'void main(){ gl_Position = vec4(position, 1.0); }';
+const LENS_KALEIDO = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution; uniform float uTime, uSectors;
+  void main(){
+    vec2 R = uResolution;
+    vec2 p = (gl_FragCoord.xy - 0.5 * R) / R.y;      // centred, aspect-safe
+    float r = length(p);
+    float a = atan(p.y, p.x) + 0.12 * uTime;         // slow turn
+    float seg = 6.28318530718 / uSectors;
+    a = mod(a, seg); a = abs(a - 0.5 * seg);         // fold: mirror within the sector
+    vec2 q = vec2(cos(a), sin(a)) * r;
+    vec2 uv = vec2(q.x * R.y / R.x + 0.5, q.y + 0.5);
+    gl_FragColor = texture2D(tScene, clamp(uv, 0.0, 1.0));
+  }`;
+const LENS_MOIRE = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution; uniform float uTime, uEnergy;
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);
+    float a1 = uTime * 0.06, a2 = a1 + 0.05 + 0.05 * uEnergy;   // tiny angle delta → big moiré
+    float f = 46.0 + 8.0 * uEnergy;
+    float g1 = 0.5 + 0.5 * sin(dot(p, vec2(cos(a1), sin(a1))) * f);
+    float g2 = 0.5 + 0.5 * sin(dot(p, vec2(cos(a2), sin(a2))) * (f + 4.0));
+    vec3 s = texture2D(tScene, uv).rgb;
+    gl_FragColor = vec4(s * (0.60 + 0.7 * g1 * g2), 1.0);       // interference beats over the scene
+  }`;
+const LENS_IRIS = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution; uniform float uTime, uEnergy;
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);
+    float radius = 0.40 + 0.05 * sin(uTime * 1.4) + 0.30 * uEnergy;   // breathes with the music
+    float d = length(p) - radius;
+    float edge = 0.03 + 0.06 * radius;
+    float m = smoothstep(edge, -edge, d);
+    vec3 s = texture2D(tScene, uv).rgb;
+    gl_FragColor = vec4(mix(s * 0.10, s, m), 1.0);                    // an aperture on the light
+  }`;
+const LENS = {
+  active: 'none',
+  order: ['none', 'mirrors', 'moire', 'iris'],
+  labels: { none: 'NONE', mirrors: 'MIRRORS', moire: 'MOIRÉ', iris: 'IRIS' },
+  concepts: { mirrors: 'N-fold symmetry', moire: 'wave interference', iris: 'a breathing aperture' },
+  scale: 0.7,
+  _ready: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
+  _init(){
+    if (this._ready) return;
+    this.scale = IS_IOS ? 0.7 : 1.0;
+    const opt = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false };
+    this._rtA = new THREE.WebGLRenderTarget(2, 2, opt);   // LDR (UnsignedByte) — iPhone has no float FBO
+    this._rtB = new THREE.WebGLRenderTarget(2, 2, opt);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 2, 0, 0, 2]), 2));
+    this._fs = new THREE.Scene(); this._cam = new THREE.Camera();
+    this._tri = new THREE.Mesh(g, null); this._tri.frustumCulled = false; this._fs.add(this._tri);
+    const mk = frag => new THREE.ShaderMaterial({
+      uniforms: { tScene: { value: null }, uResolution: { value: new THREE.Vector2(1, 1) },
+        uTime: U.uTime, uEnergy: U.uEnergy, uSectors: { value: 6 } },
+      vertexShader: LENS_VERT, fragmentShader: frag, depthTest: false, depthWrite: false,
+    });
+    this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS) };
+    this._ready = true;
+  },
+  chain(){ return this.active === 'none' ? [] : [this._mats[this.active]]; },   // single for now; stack-ready
+  set(key, save){
+    if (!(key in this.labels)) key = 'none';
+    this.active = key;
+    if (save !== false){ try { localStorage.setItem('mb8_lens', key); } catch (e){} }
+    this.paint();
+  },
+  cycle(){
+    const i = this.order.indexOf(this.active), k = this.order[(i + 1) % this.order.length];
+    this.set(k, true);
+    toast('Lens · <b>' + this.labels[k] + '</b>' + (this.concepts[k] ? ' · ' + this.concepts[k] : ''));
+    return k;
+  },
+  load(){ try { const k = localStorage.getItem('mb8_lens'); if (k && k in this.labels) this.active = k; } catch (e){} this.paint(); },
+  paint(){ const c = document.getElementById('chipLens'); if (c){ c.textContent = '◈ ' + this.labels[this.active]; c.classList.toggle('on', this.active !== 'none'); } },
+  // draw the two base scenes, then the lens chain — or the plain direct path
+  render(renderer, bgScene, bgCam, scene, camera){
+    let passes = [];
+    if (this.active !== 'none'){ this._init(); passes = this.chain(); }
+    if (!passes.length){
+      renderer.autoClear = true; renderer.render(bgScene, bgCam);
+      renderer.autoClear = false; renderer.render(scene, camera);
+      renderer.autoClear = true;
+      return;
+    }
+    const dw = renderer.domElement.width, dh = renderer.domElement.height;
+    const w = Math.max(2, Math.round(dw * this.scale)), h = Math.max(2, Math.round(dh * this.scale));
+    if (this._rtA.width !== w || this._rtA.height !== h){ this._rtA.setSize(w, h); this._rtB.setSize(w, h); }
+    renderer.setRenderTarget(this._rtA);                 // the whole visualizer → a texture
+    renderer.autoClear = true; renderer.render(bgScene, bgCam);
+    renderer.autoClear = false; renderer.render(scene, camera);
+    renderer.autoClear = true;
+    let src = this._rtA, dst = this._rtB;
+    for (let i = 0; i < passes.length; i++){
+      const last = i === passes.length - 1, m = passes[i];
+      m.uniforms.tScene.value = src.texture;
+      m.uniforms.uResolution.value.set(last ? dw : w, last ? dh : h);
+      this._tri.material = m;
+      renderer.setRenderTarget(last ? null : dst);       // last pass → the glass
+      renderer.render(this._fs, this._cam);
+      const t = src; src = dst; dst = t;
+    }
+    renderer.setRenderTarget(null);
+  },
+};
+
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
@@ -11900,11 +12029,9 @@ function frame(now){
   // Backdrop first, with a camera that inherits ORIENTATION ONLY — no dolly,
   // no bass FOV-breathing. That is what keeps the sky still while the scenes punch.
   bgCam.quaternion.copy(camera.quaternion);
-  renderer.autoClear = true;
-  renderer.render(bgScene, bgCam);
-  renderer.autoClear = false;
-  renderer.render(scene, camera);
-  renderer.autoClear = true;
+  // the lens engine owns the final draw: direct-to-glass when NONE (unchanged),
+  // or scene→texture→shader-chain→glass when a lens is on
+  LENS.render(renderer, bgScene, bgCam, scene, camera);
 
   // ---- adaptive resolution governor for the raymarched scene ----
   // Drop resolution rather than frames. Only acts while a heavy scene is live.
