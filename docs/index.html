@@ -200,42 +200,28 @@ body.zen #eqStrip{opacity:.85;height:18px}
 #voidRing{box-shadow:0 0 34px -6px var(--accent-glow), inset 0 0 26px -4px var(--accent-glow)}
 #voidRing.on{opacity:.7}
 
-/* ============ the menu grip — in the immersive view, touching the light PLAYS
-   with it and never summons the menu. The controls come back only when you
-   reach for this handle at the top. It glows a hint when you first slip into
-   play, and stays faintly findable while you're there. ============ */
-#menuGrip{position:fixed;left:50%;top:0;transform:translateX(-50%);
-  width:64px;height:26px;z-index:55;pointer-events:none;opacity:0;
-  display:flex;align-items:flex-start;justify-content:center;background:none;border:none;
-  cursor:pointer;transition:opacity .5s ease;padding:0}
-#menuGrip span{margin-top:8px;width:38px;height:4px;border-radius:2px;
-  background:rgba(255,255,255,.34);box-shadow:0 0 10px rgba(255,255,255,.14);
-  transition:background .3s ease,transform .3s ease}
-body.zen #menuGrip{opacity:.5;pointer-events:auto}
-body.zen #menuGrip:hover span,body.zen #menuGrip:active span{background:var(--accent);transform:scaleX(1.15)}
-body.zen #menuGrip.hint span{animation:gripHint 1.35s cubic-bezier(.4,0,.2,1) 3}
-@keyframes gripHint{0%,100%{transform:translateY(0);background:rgba(255,255,255,.34)}
-  45%{transform:translateY(6px) scaleX(1.2);background:var(--accent)}}
-
-/* ============ THE ORB — the immersive view's one control. When the menu
-   wraps away into play mode it settles into this little spinning galaxy in the
-   corner (the loading sphere, at rest). TAP it and the controls unfurl back;
-   FLICK it and your touch changes — the force under your hand cycles, the orb
-   spins up in answer. An outer element carries the bloom-in; an inner core
-   carries the spin, so the two transforms never fight. ============ */
+/* ============ THE ORB OF ENTROPY — the immersive view's one control, and the
+   loading sphere at rest. It is the seed of CONTROL: while you're steering, it
+   shows itself in the corner; when you settle back to watch, it fades and the
+   director takes the field back on its own. TAP it and the menu unfurls; FLICK
+   it and you shift the scene yourself. It appears only "as needed" — any touch
+   wakes it, a few seconds of stillness lets it dissolve — so it never distracts
+   from the light. An outer element carries the bloom-in, an inner core the
+   spin, so the two transforms never fight. ============ */
 #fxOrb{position:fixed;right:16px;bottom:26px;width:54px;height:54px;z-index:56;
   opacity:0;pointer-events:none;transform:scale(.35) translateY(12px);
-  transition:opacity .55s ease,transform .55s cubic-bezier(.2,.8,.2,1);
+  transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1);
   cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-body.zen #fxOrb{opacity:.94;pointer-events:auto;transform:scale(1) translateY(0)}
+/* only present while it's awake (recent interaction) — and only in play mode */
+body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) translateY(0)}
 #fxOrb .orb-core{position:absolute;inset:0;border-radius:50%;
   background:#000 center/cover no-repeat;background-image:url('icons/icon-512.png');
   box-shadow:0 0 26px -4px var(--accent-glow),inset 0 0 18px rgba(0,0,0,.6);
   animation:spLon 24s linear infinite}
 #fxOrb .orb-core::after{content:'';position:absolute;inset:-4px;border-radius:50%;
   border:1.5px solid var(--accent);opacity:.5}
-#fxOrb:active{transform:scale(.92)}
-body.zen #fxOrb.hint{animation:orbHint 1.5s ease 2}
+#fxOrb.awake:active{transform:scale(.92)}
+#fxOrb.hint{animation:orbHint 1.5s ease 2}
 #fxOrb.flick .orb-core{animation:spLon 1.1s linear infinite,orbFlick .55s ease}
 @keyframes orbFlick{0%{transform:scale(1)}34%{transform:scale(1.24)}100%{transform:scale(1)}}
 @keyframes orbHint{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
@@ -243,7 +229,6 @@ body.zen #fxOrb.hint{animation:orbHint 1.5s ease 2}
   #fxOrb.flick .orb-core,#fxOrb.hint{animation:none}}
 
 @media (prefers-reduced-motion:reduce){
-  #menuGrip.hint span{animation:none}
   #voidFx,#voidRing{transition:opacity .3s ease}
   #zenWave{transition:opacity .5s ease;transform:none}
   #zenWave.bloom{transform:none}
@@ -1303,8 +1288,7 @@ body.zen #fxOrb.hint{animation:orbHint 1.5s ease 2}
 <canvas id="eqStrip" aria-hidden="true"></canvas>
 <div id="voidRing" aria-hidden="true"></div>
 <div id="voidFx" aria-hidden="true"></div>
-<button id="menuGrip" type="button" aria-label="Show controls"><span></span></button>
-<div id="fxOrb" role="button" tabindex="0" aria-label="Menu orb — tap to bring the controls back, flick to change your touch"><span class="orb-core"></span></div>
+<div id="fxOrb" role="button" tabindex="0" aria-label="Control orb — tap to bring the menu back, flick to shift the scene"><span class="orb-core"></span></div>
 <div id="loadSpin" aria-hidden="true"><div class="ls-art"></div><span class="ls-txt">tuning the first track…</span></div>
 
 <!-- ================= top bar ================= -->
@@ -2077,7 +2061,7 @@ const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
-  menuGrip: $('menuGrip'), fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
+  fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
@@ -7022,7 +7006,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '31de473eb4';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '1936a5fabd';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8187,22 +8171,13 @@ function enterZen(){
   // after a long still sit, deepen: the info card crossfades to a corner whisper
   clearTimeout(zenDeepT);
   zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
-  // teach the play affordance — the orb blooms a hint (the grip still bobs for
-  // anyone who learned it there), and just once ever, a word
-  if (el.fxOrb){
-    el.fxOrb.classList.remove('hint'); void el.fxOrb.offsetWidth;   // restart the pulse
-    el.fxOrb.classList.add('hint');
-    setTimeout(() => el.fxOrb && el.fxOrb.classList.remove('hint'), 3200);
-  }
-  if (el.menuGrip){
-    el.menuGrip.classList.remove('hint'); void el.menuGrip.offsetWidth;
-    el.menuGrip.classList.add('hint');
-    setTimeout(() => el.menuGrip && el.menuGrip.classList.remove('hint'), 4600);
-  }
+  // teach the affordance — the orb wakes and blooms a hint, and just once ever,
+  // a word. It then fades on its own (show-as-needed) once you settle in.
+  orbWake(true);
   try {
     if (!localStorage.getItem('mb8_playhint')){
       localStorage.setItem('mb8_playhint', '1');
-      toast('Touch the light to play with it — tap the orb ◍ in the corner for the menu, flick it to change your touch.');
+      toast('Touch the light to play with it — the orb ◍ appears when you do: tap it for the menu, flick it to shift the scene.');
     }
   } catch (e){}
 }
@@ -8235,25 +8210,38 @@ function pokeChrome(){
     }
   }, 3800);
 }
+/* THE ORB shows up as needed: any touch in play mode wakes it, and a few
+   seconds of stillness lets it dissolve, so it never distracts from the light. */
+let _orbSleep = null;
+function orbWake(hint){
+  if (!el.fxOrb) return;
+  el.fxOrb.classList.add('awake');
+  if (hint){ el.fxOrb.classList.remove('hint'); void el.fxOrb.offsetWidth; el.fxOrb.classList.add('hint');
+    setTimeout(() => el.fxOrb && el.fxOrb.classList.remove('hint'), 3200); }
+  clearTimeout(_orbSleep);
+  _orbSleep = setTimeout(() => { if (el.fxOrb) el.fxOrb.classList.remove('awake'); }, 3200);
+}
 ['pointermove', 'pointerdown', 'touchstart'].forEach(evName =>
   window.addEventListener(evName, ev => {
-    // In the immersive view, playing WITH the light (touching the canvas) must
-    // NOT summon the menu — that's the whole point of play mode. The ORB owns
-    // the return (and the flick-to-switch), so it's excluded here too; its own
-    // handler decides tap-vs-flick. Outside zen, any interaction keeps the
-    // chrome awake exactly as before.
-    if (document.body.classList.contains('zen')
-        && (ev.target === el.canvas || (el.fxOrb && el.fxOrb.contains(ev.target)))) return;
+    const zen = document.body.classList.contains('zen');
+    // In play mode, touching the light must NOT summon the menu — but it SHOULD
+    // wake the orb so the control is there the instant you reach for it. The orb
+    // owns the return (tap) and the scene-shift (flick); its own handler decides.
+    if (zen && (ev.target === el.canvas || (el.fxOrb && el.fxOrb.contains(ev.target)))){
+      if (ev.target === el.canvas) orbWake(false);
+      return;
+    }
     pokeChrome();
   }, { passive: true }));
-if (el.menuGrip) el.menuGrip.addEventListener('click', () => pokeChrome());
 /* THE ORB's two gestures: a clean TAP unfurls the menu; a FLICK (or a hold)
-   cycles the touch-FX — the force under your hand — and the orb spins up in
-   answer. It lives off the canvas, so it never raises iOS's copy box. */
+   shifts the SCENE yourself — you take the wheel from the director, the orb
+   spins up in answer. It lives off the canvas, so it never raises iOS's copy
+   box, and touch-forces are still chosen from the TOUCH chip in the menu. */
 if (el.fxOrb){
   let ox = 0, oy = 0, ot = 0, omoved = 0;
   el.fxOrb.addEventListener('pointerdown', ev => {
     ox = ev.clientX; oy = ev.clientY; ot = performance.now(); omoved = 0;
+    orbWake(false);
     try { el.fxOrb.setPointerCapture(ev.pointerId); } catch (e){}
   });
   el.fxOrb.addEventListener('pointermove', ev => {
@@ -8264,13 +8252,16 @@ if (el.fxOrb){
   el.fxOrb.addEventListener('pointerup', () => {
     if (!ot) return;
     const flick = omoved > 20 || performance.now() - ot > 500;
-    ot = 0;
+    ot = 0; orbWake(false);
     if (flick){
-      TOUCHFX.cycle();                                  // change the touch, stay immersed
+      // take the wheel: shift to the next scene (a nudge — the director keeps
+      // self-directing from there unless you've pinned it)
+      if (typeof scenes !== 'undefined' && scenes.length)
+        director.setScene((director.active + 1) % scenes.length, false);
       el.fxOrb.classList.remove('flick'); void el.fxOrb.offsetWidth; el.fxOrb.classList.add('flick');
       HAPTICS.pulse(true);
     } else {
-      pokeChrome();                                     // a tap brings the controls back
+      pokeChrome();                                     // a tap brings the menu back
     }
   });
   el.fxOrb.addEventListener('keydown', ev => {
