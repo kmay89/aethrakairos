@@ -6,3 +6,4 @@ package.json
 masters/
 synthetic-deploy/
 tests/_tmp_*/
+node_modules

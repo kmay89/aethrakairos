@@ -1382,10 +1382,9 @@ body.zen .chrome{opacity:0;pointer-events:none}
     macOS already has <span class="mono-inline">python3</span> and <span class="mono-inline">git</span>.
     pip's warnings about PATH or its own version are fine to ignore — the pipeline <i>imports</i>
     numpy, it never runs its scripts.)
-    Then the format rule, once: the pipeline takes <b>MP3 only</b> (it refuses WAV/AIFF loudly and
-    ignores AAC). In the Music app set <i>Settings → Files → Import Using → MP3 Encoder</i>; for songs
-    that are already AAC (<span class="mono-inline">.m4a</span>), select them and
-    <i>File → Convert → Create MP3 Version</i>, then use the MP3 copies.</p>
+    <b>Formats: drop songs as they are.</b> MP3, WAV, or M4A (AIFF and FLAC too) — anything that
+    isn't MP3 becomes a 320k web MP3 on the way in, tags and the file's own dates carried over.
+    No conversion homework; the public site still serves only web MP3s.</p>
     <p class="lede"><b>The loop — every time, forever.</b> ① Open the inbox — the
     <span class="mono-inline">mkdir -p</span> creates it if it isn't there yet, so this works on a
     fresh clone and in anyone's own fork:</p>
@@ -1400,9 +1399,16 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; python3 make_catalog.py doctor</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <p class="lede"><b>Re-drag your whole library any time — repeats cannot happen.</b> Every file is
     hashed (an exact repeat is a no-op; a known file at a new path is treated as a move), and a
-    perceptual fingerprint gate catches <i>re-encodes</i>: the same song exported at a different
-    bitrate is refused by name. <span class="mono-inline">masters/</span> is the inbox,
-    <span class="mono-inline">./publish.sh</span> is the only button.</p>
+    perceptual fingerprint gate catches <i>re-encodes</i>. When a new file <i>sounds identical</i> to
+    something already published under a different name, publish stops and asks <b>which name wins</b>:
+    keep the existing, adopt the new file and name (the publish date survives), or keep both. Messy
+    names tidy themselves — stray characters are cleaned, and two different songs can never claim the
+    same public filename.</p>
+    <p class="lede"><b>The dates are your story.</b> Each track's publish date is read from the file
+    itself — the day the song was made, carried through conversion — not the day it got dragged in.
+    The playlist shelf's <i>“The progression — first pressing to now”</i> smart list plays the whole
+    catalog oldest-first: the artist's arc, in order. <span class="mono-inline">masters/</span> is the
+    inbox, <span class="mono-inline">./publish.sh</span> is the only button.</p>
     <h3>Notes</h3>
     <p class="lede">Audio never leaves this device. The interface fades while music plays — move the pointer to bring it back.
     The demo is <b>Möbius Walking</b> — a real Aethra Kairos track shipped beside the player and analysed
@@ -3288,6 +3294,11 @@ const PLAYLISTS = {
       { name: 'Unheard', tracks: uniq.filter(t => !counts.get(keyed(t))) },
       { name: 'New this season', tracks: uniq.filter(t =>
           t.published && (now - Date.parse(t.published)) < monthMs) },
+      // the artist's arc: publish dates are read from the files themselves
+      // (the day each song was made), so oldest-first IS the progression
+      { name: 'The progression — first pressing to now', tracks: uniq
+          .filter(t => t.published)
+          .sort((a, b) => Date.parse(a.published) - Date.parse(b.published)) },
     ].filter(s => s.tracks.length);
   },
   playTracks(tracks, label){
@@ -5974,7 +5985,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '8d974be59c';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '118472032b';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){

@@ -38,9 +38,11 @@ import datetime as _dt
 import gzip
 import hashlib
 import json
+import os
 import random
 import re
 import shutil
+import subprocess
 import sys
 import unicodedata
 import urllib.request
@@ -52,6 +54,7 @@ import features as ftmod
 SCHEMA_VERSION = 2
 AUDIO_EXTS = {".mp3"}                      # the public tree carries web MP3s only
 MASTER_EXTS = {".wav", ".aif", ".aiff", ".flac"}
+INGEST_EXTS = {".wav", ".m4a", ".aif", ".aiff", ".flac"}   # welcome in masters/ — converted on the way in
 ART_NAMES = ("cover", "folder", "front", "art")
 ART_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 CATALOG_PATH = Path("docs/catalog.json")
@@ -87,6 +90,38 @@ def clean_name(name):
 
 def today():
     return _dt.date.today().isoformat()
+
+
+def tidy_title(s):
+    """Gentle title hygiene: unicode normalized, control characters and
+    underscores out, whitespace collapsed, stray edge punctuation trimmed.
+    Never rewrites words — 'Final Countdown' keeps its Final."""
+    s = unicodedata.normalize("NFC", str(s))
+    s = "".join(c for c in s if unicodedata.category(c)[0] != "C")
+    s = s.replace("_", " ")
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    s = s.strip(" -–—.·")
+    return s or "Untitled"
+
+
+def created_date(path):
+    """The day the song was made, as best the file can tell: the earliest
+    sane timestamp it carries (birth time where the OS records one, else
+    modification time). The label's progression lives in these dates, so
+    they are read from the files, not invented — anything insane (epoch,
+    the future) falls back to today."""
+    st = os.stat(path)
+    cands = [st.st_mtime]
+    bt = getattr(st, "st_birthtime", None)
+    if bt:
+        cands.append(bt)
+    ts = min(c for c in cands if c and c > 0) if any(c and c > 0 for c in cands) else None
+    if ts is None:
+        return today()
+    d = _dt.date.fromtimestamp(ts)
+    if _dt.date(2000, 1, 1) <= d <= _dt.date.today():
+        return d.isoformat()
+    return today()
 
 
 def fail(msg):
@@ -282,6 +317,77 @@ def existing_by_sha(cat):
     return out
 
 
+def _ffmpeg():
+    return os.environ.get("MB8_FFMPEG") or shutil.which("ffmpeg")
+
+
+def convert_masters(masters_dir):
+    """The inbox takes songs AS THEY ARE: WAV, M4A (iTunes/Music AAC),
+    AIFF or FLAC dropped into masters/ become 320k web MP3s in place, tags
+    carried over. A same-stem .mp3 already sitting beside a source wins —
+    the source is left alone. Originals never leave masters/ (which never
+    leaves the machine), so re-runs skip everything already converted."""
+    masters_dir = Path(masters_dir)
+    if not masters_dir.is_dir():
+        return
+    srcs = sorted(p for p in masters_dir.rglob("*")
+                  if p.is_file() and p.suffix.lower() in INGEST_EXTS)
+    if not srcs:
+        return
+    ff = _ffmpeg()
+    if not ff:
+        fail("masters/ holds WAV/M4A/AIFF/FLAC files but ffmpeg is not on "
+             "PATH — install it (brew install ffmpeg) so they can become "
+             "web MP3s")
+    for src in srcs:
+        dst = src.with_suffix(".mp3")
+        if dst.exists():
+            print(f"  = {src.name}: an .mp3 twin sits beside it — using the mp3")
+            continue
+        r = subprocess.run(
+            [ff, "-nostdin", "-loglevel", "error", "-i", str(src),
+             "-map_metadata", "0", "-id3v2_version", "3", "-vn",
+             "-codec:a", "libmp3lame", "-b:a", "320k", str(dst)],
+            capture_output=True, text=True)
+        if r.returncode != 0 or not dst.exists():
+            dst.unlink(missing_ok=True)
+            tail = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "ffmpeg failed"
+            fail(f"could not convert {src.name} to MP3: {tail}")
+        # the mp3 inherits the source's file times — the publish date reads
+        # the day the song was MADE, and conversion must not erase it
+        shutil.copystat(src, dst)
+        print(f"  ♫ converted: {src.name} → {dst.name} (320k web MP3)")
+
+
+def ask_clone(src, new_title, matched, old, ber):
+    """Same song, two names — spell out exactly which is which before the
+    label picks. Every option names the title it acts on, and the choice
+    is echoed back so there is never a doubt about what was decided."""
+    old_title = old["track"].get("title") or Path(matched).name if old else Path(matched).name
+    old_date = (old["track"].get("published") or "unknown date") if old else "not in the catalog"
+    print(f"\n  ⚠ same song, two names (window BER {ber}):")
+    print(f"      NEW file  : {src.name} — would publish as “{new_title}”")
+    print(f"      PUBLISHED : “{old_title}” — {matched}, on the site since {old_date}")
+    print(f"    [k] KEEP “{old_title}” — skip {src.name}   (default)")
+    if old:
+        print(f"    [n] NEW  — publish “{new_title}” and retire “{old_title}” "
+              "(its publish date carries over)")
+    print(f"    [b] BOTH — publish “{new_title}” alongside “{old_title}” as its own track")
+    keys = "[k/n/b]" if old else "[k/b]"
+    while True:
+        a = input(f"    which name wins? {keys} ").strip().lower()
+        if a in ("", "k"):
+            print(f"    → keeping “{old_title}” — {src.name} skipped")
+            return "keep"
+        if a == "n" and old:
+            print(f"    → “{new_title}” takes over — “{old_title}” retires, "
+                  "publish date carries")
+            return "use-new"
+        if a == "b":
+            print(f"    → keeping both — “{new_title}” joins the catalog")
+            return "both"
+
+
 def scan_masters(masters_dir):
     """Yield (album_dir, [mp3 paths sorted]) — one level of album folders;
     loose files at the root form an 'unfiled' album."""
@@ -298,8 +404,9 @@ def scan_masters(masters_dir):
         if mp3s:
             albums.append((d, mp3s))
     if not albums:
-        fail(f"no .mp3 files under {masters_dir} — the public catalog carries "
-             "wizard-produced web MP3s (masters stay out by design)")
+        fail(f"no publishable audio under {masters_dir} — drop MP3, WAV or "
+             "M4A files (one folder per album); anything that isn't MP3 is "
+             "converted on the way in")
     return albums
 
 
@@ -335,11 +442,16 @@ def pick_art(album_dir, tags_list, tag, dry=False):
 
 def build(args):
     refuse_wavs_in_audio()
+    convert_masters(args.masters)
     prior_cat = load_existing_catalog()
     prior = existing_by_sha(prior_cat)
     cache = load_cache()
     mixfix = load_mixfix()
     force_notes = {}
+    on_clone = "both" if args.force else args.on_clone
+    replaced_shas = set()
+    replaced_rels = set()
+    used_names = {}                        # tag → filenames claimed this build
 
     # keep the fingerprint index current before gating new material
     if DNA_ROOT.exists() or AUDIO_ROOT.exists():
@@ -369,12 +481,17 @@ def build(args):
                 print(f"  = duplicate in drop: {src.name} is byte-identical to "
                       f"{seen_sha[sha]} — skipped (one hash, one entry)")
                 continue
+            if sha in replaced_shas:
+                print(f"  − skipped: {src.name} — its entry was replaced by "
+                      "a new name this run")
+                continue
 
-            title = tags["title"] or clean_name(src.name)
+            title = tidy_title(tags["title"] or clean_name(src.name))
             was = prior.get(sha)
             if was:
                 # ---- level 2: known hash → no-op or move; never renumber
                 filename = was["track"]["file"]
+                used_names.setdefault(tag, set()).add(filename)
                 published = was["track"].get("published", today())
                 dest = AUDIO_ROOT / tag / filename
                 if was["album_tag"] == tag and dest.exists():
@@ -395,23 +512,68 @@ def build(args):
                 # ---- level 3: new hash → perceptual gate before it may land
                 num = tags["track"] if re.match(r"^\d+$", tags["track"] or "") else str(order)
                 filename = f"{int(num):02d}-{slug(title)}.mp3"
-                published = today()
+                # the day the song was MADE, read from the file itself —
+                # the catalog carries the artist's progression, not the
+                # day of the drag-and-drop
+                published = created_date(src)
                 entry_extra = {}
+                # two different songs must never share a public filename:
+                # claim it, and step -2, -3… past anything already taken
+                # this build or sitting on disk with different audio
+                used = used_names.setdefault(tag, set())
+                stem = filename[:-4]
+                k = 1
+                while True:
+                    cand = filename if k == 1 else f"{stem}-{k}.mp3"
+                    on_disk = AUDIO_ROOT / tag / cand
+                    clash = cand in used or (on_disk.exists()
+                                             and sha256_file(on_disk) != sha)
+                    if not clash:
+                        if k > 1:
+                            print(f"  ~ name collision: {filename} is taken in "
+                                  f"{tag} — using {cand}")
+                        filename = cand
+                        break
+                    k += 1
+                used.add(filename)
                 if DNA_ROOT.exists() and any(DNA_ROOT.rglob("*.fp")):
                     cand_fp = fpmod.fingerprint_file_multi(src)
                     match_rel, r = fpmod.scan_library(cand_fp, AUDIO_ROOT, DNA_ROOT)
                     if r["verdict"] == "CLONE":
-                        if args.force:
+                        # same song, two names — the label decides which
+                        # one the catalog keeps
+                        old = next((v for v in prior.values()
+                                    if f"{v['album_tag']}/{v['track']['file']}" == match_rel),
+                                   None)
+                        choice = on_clone
+                        if choice == "ask":
+                            choice = (ask_clone(src, title, match_rel, old, r["window_ber"])
+                                      if sys.stdin.isatty() else "keep")
+                        if choice == "use-new" and old is None:
+                            # matched audio is not a catalog entry (stray
+                            # file) — nothing to replace; keep both instead
+                            choice = "both"
+                        if choice == "both":
                             entry_extra["fingerprint_override"] = {
                                 "matched": match_rel, "window_ber": r["window_ber"],
                                 "forced": today()}
                             print(f"  ! forced past the gate: {src.name} reads CLONE "
                                   f"of {match_rel} (window BER {r['window_ber']}) — "
                                   "override stamped into the catalog entry")
+                        elif choice == "use-new":
+                            published = old["track"].get("published", today())
+                            replaced_shas.add(old["track"]["sha256"])
+                            replaced_rels.add(match_rel)
+                            entry_extra["fingerprint_override"] = {
+                                "matched": match_rel, "window_ber": r["window_ber"],
+                                "replaced": today()}
+                            print(f"  ↺ new name wins: {src.name} replaces "
+                                  f"{match_rel} — same song, publish date kept")
                         else:
-                            print(f"  ✗ refused: {src.name} is a clone of "
+                            print(f"  ✗ kept the existing one: {src.name} is a clone of "
                                   f"{match_rel} (window BER {r['window_ber']}). "
-                                  "Re-run with --force to publish anyway.")
+                                  "Re-run with --on-clone use-new to adopt the new "
+                                  "name, or --on-clone both / --force to keep both.")
                             refused += 1
                             continue
                 dest = AUDIO_ROOT / tag / filename
@@ -451,6 +613,26 @@ def build(args):
             album["info"] = info
         album["tracks"] = tracks_out
         albums_out.append(album)
+
+    # ---- retire entries the label replaced with a new name this run:
+    # their scan output drops, their public audio and fingerprint go
+    if replaced_shas:
+        for al in albums_out:
+            kept = []
+            for t in al["tracks"]:
+                if t["sha256"] in replaced_shas:
+                    print(f"  − retired: {al['tag']}/{t['file']} — replaced by the new name")
+                else:
+                    kept.append(t)
+            al["tracks"] = kept
+        albums_out = [al for al in albums_out if al["tracks"]]
+        for rel in replaced_rels:
+            old_audio = AUDIO_ROOT / rel
+            if old_audio.exists():
+                old_audio.unlink()
+            old_fp = DNA_ROOT / Path(rel).with_suffix(Path(rel).suffix + ".fp")
+            if old_fp.exists():
+                old_fp.unlink()
 
     if not albums_out:
         fail("nothing publishable made it through the gates")
@@ -689,7 +871,15 @@ def main(argv=None):
     ap.add_argument("--artist", default="Aethra Kairos")
     ap.add_argument("--label", default="ERRERlabs")
     ap.add_argument("--force", action="store_true",
-                    help="publish past a CLONE verdict (stamped into the entry)")
+                    help="publish past a CLONE verdict (stamped into the entry) "
+                         "— same as --on-clone both")
+    ap.add_argument("--on-clone", choices=["ask", "keep", "use-new", "both"],
+                    default="ask",
+                    help="when a new file sounds identical to a published one: "
+                         "ask (interactive; falls back to keep when there is "
+                         "no terminal), keep the existing entry, use-new "
+                         "(replace it — the new file and name take over, the "
+                         "publish date is kept), or both")
     return build(ap.parse_args(argv))
 
 
