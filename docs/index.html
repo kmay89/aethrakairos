@@ -2153,8 +2153,10 @@ function ensureCtx(){
           clearTimeout(d._reT);
           d._reT = setTimeout(() => {
             if (i !== AE.active) return;
+            d._healing = true;                       // the reload's pause is ours — don't flip the UI to paused
             try { d.a.src = t.url; d.a.load(); if (t._errPos > 0.2) d.a.currentTime = t._errPos; } catch (e){}
             d.a.play().catch(() => {});
+            setTimeout(() => { d._healing = false; }, 900);
           }, wait);
           return;
         }
@@ -2171,7 +2173,7 @@ function ensureCtx(){
     // audio-session interruptions (phone call, Siri, another app): the system
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
-      if (d.priming || i !== AE.active || AE.xfading) return;
+      if (d.priming || i !== AE.active || AE.xfading || d._healing) return;   // a self-heal reload's pause is not the listener's
       if (player.playing && !d.a.ended){ player.playing = false; updatePlayIcon(); player.renderList(); }
     });
     d.a.addEventListener('play', () => {
@@ -5227,22 +5229,33 @@ function initMediaSession(){
    a gentle re-nudge, then — if it's still frozen — reload the source at the very
    spot it stalled and resume. The listener hears a blink, never a dead stop. */
 const WATCHDOG = {
-  lastT: -1, stall: 0,
-  reset(){ this.lastT = -1; this.stall = 0; },
+  lastT: -1, lastBuf: -1, stall: 0,
+  reset(){ this.lastT = -1; this.lastBuf = -1; this.stall = 0; },
+  bufEnd(a){ try { return (a.buffered && a.buffered.length) ? a.buffered.end(a.buffered.length - 1) : 0; } catch (e){ return 0; } },
   check(){
     if (!player.playing){ this.reset(); return; }
     const d = activeDeck();
-    if (!d || d.a.paused || AE.xfading){ this.reset(); return; }   // paused/handoff is not a wedge
-    if (d.a.readyState < 2){ this.stall = 0; return; }             // genuinely buffering — the LOADER covers it
-    const t = d.a.currentTime;
-    if (Math.abs(t - this.lastT) > 0.04){ this.lastT = t; this.stall = 0; return; }   // advancing → healthy
+    if (!d || d.a.paused || AE.xfading){ this.reset(); return; }
+    // A track is only "wedged" once it has ENOUGH buffered to actually play
+    // (readyState >= 3, HAVE_FUTURE_DATA). Anything still filling its buffer is
+    // just loading — the LOADER covers it, and we must NEVER reload it: that
+    // restarts the download and, on a weak pipe, loops forever ("tuning the
+    // first track…" that never plays). This gate is the whole fix.
+    if (d.a.readyState < 3){ this.lastT = d.a.currentTime; this.lastBuf = this.bufEnd(d.a); this.stall = 0; return; }
+    const t = d.a.currentTime, buf = this.bufEnd(d.a);
+    // healthy if the clock advances OR the buffer is still growing (progress)
+    if (Math.abs(t - this.lastT) > 0.04 || buf > this.lastBuf + 0.05){
+      this.lastT = t; this.lastBuf = buf; this.stall = 0; return;
+    }
     this.stall++;
-    if (this.stall === 2){
-      d.a.play().catch(() => {});                    // ~2 s frozen: a gentle re-nudge revives most wedges
-    } else if (this.stall >= 4){
-      const at = t;                                  // ~4 s frozen: reload at the same spot, then resume
-      try { d.a.load(); if (isFinite(at)) d.a.currentTime = at; } catch (e){}
+    if (this.stall === 3){
+      d.a.play().catch(() => {});                    // ~3 s truly frozen (has data, not playing): a gentle re-nudge
+    } else if (this.stall >= 7){
+      const at = t;                                  // ~7 s: last resort — reload at the spot, quietly
+      d._healing = true;                             // the pause this triggers is ours, not the user's
+      try { d.a.load(); if (isFinite(at) && at > 0.2) d.a.currentTime = at; } catch (e){}
       d.a.play().catch(() => {});
+      setTimeout(() => { d._healing = false; }, 900);
       this.stall = 0;
     }
   },
@@ -6885,7 +6898,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '42c8dca1e7';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '132010e87a';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
