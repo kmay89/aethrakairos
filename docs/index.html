@@ -6245,7 +6245,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '0d78bb47e6';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'b2a54021d3';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -10702,9 +10702,15 @@ function firstRunStat(){
   if (secs >= 3600) size = Math.round(secs / 3600) + ' hours';
   else if (secs >= 60) size = Math.round(secs / 60) + ' minutes';
   else size = null;
-  const nStr = n.toLocaleString();
-  el.frStat.innerHTML = '<b>' + escapeHTML(nStr) + ' tracks' + (size ? ' · ~' + size : '') + '</b> of music live here — '
-    + 'smart shuffle plays <b>every one</b>, never repeating, until you\'ve heard them all.';
+  // built with textContent, not innerHTML — the count is the only dynamic
+  // part and there's no path for markup to reach here, but DOM construction
+  // keeps it that way by construction
+  const count = document.createElement('b');
+  count.textContent = n.toLocaleString() + ' tracks' + (size ? ' · ~' + size : '');
+  const every = document.createElement('b');
+  every.textContent = 'every one';
+  el.frStat.replaceChildren(count, ' of music live here — smart shuffle plays ',
+    every, ', never repeating, until you’ve heard them all.');
 }
 
 /* keep-it-forever: surface the install path so the room becomes a Home-Screen
@@ -10715,12 +10721,12 @@ function frInstallSetup(){
   if (!el.frInstall) return;
   const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
     || window.navigator.standalone === true;
-  if (standalone){ el.frInstall.hidden = true; el.frInstall.innerHTML = ''; return; }
+  if (standalone){ el.frInstall.hidden = true; el.frInstall.replaceChildren(); return; }
   const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const bold = txt => { const b = document.createElement('b'); b.textContent = txt; return b; };
   if (deferredInstall){
     el.frInstall.hidden = false;
-    el.frInstall.innerHTML = '<b>Keep it on your Home Screen</b> — one tap, then it opens like any app and remembers your place.<br>';
     const b = document.createElement('button');
     b.className = 'fr-add'; b.type = 'button'; b.textContent = 'Add to Home Screen ▸';
     b.addEventListener('click', () => {
@@ -10730,13 +10736,15 @@ function frInstallSetup(){
         if (el.btnInstall) el.btnInstall.hidden = true;
       });
     });
-    el.frInstall.appendChild(b);
+    el.frInstall.replaceChildren(bold('Keep it on your Home Screen'),
+      ' — one tap, then it opens like any app and remembers your place.',
+      document.createElement('br'), b);
   } else if (iOS){
     el.frInstall.hidden = false;
-    el.frInstall.innerHTML = '<b>Keep it forever</b> — tap <b>Share</b> ↑ then <b>Add to Home Screen</b>. '
-      + 'It opens full-screen and remembers your place for years.';
+    el.frInstall.replaceChildren(bold('Keep it forever'), ' — tap ', bold('Share'),
+      ' ↑ then ', bold('Add to Home Screen'), '. It opens full-screen and remembers your place for years.');
   } else {
-    el.frInstall.hidden = true; el.frInstall.innerHTML = '';
+    el.frInstall.hidden = true; el.frInstall.replaceChildren();
   }
 }
 
