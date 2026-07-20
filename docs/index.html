@@ -2390,10 +2390,8 @@ const player = {
   openWith(list){
     if (!list || !list.length) return false;
     this.tracks = list.slice();
-    this.cur = -1;
     el.empty.classList.add('gone');
-    this.renderList();
-    this.prepare(0, 0);
+    this.prepare(0, 0);            // sets cur, renders the list, refreshes the title
     return true;
   },
 
@@ -3739,7 +3737,7 @@ function openingSet(tracks, keyOf, n){
   const fresh = uniq.filter(t => t !== hero).sort((a, b) => pub(b) - pub(a));
   if (!hero) hero = fresh.shift();
   if (!hero) return [];
-  return [hero].concat(fresh.slice(0, n == null ? 10 : n));
+  return [hero].concat(fresh.slice(0, n ?? 10));
 }
 
 /* a play counts at ≥50% or 60 seconds — the history threshold rule */
@@ -10546,7 +10544,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) PERSI
           const set = openingSet(allTracks(), trackKey, 10);
           if (set.length && player.openWith(set)){
             const extra = set.length - 1;
-            toast('Möbius Walking' + (extra > 0 ? ' + ' + extra + ' fresh' : '') + ' — tap play');
+            toast(escapeHTML(set[0].title) + (extra > 0 ? ' + ' + extra + ' fresh' : '') + ' — tap play');
           } else {
             player.playDemo();
           }
