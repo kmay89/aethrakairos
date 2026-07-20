@@ -1656,7 +1656,7 @@ const AE = {
     entropy: 0, centroid: 0.2,
     piE: 0, eE: 0, piAcc: Math.random(), eAcc: Math.random(),
     piPhase: 0, ePhase: 0, coupling: 0,
-    scoreStep: -1,
+    scoreStep: -1, onsetStr: 0,
   },
   score: null,                     // last sampled band-envelope score (iOS truth)
   muted: false, volBeforeMute: 0.8,
@@ -1843,24 +1843,34 @@ function analyse(dt, now){
           && driveFromEnvelope(dt, now)) return;
       f.beat *= Math.exp(-dt / 0.14); return;
     }
-    f.bass   = smooth(f.bass,   sc.bass,   dt, 0.06);
-    f.mid    = smooth(f.mid,    sc.mid,    dt, 0.06);
-    f.treble = smooth(f.treble, sc.treble, dt, 0.08);
+    // asymmetric follow: a RISE snaps (the eye must feel the attack), the
+    // fall glides — so a kick reads as a hit, not a slow swell
+    f.bass   = envFollow(f.bass,   sc.bass,   dt, 0.018, 0.11);
+    f.mid    = envFollow(f.mid,    sc.mid,    dt, 0.018, 0.11);
+    f.treble = envFollow(f.treble, sc.treble, dt, 0.016, 0.13);
     const E = clamp(f.bass * 1.25 + f.mid * 1.0 + f.treble * 0.8, 0, 2) / 2;
     f.energy = E;
     f.calm   = smooth(f.calm,   E, dt, 2.5);
     f.eShort = smooth(f.eShort, E, dt, 0.25);
     f.eLong  = smooth(f.eLong,  E, dt, 8.0);
-    // the punch voice: a fresh step over threshold is an onset — real hits,
-    // straight from the analysis, not guessed and not metronomic
+    // THE NUANCE — feed the onset envelope CONTINUOUSLY, no yes/no gate, so
+    // every hit (a 9 kick, a 2 ghost hat) moves the field in proportion. The
+    // old > 0.55 gate threw away ~a third of the music's onsets; the room now
+    // dances to the hats and syncopation, not just the downbeat.
+    const drive = onsetEnergy(sc, f._scPrev);
+    f._scPrev = { bass: sc.bass, mid: sc.mid, treble: sc.treble, punch: sc.punch };
+    f.onsetStr = drive;
+    // a fresh step whose transient rises is a discrete onset (for the ear,
+    // precognition and the free-running phase lock)
+    const dRise = drive - (f._drivePrev || 0);
+    f._drivePrev = drive;
     f.onset = false;
-    if (sc.punch > 0.55 && sc.step !== f.scoreStep && now - f.lastOnsetAt > 0.16){
-      f.scoreStep = sc.step;
-      f.onset = true;
-      f.lastOnsetAt = now;
+    if (dRise > 0.05 && sc.step !== f.scoreStep && now - f.lastOnsetAt > 0.085){
+      f.scoreStep = sc.step; f.onset = true; f.lastOnsetAt = now;
     }
-    f.beat = Math.max(f.beat * Math.exp(-dt / 0.16),
-      f.onset ? Math.min(1, 0.5 + sc.punch * 0.5) : 0);
+    // the beat channel takes the peak of each fresh transient, then decays
+    // fast so the NEXT hit reads distinctly — a snap per hit, never a smear
+    f.beat = Math.max(f.beat * Math.exp(-dt / 0.12), dRise > 0.05 ? drive : 0);
     // tonal shape stands in for the spectral statistics
     const ft = tr.features || {};
     f.centroid = smooth(f.centroid, 0.12 + sc.treble * 0.5 + sc.mid * 0.18, dt, 0.4);
@@ -4321,6 +4331,32 @@ function danceSmooth(a, b, x){
   return t * t * (3 - 2 * t);
 }
 
+/* onsetEnergy — how hard the music just hit, 0..1, across the WHOLE
+   spectrum. The score's onset channel (sc.punch) is the measured hit
+   strength as a continuous value, not a yes/no — a ghost hat reads 0.2, a
+   drop reads 0.9. Per-band RISES add the attack of a kick (bass), a
+   snare/clap (mid) and a hat (treble) that the summed onset can under-
+   weight. There is NO gate: every hit moves the field in proportion to how
+   hard it actually landed. That is the nuance — the room dances to the
+   hats and ghost notes, not only the downbeat. */
+function onsetEnergy(sc, prev){
+  if (!sc) return 0;
+  const p = prev || sc;
+  const rb = Math.max(0, sc.bass   - p.bass);
+  const rm = Math.max(0, sc.mid    - p.mid);
+  const rt = Math.max(0, sc.treble - p.treble);
+  const bands = rb * 1.15 + rm * 0.95 + rt * 0.85;
+  return clamp01((sc.punch || 0) * 0.85 + bands * 1.35);
+}
+
+/* envFollow — an asymmetric one-pole: FAST on the way up (an attack the eye
+   feels as a hit), slow on the way down (a tail that carries the body).
+   A symmetric smoother turns every kick into a swell; this keeps the snap. */
+function envFollow(a, b, dt, tauUp, tauDown){
+  const tau = b > a ? tauUp : tauDown;
+  return a + (b - a) * (1 - Math.exp(-dt / Math.max(1e-4, tau)));
+}
+
 /* dancePulse — one beat of motion. φ: 0 at the hit, 1 at the next.
    art 0..1 (legato → staccato), bounce 0..1 (how much the body rebounds),
    down (bar downbeat hits harder), amp.
@@ -5998,7 +6034,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '59503148a0';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '96c391d778';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -9568,7 +9604,9 @@ const DANCE = {
     this._bassFloor = this._bassFloor == null ? f.bass
       : this._bassFloor + (f.bass - this._bassFloor) * (1 - Math.exp(-dt / 2.5));
     const kick = clamp01((f.bass - this._bassFloor) * 6);
-    const ear = 0.15 + 0.85 * clamp01(Math.min(1, this._hits * 0.55) * 0.75 + kick * 0.5);
+    // the ear commits harder now: a higher floor and a faster charge, so the
+    // room leans IN to the music instead of holding back at half height
+    const ear = 0.30 + 0.70 * clamp01(Math.min(1, this._hits * 0.7) * 0.8 + kick * 0.6);
     this.ear = ear;
     // PRECOGNITION — the score is known in advance, and a performer does
     // not react to the drop: they arrive WITH it. Read ~1.2 s ahead; when
@@ -9598,14 +9636,33 @@ const DANCE = {
         this._wasComing = here ? (coming > 0.42 ? here.bass + here.punch * 0.8 : 0) : 0;
       } else this.brace *= Math.exp(-dt / 0.6);
     }
-    const target = playing
+    // TWO LAYERS. The grid pulse is ANTICIPATION — the coil and lean that
+    // tell the eye a beat is coming; metronomic by nature, so it is kept
+    // modest and never drives alone. The TRANSIENT is the music's real hit:
+    // f.beat now carries the actual onset strength across the whole spectrum,
+    // so the field SNAPS to the kick, the hat, the syncopation — the moment
+    // they land, even off the grid. Louder layer wins the frame: structure
+    // underneath, the song on top.
+    const gridPulse = playing
       ? dancePulse(phi, { art: clamp01(art + this.brace * 0.4),
                           bounce: (0.35 + f.energy * 0.5) * (1 - this.brace * 0.6),
                           down: Math.floor(beats % 4) === 0,
-                          amp: (0.55 + f.energy * 0.55) * ear * (1 - this.brace * 0.45) })
+                          amp: (0.42 + f.energy * 0.34) * (0.5 + ear * 0.5) * (1 - this.brace * 0.45) })
       : 0;
-    // the impact snaps, the release is carried — asymmetric ease keeps both
-    const k = 1 - Math.exp(-dt / (target > this._out ? 0.016 : 0.05));
+    // the music's transient, DANCE-local: catch the RISING edge of the beat
+    // channel (a grid beat AND every music onset between them raise it) and
+    // let it decay to REST, so each hit reads as a distinct snap and the body
+    // returns to stillness between them — never a raised, always-on floor
+    const bRise = f.beat - (this._beatPrev || 0);
+    this._beatPrev = f.beat;
+    if (bRise > 0.04) this._trans = Math.max(this._trans || 0, clamp01(f.beat));
+    this._trans = (this._trans || 0) * Math.exp(-dt / 0.13);
+    const transient = playing ? this._trans * (0.9 + ear * 0.3) : 0;
+    // brace suppresses the pulse just before a drop so the landing hits harder
+    const target = Math.max(gridPulse, transient - this.brace * 0.3);
+    // impact SNAPS in a single frame, release is carried — and the snap is
+    // faster now so a quick hi-hat run reads as separate ticks, not a blur
+    const k = 1 - Math.exp(-dt / (target > this._out ? 0.010 : 0.055));
     this._out += (target - this._out) * k;
     this.pulse = this._out;
 
@@ -10185,10 +10242,12 @@ function frame(now){
     const idx = CLOCK.idx;
     if (idx !== gridBeatIdx){
       gridBeatIdx = idx;
-      // the lattice keeps time but may not FAKE hits: its injected pulse
-      // passes through the ear, so a silent bar stays a silent bar
+      // the lattice keeps time but may not FAKE hits: its injected pulse is a
+      // gentle FLOOR (so a real beat never disappears), scaled by the ear so a
+      // silent bar stays a silent bar. The music's own transient rides ABOVE
+      // it — the grid guarantees the beat, the song supplies the dynamics.
       AE.f.beat = Math.max(AE.f.beat,
-        (idx % 4 === 0 ? 1 : 0.75)
+        (idx % 4 === 0 ? 0.6 : 0.32)
         * (typeof DANCE !== 'undefined' && DANCE.ear >= 0 ? DANCE.ear : 1));
       // the visible meter + the felt beat: the same clock the shaders
       // read drives the HUD meter dots and the vibration pattern, so a
@@ -10218,7 +10277,7 @@ function frame(now){
   U.uBeat.value = safeBeatStep(SAFE.beatState,
     // the live onset detector IS the music's own hit — it always punches
     // through; the danced grid pulse rides beneath it
-    DANCE.on ? Math.max(-0.25, f.beat * 0.85, DANCE.pulse) : f.beat,
+    DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat,
     dt, SAFE.tuning());
   U.uPiPhase.value = f.piPhase; U.uEPhase.value = f.ePhase;
   U.uCoupling.value = f.coupling; U.uEntropy.value = f.entropy; U.uCentroid.value = f.centroid;

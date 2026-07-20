@@ -27,7 +27,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
-  ' dancePulse, danceSway, danceTimeWarp,' +
+  ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, planMixNow, envSample };';
 const S = new Function(code)();
 
@@ -695,6 +695,38 @@ test('countFlashes counts pairs of opposing >=0.1 transitions', () => {
 });
 
 // ---------------------------------------------------------------- dance engine
+
+test('onsetEnergy: the whole spectrum, continuously — nuance survives (no gate)', () => {
+  const at = (bass, mid, treble, punch) => ({ bass, mid, treble, punch });
+  // a hard kick reads loud
+  const kick = S.onsetEnergy(at(0.8, 0.3, 0.2, 0.9), at(0.2, 0.3, 0.2, 0.1));
+  // a ghost hi-hat (the OLD > 0.55 gate would have thrown this away) still moves it
+  const hat = S.onsetEnergy(at(0.2, 0.2, 0.5, 0.2), at(0.2, 0.2, 0.25, 0.05));
+  assert.ok(kick > 0.7, 'the kick lands hard: ' + kick.toFixed(2));
+  assert.ok(hat > 0.1 && hat < kick, 'the ghost hat still registers, smaller: ' + hat.toFixed(2));
+  // silence stays still
+  assert.equal(S.onsetEnergy(at(0.1, 0.1, 0.1, 0), at(0.1, 0.1, 0.1, 0)), 0);
+  // a treble RISE alone (a hat with no o-channel) is caught by the band rise
+  const trebleRise = S.onsetEnergy(at(0.1, 0.1, 0.7, 0), at(0.1, 0.1, 0.1, 0));
+  assert.ok(trebleRise > 0.15, 'a tonal onset the o-channel missed still shows');
+  // monotone in punch — harder hit, bigger number
+  assert.ok(S.onsetEnergy(at(0.3, 0.3, 0.3, 0.9), at(0.3, 0.3, 0.3, 0.3))
+          > S.onsetEnergy(at(0.3, 0.3, 0.3, 0.4), at(0.3, 0.3, 0.3, 0.3)));
+});
+
+test('envFollow: fast attack, slow release — a hit is a hit, not a swell', () => {
+  const dt = 1 / 60;
+  // one step up: reaches most of the way in a couple frames (tauUp ~18ms)
+  let up = 0;
+  for (let i = 0; i < 3; i++) up = S.envFollow(up, 1, dt, 0.018, 0.11);
+  assert.ok(up > 0.85, 'the attack snaps: ' + up.toFixed(2));
+  // from full, the release takes far longer (tauDown ~110ms)
+  let down = 1;
+  for (let i = 0; i < 3; i++) down = S.envFollow(down, 0, dt, 0.018, 0.11);
+  assert.ok(down > 0.55, 'the release carries: ' + down.toFixed(2));
+  assert.ok(up - 0.85 > 0, 'attack faster than release');
+  assert.ok((1 - up) < down, 'the same 3 frames move up far more than down');
+});
 
 test('the pulse has impact, release, and a pull-back before the next hit', () => {
   const o = { art: 0.5, bounce: 0.5, amp: 1 };
