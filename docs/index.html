@@ -5049,11 +5049,12 @@ function stopNowPlayingHeartbeat(){
 // lock screen, the status-bar chip that taps you straight back to the app from
 // the Home Screen — needs an image or it renders blank. A track without album
 // art must fall back to the app's own icon, so the pill is ALWAYS a branded,
-// tappable Aethra Kairos tile (relative paths resolve against the installed
-// PWA's scope, so they work standalone and in the browser alike).
+// tappable Aethra Kairos tile. Resolve to ABSOLUTE URLs: iOS's Now Playing
+// daemon runs out-of-process and often won't resolve a relative artwork src
+// against the page — an absolute URL is the reliable form.
 const APP_ARTWORK = [
-  { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-  { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+  { src: new URL('icons/icon-192.png', location.href).href, sizes: '192x192', type: 'image/png' },
+  { src: new URL('icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' },
 ];
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
