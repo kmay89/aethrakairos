@@ -1,6 +1,6 @@
 /* Möbius⁸ service worker — the everywhere-audio contract, kept honest.
  *
- * Shell (player, manifest, icons, the Three.js CDN script, fonts):
+ * Shell (player, manifest, icons, the vendored Three.js engine, fonts):
  *   cache-first inside a VERSIONED cache. Second boot is faster than first,
  *   never slower — and a new release is a new cache, so updates actually
  *   arrive on installed home-screen copies.
@@ -25,7 +25,7 @@
 
 // Stamped by tools/stamp_version.py (run by publish.sh): a short hash of the
 // player file, so every player release is a new shell cache by construction.
-const VERSION = '94ec36bbdc';
+const VERSION = '42c8dca1e7';
 
 const SHELL_CACHE = 'mb8-shell-' + VERSION;
 const CATALOG_CACHE = 'mb8-catalog-v1';          // unversioned: survives updates
@@ -39,7 +39,7 @@ const SHELL = [
   './icons/maskable-192.png',
   './icons/maskable-512.png',
   './icons/apple-touch-icon.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+  './three.min.js',                                 // the 3D engine, vendored same-origin — no CDN on the boot path
 ];
 
 self.addEventListener('install', ev => {
