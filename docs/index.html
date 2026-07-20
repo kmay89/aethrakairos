@@ -91,6 +91,22 @@ button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px so
 #glcanvas{position:fixed;inset:0;display:block;touch-action:none}
 body.zen #glcanvas{cursor:none}
 
+/* ============ boot splash — the spiral, the name, then it dissolves into the
+   instrument. Covers the first paint so the app never opens on a bare frame. ============ */
+#splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:24px;background:#05060e;
+  transition:opacity .8s ease}
+#splash.gone{opacity:0;pointer-events:none}
+#splash.done{display:none}
+#splash .sp-art{width:min(60vw,300px);aspect-ratio:1;border-radius:50%;
+  background:#000 center/cover no-repeat;background-image:url('icons/icon-512.png');
+  box-shadow:0 0 70px -12px rgba(130,190,255,.55),inset 0 0 40px rgba(0,0,0,.6);
+  animation:spLon 64s linear infinite}
+#splash .sp-name{font-size:26px;font-weight:600;letter-spacing:.4px;color:#fff;
+  text-shadow:0 2px 22px rgba(0,0,0,.7);opacity:.96}
+@keyframes spLon{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ #splash .sp-art{animation:none} #splash{transition:opacity .4s ease} }
+
 /* double-tap zoom is meaningless in a fullscreen instrument and only ever
    fights the user — 'manipulation' keeps scroll and pinch, drops the tap-tap
    zoom. The visualizer canvas and knobs already opt out with touch-action:none. */
@@ -1178,6 +1194,7 @@ body.zen #eqStrip{opacity:.85;height:18px}
 </style>
 </head>
 <body>
+<div id="splash"><div class="sp-art"></div><div class="sp-name">Aethra Kairos</div></div>
 <canvas id="glcanvas" aria-hidden="true"></canvas>
 
 <!-- the visualizer's quiet HUD: a cinematic waveform + a minimal now-playing
@@ -5045,6 +5062,17 @@ function startNowPlayingHeartbeat(){
 function stopNowPlayingHeartbeat(){
   if (_nowPlayingBeat != null){ clearInterval(_nowPlayingBeat); _nowPlayingBeat = null; }
 }
+// The Now Playing pill iOS draws from this metadata — the Dynamic Island, the
+// lock screen, the status-bar chip that taps you straight back to the app from
+// the Home Screen — needs an image or it renders blank. A track without album
+// art must fall back to the app's own icon, so the pill is ALWAYS a branded,
+// tappable Aethra Kairos tile. Resolve to ABSOLUTE URLs: iOS's Now Playing
+// daemon runs out-of-process and often won't resolve a relative artwork src
+// against the page — an absolute URL is the reliable form.
+const APP_ARTWORK = [
+  { src: new URL('icons/icon-192.png', location.href).href, sizes: '192x192', type: 'image/png' },
+  { src: new URL('icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' },
+];
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
   const t = player.tracks[player.cur];
@@ -5052,7 +5080,7 @@ function updateMediaSession(){
   const art = t.art ? [96, 192, 512].map(s => ({
     src: t.art, sizes: s + 'x' + s,
     type: /\.png(\?|$)/i.test(t.art) ? 'image/png' : 'image/jpeg',
-  })) : [];
+  })) : APP_ARTWORK;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.title, artist: t.artist || '', album: t.album || '', artwork: art,
   });
@@ -6659,7 +6687,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'b0f8eb05da';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '685ad92f39';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11722,7 +11750,17 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) PERSI
     registerSW();
   }
   window.__mb8Booted = true;                       // acceptance probe reads this
+  dissolveSplash();                                // the spiral gives way to the instrument
 })();
+/* fade the boot splash out. Called on a clean boot; a safety timer also fires
+   it so a slow/failed boot can never strand the listener on the splash. */
+function dissolveSplash(){
+  const s = document.getElementById('splash');
+  if (!s || s.classList.contains('gone')) return;
+  s.classList.add('gone');
+  setTimeout(() => s.classList.add('done'), 850);
+}
+setTimeout(dissolveSplash, 8000);
 
 console.log('%cAethra Kairos ready — powered by Möbius⁸', 'color:#6ee7ff;font-size:14px');
 console.log('φ(x)=2·arctan x · amber=π · ice=e · press ? for keys');
