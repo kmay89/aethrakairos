@@ -2966,8 +2966,18 @@ const player = {
     applyVolume();                       // element-volume routing follows the deck swap
     clearTimeout(this._fadeT);
     this._fadeT = setTimeout(() => {
-      if (od !== nd) od.a.pause();        // never pause the element we just (re)started on the same-deck path
       AE.xfading = false;
+      if (od === nd) return;              // same-element advance (locked iOS): never touch the sounding deck
+      od.a.pause();
+      // iOS budgets audio decoders HARD — a long session of src-swaps starves
+      // the media stack until playback just stops and next-track goes flaky.
+      // The retired deck is fully faded and idle here (crossfades are off on
+      // iOS, so nothing is mid-blend), so free its decoder. It re-blesses on
+      // the next gesture (foreground) or its own next real play().
+      if (IS_IOS){
+        try { od.a.removeAttribute('src'); od.a.load(); } catch (e){}
+        od.primed = false;
+      }
     }, (AE.graphLive ? fadeDur : 0.02) * 1000 + 80);
 
     if (this.cur !== -1 && this.cur !== i) this.history.push(this.cur);
@@ -3348,7 +3358,7 @@ const player = {
     el.plCount.textContent = this.tracks.length + (this.tracks.length === 1 ? ' track' : ' tracks');
     // the memory: which tracks this listener has already heard, so the fresh
     // ones stand out and the count of what's left to discover stays honest
-    const heard = new Set(HIST.playCounts().keys());
+    const heard = HIST.heardSet();
     updateFreshCount(heard);
     if (!this.tracks.length){
       const d = document.createElement('div');
@@ -3666,8 +3676,20 @@ const PERSIST = {
    A play counts at ≥50% or 60 s. Skips are their own event type.
    Private telemetry for the owner's own time machine — nothing transmits. */
 const HIST = {
-  cur: null, events: [],
-  async boot(){ this.events = await DB.histAll(); },
+  cur: null, events: [], _heardCache: null,
+  async boot(){ this.events = await DB.histAll(); this._heardCache = null; },
+  /* the set of keys ever LISTENED to (a completed play), memoized — renderList
+     reads this on every play/pause and it must not rebuild from the whole event
+     log each time. Invalidated only when a new listen actually lands. Callers
+     read only; never mutate the returned set. */
+  heardSet(){
+    if (!this._heardCache){
+      const s = new Set();
+      for (const ev of this.events) if (ev.type === 'play') s.add(ev.key);
+      this._heardCache = s;
+    }
+    return this._heardCache;
+  },
   start(track){
     const key = trackKey(track);
     if (!key || (track && track.demo)) { this.cur = null; return; }
@@ -3683,6 +3705,7 @@ const HIST = {
                  playedSeconds: Math.round(c.acc),
                  completed, type: completed ? 'play' : 'skip' };
     this.events.push(ev);
+    if (ev.type === 'play') this._heardCache = null;   // a fresh listen — the memoized heard-set is now stale
     DB.histAdd(ev).catch(() => {});
   },
   countsIn(fromTs, toTs){
@@ -3716,7 +3739,7 @@ const HIST = {
     return m;
   },
   async forgetEverything(){
-    this.events = []; this.cur = null;
+    this.events = []; this.cur = null; this._heardCache = null;
     await DB.histClear();
   },
 };
@@ -3725,7 +3748,7 @@ const HIST = {
    NOT yet heard. Shows until they've walked the whole catalogue once, then
    quietly retires (nothing left to discover — every track is a friend now). */
 function libraryHeardStats(heardKeys){
-  const heard = heardKeys || new Set(HIST.playCounts().keys());
+  const heard = heardKeys || HIST.heardSet();
   const seen = new Set();
   let total = 0, done = 0;
   for (const t of allTracks()){
@@ -5156,6 +5179,34 @@ function initMediaSession(){
    Its lifecycle rides mediaSessionPlaybackState() — the one function called on
    every play/pause transition — so it runs ONLY while playing (no idle timer),
    and it can never miss a start (which would re-rot the card). */
+/* WATCHDOG — the studio guarantee: playback NEVER stays wedged. iOS media
+   elements can occasionally go catatonic on a long session — the element still
+   says it's playing, but currentTime freezes and no sound comes out. Riding the
+   1 Hz heartbeat, we watch the active deck's clock: if it stops advancing while
+   we believe we're playing (and it isn't legitimately buffering), we first give
+   a gentle re-nudge, then — if it's still frozen — reload the source at the very
+   spot it stalled and resume. The listener hears a blink, never a dead stop. */
+const WATCHDOG = {
+  lastT: -1, stall: 0,
+  reset(){ this.lastT = -1; this.stall = 0; },
+  check(){
+    if (!player.playing){ this.reset(); return; }
+    const d = activeDeck();
+    if (!d || d.a.paused || AE.xfading){ this.reset(); return; }   // paused/handoff is not a wedge
+    if (d.a.readyState < 2){ this.stall = 0; return; }             // genuinely buffering — the LOADER covers it
+    const t = d.a.currentTime;
+    if (Math.abs(t - this.lastT) > 0.04){ this.lastT = t; this.stall = 0; return; }   // advancing → healthy
+    this.stall++;
+    if (this.stall === 2){
+      d.a.play().catch(() => {});                    // ~2 s frozen: a gentle re-nudge revives most wedges
+    } else if (this.stall >= 4){
+      const at = t;                                  // ~4 s frozen: reload at the same spot, then resume
+      try { d.a.load(); if (isFinite(at)) d.a.currentTime = at; } catch (e){}
+      d.a.play().catch(() => {});
+      this.stall = 0;
+    }
+  },
+};
 let _nowPlayingBeat = null;
 function startNowPlayingHeartbeat(){
   if (_nowPlayingBeat != null || !('mediaSession' in navigator)) return;
@@ -5163,6 +5214,7 @@ function startNowPlayingHeartbeat(){
     if (!player.playing){ stopNowPlayingHeartbeat(); return; }   // self-heals if a stop was missed
     mediaSessionPlaybackState();                     // keep iOS certain we're playing
     mediaSessionPosition();                          // keep the scrubber on the real position
+    WATCHDOG.check();                                // never stay wedged
   }, 1000);
 }
 function stopNowPlayingHeartbeat(){
@@ -6793,7 +6845,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'b8fae3516c';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '94ec36bbdc';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7053,16 +7105,28 @@ const EQ = {
 /* Decode the current track once and reduce it to a peak envelope, so the
    seek can show the whole song like a DJ deck. Fetches the (cached) file,
    decodes off the playback clock, stores ~500 normalised peaks on the track.
-   Any failure (CORS, exotic codec, mic) silently leaves the live scope up. */
-async function computePeaks(track){
+   Any failure (CORS, exotic codec, mic) silently leaves the live scope up.
+
+   SERIALIZED: decodes run one at a time through a single chain, so a long
+   listening session never holds two full decoded songs in memory at once —
+   each decodeAudioData allocates a whole song's PCM, and a pile of them is
+   what makes an extended session go sluggish then stop. */
+let _peaksChain = Promise.resolve();
+function computePeaks(track){
   if (!track || track._peaks || track._peaksPending || track._peaksErr) return;
   track._peaksPending = true;
+  _peaksChain = _peaksChain.then(() => _peaksDecode(track)).catch(() => {});
+  return _peaksChain;
+}
+async function _peaksDecode(track){
+  if (track._peaks || track._peaksErr){ track._peaksPending = false; return; }
   try {
     const res = await fetch(track.url);
     if (!res.ok) throw new Error('fetch ' + res.status);
-    const buf = await res.arrayBuffer();
+    let buf = await res.arrayBuffer();
     const ac = AE.ctx || new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
-    const audio = await ac.decodeAudioData(buf);
+    let audio = await ac.decodeAudioData(buf);
+    buf = null;                                     // the compressed bytes are done — let them go
     const ch = audio.getChannelData(0), sr = audio.sampleRate || 44100, N = 480;
     const block = Math.max(1, Math.floor(ch.length / N));
     const pk = new Float32Array(N), bL = new Float32Array(N), bM = new Float32Array(N), bH = new Float32Array(N);
@@ -7100,6 +7164,7 @@ async function computePeaks(track){
     track._peaks = pk;
     track._bands = { l: bL, m: bM, h: bH };
     track._bmax = { l: mL, m: mM, h: mH };
+    audio = null;                                   // release the full decoded PCM at once
   } catch (e){ track._peaksErr = true; }
   track._peaksPending = false;
 }
@@ -11619,7 +11684,7 @@ function crateEngage(tracks, label, startAt){
 function engageLibrary(){
   const order = libraryOrder(allTracks(), trackKey);
   if (!order.length) return false;
-  const heard = new Set(HIST.playCounts().keys());
+  const heard = HIST.heardSet();
   return crateEngage(order, 'The library — newest first', firstUnheardIndex(order, heard, trackKey));
 }
 
