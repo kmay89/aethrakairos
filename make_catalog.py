@@ -359,10 +359,43 @@ def convert_masters(masters_dir):
         print(f"  ♫ converted: {src.name} → {dst.name} (320k web MP3)")
 
 
+def sweep_orphans(prior_cat):
+    """Self-healing after an interrupted run. A build that dies mid-way
+    (Ctrl-C, power, anything) leaves copied audio and fingerprints that the
+    catalog never learned about — and the next run's clone gate would read
+    the artist's OWN library as clones of those ghosts, refusing every
+    track. The catalog is the only owner of the public tree: anything under
+    docs/audio it does not list is an orphan and is swept before gating.
+    Masters is the source of truth — swept files re-enter cleanly."""
+    if not AUDIO_ROOT.exists():
+        return
+    owned = set()
+    for al in (prior_cat or {}).get("albums", []):
+        for tr in al.get("tracks", []):
+            if al.get("tag") and tr.get("file"):
+                owned.add(f"{al['tag']}/{tr['file']}")
+    swept = 0
+    for p in sorted(AUDIO_ROOT.rglob("*.mp3")):
+        rel = p.relative_to(AUDIO_ROOT).as_posix()
+        if rel in owned:
+            continue
+        p.unlink()
+        fpf = DNA_ROOT / (rel + ".fp")
+        if fpf.exists():
+            fpf.unlink()
+        swept += 1
+    if swept:
+        print(f"  − swept {swept} orphaned file(s) left by an interrupted "
+              "run — the catalog never published them; they re-enter "
+              "cleanly from masters")
+
+
 def ask_clone(src, new_title, matched, old, ber):
     """Same song, two names — spell out exactly which is which before the
     label picks. Every option names the title it acts on, and the choice
-    is echoed back so there is never a doubt about what was decided."""
+    is echoed back so there is never a doubt about what was decided.
+    A CAPITAL answer applies the choice to every remaining duplicate.
+    Returns (choice, applies_to_all)."""
     old_title = old["track"].get("title") or Path(matched).name if old else Path(matched).name
     old_date = (old["track"].get("published") or "unknown date") if old else "not in the catalog"
     print(f"\n  ⚠ same song, two names (window BER {ber}):")
@@ -374,18 +407,23 @@ def ask_clone(src, new_title, matched, old, ber):
               "(its publish date carries over)")
     print(f"    [b] BOTH — publish “{new_title}” alongside “{old_title}” as its own track")
     keys = "[k/n/b]" if old else "[k/b]"
+    print(f"    (a CAPITAL letter — {'K/N/B' if old else 'K/B'} — applies "
+          "that choice to EVERY remaining duplicate this run)")
     while True:
-        a = input(f"    which name wins? {keys} ").strip().lower()
+        a = input(f"    which name wins? {keys} ").strip()
+        for_all = a.isupper() and a != ""
+        a = a.lower()
+        tail = " — and the same for all remaining duplicates" if for_all else ""
         if a in ("", "k"):
-            print(f"    → keeping “{old_title}” — {src.name} skipped")
-            return "keep"
+            print(f"    → keeping “{old_title}” — {src.name} skipped{tail}")
+            return "keep", for_all
         if a == "n" and old:
             print(f"    → “{new_title}” takes over — “{old_title}” retires, "
-                  "publish date carries")
-            return "use-new"
+                  f"publish date carries{tail}")
+            return "use-new", for_all
         if a == "b":
-            print(f"    → keeping both — “{new_title}” joins the catalog")
-            return "both"
+            print(f"    → keeping both — “{new_title}” joins the catalog{tail}")
+            return "both", for_all
 
 
 def scan_masters(masters_dir):
@@ -444,6 +482,7 @@ def build(args):
     refuse_wavs_in_audio()
     convert_masters(args.masters)
     prior_cat = load_existing_catalog()
+    sweep_orphans(prior_cat)
     prior = existing_by_sha(prior_cat)
     cache = load_cache()
     mixfix = load_mixfix()
@@ -562,8 +601,13 @@ def build(args):
                                    None)
                         choice = on_clone
                         if choice == "ask":
-                            choice = (ask_clone(src, title, match_rel, old, r["window_ber"])
-                                      if sys.stdin.isatty() else "keep")
+                            if sys.stdin.isatty():
+                                choice, for_all = ask_clone(
+                                    src, title, match_rel, old, r["window_ber"])
+                                if for_all:
+                                    on_clone = choice   # sticky for the rest of the run
+                            else:
+                                choice = "keep"
                         if choice == "use-new" and old is None:
                             # matched audio is not a catalog entry (stray
                             # file) — nothing to replace; keep both instead

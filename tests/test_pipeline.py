@@ -430,6 +430,43 @@ class TestNamesAndDates(TmpRepo):
         self.assertEqual(by_tag["solo-one"]["tracks"][0]["title"], "Solo One")
         self.assertEqual(len(by_tag["real-album"]["tracks"]), 2)
 
+    def test_interrupted_run_orphans_are_swept_not_read_as_clones(self):
+        # round one dies after copying audio but before the catalog write;
+        # round two must NOT refuse the artist's own songs as clones of
+        # those ghosts — the sweep clears anything the catalog doesn't own
+        x = synth_track(90)
+        self.masters({"A": {"01-real.mp3": x}})
+        write_wav("docs/audio/ghost-album/01-real.mp3", x)   # the orphan copy
+        fp.build_index(Path("docs/audio"), Path("dna"), verbose=False)
+        self.build()
+        files = [tr["file"] for _, tr in self.flat()]
+        self.assertEqual(files, ["01-real.mp3"],
+                         "the real file publishes — no clone refusal")
+        self.assertFalse(Path("docs/audio/ghost-album/01-real.mp3").exists(),
+                         "the ghost is gone")
+        self.assertEqual([t for t, _ in self.flat()], ["a"])
+
+    def test_ask_clone_capital_answer_applies_to_all(self):
+        import io
+        old = {"album_tag": "a", "track": {"title": "T", "file": "01-t.mp3",
+                                           "published": "2025-01-01", "sha256": "s"}}
+        keep_stdin = sys.stdin
+        try:
+            sys.stdin = io.StringIO("K\n")
+            self.assertEqual(mc.ask_clone(Path("x.mp3"), "X", "a/01-t.mp3", old, 0.0),
+                             ("keep", True))
+            sys.stdin = io.StringIO("n\n")
+            self.assertEqual(mc.ask_clone(Path("x.mp3"), "X", "a/01-t.mp3", old, 0.0),
+                             ("use-new", False))
+            sys.stdin = io.StringIO("B\n")
+            self.assertEqual(mc.ask_clone(Path("x.mp3"), "X", "a/01-t.mp3", old, 0.0),
+                             ("both", True))
+            sys.stdin = io.StringIO("\n")
+            self.assertEqual(mc.ask_clone(Path("x.mp3"), "X", "a/01-t.mp3", old, 0.0),
+                             ("keep", False))
+        finally:
+            sys.stdin = keep_stdin
+
     def test_titles_are_tidied(self):
         self.assertEqual(mc.tidy_title("  mobius__walking   (bounce)​ "),
                          "mobius walking (bounce)")
