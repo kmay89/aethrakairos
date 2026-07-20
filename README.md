@@ -587,7 +587,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 ## Tests
 
 ```bash
-python3 tests/test_pipeline.py      # 39 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, gate, doctor, features, mix,
+python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
 node tests/player.test.mjs          # 58 tests: solver, quantum, history, restore, planner,
