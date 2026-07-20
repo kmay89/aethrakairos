@@ -1957,7 +1957,7 @@ function reconcileOnReturn(){
   const d = (typeof activeDeck === 'function') ? activeDeck() : null;
   const settling = (typeof AE !== 'undefined' && AE.xfading)
     || (typeof MIXER !== 'undefined' && MIXER.phase === 'running');
-  if (d && d.a && player.cur >= 0 && !d.priming && !settling){
+  if (typeof player !== 'undefined' && d && d.a && player.cur >= 0 && !d.priming && !settling){
     const reallyPlaying = !d.a.paused && !d.a.ended;
     if (reallyPlaying !== player.playing){
       player.playing = reallyPlaying;
@@ -4473,10 +4473,11 @@ function tapTempo(times){
   const n = times ? times.length : 0;
   if (n < 2) return { bpm: 0, conf: 0, count: n, interval: 0 };
   const iv = [];
-  for (let i = 1; i < n; i++){ const d = times[i] - times[i - 1]; if (d > 0) iv.push(d); }
+  // keep only sane beat-length intervals: a gap ≥ 2 s (a seek mid-count, or
+  // just a pause) is not a beat and would wreck the median and the confidence
+  for (let i = 1; i < n; i++){ const d = times[i] - times[i - 1]; if (d > 0 && d < 2) iv.push(d); }
   if (!iv.length) return { bpm: 0, conf: 0, count: n, interval: 0 };
-  const sorted = iv.slice().sort((a, b) => a - b);
-  const med = sorted[sorted.length >> 1];
+  const med = median(iv);                            // even-length safe (averages the middle two)
   const bpm = 60 / med;
   if (!(bpm >= 40 && bpm <= 240)) return { bpm: 0, conf: 0, count: n, interval: med };
   let mad = 0; for (const v of iv) mad += Math.abs(v - med);
@@ -6330,7 +6331,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '8e018f6ff6';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '4ef1411a4f';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7418,7 +7419,7 @@ const TAP = {
   wLast: 0,         // wall time of the last tap, to detect a fresh count
   hit(){
     const d = activeDeck(), tr = player.tracks[player.cur];
-    if (!d || !d.a || player.cur < 0 || !player.playing || !isFinite(d.a.currentTime)){
+    if (!d || !d.a || !tr || player.cur < 0 || !player.playing || !isFinite(d.a.currentTime)){
       toast('Play a track, then tap along with the beat'); return;
     }
     const wall = performance.now() / 1000;

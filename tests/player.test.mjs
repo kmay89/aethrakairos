@@ -942,6 +942,10 @@ test('tapTempo: reads tempo and confidence from the beat a listener taps', () =>
   // absurd spacing (out of 40–240) yields no usable tempo
   assert.equal(S.tapTempo([0, 3.0]).bpm, 0, '20 BPM is out of range → no tempo');
   assert.equal(S.tapTempo([0, 0.1]).bpm, 0, '600 BPM is out of range → no tempo');
+  // a big gap mid-count (e.g. a seek) is filtered out, not folded into the median
+  const withSeek = S.tapTempo([10.0, 10.5, 40.5, 41.0]);   // one 30 s gap among 0.5 s taps
+  assert.ok(Math.abs(withSeek.bpm - 120) < 0.5, '120 BPM survives a seek gap: ' + withSeek.bpm);
+  assert.ok(withSeek.conf >= 0.5, 'steady taps stay trusted despite the seek: ' + withSeek.conf.toFixed(2));
 });
 
 test('mix now: the seam starts on the NEXT BAR LINE of the playing grid', () => {
