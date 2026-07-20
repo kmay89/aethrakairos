@@ -199,7 +199,7 @@ const story = await page.evaluate(() => ({
   dots: document.querySelectorAll('#sceneDots .sdot').length,
   act: document.getElementById('actName').textContent,
 }));
-R('15 scene dots render', story.dots === 15, story.dots + ' dots');
+R('16 scene dots render', story.dots === 16, story.dots + ' dots');
 // sweep every scene: each must compile its shaders and survive two frames
 for (let i = 0; i < story.dots; i++){
   await page.evaluate(n => director.setScene(n, true), i);
@@ -207,7 +207,7 @@ for (let i = 0; i < story.dots; i++){
 }
 const sweep = await page.evaluate(() =>
   ({ name: document.getElementById('sceneName').textContent, n: scenes.length }));
-R('all scenes render without shader errors', shaderErrs.length === 0 && sweep.n === 15,
+R('all scenes render without shader errors', shaderErrs.length === 0 && sweep.n === 16,
   sweep.n + ' scenes swept, last ' + sweep.name
   + (shaderErrs.length ? ' — ' + shaderErrs[0] : ''));
 R('story act readout is live', /OVERTURE|RISING|APEX|TURN|RESOLVE/.test(story.act), story.act);
