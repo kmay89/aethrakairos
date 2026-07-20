@@ -19,7 +19,7 @@ function block(name){
   return m[1];
 }
 const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
-  '\nreturn { mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
+  '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
@@ -1046,6 +1046,23 @@ test('mix now: keys arguing shortens the seam; the gates still refuse', () => {
   const none = S.planMixNow(A, mk('8B'), 239, { durA: 240 });
   assert.equal(none.type, 'fade', 'truly out of road: fade');
   assert.ok(none.seconds <= 1, 'and the fallback stays prompt');
+});
+
+// ---------------------------------------------------------------- touch-FX
+test('touch-FX: each effect maps to its force; the black hole is the default field', () => {
+  assert.equal(S.touchFxMode('blackhole', 0), 0);
+  assert.equal(S.touchFxMode('blackhole', 2), 0);
+  assert.equal(S.touchFxMode('gathers', 0), 2);   // gravity well — attract
+  assert.equal(S.touchFxMode('flows', 0), 3);     // ripples
+  assert.equal(S.touchFxMode('', 0), 0);          // unknown falls back to the repelling field
+  assert.equal(S.touchFxMode('nope', 3), 0);
+});
+test('touch-FX: the vortex has two chiralities and the drag chooses', () => {
+  assert.equal(S.touchFxMode('grows', 0), 1, 'still hand → default winding');
+  assert.equal(S.touchFxMode('grows', 1.5), 1, 'drag right → one way');
+  assert.equal(S.touchFxMode('grows', -1.5), -1, 'drag left → the other way');
+  assert.equal(S.touchFxMode('grows', -0.01), 1, 'tiny jitter stays put');
+  assert.equal(S.touchFxMode('grows', -0.2), -1, 'a real left drag flips it');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
