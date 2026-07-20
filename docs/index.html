@@ -262,6 +262,15 @@ body.zen .chrome{opacity:0;pointer-events:none}
   transition:border-color .15s,background .15s;
 }
 .fr-add:hover,.fr-add:focus-visible{border-color:rgba(180,200,240,.6);background:var(--glass-hard);outline:none}
+/* the quieter door — for when stillness is the answer, not sound */
+.fr-quiet{
+  margin-top:2px;font-size:11px;color:var(--faint);letter-spacing:.03em;line-height:1.6;
+  max-width:30em;text-decoration:none;transition:color .18s ease;
+}
+.fr-quiet b{color:var(--dim);font-weight:600}
+.fr-quiet .fr-quiet-go{color:var(--e)}
+.fr-quiet:hover,.fr-quiet:focus-visible{color:var(--dim);outline:none}
+.fr-quiet:hover b{color:var(--ink)}
 @media (max-width:560px){
   .fr-more{flex-direction:column;align-items:stretch}
 }
@@ -1206,6 +1215,9 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <button class="btn big primary fr-build" type="button" id="frBuild">Build my set ▸</button>
   </div>
   <div class="fr-install" id="frInstall" hidden></div>
+  <a class="fr-quiet" href="https://echoesofplay.com/" rel="noopener">
+    Not in the mood to move? <b>Echoes of Play</b> — a quieter place to sit, reflect, and journal. <span class="fr-quiet-go">→</span>
+  </a>
 </section>
 
 <!-- ============ onboarding — the why, told in five breaths ============ -->
@@ -6492,7 +6504,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'aa84c7f9ce';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'd150398589';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
