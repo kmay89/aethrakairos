@@ -88,7 +88,10 @@ button{font-family:inherit;color:inherit;background:none;border:none;cursor:poin
 button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 ::selection{background:var(--accent-dim)}
 
-#glcanvas{position:fixed;inset:0;display:block;touch-action:none}
+#glcanvas{position:fixed;inset:0;display:block;touch-action:none;
+  /* a long-press on the field cycles the touch-FX — it must NEVER raise iOS's
+     text-selection callout (the big copy box). Kill selection + the callout. */
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 body.zen #glcanvas{cursor:none}
 
 /* ============ boot splash — the spiral, the name, then it dissolves into the
@@ -190,6 +193,9 @@ body.zen #eqStrip{opacity:.85;height:18px}
     color-mix(in oklab, var(--accent) 55%, #000) 40%,
     color-mix(in oklab, var(--accent) 22%, transparent) 52%, transparent 66%)}
 #voidFx.on{opacity:1}
+/* the baseline black hole: a clean pure-black void, no accent tint — just black */
+#voidFx.pure{background:radial-gradient(circle,
+  #000 0%, #000 46%, rgba(0,0,0,.72) 60%, transparent 76%)}
 /* a faint accent event-horizon ring that reads even over dark scenes */
 #voidRing{box-shadow:0 0 34px -6px var(--accent-glow), inset 0 0 26px -4px var(--accent-glow)}
 #voidRing.on{opacity:.7}
@@ -6990,7 +6996,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '46e99a3ef4';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'a7810f63e3';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -10635,6 +10641,8 @@ const INTERACT = {
   };
   cv.addEventListener('pointerup', drop);
   cv.addEventListener('pointercancel', drop);
+  // a long-press must cycle the FX, never raise the OS text-callout / copy box
+  cv.addEventListener('contextmenu', ev => ev.preventDefault());
   cv.addEventListener('pointerleave', () => DWELL.gone());
   cv.addEventListener('wheel', ev => {
     ev.preventDefault();
@@ -10667,10 +10675,13 @@ const TOUCHFX = {
   // black hole / a gravity well drawing matter in); the others show only the
   // accent ring while the shader winds or ripples the field around the hand.
   bank: {
-    blackhole: { chip: 'VOID', label: 'Black hole',   hint: 'the light bends away from your hand',      dark: true  },
-    grows:     { chip: 'SPIN', label: 'Vortex',       hint: 'a spiral winds around your touch',         dark: false },
-    gathers:   { chip: 'PULL', label: 'Gravity well', hint: 'everything falls toward your fingertip',   dark: true  },
-    flows:     { chip: 'WAVE', label: 'Ripples',      hint: 'waves roll outward from where you press',  dark: false },
+    // dark = the multiply void darkens the core · ring = the accent event-horizon
+    // halo · pure = a clean pure-black void with no accent tint. The black hole
+    // is the baseline: just black, no halo — the original, and the coolest.
+    blackhole: { chip: 'VOID', label: 'Black hole',   hint: 'the light bends away from your hand',      dark: true,  ring: false, pure: true  },
+    grows:     { chip: 'SPIN', label: 'Vortex',       hint: 'a spiral winds around your touch',         dark: false, ring: true  },
+    gathers:   { chip: 'PULL', label: 'Gravity well', hint: 'everything falls toward your fingertip',   dark: true,  ring: true  },
+    flows:     { chip: 'WAVE', label: 'Ripples',      hint: 'waves roll outward from where you press',  dark: false, ring: true  },
   },
   // the single number the field shader reads (chirality from the live drag)
   mode(){ return touchFxMode(this.active, INTERACT.swirl); },
@@ -10711,11 +10722,12 @@ const TOUCHFX = {
       el.voidFx.style.left = x + 'px'; el.voidFx.style.top = y + 'px';
       el.voidFx.style.transform = 'translate(-50%,-50%) scale(' + grow.toFixed(3) + ')';
       el.voidFx.classList.toggle('on', !!fx.dark);
+      el.voidFx.classList.toggle('pure', !!fx.pure);   // the black hole is pure black, no accent
     }
     if (el.voidRing){
       el.voidRing.style.left = x + 'px'; el.voidRing.style.top = y + 'px';
       el.voidRing.style.transform = 'translate(-50%,-50%) scale(' + (grow * 1.04).toFixed(3) + ')';
-      el.voidRing.classList.add('on');
+      el.voidRing.classList.toggle('on', !!fx.ring);   // only the effects that need it wear the halo
     }
   },
   _off(){ if (el.voidFx) el.voidFx.classList.remove('on'); if (el.voidRing) el.voidRing.classList.remove('on'); },
@@ -11681,6 +11693,12 @@ function frame(now){
   CLOCK.update(t);
   if (CLOCK.haveGrid){
     const idx = CLOCK.idx;
+    // The grid keeps time even through an ambient bar — but the VISIBLE counter
+    // and the buzz must not march a phantom 1-2-3-4 when nothing is hitting. The
+    // ear reads real transients (onset heat + kick presence) and drains over
+    // ~1.2 s, so it stays lit between beats but falls to its floor through a
+    // breakdown or a beatless track. Below that floor the meter simply goes dark.
+    const beating = (typeof DANCE !== 'undefined' ? DANCE.ear : 1) > 0.42;
     if (idx !== gridBeatIdx){
       gridBeatIdx = idx;
       // the lattice keeps time but may not FAKE hits: its injected pulse is a
@@ -11690,11 +11708,16 @@ function frame(now){
       AE.f.beat = Math.max(AE.f.beat,
         (idx % 4 === 0 ? 0.6 : 0.32)
         * (typeof DANCE !== 'undefined' && DANCE.ear >= 0 ? DANCE.ear : 1));
-      // the visible meter + the felt beat: the same clock the shaders
-      // read drives the HUD meter dots and the vibration pattern, so a
-      // listener who cannot hear the track can SEE and FEEL the bar
-      METER.tick(idx % 4);
-      HAPTICS.pulse(idx % 4 === 0);
+      // the visible meter + the felt beat: the same clock the shaders read
+      // drives the HUD meter dots and the vibration pattern — but ONLY when the
+      // music is actually beating, so a quiet passage reads as quiet, not a
+      // metronome ticking to nothing.
+      if (beating){
+        METER.tick(idx % 4);
+        HAPTICS.pulse(idx % 4 === 0);
+      } else {
+        METER.clear();
+      }
     }
     AE.f.bpm = CLOCK.bpm;                // steady; glides honestly during a mix
     U.uBeatIdx.value = idx % 4;
