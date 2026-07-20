@@ -4852,6 +4852,26 @@ function initMediaSession(){
     else a.a.currentTime = d.seekTime;
     mediaSessionPosition();
   });
+  startNowPlayingHeartbeat();
+}
+/* the lock-screen LIVE heartbeat — the Now Playing card (lock screen · Control
+   Center · the status-bar audio pill that taps back to the app) is drawn by
+   iOS from the Media Session. iOS extrapolates the scrubber from the LAST
+   setPositionState, and ONLY while it believes we're playing — so if the page
+   stops feeding it, the scrubber freezes and the ▶/⏸ glyph rots to a stale ▶
+   even as sound plays (exactly the bug). requestAnimationFrame is frozen in
+   the background, but an audio-playing page still gets ~1 Hz timers; so once a
+   second we re-assert the play state and pin the position to the ACTIVE deck's
+   true currentTime. It stays accurate through a locked screen and through the
+   mixer's deck hand-offs. */
+let _nowPlayingBeat = null;
+function startNowPlayingHeartbeat(){
+  if (_nowPlayingBeat != null || !('mediaSession' in navigator)) return;
+  _nowPlayingBeat = setInterval(() => {
+    if (!player.playing) return;                     // paused card doesn't rot; leave it
+    mediaSessionPlaybackState();                     // keep iOS certain we're playing
+    mediaSessionPosition();                          // keep the scrubber on the real position
+  }, 1000);
 }
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
