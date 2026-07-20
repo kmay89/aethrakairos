@@ -2033,6 +2033,7 @@ function ensureCtx(){
       if (i !== AE.active) return;
       ensureResume();
       if (!player.playing){ player.playing = true; updatePlayIcon(); player.renderList(); }
+      if (typeof TABSYNC !== 'undefined') TABSYNC.announce();   // claim the single audio floor; older tabs stand down
       mediaSessionPlaybackState();
     });
     d.a.addEventListener('loadedmetadata', () => { if (i === AE.active) mediaSessionPosition(); });
@@ -6543,7 +6544,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '1fb3da5491';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'f37b61e75f';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11127,7 +11128,7 @@ function firstRunOpen(){
   // right away". Ignore pointer events for a beat; a human needs longer than
   // this to read and aim anyway.
   el.firstRun.classList.add('arming');
-  setTimeout(() => el.firstRun.classList.remove('arming'), 450);
+  setTimeout(() => el.firstRun.classList.remove('arming'), 650);
 }
 function firstRunClose(){ el.firstRun.classList.remove('open'); }
 
@@ -11183,6 +11184,9 @@ function frInstallSetup(){
 }
 
 function crateEngage(tracks, label){
+  // during the just-opened guard window, refuse to engage — a ghost/synthetic
+  // click must never start a set and close the card the instant it appears
+  if (el.firstRun && el.firstRun.classList.contains('arming')) return false;
   tracks = (tracks || []).filter(Boolean);
   if (!tracks.length) return false;
   firstRunClose();
@@ -11230,6 +11234,53 @@ const MINDFUL = {
 };
 if (el.bpLater) el.bpLater.addEventListener('click', () => MINDFUL.dismiss());
 if (el.bpGo) el.bpGo.addEventListener('click', () => MINDFUL.dismiss());   // the link opens a new tab; tidy the prompt away too
+
+/* TABSYNC — one voice at a time.
+   iPhone lets two Safari tabs (or a tab + a home-screen copy of the same
+   origin) each hold a live <audio>, and they play OVER each other into a
+   single muddy mix with a confused lock screen. There is no OS API to see
+   another tab's audio, but same-origin pages CAN whisper to each other:
+   BroadcastChannel where it exists, a localStorage "floor" everywhere else.
+   When THIS tab starts a track it announces; any other tab that hears a
+   newer announcement politely pauses itself. Last one to press play wins —
+   exactly the phone's own single-stream instinct.
+
+   Honest limits (surfaced in the PR, not hidden): this is same-origin only.
+   Two DIFFERENT browsers, or Safari-vs-installed-PWA, live in separate
+   storage sandboxes the web cannot bridge — nothing here can pause those. */
+const TABSYNC = {
+  id: (Math.random().toString(36).slice(2) + Date.now().toString(36)),
+  ch: null,
+  KEY: 'mb8_audio_floor',
+  last: 0,
+  init(){
+    try { this.ch = ('BroadcastChannel' in window) ? new BroadcastChannel('mb8-audio') : null; }
+    catch (e){ this.ch = null; }
+    if (this.ch) this.ch.onmessage = ev => this._heard(ev.data);
+    // storage events fire in OTHER same-origin tabs, never the writer — the
+    // fallback path for engines without BroadcastChannel (older iOS Safari)
+    window.addEventListener('storage', ev => {
+      if (ev.key === this.KEY && ev.newValue){
+        try { this._heard(JSON.parse(ev.newValue)); } catch (e){}
+      }
+    });
+  },
+  _heard(msg){
+    if (!msg || msg.id === this.id || msg.type !== 'playing') return;
+    if (msg.t < this.last) return;            // an echo older than our own claim
+    if (player.playing){
+      try { player.pause(); } catch (e){}
+      toast('Paused — playing in another tab');
+    }
+  },
+  announce(){
+    this.last = Date.now();
+    const msg = { type: 'playing', id: this.id, t: this.last };
+    if (this.ch){ try { this.ch.postMessage(msg); } catch (e){} }
+    try { localStorage.setItem(this.KEY, JSON.stringify(msg)); } catch (e){}
+  },
+};
+TABSYNC.init();
 /* the play-count map the FRESH rail uses, so "Hot this week" here and the
    library porch agree on what's hot */
 function weekCounts(nowMs){
@@ -11354,7 +11405,12 @@ const ONBOARD = {
     document.getElementById('onboard').classList.remove('open');
     this.markSeen();
     const h = this._handoff; this._handoff = null;
-    if (typeof h === 'function') h();
+    // hand off on the NEXT beat, not inside this tap: on iOS the tap that
+    // dismissed the onboarding synthesizes a ~300 ms "ghost click", and if the
+    // welcome card opens synchronously that ghost lands on its Play button and
+    // closes it again ("removed before you can interact"). Deferring means the
+    // card doesn't exist yet when the ghost fires — it lands on nothing.
+    if (typeof h === 'function') setTimeout(h, 360);
   },
 };
 {
