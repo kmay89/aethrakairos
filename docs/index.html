@@ -1134,7 +1134,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11M8 10l4 4 4-4M5 19h14"/></svg>
         <span class="lbl">Install</span>
       </button>
-      <button class="btn" id="btnIntro" role="menuitem" aria-label="What is this — replay the intro">
+      <button class="btn icon" id="btnIntro" role="menuitem" aria-label="What is this — replay the intro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="M12 10.5v6"/><circle cx="12" cy="7.6" r=".5" fill="currentColor"/></svg>
         <span class="lbl mob-only">What is this?</span>
       </button>
@@ -6464,7 +6464,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '9fd7c4fe32';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'a88fea0dca';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11171,15 +11171,17 @@ const ONBOARD = {
   seen(){ try { return localStorage.getItem(this._seenKey) === '1'; } catch (e){ return false; } },
   markSeen(){ try { localStorage.setItem(this._seenKey, '1'); } catch (e){} },
   wire(){
-    if (this._wired) return; this._wired = true;
+    if (this._wired) return;
     const root = document.getElementById('onboard');
-    if (!root) return;
+    if (!root) return;                               // only latch once we truly found it
+    this._wired = true;
     this.panels = Array.from(root.querySelectorAll('.ob-panel'));
     const dotsBox = document.getElementById('obDots');
     this.dots = this.panels.map((_, k) => {
       const b = document.createElement('button');
       b.className = 'ob-dot' + (k === 0 ? ' on' : ''); b.type = 'button';
       b.setAttribute('role', 'tab'); b.setAttribute('aria-label', 'Step ' + (k + 1));
+      b.setAttribute('aria-selected', k === 0 ? 'true' : 'false');
       b.addEventListener('click', () => this.go(k));
       dotsBox.appendChild(b); return b;
     });
@@ -11195,9 +11197,11 @@ const ONBOARD = {
       const dx = e.changedTouches[0].clientX - x0; x0 = null;
       if (Math.abs(dx) > 44) this.go(this.i + (dx < 0 ? 1 : -1));
     }, { passive: true });
+    // arrows walk the story; Enter/Space are left to whatever button is
+    // focused, so tabbing to Back/Skip and pressing Enter does the right thing
     this._onKey = e => {
       if (!root.classList.contains('open')) return;
-      if (e.key === 'ArrowRight' || e.key === 'Enter'){ e.preventDefault(); this.go(this.i + 1); }
+      if (e.key === 'ArrowRight'){ e.preventDefault(); this.go(this.i + 1); }
       else if (e.key === 'ArrowLeft'){ e.preventDefault(); this.go(this.i - 1); }
       else if (e.key === 'Escape'){ e.preventDefault(); this.finish(); }
     };
@@ -11209,7 +11213,7 @@ const ONBOARD = {
     if (n > last){ this.finish(); return; }        // "Next" past the end = enter
     this.i = n;
     this.panels.forEach((p, k) => p.classList.toggle('on', k === n));
-    this.dots.forEach((d, k) => d.classList.toggle('on', k === n));
+    this.dots.forEach((d, k) => { const active = k === n; d.classList.toggle('on', active); d.setAttribute('aria-selected', String(active)); });
     const onLast = n === last;
     document.getElementById('obBack').hidden = n === 0;
     document.getElementById('obNext').hidden = onLast;
