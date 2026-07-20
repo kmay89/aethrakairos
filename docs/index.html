@@ -175,7 +175,45 @@ body.zen-deep #zenInfo{opacity:0;transform:translate(-50%,10px);pointer-events:n
           mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
 body.zen #eqStrip{opacity:.85;height:18px}
 
+/* ============ TOUCH FX — playing WITH the light. The pointer already bends
+   every scene's field away from your hand (the shader's uPtr repel); this is
+   the visible companion: a black hole the field curves around. Scene-agnostic
+   (a screen-space overlay that follows the touch), so it works on all 16 scenes
+   today and any added later. One effect for now; TOUCHFX is a bank built to
+   hold many (repel, swirl, ripple, bloom…). ============ */
+#voidFx,#voidRing{position:fixed;left:0;top:0;width:46vmin;height:46vmin;border-radius:50%;
+  pointer-events:none;z-index:4;opacity:0;transform:translate(-50%,-50%) scale(.5);
+  transition:opacity .2s ease}
+#voidFx{mix-blend-mode:multiply;   /* darkens the field beneath → a true void */
+  background:radial-gradient(circle,
+    #000 0%, rgba(0,0,0,.86) 24%,
+    color-mix(in oklab, var(--accent) 55%, #000) 40%,
+    color-mix(in oklab, var(--accent) 22%, transparent) 52%, transparent 66%)}
+#voidFx.on{opacity:1}
+/* a faint accent event-horizon ring that reads even over dark scenes */
+#voidRing{box-shadow:0 0 34px -6px var(--accent-glow), inset 0 0 26px -4px var(--accent-glow)}
+#voidRing.on{opacity:.7}
+
+/* ============ the menu grip — in the immersive view, touching the light PLAYS
+   with it and never summons the menu. The controls come back only when you
+   reach for this handle at the top. It glows a hint when you first slip into
+   play, and stays faintly findable while you're there. ============ */
+#menuGrip{position:fixed;left:50%;top:0;transform:translateX(-50%);
+  width:64px;height:26px;z-index:55;pointer-events:none;opacity:0;
+  display:flex;align-items:flex-start;justify-content:center;background:none;border:none;
+  cursor:pointer;transition:opacity .5s ease;padding:0}
+#menuGrip span{margin-top:8px;width:38px;height:4px;border-radius:2px;
+  background:rgba(255,255,255,.34);box-shadow:0 0 10px rgba(255,255,255,.14);
+  transition:background .3s ease,transform .3s ease}
+body.zen #menuGrip{opacity:.5;pointer-events:auto}
+body.zen #menuGrip:hover span,body.zen #menuGrip:active span{background:var(--accent);transform:scaleX(1.15)}
+body.zen #menuGrip.hint span{animation:gripHint 1.35s cubic-bezier(.4,0,.2,1) 3}
+@keyframes gripHint{0%,100%{transform:translateY(0);background:rgba(255,255,255,.34)}
+  45%{transform:translateY(6px) scaleX(1.2);background:var(--accent)}}
+
 @media (prefers-reduced-motion:reduce){
+  #menuGrip.hint span{animation:none}
+  #voidFx,#voidRing{transition:opacity .3s ease}
   #zenWave{transition:opacity .5s ease;transform:none}
   #zenWave.bloom{transform:none}
   #zenInfo{transition:opacity .4s ease}
@@ -1232,6 +1270,9 @@ body.zen #eqStrip{opacity:.85;height:18px}
   <div id="zenTag"></div>
 </div>
 <canvas id="eqStrip" aria-hidden="true"></canvas>
+<div id="voidRing" aria-hidden="true"></div>
+<div id="voidFx" aria-hidden="true"></div>
+<button id="menuGrip" type="button" aria-label="Show controls"><span></span></button>
 <div id="loadSpin" aria-hidden="true"><div class="ls-art"></div><span class="ls-txt">tuning the first track…</span></div>
 
 <!-- ================= top bar ================= -->
@@ -1987,6 +2028,7 @@ const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
+  menuGrip: $('menuGrip'), voidFx: $('voidFx'), voidRing: $('voidRing'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
@@ -8041,6 +8083,18 @@ function enterZen(){
   // after a long still sit, deepen: the info card crossfades to a corner whisper
   clearTimeout(zenDeepT);
   zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
+  // teach the play affordance — the grip bobs a hint, and just once ever a word
+  if (el.menuGrip){
+    el.menuGrip.classList.remove('hint'); void el.menuGrip.offsetWidth;   // restart the bob
+    el.menuGrip.classList.add('hint');
+    setTimeout(() => el.menuGrip && el.menuGrip.classList.remove('hint'), 4600);
+  }
+  try {
+    if (!localStorage.getItem('mb8_playhint')){
+      localStorage.setItem('mb8_playhint', '1');
+      toast('Touch the light to play with it — pull the handle ↓ up top for the controls.');
+    }
+  } catch (e){}
 }
 function wakeChrome(){
   // the elegant return, unhurried: waveform blooms first, the corner whisper
@@ -8072,7 +8126,15 @@ function pokeChrome(){
   }, 3800);
 }
 ['pointermove', 'pointerdown', 'touchstart'].forEach(evName =>
-  window.addEventListener(evName, pokeChrome, { passive: true }));
+  window.addEventListener(evName, ev => {
+    // In the immersive view, playing WITH the light (touching the canvas) must
+    // NOT summon the menu — that's the whole point of play mode. The controls
+    // return only when you reach for the grip. Outside zen, any interaction
+    // keeps the chrome awake exactly as before.
+    if (document.body.classList.contains('zen') && ev.target === el.canvas) return;
+    pokeChrome();
+  }, { passive: true }));
+if (el.menuGrip) el.menuGrip.addEventListener('click', () => pokeChrome());
 pokeChrome();
 
 /* keyboard */
@@ -10493,6 +10555,52 @@ const INTERACT = {
 }
 
 /* ================================================================
+   TOUCHFX — the BANK of touch responses, one drawn per frame from the
+   pointer's presence. Today it holds a single effect, the black hole:
+   a screen-space void that follows your hand while the shader's uPtr
+   repel curves every scene's field around it — so it reads the same on
+   all sixteen scenes and any added later. This is deliberately a
+   registry: new effects (swirl, ripple, bloom, shatter) drop in as more
+   entries, and the listener will pick from it — the first of the planned
+   customization banks (scenes · touch · audio · menu fx). The choice
+   persists; default is the black hole.
+   ================================================================ */
+const TOUCHFX = {
+  active: 'blackhole',
+  bank: {
+    blackhole: {
+      label: 'Black hole',
+      // s: 0..1 presence, x/y: screen px. Move + scale the void with the hand.
+      render(s, x, y){
+        const grow = 0.55 + s * 0.9;
+        if (el.voidFx){
+          el.voidFx.style.left = x + 'px'; el.voidFx.style.top = y + 'px';
+          el.voidFx.style.transform = 'translate(-50%,-50%) scale(' + grow.toFixed(3) + ')';
+          el.voidFx.classList.toggle('on', s > 0.02);
+        }
+        if (el.voidRing){
+          el.voidRing.style.left = x + 'px'; el.voidRing.style.top = y + 'px';
+          el.voidRing.style.transform = 'translate(-50%,-50%) scale(' + (grow * 1.04).toFixed(3) + ')';
+          el.voidRing.classList.toggle('on', s > 0.02);
+        }
+      },
+      idle(){ if (el.voidFx) el.voidFx.classList.remove('on'); if (el.voidRing) el.voidRing.classList.remove('on'); },
+    },
+  },
+  set(key){ if (this.bank[key]){ this.active = key; try { localStorage.setItem('mb8_touchfx', key); } catch (e){} } },
+  load(){ try { const k = localStorage.getItem('mb8_touchfx'); if (k && this.bank[k]) this.active = k; } catch (e){} },
+  render(){
+    const fx = this.bank[this.active]; if (!fx) return;
+    const s = INTERACT.strength;
+    if (s < 0.02){ fx.idle(); return; }
+    const x = (INTERACT.px * 0.5 + 0.5) * window.innerWidth;
+    const y = (0.5 - INTERACT.py * 0.5) * window.innerHeight;
+    fx.render(s, x, y);
+  },
+};
+TOUCHFX.load();
+
+/* ================================================================
    DWELL — dancing with your eyes, literally. Rest the pointer on the
    field and a ring charges; hold it ~2.6 s and the field answers —
    a soft shockwave and a chroma bloom through the colour conductor.
@@ -11525,6 +11633,7 @@ function frame(now){
 
   INTERACT.update(dt);
   DWELL.update(dt);
+  drawSafe('touchfx', () => TOUCHFX.render());   // the black-hole void follows the hand
   U.uPtr.value.set(INTERACT.px, INTERACT.py,
     INTERACT.strength * (reducedMotion ? 0.35 : 1));
 
