@@ -412,6 +412,24 @@ class TestNamesAndDates(TmpRepo):
         self.assertEqual(files, ["01-t-2.mp3"],
                          "two songs never share a public filename")
 
+    def test_loose_files_become_their_own_singles(self):
+        # the folder is the album; no folder means SINGLE — one one-track
+        # album per loose file, named after the song, like the starter
+        # catalog ships its singles
+        write_wav("masters/Solo One.mp3", synth_track(81))
+        write_wav("masters/Solo Two.mp3", synth_track(82))
+        self.masters({"Real Album": {"01-a.mp3": 83, "02-b.mp3": 84}})
+        self.build()
+        cat = self.catalog()
+        by_tag = {al["tag"]: al for al in cat["albums"]}
+        self.assertIn("solo-one", by_tag)
+        self.assertIn("solo-two", by_tag)
+        self.assertIn("real-album", by_tag)
+        self.assertEqual(len(by_tag["solo-one"]["tracks"]), 1)
+        self.assertEqual(by_tag["solo-one"]["title"], "Solo One")
+        self.assertEqual(by_tag["solo-one"]["tracks"][0]["title"], "Solo One")
+        self.assertEqual(len(by_tag["real-album"]["tracks"]), 2)
+
     def test_titles_are_tidied(self):
         self.assertEqual(mc.tidy_title("  mobius__walking   (bounce)​ "),
                          "mobius walking (bounce)")
@@ -468,6 +486,24 @@ class TestIngestConversion(TmpRepo):
         # a re-run converts nothing (mp3 twins exist) and adds nothing
         self.build()
         self.assertEqual(len(self.flat()), 2)
+
+    def test_the_folder_beats_the_embedded_album_tag(self):
+        # a stale iTunes album tag must never override the drag: the folder
+        # a song sits in IS the artist's statement of its album
+        write_wav("scratch2.wav", synth_track(85))
+        Path("masters/Night Drives").mkdir(parents=True)
+        subprocess.run([FFMPEG, "-nostdin", "-loglevel", "error",
+                        "-i", "scratch2.wav",
+                        "-metadata", "album=Echoes of Us Album II",
+                        "-metadata", "title=Neon Rain",
+                        "-codec:a", "libmp3lame", "-b:a", "128k",
+                        "masters/Night Drives/01-neon-rain.mp3"], check=True)
+        self.build()
+        cat = self.catalog()
+        self.assertEqual([al["tag"] for al in cat["albums"]], ["night-drives"])
+        self.assertEqual(cat["albums"][0]["title"], "Night Drives")
+        self.assertEqual(cat["albums"][0]["tracks"][0]["title"], "Neon Rain",
+                         "the TRACK title still comes from the tag")
 
 
 class TestCatalogMix(TmpRepo):
