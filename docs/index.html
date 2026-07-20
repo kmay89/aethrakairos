@@ -1401,9 +1401,14 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <p class="lede">Dragging out of Music copies the real files, and moving a song between folders
     later just re-files it — the publish date rides along. ② Publish:</p>
     <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; ./publish.sh</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
-    <p class="lede">It hashes, measures, renames, builds the catalog, runs the doctor, commits and
-    pushes. The site updates about a minute later; the porch's <i>Fresh pressing</i> and the deck's
-    pads pick the new tracks up on their own. Want the once-over without publishing?</p>
+    <p class="lede">It <b>updates its own tools first</b> (a quiet <span class="mono-inline">git
+    pull</span> — your inbox is never touched), then hashes, measures, renames, builds the catalog,
+    runs the doctor, commits and pushes. A first pressing of a whole library takes a while — minutes
+    of analysis, then a large first push; let it finish. The site updates about a minute after the
+    push; the porch's <i>Fresh pressing</i> and the deck's pads pick the new tracks up on their own.
+    Missing covers never block a release — the player draws a key-coloured monogram until you drop a
+    <span class="mono-inline">cover.png</span> into the album's folder. Want the once-over without
+    publishing?</p>
     <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; python3 make_catalog.py doctor</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <p class="lede"><b>Re-drag your whole library any time — repeats cannot happen.</b> Every file is
     hashed (an exact repeat is a no-op; a known file at a new path is treated as a move), and a
@@ -5993,7 +5998,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '806de176f9';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '59503148a0';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
