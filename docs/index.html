@@ -4,11 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Aethra Kairos — Official Player</title>
-<meta name="description" content="Aethra Kairos — the artist's own player: real music, a beatmixing engine, and an abstract-art visualizer that dances to it. Free, in your browser, no login. Dance with your eyes.">
-<meta property="og:title" content="Aethra Kairos — Official Player">
-<meta property="og:description" content="The artist's own instrument, powered by the Möbius⁸ engine. Music that paints — dance with your eyes.">
+<meta name="description" content="Music you don't just hear — music you watch dance. Aethra Kairos is the artist's own player: press play and a living visualizer moves to every beat. Free, in your browser, no login.">
+<meta property="og:site_name" content="Aethra Kairos">
+<meta property="og:title" content="Aethra Kairos — press play, watch it dance">
+<meta property="og:description" content="Music you don't just hear — music you watch dance. Press play and the art moves to every beat. Free, in your browser, no login. Powered by the Möbius⁸ engine.">
 <meta property="og:type" content="music.musician">
 <meta property="og:url" content="https://aethrakairos.com/">
+<meta property="og:image" content="https://aethrakairos.com/og-card.png">
+<meta property="og:image:secure_url" content="https://aethrakairos.com/og-card.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Aethra Kairos — a neon golden-spiral of light. Music you don't just hear, music you watch dance.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Aethra Kairos — press play, watch it dance">
+<meta name="twitter:description" content="Music you don't just hear — music you watch dance. Press play and the art moves to every beat. Free, in your browser.">
+<meta name="twitter:image" content="https://aethrakairos.com/og-card.png">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#05060e">
 <link rel="manifest" href="manifest.webmanifest">
@@ -6034,7 +6045,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '167893a72a';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'd4ec15d29a';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
