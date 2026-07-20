@@ -6356,7 +6356,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '788c8becd4';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '9fd7c4fe32';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -10697,8 +10697,16 @@ const PERF = {
       this.pr = Math.max(this.minPR, Math.round((this.pr - 0.15) * 100) / 100);
       renderer.setPixelRatio(this.pr); renderer.setSize(window.innerWidth, window.innerHeight);
     } else if (this.periodMs < 17.2 && this.pr < this.maxPR){ // headroom at 60: reclaim
-      this.pr = Math.min(this.maxPR, Math.round((this.pr + 0.1) * 100) / 100);
-      renderer.setPixelRatio(this.pr); renderer.setSize(window.innerWidth, window.innerHeight);
+      // predictive guard against HUNTING: pixel count (hence GPU time) scales
+      // with pr², so a naive step up can overshoot the downscale trigger and
+      // bounce straight back — an infinite up/down flicker, each step a
+      // framebuffer realloc. Only reclaim if the ESTIMATED period at the next
+      // ratio stays safely under the shed threshold.
+      const nextPR = Math.min(this.maxPR, Math.round((this.pr + 0.1) * 100) / 100);
+      if (this.periodMs * (nextPR / this.pr) * (nextPR / this.pr) < 19.0){
+        this.pr = nextPR;
+        renderer.setPixelRatio(this.pr); renderer.setSize(window.innerWidth, window.innerHeight);
+      }
     }
     // SELF-AWARE, NO LAG: if we've shed all the way to the floor and it STILL
     // can't hold ~42 fps, the device simply can't run the field. Rather than
