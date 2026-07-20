@@ -85,6 +85,22 @@ file's own dates carried over); a same-stem `.mp3` already beside a source
 wins. The public tree still serves only web MP3s, and masters still never
 enter the repo.
 
+**The folder is the album.** An album folder's *name* becomes the album's
+name — embedded album tags never override where you put a song (track
+titles still come from the tags; a stale iTunes `Album` field must not
+regroup your shelf). **Loose files at the masters root are singles**: each
+becomes its own one-track release named after the song, exactly the shape
+the starter catalog ships in. Moving a song between folders later just
+re-files it — the publish date rides along.
+
+```
+masters/
+  Echoes of Us Album I/     ← one folder per album; the name is the title
+  Echoes of Us Album II/
+  Echoes of Us Album III/
+  Zenith.mp3                ← loose at the root = its own single
+```
+
 **The dates are the artist's story.** A new track's `published` date is read
 from the file itself (birth time where the OS records one, else modification
 time — carried through conversion), sanity-clamped to `[2000, today]`. The
@@ -571,7 +587,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 ## Tests
 
 ```bash
-python3 tests/test_pipeline.py      # 37 tests: build, dedupe, ingest-convert, name-pick, gate, doctor, features, mix,
+python3 tests/test_pipeline.py      # 39 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
 node tests/player.test.mjs          # 58 tests: solver, quantum, history, restore, planner,

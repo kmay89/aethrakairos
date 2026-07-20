@@ -462,17 +462,32 @@ def build(args):
     seen_sha = {}
     moves = adds = noops = refused = 0
 
+    # THE FOLDER IS THE ALBUM. Where you put a song is your statement of
+    # what album it belongs to — a stale iTunes album tag must never
+    # override the drag. Loose files at the masters root are SINGLES:
+    # each becomes its own one-track album named after the song, exactly
+    # like the shipped starter singles.
+    masters_root = Path(args.masters).resolve()
+    scanned = []
     for album_dir, mp3s in scan_masters(args.masters):
+        if Path(album_dir).resolve() == masters_root:
+            scanned.extend((album_dir, [p], True) for p in mp3s)
+        else:
+            scanned.append((album_dir, mp3s, False))
+
+    for album_dir, mp3s, is_single in scanned:
         tags_list = [id3_parse(p) for p in mp3s]
         wizard_feats = load_wizard_report(album_dir)
 
-        album_title = majority(t["album"] for t in tags_list) or clean_name(album_dir.name)
+        album_title = (tidy_title(tags_list[0]["title"] or clean_name(mp3s[0].name))
+                       if is_single else tidy_title(clean_name(album_dir.name)))
         tag = slug(album_title)
         genre = majority(t["genre"] for t in tags_list)
         years = [t["year"] for t in tags_list if re.match(r"^\d{4}$", t["year"] or "")]
         year = int(majority(years)) if years else None
         info_file = album_dir / "info.txt"
-        info = info_file.read_text().strip() if info_file.exists() else ""
+        info = "" if is_single else (
+            info_file.read_text().strip() if info_file.exists() else "")
 
         tracks_out = []
         for order, (src, tags) in enumerate(zip(mp3s, tags_list), start=1):
@@ -601,7 +616,10 @@ def build(args):
 
         if not tracks_out:
             continue
-        art = pick_art(album_dir, tags_list, tag)
+        # a single's art comes from its own embedded picture — a stray
+        # cover.png at the masters root must not brand every single
+        art = pick_art(album_dir if not is_single else album_dir / "__single__",
+                       tags_list, tag)
         album = {"title": album_title, "tag": tag}
         if year:
             album["year"] = year

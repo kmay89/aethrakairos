@@ -1389,9 +1389,17 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <span class="mono-inline">mkdir -p</span> creates it if it isn't there yet, so this works on a
     fresh clone and in anyone's own fork:</p>
     <div class="cmd"><code>mkdir -p ~/aethrakairos/masters &amp;&amp; open ~/aethrakairos/masters</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
-    <p class="lede">…and drag songs from the Music app into it — one folder per album
-    (a <span class="mono-inline">Singles</span> folder is fine for loose tracks). Dragging out of
-    Music copies the real files. ② Publish:</p>
+    <p class="lede">…and drag songs from the Music app into it. <b>The folder is the album</b> —
+    the folder's name becomes the album's name, and a stale iTunes album tag can never override
+    where you put a song. <b>Loose files at the top level are singles</b>: each becomes its own
+    one-track release named after the song. The label's shelf today:</p>
+    <p class="lede" style="font-family:var(--mono);font-size:10px;line-height:1.9;white-space:pre">masters/
+  Echoes of Us Album I/     ← the three albums, one folder each
+  Echoes of Us Album II/
+  Echoes of Us Album III/
+  Zenith.mp3                ← everything else sits loose = a single</p>
+    <p class="lede">Dragging out of Music copies the real files, and moving a song between folders
+    later just re-files it — the publish date rides along. ② Publish:</p>
     <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; ./publish.sh</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <p class="lede">It hashes, measures, renames, builds the catalog, runs the doctor, commits and
     pushes. The site updates about a minute later; the porch's <i>Fresh pressing</i> and the deck's
@@ -5985,7 +5993,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '118472032b';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'a48aa8c19a';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
