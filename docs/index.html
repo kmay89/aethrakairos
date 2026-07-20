@@ -6659,7 +6659,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '308080d89b';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'b0f8eb05da';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -6871,10 +6871,10 @@ const EQ = {
   draw(f, dt){
     const cv = this.cv || (this.cv = el.eqStrip);
     if (!cv) return;
-    // give the frame budget to the scenes first — the strip is a grace note
-    if (typeof PERF !== 'undefined' && PERF.struggling){ const c = cv.getContext('2d'); if (c) c.clearRect(0,0,cv.width,cv.height); return; }
     const ctx = this.ctx || (this.ctx = cv.getContext('2d'));
     if (!ctx) return;
+    // give the frame budget to the scenes first — the strip is a grace note
+    if (typeof PERF !== 'undefined' && PERF.struggling){ ctx.clearRect(0, 0, cv.width, cv.height); return; }
     const w = cv.clientWidth, h = cv.clientHeight;
     if (!w || !h) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
