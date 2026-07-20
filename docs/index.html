@@ -2373,6 +2373,19 @@ const player = {
     else if (files.length > 1) openPlaylist(true);
   },
 
+  /* open the room on a fresh visit: a ready queue, cued PAUSED at the top so
+     one tap starts it (phones require the gesture). The catalog stays browsable
+     in the library — this is just the opening line, not the whole shelf. */
+  openWith(list){
+    if (!list || !list.length) return false;
+    this.tracks = list.slice();
+    this.cur = -1;
+    el.empty.classList.add('gone');
+    this.renderList();
+    this.prepare(0, 0);
+    return true;
+  },
+
   async playDemo(){
     if (this.demoTrack){
       const i = this.tracks.indexOf(this.demoTrack);
@@ -3695,6 +3708,27 @@ function freshPicks(tracks, counts, keyOf, nowMs){
     if (!hot || n > plays || (n === plays && (pub(t) || 0) > (pub(hot) || 0))){ hot = t; plays = n; }
   }
   return { hot, plays, crate, fresh };
+}
+
+/* openingSet — the first thing a first-time listener meets. Möbius Walking
+   leads the room (the signature track, analysed with a measured grid so the
+   whole engine engages), then the n freshest pressings the label has made,
+   newest first. Pure and testable; the hero falls back to the freshest track
+   if Möbius Walking isn't in the catalog, and to nothing if the shelf is bare
+   (the caller then shows the shipped demo). Duplicates and demos never enter. */
+function openingSet(tracks, keyOf, n){
+  const seen = new Set(), uniq = [];
+  for (const t of tracks || []){
+    const k = keyOf(t);
+    if (!k || t.demo || seen.has(k)) continue;
+    seen.add(k); uniq.push(t);
+  }
+  const pub = t => { const p = t.published ? Date.parse(t.published) : NaN; return isFinite(p) ? p : 0; };
+  let hero = uniq.find(t => /m[öo]bius\s+walking/i.test(t.title || ''));
+  const fresh = uniq.filter(t => t !== hero).sort((a, b) => pub(b) - pub(a));
+  if (!hero) hero = fresh.shift();
+  if (!hero) return [];
+  return [hero].concat(fresh.slice(0, n == null ? 10 : n));
 }
 
 /* a play counts at ≥50% or 60 seconds — the history threshold rule */
@@ -6034,7 +6068,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '167893a72a';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '42a2d4a333';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -10495,6 +10529,16 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) PERSI
         if (restored){
           player.renderList();
           toast('Restored — tap play to resume');
+        } else {
+          // a first visit: open with Möbius Walking + the 10 freshest pressings,
+          // cued paused. No catalog (or an empty one) → the shipped demo.
+          const set = openingSet(allTracks(), trackKey, 10);
+          if (set.length && player.openWith(set)){
+            const extra = set.length - 1;
+            toast('Möbius Walking' + (extra > 0 ? ' + ' + extra + ' fresh' : '') + ' — tap play');
+          } else {
+            player.playDemo();
+          }
         }
       }
     }
