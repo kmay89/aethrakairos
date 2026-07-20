@@ -6515,7 +6515,10 @@ function mixOf(t){
 }
 
 const MIXER = {
-  on: false,
+  on: true,                      // auto-mix is the default: beatmix when the grids
+                                 // agree, an honest crossfade when they don't — the
+                                 // planner (planTransition) refuses anything that
+                                 // wouldn't be great, so ON is always safe
   phase: 'idle',                 // idle | armed | running
   plan: null, next: -1,
   outDeck: null, startedAt: 0, overlap: 0,
@@ -6548,6 +6551,14 @@ const MIXER = {
 
   update(now, dt){
     if (!this.on){ return; }
+    // The mixer only OWNS a transition where the WebAudio graph can actually
+    // carry the blend — i.e. NOT iOS, where playback is element-direct and the
+    // OS locks element volume, so a crossfade is impossible and a cross-deck
+    // start while the screen is locked is an un-gestured background play iOS
+    // blocks (the music would stop after a song). On iOS every transition falls
+    // to the same-element advance in playIndex (the stayPut path), which keeps a
+    // pocketed phone playing. This is exactly what lets auto-mix default ON.
+    if (!AE.graphLive){ if (this.phase !== 'idle') this.cancel('direct'); return; }
     if (!player.playing || AE.mic.on || player.repeat === 'one'){
       if (this.phase !== 'idle') this.cancel();
       return;
@@ -6957,7 +6968,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '216353e1df';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'ee1b4d3c6b';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
