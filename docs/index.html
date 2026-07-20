@@ -262,15 +262,44 @@ body.zen .chrome{opacity:0;pointer-events:none}
   transition:border-color .15s,background .15s;
 }
 .fr-add:hover,.fr-add:focus-visible{border-color:rgba(180,200,240,.6);background:var(--glass-hard);outline:none}
-/* the quieter door — for when stillness is the answer, not sound */
-.fr-quiet{
-  margin-top:2px;font-size:11px;color:var(--faint);letter-spacing:.03em;line-height:1.6;
-  max-width:30em;text-decoration:none;transition:color .18s ease;
+/* just-opened guard: the tap that dismissed the onboarding must not fall
+   through onto these buttons ("the card disappears right away") */
+#firstRun.arming{pointer-events:none}
+/* the fork's other road — a clear, calm alternative to pressing play */
+.fr-or{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--faint);margin:2px 0}
+.fr-echoes{
+  display:flex;flex-direction:column;gap:2px;align-items:center;text-decoration:none;cursor:pointer;
+  padding:12px 22px;border-radius:14px;max-width:28em;
+  background:var(--glass);border:1px solid rgba(110,231,255,.3);
+  transition:transform .16s ease,border-color .16s ease,background .16s ease;
 }
-.fr-quiet b{color:var(--dim);font-weight:600}
-.fr-quiet .fr-quiet-go{color:var(--e)}
-.fr-quiet:hover,.fr-quiet:focus-visible{color:var(--dim);outline:none}
-.fr-quiet:hover b{color:var(--ink)}
+.fr-echoes:hover,.fr-echoes:focus-visible{
+  transform:translateY(-2px);border-color:rgba(110,231,255,.55);background:var(--glass-hard);outline:none;
+}
+.fr-echoes-t{font-size:13px;font-weight:600;color:var(--ink);letter-spacing:.02em}
+.fr-echoes-s{font-size:10.5px;color:var(--dim);letter-spacing:.02em;line-height:1.5}
+.fr-echoes-s b{color:var(--e);font-weight:600}
+/* the mindful-break prompt — a gentle, dismissible snackbar during a long sit */
+#breakPrompt{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(20px);
+  bottom:calc(94px + env(safe-area-inset-bottom));z-index:55;
+  display:none;flex-direction:column;gap:9px;align-items:stretch;
+  max-width:min(92vw,360px);padding:15px 17px;border-radius:16px;text-align:left;
+  background:var(--sheen),rgba(6,8,18,.92);border:1px solid rgba(110,231,255,.28);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  opacity:0;transition:opacity .4s ease,transform .4s ease;
+}
+#breakPrompt.in{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+.bp-t{font-size:13px;color:var(--ink);letter-spacing:.02em;line-height:1.5}
+.bp-t b{color:var(--e)}
+.bp-row{display:flex;gap:9px;justify-content:flex-end;align-items:center}
+.bp-later{font-size:11px;letter-spacing:.06em;color:var(--faint);background:none;border:none;cursor:pointer;padding:8px 10px}
+.bp-later:hover{color:var(--dim)}
+.bp-go{
+  font-size:11px;letter-spacing:.04em;color:var(--ink);cursor:pointer;text-decoration:none;
+  padding:9px 16px;border-radius:11px;background:var(--glass);border:1px solid rgba(110,231,255,.4);
+}
+.bp-go:hover,.bp-go:focus-visible{background:var(--glass-hard);border-color:rgba(110,231,255,.65);outline:none}
 @media (max-width:560px){
   .fr-more{flex-direction:column;align-items:stretch}
 }
@@ -1214,10 +1243,12 @@ body.zen .chrome{opacity:0;pointer-events:none}
     </div>
     <button class="btn big primary fr-build" type="button" id="frBuild">Build my set ▸</button>
   </div>
-  <div class="fr-install" id="frInstall" hidden></div>
-  <a class="fr-quiet" href="https://echoesofplay.com/" rel="noopener">
-    Not in the mood to move? <b>Echoes of Play</b> — a quieter place to sit, reflect, and journal. <span class="fr-quiet-go">→</span>
+  <div class="fr-or">or</div>
+  <a class="fr-echoes" href="https://echoesofplay.com/" target="_blank" rel="noopener noreferrer">
+    <span class="fr-echoes-t">Find stillness instead →</span>
+    <span class="fr-echoes-s"><b>Echoes of Play</b> — a quieter room to sit, reflect, and journal</span>
   </a>
+  <div class="fr-install" id="frInstall" hidden></div>
 </section>
 
 <!-- ============ onboarding — the why, told in five breaths ============ -->
@@ -1711,6 +1742,13 @@ body.zen .chrome{opacity:0;pointer-events:none}
 </div>
 
 <div id="toasts" aria-live="polite"></div>
+<div id="breakPrompt" role="dialog" aria-label="Take a mindful break">
+  <div class="bp-t">You've been in the flow a while. Want a <b>mindful break</b>? Echoes of Play is a quiet room to breathe, reflect, and journal — the music will be right here when you're back.</div>
+  <div class="bp-row">
+    <button class="bp-later" id="bpLater" type="button">Keep listening</button>
+    <a class="bp-go" id="bpGo" href="https://echoesofplay.com/" target="_blank" rel="noopener noreferrer">Take a break →</a>
+  </div>
+</div>
 <div id="dwellRing" aria-hidden="true"></div>
 <div id="plChooser" role="menu" aria-label="Add to playlist"></div>
 <div id="webglFail"><div>Aethra Kairos needs WebGL to render the field,<br>and this browser has it disabled.<br><br>Audio playback still works — try enabling hardware acceleration.</div></div>
@@ -1833,6 +1871,7 @@ const el = {
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
+  breakPrompt: $('breakPrompt'), bpLater: $('bpLater'), bpGo: $('bpGo'),
   fileInput: $('fileInput'),
   btnAdd: $('btnAdd'), btnChoose: $('btnChoose'), btnDemo: $('btnDemo'), btnCatalog: $('btnCatalog'),
   btnMic: $('btnMic'), btnPlaylist: $('btnPlaylist'), btnHelp: $('btnHelp'), btnFull: $('btnFull'),
@@ -6504,7 +6543,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'd150398589';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '1fb3da5491';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11083,6 +11122,12 @@ function firstRunOpen(){
   firstRunStat();
   frInstallSetup();
   el.firstRun.classList.add('open');
+  // the tap that dismissed the onboarding can synthesize a click that falls
+  // through onto our buttons the instant we appear — the card would "disappear
+  // right away". Ignore pointer events for a beat; a human needs longer than
+  // this to read and aim anyway.
+  el.firstRun.classList.add('arming');
+  setTimeout(() => el.firstRun.classList.remove('arming'), 450);
 }
 function firstRunClose(){ el.firstRun.classList.remove('open'); }
 
@@ -11142,9 +11187,49 @@ function crateEngage(tracks, label){
   if (!tracks.length) return false;
   firstRunClose();
   if (el.empty) el.empty.classList.add('gone');
+  // CONTINUOUS by default from the first tap — the set should never just stop
+  // and interrupt the flow. Loop the whole shelf; the listener can turn it off.
+  if (player.repeat === 'off'){
+    player.repeat = 'all';
+    if (el.btnRepeat){ el.btnRepeat.classList.add('on'); }
+  }
   PLAYLISTS.playTracks(tracks, label);          // leads with the crate, shelf stays browsable
+  MINDFUL.begin();                              // start counting toward a gentle break offer
   return true;
 }
+
+/* MINDFUL — the music runs continuous, but movement isn't the only medicine.
+   After a good long while IN the flow (counting only real playing time), the
+   room offers — once, gently, dismissibly — a mindful break at Echoes of Play.
+   "Keep listening" spaces the next offer well out; it never nags, never
+   interrupts the sound, and never appears if you're not actually playing. */
+const MINDFUL = {
+  played: 0, armed: false, showing: false, _timer: null,
+  FIRST: 24 * 60,                                // first offer after ~24 min of listening
+  AGAIN: 45 * 60,                                // then no sooner than ~45 min apart
+  next: 24 * 60,
+  begin(){
+    if (this.armed) return;                      // one ticker for the session
+    this.armed = true; this.played = 0; this.next = this.FIRST;
+    this._timer = setInterval(() => {
+      if (!player.playing || this.showing) return;   // only real, foreground listening counts
+      this.played++;
+      if (this.played >= this.next) this.offer();
+    }, 1000);
+  },
+  offer(){
+    if (this.showing || !el.breakPrompt) return;
+    this.showing = true;
+    el.breakPrompt.classList.add('in');
+  },
+  dismiss(){
+    this.showing = false;
+    this.played = 0; this.next = this.AGAIN;     // push the next one comfortably away
+    if (el.breakPrompt) el.breakPrompt.classList.remove('in');
+  },
+};
+if (el.bpLater) el.bpLater.addEventListener('click', () => MINDFUL.dismiss());
+if (el.bpGo) el.bpGo.addEventListener('click', () => MINDFUL.dismiss());   // the link opens a new tab; tidy the prompt away too
 /* the play-count map the FRESH rail uses, so "Hot this week" here and the
    library porch agree on what's hot */
 function weekCounts(nowMs){
