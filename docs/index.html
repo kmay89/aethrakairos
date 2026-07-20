@@ -339,6 +339,17 @@ body.zen .chrome{opacity:0;pointer-events:none}
 }
 .badge.hide{display:none}
 #bpmBadge b{color:var(--beat);font-weight:600}
+/* TAP — the listener's own beat, made a button. Flashes on each tap; glows
+   when a manual align is holding the grid. */
+.tapbtn{
+  flex:none;font-family:var(--mono);font-size:9px;letter-spacing:.14em;font-weight:600;
+  color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:5px;
+  padding:2px 7px;cursor:pointer;transition:color .15s,border-color .15s,background .15s;
+}
+.tapbtn:hover,.tapbtn:focus-visible{color:var(--ink);border-color:var(--accent-line);outline:none}
+.tapbtn.on{color:var(--beat);border-color:var(--beat)}
+.tapbtn.pulse{animation:tapPulse .28s ease-out}
+@keyframes tapPulse{0%{background:var(--accent-dim);transform:scale(1.12)}100%{background:transparent;transform:scale(1)}}
 .seekwrap{display:flex;align-items:center;gap:12px}
 .time{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:40px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
 .time.right{text-align:right}
@@ -1343,6 +1354,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
         <span class="nowart" id="nowArt" aria-hidden="true"></span>
         <span id="trackTitle" class="idle">Nothing loaded</span>
         <span class="badge hide" id="bpmBadge"><b>—</b> BPM</span>
+        <button class="tapbtn" id="btnTap" type="button" title="Tap the beat to lock it — tap along to set the downbeat, keep tapping to set the tempo (T)" aria-label="Tap the beat to lock the grid">TAP</button>
         <span class="nowmeta" id="nowMeta"></span>
       </div>
       <div class="seekwrap">
@@ -1428,6 +1440,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
       <div class="keyrow"><kbd>J</kbd> Journey console</div>
       <div class="keyrow"><kbd>D</kbd> The booth — watch the engine mix</div>
       <div class="keyrow"><kbd>M</kbd> Mute</div>
+      <div class="keyrow"><kbd>T</kbd> Tap the beat — lock the grid to your tap if it ever drifts</div>
       <div class="keyrow"><kbd>F</kbd> Fullscreen</div>
       <div class="keyrow"><kbd>H</kbd> Hide interface</div>
       <div class="keyrow"><kbd>?</kbd> This panel</div>
@@ -1709,7 +1722,7 @@ const el = {
   nowArt: $('nowArt'), nowMeta: $('nowMeta'), sortLabel: null,
   btnPrev: $('btnPrev'), btnPlay: $('btnPlay'), btnNext: $('btnNext'),
   icoPlay: $('icoPlay'), icoPause: $('icoPause'),
-  trackTitle: $('trackTitle'), bpmBadge: $('bpmBadge'),
+  trackTitle: $('trackTitle'), bpmBadge: $('bpmBadge'), btnTap: $('btnTap'),
   tCur: $('tCur'), tDur: $('tDur'),
   seek: $('seek'), seekFill: document.querySelector('#seek .fill'),
   seekBuf: document.querySelector('#seek .buf'), seekKnob: document.querySelector('#seek .knob'),
@@ -1923,7 +1936,43 @@ function primeDecks(){
 }
 ['pointerdown', 'keydown', 'touchend'].forEach(evName =>
   window.addEventListener(evName, () => { ensureResume(); primeDecks(); }, { passive: true }));
-document.addEventListener('visibilitychange', () => { if (!document.hidden) ensureResume(); });
+
+/* Returning from a backgrounded tab: rAF was frozen the whole time, so the
+   beat clock's sample window is stale and the transport state may have
+   drifted under the OS. Reconcile the moment we're visible again so the
+   waveform and the beat don't lurch, and the play button can't stick. The
+   clock's own wall-gap reset (clockSample) does the heavy lifting; this
+   makes the recovery instant and repairs the button. */
+function reconcileOnReturn(){
+  ensureResume();
+  // 1 · beat clock: drop the stale windows so the first frame back reads a
+  //     clean position instead of a leveraged, wrong rate
+  if (typeof CLOCK !== 'undefined' && CLOCK.mclk) clockReset(CLOCK.mclk);
+  if (typeof MIXER !== 'undefined'){
+    if (MIXER._clkA) clockReset(MIXER._clkA);
+    if (MIXER._clkB) clockReset(MIXER._clkB);
+  }
+  // 2 · play/pause can stick if the OS paused/resumed us while away — trust
+  //     the element, not our last belief (never mid-transition)
+  const d = (typeof activeDeck === 'function') ? activeDeck() : null;
+  const settling = (typeof AE !== 'undefined' && AE.xfading)
+    || (typeof MIXER !== 'undefined' && MIXER.phase === 'running');
+  if (typeof player !== 'undefined' && d && d.a && player.cur >= 0 && !d.priming && !settling){
+    const reallyPlaying = !d.a.paused && !d.a.ended;
+    if (reallyPlaying !== player.playing){
+      player.playing = reallyPlaying;
+      if (typeof updatePlayIcon === 'function') updatePlayIcon();
+      player.renderList();
+    }
+  }
+  // 3 · force one clean waveform remeasure so a URL-bar reflow doesn't leave
+  //     the canvas drawn at a stale width (the "zoom" on return)
+  if (typeof WAVE !== 'undefined' && WAVE.cv) WAVE.cv.width = 0;
+  // 4 · tell the OS where we actually are
+  if (typeof mediaSessionPosition === 'function') mediaSessionPosition();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileOnReturn(); });
+window.addEventListener('pageshow', e => { if (e.persisted) reconcileOnReturn(); });
 
 function escapeHTML(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2564,6 +2613,12 @@ const player = {
     const track = this.tracks[i];
     if (!track) return;
     ensureCtx();
+    // a new track starts on its own analyzed grid — drop any manual tap-align
+    if (typeof CLOCK !== 'undefined' && this.tracks[this.cur] !== track){
+      CLOCK.clearTap();
+      if (el.btnTap) el.btnTap.classList.remove('on');
+      if (typeof TAP !== 'undefined') TAP.m = [];
+    }
     if (typeof MIXER !== 'undefined') MIXER.cancel('manual');
     if (AE.mic.on) toggleMic();
     HIST.leave(this.tracks[this.cur], opts && opts.ended ? 'ended' : 'skip');
@@ -4370,17 +4425,25 @@ function countFlashes(trace){
    the regression, never the raw property.
    ================================================================ */
 function makeMediaClock(){
-  return { tw: [], tm: [], i: 0, n: 0, lastRaw: -1, a: 0, b: 1, ok: false };
+  return { tw: [], tm: [], i: 0, n: 0, lastRaw: -1, lastWall: -1, a: 0, b: 1, ok: false };
 }
 /* the ONLY correct way to reset: the regression reads indices 0..n-1, so a
    reset that leaves the write index i standing lets stale samples corrupt
    the next fit (found in review — all reset sites go through here) */
-function clockReset(c){ c.n = 0; c.i = 0; c.ok = false; c.lastRaw = -1; }
+function clockReset(c){ c.n = 0; c.i = 0; c.ok = false; c.lastRaw = -1; c.lastWall = -1; }
 function clockSample(c, wall, media){
   if (!(media > 0) || media === c.lastRaw) return;   // duplicate = no information
-  // discontinuity (seek, new track): the old window is a lie — start over
+  // discontinuity — the old window is a lie, start over — from either:
+  //   · a SEEK / new track: media jumps away from the prediction, OR
+  //   · a long WALL gap: a backgrounded tab / throttle / stall took no samples,
+  //     so on return the ring holds pre-gap points beside one post-gap point.
+  //     Both clocks may have advanced IN STEP (audio kept playing on the lock
+  //     screen), so the prediction test passes — yet that leveraged mix fits a
+  //     WRONG rate for ~12 frames (the playhead and the visuals run fast, the
+  //     placement reads off). A wall gap far larger than a frame means stale.
   if (c.ok && Math.abs((c.a + c.b * wall) - media) > 0.25) clockReset(c);
-  c.lastRaw = media;
+  else if (c.lastWall >= 0 && wall - c.lastWall > 0.5) clockReset(c);
+  c.lastRaw = media; c.lastWall = wall;
   c.tw[c.i] = wall; c.tm[c.i] = media;
   c.i = (c.i + 1) % 12;
   if (c.n < 12) c.n++;
@@ -4400,6 +4463,29 @@ function clockSample(c, wall, media){
   }
 }
 function clockRead(c, wall){ return c.ok ? c.a + c.b * wall : null; }
+
+/* TAP TEMPO — the listener taps the beat and we read tempo + confidence back
+   out. Pure: given the MEDIA-time instants of recent taps (the track's own
+   timeline, so it's playback-rate correct by construction), return a tempo
+   and how much to trust it. Confidence climbs with the number of taps and the
+   tightness of their spacing; a lone tap carries none (it sets phase only). */
+function tapTempo(times){
+  const n = times ? times.length : 0;
+  if (n < 2) return { bpm: 0, conf: 0, count: n, interval: 0 };
+  const iv = [];
+  // keep only sane beat-length intervals: a gap ≥ 2 s (a seek mid-count, or
+  // just a pause) is not a beat and would wreck the median and the confidence
+  for (let i = 1; i < n; i++){ const d = times[i] - times[i - 1]; if (d > 0 && d < 2) iv.push(d); }
+  if (!iv.length) return { bpm: 0, conf: 0, count: n, interval: 0 };
+  const med = median(iv);                            // even-length safe (averages the middle two)
+  const bpm = 60 / med;
+  if (!(bpm >= 40 && bpm <= 240)) return { bpm: 0, conf: 0, count: n, interval: med };
+  let mad = 0; for (const v of iv) mad += Math.abs(v - med);
+  mad /= iv.length;
+  const tight = Math.max(0, 1 - (med > 0 ? mad / med : 1) * 4);   // spacing steadiness
+  const enough = Math.min(1, iv.length / 3);                       // ~4 taps → full trust
+  return { bpm, conf: clamp01(tight * enough), count: n, interval: med };
+}
 
 /* The MIX NOW plan: the listener said "next" — blend from HERE, not from
    the end of the track. Same gates as planTransition (the piano rule, the
@@ -6245,7 +6331,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '0d78bb47e6';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '4ef1411a4f';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7297,6 +7383,7 @@ window.addEventListener('keydown', ev => {
     case 'j': case 'J': openConsole(!CON.open); break;
     case 'd': case 'D': BOOTH.toggle(); break;
     case 'm': case 'M': toggleMute(); break;
+    case 't': case 'T': TAP.hit(); break;
     case 'f': case 'F': toggleFullscreen(); break;
     case 'a': case 'A': director.setAuto(true); break;
     case 'h': case 'H':
@@ -7320,6 +7407,40 @@ window.addEventListener('keydown', ev => {
       else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, same answer as the gaze
   }
 });
+
+/* TAP — the listener's own beat, fed to the clock. Each tap is ground truth
+   about where the beat is (a stronger signal than any onset), so it re-anchors
+   the DOWNBEAT to the tapped instant; four steady taps also set the tempo.
+   The clock reads the tap in MEDIA time (the track's own timeline), so it's
+   playback-rate correct, and the anchor holds for this track until it changes
+   or the listener taps again. This is the manual recovery when a grid drifts. */
+const TAP = {
+  m: [],            // media-time instants of the current tap group (track seconds)
+  wLast: 0,         // wall time of the last tap, to detect a fresh count
+  hit(){
+    const d = activeDeck(), tr = player.tracks[player.cur];
+    if (!d || !d.a || !tr || player.cur < 0 || !player.playing || !isFinite(d.a.currentTime)){
+      toast('Play a track, then tap along with the beat'); return;
+    }
+    const wall = performance.now() / 1000;
+    if (wall - this.wLast > 2) this.m = [];        // a >2 s gap starts a fresh count
+    this.wLast = wall;
+    this.m.push(d.a.currentTime);
+    if (this.m.length > 8) this.m.shift();
+    const est = tapTempo(this.m);
+    // every tap re-sets the downbeat to this instant; adopt the tapped tempo
+    // once the spacing is steady enough to trust (else keep the analyzed BPM)
+    CLOCK.applyTap(d.a.currentTime, est.conf >= 0.5 ? est.bpm : 0, tr.id);
+    HAPTICS.pulse(true);
+    if (el.btnTap){
+      el.btnTap.classList.add('on');
+      el.btnTap.classList.remove('pulse'); void el.btnTap.offsetWidth; el.btnTap.classList.add('pulse');
+    }
+    if (est.bpm > 0 && est.conf >= 0.5) toast('Beat locked to your tap · <b>' + Math.round(est.bpm) + ' BPM</b>');
+    else if (this.m.length === 1) toast('Downbeat set — keep tapping to lock the tempo');
+  }
+};
+if (el.btnTap) el.btnTap.addEventListener('click', () => TAP.hit());
 
 /* ================================================================
    §8 · THREE — the field, sixteen scenes, and the director
@@ -9735,17 +9856,36 @@ const DWELL = {
    ================================================================ */
 const CLOCK = {
   haveGrid: false, beats: -1, idx: -1, phase: 0, barPhase: 0, phrasePhase: 0,
-  bpm: 0, period: 0.5, mclk: makeMediaClock(),
+  bpm: 0, period: 0.5, mclk: makeMediaClock(), tap: null, tapped: false,
   latency(){
     if (AE.graphLive && AE.ctx)
       return AE.ctx.outputLatency || AE.ctx.baseLatency || 0;
     return 0;                        // iOS direct-out: unknown, claim nothing
   },
+  /* the listener asserts the beat: re-anchor the DOWNBEAT to a tapped media
+     instant (this track only), and adopt a tapped tempo once it's trusted.
+     A hard, human ground truth — it overrides the analyzed grid until the
+     track changes. */
+  applyTap(mediaTime, bpm, id){
+    this.tap = { grid: mediaTime, bpm: bpm > 0 ? bpm : 0, id };
+    this.tapped = true;
+  },
+  clearTap(){ this.tap = null; this.tapped = false; },
   update(nowSec){
     const d = activeDeck();
     const tr = player.tracks[player.cur];
     const mix = (player.playing && !AE.mic.on && tr) ? mixOf(tr) : null;
-    if (!(mix && mix.bpm > 0 && mix.grid != null && d && isFinite(d.a.currentTime))){
+    // a manual TAP for THIS track wins over the analyzed grid
+    const tap = (this.tap && tr && this.tap.id === tr.id) ? this.tap : null;
+    let grid = null, bpm = 0, phrases = 32;
+    if (tap){
+      grid = tap.grid;
+      bpm = tap.bpm > 0 ? tap.bpm : (mix && mix.bpm > 0 ? mix.bpm : 0);
+      phrases = (mix && mix.phrases) || 32;
+    } else if (mix && mix.bpm > 0 && mix.grid != null){
+      grid = mix.grid; bpm = mix.bpm; phrases = mix.phrases || 32;
+    }
+    if (!(bpm > 0 && grid != null && d && player.playing && !AE.mic.on && isFinite(d.a.currentTime))){
       this.haveGrid = false; this.beats = -1; this.idx = -1;
       clockReset(this.mclk);
       return;
@@ -9753,15 +9893,15 @@ const CLOCK = {
     clockSample(this.mclk, nowSec, d.a.currentTime);
     const rate = d.a.playbackRate || 1;
     const pos = this.mclk.ok ? clockRead(this.mclk, nowSec) : d.a.currentTime;
-    const b = (pos - this.latency() * rate - mix.grid) / (60 / mix.bpm);
+    const b = (pos - this.latency() * rate - grid) / (60 / bpm);
     if (b < 0){ this.haveGrid = false; this.beats = -1; this.idx = -1; return; }
     this.haveGrid = true;
     this.beats = b;
     this.idx = Math.floor(b);
     this.phase = b % 1;
     this.barPhase = (b / 4) % 1;
-    this.phrasePhase = (b / ((mix.phrases || 32))) % 1;
-    this.bpm = mix.bpm * rate;
+    this.phrasePhase = (b / phrases) % 1;
+    this.bpm = bpm * rate;
     this.period = 60 / this.bpm;
   },
 };
