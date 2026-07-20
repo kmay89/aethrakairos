@@ -121,7 +121,13 @@ body.zen #glcanvas{cursor:none}
   box-shadow:0 0 44px -6px rgba(130,190,255,.6);animation:spLon 1.25s linear infinite}
 #loadSpin .ls-txt{font-size:11px;letter-spacing:.14em;color:var(--dim);text-transform:lowercase;
   text-shadow:0 1px 12px rgba(0,0,0,.6)}
-@media (prefers-reduced-motion:reduce){ #loadSpin .ls-art{animation-duration:2.4s} }
+/* the loading sphere fans OUT into whatever comes next — it swells and
+   dissolves, flat-from-orb, the same trick the controls do in reverse */
+#loadSpin .ls-art{transition:transform .72s cubic-bezier(.3,0,.15,1),opacity .72s ease,box-shadow .72s ease}
+#loadSpin.fanout{opacity:0;transition:opacity .72s ease}
+#loadSpin.fanout .ls-art{transform:scale(2.7);opacity:0;box-shadow:0 0 130px 8px rgba(130,190,255,.5)}
+@media (prefers-reduced-motion:reduce){ #loadSpin .ls-art{animation-duration:2.4s}
+  #loadSpin.fanout .ls-art{transform:none} }
 @media (prefers-reduced-motion:reduce){ #splash .sp-art{animation:none} #splash{transition:opacity .4s ease} }
 
 /* double-tap zoom is meaningless in a fullscreen instrument and only ever
@@ -134,6 +140,19 @@ html,body{touch-action:manipulation}
    snap — the waveform leads, these ease up a beat behind */
 .chrome{transition:opacity .8s ease,transform .8s cubic-bezier(.22,1,.36,1)}
 body.zen .chrome{opacity:0;pointer-events:none;transform:translateY(12px)}
+/* THE TABLECLOTH TRICK — going immersive, the flat controls are SUCKED into the
+   corner sphere (they scale down into the orb's point); on return they FAN back
+   out flat from it. Scoped to the play-chrome (the top bar + the transport), so
+   every dialog keeps its own gentle fade. transform-origin aims the collapse at
+   the orb in the bottom-right; a soft curve carries the fan-out. */
+.topbar{transform-origin:100% 6%}
+#transport{transform-origin:88% 128%}
+body.zen .topbar,body.zen #transport{
+  transition:opacity .66s ease,transform .72s cubic-bezier(.5,0,.2,1)}
+body.zen .topbar{opacity:0;transform:scale(.42) translateY(-14px)}
+body.zen #transport{opacity:0;transform:scale(.08)}
+@media (prefers-reduced-motion:reduce){
+  body.zen .topbar,body.zen #transport{transform:none}}
 
 /* ============ the visualizer's quiet HUD — lives OUTSIDE .chrome, so it
    survives when the controls sleep (zen). A minimal now-playing card the
@@ -2305,9 +2324,28 @@ function ensureResume(){
    ever shows on a real wait — the wait then reads as the instrument warming up,
    not a stuck button. Cleared the moment true audio flows (or on stop/error). */
 const LOADER = {
-  t: null,
-  begin(){ clearTimeout(this.t); this.t = setTimeout(() => { if (el.loadSpin) el.loadSpin.classList.add('show'); }, 220); },
-  done(){ clearTimeout(this.t); if (el.loadSpin) el.loadSpin.classList.remove('show'); },
+  t: null, _fan: null, _shownAt: 0,
+  begin(){
+    clearTimeout(this.t); clearTimeout(this._fan);
+    if (el.loadSpin) el.loadSpin.classList.remove('fanout');
+    this.t = setTimeout(() => { if (el.loadSpin){ el.loadSpin.classList.add('show'); this._shownAt = performance.now(); } }, 220);
+  },
+  done(){
+    clearTimeout(this.t);
+    const s = el.loadSpin; if (!s) return;
+    if (s.classList.contains('show') && !s.classList.contains('fanout')){
+      // give the sphere a moment to be seen, then let it FAN OUT into the app
+      const seen = performance.now() - this._shownAt;
+      const wait = Math.max(0, 360 - seen);              // ensure a beat of appreciation
+      clearTimeout(this._fan);
+      this._fan = setTimeout(() => {
+        s.classList.add('fanout');
+        this._fan = setTimeout(() => s.classList.remove('show', 'fanout'), 740);
+      }, wait);
+    } else {
+      s.classList.remove('show');
+    }
+  },
 };
 
 /* iOS blesses a media element only after a gesture-driven play(). The decks
@@ -7006,7 +7044,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '1936a5fabd';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '50814b9096';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
