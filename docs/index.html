@@ -984,7 +984,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
 <section id="emptyState" class="chrome">
   <h1 class="hero-line">This is <em>Aethra Kairos</em>.</h1>
   <p class="hero-sub">Music that paints. Every frequency bin is projected through the Möbius⁸ field and placed
-  on the spiral — fifteen scenes, a beat-aware director, a colour engine that reads the key of the song.
+  on the spiral — sixteen scenes, a beat-aware director, a colour engine that reads the key of the song.
   Press play and dance with your eyes.</p>
   <div class="hero-actions">
     <button class="btn big" id="btnChoose">Choose audio files</button>
@@ -1401,9 +1401,14 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <p class="lede">Dragging out of Music copies the real files, and moving a song between folders
     later just re-files it — the publish date rides along. ② Publish:</p>
     <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; ./publish.sh</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
-    <p class="lede">It hashes, measures, renames, builds the catalog, runs the doctor, commits and
-    pushes. The site updates about a minute later; the porch's <i>Fresh pressing</i> and the deck's
-    pads pick the new tracks up on their own. Want the once-over without publishing?</p>
+    <p class="lede">It <b>updates its own tools first</b> (a quiet <span class="mono-inline">git
+    pull</span> — your inbox is never touched), then hashes, measures, renames, builds the catalog,
+    runs the doctor, commits and pushes. A first pressing of a whole library takes a while — minutes
+    of analysis, then a large first push; let it finish. The site updates about a minute after the
+    push; the porch's <i>Fresh pressing</i> and the deck's pads pick the new tracks up on their own.
+    Missing covers never block a release — the player draws a key-coloured monogram until you drop a
+    <span class="mono-inline">cover.png</span> into the album's folder. Want the once-over without
+    publishing?</p>
     <div class="cmd"><code>cd ~/aethrakairos &amp;&amp; python3 make_catalog.py doctor</code><button class="cmd-copy" type="button" aria-label="Copy command">COPY</button></div>
     <p class="lede"><b>Re-drag your whole library any time — repeats cannot happen.</b> Every file is
     hashed (an exact repeat is a no-op; a known file at a new path is treated as a move), and a
@@ -5993,7 +5998,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'a48aa8c19a';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '59503148a0';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7070,7 +7075,7 @@ window.addEventListener('keydown', ev => {
 });
 
 /* ================================================================
-   §8 · THREE — the field, fifteen scenes, and the director
+   §8 · THREE — the field, sixteen scenes, and the director
    ================================================================ */
 let renderer, scene, camera, three_ok = true;
 
@@ -9933,6 +9938,177 @@ function syncSceneDots(){
   [...el.sceneDots.children].forEach((d, i) => d.classList.toggle('on', i === director.active));
 }
 
+/* =========================================================
+   Scene 16 — AUREA  (the golden engine)
+   One cloud of nine thousand points whose positions are FUNCTIONS of
+   their index — the golden angle does all the composing. Five forms:
+   the sunflower disc, the vortex, the golden-rose mandala, torus
+   KNOTS whose windings walk the Fibonacci pairs (2,3 → 3,5 → 5,8 →
+   8,13 — each knot literally the next ratio's approach to φ), and
+   the phyllotaxis sphere. The scene lives in permanent slow morph:
+   it dwells on a form for musical bars, then EVOLVES into the next —
+   because every form is a continuous function of the same index, the
+   in-between shapes are real geometry, not crossfades. Colour runs
+   in parastichy families (index mod a Fibonacci number — the spiral
+   arms the eye finds in a sunflower head), palette-rooted but pushed
+   to full NEON as the music's energy peaks. Mesmerize, evolve, glow.
+   ========================================================= */
+function buildAurea(){
+  const group = new THREE.Group();
+  const N = 9000;
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() },
+    uMorph: { value: 0 }, uFormA: { value: 0 }, uFormB: { value: 2 },
+    uSpin: { value: 0 }, uFib: { value: 13 }, uNeon: { value: 0.3 },
+    uPQa: { value: new THREE.Vector2(2, 3) }, uPQb: { value: new THREE.Vector2(3, 5) },
+    uPulse: { value: 0 },
+  };
+  const aI = new Float32Array(N);
+  for (let i = 0; i < N; i++) aI[i] = i;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  geo.setAttribute('aI', new THREE.BufferAttribute(aI, 1));
+  const vert = VERT_POINT_HEAD + `
+    attribute float aI;
+    uniform float uVarA, uVarB, uMorph, uFormA, uFormB, uSpin, uFib, uPulse;
+    uniform vec2 uPQa, uPQb;
+    varying float vFam; varying float vAcc; varying float vNear;
+    const float GA = 2.39996322972865332;   // the golden angle
+    const float TAU = 6.28318530717958648;
+    vec3 formPos(float f, float i, float t, vec2 pq){
+      float a = i * GA + uSpin;
+      if (f < 0.5){                          // DISC — the sunflower head, gently domed
+        float r = 16.5 * sqrt(t);
+        return vec3(cos(a) * r, sin(a) * r,
+                    (0.5 - t) * 5.0 + sin(t * 9.0 + uTime * 0.5) * (0.5 + uEnergy * 1.2));
+      }
+      if (f < 1.5){                          // VORTEX — the head pulled into a tornado
+        float r = 2.5 + 15.0 * t;
+        return vec3(cos(a * 1.2) * r, (0.5 - t) * 27.0, sin(a * 1.2) * r);
+      }
+      if (f < 2.5){                          // MANDALA — a golden rose, uFib petals
+        float r = 16.5 * sqrt(t) * (0.42 + 0.58 * abs(cos(a * uFib * 0.5 + uTime * 0.15)));
+        return vec3(cos(a) * r, sin(a) * r,
+                    (0.5 - t) * 4.0 + cos(r * 0.5 - uTime * 0.7) * 2.0);
+      }
+      if (f < 3.5){                          // KNOT — a Fibonacci torus knot, made thick
+        float u = t * TAU;
+        float rr = 2.0 + cos(pq.y * u + uSpin * 0.4);
+        vec3 c = vec3(rr * cos(pq.x * u), rr * sin(pq.x * u), sin(pq.y * u + uSpin * 0.4)) * 5.2;
+        float h1 = fract(i * 0.7548776), h2 = fract(i * 0.5698402), h3 = fract(i * 0.3819660);
+        return c + (vec3(h1, h2, h3) - 0.5) * (1.8 + uBass * 2.2);
+      }
+      float y = 1.0 - 2.0 * t;               // SPHERE — phyllotaxis on the shell
+      float rad = sqrt(max(0.0, 1.0 - y * y));
+      return vec3(cos(a) * rad, y, sin(a) * rad) * (12.5 + uBass * 3.5);
+    }
+    void main(){
+      float t = (aI + 0.5) / ${N}.0;
+      vec3 pA = formPos(uFormA, aI, t, uPQa);
+      vec3 pB = formPos(uFormB, aI, t, uPQb);
+      float m = smoothstep(0.0, 1.0, uMorph);
+      vec3 p = mix(pA, pB, m);
+      // the breath: the whole organism swells on the danced pulse
+      p *= 1.0 + uPulse * 0.05 + uBeat * 0.02;
+      vFam = fract(mod(aI, uFib) / uFib + uVarB);
+      vAcc = step(mod(aI, uFib), 0.5);       // one point per family leads
+      vT = t; vGlow = uBeat * 0.5;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      // the camera may fly THROUGH the organism: cap the perspective blow-up
+      // and fade points that pass too close, or near points white the frame
+      vNear = smoothstep(2.0, 7.0, -mv.z);
+      gl_PointSize = min((1.5 + vAcc * 1.7 + uBeat * 1.0 + uPulse * 0.7)
+                     * (1.0 + uEnergy * 0.35) * (300.0 / -mv.z), 7.5);
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform vec3 uColA, uColB, uColC;
+    uniform float uOpacity, uBeat, uEnergy, uNeon, uVarA, uTime;
+    varying float vFam; varying float vAcc; varying float vGlow; varying float vT;
+    varying float vNear;
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r); a *= a;
+      // parastichy families carry the palette; NEON is the same hue wheel
+      // pushed to electric saturation, blended in as the music demands it
+      vec3 pal = vFam < 0.5 ? mix(uColA, uColB, vFam * 2.0)
+                            : mix(uColB, uColC, vFam * 2.0 - 1.0);
+      vec3 neon = hsv(fract(vFam + uVarA + vT * 0.15 + uTime * 0.012), 0.92, 1.0);
+      vec3 col = mix(pal, neon, uNeon);
+      // additive discipline: thousands of points stack, so each speaks
+      // quietly — the neon reads as SATURATION, never as a white-out
+      col *= 0.40 + vGlow * 0.42 + vAcc * 0.30 + uEnergy * 0.25;
+      gl_FragColor = vec4(col, a * uOpacity * vNear * (0.17 + vAcc * 0.17));
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+  group.visible = false;
+  scene.add(group);
+
+  const SEQ = [0, 2, 1, 3, 4, 3, 2];        // disc→mandala→vortex→knot→sphere→knot→mandala→…
+  const FIBS = [5, 8, 13, 21, 34];
+  const PAIRS = [[2, 3], [3, 5], [5, 8], [8, 13]];
+  const st = { beats: 0, seq: 0, pair: 0, fib: 2 };
+  const DWELL = 24, MORPH = 8, CYCLE = DWELL + MORPH;
+
+  function advance(){
+    st.seq = (st.seq + 1) % SEQ.length;
+    varU.uFormA.value = varU.uFormB.value;
+    varU.uPQa.value.copy(varU.uPQb.value);
+    const next = SEQ[(st.seq + 1) % SEQ.length];
+    varU.uFormB.value = next;
+    if (next === 3){                          // the next knot walks the Fibonacci pairs
+      st.pair = (st.pair + 1) % PAIRS.length;
+      varU.uPQb.value.set(PAIRS[st.pair][0], PAIRS[st.pair][1]);
+    }
+    st.fib = (st.fib + 1) % FIBS.length;      // the parastichy families re-deal
+    varU.uFib.value = FIBS[st.fib];
+  }
+
+  return { name: 'AUREA', group,
+    update(dt){
+      const f = AE.f;
+      // the spin precesses like the pattern is still growing
+      varU.uSpin.value += dt * (0.05 + f.energy * 0.22
+        + (typeof DANCE !== 'undefined' ? DANCE.pulse * 0.10 : 0));
+      varU.uPulse.value = typeof DANCE !== 'undefined' ? Math.max(0, DANCE.pulse) : 0;
+      // dwell for bars, then EVOLVE into the next form — on the beat grid
+      const period = (typeof CLOCK !== 'undefined' && CLOCK.haveGrid && CLOCK.period > 0.2)
+        ? CLOCK.period : 0.5;
+      st.beats += dt / period;
+      if (st.beats >= CYCLE){ st.beats -= CYCLE; advance(); }
+      varU.uMorph.value = clamp01((st.beats - DWELL) / MORPH);
+      // NEON rides the music: palette in the calm, electric at the peaks
+      const heat = (typeof director !== 'undefined' && director.phase === 'peak') ? 0.35 : 0;
+      varU.uNeon.value += ((clamp01(0.18 + f.eShort * 0.95 + heat) * 0.95)
+        - varU.uNeon.value) * (1 - Math.exp(-dt / 0.8));
+      // a slow celestial tumble so the knots read as solids
+      group.rotation.y += dt * 0.05 * (1 + f.energy);
+      group.rotation.x = Math.sin(U.uTime.value * 0.05) * 0.35;
+    },
+    roll(){
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random();
+      st.seq = (Math.random() * SEQ.length) | 0;
+      st.beats = 0;
+      varU.uFormA.value = SEQ[st.seq];
+      varU.uFormB.value = SEQ[(st.seq + 1) % SEQ.length];
+      varU.uMorph.value = 0;
+    } };
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -9952,7 +10128,7 @@ function initThree(){
   initAudioTexture();
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
-              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor());
+              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea());
 
   // scene dots
   scenes.forEach((s, i) => {

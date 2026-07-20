@@ -17,6 +17,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# the loop keeps its own tools fresh: pull the label's latest pipeline
+# before building (masters/ is untracked, so your inbox is never touched)
+git pull --rebase --autostash --quiet \
+  || echo "! could not pull the latest tools — building with what's here"
+
 MASTERS="${1:-masters}"
 shift || true
 
