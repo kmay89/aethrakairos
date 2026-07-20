@@ -7045,7 +7045,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '1ab8a159e6';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '6d17e7721a';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11841,9 +11841,15 @@ const LENS_IRIS = `
   }`;
 const LENS = {
   active: 'none',
-  order: ['none', 'mirrors', 'moire', 'iris'],
-  labels: { none: 'NONE', mirrors: 'MIRRORS', moire: 'MOIRÉ', iris: 'IRIS' },
-  concepts: { mirrors: 'N-fold symmetry', moire: 'wave interference', iris: 'a breathing aperture' },
+  // a SHORT, curated ring — the singles, then two hand-picked STACKS that show
+  // the engine composing. Not an endless menu: composition is proven with two.
+  order: ['none', 'mirrors', 'moire', 'iris', 'mirrors+moire', 'mirrors+iris'],
+  labels: { none: 'NONE', mirrors: 'MIRRORS', moire: 'MOIRÉ', iris: 'IRIS',
+    'mirrors+moire': 'MIRRORS×MOIRÉ', 'mirrors+iris': 'MIRRORS×IRIS' },
+  concepts: { mirrors: 'N-fold symmetry', moire: 'wave interference', iris: 'a breathing aperture',
+    'mirrors+moire': 'symmetry × interference', 'mirrors+iris': 'symmetry, seen through an aperture' },
+  // a stack is just an ordered list of single lenses the chain runs in sequence
+  stacks: { 'mirrors+moire': ['mirrors', 'moire'], 'mirrors+iris': ['mirrors', 'iris'] },
   scale: 0.7,
   _ready: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
   _init(){
@@ -11865,7 +11871,11 @@ const LENS = {
     this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS) };
     this._ready = true;
   },
-  chain(){ return this.active === 'none' ? [] : [this._mats[this.active]]; },   // single for now; stack-ready
+  chain(){
+    if (this.active === 'none' || !this._mats) return [];     // render() inits before this matters
+    const keys = this.stacks[this.active] || [this.active];   // a stack runs its lenses in order
+    return keys.map(k => this._mats[k]);
+  },
   set(key, save){
     if (!(key in this.labels)) key = 'none';
     this.active = key;
