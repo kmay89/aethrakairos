@@ -266,6 +266,69 @@ body.zen .chrome{opacity:0;pointer-events:none}
   .fr-more{flex-direction:column;align-items:stretch}
 }
 
+/* ============ onboarding — the why, told in five breaths ============ */
+#onboard{
+  position:fixed;inset:0;z-index:62;display:none;      /* above the welcome card (z60) */
+  flex-direction:column;align-items:center;justify-content:center;
+  padding:30px 24px;text-align:center;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 38%,rgba(10,14,30,.55),rgba(3,4,10,.90) 82%);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+}
+#onboard.open{display:flex}
+.ob-skip{
+  position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);
+  background:none;border:none;cursor:pointer;padding:6px;
+}
+.ob-skip:hover{color:var(--dim)}
+.ob-stage{position:relative;width:100%;max-width:34em;flex:0 1 auto;display:flex;align-items:center;justify-content:center}
+.ob-panel{
+  display:none;flex-direction:column;gap:14px;align-items:center;
+  animation:obIn .5s cubic-bezier(.2,.7,.2,1) both;
+}
+.ob-panel.on{display:flex}
+@keyframes obIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.ob-kicker{font-size:9.5px;letter-spacing:.32em;text-transform:uppercase;color:var(--pi)}
+.ob-title{
+  font-family:var(--serif);font-style:italic;font-weight:500;
+  font-size:clamp(28px,5.6vw,46px);line-height:1.1;max-width:15em;
+  text-shadow:0 4px 44px rgba(0,0,0,.7);
+}
+.ob-title em{font-style:italic;background:var(--axis);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ob-body{font-size:13.5px;color:var(--dim);letter-spacing:.02em;line-height:1.72;max-width:30em}
+.ob-body b{color:var(--ink);font-weight:600}
+.ob-soon{
+  display:inline-block;margin-top:2px;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--e);border:1px solid var(--line);border-radius:999px;padding:3px 10px;
+}
+/* the navigation rail: dots + back/next, with a big Enter on the last breath */
+.ob-nav{
+  position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+}
+.ob-dots{display:flex;gap:8px}
+.ob-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--line);cursor:pointer;
+  border:none;padding:0;transition:background .2s,transform .2s;
+}
+.ob-dot.on{background:var(--accent);transform:scale(1.3)}
+.ob-btns{display:flex;align-items:center;gap:12px}
+.ob-back{
+  font-size:11px;letter-spacing:.08em;color:var(--faint);background:none;border:none;cursor:pointer;padding:8px 10px;
+}
+.ob-back:hover{color:var(--dim)}
+.ob-back[hidden]{visibility:hidden;display:inline-block}
+.ob-next,.ob-enter{
+  font-size:12px;letter-spacing:.06em;color:var(--ink);cursor:pointer;
+  padding:11px 26px;border-radius:13px;border:1px solid transparent;
+  background:linear-gradient(var(--glass-hard),var(--glass-hard)) padding-box,var(--axis) border-box;
+  box-shadow:0 0 34px rgba(110,231,255,.12),0 0 34px rgba(255,180,84,.10);
+  transition:transform .16s ease,box-shadow .16s ease;
+}
+.ob-next:hover,.ob-enter:hover,.ob-next:focus-visible,.ob-enter:focus-visible{
+  transform:translateY(-2px);outline:none;box-shadow:0 0 50px rgba(110,231,255,.2),0 0 50px rgba(255,180,84,.15);
+}
+
 /* ============ drop overlay ============ */
 #dropOverlay{
   position:fixed;inset:12px;z-index:90;border-radius:22px;
@@ -1071,6 +1134,10 @@ body.zen .chrome{opacity:0;pointer-events:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11M8 10l4 4 4-4M5 19h14"/></svg>
         <span class="lbl">Install</span>
       </button>
+      <button class="btn icon" id="btnIntro" role="menuitem" aria-label="What is this — replay the intro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="M12 10.5v6"/><circle cx="12" cy="7.6" r=".5" fill="currentColor"/></svg>
+        <span class="lbl mob-only">What is this?</span>
+      </button>
       <button class="btn icon" id="btnHelp" role="menuitem" aria-label="Help and keyboard shortcuts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9.3 9a2.8 2.8 0 1 1 3.9 2.6c-.9.4-1.2 1-1.2 1.9"/><circle cx="12" cy="17.2" r=".4" fill="currentColor"/><circle cx="12" cy="12" r="9.2"/></svg>
         <span class="lbl mob-only">Help</span>
@@ -1139,6 +1206,47 @@ body.zen .chrome{opacity:0;pointer-events:none}
     <button class="btn big primary fr-build" type="button" id="frBuild">Build my set ▸</button>
   </div>
   <div class="fr-install" id="frInstall" hidden></div>
+</section>
+
+<!-- ============ onboarding — the why, told in five breaths ============ -->
+<section id="onboard" role="dialog" aria-modal="true" aria-label="What Aethra Kairos is">
+  <button class="ob-skip" id="obSkip" type="button">Skip</button>
+  <div class="ob-stage" id="obStage">
+    <div class="ob-panel on">
+      <span class="ob-kicker">An instrument, not an app</span>
+      <h1 class="ob-title">Music you can <em>see, hear, and touch.</em></h1>
+      <p class="ob-body">Aethra Kairos is built from two languages — <b>mathematics</b> and <b>AI</b> — woven into one instrument. Press play, and sound becomes light.</p>
+    </div>
+    <div class="ob-panel">
+      <span class="ob-kicker">One artist · every piece by hand</span>
+      <h1 class="ob-title">A library of <em>feelings, placed in space.</em></h1>
+      <p class="ob-body">Each track is a point in a living field — a feeling the artist shaped <b>by hand</b> and set among the stars. The library has no end; it only grows.</p>
+    </div>
+    <div class="ob-panel">
+      <span class="ob-kicker">You're not a spectator</span>
+      <h1 class="ob-title">It moves <em>to you.</em></h1>
+      <p class="ob-body">Choose a mood, tap the beat, drag the light, pick a vibe. The visuals, the mix, the colour — all bend to the song <b>and to your hand</b>.</p>
+    </div>
+    <div class="ob-panel">
+      <span class="ob-kicker">Open by design</span>
+      <h1 class="ob-title">Every song carries its <em>DNA.</em></h1>
+      <p class="ob-body">The engine reads each track's measured DNA — its <b>pulse, its key, its shape</b> — to paint and to mix. Soon that DNA opens up, <b>versioned like code</b>, so you can remix, modify, and make new things from it.</p>
+      <span class="ob-soon">The DNA library · coming soon</span>
+    </div>
+    <div class="ob-panel">
+      <span class="ob-kicker">Made for you</span>
+      <h1 class="ob-title">This was built <em>for you.</em></h1>
+      <p class="ob-body">Not to sell you anything — to give you a place to feel, to wander, to be inspired, and maybe to create. <b>Press play. It's yours.</b></p>
+    </div>
+  </div>
+  <div class="ob-nav">
+    <div class="ob-dots" id="obDots" role="tablist" aria-label="Onboarding steps"></div>
+    <div class="ob-btns">
+      <button class="ob-back" id="obBack" type="button" hidden>← Back</button>
+      <button class="ob-next" id="obNext" type="button">Next →</button>
+      <button class="ob-enter" id="obEnter" type="button" hidden>Enter ✦</button>
+    </div>
+  </div>
 </section>
 
 <div id="dropOverlay"><span>Release to add to the field</span></div>
@@ -6356,7 +6464,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '9fd7c4fe32';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'a88fea0dca';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11051,6 +11159,87 @@ function wireFirstRun(){
 }
 wireFirstRun();
 
+/* ---- ONBOARDING — the why, told in five breaths ----
+   Shown once to a first-time listener, before the welcome card: what this is
+   (a math+AI instrument), whose it is (one artist's hand-made library of
+   feelings in space), how you play it (choice, mood, touch), what's under it
+   (each song's DNA, opening up like code — coming soon), and who it's for
+   (them). Swipeable, skippable, and reopenable any time from the ? panel.
+   It never blocks the music: every exit lands on "press play". */
+const ONBOARD = {
+  i: 0, panels: null, dots: null, _wired: false, _seenKey: 'mb8_seen_intro_v1',
+  seen(){ try { return localStorage.getItem(this._seenKey) === '1'; } catch (e){ return false; } },
+  markSeen(){ try { localStorage.setItem(this._seenKey, '1'); } catch (e){} },
+  wire(){
+    if (this._wired) return;
+    const root = document.getElementById('onboard');
+    if (!root) return;                               // only latch once we truly found it
+    this._wired = true;
+    this.panels = Array.from(root.querySelectorAll('.ob-panel'));
+    const dotsBox = document.getElementById('obDots');
+    this.dots = this.panels.map((_, k) => {
+      const b = document.createElement('button');
+      b.className = 'ob-dot' + (k === 0 ? ' on' : ''); b.type = 'button';
+      b.setAttribute('role', 'tab'); b.setAttribute('aria-label', 'Step ' + (k + 1));
+      b.setAttribute('aria-selected', k === 0 ? 'true' : 'false');
+      b.addEventListener('click', () => this.go(k));
+      dotsBox.appendChild(b); return b;
+    });
+    document.getElementById('obNext').addEventListener('click', () => this.go(this.i + 1));
+    document.getElementById('obBack').addEventListener('click', () => this.go(this.i - 1));
+    document.getElementById('obEnter').addEventListener('click', () => this.finish());
+    document.getElementById('obSkip').addEventListener('click', () => this.finish());
+    // swipe + keys
+    let x0 = null;
+    root.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+    root.addEventListener('touchend', e => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) > 44) this.go(this.i + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+    // arrows walk the story; Enter/Space are left to whatever button is
+    // focused, so tabbing to Back/Skip and pressing Enter does the right thing
+    this._onKey = e => {
+      if (!root.classList.contains('open')) return;
+      if (e.key === 'ArrowRight'){ e.preventDefault(); this.go(this.i + 1); }
+      else if (e.key === 'ArrowLeft'){ e.preventDefault(); this.go(this.i - 1); }
+      else if (e.key === 'Escape'){ e.preventDefault(); this.finish(); }
+    };
+    window.addEventListener('keydown', this._onKey, true);
+  },
+  go(n){
+    const last = this.panels.length - 1;
+    if (n < 0) n = 0;
+    if (n > last){ this.finish(); return; }        // "Next" past the end = enter
+    this.i = n;
+    this.panels.forEach((p, k) => p.classList.toggle('on', k === n));
+    this.dots.forEach((d, k) => { const active = k === n; d.classList.toggle('on', active); d.setAttribute('aria-selected', String(active)); });
+    const onLast = n === last;
+    document.getElementById('obBack').hidden = n === 0;
+    document.getElementById('obNext').hidden = onLast;
+    document.getElementById('obEnter').hidden = !onLast;
+  },
+  show(handoff){
+    this.wire();
+    this._handoff = handoff || null;
+    this.go(0);
+    document.getElementById('onboard').classList.add('open');
+  },
+  finish(){
+    document.getElementById('onboard').classList.remove('open');
+    this.markSeen();
+    const h = this._handoff; this._handoff = null;
+    if (typeof h === 'function') h();
+  },
+};
+{
+  const btnIntro = document.getElementById('btnIntro');
+  if (btnIntro) btnIntro.addEventListener('click', () => {
+    if (typeof setMore === 'function') setMore(false);   // close the overflow menu
+    ONBOARD.show();                                      // reopen the story; no hand-off
+  });
+}
+
 /* flush pending state when the app is backgrounded or killed mid-track —
    the §10.8 contract: kill, relaunch, restored paused at position, one tap */
 window.addEventListener('pagehide', () => { PERSIST.save(); });
@@ -11083,11 +11272,13 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) PERSI
           player.renderList();
           toast('Restored — tap play to resume');
         } else {
-          // a first visit: offer the crates — the way in. A real library shows
-          // the chooser (First time · Hot this week · Surprise me); only an
-          // empty or unreachable shelf falls back to the shipped demo.
+          // a first visit: a real library opens on the crates chooser — and,
+          // the very first time, the onboarding story runs ahead of it (what
+          // this is, whose it is, why it's for you), handing off to the
+          // chooser. Only an empty or unreachable shelf falls back to the demo.
           if (openingSet(allTracks(), trackKey, 10).length){
-            firstRunOpen();
+            if (!ONBOARD.seen()) ONBOARD.show(firstRunOpen);
+            else firstRunOpen();
           } else {
             player.playDemo();
           }
