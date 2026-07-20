@@ -21,7 +21,7 @@ function block(name){
 const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
   '\nreturn { mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
-  ' RITUALS, ritualByKey, dealRitual, freshPicks,' +
+  ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -306,6 +306,68 @@ test('freshPicks: the front porch — hot by plays, crate by publish date, press
   const p3 = S.freshPicks([{ sha256: 'x', title: 'x' }], new Map([['x', 1]]), key, NOW);
   assert.equal(p3.fresh, null, 'no publish dates → no pressing, no crate');
   assert.equal(p3.hot.sha256, 'x', 'but local plays still crown a hot track');
+});
+
+test('openingSet: Möbius Walking leads, then the freshest, cued for a first visit', () => {
+  const NOW = Date.UTC(2026, 6, 19), day = 86400000;
+  const iso = d => new Date(NOW - d * day).toISOString().slice(0, 10);
+  const T = (sha, title, days) => ({ sha256: sha, title, published: iso(days) });
+  const key = t => t.sha256 || null;
+  const cat = [
+    T('m', 'Möbius Walking', 400),           // old, but the hero always leads
+    T('a', 'Amber Axis', 2),
+    T('b', 'Breathing', 9),
+    T('c', 'Cinder', 30),
+    { ...T('z', 'Demo Loop', 1), demo: true },   // demos never enter, even though newest
+    T('a', 'Amber Axis', 2),                 // catalog duplicate — surfaces once
+  ];
+  const set = S.openingSet(cat, key, 2);
+  assert.equal(set[0].title, 'Möbius Walking', 'the signature track opens the room');
+  assert.deepEqual(set.slice(1).map(t => t.sha256), ['a', 'b'], 'then the freshest, newest first');
+  assert.equal(set.length, 3, 'hero + n');
+  assert.ok(!set.some(t => t.demo), 'no demo in the opening set');
+  // Möbius Walking absent → the freshest track leads instead
+  const noHero = S.openingSet([T('a', 'Amber Axis', 2), T('c', 'Cinder', 30)], key, 5);
+  assert.equal(noHero[0].sha256, 'a', 'no Möbius Walking → freshest leads');
+  assert.equal(noHero.length, 2);
+  assert.deepEqual(S.openingSet([], key, 10), [], 'an empty shelf yields nothing (caller shows the demo)');
+});
+
+test('surpriseSet: the vibe turns the solver dials the way the words promise', () => {
+  const fastRun = S.surpriseSet('fast', 'running');
+  const slowRun = S.surpriseSet('slow', 'running');
+  const slowChill = S.surpriseSet('slow', 'chill');
+  const fastChill = S.surpriseSet('fast', 'chill');
+
+  // running is a PROGRESSION: it starts lower and ends higher
+  assert.ok(fastRun.to.energy > fastRun.from.energy, 'running climbs energy');
+  assert.ok(fastRun.to.bpm > fastRun.from.bpm, 'running climbs tempo');
+  // chill HOLDS its level — barely any spread, and it lets tempo wander (bpm 0)
+  assert.ok(Math.abs(slowChill.to.energy - slowChill.from.energy) < 0.2, 'chill holds its level');
+  assert.equal(slowChill.from.bpm, 0, 'chill chases no tempo target');
+  assert.equal(fastChill.to.bpm, 0, 'chill chases no tempo target (fast too)');
+
+  // fast aims higher than slow at the same mood
+  assert.ok(fastRun.to.energy > slowRun.to.energy, 'fast peaks hotter than slow');
+  assert.ok(fastRun.from.onsets > slowRun.from.onsets, 'fast is busier than slow');
+  assert.ok(fastRun.from.bpm > slowRun.from.bpm, 'fast targets a higher tempo');
+
+  // every dial the journey solver reads stays in range, and it deals a real set
+  for (const s of [fastRun, slowRun, slowChill, fastChill]){
+    assert.ok(s.heat >= 0 && s.heat <= 1, 'heat in 0..1');
+    assert.ok(s.targetSec > 600, 'a set worth sitting with');
+    for (const p of ['energy', 'brightness', 'onsets']){
+      assert.ok(s.from[p] >= 0 && s.from[p] <= 1, p + ' from in range');
+      assert.ok(s.to[p] >= 0 && s.to[p] <= 1, p + ' to in range');
+    }
+    assert.ok(typeof s.label === 'string' && s.label.length, 'a human label');
+  }
+
+  // and it actually deals a coherent set through the same solver as a ritual
+  const dealt = S.dealJourney({ tracks: CAT, fromFeat: fastRun.from, toFeat: fastRun.to,
+    targetSec: fastRun.targetSec, heat: fastRun.heat, rng: S.mulberry32(7) });
+  assert.ok(dealt.order.length >= 2, 'the vibe deals a real set from the catalog');
+  assert.equal(new Set(dealt.order).size, dealt.order.length, 'no track twice');
 });
 
 // ---------------------------------------------------------------- mix planner
