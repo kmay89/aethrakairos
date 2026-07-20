@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow,' +
-  ' makeMediaClock, clockReset, clockSample, clockRead, planMixNow, envSample };';
+  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, planMixNow, envSample };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -904,6 +904,44 @@ test('media clock: a reset clears the ring COMPLETELY — no stale-sample corrup
   const got = S.clockRead(c, 10 + 6 * 0.0167);
   assert.ok(Math.abs(got - (5 + 6 * 0.0167)) < 0.004,
     'fresh line wins cleanly: ' + got);
+});
+
+test('media clock: a backgrounded gap resets even when both clocks advanced in step', () => {
+  // the resume bug: rAF froze, then the tab returned. Wall and media BOTH
+  // jumped ~60 s together, so the prediction test (media vs a+b·wall) still
+  // roughly holds and would NOT trip — yet the ring now mixes pre-gap points
+  // with one post-gap point and fits a wrong rate. The wall-gap guard must
+  // catch it regardless.
+  const c = S.makeMediaClock();
+  for (let i = 0; i < 12; i++) S.clockSample(c, i * 0.0167, 5 + i * 0.0167);
+  assert.ok(c.ok && c.n >= 4, 'a good line is fitted before the gap');
+  const wall = 12 * 0.0167, media = 5 + 12 * 0.0167;
+  S.clockSample(c, wall + 60, media + 60);            // 60 s away, in step
+  assert.ok(c.n <= 1, 'the stale window is dropped, not extended (n=' + c.n + ')');
+  // and a normal frame-to-frame step is NOT a reset (no false positives)
+  const c2 = S.makeMediaClock();
+  for (let i = 0; i < 12; i++) S.clockSample(c2, i * 0.0167, 5 + i * 0.0167);
+  const n2 = c2.n;
+  S.clockSample(c2, 12 * 0.0167, 5 + 12 * 0.0167);
+  assert.ok(c2.n >= n2, 'a real 16 ms frame keeps the window');
+});
+
+test('tapTempo: reads tempo and confidence from the beat a listener taps', () => {
+  // a lone tap sets phase only — no tempo, no confidence
+  assert.deepEqual(
+    (({ bpm, conf }) => ({ bpm, conf }))(S.tapTempo([10.0])), { bpm: 0, conf: 0 });
+  // four taps a steady 0.5 s apart → 120 BPM, high confidence
+  const steady = S.tapTempo([10.0, 10.5, 11.0, 11.5]);
+  assert.ok(Math.abs(steady.bpm - 120) < 0.5, '120 BPM from half-second taps: ' + steady.bpm);
+  assert.ok(steady.conf >= 0.8, 'steady taps are trusted: ' + steady.conf.toFixed(2));
+  // 0.4 s → 150 BPM
+  assert.ok(Math.abs(S.tapTempo([0, 0.4, 0.8, 1.2]).bpm - 150) < 0.5, '150 BPM');
+  // ragged spacing → some tempo, but low confidence (uses the median)
+  const ragged = S.tapTempo([0, 0.5, 0.72, 1.4, 1.55]);
+  assert.ok(ragged.conf < steady.conf, 'ragged taps trusted less than steady');
+  // absurd spacing (out of 40–240) yields no usable tempo
+  assert.equal(S.tapTempo([0, 3.0]).bpm, 0, '20 BPM is out of range → no tempo');
+  assert.equal(S.tapTempo([0, 0.1]).bpm, 0, '600 BPM is out of range → no tempo');
 });
 
 test('mix now: the seam starts on the NEXT BAR LINE of the playing grid', () => {
