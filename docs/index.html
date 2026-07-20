@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Aethra Kairos — Official Player</title>
 <meta name="description" content="Music you don't just hear — music you watch dance. Aethra Kairos is the artist's own player: press play and a living visualizer moves to every beat. Free, in your browser, no login.">
 <meta property="og:site_name" content="Aethra Kairos">
@@ -91,9 +91,44 @@ button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px so
 #glcanvas{position:fixed;inset:0;display:block;touch-action:none}
 body.zen #glcanvas{cursor:none}
 
+/* double-tap zoom is meaningless in a fullscreen instrument and only ever
+   fights the user — 'manipulation' keeps scroll and pinch, drops the tap-tap
+   zoom. The visualizer canvas and knobs already opt out with touch-action:none. */
+html,body{touch-action:manipulation}
+
 /* -------- chrome show/hide -------- */
 .chrome{transition:opacity .5s ease,transform .5s ease}
 body.zen .chrome{opacity:0;pointer-events:none}
+
+/* ============ the visualizer's quiet HUD — lives OUTSIDE .chrome, so it
+   survives when the controls sleep (zen). A minimal now-playing card the
+   listener can always read, and a cinematic waveform that blooms across the
+   sleep/wake transition: the last artifact to fade, the first to return. ============ */
+#zenHud{position:fixed;inset:0;pointer-events:none;z-index:6}
+#zenWave{position:fixed;left:0;right:0;bottom:15vh;height:82px;width:100%;display:block;
+  opacity:0;transform:scaleY(.32) translateY(26px);transform-origin:50% 50%;
+  transition:opacity .9s ease,transform 1s cubic-bezier(.22,1,.36,1);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+  filter:drop-shadow(0 0 16px var(--accent-glow))}
+#zenWave.bloom{opacity:.94;transform:scaleY(1) translateY(0)}
+#zenInfo{position:fixed;left:50%;bottom:8vh;transform:translate(-50%,12px);
+  display:flex;flex-direction:column;align-items:center;gap:6px;max-width:82vw;text-align:center;
+  opacity:0;transition:opacity .6s ease .12s,transform .7s cubic-bezier(.22,1,.36,1) .12s}
+body.zen #zenInfo{opacity:1;transform:translate(-50%,0)}
+#zenTitle{font-size:16px;font-weight:600;letter-spacing:.2px;color:#fff;
+  text-shadow:0 1px 16px rgba(0,0,0,.65);max-width:82vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#zenMeta{font-size:10.5px;color:var(--dim);letter-spacing:.5px;text-transform:uppercase;
+  max-width:82vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#zenProg{width:132px;height:2px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:2px}
+#zenProg i{display:block;height:100%;width:0;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent-2),var(--accent));box-shadow:0 0 8px var(--accent-glow)}
+@media (prefers-reduced-motion:reduce){
+  #zenWave{transition:opacity .5s ease;transform:none}
+  #zenWave.bloom{transform:none}
+  #zenInfo{transition:opacity .4s ease}
+  body.zen #zenInfo{transform:translate(-50%,0)}
+}
 
 /* ============ top bar ============ */
 .topbar{
@@ -1121,6 +1156,17 @@ body.zen .chrome{opacity:0;pointer-events:none}
 <body>
 <canvas id="glcanvas" aria-hidden="true"></canvas>
 
+<!-- the visualizer's quiet HUD: a cinematic waveform + a minimal now-playing
+     card that stay legible when the controls sleep (zen) -->
+<div id="zenHud" aria-hidden="true">
+  <canvas id="zenWave"></canvas>
+  <div id="zenInfo">
+    <span id="zenTitle"></span>
+    <span id="zenMeta"></span>
+    <span id="zenProg"><i></i></span>
+  </div>
+</div>
+
 <!-- ================= top bar ================= -->
 <header class="topbar chrome">
   <div class="brand" title="Aethra Kairos — powered by the Möbius⁸ engine (the ∞ remembers being an 8)">
@@ -1196,9 +1242,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
 <!-- ================= empty state ================= -->
 <section id="emptyState" class="chrome">
   <h1 class="hero-line">This is <em>Aethra Kairos</em>.</h1>
-  <p class="hero-sub">Music that paints. Every frequency bin is projected through the Möbius⁸ field and placed
-  on the spiral — sixteen scenes, a beat-aware director, a colour engine that reads the key of the song.
-  Press play and dance with your eyes.</p>
+  <p class="hero-sub">Music you can watch. Press play — the art dances to every beat.</p>
   <div class="hero-actions">
     <button class="btn big" id="btnChoose">Choose audio files</button>
     <button class="btn big primary" id="btnDemo">Play — Möbius Walking</button>
@@ -1868,6 +1912,7 @@ const PALETTES = [
 const $ = id => document.getElementById(id);
 const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
+  zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
@@ -2014,6 +2059,9 @@ function ensureCtx(){
     d.a.addEventListener('error', () => {
       if (d.priming || i !== AE.active) return;
       const t = player.tracks[player.cur];
+      // the shipped demo file didn't load (missing/undecodable/offline cold
+      // cache) — synthesize a loop instead of a dead end
+      if (t && t.demo && !t.local){ player.synthesizeDemo(); return; }
       const offline = !navigator.onLine && t && !t.local;
       toast(offline
         ? 'Offline — streaming unavailable for <b>' + escapeHTML(t.title) + '</b>'
@@ -2732,39 +2780,52 @@ const player = {
     return true;
   },
 
-  async playDemo(){
+  playDemo(){
+    // iOS hands out audio permission ONLY inside the gesture that asked for it,
+    // and an `await` spends it: the old path awaited a HEAD probe before the
+    // first play(), so on stricter/older Safari the play() landed outside the
+    // user-activation window and was silently blocked — "nothing happens, no
+    // error" (autoplay blocks don't fire the element's 'error' event). So we
+    // unlock and play SYNCHRONOUSLY here, before anything async can run.
+    ensureCtx(); ensureResume();
     if (this.demoTrack){
       const i = this.tracks.indexOf(this.demoTrack);
       if (i >= 0){ this.playIndex(i); return; }
     }
     if (demoBuilding) return;
+    // Play the shipped Möbius Walking straight away — no probe first. If the
+    // file is missing or won't decode (offline cold cache), the deck's 'error'
+    // listener calls synthesizeDemo() to swap in a generated loop. The failed
+    // play() still blesses the element for iOS, so that later swap can play.
+    const tr = Object.assign({ id: uid++ }, DEMO_TRACK);
+    this.demoTrack = tr;
+    this.tracks.push(tr);
+    el.empty.classList.add('gone');
+    this.renderList(); this.probeDurations();
+    this.playIndex(this.tracks.length - 1);
+  },
+  async synthesizeDemo(){
+    // fallback when the shipped demo file can't be fetched/decoded — the audio
+    // subsystem is already unlocked by the gesture that tried the real file,
+    // so this async build-then-play still starts on iOS.
+    if (demoBuilding) return;
     demoBuilding = true;
-    let tr = null;
-    // the real thing first: Möbius Walking ships beside the player, analysed
-    // by the same pipeline as the catalog — measured grid, detected key —
-    // so the beat clock, the colour engine and the mixer all engage
+    toast('Synthesizing the demo loop…');
     try {
-      const probe = await fetch(DEMO_TRACK.url, { method: 'HEAD' });
-      if (probe.ok || probe.status === 405) tr = Object.assign({ id: uid++ }, DEMO_TRACK);
-    } catch (e){ /* offline with a cold cache: the synthesizer still owes us a demo */ }
-    if (!tr){
-      toast('Synthesizing the demo loop…');
-      try {
-        const blob = await buildDemoLoop();
-        tr = { id: uid++, title: 'Möbius Demo Loop', artist: 'Möbius⁸', album: 'Synthesized',
-               genre: 'Test Tone', year: null, art: null, ext: 'SYNTH',
-               url: URL.createObjectURL(blob), duration: null, demo: true, local: true };
-      } catch (err){
-        console.error(err);
-        toast('The synthesizer stalled — try adding a file instead');
-      }
-    }
-    if (tr){
+      const blob = await buildDemoLoop();
+      const tr = { id: uid++, title: 'Möbius Demo Loop', artist: 'Möbius⁸', album: 'Synthesized',
+                   genre: 'Test Tone', year: null, art: null, ext: 'SYNTH',
+                   url: URL.createObjectURL(blob), duration: null, demo: true, local: true };
+      // replace the failed shipped demo IN PLACE — splicing it out would shift
+      // every later index and corrupt this.cur / this.history
+      const old = this.demoTrack, oi = old ? this.tracks.indexOf(old) : -1;
+      if (oi >= 0) this.tracks[oi] = tr; else this.tracks.push(tr);
       this.demoTrack = tr;
-      this.tracks.push(tr);
-      el.empty.classList.add('gone');
       this.renderList(); this.probeDurations();
-      this.playIndex(this.tracks.length - 1);
+      this.playIndex(oi >= 0 ? oi : this.tracks.length - 1);
+    } catch (err){
+      console.error(err);
+      toast('The synthesizer stalled — try adding a file instead');
     }
     demoBuilding = false;
   },
@@ -2785,14 +2846,33 @@ const player = {
     const xfade = !!(opts && opts.xfade) && this.playing && this.cur !== -1 && AE.graphLive;
     const fadeDur = xfade ? XFADE : (this.playing ? 0.25 : 0.06);
     const oldIdx = AE.active;
-    const newIdx = 1 - oldIdx;
+    // iOS gives background-audio privilege to the ONE element that currently
+    // holds the session. When the screen is locked and a track ends, moving
+    // playback to the OTHER deck is an un-gestured background start — iOS
+    // blocks it, so the music stops after one song and the lock-screen
+    // controls vanish, while the UI still thinks it's playing. So when we're
+    // hidden (and not crossfading), stay on the SAME element: load the next
+    // src into the session-holder and play. Foreground keeps the two-deck
+    // swap that crossfades need.
+    const stayPut = IS_IOS && document.hidden && !xfade && this.playing;
+    const newIdx = stayPut ? oldIdx : 1 - oldIdx;
     const nd = AE.decks[newIdx], od = AE.decks[oldIdx];
 
     AE.xfading = xfade;
     nd.a.src = track.url;
     nd.norm = normLin(track);
     nd.a.currentTime = 0;
-    nd.a.play().catch(() => {/* error listener handles it */});
+    nd.a.play().catch(err => {
+      // A decode/network failure fires the element's 'error' event (handled
+      // above). An autoplay BLOCK does not — it rejects here, silently. On the
+      // rare device that still blocks the first gesture, say so plainly: the
+      // context is live now, so a second tap starts the sound.
+      if (err && err.name === 'NotAllowedError'){
+        ensureResume();
+        player.pause();     // clear the optimistic playing state so ONE more tap resumes, not two
+        toast('Tap play once more to start the sound');
+      }
+    });
     if (AE.graphLive){
       rampGain(nd.gain, nd.norm, fadeDur, 'in');
       rampGain(od.gain, 0, fadeDur, 'out');
@@ -2801,7 +2881,7 @@ const player = {
     applyVolume();                       // element-volume routing follows the deck swap
     clearTimeout(this._fadeT);
     this._fadeT = setTimeout(() => {
-      od.a.pause();
+      if (od !== nd) od.a.pause();        // never pause the element we just (re)started on the same-deck path
       AE.xfading = false;
     }, (AE.graphLive ? fadeDur : 0.02) * 1000 + 80);
 
@@ -3113,10 +3193,15 @@ const player = {
         el.nowArt.classList.remove('show');
       }
     };
+    const zen = (title, meta) => {           // the visualizer's quiet now-playing card
+      if (el.zenTitle) el.zenTitle.textContent = title;
+      if (el.zenMeta) el.zenMeta.textContent = meta;
+    };
     if (AE.mic.on){
       el.trackTitle.textContent = 'Live input — microphone';
       el.trackTitle.classList.remove('idle');
       el.nowMeta.textContent = 'analysis only — never routed to speakers';
+      zen('Live input', 'microphone');
       setArt(null);
       return;
     }
@@ -3129,11 +3214,13 @@ const player = {
       if (t.album) bits.push(t.album);
       if (t.genre) bits.push(t.genre);
       el.nowMeta.textContent = bits.join('  ·  ');
+      zen(t.title, [t.artist, t.album].filter(Boolean).join('  ·  '));
       setArt(t);
     } else {
       el.trackTitle.textContent = 'Nothing loaded';
       el.trackTitle.classList.add('idle');
       el.nowMeta.textContent = '';
+      zen('', '');
       setArt(null);
     }
   },
@@ -6544,7 +6631,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'f37b61e75f';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '8d0dcd9d49';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -6677,6 +6764,52 @@ const WAVE = {
     grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
     ctx.fillStyle = grd; ctx.fillRect(px - 14, 0, 28, h);
     ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.75, 0, 1.5, h);
+  },
+  /* the cinematic waveform behind zen: a ZOOMED, scrolling window around the
+     playhead — the DJ-deck look, blown up to fill the room. Only drawn while
+     the #zenWave element is blooming (the sleep/wake transition), so it costs
+     nothing in steady state. */
+  drawZen(){
+    const zw = el.zenWave;
+    if (!zw || !zw.classList.contains('bloom')) return;
+    const ctx = zw._c || (zw._c = zw.getContext('2d'));
+    if (!ctx) return;
+    const w = zw.clientWidth, h = zw.clientHeight;
+    if (!w || !h) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (zw.width !== Math.round(w * dpr)){ zw.width = Math.round(w * dpr); zw.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const tr = player.tracks[player.cur], d = activeDeck();
+    if (tr && tr._peaks && tr._bands && d && isFinite(d.a.duration) && d.a.duration > 0 && !AE.mic.on)
+      this._zoomWave(ctx, w, h, tr._peaks, tr._bands, d);
+    else this._scope(ctx, w, h);        // no peaks yet (or mic) → the live scope already scrolls
+  },
+  _zoomWave(ctx, w, h, pk, bands, d){
+    const n = pk.length, mid = h * 0.5, dur = d.a.duration, t = d.a.currentTime;
+    const WIN = 18, headX = w * 0.42, pxPerSec = w / WIN;   // ~18 s visible, playhead left-of-centre
+    const warm = [255, 120, 58], acc = this.accent, bright = [150, 216, 255];
+    const step = 2;
+    for (let x = 0; x < w; x += step){
+      const time = t + (x - headX) / pxPerSec;
+      if (time < 0 || time > dur) continue;
+      const idx = Math.min(n - 1, Math.max(0, Math.floor(time / dur * n)));
+      const sl = bands.l[idx], sm = bands.m[idx], sh = bands.h[idx], tot = sl + sm + sh + 1e-6;
+      const rL = sl / tot, rM = sm / tot, rH = sh / tot;
+      const played = time <= t, dim = played ? 1 : 0.42;
+      const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
+      const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
+      const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
+      const bh = Math.max(0.8, Math.pow(pk[idx], 0.9) * (h * 0.46));
+      ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.95 : 0.55})`;
+      ctx.fillRect(x, mid - bh, step - 0.5, bh * 2);
+    }
+    const a = this.accent, grd = ctx.createLinearGradient(headX - 18, 0, headX + 18, 0);
+    grd.addColorStop(0, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    grd.addColorStop(0.5, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.4)`);
+    grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    ctx.fillStyle = grd; ctx.fillRect(headX - 18, 0, 36, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillRect(headX - 0.75, 0, 1.5, h);
   },
   _scope(ctx, w, h){
     this.cap = Math.max(90, Math.floor(w / 2.2));
@@ -7552,21 +7685,45 @@ window.addEventListener('drop', ev => {
   if (ev.dataTransfer?.files?.length) player.addFiles(ev.dataTransfer.files);
 });
 
-/* idle → zen mode */
-let zenTimer = null, hoverChrome = false, manualZen = false;
+/* idle → zen mode, choreographed around the cinematic waveform:
+   SLEEP — controls fade, the waveform blooms into a zoomed scrolling window as
+     the last artifact, then fades to the pure visualizer (the info card stays).
+   WAKE — the waveform returns FIRST, then the controls follow a beat behind.
+   The bloom windows are the only time the zen canvas draws, so it's near-free. */
+let zenTimer = null, hoverChrome = false, manualZen = false, zenWaveT = null, zenExiting = false;
 document.querySelectorAll('.chrome').forEach(c => {
   c.addEventListener('pointerenter', () => { hoverChrome = true; });
   c.addEventListener('pointerleave', () => { hoverChrome = false; });
 });
+function bloomZenWave(on){ if (el.zenWave) el.zenWave.classList.toggle('bloom', !!on); }
+function enterZen(){
+  document.body.classList.add('zen');
+  bloomZenWave(true);
+  clearTimeout(zenWaveT);
+  zenWaveT = setTimeout(() => bloomZenWave(false), 2400);   // linger, then dissolve to pure visualizer
+}
+function wakeChrome(){
+  // waveform leads, controls follow — the elegant return
+  zenExiting = true;
+  bloomZenWave(true);
+  clearTimeout(zenWaveT);
+  setTimeout(() => document.body.classList.remove('zen'), 360);
+  zenWaveT = setTimeout(() => { bloomZenWave(false); zenExiting = false; }, 1300);
+}
 function pokeChrome(){
   if (manualZen){ manualZen = false; }
-  document.body.classList.remove('zen');
+  if (document.body.classList.contains('zen')){
+    if (!zenExiting) wakeChrome();
+  } else {
+    document.body.classList.remove('zen');
+  }
   clearTimeout(zenTimer);
   zenTimer = setTimeout(() => {
     if (player.playing && !hoverChrome && !el.help.classList.contains('open')
         && !el.playlist.classList.contains('open') && !seekDragging
-        && !CON.open && !CRATE.open && !el.library.classList.contains('open')){
-      document.body.classList.add('zen');
+        && !CON.open && !CRATE.open && !el.library.classList.contains('open')
+        && !document.body.classList.contains('zen')){
+      enterZen();
     }
   }, 3800);
 }
@@ -7601,7 +7758,8 @@ window.addEventListener('keydown', ev => {
     case 'a': case 'A': director.setAuto(true); break;
     case 'h': case 'H':
       manualZen = !document.body.classList.contains('zen');
-      document.body.classList.toggle('zen', manualZen);
+      if (manualZen) enterZen();
+      else { document.body.classList.remove('zen'); bloomZenWave(false); }
       clearTimeout(zenTimer);
       break;
     case '?': case '/': openHelp(!el.help.classList.contains('open')); break;
@@ -11003,6 +11161,7 @@ function frame(now){
     WAVE.accent = A;
   }
   WAVE.draw();
+  WAVE.drawZen();          // cinematic zen waveform — self-skips unless blooming
   BOOTH.draw();
 
   INTERACT.update(dt);
@@ -11076,6 +11235,7 @@ function frame(now){
     if (d && isFinite(d.a.duration)){
       el.tCur.textContent = fmtTime(d.a.currentTime);
       el.tDur.textContent = fmtTime(d.a.duration);
+      if (el.zenProg && d.a.duration > 0) el.zenProg.style.width = (clamp01(d.a.currentTime / d.a.duration) * 100) + '%';
     }
     el.roPi.textContent = f.piE.toFixed(3);
     el.roE.textContent = f.eE.toFixed(3);
