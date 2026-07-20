@@ -21,7 +21,7 @@ function block(name){
 const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
   '\nreturn { mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
-  ' RITUALS, ritualByKey, dealRitual, freshPicks,' +
+  ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -306,6 +306,31 @@ test('freshPicks: the front porch — hot by plays, crate by publish date, press
   const p3 = S.freshPicks([{ sha256: 'x', title: 'x' }], new Map([['x', 1]]), key, NOW);
   assert.equal(p3.fresh, null, 'no publish dates → no pressing, no crate');
   assert.equal(p3.hot.sha256, 'x', 'but local plays still crown a hot track');
+});
+
+test('openingSet: Möbius Walking leads, then the freshest, cued for a first visit', () => {
+  const NOW = Date.UTC(2026, 6, 19), day = 86400000;
+  const iso = d => new Date(NOW - d * day).toISOString().slice(0, 10);
+  const T = (sha, title, days) => ({ sha256: sha, title, published: iso(days) });
+  const key = t => t.sha256 || null;
+  const cat = [
+    T('m', 'Möbius Walking', 400),           // old, but the hero always leads
+    T('a', 'Amber Axis', 2),
+    T('b', 'Breathing', 9),
+    T('c', 'Cinder', 30),
+    { ...T('z', 'Demo Loop', 1), demo: true },   // demos never enter, even though newest
+    T('a', 'Amber Axis', 2),                 // catalog duplicate — surfaces once
+  ];
+  const set = S.openingSet(cat, key, 2);
+  assert.equal(set[0].title, 'Möbius Walking', 'the signature track opens the room');
+  assert.deepEqual(set.slice(1).map(t => t.sha256), ['a', 'b'], 'then the freshest, newest first');
+  assert.equal(set.length, 3, 'hero + n');
+  assert.ok(!set.some(t => t.demo), 'no demo in the opening set');
+  // Möbius Walking absent → the freshest track leads instead
+  const noHero = S.openingSet([T('a', 'Amber Axis', 2), T('c', 'Cinder', 30)], key, 5);
+  assert.equal(noHero[0].sha256, 'a', 'no Möbius Walking → freshest leads');
+  assert.equal(noHero.length, 2);
+  assert.deepEqual(S.openingSet([], key, 10), [], 'an empty shelf yields nothing (caller shows the demo)');
 });
 
 // ---------------------------------------------------------------- mix planner
