@@ -97,8 +97,10 @@ body.zen #glcanvas{cursor:none}
 html,body{touch-action:manipulation}
 
 /* -------- chrome show/hide -------- */
-.chrome{transition:opacity .5s ease,transform .5s ease}
-body.zen .chrome{opacity:0;pointer-events:none}
+/* a longer, softer curve so the controls RETURN like a slow breath, not a
+   snap — the waveform leads, these ease up a beat behind */
+.chrome{transition:opacity .8s ease,transform .8s cubic-bezier(.22,1,.36,1)}
+body.zen .chrome{opacity:0;pointer-events:none;transform:translateY(12px)}
 
 /* ============ the visualizer's quiet HUD — lives OUTSIDE .chrome, so it
    survives when the controls sleep (zen). A minimal now-playing card the
@@ -123,11 +125,33 @@ body.zen #zenInfo{opacity:1;transform:translate(-50%,0)}
 #zenProg{width:132px;height:2px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:2px}
 #zenProg i{display:block;height:100%;width:0;border-radius:2px;
   background:linear-gradient(90deg,var(--accent-2),var(--accent));box-shadow:0 0 8px var(--accent-glow)}
+
+/* DEEP immersion — after a long, still sit the card crossfades down to a
+   whisper: just the title, tiny, in the corner, so nothing stands between the
+   listener and the light. */
+#zenTag{position:fixed;left:16px;bottom:14px;max-width:62vw;z-index:6;pointer-events:none;
+  font-size:11px;letter-spacing:.4px;color:rgba(255,255,255,.5);text-shadow:0 1px 10px rgba(0,0,0,.6);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  opacity:0;transform:translateY(6px);transition:opacity 1.2s ease,transform 1.3s cubic-bezier(.22,1,.36,1)}
+body.zen-deep #zenTag{opacity:1;transform:translateY(0)}
+body.zen-deep #zenInfo{opacity:0;transform:translate(-50%,10px);pointer-events:none}
+
+/* the always-on EQ shimmer — a slim rainbow spectrum along the foot of the
+   screen, present whenever sound moves, so you can always feel the engine
+   reading the music. Reuses the analyser buffer already sampled each frame. */
+#eqStrip{position:fixed;left:0;right:0;bottom:0;height:12px;width:100%;display:block;z-index:5;
+  pointer-events:none;opacity:.5;transition:opacity .7s ease,height .7s ease;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+body.zen #eqStrip{opacity:.85;height:18px}
+
 @media (prefers-reduced-motion:reduce){
   #zenWave{transition:opacity .5s ease;transform:none}
   #zenWave.bloom{transform:none}
   #zenInfo{transition:opacity .4s ease}
   body.zen #zenInfo{transform:translate(-50%,0)}
+  #zenTag{transition:opacity .6s ease;transform:none}
+  #eqStrip{opacity:.32}
 }
 
 /* ============ top bar ============ */
@@ -1165,7 +1189,9 @@ body.zen #zenInfo{opacity:1;transform:translate(-50%,0)}
     <span id="zenMeta"></span>
     <span id="zenProg"><i></i></span>
   </div>
+  <div id="zenTag"></div>
 </div>
+<canvas id="eqStrip" aria-hidden="true"></canvas>
 
 <!-- ================= top bar ================= -->
 <header class="topbar chrome">
@@ -1913,6 +1939,7 @@ const $ = id => document.getElementById(id);
 const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
+  zenTag: $('zenTag'), eqStrip: $('eqStrip'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
@@ -3193,9 +3220,10 @@ const player = {
         el.nowArt.classList.remove('show');
       }
     };
-    const zen = (title, meta) => {           // the visualizer's quiet now-playing card
+    const zen = (title, meta) => {           // the visualizer's quiet now-playing card + the deep-immersion whisper
       if (el.zenTitle) el.zenTitle.textContent = title;
       if (el.zenMeta) el.zenMeta.textContent = meta;
+      if (el.zenTag) el.zenTag.textContent = title;
     };
     if (AE.mic.on){
       el.trackTitle.textContent = 'Live input — microphone';
@@ -6631,7 +6659,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '8d0dcd9d49';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'b0f8eb05da';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -6828,6 +6856,62 @@ const WAVE = {
       const fade = 0.4 + 0.6 * (i / n);
       ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${(0.95 * fade).toFixed(3)})`;
       ctx.fillRect(i * cw, mid - bh, Math.max(1, cw * 0.66), bh * 2);
+    }
+  },
+};
+
+/* THE EQ SHIMMER — a slim rainbow spectrum along the foot of the screen, on
+   whenever sound moves: proof the engine is reading the music, and a second
+   pulse of life beside the waveform. It reuses AE.freq (already sampled each
+   frame) where the analyser is live, and falls back to the low/mid/high bands
+   on the iPhone path — so it costs one buffer read and ~48 bars a frame, and
+   nothing when the perf governor is under pressure. */
+const EQ = {
+  cv: null, ctx: null, m: null, BARS: 48, phase: 0,
+  draw(f, dt){
+    const cv = this.cv || (this.cv = el.eqStrip);
+    if (!cv) return;
+    const ctx = this.ctx || (this.ctx = cv.getContext('2d'));
+    if (!ctx) return;
+    // give the frame budget to the scenes first — the strip is a grace note
+    if (typeof PERF !== 'undefined' && PERF.struggling){ ctx.clearRect(0, 0, cv.width, cv.height); return; }
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const N = this.BARS;
+    if (!this.m || this.m.length !== N) this.m = new Float32Array(N);
+    const live = AE.graphLive && AE.freq;
+    for (let i = 0; i < N; i++){
+      const p = i / (N - 1);
+      let target;
+      if (live){
+        // log-spaced sampling across the audible bins → bass left, air right
+        const lo = Math.floor(2 * Math.pow(210, p)), hi = Math.max(lo + 1, Math.floor(2 * Math.pow(210, (i + 1) / (N - 1))));
+        let mx = 0; for (let k = lo; k < hi && k < AE.freq.length; k++) if (AE.freq[k] > mx) mx = AE.freq[k];
+        target = mx / 255;
+      } else {
+        // iPhone path — shape the three bands into a smooth spectrum
+        const bass = f.bass, mid = f.mid, tre = f.treble;
+        target = p < 0.5 ? bass + (mid - bass) * (p / 0.5) : mid + (tre - mid) * ((p - 0.5) / 0.5);
+        target *= 0.9 + 0.1 * Math.sin(p * 24 + this.phase * 3);   // a little life across the bars
+      }
+      // ease toward target — fast up, gentle down, so it dances not flickers
+      const cur = this.m[i];
+      this.m[i] = target > cur ? cur + (target - cur) * Math.min(1, dt * 22) : cur + (target - cur) * Math.min(1, dt * 7);
+    }
+    this.phase = (this.phase + dt * 0.12) % 1;    // slow rainbow drift = the shimmer
+    const cw = w / N, bw = Math.max(1.2, cw * 0.62);
+    for (let i = 0; i < N; i++){
+      const p = i / (N - 1);
+      const mag = this.m[i];
+      const bh = Math.max(0.6, Math.pow(mag, 0.85) * (h - 1));
+      const hue = ((p * 300 + this.phase * 360) % 360);
+      const light = 52 + mag * 20;
+      ctx.fillStyle = `hsla(${hue|0},92%,${light|0}%,${(0.32 + 0.6 * mag).toFixed(3)})`;
+      ctx.fillRect(i * cw + (cw - bw) / 2, h - bh, bw, bh);
     }
   },
 };
@@ -7690,25 +7774,32 @@ window.addEventListener('drop', ev => {
      the last artifact, then fades to the pure visualizer (the info card stays).
    WAKE — the waveform returns FIRST, then the controls follow a beat behind.
    The bloom windows are the only time the zen canvas draws, so it's near-free. */
-let zenTimer = null, hoverChrome = false, manualZen = false, zenWaveT = null, zenExiting = false;
+let zenTimer = null, hoverChrome = false, manualZen = false, zenWaveT = null, zenDeepT = null, zenExiting = false;
 document.querySelectorAll('.chrome').forEach(c => {
   c.addEventListener('pointerenter', () => { hoverChrome = true; });
   c.addEventListener('pointerleave', () => { hoverChrome = false; });
 });
 function bloomZenWave(on){ if (el.zenWave) el.zenWave.classList.toggle('bloom', !!on); }
+function leaveDeep(){ document.body.classList.remove('zen-deep'); clearTimeout(zenDeepT); }
 function enterZen(){
   document.body.classList.add('zen');
   bloomZenWave(true);
   clearTimeout(zenWaveT);
   zenWaveT = setTimeout(() => bloomZenWave(false), 2400);   // linger, then dissolve to pure visualizer
+  // after a long still sit, deepen: the info card crossfades to a corner whisper
+  clearTimeout(zenDeepT);
+  zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
 }
 function wakeChrome(){
-  // waveform leads, controls follow — the elegant return
+  // the elegant return, unhurried: waveform blooms first, the corner whisper
+  // lifts back to the full card, and only then — a good beat later — do the
+  // controls ease up from below
   zenExiting = true;
+  leaveDeep();
   bloomZenWave(true);
   clearTimeout(zenWaveT);
-  setTimeout(() => document.body.classList.remove('zen'), 360);
-  zenWaveT = setTimeout(() => { bloomZenWave(false); zenExiting = false; }, 1300);
+  setTimeout(() => document.body.classList.remove('zen'), 640);        // controls follow further behind now
+  zenWaveT = setTimeout(() => { bloomZenWave(false); zenExiting = false; }, 2000);   // wave lingers through the settle
 }
 function pokeChrome(){
   if (manualZen){ manualZen = false; }
@@ -7716,6 +7807,7 @@ function pokeChrome(){
     if (!zenExiting) wakeChrome();
   } else {
     document.body.classList.remove('zen');
+    leaveDeep();
   }
   clearTimeout(zenTimer);
   zenTimer = setTimeout(() => {
@@ -7759,7 +7851,7 @@ window.addEventListener('keydown', ev => {
     case 'h': case 'H':
       manualZen = !document.body.classList.contains('zen');
       if (manualZen) enterZen();
-      else { document.body.classList.remove('zen'); bloomZenWave(false); }
+      else { document.body.classList.remove('zen'); bloomZenWave(false); leaveDeep(); }
       clearTimeout(zenTimer);
       break;
     case '?': case '/': openHelp(!el.help.classList.contains('open')); break;
@@ -11162,6 +11254,7 @@ function frame(now){
   }
   WAVE.draw();
   WAVE.drawZen();          // cinematic zen waveform — self-skips unless blooming
+  EQ.draw(f, dt);          // the always-on rainbow spectrum shimmer
   BOOTH.draw();
 
   INTERACT.update(dt);
