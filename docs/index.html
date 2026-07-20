@@ -6687,7 +6687,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '685ad92f39';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '940da80ae5';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11195,6 +11195,16 @@ const PERF = {
   },
 };
 let lastT = performance.now(), uiAccum = 0, frameMs = 16, govT = 0, persistAccum = 0, gridBeatIdx = -1, accentAccum = 0;
+// run a per-frame 2D draw in isolation — one failing grace note (waveform, EQ,
+// zen, booth) can never take the transport, the clock or the scene down with
+// it. Logs the first failure of each kind so a real bug still surfaces.
+const _drawWarned = {};
+function drawSafe(key, fn){
+  try { fn(); }
+  catch (e){
+    if (!_drawWarned[key]){ _drawWarned[key] = true; console.warn('draw "' + key + '" failed (isolated):', e && e.message); }
+  }
+}
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
@@ -11280,10 +11290,14 @@ function frame(now){
     }
     WAVE.accent = A;
   }
-  WAVE.draw();
-  WAVE.drawZen();          // cinematic zen waveform — self-skips unless blooming
-  EQ.draw(f, dt);          // the always-on rainbow spectrum shimmer
-  BOOTH.draw();
+  // the 2D grace-note canvases run BEFORE the 3D render and the seek/time
+  // update below — so a single throw here (a half-built peak buffer, a device
+  // quirk) must never cascade into a frozen scrubber and a dead time counter.
+  // Isolate each; the transport and the scene always get their turn.
+  drawSafe('wave', () => WAVE.draw());
+  drawSafe('zen',  () => WAVE.drawZen());   // cinematic zen waveform — self-skips unless blooming
+  drawSafe('eq',   () => EQ.draw(f, dt));   // the always-on rainbow spectrum shimmer
+  drawSafe('booth',() => BOOTH.draw());
 
   INTERACT.update(dt);
   DWELL.update(dt);
