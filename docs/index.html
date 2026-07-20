@@ -180,6 +180,92 @@ body.zen .chrome{opacity:0;pointer-events:none}
 .hero-math b{color:var(--pi);font-weight:500}
 .hero-math i{color:var(--e);font-style:normal}
 
+/* ============ first-run: the welcome card ============ */
+#firstRun{
+  position:fixed;inset:0;z-index:60;display:none;   /* a modal — above the transport (z50) */
+  flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;padding:26px 22px;text-align:center;overflow-y:auto;
+  background:radial-gradient(ellipse at 50% 40%,rgba(12,16,34,.40),rgba(4,5,12,.80) 80%);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+}
+#firstRun.open{display:flex}
+.fr-kicker{font-size:10px;color:var(--faint);letter-spacing:.28em;text-transform:uppercase}
+.fr-line{
+  font-family:var(--serif);font-style:italic;font-weight:500;
+  font-size:clamp(26px,5vw,44px);line-height:1.12;max-width:16em;
+  text-shadow:0 4px 40px rgba(0,0,0,.7);
+}
+.fr-line em{font-style:italic;background:var(--axis);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* how it works — three plain lines, no jargon */
+.fr-how{
+  list-style:none;padding:0;margin:2px 0;display:flex;flex-direction:column;gap:7px;
+  max-width:30em;text-align:left;
+}
+.fr-how li{
+  font-size:12px;color:var(--dim);letter-spacing:.02em;line-height:1.5;
+  padding-left:20px;position:relative;
+}
+.fr-how li::before{content:"◟";position:absolute;left:2px;top:-1px;color:var(--pi);font-size:12px}
+.fr-how li b{color:var(--ink);font-weight:600}
+/* the one guaranteed button — big, warm, impossible to miss */
+.fr-primary{
+  margin-top:4px;display:flex;flex-direction:column;gap:3px;align-items:center;cursor:pointer;
+  padding:15px 34px;border-radius:15px;color:var(--ink);border:1px solid transparent;
+  background:linear-gradient(var(--glass-hard),var(--glass-hard)) padding-box,var(--axis) border-box;
+  box-shadow:0 0 40px rgba(110,231,255,.14),0 0 40px rgba(255,180,84,.11);
+  transition:transform .16s ease,box-shadow .16s ease;
+}
+.fr-primary:hover,.fr-primary:focus-visible{
+  transform:translateY(-2px);outline:none;
+  box-shadow:0 0 54px rgba(110,231,255,.22),0 0 54px rgba(255,180,84,.16);
+}
+.fr-primary-go{font-size:15px;font-weight:600;letter-spacing:.02em}
+.fr-primary-sub{font-size:10px;color:var(--dim);letter-spacing:.06em}
+/* the library, honestly counted */
+.fr-stat{font-size:11px;color:var(--dim);letter-spacing:.03em;line-height:1.6;max-width:32em}
+.fr-stat b{color:var(--pi);font-weight:500}
+/* two quiet alternatives */
+.fr-more{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.fr-mini{
+  font-size:11px;letter-spacing:.05em;color:var(--dim);cursor:pointer;
+  padding:9px 18px;border-radius:11px;background:var(--glass);border:1px solid var(--line-soft);
+  transition:color .15s,border-color .15s,background .15s;
+}
+.fr-mini:hover,.fr-mini:focus-visible{color:var(--ink);border-color:rgba(180,200,240,.4);outline:none}
+/* the surprise-me vibe panel, revealed in place */
+.fr-vibe{
+  display:none;flex-direction:column;gap:14px;align-items:center;
+  padding:18px 20px;border-radius:16px;max-width:520px;
+  background:var(--glass);border:1px solid var(--line-soft);
+}
+.fr-vibe.open{display:flex}
+.fr-vibe .fr-vibe-q{font-size:11px;color:var(--dim);letter-spacing:.05em}
+.fr-axis{display:flex;flex-direction:column;gap:6px;align-items:center}
+.fr-axis .fr-axis-label{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint)}
+.fr-seg{display:inline-flex;border-radius:11px;overflow:hidden;border:1px solid var(--line-soft)}
+.fr-seg button{
+  padding:9px 22px;font-size:11px;letter-spacing:.06em;cursor:pointer;
+  background:transparent;color:var(--dim);border:none;transition:color .15s,background .15s;
+}
+.fr-seg button+button{border-left:1px solid var(--line-soft)}
+.fr-seg button.on{color:var(--ink);background:rgba(110,231,255,.12)}
+.fr-vibe .fr-build{align-self:stretch}
+/* keep-it-forever: install / add to home screen */
+.fr-install{
+  margin-top:4px;font-size:10.5px;color:var(--faint);letter-spacing:.05em;line-height:1.6;
+  max-width:30em;border-top:1px solid var(--line-soft);padding-top:12px;
+}
+.fr-install b{color:var(--dim);font-weight:500}
+.fr-add{
+  font-size:11px;letter-spacing:.06em;color:var(--ink);cursor:pointer;
+  padding:8px 16px;border-radius:10px;background:var(--glass);border:1px solid rgba(180,200,240,.35);
+  transition:border-color .15s,background .15s;
+}
+.fr-add:hover,.fr-add:focus-visible{border-color:rgba(180,200,240,.6);background:var(--glass-hard);outline:none}
+@media (max-width:560px){
+  .fr-more{flex-direction:column;align-items:stretch}
+}
+
 /* ============ drop overlay ============ */
 #dropOverlay{
   position:fixed;inset:12px;z-index:90;border-radius:22px;
@@ -1005,6 +1091,45 @@ body.zen .chrome{opacity:0;pointer-events:none}
   <p class="hero-math"><b>φ(x) = 2·arctan x</b> &nbsp;·&nbsp; ℳ = (0, ∞) &nbsp;·&nbsp; <i>⊕ ⊗ ⊖ ⊘</i></p>
 </section>
 
+<!-- ============ first-run: the welcome card ============ -->
+<section id="firstRun" class="chrome" role="dialog" aria-modal="true" aria-label="Welcome to Aethra Kairos">
+  <span class="fr-kicker">Welcome to Aethra Kairos</span>
+  <h1 class="fr-line">Press play. <em>Watch it dance.</em></h1>
+  <ul class="fr-how">
+    <li><b>Press play</b> — every track paints itself, and the art moves to the music. Nothing to set up.</li>
+    <li><b>One tap starts a set</b> chosen for you. Browse the whole library any time from the ☰ menu.</li>
+    <li><b>Come back whenever</b> — it remembers the song and the spot you left off, for years.</li>
+  </ul>
+  <button class="fr-primary" type="button" id="frStart">
+    <span class="fr-primary-go">▸ Play my first set</span>
+    <span class="fr-primary-sub">Möbius Walking + the freshest — always ready, no waiting</span>
+  </button>
+  <p class="fr-stat" id="frStat"></p>
+  <div class="fr-more" id="frCards">
+    <button class="fr-mini" type="button" data-crate="hot">Hot this week ▸</button>
+    <button class="fr-mini" type="button" data-crate="surprise">Surprise me ▸</button>
+  </div>
+  <div class="fr-vibe" id="frVibe" hidden>
+    <span class="fr-vibe-q">What's the vibe?</span>
+    <div class="fr-axis">
+      <span class="fr-axis-label">Pace</span>
+      <span class="fr-seg" id="frPace" role="radiogroup" aria-label="Pace">
+        <button type="button" data-v="slow" class="on" role="radio" aria-checked="true">Slow</button>
+        <button type="button" data-v="fast" role="radio" aria-checked="false">Fast</button>
+      </span>
+    </div>
+    <div class="fr-axis">
+      <span class="fr-axis-label">Mood</span>
+      <span class="fr-seg" id="frMood" role="radiogroup" aria-label="Mood">
+        <button type="button" data-v="running" class="on" role="radio" aria-checked="true">Running</button>
+        <button type="button" data-v="chill" role="radio" aria-checked="false">Chill</button>
+      </span>
+    </div>
+    <button class="btn big primary fr-build" type="button" id="frBuild">Build my set ▸</button>
+  </div>
+  <div class="fr-install" id="frInstall" hidden></div>
+</section>
+
 <div id="dropOverlay"><span>Release to add to the field</span></div>
 
 <!-- ================= playlist ================= -->
@@ -1572,6 +1697,9 @@ const PALETTES = [
 const $ = id => document.getElementById(id);
 const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
+  firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
+  frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
+  frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
   fileInput: $('fileInput'),
   btnAdd: $('btnAdd'), btnChoose: $('btnChoose'), btnDemo: $('btnDemo'), btnCatalog: $('btnCatalog'),
   btnMic: $('btnMic'), btnPlaylist: $('btnPlaylist'), btnHelp: $('btnHelp'), btnFull: $('btnFull'),
@@ -3738,6 +3866,44 @@ function openingSet(tracks, keyOf, n){
   if (!hero) hero = fresh.shift();
   if (!hero) return [];
   return [hero].concat(fresh.slice(0, n ?? 10));
+}
+
+/* surpriseSet — the "Surprise Me" crate's dials, turned by a plain-language
+   vibe. Two axes the room asks for: pace (slow ↔ fast) sets how much energy
+   and onset density we aim at (and whether we chase a tempo target at all);
+   mood (running ↔ chill) decides the SHAPE — running is a progression that
+   builds FROM lower TO higher with a real BPM climb, chill is a steady glow
+   that holds its level and lets tempo wander. Returns a ritual-shaped
+   descriptor (from/to/heat/targetSec) so it deals through the same journey
+   solver as every other set. Pure and testable — no catalog needed. */
+function surpriseSet(pace, mood){
+  const fast = pace === 'fast';
+  const running = mood === 'running';
+  const lo = fast ? 0.55 : 0.30;                  // energy floor for this pace
+  const hi = fast ? 0.95 : 0.58;                  // energy ceiling for this pace
+  const onLo = fast ? 0.55 : 0.20, onHi = fast ? 0.85 : 0.34;
+  const bright = fast ? 0.60 : 0.44;
+  // running climbs the whole span; chill sits in the middle and barely moves
+  const from = {
+    energy: running ? lo : (lo + hi) / 2 - 0.04,
+    brightness: bright - (running ? 0.04 : 0),
+    onsets: running ? onLo : (onLo + onHi) / 2,
+    bpm: running ? (fast ? 156 : 144) : 0
+  };
+  const to = {
+    energy: running ? hi : (lo + hi) / 2 + 0.04,
+    brightness: bright + (running ? 0.08 : 0.02),
+    onsets: running ? onHi : (onLo + onHi) / 2 + 0.02,
+    bpm: running ? (fast ? 172 : 160) : 0
+  };
+  return {
+    key: 'surprise', from, to,
+    heat: running ? 0.24 : 0.34,                  // chill wanders a touch more
+    targetSec: running ? 3000 : 3600,             // ~50 min run · ~60 min glow
+    label: (fast ? 'Fast' : 'Slow') + ' · ' + (running ? 'running' : 'chill'),
+    desc: (running ? 'a set that builds' : 'a steady glow')
+      + (fast ? ', up-tempo' : ', unhurried')
+  };
 }
 
 /* a play counts at ≥50% or 60 seconds — the history threshold rule */
@@ -6063,6 +6229,8 @@ window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredInstall = e;
   el.btnInstall.hidden = false;                    // an affordance, never a nag
+  // if the welcome card is already up, upgrade its hint to a one-tap button
+  if (el.firstRun && el.firstRun.classList.contains('open') && typeof frInstallSetup === 'function') frInstallSetup();
 });
 el.btnInstall.addEventListener('click', () => {
   if (!deferredInstall) return;
@@ -6077,7 +6245,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'd4ec15d29a';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '0d78bb47e6';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -10507,6 +10675,133 @@ syncSortButtons();
 initMediaSession();
 document.getElementById('buildLine').textContent = MB8_BUILD;
 
+/* ---- first-run crates: the way IN, in place of a demo ----
+   A first-time visitor with a real library never meets a test tone. They
+   meet a choice: START WITH THE SIGNATURE (Möbius Walking + the freshest),
+   HOT THIS WEEK (the newest pressings), or SURPRISE ME (a set the journey
+   solver deals to a plain-language vibe). The shipped demo survives only as
+   the fallback when the shelf is empty or unreachable. */
+function firstRunOpen(){
+  if (el.empty) el.empty.classList.add('gone');
+  firstRunStat();
+  frInstallSetup();
+  el.firstRun.classList.add('open');
+}
+function firstRunClose(){ el.firstRun.classList.remove('open'); }
+
+/* the library, counted honestly — how much really lives here, and the promise
+   that smart shuffle will play all of it before it ever repeats a track */
+function firstRunStat(){
+  const tracks = allTracks().filter(t => !t.demo);
+  const n = tracks.length;
+  if (!n){ el.frStat.textContent = ''; return; }
+  let secs = 0, known = 0;
+  for (const t of tracks){ if (t.duration > 0){ secs += t.duration; known++; } }
+  if (known && known < n) secs = secs / known * n;   // estimate the rest from the known mean
+  let size;
+  if (secs >= 3600) size = Math.round(secs / 3600) + ' hours';
+  else if (secs >= 60) size = Math.round(secs / 60) + ' minutes';
+  else size = null;
+  const nStr = n.toLocaleString();
+  el.frStat.innerHTML = '<b>' + escapeHTML(nStr) + ' tracks' + (size ? ' · ~' + size : '') + '</b> of music live here — '
+    + 'smart shuffle plays <b>every one</b>, never repeating, until you\'ve heard them all.';
+}
+
+/* keep-it-forever: surface the install path so the room becomes a Home-Screen
+   app you can return to for years. Chrome/Android/desktop get a one-tap
+   button (the captured beforeinstallprompt); iOS Safari gets the Share-sheet
+   instructions it requires; an already-installed copy shows nothing. */
+function frInstallSetup(){
+  if (!el.frInstall) return;
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || window.navigator.standalone === true;
+  if (standalone){ el.frInstall.hidden = true; el.frInstall.innerHTML = ''; return; }
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (deferredInstall){
+    el.frInstall.hidden = false;
+    el.frInstall.innerHTML = '<b>Keep it on your Home Screen</b> — one tap, then it opens like any app and remembers your place.<br>';
+    const b = document.createElement('button');
+    b.className = 'fr-add'; b.type = 'button'; b.textContent = 'Add to Home Screen ▸';
+    b.addEventListener('click', () => {
+      deferredInstall.prompt();
+      deferredInstall.userChoice.finally(() => {
+        deferredInstall = null; el.frInstall.hidden = true;
+        if (el.btnInstall) el.btnInstall.hidden = true;
+      });
+    });
+    el.frInstall.appendChild(b);
+  } else if (iOS){
+    el.frInstall.hidden = false;
+    el.frInstall.innerHTML = '<b>Keep it forever</b> — tap <b>Share</b> ↑ then <b>Add to Home Screen</b>. '
+      + 'It opens full-screen and remembers your place for years.';
+  } else {
+    el.frInstall.hidden = true; el.frInstall.innerHTML = '';
+  }
+}
+
+function crateEngage(tracks, label){
+  tracks = (tracks || []).filter(Boolean);
+  if (!tracks.length) return false;
+  firstRunClose();
+  if (el.empty) el.empty.classList.add('gone');
+  PLAYLISTS.playTracks(tracks, label);          // leads with the crate, shelf stays browsable
+  return true;
+}
+/* the play-count map the FRESH rail uses, so "Hot this week" here and the
+   library porch agree on what's hot */
+function weekCounts(nowMs){
+  const wk = new Map();
+  for (const ev of HIST.events)
+    if (ev.type === 'play' && ev.startedAt > nowMs - 7 * 86400000)
+      wk.set(ev.key, (wk.get(ev.key) || 0) + 1);
+  return wk;
+}
+function surpriseEngage(pace, mood){
+  const dials = surpriseSet(pace, mood);
+  const dealt = dealJourney({ tracks: allTracks(), fromFeat: dials.from, toFeat: dials.to,
+    targetSec: dials.targetSec, heat: dials.heat, rng: mulberry32(newSeed()) });
+  const order = (dealt.order || []).map(libTrack).filter(Boolean);
+  // nothing analysed to solve over → still give them a real set, not a demo
+  if (!order.length) return crateEngage(openingSet(allTracks(), trackKey, 10), 'Möbius Walking + the freshest');
+  return crateEngage(order, 'Surprise · ' + dials.label);
+}
+function wireFirstRun(){
+  if (!el.firstRun || el.firstRun._wired) return;
+  el.firstRun._wired = true;
+  // the one guaranteed button — Möbius Walking + the freshest, always ready
+  el.frStart.addEventListener('click', () =>
+    crateEngage(openingSet(allTracks(), trackKey, 10), 'Möbius Walking + the freshest'));
+  // the two quiet alternatives
+  el.frCards.querySelectorAll('.fr-mini').forEach(mini => {
+    mini.addEventListener('click', () => {
+      const kind = mini.dataset.crate;
+      if (kind === 'hot'){
+        const now = Date.now();
+        const picks = freshPicks(allTracks(), weekCounts(now), trackKey, now);
+        const list = picks.crate.length ? picks.crate.slice() : openingSet(allTracks(), trackKey, 10);
+        crateEngage(list, 'Hot this week');
+      } else if (kind === 'surprise'){
+        el.frVibe.hidden = false;
+        el.frVibe.classList.add('open');
+        el.frVibe.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+  });
+  const segPick = (seg, btn) => seg.querySelectorAll('button').forEach(b => {
+    const on = b === btn;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  el.frPace.querySelectorAll('button').forEach(b => b.addEventListener('click', () => segPick(el.frPace, b)));
+  el.frMood.querySelectorAll('button').forEach(b => b.addEventListener('click', () => segPick(el.frMood, b)));
+  el.frBuild.addEventListener('click', () => {
+    const paceEl = el.frPace.querySelector('.on'), moodEl = el.frMood.querySelector('.on');
+    surpriseEngage(paceEl ? paceEl.dataset.v : 'slow', moodEl ? moodEl.dataset.v : 'running');
+  });
+}
+wireFirstRun();
+
 /* flush pending state when the app is backgrounded or killed mid-track —
    the §10.8 contract: kill, relaunch, restored paused at position, one tap */
 window.addEventListener('pagehide', () => { PERSIST.save(); });
@@ -10539,12 +10834,11 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) PERSI
           player.renderList();
           toast('Restored — tap play to resume');
         } else {
-          // a first visit: open with Möbius Walking + the 10 freshest pressings,
-          // cued paused. No catalog (or an empty one) → the shipped demo.
-          const set = openingSet(allTracks(), trackKey, 10);
-          if (set.length && player.openWith(set)){
-            const extra = set.length - 1;
-            toast(escapeHTML(set[0].title) + (extra > 0 ? ' + ' + extra + ' fresh' : '') + ' — tap play');
+          // a first visit: offer the crates — the way in. A real library shows
+          // the chooser (First time · Hot this week · Surprise me); only an
+          // empty or unreachable shelf falls back to the shipped demo.
+          if (openingSet(allTracks(), trackKey, 10).length){
+            firstRunOpen();
           } else {
             player.playDemo();
           }
