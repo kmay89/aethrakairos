@@ -1196,9 +1196,7 @@ body.zen .chrome{opacity:0;pointer-events:none}
 <!-- ================= empty state ================= -->
 <section id="emptyState" class="chrome">
   <h1 class="hero-line">This is <em>Aethra Kairos</em>.</h1>
-  <p class="hero-sub">Music that paints. Every frequency bin is projected through the Möbius⁸ field and placed
-  on the spiral — sixteen scenes, a beat-aware director, a colour engine that reads the key of the song.
-  Press play and dance with your eyes.</p>
+  <p class="hero-sub">Music you can watch. Press play — the art dances to every beat.</p>
   <div class="hero-actions">
     <button class="btn big" id="btnChoose">Choose audio files</button>
     <button class="btn big primary" id="btnDemo">Play — Möbius Walking</button>
@@ -2014,6 +2012,9 @@ function ensureCtx(){
     d.a.addEventListener('error', () => {
       if (d.priming || i !== AE.active) return;
       const t = player.tracks[player.cur];
+      // the shipped demo file didn't load (missing/undecodable/offline cold
+      // cache) — synthesize a loop instead of a dead end
+      if (t && t.demo && !t.local){ player.synthesizeDemo(); return; }
       const offline = !navigator.onLine && t && !t.local;
       toast(offline
         ? 'Offline — streaming unavailable for <b>' + escapeHTML(t.title) + '</b>'
@@ -2732,39 +2733,51 @@ const player = {
     return true;
   },
 
-  async playDemo(){
+  playDemo(){
+    // iOS hands out audio permission ONLY inside the gesture that asked for it,
+    // and an `await` spends it: the old path awaited a HEAD probe before the
+    // first play(), so on stricter/older Safari the play() landed outside the
+    // user-activation window and was silently blocked — "nothing happens, no
+    // error" (autoplay blocks don't fire the element's 'error' event). So we
+    // unlock and play SYNCHRONOUSLY here, before anything async can run.
+    ensureCtx(); ensureResume();
     if (this.demoTrack){
       const i = this.tracks.indexOf(this.demoTrack);
       if (i >= 0){ this.playIndex(i); return; }
     }
     if (demoBuilding) return;
+    // Play the shipped Möbius Walking straight away — no probe first. If the
+    // file is missing or won't decode (offline cold cache), the deck's 'error'
+    // listener calls synthesizeDemo() to swap in a generated loop. The failed
+    // play() still blesses the element for iOS, so that later swap can play.
+    const tr = Object.assign({ id: uid++ }, DEMO_TRACK);
+    this.demoTrack = tr;
+    this.tracks.push(tr);
+    el.empty.classList.add('gone');
+    this.renderList(); this.probeDurations();
+    this.playIndex(this.tracks.length - 1);
+  },
+  async synthesizeDemo(){
+    // fallback when the shipped demo file can't be fetched/decoded — the audio
+    // subsystem is already unlocked by the gesture that tried the real file,
+    // so this async build-then-play still starts on iOS.
+    if (demoBuilding) return;
     demoBuilding = true;
-    let tr = null;
-    // the real thing first: Möbius Walking ships beside the player, analysed
-    // by the same pipeline as the catalog — measured grid, detected key —
-    // so the beat clock, the colour engine and the mixer all engage
+    toast('Synthesizing the demo loop…');
     try {
-      const probe = await fetch(DEMO_TRACK.url, { method: 'HEAD' });
-      if (probe.ok || probe.status === 405) tr = Object.assign({ id: uid++ }, DEMO_TRACK);
-    } catch (e){ /* offline with a cold cache: the synthesizer still owes us a demo */ }
-    if (!tr){
-      toast('Synthesizing the demo loop…');
-      try {
-        const blob = await buildDemoLoop();
-        tr = { id: uid++, title: 'Möbius Demo Loop', artist: 'Möbius⁸', album: 'Synthesized',
-               genre: 'Test Tone', year: null, art: null, ext: 'SYNTH',
-               url: URL.createObjectURL(blob), duration: null, demo: true, local: true };
-      } catch (err){
-        console.error(err);
-        toast('The synthesizer stalled — try adding a file instead');
-      }
-    }
-    if (tr){
+      const blob = await buildDemoLoop();
+      const tr = { id: uid++, title: 'Möbius Demo Loop', artist: 'Möbius⁸', album: 'Synthesized',
+                   genre: 'Test Tone', year: null, art: null, ext: 'SYNTH',
+                   url: URL.createObjectURL(blob), duration: null, demo: true, local: true };
+      const old = this.demoTrack, oi = old ? this.tracks.indexOf(old) : -1;
+      if (oi >= 0) this.tracks.splice(oi, 1);
       this.demoTrack = tr;
       this.tracks.push(tr);
-      el.empty.classList.add('gone');
       this.renderList(); this.probeDurations();
       this.playIndex(this.tracks.length - 1);
+    } catch (err){
+      console.error(err);
+      toast('The synthesizer stalled — try adding a file instead');
     }
     demoBuilding = false;
   },
@@ -2792,7 +2805,16 @@ const player = {
     nd.a.src = track.url;
     nd.norm = normLin(track);
     nd.a.currentTime = 0;
-    nd.a.play().catch(() => {/* error listener handles it */});
+    nd.a.play().catch(err => {
+      // A decode/network failure fires the element's 'error' event (handled
+      // above). An autoplay BLOCK does not — it rejects here, silently. On the
+      // rare device that still blocks the first gesture, say so plainly: the
+      // context is live now, so a second tap starts the sound.
+      if (err && err.name === 'NotAllowedError'){
+        ensureResume();
+        toast('Tap play once more to start the sound');
+      }
+    });
     if (AE.graphLive){
       rampGain(nd.gain, nd.norm, fadeDur, 'in');
       rampGain(od.gain, 0, fadeDur, 'out');
@@ -6544,7 +6566,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'f37b61e75f';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '2f945418aa';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
