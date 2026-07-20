@@ -6990,7 +6990,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'dc3f18ec5c';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '46e99a3ef4';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -10563,7 +10563,9 @@ const ACTS = [
    bend nearby particles away from your hand.
    ================================================================ */
 const INTERACT = {
-  px: 0, py: 0,        // pointer in NDC (y up)
+  px: 0, py: 0,        // pointer in NDC (y up) — the raw finger
+  wx: 0, wy: 0,        // the WARP centre — chases the finger through a spring
+  vx: 0, vy: 0,        // its velocity — this is the momentum you sling
   strength: 0,         // 0..1 presence — drives the uPtr.z warp
   impulse: 0,          // double-tap shockwave, exp-decays (τ ≈ 0.5 s)
   swirl: 0,            // horizontal drag torque — SLINKY spins your way
@@ -10577,6 +10579,22 @@ const INTERACT = {
     // presence swells fast while the hand lives, relaxes slowly after it rests
     const want = this.dragging ? 1 : (this._idleT < 1.2 ? 0.55 : 0);
     this.strength += (want - this.strength) * (1 - Math.exp(-dt / (want > this.strength ? 0.12 : 0.9)));
+    // The field has a little MASS. The warp centre doesn't teleport to the
+    // finger — it's a puck on a spring, so a drag carries weight and a flick
+    // slings it, overshooting and springing back to rest. K is stiff enough
+    // that a slow drag still tracks tight (the crisp feel is untouched); only a
+    // quick flick reveals the momentum. Parked exactly on the finger whenever
+    // you're not really touching, so a new touch never swoops in from nowhere.
+    // Reduced-motion users get no overshoot — the centre stays glued to the hand.
+    if (this.strength < 0.05 || reducedMotion){
+      this.wx = this.px; this.wy = this.py; this.vx = this.vy = 0;
+    } else {
+      const h = Math.min(dt, 0.05);               // a long rAF gap can't blow up the spring
+      const K = 150, D = 18;                       // stiffness / damping — tight track, gentle overshoot
+      this.vx += ((this.px - this.wx) * K - this.vx * D) * h;
+      this.vy += ((this.py - this.wy) * K - this.vy * D) * h;
+      this.wx += this.vx * h; this.wy += this.vy * h;
+    }
   },
 };
 {
@@ -10593,6 +10611,9 @@ const INTERACT = {
     INTERACT.dragging = true;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
     toNdc(ev); INTERACT._idleT = 0;
+    // start the sprung warp centre exactly under the finger (no velocity), so a
+    // fresh touch never slings in from wherever the last one ended
+    INTERACT.wx = INTERACT.px; INTERACT.wy = INTERACT.py; INTERACT.vx = INTERACT.vy = 0;
     downAt = performance.now(); moveAcc = 0;
     try { cv.setPointerCapture(ev.pointerId); } catch (e){}
   });
@@ -10682,8 +10703,10 @@ const TOUCHFX = {
     const s = INTERACT.strength;
     if (s < 0.02){ this._off(); return; }
     const grow = 0.55 + s * 0.9;
-    const x = (INTERACT.px * 0.5 + 0.5) * window.innerWidth;
-    const y = (0.5 - INTERACT.py * 0.5) * window.innerHeight;
+    // follow the SPRUNG warp centre (wx/wy), so the void and ring carry the same
+    // weight and momentum as the field they sit in — you sling the whole effect
+    const x = (INTERACT.wx * 0.5 + 0.5) * window.innerWidth;
+    const y = (0.5 - INTERACT.wy * 0.5) * window.innerHeight;
     if (el.voidFx){
       el.voidFx.style.left = x + 'px'; el.voidFx.style.top = y + 'px';
       el.voidFx.style.transform = 'translate(-50%,-50%) scale(' + grow.toFixed(3) + ')';
@@ -11735,7 +11758,7 @@ function frame(now){
   INTERACT.update(dt);
   DWELL.update(dt);
   drawSafe('touchfx', () => TOUCHFX.render());   // the touch-FX overlay follows the hand
-  U.uPtr.value.set(INTERACT.px, INTERACT.py,
+  U.uPtr.value.set(INTERACT.wx, INTERACT.wy,   // the sprung warp centre — the field has weight
     INTERACT.strength * (reducedMotion ? 0.35 : 1));
   U.uPtrMode.value = TOUCHFX.mode();   // the touch's personality (VOID/SPIN/PULL/WAVE)
 
