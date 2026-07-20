@@ -5340,22 +5340,44 @@ function stopNowPlayingHeartbeat(){
 // daemon runs out-of-process and often won't resolve a relative artwork src
 // against the page — an absolute URL is the reliable form.
 const APP_ARTWORK = [
-  { src: new URL('icons/icon-192.png', location.href).href, sizes: '192x192', type: 'image/png' },
+  // 512 first: iOS prefers the largest it's offered, and this is the branded
+  // spiral it renders on the Dynamic Island / lock screen / Home-Screen chip.
   { src: new URL('icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' },
+  { src: new URL('icons/icon-192.png', location.href).href, sizes: '192x192', type: 'image/png' },
 ];
+// Preload the branded art so the Now Playing daemon's fetch is warm the instant
+// the first track starts — a cold miss is what leaves the pill a gray speaker.
+(() => { try { new Image().src = APP_ARTWORK[0].src; } catch (e){} })();
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
   const t = player.tracks[player.cur];
   if (!t){ navigator.mediaSession.metadata = null; return; }
-  const art = t.art ? [96, 192, 512].map(s => ({
-    src: t.art, sizes: s + 'x' + s,
-    type: /\.png(\?|$)/i.test(t.art) ? 'image/png' : 'image/jpeg',
-  })) : APP_ARTWORK;
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: t.title, artist: t.artist || '', album: t.album || '', artwork: art,
-  });
-  mediaSessionPlaybackState();
-  mediaSessionPosition();
+  const setMeta = artwork => {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: t.title, artist: t.artist || '', album: t.album || '', artwork,
+    });
+    mediaSessionPlaybackState();
+    mediaSessionPosition();
+  };
+  // ALWAYS show the branded spiral first — a guaranteed-good, already-warm
+  // image — so the lock screen / Dynamic Island is never the generic gray
+  // speaker (which is what iOS shows when handed an artwork URL it can't fetch).
+  setMeta(APP_ARTWORK);
+  // Only THEN, if the track carries its own cover, upgrade to it — but not
+  // until an in-page probe has confirmed it actually loads. iOS's out-of-process
+  // daemon renders nothing (the generic icon) for an unreachable src, so we
+  // never hand it an unverified one; a broken cover simply keeps the spiral.
+  if (t.art){
+    const probe = new Image();
+    probe.onload = () => {
+      if (player.tracks[player.cur] !== t) return;            // track moved on
+      setMeta([512, 192].map(s => ({
+        src: t.art, sizes: s + 'x' + s,
+        type: /\.png(\?|$)/i.test(t.art) ? 'image/png' : 'image/jpeg',
+      })));
+    };
+    probe.src = t.art;
+  }
 }
 function mediaSessionPlaybackState(){
   if (!('mediaSession' in navigator)) return;
@@ -6968,7 +6990,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'ee1b4d3c6b';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'dc3f18ec5c';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
