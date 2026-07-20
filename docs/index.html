@@ -200,25 +200,35 @@ body.zen #eqStrip{opacity:.85;height:18px}
 #voidRing{box-shadow:0 0 34px -6px var(--accent-glow), inset 0 0 26px -4px var(--accent-glow)}
 #voidRing.on{opacity:.7}
 
-/* ============ the menu grip — in the immersive view, touching the light PLAYS
-   with it and never summons the menu. The controls come back only when you
-   reach for this handle at the top. It glows a hint when you first slip into
-   play, and stays faintly findable while you're there. ============ */
-#menuGrip{position:fixed;left:50%;top:0;transform:translateX(-50%);
-  width:64px;height:26px;z-index:55;pointer-events:none;opacity:0;
-  display:flex;align-items:flex-start;justify-content:center;background:none;border:none;
-  cursor:pointer;transition:opacity .5s ease;padding:0}
-#menuGrip span{margin-top:8px;width:38px;height:4px;border-radius:2px;
-  background:rgba(255,255,255,.34);box-shadow:0 0 10px rgba(255,255,255,.14);
-  transition:background .3s ease,transform .3s ease}
-body.zen #menuGrip{opacity:.5;pointer-events:auto}
-body.zen #menuGrip:hover span,body.zen #menuGrip:active span{background:var(--accent);transform:scaleX(1.15)}
-body.zen #menuGrip.hint span{animation:gripHint 1.35s cubic-bezier(.4,0,.2,1) 3}
-@keyframes gripHint{0%,100%{transform:translateY(0);background:rgba(255,255,255,.34)}
-  45%{transform:translateY(6px) scaleX(1.2);background:var(--accent)}}
+/* ============ THE ORB OF ENTROPY — the immersive view's one control, and the
+   loading sphere at rest. It is the seed of CONTROL: while you're steering, it
+   shows itself in the corner; when you settle back to watch, it fades and the
+   director takes the field back on its own. TAP it and the menu unfurls; FLICK
+   it and you shift the scene yourself. It appears only "as needed" — any touch
+   wakes it, a few seconds of stillness lets it dissolve — so it never distracts
+   from the light. An outer element carries the bloom-in, an inner core the
+   spin, so the two transforms never fight. ============ */
+#fxOrb{position:fixed;right:16px;bottom:26px;width:54px;height:54px;z-index:56;
+  opacity:0;pointer-events:none;transform:scale(.35) translateY(12px);
+  transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1);
+  cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+/* only present while it's awake (recent interaction) — and only in play mode */
+body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) translateY(0)}
+#fxOrb .orb-core{position:absolute;inset:0;border-radius:50%;
+  background:#000 center/cover no-repeat;background-image:url('icons/icon-512.png');
+  box-shadow:0 0 26px -4px var(--accent-glow),inset 0 0 18px rgba(0,0,0,.6);
+  animation:spLon 24s linear infinite}
+#fxOrb .orb-core::after{content:'';position:absolute;inset:-4px;border-radius:50%;
+  border:1.5px solid var(--accent);opacity:.5}
+#fxOrb.awake:active{transform:scale(.92)}
+#fxOrb.hint{animation:orbHint 1.5s ease 2}
+#fxOrb.flick .orb-core{animation:spLon 1.1s linear infinite,orbFlick .55s ease}
+@keyframes orbFlick{0%{transform:scale(1)}34%{transform:scale(1.24)}100%{transform:scale(1)}}
+@keyframes orbHint{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+@media (prefers-reduced-motion:reduce){#fxOrb .orb-core{animation-duration:60s}
+  #fxOrb.flick .orb-core,#fxOrb.hint{animation:none}}
 
 @media (prefers-reduced-motion:reduce){
-  #menuGrip.hint span{animation:none}
   #voidFx,#voidRing{transition:opacity .3s ease}
   #zenWave{transition:opacity .5s ease;transform:none}
   #zenWave.bloom{transform:none}
@@ -1278,7 +1288,7 @@ body.zen #menuGrip.hint span{animation:gripHint 1.35s cubic-bezier(.4,0,.2,1) 3}
 <canvas id="eqStrip" aria-hidden="true"></canvas>
 <div id="voidRing" aria-hidden="true"></div>
 <div id="voidFx" aria-hidden="true"></div>
-<button id="menuGrip" type="button" aria-label="Show controls"><span></span></button>
+<div id="fxOrb" role="button" tabindex="0" aria-label="Control orb — tap to bring the menu back, flick to shift the scene"><span class="orb-core"></span></div>
 <div id="loadSpin" aria-hidden="true"><div class="ls-art"></div><span class="ls-txt">tuning the first track…</span></div>
 
 <!-- ================= top bar ================= -->
@@ -2051,7 +2061,7 @@ const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
-  menuGrip: $('menuGrip'), voidFx: $('voidFx'), voidRing: $('voidRing'),
+  fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
@@ -6996,7 +7006,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'a7810f63e3';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '1936a5fabd';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7197,59 +7207,81 @@ const WAVE = {
   },
 };
 
-/* THE EQ SHIMMER — a slim rainbow spectrum along the foot of the screen, on
-   whenever sound moves: proof the engine is reading the music, and a second
-   pulse of life beside the waveform. It reuses AE.freq (already sampled each
-   frame) where the analyser is live, and falls back to the low/mid/high bands
-   on the iPhone path — so it costs one buffer read and ~48 bars a frame, and
-   nothing when the perf governor is under pressure. */
+/* THE EQ RIBBON — the song's own energy, drawn honestly.
+   A phone can't hand us a live spectrum (playback is element-direct, no
+   analyser), so we don't fake forty dancing bars. We draw what we DO measure
+   with precision: the loudness-and-attack envelope of the exact frame, pushed
+   into a scrolling ring and rendered as a smooth mirrored ribbon — a
+   seismograph of the music that reads like the waveform because it IS the
+   signal. Quiet reads quiet; a hit spikes; a breakdown flattens to a hairline.
+   The rainbow always drifts (the shimmer, the proof the engine is alive) but
+   the HEIGHTS never lie. One float a frame + one filled path — cheaper than the
+   old bar loop, and it yields the whole frame the instant the governor strains. */
 const EQ = {
-  cv: null, ctx: null, m: null, BARS: 48, phase: 0,
+  cv: null, ctx: null, hist: null, hi: 0, N: 168, phase: 0,
   draw(f, dt){
     const cv = this.cv || (this.cv = el.eqStrip);
     if (!cv) return;
     const ctx = this.ctx || (this.ctx = cv.getContext('2d'));
     if (!ctx) return;
-    // give the frame budget to the scenes first — the strip is a grace note
-    if (typeof PERF !== 'undefined' && PERF.struggling){ ctx.clearRect(0, 0, cv.width, cv.height); return; }
     const w = cv.clientWidth, h = cv.clientHeight;
     if (!w || !h) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     if (cv.width !== Math.round(w * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const N = this.BARS;
-    if (!this.m || this.m.length !== N) this.m = new Float32Array(N);
-    const live = AE.graphLive && AE.freq;
-    for (let i = 0; i < N; i++){
-      const p = i / (N - 1);
-      let target;
-      if (live){
-        // log-spaced sampling across the audible bins → bass left, air right
-        const lo = Math.floor(2 * Math.pow(210, p)), hi = Math.max(lo + 1, Math.floor(2 * Math.pow(210, (i + 1) / (N - 1))));
-        let mx = 0; for (let k = lo; k < hi && k < AE.freq.length; k++) if (AE.freq[k] > mx) mx = AE.freq[k];
-        target = mx / 255;
-      } else {
-        // iPhone path — shape the three bands into a smooth spectrum
-        const bass = f.bass, mid = f.mid, tre = f.treble;
-        target = p < 0.5 ? bass + (mid - bass) * (p / 0.5) : mid + (tre - mid) * ((p - 0.5) / 0.5);
-        target *= 0.9 + 0.1 * Math.sin(p * 24 + this.phase * 3);   // a little life across the bars
-      }
-      // ease toward target — fast up, gentle down, so it dances not flickers
-      const cur = this.m[i];
-      this.m[i] = target > cur ? cur + (target - cur) * Math.min(1, dt * 22) : cur + (target - cur) * Math.min(1, dt * 7);
+    // grace note: under load, keep advancing the ring (so time stays honest)
+    // but skip the paint entirely — the scenes get the whole frame
+    const N = this.N;
+    if (!this.hist || this.hist.length !== N) this.hist = new Float32Array(N);
+    // ONE honest sample: measured energy + the attack of this frame. Where the
+    // analyser IS live (desktop) fold in the real broadband level for extra bite.
+    let lvl = (f.energy || 0) * 0.9 + (f.onsetStr || 0) * 0.5;
+    if (AE.graphLive && AE.freq){
+      let s = 0; for (let k = 1; k < 220; k += 3) s += AE.freq[k];
+      lvl = Math.max(lvl, (s / 73) / 255 * 1.15);
     }
-    this.phase = (this.phase + dt * 0.12) % 1;    // slow rainbow drift = the shimmer
-    const cw = w / N, bw = Math.max(1.2, cw * 0.62);
-    for (let i = 0; i < N; i++){
-      const p = i / (N - 1);
-      const mag = this.m[i];
-      const bh = Math.max(0.6, Math.pow(mag, 0.85) * (h - 1));
-      const hue = ((p * 300 + this.phase * 360) % 360);
-      const light = 52 + mag * 20;
-      ctx.fillStyle = `hsla(${hue|0},92%,${light|0}%,${(0.32 + 0.6 * mag).toFixed(3)})`;
-      ctx.fillRect(i * cw + (cw - bw) / 2, h - bh, bw, bh);
+    this.hist[this.hi] = clamp01(0.03 + lvl);
+    this.hi = (this.hi + 1) % N;
+    this.phase = (this.phase + dt * 0.11) % 1;
+    if (typeof PERF !== 'undefined' && PERF.struggling) return;   // ring advanced; skip the draw
+
+    // rainbow across the strip, tilted by the spectral centroid (brighter music
+    // slides the palette up) — one gradient object per frame, cheap
+    const tilt = (f.centroid || 0.2) * 0.35;
+    const g = ctx.createLinearGradient(0, 0, w, 0);
+    for (let s = 0; s <= 6; s++){
+      const p = s / 6;
+      g.addColorStop(p, `hsl(${((p * 300 + this.phase * 360 + tilt * 360) % 360) | 0},92%,63%)`);
     }
+    const mid = h / 2, amp = h * 0.5 - 0.5;
+    ctx.beginPath();
+    for (let i = 0; i < N; i++){                        // top contour, oldest→newest
+      const v = this.hist[(this.hi + i) % N];
+      const x = (i / (N - 1)) * w, y = mid - Math.pow(v, 0.85) * amp;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    for (let i = N - 1; i >= 0; i--){                   // bottom contour, mirrored
+      const v = this.hist[(this.hi + i) % N];
+      ctx.lineTo((i / (N - 1)) * w, mid + Math.pow(v, 0.85) * amp);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = 0.9; ctx.fillStyle = g; ctx.fill();
+    // a bright additive core line down the middle — the crisp, precise read
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.5; ctx.fillStyle = g;
+    ctx.beginPath();
+    for (let i = 0; i < N; i++){
+      const v = this.hist[(this.hi + i) % N] * 0.42;
+      const x = (i / (N - 1)) * w, y = mid - Math.pow(v, 0.85) * amp;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    for (let i = N - 1; i >= 0; i--){
+      const v = this.hist[(this.hi + i) % N] * 0.42;
+      ctx.lineTo((i / (N - 1)) * w, mid + Math.pow(v, 0.85) * amp);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   },
 };
 
@@ -8139,16 +8171,13 @@ function enterZen(){
   // after a long still sit, deepen: the info card crossfades to a corner whisper
   clearTimeout(zenDeepT);
   zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
-  // teach the play affordance — the grip bobs a hint, and just once ever a word
-  if (el.menuGrip){
-    el.menuGrip.classList.remove('hint'); void el.menuGrip.offsetWidth;   // restart the bob
-    el.menuGrip.classList.add('hint');
-    setTimeout(() => el.menuGrip && el.menuGrip.classList.remove('hint'), 4600);
-  }
+  // teach the affordance — the orb wakes and blooms a hint, and just once ever,
+  // a word. It then fades on its own (show-as-needed) once you settle in.
+  orbWake(true);
   try {
     if (!localStorage.getItem('mb8_playhint')){
       localStorage.setItem('mb8_playhint', '1');
-      toast('Touch the light to play with it — pull the handle ↓ up top for the controls.');
+      toast('Touch the light to play with it — the orb ◍ appears when you do: tap it for the menu, flick it to shift the scene.');
     }
   } catch (e){}
 }
@@ -8181,16 +8210,64 @@ function pokeChrome(){
     }
   }, 3800);
 }
+/* THE ORB shows up as needed: any touch in play mode wakes it, and a few
+   seconds of stillness lets it dissolve, so it never distracts from the light. */
+let _orbSleep = null;
+function orbWake(hint){
+  if (!el.fxOrb) return;
+  el.fxOrb.classList.add('awake');
+  if (hint){ el.fxOrb.classList.remove('hint'); void el.fxOrb.offsetWidth; el.fxOrb.classList.add('hint');
+    setTimeout(() => el.fxOrb && el.fxOrb.classList.remove('hint'), 3200); }
+  clearTimeout(_orbSleep);
+  _orbSleep = setTimeout(() => { if (el.fxOrb) el.fxOrb.classList.remove('awake'); }, 3200);
+}
 ['pointermove', 'pointerdown', 'touchstart'].forEach(evName =>
   window.addEventListener(evName, ev => {
-    // In the immersive view, playing WITH the light (touching the canvas) must
-    // NOT summon the menu — that's the whole point of play mode. The controls
-    // return only when you reach for the grip. Outside zen, any interaction
-    // keeps the chrome awake exactly as before.
-    if (document.body.classList.contains('zen') && ev.target === el.canvas) return;
+    const zen = document.body.classList.contains('zen');
+    // In play mode, touching the light must NOT summon the menu — but it SHOULD
+    // wake the orb so the control is there the instant you reach for it. The orb
+    // owns the return (tap) and the scene-shift (flick); its own handler decides.
+    if (zen && (ev.target === el.canvas || (el.fxOrb && el.fxOrb.contains(ev.target)))){
+      if (ev.target === el.canvas) orbWake(false);
+      return;
+    }
     pokeChrome();
   }, { passive: true }));
-if (el.menuGrip) el.menuGrip.addEventListener('click', () => pokeChrome());
+/* THE ORB's two gestures: a clean TAP unfurls the menu; a FLICK (or a hold)
+   shifts the SCENE yourself — you take the wheel from the director, the orb
+   spins up in answer. It lives off the canvas, so it never raises iOS's copy
+   box, and touch-forces are still chosen from the TOUCH chip in the menu. */
+if (el.fxOrb){
+  let ox = 0, oy = 0, ot = 0, omoved = 0;
+  el.fxOrb.addEventListener('pointerdown', ev => {
+    ox = ev.clientX; oy = ev.clientY; ot = performance.now(); omoved = 0;
+    orbWake(false);
+    try { el.fxOrb.setPointerCapture(ev.pointerId); } catch (e){}
+  });
+  el.fxOrb.addEventListener('pointermove', ev => {
+    if (!ot) return;
+    omoved += Math.hypot(ev.clientX - ox, ev.clientY - oy);
+    ox = ev.clientX; oy = ev.clientY;
+  });
+  el.fxOrb.addEventListener('pointerup', () => {
+    if (!ot) return;
+    const flick = omoved > 20 || performance.now() - ot > 500;
+    ot = 0; orbWake(false);
+    if (flick){
+      // take the wheel: shift to the next scene (a nudge — the director keeps
+      // self-directing from there unless you've pinned it)
+      if (typeof scenes !== 'undefined' && scenes.length)
+        director.setScene((director.active + 1) % scenes.length, false);
+      el.fxOrb.classList.remove('flick'); void el.fxOrb.offsetWidth; el.fxOrb.classList.add('flick');
+      HAPTICS.pulse(true);
+    } else {
+      pokeChrome();                                     // a tap brings the menu back
+    }
+  });
+  el.fxOrb.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); pokeChrome(); }
+  });
+}
 pokeChrome();
 
 /* keyboard */
@@ -10609,9 +10686,6 @@ const INTERACT = {
     INTERACT.px = (ev.clientX / window.innerWidth) * 2 - 1;
     INTERACT.py = -((ev.clientY / window.innerHeight) * 2 - 1);
   };
-  // long-press cycles the touch-FX: a deliberate stationary hold on the
-  // field (≥600 ms, ≤18 px of travel) changes the force under your hand.
-  let downAt = 0, moveAcc = 0;
   cv.addEventListener('pointerdown', ev => {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     INTERACT.dragging = true;
@@ -10620,7 +10694,6 @@ const INTERACT = {
     // start the sprung warp centre exactly under the finger (no velocity), so a
     // fresh touch never slings in from wherever the last one ended
     INTERACT.wx = INTERACT.px; INTERACT.wy = INTERACT.py; INTERACT.vx = INTERACT.vy = 0;
-    downAt = performance.now(); moveAcc = 0;
     try { cv.setPointerCapture(ev.pointerId); } catch (e){}
   });
   cv.addEventListener('pointermove', ev => {
@@ -10629,16 +10702,14 @@ const INTERACT = {
     if (!INTERACT.dragging) return;
     const dx = ev.clientX - INTERACT._lx, dy = ev.clientY - INTERACT._ly;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
-    moveAcc += Math.hypot(dx, dy);
     director.camGoalTheta -= dx * 0.006;
     director.camGoalPhi = clamp(director.camGoalPhi + dy * 0.004, 0.5, 2.5);
     INTERACT.swirl = clamp(INTERACT.swirl + dx * 0.02, -3, 3);
     INTERACT.holdOff = 9;          // the auto rig waits while you hold the field
   });
-  const drop = () => {
-    if (INTERACT.dragging && performance.now() - downAt > 600 && moveAcc < 18) TOUCHFX.cycle();
-    INTERACT.dragging = false;
-  };
+  // the touch-FX no longer cycles on a canvas long-press (that raised iOS's copy
+  // box and fought with playing the light) — the corner ORB owns that gesture now
+  const drop = () => { INTERACT.dragging = false; };
   cv.addEventListener('pointerup', drop);
   cv.addEventListener('pointercancel', drop);
   // a long-press must cycle the FX, never raise the OS text-callout / copy box
