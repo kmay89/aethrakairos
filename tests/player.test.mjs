@@ -21,7 +21,7 @@ function block(name){
 const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
   '\nreturn { mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
-  ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet,' +
+  ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -331,6 +331,37 @@ test('openingSet: Möbius Walking leads, then the freshest, cued for a first vis
   assert.equal(noHero[0].sha256, 'a', 'no Möbius Walking → freshest leads');
   assert.equal(noHero.length, 2);
   assert.deepEqual(S.openingSet([], key, 10), [], 'an empty shelf yields nothing (caller shows the demo)');
+});
+
+test('libraryOrder: the whole library, newest→oldest, hero first, no dupes/demos', () => {
+  const NOW = Date.UTC(2026, 6, 19), day = 86400000;
+  const iso = d => new Date(NOW - d * day).toISOString().slice(0, 10);
+  const T = (sha, title, days) => ({ sha256: sha, title, published: iso(days) });
+  const key = t => t.sha256 || null;
+  const cat = [
+    T('c', 'Cinder', 30),
+    T('m', 'Möbius Walking', 400),               // old, but the hero still leads
+    T('a', 'Amber Axis', 2),                     // newest of the rest
+    T('b', 'Breathing', 9),
+    { ...T('z', 'Demo Loop', 1), demo: true },   // demos never enter
+    T('a', 'Amber Axis', 2),                     // duplicate — once
+  ];
+  const order = S.libraryOrder(cat, key);
+  assert.deepEqual(order.map(t => t.sha256), ['m', 'a', 'b', 'c'], 'hero, then strictly newest→oldest, whole library');
+  assert.ok(!order.some(t => t.demo), 'no demo');
+  assert.deepEqual(S.libraryOrder([], key), [], 'empty shelf → nothing');
+  // no hero present → pure newest→oldest
+  const noHero = S.libraryOrder([T('a', 'Amber Axis', 2), T('c', 'Cinder', 30), T('b', 'Breathing', 9)], key);
+  assert.deepEqual(noHero.map(t => t.sha256), ['a', 'b', 'c'], 'no hero → pure newest→oldest');
+});
+
+test('firstUnheardIndex: a returning listener drops in at the first fresh track', () => {
+  const key = t => t.sha256 || null;
+  const order = [{ sha256: 'm' }, { sha256: 'a' }, { sha256: 'b' }, { sha256: 'c' }];
+  assert.equal(S.firstUnheardIndex(order, new Set(), key), 0, 'all fresh → start at the top');
+  assert.equal(S.firstUnheardIndex(order, new Set(['m']), key), 1, 'heard the hero → drop in at the next');
+  assert.equal(S.firstUnheardIndex(order, new Set(['m', 'a']), key), 2, 'walks forward past everything heard');
+  assert.equal(S.firstUnheardIndex(order, new Set(['m', 'a', 'b', 'c']), key), 0, 'a full lap done → back to the top');
 });
 
 test('surpriseSet: the vibe turns the solver dials the way the words promise', () => {
