@@ -2769,12 +2769,13 @@ const player = {
       const tr = { id: uid++, title: 'Möbius Demo Loop', artist: 'Möbius⁸', album: 'Synthesized',
                    genre: 'Test Tone', year: null, art: null, ext: 'SYNTH',
                    url: URL.createObjectURL(blob), duration: null, demo: true, local: true };
+      // replace the failed shipped demo IN PLACE — splicing it out would shift
+      // every later index and corrupt this.cur / this.history
       const old = this.demoTrack, oi = old ? this.tracks.indexOf(old) : -1;
-      if (oi >= 0) this.tracks.splice(oi, 1);
+      if (oi >= 0) this.tracks[oi] = tr; else this.tracks.push(tr);
       this.demoTrack = tr;
-      this.tracks.push(tr);
       this.renderList(); this.probeDurations();
-      this.playIndex(this.tracks.length - 1);
+      this.playIndex(oi >= 0 ? oi : this.tracks.length - 1);
     } catch (err){
       console.error(err);
       toast('The synthesizer stalled — try adding a file instead');
@@ -2798,7 +2799,16 @@ const player = {
     const xfade = !!(opts && opts.xfade) && this.playing && this.cur !== -1 && AE.graphLive;
     const fadeDur = xfade ? XFADE : (this.playing ? 0.25 : 0.06);
     const oldIdx = AE.active;
-    const newIdx = 1 - oldIdx;
+    // iOS gives background-audio privilege to the ONE element that currently
+    // holds the session. When the screen is locked and a track ends, moving
+    // playback to the OTHER deck is an un-gestured background start — iOS
+    // blocks it, so the music stops after one song and the lock-screen
+    // controls vanish, while the UI still thinks it's playing. So when we're
+    // hidden (and not crossfading), stay on the SAME element: load the next
+    // src into the session-holder and play. Foreground keeps the two-deck
+    // swap that crossfades need.
+    const stayPut = IS_IOS && document.hidden && !xfade && this.playing;
+    const newIdx = stayPut ? oldIdx : 1 - oldIdx;
     const nd = AE.decks[newIdx], od = AE.decks[oldIdx];
 
     AE.xfading = xfade;
@@ -2812,6 +2822,7 @@ const player = {
       // context is live now, so a second tap starts the sound.
       if (err && err.name === 'NotAllowedError'){
         ensureResume();
+        player.pause();     // clear the optimistic playing state so ONE more tap resumes, not two
         toast('Tap play once more to start the sound');
       }
     });
@@ -2823,7 +2834,7 @@ const player = {
     applyVolume();                       // element-volume routing follows the deck swap
     clearTimeout(this._fadeT);
     this._fadeT = setTimeout(() => {
-      od.a.pause();
+      if (od !== nd) od.a.pause();        // never pause the element we just (re)started on the same-deck path
       AE.xfading = false;
     }, (AE.graphLive ? fadeDur : 0.02) * 1000 + 80);
 
@@ -6566,7 +6577,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '2f945418aa';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'f92d73f9c2';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
