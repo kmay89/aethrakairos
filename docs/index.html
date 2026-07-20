@@ -105,6 +105,20 @@ body.zen #glcanvas{cursor:none}
 #splash .sp-name{font-size:26px;font-weight:600;letter-spacing:.4px;color:#fff;
   text-shadow:0 2px 22px rgba(0,0,0,.7);opacity:.96}
 @keyframes spLon{to{transform:rotate(360deg)}}
+
+/* the loading spin — the moment between pressing play and the sound arriving.
+   The spiral turns so the wait reads as the instrument warming up, never a
+   glitch. Shown only if the load takes a beat (fast starts never flash it). */
+#loadSpin{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;pointer-events:none;
+  opacity:0;transition:opacity .35s ease}
+#loadSpin.show{opacity:1}
+#loadSpin .ls-art{width:76px;height:76px;border-radius:50%;
+  background:#000 center/cover no-repeat;background-image:url('icons/icon-512.png');
+  box-shadow:0 0 44px -6px rgba(130,190,255,.6);animation:spLon 1.25s linear infinite}
+#loadSpin .ls-txt{font-size:11px;letter-spacing:.14em;color:var(--dim);text-transform:lowercase;
+  text-shadow:0 1px 12px rgba(0,0,0,.6)}
+@media (prefers-reduced-motion:reduce){ #loadSpin .ls-art{animation-duration:2.4s} }
 @media (prefers-reduced-motion:reduce){ #splash .sp-art{animation:none} #splash{transition:opacity .4s ease} }
 
 /* double-tap zoom is meaningless in a fullscreen instrument and only ever
@@ -689,6 +703,10 @@ body.zen #eqStrip{opacity:.85;height:18px}
 }
 .pl-title{font-family:var(--serif);font-style:italic;font-size:20px;font-weight:600}
 #plCount{font-size:10px;color:var(--faint);letter-spacing:.15em}
+.fresh-badge{font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  padding:2px 7px;border-radius:999px;color:var(--accent-ink,#06121a);
+  background:linear-gradient(120deg,var(--accent-2),var(--accent));
+  box-shadow:0 0 12px -3px var(--accent-glow)}
 .pl-head .spring{flex:1}
 .pl-x{color:var(--faint);font-size:16px;padding:4px 8px;border-radius:8px}
 .pl-x:hover{color:var(--ink);background:rgba(255,255,255,.06)}
@@ -715,6 +733,11 @@ body.zen #eqStrip{opacity:.85;height:18px}
   border:1px solid transparent;
 }
 .trk.now .idx{color:transparent;position:relative}
+/* already heard: dimmed, with a soft ✓, so the fresh tracks are the ones that
+   catch the eye. Hover restores it — a heard track is never out of reach. */
+.trk.heard{opacity:.42;transition:opacity .25s ease}
+.trk.heard:hover{opacity:.82}
+.trk.heard .nm::after{content:' ✓';color:var(--accent,#6ee7ff);font-size:10px;opacity:.7}
 .eq{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;gap:2px}
 .eq i{width:2.5px;background:var(--axis);border-radius:1px;animation:eq .9s ease-in-out infinite;height:10px}
 .eq i:nth-child(2){animation-delay:.25s}.eq i:nth-child(3){animation-delay:.5s}
@@ -1209,6 +1232,7 @@ body.zen #eqStrip{opacity:.85;height:18px}
   <div id="zenTag"></div>
 </div>
 <canvas id="eqStrip" aria-hidden="true"></canvas>
+<div id="loadSpin" aria-hidden="true"><div class="ls-art"></div><span class="ls-txt">tuning the first track…</span></div>
 
 <!-- ================= top bar ================= -->
 <header class="topbar chrome">
@@ -1305,7 +1329,7 @@ body.zen #eqStrip{opacity:.85;height:18px}
   </ul>
   <button class="fr-primary" type="button" id="frStart">
     <span class="fr-primary-go">▸ Play my first set</span>
-    <span class="fr-primary-sub">Möbius Walking + the freshest — always ready, no waiting</span>
+    <span class="fr-primary-sub">The whole library, newest first — every track, never a repeat</span>
   </button>
   <p class="fr-stat" id="frStat"></p>
   <div class="fr-more" id="frCards">
@@ -1386,6 +1410,7 @@ body.zen #eqStrip{opacity:.85;height:18px}
   <div class="pl-head">
     <span class="pl-title" id="plTitle">Playlist</span>
     <span id="plCount">0 tracks</span>
+    <span class="fresh-badge" id="freshBadge" hidden title="Tracks you haven't heard yet — the count runs down as you discover the whole library"></span>
     <span class="spring"></span>
     <button class="btn" id="btnSpeed" style="min-height:0;padding:3px 8px;font-size:9px"
       title="Playback speed — pitch preserved" aria-label="Cycle playback speed">1×</button>
@@ -1956,7 +1981,7 @@ const $ = id => document.getElementById(id);
 const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
-  zenTag: $('zenTag'), eqStrip: $('eqStrip'),
+  zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
@@ -2102,6 +2127,7 @@ function ensureCtx(){
     d.a.addEventListener('ended', () => { if (!d.priming && i === AE.active && !AE.xfading) player.onEnded(); });
     d.a.addEventListener('error', () => {
       if (d.priming || i !== AE.active) return;
+      LOADER.done();                 // the wait is over, even if it ended badly
       const t = player.tracks[player.cur];
       // the shipped demo file didn't load (missing/undecodable/offline cold
       // cache) — synthesize a loop instead of a dead end
@@ -2131,6 +2157,10 @@ function ensureCtx(){
     d.a.addEventListener('loadedmetadata', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('seeked', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
+    // the loading spin clears the instant true audio flows (or stalls again)
+    d.a.addEventListener('playing', () => { if (i === AE.active) LOADER.done(); });
+    d.a.addEventListener('timeupdate', () => { if (i === AE.active && d.a.currentTime > 0.05) LOADER.done(); });
+    d.a.addEventListener('waiting', () => { if (i === AE.active && player.playing) LOADER.begin(); });
   });
   applyVolume();
 }
@@ -2154,6 +2184,16 @@ function applyVolume(){
 function ensureResume(){
   if (AE.ctx && AE.ctx.state !== 'running'){ AE.ctx.resume().catch(() => {}); }
 }
+
+/* LOADER — the spiral spin between pressing play and the sound arriving. Armed
+   on a new track; a fast start clears it before the ~220 ms reveal, so it only
+   ever shows on a real wait — the wait then reads as the instrument warming up,
+   not a stuck button. Cleared the moment true audio flows (or on stop/error). */
+const LOADER = {
+  t: null,
+  begin(){ clearTimeout(this.t); this.t = setTimeout(() => { if (el.loadSpin) el.loadSpin.classList.add('show'); }, 220); },
+  done(){ clearTimeout(this.t); if (el.loadSpin) el.loadSpin.classList.remove('show'); },
+};
 
 /* iOS blesses a media element only after a gesture-driven play(). The decks
    alternate, so the OTHER deck's first play is always programmatic — fired
@@ -2906,6 +2946,7 @@ const player = {
     nd.a.src = track.url;
     nd.norm = normLin(track);
     nd.a.currentTime = 0;
+    LOADER.begin();            // arm the loading spin — it only shows if the sound takes a beat to arrive
     nd.a.play().catch(err => {
       // A decode/network failure fires the element's 'error' event (handled
       // above). An autoplay BLOCK does not — it rejects here, silently. On the
@@ -2977,6 +3018,7 @@ const player = {
   },
   pause(){
     const d = activeDeck(); if (!d) return;
+    LOADER.done();                   // a deliberate stop ends any pending spin
     this.playing = false;
     d.a.pause();
     updatePlayIcon(); this.renderList();
@@ -3304,6 +3346,10 @@ const player = {
     const list = el.plList;
     list.textContent = '';
     el.plCount.textContent = this.tracks.length + (this.tracks.length === 1 ? ' track' : ' tracks');
+    // the memory: which tracks this listener has already heard, so the fresh
+    // ones stand out and the count of what's left to discover stays honest
+    const heard = new Set(HIST.playCounts().keys());
+    updateFreshCount(heard);
     if (!this.tracks.length){
       const d = document.createElement('div');
       d.className = 'pl-empty';
@@ -3317,7 +3363,9 @@ const player = {
     }
     this.tracks.forEach((t, i) => {
       const row = document.createElement('div');
-      row.className = 'trk' + (i === this.cur ? ' now' : '') + (i === this.cur && !this.playing ? ' paused' : '');
+      const hk = trackKey(t);
+      const isHeard = i !== this.cur && hk && heard.has(hk);   // dim what's already been heard; the current track always reads bright
+      row.className = 'trk' + (i === this.cur ? ' now' : '') + (i === this.cur && !this.playing ? ' paused' : '') + (isHeard ? ' heard' : '');
       row.setAttribute('role', 'listitem');
       row.draggable = true;
       row.dataset.idx = i;
@@ -3673,6 +3721,32 @@ const HIST = {
   },
 };
 
+/* the discovery counter: how many of the streaming library this listener has
+   NOT yet heard. Shows until they've walked the whole catalogue once, then
+   quietly retires (nothing left to discover — every track is a friend now). */
+function libraryHeardStats(heardKeys){
+  const heard = heardKeys || new Set(HIST.playCounts().keys());
+  const seen = new Set();
+  let total = 0, done = 0;
+  for (const t of allTracks()){
+    const k = trackKey(t);
+    if (!k || (t && t.demo) || seen.has(k)) continue;
+    seen.add(k); total++;
+    if (heard.has(k)) done++;
+  }
+  return { total, heard: done, fresh: total - done };
+}
+function updateFreshCount(heardKeys){
+  if (!el.freshBadge) return;
+  const s = libraryHeardStats(heardKeys);
+  if (s.total && s.fresh > 0){
+    el.freshBadge.hidden = false;
+    el.freshBadge.textContent = s.fresh + ' new';
+  } else {
+    el.freshBadge.hidden = true;
+  }
+}
+
 /* ---- favorites: hash-keyed hearts ---- */
 const FAVS = {
   keys: new Set(),
@@ -3821,14 +3895,15 @@ const PLAYLISTS = {
           .sort((a, b) => Date.parse(a.published) - Date.parse(b.published)) },
     ].filter(s => s.tracks.length);
   },
-  playTracks(tracks, label){
+  playTracks(tracks, label, startAt){
     if (!tracks.length) return;
     const rest = player.tracks.filter(t => !tracks.includes(t));
     player.tracks = tracks.concat(rest);
-    player.cur = 0;
+    const i = Math.min(Math.max(0, startAt | 0), tracks.length - 1);
+    player.cur = i;
     this._disengageShuffle();
     player.renderList();
-    player.playIndex(0);
+    player.playIndex(i);
     toast('Playing <b>' + escapeHTML(label) + '</b> — ' + tracks.length + ' tracks');
     PERSIST.poke();
   },
@@ -4213,6 +4288,37 @@ function openingSet(tracks, keyOf, n){
   if (!hero) hero = fresh.shift();
   if (!hero) return [];
   return [hero].concat(fresh.slice(0, n ?? 10));
+}
+
+/* libraryOrder — the DEFAULT journey: the WHOLE library, newest pressing first
+   down to the oldest, so a listener can walk the entire catalog once, in order,
+   never repeating. The signature track (Möbius Walking) still leads when
+   present — the calibrated piece that blooms the engine on a cold start — then
+   strictly newest→oldest by publish date. Pure + testable; no cap. */
+function libraryOrder(tracks, keyOf){
+  const seen = new Set(), uniq = [];
+  for (const t of tracks || []){
+    const k = keyOf(t);
+    if (!k || t.demo || seen.has(k)) continue;
+    seen.add(k); uniq.push(t);
+  }
+  const pub = t => { const p = t.published ? Date.parse(t.published) : NaN; return isFinite(p) ? p : 0; };
+  const hero = uniq.find(t => /m[öo]bius\s+walking/i.test(t.title || ''));
+  const rest = uniq.filter(t => t !== hero).sort((a, b) => pub(b) - pub(a));
+  return hero ? [hero].concat(rest) : rest;
+}
+
+/* firstUnheardIndex — where a RETURNING listener drops in: the first track in
+   the order they have not yet heard, so every visit walks forward into fresh
+   music instead of replaying the top. All heard (a full lap) or all fresh (a
+   first visit) both start at 0. Pure + testable. */
+function firstUnheardIndex(order, heardKeys, keyOf){
+  const n = order ? order.length : 0;
+  for (let i = 0; i < n; i++){
+    const k = keyOf(order[i]);
+    if (k && !heardKeys.has(k)) return i;
+  }
+  return 0;
 }
 
 /* surpriseSet — the "Surprise Me" crate's dials, turned by a plain-language
@@ -6687,7 +6793,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '940da80ae5';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'b8fae3516c';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11441,8 +11547,18 @@ function firstRunStat(){
   else if (secs >= 60) size = Math.round(secs / 60) + ' minutes';
   else size = null;
   const nStr = n.toLocaleString();
-  el.frStat.innerHTML = '<b>' + escapeHTML(nStr) + ' tracks' + (size ? ' · ~' + size : '') + '</b> of music live here — '
-    + 'smart shuffle plays <b>every one</b>, never repeating, until you\'ve heard them all.';
+  // a returning listener is greeted with where they are in the journey:
+  // how many they've heard, and how many are still fresh to discover
+  const stats = libraryHeardStats();
+  if (stats.heard > 0 && stats.fresh > 0){
+    el.frStat.innerHTML = 'Welcome back — you\'ve heard <b>' + stats.heard.toLocaleString() + ' of '
+      + stats.total.toLocaleString() + '</b>. <b>' + stats.fresh.toLocaleString() + '</b> still fresh to hear.';
+  } else if (stats.total && stats.fresh === 0){
+    el.frStat.innerHTML = 'You\'ve heard <b>the whole library</b> — every track is a friend now. Press play for another lap.';
+  } else {
+    el.frStat.innerHTML = '<b>' + escapeHTML(nStr) + ' tracks' + (size ? ' · ~' + size : '') + '</b> of music live here — '
+      + 'the whole library plays newest first, <b>every one</b>, never repeating until you\'ve heard them all.';
+  }
 }
 
 /* keep-it-forever: surface the install path so the room becomes a Home-Screen
@@ -11478,7 +11594,7 @@ function frInstallSetup(){
   }
 }
 
-function crateEngage(tracks, label){
+function crateEngage(tracks, label, startAt){
   // during the just-opened guard window, refuse to engage — a ghost/synthetic
   // click must never start a set and close the card the instant it appears
   if (el.firstRun && el.firstRun.classList.contains('arming')) return false;
@@ -11492,9 +11608,19 @@ function crateEngage(tracks, label){
     player.repeat = 'all';
     if (el.btnRepeat){ el.btnRepeat.classList.add('on'); }
   }
-  PLAYLISTS.playTracks(tracks, label);          // leads with the crate, shelf stays browsable
+  PLAYLISTS.playTracks(tracks, label, startAt);   // leads with the crate, shelf stays browsable
   MINDFUL.begin();                              // start counting toward a gentle break offer
   return true;
+}
+
+/* engageLibrary — THE default: play the whole library newest→oldest, dropping
+   the listener in at the first track they haven't heard yet, so a returning
+   ear always walks forward into fresh music. */
+function engageLibrary(){
+  const order = libraryOrder(allTracks(), trackKey);
+  if (!order.length) return false;
+  const heard = new Set(HIST.playCounts().keys());
+  return crateEngage(order, 'The library — newest first', firstUnheardIndex(order, heard, trackKey));
 }
 
 /* MINDFUL — the music runs continuous, but movement isn't the only medicine.
@@ -11597,9 +11723,10 @@ function surpriseEngage(pace, mood){
 function wireFirstRun(){
   if (!el.firstRun || el.firstRun._wired) return;
   el.firstRun._wired = true;
-  // the one guaranteed button — Möbius Walking + the freshest, always ready
+  // the one guaranteed button — the whole library, newest first, dropping in
+  // wherever the listener has fresh music left to hear
   el.frStart.addEventListener('click', () =>
-    crateEngage(openingSet(allTracks(), trackKey, 10), 'Möbius Walking + the freshest'));
+    engageLibrary() || crateEngage(openingSet(allTracks(), trackKey, 10), 'Möbius Walking + the freshest'));
   // the two quiet alternatives
   el.frCards.querySelectorAll('.fr-mini').forEach(mini => {
     mini.addEventListener('click', () => {
