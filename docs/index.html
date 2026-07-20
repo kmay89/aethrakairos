@@ -4487,6 +4487,31 @@ function tapTempo(times){
   return { bpm, conf: clamp01(tight * enough), count: n, interval: med };
 }
 
+/* phaseLock — the grid SELF-HEALS to the music. The pipeline's constant grid
+   is globally optimal, but a live drummer (or a hair-imperfect fit) lets a
+   constant lattice accumulate error across a long track. The song's own kick
+   is ground truth: measure where kicks land relative to the predicted beat and
+   keep a circular running mean weighted by kick strength. The RESULTANT LENGTH
+   is confidence — kicks clustered tight on the beat give ~1, kicks scattered
+   give ~0. We only ever nudge the grid when they cluster (never when unsure,
+   so it cannot "mess up"), the offset is bounded, and the caller slews it in
+   slowly — never a jerk, never backward. Pure and node-tested.
+
+   state: { s, c, w, off, conc } (zero-init). phi = grid beat phase 0..1.  */
+function phaseLock(state, phi, strength, dt, memory){
+  const st = state || { s: 0, c: 0, w: 0, off: 0, conc: 0 };
+  const decay = Math.exp(-Math.max(0, dt) / (memory || 2.5));
+  st.s = st.s * decay + Math.sin(phi * 2 * PI) * strength;
+  st.c = st.c * decay + Math.cos(phi * 2 * PI) * strength;
+  st.w = st.w * decay + strength;
+  const R = Math.hypot(st.s, st.c);
+  st.conc = st.w > 1e-3 ? R / st.w : 0;                 // 0 scattered .. 1 locked
+  // circular mean, in BEATS (−0.5..0.5): >0 means kicks land AFTER the
+  // predicted beat → the grid is early → the caller should delay it
+  st.off = st.conc > 1e-3 ? Math.atan2(st.s, st.c) / (2 * PI) : 0;
+  return st;
+}
+
 /* The MIX NOW plan: the listener said "next" — blend from HERE, not from
    the end of the track. Same gates as planTransition (the piano rule, the
    tempo gap, the key clash), different geometry: the seam starts on the
@@ -6331,7 +6356,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '4ef1411a4f';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '788c8becd4';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -9636,7 +9661,7 @@ function buildParlor(){
   const HYP = [[5, 4], [5, 5], [6, 4], [7, 3], [8, 3], [4, 5], [4, 6], [3, 7]];
   let wAng = 0, prevBeat = 0, gamJ = 0;
   const api = {
-    name: 'PARLOR', group, calm: true,
+    name: 'PARLOR', group, calm: true, heavy: true,
     roll(){
       const field = (Math.random() * 6) | 0;
       // MOIRE full-field fringes ask the most of the governor; in CALM the
@@ -9857,6 +9882,7 @@ const DWELL = {
 const CLOCK = {
   haveGrid: false, beats: -1, idx: -1, phase: 0, barPhase: 0, phrasePhase: 0,
   bpm: 0, period: 0.5, mclk: makeMediaClock(), tap: null, tapped: false,
+  confidence: 0, trim: 0, _lock: null, _kPrev: 0, _lastSec: 0,
   latency(){
     if (AE.graphLive && AE.ctx)
       return AE.ctx.outputLatency || AE.ctx.baseLatency || 0;
@@ -9864,13 +9890,27 @@ const CLOCK = {
   },
   /* the listener asserts the beat: re-anchor the DOWNBEAT to a tapped media
      instant (this track only), and adopt a tapped tempo once it's trusted.
-     A hard, human ground truth — it overrides the analyzed grid until the
-     track changes. */
+     A hard, human ground truth — it overrides the analyzed grid AND the
+     automatic self-heal until the track changes. */
   applyTap(mediaTime, bpm, id){
     this.tap = { grid: mediaTime, bpm: bpm > 0 ? bpm : 0, id };
     this.tapped = true;
+    this.trim = 0; this._lock = null; this._kPrev = 0;   // a manual anchor supersedes the auto-trim
   },
   clearTap(){ this.tap = null; this.tapped = false; },
+  /* the pipeline's own read on this track: gridRms (jitter), gridDrift (does a
+     constant tempo hold?), downConf (is the "1" trustworthy?) — folded to 0..1 */
+  baseConf(mix){
+    const rms = mix.gridRms != null ? Math.exp(-mix.gridRms / 22) : 0.6;    // ms
+    const dft = mix.gridDrift != null ? Math.exp(-mix.gridDrift / 30) : 0.6; // ms
+    const dcf = mix.downConf != null ? mix.downConf : 0.5;
+    return clamp01(0.34 * rms + 0.33 * dft + 0.33 * dcf);
+  },
+  reset(){
+    this.haveGrid = false; this.beats = -1; this.idx = -1;
+    this.trim = 0; this._lock = null; this._kPrev = 0;
+    clockReset(this.mclk);
+  },
   update(nowSec){
     const d = activeDeck();
     const tr = player.tracks[player.cur];
@@ -9886,14 +9926,52 @@ const CLOCK = {
       grid = mix.grid; bpm = mix.bpm; phrases = mix.phrases || 32;
     }
     if (!(bpm > 0 && grid != null && d && player.playing && !AE.mic.on && isFinite(d.a.currentTime))){
-      this.haveGrid = false; this.beats = -1; this.idx = -1;
-      clockReset(this.mclk);
-      return;
+      this.reset(); this.confidence = 0; return;
     }
     clockSample(this.mclk, nowSec, d.a.currentTime);
     const rate = d.a.playbackRate || 1;
+    const spb = 60 / bpm;                            // effective seconds/beat (a tap may set it)
     const pos = this.mclk.ok ? clockRead(this.mclk, nowSec) : d.a.currentTime;
-    const b = (pos - this.latency() * rate - grid) / (60 / bpm);
+    const dt = this._lastSec > 0 ? Math.min(0.1, nowSec - this._lastSec) : 0;
+    this._lastSec = nowSec;
+
+    // ---- SELF-HEAL: lock the grid phase to the track's own kick. The score
+    // knows every hit; a kick is a fresh rise in the bass envelope. Stand down
+    // when the MIXER owns the phase (a running seam) OR when the listener has
+    // TAPPED a manual anchor — a human hand is the ground truth then, and the
+    // auto-trim must not fight it.
+    const env = tr && tr.env;
+    if (env && !tap && MIXER.phase !== 'running'){
+      const sc = envSample(env, pos);
+      if (sc){
+        // a KICK is a bass-heavy onset — the beat's own metronome. Feed the
+        // phase lock an IMPULSE on each kick's rising edge (0 otherwise), so
+        // the circular mean reflects only WHERE kicks land, decaying correctly
+        // between them; a sustained bassline no longer dilutes the read.
+        const kickNow = (sc.punch || 0) * clamp01(sc.bass * 1.4 + 0.12);
+        const rise = kickNow - (this._kPrev || 0);
+        this._kPrev = kickNow;
+        const rawBeat = (pos - grid) / spb;
+        const phi = ((rawBeat % 1) + 1) % 1;
+        this._lock = phaseLock(this._lock, phi, rise > 0.06 ? kickNow : 0, dt, 2.5);
+      } else this._lock = phaseLock(this._lock, 0, 0, dt, 2.5);
+    } else { this._lock = null; this._kPrev = 0; }
+    // slew the trim toward the measured offset — but ONLY when the kicks
+    // cluster tightly (conc high) AND the pipeline trusts this track. Bounded
+    // to ±0.1 beat and time-constant ~1.6 s: self-healing, never a jerk. A tap
+    // forces the target to 0 so the trim relaxes out (the anchor placed the beat).
+    const base = mix ? this.baseConf(mix) : 0.5;
+    const lock = this._lock || { off: 0, conc: 0 };
+    const target = (!tap && lock.conc > 0.45 && base > 0.35)
+      ? clamp(lock.off, -0.1, 0.1) * clamp01((lock.conc - 0.45) / 0.4) : 0;
+    this.trim += (target - this.trim) * (1 - Math.exp(-dt / 1.6));
+    // a human tap is high-confidence; otherwise fold the pipeline's read with
+    // how tightly the live kicks are locking
+    this.confidence = tap ? clamp01(0.6 + 0.4 * (lock.conc || 0))
+                          : clamp01(base * (0.5 + 0.5 * lock.conc));
+
+    // the healed grid: shift by the trim (in beats), latency-compensated
+    const b = (pos - this.latency() * rate - grid) / spb - this.trim;
     if (b < 0){ this.haveGrid = false; this.beats = -1; this.idx = -1; return; }
     this.haveGrid = true;
     this.beats = b;
@@ -10218,6 +10296,9 @@ const director = {
       if (i === 14) x += f.entropy * 1.2 + f.mid * 0.8 + (1 - f.beat) * 0.4;  // parlor: patient, perceptual
       // reduced-motion / CALM listeners live in the legible room by default
       if (s.calm && reducedMotion) x *= 2;
+      // a strained device is spared the heavy scenes — cheap rooms only, so
+      // it never lags (the music stays smooth regardless)
+      if (s.heavy && typeof PERF !== 'undefined' && PERF.struggling) x *= 0.02;
       // the act leans on the deal: the apex wants percussion, the edges want air
       if (this.act === 2 && (i === 3 || i === 5 || i === 8 || i === 12)) x *= 1.6;
       if ((this.act === 0 || this.act === 4) && (i === 4 || i === 6 || i === 9 || i === 11)) x *= 1.6;
@@ -10499,7 +10580,7 @@ function buildAurea(){
     varU.uFib.value = FIBS[st.fib];
   }
 
-  return { name: 'AUREA', group,
+  return { name: 'AUREA', group, heavy: true,
     update(dt){
       const f = AE.f;
       // the spin precesses like the pattern is still growing
@@ -10596,6 +10677,7 @@ function initThree(){
    scale-down; the motion stays silky. */
 const PERF = {
   periodMs: 16.7, pr: 1, maxPR: 2, minPR: 1, govT: 0,
+  struggling: false, _struggleT: 0, _warned: false,
   init(){
     const dpr = window.devicePixelRatio || 1;
     this.maxPR = Math.min(dpr, 2);
@@ -10609,6 +10691,7 @@ const PERF = {
     this.periodMs += (ms - this.periodMs) * 0.08;      // ~0.8 s EMA
     this.govT += dt;
     if (this.govT < 0.6) return;
+    const step = this.govT;
     this.govT = 0;
     if (this.periodMs > 19.5 && this.pr > this.minPR){        // < ~51 fps: shed pixels
       this.pr = Math.max(this.minPR, Math.round((this.pr - 0.15) * 100) / 100);
@@ -10616,6 +10699,24 @@ const PERF = {
     } else if (this.periodMs < 17.2 && this.pr < this.maxPR){ // headroom at 60: reclaim
       this.pr = Math.min(this.maxPR, Math.round((this.pr + 0.1) * 100) / 100);
       renderer.setPixelRatio(this.pr); renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    // SELF-AWARE, NO LAG: if we've shed all the way to the floor and it STILL
+    // can't hold ~42 fps, the device simply can't run the field. Rather than
+    // let it stutter, flag it — the director then spares this device the heavy
+    // scenes — and, once, gently say so. The music is never the thing that lags.
+    if (this.pr <= this.minPR + 1e-6 && this.periodMs > 24){
+      this._struggleT += step;
+      if (this._struggleT > 5){
+        this.struggling = true;
+        if (!this._warned){
+          this._warned = true;
+          if (typeof toast === 'function')
+            toast('Your device is working hard — the visuals are simplified so the music always stays smooth. It sounds its best either way.');
+        }
+      }
+    } else {
+      this._struggleT = Math.max(0, this._struggleT - step);
+      if (this._struggleT === 0) this.struggling = false;
     }
   },
 };
