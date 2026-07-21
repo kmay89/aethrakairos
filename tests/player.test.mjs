@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1339,6 +1339,18 @@ test('dropPoints: a flat or missing structure yields no markers', () => {
   // a gentle rise below the threshold is not a "drop"
   assert.deepEqual(S.dropPoints({ ok: true, sections: [
     { s: 0, e: 0.5, energy: 0.5, loud: false }, { s: 0.5, e: 1, energy: 0.6, loud: true }] }), []);
+});
+test('nextDropAfter: the first drop strictly ahead, else null', () => {
+  const st = { ok: true, sections: [
+    { s: 0, e: 0.2, energy: 0.1, loud: false },
+    { s: 0.2, e: 0.45, energy: 0.9, loud: true },   // drop at 0.2
+    { s: 0.45, e: 0.6, energy: 0.25, loud: false },
+    { s: 0.6, e: 1, energy: 0.85, loud: true },     // drop at 0.6
+  ] };
+  assert.ok(Math.abs(S.nextDropAfter(st, 0) - 0.2) < 1e-9, 'from the top → first drop');
+  assert.ok(Math.abs(S.nextDropAfter(st, 0.3) - 0.6) < 1e-9, 'past the first → the second');
+  assert.equal(S.nextDropAfter(st, 0.7), null, 'past the last → none');
+  assert.equal(S.nextDropAfter(null, 0), null, 'no structure → null');
 });
 test('sectionLabel: names where the playhead sits, structurally', () => {
   const st = { ok: true, sections: [
