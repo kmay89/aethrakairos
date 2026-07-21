@@ -177,6 +177,26 @@ body.zen #zenInfo{opacity:1;transform:translate(-50%,0)}
 #zenProg{width:132px;height:2px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:2px}
 #zenProg i{display:block;height:100%;width:0;border-radius:2px;
   background:linear-gradient(90deg,var(--accent-2),var(--accent));box-shadow:0 0 8px var(--accent-glow)}
+/* immersive transport — the car-friendly controls under the now-playing card.
+   Interactive ONLY while immersive (so its invisible box never eats taps in the
+   normal view or in deep-still mode). */
+#zenXport{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:14px;pointer-events:none}
+body.zen #zenXport{pointer-events:auto}
+body.zen-deep #zenXport{pointer-events:none}
+#zenXport button{
+  -webkit-appearance:none;appearance:none;border:0;margin:0;padding:0;cursor:pointer;
+  width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff;
+  background:rgba(255,255,255,.07);
+  box-shadow:0 2px 16px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.10);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
+  transition:background .2s ease,transform .12s ease,box-shadow .2s ease}
+#zenXport button:hover{background:rgba(255,255,255,.14)}
+#zenXport button:active{transform:scale(.9)}
+#zenXport .zx-play{width:58px;height:58px;background:rgba(255,255,255,.14);
+  box-shadow:0 3px 22px var(--accent-glow),inset 0 0 0 1px rgba(255,255,255,.18)}
+#zenXport svg{width:21px;height:21px;pointer-events:none}
+#zenXport .zx-play svg{width:26px;height:26px}
+@media (prefers-reduced-motion:reduce){#zenXport button{transition:background .2s ease}}
 
 /* DEEP immersion — after a long, still sit the card crossfades down to a
    whisper: just the title, tiny, in the corner, so nothing stands between the
@@ -1380,6 +1400,20 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
     <span id="zenTitle"></span>
     <span id="zenMeta"></span>
     <span id="zenProg"><i></i></span>
+    <!-- immersive transport: play/pause/next/back without leaving the light —
+         easy reach in the car. Excluded from the tap-to-summon-menu handler. -->
+    <div id="zenXport" role="group" aria-label="Playback controls">
+      <button id="zBtnPrev" type="button" aria-label="Previous track">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2.4v14H6zM20 5.8v12.4c0 .8-.9 1.3-1.6.9l-9.5-6.2c-.6-.4-.6-1.4 0-1.8l9.5-6.2c.7-.4 1.6.1 1.6.9z"/></svg>
+      </button>
+      <button id="zBtnPlay" class="zx-play" type="button" aria-label="Play or pause">
+        <svg id="zIcoPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1l11.4-7.2c.7-.5.7-1.6 0-2L8.8 3.8C8 3.3 7 3.9 7 4.8z"/></svg>
+        <svg id="zIcoPause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+      </button>
+      <button id="zBtnNext" type="button" aria-label="Next track">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 5H18v14h-2.4zM4 5.8v12.4c0 .8.9 1.3 1.6.9l9.5-6.2c.6-.4.6-1.4 0-1.8L5.6 4.9C4.9 4.5 4 5 4 5.8z"/></svg>
+      </button>
+    </div>
   </div>
   <div id="zenTag"></div>
 </div>
@@ -2178,6 +2212,8 @@ const $ = id => document.getElementById(id);
 const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
+  zenXport: $('zenXport'), zBtnPrev: $('zBtnPrev'), zBtnPlay: $('zBtnPlay'), zBtnNext: $('zBtnNext'),
+  zIcoPlay: $('zIcoPlay'), zIcoPause: $('zIcoPause'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
   fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
   coach: $('coach'), coachSpot: $('coachSpot'), coachBubble: $('coachBubble'),
@@ -3901,6 +3937,11 @@ function updatePlayIcon(){
   el.icoPlay.style.display = player.playing ? 'none' : 'block';
   el.icoPause.style.display = player.playing ? 'block' : 'none';
   el.btnPlay.setAttribute('aria-label', player.playing ? 'Pause' : 'Play');
+  if (el.zIcoPlay){                          // the immersive transport mirrors the glyph
+    el.zIcoPlay.style.display = player.playing ? 'none' : 'block';
+    el.zIcoPause.style.display = player.playing ? 'block' : 'none';
+    el.zBtnPlay.setAttribute('aria-label', player.playing ? 'Pause' : 'Play');
+  }
   const t = player.tracks[player.cur];
   document.title = player.playing && t ? '▶ ' + t.title + ' — Aethra Kairos' : 'Aethra Kairos — Official Player';
   syncHearts(); syncAirplayButton();
@@ -8210,8 +8251,16 @@ const WAVE = {
     // track (the pro-deck look — scrub the song, the played part lit in its
     // key); the live frequency SCOPE otherwise (mic, or before peaks land).
     const tr = player.tracks[player.cur], d = activeDeck();
+    // MEMORY on iOS/CarPlay: the visual drive reads the catalog's precomputed
+    // envelope (tr.env), so the ONLY thing the full-file decode feeds is this
+    // seek waveform — which is scaled to a speck (opacity 0) in immersive mode.
+    // Decoding a whole song per track for an invisible waveform is exactly the
+    // allocation churn that makes a long CarPlay session hit the WKWebView memory
+    // ceiling and reload. While immersive with a catalog envelope in hand, defer
+    // it — _peekUrl stays unset, so it decodes the instant the deck is on screen.
+    const zenSkip = IS_IOS && tr && tr.env && document.body.classList.contains('zen');
     if (tr && tr.url && !AE.mic.on && tr.url !== this._peekUrl
-        && !tr._peaks && !tr._peaksPending && !tr._peaksErr){
+        && !tr._peaks && !tr._peaksPending && !tr._peaksErr && !zenSkip){
       this._peekUrl = tr.url; computePeaks(tr);
     }
     if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr), trackStructure(tr));
@@ -9459,6 +9508,12 @@ document.querySelectorAll('.chrome').forEach(c => {
 });
 function bloomZenWave(on){ if (el.zenWave) el.zenWave.classList.toggle('bloom', !!on); }
 function leaveDeep(){ document.body.classList.remove('zen-deep'); clearTimeout(zenDeepT); }
+/* (re)arm the "deepen to a whisper" timer — pushed back on every interaction so
+   the now-playing card + transport stay up while you're using them */
+function rearmZenDeep(){
+  clearTimeout(zenDeepT);
+  zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
+}
 function enterZen(){
   if (typeof TUTOR !== 'undefined' && TUTOR.active) return;   // the tour keeps the menu up
   document.body.classList.add('zen');
@@ -9466,8 +9521,7 @@ function enterZen(){
   clearTimeout(zenWaveT);
   zenWaveT = setTimeout(() => bloomZenWave(false), 2400);   // linger, then dissolve to pure visualizer
   // after a long still sit, deepen: the info card crossfades to a corner whisper
-  clearTimeout(zenDeepT);
-  zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
+  rearmZenDeep();
   // teach the affordance — the orb wakes and blooms a hint, and just once ever,
   // a word. It then fades on its own (show-as-needed) once you settle in.
   orbWake(true);
@@ -9521,15 +9575,28 @@ function orbWake(hint){
 ['pointermove', 'pointerdown', 'touchstart'].forEach(evName =>
   window.addEventListener(evName, ev => {
     const zen = document.body.classList.contains('zen');
+    const onXport = el.zenXport && el.zenXport.contains(ev.target);
     // In play mode, touching the light must NOT summon the menu — but it SHOULD
-    // wake the orb so the control is there the instant you reach for it. The orb
-    // owns the return (tap) and the scene-shift (flick); its own handler decides.
-    if (zen && (ev.target === el.canvas || (el.fxOrb && el.fxOrb.contains(ev.target)))){
-      if (ev.target === el.canvas) orbWake(false);
+    // wake the orb so the control is there the instant you reach for it, and it
+    // should lift the now-playing card + transport back up out of deep-still so
+    // you can reach play/pause/next in the car. The orb owns the return (tap) and
+    // the scene-shift (flick); the transport buttons own their own actions.
+    if (zen && (ev.target === el.canvas || onXport || (el.fxOrb && el.fxOrb.contains(ev.target)))){
+      if (ev.target === el.canvas || onXport){ orbWake(false); leaveDeep(); rearmZenDeep(); }
       return;
     }
     pokeChrome();
   }, { passive: true }));
+
+/* the immersive transport — play/pause/next/back without leaving the light.
+   Each button acts and keeps the card awake; touches here never summon the menu
+   (handled above), so the visualizer stays full-screen while you steer. */
+if (el.zenXport){
+  const keepAwake = () => { orbWake(false); leaveDeep(); rearmZenDeep(); };
+  el.zBtnPlay && el.zBtnPlay.addEventListener('click', () => { keepAwake(); player.toggle(); });
+  el.zBtnNext && el.zBtnNext.addEventListener('click', () => { keepAwake(); player.next(false, false); });
+  el.zBtnPrev && el.zBtnPrev.addEventListener('click', () => { keepAwake(); player.prev(); });
+}
 /* THE ORB's two gestures: a clean TAP unfurls the menu; a FLICK (or a hold)
    shifts the SCENE yourself — you take the wheel from the director, the orb
    spins up in answer. It lives off the canvas, so it never raises iOS's copy
