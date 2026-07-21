@@ -2373,7 +2373,7 @@ function ensureCtx(){
     // audio-session interruptions (phone call, Siri, another app): the system
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
-      if (d.priming || i !== AE.active || AE.xfading || d._healing) return;   // a self-heal reload's pause is not the listener's
+      if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
       if (player.playing && !d.a.ended){ player.playing = false; updatePlayIcon(); player.renderList(); }
     });
     d.a.addEventListener('play', () => {
@@ -3196,19 +3196,31 @@ const player = {
     const xfade = !!(opts && opts.xfade) && this.playing && this.cur !== -1 && AE.graphLive;
     const fadeDur = xfade ? XFADE : (this.playing ? 0.25 : 0.06);
     const oldIdx = AE.active;
-    // iOS gives background-audio privilege to the ONE element that currently
-    // holds the session. When the screen is locked and a track ends, moving
-    // playback to the OTHER deck is an un-gestured background start — iOS
-    // blocks it, so the music stops after one song and the lock-screen
-    // controls vanish, while the UI still thinks it's playing. So when we're
-    // hidden (and not crossfading), stay on the SAME element: load the next
-    // src into the session-holder and play. Foreground keeps the two-deck
-    // swap that crossfades need.
-    const stayPut = IS_IOS && document.hidden && !xfade && this.playing;
+    // iOS gives background-audio privilege to the ONE element that holds the
+    // session. Moving playback to the OTHER deck is an un-gestured start that
+    // iOS blocks outright when the screen is locked — and even in the
+    // foreground, alternating two elements (plus the unload/reload that frees
+    // the retired decoder) churns iOS's hard decoder budget and can quietly drop
+    // the element's autoplay blessing after a few hand-offs, so the music just
+    // stops mid-queue. iOS never crossfades (playback is element-direct), so a
+    // second deck buys nothing here: keep EVERY hand-off on the one blessed
+    // element — load the next src into it and play. Non-iOS keeps the two-deck
+    // swap the WebAudio crossfade needs.
+    const stayPut = IS_IOS && !xfade && this.playing;
     const newIdx = stayPut ? oldIdx : 1 - oldIdx;
     const nd = AE.decks[newIdx], od = AE.decks[oldIdx];
 
     AE.xfading = xfade;
+    // replacing .src on a still-playing element (a manual skip) fires a spurious
+    // 'pause' — flag the swap so the pause listener doesn't flip the UI to paused.
+    // clear any prior timer first, so rapid skips can't end the window early.
+    clearTimeout(nd._swapT);
+    if (stayPut && !nd.a.paused){
+      nd._swapping = true;
+      nd._swapT = setTimeout(() => { nd._swapping = false; }, 700);   // the swap's spurious pause has passed
+    } else {
+      nd._swapping = false;
+    }
     nd.a.src = track.url;
     nd.norm = normLin(track);
     nd.a.currentTime = 0;
@@ -7840,7 +7852,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '557e8cd4b3';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '098090a3ab';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
