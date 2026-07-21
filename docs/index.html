@@ -5430,6 +5430,35 @@ function sectionLabel(struct, frac){
   if (idx === peakIdx) return 'peak';
   return idx < peakIdx ? 'build' : 'drive';
 }
+
+/* CAPABILITY MEMORY — the render governor already converges on the best pixel
+   ratio this device can hold at 60 fps, but it re-learns from scratch every
+   launch (a weak phone janks down from a high guess; a strong desktop crawls up
+   from a low one). These pure helpers let it REMEMBER: a device signature keyed
+   store of the proven ratio, so the next launch boots straight at the quality
+   the device already earned. Pure (now/storage are passed in) so it's tested. */
+function qualitySigKey(dpr, cores, ios){
+  // coarse enough that the same physical device maps to one key across launches,
+  // specific enough that a different display density or class doesn't inherit it
+  return [Math.round((dpr || 1) * 10) / 10, Math.min(32, (cores || 0)) | 0, ios ? 1 : 0].join(':');
+}
+function readQualityMemory(raw, sigKey, now, maxAgeMs){
+  if (!raw) return null;
+  let o; try { o = JSON.parse(raw); } catch (e){ return null; }
+  if (!o || o.k !== sigKey || !(o.pr > 0) || o.pr > 4) return null;      // wrong device / corrupt
+  if (maxAgeMs && o.t && now - o.t > maxAgeMs) return null;              // stale — re-learn
+  return { pr: o.pr, struggling: !!o.s };
+}
+function qualitySeed(mem, minPR, maxPR, defaultPR){
+  // no memory → the caller's first-run default; a device that PROVED it strains
+  // boots at the floor (and flagged), else at its remembered ratio, clamped
+  if (!mem) return { pr: defaultPR, struggling: false };
+  if (mem.struggling) return { pr: minPR, struggling: true };
+  return { pr: Math.max(minPR, Math.min(maxPR, mem.pr)), struggling: false };
+}
+function writeQualityMemory(sigKey, pr, struggling, now){
+  return JSON.stringify({ k: sigKey, pr: Math.round(pr * 100) / 100, s: struggling ? 1 : 0, t: now });
+}
 // the source palette for stem-coloured waveforms: drums run warm-red (the
 // transient hit), bass amber (the body), vocals cyan (the voice sits up and
 // bright), everything else violet. Chosen to stay legible when blended.
@@ -7883,7 +7912,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '38e274c3d1';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'dcd5a99340';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -12827,16 +12856,32 @@ function initThree(){
    the real period and DROPS RESOLUTION rather than frames, converging on the
    highest pixel ratio that still holds ~60 fps. Retina density hides the
    scale-down; the motion stays silky. */
+const GPU_MEM_KEY = 'mb8_gpu_v1', GPU_MEM_AGE = 120 * 864e5;   // remember for ~120 days
 const PERF = {
   periodMs: 16.7, pr: 1, maxPR: 2, minPR: 1, govT: 0,
-  struggling: false, _struggleT: 0, _warned: false,
+  struggling: false, _struggleT: 0, _warned: false, _sig: '', _saveT: 0, _savedPR: -1, _savedStruggling: false,
   init(){
     const dpr = window.devicePixelRatio || 1;
     this.maxPR = Math.min(dpr, 2);
     this.minPR = Math.min(this.maxPR, IS_IOS ? 0.9 : 1);
-    // iOS starts a notch below the cap and the governor tunes from there
-    this.pr = IS_IOS ? Math.min(this.maxPR, 1.5) : this.maxPR;
+    this._sig = qualitySigKey(dpr, navigator.hardwareConcurrency, IS_IOS);
+    // BOOT AT PROVEN QUALITY: if this device already earned a ratio in a past
+    // session, start there instead of re-learning from a fixed guess; else the
+    // first-run default (iOS a notch below the cap, desktop at the cap).
+    const dflt = IS_IOS ? Math.min(this.maxPR, 1.5) : this.maxPR;
+    let mem = null;
+    try { mem = readQualityMemory(localStorage.getItem(GPU_MEM_KEY), this._sig, Date.now(), GPU_MEM_AGE); } catch (e){}
+    const seed = qualitySeed(mem, this.minPR, this.maxPR, dflt);
+    this.pr = seed.pr;
+    this.struggling = seed.struggling;
+    if (seed.struggling) this._struggleT = 6;    // hold the spare-the-heavy state until re-proven
+    this._savedPR = mem ? mem.pr : -1;
     renderer.setPixelRatio(this.pr);
+  },
+  save(){
+    if (!this._sig) return;
+    try { localStorage.setItem(GPU_MEM_KEY, writeQualityMemory(this._sig, this.pr, this.struggling, Date.now())); } catch (e){}
+    this._savedPR = this.pr;
   },
   tick(dt){
     const ms = Math.min(100, dt * 1000);
@@ -12878,8 +12923,22 @@ const PERF = {
       this._struggleT = Math.max(0, this._struggleT - step);
       if (this._struggleT === 0) this.struggling = false;
     }
+    // REMEMBER what this device can hold, on a slow cadence — so the next launch
+    // boots straight at the proven ratio instead of re-learning from a guess
+    this._saveT += step;
+    if (this._saveT > 8){
+      this._saveT = 0;
+      if (Math.abs(this.pr - this._savedPR) > 0.001 || this.struggling !== this._savedStruggling){
+        this._savedStruggling = this.struggling;
+        this.save();
+      }
+    }
   },
 };
+// bank the proven ratio as the app leaves the foreground, so a short first visit
+// still teaches the next launch (the slow in-tick cadence may not have fired yet)
+window.addEventListener('pagehide', () => PERF.save());
+document.addEventListener('visibilitychange', () => { if (document.hidden) PERF.save(); });
 let lastT = performance.now(), uiAccum = 0, frameMs = 16, govT = 0, persistAccum = 0, gridBeatIdx = -1, accentAccum = 0;
 // run a per-frame 2D draw in isolation — one failing grace note (waveform, EQ,
 // zen, booth) can never take the transport, the clock or the scene down with

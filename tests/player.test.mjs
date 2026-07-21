@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, sectionLabel, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1360,6 +1360,35 @@ test('sectionLabel: empty without usable structure', () => {
   assert.equal(S.sectionLabel(null, 0.5), '');
   assert.equal(S.sectionLabel({ ok: false }, 0.5), '');
   assert.equal(S.sectionLabel({ ok: true, sections: [] }, 0.5), '');
+});
+
+// ---- capability memory: remember a device's proven render quality ----
+test('qualitySigKey: same device → same key; a different display or class differs', () => {
+  assert.equal(S.qualitySigKey(2, 8, false), S.qualitySigKey(2, 8, false));
+  assert.notEqual(S.qualitySigKey(2, 8, false), S.qualitySigKey(3, 8, false));   // density
+  assert.notEqual(S.qualitySigKey(2, 8, false), S.qualitySigKey(2, 8, true));    // iOS
+  assert.equal(S.qualitySigKey(2, 999, false), S.qualitySigKey(2, 40, false));   // cores capped
+});
+test('quality memory: round-trips write → read for the matching device', () => {
+  const now = 1_000_000, key = S.qualitySigKey(2, 8, false);
+  const raw = S.writeQualityMemory(key, 1.35, false, now);
+  const mem = S.readQualityMemory(raw, key, now + 1000, 120 * 864e5);
+  assert.ok(mem && Math.abs(mem.pr - 1.35) < 1e-6 && mem.struggling === false);
+});
+test('quality memory: rejects a wrong device, corrupt, or stale record', () => {
+  const now = 5_000_000, key = S.qualitySigKey(2, 8, false), other = S.qualitySigKey(3, 8, false);
+  const raw = S.writeQualityMemory(key, 1.5, false, now);
+  assert.equal(S.readQualityMemory(raw, other, now, 864e5), null, 'wrong device');
+  assert.equal(S.readQualityMemory('not json', key, now, 864e5), null, 'corrupt');
+  assert.equal(S.readQualityMemory(null, key, now, 864e5), null, 'empty');
+  assert.equal(S.readQualityMemory(raw, key, now + 200 * 864e5, 120 * 864e5), null, 'stale');
+});
+test('qualitySeed: boots at proven quality, floors a strained device, defaults with no memory', () => {
+  assert.deepEqual(S.qualitySeed(null, 1, 2, 1.5), { pr: 1.5, struggling: false });
+  assert.deepEqual(S.qualitySeed({ pr: 1.7, struggling: false }, 1, 2, 2), { pr: 1.7, struggling: false });
+  assert.deepEqual(S.qualitySeed({ pr: 0.9, struggling: true }, 1, 2, 2), { pr: 1, struggling: true });
+  // a remembered ratio out of the current device's range is clamped
+  assert.equal(S.qualitySeed({ pr: 3, struggling: false }, 1, 2, 2).pr, 2);
 });
 
 // ---- stem-aware transitions: never blend two voices ----
