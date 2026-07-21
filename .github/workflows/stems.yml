@@ -1,0 +1,75 @@
+# Separate every track into stems, a BATCH at a time, and bank the envelopes.
+#
+# tools/stems.py runs Demucs (htdemucs) offline and reduces each stem — drums,
+# bass, vocals, other — to a tiny 12 Hz digit envelope written into
+# catalog.json (mix.stems). Source separation is a neural model, so this is the
+# heavy job in the pipeline: it processes at most `limit` still-missing tracks
+# per run (default 24) and commits the result, so no single run runs long and
+# the scheduled cron chews through the backlog over a few days. New releases and
+# on-demand runs top it up. The commit carries [skip ci] so it never re-triggers.
+#
+# CPU runners are fine — htdemucs runs on CPU, just slower; the batch cap keeps
+# each job well inside the time limit. The torch model is cached between runs.
+#
+# NOTE on branch protection: like the enrich job, this PUSHES to main. If you
+# require PRs, allow the Actions bot to bypass (Settings → Branches), or switch
+# this to open a PR instead.
+name: Separate stems
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/audio/**'
+      - 'tools/stems.py'
+      - '.github/workflows/stems.yml'
+  schedule:
+    - cron: '41 4 * * *'     # daily, a quiet hour (UTC), to work through the backlog
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max tracks to separate this run'
+        required: false
+        default: '24'
+
+concurrency:
+  group: separate-stems
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  stems:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Install numpy + Demucs (CPU torch)
+        run: pip install --quiet numpy demucs
+      - name: Cache the Demucs model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/torch
+          key: demucs-htdemucs-v1
+      - name: Verify the envelope reduction
+        run: python3 tools/stems.py --selftest
+      - name: Separate a batch
+        run: python3 tools/stems.py --limit "${{ github.event.inputs.limit || 24 }}"
+      - name: Commit if changed
+        run: |
+          if [[ -n "$(git status --porcelain docs/catalog.json)" ]]; then
+            git config user.name  "aethra-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add docs/catalog.json
+            git commit -m "chore: bank a batch of stem envelopes (auto) [skip ci]"
+            git push
+            echo "stems banked and pushed"
+          else
+            echo "no stem changes"
+          fi
