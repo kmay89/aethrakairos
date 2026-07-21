@@ -2275,6 +2275,20 @@ function ensureCtx(){
   AE.master.connect(AE.ctx.destination);
   AE.bus.connect(AE.analyser);
 
+  // a shared ECHO unit for the "echo out": a fading deck's tail is sent into a
+  // feedback delay that keeps ringing AFTER the track itself has gone — the
+  // classic hand-off where the old song dissolves into its own echoes
+  {
+    const inGain = AE.ctx.createGain();
+    const delay = AE.ctx.createDelay(1.5); delay.delayTime.value = 0.36;
+    const fb = AE.ctx.createGain(); fb.gain.value = 0.42;      // <1: the tail decays, never runs away
+    const wet = AE.ctx.createGain(); wet.gain.value = 0.5;
+    inGain.connect(delay);
+    delay.connect(fb); fb.connect(delay);                      // the feedback loop
+    delay.connect(wet); wet.connect(AE.bus);
+    AE.echo = { in: inGain, delay, fb, wet };
+  }
+
   AE.decks = [0, 1].map(() => {
     const a = new Audio();
     a.preload = 'auto';
@@ -2296,8 +2310,13 @@ function ensureCtx(){
     filter.type = 'lowpass'; filter.frequency.value = FILTER_OPEN; filter.Q.value = 0.7;
     const gain = AE.ctx.createGain();
     gain.gain.value = 0;
+    // a post-filter tap into the shared echo, silent by default; the mixer blooms
+    // it on a fading-out deck so the track leaves in a trail of echoes
+    const echoSend = AE.ctx.createGain();
+    echoSend.gain.value = 0;
     src.connect(shelf); shelf.connect(filter); filter.connect(gain); gain.connect(AE.bus);
-    return { a, src, shelf, filter, gain };
+    filter.connect(echoSend); echoSend.connect(AE.echo.in);
+    return { a, src, shelf, filter, gain, echoSend };
   });
   AE.graphLive = !IS_IOS;
   SPEED.apply();                 // decks are born at the listener's chosen speed
@@ -7311,6 +7330,15 @@ const MIXER = {
         od.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
         od.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);   // hold, then dive
         od.filter.frequency.exponentialRampToValueAtTime(FILTER_FLOOR, t0 + sweep);
+        // ECHO OUT: bloom the outgoing send in the last stretch so the fading
+        // track dissolves into its own echoes (the incoming stays dry)
+        if (od.echoSend && nd.echoSend){
+          nd.echoSend.gain.cancelScheduledValues(t0); nd.echoSend.gain.setValueAtTime(0, t0);
+          od.echoSend.gain.cancelScheduledValues(t0);
+          od.echoSend.gain.setValueAtTime(0, t0);
+          od.echoSend.gain.setValueAtTime(0, t0 + sweep * 0.55);   // dry first, then trail off in echoes
+          od.echoSend.gain.linearRampToValueAtTime(0.6, t0 + sweep);
+        }
       } catch (e){}
     }
     nd.a.play().catch(err => {
@@ -7435,8 +7463,14 @@ const MIXER = {
     if (!AE.ctx || !AE.decks) return;
     const t = AE.ctx.currentTime;
     for (const d of AE.decks){
-      if (!d || !d.filter) continue;
-      try { d.filter.frequency.cancelScheduledValues(t); d.filter.frequency.setValueAtTime(FILTER_OPEN, t); } catch (e){}
+      if (!d) continue;
+      if (d.filter){
+        try { d.filter.frequency.cancelScheduledValues(t); d.filter.frequency.setValueAtTime(FILTER_OPEN, t); } catch (e){}
+      }
+      // stop feeding the echo — the delay's own feedback rings the tail out
+      if (d.echoSend){
+        try { d.echoSend.gain.cancelScheduledValues(t); d.echoSend.gain.setValueAtTime(0, t); } catch (e){}
+      }
     }
   },
 };
@@ -7628,7 +7662,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '08d612f8ce';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '752a310398';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
