@@ -19,7 +19,8 @@
         "minHeight": 380,
         "resizable": true,
         "fullscreen": false,
-        "backgroundColor": "#05060c"
+        "backgroundColor": "#05060c",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 AethraKairosNative/1.0"
       }
     ],
     "security": {

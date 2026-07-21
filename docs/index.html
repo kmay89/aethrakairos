@@ -1149,6 +1149,10 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 }
 .lib-foot a{color:var(--dim);text-decoration:none;border-bottom:1px dotted var(--faint)}
 .lib-foot a:hover{color:var(--ink)}
+/* the Mac-app download CTA — a quiet accent, its own line, no underline */
+.lib-foot a.mac-dl{display:inline-block;margin-top:8px;color:var(--accent,#6ee7ff);
+  border-bottom:0;letter-spacing:.12em;font-size:9.5px;opacity:.85;transition:opacity .2s ease}
+.lib-foot a.mac-dl:hover{opacity:1}
 
 /* ============ The Crate (C) — the label on one table ============ */
 #crate{
@@ -2346,6 +2350,13 @@ const XFADE = 4.0;                 // auto-mix crossfade seconds
    visibilitychange. */
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+/* The native Mac shell (Tauri) tags its webview's user-agent, so the web app can
+   adapt with zero coupling — a plain browser never matches, so this is a no-op
+   on the web. Used to offer the download only OUTSIDE the app, and as the hook
+   native features build on. */
+const IS_NATIVE = / AethraKairosNative\//.test(navigator.userAgent);
+if (IS_NATIVE) document.documentElement.classList.add('native');
 
 // the per-deck sweep filter: parked wide open (≈bypass), driven down to the
 // floor on a fading-out deck so a crossfade becomes a pro "filter out"
@@ -6487,7 +6498,11 @@ function catalogChromeSync(){
   el.libFoot.innerHTML = (bits.length
     ? bits.join(' · ') + '<br>audio © all rights reserved — streaming from this catalog permitted<br>'
     : '')
-    + 'the open-source label player — free, in your browser, no login, ever';
+    + 'the open-source label player — free, '
+    + (IS_NATIVE ? 'on your Mac' : 'in your browser') + ', no login, ever'
+    // offer the Mac app only on the web — never inside the app itself
+    + (IS_NATIVE ? ''
+       : '<br><a class="mac-dl" href="https://github.com/kmay89/aethrakairos/releases/latest" target="_blank" rel="noopener">↓ Download the Mac app</a>');
 }
 
 /* every track the player knows about: the catalog registry plus anything
