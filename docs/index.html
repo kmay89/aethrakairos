@@ -5047,6 +5047,42 @@ function energyArcBias(cur, cand, arc){
   return Math.max(-0.25, Math.min(0.10, bias));
 }
 
+/* stemWindow — the average energy of one stem's digit envelope across a
+   fractional window [f0,f1] of the track (0..1). Pure; returns 0 on no data. */
+function stemWindow(str, f0, f1){
+  if (!str || !str.length) return 0;
+  const n = str.length;
+  let a = Math.max(0, Math.floor(f0 * (n - 1)));
+  const b = Math.min(n - 1, Math.ceil(f1 * (n - 1)));
+  if (b < a) a = b;
+  let s = 0, c = 0;
+  for (let i = a; i <= b; i++){
+    const d = str.charCodeAt(i) - 48;
+    s += (d >= 0 && d <= 9 ? d / 9 : 0); c++;
+  }
+  return c ? s / c : 0;
+}
+
+/* vocalClashBias — a real DJ never lets two voices sing over each other. With
+   per-stem envelopes (mix.stems) we can SEE it coming: sample the outgoing
+   track's VOCAL energy where it exits (its mix-out tail) and the incoming
+   track's where it enters (its mix-in head). If both carry a voice, penalize —
+   the more they overlap, the harder. A small reward when the incoming enters on
+   DRUMS (a clean beat to land on). Returns 0 when either track hasn't been
+   separated, so it's inert until the pipeline lands stems. ~[-0.20, +0.05]. */
+function vocalClashBias(A, B){
+  const sa = A && A.mix && A.mix.stems, sb = B && B.mix && B.mix.stems;
+  if (!sa || !sb || !(sa.sv >= 1) || !(sb.sv >= 1)) return 0;
+  const aVoxOut = stemWindow(sa.v, 0.82, 0.97);      // A's voice as it leaves
+  const bVoxIn  = stemWindow(sb.v, 0.03, 0.18);      // B's voice as it enters
+  const bDrumIn = stemWindow(sb.d, 0.03, 0.18);      // B landing on a beat
+  let bias = 0;
+  const clash = Math.min(aVoxOut, bVoxIn);           // both must be present to clash
+  if (clash > 0.35) bias -= (clash - 0.35) * 0.6;    // overlapping voices muddy the blend
+  if (bDrumIn > 0.5) bias += (bDrumIn - 0.5) * 0.1;  // a drum-led entry is a clean landing
+  return Math.max(-0.20, Math.min(0.05, bias));
+}
+
 /* the pad row's brain: rank candidates against the playing track with the
    SAME judge that performs the mix, best first. Pure — takes mix-wrapped
    tracks, returns indices into the candidate array with score + plan. */
@@ -5055,7 +5091,8 @@ function nextUp(cands, cur, n, arc){
   const rows = cands.map((c, i) => {
     const m = mixMatchScore(cur, c, {});
     const eb = energyArcBias(ce, c.features ? c.features.energy : null, arc || 'up');
-    return { i, m, score: m.score + eb };            // harmony/mixability, nudged by the energy arc
+    const vb = vocalClashBias(cur, c);               // avoid blending two voices (when separated)
+    return { i, m, score: m.score + eb + vb };        // harmony/mixability, nudged by energy + vocals
   });
   rows.sort((a, b) => b.score - a.score);
   return rows.slice(0, n || 8).map(r => ({ i: r.i, score: r.score, plan: r.m.plan }));
@@ -5083,6 +5120,7 @@ function chartSet(opts){
       let sc = m.score + rng() * (opts.jitter == null ? 0.05 : opts.jitter);
       if (cur.features && c.features)
         sc -= Math.abs(cur.features.energy - c.features.energy) * 0.15;
+      sc += vocalClashBias(cur, c);                  // don't chain two vocals edge-to-edge
       if (sc > bestScore){ bestScore = sc; best = c; bestPlan = m.plan; }
     }
     if (!best) break;
@@ -7755,7 +7793,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'df7b22ed09';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'bae765c60a';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
