@@ -2236,6 +2236,10 @@ const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
 // the per-deck sweep filter: parked wide open (≈bypass), driven down to the
 // floor on a fading-out deck so a crossfade becomes a pro "filter out"
 const FILTER_OPEN = 20000, FILTER_FLOOR = 300;
+// the one-bass rule for fades: the outgoing low shelf is pulled down this many
+// dB across the seam so two basslines never stack into mud (beatmix already
+// swaps bass live; this brings the same discipline to the FILTERED fade)
+const FADE_BASS_CUT = -22;
 
 const AE = {
   ctx: null, bus: null, master: null, analyser: null,
@@ -7330,6 +7334,19 @@ const MIXER = {
         od.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
         od.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);   // hold, then dive
         od.filter.frequency.exponentialRampToValueAtTime(FILTER_FLOOR, t0 + sweep);
+        // BASS SWAP: the one-bass rule, brought to fades. A lowpass keeps the
+        // outgoing LOWS while it fades, so without this two kicks/basslines
+        // stack into mud through the crossover. Pull the outgoing low shelf down
+        // across the seam while the incoming keeps its full low end — one
+        // dominant bass at a time, sample-accurate like the filter sweep.
+        if (od.shelf && nd.shelf){
+          nd.shelf.gain.cancelScheduledValues(t0);
+          nd.shelf.gain.setValueAtTime(0, t0);                              // the incoming owns the low end
+          od.shelf.gain.cancelScheduledValues(t0);
+          od.shelf.gain.setValueAtTime(0, t0);
+          od.shelf.gain.setValueAtTime(0, t0 + sweep * 0.12);               // hold, then clear the outgoing bass
+          od.shelf.gain.linearRampToValueAtTime(FADE_BASS_CUT, t0 + sweep);
+        }
         // ECHO OUT: bloom the outgoing send in the last stretch so the fading
         // track dissolves into its own echoes (the incoming stays dry)
         if (od.echoSend && nd.echoSend){
@@ -7466,6 +7483,11 @@ const MIXER = {
       if (!d) continue;
       if (d.filter){
         try { d.filter.frequency.cancelScheduledValues(t); d.filter.frequency.setValueAtTime(FILTER_OPEN, t); } catch (e){}
+      }
+      // clear any scheduled bass-swap ramp so a fade's shelf automation can't
+      // keep pulling the low end down after the seam has ended
+      if (d.shelf){
+        try { d.shelf.gain.cancelScheduledValues(t); d.shelf.gain.setValueAtTime(0, t); } catch (e){}
       }
       // stop feeding the echo — the delay's own feedback rings the tail out
       if (d.echoSend){
@@ -7662,7 +7684,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '752a310398';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'c682b4a24e';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
