@@ -7110,14 +7110,30 @@ const MIXER = {
       return;
     }
     if (this.phase === 'armed'){
-      const p = this.plan;
-      const due = p.type === 'beatmix'
-        ? t >= p.startA
-        : (d.a.duration - t) <= (p.type === 'fade' ? p.seconds : 0.10);
-      if (due) this.fire(now);
+      if (t >= this.exitTime(d.a.duration, this.plan, player.tracks[player.cur])) this.fire(now);
       return;
     }
     if (this.phase === 'running') this.run(now);
+  },
+
+  // WHEN to leave the outgoing track. Beatmix leaves on its grid-anchored seam
+  // (already structural, from the offline analysis) and gapless at the very end.
+  // A plain FADE, though, used to fire only in the last few seconds — playing a
+  // long outro to nobody. If the song's STRUCTURE is known, the fade instead
+  // starts as the last loud block ends (mixOut), mixing out into the tail like a
+  // DJ, never mid-drop. Guarded so it only ever pulls the exit EARLIER, only
+  // within the already-armed window, and never for beatmix/gapless.
+  exitTime(dur, plan, track){
+    if (plan.type === 'beatmix') return plan.startA;
+    const base = dur - (plan.type === 'fade' ? plan.seconds : 0.10);
+    if (plan.type === 'fade'){
+      const st = track && track._structure;
+      if (st && st.ok){
+        const so = st.mixOut * dur;
+        if (so >= dur - 44 && so <= base) return so;   // exit as the last loud block ends
+      }
+    }
+    return base;
   },
 
   arm(){
@@ -7507,7 +7523,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'bfa496679a';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'eb49e425bf';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
