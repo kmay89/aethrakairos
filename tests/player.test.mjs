@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, sectionLabel, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1339,6 +1339,27 @@ test('dropPoints: a flat or missing structure yields no markers', () => {
   // a gentle rise below the threshold is not a "drop"
   assert.deepEqual(S.dropPoints({ ok: true, sections: [
     { s: 0, e: 0.5, energy: 0.5, loud: false }, { s: 0.5, e: 1, energy: 0.6, loud: true }] }), []);
+});
+test('sectionLabel: names where the playhead sits, structurally', () => {
+  const st = { ok: true, sections: [
+    { s: 0, e: 0.12, energy: 0.1, loud: false },   // intro
+    { s: 0.12, e: 0.35, energy: 0.55, loud: true }, // build (loud, before peak)
+    { s: 0.35, e: 0.5, energy: 0.95, loud: true },  // peak (loudest)
+    { s: 0.5, e: 0.62, energy: 0.25, loud: false }, // break (quiet, middle)
+    { s: 0.62, e: 0.85, energy: 0.7, loud: true },  // drive (loud, after peak)
+    { s: 0.85, e: 1, energy: 0.12, loud: false },   // outro
+  ] };
+  assert.equal(S.sectionLabel(st, 0.05), 'intro');
+  assert.equal(S.sectionLabel(st, 0.2), 'build');
+  assert.equal(S.sectionLabel(st, 0.42), 'peak');
+  assert.equal(S.sectionLabel(st, 0.55), 'break');
+  assert.equal(S.sectionLabel(st, 0.7), 'drive');
+  assert.equal(S.sectionLabel(st, 0.95), 'outro');
+});
+test('sectionLabel: empty without usable structure', () => {
+  assert.equal(S.sectionLabel(null, 0.5), '');
+  assert.equal(S.sectionLabel({ ok: false }, 0.5), '');
+  assert.equal(S.sectionLabel({ ok: true, sections: [] }, 0.5), '');
 });
 
 // ---- stem-aware transitions: never blend two voices ----
