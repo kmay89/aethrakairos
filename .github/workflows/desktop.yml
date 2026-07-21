@@ -14,6 +14,14 @@
 name: desktop
 
 on:
+  # reusable — the auto-nightly workflow calls this with channel: dev, so native
+  # edits merged to main ship to the Dev channel automatically (parity).
+  workflow_call:
+    inputs:
+      channel:
+        description: 'Release channel'
+        type: string
+        default: none
   workflow_dispatch:
     inputs:
       channel:
@@ -29,7 +37,7 @@ on:
     tags: ['desktop-v*']
 
 concurrency:
-  group: desktop-${{ github.ref }}-${{ github.event.inputs.channel }}
+  group: desktop-${{ github.ref }}-${{ inputs.channel }}
   cancel-in-progress: true
 
 jobs:
@@ -65,7 +73,7 @@ jobs:
         id: plan
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          CHANNEL: ${{ github.event.inputs.channel }}
+          CHANNEL: ${{ inputs.channel }}
         run: |
           SIGN=""
           [ -n "$KEY" ] && SIGN=" --config src-tauri/tauri.updater.json"

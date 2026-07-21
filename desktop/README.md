@@ -17,10 +17,29 @@ elsewhere, and they're real:
   changes, via a signed GitHub Releases feed.
 - **Magic.** A real Dock app that installs from a `.dmg` and updates itself.
 
-**Staged plan** — Phase 2 moves the heavy audio DSP (decode / FFT / peak &
+**Staged plan** — a later phase moves the heavy audio DSP (decode / FFT / peak &
 feature extraction — the CPU/RAM-heavy work) into native Rust commands, plus
 native Now Playing + media keys. That's where "native performance" actually
 lands: as *compute*, not rendering.
+
+## Parity — how the web app and the Mac app stay in sync
+
+Two sides, two mechanisms, both automatic:
+
+- **Web edits → the Mac app: instant, no build.** The shell loads the *live*
+  site, so anything you ship to `aethrakairos.com` (every merge to `main` that
+  Netlify deploys) is in the Mac app the next time it launches. The player, the
+  visualizer, playlists, Unheard — all of it — updates with zero app release.
+- **Native edits → users: automatic nightly.** A push to `main` that touches the
+  **native** app (`desktop/src-tauri/**`, `desktop/dist/**`) auto-builds and
+  publishes the **Dev** channel via [`desktop-nightly.yml`](../.github/workflows/desktop-nightly.yml),
+  which calls the reusable [`desktop.yml`](../.github/workflows/desktop.yml) with
+  `channel: dev`. Dev users ride `main`.
+- **Stable stays deliberate.** You don't auto-ship a stable release on every
+  commit — cut one with a `desktop-vX.Y.Z` tag when you mean it.
+
+So: the thing you edit most (the web app) needs *nothing*, and the thing you edit
+rarely (the native shell) ships itself to the nightly channel.
 
 ## Layout
 
@@ -77,17 +96,26 @@ an honest "what it is / does / never does"). The web player's footer links to it
 
 ## Turn on auto-update (one time)
 
-The updater verifies every update against a public key baked into the app. A
-placeholder public key is already in `tauri.conf.json`; to own the signing:
+The updater verifies every update against a public key baked into the app. The
+`pubkey` currently in `tauri.conf.json` is a **placeholder** whose private key
+does not exist anywhere — generate a real keypair to own the signing.
+
+`npx` needs Node. If `npx` isn't found, install it first — `brew install node`
+(the private key then stays on your machine, never in a chat or the repo):
 
 ```bash
-cd desktop
-npx tauri signer generate -w aethra-updater.key      # keep the private key SECRET
+npx @tauri-apps/cli@latest signer generate -w aethra-updater.key   # keep the private key SECRET
 ```
 
 1. Copy the printed **public key** into `tauri.conf.json` → `plugins.updater.pubkey`.
 2. Add the **private key** as the repo secret `TAURI_SIGNING_PRIVATE_KEY`
    (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if you set one).
+
+> **TODO — updater signing not yet live.** Until a real keypair is generated and
+> `TAURI_SIGNING_PRIVATE_KEY` is set, releases build a working `.dmg` but carry no
+> update feed (installs work; auto-update is dormant). If a *temporary* key was
+> handed over out-of-band to get going, **rotate it** here once proper local
+> tooling is available, and update the `pubkey` + secret together.
 
 The private key is git-ignored (`.keys/`) and must never be committed.
 
