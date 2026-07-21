@@ -5399,6 +5399,20 @@ function pickStructure(pre, client){
   if (client && client.ok) return client;
   return null;
 }
+// dropPoints — the DROPS a track earns: the boundaries where a quieter block
+// gives way to a decisively louder one (the build → drop the ear leans toward).
+// Read from the precomputed structure's sections; returns fractional positions
+// 0..1 with a 0..1 strength, biggest first. Empty when structure is missing or
+// flat, so a caller draws nothing rather than guessing.
+function dropPoints(struct){
+  if (!struct || !struct.ok || !struct.sections || struct.sections.length < 2) return [];
+  const secs = struct.sections, out = [];
+  for (let i = 1; i < secs.length; i++){
+    const rise = secs[i].energy - secs[i - 1].energy;
+    if (rise > 0.28 && secs[i].loud) out.push({ at: secs[i].s, strength: Math.min(1, rise) });
+  }
+  return out.sort((a, b) => b.strength - a.strength);
+}
 // the source palette for stem-coloured waveforms: drums run warm-red (the
 // transient hit), bass amber (the body), vocals cyan (the voice sits up and
 // bright), everything else violet. Chosen to stay legible when blended.
@@ -7852,7 +7866,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '098090a3ab';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'c94c292b5e';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7946,10 +7960,10 @@ const WAVE = {
         && !tr._peaks && !tr._peaksPending && !tr._peaksErr){
       this._peekUrl = tr.url; computePeaks(tr);
     }
-    if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr));
+    if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr), trackStructure(tr));
     else this._scope(ctx, w, h);
   },
-  _overview(ctx, w, h, pk, bands, d, stems){
+  _overview(ctx, w, h, pk, bands, d, stems, struct){
     const n = pk.length, mid = h * 0.5;
     const frac = (d && isFinite(d.a.duration) && d.a.duration > 0)
       ? clamp01(d.a.currentTime / d.a.duration) : 0;
@@ -7982,6 +7996,18 @@ const WAVE = {
       ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
     }
     const a = this.accent;
+    // DROP MARKERS: where the track builds into a louder block — a thin lit tick
+    // with a small wedge, brighter for a bigger drop, so you can see it coming as
+    // you scrub. From the precomputed structure; nothing drawn when it's absent.
+    const drops = dropPoints(struct);
+    for (const dp of drops){
+      const x = dp.at * w, al = 0.22 + dp.strength * 0.5;
+      ctx.fillStyle = `rgba(255,255,255,${al.toFixed(3)})`;
+      ctx.fillRect(x - 0.5, 0, 1, h);
+      ctx.beginPath(); ctx.moveTo(x - 3, 0); ctx.lineTo(x + 3, 0); ctx.lineTo(x, 5.5); ctx.closePath();
+      ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},${(0.55 + dp.strength * 0.4).toFixed(3)})`;
+      ctx.fill();
+    }
     // the playhead: a bright line with a soft key-coloured bloom
     const px = frac * w;
     const grd = ctx.createLinearGradient(px - 14, 0, px + 14, 0);
