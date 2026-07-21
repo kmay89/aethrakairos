@@ -98,7 +98,7 @@ def separate(path, sr=44100):
         # don't assume it equals Path(path).stem — only one file was separated
         # into this temp dir, so take the single subdir that appeared.
         model_dir = out / DEMUCS_MODEL
-        stem_dirs = [d for d in model_dir.iterdir() if d.is_dir()] if model_dir.exists() else []
+        stem_dirs = [d for d in model_dir.iterdir() if d.is_dir()] if model_dir.is_dir() else []
         if not stem_dirs:
             raise RuntimeError(f"Demucs produced no output under {model_dir}")
         stem_dir = stem_dirs[0]
