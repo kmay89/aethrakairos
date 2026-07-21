@@ -1,0 +1,32 @@
+# Parity for the NATIVE side: when the native app's own code changes on main,
+# ship it automatically to the Dev (nightly) channel.
+#
+# The web app needs no equivalent — the shell loads the LIVE site, so any web
+# edit that deploys is already in the Mac app on next launch. This closes the
+# loop for the one part that isn't automatic: the native shell itself.
+#
+# Stable stays deliberate (a desktop-vX.Y.Z tag) — you don't auto-ship a stable
+# release on every commit. Dev users ride main.
+name: desktop-nightly
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # only the native app — NOT docs/** (web) or desktop/README.md, which don't
+      # change the built binary. Catalog bot commits ([skip ci]) never match this.
+      - 'desktop/src-tauri/**'
+      - 'desktop/dist/**'
+      - 'desktop/package.json'
+      - 'desktop/package-lock.json'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  nightly:
+    uses: ./.github/workflows/desktop.yml
+    with:
+      channel: dev
+    secrets: inherit
