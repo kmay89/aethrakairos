@@ -7866,7 +7866,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '42bd716a3e';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '080fb64266';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8047,10 +8047,10 @@ const WAVE = {
     ctx.clearRect(0, 0, w, h);
     const tr = player.tracks[player.cur], d = activeDeck();
     if (tr && tr._peaks && tr._bands && d && isFinite(d.a.duration) && d.a.duration > 0 && !AE.mic.on)
-      this._zoomWave(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr));
+      this._zoomWave(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr), trackStructure(tr));
     else this._scope(ctx, w, h);        // no peaks yet (or mic) → the live scope already scrolls
   },
-  _zoomWave(ctx, w, h, pk, bands, d, stems){
+  _zoomWave(ctx, w, h, pk, bands, d, stems, struct){
     const n = pk.length, mid = h * 0.5, dur = d.a.duration, t = d.a.currentTime;
     const WIN = 18, headX = w * 0.42, pxPerSec = w / WIN;   // ~18 s visible, playhead left-of-centre
     const warm = [255, 120, 58], acc = this.accent, bright = [150, 216, 255];
@@ -8073,7 +8073,25 @@ const WAVE = {
       ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.95 : 0.55})`;
       ctx.fillRect(x, mid - bh, step - 0.5, bh * 2);
     }
-    const a = this.accent, grd = ctx.createLinearGradient(headX - 18, 0, headX + 18, 0);
+    const a = this.accent;
+    // DROP MARKERS, scrolling toward the playhead: each drop from the precomputed
+    // structure rides in from the right and crosses the head-line right as it
+    // hits — the cinematic "see the drop coming". An upcoming drop reads brighter
+    // than one already passed. Nothing drawn without structure.
+    if (dur > 0){
+      const drops = dropPoints(struct);
+      for (const dp of drops){
+        const x = headX + (dp.at * dur - t) * pxPerSec;
+        if (x < -6 || x > w + 6) continue;
+        const upcoming = dp.at * dur > t, al = (upcoming ? 0.5 : 0.24) + dp.strength * 0.4;
+        ctx.fillStyle = `rgba(255,255,255,${al.toFixed(3)})`;
+        ctx.fillRect(x - 0.75, 0, 1.5, h);
+        ctx.beginPath(); ctx.moveTo(x - 4, 0); ctx.lineTo(x + 4, 0); ctx.lineTo(x, 7); ctx.closePath();
+        ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},${((upcoming ? 0.7 : 0.4) + dp.strength * 0.3).toFixed(3)})`;
+        ctx.fill();
+      }
+    }
+    const grd = ctx.createLinearGradient(headX - 18, 0, headX + 18, 0);
     grd.addColorStop(0, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
     grd.addColorStop(0.5, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.4)`);
     grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
