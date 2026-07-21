@@ -5188,6 +5188,18 @@ function segueShouldFire(g){
   if (g.big) return !!g.phraseWrapped || !!g.barWrapped || g.waited >= g.maxWait;
   return !!g.barWrapped || g.waited >= g.maxWait;
 }
+
+// pickStructure — precompute-first, real-time fallback. The offline pipeline can
+// ship a track's full structure in its `mix.structure`; until it does (or for a
+// local/dropped file), the browser computes one with analyzeStructure. The mixer
+// and the booth both read through here so the SOURCE is invisible to them — a
+// track gains richer, cheaper structure the day the catalog carries it, with no
+// client change. Returns the precomputed map if valid, else the client one, else null.
+function pickStructure(pre, client){
+  if (pre && pre.ok) return pre;
+  if (client && client.ok) return client;
+  return null;
+}
 // @solver-end
 
 /* ================================================================
@@ -7052,6 +7064,15 @@ function mixOf(t){
   return m;
 }
 
+/* the richest STRUCTURE we have for a track — the song's script (sections,
+   apex, mix-in/out). Precompute-first: a future catalog ships it in mix.structure;
+   until then the browser's analyzeStructure attaches track._structure. The mixer
+   and the booth read here so neither cares where it came from. */
+function trackStructure(t){
+  const m = t && mixOf(t);
+  return pickStructure(m && m.structure, t && t._structure);
+}
+
 const MIXER = {
   on: true,                      // auto-mix is the default: beatmix when the grids
                                  // agree, an honest crossfade when they don't — the
@@ -7523,7 +7544,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'eb49e425bf';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '45896aa8e2';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7997,6 +8018,38 @@ const BOOTH = {
         ctx.fillRect(x - 0.5, y + h * 0.28, 1, h * 0.44);
     }
   },
+  /* the song's SCRIPT under the waveform: a 4-bar phrase grid across the whole
+     lane, a faint energy backdrop for each structural section (warm = loud,
+     cool = quiet), section boundary ticks, and the apex — so you can SEE why the
+     seam sits where it does. Drawn before the waveform, so the bars ride on top. */
+  _structureOverlay(ctx, y, h, w, tr, dur, xOff){
+    const o = xOff || 0;
+    // the phrase grid, from the measured beat grid — every 4 bars
+    const m = tr && mixOf(tr);
+    if (m && m.bpm > 0 && dur > 0){
+      const spb = 60 / m.bpm, g0 = m.grid || 0, phrase = 16 * spb;
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      let n = 0;
+      for (let t = Math.max(0, g0); t < dur && n < 220; t += phrase, n++)
+        ctx.fillRect(o + (t / dur) * w - 0.4, y, 0.8, h);
+    }
+    // the structural sections + apex
+    const st = trackStructure(tr);
+    if (st && st.ok && st.sections){
+      for (const s of st.sections){
+        const x0 = o + clamp01(s.s) * w, x1 = o + clamp01(s.e) * w;
+        const a = 0.045 + (s.loud ? 0.05 : 0) + clamp01(s.energy || 0) * 0.05;
+        ctx.fillStyle = s.loud ? `rgba(255,150,80,${a})` : `rgba(90,150,255,${a * 0.8})`;
+        ctx.fillRect(x0, y, Math.max(0, x1 - x0), h);
+        ctx.fillStyle = 'rgba(255,255,255,0.09)';
+        ctx.fillRect(x0 - 0.4, y, 0.8, h);
+      }
+      if (st.apex != null){
+        ctx.fillStyle = 'rgba(255,214,120,0.45)';
+        ctx.fillRect(o + clamp01(st.apex) * w - 0.5, y, 1, h);
+      }
+    }
+  },
   _playhead(ctx, y, h, w, frac, rgb, xOff){
     const px = (xOff || 0) + clamp01(frac) * w;
     const g = ctx.createLinearGradient(px - 10, 0, px + 10, 0);
@@ -8314,6 +8367,8 @@ const BOOTH = {
       this._jog(ctx, jog + 6, topH + hMid / 2, jog, dA, tA, accA, beat * aG, dts, '_angA');
       this._jog(ctx, w - jog - 6, topH + hMid / 2, jog, dB, tB, accB, beat * bG, dts, '_angB');
     }
+    const durA = dA && isFinite(dA.a.duration) && dA.a.duration > 0 ? dA.a.duration : (tA && tA.duration) || 0;
+    if (durA > 0) this._structureOverlay(ctx, yA, laneH, laneW, tA, durA, laneX);
     paintLane(ctx, laneX, yA, laneW, laneH, tA, fracOf(dA), accA);
     if (p && dA && isFinite(dA.a.duration) && dA.a.duration > 0){
       const dur = dA.a.duration;
@@ -8327,6 +8382,8 @@ const BOOTH = {
       }
     }
     this._playhead(ctx, yA, laneH, laneW, fracOf(dA), accA, laneX);
+    const durB = dB && isFinite(dB.a.duration) && dB.a.duration > 0 ? dB.a.duration : (tB && tB.duration) || 0;
+    if (tB && durB > 0) this._structureOverlay(ctx, yB2, laneH, laneW, tB, durB, laneX);
     paintLane(ctx, laneX, yB2, laneW, laneH, tB, fracOf(dB), accB);
     if (p && p.type === 'beatmix' && tB && dB && isFinite(dB.a.duration) && dB.a.duration > 0){
       const dur = dB.a.duration, spb = 60 / p.bpmB;
