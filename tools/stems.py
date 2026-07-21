@@ -94,7 +94,14 @@ def separate(path, sr=44100):
         subprocess.run(
             [sys.executable, "-m", "demucs", "-n", DEMUCS_MODEL, "-o", str(out), str(path)],
             check=True)
-        stem_dir = out / DEMUCS_MODEL / Path(path).stem
+        # Demucs may sanitize the track name when it names the output folder, so
+        # don't assume it equals Path(path).stem — only one file was separated
+        # into this temp dir, so take the single subdir that appeared.
+        model_dir = out / DEMUCS_MODEL
+        stem_dirs = [d for d in model_dir.iterdir() if d.is_dir()] if model_dir.is_dir() else []
+        if not stem_dirs:
+            raise RuntimeError(f"Demucs produced no output under {model_dir}")
+        stem_dir = stem_dirs[0]
         monos = {}
         for key, name in STEM_FILES.items():
             wav = stem_dir / f"{name}.wav"
@@ -130,6 +137,8 @@ def _needs(tr, force):
 def enrich(catalog, limit=None, force=False):
     done = skip = miss = 0
     for album, tr in _iter_tracks(catalog):
+        if limit is not None and done >= limit:
+            break                                    # stop scanning once the batch is full
         if not _needs(tr, force):
             skip += 1
             continue
@@ -137,8 +146,6 @@ def enrich(catalog, limit=None, force=False):
         if not path or not path.exists():
             miss += 1
             continue
-        if limit is not None and done >= limit:
-            break
         print(f"  separating {path} …", flush=True)
         try:
             monos, sr = separate(path)
@@ -210,7 +217,7 @@ def main(argv=None):
     if a.selftest:
         return selftest()
     path = Path(a.catalog)
-    catalog = json.loads(path.read_text())
+    catalog = json.loads(path.read_text(encoding="utf-8"))
     if a.check:
         have, total = coverage(catalog)
         pct = (100.0 * have / total) if total else 0.0
@@ -219,7 +226,7 @@ def main(argv=None):
     done, skip, miss = enrich(catalog, limit=a.limit, force=a.force)
     print(f"stems: separated {done}, skipped {skip} (already current), missed {miss} (no audio / failed)")
     if done:
-        path.write_text(json.dumps(catalog, indent=1, ensure_ascii=False) + "\n")
+        path.write_text(json.dumps(catalog, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"wrote {path}")
     else:
         print("no changes")
