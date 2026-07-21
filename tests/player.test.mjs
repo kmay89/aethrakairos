@@ -22,6 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
+  ' smoothEnv, analyzeStructure, structureCeiling,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1063,6 +1064,55 @@ test('touch-FX: the vortex has two chiralities and the drag chooses', () => {
   assert.equal(S.touchFxMode('grows', -1.5), -1, 'drag left → the other way');
   assert.equal(S.touchFxMode('grows', -0.01), 1, 'tiny jitter stays put');
   assert.equal(S.touchFxMode('grows', -0.2), -1, 'a real left drag flips it');
+});
+
+// ---------------------------------------------------------------- structure
+// a synthetic "traditional script": quiet intro · build · loud chorus ·
+// breakdown · the biggest drop (apex) · quiet outro
+function scriptPeaks(){
+  const N = 480, p = new Float32Array(N);
+  for (let i = 0; i < N; i++){
+    const f = i / N;
+    let v;
+    if (f < 0.12) v = 0.10;                          // intro
+    else if (f < 0.25) v = 0.10 + (f - 0.12) / 0.13 * 0.55;  // build ramp
+    else if (f < 0.45) v = 0.72;                     // chorus (loud)
+    else if (f < 0.60) v = 0.16;                     // breakdown (quiet)
+    else if (f < 0.85) v = 0.95;                     // THE DROP — loudest (apex)
+    else v = 0.12;                                   // outro
+    p[i] = v + (((i * 2654435761) >>> 0) % 100) / 100 * 0.05;   // a little deterministic grain
+  }
+  return p;
+}
+test('structure: the apex lands in the real drop, not a fixed clock point', () => {
+  const st = S.analyzeStructure(scriptPeaks());
+  assert.ok(st.ok, 'analysed');
+  assert.ok(st.apex > 0.60 && st.apex < 0.86, 'apex sits in the loudest block, got ' + st.apex.toFixed(3));
+  assert.ok(st.sections.length >= 4, 'found the distinct sections, got ' + st.sections.length);
+});
+test('structure: the intensity ceiling is low in the quiet parts, open in the loud ones', () => {
+  const st = S.analyzeStructure(scriptPeaks());
+  const cIntro = S.structureCeiling(st, 0.06);       // intro
+  const cBreak = S.structureCeiling(st, 0.52);       // breakdown
+  const cDrop  = S.structureCeiling(st, 0.72);       // the drop
+  assert.ok(cDrop > 0.9, 'the drop opens it up, got ' + cDrop.toFixed(3));
+  assert.ok(cIntro < 0.55 && cBreak < 0.55, 'quiet parts stay capped, intro=' + cIntro.toFixed(2) + ' break=' + cBreak.toFixed(2));
+  assert.ok(cDrop > cBreak + 0.3, 'the drop is decisively louder than the breakdown');
+  assert.ok(cIntro >= 0.3, 'never dead — floored');
+});
+test('structure: the exit point is the end of the last loud block, in the back half', () => {
+  const st = S.analyzeStructure(scriptPeaks());
+  assert.ok(st.mixOut > 0.78 && st.mixOut <= 0.97, 'exits as the drop ends into the outro, got ' + st.mixOut.toFixed(3));
+  assert.ok(st.mixIn >= 0.20 && st.mixIn < 0.5, 'enters on the first strong block, skipping the intro, got ' + st.mixIn.toFixed(3));
+});
+test('structure: a featureless track degrades gracefully', () => {
+  const flat = new Float32Array(480).fill(0.5);
+  const st = S.analyzeStructure(flat);
+  assert.ok(st.ok, 'still returns a map');
+  assert.equal(S.structureCeiling(st, 0.5) > 0, true, 'a ceiling exists');
+  const tiny = S.analyzeStructure(new Float32Array(4).fill(0.5));
+  assert.equal(tiny.ok, false, 'too little data → not ok, safe defaults');
+  assert.equal(tiny.apex, 0.6);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
