@@ -13,6 +13,12 @@ name: desktop
 
 on:
   workflow_dispatch:
+  # validate the macOS build on any PR that touches the desktop app (build-only,
+  # no release — releases happen on tags)
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
   push:
     tags: ['desktop-v*']
 
