@@ -233,6 +233,9 @@ body.zen #eqStrip{opacity:.85;height:18px}
   cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 /* only present while it's awake (recent interaction) — and only in play mode */
 body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) translateY(0)}
+/* the tour reveals the orb for its own lesson WITHOUT going immersive, so the
+   menu can stay up the whole time — no zen required to point at it */
+#fxOrb.coach-reveal{opacity:.94;pointer-events:auto;transform:scale(1) translateY(0)}
 #fxOrb .orb-core{position:absolute;inset:0;border-radius:50%;
   background:#000 center/cover no-repeat;background-image:url('icons/icon-512.png');
   box-shadow:0 0 26px -4px var(--accent-glow),inset 0 0 18px rgba(0,0,0,.6);
@@ -4165,8 +4168,8 @@ const TUTOR = {
       body: 'Möbius Walking is already moving. This is play and pause — in here the music never has to stop.' },
     { sel: '#chipLens',    kicker: 'The tour · 2 of 4', title: 'The lens',
       body: 'AUTO lets the song choose a look at its peaks — mirrors, moiré, an iris. Tap it any time to drive the glass yourself.' },
-    { sel: '#fxOrb', reveal: true, kicker: 'The tour · 3 of 4', title: 'The orb of entropy',
-      body: 'Hide the menu and this glowing orb becomes your control: flick it to shift the scene, tap it to call the menu back.' },
+    { sel: '#fxOrb', reveal: true, kicker: 'The tour · 3 of 4', title: 'The control orb',
+      body: 'When the menu tucks away for a full-screen view, this orb stays as your control — flick it to change the scene, tap it to bring the menu back.' },
     { sel: '#btnPlaylist', kicker: 'The tour · 4 of 4', title: 'Your library',
       body: 'Every track lives here — newest first, never repeating until you\'ve heard them all.' },
   ],
@@ -4178,14 +4181,29 @@ const TUTOR = {
     if (this.active || this.seen() || reducedMotion) return;   // once, and never over a reduced-motion listener
     if (!el.coach) return;
     this.active = true; this.i = -1;
+    // keep the MENU up for the whole lesson: leave immersive mode and hold off
+    // the idle auto-hide (enterZen checks TUTOR.active), so the control a step
+    // points at can never fade out from under the caption
+    document.body.classList.remove('zen', 'zen-deep');
+    try { clearTimeout(zenTimer); } catch (e){}
     el.coach.classList.add('on'); el.coach.setAttribute('aria-hidden', 'false');
     el.coachNext.onclick = () => this.next();
     el.coachSkip.onclick = () => this.finish(true);
-    // tapping the dimmed veil (not the bubble) also advances — the whole
-    // surface is the "next" affordance, the way a good tour feels
-    el.coach.onclick = (e) => { if (!el.coachBubble.contains(e.target)) this.next(); };
+    // tapping the dimmed veil (not the bubble) also advances — but only after a
+    // short beat, so a stray tap can't blow past a step before it's been read.
+    // The Next button is always live for anyone who's ready to move on.
+    el.coach.onclick = (e) => {
+      if (el.coachBubble.contains(e.target)) return;
+      if (performance.now() < this._readyAt) return;             // still reading — be patient
+      this.next();
+    };
+    // re-place on anything that reflows the target: resize AND orientation flips
+    // (phones fire orientationchange without a reliable resize; layout settles a
+    // tick later, so re-measure after a beat too)
     this._onResize = () => this._place();
+    this._onOrient = () => { this._place(); setTimeout(() => this._place(), 260); };
     window.addEventListener('resize', this._onResize);
+    window.addEventListener('orientationchange', this._onOrient);
     this.next();
   },
   next(){
@@ -4204,7 +4222,11 @@ const TUTOR = {
     el.coachBubble.querySelector('.coach-body').textContent = step.body;
     el.coachNext.textContent = this.i === this.steps.length - 1 ? 'Done ✦' : 'Next ▸';
     this._target = target;
+    this._readyAt = performance.now() + 1100;   // a beat to read before a veil-tap advances
     this._place();
+    // measure once more after layout settles, so the bubble lands right even on
+    // the first paint of a step (offsetHeight can be stale before reflow)
+    requestAnimationFrame(() => this._place());
   },
   _visible(t){
     const r = t.getBoundingClientRect();
@@ -4213,18 +4235,28 @@ const TUTOR = {
   },
   _place(){
     if (!this._target) return;
+    // a live viewport read, so rotation and mobile URL-bar shifts are honoured
+    const vw = (window.visualViewport && window.visualViewport.width) || innerWidth;
+    const vh = (window.visualViewport && window.visualViewport.height) || innerHeight;
     const r = this._target.getBoundingClientRect(), pad = 8;
     const s = el.coachSpot.style;
     s.left = (r.left - pad) + 'px'; s.top = (r.top - pad) + 'px';
     s.width = (r.width + pad * 2) + 'px'; s.height = (r.height + pad * 2) + 'px';
-    // place the bubble where there's room: below the target if it fits, else above
-    const b = el.coachBubble, bw = Math.min(320, innerWidth * 0.84);
+    const b = el.coachBubble, bw = Math.min(320, vw * 0.84);
     b.style.maxWidth = bw + 'px';
     const bh = b.offsetHeight || 150;
-    let top = r.bottom + 14;
-    if (top + bh > innerHeight - 12) top = Math.max(12, r.top - bh - 14);
+    const gap = 14, margin = 12;
+    // prefer below the target; if it doesn't fit, go above; on a viewport too
+    // short for either (small landscape), take whichever side has more room…
+    const roomBelow = vh - r.bottom, roomAbove = r.top;
+    let top;
+    if (roomBelow >= bh + gap + margin) top = r.bottom + gap;
+    else if (roomAbove >= bh + gap + margin) top = r.top - bh - gap;
+    else top = roomBelow >= roomAbove ? r.bottom + gap : r.top - bh - gap;
+    // …then clamp so the bubble is ALWAYS fully on screen, whatever the size
+    top = Math.max(margin, Math.min(top, vh - bh - margin));
     let left = r.left + r.width / 2 - bw / 2;
-    left = Math.max(12, Math.min(left, innerWidth - bw - 12));
+    left = Math.max(margin, Math.min(left, vw - bw - margin));
     b.style.top = top + 'px'; b.style.left = left + 'px';
   },
   _unreveal(){ if (this._reveal){ this._reveal.classList.remove('coach-reveal'); this._reveal = null; } },
@@ -4235,6 +4267,7 @@ const TUTOR = {
     el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
     el.coach.onclick = null;
     if (this._onResize){ window.removeEventListener('resize', this._onResize); this._onResize = null; }
+    if (this._onOrient){ window.removeEventListener('orientationchange', this._onOrient); this._onOrient = null; }
     this._mark(this.key);
     if (!skipped) ACHIEVE.earn('first_listen');
     else toast('Tour skipped — press <b>?</b> any time for the keys');
@@ -4245,6 +4278,8 @@ const TUTOR = {
   favLesson(){
     if (this.active || this.favSeen() || reducedMotion || !el.coach) return;
     this._mark(this.favKey);
+    document.body.classList.remove('zen', 'zen-deep');       // keep the queue up while it explains
+    try { clearTimeout(zenTimer); } catch (e){}
     if (typeof openPlaylist === 'function') openPlaylist(true);
     // let the list paint, then find a real heart to point at
     setTimeout(() => {
@@ -4254,19 +4289,31 @@ const TUTOR = {
       el.coachNext.textContent = 'Got it ✦';
       el.coachNext.onclick = () => this._favDone();
       el.coachSkip.onclick = () => this._favDone();
-      el.coach.onclick = (e) => { if (!el.coachBubble.contains(e.target)) this._favDone(); };
+      el.coach.onclick = (e) => {
+        if (el.coachBubble.contains(e.target)) return;
+        if (performance.now() < this._readyAt) return;         // a beat to read first
+        this._favDone();
+      };
+      this._onResize = () => this._place();
+      this._onOrient = () => { this._place(); setTimeout(() => this._place(), 260); };
+      window.addEventListener('resize', this._onResize);
+      window.addEventListener('orientationchange', this._onOrient);
       el.coachBubble.querySelector('.coach-step').textContent = 'One more thing';
       el.coachBubble.querySelector('.coach-title').textContent = 'Hearts become playlists';
       el.coachBubble.querySelector('.coach-body').textContent =
         'Tap the ♥ on a track you love. Your hearts gather into a “♥ Hearts” list automatically — the more you heart, the better the room gets at finding your next favourite.';
       this._target = heart && this._visible(heart) ? heart : el.btnPlaylist;
+      this._readyAt = performance.now() + 1100;
       this._place();
+      requestAnimationFrame(() => this._place());
     }, 380);
   },
   _favDone(){
     this.active = false;
     el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
     el.coach.onclick = null;
+    if (this._onResize){ window.removeEventListener('resize', this._onResize); this._onResize = null; }
+    if (this._onOrient){ window.removeEventListener('orientationchange', this._onOrient); this._onOrient = null; }
   },
 };
 
@@ -7793,7 +7840,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '5638b90515';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '557e8cd4b3';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -9075,6 +9122,7 @@ document.querySelectorAll('.chrome').forEach(c => {
 function bloomZenWave(on){ if (el.zenWave) el.zenWave.classList.toggle('bloom', !!on); }
 function leaveDeep(){ document.body.classList.remove('zen-deep'); clearTimeout(zenDeepT); }
 function enterZen(){
+  if (typeof TUTOR !== 'undefined' && TUTOR.active) return;   // the tour keeps the menu up
   document.body.classList.add('zen');
   bloomZenWave(true);
   clearTimeout(zenWaveT);
