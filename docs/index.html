@@ -3786,6 +3786,7 @@ const PERSIST = {
       shuffle: player.shuffle, repeat: player.repeat,
       vol: parseInt(el.vol.value, 10),
       scene: director.active, auto: director.auto,
+      lens: { active: LENS.active, resolved: LENS._resolved, ceil: director.ceil, act: director.act },
       quantum: player.quantum.on ? { heat: player.quantum.heat, used: [...player.quantum.used] } : null,
       mixOn: MIXER.on,
       journey: CON.lastDeal ? { mode: CON.lastDeal.mode, dials: CON.lastDeal.dials, seed: CON.lastDeal.seed } : null,
@@ -4834,6 +4835,29 @@ function structureCeiling(struct, p, floor){
   const i = Math.round(clamp01(p) * (N - 1));
   const norm = (struct.env[i] - struct.lo) / Math.max(1e-4, struct.hi - struct.lo);
   return fl + (1 - fl) * clamp01(norm);
+}
+
+// Which post-process LENS does the moment earn? A pure map from the story
+// state to a lens key, so the director's taste is unit-tested, not just
+// hoped-for. The RULE the whole feature rests on: the structure ceiling is a
+// hard gate — below it (a quiet intro, a breakdown, the arc's calm edges) the
+// glass stays clean, so a lens can never punch in where the music hasn't
+// earned the intensity. Above it: mirrors = hypnotic order (an uplifting/major
+// apex), moiré = agitation/interference (a tense minor peak at real energy
+// only), iris = focus (a build or a comedown). A strained device: always clean.
+function pickLens(ctx){
+  ctx = ctx || {};
+  if (ctx.struggling) return 'none';                        // never tax a strained device
+  const ceil = ctx.ceil == null ? 1 : ctx.ceil;
+  const act = ctx.act, energy = ctx.energy == null ? 0 : ctx.energy;
+  const major = ctx.major !== false;                        // unknown key → treat as bright/major
+  if (ceil < 0.55 || act === 0 || act === 4) return 'none';  // the hard gate + the arc's edges
+  if (act === 2 && ceil > 0.72){                            // APEX with real headroom
+    if (!major && energy > 0.66) return 'moire';            // tense + truly intense → interference
+    return 'mirrors';                                        // otherwise hypnotic symmetry
+  }
+  if ((act === 1 || act === 3) && ceil > 0.60) return 'iris';   // build / comedown → a focusing aperture
+  return 'none';
 }
 // @solver-end
 
@@ -7123,7 +7147,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '9318dbd471';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '33bc4c2551';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11934,17 +11958,21 @@ const LENS_IRIS = `
     gl_FragColor = vec4(mix(s * 0.10, s, m), 1.0);                    // an aperture on the light
   }`;
 const LENS = {
-  active: 'none',
-  // a SHORT, curated ring — the singles, then two hand-picked STACKS that show
-  // the engine composing. Not an endless menu: composition is proven with two.
-  order: ['none', 'mirrors', 'moire', 'iris', 'mirrors+moire', 'mirrors+iris'],
-  labels: { none: 'NONE', mirrors: 'MIRRORS', moire: 'MOIRÉ', iris: 'IRIS',
+  // AUTO is the default: the director reads the song's real structure + its
+  // Camelot mood and puts a lens on ONLY where the music earns it (an apex, a
+  // build) — clean glass the rest of the time. The singles + two STACKS below
+  // stay hand-cyclable for anyone who wants to drive it themselves.
+  active: 'auto',
+  order: ['auto', 'none', 'mirrors', 'moire', 'iris', 'mirrors+moire', 'mirrors+iris'],
+  labels: { auto: 'AUTO', none: 'NONE', mirrors: 'MIRRORS', moire: 'MOIRÉ', iris: 'IRIS',
     'mirrors+moire': 'MIRRORS×MOIRÉ', 'mirrors+iris': 'MIRRORS×IRIS' },
-  concepts: { mirrors: 'N-fold symmetry', moire: 'wave interference', iris: 'a breathing aperture',
+  concepts: { auto: 'the director reads the song and picks the look', mirrors: 'N-fold symmetry',
+    moire: 'wave interference', iris: 'a breathing aperture',
     'mirrors+moire': 'symmetry × interference', 'mirrors+iris': 'symmetry, seen through an aperture' },
   // a stack is just an ordered list of single lenses the chain runs in sequence
   stacks: { 'mirrors+moire': ['mirrors', 'moire'], 'mirrors+iris': ['mirrors', 'iris'] },
   scale: 0.7,
+  _resolved: 'none', _holdT: 0,      // AUTO: the lens the director has settled on, and how long to hold it
   _ready: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
   _init(){
     if (this._ready) return;
@@ -11966,9 +11994,36 @@ const LENS = {
     this._ready = true;
   },
   chain(){
-    if (this.active === 'none' || !this._mats) return [];     // render() inits before this matters
-    const keys = this.stacks[this.active] || [this.active];   // a stack runs its lenses in order
+    let key = this.active === 'auto' ? this._resolved : this.active;   // AUTO resolves to a single/stack the director chose
+    if (key === 'none' || !this._mats) return [];             // render() inits before this matters
+    const keys = this.stacks[key] || [key];                   // a stack runs its lenses in order
     return keys.map(k => this._mats[k]);
+  },
+  // ---- AUTO: the director's lens choice ---------------------------------
+  // Grounded in how these effects FEEL: mirrors read as hypnotic order (good
+  // at an uplifting/major apex); moiré reads as agitation/interference (only
+  // at a genuinely intense, tense/minor peak); iris reads as focus (a build
+  // or a comedown). The rest of the time — quiet intros, breakdowns, the
+  // edges of the arc, or a strained device — the glass stays clean. The
+  // structure ceiling is the hard gate, so a lens can NEVER fire where the
+  // music hasn't earned the intensity, even if the clock thinks it's time.
+  autoPick(){
+    const t = player.tracks[player.cur];
+    const m = t ? mixOf(t) : null;
+    const cam = m && m.key ? camelotParse(m.key) : null;
+    return pickLens({                                         // the taste lives in the pure, unit-tested map
+      struggling: typeof PERF !== 'undefined' && PERF.struggling,
+      ceil: director.ceil, act: director.act, energy: AE.f.energy,
+      major: cam ? cam.l === 'B' : true,                      // B = major/brighter; unknown → treat as bright
+    });
+  },
+  autoTick(dt){
+    if (this.active !== 'auto') return;
+    this._holdT -= dt;
+    if (this._holdT > 0) return;                              // hold the current look; don't flicker
+    const want = this.autoPick();
+    this._holdT = want === 'none' ? 3.0 : 9.0;               // linger on a look; re-check clean state sooner
+    if (want !== this._resolved){ this._resolved = want; this.paint(); }
   },
   set(key, save){
     if (!(key in this.labels)) key = 'none';
@@ -11983,7 +12038,17 @@ const LENS = {
     return k;
   },
   load(){ try { const k = localStorage.getItem('mb8_lens'); if (k && k in this.labels) this.active = k; } catch (e){} this.paint(); },
-  paint(){ const c = document.getElementById('chipLens'); if (c){ c.textContent = '◈ ' + this.labels[this.active]; c.classList.toggle('on', this.active !== 'none'); } },
+  paint(){
+    const c = document.getElementById('chipLens'); if (!c) return;
+    if (this.active === 'auto'){
+      const r = this._resolved, lit = r && r !== 'none';
+      c.textContent = '◈ AUTO' + (lit ? ' · ' + this.labels[r] : '');
+      c.classList.toggle('on', !!lit);
+      return;
+    }
+    c.textContent = '◈ ' + this.labels[this.active];
+    c.classList.toggle('on', this.active !== 'none');
+  },
   // draw the two base scenes, then the lens chain — or the plain direct path
   render(renderer, bgScene, bgCam, scene, camera){
     let passes = [];
@@ -12129,6 +12194,7 @@ function frame(now){
 
   director.update(dt);
   COLOR.update(dt);
+  LENS.autoTick(dt);   // the director may set a lens — sparse, gated by the song's ceiling
 
   // Backdrop first, with a camera that inherits ORIENTATION ONLY — no dolly,
   // no bass FOV-breathing. That is what keeps the sky still while the scenes punch.

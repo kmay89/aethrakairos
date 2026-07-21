@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1113,6 +1113,35 @@ test('structure: a featureless track degrades gracefully', () => {
   const tiny = S.analyzeStructure(new Float32Array(4).fill(0.5));
   assert.equal(tiny.ok, false, 'too little data → not ok, safe defaults');
   assert.equal(tiny.apex, 0.6);
+});
+
+// ---- the director's lens taste (pure map) ----
+test('lens: the ceiling is a hard gate — a quiet section stays clean glass', () => {
+  // even at the APEX act, a low ceiling (a breakdown mislabelled by the clock) → NONE
+  assert.equal(S.pickLens({ ceil: 0.40, act: 2, energy: 0.9, major: true }), 'none');
+  assert.equal(S.pickLens({ ceil: 0.30, act: 1, energy: 0.5, major: false }), 'none');
+});
+test('lens: the arc edges (overture/resolve) never get a lens', () => {
+  assert.equal(S.pickLens({ ceil: 0.95, act: 0, energy: 0.9, major: true }), 'none');
+  assert.equal(S.pickLens({ ceil: 0.95, act: 4, energy: 0.9, major: false }), 'none');
+});
+test('lens: an uplifting/major apex earns hypnotic mirrors', () => {
+  assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.8, major: true }), 'mirrors');
+});
+test('lens: a tense/minor apex at real intensity earns moiré, not otherwise', () => {
+  assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.8, major: false }), 'moire');
+  // same minor apex but only mid-energy → falls back to mirrors, not agitation
+  assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.5, major: false }), 'mirrors');
+});
+test('lens: builds and comedowns get a focusing iris', () => {
+  assert.equal(S.pickLens({ ceil: 0.70, act: 1, energy: 0.5, major: true }), 'iris');
+  assert.equal(S.pickLens({ ceil: 0.70, act: 3, energy: 0.5, major: false }), 'iris');
+});
+test('lens: a strained device is always spared (clean glass)', () => {
+  assert.equal(S.pickLens({ struggling: true, ceil: 0.95, act: 2, energy: 0.9, major: true }), 'none');
+});
+test('lens: an unknown key is treated as bright (mirrors, never moiré)', () => {
+  assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.9 }), 'mirrors');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
