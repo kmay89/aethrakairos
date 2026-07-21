@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
-  ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep,' +
+  ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample };';
 const S = new Function(code)();
 
@@ -1161,6 +1161,30 @@ test('beat spring: a long frame gap stays finite (sub-stepped, never diverges)',
   let x = 0, v = 0;
   for (let i = 0; i < 20; i++){ const s = S.beatSpringStep(x, v, 1, 0.1); x = s.x; v = s.v; }   // 100ms frames
   assert.ok(isFinite(x) && Math.abs(x) < 3, 'bounded under coarse dt, got ' + x);
+});
+
+// ---- iOS beat priority: the deadband gives downtime + near-critical damping rests ----
+test('beat gate: floor 0 (desktop) is a passthrough of the honest drive', () => {
+  assert.equal(S.beatGate(0.4, 0), 0.4);
+  assert.equal(S.beatGate(0, 0), 0);
+  assert.equal(S.beatGate(-0.1, 0), 0);            // never negative
+});
+test('beat gate: a deadband floor drops the between-beat drive to zero (downtime)', () => {
+  assert.equal(S.beatGate(0.20, 0.30), 0, 'weak, between-beat drive → rest');
+  assert.equal(S.beatGate(0.30, 0.30), 0, 'at the floor → rest');
+  assert.ok(S.beatGate(1, 0.30) > 0.99, 'a full beat still reads full');
+  assert.ok(S.beatGate(0.65, 0.30) > 0.4 && S.beatGate(0.65, 0.30) < 0.6, 'mid drive rescaled above the floor');
+});
+test('beat gate: gated silence keeps the spring perfectly at rest (no jitter)', () => {
+  let x = 0, v = 0;
+  for (let i = 0; i < 40; i++){ const g = S.beatGate(0.15, 0.30); const s = S.beatSpringStep(x, v, g, 1 / 60, 230, 30); x = s.x; v = s.v; }
+  assert.equal(x, 0, 'below-floor drive never moves the field');
+});
+test('beat spring: the iOS params punch and SETTLE without a fake ring (near-critical)', () => {
+  let x = 0, v = 0, peak = 0;
+  for (let i = 0; i < 40; i++){ const s = S.beatSpringStep(x, v, 1, 1 / 60, 230, 30); x = s.x; v = s.v; peak = Math.max(peak, x); }
+  assert.ok(peak <= 1.02, 'near-critical: no overshoot ring, got peak ' + peak.toFixed(3));
+  assert.ok(x > 0.9, 'still reaches the beat, got ' + x.toFixed(3));
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
