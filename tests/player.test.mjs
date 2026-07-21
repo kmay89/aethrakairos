@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1222,6 +1222,25 @@ test('segue fire: without a grid it lands on the next onset, or a max-wait', () 
   assert.equal(S.segueShouldFire({ grid: false, onset: true, waited: 0.1, maxWait: 4 }), true, 'onset fires');
   assert.equal(S.segueShouldFire({ grid: false, onset: false, waited: 1, maxWait: 4 }), false, 'else hold');
   assert.equal(S.segueShouldFire({ grid: false, onset: false, waited: 5, maxWait: 4 }), true, 'never stalls');
+});
+
+// ---- structure source: precompute-first, client fallback ----
+test('pickStructure: a valid precomputed map wins (the catalog is authoritative)', () => {
+  const pre = { ok: true, from: 'catalog' }, client = { ok: true, from: 'browser' };
+  assert.equal(S.pickStructure(pre, client).from, 'catalog');
+});
+test('pickStructure: falls back to the client map when no precompute exists', () => {
+  const client = { ok: true, from: 'browser' };
+  assert.equal(S.pickStructure(null, client).from, 'browser');
+  assert.equal(S.pickStructure(undefined, client).from, 'browser');
+});
+test('pickStructure: an invalid precomputed map is skipped for a valid client one', () => {
+  const client = { ok: true, from: 'browser' };
+  assert.equal(S.pickStructure({ ok: false }, client).from, 'browser');
+});
+test('pickStructure: nothing valid → null (features check their inputs)', () => {
+  assert.equal(S.pickStructure(null, null), null);
+  assert.equal(S.pickStructure({ ok: false }, { ok: false }), null);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
