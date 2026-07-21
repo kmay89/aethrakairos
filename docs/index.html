@@ -906,12 +906,38 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
   font-size:11.5px;color:var(--ink);
 }
 .plrow:hover{background:rgba(255,255,255,.04)}
-.plrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .plrow .n{font-size:9px;color:var(--faint)}
 .plrow button{color:var(--dim);font-size:11px;padding:3px 6px;border-radius:6px;opacity:0}
-.plrow:hover button,.plrow:focus-within button{opacity:1}
+.plrow:hover button,.plrow:focus-within button,.plrow.open button{opacity:1}
 .plrow button:hover{color:var(--ink);background:rgba(255,255,255,.08)}
 .plrow.smart .nm{color:var(--dim);font-style:italic}
+/* the disclosure chevron is ALWAYS reachable (it is the "view the list" affordance) */
+.plrow .exp{opacity:.6;transition:transform .18s ease,opacity .18s ease;min-width:14px;text-align:center}
+.plrow:hover .exp,.plrow.open .exp{opacity:1}
+.plrow.open .exp{transform:rotate(90deg)}
+/* touch has no hover — never hide a playlist's own controls behind one */
+@media (hover:none){ .plrow button{opacity:1} }
+/* the expanded tracklist — the "view the playlist" panel */
+.pl-tracks{overflow:hidden;padding:0 6px 4px 20px;display:flex;flex-direction:column;gap:1px}
+.pl-tracks[hidden]{display:none}
+.pl-trk{
+  display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;
+  font-size:11px;color:var(--dim);cursor:pointer;
+}
+.pl-trk:hover{background:rgba(255,255,255,.05);color:var(--ink)}
+.pl-trk.now{color:var(--accent,#6ee7ff)}
+.pl-trk .n{font-size:9px;color:var(--faint);min-width:16px;text-align:right}
+.pl-trk .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-trk .tm{font-size:9px;color:var(--faint)}
+.pl-trk button{
+  color:var(--dim);font-size:11px;padding:2px 6px;border-radius:5px;
+  background:none;opacity:.55;
+}
+.pl-trk:hover button,.pl-trk button:focus{opacity:1}
+.pl-trk button:hover{color:var(--ink);background:rgba(255,255,255,.08)}
+.pl-tracks .pl-tr-empty{color:var(--faint);font-size:10px;padding:6px 6px 8px;letter-spacing:.04em}
+@media (hover:none){ .pl-trk button{opacity:1} }
 .pl-foot{
   padding:12px 20px calc(14px + env(safe-area-inset-bottom));
   border-top:1px solid var(--line-soft);
@@ -2390,13 +2416,14 @@ function ensureCtx(){
     d.a.addEventListener('seeked', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
     // the loading spin clears the instant true audio flows (or stalls again)
-    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall(); } });
+    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall(); player._stallSkips = 0; } });
     d.a.addEventListener('timeupdate', () => {
       if (i !== AE.active) return;
       const ct = d.a.currentTime;
       if (ct > 0.05){
         LOADER.done();
         player._clearStall();                     // real audio flowed — the backstop stands down
+        player._stallSkips = 0;                   // a clean start clears the weak-signal streak
         AE._lastGoodT = ct;                       // the spot to rebuffer from if the stream drops
         const t = player.tracks[player.cur];       // sustained progress past a blip refills the retry budget
         if (t && t._netTries && ct > (t._errPos || 0) + 2){ t._netTries = 0; }
@@ -3240,6 +3267,11 @@ const player = {
       // context is live now, so a second tap starts the sound.
       if (err && err.name === 'NotAllowedError'){
         ensureResume();
+        // On an AUTO-advance (a track ended and we cued the next), a transient
+        // block must not dead-stop the queue: the stall backstop nudges play()
+        // again shortly and, only if it truly can't start, stops CLEANLY. Just
+        // a manual or first start asks the listener for the single tap.
+        if (opts && opts.ended) return;
         player.pause();     // clear the optimistic playing state so ONE more tap resumes, not two
         toast('Tap play once more to start the sound');
       }
@@ -3487,25 +3519,52 @@ const player = {
      silent, clear the spin and skip forward — the music never dead-ends. */
   _armStall(track, deckIdx){
     this._clearStall();
-    const still = () => {
+    const started = Date.now();
+    let lastBuf = -1, lastRs = -1, stuckSince = Date.now(), nudged = false;
+    const bufEnd = a => { try { return (a.buffered && a.buffered.length) ? a.buffered.end(a.buffered.length - 1) : 0; } catch (e){ return 0; } };
+    // the deck IF we're STILL trying to START this track here and no audio has
+    // flowed — a move, a pause, or the first flowing sample cancels the guard
+    const stuck = () => {
       const d = AE.decks && AE.decks[AE.active];
-      // only act if we're STILL trying to play THIS track on THIS deck and no
-      // audio has flowed — a move, a pause, or real progress cancels the guard
-      return this.playing && AE.active === deckIdx && this.tracks[this.cur] === track
-        && d && !d.a.ended && !(d.a.currentTime > 0.05);
+      return (this.playing && AE.active === deckIdx && this.tracks[this.cur] === track
+        && d && !d.a.ended && !(d.a.currentTime > 0.05)) ? d : null;
     };
-    this._stallT = setTimeout(() => {
-      if (!still()) return;
-      const d = AE.decks[AE.active];
-      ensureResume();
-      try { d.a.play().catch(() => {}); } catch (e){}   // one gentle nudge
-    }, this._nudgeMs || 8000);
-    this._stallT2 = setTimeout(() => {
-      if (!still()) return;
-      LOADER.done();
-      toast('That track wouldn\'t start — skipping ahead');
-      this.next(true);                                   // never leave the queue frozen
-    }, this._skipMs || 14000);
+    const nudgeMs = this._nudgeMs || 8000;     // still silent this long → one gentle re-nudge
+    const deadMs  = this._skipMs  || 14000;    // NO buffering progress this long → give up
+    const ceilMs  = this._ceilMs  || 45000;    // absolute ceiling, even if it keeps inching
+    const tick = () => {
+      const d = stuck();
+      if (!d) return;                          // audio flowed or we moved on — done
+      const now = Date.now();
+      const buf = bufEnd(d.a), rs = d.a.readyState;
+      // the buffer grew or readiness climbed → the track IS loading, just slow
+      // (a weak signal, one cellular bar). That is not a failure: keep waiting,
+      // never skip a track mid-download. Only a load that has genuinely STOPPED
+      // advancing counts against the give-up clock.
+      if (buf > lastBuf + 0.05 || rs > lastRs){ lastBuf = buf; lastRs = rs; stuckSince = now; }
+      if (!nudged && now - started >= nudgeMs){
+        nudged = true; ensureResume();
+        try { d.a.play().catch(() => {}); } catch (e){}
+      }
+      if (now - stuckSince >= deadMs || now - started >= ceilMs){
+        LOADER.done();
+        // a stall that keeps failing across tracks is a dead pipe, not one bad
+        // file — after a few in a row, STOP cleanly (one tap resumes) instead of
+        // churning silently through the whole queue to "End of playlist".
+        this._stallSkips = (this._stallSkips || 0) + 1;
+        if (this._stallSkips >= 3){
+          this._stallSkips = 0;
+          this.pause();
+          toast('Playback paused — weak connection. Tap play to try again.');
+          return;
+        }
+        toast('That track wouldn\'t start — skipping ahead');
+        this.next(true);                                 // never leave the queue frozen
+        return;
+      }
+      this._stallT = setTimeout(tick, 1000);
+    };
+    this._stallT = setTimeout(tick, Math.min(nudgeMs, 1500));   // first look soon, then every 1 s
   },
   _clearStall(){ clearTimeout(this._stallT); clearTimeout(this._stallT2); },
 
@@ -3540,6 +3599,30 @@ const player = {
     this.history = [];                       // old indices are meaningless now
     this.renderList();
     toast('Up next: <b>' + escapeHTML(track.title) + '</b>');
+    PERSIST.poke();
+  },
+  /* Queue-next for a whole list: drop these tracks, in order, into the seats
+     right after the current one — the same "up next" contract playNext honors,
+     extended from one track to a playlist. Tracks already in the queue MOVE
+     rather than clone; nothing starts until you ask, unless the queue was idle
+     (then the first one starts). This is the one standard "queue" for every
+     playlist, smart list and album. */
+  queueNextTracks(tracks, label){
+    tracks = (tracks || []).filter(Boolean);
+    if (!tracks.length) return;
+    const cur = this.cur >= 0 ? this.tracks[this.cur] : null;
+    const incoming = tracks.filter(t => t !== cur);
+    if (!incoming.length){ toast('Already up next'); return; }
+    // pull any incoming already in the queue so we relocate them, not duplicate
+    this.tracks = this.tracks.filter(t => t === cur || !incoming.includes(t));
+    const at = cur ? this.tracks.indexOf(cur) + 1 : 0;
+    this.tracks.splice(at, 0, ...incoming);
+    if (cur) this.cur = this.tracks.indexOf(cur);
+    this.history = [];                       // indices shifted — old history is void
+    if (this.cur < 0 && this.tracks.length){ this.renderList(); this.playIndex(0); }
+    else this.renderList();
+    toast('Queued next: <b>' + escapeHTML(label || 'tracks') + '</b> — ' + incoming.length
+      + (incoming.length === 1 ? ' track' : ' tracks'));
     PERSIST.poke();
   },
   remove(i){
@@ -4105,8 +4188,15 @@ function libraryHeardStats(heardKeys){
   return { total, heard: done, fresh: total - done };
 }
 function updateFreshCount(heardKeys){
-  if (!el.freshBadge) return;
   const s = libraryHeardStats(heardKeys);
+  // completion milestones ride the same number the badge shows — earned live as
+  // the Unheard list runs down, and ONLY against the real catalog (never the
+  // boot-time demo fallback, which would false-award "heard everything").
+  if (typeof ACHIEVE !== 'undefined' && typeof catalog !== 'undefined'
+      && catalog.tracksById && catalog.tracksById.size){
+    for (const id of completionMilestones(s.heard, s.total)) ACHIEVE.earn(id);
+  }
+  if (!el.freshBadge) return;
   if (s.total && s.fresh > 0){
     el.freshBadge.hidden = false;
     el.freshBadge.textContent = s.fresh + ' new';
@@ -4144,6 +4234,9 @@ const ACHIEVE = {
     { id: 'first_favorite', icon: '♥', name: 'First Favorite', hint: 'You hearted a track.' },
     { id: 'first_mix',      icon: '∞', name: 'First Auto-Mix',  hint: 'The decks blended for you.' },
     { id: 'explorer',       icon: '✧', name: 'Explorer',        hint: 'You changed the scene.' },
+    // discovery: earned automatically as the Unheard list runs down to zero
+    { id: 'half_heard',     icon: '◐', name: 'Halfway Home',    hint: 'Heard half the library.' },
+    { id: 'heard_all',      icon: '◉', name: 'The Whole Shelf', hint: 'Heard every track in the library.' },
   ],
   earned: new Set(),
   boot(){
@@ -4387,10 +4480,14 @@ const PLAYLISTS = {
     const i = pl.keys.indexOf(key);
     if (i >= 0){ pl.keys.splice(i, 1); this._save(pl); }
   },
-  /* resolve stored keys against whatever the player can currently see */
+  /* resolve stored keys against the whole LIBRARY, not just the queue — a
+     playlist is a promise about the catalog, so it must hold whatever is loaded
+     into the queue right now (the design contract: the library is the source of
+     truth, the queue is one ordering over a subset of it). Resolving against the
+     queue alone made saved lists vanish the moment their tracks weren't cued. */
   resolve(pl){
     const byKey = new Map();
-    for (const t of player.tracks){ const k = trackKey(t); if (k && !byKey.has(k)) byKey.set(k, t); }
+    for (const t of allTracks()){ const k = trackKey(t); if (k && !byKey.has(k)) byKey.set(k, t); }
     return pl.keys.map(k => byKey.get(k)).filter(Boolean);
   },
   play(name, playNow){
@@ -4398,27 +4495,25 @@ const PLAYLISTS = {
     if (!pl) return;
     const tracks = this.resolve(pl);
     if (!tracks.length){ toast('<b>' + escapeHTML(name) + '</b> has no tracks the player can see'); return; }
-    let first = -1;
-    for (const t of tracks){
-      let i = player.tracks.indexOf(t);
-      if (i === -1){ player.tracks.push(t); i = player.tracks.length - 1; }
-      if (first === -1) first = i;
-    }
+    // a playlist IS an ordering, whether you Play it or Queue it — shuffle steps
+    // aside either way, so the list plays in the order you built it
+    this._disengageShuffle();
     if (playNow){
-      // the playlist IS an ordering — rebuild the queue in its order
+      for (const t of tracks){ if (player.tracks.indexOf(t) === -1) player.tracks.push(t); }
       const rest = player.tracks.filter(t => !tracks.includes(t));
-      const curT = player.tracks[player.cur] || null;
       player.tracks = tracks.concat(rest);
-      player.cur = curT ? Math.max(0, player.tracks.indexOf(curT)) : 0;
-      this._disengageShuffle();
+      player.cur = 0;
       player.renderList();
       player.playIndex(0);
+      PERSIST.poke();
     } else {
-      player.renderList();
-      toast('Queued <b>' + escapeHTML(name) + '</b>');
+      // ONE standard "queue" everywhere: drop the list in right after the
+      // current track (queue-next), not appended to the far end
+      player.queueNextTracks(tracks, name);
     }
-    PERSIST.poke();
   },
+  /* queue a playlist to play right after the current track */
+  queueNext(name){ this.play(name, false); },
   exportFile(name){
     const pl = this.get(name);
     if (!pl) return;
@@ -4451,12 +4546,15 @@ const PLAYLISTS = {
       toast('Imported <b>' + escapeHTML(pl.name) + '</b> — ' + pl.keys.length + ' tracks');
     }).catch(e => toast('Import failed: ' + escapeHTML(e.message)));
   },
-  /* smart lists: questions, not storage */
+  /* smart lists: questions, not storage. Asked of the whole LIBRARY (not the
+     queue), so "Unheard" is every track in the catalog you have never finished —
+     the exact figure the discovery badge counts down — and playing it loads the
+     real discovery set, not just whatever happened to be cued. */
   smart(){
     const counts = HIST.playCounts();
     const keyed = t => trackKey(t);
     const seen = new Set(), uniq = [];
-    for (const t of player.tracks){
+    for (const t of allTracks()){
       const k = keyed(t);
       if (!k || t.demo || seen.has(k)) continue;
       seen.add(k); uniq.push(t);
@@ -4487,6 +4585,13 @@ const PLAYLISTS = {
     player.playIndex(i);
     toast('Playing <b>' + escapeHTML(label) + '</b> — ' + tracks.length + ' tracks');
     PERSIST.poke();
+  },
+  /* queue a smart list / resolved set to play next — same ordering contract as
+     playTracks, but it slots in after the current track instead of interrupting */
+  queueTracks(tracks, label){
+    if (!tracks || !tracks.length) return;
+    this._disengageShuffle();
+    player.queueNextTracks(tracks, label);
   },
   /* a playlist IS an ordering — shuffle steps aside with a note, the same
      contract the journey console honors */
@@ -4904,6 +5009,19 @@ function firstUnheardIndex(order, heardKeys, keyOf){
     if (k && !heardKeys.has(k)) return i;
   }
   return 0;
+}
+
+/* completionMilestones — which library-completion badges a heard-count has
+   crossed. Pure so the thresholds are exact and testable: 'half' rounds UP (you
+   have heard at least half the shelf) and 'all' needs a real, non-empty library
+   with nothing left unheard. This is what ties the Unheard list to the badges —
+   as the discovery count runs to zero, these earn automatically. Ascending. */
+function completionMilestones(heard, total){
+  const out = [];
+  if (!(total > 0)) return out;                        // no library yet → nothing to complete
+  if (heard >= Math.ceil(total / 2)) out.push('half_heard');
+  if (heard >= total) out.push('heard_all');
+  return out;
 }
 
 /* surpriseSet — the "Surprise Me" crate's dials, turned by a plain-language
@@ -6325,6 +6443,59 @@ function renderPlaylistShelf(list){
   title.appendChild(spring); title.appendChild(bNew); title.appendChild(bImp);
   shelf.appendChild(title);
 
+  // a collapsible tracklist under a row — the "view the playlist" panel. Rows
+  // render on each open, so now-playing and membership stay live. Clicking a
+  // track plays the whole list from that seat.
+  const attachPanel = (row, getTracks, opts) => {
+    opts = opts || {};
+    const panel = document.createElement('div');
+    panel.className = 'pl-tracks'; panel.hidden = true;
+    const draw = () => {
+      panel.textContent = '';
+      const tracks = getTracks();
+      if (!tracks.length){
+        const e = document.createElement('div'); e.className = 'pl-tr-empty';
+        e.textContent = 'No tracks the player can see yet.';
+        panel.appendChild(e); return;
+      }
+      tracks.forEach((t, k) => {
+        const tr = document.createElement('div');
+        tr.className = 'pl-trk' + (player.tracks[player.cur] === t ? ' now' : '');
+        tr.setAttribute('role', 'listitem');
+        const num = document.createElement('span'); num.className = 'n'; num.textContent = String(k + 1).padStart(2, '0');
+        const tnm = document.createElement('span'); tnm.className = 'nm'; tnm.textContent = t.title;
+        const tm = document.createElement('span'); tm.className = 'tm'; tm.textContent = t.duration ? fmtTime(t.duration) : '·';
+        tr.appendChild(num); tr.appendChild(tnm); tr.appendChild(tm);
+        if (opts.playlistName){
+          const rm = document.createElement('button'); rm.textContent = '✕';
+          rm.title = 'Remove from ' + opts.playlistName;
+          rm.setAttribute('aria-label', 'Remove ' + t.title + ' from ' + opts.playlistName);
+          rm.addEventListener('click', ev => {
+            ev.stopPropagation();
+            PLAYLISTS.removeTrack(opts.playlistName, trackKey(t));
+            renderLibrary();
+          });
+          tr.appendChild(rm);
+        }
+        tr.addEventListener('click', () => opts.playAt(tracks, k));
+        panel.appendChild(tr);
+      });
+    };
+    const toggle = () => {
+      const opening = panel.hidden;
+      if (opening) draw();
+      panel.hidden = !opening;
+      row.classList.toggle('open', opening);
+      exp.setAttribute('aria-expanded', String(opening));
+    };
+    const exp = document.createElement('button');
+    exp.className = 'exp'; exp.textContent = '▸';
+    exp.title = 'View the tracks'; exp.setAttribute('aria-label', 'View the tracks');
+    exp.setAttribute('aria-expanded', 'false');
+    exp.addEventListener('click', toggle);
+    return { panel, toggle, exp };
+  };
+
   for (const pl of PLAYLISTS.lists){
     const row = document.createElement('div'); row.className = 'plrow';
     const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = pl.name;
@@ -6332,9 +6503,9 @@ function renderPlaylistShelf(list){
     const bP = document.createElement('button'); bP.textContent = '▶'; bP.title = 'Play ' + pl.name;
     bP.setAttribute('aria-label', 'Play playlist ' + pl.name);
     bP.addEventListener('click', () => PLAYLISTS.play(pl.name, true));
-    const bQ = document.createElement('button'); bQ.textContent = '⊕'; bQ.title = 'Queue';
-    bQ.setAttribute('aria-label', 'Queue playlist ' + pl.name);
-    bQ.addEventListener('click', () => PLAYLISTS.play(pl.name, false));
+    const bQ = document.createElement('button'); bQ.textContent = '⊕'; bQ.title = 'Queue next';
+    bQ.setAttribute('aria-label', 'Queue playlist ' + pl.name + ' to play next');
+    bQ.addEventListener('click', () => PLAYLISTS.queueNext(pl.name));
     const bX = document.createElement('button'); bX.textContent = '⤓'; bX.title = 'Export as a file to share';
     bX.setAttribute('aria-label', 'Export playlist ' + pl.name);
     bX.addEventListener('click', () => PLAYLISTS.exportFile(pl.name));
@@ -6345,9 +6516,14 @@ function renderPlaylistShelf(list){
         PLAYLISTS.remove(pl.name); renderLibrary();
       }
     });
-    row.appendChild(nm); row.appendChild(n);
+    const { panel, toggle, exp } = attachPanel(row, () => PLAYLISTS.resolve(pl), {
+      playlistName: pl.name,
+      playAt: (tracks, k) => PLAYLISTS.playTracks(tracks, pl.name, k),
+    });
+    nm.addEventListener('click', toggle);
+    row.appendChild(exp); row.appendChild(nm); row.appendChild(n);
     row.appendChild(bP); row.appendChild(bQ); row.appendChild(bX); row.appendChild(bD);
-    shelf.appendChild(row);
+    shelf.appendChild(row); shelf.appendChild(panel);
   }
   for (const s of PLAYLISTS.smart()){
     const row = document.createElement('div'); row.className = 'plrow smart';
@@ -6356,8 +6532,16 @@ function renderPlaylistShelf(list){
     const bP = document.createElement('button'); bP.textContent = '▶'; bP.title = 'Play ' + s.name;
     bP.setAttribute('aria-label', 'Play smart list ' + s.name);
     bP.addEventListener('click', () => PLAYLISTS.playTracks(s.tracks, s.name));
-    row.appendChild(nm); row.appendChild(n); row.appendChild(bP);
-    shelf.appendChild(row);
+    const bQ = document.createElement('button'); bQ.textContent = '⊕'; bQ.title = 'Queue next';
+    bQ.setAttribute('aria-label', 'Queue smart list ' + s.name + ' to play next');
+    bQ.addEventListener('click', () => PLAYLISTS.queueTracks(s.tracks, s.name));
+    const { panel, toggle, exp } = attachPanel(row, () => s.tracks, {
+      playAt: (tracks, k) => PLAYLISTS.playTracks(tracks, s.name, k),
+    });
+    nm.addEventListener('click', toggle);
+    row.appendChild(exp); row.appendChild(nm); row.appendChild(n);
+    row.appendChild(bP); row.appendChild(bQ);
+    shelf.appendChild(row); shelf.appendChild(panel);
   }
   list.appendChild(shelf);
 }
