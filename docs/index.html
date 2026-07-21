@@ -4511,7 +4511,7 @@ const SLEEP = {
     this.idx = (this.idx + 1) % this.STEPS.length;
     const min = this.STEPS[this.idx];
     this.until = min ? Date.now() + min * 60000 : 0;
-    this._fading = false;
+    if (this._fading){ this._fading = false; applyVolume(); }   // cancelled mid-fade → volume back up
     this.paint();
     toast(min ? 'Sleep in <b>' + min + ' min</b> — the music will fade and pause'
               : 'Sleep timer off');
@@ -4528,14 +4528,18 @@ const SLEEP = {
     const left = this.until - Date.now();
     if (left <= 0){
       player.pause();
-      if (AE.master) AE.master.gain.value = AE.muted ? 0 : parseInt(el.vol.value, 10) / 100;
-      this.idx = 0; this.until = 0; this._fading = false;
+      this._fading = false;
+      applyVolume();                                  // undo the fade on either graph (master OR element)
+      this.idx = 0; this.until = 0;
       this.paint();
       toast('Sleep — goodnight');
-    } else if (left < 20000 && AE.master && AE.graphLive){
+    } else if (left < 20000){
       this._fading = true;
       const v = (AE.muted ? 0 : parseInt(el.vol.value, 10) / 100) * (left / 20000);
-      AE.master.gain.value = v;
+      // fade wherever the audio actually flows: the master gain on the live
+      // graph, the sounding element on iOS (where the deck is played direct)
+      if (AE.graphLive && AE.master) AE.master.gain.value = v;
+      else { const d = activeDeck(); if (d) d.a.volume = v; }
     }
   },
 };
@@ -7932,7 +7936,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '2d0d0643c6';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '1c24f0895c';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
