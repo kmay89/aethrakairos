@@ -5413,6 +5413,23 @@ function dropPoints(struct){
   }
   return out.sort((a, b) => b.strength - a.strength);
 }
+// sectionLabel — name where the playhead sits in the song, structurally and
+// honestly (no invented genre terms): the first quiet block is the INTRO and the
+// last the OUTRO; a quiet block between louder ones is a BREAK; the loudest loud
+// block is the PEAK; a loud block before the peak is the BUILD, after it the
+// DRIVE. Returns '' with no usable structure, so a caller shows nothing.
+function sectionLabel(struct, frac){
+  if (!struct || !struct.ok || !struct.sections || !struct.sections.length) return '';
+  const secs = struct.sections, f = Math.max(0, Math.min(0.99999, frac || 0));
+  let idx = secs.findIndex(s => f >= s.s && f < s.e);
+  if (idx < 0) idx = secs.length - 1;
+  let peakIdx = -1, peakE = -Infinity;
+  secs.forEach((s, i) => { if (s.loud && s.energy > peakE){ peakE = s.energy; peakIdx = i; } });
+  const sec = secs[idx];
+  if (!sec.loud) return idx === 0 ? 'intro' : idx === secs.length - 1 ? 'outro' : 'break';
+  if (idx === peakIdx) return 'peak';
+  return idx < peakIdx ? 'build' : 'drive';
+}
 // the source palette for stem-coloured waveforms: drums run warm-red (the
 // transient hit), bass amber (the body), vocals cyan (the voice sits up and
 // bright), everything else violet. Chosen to stay legible when blended.
@@ -7866,7 +7883,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '080fb64266';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '38e274c3d1';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8020,6 +8037,15 @@ const WAVE = {
         ctx.fillStyle = `rgba(${col[0]|0},${col[1]|0},${col[2]|0},${lit.toFixed(3)})`;
         ctx.fillRect(x0, by, Math.max(1, x1 - x0 - 0.5), 3);
       }
+    }
+    // SECTION LABEL: name where the playhead is — intro · build · peak · break ·
+    // drive · outro — a small honest tag, top-left. From the same structure.
+    const label = sectionLabel(struct, frac);
+    if (label){
+      ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.82)`;
+      ctx.fillText(label.toUpperCase(), 6, 5);
     }
     // the playhead: a bright line with a soft key-coloured bloom
     const px = frac * w;
