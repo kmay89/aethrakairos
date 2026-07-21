@@ -1,0 +1,48 @@
+# aethrakairos.com — a music player, not a content farm.
+#
+# The page itself is welcome to be found; the AUDIO is the bandwidth cost, so
+# keep well-behaved crawlers out of it. GitHub Pages (the canonical host) honors
+# this file but ignores custom headers, so robots.txt — not a header — is the
+# lever. Note: this only stops crawlers that OBEY it (Google, Bing, and the major
+# AI crawlers do). It is not a wall against malicious bots — that needs a proxy
+# like Cloudflare in front of the domain.
+
+User-agent: *
+Disallow: /audio/
+Crawl-delay: 10
+
+# Bulk AI / dataset scrapers pull whole sites and give nothing back — turn them
+# away from everything so they never touch the traffic. (Remove any you'd rather
+# allow.)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /

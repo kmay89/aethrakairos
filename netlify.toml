@@ -15,3 +15,13 @@
   for = "/catalog.json"
   [headers.values]
     Access-Control-Allow-Origin = "*"
+
+# The audio is the bandwidth cost. Tell crawlers not to index it, and let the
+# CDN hold it for a week so a repeat stream is served from the edge, not origin.
+# (These headers apply on the Netlify previews; GitHub Pages, the canonical host,
+# ignores them — there, docs/robots.txt is what keeps bots out of /audio/.)
+[[headers]]
+  for = "/audio/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "public, max-age=604800"
