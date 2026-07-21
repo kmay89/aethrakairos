@@ -2233,6 +2233,10 @@ const XFADE = 4.0;                 // auto-mix crossfade seconds
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+// the per-deck sweep filter: parked wide open (≈bypass), driven down to the
+// floor on a fading-out deck so a crossfade becomes a pro "filter out"
+const FILTER_OPEN = 20000, FILTER_FLOOR = 300;
+
 const AE = {
   ctx: null, bus: null, master: null, analyser: null,
   decks: null, active: 0, xfading: false,
@@ -2285,10 +2289,15 @@ function ensureCtx(){
     const src = AE.ctx.createMediaElementSource(a);
     const shelf = AE.ctx.createBiquadFilter();
     shelf.type = 'lowshelf'; shelf.frequency.value = 200; shelf.gain.value = 0;
+    // a sweepable lowpass, parked wide open (≈bypass) — the mixer sweeps it DOWN
+    // on a fading-out deck so a plain crossfade reads as a pro "filter out": the
+    // old track sinks away under the filter instead of just getting quieter
+    const filter = AE.ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = FILTER_OPEN; filter.Q.value = 0.7;
     const gain = AE.ctx.createGain();
     gain.gain.value = 0;
-    src.connect(shelf); shelf.connect(gain); gain.connect(AE.bus);
-    return { a, src, shelf, gain };
+    src.connect(shelf); shelf.connect(filter); filter.connect(gain); gain.connect(AE.bus);
+    return { a, src, shelf, filter, gain };
   });
   AE.graphLive = !IS_IOS;
   SPEED.apply();                 // decks are born at the listener's chosen speed
@@ -7103,6 +7112,7 @@ const MIXER = {
       try { d.a.playbackRate = SPEED.rate; } catch (e){}
       if (d.shelf) d.shelf.gain.value = 0;
     });
+    this._resetFilters();                              // a cancelled sweep must never leave a deck muffled
     this._lastRateA = this._lastRateB = 1;
     applyVolume();
     syncMixHud();
@@ -7241,6 +7251,23 @@ const MIXER = {
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
       if (nd.shelf) nd.shelf.gain.value = -14;      // one-bass rule: B ducked in
     }
+    // a FADE on the live graph becomes a FILTERED fade: schedule the outgoing
+    // deck's lowpass to sweep from wide-open down to the floor across the seam,
+    // so the old track filters away like a DJ pulling the cutoff — the incoming
+    // stays clean (open). Sample-accurate WebAudio automation, so it's smooth
+    // regardless of frame rate. (Beatmix keeps its own bass-swap; gapless is
+    // instant; on iOS the mixer doesn't run, so this only touches desktop fades.)
+    if (p.type === 'fade' && AE.ctx && od.filter && nd.filter){
+      const t0 = AE.ctx.currentTime, sweep = Math.max(0.5, this.overlap);
+      try {
+        nd.filter.frequency.cancelScheduledValues(t0);
+        nd.filter.frequency.setValueAtTime(FILTER_OPEN, t0);      // the incoming comes in clean
+        od.filter.frequency.cancelScheduledValues(t0);
+        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
+        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);   // hold, then dive
+        od.filter.frequency.exponentialRampToValueAtTime(FILTER_FLOOR, t0 + sweep);
+      } catch (e){}
+    }
     nd.a.play().catch(err => {
       // AbortError = our own cancel/replan interrupted the load — the
       // listener asked for something else; nothing is wrong. Only a real
@@ -7347,6 +7374,7 @@ const MIXER = {
       if (nd.shelf) nd.shelf.gain.value = 0;
       if (AE.graphLive) nd.gain.gain.value = nd.norm || 1;
     }
+    this._resetFilters();                              // both decks back to wide-open
     this._lastRateA = this._lastRateB = 1;
     this.plan = null; this.next = -1; this.outDeck = null; this.outTrack = null; this.trim = 0;
     this.phase = 'idle';
@@ -7354,6 +7382,17 @@ const MIXER = {
     syncMixHud();
     window.__mixCompleted = (window.__mixCompleted || 0) + 1;   // acceptance probe
     if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('first_mix');   // the room mixed for them
+  },
+
+  // park every deck's sweep filter wide open (≈bypass) — called whenever a seam
+  // ends or is cancelled, so a swept-down deck never stays muffled
+  _resetFilters(){
+    if (!AE.ctx || !AE.decks) return;
+    const t = AE.ctx.currentTime;
+    for (const d of AE.decks){
+      if (!d || !d.filter) continue;
+      try { d.filter.frequency.cancelScheduledValues(t); d.filter.frequency.setValueAtTime(FILTER_OPEN, t); } catch (e){}
+    }
   },
 };
 /* hidden tabs get no rAF: a coarse tick keeps fades (never beatmixes) firing */
@@ -7544,7 +7583,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '45896aa8e2';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'e358898a72';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8050,6 +8089,50 @@ const BOOTH = {
       }
     }
   },
+  /* the harmonic wheel, drawn around the resonance orb: the twelve Camelot
+     hours as hue ticks (inner ring = minor/A, outer = major/B), each deck's key
+     lit on its spot, and a SPOKE between them whose colour says whether the mix
+     is harmonically safe — green (same/relative), through amber, to red (a
+     clash). All the data — camelotParse/Hue/Compat — already exists; this just
+     makes "why these two keys work" legible at a glance. */
+  _camelotWheel(ctx, cx, cy, r, keyA, keyB){
+    const A = camelotParse(keyA), B = camelotParse(keyB);
+    const pos = c => {                                   // A on the inner ring, B on the outer
+      const ang = ((c.n - 1) / 12) * 2 * PI - PI / 2;
+      const rr = c.l === 'A' ? r * 0.72 : r;
+      return [cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr];
+    };
+    ctx.save();
+    for (let i = 0; i < 12; i++){                        // the twelve hours, each its own hue
+      const ang = (i / 12) * 2 * PI - PI / 2;
+      const hue = ((i) / 12 * 300 + 40) % 360;           // matches camelotHue for n=i+1
+      const rgb = oklchToRgb(0.72, 0.11, hue).map(v => Math.round(v * 255));
+      const tx = cx + Math.cos(ang) * r, ty = cy + Math.sin(ang) * r;
+      ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.30)`;
+      ctx.beginPath(); ctx.arc(tx, ty, 1.3, 0, 2 * PI); ctx.fill();
+    }
+    if (A && B){                                         // the compatibility spoke
+      const pa = pos(A), pb = pos(B), kc = camelotCompat(keyA, keyB);
+      const col = kc <= 0.5 ? [86, 224, 120] : kc <= 1 ? [150, 220, 120]
+        : kc <= 2 ? [255, 190, 74] : [255, 92, 74];
+      ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},0.55)`;
+      ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+    }
+    const keyRgb = k => {                                // a key's own hue as [r,g,b]
+      const hue = camelotHue(k);
+      return hue == null ? [200, 210, 255] : oklchToRgb(0.75, 0.13, hue).map(v => Math.round(v * 255));
+    };
+    const mark = (c, rgb) => {                           // each deck's key, lit on its spot
+      if (!c) return;
+      const [x, y] = pos(c);
+      ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.95)`;
+      ctx.beginPath(); ctx.arc(x, y, 2.1, 0, 2 * PI); ctx.fill();
+    };
+    if (A) mark(A, keyRgb(keyA));
+    if (B) mark(B, keyRgb(keyB));
+    ctx.restore();
+  },
   _playhead(ctx, y, h, w, frac, rgb, xOff){
     const px = (xOff || 0) + clamp01(frac) * w;
     const g = ctx.createLinearGradient(px - 10, 0, px + 10, 0);
@@ -8457,6 +8540,10 @@ const BOOTH = {
     const sep = err != null ? 3 + clamp01(err / 40) * 18
       : armed ? 14 : 9 + Math.sin(nowMs / 700) * 2;
     const glow = err != null ? clamp01(1 - err / 6) : 0;
+    // the harmonic wheel encircles the orb — the two keys on the Camelot ring
+    // with a compatibility spoke, so the mix's harmony is legible, not implied
+    if (full && tB) this._camelotWheel(ctx, cx, cy, Math.min(15, botH / 2 - 2),
+      (mixOf(tA) || {}).key, (mixOf(tB) || {}).key);
     ctx.globalCompositeOperation = 'lighter';
     const orb = (x, rgb, r) => {
       const g = ctx.createRadialGradient(x, cy, 0, x, cy, r);
