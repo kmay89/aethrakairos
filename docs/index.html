@@ -5251,6 +5251,28 @@ function mixFmtDur(s){
   s = Math.max(0, Math.round(s));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
+// mixTechnique — WHILE a seam runs, name the move that's actually happening RIGHT
+// NOW, so the booth shows the mix execute (not just its plan). Derived purely
+// from progress so the thresholds mirror the real WebAudio automation:
+//   fade  → the filter holds, then dives (12%); the bass swaps out (18%); the
+//           tail blooms into echoes in the last stretch (55%).
+//   beatmix → phrase-locked, with the one-bass handover around the midpoint.
+// Returns '' outside a running seam. Pure, so the phrasing is unit-tested.
+function mixTechnique(st){
+  if (!st || st.phase !== 'running') return '';
+  const pct = st.pct == null ? 0 : st.pct;
+  if (st.planType === 'beatmix'){
+    return pct < 45 ? 'beat-locked' : pct < 60 ? 'beat-locked · bass swap' : 'beat-locked · B leads';
+  }
+  if (st.planType === 'gapless') return 'seamless';
+  if (st.planType === 'fade'){
+    const parts = [pct < 12 ? 'aligning' : 'filtering'];
+    if (pct >= 18) parts.push('bass swap');
+    if (pct >= 55) parts.push('echo');
+    return parts.join(' · ');
+  }
+  return '';
+}
 function mixNarration(st){
   st = st || {};
   if (!st.on) return 'MIX is off — transitions play plain';
@@ -5260,7 +5282,10 @@ function mixNarration(st){
     : 'a transition';
   const key = st.keys ? ' · ' + st.keys + ' ' + (st.compat == null ? '' : st.compat <= 1 ? '✓' : st.compat <= 2 ? '≈' : '✕') : '';
   const to = st.nextTitle ? '“' + st.nextTitle + '”' : 'the next track';
-  if (st.phase === 'running') return 'MIXING ' + to + ' · ' + label + (st.pct != null ? ' · ' + st.pct + '%' : '');
+  if (st.phase === 'running'){
+    const tech = mixTechnique(st);           // the move happening right now beats the static label
+    return 'MIXING ' + to + ' · ' + (tech || label) + (st.pct != null ? ' · ' + st.pct + '%' : '');
+  }
   if (st.phase === 'armed') return 'CUED ' + to + ' · ' + label + key + (st.seamSec != null ? ' · seam in ' + mixFmtDur(st.seamSec) : '');
   if (st.phase === 'planning') return 'PLANNING ' + to + ' · ' + label + key + (st.seamSec != null ? ' · arms in ' + mixFmtDur(st.seamSec) : '');
   return 'watching the clock — the planner arms 45 s before the end';
@@ -7684,7 +7709,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'c682b4a24e';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'efab15aa64';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
