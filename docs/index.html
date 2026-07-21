@@ -7866,7 +7866,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'c94c292b5e';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '42bd716a3e';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8007,6 +8007,19 @@ const WAVE = {
       ctx.beginPath(); ctx.moveTo(x - 3, 0); ctx.lineTo(x + 3, 0); ctx.lineTo(x, 5.5); ctx.closePath();
       ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},${(0.55 + dp.strength * 0.4).toFixed(3)})`;
       ctx.fill();
+    }
+    // SECTION BANDS: the song's structure as a thin strip along the bottom edge —
+    // quiet blocks dim and warm, loud blocks lit in the key colour, so the whole
+    // arrangement (intro · build · drop · breakdown · outro) reads at a glance.
+    // From the same precomputed structure; nothing drawn without it.
+    if (struct && struct.ok && struct.sections && struct.sections.length){
+      const by = h - 3;
+      for (const sec of struct.sections){
+        const x0 = sec.s * w, x1 = sec.e * w, col = sec.loud ? a : warm;
+        const lit = sec.loud ? 0.32 + sec.energy * 0.5 : 0.1 + sec.energy * 0.18;
+        ctx.fillStyle = `rgba(${col[0]|0},${col[1]|0},${col[2]|0},${lit.toFixed(3)})`;
+        ctx.fillRect(x0, by, Math.max(1, x1 - x0 - 0.5), 3);
+      }
     }
     // the playhead: a bright line with a soft key-coloured bloom
     const px = frac * w;
