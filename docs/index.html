@@ -5651,6 +5651,23 @@ function envFollow(a, b, dt, tauUp, tauDown){
   return a + (b - a) * (1 - Math.exp(-dt / Math.max(1e-4, tau)));
 }
 
+/* beatSpringStep — one integration step of an UNDER-DAMPED spring chasing a
+   drive signal. Unlike an exponential follower it has momentum, so it OVERSHOOTS
+   the target on a sharp rise and rings back — the elastic "bounce" a decay
+   envelope can't produce. Symplectic (semi-implicit) Euler, sub-stepped so a
+   long frame gap (tab-away, jank) can never make it diverge. Returns {x, v}.
+   x can briefly exceed the drive's peak: that overshoot IS the bounce. */
+function beatSpringStep(x, v, drive, dt, k, c){
+  k = k || 260; c = c || 13;                       // ω≈16 rad/s, ζ≈0.40 → one clear bounce
+  const steps = Math.max(1, Math.min(8, Math.ceil(dt / (1 / 240))));
+  const h = dt / steps;
+  for (let i = 0; i < steps; i++){
+    v += (k * (drive - x) - c * v) * h;            // velocity from spring + damping
+    x += v * h;                                     // then position from the new velocity
+  }
+  return { x, v };
+}
+
 /* dancePulse — one beat of motion. φ: 0 at the hit, 1 at the next.
    art 0..1 (legato → staccato), bounce 0..1 (how much the body rebounds),
    down (bar downbeat hits harder), amp.
@@ -7443,7 +7460,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'b990fdf74e';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '05212efba7';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8803,6 +8820,8 @@ const U = {
   uTime:     { value: 0 },
   uBass:     { value: 0 }, uMid: { value: 0 }, uTreble: { value: 0 }, uEnergy: { value: 0 },
   uBeat:     { value: 0 },
+  uBeatSpring: { value: 0 },    // an UNDER-DAMPED follower of the beat: it overshoots the
+                               // hit and settles, so geometry can stretch past rest and bounce back
   uPiPhase:  { value: 0 }, uEPhase: { value: 0 }, uCoupling: { value: 0 },
   uEntropy:  { value: 0 }, uCentroid: { value: 0.2 },
   uCalm:     { value: 0 },      // energy smoothed over seconds — backdrop only, never transients
@@ -9468,7 +9487,7 @@ function buildRibbons(){
 
   const vert = VERT_POINT_HEAD + `
     attribute float aT, aSide, aRib;
-    uniform float uVarA, uVarB, uVarC, uMorph;
+    uniform float uVarA, uVarB, uVarC, uMorph, uBeatSpring;
     varying float vSide;
   ` + RIBBON_CENTER + `
     void main(){
@@ -9478,11 +9497,15 @@ function buildRibbons(){
       vec3 tang = normalize(c2 - c + vec3(1e-5));
       vec3 up = normalize(vec3(-c.z, 6.0, c.x));
       vec3 sideDir = normalize(cross(tang, up));
-      float w = (0.35 + amp * 1.9 + uBeat * 0.5 + uAct * 0.4)
+      // the beat SPRING drives the elastic response: the ribbon swells wider and
+      // stretches longer than its rest shape on the hit, then rings back — a live
+      // bounce the old amp*uBeat term (pure decay) could only fake
+      float w = (0.35 + amp * 1.9 + uBeatSpring * 0.85 + uAct * 0.4)
               * pow(max(sin(aT * 3.14159), 0.001), 0.65);
       vec3 p = c + sideDir * aSide * w;
+      p.y *= 1.0 + uBeatSpring * 0.11;              // longitudinal stretch-and-settle
       vT = fract(aT + aRib);
-      vGlow = amp * 1.5 + uBeat * 0.4;
+      vGlow = amp * 1.5 + uBeat * 0.4;              // colour/glow stays on the honest beat (no overshoot)
       vSide = aSide;
       vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
       gl_Position = projectionMatrix * mv;
@@ -12378,6 +12401,14 @@ const LENS = {
   },
 };
 
+// the beat spring's live state — the pure stepper holds no globals, this does
+let _beatSpX = 0, _beatSpV = 0;
+function stepBeatSpring(drive, dt){
+  const s = beatSpringStep(_beatSpX, _beatSpV, drive, dt);
+  _beatSpX = s.x; _beatSpV = s.v;
+  return _beatSpX;
+}
+
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
@@ -12448,6 +12479,10 @@ function frame(now){
     // through; the danced grid pulse rides beneath it
     DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat,
     dt, SAFE.tuning());
+  // the beat SPRING: an under-damped mass chasing the governed beat. It overshoots
+  // on the hit and rebounds — the elastic "boing" a plain decay envelope can't give.
+  // Symplectic Euler, sub-stepped so a long frame gap can never make it blow up.
+  U.uBeatSpring.value = stepBeatSpring(U.uBeat.value, dt);
   U.uPiPhase.value = f.piPhase; U.uEPhase.value = f.ePhase;
   U.uCoupling.value = f.coupling; U.uEntropy.value = f.entropy; U.uCentroid.value = f.centroid;
   U.uCalm.value = f.calm;
