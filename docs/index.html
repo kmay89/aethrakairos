@@ -5668,6 +5668,19 @@ function beatSpringStep(x, v, drive, dt, k, c){
   return { x, v };
 }
 
+/* beatGate — shape the spring's DRIVE so the beat is prioritised and the field
+   RESTS between hits. iOS reads a synthesized score, where a continuously-decaying
+   beat channel makes the motion look like a metronome jitter — never still, never
+   really tied to the song. A deadband drops the low, between-beat drive to zero
+   (that's the downtime) and rescales what's left to keep the on-beat punch full.
+   floor 0 (desktop) = passthrough: the raw spectrum already has honest dynamics. */
+function beatGate(drive, floor){
+  floor = floor || 0;
+  if (floor <= 0) return drive < 0 ? 0 : drive;
+  const d = (drive - floor) / (1 - floor);
+  return d < 0 ? 0 : (d > 1 ? 1 : d);
+}
+
 /* dancePulse — one beat of motion. φ: 0 at the hit, 1 at the next.
    art 0..1 (legato → staccato), bounce 0..1 (how much the body rebounds),
    down (bar downbeat hits harder), amp.
@@ -7460,7 +7473,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '445c2178df';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'a79fd3d8ef';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -12404,7 +12417,14 @@ const LENS = {
 // the beat spring's live state — the pure stepper holds no globals, this does
 let _beatSpX = 0, _beatSpV = 0;
 function stepBeatSpring(drive, dt){
-  const s = beatSpringStep(_beatSpX, _beatSpV, drive, dt);
+  // iOS runs on a synthesized score: an under-damped spring on a continuously
+  // decaying beat reads as a fake, always-moving jitter. So on iOS we PRIORITISE
+  // THE BEAT — a deadband gives the field downtime between hits, and near-critical
+  // damping makes it PUNCH on the beat and settle (no ring). Desktop keeps the
+  // looser, bouncier spring on the raw spectrum's real dynamics.
+  const d = beatGate(drive, IS_IOS ? 0.30 : 0);
+  const k = IS_IOS ? 230 : 260, c = IS_IOS ? 30 : 13;   // iOS ζ≈1.0 (settles); desktop ζ≈0.40 (bounces)
+  const s = beatSpringStep(_beatSpX, _beatSpV, d, dt, k, c);
   _beatSpX = s.x; _beatSpV = s.v;
   return _beatSpX;
 }
