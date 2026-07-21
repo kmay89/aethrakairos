@@ -1,0 +1,33 @@
+[package]
+name = "aethra-kairos"
+version = "0.1.0"
+description = "Aethra Kairos — the open-source label player"
+authors = ["Aethra Kairos"]
+license = "MIT"
+repository = "https://github.com/kmay89/aethrakairos"
+edition = "2021"
+rust-version = "1.77.2"
+
+# The library the thin binary calls into — keeps a single entry point for
+# desktop and any future mobile target.
+[lib]
+name = "aethra_kairos_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# a small, fast, predictable release binary — the point of going native
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
