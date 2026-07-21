@@ -343,6 +343,56 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
 .hero-math i{color:var(--e);font-style:normal}
 
 /* ============ first-run: the welcome card ============ */
+/* ---- coach-marks: a dim veil with ONE control cut out of it, plus a caption.
+   The spotlight is a transparent box with a huge soft shadow, so everything
+   but the target dims — the eye goes exactly where the lesson points. ---- */
+#coach{ position:fixed;inset:0;z-index:64;display:none;pointer-events:none; }
+#coach.on{ display:block; }
+#coachSpot{
+  position:fixed;border-radius:16px;pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(4,5,12,.74);
+  outline:2px solid var(--accent,#6ee7ff);outline-offset:3px;
+  transition:top .38s cubic-bezier(.3,0,.15,1),left .38s cubic-bezier(.3,0,.15,1),
+    width .38s cubic-bezier(.3,0,.15,1),height .38s cubic-bezier(.3,0,.15,1);
+}
+#coachBubble{
+  position:fixed;z-index:65;pointer-events:auto;max-width:min(84vw,320px);
+  background:linear-gradient(180deg,rgba(16,20,40,.97),rgba(8,10,22,.97));
+  border:1px solid var(--accent-line,rgba(110,231,255,.34));border-radius:14px;
+  padding:14px 16px 12px;box-shadow:0 12px 40px rgba(0,0,0,.55);
+  transition:top .38s ease,left .38s ease,opacity .28s ease;
+}
+#coachBubble .coach-step{ font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint);margin-bottom:5px; }
+#coachBubble .coach-title{ font-family:var(--serif,serif);font-style:italic;font-size:20px;color:var(--ink);margin-bottom:5px; }
+#coachBubble .coach-body{ font-size:12.5px;line-height:1.5;color:var(--dim); }
+#coachBubble .coach-nav{ display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px; }
+.coach-skip{ background:none;border:none;color:var(--faint);font-size:11px;letter-spacing:.04em;cursor:pointer;padding:6px 2px; }
+.coach-skip:hover{ color:var(--dim); }
+.coach-next{
+  background:var(--accent,#6ee7ff);color:#04121a;border:none;border-radius:9px;
+  padding:8px 18px;font-size:12px;font-weight:700;letter-spacing:.03em;cursor:pointer;
+}
+.coach-next:hover{ filter:brightness(1.08); }
+@media (prefers-reduced-motion:reduce){ #coachSpot,#coachBubble{ transition:none; } }
+
+/* ---- milestone badges: earned ones glow in the accent, the rest wait dim ---- */
+.badges{ display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:6px 0 2px; }
+.badge{
+  display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);opacity:.5;
+}
+.badge.on{ opacity:1;border-color:var(--accent-line,rgba(110,231,255,.34));background:var(--accent-dim,rgba(110,231,255,.10)); }
+.badge .bi{ font-size:17px;line-height:1;color:var(--faint); }
+.badge.on .bi{ color:var(--accent,#6ee7ff);text-shadow:0 0 12px var(--accent-glow,rgba(110,231,255,.5)); }
+.badge .bt{ font-size:11px;font-weight:600;color:var(--ink);line-height:1.15; }
+.badge .bh{ font-size:9.5px;color:var(--faint);line-height:1.2; }
+/* the earn bloom — a quick ring that blossoms and fades, once */
+#badgeBloom{ position:fixed;left:50%;top:38%;z-index:66;width:12px;height:12px;margin:-6px 0 0 -6px;
+  border-radius:50%;pointer-events:none;opacity:0;border:2px solid var(--accent,#6ee7ff); }
+#badgeBloom.go{ animation:badgeBloom 1s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes badgeBloom{ 0%{opacity:.9;transform:scale(.4)} 70%{opacity:.5} 100%{opacity:0;transform:scale(9)} }
+@media (prefers-reduced-motion:reduce){ #badgeBloom.go{ animation:none; } }
+
 #firstRun{
   position:fixed;inset:0;z-index:60;display:none;   /* a modal — above the transport (z50) */
   flex-direction:column;align-items:center;justify-content:center;
@@ -1438,6 +1488,21 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
   <div class="fr-install" id="frInstall" hidden></div>
 </section>
 
+<!-- ============ coach-marks — the first-run tour that spotlights real controls ============ -->
+<div id="coach" aria-hidden="true">
+  <div id="coachSpot"></div>
+  <div id="coachBubble" role="dialog" aria-live="polite">
+    <div class="coach-step"></div>
+    <div class="coach-title"></div>
+    <div class="coach-body"></div>
+    <div class="coach-nav">
+      <button type="button" id="coachSkip" class="coach-skip">Skip the tour</button>
+      <button type="button" id="coachNext" class="coach-next">Next ▸</button>
+    </div>
+  </div>
+</div>
+<div id="badgeBloom" aria-hidden="true"></div>
+
 <!-- ============ onboarding — the why, told in five breaths ============ -->
 <section id="onboard" role="dialog" aria-modal="true" aria-label="What Aethra Kairos is">
   <button class="ob-skip" id="obSkip" type="button">Skip</button>
@@ -1786,6 +1851,9 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
       <div class="keyrow"><kbd>H</kbd> Hide interface</div>
       <div class="keyrow"><kbd>?</kbd> This panel</div>
     </div>
+    <h3>Milestones</h3>
+    <p class="lede">Small marks for the first time you do each thing — kept in this browser, just for you.</p>
+    <div id="badgeShelf" class="badges" aria-label="Milestones"></div>
     <h3>Touch the field</h3>
     <p class="lede">The field answers your hand: <b>drag</b> to steer the camera (the auto rig waits
     while you hold it), <b>scroll</b> to move closer or further, <b>double-tap</b> to send a shockwave
@@ -2082,6 +2150,8 @@ const el = {
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
   fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
+  coach: $('coach'), coachSpot: $('coachSpot'), coachBubble: $('coachBubble'),
+  coachNext: $('coachNext'), coachSkip: $('coachSkip'), badgeShelf: $('badgeShelf'), badgeBloom: $('badgeBloom'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
   frStart: $('frStart'), frStat: $('frStat'), frInstall: $('frInstall'),
   frPace: $('frPace'), frMood: $('frMood'), frBuild: $('frBuild'),
@@ -3156,6 +3226,7 @@ const player = {
     if (bi >= 0) this._bag.splice(bi, 1);
     this.playing = true;
     this.autoFadeDone = false;
+    this._trackStarted();                  // the first-run lessons watch track changes
     HIST.start(track);
     this.refreshTitle();
     this.renderList();
@@ -3178,6 +3249,7 @@ const player = {
     this._committedNext = null;
     this.playing = true;
     this.autoFadeDone = true;              // the legacy crossfader stands down
+    this._trackStarted();                  // the first-run lessons watch track changes
     HIST.start(track);
     this.refreshTitle();
     this.renderList();
@@ -3375,6 +3447,14 @@ const player = {
     }, this._skipMs || 14000);
   },
   _clearStall(){ clearTimeout(this._stallT); clearTimeout(this._stallT2); },
+
+  /* first-run lessons ride real track changes: the tour teaches over track one,
+     and when track TWO begins the lighter heart→playlist lesson fires once */
+  _trackStarted(){
+    this._starts = (this._starts || 0) + 1;
+    if (this._starts >= 2 && typeof TUTOR !== 'undefined' && TUTOR.seen() && !TUTOR.favSeen())
+      TUTOR.favLesson();
+  },
 
   seekToFrac(frac){
     const d = activeDeck();
@@ -3984,7 +4064,176 @@ const FAVS = {
     if (this.keys.has(k)){ this.keys.delete(k); DB.favDel(k).catch(() => {}); }
     else { this.keys.add(k); DB.favPut(k).catch(() => {}); }
     syncHearts();
-    return this.keys.has(k);
+    const on = this.keys.has(k);
+    if (on && typeof ACHIEVE !== 'undefined') ACHIEVE.earn('first_favorite');   // the first heart is a milestone
+    return on;
+  },
+};
+
+/* ================================================================
+   ACHIEVE — lightweight milestone badges. Not a game: a few quiet marks
+   for the first time you do each thing, kept in this browser only. Each
+   earn blooms once and lights its tile on the Milestones shelf in Help.
+   ================================================================ */
+const ACHIEVE = {
+  key: 'mb8_badges_v1',
+  defs: [
+    { id: 'first_listen',   icon: '✦', name: 'First Listen',   hint: 'You pressed play.' },
+    { id: 'first_favorite', icon: '♥', name: 'First Favorite', hint: 'You hearted a track.' },
+    { id: 'first_mix',      icon: '∞', name: 'First Auto-Mix',  hint: 'The decks blended for you.' },
+    { id: 'explorer',       icon: '✧', name: 'Explorer',        hint: 'You changed the scene.' },
+  ],
+  earned: new Set(),
+  boot(){
+    try { this.earned = new Set(JSON.parse(localStorage.getItem(this.key) || '[]')); } catch (e){}
+    this.renderShelf();
+  },
+  has(id){ return this.earned.has(id); },
+  earn(id){
+    if (this.earned.has(id)) return;
+    const d = this.defs.find(x => x.id === id); if (!d) return;
+    this.earned.add(id);
+    try { localStorage.setItem(this.key, JSON.stringify([...this.earned])); } catch (e){}
+    this.renderShelf();
+    toast('<b>' + d.icon + ' Milestone · ' + escapeHTML(d.name) + '</b> — ' + escapeHTML(d.hint));
+    this._bloom();
+  },
+  _bloom(){
+    const b = el.badgeBloom; if (!b || reducedMotion) return;
+    b.classList.remove('go'); void b.offsetWidth; b.classList.add('go');   // restart the one-shot
+  },
+  renderShelf(){
+    const shelf = el.badgeShelf; if (!shelf) return;
+    shelf.innerHTML = '';
+    for (const d of this.defs){
+      const on = this.earned.has(d.id);
+      const cell = document.createElement('div');
+      cell.className = 'badge' + (on ? ' on' : '');
+      cell.innerHTML = '<span class="bi">' + d.icon + '</span><span><span class="bt">'
+        + escapeHTML(d.name) + '</span><br><span class="bh">'
+        + (on ? escapeHTML(d.hint) : 'Not yet') + '</span></span>';
+      shelf.appendChild(cell);
+    }
+  },
+};
+
+/* ================================================================
+   TUTOR — the first-run tour. A dim veil cuts a spotlight around ONE
+   real control at a time with a caption; tap Next (or the veil) to move
+   on. Möbius Walking plays under it, teaching the transport, the lens,
+   the orb and the library. Finishing earns First Listen. A second, lighter
+   lesson fires when the next track begins: how the heart builds playlists.
+   Every step is skippable and never blocks the audio. ================ */
+const TUTOR = {
+  key: 'mb8_tutored_v1', favKey: 'mb8_favlesson_v1',
+  i: -1, active: false, _reveal: null, _onResize: null,
+  steps: [
+    { sel: '#btnPlay',     kicker: 'The tour · 1 of 4', title: 'Play',
+      body: 'Möbius Walking is already moving. This is play and pause — in here the music never has to stop.' },
+    { sel: '#chipLens',    kicker: 'The tour · 2 of 4', title: 'The lens',
+      body: 'AUTO lets the song choose a look at its peaks — mirrors, moiré, an iris. Tap it any time to drive the glass yourself.' },
+    { sel: '#fxOrb', reveal: true, kicker: 'The tour · 3 of 4', title: 'The orb of entropy',
+      body: 'Hide the menu and this glowing orb becomes your control: flick it to shift the scene, tap it to call the menu back.' },
+    { sel: '#btnPlaylist', kicker: 'The tour · 4 of 4', title: 'Your library',
+      body: 'Every track lives here — newest first, never repeating until you\'ve heard them all.' },
+  ],
+  seen(){ try { return localStorage.getItem(this.key) === '1'; } catch (e){ return true; } },
+  favSeen(){ try { return localStorage.getItem(this.favKey) === '1'; } catch (e){ return true; } },
+  _mark(k){ try { localStorage.setItem(k, '1'); } catch (e){} },
+
+  start(){
+    if (this.active || this.seen() || reducedMotion) return;   // once, and never over a reduced-motion listener
+    if (!el.coach) return;
+    this.active = true; this.i = -1;
+    el.coach.classList.add('on'); el.coach.setAttribute('aria-hidden', 'false');
+    el.coachNext.onclick = () => this.next();
+    el.coachSkip.onclick = () => this.finish(true);
+    // tapping the dimmed veil (not the bubble) also advances — the whole
+    // surface is the "next" affordance, the way a good tour feels
+    el.coach.onclick = (e) => { if (!el.coachBubble.contains(e.target)) this.next(); };
+    this._onResize = () => this._place();
+    window.addEventListener('resize', this._onResize);
+    this.next();
+  },
+  next(){
+    this._unreveal();
+    this.i++;
+    if (this.i >= this.steps.length){ this.finish(false); return; }
+    const step = this.steps[this.i];
+    const target = document.querySelector(step.sel);
+    // a control that isn't on screen (zero box) is skipped, not spotlighted at 0,0
+    if (!target || !this._visible(target)){ this.next(); return; }
+    if (step.reveal && target === el.fxOrb){
+      target.classList.add('coach-reveal', 'awake'); this._reveal = target;
+    }
+    el.coachBubble.querySelector('.coach-step').textContent = step.kicker;
+    el.coachBubble.querySelector('.coach-title').textContent = step.title;
+    el.coachBubble.querySelector('.coach-body').textContent = step.body;
+    el.coachNext.textContent = this.i === this.steps.length - 1 ? 'Done ✦' : 'Next ▸';
+    this._target = target;
+    this._place();
+  },
+  _visible(t){
+    const r = t.getBoundingClientRect();
+    return r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < innerHeight
+      && getComputedStyle(t).visibility !== 'hidden' && !t.hidden;
+  },
+  _place(){
+    if (!this._target) return;
+    const r = this._target.getBoundingClientRect(), pad = 8;
+    const s = el.coachSpot.style;
+    s.left = (r.left - pad) + 'px'; s.top = (r.top - pad) + 'px';
+    s.width = (r.width + pad * 2) + 'px'; s.height = (r.height + pad * 2) + 'px';
+    // place the bubble where there's room: below the target if it fits, else above
+    const b = el.coachBubble, bw = Math.min(320, innerWidth * 0.84);
+    b.style.maxWidth = bw + 'px';
+    const bh = b.offsetHeight || 150;
+    let top = r.bottom + 14;
+    if (top + bh > innerHeight - 12) top = Math.max(12, r.top - bh - 14);
+    let left = r.left + r.width / 2 - bw / 2;
+    left = Math.max(12, Math.min(left, innerWidth - bw - 12));
+    b.style.top = top + 'px'; b.style.left = left + 'px';
+  },
+  _unreveal(){ if (this._reveal){ this._reveal.classList.remove('coach-reveal'); this._reveal = null; } },
+  finish(skipped){
+    if (!this.active) return;
+    this.active = false;
+    this._unreveal();
+    el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
+    el.coach.onclick = null;
+    if (this._onResize){ window.removeEventListener('resize', this._onResize); this._onResize = null; }
+    this._mark(this.key);
+    if (!skipped) ACHIEVE.earn('first_listen');
+    else toast('Tour skipped — press <b>?</b> any time for the keys');
+  },
+
+  /* the second lesson: when the NEXT track starts, a single mark shows how the
+     heart quietly builds a playlist. Opens the queue and spotlights a heart. */
+  favLesson(){
+    if (this.active || this.favSeen() || reducedMotion || !el.coach) return;
+    this._mark(this.favKey);
+    if (typeof openPlaylist === 'function') openPlaylist(true);
+    // let the list paint, then find a real heart to point at
+    setTimeout(() => {
+      const heart = document.querySelector('#playlist .heart') || document.querySelector('.heart');
+      this.active = true;
+      el.coach.classList.add('on'); el.coach.setAttribute('aria-hidden', 'false');
+      el.coachNext.textContent = 'Got it ✦';
+      el.coachNext.onclick = () => this._favDone();
+      el.coachSkip.onclick = () => this._favDone();
+      el.coach.onclick = (e) => { if (!el.coachBubble.contains(e.target)) this._favDone(); };
+      el.coachBubble.querySelector('.coach-step').textContent = 'One more thing';
+      el.coachBubble.querySelector('.coach-title').textContent = 'Hearts become playlists';
+      el.coachBubble.querySelector('.coach-body').textContent =
+        'Tap the ♥ on a track you love. Your hearts gather into a “♥ Hearts” list automatically — the more you heart, the better the room gets at finding your next favourite.';
+      this._target = heart && this._visible(heart) ? heart : el.btnPlaylist;
+      this._place();
+    }, 380);
+  },
+  _favDone(){
+    this.active = false;
+    el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
+    el.coach.onclick = null;
   },
 };
 
@@ -7003,6 +7252,7 @@ const MIXER = {
     applyVolume();
     syncMixHud();
     window.__mixCompleted = (window.__mixCompleted || 0) + 1;   // acceptance probe
+    if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('first_mix');   // the room mixed for them
   },
 };
 /* hidden tabs get no rAF: a coarse tick keeps fades (never beatmixes) firing */
@@ -7193,7 +7443,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'cd3867e1ad';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'e4ef3c3ff4';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8446,6 +8696,7 @@ if (el.fxOrb){
       // self-directing from there unless you've pinned it)
       if (typeof scenes !== 'undefined' && scenes.length)
         director.setScene((director.active + 1) % scenes.length, false);
+      if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer');   // a flick of the orb counts
       el.fxOrb.classList.remove('flick'); void el.fxOrb.offsetWidth; el.fxOrb.classList.add('flick');
       HAPTICS.pulse(true);
     } else {
@@ -11458,7 +11709,8 @@ const director = {
     this.transT = 0;
     scenes[i].group.visible = true;
     if (scenes[i].roll) scenes[i].roll();      // fresh variation on every entry
-    if (manual){ this.auto = false; el.chipAuto.classList.remove('on'); this.dwell = 0; }
+    if (manual){ this.auto = false; el.chipAuto.classList.remove('on'); this.dwell = 0;
+      if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer'); }   // you chose a scene
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
   },
@@ -12437,7 +12689,18 @@ function crateEngage(tracks, label, startAt){
   }
   PLAYLISTS.playTracks(tracks, label, startAt);   // leads with the crate, shelf stays browsable
   MINDFUL.begin();                              // start counting toward a gentle break offer
+  // a first-time listener gets the guided tour, once — it plays OVER the music
+  // (Möbius Walking leads the first run) and never blocks it
+  if (typeof TUTOR !== 'undefined' && !TUTOR.seen())
+    setTimeout(() => TUTOR.start(), 900);       // let the card close + the sound arrive
   return true;
+}
+
+/* on a genuine first run, lead with Möbius Walking — the intro song the tour
+   teaches over — if the shelf carries it; otherwise the newest track leads. */
+function mobiusLeadIndex(order){
+  const i = order.findIndex(t => /m(ö|o)bius\s*walking/i.test(t && t.title || ''));
+  return i >= 0 ? i : 0;
 }
 
 /* engageLibrary — THE default: play the whole library newest→oldest, dropping
@@ -12447,7 +12710,11 @@ function engageLibrary(){
   const order = libraryOrder(allTracks(), trackKey);
   if (!order.length) return false;
   const heard = HIST.heardSet();
-  return crateEngage(order, 'The library — newest first', firstUnheardIndex(order, heard, trackKey));
+  // first-ever run: open on Möbius Walking (the tour's intro song); after that,
+  // drop the returning ear in at the first track they haven't heard yet
+  const startAt = (typeof TUTOR !== 'undefined' && !TUTOR.seen())
+    ? mobiusLeadIndex(order) : firstUnheardIndex(order, heard, trackKey);
+  return crateEngage(order, 'The library — newest first', startAt);
 }
 
 /* MINDFUL — the music runs continuous, but movement isn't the only medicine.
@@ -12678,6 +12945,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) PERSI
 (async function boot(){
   await DB.open();
   await Promise.all([FAVS.boot(), HIST.boot(), MIXFIX.boot(), PLAYLISTS.boot()]);
+  ACHIEVE.boot();
 
   // If a catalog.json sits next to this file, load it automatically — that
   // makes self-hosting drop-in. ?catalog=https://…/catalog.json points one
