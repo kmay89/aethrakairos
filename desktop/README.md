@@ -46,19 +46,34 @@ npm run tauri build      # → src-tauri/target/release/bundle/dmg/*.dmg
 
 Linux/CI note: the real macOS build happens in
 [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) on a
-`macos-latest` runner — a manual run produces a `.dmg` artifact; a `desktop-v*`
-tag publishes a Release.
+`macos-latest` runner.
 
-## Cut a release
+## Release channels
 
-```bash
-# bump desktop/src-tauri/tauri.conf.json "version", then:
-git tag desktop-v0.1.0 && git push origin desktop-v0.1.0
-```
+Two channels, the standard split — like a Stable app and its Insiders/nightly:
 
-CI builds a universal (`aarch64` + `x86_64`) `.dmg`, creates the GitHub Release,
-and — once updater signing is on — uploads `latest.json` + signature so installed
-apps update themselves.
+| Channel | How to release | Identity | Update feed |
+|---|---|---|---|
+| **Stable** | push a `desktop-vX.Y.Z` tag | `Aethra Kairos` · `com.aethrakairos.player` | `releases/latest` |
+| **Dev** (nightly) | Actions → *Run workflow* → channel **dev** | `Aethra Kairos Dev` · `…player.dev` (installs side-by-side) | rolling `desktop-nightly` pre-release |
+
+- **Cut a stable release:**
+  ```bash
+  # bump desktop/src-tauri/tauri.conf.json "version" to match, then:
+  git tag desktop-v0.1.0 && git push origin desktop-v0.1.0
+  ```
+- **Cut a nightly:** GitHub → **Actions → desktop → Run workflow → channel: dev**.
+  It publishes/overwrites the rolling `desktop-nightly` pre-release; the Dev app
+  auto-updates from it. Stable users never see it (it's a pre-release, so
+  `releases/latest` skips it).
+- **PRs** touching `desktop/**` build a `.dmg` artifact only — the compile check.
+
+Each build is universal (`aarch64` + `x86_64`). With updater signing on, every
+release also carries `latest.json` + signature so installed apps update themselves.
+
+The public **install page** users land on is
+[`docs/mac.html`](../docs/mac.html) → **aethrakairos.com/mac** (Gatekeeper help +
+an honest "what it is / does / never does"). The web player's footer links to it.
 
 ## Turn on auto-update (one time)
 
