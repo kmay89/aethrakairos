@@ -24,7 +24,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
   ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
-  ' mixMatchScore, chartSet, nextUp, energyArcBias,' +
+  ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
@@ -1315,6 +1315,35 @@ test('stemRGB: the loudest source dominates the colour', () => {
   // silence (all zero) is safe, not a divide-by-zero
   const zero = S.stemRGB({ d: 0, b: 0, v: 0, o: 0 });
   assert.ok(zero.every(c => isFinite(c)), 'all-silent blend is finite');
+});
+
+// ---- stem-aware transitions: never blend two voices ----
+test('stemWindow: averages a stem envelope over a fractional window', () => {
+  assert.equal(S.stemWindow('99999', 0, 1), 1);          // all full
+  assert.equal(S.stemWindow('00000', 0, 1), 0);          // all silent
+  assert.ok(S.stemWindow('000999', 0.6, 1) > 0.9, 'a fully-loud tail window reads high');
+  assert.ok(S.stemWindow('999000', 0.6, 1) < 0.1, 'a silent tail window reads low');
+  assert.equal(S.stemWindow('', 0, 1), 0);               // no data → 0
+});
+test('vocalClashBias: two voices edge-to-edge are penalized', () => {
+  const vox = '9'.repeat(60), inst = '0'.repeat(60), beat = '9'.repeat(60);
+  // A sings to the end, B sings from the start → clash → penalty
+  const A = { mix: { stems: { sv: 1, v: vox, d: inst } } };
+  const B = { mix: { stems: { sv: 1, v: vox, d: inst } } };
+  assert.ok(S.vocalClashBias(A, B) < -0.05, 'overlapping voices are punished');
+  // B enters instrumental (no voice) → no clash
+  const Binst = { mix: { stems: { sv: 1, v: inst, d: beat } } };
+  assert.ok(S.vocalClashBias(A, Binst) >= 0, 'an instrumental entry does not clash');
+  // a drum-led entry earns a small reward
+  assert.ok(S.vocalClashBias({ mix: { stems: { sv: 1, v: inst, d: inst } } }, Binst) > 0,
+    'landing on drums is rewarded');
+});
+test('vocalClashBias: inert until both tracks are separated', () => {
+  const sep = { mix: { stems: { sv: 1, v: '9'.repeat(60), d: '0'.repeat(60) } } };
+  const raw = { mix: {} };
+  assert.equal(S.vocalClashBias(sep, raw), 0, 'no stems on B → 0');
+  assert.equal(S.vocalClashBias(raw, sep), 0, 'no stems on A → 0');
+  assert.equal(S.vocalClashBias(null, sep), 0, 'null track → 0');
 });
 
 // ---- energy-arc scoring: hold or lift the floor, never crash it ----
