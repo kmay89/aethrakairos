@@ -1,20 +1,26 @@
-# Build the native macOS app (Tauri) and publish an auto-updating release.
+# Build the native macOS app (Tauri) with two release channels.
 #
-#   • Manual run (workflow_dispatch): builds a universal .dmg and uploads it as a
-#     workflow artifact — a no-release validation build.
-#   • Tag push `desktop-v*`: builds AND publishes a GitHub Release with the .dmg
-#     plus the updater feed (latest.json + signature), which the installed app
-#     reads to update itself.
+#   • PR / manual "none"     → build a universal .dmg, upload as an artifact
+#                              (no release). The compile check.
+#   • Manual "dev"           → "Aethra Kairos Dev", side-by-side identity, published
+#                              to a ROLLING pre-release (tag desktop-nightly). Dev
+#                              users auto-update from that feed.
+#   • Tag  desktop-vX.Y.Z    → stable "Aethra Kairos", published as a normal
+#                              Release. Stable users auto-update from releases/latest.
 #
-# Apple code-signing/notarization is intentionally NOT wired yet (the app ships
-# unsigned for now — first launch is right-click → Open). Updater signing is a
-# SEPARATE key: set the TAURI_SIGNING_PRIVATE_KEY secret to switch auto-update on.
+# Apple code-signing/notarization is not wired yet (unsigned — first launch is
+# right-click → Open; see aethrakairos.com/mac). Updater signing is separate: set
+# the TAURI_SIGNING_PRIVATE_KEY secret to switch auto-update on for both channels.
 name: desktop
 
 on:
   workflow_dispatch:
-  # validate the macOS build on any PR that touches the desktop app (build-only,
-  # no release — releases happen on tags)
+    inputs:
+      channel:
+        description: 'Release channel (dev = rolling nightly). "none" = validation build only.'
+        type: choice
+        options: [none, dev]
+        default: none
   pull_request:
     paths:
       - 'desktop/**'
@@ -23,7 +29,7 @@ on:
     tags: ['desktop-v*']
 
 concurrency:
-  group: desktop-${{ github.ref }}
+  group: desktop-${{ github.ref }}-${{ github.event.inputs.channel }}
   cancel-in-progress: true
 
 jobs:
@@ -52,38 +58,54 @@ jobs:
         working-directory: desktop
         run: npm ci
 
-      # Updater artifacts must be signed. Emit them ONLY when the signing key is
-      # present, so unsigned builds succeed today and auto-update "lights up" the
-      # moment TAURI_SIGNING_PRIVATE_KEY is set — no other change needed.
-      - name: Updater artifacts if signing key present
-        id: sign
+      # Decide channel, config overlays, and release target. Updater artifacts are
+      # SIGNED, so only overlay tauri.updater.json when the signing key is present —
+      # otherwise unsigned builds would fail trying to sign with an empty key.
+      - name: Plan the build
+        id: plan
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          CHANNEL: ${{ github.event.inputs.channel }}
         run: |
-          if [ -n "$KEY" ]; then
-            echo "args=--target universal-apple-darwin --config src-tauri/tauri.updater.json" >> "$GITHUB_OUTPUT"
+          SIGN=""
+          [ -n "$KEY" ] && SIGN=" --config src-tauri/tauri.updater.json"
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            echo "mode=stable" >> "$GITHUB_OUTPUT"
+            echo "args=--target universal-apple-darwin$SIGN" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "name=Aethra Kairos ${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          elif [ "$CHANNEL" = "dev" ]; then
+            echo "mode=dev" >> "$GITHUB_OUTPUT"
+            echo "args=--target universal-apple-darwin --config src-tauri/tauri.dev.json$SIGN" >> "$GITHUB_OUTPUT"
+            echo "tag=desktop-nightly" >> "$GITHUB_OUTPUT"
+            echo "name=Aethra Kairos Dev (nightly)" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
+            echo "mode=validate" >> "$GITHUB_OUTPUT"
             echo "args=--target universal-apple-darwin" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "name=" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build (and release on a desktop-v* tag)
+      - name: Build (and release for stable / dev)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Updater signing — set this secret to emit signed update artifacts.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: desktop
-          args: ${{ steps.sign.outputs.args }}
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && 'desktop-v__VERSION__' || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && 'Aethra Kairos __VERSION__' || '' }}
-          releaseBody: "The native Mac app. Drag Aethra Kairos to Applications — it self-updates from here on. First launch on an unsigned build: right-click the app → Open."
+          args: ${{ steps.plan.outputs.args }}
+          tagName: ${{ steps.plan.outputs.tag }}
+          releaseName: ${{ steps.plan.outputs.name }}
+          releaseBody: "The native Mac app. Install help — aethrakairos.com/mac (first launch: right-click → Open). Universal .dmg; it self-updates from here on."
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ steps.plan.outputs.prerelease }}
 
       - name: Upload .dmg artifact (validation builds)
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ steps.plan.outputs.mode == 'validate' }}
         uses: actions/upload-artifact@v4
         with:
           name: aethra-kairos-macos

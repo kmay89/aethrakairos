@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Aethra Kairos Dev",
+  "identifier": "com.aethrakairos.player.dev",
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/kmay89/aethrakairos/releases/download/desktop-nightly/latest.json"
+      ]
+    }
+  }
+}

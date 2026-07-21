@@ -6500,9 +6500,10 @@ function catalogChromeSync(){
     : '')
     + 'the open-source label player — free, '
     + (IS_NATIVE ? 'on your Mac' : 'in your browser') + ', no login, ever'
-    // offer the Mac app only on the web — never inside the app itself
+    // offer the Mac app only on the web — never inside the app itself. Links to
+    // the friendly install page (Gatekeeper help + what-it-is), not the raw release.
     + (IS_NATIVE ? ''
-       : '<br><a class="mac-dl" href="https://github.com/kmay89/aethrakairos/releases/latest" target="_blank" rel="noopener">↓ Download the Mac app</a>');
+       : '<br><a class="mac-dl" href="mac.html" target="_blank" rel="noopener">↓ Download the Mac app</a>');
 }
 
 /* every track the player knows about: the catalog registry plus anything
