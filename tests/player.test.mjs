@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1185,6 +1185,43 @@ test('beat spring: the iOS params punch and SETTLE without a fake ring (near-cri
   for (let i = 0; i < 40; i++){ const s = S.beatSpringStep(x, v, 1, 1 / 60, 230, 30); x = s.x; v = s.v; peak = Math.max(peak, x); }
   assert.ok(peak <= 1.02, 'near-critical: no overshoot ring, got peak ' + peak.toFixed(3));
   assert.ok(x > 0.9, 'still reaches the beat, got ' + x.toFixed(3));
+});
+
+// ---- the segue: how a transition looks, and when it fires ----
+test('segue style: a high-energy apex earns a hard CUT', () => {
+  const s = S.segueStyle({ act: 2, energy: 0.8 });
+  assert.equal(s.kind, 'cut');
+  assert.ok(s.dur < 0.6, 'a cut is fast, got ' + s.dur);
+});
+test('segue style: the calm edges MELT (a long dissolve)', () => {
+  assert.equal(S.segueStyle({ act: 0, energy: 0.5 }).kind, 'dissolve');
+  assert.ok(S.segueStyle({ act: 4, energy: 0.2 }).dur > 3, 'calm is a long melt');
+  assert.equal(S.segueStyle({ act: 1, energy: 0.1 }).kind, 'dissolve', 'very low energy melts even mid-arc');
+});
+test('segue style: a big section change gets a morph-length blend', () => {
+  const s = S.segueStyle({ act: 1, energy: 0.5, big: true });
+  assert.equal(s.kind, 'morph');
+});
+test('segue style: a hotter passage blends quicker than a cooler one', () => {
+  const hot = S.segueStyle({ act: 1, energy: 0.75 }).dur;
+  const cool = S.segueStyle({ act: 1, energy: 0.45 }).dur;
+  assert.ok(hot < cool, `hotter should be quicker: ${hot} < ${cool}`);
+});
+test('segue fire: a structural boundary fires immediately (follow the script)', () => {
+  assert.equal(S.segueShouldFire({ sectionBoundary: true, grid: true, waited: 0 }), true);
+});
+test('segue fire: with a grid, a normal change waits for the next bar downbeat', () => {
+  assert.equal(S.segueShouldFire({ grid: true, barWrapped: false, waited: 1 }), false, 'mid-bar → hold');
+  assert.equal(S.segueShouldFire({ grid: true, barWrapped: true, waited: 1 }), true, 'downbeat → fire');
+});
+test('segue fire: a big change holds for a phrase, not just a bar', () => {
+  assert.equal(S.segueShouldFire({ big: true, grid: true, barWrapped: false, phraseWrapped: false, waited: 1 }), false);
+  assert.equal(S.segueShouldFire({ big: true, grid: true, phraseWrapped: true, waited: 1 }), true);
+});
+test('segue fire: without a grid it lands on the next onset, or a max-wait', () => {
+  assert.equal(S.segueShouldFire({ grid: false, onset: true, waited: 0.1, maxWait: 4 }), true, 'onset fires');
+  assert.equal(S.segueShouldFire({ grid: false, onset: false, waited: 1, maxWait: 4 }), false, 'else hold');
+  assert.equal(S.segueShouldFire({ grid: false, onset: false, waited: 5, maxWait: 4 }), true, 'never stalls');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
