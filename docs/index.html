@@ -5009,13 +5009,33 @@ function mixMatchScore(A, B, opts){
   return { score: 0.12, plan: p };                // a fade is a fallback, not a match
 }
 
+/* energyArcBias — a DJ doesn't only mix in KEY, they mix in ENERGY: hold the
+   floor or lift it, never crash it. A small score nudge (kept subtle so it
+   reorders comparable matches without overriding a great harmonic one) that
+   rewards landing near the arc's ideal move — a gentle lift by default ('up'),
+   a hold ('flat'), or a wind-down ('down') — and punishes an energy CRASH hardest.
+   cur/cand are 0..1 (features.energy); returns a delta in ~[-0.25, +0.10]. */
+function energyArcBias(cur, cand, arc){
+  if (cur == null || cand == null) return 0;
+  const ideal = arc === 'down' ? -0.10 : arc === 'flat' ? 0 : 0.10;   // default: a gentle lift
+  const d = cand - cur;
+  let bias = 0.10 - Math.abs(d - ideal) * 0.55;      // reward closeness to the ideal move
+  if (d < -0.22) bias -= (-d - 0.22) * 0.8;          // a crash (big drop) hurts most
+  return Math.max(-0.25, Math.min(0.10, bias));
+}
+
 /* the pad row's brain: rank candidates against the playing track with the
    SAME judge that performs the mix, best first. Pure — takes mix-wrapped
    tracks, returns indices into the candidate array with score + plan. */
-function nextUp(cands, cur, n){
-  const rows = cands.map((c, i) => ({ i, m: mixMatchScore(cur, c, {}) }));
-  rows.sort((a, b) => b.m.score - a.m.score);
-  return rows.slice(0, n || 8).map(r => ({ i: r.i, score: r.m.score, plan: r.m.plan }));
+function nextUp(cands, cur, n, arc){
+  const ce = cur && cur.features ? cur.features.energy : null;
+  const rows = cands.map((c, i) => {
+    const m = mixMatchScore(cur, c, {});
+    const eb = energyArcBias(ce, c.features ? c.features.energy : null, arc || 'up');
+    return { i, m, score: m.score + eb };            // harmony/mixability, nudged by the energy arc
+  });
+  rows.sort((a, b) => b.score - a.score);
+  return rows.slice(0, n || 8).map(r => ({ i: r.i, score: r.score, plan: r.m.plan }));
 }
 
 /* chart a set: a greedy best-match walk with a little seeded looseness —
@@ -7608,7 +7628,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'db78468bce';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '08d612f8ce';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){

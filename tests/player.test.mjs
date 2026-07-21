@@ -24,7 +24,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
   ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, mixNarration,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
-  ' mixMatchScore, chartSet, nextUp,' +
+  ' mixMatchScore, chartSet, nextUp, energyArcBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
@@ -1272,6 +1272,41 @@ test('mix narration: MIXING shows the live percentage', () => {
 test('mix narration: an adjacent key reads ≈, and no next track is graceful', () => {
   assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', keys: '8A→9A', compat: 2, seamSec: 5 }), /≈/);
   assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', seamSec: 5 }), /the next track/);
+});
+
+// ---- energy-arc scoring: hold or lift the floor, never crash it ----
+test('energy arc: a gentle lift beats an energy crash', () => {
+  const lift = S.energyArcBias(0.5, 0.6, 'up');
+  const crash = S.energyArcBias(0.5, 0.15, 'up');
+  assert.ok(lift > crash, `lift ${lift} should beat crash ${crash}`);
+  assert.ok(crash < 0, 'a crash is a penalty');
+});
+test('energy arc: the default rewards a small lift most', () => {
+  const lift = S.energyArcBias(0.5, 0.6, 'up');
+  const hold = S.energyArcBias(0.5, 0.5, 'up');
+  const jump = S.energyArcBias(0.5, 0.95, 'up');
+  assert.ok(lift >= hold && lift > jump, `a gentle lift (${lift}) tops hold (${hold}) and a big jump (${jump})`);
+});
+test('energy arc: a crash is the harshest penalty of all', () => {
+  const crash = S.energyArcBias(0.8, 0.2, 'up');
+  const jump = S.energyArcBias(0.2, 0.8, 'up');
+  assert.ok(crash < jump, `a crash (${crash}) hurts more than a jump up (${jump})`);
+});
+test('energy arc: a wind-down set prefers dropping the energy', () => {
+  const down = S.energyArcBias(0.6, 0.5, 'down');
+  const up = S.energyArcBias(0.6, 0.7, 'down');
+  assert.ok(down > up, `winding down should favour a drop: ${down} > ${up}`);
+});
+test('energy arc: unknown energy is neutral (no nudge)', () => {
+  assert.equal(S.energyArcBias(null, 0.5, 'up'), 0);
+  assert.equal(S.energyArcBias(0.5, null, 'up'), 0);
+});
+test('nextUp: between equally-mixable tracks, the lift outranks the crash', () => {
+  const cur = { mix: { bpm: 128, key: '8A', mixable: 1, out: { start: 100, beats: 64 }, grid: 0 }, duration: 200, features: { energy: 0.5 } };
+  const mk = (e) => ({ mix: { bpm: 128, key: '8A', mixable: 1, in: { start: 0, beats: 64 }, out: { start: 100, beats: 64 }, grid: 0 }, duration: 200, features: { energy: e } });
+  const cands = [mk(0.15), mk(0.6)];           // 0 = a crash, 1 = a gentle lift; same key/tempo → same mixability
+  const ranked = S.nextUp(cands, cur, 2);
+  assert.equal(ranked[0].i, 1, 'the gentle lift is suggested first');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
