@@ -1,7 +1,7 @@
 {
   "name": "Aethra Kairos",
   "short_name": "Aethra Kairos",
-  "description": "Aethra Kairos — the artist's own instrument, powered by the Möbius⁸ engine. The catalog, playable anywhere; music you can dance to with your eyes.",
+  "description": "Aethra Kairos — a music player that turns each track into live visuals, driven by its real beat, key, and energy. The full catalog, playable anywhere.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
