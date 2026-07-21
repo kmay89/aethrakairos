@@ -52,6 +52,20 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      # Updater artifacts must be signed. Emit them ONLY when the signing key is
+      # present, so unsigned builds succeed today and auto-update "lights up" the
+      # moment TAURI_SIGNING_PRIVATE_KEY is set — no other change needed.
+      - name: Updater artifacts if signing key present
+        id: sign
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "args=--target universal-apple-darwin --config src-tauri/tauri.updater.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=--target universal-apple-darwin" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build (and release on a desktop-v* tag)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -61,7 +75,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: desktop
-          args: --target universal-apple-darwin
+          args: ${{ steps.sign.outputs.args }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && 'desktop-v__VERSION__' || '' }}
           releaseName: ${{ startsWith(github.ref, 'refs/tags/') && 'Aethra Kairos __VERSION__' || '' }}
           releaseBody: "The native Mac app. Drag Aethra Kairos to Applications — it self-updates from here on. First launch on an unsigned build: right-click the app → Open."
