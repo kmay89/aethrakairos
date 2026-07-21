@@ -5198,6 +5198,31 @@ function segueShouldFire(g){
   return !!g.barWrapped || g.waited >= g.maxWait;
 }
 
+// mixNarration — put the auto-mixer's intent into words the listener can read:
+// WHAT it's about to do, to WHICH track, and WHEN. Pure, so the phrasing is
+// unit-tested. `phase`: planning (idle, peeking ahead) | armed (locked in) |
+// running (mixing now) | off. A ✓/≈/✕ after the keys says whether the harmony is
+// safe. seamSec is the countdown to the seam (or to arming, when planning).
+function mixFmtDur(s){
+  if (s == null || !isFinite(s)) return '';
+  s = Math.max(0, Math.round(s));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+function mixNarration(st){
+  st = st || {};
+  if (!st.on) return 'MIX is off — transitions play plain';
+  const label = st.planType === 'beatmix' ? ((st.beats || 16) + '-beat blend')
+    : st.planType === 'gapless' ? 'gapless · album order'
+    : st.planType === 'fade' ? ('filtered fade' + (st.seconds ? ' · ' + Math.round(st.seconds) + 's' : ''))
+    : 'a transition';
+  const key = st.keys ? ' · ' + st.keys + ' ' + (st.compat == null ? '' : st.compat <= 1 ? '✓' : st.compat <= 2 ? '≈' : '✕') : '';
+  const to = st.nextTitle ? '“' + st.nextTitle + '”' : 'the next track';
+  if (st.phase === 'running') return 'MIXING ' + to + ' · ' + label + (st.pct != null ? ' · ' + st.pct + '%' : '');
+  if (st.phase === 'armed') return 'CUED ' + to + ' · ' + label + key + (st.seamSec != null ? ' · seam in ' + mixFmtDur(st.seamSec) : '');
+  if (st.phase === 'planning') return 'PLANNING ' + to + ' · ' + label + key + (st.seamSec != null ? ' · arms in ' + mixFmtDur(st.seamSec) : '');
+  return 'watching the clock — the planner arms 45 s before the end';
+}
+
 // pickStructure — precompute-first, real-time fallback. The offline pipeline can
 // ship a track's full structure in its `mix.structure`; until it does (or for a
 // local/dropped file), the browser computes one with analyzeStructure. The mixer
@@ -7583,7 +7608,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'e358898a72';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'db78468bce';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8461,6 +8486,16 @@ const BOOTH = {
       if (s0 != null){
         ctx.save(); ctx.beginPath(); ctx.rect(laneX, yA, laneW, laneH); ctx.clip();
         this._seam(ctx, yA, laneH, laneW, s0 / dur, s1 / dur, spb / dur, accA, laneX);
+        // the countdown to the seam, printed AT the seam — timing tied to place.
+        // it pulses as it nears so the eye catches "here it comes"
+        if (armed && this._seamSec != null){
+          const sx = laneX + clamp01(s0 / dur) * laneW;
+          const soon = this._seamSec < 10;
+          const a = soon ? 0.6 + 0.4 * Math.abs(Math.sin(nowMs / 300)) : 0.7;
+          ctx.font = 'bold 9px monospace';
+          ctx.fillStyle = `rgba(${accA[0]},${accA[1]},${accA[2]},${a})`;
+          ctx.fillText('▸ ' + mixFmtDur(this._seamSec), Math.min(sx + 3, laneX + laneW - 40), yA + 10);
+        }
         ctx.restore();
       }
     }
@@ -8557,32 +8592,52 @@ const BOOTH = {
     if (glow > 0.5) orb(cx, [255, 255, 255], 5 + glow * 6);   // fused: the lock shines
     ctx.globalCompositeOperation = 'source-over';
 
-    // ---- the words
+    // ---- the words: narrate what the auto-mixer is THINKING and WHEN ----
     const hasNext = player.hasNext();
+    {
+      // gather the plan state, then let the pure narrator phrase it
+      const A = running ? tA : player.tracks[player.cur];   // the outgoing / current
+      let phase = 'idle', B = null, plan = p, pct = null, seamSec = null;
+      if (running && p){ phase = 'running'; B = tB; pct = Math.round(f * 100); }
+      else if (armed && p){
+        phase = 'armed'; B = tB;
+        if (dA && isFinite(dA.a.duration))
+          seamSec = Math.max(0, MIXER.exitTime(dA.a.duration, p, A) - dA.a.currentTime);
+      } else if (MIXER.on && hasNext){
+        // idle → PLANNING: peek ahead at the likely next merge and when it arms
+        const pair = conMixPair();
+        if (pair){
+          phase = 'planning'; B = pair.B;
+          plan = planTransition(Object.assign({}, pair.A, { mix: mixOf(pair.A) }),
+            Object.assign({}, pair.B, { mix: mixOf(pair.B) }),
+            { override: MIXFIX.pairOverride(pair.A, pair.B), albumSequential: isAlbumSequential(pair.A, pair.B) });
+          const d0 = activeDeck();
+          if (d0 && isFinite(d0.a.duration))
+            seamSec = Math.max(0, (d0.a.duration - 45) - d0.a.currentTime);   // arms 45 s from the end
+        }
+      }
+      let keys = null, compat = null;
+      if (B && A){
+        const kA = (mixOf(A) || {}).key, kB = (mixOf(B) || {}).key;
+        if (kA || kB){ keys = (kA || '?') + '→' + (kB || '?'); compat = camelotCompat(kA, kB); }
+      }
+      this._seamSec = seamSec; this._seamPhase = phase;
+      this._set('boothPlan', mixNarration({
+        on: MIXER.on, phase, nextTitle: B && B.title, pct, seamSec, keys, compat,
+        planType: plan && plan.type, beats: plan && plan.beats, seconds: plan && plan.seconds,
+      }));
+      this._set('boothLock', running && err != null ? 'lock ' + err.toFixed(1) + ' ms' : '');
+    }
     if (running && p){
       this._deckRow('A', tA, dA, 'handing over', false);
       this._deckRow('B', tB, dB, 'on air — blending', true);
-      this._set('boothPlan', (p.type === 'beatmix'
-        ? 'blending · ' + Math.round(f * 100) + '% · ' + (p.beats || 16) + ' beats'
-        : p.type + ' · ' + Math.round(f * 100) + '%'));
-      this._set('boothLock', err != null ? 'lock ' + err.toFixed(1) + ' ms' : '');
     } else if (armed && p){
-      const wait = p.type === 'beatmix' && dA ? Math.max(0, p.startA - dA.a.currentTime) : null;
       this._deckRow('A', tA, dA, 'on air', true);
       this._deckRow('B', tB, dB, dB && dB.a.readyState >= 2 ? 'loaded · cued' : 'loading…', false);
-      this._set('boothPlan', p.type === 'beatmix'
-        ? 'beatmix · ' + (p.beats || 16) + ' beats · ' + (p.keys || '')
-          + (wait != null ? ' · seam in ' + wait.toFixed(0) + ' s' : '')
-        : p.type + (p.why ? ' — ' + p.why : ''));
-      this._set('boothLock', '');
     } else {
       this._deckRow('A', tA, dA, player.playing ? 'on air' : 'paused', player.playing);
       this._deckRow('B', null, null, !player.playing ? '' :
         MIXER.on ? (hasNext ? 'empty — arms 45 s out' : 'end of the queue') : 'MIX is off', false);
-      this._set('boothPlan', MIXER.on
-        ? 'watching the clock — the planner arms 45 s before the end'
-        : 'MIX is off — transitions play plain');
-      this._set('boothLock', '');
     }
   },
 };

@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, mixNarration,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1241,6 +1241,37 @@ test('pickStructure: an invalid precomputed map is skipped for a valid client on
 test('pickStructure: nothing valid → null (features check their inputs)', () => {
   assert.equal(S.pickStructure(null, null), null);
   assert.equal(S.pickStructure({ ok: false }, { ok: false }), null);
+});
+
+// ---- the auto-mixer narrates its intent + timing ----
+test('mix narration: OFF says so plainly', () => {
+  assert.match(S.mixNarration({ on: false }), /MIX is off/);
+});
+test('mix narration: PLANNING peeks ahead — names the track, plan, and when it arms', () => {
+  const s = S.mixNarration({ on: true, phase: 'planning', nextTitle: 'Aurora', planType: 'beatmix', beats: 16,
+    keys: '8A→9A', compat: 1, seamSec: 72 });
+  assert.match(s, /PLANNING/);
+  assert.match(s, /Aurora/);
+  assert.match(s, /16-beat blend/);
+  assert.match(s, /8A→9A ✓/);           // compatible → check mark
+  assert.match(s, /arms in 1:12/);       // 72 s
+});
+test('mix narration: CUED counts down to the seam and names the filtered fade', () => {
+  const s = S.mixNarration({ on: true, phase: 'armed', nextTitle: 'Drift', planType: 'fade', seconds: 6,
+    keys: '8A→2B', compat: 3, seamSec: 24 });
+  assert.match(s, /CUED/);
+  assert.match(s, /filtered fade/);
+  assert.match(s, /8A→2B ✕/);            // a clash → the cross
+  assert.match(s, /seam in 0:24/);
+});
+test('mix narration: MIXING shows the live percentage', () => {
+  const s = S.mixNarration({ on: true, phase: 'running', nextTitle: 'Pulse', planType: 'beatmix', beats: 32, pct: 62 });
+  assert.match(s, /MIXING/);
+  assert.match(s, /62%/);
+});
+test('mix narration: an adjacent key reads ≈, and no next track is graceful', () => {
+  assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', keys: '8A→9A', compat: 2, seamSec: 5 }), /≈/);
+  assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', seamSec: 5 }), /the next track/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
