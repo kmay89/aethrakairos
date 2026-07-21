@@ -1,0 +1,13 @@
+# secrets — the updater private key must NEVER be committed
+.keys/
+
+# build output
+src-tauri/target/
+src-tauri/gen/
+node_modules/
+*.dmg
+
+# the repo root ignores package files (the web app has none); the desktop
+# app needs its manifest + lockfile tracked so CI's `npm ci` works
+!package.json
+!package-lock.json
