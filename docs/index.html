@@ -177,6 +177,26 @@ body.zen #zenInfo{opacity:1;transform:translate(-50%,0)}
 #zenProg{width:132px;height:2px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:2px}
 #zenProg i{display:block;height:100%;width:0;border-radius:2px;
   background:linear-gradient(90deg,var(--accent-2),var(--accent));box-shadow:0 0 8px var(--accent-glow)}
+/* immersive transport — the car-friendly controls under the now-playing card.
+   Interactive ONLY while immersive (so its invisible box never eats taps in the
+   normal view or in deep-still mode). */
+#zenXport{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:14px;pointer-events:none}
+body.zen #zenXport{pointer-events:auto}
+body.zen-deep #zenXport{pointer-events:none}
+#zenXport button{
+  -webkit-appearance:none;appearance:none;border:0;margin:0;padding:0;cursor:pointer;
+  width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff;
+  background:rgba(255,255,255,.07);
+  box-shadow:0 2px 16px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.10);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
+  transition:background .2s ease,transform .12s ease,box-shadow .2s ease}
+#zenXport button:hover{background:rgba(255,255,255,.14)}
+#zenXport button:active{transform:scale(.9)}
+#zenXport .zx-play{width:58px;height:58px;background:rgba(255,255,255,.14);
+  box-shadow:0 3px 22px var(--accent-glow),inset 0 0 0 1px rgba(255,255,255,.18)}
+#zenXport svg{width:21px;height:21px;pointer-events:none}
+#zenXport .zx-play svg{width:26px;height:26px}
+@media (prefers-reduced-motion:reduce){#zenXport button{transition:background .2s ease}}
 
 /* DEEP immersion — after a long, still sit the card crossfades down to a
    whisper: just the title, tiny, in the corner, so nothing stands between the
@@ -249,6 +269,35 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
 @keyframes orbHint{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
 @media (prefers-reduced-motion:reduce){#fxOrb .orb-core{animation-duration:60s}
   #fxOrb.flick .orb-core,#fxOrb.hint{animation:none}}
+
+/* ============ IMMERSIVE VISUAL DIRECTION — the scene stepper (top-centre) and
+   the touch-style toggle (top-right). They mirror the foot's transport: present
+   with the light, gone in deep-still, and a tap here never summons the menu, so
+   you steer the visuals without leaving full-screen. ============ */
+/* stacked top-centre so they never collide at any width: the scene stepper, then
+   the touch-style toggle just beneath it */
+#zenScene,#zenTouch{position:fixed;left:50%;z-index:56;opacity:0;pointer-events:none;
+  transition:opacity .6s ease .1s,transform .7s cubic-bezier(.22,1,.36,1) .1s}
+#zenScene{top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-8px);
+  display:flex;align-items:center;gap:12px;max-width:88vw}
+#zenTouch{top:calc(env(safe-area-inset-top) + 62px);transform:translate(-50%,-8px);
+  display:flex;align-items:center;gap:7px;height:36px;padding:0 14px 0 10px;border-radius:18px}
+body.zen #zenScene{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+body.zen #zenTouch{opacity:.9;pointer-events:auto;transform:translate(-50%,0)}
+body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
+#zenScene button,#zenTouch{-webkit-appearance:none;appearance:none;border:0;cursor:pointer;color:#fff;
+  background:rgba(255,255,255,.07);box-shadow:0 2px 14px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.10);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);transition:background .2s ease,transform .12s ease}
+#zenScene button{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;padding:0}
+#zenScene button:hover,#zenTouch:hover{background:rgba(255,255,255,.14)}
+#zenScene button:active,#zenTouch:active{transform:scale(.9)}
+#zenScene svg{width:18px;height:18px;pointer-events:none}
+#zSceneName{font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:rgba(255,255,255,.85);
+  font-weight:600;text-shadow:0 1px 12px rgba(0,0,0,.6);min-width:92px;max-width:60vw;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#zenTouch svg{width:19px;height:19px;pointer-events:none;opacity:.9}
+#zTouchLabel{font-size:10px;letter-spacing:.2em;font-weight:700;color:rgba(255,255,255,.9)}
+@media (prefers-reduced-motion:reduce){#zenScene,#zenTouch{transition:opacity .4s ease}}
 
 @media (prefers-reduced-motion:reduce){
   #voidFx,#voidRing{transition:opacity .3s ease}
@@ -906,12 +955,38 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
   font-size:11.5px;color:var(--ink);
 }
 .plrow:hover{background:rgba(255,255,255,.04)}
-.plrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .plrow .n{font-size:9px;color:var(--faint)}
 .plrow button{color:var(--dim);font-size:11px;padding:3px 6px;border-radius:6px;opacity:0}
-.plrow:hover button,.plrow:focus-within button{opacity:1}
+.plrow:hover button,.plrow:focus-within button,.plrow.open button{opacity:1}
 .plrow button:hover{color:var(--ink);background:rgba(255,255,255,.08)}
 .plrow.smart .nm{color:var(--dim);font-style:italic}
+/* the disclosure chevron is ALWAYS reachable (it is the "view the list" affordance) */
+.plrow .exp{opacity:.6;transition:transform .18s ease,opacity .18s ease;min-width:14px;text-align:center}
+.plrow:hover .exp,.plrow.open .exp{opacity:1}
+.plrow.open .exp{transform:rotate(90deg)}
+/* touch has no hover — never hide a playlist's own controls behind one */
+@media (hover:none){ .plrow button{opacity:1} }
+/* the expanded tracklist — the "view the playlist" panel */
+.pl-tracks{overflow:hidden;padding:0 6px 4px 20px;display:flex;flex-direction:column;gap:1px}
+.pl-tracks[hidden]{display:none}
+.pl-trk{
+  display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;
+  font-size:11px;color:var(--dim);cursor:pointer;
+}
+.pl-trk:hover{background:rgba(255,255,255,.05);color:var(--ink)}
+.pl-trk.now{color:var(--accent,#6ee7ff)}
+.pl-trk .n{font-size:9px;color:var(--faint);min-width:16px;text-align:right}
+.pl-trk .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-trk .tm{font-size:9px;color:var(--faint)}
+.pl-trk button{
+  color:var(--dim);font-size:11px;padding:2px 6px;border-radius:5px;
+  background:none;opacity:.55;
+}
+.pl-trk:hover button,.pl-trk button:focus{opacity:1}
+.pl-trk button:hover{color:var(--ink);background:rgba(255,255,255,.08)}
+.pl-tracks .pl-tr-empty{color:var(--faint);font-size:10px;padding:6px 6px 8px;letter-spacing:.04em}
+@media (hover:none){ .pl-trk button{opacity:1} }
 .pl-foot{
   padding:12px 20px calc(14px + env(safe-area-inset-bottom));
   border-top:1px solid var(--line-soft);
@@ -1354,6 +1429,20 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
     <span id="zenTitle"></span>
     <span id="zenMeta"></span>
     <span id="zenProg"><i></i></span>
+    <!-- immersive transport: play/pause/next/back without leaving the light —
+         easy reach in the car. Excluded from the tap-to-summon-menu handler. -->
+    <div id="zenXport" role="group" aria-label="Playback controls">
+      <button id="zBtnPrev" type="button" aria-label="Previous track">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2.4v14H6zM20 5.8v12.4c0 .8-.9 1.3-1.6.9l-9.5-6.2c-.6-.4-.6-1.4 0-1.8l9.5-6.2c.7-.4 1.6.1 1.6.9z"/></svg>
+      </button>
+      <button id="zBtnPlay" class="zx-play" type="button" aria-label="Play or pause">
+        <svg id="zIcoPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1l11.4-7.2c.7-.5.7-1.6 0-2L8.8 3.8C8 3.3 7 3.9 7 4.8z"/></svg>
+        <svg id="zIcoPause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+      </button>
+      <button id="zBtnNext" type="button" aria-label="Next track">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 5H18v14h-2.4zM4 5.8v12.4c0 .8.9 1.3 1.6.9l9.5-6.2c.6-.4.6-1.4 0-1.8L5.6 4.9C4.9 4.5 4 5 4 5.8z"/></svg>
+      </button>
+    </div>
   </div>
   <div id="zenTag"></div>
 </div>
@@ -1361,6 +1450,23 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
 <div id="voidRing" aria-hidden="true"></div>
 <div id="voidFx" aria-hidden="true"></div>
 <div id="fxOrb" role="button" tabindex="0" aria-label="Control orb — tap to bring the menu back, flick to shift the scene"><span class="orb-core"></span></div>
+<!-- immersive SCENE direction: step the look without opening the menu. Fades in
+     with the light; taps here never summon the menu. -->
+<div id="zenScene" role="group" aria-label="Scene">
+  <button id="zScenePrev" type="button" aria-label="Previous scene">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.4 4.6 8 12l7.4 7.4 1.6-1.6L11.2 12l5.8-5.8z"/></svg>
+  </button>
+  <span id="zSceneName" aria-live="polite">—</span>
+  <button id="zSceneNext" type="button" aria-label="Next scene">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 4.6 16 12l-7.4 7.4L7 17.8 12.8 12 7 6.2z"/></svg>
+  </button>
+</div>
+<!-- the touch-style toggle: a gesture glyph so the "your finger moves the light"
+     feature is discoverable, and a tap cycles VOID · SPIN · PULL · WAVE -->
+<button id="zenTouch" type="button" aria-label="Change touch style">
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74a4.5 4.5 0 1 0-5 0zm9.84 4.63-4.54-2.26a1.5 1.5 0 0 0-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1.1 1.1 0 0 0-1.03.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27a1.6 1.6 0 0 0-.9-1.61z"/></svg>
+  <span id="zTouchLabel">VOID</span>
+</button>
 <div id="loadSpin" aria-hidden="true"><div class="ls-art"></div><span class="ls-txt">tuning the first track…</span></div>
 
 <!-- ================= top bar ================= -->
@@ -2152,6 +2258,10 @@ const $ = id => document.getElementById(id);
 const el = {
   canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
+  zenXport: $('zenXport'), zBtnPrev: $('zBtnPrev'), zBtnPlay: $('zBtnPlay'), zBtnNext: $('zBtnNext'),
+  zIcoPlay: $('zIcoPlay'), zIcoPause: $('zIcoPause'),
+  zenScene: $('zenScene'), zScenePrev: $('zScenePrev'), zSceneName: $('zSceneName'), zSceneNext: $('zSceneNext'),
+  zenTouch: $('zenTouch'), zTouchLabel: $('zTouchLabel'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
   fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
   coach: $('coach'), coachSpot: $('coachSpot'), coachBubble: $('coachBubble'),
@@ -2390,13 +2500,14 @@ function ensureCtx(){
     d.a.addEventListener('seeked', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
     // the loading spin clears the instant true audio flows (or stalls again)
-    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall(); } });
+    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall(); player._stallSkips = 0; } });
     d.a.addEventListener('timeupdate', () => {
       if (i !== AE.active) return;
       const ct = d.a.currentTime;
       if (ct > 0.05){
         LOADER.done();
         player._clearStall();                     // real audio flowed — the backstop stands down
+        player._stallSkips = 0;                   // a clean start clears the weak-signal streak
         AE._lastGoodT = ct;                       // the spot to rebuffer from if the stream drops
         const t = player.tracks[player.cur];       // sustained progress past a blip refills the retry budget
         if (t && t._netTries && ct > (t._errPos || 0) + 2){ t._netTries = 0; }
@@ -3240,6 +3351,11 @@ const player = {
       // context is live now, so a second tap starts the sound.
       if (err && err.name === 'NotAllowedError'){
         ensureResume();
+        // On an AUTO-advance (a track ended and we cued the next), a transient
+        // block must not dead-stop the queue: the stall backstop nudges play()
+        // again shortly and, only if it truly can't start, stops CLEANLY. Just
+        // a manual or first start asks the listener for the single tap.
+        if (opts && opts.ended) return;
         player.pause();     // clear the optimistic playing state so ONE more tap resumes, not two
         toast('Tap play once more to start the sound');
       }
@@ -3487,25 +3603,52 @@ const player = {
      silent, clear the spin and skip forward — the music never dead-ends. */
   _armStall(track, deckIdx){
     this._clearStall();
-    const still = () => {
+    const started = Date.now();
+    let lastBuf = -1, lastRs = -1, stuckSince = Date.now(), nudged = false;
+    const bufEnd = a => { try { return (a.buffered && a.buffered.length) ? a.buffered.end(a.buffered.length - 1) : 0; } catch (e){ return 0; } };
+    // the deck IF we're STILL trying to START this track here and no audio has
+    // flowed — a move, a pause, or the first flowing sample cancels the guard
+    const stuck = () => {
       const d = AE.decks && AE.decks[AE.active];
-      // only act if we're STILL trying to play THIS track on THIS deck and no
-      // audio has flowed — a move, a pause, or real progress cancels the guard
-      return this.playing && AE.active === deckIdx && this.tracks[this.cur] === track
-        && d && !d.a.ended && !(d.a.currentTime > 0.05);
+      return (this.playing && AE.active === deckIdx && this.tracks[this.cur] === track
+        && d && !d.a.ended && !(d.a.currentTime > 0.05)) ? d : null;
     };
-    this._stallT = setTimeout(() => {
-      if (!still()) return;
-      const d = AE.decks[AE.active];
-      ensureResume();
-      try { d.a.play().catch(() => {}); } catch (e){}   // one gentle nudge
-    }, this._nudgeMs || 8000);
-    this._stallT2 = setTimeout(() => {
-      if (!still()) return;
-      LOADER.done();
-      toast('That track wouldn\'t start — skipping ahead');
-      this.next(true);                                   // never leave the queue frozen
-    }, this._skipMs || 14000);
+    const nudgeMs = this._nudgeMs || 8000;     // still silent this long → one gentle re-nudge
+    const deadMs  = this._skipMs  || 14000;    // NO buffering progress this long → give up
+    const ceilMs  = this._ceilMs  || 45000;    // absolute ceiling, even if it keeps inching
+    const tick = () => {
+      const d = stuck();
+      if (!d) return;                          // audio flowed or we moved on — done
+      const now = Date.now();
+      const buf = bufEnd(d.a), rs = d.a.readyState;
+      // the buffer grew or readiness climbed → the track IS loading, just slow
+      // (a weak signal, one cellular bar). That is not a failure: keep waiting,
+      // never skip a track mid-download. Only a load that has genuinely STOPPED
+      // advancing counts against the give-up clock.
+      if (buf > lastBuf + 0.05 || rs > lastRs){ lastBuf = buf; lastRs = rs; stuckSince = now; }
+      if (!nudged && now - started >= nudgeMs){
+        nudged = true; ensureResume();
+        try { d.a.play().catch(() => {}); } catch (e){}
+      }
+      if (now - stuckSince >= deadMs || now - started >= ceilMs){
+        LOADER.done();
+        // a stall that keeps failing across tracks is a dead pipe, not one bad
+        // file — after a few in a row, STOP cleanly (one tap resumes) instead of
+        // churning silently through the whole queue to "End of playlist".
+        this._stallSkips = (this._stallSkips || 0) + 1;
+        if (this._stallSkips >= 3){
+          this._stallSkips = 0;
+          this.pause();
+          toast('Playback paused — weak connection. Tap play to try again.');
+          return;
+        }
+        toast('That track wouldn\'t start — skipping ahead');
+        this.next(true);                                 // never leave the queue frozen
+        return;
+      }
+      this._stallT = setTimeout(tick, 1000);
+    };
+    this._stallT = setTimeout(tick, Math.min(nudgeMs, 1500));   // first look soon, then every 1 s
   },
   _clearStall(){ clearTimeout(this._stallT); clearTimeout(this._stallT2); },
 
@@ -3540,6 +3683,30 @@ const player = {
     this.history = [];                       // old indices are meaningless now
     this.renderList();
     toast('Up next: <b>' + escapeHTML(track.title) + '</b>');
+    PERSIST.poke();
+  },
+  /* Queue-next for a whole list: drop these tracks, in order, into the seats
+     right after the current one — the same "up next" contract playNext honors,
+     extended from one track to a playlist. Tracks already in the queue MOVE
+     rather than clone; nothing starts until you ask, unless the queue was idle
+     (then the first one starts). This is the one standard "queue" for every
+     playlist, smart list and album. */
+  queueNextTracks(tracks, label){
+    tracks = (tracks || []).filter(Boolean);
+    if (!tracks.length) return;
+    const cur = this.cur >= 0 ? this.tracks[this.cur] : null;
+    const incoming = tracks.filter(t => t !== cur);
+    if (!incoming.length){ toast('Already up next'); return; }
+    // pull any incoming already in the queue so we relocate them, not duplicate
+    this.tracks = this.tracks.filter(t => t === cur || !incoming.includes(t));
+    const at = cur ? this.tracks.indexOf(cur) + 1 : 0;
+    this.tracks.splice(at, 0, ...incoming);
+    if (cur) this.cur = this.tracks.indexOf(cur);
+    this.history = [];                       // indices shifted — old history is void
+    if (this.cur < 0 && this.tracks.length){ this.renderList(); this.playIndex(0); }
+    else this.renderList();
+    toast('Queued next: <b>' + escapeHTML(label || 'tracks') + '</b> — ' + incoming.length
+      + (incoming.length === 1 ? ' track' : ' tracks'));
     PERSIST.poke();
   },
   remove(i){
@@ -3818,6 +3985,11 @@ function updatePlayIcon(){
   el.icoPlay.style.display = player.playing ? 'none' : 'block';
   el.icoPause.style.display = player.playing ? 'block' : 'none';
   el.btnPlay.setAttribute('aria-label', player.playing ? 'Pause' : 'Play');
+  if (el.zIcoPlay){                          // the immersive transport mirrors the glyph
+    el.zIcoPlay.style.display = player.playing ? 'none' : 'block';
+    el.zIcoPause.style.display = player.playing ? 'block' : 'none';
+    el.zBtnPlay.setAttribute('aria-label', player.playing ? 'Pause' : 'Play');
+  }
   const t = player.tracks[player.cur];
   document.title = player.playing && t ? '▶ ' + t.title + ' — Aethra Kairos' : 'Aethra Kairos — Official Player';
   syncHearts(); syncAirplayButton();
@@ -4105,8 +4277,15 @@ function libraryHeardStats(heardKeys){
   return { total, heard: done, fresh: total - done };
 }
 function updateFreshCount(heardKeys){
-  if (!el.freshBadge) return;
   const s = libraryHeardStats(heardKeys);
+  // completion milestones ride the same number the badge shows — earned live as
+  // the Unheard list runs down, and ONLY against the real catalog (never the
+  // boot-time demo fallback, which would false-award "heard everything").
+  if (typeof ACHIEVE !== 'undefined' && typeof catalog !== 'undefined'
+      && catalog.tracksById && catalog.tracksById.size){
+    for (const id of completionMilestones(s.heard, s.total)) ACHIEVE.earn(id);
+  }
+  if (!el.freshBadge) return;
   if (s.total && s.fresh > 0){
     el.freshBadge.hidden = false;
     el.freshBadge.textContent = s.fresh + ' new';
@@ -4144,6 +4323,9 @@ const ACHIEVE = {
     { id: 'first_favorite', icon: '♥', name: 'First Favorite', hint: 'You hearted a track.' },
     { id: 'first_mix',      icon: '∞', name: 'First Auto-Mix',  hint: 'The decks blended for you.' },
     { id: 'explorer',       icon: '✧', name: 'Explorer',        hint: 'You changed the scene.' },
+    // discovery: earned automatically as the Unheard list runs down to zero
+    { id: 'half_heard',     icon: '◐', name: 'Halfway Home',    hint: 'Heard half the library.' },
+    { id: 'heard_all',      icon: '◉', name: 'The Whole Shelf', hint: 'Heard every track in the library.' },
   ],
   earned: new Set(),
   boot(){
@@ -4387,10 +4569,14 @@ const PLAYLISTS = {
     const i = pl.keys.indexOf(key);
     if (i >= 0){ pl.keys.splice(i, 1); this._save(pl); }
   },
-  /* resolve stored keys against whatever the player can currently see */
+  /* resolve stored keys against the whole LIBRARY, not just the queue — a
+     playlist is a promise about the catalog, so it must hold whatever is loaded
+     into the queue right now (the design contract: the library is the source of
+     truth, the queue is one ordering over a subset of it). Resolving against the
+     queue alone made saved lists vanish the moment their tracks weren't cued. */
   resolve(pl){
     const byKey = new Map();
-    for (const t of player.tracks){ const k = trackKey(t); if (k && !byKey.has(k)) byKey.set(k, t); }
+    for (const t of allTracks()){ const k = trackKey(t); if (k && !byKey.has(k)) byKey.set(k, t); }
     return pl.keys.map(k => byKey.get(k)).filter(Boolean);
   },
   play(name, playNow){
@@ -4398,27 +4584,25 @@ const PLAYLISTS = {
     if (!pl) return;
     const tracks = this.resolve(pl);
     if (!tracks.length){ toast('<b>' + escapeHTML(name) + '</b> has no tracks the player can see'); return; }
-    let first = -1;
-    for (const t of tracks){
-      let i = player.tracks.indexOf(t);
-      if (i === -1){ player.tracks.push(t); i = player.tracks.length - 1; }
-      if (first === -1) first = i;
-    }
+    // a playlist IS an ordering, whether you Play it or Queue it — shuffle steps
+    // aside either way, so the list plays in the order you built it
+    this._disengageShuffle();
     if (playNow){
-      // the playlist IS an ordering — rebuild the queue in its order
+      for (const t of tracks){ if (player.tracks.indexOf(t) === -1) player.tracks.push(t); }
       const rest = player.tracks.filter(t => !tracks.includes(t));
-      const curT = player.tracks[player.cur] || null;
       player.tracks = tracks.concat(rest);
-      player.cur = curT ? Math.max(0, player.tracks.indexOf(curT)) : 0;
-      this._disengageShuffle();
+      player.cur = 0;
       player.renderList();
       player.playIndex(0);
+      PERSIST.poke();
     } else {
-      player.renderList();
-      toast('Queued <b>' + escapeHTML(name) + '</b>');
+      // ONE standard "queue" everywhere: drop the list in right after the
+      // current track (queue-next), not appended to the far end
+      player.queueNextTracks(tracks, name);
     }
-    PERSIST.poke();
   },
+  /* queue a playlist to play right after the current track */
+  queueNext(name){ this.play(name, false); },
   exportFile(name){
     const pl = this.get(name);
     if (!pl) return;
@@ -4451,12 +4635,15 @@ const PLAYLISTS = {
       toast('Imported <b>' + escapeHTML(pl.name) + '</b> — ' + pl.keys.length + ' tracks');
     }).catch(e => toast('Import failed: ' + escapeHTML(e.message)));
   },
-  /* smart lists: questions, not storage */
+  /* smart lists: questions, not storage. Asked of the whole LIBRARY (not the
+     queue), so "Unheard" is every track in the catalog you have never finished —
+     the exact figure the discovery badge counts down — and playing it loads the
+     real discovery set, not just whatever happened to be cued. */
   smart(){
     const counts = HIST.playCounts();
     const keyed = t => trackKey(t);
     const seen = new Set(), uniq = [];
-    for (const t of player.tracks){
+    for (const t of allTracks()){
       const k = keyed(t);
       if (!k || t.demo || seen.has(k)) continue;
       seen.add(k); uniq.push(t);
@@ -4487,6 +4674,13 @@ const PLAYLISTS = {
     player.playIndex(i);
     toast('Playing <b>' + escapeHTML(label) + '</b> — ' + tracks.length + ' tracks');
     PERSIST.poke();
+  },
+  /* queue a smart list / resolved set to play next — same ordering contract as
+     playTracks, but it slots in after the current track instead of interrupting */
+  queueTracks(tracks, label){
+    if (!tracks || !tracks.length) return;
+    this._disengageShuffle();
+    player.queueNextTracks(tracks, label);
   },
   /* a playlist IS an ordering — shuffle steps aside with a note, the same
      contract the journey console honors */
@@ -4904,6 +5098,19 @@ function firstUnheardIndex(order, heardKeys, keyOf){
     if (k && !heardKeys.has(k)) return i;
   }
   return 0;
+}
+
+/* completionMilestones — which library-completion badges a heard-count has
+   crossed. Pure so the thresholds are exact and testable: 'half' rounds UP (you
+   have heard at least half the shelf) and 'all' needs a real, non-empty library
+   with nothing left unheard. This is what ties the Unheard list to the badges —
+   as the discovery count runs to zero, these earn automatically. Ascending. */
+function completionMilestones(heard, total){
+  const out = [];
+  if (!(total > 0)) return out;                        // no library yet → nothing to complete
+  if (heard >= Math.ceil(total / 2)) out.push('half_heard');
+  if (heard >= total) out.push('heard_all');
+  return out;
 }
 
 /* surpriseSet — the "Surprise Me" crate's dials, turned by a plain-language
@@ -6325,6 +6532,59 @@ function renderPlaylistShelf(list){
   title.appendChild(spring); title.appendChild(bNew); title.appendChild(bImp);
   shelf.appendChild(title);
 
+  // a collapsible tracklist under a row — the "view the playlist" panel. Rows
+  // render on each open, so now-playing and membership stay live. Clicking a
+  // track plays the whole list from that seat.
+  const attachPanel = (row, getTracks, opts) => {
+    opts = opts || {};
+    const panel = document.createElement('div');
+    panel.className = 'pl-tracks'; panel.hidden = true;
+    const draw = () => {
+      panel.textContent = '';
+      const tracks = getTracks();
+      if (!tracks.length){
+        const e = document.createElement('div'); e.className = 'pl-tr-empty';
+        e.textContent = 'No tracks the player can see yet.';
+        panel.appendChild(e); return;
+      }
+      tracks.forEach((t, k) => {
+        const tr = document.createElement('div');
+        tr.className = 'pl-trk' + (player.tracks[player.cur] === t ? ' now' : '');
+        tr.setAttribute('role', 'listitem');
+        const num = document.createElement('span'); num.className = 'n'; num.textContent = String(k + 1).padStart(2, '0');
+        const tnm = document.createElement('span'); tnm.className = 'nm'; tnm.textContent = t.title;
+        const tm = document.createElement('span'); tm.className = 'tm'; tm.textContent = t.duration ? fmtTime(t.duration) : '·';
+        tr.appendChild(num); tr.appendChild(tnm); tr.appendChild(tm);
+        if (opts.playlistName){
+          const rm = document.createElement('button'); rm.textContent = '✕';
+          rm.title = 'Remove from ' + opts.playlistName;
+          rm.setAttribute('aria-label', 'Remove ' + t.title + ' from ' + opts.playlistName);
+          rm.addEventListener('click', ev => {
+            ev.stopPropagation();
+            PLAYLISTS.removeTrack(opts.playlistName, trackKey(t));
+            renderLibrary();
+          });
+          tr.appendChild(rm);
+        }
+        tr.addEventListener('click', () => opts.playAt(tracks, k));
+        panel.appendChild(tr);
+      });
+    };
+    const toggle = () => {
+      const opening = panel.hidden;
+      if (opening) draw();
+      panel.hidden = !opening;
+      row.classList.toggle('open', opening);
+      exp.setAttribute('aria-expanded', String(opening));
+    };
+    const exp = document.createElement('button');
+    exp.className = 'exp'; exp.textContent = '▸';
+    exp.title = 'View the tracks'; exp.setAttribute('aria-label', 'View the tracks');
+    exp.setAttribute('aria-expanded', 'false');
+    exp.addEventListener('click', toggle);
+    return { panel, toggle, exp };
+  };
+
   for (const pl of PLAYLISTS.lists){
     const row = document.createElement('div'); row.className = 'plrow';
     const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = pl.name;
@@ -6332,9 +6592,9 @@ function renderPlaylistShelf(list){
     const bP = document.createElement('button'); bP.textContent = '▶'; bP.title = 'Play ' + pl.name;
     bP.setAttribute('aria-label', 'Play playlist ' + pl.name);
     bP.addEventListener('click', () => PLAYLISTS.play(pl.name, true));
-    const bQ = document.createElement('button'); bQ.textContent = '⊕'; bQ.title = 'Queue';
-    bQ.setAttribute('aria-label', 'Queue playlist ' + pl.name);
-    bQ.addEventListener('click', () => PLAYLISTS.play(pl.name, false));
+    const bQ = document.createElement('button'); bQ.textContent = '⊕'; bQ.title = 'Queue next';
+    bQ.setAttribute('aria-label', 'Queue playlist ' + pl.name + ' to play next');
+    bQ.addEventListener('click', () => PLAYLISTS.queueNext(pl.name));
     const bX = document.createElement('button'); bX.textContent = '⤓'; bX.title = 'Export as a file to share';
     bX.setAttribute('aria-label', 'Export playlist ' + pl.name);
     bX.addEventListener('click', () => PLAYLISTS.exportFile(pl.name));
@@ -6345,9 +6605,14 @@ function renderPlaylistShelf(list){
         PLAYLISTS.remove(pl.name); renderLibrary();
       }
     });
-    row.appendChild(nm); row.appendChild(n);
+    const { panel, toggle, exp } = attachPanel(row, () => PLAYLISTS.resolve(pl), {
+      playlistName: pl.name,
+      playAt: (tracks, k) => PLAYLISTS.playTracks(tracks, pl.name, k),
+    });
+    nm.addEventListener('click', toggle);
+    row.appendChild(exp); row.appendChild(nm); row.appendChild(n);
     row.appendChild(bP); row.appendChild(bQ); row.appendChild(bX); row.appendChild(bD);
-    shelf.appendChild(row);
+    shelf.appendChild(row); shelf.appendChild(panel);
   }
   for (const s of PLAYLISTS.smart()){
     const row = document.createElement('div'); row.className = 'plrow smart';
@@ -6356,8 +6621,16 @@ function renderPlaylistShelf(list){
     const bP = document.createElement('button'); bP.textContent = '▶'; bP.title = 'Play ' + s.name;
     bP.setAttribute('aria-label', 'Play smart list ' + s.name);
     bP.addEventListener('click', () => PLAYLISTS.playTracks(s.tracks, s.name));
-    row.appendChild(nm); row.appendChild(n); row.appendChild(bP);
-    shelf.appendChild(row);
+    const bQ = document.createElement('button'); bQ.textContent = '⊕'; bQ.title = 'Queue next';
+    bQ.setAttribute('aria-label', 'Queue smart list ' + s.name + ' to play next');
+    bQ.addEventListener('click', () => PLAYLISTS.queueTracks(s.tracks, s.name));
+    const { panel, toggle, exp } = attachPanel(row, () => s.tracks, {
+      playAt: (tracks, k) => PLAYLISTS.playTracks(tracks, s.name, k),
+    });
+    nm.addEventListener('click', toggle);
+    row.appendChild(exp); row.appendChild(nm); row.appendChild(n);
+    row.appendChild(bP); row.appendChild(bQ);
+    shelf.appendChild(row); shelf.appendChild(panel);
   }
   list.appendChild(shelf);
 }
@@ -8026,8 +8299,16 @@ const WAVE = {
     // track (the pro-deck look — scrub the song, the played part lit in its
     // key); the live frequency SCOPE otherwise (mic, or before peaks land).
     const tr = player.tracks[player.cur], d = activeDeck();
+    // MEMORY on iOS/CarPlay: the visual drive reads the catalog's precomputed
+    // envelope (tr.env), so the ONLY thing the full-file decode feeds is this
+    // seek waveform — which is scaled to a speck (opacity 0) in immersive mode.
+    // Decoding a whole song per track for an invisible waveform is exactly the
+    // allocation churn that makes a long CarPlay session hit the WKWebView memory
+    // ceiling and reload. While immersive with a catalog envelope in hand, defer
+    // it — _peekUrl stays unset, so it decodes the instant the deck is on screen.
+    const zenSkip = IS_IOS && tr && tr.env && document.body.classList.contains('zen');
     if (tr && tr.url && !AE.mic.on && tr.url !== this._peekUrl
-        && !tr._peaks && !tr._peaksPending && !tr._peaksErr){
+        && !tr._peaks && !tr._peaksPending && !tr._peaksErr && !zenSkip){
       this._peekUrl = tr.url; computePeaks(tr);
     }
     if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr), trackStructure(tr));
@@ -9275,6 +9556,12 @@ document.querySelectorAll('.chrome').forEach(c => {
 });
 function bloomZenWave(on){ if (el.zenWave) el.zenWave.classList.toggle('bloom', !!on); }
 function leaveDeep(){ document.body.classList.remove('zen-deep'); clearTimeout(zenDeepT); }
+/* (re)arm the "deepen to a whisper" timer — pushed back on every interaction so
+   the now-playing card + transport stay up while you're using them */
+function rearmZenDeep(){
+  clearTimeout(zenDeepT);
+  zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
+}
 function enterZen(){
   if (typeof TUTOR !== 'undefined' && TUTOR.active) return;   // the tour keeps the menu up
   document.body.classList.add('zen');
@@ -9282,8 +9569,7 @@ function enterZen(){
   clearTimeout(zenWaveT);
   zenWaveT = setTimeout(() => bloomZenWave(false), 2400);   // linger, then dissolve to pure visualizer
   // after a long still sit, deepen: the info card crossfades to a corner whisper
-  clearTimeout(zenDeepT);
-  zenDeepT = setTimeout(() => { if (document.body.classList.contains('zen')) document.body.classList.add('zen-deep'); }, 20000);
+  rearmZenDeep();
   // teach the affordance — the orb wakes and blooms a hint, and just once ever,
   // a word. It then fades on its own (show-as-needed) once you settle in.
   orbWake(true);
@@ -9337,15 +9623,46 @@ function orbWake(hint){
 ['pointermove', 'pointerdown', 'touchstart'].forEach(evName =>
   window.addEventListener(evName, ev => {
     const zen = document.body.classList.contains('zen');
-    // In play mode, touching the light must NOT summon the menu — but it SHOULD
-    // wake the orb so the control is there the instant you reach for it. The orb
-    // owns the return (tap) and the scene-shift (flick); its own handler decides.
-    if (zen && (ev.target === el.canvas || (el.fxOrb && el.fxOrb.contains(ev.target)))){
-      if (ev.target === el.canvas) orbWake(false);
+    // the immersive controls (transport, scene stepper, touch toggle) live ON the
+    // light: a tap wakes them and lifts them out of deep-still, but must NEVER
+    // summon the full menu — that's the whole point of steering without leaving.
+    const onImmersive = (el.zenXport && el.zenXport.contains(ev.target))
+      || (el.zenScene && el.zenScene.contains(ev.target))
+      || (el.zenTouch && el.zenTouch.contains(ev.target));
+    // In play mode, touching the light also must NOT summon the menu — it wakes
+    // the orb so the control is there the instant you reach for it. The orb owns
+    // the return (tap) and the scene-shift (flick); the controls own their acts.
+    if (zen && (ev.target === el.canvas || onImmersive || (el.fxOrb && el.fxOrb.contains(ev.target)))){
+      if (ev.target === el.canvas || onImmersive){ orbWake(false); leaveDeep(); rearmZenDeep(); }
       return;
     }
     pokeChrome();
   }, { passive: true }));
+
+/* the immersive transport — play/pause/next/back without leaving the light.
+   Each button acts and keeps the card awake; touches here never summon the menu
+   (handled above), so the visualizer stays full-screen while you steer. */
+if (el.zenXport){
+  const keepAwake = () => { orbWake(false); leaveDeep(); rearmZenDeep(); };
+  el.zBtnPlay && el.zBtnPlay.addEventListener('click', () => { keepAwake(); player.toggle(); });
+  el.zBtnNext && el.zBtnNext.addEventListener('click', () => { keepAwake(); player.next(false, false); });
+  el.zBtnPrev && el.zBtnPrev.addEventListener('click', () => { keepAwake(); player.prev(); });
+}
+/* immersive SCENE stepper + touch-style toggle — direct the visuals without
+   opening the menu. Stepping a scene by hand pins it (manual): the choice is
+   yours until you flick the orb or tap AUTO. The touch button cycles the force
+   your finger applies (VOID · SPIN · PULL · WAVE) so the gesture is discoverable. */
+{
+  const keepAwake = () => { orbWake(false); leaveDeep(); rearmZenDeep(); };
+  const stepScene = dir => {
+    if (typeof scenes === 'undefined' || !scenes.length) return;
+    const n = scenes.length, i = ((director.active + dir) % n + n) % n;
+    director.setScene(i, true);
+  };
+  el.zSceneNext && el.zSceneNext.addEventListener('click', () => { keepAwake(); stepScene(1); });
+  el.zScenePrev && el.zScenePrev.addEventListener('click', () => { keepAwake(); stepScene(-1); });
+  el.zenTouch && el.zenTouch.addEventListener('click', () => { keepAwake(); TOUCHFX.cycle(); });
+}
 /* THE ORB's two gestures: a clean TAP unfurls the menu; a FLICK (or a hold)
    shifts the SCENE yourself — you take the wheel from the director, the orb
    spins up in answer. It lives off the canvas, so it never raises iOS's copy
@@ -11900,6 +12217,9 @@ const TOUCHFX = {
     chip.textContent = fx.chip;
     chip.title = fx.label + ' — ' + fx.hint + '  ·  tap to change the touch';
     chip.setAttribute('aria-label', 'Touch effect: ' + fx.label + '. ' + fx.hint);
+    // the immersive touch-style toggle wears the same badge + a live hint
+    if (el.zTouchLabel) el.zTouchLabel.textContent = fx.chip;
+    if (el.zenTouch) el.zenTouch.setAttribute('aria-label', 'Touch style: ' + fx.label + ' — ' + fx.hint + '. Tap to change.');
   },
   load(){ try { const k = localStorage.getItem('mb8_touchfx'); if (k && this.bank[k]) this.active = k; } catch (e){} this.paint(); },
   render(){
@@ -12397,6 +12717,7 @@ const director = {
       if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer'); }   // you chose a scene
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
+    if (el.zSceneName) el.zSceneName.textContent = scenes[i].name;   // the immersive scene stepper
   },
   rotatePalette(to){
     this.palFrom = this.pal; this.palTo = to; this.palT = 0;

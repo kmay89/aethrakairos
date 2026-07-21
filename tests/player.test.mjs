@@ -21,7 +21,7 @@ function block(name){
 const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
-  ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
+  ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
@@ -363,6 +363,18 @@ test('firstUnheardIndex: a returning listener drops in at the first fresh track'
   assert.equal(S.firstUnheardIndex(order, new Set(['m']), key), 1, 'heard the hero → drop in at the next');
   assert.equal(S.firstUnheardIndex(order, new Set(['m', 'a']), key), 2, 'walks forward past everything heard');
   assert.equal(S.firstUnheardIndex(order, new Set(['m', 'a', 'b', 'c']), key), 0, 'a full lap done → back to the top');
+});
+
+test('completionMilestones: library-completion badges cross at half and all', () => {
+  assert.deepEqual(S.completionMilestones(0, 0), [], 'no library → nothing to complete');
+  assert.deepEqual(S.completionMilestones(9, 0), [], 'no total → nothing, even with heard counts');
+  assert.deepEqual(S.completionMilestones(0, 10), [], 'heard none → no badge');
+  assert.deepEqual(S.completionMilestones(4, 10), [], 'under half → still nothing');
+  assert.deepEqual(S.completionMilestones(5, 10), ['half_heard'], 'exactly half → Halfway Home');
+  assert.deepEqual(S.completionMilestones(9, 10), ['half_heard'], 'most → half only, not all');
+  assert.deepEqual(S.completionMilestones(10, 10), ['half_heard', 'heard_all'], 'every track → both badges');
+  assert.deepEqual(S.completionMilestones(3, 5), ['half_heard'], 'half rounds UP: 3 of 5 counts');
+  assert.deepEqual(S.completionMilestones(2, 5), [], 'below the rounded-up half → nothing');
 });
 
 test('surpriseSet: the vibe turns the solver dials the way the words promise', () => {
