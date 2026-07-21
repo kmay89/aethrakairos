@@ -96,28 +96,22 @@ an honest "what it is / does / never does"). The web player's footer links to it
 
 ## Turn on auto-update (one time)
 
-The updater verifies every update against a public key baked into the app. The
-`pubkey` currently in `tauri.conf.json` is a **placeholder** whose private key
-does not exist anywhere — generate a real keypair to own the signing.
+The updater verifies every update against the public key baked into the app. The
+`pubkey` in `tauri.conf.json` is the project's **real** updater public key — its
+matching private key was generated locally and never leaves the owner's machine.
 
-`npx` needs Node. If `npx` isn't found, install it first — `brew install node`
-(the private key then stays on your machine, never in a chat or the repo):
+To finish turning auto-update on, add that **private** key as a repo secret:
 
-```bash
-npx @tauri-apps/cli@latest signer generate -w aethra-updater.key   # keep the private key SECRET
-```
+> GitHub → repo → **Settings → Secrets and variables → Actions → New repository
+> secret** → name `TAURI_SIGNING_PRIVATE_KEY`, value = the whole private-key file.
 
-1. Copy the printed **public key** into `tauri.conf.json` → `plugins.updater.pubkey`.
-2. Add the **private key** as the repo secret `TAURI_SIGNING_PRIVATE_KEY`
-   (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if you set one).
+The key was generated with no password, so no `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+is needed. Until that secret is set, releases still build a working `.dmg` —
+installs work, auto-update simply stays dormant.
 
-> **TODO — updater signing not yet live.** Until a real keypair is generated and
-> `TAURI_SIGNING_PRIVATE_KEY` is set, releases build a working `.dmg` but carry no
-> update feed (installs work; auto-update is dormant). If a *temporary* key was
-> handed over out-of-band to get going, **rotate it** here once proper local
-> tooling is available, and update the `pubkey` + secret together.
-
-The private key is git-ignored (`.keys/`) and must never be committed.
+To regenerate/rotate later: `npx @tauri-apps/cli@latest signer generate -w aethra-updater.key`
+(needs Node — `brew install node` if `npx` is missing), then update the `pubkey`
+here and the secret together. The private key must never be committed.
 
 ## Later: Apple code-signing + notarization (zero-warning install)
 
