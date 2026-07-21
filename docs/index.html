@@ -7912,7 +7912,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'dcd5a99340';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '33efb5c182';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -8476,6 +8476,12 @@ const BOOTH = {
       if (st.apex != null){
         ctx.fillStyle = 'rgba(255,214,120,0.45)';
         ctx.fillRect(o + clamp01(st.apex) * w - 0.5, y, 1, h);
+      }
+      // the DROPS — the same build→loud boundaries the deck marks, so the booth
+      // and the deck read the exact same story
+      for (const dp of dropPoints(st)){
+        ctx.fillStyle = `rgba(255,255,255,${(0.3 + dp.strength * 0.45).toFixed(3)})`;
+        ctx.fillRect(o + clamp01(dp.at) * w - 0.5, y, 1, h);
       }
     }
   },
