@@ -5302,6 +5302,40 @@ function pickStructure(pre, client){
   if (client && client.ok) return client;
   return null;
 }
+// the source palette for stem-coloured waveforms: drums run warm-red (the
+// transient hit), bass amber (the body), vocals cyan (the voice sits up and
+// bright), everything else violet. Chosen to stay legible when blended.
+const STEM_PAL = { d: [255, 96, 72], b: [255, 158, 64], v: [120, 222, 255], o: [176, 132, 255] };
+// stemsAt — sample the four per-stem digit envelopes at a fraction 0..1 of the
+// track, each returned 0..1. The strings span the whole track, so the index is
+// just frac × length (linearly interpolated). Returns null when there are no
+// stems, so a caller falls straight back to the spectral band split.
+function stemsAt(stems, frac){
+  if (!stems) return null;
+  const f = clamp01(frac);
+  const pick = str => {
+    if (!str || !str.length) return 0;
+    const x = f * (str.length - 1), i = Math.floor(x), fr = x - i;
+    const at = j => {
+      const c = str.charCodeAt(Math.min(j, str.length - 1)) - 48;
+      return c >= 0 && c <= 9 ? c / 9 : 0;
+    };
+    return at(i) + (at(i + 1) - at(i)) * fr;
+  };
+  return { d: pick(stems.d), b: pick(stems.b), v: pick(stems.v), o: pick(stems.o) };
+}
+// stemRGB — blend the source palette by the stem weights, so a drum-driven
+// moment reads red, a vocal passage cyan, a bass drop amber. Energy-weighted
+// so the loudest source dominates the colour. Returns null on no weights.
+function stemRGB(w){
+  if (!w) return null;
+  const tot = w.d + w.b + w.v + w.o + 1e-6, P = STEM_PAL;
+  return [
+    (P.d[0]*w.d + P.b[0]*w.b + P.v[0]*w.v + P.o[0]*w.o) / tot,
+    (P.d[1]*w.d + P.b[1]*w.b + P.v[1]*w.v + P.o[1]*w.o) / tot,
+    (P.d[2]*w.d + P.b[2]*w.b + P.v[2]*w.v + P.o[2]*w.o) / tot,
+  ];
+}
 // @solver-end
 
 /* ================================================================
@@ -7175,6 +7209,18 @@ function trackStructure(t){
   return pickStructure(m && m.structure, t && t._structure);
 }
 
+/* the per-STEM envelopes (drums/bass/vocals/other) if the offline pipeline has
+   separated this track — precompute-only: there is no cheap client fallback for
+   true source separation, so a caller that gets null falls back to the spectral
+   band split. Read here so the booth and mixer never touch the catalog shape. */
+function trackStems(t){
+  const m = t && mixOf(t);
+  const s = m && m.stems;
+  // any versioned block with at least one envelope is usable: the digit-string
+  // format is the stable contract, so a newer sv is read, not discarded
+  return (s && s.sv >= 1 && (s.d || s.b || s.v || s.o)) ? s : null;
+}
+
 const MIXER = {
   on: true,                      // auto-mix is the default: beatmix when the grids
                                  // agree, an honest crossfade when they don't — the
@@ -7709,7 +7755,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'efab15aa64';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'df7b22ed09';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7803,17 +7849,18 @@ const WAVE = {
         && !tr._peaks && !tr._peaksPending && !tr._peaksErr){
       this._peekUrl = tr.url; computePeaks(tr);
     }
-    if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d);
+    if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr));
     else this._scope(ctx, w, h);
   },
-  _overview(ctx, w, h, pk, bands, d){
+  _overview(ctx, w, h, pk, bands, d, stems){
     const n = pk.length, mid = h * 0.5;
     const frac = (d && isFinite(d.a.duration) && d.a.duration > 0)
       ? clamp01(d.a.currentTime / d.a.duration) : 0;
-    // the true DJ-deck read: every bar coloured by its FREQUENCY content —
-    // warm lows, the track's key on the mids, bright blue on the highs — so
-    // you see the song's shape (kick vs hats vs air), lit ahead of the
-    // playhead, dimmed behind. Serato's signature, keyed to the room.
+    // the true DJ-deck read: every bar coloured by its content, lit ahead of
+    // the playhead and dimmed behind. When the offline pipeline has separated
+    // this track we colour by SOURCE — drums red, bass amber, vocals cyan,
+    // other violet, so you see the actual arrangement; otherwise we fall back
+    // to the spectral band split (warm lows · key on the mids · bright highs).
     const warm = [255, 120, 58], acc = this.accent, bright = [140, 214, 255];
     const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
     const cw = w / cols, bw = Math.max(1, cw * 0.72);
@@ -7824,11 +7871,15 @@ const WAVE = {
         if (pk[i] > mx) mx = pk[i];
         sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
       }
-      const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
       const played = (c + 0.5) / cols <= frac, dim = played ? 1 : 0.4;
-      const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
-      const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
-      const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
+      let rgb = stems && stemRGB(stemsAt(stems, (c + 0.5) / cols));
+      if (!rgb){
+        const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
+        rgb = [warm[0]*rL + acc[0]*rM + bright[0]*rH,
+               warm[1]*rL + acc[1]*rM + bright[1]*rH,
+               warm[2]*rL + acc[2]*rM + bright[2]*rH];
+      }
+      const r = rgb[0]*dim, g = rgb[1]*dim, b = rgb[2]*dim;
       const bh = Math.max(0.7, Math.pow(mx, 0.9) * (h * 0.5));
       ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.96 : 0.6})`;
       ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
@@ -7860,10 +7911,10 @@ const WAVE = {
     ctx.clearRect(0, 0, w, h);
     const tr = player.tracks[player.cur], d = activeDeck();
     if (tr && tr._peaks && tr._bands && d && isFinite(d.a.duration) && d.a.duration > 0 && !AE.mic.on)
-      this._zoomWave(ctx, w, h, tr._peaks, tr._bands, d);
+      this._zoomWave(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr));
     else this._scope(ctx, w, h);        // no peaks yet (or mic) → the live scope already scrolls
   },
-  _zoomWave(ctx, w, h, pk, bands, d){
+  _zoomWave(ctx, w, h, pk, bands, d, stems){
     const n = pk.length, mid = h * 0.5, dur = d.a.duration, t = d.a.currentTime;
     const WIN = 18, headX = w * 0.42, pxPerSec = w / WIN;   // ~18 s visible, playhead left-of-centre
     const warm = [255, 120, 58], acc = this.accent, bright = [150, 216, 255];
@@ -7872,12 +7923,16 @@ const WAVE = {
       const time = t + (x - headX) / pxPerSec;
       if (time < 0 || time > dur) continue;
       const idx = Math.min(n - 1, Math.max(0, Math.floor(time / dur * n)));
-      const sl = bands.l[idx], sm = bands.m[idx], sh = bands.h[idx], tot = sl + sm + sh + 1e-6;
-      const rL = sl / tot, rM = sm / tot, rH = sh / tot;
       const played = time <= t, dim = played ? 1 : 0.42;
-      const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
-      const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
-      const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
+      let rgb = stems && stemRGB(stemsAt(stems, time / dur));   // colour by source when separated
+      if (!rgb){
+        const sl = bands.l[idx], sm = bands.m[idx], sh = bands.h[idx], tot = sl + sm + sh + 1e-6;
+        const rL = sl / tot, rM = sm / tot, rH = sh / tot;
+        rgb = [warm[0]*rL + acc[0]*rM + bright[0]*rH,
+               warm[1]*rL + acc[1]*rM + bright[1]*rH,
+               warm[2]*rL + acc[2]*rM + bright[2]*rH];
+      }
+      const r = rgb[0]*dim, g = rgb[1]*dim, b = rgb[2]*dim;
       const bh = Math.max(0.8, Math.pow(pk[idx], 0.9) * (h * 0.46));
       ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.95 : 0.55})`;
       ctx.fillRect(x, mid - bh, step - 0.5, bh * 2);

@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, mixNarration, mixTechnique,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1288,6 +1288,33 @@ test('mix technique: beatmix hands the bass over near the midpoint; only while r
 test('mix narration: MIXING a fade surfaces the live technique', () => {
   const s = S.mixNarration({ on: true, phase: 'running', nextTitle: 'Pulse', planType: 'fade', seconds: 6, pct: 60 });
   assert.match(s, /MIXING/); assert.match(s, /echo/); assert.match(s, /60%/);
+});
+
+// ---- per-stem waveform: sample the envelopes, blend the source palette ----
+test('stemsAt: no stems → null (caller falls back to the band split)', () => {
+  assert.equal(S.stemsAt(null, 0.5), null);
+});
+test('stemsAt: samples each stem 0..1 across the track, clamped at the ends', () => {
+  // "9" all the way → 1; "0" → 0; a ramp reads low at the start, high at the end
+  const stems = { d: '99999', b: '00000', v: '00099', o: '5' };
+  const mid = S.stemsAt(stems, 0.5);
+  assert.ok(Math.abs(mid.d - 1) < 1e-6, 'full drums');
+  assert.equal(mid.b, 0, 'silent bass');
+  const start = S.stemsAt(stems, 0), end = S.stemsAt(stems, 1);
+  assert.ok(start.v < end.v, 'the vocal ramp rises toward the end');
+  assert.ok(Math.abs(end.v - 1) < 1e-6, 'clamps to the last digit at frac=1');
+  assert.ok(Math.abs(S.stemsAt(stems, 0.5).o - 5 / 9) < 1e-6, 'a single-digit stem is constant');
+});
+test('stemRGB: the loudest source dominates the colour', () => {
+  const drums = S.stemRGB({ d: 1, b: 0, v: 0, o: 0 });
+  const vox = S.stemRGB({ d: 0, b: 0, v: 1, o: 0 });
+  // drums run warm-red: red channel dominant; vocals run cyan: blue/green dominant
+  assert.ok(drums[0] > drums[2], 'drums are red-forward');
+  assert.ok(vox[2] > vox[0], 'vocals are blue-forward');
+  assert.equal(S.stemRGB(null), null, 'no weights → null');
+  // silence (all zero) is safe, not a divide-by-zero
+  const zero = S.stemRGB({ d: 0, b: 0, v: 0, o: 0 });
+  assert.ok(zero.every(c => isFinite(c)), 'all-silent blend is finite');
 });
 
 // ---- energy-arc scoring: hold or lift the floor, never crash it ----
