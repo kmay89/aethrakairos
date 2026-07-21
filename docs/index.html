@@ -4757,6 +4757,84 @@ function reconcileQueue(savedKeys, byKey){
   }
   return { kept, dropped };
 }
+
+/* ================================================================
+   STRUCTURE — the song's traditional script, read from the waveform.
+   The peak envelope (the loud/quiet "chunks" you can see in the wave)
+   is smoothed into an energy contour, split into SECTIONS with
+   hysteresis, and read three ways:
+     · APEX — where the real climax sits, not a fixed clock point;
+     · a per-position INTENSITY CEILING — the visuals never go full
+       chaos in a quiet intro or breakdown, so the payoff arrives WITH
+       the drop, never before;
+     · structure-aware MIX points — exit as the last loud block ends
+       into the tail, enter on the incoming track's first strong block.
+   Pure & deterministic: takes the normalised peaks array (0..1),
+   returns a plain map. This is the "traditional script, made mechanical."
+   ================================================================ */
+function smoothEnv(peaks, win){
+  const N = peaks.length, out = new Float32Array(N), w = Math.max(1, win | 0);
+  for (let i = 0; i < N; i++){
+    let sum = 0, c = 0;
+    const lo = i - w < 0 ? 0 : i - w, hi = i + w >= N ? N - 1 : i + w;
+    for (let j = lo; j <= hi; j++){ sum += peaks[j]; c++; }
+    out[i] = sum / c;
+  }
+  return out;
+}
+function analyzeStructure(peaks, opts){
+  opts = opts || {};
+  const N = peaks && peaks.length ? peaks.length : 0;
+  if (N < 8) return { ok: false, env: peaks || [], lo: 0, hi: 1, sections: [], apex: 0.6, mixIn: 0.0, mixOut: 0.9 };
+  const env = smoothEnv(peaks, opts.smooth || Math.max(4, Math.round(N / 24)));
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < N; i++){ if (env[i] < lo) lo = env[i]; if (env[i] > hi) hi = env[i]; }
+  const span = Math.max(1e-4, hi - lo);
+  // loud/quiet with hysteresis (two thresholds) so a wobble never splits a block
+  const thrHi = lo + span * 0.55, thrLo = lo + span * 0.42;
+  const loudArr = new Uint8Array(N);
+  let loud = env[0] > lo + span * 0.5;
+  for (let i = 0; i < N; i++){
+    if (loud && env[i] < thrLo) loud = false;
+    else if (!loud && env[i] > thrHi) loud = true;
+    loudArr[i] = loud ? 1 : 0;
+  }
+  const minLen = Math.max(4, Math.round(N * (opts.minFrac || 0.06)));   // ~6% ≈ ~12 s of a 200 s track
+  const runs = [];
+  let start = 0;
+  for (let i = 1; i <= N; i++){
+    if (i === N || loudArr[i] !== loudArr[start]){ runs.push({ s: start, e: i, loud: !!loudArr[start] }); start = i; }
+  }
+  const merged = [];
+  for (const r of runs){
+    if (merged.length && (r.e - r.s) < minLen) merged[merged.length - 1].e = r.e;   // absorb a too-short run
+    else merged.push({ s: r.s, e: r.e, loud: r.loud });
+  }
+  const sections = merged.map(r => {
+    let sum = 0; for (let i = r.s; i < r.e; i++) sum += env[i];
+    return { s: r.s / N, e: r.e / N, energy: ((sum / (r.e - r.s)) - lo) / span, loud: r.loud };
+  });
+  // APEX — the middle of the highest-energy section (where the climax really is)
+  let apex = 0.6, best = -Infinity;
+  for (const sec of sections) if (sec.energy > best){ best = sec.energy; apex = (sec.s + sec.e) / 2; }
+  // MIX IN — the incoming track's first strong block (skip a slow intro)
+  let mixIn = 0.0;
+  for (const sec of sections){ if (sec.loud && sec.s < 0.5){ mixIn = sec.s; break; } }
+  // MIX OUT — the end of the LAST loud block in the back half (exit into the tail)
+  let mixOut = 0.9;
+  for (const sec of sections){ if (sec.loud && sec.e > 0.45) mixOut = sec.e < 0.97 ? sec.e : 0.97; }
+  return { ok: true, env, lo, hi, sections, apex, mixIn, mixOut };
+}
+/* the intensity CEILING at a point in the song (0..1). A quiet passage caps
+   the visuals low so nothing peaks in the wrong place; a loud block opens it
+   all the way. Floored so the room is never dead. */
+function structureCeiling(struct, p, floor){
+  if (!struct || !struct.ok || !struct.env || !struct.env.length) return 1;
+  const N = struct.env.length, fl = floor == null ? 0.30 : floor;
+  const i = Math.round(clamp01(p) * (N - 1));
+  const norm = (struct.env[i] - struct.lo) / Math.max(1e-4, struct.hi - struct.lo);
+  return fl + (1 - fl) * clamp01(norm);
+}
 // @solver-end
 
 /* ================================================================
@@ -7045,7 +7123,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '6d17e7721a';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '9318dbd471';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -7384,6 +7462,7 @@ async function _peaksDecode(track){
     let mL = 1e-4, mM = 1e-4, mH = 1e-4;
     for (let i = 0; i < N; i++){ if (bL[i] > mL) mL = bL[i]; if (bM[i] > mM) mM = bM[i]; if (bH[i] > mH) mH = bH[i]; }
     track._peaks = pk;
+    try { track._structure = analyzeStructure(pk); } catch (e){}   // the song's script, read from the wave
     track._bands = { l: bL, m: bM, h: bH };
     track._bmax = { l: mL, m: mM, h: mH };
     audio = null;                                   // release the full decoded PCM at once
@@ -11356,25 +11435,40 @@ const director = {
   update(dt){
     const f = AE.f;
 
-    // ---- story acts: where are we in this track's arc? ----
-    // Track progress sets the base act; the live energy ratio pulls the
-    // boundary, so a loud early drop reads as APEX sooner and a quiet outro
-    // resolves early. Local files with no duration hold the middle acts.
+    // ---- story acts: where are we in this track's ACTUAL arc? ----
+    // The song's structure (read from the waveform) says where the drop really
+    // is; the acts centre APEX on THAT, not a fixed clock point — and the
+    // intensity is capped by the structure's ceiling, so a quiet intro or a
+    // breakdown can NEVER reach full chaos even if the clock thinks it's time.
+    // Without a structure (local file still decoding) we fall back to the old
+    // progress template with its small energy nudge.
     {
       const ad = activeDeck();
       let prog = 0.5;
       if (ad && isFinite(ad.a.duration) && ad.a.duration > 0)
         prog = ad.a.currentTime / ad.a.duration;
       this.trackProg = prog;
-      const push = clamp((f.eShort / Math.max(0.0001, f.eLong) - 1) * 0.12, -0.08, 0.08);
-      const p = clamp(prog + push, 0, 1);
-      const na = p < 0.10 ? 0 : p < 0.42 ? 1 : p < 0.70 ? 2 : p < 0.88 ? 3 : 4;
+      const at = player.tracks[player.cur];            // read the live structure — it arrives async after decode
+      const st = at && at._structure;
+      let na, ceil = 1;
+      if (st && st.ok){
+        const a = st.apex;                             // centre the acts on the real climax
+        na = prog < a - 0.28 ? 0 : prog < a - 0.05 ? 1 : prog < a + 0.12 ? 2 : prog < a + 0.30 ? 3 : 4;
+        ceil = structureCeiling(st, prog);             // the intensity the music actually earns here
+      } else {
+        const push = clamp((f.eShort / Math.max(0.0001, f.eLong) - 1) * 0.12, -0.08, 0.08);
+        const p = clamp(prog + push, 0, 1);
+        na = p < 0.10 ? 0 : p < 0.42 ? 1 : p < 0.70 ? 2 : p < 0.88 ? 3 : 4;
+      }
+      this.ceil = ceil;
       if (na !== this.act){
         this.act = na;
         if (el.actName) el.actName.textContent = ACTS[na].name;
       }
-      // uAct is the story clock every shader breathes with — eased, never stepped
-      this.actT += (ACTS[this.act].heat - this.actT) * (1 - Math.exp(-dt / 3));
+      // uAct is the story clock every shader breathes with — eased, never stepped,
+      // and never taller than the section's ceiling (the anti-mistimed-drop rule)
+      const heatGoal = Math.min(ACTS[this.act].heat, ceil + 0.05);
+      this.actT += (heatGoal - this.actT) * (1 - Math.exp(-dt / 3));
       U.uAct.value = this.actT;
     }
 
