@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -1315,6 +1315,30 @@ test('stemRGB: the loudest source dominates the colour', () => {
   // silence (all zero) is safe, not a divide-by-zero
   const zero = S.stemRGB({ d: 0, b: 0, v: 0, o: 0 });
   assert.ok(zero.every(c => isFinite(c)), 'all-silent blend is finite');
+});
+
+// ---- drop markers: read the build→drop boundaries from the structure ----
+test('dropPoints: finds a build→loud boundary, strongest first', () => {
+  const struct = { ok: true, sections: [
+    { s: 0, e: 0.2, energy: 0.15, loud: false },   // quiet intro
+    { s: 0.2, e: 0.45, energy: 0.35, loud: false }, // build
+    { s: 0.45, e: 0.7, energy: 0.9, loud: true },   // DROP (big rise into loud)
+    { s: 0.7, e: 0.82, energy: 0.3, loud: false },  // breakdown
+    { s: 0.82, e: 1, energy: 0.75, loud: true },    // second drop (smaller rise)
+  ] };
+  const drops = S.dropPoints(struct);
+  assert.ok(drops.length >= 1, 'at least the main drop');
+  assert.ok(Math.abs(drops[0].at - 0.45) < 1e-9, 'the biggest drop is at the loud block');
+  assert.ok(drops[0].strength >= drops[drops.length - 1].strength, 'sorted strongest first');
+  assert.ok(drops.every(d => d.at >= 0 && d.at <= 1 && d.strength > 0 && d.strength <= 1), 'positions and strengths are normalized');
+});
+test('dropPoints: a flat or missing structure yields no markers', () => {
+  assert.deepEqual(S.dropPoints(null), []);
+  assert.deepEqual(S.dropPoints({ ok: false }), []);
+  assert.deepEqual(S.dropPoints({ ok: true, sections: [{ s: 0, e: 1, energy: 0.5, loud: true }] }), []);
+  // a gentle rise below the threshold is not a "drop"
+  assert.deepEqual(S.dropPoints({ ok: true, sections: [
+    { s: 0, e: 0.5, energy: 0.5, loud: false }, { s: 0.5, e: 1, energy: 0.6, loud: true }] }), []);
 });
 
 // ---- stem-aware transitions: never blend two voices ----
