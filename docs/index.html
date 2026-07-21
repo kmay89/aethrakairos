@@ -2243,7 +2243,7 @@ function ensureCtx(){
         if (t._netTries <= 4){
           t._errPos = isFinite(AE._lastGoodT) ? AE._lastGoodT : 0;
           const wait = Math.min(4000, 400 * t._netTries);   // 0.4s → 1.6s
-          LOADER.begin();
+          LOADER.begin('reconnecting…');
           toast('Weak signal — holding <b>' + escapeHTML(t.title) + '</b>…');
           clearTimeout(d._reT);
           d._reT = setTimeout(() => {
@@ -2284,18 +2284,19 @@ function ensureCtx(){
     d.a.addEventListener('seeked', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
     // the loading spin clears the instant true audio flows (or stalls again)
-    d.a.addEventListener('playing', () => { if (i === AE.active) LOADER.done(); });
+    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall(); } });
     d.a.addEventListener('timeupdate', () => {
       if (i !== AE.active) return;
       const ct = d.a.currentTime;
       if (ct > 0.05){
         LOADER.done();
+        player._clearStall();                     // real audio flowed — the backstop stands down
         AE._lastGoodT = ct;                       // the spot to rebuffer from if the stream drops
         const t = player.tracks[player.cur];       // sustained progress past a blip refills the retry budget
         if (t && t._netTries && ct > (t._errPos || 0) + 2){ t._netTries = 0; }
       }
     });
-    d.a.addEventListener('waiting', () => { if (i === AE.active && player.playing) LOADER.begin(); });
+    d.a.addEventListener('waiting', () => { if (i === AE.active && player.playing) LOADER.begin('buffering…'); });
   });
   applyVolume();
 }
@@ -2326,8 +2327,14 @@ function ensureResume(){
    not a stuck button. Cleared the moment true audio flows (or on stop/error). */
 const LOADER = {
   t: null, _fan: null, _shownAt: 0,
-  begin(){
+  // the spin can carry an HONEST word — "tuning the first track…" is only true
+  // ONCE, at the top of a session. Every later wait is a different track, so it
+  // must say so, or the listener reads "processing the first track" long after
+  // the first track is gone and thinks the player is stuck.
+  say(msg){ const t = el.loadSpin && el.loadSpin.querySelector('.ls-txt'); if (t && msg) t.textContent = msg; },
+  begin(msg){
     clearTimeout(this.t); clearTimeout(this._fan);
+    if (msg) this.say(msg);
     if (el.loadSpin) el.loadSpin.classList.remove('fanout');
     this.t = setTimeout(() => { if (el.loadSpin){ el.loadSpin.classList.add('show'); this._shownAt = performance.now(); } }, 220);
   },
@@ -3100,9 +3107,14 @@ const player = {
     nd.a.src = track.url;
     nd.norm = normLin(track);
     nd.a.currentTime = 0;
-    LOADER.begin();            // arm the loading spin — it only shows if the sound takes a beat to arrive
+    // an HONEST loading word: "the first track" only the very first time this
+    // session, else name the track we're cueing — never claim "first track"
+    // after it has come and gone
+    LOADER.begin(this._everPlayed ? 'cueing up ' + track.title + '…' : 'tuning the first track…');
+    this._everPlayed = true;
     if (track) track._netTries = 0;   // fresh track → fresh rebuffer budget
     AE._lastGoodT = 0;
+    this._armStall(track, newIdx);    // the backstop: a silent stall must never freeze the queue
     nd.a.play().catch(err => {
       // A decode/network failure fires the element's 'error' event (handled
       // above). An autoplay BLOCK does not — it rejects here, silently. On the
@@ -3185,6 +3197,7 @@ const player = {
   pause(){
     const d = activeDeck(); if (!d) return;
     LOADER.done();                   // a deliberate stop ends any pending spin
+    this._clearStall();
     this.playing = false;
     d.a.pause();
     updatePlayIcon(); this.renderList();
@@ -3331,6 +3344,38 @@ const player = {
     else { this.playing = false; updatePlayIcon(); this.renderList(); }
   },
 
+  /* THE STALL BACKSTOP. A track can fail to start with NO 'error' event: an
+     iOS element that lost its background-audio privilege while the screen was
+     locked, a decoder starved after a long session of src-swaps, a cold
+     stream that just never delivers a first byte. The result the listener
+     sees is the loading spin frozen and the queue dead — "it says it's
+     processing the track and doesn't move on." So after every start we watch:
+     if no audio has flowed in a few seconds, nudge play() once; if it's still
+     silent, clear the spin and skip forward — the music never dead-ends. */
+  _armStall(track, deckIdx){
+    this._clearStall();
+    const still = () => {
+      const d = AE.decks && AE.decks[AE.active];
+      // only act if we're STILL trying to play THIS track on THIS deck and no
+      // audio has flowed — a move, a pause, or real progress cancels the guard
+      return this.playing && AE.active === deckIdx && this.tracks[this.cur] === track
+        && d && !d.a.ended && !(d.a.currentTime > 0.05);
+    };
+    this._stallT = setTimeout(() => {
+      if (!still()) return;
+      const d = AE.decks[AE.active];
+      ensureResume();
+      try { d.a.play().catch(() => {}); } catch (e){}   // one gentle nudge
+    }, this._nudgeMs || 8000);
+    this._stallT2 = setTimeout(() => {
+      if (!still()) return;
+      LOADER.done();
+      toast('That track wouldn\'t start — skipping ahead');
+      this.next(true);                                   // never leave the queue frozen
+    }, this._skipMs || 14000);
+  },
+  _clearStall(){ clearTimeout(this._stallT); clearTimeout(this._stallT2); },
+
   seekToFrac(frac){
     const d = activeDeck();
     if (!d || !isFinite(d.a.duration)) return;
@@ -3387,6 +3432,7 @@ const player = {
     PERSIST.poke();
   },
   stopAll(){
+    this._clearStall(); LOADER.done();
     this.playing = false; this.cur = -1;
     this.refreshTitle(); updatePlayIcon();
     if (!AE.mic.on) el.empty.classList.remove('gone');
@@ -7147,7 +7193,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '33bc4c2551';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'ebbde0293b';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
