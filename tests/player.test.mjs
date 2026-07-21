@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
-  ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow,' +
+  ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample };';
 const S = new Function(code)();
 
@@ -1142,6 +1142,25 @@ test('lens: a strained device is always spared (clean glass)', () => {
 });
 test('lens: an unknown key is treated as bright (mirrors, never moiré)', () => {
   assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.9 }), 'mirrors');
+});
+
+// ---- the beat spring: it overshoots the hit and settles (the elastic bounce) ----
+test('beat spring: a sharp hit overshoots past the drive, then rings back', () => {
+  let x = 0, v = 0, peak = 0;
+  // hold the drive at 1 and integrate ~0.6s in 60fps steps
+  for (let i = 0; i < 36; i++){ const s = S.beatSpringStep(x, v, 1, 1 / 60); x = s.x; v = s.v; peak = Math.max(peak, x); }
+  assert.ok(peak > 1.02, 'the spring overshoots its target (bounce), got peak ' + peak.toFixed(3));
+  assert.ok(Math.abs(x - 1) < 0.15, 'and settles back toward the drive, got ' + x.toFixed(3));
+});
+test('beat spring: silence stays still (no phantom motion)', () => {
+  let x = 0, v = 0;
+  for (let i = 0; i < 30; i++){ const s = S.beatSpringStep(x, v, 0, 1 / 60); x = s.x; v = s.v; }
+  assert.equal(x, 0, 'no drive → no displacement');
+});
+test('beat spring: a long frame gap stays finite (sub-stepped, never diverges)', () => {
+  let x = 0, v = 0;
+  for (let i = 0; i < 20; i++){ const s = S.beatSpringStep(x, v, 1, 0.1); x = s.x; v = s.v; }   // 100ms frames
+  assert.ok(isFinite(x) && Math.abs(x) < 3, 'bounded under coarse dt, got ' + x);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
