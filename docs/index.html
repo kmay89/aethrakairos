@@ -1850,6 +1850,7 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
       <div class="keyrow"><kbd>D</kbd> The booth — watch the engine mix</div>
       <div class="keyrow"><kbd>M</kbd> Mute</div>
       <div class="keyrow"><kbd>T</kbd> Tap the beat — lock the grid to your tap if it ever drifts</div>
+      <div class="keyrow"><kbd>G</kbd> Skip to the next drop</div>
       <div class="keyrow"><kbd>F</kbd> Fullscreen</div>
       <div class="keyrow"><kbd>H</kbd> Hide interface</div>
       <div class="keyrow"><kbd>?</kbd> This panel</div>
@@ -3461,6 +3462,19 @@ const player = {
     if (this.repeat === 'one'){ const d = activeDeck(); if (d){ d.a.currentTime = 0; d.a.play().catch(()=>{}); } return; }
     if (this.hasNext()) this.next(true, false);
     else { this.playing = false; updatePlayIcon(); this.renderList(); }
+  },
+  /* skip the playhead to the next DROP ahead — the build→loud boundary from the
+     precomputed structure. A DJ's "take me to the good part". No-op with a note
+     when the track has no drop marked (or none remaining). */
+  jumpToDrop(){
+    const d = activeDeck(), tr = this.tracks[this.cur];
+    if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
+    const frac = clamp01(d.a.currentTime / d.a.duration);
+    const at = nextDropAfter(trackStructure(tr), frac);
+    if (at == null){ toast('No drop ahead in this track'); return; }
+    try { d.a.currentTime = at * d.a.duration; } catch (e){}
+    mediaSessionPosition();
+    toast('Skipped to the drop');
   },
 
   /* THE STALL BACKSTOP. A track can fail to start with NO 'error' event: an
@@ -5412,6 +5426,12 @@ function dropPoints(struct){
     if (rise > 0.28 && secs[i].loud) out.push({ at: secs[i].s, strength: Math.min(1, rise) });
   }
   return out.sort((a, b) => b.strength - a.strength);
+}
+// nextDropAfter — the fractional position (0..1) of the first drop strictly
+// ahead of `frac`, or null if none remain. Powers "jump to the next drop". Pure.
+function nextDropAfter(struct, frac){
+  const ahead = dropPoints(struct).map(d => d.at).filter(at => at > (frac || 0) + 0.001);
+  return ahead.length ? Math.min.apply(null, ahead) : null;
 }
 // sectionLabel — name where the playhead sits in the song, structurally and
 // honestly (no invented genre terms): the first quiet block is the INTRO and the
@@ -7912,7 +7932,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '33efb5c182';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '2d0d0643c6';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -9385,6 +9405,7 @@ window.addEventListener('keydown', ev => {
     case 't': case 'T': TAP.hit(); break;
     case 'f': case 'F': toggleFullscreen(); break;
     case 'a': case 'A': director.setAuto(true); break;
+    case 'g': case 'G': player.jumpToDrop(); break;
     case 'h': case 'H':
       manualZen = !document.body.classList.contains('zen');
       if (manualZen) enterZen();
