@@ -270,6 +270,35 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
 @media (prefers-reduced-motion:reduce){#fxOrb .orb-core{animation-duration:60s}
   #fxOrb.flick .orb-core,#fxOrb.hint{animation:none}}
 
+/* ============ IMMERSIVE VISUAL DIRECTION — the scene stepper (top-centre) and
+   the touch-style toggle (top-right). They mirror the foot's transport: present
+   with the light, gone in deep-still, and a tap here never summons the menu, so
+   you steer the visuals without leaving full-screen. ============ */
+/* stacked top-centre so they never collide at any width: the scene stepper, then
+   the touch-style toggle just beneath it */
+#zenScene,#zenTouch{position:fixed;left:50%;z-index:56;opacity:0;pointer-events:none;
+  transition:opacity .6s ease .1s,transform .7s cubic-bezier(.22,1,.36,1) .1s}
+#zenScene{top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-8px);
+  display:flex;align-items:center;gap:12px;max-width:88vw}
+#zenTouch{top:calc(env(safe-area-inset-top) + 62px);transform:translate(-50%,-8px);
+  display:flex;align-items:center;gap:7px;height:36px;padding:0 14px 0 10px;border-radius:18px}
+body.zen #zenScene{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+body.zen #zenTouch{opacity:.9;pointer-events:auto;transform:translate(-50%,0)}
+body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
+#zenScene button,#zenTouch{-webkit-appearance:none;appearance:none;border:0;cursor:pointer;color:#fff;
+  background:rgba(255,255,255,.07);box-shadow:0 2px 14px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.10);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);transition:background .2s ease,transform .12s ease}
+#zenScene button{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;padding:0}
+#zenScene button:hover,#zenTouch:hover{background:rgba(255,255,255,.14)}
+#zenScene button:active,#zenTouch:active{transform:scale(.9)}
+#zenScene svg{width:18px;height:18px;pointer-events:none}
+#zSceneName{font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:rgba(255,255,255,.85);
+  font-weight:600;text-shadow:0 1px 12px rgba(0,0,0,.6);min-width:92px;max-width:60vw;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#zenTouch svg{width:19px;height:19px;pointer-events:none;opacity:.9}
+#zTouchLabel{font-size:10px;letter-spacing:.2em;font-weight:700;color:rgba(255,255,255,.9)}
+@media (prefers-reduced-motion:reduce){#zenScene,#zenTouch{transition:opacity .4s ease}}
+
 @media (prefers-reduced-motion:reduce){
   #voidFx,#voidRing{transition:opacity .3s ease}
   #zenWave{transition:opacity .5s ease;transform:none}
@@ -1421,6 +1450,23 @@ body.zen #fxOrb.awake{opacity:.94;pointer-events:auto;transform:scale(1) transla
 <div id="voidRing" aria-hidden="true"></div>
 <div id="voidFx" aria-hidden="true"></div>
 <div id="fxOrb" role="button" tabindex="0" aria-label="Control orb — tap to bring the menu back, flick to shift the scene"><span class="orb-core"></span></div>
+<!-- immersive SCENE direction: step the look without opening the menu. Fades in
+     with the light; taps here never summon the menu. -->
+<div id="zenScene" role="group" aria-label="Scene">
+  <button id="zScenePrev" type="button" aria-label="Previous scene">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.4 4.6 8 12l7.4 7.4 1.6-1.6L11.2 12l5.8-5.8z"/></svg>
+  </button>
+  <span id="zSceneName" aria-live="polite">—</span>
+  <button id="zSceneNext" type="button" aria-label="Next scene">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 4.6 16 12l-7.4 7.4L7 17.8 12.8 12 7 6.2z"/></svg>
+  </button>
+</div>
+<!-- the touch-style toggle: a gesture glyph so the "your finger moves the light"
+     feature is discoverable, and a tap cycles VOID · SPIN · PULL · WAVE -->
+<button id="zenTouch" type="button" aria-label="Change touch style">
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74a4.5 4.5 0 1 0-5 0zm9.84 4.63-4.54-2.26a1.5 1.5 0 0 0-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1.1 1.1 0 0 0-1.03.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27a1.6 1.6 0 0 0-.9-1.61z"/></svg>
+  <span id="zTouchLabel">VOID</span>
+</button>
 <div id="loadSpin" aria-hidden="true"><div class="ls-art"></div><span class="ls-txt">tuning the first track…</span></div>
 
 <!-- ================= top bar ================= -->
@@ -2214,6 +2260,8 @@ const el = {
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
   zenXport: $('zenXport'), zBtnPrev: $('zBtnPrev'), zBtnPlay: $('zBtnPlay'), zBtnNext: $('zBtnNext'),
   zIcoPlay: $('zIcoPlay'), zIcoPause: $('zIcoPause'),
+  zenScene: $('zenScene'), zScenePrev: $('zScenePrev'), zSceneName: $('zSceneName'), zSceneNext: $('zSceneNext'),
+  zenTouch: $('zenTouch'), zTouchLabel: $('zTouchLabel'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
   fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
   coach: $('coach'), coachSpot: $('coachSpot'), coachBubble: $('coachBubble'),
@@ -9575,14 +9623,17 @@ function orbWake(hint){
 ['pointermove', 'pointerdown', 'touchstart'].forEach(evName =>
   window.addEventListener(evName, ev => {
     const zen = document.body.classList.contains('zen');
-    const onXport = el.zenXport && el.zenXport.contains(ev.target);
-    // In play mode, touching the light must NOT summon the menu — but it SHOULD
-    // wake the orb so the control is there the instant you reach for it, and it
-    // should lift the now-playing card + transport back up out of deep-still so
-    // you can reach play/pause/next in the car. The orb owns the return (tap) and
-    // the scene-shift (flick); the transport buttons own their own actions.
-    if (zen && (ev.target === el.canvas || onXport || (el.fxOrb && el.fxOrb.contains(ev.target)))){
-      if (ev.target === el.canvas || onXport){ orbWake(false); leaveDeep(); rearmZenDeep(); }
+    // the immersive controls (transport, scene stepper, touch toggle) live ON the
+    // light: a tap wakes them and lifts them out of deep-still, but must NEVER
+    // summon the full menu — that's the whole point of steering without leaving.
+    const onImmersive = (el.zenXport && el.zenXport.contains(ev.target))
+      || (el.zenScene && el.zenScene.contains(ev.target))
+      || (el.zenTouch && el.zenTouch.contains(ev.target));
+    // In play mode, touching the light also must NOT summon the menu — it wakes
+    // the orb so the control is there the instant you reach for it. The orb owns
+    // the return (tap) and the scene-shift (flick); the controls own their acts.
+    if (zen && (ev.target === el.canvas || onImmersive || (el.fxOrb && el.fxOrb.contains(ev.target)))){
+      if (ev.target === el.canvas || onImmersive){ orbWake(false); leaveDeep(); rearmZenDeep(); }
       return;
     }
     pokeChrome();
@@ -9596,6 +9647,21 @@ if (el.zenXport){
   el.zBtnPlay && el.zBtnPlay.addEventListener('click', () => { keepAwake(); player.toggle(); });
   el.zBtnNext && el.zBtnNext.addEventListener('click', () => { keepAwake(); player.next(false, false); });
   el.zBtnPrev && el.zBtnPrev.addEventListener('click', () => { keepAwake(); player.prev(); });
+}
+/* immersive SCENE stepper + touch-style toggle — direct the visuals without
+   opening the menu. Stepping a scene by hand pins it (manual): the choice is
+   yours until you flick the orb or tap AUTO. The touch button cycles the force
+   your finger applies (VOID · SPIN · PULL · WAVE) so the gesture is discoverable. */
+{
+  const keepAwake = () => { orbWake(false); leaveDeep(); rearmZenDeep(); };
+  const stepScene = dir => {
+    if (typeof scenes === 'undefined' || !scenes.length) return;
+    const n = scenes.length, i = ((director.active + dir) % n + n) % n;
+    director.setScene(i, true);
+  };
+  el.zSceneNext && el.zSceneNext.addEventListener('click', () => { keepAwake(); stepScene(1); });
+  el.zScenePrev && el.zScenePrev.addEventListener('click', () => { keepAwake(); stepScene(-1); });
+  el.zenTouch && el.zenTouch.addEventListener('click', () => { keepAwake(); TOUCHFX.cycle(); });
 }
 /* THE ORB's two gestures: a clean TAP unfurls the menu; a FLICK (or a hold)
    shifts the SCENE yourself — you take the wheel from the director, the orb
@@ -12151,6 +12217,9 @@ const TOUCHFX = {
     chip.textContent = fx.chip;
     chip.title = fx.label + ' — ' + fx.hint + '  ·  tap to change the touch';
     chip.setAttribute('aria-label', 'Touch effect: ' + fx.label + '. ' + fx.hint);
+    // the immersive touch-style toggle wears the same badge + a live hint
+    if (el.zTouchLabel) el.zTouchLabel.textContent = fx.chip;
+    if (el.zenTouch) el.zenTouch.setAttribute('aria-label', 'Touch style: ' + fx.label + ' — ' + fx.hint + '. Tap to change.');
   },
   load(){ try { const k = localStorage.getItem('mb8_touchfx'); if (k && this.bank[k]) this.active = k; } catch (e){} this.paint(); },
   render(){
@@ -12648,6 +12717,7 @@ const director = {
       if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer'); }   // you chose a scene
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
+    if (el.zSceneName) el.zSceneName.textContent = scenes[i].name;   // the immersive scene stepper
   },
   rotatePalette(to){
     this.palFrom = this.pal; this.palTo = to; this.palT = 0;
