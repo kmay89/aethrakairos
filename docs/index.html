@@ -3913,6 +3913,7 @@ const PERSIST = {
       vol: parseInt(el.vol.value, 10),
       scene: director.active, auto: director.auto,
       lens: { active: LENS.active, resolved: LENS._resolved, ceil: director.ceil, act: director.act },
+      segue: { pending: SEGUE.pending, big: SEGUE.big, lastKind: SEGUE.lastKind, transDur: director.transDur },
       quantum: player.quantum.on ? { heat: player.quantum.heat, used: [...player.quantum.used] } : null,
       mixOn: MIXER.on,
       journey: CON.lastDeal ? { mode: CON.lastDeal.mode, dials: CON.lastDeal.dials, seed: CON.lastDeal.seed } : null,
@@ -5153,6 +5154,39 @@ function pickLens(ctx){
   }
   if ((act === 1 || act === 3) && ceil > 0.60) return 'iris';   // build / comedown → a focusing aperture
   return 'none';
+}
+
+/* THE SEGUE — a transition manager's two decisions, made pure so the taste is
+   unit-tested. (1) HOW a scene change should look, given where the song is; and
+   (2) WHEN a queued change should actually fire, so cuts land on the music
+   instead of mid-phrase. The director picks WHICH scene; the segue decides the
+   feel and the moment. */
+
+// segueStyle — the shape of a transition for THIS moment. A drop earns a CUT
+// (land hard on the hit); the calm edges MELT (a long dissolve); a section
+// change with room to breathe gets a MORPH-length blend; otherwise the blend
+// quickens as the music heats up. Returns { kind, dur } (seconds).
+function segueStyle(ctx){
+  ctx = ctx || {};
+  const act = ctx.act, e = ctx.energy == null ? 0.5 : ctx.energy;
+  if (act === 2 && e > 0.60) return { kind: 'cut', dur: 0.35 };          // the drop: punch on the beat
+  if (act === 0 || act === 4 || e < 0.30) return { kind: 'dissolve', dur: 3.4 };  // calm: melt
+  if (ctx.big) return { kind: 'morph', dur: 1.6 };                        // a section turn: a morph-length blend
+  const dur = Math.max(0.9, Math.min(3.0, 2.6 - e * 1.4));               // hotter → quicker
+  return { kind: 'dissolve', dur };
+}
+
+// segueShouldFire — should a QUEUED change fire this frame? A structural boundary
+// fires now (the song turned a page). With a beat grid, a normal change waits for
+// the next bar downbeat and a big one for the next phrase — so the cut lands on
+// the music. Without a grid we fall back to the next onset. A max-wait guarantees
+// it never stalls. Returns a boolean.
+function segueShouldFire(g){
+  g = g || {};
+  if (g.sectionBoundary) return true;
+  if (!g.grid) return !!g.onset || g.waited >= g.maxWait;
+  if (g.big) return !!g.phraseWrapped || !!g.barWrapped || g.waited >= g.maxWait;
+  return !!g.barWrapped || g.waited >= g.maxWait;
 }
 // @solver-end
 
@@ -7473,7 +7507,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = 'a79fd3d8ef';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'bfa496679a';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -11732,6 +11766,7 @@ const director = {
   camGoalTheta: 0, camGoalPhi: 1.2,
   fov: 62, dolly: 0,
   act: -1, actT: 0,
+  transDur: 2.5,             // the crossfade length the SEGUE sets per transition
 
   setAuto(on){
     this.auto = on;
@@ -11740,6 +11775,7 @@ const director = {
   },
   setScene(i, manual){
     if (i === this.active && this.transT >= 1) { if (manual) this.setAuto(false); return; }
+    if (manual) this.transDur = 1.0;           // a hand on the wheel gets a snappy blend; the SEGUE sets its own
     this.prev = this.active;
     this.active = i;
     this.transT = 0;
@@ -11835,13 +11871,13 @@ const director = {
     const newPhase = ratio > 1.35 ? 'peak' : ratio < 0.7 ? 'break' : 'flow';
     if (newPhase !== this.phase){
       this.phase = newPhase;
-      if (this.auto && newPhase === 'peak' && this.dwell > 6 && f.onset){
-        this.setScene(this.pickScene(), false);
-      }
+      // a surge into a peak WANTS a fresh scene — but the SEGUE lands it on the
+      // music (the next downbeat), not the instant the ratio crossed
+      if (this.auto && newPhase === 'peak' && this.dwell > 6) SEGUE.request(false);
     }
     // scene crossfade
     if (this.transT < 1){
-      this.transT = Math.min(1, this.transT + dt / 2.5);
+      this.transT = Math.min(1, this.transT + dt / Math.max(0.2, this.transDur || 2.5));
       if (this.prev >= 0 && this.transT >= 1){ scenes[this.prev].group.visible = false; this.prev = -1; }
     }
     for (let i = 0; i < scenes.length; i++){
@@ -11861,15 +11897,14 @@ const director = {
       });
       s.update(dt);
     }
-    // auto scene switching on dwell + section boundary
+    // auto scene switching: the dwell decides a change is DUE; the SEGUE decides
+    // the moment (the next downbeat / phrase / section) and the feel — so cuts
+    // land on the music, not mid-phrase
     this.dwell += dt;
     if (this.auto){
       const want = (this.minDwell + (this.maxDwell - this.minDwell) * (1 - f.energy))
         * ACTS[this.act >= 0 ? this.act : 1].dwell;
-      if (this.dwell > want && (f.onset || !player.playing) && this.transT >= 1){
-        this.setScene(this.pickScene(), false);
-        this.dwell = 0;
-      }
+      if (this.dwell > want || !player.playing) SEGUE.request(false);
       // palette drift
       this.palDwell = (this.palDwell || 0) + dt;
       if (this.palDwell > 22 && this.palT >= 1 && !COLOR.on){
@@ -11877,6 +11912,7 @@ const director = {
         this.palDwell = 0;
       }
     }
+    SEGUE.tick(dt);   // fire any queued scene change when the music says it's time
     // palette lerp
     if (this.palT < 1){
       this.palT = Math.min(1, this.palT + dt / 4);
@@ -11928,6 +11964,70 @@ const director = {
     scene.position.y = (DANCE.breath * 0.35 + DANCE.lift * 0.9 - DANCE.pulse * 0.3) * dm;
     const dScale = 1 + (DANCE.pulse * 0.02 + DANCE.breath * 0.006) * dm;
     scene.scale.setScalar(dScale);
+  },
+};
+
+/* ================================================================
+   THE SEGUE — the transition manager. The director picks WHICH scene;
+   the SEGUE decides WHEN the change lands and HOW it feels, so scene
+   changes read as musical events, not a timer going off. It:
+     · queues a change the director wants (dwell up, a surge to a peak)
+       and holds it until the next BAR DOWNBEAT (or the next PHRASE for a
+       big change) — the cut lands on the "1", never mid-phrase;
+     · watches the song's STRUCTURE and forces a change the instant a
+       section turns over (the drop, the breakdown) — the visual follows
+       the script;
+     · sets the crossfade LENGTH to fit the moment (segueStyle): a hard
+       cut on the drop, a long melt in the calm, a morph-length blend on
+       a section turn.
+   Without a beat grid (local files, mic) it falls back to the next onset;
+   a max-wait guarantees it never stalls. The taste lives in the pure,
+   unit-tested segueStyle / segueShouldFire. ================ */
+const SEGUE = {
+  pending: false, big: false, waited: 0, lastKind: '',
+  _lastBar: 0, _lastPhrase: 0, _lastSection: -1,
+
+  request(big){
+    if (!this.pending){ this.pending = true; this.big = !!big; this.waited = 0; }
+    else if (big){ this.big = true; }        // an upgrade to a bigger change keeps the queue
+  },
+  tick(dt){
+    const grid = typeof CLOCK !== 'undefined' && CLOCK.haveGrid;
+    // has the song's STRUCTURE turned a page since last frame?
+    let sectionBoundary = false;
+    const tr = player.tracks[player.cur];
+    const st = tr && tr._structure;
+    if (st && st.ok && st.sections && st.sections.length){
+      const p = director.trackProg == null ? 0.5 : director.trackProg;
+      let si = -1;
+      for (let k = 0; k < st.sections.length; k++){ const s = st.sections[k]; if (p >= s.s && p < s.e){ si = k; break; } }
+      if (si !== -1){
+        if (this._lastSection !== -1 && si !== this._lastSection){ sectionBoundary = true; this.request(true); }
+        this._lastSection = si;
+      }
+    } else { this._lastSection = -1; }
+
+    // musical boundaries: did the bar / phrase just wrap?
+    const bar = grid ? CLOCK.barPhase : 0, phr = grid ? CLOCK.phrasePhase : 0;
+    const barWrapped = grid && bar < this._lastBar - 0.30;
+    const phraseWrapped = grid && phr < this._lastPhrase - 0.10;
+    this._lastBar = bar; this._lastPhrase = phr;
+
+    if (!director.auto){ this.pending = false; return; }
+    if (!this.pending) return;
+    this.waited += dt;
+    const fire = segueShouldFire({
+      big: this.big, grid, barWrapped, phraseWrapped, sectionBoundary,
+      onset: AE.f.onset, waited: this.waited, maxWait: this.big ? 8 : 4,
+    });
+    if (fire && director.transT >= 1){
+      const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: this.big });
+      director.transDur = style.dur;
+      director.setScene(director.pickScene(), false);
+      director.dwell = 0;
+      this.lastKind = style.kind;
+      this.pending = false; this.big = false; this.waited = 0;
+    }
   },
 };
 
