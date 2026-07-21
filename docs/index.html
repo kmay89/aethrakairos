@@ -2233,6 +2233,10 @@ const XFADE = 4.0;                 // auto-mix crossfade seconds
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+// the per-deck sweep filter: parked wide open (≈bypass), driven down to the
+// floor on a fading-out deck so a crossfade becomes a pro "filter out"
+const FILTER_OPEN = 20000, FILTER_FLOOR = 300;
+
 const AE = {
   ctx: null, bus: null, master: null, analyser: null,
   decks: null, active: 0, xfading: false,
@@ -2285,10 +2289,15 @@ function ensureCtx(){
     const src = AE.ctx.createMediaElementSource(a);
     const shelf = AE.ctx.createBiquadFilter();
     shelf.type = 'lowshelf'; shelf.frequency.value = 200; shelf.gain.value = 0;
+    // a sweepable lowpass, parked wide open (≈bypass) — the mixer sweeps it DOWN
+    // on a fading-out deck so a plain crossfade reads as a pro "filter out": the
+    // old track sinks away under the filter instead of just getting quieter
+    const filter = AE.ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = FILTER_OPEN; filter.Q.value = 0.7;
     const gain = AE.ctx.createGain();
     gain.gain.value = 0;
-    src.connect(shelf); shelf.connect(gain); gain.connect(AE.bus);
-    return { a, src, shelf, gain };
+    src.connect(shelf); shelf.connect(filter); filter.connect(gain); gain.connect(AE.bus);
+    return { a, src, shelf, filter, gain };
   });
   AE.graphLive = !IS_IOS;
   SPEED.apply();                 // decks are born at the listener's chosen speed
@@ -7103,6 +7112,7 @@ const MIXER = {
       try { d.a.playbackRate = SPEED.rate; } catch (e){}
       if (d.shelf) d.shelf.gain.value = 0;
     });
+    this._resetFilters();                              // a cancelled sweep must never leave a deck muffled
     this._lastRateA = this._lastRateB = 1;
     applyVolume();
     syncMixHud();
@@ -7241,6 +7251,23 @@ const MIXER = {
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
       if (nd.shelf) nd.shelf.gain.value = -14;      // one-bass rule: B ducked in
     }
+    // a FADE on the live graph becomes a FILTERED fade: schedule the outgoing
+    // deck's lowpass to sweep from wide-open down to the floor across the seam,
+    // so the old track filters away like a DJ pulling the cutoff — the incoming
+    // stays clean (open). Sample-accurate WebAudio automation, so it's smooth
+    // regardless of frame rate. (Beatmix keeps its own bass-swap; gapless is
+    // instant; on iOS the mixer doesn't run, so this only touches desktop fades.)
+    if (p.type === 'fade' && AE.ctx && od.filter && nd.filter){
+      const t0 = AE.ctx.currentTime, sweep = Math.max(0.5, this.overlap);
+      try {
+        nd.filter.frequency.cancelScheduledValues(t0);
+        nd.filter.frequency.setValueAtTime(FILTER_OPEN, t0);      // the incoming comes in clean
+        od.filter.frequency.cancelScheduledValues(t0);
+        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
+        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);   // hold, then dive
+        od.filter.frequency.exponentialRampToValueAtTime(FILTER_FLOOR, t0 + sweep);
+      } catch (e){}
+    }
     nd.a.play().catch(err => {
       // AbortError = our own cancel/replan interrupted the load — the
       // listener asked for something else; nothing is wrong. Only a real
@@ -7347,6 +7374,7 @@ const MIXER = {
       if (nd.shelf) nd.shelf.gain.value = 0;
       if (AE.graphLive) nd.gain.gain.value = nd.norm || 1;
     }
+    this._resetFilters();                              // both decks back to wide-open
     this._lastRateA = this._lastRateB = 1;
     this.plan = null; this.next = -1; this.outDeck = null; this.outTrack = null; this.trim = 0;
     this.phase = 'idle';
@@ -7354,6 +7382,17 @@ const MIXER = {
     syncMixHud();
     window.__mixCompleted = (window.__mixCompleted || 0) + 1;   // acceptance probe
     if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('first_mix');   // the room mixed for them
+  },
+
+  // park every deck's sweep filter wide open (≈bypass) — called whenever a seam
+  // ends or is cancelled, so a swept-down deck never stays muffled
+  _resetFilters(){
+    if (!AE.ctx || !AE.decks) return;
+    const t = AE.ctx.currentTime;
+    for (const d of AE.decks){
+      if (!d || !d.filter) continue;
+      try { d.filter.frequency.cancelScheduledValues(t); d.filter.frequency.setValueAtTime(FILTER_OPEN, t); } catch (e){}
+    }
   },
 };
 /* hidden tabs get no rAF: a coarse tick keeps fades (never beatmixes) firing */
@@ -7544,7 +7583,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '2f21f36e03';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = 'e358898a72';   // stamped by tools/stamp_version.py (via publish.sh)
 let swReg = null, updateRequested = false;
 
 function registerSW(){
