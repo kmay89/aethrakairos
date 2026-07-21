@@ -1,0 +1,4 @@
+# Everything in this repository is owned by @kmay89.
+# With branch protection on `main` requiring code-owner review, this means every
+# pull request automatically requests your review, and nothing merges without it.
+* @kmay89
