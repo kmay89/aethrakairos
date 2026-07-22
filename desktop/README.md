@@ -113,11 +113,30 @@ To regenerate/rotate later: `npx @tauri-apps/cli@latest signer generate -w aethr
 (needs Node — `brew install node` if `npx` is missing), then update the `pubkey`
 here and the secret together. The private key must never be committed.
 
-## Later: Apple code-signing + notarization (zero-warning install)
+## Apple notarization — zero-warning install (wired; add secrets to switch on)
 
-Currently the app is **unsigned** — first launch is a one-time right-click →
-**Open** (Gatekeeper). To make it install with no warnings, add an Apple
-Developer ID cert and notarization creds as CI secrets
-(`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
-`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) — `tauri-action` picks them up
-automatically, no code change needed.
+The build is **already wired** for it: `desktop.yml` passes the Apple secrets to
+`tauri-action`, and the app ships with the hardened runtime, a microphone
+entitlement (`src-tauri/Entitlements.plist`, for the mic-reactive visual), and a
+mic usage string (`src-tauri/Info.plist`). It stays **unsigned** — first launch is
+right-click → **Open**, or the one-line command on aethrakairos.com/mac — until
+you add the six secrets below. The moment they're all present, every release is
+signed, notarized, and stapled, so it opens with a plain double-click, no warning.
+
+Add these as repo secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | What it is |
+|---|---|
+| `APPLE_CERTIFICATE` | base64 of your **Developer ID Application** cert `.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | the `.p12` export password |
+| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Your Name (TEAMID)` |
+| `APPLE_ID` | your Apple ID email |
+| `APPLE_PASSWORD` | an **app-specific password** for that Apple ID (appleid.apple.com → Sign-In & Security) |
+| `APPLE_TEAM_ID` | your 10-character Team ID |
+
+Getting the cert: Apple Developer portal → Certificates → **Developer ID
+Application** → download → import into Keychain → export as `.p12`, then
+`base64 -i cert.p12 | pbcopy` for `APPLE_CERTIFICATE`. Then cut a stable release
+(**Actions → desktop → Run workflow → stable**) — it comes out notarized.
+
+The DMG's drag window also carries first-launch guidance (`src-tauri/background.png`).

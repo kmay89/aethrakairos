@@ -10,7 +10,8 @@
 #                              "stable" run derives the tag from tauri.conf.json's version,
 #                              so cutting a release is one click — no hand-pushed tag.
 #
-# Apple code-signing/notarization is not wired yet (unsigned — first launch is
+# Apple code-signing/notarization IS wired (the APPLE_* env below) but dormant
+# until those secrets are set — until then builds are unsigned (first launch:
 # right-click → Open; see aethrakairos.com/mac). Updater signing is separate: set
 # the TAURI_SIGNING_PRIVATE_KEY secret to switch auto-update on for both channels.
 name: desktop
@@ -116,6 +117,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Apple code-signing + notarization → a zero-warning first launch (no
+          # right-click, no quarantine command). No-op until these secrets exist;
+          # tauri-action auto-signs, notarizes, and staples when all are present.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: desktop
           args: ${{ steps.plan.outputs.args }}
