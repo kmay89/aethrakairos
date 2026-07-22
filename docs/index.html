@@ -190,13 +190,33 @@ body.zen #glcanvas{cursor:none}
 /* ============ boot splash — quiet build identity, then the instrument ============ */
 #splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:9px;background:#05060e;
-  color:#f2f4f7;text-align:center;transition:opacity .32s ease}
+  color:#f2f4f7;text-align:center;overflow:hidden;isolation:isolate;
+  transition:opacity .46s ease}
 #splash.gone{opacity:0;pointer-events:none}
 #splash.done{display:none}
-#splash .sp-name{font:600 clamp(23px,4vw,32px)/1 var(--ui);letter-spacing:.06em}
+#splash::before{content:"";position:absolute;z-index:0;left:50%;top:50%;
+  width:min(820px,140vw);height:130px;pointer-events:none;opacity:0;
+  background:linear-gradient(101deg,transparent 29%,rgba(100,220,255,.09) 43%,
+    rgba(244,250,255,.15) 50%,rgba(255,126,211,.075) 56%,transparent 71%);
+  filter:blur(22px);transform:translate(-90%,-50%) rotate(-7deg);
+  animation:splashLightPass 2.2s cubic-bezier(.22,.7,.24,1) both}
+#splash>*{position:relative;z-index:1}
+#splash .sp-name{font:600 clamp(23px,4vw,32px)/1 var(--ui);letter-spacing:.06em;
+  animation:splashWordLight 2.2s ease both}
 #splash .sp-copy{font:500 10px/1.4 var(--mono);letter-spacing:.12em;color:rgba(232,237,244,.68)}
 #splash .sp-meta{display:flex;gap:.6em;align-items:center;font:500 9px/1.4 var(--mono);
   letter-spacing:.08em;color:rgba(232,237,244,.42)}
+@keyframes splashLightPass{
+  0%,12%{opacity:0;transform:translate(-90%,-50%) rotate(-7deg)}
+  42%{opacity:.72}
+  76%{opacity:.38}
+  100%{opacity:0;transform:translate(-10%,-50%) rotate(-7deg)}
+}
+@keyframes splashWordLight{
+  0%,22%,100%{text-shadow:0 0 0 rgba(155,229,255,0)}
+  54%{text-shadow:0 0 15px rgba(155,229,255,.20),0 0 34px rgba(255,137,216,.08)}
+}
+@keyframes spLon{to{transform:rotate(360deg)}}
 
 /* the loading spin — the moment between pressing play and the sound arriving.
    The spiral turns so the wait reads as the instrument warming up, never a
@@ -217,7 +237,12 @@ body.zen #glcanvas{cursor:none}
 #loadSpin.fanout .ls-art{transform:scale(2.7);opacity:0;box-shadow:0 0 130px 8px rgba(130,190,255,.5)}
 @media (prefers-reduced-motion:reduce){ #loadSpin .ls-art{animation-duration:2.4s}
   #loadSpin.fanout .ls-art{transform:none} }
-@media (prefers-reduced-motion:reduce){ #splash{transition:none} }
+@media (prefers-reduced-motion:reduce){
+  #splash{transition:none}
+  #splash::before{animation:none;opacity:.22;transform:translate(-50%,-50%);
+    background:radial-gradient(ellipse,rgba(135,225,255,.12),transparent 68%)}
+  #splash .sp-name{animation:none}
+}
 
 /* double-tap zoom is meaningless in a fullscreen instrument and only ever
    fights the user — 'manipulation' keeps scroll and pinch, drops the tap-tap
@@ -2377,6 +2402,9 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 <script src="three.min.js" onerror="if(!window.__three2){window.__three2=1;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';document.head.appendChild(s);}"></script>
 <script>
 'use strict';
+const SPLASH_OPENED_AT = performance.now();
+const SPLASH_MIN_MS = 2200;
+let splashDismissTimer = 0;
 /* ================================================================
    §1 · PURE CORE — Möbius field math + small utilities
    (kept side-effect free; everything below is testable in isolation)
@@ -9049,7 +9077,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '766e636d60';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '66b08ab126';   // stamped by tools/stamp_version.py (via publish.sh)
 {
   const raw = new Date(document.lastModified);
   const built = Number.isNaN(raw.getTime()) ? new Date() : raw;
@@ -15451,7 +15479,7 @@ const MACPROMO = {
     registerSW();
   }
   window.__mb8Booted = true;                       // acceptance probe reads this
-  dissolveSplash();                                // the spiral gives way to the instrument
+  dissolveSplash();                                // build identity gives way to the instrument
   MACPROMO.maybeShow();                            // once-ever "get the Mac app" nudge (web, Mac only)
 })();
 /* fade the boot splash out. Called on a clean boot; a safety timer also fires
@@ -15459,8 +15487,15 @@ const MACPROMO = {
 function dissolveSplash(){
   const s = document.getElementById('splash');
   if (!s || s.classList.contains('gone')) return;
+  const remaining = SPLASH_MIN_MS - (performance.now() - SPLASH_OPENED_AT);
+  if (remaining > 12){
+    if (!splashDismissTimer){
+      splashDismissTimer = setTimeout(() => { splashDismissTimer = 0; dissolveSplash(); }, remaining);
+    }
+    return;
+  }
   s.classList.add('gone');
-  setTimeout(() => s.classList.add('done'), 850);
+  setTimeout(() => s.classList.add('done'), 520);
 }
 setTimeout(dissolveSplash, 8000);
 
