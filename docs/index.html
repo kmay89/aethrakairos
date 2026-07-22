@@ -40,9 +40,9 @@
    ============================================================ */
 :root{
   --void:#05060e;
-  --glass:rgba(16,19,32,.52);
-  --glass-hard:rgba(10,13,24,.72);
-  --sheen:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 42%);
+  --glass:rgba(15,18,31,.50);
+  --glass-hard:rgba(8,11,22,.76);
+  --sheen:linear-gradient(145deg,rgba(255,255,255,.105),rgba(255,255,255,.025) 20%,rgba(255,255,255,0) 46%);
   --ink:#e9edf6;
   --dim:#9aa5bc;
   --faint:#5c657c;
@@ -93,6 +93,99 @@ button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px so
      text-selection callout (the big copy box). Kill selection + the callout. */
   -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 body.zen #glcanvas{cursor:none}
+#forceVeil{
+  position:fixed;inset:0;z-index:1;pointer-events:none;opacity:var(--force-a,0);
+  transform:translateZ(0);transition:opacity .14s linear;
+  background-position:center;background-size:cover;
+}
+#forceVeil[data-force="gravity"]{
+  mix-blend-mode:multiply;
+  background:radial-gradient(circle at var(--force-x,50%) var(--force-y,50%),
+    transparent 0 8%,rgba(2,3,10,.38) 28%,transparent 62%);
+}
+#forceVeil[data-force="electromagnetic"]{
+  mix-blend-mode:screen;
+  background:
+    radial-gradient(circle at var(--force-x,50%) var(--force-y,50%),transparent 0 10%,rgba(93,222,255,.12) 18%,transparent 31%),
+    conic-gradient(from var(--force-turn,0deg) at var(--force-x,50%) var(--force-y,50%),transparent,rgba(255,92,204,.075),transparent 30%,rgba(91,225,255,.08),transparent 65%);
+}
+#forceVeil[data-force="strong"]{
+  mix-blend-mode:screen;
+  background:repeating-radial-gradient(circle at var(--force-x,50%) var(--force-y,50%),
+    rgba(255,185,84,.10) 0 1px,transparent 2px 15px);
+}
+#forceVeil[data-force="weak"]{
+  mix-blend-mode:screen;
+  background:
+    radial-gradient(circle at var(--force-x,50%) var(--force-y,50%),rgba(172,126,255,.10),transparent 34%),
+    repeating-linear-gradient(118deg,transparent 0 17px,rgba(117,224,196,.035) 18px 19px);
+}
+@media (prefers-reduced-motion:reduce){#forceVeil{opacity:0!important;transition:none}}
+
+/* ============ ERRERLabs overture ============ */
+#labSplash{
+  position:fixed;inset:0;z-index:300;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(ellipse at 50% 43%,rgba(37,30,83,.38),transparent 43%),
+    radial-gradient(ellipse at 50% 78%,rgba(18,103,120,.16),transparent 50%),
+    #03040b;
+  color:#eef8ff;isolation:isolate;
+}
+#labSplash[hidden]{display:none}
+#splashCv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.splash-grain{position:absolute;inset:-40%;pointer-events:none;opacity:.08;mix-blend-mode:soft-light;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+  animation:splashGrain .24s steps(2) infinite}
+.splash-ui{position:relative;z-index:2;width:min(920px,92vw);min-height:420px;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;text-align:center;
+  padding:32px 18px max(9vh,54px);pointer-events:none}
+.splash-copy{display:grid;place-items:center;min-height:126px;width:100%}
+.splash-long,.splash-short{grid-area:1/1;font-family:var(--ui);text-transform:uppercase}
+.splash-long{font-size:clamp(12px,1.65vw,19px);font-weight:500;letter-spacing:clamp(.18em,.8vw,.62em);
+  color:rgba(229,244,255,.72);text-shadow:0 0 24px rgba(116,220,255,.3)}
+.splash-long i{font-style:normal;color:#fff;text-shadow:0 0 16px rgba(112,227,255,.72),0 0 42px rgba(255,90,210,.28)}
+.splash-short{opacity:0;font-family:var(--serif);font-style:italic;font-weight:600;
+  font-size:clamp(36px,7vw,76px);letter-spacing:.025em;
+  background:linear-gradient(103deg,#8cecff 5%,#f0f8ff 37%,#ff84d9 64%,#ffc36c 94%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 22px rgba(102,224,255,.28))}
+.splash-kicker{font-family:var(--mono);font-size:9px;letter-spacing:.36em;text-transform:uppercase;
+  color:rgba(207,229,246,.48);margin-top:-14px;margin-bottom:25px}
+.splash-actions{display:flex;align-items:center;gap:13px;pointer-events:auto}
+.splash-enter{position:relative;overflow:hidden;padding:12px 22px;border:1px solid rgba(170,226,255,.25);
+  border-radius:999px;background:rgba(9,14,29,.58);color:#eaf8ff;
+  font-size:9.5px;font-weight:650;letter-spacing:.30em;text-transform:uppercase;
+  backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 0 32px rgba(93,222,255,.10)}
+.splash-enter::before{content:"";position:absolute;inset:-1px;
+  background:linear-gradient(105deg,transparent 8%,rgba(129,232,255,.17),rgba(255,115,215,.13),transparent 72%);
+  transform:translateX(-75%);animation:splashSheen 2.7s ease-in-out infinite}
+.splash-skip{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(220,235,247,.45);padding:10px}
+.splash-skip:hover{color:#fff}
+#labSplash.running .splash-actions{opacity:0;pointer-events:none;transition:opacity .35s}
+#labSplash.running .splash-long{animation:longName 5.1s cubic-bezier(.2,.7,.2,1) both}
+#labSplash.running .splash-short{animation:shortName 5.1s cubic-bezier(.2,.8,.2,1) both}
+#labSplash.running .splash-kicker{animation:kickerOut 5.1s ease both}
+#labSplash.leaving{animation:splashLeave .9s cubic-bezier(.55,0,1,.45) forwards;pointer-events:none}
+@keyframes splashGrain{0%{transform:translate(0,0)}25%{transform:translate(2%,-1%)}50%{transform:translate(-1%,2%)}75%{transform:translate(1%,1%)}}
+@keyframes splashSheen{0%,35%{transform:translateX(-85%)}75%,100%{transform:translateX(85%)}}
+@keyframes longName{0%{opacity:.66;filter:blur(0)}42%{opacity:1;letter-spacing:.72em}64%{opacity:.76}76%,100%{opacity:0;letter-spacing:1.05em;filter:blur(8px);transform:scale(.88)}}
+@keyframes shortName{0%,59%{opacity:0;transform:scale(1.7);filter:blur(15px)}75%{opacity:1;transform:scale(1);filter:blur(0)}88%{opacity:1;transform:scale(.92)}100%{opacity:0;transform:scale(.16);filter:blur(1px)}}
+@keyframes kickerOut{0%,55%{opacity:1}72%,100%{opacity:0;transform:translateY(8px)}}
+@keyframes splashLeave{0%{opacity:1;transform:scale(1)}70%{opacity:.72}100%{opacity:0;transform:scale(1.025);visibility:hidden}}
+@media (max-width:600px){
+  .splash-ui{justify-content:flex-end;min-height:100%;padding-bottom:calc(54px + env(safe-area-inset-bottom))}
+  .splash-long{max-width:28em;line-height:2.2;letter-spacing:.22em}
+  .splash-kicker{margin-top:-8px}.splash-actions{flex-direction:column;gap:2px}
+}
+@media (prefers-reduced-motion:reduce){
+  .splash-grain{animation:none}.splash-enter::before{animation:none}
+  #labSplash.running .splash-long{display:none}
+  #labSplash.running .splash-short{animation:none;opacity:1}
+  #labSplash.running .splash-kicker{opacity:0}
+  #labSplash.leaving{animation:splashLeave .2s linear forwards}
+}
 
 /* ============ boot splash — the spiral, the name, then it dissolves into the
    instrument. Covers the first paint so the app never opens on a bare frame. ============ */
@@ -311,7 +404,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 
 /* ============ top bar ============ */
 .topbar{
-  position:fixed;top:0;left:0;right:0;z-index:40;
+  position:fixed;top:0;left:0;right:0;z-index:80;
   display:flex;align-items:flex-start;justify-content:space-between;
   padding:calc(14px + env(safe-area-inset-top)) 18px 0;
   pointer-events:none;
@@ -343,17 +436,22 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 
 /* ============ buttons ============ */
 .btn{
+  position:relative;overflow:hidden;isolation:isolate;
   min-height:var(--tap);
   display:inline-flex;align-items:center;gap:7px;
   padding:7px 14px;border-radius:12px;
   border:1px solid var(--line);
   background:var(--glass);
-  backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);
+  backdrop-filter:blur(20px) saturate(1.12);-webkit-backdrop-filter:blur(20px) saturate(1.12);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
   font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
   color:var(--dim);
   transition:color .2s,border-color .2s,background .2s,box-shadow .2s,transform .15s;
 }
+.btn::before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 12%,rgba(255,255,255,.075) 34%,transparent 53%);
+  transform:translateX(-76%);transition:transform .55s cubic-bezier(.2,.8,.2,1)}
+.btn:hover::before{transform:translateX(74%)}
 .btn:hover{color:var(--ink);border-color:var(--accent-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 16px -6px var(--accent-glow)}
 .btn:active{transform:translateY(1px)}
 .btn.on{color:var(--ink);border-color:transparent;
@@ -393,6 +491,50 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 }
 .hero-math b{color:var(--pi);font-weight:500}
 .hero-math i{color:var(--e);font-style:normal}
+
+/* ============ listening intent — ask for the moment before dealing ============ */
+#intent{
+  position:fixed;inset:0;z-index:31;display:none;align-items:center;justify-content:center;
+  padding:calc(76px + env(safe-area-inset-top)) 18px calc(160px + env(safe-area-inset-bottom));
+  background:radial-gradient(ellipse at 50% 52%,rgba(8,13,28,.36),rgba(4,5,12,.76) 76%);
+}
+#intent.open{display:flex}
+.intent-card{
+  position:relative;width:min(680px,100%);padding:26px;border:1px solid var(--line);
+  border-radius:26px;overflow:hidden;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.075),transparent 26%),
+    linear-gradient(180deg,color-mix(in oklab,var(--accent) 7%,transparent),transparent 46%),
+    rgba(8,11,22,.72);
+  backdrop-filter:blur(42px) saturate(1.12);-webkit-backdrop-filter:blur(42px) saturate(1.12);
+  box-shadow:0 28px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.11),0 0 44px -20px var(--accent-glow);
+}
+.intent-card::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(112deg,transparent 20%,rgba(255,255,255,.045) 38%,transparent 55%)}
+.intent-kicker{font-family:var(--mono);font-size:9px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent)}
+.intent-title{font-family:var(--serif);font-style:italic;font-size:clamp(27px,5vw,42px);font-weight:500;line-height:1.08;margin:7px 0 6px}
+.intent-sub{color:var(--dim);line-height:1.65;max-width:52em}
+.intent-moods{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:20px 0 16px}
+.intent-choice{min-height:92px;text-align:left;padding:13px;border-radius:16px;border:1px solid var(--line);
+  background:rgba(255,255,255,.025);transition:transform .18s,border-color .25s,background .25s,box-shadow .25s}
+.intent-choice:hover{transform:translateY(-2px);border-color:var(--accent-line)}
+.intent-choice.on{border-color:var(--accent-line);background:var(--accent-dim);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 24px -14px var(--accent-glow)}
+.intent-choice b{display:block;font-family:var(--serif);font-style:italic;font-size:17px;font-weight:500;margin-bottom:5px}
+.intent-choice span{display:block;color:var(--faint);font-size:10px;line-height:1.45}
+.intent-familiarity{border-top:1px solid var(--line-soft);padding-top:14px;margin-top:3px}
+.intent-familiarity .intent-kicker{color:var(--faint);margin-bottom:8px}
+.intent-pills{display:flex;gap:7px;flex-wrap:wrap}
+.intent-pill{padding:7px 11px;border:1px solid var(--line);border-radius:999px;color:var(--dim);font-size:10px}
+.intent-pill.on{color:var(--accent-ink);background:var(--accent);border-color:transparent;font-weight:600}
+.intent-actions{display:flex;align-items:center;gap:10px;margin-top:20px}
+.intent-actions .spring{flex:1}
+.intent-start{padding:11px 20px;letter-spacing:.16em}
+@media (max-width:600px){
+  #intent{align-items:flex-start;overflow-y:auto;padding:calc(64px + env(safe-area-inset-top)) 12px calc(190px + env(safe-area-inset-bottom))}
+  .intent-card{padding:20px;border-radius:22px}
+  .intent-moods{grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+  .intent-choice{min-height:78px;padding:11px}
+}
 
 /* ============ first-run: the welcome card ============ */
 /* ---- coach-marks: a dim veil with ONE control cut out of it, plus a caption.
@@ -629,7 +771,6 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 }
 .ob-next:hover,.ob-enter:hover,.ob-next:focus-visible,.ob-enter:focus-visible{
   transform:translateY(-2px);outline:none;box-shadow:0 0 50px rgba(110,231,255,.2),0 0 50px rgba(255,180,84,.15);
-}
 
 /* ============ drop overlay ============ */
 #dropOverlay{
@@ -654,7 +795,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     linear-gradient(180deg,color-mix(in oklab,var(--accent) 8%,transparent),transparent 40%),
     var(--glass-hard);
   border:1px solid var(--line);border-radius:20px;
-  backdrop-filter:blur(26px) saturate(1.3);-webkit-backdrop-filter:blur(26px) saturate(1.3);
+  backdrop-filter:blur(26px) saturate(1.12);-webkit-backdrop-filter:blur(26px) saturate(1.12);
   box-shadow:
     0 18px 60px rgba(0,0,0,.62),
     0 0 40px -12px var(--accent-glow),
@@ -772,6 +913,20 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   letter-spacing:.18em;cursor:pointer;color:var(--dim);transition:all .2s;min-height:0;
 }
 .hud .chip.on{color:var(--accent-ink);background:linear-gradient(120deg,var(--accent-2),var(--accent));border-color:transparent;font-weight:600;box-shadow:0 0 14px -3px var(--accent-glow)}
+#chipForce{min-width:72px;text-align:center}
+#chipTouchFx[aria-pressed="true"]{color:var(--accent-2);border-color:var(--accent-line);background:var(--accent-dim)}
+#labGuide{
+  position:absolute;left:18px;top:-42px;max-width:min(620px,calc(100vw - 36px));
+  display:flex;align-items:center;gap:9px;padding:7px 11px;border:1px solid var(--line-soft);
+  border-radius:10px;background:var(--glass);backdrop-filter:blur(22px) saturate(1.08);
+  -webkit-backdrop-filter:blur(22px) saturate(1.08);box-shadow:0 10px 34px rgba(0,0,0,.26);
+  font-family:var(--mono);font-size:9px;letter-spacing:.07em;color:var(--dim);
+  opacity:0;transform:translateY(7px);pointer-events:none;
+  transition:opacity .28s,transform .42s cubic-bezier(.2,.8,.2,1)
+}
+#labGuide.show{opacity:1;transform:translateY(0)}
+#labGuide b{font-weight:650;color:var(--accent-2);letter-spacing:.18em;white-space:nowrap}
+#computeRo{font-variant-numeric:tabular-nums}
 .scenedots{display:flex;gap:5px;align-items:center}
 .sdot{
   width:22px;height:18px;border-radius:5px;border:1px solid var(--line);
@@ -1428,7 +1583,9 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     flex-direction:column;gap:2px;min-width:212px;padding:8px;
     background:var(--sheen),var(--glass-hard);
     border:1px solid var(--line);border-radius:16px;
-    backdrop-filter:blur(34px) saturate(1.5);-webkit-backdrop-filter:blur(34px) saturate(1.5);
+    max-height:calc(100dvh - 78px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y:auto;overscroll-behavior:contain;
+    backdrop-filter:blur(34px) saturate(1.12);-webkit-backdrop-filter:blur(34px) saturate(1.12);
     box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 40px -12px var(--accent-glow);
   }
   .overflow.open{display:flex;animation:sheetIn .22s cubic-bezier(.2,.8,.2,1)}
@@ -1439,6 +1596,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   .overflow .btn .k{display:none}
   .mob-only{display:inline}
   #transport{padding:12px 14px calc(10px + env(safe-area-inset-bottom))}
+  #labGuide{left:14px;top:-39px;max-width:calc(100vw - 28px);font-size:8.5px;padding:6px 9px}
   .tbtn{width:44px;height:44px}
   .tbtn.play{width:56px;height:56px}
   .tbtn.play svg{width:20px;height:20px}
@@ -1458,6 +1616,22 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 <body>
 <div id="splash"><div class="sp-art"></div><div class="sp-name">Aethra Kairos</div></div>
 <canvas id="glcanvas" aria-hidden="true"></canvas>
+<div id="forceVeil" data-force="gravity" aria-hidden="true"></div>
+<section id="labSplash" role="dialog" aria-modal="true" aria-label="ERRERLabs opening overture">
+  <canvas id="splashCv" aria-hidden="true"></canvas>
+  <div class="splash-grain" aria-hidden="true"></div>
+  <div class="splash-ui">
+    <div class="splash-copy" aria-live="polite">
+      <div class="splash-long"><i>E</i>cho · <i>R</i>esonance · <i>R</i>esearch · <i>E</i>cho · <i>R</i>esonance · <i>Labs</i></div>
+      <div class="splash-short">ERRERLabs</div>
+    </div>
+    <div class="splash-kicker">Sound becomes structure</div>
+    <div class="splash-actions">
+      <button class="splash-enter" id="splashEnter">Enter resonance</button>
+      <button class="splash-skip" id="splashSkip">Skip intro</button>
+    </div>
+  </div>
+</section>
 
 <!-- the visualizer's quiet HUD: a cinematic waveform + a minimal now-playing
      card that stay legible when the controls sleep (zen) -->
@@ -1606,6 +1780,33 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <button class="btn big" id="btnCatalog2">Load a catalog</button>
   </div>
   <p class="hero-math"><b>φ(x) = 2·arctan x</b> &nbsp;·&nbsp; ℳ = (0, ∞) &nbsp;·&nbsp; <i>⊕ ⊗ ⊖ ⊘</i></p>
+</section>
+
+<section id="intent" class="chrome" aria-label="Choose the mood for this listening session">
+  <div class="intent-card">
+    <div class="intent-kicker">Before the first note</div>
+    <h2 class="intent-title">What do you need from the music?</h2>
+    <p class="intent-sub">Choose the feeling. The player will deal a coherent, no-repeat set and keep the transitions musical.</p>
+    <div class="intent-moods" role="radiogroup" aria-label="Mood">
+      <button class="intent-choice" data-mood="unwind" role="radio" aria-checked="false"><b>Unwind</b><span>soft edges, space, a gentle landing</span></button>
+      <button class="intent-choice" data-mood="focus" role="radio" aria-checked="false"><b>Focus</b><span>steady motion, less interruption</span></button>
+      <button class="intent-choice" data-mood="move" role="radio" aria-checked="false"><b>Move</b><span>rhythm forward, energy climbing</span></button>
+      <button class="intent-choice on" data-mood="explore" role="radio" aria-checked="true"><b>Surprise me</b><span>the widest story through the catalog</span></button>
+    </div>
+    <div class="intent-familiarity" id="intentFamiliarity" hidden>
+      <div class="intent-kicker">Should this feel familiar?</div>
+      <div class="intent-pills" role="radiogroup" aria-label="Familiarity">
+        <button class="intent-pill on" data-familiarity="mix" role="radio" aria-checked="true">A good mix</button>
+        <button class="intent-pill" data-familiarity="unheard" role="radio" aria-checked="false">Mostly unheard</button>
+        <button class="intent-pill" data-familiarity="familiar" role="radio" aria-checked="false">Favorites & familiar</button>
+      </div>
+    </div>
+    <div class="intent-actions">
+      <button class="btn" id="intentBrowse">Browse myself</button>
+      <span class="spring"></span>
+      <button class="btn on intent-start" id="intentStart">Start the set</button>
+    </div>
+  </div>
 </section>
 
 <!-- ============ first-run: the welcome card ============ -->
@@ -1904,6 +2105,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 
 <!-- ================= transport ================= -->
 <footer id="transport" class="chrome">
+  <div id="labGuide" role="status" aria-live="polite"><b>LAB</b><span></span></div>
   <div class="t-row">
     <div class="t-left">
       <button class="tbtn" id="btnPrev" aria-label="Previous track">
@@ -1966,6 +2168,8 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
     <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
+    <button class="chip" id="chipForce" aria-label="Force engine: automatic" title="Force engine — Auto follows the song's scene; tap to choose one force">AUTO · G</button>
+    <button class="chip" id="chipTouchFx" aria-pressed="false" title="Touch audio — opt-in, limiter-protected performance gestures on shock">FX</button>
     <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; in play mode, flick the orb.">VOID</button>
     <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, moiré, iris. Tap to cycle (L).">◈ NONE</button>
     <span class="meter" id="meterBar" role="img" aria-label="Beat meter — the downbeat dot lands heavier"><i></i><i></i><i></i><i></i></span>
@@ -1982,6 +2186,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <span class="ro opt"><b>⊗</b> <span class="coup-v" id="roCoup">0.000</span></span>
     <span class="ro opt"><b>e</b> <span class="e-v" id="roE">0.000</span></span>
     <span class="ro opt"><b>S</b> <span id="roEnt">0.00</span> bits</span>
+    <span class="ro opt" id="computeRo" title="Live renderer budget — measured, never estimated">GPU —</span>
     <span class="ro"><b>◉</b> <span id="roBpm">—</span> bpm</span>
   </div>
 </footer>
@@ -2022,7 +2227,10 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <h3>Touch the visuals</h3>
     <p class="lede">The scene responds to your input: <b>drag</b> to steer the camera (the auto rig waits
     while you hold it), <b>scroll</b> to move closer or further, <b>double-tap</b> to send a shockwave
-    through the scene. Particles near the pointer bend away while it moves. Every scene re-rolls its
+    through the scene. The <b>FORCE</b> control lets touch attract with gravity, orbit through
+    electromagnetism, bind with the strong force, or fragment through weak decay; Auto changes the
+    force with the song's structural scene. <b>FX</b> optionally gives the shock a quiet, limiter-protected
+    audio gesture without putting the song through an effects graph. Every scene re-rolls its
     proportions each time it appears, and a five-act arc — <b>OVERTURE · RISING · APEX · TURN ·
     RESOLVE</b> — follows each track from intro to outro, leaning the camera, the palette warmth, and
     the pace of the cuts toward where the song is.</p>
@@ -2311,7 +2519,7 @@ const PALETTES = [
    ================================================================ */
 const $ = id => document.getElementById(id);
 const el = {
-  canvas: $('glcanvas'), empty: $('emptyState'), drop: $('dropOverlay'),
+  canvas: $('glcanvas'), forceVeil: $('forceVeil'), empty: $('emptyState'), drop: $('dropOverlay'),
   zenWave: $('zenWave'), zenTitle: $('zenTitle'), zenMeta: $('zenMeta'), zenProg: document.querySelector('#zenProg i'),
   zenXport: $('zenXport'), zBtnPrev: $('zBtnPrev'), zBtnPlay: $('zBtnPlay'), zBtnNext: $('zBtnNext'),
   zIcoPlay: $('zIcoPlay'), zIcoPause: $('zIcoPause'),
@@ -2346,7 +2554,8 @@ const el = {
   libFresh: $('libFresh'),
   beatDot: $('beatDot'), btnShuffle: $('btnShuffle'), btnRepeat: $('btnRepeat'), rep1: $('rep1'),
   vol: $('vol'),
-  chipAuto: $('chipAuto'), sceneDots: $('sceneDots'), sceneName: $('sceneName'),
+  chipAuto: $('chipAuto'), chipForce: $('chipForce'), chipTouchFx: $('chipTouchFx'),
+  sceneDots: $('sceneDots'), sceneName: $('sceneName'),
   actName: $('actName'),
   csw: [$('csw0'), $('csw1'), $('csw2')], colorScheme: $('colorScheme'),
   roPi: $('roPi'), roE: $('roE'), roCoup: $('roCoup'), roEnt: $('roEnt'), roBpm: $('roBpm'),
@@ -2367,6 +2576,7 @@ const el = {
   btnHeartNow: $('btnHeartNow'), btnAirplay: $('btnAirplay'),
   chipMix: $('chipMix'), mixNext: $('mixNext'),
   btnCrate: $('btnCrate'), crate: $('crate'),
+  labGuide: $('labGuide'), computeRo: $('computeRo'),
 };
 
 function toast(html){
@@ -2376,6 +2586,17 @@ function toast(html){
   requestAnimationFrame(() => t.classList.add('in'));
   setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 350); }, 2600);
   while (el.toasts.children.length > 3) el.toasts.firstChild.remove();
+}
+
+let labGuideTimer = null;
+function labNote(label, message, ms){
+  if (!el.labGuide) return;
+  clearTimeout(labGuideTimer);
+  const b = el.labGuide.querySelector('b'), span = el.labGuide.querySelector('span');
+  b.textContent = String(label || 'LAB').toUpperCase();
+  span.textContent = message || '';
+  el.labGuide.classList.add('show');
+  labGuideTimer = setTimeout(() => el.labGuide.classList.remove('show'), ms || 3200);
 }
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2514,55 +2735,35 @@ function ensureCtx(){
       // the shipped demo file didn't load (missing/undecodable/offline cold
       // cache) — synthesize a loop instead of a dead end
       if (t && t.demo && !t.local){ LOADER.done(); player.synthesizeDemo(); return; }
-      // BROADCAST DURABILITY: a streaming glitch is NOT the end of the track. If
-      // we're online, rebuffer the SAME track at the exact spot it dropped and
-      // keep going — a few tries with a gentle backoff — before we ever skip.
-      // A live set rides straight through a weak-signal blip. (Sustained
-      // progress refills the retry budget, so a long track on a flaky pipe can
-      // recover as many times as it needs, as long as it keeps advancing.)
-      const streaming = t && !t.local && !t.demo;
-      if (streaming && navigator.onLine && player.playing){
-        t._netTries = (t._netTries || 0) + 1;
-        if (t._netTries <= 4){
-          t._errPos = isFinite(AE._lastGoodT) ? AE._lastGoodT : 0;
-          const wait = Math.min(4000, 400 * t._netTries);   // 0.4s → 1.6s
-          LOADER.begin('reconnecting…');
-          toast('Weak signal — holding <b>' + escapeHTML(t.title) + '</b>…');
-          clearTimeout(d._reT);
-          d._reT = setTimeout(() => {
-            if (i !== AE.active) return;
-            d._healing = true;                       // the reload's pause is ours — don't flip the UI to paused
-            try { d.a.src = t.url; d.a.load(); if (t._errPos > 0.2) d.a.currentTime = t._errPos; } catch (e){}
-            d.a.play().catch(() => {});
-            setTimeout(() => { d._healing = false; }, 900);
-          }, wait);
-          return;
-        }
-      }
-      clearTimeout(d._reT);          // give up any pending rebuffer so it can't reload the NEXT track's deck
-      LOADER.done();                 // the wait is over, even if it ended badly
-      const offline = !navigator.onLine && t && !t.local;
-      toast(offline
-        ? 'Offline — streaming unavailable for <b>' + escapeHTML(t.title) + '</b>'
-        : 'Couldn\'t decode <b>' + (t ? escapeHTML(t.title) : 'track') + '</b> — skipping');
-      if (!offline) setTimeout(() => player.next(true), 400);
-      else { player.playing = false; updatePlayIcon(); }
+      LOADER.begin('reconnecting…');
+      PLAYBACK_GUARD.onError();
     });
-    // audio-session interruptions (phone call, Siri, another app): the system
-    // pauses the element; reflect it, and recover cleanly when play returns.
+    // A pause event is evidence about the element, not the listener's intent.
+    // Phone calls, route changes, a starved decoder and OS audio arbitration
+    // can all pause it. Only player.pause() is allowed to revoke wantPlaying.
     d.a.addEventListener('pause', () => {
-      if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
-      if (player.playing && !d.a.ended){ player.playing = false; updatePlayIcon(); player.renderList(); }
+      if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;
+      if (player.wantPlaying && !d.a.ended) PLAYBACK_GUARD.interrupt('audio interruption');
+      else if (!player.wantPlaying && player.playing){
+        player.playing = false; updatePlayIcon(); player.renderList(); mediaSessionPlaybackState();
+      }
     });
     d.a.addEventListener('play', () => {
       if (d.priming) return;
       d.primed = true;               // a real play blesses the element too
       if (i !== AE.active) return;
+      if (!player.wantPlaying){ d.a.pause(); return; }
       ensureResume();
       if (!player.playing){ player.playing = true; updatePlayIcon(); player.renderList(); }
+      PLAYBACK_GUARD.onPlaying();
       if (typeof TABSYNC !== 'undefined') TABSYNC.announce();   // claim the single audio floor; older tabs stand down
       mediaSessionPlaybackState();
     });
+    d.a.addEventListener('playing', () => { if (i === AE.active) PLAYBACK_GUARD.onPlaying(); });
+    d.a.addEventListener('waiting', () => { if (i === AE.active) PLAYBACK_GUARD.interrupt('buffering'); });
+    d.a.addEventListener('stalled', () => { if (i === AE.active) PLAYBACK_GUARD.interrupt('network stall'); });
+    d.a.addEventListener('timeupdate', () => { if (i === AE.active) PLAYBACK_GUARD.noteProgress(); });
+    d.a.addEventListener('progress', () => { if (i === AE.active) PLAYBACK_GUARD.checkSoon(); });
     d.a.addEventListener('loadedmetadata', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('seeked', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
@@ -2648,27 +2849,29 @@ const LOADER = {
    plays a 44-byte silent WAV, muted, and pauses — position untouched,
    listeners guarded by d.priming. A failed attempt retries next gesture. */
 const PRIME_SRC = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+function primeDeck(d){
+  if (!IS_IOS || !d || d.primed || d.priming || d.a.src) return;
+  d.priming = true;
+  d.a.src = PRIME_SRC;
+  d.a.muted = true;
+  const done = ok => {
+    try { d.a.pause(); } catch (e){}
+    d.a.muted = false;
+    d.a.removeAttribute('src'); try { d.a.load(); } catch (e){}
+    d.primed = ok;
+    d.priming = false;
+  };
+  d.a.play().then(() => done(true), () => done(false));
+}
 function primeDecks(){
   if (!IS_IOS || !AE.decks) return;
   for (const d of AE.decks){
-    if (d.primed || d.priming) continue;
     // NEVER touch a deck holding real content. Priming's muted play→pause
     // raced the real play() riding the SAME gesture and paused the music
     // the listener had just started — "press next and it pauses". A deck
     // with a src is blessed by its own real play (the 'play' listener
     // marks it primed); only an EMPTY deck needs the silent-WAV blessing.
-    if (d.a.src) continue;
-    d.priming = true;
-    d.a.src = PRIME_SRC;
-    d.a.muted = true;
-    const done = ok => {
-      try { d.a.pause(); } catch (e){}
-      d.a.muted = false;
-      d.a.removeAttribute('src'); try { d.a.load(); } catch (e){}
-      d.primed = ok;
-      d.priming = false;
-    };
-    d.a.play().then(() => done(true), () => done(false));
+    primeDeck(d);
   }
 }
 ['pointerdown', 'keydown', 'touchend'].forEach(evName =>
@@ -3157,6 +3360,7 @@ const catalog = {
             sha256: t.sha256 || null, published: t.published || null,
             gain: Number.isFinite(Number(t.gain)) ? Number(t.gain) : null,
             env: (t.env && typeof t.env === 'object' && t.env.b) ? t.env : null,
+            story: Array.isArray(t.story) ? t.story : null,
             features: feats,
             mix: (t.mix && typeof t.mix === 'object' && t.mix.bpm > 0) ? t.mix : null,
             ext: 'MP3',
@@ -3243,13 +3447,70 @@ function slugify(s){
 let uid = 1;
 
 const player = {
-  tracks: [], cur: -1, playing: false,
+  tracks: [], cur: -1, playing: false, wantPlaying: false,
   shuffle: false, repeat: 'off',          // off | all | one
   history: [], autoFadeDone: false,
   demoTrack: null,
   _bag: [],                               // track ids remaining in this shuffle pass
   // QUANTUM mode: live seeded walk; used = the unique-cycle pass, nothing else
   quantum: { on: false, heat: 0.5, rng: null, used: new Set() },
+  _cueSeq: 0, _cue: null,
+
+  _clearCue(){
+    const c = this._cue;
+    this._cueSeq++;
+    if (!c) return;
+    c.deck.a.removeEventListener('loadedmetadata', c.onMeta);
+    c.deck.a.removeEventListener('seeked', c.onReady);
+    c.deck.a.removeEventListener('canplay', c.onReady);
+    c.deck.a.muted = false;
+    this._cue = null;
+  },
+
+  /* One source-loading path for boot restore and stall recovery. A non-zero
+     playhead stays element-muted until metadata has accepted the seek. Even
+     if play() is pressed immediately, zero seconds can never leak before the
+     saved position — the old "starts, pauses, then jumps" race is impossible. */
+  _loadAt(d, track, pos, autoplay){
+    this._clearCue();
+    const seq = this._cueSeq;
+    const requested = Math.max(0, Number(pos) || 0);
+    let target = requested, metadataSet = false;
+    const cue = { seq, deck: d, target, ready: requested <= 0.05, onMeta: null, onReady: null };
+    const clean = () => {
+      d.a.removeEventListener('loadedmetadata', cue.onMeta);
+      d.a.removeEventListener('seeked', cue.onReady);
+      d.a.removeEventListener('canplay', cue.onReady);
+    };
+    const finish = () => {
+      if (this._cue !== cue || seq !== this._cueSeq || !metadataSet) return;
+      if (target > 0.05 && Math.abs((d.a.currentTime || 0) - target) > 0.75) return;
+      clean(); cue.ready = true; d.a.muted = false; applyVolume();
+      if (autoplay && this.wantPlaying) PLAYBACK_GUARD.tryPlay('cue ready', false);
+    };
+    cue.onMeta = () => {
+      if (this._cue !== cue || seq !== this._cueSeq || metadataSet) return;
+      metadataSet = true;
+      if (isFinite(d.a.duration) && d.a.duration > 0)
+        target = cue.target = Math.min(requested, Math.max(0, d.a.duration - 0.25));
+      if (target <= 0.05){ finish(); return; }
+      try { d.a.currentTime = target; } catch (e){}
+      // Some engines report a same-buffer seek without a seeked event.
+      if (d.a.readyState >= 2) setTimeout(finish, 0);
+    };
+    cue.onReady = finish;
+    this._cue = cue;
+    d.a.muted = requested > 0.05;
+    d.a.addEventListener('loadedmetadata', cue.onMeta);
+    d.a.addEventListener('seeked', cue.onReady);
+    d.a.addEventListener('canplay', cue.onReady);
+    d.a.preload = 'auto';
+    d.a.src = track.url;
+    try { d.a.load(); } catch (e){}
+    // Cached resources can already have metadata by the end of src assignment.
+    if (d.a.readyState >= 1) queueMicrotask(cue.onMeta);
+    if (autoplay) PLAYBACK_GUARD.tryPlay('in-place recovery', false);
+  },
 
   /* load a track ready-to-resume at a position, WITHOUT playing — the boot
      restore path. iOS requires a gesture to start audio; one tap resumes. */
@@ -3258,19 +3519,15 @@ const player = {
     if (!track) return;
     ensureCtx();
     const d = AE.decks[AE.active];
-    d.a.src = track.url;
+    this.cur = i;
+    this.wantPlaying = false;
+    this.playing = false;
+    PLAYBACK_GUARD.resetTrack();
+    PLAYBACK_GUARD.lastPos = Math.max(0, Number(pos) || 0);
+    this._loadAt(d, track, pos, false);
     d.norm = normLin(track);
-    if (pos > 0){
-      const seekOnce = () => {
-        d.a.removeEventListener('loadedmetadata', seekOnce);
-        if (isFinite(d.a.duration)) d.a.currentTime = Math.min(pos, Math.max(0, d.a.duration - 1));
-      };
-      d.a.addEventListener('loadedmetadata', seekOnce);
-    }
     if (AE.graphLive) rampGain(d.gain, d.norm, 0.02, 'in');
     applyVolume();
-    this.cur = i;
-    this.playing = false;
     const bi = this._bag.indexOf(track.id);
     if (bi >= 0) this._bag.splice(bi, 1);
     this.refreshTitle();
@@ -3363,6 +3620,7 @@ const player = {
     const track = this.tracks[i];
     if (!track) return;
     ensureCtx();
+    PLAYBACK_GUARD.resetTrack();
     // a new track starts on its own analyzed grid — drop any manual tap-align
     if (typeof CLOCK !== 'undefined' && this.tracks[this.cur] !== track){
       CLOCK.clearTap();
@@ -3370,6 +3628,7 @@ const player = {
       if (typeof TAP !== 'undefined') TAP.m = [];
     }
     if (typeof MIXER !== 'undefined') MIXER.cancel('manual');
+    this._committedNext = null;
     if (AE.mic.on) toggleMic();
     HIST.leave(this.tracks[this.cur], opts && opts.ended ? 'ended' : 'skip');
     const xfade = !!(opts && opts.xfade) && this.playing && this.cur !== -1 && AE.graphLive;
@@ -3388,8 +3647,17 @@ const player = {
     const stayPut = IS_IOS && !xfade && this.playing;
     const newIdx = stayPut ? oldIdx : 1 - oldIdx;
     const nd = AE.decks[newIdx], od = AE.decks[oldIdx];
+    this._clearCue();
+
+    // On the very first iOS play, bless the otherwise-empty outgoing deck
+    // while this gesture blesses the real incoming deck. That guarantees the
+    // next automatic transition still has a user-authorized media element.
+    // primeDeck() refuses any deck already holding real content, so ordinary
+    // skips can never pause or replace the song that is on air.
+    if (IS_IOS) primeDeck(od);
 
     AE.xfading = xfade;
+    this.wantPlaying = true;
     // replacing .src on a still-playing element (a manual skip) fires a spurious
     // 'pause' — flag the swap so the pause listener doesn't flip the UI to paused.
     // clear any prior timer first, so rapid skips can't end the window early.
@@ -3401,6 +3669,7 @@ const player = {
       nd._swapping = false;
     }
     nd.a.src = track.url;
+    nd.a.muted = false;
     nd.norm = normLin(track);
     nd.a.currentTime = 0;
     // an HONEST loading word: "the first track" only the very first time this
@@ -3410,23 +3679,7 @@ const player = {
     this._everPlayed = true;
     if (track) track._netTries = 0;   // fresh track → fresh rebuffer budget
     AE._lastGoodT = 0;
-    this._armStall(track, newIdx);    // the backstop: a silent stall must never freeze the queue
-    nd.a.play().catch(err => {
-      // A decode/network failure fires the element's 'error' event (handled
-      // above). An autoplay BLOCK does not — it rejects here, silently. On the
-      // rare device that still blocks the first gesture, say so plainly: the
-      // context is live now, so a second tap starts the sound.
-      if (err && err.name === 'NotAllowedError'){
-        ensureResume();
-        // On an AUTO-advance (a track ended and we cued the next), a transient
-        // block must not dead-stop the queue: the stall backstop nudges play()
-        // again shortly and, only if it truly can't start, stops CLEANLY. Just
-        // a manual or first start asks the listener for the single tap.
-        if (opts && opts.ended) return;
-        player.pause();     // clear the optimistic playing state so ONE more tap resumes, not two
-        toast('Tap play once more to start the sound');
-      }
-    });
+    nd.a.play().catch(err => setTimeout(() => PLAYBACK_GUARD.playFailed(err, !(opts && opts.ended)), 0));
     if (AE.graphLive){
       rampGain(nd.gain, nd.norm, fadeDur, 'in');
       rampGain(od.gain, 0, fadeDur, 'out');
@@ -3478,6 +3731,7 @@ const player = {
     const bi = this._bag.indexOf(track.id);
     if (bi >= 0) this._bag.splice(bi, 1);
     this._committedNext = null;
+    this.wantPlaying = true;
     this.playing = true;
     this.autoFadeDone = true;              // the legacy crossfader stands down
     this._trackStarted();                  // the first-run lessons watch track changes
@@ -3495,13 +3749,16 @@ const player = {
       else this.playDemo();
       return;
     }
-    if (this.playing) this.pause(); else this.resume();
+    if (this.wantPlaying) this.pause(); else this.resume();
   },
   pause(){
     const d = activeDeck(); if (!d) return;
+    this.wantPlaying = false;
     LOADER.done();                   // a deliberate stop ends any pending spin
     this._clearStall();
     this.playing = false;
+    PLAYBACK_GUARD.clear();
+    if (typeof MIXER !== 'undefined') MIXER.cancel('paused');
     d.a.pause();
     updatePlayIcon(); this.renderList();
     mediaSessionPlaybackState(); PERSIST.poke();
@@ -3510,7 +3767,8 @@ const player = {
     const d = activeDeck(); if (!d) return;
     ensureCtx();
     if (AE.mic.on) toggleMic();
-    d.a.play().catch(() => {});
+    this.wantPlaying = true;
+    PLAYBACK_GUARD.tryPlay('listener play', true);
     if (AE.graphLive) rampGain(d.gain, 1, 0.08, 'in');
     applyVolume();
     this.playing = true;
@@ -3644,7 +3902,7 @@ const player = {
   onEnded(){
     if (this.repeat === 'one'){ const d = activeDeck(); if (d){ d.a.currentTime = 0; d.a.play().catch(()=>{}); } return; }
     if (this.hasNext()) this.next(true, false);
-    else { this.playing = false; updatePlayIcon(); this.renderList(); }
+    else { this.wantPlaying = false; this.playing = false; PLAYBACK_GUARD.clear(); updatePlayIcon(); this.renderList(); }
   },
   /* skip the playhead to the next DROP ahead — the build→loud boundary from the
      precomputed structure. A DJ's "take me to the good part". No-op with a note
@@ -3740,16 +3998,18 @@ const player = {
 
   /* Up-next: lift a track to the seat right after the current one. The
      queue is the ordering authority; this is a splice, not a copy. */
-  playNext(i){
+  playNext(i, quiet){
     const track = this.tracks[i];
     if (!track || i === this.cur) return;
+    if (typeof MIXER !== 'undefined') MIXER.cancel('queue changed');
+    this._committedNext = null;
     this.tracks.splice(i, 1);
     if (i < this.cur) this.cur--;
     const at = Math.min(this.cur + 1, this.tracks.length);
     this.tracks.splice(at, 0, track);
     this.history = [];                       // old indices are meaningless now
     this.renderList();
-    toast('Up next: <b>' + escapeHTML(track.title) + '</b>');
+    if (!quiet) toast('Up next: <b>' + escapeHTML(track.title) + '</b>');
     PERSIST.poke();
   },
   /* Queue-next for a whole list: drop these tracks, in order, into the seats
@@ -3780,6 +4040,8 @@ const player = {
     const track = this.tracks[i];
     if (!track) return;
     const wasCur = i === this.cur;
+    if (typeof MIXER !== 'undefined') MIXER.cancel('queue changed');
+    this._committedNext = null;
     if (wasCur) HIST.leave(track, 'skip');
     this.tracks.splice(i, 1);
     if (track === this.demoTrack) this.demoTrack = null;
@@ -3807,13 +4069,16 @@ const player = {
     PERSIST.poke();
   },
   stopAll(){
+    this.wantPlaying = false; this.playing = false; this.cur = -1;
+    PLAYBACK_GUARD.clear();
     this._clearStall(); LOADER.done();
-    this.playing = false; this.cur = -1;
     this.refreshTitle(); updatePlayIcon();
     if (!AE.mic.on) el.empty.classList.remove('gone');
   },
   move(from, to){
     if (from === to || from < 0 || to < 0) return;
+    if (typeof MIXER !== 'undefined') MIXER.cancel('queue changed');
+    this._committedNext = null;
     const [t] = this.tracks.splice(from, 1);
     this.tracks.splice(to, 0, t);
     const remap = i => i === from ? to : (from < i && i <= to ? i - 1 : (to <= i && i < from ? i + 1 : i));
@@ -3827,6 +4092,8 @@ const player = {
   /* ---- sorting ---- */
   sort: 'catalog',
   sortBy(key){
+    if (typeof MIXER !== 'undefined') MIXER.cancel('queue changed');
+    this._committedNext = null;
     this.sort = key;
     const curId = this.tracks[this.cur] ? this.tracks[this.cur].id : -1;
     const s = v => (v || '').toLowerCase();
@@ -4187,6 +4454,135 @@ const DB = {
   },
 };
 
+/* ================================================================
+   PLAYBACK CONTINUITY — the listener's intent outlives a media hiccup.
+   Normal buffering is allowed to heal. A paused decoder is restarted. If
+   neither advances for eight seconds, only the media element is rebuilt at
+   the last confirmed playhead; the document, queue and visual state remain.
+   ================================================================ */
+const PLAYBACK_GUARD = {
+  waitSince: 0, lastAdvanceAt: 0, lastPos: 0, lastReloadAt: 0,
+  timer: null, failures: 0, announced: false,
+
+  active(){ return activeDeck(); },
+  resetTrack(){
+    this.clear(); this.lastPos = 0; this.lastAdvanceAt = performance.now();
+    this.lastReloadAt = 0; this.failures = 0;
+  },
+  clear(){
+    clearTimeout(this.timer); this.timer = null; this.waitSince = 0;
+    this.announced = false;
+  },
+  noteProgress(){
+    const d = this.active(); if (!d || !isFinite(d.a.currentTime)) return;
+    const p = d.a.currentTime;
+    if (p > this.lastPos + 0.04 || p < this.lastPos - 1){
+      this.lastPos = p; this.lastAdvanceAt = performance.now();
+      return true;
+    }
+    return false;
+  },
+  onPlaying(){
+    const wasWaiting = !!this.waitSince;
+    const wasAnnounced = this.announced;
+    this.noteProgress();
+    this.clear(); this.failures = 0;
+    if (player.wantPlaying && !player.playing){
+      player.playing = true; updatePlayIcon(); player.renderList();
+    }
+    if (wasWaiting && wasAnnounced) labNote('STREAM', 'Recovered at ' + fmtTime(this.lastPos) + ' · continuity held');
+  },
+  checkSoon(){ if (this.waitSince) this.schedule(180); },
+  interrupt(reason){
+    if (!player.wantPlaying) return;
+    if (!this.waitSince) this.waitSince = performance.now();
+    if (!this.lastAdvanceAt) this.lastAdvanceAt = performance.now();
+    if (!this.announced){
+      this.announced = true;
+      labNote('BUFFER', (reason || 'stream pause') + ' · holding ' + fmtTime(this.lastPos), 5000);
+    }
+    this.schedule(120);
+  },
+  schedule(ms){
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.tick(), ms == null ? 800 : ms);
+  },
+  tryPlay(reason, fromGesture){
+    const d = this.active();
+    if (!d || !player.wantPlaying || d.a.ended) return;
+    ensureResume();
+    let p;
+    try { p = d.a.play(); } catch (err){ this.playFailed(err, !!fromGesture); return; }
+    if (p && p.catch) p.catch(err => this.playFailed(err, !!fromGesture));
+    // Arm the watchdog silently. A normal play is not "buffering"; only an
+    // actual pause/wait/stall event earns recovery microcopy.
+    if (!this.waitSince) this.waitSince = performance.now();
+    this.schedule(250);
+  },
+  playFailed(err, fromGesture){
+    if (!player.wantPlaying) return;
+    if (err && err.name === 'NotAllowedError'){
+      // Browsers can revoke background autoplay after a call/route change.
+      // No script may bypass that gate; preserve the cue and ask for one tap.
+      player.wantPlaying = false; player.playing = false; this.clear();
+      updatePlayIcon(); player.renderList(); mediaSessionPlaybackState(); PERSIST.poke();
+      toast(fromGesture ? 'Playback was blocked — tap play once more'
+        : 'Audio permission changed — tap play to resume at ' + fmtTime(this.lastPos));
+      return;
+    }
+    this.interrupt((err && err.name) || 'decoder retry');
+  },
+  onError(){
+    if (!player.wantPlaying) return;
+    const t = player.tracks[player.cur];
+    if (!navigator.onLine && t && !t.local){
+      labNote('OFFLINE', 'Holding ' + fmtTime(this.lastPos) + ' · resumes when the network returns', 6000);
+      this.interrupt('offline'); return;
+    }
+    this.failures++;
+    if (this.failures >= 3){
+      this.clear(); this.failures = 0;
+      toast('Couldn\'t decode <b>' + (t ? escapeHTML(t.title) : 'track') + '</b> after three recovery attempts — moving on');
+      setTimeout(() => player.next(true), 250);
+      return;
+    }
+    this.interrupt('decoder recovery');
+    this.waitSince = Math.min(this.waitSince || performance.now(), performance.now() - 8001);
+    this.tick();
+  },
+  tick(){
+    this.timer = null;
+    const d = this.active();
+    if (!d || !player.wantPlaying || d.a.ended){ this.clear(); return; }
+    if (this.noteProgress() && !d.a.paused){ this.onPlaying(); return; }
+    const now = performance.now();
+    const action = continuityDecision({
+      wantPlaying: player.wantPlaying, ended: d.a.ended, offline: !navigator.onLine,
+      paused: d.a.paused, waitingMs: this.waitSince ? now - this.waitSince : 0,
+      sinceReloadMs: this.lastReloadAt ? now - this.lastReloadAt : null,
+    });
+    if (action === 'wait-network'){ this.schedule(2000); return; }
+    if (action === 'resume') this.tryPlay('resuming media session', false);
+    if (action === 'reload-media'){
+      const t = player.tracks[player.cur];
+      if (t){
+        const pos = Math.max(this.lastPos || 0, isFinite(d.a.currentTime) ? d.a.currentTime : 0);
+        this.lastReloadAt = now;
+        labNote('RECOVER', 'Re-cueing stream at ' + fmtTime(pos) + ' · page stays alive', 5000);
+        player._loadAt(d, t, pos, true);
+      }
+    }
+    if (player.wantPlaying) this.schedule(800);
+  },
+};
+
+window.addEventListener('online', () => {
+  if (player.wantPlaying){ PLAYBACK_GUARD.interrupt('network restored'); PLAYBACK_GUARD.tick(); }
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && player.wantPlaying){ ensureResume(); PLAYBACK_GUARD.interrupt('foreground recovery'); }
+});
+
 /* track identity for anything persistent: content hash when the catalog
    provides one, URL otherwise. Republishing under a new path never orphans
    history or hearts — the hash survives. Local blob files can't restore. */
@@ -4203,11 +4599,12 @@ const PERSIST = {
   snapshot(){
     const d = activeDeck();
     const cur = player.tracks[player.cur];
+    const cue = player._cue && player._cue.deck === d && !player._cue.ready ? player._cue.target : 0;
     return {
-      v: 1, ts: Date.now(),
+      v: 2, ts: Date.now(),
       queue: player.tracks.map(trackKey).filter(Boolean),
       cur: trackKey(cur),
-      pos: d && isFinite(d.a.currentTime) ? d.a.currentTime : 0,
+      pos: Math.max(cue || 0, d && isFinite(d.a.currentTime) ? d.a.currentTime : 0),
       bag: player._bag.map(id => { const t = player.tracks.find(x => x.id === id); return trackKey(t); }).filter(Boolean),
       shuffle: player.shuffle, repeat: player.repeat,
       vol: parseInt(el.vol.value, 10),
@@ -4219,7 +4616,10 @@ const PERSIST = {
       journey: CON.lastDeal ? { mode: CON.lastDeal.mode, dials: CON.lastDeal.dials, seed: CON.lastDeal.seed } : null,
     };
   },
-  save(){ if (!this.restoring) DB.kvSet('transport', this.snapshot()).catch(() => {}); },
+  save(){
+    if (this.restoring) return Promise.resolve();
+    return DB.kvSet('transport', this.snapshot()).catch(() => {});
+  },
   async restore(){
     const s = await DB.kvGet('transport');
     if (!s || !s.queue || !s.queue.length) return false;
@@ -4239,7 +4639,10 @@ const PERSIST = {
     el.rep1.style.display = player.repeat === 'one' ? 'block' : 'none';
     if (Number.isFinite(s.vol)){ el.vol.value = s.vol; el.vol.style.setProperty('--vfill', s.vol + '%'); }
     if (s.quantum){ player.quantum.on = true; player.quantum.heat = s.quantum.heat; player.quantum.used = new Set(s.quantum.used); }
-    MIXER.on = !!s.mixOn;
+    // v1 stored the old opt-in default as `false` for nearly everyone. v2
+    // means the listener has lived with the auto-on product and their choice
+    // is intentional, so only those snapshots are allowed to turn it off.
+    MIXER.on = s.v >= 2 ? s.mixOn !== false : true;
     const curTrack = byKey.get(s.cur);
     if (curTrack){
       // restored PAUSED at position — iOS needs a gesture to start audio, so
@@ -4260,7 +4663,7 @@ const PERSIST = {
    A play counts at ≥50% or 60 s. Skips are their own event type.
    Private telemetry for the owner's own time machine — nothing transmits. */
 const HIST = {
-  cur: null, events: [], _heardCache: null,
+  cur: null, events: [], sessionKeys: new Set(), _heardCache: null,
   async boot(){ this.events = await DB.histAll(); this._heardCache = null; },
   /* the set of keys ever LISTENED to (a completed play), memoized — renderList
      reads this on every play/pause and it must not rebuild from the whole event
@@ -4277,9 +4680,15 @@ const HIST = {
   start(track){
     const key = trackKey(track);
     if (!key || (track && track.demo)) { this.cur = null; return; }
+    this.sessionKeys.add(key);
+    if (typeof syncInstallEligibility === 'function') syncInstallEligibility();
     this.cur = { key, startedAt: Date.now(), acc: 0, duration: track.duration || 0 };
   },
-  tick(dt){ if (this.cur && player.playing) this.cur.acc += dt; },
+  tick(dt){
+    const d = activeDeck();
+    if (this.cur && player.playing && d && !d.a.paused && d.a.readyState >= 2
+        && !PLAYBACK_GUARD.waitSince) this.cur.acc += dt;
+  },
   leave(track, reason){
     if (!this.cur) return;
     const c = this.cur; this.cur = null;
@@ -5269,6 +5678,84 @@ function dealRitual(r, tracks, rng){
     targetSec: r.targetSec, heat: r.heat, rng });
 }
 
+/* The first question is human, not algorithmic: what is this listening
+   session for? Familiarity is deliberately earned. A brand-new listener has
+   not supplied enough signal for "heard" to mean anything, so that control
+   appears only after several hearts or a real playlist exists. */
+const LISTEN_INTENT = {
+  mood: 'explore', familiarity: 'mix',
+  profiles: {
+    unwind: {
+      from: { energy: .45, brightness: .40, onsets: .30, entropy: .45, bpm: 0 },
+      to:   { energy: .08, brightness: .16, onsets: .10, entropy: .35, bpm: 0 }, heat: .12 },
+    focus: {
+      from: { energy: .38, brightness: .42, onsets: .28, entropy: .30, bpm: 98 },
+      to:   { energy: .58, brightness: .52, onsets: .42, entropy: .36, bpm: 116 }, heat: .16 },
+    move: {
+      from: { energy: .58, brightness: .46, onsets: .58, entropy: .42, bpm: 116 },
+      to:   { energy: .94, brightness: .72, onsets: .92, entropy: .55, bpm: 130 }, heat: .24 },
+    explore: { from: null, to: null, heat: .68 },
+  },
+  established(){
+    return FAVS.keys.size >= 5 || PLAYLISTS.lists.some(p => p.keys.length >= 3);
+  },
+  open(on){
+    const box = document.getElementById('intent');
+    if (!box) return;
+    box.classList.toggle('open', !!on);
+    if (on){
+      const earned = this.established();
+      document.getElementById('intentFamiliarity').hidden = !earned;
+      if (!earned) this.familiarity = 'mix';
+    }
+  },
+  pool(){
+    const all = allTracks().filter(t => t && t.features && !t.demo);
+    if (!this.established() || this.familiarity === 'mix') return all;
+    const counts = HIST.playCounts();
+    const heard = t => (counts.get(trackKey(t)) || 0) > 0 || FAVS.has(t);
+    const picked = this.familiarity === 'unheard' ? all.filter(t => !heard(t)) : all.filter(heard);
+    // A preference may shape the set, but never strand the listener with a
+    // three-song loop. Fall back honestly when their library signal is thin.
+    return picked.length >= 8 ? picked : all;
+  },
+  start(){
+    const p = this.profiles[this.mood] || this.profiles.explore;
+    const seed = newSeed();
+    const dealt = dealJourney({
+      tracks: this.pool(), fromFeat: p.from, toFeat: p.to,
+      targetSec: 2700, heat: p.heat, rng: mulberry32(seed),
+    });
+    if (!dealt.order.length){ toast('There are not enough analyzed songs to deal this mood yet'); return; }
+    CON.lastDeal = { mode: 'intent', dials: { mood: this.mood, familiarity: this.familiarity }, seed,
+      orderKeys: dealt.order.map(id => trackKey(libTrack(id))).filter(Boolean) };
+    this.open(false);
+    MIXER.setOn(true);
+    applyDeal(dealt.order, { quantum: false });
+    toast('<b>' + escapeHTML(this.mood === 'explore' ? 'Surprise me' : this.mood[0].toUpperCase() + this.mood.slice(1))
+      + '</b> — ' + dealt.order.length + ' songs, no repeats');
+  },
+};
+
+if (typeof document !== 'undefined'){
+  document.querySelectorAll('.intent-choice').forEach(b => b.addEventListener('click', () => {
+    LISTEN_INTENT.mood = b.dataset.mood;
+    document.querySelectorAll('.intent-choice').forEach(x => {
+      const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on));
+    });
+  }));
+  document.querySelectorAll('.intent-pill').forEach(b => b.addEventListener('click', () => {
+    LISTEN_INTENT.familiarity = b.dataset.familiarity;
+    document.querySelectorAll('.intent-pill').forEach(x => {
+      const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on));
+    });
+  }));
+  document.getElementById('intentStart').addEventListener('click', () => LISTEN_INTENT.start());
+  document.getElementById('intentBrowse').addEventListener('click', () => {
+    LISTEN_INTENT.open(false); openLibrary(true);
+  });
+}
+
 /* ---- THE MIX PLANNER — MixMeister's compiler, one pair at a time ----
    Every decision is made ahead of playback from publish-time metadata:
    beatmix when the grids, tempi and keys agree; a plain fade when they
@@ -5891,11 +6378,11 @@ function colorPlan(inp){
   // character → scheme
   const scheme = ent > 0.62 ? 'triad' : (e > 0.55 ? 'complement' : 'analogous');
   // arousal → chroma; mode → lightness + temperature
-  // RADIANT, not pastel: chroma lives in OKLCH's vivid range (0.12–0.4 —
-  // the gamut mapper walks it down safely where sRGB can't follow), and
-  // lightness sits a touch lower so saturation reads as glow, not chalk.
-  const C0 = 0.14 + e * 0.20 + act * 0.12;
-  const L0 = lClamp((minor ? 0.50 : 0.56) + e * 0.08 + act * 0.05 - ent * 0.05);
+  // Hold chroma in a detailed, photographic range. Electric moments come
+  // from contrast, motion and small accents—not by pinning every large field
+  // to the edge of the display gamut (which erased texture and nuance).
+  const C0 = 0.095 + e * 0.105 + act * 0.045;
+  const L0 = lClamp((minor ? 0.48 : 0.54) + e * 0.07 + act * 0.035 - ent * 0.055);
   const H = (rootH + (minor ? 14 : -6) + 360) % 360;
   // MOZART: a keyed room spells its chord in light — the harmony colour
   // sits at the key's own just third, the accent at the fifth; a driving
@@ -5914,7 +6401,7 @@ function colorPlan(inp){
   // reads as "washed out" the moment particles stack additively
   const c = scheme === 'triad'
     ? { l: lClamp(L0 + 0.16), c: C0 * 0.85, h: (H + (keyed ? intervalHue(3, 2) : 240)) % 360 }
-    : { l: 0.85, c: 0.08 + e * 0.06, h: (H + (scheme === 'complement' ? spread : -spread) + 360) % 360 };
+    : { l: 0.82, c: 0.045 + e * 0.035, h: (H + (scheme === 'complement' ? spread : -spread) + 360) % 360 };
   return { scheme, keyed, minor: !!minor, root: a, colors: [a, b, c] };
 }
 // @color-end
@@ -6021,6 +6508,21 @@ function countFlashes(trace){
     else if ((dir >= 0 && d > 0) || (dir <= 0 && d < 0)) extreme = trace[i];
   }
   return flashes;
+}
+
+/* Pure policy for the continuity watchdog. The runtime owns timers and media
+   elements; this function owns the promise: an interruption never becomes an
+   intentional pause, a starving stream is reloaded in place, and an offline
+   device waits without destroying its playhead. */
+function continuityDecision(s){
+  s = s || {};
+  if (!s.wantPlaying || s.ended) return 'idle';
+  if (s.offline) return 'wait-network';
+  if (s.notAllowed) return 'need-gesture';
+  if ((s.waitingMs || 0) >= 8000 && (s.sinceReloadMs == null || s.sinceReloadMs >= 12000))
+    return 'reload-media';
+  if (s.paused) return 'resume';
+  return 'wait';
 }
 // @safe-end
 
@@ -6180,6 +6682,90 @@ function envSample(env, t){
   const lin = str => at(str, i) + (at(str, i + 1) - at(str, i)) * fr;
   return { bass: lin(env.b), mid: lin(env.m), treble: lin(env.t),
            punch: env.o ? at(env.o, i) : 0, step: i };
+}
+
+/* Turn the publish-time score into a compact structural storyboard. The
+   score is already an offline analysis of the whole song; this pass groups
+   it into grid-aligned phrases, measures novelty between phrases, and keeps
+   the musically meaningful boundaries. The director can therefore arrive
+   at builds/breaks/drops instead of inferring a five-act arc from elapsed
+   percentage alone. */
+function storyboardFromEnv(env, duration, mix){
+  if (!env || !(env.hz > 0) || !env.b || !env.m || !env.t || duration < 12) return null;
+  const hz = env.hz;
+  const phraseSec = mix && mix.bpm > 0
+    ? Math.max(7, (mix.phrases || 32) * 60 / mix.bpm)
+    : Math.max(9, Math.min(22, duration / 12));
+  const step = Math.max(1, Math.round(phraseSec * hz));
+  const at = (str, i) => {
+    const c = str.charCodeAt(Math.min(Math.max(0, i), str.length - 1)) - 48;
+    return c >= 0 && c <= 9 ? c / 9 : 0;
+  };
+  const phrases = [];
+  for (let s = 0; s < env.b.length; s += step){
+    const e = Math.min(env.b.length, s + step);
+    let b = 0, m = 0, t = 0, o = 0, n = Math.max(1, e - s);
+    for (let i = s; i < e; i++){
+      b += at(env.b, i); m += at(env.m, i); t += at(env.t, i); o += env.o ? at(env.o, i) : 0;
+    }
+    b /= n; m /= n; t /= n; o /= n;
+    phrases.push({ t: s / hz, bass: b, mid: m, treble: t, punch: o,
+      energy: clamp01(b * .40 + m * .32 + t * .16 + o * .25),
+      brightness: clamp01((t * 1.15 + m * .38) / (b + m + t + .001)) });
+  }
+  if (phrases.length < 2) return null;
+  const novelty = phrases.map((p, i) => {
+    if (!i) return 1;
+    const q = phrases[i - 1];
+    return Math.sqrt((p.bass-q.bass)**2 + (p.mid-q.mid)**2 + (p.treble-q.treble)**2
+      + .7 * (p.punch-q.punch)**2);
+  });
+  const sortedN = novelty.slice(1).sort((a,b) => a-b);
+  const med = sortedN.length ? sortedN[(sortedN.length / 2) | 0] : 0;
+  const threshold = Math.max(.16, med * 1.2);
+  const keep = [0];
+  for (let i = 1; i < phrases.length; i++){
+    const localPeak = novelty[i] >= (novelty[i - 1] || 0)
+      && novelty[i] >= (novelty[i + 1] || 0);
+    if (localPeak && novelty[i] >= threshold && i - keep[keep.length - 1] >= 1) keep.push(i);
+  }
+  // Sparse, very smooth songs still deserve a beginning/middle/end story.
+  if (keep.length < 3 && phrases.length >= 5){
+    keep.push(Math.floor(phrases.length * .38), Math.floor(phrases.length * .72));
+  }
+  keep.push(phrases.length - 1);
+  const ids = [...new Set(keep)].sort((a,b) => a-b);
+  const peakI = phrases.reduce((best, p, i) => p.energy > phrases[best].energy ? i : best, 0);
+  const energies = phrases.map(p => p.energy).sort((a,b) => a-b);
+  const hot = energies[Math.floor(energies.length * .72)] || .65;
+  const sections = ids.map((i, k) => {
+    const p = phrases[i], prev = phrases[Math.max(0, i - 1)];
+    let act = 1;
+    if (k === 0) act = 0;
+    else if (k === ids.length - 1) act = 4;
+    else if (p.energy >= hot || Math.abs(i - peakI) <= 1) act = 2;
+    else if (i > peakI) act = 3;
+    else if (p.energy > prev.energy + .05) act = 1;
+    const cue = p.energy > .62 && p.punch > .30 ? 'drive'
+      : p.treble > p.bass * 1.18 ? 'spark'
+      : p.energy < .30 ? 'space'
+      : p.mid > p.bass && p.mid > p.treble ? 'flow' : 'geometry';
+    let ts = p.t;
+    if (mix && mix.bpm > 0 && mix.grid != null){
+      const bar = 4 * 60 / mix.bpm;
+      ts = mix.grid + Math.max(0, Math.round((ts - mix.grid) / bar)) * bar;
+    }
+    return { t: Math.max(0, Math.min(duration, Math.round(ts * 100) / 100)), act, cue,
+      energy: Math.round(p.energy * 100) / 100, novelty: Math.round(novelty[i] * 100) / 100 };
+  });
+  sections[0].t = 0;
+  return sections;
+}
+function storyboardAt(story, time){
+  if (!story || !story.length) return null;
+  let i = 0;
+  while (i + 1 < story.length && story[i + 1].t <= time) i++;
+  return { index: i, section: story[i] };
 }
 // @clock-end
 
@@ -6359,6 +6945,42 @@ function danceSway(barPhi, phrasePhi, opts){
 function danceTimeWarp(phi, period, energy){
   const amp = Math.min(0.045, period * 0.09) * clamp01(energy);
   return -amp * 0.5 * (1 + Math.cos(clamp01(phi) * Math.PI * 2));
+}
+
+/* One score for every expressive engine. The song/story supplies intent;
+   each bank decides how to render these bounded channels. This prevents the
+   visual scene, post chain and touch layer from independently chasing bass
+   and all shouting at once. forceMode: 0 gravity, 1 EM, 2 strong, 3 weak. */
+function performanceFrame(o){
+  o = o || {};
+  const cue = o.cue || 'geometry';
+  const profiles = {
+    drive:    { motion:1.00, detail:.58, space:.26, impact:1.00 },
+    space:    { motion:.28, detail:.72, space:1.00, impact:.22 },
+    spark:    { motion:.70, detail:1.00, space:.52, impact:.64 },
+    flow:     { motion:.52, detail:.82, space:.70, impact:.38 },
+    geometry: { motion:.60, detail:.92, space:.42, impact:.52 },
+  };
+  const p = profiles[cue] || profiles.geometry;
+  const e = clamp01(o.energy == null ? .4 : o.energy);
+  const bass = clamp01(o.bass == null ? .3 : o.bass);
+  const treble = clamp01(o.treble == null ? .3 : o.treble);
+  const entropy = clamp01(o.entropy == null ? .4 : o.entropy);
+  const beat = clamp01(o.beat == null ? 0 : o.beat);
+  const seam = clamp01(o.transition == null ? 0 : o.transition);
+  const mode = Math.max(0, Math.min(3, o.forceMode == null ? 0 : o.forceMode | 0));
+  const forceVoice = mode === 0 ? (.45 + bass * .34 + p.space * .21)
+    : mode === 1 ? (.38 + treble * .40 + p.detail * .22)
+    : mode === 2 ? (.32 + bass * .28 + beat * .25 + p.impact * .25)
+    : (.36 + entropy * .38 + p.space * .26);
+  return {
+    motion: clamp01(p.motion * (.62 + e * .38) + seam * .12),
+    detail: clamp01(p.detail * (.72 + treble * .28)),
+    space: clamp01(p.space * (.78 + (1 - e) * .22)),
+    impact: clamp01(p.impact * (.48 + beat * .34 + bass * .18)),
+    seam: seam,
+    forceGain: clamp01(forceVoice),
+  };
 }
 // @dance-end
 
@@ -6827,7 +7449,52 @@ function shareUrlFor(t){
   const u = new URL(location.href);
   u.search = ''; u.hash = '';
   u.searchParams.set('t', t.sha256.slice(0, 12));
+  if (director.active >= 0){
+    u.searchParams.set('scene', String(director.active + 1));
+    u.searchParams.set('auto', director.auto ? '1' : '0');
+  }
   return u.href;
+}
+async function makeShareCard(t){
+  const cv = document.createElement('canvas');
+  cv.width = 1080; cv.height = 1350;
+  const c = cv.getContext('2d');
+  const src = el.canvas;
+  c.fillStyle = '#05060e'; c.fillRect(0, 0, cv.width, cv.height);
+  try {
+    const scale = Math.max(cv.width / src.width, cv.height / src.height);
+    const w = src.width * scale, h = src.height * scale;
+    c.drawImage(src, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+  } catch (e){}
+  const veil = c.createLinearGradient(0, 0, 0, cv.height);
+  veil.addColorStop(0, 'rgba(5,6,14,.05)');
+  veil.addColorStop(.48, 'rgba(5,6,14,.12)');
+  veil.addColorStop(1, 'rgba(5,6,14,.92)');
+  c.fillStyle = veil; c.fillRect(0, 0, cv.width, cv.height);
+  // A quiet glass caption preserves the actual visual as the hero.
+  const x = 72, y = 930, w = 936, h = 330, r = 34;
+  c.beginPath();
+  if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h);
+  c.fillStyle = 'rgba(9,12,24,.72)'; c.fill();
+  c.strokeStyle = 'rgba(220,235,255,.22)'; c.lineWidth = 2; c.stroke();
+  c.fillStyle = 'rgba(235,241,251,.58)'; c.font = '500 22px system-ui, sans-serif';
+  c.fillText('AETHRA KAIROS  ·  DANCE WITH YOUR EYES', x + 44, y + 55);
+  c.fillStyle = '#f3f5fa'; c.font = 'italic 600 60px Georgia, serif';
+  const title = String(t.title || 'Untitled');
+  c.fillText(title.length > 30 ? title.slice(0, 29) + '…' : title, x + 44, y + 142);
+  c.fillStyle = 'rgba(235,241,251,.74)'; c.font = '400 27px system-ui, sans-serif';
+  c.fillText(t.artist || 'Aethra Kairos', x + 46, y + 192);
+  const sceneName = scenes[director.active] ? scenes[director.active].name : 'MÖBIUS⁸';
+  c.fillStyle = 'rgba(235,241,251,.48)'; c.font = '500 20px ui-monospace, monospace';
+  c.fillText('VISUAL · ' + sceneName + (director.auto ? ' · AUTO DIRECTED' : ' · SET BY LISTENER'), x + 46, y + 263);
+  const blob = await new Promise(resolve => cv.toBlob(resolve, 'image/png', .94));
+  return blob;
+}
+function applySharedVisual(params){
+  const n = parseInt(params.get('scene'), 10);
+  if (!Number.isFinite(n) || n < 1 || n > scenes.length) return;
+  director.setScene(n - 1, false);
+  director.setAuto(params.get('auto') !== '0');
 }
 function syncShareBtn(){
   const b = document.getElementById('btnShare');
@@ -6837,16 +7504,28 @@ function syncShareBtn(){
 }
 {
   const b = document.getElementById('btnShare');
-  if (b) b.addEventListener('click', () => {
+  if (b) b.addEventListener('click', async () => {
     const t = player.tracks[player.cur];
     const url = shareUrlFor(t);
     if (!url) return;
-    const payload = { title: t.title + ' — ' + (t.artist || 'Aethra Kairos'), url };
+    const sceneName = scenes[director.active] ? scenes[director.active].name : 'Möbius⁸';
+    const title = t.title + ' — ' + (t.artist || 'Aethra Kairos');
+    const payload = { title, text: 'Listening to “' + t.title + '” with the ' + sceneName + ' visual.', url };
+    const card = await makeShareCard(t).catch(() => null);
+    const file = card ? new File([card], slugify(t.title) + '-visual.png', { type: 'image/png' }) : null;
+    if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) payload.files = [file];
     if (navigator.share){
       navigator.share(payload).catch(() => {});
     } else if (navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(url)
-        .then(() => toast('Link copied — <b>' + escapeHTML(t.title) + '</b>'))
+        .then(() => {
+          if (card){
+            const a = document.createElement('a'); a.href = URL.createObjectURL(card);
+            a.download = slugify(t.title) + '-visual.png'; a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+          }
+          toast('Link copied' + (card ? ' · visual card saved' : '') + ' — <b>' + escapeHTML(t.title) + '</b>');
+        })
         .catch(() => toast(escapeHTML(url)));
     } else toast(escapeHTML(url));
   });
@@ -6863,6 +7542,30 @@ function deepLinkTrack(param){
 }
 
 function findQueueIndex(t){ return player.tracks.indexOf(t); }
+
+/* Apple-style queue semantics: "Play Next" owns the single seat directly
+   after the current song; "Add to Queue" owns the tail. Re-adding an album
+   or playlist MOVES its tracks as one ordered block instead of duplicating
+   them or leaving them scattered through the catalog order. The audible
+   track is never touched. */
+function queueTracksAtEnd(tracks, label){
+  const block = [...new Set((tracks || []).filter(Boolean))];
+  if (!block.length) return 0;
+  if (typeof MIXER !== 'undefined') MIXER.cancel('queue changed');
+  player._committedNext = null;
+  const current = player.tracks[player.cur] || null;
+  const movable = block.filter(t => t !== current);
+  player.tracks = player.tracks.filter(t => !movable.includes(t));
+  player.tracks.push(...movable);
+  player.cur = current ? player.tracks.indexOf(current) : -1;
+  player.history = [];
+  player.sort = 'custom';
+  document.querySelectorAll('.sortbtn').forEach(b => b.classList.remove('on'));
+  player.renderList();
+  toast('Added <b>' + escapeHTML(label || (movable.length + ' tracks')) + '</b> to the end of the queue');
+  PERSIST.poke();
+  return movable.length;
+}
 function playCatalogTrack(t){
   let i = findQueueIndex(t);
   if (i === -1){ player.tracks.push(t); i = player.tracks.length - 1; player.renderList(); }
@@ -6870,17 +7573,16 @@ function playCatalogTrack(t){
   renderLibrary();
 }
 function queueAlbum(al, playNow){
-  let first = -1, added = 0;
-  for (const id of al.trackIds){
-    const t = libTrack(id);
-    if (!t) continue;
-    let i = player.tracks.indexOf(t);
-    if (i === -1){ player.tracks.push(t); i = player.tracks.length - 1; added++; }
-    if (first === -1) first = i;
-  }
-  player.renderList();
-  if (playNow && first !== -1) player.playIndex(first);
-  else toast(added ? 'Queued <b>' + escapeHTML(al.title) + '</b>' : 'Already in the queue');
+  const tracks = al.trackIds.map(libTrack).filter(Boolean);
+  if (!tracks.length) return;
+  if (playNow){
+    const rest = player.tracks.filter(t => !tracks.includes(t));
+    const current = player.tracks[player.cur] || null;
+    player.tracks = tracks.concat(rest);
+    player.cur = current ? player.tracks.indexOf(current) : -1;
+    player.renderList();
+    player.playIndex(0);
+  } else queueTracksAtEnd(tracks, al.title);
   PERSIST.poke();
 }
 
@@ -7041,8 +7743,8 @@ function openCrate(open){
 function crateMixNext(t){
   let i = player.tracks.indexOf(t);
   if (i === -1){ player.tracks.push(t); i = player.tracks.length - 1; player.renderList(); }
-  MIXER.cancel('replan');
-  player._committedNext = i;
+  player.playNext(i, true);
+  player._committedNext = Math.min(player.cur + 1, player.tracks.length - 1);
   toast('<b>' + escapeHTML(t.title) + '</b> is next — the mixer will plan the seam');
   PERSIST.poke();
 }
@@ -7748,16 +8450,19 @@ function trackStems(t){
 }
 
 const MIXER = {
-  on: true,                      // auto-mix is the default: beatmix when the grids
-                                 // agree, an honest crossfade when they don't — the
-                                 // planner (planTransition) refuses anything that
-                                 // wouldn't be great, so ON is always safe
-  phase: 'idle',                 // idle | armed | running
+  // Auto-mix is the product, not an expert preference: it starts on and a
+  // listener can explicitly turn it off. Beatmix when the grids agree and use
+  // an honest crossfade when they do not; old snapshots migrate to this safer
+  // default while newer snapshots remember an intentional choice.
+  on: true,
+  phase: 'idle',                 // idle | armed | starting | running
   plan: null, next: -1,
   outDeck: null, startedAt: 0, overlap: 0,
   lastF: 0, trim: 0, trimI: 0, lastBeatCheck: 0,
   _lastRateA: 1, _lastRateB: 1,
   _clkA: makeMediaClock(), _clkB: makeMediaClock(),
+  _preloadSeq: 0, _preloadDeck: null, _preloadMeta: null,
+  _preloadCanPlay: null, _preloadReady: false, _startTimer: null,
 
   available(){ return allTracks().some(t => t.mix && t.mix.mixable >= 0.5); },
 
@@ -7770,6 +8475,26 @@ const MIXER = {
 
   cancel(){
     if (this.phase === 'idle'){ syncMixHud(); return; }
+    this._preloadSeq++;
+    clearTimeout(this._startTimer); this._startTimer = null;
+    AE.xfading = false;
+    if (this._preloadDeck){
+      if (this._preloadMeta) this._preloadDeck.a.removeEventListener('loadedmetadata', this._preloadMeta);
+      if (this._preloadCanPlay) this._preloadDeck.a.removeEventListener('canplay', this._preloadCanPlay);
+      if (this._preloadDeck !== activeDeck()){
+        try { this._preloadDeck.a.pause(); } catch (e){}
+      }
+    }
+    // During a live seam outDeck is no longer active, but it is still
+    // audible. A deliberate pause/cancel must silence both decks or the old
+    // song can continue underneath a paused UI.
+    if (this.outDeck && this.outDeck !== activeDeck()){
+      try { this.outDeck.a.pause(); } catch (e){}
+      if (this.outDeck.gain) this.outDeck.gain.gain.value = 0;
+      else this.outDeck.a.volume = 0;
+    }
+    this._preloadDeck = this._preloadMeta = this._preloadCanPlay = null;
+    this._preloadReady = false;
     this.plan = null; this.next = -1; this.phase = 'idle';
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     clockReset(this._clkA); clockReset(this._clkB);
@@ -7793,7 +8518,7 @@ const MIXER = {
     // to the same-element advance in playIndex (the stayPut path), which keeps a
     // pocketed phone playing. This is exactly what lets auto-mix default ON.
     if (!AE.graphLive){ if (this.phase !== 'idle') this.cancel('direct'); return; }
-    if (!player.playing || AE.mic.on || player.repeat === 'one'){
+    if (!player.playing || PLAYBACK_GUARD.waitSince || AE.mic.on || player.repeat === 'one'){
       if (this.phase !== 'idle') this.cancel();
       return;
     }
@@ -7802,9 +8527,13 @@ const MIXER = {
     const t = d.a.currentTime;
 
     if (this.phase === 'idle'){
-      if (d.a.duration - t < 45 && player.hasNext()) this.arm();
+      // Give the browser a full network runway. The old 45-second arm could
+      // reach the seam while the incoming seek was still buffering, demote a
+      // valid beatmix, and on mobile occasionally expose a paused deck.
+      if (d.a.duration - t < 90 && player.hasNext()) this.arm();
       return;
     }
+    if (this.phase === 'starting') return;       // play() promise owns the handover
     if (this.phase === 'armed'){
       if (t >= this.exitTime(d.a.duration, this.plan, player.tracks[player.cur])) this.fire(now);
       return;
@@ -7849,18 +8578,36 @@ const MIXER = {
     this.next = i;
     this._preload(B, plan);
     this.phase = 'armed';
+    labNote('MIX', (plan.type === 'beatmix' ? 'Beat grid locked' : 'Safe ' + plan.type)
+      + ' · preloading ' + B.title, 2600);
     syncMixHud();
   },
 
   _preload(B, plan){
     const nd = AE.decks[1 - AE.active];
+    const seq = ++this._preloadSeq;
+    if (this._preloadDeck){
+      if (this._preloadMeta) this._preloadDeck.a.removeEventListener('loadedmetadata', this._preloadMeta);
+      if (this._preloadCanPlay) this._preloadDeck.a.removeEventListener('canplay', this._preloadCanPlay);
+    }
+    this._preloadDeck = nd;
+    this._preloadReady = false;
     nd.a.src = B.url;
     const seekTo = plan.type === 'beatmix' ? plan.startB : 0;
-    const once = () => {
-      nd.a.removeEventListener('loadedmetadata', once);
+    const onMeta = () => {
+      if (seq !== this._preloadSeq || nd !== this._preloadDeck) return;
+      nd.a.removeEventListener('loadedmetadata', onMeta);
+      this._preloadMeta = null;
       try { nd.a.currentTime = seekTo; } catch (e){}
     };
-    nd.a.addEventListener('loadedmetadata', once);
+    const onCanPlay = () => {
+      if (seq !== this._preloadSeq || nd !== this._preloadDeck) return;
+      this._preloadReady = true;
+    };
+    this._preloadMeta = onMeta;
+    this._preloadCanPlay = onCanPlay;
+    nd.a.addEventListener('loadedmetadata', onMeta);
+    nd.a.addEventListener('canplay', onCanPlay);
     try { nd.a.load(); } catch (e){}
   },
 
@@ -7901,11 +8648,10 @@ const MIXER = {
     const nd = AE.decks[1 - AE.active];
     const B = player.tracks[this.next];
     if (!B){ this.cancel(); return; }
-    if (p.type === 'beatmix' && nd.a.readyState < 2){
+    if (p.type === 'beatmix' && (!this._preloadReady || nd.a.readyState < 2)){
       p = this.plan = { type: 'fade', seconds: 3, why: 'stream not ready in time' };
     }
     this.overlap = p.type === 'gapless' ? 0.06 : p.seconds;
-    this.startedAt = now;
     this.lastF = 0; this.trim = 0; this.trimI = 0; this.lastBeatCheck = now;
     clockReset(this._clkA); clockReset(this._clkB);
     try { nd.a.currentTime = p.type === 'beatmix' ? p.startB : 0; } catch (e){}
@@ -7916,62 +8662,81 @@ const MIXER = {
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
       if (nd.shelf) nd.shelf.gain.value = -14;      // one-bass rule: B ducked in
     }
-    // a FADE on the live graph becomes a FILTERED fade: schedule the outgoing
-    // deck's lowpass to sweep from wide-open down to the floor across the seam,
-    // so the old track filters away like a DJ pulling the cutoff — the incoming
-    // stays clean (open). Sample-accurate WebAudio automation, so it's smooth
-    // regardless of frame rate. (Beatmix keeps its own bass-swap; gapless is
-    // instant; on iOS the mixer doesn't run, so this only touches desktop fades.)
+    // A fade on the live graph gets a filter sweep, one-bass handoff and echo
+    // trail. These are sample-accurate, so they stay smooth if a frame is late.
     if (p.type === 'fade' && AE.ctx && od.filter && nd.filter){
       const t0 = AE.ctx.currentTime, sweep = Math.max(0.5, this.overlap);
       try {
         nd.filter.frequency.cancelScheduledValues(t0);
-        nd.filter.frequency.setValueAtTime(FILTER_OPEN, t0);      // the incoming comes in clean
+        nd.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
         od.filter.frequency.cancelScheduledValues(t0);
         od.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
-        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);   // hold, then dive
+        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);
         od.filter.frequency.exponentialRampToValueAtTime(FILTER_FLOOR, t0 + sweep);
-        // BASS SWAP: the one-bass rule, brought to fades. A lowpass keeps the
-        // outgoing LOWS while it fades, so without this two kicks/basslines
-        // stack into mud through the crossover. Pull the outgoing low shelf down
-        // across the seam while the incoming keeps its full low end — one
-        // dominant bass at a time, sample-accurate like the filter sweep.
         if (od.shelf && nd.shelf){
           nd.shelf.gain.cancelScheduledValues(t0);
-          nd.shelf.gain.setValueAtTime(0, t0);                              // the incoming owns the low end
+          nd.shelf.gain.setValueAtTime(0, t0);
           od.shelf.gain.cancelScheduledValues(t0);
           od.shelf.gain.setValueAtTime(0, t0);
-          od.shelf.gain.setValueAtTime(0, t0 + sweep * 0.12);               // hold, then clear the outgoing bass
+          od.shelf.gain.setValueAtTime(0, t0 + sweep * 0.12);
           od.shelf.gain.linearRampToValueAtTime(FADE_BASS_CUT, t0 + sweep);
         }
-        // ECHO OUT: bloom the outgoing send in the last stretch so the fading
-        // track dissolves into its own echoes (the incoming stays dry)
         if (od.echoSend && nd.echoSend){
-          nd.echoSend.gain.cancelScheduledValues(t0); nd.echoSend.gain.setValueAtTime(0, t0);
+          nd.echoSend.gain.cancelScheduledValues(t0);
+          nd.echoSend.gain.setValueAtTime(0, t0);
           od.echoSend.gain.cancelScheduledValues(t0);
           od.echoSend.gain.setValueAtTime(0, t0);
-          od.echoSend.gain.setValueAtTime(0, t0 + sweep * 0.55);   // dry first, then trail off in echoes
+          od.echoSend.gain.setValueAtTime(0, t0 + sweep * 0.55);
           od.echoSend.gain.linearRampToValueAtTime(0.6, t0 + sweep);
         }
       } catch (e){}
     }
-    nd.a.play().catch(err => {
-      // AbortError = our own cancel/replan interrupted the load — the
-      // listener asked for something else; nothing is wrong. Only a real
-      // refusal (autoplay policy, unblessed element) on a STILL-RUNNING
-      // seam warrants collapsing the overlap and saying so.
-      if (err && err.name === 'AbortError') return;
-      if (this.phase !== 'running') return;
-      this.overlap = 0.05;
-      toast('The blend was refused — tap play if the music pauses');
+    // Keep authority with the audible deck until the incoming element has
+    // actually promised to play. Previously bookkeeping switched decks first;
+    // an autoplay/buffer refusal then made the UI point at a paused element.
+    if (AE.graphLive) nd.gain.gain.value = 0;
+    else nd.a.volume = 0;
+    const seq = this._preloadSeq;
+    this.phase = 'starting';
+    AE.xfading = true;                  // suppress outgoing ended/pause races
+    labNote('MIX', p.type === 'beatmix'
+      ? Math.round(p.bpmA) + '→' + Math.round(p.bpmB) + ' BPM · ' + p.beats + '-beat seam'
+      : (p.type === 'gapless' ? 'Gapless handoff' : p.seconds + ' s equal-power fade'), 3200);
+    const failedStart = () => {
+      if (seq !== this._preloadSeq || this.phase !== 'starting') return;
+      this._preloadSeq++;               // a late play() resolution no longer owns us
+      clearTimeout(this._startTimer); this._startTimer = null;
+      try { nd.a.pause(); } catch (e){}
+      if (nd.shelf) nd.shelf.gain.value = 0;
+      try { od.a.playbackRate = SPEED.rate; } catch (e){}
+      this.plan = null; this.next = -1; this.phase = 'idle';
+      this.outDeck = this.outTrack = null; AE.xfading = false;
+      applyVolume(); syncMixHud();
+      if (od.a.ended) player.onEnded();
+      else toast('The next deck is still loading — this song stays on air');
+    };
+    // A media play promise may remain pending instead of rejecting while a
+    // stream starves. Never let that park the state machine in `starting`.
+    this._startTimer = setTimeout(failedStart, 4000);
+    nd.a.play().then(() => {
+      if (seq !== this._preloadSeq || this.phase !== 'starting') return;
+      clearTimeout(this._startTimer); this._startTimer = null;
+      this.startedAt = performance.now() / 1000;
+      this.outDeck = od;
+      this.outTrack = player.tracks[player.cur] || null;
+      AE.active = 1 - AE.active;
+      player.commitMix(this.next);
+      this.phase = 'running';
+      this.setVolumes(0);
+      syncMixHud();
+    }).catch(() => {
+      // Cancellation invalidates the sequence and owns its own cleanup. Any
+      // rejection still belonging to THIS start — including a browser-level
+      // AbortError — must roll back, or the mixer can remain stuck forever in
+      // `starting` with the audible deck playing but no future plan possible.
+      if (seq !== this._preloadSeq || this.phase !== 'starting') return;
+      failedStart();
     });
-    this.outDeck = od;
-    this.outTrack = player.tracks[player.cur] || null;   // the booth watches the handover
-    AE.active = 1 - AE.active;
-    player.commitMix(this.next);
-    this.setVolumes(0);
-    this.phase = 'running';
-    syncMixHud();
   },
 
   setVolumes(f){
@@ -8063,6 +8828,7 @@ const MIXER = {
     }
     this._resetFilters();                              // both decks back to wide-open
     this._lastRateA = this._lastRateB = 1;
+    clearTimeout(this._startTimer); this._startTimer = null; AE.xfading = false;
     this.plan = null; this.next = -1; this.outDeck = null; this.outTrack = null; this.trim = 0;
     this.phase = 'idle';
     applyVolume();
@@ -8097,6 +8863,17 @@ const MIXER = {
 setInterval(() => {
   if (document.hidden) MIXER.update(performance.now() / 1000, 0.5);
 }, 500);
+document.addEventListener('visibilitychange', () => {
+  // A plan armed while visible must not attempt a phase-locked beatmix after
+  // mobile backgrounding has coarsened timers. Keep the preload, but re-cue
+  // it as a resilient fade before the hidden-tab tick can fire.
+  if (!document.hidden || MIXER.phase !== 'armed' || !MIXER.plan || MIXER.plan.type !== 'beatmix') return;
+  const B = player.tracks[MIXER.next];
+  if (!B) return;
+  MIXER.plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
+  MIXER._preload(B, MIXER.plan);
+  syncMixHud();
+});
 
 /* ---- the fixes that last forever: hash-keyed, exportable to canon ---- */
 const MIXFIX = {
@@ -8261,10 +9038,16 @@ document.getElementById('mixExport').addEventListener('click', () => {
    §6g · PWA — install affordance, service worker, offline honesty
    ================================================================ */
 let deferredInstall = null;
+function syncInstallEligibility(){
+  const completed = HIST.events.filter(e => e.type === 'play').length;
+  const ready = completed >= 3 || HIST.sessionKeys.size >= 3;
+  const standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  el.btnInstall.hidden = !deferredInstall || !ready || standalone;
+}
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredInstall = e;
-  el.btnInstall.hidden = false;                    // an affordance, never a nag
+  syncInstallEligibility();                       // earned after real listening
   // if the welcome card is already up, upgrade its hint to a one-tap button
   if (el.firstRun && el.firstRun.classList.contains('open') && typeof frInstallSetup === 'function') frInstallSetup();
 });
@@ -8274,10 +9057,10 @@ el.btnInstall.addEventListener('click', () => {
   deferredInstall.userChoice.finally(() => { deferredInstall = null; el.btnInstall.hidden = true; });
 });
 window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toast('Installed'); });
-/* ---- self-update: seamless, never surprising ----
+/* ---- self-update: explicit, resumable, never interrupting ----
    The SW versions its shell cache by a build stamp, so a deploy is a new
    worker. The new worker WAITS; this side notices, shows the Update button,
-   and on tap: save the transport state → hand over (SKIP_WAITING) →
+   and only on a deliberate tap while paused: save the transport state → hand over (SKIP_WAITING) →
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
@@ -8312,31 +9095,22 @@ function checkForUpdate(){ if (swReg) swReg.update().catch(() => {}); }
 function offerUpdate(){
   if (updateRequested) return;
   el.btnUpdate.hidden = false;
-  maybeAutoApply();
 }
-/* FORCED UPDATES — the iOS reality: a home-screen copy rarely "closes",
-   so a waiting worker used to wait forever behind a button nobody saw and
-   the app looked stuck on an old version. A ready update now applies
-   ITSELF at the first safe moment — paused or idle — through the same
-   save-everything path the button uses. Playback is never interrupted:
-   while music plays the button stays offered and we retry on the quiet. */
-function maybeAutoApply(){
-  if (updateRequested || !swReg || !swReg.waiting) return;
-  if (player.playing) return;
-  applyUpdate();
-}
-function applyUpdate(){
+async function applyUpdate(){
   if (!swReg || !swReg.waiting){ el.btnUpdate.hidden = true; return; }
+  if (player.wantPlaying || player.playing){
+    toast('Update ready — pause when you choose, then tap Update. Music will never be interrupted.');
+    return;
+  }
   updateRequested = true;
-  PERSIST.save();                                // the whole session restores after the swap
   el.btnUpdate.hidden = false;
   el.btnUpdate.disabled = true;
   el.btnUpdate.querySelector('.lbl').textContent = 'Updating…';
+  await PERSIST.save();                          // commit the playhead before asking the old page to die
   swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
   // belt and braces: if controllerchange never fires (unusual), reload anyway
   setTimeout(() => { if (updateRequested) location.reload(); }, 3000);
 }
-setInterval(maybeAutoApply, 5000);
 el.btnUpdate.addEventListener('click', applyUpdate);
 window.addEventListener('offline', () => toast('Offline — the library stays; streaming is unavailable'));
 window.addEventListener('online', () => toast('Back online'));
@@ -9878,6 +10652,8 @@ const U = {
   uBarPhase: { value: 0 },      // grid clock: continuous 0..1 through the bar
   uAct:      { value: 0 },      // 0..1 through the current track — the story clock
   uPtr:      { value: null },   // xy = pointer ndc, z = touch strength (set at init)
+  uForceMode:{ value: 0 },      // 0 gravity · 1 electromagnetic · 2 strong · 3 weak
+  uForceGain:{ value: 0.6 },    // scene-aware modulation, globally bounded
   uPtrMode:  { value: 0 },      // which force the touch applies — see TOUCHFX / ptrWarp
   uColA:     { value: new THREE.Color(PALETTES[0].a) },
   uColB:     { value: new THREE.Color(PALETTES[0].b) },
@@ -9963,13 +10739,14 @@ function addShaderLines(geo, frag, vert, extraU, segments){
 
 const VERT_POINT_HEAD = GLSL_MPHI + `
   uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uPiPhase, uEPhase, uCoupling, uEntropy, uCentroid, uAct;
+  uniform float uForceMode, uForceGain;
   uniform vec3 uPtr;
   uniform float uPtrMode;   // the touch's personality: -1 swirl↺ · 0 repel · 1 swirl↻ · 2 attract · 3 ripple
   uniform sampler2D uAudio;
   varying float vGlow; varying float vT;
-  // the fingertip is real: nearby points are moved in view space, strength
-  // decaying with screen distance. z of uPtr carries touch strength; uPtrMode
-  // chooses HOW the field answers, so each touch-FX shapes it differently:
+  // Fundamental-force physics and the selected touch personality are composed
+  // here, so scene-aware behavior and the performer's gesture stay legible.
+  // Touch personalities:
   //   0  repel   — a black hole; the light bends away from your hand
   //  ±1  swirl   — a spiral vortex winds around your touch; sign = chirality
   //   2  attract — a gravity well; everything falls toward your fingertip
@@ -9979,15 +10756,36 @@ const VERT_POINT_HEAD = GLSL_MPHI + `
     vec2 scr = mv.xy / max(0.6, -mv.z);
     vec2 d = scr - uPtr.xy;
     float dist2 = dot(d, d);
-    float force = uPtr.z * exp(-dist2 * 7.0);
-    vec2 dir = normalize(d + 1e-4);
-    vec2 push;
-    if      (uPtrMode < -0.5) push = vec2(dir.y, -dir.x);   // swirl ↺
-    else if (uPtrMode <  0.5) push = dir;                   // repel (black hole)
-    else if (uPtrMode <  1.5) push = vec2(-dir.y, dir.x);   // swirl ↻
-    else if (uPtrMode <  2.5) push = -dir;                  // attract (well)
-    else    push = dir * sin(sqrt(dist2) * 9.0 - uTime * 6.0);   // ripple, rolling outward
-    mv.xy += push * force * max(0.6, -mv.z) * 0.22;
+    float radius = sqrt(dist2);
+    vec2 n = normalize(d + vec2(1e-4));
+    float force = uPtr.z * uForceGain * exp(-dist2 * 7.0);
+    float depth = max(0.6, -mv.z);
+    vec2 touchPush;
+    if      (uPtrMode < -0.5) touchPush = vec2(n.y, -n.x);
+    else if (uPtrMode <  0.5) touchPush = n;
+    else if (uPtrMode <  1.5) touchPush = vec2(-n.y, n.x);
+    else if (uPtrMode <  2.5) touchPush = -n;
+    else touchPush = n * sin(radius * 9.0 - uTime * 6.0);
+    vec2 fieldPush;
+    float depthPush = 0.24;
+    if (uForceMode < 0.5){
+      fieldPush = -n;                                           // gravity: attraction
+    } else if (uForceMode < 1.5){
+      float polarity = 0.72 + 0.28 * sin(uTime * 2.0 + radius * 18.0);
+      fieldPush = vec2(-n.y, n.x) * polarity;                    // EM: field curl
+      depthPush = 0.30;
+    } else if (uForceMode < 2.5){
+      float shell = 0.78 + 0.34 * sin(radius * 22.0 - uTime * 4.0);
+      fieldPush = -n * shell;                                   // strong: binding shell
+      depthPush = 0.27;
+    } else {
+      float decay = sin(dot(scr, vec2(17.1, 23.7)) + uTime * 6.0);
+      fieldPush = n * decay;                                    // weak: broken symmetry
+      depthPush = 0.19;
+      mv.z += force * decay * 1.4;
+    }
+    vec2 push = mix(fieldPush, touchPush, 0.42);
+    mv.xy += push * force * depth * depthPush;
     return mv;
   }
 `;
@@ -12149,6 +12947,358 @@ const ACTS = [
 ];
 
 /* ================================================================
+   PERFORMANCE ROUTER — one musical score, several disciplined banks.
+   The audio program remains sovereign. Song/story data becomes a small
+   modulation bus; visuals, touch and optional gestures subscribe with
+   their own ceilings. Nothing is allowed to stack raw bass-on-bass.
+   ================================================================ */
+const FORCE_MODES = [
+  { key:'gravity', name:'GRAVITY', short:'G' },
+  { key:'electromagnetic', name:'ELECTROMAGNETIC', short:'EM' },
+  { key:'strong', name:'STRONG', short:'S' },
+  { key:'weak', name:'WEAK', short:'W' },
+];
+
+const FORCES = {
+  requested: -1, effectiveMode: 0, _shown: '',
+  effective(cue){
+    if (this.requested >= 0) return this.requested;
+    return cue === 'drive' ? 2 : cue === 'space' ? 3 : cue === 'spark' ? 1
+      : cue === 'flow' ? 0 : 1;
+  },
+  sync(cue){
+    const mode = this.effective(cue);
+    this.effectiveMode = mode;
+    const m = FORCE_MODES[mode];
+    const label = this.requested < 0 ? 'AUTO · ' + m.short : m.name;
+    if (label === this._shown) return;
+    this._shown = label;
+    if (el.chipForce){
+      el.chipForce.textContent = label;
+      el.chipForce.classList.toggle('on', this.requested >= 0);
+      el.chipForce.setAttribute('aria-label', 'Force engine: '
+        + (this.requested < 0 ? 'automatic, currently ' : '') + m.name.toLowerCase());
+      el.chipForce.title = 'Force engine — ' + (this.requested < 0
+        ? 'Auto is following the song; current force: ' + m.name
+        : m.name + ' is locked; tap to choose the next force');
+    }
+    if (el.forceVeil) el.forceVeil.dataset.force = m.key;
+  },
+  cycle(){
+    this.requested = this.requested >= 3 ? -1 : this.requested + 1;
+    this.sync(typeof director !== 'undefined' ? director.storyCue : null);
+    DB.kvSet('forceMode', String(this.requested));
+    const m = FORCE_MODES[this.effectiveMode];
+    toast(this.requested < 0 ? 'Force follows the song · <b>' + m.name + '</b>'
+      : '<b>' + m.name + '</b> force locked');
+  },
+  hit(){
+    if (typeof PERF_AUDIO !== 'undefined')
+      PERF_AUDIO.trigger(this.effectiveMode, PERFORMANCE.forceGain);
+  },
+};
+
+/* A parallel, limiter-protected gesture bus. It never processes the song,
+   so iOS direct-output reliability and the mixer's deck authority stay
+   untouched. The four voices are short material responses, not a sample-
+   pad toy; audio is opt-in and only fires from a deliberate shock gesture. */
+const PERF_AUDIO = {
+  on: false, bus: null, limiter: null, noise: null, lastAt: -9,
+  ensure(){
+    ensureCtx();
+    if (!AE.ctx) return false;
+    if (this.bus) return true;
+    this.bus = AE.ctx.createGain();
+    this.bus.gain.value = 1;
+    this.limiter = AE.ctx.createDynamicsCompressor();
+    this.limiter.threshold.value = -20;
+    this.limiter.knee.value = 5;
+    this.limiter.ratio.value = 16;
+    this.limiter.attack.value = .003;
+    this.limiter.release.value = .16;
+    this.bus.connect(this.limiter); this.limiter.connect(AE.master);
+    const len = Math.max(1, Math.floor(AE.ctx.sampleRate * .55));
+    this.noise = AE.ctx.createBuffer(1, len, AE.ctx.sampleRate);
+    const a = this.noise.getChannelData(0);
+    for (let i = 0; i < len; i++) a[i] = Math.random() * 2 - 1;
+    return true;
+  },
+  set(on, save){
+    this.on = !!on;
+    // Restoring the preference must not create an AudioContext before a
+    // gesture. A real toggle can initialize now; a restored toggle lazily
+    // initializes on the first shock (after the global gesture resume hook).
+    if (this.on && save && !this.ensure()) this.on = false;
+    if (el.chipTouchFx){
+      el.chipTouchFx.setAttribute('aria-pressed', String(this.on));
+      el.chipTouchFx.classList.toggle('on', this.on);
+    }
+    if (save) DB.kvSet('touchAudioFx', this.on ? '1' : '0');
+    if (save) toast(this.on ? 'Touch audio on · <b>bounded + limiter protected</b>' : 'Touch audio off');
+  },
+  tone(f0, f1, dur, amp, type){
+    const c = AE.ctx, now = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(Math.max(20, f0), now);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), now + dur);
+    g.gain.setValueAtTime(.0001, now);
+    g.gain.exponentialRampToValueAtTime(Math.max(.0002, amp), now + .008);
+    g.gain.exponentialRampToValueAtTime(.0001, now + dur);
+    o.connect(g); g.connect(this.bus); o.start(now); o.stop(now + dur + .02);
+  },
+  burst(kind, dur, amp){
+    const c = AE.ctx, now = c.currentTime;
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = this.noise; f.type = kind === 'highpass' ? 'highpass' : 'bandpass';
+    f.frequency.value = kind === 'highpass' ? 2300 : 720; f.Q.value = kind === 'highpass' ? .7 : 2.8;
+    g.gain.setValueAtTime(Math.max(.0002, amp), now);
+    g.gain.exponentialRampToValueAtTime(.0001, now + dur);
+    s.connect(f); f.connect(g); g.connect(this.bus); s.start(now); s.stop(now + dur + .02);
+  },
+  trigger(mode, strength){
+    if (!this.on || !(player.playing || AE.mic.on) || !this.ensure()) return;
+    const now = AE.ctx.currentTime;
+    if (now - this.lastAt < .16) return;
+    this.lastAt = now;
+    const v = .45 + clamp01(strength) * .35;       // hard ceiling: 0.8
+    if (mode === 0) this.tone(92, 42, .34, .052 * v, 'sine');
+    else if (mode === 1){
+      this.tone(360, 520, .26, .020 * v, 'sine');
+      this.tone(540, 780, .22, .012 * v, 'triangle');
+    } else if (mode === 2){
+      this.tone(78, 46, .17, .060 * v, 'sine'); this.burst('bandpass', .12, .026 * v);
+    } else {
+      this.burst('highpass', .42, .019 * v); this.tone(620, 170, .34, .008 * v, 'triangle');
+    }
+  },
+};
+
+/* The ERRERLabs overture: a psychoacoustic ascent made from staggered,
+   octave-wrapping voices. Every wrap happens at zero gain, so pitch appears
+   to keep rising without an audible reset. It is deliberately short, clean
+   and capped; browser policy is honored by starting only on ENTER. */
+const SPLASH_AUDIO = {
+  bus: null, nodes: [],
+  start(){
+    ensureCtx();
+    const c = AE.ctx;
+    if (!c) return;
+    const now = c.currentTime, dur = 5.15;
+    this.stop(true);
+    const bus = this.bus = c.createGain();
+    const lim = c.createDynamicsCompressor();
+    lim.threshold.value = -24; lim.knee.value = 5; lim.ratio.value = 14;
+    lim.attack.value = .004; lim.release.value = .22;
+    bus.gain.setValueAtTime(.0001, now);
+    bus.gain.exponentialRampToValueAtTime(.72, now + .42);
+    bus.gain.setValueAtTime(.72, now + 4.35);
+    bus.gain.exponentialRampToValueAtTime(.0001, now + dur);
+    bus.connect(lim); lim.connect(AE.master);
+    this.nodes = [bus, lim];
+
+    const N = 420, cycles = 3.35;
+    for (let v = 0; v < 7; v++){
+      const o = c.createOscillator(), g = c.createGain();
+      const pan = c.createStereoPanner ? c.createStereoPanner() : null;
+      const fq = new Float32Array(N), amp = new Float32Array(N);
+      const phase = v / 7, octave = -1 + (v % 5), base = 61.8;
+      for (let i = 0; i < N; i++){
+        const x = i / (N - 1), u = (phase + x * cycles) % 1;
+        fq[i] = base * Math.pow(2, octave + u);
+        const wrapWindow = Math.pow(Math.sin(Math.PI * u), 1.65);
+        const arc = Math.sin(Math.PI * clamp01(x));
+        amp[i] = .0001 + .019 * wrapWindow * Math.pow(arc, .55) * (v < 5 ? 1 : .65);
+      }
+      o.type = v % 3 === 0 ? 'triangle' : 'sine';
+      o.frequency.setValueCurveAtTime(fq, now, dur);
+      g.gain.setValueCurveAtTime(amp, now, dur);
+      o.connect(g);
+      if (pan){ pan.pan.value = (v / 6 - .5) * .58; g.connect(pan); pan.connect(bus); this.nodes.push(pan); }
+      else g.connect(bus);
+      o.start(now); o.stop(now + dur + .04);
+      this.nodes.push(o, g);
+    }
+    // The resolve is not a cinema hit: three glassy golden-ratio partials
+    // bloom from inside the ascent, meet for a moment, and vanish cleanly.
+    [146.83, 146.83 * 1.61803398875, 146.83 * 2.61803398875].forEach((freq, i) => {
+      const o = c.createOscillator(), g = c.createGain(), at = now + 3.65;
+      o.type = i === 1 ? 'triangle' : 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(.0001, at);
+      g.gain.exponentialRampToValueAtTime(i === 0 ? .026 : .016, at + .42);
+      g.gain.exponentialRampToValueAtTime(.0001, now + dur);
+      o.connect(g); g.connect(bus); o.start(at); o.stop(now + dur + .04);
+      this.nodes.push(o, g);
+    });
+  },
+  stop(immediate){
+    if (!this.bus || !AE.ctx) return;
+    const at = AE.ctx.currentTime;
+    try {
+      this.bus.gain.cancelScheduledValues(at);
+      this.bus.gain.setValueAtTime(Math.max(.0001, this.bus.gain.value), at);
+      this.bus.gain.exponentialRampToValueAtTime(.0001, at + (immediate ? .025 : .16));
+    } catch (e){}
+  },
+};
+
+const SPLASH = {
+  host:null, cv:null, ctx:null, running:false, startAt:0, raf:0, done:false,
+  seen(){ try { return sessionStorage.getItem('errerlabsOverture') === '1'; } catch (e){ return false; } },
+  remember(){ try { sessionStorage.setItem('errerlabsOverture', '1'); } catch (e){} },
+  init(){
+    this.host = document.getElementById('labSplash');
+    this.cv = document.getElementById('splashCv');
+    this.ctx = this.cv && this.cv.getContext('2d');
+    if (!this.host || !this.ctx) return;
+    if (this.seen()){ this.host.hidden = true; this.done = true; return; }
+    const enter = document.getElementById('splashEnter');
+    const skip = document.getElementById('splashSkip');
+    if (enter){ enter.addEventListener('click', () => this.start()); setTimeout(() => enter.focus(), 40); }
+    if (skip) skip.addEventListener('click', () => this.finish(true));
+    this.draw(performance.now());
+  },
+  start(){
+    if (this.running || this.done) return;
+    this.running = true; this.startAt = performance.now();
+    this.host.classList.add('running');
+    if (!reducedMotion) SPLASH_AUDIO.start();
+    setTimeout(() => this.finish(false), reducedMotion ? 700 : 5200);
+  },
+  finish(skipped){
+    if (this.done) return;
+    this.done = true; this.remember();
+    if (skipped) SPLASH_AUDIO.stop(false);
+    this.host.classList.add('leaving');
+    const delay = reducedMotion ? 220 : 900;
+    setTimeout(() => { this.host.hidden = true; cancelAnimationFrame(this.raf); }, delay);
+  },
+  smooth(a, b, x){ const q = clamp01((x - a) / Math.max(.001, b - a)); return q*q*(3-2*q); },
+  size(){
+    const dpr = Math.min(devicePixelRatio || 1, 2), w = innerWidth, h = innerHeight;
+    if (this.cv.width !== Math.floor(w*dpr) || this.cv.height !== Math.floor(h*dpr)){
+      this.cv.width = Math.floor(w*dpr); this.cv.height = Math.floor(h*dpr);
+      this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
+    }
+    this.ctx.setTransform(dpr,0,0,dpr,0,0); return { w, h };
+  },
+  droplet(x, y, r, alpha){
+    const g = this.ctx.createRadialGradient(x-r*.3,y-r*.45,1,x,y,r*1.15);
+    g.addColorStop(0,'rgba(245,253,255,'+alpha+')');
+    g.addColorStop(.32,'rgba(105,232,255,'+(alpha*.92)+')');
+    g.addColorStop(.68,'rgba(245,90,206,'+(alpha*.66)+')');
+    g.addColorStop(1,'rgba(255,183,84,0)');
+    const c=this.ctx; c.save(); c.fillStyle=g; c.shadowColor='rgba(99,226,255,.72)'; c.shadowBlur=22;
+    c.beginPath(); c.moveTo(x,y-r*1.35); c.bezierCurveTo(x-r*.18,y-r*.66,x-r*.82,y-r*.22,x-r*.72,y+r*.30);
+    c.bezierCurveTo(x-r*.58,y+r*1.02,x+r*.58,y+r*1.02,x+r*.72,y+r*.30);
+    c.bezierCurveTo(x+r*.82,y-r*.22,x+r*.18,y-r*.66,x,y-r*1.35); c.fill(); c.restore();
+  },
+  lemniscate(cx, cy, radius, alpha, time){
+    const c=this.ctx, cols=['92,229,255','255,103,211','255,184,91'];
+    for (let layer=0; layer<3; layer++){
+      c.save(); c.strokeStyle='rgba('+cols[layer]+','+(alpha*(.50-layer*.08))+')';
+      c.lineWidth=layer===0?2.2:1.2; c.shadowColor='rgb('+cols[layer]+')'; c.shadowBlur=18-layer*3;
+      c.beginPath();
+      for (let i=0;i<=260;i++){
+        const a=i/260*Math.PI*2 + time*.12*(layer===1?-1:1);
+        const den=1+Math.sin(a)*Math.sin(a);
+        const rr=radius*(1+layer*.055);
+        const x=cx+rr*Math.cos(a)/den;
+        const y=cy+rr*Math.sin(a)*Math.cos(a)/den*.82;
+        if(!i)c.moveTo(x,y);else c.lineTo(x,y);
+      }
+      c.stroke(); c.restore();
+    }
+    const core=c.createRadialGradient(cx-radius*.12,cy-radius*.16,1,cx,cy,radius*.31);
+    core.addColorStop(0,'rgba(255,255,255,'+(alpha*.82)+')');
+    core.addColorStop(.24,'rgba(112,231,255,'+(alpha*.42)+')');
+    core.addColorStop(.65,'rgba(156,82,255,'+(alpha*.20)+')'); core.addColorStop(1,'rgba(4,5,14,0)');
+    c.fillStyle=core;c.beginPath();c.arc(cx,cy,radius*.33,0,Math.PI*2);c.fill();
+  },
+  draw(now){
+    if (this.done || !this.host || this.host.hidden) return;
+    const c=this.ctx,{w,h}=this.size(), t=this.running?(now-this.startAt)/1000:-1;
+    c.clearRect(0,0,w,h);
+    const cx=w*.5, water=h*(w<600?.43:.47), elapsed=Math.max(0,t);
+    const morph=this.running?this.smooth(3.05,4.35,elapsed):0;
+    // A very quiet horizon keeps the water physical without turning it into
+    // a literal landscape; its color is the π/e axis already used by the app.
+    const hg=c.createLinearGradient(cx-w*.33,0,cx+w*.33,0);
+    hg.addColorStop(0,'rgba(255,180,84,0)');hg.addColorStop(.33,'rgba(255,112,207,'+(0.12*(1-morph))+')');
+    hg.addColorStop(.62,'rgba(103,230,255,'+(0.18*(1-morph))+')');hg.addColorStop(1,'rgba(103,230,255,0)');
+    c.strokeStyle=hg;c.lineWidth=1;c.beginPath();c.moveTo(cx-w*.35,water);c.lineTo(cx+w*.35,water);c.stroke();
+
+    if (this.running){
+      const first=.72, step=Math.PI/4.6;
+      for(let n=0;n<6;n++){
+        const age=elapsed-(first+n*step);
+        if(age<0||age>1.32)continue;
+        const q=age/1.32, rx=18+q*Math.min(w*.32,250), ry=rx*.18;
+        const grad=c.createLinearGradient(cx-rx,0,cx+rx,0);
+        grad.addColorStop(0,'rgba(255,181,84,0)');grad.addColorStop(.35,'rgba(255,104,210,'+((1-q)*.34*(1-morph))+')');
+        grad.addColorStop(.65,'rgba(100,231,255,'+((1-q)*.48*(1-morph))+')');grad.addColorStop(1,'rgba(100,231,255,0)');
+        c.strokeStyle=grad;c.lineWidth=1.5-q;c.beginPath();c.ellipse(cx,water,rx,ry,0,0,Math.PI*2);c.stroke();
+      }
+    }
+    let y=water-Math.min(120,h*.15), dr=15;
+    if(this.running){
+      if(elapsed<.72){const q=this.smooth(0,.72,elapsed);y=water-h*.25+(h*.25-12)*q*q;dr=12+q*5;}
+      else {const b=elapsed-.72;y=water-13-Math.abs(Math.sin(b*4.6))*Math.min(h*.15,125)*Math.exp(-b*.46);dr=17-Math.min(5,b*.7);}
+    }
+    this.droplet(cx,y,dr,(1-morph)*.92);
+
+    const orbR=Math.min(w,h)*(.13+.018*Math.sin(now*.0011));
+    if(morph>0||!this.running)this.lemniscate(cx,water-8,orbR*(.64+morph*.36),this.running?morph:.16,now/1000);
+    if(morph>.05){
+      for(let i=0;i<54;i++){
+        const a=i*2.39996323+now*.00014, rr=orbR*(.35+(i%13)/13*.85)*(1-morph*.22);
+        const px=cx+Math.cos(a)*rr,py=water-8+Math.sin(a)*rr*.58;
+        c.fillStyle='rgba('+(i%3===0?'255,122,213':'105,230,255')+','+(morph*.34)+')';
+        c.fillRect(px,py,1.2,1.2);
+      }
+    }
+    this.raf=requestAnimationFrame(n=>this.draw(n));
+  },
+};
+
+const PERFORMANCE = {
+  motion:.5, detail:.5, space:.5, impact:.5, seam:0, forceGain:.6,
+  update(dt){
+    FORCES.sync(director.storyCue);
+    const seam = MIXER.phase === 'running' ? Math.sin(Math.PI * clamp01(MIXER.lastF)) : 0;
+    const q = performanceFrame({
+      cue: director.storyCue, energy: AE.f.energy, bass: AE.f.bass,
+      treble: AE.f.treble, entropy: AE.f.entropy,
+      beat: Math.max(AE.f.beat, DANCE.pulse), transition: seam,
+      forceMode: FORCES.effectiveMode,
+    });
+    for (const k of ['motion','detail','space','impact','seam','forceGain']){
+      const tau = q[k] > this[k] ? .16 : .55;
+      this[k] += (q[k] - this[k]) * (1 - Math.exp(-dt / tau));
+    }
+    U.uForceMode.value = FORCES.effectiveMode;
+    U.uForceGain.value = this.forceGain;
+    if (el.forceVeil){
+      const touch = Math.max(INTERACT.strength * .55, INTERACT.impulse * .9);
+      el.forceVeil.style.setProperty('--force-a', (touch * (.045 + this.forceGain * .11)).toFixed(3));
+      el.forceVeil.style.setProperty('--force-x', ((INTERACT.px + 1) * 50).toFixed(2) + '%');
+      el.forceVeil.style.setProperty('--force-y', ((1 - INTERACT.py) * 50).toFixed(2) + '%');
+      el.forceVeil.style.setProperty('--force-turn', (U.uTime.value * 13 % 360).toFixed(1) + 'deg');
+    }
+  },
+};
+
+/* Visual-bank capabilities in the same four dimensions as the score. The
+   director still respects each scene's musical specialism, then uses this
+   matrix as a second opinion so a spacious section selects an actually
+   spacious room and a detail cue selects geometry that can reveal detail. */
+const SCENE_VOICES = [
+  [.55,.82,.62,.42], [.70,.78,.42,.62], [.48,.92,.58,.35], [.92,.56,.22,1.00],
+  [.28,.74,1.00,.20], [.95,.45,.30,.86], [.46,.88,.86,.28], [.42,.96,.58,.38],
+  [1.00,.66,.52,.78], [.25,.92,.90,.18], [.54,1.00,.52,.38], [.52,.78,.78,.34],
+  [.80,.94,.26,.72], [.68,.84,.44,.70], [.30,1.00,.82,.18], [.72,.98,.46,.68],
+].map(v => ({ motion:v[0], detail:v[1], space:v[2], impact:v[3] }));
+
+/* ================================================================
    INTERACT — the field answers touch (the quantum engine's gift).
    Drag steers the camera rig and the director stands back while you
    hold it; the wheel walks the camera in and out; a double-tap sends
@@ -12165,6 +13315,12 @@ const INTERACT = {
   swirl: 0,            // horizontal drag torque — SLINKY spins your way
   dragging: false, holdOff: 0,
   _lx: 0, _ly: 0, _idleT: 999,
+  _tapAt: -999, _tapX: 0, _tapY: 0,
+  shock(){
+    this.impulse = 1;
+    AE.f.beat = Math.max(AE.f.beat, 1);   // the shockwave rides the beat channel too
+    FORCES.hit();
+  },
   update(dt){
     this.impulse *= Math.exp(-dt / 0.5);
     this.swirl *= Math.exp(-dt / 1.8);
@@ -12218,12 +13374,24 @@ const INTERACT = {
     INTERACT.swirl = clamp(INTERACT.swirl + dx * 0.02, -3, 3);
     INTERACT.holdOff = 9;          // the auto rig waits while you hold the field
   });
-  // the touch-FX no longer cycles on a canvas long-press (that raised iOS's copy
-  // box and fought with playing the light) — the corner ORB owns that gesture now
-  const drop = () => { INTERACT.dragging = false; };
+  const drop = ev => {
+    INTERACT.dragging = false;
+    // Mobile Safari does not reliably synthesize dblclick. Recognize a
+    // close, deliberate second touch; mouse keeps the native dblclick path.
+    if (ev && ev.pointerType !== 'mouse'){
+      const now = performance.now();
+      const near = Math.hypot(ev.clientX - INTERACT._tapX, ev.clientY - INTERACT._tapY) < 34;
+      if (near && now - INTERACT._tapAt < 330){
+        INTERACT.shock(); INTERACT._tapAt = -999;
+      } else {
+        INTERACT._tapAt = now; INTERACT._tapX = ev.clientX; INTERACT._tapY = ev.clientY;
+      }
+    }
+  };
   cv.addEventListener('pointerup', drop);
   cv.addEventListener('pointercancel', drop);
-  // a long-press must cycle the FX, never raise the OS text-callout / copy box
+  // The ORB owns FX selection; suppress the iOS text callout while a listener
+  // plays the field. A deliberate double-touch still triggers the shock above.
   cv.addEventListener('contextmenu', ev => ev.preventDefault());
   cv.addEventListener('pointerleave', () => DWELL.gone());
   cv.addEventListener('wheel', ev => {
@@ -12231,10 +13399,7 @@ const INTERACT = {
     director.camTargetR = clamp(director.camTargetR + ev.deltaY * 0.03, 16, 44);
     INTERACT.holdOff = 9;
   }, { passive: false });
-  cv.addEventListener('dblclick', () => {
-    INTERACT.impulse = 1;
-    AE.f.beat = Math.max(AE.f.beat, 1);   // the shockwave rides the beat channel too
-  });
+  cv.addEventListener('dblclick', () => INTERACT.shock());
 }
 
 /* ================================================================
@@ -12346,6 +13511,7 @@ const DWELL = {
   gone(){ this.present = false; this.still = 0; const r = this.ring(); if (r) r.className = ''; },
   fire(){
     INTERACT.impulse = Math.max(INTERACT.impulse, 0.55);
+    FORCES.hit();
     COLOR.bloom = 1;                    // answered in light, through the governor
     this.armed = false; this.still = 0; this._fired = 0.5;
     const r = this.ring();
@@ -12713,14 +13879,14 @@ const COLOR = {
     //     moves, so the flash governor has nothing to object to. CALM
     //     keeps a gentler inhale.
     const brace = (typeof DANCE !== 'undefined') ? clamp01(DANCE.brace || 0) : 0;
-    const washMax = SAFE.calm ? 0.35 : 0.85;
+    const washMax = SAFE.calm ? 0.24 : 0.52;
     this._wash = this._wash || 0;
     const washGoal = brace * washMax;
     // inhale over ~half a second (the eye needs time to adapt); the snap
     // back on the landing is nearly instant — that snap IS the magic
     this._wash += (washGoal - this._wash) * (1 - Math.exp(-dt / (washGoal > this._wash ? 0.45 : 0.06)));
     if ((this._lastBrace || 0) > 0.5 && brace < 0.15){   // the landing cut the brace
-      this.bloom = Math.max(this.bloom, 1.25);           // the true colour arrives blazing
+      this.bloom = Math.max(this.bloom, 0.72);           // the true colour arrives, with detail intact
       // 3 · dreimal: every third arrival answers three times, one echo per
       //     beat, fading — the Magic Flute's threefold chord
       this._arrivals = (this._arrivals || 0) + 1;
@@ -12734,9 +13900,9 @@ const COLOR = {
       while (this._echoes.length && this._echoes[0].at <= 0)
         this.bloom = Math.max(this.bloom, this._echoes.shift().amp);
     }
-    const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35 + golden * 0.22
-      + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0));
-    const mulL = 0.97 + heat * 0.05;
+    const mulC = 0.74 + heat * 0.24 + this.bloom * 0.16 + golden * 0.09
+      + (phase === 'peak' ? 0.055 : (phase === 'break' ? -0.08 : 0));
+    const mulL = 0.94 + heat * 0.045;
     const w = this._wash;
     const lit = w > 0.01
       ? this.now.map(c => lerpOklch(c, { l: c.l * 0.94, c: c.c * 0.6, h: (c.h + 180) % 360 }, w))
@@ -12770,6 +13936,7 @@ const director = {
   camGoalTheta: 0, camGoalPhi: 1.2,
   fov: 62, dolly: 0,
   act: -1, actT: 0,
+  story: null, storyTrack: null, storySection: -1, storyCue: null,
   transDur: 2.5,             // the crossfade length the SEGUE sets per transition
 
   setAuto(on){
@@ -12789,7 +13956,11 @@ const director = {
       if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer'); }   // you chose a scene
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
-    if (el.zSceneName) el.zSceneName.textContent = scenes[i].name;   // the immersive scene stepper
+    if (el.zSceneName) el.zSceneName.textContent = scenes[i].name;
+    if (this.prev >= 0 && player.playing){
+      const budget = scenes[i].heavy ? 'adaptive detail' : 'full detail';
+      labNote('SCENE', scenes[i].name + ' · ' + (this.storyCue || this.phase) + ' cue · ' + budget, 2400);
+    }
   },
   rotatePalette(to){
     this.palFrom = this.pal; this.palTo = to; this.palT = 0;
@@ -12815,6 +13986,20 @@ const director = {
       if (i === 12) x += f.beat * 1.4 + f.treble * 1.0;            // op-art: sharp, rhythmic
       if (i === 13) x += f.beat * 1.0 + f.bass * 0.8;              // pulse: the visual instrument
       if (i === 14) x += f.entropy * 1.2 + f.mid * 0.8 + (1 - f.beat) * 0.4;  // parlor: patient, perceptual
+      // The section storyboard supplies dramatic intent in addition to the
+      // live spectrum: a break should open space, a drive should create
+      // velocity, and a bright reveal should choose detail over brute glow.
+      if (this.storyCue === 'drive' && (i === 3 || i === 5 || i === 8 || i === 12 || i === 15)) x *= 1.75;
+      if (this.storyCue === 'space' && (i === 4 || i === 6 || i === 9 || i === 11 || i === 14)) x *= 1.75;
+      if (this.storyCue === 'spark' && (i === 1 || i === 8 || i === 10 || i === 15)) x *= 1.65;
+      if (this.storyCue === 'flow' && (i === 0 || i === 2 || i === 6 || i === 10)) x *= 1.55;
+      if (s.voice && typeof PERFORMANCE !== 'undefined'){
+        const fit = 1 - (Math.abs(s.voice.motion - PERFORMANCE.motion)
+          + Math.abs(s.voice.detail - PERFORMANCE.detail)
+          + Math.abs(s.voice.space - PERFORMANCE.space)
+          + Math.abs(s.voice.impact - PERFORMANCE.impact)) / 4;
+        x *= .72 + clamp01(fit) * .78;
+      }
       // reduced-motion / CALM listeners live in the legible room by default
       if (s.calm && reducedMotion) x *= 2;
       // a strained device is spared the heavy scenes — cheap rooms only, so
@@ -12843,18 +14028,39 @@ const director = {
     // progress template with its small energy nudge.
     {
       const ad = activeDeck();
+      const tr = player.tracks[player.cur] || null;
       let prog = 0.5;
       if (ad && isFinite(ad.a.duration) && ad.a.duration > 0)
         prog = ad.a.currentTime / ad.a.duration;
       this.trackProg = prog;
-      const at = player.tracks[player.cur];            // read the live structure — it arrives async after decode
-      const st = at && at._structure;
-      let na, ceil = 1;
-      if (st && st.ok){
-        const a = st.apex;                             // centre the acts on the real climax
-        na = prog < a - 0.28 ? 0 : prog < a - 0.05 ? 1 : prog < a + 0.12 ? 2 : prog < a + 0.30 ? 3 : 4;
-        ceil = structureCeiling(st, prog);             // the intensity the music actually earns here
+      const st = trackStructure(tr);
+      let na, ceil = st && st.ok ? structureCeiling(st, prog) : 1;
+      const tid = tr ? String(tr.sha256 || tr.url || tr.id) : 'none';
+      if (tid !== this.storyTrack){
+        this.storyTrack = tid;
+        this.storySection = -1;
+        const mm = tr ? mixOf(tr) : null;
+        this.story = tr && (tr.story || storyboardFromEnv(tr.env, tr.duration || (ad && ad.a.duration) || 0, mm));
+      }
+      const read = storyboardAt(this.story, ad && isFinite(ad.a.currentTime) ? ad.a.currentTime : 0);
+      if (read){
+        na = read.section.act;
+        this.storyCue = read.section.cue;
+        if (read.index !== this.storySection){
+          const was = this.storySection;
+          this.storySection = read.index;
+          if (was >= 0 && this.auto && this.dwell > 4 && this.transT >= 1){
+            this.setScene(this.pickScene(), false);
+            this.dwell = 0;
+          }
+        }
+      } else if (st && st.ok){
+        const apex = st.apex;
+        na = prog < apex - 0.28 ? 0 : prog < apex - 0.05 ? 1
+          : prog < apex + 0.12 ? 2 : prog < apex + 0.30 ? 3 : 4;
+        this.storyCue = null;
       } else {
+        this.storyCue = null;
         const push = clamp((f.eShort / Math.max(0.0001, f.eLong) - 1) * 0.12, -0.08, 0.08);
         const p = clamp(prog + push, 0, 1);
         na = p < 0.10 ? 0 : p < 0.42 ? 1 : p < 0.70 ? 2 : p < 0.88 ? 3 : 4;
@@ -12897,7 +14103,7 @@ const director = {
       s.group.traverse(o => {
         if (!o.material || !o.material.uniforms) return;
         const trim = o.material.blending === THREE.AdditiveBlending
-          ? 0.38 + 0.30 * AE.f.energy : 1;
+          ? 0.28 + 0.18 * AE.f.energy : 1;
         o.material.uniforms.uOpacity.value = op * trim;
       });
       s.update(dt);
@@ -13142,7 +14348,7 @@ function buildAurea(){
       // pushed to electric saturation, blended in as the music demands it
       vec3 pal = vFam < 0.5 ? mix(uColA, uColB, vFam * 2.0)
                             : mix(uColB, uColC, vFam * 2.0 - 1.0);
-      vec3 neon = hsv(fract(vFam + uVarA + vT * 0.15 + uTime * 0.012), 0.92, 1.0);
+      vec3 neon = hsv(fract(vFam + uVarA + vT * 0.15 + uTime * 0.012), 0.72, 0.92);
       vec3 col = mix(pal, neon, uNeon);
       // additive discipline: thousands of points stack, so each speaks
       // quietly — the neon reads as SATURATION, never as a white-out
@@ -13194,8 +14400,8 @@ function buildAurea(){
       if (st.beats >= CYCLE){ st.beats -= CYCLE; advance(); }
       varU.uMorph.value = clamp01((st.beats - DWELL) / MORPH);
       // NEON rides the music: palette in the calm, electric at the peaks
-      const heat = (typeof director !== 'undefined' && director.phase === 'peak') ? 0.35 : 0;
-      varU.uNeon.value += ((clamp01(0.18 + f.eShort * 0.95 + heat) * 0.95)
+      const heat = (typeof director !== 'undefined' && director.phase === 'peak') ? 0.15 : 0;
+      varU.uNeon.value += ((clamp01(0.08 + f.eShort * 0.45 + heat) * 0.55)
         - varU.uNeon.value) * (1 - Math.exp(-dt / 0.8));
       // a slow celestial tumble so the knots read as solids
       group.rotation.y += dt * 0.05 * (1 + f.energy);
@@ -13234,6 +14440,7 @@ function initThree(){
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea());
+  scenes.forEach((s, i) => { s.voice = SCENE_VOICES[i] || SCENE_VOICES[0]; });
 
   // scene dots
   scenes.forEach((s, i) => {
@@ -13252,6 +14459,9 @@ function initThree(){
     chipFeel.hidden = false;
     chipFeel.addEventListener('click', () => HAPTICS.set(!HAPTICS.on, true));
   }
+  if (el.chipForce) el.chipForce.addEventListener('click', () => FORCES.cycle());
+  if (el.chipTouchFx) el.chipTouchFx.addEventListener('click', () => PERF_AUDIO.set(!PERF_AUDIO.on, true));
+  FORCES.sync(null);
   const chipTouch = document.getElementById('chipTouch');
   if (chipTouch) chipTouch.addEventListener('click', () => TOUCHFX.cycle());
   const chipLens = document.getElementById('chipLens');
@@ -13260,6 +14470,10 @@ function initThree(){
   SAFE.set(SAFE.calm, false);              // paint the chip's initial state
   DB.kvGet('safeCalm').then(v => { if (v != null) SAFE.set(v === '1', false); }).catch(() => {});
   DB.kvGet('haptics').then(v => { if (v === '1') HAPTICS.set(true, false); }).catch(() => {});
+  DB.kvGet('forceMode').then(v => {
+    const n = parseInt(v, 10); if (n >= -1 && n <= 3){ FORCES.requested = n; FORCES.sync(director.storyCue); }
+  }).catch(() => {});
+  DB.kvGet('touchAudioFx').then(v => { if (v === '1') PERF_AUDIO.set(true, false); }).catch(() => {});
   const bSleep = document.getElementById('btnSleep');
   if (bSleep) bSleep.addEventListener('click', () => SLEEP.cycle());
   const bSpeed = document.getElementById('btnSpeed');
@@ -13676,16 +14890,20 @@ function frame(now){
   INTERACT.update(dt);
   DWELL.update(dt);
   drawSafe('touchfx', () => TOUCHFX.render());   // the touch-FX overlay follows the hand
-  U.uPtr.value.set(INTERACT.wx, INTERACT.wy,   // the sprung warp centre — the field has weight
-    INTERACT.strength * (reducedMotion ? 0.35 : 1));
   U.uPtrMode.value = TOUCHFX.mode();   // the touch's personality (VOID/SPIN/PULL/WAVE)
-
   director.update(dt);
+  PERFORMANCE.update(dt);
+  U.uPtr.value.set(INTERACT.wx, INTERACT.wy,       // sprung centre: the field has weight
+    Math.max(INTERACT.strength, INTERACT.impulse * .85) * (reducedMotion ? 0.35 : 1));
   COLOR.update(dt);
   LENS.autoTick(dt);   // the director may set a lens — sparse, gated by the song's ceiling
 
   // Backdrop first, with a camera that inherits ORIENTATION ONLY — no dolly,
   // no bass FOV-breathing. That is what keeps the sky still while the scenes punch.
+  // Manual accounting spans BOTH render passes; Three's default per-call
+  // reset would otherwise under-report the backdrop in the public HUD.
+  renderer.info.autoReset = false;
+  renderer.info.reset();
   bgCam.quaternion.copy(camera.quaternion);
   // the lens engine owns the final draw: direct-to-glass when NONE (unchanged),
   // or scene→texture→shader-chain→glass when a lens is on
@@ -13719,7 +14937,7 @@ function frame(now){
   if (f.beat > 0.55) el.beatDot.classList.add('hit'); else el.beatDot.classList.remove('hit');
 
   // auto-crossfade near end of track
-  if (d && player.playing && !AE.mic.on && !MIXER.on
+  if (d && player.playing && !PLAYBACK_GUARD.waitSince && !AE.mic.on && !MIXER.on
       && isFinite(d.a.duration) && d.a.duration > XFADE * 2){
     const remain = d.a.duration - d.a.currentTime;
     if (!player.autoFadeDone && remain <= XFADE && remain > 0.05 && player.hasNext() && player.repeat !== 'one'){
@@ -13751,6 +14969,12 @@ function frame(now){
     el.roE.textContent = f.eE.toFixed(3);
     el.roCoup.textContent = f.coupling.toFixed(3);
     el.roEnt.textContent = (f.entropy * Math.log2(512)).toFixed(2);
+    if (el.computeRo && renderer && renderer.info){
+      const ri = renderer.info.render;
+      const tris = ri.triangles >= 1000 ? (ri.triangles / 1000).toFixed(0) + 'k' : String(ri.triangles || 0);
+      const scaled = heavy ? ' · ' + Math.round(bulbScale * 100) + '% field' : '';
+      el.computeRo.textContent = 'RENDER ' + frameMs.toFixed(1) + 'ms · ' + (ri.calls || 0) + ' calls · ' + tris + '△' + scaled;
+    }
     const bpm = f.bpm ? Math.round(f.bpm) : 0;
     el.roBpm.textContent = bpm || '—';
     if (COLOR.on && COLOR._rgb){
@@ -13775,6 +14999,7 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 /* ---------------- boot ---------------- */
+SPLASH.init();
 initThree();
 requestAnimationFrame(frame);
 player.renderList();
@@ -14129,8 +15354,13 @@ const ONBOARD = {
 
 /* flush pending state when the app is backgrounded or killed mid-track —
    the §10.8 contract: kill, relaunch, restored paused at position, one tap */
-window.addEventListener('pagehide', () => { PERSIST.save(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) PERSIST.save(); });
+window.addEventListener('pagehide', () => { PERSIST.save(); SPLASH_AUDIO.stop(true); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    PERSIST.save();
+    if (SPLASH.running && !SPLASH.done) SPLASH.finish(true);
+  }
+});
 
 /* MACPROMO — a quiet, once-ever nudge for Mac users on the web: the same player,
    but better as a native app. Never on iOS, never inside the app; deferred while
@@ -14183,6 +15413,7 @@ const MACPROMO = {
 (async function boot(){
   await DB.open();
   await Promise.all([FAVS.boot(), HIST.boot(), MIXFIX.boot(), PLAYLISTS.boot()]);
+  syncInstallEligibility();
   ACHIEVE.boot();
 
   // If a catalog.json sits next to this file, load it automatically — that
@@ -14202,19 +15433,19 @@ const MACPROMO = {
         engageRitual(ritual);
       } else if (deepLinkTrack(params.get('t'))){
         // a shared track: cued paused (phones require the gesture anyway)
+        applySharedVisual(params);
       } else {
         const restored = await PERSIST.restore();
         if (restored){
           player.renderList();
           toast('Restored — tap play to resume');
         } else {
-          // a first visit: a real library opens on the crates chooser — and,
-          // the very first time, the onboarding story runs ahead of it (what
-          // this is, whose it is, why it's for you), handing off to the
-          // chooser. Only an empty or unreachable shelf falls back to the demo.
+          // A first visit gets the short story, then the human question that
+          // deals the session: what mood is this for? Familiarity choices are
+          // earned later, once hearts/playlists provide a truthful signal.
           if (openingSet(allTracks(), trackKey, 10).length){
-            if (!ONBOARD.seen()) ONBOARD.show(firstRunOpen);
-            else firstRunOpen();
+            if (!ONBOARD.seen()) ONBOARD.show(() => LISTEN_INTENT.open(true));
+            else LISTEN_INTENT.open(true);
           } else {
             player.playDemo();
           }

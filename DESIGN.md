@@ -174,6 +174,19 @@ Column-browsable library, smart playlists as *saved rules*, star ratings,
 play counts as first-class sortable data, and the sense that the library is
 **yours**. The Crate is already the column browser; §5 adds the rest.
 
+### 3.4 Spotify / Apple Music with no runtime backend
+
+The useful line is **import taste, not somebody else's stream**.
+
+| Service | Frictionless static-web capability | Hard boundary | Product decision |
+|---|---|---|---|
+| Spotify | Authorization Code with PKCE needs no client secret; with consent it can read the listener's playlists and metadata. | Spotify policy prohibits synchronizing its recordings with visual media, and Web Playback also requires Premium and does not expose decoded PCM to our analyser/mixer. | Offer an optional “Read a Spotify playlist” importer, map its artists/tempo/mood to Aethra tracks or open unmatched songs in Spotify. Never route Spotify playback through the visual performance engine. |
+| Apple Music | MusicKit on the Web can request library permission, read playlists and play catalog music in a custom web player. MusicKit manages the music-user token. | A signed developer token is still required (build-time secret, maximum six-month lifetime), and MusicKit does not hand the decoded audio stream to Web Audio for our beat grids, stems or transitions. | A runtime backend is unnecessary if CI signs and rotates an origin-bound developer token. Treat Apple playlists as intent; use Aethra audio/precomputed analysis for the full engine. Review Apple program terms before presenting any Apple playback as synchronized visuals. |
+
+That gives listeners a low-friction bridge without adding accounts, passwords,
+profiles or a database to this product. The connect buttons remain explicitly
+optional and the imported playlist can stay in IndexedDB on the device.
+
 ---
 
 ## 4 · Research: the visual engine — "dancing with your eyes"
@@ -263,6 +276,40 @@ directly to screen:
 - These become *tested* invariants: the acceptance harness renders scene
   frames and asserts the luminance-delta cap holds under a worst-case
   synthetic onset train.
+
+### 4.5 A world-scale visual bank without flattening cultures or physics
+
+The bank grows as **authored grammars**, not a folder of exotic-looking
+textures. Every entry ships with provenance, a visual vocabulary, modulation
+limits, scene roles, cost tier and an explanation visible in the Lab guide.
+
+- **Living cultural grammars require living collaborators.** Tamil kolam can
+  contribute dot lattices and continuous-line traversal, Islamic geometric
+  traditions circle/star/polygon construction, and Andean weaving structural
+  grid/loom relationships. None is labelled as a continent-wide “style.” Each
+  scene names region, period and source community; sacred/restricted motifs do
+  not ship; community review and compensation precede a public bank.
+- **Nature is a developmental system.** One parametric L-system/field grammar
+  can grow fern, root, branch, grass and flower families; coupled height,
+  moisture and velocity fields extend it into wind, erosion, water, snow and
+  cliffs. The existing Rubik solver remains an external authored voice and is
+  integrated later rather than rebuilt.
+- **Physics names must be earned.** Stable semi-Lagrangian fluids plus
+  vorticity confinement produce Navier–Stokes-like eddies; Maxwell scenes
+  render actual divergence/curl and attraction/repulsion field lines; gravity
+  uses a potential field/N-body approximation; strings use wave-equation
+  normal modes and stored energy. “Spinor” or “twistor” appears in copy only
+  when the implementation preserves the relevant transformation, otherwise it
+  is honestly called a spin field or ribbon.
+- **One budget ladder keeps the legend cheap.** Tier 0 is analytic shader math,
+  Tier 1 reuses a shared particle pool, Tier 2 uses a half-resolution field,
+  Tier 3 is desktop/WebGPU-only. Scene capability metadata lets the director
+  choose a musically correct voice that also fits the measured frame budget.
+
+This is a research and commissioning program, not a claim that the current
+scene bank already represents humanity. The first public release should prove
+two deeply sourced cultural grammars and two physically grounded field
+grammars before breadth.
 
 ---
 
@@ -420,6 +467,79 @@ partnership), Bunny CDN (~$0.01/GB). R2 is the default pick.
 7. **Verify like the repo verifies.** Every phase lands with its section of
    `tests/` extended and the acceptance harness green.
 
+### 7.1 Performance system: one score, six engines
+
+These systems are not six independent reactive toys. They are one staged
+performance with a strict authority order:
+
+```
+publish-time song analysis (grid · phrases · section novelty · mix confidence)
+                                  │
+song + structural storyboard ── performance router ── bounded channels
+                                  │                  motion · detail · space · impact
+            ┌─────────────────────┼──────────────────────┬───────────────────┐
+       visual bank          visual FX chain       transition chain      touch engine
+   scene capability map    force veil / palette   decks / EQ / gain     four forces
+            │                     │                      │                   │
+            └─────────────────────┴────────── visual frame ─────────────────┘
+
+program audio: deck A/B → transition EQ + equal-power gain → master (sovereign)
+touch audio:  opt-in gesture voice → hard limiter ──────────→ master (parallel)
+```
+
+- **The song owns time.** Beat, bar, phrase and the structural storyboard are
+  the only clocks. Effects may anticipate a scored boundary; they may not
+  invent competing onset followers.
+- **The router owns intensity.** `performanceFrame` emits normalized motion,
+  detail, space and impact channels. Banks translate those channels into their
+  own medium and cap their contribution. A drop does not independently max the
+  camera, bloom, particle size, hue, bass and touch sound.
+- **The visual bank declares capability.** Each scene advertises how much
+  motion, detail, space and impact it can express. The director combines that
+  matrix with its specialist musical rules, so a break opens an actually
+  spacious scene and a reveal chooses geometry that can show nuance.
+- **Four forces are four verbs.** Gravity attracts mass; electromagnetism curls
+  a field around the hand; strong force binds a local shell; weak force breaks
+  symmetry and decays. Auto maps structural cues to those verbs (`flow → G`,
+  `spark → EM`, `drive → strong`, `space → weak`). Manual lock is available
+  because this is also an instrument.
+- **Touch audio is parallel and opt-in.** A deliberate double-tap/dwell shock
+  can add one short synthesized material response through a dedicated
+  compressor/limiter. It never processes the song and therefore cannot break
+  iOS direct output, deck handover or loudness normalization.
+- **Transition effects earn the right to exist.** The current production chain
+  is master-tempo glide, phase correction, equal-power envelopes and a
+  confidence-gated bass exchange. Spin/rewind, horns and pads should ship only
+  as a curated catalog bank with key, loudness, bar length and allowed-scene
+  metadata. Spin/rewind is best rendered per-song offline as a short,
+  bar-addressable asset; generic live playback-rate tricks cannot reverse an
+  HTML media element reliably and are not production quality. Horns and pads
+  additionally require key-safe transposition and a global density/cooldown
+  budget. Until those assets and tests exist, silence is the expert default.
+
+Every future effect-bank entry therefore needs: `kind`, `bars`, `key`,
+`lufs`, `sceneTags`, `cooldown`, `maxWet`, and a graceful-absence rule. The
+planner selects it ahead of time; runtime only schedules it against `CLOCK`.
+
+### 7.2 Playback continuity: one intent, no surprise reloads
+
+- `wantPlaying` is the listener's durable intent; the media element's `paused`
+  property is only transient platform evidence. Only an explicit pause revokes
+  intent.
+- `waiting`, `stalled`, media-session interruption, foreground return and
+  network return feed one watchdog. It first waits, then resumes, then after an
+  eight-second no-progress window rebuilds only the media source at the last
+  confirmed playhead. A twelve-second reload cooldown prevents thrashing.
+- Restore and recovery use one cue path. Non-zero positions stay element-muted
+  until metadata accepts the seek, preventing any audible 0:00→saved-position
+  jump.
+- A waiting service worker is informational. It never self-applies; explicit
+  Update while playing is refused, and an explicit paused update awaits the
+  IndexedDB position write before worker handover.
+- While continuity owns the deck, history accrual and transition planning stop.
+  One state machine at a time prevents a recovery, mix and queue handover from
+  racing each other.
+
 ---
 
 ## 8 · Risks & honest unknowns
@@ -448,6 +568,13 @@ Curated from the July 2026 research pass (three parallel streams: streaming
 features, visual/accessibility state of the art, hosting).
 
 **Streaming-service features**
+- https://developer.spotify.com/documentation/web-api/concepts/authorization
+- https://developer.spotify.com/documentation/web-api/reference/get-a-list-of-current-users-playlists
+- https://developer.spotify.com/policy
+- https://developer.spotify.com/documentation/web-playback-sdk/reference
+- https://developer.apple.com/musickit/
+- https://developer.apple.com/documentation/applemusicapi/user-authentication-for-musickit
+- https://developer.apple.com/documentation/applemusicapi/generating-developer-tokens
 - https://newsroom.spotify.com/2025-11-13/shuffle-update-fewer-repeats/
 - https://newsroom.spotify.com/2025-12-29/year-in-features/
 - https://support.spotify.com/us/artists/article/canvas-guidelines/
@@ -458,6 +585,14 @@ features, visual/accessibility state of the art, hosting).
 - https://wiki.hydrogenaudio.org/index.php/ReplayGain
 
 **Visual engine & color**
+- https://ich.unesco.org/en/decisions/6.COM/13.18
+- https://www.metmuseum.org/pt/essays/geometric-patterns-in-islamic-art
+- https://www.metmuseum.org/de/essays/andean-textiles
+- https://algorithmicbotany.org/papers/developmental.sig1988.pdf
+- https://www.josstam.com/publications
+- https://graphics.stanford.edu/courses/cs448-01-spring/papers/stam.pdf
+- https://ocw.mit.edu/courses/8-03sc-physics-iii-vibrations-and-waves-fall-2016/pages/part-i-mechanical-vibrations-and-waves/lecture-9/
+- https://spaceplace.nasa.gov/nebula/en/
 - https://web.dev/blog/webgpu-supported-major-browsers
 - https://appdevelopermagazine.com/webgpu-in-ios-26/ · https://caniuse.com/webgpu
 - https://www.utsubo.com/blog/threejs-2026-what-changed
