@@ -73,14 +73,14 @@ Two channels, the standard split — like a Stable app and its Insiders/nightly:
 
 | Channel | How to release | Identity | Update feed |
 |---|---|---|---|
-| **Stable** | push a `desktop-vX.Y.Z` tag | `Aethra Kairos` · `com.aethrakairos.player` | `releases/latest` |
+| **Stable** | Actions → *Run workflow* → channel **stable** (or push a `desktop-vX.Y.Z` tag) | `Aethra Kairos` · `com.aethrakairos.player` | `releases/latest` |
 | **Dev** (nightly) | Actions → *Run workflow* → channel **dev** | `Aethra Kairos Dev` · `…player.dev` (installs side-by-side) | rolling `desktop-nightly` pre-release |
 
-- **Cut a stable release:**
-  ```bash
-  # bump desktop/src-tauri/tauri.conf.json "version" to match, then:
-  git tag desktop-v0.1.0 && git push origin desktop-v0.1.0
-  ```
+- **Cut a stable release (one click):** bump `desktop/src-tauri/tauri.conf.json`
+  `version`, then **Actions → desktop → Run workflow → channel: stable**. It reads that
+  version, creates the `desktop-vX.Y.Z` tag, builds, and publishes the Release — no
+  hand-pushed tag. (Pushing a `desktop-vX.Y.Z` tag by hand still works too:
+  `git tag desktop-v0.1.1 && git push origin desktop-v0.1.1`.)
 - **Cut a nightly:** GitHub → **Actions → desktop → Run workflow → channel: dev**.
   It publishes/overwrites the rolling `desktop-nightly` pre-release; the Dev app
   auto-updates from it. Stable users never see it (it's a pre-release, so

@@ -5,8 +5,10 @@
 #   • Manual "dev"           → "Aethra Kairos Dev", side-by-side identity, published
 #                              to a ROLLING pre-release (tag desktop-nightly). Dev
 #                              users auto-update from that feed.
-#   • Tag  desktop-vX.Y.Z    → stable "Aethra Kairos", published as a normal
-#                              Release. Stable users auto-update from releases/latest.
+#   • Manual "stable" OR a   → stable "Aethra Kairos", published as a normal Release.
+#     desktop-vX.Y.Z tag       Stable users auto-update from releases/latest. The manual
+#                              "stable" run derives the tag from tauri.conf.json's version,
+#                              so cutting a release is one click — no hand-pushed tag.
 #
 # Apple code-signing/notarization is not wired yet (unsigned — first launch is
 # right-click → Open; see aethrakairos.com/mac). Updater signing is separate: set
@@ -25,9 +27,9 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: 'Release channel (dev = rolling nightly). "none" = validation build only.'
+        description: 'none = validation only · dev = rolling nightly · stable = cut a real release (tag from tauri.conf.json version)'
         type: choice
-        options: [none, dev]
+        options: [none, dev, stable]
         default: none
   pull_request:
     paths:
@@ -78,10 +80,21 @@ jobs:
           SIGN=""
           [ -n "$KEY" ] && SIGN=" --config src-tauri/tauri.updater.json"
           if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            # stable via a pushed desktop-vX.Y.Z tag
             echo "mode=stable" >> "$GITHUB_OUTPUT"
             echo "args=--target universal-apple-darwin$SIGN" >> "$GITHUB_OUTPUT"
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
             echo "name=Aethra Kairos ${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          elif [ "$CHANNEL" = "stable" ]; then
+            # stable via manual dispatch — derive the tag from the app version, so
+            # cutting a release is one click (Actions -> Run workflow -> stable); no
+            # hand-pushed tag. tauri-action creates the tag + release from this commit.
+            VER=$(jq -r .version desktop/src-tauri/tauri.conf.json)
+            echo "mode=stable" >> "$GITHUB_OUTPUT"
+            echo "args=--target universal-apple-darwin$SIGN" >> "$GITHUB_OUTPUT"
+            echo "tag=desktop-v$VER" >> "$GITHUB_OUTPUT"
+            echo "name=Aethra Kairos desktop-v$VER" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           elif [ "$CHANNEL" = "dev" ]; then
             echo "mode=dev" >> "$GITHUB_OUTPUT"
