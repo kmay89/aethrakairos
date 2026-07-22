@@ -1154,6 +1154,35 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   border-bottom:0;letter-spacing:.12em;font-size:9.5px;opacity:.85;transition:opacity .2s ease}
 .lib-foot a.mac-dl:hover{opacity:1}
 
+/* ============ the Mac-app callout (web, Mac browsers only) ============ */
+#macPromo{
+  position:fixed;left:16px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:70;
+  width:min(322px,84vw);padding:15px 16px 14px;border-radius:16px;
+  background:var(--glass-hard);border:1px solid var(--line);
+  box-shadow:0 22px 54px -18px rgba(0,0,0,.7);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  color:var(--ink);opacity:0;transform:translateY(14px) scale(.98);
+  transition:opacity .5s ease,transform .55s cubic-bezier(.22,1,.36,1);pointer-events:none}
+#macPromo.show{opacity:1;transform:none;pointer-events:auto}
+#macPromo[hidden]{display:none}
+#macPromo .mp-x{position:absolute;top:7px;right:8px;width:24px;height:24px;border:0;background:none;
+  color:var(--faint);font-size:17px;line-height:1;cursor:pointer;border-radius:7px;transition:color .15s,background .15s}
+#macPromo .mp-x:hover{color:var(--ink);background:rgba(255,255,255,.07)}
+#macPromo .mp-title{font-size:13.5px;font-weight:600;letter-spacing:.2px;padding-right:20px}
+#macPromo .mp-title b{color:var(--accent)}
+#macPromo .mp-why{list-style:none;margin:11px 0 14px;padding:0;font-size:11.5px;line-height:1.5;color:var(--dim)}
+#macPromo .mp-why li{padding:4px 0 4px 17px;position:relative}
+#macPromo .mp-why li::before{content:'✦';position:absolute;left:0;top:4px;color:var(--accent);opacity:.7;font-size:10px}
+#macPromo .mp-why b{color:var(--ink);font-weight:600}
+#macPromo .mp-actions{display:flex;align-items:center;gap:12px}
+#macPromo .mp-get{flex:none;padding:8px 15px;border-radius:10px;font-size:12px;font-weight:600;letter-spacing:.2px;
+  color:#04121a;background:linear-gradient(180deg,#8ff0ff,var(--accent));text-decoration:none;
+  box-shadow:0 8px 22px -8px var(--accent-glow);transition:transform .12s ease}
+#macPromo .mp-get:hover{transform:translateY(-1px)}
+#macPromo .mp-later{border:0;background:none;color:var(--faint);font-size:11px;cursor:pointer;letter-spacing:.04em}
+#macPromo .mp-later:hover{color:var(--dim)}
+@media (prefers-reduced-motion:reduce){#macPromo{transition:opacity .4s ease}}
+
 /* ============ The Crate (C) — the label on one table ============ */
 #crate{
   position:fixed;inset:0;z-index:94;display:none;flex-direction:column;
@@ -1472,6 +1501,23 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   <span id="zTouchLabel">VOID</span>
 </button>
 <div id="loadSpin" aria-hidden="true"><div class="ls-art"></div><span class="ls-txt">tuning the first track…</span></div>
+
+<!-- a quiet suggestion for Mac users on the web: the same player, but better as
+     a native app. Shown once, dismissible; only on a Mac browser (never iOS,
+     never inside the app itself). -->
+<aside id="macPromo" hidden role="complementary" aria-label="Get the Mac app">
+  <button class="mp-x" type="button" aria-label="Dismiss">×</button>
+  <div class="mp-title">Even better as a <b>Mac app</b></div>
+  <ul class="mp-why">
+    <li>The <b>same player</b> — it loads this exact site, always the latest</li>
+    <li><b>Rock-solid memory</b>: its own window with the full RAM budget, never a background tab that gets dropped</li>
+    <li><b>Updates itself</b> quietly — install once, never again</li>
+  </ul>
+  <div class="mp-actions">
+    <a class="mp-get" href="mac.html" target="_blank" rel="noopener">Get the Mac app</a>
+    <button class="mp-later" type="button">Maybe later</button>
+  </div>
+</aside>
 
 <!-- ================= top bar ================= -->
 <header class="topbar chrome">
@@ -2357,6 +2403,11 @@ const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
    native features build on. */
 const IS_NATIVE = / AethraKairosNative\//.test(navigator.userAgent);
 if (IS_NATIVE) document.documentElement.classList.add('native');
+
+/* a real Mac desktop browser — not iOS (IS_IOS already catches iPad-as-Mac),
+   and not the native app itself. The audience for the "get the Mac app" nudge.
+   UA-first (navigator.platform is deprecated); a Mac reports "Macintosh". */
+const IS_MAC = !IS_IOS && !IS_NATIVE && /Mac/i.test(navigator.userAgent + ' ' + (navigator.platform || ''));
 
 // the per-deck sweep filter: parked wide open (≈bypass), driven down to the
 // floor on a fading-out deck so a crossfade becomes a pro "filter out"
@@ -14076,6 +14127,49 @@ const ONBOARD = {
 window.addEventListener('pagehide', () => { PERSIST.save(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) PERSIST.save(); });
 
+/* MACPROMO — a quiet, once-ever nudge for Mac users on the web: the same player,
+   but better as a native app. Never on iOS, never inside the app; deferred while
+   the onboarding story, the tour, or full-immersion is on screen, so it only ever
+   appears in a calm resting moment. Dismissing (or getting it) silences it for good. */
+const MACPROMO = {
+  key: 'mb8_macpromo_v1', _done: false,
+  seen(){ try { return localStorage.getItem(this.key) === '1'; } catch (e){ return true; } },
+  _silence(){ try { localStorage.setItem(this.key, '1'); } catch (e){} },
+  maybeShow(){
+    if ((!IS_MAC && !IS_IOS) || IS_NATIVE || this.seen()) return;
+    const box = document.getElementById('macPromo'); if (!box) return;
+    // iPhone/iPad can't install a Mac app on the device — so for iOS the nudge is
+    // shorter and softer: "there's a Mac app too, for when you're on a Mac."
+    if (IS_IOS && !IS_MAC){
+      box.querySelector('.mp-title').innerHTML = 'There’s a <b>Mac app</b> too';
+      box.querySelector('.mp-why').innerHTML =
+        '<li>On a Mac? The same player runs even smoother as its own app — rock-solid, self-updating, no browser tab to lose</li>';
+      box.querySelector('.mp-get').textContent = 'See the Mac app';
+    }
+    box.querySelector('.mp-x').onclick = () => this.dismiss();
+    box.querySelector('.mp-later').onclick = () => this.dismiss();
+    box.querySelector('.mp-get').onclick = () => { this._silence(); this.hide(); };   // the link still opens
+    const onboard = document.getElementById('onboard');
+    const tick = () => {
+      if (this._done) return;
+      const busy = (onboard && onboard.classList.contains('open'))
+        || (typeof TUTOR !== 'undefined' && TUTOR.active)
+        || document.body.classList.contains('zen');
+      if (busy){ setTimeout(tick, 4000); return; }   // wait for a calm moment
+      this.show();
+    };
+    setTimeout(tick, 11000);   // let the room settle first
+  },
+  show(){
+    if (this._done) return; this._done = true;
+    const box = document.getElementById('macPromo'); if (!box) return;
+    box.hidden = false;
+    requestAnimationFrame(() => box.classList.add('show'));
+  },
+  hide(){ const box = document.getElementById('macPromo'); if (box){ box.classList.remove('show'); setTimeout(() => { box.hidden = true; }, 520); } },
+  dismiss(){ this._silence(); this.hide(); },
+};
+
 (async function boot(){
   await DB.open();
   await Promise.all([FAVS.boot(), HIST.boot(), MIXFIX.boot(), PLAYLISTS.boot()]);
@@ -14121,6 +14215,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) PERSI
   }
   window.__mb8Booted = true;                       // acceptance probe reads this
   dissolveSplash();                                // the spiral gives way to the instrument
+  MACPROMO.maybeShow();                            // once-ever "get the Mac app" nudge (web, Mac only)
 })();
 /* fade the boot splash out. Called on a clean boot; a safety timer also fires
    it so a slow/failed boot can never strand the listener on the splash. */
