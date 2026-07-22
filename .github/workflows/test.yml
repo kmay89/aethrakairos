@@ -1,0 +1,30 @@
+# The unit-test gate. Runs the pure-function suite — the same
+# @pure/@solver/@color/@safe/@clock/@dance blocks that ship inside
+# docs/index.html, extracted and executed so what's tested IS what ships — on
+# every pull request and every push to main. A red suite is then visible right
+# on the PR.
+#
+# To make it BLOCK merges: Settings → Branches → add a rule for `main` →
+# "Require status checks to pass" → select **unit**. (Also tick "Require a pull
+# request before merging" to stop direct pushes to main.)
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Player unit tests (pure blocks extracted from docs/index.html)
+        run: node tests/player.test.mjs

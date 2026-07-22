@@ -1,0 +1,22 @@
+# Weekly dependency PRs across every ecosystem this repo uses — the desktop npm
+# deps, the Tauri Rust crates, and the GitHub Actions we pin — so the supply
+# chain stays current without hand-watching advisories. Each update PR runs the
+# test gate like any other.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: cargo
+    directory: /desktop/src-tauri
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
