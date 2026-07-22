@@ -1,6 +1,6 @@
 {
   "name": "aethra-kairos-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Aethra Kairos — native Mac shell for the open-source label player",
   "scripts": {
