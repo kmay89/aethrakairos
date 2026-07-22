@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- macOS requires a usage string for any mic access, signed or not, or it
+       terminates the app on request. Merged into the generated Info.plist. -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Aethra Kairos uses the microphone only when you switch on the mic-reactive visual, so the visuals can move to the sound around you. The audio is analysed on your Mac and never leaves it.</string>
+</dict>
+</plist>

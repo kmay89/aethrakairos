@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- The mic-reactive visual asks for the microphone — but only when the
+       person turns it on. Under the hardened runtime (required for Apple
+       notarization) this entitlement is what allows that request; without it
+       a notarized build would silently deny the mic. Audio is analysed on the
+       device and never leaves it. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+</dict>
+</plist>
