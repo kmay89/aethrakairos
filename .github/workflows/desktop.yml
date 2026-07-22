@@ -111,21 +111,44 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build (and release for stable / dev)
-        uses: tauri-apps/tauri-action@v0
+      # Apple signing is triggered merely by these vars being PRESENT — an empty
+      # APPLE_CERTIFICATE makes the bundler try to `security import` nothing and
+      # fail. So export them (into $GITHUB_ENV, for the build step) ONLY when a
+      # cert is actually set; absent → a clean unsigned build. This is the gate
+      # that keeps notarization dormant until the secrets exist.
+      - name: Enable Apple signing when configured
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Apple code-signing + notarization → a zero-warning first launch (no
-          # right-click, no quarantine command). No-op until these secrets exist;
-          # tauri-action auto-signs, notarizes, and staples when all are present.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "Apple signing not configured — unsigned build."
+            exit 0
+          fi
+          echo "Apple signing configured — this build will be signed + notarized."
+          {
+            echo "APPLE_CERTIFICATE<<__AK_CERT__"
+            echo "$APPLE_CERTIFICATE"
+            echo "__AK_CERT__"
+            echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD"
+            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
+            echo "APPLE_ID=$APPLE_ID"
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Build (and release for stable / dev)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Apple signing vars arrive via $GITHUB_ENV from the step above — set
+          # only when a cert is configured, so unsigned builds carry none of them.
         with:
           projectPath: desktop
           args: ${{ steps.plan.outputs.args }}
