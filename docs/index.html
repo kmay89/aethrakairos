@@ -187,20 +187,16 @@ body.zen #glcanvas{cursor:none}
   #labSplash.leaving{animation:splashLeave .2s linear forwards}
 }
 
-/* ============ boot splash — the spiral, the name, then it dissolves into the
-   instrument. Covers the first paint so the app never opens on a bare frame. ============ */
+/* ============ boot splash — quiet build identity, then the instrument ============ */
 #splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:24px;background:#05060e;
-  transition:opacity .8s ease}
+  align-items:center;justify-content:center;gap:9px;background:#05060e;
+  color:#f2f4f7;text-align:center;transition:opacity .32s ease}
 #splash.gone{opacity:0;pointer-events:none}
 #splash.done{display:none}
-#splash .sp-art{width:min(60vw,300px);aspect-ratio:1;border-radius:50%;
-  background:#000 center/cover no-repeat;background-image:url('icons/icon-512.png');
-  box-shadow:0 0 70px -12px rgba(130,190,255,.55),inset 0 0 40px rgba(0,0,0,.6);
-  animation:spLon 64s linear infinite}
-#splash .sp-name{font-size:26px;font-weight:600;letter-spacing:.4px;color:#fff;
-  text-shadow:0 2px 22px rgba(0,0,0,.7);opacity:.96}
-@keyframes spLon{to{transform:rotate(360deg)}}
+#splash .sp-name{font:600 clamp(23px,4vw,32px)/1 var(--ui);letter-spacing:.06em}
+#splash .sp-copy{font:500 10px/1.4 var(--mono);letter-spacing:.12em;color:rgba(232,237,244,.68)}
+#splash .sp-meta{display:flex;gap:.6em;align-items:center;font:500 9px/1.4 var(--mono);
+  letter-spacing:.08em;color:rgba(232,237,244,.42)}
 
 /* the loading spin — the moment between pressing play and the sound arriving.
    The spiral turns so the wait reads as the instrument warming up, never a
@@ -221,7 +217,7 @@ body.zen #glcanvas{cursor:none}
 #loadSpin.fanout .ls-art{transform:scale(2.7);opacity:0;box-shadow:0 0 130px 8px rgba(130,190,255,.5)}
 @media (prefers-reduced-motion:reduce){ #loadSpin .ls-art{animation-duration:2.4s}
   #loadSpin.fanout .ls-art{transform:none} }
-@media (prefers-reduced-motion:reduce){ #splash .sp-art{animation:none} #splash{transition:opacity .4s ease} }
+@media (prefers-reduced-motion:reduce){ #splash{transition:none} }
 
 /* double-tap zoom is meaningless in a fullscreen instrument and only ever
    fights the user — 'manipulation' keeps scroll and pinch, drops the tap-tap
@@ -1614,24 +1610,13 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
-<div id="splash"><div class="sp-art"></div><div class="sp-name">Aethra Kairos</div></div>
+<div id="splash" role="status" aria-label="ERRERLabs loading">
+  <div class="sp-name">ERRERLabs</div>
+  <div class="sp-copy">© <span id="splashYear">2026</span> ERRERLabs</div>
+  <div class="sp-meta"><span id="splashVersion">version dev</span><span aria-hidden="true">·</span><time id="splashDate">2026-07-22</time></div>
+</div>
 <canvas id="glcanvas" aria-hidden="true"></canvas>
 <div id="forceVeil" data-force="gravity" aria-hidden="true"></div>
-<section id="labSplash" role="dialog" aria-modal="true" aria-label="ERRERLabs opening overture">
-  <canvas id="splashCv" aria-hidden="true"></canvas>
-  <div class="splash-grain" aria-hidden="true"></div>
-  <div class="splash-ui">
-    <div class="splash-copy" aria-live="polite">
-      <div class="splash-long"><i>E</i>cho · <i>R</i>esonance · <i>R</i>esearch · <i>E</i>cho · <i>R</i>esonance · <i>Labs</i></div>
-      <div class="splash-short">ERRERLabs</div>
-    </div>
-    <div class="splash-kicker">Sound becomes structure</div>
-    <div class="splash-actions">
-      <button class="splash-enter" id="splashEnter">Enter resonance</button>
-      <button class="splash-skip" id="splashSkip">Skip intro</button>
-    </div>
-  </div>
-</section>
 
 <!-- the visualizer's quiet HUD: a cinematic waveform + a minimal now-playing
      card that stay legible when the controls sleep (zen) -->
@@ -9064,7 +9049,19 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    controllerchange → reload → the normal restore path brings everything
    back paused at position. IndexedDB (queue, hearts, history, journeys)
    is never part of an update — nothing to lose. */
-const MB8_BUILD = '1c24f0895c';   // stamped by tools/stamp_version.py (via publish.sh)
+const MB8_BUILD = '766e636d60';   // stamped by tools/stamp_version.py (via publish.sh)
+{
+  const raw = new Date(document.lastModified);
+  const built = Number.isNaN(raw.getTime()) ? new Date() : raw;
+  const pad = n => String(n).padStart(2, '0');
+  const date = built.getFullYear() + '-' + pad(built.getMonth() + 1) + '-' + pad(built.getDate());
+  const versionEl = document.getElementById('splashVersion');
+  const dateEl = document.getElementById('splashDate');
+  const yearEl = document.getElementById('splashYear');
+  if (versionEl) versionEl.textContent = 'version ' + MB8_BUILD;
+  if (dateEl){ dateEl.textContent = date; dateEl.dateTime = date; }
+  if (yearEl) yearEl.textContent = String(built.getFullYear());
+}
 let swReg = null, updateRequested = false;
 
 function registerSW(){
@@ -14999,7 +14996,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 /* ---------------- boot ---------------- */
-SPLASH.init();
 initThree();
 requestAnimationFrame(frame);
 player.renderList();
