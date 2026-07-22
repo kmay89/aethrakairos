@@ -112,6 +112,19 @@ jobs:
           releaseDraft: false
           prerelease: ${{ steps.plan.outputs.prerelease }}
 
+      # A STABLE-named copy of the .dmg so the website can link to a permanent,
+      # never-rot URL: releases/latest/download/Aethra-Kairos-macOS-universal.dmg
+      # always resolves to the newest stable build (the versioned filename can't).
+      - name: Publish a stable-named .dmg for the website
+        if: ${{ steps.plan.outputs.mode != 'validate' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DMG=$(ls desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          echo "built: $DMG"
+          cp "$DMG" "Aethra-Kairos-macOS-universal.dmg"
+          gh release upload "${{ steps.plan.outputs.tag }}" "Aethra-Kairos-macOS-universal.dmg" --clobber --repo "${{ github.repository }}"
+
       - name: Upload .dmg artifact (validation builds)
         if: ${{ steps.plan.outputs.mode == 'validate' }}
         uses: actions/upload-artifact@v4
