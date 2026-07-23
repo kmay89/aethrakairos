@@ -7,4 +7,3 @@ masters/
 synthetic-deploy/
 tests/_tmp_*/
 node_modules
-.DS_Store
