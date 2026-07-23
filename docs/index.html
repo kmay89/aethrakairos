@@ -317,6 +317,14 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   pointer-events:none;
 }
 .topbar>*{pointer-events:auto}
+/* the More menu (.overflow) is a fixed-position CHILD of .topbar, so it
+   stacks only against .topbar's own siblings, as one unit at z40 — a lower
+   z-index elsewhere (booth z93 / crate z94 / console z95) still buried the
+   open menu on a short iOS viewport where those panels reach up under the
+   bar, swallowing its taps. Lifting the whole bar above them while the menu
+   is open, and only then, keeps it reachable without living above panels
+   the rest of the time. */
+.topbar.menu-lift{z-index:96}
 .brand{display:flex;flex-direction:column;gap:2px;user-select:none}
 .wordmark{
   font-family:var(--serif);font-style:italic;font-weight:600;
@@ -1424,7 +1432,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   .topactions{gap:7px;flex-wrap:nowrap}
   #btnMore{display:inline-flex}
   .overflow{
-    display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:70;
+    display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:1;
     flex-direction:column;gap:2px;min-width:212px;padding:8px;
     background:var(--sheen),var(--glass-hard);
     border:1px solid var(--line);border-radius:16px;
@@ -2328,7 +2336,7 @@ const el = {
   fileInput: $('fileInput'),
   btnAdd: $('btnAdd'), btnChoose: $('btnChoose'), btnDemo: $('btnDemo'), btnCatalog: $('btnCatalog'),
   btnMic: $('btnMic'), btnPlaylist: $('btnPlaylist'), btnHelp: $('btnHelp'), btnFull: $('btnFull'),
-  btnMore: $('btnMore'), overflow: $('overflow'),
+  btnMore: $('btnMore'), overflow: $('overflow'), topbar: document.querySelector('.topbar'),
   playlist: $('playlist'), plList: $('plList'), plCount: $('plCount'), plTitle: $('plTitle'),
   plClose: $('plClose'), btnClear: $('btnClear'),
   nowArt: $('nowArt'), nowMeta: $('nowMeta'), sortLabel: null,
@@ -5677,7 +5685,7 @@ function mixNarration(st){
   }
   if (st.phase === 'armed') return 'CUED ' + to + ' · ' + label + key + (st.seamSec != null ? ' · seam in ' + mixFmtDur(st.seamSec) : '');
   if (st.phase === 'planning') return 'PLANNING ' + to + ' · ' + label + key + (st.seamSec != null ? ' · arms in ' + mixFmtDur(st.seamSec) : '');
-  return 'watching the clock — the planner arms 45 s before the end';
+  return 'watching the clock — the planner arms 90 s before the end';
 }
 
 // pickStructure — precompute-first, real-time fallback. The offline pipeline can
@@ -7803,7 +7811,7 @@ const MIXER = {
     const t = d.a.currentTime;
 
     if (this.phase === 'idle'){
-      if (d.a.duration - t < 45 && player.hasNext()) this.arm();
+      if (d.a.duration - t < 90 && player.hasNext()) this.arm();
       return;
     }
     if (this.phase === 'armed'){
@@ -9378,7 +9386,7 @@ const BOOTH = {
             { override: MIXFIX.pairOverride(pair.A, pair.B), albumSequential: isAlbumSequential(pair.A, pair.B) });
           const d0 = activeDeck();
           if (d0 && isFinite(d0.a.duration))
-            seamSec = Math.max(0, (d0.a.duration - 45) - d0.a.currentTime);   // arms 45 s from the end
+            seamSec = Math.max(0, (d0.a.duration - 90) - d0.a.currentTime);   // arms 90 s from the end
         }
       }
       let keys = null, compat = null;
@@ -9402,7 +9410,7 @@ const BOOTH = {
     } else {
       this._deckRow('A', tA, dA, player.playing ? 'on air' : 'paused', player.playing);
       this._deckRow('B', null, null, !player.playing ? '' :
-        MIXER.on ? (hasNext ? 'empty — arms 45 s out' : 'end of the queue') : 'MIX is off', false);
+        MIXER.on ? (hasNext ? 'empty — arms 90 s out' : 'end of the queue') : 'MIX is off', false);
     }
   },
 };
@@ -9605,6 +9613,10 @@ function setMore(open){
   el.overflow.classList.toggle('open', open);
   el.btnMore.setAttribute('aria-expanded', open ? 'true' : 'false');
   el.btnMore.classList.toggle('on', open);
+  // lift the whole topbar above the booth/crate/console panels only while
+  // the menu is actually open, so an open More menu is never buried behind
+  // whatever else is up
+  el.topbar.classList.toggle('menu-lift', open);
 }
 el.btnMore.addEventListener('click', ev => { ev.stopPropagation(); setMore(!el.overflow.classList.contains('open')); });
 el.overflow.addEventListener('click', ev => { if (ev.target.closest('.btn')) setMore(false); });
