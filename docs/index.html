@@ -425,7 +425,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 
 /* ============ top bar ============ */
 .topbar{
-  position:fixed;top:0;left:0;right:0;z-index:80;
+  position:fixed;top:0;left:0;right:0;z-index:40;
   display:flex;align-items:flex-start;justify-content:space-between;
   padding:calc(14px + env(safe-area-inset-top)) 18px 0;
   pointer-events:none;
@@ -13411,7 +13411,13 @@ const SPLASH = {
         c.fillRect(px,py,1.2,1.2);
       }
     }
-    this.raf=requestAnimationFrame(n=>this.draw(n));
+    // full 60fps only while the "running" animation actually needs it; idle
+    // (sitting on the card waiting for Enter) is a near-static breathe and
+    // doesn't need to fight the always-on WebGL visualizer underneath for
+    // every frame — this loop and the main one both run from page load.
+    this.raf = this.running
+      ? requestAnimationFrame(n=>this.draw(n))
+      : setTimeout(() => this.draw(performance.now()), 100);
   },
 };
 
