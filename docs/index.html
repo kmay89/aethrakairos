@@ -1283,7 +1283,20 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   transition:box-shadow .9s ease;
   backdrop-filter:blur(30px) saturate(1.45);-webkit-backdrop-filter:blur(30px) saturate(1.45);
 }
-#booth.open{display:flex}
+#booth.open{display:flex;animation:boothIn .5s cubic-bezier(.16,1,.3,1) both}
+#booth.closing{display:flex;animation:boothOut .3s cubic-bezier(.4,0,1,1) both}
+@keyframes boothIn{
+  from{opacity:0;transform:translateY(30px) scale(.96);filter:blur(6px)}
+  to{opacity:1;transform:none;filter:blur(0)}
+}
+@keyframes boothOut{
+  from{opacity:1;transform:none;filter:blur(0)}
+  to{opacity:0;transform:translateY(16px) scale(.97);filter:blur(4px)}
+}
+@media(prefers-reduced-motion:reduce){
+  #booth.open{animation:none}
+  #booth.closing{animation:none;display:none}
+}
 .booth-head{display:flex;align-items:baseline;gap:12px;min-width:0}
 .booth-title{font-family:var(--serif);font-style:italic;font-size:15px;font-weight:600}
 #boothPlan{flex:1;min-width:0;font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;
@@ -1312,7 +1325,10 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   background:var(--pad-c,#6ee7ff);opacity:var(--pad-glow,.75)}
 @media(max-width:600px){
   #booth{left:6px;right:6px;padding:10px 12px 11px}
-  #boothCv{height:132px}
+  /* tall enough for the compact layout: platters + a live monitor between
+     them, above the two waveform lanes — the phone gets the real booth,
+     not a stripped-down waveform strip */
+  #boothCv{height:224px}
   #boothPads{grid-template-columns:repeat(4,1fr)}
   .bpad:nth-child(n+5){display:none}
 }
@@ -8900,10 +8916,22 @@ function paintLane(ctx, x, y, w, h, tr, frac, accent){
 const BOOTH = {
   open: false, _txt: {},
   toggle(on){
-    this.open = on == null ? !this.open : !!on;
-    el.booth.classList.toggle('open', this.open);
-    el.chipBooth.classList.toggle('on', this.open);
-    if (this.open) this.draw();
+    const next = on == null ? !this.open : !!on;
+    if (next === this.open) return;
+    clearTimeout(this._closeT);
+    this.open = next;
+    el.chipBooth.classList.toggle('on', next);
+    if (next){
+      el.booth.classList.remove('closing');
+      el.booth.classList.add('open');
+      this.draw();
+    } else {
+      // a real close, not a snap to display:none — boothOut plays while the
+      // panel stays in the DOM, then it's actually hidden
+      el.booth.classList.remove('open');
+      el.booth.classList.add('closing');
+      this._closeT = setTimeout(() => el.booth.classList.remove('closing'), 320);
+    }
   },
   keyRGB(tr){
     const m = tr && mixOf(tr);
@@ -9215,6 +9243,42 @@ const BOOTH = {
     ctx.fillStyle = hub;
     ctx.beginPath(); ctx.arc(cx, cy, r * 0.22 + pulse * 3, 0, 2 * PI); ctx.fill();
   },
+  /* the little screen between the platters, compact/phone layout only: a
+     live mirror of the visualizer itself, cropped to fill (never stretched)
+     and vignetted so it reads as a monitor bezel, not a hole in the panel.
+     Reads straight off the WebGL canvas — same frame, same colour, always
+     in sync, no separate render pass. Skips quietly if there's no room or
+     nothing's been drawn there yet (e.g. WebGL failed to init). */
+  _monitor(ctx, x0, x1, cy, jogR){
+    const w = x1 - x0;
+    if (w < 30 || !el.canvas || !el.canvas.width || !el.canvas.height) return;
+    const h = clamp(jogR * 1.15, 24, w * 0.85);
+    const x = x0, y = cy - h / 2, r = 6;
+    ctx.save();
+    ctx.fillStyle = 'rgba(6,7,14,0.78)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x - 3, y - 3, w + 6, h + 6, r + 2); else ctx.rect(x - 3, y - 3, w + 6, h + 6);
+    ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    ctx.clip();
+    const cv = el.canvas, cw = cv.width, ch = cv.height;
+    const scale = Math.max(w / cw, h / ch);
+    const dw = cw * scale, dh = ch * scale;
+    try { ctx.drawImage(cv, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); } catch (e){}
+    // a quiet vignette — the screen reads as glass over the room, not a cutout
+    const vg = ctx.createRadialGradient(x + w / 2, y + h / 2, Math.min(w, h) * 0.18,
+      x + w / 2, y + h / 2, Math.max(w, h) * 0.78);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vg; ctx.fillRect(x, y, w, h);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, r); else ctx.rect(x, y, w, h);
+    ctx.stroke();
+    ctx.restore();
+  },
   /* the pad row: the eight best next tracks from the whole shelf, judged by
      the planner that will perform the mix. Tap one — it pins the draw and
      blends in from the next bar line; the auto-mix simply continues after. */
@@ -9287,8 +9351,13 @@ const BOOTH = {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    const full = h >= 150 && w >= 560;         // phones get the essential read
-    const topH = full ? 40 : 22;
+    const full = h >= 150 && w >= 560;         // desktop: jogs flank the lanes
+    // a phone-tall booth still gets real platters — stacked above the lanes,
+    // with a live monitor of the visualizer between them, instead of the
+    // bare waveform-only strip this used to fall back to
+    const compact = !full && h >= 190 && w >= 240;
+    const cJog = compact ? clamp(Math.min(w * 0.19, 50), 28, 50) : 0;
+    const topH = full ? 40 : compact ? cJog * 2 + 26 : 22;
     const botH = full ? 34 : 26;
     const hMid = h - topH - botH;
     const accA = this.keyRGB(tA), accB = this.keyRGB(tB);
@@ -9346,9 +9415,10 @@ const BOOTH = {
       ctx.fillText('BPM', 10, 44); ctx.globalAlpha = 1;
       stepsX = Math.max(108, 10 + segW + 22);
     }
-    this._steps(ctx, stepsX, full ? 10 : 3, w - stepsX - 8, full ? 20 : 14);
+    this._steps(ctx, stepsX, full ? 10 : compact ? 2 : 3, w - stepsX - 8, full ? 20 : compact ? 8 : 14);
 
-    // ---- the decks: jogs flanking the two lanes
+    // ---- the decks: jogs flanking the two lanes (desktop), or stacked
+    // above them with a live monitor between (compact/phone)
     const jog = full ? Math.min(hMid / 2 - 4, 66) : 0;
     const laneX = full ? jog * 2 + 22 : 0;
     const laneW = w - laneX * 2;
@@ -9357,6 +9427,12 @@ const BOOTH = {
     if (full){
       this._jog(ctx, jog + 6, topH + hMid / 2, jog, dA, tA, accA, beat * aG, dts, '_angA');
       this._jog(ctx, w - jog - 6, topH + hMid / 2, jog, dB, tB, accB, beat * bG, dts, '_angB');
+    } else if (compact){
+      const cy0 = topH - cJog - 10;   // the platter row's vertical centre, below the step strip
+      const cxA = 8 + cJog, cxB = w - 8 - cJog;
+      this._jog(ctx, cxA, cy0, cJog, dA, tA, accA, beat * aG, dts, '_angA');
+      this._jog(ctx, cxB, cy0, cJog, dB, tB, accB, beat * bG, dts, '_angB');
+      this._monitor(ctx, cxA + cJog + 10, cxB - cJog - 10, cy0, cJog);
     }
     const durA = dA && isFinite(dA.a.duration) && dA.a.duration > 0 ? dA.a.duration : (tA && tA.duration) || 0;
     if (durA > 0) this._structureOverlay(ctx, yA, laneH, laneW, tA, durA, laneX);
