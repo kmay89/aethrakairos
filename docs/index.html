@@ -1272,7 +1272,15 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   position:fixed;left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:93;
   display:none;flex-direction:column;gap:7px;max-width:980px;margin:0 auto;
   background:var(--sheen),var(--glass-hard);border:1px solid var(--line);border-radius:18px;
-  padding:12px 16px 13px;box-shadow:var(--shadow);
+  padding:12px 16px 13px;
+  /* the room's own light, not the console's — driven by the deck(s) actually
+     playing in here, blended toward whichever owns the room mid-mix. A slow
+     transition keeps it a breath, never a strobe: DJ-booth colour without
+     the garish edge. --booth-glow defaults to transparent so a browser that
+     never runs the JS (or a moment before the first frame) still looks fine. */
+  --booth-glow:rgba(110,231,255,0);
+  box-shadow:var(--shadow),0 0 70px -18px var(--booth-glow),inset 0 0 44px -30px var(--booth-glow);
+  transition:box-shadow .9s ease;
   backdrop-filter:blur(30px) saturate(1.45);-webkit-backdrop-filter:blur(30px) saturate(1.45);
 }
 #booth.open{display:flex}
@@ -5724,6 +5732,12 @@ function mixTechnique(st){
 }
 function mixNarration(st){
   st = st || {};
+  // this device keeps the audio element direct-to-output (the iOS backgrounding
+  // invariant) — the two-deck blend the rest of this narrator describes cannot
+  // run here, ever. Say so honestly instead of promising a seam that will
+  // never arrive: a live-looking countdown to a mix that can't happen reads
+  // as broken, not as "working great on this platform".
+  if (st.direct) return 'direct-to-output here — clean, instant handover; no live blend';
   if (!st.on) return 'MIX is off — transitions play plain';
   const label = st.planType === 'beatmix' ? ((st.beats || 16) + '-beat blend')
     : st.planType === 'gapless' ? 'gapless · album order'
@@ -9146,6 +9160,19 @@ const BOOTH = {
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.stroke();
+    // a fixed specular sheen, upper-left — real light doesn't spin with the
+    // record, so this stays put while the grooves and spokes turn under it;
+    // the one touch that reads as glass/vinyl instead of a flat disc
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.clip();
+    const sheen = ctx.createRadialGradient(
+      cx - r * 0.34, cy - r * 0.4, 0, cx - r * 0.34, cy - r * 0.4, r * 0.62);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.16)');
+    sheen.addColorStop(0.55, 'rgba(255,255,255,0.04)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
     // slipmat spokes — the spin made visible
     ctx.strokeStyle = 'rgba(255,255,255,0.10)';
     for (let k = 0; k < 3; k++){
@@ -9271,6 +9298,17 @@ const BOOTH = {
     const f = running ? MIXER.lastF : 0;
     const aG = Math.cos(clamp01(f) * PI / 2), bG = Math.sin(clamp01(f) * PI / 2);
     const beat = clamp01(AE.f.beat);
+
+    // ---- the room's own light: the panel's ambient glow blends toward
+    // whichever deck owns the room and breathes gently with the beat — DJ
+    // booth colour, kept low and slow so it reads as mood lighting
+    {
+      const wA = running ? aG : 1, wB = running ? bG : 0, wSum = wA + wB || 1;
+      const gr = Math.round((accA[0] * wA + accB[0] * wB) / wSum);
+      const gg = Math.round((accA[1] * wA + accB[1] * wB) / wSum);
+      const gb = Math.round((accA[2] * wA + accB[2] * wB) / wSum);
+      el.booth.style.setProperty('--booth-glow', `rgba(${gr},${gg},${gb},${(0.16 + beat * 0.10).toFixed(3)})`);
+    }
 
     // ---- the device wears the keys: deck A's colour washes in from the
     // left, deck B's from the right, each weighted by who owns the room —
@@ -9448,7 +9486,7 @@ const BOOTH = {
         phase = 'armed'; B = tB;
         if (dA && isFinite(dA.a.duration))
           seamSec = Math.max(0, MIXER.exitTime(dA.a.duration, p, A) - dA.a.currentTime);
-      } else if (MIXER.on && hasNext){
+      } else if (MIXER.on && hasNext && AE.graphLive){
         // idle → PLANNING: peek ahead at the likely next merge and when it arms
         const pair = conMixPair();
         if (pair){
@@ -9468,7 +9506,7 @@ const BOOTH = {
       }
       this._seamSec = seamSec; this._seamPhase = phase;
       this._set('boothPlan', mixNarration({
-        on: MIXER.on, phase, nextTitle: B && B.title, pct, seamSec, keys, compat,
+        on: MIXER.on, direct: !AE.graphLive, phase, nextTitle: B && B.title, pct, seamSec, keys, compat,
         planType: plan && plan.type, beats: plan && plan.beats, seconds: plan && plan.seconds,
       }));
       this._set('boothLock', running && err != null ? 'lock ' + err.toFixed(1) + ' ms' : '');
@@ -9482,6 +9520,7 @@ const BOOTH = {
     } else {
       this._deckRow('A', tA, dA, player.playing ? 'on air' : 'paused', player.playing);
       this._deckRow('B', null, null, !player.playing ? '' :
+        !AE.graphLive ? 'direct-to-output — no second deck here' :
         MIXER.on ? (hasNext ? 'empty — arms 90 s out' : 'end of the queue') : 'MIX is off', false);
     }
   },
@@ -9737,6 +9776,7 @@ function rearmZenDeep(){
 }
 function enterZen(){
   if (typeof TUTOR !== 'undefined' && TUTOR.active) return;   // the tour keeps the menu up
+  if (typeof BOOTH !== 'undefined' && BOOTH.open) return;     // watching the booth is not "idle" — never fade it
   document.body.classList.add('zen');
   bloomZenWave(true);
   clearTimeout(zenWaveT);
@@ -9777,6 +9817,7 @@ function pokeChrome(){
     if (player.playing && !hoverChrome && !el.help.classList.contains('open')
         && !el.playlist.classList.contains('open') && !seekDragging
         && !CON.open && !CRATE.open && !el.library.classList.contains('open')
+        && !(typeof BOOTH !== 'undefined' && BOOTH.open)
         && !document.body.classList.contains('zen')){
       enterZen();
     }
