@@ -2372,7 +2372,7 @@ const el = {
   knobLength: $('knobLength'), knobHeat: $('knobHeat'), knobEra: $('knobEra'),
   valLength: $('valLength'), valHeat: $('valHeat'), valEra: $('valEra'),
   wrapEra: $('wrapEra'), mapHint: $('mapHint'),
-  btnHeartNow: $('btnHeartNow'), btnAirplay: $('btnAirplay'),
+  btnHeartNow: $('btnHeartNow'), btnAirplay: $('btnAirplay'), btnShare: $('btnShare'),
   chipMix: $('chipMix'), mixNext: $('mixNext'),
   btnCrate: $('btnCrate'), crate: $('crate'),
 };
@@ -3733,6 +3733,14 @@ const player = {
     this._starts = (this._starts || 0) + 1;
     if (this._starts >= 2 && typeof TUTOR !== 'undefined' && TUTOR.seen() && !TUTOR.favSeen())
       TUTOR.favLesson();
+    // the third lesson — Share — waits for a first song to have actually been
+    // heard (the first_listen milestone: they already know play/pause) and
+    // for the heart lesson to be out of the way, so lessons land one at a
+    // time instead of piling up. TUTOR's own `active` guard keeps this from
+    // colliding with favLesson if both conditions are somehow met at once.
+    if (this._starts >= 3 && typeof TUTOR !== 'undefined' && typeof ACHIEVE !== 'undefined'
+      && TUTOR.seen() && TUTOR.favSeen() && !TUTOR.shareSeen() && ACHIEVE.has('first_listen'))
+      TUTOR.shareLesson();
   },
 
   seekToFrac(frac){
@@ -4444,7 +4452,7 @@ const ACHIEVE = {
    lesson fires when the next track begins: how the heart builds playlists.
    Every step is skippable and never blocks the audio. ================ */
 const TUTOR = {
-  key: 'mb8_tutored_v1', favKey: 'mb8_favlesson_v1',
+  key: 'mb8_tutored_v1', favKey: 'mb8_favlesson_v1', shareKey: 'mb8_sharelesson_v1',
   i: -1, active: false, _reveal: null, _onResize: null,
   steps: [
     { sel: '#btnPlay',     kicker: 'The tour · 1 of 4', title: 'Play',
@@ -4458,6 +4466,7 @@ const TUTOR = {
   ],
   seen(){ try { return localStorage.getItem(this.key) === '1'; } catch (e){ return true; } },
   favSeen(){ try { return localStorage.getItem(this.favKey) === '1'; } catch (e){ return true; } },
+  shareSeen(){ try { return localStorage.getItem(this.shareKey) === '1'; } catch (e){ return true; } },
   _mark(k){ try { localStorage.setItem(k, '1'); } catch (e){} },
 
   start(){
@@ -4592,6 +4601,49 @@ const TUTOR = {
     }, 380);
   },
   _favDone(){
+    this.active = false;
+    el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
+    el.coach.onclick = null;
+    if (this._onResize){ window.removeEventListener('resize', this._onResize); this._onResize = null; }
+    if (this._onOrient){ window.removeEventListener('orientationchange', this._onOrient); this._onOrient = null; }
+  },
+
+  /* the third lesson: once they've heard a first song (first_listen earned)
+     and the heart lesson has already run, a single mark on the Share button —
+     why it matters, in one line, no jargon. Skipped quietly if the current
+     track can't be shared (a local file) or the welcome card is still up;
+     it just waits for a later track start instead of forcing itself in. */
+  shareLesson(){
+    if (this.active || this.shareSeen() || reducedMotion || !el.coach || !el.btnShare) return;
+    if (el.firstRun && el.firstRun.classList.contains('open')) return;   // never step on the entry prompt
+    // shareUrlFor, not the button's current display style — this runs before
+    // syncShareBtn() has caught up to the track that just started
+    if (typeof shareUrlFor !== 'function' || !shareUrlFor(player.tracks[player.cur])) return;
+    this._mark(this.shareKey);
+    this.active = true;
+    el.coach.classList.add('on'); el.coach.setAttribute('aria-hidden', 'false');
+    el.coachNext.textContent = 'Got it ✦';
+    el.coachNext.onclick = () => this._shareDone();
+    el.coachSkip.onclick = () => this._shareDone();
+    el.coach.onclick = (e) => {
+      if (el.coachBubble.contains(e.target)) return;
+      if (performance.now() < this._readyAt) return;
+      this._shareDone();
+    };
+    this._onResize = () => this._place();
+    this._onOrient = () => { this._place(); setTimeout(() => this._place(), 260); };
+    window.addEventListener('resize', this._onResize);
+    window.addEventListener('orientationchange', this._onOrient);
+    el.coachBubble.querySelector('.coach-step').textContent = 'One more thing';
+    el.coachBubble.querySelector('.coach-title').textContent = 'Share is a real link';
+    el.coachBubble.querySelector('.coach-body').textContent =
+      'Tap this and send the link to anyone — they hear this exact song the moment they tap it. No app, no login, no waiting. It\'s the fastest way to hand someone your favourite find.';
+    this._target = el.btnShare;
+    this._readyAt = performance.now() + 1100;
+    this._place();
+    requestAnimationFrame(() => this._place());
+  },
+  _shareDone(){
     this.active = false;
     el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
     el.coach.onclick = null;
@@ -6478,11 +6530,21 @@ const APP_ARTWORK = [
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
   const t = player.tracks[player.cur];
-  if (!t){ navigator.mediaSession.metadata = null; return; }
+  if (!t){ try { navigator.mediaSession.metadata = null; } catch (e){} return; }
   const setMeta = artwork => {
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: t.title, artist: t.artist || '', album: t.album || '', artwork,
-    });
+    // a bad artwork shape or an older/buggy WebKit build can make the
+    // MediaMetadata constructor itself throw — this runs from inside
+    // playIndex()/commitMix(), the critical per-track bookkeeping path, so an
+    // uncaught throw here would abort THAT and leave the listener stuck
+    // (position never persisted, the next transition's own bookkeeping
+    // skipped). Never let the Now Playing card take playback down with it.
+    // Album is left out for now too — one fewer field, one fewer way for an
+    // older iPhone to choke on it.
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: t.title, artist: t.artist || '', artwork,
+      });
+    } catch (e){ return; }
     mediaSessionPlaybackState();
     mediaSessionPosition();
   };
@@ -6838,25 +6900,35 @@ function shareUrlFor(t){
   return u.href;
 }
 function syncShareBtn(){
-  const b = document.getElementById('btnShare');
+  const b = el.btnShare;
   if (!b) return;
   const t = player.tracks[player.cur];
   b.style.display = shareUrlFor(t) ? '' : 'none';
 }
 {
-  const b = document.getElementById('btnShare');
+  const b = el.btnShare;
   if (b) b.addEventListener('click', () => {
     const t = player.tracks[player.cur];
     const url = shareUrlFor(t);
     if (!url) return;
-    const payload = { title: t.title + ' — ' + (t.artist || 'Aethra Kairos'), url };
+    // title + artist ONLY, no album — the smallest, cleanest card a target app
+    // can build. clipboard is the fallback for both "no Web Share API" and the
+    // rare device where share() itself throws synchronously instead of
+    // rejecting (some older WebKit builds); either way the listener still
+    // gets the link.
+    const label = t.title + ' — ' + (t.artist || 'Aethra Kairos');
+    const payload = { title: label, text: label, url };
+    const copyFallback = () => {
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url)
+          .then(() => toast('Link copied — <b>' + escapeHTML(t.title) + '</b>'))
+          .catch(() => toast(escapeHTML(url)));
+      } else toast(escapeHTML(url));
+    };
     if (navigator.share){
-      navigator.share(payload).catch(() => {});
-    } else if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(url)
-        .then(() => toast('Link copied — <b>' + escapeHTML(t.title) + '</b>'))
-        .catch(() => toast(escapeHTML(url)));
-    } else toast(escapeHTML(url));
+      try { navigator.share(payload).catch(copyFallback); }
+      catch (e){ copyFallback(); }
+    } else copyFallback();
   });
 }
 function deepLinkTrack(param){
