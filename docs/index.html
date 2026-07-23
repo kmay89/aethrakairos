@@ -7776,6 +7776,7 @@ const MIXER = {
     if (AE.decks) AE.decks.forEach(d => {
       try { d.a.playbackRate = SPEED.rate; } catch (e){}
       if (d.shelf) d.shelf.gain.value = 0;
+      this._clearPreloadListener(d);                    // an unfired preload seek must die with the plan it belonged to
     });
     this._resetFilters();                              // a cancelled sweep must never leave a deck muffled
     this._lastRateA = this._lastRateB = 1;
@@ -7854,14 +7855,30 @@ const MIXER = {
 
   _preload(B, plan){
     const nd = AE.decks[1 - AE.active];
+    // a prior arm()/replan on this SAME deck may still have an unfired
+    // 'loadedmetadata' listener attached (cancel()/replan doesn't touch the
+    // DOM) — left alone, it stacks with this one and BOTH fire on whatever
+    // track next loads that deck, seeking it to a stale plan's position.
+    // Clearing any pending listener before attaching a new one keeps exactly
+    // one in flight per deck, always.
+    this._clearPreloadListener(nd);
     nd.a.src = B.url;
     const seekTo = plan.type === 'beatmix' ? plan.startB : 0;
     const once = () => {
       nd.a.removeEventListener('loadedmetadata', once);
+      nd._preloadOnce = null;
       try { nd.a.currentTime = seekTo; } catch (e){}
     };
+    nd._preloadOnce = once;
     nd.a.addEventListener('loadedmetadata', once);
     try { nd.a.load(); } catch (e){}
+  },
+
+  _clearPreloadListener(d){
+    if (d && d._preloadOnce){
+      d.a.removeEventListener('loadedmetadata', d._preloadOnce);
+      d._preloadOnce = null;
+    }
   },
 
   /* MIX NOW — the listener said "next": blend from HERE. The seam starts on
