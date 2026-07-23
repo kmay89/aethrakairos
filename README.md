@@ -498,7 +498,9 @@ when neither does.
 worker by construction). An installed home-screen copy checks for releases
 whenever it comes to the foreground and every 30 minutes while open; when one
 is waiting, an **Update** button appears in the top bar — never a forced
-reload, never a nag. Tapping it saves your place first, swaps workers,
+reload, never a nag. It never self-applies merely because a decoder or the OS
+briefly paused the media. Tapping while music is playing asks you to pause when
+*you* choose; tapping while paused commits the playhead, swaps workers,
 refreshes, and the normal restore path brings everything back: queue,
 position (paused, one tap resumes), hearts, history, saved journeys. All of
 that lives in IndexedDB, which updates never touch — there is nothing to
@@ -515,6 +517,14 @@ Everywhere else the graph carries the analyser exactly as before, with
 `context.resume()` re-armed on every gesture, play event, and visibilitychange,
 and audio-session interruptions (a phone call) reflected in the UI and
 recovered cleanly.
+
+**Continuity is intent-driven, not event-driven.** The player remembers that
+the listener asked for music even when the media element reports a temporary
+pause, wait, route change or network stall. It first lets the browser recover,
+then resumes a paused decoder, and after eight seconds re-cues only that media
+element at the last confirmed playhead. The page, queue and visual state never
+reload. Restored non-zero playheads stay inaudible until the seek is accepted,
+so a session cannot leak the beginning of a song and jump forward later.
 
 ## The starter catalog & generative cover art
 
@@ -590,7 +600,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 58 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 66 tests: solver, quantum, history, continuity, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000

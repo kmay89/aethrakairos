@@ -26,10 +26,11 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
-  ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
+  ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep, continuityDecision,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
-  ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
-  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample };';
+  ' dancePulse, danceSway, danceTimeWarp, performanceFrame, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
+  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
+  ' storyboardFromEnv, storyboardAt };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -216,6 +217,48 @@ test('history survives a republished path — events key on hash, not path', () 
   const counts = new Map([['sha3', { plays: 2, last: 9 }]]);
   const elig = S.eraEligible([moved], { mode: 'history' }, counts);
   assert.equal(elig.length, 1);
+});
+
+// ---------------------------------------------------------------- continuity
+
+test('continuity policy never mistakes a temporary pause for user intent', () => {
+  assert.equal(S.continuityDecision({ wantPlaying: false, paused: true }), 'idle');
+  assert.equal(S.continuityDecision({ wantPlaying: true, paused: true }), 'resume');
+  assert.equal(S.continuityDecision({ wantPlaying: true, paused: true, offline: true }), 'wait-network');
+});
+
+test('continuity policy reloads only the media after a sustained stall', () => {
+  assert.equal(S.continuityDecision({ wantPlaying: true, waitingMs: 7999 }), 'wait');
+  assert.equal(S.continuityDecision({ wantPlaying: true, waitingMs: 8000, sinceReloadMs: 12000 }), 'reload-media');
+  assert.equal(S.continuityDecision({ wantPlaying: true, paused: true, waitingMs: 8000, sinceReloadMs: 12000 }), 'reload-media');
+  assert.equal(S.continuityDecision({ wantPlaying: true, waitingMs: 20000, sinceReloadMs: 11000 }), 'wait');
+  assert.equal(S.continuityDecision({ wantPlaying: true, paused: true, notAllowed: true }), 'need-gesture');
+});
+
+test('a waiting service worker can never self-apply or interrupt playback', () => {
+  assert.ok(!html.includes('maybeAutoApply'), 'the old five-second auto-update path must stay deleted');
+  assert.match(html, /if \(player\.wantPlaying \|\| player\.playing\)\{[\s\S]*?Music will never be interrupted/);
+  assert.equal((html.match(/location\.reload\(\)/g) || []).length, 2,
+    'reload exists only in the explicit update handover and its fallback');
+});
+
+test('restore cue is armed and muted before a source can begin loading', () => {
+  const m = html.match(/_loadAt\(d, track, pos, autoplay\)\{([\s\S]*?)\n  \},\n\n  \/\* load a track/);
+  assert.ok(m, 'restore/recovery cue body is present');
+  const body = m[1];
+  assert.ok(body.indexOf("addEventListener('loadedmetadata'") < body.indexOf('d.a.src = track.url'),
+    'metadata handler precedes src assignment');
+  assert.ok(body.indexOf('d.a.muted = requested > 0.05') < body.indexOf('d.a.src = track.url'),
+    'a non-zero cue is muted before src assignment');
+  assert.match(body, /cue\.ready = true; d\.a\.muted = false/,
+    'sound is released only by the settled cue');
+});
+
+test('explicit update commits persistence before worker handover', () => {
+  const m = html.match(/async function applyUpdate\(\)\{([\s\S]*?)\n\}/);
+  assert.ok(m, 'explicit update function is present');
+  assert.ok(m[1].indexOf('await PERSIST.save()') < m[1].indexOf("postMessage({ type: 'SKIP_WAITING' })"),
+    'IndexedDB write is awaited before the page can reload');
 });
 
 // ---------------------------------------------------------------- rituals
@@ -614,6 +657,7 @@ test('arousal drives chroma; the act raises the temperature', () => {
   const quiet = S.colorPlan({ ...base, energy: 0.4, act: 0.1 }).root.c;
   const apex  = S.colorPlan({ ...base, energy: 0.4, act: 1.0 }).root.c;
   assert.ok(apex > quiet, 'apex act runs hotter than overture');
+  assert.ok(c3 < 0.27, 'even the apex preserves colour detail: ' + c3);
 });
 
 test('minor keys sit darker and cooler than their relative major', () => {
@@ -892,6 +936,36 @@ test('musical time surges but never runs backwards', () => {
     assert.ok(Math.abs(S.danceTimeWarp(i / 20, 0.5, 1)) <= 0.045 + 1e-9, 'bounded to 45 ms');
 });
 
+test('performance router keeps every engine channel bounded and cue-specific', () => {
+  const cues = ['drive', 'space', 'spark', 'flow', 'geometry'];
+  for (const cue of cues){
+    for (let mode = 0; mode < 4; mode++){
+      const p = S.performanceFrame({ cue, forceMode: mode, energy: .8, bass: .7,
+        treble: .6, entropy: .5, beat: 1, transition: .9 });
+      for (const [k, v] of Object.entries(p))
+        assert.ok(v >= 0 && v <= 1, cue + '/' + mode + ' ' + k + ' escaped: ' + v);
+    }
+  }
+  const drive = S.performanceFrame({ cue:'drive', energy:.7, beat:1 });
+  const space = S.performanceFrame({ cue:'space', energy:.2, beat:0 });
+  const spark = S.performanceFrame({ cue:'spark', treble:1 });
+  assert.ok(drive.impact > space.impact && drive.motion > space.motion, 'drive has impact and motion');
+  assert.ok(space.space > drive.space, 'space opens the room');
+  assert.ok(spark.detail > drive.detail, 'spark reveals detail');
+});
+
+test('the four force voices listen to the part of the song they represent', () => {
+  const lo = S.performanceFrame({ cue:'flow', forceMode:0, bass:0, treble:0, entropy:0, beat:0 });
+  const gravity = S.performanceFrame({ cue:'flow', forceMode:0, bass:1, treble:0, entropy:0, beat:0 });
+  const em = S.performanceFrame({ cue:'spark', forceMode:1, bass:0, treble:1, entropy:0, beat:0 });
+  const strong = S.performanceFrame({ cue:'drive', forceMode:2, bass:1, treble:0, entropy:0, beat:1 });
+  const weak = S.performanceFrame({ cue:'space', forceMode:3, bass:0, treble:0, entropy:1, beat:0 });
+  assert.ok(gravity.forceGain > lo.forceGain, 'gravity listens to mass/bass');
+  assert.ok(em.forceGain > .7, 'electromagnetism listens to brightness/detail');
+  assert.ok(strong.forceGain > .8, 'strong force listens to impact and bass');
+  assert.ok(weak.forceGain > .8, 'weak force listens to entropy and space');
+});
+
 // ---------------------------------------------------------------- the score
 
 test('the score: tonal voices interpolate, the punch holds its step', () => {
@@ -905,6 +979,29 @@ test('the score: tonal voices interpolate, the punch holds its step', () => {
   assert.equal(S.envSample(env, 99).bass, 0, 'past the end reads the last step');
   assert.equal(S.envSample(null, 1), null);
   assert.equal(S.envSample({ hz: 4, b: '1' }, 1), null, 'partial env refused');
+});
+
+test('storyboard finds grid-aligned song sections and carries dramatic cues', () => {
+  const run = (ch, n) => ch.repeat(n);
+  const env = { hz: 1,
+    b: run('2', 32) + run('5', 32) + run('9', 32) + run('2', 32),
+    m: run('3', 32) + run('6', 32) + run('7', 32) + run('2', 32),
+    t: run('2', 32) + run('4', 32) + run('7', 32) + run('1', 32),
+    o: run('1', 32) + run('4', 32) + run('9', 32) + run('1', 32),
+  };
+  const mix = { bpm: 120, grid: .5, phrases: 32 };
+  const story = S.storyboardFromEnv(env, 128, mix);
+  assert.ok(story && story.length >= 4, JSON.stringify(story));
+  assert.equal(story[0].act, 0, 'opens as overture');
+  assert.equal(story[story.length - 1].act, 4, 'lands in resolve');
+  assert.ok(story.some(s => s.act === 2 && s.cue === 'drive'), 'the hot drop becomes a drive/apex cue');
+  const bar = 4 * 60 / mix.bpm;
+  for (const s of story.slice(1)){
+    const q = (s.t - mix.grid) / bar;
+    assert.ok(Math.abs(q - Math.round(q)) < 1e-6, 'boundary on a bar: ' + s.t);
+  }
+  const at = S.storyboardAt(story, 80);
+  assert.ok(at && at.section.t <= 80, 'time resolves to the active section');
 });
 
 // ---------------------------------------------------------------- media clock + mix-now
