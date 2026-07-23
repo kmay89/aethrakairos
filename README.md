@@ -251,7 +251,7 @@ riding the equal-power curve, and the **phase lock in milliseconds**.
 Between the decks sits the resonance orb: the two tracks' key colours orbit
 apart while the seam settles and **fuse into one glowing sphere as the phase
 error dies** — beat-lock, made visible. Idle, the booth narrates honestly:
-the planner arms 45 seconds before the end of every track, and you watch
+the planner arms 90 seconds before the end of every track, and you watch
 deck B load, cue to its mix-in downbeat, and take the room. A DJ booth
 where the DJ is the machine and the crowd gets to watch it work.
 

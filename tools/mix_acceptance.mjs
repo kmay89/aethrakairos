@@ -212,7 +212,7 @@ R('your fix beats the gate — forced beatmix 8', fixed.type === 'beatmix' && fi
 // never happens
 const mixNow = await page.evaluate(() => {
   // the auto-mixer may already have armed its own pick (beta is 30 s, the
-  // planner arms 45 s out) — clear it so MIX NOW draws the pinned track;
+  // planner arms 90 s out) — clear it so MIX NOW draws the pinned track;
   // an armed plan's pick is otherwise honoured by design
   if (MIXER.phase !== 'idle') MIXER.cancel('test');
   const M = new Map(allTracks().map(t => [t.title, t]));

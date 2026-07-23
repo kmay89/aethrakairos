@@ -431,6 +431,14 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   pointer-events:none;
 }
 .topbar>*{pointer-events:auto}
+/* the More menu (.overflow) is a fixed-position CHILD of .topbar, so it
+   stacks only against .topbar's own siblings, as one unit at z40 — a lower
+   z-index elsewhere (booth z93 / crate z94 / console z95) still buried the
+   open menu on a short iOS viewport where those panels reach up under the
+   bar, swallowing its taps. Lifting the whole bar above them while the menu
+   is open, and only then, keeps it reachable without living above panels
+   the rest of the time. */
+.topbar.menu-lift{z-index:96}
 .brand{display:flex;flex-direction:column;gap:2px;user-select:none}
 .wordmark{
   font-family:var(--serif);font-style:italic;font-weight:600;
@@ -1440,7 +1448,15 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   position:fixed;left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:93;
   display:none;flex-direction:column;gap:7px;max-width:980px;margin:0 auto;
   background:var(--sheen),var(--glass-hard);border:1px solid var(--line);border-radius:18px;
-  padding:12px 16px 13px;box-shadow:var(--shadow);
+  padding:12px 16px 13px;
+  /* the room's own light, not the console's — driven by the deck(s) actually
+     playing in here, blended toward whichever owns the room mid-mix. A slow
+     transition keeps it a breath, never a strobe: DJ-booth colour without
+     the garish edge. --booth-glow defaults to transparent so a browser that
+     never runs the JS (or a moment before the first frame) still looks fine. */
+  --booth-glow:rgba(110,231,255,0);
+  box-shadow:var(--shadow),0 0 70px -18px var(--booth-glow),inset 0 0 44px -30px var(--booth-glow);
+  transition:box-shadow .9s ease;
   backdrop-filter:blur(30px) saturate(1.45);-webkit-backdrop-filter:blur(30px) saturate(1.45);
 }
 #booth.open{display:flex}
@@ -1600,7 +1616,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   .topactions{gap:7px;flex-wrap:nowrap}
   #btnMore{display:inline-flex}
   .overflow{
-    display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:70;
+    display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:1;
     flex-direction:column;gap:2px;min-width:212px;padding:8px;
     background:var(--sheen),var(--glass-hard);
     border:1px solid var(--line);border-radius:16px;
@@ -2549,7 +2565,7 @@ const el = {
   fileInput: $('fileInput'),
   btnAdd: $('btnAdd'), btnChoose: $('btnChoose'), btnDemo: $('btnDemo'), btnCatalog: $('btnCatalog'),
   btnMic: $('btnMic'), btnPlaylist: $('btnPlaylist'), btnHelp: $('btnHelp'), btnFull: $('btnFull'),
-  btnMore: $('btnMore'), overflow: $('overflow'),
+  btnMore: $('btnMore'), overflow: $('overflow'), topbar: document.querySelector('.topbar'),
   playlist: $('playlist'), plList: $('plList'), plCount: $('plCount'), plTitle: $('plTitle'),
   plClose: $('plClose'), btnClear: $('btnClear'),
   nowArt: $('nowArt'), nowMeta: $('nowMeta'), sortLabel: null,
@@ -2586,7 +2602,7 @@ const el = {
   knobLength: $('knobLength'), knobHeat: $('knobHeat'), knobEra: $('knobEra'),
   valLength: $('valLength'), valHeat: $('valHeat'), valEra: $('valEra'),
   wrapEra: $('wrapEra'), mapHint: $('mapHint'),
-  btnHeartNow: $('btnHeartNow'), btnAirplay: $('btnAirplay'),
+  btnHeartNow: $('btnHeartNow'), btnAirplay: $('btnAirplay'), btnShare: $('btnShare'),
   chipMix: $('chipMix'), mixNext: $('mixNext'),
   btnCrate: $('btnCrate'), crate: $('crate'),
   labGuide: $('labGuide'), computeRo: $('computeRo'),
@@ -3996,6 +4012,14 @@ const player = {
     this._starts = (this._starts || 0) + 1;
     if (this._starts >= 2 && typeof TUTOR !== 'undefined' && TUTOR.seen() && !TUTOR.favSeen())
       TUTOR.favLesson();
+    // the third lesson — Share — waits for a first song to have actually been
+    // heard (the first_listen milestone: they already know play/pause) and
+    // for the heart lesson to be out of the way, so lessons land one at a
+    // time instead of piling up. TUTOR's own `active` guard keeps this from
+    // colliding with favLesson if both conditions are somehow met at once.
+    if (this._starts >= 3 && typeof TUTOR !== 'undefined' && typeof ACHIEVE !== 'undefined'
+      && TUTOR.seen() && TUTOR.favSeen() && !TUTOR.shareSeen() && ACHIEVE.has('first_listen'))
+      TUTOR.shareLesson();
   },
 
   seekToFrac(frac){
@@ -4858,7 +4882,7 @@ const ACHIEVE = {
    lesson fires when the next track begins: how the heart builds playlists.
    Every step is skippable and never blocks the audio. ================ */
 const TUTOR = {
-  key: 'mb8_tutored_v1', favKey: 'mb8_favlesson_v1',
+  key: 'mb8_tutored_v1', favKey: 'mb8_favlesson_v1', shareKey: 'mb8_sharelesson_v1',
   i: -1, active: false, _reveal: null, _onResize: null,
   steps: [
     { sel: '#btnPlay',     kicker: 'The tour · 1 of 4', title: 'Play',
@@ -4872,6 +4896,7 @@ const TUTOR = {
   ],
   seen(){ try { return localStorage.getItem(this.key) === '1'; } catch (e){ return true; } },
   favSeen(){ try { return localStorage.getItem(this.favKey) === '1'; } catch (e){ return true; } },
+  shareSeen(){ try { return localStorage.getItem(this.shareKey) === '1'; } catch (e){ return true; } },
   _mark(k){ try { localStorage.setItem(k, '1'); } catch (e){} },
 
   start(){
@@ -5006,6 +5031,49 @@ const TUTOR = {
     }, 380);
   },
   _favDone(){
+    this.active = false;
+    el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
+    el.coach.onclick = null;
+    if (this._onResize){ window.removeEventListener('resize', this._onResize); this._onResize = null; }
+    if (this._onOrient){ window.removeEventListener('orientationchange', this._onOrient); this._onOrient = null; }
+  },
+
+  /* the third lesson: once they've heard a first song (first_listen earned)
+     and the heart lesson has already run, a single mark on the Share button —
+     why it matters, in one line, no jargon. Skipped quietly if the current
+     track can't be shared (a local file) or the welcome card is still up;
+     it just waits for a later track start instead of forcing itself in. */
+  shareLesson(){
+    if (this.active || this.shareSeen() || reducedMotion || !el.coach || !el.btnShare) return;
+    if (el.firstRun && el.firstRun.classList.contains('open')) return;   // never step on the entry prompt
+    // shareUrlFor, not the button's current display style — this runs before
+    // syncShareBtn() has caught up to the track that just started
+    if (typeof shareUrlFor !== 'function' || !shareUrlFor(player.tracks[player.cur])) return;
+    this._mark(this.shareKey);
+    this.active = true;
+    el.coach.classList.add('on'); el.coach.setAttribute('aria-hidden', 'false');
+    el.coachNext.textContent = 'Got it ✦';
+    el.coachNext.onclick = () => this._shareDone();
+    el.coachSkip.onclick = () => this._shareDone();
+    el.coach.onclick = (e) => {
+      if (el.coachBubble.contains(e.target)) return;
+      if (performance.now() < this._readyAt) return;
+      this._shareDone();
+    };
+    this._onResize = () => this._place();
+    this._onOrient = () => { this._place(); setTimeout(() => this._place(), 260); };
+    window.addEventListener('resize', this._onResize);
+    window.addEventListener('orientationchange', this._onOrient);
+    el.coachBubble.querySelector('.coach-step').textContent = 'One more thing';
+    el.coachBubble.querySelector('.coach-title').textContent = 'Share is a real link';
+    el.coachBubble.querySelector('.coach-body').textContent =
+      'Tap this and send the link to anyone — they hear this exact song the moment they tap it. No app, no login, no waiting. It\'s the fastest way to hand someone your favourite find.';
+    this._target = el.btnShare;
+    this._readyAt = performance.now() + 1100;
+    this._place();
+    requestAnimationFrame(() => this._place());
+  },
+  _shareDone(){
     this.active = false;
     el.coach.classList.remove('on'); el.coach.setAttribute('aria-hidden', 'true');
     el.coach.onclick = null;
@@ -6164,6 +6232,12 @@ function mixTechnique(st){
 }
 function mixNarration(st){
   st = st || {};
+  // this device keeps the audio element direct-to-output (the iOS backgrounding
+  // invariant) — the two-deck blend the rest of this narrator describes cannot
+  // run here, ever. Say so honestly instead of promising a seam that will
+  // never arrive: a live-looking countdown to a mix that can't happen reads
+  // as broken, not as "working great on this platform".
+  if (st.direct) return 'direct-to-output here — clean, instant handover; no live blend';
   if (!st.on) return 'MIX is off — transitions play plain';
   const label = st.planType === 'beatmix' ? ((st.beats || 16) + '-beat blend')
     : st.planType === 'gapless' ? 'gapless · album order'
@@ -6177,7 +6251,7 @@ function mixNarration(st){
   }
   if (st.phase === 'armed') return 'CUED ' + to + ' · ' + label + key + (st.seamSec != null ? ' · seam in ' + mixFmtDur(st.seamSec) : '');
   if (st.phase === 'planning') return 'PLANNING ' + to + ' · ' + label + key + (st.seamSec != null ? ' · arms in ' + mixFmtDur(st.seamSec) : '');
-  return 'watching the clock — the planner arms 45 s before the end';
+  return 'watching the clock — the planner arms 90 s before the end';
 }
 
 // pickStructure — precompute-first, real-time fallback. The offline pipeline can
@@ -7105,11 +7179,21 @@ const APP_ARTWORK = [
 function updateMediaSession(){
   if (!('mediaSession' in navigator)) return;
   const t = player.tracks[player.cur];
-  if (!t){ navigator.mediaSession.metadata = null; return; }
+  if (!t){ try { navigator.mediaSession.metadata = null; } catch (e){} return; }
   const setMeta = artwork => {
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: t.title, artist: t.artist || '', album: t.album || '', artwork,
-    });
+    // a bad artwork shape or an older/buggy WebKit build can make the
+    // MediaMetadata constructor itself throw — this runs from inside
+    // playIndex()/commitMix(), the critical per-track bookkeeping path, so an
+    // uncaught throw here would abort THAT and leave the listener stuck
+    // (position never persisted, the next transition's own bookkeeping
+    // skipped). Never let the Now Playing card take playback down with it.
+    // Album is left out for now too — one fewer field, one fewer way for an
+    // older iPhone to choke on it.
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: t.title, artist: t.artist || '', artwork,
+      });
+    } catch (e){ return; }
     mediaSessionPlaybackState();
     mediaSessionPosition();
   };
@@ -7510,37 +7594,46 @@ function applySharedVisual(params){
   director.setAuto(params.get('auto') !== '0');
 }
 function syncShareBtn(){
-  const b = document.getElementById('btnShare');
+  const b = el.btnShare;
   if (!b) return;
   const t = player.tracks[player.cur];
   b.style.display = shareUrlFor(t) ? '' : 'none';
 }
 {
-  const b = document.getElementById('btnShare');
+  const b = el.btnShare;
   if (b) b.addEventListener('click', async () => {
     const t = player.tracks[player.cur];
     const url = shareUrlFor(t);
     if (!url) return;
+    // title + artist ONLY, no album — the smallest, cleanest card a target
+    // app can build, whether that's the visual card below or a plain link.
     const sceneName = scenes[director.active] ? scenes[director.active].name : 'Möbius⁸';
     const title = t.title + ' — ' + (t.artist || 'Aethra Kairos');
     const payload = { title, text: 'Listening to “' + t.title + '” with the ' + sceneName + ' visual.', url };
     const card = await makeShareCard(t).catch(() => null);
     const file = card ? new File([card], slugify(t.title) + '-visual.png', { type: 'image/png' }) : null;
     if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) payload.files = [file];
+    const copyFallback = () => {
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url)
+          .then(() => {
+            if (card){
+              const a = document.createElement('a'); a.href = URL.createObjectURL(card);
+              a.download = slugify(t.title) + '-visual.png'; a.click();
+              setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+            }
+            toast('Link copied' + (card ? ' · visual card saved' : '') + ' — <b>' + escapeHTML(t.title) + '</b>');
+          })
+          .catch(() => toast(escapeHTML(url)));
+      } else toast(escapeHTML(url));
+    };
+    // a synchronous throw from navigator.share() (some older WebKit builds)
+    // must fall back the same as a rejection — never leave the tap doing
+    // nothing.
     if (navigator.share){
-      navigator.share(payload).catch(() => {});
-    } else if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(url)
-        .then(() => {
-          if (card){
-            const a = document.createElement('a'); a.href = URL.createObjectURL(card);
-            a.download = slugify(t.title) + '-visual.png'; a.click();
-            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-          }
-          toast('Link copied' + (card ? ' · visual card saved' : '') + ' — <b>' + escapeHTML(t.title) + '</b>');
-        })
-        .catch(() => toast(escapeHTML(url)));
-    } else toast(escapeHTML(url));
+      try { navigator.share(payload).catch(copyFallback); }
+      catch (e){ copyFallback(); }
+    } else copyFallback();
   });
 }
 function deepLinkTrack(param){
@@ -8598,6 +8691,12 @@ const MIXER = {
 
   _preload(B, plan){
     const nd = AE.decks[1 - AE.active];
+    // a monotonic sequence token, not just removing the old listeners: a
+    // prior arm()/replan on this SAME deck may still have an in-flight
+    // 'loadedmetadata'/'canplay' pair whose closures already captured the
+    // old `nd`/`seq` — cancel()/replan bumps _preloadSeq so those stale
+    // callbacks see a mismatch and become inert no-ops even if they still
+    // fire, instead of seeking the deck to a plan that no longer applies.
     const seq = ++this._preloadSeq;
     if (this._preloadDeck){
       if (this._preloadMeta) this._preloadDeck.a.removeEventListener('loadedmetadata', this._preloadMeta);
@@ -9848,6 +9947,19 @@ const BOOTH = {
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.stroke();
+    // a fixed specular sheen, upper-left — real light doesn't spin with the
+    // record, so this stays put while the grooves and spokes turn under it;
+    // the one touch that reads as glass/vinyl instead of a flat disc
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.80, 0, 2 * PI); ctx.clip();
+    const sheen = ctx.createRadialGradient(
+      cx - r * 0.34, cy - r * 0.4, 0, cx - r * 0.34, cy - r * 0.4, r * 0.62);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.16)');
+    sheen.addColorStop(0.55, 'rgba(255,255,255,0.04)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
     // slipmat spokes — the spin made visible
     ctx.strokeStyle = 'rgba(255,255,255,0.10)';
     for (let k = 0; k < 3; k++){
@@ -9973,6 +10085,17 @@ const BOOTH = {
     const f = running ? MIXER.lastF : 0;
     const aG = Math.cos(clamp01(f) * PI / 2), bG = Math.sin(clamp01(f) * PI / 2);
     const beat = clamp01(AE.f.beat);
+
+    // ---- the room's own light: the panel's ambient glow blends toward
+    // whichever deck owns the room and breathes gently with the beat — DJ
+    // booth colour, kept low and slow so it reads as mood lighting
+    {
+      const wA = running ? aG : 1, wB = running ? bG : 0, wSum = wA + wB || 1;
+      const gr = Math.round((accA[0] * wA + accB[0] * wB) / wSum);
+      const gg = Math.round((accA[1] * wA + accB[1] * wB) / wSum);
+      const gb = Math.round((accA[2] * wA + accB[2] * wB) / wSum);
+      el.booth.style.setProperty('--booth-glow', `rgba(${gr},${gg},${gb},${(0.16 + beat * 0.10).toFixed(3)})`);
+    }
 
     // ---- the device wears the keys: deck A's colour washes in from the
     // left, deck B's from the right, each weighted by who owns the room —
@@ -10150,7 +10273,7 @@ const BOOTH = {
         phase = 'armed'; B = tB;
         if (dA && isFinite(dA.a.duration))
           seamSec = Math.max(0, MIXER.exitTime(dA.a.duration, p, A) - dA.a.currentTime);
-      } else if (MIXER.on && hasNext){
+      } else if (MIXER.on && hasNext && AE.graphLive){
         // idle → PLANNING: peek ahead at the likely next merge and when it arms
         const pair = conMixPair();
         if (pair){
@@ -10160,7 +10283,7 @@ const BOOTH = {
             { override: MIXFIX.pairOverride(pair.A, pair.B), albumSequential: isAlbumSequential(pair.A, pair.B) });
           const d0 = activeDeck();
           if (d0 && isFinite(d0.a.duration))
-            seamSec = Math.max(0, (d0.a.duration - 45) - d0.a.currentTime);   // arms 45 s from the end
+            seamSec = Math.max(0, (d0.a.duration - 90) - d0.a.currentTime);   // arms 90 s from the end
         }
       }
       let keys = null, compat = null;
@@ -10170,7 +10293,7 @@ const BOOTH = {
       }
       this._seamSec = seamSec; this._seamPhase = phase;
       this._set('boothPlan', mixNarration({
-        on: MIXER.on, phase, nextTitle: B && B.title, pct, seamSec, keys, compat,
+        on: MIXER.on, direct: !AE.graphLive, phase, nextTitle: B && B.title, pct, seamSec, keys, compat,
         planType: plan && plan.type, beats: plan && plan.beats, seconds: plan && plan.seconds,
       }));
       this._set('boothLock', running && err != null ? 'lock ' + err.toFixed(1) + ' ms' : '');
@@ -10184,7 +10307,8 @@ const BOOTH = {
     } else {
       this._deckRow('A', tA, dA, player.playing ? 'on air' : 'paused', player.playing);
       this._deckRow('B', null, null, !player.playing ? '' :
-        MIXER.on ? (hasNext ? 'empty — arms 45 s out' : 'end of the queue') : 'MIX is off', false);
+        !AE.graphLive ? 'direct-to-output — no second deck here' :
+        MIXER.on ? (hasNext ? 'empty — arms 90 s out' : 'end of the queue') : 'MIX is off', false);
     }
   },
 };
@@ -10387,6 +10511,10 @@ function setMore(open){
   el.overflow.classList.toggle('open', open);
   el.btnMore.setAttribute('aria-expanded', open ? 'true' : 'false');
   el.btnMore.classList.toggle('on', open);
+  // lift the whole topbar above the booth/crate/console panels only while
+  // the menu is actually open, so an open More menu is never buried behind
+  // whatever else is up
+  el.topbar.classList.toggle('menu-lift', open);
 }
 el.btnMore.addEventListener('click', ev => { ev.stopPropagation(); setMore(!el.overflow.classList.contains('open')); });
 el.overflow.addEventListener('click', ev => { if (ev.target.closest('.btn')) setMore(false); });
@@ -10435,6 +10563,7 @@ function rearmZenDeep(){
 }
 function enterZen(){
   if (typeof TUTOR !== 'undefined' && TUTOR.active) return;   // the tour keeps the menu up
+  if (typeof BOOTH !== 'undefined' && BOOTH.open) return;     // watching the booth is not "idle" — never fade it
   document.body.classList.add('zen');
   bloomZenWave(true);
   clearTimeout(zenWaveT);
@@ -10475,6 +10604,7 @@ function pokeChrome(){
     if (player.playing && !hoverChrome && !el.help.classList.contains('open')
         && !el.playlist.classList.contains('open') && !seekDragging
         && !CON.open && !CRATE.open && !el.library.classList.contains('open')
+        && !(typeof BOOTH !== 'undefined' && BOOTH.open)
         && !document.body.classList.contains('zen')){
       enterZen();
     }
