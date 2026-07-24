@@ -25,7 +25,7 @@
 
 // Stamped by tools/stamp_version.py (run by publish.sh): a short hash of the
 // player file, so every player release is a new shell cache by construction.
-const VERSION = '84413e9a03';
+const VERSION = '63660fc4f1';
 
 const SHELL_CACHE = 'mb8-shell-' + VERSION;
 const CATALOG_CACHE = 'mb8-catalog-v1';          // unversioned: survives updates
@@ -57,7 +57,39 @@ self.addEventListener('install', ev => {
 
 self.addEventListener('message', ev => {
   if (ev.data && ev.data.type === 'SKIP_WAITING') self.skipWaiting();
+  // the page can ask for a shell freshness check while it stays open (a
+  // home-screen copy may not navigate for days — timers ask instead)
+  if (ev.data && ev.data.type === 'CHECK_SHELL') ev.waitUntil(revalidateShell());
 });
+
+/* SHELL REVALIDATION — the un-stick. The versioned cache only turns over when
+ * sw.js itself changes; a deploy that forgot the stamp used to be invisible
+ * until someone deleted site data. Now every boot (and every CHECK_SHELL)
+ * quietly refetches index.html past the HTTP cache, compares BYTES with the
+ * cached copy, and on any difference: recaches it and tells every open page a
+ * new shell is ready. Stamped or not, a deploy always reaches the listener.
+ * Guards: response must be OK, text/html, and contain the app's own build
+ * marker — a captive portal or an error page can never replace the shell. */
+async function revalidateShell(){
+  try {
+    const cache = await caches.open(SHELL_CACHE);
+    const res = await fetch(new Request('./index.html', { cache: 'no-cache' }));
+    if (!res || !res.ok) return;
+    const ct = res.headers.get('Content-Type') || '';
+    if (!/text\/html/i.test(ct)) return;
+    const forRoot = res.clone(), forIndex = res.clone();
+    const freshText = await res.text();
+    if (!/MB8_BUILD/.test(freshText)) return;          // not our app — never cache it
+    const cached = await cache.match('./index.html');
+    const cachedText = cached ? await cached.clone().text() : '';
+    if (freshText === cachedText) return;              // current — nothing to say
+    await cache.put('./index.html', forIndex);
+    await cache.put('./', forRoot);
+    const m = freshText.match(/const MB8_BUILD = '([^']*)'/);
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const c of clients) c.postMessage({ type: 'SHELL_FRESH', build: m ? m[1] : '' });
+  } catch (e){}
+}
 
 self.addEventListener('activate', ev => {
   ev.waitUntil((async () => {
@@ -87,6 +119,42 @@ self.addEventListener('fetch', ev => {
 
   // audio: bail out entirely — the browser's own fetch handles Range
   if (isAudio(req, url)) return;
+
+  // the shell page itself: cached INSTANTLY (second boot faster than first,
+  // the contract holds), revalidated in the background so the next launch —
+  // or this one, via the page's update card — always has the newest deploy
+  if (url.origin === location.origin
+      && (req.mode === 'navigate' || /\/(index\.html)?$/.test(url.pathname))){
+    ev.respondWith((async () => {
+      const cache = await caches.open(SHELL_CACHE);
+      const cached = await cache.match('./index.html') || await cache.match('./');
+      if (cached){ ev.waitUntil(revalidateShell()); return cached; }
+      try {
+        const res = await fetch(req);
+        if (res && res.ok){ const c2 = res.clone(); ev.waitUntil(cache.put('./index.html', c2)); }
+        return res;
+      } catch (e){ return new Response('', { status: 504 }); }
+    })());
+    return;
+  }
+
+  // news.json — the update card's changelog: network-first (it exists to be
+  // newer than this build), falling back to any cached copy offline
+  if (/\/news\.json(\?|$)/.test(url.pathname)){
+    ev.respondWith((async () => {
+      const cache = await caches.open(CATALOG_CACHE);
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 6000);
+        const res = await fetch(new Request(url.pathname, { cache: 'no-cache' }), { signal: ctl.signal });
+        clearTimeout(timer);
+        if (res && res.ok){ cache.put('./news.json', res.clone()); return res; }
+      } catch (e){}
+      const cached = await cache.match('./news.json');
+      return cached || new Response('{"entries":[]}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    })());
+    return;
+  }
 
   if (isCatalog(url)){
     // stale-while-revalidate

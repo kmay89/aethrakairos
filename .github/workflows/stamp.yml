@@ -1,0 +1,37 @@
+# The stamp is what turns a merge into a RELEASE: sw.js's VERSION and the
+# player's MB8_BUILD derive from the content, so a changed stamp is a new
+# shell cache and installed copies see the update. publish.sh runs it for
+# catalog publishes; this closes the loop for code merged through PRs, which
+# used to ship un-stamped and sit invisible behind the old cache until
+# someone deleted site data. Idempotent: the stamp commit re-triggers this
+# workflow once, finds nothing to change, and stops.
+name: stamp
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/index.html'
+      - 'docs/sw.js'
+      - 'docs/manifest.webmanifest'
+
+permissions:
+  contents: write
+
+jobs:
+  stamp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stamp the build id from content
+        run: python3 tools/stamp_version.py
+      - name: Commit the stamp if it changed
+        run: |
+          if git diff --quiet; then
+            echo "already stamped — nothing to do"
+          else
+            git config user.name 'mb8-stamp'
+            git config user.email 'actions@users.noreply.github.com'
+            git commit -am "stamp build (auto)"
+            git push
+          fi

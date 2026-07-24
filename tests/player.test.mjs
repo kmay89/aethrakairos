@@ -31,7 +31,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
-  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould };';
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, newsSince };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -1611,6 +1611,38 @@ test('touchAutoShould: never under a live finger, never before the dwell, only u
   assert.ok(!S.touchAutoShould(90, false, 0.1), 'hand is on the field');
   assert.ok(S.touchAutoShould(90, true, 0.1), 'due, hand off, dice agree');
   assert.ok(!S.touchAutoShould(90, true, 0.9), 'even then, only usually');
+});
+
+// ---------------------------------------------------------------- self-update
+
+test('updateGate: not ready or already requested → wait', () => {
+  assert.equal(S.updateGate({ ready: false, playing: false, now: 0 }), 'wait');
+  assert.equal(S.updateGate({ ready: true, requested: true, playing: false, now: 0 }), 'wait');
+});
+test('updateGate: idle applies, playing waits', () => {
+  assert.equal(S.updateGate({ ready: true, playing: false, now: 0 }), 'apply');
+  assert.equal(S.updateGate({ ready: true, playing: true, now: 0 }), 'wait');
+});
+test('updateGate: SHOW mode is never yanked, even paused', () => {
+  assert.equal(S.updateGate({ ready: true, playing: false, show: true, now: 0 }), 'wait');
+});
+test('updateGate: a snooze holds auto-apply until it lapses', () => {
+  assert.equal(S.updateGate({ ready: true, playing: false, snoozedUntil: 100, now: 50 }), 'wait');
+  assert.equal(S.updateGate({ ready: true, playing: false, snoozedUntil: 100, now: 150 }), 'apply');
+});
+test('updateGate: "after this track" fires at the boundary or the pause — above snooze and SHOW', () => {
+  const base = { ready: true, armed: 'afterTrack', snoozedUntil: 9e9, show: true, now: 0 };
+  assert.equal(S.updateGate({ ...base, playing: true, trackChanged: false }), 'wait', 'mid-track holds');
+  assert.equal(S.updateGate({ ...base, playing: true, trackChanged: true }), 'apply', 'the boundary fires');
+  assert.equal(S.updateGate({ ...base, playing: false, trackChanged: false }), 'apply', 'the pause fires');
+});
+test('newsSince: walks newest-first until the running build, exclusive, capped', () => {
+  const entries = [{ build: 'd' }, { build: 'c' }, { build: 'b' }, { build: 'a' }];
+  assert.deepEqual(S.newsSince(entries, 'b').map(e => e.build), ['d', 'c']);
+  assert.deepEqual(S.newsSince(entries, 'd').map(e => e.build), [], 'current build → no news');
+  assert.deepEqual(S.newsSince(entries, 'unknown').map(e => e.build), ['d', 'c', 'b', 'a'], 'unknown build shows the newest few');
+  assert.deepEqual(S.newsSince(entries, 'unknown', 2).map(e => e.build), ['d', 'c'], 'the cap holds');
+  assert.deepEqual(S.newsSince(null, 'x'), [], 'no entries, no crash');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
