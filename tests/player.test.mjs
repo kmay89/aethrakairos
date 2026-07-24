@@ -30,7 +30,8 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
-  ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN };';
+  ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -1560,6 +1561,56 @@ test('echoSignals reads word count, questions and feelings honestly', () => {
   assert.equal(s.words, 3); assert.ok(s.question && s.feeling && s.short && s.me);
   const empty = S.echoSignals('');
   assert.equal(empty.words, 0); assert.ok(!empty.short && !empty.long);
+});
+
+// ---------------------------------------------------------------- touch feel
+
+test('touchCharge: commits toward 1 while held, drains fast on release', () => {
+  let c = 0;
+  for (let i = 0; i < 60; i++) c = S.touchCharge(c, 1 / 60, true);      // one second held
+  assert.ok(c > 0.5 && c < 1, `a second of hold is felt but not full: ${c}`);
+  let full = c;
+  for (let i = 0; i < 240; i++) full = S.touchCharge(full, 1 / 60, true);
+  assert.ok(full > 0.95, `four more seconds saturates: ${full}`);
+  let drained = full;
+  for (let i = 0; i < 60; i++) drained = S.touchCharge(drained, 1 / 60, false);
+  assert.ok(drained < 0.05, `a second after release it is gone: ${drained}`);
+});
+test('touchBurst: a graze is silent, a hold detonates, a flick detonates without the hold', () => {
+  assert.equal(S.touchBurst(0.05, 0.1), 0, 'a tap-and-drift costs nothing');
+  const held = S.touchBurst(1, 0);
+  assert.ok(held >= 0.95, `a full hold is a full detonation: ${held}`);
+  const slung = S.touchBurst(0, 1);
+  assert.ok(slung > 0.7, `a hard flick detonates on speed alone: ${slung}`);
+  assert.ok(S.touchBurst(0.5, 0.2) > S.touchBurst(0.2, 0.2), 'more hold, more boom');
+});
+test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', () => {
+  assert.equal(S.beatTapBonus(0), 1);
+  assert.equal(S.beatTapBonus(1), 1);
+  assert.equal(S.beatTapBonus(0.5), 0);
+  assert.ok(Math.abs(S.beatTapBonus(0.1) - S.beatTapBonus(0.9)) < 1e-9, 'early and late are equals');
+  assert.ok(S.beatTapBonus(0.05) > 0.6 && S.beatTapBonus(0.14) < 0.1, 'the window is tight');
+  assert.equal(S.beatTapBonus(-0.2), 0); assert.equal(S.beatTapBonus(NaN), 0);
+});
+test('touchAffinity: every scene resolves to a real personality', () => {
+  const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
+  for (let sc = 0; sc < 16; sc++)
+    for (const act of [-1, 0, 1, 2, 3, 4])
+      for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
+        assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
+});
+test('touchAffinity: the map has taste — spirals spin, tunnels void, apex never ripples', () => {
+  assert.equal(S.touchAffinity(0, 1, 0.5), 'grows', 'the spiral wants SPIN');
+  assert.equal(S.touchAffinity(5, 1, 0.5), 'blackhole', 'the tunnel wants the VOID');
+  assert.equal(S.touchAffinity(8, 1, 0.5), 'gathers', 'comets want the PULL');
+  assert.notEqual(S.touchAffinity(4, 2, 0.3), 'flows', 'the apex does not ripple');
+  assert.equal(S.touchAffinity(999, 1, 0.5), 'grows', 'an unknown scene falls back to scene 0’s map entry');
+});
+test('touchAutoShould: never under a live finger, never before the dwell, only usually', () => {
+  assert.ok(!S.touchAutoShould(10, true, 0.1), 'too soon');
+  assert.ok(!S.touchAutoShould(90, false, 0.1), 'hand is on the field');
+  assert.ok(S.touchAutoShould(90, true, 0.1), 'due, hand off, dice agree');
+  assert.ok(!S.touchAutoShould(90, true, 0.9), 'even then, only usually');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
