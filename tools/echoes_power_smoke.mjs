@@ -103,6 +103,57 @@ R('apex defers the drift', await page.evaluate(() => {
   return document.querySelectorAll('#echoLayer .echo-cloud').length === before && ECHO._t < ECHO._next;
 }));
 
+// ---- the epic touch: charge, release, spin, beat-tap, auto personality ----
+await page.evaluate(() => {
+  // a committed hold charges…
+  INTERACT.dragging = true;
+  for (let i = 0; i < 120; i++) INTERACT.update(1 / 60);
+});
+await page.waitForTimeout(120);   // …and the next frames feed the uniform
+const t1a = await page.evaluate(() => ({ charge: INTERACT.charge, u: U.uPtrX.value.x }));
+R('a held touch charges the field', t1a.charge > 0.7 && t1a.u > 0, JSON.stringify(t1a));
+const t1b = await page.evaluate(() => {
+  // release through the real handler path: pointerup on the canvas
+  const ev = new PointerEvent('pointerup', { clientX: 400, clientY: 300, bubbles: true });
+  document.getElementById('glcanvas').dispatchEvent(ev);
+  return { burst: INTERACT.burst, dragging: INTERACT.dragging };
+});
+R('release detonates the charge', t1b.burst > 0.6 && !t1b.dragging, JSON.stringify(t1b));
+const t1c = await page.evaluate(() => {
+  const b0 = INTERACT.burst;
+  for (let i = 0; i < 90; i++) INTERACT.update(1 / 60);
+  return { b0, b1: INTERACT.burst, charge: INTERACT.charge };
+});
+R('the burst wavefront decays, the charge drains', t1c.b1 < t1c.b0 * 0.2 && t1c.charge < 0.05, JSON.stringify(t1c));
+R('on-beat taps read the real clock window', await page.evaluate(() =>
+  beatTapBonus(0) === 1 && beatTapBonus(0.5) === 0 && beatTapBonus(0.97) > 0.7));
+const t2 = await page.evaluate(() => {
+  // AUTO touch: the scenes manager re-tunes the personality between rooms
+  TOUCHFX.set('auto', false);
+  TOUCHFX._autoT = 999; INTERACT.strength = 0; INTERACT.dragging = false;
+  const seen = new Set();
+  for (let tries = 0; tries < 40 && seen.size < 2; tries++){
+    TOUCHFX._autoT = 999;
+    TOUCHFX.autoRoll(tries % 16);
+    seen.add(TOUCHFX._resolved);
+  }
+  return { modes: [...seen], chip: document.getElementById('chipTouch').textContent };
+});
+R('the scenes manager re-tunes the touch personality', t2.modes.length >= 2 && t2.chip.includes('✦'), JSON.stringify(t2));
+const t3 = await page.evaluate(() => {
+  // never under a live finger: the roll defers, then pays out when the hand lifts
+  INTERACT.strength = 1; INTERACT.dragging = true;
+  TOUCHFX._autoT = 999; TOUCHFX._pendingScene = -1;
+  const before = TOUCHFX._resolved;
+  let deferred = false;
+  for (let tries = 0; tries < 20 && !deferred; tries++){ TOUCHFX.autoRoll(5); deferred = TOUCHFX._pendingScene === 5; }
+  const heldSame = TOUCHFX._resolved === before;
+  INTERACT.strength = 0; INTERACT.dragging = false;
+  TOUCHFX.autoTick(0.1);
+  return { deferred, heldSame, paid: TOUCHFX._pendingScene === -1 };
+});
+R('a live finger defers the surprise; the lift pays it', t3.deferred && t3.heldSame && t3.paid, JSON.stringify(t3));
+
 await browser.close(); server.close();
 console.log(fails ? `\n${fails} FAILED` : '\nall smoke checks passed');
 process.exit(fails ? 1 : 0);

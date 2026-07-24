@@ -842,6 +842,11 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   letter-spacing:.18em;cursor:pointer;color:var(--dim);transition:all .2s;min-height:0;
 }
 .hud .chip.on{color:var(--accent-ink);background:linear-gradient(120deg,var(--accent-2),var(--accent));border-color:transparent;font-weight:600;box-shadow:0 0 14px -3px var(--accent-glow)}
+/* the glint — the only announcement an auto touch-change makes: the chip
+   catches the light once, and the rest is discovered by the hand */
+@keyframes chipGlint{0%{box-shadow:0 0 0 0 transparent}35%{box-shadow:0 0 18px 3px var(--accent-glow)}100%{box-shadow:0 0 0 0 transparent}}
+.glint{animation:chipGlint 1.2s ease}
+@media (prefers-reduced-motion:reduce){.glint{animation:none}}
 .scenedots{display:flex;gap:5px;align-items:center}
 .sdot{
   width:22px;height:18px;border-radius:5px;border:1px solid var(--line);
@@ -2395,6 +2400,58 @@ function touchFxMode(activeKey, swirl){
     case 'blackhole':
     default:        return 0;                          // black-hole repulsion (the original field)
   }
+}
+/* TOUCH FEEL — the pure physics of an addictive hand. A held touch CHARGES
+   (the force deepens the longer you commit); letting go SPENDS the charge as
+   an expanding shockwave, boosted by the speed of the flick that released it.
+   Tension → release, the oldest loop there is. All time constants live here,
+   pure, so the feel itself is unit-tested. */
+function touchCharge(prev, dt, dragging){
+  // committing: approach full charge over ~2.5 s (fast early, asymptotic late —
+  // the first second feels generous, the last drop is earned). Lifting: the
+  // charge does not linger — it was either spent by touchBurst or it drains.
+  if (dragging) return prev + (1 - prev) * (1 - Math.exp(-dt / 1.1));
+  return prev * Math.exp(-dt / 0.22);
+}
+function touchBurst(charge, flick){
+  // the payoff of release: a real hold detonates (floor 0.35 so it always
+  // reads), a fast flick detonates even without the hold, a graze does nothing —
+  // both gates matter, or every idle tap would cry wolf and the payoff dies
+  const held = charge > 0.15 ? 0.35 + charge * 0.65 : 0;
+  const slung = flick > 0.3 ? Math.min(1, flick) * 0.85 : 0;
+  return Math.min(1, Math.max(held, slung));
+}
+function beatTapBonus(phase){
+  // tap the field ON the beat and it answers louder — the drum you can play.
+  // phase 0..1 through the beat; the window is ±15% around the hit, peaking at
+  // 1 exactly on it. Off the window: nothing (no fake reward).
+  if (!(phase >= 0) || phase > 1) return 0;
+  const m = Math.min(phase, 1 - phase);
+  return Math.max(0, 1 - m / 0.15);
+}
+/* AUTO TOUCH — the scenes manager re-tunes the touch personality to the room
+   it just walked into, so the field answers your hand differently scene to
+   scene: a surprise you discover by playing, never a setting you manage. */
+function touchAffinity(sceneIdx, act, r){
+  // each scene's native answer: spirals and rosettes want SPIN, tunnels and
+  // op-art want the VOID, comets and the pulse want the PULL, the airy rooms
+  // ripple. The act leans on it (the apex punches, the edges breathe), and a
+  // small wildcard keeps even a memorised map able to surprise.
+  const MAP = ['grows', 'grows', 'gathers', 'blackhole', 'flows', 'blackhole', 'flows', 'blackhole',
+               'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows'];
+  let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
+  if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
+  else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
+  if (r > 0.84){
+    const all = ['blackhole', 'grows', 'gathers', 'flows'];
+    key = all[Math.floor(r * 97) % 4];
+  }
+  return key;
+}
+function touchAutoShould(since, handOff, r){
+  // never under a live finger, never twitchy: a personality holds at least
+  // ~45 s, and even then only usually — a missed roll is its own variety
+  return since > 45 && !!handOff && r < 0.7;
 }
 // @pure-end
 
@@ -10481,6 +10538,7 @@ const U = {
   uAct:      { value: 0 },      // 0..1 through the current track — the story clock
   uPtr:      { value: null },   // xy = pointer ndc, z = touch strength (set at init)
   uPtrMode:  { value: 0 },      // which force the touch applies — see TOUCHFX / ptrWarp
+  uPtrX:     { value: null },   // the touch's DEPTH: x = hold charge, y = release burst, z = spin momentum (set at init)
   uColA:     { value: new THREE.Color(PALETTES[0].a) },
   uColB:     { value: new THREE.Color(PALETTES[0].b) },
   uColC:     { value: new THREE.Color(PALETTES[0].c) },
@@ -10567,29 +10625,47 @@ const VERT_POINT_HEAD = GLSL_MPHI + `
   uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uPiPhase, uEPhase, uCoupling, uEntropy, uCentroid, uAct;
   uniform vec3 uPtr;
   uniform float uPtrMode;   // the touch's personality: -1 swirl↺ · 0 repel · 1 swirl↻ · 2 attract · 3 ripple
+  uniform vec3 uPtrX;       // the touch's depth: x = hold charge, y = release burst, z = spin momentum
   uniform sampler2D uAudio;
   varying float vGlow; varying float vT;
   // the fingertip is real: nearby points are moved in view space, strength
   // decaying with screen distance. z of uPtr carries touch strength; uPtrMode
-  // chooses HOW the field answers, so each touch-FX shapes it differently:
-  //   0  repel   — a black hole; the light bends away from your hand
-  //  ±1  swirl   — a spiral vortex winds around your touch; sign = chirality
-  //   2  attract — a gravity well; everything falls toward your fingertip
-  //   3  ripple  — concentric waves roll outward from where you press
+  // chooses HOW the field answers, and uPtrX makes the answer DEEPEN with
+  // commitment — a held touch charges, a release detonates:
+  //   0  repel   — a black hole; charge widens the horizon and drags the frame
+  //                around it (a held void starts to slowly wind the light)
+  //  ±1  swirl   — a vortex; spin momentum you built by dragging keeps it
+  //                turning like a slung record, chirality from your hand
+  //   2  attract — an accretion disk: matter falls in AND orbits; the longer
+  //                you hold, the tighter and hungrier the orbit
+  //   3  ripple  — waves roll outward, cresting harder on the beat
+  // and on EVERY personality, release spends the charge as one expanding
+  // shockwave from the lift point — the wavefront travels as the burst decays.
   vec4 ptrWarp(vec4 mv){
-    if (uPtr.z < 0.003) return mv;
+    float burst = uPtrX.y;
+    if (uPtr.z < 0.003 && burst < 0.01) return mv;
     vec2 scr = mv.xy / max(0.6, -mv.z);
     vec2 d = scr - uPtr.xy;
     float dist2 = dot(d, d);
-    float force = uPtr.z * exp(-dist2 * 7.0);
+    float dist = sqrt(dist2);
     vec2 dir = normalize(d + 1e-4);
-    vec2 push;
-    if      (uPtrMode < -0.5) push = vec2(dir.y, -dir.x);   // swirl ↺
-    else if (uPtrMode <  0.5) push = dir;                   // repel (black hole)
-    else if (uPtrMode <  1.5) push = vec2(-dir.y, dir.x);   // swirl ↻
-    else if (uPtrMode <  2.5) push = -dir;                  // attract (well)
-    else    push = dir * sin(sqrt(dist2) * 9.0 - uTime * 6.0);   // ripple, rolling outward
+    vec2 tang = vec2(-dir.y, dir.x);
+    float charge = uPtrX.x, spin = uPtrX.z;
+    // a charged touch reaches further into the field (the falloff relaxes)
+    float force = uPtr.z * exp(-dist2 * (7.0 - charge * 3.0));
+    vec2 push = vec2(0.0);
+    if      (uPtrMode < -0.5) push = -tang * (0.7 + spin * 1.3);
+    else if (uPtrMode <  0.5) push = dir * (1.0 + charge * 0.8) + tang * charge * 0.55;
+    else if (uPtrMode <  1.5) push =  tang * (0.7 + spin * 1.3);
+    else if (uPtrMode <  2.5) push = -dir * (0.75 + charge * 0.55) + tang * (0.35 + charge * 0.5);
+    else    push = dir * sin(dist * (9.0 - charge * 2.5) - uTime * 6.0) * (0.8 + uBeat * 0.6 + charge * 0.4);
     mv.xy += push * force * max(0.6, -mv.z) * 0.22;
+    // the release: one ring, expanding from where the finger lifted, its
+    // radius riding the burst's decay (1 → 0 maps to centre → far field)
+    if (burst > 0.01){
+      float front = exp(-abs(dist - (1.0 - burst) * 1.5) * 8.0);
+      mv.xy += dir * front * burst * max(0.6, -mv.z) * 0.55;
+    }
     return mv;
   }
 `;
@@ -12765,11 +12841,25 @@ const INTERACT = {
   strength: 0,         // 0..1 presence — drives the uPtr.z warp
   impulse: 0,          // double-tap shockwave, exp-decays (τ ≈ 0.5 s)
   swirl: 0,            // horizontal drag torque — SLINKY spins your way
+  charge: 0,           // 0..1 hold commitment — the force deepens as you stay (touchCharge)
+  burst: 0,            // release shockwave, 1 → 0 as the wavefront expands (touchBurst)
+  spinE: 0,            // spin momentum the drags banked — the slung-record memory
   dragging: false, holdOff: 0,
-  _lx: 0, _ly: 0, _idleT: 999,
+  _lx: 0, _ly: 0, _idleT: 999, _chargeTick: 0,
   update(dt){
     this.impulse *= Math.exp(-dt / 0.5);
     this.swirl *= Math.exp(-dt / 1.8);
+    // the touch's depth: charge while committed, drain when the hand rests;
+    // the burst rides its own decay so the wavefront outlives the finger
+    this.charge = touchCharge(this.charge, dt, this.dragging);
+    this.burst *= Math.exp(-dt / 0.6);
+    this.spinE += (Math.min(1, Math.abs(this.swirl) / 2.2) - this.spinE) * (1 - Math.exp(-dt / 0.5));
+    // felt milestones: the hold whispers at half charge, knocks when it's full —
+    // the hand learns the rhythm of the mechanic without a single word of UI
+    if (this.dragging && HAPTICS.on){
+      if (this._chargeTick < 1 && this.charge >= 0.5){ this._chargeTick = 1; HAPTICS.pulse(false); }
+      if (this._chargeTick < 2 && this.charge >= 0.95){ this._chargeTick = 2; HAPTICS.pulse(true); }
+    }
     this.holdOff = Math.max(0, this.holdOff - dt);
     this._idleT += dt;
     // presence swells fast while the hand lives, relaxes slowly after it rests
@@ -12804,9 +12894,20 @@ const INTERACT = {
     INTERACT.dragging = true;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
     toNdc(ev); INTERACT._idleT = 0;
+    INTERACT._chargeTick = 0;
     // start the sprung warp centre exactly under the finger (no velocity), so a
     // fresh touch never slings in from wherever the last one ended
     INTERACT.wx = INTERACT.px; INTERACT.wy = INTERACT.py; INTERACT.vx = INTERACT.vy = 0;
+    // THE FIELD IS A DRUM: land the tap ON the beat and it answers louder — a
+    // brighter shock, a bloom through the colour governor, a knock in the hand.
+    // Off the window nothing extra happens; the reward is real or absent.
+    if (CLOCK.haveGrid && player.playing){
+      const bonus = beatTapBonus(CLOCK.phase);
+      if (bonus > 0){
+        INTERACT.impulse = Math.max(INTERACT.impulse, 0.25 + bonus * 0.55);
+        if (bonus > 0.65){ COLOR.bloom = Math.max(COLOR.bloom || 0, 0.7); HAPTICS.pulse(true); }
+      }
+    }
     try { cv.setPointerCapture(ev.pointerId); } catch (e){}
   });
   cv.addEventListener('pointermove', ev => {
@@ -12821,10 +12922,25 @@ const INTERACT = {
     INTERACT.holdOff = 9;          // the auto rig waits while you hold the field
   });
   // the touch-FX no longer cycles on a canvas long-press (that raised iOS's copy
-  // box and fought with playing the light) — the corner ORB owns that gesture now
-  const drop = () => { INTERACT.dragging = false; };
+  // box and fought with playing the light) — the corner ORB owns that gesture now.
+  // THE RELEASE is the payoff: everything the hold charged detonates outward
+  // from the lift point, and a fast flick detonates even without the hold —
+  // the spring's own velocity at release IS the flick speed, already measured.
+  const drop = () => {
+    if (INTERACT.dragging){
+      const flick = Math.min(1, Math.hypot(INTERACT.vx, INTERACT.vy) / 3.5);
+      const b = touchBurst(INTERACT.charge, flick);
+      if (b > 0){
+        INTERACT.burst = Math.max(INTERACT.burst, b);
+        INTERACT.impulse = Math.max(INTERACT.impulse, b * 0.5);
+        if (b > 0.55) HAPTICS.pulse(b > 0.85);
+      }
+    }
+    INTERACT.dragging = false;
+  };
   cv.addEventListener('pointerup', drop);
-  cv.addEventListener('pointercancel', drop);
+  // a stolen gesture (scroll, OS swipe) is not a release — no detonation
+  cv.addEventListener('pointercancel', () => { INTERACT.dragging = false; });
   // a long-press must cycle the FX, never raise the OS text-callout / copy box
   cv.addEventListener('contextmenu', ev => ev.preventDefault());
   cv.addEventListener('pointerleave', () => DWELL.gone());
@@ -12851,8 +12967,11 @@ const INTERACT = {
    persists; default is the black hole.
    ================================================================ */
 const TOUCHFX = {
-  active: 'blackhole',
-  order: ['blackhole', 'grows', 'gathers', 'flows'],
+  // AUTO is the new default: the scenes manager re-tunes the touch to each
+  // room it walks into — a surprise you find with your hand, not a setting.
+  // Every saved manual choice from before is honoured on load.
+  active: 'auto',
+  order: ['auto', 'blackhole', 'grows', 'gathers', 'flows'],
   // Each effect is a motif from the "Everything That…" covers, mapped to a
   // force the field actually answers with (see touchFxMode → uPtrMode →
   // ptrWarp). `dark` = whether the multiply void darkens the core (a true
@@ -12862,15 +12981,18 @@ const TOUCHFX = {
     // dark = the multiply void darkens the core · ring = the accent event-horizon
     // halo · pure = a clean pure-black void with no accent tint. The black hole
     // is the baseline: just black, no halo — the original, and the coolest.
-    blackhole: { chip: 'VOID', label: 'Black hole',   hint: 'the light bends away from your hand',      dark: true,  ring: false, pure: true  },
-    grows:     { chip: 'SPIN', label: 'Vortex',       hint: 'a spiral winds around your touch',         dark: false, ring: true  },
-    gathers:   { chip: 'PULL', label: 'Gravity well', hint: 'everything falls toward your fingertip',   dark: true,  ring: true  },
-    flows:     { chip: 'WAVE', label: 'Ripples',      hint: 'waves roll outward from where you press',  dark: false, ring: true  },
+    blackhole: { chip: 'VOID', label: 'Black hole',   hint: 'the light bends away from your hand — hold, and the horizon widens',  dark: true,  ring: false, pure: true  },
+    grows:     { chip: 'SPIN', label: 'Vortex',       hint: 'a spiral winds around your touch — sling it and it keeps turning',    dark: false, ring: true  },
+    gathers:   { chip: 'PULL', label: 'Accretion',    hint: 'everything orbits and falls toward your hold — let go to detonate',   dark: true,  ring: true  },
+    flows:     { chip: 'WAVE', label: 'Ripples',      hint: 'waves roll outward, cresting on the beat',                            dark: false, ring: true  },
   },
+  // AUTO's live resolution — the personality the scenes manager last dealt
+  _resolved: 'blackhole', _autoT: 999, _pendingScene: -1, _introduced: false,
+  actual(){ return this.active === 'auto' ? this._resolved : this.active; },
   // the single number the field shader reads (chirality from the live drag)
-  mode(){ return touchFxMode(this.active, INTERACT.swirl); },
+  mode(){ return touchFxMode(this.actual(), INTERACT.swirl); },
   set(key, save){
-    if (!this.bank[key]) key = 'blackhole';
+    if (key !== 'auto' && !this.bank[key]) key = 'auto';
     this.active = key;
     this.paint();
     if (save !== false){ try { localStorage.setItem('mb8_touchfx', key); } catch (e){} }
@@ -12879,28 +13001,81 @@ const TOUCHFX = {
     const i = this.order.indexOf(this.active);
     const key = this.order[(i + 1) % this.order.length];
     this.set(key, true);
-    const fx = this.bank[key];
-    toast('Touch · <b>' + escapeHTML(fx.label) + '</b> — ' + escapeHTML(fx.hint));
+    if (key === 'auto'){
+      toast('Touch · <b>Auto</b> — the scenes re-tune your touch as they change; play and find out');
+    } else {
+      const fx = this.bank[key];
+      toast('Touch · <b>' + escapeHTML(fx.label) + '</b> — ' + escapeHTML(fx.hint));
+    }
     HAPTICS.pulse(true);
     return key;
+  },
+  // ---- the scenes manager's hand on the dial -----------------------------
+  // Called by director.setScene: when AUTO is on, the new room may re-tune the
+  // touch — never under a live finger (deferred until the hand lifts), never
+  // twitchy (a personality holds ≥45 s), and announced only by the chip's
+  // glint + a changed answer under the hand. The surprise IS the interface.
+  autoRoll(sceneIdx){
+    if (this.active !== 'auto') return;
+    const handOff = INTERACT.strength < 0.05 && !INTERACT.dragging;
+    if (!touchAutoShould(this._autoT, handOff, Math.random())){
+      if (!handOff && this._autoT > 45) this._pendingScene = sceneIdx;   // owed: pay when the hand lifts
+      return;
+    }
+    const key = touchAffinity(sceneIdx, typeof director !== 'undefined' ? director.act : -1, Math.random());
+    if (key === this._resolved) { this._autoT = 0; return; }
+    this._resolved = key;
+    this._autoT = 0;
+    this.paint();
+    this.glint();
+    if (!this._introduced){
+      this._introduced = true;
+      try {
+        if (!localStorage.getItem('mb8_touchfx_intro')){
+          localStorage.setItem('mb8_touchfx_intro', '1');
+          toast('The field changed how it answers your hand — <b>' + escapeHTML(this.bank[key].label) + '</b>. It will keep surprising you; pin one with the touch chip.');
+        }
+      } catch (e){}
+    }
+  },
+  autoTick(dt){
+    this._autoT += dt;
+    if (this._pendingScene >= 0 && INTERACT.strength < 0.05 && !INTERACT.dragging){
+      const sc = this._pendingScene; this._pendingScene = -1;
+      this.autoRoll(sc);
+    }
+  },
+  glint(){
+    for (const id of ['chipTouch', 'zenTouch']){
+      const c = document.getElementById(id);
+      if (!c) continue;
+      c.classList.remove('glint'); void c.offsetWidth; c.classList.add('glint');
+      setTimeout(() => c.classList.remove('glint'), 1300);
+    }
   },
   paint(){
     const chip = document.getElementById('chipTouch');
     if (!chip) return;
-    const fx = this.bank[this.active] || this.bank.blackhole;
-    chip.textContent = fx.chip;
-    chip.title = fx.label + ' — ' + fx.hint + '  ·  tap to change the touch';
-    chip.setAttribute('aria-label', 'Touch effect: ' + fx.label + '. ' + fx.hint);
+    const fx = this.bank[this.actual()] || this.bank.blackhole;
+    const autoOn = this.active === 'auto';
+    chip.textContent = autoOn ? '✦ ' + fx.chip : fx.chip;
+    chip.title = (autoOn ? 'Auto touch — the scenes re-tune this. Now: ' : '') + fx.label + ' — ' + fx.hint + '  ·  tap to change the touch';
+    chip.setAttribute('aria-label', 'Touch effect: ' + (autoOn ? 'auto, currently ' : '') + fx.label + '. ' + fx.hint);
     // the immersive touch-style toggle wears the same badge + a live hint
-    if (el.zTouchLabel) el.zTouchLabel.textContent = fx.chip;
+    if (el.zTouchLabel) el.zTouchLabel.textContent = (autoOn ? '✦ ' : '') + fx.chip;
     if (el.zenTouch) el.zenTouch.setAttribute('aria-label', 'Touch style: ' + fx.label + ' — ' + fx.hint + '. Tap to change.');
   },
-  load(){ try { const k = localStorage.getItem('mb8_touchfx'); if (k && this.bank[k]) this.active = k; } catch (e){} this.paint(); },
+  load(){
+    try { const k = localStorage.getItem('mb8_touchfx'); if (k && (k === 'auto' || this.bank[k])) this.active = k; } catch (e){}
+    this.paint();
+  },
   render(){
-    const fx = this.bank[this.active]; if (!fx) return;
+    const fx = this.bank[this.actual()]; if (!fx) return;
     const s = INTERACT.strength;
     if (s < 0.02){ this._off(); return; }
-    const grow = 0.55 + s * 0.9;
+    // the halo breathes with the beat under the finger and swells with the
+    // charge — the hand can SEE the hold banking power
+    const grow = 0.55 + s * 0.9 + INTERACT.charge * 0.22 + AE.f.beat * 0.06 * s;
     // follow the SPRUNG warp centre (wx/wy), so the void and ring carry the same
     // weight and momentum as the field they sit in — you sling the whole effect
     const x = (INTERACT.wx * 0.5 + 0.5) * window.innerWidth;
@@ -13389,6 +13564,8 @@ const director = {
     if (scenes[i].roll) scenes[i].roll();      // fresh variation on every entry
     if (manual){ this.auto = false; el.chipAuto.classList.remove('on'); this.dwell = 0;
       if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer'); }   // you chose a scene
+    // the new room may re-tune the touch (AUTO only; deferred under a live hand)
+    if (typeof TOUCHFX !== 'undefined') TOUCHFX.autoRoll(i);
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
     if (el.zSceneName) el.zSceneName.textContent = scenes[i].name;   // the immersive scene stepper
@@ -13834,6 +14011,7 @@ function initThree(){
   camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 400);
 
   U.uPtr.value = new THREE.Vector3(0, 0, 0);
+  U.uPtrX.value = new THREE.Vector3(0, 0, 0);
   initAudioTexture();
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
@@ -14398,6 +14576,11 @@ function frame(now){
   U.uPtr.value.set(INTERACT.wx, INTERACT.wy,   // the sprung warp centre — the field has weight
     INTERACT.strength * (reducedMotion ? 0.35 : 1));
   U.uPtrMode.value = TOUCHFX.mode();   // the touch's personality (VOID/SPIN/PULL/WAVE)
+  // the touch's depth: hold charge, release burst, banked spin (damped for
+  // reduced motion the same way presence is — the mechanic, not the violence)
+  const ptrDamp = reducedMotion ? 0.35 : 1;
+  U.uPtrX.value.set(INTERACT.charge * ptrDamp, INTERACT.burst * ptrDamp, INTERACT.spinE);
+  TOUCHFX.autoTick(dt);                // an owed personality change lands once the hand lifts
 
   director.update(dt);
   COLOR.update(dt);
