@@ -842,6 +842,32 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   letter-spacing:.18em;cursor:pointer;color:var(--dim);transition:all .2s;min-height:0;
 }
 .hud .chip.on{color:var(--accent-ink);background:linear-gradient(120deg,var(--accent-2),var(--accent));border-color:transparent;font-weight:600;box-shadow:0 0 14px -3px var(--accent-glow)}
+/* ============ the smart update: badge + card ============ */
+#btnUpdate{position:relative}
+#btnUpdate.pulse::after{
+  content:'';position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;
+  background:var(--accent,#6ee7ff);box-shadow:0 0 8px 1px var(--accent-glow,rgba(110,231,255,.5));
+  animation:upDot 2.2s ease infinite;
+}
+@keyframes upDot{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}
+@media (prefers-reduced-motion:reduce){#btnUpdate.pulse::after{animation:none;opacity:1}}
+#updateCard{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(16px);
+  top:calc(56px + env(safe-area-inset-top));z-index:57;
+  display:none;flex-direction:column;gap:9px;
+  width:min(92vw,430px);padding:15px 17px;border-radius:16px;text-align:left;
+  background:var(--sheen),rgba(6,8,18,.94);border:1px solid rgba(110,231,255,.28);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  opacity:0;transition:opacity .35s ease,transform .35s ease;
+}
+#updateCard.in{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+.up-builds{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+.up-notes{margin:0;padding:0 0 0 16px;display:flex;flex-direction:column;gap:6px}
+.up-notes li{font-size:12px;line-height:1.5;color:var(--ink)}
+.up-notes b{color:var(--e,#6ee7ff)}
+.up-fine{font-size:10px;letter-spacing:.05em;color:var(--faint);line-height:1.5}
+#updateCard .bp-row{flex-wrap:wrap}
+
 /* the glint — the only announcement an auto touch-change makes: the chip
    catches the light once, and the rest is discovered by the hand */
 @keyframes chipGlint{0%{box-shadow:0 0 0 0 transparent}35%{box-shadow:0 0 18px 3px var(--accent-glow)}100%{box-shadow:0 0 0 0 transparent}}
@@ -2279,6 +2305,20 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   <div class="ep-note">Kept in this browser only — nothing transmits, ever.</div>
 </div>
 
+<div id="updateCard" role="dialog" aria-label="Update ready">
+  <div class="bp-t"><b>Update ready</b> · <span class="up-builds" id="upBuilds"></span></div>
+  <ul class="up-notes" id="upNotes"></ul>
+  <div class="up-fine" id="upShowNote" hidden>⚡ SHOW is on — nothing ever applies by itself during a set.</div>
+  <div class="up-fine">Applying saves your place first — everything restores, music resumes paused where it was.</div>
+  <div class="bp-row">
+    <button class="bp-later" id="upClose" type="button">Close</button>
+    <span class="spring"></span>
+    <button class="bp-later" id="upLater" type="button" title="Snooze auto-apply for 6 hours — the button stays">Later</button>
+    <button class="bp-later" id="upAfter" type="button" title="Apply at the next track boundary, place saved">After this track</button>
+    <button class="bp-go" id="upNow" type="button">Update now</button>
+  </div>
+</div>
+
 <div id="toasts" aria-live="polite"></div>
 <div id="breakPrompt" role="dialog" aria-label="Take a mindful break">
   <div class="bp-t">You've been in the flow a while. Want a <b>mindful break</b>? Echoes of Play is a quiet room to breathe, reflect, and journal — the music will be right here when you're back.</div>
@@ -2452,6 +2492,32 @@ function touchAutoShould(since, handOff, r){
   // never under a live finger, never twitchy: a personality holds at least
   // ~45 s, and even then only usually — a missed roll is its own variety
   return since > 45 && !!handOff && r < 0.7;
+}
+/* UPDATE GATE — when a ready update may apply ITSELF. The whole policy in one
+   pure, tested map: an explicit "after this track" wish is honoured above all
+   (it fires at the track boundary or the pause, even mid-set); otherwise a
+   snooze holds it, SHOW mode holds it unconditionally (a performance is never
+   yanked), and playing music holds it until the quiet. */
+function updateGate(o){
+  if (!o.ready || o.requested) return 'wait';
+  if (o.armed === 'afterTrack') return (o.trackChanged || !o.playing) ? 'apply' : 'wait';
+  if (o.now < (o.snoozedUntil || 0)) return 'wait';
+  if (o.show) return 'wait';
+  return o.playing ? 'wait' : 'apply';
+}
+/* NEWS SINCE — which changelog entries are newer than the running build.
+   Entries come newest-first; walk until the running build appears (exclusive).
+   A build the list has never heard of shows the newest few, capped — honest
+   about "there's news" without pretending to know exactly how far behind. */
+function newsSince(entries, build, cap){
+  const out = [];
+  const lim = cap || 4;
+  for (const e of entries || []){
+    if (!e || e.build === build) break;
+    out.push(e);
+    if (out.length >= lim) break;
+  }
+  return out;
 }
 // @pure-end
 
@@ -8842,33 +8908,53 @@ el.btnInstall.addEventListener('click', () => {
   deferredInstall.userChoice.finally(() => { deferredInstall = null; el.btnInstall.hidden = true; });
 });
 window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toast('Installed'); });
-/* ---- self-update: seamless, never surprising ----
-   The SW versions its shell cache by a build stamp, so a deploy is a new
-   worker. The new worker WAITS; this side notices, shows the Update button,
-   and on tap: save the transport state → hand over (SKIP_WAITING) →
-   controllerchange → reload → the normal restore path brings everything
-   back paused at position. IndexedDB (queue, hearts, history, journeys)
-   is never part of an update — nothing to lose. */
-const MB8_BUILD = '84413e9a03';   // stamped by tools/stamp_version.py (via publish.sh)
+/* ---- self-update: seamless, never surprising, never stuck ----
+   TWO ways a new release reaches this page, one policy for both:
+   · WORKER: a stamped deploy is a new sw.js; the new worker WAITS, we show
+     the button, and applying hands over (SKIP_WAITING) → reload → restore.
+   · SHELL: the worker background-revalidates index.html on every boot and
+     on our timers — a deploy that forgot the stamp STILL arrives (bytes are
+     compared, not version strings). Applying is just save → reload; the
+     fresh shell is already cached. Nobody deletes site data again.
+   The button wears a badge; tapping opens a card with the changelog
+   (news.json), and three honest choices: now, after this track, later.
+   A ready update still applies ITSELF at the first safe moment — but the
+   whole policy lives in the pure, tested updateGate(): SHOW mode is never
+   yanked, a snooze holds, "after this track" fires at the boundary.
+   IndexedDB (queue, hearts, history, journeys) is never part of an update. */
+const MB8_BUILD = '63660fc4f1';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
+const UPDATE = {
+  source: '',            // 'worker' | 'shell' — how the new release arrived
+  newBuild: '',          // best-known incoming build id ('' when unknowable)
+  armed: '',             // '' | 'afterTrack' — the listener's explicit wish
+  snoozedUntil: 0,       // "later" holds auto-apply for 6 h (button stays)
+  _armCur: -1,           // player.cur when "after this track" was armed
+  ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell'; },
+};
 
 function registerSW(){
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'https:' && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
-  navigator.serviceWorker.register('sw.js').then(reg => {
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
     swReg = reg;
-    if (reg.waiting && navigator.serviceWorker.controller) offerUpdate();
+    if (reg.waiting && navigator.serviceWorker.controller) offerUpdate('worker');
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
       if (!w) return;
       w.addEventListener('statechange', () => {
         // installed with an existing controller = a NEW version is waiting
-        if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate();
+        if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate('worker');
       });
     });
   }).catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (updateRequested) location.reload();      // only when WE asked — never spontaneous
+  });
+  // the worker tells us when its background byte-compare found a fresh shell
+  navigator.serviceWorker.addEventListener('message', ev => {
+    const d = ev.data;
+    if (d && d.type === 'SHELL_FRESH') offerUpdate('shell', d.build || '');
   });
   // look for new releases when the app comes to the foreground (the
   // home-screen reality) and on a slow timer while it stays open
@@ -8876,36 +8962,109 @@ function registerSW(){
   window.addEventListener('pageshow', ev => { if (ev.persisted) checkForUpdate(); });
   setInterval(checkForUpdate, 30 * 60 * 1000);
 }
-function checkForUpdate(){ if (swReg) swReg.update().catch(() => {}); }
-function offerUpdate(){
+function checkForUpdate(){
+  if (!swReg) return;
+  swReg.update().catch(() => {});
+  // and ask the live worker to byte-check the shell while the app stays open
+  try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'CHECK_SHELL' }); } catch (e){}
+}
+function offerUpdate(source, build){
   if (updateRequested) return;
-  el.btnUpdate.hidden = false;
+  // the worker path is the stronger claim (a versioned release); shell only upgrades it
+  if (source === 'shell' && build && build === MB8_BUILD && UPDATE.source) return;
+  if (source) UPDATE.source = UPDATE.source === 'worker' ? 'worker' : source;
+  if (build) UPDATE.newBuild = build;
+  if (el.btnUpdate.hidden){
+    el.btnUpdate.hidden = false;
+    el.btnUpdate.classList.add('pulse');
+    toast('A new version is ready — tap <b>Update</b> to see what changed');
+  }
   maybeAutoApply();
 }
-/* FORCED UPDATES — the iOS reality: a home-screen copy rarely "closes",
-   so a waiting worker used to wait forever behind a button nobody saw and
-   the app looked stuck on an old version. A ready update now applies
-   ITSELF at the first safe moment — paused or idle — through the same
-   save-everything path the button uses. Playback is never interrupted:
-   while music plays the button stays offered and we retry on the quiet. */
 function maybeAutoApply(){
-  if (updateRequested || !swReg || !swReg.waiting) return;
-  if (player.playing) return;
-  applyUpdate();
+  const verdict = updateGate({
+    ready: UPDATE.ready(), requested: updateRequested,
+    armed: UPDATE.armed,
+    trackChanged: UPDATE.armed === 'afterTrack' && player.cur !== UPDATE._armCur,
+    playing: player.playing,
+    show: typeof POWER !== 'undefined' && POWER.mode === 'show',
+    snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),
+  });
+  if (verdict === 'apply') applyUpdate();
 }
 function applyUpdate(){
-  if (!swReg || !swReg.waiting){ el.btnUpdate.hidden = true; return; }
+  if (!UPDATE.ready()){ el.btnUpdate.hidden = true; return; }
   updateRequested = true;
   PERSIST.save();                                // the whole session restores after the swap
+  try { sessionStorage.setItem('mb8_updated_from', MB8_BUILD); } catch (e){}
+  updateCardOpen(false);
   el.btnUpdate.hidden = false;
   el.btnUpdate.disabled = true;
   el.btnUpdate.querySelector('.lbl').textContent = 'Updating…';
-  swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
-  // belt and braces: if controllerchange never fires (unusual), reload anyway
-  setTimeout(() => { if (updateRequested) location.reload(); }, 3000);
+  if (swReg && swReg.waiting){
+    swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    // belt and braces: if controllerchange never fires (unusual), reload anyway
+    setTimeout(() => { if (updateRequested) location.reload(); }, 3000);
+  } else {
+    // shell path: the fresh page is already cached — a reload IS the update
+    location.reload();
+  }
 }
+/* ---- the update card: the log and the three honest choices ---- */
+function updateCardOpen(open){
+  const card = document.getElementById('updateCard');
+  if (!card) return;
+  card.classList.toggle('in', !!open);
+  if (!open) return;
+  const b = document.getElementById('upBuilds');
+  if (b) b.textContent = MB8_BUILD + ' → ' + (UPDATE.newBuild || 'new');
+  const list = document.getElementById('upNotes');
+  if (list){
+    list.innerHTML = '<li>Fetching the log…</li>';
+    fetch('news.json', { cache: 'no-cache' }).then(r => r.json()).then(j => {
+      const items = newsSince(j && j.entries, MB8_BUILD, 4);
+      list.innerHTML = '';
+      if (!items.length){ list.innerHTML = '<li>A fresh build — small fixes and polish.</li>'; return; }
+      for (const e of items){
+        const li = document.createElement('li');
+        li.innerHTML = '<b>' + escapeHTML(e.title || e.build || '') + '</b>'
+          + (e.notes && e.notes.length ? ' — ' + escapeHTML(e.notes.join(' · ')) : '');
+        list.appendChild(li);
+      }
+    }).catch(() => { list.innerHTML = '<li>The log is unreachable right now — the update itself is ready.</li>'; });
+  }
+  const showNote = document.getElementById('upShowNote');
+  if (showNote) showNote.hidden = !(typeof POWER !== 'undefined' && POWER.mode === 'show');
+}
+function wireUpdateCard(){
+  const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
+  on('upNow', () => applyUpdate());
+  on('upAfter', () => {
+    UPDATE.armed = 'afterTrack';
+    UPDATE._armCur = player.cur;
+    updateCardOpen(false);
+    toast('Okay — updating <b>after this track</b>, place saved first');
+  });
+  on('upLater', () => {
+    UPDATE.snoozedUntil = Date.now() + 6 * 3600 * 1000;
+    UPDATE.armed = '';
+    updateCardOpen(false);
+    toast('Snoozed — the button stays; it will try again in <b>6 h</b> when the music rests');
+  });
+  on('upClose', () => updateCardOpen(false));
+}
+wireUpdateCard();
+// after the swap: say it landed, once, with the proof (the new build id)
+try {
+  const from = sessionStorage.getItem('mb8_updated_from');
+  if (from){
+    sessionStorage.removeItem('mb8_updated_from');
+    if (from !== MB8_BUILD) toast('Updated · build <b>' + escapeHTML(MB8_BUILD) + '</b> — everything restored');
+    else toast('Refreshed to the newest deploy');
+  }
+} catch (e){}
 setInterval(maybeAutoApply, 5000);
-el.btnUpdate.addEventListener('click', applyUpdate);
+el.btnUpdate.addEventListener('click', () => updateCardOpen(!document.getElementById('updateCard').classList.contains('in')));
 window.addEventListener('offline', () => toast('Offline — the library stays; streaming is unavailable'));
 window.addEventListener('online', () => toast('Back online'));
 
