@@ -576,6 +576,68 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   .fr-more{flex-direction:column;align-items:stretch}
 }
 
+/* ============ ECHOES — passing thoughts ============
+   Quotes drift through the field like clouds: DOM text, not shader work, so a
+   thought costs the GPU nothing and survives every power mode. The layer never
+   takes the pointer — only a prompt's one small button does. */
+#echoLayer{position:fixed;inset:0;z-index:5;overflow:hidden;pointer-events:none}
+.echo-cloud{
+  position:absolute;max-width:min(70vw,440px);opacity:0;
+  transition:opacity 4.5s ease,transform 30s linear;will-change:opacity,transform;
+  pointer-events:none;text-shadow:0 1px 16px rgba(0,0,0,.6),0 0 40px rgba(0,0,0,.4);
+}
+.echo-cloud .eq-t{
+  font-family:var(--serif);font-style:italic;font-weight:500;
+  font-size:clamp(15px,2.3vw,21px);line-height:1.55;letter-spacing:.2px;
+  color:rgba(255,255,255,.86);white-space:pre-line;
+}
+.echo-cloud .eq-a{
+  margin-top:9px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--dim);
+}
+.echo-cloud.live{opacity:.92;transform:translateX(7vw)}
+.echo-cloud.out{opacity:0}
+.echo-cloud .eq-ask{
+  pointer-events:auto;margin-top:11px;display:inline-block;
+  font-size:10.5px;letter-spacing:.08em;color:var(--ink);cursor:pointer;
+  padding:8px 14px;border-radius:11px;background:var(--glass);
+  border:1px solid rgba(110,231,255,.4);
+}
+.echo-cloud .eq-ask:hover{background:var(--glass-hard);border-color:rgba(110,231,255,.65)}
+@media (prefers-reduced-motion:reduce){
+  .echo-cloud{transition:opacity 2s ease}
+  .echo-cloud.live{transform:none}
+}
+#echoPanel{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(16px);
+  bottom:calc(94px + env(safe-area-inset-bottom));z-index:56;
+  display:none;flex-direction:column;gap:10px;
+  width:min(92vw,420px);padding:16px 18px;border-radius:16px;text-align:left;
+  background:var(--sheen),rgba(6,8,18,.94);border:1px solid rgba(110,231,255,.28);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  opacity:0;transition:opacity .35s ease,transform .35s ease;
+}
+#echoPanel.open{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+.ep-k{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
+.ep-q{font-family:var(--serif);font-style:italic;font-size:16.5px;line-height:1.5;color:var(--ink)}
+#epTa{
+  width:100%;min-height:64px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.5;
+  color:var(--ink);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13);
+  border-radius:10px;padding:10px 11px;outline:none;
+}
+#epTa:focus{border-color:rgba(110,231,255,.45)}
+.ep-reply{
+  font-family:var(--serif);font-style:italic;font-size:14px;line-height:1.65;
+  color:rgba(255,255,255,.88);white-space:pre-line;padding:4px 2px;
+}
+.ep-row{display:flex;gap:9px;align-items:center}
+.ep-eop{
+  font-size:10.5px;letter-spacing:.04em;color:var(--dim);text-decoration:none;
+  padding:8px 4px;margin-right:auto;
+}
+.ep-eop:hover{color:var(--ink)}
+.ep-note{font-size:9.5px;letter-spacing:.06em;color:var(--faint)}
+
 /* ============ onboarding — the why, told in five breaths ============ */
 #onboard{
   position:fixed;inset:0;z-index:62;display:none;      /* above the welcome card (z60) */
@@ -2000,6 +2062,8 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
     <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; in play mode, flick the orb.">VOID</button>
     <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, moiré, iris. Tap to cycle (L).">◈ NONE</button>
+    <button class="chip" id="chipPower" title="Power — AUTO adapts quality to this device; SHOW holds full density and keeps the screen awake; ECO halves the draw for pocket listening. Tap to cycle.">⚡ AUTO</button>
+    <button class="chip" id="chipEcho" title="Echoes — passing thoughts drift by like clouds: physicists, mathematicians, stoics. MUSE adds a question now and then you can answer. Tap to cycle.">✧ DRIFT</button>
     <span class="meter" id="meterBar" role="img" aria-label="Beat meter — the downbeat dot lands heavier"><i></i><i></i><i></i><i></i></span>
     <span class="scenedots" id="sceneDots" role="group" aria-label="Scene select"></span>
     <span class="sep"></span>
@@ -2194,6 +2258,20 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     (queue, position, hearts, history, journeys) comes back exactly as it was.</p>
     <button class="btn big help-close" id="helpClose">Close</button>
   </div>
+</div>
+
+<div id="echoLayer" aria-live="off" aria-hidden="true"></div>
+<div id="echoPanel" role="dialog" aria-modal="true" aria-label="A passing question">
+  <div class="ep-k">A passing question</div>
+  <div class="ep-q" id="epQ"></div>
+  <textarea id="epTa" rows="3" maxlength="600" placeholder="whatever comes — half-sentences count" aria-label="Your reflection"></textarea>
+  <div class="ep-reply" id="epReply" hidden></div>
+  <div class="ep-row">
+    <a class="ep-eop" href="https://echoesofplay.com/" target="_blank" rel="noopener noreferrer">Sit with it in Echoes of Play →</a>
+    <button class="bp-later" id="epClose" type="button">Close</button>
+    <button class="bp-go" id="epGo" type="button" style="border:none;background:linear-gradient(120deg,var(--accent-2),var(--accent));color:var(--accent-ink)">Reflect</button>
+  </div>
+  <div class="ep-note">Kept in this browser only — nothing transmits, ever.</div>
 </div>
 
 <div id="toasts" aria-live="polite"></div>
@@ -5847,6 +5925,28 @@ function qualitySeed(mem, minPR, maxPR, defaultPR){
 function writeQualityMemory(sigKey, pr, struggling, now){
   return JSON.stringify({ k: sigKey, pr: Math.round(pr * 100) / 100, s: struggling ? 1 : 0, t: now });
 }
+/* POWER PLAN — one hand on the throttle, three honest settings. AUTO is the
+   adaptive governor exactly as it has always run. SHOW is the plugged-in
+   performance: the ceiling rises to the display's full density (the governor
+   still sheds if the device can't hold it — fluidity always outranks pixels)
+   and the screen is kept awake through the set. ECO is the pocket / lawn-mower
+   mode: pixel ratio pinned at a quarter of the work, every other frame drawn,
+   lenses and heavy scenes waved off — the battery goes to the music. Pure so
+   the whole contract is unit-tested. */
+function powerPlan(mode, dpr, ios){
+  const d = Math.max(0.5, dpr || 1);
+  const autoMax = Math.min(d, 2), autoMin = Math.min(autoMax, ios ? 0.9 : 1);
+  if (mode === 'show')
+    return { maxPR: Math.min(d, 3), minPR: autoMin, pinPR: Math.min(d, 3),
+             frameDiv: 1, lens: true, heavy: true, wake: true, govern: true, remember: false };
+  if (mode === 'eco'){
+    const pr = Math.min(0.75, d);
+    return { maxPR: pr, minPR: pr, pinPR: pr,
+             frameDiv: 2, lens: false, heavy: false, wake: false, govern: false, remember: false };
+  }
+  return { maxPR: autoMax, minPR: autoMin, pinPR: null,
+           frameDiv: 1, lens: true, heavy: true, wake: false, govern: true, remember: true };
+}
 // the source palette for stem-coloured waveforms: drums run warm-red (the
 // transient hit), bass amber (the body), vocals cyan (the voice sits up and
 // bright), everything else violet. Chosen to stay legible when blended.
@@ -6451,6 +6551,290 @@ function danceTimeWarp(phi, period, energy){
   return -amp * 0.5 * (1 + Math.cos(clamp01(phi) * Math.PI * 2));
 }
 // @dance-end
+
+/* ================================================================
+   §6c-bis · ECHOES — passing thoughts. Hand-curated quotes from physicists,
+   mathematicians, stoics and musicians drift through the field like clouds:
+   spread out, timed to the calm passages, never over the drop. In MUSE mode
+   the drift occasionally carries a question you can answer; the reply is
+   composed the Echoes of Play way — procedurally, from hand-written fragment
+   pools and the shape of what you typed (seeded randomness, no AI, no
+   network). Reflections live in this browser only. The pure pieces sit in
+   the @echo block so what is tested IS what ships.
+   ================================================================ */
+// @echo-start
+/* the pools — every line attributed, every line chosen because it makes you
+   think. p: physics | math | stoic | music | wonder */
+const ECHO_QUOTES = [
+  { t: 'The first principle is that you must not fool yourself —\nand you are the easiest person to fool.', a: 'Richard Feynman', p: 'physics' },
+  { t: 'What I cannot create, I do not understand.', a: 'Richard Feynman', p: 'physics' },
+  { t: 'Nature uses only the longest threads to weave her patterns, so each small piece of her fabric reveals the organization of the entire tapestry.', a: 'Richard Feynman', p: 'physics' },
+  { t: 'Imagination is more important than knowledge.', a: 'Albert Einstein', p: 'physics' },
+  { t: 'The important thing is not to stop questioning.', a: 'Albert Einstein', p: 'physics' },
+  { t: 'The opposite of a correct statement is a false statement. But the opposite of a profound truth may well be another profound truth.', a: 'Niels Bohr', p: 'physics' },
+  { t: 'Nothing in life is to be feared, it is only to be understood.', a: 'Marie Curie', p: 'physics' },
+  { t: 'Science cannot solve the ultimate mystery of nature, because we ourselves are part of the mystery.', a: 'Max Planck', p: 'physics' },
+  { t: 'A physical law must possess mathematical beauty.', a: 'Paul Dirac', p: 'physics' },
+  { t: 'We are a way for the cosmos to know itself.', a: 'Carl Sagan', p: 'physics' },
+  { t: 'I seem to have been only like a boy playing on the sea-shore, whilst the great ocean of truth lay all undiscovered before me.', a: 'Isaac Newton', p: 'physics' },
+  { t: 'A mathematician, like a painter or a poet, is a maker of patterns.', a: 'G. H. Hardy', p: 'math' },
+  { t: 'The essence of mathematics lies in its freedom.', a: 'Georg Cantor', p: 'math' },
+  { t: 'It is by logic that we prove, but by intuition that we discover.', a: 'Henri Poincaré', p: 'math' },
+  { t: 'Science is built up with facts, as a house is with stones. But a collection of facts is no more a science than a heap of stones is a house.', a: 'Henri Poincaré', p: 'math' },
+  { t: 'Why are numbers beautiful? It’s like asking why is Beethoven’s Ninth Symphony beautiful.', a: 'Paul Erdős', p: 'math' },
+  { t: 'We must know — we will know.', a: 'David Hilbert', p: 'math' },
+  { t: 'It is impossible to be a mathematician without being a poet in soul.', a: 'Sofia Kovalevskaya', p: 'math' },
+  { t: 'Imagination is the Discovering Faculty, pre-eminently.', a: 'Ada Lovelace', p: 'math' },
+  { t: 'Dwell on the beauty of life. Watch the stars, and see yourself running with them.', a: 'Marcus Aurelius', p: 'stoic' },
+  { t: 'You have power over your mind — not outside events. Realize this, and you will find strength.', a: 'Marcus Aurelius', p: 'stoic' },
+  { t: 'Very little is needed to make a happy life; it is all within yourself, in your way of thinking.', a: 'Marcus Aurelius', p: 'stoic' },
+  { t: 'Confine yourself to the present.', a: 'Marcus Aurelius', p: 'stoic' },
+  { t: 'We suffer more often in imagination than in reality.', a: 'Seneca', p: 'stoic' },
+  { t: 'It is not that we have a short time to live, but that we waste a lot of it.', a: 'Seneca', p: 'stoic' },
+  { t: 'Men are disturbed not by things, but by the views they take of them.', a: 'Epictetus', p: 'stoic' },
+  { t: 'No man is free who is not master of himself.', a: 'Epictetus', p: 'stoic' },
+  { t: 'No man ever steps in the same river twice.', a: 'Heraclitus', p: 'stoic' },
+  { t: 'There is geometry in the humming of the strings, there is music in the spacing of the spheres.', a: 'Pythagoras (attr.)', p: 'music' },
+  { t: 'The heavenly motions are nothing but a continuous song for several voices.', a: 'Johannes Kepler', p: 'music' },
+  { t: 'Music is the pleasure the human mind experiences from counting without being aware that it is counting.', a: 'Gottfried Leibniz', p: 'music' },
+  { t: 'Without music, life would be a mistake.', a: 'Friedrich Nietzsche', p: 'music' },
+  { t: 'Music is the space between the notes.', a: 'Claude Debussy (attr.)', p: 'music' },
+  { t: 'I’ll tell you what freedom is to me: no fear.', a: 'Nina Simone', p: 'music' },
+  { t: 'The only way to make sense out of change is to plunge into it, move with it, and join the dance.', a: 'Alan Watts', p: 'wonder' },
+  { t: 'Live the questions now. Perhaps you will then gradually, without noticing it, live along some distant day into the answer.', a: 'Rainer Maria Rilke', p: 'wonder' },
+  { t: 'Time is but the stream I go a-fishing in.', a: 'Henry David Thoreau', p: 'wonder' },
+  { t: 'Life can only be understood backwards; but it must be lived forwards.', a: 'Søren Kierkegaard', p: 'wonder' },
+  { t: 'Attention is the rarest and purest form of generosity.', a: 'Simone Weil', p: 'wonder' },
+  { t: 'When we try to pick out anything by itself, we find it hitched to everything else in the Universe.', a: 'John Muir', p: 'wonder' },
+  { t: 'Who looks outside, dreams; who looks inside, awakes.', a: 'Carl Jung', p: 'wonder' },
+  { t: 'Nature does not hurry, yet everything is accomplished.', a: 'Lao Tzu', p: 'wonder' },
+];
+/* the questions MUSE floats — Echoes of Play manners: they never test recall,
+   never grade, never diagnose; they invite */
+const ECHO_PROMPTS = [
+  'What is asking for your attention right now?',
+  'Name one thing you’re carrying that isn’t yours.',
+  'What sounded different today?',
+  'What are you ready to set down?',
+  'What small thing worked today?',
+  'If this feeling had weather, what would it be?',
+  'What do you know now that morning-you didn’t?',
+  'Who would you play this song for?',
+  'What’s one true sentence about today?',
+  'What is growing quietly in you?',
+  'Where does this song put you?',
+  'What would ten unhurried minutes change?',
+];
+/* the reply pools — the receipt reads the SHAPE of what you typed (a question,
+   six words, a flood, a feeling named), never its verdict; the fragment is
+   hand-written the Echoes way; the turn hands the thought back to you */
+const ECHO_ACK = {
+  q: [
+    'You answered a question with a question. That counts.',
+    'A question held is already half-open.',
+    'Some questions are doors. You just knocked.',
+  ],
+  short: [
+    'Six words or fewer. Sometimes that’s the whole truth.',
+    'Small words carry. You kept only what mattered.',
+    'That was brief, and it landed.',
+  ],
+  long: [
+    'You had a lot to set down. It’s down now.',
+    'That took some room. Rooms are for that.',
+    'A flood is still water. It knows where to go.',
+  ],
+  feel: [
+    'You named it. Named things weigh a little less.',
+    'A feeling written down stops pacing.',
+    'That word you chose — it was doing a lot of work.',
+  ],
+  plain: [
+    'It’s out of your head now. That’s not nothing.',
+    'Written is different from carried.',
+    'The page holds it so you don’t have to.',
+  ],
+};
+const ECHO_FRAGS = [
+  'A wave does not ask the shore for permission.',
+  'The beat you can’t hear is still keeping time.',
+  'Mycelium does its work in the dark,\nand the forest calls it luck.',
+  'A tide goes out. That is not the sea leaving.',
+  'The seed is not in a hurry\nand the season is not late.',
+  'An echo is the room agreeing you were here.',
+  'Coral builds slowly, and only on what stands.',
+  'A held note is not the same as silence.\nNeither are you.',
+  'The whale sings across a whole ocean\nand does not wait to be answered.',
+  'Static is just a signal nobody has danced to yet.',
+  'A river braids and unbraids\nand is still called by one name.',
+  'The moon does not hurry\nand yet the tide is never late.',
+  'What you water is what grows.',
+  'A downbeat only lands because the bar before it let go.',
+];
+const ECHO_TURN = [
+  'Ask it again tomorrow — the answer may have grown.',
+  'Carry one word of this into the next song.',
+  'Let the next track answer back.',
+  'Leave it here. It will keep.',
+  'Come back to this when the set ends.',
+  'Whatever you found, you found it — not the machine.',
+];
+/* echoSignals — the honest input analysis: shape only, never judgement */
+function echoSignals(text){
+  const s = String(text || '').trim();
+  const words = s ? s.split(/\s+/).length : 0;
+  const FEEL = /\b(afraid|angry|anxious|alone|ashamed|calm|free|glad|grateful|happy|heavy|hope|hurt|lonely|lost|love|miss|numb|peace|proud|sad|scared|stuck|tired|worried)\w*\b/i;
+  return {
+    words,
+    question: /\?/.test(s),
+    feeling: FEEL.test(s),
+    me: /(^|\s)i(’|'|\s|m\b|$)/i.test(s),
+    short: words > 0 && words <= 6,
+    long: words > 40,
+  };
+}
+/* echoPick — deal from a pool of n without repeating the recent window; when
+   the window covers the pool, the oldest exclusion is forgiven first */
+function echoPick(n, recent, rng){
+  if (!(n > 0)) return -1;
+  const avoid = (recent || []).slice(-Math.min(n - 1, (recent || []).length));
+  const open = [];
+  for (let i = 0; i < n; i++) if (avoid.indexOf(i) === -1) open.push(i);
+  if (!open.length) return Math.floor(rng() * n) % n;   // window covers the pool — forgive
+  return open[Math.floor(rng() * open.length) % open.length];
+}
+/* echoCompose — receipt, fragment, turn: three hand-written lines dealt by the
+   shape of the input. Deterministic for a seeded rng, so it's testable. */
+function echoCompose(text, rng){
+  const sig = echoSignals(text);
+  const deal = arr => arr[Math.floor(rng() * arr.length) % arr.length];
+  const ack = sig.question ? deal(ECHO_ACK.q)
+    : sig.short ? deal(ECHO_ACK.short)
+    : sig.long ? deal(ECHO_ACK.long)
+    : sig.feeling ? deal(ECHO_ACK.feel)
+    : deal(ECHO_ACK.plain);
+  return { ack, frag: deal(ECHO_FRAGS), turn: deal(ECHO_TURN), sig };
+}
+// @echo-end
+
+/* the drift itself — DOM clouds, zero GPU cost, gated to the calm passages */
+const ECHO = {
+  order: ['off', 'drift', 'muse'],
+  labels: { off: '✧ OFF', drift: '✧ DRIFT', muse: '✧ MUSE' },
+  blurb: {
+    off: 'no passing thoughts',
+    drift: 'quotes drift by like clouds — physicists, mathematicians, stoics',
+    muse: 'the drift, plus a question now and then you can answer — kept on this device only',
+  },
+  mode: 'drift', _t: 0, _next: 60, _count: 0,
+  _recent: [], _pRecent: [], _rng: null, _prompt: '',
+  rng(){ if (!this._rng) this._rng = mulberry32(((Date.now() & 0xfffff) ^ 0x9e37) >>> 0); return this._rng; },
+  tick(dt){
+    if (this.mode === 'off' || !player.playing || document.hidden) return;
+    this._t += dt;
+    if (this._t < this._next) return;
+    // a thought floats through calm water only — never over the apex, never
+    // over an open panel; nudge the clock back and try again shortly
+    if (typeof director !== 'undefined' && director.act === 2){ this._t = this._next - 10; return; }
+    if (this._busy()){ this._t = this._next - 15; return; }
+    this._t = 0;
+    this._next = 170 + this.rng()() * 190;      // spread out: one every ~3–6 minutes
+    this._count++;
+    if (this.mode === 'muse' && this._count % 3 === 0) this.floatPrompt();
+    else this.floatQuote();
+  },
+  _busy(){
+    return !!document.querySelector('#help.open, #firstRun.open, #console.open, #library.open, #crate.open, #booth.open, #playlist.open, #echoPanel.open');
+  },
+  _cloud(html, life){
+    const layer = document.getElementById('echoLayer');
+    if (!layer) return null;
+    const c = document.createElement('div');
+    c.className = 'echo-cloud';
+    c.innerHTML = html;
+    // park it in the open middle field — clear of the topbar and the transport
+    c.style.left = (6 + this.rng()() * 48) + 'vw';
+    c.style.top = (16 + this.rng()() * 42) + 'vh';
+    layer.appendChild(c);
+    requestAnimationFrame(() => c.classList.add('live'));
+    setTimeout(() => { c.classList.remove('live'); c.classList.add('out'); }, (life - 6) * 1000);
+    setTimeout(() => c.remove(), life * 1000);
+    return c;
+  },
+  floatQuote(){
+    const i = echoPick(ECHO_QUOTES.length, this._recent, this.rng());
+    if (i < 0) return;
+    this._recent.push(i); if (this._recent.length > 12) this._recent.shift();
+    const q = ECHO_QUOTES[i];
+    this._cloud('<div class="eq-t">' + escapeHTML(q.t) + '</div><div class="eq-a">— ' + escapeHTML(q.a) + '</div>', 30);
+  },
+  floatPrompt(){
+    const i = echoPick(ECHO_PROMPTS.length, this._pRecent, this.rng());
+    if (i < 0) return;
+    this._pRecent.push(i); if (this._pRecent.length > 6) this._pRecent.shift();
+    const p = ECHO_PROMPTS[i];
+    const c = this._cloud('<div class="eq-t">' + escapeHTML(p) + '</div><button type="button" class="eq-ask">✎ answer</button>', 34);
+    if (!c) return;
+    const b = c.querySelector('.eq-ask');
+    if (b) b.addEventListener('click', () => { c.remove(); this.openPanel(p); });
+  },
+  openPanel(prompt){
+    const panel = document.getElementById('echoPanel');
+    if (!panel) return;
+    this._prompt = prompt;
+    document.getElementById('epQ').textContent = prompt;
+    const ta = document.getElementById('epTa'), rep = document.getElementById('epReply');
+    ta.value = ''; ta.disabled = false;
+    rep.hidden = true; rep.textContent = '';
+    document.getElementById('epGo').hidden = false;
+    panel.classList.add('open');
+    setTimeout(() => ta.focus(), 250);
+  },
+  closePanel(){ const p = document.getElementById('echoPanel'); if (p) p.classList.remove('open'); },
+  reflect(){
+    const ta = document.getElementById('epTa');
+    const text = (ta.value || '').trim();
+    if (text.length < 2) return;
+    const r = echoCompose(text, mulberry32((Date.now() & 0xffffffff) >>> 0));
+    const rep = document.getElementById('epReply');
+    rep.textContent = r.ack + '\n\n' + r.frag + '\n\n' + r.turn;
+    rep.hidden = false;
+    document.getElementById('epGo').hidden = true;
+    ta.disabled = true;
+    // the journal — this browser only, capped, deletable with site data
+    try {
+      const j = JSON.parse(localStorage.getItem('mb8_echoes') || '[]');
+      j.unshift({ t: Date.now(), q: this._prompt, x: text, r: r.ack + ' ' + r.frag + ' ' + r.turn });
+      localStorage.setItem('mb8_echoes', JSON.stringify(j.slice(0, 60)));
+    } catch (e){}
+  },
+  set(mode, save){
+    if (this.order.indexOf(mode) < 0) mode = 'drift';
+    this.mode = mode;
+    if (save !== false){ try { localStorage.setItem('mb8_echo', mode); } catch (e){} }
+    this.paint();
+  },
+  cycle(){
+    const i = this.order.indexOf(this.mode);
+    this.set(this.order[(i + 1) % this.order.length], true);
+    toast('Echoes · <b>' + this.labels[this.mode].replace('✧ ', '') + '</b> — ' + this.blurb[this.mode]);
+  },
+  load(){
+    let m = null;
+    try { m = localStorage.getItem('mb8_echo'); } catch (e){}
+    if (m && this.order.indexOf(m) >= 0) this.mode = m;
+    this.paint();
+    const c = document.getElementById('epClose'), g = document.getElementById('epGo');
+    if (c) c.addEventListener('click', () => this.closePanel());
+    if (g) g.addEventListener('click', () => this.reflect());
+  },
+  paint(){
+    const c = document.getElementById('chipEcho');
+    if (!c) return;
+    c.textContent = this.labels[this.mode];
+    c.classList.toggle('on', this.mode !== 'off');
+  },
+};
 
 /* ================================================================
    §6d · MEDIASESSION + AIRPLAY — the system Now Playing surface:
@@ -13036,8 +13420,10 @@ const director = {
       // reduced-motion / CALM listeners live in the legible room by default
       if (s.calm && reducedMotion) x *= 2;
       // a strained device is spared the heavy scenes — cheap rooms only, so
-      // it never lags (the music stays smooth regardless)
-      if (s.heavy && typeof PERF !== 'undefined' && PERF.struggling) x *= 0.02;
+      // it never lags (the music stays smooth regardless); ECO asks for the
+      // same mercy on purpose — cheap rooms are how the battery lasts the lawn
+      if (s.heavy && ((typeof PERF !== 'undefined' && PERF.struggling)
+        || (typeof POWER !== 'undefined' && !POWER.heavyOK))) x *= 0.02;
       // the act leans on the deal: the apex wants percussion, the edges want air
       if (this.act === 2 && (i === 3 || i === 5 || i === 8 || i === 12)) x *= 1.6;
       if ((this.act === 0 || this.act === 4) && (i === 4 || i === 6 || i === 9 || i === 11)) x *= 1.6;
@@ -13475,6 +13861,12 @@ function initThree(){
   const chipLens = document.getElementById('chipLens');
   if (chipLens) chipLens.addEventListener('click', () => LENS.cycle());
   LENS.load();
+  const chipPower = document.getElementById('chipPower');
+  if (chipPower) chipPower.addEventListener('click', () => POWER.cycle());
+  POWER.load();                            // after PERF.init — the plan overlays the governor's seed
+  const chipEcho = document.getElementById('chipEcho');
+  if (chipEcho) chipEcho.addEventListener('click', () => ECHO.cycle());
+  ECHO.load();
   SAFE.set(SAFE.calm, false);              // paint the chip's initial state
   DB.kvGet('safeCalm').then(v => { if (v != null) SAFE.set(v === '1', false); }).catch(() => {});
   DB.kvGet('haptics').then(v => { if (v === '1') HAPTICS.set(true, false); }).catch(() => {});
@@ -13522,12 +13914,18 @@ const PERF = {
   },
   save(){
     if (!this._sig) return;
+    // a pinned ratio (SHOW's ceiling, ECO's floor) was never EARNED — it must
+    // not teach the next AUTO launch a quality this device didn't prove
+    if (typeof POWER !== 'undefined' && !POWER.remembers) return;
     try { localStorage.setItem(GPU_MEM_KEY, writeQualityMemory(this._sig, this.pr, this.struggling, Date.now())); } catch (e){}
     this._savedPR = this.pr;
   },
   tick(dt){
     const ms = Math.min(100, dt * 1000);
     this.periodMs += (ms - this.periodMs) * 0.08;      // ~0.8 s EMA
+    // ECO pins the ratio by design — the governor stands down entirely (no
+    // shed, no reclaim, no struggle verdict from a deliberately-starved draw)
+    if (typeof POWER !== 'undefined' && !POWER.governs){ this.govT = 0; return; }
     this.govT += dt;
     if (this.govT < 0.6) return;
     const step = this.govT;
@@ -13581,6 +13979,99 @@ const PERF = {
 // still teaches the next launch (the slow in-tick cadence may not have fired yet)
 window.addEventListener('pagehide', () => PERF.save());
 document.addEventListener('visibilitychange', () => { if (document.hidden) PERF.save(); });
+
+/* POWER — the throttle beside the governor. The governor decides HOW WELL the
+   device runs a target; POWER decides WHAT the target is. AUTO: the adaptive
+   behaviour exactly as shipped. SHOW: full display density, screen held awake —
+   the plugged-in performance (the governor still sheds under it: fluid always
+   outranks dense). ECO: the mowing-the-lawn mode — pixel ratio pinned low,
+   every other frame drawn, lenses and heavy scenes waved off, so the battery
+   goes to the music. The whole contract lives in the pure, tested powerPlan(). */
+const POWER = {
+  order: ['auto', 'show', 'eco'],
+  labels: { auto: '⚡ AUTO', show: '⚡ SHOW', eco: '⚡ ECO' },
+  blurb: {
+    auto: 'quality adapts to this device on its own',
+    show: 'full pixel density, screen kept awake — the plugged-in performance',
+    eco: 'half the frames, a quarter of the pixels — the battery goes to the music',
+  },
+  mode: 'auto',
+  governs: true, remembers: true, lensOK: true, heavyOK: true,
+  _div: 1, _n: 0, _wl: null, _hinted: false,
+  frameGate(){
+    // ECO draws every other rAF: the canvas holds the last frame between draws,
+    // the music-side logic (mixer, clock, transport) still runs every frame
+    if (this._div <= 1) return true;
+    this._n = (this._n + 1) % this._div;
+    return this._n === 0;
+  },
+  set(mode, save){
+    if (this.order.indexOf(mode) < 0) mode = 'auto';
+    this.mode = mode;
+    const p = powerPlan(mode, window.devicePixelRatio || 1, IS_IOS);
+    this.governs = p.govern; this.remembers = p.remember;
+    this.lensOK = p.lens; this.heavyOK = p.heavy; this._div = p.frameDiv; this._n = 0;
+    if (typeof renderer !== 'undefined' && renderer){
+      PERF.maxPR = p.maxPR; PERF.minPR = p.minPR;
+      PERF.pr = p.pinPR != null ? p.pinPR : Math.max(p.minPR, Math.min(p.maxPR, PERF.pr));
+      renderer.setPixelRatio(PERF.pr);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    this.wake(p.wake);
+    if (save !== false){ try { localStorage.setItem('mb8_power', mode); } catch (e){} }
+    this.paint();
+  },
+  cycle(){
+    const i = this.order.indexOf(this.mode);
+    this.set(this.order[(i + 1) % this.order.length], true);
+    toast('Power · <b>' + this.labels[this.mode].replace('⚡ ', '') + '</b> — ' + this.blurb[this.mode]);
+  },
+  load(){
+    let m = null;
+    try { m = localStorage.getItem('mb8_power'); } catch (e){}
+    this.set(m && this.order.indexOf(m) >= 0 ? m : 'auto', false);
+    this.hint();
+  },
+  paint(){
+    const c = document.getElementById('chipPower');
+    if (!c) return;
+    c.textContent = this.labels[this.mode];
+    c.classList.toggle('on', this.mode !== 'auto');
+  },
+  // SHOW keeps the glass lit through a set — a VJ surface that dims mid-drop
+  // is a dead surface. Released the moment the mode changes; re-acquired when
+  // the tab returns (the OS drops wake locks on hide, silently).
+  wake(on){
+    const self = this;
+    try {
+      if (on && !this._wl && navigator.wakeLock && navigator.wakeLock.request){
+        navigator.wakeLock.request('screen').then(wl => {
+          self._wl = wl;
+          wl.addEventListener('release', () => { if (self._wl === wl) self._wl = null; });
+        }).catch(() => {});
+      } else if (!on && this._wl){
+        const wl = this._wl; this._wl = null;
+        Promise.resolve(wl.release()).catch(() => {});
+      }
+    } catch (e){}
+  },
+  // an honest nudge, once: a draining battery is a fact the chip can act on
+  hint(){
+    const self = this;
+    if (this._hinted || this.mode === 'eco' || !navigator.getBattery) return;
+    try {
+      navigator.getBattery().then(b => {
+        if (self._hinted || self.mode === 'eco' || b.charging || b.level > 0.25) return;
+        self._hinted = true;
+        toast('Battery is low — <b>⚡ ECO</b> halves the draw and the music stays untouched. Tap the ⚡ chip.');
+      }).catch(() => {});
+    } catch (e){}
+  },
+};
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && POWER.mode === 'show') POWER.wake(true);
+  if (!document.hidden) POWER.hint();
+});
 let lastT = performance.now(), uiAccum = 0, frameMs = 16, govT = 0, persistAccum = 0, gridBeatIdx = -1, accentAccum = 0;
 // run a per-frame 2D draw in isolation — one failing grace note (waveform, EQ,
 // zen, booth) can never take the transport, the clock or the scene down with
@@ -13699,7 +14190,9 @@ const LENS = {
     const m = t ? mixOf(t) : null;
     const cam = m && m.key ? camelotParse(m.key) : null;
     return pickLens({                                         // the taste lives in the pure, unit-tested map
-      struggling: typeof PERF !== 'undefined' && PERF.struggling,
+      // ECO reads as "struggling" here on purpose: clean glass, zero extra passes
+      struggling: (typeof PERF !== 'undefined' && PERF.struggling)
+        || (typeof POWER !== 'undefined' && !POWER.lensOK),
       ceil: director.ceil, act: director.act, energy: AE.f.energy,
       major: cam ? cam.l === 'B' : true,                      // B = major/brighter; unknown → treat as bright
     });
@@ -13739,7 +14232,9 @@ const LENS = {
   // draw the two base scenes, then the lens chain — or the plain direct path
   render(renderer, bgScene, bgCam, scene, camera){
     let passes = [];
-    if (this.active !== 'none'){ this._init(); passes = this.chain(); }
+    // ECO never pays for render targets or extra passes, whatever the chip says
+    const allowed = typeof POWER === 'undefined' || POWER.lensOK;
+    if (this.active !== 'none' && allowed){ this._init(); passes = this.chain(); }
     if (!passes.length){
       renderer.autoClear = true; renderer.render(bgScene, bgCam);
       renderer.autoClear = false; renderer.render(scene, camera);
@@ -13788,11 +14283,15 @@ function frame(now){
   let dt = (now - lastT) / 1000; lastT = now;
   if (dt > 0.1) dt = 0.1;                 // clamp after tab-away
   PERF.tick(dt);
+  // ECO's frame divider: on a skipped frame the music-side logic below still
+  // runs in full (clock, mixer, transport, persistence) — only the draws and
+  // the GPU uploads sit out, and the glass simply holds its last frame
+  const drawing = typeof POWER === 'undefined' || POWER.frameGate();
   const t = now / 1000;
   U.uTime.value = t;
 
   analyse(dt, t);
-  uploadAudioTexture();
+  if (drawing) uploadAudioTexture();
 
   // THE beat clock: one authoritative read per frame (regression-filtered,
   // output-latency compensated) — the HUD meter, the haptics, the shader
@@ -13886,14 +14385,16 @@ function frame(now){
   // update below — so a single throw here (a half-built peak buffer, a device
   // quirk) must never cascade into a frozen scrubber and a dead time counter.
   // Isolate each; the transport and the scene always get their turn.
-  drawSafe('wave', () => WAVE.draw());
-  drawSafe('zen',  () => WAVE.drawZen());   // cinematic zen waveform — self-skips unless blooming
-  drawSafe('eq',   () => EQ.draw(f, dt));   // the always-on rainbow spectrum shimmer
-  drawSafe('booth',() => BOOTH.draw());
+  if (drawing){
+    drawSafe('wave', () => WAVE.draw());
+    drawSafe('zen',  () => WAVE.drawZen());   // cinematic zen waveform — self-skips unless blooming
+    drawSafe('eq',   () => EQ.draw(f, dt));   // the always-on rainbow spectrum shimmer
+    drawSafe('booth',() => BOOTH.draw());
+  }
 
   INTERACT.update(dt);
   DWELL.update(dt);
-  drawSafe('touchfx', () => TOUCHFX.render());   // the touch-FX overlay follows the hand
+  if (drawing) drawSafe('touchfx', () => TOUCHFX.render());   // the touch-FX overlay follows the hand
   U.uPtr.value.set(INTERACT.wx, INTERACT.wy,   // the sprung warp centre — the field has weight
     INTERACT.strength * (reducedMotion ? 0.35 : 1));
   U.uPtrMode.value = TOUCHFX.mode();   // the touch's personality (VOID/SPIN/PULL/WAVE)
@@ -13902,25 +14403,27 @@ function frame(now){
   COLOR.update(dt);
   LENS.autoTick(dt);   // the director may set a lens — sparse, gated by the song's ceiling
 
-  // Backdrop first, with a camera that inherits ORIENTATION ONLY — no dolly,
-  // no bass FOV-breathing. That is what keeps the sky still while the scenes punch.
-  bgCam.quaternion.copy(camera.quaternion);
-  // the lens engine owns the final draw: direct-to-glass when NONE (unchanged),
-  // or scene→texture→shader-chain→glass when a lens is on
-  LENS.render(renderer, bgScene, bgCam, scene, camera);
+  if (drawing){
+    // Backdrop first, with a camera that inherits ORIENTATION ONLY — no dolly,
+    // no bass FOV-breathing. That is what keeps the sky still while the scenes punch.
+    bgCam.quaternion.copy(camera.quaternion);
+    // the lens engine owns the final draw: direct-to-glass when NONE (unchanged),
+    // or scene→texture→shader-chain→glass when a lens is on
+    LENS.render(renderer, bgScene, bgCam, scene, camera);
 
-  // ---- adaptive resolution governor for the raymarched scene ----
-  // Drop resolution rather than frames. Only acts while a heavy scene is live.
-  frameMs = frameMs * 0.9 + (performance.now() - now) * 0.1;
-  const heavy = scenes[director.active] && scenes[director.active].heavy;
-  if (heavy){
-    govT += dt;
-    if (govT > 0.5){
-      govT = 0;
-      // gate on the REAL frame period (PERF), not CPU queue time — the
-      // raymarch is GPU-bound, so only the honest fps sees it choke
-      if (PERF.periodMs > 20 && bulbScale > 0.3) bulbScale = Math.max(0.3, bulbScale - 0.1);
-      else if (PERF.periodMs < 17.2 && bulbScale < 0.85) bulbScale = Math.min(0.85, bulbScale + 0.05);
+    // ---- adaptive resolution governor for the raymarched scene ----
+    // Drop resolution rather than frames. Only acts while a heavy scene is live.
+    frameMs = frameMs * 0.9 + (performance.now() - now) * 0.1;
+    const heavy = scenes[director.active] && scenes[director.active].heavy;
+    if (heavy){
+      govT += dt;
+      if (govT > 0.5){
+        govT = 0;
+        // gate on the REAL frame period (PERF), not CPU queue time — the
+        // raymarch is GPU-bound, so only the honest fps sees it choke
+        if (PERF.periodMs > 20 && bulbScale > 0.3) bulbScale = Math.max(0.3, bulbScale - 0.1);
+        else if (PERF.periodMs < 17.2 && bulbScale < 0.85) bulbScale = Math.min(0.85, bulbScale + 0.05);
+      }
     }
   }
 
@@ -13950,6 +14453,7 @@ function frame(now){
   // the memories substrate accrues wall-clock playing time
   HIST.tick(dt);
   SLEEP.tick();
+  ECHO.tick(dt);   // a passing thought, timed to the calm water
   // transport state persists while playing (throttled) + Now Playing position
   persistAccum += dt;
   if (persistAccum > 5){
