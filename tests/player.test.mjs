@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -29,7 +29,8 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
-  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample };';
+  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
+  ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -1477,6 +1478,88 @@ test('nextUp: between equally-mixable tracks, the lift outranks the crash', () =
   const cands = [mk(0.15), mk(0.6)];           // 0 = a crash, 1 = a gentle lift; same key/tempo → same mixability
   const ranked = S.nextUp(cands, cur, 2);
   assert.equal(ranked[0].i, 1, 'the gentle lift is suggested first');
+});
+
+// ---------------------------------------------------------------- power plan
+
+test('powerPlan AUTO matches the legacy governor bounds exactly', () => {
+  const p = S.powerPlan('auto', 2, false);
+  assert.equal(p.maxPR, 2); assert.equal(p.minPR, 1); assert.equal(p.pinPR, null);
+  assert.equal(p.frameDiv, 1);
+  assert.ok(p.lens && p.heavy && p.govern && p.remember && !p.wake);
+  const ios = S.powerPlan('auto', 3, true);
+  assert.equal(ios.maxPR, 2, 'auto caps at 2 even on a 3× display');
+  assert.equal(ios.minPR, 0.9, 'iOS floor is 0.9');
+});
+test('powerPlan SHOW raises the ceiling, keeps the screen awake, never teaches AUTO', () => {
+  const p = S.powerPlan('show', 3, false);
+  assert.equal(p.maxPR, 3, 'the full display density is on the table');
+  assert.equal(p.pinPR, 3, 'boots at the ceiling');
+  assert.ok(p.govern, 'the governor still sheds under it — fluid outranks dense');
+  assert.ok(p.wake && !p.remember && p.lens && p.heavy);
+});
+test('powerPlan ECO pins the floor, halves the draw, waves off the heavy work', () => {
+  const p = S.powerPlan('eco', 3, false);
+  assert.equal(p.maxPR, p.minPR); assert.equal(p.pinPR, p.minPR);
+  assert.ok(p.pinPR <= 0.75, 'a quarter of the pixels or less vs 1.5×');
+  assert.equal(p.frameDiv, 2, 'every other frame');
+  assert.ok(!p.lens && !p.heavy && !p.govern && !p.remember && !p.wake);
+});
+test('powerPlan ECO never pins above a low-density display', () => {
+  const p = S.powerPlan('eco', 0.6, false);
+  assert.ok(p.pinPR <= 0.6 + 1e-9);
+});
+test('powerPlan falls back to AUTO on an unknown mode', () => {
+  assert.deepEqual(S.powerPlan('warp', 2, false), S.powerPlan('auto', 2, false));
+});
+
+// ---------------------------------------------------------------- echoes
+
+test('every quote is attributed, non-empty, and short enough to drift', () => {
+  assert.ok(S.ECHO_QUOTES.length >= 40, 'a real pool');
+  for (const q of S.ECHO_QUOTES){
+    assert.ok(q.t && q.t.trim().length > 0, 'text');
+    assert.ok(q.a && q.a.trim().length > 0, 'attribution');
+    assert.ok(q.t.length <= 220, `drifts, not scrolls: ${q.a}`);
+    assert.ok(['physics', 'math', 'stoic', 'music', 'wonder'].includes(q.p), 'a known pool');
+  }
+});
+test('echoPick avoids the recent window and always lands in range', () => {
+  const rng = S.mulberry32(11);
+  const recent = [];
+  for (let k = 0; k < 200; k++){
+    const i = S.echoPick(10, recent, rng);
+    assert.ok(i >= 0 && i < 10);
+    assert.ok(!recent.slice(-9).includes(i), 'no repeat inside the window');
+    recent.push(i); if (recent.length > 9) recent.shift();
+  }
+});
+test('echoCompose is deterministic for a seed', () => {
+  const a = S.echoCompose('I feel tired but hopeful', S.mulberry32(7));
+  const b = S.echoCompose('I feel tired but hopeful', S.mulberry32(7));
+  assert.deepEqual(a, b);
+});
+test('echoCompose answers the SHAPE of the text — question, brevity, flood, feeling', () => {
+  const rng = () => S.mulberry32(3);
+  assert.ok(S.ECHO_ACK.q.includes(S.echoCompose('why does this keep happening?', rng()).ack));
+  assert.ok(S.ECHO_ACK.short.includes(S.echoCompose('just tired', rng()).ack));
+  const flood = Array(45).fill('word').join(' ');
+  assert.ok(S.ECHO_ACK.long.includes(S.echoCompose(flood, rng()).ack));
+  assert.ok(S.ECHO_ACK.feel.includes(S.echoCompose('today I am somewhere between grateful and lonely honestly', rng()).ack));
+});
+test('the reply pools never flatter, never diagnose, never prescribe', () => {
+  const all = [].concat(S.ECHO_ACK.q, S.ECHO_ACK.short, S.ECHO_ACK.long, S.ECHO_ACK.feel,
+    S.ECHO_ACK.plain, S.ECHO_FRAGS, S.ECHO_TURN, S.ECHO_PROMPTS);
+  for (const line of all){
+    assert.ok(!/\b(diagnos|disorder|depress|anxiety disorder|you should|you must|amazing|brilliant|perfect)\b/i.test(line),
+      `overclaims or judges: "${line}"`);
+  }
+});
+test('echoSignals reads word count, questions and feelings honestly', () => {
+  const s = S.echoSignals('am I lost?');
+  assert.equal(s.words, 3); assert.ok(s.question && s.feeling && s.short && s.me);
+  const empty = S.echoSignals('');
+  assert.equal(empty.words, 0); assert.ok(!empty.short && !empty.long);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
