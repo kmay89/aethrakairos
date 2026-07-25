@@ -2,6 +2,15 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "eeb9bcdf6a",
+      "date": "2026-07-25",
+      "title": "Four more skins",
+      "notes": [
+        "Sakura Night, Solstice, Ultramarine, Garnet & Silver — 12 in all",
+        "dialogs, the update bar, and the welcome card now follow your skin too"
+      ]
+    },
+    {
       "build": "71492d2f84",
       "date": "2026-07-25",
       "title": "Skins + a bulletproof update bar",

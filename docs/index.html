@@ -40,6 +40,7 @@
    ============================================================ */
 :root{
   --void:#05060e;
+  --card:rgba(5,6,14,.94);   /* near-opaque void — dialog cards; skins re-dye it */
   --glass:rgba(16,19,32,.52);
   --glass-hard:rgba(10,13,24,.72);
   --sheen:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 42%);
@@ -520,7 +521,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   background:transparent;color:var(--dim);border:none;transition:color .15s,background .15s;
 }
 .fr-seg button+button{border-left:1px solid var(--line-soft)}
-.fr-seg button.on{color:var(--ink);background:rgba(110,231,255,.12)}
+.fr-seg button.on{color:var(--ink);background:var(--accent-dim)}
 .fr-vibe .fr-build{align-self:stretch}
 /* keep-it-forever: install / add to home screen */
 .fr-install{
@@ -542,11 +543,11 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 .fr-echoes{
   display:flex;flex-direction:column;gap:2px;align-items:center;text-decoration:none;cursor:pointer;
   padding:12px 22px;border-radius:14px;max-width:28em;
-  background:var(--glass);border:1px solid rgba(110,231,255,.3);
+  background:var(--glass);border:1px solid var(--accent-line);
   transition:transform .16s ease,border-color .16s ease,background .16s ease;
 }
 .fr-echoes:hover,.fr-echoes:focus-visible{
-  transform:translateY(-2px);border-color:rgba(110,231,255,.55);background:var(--glass-hard);outline:none;
+  transform:translateY(-2px);border-color:var(--accent);background:var(--glass-hard);outline:none;
 }
 .fr-echoes-t{font-size:13px;font-weight:600;color:var(--ink);letter-spacing:.02em}
 .fr-echoes-s{font-size:10.5px;color:var(--dim);letter-spacing:.02em;line-height:1.5}
@@ -856,7 +857,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   top:calc(56px + env(safe-area-inset-top));z-index:57;
   display:none;flex-direction:column;gap:9px;
   width:min(92vw,430px);padding:15px 17px;border-radius:16px;text-align:left;
-  background:var(--sheen),rgba(6,8,18,.94);border:1px solid rgba(110,231,255,.28);
+  background:var(--sheen),var(--card);border:1px solid var(--accent-line);
   box-shadow:0 18px 50px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
   opacity:0;transition:opacity .35s ease,transform .35s ease;
 }
@@ -901,7 +902,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 #upProgress{
   position:fixed;top:0;left:0;right:0;height:3px;z-index:200;
   pointer-events:none;opacity:0;transition:opacity .25s ease;
-  background:rgba(110,231,255,.08);
+  background:var(--line-soft);
 }
 #upProgress.live{opacity:1}
 #upProgress i{
@@ -2664,6 +2665,18 @@ const SKINS = [
   { key: 'monoink',   name: 'MONO INK',      note: 'the whole console in silver-on-black',
     void: '#070708', panel: '#141416', panelHard: '#0d0d0f', ink: '#f2f2f2', dim: '#a8a8a8', faint: '#666a70',
     lineC: '#c8c8c8', pi: '#d8d8d8', e: '#ffffff', beat: '#bbbbbb', accent: '#e8e8e8', accent2: '#ffffff', accentInk: '#0a0a0a' },
+  { key: 'sakura',    name: 'SAKURA NIGHT',  note: 'blossom over an indigo evening',
+    void: '#0a0714', panel: '#1b1226', panelHard: '#120b1c', ink: '#f6eef4', dim: '#b3a2b8', faint: '#6f6280',
+    lineC: '#d9a6c8', pi: '#ffb7c9', e: '#9fb6ff', beat: '#ff7fae', accent: '#ffb7c9', accent2: '#ffe1ea', accentInk: '#20101a' },
+  { key: 'solstice',  name: 'SOLSTICE',      note: 'evergreen dusk, a low golden sun',
+    void: '#06100a', panel: '#10241a', panelHard: '#0a1810', ink: '#eaf6ee', dim: '#96b8a4', faint: '#587a66',
+    lineC: '#8cd9a8', pi: '#ffcf6b', e: '#7fe8a8', beat: '#ff8a5c', accent: '#7fe8a8', accent2: '#d8ffe6', accentInk: '#03140a' },
+  { key: 'ultramarine', name: 'ULTRAMARINE', note: 'open ocean at depth, coral light',
+    void: '#030618', panel: '#0c1430', panelHard: '#070d22', ink: '#e8eeff', dim: '#93a3d0', faint: '#57648c',
+    lineC: '#7c96e8', pi: '#ff8f6b', e: '#6b9fff', beat: '#ff5c87', accent: '#6b9fff', accent2: '#cfe0ff', accentInk: '#040b20' },
+  { key: 'garnet',    name: 'GARNET & SILVER', note: 'wine-dark stone set in cool metal',
+    void: '#10060a', panel: '#241018', panelHard: '#180a10', ink: '#f8ecf0', dim: '#c09aa8', faint: '#7d5c68',
+    lineC: '#e88ca8', pi: '#ff7a94', e: '#d8dde8', beat: '#ff4f70', accent: '#ff7a94', accent2: '#ffd4dd', accentInk: '#1c060e' },
 ];
 function skinResolve(key, skins){
   const list = Array.isArray(skins) && skins.length ? skins : SKINS;
@@ -2688,6 +2701,7 @@ function skinCss(skin, fallback){
   const a = (k, al) => { const c = pick(k); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + al + ')'; };
   return {
     '--void': hex('void'),
+    '--card': a('void', 0.94),
     '--glass': a('panel', 0.52), '--glass-hard': a('panelHard', 0.72),
     '--ink': hex('ink'), '--dim': hex('dim'), '--faint': hex('faint'),
     '--line': a('lineC', 0.16), '--line-soft': a('lineC', 0.08),
@@ -9100,7 +9114,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '71492d2f84';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'eeb9bcdf6a';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
