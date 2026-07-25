@@ -2,6 +2,17 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "71492d2f84",
+      "date": "2026-07-25",
+      "title": "Skins + a bulletproof update bar",
+      "notes": [
+        "8 skins — dress the whole console; your pick stays on this device",
+        "the welcome says it plainly: a free jukebox, loaded and ready",
+        "updating shows an honest progress bar that never gets stuck",
+        "if a swap ever stalls, the player hands itself back — nothing lost"
+      ]
+    },
+    {
       "build": "63660fc4f1",
       "date": "2026-07-24",
       "title": "Smart self-updating",
