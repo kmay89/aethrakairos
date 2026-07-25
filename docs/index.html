@@ -851,7 +851,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 }
 @keyframes upDot{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}
 @media (prefers-reduced-motion:reduce){#btnUpdate.pulse::after{animation:none;opacity:1}}
-#updateCard{
+#updateCard,#skinCard{
   position:fixed;left:50%;transform:translateX(-50%) translateY(16px);
   top:calc(56px + env(safe-area-inset-top));z-index:57;
   display:none;flex-direction:column;gap:9px;
@@ -860,7 +860,57 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   box-shadow:0 18px 50px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
   opacity:0;transition:opacity .35s ease,transform .35s ease;
 }
-#updateCard.in{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+#updateCard.in,#skinCard.in{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+/* ============ skins: the room the music plays in ============ */
+.skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.skin-sw{
+  display:flex;flex-direction:column;gap:6px;text-align:left;cursor:pointer;
+  padding:9px 10px;border-radius:12px;border:1px solid var(--line-soft);
+  background:var(--glass);transition:border-color .15s,transform .15s,box-shadow .15s;
+}
+.skin-sw:hover,.skin-sw:focus-visible{transform:translateY(-1px);border-color:rgba(180,200,240,.4);outline:none}
+.skin-sw.on{border-color:var(--accent-line);box-shadow:0 0 16px -4px var(--accent-glow)}
+.skin-sw .sw-strip{
+  height:22px;border-radius:7px;border:1px solid rgba(255,255,255,.09);
+  background:
+    linear-gradient(120deg,var(--sw-pi) 0%,var(--sw-pi) 34%,var(--sw-e) 66%,var(--sw-e) 100%),
+    var(--sw-void);
+  background-blend-mode:normal;position:relative;overflow:hidden;
+}
+.skin-sw .sw-strip::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(120deg,transparent 30%,var(--sw-void) 92%);
+}
+.skin-sw .sw-name{font-size:9.5px;letter-spacing:.18em;color:var(--ink);font-weight:600}
+.skin-sw .sw-note{font-size:9.5px;letter-spacing:.03em;color:var(--faint);line-height:1.4}
+.skin-sw.on .sw-name::after{content:' ·';color:var(--accent)}
+/* the firstRun teaser: eight little doors, each already dressed */
+.fr-skins{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.fr-skins-t{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
+.fr-skins button{
+  width:22px;height:22px;border-radius:50%;cursor:pointer;padding:0;
+  border:1px solid rgba(255,255,255,.18);
+  background:linear-gradient(120deg,var(--sw-pi),var(--sw-e));
+  box-shadow:inset 0 0 0 3px var(--sw-void);
+  transition:transform .15s ease,box-shadow .15s ease;
+}
+.fr-skins button:hover,.fr-skins button:focus-visible{transform:scale(1.18);outline:none}
+.fr-skins button.on{box-shadow:inset 0 0 0 3px var(--sw-void),0 0 10px 1px var(--accent-glow);border-color:var(--accent)}
+/* the swap bar: a hairline of honest motion across the very top while the
+   update lands — estimation-driven, monotone, never claims done early */
+#upProgress{
+  position:fixed;top:0;left:0;right:0;height:3px;z-index:200;
+  pointer-events:none;opacity:0;transition:opacity .25s ease;
+  background:rgba(110,231,255,.08);
+}
+#upProgress.live{opacity:1}
+#upProgress i{
+  display:block;height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent-2,#4f7cff),var(--accent,#6ee7ff));
+  box-shadow:0 0 12px 1px var(--accent-glow,rgba(110,231,255,.5));
+  transition:width .18s ease-out;
+}
+@media (prefers-reduced-motion:reduce){#upProgress i{transition:none}}
 .up-builds{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--dim);letter-spacing:.04em}
 .up-notes{margin:0;padding:0 0 0 16px;display:flex;flex-direction:column;gap:6px}
 .up-notes li{font-size:12px;line-height:1.5;color:var(--ink)}
@@ -1692,6 +1742,10 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3.4"/><path d="M8 5.6V3.4M8 9l1.8-1.8"/><circle cx="16" cy="15" r="3.4"/><path d="M16 18.4v2.2M16 15l-1.8 1.8"/></svg>
         <span class="lbl">Console <span class="k">J</span></span>
       </button>
+      <button class="btn" id="btnSkins" role="menuitem" aria-label="Choose a skin — restyle the whole console">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 0-18 9 9 0 0 1 8.4 5.8c.5 1.4-.6 2.7-2.1 2.7H16a2.5 2.5 0 0 0-2 4c.9 1.2.2 3-1.3 3.3-.2 0-.5.2-.7.2z"/><circle cx="7.5" cy="11" r=".6" fill="currentColor"/><circle cx="10.5" cy="7.5" r=".6" fill="currentColor"/><circle cx="15" cy="7.5" r=".6" fill="currentColor"/></svg>
+        <span class="lbl">Skins</span>
+      </button>
       <button class="btn" id="btnMic" role="menuitem" aria-label="Toggle live microphone input" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         <span class="lbl">Mic</span>
@@ -1724,7 +1778,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 <!-- ================= empty state ================= -->
 <section id="emptyState" class="chrome">
   <h1 class="hero-line">This is <em>Aethra Kairos</em>.</h1>
-  <p class="hero-sub">A music player that turns each track into live visuals — driven by its real beat, key, and energy. Press play.</p>
+  <p class="hero-sub">A free jukebox that turns each track into live visuals — driven by its real beat, key, and energy. Press play.</p>
   <div class="hero-actions">
     <button class="btn big" id="btnChoose">Choose audio files</button>
     <button class="btn big primary" id="btnDemo">Play — Möbius Walking</button>
@@ -1736,12 +1790,16 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 <!-- ============ first-run: the welcome card ============ -->
 <section id="firstRun" class="chrome" role="dialog" aria-modal="true" aria-label="Welcome to Aethra Kairos">
   <span class="fr-kicker">Welcome to Aethra Kairos</span>
-  <h1 class="fr-line">Press play. <em>See the music.</em></h1>
+  <h1 class="fr-line">A free jukebox, <em>loaded and ready.</em></h1>
   <ul class="fr-how">
-    <li><b>Press play</b> — every track drives its own visuals, in time with the beat. No setup.</li>
-    <li><b>One tap starts a set</b> picked for you. Browse the full library any time from the ☰ menu.</li>
-    <li><b>Come back anytime</b> — it remembers the track and where you left off, and works offline.</li>
+    <li><b>Free, and full</b> — <span id="frCount">hundreds of</span> original songs already loaded. No ads, no accounts, nothing to buy.</li>
+    <li><b>Press play</b> — every track drives its own visuals, in time with its real beat, key, and energy.</li>
+    <li><b>Make it yours</b> — dress the whole console in a skin, pick scenes and moods; it remembers everything and works offline.</li>
   </ul>
+  <div class="fr-skins" id="frSkins" hidden>
+    <span class="fr-skins-t">Skins</span>
+    <span class="fr-skins-dots" id="frSkinDots" style="display:inline-flex;gap:8px"></span>
+  </div>
   <button class="fr-primary" type="button" id="frStart">
     <span class="fr-primary-go">▸ Play my first set</span>
     <span class="fr-primary-sub">The whole library, newest first — every track, never a repeat</span>
@@ -1798,8 +1856,8 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   <div class="ob-stage" id="obStage">
     <div class="ob-panel on">
       <span class="ob-kicker">What it is</span>
-      <h1 class="ob-title">A player that <em>shows you the music.</em></h1>
-      <p class="ob-body">Aethra Kairos plays a catalog of original tracks and renders each one as live visuals — driven by its <b>real beat, key, and energy</b>. Press play to start.</p>
+      <h1 class="ob-title">A free jukebox that <em>shows you the music.</em></h1>
+      <p class="ob-body">Aethra Kairos arrives already loaded — <b>hundreds of original songs, free</b> — and renders each one as live visuals driven by its <b>real beat, key, and energy</b>. Press play to start.</p>
     </div>
     <div class="ob-panel">
       <span class="ob-kicker">One artist</span>
@@ -1820,7 +1878,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <div class="ob-panel">
       <span class="ob-kicker">No catch</span>
       <h1 class="ob-title">It's free, and <em>it's yours.</em></h1>
-      <p class="ob-body">No ads, no accounts, nothing to buy. It works <b>offline</b> once loaded and remembers where you left off. <b>Press play.</b></p>
+      <p class="ob-body">No ads, no accounts, nothing to buy. It works <b>offline</b> once loaded, remembers where you left off, and dresses in any <b>skin</b> you like. <b>Press play.</b></p>
     </div>
   </div>
   <div class="ob-nav">
@@ -2305,6 +2363,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   <div class="ep-note">Kept in this browser only — nothing transmits, ever.</div>
 </div>
 
+<div id="upProgress" aria-hidden="true"><i></i></div>
 <div id="updateCard" role="dialog" aria-label="Update ready">
   <div class="bp-t"><b>Update ready</b> · <span class="up-builds" id="upBuilds"></span></div>
   <ul class="up-notes" id="upNotes"></ul>
@@ -2316,6 +2375,15 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <button class="bp-later" id="upLater" type="button" title="Snooze auto-apply for 6 hours — the button stays">Later</button>
     <button class="bp-later" id="upAfter" type="button" title="Apply at the next track boundary, place saved">After this track</button>
     <button class="bp-go" id="upNow" type="button">Update now</button>
+  </div>
+</div>
+
+<div id="skinCard" role="dialog" aria-label="Skins">
+  <div class="bp-t"><b>Skins</b> · <span class="up-builds">the room the music plays in</span></div>
+  <div class="skin-grid" id="skinGrid"></div>
+  <div class="up-fine">Your pick is kept on this device. The live accent still follows each track's key — a skin sets the room it glows in.</div>
+  <div class="bp-row">
+    <button class="bp-later" id="skinClose" type="button">Close</button>
   </div>
 </div>
 
@@ -2518,6 +2586,116 @@ function newsSince(entries, build, cap){
     if (out.length >= lim) break;
   }
   return out;
+}
+/* UPDATE PROGRESS — an honest bar for an unknowable wait. The swap's true
+   length can't be known ahead (worker handover + reload), so the bar runs on
+   an ESTIMATE: fast early, easing asymptotically, and never claiming done —
+   96% is the ceiling until the new page actually arrives. Monotone by
+   construction (a bar that goes backward reads as broken), and every input
+   is laundered first: NaN, negatives, Infinity, a poisoned localStorage or a
+   clock jump can bend the curve but never break it. */
+const UP_EST = { def: 4000, min: 1200, max: 20000, cap: 0.96 };
+function updateProgress(elapsedMs, estimateMs, prevFrac){
+  let e = Number(elapsedMs);
+  if (!Number.isFinite(e) || e < 0) e = 0;
+  let est = Number(estimateMs);
+  if (!Number.isFinite(est) || est <= 0) est = UP_EST.def;
+  est = Math.min(Math.max(est, UP_EST.min), UP_EST.max);
+  const frac = UP_EST.cap * (1 - Math.exp(-e / (est * 0.55)));
+  const p = Number(prevFrac);
+  const floor = Number.isFinite(p) ? Math.min(Math.max(p, 0), UP_EST.cap) : 0;
+  return Math.max(floor, Math.min(frac, UP_EST.cap));
+}
+/* the learned estimate: blend what we believed with what just happened,
+   clamped so one absurd sample (a tab frozen overnight mid-swap, a wall
+   clock stepping backward) can never teach a minutes-long — or instant —
+   bar. Garbage in either seat falls back to the sane default. */
+function updateEstimate(prev, sampleMs){
+  const p = Number(prev);
+  const base = (Number.isFinite(p) && p > 0)
+    ? Math.min(Math.max(p, UP_EST.min), UP_EST.max) : UP_EST.def;
+  const s = Number(sampleMs);
+  if (!Number.isFinite(s) || s <= 0) return Math.round(base);
+  const sample = Math.min(Math.max(s, UP_EST.min), UP_EST.max);
+  return Math.round(base * 0.6 + sample * 0.4);
+}
+/* UPDATE WATCHDOG — the staged un-stick. After apply is requested the page
+   normally reloads within a second; when it doesn't (controllerchange never
+   fires, a reload silently refused), escalate in stages: nudge a reload at
+   3 s, again at 5.5 s, again at 8 s — and if three nudges all failed to move
+   the page, RECOVER: hand the app back alive (button re-armed, bar gone)
+   instead of a dead "Updating…" forever. A live player beats a stuck swap.
+   Bad elapsed input (NaN, negative — a clock step) safely reads as 'wait'. */
+function updateWatchdogStep(elapsedMs, attempts){
+  const a = Number(attempts) || 0;
+  if (a >= 3) return 'recover';
+  const e = Number(elapsedMs);
+  if (!Number.isFinite(e) || e < 0) return 'wait';
+  return e >= 3000 + a * 2500 ? 'reload' : 'wait';
+}
+/* SKINS — the room the music plays in. A skin re-dresses the CHROME (the
+   void, the glass, the ink, the π/e axis colours); the live accent keeps
+   following the playing track's key on top of any of them. Each one is a
+   full outfit — nothing half-set, so no skin can strand a panel unreadable.
+   The first entry IS the shipped look: resolving anything unknown lands
+   there, by construction. */
+const SKINS = [
+  { key: 'obsidian',  name: 'OBSIDIAN',      note: 'the original — deep space, ice & amber',
+    void: '#05060e', panel: '#101320', panelHard: '#0a0d18', ink: '#e9edf6', dim: '#9aa5bc', faint: '#5c657c',
+    lineC: '#96aad2', pi: '#ffb454', e: '#6ee7ff', beat: '#ff5c87', accent: '#6ee7ff', accent2: '#c9f5ff', accentInk: '#04121a' },
+  { key: 'velvet',    name: 'VELVET NOIR',   note: 'plum blacks, rose π, orchid e',
+    void: '#0b0512', panel: '#1a1026', panelHard: '#120a1c', ink: '#f2e9f6', dim: '#b09ac2', faint: '#6e5c80',
+    lineC: '#be96dc', pi: '#ff9db8', e: '#d9a7ff', beat: '#ff6ba8', accent: '#d9a7ff', accent2: '#f2dcff', accentInk: '#160a20' },
+  { key: 'brass',     name: 'MIDNIGHT BRASS', note: 'lamplight and champagne over coal',
+    void: '#080604', panel: '#181307', panelHard: '#100d06', ink: '#f5efe2', dim: '#b8a98c', faint: '#7c6f58',
+    lineC: '#dcbe8c', pi: '#ffd27a', e: '#8fe3c0', beat: '#ff7b5c', accent: '#ffd27a', accent2: '#ffedc4', accentInk: '#1a1204' },
+  { key: 'neon',      name: 'NEON BLOOM',    note: 'signage after rain — magenta & cyan',
+    void: '#0a0216', panel: '#170a2e', panelHard: '#100722', ink: '#f0e9ff', dim: '#a496c8', faint: '#635a86',
+    lineC: '#b48cff', pi: '#ff6bd6', e: '#59f2ff', beat: '#ff3d81', accent: '#59f2ff', accent2: '#c4faff', accentInk: '#041418' },
+  { key: 'abyss',     name: 'ABYSS',         note: 'bioluminescence in deep water',
+    void: '#02100e', panel: '#0a2420', panelHard: '#061814', ink: '#e4f6f0', dim: '#8fb8ac', faint: '#547a6f',
+    lineC: '#78dcbe', pi: '#ffc46b', e: '#4ff2c8', beat: '#ff6a6a', accent: '#4ff2c8', accent2: '#c8ffee', accentInk: '#02150f' },
+  { key: 'ember',     name: 'EMBER FIELD',   note: 'banked coals, verdigris cooling',
+    void: '#100705', panel: '#241009', panelHard: '#180b06', ink: '#f8ece4', dim: '#c0a08e', faint: '#7d6355',
+    lineC: '#ffa06e', pi: '#ff9d3f', e: '#7fd8d0', beat: '#ff5c3f', accent: '#ff9d3f', accent2: '#ffd8b0', accentInk: '#1c0d02' },
+  { key: 'glacier',   name: 'GLACIER',       note: 'arctic steel, a warm horizon line',
+    void: '#04080f', panel: '#0e1826', panelHard: '#08101a', ink: '#eaf3ff', dim: '#9ab4d4', faint: '#5c7288',
+    lineC: '#8cbef0', pi: '#ffd9a0', e: '#a8d8ff', beat: '#ff7fa8', accent: '#a8d8ff', accent2: '#e2f2ff', accentInk: '#06121e' },
+  { key: 'monoink',   name: 'MONO INK',      note: 'the whole console in silver-on-black',
+    void: '#070708', panel: '#141416', panelHard: '#0d0d0f', ink: '#f2f2f2', dim: '#a8a8a8', faint: '#666a70',
+    lineC: '#c8c8c8', pi: '#d8d8d8', e: '#ffffff', beat: '#bbbbbb', accent: '#e8e8e8', accent2: '#ffffff', accentInk: '#0a0a0a' },
+];
+function skinResolve(key, skins){
+  const list = Array.isArray(skins) && skins.length ? skins : SKINS;
+  for (const s of list){ if (s && s.key === key) return s; }
+  return list[0];
+}
+/* a skin becomes CSS custom properties. Every colour is laundered through a
+   hex parse first; anything unparseable (a hand-edited localStorage, a bad
+   future entry) falls back to the same slot on the fallback skin — a skin
+   can look wrong, but it can never make the app unreadable. */
+function skinHexRgb(hex){
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+}
+function skinCss(skin, fallback){
+  const fb = fallback || SKINS[0];
+  const s = skin || fb;
+  const pick = k => skinHexRgb(s[k]) || skinHexRgb(fb[k]) || [110, 231, 255];
+  const hex = k => { const c = pick(k); return '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''); };
+  const a = (k, al) => { const c = pick(k); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + al + ')'; };
+  return {
+    '--void': hex('void'),
+    '--glass': a('panel', 0.52), '--glass-hard': a('panelHard', 0.72),
+    '--ink': hex('ink'), '--dim': hex('dim'), '--faint': hex('faint'),
+    '--line': a('lineC', 0.16), '--line-soft': a('lineC', 0.08),
+    '--pi': hex('pi'), '--e': hex('e'), '--beat': hex('beat'),
+    '--pi-dim': a('pi', 0.14), '--e-dim': a('e', 0.14),
+    '--accent': hex('accent'), '--accent-2': hex('accent2'), '--accent-ink': hex('accentInk'),
+    '--accent-dim': a('accent', 0.14), '--accent-glow': a('accent', 0.5), '--accent-line': a('accent', 0.34),
+  };
 }
 // @pure-end
 
@@ -8922,7 +9100,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '63660fc4f1';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '71492d2f84';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -8992,24 +9170,91 @@ function maybeAutoApply(){
   });
   if (verdict === 'apply') applyUpdate();
 }
+/* the swap itself, hardened end to end: every step is fenced so no single
+   failure — a throwing save, a vanished worker, a refused reload — can strand
+   the listener on a dead "Updating…". The bar runs on the learned estimate
+   (updateProgress), the watchdog escalates (updateWatchdogStep), and the last
+   resort is RECOVERY: the app handed back alive, update still on offer. */
+const UP_RUN = { t0: 0, attempts: 0, barTimer: 0, dogTimer: 0, est: UP_EST.def, frac: 0 };
+function safeReload(){
+  try { location.reload(); return; } catch (e){}
+  try { location.replace(location.href); } catch (e){}
+}
+function upProgressStart(){
+  const bar = document.getElementById('upProgress');
+  if (!bar) return;
+  try { UP_RUN.est = updateEstimate(localStorage.getItem('mb8_update_est'), null); }
+  catch (e){ UP_RUN.est = UP_EST.def; }
+  UP_RUN.frac = 0;
+  bar.classList.add('live');
+  clearInterval(UP_RUN.barTimer);
+  UP_RUN.barTimer = setInterval(() => {
+    UP_RUN.frac = updateProgress(Date.now() - UP_RUN.t0, UP_RUN.est, UP_RUN.frac);
+    const i = bar.querySelector('i');
+    if (i) i.style.width = (UP_RUN.frac * 100).toFixed(1) + '%';
+  }, 150);
+}
+function upProgressStop(done){
+  clearInterval(UP_RUN.barTimer); UP_RUN.barTimer = 0;
+  const bar = document.getElementById('upProgress');
+  if (!bar) return;
+  const i = bar.querySelector('i');
+  if (done && i) i.style.width = '100%';       // the page is leaving — say so
+  else bar.classList.remove('live');
+  if (!done && i) i.style.width = '0%';
+}
+function updateRecover(){
+  // three nudges and the page still refused to turn: hand the app back alive
+  updateRequested = false;
+  clearInterval(UP_RUN.dogTimer); UP_RUN.dogTimer = 0;
+  UP_RUN.attempts = 0;
+  upProgressStop(false);
+  el.btnUpdate.disabled = false;
+  const lbl = el.btnUpdate.querySelector('.lbl');
+  if (lbl) lbl.textContent = 'Update';
+  UPDATE.source = UPDATE.source || 'shell';    // a plain reload still updates
+  UPDATE.snoozedUntil = Date.now() + 60 * 1000; // a breath before auto retries
+  try { sessionStorage.removeItem('mb8_updated_from'); } catch (e){}
+  toast('The update didn\'t land this time — nothing lost, it stays ready. Tap <b>Update</b> to try again.');
+}
 function applyUpdate(){
+  if (updateRequested) return;                 // one swap at a time, ever
   if (!UPDATE.ready()){ el.btnUpdate.hidden = true; return; }
   updateRequested = true;
-  PERSIST.save();                                // the whole session restores after the swap
-  try { sessionStorage.setItem('mb8_updated_from', MB8_BUILD); } catch (e){}
+  UP_RUN.t0 = Date.now();
+  UP_RUN.attempts = 0;
+  try { PERSIST.save(); } catch (e){}          // best effort — never blocks the swap
+  try {
+    sessionStorage.setItem('mb8_updated_from', MB8_BUILD);
+    sessionStorage.setItem('mb8_update_t0', String(UP_RUN.t0));
+  } catch (e){}
   updateCardOpen(false);
   el.btnUpdate.hidden = false;
   el.btnUpdate.disabled = true;
-  el.btnUpdate.querySelector('.lbl').textContent = 'Updating…';
+  const lbl = el.btnUpdate.querySelector('.lbl');
+  if (lbl) lbl.textContent = 'Updating…';
+  upProgressStart();
+  let handedOver = false;
   if (swReg && swReg.waiting){
-    swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
-    // belt and braces: if controllerchange never fires (unusual), reload anyway
-    setTimeout(() => { if (updateRequested) location.reload(); }, 3000);
-  } else {
-    // shell path: the fresh page is already cached — a reload IS the update
-    location.reload();
+    try { swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); handedOver = true; }
+    catch (e){}                                // worker gone mid-flight → reload path
   }
+  if (!handedOver) safeReload();               // shell path: the fresh page is already cached
+  // the staged watchdog: escalate if the page doesn't turn, recover if it never does
+  clearInterval(UP_RUN.dogTimer);
+  UP_RUN.dogTimer = setInterval(() => {
+    if (!updateRequested) return;
+    const step = updateWatchdogStep(Date.now() - UP_RUN.t0, UP_RUN.attempts);
+    if (step === 'reload'){ UP_RUN.attempts++; safeReload(); }
+    else if (step === 'recover') updateRecover();
+  }, 500);
 }
+// the page is actually leaving — finish the bar honestly and stand down
+window.addEventListener('pagehide', () => {
+  if (!updateRequested) return;
+  clearInterval(UP_RUN.dogTimer); UP_RUN.dogTimer = 0;
+  upProgressStop(true);
+});
 /* ---- the update card: the log and the three honest choices ---- */
 function updateCardOpen(open){
   const card = document.getElementById('updateCard');
@@ -9021,7 +9266,12 @@ function updateCardOpen(open){
   const list = document.getElementById('upNotes');
   if (list){
     list.innerHTML = '<li>Fetching the log…</li>';
-    fetch('news.json', { cache: 'no-cache' }).then(r => r.json()).then(j => {
+    // page-side timeout too (the worker has its own): a first visit with no
+    // worker yet must not leave "Fetching…" hanging on a black-holed request
+    const ctl = new AbortController();
+    const timer = setTimeout(() => { try { ctl.abort(); } catch (e){} }, 7000);
+    fetch('news.json', { cache: 'no-cache', signal: ctl.signal })
+      .then(r => { clearTimeout(timer); return r.json(); }).then(j => {
       const items = newsSince(j && j.entries, MB8_BUILD, 4);
       list.innerHTML = '';
       if (!items.length){ list.innerHTML = '<li>A fresh build — small fixes and polish.</li>'; return; }
@@ -9031,7 +9281,7 @@ function updateCardOpen(open){
           + (e.notes && e.notes.length ? ' — ' + escapeHTML(e.notes.join(' · ')) : '');
         list.appendChild(li);
       }
-    }).catch(() => { list.innerHTML = '<li>The log is unreachable right now — the update itself is ready.</li>'; });
+    }).catch(() => { clearTimeout(timer); list.innerHTML = '<li>The log is unreachable right now — the update itself is ready.</li>'; });
   }
   const showNote = document.getElementById('upShowNote');
   if (showNote) showNote.hidden = !(typeof POWER !== 'undefined' && POWER.mode === 'show');
@@ -9054,11 +9304,20 @@ function wireUpdateCard(){
   on('upClose', () => updateCardOpen(false));
 }
 wireUpdateCard();
-// after the swap: say it landed, once, with the proof (the new build id)
+// after the swap: say it landed, once, with the proof (the new build id) —
+// and teach the progress bar how long the swap REALLY took, so the next
+// estimate is honest (updateEstimate clamps, so a frozen tab can't lie to it)
 try {
   const from = sessionStorage.getItem('mb8_updated_from');
   if (from){
     sessionStorage.removeItem('mb8_updated_from');
+    const t0 = Number(sessionStorage.getItem('mb8_update_t0'));
+    sessionStorage.removeItem('mb8_update_t0');
+    try {
+      if (Number.isFinite(t0) && t0 > 0)
+        localStorage.setItem('mb8_update_est',
+          String(updateEstimate(localStorage.getItem('mb8_update_est'), Date.now() - t0)));
+    } catch (e){}
     if (from !== MB8_BUILD) toast('Updated · build <b>' + escapeHTML(MB8_BUILD) + '</b> — everything restored');
     else toast('Refreshed to the newest deploy');
   }
@@ -9067,6 +9326,98 @@ setInterval(maybeAutoApply, 5000);
 el.btnUpdate.addEventListener('click', () => updateCardOpen(!document.getElementById('updateCard').classList.contains('in')));
 window.addEventListener('offline', () => toast('Offline — the library stays; streaming is unavailable'));
 window.addEventListener('online', () => toast('Back online'));
+
+/* ---- skins: the console re-dressed, remembered, unbreakable ----
+   All the colour logic is pure (SKINS, skinResolve, skinCss — tested); this
+   is only the hands: set the variables, keep the pick, paint the pickers.
+   Every step is fenced — a blocked localStorage or a missing node can cost
+   the memory or a picker, never the music or the chrome. */
+const SKIN = {
+  key: SKINS[0].key,
+  apply(key, quiet){
+    const s = skinResolve(key, SKINS);
+    this.key = s.key;
+    const css = skinCss(s, SKINS[0]);
+    try {
+      const rs = document.documentElement.style;
+      for (const k in css) rs.setProperty(k, css[k]);
+    } catch (e){}
+    try { localStorage.setItem('mb8_skin', s.key); } catch (e){}
+    this.paint();
+    if (!quiet) toast('Skin · <b>' + escapeHTML(s.name) + '</b> — ' + escapeHTML(s.note));
+  },
+  load(){
+    let k = null;
+    try { k = localStorage.getItem('mb8_skin'); } catch (e){}
+    if (k && k !== SKINS[0].key) this.apply(k, true);   // unknown keys resolve to the original
+  },
+  // each swatch is dressed in its own skin's colours — every door shows its room
+  _dress(node, s){
+    const fb = SKINS[0];
+    node.style.setProperty('--sw-pi', skinHexRgb(s.pi) ? s.pi : fb.pi);
+    node.style.setProperty('--sw-e', skinHexRgb(s.e) ? s.e : fb.e);
+    node.style.setProperty('--sw-void', skinHexRgb(s.void) ? s.void : fb.void);
+  },
+  buildCard(){
+    const grid = document.getElementById('skinGrid');
+    if (!grid) return;
+    if (!grid.childElementCount){
+      for (const s of SKINS){
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'skin-sw'; b.dataset.skin = s.key;
+        b.setAttribute('aria-pressed', 'false');
+        b.innerHTML = '<span class="sw-strip"></span><span class="sw-name"></span><span class="sw-note"></span>';
+        b.querySelector('.sw-name').textContent = s.name;
+        b.querySelector('.sw-note').textContent = s.note;
+        this._dress(b, s);
+        b.addEventListener('click', () => this.apply(s.key));
+        grid.appendChild(b);
+      }
+    }
+    this.paint();
+  },
+  // the welcome card's teaser row: eight little doors, tap one and the whole
+  // room changes right there — customization proven before the first play
+  frPaint(){
+    const row = document.getElementById('frSkins'), dots = document.getElementById('frSkinDots');
+    if (!row || !dots) return;
+    if (!dots.childElementCount){
+      for (const s of SKINS){
+        const b = document.createElement('button');
+        b.type = 'button'; b.dataset.skin = s.key;
+        b.title = s.name + ' — ' + s.note;
+        b.setAttribute('aria-label', 'Skin: ' + s.name);
+        b.setAttribute('aria-pressed', 'false');
+        this._dress(b, s);
+        b.addEventListener('click', ev => { ev.stopPropagation(); this.apply(s.key); });
+        dots.appendChild(b);
+      }
+    }
+    row.hidden = false;
+    this.paint();
+  },
+  paint(){
+    document.querySelectorAll('[data-skin]').forEach(n => {
+      const on = n.dataset.skin === this.key;
+      n.classList.toggle('on', on);
+      if (n.hasAttribute('aria-pressed')) n.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  },
+};
+function skinCardOpen(open){
+  const card = document.getElementById('skinCard');
+  if (!card) return;
+  if (open) SKIN.buildCard();
+  card.classList.toggle('in', !!open);
+}
+(function wireSkins(){
+  const btn = document.getElementById('btnSkins');
+  if (btn) btn.addEventListener('click', () =>
+    skinCardOpen(!document.getElementById('skinCard').classList.contains('in')));
+  const x = document.getElementById('skinClose');
+  if (x) x.addEventListener('click', () => skinCardOpen(false));
+  SKIN.load();
+})();
 
 /* ================================================================
    §7 · TRANSPORT UI — seek, volume, modes, chrome behaviour
@@ -10626,6 +10977,7 @@ window.addEventListener('keydown', ev => {
     case '?': case '/': openHelp(!el.help.classList.contains('open')); break;
     case 'Escape':
       if (el.overflow.classList.contains('open')) setMore(false);
+      else if (document.getElementById('skinCard') && document.getElementById('skinCard').classList.contains('in')) skinCardOpen(false);
       else if (el.help.classList.contains('open')) openHelp(false);
       else if (BOOTH.open) BOOTH.toggle(false);
       else if (CON.open) openConsole(false);
@@ -14855,6 +15207,7 @@ document.getElementById('buildLine').textContent = MB8_BUILD;
 function firstRunOpen(){
   if (el.empty) el.empty.classList.add('gone');
   firstRunStat();
+  try { SKIN.frPaint(); } catch (e){}    // the teaser row — never load-bearing
   frInstallSetup();
   el.firstRun.classList.add('open');
   // the tap that dismissed the onboarding can synthesize a click that falls
@@ -14880,6 +15233,9 @@ function firstRunStat(){
   else if (secs >= 60) size = Math.round(secs / 60) + ' minutes';
   else size = null;
   const nStr = n.toLocaleString();
+  // the welcome bullet says the real number the moment we know it
+  const fc = document.getElementById('frCount');
+  if (fc) fc.textContent = nStr;
   // a returning listener is greeted with where they are in the journey:
   // how many they've heard, and how many are still fresh to discover
   const stats = libraryHeardStats();

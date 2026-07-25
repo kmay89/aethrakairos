@@ -31,7 +31,9 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
-  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, newsSince };';
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, newsSince,' +
+  ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
+  ' SKINS, skinResolve, skinHexRgb, skinCss };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -1643,6 +1645,92 @@ test('newsSince: walks newest-first until the running build, exclusive, capped',
   assert.deepEqual(S.newsSince(entries, 'unknown').map(e => e.build), ['d', 'c', 'b', 'a'], 'unknown build shows the newest few');
   assert.deepEqual(S.newsSince(entries, 'unknown', 2).map(e => e.build), ['d', 'c'], 'the cap holds');
   assert.deepEqual(S.newsSince(null, 'x'), [], 'no entries, no crash');
+});
+
+// ------------------------------------------------ update progress + watchdog
+
+test('updateProgress: starts at zero, rises, never reaches the cap', () => {
+  assert.equal(S.updateProgress(0, 4000), 0);
+  const early = S.updateProgress(1000, 4000);
+  const late = S.updateProgress(4000, 4000);
+  assert.ok(early > 0.2, 'moves early');
+  assert.ok(late > early, 'keeps rising');
+  assert.ok(S.updateProgress(1e9, 4000) <= S.UP_EST.cap, 'a stuck swap never claims done');
+});
+test('updateProgress: monotone — never below the previous frame', () => {
+  // a clock stepping backward mid-swap must not walk the bar backward
+  assert.equal(S.updateProgress(100, 4000, 0.8), 0.8);
+  assert.ok(S.updateProgress(8000, 4000, 0.5) > 0.5);
+});
+test('updateProgress: garbage in, safe motion out', () => {
+  for (const bad of [NaN, -5, Infinity, 'x', null, undefined]){
+    const f = S.updateProgress(bad, bad, bad);
+    assert.ok(Number.isFinite(f) && f >= 0 && f <= S.UP_EST.cap, 'elapsed/estimate/prev = ' + bad);
+  }
+  // estimate of 0 or negative falls back to the default curve, still finite
+  assert.ok(Number.isFinite(S.updateProgress(2000, 0)));
+  assert.ok(Number.isFinite(S.updateProgress(2000, -100)));
+});
+test('updateEstimate: default with no history, blends, clamps absurd samples', () => {
+  assert.equal(S.updateEstimate(null, null), S.UP_EST.def, 'no history → default');
+  assert.equal(S.updateEstimate('garbage', NaN), S.UP_EST.def, 'poisoned storage → default');
+  const learned = S.updateEstimate(4000, 8000);
+  assert.ok(learned > 4000 && learned < 8000, 'a slow swap raises the estimate partway');
+  assert.ok(S.updateEstimate(4000, 1e9) <= S.UP_EST.max, 'a frozen-overnight sample is clamped');
+  assert.ok(S.updateEstimate(4000, 1) >= S.UP_EST.min, 'an instant sample is clamped');
+  assert.ok(S.updateEstimate(1e9, 4000) <= Math.round(S.UP_EST.max * 0.6 + 4000 * 0.4), 'a poisoned prior is clamped before blending');
+});
+test('updateWatchdogStep: waits, then escalating reloads, then recovery', () => {
+  assert.equal(S.updateWatchdogStep(1000, 0), 'wait', 'healthy first second');
+  assert.equal(S.updateWatchdogStep(3100, 0), 'reload', 'first nudge at 3 s');
+  assert.equal(S.updateWatchdogStep(4000, 1), 'wait', 'stage two not due yet');
+  assert.equal(S.updateWatchdogStep(5600, 1), 'reload', 'second nudge at 5.5 s');
+  assert.equal(S.updateWatchdogStep(8100, 2), 'reload', 'third nudge at 8 s');
+  assert.equal(S.updateWatchdogStep(9000, 3), 'recover', 'three refusals → hand the app back');
+});
+test('updateWatchdogStep: a broken clock reads as wait, never a panic reload', () => {
+  assert.equal(S.updateWatchdogStep(NaN, 0), 'wait');
+  assert.equal(S.updateWatchdogStep(-500, 0), 'wait');
+  assert.equal(S.updateWatchdogStep(NaN, 3), 'recover', 'recovery still fires on attempts alone');
+});
+
+// ---------------------------------------------------------------- skins
+
+test('SKINS: every skin is a full outfit with unique keys, original first', () => {
+  assert.equal(S.SKINS[0].key, 'obsidian', 'the shipped look leads');
+  const keys = new Set();
+  for (const s of S.SKINS){
+    keys.add(s.key);
+    for (const f of ['void', 'panel', 'panelHard', 'ink', 'dim', 'faint', 'lineC', 'pi', 'e', 'beat', 'accent', 'accent2', 'accentInk'])
+      assert.ok(S.skinHexRgb(s[f]), s.key + '.' + f + ' must be a parseable hex colour');
+    assert.ok(s.name && s.note, s.key + ' has a name and a note');
+  }
+  assert.equal(keys.size, S.SKINS.length, 'no duplicate keys');
+});
+test('skinResolve: unknown, null, garbage all land on the original', () => {
+  assert.equal(S.skinResolve('velvet').key, 'velvet');
+  assert.equal(S.skinResolve('no-such-skin').key, 'obsidian');
+  assert.equal(S.skinResolve(null).key, 'obsidian');
+  assert.equal(S.skinResolve({ evil: true }).key, 'obsidian');
+  assert.equal(S.skinResolve('x', []).key, 'obsidian', 'an empty list falls back to SKINS');
+});
+test('skinCss: full variable coverage, well-formed colours', () => {
+  for (const s of S.SKINS){
+    const css = S.skinCss(s, S.SKINS[0]);
+    for (const v of ['--void', '--glass', '--glass-hard', '--ink', '--dim', '--faint', '--line', '--line-soft',
+      '--pi', '--e', '--beat', '--pi-dim', '--e-dim', '--accent', '--accent-2', '--accent-ink',
+      '--accent-dim', '--accent-glow', '--accent-line'])
+      assert.ok(/^(#[0-9a-f]{6}|rgba\(\d+,\d+,\d+,0?\.\d+\))$/i.test(css[v]), s.key + ' ' + v + ' = ' + css[v]);
+  }
+});
+test('skinCss: a poisoned skin falls back slot-by-slot, never unreadable', () => {
+  const bad = { key: 'bad', void: 'purple-ish', ink: null, pi: '#ffb454' };
+  const css = S.skinCss(bad, S.SKINS[0]);
+  const base = S.skinCss(S.SKINS[0], S.SKINS[0]);
+  assert.equal(css['--void'], base['--void'], 'unparseable void → original void');
+  assert.equal(css['--ink'], base['--ink'], 'missing ink → original ink');
+  assert.equal(css['--pi'], '#ffb454', 'the one good colour survives');
+  assert.deepEqual(S.skinCss(null, S.SKINS[0]), base, 'no skin at all → the original outfit');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
