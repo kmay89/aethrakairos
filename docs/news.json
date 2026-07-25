@@ -1,0 +1,53 @@
+{
+  "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
+  "entries": [
+    {
+      "build": "63660fc4f1",
+      "date": "2026-07-24",
+      "title": "Smart self-updating",
+      "notes": [
+        "updates now arrive by themselves — no more clearing site data",
+        "the Update button wears a badge and opens this log",
+        "choose: now, after this track, or later (6 h)",
+        "⚡ SHOW mode is never interrupted by an update"
+      ]
+    },
+    {
+      "build": "touch-epic",
+      "date": "2026-07-24",
+      "title": "The epic touch",
+      "notes": [
+        "hold to charge, release to detonate",
+        "sling the vortex and it keeps spinning",
+        "tap on the beat — the field answers louder",
+        "✦ AUTO: scenes re-tune your touch as they change"
+      ]
+    },
+    {
+      "build": "echoes-drift",
+      "date": "2026-07-24",
+      "title": "Echoes — passing thoughts",
+      "notes": [
+        "quotes drift by like clouds in the calm passages",
+        "✧ MUSE floats questions you can answer, kept on this device only"
+      ]
+    },
+    {
+      "build": "power-modes",
+      "date": "2026-07-24",
+      "title": "Power modes",
+      "notes": [
+        "⚡ SHOW: full density, screen kept awake",
+        "⚡ ECO: half the frames, quarter the pixels — battery goes to the music"
+      ]
+    },
+    {
+      "build": "84413e9a03",
+      "date": "2026-07-23",
+      "title": "Mobile booth redesign",
+      "notes": [
+        "real platters on mobile, a live monitor between them"
+      ]
+    }
+  ]
+}

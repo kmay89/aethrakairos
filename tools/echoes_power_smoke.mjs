@@ -154,6 +154,61 @@ const t3 = await page.evaluate(() => {
 });
 R('a live finger defers the surprise; the lift pays it', t3.deferred && t3.heldSame && t3.paid, JSON.stringify(t3));
 
+// ---- self-update, end to end: a real deploy change reaches a live page ----
+// A fresh context: load once (SW installs), reload (SW controls the page),
+// then MUTATE the deployed index.html on disk — a byte-for-byte new deploy,
+// stamp untouched — ask for a check, and watch the badge, the card, and the
+// apply land the new shell without anyone touching site data.
+import('fs').then(() => {});   // (fs already imported at top)
+const ctxU = await browser.newContext();
+const pageU = await ctxU.newPage();
+await pageU.goto(base, { waitUntil: 'load' });
+await pageU.waitForFunction('navigator.serviceWorker && navigator.serviceWorker.ready && true', null, { timeout: 15000 });
+await pageU.waitForTimeout(1200);                      // let install/activate settle
+await pageU.reload({ waitUntil: 'load' });
+await pageU.waitForTimeout(800);
+const controlled = await pageU.evaluate(() => !!navigator.serviceWorker.controller);
+R('second load is service-worker controlled', controlled);
+// hold the auto-apply the way a live set would — SHOW mode — so the badge
+// can be observed instead of the update seamlessly applying itself (which is
+// what an idle page correctly does within seconds)
+await pageU.evaluate(() => POWER.set('show', false));
+// the "new deploy": the same app with one more byte
+const idxPath = join(DIR, 'index.html');
+const orig = readFileSync(idxPath, 'utf8');
+const { writeFileSync } = await import('fs');
+writeFileSync(idxPath, orig.replace('</html>', '<!-- deploy-marker-xyz --></html>'));
+await pageU.evaluate(() => checkForUpdate());
+const badged = await pageU.waitForFunction(
+  '!document.getElementById("btnUpdate").hidden', null, { timeout: 15000 }).then(() => true).catch(() => false);
+R('a fresh deploy raises the update badge by itself', badged);
+if (badged){
+  const src = await pageU.evaluate(() => ({ source: UPDATE.source, ready: UPDATE.ready() }));
+  R('the shell path is the source and reports ready', src.source === 'shell' && src.ready, JSON.stringify(src));
+  // SHOW holds it: pump the auto-apply gate hard and confirm nothing moved
+  const held = await pageU.evaluate(() => { for (let i = 0; i < 5; i++) maybeAutoApply();
+    return !document.getElementById('btnUpdate').disabled; });
+  R('SHOW mode holds the auto-apply', held);
+  await pageU.evaluate(() => document.getElementById('btnUpdate').click());
+  await pageU.waitForTimeout(700);
+  const card = await pageU.evaluate(() => ({
+    open: document.getElementById('updateCard').classList.contains('in'),
+    notes: document.getElementById('upNotes').children.length,
+    showNote: !document.getElementById('upShowNote').hidden,
+  }));
+  R('the update card opens with a log and the SHOW notice', card.open && card.notes > 0 && card.showNote, JSON.stringify(card));
+  // apply through the card: the reload serves the NEW shell from cache
+  await Promise.all([
+    pageU.waitForNavigation({ waitUntil: 'load', timeout: 20000 }).catch(() => null),
+    pageU.evaluate(() => { POWER.set('auto', false); document.getElementById('upNow').click(); }),
+  ]);
+  await pageU.waitForTimeout(600);
+  const after = await pageU.evaluate(() => document.documentElement.outerHTML.includes('deploy-marker-xyz'));
+  R('the applied update serves the new deploy', after);
+}
+writeFileSync(idxPath, orig);                          // restore the deploy
+await ctxU.close();
+
 await browser.close(); server.close();
 console.log(fails ? `\n${fails} FAILED` : '\nall smoke checks passed');
 process.exit(fails ? 1 : 0);
