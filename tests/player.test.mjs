@@ -1717,7 +1717,7 @@ test('skinResolve: unknown, null, garbage all land on the original', () => {
 test('skinCss: full variable coverage, well-formed colours', () => {
   for (const s of S.SKINS){
     const css = S.skinCss(s, S.SKINS[0]);
-    for (const v of ['--void', '--glass', '--glass-hard', '--ink', '--dim', '--faint', '--line', '--line-soft',
+    for (const v of ['--void', '--card', '--glass', '--glass-hard', '--ink', '--dim', '--faint', '--line', '--line-soft',
       '--pi', '--e', '--beat', '--pi-dim', '--e-dim', '--accent', '--accent-2', '--accent-ink',
       '--accent-dim', '--accent-glow', '--accent-line'])
       assert.ok(/^(#[0-9a-f]{6}|rgba\(\d+,\d+,\d+,0?\.\d+\))$/i.test(css[v]), s.key + ' ' + v + ' = ' + css[v]);
