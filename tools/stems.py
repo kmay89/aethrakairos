@@ -38,12 +38,20 @@ Requires numpy always; Demucs + ffmpeg only when actually separating audio
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 import numpy as np
+
+# this script lives in tools/, but fingerprint.py (the audio decoder it uses to
+# read Demucs's output) sits at the repo root — put the root on sys.path so the
+# lazy `from fingerprint import decode_mono` in separate() resolves no matter the
+# CWD the script is launched from (running `python3 tools/stems.py` otherwise
+# puts only tools/ on the path, and every separation silently misses).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 CATALOG_PATH = Path("docs/catalog.json")
 AUDIO_ROOT = Path("docs/audio")
