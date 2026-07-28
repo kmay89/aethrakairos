@@ -8556,6 +8556,60 @@ function trackStems(t){
   return (s && s.sv >= 1 && (s.d || s.b || s.v || s.o)) ? s : null;
 }
 
+// @mix-start
+// THE SEAM, executed on the audio clock — not the animation frame.
+//
+// The old crossfade wrote gain.value every requestAnimationFrame, sharing the
+// loop with the raymarch visualizer: a GPU hitch turned a smooth fade into a
+// zipper, and the beatmix "fixed" its phase by SEEKING the audible incoming
+// element (a decoder flush = the click you heard). These pure helpers let the
+// seam be scheduled as sample-accurate WebAudio automation and corrected by
+// tempo alone, so nothing the main thread does can stutter it.
+
+// Equal-power crossfade gains for a normalized seam position f in [0,1]: the
+// outgoing falls on a cosine, the incoming rises on a sine, so a^2 + b^2 == 1
+// everywhere — constant acoustic power, no dip through the middle.
+function equalPowerXfade(f){
+  const x = f < 0 ? 0 : f > 1 ? 1 : f;
+  return { a: Math.cos(x * Math.PI / 2), b: Math.sin(x * Math.PI / 2) };
+}
+
+// The sample-accurate curve one side of the seam plays, scaled by the deck's
+// loudness-normalization gain. 'out' rides the cosine, 'in' the sine. This is
+// the ACTUAL curve handed to setValueCurveAtTime, so the equal-power law that
+// ships is the one the tests check.
+function xfadeCurve(norm, side, n){
+  const N = Math.max(2, n | 0), out = new Float32Array(N), g = (norm > 0 ? norm : 1);
+  for (let i = 0; i < N; i++){
+    const ep = equalPowerXfade(i / (N - 1));
+    out[i] = g * (side === 'out' ? ep.a : ep.b);
+  }
+  return out;
+}
+
+// Phase correction that NEVER seeks an audible deck. Given the beat-phase error
+// (seconds), the running integrator, and the seam position f, decide how to
+// pull the incoming deck back into lock. A hard element seek is permitted ONLY
+// while the incoming is still inaudible (its equal-power gain below audibleAt,
+// ~ -24 dB by default); once it can be heard, correction is tempo-only — a
+// proportional trim plus a bounded integrator that learns residual tempo error.
+// Returns { seek, trim, trimI }. driftTrim (the proportional term) lives in the
+// solver block.
+function seamPhaseTrim(errSec, trimI, f, opts){
+  const o = opts || {};
+  const audibleAt = o.audibleAt == null ? 0.06 : o.audibleAt;
+  const dead = o.deadband == null ? 0.003 : o.deadband;
+  const hard = o.hardErr == null ? 0.030 : o.hardErr;
+  const cap = o.cap == null ? 0.002 : o.cap;
+  const inaudible = equalPowerXfade(f).b < audibleAt;
+  const e = Math.abs(errSec);
+  if (e > hard && inaudible) return { seek: true, trim: 0, trimI: 0 };
+  if (e < dead) return { seek: false, trim: trimI, trimI: trimI };
+  const ni = Math.max(-cap, Math.min(cap, trimI + errSec * 0.08));
+  return { seek: false, trim: driftTrim(errSec) + ni, trimI: ni };
+}
+// @mix-end
+
 const MIXER = {
   on: true,                      // auto-mix is the default: beatmix when the grids
                                  // agree, an honest crossfade when they don't — the
@@ -8582,9 +8636,16 @@ const MIXER = {
     this.plan = null; this.next = -1; this.phase = 'idle';
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     clockReset(this._clkA); clockReset(this._clkB);
-    if (AE.decks) AE.decks.forEach(d => {
+    const tc = AE.ctx ? AE.ctx.currentTime : 0;
+    if (AE.decks) AE.decks.forEach((d, i) => {
       try { d.a.playbackRate = SPEED.rate; } catch (e){}
       if (d.shelf) d.shelf.gain.value = 0;
+      // kill any scheduled crossfade ramp and settle each deck: the surviving
+      // (active) deck back to full, the other silent — else a cancel mid-blend
+      // could freeze a deck at a partial gain.
+      if (AE.graphLive && d.gain){
+        try { d.gain.gain.cancelScheduledValues(tc); d.gain.gain.setValueAtTime(i === AE.active ? (d.norm || 1) : 0, tc); } catch (e){}
+      }
       this._clearPreloadListener(d);                    // an unfired preload seek must die with the plan it belonged to
     });
     this._resetFilters();                              // a cancelled sweep must never leave a deck muffled
@@ -8795,7 +8856,22 @@ const MIXER = {
     this.outTrack = player.tracks[player.cur] || null;   // the booth watches the handover
     AE.active = 1 - AE.active;
     player.commitMix(this.next);
-    this.setVolumes(0);
+    // Schedule the whole loudness crossfade NOW, sample-accurate on the audio
+    // clock, so a slow animation frame can never step or zipper it. The rAF
+    // run() no longer touches gain — it only reads f for the HUD and trims tempo.
+    if (AE.graphLive && od.gain && nd.gain){
+      const t0 = AE.ctx.currentTime, dur = Math.max(0.02, this.overlap);
+      const N = Math.max(24, Math.min(256, Math.round(dur * 24)));   // ~24 pts/sec
+      try {
+        od.gain.gain.cancelScheduledValues(t0);
+        od.gain.gain.setValueCurveAtTime(xfadeCurve(od.norm || 1, 'out', N), t0, dur);
+        nd.gain.gain.cancelScheduledValues(t0);
+        nd.gain.gain.setValueCurveAtTime(xfadeCurve(nd.norm || 1, 'in', N), t0, dur);
+        this.lastF = 0;
+      } catch (e){ this.setVolumes(0); }
+    } else {
+      this.setVolumes(0);
+    }
     this.phase = 'running';
     syncMixHud();
   },
@@ -8821,12 +8897,20 @@ const MIXER = {
     const od = this.outDeck, nd = AE.decks[AE.active];
     if (!od || !nd || !p){ this.cancel(); return; }
     const f = clamp01((now - this.startedAt) / Math.max(this.overlap, 0.05));
-    this.setVolumes(f);
+    // The loudness crossfade was scheduled sample-accurately at fire() (graph
+    // path); on iOS the mixer never runs, so setVolumes only matters if the
+    // graph scheduling threw. Here we just track f for the HUD.
+    if (AE.graphLive) this.lastF = f; else this.setVolumes(f);
     if (p.type === 'beatmix'){
       const g = glideRates(p.bpmA, p.bpmB, f);
       const rA = g.rateA, rB = g.rateB * (1 + this.trim);
-      if (Math.abs(rA * SPEED.rate - this._lastRateA) > 0.0004){ od.a.playbackRate = rA * SPEED.rate; this._lastRateA = rA * SPEED.rate; }
-      if (Math.abs(rB * SPEED.rate - this._lastRateB) > 0.0004){ nd.a.playbackRate = rB * SPEED.rate; this._lastRateB = rB * SPEED.rate; }
+      // Retune at most ~10x/sec: a multi-second tempo glide stays smooth while
+      // the browser's pitch-preserving time-stretcher isn't churned every frame.
+      if (now - (this._lastRateAt || 0) >= 0.10){
+        this._lastRateAt = now;
+        if (Math.abs(rA * SPEED.rate - this._lastRateA) > 0.0004){ od.a.playbackRate = rA * SPEED.rate; this._lastRateA = rA * SPEED.rate; }
+        if (Math.abs(rB * SPEED.rate - this._lastRateB) > 0.0004){ nd.a.playbackRate = rB * SPEED.rate; this._lastRateB = rB * SPEED.rate; }
+      }
       // the bass swap: at the midpoint boundary, over ~two beats — decisive
       // but not a step. One bassline at a time is the rule; HOW it hands
       // over is what separates a mix from a collision.
@@ -8856,17 +8940,15 @@ const MIXER = {
           if (err > 0.5) err -= 1;
           if (err < -0.5) err += 1;
           const errSec = err * (60 / p.bpmB);
-          if (Math.abs(errSec) > 0.030 && f < 0.35){
+          // Correct the lock WITHOUT ever seeking an audible deck: a hard align
+          // is allowed only while the incoming is still inaudible; once it can
+          // be heard, tempo trim alone holds it, so a blend never clicks.
+          const r = seamPhaseTrim(errSec, this.trimI, f);
+          if (r.seek){
             try { nd.a.currentTime = nd.a.currentTime + errSec; } catch (e){}
             clockReset(this._clkB);                     // the window died with the seek
-            this.trim = 0; this.trimI = 0;
-          } else if (Math.abs(errSec) < 0.003){
-            this.trim = this.trimI;                     // in lock: integrator only
-          } else {
-            this.trimI = Math.max(-0.002, Math.min(0.002,
-              this.trimI + errSec * 0.08));             // learns residual tempo error
-            this.trim = driftTrim(errSec) + this.trimI;
           }
+          this.trim = r.trim; this.trimI = r.trimI;
           window.__mixPhaseErrMs = Math.abs(errSec) * 1000;  // acceptance probe
         }
       }
@@ -8876,16 +8958,17 @@ const MIXER = {
 
   finish(){
     const od = this.outDeck, nd = AE.decks[AE.active];
+    const tc = AE.ctx ? AE.ctx.currentTime : 0;
     if (od){
       od.a.pause();
       try { od.a.playbackRate = SPEED.rate; } catch (e){}
       if (od.shelf) od.shelf.gain.value = 0;
-      if (AE.graphLive) od.gain.gain.value = 0;
+      if (AE.graphLive && od.gain){ od.gain.gain.cancelScheduledValues(tc); od.gain.gain.setValueAtTime(0, tc); }
     }
     if (nd){
       try { nd.a.playbackRate = SPEED.rate; } catch (e){}
       if (nd.shelf) nd.shelf.gain.value = 0;
-      if (AE.graphLive) nd.gain.gain.value = nd.norm || 1;
+      if (AE.graphLive && nd.gain){ nd.gain.gain.cancelScheduledValues(tc); nd.gain.gain.setValueAtTime(nd.norm || 1, tc); }
     }
     this._resetFilters();                              // both decks back to wide-open
     this._lastRateA = this._lastRateB = 1;
