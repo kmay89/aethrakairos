@@ -2151,7 +2151,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
     <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; in play mode, flick the orb.">VOID</button>
-    <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, moiré, iris. Tap to cycle (L).">◈ NONE</button>
+    <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris. Tap to cycle (L).">◈ NONE</button>
     <button class="chip" id="chipPower" title="Power — AUTO adapts quality to this device; SHOW holds full density and keeps the screen awake; ECO halves the draw for pocket listening. Tap to cycle.">⚡ AUTO</button>
     <button class="chip" id="chipEcho" title="Echoes — passing thoughts drift by like clouds: physicists, mathematicians, stoics. MUSE adds a question now and then you can answer. Tap to cycle.">✧ DRIFT</button>
     <span class="meter" id="meterBar" role="img" aria-label="Beat meter — the downbeat dot lands heavier"><i></i><i></i><i></i><i></i></span>
@@ -2249,14 +2249,18 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     converges them white, every hit blooms the chromatic fringe. <b>SLINKY</b> — a chalk-grain coil
     whose spin direction is an argument you can win (drag sideways). <b>OP-ART</b> — a flat pattern
     machine that rolls between an isometric cube tessellation, a circular labyrinth around a black
-    hole, and an infinity-mirror dance floor lit on the grid.</p>
+    hole, an infinity-mirror dance floor lit on the grid, a scalloped psychedelic spiral, a dot-grid
+    disco tunnel falling to its vanishing point, and dashed radar rings relayed in offset palette
+    channels.</p>
     <h3>The parlor</h3>
     <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
     science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
     five-wave Penrose skeleton, Carlson's multi-scale Truchet arcs, a sunflower's golden-angle swarm,
     moiré interference with its 57× leverage, and the café wall shearing into the Fraser false spiral —
     optionally garnished with Kitaoka's peripheral-drift ladder (the colours are static; <i>your own
-    eyes</i> animate them) or the scintillating Hermann grid. Every illusion is geometry, never strobe.
+    eyes</i> animate them) or the scintillating Hermann grid — plus a calculus-textbook vector field,
+    one arrow per cell of graph paper, whose swirl tightens as the song builds. Every illusion is
+    geometry, never strobe.
     And listen closely to what you see: several of these illusions have a measurable strength dial, and
     it rides the song's long-term energy — <b>the picture lies harder as the music builds</b>, and
     comes clean in the quiet.</p>
@@ -4875,7 +4879,7 @@ const TUTOR = {
     { sel: '#btnPlay',     kicker: 'The tour · 1 of 4', title: 'Play',
       body: 'Möbius Walking is already moving. This is play and pause — in here the music never has to stop.' },
     { sel: '#chipLens',    kicker: 'The tour · 2 of 4', title: 'The lens',
-      body: 'AUTO lets the song choose a look at its peaks — mirrors, moiré, an iris. Tap it any time to drive the glass yourself.' },
+      body: 'AUTO lets the song choose a look at its peaks — mirrors, a rolling wave, a prism, more. Tap it any time to drive the glass yourself.' },
     { sel: '#fxOrb', reveal: true, kicker: 'The tour · 3 of 4', title: 'The control orb',
       body: 'When the menu tucks away for a full-screen view, this orb stays as your control — flick it to change the scene, tap it to bring the menu back.' },
     { sel: '#btnLibrary',  kicker: 'The tour · 4 of 4', title: 'Your library',
@@ -6057,8 +6061,12 @@ function structureCeiling(struct, p, floor){
 // hard gate — below it (a quiet intro, a breakdown, the arc's calm edges) the
 // glass stays clean, so a lens can never punch in where the music hasn't
 // earned the intensity. Above it: mirrors = hypnotic order (an uplifting/major
-// apex), moiré = agitation/interference (a tense minor peak at real energy
-// only), iris = focus (a build or a comedown). A strained device: always clean.
+// apex), prism = electricity (only the hottest major apex splits the light),
+// moiré = agitation/interference (a tense minor peak at real energy only),
+// tile = ornamental repetition (an apex the section doesn't fully open —
+// order without full blast), wave = a swell rolling in (a truly driving
+// build), iris = focus (a gentler build or a comedown). A strained device:
+// always clean.
 function pickLens(ctx){
   ctx = ctx || {};
   if (ctx.struggling) return 'none';                        // never tax a strained device
@@ -6066,11 +6074,18 @@ function pickLens(ctx){
   const act = ctx.act, energy = ctx.energy == null ? 0 : ctx.energy;
   const major = ctx.major !== false;                        // unknown key → treat as bright/major
   if (ceil < 0.55 || act === 0 || act === 4) return 'none';  // the hard gate + the arc's edges
-  if (act === 2 && ceil > 0.72){                            // APEX with real headroom
-    if (!major && energy > 0.66) return 'moire';            // tense + truly intense → interference
-    return 'mirrors';                                        // otherwise hypnotic symmetry
+  if (act === 2){                                           // APEX
+    if (ceil > 0.72){                                       // …with real headroom
+      if (!major && energy > 0.66) return 'moire';          // tense + truly intense → interference
+      if (energy > 0.93) return 'prism';                    // the hottest bright peak splits the light
+      return 'mirrors';                                     // otherwise hypnotic symmetry
+    }
+    return 'tile';                                          // an apex the section holds back: relayed order
   }
-  if ((act === 1 || act === 3) && ceil > 0.60) return 'iris';   // build / comedown → a focusing aperture
+  if ((act === 1 || act === 3) && ceil > 0.60){
+    if (act === 1 && energy > 0.72) return 'wave';          // a driving build → the swell rolls in
+    return 'iris';                                          // otherwise → a focusing aperture
+  }
   return 'none';
 }
 
@@ -12888,17 +12903,20 @@ function buildSlinky(){
 
 /* =========================================================
    Scene 13 — OP-ART  (the flat pattern machine)
-   One full-screen fragment shader, three forms rolled per visit like
+   One full-screen fragment shader, six forms rolled per visit like
    the fractal's dice: an isometric cube tessellation (the Rubik wall),
-   a circular labyrinth around a black hole, and an infinity-mirror
-   dance floor lit on the grid. Normal blending — the one scene that
-   claims the whole frame instead of glowing over the stars.
+   a circular labyrinth around a black hole, an infinity-mirror dance
+   floor lit on the grid, a scalloped psychedelic spiral (HYPNO), a
+   dot-grid disco tunnel falling to a vanishing point (DISCO), and
+   dashed rings relayed in offset palette channels (RADAR). Normal
+   blending — the one scene that claims the whole frame instead of
+   glowing over the stars.
    ========================================================= */
 function buildOpArt(){
   const group = new THREE.Group();
   const varU = {
     uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
-    uForm: { value: Math.floor(Math.random() * 3) }, uAspect: { value: 1 },
+    uForm: { value: Math.floor(Math.random() * 6) }, uAspect: { value: 1 },
   };
   const geo = new THREE.PlaneGeometry(2, 2);
   const vert = `
@@ -12964,7 +12982,7 @@ function buildOpArt(){
         col = mix(uColA * 0.06, mix(vec3(0.92), uColC, 0.25), wall) * pulse;
         col *= smoothstep(hole * 0.92, hole * 1.05, r);        // the hole swallows
         col *= 1.0 - smoothstep(1.15, 1.65, r) * 0.85;         // vignette
-      } else {
+      } else if (uForm < 2.5){
         // ---- FLOOR: infinity-mirror dance floor ----
         vec3 ro = vec3(uTime * (0.55 + uEnergy * 0.5), 1.35 + uVarB * 0.9, 0.0);
         vec2 sp = p;
@@ -12989,6 +13007,66 @@ function buildOpArt(){
           col += vec3(1.0) * rings * lit * 0.25;
           col *= exp(-t * 0.045);                              // depth fog
         }
+      } else if (uForm < 3.5){
+        // ---- HYPNO: scalloped psychedelic spiral ----
+        // a log-spiral coordinate (self-similar rings winding to the centre)
+        // with a triangle-wave scallop shifting each band's boundary — the
+        // sawtooth fringe of the classic acid spiral, in quantized palette
+        float r = length(p) + 1e-4;
+        float a = atan(p.y, p.x);
+        float aa = a / 6.2831853;
+        float spin = uTime * (0.10 + uEnergy * 0.15) * (uVarC < 0.5 ? -1.0 : 1.0);
+        float ring = (log(r) * (3.0 + uVarA * 2.0) - aa * 2.0 - spin) * (5.0 + uVarB * 4.0);
+        float teeth = 22.0 + floor(uVarA * 14.0);
+        float saw = abs(fract(aa * teeth + ring * 0.5) - 0.5) * 2.0;
+        float s = ring + saw * (0.55 + uBeat * 0.35);
+        col = cell5(fract(floor(s) * 0.2 + uCentroid * 0.3));
+        // dark seams between bands keep the psychedelia crisp, never a strobe
+        float band = fract(s);
+        col *= 0.30 + 0.70 * smoothstep(0.0, 0.16, band) * smoothstep(1.0, 0.84, band);
+        col *= smoothstep(0.015, 0.14, r);                     // the eye of the spiral rests dark
+      } else if (uForm < 4.5){
+        // ---- DISCO: a dot-grid tunnel falling to the vanishing point ----
+        float r = length(p) + 1e-4;
+        float a = atan(p.y, p.x) + uTime * 0.04 * (uVarC * 2.0 - 1.0);
+        float spokes = 26.0 + floor(uVarB * 14.0);
+        // depth from 1/r: rings march toward the centre as the music drives
+        float depth = (0.35 + uVarA * 0.25) / r + uTime * (0.5 + uEnergy * 0.8);
+        vec2 id = vec2(floor(a / 6.2831853 * spokes), floor(depth));
+        vec2 cf = vec2(fract(a / 6.2831853 * spokes), fract(depth)) - 0.5;
+        float disc = 1.0 - smoothstep(0.16, 0.30, length(cf));
+        col = cell5(fract(hash21(id) + uCentroid * 0.4)) * disc;
+        // the floor lights chase: a scattered minority holds bright, the rest dim
+        float lit = 0.40 + 0.60 * step(0.55, hash21(id + floor(uTime * (0.6 + uEnergy))));
+        col *= (0.55 + uBeat * 0.45) * lit;
+        col *= smoothstep(0.02, 0.16, r);                      // the vanishing point swallows
+        col *= 1.0 - smoothstep(1.05, 1.65, r) * 0.7;          // vignette
+      }
+      else {
+        // ---- RADAR: dashed rings relayed in offset palette channels ----
+        // one dashed-ring machine sampled three times at small radial offsets,
+        // each pass routed through its own palette colour — the chromatic
+        // fringe of a glitch mandala, in the music's key
+        float w = 15.0 + uVarB * 9.0;
+        float rr0 = length(p);
+        float aa0 = atan(p.y, p.x) / 6.2831853 + 0.5;
+        vec3 acc = vec3(0.0);
+        for (int ch = 0; ch < 3; ch++){
+          float rr = rr0 + float(ch) * (0.010 + uTreble * 0.012);
+          float ri = floor(rr * w);
+          float segs = 10.0 + mod(ri * 7.0, 26.0);
+          float spin = uTime * (0.02 + 0.05 * fract(ri * 0.37)) * (mod(ri, 2.0) < 1.0 ? 1.0 : -1.0)
+                     + uBeat * 0.01;
+          float gap = mix(0.25, 0.62, hash21(vec2(ri, uVarA * 40.0)));
+          float dash = step(gap, fract((aa0 + spin) * segs + hash21(vec2(ri, 7.7))));
+          float band = smoothstep(0.42, 0.24, abs(fract(rr * w) - 0.5));
+          acc[ch] = dash * band;
+        }
+        col = uColA * acc.x + uColB * acc.y + uColC * acc.z;
+        // the bright compass rim the glitch mandala always carries
+        float rim = smoothstep(0.035, 0.012, abs(rr0 - (0.92 + uBass * 0.03)));
+        col += mix(uColC, vec3(1.0), 0.4) * rim * (0.5 + uBeat * 0.5);
+        col *= 1.0 - smoothstep(0.98, 1.12, rr0);              // the mandala ends; night beyond
       }
       col *= 0.8 + uEnergy * 0.35 + uAct * 0.25;
       gl_FragColor = vec4(col, uOpacity);
@@ -13004,12 +13082,17 @@ function buildOpArt(){
   group.add(mesh);
   group.visible = false;
   scene.add(group);
-  return { name: 'OP-ART', group, update(){
+  const FORM_NAMES = ['ISO', 'MAZE', 'FLOOR', 'HYPNO', 'DISCO', 'RADAR'];
+  const api = { name: 'OP-ART', group, update(){
     varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
   }, roll(){
     varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
-    varU.uForm.value = Math.floor(Math.random() * 3);
+    varU.uForm.value = Math.floor(Math.random() * 6);
+    api.name = 'OP-ART · ' + FORM_NAMES[varU.uForm.value];
+    return api.name;
   } };
+  api.roll();
+  return api;
 }
 
 /* =========================================================
@@ -13303,6 +13386,36 @@ function buildParlor(){
       drift = mix(p.y * N, rr * 6.0, uMorph);
       ink = mix(mortarC, ringB * cord, uMorph);
     }
+    void fieldFLUX(vec2 p, out float v, out float drift, out float ink){
+      // a vector field made visible: one arrow per cell of graph paper, each
+      // aligned to a rotor-plus-source field. The Möbius orbit (uW) turns the
+      // whole plane; the strength dial (uLie) tightens the swirl as the song
+      // builds — calculus-textbook gold, dancing
+      float rot = atan(uW.y, uW.x);
+      mat2 R = mat2(cos(rot), -sin(rot), sin(rot), cos(rot));
+      vec2 q = R * p * 4.5;
+      vec2 cell = floor(q) + 0.5;
+      vec2 cp = cell / 4.5;
+      vec2 F = vec2(-cp.y, cp.x) * (0.45 + uLie * 0.9) + cp * (0.5 - uLie * 0.75);
+      float mag = length(F);
+      vec2 dir = F / max(mag, 1e-4);
+      vec2 l = q - cell;
+      vec2 u2 = vec2(dot(l, dir), dot(l, vec2(-dir.y, dir.x)));   // arrow frame
+      float len = 0.28;
+      float shaft = max(abs(u2.x + 0.06) - len, abs(u2.y) - 0.030);
+      // the head: a chevron at the tip, width tapering to the point
+      float tip = len - 0.04;
+      float head = max(max(tip - 0.14 - u2.x, u2.x - tip - 0.12),
+                       abs(u2.y) - max(0.0, (tip + 0.12 - u2.x)) * 0.55);
+      float d = min(shaft, head);
+      ink = 1.0 - smoothstep(0.02, 0.08, d);
+      // the graph paper under the arrows
+      vec2 gf = abs(fract(q) - 0.5);
+      float grid = 1.0 - smoothstep(0.006, 0.030, 0.5 - max(gf.x, gf.y));
+      v = clamp(ink * (0.45 + mag * 0.35) + grid * 0.10, 0.0, 1.0);
+      drift = atan(F.y, F.x) * 1.5 + mag * 2.0;
+      ink = max(ink, grid * 0.22);
+    }
 
     void main(){
       vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
@@ -13313,7 +13426,8 @@ function buildParlor(){
       else if (uField < 2.5) fieldTRUCHET(p, v, drift, ink);
       else if (uField < 3.5) fieldSWARM(p, v, drift, ink);
       else if (uField < 4.5) fieldMOIRE(p, v, drift, ink);
-      else                   fieldCORD(p, v, drift, ink);
+      else if (uField < 5.5) fieldCORD(p, v, drift, ink);
+      else                   fieldFLUX(p, v, drift, ink);
 
       vec3 col = mix(uColA * 0.16, mix(uColA, uColB, v), v * 0.9);
       col = mix(col, uColC, ink * 0.85);
@@ -13351,7 +13465,7 @@ function buildParlor(){
   group.visible = false;
   scene.add(group);
 
-  const FIELD_NAMES = ['LIMIT', 'PENTA', 'TRUCHET', 'SWARM', 'MOIRE', 'CORD'];
+  const FIELD_NAMES = ['LIMIT', 'PENTA', 'TRUCHET', 'SWARM', 'MOIRE', 'CORD', 'FLUX'];
   const SPICE_NAMES = ['PURE', 'SNAKE', 'GHOST'];
   // valid hyperbolic {p,q}: 1/p + 1/q < 1/2
   const HYP = [[5, 4], [5, 5], [6, 4], [7, 3], [8, 3], [4, 5], [4, 6], [3, 7]];
@@ -13359,7 +13473,7 @@ function buildParlor(){
   const api = {
     name: 'PARLOR', group, calm: true, heavy: true,
     roll(){
-      const field = (Math.random() * 6) | 0;
+      const field = (Math.random() * 7) | 0;
       // MOIRE full-field fringes ask the most of the governor; in CALM the
       // parlor rolls among the certified-static illusions instead
       varU.uField.value = (SAFE.calm && field === 4) ? 0 : field;
@@ -14921,20 +15035,72 @@ const LENS_IRIS = `
     vec3 s = texture2D(tScene, uv).rgb;
     gl_FragColor = vec4(mix(s * 0.10, s, m), 1.0);                    // an aperture on the light
   }`;
+const LENS_WAVE = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution; uniform float uTime, uEnergy, uBeat;
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);
+    float r = length(p);
+    vec2 n = r > 1e-4 ? p / r : vec2(0.0);
+    // rings roll outward from the centre; the beat crests them harder, and the
+    // displacement shrinks with radius so the frame's edge never tears
+    float amp = (0.006 + 0.014 * uEnergy + 0.010 * uBeat) / (1.0 + r * 2.0);
+    float ph = sin(r * 26.0 - uTime * 3.2);
+    vec2 duv = (n * ph + vec2(-n.y, n.x) * ph * 0.35) * amp;
+    gl_FragColor = texture2D(tScene, clamp(uv + duv, 0.0, 1.0));
+  }`;
+const LENS_PRISM = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution; uniform float uTime, uEnergy;
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    vec2 c = uv - 0.5;
+    // radial dispersion: each channel refracts a hair apart — the chromatic
+    // fringe grows with the music, zero at the exact centre
+    float k = (0.004 + 0.014 * uEnergy) * (1.0 + 0.15 * sin(uTime * 0.7));
+    vec3 col;
+    col.r = texture2D(tScene, clamp(uv + c * k, 0.0, 1.0)).r;
+    col.g = texture2D(tScene, uv).g;
+    col.b = texture2D(tScene, clamp(uv - c * k, 0.0, 1.0)).b;
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_TILE = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution; uniform float uTime, uEnergy;
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    // fold the frame into a mirrored grid — the scene relays itself across the
+    // glass, and alternate tiles flip so every seam is a mirror line (no cuts)
+    vec2 g = uv * 3.0;
+    vec2 id = floor(g);
+    vec2 f = fract(g);
+    vec2 m = mix(f, 1.0 - f, mod(id, 2.0));
+    // each tile breathes about its own centre, offset so the grid shimmers in waves
+    float z = 0.90 + 0.05 * sin(uTime * 0.4 + id.x * 1.7 + id.y * 2.9) + 0.05 * uEnergy;
+    gl_FragColor = texture2D(tScene, clamp(0.5 + (m - 0.5) * z, 0.0, 1.0));
+  }`;
 const LENS = {
   // AUTO is the default: the director reads the song's real structure + its
   // Camelot mood and puts a lens on ONLY where the music earns it (an apex, a
   // build) — clean glass the rest of the time. The singles + two STACKS below
   // stay hand-cyclable for anyone who wants to drive it themselves.
   active: 'auto',
-  order: ['auto', 'none', 'mirrors', 'moire', 'iris', 'mirrors+moire', 'mirrors+iris'],
-  labels: { auto: 'AUTO', none: 'NONE', mirrors: 'MIRRORS', moire: 'MOIRÉ', iris: 'IRIS',
-    'mirrors+moire': 'MIRRORS×MOIRÉ', 'mirrors+iris': 'MIRRORS×IRIS' },
+  order: ['auto', 'none', 'mirrors', 'wave', 'prism', 'tile', 'moire', 'iris',
+    'mirrors+moire', 'mirrors+iris', 'wave+mirrors', 'tile+prism'],
+  labels: { auto: 'AUTO', none: 'NONE', mirrors: 'MIRRORS', wave: 'WAVE', prism: 'PRISM',
+    tile: 'TILE', moire: 'MOIRÉ', iris: 'IRIS',
+    'mirrors+moire': 'MIRRORS×MOIRÉ', 'mirrors+iris': 'MIRRORS×IRIS',
+    'wave+mirrors': 'WAVE×MIRRORS', 'tile+prism': 'TILE×PRISM' },
   concepts: { auto: 'the director reads the song and picks the look', mirrors: 'N-fold symmetry',
+    wave: 'a ripple rolling through the light', prism: 'the colour channels refract apart',
+    tile: 'the scene relays itself across a mirrored grid',
     moire: 'wave interference', iris: 'a breathing aperture',
-    'mirrors+moire': 'symmetry × interference', 'mirrors+iris': 'symmetry, seen through an aperture' },
+    'mirrors+moire': 'symmetry × interference', 'mirrors+iris': 'symmetry, seen through an aperture',
+    'wave+mirrors': 'a ripple, folded into symmetry', 'tile+prism': 'a relayed grid, refracted' },
   // a stack is just an ordered list of single lenses the chain runs in sequence
-  stacks: { 'mirrors+moire': ['mirrors', 'moire'], 'mirrors+iris': ['mirrors', 'iris'] },
+  stacks: { 'mirrors+moire': ['mirrors', 'moire'], 'mirrors+iris': ['mirrors', 'iris'],
+    'wave+mirrors': ['wave', 'mirrors'], 'tile+prism': ['tile', 'prism'] },
   scale: 0.7,
   _resolved: 'none', _holdT: 0,      // AUTO: the lens the director has settled on, and how long to hold it
   _ready: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
@@ -14951,10 +15117,11 @@ const LENS = {
     this._tri = new THREE.Mesh(g, null); this._tri.frustumCulled = false; this._fs.add(this._tri);
     const mk = frag => new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, uResolution: { value: new THREE.Vector2(1, 1) },
-        uTime: U.uTime, uEnergy: U.uEnergy, uSectors: { value: 6 } },
+        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uSectors: { value: 6 } },
       vertexShader: LENS_VERT, fragmentShader: frag, depthTest: false, depthWrite: false,
     });
-    this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS) };
+    this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS),
+      wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE) };
     this._ready = true;
   },
   chain(){

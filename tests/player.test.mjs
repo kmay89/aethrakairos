@@ -1160,6 +1160,20 @@ test('lens: a strained device is always spared (clean glass)', () => {
 test('lens: an unknown key is treated as bright (mirrors, never moiré)', () => {
   assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.9 }), 'mirrors');
 });
+test('lens: only the hottest bright apex splits the light (prism)', () => {
+  assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.95, major: true }), 'prism');
+  // a tense peak at the same heat stays interference — agitation outranks electricity
+  assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.95, major: false }), 'moire');
+});
+test('lens: an apex the section holds back gets tiled order, not full blast', () => {
+  assert.equal(S.pickLens({ ceil: 0.65, act: 2, energy: 0.9, major: true }), 'tile');
+  // …but below the hard gate it is still clean glass
+  assert.equal(S.pickLens({ ceil: 0.50, act: 2, energy: 0.9, major: true }), 'none');
+});
+test('lens: a truly driving build rolls a wave; a comedown at the same energy stays iris', () => {
+  assert.equal(S.pickLens({ ceil: 0.70, act: 1, energy: 0.8, major: true }), 'wave');
+  assert.equal(S.pickLens({ ceil: 0.70, act: 3, energy: 0.8, major: true }), 'iris');
+});
 
 // ---- the beat spring: it overshoots the hit and settles (the elastic bounce) ----
 test('beat spring: a sharp hit overshoots past the drive, then rings back', () => {
