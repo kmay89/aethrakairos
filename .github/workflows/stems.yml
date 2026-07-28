@@ -68,7 +68,27 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add docs/catalog.json
             git commit -m "chore: bank a batch of stem envelopes (auto) [skip ci]"
-            git push
+            # A batch is ~hours of CPU separation, so never throw it away on a
+            # racing push. If main advanced under us (a player release, another
+            # batch), rebase our additive catalog commit onto the new tip and
+            # retry. Our edits only ADD each track's mix.stems, so a concurrent
+            # release (which never touches those lines) rebases cleanly; the
+            # concurrency group keeps two stem runs from editing the same lines.
+            pushed=""
+            for attempt in 1 2 3 4 5; do
+              if git push; then pushed=1; break; fi
+              echo "push rejected (attempt $attempt) — rebasing on latest main"
+              git fetch origin main || true
+              if ! git rebase origin/main; then
+                git rebase --abort || true
+                echo "::error::catalog rebase conflicted — batch not banked this run"
+                exit 1
+              fi
+            done
+            if [[ -z "$pushed" ]]; then
+              echo "::error::push still rejected after retries — batch not banked this run"
+              exit 1
+            fi
             echo "stems banked and pushed"
           else
             echo "no stem changes"
