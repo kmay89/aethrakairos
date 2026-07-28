@@ -409,7 +409,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **thirteen scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **sixteen scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -418,10 +418,15 @@ dot-by-dot as the track plays — a different species every visit), **ROSETTE**
 (spirograph rings drawn three times in offset palette channels, the
 chromatic fringe blooming on hits), **SLINKY** (a chalk-grain coil whose
 ambiguous spin you can argue with by dragging), and **OP-ART** (a flat
-pattern machine rolling between an isometric cube tessellation, a circular
-labyrinth around a black hole, and an infinity-mirror dance floor lit on
-the grid). Keys `1`–`9` and `0` reach the first ten; the scene dots reach
-them all. Three things keep it feeling like a storytelling machine
+pattern machine rolling between six forms: an isometric cube tessellation,
+a circular labyrinth around a black hole, an infinity-mirror dance floor
+lit on the grid, a scalloped psychedelic spiral, a dot-grid disco tunnel
+falling to its vanishing point, and dashed radar rings relayed in offset
+palette channels). Keys `1`–`9` and `0` reach the first ten; the scene dots
+reach them all. Over any scene, the **lens engine** can reshape the whole
+frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
+TILE relay, MOIRÉ interference, a breathing IRIS, and stacks of them — with
+AUTO putting a lens on only where the song's structure earns it. Three things keep it feeling like a storytelling machine
 rather than a screensaver:
 
 - **Acts.** Every track runs a five-act arc — OVERTURE · RISING · APEX ·
