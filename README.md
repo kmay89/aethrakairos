@@ -443,8 +443,15 @@ rather than a screensaver:
 - **Touch.** Drag steers the camera (the auto rig waits ~9 s while you hold
   it), scroll walks in and out, double-tap fires a shockwave impulse through
   the scene, and particles near the pointer bend away from your hand
-  (`uPtr` view-space warp in every point shader). All of it is optional —
-  the director plays the whole show hands-free.
+  (`uPtr` view-space warp in every point shader). The touch has a
+  *personality*, and it performs it on a screen-space stage in the music's
+  live palette: the black hole wears a blazing photon ring with lensed
+  starlight; the vortex winds real spiral arms whose speed is the spin you
+  banked; accretion is a disk of motes visibly orbiting and falling into
+  your hold; ripples roll outward as true rings cresting on the beat. A
+  hold banks a visible charge arc, and every release detonates a bright
+  wavefront from the lift point. All of it is optional — the director
+  plays the whole show hands-free.
 
 ## The front porch — fresh inspiration at the door
 
