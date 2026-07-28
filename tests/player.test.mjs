@@ -18,13 +18,14 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
+  ' equalPowerXfade, xfadeCurve, seamPhaseTrim,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
@@ -1731,6 +1732,53 @@ test('skinCss: a poisoned skin falls back slot-by-slot, never unreadable', () =>
   assert.equal(css['--ink'], base['--ink'], 'missing ink → original ink');
   assert.equal(css['--pi'], '#ffb454', 'the one good colour survives');
   assert.deepEqual(S.skinCss(null, S.SKINS[0]), base, 'no skin at all → the original outfit');
+});
+
+// ---------------------------------------------------------- the seam (@mix)
+
+test('equalPowerXfade: constant acoustic power across the whole blend', () => {
+  for (let i = 0; i <= 20; i++){
+    const f = i / 20, g = S.equalPowerXfade(f);
+    assert.ok(Math.abs(g.a * g.a + g.b * g.b - 1) < 1e-9, `a^2+b^2==1 at f=${f}`);
+  }
+  const s = S.equalPowerXfade(0), e = S.equalPowerXfade(1);
+  assert.ok(Math.abs(s.a - 1) < 1e-9 && s.b < 1e-9, 'start: outgoing full, incoming silent');
+  assert.ok(e.a < 1e-9 && Math.abs(e.b - 1) < 1e-9, 'end: outgoing silent, incoming full');
+  assert.deepEqual(S.equalPowerXfade(-1), S.equalPowerXfade(0), 'clamps below 0');
+  assert.deepEqual(S.equalPowerXfade(2), S.equalPowerXfade(1), 'clamps above 1');
+});
+
+test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
+  const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);
+  assert.equal(out.length, 32); assert.equal(inc.length, 32);
+  assert.ok(Math.abs(out[0] - 0.8) < 1e-6 && Math.abs(out[31]) < 1e-6, 'out: norm → 0');
+  assert.ok(Math.abs(inc[0]) < 1e-6 && Math.abs(inc[31] - 0.5) < 1e-6, 'in: 0 → norm');
+  for (let i = 1; i < 32; i++){
+    assert.ok(out[i] <= out[i - 1] + 1e-9, 'out is non-increasing');
+    assert.ok(inc[i] >= inc[i - 1] - 1e-9, 'in is non-decreasing');
+  }
+  // the two sides, at equal norm, still sum to constant power sample-for-sample
+  const a = S.xfadeCurve(1, 'out', 16), b = S.xfadeCurve(1, 'in', 16);
+  for (let i = 0; i < 16; i++) assert.ok(Math.abs(a[i] * a[i] + b[i] * b[i] - 1) < 1e-6, 'equal-power curve');  // Float32 storage
+  assert.ok(S.xfadeCurve(0, 'in', 8)[7] > 0, 'a zero/garbage norm falls back to unity, never silence');
+});
+
+test('seamPhaseTrim: never seeks an audible deck; tempo-only once heard', () => {
+  // big error while the incoming is still inaudible (f≈0) → a hard align is allowed
+  const early = S.seamPhaseTrim(0.05, 0, 0.0);
+  assert.equal(early.seek, true, 'inaudible + large error → one hard align');
+  // the SAME big error once the blend is audible → never a seek, tempo trim only
+  const mid = S.seamPhaseTrim(0.05, 0, 0.35);
+  assert.equal(mid.seek, false, 'audible deck is never seeked');
+  assert.ok(mid.trim !== 0, 'it still corrects — via playbackRate');
+  // inside the deadband → hold the integrator, no thrash
+  const locked = S.seamPhaseTrim(0.001, 0.0007, 0.6);
+  assert.equal(locked.seek, false);
+  assert.equal(locked.trim, 0.0007, 'in lock: integrator only');
+  // the integrator is bounded so a persistent error can't run the tempo away
+  let ti = 0;
+  for (let k = 0; k < 500; k++) ti = S.seamPhaseTrim(0.05, ti, 0.5).trimI;
+  assert.ok(Math.abs(ti) <= 0.002 + 1e-9, 'integrator stays capped at ±0.2%');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
