@@ -60,36 +60,46 @@ jobs:
       - name: Verify the envelope reduction
         run: python3 tools/stems.py --selftest
       - name: Separate a batch
-        run: python3 tools/stems.py --limit "${{ github.event.inputs.limit || 24 }}"
+        run: |
+          # --sidecar persists exactly which stems this run computed (keyed by
+          # track identity) OUTSIDE the repo tree, so a lost push can re-apply
+          # them onto the latest catalog without re-running Demucs.
+          python3 tools/stems.py --limit "${{ github.event.inputs.limit || 24 }}" \
+            --sidecar "$RUNNER_TEMP/stems_batch.json"
       - name: Commit if changed
         run: |
-          if [[ -n "$(git status --porcelain docs/catalog.json)" ]]; then
-            git config user.name  "aethra-bot"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ -z "$(git status --porcelain docs/catalog.json)" ]]; then
+            echo "no stem changes"; exit 0
+          fi
+          git config user.name  "aethra-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/catalog.json
+          git commit -m "chore: bank a batch of stem envelopes (auto) [skip ci]"
+          # A batch is ~hours of CPU separation — never throw it away on a racing
+          # push. If main advanced under us (a player release, or an overlapping
+          # stem batch that grabbed the SAME still-missing tracks), a git rebase
+          # would collide on the pretty-printed JSON. Instead reset onto the new
+          # tip and RE-APPLY our computed stems by track identity: tracks the
+          # other run already banked keep theirs, ours that are still missing get
+          # added — a clean union, re-serialized whole, so there is nothing to
+          # conflict-resolve. The sidecar survives the reset (it lives in
+          # $RUNNER_TEMP, outside the work tree).
+          pushed=""
+          for attempt in 1 2 3 4 5; do
+            if git push; then pushed=1; break; fi
+            echo "push rejected (attempt $attempt) — merging our batch onto latest main"
+            git fetch origin main || true
+            git reset --hard origin/main
+            python3 tools/stems.py --reapply "$RUNNER_TEMP/stems_batch.json"
+            if [[ -z "$(git status --porcelain docs/catalog.json)" ]]; then
+              echo "every track in our batch was already banked upstream — nothing left to push"
+              pushed=1; break
+            fi
             git add docs/catalog.json
             git commit -m "chore: bank a batch of stem envelopes (auto) [skip ci]"
-            # A batch is ~hours of CPU separation, so never throw it away on a
-            # racing push. If main advanced under us (a player release, another
-            # batch), rebase our additive catalog commit onto the new tip and
-            # retry. Our edits only ADD each track's mix.stems, so a concurrent
-            # release (which never touches those lines) rebases cleanly; the
-            # concurrency group keeps two stem runs from editing the same lines.
-            pushed=""
-            for attempt in 1 2 3 4 5; do
-              if git push; then pushed=1; break; fi
-              echo "push rejected (attempt $attempt) — rebasing on latest main"
-              git fetch origin main || true
-              if ! git rebase origin/main; then
-                git rebase --abort || true
-                echo "::error::catalog rebase conflicted — batch not banked this run"
-                exit 1
-              fi
-            done
-            if [[ -z "$pushed" ]]; then
-              echo "::error::push still rejected after retries — batch not banked this run"
-              exit 1
-            fi
-            echo "stems banked and pushed"
-          else
-            echo "no stem changes"
+          done
+          if [[ -z "$pushed" ]]; then
+            echo "::error::push still rejected after retries — batch not banked this run"
+            exit 1
           fi
+          echo "stems banked and pushed"
