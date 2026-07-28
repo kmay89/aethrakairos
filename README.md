@@ -409,7 +409,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **sixteen scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **seventeen scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -422,8 +422,12 @@ pattern machine rolling between six forms: an isometric cube tessellation,
 a circular labyrinth around a black hole, an infinity-mirror dance floor
 lit on the grid, a scalloped psychedelic spiral, a dot-grid disco tunnel
 falling to its vanishing point, and dashed radar rings relayed in offset
-palette channels). Keys `1`–`9` and `0` reach the first ten; the scene dots
-reach them all. Over any scene, the **lens engine** can reshape the whole
+palette channels), and **HALO** (the spectrum bent into a ring: a torus of
+thousands of rainbow motes where each angle of the circle listens to one
+band of the live spectrum and visibly swells where its band sings — an
+equalizer curled into a circle of light, with winding bead-strands, a
+beat soliton orbiting the ring, and treble twinkles). Keys `1`–`9` and
+`0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
 TILE relay, MOIRÉ interference, a breathing IRIS, and stacks of them — with
 AUTO putting a lens on only where the song's structure earns it. Three things keep it feeling like a storytelling machine
