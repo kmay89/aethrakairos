@@ -2265,7 +2265,10 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     machine that rolls between an isometric cube tessellation, a circular labyrinth around a black
     hole, an infinity-mirror dance floor lit on the grid, a scalloped psychedelic spiral, a dot-grid
     disco tunnel falling to its vanishing point, and dashed radar rings relayed in offset palette
-    channels.</p>
+    channels. <b>HALO</b> — the spectrum bent into a ring: a torus of thousands of rainbow motes
+    where each angle of the circle listens to one band of the live spectrum and swells where its
+    band sings — an equalizer curled into a circle of light, threaded into bead-strands or relaxed
+    into mist, with a beat soliton orbiting the ring.</p>
     <h3>The parlor</h3>
     <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
     science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
@@ -2565,7 +2568,7 @@ function touchAffinity(sceneIdx, act, r){
   // ripple. The act leans on it (the apex punches, the edges breathe), and a
   // small wildcard keeps even a memorised map able to surprise.
   const MAP = ['grows', 'grows', 'gathers', 'blackhole', 'flows', 'blackhole', 'flows', 'blackhole',
-               'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows'];
+               'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows'];
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
@@ -14530,6 +14533,7 @@ const director = {
       if (i === 12) x += f.beat * 1.4 + f.treble * 1.0;            // op-art: sharp, rhythmic
       if (i === 13) x += f.beat * 1.0 + f.bass * 0.8;              // pulse: the visual instrument
       if (i === 14) x += f.entropy * 1.2 + f.mid * 0.8 + (1 - f.beat) * 0.4;  // parlor: patient, perceptual
+      if (i === 16) x += f.treble * 1.2 + f.energy * 1.0 + f.coupling * 0.5;  // halo: radiant, spectral
       // reduced-motion / CALM listeners live in the legible room by default
       if (s.calm && reducedMotion) x *= 2;
       // a strained device is spared the heavy scenes — cheap rooms only, so
@@ -14538,7 +14542,7 @@ const director = {
       if (s.heavy && ((typeof PERF !== 'undefined' && PERF.struggling)
         || (typeof POWER !== 'undefined' && !POWER.heavyOK))) x *= 0.02;
       // the act leans on the deal: the apex wants percussion, the edges want air
-      if (this.act === 2 && (i === 3 || i === 5 || i === 8 || i === 12)) x *= 1.6;
+      if (this.act === 2 && (i === 3 || i === 5 || i === 8 || i === 12 || i === 16)) x *= 1.6;
       if ((this.act === 0 || this.act === 4) && (i === 4 || i === 6 || i === 9 || i === 11)) x *= 1.6;
       if (i === this.active) x *= 0.15;                   // avoid repeat
       return Math.max(0.05, x);
@@ -14928,6 +14932,143 @@ function buildAurea(){
     } };
 }
 
+/* =========================================================
+   Scene 17 — HALO  (the spectrum bent into a ring)
+   A torus of thousands of glowing motes wearing the full rainbow
+   around its circumference — and the geometry IS the music: each
+   angle of the ring listens to one band of the live spectrum
+   (bass at the gate, highs around the far side), and the tube
+   visibly SWELLS and brightens where its band is loud. An
+   equalizer curled into a circle of light.
+     · Winding ribs (rolled 0–5) thread the beads into spiral
+       strands like a vortex of glossy pearls; MIST species relaxes
+       them into nebula fluff. Entropy scatters, calm gathers.
+     · The flow churns two ways at once — around the ring with the
+       energy, around the tube with the bass — and a beat soliton
+       orbits the circle, a bulge of light that anticipates and
+       rebounds because uBeat is the danced pulse.
+     · Treble scatters twinkles across the beads; the APEX blooms
+       saturation and size. Full-spectrum hue leaves the palette on
+       purpose (the COMETS precedent), tinted toward the accent so
+       the room still matches, with a white-hot specular core per
+       bead for the HDR-glass look.
+   ========================================================= */
+function buildHalo(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uWind: { value: 2 }, uSpecies: { value: 0 },   // 0 = BEADS (glossy strands) · 1 = MIST (nebula fluff)
+  };
+  const N = 9000;
+  const aT = new Float32Array(N), aSeed = new Float32Array(N);
+  for (let i = 0; i < N; i++){ aT[i] = (i + 0.5) / N; aSeed[i] = Math.random(); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(aSeed, 1));
+  const vert = VERT_POINT_HEAD + `
+    attribute float aT, aSeed;
+    uniform float uVarA, uVarB, uVarC, uWind, uSpecies;
+    varying float vHue; varying float vTw;
+    void main(){
+      float h1 = fract(aSeed * 127.1), h2 = fract(aSeed * 311.7), h3 = fract(aSeed * 74.7);
+      // the ring: major angle drifts with the energy; the gate angle is rolled
+      float spin = uTime * (0.04 + uEnergy * 0.08) * (uVarC < 0.5 ? -1.0 : 1.0);
+      float th = aT * 6.2831853 + spin;
+      // THIS angle's band: distance around the ring from the bass gate.
+      // The halo is an equalizer bent into a circle — lows at the gate,
+      // highs at the far side, and the tube swells where its band sings.
+      float band = abs(fract((th + uVarA * 6.2831853) / 6.2831853 + 0.5) - 0.5) * 2.0;
+      float amp = texture2D(uAudio, vec2(pow(band, 1.6) * 0.6, 0.5)).r;
+      // the beat soliton: a bulge of light orbiting the circle
+      float solA = fract(uTime * 0.11) * 6.2831853;
+      float solD = abs(fract((th - solA) / 6.2831853 + 0.5) - 0.5) * 2.0;
+      float sol = uBeat * exp(-solD * solD * 34.0);
+      // the tube: winding ribs thread the beads into spiral strands; the
+      // poloidal roll churns them around the tube with the bass
+      float ph = h1 * 6.2831853 * (uSpecies > 0.5 ? 1.0 : 0.0)
+               + floor(h1 * 7.0) * 0.8976 * (uSpecies > 0.5 ? 0.0 : 1.0)
+               + th * uWind + uTime * (0.22 + uBass * 0.55) * (uVarB < 0.5 ? -1.0 : 1.0);
+      float R = 7.0 + uVarB * 1.6;
+      float fluff = mix(0.28, 1.0, uSpecies) + uEntropy * 0.5;
+      float tube = (1.0 + uVarA * 0.9) * (0.62 + h2 * fluff)
+                 * (1.0 + amp * 0.8 + sol * 0.7 + uAct * 0.18);
+      vec3 p = vec3(cos(th) * (R + tube * cos(ph)), tube * sin(ph) * (1.0 + uBass * 0.25),
+                    sin(th) * (R + tube * cos(ph)));
+      // mist scatter: entropy shakes the beads loose of their strands, but
+      // never so far the ring stops being a ring
+      p += (vec3(h2, h3, h1) - 0.5) * (uEntropy * 0.9 + uSpecies * 0.6);
+      vHue = fract(th / 6.2831853 + uPiPhase * 0.15);
+      vTw = 0.5 + 0.5 * sin(uTime * (3.0 + h3 * 9.0) + h2 * 40.0);   // each bead's own twinkle clock
+      vT = aT; vGlow = amp + sol;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (1.1 + h3 * 1.7 + amp * 1.5 + sol * 1.4 + uAct * 0.5)
+                   * (1.0 - uSpecies * 0.35) * (300.0 / -mv.z);
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform vec3 uColC; uniform float uOpacity, uEnergy, uTreble, uAct, uSpecies;
+    varying float vHue; varying float vTw; varying float vGlow; varying float vT;
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r); a *= a;
+      // the bead is glass: a tight white-hot specular core inside a hue rim
+      float core = pow(max(0.0, 1.0 - r * (3.2 - uSpecies * 1.4)), 3.0);
+      float sat = 0.72 + uAct * 0.20;
+      vec3 col = hsv(vHue, sat, 1.0);
+      col = mix(col, uColC, 0.16);                       // the room still matches
+      col = mix(col, vec3(1.0), core * (0.38 + vGlow * 0.28));
+      float tw = 1.0 + uTreble * vTw * 1.2;              // treble scatters twinkles
+      col *= (0.42 + vGlow * 0.6 + uEnergy * 0.25) * tw;
+      gl_FragColor = vec4(col, a * uOpacity * (0.30 + vGlow * 0.30));
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+  group.visible = false;
+  scene.add(group);
+  // orientation temps, allocated once — update() runs every frame
+  const _up = new THREE.Vector3(0, 1, 0), _dir = new THREE.Vector3();
+  const _q = new THREE.Quaternion(), _pq = new THREE.Quaternion();
+  const _wob = new THREE.Quaternion(), _eul = new THREE.Euler();
+  const api = { name: 'HALO', group,
+    update(dt){
+      // present the circle: lean the ring's axis most of the way toward the
+      // camera, wherever the rig orbits, so the halo always reads as a
+      // circle of light and never a blade — the lean held back keeps the
+      // parallax and depth alive (the 3/4 view every reference wears)
+      _dir.copy(camera.position).normalize();
+      scene.getWorldQuaternion(_pq).invert();
+      _dir.applyQuaternion(_pq);
+      _q.setFromUnitVectors(_up, _dir);
+      group.quaternion.identity().slerp(_q, 0.74);
+      // a slow celestial wobble keeps the solid alive in space
+      _eul.set(Math.sin(U.uTime.value * 0.05) * 0.24, 0, Math.sin(U.uTime.value * 0.037) * 0.20);
+      group.quaternion.multiply(_wob.setFromEuler(_eul));
+    },
+    roll(){
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      varU.uWind.value = [0, 1, 2, 3, 5][(Math.random() * 5) | 0];
+      varU.uSpecies.value = Math.random() < 0.55 ? 0 : 1;
+      api.name = 'HALO · ' + (varU.uSpecies.value ? 'MIST' : 'BEADS');
+      return api.name;
+    } };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -14951,7 +15092,7 @@ function initThree(){
   initAudioTexture();
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
-              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea());
+              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo());
 
   // scene dots
   scenes.forEach((s, i) => {
