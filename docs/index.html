@@ -946,6 +946,9 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 .hud .coup-v{background:var(--axis);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:600}
 #sceneName{color:var(--dim);letter-spacing:.2em}
 .csw{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px;vertical-align:middle;background:#333;transition:background 1.2s linear}
+/* a readout that is also a control says so — quietly, and only on approach */
+.hud .ro.tap{cursor:pointer;border-radius:5px;padding:1px 4px;margin:0 -4px;transition:background .18s,color .18s}
+.hud .ro.tap:hover,.hud .ro.tap:focus-visible{background:var(--accent-dim);color:var(--ink);outline:none}
 .hud .spring{flex:1}
 
 /* -------- the visible meter: see the bar, anticipate the drop -------- */
@@ -2166,7 +2169,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <span class="sep"></span>
     <span class="ro" id="sceneName">—</span>
     <span class="ro opt" id="actName" title="Story act — where the director reads this track's arc">—</span>
-    <span class="ro opt" id="colorRo" title="Colour engine — palette derived from this track's key and character">
+    <span class="ro opt tap" id="colorRo" title="Colour engine — palette read from this track's key and character. Click to cycle: AUTO · SPECTRUM · DUOTONE">
       <i class="csw" id="csw0"></i><i class="csw" id="csw1"></i><i class="csw" id="csw2"></i>
       <span id="colorScheme">—</span></span>
     <span class="spring"></span>
@@ -2241,7 +2244,24 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <i>complementary</i> accent, dense material opens to a <i>triad</i> — and every change glides over
     eight beats of the measured grid in a perceptually uniform colour space, the way a lighting
     console cues, not the way a screensaver fades. Mix harmonically and the colours mix harmonically
-    with you. The three dots in the HUD are the live palette.</p>
+    with you. The three dots in the HUD are the live palette — and they are also a button: click them
+    to hold the room in <b>SPECTRUM</b> (a full wheel, anchored so the track's own key is the bright
+    point the rainbow falls away from) or <b>DUOTONE</b> (two colours, nothing pale to wash toward),
+    or leave it on AUTO and let the music choose.</p>
+    <p class="lede">Those three colours are stretched into a continuous <b>gradient</b> before any
+    scene sees them, interpolated the long way round the colour wheel. A straight blend between two
+    saturated hues is always greyest exactly halfway — which is where most of a spiral's arm or a
+    coil's length happens to live — so the ramp walks the hue around instead and keeps chroma the
+    whole way across.</p>
+    <p class="lede">And light no longer bleaches by accident. Hundreds of glowing sprites add up in
+    the same pixel, and when a channel clips the colour dies before the brightness does: that white
+    blob with a coloured rim is a hue failure, not a brightness one. Where the device can hold it,
+    the field is now summed in high dynamic range and rolled off along a curve that compresses the
+    brightest channel and carries the other two with it, so overdriven light reads as <i>more
+    saturated</i> rather than as chalk (where it can't, each layer is held in gamut instead).
+    Blowing out to white is still available — it is just a <b>budget</b> the music has to earn, opened
+    by the act and the section's own intensity ceiling. A loud intro stays a colour. The drop gets the
+    glare.</p>
     <h3>Dancing with your eyes</h3>
     <p class="lede">Bass, melody, and percussion each get a <b>distinct visual voice</b>, so you can follow
     the music by eye — nowhere more plainly than in <b>PULSE</b>, the visual meter: the
@@ -2259,9 +2279,10 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     every streak its own colour, speed riding the music's energy and the act. <b>FERN</b> — an
     iterated-function fractal drawn dot by dot as the track plays: sprouting through the overture,
     full-bloom at the apex, scattering to seeds at the resolve — each visit grows a different
-    species. <b>ROSETTE</b> — spirograph rings drawn three times in offset palette channels; quiet
-    converges them white, every hit blooms the chromatic fringe. <b>SLINKY</b> — a chalk-grain coil
-    whose spin direction is an argument you can win (drag sideways). <b>OP-ART</b> — a flat pattern
+    species. <b>ROSETTE</b> — spirograph rings drawn three times in offset channels, each one a
+    different point on the live gradient; quiet converges them, every hit blooms the chromatic
+    fringe. <b>SLINKY</b> — a chalk-grain coil whose spin direction is an argument you can win
+    (drag sideways). <b>OP-ART</b> — a flat pattern
     machine that rolls between an isometric cube tessellation, a circular labyrinth around a black
     hole, an infinity-mirror dance floor lit on the grid, a scalloped psychedelic spiral, a dot-grid
     disco tunnel falling to its vanishing point, and dashed radar rings relayed in offset palette
@@ -6436,8 +6457,17 @@ function colorPlan(inp){
   if (!keyed) rootH = (br * 320 + ent * 160 + rng() * 40) % 360;
   // timbre tilts the root a little: bright material leans warm
   rootH = (rootH + (br - 0.35) * 26 + 360) % 360;
-  // character → scheme
-  const scheme = ent > 0.62 ? 'triad' : (e > 0.55 ? 'complement' : 'analogous');
+  // character → scheme. SPECTRUM is the rainbow, and it is deliberately the
+  // rarest reading in the engine: it takes material that has genuinely come
+  // apart — high entropy AND high energy together. A spectrum laid over a
+  // calm track says nothing about the track, which is the reason most
+  // visualizers' rainbows feel like wallpaper.
+  const scheme = (ent > 0.80 && e > 0.62) ? 'spectrum'
+    : ent > 0.62 ? 'triad' : (e > 0.55 ? 'complement' : 'analogous');
+  // SPECTRUM's swatches follow the triad's geometry: the sweep is the ramp's
+  // business, but uColA/B/C still light the chrome, the waveform and the
+  // scenes that route through named colours, so they must stay a real chord.
+  const base = scheme === 'spectrum' ? 'triad' : scheme;
   // arousal → chroma; mode → lightness + temperature
   // RADIANT, not pastel: chroma lives in OKLCH's vivid range (0.12–0.4 —
   // the gamut mapper walks it down safely where sRGB can't follow), and
@@ -6452,18 +6482,160 @@ function colorPlan(inp){
   // Unkeyed material (mic, unanalysed files) keeps the classic art-school
   // spreads — the intervals are earned by knowing the key.
   const spread = keyed
-    ? (scheme === 'analogous' ? intervalHue(16, 15)
-       : scheme === 'complement' ? intervalHue(45, 32)
+    ? (base === 'analogous' ? intervalHue(16, 15)
+       : base === 'complement' ? intervalHue(45, 32)
        : intervalHue(minor ? 6 : 5, minor ? 5 : 4))
-    : (scheme === 'analogous' ? 24 + rng() * 12 : (scheme === 'complement' ? 180 : 120));
+    : (base === 'analogous' ? 24 + rng() * 12 : (base === 'complement' ? 180 : 120));
   const a = { l: L0, c: C0, h: H };
-  const b = { l: lClamp(L0 + (scheme === 'analogous' ? 0.06 : 0.04)), c: C0 * 0.9, h: (H + spread) % 360 };
+  const b = { l: lClamp(L0 + (base === 'analogous' ? 0.06 : 0.04)), c: C0 * 0.9, h: (H + spread) % 360 };
   // even the bright accent carries real hue — a near-white accent is what
   // reads as "washed out" the moment particles stack additively
-  const c = scheme === 'triad'
+  const c = base === 'triad'
     ? { l: lClamp(L0 + 0.16), c: C0 * 0.85, h: (H + (keyed ? intervalHue(3, 2) : 240)) % 360 }
-    : { l: 0.85, c: 0.08 + e * 0.06, h: (H + (scheme === 'complement' ? spread : -spread) + 360) % 360 };
+    : { l: 0.85, c: 0.08 + e * 0.06, h: (H + (base === 'complement' ? spread : -spread) + 360) % 360 };
   return { scheme, keyed, minor: !!minor, root: a, colors: [a, b, c] };
+}
+
+/* ================================================================
+   INK — what happens when there is more light than there is screen.
+
+   Additive light is unbounded; a framebuffer is not. Six thousand sprites
+   summing into the same pixel do not "get brighter" past 1.0 — each
+   channel clips independently, and because the BRIGHTEST channel clips
+   first the ratio between the three collapses. Amber at 1.3x is still
+   amber. At 3x it is (1,1,1). That is the whole of what the eye calls
+   washed out: not too much brightness, but brightness spent on the one
+   axis that carries no colour.
+
+   inkRolloff compresses the MAX CHANNEL along a soft knee and rescales the
+   entire triple by that single factor, so chromaticity — hue and
+   saturation both — survives exactly, at any drive level. The curve is C1
+   at the knee (slope 1 either side, so nothing kinks as a field brightens
+   through it) and approaches 1 from below without ever arriving. That last
+   property is the design: light alone can no longer reach white. White has
+   to be SPENT, and whiteBudget is what it is spent from.
+   ================================================================ */
+const INK = {
+  knee: 0.68,        // below this the light is linear and completely untouched
+  whiteFloor: 0.05,  // every moment gets a hint of it — a specular core, never a field
+  whiteCeil: 0.92,   // what an earned apex may spend
+  // the budget's real meaning: HOW MANY TIMES over the display's range a pixel
+  // has to be driven before it reads as white. At the floor it takes an 18x
+  // core — a highlight, and nothing wider. At the ceiling 2.2x will do it, and
+  // the drop gets to blow out. Nothing else in the engine can make white.
+  wpDim: 18.0,
+  wpHot: 2.2,
+};
+
+/* rgb -> rgb, hue-preserving. `white` (0..1) sets the threshold above which
+   light is allowed to leave its colour behind; at 0 nothing ever bleaches, no
+   matter how hard it is driven. */
+function inkRolloff(rgb, white, tuning){
+  const T = tuning || INK, K = T.knee, D = 1 - K;
+  const m = Math.max(rgb[0], rgb[1], rgb[2]);
+  if (!(m > K)) return [rgb[0], rgb[1], rgb[2]];
+  const m2 = 1 - (D * D) / (m - 2 * K + 1);      // f(K)=K, f'(K)=1, f(inf)->1
+  const k = m2 / m;
+  const out = [rgb[0] * k, rgb[1] * k, rgb[2] * k];
+  const w = clamp01(white || 0);
+  if (w <= 0) return out;
+  // the budget does two things at once, and it has to do both: it lowers the
+  // BAR (how many times over the range counts as white) and it caps the DEPTH
+  // (how far toward white a pixel that clears the bar may go). With only the
+  // bar, a hard enough core bleaches even at a closed budget — which is the
+  // whole behaviour this is here to refuse.
+  const wp = T.wpDim + (T.wpHot - T.wpDim) * w;
+  let t = clamp01((m - 1) / Math.max(1e-4, wp - 1));
+  t = t * t * (3 - 2 * t) * w;                   // smoothstep: no edge where white begins
+  return out.map(v => v + (m2 - v) * t);
+}
+
+/* whiteBudget — the section's licence to bleach, 0..1.
+   in : { act, ceil, energy, phase, calm }
+
+   It takes BOTH a hot section and a hot moment. The structure ceiling has
+   already refused a drop the music never earned, and squaring the product
+   keeps the top of the range narrow on purpose: full white stays rare
+   enough that it still means something when it lands. A loud intro is a
+   colour; only the drop is white. */
+function whiteBudget(inp){
+  const i = inp || {};
+  const heat = clamp01(i.act == null ? 0.5 : i.act) * clamp01(i.ceil == null ? 1 : i.ceil);
+  let w = clamp01(heat * (0.30 + 0.70 * clamp01(i.energy || 0)));
+  w *= w;
+  if (i.phase === 'peak') w = clamp01(w * 1.35);
+  else if (i.phase === 'break') w *= 0.35;
+  if (i.calm) w *= 0.45;                          // CALM never bleaches the field
+  return INK.whiteFloor + (INK.whiteCeil - INK.whiteFloor) * clamp01(w);
+}
+
+/* ================================================================
+   RAMP — the palette as a gradient instead of three swatches.
+
+   mix(colA, colB, t) is the oldest quiet bug in stage lighting. A straight
+   line between two saturated colours cuts through the MIDDLE of the gamut
+   solid, so every two-stop blend is at its greyest exactly halfway: amber
+   to magenta goes through mud at t = 0.5, and a scene sweeping an arm or a
+   coil through t spends most of its pixels right there. Interpolating the
+   same two stops in OKLCH walks the hue around the wheel instead and holds
+   chroma the whole way across.
+
+   The stops are cyclic — t = 1 lands back on t = 0 — because nearly every
+   consumer is walking an angle, a coil or an arm, and a seam would show.
+   ================================================================ */
+const RAMP_N = 128;                               // texels; linear-filtered, so plenty
+
+function rampStops(plan, mode){
+  const [a, b, c] = plan.colors;
+  const m = mode && mode !== 'auto' ? mode : (plan.scheme === 'spectrum' ? 'spectrum' : 'auto');
+  if (m === 'spectrum'){
+    // a rainbow that still belongs to the song: the sweep is ANCHORED on the
+    // key's own hue and the lightness peaks there, so the track's colour is
+    // the bright point the spectrum falls away from — not an arbitrary wheel
+    // bolted onto whatever happens to be playing.
+    const N = 8, out = [];
+    for (let i = 0; i < N; i++){
+      const f = i / N;
+      const away = Math.abs(((f * 360 + 180) % 360) - 180) / 180;   // 0 at the root hue
+      out.push({ l: lClamp(a.l - 0.04 + 0.12 * (1 - away)),
+        c: Math.max(a.c, 0.16), h: (a.h + f * 360) % 360 });
+    }
+    return out;
+  }
+  if (m === 'duo'){
+    // the poster look: identity and harmony, and nothing pale to lift toward.
+    // The least washable ramp in the engine — there is no bright stop in it.
+    return [a, { l: lClamp(b.l - 0.02), c: Math.max(b.c, a.c * 0.85), h: b.h }];
+  }
+  // AUTO — identity, harmony, accent; and the accent arrives darker and more
+  // chromatic than the plan hands it over. Its job in a gradient is to be the
+  // bright stop, not the white one. White is the budget's to spend.
+  return [a, b, { l: lClamp(c.l - 0.08), c: Math.max(c.c, a.c * 0.55), h: c.h }];
+}
+
+/* stops -> N RGBA texels, smoothstepped between stops and wrapping at the end.
+   RGBA rather than RGB so the row is 4-byte aligned at any N — a texture
+   upload that trips UNPACK_ALIGNMENT on one driver and not another is not a
+   bug anyone should have to find twice.
+
+   `lumaGain` is the flash governor's verdict, carried in: it has already
+   rate-limited the palette's luminance, and OKLCH L is very nearly the cube
+   root of luminance, so applying it as l * cbrt(gain) lands the whole ramp on
+   exactly the light the governor allowed. One governor, no second state
+   machine, no ungoverned gradient sneaking past it. */
+function buildRamp(stops, n, lumaGain){
+  const N = n || RAMP_N, S = stops.length, out = new Uint8Array(N * 4);
+  const g = lumaGain == null || !(lumaGain > 0) ? 1 : Math.cbrt(lumaGain);
+  for (let i = 0; i < N; i++){
+    const x = (i / N) * S, j = Math.floor(x) % S, t = x - Math.floor(x);
+    const col = lerpOklch(stops[j], stops[(j + 1) % S], t * t * (3 - 2 * t));
+    const rgb = oklchToRgb(lClamp(col.l * g), Math.max(0, col.c), col.h);
+    out[i * 4] = Math.round(clamp01(rgb[0]) * 255);
+    out[i * 4 + 1] = Math.round(clamp01(rgb[1]) * 255);
+    out[i * 4 + 2] = Math.round(clamp01(rgb[2]) * 255);
+    out[i * 4 + 3] = 255;
+  }
+  return out;
 }
 // @color-end
 
@@ -9350,7 +9522,7 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'f91dfa86d7';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'd4122d90bc';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -11315,7 +11487,25 @@ const U = {
   uColC:     { value: new THREE.Color(PALETTES[0].c) },
   uOpacity:  { value: 1 },
   uAudio:    { value: null },      // 1024×1 luminance texture of the live spectrum
+  uRamp:     { value: null },      // 128×1 RGBA gradient — the palette as a colour (set by COLOR)
+  uWhite:    { value: INK.whiteFloor },  // the bleach budget; only the drop opens it
 };
+
+/* the rolloff, in GLSL, generated from the SAME constant the JS uses — a
+   shader knee that drifts away from the tested one would be a defect nobody
+   could see until a field went chalk on a device they don't own */
+const GLSL_INK = `
+  vec3 inkRolloff(vec3 c){
+    const float K = ${INK.knee.toFixed(4)};
+    const float D = ${(1 - INK.knee).toFixed(4)};
+    float m = max(max(c.r, c.g), c.b);
+    if (m <= K) return c;
+    float m2 = 1.0 - (D * D) / (m - 2.0 * K + 1.0);
+    vec3 o = c * (m2 / m);
+    float wp = mix(${INK.wpDim.toFixed(2)}, ${INK.wpHot.toFixed(2)}, uWhite);
+    return mix(o, vec3(m2), uWhite * smoothstep(1.0, wp, m));
+  }
+`;
 
 // GLSL: the Möbius fold, available to every shader
 const GLSL_MPHI = `
@@ -11323,7 +11513,48 @@ const GLSL_MPHI = `
   float mphi(float x){ return 2.0 * atan(max(x, 1e-4)); }
   float mphiInv(float t){ return tan(clamp(t, 0.0, PI - 1e-4) * 0.5); }
   vec3 hue2(vec3 a, vec3 b, float t){ return mix(a, b, clamp(t,0.0,1.0)); }
-`;
+
+  uniform sampler2D uRamp;   // the live palette, as a continuous gradient
+  uniform float uWhite;      // the bleach this moment has earned, 0..1
+
+  /* the palette as a COLOUR rather than three swatches: 128 texels of
+     OKLCH-interpolated gradient, cyclic, rebuilt whenever the light moves.
+     hue2(a,b,0.5) is the greyest point between its two ends; ramp(0.5) is
+     not, and every scene that sweeps a strand through t lives there. */
+  vec3 ramp(float t){ return texture2D(uRamp, vec2(fract(t), 0.5)).rgb; }
+` + GLSL_INK;
+
+/* the gradient's home on the GPU. RepeatWrapping matters: the ramp is cyclic
+   and linear-filtered, so with clamped edges the texel between t=1 and t=0
+   would blend against itself and leave a visible seam on every scene that
+   walks an angle right around. */
+let rampTex;
+function initRampTexture(){
+  // seeded from the boot palette, not from zeroes: the colour conductor fills
+  // this on its first update, but a scene drawn before that would sample an
+  // all-black gradient and the field would flash dark on the way in
+  const seed = new Uint8Array(RAMP_N * 4);
+  const boot = [PALETTES[0].a, PALETTES[0].b, PALETTES[0].c].map(h => new THREE.Color(h));
+  for (let i = 0; i < RAMP_N; i++){
+    const x = (i / RAMP_N) * 3, j = Math.floor(x) % 3, t = x - Math.floor(x);
+    const A = boot[j], B = boot[(j + 1) % 3];
+    seed[i * 4] = Math.round((A.r + (B.r - A.r) * t) * 255);
+    seed[i * 4 + 1] = Math.round((A.g + (B.g - A.g) * t) * 255);
+    seed[i * 4 + 2] = Math.round((A.b + (B.b - A.b) * t) * 255);
+    seed[i * 4 + 3] = 255;
+  }
+  rampTex = new THREE.DataTexture(seed, RAMP_N, 1, THREE.RGBAFormat);
+  rampTex.magFilter = THREE.LinearFilter;
+  rampTex.minFilter = THREE.LinearFilter;
+  rampTex.wrapS = THREE.RepeatWrapping;
+  rampTex.needsUpdate = true;
+  U.uRamp.value = rampTex;
+}
+function uploadRamp(bytes){
+  if (!rampTex) return;
+  rampTex.image.data.set(bytes);
+  rampTex.needsUpdate = true;
+}
 
 let audioTex;
 function initAudioTexture(){
@@ -11449,9 +11680,12 @@ const FRAG_POINT = GLSL_MPHI + `
     if (r > 0.5) discard;
     float a = smoothstep(0.5, 0.0, r);
     a *= a;
-    vec3 col = hue2(uColA, uColB, vT);
-    col = mix(col, uColC, vGlow * 0.6 + uBeat * 0.25);
-    col *= 0.7 + vGlow * 0.9 + uEnergy * 0.3;
+    // the gradient carries the identity; the accent is now a LEAN, not a
+    // destination. Pushing all the way to the pale accent on every bright
+    // sprite is what used to hand the stack a head start on white.
+    vec3 col = ramp(vT);
+    col = mix(col, uColC, vGlow * 0.28 + uBeat * 0.12);
+    col = inkRolloff(col * (0.7 + vGlow * 0.9 + uEnergy * 0.3));
     gl_FragColor = vec4(col, a * uOpacity * (0.5 + vGlow * 0.7));
   }
 `;
@@ -11527,7 +11761,7 @@ function buildSpiral(){
   const lfrag = GLSL_MPHI + `
     uniform vec3 uColA, uColB; uniform float uOpacity, uEnergy;
     varying float vGlow; varying float vT;
-    void main(){ gl_FragColor = vec4(hue2(uColA,uColB,vT) * (0.4 + vGlow), uOpacity * (0.10 + vGlow * 0.35) * (0.5+uEnergy)); }
+    void main(){ gl_FragColor = vec4(inkRolloff(ramp(vT) * (0.4 + vGlow)), uOpacity * (0.10 + vGlow * 0.35) * (0.5+uEnergy)); }
   `;
   group.add(addShaderLines(lgeo, lfrag, lvert, varU, true));
 
@@ -11598,7 +11832,7 @@ function buildHelix(){
     const idx = []; for (let i = 0; i < N - 1; i++) idx.push(i, i + 1);
     const lg = geo.clone(); lg.setIndex(idx);
     const lfrag = GLSL_MPHI + `uniform vec3 uColA,uColB; uniform float uOpacity; varying float vGlow; varying float vT;
-      void main(){ gl_FragColor = vec4(hue2(uColA,uColB,vT)*(0.5+vGlow), uOpacity*(0.2+vGlow*0.4)); }`;
+      void main(){ gl_FragColor = vec4(inkRolloff(ramp(vT)*(0.5+vGlow)), uOpacity*(0.2+vGlow*0.4)); }`;
     group.add(addShaderLines(lg, lfrag, vert, Object.assign({ uWhich: { value: which } }, varU), true));
   }
   strand(0); strand(1);
@@ -11627,7 +11861,7 @@ function buildHelix(){
     }
   `;
   const rfrag = GLSL_MPHI + `uniform vec3 uColA,uColB,uColC; uniform float uOpacity,uCoupling; varying float vGlow; varying float vT;
-    void main(){ gl_FragColor = vec4(mix(hue2(uColA,uColB,vT),uColC,uCoupling), uOpacity*vGlow*0.5); }`;
+    void main(){ gl_FragColor = vec4(inkRolloff(mix(ramp(vT),uColC,uCoupling*0.6)), uOpacity*vGlow*0.5); }`;
   group.add(addShaderLines(rgeo, rfrag, rvert, varU, true));
 
   group.visible = false;
@@ -11693,9 +11927,9 @@ function buildBand(){
     varying float vGlow; varying float vBand; varying vec3 vN;
     void main(){
       float fres = pow(1.0 - abs(vN.z), 2.0);
-      vec3 col = hue2(uColA, uColB, vBand);
-      col = mix(col, uColC, fres * 0.7 + uBeat * 0.2);
-      col *= 0.45 + vGlow * 0.8 + fres * 0.6;
+      vec3 col = ramp(vBand);
+      col = mix(col, uColC, fres * 0.45 + uBeat * 0.15);
+      col = inkRolloff(col * (0.45 + vGlow * 0.8 + fres * 0.6));
       float edge = smoothstep(0.0,0.12,vBand) * smoothstep(1.0,0.88,vBand);
       float a = uOpacity * (0.30 + vGlow*0.5 + fres*0.4) * (0.55 + edge*0.6);
       gl_FragColor = vec4(col, a);
@@ -11737,7 +11971,7 @@ function buildBand(){
     }
   `;
   const efrag = GLSL_MPHI + `uniform vec3 uColC,uColA; uniform float uOpacity,uBeat; varying float vGlow;
-    void main(){ gl_FragColor = vec4(mix(uColA,uColC,0.6)+uBeat*0.3, uOpacity*(0.4+vGlow*0.6)); }`;
+    void main(){ gl_FragColor = vec4(inkRolloff(mix(uColA,uColC,0.5)*(1.0+uBeat*0.7)), uOpacity*(0.4+vGlow*0.6)); }`;
   group.add(addShaderLines(egeo, efrag, evert, varU, true));
 
   group.visible = false;
@@ -11785,7 +12019,7 @@ function buildStarburst(){
     }
   `;
   const frag = GLSL_MPHI + `uniform vec3 uColA,uColB,uColC; uniform float uOpacity,uBeat,uEnergy; varying float vGlow; varying float vT;
-    void main(){ vec3 c = mix(hue2(uColA,uColB,vT), uColC, uBeat*0.4); gl_FragColor = vec4(c*(0.5+vGlow), uOpacity*(0.15+vGlow*0.6)); }`;
+    void main(){ vec3 c = mix(ramp(vT), uColC, uBeat*0.28); gl_FragColor = vec4(inkRolloff(c*(0.5+vGlow)), uOpacity*(0.15+vGlow*0.6)); }`;
   group.add(addShaderLines(geo, frag, vert, varU, true));
 
   // shock ring
@@ -11802,7 +12036,7 @@ function buildStarburst(){
       gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0); }
   `;
   const rfrag = GLSL_MPHI + `uniform vec3 uColC,uColA; uniform float uShockA,uOpacity; varying float vA;
-    void main(){ gl_FragColor = vec4(mix(uColA,uColC,0.5), uShockA*uOpacity*0.8); }`;
+    void main(){ gl_FragColor = vec4(inkRolloff(mix(uColA,uColC,0.5)), uShockA*uOpacity*0.8); }`;
   const ring = addShaderLines(rgeo, rfrag, rvert, shockU, false);
   group.add(ring);
 
@@ -11910,7 +12144,7 @@ function buildTunnel(){
     }
   `;
   const frag = GLSL_MPHI + `uniform vec3 uColA,uColB,uColC; uniform float uOpacity,uBeat; varying float vGlow; varying float vT; varying float vNear;
-    void main(){ vec3 c = mix(hue2(uColA,uColB,vT), uColC, uBeat*0.3*vNear); gl_FragColor = vec4(c*(0.4+vGlow), uOpacity*vNear*(0.2+vGlow*0.7)); }`;
+    void main(){ vec3 c = mix(ramp(vT), uColC, uBeat*0.22*vNear); gl_FragColor = vec4(inkRolloff(c*(0.4+vGlow)), uOpacity*vNear*(0.2+vGlow*0.7)); }`;
   group.add(addShaderLines(geo, frag, vert, Object.assign({}, scrollU, varU), true));
   group.visible = false;
   scene.add(group);
@@ -12013,10 +12247,10 @@ function buildRibbons(){
     varying float vGlow; varying float vT; varying float vSide;
     void main(){
       float edge = 1.0 - vSide * vSide;
-      vec3 col = hue2(uColA, uColB, vT);
-      col = mix(col, uColC, vGlow * 0.35 + uBeat * 0.15);
+      vec3 col = ramp(vT);
+      col = mix(col, uColC, vGlow * 0.25 + uBeat * 0.10);
       float a = uOpacity * edge * (0.18 + vGlow * 0.5) * (1.0 - uMorph * 0.85);
-      gl_FragColor = vec4(col * (0.6 + vGlow), a);
+      gl_FragColor = vec4(inkRolloff(col * (0.6 + vGlow)), a);
     }
   `;
   const mat = new THREE.ShaderMaterial({
@@ -12203,7 +12437,9 @@ const MARCH_FRAG = GLSL_FRACTAL + `
   uniform vec3  uOrb0, uOrb1, uOrb2;
   uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCoupling, uEntropy, uCentroid, uHue;
   uniform vec3  uColA, uColB, uColC;
+  uniform float uWhite;             // the march builds its own prelude, so ink comes in by hand
   varying vec2 vUv;
+  ` + GLSL_INK + `
 
   #if FORM == 0 || FORM == 1 || FORM == 2 || FORM == 7
   /* One bulb iteration at an INTEGER power bp (uniform-fed). Integer powers
@@ -12393,7 +12629,7 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     if (matId > 0.5){
       float fr = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 2.0);
       vec3 oc = mix(uColC, uColB, 0.35) * (1.1 + uBeat * 0.9);
-      gl_FragColor = vec4(oc * (0.55 + fr * 1.1), 1.0);
+      gl_FragColor = vec4(inkRolloff(oc * (0.55 + fr * 1.1)), 1.0);
       return;
     }
 
@@ -12434,7 +12670,7 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     outc *= 0.85 + uEnergy * 0.5;
 
     float fog = 1.0 - clamp((t - t0) / (uBound * 2.0), 0.0, 1.0);
-    gl_FragColor = vec4(outc * (0.35 + fog * 0.65), 1.0);
+    gl_FragColor = vec4(inkRolloff(outc * (0.35 + fog * 0.65)), 1.0);
   }
 `;
 
@@ -12673,7 +12909,7 @@ function buildStarfield(){
       gl_PointSize = (0.5 + aMag * 2.2 + tw * 0.5 + uCalm * 0.5) * (300.0 / -mv.z);
     }
   `;
-  const frag = `
+  const frag = GLSL_MPHI + `
     uniform vec3 uColC, uColA; uniform float uOpacity, uCalm;
     varying float vGlow; varying float vT;
     void main(){
@@ -12682,7 +12918,7 @@ function buildStarfield(){
       if (r > 0.5) discard;
       float a = smoothstep(0.5, 0.0, r); a *= a;
       // faint warm/cool scatter across the sky, tinted by the live palette
-      vec3 c = mix(uColC, uColA, vT * 0.35);
+      vec3 c = inkRolloff(mix(uColC, uColA, vT * 0.35));
       gl_FragColor = vec4(c, a * (0.18 + vGlow * 0.55) * uOpacity * (0.75 + uCalm * 0.25));
     }
   `;
@@ -12755,8 +12991,8 @@ function buildComets(){
       if (r > 0.5) discard;
       float a = smoothstep(0.5, 0.0, r); a *= a;
       vec3 col = hsv(vHue, 0.55 + uVarC * 0.4, 1.0);
-      col = mix(col, uColC, 0.18);
-      col *= 0.9 + vGlow + uEnergy * 0.4;
+      col = mix(col, ramp(vHue), 0.24);
+      col = inkRolloff(col * (0.9 + vGlow + uEnergy * 0.4));   // AFTER the lift, or it does nothing
       gl_FragColor = vec4(col, a * uOpacity * (1.0 - vTrail * 0.85));
     }
   `;
@@ -12870,9 +13106,9 @@ function buildFern(){
       float r = length(d);
       if (r > 0.5) discard;
       float a = smoothstep(0.5, 0.1, r);
-      vec3 col = hue2(uColA, uColB, vT);
-      col = mix(col, uColC, vGlow * 0.35);
-      col *= 0.75 + vGlow * 0.6 + uEnergy * 0.2;
+      vec3 col = ramp(vT);
+      col = mix(col, uColC, vGlow * 0.28);
+      col = inkRolloff(col * (0.75 + vGlow * 0.6 + uEnergy * 0.2));
       gl_FragColor = vec4(col, a * uOpacity * 0.9);
     }
   `;
@@ -12950,8 +13186,8 @@ function buildRosette(){
       float r = length(d);
       if (r > 0.5) discard;
       float a = smoothstep(0.5, 0.0, r); a *= a;
-      vec3 col = vChan < 0.5 ? uColA : (vChan < 1.5 ? uColB : uColC);
-      col *= 0.9 + vGlow * 0.9;
+      vec3 col = ramp(vChan / 3.0);
+      col = inkRolloff(col * (0.9 + vGlow * 0.9));
       gl_FragColor = vec4(col, a * uOpacity * (0.26 + vGlow * 0.3));
     }
   `;
@@ -13026,7 +13262,7 @@ function buildSlinky(){
       float r = length(d);
       if (r > 0.5) discard;
       float a = smoothstep(0.5, 0.0, r); a *= a;
-      vec3 col = mix(uColC, vec3(1.0), 0.45) * (0.55 + vGlow * 0.6);
+      vec3 col = inkRolloff(mix(uColC, vec3(1.0), 0.16 + uWhite * 0.34) * (0.55 + vGlow * 0.6));
       gl_FragColor = vec4(col, a * uOpacity * (0.11 + vGlow * 0.2));
     }
   `;
@@ -13087,12 +13323,17 @@ function buildOpArt(){
     varying vec2 vUv;
     float hash21(vec2 p){ p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
     vec3 cell5(float h){
-      // quantized palette: five hard colours, op-art style
+      // quantized palette: five hard colours, op-art style — and now every one
+      // of them a real colour. The fourth band used to be the RGB midpoint of
+      // two hues, which is reliably the muddiest colour available; it reads the
+      // gradient's middle instead. The fifth carries the value contrast op-art
+      // lives on, so it stays LIGHT — but a tinted light, and it only walks the
+      // rest of the way to white when the budget says the moment has earned it.
       if (h < 0.2) return uColA;
       if (h < 0.4) return uColB;
       if (h < 0.6) return uColC;
-      if (h < 0.8) return mix(uColA, uColB, 0.5) * 0.55;
-      return mix(uColC, vec3(1.0), 0.7);
+      if (h < 0.8) return ramp(0.5) * 0.55;
+      return mix(ramp(0.14), vec3(1.0), 0.28 + uWhite * 0.42);
     }
     // the op-art contour: take any smooth field and make it PATTERN — quantize
     // it to the five hard colours and cut a dark seam at every band boundary.
@@ -13321,7 +13562,7 @@ function buildOpArt(){
         col *= 1.0 + uBeat * 0.28;
       }
       col *= 0.8 + uEnergy * 0.35 + uAct * 0.25;
-      gl_FragColor = vec4(col, uOpacity);
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
     }
   `;
   const mat = new THREE.ShaderMaterial({
@@ -13441,7 +13682,7 @@ function buildPulse(){
       }
 
       col *= 0.9 + uAct * 0.15;
-      gl_FragColor = vec4(col, uOpacity);
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
     }
   `;
   const mat = new THREE.ShaderMaterial({
@@ -13761,7 +14002,7 @@ function buildParlor(){
         col = mix(col, vec3(1.0), disc * lines * 0.9);
       }
       col *= 0.85 + uAct * 0.2;
-      gl_FragColor = vec4(col, uOpacity);
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
     }
   `;
   const mat = new THREE.ShaderMaterial({
@@ -14654,6 +14895,13 @@ const COLOR = {
   on: true,
   plan: null, from: null, target: null, now: null,
   glideT: 1, glideDur: 6, _lastId: null, _replanT: 0, _seedBump: 0,
+  // how the ramp reads the plan. AUTO lets the music choose (and it chooses
+  // SPECTRUM only for material that has genuinely come apart); the other two
+  // are the hand on the desk — a forced rainbow, or the two-colour poster.
+  modes: ['auto', 'spectrum', 'duo'],
+  modeLabels: { auto: 'AUTO', spectrum: 'SPECTRUM', duo: 'DUOTONE' },
+  mode: 'auto',
+  white: INK.whiteFloor, _rampT: 99,
 
   _hash(s){
     let h = 2166136261;
@@ -14760,6 +15008,58 @@ const COLOR = {
     U.uColB.value.setRGB(rgb[1][0], rgb[1][1], rgb[1][2]);
     U.uColC.value.setRGB(rgb[2][0], rgb[2][1], rgb[2][2]);
     this._rgb = rgb;
+
+    /* THE WHITE BUDGET — the only thing in the engine allowed to make white,
+       and the reason a field can be blinding without being blank. It is the
+       SECTION that opens it, not the volume: the same fader move in an intro
+       and in a drop buys completely different amounts of bleach.
+       Eased over roughly a second — an order of magnitude slower than the
+       governor's own rate limit, so the budget can never itself be a flash —
+       and then ridden by the beat channel, which is already WCAG-gated. */
+    const wantW = whiteBudget({ act: heat, ceil: (typeof director !== 'undefined') ? director.ceil : 1,
+      energy: AE.f.energy, phase, calm: SAFE.calm });
+    const wTau = wantW > this.white ? 0.9 : 1.8;     // opens slowly, closes slower
+    this.white += (wantW - this.white) * (1 - Math.exp(-dt / wTau));
+    U.uWhite.value = clamp01(this.white * (0.8 + 0.35 * U.uBeat.value));
+
+    /* THE GRADIENT — rebuilt off the same stops, at ~24 Hz. The glide it
+       follows runs over eight beats, so a frame-rate rebuild would be
+       spending gamut-mapping loops to move a texel a fraction of a level.
+       The governor's scalar rides in with it (see buildRamp). */
+    this._rampT += dt;
+    if (this._rampT > 1 / 24 && this.plan){
+      this._rampT = 0;
+      const raw0 = oklchToRgb(lClamp(lit[0].l * mulL), Math.max(0, lit[0].c * mulC), lit[0].h);
+      const gain = relLuma(raw0) > 1e-5 ? relLuma(rgb[0]) / relLuma(raw0) : 1;
+      const stops = rampStops({ scheme: this.plan.scheme, colors: lit.map(c =>
+        ({ l: lClamp(c.l * mulL), c: Math.max(0, c.c * mulC), h: c.h })) }, this.mode);
+      uploadRamp(buildRamp(stops, RAMP_N, gain));
+    }
+  },
+
+  /* the HUD readout is the control: clicking the swatches cycles how the ramp
+     reads the plan. Cheap, discoverable, and it puts the rainbow within reach
+     of anyone who wants one without letting the director hand it out. */
+  setMode(m, save){
+    if (this.modes.indexOf(m) < 0) m = 'auto';
+    this.mode = m;
+    this._rampT = 99;                                // rebuild on the next frame
+    if (save !== false){ try { localStorage.setItem('mb8_colormode', m); } catch (e){} }
+  },
+  cycleMode(){
+    const i = this.modes.indexOf(this.mode);
+    const m = this.modes[(i + 1) % this.modes.length];
+    this.setMode(m, true);
+    toast('Colour · <b>' + this.modeLabels[m] + '</b>' + (m === 'auto'
+      ? ' — the palette follows the key and the character'
+      : (m === 'spectrum' ? ' — a full wheel, anchored on the key'
+        : ' — two colours, no highlight to wash toward')));
+    return m;
+  },
+  loadMode(){
+    let m = null;
+    try { m = localStorage.getItem('mb8_colormode'); } catch (e){}
+    this.setMode(m && this.modes.indexOf(m) >= 0 ? m : 'auto', false);
   },
 };
 
@@ -14900,19 +15200,27 @@ const director = {
       this.transT = Math.min(1, this.transT + dt / Math.max(0.2, this.transDur || 2.5));
       if (this.prev >= 0 && this.transT >= 1){ scenes[this.prev].group.visible = false; this.prev = -1; }
     }
+    // additive scenes: hundreds of sprites SUM in the framebuffer, and a
+    // channel that clips bleaches to white — the real "washed out". Two
+    // different worlds now:
+    //   GRADED — the frame accumulates in HDR and the rolloff compresses the
+    //     sum with its hue intact, so overdrive costs saturation instead of
+    //     colour. The trim can be far more generous; it exists only to keep
+    //     the DEPTH of the stack readable, and the field gets to be radiant.
+    //   UNGRADED — no HDR target on this device, so the trim is again the only
+    //     thing between the stack and a hard clip. It stays tight, and opens
+    //     only as far as the white budget says this moment has earned.
+    // Normal-blend scenes (OP-ART, PULSE, PARLOR) composite once and need none.
+    const addTrim = (typeof LENS !== 'undefined' && LENS.graded())
+      ? 0.62 + 0.30 * AE.f.energy
+      : 0.34 + 0.26 * AE.f.energy + 0.24 * clamp01(COLOR.white);
     for (let i = 0; i < scenes.length; i++){
       const s = scenes[i];
       if (!s.group.visible) continue;
       let op = i === this.active ? this.transT : (i === this.prev ? 1 - this.transT : 0);
-      // additive scenes: hundreds of sprites SUM in the framebuffer, and a
-      // channel that clips bleaches to white — the real "washed out". Trim
-      // each sprite's contribution so the sums stay in gamut and stacked
-      // light reads as radiant colour, not chalk. Normal-blend scenes
-      // (OP-ART, PULSE, PARLOR) composite once and need no trim.
       s.group.traverse(o => {
         if (!o.material || !o.material.uniforms) return;
-        const trim = o.material.blending === THREE.AdditiveBlending
-          ? 0.38 + 0.30 * AE.f.energy : 1;
+        const trim = o.material.blending === THREE.AdditiveBlending ? addTrim : 1;
         o.material.uniforms.uOpacity.value = op * trim;
       });
       s.update(dt);
@@ -15155,13 +15463,12 @@ function buildAurea(){
       float a = smoothstep(0.5, 0.0, r); a *= a;
       // parastichy families carry the palette; NEON is the same hue wheel
       // pushed to electric saturation, blended in as the music demands it
-      vec3 pal = vFam < 0.5 ? mix(uColA, uColB, vFam * 2.0)
-                            : mix(uColB, uColC, vFam * 2.0 - 1.0);
+      vec3 pal = ramp(vFam);          // the families now walk the whole gradient
       vec3 neon = hsv(fract(vFam + uVarA + vT * 0.15 + uTime * 0.012), 0.92, 1.0);
       vec3 col = mix(pal, neon, uNeon);
       // additive discipline: thousands of points stack, so each speaks
       // quietly — the neon reads as SATURATION, never as a white-out
-      col *= 0.40 + vGlow * 0.42 + vAcc * 0.30 + uEnergy * 0.25;
+      col = inkRolloff(col * (0.40 + vGlow * 0.42 + vAcc * 0.30 + uEnergy * 0.25));
       gl_FragColor = vec4(col, a * uOpacity * vNear * (0.17 + vAcc * 0.17));
     }
   `;
@@ -15318,9 +15625,11 @@ function buildHalo(){
       float sat = 0.72 + uAct * 0.20;
       vec3 col = hsv(vHue, sat, 1.0);
       col = mix(col, uColC, 0.16);                       // the room still matches
-      col = mix(col, vec3(1.0), core * (0.38 + vGlow * 0.28));
+      // the core is glass catching a light — but a WHITE core is spent from
+      // the budget, so a quiet bead keeps its hue and only the drop glares
+      col = mix(col, vec3(1.0), core * (0.10 + uWhite * 0.42 + vGlow * 0.12));
       float tw = 1.0 + uTreble * vTw * 1.2;              // treble scatters twinkles
-      col *= (0.42 + vGlow * 0.6 + uEnergy * 0.25) * tw;
+      col = inkRolloff(col * (0.42 + vGlow * 0.6 + uEnergy * 0.25) * tw);
       gl_FragColor = vec4(col, a * uOpacity * (0.30 + vGlow * 0.30));
     }
   `;
@@ -15384,6 +15693,7 @@ function initThree(){
   U.uPtr.value = new THREE.Vector3(0, 0, 0);
   U.uPtrX.value = new THREE.Vector3(0, 0, 0);
   initAudioTexture();
+  initRampTexture();
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo());
@@ -15416,6 +15726,16 @@ function initThree(){
   const chipEcho = document.getElementById('chipEcho');
   if (chipEcho) chipEcho.addEventListener('click', () => ECHO.cycle());
   ECHO.load();
+  // the colour readout doubles as the colour control — click the swatches
+  if (el.colorRo){
+    el.colorRo.setAttribute('role', 'button');
+    el.colorRo.setAttribute('tabindex', '0');
+    el.colorRo.addEventListener('click', () => COLOR.cycleMode());
+    el.colorRo.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); COLOR.cycleMode(); }
+    });
+  }
+  COLOR.loadMode();
   SAFE.set(SAFE.calm, false);              // paint the chip's initial state
   DB.kvGet('safeCalm').then(v => { if (v != null) SAFE.set(v === '1', false); }).catch(() => {});
   DB.kvGet('haptics').then(v => { if (v === '1') HAPTICS.set(true, false); }).catch(() => {});
@@ -15729,6 +16049,27 @@ const LENS_TILE = `
     float z = 0.90 + 0.05 * sin(uTime * 0.4 + id.x * 1.7 + id.y * 2.9) + 0.05 * uEnergy;
     gl_FragColor = texture2D(tScene, clamp(0.5 + (m - 0.5) * z, 0.0, 1.0));
   }`;
+/* GRADE — the last pass, and the one that actually ends the washout.
+
+   Per-layer ink stops a single sprite from bleaching itself, but it cannot
+   stop three hundred honest sprites from summing to nine. That sum only
+   exists somewhere it can be READ if the accumulation buffer can hold values
+   above 1.0 — in an 8-bit target the information is destroyed at write time
+   and no later pass can invent it back. So when the device can give us a
+   half-float target, the whole field accumulates in HDR and this pass rolls
+   the sum off along the same knee, hue intact: a 5x amber lands as a blazing
+   amber instead of a white blob with an amber rim.
+
+   Where half-float targets don't exist, this pass simply doesn't run, and the
+   director's additive trim keeps the sum in gamut the blunt way instead. */
+const LENS_GRADE = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution; uniform float uWhite;
+  ` + GLSL_INK + `
+  void main(){
+    gl_FragColor = vec4(inkRolloff(texture2D(tScene, gl_FragCoord.xy / uResolution).rgb), 1.0);
+  }`;
+
 const LENS = {
   // AUTO is the default: the director reads the song's real structure + its
   // Camelot mood and puts a lens on ONLY where the music earns it (an apex, a
@@ -15752,12 +16093,42 @@ const LENS = {
     'wave+mirrors': ['wave', 'mirrors'], 'tile+prism': ['tile', 'prism'] },
   scale: 0.7,
   _resolved: 'none', _holdT: 0,      // AUTO: the lens the director has settled on, and how long to hold it
-  _ready: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
+  _ready: false, _hdr: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
+
+  /* Can this device accumulate above 1.0? Asked, never assumed: WebGL1 without
+     the extension, and some WebGL2 drivers that advertise half-float textures
+     but cannot RENDER to them, will hand back an incomplete framebuffer and
+     then draw nothing at all — a black screen is a far worse bug than the
+     washout this is here to fix. So we build one, bind it, and ask the driver
+     directly. */
+  _probeHDR(renderer){
+    try {
+      const gl = renderer.getContext();
+      if (!(gl.getExtension('EXT_color_buffer_half_float') || gl.getExtension('EXT_color_buffer_float'))) return false;
+      const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType,
+        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+        depthBuffer: false, stencilBuffer: false });
+      renderer.setRenderTarget(rt);
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      renderer.setRenderTarget(null);
+      rt.dispose();
+      return ok;
+    } catch (e){ return false; }
+  },
+  // does the frame currently get the hue-preserving rolloff? The director asks,
+  // because it decides how hard the additive stack is allowed to be driven.
+  graded(){
+    return this._hdr && (typeof POWER === 'undefined' || POWER.lensOK);
+  },
   _init(){
     if (this._ready) return;
     this.scale = IS_IOS ? 0.7 : 1.0;
+    this._hdr = this._probeHDR(renderer);
     const opt = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false };
-    this._rtA = new THREE.WebGLRenderTarget(2, 2, opt);   // LDR (UnsignedByte) — iPhone has no float FBO
+    // HDR where the driver allows it — the sum has to survive above 1.0 long
+    // enough for GRADE to compress it. Otherwise LDR exactly as before.
+    if (this._hdr) opt.type = THREE.HalfFloatType;
+    this._rtA = new THREE.WebGLRenderTarget(2, 2, opt);
     this._rtB = new THREE.WebGLRenderTarget(2, 2, opt);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
@@ -15766,11 +16137,11 @@ const LENS = {
     this._tri = new THREE.Mesh(g, null); this._tri.frustumCulled = false; this._fs.add(this._tri);
     const mk = frag => new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, uResolution: { value: new THREE.Vector2(1, 1) },
-        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uSectors: { value: 6 } },
+        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uWhite: U.uWhite, uSectors: { value: 6 } },
       vertexShader: LENS_VERT, fragmentShader: frag, depthTest: false, depthWrite: false,
     });
     this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS),
-      wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE) };
+      wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE), grade: mk(LENS_GRADE) };
     this._ready = true;
   },
   chain(){
@@ -15836,7 +16207,12 @@ const LENS = {
     let passes = [];
     // ECO never pays for render targets or extra passes, whatever the chip says
     const allowed = typeof POWER === 'undefined' || POWER.lensOK;
-    if (this.active !== 'none' && allowed){ this._init(); passes = this.chain(); }
+    if (allowed){ this._init(); if (this.active !== 'none') passes = this.chain(); }
+    const lensed = passes.length > 0;
+    // GRADE always runs last where HDR exists: the lenses fold and refract the
+    // light while it is still linear and unbounded, and the rolloff has the
+    // final word on what reaches the glass.
+    if (this.graded()) passes = passes.concat(this._mats.grade);
     if (!passes.length){
       renderer.autoClear = true; renderer.render(bgScene, bgCam);
       renderer.autoClear = false; renderer.render(scene, camera);
@@ -15844,8 +16220,18 @@ const LENS = {
       return;
     }
     const dw = renderer.domElement.width, dh = renderer.domElement.height;
-    const w = Math.max(2, Math.round(dw * this.scale)), h = Math.max(2, Math.round(dh * this.scale));
-    if (this._rtA.width !== w || this._rtA.height !== h){ this._rtA.setSize(w, h); this._rtB.setSize(w, h); }
+    // the lens scale exists to make KALEIDOSCOPES affordable on a phone. GRADE
+    // is pointwise — sampling it at 0.7 buys nothing and costs the whole frame
+    // its sharpness, so a grade-only chain runs at full resolution. Rendering
+    // the field softer than it used to be, in the name of fixing its colour,
+    // would be a poor trade nobody asked for.
+    const sc = lensed ? this.scale : 1;
+    const w = Math.max(2, Math.round(dw * sc)), h = Math.max(2, Math.round(dh * sc));
+    if (this._rtA.width !== w || this._rtA.height !== h) this._rtA.setSize(w, h);
+    // _rtB is the ping-pong partner and is only touched by a chain of two or
+    // more. At 4K a half-float target is ~66 MB; allocating a second one to
+    // hold a single grade pass would be pure waste.
+    if (passes.length > 1 && (this._rtB.width !== w || this._rtB.height !== h)) this._rtB.setSize(w, h);
     renderer.setRenderTarget(this._rtA);                 // the whole visualizer → a texture
     renderer.autoClear = true; renderer.render(bgScene, bgCam);
     renderer.autoClear = false; renderer.render(scene, camera);
@@ -16088,7 +16474,11 @@ function frame(now){
         el.csw[ci].style.background = 'rgb(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) + ',' + Math.round(c[2] * 255) + ')';
       }
       const p = COLOR.plan;
-      el.colorScheme.textContent = p ? ((p.keyed ? (player.tracks[player.cur] && mixOf(player.tracks[player.cur]) || {}).key || '' : '∅') + ' ' + p.scheme) : '—';
+      // a forced mode names itself; on AUTO the plan's own reading shows, so
+      // the HUD always says what the light is actually doing and why
+      el.colorScheme.textContent = COLOR.mode !== 'auto'
+        ? COLOR.modeLabels[COLOR.mode].toLowerCase()
+        : (p ? ((p.keyed ? (player.tracks[player.cur] && mixOf(player.tracks[player.cur]) || {}).key || '' : '∅') + ' ' + p.scheme) : '—');
     }
     if (bpm){ el.bpmBadge.classList.remove('hide'); el.bpmBadge.querySelector('b').textContent = bpm; }
     else el.bpmBadge.classList.add('hide');

@@ -68,8 +68,23 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   mapped around the Camelot wheel; all blending in **OKLCH** (perceptually
   uniform, gamut-mapped by walking chroma down); harmony scheme chosen from
   musical character (high entropy → triad, high energy → complement, else
-  analogous); glides take **eight beats of the measured grid**, not wall-clock
-  seconds.
+  analogous, and material that has genuinely come apart → **spectrum**, a full
+  wheel anchored on the key's own hue); glides take **eight beats of the
+  measured grid**, not wall-clock seconds. The three plan colours are stretched
+  into a **128-texel cyclic gradient** every scene samples, interpolated in
+  OKLCH so the middle of a sweep does not go grey the way a straight RGB blend
+  always does.
+- **A highlight rolloff and a white budget** (`INK`): additive light is
+  unbounded and a framebuffer is not, so a stack of glowing sprites used to
+  clip channel-by-channel and lose its *hue* before it lost its brightness —
+  the white blob with a coloured rim. The field now accumulates in a
+  half-float target (probed, never assumed; devices without one — and ECO power
+  mode, which pays for no extra passes — fall back to a tighter additive trim),
+  and a final GRADE pass compresses the max channel along a soft knee,
+  rescaling the triple by the same factor so chromaticity survives any drive.
+  The curve approaches 1 from below without arriving: **light alone can no
+  longer make white**. Bleaching is spent from a budget that the act and the
+  structure ceiling open, so it belongs to the drop rather than to the volume.
 - **Audio analysis** (~1270): live FFT with spectral-flux onset detection and
   BPM folding, or — preferred when the catalog provides it — a **grid-locked
   beat clock** from precomputed per-track analysis, so visuals land on the

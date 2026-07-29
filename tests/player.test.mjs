@@ -27,6 +27,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
+  ' INK, inkRolloff, whiteBudget, rampStops, buildRamp, RAMP_N,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
@@ -679,6 +680,152 @@ test('oklchToRgb stays in gamut by chroma reduction, and hue-lerps take the shor
   assert.ok(white.every(v => v > 0.99) && black.every(v => v < 0.01));
   const mid = S.lerpOklch({ l: 0.5, c: 0.1, h: 350 }, { l: 0.5, c: 0.1, h: 10 }, 0.5);
   assert.equal(Math.round(mid.h), 0);                 // through red, not the rainbow
+});
+
+// ---------------------------------------------------------------- ink (§ INK)
+// The washout is a hue failure, not a brightness failure, so these tests are
+// about CHROMATICITY surviving drive — the one property clamping destroys.
+
+test('the rolloff preserves hue and saturation at any drive level', () => {
+  const hue = ([r, g, b]) => {                      // chromaticity as a ratio triple
+    const m = Math.max(r, g, b) || 1;
+    return [r / m, g / m, b / m];
+  };
+  const amber = [1.0, 0.72, 0.28];
+  const ref = hue(amber);
+  for (const k of [1, 1.5, 2, 4, 8, 40]){
+    const out = S.inkRolloff(amber.map(v => v * k), 0);
+    const h = hue(out);
+    for (let i = 0; i < 3; i++)
+      assert.ok(Math.abs(h[i] - ref[i]) < 1e-6, `chromaticity held at ${k}x (channel ${i})`);
+  }
+  // and the naive alternative does not — this is the defect, stated as a test
+  const clipped = amber.map(v => Math.min(1, v * 4));
+  assert.ok(clipped.every(v => v === 1), 'a hard clamp turns 4x amber into white');
+});
+
+test('below the knee the light is untouched; above it, never quite white', () => {
+  const K = S.INK.knee;
+  const low = [0.3, K - 0.01, 0.1];
+  assert.deepEqual(S.inkRolloff(low, 1), low, 'linear region is exact');
+  for (const k of [1, 3, 10, 100, 1e4]){
+    const out = S.inkRolloff([k, k * 0.5, k * 0.2], 0);
+    assert.ok(Math.max(...out) < 1, `never reaches 1 at ${k}x without budget`);
+    assert.ok(Math.max(...out) > K, 'and never falls back below the knee');
+  }
+});
+
+test('white is spent, not earned by brightness alone', () => {
+  const drive = [6, 4.2, 1.8];
+  const dim = S.inkRolloff(drive, 0.0);
+  const some = S.inkRolloff(drive, 0.5);
+  const open = S.inkRolloff(drive, 1.0);
+  const sat = ([r, g, b]) => (Math.max(r, g, b) - Math.min(r, g, b)) / Math.max(r, g, b);
+  assert.ok(sat(dim) > sat(some) && sat(some) > sat(open), 'budget monotonically bleaches');
+  assert.ok(sat(open) < 0.06, 'a full budget does let the peak blow out');
+  assert.ok(sat(dim) > 0.65, 'a closed budget keeps the whole colour');
+  // the threshold is what makes it a budget: mild overdrive stays coloured even
+  // when the budget is wide open, which is why a drop reads as a core and a rim
+  assert.ok(sat(S.inkRolloff([1.2, 0.84, 0.36], 1.0)) > 0.5, 'a 1.2x field is not a whiteout');
+});
+
+test('the budget takes both a hot section and a hot moment', () => {
+  const at = o => S.whiteBudget({ act: 1, ceil: 1, energy: 1, phase: 'peak', ...o });
+  assert.ok(at({}) > 0.85, 'a real apex may bleach');
+  assert.ok(at({ act: 0.15 }) < 0.15, 'a loud OVERTURE may not — the act refuses it');
+  assert.ok(at({ ceil: 0.3 }) < 0.25, 'nor may a loud passage the structure caps');
+  assert.ok(at({ energy: 0.2 }) < at({}) * 0.4, 'nor a quiet moment inside a hot act');
+  assert.ok(at({ phase: 'break' }) < at({ phase: 'flow' }), 'a breakdown darkens');
+  assert.ok(at({ calm: true }) < at({}) * 0.7, 'CALM never bleaches the field');
+  // never outside its own rails, for any input anyone can hand it
+  for (const a of [0, 0.5, 1]) for (const e of [0, 0.5, 1]) for (const c of [0, 0.5, 1])
+    for (const p of ['flow', 'peak', 'break']){
+      const w = S.whiteBudget({ act: a, ceil: c, energy: e, phase: p });
+      assert.ok(w >= S.INK.whiteFloor - 1e-9 && w <= S.INK.whiteCeil + 1e-9, 'inside the rails');
+    }
+  assert.equal(S.whiteBudget(), S.whiteBudget({ act: 0.5, ceil: 1, energy: 0 }), 'sane with no input');
+});
+
+test('the shipped GLSL rolloff is the shipped JS rolloff', () => {
+  // the shader knee is generated from INK.knee — a drift between them would be
+  // invisible until a field went chalk on a device nobody in the room owns
+  const src = html.match(/const GLSL_INK = `([\s\S]*?)`;/)[1];
+  assert.ok(src.includes('${INK.knee'), 'the shader knee is GENERATED from INK, not typed twice');
+  const glsl = new Function('INK', 'return `' + src + '`;')(S.INK);   // render it as it ships
+  assert.ok(glsl.includes(`const float K = ${S.INK.knee.toFixed(4)};`), 'knee matches');
+  assert.ok(glsl.includes(`const float D = ${(1 - S.INK.knee).toFixed(4)};`), 'shoulder matches');
+  assert.ok(glsl.includes(`mix(${S.INK.wpDim.toFixed(2)}, ${S.INK.wpHot.toFixed(2)}, uWhite)`),
+    'white points match');
+  assert.ok(!/[0-9]\.[0-9]{3,}/.test(src.replace(/\$\{[^}]*\}/g, '')),
+    'no tuning constant is hardcoded alongside the generated ones');
+  assert.ok(/uniform float uWhite/.test(html.match(/const GLSL_MPHI = `([\s\S]*?)`/)[1]),
+    'every scene shader can see the budget');
+});
+
+// ---------------------------------------------------------------- ramp (§ RAMP)
+
+test('the ramp keeps chroma across the sweep where an RGB lerp loses it', () => {
+  // two saturated, well-separated hues: the case that goes muddy halfway
+  const plan = { scheme: 'complement', colors: [
+    { l: 0.58, c: 0.22, h: 40 }, { l: 0.58, c: 0.22, h: 220 }, { l: 0.78, c: 0.12, h: 130 }] };
+  const px = S.buildRamp(S.rampStops(plan, 'duo'), 64);
+  const sat = i => {
+    const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2];
+    const m = Math.max(r, g, b);
+    return m ? (m - Math.min(r, g, b)) / m : 0;
+  };
+  const A = S.oklchToRgb(0.58, 0.22, 40), B = S.oklchToRgb(0.58, 0.22, 220);
+  const naive = [0, 1, 2].map(k => (A[k] + B[k]) / 2);      // what mix(a,b,0.5) gives
+  const naiveSat = (Math.max(...naive) - Math.min(...naive)) / Math.max(...naive);
+  assert.ok(sat(16) > naiveSat + 0.15, 'the quarter point beats the straight-line blend');
+  let worst = 1;
+  for (let i = 0; i < 64; i++) worst = Math.min(worst, sat(i));
+  assert.ok(worst > 0.25, 'no point on the ramp goes grey');
+});
+
+test('the ramp is cyclic, opaque, and correctly sized for any stop count', () => {
+  const plan = { scheme: 'triad', colors: [
+    { l: 0.55, c: 0.2, h: 10 }, { l: 0.6, c: 0.18, h: 130 }, { l: 0.8, c: 0.12, h: 250 }] };
+  for (const mode of ['auto', 'duo', 'spectrum']){
+    const px = S.buildRamp(S.rampStops(plan, mode), 128);
+    assert.equal(px.length, 128 * 4, mode + ' is RGBA and the right length');
+    for (let i = 3; i < px.length; i += 4) assert.equal(px[i], 255, mode + ' is opaque');
+    // the seam: the last texel and the first must be neighbours, not strangers
+    const d = Math.abs(px[0] - px[127 * 4]) + Math.abs(px[1] - px[127 * 4 + 1]) + Math.abs(px[2] - px[127 * 4 + 2]);
+    assert.ok(d < 40, mode + ' wraps without a seam (' + d + ')');
+  }
+});
+
+test('SPECTRUM is a full wheel anchored on the key, and stays rare', () => {
+  const plan = { scheme: 'triad', colors: [
+    { l: 0.55, c: 0.2, h: 200 }, { l: 0.6, c: 0.18, h: 320 }, { l: 0.8, c: 0.12, h: 80 }] };
+  const stops = S.rampStops(plan, 'spectrum');
+  const hues = stops.map(s => s.h);
+  assert.equal(hues[0], 200, 'the sweep starts at the key’s own hue');
+  const spanned = new Set(hues.map(h => Math.floor(h / 90))).size;
+  assert.equal(spanned, 4, 'and covers every quadrant of the wheel');
+  const bright = stops.reduce((a, s) => s.l > a.l ? s : a, stops[0]);
+  assert.equal(bright.h, 200, 'the key’s hue is the bright point the rest falls away from');
+  // the director only reaches for it when the material has genuinely come apart
+  const base = { key: '5B', brightness: 0.4, act: 0.5, seed: 1 };
+  assert.equal(S.colorPlan({ ...base, energy: 0.9, entropy: 0.9 }).scheme, 'spectrum');
+  assert.equal(S.colorPlan({ ...base, energy: 0.9, entropy: 0.7 }).scheme, 'triad');
+  assert.equal(S.colorPlan({ ...base, energy: 0.4, entropy: 0.9 }).scheme, 'triad');
+});
+
+test('the ramp carries the flash governor rather than escaping it', () => {
+  const plan = { scheme: 'triad', colors: [
+    { l: 0.7, c: 0.15, h: 40 }, { l: 0.7, c: 0.15, h: 160 }, { l: 0.7, c: 0.12, h: 280 }] };
+  const stops = S.rampStops(plan, 'auto');
+  const full = S.buildRamp(stops, 64, 1);
+  const gated = S.buildRamp(stops, 64, 0.25);       // the governor allowed a quarter of the light
+  let dimmer = 0;
+  for (let i = 0; i < 64; i++){
+    const a = full[i * 4] + full[i * 4 + 1] + full[i * 4 + 2];
+    const b = gated[i * 4] + gated[i * 4 + 1] + gated[i * 4 + 2];
+    if (b < a) dimmer++;
+  }
+  assert.equal(dimmer, 64, 'every texel obeys the gate, not just the three stops');
 });
 
 // ---------------------------------------------------------------- safety (§ SAFE)

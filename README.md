@@ -366,7 +366,12 @@ the solver, portable to any surface that takes RGB):
   keys warmer and higher.
 - **Character → harmony scheme.** Consonant calm reads *analogous*;
   driving energy earns a *complementary* accent; dense, entropic material
-  opens to a *triad*.
+  opens to a *triad*; and material that has genuinely come apart — high
+  entropy *and* high energy together — opens to a **spectrum**: a full hue
+  wheel anchored so the track's own key is the bright point the rainbow
+  falls away from. It is the rarest reading in the engine on purpose. A
+  spectrum laid over a calm track says nothing about the track, which is
+  why most visualizers' rainbows read as wallpaper.
 - **Arousal → chroma; acts → heat.** Energy drives saturation
   monotonically, the five-act arc breathes chroma and lightness live, and
   energy-phase peaks/breaks push and pull the accent.
@@ -394,7 +399,30 @@ the solver, portable to any surface that takes RGB):
   **dreimal**, every third arrival answering three times, one fading echo
   per beat — the Magic Flute's threefold chord.
 
-Three dots in the HUD show the live palette next to the key and scheme.
+- **Three colours → a gradient.** Before any scene sees the plan, the three
+  stops are stretched into a 128-texel cyclic ramp interpolated in OKLCH. A
+  straight blend between two saturated hues is at its greyest *exactly*
+  halfway — which is where most of a spiral's arm or a coil's length happens
+  to live — so the ramp walks the hue around the wheel instead and holds
+  chroma the whole way across.
+- **A highlight rolloff, and a white budget.** Additive light is unbounded and
+  a framebuffer is not. Hundreds of glowing sprites summing into one pixel
+  used to clip channel-by-channel, and because the brightest channel clips
+  *first*, the colour died before the brightness did — that white blob with a
+  coloured rim is a hue failure, not a brightness one. The field now
+  accumulates in a half-float target (capability-probed, never assumed) and a
+  final GRADE pass compresses the max channel along a soft knee, rescaling the
+  triple by the same factor so hue and saturation survive **any** drive: a 5×
+  amber lands as a blazing amber, not as chalk. The curve approaches 1 from
+  below without arriving, so *light alone can no longer make white*. Bleaching
+  is spent from a budget the act and the section's own intensity ceiling open —
+  a loud intro stays a colour; the drop gets the glare. Devices without
+  half-float targets — and ECO power mode, which pays for no extra passes at
+  all — fall back to a tighter additive trim and the same per-layer rolloff.
+
+Three dots in the HUD show the live palette next to the key and scheme —
+and they are a button: click to hold the room in **SPECTRUM** or **DUOTONE**
+(two colours, nothing pale to wash toward), or leave it on AUTO.
 Unkeyed material (local files, the mic) plans from live brightness and
 entropy and re-deals itself periodically. This is the contract a
 Sphere-class surface wants: features in, palette out, deterministic,
