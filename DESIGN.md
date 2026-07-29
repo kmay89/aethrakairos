@@ -122,6 +122,27 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   `activityPush`, `activityAgo`, the progress/estimate/watchdog trio) are in the
   unit suite. Neither alone would have caught the dead button; together they do.
 
+### 1.2c The mix engine's one remaining coupling
+- **Eight beats is the default blend**, and the match score no longer reads blend
+  length — harmonic distance and tempo proximity are properties of the pair, and
+  conflating them with plan length marked every well-matched pair as mediocre once
+  the default shortened.
+- **The seam is still steered from the animation loop.** `tools/mix_probe.mjs`
+  measures a real seam on a real graph and separates the two conditions: with the
+  main thread free the beat-phase error is **0.3 ms**; with the visualizer running
+  it is **114–119 ms**, and the fade-in spends 322–441 ms multiplying a deck that
+  has not started producing samples. The loudness crossfade was moved onto the
+  audio clock long ago because a dropped frame zippered it; the seam's *trigger*
+  and its *phase servo* were not, so their accuracy still tracks the frame rate.
+  This is the intermittent auto-mix glitch, it fails the engine's own 40 ms
+  contract, and it is pre-existing on `main`. The probe tracks it as OPEN rather
+  than as a failure, so the next pass can be judged by the number moving.
+- A first attempt at a pre-rolled cue (start the incoming deck early, place it
+  with a silent rate servo, fire from a timer) fixed the cold-start hole but only
+  engaged reliably about a third of the time, because its own trigger still sat in
+  the animation loop. It was reverted rather than shipped: inconsistent behaviour
+  in the seam is worse than a known, measured weakness.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

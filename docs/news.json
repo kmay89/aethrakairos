@@ -2,6 +2,16 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "a8e1bfde9f",
+      "date": "2026-07-29",
+      "title": "Shorter, tighter blends",
+      "notes": [
+        "auto-mix now blends in 8 beats by default instead of 32 — a punchier mix, and far less room for two decks to drift apart",
+        "the crate's match scores now rate the PAIR (key and tempo) rather than rewarding whichever blend was longest",
+        "longer blends are still there per pair in the Mix tuner"
+      ]
+    },
+    {
       "build": "c64aec155b",
       "date": "2026-07-29",
       "title": "The Update button, fixed — and a log of what the app does",
