@@ -35,6 +35,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, newsSince,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
+  ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss };';
 const S = new Function(code)();
 
@@ -1854,6 +1855,117 @@ test('updateWatchdogStep: a broken clock reads as wait, never a panic reload', (
   assert.equal(S.updateWatchdogStep(NaN, 0), 'wait');
   assert.equal(S.updateWatchdogStep(-500, 0), 'wait');
   assert.equal(S.updateWatchdogStep(NaN, 3), 'recover', 'recovery still fires on attempts alone');
+});
+
+test('updateGate: the loop brake stops AUTOMATIC swaps, never a deliberate one', () => {
+  const base = { ready: true, requested: false, armed: '', playing: false, show: false,
+    snoozedUntil: 0, now: 1000 };
+  assert.equal(S.updateGate(base), 'apply', 'a quiet moment applies');
+  assert.equal(S.updateGate({ ...base, applies: S.UP_APPLY_CAP - 1 }), 'apply', 'under the cap, still automatic');
+  assert.equal(S.updateGate({ ...base, applies: S.UP_APPLY_CAP }), 'wait', 'at the cap, stand down');
+  assert.equal(S.updateGate({ ...base, applies: 99 }), 'wait');
+  // an explicit "after this track" wish is the listener's, and outranks the brake
+  assert.equal(S.updateGate({ ...base, applies: 99, armed: 'afterTrack', trackChanged: true }), 'apply',
+    'a wish the listener expressed is not rate-limited');
+  // junk from a poisoned sessionStorage reads as zero, not as a lock-out
+  for (const bad of [undefined, null, NaN, 'x', -1])
+    assert.equal(S.updateGate({ ...base, applies: bad }), 'apply', 'sane for ' + bad);
+});
+
+// ------------------------------------------------- "later", and the receipt
+
+test('updateReminder: a deferral is remembered and shown back as a count', () => {
+  const now = 1_000_000;
+  const fresh = S.updateReminder({ now, snoozedUntil: 0, deferrals: 0, pending: true });
+  assert.equal(fresh.badge, '•', 'a waiting update wears a dot');
+  assert.equal(fresh.snoozed, false);
+  assert.equal(fresh.due, false, 'nothing to remind about before anyone defers');
+  const once = S.updateReminder({ now, snoozedUntil: now + S.UP_SNOOZE_MS, deferrals: 1, pending: true });
+  assert.equal(once.badge, '1', 'the count is the badge');
+  assert.equal(once.snoozed, true);
+  assert.equal(once.due, false, 'silent while the snooze they asked for holds');
+  assert.ok(once.waitMs > 0 && once.waitMs <= S.UP_SNOOZE_MS);
+  const thrice = S.updateReminder({ now, snoozedUntil: now + 10, deferrals: 3, pending: true });
+  assert.equal(thrice.badge, '3');
+  // nothing pending and nothing deferred: no badge at all
+  assert.equal(S.updateReminder({ now, pending: false }).badge, '');
+});
+
+test('updateReminder: the reminder fires once per expiry, then stops nagging', () => {
+  const until = 500_000;
+  const expired = { now: until + 1, snoozedUntil: until, deferrals: 2, lastRemindAt: 0, pending: true };
+  assert.equal(S.updateReminder(expired).due, true, 'the snooze ran out — say so');
+  // once answered, the same expiry never fires again (a double reload is not
+  // two reminders)
+  assert.equal(S.updateReminder({ ...expired, lastRemindAt: until }).due, false);
+  // ...but the NEXT deferral's expiry is a new promise, so it does
+  assert.equal(S.updateReminder({ now: until + 999, snoozedUntil: until + 900,
+    deferrals: 3, lastRemindAt: until, pending: true }).due, true);
+  // someone who has said "later" this many times has told us something
+  assert.equal(S.updateReminder({ ...expired, deferrals: S.UP_NAG_CAP }).due, true, 'at the cap, still one nudge');
+  assert.equal(S.updateReminder({ ...expired, deferrals: S.UP_NAG_CAP + 1 }).due, false, 'past it, badge only');
+  assert.equal(S.updateReminder({ ...expired, deferrals: 99 }).badge, '99', 'the badge never gives up');
+});
+
+test('updateReminder: junk in the store cannot break the button', () => {
+  for (const bad of [undefined, null, {}, { now: NaN, snoozedUntil: NaN, deferrals: NaN },
+    { now: 0, snoozedUntil: -1, deferrals: -5 }, { deferrals: 1e9, now: 1, snoozedUntil: 'x' }]){
+    const r = S.updateReminder(bad);
+    assert.ok(typeof r.badge === 'string', 'always a string badge');
+    assert.ok(typeof r.due === 'boolean' && typeof r.snoozed === 'boolean');
+    assert.ok(r.deferrals >= 0 && r.deferrals <= 99, 'deferrals stay sane: ' + r.deferrals);
+    assert.ok(r.waitMs >= 0);
+  }
+});
+
+test('activityPush: newest first, bounded, and repeats coalesce into a count', () => {
+  let l = [];
+  l = S.activityPush(l, { t: 1, k: 'play', m: 'One' });
+  l = S.activityPush(l, { t: 2, k: 'play', m: 'Two' });
+  assert.deepEqual(l.map(e => e.m), ['Two', 'One'], 'newest first');
+  l = S.activityPush(l, { t: 3, k: 'play', m: 'Two' });
+  l = S.activityPush(l, { t: 9, k: 'play', m: 'Two' });
+  assert.equal(l.length, 2, 'a repeat does not add a row');
+  assert.equal(l[0].n, 3, 'it counts');
+  assert.equal(l[0].t, 9, 'and carries the latest time');
+  // the same text under a different kind is a different event
+  l = S.activityPush(l, { t: 10, k: 'system', m: 'Two' });
+  assert.equal(l.length, 3);
+  // a blank line is not an event
+  assert.equal(S.activityPush(l, { t: 11, m: '' }).length, 3);
+  // the cap holds, and the oldest is what goes
+  let big = [];
+  for (let i = 0; i < 40; i++) big = S.activityPush(big, { t: i, k: 'play', m: 'T' + i }, 10);
+  assert.equal(big.length, 10);
+  assert.equal(big[0].m, 'T39');
+  assert.equal(big[9].m, 'T30', 'the oldest fell off the end');
+  // and the caller's array is never mutated under them
+  const before = [{ t: 1, k: 'play', m: 'X' }];
+  const after = S.activityPush(before, { t: 2, k: 'play', m: 'X' });
+  assert.equal(before[0].n, undefined, 'the input is left alone');
+  assert.equal(after[0].n, 2);
+});
+
+test('activityPush: a poisoned store cannot break the log', () => {
+  assert.deepEqual(S.activityPush(null, { t: 1, k: 'play', m: 'A' }).map(e => e.m), ['A']);
+  assert.deepEqual(S.activityPush('nonsense', { t: 1, k: 'play', m: 'A' }).map(e => e.m), ['A']);
+  const e = S.activityPush([], { t: 'x', m: 'A' })[0];
+  assert.equal(e.t, 0, 'a bad timestamp reads as unknown, not NaN');
+  assert.equal(e.k, 'system', 'a missing kind falls back');
+  assert.ok(S.activityPush([], { m: 'x'.repeat(500) })[0].m.length <= 200, 'a runaway line is trimmed');
+  assert.equal(S.activityPush([], { m: 'A' }, 0).length, 1, 'a zero cap still keeps one');
+  assert.ok(S.activityPush([], { m: 'A' }, 1e9).length === 1);
+});
+
+test('activityAgo: the shortest honest phrase, never a broken one', () => {
+  assert.equal(S.activityAgo(0), 'just now');
+  assert.equal(S.activityAgo(44_000), 'just now');
+  assert.equal(S.activityAgo(90_000), '2 min ago');
+  assert.equal(S.activityAgo(3600_000), '1 h ago');
+  assert.equal(S.activityAgo(5 * 3600_000), '5 h ago');
+  assert.equal(S.activityAgo(3 * 86400_000), '3 d ago');
+  for (const bad of [NaN, -1, undefined, null, 'x', Infinity])
+    assert.ok(/just now|min ago|h ago|d ago/.test(S.activityAgo(bad)), 'sane for ' + bad);
 });
 
 // ---------------------------------------------------------------- skins

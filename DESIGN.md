@@ -92,6 +92,36 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
 - **Adaptive resolution governor**: the heavy raymarched scene lowers its
   render scale instead of dropping frames.
 
+### 1.2b Self-update, and the app's account of itself
+- **Two paths, one policy.** A stamped deploy installs a new worker that
+  *waits*; applying hands over (`SKIP_WAITING` → `controllerchange` → reload).
+  An unstamped deploy still lands, because the live worker byte-compares
+  `index.html` on every boot and check. The decision of *when* an update may
+  apply itself lives in one pure, tested map (`updateGate`).
+- **A tap is never a no-op.** The failure that motivated this: a second client
+  applies first, its `SKIP_WAITING` activates the new worker, and every other
+  client's `registration.waiting` becomes null — so `applyUpdate()` refused and
+  silently hid the button, stranding a page on old code while the new shell sat
+  in the cache beside it. A reload is always a way forward, and now it takes it.
+  A `controllerchange` nobody asked for is likewise read as "the shell running
+  here is stale" — except the first claim of an uncontrolled page, which is a
+  first visit and not an update.
+- **"Later" is stored, counted, and answered once.** The snooze used to be a
+  variable, so the next reload forgot it. The button carries the deferral count
+  as a badge, holds quiet through the snooze, reminds once on expiry, and stops
+  talking past five deferrals.
+- **A loop brake.** Three automatic swaps per session, then automatic
+  application stands down — a host whose shell never compares equal cannot turn
+  self-update into a reload loop. A deliberate tap is never rate-limited.
+- **The activity log** (`ACTIVITY`): a bounded, device-local ring of what the
+  app actually did — updates, plays, library loads, connectivity — with
+  consecutive repeats coalesced into counts, shown at the foot of the Console.
+- Verified by `tools/update_probe.mjs` on a real origin with real service
+  workers: stamped and unstamped deploys, the two-client handover, and the whole
+  "Later" lifecycle. The pure parts (`updateGate`, `updateReminder`,
+  `activityPush`, `activityAgo`, the progress/estimate/watchdog trio) are in the
+  unit suite. Neither alone would have caught the dead button; together they do.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature
