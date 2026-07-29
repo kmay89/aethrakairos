@@ -253,10 +253,15 @@ const booth = await page.evaluate(() => {
   BOOTH.toggle(false);
   return out;
 });
+// The narrator names the move that is happening RIGHT NOW (mixTechnique:
+// 'beat-locked', 'bass swap', 'B leads') rather than repeating the static
+// plan label — so the running seam is asserted on the narrator's own verb,
+// MIXING, while the deck state still has to read 'on air — blending'.
 R('the booth watches the live seam — outgoing named, incoming on air, painted',
-  !booth.running || (/blending/.test(booth.plan) && booth.nmA === 'beta'
+  !booth.running || (/MIXING/.test(booth.plan) && booth.nmA === 'beta'
     && booth.nmB === 'alpha' && /on air/.test(booth.stB) && booth.lit > 30),
-  booth.nmA + ' → ' + booth.nmB + ' · ' + booth.plan + ' · ' + booth.lit + ' lit'
+  booth.nmA + ' → ' + booth.nmB + ' · plan=' + booth.plan + ' · stB=' + booth.stB
+  + ' · ' + booth.lit + ' lit'
   + (booth.running ? '' : ' (seam already handed over — skipped)'));
 const nowErr = await page.evaluate(() => new Promise(res => {
   let best = Infinity, n = 0;

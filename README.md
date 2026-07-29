@@ -226,6 +226,28 @@ mix is volume-envelope-only (the locked-pocket invariant outranks EQ), and
 with the screen off, plans degrade to crossfades on coarse timers — the
 music never stops, it just mixes less bravely.
 
+**Nothing the renderer does can be heard.** Every audible parameter of a seam
+is *scheduled* on the audio clock, never written per animation frame: the
+equal-power crossfade, the filtered fade, and the bass swap are all
+sample-accurate automation, and the seam's own position is read from the same
+clock those curves were scheduled on — so a dropped frame can't step the low
+end, and the blend can't be cut off mid-curve by a late frame. The heavy
+opportunistic work stays off the blend too: a whole-song fetch + decode (what
+draws the waveform overview) is never started while a seam is running, so it
+can't race the incoming deck for bandwidth or drop a song of PCM on the main
+thread mid-transition. It does that work in the 90-second armed window
+instead, where it belongs.
+
+**Ready means ready.** A blend only starts when the incoming deck actually
+owns the window it is about to play — `HAVE_FUTURE_DATA` plus either the
+browser's play-through promise or visible buffered bytes across the whole
+overlap. (`readyState >= 2` promises only the single frame under the
+playhead, which is how a beatmix becomes a stall two beats in.) When the
+stream isn't there yet, the mixer does what a DJ does and **takes another
+eight**: the seam waits a whole bar — still a downbeat, with B's entry point
+unmoved, so the wait buys buffer for exactly the window it's waiting on — and
+only falls back to an honest fade once it's out of bars or out of runway.
+
 **Fix it once, fixed forever.** The Console's **mix tuner** shows the
 planned transition for the current pair: override the type (beatmix 8/16/32,
 fade, gapless), nudge where the next track enters in ¼-beat steps, and nudge
