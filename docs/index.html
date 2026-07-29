@@ -2265,7 +2265,13 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     machine that rolls between an isometric cube tessellation, a circular labyrinth around a black
     hole, an infinity-mirror dance floor lit on the grid, a scalloped psychedelic spiral, a dot-grid
     disco tunnel falling to its vanishing point, and dashed radar rings relayed in offset palette
-    channels. <b>HALO</b> — the spectrum bent into a ring: a torus of thousands of rainbow motes
+    channels — joined now by four out of the demoscene's own book: <i>plasma</i> (four sines, the
+    oldest trick there is), <i>Chladni</i> (the nodal figure of a vibrating plate, sweeping its modes
+    the way a hand sweeps a signal generator), <i>metaballs</i>, and <i>domain warping</i>, where the
+    stripes stay straight and the coordinate is what bends. All ten are closed-form arithmetic — no
+    marching, no noise texture, no feedback buffer — and every one gets quantized into the same five
+    hard colours with a dark seam between bands, which is what turns a wash into pattern.
+    <b>HALO</b> — the spectrum bent into a ring: a torus of thousands of rainbow motes
     where each angle of the circle listens to one band of the live spectrum and swells where its
     band sings — an equalizer curled into a circle of light, threaded into bead-strands or relaxed
     into mist, with a beat soliton orbiting the ring.</p>
@@ -2273,7 +2279,9 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
     science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
     five-wave Penrose skeleton, Carlson's multi-scale Truchet arcs, a sunflower's golden-angle swarm,
-    moiré interference with its 57× leverage, and the café wall shearing into the Fraser false spiral —
+    moiré interference with its 57× leverage, the café wall shearing into the Fraser false spiral, and
+    two of the oldest illusions on record — Hering's radial fan bowing two dead-straight verticals
+    apart, and Zöllner's parallels splayed by alternating crosshatch —
     optionally garnished with Kitaoka's peripheral-drift ladder (the colours are static; <i>your own
     eyes</i> animate them) or the scintillating Hermann grid — plus a calculus-textbook vector field,
     one arrow per cell of graph paper, whose swirl tightens as the song builds. Every illusion is
@@ -13043,20 +13051,29 @@ function buildSlinky(){
 
 /* =========================================================
    Scene 13 — OP-ART  (the flat pattern machine)
-   One full-screen fragment shader, six forms rolled per visit like
+   One full-screen fragment shader, ten forms rolled per visit like
    the fractal's dice: an isometric cube tessellation (the Rubik wall),
    a circular labyrinth around a black hole, an infinity-mirror dance
    floor lit on the grid, a scalloped psychedelic spiral (HYPNO), a
    dot-grid disco tunnel falling to a vanishing point (DISCO), and
-   dashed rings relayed in offset palette channels (RADAR). Normal
-   blending — the one scene that claims the whole frame instead of
-   glowing over the stars.
+   dashed rings relayed in offset palette channels (RADAR) — plus four
+   drawn from the demoscene's own book, every one of them closed-form
+   arithmetic with no marching, no noise texture and no feedback
+   buffer: PLASMA (four sines, the oldest trick there is), CHLADNI
+   (the nodal figure of a vibrating plate, sweeping its modes the way
+   a hand sweeps a signal generator), BLOB (metaballs, the lava lamp)
+   and WARP (domain warping — the stripes stay straight, the
+   COORDINATE bends). What makes them this scene and not a shader-toy
+   demo is the last step: each smooth field gets quantized into the
+   same five hard colours with a dark seam between bands, so a wash
+   becomes pattern. Normal blending — the one scene that claims the
+   whole frame instead of glowing over the stars.
    ========================================================= */
 function buildOpArt(){
   const group = new THREE.Group();
   const varU = {
     uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
-    uForm: { value: Math.floor(Math.random() * 6) }, uAspect: { value: 1 },
+    uForm: { value: Math.floor(Math.random() * 10) }, uAspect: { value: 1 },
   };
   const geo = new THREE.PlaneGeometry(2, 2);
   const vert = `
@@ -13076,6 +13093,16 @@ function buildOpArt(){
       if (h < 0.6) return uColC;
       if (h < 0.8) return mix(uColA, uColB, 0.5) * 0.55;
       return mix(uColC, vec3(1.0), 0.7);
+    }
+    // the op-art contour: take any smooth field and make it PATTERN — quantize
+    // it to the five hard colours and cut a dark seam at every band boundary.
+    // This is the step that separates the scene from a shader-toy gradient, and
+    // the seam is also what keeps a full-field wash off the governor's radar:
+    // the picture changes by moving its contours, not by pumping luminance.
+    vec3 bands(float s, float seat){
+      vec3 c = cell5(fract(floor(s) * 0.2));
+      float b = fract(s);
+      return c * (seat + (1.0 - seat) * smoothstep(0.0, 0.14, b) * smoothstep(1.0, 0.86, b));
     }
     void main(){
       vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
@@ -13182,7 +13209,7 @@ function buildOpArt(){
         col *= smoothstep(0.02, 0.16, r);                      // the vanishing point swallows
         col *= 1.0 - smoothstep(1.05, 1.65, r) * 0.7;          // vignette
       }
-      else {
+      else if (uForm < 5.5){
         // ---- RADAR: dashed rings relayed in offset palette channels ----
         // one dashed-ring machine sampled three times at small radial offsets,
         // each pass routed through its own palette colour — the chromatic
@@ -13208,6 +13235,91 @@ function buildOpArt(){
         col += mix(uColC, vec3(1.0), 0.4) * rim * (0.5 + uBeat * 0.5);
         col *= 1.0 - smoothstep(0.98, 1.12, rr0);              // the mandala ends; night beyond
       }
+      else if (uForm < 6.5){
+        // ---- PLASMA: the demoscene's oldest trick, four sines deep ----
+        // Three plane waves and one travelling ring, summed. That is the
+        // entire algorithm — it ran on a 386 and it still looks like this.
+        // What it gets here that it never had in 1991 is the contour step:
+        // banded into five hard colours it stops being a soft wash and
+        // becomes a topographic map of the sound.
+        vec2 q = p * (2.1 + uVarA * 2.2);
+        float t = uTime * (0.32 + uEnergy * 0.5);
+        // the ring source wanders; the bass tightens its wavelength, so the
+        // low end reads as rings crowding in rather than as a brightness kick
+        vec2 src = vec2(sin(t * 0.41) * 1.5, cos(t * 0.33) * 1.2);
+        float f = sin(q.x * 3.0 + t)
+                + sin(q.y * 2.3 - t * 0.8)
+                + sin((q.x + q.y) * 1.7 + t * 0.6)
+                + sin(length(q - src) * (3.2 + uBass * 2.4) - t * 1.3);
+        col = bands(f * 0.25 * (3.0 + uVarB * 3.0) + uCentroid * 2.0, 0.40);
+        col *= 1.0 + uBeat * 0.30;
+      }
+      else if (uForm < 7.5){
+        // ---- CHLADNI: sand on a vibrating plate ----
+        // s = cos(nx)cos(my) - cos(mx)cos(ny): the standing-wave figure of a
+        // square plate. Sand collects where s = 0, so the bright ridge here
+        // is the nodal set itself, not a stylization of it. The mode numbers
+        // are deliberately left CONTINUOUS rather than snapped to integers —
+        // the plate is always sweeping between modes, which is both what a
+        // hand on a signal generator actually looks like and the reason this
+        // form never cuts: no frame ever jumps to a different figure.
+        vec2 q = p;
+        float n = 3.0 + uVarA * 3.0 + sin(uTime * 0.061) * 2.2 + uCentroid * 1.6;
+        float m = 2.0 + uVarB * 3.0 + cos(uTime * 0.047) * 1.8 + uBass * 0.9;
+        float s = cos(n * 3.14159265 * q.x) * cos(m * 3.14159265 * q.y)
+                - cos(m * 3.14159265 * q.x) * cos(n * 3.14159265 * q.y);
+        float edge = max(abs(q.x), abs(q.y));
+        // the sand ridge: wide enough to survive the resolution governor at
+        // high modes, breathing a little on the beat
+        float sand = 1.0 - smoothstep(0.0, 0.075 + uBeat * 0.05, abs(s));
+        col = bands(s * (1.3 + uVarC * 1.2) + uCentroid, 0.35) * 0.45;
+        col = mix(col, mix(uColC, vec3(1.0), 0.55), sand);
+        col += mix(uColB, vec3(1.0), 0.3)
+             * (1.0 - smoothstep(0.0, 0.014, abs(edge - 0.99))) * (0.30 + uBeat * 0.40);
+        col *= smoothstep(1.02, 0.96, edge);                   // the plate ends; the stage is dark
+      }
+      else if (uForm < 8.5){
+        // ---- BLOB: metaballs, the lava lamp ----
+        // Six inverse-square wells summed into one field; the surface is the
+        // level set f = 1. No marching and no iteration beyond the six adds —
+        // this is the 1986 Blinn formulation, unchanged.
+        float t = uTime * (0.22 + uEnergy * 0.35);
+        float f = 0.0;
+        for (int i = 0; i < 6; i++){
+          float fi = float(i);
+          float a = t * (0.5 + fi * 0.13) * (mod(fi, 2.0) < 1.0 ? 1.0 : -1.0) + fi * 1.7;
+          float orb = 0.55 + 0.45 * sin(t * 0.6 + fi * 2.1) + uVarA * 0.4;
+          vec2 c = vec2(cos(a) * 1.35, sin(a * 0.83) * 0.85) * orb;
+          float w = 0.050 + 0.028 * fract(fi * 0.37 + uVarB) + uBass * 0.020;
+          f += w / max(dot(p - c, p - c), 4e-3);
+        }
+        // the field falls as 1/r^2, so LOG is what spaces its contours evenly.
+        // Banding f directly crowds every contour around the cores and leaves
+        // the rest of the frame one flat colour — a blur, not a pattern. In log
+        // the picture becomes a topographic map of the potential, which is also
+        // what tames the singularity at each core without a clamp.
+        float s = log(max(f, 1e-3)) * (1.6 + uVarC * 1.2) + uCentroid * 0.8;
+        col = bands(s, 0.32);
+        // the surface itself: a bright skin exactly on the level set f = 1
+        col += mix(uColC, vec3(1.0), 0.5)
+             * (1.0 - smoothstep(0.0, 0.10 + uBeat * 0.06, abs(f - 1.0))) * 0.75;
+        col *= 0.35 + 0.65 * smoothstep(0.01, 0.30, f);        // the far field dims, never vanishes
+      }
+      else {
+        // ---- WARP: domain warping ----
+        // The stripes are straight. The COORDINATE is what bends — two nested
+        // sine warps, each one bending the space the next one reads. That is
+        // the whole of the marbled-liquid look, and the second warp's
+        // amplitude rides the bass, so the low end churns the marbling
+        // instead of flashing it.
+        float t = uTime * (0.16 + uEnergy * 0.24);
+        vec2 q = p * (1.5 + uVarA * 1.5);
+        q += 0.55 * vec2(sin(q.y * 2.3 + t), cos(q.x * 2.1 - t * 0.8));
+        q += (0.28 + uBass * 0.26) * vec2(sin(q.y * 4.7 - t * 1.4), cos(q.x * 4.1 + t * 1.1));
+        float s = (q.x * 0.6 + q.y * 0.35) * (2.2 + uVarB * 2.4) + uCentroid * 2.0;
+        col = bands(s, 0.38);
+        col *= 1.0 + uBeat * 0.28;
+      }
       col *= 0.8 + uEnergy * 0.35 + uAct * 0.25;
       gl_FragColor = vec4(col, uOpacity);
     }
@@ -13222,12 +13334,13 @@ function buildOpArt(){
   group.add(mesh);
   group.visible = false;
   scene.add(group);
-  const FORM_NAMES = ['ISO', 'MAZE', 'FLOOR', 'HYPNO', 'DISCO', 'RADAR'];
+  const FORM_NAMES = ['ISO', 'MAZE', 'FLOOR', 'HYPNO', 'DISCO', 'RADAR',
+                      'PLASMA', 'CHLADNI', 'BLOB', 'WARP'];
   const api = { name: 'OP-ART', group, update(){
     varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
   }, roll(){
     varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
-    varU.uForm.value = Math.floor(Math.random() * 6);
+    varU.uForm.value = Math.floor(Math.random() * FORM_NAMES.length);
     api.name = 'OP-ART · ' + FORM_NAMES[varU.uForm.value];
     return api.name;
   } };
@@ -13351,14 +13464,16 @@ function buildPulse(){
 
 /* =========================================================
    Scene 15 — PARLOR  (the illusion machine)
-   A century of perceptual science, rolled like dice. Six FIELDS —
+   A century of perceptual science, rolled like dice. Nine FIELDS —
    LIMIT (Escher circle-limit {p,q} hyperbolic tiling panned by true
    Möbius transforms — the engine's own namesake math), PENTA (de
    Bruijn's five interfering wave families, the Penrose quasicrystal's
    skeleton), TRUCHET (Carlson multi-scale interlocking arcs), SWARM
    (Vogel phyllotaxis, the sunflower's golden angle), MOIRE (two soft
    gratings a whisper apart — 57× leverage on a one-degree twist),
-   CORD (café-wall shear morphing into the Fraser false spiral) —
+   CORD (café-wall shear morphing into the Fraser false spiral),
+   HERING (two dead-straight verticals bowed apart by a radial fan),
+   ZOLL (Zöllner's parallels splayed by alternating crosshatch) —
    crossed with three GARNISH layers: none, the SNAKE luminance
    ladder (Kitaoka's 0·¼·1·¾ staircase — your own saccades animate
    it; it works in print, no flicker anywhere), or the GHOST grid
@@ -13366,7 +13481,8 @@ function buildPulse(){
    not by frames). Every illusion here is geometry, not strobe —
    safe under the governor by construction. And the sly mechanic no
    demo uses: several illusions carry a known STRENGTH dial (the
-   café wall's mortar luminance, the cord's twist) — mapped to the
+   café wall's mortar luminance, the cord's twist, Hering's ray
+   count, Zöllner's hatch angle) — mapped to the
    music's long-term energy, so the picture lies harder as the song
    builds and comes clean in the quiet.
    ========================================================= */
@@ -13556,6 +13672,58 @@ function buildParlor(){
       drift = atan(F.y, F.x) * 1.5 + mag * 2.0;
       ink = max(ink, grid * 0.22);
     }
+    void fieldHERING(vec2 p, out float v, out float drift, out float ink){
+      // Hering, 1861. Two verticals laid across a radial fan appear to bow
+      // apart. They are dead straight — one x-distance each, no curve term
+      // anywhere in the arithmetic — and this is the cleanest use of the
+      // strength dial in the whole parlor: the lie IS the ray count, so the
+      // bars bend hardest at the song's peak and straighten in the quiet,
+      // which you can watch happen without ever seeing anything move.
+      float a = atan(p.y, p.x), r = length(p);
+      // an EVEN ray count: atan wraps at +-pi, and only an even count keeps
+      // the fringe continuous across the seam
+      float rays = 22.0 + 2.0 * floor(uLie * 11.0);
+      float fan = smoothstep(0.42, 0.58, fract(a / 6.2831853 * rays + uTime * 0.004));
+      // the rays converge to infinite frequency at the hub, so the hub fades
+      // to calm before it can ever shimmer — the governor's rule, kept by
+      // construction rather than by clamping the result
+      fan *= smoothstep(0.06, 0.32, r);
+      float bars = max(1.0 - smoothstep(0.019, 0.034, abs(p.x + 0.42)),
+                       1.0 - smoothstep(0.019, 0.034, abs(p.x - 0.42)));
+      v = fan * 0.55;
+      ink = max(fan * 0.35, bars);
+      drift = a * 3.0 + r * 2.0;
+    }
+    void fieldZOLL(vec2 p, out float v, out float drift, out float ink){
+      // Zollner, 1860. Parallel rules crosshatched with short obliques that
+      // flip direction rule to rule; the parallels splay. The dial here is
+      // the hatch angle — shallow tells a small lie, steep tells a big one,
+      // and the song picks. Hatch frequency is deliberately coarse: this is
+      // full-field fine structure, and the resolution governor is allowed to
+      // halve the buffer underneath it at any moment.
+      float N = 5.0;
+      float y = p.y * N + uTime * 0.03;
+      float row = floor(y);
+      // dy in the SAME units as p.x — shear only reads as a 45-degree oblique
+      // if the two axes agree, and a shear expressed against the N-scaled row
+      // coordinate comes out nearly horizontal instead
+      float dy = (fract(y) - 0.5) / N;
+      // the rule: dead straight and dead parallel to every other rule
+      float rule = 1.0 - smoothstep(0.006, 0.011, abs(dy));
+      // the obliques: SHORT strokes crossing each rule, leaning the opposite
+      // way rule to rule. They have to stay countable — hatch fine enough to
+      // read as texture stops being a set of strokes, and the illusion goes
+      // with it, so the spacing is set wider than each stroke's own rise.
+      float sgn = mod(row, 2.0) < 1.0 ? 1.0 : -1.0;
+      float shear = (0.75 + uLie * 0.85) * sgn;
+      float h = 0.085;                                   // how far a stroke runs off its rule
+      float hx = (p.x + dy * shear) * 5.0;
+      float stroke = (1.0 - smoothstep(0.36, 0.45, abs(fract(hx) - 0.5)))
+                   * (1.0 - smoothstep(h * 0.75, h, abs(dy)));
+      v = 0.25 + rule * 0.40 + stroke * 0.45;
+      ink = max(rule, stroke * 0.85);
+      drift = y * 20.0 + p.x * 1.5;
+    }
 
     void main(){
       vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
@@ -13567,7 +13735,9 @@ function buildParlor(){
       else if (uField < 3.5) fieldSWARM(p, v, drift, ink);
       else if (uField < 4.5) fieldMOIRE(p, v, drift, ink);
       else if (uField < 5.5) fieldCORD(p, v, drift, ink);
-      else                   fieldFLUX(p, v, drift, ink);
+      else if (uField < 6.5) fieldFLUX(p, v, drift, ink);
+      else if (uField < 7.5) fieldHERING(p, v, drift, ink);
+      else                   fieldZOLL(p, v, drift, ink);
 
       vec3 col = mix(uColA * 0.16, mix(uColA, uColB, v), v * 0.9);
       col = mix(col, uColC, ink * 0.85);
@@ -13605,7 +13775,8 @@ function buildParlor(){
   group.visible = false;
   scene.add(group);
 
-  const FIELD_NAMES = ['LIMIT', 'PENTA', 'TRUCHET', 'SWARM', 'MOIRE', 'CORD', 'FLUX'];
+  const FIELD_NAMES = ['LIMIT', 'PENTA', 'TRUCHET', 'SWARM', 'MOIRE', 'CORD', 'FLUX',
+                       'HERING', 'ZOLL'];
   const SPICE_NAMES = ['PURE', 'SNAKE', 'GHOST'];
   // valid hyperbolic {p,q}: 1/p + 1/q < 1/2
   const HYP = [[5, 4], [5, 5], [6, 4], [7, 3], [8, 3], [4, 5], [4, 6], [3, 7]];
@@ -13613,7 +13784,7 @@ function buildParlor(){
   const api = {
     name: 'PARLOR', group, calm: true, heavy: true,
     roll(){
-      const field = (Math.random() * 7) | 0;
+      const field = (Math.random() * FIELD_NAMES.length) | 0;
       // MOIRE full-field fringes ask the most of the governor; in CALM the
       // parlor rolls among the certified-static illusions instead
       varU.uField.value = (SAFE.calm && field === 4) ? 0 : field;
