@@ -584,6 +584,51 @@ The parts that took a real browser to get right:
   leaving a dead "Updating…", and ⚡ SHOW mode, which holds every update so a
   performance is never interrupted.
 
+### The mix engine — what is solid, and what is measured but not yet fixed
+
+The blend defaults to **eight beats**. That is a reliability decision before a
+taste one: at 124 bpm a 32-beat overlap is fifteen seconds during which two decks
+must hold phase and the tempo glide has to walk from one BPM to the other and
+back into lock, and any drift the lock cannot absorb has fifteen seconds to grow
+into a flam. Eight beats is under four seconds — long enough to read as a mix,
+short enough that error has no room to accumulate, and it is what a working DJ
+does on a floor that wants the next song. Longer blends stay available per pair
+in the Mix tuner; nothing takes one by default. Match scoring was decoupled from
+blend length at the same time — it now reads harmonic distance and tempo
+proximity, which are properties of the *pair*, rather than rewarding whichever
+plan happened to be longest.
+
+`tools/mix_probe.mjs` measures a real seam on a real graph, and it localises a
+defect that had been reported as intermittent:
+
+| condition | beat-phase error | fade-in against a deck that had not started |
+|---|---|---|
+| main thread free | **0.3 ms** | 41 ms |
+| visualizer running | **114–119 ms** | 322–441 ms |
+
+The seam is excellent when nothing else is competing and loses its beat lock when
+the visualizer saturates the main thread. This is a **coupling** problem, not a
+tuning one: the loudness crossfade was moved onto the audio clock long ago
+precisely because a dropped frame used to zipper it, but the seam's *trigger* and
+its *phase servo* still run in the animation loop, so their accuracy tracks the
+frame rate. The engine's own documented contract is 40 ms (see
+`tools/mix_acceptance.mjs`), and under render load it does not meet it — on `main`
+either; this is measured, pre-existing, and not yet fixed. Moving the trigger and
+the servo onto a timer or the audio clock is the next piece of work, and the probe
+tracks both numbers as OPEN so the improvement will be visible rather than
+asserted.
+
+**iOS is a different engine and is unchanged.** There the WebAudio graph is not
+live at all: `createMediaElementSource` is a one-way door and a suspended context
+would silence lock-screen playback, so decks play element-direct and the OS owns
+them. iOS also ignores `volume` on media elements, so a crossfade is not
+expressible — every transition falls to the same-element advance, which is the
+audible stop-and-reload between tracks. Fixing it means choosing between routing
+iOS through the graph (risking the pocketed phone going silent) and alternating
+two elements (which churns iOS's decoder budget and can quietly drop an element's
+autoplay blessing mid-queue). Both are real trades with real downside; neither
+should be made silently.
+
 ### The activity log
 
 At the bottom of the Console: what the application has actually done on this
@@ -716,6 +761,14 @@ node tools/mix_acceptance.mjs /tmp/mb8m      # 28 checks: grids, keys, live beat
                                     #   phase lock < 40 ms, gates, crate, mixfix
 node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update button →
                                     #   one tap → new build live, state intact
+python3 tools/make_mix_fixture.py /tmp/mb8-mix
+node tools/mix_probe.mjs /tmp/mb8-mix        # the SEAM on a real graph: master-level
+                                    #   envelope across the blend, whether the incoming
+                                    #   deck was actually producing audio when the fader
+                                    #   opened, the beat-phase error, and that no deck is
+                                    #   left off-unity afterwards. MB8_PROBE_RENDER=1
+                                    #   re-runs it with the visualizer live, which
+                                    #   exposes the seam's frame-rate coupling
 node tools/update_probe.mjs         # 12 checks on the REACHABILITY of an update:
                                     #   stamped + unstamped deploys, a sibling client
                                     #   consuming the waiting worker, and "Later"

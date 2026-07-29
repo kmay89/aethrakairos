@@ -6094,8 +6094,17 @@ function planTransition(A, B, opts){
   if (!opts.forced && kc > 2)
     return fade('key clash ' + (mA.key || '?') + '→' + (mB.key || '?'));
 
-  // cleaner harmony affords longer blends; regions bound everything
-  let beats = opts.forceBeats || (kc <= 0.5 ? 32 : kc <= 1 ? 16 : 8);
+  /* EIGHT BEATS IS THE DEFAULT, and that is a reliability decision before it is
+     a taste one. A long blend sounds generous in theory and is the hardest thing
+     in this engine to keep honest: at 124 bpm a 32-beat overlap is fifteen
+     seconds during which two decks must hold phase, the tempo glide has to walk
+     from one BPM to the other and back into lock, and any drift the lock cannot
+     absorb has fifteen seconds to grow into a flam. Eight beats is under four
+     seconds — long enough to read as a mix rather than a cut, short enough that
+     phase error has no room to accumulate, and it is what a working DJ actually
+     does on a floor that wants the next song. Longer blends stay available (the
+     Mix tuner, forceBeats); nothing takes one by default. */
+  let beats = opts.forceBeats || 8;
   beats = Math.max(4, Math.min(beats, mA.out.beats || 8, mB.in.beats || 8));
   const spbA = 60 / mA.bpm, spbB = 60 / mB.bpm;
   const durA = A.duration || 0;
@@ -6146,8 +6155,17 @@ function driftTrim(errSeconds){
 function mixMatchScore(A, B, opts){
   const p = planTransition(A, B, opts || {});
   if (p.type === 'beatmix'){
-    const base = p.beats >= 32 ? 1.0 : p.beats >= 16 ? 0.85 : 0.68;
-    return { score: base - (p.compat || 0) * 0.06, plan: p };
+    /* HOW GOOD IS THIS PAIR — not how long is the blend. The score used to be
+       led by beats (32 ⇒ 1.0, 8 ⇒ 0.68), which conflated a property of the PLAN
+       with a property of the MATCH; with eight beats as the default that scoring
+       would have marked every well-matched pair in the crate as mediocre. What
+       actually makes B safe after A is harmonic distance and tempo proximity, so
+       those are what it reads. Blend length survives only as a small tiebreak:
+       a pair whose regions can hold a longer overlap does have more room. */
+    const key = 1.0 - (p.compat || 0) * 0.11;              // Camelot distance dominates
+    const tempo = 1.0 - Math.min(1, Math.abs((p.fold || 1) - 1) / 0.08) * 0.12;
+    const room = p.beats >= 16 ? 0.03 : 0;
+    return { score: Math.max(0, Math.min(1, key * tempo + room)), plan: p };
   }
   if (p.type === 'gapless') return { score: 0.92, plan: p };
   return { score: 0.12, plan: p };                // a fade is a fallback, not a match
@@ -9285,6 +9303,12 @@ const MIXER = {
   },
 
   fire(now){
+    /* ONE SEAM, ONCE. Nothing today calls this twice — the phase check upstream
+       prevents it — but a seam that fires twice flips AE.active twice and commits
+       the draw twice, which surfaces as a track playing over itself. In an engine
+       this timing-sensitive the invariant belongs where it cannot be refactored
+       away, not in the caller that happens to hold it. */
+    if (this.phase === 'running') return;
     let p = this.plan;
     const od = AE.decks[AE.active];
     const nd = AE.decks[1 - AE.active];
@@ -9766,7 +9790,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'c64aec155b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'a8e1bfde9f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived

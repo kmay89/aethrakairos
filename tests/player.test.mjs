@@ -480,15 +480,20 @@ test('planner: album sequence is gapless; overrides win', () => {
   assert.equal(fadeFix.seconds, 6);
 });
 
-test('beatmix geometry: bar-aligned start, overlap fits, harmony sets length', () => {
+test('beatmix geometry: bar-aligned start, overlap fits, eight beats by default', () => {
   const A = mkMixTrack(1), spb = 60 / 126;
+  // EIGHT is the default whatever the harmony says. A long overlap is the
+  // hardest thing in the engine to hold in phase, so length is now something
+  // asked for, never something a clean key change quietly buys.
   const same = S.planTransition(A, mkMixTrack(2));               // same key
-  assert.equal(same.beats, 32, 'clean harmony affords 32 beats');
+  assert.equal(same.beats, 8, 'a perfect key match still blends in eight');
   const adj = S.planTransition(A, mkMixTrack(3, { mix: { key: '9A' } }));
-  assert.equal(adj.beats, 16);
+  assert.equal(adj.beats, 8);
   const stretch = S.planTransition(A, mkMixTrack(4, { mix: { key: '9B' } }));
   assert.equal(stretch.beats, 8);
-  for (const p of [same, adj, stretch]){
+  const long = S.planTransition(A, mkMixTrack(6), { forceBeats: 32 });
+  assert.equal(long.beats, 32, 'a longer blend is available when asked for');
+  for (const p of [same, adj, stretch, long]){
     const barErr = (p.startA - 0.4) % (4 * spb);
     assert.ok(Math.min(barErr, 4 * spb - barErr) < 1e-6, 'starts on A\'s bar line');
     assert.ok(p.startA + p.beats * spb <= 300 - 0.29, 'overlap fits inside A');
