@@ -2867,6 +2867,9 @@ const FILTER_OPEN = 20000, FILTER_FLOOR = 300;
 // dB across the seam so two basslines never stack into mud (beatmix already
 // swaps bass live; this brings the same discipline to the FILTERED fade)
 const FADE_BASS_CUT = -22;
+// the same rule for a BEATMIX: the deck that doesn't own the low end sits this
+// far down until the swap hands it over at the seam's midpoint
+const BEATMIX_BASS_DUCK = -14;
 
 const AE = {
   ctx: null, bus: null, master: null, analyser: null,
@@ -8640,6 +8643,52 @@ function seamPhaseTrim(errSec, trimI, f, opts){
   const ni = Math.max(-cap, Math.min(cap, trimI + errSec * 0.08));
   return { seek: false, trim: driftTrim(errSec) + ni, trimI: ni };
 }
+
+// ---- READY MEANS READY -------------------------------------------------
+// Does a TimeRanges-shaped object hold a continuous buffer from `from`
+// covering `need` seconds? Ranges are ordered and disjoint, so the one
+// containing `from` is the only one that can carry the seam — a later island
+// of buffer is bytes we'd stall before reaching.
+function seamBuffered(ranges, from, need){
+  if (!ranges || !ranges.length) return false;
+  const eps = 0.02;
+  for (let i = 0; i < ranges.length; i++){
+    const s = ranges.start(i), e = ranges.end(i);
+    if (from >= s - eps && from < e + eps) return (e - from) >= need - eps;
+  }
+  return false;
+}
+// Is the incoming deck REALLY ready to carry this seam? `readyState >= 2`
+// (HAVE_CURRENT_DATA) promises only the single frame under the playhead —
+// enough to start, never enough to play through, which is exactly how a
+// beatmix becomes a stall two beats in. A blend must own the whole window it
+// is about to play: HAVE_FUTURE_DATA at minimum, plus either the browser's
+// own play-through promise (HAVE_ENOUGH_DATA) or visible buffered bytes
+// across [from, from+need]. A plain fade streams a single deck from its
+// start and only needs the former.
+function seamStreamReady(st){
+  const s = st || {};
+  const rs = s.readyState | 0;
+  if (rs < 3) return false;
+  if (s.type !== 'beatmix') return true;
+  if (rs >= 4) return true;
+  return seamBuffered(s.buffered, s.from || 0, s.need || 0);
+}
+// The stream isn't ready and the seam is a beatmix: a DJ doesn't abandon the
+// blend, they take another eight. A's grid is constant, so one whole bar
+// later is still a downbeat — and B's entry point stays exactly where it was,
+// so the wait buys buffer for the very window we're waiting on. Bounded (a
+// stream this slow should fall back honestly) and never past the runway the
+// overlap needs. Returns the shifted plan, or null to stop waiting.
+function seamDeferBar(plan, durA, maxTries){
+  const p = plan || {};
+  if (p.type !== 'beatmix' || !(p.bpmA > 0)) return null;
+  const tries = p.deferred || 0;
+  if (tries >= (maxTries == null ? 4 : maxTries)) return null;
+  const spbA = 60 / p.bpmA, startA = p.startA + spbA * 4;
+  if (isFinite(durA) && startA + (p.beats || 16) * spbA > durA - 0.30) return null;
+  return Object.assign({}, p, { startA, deferred: tries + 1 });
+}
 // @mix-end
 
 const MIXER = {
@@ -8667,6 +8716,7 @@ const MIXER = {
     if (this.phase === 'idle'){ syncMixHud(); return; }
     this.plan = null; this.next = -1; this.phase = 'idle';
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
+    this.audioT0 = null; this._shelfScheduled = false;
     clockReset(this._clkA); clockReset(this._clkB);
     const tc = AE.ctx ? AE.ctx.currentTime : 0;
     if (AE.decks) AE.decks.forEach((d, i) => {
@@ -8820,12 +8870,31 @@ const MIXER = {
     const nd = AE.decks[1 - AE.active];
     const B = player.tracks[this.next];
     if (!B){ this.cancel(); return; }
-    if (p.type === 'beatmix' && nd.a.readyState < 2){
+    // READY MEANS READY. The incoming deck must own the whole window it is
+    // about to play — not merely the frame under its playhead — or the blend
+    // starts and stalls two beats in, which is the "buffering" a listener
+    // hears. When it isn't ready yet we WAIT A BAR (A's grid is constant, so
+    // the next bar line is still a downbeat, and B's entry point doesn't
+    // move, so the wait buys buffer for exactly the window we need) and only
+    // fall back to a fade once we're out of bars or out of runway.
+    // (beatmix only — a gapless pair was sequenced by the artist to butt
+    // together, and demoting THAT to a crossfade would be its own wrong note)
+    if (p.type === 'beatmix' && !seamStreamReady({ type: p.type, readyState: nd.a.readyState,
+                           buffered: nd.a.buffered, from: p.startB,
+                           need: Math.max(1, p.seconds || 2) + 0.5 })){
+      const later = seamDeferBar(p, od.a.duration);
+      if (later){
+        this.plan = later;                 // still armed; update() re-fires a bar on
+        syncMixHud();
+        return;
+      }
       p = this.plan = { type: 'fade', seconds: 3, why: 'stream not ready in time' };
     }
     this.overlap = p.type === 'gapless' ? 0.06 : p.seconds;
     this.startedAt = now;
+    this.audioT0 = null; this._shelfScheduled = false;
     this.lastF = 0; this.trim = 0; this.trimI = 0; this.lastBeatCheck = now;
+    window.__mixPhaseErrMs = null;    // each seam is measured on its own merits
     clockReset(this._clkA); clockReset(this._clkB);
     try { nd.a.currentTime = p.type === 'beatmix' ? p.startB : 0; } catch (e){}
     if (p.type === 'beatmix'){
@@ -8833,7 +8902,7 @@ const MIXER = {
       const g = glideRates(p.bpmA, p.bpmB, 0);
       od.a.playbackRate = this._lastRateA = g.rateA * SPEED.rate;
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
-      if (nd.shelf) nd.shelf.gain.value = -14;      // one-bass rule: B ducked in
+      if (nd.shelf) nd.shelf.gain.value = BEATMIX_BASS_DUCK;   // one-bass rule: B ducked in
     }
     // a FADE on the live graph becomes a FILTERED fade: schedule the outgoing
     // deck's lowpass to sweep from wide-open down to the floor across the seam,
@@ -8900,7 +8969,32 @@ const MIXER = {
         nd.gain.gain.cancelScheduledValues(t0);
         nd.gain.gain.setValueCurveAtTime(xfadeCurve(nd.norm || 1, 'in', N), t0, dur);
         this.lastF = 0;
-      } catch (e){ this.setVolumes(0); }
+        // the seam now RUNS on the audio clock — the same clock the curves
+        // were scheduled on, so nothing the animation loop does can disagree
+        // with them (see run()). Every seam timer rebases onto it here.
+        this.audioT0 = t0;
+      } catch (e){ this.audioT0 = null; this.setVolumes(0); }
+      // THE BASS SWAP, scheduled. One bassline at a time is the rule; this
+      // used to be written per-frame from the animation clock, so a dropped
+      // frame stepped the low end audibly — the thump you could hear the GPU
+      // cause. Sample-accurate ramps hand the low end over across ~two beats
+      // at the midpoint no matter what the renderer is doing.
+      if (p.type === 'beatmix' && od.shelf && nd.shelf){
+        try {
+          const swap = Math.max(0.05, (2 / Math.max(4, p.beats || 16)) * dur);
+          const mid = t0 + dur * 0.5;
+          const s0 = Math.max(t0, mid - swap / 2), s1 = mid + swap / 2;
+          od.shelf.gain.cancelScheduledValues(t0);
+          od.shelf.gain.setValueAtTime(0, t0);
+          od.shelf.gain.setValueAtTime(0, s0);
+          od.shelf.gain.linearRampToValueAtTime(BEATMIX_BASS_DUCK, s1);
+          nd.shelf.gain.cancelScheduledValues(t0);
+          nd.shelf.gain.setValueAtTime(BEATMIX_BASS_DUCK, t0);       // B ducked in
+          nd.shelf.gain.setValueAtTime(BEATMIX_BASS_DUCK, s0);
+          nd.shelf.gain.linearRampToValueAtTime(0, s1);
+          this._shelfScheduled = true;
+        } catch (e){ this._shelfScheduled = false; }
+      }
     } else {
       this.setVolumes(0);
     }
@@ -8928,7 +9022,25 @@ const MIXER = {
     const p = this.plan;
     const od = this.outDeck, nd = AE.decks[AE.active];
     if (!od || !nd || !p){ this.cancel(); return; }
-    const f = clamp01((now - this.startedAt) / Math.max(this.overlap, 0.05));
+    // WHERE THE SEAM IS — measured on the clock that actually plays it. The
+    // crossfade curves are scheduled on the audio clock, so reading the seam's
+    // position off the ANIMATION clock (as this did) let the two disagree
+    // whenever a frame ran long: derived automation stepped, and finish()
+    // could cancel a still-running fade mid-curve — the little jump at the end
+    // of a seam. The rAF clock stays the fallback where the graph doesn't
+    // carry the blend.
+    //
+    // The drift lock below deliberately does NOT move to this clock. It is a
+    // linear regression of media time against a reference, and it wants the
+    // best-CONDITIONED reference it can get: performance.now() is monotonic
+    // and microsecond-fine, while AudioContext.currentTime advances in whole
+    // render quanta and can stall then jump. The phase error is a difference
+    // of two media times read at one instant, so the reference cancels out of
+    // the answer as long as both decks share it — which makes conditioning,
+    // not audio-alignment, the thing that matters there.
+    const live = AE.graphLive && AE.ctx && this.audioT0 != null;
+    const dur = Math.max(this.overlap, 0.05);
+    const f = clamp01(((live ? AE.ctx.currentTime - this.audioT0 : now - this.startedAt)) / dur);
     // The loudness crossfade was scheduled sample-accurately at fire() (graph
     // path); on iOS the mixer never runs, so setVolumes only matters if the
     // graph scheduling threw. Here we just track f for the HUD.
@@ -8943,14 +9055,14 @@ const MIXER = {
         if (Math.abs(rA * SPEED.rate - this._lastRateA) > 0.0004){ od.a.playbackRate = rA * SPEED.rate; this._lastRateA = rA * SPEED.rate; }
         if (Math.abs(rB * SPEED.rate - this._lastRateB) > 0.0004){ nd.a.playbackRate = rB * SPEED.rate; this._lastRateB = rB * SPEED.rate; }
       }
-      // the bass swap: at the midpoint boundary, over ~two beats — decisive
-      // but not a step. One bassline at a time is the rule; HOW it hands
-      // over is what separates a mix from a collision.
-      if (AE.graphLive && od.shelf && nd.shelf){
+      // the bass swap normally rides sample-accurate ramps scheduled at
+      // fire(); this per-frame path is only the fallback for when that
+      // scheduling was unavailable or threw
+      if (AE.graphLive && od.shelf && nd.shelf && !this._shelfScheduled){
         const swapBeats = 2 / Math.max(4, p.beats || 16);
         const k = clamp01((f - 0.5) / swapBeats + 0.5);
-        od.shelf.gain.value = -14 * k;
-        nd.shelf.gain.value = -14 * (1 - k);
+        od.shelf.gain.value = BEATMIX_BASS_DUCK * k;
+        nd.shelf.gain.value = BEATMIX_BASS_DUCK * (1 - k);
       }
       // the phase lock: both decks feed regression-filtered media clocks
       // every frame (raw currentTime is quantized and jittery), and once a
@@ -9005,6 +9117,7 @@ const MIXER = {
     this._resetFilters();                              // both decks back to wide-open
     this._lastRateA = this._lastRateB = 1;
     this.plan = null; this.next = -1; this.outDeck = null; this.outTrack = null; this.trim = 0;
+    this.audioT0 = null; this._shelfScheduled = false;
     this.phase = 'idle';
     applyVolume();
     syncMixHud();
@@ -9848,6 +9961,16 @@ const EQ = {
 let _peaksChain = Promise.resolve();
 function computePeaks(track){
   if (!track || track._peaks || track._peaksPending || track._peaksErr) return;
+  // NEVER ACROSS A LIVE SEAM. Drawing a track's waveform costs a whole-song
+  // fetch — racing the incoming deck for the very bandwidth it is buffering
+  // with — and a decodeAudioData that allocates a song of PCM on the main
+  // thread. Landing that on a running blend is exactly what makes a
+  // transition chug. The armed window (up to 90 s) is left free on purpose:
+  // that is when this work SHOULD happen, so the booth has both lanes drawn
+  // before the seam. Every caller redraws continuously, so a decode deferred
+  // here starts by itself the moment the seam ends, and the live scope covers
+  // the gap as it always has.
+  if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return;
   track._peaksPending = true;
   _peaksChain = _peaksChain.then(() => _peaksDecode(track)).catch(() => {});
   return _peaksChain;

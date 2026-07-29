@@ -25,7 +25,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
-  ' equalPowerXfade, xfadeCurve, seamPhaseTrim,' +
+  ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
@@ -1793,6 +1793,51 @@ test('seamPhaseTrim: never seeks an audible deck; tempo-only once heard', () => 
   let ti = 0;
   for (let k = 0; k < 500; k++) ti = S.seamPhaseTrim(0.05, ti, 0.5).trimI;
   assert.ok(Math.abs(ti) <= 0.002 + 1e-9, 'integrator stays capped at ±0.2%');
+});
+
+// ---- ready means ready: no seam starts on a stream that can't carry it ----
+const ranges = list => ({ length: list.length, start: i => list[i][0], end: i => list[i][1] });
+
+test('seamBuffered: only the range CONTAINING the entry point can carry the seam', () => {
+  assert.equal(S.seamBuffered(ranges([[0, 30]]), 10, 8), true, 'covered → ready');
+  assert.equal(S.seamBuffered(ranges([[0, 30]]), 25, 8), false, 'runs off the end of the buffer');
+  // bytes exist further along, but we would stall before ever reaching them
+  assert.equal(S.seamBuffered(ranges([[0, 5], [60, 200]]), 10, 8), false, 'a later island is not coverage');
+  assert.equal(S.seamBuffered(ranges([[60, 200]]), 60, 8), true, 'entry at a range start counts');
+  assert.equal(S.seamBuffered(ranges([]), 0, 8), false, 'nothing buffered → not ready');
+  assert.equal(S.seamBuffered(null, 0, 8), false, 'no ranges object → not ready');
+});
+test('seamStreamReady: HAVE_CURRENT_DATA is never enough for a beatmix', () => {
+  const buffered = ranges([[0, 200]]);
+  // readyState 2 promises only the frame under the playhead — the old bug
+  assert.equal(S.seamStreamReady({ type: 'beatmix', readyState: 2, buffered, from: 10, need: 8 }), false);
+  assert.equal(S.seamStreamReady({ type: 'beatmix', readyState: 3, buffered, from: 10, need: 8 }), true);
+  // HAVE_FUTURE_DATA but the bytes for THIS window aren't there → wait
+  assert.equal(S.seamStreamReady({ type: 'beatmix', readyState: 3, buffered: ranges([[0, 12]]), from: 10, need: 8 }), false);
+  // the browser's own play-through promise stands in for visible bytes
+  assert.equal(S.seamStreamReady({ type: 'beatmix', readyState: 4, buffered: ranges([]), from: 10, need: 8 }), true);
+  // a fade streams one deck from its start: readyState alone decides
+  assert.equal(S.seamStreamReady({ type: 'fade', readyState: 3, buffered: ranges([]) }), true);
+  assert.equal(S.seamStreamReady({ type: 'fade', readyState: 2, buffered }), false);
+  assert.equal(S.seamStreamReady(null), false, 'garbage in → not ready');
+});
+test('seamDeferBar: take another eight — a whole bar later, B entering where it always was', () => {
+  const plan = { type: 'beatmix', beats: 16, bpmA: 120, bpmB: 120, startA: 100, startB: 8 };
+  const a = S.seamDeferBar(plan, 300);
+  assert.equal(a.startA, 102, 'one bar of A at 120bpm = 2 s later');
+  assert.equal(a.startB, 8, "B's entry never moves — the wait buys buffer for THAT window");
+  assert.equal(a.deferred, 1);
+  assert.equal(a.beats, 16, 'the blend itself is unchanged');
+  // bounded: a stream this slow must fall back honestly rather than wait forever
+  let p = plan, n = 0;
+  while (p && n < 20){ p = S.seamDeferBar(p, 300); n++; }
+  assert.ok(n <= 5, 'deferral is bounded, got ' + n);
+  // never past the runway the overlap needs: a bar later, the 8 s blend would
+  // run off the end of a 300 s track
+  assert.ok(S.seamDeferBar({ ...plan, startA: 270 }, 300), 'still fits → wait');
+  assert.equal(S.seamDeferBar({ ...plan, startA: 292 }, 300), null, 'no room left → stop waiting');
+  // only beatmix defers; a fade has nothing to align to
+  assert.equal(S.seamDeferBar({ type: 'fade', seconds: 3 }, 300), null);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
