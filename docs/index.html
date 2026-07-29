@@ -858,6 +858,16 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 }
 @keyframes upDot{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}
 @media (prefers-reduced-motion:reduce){#btnUpdate.pulse::after{animation:none;opacity:1}}
+/* the deferral badge: what the listener already decided, shown back to them.
+   A dot while an update simply waits; the COUNT once they have put it off. */
+.up-badge{
+  display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;
+  margin-left:5px;padding:0 4px;border-radius:8px;font-size:10px;font-weight:700;line-height:1;
+  background:var(--accent,#6ee7ff);color:var(--accent-ink,#04121a);
+}
+/* a snoozed update stops shouting — the badge carries it, the chip goes quiet */
+#btnUpdate.snoozed{opacity:.72}
+#btnUpdate.snoozed.pulse::after{animation:none;opacity:.5}
 #updateCard,#skinCard{
   position:fixed;left:50%;transform:translateX(-50%) translateY(16px);
   top:calc(56px + env(safe-area-inset-top));z-index:57;
@@ -1580,6 +1590,30 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 #conEngage:disabled{opacity:.35;cursor:default;filter:none}
 #conStatus{font-size:9.5px;color:var(--faint);letter-spacing:.06em;flex:1;line-height:1.6}
 .con-saved{margin-top:14px;border-top:1px solid var(--line-soft);padding-top:10px}
+/* -------- the activity log: the app's own receipt -------- */
+.act-toggle{font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.act-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.act-filters button{
+  font:inherit;font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+  padding:3px 9px;border-radius:999px;border:1px solid var(--line);
+  background:transparent;color:var(--dim);
+}
+.act-filters button.on{background:var(--accent-dim);border-color:var(--accent-line);color:var(--ink)}
+.act-list{max-height:34vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+.act-row{
+  display:grid;grid-template-columns:66px 1fr auto;gap:8px;align-items:baseline;
+  padding:5px 8px;font-size:11.5px;border-bottom:1px solid var(--line-soft);
+}
+.act-row:last-child{border-bottom:0}
+.act-k{
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
+  border:1px solid var(--line-soft);border-radius:5px;padding:1px 0;text-align:center;
+}
+.act-update .act-k{color:var(--accent);border-color:var(--accent-line)}
+.act-m{color:var(--ink);overflow-wrap:anywhere}
+.act-m b{color:var(--dim);font-weight:600}
+.act-t{color:var(--faint);font-size:10px;white-space:nowrap}
+.act-empty{padding:10px 8px;color:var(--faint);font-size:11.5px}
 .saved-row{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:10.5px}
 .saved-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
 .saved-row .meta{font-size:8.5px;color:var(--faint);letter-spacing:.06em}
@@ -1731,7 +1765,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
       aria-label="Apply the ready update"
       title="A new version is ready. Applying it saves your place first — everything restores, music resumes paused where it was.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3v4h-4"/></svg>
-      <span class="lbl">Update</span>
+      <span class="lbl">Update</span><span class="up-badge" id="upBadge" hidden aria-hidden="true"></span>
     </button>
     <button class="btn icon" id="btnMore" aria-label="More controls" aria-expanded="false" hidden>
       <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
@@ -2072,6 +2106,20 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
       <span class="con-lbl">Saved journeys</span>
       <div id="savedList"></div>
     </div>
+    <div class="con-saved">
+      <button class="btn act-toggle" id="conActToggle" type="button" aria-expanded="false"
+        aria-controls="conActivity" title="What this app has actually done — updates, music, and system events, kept on this device">
+        Activity log</button>
+      <div id="conActivity" hidden>
+        <p class="con-note">Everything the application has done on this device — updates offered and applied,
+          what played, what the system decided. Stored here only; nothing is sent anywhere.</p>
+        <div class="act-filters" id="actFilters" role="group" aria-label="Filter the activity log"></div>
+        <div class="act-list" id="actList" role="log" aria-live="off"></div>
+        <div class="con-foot" style="margin-top:8px">
+          <button class="btn" id="actClear" type="button">Clear the log</button>
+        </div>
+      </div>
+    </div>
     <div class="con-saved" id="conMixTuner" hidden>
       <span class="con-lbl">Mix tuner — fix this pair, and it stays fixed forever</span>
       <p class="con-note" id="mixTunerBody"></p>
@@ -2393,9 +2441,15 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     the visualizer goes dark in the pocket by design — playback never depends on it. Lock screen, Bluetooth,
     CarPlay's Now Playing screen and AirPlay all drive the same transport.</p>
     <button class="btn" id="btnForget" style="margin-bottom:14px">Forget play history (typed RESET)</button>
-    <p class="lede" style="opacity:.65">build <span id="buildLine">dev</span> — when a new version is published,
-    an <b>Update</b> button appears in the top bar; applying it saves your place first, and everything
-    (queue, position, hearts, history, journeys) comes back exactly as it was.</p>
+    <p class="lede">When a new version is published, an <b>Update</b> button appears in the top bar; applying
+    it saves your place first, and everything (queue, position, hearts, history, journeys) comes back exactly
+    as it was. Choose <b>Later</b> and that is remembered — the button keeps a small count of how many times
+    you have put it off, stays quiet while the snooze holds, and reminds you once when it runs out. Nothing is
+    ever applied out from under a set: ⚡&nbsp;SHOW mode holds every update until you say so.</p>
+    <p class="lede">The <b>Activity log</b>, at the bottom of the Console, is the app's account of itself —
+    updates offered and applied, what played, what the system decided, kept on this device and sent nowhere.
+    If something ever feels off, that is the first place to look.</p>
+    <p class="lede" style="opacity:.65">build <span id="buildLine">dev</span></p>
     <button class="btn big help-close" id="helpClose">Close</button>
   </div>
 </div>
@@ -2418,6 +2472,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 <div id="updateCard" role="dialog" aria-label="Update ready">
   <div class="bp-t"><b>Update ready</b> · <span class="up-builds" id="upBuilds"></span></div>
   <ul class="up-notes" id="upNotes"></ul>
+  <div class="up-fine" id="upDeferNote" hidden></div>
   <div class="up-fine" id="upShowNote" hidden>⚡ SHOW is on — nothing ever applies by itself during a set.</div>
   <div class="up-fine">Applying saves your place first — everything restores, music resumes paused where it was.</div>
   <div class="bp-row">
@@ -2617,9 +2672,18 @@ function touchAutoShould(since, handOff, r){
    (it fires at the track boundary or the pause, even mid-set); otherwise a
    snooze holds it, SHOW mode holds it unconditionally (a performance is never
    yanked), and playing music holds it until the quiet. */
+const UP_APPLY_CAP = 3;                    // automatic swaps allowed per session
 function updateGate(o){
   if (!o.ready || o.requested) return 'wait';
   if (o.armed === 'afterTrack') return (o.trackChanged || !o.playing) ? 'apply' : 'wait';
+  /* THE LOOP BRAKE. Applying an update reloads the page, and a reloaded page
+     asks again — so if a swap ever fails to change what the shell reports (a
+     host that injects a nonce into its HTML, a byte-compare that can never
+     settle), the app would reload itself forever, which is the one failure
+     worse than never updating at all. After a few automatic attempts in one
+     session, stand down and wait for a deliberate tap. A HUMAN is never
+     rate-limited: applyUpdate() is called directly and does not pass here. */
+  if ((Number(o.applies) || 0) >= UP_APPLY_CAP) return 'wait';
   if (o.now < (o.snoozedUntil || 0)) return 'wait';
   if (o.show) return 'wait';
   return o.playing ? 'wait' : 'apply';
@@ -2670,6 +2734,78 @@ function updateEstimate(prev, sampleMs){
   const sample = Math.min(Math.max(s, UP_EST.min), UP_EST.max);
   return Math.round(base * 0.6 + sample * 0.4);
 }
+/* UPDATE REMINDER — "Later" that actually comes back.
+
+   The old snooze lived in a variable, so a reload — the very thing an update
+   eventually causes — forgot it, and "Later" quietly meant "ask me again in
+   five minutes". The deferral is a STORED fact now, and this decides what the
+   button should say about it: a dot while an update simply waits, the count
+   once the listener has put it off, and a one-shot reminder at the moment the
+   snooze they asked for actually runs out.
+
+   It stops TALKING after a few deferrals and keeps only the badge. Someone
+   who has said "later" five times has told us something; a sixth toast is not
+   information, it is nagging. */
+const UP_SNOOZE_MS = 6 * 3600 * 1000;      // what "Later" buys
+const UP_NAG_CAP = 5;                      // deferrals after which we stop toasting
+function updateReminder(inp){
+  const o = inp || {};
+  const now = Number(o.now);
+  const until = Number(o.snoozedUntil);
+  const t = Number.isFinite(now) ? now : 0;
+  const u = Number.isFinite(until) && until > 0 ? until : 0;
+  let d = Math.floor(Number(o.deferrals));
+  if (!Number.isFinite(d) || d < 0) d = 0;
+  d = Math.min(d, 99);
+  const snoozed = u > t;
+  const last = Number(o.lastRemindAt);
+  // due exactly once per expiry: the reminder is stamped with the snooze it
+  // answers, so a page that reloads twice does not toast twice
+  const due = !snoozed && d > 0 && d <= UP_NAG_CAP && (!Number.isFinite(last) || last < u);
+  return {
+    snoozed, due, deferrals: d,
+    badge: d > 0 ? String(d) : (o.pending ? '•' : ''),
+    waitMs: snoozed ? u - t : 0,
+  };
+}
+
+/* ACTIVITY LOG — what the application actually did, in the listener's own
+   words. Newest first, bounded, and CONSECUTIVE repeats coalesce into a count:
+   a set of forty tracks would otherwise bury the one line that says an update
+   landed, and a log nobody can scan is a log nobody reads. */
+const ACT_CAP = 240;
+function activityPush(list, entry, cap){
+  const out = Array.isArray(list) ? list.slice() : [];
+  const e = entry || {};
+  const m = String(e.m == null ? '' : e.m).slice(0, 200);
+  if (!m) return out;                       // a blank line is not an event
+  const t = Number(e.t);
+  const rec = { t: Number.isFinite(t) && t > 0 ? t : 0, k: String(e.k || 'system'), m };
+  const top = out[0];
+  if (top && top.k === rec.k && top.m === rec.m){
+    out[0] = { t: rec.t, k: top.k, m: top.m, n: (Number(top.n) || 1) + 1 };
+    return out;
+  }
+  out.unshift(rec);
+  let lim = Math.floor(Number(cap));
+  if (!Number.isFinite(lim)) lim = ACT_CAP;
+  lim = Math.max(1, Math.min(2000, lim));
+  if (out.length > lim) out.length = lim;
+  return out;
+}
+/* elapsed → the shortest honest phrase. No "0 seconds ago", no "1.0 hours". */
+function activityAgo(ms){
+  let v = Number(ms);
+  if (!Number.isFinite(v) || v < 0) v = 0;
+  const s = v / 1000;
+  if (s < 45) return 'just now';
+  const min = s / 60;
+  if (min < 60) return Math.round(min) + ' min ago';
+  const h = min / 60;
+  if (h < 24) return Math.round(h) + ' h ago';
+  return Math.round(h / 24) + ' d ago';
+}
+
 /* UPDATE WATCHDOG — the staged un-stick. After apply is requested the page
    normally reloads within a second; when it doesn't (controllerchange never
    fires, a reload silently refused), escalate in stages: nudge a reload at
@@ -3671,6 +3807,7 @@ const catalog = {
       player.probeDurations();
       catalogChromeSync();
       renderLibrary();
+      ACTIVITY.log('system', 'Library loaded - ' + added.length + ' tracks');
       toast('Loaded <b>' + added.length + '</b> tracks · ' + albumsUI.length
         + (albumsUI.length === 1 ? ' album' : ' albums') + ' from ' + escapeHTML(this.meta.title));
       this.verifySignature(url).catch(() => {});
@@ -3849,6 +3986,7 @@ const player = {
     }
     if (typeof MIXER !== 'undefined') MIXER.cancel('manual');
     if (AE.mic.on) toggleMic();
+    ACTIVITY.log('play', track.title || 'Untitled');
     HIST.leave(this.tracks[this.cur], opts && opts.ended ? 'ended' : 'skip');
     const xfade = !!(opts && opts.xfade) && this.playing && this.cur !== -1 && AE.graphLive;
     const fadeDur = xfade ? XFADE : (this.playing ? 0.25 : 0.06);
@@ -4670,6 +4808,108 @@ const DB = {
       const rq = this._db.transaction('favs').objectStore('favs').getAll();
       rq.onsuccess = () => res((rq.result || []).map(r => r.key)); rq.onerror = () => res([]);
     });
+  },
+};
+
+/* ================================================================
+   ACTIVITY — the app's own account of itself.
+
+   An update that lands silently, a catalog that refreshes in the background, a
+   worker that swapped while the listener was in another tab: all of it used to
+   happen behind the glass, and when something felt wrong there was nothing to
+   look at. This is the receipt. It is deliberately small — a bounded ring, a
+   short line per event, kept on this device and never sent anywhere — and it
+   answers exactly one question: what has this application actually done?
+
+   Every log call is fenced. A full disk or a blocked store may cost the
+   RECORD; it must never cost the thing being recorded.
+   ================================================================ */
+const ACTIVITY = {
+  list: [], _loaded: false, _saveT: 0, _pending: false,
+  KINDS: { all: 'Everything', update: 'Updates', play: 'Music', system: 'System' },
+  filter: 'all',
+
+  log(kind, msg){
+    try {
+      this.list = activityPush(this.list, { t: Date.now(), k: kind || 'system', m: msg }, ACT_CAP);
+      this._queueSave();
+      if (this._open()) this.render();
+    } catch (e){}
+  },
+  // one write per few seconds however chatty the app gets: a log that costs a
+  // transaction per played track would be a worse citizen than no log at all
+  _queueSave(){
+    if (this._pending) return;
+    this._pending = true;
+    clearTimeout(this._saveT);
+    this._saveT = setTimeout(() => {
+      this._pending = false;
+      try { DB.kvSet('activity', this.list.slice(0, ACT_CAP)).catch(() => {}); } catch (e){}
+    }, 2500);
+  },
+  async load(){
+    if (this._loaded) return;
+    this._loaded = true;
+    let stored = [];
+    try {
+      const v = await DB.kvGet('activity');
+      if (Array.isArray(v)) stored = v.slice(0, ACT_CAP);
+    } catch (e){}
+    /* Anything logged WHILE the read was in flight is newer than the store —
+       the boot line itself lands in that window — so replay it on top rather
+       than assigning over it. Assigning was silently eating the first events
+       of every session, which is precisely the stretch a log is most wanted
+       for. Oldest-first so the coalescing counts come out right. */
+    const pending = this.list.slice().reverse();
+    this.list = stored;
+    for (const e of pending) this.list = activityPush(this.list, e, ACT_CAP);
+    if (pending.length) this._queueSave();
+    if (this._open()) this.render();
+  },
+  clear(){
+    this.list = [];
+    try { DB.kvSet('activity', []).catch(() => {}); } catch (e){}
+    this.render();
+  },
+  _open(){
+    const n = document.getElementById('conActivity');
+    return !!(n && !n.hidden);
+  },
+  setFilter(k){
+    this.filter = this.KINDS[k] ? k : 'all';
+    const row = document.getElementById('actFilters');
+    if (row) for (const b of row.children) b.classList.toggle('on', b.dataset.k === this.filter);
+    this.render();
+  },
+  render(){
+    const host = document.getElementById('actList');
+    if (!host) return;
+    const now = Date.now();
+    const rows = this.list.filter(e => this.filter === 'all' || e.k === this.filter);
+    if (!rows.length){
+      host.innerHTML = '<div class="act-empty">Nothing recorded yet — this fills in as the app works.</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    for (const e of rows.slice(0, 120)){
+      const li = document.createElement('div');
+      li.className = 'act-row act-' + escapeHTML(String(e.k || 'system'));
+      li.innerHTML = '<span class="act-k">' + escapeHTML(String(e.k || 'system')) + '</span>'
+        + '<span class="act-m">' + escapeHTML(String(e.m || ''))
+        + (e.n > 1 ? ' <b>×' + (e.n | 0) + '</b>' : '') + '</span>'
+        + '<span class="act-t">' + escapeHTML(activityAgo(now - (e.t || now))) + '</span>';
+      frag.appendChild(li);
+    }
+    host.innerHTML = '';
+    host.appendChild(frag);
+  },
+  toggle(on){
+    const n = document.getElementById('conActivity');
+    if (!n) return;
+    n.hidden = on === undefined ? !n.hidden : !on;
+    const btn = document.getElementById('conActToggle');
+    if (btn) btn.setAttribute('aria-expanded', String(!n.hidden));
+    if (!n.hidden){ this.load(); this.render(); }
   },
 };
 
@@ -9507,7 +9747,11 @@ el.btnInstall.addEventListener('click', () => {
   deferredInstall.prompt();
   deferredInstall.userChoice.finally(() => { deferredInstall = null; el.btnInstall.hidden = true; });
 });
-window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toast('Installed'); });
+window.addEventListener('appinstalled', () => {
+  el.btnInstall.hidden = true;
+  ACTIVITY.log('system', 'Installed to the home screen');
+  toast('Installed');
+});
 /* ---- self-update: seamless, never surprising, never stuck ----
    TWO ways a new release reaches this page, one policy for both:
    · WORKER: a stamped deploy is a new sw.js; the new worker WAITS, we show
@@ -9522,15 +9766,87 @@ window.addEventListener('appinstalled', () => { el.btnInstall.hidden = true; toa
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'd4122d90bc';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'c64aec155b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
   newBuild: '',          // best-known incoming build id ('' when unknowable)
   armed: '',             // '' | 'afterTrack' — the listener's explicit wish
-  snoozedUntil: 0,       // "later" holds auto-apply for 6 h (button stays)
+  snoozedUntil: 0,       // "later" holds auto-apply (persisted — see load())
+  deferrals: 0,          // how many times this listener has said "later"
+  lastRemindAt: 0,       // the snooze a reminder has already answered
   _armCur: -1,           // player.cur when "after this track" was armed
   ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell'; },
+  /* how many times THIS session has already swapped. Session-scoped on purpose:
+     a genuine sequence of deploys across a long day should each land, but a
+     page caught reloading itself must run out of rope in seconds. */
+  applies(){
+    try { return Number(sessionStorage.getItem('mb8_up_applies')) || 0; } catch (e){ return 0; }
+  },
+  countApply(){
+    try { sessionStorage.setItem('mb8_up_applies', String(this.applies() + 1)); } catch (e){}
+  },
+
+  /* "Later" is a promise, so it outlives the page. It used to live only in
+     memory, which meant the next reload — including the one an update itself
+     causes — forgot it, and the app went straight back to asking. */
+  load(){
+    try {
+      this.snoozedUntil = Number(localStorage.getItem('mb8_up_snooze')) || 0;
+      this.deferrals = Math.max(0, Number(localStorage.getItem('mb8_up_defers')) || 0);
+      this.lastRemindAt = Number(localStorage.getItem('mb8_up_remind')) || 0;
+    } catch (e){}
+  },
+  _persist(){
+    try {
+      localStorage.setItem('mb8_up_snooze', String(this.snoozedUntil));
+      localStorage.setItem('mb8_up_defers', String(this.deferrals));
+      localStorage.setItem('mb8_up_remind', String(this.lastRemindAt));
+    } catch (e){}
+  },
+  defer(){
+    this.snoozedUntil = Date.now() + UP_SNOOZE_MS;
+    this.deferrals++;
+    this.armed = '';
+    this._persist();
+    this.paint();
+    ACTIVITY.log('update', 'Update put off for later (' + this.deferrals + ')');
+  },
+  // the deferral state is cleared by the update actually landing, not by time
+  settle(){
+    this.snoozedUntil = 0; this.deferrals = 0; this.lastRemindAt = 0;
+    this._persist();
+  },
+  /* the badge: a quiet dot while an update simply waits, the count of
+     deferrals once the listener has put it off. Reading the button tells them
+     what they already decided, which is the whole point of remembering. */
+  paint(){
+    const b = el.btnUpdate && el.btnUpdate.querySelector('.up-badge');
+    if (!b) return;
+    const r = updateReminder({ now: Date.now(), snoozedUntil: this.snoozedUntil,
+      deferrals: this.deferrals, lastRemindAt: this.lastRemindAt, pending: this.ready() });
+    b.textContent = r.badge;
+    b.hidden = !r.badge;
+    el.btnUpdate.classList.toggle('snoozed', r.snoozed);
+    el.btnUpdate.title = r.snoozed
+      ? 'Update ready — you asked to be reminded in about ' + activityAgo(r.waitMs).replace(' ago', '')
+      : 'A new version is ready';
+  },
+  /* one nudge per expiry, and only while the count is still low enough that a
+     nudge is information rather than nagging */
+  remind(){
+    if (!this.ready()) return;
+    const r = updateReminder({ now: Date.now(), snoozedUntil: this.snoozedUntil,
+      deferrals: this.deferrals, lastRemindAt: this.lastRemindAt, pending: true });
+    this.paint();
+    if (!r.due) return;
+    this.lastRemindAt = this.snoozedUntil;
+    this._persist();
+    el.btnUpdate.classList.remove('pulse'); void el.btnUpdate.offsetWidth;
+    el.btnUpdate.classList.add('pulse');
+    ACTIVITY.log('update', 'Reminder — the update you deferred is still waiting');
+    toast('You asked to be reminded — the update is still here. Tap <b>Update</b>.');
+  },
 };
 
 function registerSW(){
@@ -9548,8 +9864,27 @@ function registerSW(){
       });
     });
   }).catch(() => {});
+  /* Did this page load under a worker's control? A FIRST visit loads from the
+     network, and the worker's own activate → clients.claim() then fires
+     controllerchange for the very first time. That is not an update — the code
+     running here is exactly the code that worker just cached — and treating it
+     as one made every first visit immediately offer, and then auto-apply, an
+     update to itself. */
+  let hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (updateRequested) location.reload();      // only when WE asked — never spontaneous
+    if (updateRequested){ location.reload(); return; }   // only when WE asked — never spontaneous
+    const firstClaim = !hadController;
+    hadController = true;
+    if (firstClaim) return;
+    /* A DIFFERENT WORKER TOOK OVER AND IT WASN'T US. Another client applied the
+       update; this page is now driven by a worker whose cached shell is newer
+       than the code currently running here. Never yank it — the listener may
+       be mid-track — but the offer must stay TRUE, so record it as a shell
+       update (a reload is all it takes) and keep the button honest. Without
+       this the page sits on stale code holding a button that can't help. */
+    UPDATE.source = 'shell';
+    ACTIVITY.log('update', 'Another window applied the update — a reload finishes it here');
+    offerUpdate('shell', '');
   });
   // the worker tells us when its background byte-compare found a fresh shell
   navigator.serviceWorker.addEventListener('message', ev => {
@@ -9563,10 +9898,12 @@ function registerSW(){
   setInterval(checkForUpdate, 30 * 60 * 1000);
 }
 function checkForUpdate(){
-  if (!swReg) return;
-  swReg.update().catch(() => {});
-  // and ask the live worker to byte-check the shell while the app stays open
+  // the two probes are INDEPENDENT: a registration that never resolved must not
+  // also cost us the shell byte-check, which is the path that catches a deploy
+  // whose stamp never changed
+  if (swReg) swReg.update().catch(() => {});
   try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'CHECK_SHELL' }); } catch (e){}
+  UPDATE.remind();                 // and if a snooze just ran out, say so once
 }
 function offerUpdate(source, build){
   if (updateRequested) return;
@@ -9577,8 +9914,12 @@ function offerUpdate(source, build){
   if (el.btnUpdate.hidden){
     el.btnUpdate.hidden = false;
     el.btnUpdate.classList.add('pulse');
-    toast('A new version is ready — tap <b>Update</b> to see what changed');
+    ACTIVITY.log('update', 'A new version is ready'
+      + (UPDATE.newBuild ? ' - build ' + UPDATE.newBuild : ''));
+    // a listener who already said "later" gets the badge, not another toast
+    if (!UPDATE.deferrals) toast('A new version is ready — tap <b>Update</b> to see what changed');
   }
+  UPDATE.paint();
   maybeAutoApply();
 }
 function maybeAutoApply(){
@@ -9589,6 +9930,7 @@ function maybeAutoApply(){
     playing: player.playing,
     show: typeof POWER !== 'undefined' && POWER.mode === 'show',
     snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),
+    applies: UPDATE.applies(),
   });
   if (verdict === 'apply') applyUpdate();
 }
@@ -9637,11 +9979,24 @@ function updateRecover(){
   UPDATE.source = UPDATE.source || 'shell';    // a plain reload still updates
   UPDATE.snoozedUntil = Date.now() + 60 * 1000; // a breath before auto retries
   try { sessionStorage.removeItem('mb8_updated_from'); } catch (e){}
+  ACTIVITY.log('update', 'The swap did not land — handed the app back alive, update still ready');
   toast('The update didn\'t land this time — nothing lost, it stays ready. Tap <b>Update</b> to try again.');
 }
 function applyUpdate(){
   if (updateRequested) return;                 // one swap at a time, ever
-  if (!UPDATE.ready()){ el.btnUpdate.hidden = true; return; }
+  /* A TAP IS NEVER A NO-OP. This used to read `if (!ready()) { hide the
+     button; return; }` — and that is exactly how the Update button came to do
+     nothing at all. The state is real and easy to reach: a SIBLING CLIENT (a
+     second tab, or the installed app open beside the browser) applies the
+     update, its SKIP_WAITING activates the new worker, and every other client's
+     registration.waiting drops to null. This page still believes source ===
+     'worker', ready() now says false, and the listener's tap silently hid the
+     one control that could have helped them.
+     The page in that state is the WORST case to refuse: it is being controlled
+     by the new worker, whose cache already holds the new shell, so a plain
+     reload lands the update instantly. If the button was showing, we owe the
+     tap an attempt. */
+  if (!UPDATE.ready()) UPDATE.source = 'shell';   // a reload is always a way forward
   updateRequested = true;
   UP_RUN.t0 = Date.now();
   UP_RUN.attempts = 0;
@@ -9650,6 +10005,10 @@ function applyUpdate(){
     sessionStorage.setItem('mb8_updated_from', MB8_BUILD);
     sessionStorage.setItem('mb8_update_t0', String(UP_RUN.t0));
   } catch (e){}
+  UPDATE.countApply();
+  ACTIVITY.log('update', 'Applying the update via the ' + (UPDATE.source || 'shell') + ' path');
+  if (UPDATE.applies() === UP_APPLY_CAP)
+    ACTIVITY.log('update', 'That is ' + UP_APPLY_CAP + ' swaps this session - automatic updates stand down until a tap');
   updateCardOpen(false);
   el.btnUpdate.hidden = false;
   el.btnUpdate.disabled = true;
@@ -9707,6 +10066,22 @@ function updateCardOpen(open){
   }
   const showNote = document.getElementById('upShowNote');
   if (showNote) showNote.hidden = !(typeof POWER !== 'undefined' && POWER.mode === 'show');
+  // say what they already chose, so "Later" reads as a kept promise rather than
+  // an app that forgot and is asking again
+  const dNote = document.getElementById('upDeferNote');
+  if (dNote){
+    const r = updateReminder({ now: Date.now(), snoozedUntil: UPDATE.snoozedUntil,
+      deferrals: UPDATE.deferrals, lastRemindAt: UPDATE.lastRemindAt, pending: true });
+    if (!r.deferrals) dNote.hidden = true;
+    else {
+      dNote.hidden = false;
+      dNote.textContent = r.snoozed
+        ? 'You put this off ' + (r.deferrals === 1 ? 'once' : r.deferrals + ' times')
+          + ' — next reminder in about ' + activityAgo(r.waitMs).replace(' ago', '') + '.'
+        : 'You put this off ' + (r.deferrals === 1 ? 'once' : r.deferrals + ' times')
+          + ', and it is still here whenever you want it.';
+    }
+  }
 }
 function wireUpdateCard(){
   const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
@@ -9718,10 +10093,9 @@ function wireUpdateCard(){
     toast('Okay — updating <b>after this track</b>, place saved first');
   });
   on('upLater', () => {
-    UPDATE.snoozedUntil = Date.now() + 6 * 3600 * 1000;
-    UPDATE.armed = '';
+    UPDATE.defer();                            // remembered across reloads now
     updateCardOpen(false);
-    toast('Snoozed — the button stays; it will try again in <b>6 h</b> when the music rests');
+    toast('Noted — the button keeps a count, and it will remind you in <b>6 h</b>');
   });
   on('upClose', () => updateCardOpen(false));
 }
@@ -9740,14 +10114,27 @@ try {
         localStorage.setItem('mb8_update_est',
           String(updateEstimate(localStorage.getItem('mb8_update_est'), Date.now() - t0)));
     } catch (e){}
-    if (from !== MB8_BUILD) toast('Updated · build <b>' + escapeHTML(MB8_BUILD) + '</b> — everything restored');
-    else toast('Refreshed to the newest deploy');
+    UPDATE.settle();                 // the promise was kept; forget the deferrals
+    if (from !== MB8_BUILD){
+      ACTIVITY.log('update', 'Updated ' + from + ' → ' + MB8_BUILD + ' — everything restored');
+      toast('Updated · build <b>' + escapeHTML(MB8_BUILD) + '</b> — everything restored');
+    } else {
+      ACTIVITY.log('update', 'Refreshed to the newest deploy (' + MB8_BUILD + ')');
+      toast('Refreshed to the newest deploy');
+    }
   }
 } catch (e){}
 setInterval(maybeAutoApply, 5000);
 el.btnUpdate.addEventListener('click', () => updateCardOpen(!document.getElementById('updateCard').classList.contains('in')));
-window.addEventListener('offline', () => toast('Offline — the library stays; streaming is unavailable'));
-window.addEventListener('online', () => toast('Back online'));
+window.addEventListener('offline', () => {
+  ACTIVITY.log('system', 'Went offline - the library stays, streaming pauses');
+  toast('Offline — the library stays; streaming is unavailable');
+});
+window.addEventListener('online', () => {
+  ACTIVITY.log('system', 'Back online');
+  toast('Back online');
+  checkForUpdate();                // a reconnect is the best moment to look
+});
 
 /* ---- skins: the console re-dressed, remembered, unbreakable ----
    All the colour logic is pure (SKINS, skinResolve, skinCss — tested); this
@@ -15726,6 +16113,23 @@ function initThree(){
   const chipEcho = document.getElementById('chipEcho');
   if (chipEcho) chipEcho.addEventListener('click', () => ECHO.cycle());
   ECHO.load();
+  // the activity log lives in the console, folded away until asked for
+  {
+    const t = document.getElementById('conActToggle');
+    if (t) t.addEventListener('click', () => ACTIVITY.toggle());
+    const c = document.getElementById('actClear');
+    if (c) c.addEventListener('click', () => { ACTIVITY.clear(); toast('Activity log cleared'); });
+    const row = document.getElementById('actFilters');
+    if (row){
+      for (const k in ACTIVITY.KINDS){
+        const b = document.createElement('button');
+        b.type = 'button'; b.dataset.k = k; b.textContent = ACTIVITY.KINDS[k];
+        b.classList.toggle('on', k === ACTIVITY.filter);
+        b.addEventListener('click', () => ACTIVITY.setFilter(k));
+        row.appendChild(b);
+      }
+    }
+  }
   // the colour readout doubles as the colour control — click the swatches
   if (el.colorRo){
     el.colorRo.setAttribute('role', 'button');
@@ -16907,6 +17311,9 @@ const MACPROMO = {
   await DB.open();
   await Promise.all([FAVS.boot(), HIST.boot(), MIXFIX.boot(), PLAYLISTS.boot()]);
   ACHIEVE.boot();
+  UPDATE.load();                 // "later" is a promise -- it outlives the page
+  ACTIVITY.load();               // the receipt, back from this device's store
+  ACTIVITY.log('system', 'Opened - build ' + MB8_BUILD);
 
   // If a catalog.json sits next to this file, load it automatically — that
   // makes self-hosting drop-in. ?catalog=https://…/catalog.json points one
@@ -16946,6 +17353,7 @@ const MACPROMO = {
     }
     registerSW();
   }
+  UPDATE.paint();                // a deferral from a past session shows at once
   window.__mb8Booted = true;                       // acceptance probe reads this
   dissolveSplash();                                // the spiral gives way to the instrument
   MACPROMO.maybeShow();                            // once-ever "get the Mac app" nudge (web, Mac only)

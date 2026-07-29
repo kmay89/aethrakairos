@@ -547,6 +547,53 @@ to the library with honest "streaming unavailable" states. Pinning albums
 offline is out of scope this build — a 1,000-track library is multiple GB, and
 we don't fake it.
 
+### Updating — a tap that always means something
+
+Two independent paths carry a new release to a running page, and one policy
+governs both. A stamped deploy is a new `sw.js`, so a new worker installs and
+**waits**; applying hands over (`SKIP_WAITING` → `controllerchange` → reload).
+A deploy that forgot the stamp still arrives, because the live worker
+byte-compares `index.html` on every boot and every check — bytes, not version
+strings — and tells the page when they differ. Nobody has to delete site data.
+
+The parts that took a real browser to get right:
+
+- **A tap is never a no-op.** `applyUpdate()` used to refuse when no worker was
+  waiting, and silently hide the button. That state is easy to reach: a second
+  client — another tab, or the installed app open beside the browser — applies
+  first, its `SKIP_WAITING` activates the new worker, and every *other* client's
+  `registration.waiting` drops to null. Those pages are the worst ones to
+  refuse: they are already controlled by the new worker, whose cache holds the
+  new shell, so a plain reload lands the update immediately. Now it reloads.
+- **A sibling handover is noticed.** A `controllerchange` we did not ask for
+  means the code running here is older than the shell the controlling worker has
+  cached. The page is never yanked mid-track, but the offer stays true. (The
+  *first* claim of an uncontrolled page is excluded — that is a first visit, not
+  an update, and treating it as one made every first visit update itself.)
+- **"Later" is a promise.** The snooze used to live in a variable, so the next
+  reload forgot it and the app went straight back to asking. It is stored now,
+  along with a count: the button wears that count as a badge, goes quiet while
+  the snooze holds, and reminds **once** when it runs out — then stops talking
+  after five deferrals and keeps only the badge. Applying clears the count.
+- **A loop brake.** Applying reloads, and a reloaded page asks again — so a host
+  that made the shell compare differently every time would reload forever, which
+  is worse than never updating. After three automatic swaps in one session,
+  automatic application stands down; a deliberate tap is never rate-limited.
+- Plus what was already there: an honest progress bar on a learned estimate, a
+  staged watchdog that escalates and then hands the app back alive rather than
+  leaving a dead "Updating…", and ⚡ SHOW mode, which holds every update so a
+  performance is never interrupted.
+
+### The activity log
+
+At the bottom of the Console: what the application has actually done on this
+device — updates offered, deferred, applied and recovered; what played; when the
+library loaded; when the network came and went. Newest first, bounded, with
+consecutive repeats coalesced into a count so a long set does not bury the one
+line that matters. Kept on the device, sent nowhere, and clearable. It exists
+because everything above happens behind the glass, and when something feels
+wrong there was previously nothing to look at.
+
 A web app gets **no CarPlay grid icon**. What it gets — and what this build
 drives completely — is the system **Now Playing** surface everywhere: title,
 artist, album, artwork, play/pause, next/prev and seek via MediaSession (all
@@ -669,6 +716,15 @@ node tools/mix_acceptance.mjs /tmp/mb8m      # 28 checks: grids, keys, live beat
                                     #   phase lock < 40 ms, gates, crate, mixfix
 node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update button →
                                     #   one tap → new build live, state intact
+node tools/update_probe.mjs         # 12 checks on the REACHABILITY of an update:
+                                    #   stamped + unstamped deploys, a sibling client
+                                    #   consuming the waiting worker, and "Later"
+                                    #   surviving a reload. (acceptance asks whether
+                                    #   state survives a swap; this asks whether the
+                                    #   swap happens at all)
+node tools/color_probe.mjs docs     # per-scene washout + chroma on a real GL context,
+                                    #   and the shipped GLSL rolloff checked against
+                                    #   its JS twin on the GPU
 ```
 
 Physical-device acceptance (iPhone lock screen ≥ 10 min, Bluetooth

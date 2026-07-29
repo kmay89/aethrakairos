@@ -2,6 +2,28 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "c64aec155b",
+      "date": "2026-07-29",
+      "title": "The Update button, fixed — and a log of what the app does",
+      "notes": [
+        "tapping Update always does something now: if another window already applied it, this one reloads instead of going quiet",
+        "\"Later\" is remembered across restarts — the button keeps a count and reminds you once when the time is up",
+        "SHOW mode still holds every update; nothing is ever applied out from under a set",
+        "new Activity log at the bottom of the Console: updates, what played, what the system decided — kept on this device only"
+      ]
+    },
+    {
+      "build": "d4122d90bc",
+      "date": "2026-07-29",
+      "title": "Colour that survives the brightest moment",
+      "notes": [
+        "bright scenes no longer wash out to white — overdriven light reads as deeper colour instead",
+        "blowing out to white is saved for the drop, where the music has earned it",
+        "the palette is now a full gradient, so sweeps stay vivid instead of going grey in the middle",
+        "click the three colour dots in the HUD: AUTO · SPECTRUM · DUOTONE"
+      ]
+    },
+    {
       "build": "eeb9bcdf6a",
       "date": "2026-07-25",
       "title": "Four more skins",
