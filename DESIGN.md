@@ -122,26 +122,60 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   `activityPush`, `activityAgo`, the progress/estimate/watchdog trio) are in the
   unit suite. Neither alone would have caught the dead button; together they do.
 
-### 1.2c The mix engine's one remaining coupling
+### 1.2c The seam is a relationship between two grids, not a wall-clock event
 - **Eight beats is the default blend**, and the match score no longer reads blend
   length — harmonic distance and tempo proximity are properties of the pair, and
   conflating them with plan length marked every well-matched pair as mediocre once
   the default shortened.
-- **The seam is still steered from the animation loop.** `tools/mix_probe.mjs`
-  measures a real seam on a real graph and separates the two conditions: with the
-  main thread free the beat-phase error is **0.3 ms**; with the visualizer running
-  it is **114–119 ms**, and the fade-in spends 322–441 ms multiplying a deck that
-  has not started producing samples. The loudness crossfade was moved onto the
-  audio clock long ago because a dropped frame zippered it; the seam's *trigger*
-  and its *phase servo* were not, so their accuracy still tracks the frame rate.
-  This is the intermittent auto-mix glitch, it fails the engine's own 40 ms
-  contract, and it is pre-existing on `main`. The probe tracks it as OPEN rather
-  than as a failure, so the next pass can be judged by the number moving.
-- A first attempt at a pre-rolled cue (start the incoming deck early, place it
-  with a silent rate servo, fire from a timer) fixed the cold-start hole but only
-  engaged reliably about a third of the time, because its own trigger still sat in
-  the animation loop. It was reverted rather than shipped: inconsistent behaviour
-  in the seam is worse than a known, measured weakness.
+- **The glitch, found and fixed.** `tools/mix_probe.mjs` measured a real seam on a
+  real graph and separated the two conditions: main thread free, beat-phase error
+  **0.3 ms**; visualizer running, **114–119 ms** — a quarter beat at 124 bpm, and a
+  failure of the engine's own 40 ms contract. It now reads **1.9–8.0 ms under
+  render load**, and both `mix_acceptance` phase checks pass (0.9 / 0.4 ms).
+- The cause was not the servo's cadence but the seam's *placement*. The incoming
+  deck was dropped at the absolute `plan.startB` at whatever instant the animation
+  loop noticed A had crossed `plan.startA`, so the grid offset was exactly the
+  frame's lateness. `seamEntry()` places B at `startB + (A's actual position −
+  startA)` instead: the grids agree however late the call arrives, which makes the
+  lock a fact about the two tracks rather than about the frame rate. Pure and
+  unit-tested, including the case of a call a whole beat late.
+- **`SEAM_LEAD` (450 ms).** Every seam is now scheduled that far ahead on the audio
+  clock — one origin for the gain curves, the bass swap, the filter sweep and the
+  echo send — and a beatmix is *triggered* that early so the fader still opens on
+  A's bar line. A media element takes 200–700 ms to resume under load; the lead-in
+  is a window it cannot be heard through. `seamLeadFor()` never asks a deck to roll
+  from before the start of its own file, so a track cued near its top gets a
+  shorter lead and an honest degradation. `_preload` pre-seeks to the same point,
+  so a punctual seam costs no second decoder flush.
+- **The latch.** The once-a-beat check is the right cadence for *holding* a lock
+  and the wrong one for *taking* it: by the time it first ran, B was already
+  audible and the hard align was no longer permitted. The servo now measures the
+  moment B is genuinely rolling — its media time has moved; a stalled deck is not
+  evidence — takes the align inside the lead-in, and latches. Bounded to three
+  attempts so a deck that keeps re-stalling is trimmed rather than seek-thrashed.
+- **What is still open**, printed with its measurement on every probe run: the
+  element's resume runs 210–680 ms, so the lead does not always cover it. It no
+  longer costs the lock (the latch measures the grids rather than trusting the
+  placement); the worst observed case is an onset near −20 dB a half-beat into the
+  fade — a soft entry, not a hole, which is why the level envelope cannot see it.
+  Closing it means rolling B silently through the armed window so the seam never
+  calls `play()`, which needs its own cancel/replan bookkeeping and a servo willing
+  to trim a residual rather than seek it.
+- **A rot bug the widened probe found on its own.** The settle check now asserts
+  the *whole* servo is handed back, and it immediately failed: `finish()` cleared
+  `trim` but not `trimI`, the integrator that learns a residual tempo error, so one
+  seam's learned bias was the next seam's starting offset — cumulative drift across
+  a long set, invisible to every check that only looked at `trim`. The latch is the
+  same hazard in a newer form (left set, the next seam skips the align it needs).
+  Both are reset now, and the check covers them.
+- Two earlier attempts were reverted rather than shipped, and both were reverted
+  for the same reason: they were restructurings justified by a theory instead of a
+  measurement. A pre-rolled cue with a silent rate servo engaged about a third of
+  the time; moving the trigger to a 20 ms `setInterval` supervisor did not help at
+  all, because **a saturated main thread throttles `setInterval` exactly as it
+  throttles `requestAnimationFrame`** — a 20 ms timer measured median 45 ms, max
+  91 ms under load. No JS clock decouples from main-thread saturation. That is what
+  pointed at placement rather than cadence as the thing to fix.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
