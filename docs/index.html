@@ -2205,6 +2205,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   <div class="hud">
     <button class="chip on" id="chipAuto" title="Auto director — scenes, palettes and camera follow the music">AUTO</button>
     <button class="chip" id="chipMix" hidden title="Auto-mix — beatmixed transitions where the grids agree, honest fades where they don't">MIX</button>
+    <button class="chip" id="chipStyle" hidden title="Transition style — how songs hand over. Adaptive: beatmix where it fits. Musical: let songs play out, then a quick fade. Club: long beatmatched blends. Tap to cycle.">≋ ADAPTIVE</button>
     <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
     <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
@@ -2976,7 +2977,7 @@ const el = {
   valLength: $('valLength'), valHeat: $('valHeat'), valEra: $('valEra'),
   wrapEra: $('wrapEra'), mapHint: $('mapHint'),
   btnHeartNow: $('btnHeartNow'), btnAirplay: $('btnAirplay'), btnShare: $('btnShare'),
-  chipMix: $('chipMix'), mixNext: $('mixNext'),
+  chipMix: $('chipMix'), mixNext: $('mixNext'), chipStyle: $('chipStyle'),
   btnCrate: $('btnCrate'), crate: $('crate'),
 };
 
@@ -4941,7 +4942,7 @@ const PERSIST = {
       lens: { active: LENS.active, resolved: LENS._resolved, ceil: director.ceil, act: director.act },
       segue: { pending: SEGUE.pending, big: SEGUE.big, lastKind: SEGUE.lastKind, transDur: director.transDur },
       quantum: player.quantum.on ? { heat: player.quantum.heat, used: [...player.quantum.used] } : null,
-      mixOn: MIXER.on,
+      mixOn: MIXER.on, mixStyle: MIXER.style,
       journey: CON.lastDeal ? { mode: CON.lastDeal.mode, dials: CON.lastDeal.dials, seed: CON.lastDeal.seed } : null,
     };
   },
@@ -4966,6 +4967,7 @@ const PERSIST = {
     if (Number.isFinite(s.vol)){ el.vol.value = s.vol; el.vol.style.setProperty('--vfill', s.vol + '%'); }
     if (s.quantum){ player.quantum.on = true; player.quantum.heat = s.quantum.heat; player.quantum.used = new Set(s.quantum.used); }
     MIXER.on = !!s.mixOn;
+    if (s.mixStyle && MIX_STYLES[s.mixStyle]) MIXER.style = s.mixStyle;
     const curTrack = byKey.get(s.cur);
     if (curTrack){
       // restored PAUSED at position — iOS needs a gesture to start audio, so
@@ -9182,12 +9184,76 @@ function seamEntry(plan, tA, maxSlip){
 }
 // @mix-end
 
+// @style-start
+// TRANSITION STYLE — the same seam engine, three settable feels. This is the
+// knob a set (and, later, each section of a wedding mixset) turns to choose how
+// songs hand over. The engine underneath is identical; only WHICH plan is
+// chosen and WHEN it fires changes, so every style still gets the audio-clock,
+// never-seek-an-audible-deck seam from the @mix block.
+//   adaptive — the house default: beatmix an 8-beat blend where the grids agree,
+//              an honest fade where they don't, mixing out of the last loud
+//              block like a DJ (structure-aware early exit).
+//   musical  — song-respecting: let recognizable songs play to their natural
+//              end, then a short beat-aware fade. Never beatmixes mid-song, so a
+//              sing-along is never chopped.
+//   club     — continuous floor: longer 16-beat beatmatched blends, tracks
+//              overlapping — a nonstop mix for a dancing room.
+const MIX_STYLES = {
+  adaptive: { label: 'Adaptive', beats: 8,  quickFade: 3.0, beatmix: true,  playOut: false },
+  musical:  { label: 'Musical',  beats: 8,  quickFade: 2.6, beatmix: false, playOut: true  },
+  club:     { label: 'Club',     beats: 16, quickFade: 2.2, beatmix: true,  playOut: false },
+};
+const MIX_STYLE_ORDER = ['adaptive', 'musical', 'club'];
+
+function resolveMixStyle(name){ return MIX_STYLES[name] || MIX_STYLES.adaptive; }
+
+// Merge a style's knobs into planTransition() opts: club asks for a longer
+// blend; the quick-fade length becomes the fade fallback's seconds. Never
+// touches the quality gates (key/tempo/mixable) — a style changes taste, not
+// what is safe to beatmix.
+function stylePlanOpts(name, base){
+  const s = resolveMixStyle(name);
+  const o = Object.assign({}, base || {});
+  if (s.beats && s.beats !== 8) o.forceBeats = s.beats;
+  o.fadeSeconds = s.quickFade;
+  return o;
+}
+
+// Apply the style to a finished plan. 'musical' turns a mid-song beatmix into a
+// short fade so the outgoing song plays out first; gapless (album order) and
+// plain fades pass through untouched for every style.
+function styleAdjustPlan(name, plan){
+  const s = resolveMixStyle(name);
+  if (!plan) return plan;
+  if (!s.beatmix && plan.type === 'beatmix')
+    return { type: 'fade', seconds: s.quickFade, why: 'musical — let the song play out' };
+  return plan;
+}
+
+// WHEN to leave the outgoing track, style-aware. Beatmix leaves on its grid
+// seam; gapless at the very end. A fade normally mixes out early at the last
+// loud block (mixOut) like a DJ — but 'musical' (playOut) overrides that and
+// rides the song to its natural end before the short fade.
+function styleExitBase(name, plan, dur, structure, lead){
+  const s = resolveMixStyle(name);
+  const L = lead || 0;                                // SEAM_LEAD: exit a lead-in early
+  if (plan.type === 'beatmix') return plan.startA - L;
+  const base = dur - (plan.type === 'fade' ? (plan.seconds || s.quickFade) : 0.10) - L;
+  if (plan.type === 'fade' && !s.playOut && structure && structure.ok){
+    const so = structure.mixOut * dur;
+    if (so >= dur - 44 && so <= base) return so;      // DJ-style early mix-out
+  }
+  return base;
+}
+// @style-end
+
 const MIXER = {
   on: true,                      // auto-mix is the default: beatmix when the grids
                                  // agree, an honest crossfade when they don't — the
                                  // planner (planTransition) refuses anything that
                                  // wouldn't be great, so ON is always safe
   phase: 'idle',                 // idle | armed | running
+  style: 'adaptive',             // adaptive | musical | club (MIX_STYLES)
   plan: null, next: -1,
   outDeck: null, startedAt: 0, overlap: 0,
   lastF: 0, trim: 0, trimI: 0, lastBeatCheck: 0,
@@ -9196,6 +9262,20 @@ const MIXER = {
   _clkA: makeMediaClock(), _clkB: makeMediaClock(),
 
   available(){ return allTracks().some(t => t.mix && t.mix.mixable >= 0.5); },
+
+  // cycle or set the transition feel; the next armed seam picks it up (a running
+  // one finishes in the style it started, so nothing lurches)
+  setStyle(name){
+    this.style = MIX_STYLES[name] ? name : 'adaptive';
+    if (this.phase === 'armed') this.cancel('restyle');   // re-plan the pending seam in the new feel
+    syncMixHud();
+    PERSIST.poke();
+  },
+  cycleStyle(){
+    const i = MIX_STYLE_ORDER.indexOf(this.style);
+    this.setStyle(MIX_STYLE_ORDER[(i + 1) % MIX_STYLE_ORDER.length]);
+    return this.style;
+  },
 
   setOn(on){
     this.on = !!on;
@@ -9266,23 +9346,12 @@ const MIXER = {
   // DJ, never mid-drop. Guarded so it only ever pulls the exit EARLIER, only
   // within the already-armed window, and never for beatmix/gapless.
   exitTime(dur, plan, track){
-    // EVERY SEAM LEAVES A LEAD-IN EARLY, because every seam's ramps are scheduled
-    // a lead-in ahead of the call (see SEAM_LEAD). For a beatmix that is what puts
-    // the fader on A's bar line rather than a lead late. For a fade it is what
-    // keeps the blend inside the track: a fade that exits at dur − seconds and
-    // then starts its curves a lead later would still be crossfading 450 ms after
-    // A had run out of song.
+    // Style decides whether a fade mixes out early (DJ) or rides to the natural
+    // end (musical); beatmix/gapless timing is unchanged. EVERY seam still leaves
+    // a lead-in early (SEAM_LEAD) so its scheduled ramps stay inside the track —
+    // styleExitBase applies that lead uniformly.
     const lead = seamLeadFor(plan);
-    if (plan.type === 'beatmix') return plan.startA - lead;
-    const base = dur - (plan.type === 'fade' ? plan.seconds : 0.10) - lead;
-    if (plan.type === 'fade'){
-      const st = track && track._structure;
-      if (st && st.ok){
-        const so = st.mixOut * dur;
-        if (so >= dur - 44 && so <= base) return so;   // exit as the last loud block ends
-      }
-    }
-    return base;
+    return styleExitBase(this.style, plan, dur, track && track._structure, lead);
   },
 
   arm(){
@@ -9294,7 +9363,8 @@ const MIXER = {
     let plan = planTransition(
       Object.assign({}, A, { mix: mixOf(A) }),
       Object.assign({}, B, { mix: mixOf(B) }),
-      { override: MIXFIX.pairOverride(A, B), albumSequential: isAlbumSequential(A, B) });
+      stylePlanOpts(this.style, { override: MIXFIX.pairOverride(A, B), albumSequential: isAlbumSequential(A, B) }));
+    plan = styleAdjustPlan(this.style, plan);            // musical lets the song play out
     // beatmixing needs steady timers — hidden/locked, blend on a fade instead
     if (plan.type === 'beatmix' && document.hidden)
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
@@ -9770,6 +9840,10 @@ function syncMixHud(){
   if (!el.chipMix) return;
   el.chipMix.hidden = !MIXER.available();
   el.chipMix.classList.toggle('on', MIXER.on);
+  if (el.chipStyle){
+    el.chipStyle.hidden = !MIXER.available() || !MIXER.on;   // only meaningful while mixing
+    el.chipStyle.textContent = '≋ ' + resolveMixStyle(MIXER.style).label.toUpperCase();
+  }
   let txt = '';
   if (MIXER.on && MIXER.plan){
     const p = MIXER.plan;
@@ -9788,6 +9862,13 @@ el.chipMix.addEventListener('click', () => {
   toast(MIXER.on
     ? '<b>MIX on</b> — beatmixed where the grids agree, honest fades where they don\'t'
     : 'MIX off — plain transitions');
+});
+if (el.chipStyle) el.chipStyle.addEventListener('click', () => {
+  const s = resolveMixStyle(MIXER.cycleStyle());
+  toast('Transition feel — <b>' + s.label + '</b> · ' + (
+    MIXER.style === 'musical' ? 'songs play out, then a quick fade'
+    : MIXER.style === 'club' ? 'long beatmatched blends, no gaps'
+    : 'beatmix where the grids agree, fade where they don\'t'));
 });
 el.chipBooth.addEventListener('click', () => BOOTH.toggle());
 el.boothClose.addEventListener('click', () => BOOTH.toggle(false));
