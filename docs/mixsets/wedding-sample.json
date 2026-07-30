@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "name": "Wedding — a sample night",
+  "note": "A hand-editable set. Load it with ?mixset=mixsets/wedding-sample.json (or drop it in the console: loadMixset(obj)). Sections run by the wall clock; each draws from its own pool at its own energy and in its own feel. Anchors are pinned to a moment and played in full. Selectors match by {title|titles|tag|tags|id|ids|energy:[lo,hi]|any}.",
+
+  "defaults": { "style": "adaptive" },
+
+  "sections": [
+    {
+      "name": "Cocktail hour",
+      "minutes": 60,
+      "energy": [0.10, 0.42],
+      "style": "musical",
+      "pool": { "energy": [0.0, 0.5] }
+    },
+    {
+      "name": "Dinner",
+      "minutes": 45,
+      "energy": [0.20, 0.48],
+      "style": "musical",
+      "pool": { "energy": [0.0, 0.55] }
+    },
+    {
+      "name": "The dancing",
+      "minutes": 120,
+      "energy": [0.65, 1.0],
+      "style": "club",
+      "pool": { "energy": [0.55, 1.0] }
+    },
+    {
+      "name": "Last call",
+      "minutes": 20,
+      "energy": [0.30, 0.6],
+      "style": "adaptive",
+      "pool": { "energy": [0.2, 0.7] }
+    }
+  ],
+
+  "anchors": [
+    {
+      "name": "First dance",
+      "at": { "elapsedMin": 105 },
+      "track": { "title": "Ballad of the gods" },
+      "playInFull": true
+    },
+    {
+      "name": "Last song",
+      "at": { "section": "Last call", "edge": "end" },
+      "track": { "title": "Borrowed sunlight" },
+      "playInFull": true
+    }
+  ],
+
+  "doNotPlay": []
+}

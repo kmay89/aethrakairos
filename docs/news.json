@@ -2,7 +2,7 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
-      "build": "f42a04b1a2",
+      "build": "002666156d",
       "date": "2026-07-30",
       "title": "Your hand bends the world now",
       "notes": [
