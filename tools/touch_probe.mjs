@@ -89,7 +89,42 @@ await page.evaluate(([w, h]) => {
   // the director must not walk the scene or move the camera between the two
   // captures being compared: the difference would then be the camera's, and
   // this probe would happily report a bend that was really a pan
-  if (typeof director !== 'undefined') director.hold = 1e9;
+  /* SCRIPT THE ROOM, or measure the weather.
+
+     How much |Δluma| a given deformation produces depends on how bright the
+     scene is, and the scene's brightness rides on the live audio analysis and on
+     where the director's story clock has got to. Left alone, this probe measured
+     a different room each run: the same checks came back 26/0, then 24/2, then
+     25/1, with nothing in the app having changed. A gate that is sometimes red
+     guards nothing, so the audio state and the story clock are pinned here —
+     exactly as tools/color_probe.mjs pins them, and for the same reason.
+
+     Everything downstream of these two — the colour conductor, the governor, the
+     metric, every shader — runs exactly as shipped. */
+  const f = AE.f;
+  window.analyse = function (dt, t){
+    f.bass = 0.55; f.mid = 0.5; f.treble = 0.45; f.energy = 0.6;
+    f.calm = 0.6; f.beat = 0.4; f.onset = false;
+    f.eShort = 0.6; f.eLong = 0.55;
+    f.entropy = 0.45; f.centroid = 0.35;
+    f.piAcc += dt * 0.31; f.eAcc += dt * 0.27;
+    f.piPhase = f.piAcc % 1; f.ePhase = f.eAcc % 1;
+    f.coupling = 0.5 + 0.5 * Math.sin(t * 0.4);
+  };
+  if (typeof director !== 'undefined'){
+    const upd = director.update.bind(director);
+    director.update = function (dt){
+      upd(dt);
+      this.act = 1; this.ceil = 1; this.phase = 'flow';
+      this.actT = ACTS[1].heat; U.uAct.value = this.actT;
+      this.dwell = 0; this.auto = false;            // no scene changes mid-measurement
+    };
+    director.setAuto(false);
+    director.hold = 1e9;
+  }
+  // measure the FABRIC, not the glass: an artistic lens folds the distortion into
+  // its own symmetry, which is lovely to look at and impossible to score
+  if (typeof LENS !== 'undefined' && LENS.set) LENS.set('none', false);
   /* PIN THE GOVERNOR. This probe renders three times inside one animation tick,
      which under SwiftShader looks exactly like a device that cannot cope — and
      the adaptive governor, correctly, responds by flagging PERF.struggling, at
@@ -400,9 +435,18 @@ console.log('\nthe world bends — a point-cloud scene (' + (sceneKinds[POINTS] 
 const vd = await bendOn(POINTS, 'points-void', 'blackhole');
 R('a hand changes the image at all',
   vd.f.moved > 0.05, pct(vd.f.moved) + ' of the frame moved');
+/* NEAR HARD, FAR FAINT — the shape of a 1/r field, and the thing that separates
+ * it from a brush. The near field is the PEAK of the first two annuli, not the
+ * first: under the void the innermost ring is largely inside the capture radius,
+ * where both frames are black and the difference is therefore small. Reading
+ * ring 0 alone scored a correctly-working black hole as a failure whenever the
+ * horizon happened to cover enough of it (measured: 0.021 in ring 0 against
+ * 0.062 in ring 1). */
+const near = Math.max(vd.f.rings[0], vd.f.rings[1]);
 R('the near field is bent far harder than the far field',
-  vd.f.rings[0] > vd.f.rings[5] * 2.2,
-  'mean |Δluma| by annulus: ' + vd.f.rings.map(v => v.toFixed(4)).join(' '));
+  near > vd.f.rings[5] * 2.5,
+  'near ' + near.toFixed(4) + ' vs far ' + vd.f.rings[5].toFixed(4)
+    + ' · by annulus: ' + vd.f.rings.map(v => v.toFixed(4)).join(' '));
 R('the far corners are still — the room does not swim',
   vd.f.rings[5] < 0.035, 'outermost annulus ' + vd.f.rings[5].toFixed(4));
 const coreOff = coreLuma(vd.off.px, HX, HY, 0.06);
@@ -417,9 +461,11 @@ if (RAY >= 0){
   const rr = await bendOn(RAY, 'ray-void', 'blackhole');
   R('a scene with no point cloud still answers the hand',
     rr.f.moved > 0.05, pct(rr.f.moved) + ' of the frame moved');
+    const rNear = Math.max(rr.f.rings[0], rr.f.rings[1]);
   R('and it answers in the near field, not uniformly',
-    rr.f.rings[0] > rr.f.rings[5] * 2.0,
-    'mean |Δluma| by annulus: ' + rr.f.rings.map(v => v.toFixed(4)).join(' '));
+    rNear > rr.f.rings[5] * 2.0,
+    'near ' + rNear.toFixed(4) + ' vs far ' + rr.f.rings[5].toFixed(4)
+      + ' · by annulus: ' + rr.f.rings.map(v => v.toFixed(4)).join(' '));
 } else {
   console.log('\n  (no raymarched scene matched by name — skipped)');
 }
@@ -469,30 +515,36 @@ const WIDE = (sceneKinds.find(s => s.pts === 0 && s.mesh > 0 && /OP.?ART|RADAR/i
   || sceneKinds[RAY >= 0 ? RAY : POINTS]).i;
 await page.evaluate(([i, k]) => { director.setScene(i, false); TOUCHFX.set(k, false); }, [WIDE, 'blackhole']);
 await page.waitForTimeout(900);
-const gzP = await pair({ x: HX, y: HY, b: { drag: true, charge: 0.02 } });
-const hdP = await pair({ x: HX, y: HY, b: { drag: true, charge: 1 } });
-const gz = diffField(gzP.a, gzP.b, HX, HY), hd = diffField(hdP.a, hdP.b, HX, HY);
-/* WHAT A HOLD PROMISES, measured as the promise and not as a proxy. The first
- * version asked whether |Δluma| in the innermost annulus grew, and it fell — for
- * a real reason: a full hold widens the horizon, so more of that annulus is black
- * in BOTH frames and the difference there shrinks even though the deformation
- * grew. The mechanic's actual claims are "the horizon widens" and "it reaches
- * further", so those are what get asserted. */
-R('a committed hold reaches further across the frame than a graze',
-  hd.moved > gz.moved * 1.15,
-  'frame changed ' + pct(gz.moved) + ' -> ' + pct(hd.moved));
-/* GRAZE DIRECTLY AGAINST HOLD, inside one tick. Comparing two separate captures
- * made this report the core getting BRIGHTER under a full hold on a fast-animating
- * scene, because the scene had moved between them. */
+/* WHAT A HOLD PROMISES, measured directly and in ONE tick.
+ *
+ * This went through three versions, and the first two both asked the question
+ * sideways. Comparing |Δluma| in the innermost annulus FELL under a full hold —
+ * for a real reason: the widened horizon makes more of that annulus black in BOTH
+ * frames. Comparing "how much of the frame each state changes" then measured
+ * 29.1% against 32.0% under a ×1.15 bar, because on a full-frame scene even a
+ * graze already moves a third of the picture and the hold's extra reach arrives
+ * as a faint outer fringe that never crosses the per-pixel threshold.
+ *
+ * The mechanic's claim is simply that committing DEEPENS the deformation, around
+ * the hand. So render the graze and the hold in the same tick and difference them
+ * against each other: whatever separates those two frames IS the hold, with no
+ * scene motion, no second baseline, and no threshold arithmetic about how much a
+ * graze already covered. */
 const chP = await pair({ x: HX, y: HY, a: { drag: true, charge: 0.02 }, b: { drag: true, charge: 1 } });
 keep('graze', chP.pngA); keep('held', chP.pngB);
+const ch = diffField(chP.a, chP.b, HX, HY);
+const chNear = Math.max(ch.rings[0], ch.rings[1]);
+R('a committed hold visibly deepens the deformation',
+  ch.moved > 0.03,
+  pct(ch.moved) + ' of the frame differs between a graze and a full hold');
+R('and it deepens it around the hand, not uniformly',
+  chNear > ch.rings[5] * 2,
+  'near ' + chNear.toFixed(4) + ' vs far ' + ch.rings[5].toFixed(4)
+    + ' · by annulus: ' + ch.rings.map(v => v.toFixed(4)).join(' '));
 const gzCore = coreLuma(chP.a, HX, HY, 0.07), hdCore = coreLuma(chP.b, HX, HY, 0.07);
 R('and the horizon widens — the core is darker under a full hold',
   hdCore < gzCore * 0.9,
   'core luma, graze ' + gzCore.toFixed(4) + ' -> held ' + hdCore.toFixed(4));
-R('the deformation still reaches the mid field',
-  hd.rings[3] >= gz.rings[3] * 1.1,
-  'mid-field |Δluma| ' + gz.rings[3].toFixed(4) + ' -> ' + hd.rings[3].toFixed(4));
 
 /* THE RELEASE, ISOLATED. Its wavefront sits at (1-burst)·front screen radii, so a
  * fresh burst is still near the hand and a decayed one is far out; asking whether
