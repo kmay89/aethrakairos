@@ -287,6 +287,53 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   attempting it in passing: the lead-in covers the common case, and the residue is a
   soft entry the level envelope cannot see (first fifth 116%, second 108%).
 
+### 1.2f The update that would not stop offering itself
+- **The report:** a card reading `05d9b7a1af → new`, on a listener already running
+  `05d9b7a1af`. Applying it changed nothing; the next check raised it again.
+- **Three defects, and none of them was the byte-compare being wrong.** The
+  compare was doing its job — reporting a DIFFERENCE. What was missing was anyone
+  turning a difference into evidence of a newer build.
+  1. `offerUpdate()`'s "already current" guard read
+     `build === MB8_BUILD && UPDATE.source` — it only rejected a matching build
+     when a card was *already* on screen. The first claim of every check therefore
+     sailed past it, which is every claim that matters.
+  2. The same guard needs a build id, and the `controllerchange` sibling-handover
+     path calls `offerUpdate('shell', '')` with none — so the check was skipped
+     entirely and the card rendered its target as the word "new". That is the
+     exact string in the screenshot.
+  3. The service worker announced `SHELL_FRESH` whenever the fetched shell
+     differed from its cache — including when its cache was **empty**. `SHELL_CACHE`
+     is versioned, so every activation starts cold, the compare fired against
+     nothing, and the page it told about a "fresh shell" was running that very
+     shell.
+- **The loop brake was already there and was not enough.** `updateGate`'s
+  `UP_APPLY_CAP` (added with the deferral work) rate-limits the AUTOMATIC apply
+  only. It is why the app kept working; it is also why the card kept coming back
+  by hand. Braking the apply treats the symptom — the offer itself was never
+  gated.
+- **The rule that was missing, now pure and tested:** `updateOffer()` returns
+  `show` | `ignore` | `verify`. A waiting worker is a versioned release the browser
+  installed and stands on its own. A shell claim carrying a build id is settled
+  here — same id as the running build means there is nothing to offer, with no
+  qualifiers. A shell claim with NO id is not believed: `verifyShell()` fetches the
+  deployed shell past every cache and reads its stamp, and only a different one
+  earns a card — which then arrives named instead of as "new".
+- **A card raised in error can now leave.** `withdrawOffer()` hides the button,
+  clears the source and target, and settles any deferral owed to a phantom. Without
+  it the wrong offer stayed up until a reload, which is the shape the loop wore.
+- **The worker end stops making claims it cannot support:** no verdict from a cold
+  cache (no reference means no evidence), and never the same shell announced twice
+  — whatever makes two fetches of one deploy differ, saying so again on the next
+  check is how a card returns forever.
+- **`update_probe` gained the scenario nothing was watching:** boot, then check
+  four times with **no deploy at all**, and again after a reload (when a fresh
+  worker's cache is cold). A correct app is silent throughout. It then forces the
+  exact claim from the report — a shell offer with no build id — and requires the
+  button to be withdrawn rather than shown. Also switched from Playwright's
+  viewport-aware click to dispatching on the element: the clicks had begun timing
+  out with "element is outside of the viewport" as the HUD grew, which says
+  something about layout in a headless window and nothing about update machinery.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

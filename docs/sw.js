@@ -25,7 +25,7 @@
 
 // Stamped by tools/stamp_version.py (run by publish.sh): a short hash of the
 // player file, so every player release is a new shell cache by construction.
-const VERSION = '05d9b7a1af';
+const VERSION = '6336472694';
 
 const SHELL_CACHE = 'mb8-shell-' + VERSION;
 const CATALOG_CACHE = 'mb8-catalog-v1';          // unversioned: survives updates
@@ -66,10 +66,17 @@ self.addEventListener('message', ev => {
  * sw.js itself changes; a deploy that forgot the stamp used to be invisible
  * until someone deleted site data. Now every boot (and every CHECK_SHELL)
  * quietly refetches index.html past the HTTP cache, compares BYTES with the
- * cached copy, and on any difference: recaches it and tells every open page a
- * new shell is ready. Stamped or not, a deploy always reaches the listener.
- * Guards: response must be OK, text/html, and contain the app's own build
- * marker — a captive portal or an error page can never replace the shell. */
+ * cached copy, and on a difference: recaches it and tells every open page a new
+ * shell is ready. Stamped or not, a deploy always reaches the listener.
+ *
+ * Guards: response must be OK, text/html, and contain the app's own build marker
+ * — a captive portal or an error page can never replace the shell. Two more were
+ * added after a listener was offered, repeatedly, the build they were already
+ * running: a COLD cache differs from everything and proves nothing, and the same
+ * shell is never announced twice. The page verifies the claim on top of this;
+ * this end simply stops making claims it cannot support. */
+// the last shell build this worker told the pages about — see below
+let announced = '';
 async function revalidateShell(){
   try {
     const cache = await caches.open(SHELL_CACHE);
@@ -86,8 +93,21 @@ async function revalidateShell(){
     await cache.put('./index.html', forIndex);
     await cache.put('./', forRoot);
     const m = freshText.match(/const MB8_BUILD = '([^']*)'/);
+    const build = m ? m[1] : '';
+    /* NO REFERENCE, NO VERDICT. A cold cache differs from everything, and a new
+       worker's cache is cold by construction — SHELL_CACHE is versioned, so every
+       activation starts empty and this compare fired against nothing. The page it
+       then told about a "fresh shell" was, of course, running that very shell.
+       Populate quietly; there is nothing here worth reporting. */
+    if (!cachedText) return;
+    /* AND NEVER TWICE FOR THE SAME SHELL. Whatever makes two fetches of one
+       deploy differ — a host that rewrites its HTML, a stamp that did not move —
+       announcing it again on the next check is how a card comes back forever.
+       One announcement per distinct shell, and the page still verifies it. */
+    if (build && build === announced) return;
+    announced = build;
     const clients = await self.clients.matchAll({ type: 'window' });
-    for (const c of clients) c.postMessage({ type: 'SHELL_FRESH', build: m ? m[1] : '' });
+    for (const c of clients) c.postMessage({ type: 'SHELL_FRESH', build });
   } catch (e){}
 }
 

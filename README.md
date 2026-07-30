@@ -685,6 +685,24 @@ The parts that took a real browser to get right:
   cached. The page is never yanked mid-track, but the offer stays true. (The
   *first* claim of an uncontrolled page is excluded — that is a first visit, not
   an update, and treating it as one made every first visit update itself.)
+- **A difference is not a newer build.** A listener was shown `05d9b7a1af → new`
+  while running `05d9b7a1af`; applying it changed nothing and the next check
+  raised it again. Three things let that through: the "already current" guard only
+  rejected a matching build when a card was *already* on screen, so the first claim
+  of every check sailed past; the sibling-handover path carries no build id, so the
+  guard was skipped entirely and the card rendered its target as the word "new";
+  and the worker announced a fresh shell whenever the fetch differed from its
+  cache — **including when that cache was empty**, which it is on every activation,
+  because `SHELL_CACHE` is versioned. `updateOffer()` is the rule that was missing:
+  a waiting worker stands on its own, a shell claim carrying an id is settled
+  against the running build with no qualifiers, and a claim with no id is *checked*
+  against the deployed shell before it earns a card. A card raised in error now
+  withdraws itself instead of waiting for a reload.
+
+  The loop brake in `updateGate` had been there since the deferral work and was
+  not enough: it rate-limits the *automatic* apply, which is why the app kept
+  working and also why the card kept coming back by hand. Braking the apply treats
+  the symptom; the offer itself was never gated.
 - **"Later" is a promise.** The snooze used to live in a variable, so the next
   reload forgot it and the app went straight back to asking. It is stored now,
   along with a count: the button wears that count as a badge, goes quiet while
@@ -886,7 +904,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 206 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 207 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
@@ -908,12 +926,14 @@ node tools/mix_probe.mjs /tmp/mb8-mix        # the SEAM on a real graph: master-
                                     #   it with the visualizer live, which is how the
                                     #   seam's frame-rate coupling was found — and is now
                                     #   the condition the beat lock is GATED under
-node tools/update_probe.mjs         # 12 checks on the REACHABILITY of an update:
+node tools/update_probe.mjs         # 17 checks on the REACHABILITY of an update:
                                     #   stamped + unstamped deploys, a sibling client
                                     #   consuming the waiting worker, and "Later"
                                     #   surviving a reload. (acceptance asks whether
                                     #   state survives a swap; this asks whether the
-                                    #   swap happens at all)
+                                    #   swap happens at all), plus the one nothing
+                                    #   was watching: with NO deploy, four checks
+                                    #   and a reload must produce no offer at all
 node tools/color_probe.mjs docs     # per-scene washout + chroma on a real GL context,
                                     #   and the shipped GLSL rolloff checked against
                                     #   its JS twin on the GPU

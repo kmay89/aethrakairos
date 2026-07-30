@@ -2812,6 +2812,31 @@ function updateGate(o){
   if (o.show) return 'wait';
   return o.playing ? 'wait' : 'apply';
 }
+/* SHOULD THIS OFFER STAND? The one rule that was missing, and the reason a card
+   could reappear forever: AN UPDATE TO THE BUILD YOU ARE ALREADY RUNNING IS NOT
+   AN UPDATE. The old guard checked that, but only when the claim arrived with a
+   build id AND an offer was already on screen — so a first claim, or one with no
+   id at all, sailed past it and put up a card reading "05d9b7a1af → new" for a
+   deploy the listener was already on. Applying it changed nothing, the next
+   check claimed it again, and the loop brake in updateGate (which only ever
+   rate-limited the AUTOMATIC apply) let the card keep coming back by hand.
+
+   Claims are not equal:
+     worker  a waiting service worker is a versioned release the browser itself
+             installed — the strongest evidence there is. It stands.
+     shell   a byte-compare, or another window taking over. Evidence of a
+             DIFFERENCE, which is not the same as evidence of a NEWER BUILD.
+             With a build id it can be settled here; without one it has to be
+             checked against the deployed shell before it earns a card.
+
+   Returns 'show' | 'ignore' | 'verify'. */
+function updateOffer(o){
+  const s = o || {};
+  if (s.requested) return 'ignore';                 // we are already applying one
+  if (s.source === 'worker') return 'show';
+  if (!s.build) return 'verify';                    // an unnamed claim proves nothing yet
+  return s.build === s.running ? 'ignore' : 'show';
+}
 /* NEWS SINCE — which changelog entries are newer than the running build.
    Entries come newest-first; walk until the running build appears (exclusive).
    A build the list has never heard of shows the newest few, capped — honest
@@ -10561,7 +10586,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '05d9b7a1af';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '6336472694';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -10700,10 +10725,48 @@ function checkForUpdate(){
   try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'CHECK_SHELL' }); } catch (e){}
   UPDATE.remind();                 // and if a snooze just ran out, say so once
 }
+/* Ask the ORIGIN what the deployed shell is, past every cache. Same stamp as the
+   code running here means we are current, whatever a byte-compare thought — and
+   any offer already on screen was wrong and is withdrawn. A network failure
+   decides nothing: silence is not evidence of a new build either. */
+let verifying = false;
+async function verifyShell(source){
+  if (verifying || updateRequested) return;
+  verifying = true;
+  try {
+    const r = await fetch('index.html?_v=' + Date.now(), { cache: 'no-store' });
+    if (!r || !r.ok) return;
+    const m = (await r.text()).match(/const MB8_BUILD = '([^']*)'/);
+    const build = m ? m[1] : '';
+    if (!build) return;                      // could not read it — claim nothing
+    if (build === MB8_BUILD){ withdrawOffer('already current'); return; }
+    offerUpdate(source, build);              // real, and now it has a name
+  } catch (e){
+    // offline, blocked, throttled — all of them mean "unknown", never "newer"
+  } finally { verifying = false; }
+}
+/* A card that should never have been shown must be able to LEAVE. Without this
+   the wrong offer stayed up until a reload, which was the shape the loop wore. */
+function withdrawOffer(why){
+  if (updateRequested || UPDATE.source === 'worker') return;
+  if (el.btnUpdate && !el.btnUpdate.hidden){
+    el.btnUpdate.hidden = true;
+    el.btnUpdate.classList.remove('pulse');
+    ACTIVITY.log('update', 'A pending update turned out to be this same build — ' + why);
+  }
+  UPDATE.source = ''; UPDATE.newBuild = '';
+  UPDATE.settle();                            // clear any deferral owed to a phantom
+  UPDATE.paint();
+}
 function offerUpdate(source, build){
-  if (updateRequested) return;
-  // the worker path is the stronger claim (a versioned release); shell only upgrades it
-  if (source === 'shell' && build && build === MB8_BUILD && UPDATE.source) return;
+  const verdict = updateOffer({ source, build, running: MB8_BUILD, requested: updateRequested });
+  if (verdict === 'ignore') return;
+  /* AN UNNAMED CLAIM IS CHECKED, NOT BELIEVED. "Something changed" is not
+     "there is a newer build", and acting on the difference alone is what put a
+     card on screen offering the listener the build they were already running.
+     Ask the deployed shell what it says it is; only a different stamp earns the
+     card, and it arrives named rather than as "new". */
+  if (verdict === 'verify'){ verifyShell(source); return; }
   if (source) UPDATE.source = UPDATE.source === 'worker' ? 'worker' : source;
   if (build) UPDATE.newBuild = build;
   if (el.btnUpdate.hidden){

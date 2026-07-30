@@ -85,6 +85,11 @@ async function prep(page){
     if (typeof POWER !== 'undefined') POWER.set('show', false);
   });
 }
+/* Press the control, not the pixel. Playwright's click is viewport-aware and
+   began timing out with "element is outside of the viewport" as the HUD grew —
+   which says something about layout on a 1280x720 headless window and nothing
+   about the update machinery this tool exists to test. Dispatching the click on
+   the element runs the same handler a tap runs. */
 const build = page => page.evaluate(() => (typeof MB8_BUILD === 'string' ? MB8_BUILD : '?')).catch(() => '?');
 
 async function run(tag, stampSw, fn){
@@ -116,15 +121,71 @@ for (const [tag, stampSw, label] of [['stamped', true, 'stamped'], ['unstamped',
       { timeout: 30000 }).then(() => true).catch(() => false);
     verdict(`${label}: the update is offered`, offered);
     if (!offered) return;
-    await page.click('#btnUpdate');
+    await page.evaluate(() => document.getElementById('btnUpdate').click());
     await page.waitForTimeout(300);
     verdict(`${label}: the card opens`, await page.evaluate(() =>
       document.getElementById('updateCard').classList.contains('in')));
-    await page.click('#upNow');
+    await page.evaluate(() => document.getElementById('upNow').click());
     await page.waitForTimeout(5000);
     await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 25000 }).catch(() => {});
     const to = await build(page);
     verdict(`${label}: the tap lands the new build`, to === NEW, `${from} -> ${to}`);
+  });
+}
+
+/* ------------------------------------------------- NO DEPLOY, NO OFFER
+ * The failure a listener actually reported, and the one nothing here was
+ * watching for: a card reading "05d9b7a1af → new" for the build they were
+ * already running. Applying it changed nothing, the next check raised it again,
+ * and the loop brake in updateGate — which only ever rate-limited the AUTOMATIC
+ * apply — let it keep coming back by hand.
+ *
+ * So: boot, settle, then check for updates repeatedly WITHOUT deploying
+ * anything. A correct app is silent. This also re-checks after a reload, because
+ * every new worker starts with an empty versioned cache and the byte-compare
+ * used to fire against that nothing and call it a fresh shell. */
+if (want('current')){
+  console.log('\nno deploy at all — the app must not offer an update to itself');
+  await run('current', true, async ({ origin, ctx }) => {
+    const page = await ctx.newPage();
+    await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+    await prep(page);
+    await page.waitForFunction('navigator.serviceWorker.controller !== null', null, { timeout: 25000 }).catch(() => {});
+    const running = await build(page);
+    for (let i = 0; i < 4; i++){
+      await page.evaluate(() => checkForUpdate());
+      await page.waitForTimeout(1200);
+    }
+    const quiet = await page.evaluate(() => ({
+      hidden: document.getElementById('btnUpdate').hidden,
+      source: UPDATE.source, newBuild: UPDATE.newBuild,
+    }));
+    verdict('current: four checks, no deploy, no offer', quiet.hidden === true,
+      'button hidden ' + quiet.hidden + ' · source "' + quiet.source + '" · target "' + quiet.newBuild + '"');
+
+    // ...and again after a reload, which is when a fresh worker's cache is cold
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await prep(page);
+    await page.waitForTimeout(1500);
+    for (let i = 0; i < 3; i++){
+      await page.evaluate(() => checkForUpdate());
+      await page.waitForTimeout(1200);
+    }
+    const after = await page.evaluate(() => ({
+      hidden: document.getElementById('btnUpdate').hidden, build: MB8_BUILD,
+    }));
+    verdict('current: still silent after a reload', after.hidden === true && after.build === running,
+      'button hidden ' + after.hidden + ' · still on ' + after.build);
+
+    /* AND A CARD RAISED IN ERROR MUST BE ABLE TO LEAVE. Forcing the exact claim
+     * that caused the report — a shell offer with no build id — must end with the
+     * button withdrawn once the deployed shell is checked and found to be this
+     * very build, not with a card the listener has to dismiss forever. */
+    await page.evaluate(() => offerUpdate('shell', ''));
+    const withdrawn = await page.waitForFunction('document.getElementById("btnUpdate").hidden === true',
+      null, { timeout: 15000 }).then(() => true).catch(() => false);
+    verdict('current: an unnamed claim is checked and withdrawn, not shown', withdrawn,
+      withdrawn ? 'verified against the deployed shell and dropped' : 'the card stayed up');
   });
 }
 
@@ -152,8 +213,8 @@ if (want('sibling')){
     verdict('sibling: the other client still has a live offer',
       await B.evaluate(() => UPDATE.ready()), 'source=' + await B.evaluate(() => UPDATE.source));
     await B.bringToFront();
-    await B.click('#btnUpdate'); await B.waitForTimeout(300);
-    await B.click('#upNow');
+    await B.evaluate(() => document.getElementById('btnUpdate').click()); await B.waitForTimeout(300);
+    await B.evaluate(() => document.getElementById('upNow').click());
     await B.waitForTimeout(5000);
     await B.waitForFunction('window.__mb8Booted === true', null, { timeout: 25000 }).catch(() => {});
     const to = await build(B);
@@ -173,8 +234,8 @@ if (want('later')){
     await page.waitForFunction('!document.getElementById("btnUpdate").hidden', null, { timeout: 30000 });
     verdict('later: a waiting update wears a dot',
       await page.evaluate(() => document.getElementById('upBadge').textContent) === '•');
-    await page.click('#btnUpdate'); await page.waitForTimeout(250);
-    await page.click('#upLater'); await page.waitForTimeout(400);
+    await page.evaluate(() => document.getElementById('btnUpdate').click()); await page.waitForTimeout(250);
+    await page.evaluate(() => document.getElementById('upLater').click()); await page.waitForTimeout(400);
     verdict('later: the badge becomes the count',
       await page.evaluate(() => document.getElementById('upBadge').textContent) === '1');
     await page.reload({ waitUntil: 'domcontentloaded' }); await prep(page);
@@ -195,8 +256,8 @@ if (want('later')){
     verdict('later: the reminder fires exactly once per expiry',
       r.stamped && r.toasts === r.after, JSON.stringify(r));
     await page.evaluate(() => { const c = document.getElementById('updateCard'); if (c) c.classList.remove('in'); });
-    await page.click('#btnUpdate'); await page.waitForTimeout(250);
-    await page.click('#upNow'); await page.waitForTimeout(5000);
+    await page.evaluate(() => document.getElementById('btnUpdate').click()); await page.waitForTimeout(250);
+    await page.evaluate(() => document.getElementById('upNow').click()); await page.waitForTimeout(5000);
     await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 25000 }).catch(() => {});
     const done = await page.evaluate(() => ({ b: MB8_BUILD, d: UPDATE.deferrals })).catch(() => ({}));
     verdict('later: applying clears the deferral count', done.b === NEW && done.d === 0, JSON.stringify(done));
