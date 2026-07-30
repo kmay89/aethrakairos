@@ -4140,9 +4140,21 @@ const player = {
     } else {
       nd._swapping = false;
     }
-    nd.a.src = track.url;
+    /* THE BYTES, FROM WHEREVER THEY ALREADY ARE. On the element-direct path
+       (iOS) the prefetcher may be holding this exact track in memory, in which
+       case the src swap costs no network at all — which is the whole of the
+       "it stopped and reloaded" gap. Anything not warmed, or warmed for a
+       different track, falls back to the network URL exactly as before. */
+    const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
+    nd.a.src = src;
+    // the warmed copy has been spent; hold nothing we are already playing
+    if (typeof PREFETCH !== 'undefined' && src !== track.url) PREFETCH.spend();
     nd.norm = normLin(track);
-    nd.a.currentTime = 0;
+    /* A freshly-assigned src is ALREADY at zero. Writing currentTime = 0 here
+       queued a seek the element could not act on until metadata had arrived, and
+       on the single-element iOS hand-off that sits directly in the gap between
+       two tracks. Only a deck that was left somewhere else needs moving. */
+    if (nd.a.currentTime > 0.01){ try { nd.a.currentTime = 0; } catch (e){} }
     // an HONEST loading word: "the first track" only the very first time this
     // session, else name the track we're cueing — never claim "first track"
     // after it has come and gone
@@ -4820,6 +4832,150 @@ function updatePlayIcon(){
   document.title = player.playing && t ? '▶ ' + t.title + ' — Aethra Kairos' : 'Aethra Kairos — Official Player';
   syncHearts(); syncAirplayButton();
 }
+
+/* ================================================================
+   PREFETCH — the next track's bytes are already here.
+
+   THE iOS GAP, and why it is shaped the way it is. On iOS the WebAudio graph is
+   deliberately not live (createMediaElementSource is a one-way door and a
+   suspended context silences lock-screen playback), so the mixer stands down and
+   every hand-off is the same-element advance in playIndex: assign a new src to
+   the ONE blessed element and play. That element is the one holding the audio
+   session, and the comment in playIndex records what was learned the hard way —
+   moving playback to the other deck is an un-gestured start iOS blocks when the
+   screen is locked, and alternating decks churns iOS's hard decoder budget until
+   the blessing quietly lapses and the music simply stops mid-queue.
+
+   So a second element is not the answer. But the same-element advance pays for a
+   full network load on every track change, and THAT is the stall a listener
+   hears as "it stopped and reloaded". Nothing warms the next track: the deck
+   preload that covers this on desktop lives in MIXER.arm(), which never runs
+   when the graph is not live.
+
+   The fix keeps every constraint above and removes the wait: while the current
+   track plays, fetch the next one into memory and hand the element an object URL
+   at swap time. One element, still blessed, no extra decoder — the bytes simply
+   arrive from RAM instead of from the network.
+
+   Held to one track at a time, capped by size, abandoned the moment the draw
+   changes, and silent about its own failures: a prefetch that does not land
+   costs one background request and playback falls back to the network URL, which
+   is exactly what happens today. */
+const PREFETCH = {
+  CAP: 30 * 1024 * 1024,        // one track in RAM; a bigger file streams as before
+  /* START EARLY, because the pipe is the constraint and not the clock. The first
+     version waited until 25 s from the end, which sounds generous and is not: at
+     the ~900 kbps a phone actually gets, 25 s buys under 3 MB and the fetch was
+     still in flight when the hand-off arrived — measured, the gap was unchanged
+     at 2.2 s. A track is minutes long, so the warm begins once the CURRENT track
+     is properly under way (SETTLE) and has the rest of the song to land in. The
+     late window is only a backstop for tracks shorter than that. */
+  SETTLE: 12,                   // seconds into the current track before we start
+  LEAD: 45,                     // ...or this close to its end, whichever comes first
+  /* `id` is what we HOLD; `_want` is what we are FETCHING. They have to be
+     separate fields, and the first version conflated them: the guard against
+     re-entering read `id`, which is only assigned once a fetch completes, so
+     every tick two seconds later decided nothing was in flight, aborted the
+     download that was halfway there, and started it again. Measured, before the
+     split: 61 requests and 120 MB served for a warm that never once landed. */
+  id: null, url: '', _want: null, _ac: null, _busy: false, _fail: 0, _spent: '',
+
+  // is a warmed copy of THIS track ready? Anything else gets the network URL,
+  // so a stale or missing prefetch can never send playback somewhere wrong.
+  playable(track){
+    return (track && this.id != null && track.id === this.id && this.url) ? this.url : (track ? track.url : '');
+  },
+  // Metered connections are not ours to spend. Save-Data is an explicit request
+  // and 2g/3g is a plain statement about the pipe; on either, the stall is the
+  // lesser harm. Local files and the demo loop are already object URLs.
+  allowed(track){
+    if (!track || !track.url || track.local || track.demo) return false;
+    if (/^(blob|data):/i.test(track.url)) return false;
+    if (this._fail >= 3) return false;               // this network is not having it
+    const c = navigator.connection;
+    if (c && (c.saveData || /^(slow-)?2g$/.test(c.effectiveType || ''))) return false;
+    return true;
+  },
+  drop(){
+    if (this._ac){ try { this._ac.abort(); } catch (e){} this._ac = null; }
+    if (this.url) this._retire(this.url);
+    this.url = ''; this.id = null; this._want = null; this._busy = false;
+  },
+  /* HANDED OVER, NOT THROWN AWAY. Once an element is loading from an object URL,
+     revoking it can pull the bytes out from under the load — so the URL we just
+     gave away is released one hand-off later, by which time the element that had
+     it has been re-pointed at something else. One deferred release, never a
+     growing list. */
+  _retire(u){
+    if (this._spent && this._spent !== u){ try { URL.revokeObjectURL(this._spent); } catch (e){} }
+    this._spent = u;
+  },
+  spend(){
+    // the element owns this URL now: forget it without revoking, and let the
+    // NEXT hand-off release it
+    this._retire(this.url);
+    this.url = ''; this.id = null;
+  },
+  async want(track){
+    if (!this.allowed(track)) return;
+    if (this.id === track.id && this.url) return;          // already holding it
+    if (this._want === track.id && this._busy) return;     // already fetching it — do NOT restart
+    this.drop();
+    this._busy = true;
+    const id = track.id;
+    this._want = id;
+    const ac = new AbortController();
+    this._ac = ac;
+    try {
+      const r = await fetch(track.url, { signal: ac.signal });
+      if (!r.ok) throw new Error('http ' + r.status);
+      const len = +(r.headers.get('content-length') || 0);
+      if (len > this.CAP) throw new Error('too big');
+      const blob = await r.blob();
+      if (ac.signal.aborted) return;
+      if (blob.size > this.CAP) throw new Error('too big');
+      this.url = URL.createObjectURL(blob);
+      this.id = id;
+      this._fail = 0;
+    } catch (e){
+      // AbortError is our own doing (the draw moved on) and is not a failure
+      if (!(e && e.name === 'AbortError')) this._fail++;
+      this.url = ''; this.id = null;
+    } finally {
+      if (this._ac === ac){ this._ac = null; this._busy = false; this._want = null; }
+    }
+  },
+  /* WHOSE TURN IS IT NEXT — asked without disturbing anything. pickNext() is
+     destructive: it consumes the committed draw, pops the shuffle bag and walks
+     the mixset. So this only ever COMMITS a draw the way MIXER.arm() already
+     does — the existing contract is that a pre-committed pick is the pick that
+     plays — and it declines to commit at all while a mixset is running, because
+     that draw carries the set's own bookkeeping and is not ours to advance
+     early. With a set loaded we simply warm whatever has already been committed. */
+  next(){
+    if (typeof player === 'undefined' || !player.tracks) return null;
+    if (player._committedNext != null) return player.tracks[player._committedNext] || null;
+    if (typeof MIXSET !== 'undefined' && MIXSET.active) return null;
+    if (player.repeat === 'one') return player.tracks[player.cur] || null;
+    const i = player.pickNext();
+    if (i === -1 || !player.tracks[i]) return null;
+    player._committedNext = i;                     // the draw we warmed is the draw that plays
+    return player.tracks[i];
+  },
+  /* Only the element-direct path pays for this. Where the graph is live the
+     mixer arms 90 s out and loads the incoming deck itself, and a second full
+     fetch of the same bytes would be pure waste. */
+  tick(){
+    if (typeof AE === 'undefined' || AE.graphLive) return;
+    if (typeof player === 'undefined' || !player.playing) return;
+    const d = typeof activeDeck === 'function' ? activeDeck() : null;
+    if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
+    const played = d.a.currentTime, left = d.a.duration - played;
+    if (played < this.SETTLE && left > this.LEAD) return;
+    const t = this.next();
+    if (t) this.want(t);
+  },
+};
 
 /* ================================================================
    §6b · PERSISTENCE — the player remembers (IndexedDB, all local)
@@ -10089,6 +10245,11 @@ const MIXER = {
 setInterval(() => {
   if (document.hidden) MIXER.update(performance.now() / 1000, 0.5);
 }, 500);
+/* AND THE PREFETCH RUNS ON A TIMER, not on the animation loop — the one moment
+   it matters most is a phone in a pocket with the screen off, where there is no
+   rAF at all and the element-direct hand-off is the only thing happening. Two
+   seconds is plenty of resolution for a 25 s lead. */
+setInterval(() => { try { PREFETCH.tick(); } catch (e){} }, 2000);
 
 /* ---- THE MIXSET RUNTIME — load a set, run it by the wall clock ------------
    When a mixset is loaded the mixer stops drawing at random and instead asks
@@ -10400,7 +10561,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '03eafb765a';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '05d9b7a1af';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -17081,6 +17242,52 @@ const LENS_FIELD = `
     gl_FragColor = vec4(img * (1.0 - caught), 1.0);
   }`;
 
+/* FIELD · LEAN — the same fabric, one texture tap.
+
+   The full pass costs four samples: two deflections for the lens's two images,
+   and a chromatic split on top of a charged hold. That is right on a machine that
+   can afford it and wrong on one that cannot, and the first version of this
+   simply switched the pass OFF on ECO and on any device the governor had found to
+   be struggling. Which meant the weakest devices — the ones most likely to be the
+   phone in someone's hand — got a touch that moved particles and left the light
+   alone, while every raymarched scene went back to answering nothing at all.
+
+   Degrade, do not disappear. This is one tap through the same warpDeflect(), with
+   the same capture radius and the same soft ceiling, so the deformation a
+   listener feels is the deformation the metric describes on every device. What is
+   dropped is the ornament: the second image (so no photon ring), the channel
+   split (so no visible strain), and the area dimming. The hand still bends the
+   world; it bends it plainly. */
+const LENS_FIELD_LEAN = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution;
+  ` + GLSL_WARP + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float force = warpForce();
+    float burst = uPtrX.y;
+    if (force < 0.003 && burst < 0.01){ gl_FragColor = vec4(texture2D(tScene, uv).rgb, 1.0); return; }
+    float aspect = uResolution.x / max(1.0, uResolution.y);
+    vec2 p = (uv * 2.0 - 1.0) * vec2(aspect, 1.0);
+    vec2 c = uPtr.xy * vec2(aspect, 1.0);
+    vec2 d = p - c;
+    float dist = length(d);
+    vec2 dir = normalize(d + 1e-5);
+    float mode = uPtrF.x;
+    vec2 warp = warpDeflect(mode, dist);
+    float ang = warp.y * force, rad = warp.x * force;
+    if (burst > 0.01){
+      float front = exp(-abs(dist - (1.0 - burst) * ${WARP.front.toFixed(3)}) * 5.5);
+      rad += front * burst * ${(WARP.lens * 4.2).toFixed(4)};
+    }
+    float horizon = warpHorizon(mode, force);
+    float caught = horizon > 0.0 ? 1.0 - smoothstep(horizon * 0.72, horizon * 1.15, dist) : 0.0;
+    float ca = cos(ang), sa = sin(ang);
+    vec2 rot = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
+    vec2 uA = (c + rot * (dist + rad)) / vec2(aspect, 1.0) * 0.5 + 0.5;
+    gl_FragColor = vec4(texture2D(tScene, clamp(uA, 0.0, 1.0)).rgb * (1.0 - caught), 1.0);
+  }`;
+
 const LENS = {
   // AUTO is the default: the director reads the song's real structure + its
   // Camelot mood and puts a lens on ONLY where the music earns it (an apex, a
@@ -17156,7 +17363,7 @@ const LENS = {
     });
     this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS),
       wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE), grade: mk(LENS_GRADE),
-      field: mk(LENS_FIELD) };
+      field: mk(LENS_FIELD), fieldLean: mk(LENS_FIELD_LEAN) };
     this._ready = true;
   },
   chain(){
@@ -17237,12 +17444,18 @@ const LENS = {
        so a kaleidoscope repeats your hand's distortion into every sector, which
        is the room's symmetry answering the touch rather than covering it.
 
-       Skipped entirely on ECO and on a device the governor has found to be
-       struggling: there the matter-side warp answers alone, exactly as it does
-       today. A weak device gets a quieter reply, never a stuttering one. */
+       A device the governor has found to be struggling gets the LEAN pass — one
+       texture tap through the same metric, without the second image, the channel
+       split or the area dimming. It used to get nothing at all, which meant the
+       weakest devices had a touch that moved particles and left the light alone,
+       and every raymarched scene answered a hand with silence. Degrade the
+       ornament, never the deformation.
+
+       ECO is the one place the pass does not run: that mode exists to give the
+       battery to the music, and it already draws every other frame. */
     const strained = (typeof PERF !== 'undefined' && PERF.struggling);
-    if (allowed && !strained && this._ready && this.handLive())
-      passes = [this._mats.field].concat(passes);
+    if (allowed && this._ready && this.handLive())
+      passes = [strained ? this._mats.fieldLean : this._mats.field].concat(passes);
     // GRADE always runs last where HDR exists: the lenses fold and refract the
     // light while it is still linear and unbounded, and the rolloff has the
     // final word on what reaches the glass.

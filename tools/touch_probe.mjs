@@ -611,29 +611,44 @@ R('no hand, no pass', cost.idle === false && cost.live === true,
   'idle ' + cost.idle + ' · touching ' + cost.live);
 R('a still-travelling release keeps the pass alive after the finger has gone',
   cost.lingering === true, 'burst 0.5 -> ' + cost.lingering);
-/* AND THE FALLBACK, on purpose rather than by accident. A device the governor has
- * found to be struggling must not pay for a full-screen resample — there the
- * matter-side warp answers alone, which is what the touch did before any of this.
- * Asserted here because the probe pins the governor off, and a path nothing
- * exercises is a path that rots. */
+/* THE WEAK-DEVICE PATH, on purpose rather than by accident. A device the governor
+ * has found to be struggling must not pay for a four-tap resample — but it used to
+ * get NOTHING, which meant the phones most likely to be holding this app had a
+ * touch that moved particles and left the light alone, and every raymarched scene
+ * answered a hand with silence. It now gets the LEAN pass: one tap through the
+ * same metric, same capture radius, same ceilings, without the second image or the
+ * channel split. Asserted here because the probe pins the governor off, and a path
+ * nothing exercises is a path that rots. */
 const strained = await page.evaluate(() => {
   const was = PERF.struggling;
   INTERACT.strength = 1;
-  PERF.struggling = true;
-  let sawField = false;
-  const spy = LENS.chain.bind(LENS);
-  // ask render() what it would build, without drawing: the decision is what matters
   const allowed = typeof POWER === 'undefined' || POWER.lensOK;
-  const would = allowed && !PERF.struggling && LENS._ready && LENS.handLive();
-  sawField = would;
+  const pick = () => {
+    if (!(allowed && LENS._ready && LENS.handLive())) return 'none';
+    return PERF.struggling ? 'lean' : 'full';
+  };
+  PERF.struggling = false; const healthy = pick();
+  PERF.struggling = true;  const weak = pick();
   PERF.struggling = was; INTERACT.strength = 0;
-  void spy;
-  return { skipped: !sawField, ptrWarpStillFed: !!U.uPtr.value };
+  return { healthy, weak, hasLean: !!(LENS._mats && LENS._mats.fieldLean) };
 });
-R('a strained device skips the light pass and keeps the matter warp',
-  strained.skipped && strained.ptrWarpStillFed,
-  'field pass on a struggling device: ' + (strained.skipped ? 'skipped' : 'still running')
-    + ' · the hand still reaches the point shaders');
+R('a struggling device still bends the light, on the lean pass',
+  strained.healthy === 'full' && strained.weak === 'lean' && strained.hasLean,
+  'healthy → ' + strained.healthy + ' · struggling → ' + strained.weak);
+
+/* AND THE LEAN PASS MUST ACTUALLY BEND. A cheaper pass that quietly did nothing
+ * would be the same defect wearing a different name, so it is measured the same
+ * way the full one is: two frames, one tick, hand toggled between them. */
+await page.evaluate(i => director.setScene(i, false), POINTS);
+await page.waitForTimeout(900);
+await page.evaluate(() => { PERF.struggling = true; });
+const leanBend = await pair({ x: HX, y: HY, b: { drag: true } });
+await page.evaluate(() => { PERF.struggling = false; });
+const lb = diffField(leanBend.a, leanBend.b, HX, HY);
+const lbNear = Math.max(lb.rings[0], lb.rings[1]);
+R('the lean pass bends the world too, and in the near field',
+  lb.moved > 0.03 && lbNear > lb.rings[5] * 2,
+  pct(lb.moved) + ' moved · near ' + lbNear.toFixed(4) + ' vs far ' + lb.rings[5].toFixed(4));
 
 if (PNG_DIR){
   for (const [name, png] of shots)

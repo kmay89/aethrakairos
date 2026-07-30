@@ -234,6 +234,59 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   bright things off where they were; the claim was about the core, so the core is
   what gets measured.
 
+### 1.2e The iOS hand-off, the weak-device touch, and one idea that failed again
+- **The iOS gap was never the swap — it was the network.** On iOS the graph is not
+  live, so the mixer stands down and every track change is the same-element advance
+  in `playIndex`. Nothing warmed the next track: the deck preload that covers this
+  on desktop lives in `MIXER.arm()`, which never runs when `AE.graphLive` is false.
+  Measured on a 900 kbps pipe with an iPhone user-agent (so the shipping iOS branch
+  is the branch under test): **2148 ms of silence between tracks**.
+- **`PREFETCH`** fetches the next track into memory while the current one plays and
+  hands the element an object URL at swap time. One element, still blessed, no extra
+  decoder — the bytes arrive from RAM. Network requests for a hand-off fell from
+  **61 to 3**, bytes served from **120 MB to 5 MB**, and the gap to ~1550 ms, all of
+  which is now inside the media element. Metered connections are declined
+  (`saveData`, 2g/3g), the draw is committed the way `MIXER.arm()` already commits
+  it, and a mixset's draw is never advanced early because that carries the set's own
+  bookkeeping. A prefetch that fails is silent: playback falls back to the URL.
+- **Two bugs the probe found, both mine.** (1) `want()` guarded re-entry on `id`,
+  which is only assigned when a fetch *completes* — so every 2 s tick decided nothing
+  was in flight, aborted the download that was halfway there, and started again. That
+  is the 61 requests and 120 MB for a warm that never landed; fixed by separating
+  `id` (what we hold) from `_want` (what we are fetching). (2) A fixed 25 s lead
+  sounds generous and is not — at 900 kbps it buys under 3 MB, so the fetch was still
+  in flight at the hand-off and the gap was unchanged. The warm now starts once the
+  *current* track is under way and has the rest of the song to land in.
+- **What is left is the element's own.** With the warm on, the app reaches
+  `playIndex` 0 ms after `ended` and there is no network in the path; the remaining
+  time is Chromium tearing down one decoder and building another (emptied 267,
+  loadstart 520, metadata-through-playing 1586). On ONE element that is not ours to
+  remove, and the second element that would remove it is precisely what costs iOS
+  the blessing. So `handover_probe` gates the parts this code owns — no app latency,
+  no network in the path, playback never leaving the blessed element — and tracks the
+  total as OPEN with its measurement.
+- **A redundant seek, removed.** `playIndex` wrote `currentTime = 0` immediately
+  after assigning `src`. A fresh src is already at zero, and the write queued a seek
+  the element could not act on until metadata arrived — directly inside the gap.
+- **The touch degrades now instead of disappearing.** The light-bending pass used to
+  be switched off entirely on a device the governor had found to be struggling, which
+  meant the phones most likely to be holding this app had a touch that moved
+  particles and left the light alone — and every raymarched scene answered a hand
+  with silence. `LENS_FIELD_LEAN` is one texture tap through the same
+  `warpDeflect()`, same capture radius, same ceilings; what is dropped is the
+  ornament (the second image, the channel split, the area dimming). Measured at 20.8%
+  of the frame moved with the correct near-field falloff. ECO remains the one place
+  the pass does not run at all — that mode exists to give the battery to the music.
+- **The seam pre-roll failed a third time, and was reverted again.** Rolling the
+  incoming deck silently a couple of seconds before the exit should have removed the
+  210-680 ms resume: it made it **worse, 908 ms**, because `warm()` seeks away from
+  the point `_preload` had already warmed and then `fire()` seeks again, so the seam
+  pays for two flushes instead of one. Making it work needs `fire()` to stop seeking
+  and the servo to absorb the residual by tempo alone — the same servo change the
+  first attempt needed. Three failures for one idea is enough signal to stop
+  attempting it in passing: the lead-in covers the common case, and the residue is a
+  soft entry the level envelope cannot see (first fifth 116%, second 108%).
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature
