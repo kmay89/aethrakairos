@@ -2,6 +2,18 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "03eafb765a",
+      "date": "2026-07-30",
+      "title": "Your hand bends the world now",
+      "notes": [
+        "the touch no longer draws anything on top of the visuals \u2014 it deforms the space they live in, and everything obeys",
+        "the black hole is genuinely dark because light near it stops coming back, and the bright ring around it is real lensing",
+        "hold your finger down and the horizon widens; let go and a wavefront leaves your fingertip and travels out",
+        "scenes with no particles answer your touch for the first time \u2014 the light itself is bent, so every scene reacts",
+        "reduced motion keeps the touch alive at a gentler strength instead of switching it off"
+      ]
+    },
+    {
       "build": "e9ca59e869",
       "date": "2026-07-29",
       "title": "The auto-mix holds its beat lock",

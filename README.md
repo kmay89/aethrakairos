@@ -494,18 +494,90 @@ rather than a screensaver:
   the band's number of half-twists (always odd — it stays a Möbius band),
   starburst reach, nebula swirl, tunnel radius and speed. The same scene
   never plays the same way twice.
-- **Touch.** Drag steers the camera (the auto rig waits ~9 s while you hold
-  it), scroll walks in and out, double-tap fires a shockwave impulse through
-  the scene, and particles near the pointer bend away from your hand
-  (`uPtr` view-space warp in every point shader). The touch has a
-  *personality*, and it performs it on a screen-space stage in the music's
-  live palette: the black hole wears a blazing photon ring with lensed
-  starlight; the vortex winds real spiral arms whose speed is the spin you
-  banked; accretion is a disk of motes visibly orbiting and falling into
-  your hold; ripples roll outward as true rings cresting on the beat. A
-  hold banks a visible charge arc, and every release detonates a bright
-  wavefront from the lift point. All of it is optional — the director
-  plays the whole show hands-free.
+- **Touch — the fabric, not a heads-up display.** Drag steers the camera (the
+  auto rig waits ~9 s while you hold it), scroll walks in and out, double-tap
+  fires a shockwave. But the touch itself is not drawn: your hand deforms the
+  metric the world lives in, and everything obeys it. See
+  [Touching the fabric](#touching-the-fabric) below.
+
+## Touching the fabric
+
+The touch used to have a *stage*. A full-screen 2D canvas at `z-index: 4` drew
+each personality: a photon ring stroked around the void, three spiral arms wound
+for the vortex, a disk of orbiting motes for the accretion, expanding rings for
+the waves, a progress arc banking the hold, a bright wavefront on release — all
+in the music's live palette, over a `<div>` that darkened the field with
+`mix-blend-mode: multiply`.
+
+Every number in it was correct, and it read as a HUD. That is not a tuning
+problem: a screen-space stroke at a fixed pixel width sits in *front* of the
+world. It ignores depth, ignores the camera, ignores which scene is up — and it
+needed a dark radial veil painted underneath so its glow would read over a busy
+field, which means the actual visuals were being dimmed so the decoration could
+be seen. A progress arc under your thumb is a UI element no matter what palette
+it borrows.
+
+All of it is deleted. `#touchCanvas`, `#voidFx` and `#voidRing` are gone from the
+document, and nothing replaced them in that layer. What answers your hand now is
+a **metric** — one description of how space is deformed around your touch, with
+two consumers reading the very same functions:
+
+- **the matter.** Every point shader displaces its particles through the metric,
+  in view space *and in depth*, so a well is a hole you can see into and matter
+  pushed away shrinks and dims through the same perspective divide as everything
+  else. Nothing is faked; it is actually further away.
+- **the light.** A full-screen pass refracts the composited frame through the
+  same metric. This is what makes the eleven raymarched scenes answer at all —
+  they have no particles to push, and until now a touch got them a camera nudge
+  and nothing more. It runs *before* the artistic lenses, so a kaleidoscope
+  repeats your distortion into every sector: the room's symmetry answering the
+  touch rather than covering it.
+
+The GLSL is generated from the same constants the JS holds, and
+`tools/touch_probe.mjs` evaluates it **on the GPU against the JS** and fails on
+drift (worst observed: 2 × 10⁻⁵). One fabric or none.
+
+### What each force is, now that nothing is drawn
+
+| | | |
+|---|---|---|
+| **VOID** | a black hole | Light bends *in*, so the image is pushed *out*. The core is black because light inside the capture radius does not come back — there is nothing there to sample. Hold, and the horizon genuinely widens. |
+| **SPIN** | a vortex | Frame dragging: space is *rotated*, chirality from your drag, speed from the spin you banked slinging it. Rotation preserves radius, so it winds the world without smearing it. |
+| **PULL** | an accretion disk | The well draws inward *and* shears into orbit. Light concentrates as space compresses, so the middle brightens — measured at 22× the surrounding luma. |
+| **WAVE** | ripples | The metric oscillates radially: real refraction rings, cresting harder on the beat, because the fabric is listening too. |
+
+The bright ring around the void is not stroked. A lens produces **two images** of
+whatever is behind it, and at the Einstein radius the two converge on the same
+source point and the light doubles — so the pass samples both deflections and
+adds them, and the ring appears where the physics puts it. The commitment you
+build by holding shows up as the horizon widening and the colour channels
+splitting under strain. The release travels: a wavefront leaving the lift point
+at (1−burst)·1.55 screen radii, measured moving from the innermost annulus to the
+fifth as it decays.
+
+### Bounded on purpose
+
+Real deflection goes as 1/*b* and therefore diverges at the centre. Physics is
+fine with that; a screen is not. The first attempt displaced samples by **1.6
+screen radii** under the finger and annihilated the frame. So the deflection is
+soft-clipped by `x/(1+|x|/max)` — exact for small *x*, which keeps the true 1/*r*
+tail in the far field where the "this is space" reading actually comes from, and
+asymptotic under the hand where the horizon has taken over anyway.
+
+The long tail matters more than the near field does. A decoration changes a disc
+of fixed pixel radius; gravity is felt across the room. Measured, in annuli
+around the touch: `0.097 0.097 0.052 0.013 0.010 0.003` — hard near the hand,
+faint far away, and **zero in the corners**, because a distortion with no edge is
+nausea rather than wonder.
+
+Which is the other half of this. A full-screen deformation is a vestibular event,
+so `warpBudget()` caps it: 0.6 when the safety governor has already asked the
+show to calm down, 0.34 under `prefers-reduced-motion`, and the ripple's own
+clock freezes there so nothing swims. It shrinks and it **never closes** — a hand
+that touches the world and feels nothing is its own defect. On ECO, and on a
+device the adaptive governor has found to be struggling, the light pass is
+skipped entirely and the matter warp answers alone: a weak device gets a quieter
+reply, never a stuttering one.
 
 ## The front porch — fresh inspiration at the door
 
@@ -771,7 +843,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 190 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 200 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
@@ -802,6 +874,14 @@ node tools/update_probe.mjs         # 12 checks on the REACHABILITY of an update
 node tools/color_probe.mjs docs     # per-scene washout + chroma on a real GL context,
                                     #   and the shipped GLSL rolloff checked against
                                     #   its JS twin on the GPU
+node tools/touch_probe.mjs docs     # 26 checks that the hand is IN the world: the
+                                    #   overlay layers do not exist, the image bends
+                                    #   where the metric claims and nowhere else, all
+                                    #   four forces are genuinely different
+                                    #   deformations, a raymarched scene answers, the
+                                    #   GPU metric matches the JS one, and reduced
+                                    #   motion shrinks it without closing it.
+                                    #   --png DIR writes the before/after frames
 ```
 
 Physical-device acceptance (iPhone lock screen ≥ 10 min, Bluetooth

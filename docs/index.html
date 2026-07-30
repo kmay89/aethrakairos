@@ -218,33 +218,16 @@ body.zen-deep #zenInfo{opacity:0;transform:translate(-50%,10px);pointer-events:n
           mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
 body.zen #eqStrip{opacity:.85;height:18px}
 
-/* ============ TOUCH FX — playing WITH the light. The pointer already bends
-   every scene's field away from your hand (the shader's uPtr warp); this is
-   the visible companion. The multiply void below darkens the field for the
-   dark personalities (black hole, accretion); the #touchCanvas stage above
-   draws each personality actually DOING what it says. Scene-agnostic
-   (screen-space overlays that follow the touch), so it works on all 16
-   scenes today and any added later. ============ */
-#voidFx,#voidRing{position:fixed;left:0;top:0;width:46vmin;height:46vmin;border-radius:50%;
-  pointer-events:none;z-index:4;opacity:0;transform:translate(-50%,-50%) scale(.5);
-  transition:opacity .2s ease}
-#voidFx{mix-blend-mode:multiply;   /* darkens the field beneath → a true void */
-  background:radial-gradient(circle,
-    #000 0%, rgba(0,0,0,.86) 24%,
-    color-mix(in oklab, var(--accent) 55%, #000) 40%,
-    color-mix(in oklab, var(--accent) 22%, transparent) 52%, transparent 66%)}
-#voidFx.on{opacity:1}
-/* the baseline black hole: a clean pure-black void, no accent tint — just black */
-#voidFx.pure{background:radial-gradient(circle,
-  #000 0%, #000 46%, rgba(0,0,0,.72) 60%, transparent 76%)}
-/* a faint accent event-horizon ring that reads even over dark scenes */
-#voidRing{box-shadow:0 0 34px -6px var(--accent-glow), inset 0 0 26px -4px var(--accent-glow)}
-#voidRing.on{opacity:.7}
-/* the touch's STAGE: a full-screen 2D canvas where each personality performs —
-   spiral arms that wind, an accretion disk of infalling motes, beat-crested
-   ripples, a photon ring around the void. Sits over the multiply void so glow
-   reads above the darkness; pointer-events off, the WebGL field owns the hand. */
-#touchCanvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:4}
+/* ============ TOUCH FX — there is nothing here on purpose.
+
+   The touch used to own three layers of this stylesheet: a #voidFx div that
+   darkened the field with mix-blend-mode: multiply, a #voidRing that wore an
+   accent box-shadow halo, and a full-screen #touchCanvas at z-index 4 where
+   each personality drew itself. All three are gone. The hand is answered in
+   the metric now (see WARP / GLSL_WARP / LENS_FIELD): real particle
+   displacement in view space and depth, and a light-bending pass that
+   refracts the composited frame. Nothing sits in front of the world, so
+   nothing can read as a heads-up display — there is no element left to. ==== */
 
 /* ============ THE ORB OF ENTROPY — the immersive view's one control, and the
    loading sphere at rest. It is the seed of CONTROL: while you're steering, it
@@ -307,7 +290,6 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 @media (prefers-reduced-motion:reduce){#zenScene,#zenTouch{transition:opacity .4s ease}}
 
 @media (prefers-reduced-motion:reduce){
-  #voidFx,#voidRing{transition:opacity .3s ease}
   #zenWave{transition:opacity .5s ease;transform:none}
   #zenWave.bloom{transform:none}
   #zenInfo{transition:opacity .4s ease}
@@ -1704,9 +1686,6 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   <div id="zenTag"></div>
 </div>
 <canvas id="eqStrip" aria-hidden="true"></canvas>
-<div id="voidRing" aria-hidden="true"></div>
-<div id="voidFx" aria-hidden="true"></div>
-<canvas id="touchCanvas" aria-hidden="true"></canvas>
 <div id="fxOrb" role="button" tabindex="0" aria-label="Control orb — tap to bring the menu back, flick to shift the scene"><span class="orb-core"></span></div>
 <!-- immersive SCENE direction: step the look without opening the menu. Fades in
      with the light; taps here never summon the menu. -->
@@ -2644,6 +2623,150 @@ function beatTapBonus(phase){
   const m = Math.min(phase, 1 - phase);
   return Math.max(0, 1 - m / 0.15);
 }
+
+/* ================================================================
+   THE FABRIC — one metric, bent by the hand, obeyed by everything.
+
+   The touch used to be answered in two unrelated places: a tight
+   gaussian nudge to particle positions, and a 2D canvas that DREW
+   rings and spiral arms over the top. The drawing was the problem.
+   Strokes in screen space sit in front of the world at a fixed pixel
+   width, unaffected by depth, camera or scene, and no amount of
+   palette-matching stops that reading as a HUD — because it is one.
+
+   So there is now exactly one thing: a metric. These functions
+   describe how space is deformed around the hand, and two consumers
+   read the SAME functions —
+
+     · the point shaders displace real particles through it, in view
+       space and in DEPTH, so matter is genuinely moved; and
+     · a full-screen pass bends the LIGHT through it, so every scene
+       (including the raymarched ones, which have no particles to
+       push) is refracted by the same deformation.
+
+   Nothing is drawn on top. What you see is the world being wrong in
+   the shape of your hand. The GLSL below is generated from these
+   very constants and the parity is checked on the GPU, so the light
+   and the matter can never drift apart from each other, or from the
+   numbers the tests hold.
+
+   Physics, honestly held: real deflection falls off as 1/b, which is
+   why the influence carries much further than the old gaussian ever
+   did — a hand on the fabric is felt across the room, faintly, and
+   that long tail is most of why this reads as space rather than as a
+   brush. The core radius keeps 1/b finite; the reach window keeps the
+   far corners still, because a distortion with no edge is nausea.
+   ================================================================ */
+const WARP = {
+  reach:   0.78,   // how far the deformation carries, in screen radii (long, like gravity)
+  core:    0.055,  // softening radius: keeps 1/b finite, and sets the size of the near field
+  lens:    0.036,  // radial deflection coefficient — the mass, in effect
+  radMax:  0.175,  // soft ceiling on that deflection, in screen radii (see warpSoft)
+  // rotation is the cheapest deformation to spend: it preserves radius, so it
+  // cannot smear the near field into a dark hole the way a radial term does.
+  // The vortex therefore gets a freer hand than the void — measured, on the
+  // first pass it moved the least of the four and read as the weakest.
+  twist:   0.62,   // frame-drag coefficient
+  angMax:  1.45,   // soft ceiling on the rotation, radians (~83°)
+  wave:    12.0,   // ripple wavenumber for the WAVE metric
+  horizon: 0.046,  // capture radius of the VOID at rest — light inside is never coming back
+  aberr:   0.085,  // how far the colour channels split under strain (fraction of deflection)
+  depth:   0.55,   // how much of the deformation is spent moving matter in DEPTH
+  front:   1.55,   // how far the release wavefront travels before it dies
+};
+
+/* THE SOFT CEILING, and why a bounded metric is the honest one.
+
+   Real deflection goes as 1/b and therefore diverges at the centre. Physics is
+   fine with that — inside the photon sphere the light is captured and the
+   question stops mattering. A screen is not fine with it: an unbounded 1/r term
+   displaces samples by more than a screen width a little way from the middle,
+   and the result is not a distortion of the world but the loss of it. Measured
+   at the first attempt: 1.6 screen radii of displacement under the finger, the
+   frame annihilated, a red/green smear where the scene had been.
+
+   So the deflection is soft-clipped. x/(1+|x|/max) is exact for small x — the
+   far field keeps the true 1/r tail, which is the whole reason this reads as
+   space rather than as a brush — and asymptotes to max under the hand, where the
+   horizon has taken over anyway. Smooth everywhere, one divide, no branch. */
+function warpSoft(x, max){
+  const m = Math.max(1e-4, max);
+  return x / (1 + Math.abs(x) / m);
+}
+
+/* THE REACH WINDOW. 1 under the hand, 0 beyond the reach, C1 at both ends so
+   the far field is genuinely still — no seam a listener could find, and no
+   whole-screen swim. Charge widens it: a committed hold reaches further. */
+function warpReach(r, reach){
+  const x = clamp01(1 - r / Math.max(1e-4, reach));
+  return x * x * (3 - 2 * x);
+}
+
+/* THE DEFLECTION. For a point at screen radius r from the hand, how far space
+   is displaced ALONG the radius (rad) and AROUND it (ang, radians), per unit
+   force. The 1/(r+core) is the shape of real gravitational deflection; every
+   personality is a different way of spending it.
+
+     VOID     light bends IN, so the image is pushed OUT — the near field
+              stretches away and the middle is simply not there
+     SPIN ±   frame dragging: space is rotated, chirality from your drag
+     PULL     the well draws in AND shears into an orbit
+     WAVE     the metric oscillates radially — real refraction rings, and they
+              crest on the beat because the fabric is listening too
+
+   Returns per-unit-force values; the caller multiplies by presence × budget,
+   which is what keeps a resting hand at exactly zero. */
+function warpDeflect(mode, r, o){
+  const s = o || {};
+  const charge = s.charge || 0, spin = s.spin || 0, beat = s.beat || 0, phase = s.phase || 0;
+  const w = warpReach(r, WARP.reach * (1 + charge * 0.35));
+  const inv = 1 / (r + WARP.core);
+  let rad = 0, ang = 0;
+  if (mode < -0.5){                       // vortex, widdershins
+    ang = -WARP.twist * inv * (0.5 + spin * 1.1) * w;
+  } else if (mode < 0.5){                 // the void
+    rad = WARP.lens * inv * (1 + charge * 0.7) * w;
+    ang = WARP.twist * 0.20 * inv * charge * w;      // a held void slowly winds the light
+  } else if (mode < 1.5){                 // vortex, sunwise
+    ang = WARP.twist * inv * (0.5 + spin * 1.1) * w;
+  } else if (mode < 2.5){                 // accretion: in, and around
+    rad = -WARP.lens * inv * (0.85 + charge * 0.6) * w;
+    ang = WARP.twist * (0.45 + charge * 0.55) * inv * w;
+  } else {                                // ripples
+    rad = WARP.lens * 1.8 * Math.sin(r * WARP.wave - phase) * (0.55 + beat * 0.75 + charge * 0.5) * w;
+  }
+  return { rad: warpSoft(rad, WARP.radMax), ang: warpSoft(ang, WARP.angMax) };
+}
+
+/* WHERE A SAMPLE READS FROM — the radial map ρ(r). Clamped at zero because a
+   negative radius is a reflection, and a lens that flips the world inside out
+   under your finger is a bug, not a feature. */
+function warpRho(mode, r, force, o){
+  const d = warpDeflect(mode, r, o);
+  return Math.max(0, r + d.rad * force);
+}
+
+/* THE CAPTURE RADIUS. Only the void captures: inside this, light does not come
+   back, so the middle is black because there is nothing there to sample — not
+   because something dark was painted over it. The hold widens the horizon,
+   which is the promise the VOID's hint has always made. */
+function warpHorizon(mode, force, charge){
+  if (!(mode > -0.5 && mode < 0.5)) return 0;
+  return WARP.horizon * force * (0.75 + (charge || 0) * 0.9);
+}
+
+/* HOW HARD THE FABRIC MAY BEND. A full-screen distortion is a vestibular
+   event, not just a look: someone who asked for reduced motion, or whom the
+   safety governor has already asked to calm down, must not have the room swim
+   around their hand. But the answer is never NOTHING — a hand that touches the
+   world and feels no reply is worse than a gentle one. So the budget shrinks;
+   it never closes. */
+function warpBudget(o){
+  const s = o || {};
+  if (s.reduced) return 0.34;
+  return s.calm ? 0.6 : 1;
+}
+
 /* AUTO TOUCH — the scenes manager re-tunes the touch personality to the room
    it just walked into, so the field answers your hand differently scene to
    scene: a surprise you discover by playing, never a setting you manage. */
@@ -2930,7 +3053,7 @@ const el = {
   zenScene: $('zenScene'), zScenePrev: $('zScenePrev'), zSceneName: $('zSceneName'), zSceneNext: $('zSceneNext'),
   zenTouch: $('zenTouch'), zTouchLabel: $('zTouchLabel'),
   zenTag: $('zenTag'), eqStrip: $('eqStrip'), freshBadge: $('freshBadge'), loadSpin: $('loadSpin'),
-  fxOrb: $('fxOrb'), voidFx: $('voidFx'), voidRing: $('voidRing'),
+  fxOrb: $('fxOrb'),
   coach: $('coach'), coachSpot: $('coachSpot'), coachBubble: $('coachBubble'),
   coachNext: $('coachNext'), coachSkip: $('coachSkip'), badgeShelf: $('badgeShelf'), badgeBloom: $('badgeBloom'),
   firstRun: $('firstRun'), frCards: $('frCards'), frVibe: $('frVibe'),
@@ -10277,7 +10400,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'd436cce72c';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '03eafb765a';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -12393,9 +12516,9 @@ const U = {
   uBeatIdx:  { value: -1 },     // grid clock: beat index in the bar (0..3), -1 = no grid
   uBarPhase: { value: 0 },      // grid clock: continuous 0..1 through the bar
   uAct:      { value: 0 },      // 0..1 through the current track — the story clock
-  uPtr:      { value: null },   // xy = pointer ndc, z = touch strength (set at init)
-  uPtrMode:  { value: 0 },      // which force the touch applies — see TOUCHFX / ptrWarp
+  uPtr:      { value: null },   // xy = the sprung warp centre (ndc), z = presence (set at init)
   uPtrX:     { value: null },   // the touch's DEPTH: x = hold charge, y = release burst, z = spin momentum (set at init)
+  uPtrF:     { value: null },   // the FABRIC: x = mode, y = budget, z = beat, w = ripple phase (set at init)
   uColA:     { value: new THREE.Color(PALETTES[0].a) },
   uColB:     { value: new THREE.Color(PALETTES[0].b) },
   uColC:     { value: new THREE.Color(PALETTES[0].c) },
@@ -12422,6 +12545,57 @@ const GLSL_INK = `
 `;
 
 // GLSL: the Möbius fold, available to every shader
+/* THE FABRIC, ON THE GPU — generated from the WARP constants above, so the
+   metric the tests hold, the metric that moves the particles, and the metric
+   that bends the light are provably the same arithmetic. tools/touch_probe.mjs
+   evaluates this on the GPU against warpDeflect() in JS and fails on drift.
+
+   uPtr   xy = the sprung warp centre (NDC), z = presence 0..1
+   uPtrX  x = hold charge, y = release burst, z = spin momentum
+   uPtrF  x = mode, y = budget (accessibility ceiling), z = beat, w = ripple phase */
+const GLSL_WARP = `
+  uniform vec3 uPtr;
+  uniform vec3 uPtrX;
+  uniform vec4 uPtrF;
+
+  float warpReach(float r, float reach){
+    float x = clamp(1.0 - r / max(1e-4, reach), 0.0, 1.0);
+    return x * x * (3.0 - 2.0 * x);
+  }
+  // the soft ceiling: exact for small x, asymptotic to max. See warpSoft().
+  float warpSoft(float x, float m){ return x / (1.0 + abs(x) / max(1e-4, m)); }
+  // rad = displacement along the radius, ang = rotation around it (radians),
+  // both per unit force. See warpDeflect() in the pure block.
+  vec2 warpDeflect(float mode, float r){
+    float charge = uPtrX.x, spin = uPtrX.z, beat = uPtrF.z, phase = uPtrF.w;
+    float w = warpReach(r, ${WARP.reach.toFixed(4)} * (1.0 + charge * 0.35));
+    float inv = 1.0 / (r + ${WARP.core.toFixed(4)});
+    float rad = 0.0, ang = 0.0;
+    if (mode < -0.5){
+      ang = -${WARP.twist.toFixed(4)} * inv * (0.5 + spin * 1.1) * w;
+    } else if (mode < 0.5){
+      rad = ${WARP.lens.toFixed(4)} * inv * (1.0 + charge * 0.7) * w;
+      ang = ${WARP.twist.toFixed(4)} * 0.20 * inv * charge * w;
+    } else if (mode < 1.5){
+      ang = ${WARP.twist.toFixed(4)} * inv * (0.5 + spin * 1.1) * w;
+    } else if (mode < 2.5){
+      rad = -${WARP.lens.toFixed(4)} * inv * (0.85 + charge * 0.6) * w;
+      ang = ${WARP.twist.toFixed(4)} * (0.45 + charge * 0.55) * inv * w;
+    } else {
+      rad = ${WARP.lens.toFixed(4)} * 1.8 * sin(r * ${WARP.wave.toFixed(4)} - phase)
+          * (0.55 + beat * 0.75 + charge * 0.5) * w;
+    }
+    return vec2(warpSoft(rad, ${WARP.radMax.toFixed(4)}), warpSoft(ang, ${WARP.angMax.toFixed(4)}));
+  }
+  float warpHorizon(float mode, float force){
+    if (!(mode > -0.5 && mode < 0.5)) return 0.0;
+    return ${WARP.horizon.toFixed(4)} * force * (0.75 + uPtrX.x * 0.9);
+  }
+  // the force the hand actually has right now: presence, scaled by the budget
+  // the accessibility governor allows. Zero here means the fabric is flat.
+  float warpForce(){ return uPtr.z * uPtrF.y; }
+`;
+
 const GLSL_MPHI = `
   const float PI = 3.14159265359;
   float mphi(float x){ return 2.0 * atan(max(x, 1e-4)); }
@@ -12537,51 +12711,55 @@ function addShaderLines(geo, frag, vert, extraU, segments){
   return o;
 }
 
-const VERT_POINT_HEAD = GLSL_MPHI + `
+const VERT_POINT_HEAD = GLSL_MPHI + GLSL_WARP + `
   uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uPiPhase, uEPhase, uCoupling, uEntropy, uCentroid, uAct;
-  uniform vec3 uPtr;
-  uniform float uPtrMode;   // the touch's personality: -1 swirl↺ · 0 repel · 1 swirl↻ · 2 attract · 3 ripple
-  uniform vec3 uPtrX;       // the touch's depth: x = hold charge, y = release burst, z = spin momentum
   uniform sampler2D uAudio;
   varying float vGlow; varying float vT;
-  // the fingertip is real: nearby points are moved in view space, strength
-  // decaying with screen distance. z of uPtr carries touch strength; uPtrMode
-  // chooses HOW the field answers, and uPtrX makes the answer DEEPEN with
-  // commitment — a held touch charges, a release detonates:
-  //   0  repel   — a black hole; charge widens the horizon and drags the frame
-  //                around it (a held void starts to slowly wind the light)
-  //  ±1  swirl   — a vortex; spin momentum you built by dragging keeps it
-  //                turning like a slung record, chirality from your hand
-  //   2  attract — an accretion disk: matter falls in AND orbits; the longer
-  //                you hold, the tighter and hungrier the orbit
-  //   3  ripple  — waves roll outward, cresting harder on the beat
-  // and on EVERY personality, release spends the charge as one expanding
-  // shockwave from the lift point — the wavefront travels as the burst decays.
+  /* MATTER, MOVED THROUGH THE METRIC. The hand does not push particles around
+     a screen — it deforms the space they live in, and they go where the space
+     went. Same warpDeflect() the light-bending pass reads, so the sprites and
+     the image behind them are distorted by one deformation rather than two
+     that happen to look similar.
+
+     What changed, and why it feels different: the falloff is 1/(r+core) with a
+     wide reach window instead of a tight gaussian, so the influence carries
+     across the room the way gravity does — the far field leans faintly toward
+     your hand, and that long tail is most of what makes this read as space
+     rather than as a cursor. And the displacement is no longer flat: a share
+     of it goes into DEPTH, so a well is a hole you can see into and a vortex
+     genuinely funnels. Matter pushed away shrinks and dims through the same
+     perspective divide as everything else — nothing has to be faked, because
+     it is actually further away. */
   vec4 ptrWarp(vec4 mv){
     float burst = uPtrX.y;
-    if (uPtr.z < 0.003 && burst < 0.01) return mv;
-    vec2 scr = mv.xy / max(0.6, -mv.z);
+    float force = warpForce();
+    if (force < 0.003 && burst < 0.01) return mv;
+    float persp = max(0.6, -mv.z);
+    vec2 scr = mv.xy / persp;
     vec2 d = scr - uPtr.xy;
-    float dist2 = dot(d, d);
-    float dist = sqrt(dist2);
+    float dist = length(d);
     vec2 dir = normalize(d + 1e-4);
-    vec2 tang = vec2(-dir.y, dir.x);
-    float charge = uPtrX.x, spin = uPtrX.z;
-    // a charged touch reaches further into the field (the falloff relaxes)
-    float force = uPtr.z * exp(-dist2 * (7.0 - charge * 3.0));
-    vec2 push = vec2(0.0);
-    if      (uPtrMode < -0.5) push = -tang * (0.7 + spin * 1.3);
-    else if (uPtrMode <  0.5) push = dir * (1.0 + charge * 0.8) + tang * charge * 0.55;
-    else if (uPtrMode <  1.5) push =  tang * (0.7 + spin * 1.3);
-    else if (uPtrMode <  2.5) push = -dir * (0.75 + charge * 0.55) + tang * (0.35 + charge * 0.5);
-    else    push = dir * sin(dist * (9.0 - charge * 2.5) - uTime * 6.0) * (0.8 + uBeat * 0.6 + charge * 0.4);
-    mv.xy += push * force * max(0.6, -mv.z) * 0.22;
-    // the release: one ring, expanding from where the finger lifted, its
-    // radius riding the burst's decay (1 → 0 maps to centre → far field)
+    vec2 warp = warpDeflect(uPtrF.x, dist);
+    // ALONG the radius, and AROUND it: the angular term is a real rotation of
+    // the offset, not a tangential shove, so a vortex winds space instead of
+    // smearing it — matter keeps its distance from your hand while it turns.
+    float a = warp.y * force;
+    float ca = cos(a), sa = sin(a);
+    vec2 rot = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
+    vec2 moved = rot * (dist + warp.x * force);
+    vec2 push = moved - d;
+    // the release: one wavefront leaving the lift point, its radius riding the
+    // burst's decay (1 -> 0 maps centre -> far field). Not a stroked ring: an
+    // actual displacement travelling through the matter.
     if (burst > 0.01){
-      float front = exp(-abs(dist - (1.0 - burst) * 1.5) * 8.0);
-      mv.xy += dir * front * burst * max(0.6, -mv.z) * 0.55;
+      float front = exp(-abs(dist - (1.0 - burst) * ${WARP.front.toFixed(3)}) * 7.0);
+      push += dir * front * burst * 0.16;
     }
+    mv.xy += push * persp;
+    // DEPTH. A share of the radial deformation is spent moving matter toward or
+    // away from the eye — into the well, out of the void — which is what makes
+    // the deformation a volume instead of a decal.
+    mv.z -= warp.x * force * persp * ${WARP.depth.toFixed(3)};
     return mv;
   }
 `;
@@ -15032,10 +15210,15 @@ const INTERACT = {
   charge: 0,           // 0..1 hold commitment — the force deepens as you stay (touchCharge)
   burst: 0,            // release shockwave, 1 → 0 as the wavefront expands (touchBurst)
   spinE: 0,            // spin momentum the drags banked — the slung-record memory
+  ripplePhase: 0,      // the WAVE metric's clock — advanced here, frozen for reduced motion
   dragging: false, holdOff: 0,
   _lx: 0, _ly: 0, _idleT: 999, _chargeTick: 0,
   update(dt){
     this.impulse *= Math.exp(-dt / 0.5);
+    // the ripple metric carries its own phase rather than reading uTime: it can
+    // then be frozen for someone who asked for reduced motion without freezing
+    // every other clock in the app, and it never jumps when the frame rate does
+    this.ripplePhase = (this.ripplePhase + dt * (reducedMotion ? 0 : 6.0)) % 6.2831853;
     this.swirl *= Math.exp(-dt / 1.8);
     // the touch's depth: charge while committed, drain when the hand rests;
     // the burst rides its own decay so the wavefront outlives the finger
@@ -15144,13 +15327,13 @@ const INTERACT = {
 }
 
 /* ================================================================
-   TOUCHFX — the BANK of touch personalities, one performed per frame
-   from the pointer's presence. Each entry pairs a FORCE the field
-   answers with (touchFxMode → uPtrMode → ptrWarp, in every scene's
-   shader) with a PERFORMANCE on the touch stage (#touchCanvas): the
-   personality visibly does what its name says, in the music's live
-   palette, on all sixteen scenes and any added later. The choice
-   persists; AUTO lets the scenes re-tune it.
+   TOUCHFX — the BANK of forces the fabric can answer with. Each entry
+   names one way of deforming space (touchFxMode → uPtrF.x →
+   warpDeflect), which the point shaders obey as real displacement and
+   the light-bending pass obeys as refraction. There is no performance
+   layer: the personality IS the deformation, so it works on all
+   sixteen scenes and any added later without any of them knowing.
+   The choice persists; AUTO lets the scenes re-tune it.
    ================================================================ */
 const TOUCHFX = {
   // AUTO is the new default: the scenes manager re-tunes the touch to each
@@ -15159,18 +15342,17 @@ const TOUCHFX = {
   active: 'auto',
   order: ['auto', 'blackhole', 'grows', 'gathers', 'flows'],
   // Each effect is a motif from the "Everything That…" covers, mapped to a
-  // force the field actually answers with (see touchFxMode → uPtrMode →
-  // ptrWarp). `dark` = whether the multiply void darkens the core (a true
-  // black hole / a gravity well drawing matter in); the others show only the
-  // accent ring while the shader winds or ripples the field around the hand.
+  // deformation of space (see touchFxMode → warpDeflect). The old `dark` /
+  // `ring` / `pure` flags described which overlay each one wore; the overlays
+  // are gone and so are the flags — the void is dark because light inside its
+  // horizon does not come back, and the ring is where a lens's two images
+  // converge. What each personality looks like is now a consequence, not a
+  // costume.
   bank: {
-    // dark = the multiply void darkens the core · ring = the accent event-horizon
-    // halo · pure = a clean pure-black void with no accent tint. The black hole
-    // is the baseline: just black, no halo — the original, and the coolest.
-    blackhole: { chip: 'VOID', label: 'Black hole',   hint: 'the light bends away from your hand — hold, and the horizon widens',  dark: true,  ring: false, pure: true  },
-    grows:     { chip: 'SPIN', label: 'Vortex',       hint: 'a spiral winds around your touch — sling it and it keeps turning',    dark: false, ring: true  },
-    gathers:   { chip: 'PULL', label: 'Accretion',    hint: 'everything orbits and falls toward your hold — let go to detonate',   dark: true,  ring: true  },
-    flows:     { chip: 'WAVE', label: 'Ripples',      hint: 'waves roll outward, cresting on the beat',                            dark: false, ring: true  },
+    blackhole: { chip: 'VOID', label: 'Black hole', hint: 'the light bends around your hand and the middle is simply gone — hold, and the horizon widens' },
+    grows:     { chip: 'SPIN', label: 'Vortex',     hint: 'space itself turns around your touch — sling it and it keeps turning' },
+    gathers:   { chip: 'PULL', label: 'Accretion',  hint: 'the room falls inward and shears into orbit — let go to detonate' },
+    flows:     { chip: 'WAVE', label: 'Ripples',    hint: 'the fabric oscillates outward, cresting on the beat' },
   },
   // AUTO's live resolution — the personality the scenes manager last dealt
   _resolved: 'blackhole', _autoT: 999, _pendingScene: -1, _introduced: false,
@@ -15255,232 +15437,32 @@ const TOUCHFX = {
     try { const k = localStorage.getItem('mb8_touchfx'); if (k && (k === 'auto' || this.bank[k])) this.active = k; } catch (e){}
     this.paint();
   },
-  /* ---- the touch's STAGE ------------------------------------------------
-     Each personality PERFORMS what it says, drawn per-frame on a 2D canvas
-     in the music's live palette: the black hole wears a blazing photon ring
-     with lensed starlight shearing around the horizon; the vortex winds
-     real spiral arms whose speed is the spin you banked; accretion is a
-     disk of motes visibly falling in, faster and hungrier as the hold
-     charges; ripples are actual rings rolling outward, cresting on the
-     beat. On every personality a hold banks a visible charge arc and the
-     release detonates a bright wavefront from the lift point. A strained
-     device (or ECO) falls back to the old one-gradient presentation —
-     the personality still answers in the field shader either way. */
-  _cv: null, _ctx: null, _rings: [], _motes: null,
-  _armPhase: 0, _ringT: 9, _pb: 0, _wasLive: false,
-  _stage(){
-    if (this._ctx) return this._ctx;
-    this._cv = document.getElementById('touchCanvas');
-    if (this._cv) this._ctx = this._cv.getContext('2d');
-    return this._ctx;
-  },
-  _size(){
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const w = Math.round(window.innerWidth * dpr), h = Math.round(window.innerHeight * dpr);
-    if (this._cv.width !== w || this._cv.height !== h){ this._cv.width = w; this._cv.height = h; }
-    this._ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  },
-  _pal(which, a){
-    const c = which === 0 ? U.uColA.value : which === 1 ? U.uColB.value : U.uColC.value;
-    return 'rgba(' + ((c.r * 255) | 0) + ',' + ((c.g * 255) | 0) + ',' + ((c.b * 255) | 0) + ',' + a.toFixed(3) + ')';
-  },
-  render(dt){
-    dt = Math.min(dt || 0.016, 0.05);
-    const fx = this.bank[this.actual()]; if (!fx) return;
-    // a strained device or ECO keeps the old zero-cost presentation
-    const lean = (typeof PERF !== 'undefined' && PERF.struggling)
-      || (typeof POWER !== 'undefined' && !POWER.lensOK);
-    const ctx = lean ? null : this._stage();
-    if (!ctx){ this._renderSimple(fx); return; }
-    const s = INTERACT.strength, burst = INTERACT.burst;
-    if (s < 0.02 && burst < 0.02 && !this._rings.length){ this._sleep(); return; }
-    this._size();
-    const w = window.innerWidth, h = window.innerHeight, vm = Math.min(w, h);
-    ctx.clearRect(0, 0, w, h);
-    this._wasLive = true;
-    // follow the SPRUNG warp centre (wx/wy), so the art carries the same
-    // weight and momentum as the field it sits in — you sling the whole effect
-    const x = (INTERACT.wx * 0.5 + 0.5) * w;
-    const y = (0.5 - INTERACT.wy * 0.5) * h;
-    const grow = 0.55 + s * 0.9 + INTERACT.charge * 0.22 + AE.f.beat * 0.06 * s;
-    const R = vm * 0.115 * grow;
-    // the dark cores keep the DOM void — multiply blending darkens the field
-    // beneath, which a lighter-composite canvas cannot do
-    if (el.voidFx){
-      el.voidFx.style.left = x + 'px'; el.voidFx.style.top = y + 'px';
-      el.voidFx.style.transform = 'translate(-50%,-50%) scale(' + grow.toFixed(3) + ')';
-      el.voidFx.classList.toggle('on', !!fx.dark && s >= 0.02);
-      el.voidFx.classList.toggle('pure', !!fx.pure);
-    }
-    if (el.voidRing) el.voidRing.classList.remove('on');   // the canvas performs now
-    const calm = ((typeof SAFE !== 'undefined' && SAFE.calm) ? 0.6 : 1) * (reducedMotion ? 0.5 : 1);
-    const spd = reducedMotion ? 0.35 : 1;
-    // the light personalities clear their own stage: a soft dark veil under
-    // the art so the glow reads over a busy field drawn in the SAME palette
-    // (the dark personalities already stand in the multiply void's shadow)
-    if (!fx.dark && s >= 0.02){
-      const veil = ctx.createRadialGradient(x, y, R * 0.1, x, y, R * 1.8);
-      veil.addColorStop(0, 'rgba(0,0,0,' + (0.45 * s).toFixed(3) + ')');
-      veil.addColorStop(0.7, 'rgba(0,0,0,' + (0.30 * s).toFixed(3) + ')');
-      veil.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = veil;
-      ctx.beginPath(); ctx.arc(x, y, R * 1.8, 0, 6.2832); ctx.fill();
-    }
-    ctx.globalCompositeOperation = 'lighter';
-    if (this._rings.length) this._drainRings(ctx, x, y, dt, calm, spd, vm);
-    if (s >= 0.02){
-      const key = this.actual();
-      if (key === 'grows') this._drawSpin(ctx, x, y, R, s, dt, calm, spd);
-      else if (key === 'gathers') this._drawPull(ctx, x, y, R, s, dt, calm, spd);
-      else if (key === 'flows') this._emitRings(R, s, dt);
-      else this._drawVoid(ctx, x, y, R, s, dt, calm, spd);
-      // banking power is legible: a thin arc fills as the hold charges
-      if (INTERACT.dragging && INTERACT.charge > 0.08){
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 * calm).toFixed(3) + ')';
-        ctx.beginPath();
-        ctx.arc(x, y, R * 1.22, -1.5708, -1.5708 + INTERACT.charge * 6.2832);
-        ctx.stroke();
-      }
-    }
-    // THE RELEASE, visible on every personality: the spent charge travels
-    // as one bright wavefront from the lift point as the burst decays
-    if (burst > 0.02){
-      const front = R * 0.6 + (1 - burst) * vm * 0.38;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (burst * 0.55 * calm).toFixed(3) + ')';
-      ctx.beginPath(); ctx.arc(x, y, front, 0, 6.2832); ctx.stroke();
-      ctx.lineWidth = 8;
-      ctx.strokeStyle = this._pal(2, burst * 0.28 * calm);
-      ctx.beginPath(); ctx.arc(x, y, front * 0.96, 0, 6.2832); ctx.stroke();
-    }
-    ctx.globalCompositeOperation = 'source-over';
-  },
-  // VOID — the horizon dressed: a blazing photon ring, lensed starlight
-  // shearing around it in counter-rotating arcs
-  _drawVoid(ctx, x, y, R, s, dt, calm, spd){
-    this._armPhase += dt * 0.5 * spd;
-    const r = R * 0.86;
-    ctx.lineWidth = 1.8;
-    ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * s * calm).toFixed(3) + ')';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
-    ctx.lineWidth = 7; ctx.strokeStyle = this._pal(2, 0.22 * s * calm);
-    ctx.beginPath(); ctx.arc(x, y, r * 1.05, 0, 6.2832); ctx.stroke();
-    for (let i = 0; i < 4; i++){
-      const a0 = this._armPhase * (i % 2 ? -0.7 : 1) + i * 1.57;
-      ctx.lineWidth = 1.4;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.28 * s * calm).toFixed(3) + ')';
-      ctx.beginPath(); ctx.arc(x, y, r * (1.16 + 0.10 * i), a0, a0 + 0.9 - i * 0.12); ctx.stroke();
-    }
-  },
-  // SPIN — three real spiral arms; chirality from your drag, speed from the
-  // spin you banked slinging it (a slung record keeps turning)
-  _drawSpin(ctx, x, y, R, s, dt, calm, spd){
-    const dir = this.mode() < 0 ? -1 : 1;
-    this._armPhase += dt * dir * (1.4 + INTERACT.spinE * 5 + Math.abs(INTERACT.swirl) * 0.8) * spd;
-    const steps = 26;
-    for (let k = 0; k < 3; k++){
-      // wide palette glow, a hot palette body, a white-hot core — the arm
-      // reads over a field painted in its own colours
-      const passes = [
-        [7.0, this._pal(k % 2, 0.18 * s * calm)],
-        [2.6, this._pal(k % 2, 0.60 * s * calm)],
-        [1.2, 'rgba(255,255,255,' + (0.40 * s * calm).toFixed(3) + ')'],
-      ];
-      for (const pass of passes){
-        ctx.lineWidth = pass[0];
-        ctx.strokeStyle = pass[1];
-        ctx.beginPath();
-        for (let i = 0; i <= steps; i++){
-          const t = i / steps;
-          const ang = dir * t * 4.4 + this._armPhase + k * 2.0944;
-          const rr = R * (0.10 + t * 1.30);
-          const px = x + Math.cos(ang) * rr, py = y + Math.sin(ang) * rr * 0.92;
-          if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
-        }
-        ctx.stroke();
-      }
-    }
-  },
-  // PULL — an accretion disk: motes visibly orbit AND fall in, tails along
-  // the orbit, hotter and faster near the centre; charge feeds the hunger
-  _drawPull(ctx, x, y, R, s, dt, calm, spd){
-    if (!this._motes){
-      this._motes = [];
-      for (let i = 0; i < 22; i++) this._motes.push({ a: Math.random() * 6.2832, r: 0.35 + Math.random() });
-    }
-    const sq = 0.86;                     // a slight ellipse reads as a disk seen at a tilt
-    for (const m of this._motes){
-      m.a += dt * spd * (2.0 + INTERACT.charge * 2.2) / Math.max(0.18, m.r);
-      m.r -= dt * spd * (0.16 + INTERACT.charge * 0.5);
-      if (m.r < 0.16){ m.r = 1.15 + Math.random() * 0.3; m.a = Math.random() * 6.2832; }
-      const rr = m.r * R * 1.15;
-      const heat = Math.max(0, 1 - (m.r - 0.16));
-      ctx.lineWidth = 1.8;
-      ctx.strokeStyle = this._pal(heat > 0.6 ? 2 : 1, (0.22 + 0.45 * heat) * s * calm);
-      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * sq, 0, m.a - (0.3 + INTERACT.charge * 0.35), m.a); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.7 * Math.max(0.25, heat) * s * calm).toFixed(3) + ')';
-      ctx.beginPath(); ctx.arc(x + Math.cos(m.a) * rr, y + Math.sin(m.a) * rr * sq, 1.4 + heat * 1.2, 0, 6.2832); ctx.fill();
-    }
-  },
-  // WAVE — rings actually roll outward; a ring born on the beat crests
-  // brighter and whiter, so the hand sees the music's pulse leave it
-  _emitRings(R, s, dt){
-    this._ringT += dt;
-    const onBeat = AE.f.beat > 0.9 && this._pb <= 0.9;
-    if ((onBeat || this._ringT > 0.8) && this._rings.length < 9){
-      this._rings.push({ r: R * 0.25, a: (onBeat ? 0.8 : 0.45) * s, hot: onBeat });
-      this._ringT = 0;
-    }
-    this._pb = AE.f.beat;
-  },
-  _drainRings(ctx, x, y, dt, calm, spd, vm){
-    for (const g of this._rings){
-      g.r += dt * spd * vm * (0.12 + AE.f.energy * 0.15 + (g.hot ? 0.05 : 0));
-      g.a *= Math.exp(-dt / (g.hot ? 1.1 : 0.8));
-      ctx.lineWidth = g.hot ? 2.6 : 1.6;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (g.a * (g.hot ? 0.7 : 0.35) * calm).toFixed(3) + ')';
-      ctx.beginPath(); ctx.arc(x, y, g.r, 0, 6.2832); ctx.stroke();
-      ctx.lineWidth = g.hot ? 5 : 3;
-      ctx.strokeStyle = this._pal(g.hot ? 2 : 0, g.a * 0.4 * calm);
-      ctx.beginPath(); ctx.arc(x, y, g.r * 0.97, 0, 6.2832); ctx.stroke();
-    }
-    this._rings = this._rings.filter(g => g.a > 0.04 && g.r < vm * 0.62);
-  },
-  // the old zero-cost presentation — ECO / strained devices, and the fallback
-  // when the canvas is missing. The personality still answers in the shader.
-  _renderSimple(fx){
-    if (this._wasLive && this._ctx){
-      this._ctx.setTransform(1, 0, 0, 1, 0, 0);
-      this._ctx.clearRect(0, 0, this._cv.width, this._cv.height);
-      this._wasLive = false; this._rings.length = 0;
-    }
-    const s = INTERACT.strength;
-    if (s < 0.02){ this._off(); return; }
-    const grow = 0.55 + s * 0.9 + INTERACT.charge * 0.22 + AE.f.beat * 0.06 * s;
-    const x = (INTERACT.wx * 0.5 + 0.5) * window.innerWidth;
-    const y = (0.5 - INTERACT.wy * 0.5) * window.innerHeight;
-    if (el.voidFx){
-      el.voidFx.style.left = x + 'px'; el.voidFx.style.top = y + 'px';
-      el.voidFx.style.transform = 'translate(-50%,-50%) scale(' + grow.toFixed(3) + ')';
-      el.voidFx.classList.toggle('on', !!fx.dark);
-      el.voidFx.classList.toggle('pure', !!fx.pure);   // the black hole is pure black, no accent
-    }
-    if (el.voidRing){
-      el.voidRing.style.left = x + 'px'; el.voidRing.style.top = y + 'px';
-      el.voidRing.style.transform = 'translate(-50%,-50%) scale(' + (grow * 1.04).toFixed(3) + ')';
-      el.voidRing.classList.toggle('on', !!fx.ring);   // only the effects that need it wear the halo
-    }
-  },
-  _sleep(){
-    this._off();
-    if (this._wasLive && this._ctx){
-      this._ctx.setTransform(1, 0, 0, 1, 0, 0);
-      this._ctx.clearRect(0, 0, this._cv.width, this._cv.height);
-      this._wasLive = false;
-    }
-  },
-  _off(){ if (el.voidFx) el.voidFx.classList.remove('on'); if (el.voidRing) el.voidRing.classList.remove('on'); },
+  /* ---- there is no stage ------------------------------------------------
+     This is where a 220-line 2D canvas performance used to live: a photon
+     ring stroked around the void, three spiral arms wound for the vortex, a
+     disk of orbiting motes for the accretion, expanding rings for the waves,
+     a progress arc banking the hold, and a bright wavefront on release —
+     all of it drawn on #touchCanvas at z-index 4, over a #voidFx div that
+     darkened the field with mix-blend-mode: multiply.
+
+     It was beautiful and it was a heads-up display. Screen-space strokes at a
+     fixed pixel width sit in FRONT of the world: they ignore depth, ignore the
+     camera, ignore which scene is up, and they needed a dark radial veil
+     painted under them so the glow would read over a busy field — dimming the
+     actual visuals so the decoration could be seen. A progress arc under your
+     thumb is a UI element no matter what palette it borrows.
+
+     All of it is gone, and nothing replaced it in that layer. The personalities
+     did not go away: they moved down into the metric (see WARP / GLSL_WARP),
+     where the void's core is black because light inside the capture radius does
+     not return, the photon ring is where a lens's two images converge, the
+     vortex is space actually rotating, the accretion is space drawing inward and
+     shearing, and the ripples are the metric oscillating. The hold's charge is
+     legible as the horizon widening and the colour channels splitting under
+     strain, not as an arc filling.
+
+     What is left of TOUCHFX is what it always really was: the bank of forces,
+     the AUTO resolution the scenes re-tune, and the chip that names them. */
 };
 TOUCHFX.load();
 
@@ -16606,6 +16588,7 @@ function initThree(){
 
   U.uPtr.value = new THREE.Vector3(0, 0, 0);
   U.uPtrX.value = new THREE.Vector3(0, 0, 0);
+  U.uPtrF.value = new THREE.Vector4(0, 1, 0, 0);
   initAudioTexture();
   initRampTexture();
   buildStarfield();
@@ -17001,6 +16984,103 @@ const LENS_GRADE = `
     gl_FragColor = vec4(inkRolloff(texture2D(tScene, gl_FragCoord.xy / uResolution).rgb), 1.0);
   }`;
 
+/* FIELD — the light itself, bent by the hand. THIS is the pass that ends the
+   overlay, and it earns its place by doing three things a canvas stroke cannot.
+
+   It bends EVERYTHING. It runs on the composited frame, so the eleven
+   raymarched scenes — which have no particles to push and until now answered a
+   touch with nothing but a camera nudge — are refracted by the same hand that
+   moves the point clouds. Whatever is on screen is what gets distorted.
+
+   It makes the darkness real. The void's core is black because light inside the
+   capture radius does not come back, so there is nothing to sample there. That
+   used to be a DOM div with mix-blend-mode: multiply, hovering at z-index 4 in
+   front of the world. Now the world simply has a hole in it.
+
+   And it makes the ring emergent. A lens produces TWO images of everything
+   behind it, and at the Einstein radius the two converge on the same source
+   point and the light doubles. So this samples both deflections and adds them:
+   the bright ring appears where the physics puts it, out of the same arithmetic
+   that bends the rest — nobody strokes an arc.
+
+   On top of that: the light dims where the map stretches it (the same energy
+   over more area — which is why the near field falls away into the core), and
+   the colour channels split under a charged hold, so committing visibly strains
+   the fabric rather than adding a badge to it.
+
+   Runs only while a hand is live, and never on ECO or a strained device, where
+   the matter-side warp answers alone exactly as it does today. */
+const LENS_FIELD = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution;
+  uniform float uTime;
+  ` + GLSL_WARP + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float force = warpForce();
+    float burst = uPtrX.y;
+    if (force < 0.003 && burst < 0.01){ gl_FragColor = vec4(texture2D(tScene, uv).rgb, 1.0); return; }
+    // work in a square screen space so the deformation is round, not an ellipse
+    float aspect = uResolution.x / max(1.0, uResolution.y);
+    vec2 p = (uv * 2.0 - 1.0) * vec2(aspect, 1.0);
+    vec2 c = uPtr.xy * vec2(aspect, 1.0);
+    vec2 d = p - c;
+    float dist = length(d);
+    vec2 dir = normalize(d + 1e-5);
+    float mode = uPtrF.x;
+    vec2 warp = warpDeflect(mode, dist);
+    float ang = warp.y * force;
+    float rad = warp.x * force;
+
+    // CAPTURE. Inside the horizon the light is gone; the edge is soft over a
+    // few percent of a radius so it reads as a horizon and not as a cut circle.
+    float horizon = warpHorizon(mode, force);
+    float caught = horizon > 0.0 ? 1.0 - smoothstep(horizon * 0.72, horizon * 1.15, dist) : 0.0;
+
+    // the release wavefront, travelling outward through the metric
+    if (burst > 0.01){
+      float front = exp(-abs(dist - (1.0 - burst) * ${WARP.front.toFixed(3)}) * 5.5);
+      rad += front * burst * ${(WARP.lens * 4.2).toFixed(4)};
+    }
+
+    // THE TWO IMAGES. One deflection each way; where they meet, the light
+    // doubles and the ring is simply there.
+    float ca = cos(ang), sa = sin(ang);
+    vec2 rotA = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
+    vec2 rotB = vec2(dir.x * ca + dir.y * sa, -dir.x * sa + dir.y * ca);
+    float rA = dist + rad, rB = max(0.0, dist - rad);
+    // strain splits the channels: achromatic at a graze, visibly stressed on a
+    // committed hold, so the reward for holding is in the light, not on top of it.
+    // Scaled by the budget with everything else — if the deformation is running at
+    // a third for someone who asked for reduced motion, the strain it shows must
+    // be a third too, or the fabric would look harder-pressed than it is bent.
+    float split = ${WARP.aberr.toFixed(4)} * uPtrX.x * uPtrF.y;
+    vec3 img;
+    vec2 uA = (c + rotA * rA) / vec2(aspect, 1.0) * 0.5 + 0.5;
+    vec2 uB = (c + rotB * rB) / vec2(aspect, 1.0) * 0.5 + 0.5;
+    if (split > 0.001){
+      vec2 sA = (c + rotA * (dist + rad * (1.0 + split))) / vec2(aspect, 1.0) * 0.5 + 0.5;
+      vec2 sB = (c + rotA * (dist + rad * (1.0 - split))) / vec2(aspect, 1.0) * 0.5 + 0.5;
+      img = vec3(texture2D(tScene, clamp(sA, 0.0, 1.0)).r,
+                 texture2D(tScene, clamp(uA, 0.0, 1.0)).g,
+                 texture2D(tScene, clamp(sB, 0.0, 1.0)).b);
+    } else {
+      img = texture2D(tScene, clamp(uA, 0.0, 1.0)).rgb;
+    }
+    // the secondary image exists only where the lens is actually bending — a flat
+    // fabric must reduce to a plain copy of the frame — and it is what makes the
+    // light visibly ARC around the void rather than merely vanish into it
+    float second = clamp(abs(rad) * 6.5, 0.0, 0.75);
+    img += texture2D(tScene, clamp(uB, 0.0, 1.0)).rgb * second;
+
+    // ENERGY OVER AREA. Stretching the image outward spreads the same light
+    // over more of it, so the near field falls away toward the core on its own.
+    float spread = dist / max(1e-3, rA);
+    img *= mix(1.0, clamp(spread, 0.25, 2.2), 0.75);
+
+    gl_FragColor = vec4(img * (1.0 - caught), 1.0);
+  }`;
+
 const LENS = {
   // AUTO is the default: the director reads the song's real structure + its
   // Camelot mood and puts a lens on ONLY where the music earns it (an apex, a
@@ -17068,11 +17148,15 @@ const LENS = {
     this._tri = new THREE.Mesh(g, null); this._tri.frustumCulled = false; this._fs.add(this._tri);
     const mk = frag => new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, uResolution: { value: new THREE.Vector2(1, 1) },
-        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uWhite: U.uWhite, uSectors: { value: 6 } },
+        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uWhite: U.uWhite, uSectors: { value: 6 },
+        // the FIELD pass shares the hand's uniform objects with every point
+        // shader by reference, so the light and the matter cannot disagree
+        uPtr: U.uPtr, uPtrX: U.uPtrX, uPtrF: U.uPtrF },
       vertexShader: LENS_VERT, fragmentShader: frag, depthTest: false, depthWrite: false,
     });
     this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS),
-      wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE), grade: mk(LENS_GRADE) };
+      wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE), grade: mk(LENS_GRADE),
+      field: mk(LENS_FIELD) };
     this._ready = true;
   },
   chain(){
@@ -17134,12 +17218,31 @@ const LENS = {
     c.classList.toggle('on', this.active !== 'none');
   },
   // draw the two base scenes, then the lens chain — or the plain direct path
+  // Is a hand on the fabric right now? Only then does the light-bending pass
+  // exist — a flat metric would resample the whole frame to prove it changed
+  // nothing, and one full-screen tap per pixel is not a rounding error on a
+  // phone. Presence or a still-travelling release wavefront both count.
+  handLive(){
+    if (typeof INTERACT === 'undefined') return false;
+    return INTERACT.strength > 0.004 || INTERACT.burst > 0.01;
+  },
   render(renderer, bgScene, bgCam, scene, camera){
     let passes = [];
     // ECO never pays for render targets or extra passes, whatever the chip says
     const allowed = typeof POWER === 'undefined' || POWER.lensOK;
     if (allowed){ this._init(); if (this.active !== 'none') passes = this.chain(); }
     const lensed = passes.length > 0;
+    /* THE FABRIC BENDS THE LIGHT FIRST. The deformation is of SPACE, and the
+       artistic lenses are glass the already-curved image then passes through —
+       so a kaleidoscope repeats your hand's distortion into every sector, which
+       is the room's symmetry answering the touch rather than covering it.
+
+       Skipped entirely on ECO and on a device the governor has found to be
+       struggling: there the matter-side warp answers alone, exactly as it does
+       today. A weak device gets a quieter reply, never a stuttering one. */
+    const strained = (typeof PERF !== 'undefined' && PERF.struggling);
+    if (allowed && !strained && this._ready && this.handLive())
+      passes = [this._mats.field].concat(passes);
     // GRADE always runs last where HDR exists: the lenses fold and refract the
     // light while it is still linear and unbounded, and the rolloff has the
     // final word on what reaches the glass.
@@ -17313,14 +17416,19 @@ function frame(now){
 
   INTERACT.update(dt);
   DWELL.update(dt);
-  if (drawing) drawSafe('touchfx', () => TOUCHFX.render(dt));   // the touch performs its personality under the hand
-  U.uPtr.value.set(INTERACT.wx, INTERACT.wy,   // the sprung warp centre — the field has weight
-    INTERACT.strength * (reducedMotion ? 0.35 : 1));
-  U.uPtrMode.value = TOUCHFX.mode();   // the touch's personality (VOID/SPIN/PULL/WAVE)
-  // the touch's depth: hold charge, release burst, banked spin (damped for
-  // reduced motion the same way presence is — the mechanic, not the violence)
-  const ptrDamp = reducedMotion ? 0.35 : 1;
-  U.uPtrX.value.set(INTERACT.charge * ptrDamp, INTERACT.burst * ptrDamp, INTERACT.spinE);
+  /* THE HAND, HANDED TO THE FABRIC. Nothing is drawn here any more — there is
+     no stage to perform on. These four uniforms ARE the touch: the metric reads
+     them, the particles move through it, and the light-bending pass refracts
+     the frame through the same numbers. */
+  U.uPtr.value.set(INTERACT.wx, INTERACT.wy, INTERACT.strength);
+  U.uPtrX.value.set(INTERACT.charge, INTERACT.burst, INTERACT.spinE);
+  // the budget is where reduced-motion and the safety governor land: one scalar
+  // that shrinks the whole deformation without ever closing it (warpBudget)
+  U.uPtrF.value.set(
+    TOUCHFX.mode(),                                   // which force the hand applies
+    warpBudget({ reduced: reducedMotion, calm: typeof SAFE !== 'undefined' && SAFE.calm }),
+    AE.f.beat,                                        // the ripples crest on the hit
+    INTERACT.ripplePhase);                            // frozen for reduced motion — see INTERACT
   TOUCHFX.autoTick(dt);                // an owed personality change lands once the hand lifts
 
   director.update(dt);
