@@ -312,12 +312,24 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   by hand. Braking the apply treats the symptom — the offer itself was never
   gated.
 - **The rule that was missing, now pure and tested:** `updateOffer()` returns
-  `show` | `ignore` | `verify`. A waiting worker is a versioned release the browser
-  installed and stands on its own. A shell claim carrying a build id is settled
-  here — same id as the running build means there is nothing to offer, with no
-  qualifiers. A shell claim with NO id is not believed: `verifyShell()` fetches the
-  deployed shell past every cache and reads its stamp, and only a different one
-  earns a card — which then arrives named instead of as "new".
+  `show` | `ignore` | `verify`, and judges by PROVENANCE rather than by comparing
+  build ids. A waiting `worker` is a versioned release the browser installed and
+  stands on its own. A `shell` claim is the worker's own byte-compare reporting
+  that the deployed shell differs from the one this page was served — a fact about
+  content, so it stands whether or not the stamp moved. A `claim` (a
+  `controllerchange` nobody asked for) is evidence that a worker took over and
+  nothing more: `verifyShell()` fetches the deployed shell past every cache and
+  reads its stamp, and only a different one earns a card, which then arrives named
+  instead of as "new".
+- **The trap on the other side, walked into and caught.** The first version of this
+  rule rejected every claim whose build id matched the running one — which is
+  correct for the reported loop and **fatal for the un-stamped deploy**, whose whole
+  signature is *same id, different content*. `echoes_power_smoke`'s "a fresh deploy
+  raises the update badge by itself" went red immediately: a false positive had been
+  traded for a false negative, which is the worse of the two. Provenance is what
+  separates them — the worker measured content, a controllerchange measured
+  nothing — and `update_probe`'s unstamped scenario did NOT catch it, because it
+  changes the build id too. Both checks are needed and neither is redundant.
 - **A card raised in error can now leave.** `withdrawOffer()` hides the button,
   clears the source and target, and settles any deferral owed to a phantom. Without
   it the wrong offer stayed up until a reload, which is the shape the loop wore.

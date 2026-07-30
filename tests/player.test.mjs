@@ -2400,24 +2400,31 @@ test('mixsetPick: anchor first (in full), else nearest-energy from the section p
   assert.equal(S.mixsetPick(MIXSET_FIX, [], {}), null);
 });
 
-test('updateOffer: an update to the build you are already running is not an update', () => {
+test('updateOffer: judged by provenance, because a difference is not a newer build', () => {
   const run = 'aaaa111111';
-  // THE BUG THIS EXISTS FOR. A listener on aaaa111111 was shown a card reading
-  // "aaaa111111 → new", applied it, changed nothing, and was shown it again. The
-  // old guard only rejected a matching build when a card was ALREADY up, so the
-  // first claim of every check sailed through.
-  assert.equal(S.updateOffer({ source: 'shell', build: run, running: run }), 'ignore');
+  // A CONTROLLERCHANGE IS A CLAIM, NOT A MEASUREMENT. This is what put
+  // "aaaa111111 -> new" on a listener's screen: a worker took over, nobody
+  // measured anything, and the card offered the build already running.
+  assert.equal(S.updateOffer({ source: 'claim', build: '', running: run }), 'verify');
+  assert.equal(S.updateOffer({ source: 'claim', running: run }), 'verify');
+  // once checked, it is settled here by id
+  assert.equal(S.updateOffer({ source: 'claim', build: run, running: run }), 'ignore');
+  assert.equal(S.updateOffer({ source: 'claim', build: 'bbbb222222', running: run }), 'show');
+  /* AND THE TRAP ON THE OTHER SIDE, which the first version of this walked into:
+     rejecting every claim whose id matches the running build kills the UN-STAMPED
+     deploy — same id, different content — which is the whole reason the worker's
+     byte-compare exists. A 'shell' claim is that compare's verdict about CONTENT,
+     so it stands whether or not the stamp moved. (echoes_power_smoke's "a fresh
+     deploy raises the update badge by itself" is the check that caught this.) */
+  assert.equal(S.updateOffer({ source: 'shell', build: run, running: run }), 'show',
+    'an unstamped deploy still reaches the listener');
   assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run }), 'show');
-  // an unnamed shell claim is evidence of a DIFFERENCE, not of a newer build —
-  // it has to be checked against the deployed shell before it earns a card
-  assert.equal(S.updateOffer({ source: 'shell', build: '', running: run }), 'verify');
-  assert.equal(S.updateOffer({ source: 'shell', running: run }), 'verify');
-  // a waiting service worker is a versioned release the browser installed
-  // itself — the strongest evidence there is, and it stands without a name
+  assert.equal(S.updateOffer({ source: 'shell', build: '', running: run }), 'show');
+  // a waiting service worker is a versioned release the browser installed itself
   assert.equal(S.updateOffer({ source: 'worker', build: '', running: run }), 'show');
   assert.equal(S.updateOffer({ source: 'worker', build: run, running: run }), 'show');
   // nothing is offered while an apply is already under way
-  for (const src of ['worker', 'shell'])
+  for (const src of ['worker', 'shell', 'claim'])
     assert.equal(S.updateOffer({ source: src, build: 'bbbb222222', running: run, requested: true }), 'ignore');
   assert.equal(S.updateOffer(null), 'verify', 'garbage in → check, never assert');
 });

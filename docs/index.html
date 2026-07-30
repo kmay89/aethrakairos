@@ -2812,30 +2812,34 @@ function updateGate(o){
   if (o.show) return 'wait';
   return o.playing ? 'wait' : 'apply';
 }
-/* SHOULD THIS OFFER STAND? The one rule that was missing, and the reason a card
-   could reappear forever: AN UPDATE TO THE BUILD YOU ARE ALREADY RUNNING IS NOT
-   AN UPDATE. The old guard checked that, but only when the claim arrived with a
-   build id AND an offer was already on screen — so a first claim, or one with no
-   id at all, sailed past it and put up a card reading "05d9b7a1af → new" for a
-   deploy the listener was already on. Applying it changed nothing, the next
-   check claimed it again, and the loop brake in updateGate (which only ever
-   rate-limited the AUTOMATIC apply) let the card keep coming back by hand.
+/* SHOULD THIS OFFER STAND? The rule that was missing, and the reason a card could
+   reappear forever: A DIFFERENCE IS NOT A NEWER BUILD. But the converse trap is
+   just as real, and the first version of this walked straight into it — rejecting
+   every claim whose build id matched the running one killed the un-stamped deploy,
+   which is the whole reason the byte-compare exists. Same id, different content is
+   EXACTLY the case that path was built for.
 
-   Claims are not equal:
-     worker  a waiting service worker is a versioned release the browser itself
-             installed — the strongest evidence there is. It stands.
-     shell   a byte-compare, or another window taking over. Evidence of a
-             DIFFERENCE, which is not the same as evidence of a NEWER BUILD.
-             With a build id it can be settled here; without one it has to be
+   So claims are judged by PROVENANCE, not by comparing ids:
+
+     worker  a waiting service worker: a versioned release the browser itself
+             installed. The strongest evidence there is; it stands.
+     shell   the worker's own byte-compare said the deployed shell differs from
+             the one this page was served. That is a fact about content, so it
+             stands whether or not the stamp moved — and the worker will not raise
+             it from a cold cache or raise the same shell twice.
+     claim   something changed hands and nobody measured anything: a
+             controllerchange we did not ask for. Evidence that a worker took over,
+             which is not evidence of newer code. It carries no build id, it is
+             what put "05d9b7a1af -> new" on a listener's screen, and it has to be
              checked against the deployed shell before it earns a card.
 
    Returns 'show' | 'ignore' | 'verify'. */
 function updateOffer(o){
   const s = o || {};
   if (s.requested) return 'ignore';                 // we are already applying one
-  if (s.source === 'worker') return 'show';
-  if (!s.build) return 'verify';                    // an unnamed claim proves nothing yet
-  return s.build === s.running ? 'ignore' : 'show';
+  if (s.source === 'worker' || s.source === 'shell') return 'show';
+  if (s.build) return s.build === s.running ? 'ignore' : 'show';
+  return 'verify';                                  // an unmeasured claim proves nothing
 }
 /* NEWS SINCE — which changelog entries are newer than the running build.
    Entries come newest-first; walk until the running build appears (exclusive).
@@ -10586,7 +10590,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '6336472694';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '74fea37ab0';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -10702,9 +10706,8 @@ function registerSW(){
        be mid-track — but the offer must stay TRUE, so record it as a shell
        update (a reload is all it takes) and keep the button honest. Without
        this the page sits on stale code holding a button that can't help. */
-    UPDATE.source = 'shell';
-    ACTIVITY.log('update', 'Another window applied the update — a reload finishes it here');
-    offerUpdate('shell', '');
+    ACTIVITY.log('update', 'Another window took over — checking whether its code is newer');
+    offerUpdate('claim', '');
   });
   // the worker tells us when its background byte-compare found a fresh shell
   navigator.serviceWorker.addEventListener('message', ev => {
@@ -10740,7 +10743,7 @@ async function verifyShell(source){
     const build = m ? m[1] : '';
     if (!build) return;                      // could not read it — claim nothing
     if (build === MB8_BUILD){ withdrawOffer('already current'); return; }
-    offerUpdate(source, build);              // real, and now it has a name
+    offerUpdate(source === 'claim' ? 'shell' : source, build);   // real, and now it has a name
   } catch (e){
     // offline, blocked, throttled — all of them mean "unknown", never "newer"
   } finally { verifying = false; }

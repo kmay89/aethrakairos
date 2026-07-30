@@ -693,11 +693,20 @@ The parts that took a real browser to get right:
   guard was skipped entirely and the card rendered its target as the word "new";
   and the worker announced a fresh shell whenever the fetch differed from its
   cache — **including when that cache was empty**, which it is on every activation,
-  because `SHELL_CACHE` is versioned. `updateOffer()` is the rule that was missing:
-  a waiting worker stands on its own, a shell claim carrying an id is settled
-  against the running build with no qualifiers, and a claim with no id is *checked*
-  against the deployed shell before it earns a card. A card raised in error now
-  withdraws itself instead of waiting for a reload.
+  because `SHELL_CACHE` is versioned. `updateOffer()` is the rule that was missing,
+  and it judges by **provenance**: a waiting worker stands on its own; a *shell*
+  claim is the worker's byte-compare reporting that the deployed shell differs from
+  the one this page was served, which is a fact about content and stands whether or
+  not the stamp moved; a bare *claim* — a `controllerchange` nobody asked for — is
+  evidence a worker took over and nothing more, so it is checked against the
+  deployed shell before it earns a card. A card raised in error now withdraws itself
+  instead of waiting for a reload.
+
+  The first attempt at this rule rejected any claim whose build id matched the
+  running one, which fixes the loop and **breaks the un-stamped deploy** — whose
+  entire signature is *same id, different content*. The smoke test's "a fresh deploy
+  raises the update badge by itself" caught it within minutes: a false positive
+  traded for a false negative, which is the worse of the two.
 
   The loop brake in `updateGate` had been there since the deferral work and was
   not enough: it rate-limits the *automatic* apply, which is why the app kept
