@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -26,6 +26,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD,' +
+  ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' INK, inkRolloff, whiteBudget, rampStops, buildRamp, RAMP_N,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
@@ -2140,6 +2141,49 @@ test('seamLeadFor: every seam gets the lead-in it can honestly afford', () => {
   assert.equal(S.seamLeadFor({ type: 'fade', seconds: 3 }), S.SEAM_LEAD, 'a fade has no bar line to hit');
   assert.equal(S.seamLeadFor(null), S.SEAM_LEAD);
   assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 8 }, 0), 0, 'a lead can be waived');
+});
+
+// ------------------------------------------------- transition style (@style)
+
+test('resolveMixStyle: the three feels, and a safe default', () => {
+  assert.equal(S.resolveMixStyle('club').beats, 16, 'club asks for a longer blend');
+  assert.equal(S.resolveMixStyle('musical').beatmix, false, 'musical never beatmixes mid-song');
+  assert.equal(S.resolveMixStyle('adaptive').beats, 8, 'adaptive is the 8-beat house default');
+  assert.equal(S.resolveMixStyle('nonsense'), S.MIX_STYLES.adaptive, 'garbage → adaptive');
+  assert.deepEqual([...S.MIX_STYLE_ORDER].sort(), ['adaptive', 'club', 'musical'], 'exactly three styles cycle');
+});
+
+test('stylePlanOpts: club forces 16 beats; others leave the default; fade length tracks the style', () => {
+  assert.equal(S.stylePlanOpts('club', {}).forceBeats, 16);
+  assert.equal(S.stylePlanOpts('adaptive', {}).forceBeats, undefined, 'adaptive leaves planTransition on its 8-beat default');
+  assert.equal(S.stylePlanOpts('musical', {}).fadeSeconds, S.MIX_STYLES.musical.quickFade);
+  // never clobbers the caller's opts
+  const o = S.stylePlanOpts('club', { albumSequential: true, override: { x: 1 } });
+  assert.equal(o.albumSequential, true); assert.deepEqual(o.override, { x: 1 });
+});
+
+test('styleAdjustPlan: musical turns a mid-song beatmix into a play-out fade; others untouched', () => {
+  const bm = { type: 'beatmix', beats: 8, startA: 100, bpmA: 120, bpmB: 120 };
+  const m = S.styleAdjustPlan('musical', bm);
+  assert.equal(m.type, 'fade', 'musical never beatmixes');
+  assert.equal(m.seconds, S.MIX_STYLES.musical.quickFade);
+  assert.equal(S.styleAdjustPlan('club', bm).type, 'beatmix', 'club keeps the beatmix');
+  assert.equal(S.styleAdjustPlan('adaptive', bm).type, 'beatmix', 'adaptive keeps the beatmix');
+  // gapless (album order) is sacred in every style
+  assert.equal(S.styleAdjustPlan('musical', { type: 'gapless' }).type, 'gapless');
+});
+
+test('styleExitBase: musical rides to the end; adaptive mixes out early at the last loud block', () => {
+  const dur = 200, fade = { type: 'fade', seconds: 4 };
+  const structure = { ok: true, mixOut: 0.80 };                 // last loud block at 160 s
+  // adaptive: exit early at mixOut (160), like a DJ
+  assert.equal(S.styleExitBase('adaptive', fade, dur, structure), 160);
+  // musical: ignore the early mix-out, ride to the natural fade point (dur - seconds = 196)
+  assert.equal(S.styleExitBase('musical', fade, dur, structure), dur - 4);
+  // beatmix always leaves on its grid seam, regardless of style
+  assert.equal(S.styleExitBase('club', { type: 'beatmix', startA: 123 }, dur), 123);
+  // no structure → the plain base for everyone
+  assert.equal(S.styleExitBase('adaptive', fade, dur, null), dur - 4);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
