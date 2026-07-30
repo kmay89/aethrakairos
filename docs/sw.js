@@ -75,8 +75,21 @@ self.addEventListener('message', ev => {
  * running: a COLD cache differs from everything and proves nothing, and the same
  * shell is never announced twice. The page verifies the claim on top of this;
  * this end simply stops making claims it cannot support. */
-// the last shell build this worker told the pages about — see below
+/* The last shell this worker told the pages about, as a fingerprint of its
+   CONTENT — not its build id. Keying on the id was wrong in precisely the case
+   that matters: an un-stamped deploy is the same id with different bytes, so a
+   worker that had already mentioned that id once would swallow the real one.
+   Measured as a one-in-two flake on "a fresh deploy raises the update badge by
+   itself" before this was content-keyed. */
 let announced = '';
+function shellPrint(t){
+  let h = 0x811c9dc5;                       // FNV-1a, enough to tell two deploys apart
+  for (let i = 0; i < t.length; i++){
+    h ^= t.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return t.length + ':' + h.toString(36);
+}
 async function revalidateShell(){
   try {
     const cache = await caches.open(SHELL_CACHE);
@@ -103,9 +116,11 @@ async function revalidateShell(){
     /* AND NEVER TWICE FOR THE SAME SHELL. Whatever makes two fetches of one
        deploy differ — a host that rewrites its HTML, a stamp that did not move —
        announcing it again on the next check is how a card comes back forever.
-       One announcement per distinct shell, and the page still verifies it. */
-    if (build && build === announced) return;
-    announced = build;
+       One announcement per distinct shell, fingerprinted by CONTENT so that an
+       un-stamped deploy (same id, new bytes) still counts as a different shell. */
+    const print = shellPrint(freshText);
+    if (print === announced) return;
+    announced = print;
     const clients = await self.clients.matchAll({ type: 'window' });
     for (const c of clients) c.postMessage({ type: 'SHELL_FRESH', build });
   } catch (e){}

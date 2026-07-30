@@ -336,7 +336,13 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
 - **The worker end stops making claims it cannot support:** no verdict from a cold
   cache (no reference means no evidence), and never the same shell announced twice
   — whatever makes two fetches of one deploy differ, saying so again on the next
-  check is how a card returns forever.
+  check is how a card returns forever. That second guard is keyed on a fingerprint
+  of the shell's **content**, and the first version keyed it on the build id, which
+  is wrong in exactly the case that matters: an un-stamped deploy is the same id
+  with different bytes, so a worker that had already mentioned that id once would
+  swallow the real announcement. It showed up as a one-in-two flake on "a fresh
+  deploy raises the update badge by itself" — passing often enough to look like
+  environment noise, which is the most expensive kind of bug to leave in.
 - **`update_probe` gained the scenario nothing was watching:** boot, then check
   four times with **no deploy at all**, and again after a reload (when a fresh
   worker's cache is cold). A correct app is silent throughout. It then forces the
