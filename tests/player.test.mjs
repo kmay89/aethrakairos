@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -27,6 +27,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
+  ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' INK, inkRolloff, whiteBudget, rampStops, buildRamp, RAMP_N,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
@@ -2186,7 +2187,88 @@ test('styleExitBase: musical rides to the end; adaptive mixes out early at the l
   assert.equal(S.styleExitBase('adaptive', fade, dur, null), dur - 4);
 });
 
+// -------------------------------------------------- the mixset (@mixset)
+
+const MIXSET_FIX = {
+  name: 'Test night',
+  defaults: { style: 'adaptive' },
+  sections: [
+    { name: 'Cocktail', minutes: 10, energy: [0.1, 0.4], style: 'musical', pool: { energy: [0.0, 0.5] } },
+    { name: 'Dancing',  minutes: 20, energy: [0.7, 1.0], style: 'club',    pool: { energy: [0.5, 1.0] } },
+  ],
+  anchors: [
+    { name: 'First dance', at: { elapsedMin: 10 }, track: { title: 'Ballad' }, playInFull: true },
+  ],
+  doNotPlay: [{ tag: 'banned-album' }],
+};
+const LIB = [
+  { id: 1, title: 'Soft opener',  albumTag: 'a', features: { energy: 0.20 } },
+  { id: 2, title: 'Ballad',       albumTag: 'a', features: { energy: 0.30 } },
+  { id: 3, title: 'Floor filler', albumTag: 'b', features: { energy: 0.90 } },
+  { id: 4, title: 'Peak banger',  albumTag: 'b', features: { energy: 0.75 } },
+  { id: 5, title: 'Nope',         albumTag: 'banned-album', features: { energy: 0.85 } },
+];
+
+test('matchTrack: id/title/tag/energy selectors, AND-combined, forgiving', () => {
+  const t = LIB[2];   // Floor filler, tag b, energy .9
+  assert.ok(S.matchTrack({ any: true }, t));
+  assert.ok(S.matchTrack({ id: 3 }, t) && !S.matchTrack({ id: 9 }, t));
+  assert.ok(S.matchTrack({ title: 'floor' }, t), 'substring, case-insensitive');
+  assert.ok(S.matchTrack({ tag: 'B' }, t), 'tag case-insensitive');
+  assert.ok(S.matchTrack({ energy: [0.8, 1.0] }, t) && !S.matchTrack({ energy: [0.0, 0.5] }, t));
+  assert.ok(S.matchTrack({ tag: 'b', energy: [0.8, 1.0] }, t), 'keys AND');
+  assert.ok(!S.matchTrack({ tag: 'b', energy: [0.0, 0.5] }, t), 'one failing key fails the match');
+  assert.ok(!S.matchTrack({ id: 3 }, null) && !S.matchTrack(null, t), 'null-safe');
+});
+
+test('mixsetSectionAt: cumulative minutes, edges, and the last section holds forever', () => {
+  assert.equal(S.mixsetSectionAt(MIXSET_FIX, 0).section.name, 'Cocktail');
+  assert.equal(S.mixsetSectionAt(MIXSET_FIX, 0).edge, 'start');
+  assert.equal(S.mixsetSectionAt(MIXSET_FIX, 5 * 60).section.name, 'Cocktail');
+  assert.equal(S.mixsetSectionAt(MIXSET_FIX, 10 * 60 + 5).section.name, 'Dancing', 'crossed into dancing');
+  assert.equal(S.mixsetSectionAt(MIXSET_FIX, 999 * 60).section.name, 'Dancing', 'past the end → last section holds');
+  assert.equal(S.mixsetSectionAt(MIXSET_FIX, 10 * 60 - 1).edge, 'end', 'the last 2 s of a section read as its end');
+});
+
+test('mixsetStyleAt: section style wins, falls back to default then adaptive', () => {
+  assert.equal(S.mixsetStyleAt(MIXSET_FIX, 60), 'musical', 'cocktail is musical');
+  assert.equal(S.mixsetStyleAt(MIXSET_FIX, 11 * 60), 'club', 'dancing is club');
+  assert.equal(S.mixsetStyleAt({ sections: [{ name: 'x', minutes: 5 }] }, 0), 'adaptive', 'no style → adaptive');
+  assert.equal(S.mixsetStyleAt({ defaults: { style: 'club' }, sections: [{ minutes: 5 }] }, 0), 'club', 'default applies');
+});
+
+test('sectionPool + doNotPlay: pool filter minus forbidden', () => {
+  const cocktail = MIXSET_FIX.sections[0], dancing = MIXSET_FIX.sections[1];
+  const cp = S.sectionPool(MIXSET_FIX, cocktail, LIB).map(t => t.id).sort();
+  assert.deepEqual(cp, [1, 2], 'cocktail pool = low-energy, unbanned');
+  const dp = S.sectionPool(MIXSET_FIX, dancing, LIB).map(t => t.id).sort();
+  assert.deepEqual(dp, [3, 4], 'dancing pool = high-energy, and the banned-album track is excluded');
+  assert.ok(S.mixsetForbids(MIXSET_FIX, LIB[4]), 'the banned album is forbidden everywhere');
+});
+
+test('dueAnchor: fires on elapsed threshold, once, then is spent', () => {
+  assert.equal(S.dueAnchor(MIXSET_FIX, { elapsedSec: 9 * 60, playedAnchors: new Set() }), null, 'not yet');
+  const d = S.dueAnchor(MIXSET_FIX, { elapsedSec: 10 * 60, playedAnchors: new Set() });
+  assert.ok(d && d.index === 0, 'due at 10 min');
+  assert.equal(S.dueAnchor(MIXSET_FIX, { elapsedSec: 12 * 60, playedAnchors: new Set([0]) }), null, 'already played');
+});
+
+test('mixsetPick: anchor first (in full), else nearest-energy from the section pool', () => {
+  // at 10 min the first-dance anchor is due → the Ballad, played in full
+  const a = S.mixsetPick(MIXSET_FIX, LIB, { elapsedSec: 10 * 60, playedIds: new Set(), playedAnchors: new Set() });
+  assert.equal(a.track.title, 'Ballad'); assert.equal(a.playInFull, true); assert.equal(a.style, 'club');
+  // mid-cocktail, no anchor: nearest to the cocktail target (~0.25) from {1:.2, 2:.3}
+  const c = S.mixsetPick(MIXSET_FIX, LIB, { elapsedSec: 3 * 60, playedIds: new Set(), playedAnchors: new Set() });
+  assert.ok([1, 2].includes(c.track.id), 'cocktail draws from its own low-energy pool'); assert.equal(c.style, 'musical');
+  // mid-dancing: target ~0.85, pool {3:.9, 4:.75} → 3 is closer
+  const d = S.mixsetPick(MIXSET_FIX, LIB, { elapsedSec: 15 * 60, playedIds: new Set([0]), playedAnchors: new Set([0]) });
+  assert.equal(d.track.id, 3, 'dancing lands on the nearest-energy floor filler'); assert.equal(d.style, 'club');
+  // exhausted pool (all played) still yields a pick, not null (a set never dead-airs)
+  const e = S.mixsetPick(MIXSET_FIX, LIB, { elapsedSec: 15 * 60, playedIds: new Set([3, 4]), playedAnchors: new Set([0]) });
+  assert.ok(e && [3, 4].includes(e.track.id), 'pool exhausted → repeats allowed, never null');
+  // no mixset / empty library → null (mixer falls back)
+  assert.equal(S.mixsetPick(null, LIB, {}), null);
+  assert.equal(S.mixsetPick(MIXSET_FIX, [], {}), null);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
-
-
-process.exit(failed ? 1 : 0);
