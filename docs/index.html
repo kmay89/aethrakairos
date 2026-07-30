@@ -9127,6 +9127,59 @@ function seamDeferBar(plan, durA, maxTries){
   if (isFinite(durA) && startA + (p.beats || 16) * spbA > durA - 0.30) return null;
   return Object.assign({}, p, { startA, deferred: tries + 1 });
 }
+// THE SEAM'S LEAD-IN. A media element does not resume the instant play() is
+// called: it has to seek, refill, and hand its first buffer to the audio thread —
+// tens of milliseconds on a warm stream, a third of a second on a cold one. If
+// the crossfade curves begin at that same instant then the first slice of the
+// blend is B's silence fading in, and worse, the only window in which a hard
+// phase align is permitted (B still inaudible) has closed before the loop ever
+// got a chance to look at B. So a seam is scheduled this far in the FUTURE on
+// the audio clock, and — for a beatmix — TRIGGERED this far early, so the fader
+// still opens on A's bar line. B rolls through a lead-in it cannot be heard
+// through, the grids are measured and latched inside it, and the fade opens onto
+// a deck already moving. This is the difference between a blend that is in time
+// and a blend that is in time AND full from its first sample.
+//
+// 0.45 s, because that is what was measured: a cold element's resume runs
+// 170-680 ms under a saturated main thread. The lead is not the whole budget
+// either — the equal-power curve holds B below -24 dB for the first ~4 % of the
+// blend on top of it, so a seam has roughly lead + 150 ms before a late deck
+// could actually be HEARD as a soft entry.
+const SEAM_LEAD = 0.45;
+// How much lead-in THIS seam can actually take. A beatmix may not roll B from
+// before the start of its own file, so a track cued to enter at 0.1 s gets a
+// 0.1 s lead and an honest degradation rather than a silently wrong grid. A
+// gapless pair takes none: the artist sequenced those two to touch.
+function seamLeadFor(plan, want){
+  const p = plan || {}, w = want == null ? SEAM_LEAD : want;
+  if (!(w > 0) || p.type === 'gapless') return 0;
+  if (p.type !== 'beatmix') return w;
+  return Math.max(0, Math.min(w, p.startB || 0));
+}
+// WHERE THE INCOMING DECK MUST START — the seam's most important line.
+// A beatmix is a relationship between two BEAT GRIDS, not a wall-clock event.
+// The seam used to drop B at the absolute planned entry (plan.startB) at the
+// instant the animation loop happened to NOTICE that A had crossed plan.startA.
+// When the renderer is busy that notice lands a whole frame late, so A is
+// already `slip` seconds past its bar line while B begins exactly on its own —
+// a grid offset of `slip`, which at 124 bpm and a 114 ms frame is a quarter
+// beat: the audible flam behind every "glitchy" auto-mix. Placing B at
+// startB + slip makes the two grids agree no matter how late the call arrives,
+// which is what makes the lock immune to main-thread load rather than merely
+// tolerant of it. Slip is clamped: past a whole seam the plan is stale, not late.
+function seamEntry(plan, tA, maxSlip){
+  const p = plan || {};
+  const cap = maxSlip == null ? Math.max(1, p.seconds || 4) : maxSlip;
+  // without a bar line to be late FOR there is no slip to carry: take the plan
+  if (!(p.startA > 0) || !isFinite(tA)) return Math.max(0, p.startB || 0);
+  // slip runs both ways: a beatmix is triggered a lead-in EARLY on purpose, so B
+  // is placed a lead-in before its entry and arrives exactly on it as the fader
+  // opens. The lead is never more than B has file to give, so this stays >= 0.
+  const lead = seamLeadFor(p);
+  const raw = tA - p.startA;
+  const slip = raw < -lead ? -lead : (raw > cap ? cap : raw);
+  return Math.max(0, (p.startB || 0) + slip);
+}
 // @mix-end
 
 const MIXER = {
@@ -9138,6 +9191,7 @@ const MIXER = {
   plan: null, next: -1,
   outDeck: null, startedAt: 0, overlap: 0,
   lastF: 0, trim: 0, trimI: 0, lastBeatCheck: 0,
+  _latched: false, _aligns: 0, _bT: -1,   // the latch: see run()
   _lastRateA: 1, _lastRateB: 1,
   _clkA: makeMediaClock(), _clkB: makeMediaClock(),
 
@@ -9155,6 +9209,7 @@ const MIXER = {
     this.plan = null; this.next = -1; this.phase = 'idle';
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     this.audioT0 = null; this._shelfScheduled = false;
+    this._latched = false; this._aligns = 0; this._bT = -1;
     clockReset(this._clkA); clockReset(this._clkB);
     const tc = AE.ctx ? AE.ctx.currentTime : 0;
     if (AE.decks) AE.decks.forEach((d, i) => {
@@ -9211,8 +9266,15 @@ const MIXER = {
   // DJ, never mid-drop. Guarded so it only ever pulls the exit EARLIER, only
   // within the already-armed window, and never for beatmix/gapless.
   exitTime(dur, plan, track){
-    if (plan.type === 'beatmix') return plan.startA;
-    const base = dur - (plan.type === 'fade' ? plan.seconds : 0.10);
+    // EVERY SEAM LEAVES A LEAD-IN EARLY, because every seam's ramps are scheduled
+    // a lead-in ahead of the call (see SEAM_LEAD). For a beatmix that is what puts
+    // the fader on A's bar line rather than a lead late. For a fade it is what
+    // keeps the blend inside the track: a fade that exits at dur − seconds and
+    // then starts its curves a lead later would still be crossfading 450 ms after
+    // A had run out of song.
+    const lead = seamLeadFor(plan);
+    if (plan.type === 'beatmix') return plan.startA - lead;
+    const base = dur - (plan.type === 'fade' ? plan.seconds : 0.10) - lead;
     if (plan.type === 'fade'){
       const st = track && track._structure;
       if (st && st.ok){
@@ -9253,7 +9315,12 @@ const MIXER = {
     // one in flight per deck, always.
     this._clearPreloadListener(nd);
     nd.a.src = B.url;
-    const seekTo = plan.type === 'beatmix' ? plan.startB : 0;
+    // PRE-SEEK WHERE THE SEAM WILL ACTUALLY ROLL FROM, lead-in included. Parking
+    // the deck on plan.startB instead meant fire() had to move it again, and a
+    // second seek is a second decoder flush at the least forgiving moment there
+    // is — the deck then spends the lead-in refilling rather than rolling. Same
+    // point, warmed once, so a punctual seam's placement costs nothing.
+    const seekTo = plan.type === 'beatmix' ? Math.max(0, plan.startB - seamLeadFor(plan)) : 0;
     const once = () => {
       nd.a.removeEventListener('loadedmetadata', once);
       nd._preloadOnce = null;
@@ -9287,7 +9354,9 @@ const MIXER = {
     if (i === -1 || !player.tracks[i]){ return false; }
     const B = player.tracks[i];
     const plan = planMixNow(mixOf(A), mixOf(B), d.a.currentTime,
-      { durA: d.a.duration, quickFade: 0.8 });
+      // the bar it picks must be at least a lead-in away, or the seam is already
+      // late the moment it is planned and the fader opens past the bar line
+      { durA: d.a.duration, quickFade: 0.8, lead: SEAM_LEAD });
     if (plan.type !== 'beatmix'){
       player._committedNext = i;                        // same draw, plain path
       return false;
@@ -9324,8 +9393,10 @@ const MIXER = {
     // (beatmix only — a gapless pair was sequenced by the artist to butt
     // together, and demoting THAT to a crossfade would be its own wrong note)
     if (p.type === 'beatmix' && !seamStreamReady({ type: p.type, readyState: nd.a.readyState,
-                           buffered: nd.a.buffered, from: p.startB,
-                           need: Math.max(1, p.seconds || 2) + 0.5 })){
+                           buffered: nd.a.buffered,
+                           // the window starts where B will actually be rolled from
+                           from: seamEntry(p, od.a.currentTime),
+                           need: Math.max(1, p.seconds || 2) + 0.5 + seamLeadFor(p) })){
       const later = seamDeferBar(p, od.a.duration);
       if (later){
         this.plan = later;                 // still armed; update() re-fires a bar on
@@ -9335,12 +9406,27 @@ const MIXER = {
       p = this.plan = { type: 'fade', seconds: 3, why: 'stream not ready in time' };
     }
     this.overlap = p.type === 'gapless' ? 0.06 : p.seconds;
-    this.startedAt = now;
+    // ONE ORIGIN FOR THE WHOLE SEAM, on the clock that plays it. Every ramp
+    // below — gains, bass shelves, filter sweep, echo send — is anchored to this
+    // single audio-clock instant, a lead-in ahead of now (SEAM_LEAD), so they
+    // cannot disagree with each other and B has time to actually start rolling
+    // before any of them can be heard. A gapless butt-join takes no lead: the
+    // artist sequenced those two to touch.
+    const lead = (AE.graphLive && AE.ctx) ? seamLeadFor(p) : 0;
+    const seamT0 = (AE.ctx ? AE.ctx.currentTime : 0) + lead;
+    this.startedAt = now + lead;
     this.audioT0 = null; this._shelfScheduled = false;
     this.lastF = 0; this.trim = 0; this.trimI = 0; this.lastBeatCheck = now;
+    this._latched = false; this._aligns = 0; this._bT = -1;
     window.__mixPhaseErrMs = null;    // each seam is measured on its own merits
     clockReset(this._clkA); clockReset(this._clkB);
-    try { nd.a.currentTime = p.type === 'beatmix' ? p.startB : 0; } catch (e){}
+    // GRIDS, NOT CLOCKS: B enters at the point that makes its beat grid agree
+    // with where A ACTUALLY is, so a late call places a correct seam instead of
+    // a punctual wrong one (see seamEntry).
+    try {
+      nd.a.currentTime = p.type === 'beatmix' ? seamEntry(p, od.a.currentTime) : 0;
+    } catch (e){}
+    this._bT = nd.a.currentTime;      // the latch watches for this to move
     if (p.type === 'beatmix'){
       try { od.a.preservesPitch = true; nd.a.preservesPitch = true; } catch (e){}
       const g = glideRates(p.bpmA, p.bpmB, 0);
@@ -9355,7 +9441,7 @@ const MIXER = {
     // regardless of frame rate. (Beatmix keeps its own bass-swap; gapless is
     // instant; on iOS the mixer doesn't run, so this only touches desktop fades.)
     if (p.type === 'fade' && AE.ctx && od.filter && nd.filter){
-      const t0 = AE.ctx.currentTime, sweep = Math.max(0.5, this.overlap);
+      const t0 = seamT0, sweep = Math.max(0.5, this.overlap);
       try {
         nd.filter.frequency.cancelScheduledValues(t0);
         nd.filter.frequency.setValueAtTime(FILTER_OPEN, t0);      // the incoming comes in clean
@@ -9405,12 +9491,17 @@ const MIXER = {
     // clock, so a slow animation frame can never step or zipper it. The rAF
     // run() no longer touches gain — it only reads f for the HUD and trims tempo.
     if (AE.graphLive && od.gain && nd.gain){
-      const t0 = AE.ctx.currentTime, dur = Math.max(0.02, this.overlap);
+      const t0 = seamT0, dur = Math.max(0.02, this.overlap);
       const N = Math.max(24, Math.min(256, Math.round(dur * 24)));   // ~24 pts/sec
+      const tNow = AE.ctx.currentTime;
       try {
-        od.gain.gain.cancelScheduledValues(t0);
+        od.gain.gain.cancelScheduledValues(tNow);
+        // hold both decks where they stand through the lead-in: A full, B silent,
+        // so the curves inherit a known state instead of whatever was left over
+        od.gain.gain.setValueAtTime(od.norm || 1, tNow);
         od.gain.gain.setValueCurveAtTime(xfadeCurve(od.norm || 1, 'out', N), t0, dur);
-        nd.gain.gain.cancelScheduledValues(t0);
+        nd.gain.gain.cancelScheduledValues(tNow);
+        nd.gain.gain.setValueAtTime(0, tNow);
         nd.gain.gain.setValueCurveAtTime(xfadeCurve(nd.norm || 1, 'in', N), t0, dur);
         this.lastF = 0;
         // the seam now RUNS on the audio clock — the same clock the curves
@@ -9517,7 +9608,21 @@ const MIXER = {
       // deadband so an already-locked seam is never touched at all.
       clockSample(this._clkA, now, od.a.currentTime);
       clockSample(this._clkB, now, nd.a.currentTime);
-      if (now - this.lastBeatCheck >= 60 / p.bpmB){
+      // THE LATCH. The periodic once-a-beat check is the right cadence for
+      // HOLDING a lock and the wrong one for TAKING it: the first frame after
+      // fire() can land a hundred milliseconds in, and waiting a further beat to
+      // look means the only window in which a hard align is allowed — B still
+      // inaudible — is gone before the error has even been measured, leaving the
+      // ±0.4 % tempo trim to remove a quarter beat it cannot reach. So the seam
+      // measures itself the moment B is genuinely ROLLING (its media time has
+      // moved; a stalled deck is not evidence of anything), takes the align
+      // inside the lead-in, and latches. Bounded to a few attempts so a deck
+      // that keeps re-stalling is trimmed rather than seek-thrashed.
+      const bT = nd.a.currentTime;
+      const rolling = !nd.a.paused && bT !== this._bT;
+      this._bT = bT;
+      const taking = !this._latched && rolling && this._aligns < 3;
+      if (taking || now - this.lastBeatCheck >= 60 / p.bpmB){
         this.lastBeatCheck = now;
         const tA = this._clkA.ok ? clockRead(this._clkA, now) : od.a.currentTime;
         const tB = this._clkB.ok ? clockRead(this._clkB, now) : nd.a.currentTime;
@@ -9533,8 +9638,12 @@ const MIXER = {
           // be heard, tempo trim alone holds it, so a blend never clicks.
           const r = seamPhaseTrim(errSec, this.trimI, f);
           if (r.seek){
+            this._aligns++;
             try { nd.a.currentTime = nd.a.currentTime + errSec; } catch (e){}
+            this._bT = nd.a.currentTime;                // don't read the seek as motion
             clockReset(this._clkB);                     // the window died with the seek
+          } else {
+            this._latched = true;                       // in lock (or past the align window)
           }
           this.trim = r.trim; this.trimI = r.trimI;
           window.__mixPhaseErrMs = Math.abs(errSec) * 1000;  // acceptance probe
@@ -9562,6 +9671,12 @@ const MIXER = {
     this._lastRateA = this._lastRateB = 1;
     this.plan = null; this.next = -1; this.outDeck = null; this.outTrack = null; this.trim = 0;
     this.audioT0 = null; this._shelfScheduled = false;
+    // THE WHOLE SERVO, not half of it. `trim` was cleared here and `trimI` — the
+    // integrator that learns a residual tempo error — was not, so one seam's
+    // learned offset was the next seam's starting bias. The latch is the same
+    // hazard in a new form: left set, the next seam would skip the align it needs.
+    // Mix-engine rot is cumulative; a seam must hand back exactly what it borrowed.
+    this.trimI = 0; this._latched = false; this._aligns = 0; this._bT = -1;
     this.phase = 'idle';
     applyVolume();
     syncMixHud();
@@ -9790,7 +9905,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'a8e1bfde9f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'e9ca59e869';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived

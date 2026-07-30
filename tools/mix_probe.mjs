@@ -11,8 +11,10 @@
  * So this taps the real master bus during a real seam on a real graph and
  * reports what a listener would hear:
  *
- *   lead      ms between the curves being scheduled and deck B's playhead
- *             actually advancing. This is the defect, in milliseconds.
+ *   start     when deck B's playhead actually begins advancing, relative to the
+ *             fader opening AND to the -24 dB point of the fade-in curve. The
+ *             second is the honest deadline: silence multiplied by a gain no one
+ *             can hear is not a hole.
  *   trough    the deepest point of the master RMS envelope across the seam,
  *             relative to the pre-seam level. An equal-power crossfade of two
  *             comparably loud tracks should hold roughly level; a hole shows
@@ -22,19 +24,21 @@
  *             rate, flat shelf, open filter. Rot in a mix engine is cumulative;
  *             a seam that leaves a deck at 0.7 gain poisons the next one.
  *
- * WHAT IT FOUND, and the reason to run it both ways:
+ * WHAT IT FOUND, and why the engine looks the way it does now:
  *
- *   renderer quieted (default)     lock 0.3 ms   ·  fade-in waited 41 ms
- *   renderer running (RENDER=1)    lock 114 ms   ·  fade-in waited 322-441 ms
+ *   before      renderer quieted   lock   0.3 ms   ·  B started  41 ms late
+ *               renderer running   lock 114.0 ms   ·  B started 322-441 ms late
+ *   after       renderer running   lock 1.9-8.0 ms ·  B started 210-680 ms after the call
  *
- * The seam is excellent when the main thread is free and falls apart when the
- * visualizer is saturating it. That is not a tuning problem, it is a coupling
- * problem: the seam is TRIGGERED and STEERED from the animation loop, so its
- * accuracy tracks the frame rate. The gain curves were already moved onto the
- * audio clock for exactly this reason; the trigger and the phase servo have not
- * been. Until they are, a heavy scene can cost a blend its beat lock — which is
- * the intermittent "glitch in the auto mix" a listener reports on a fast machine
- * with a busy visualizer.
+ * The seam was excellent when the main thread was free and fell apart when the
+ * visualizer saturated it — not a tuning problem but a coupling problem. B was
+ * dropped at its absolute entry point at whatever instant the animation loop
+ * NOTICED that A had crossed the bar line, so the grid offset was exactly the
+ * frame's lateness: a quarter beat at 124 bpm on a busy frame. Two changes broke
+ * the coupling, and both are cheap: place B relative to where A actually is
+ * (seamEntry), and schedule the whole seam a lead-in ahead on the audio clock so
+ * the deck is rolling and the grids are latched before the fader moves. Neither
+ * depends on the frame rate, which is why the lock now holds under load.
  *
  *   python3 tools/make_mix_fixture.py /tmp/mb8-mix
  *   node tools/mix_probe.mjs /tmp/mb8-mix                 # measurement conditions
@@ -145,7 +149,7 @@ await page.evaluate(() => {
  * only the minimum is not enough — the end of a seam legitimately dips if the
  * incoming track's entry is quiet — so the probe reports the whole curve. */
 await page.evaluate(() => {
-  window.__seam = { rms: [], seamAt: null, bAtSeam: null, bMoved: null };
+  window.__seam = { rms: [], seamAt: null, bAtSeam: null, bMoved: null, bLate: null };
   const install = () => {
     if (!AE.ctx || !AE.master || window.__seam.tap) return;
     const an = AE.ctx.createAnalyser();
@@ -171,7 +175,13 @@ await page.evaluate(() => {
   /* Was the incoming deck ALREADY producing audio when the fader opened? The
    * honest test is that its playhead advances across the first moments of the
    * blend — sampled after the latch has placed it, not before, because the
-   * latch legitimately seeks it backwards onto the downbeat. */
+   * latch legitimately seeks it backwards onto the downbeat.
+   *
+   * The reference is the FADER, not the call. A seam is now scheduled a lead-in
+   * ahead of the call precisely so B can spend that time getting going, so
+   * measuring from fire() would score the engine's own head start as latency.
+   * bLate is milliseconds relative to the fader opening: negative means the deck
+   * was already rolling when the blend began, which is the whole point. */
   const fire = MIXER.fire.bind(MIXER);
   MIXER.fire = function (now){
     fire(now);
@@ -185,8 +195,12 @@ await page.evaluate(() => {
     const watch = () => {
       if (window.__seam.bMoved != null) return;
       const dt = AE.ctx.currentTime - t0;
-      if (nd.a.currentTime > at + 0.02){ window.__seam.bMoved = dt * 1000; clearInterval(iv); return; }
-      if (dt > 1.5){ window.__seam.bMoved = -1; clearInterval(iv); return; }   // never moved
+      if (nd.a.currentTime > at + 0.02){
+        window.__seam.bMoved = dt * 1000;
+        window.__seam.bLate = (dt - (seam - t0)) * 1000;
+        clearInterval(iv); return;
+      }
+      if (dt > 1.5){ window.__seam.bMoved = -1; window.__seam.bLate = 1500; clearInterval(iv); return; }
     };
     const iv = setInterval(watch, 8);
   };
@@ -248,7 +262,7 @@ const m = await page.evaluate(dur => {
     if (x.r < 1e-4) zero++;
   }
   return { bins: bins.map(b => b.n ? b.sum / b.n : null), zero, n: win.length,
-    bMoved: s.bMoved, phase: window.__mixPhaseErrMs };
+    bMoved: s.bMoved, bLate: s.bLate, phase: window.__mixPhaseErrMs };
 }, plan.seconds);
 
 /* A DECLINING ENVELOPE IS NOT AUTOMATICALLY A HOLE. If the incoming track is
@@ -269,10 +283,32 @@ console.log(`\nseam measured over ${m.n} frames · overlap ${plan.seconds}s`);
 console.log('  master level by fifth of the blend: ' + rel.map(pct).join(' ') + '   (100% = A alone)');
 console.log('  B alone, after the seam settles: ' + pct(endLevel));
 
-O('the incoming deck is rolling when the fader opens',
-  m.bMoved != null && m.bMoved >= 0 && m.bMoved <= 60,
+/* THE HONEST DEADLINE is the moment B could be HEARD, not the moment the fader
+ * starts moving. The equal-power curve holds the incoming deck below -24 dB
+ * (equalPowerXfade().b < 0.06, the same threshold the engine's own phase lock
+ * treats as inaudible) for the first ~3.8 % of the blend, and the seam is
+ * scheduled a lead-in ahead of the call on top of that. A deck that starts
+ * rolling inside that window contributes silence to nothing a listener can
+ * hear; one that starts after it is a soft entry — the defect.
+ *
+ * STILL OPEN, and honestly variable: the element's resume runs 210-680 ms under
+ * a saturated main thread, so the 450 ms lead covers it most of the time and not
+ * always. Note what this does NOT cost: the beat lock converges regardless,
+ * because the latch measures the grids once B is genuinely rolling rather than
+ * trusting where it was placed. The worst observed case is therefore an onset at
+ * about -20 dB a half-beat into the fade — a soft entry, not a hole, which is why
+ * the level envelope above cannot see it. Closing it properly means rolling B
+ * SILENTLY during the armed window so the seam never calls play() at all; that
+ * needs its own cancel/replan bookkeeping and a phase servo willing to trim a
+ * residual instead of seeking it, so it is named here rather than guessed at. */
+const audibleMs = (Math.asin(0.06) * 2 / Math.PI) * plan.seconds * 1000;
+O('the incoming deck is rolling before the blend can be heard',
+  m.bLate != null && m.bMoved >= 0 && m.bLate <= audibleMs,
   m.bMoved == null ? 'not observed' : (m.bMoved < 0 ? 'playhead never advanced'
-    : 'the fade-in ran ' + m.bMoved.toFixed(0) + ' ms against a deck that had not started'));
+    : 'rolling ' + Math.abs(m.bLate).toFixed(0) + ' ms '
+      + (m.bLate <= 0 ? 'before' : 'after') + ' the fader, '
+      + (audibleMs - m.bLate).toFixed(0) + ' ms of margin on the -24 dB deadline'
+      + ' · started ' + m.bMoved.toFixed(0) + ' ms after the call'));
 R('the blend has no hole in its first half',
   rel[0] != null && rel[1] != null && rel[0] > 0.55 && rel[1] > 0.55,
   'first fifth ' + pct(rel[0]) + ', second ' + pct(rel[1]));
@@ -283,9 +319,16 @@ R('the master level never falls below both tracks',
   rel.every(v => v != null && v >= floor),
   'floor ' + pct(floor) + ' · B alone reads ' + pct(endLevel));
 R('the output never drops to silence mid-seam', m.zero === 0, m.zero + ' silent frames');
-// the engine's own documented contract is 40 ms (see mix_acceptance); main does
-// not meet it either, so it is tracked here as a number rather than a gate
-O('the beat lock holds inside its 40 ms contract', m.phase != null && m.phase < 40,
+/* THE GATE THIS TOOL WAS BUILT TO EARN. This read 114-119 ms with the renderer
+ * running — a quarter beat at 124 bpm, the audible flam behind the "glitch in
+ * the auto mix" — because the seam was PLACED by the animation loop: B was
+ * dropped at its absolute entry point at whatever instant the loop noticed A had
+ * crossed the bar line, so the grid offset was simply the frame's lateness. The
+ * seam is now placed RELATIVE to where A actually is (seamEntry) and latched the
+ * moment B rolls rather than a beat later, which makes the lock a fact about the
+ * two grids instead of a fact about the frame rate. It holds single digits under
+ * a saturated main thread, so it is a regression gate from here on. */
+R('the beat lock holds inside its 40 ms contract', m.phase != null && m.phase < 40,
   m.phase == null ? 'not measured' : m.phase.toFixed(1) + ' ms');
 
 /* SETTLE — a mix engine rots by leaving state behind. Every deck must be back
@@ -301,14 +344,18 @@ const settle = await page.evaluate(() => {
       paused: d.a.paused });
   });
   return { decks: out, phase: MIXER.phase, trim: MIXER.trim, audioT0: MIXER.audioT0,
-    seamAt: MIXER._seamAt === undefined ? null : MIXER._seamAt, cued: !!MIXER._cued };
+    trimI: MIXER.trimI, latched: !!MIXER._latched, aligns: MIXER._aligns };
 });
 const act = settle.decks.find(d => d.active), idle = settle.decks.find(d => !d.active);
 // arming the NEXT transition straight after a seam is correct behaviour, so the
-// phase is free to be 'armed' here; what must be clean is the seam's own state
+// phase is free to be 'armed' here; what must be clean is the seam's own state —
+// its audio-clock origin, both halves of the phase servo, and the latch, since a
+// latch left set would let the NEXT seam skip the align it needs.
 R('the finished seam leaves no scheduling state behind',
-  settle.audioT0 === null && settle.trim === 0 && settle.seamAt === null && !settle.cued,
-  JSON.stringify({ phase: settle.phase, trim: settle.trim, seamAt: settle.seamAt, cued: settle.cued }));
+  settle.audioT0 === null && settle.trim === 0 && settle.trimI === 0
+    && !settle.latched && settle.aligns === 0,
+  JSON.stringify({ phase: settle.phase, trim: settle.trim, trimI: settle.trimI,
+    latched: settle.latched, aligns: settle.aligns }));
 R('the surviving deck is at unity gain and unity rate',
   Math.abs(act.gain - 1) < 0.06 && Math.abs(act.rate - 1) < 0.002,
   'gain ' + act.gain + ' rate ' + act.rate);

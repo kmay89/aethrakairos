@@ -2,6 +2,17 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "e9ca59e869",
+      "date": "2026-07-29",
+      "title": "The auto-mix holds its beat lock",
+      "notes": [
+        "the intermittent glitch in the auto mix is fixed \u2014 blends stayed in time on an idle machine and drifted up to a quarter beat when the visuals were working hard",
+        "the seam is now lined up against where the outgoing track actually is, so a busy frame can no longer cost a blend its timing",
+        "the incoming track is given a moment to get rolling before the fader opens, so a blend starts full instead of easing in from nothing",
+        "measured under full visual load: beat error down from 114 ms to under 8 ms, and it is now a test that has to keep passing"
+      ]
+    },
+    {
       "build": "a8e1bfde9f",
       "date": "2026-07-29",
       "title": "Shorter, tighter blends",

@@ -25,7 +25,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
-  ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar,' +
+  ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' INK, inkRolloff, whiteBudget, rampStops, buildRamp, RAMP_N,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
@@ -2102,6 +2102,44 @@ test('seamDeferBar: take another eight — a whole bar later, B entering where i
   assert.equal(S.seamDeferBar({ ...plan, startA: 292 }, 300), null, 'no room left → stop waiting');
   // only beatmix defers; a fade has nothing to align to
   assert.equal(S.seamDeferBar({ type: 'fade', seconds: 3 }, 300), null);
+});
+test('seamEntry: a late call places a CORRECT seam, not a punctual wrong one', () => {
+  const plan = { type: 'beatmix', beats: 8, bpmA: 124, bpmB: 124, startA: 100, startB: 8, seconds: 3.87 };
+  // on time: B enters exactly where the plan said
+  assert.equal(S.seamEntry(plan, 100), 8);
+  // THE FIX. The renderer stalled the loop for one 114 ms frame, so A is already
+  // past its bar line — B must enter 114 ms into its own material for the two
+  // grids to agree. Dropping it at startB instead is a quarter-beat flam at
+  // 124 bpm, which is exactly the glitch the probe measured.
+  const slipped = S.seamEntry(plan, 100.114);
+  assert.ok(Math.abs(slipped - 8.114) < 1e-9, 'B carries A\'s slip, got ' + slipped);
+  const spb = 60 / 124;
+  const phaseErr = ((slipped - plan.startB) - (100.114 - plan.startA)) / spb;
+  assert.ok(Math.abs(phaseErr) < 1e-9, 'the grids agree to the sample');
+  // a whole beat late is still a valid seam — the correction is not periodic,
+  // it is the honest offset, so even a badly late call locks
+  assert.ok(Math.abs(S.seamEntry(plan, 100 + spb) - (8 + spb)) < 1e-9);
+  // clamped: past a whole seam the plan is stale rather than late, and B must
+  // not be flung deep into a track it was cued to enter at the top of
+  assert.equal(S.seamEntry(plan, 100 + 60), 8 + 3.87);
+  // EARLY is the normal case, not an anomaly: a beatmix is triggered a lead-in
+  // early on purpose, so B is placed a lead-in before its entry and arrives on
+  // it exactly as the fader opens. Bounded by the lead — an absurdly early call
+  // still only backs B up by the lead it was given.
+  assert.ok(Math.abs(S.seamEntry(plan, 100 - S.SEAM_LEAD) - (8 - S.SEAM_LEAD)) < 1e-9);
+  assert.ok(Math.abs(S.seamEntry(plan, 99) - (8 - S.SEAM_LEAD)) < 1e-9);
+  // B can never be rolled from before the start of its own file
+  assert.equal(S.seamEntry({ type: 'beatmix', startA: 100, startB: 0, seconds: 4 }, 99), 0);
+  assert.equal(S.seamEntry(null, 10), 0, 'garbage in → the top of the file');
+});
+test('seamLeadFor: every seam gets the lead-in it can honestly afford', () => {
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 8 }), S.SEAM_LEAD, 'plenty of runway');
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 0.1 }), 0.1, 'cued near the top → a short lead');
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 0 }), 0, 'no runway → no lead, honestly');
+  assert.equal(S.seamLeadFor({ type: 'gapless' }), 0, 'the artist sequenced those two to touch');
+  assert.equal(S.seamLeadFor({ type: 'fade', seconds: 3 }), S.SEAM_LEAD, 'a fade has no bar line to hit');
+  assert.equal(S.seamLeadFor(null), S.SEAM_LEAD);
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 8 }, 0), 0, 'a lead can be waived');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

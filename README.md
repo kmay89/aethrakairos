@@ -598,25 +598,48 @@ blend length at the same time — it now reads harmonic distance and tempo
 proximity, which are properties of the *pair*, rather than rewarding whichever
 plan happened to be longest.
 
-`tools/mix_probe.mjs` measures a real seam on a real graph, and it localises a
-defect that had been reported as intermittent:
+`tools/mix_probe.mjs` measures a real seam on a real graph. It localised a defect
+that had been reported as intermittent, and the fix is measured by the same tool:
 
-| condition | beat-phase error | fade-in against a deck that had not started |
-|---|---|---|
-| main thread free | **0.3 ms** | 41 ms |
-| visualizer running | **114–119 ms** | 322–441 ms |
+| condition | beat-phase error | | |
+|---|---|---|---|
+| | before | after | contract |
+| main thread free | 0.3 ms | **4.0 ms** | 40 ms |
+| visualizer running | 114–119 ms | **1.9–8.0 ms** | 40 ms |
 
-The seam is excellent when nothing else is competing and loses its beat lock when
-the visualizer saturates the main thread. This is a **coupling** problem, not a
-tuning one: the loudness crossfade was moved onto the audio clock long ago
-precisely because a dropped frame used to zipper it, but the seam's *trigger* and
-its *phase servo* still run in the animation loop, so their accuracy tracks the
-frame rate. The engine's own documented contract is 40 ms (see
-`tools/mix_acceptance.mjs`), and under render load it does not meet it — on `main`
-either; this is measured, pre-existing, and not yet fixed. Moving the trigger and
-the servo onto a timer or the audio clock is the next piece of work, and the probe
-tracks both numbers as OPEN so the improvement will be visible rather than
-asserted.
+The seam was excellent when nothing else was competing and lost its beat lock when
+the visualizer saturated the main thread — a **coupling** problem, not a tuning
+one. The cause turned out to be a single line. The incoming deck was placed at its
+absolute planned entry point at whatever instant the animation loop *noticed* that
+the outgoing track had crossed its bar line, so the offset between the two beat
+grids was simply the frame's lateness: at 124 bpm a 114 ms frame is a quarter
+beat, which is exactly the flam a listener reports. Worse, the only window in
+which the phase servo is allowed to correct hard — while the incoming deck is
+still inaudible — had closed before the servo's once-a-beat check ever ran, so the
+error survived the whole blend at the ±0.4 % the tempo trim can absorb.
+
+Three changes, none of which depends on the frame rate:
+
+- **The seam is placed relative to where the outgoing track actually is.**
+  `seamEntry()` gives the incoming deck the outgoing deck's slip, so a late call
+  places a *correct* seam rather than a punctual wrong one. A whole beat late is
+  still in lock.
+- **Every seam is scheduled a lead-in ahead of itself on the audio clock**, and a
+  beatmix is triggered that much early so the fader still opens on the bar line.
+  The deck gets 450 ms to actually start rolling — media elements take 200–700 ms
+  to resume under load — through a window in which it cannot be heard.
+- **The servo latches the moment the incoming deck is genuinely rolling**, not a
+  beat later, so the hard align happens inside the lead-in where it is silent.
+
+Both `tools/mix_acceptance.mjs` phase checks (0.9 ms and 0.4 ms) and the probe's
+beat-lock check now pass under render load; the latter was promoted from a tracked
+number to a **regression gate**. What remains open, and is printed with its
+measurement on every run, is that the element's resume still runs 210–680 ms, so
+the lead does not always cover it. That no longer costs the lock — the servo
+measures the grids once the deck is rolling rather than trusting where it was
+placed — but the worst observed case is an onset around −20 dB a half-beat into
+the fade: a soft entry, not a hole. Closing it means rolling the incoming deck
+silently through the armed window so the seam never calls `play()` at all.
 
 **iOS is a different engine and is unchanged.** There the WebAudio graph is not
 live at all: `createMediaElementSource` is a one-way door and a suspended context
@@ -748,7 +771,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 58 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 190 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
@@ -764,11 +787,12 @@ node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update butt
 python3 tools/make_mix_fixture.py /tmp/mb8-mix
 node tools/mix_probe.mjs /tmp/mb8-mix        # the SEAM on a real graph: master-level
                                     #   envelope across the blend, whether the incoming
-                                    #   deck was actually producing audio when the fader
-                                    #   opened, the beat-phase error, and that no deck is
-                                    #   left off-unity afterwards. MB8_PROBE_RENDER=1
-                                    #   re-runs it with the visualizer live, which
-                                    #   exposes the seam's frame-rate coupling
+                                    #   deck was rolling before the blend could be heard,
+                                    #   the beat-phase error, and that no deck is left
+                                    #   off-unity afterwards. MB8_PROBE_RENDER=1 re-runs
+                                    #   it with the visualizer live, which is how the
+                                    #   seam's frame-rate coupling was found — and is now
+                                    #   the condition the beat lock is GATED under
 node tools/update_probe.mjs         # 12 checks on the REACHABILITY of an update:
                                     #   stamped + unstamped deploys, a sibling client
                                     #   consuming the waiting worker, and "Later"
