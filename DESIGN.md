@@ -177,6 +177,63 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   91 ms under load. No JS clock decouples from main-thread saturation. That is what
   pointed at placement rather than cadence as the thing to fix.
 
+### 1.2d The hand is in the world, not on top of it
+- **What was wrong was an architecture, not a number.** The touch was answered on
+  a full-screen 2D canvas at `z-index: 4` (`#touchCanvas`) plus two DOM divs
+  (`#voidFx` with `mix-blend-mode: multiply`, `#voidRing` with an accent
+  `box-shadow`). Each personality drew itself there in the live palette: a photon
+  ring, three wound spiral arms, a disk of infalling motes, expanding rings, a
+  charge arc, a release wavefront. Roughly 220 lines of correct code that read as a
+  heads-up display, because a screen-space stroke at a fixed pixel width sits in
+  front of the world — no depth, no camera, no scene — and it required a dark radial
+  veil painted underneath so its glow would read over a busy field. The visuals
+  were being dimmed so the decoration could be seen. All of it is deleted; nothing
+  replaced it in that layer.
+- **One metric, two consumers.** `WARP` / `warpReach` / `warpSoft` / `warpDeflect`
+  / `warpRho` / `warpHorizon` / `warpBudget` are pure and unit-tested; `GLSL_WARP`
+  is generated from the same constants. The point shaders displace matter through
+  it (view space *and* depth, so a well has volume and matter pushed away shrinks
+  through the ordinary perspective divide), and `LENS_FIELD` refracts the
+  composited frame through it. `tools/touch_probe.mjs` evaluates the shipped GLSL
+  on the GPU against the JS across 750 samples and gates on drift — worst observed
+  2 × 10⁻⁵. The light and the matter cannot be bent by different physics.
+- **`LENS_FIELD` is the piece that ends the overlay**, and it earns its place by
+  doing three things a stroke cannot: it bends *everything* (the eleven raymarched
+  scenes have no particles and previously answered a touch with only a camera
+  nudge — now 22% of such a frame moves); the void's darkness is real, because
+  light inside the capture radius is not sampled; and the bright ring is
+  *emergent*, because a lens makes two images and at the Einstein radius they
+  converge and the light doubles. It runs before the artistic lenses, so a
+  kaleidoscope repeats the distortion into every sector.
+- **Bounded, deliberately.** 1/*b* deflection diverges at the centre. The first
+  build displaced samples 1.6 screen radii under the finger and destroyed the
+  frame — measured, then fixed with `warpSoft(x, max) = x/(1+|x|/max)`: exact for
+  small *x* so the far field keeps the true 1/*r* tail (that long reach is most of
+  why this reads as space), asymptotic under the hand where the horizon has taken
+  over. Radial and angular ceilings are separate, because rotation preserves radius
+  and therefore cannot smear the near field the way a radial term does — so the
+  vortex is allowed a freer hand than the void.
+- **Accessibility is a ceiling, not a switch.** `warpBudget()` returns 0.6 under the
+  safety governor's calm state and 0.34 under `prefers-reduced-motion`, where the
+  ripple's phase clock also freezes. It shrinks and never closes: a hand that
+  touches the world and feels nothing is its own defect. Both halves are asserted,
+  because the failure modes are opposite and both are real.
+- **Cost.** The pass exists only while `LENS.handLive()` — presence, or a
+  still-travelling release wavefront. On ECO and on a device the governor has found
+  to be struggling it is skipped and the matter warp answers alone, which is what
+  the touch did before any of this.
+- **Three probe bugs worth remembering**, all of them the instrument measuring
+  itself rather than the app. (1) Comparing two frames separated in time reported
+  92% of a raymarched frame as "bent" when almost all of it was the scene
+  animating; both frames are now rendered inside one tick with only the pointer
+  uniforms toggled. (2) Rendering three times per tick made SwiftShader look like a
+  struggling device, the governor correctly switched the pass off, and the run's
+  later checks read 0.0% with every annulus exactly zero — so the probe pins the
+  governor and asserts the strained path separately. (3) Asking "which force
+  darkens the most pixels" elected the *vortex*, because rotating an image moves
+  bright things off where they were; the claim was about the core, so the core is
+  what gets measured.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

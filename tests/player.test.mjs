@@ -35,6 +35,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, newsSince,' +
+  ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss };';
@@ -2184,6 +2185,134 @@ test('styleExitBase: musical rides to the end; adaptive mixes out early at the l
   assert.equal(S.styleExitBase('club', { type: 'beatmix', startA: 123 }, dur), 123);
   // no structure → the plain base for everyone
   assert.equal(S.styleExitBase('adaptive', fade, dur, null), dur - 4);
+});
+
+/* ---- THE FABRIC ------------------------------------------------------------
+   These hold the metric the hand bends, and they exist because two consumers
+   read it: the point shaders displace real particles through it, and a
+   full-screen pass refracts the composited frame through it. The GLSL is
+   generated from the same constants and checked against these functions on the
+   GPU by tools/touch_probe.mjs, so a change here that the shader does not
+   follow is caught rather than shipped. */
+test('warpSoft: exact for a small deflection, bounded for a large one', () => {
+  // the far field must keep the TRUE 1/r tail — that long reach is most of why
+  // the deformation reads as space rather than as a brush, so the clip has to be
+  // invisible out there
+  assert.ok(Math.abs(S.warpSoft(0.001, 0.2) - 0.001) < 2e-5, 'small values pass through');
+  assert.ok(Math.abs(S.warpSoft(-0.001, 0.2) + 0.001) < 2e-5, 'and they keep their sign');
+  // and it must never exceed the ceiling, however absurd the input. Real 1/b
+  // deflection diverges at the centre; a screen cannot survive that (measured:
+  // 1.6 screen radii of displacement, the frame annihilated)
+  for (const x of [0.5, 5, 500, 1e6, -1e6])
+    assert.ok(Math.abs(S.warpSoft(x, 0.2)) < 0.2, 'bounded at ' + x);
+  assert.ok(S.warpSoft(1e6, 0.2) > 0.199, 'and it does reach the ceiling');
+  assert.equal(S.warpSoft(0, 0.2), 0, 'no hand, no deflection');
+  // monotone: a stronger cause must never produce a weaker effect
+  let prev = -Infinity;
+  for (let x = 0; x < 3; x += 0.05){
+    const v = S.warpSoft(x, 0.2);
+    assert.ok(v >= prev - 1e-12, 'monotone at ' + x.toFixed(2));
+    prev = v;
+  }
+});
+test('warpReach: still under the hand, still in the corners, smooth between', () => {
+  assert.ok(Math.abs(S.warpReach(0, 0.8) - 1) < 1e-9, 'full under the hand');
+  assert.equal(S.warpReach(0.8, 0.8), 0, 'zero at the reach');
+  assert.equal(S.warpReach(2, 0.8), 0, 'and beyond it — the far corners do not swim');
+  // C1 at both ends is what keeps the edge of the influence from being a seam a
+  // listener can find by moving their finger slowly
+  const d = (r, h) => (S.warpReach(r + h, 0.8) - S.warpReach(r - h, 0.8)) / (2 * h);
+  assert.ok(Math.abs(d(0, 1e-4)) < 1e-3, 'flat at the centre');
+  assert.ok(Math.abs(d(0.8 - 1e-3, 1e-4)) < 1e-2, 'flat at the edge');
+  assert.ok(S.warpReach(0.3, 0.8) > S.warpReach(0.6, 0.8), 'monotone falloff');
+  assert.equal(S.warpReach(0.3, 0), 0, 'a zero reach is a flat fabric');
+});
+test('warpDeflect: each force is a different deformation, and every one is bounded', () => {
+  const o = { charge: 0.5, spin: 0.5, beat: 0.4, phase: 0 };
+  const at = (mode, r) => S.warpDeflect(mode, r, o);
+  // VOID pushes the image OUT (light bends in); ACCRETION draws it IN. If these
+  // ever agreed in sign, two personalities would be one.
+  assert.ok(at(0, 0.2).rad > 0, 'the void stretches the image outward');
+  assert.ok(at(2, 0.2).rad < 0, 'the accretion draws it inward');
+  // the vortices are rotation only, and opposite — chirality follows the drag
+  assert.ok(Math.abs(at(1, 0.2).rad) < 1e-9 && Math.abs(at(-1, 0.2).rad) < 1e-9,
+    'a vortex does not move anything radially');
+  assert.ok(at(1, 0.2).ang > 0 && at(-1, 0.2).ang < 0, 'and the two wind opposite ways');
+  assert.ok(Math.abs(at(1, 0.2).ang + at(-1, 0.2).ang) < 1e-9, 'by exactly the same amount');
+  // every branch respects the ceilings, at every radius, at every commitment
+  for (const mode of [-1, 0, 1, 2, 3]){
+    for (const charge of [0, 0.5, 1]){
+      for (let r = 0; r < 1.6; r += 0.02){
+        const d = S.warpDeflect(mode, r, { charge, spin: 1, beat: 1, phase: 0.7 });
+        assert.ok(Math.abs(d.rad) <= S.WARP.radMax + 1e-9, 'radial bounded: mode ' + mode + ' r ' + r.toFixed(2));
+        assert.ok(Math.abs(d.ang) <= S.WARP.angMax + 1e-9, 'angular bounded: mode ' + mode + ' r ' + r.toFixed(2));
+        assert.ok(isFinite(d.rad) && isFinite(d.ang), 'finite everywhere');
+      }
+    }
+  }
+  // beyond the reach the fabric is flat, for every force — the whole screen must
+  // not be dragged around by a finger in one corner
+  for (const mode of [-1, 0, 1, 2, 3]){
+    const far = S.warpDeflect(mode, 4, { charge: 1, spin: 1, beat: 1 });
+    assert.ok(Math.abs(far.rad) < 1e-9 && Math.abs(far.ang) < 1e-9, 'flat far away: mode ' + mode);
+  }
+  // commitment DEEPENS the deformation — that is the whole charge mechanic, and
+  // it is what replaced the progress arc that used to be drawn under the thumb
+  const light = S.warpDeflect(0, 0.25, { charge: 0 }).rad;
+  const held = S.warpDeflect(0, 0.25, { charge: 1 }).rad;
+  assert.ok(held > light, 'a held void bends harder: ' + light.toFixed(4) + ' -> ' + held.toFixed(4));
+  // and it reaches further: at a radius the graze cannot touch, the hold can
+  const edge = S.WARP.reach * 1.1;
+  assert.equal(S.warpDeflect(0, edge, { charge: 0 }).rad, 0, 'past a graze\'s reach');
+  assert.ok(S.warpDeflect(0, edge, { charge: 1 }).rad > 0, 'but inside a hold\'s');
+  // the ripple oscillates — it must actually change sign with radius, or it is
+  // not a wave, it is a bulge
+  let sign = 0, flips = 0;
+  for (let r = 0.02; r < 0.7; r += 0.01){
+    const v = S.warpDeflect(3, r, { charge: 0.3, beat: 0.5, phase: 0 }).rad;
+    const sg = Math.sign(v);
+    if (sg && sign && sg !== sign) flips++;
+    if (sg) sign = sg;
+  }
+  assert.ok(flips >= 2, 'the wave metric actually oscillates, got ' + flips + ' sign changes');
+  // the beat is in the fabric: a hit crests the ripple harder
+  const quiet = Math.abs(S.warpDeflect(3, 0.12, { beat: 0, phase: 0 }).rad);
+  const hit = Math.abs(S.warpDeflect(3, 0.12, { beat: 1, phase: 0 }).rad);
+  assert.ok(hit > quiet, 'the ripples crest on the beat');
+  // garbage in: no NaN reaches a shader
+  const junk = S.warpDeflect(0, 0.2, null);
+  assert.ok(isFinite(junk.rad) && isFinite(junk.ang), 'null options are survivable');
+});
+test('warpRho: the sample radius never folds through zero', () => {
+  // a negative radius is a reflection, and a lens that turns the world inside
+  // out under the finger is a bug rather than a feature
+  for (const mode of [-1, 0, 1, 2, 3])
+    for (let r = 0; r < 1.2; r += 0.01)
+      assert.ok(S.warpRho(mode, r, 1, { charge: 1, spin: 1, beat: 1 }) >= 0,
+        'mode ' + mode + ' at r ' + r.toFixed(2));
+  // a flat fabric is the identity: no force, no distortion, exactly
+  for (const mode of [-1, 0, 1, 2, 3])
+    assert.equal(S.warpRho(mode, 0.3, 0, { charge: 1 }), 0.3, 'zero force is the identity');
+});
+test('warpHorizon: only the void captures, and the hold widens it', () => {
+  // the void's core is black because light inside this radius does not come back.
+  // That used to be a div with mix-blend-mode: multiply hovering over the field.
+  assert.ok(S.warpHorizon(0, 1, 0) > 0, 'the void has a horizon');
+  for (const mode of [-1, 1, 2, 3])
+    assert.equal(S.warpHorizon(mode, 1, 1), 0, 'nothing else captures: mode ' + mode);
+  assert.ok(S.warpHorizon(0, 1, 1) > S.warpHorizon(0, 1, 0), 'the hold widens the horizon');
+  assert.equal(S.warpHorizon(0, 0, 1), 0, 'no hand, no horizon');
+});
+test('warpBudget: shrinks for reduced motion, and never closes', () => {
+  // a full-screen distortion is a vestibular event, not just a look — but a hand
+  // that touches the world and feels nothing is its own defect, so the ceiling
+  // comes down and never to zero
+  const n = S.warpBudget({}), c = S.warpBudget({ calm: true }), r = S.warpBudget({ reduced: true });
+  assert.equal(n, 1, 'no constraint, full authority');
+  assert.ok(c < n && c > 0.2, 'the safety governor calms it: ' + c);
+  assert.ok(r < c && r > 0.2, 'reduced motion calms it further, and it still answers: ' + r);
+  assert.equal(S.warpBudget({ reduced: true, calm: true }), r, 'reduced motion is the floor either way');
+  assert.equal(S.warpBudget(null), 1, 'garbage in → no constraint claimed');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
