@@ -35,7 +35,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
-  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, newsSince,' +
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, updateOffer, newsSince,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
@@ -2398,6 +2398,35 @@ test('mixsetPick: anchor first (in full), else nearest-energy from the section p
   // no mixset / empty library → null (mixer falls back)
   assert.equal(S.mixsetPick(null, LIB, {}), null);
   assert.equal(S.mixsetPick(MIXSET_FIX, [], {}), null);
+});
+
+test('updateOffer: judged by provenance, because a difference is not a newer build', () => {
+  const run = 'aaaa111111';
+  // A CONTROLLERCHANGE IS A CLAIM, NOT A MEASUREMENT. This is what put
+  // "aaaa111111 -> new" on a listener's screen: a worker took over, nobody
+  // measured anything, and the card offered the build already running.
+  assert.equal(S.updateOffer({ source: 'claim', build: '', running: run }), 'verify');
+  assert.equal(S.updateOffer({ source: 'claim', running: run }), 'verify');
+  // once checked, it is settled here by id
+  assert.equal(S.updateOffer({ source: 'claim', build: run, running: run }), 'ignore');
+  assert.equal(S.updateOffer({ source: 'claim', build: 'bbbb222222', running: run }), 'show');
+  /* AND THE TRAP ON THE OTHER SIDE, which the first version of this walked into:
+     rejecting every claim whose id matches the running build kills the UN-STAMPED
+     deploy — same id, different content — which is the whole reason the worker's
+     byte-compare exists. A 'shell' claim is that compare's verdict about CONTENT,
+     so it stands whether or not the stamp moved. (echoes_power_smoke's "a fresh
+     deploy raises the update badge by itself" is the check that caught this.) */
+  assert.equal(S.updateOffer({ source: 'shell', build: run, running: run }), 'show',
+    'an unstamped deploy still reaches the listener');
+  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run }), 'show');
+  assert.equal(S.updateOffer({ source: 'shell', build: '', running: run }), 'show');
+  // a waiting service worker is a versioned release the browser installed itself
+  assert.equal(S.updateOffer({ source: 'worker', build: '', running: run }), 'show');
+  assert.equal(S.updateOffer({ source: 'worker', build: run, running: run }), 'show');
+  // nothing is offered while an apply is already under way
+  for (const src of ['worker', 'shell', 'claim'])
+    assert.equal(S.updateOffer({ source: src, build: 'bbbb222222', running: run, requested: true }), 'ignore');
+  assert.equal(S.updateOffer(null), 'verify', 'garbage in → check, never assert');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

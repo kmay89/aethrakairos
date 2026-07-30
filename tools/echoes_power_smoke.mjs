@@ -166,8 +166,13 @@ await pageU.goto(base, { waitUntil: 'load' });
 await pageU.waitForFunction('navigator.serviceWorker && navigator.serviceWorker.ready && true', null, { timeout: 15000 });
 await pageU.waitForTimeout(1200);                      // let install/activate settle
 await pageU.reload({ waitUntil: 'load' });
-await pageU.waitForTimeout(800);
-const controlled = await pageU.evaluate(() => !!navigator.serviceWorker.controller);
+/* WAIT FOR THE CONDITION, NOT FOR A GUESS. A fixed 800 ms was enough most of the
+ * time and not always: under load the worker had not taken control yet, this
+ * check went red, and — worse — the badge check below inherited the failure,
+ * because a page with no controller cannot post CHECK_SHELL. One flaky
+ * prerequisite was quietly reporting a second, unrelated defect. */
+const controlled = await pageU.waitForFunction('!!navigator.serviceWorker.controller',
+  null, { timeout: 20000 }).then(() => true).catch(() => false);
 R('second load is service-worker controlled', controlled);
 // hold the auto-apply the way a live set would — SHOW mode — so the badge
 // can be observed instead of the update seamlessly applying itself (which is

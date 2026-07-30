@@ -2,6 +2,16 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "74fea37ab0",
+      "date": "2026-07-30",
+      "title": "The update that kept asking",
+      "notes": [
+        "fixed: the app could offer you an update to the version you were already running, and keep offering it after you applied it",
+        "an update is only offered now when the build on the server is genuinely different from the one you have",
+        "when a check turns out to be a false alarm, the badge clears itself instead of waiting for a reload"
+      ]
+    },
+    {
       "build": "05d9b7a1af",
       "date": "2026-07-30",
       "title": "No more silence between tracks on iPhone",
