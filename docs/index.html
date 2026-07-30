@@ -4194,6 +4194,17 @@ const player = {
       this._committedNext = null;
       if (this.tracks[i]) return i;
     }
+    // a loaded mixset owns the draw: it says which LIBRARY track this moment of
+    // the set wants; pull it into the queue if it isn't already there. A null
+    // (no active set, or nothing eligible) falls through to the normal draw.
+    if (typeof MIXSET !== 'undefined' && MIXSET.active){
+      const t = MIXSET.pickTrack();
+      if (t){
+        let mi = this.tracks.indexOf(t);
+        if (mi === -1){ this.tracks.push(t); mi = this.tracks.length - 1; this.renderList(); }
+        return mi;
+      }
+    }
     if (this.quantum.on && this.tracks.length > 1) return this._quantumNext();
     if (this.shuffle && this.tracks.length > 1) return this._bagNext();
     if (this.cur < this.tracks.length - 1) return this.cur + 1;
@@ -9247,13 +9258,179 @@ function styleExitBase(name, plan, dur, structure, lead){
 }
 // @style-end
 
+// @mixset-start
+// THE MIXSET — a whole set described as data, so a room can run itself. A mixset
+// is named SECTIONS that each carry a song pool, an energy target, and their own
+// transition style; plus ANCHORS — specific songs pinned to a moment and played
+// in full (the first dance, the cake cut, the last song). Given only where the
+// night is (seconds elapsed since the set began) the engine answers, purely and
+// deterministically, "what plays next and in what feel." That determinism is the
+// point: a wedding cannot improvise the first dance.
+//
+// Everything here is pure and total — no clock, no catalog globals, no RNG — so
+// the taste is unit-tested and a malformed file degrades to "no pick" (the live
+// mixer then falls back to its normal draw) instead of throwing mid-reception.
+
+// Does a track satisfy a selector? Selectors are small and forgiving; multiple
+// keys AND together, unknown keys are ignored (a newer file still runs):
+//   { any:true }                     everything
+//   { id:12 } / { ids:[…] }          by track id
+//   { title:"First Dance" }          case-insensitive exact-or-substring title
+//   { titles:[…] }                   any-of titles
+//   { tag:"kindled-logic" }          an album tag (the folder)
+//   { tags:[…] }                     any-of tags
+//   { energy:[lo,hi] }               features.energy within [lo,hi]
+function matchTrack(sel, track){
+  if (!sel || !track) return false;
+  if (sel.any) return true;
+  const title = (track.title || '').toLowerCase();
+  const tag = (track.tag || track.albumTag || '').toLowerCase();
+  const e = track.features ? track.features.energy : null;
+  const titleHit = s => { const q = String(s).toLowerCase(); return title === q || (q.length > 0 && title.indexOf(q) >= 0); };
+  if (sel.id != null && track.id !== sel.id) return false;
+  if (sel.ids && !sel.ids.includes(track.id)) return false;
+  if (sel.title != null && !titleHit(sel.title)) return false;
+  if (sel.titles && !sel.titles.some(titleHit)) return false;
+  if (sel.tag != null && tag !== String(sel.tag).toLowerCase()) return false;
+  if (sel.tags && !sel.tags.map(x => String(x).toLowerCase()).includes(tag)) return false;
+  if (sel.energy){
+    if (e == null) return false;
+    if (e < sel.energy[0] || e > sel.energy[1]) return false;
+  }
+  return true;
+}
+
+// The section active at elapsedSec, by cumulative minutes. Returns
+// { section, index, startSec, endSec, intoSec, remainSec, edge } — edge is
+// 'start' within the first 2 s of a section, 'end' within its last 2 s — or the
+// LAST section when the clock has run past the planned length (a set never ends
+// early: the final section holds the floor until someone stops the music).
+function mixsetSectionAt(mixset, elapsedSec){
+  const secs = (mixset && mixset.sections) || [];
+  if (!secs.length) return null;
+  const t = Math.max(0, elapsedSec || 0);
+  let acc = 0;
+  for (let i = 0; i < secs.length; i++){
+    const len = Math.max(0, (secs[i].minutes || 0)) * 60;
+    const last = i === secs.length - 1;
+    if (last || t < acc + len){
+      const into = t - acc, remain = last ? Infinity : (acc + len - t);
+      const edge = into <= 2 ? 'start' : (remain <= 2 ? 'end' : 'mid');
+      return { section: secs[i], index: i, startSec: acc, endSec: last ? Infinity : acc + len, intoSec: into, remainSec: remain, edge };
+    }
+    acc += len;
+  }
+  return null;
+}
+
+// The transition style for a moment: the active section's style, else the
+// mixset default, else 'adaptive'. (styleAdjustPlan/exitTime consume this.)
+function mixsetStyleAt(mixset, elapsedSec){
+  const at = mixsetSectionAt(mixset, elapsedSec);
+  const def = (mixset && mixset.defaults && mixset.defaults.style) || 'adaptive';
+  const st = at && at.section.style;
+  return MIX_STYLES[st] ? st : (MIX_STYLES[def] ? def : 'adaptive');
+}
+
+// Would this track be refused anywhere? (the do-not-play list — an explicit
+// track, a whole tag, an energy ceiling.) Applies in every section.
+function mixsetForbids(mixset, track){
+  const dnp = (mixset && mixset.doNotPlay) || [];
+  return dnp.some(sel => matchTrack(sel, track));
+}
+
+// The library tracks a section may draw from: its pool, minus anything the set
+// forbids. No pool key ⇒ the section accepts anything (energy still narrows it).
+function sectionPool(mixset, section, tracks){
+  const pool = section && section.pool;
+  return (tracks || []).filter(t =>
+    !mixsetForbids(mixset, t) && (pool == null || matchTrack(pool, t)));
+}
+
+// The energy the active section is aiming at (midpoint of its [lo,hi], or a
+// single number, or 0.5 if unspecified).
+function sectionTargetEnergy(section){
+  const e = section && section.energy;
+  if (e == null) return 0.5;
+  if (Array.isArray(e)) return (e[0] + e[1]) / 2;
+  return e;
+}
+
+// An anchor that should fire NOW and hasn't yet. Triggers, first match wins:
+//   at:{ elapsedMin:N }            once the set clock passes N minutes
+//   at:{ section:"Name", edge }    at that section's 'start' or 'end' (default 'start')
+// state: { elapsedSec, playedAnchors:Set<index> }. Returns { anchor, index } or null.
+function dueAnchor(mixset, state){
+  const anchors = (mixset && mixset.anchors) || [];
+  const played = (state && state.playedAnchors) || new Set();
+  const t = Math.max(0, (state && state.elapsedSec) || 0);
+  for (let i = 0; i < anchors.length; i++){
+    if (played.has(i)) continue;
+    const a = anchors[i], at = a.at || {};
+    let due = false;
+    if (at.elapsedMin != null){
+      due = t >= at.elapsedMin * 60;
+    } else if (at.section != null){
+      const sa = mixsetSectionAt(mixset, t);
+      if (sa && (sa.section.name || '').toLowerCase() === String(at.section).toLowerCase()){
+        const want = at.edge || 'start';
+        due = want === 'end' ? sa.edge === 'end' : (sa.edge === 'start' || sa.intoSec <= 2);
+      }
+    }
+    if (due) return { anchor: a, index: i };
+  }
+  return null;
+}
+
+// THE PICK — what plays next, and how. A due anchor wins and is played in full;
+// otherwise the track from the active section's pool whose energy sits closest
+// to the section target and that has been played least recently. Pure over the
+// track list and the run state; returns { track, style, playInFull, reason,
+// anchorIndex } or null (⇒ the live mixer keeps its normal draw).
+// state: { elapsedSec, playedIds:Set, playedAnchors:Set, currentId }
+function mixsetPick(mixset, tracks, state){
+  if (!mixset || !tracks || !tracks.length) return null;
+  const st = state || {};
+  const elapsed = Math.max(0, st.elapsedSec || 0);
+  const style = mixsetStyleAt(mixset, elapsed);
+
+  const due = dueAnchor(mixset, st);
+  if (due){
+    const hit = tracks.filter(t => matchTrack(due.anchor.track, t) && !mixsetForbids(mixset, t));
+    if (hit.length){
+      return { track: hit[0], style, playInFull: due.anchor.playInFull !== false,
+               reason: 'anchor:' + (due.anchor.name || due.index), anchorIndex: due.index };
+    }
+    // a named anchor that matches nothing is skipped, not fatal — fall through
+  }
+
+  const at = mixsetSectionAt(mixset, elapsed);
+  if (!at) return null;
+  const pool = sectionPool(mixset, at.section, tracks);
+  if (!pool.length) return null;
+  const played = (st.playedIds && st.playedIds.has) ? st.playedIds : new Set(st.playedIds || []);
+  let fresh = pool.filter(t => !played.has(t.id) && t.id !== st.currentId);
+  if (!fresh.length) fresh = pool.filter(t => t.id !== st.currentId);   // pool exhausted → allow repeats
+  if (!fresh.length) fresh = pool;
+  const target = sectionTargetEnergy(at.section);
+  let best = null, bestD = Infinity;
+  for (const t of fresh){
+    const e = t.features && t.features.energy != null ? t.features.energy : 0.5;
+    const d = Math.abs(e - target);
+    if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && best && t.id < best.id)){ best = t; bestD = d; }
+  }
+  return best ? { track: best, style, playInFull: false, reason: 'section:' + (at.section.name || at.index), anchorIndex: -1 } : null;
+}
+// @mixset-end
+
 const MIXER = {
   on: true,                      // auto-mix is the default: beatmix when the grids
                                  // agree, an honest crossfade when they don't — the
                                  // planner (planTransition) refuses anything that
                                  // wouldn't be great, so ON is always safe
   phase: 'idle',                 // idle | armed | running
-  style: 'adaptive',             // adaptive | musical | club (MIX_STYLES)
+  style: 'adaptive',             // adaptive | musical | club (MIX_STYLES) — manual default
+  _seamStyle: null,              // the style frozen for the seam in flight (mixset may override per-section)
   plan: null, next: -1,
   outDeck: null, startedAt: 0, overlap: 0,
   lastF: 0, trim: 0, trimI: 0, lastBeatCheck: 0,
@@ -9351,7 +9528,7 @@ const MIXER = {
     // a lead-in early (SEAM_LEAD) so its scheduled ramps stay inside the track —
     // styleExitBase applies that lead uniformly.
     const lead = seamLeadFor(plan);
-    return styleExitBase(this.style, plan, dur, track && track._structure, lead);
+    return styleExitBase(this._seamStyle || this.style, plan, dur, track && track._structure, lead);
   },
 
   arm(){
@@ -9360,11 +9537,16 @@ const MIXER = {
     if (i === -1 || !player.tracks[i]){ return; }
     player._committedNext = i;               // the planned draw is the real draw
     const B = player.tracks[i];
+    // a loaded mixset sets the feel per section (and lets a play-in-full anchor
+    // finish); otherwise the manual style chip governs. Frozen for THIS seam so
+    // exitTime and the plan agree even if the clock crosses a boundary mid-seam.
+    const seamStyle = (typeof MIXSET !== 'undefined' && MIXSET.active) ? MIXSET.styleForSeam(A) : this.style;
+    this._seamStyle = seamStyle;
     let plan = planTransition(
       Object.assign({}, A, { mix: mixOf(A) }),
       Object.assign({}, B, { mix: mixOf(B) }),
-      stylePlanOpts(this.style, { override: MIXFIX.pairOverride(A, B), albumSequential: isAlbumSequential(A, B) }));
-    plan = styleAdjustPlan(this.style, plan);            // musical lets the song play out
+      stylePlanOpts(seamStyle, { override: MIXFIX.pairOverride(A, B), albumSequential: isAlbumSequential(A, B) }));
+    plan = styleAdjustPlan(seamStyle, plan);            // musical lets the song play out
     // beatmixing needs steady timers — hidden/locked, blend on a fade instead
     if (plan.type === 'beatmix' && document.hidden)
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
@@ -9781,6 +9963,75 @@ setInterval(() => {
   if (document.hidden) MIXER.update(performance.now() / 1000, 0.5);
 }, 500);
 
+/* ---- THE MIXSET RUNTIME — load a set, run it by the wall clock ------------
+   When a mixset is loaded the mixer stops drawing at random and instead asks
+   the pure planner (mixsetPick) what this MOMENT of the set wants: the right
+   section's pool at the right energy, in that section's feel, with anchors
+   hitting on time and played in full. When none is loaded, active === null and
+   every path below is inert — the mixer behaves exactly as before. */
+const MIXSET = {
+  active: null,                 // the parsed mixset, or null (mixer runs normally)
+  t0: 0,                        // set-clock origin (ms; Date.now based — a set runs on wall time)
+  playedIds: new Set(),
+  playedAnchors: new Set(),
+  playInFullIds: new Set(),
+  _lastReason: '',
+
+  load(obj, opts){
+    if (!obj || !Array.isArray(obj.sections) || !obj.sections.length){
+      toast('That is not a mixset — it needs a "sections" list');
+      return false;
+    }
+    this.active = obj;
+    this.t0 = Date.now() - (((opts && opts.elapsedSec) || 0) * 1000);
+    this.playedIds = new Set(); this.playedAnchors = new Set(); this.playInFullIds = new Set();
+    if (!MIXER.on) MIXER.setOn(true);
+    MIXER.cancel('mixset');                 // re-plan the next seam under the set
+    toast('Mixset — <b>' + escapeHTML(obj.name || 'set') + '</b> · ' + obj.sections.length + ' sections'
+      + (obj.anchors && obj.anchors.length ? ' · ' + obj.anchors.length + ' anchors' : ''));
+    syncMixHud(); PERSIST.poke();
+    return true;
+  },
+  clear(){ this.active = null; syncMixHud(); PERSIST.poke(); },
+  isOn(){ return !!this.active; },
+  elapsedSec(){ return this.active ? Math.max(0, (Date.now() - this.t0) / 1000) : 0; },
+
+  _state(){
+    const cur = player.tracks[player.cur];
+    return { elapsedSec: this.elapsedSec(), playedIds: this.playedIds,
+             playedAnchors: this.playedAnchors, currentId: cur ? cur.id : null };
+  },
+
+  // the next LIBRARY track this set wants, or null (the mixer keeps its own draw)
+  pickTrack(){
+    if (!this.active) return null;
+    const pick = mixsetPick(this.active, allTracks(), this._state());
+    if (!pick || !pick.track) return null;
+    this.playedIds.add(pick.track.id);
+    if (pick.anchorIndex >= 0) this.playedAnchors.add(pick.anchorIndex);
+    if (pick.playInFull) this.playInFullIds.add(pick.track.id);
+    this._lastReason = pick.reason;
+    return pick.track;
+  },
+
+  // the feel for a seam LEAVING track A: a play-in-full anchor is allowed to
+  // finish (musical); otherwise the current section's style.
+  styleForSeam(A){
+    if (!this.active) return MIXER.style;
+    if (A && this.playInFullIds.has(A.id)) return 'musical';
+    return mixsetStyleAt(this.active, this.elapsedSec());
+  },
+
+  // a short HUD line: the set + the section the clock is in
+  hud(){
+    if (!this.active) return '';
+    const at = mixsetSectionAt(this.active, this.elapsedSec());
+    if (!at) return '';
+    return (this.active.name ? this.active.name + ' · ' : '') + (at.section.name || ('section ' + (at.index + 1)));
+  },
+};
+window.loadMixset = obj => MIXSET.load(obj);   // console/testing hook
+
 /* ---- the fixes that last forever: hash-keyed, exportable to canon ---- */
 const MIXFIX = {
   pairs: new Map(), grids: new Map(),
@@ -9840,9 +10091,13 @@ function syncMixHud(){
   if (!el.chipMix) return;
   el.chipMix.hidden = !MIXER.available();
   el.chipMix.classList.toggle('on', MIXER.on);
+  const setOn = (typeof MIXSET !== 'undefined') && MIXSET.active;
   if (el.chipStyle){
     el.chipStyle.hidden = !MIXER.available() || !MIXER.on;   // only meaningful while mixing
-    el.chipStyle.textContent = '≋ ' + resolveMixStyle(MIXER.style).label.toUpperCase();
+    // when a set is running, the chip reflects the SECTION's feel (read-only);
+    // otherwise it's the manual style you cycle.
+    const shown = setOn ? mixsetStyleAt(MIXSET.active, MIXSET.elapsedSec()) : MIXER.style;
+    el.chipStyle.textContent = (setOn ? '◆ ' : '≋ ') + resolveMixStyle(shown).label.toUpperCase();
   }
   let txt = '';
   if (MIXER.on && MIXER.plan){
@@ -9854,6 +10109,7 @@ function syncMixHud(){
   } else if (MIXER.on){
     txt = 'mix armed';
   }
+  if (setOn){ const h = MIXSET.hud(); if (h) txt = '◆ ' + h + (txt ? ' · ' + txt : ''); }
   el.mixNext.textContent = txt;
   conSyncMixTuner();
 }
@@ -17546,6 +17802,15 @@ const MACPROMO = {
       { quiet: !explicit });
     if (okLoad){
       syncSortButtons();
+      // ?mixset=…/wedding.json runs a whole set by sections + anchors: the room
+      // pours a config file in and the mixer runs the night from it.
+      const mixsetUrl = params.get('mixset');
+      if (mixsetUrl){
+        try {
+          const mr = await fetch(new URL(mixsetUrl, location.href).href, { cache: 'no-cache' });
+          if (mr.ok) MIXSET.load(await mr.json());
+        } catch (e){ toast('Could not load that mixset'); }
+      }
       const ritual = ritualByKey(params.get('ritual') || '');
       if (ritual){
         // a home-screen shortcut or shared link: explicit intent beats restore
