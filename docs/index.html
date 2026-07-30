@@ -5077,6 +5077,7 @@ const PERSIST = {
       segue: { pending: SEGUE.pending, big: SEGUE.big, lastKind: SEGUE.lastKind, transDur: director.transDur },
       quantum: player.quantum.on ? { heat: player.quantum.heat, used: [...player.quantum.used] } : null,
       mixOn: MIXER.on, mixStyle: MIXER.style,
+      mixset: (typeof MIXSET !== 'undefined') ? MIXSET.snapshot() : null,
       journey: CON.lastDeal ? { mode: CON.lastDeal.mode, dials: CON.lastDeal.dials, seed: CON.lastDeal.seed } : null,
     };
   },
@@ -5102,6 +5103,9 @@ const PERSIST = {
     if (s.quantum){ player.quantum.on = true; player.quantum.heat = s.quantum.heat; player.quantum.used = new Set(s.quantum.used); }
     MIXER.on = !!s.mixOn;
     if (s.mixStyle && MIX_STYLES[s.mixStyle]) MIXER.style = s.mixStyle;
+    // a running set resumes mid-night: same section, same elapsed, same songs
+    // already spent — the wall clock ran on while the tab was gone.
+    if (s.mixset && typeof MIXSET !== 'undefined') MIXSET.restore(s.mixset);
     const curTrack = byKey.get(s.cur);
     if (curTrack){
       // restored PAUSED at position — iOS needs a gesture to start audio, so
@@ -10095,23 +10099,32 @@ setInterval(() => {
 const MIXSET = {
   active: null,                 // the parsed mixset, or null (mixer runs normally)
   t0: 0,                        // set-clock origin (ms; Date.now based — a set runs on wall time)
-  playedIds: new Set(),
+  // played history is keyed by trackKey (the stable sha/url), NOT the runtime
+  // id, so a reload mid-reception resumes without repeating the night's songs
+  // and without re-firing an anchor. Anchors are keyed by their index (stable).
+  playedKeys: new Set(),
   playedAnchors: new Set(),
-  playInFullIds: new Set(),
+  playInFullKeys: new Set(),
   _lastReason: '',
 
+  // opts: { elapsedSec, playedKeys[], playedAnchors[], playInFullKeys[] } — the
+  // last three rehydrate a restored set; omit them to start the clock fresh.
   load(obj, opts){
     if (!obj || !Array.isArray(obj.sections) || !obj.sections.length){
       toast('That is not a mixset — it needs a "sections" list');
       return false;
     }
+    opts = opts || {};
     this.active = obj;
-    this.t0 = Date.now() - (((opts && opts.elapsedSec) || 0) * 1000);
-    this.playedIds = new Set(); this.playedAnchors = new Set(); this.playInFullIds = new Set();
+    this.t0 = Date.now() - ((opts.elapsedSec || 0) * 1000);
+    this.playedKeys = new Set(opts.playedKeys || []);
+    this.playedAnchors = new Set(opts.playedAnchors || []);
+    this.playInFullKeys = new Set(opts.playInFullKeys || []);
     if (!MIXER.on) MIXER.setOn(true);
     MIXER.cancel('mixset');                 // re-plan the next seam under the set
-    toast('Mixset — <b>' + escapeHTML(obj.name || 'set') + '</b> · ' + obj.sections.length + ' sections'
-      + (obj.anchors && obj.anchors.length ? ' · ' + obj.anchors.length + ' anchors' : ''));
+    if (!opts.quiet)
+      toast('Mixset — <b>' + escapeHTML(obj.name || 'set') + '</b> · ' + obj.sections.length + ' sections'
+        + (obj.anchors && obj.anchors.length ? ' · ' + obj.anchors.length + ' anchors' : ''));
     syncMixHud(); PERSIST.poke();
     return true;
   },
@@ -10119,9 +10132,16 @@ const MIXSET = {
   isOn(){ return !!this.active; },
   elapsedSec(){ return this.active ? Math.max(0, (Date.now() - this.t0) / 1000) : 0; },
 
+  // the played-by-key history projected onto the CURRENT library's ids, so the
+  // pure planner (which reasons in ids) sees exactly which library tracks are spent
+  _playedIds(){
+    const ids = new Set();
+    for (const t of allTracks()) if (this.playedKeys.has(trackKey(t))) ids.add(t.id);
+    return ids;
+  },
   _state(){
     const cur = player.tracks[player.cur];
-    return { elapsedSec: this.elapsedSec(), playedIds: this.playedIds,
+    return { elapsedSec: this.elapsedSec(), playedIds: this._playedIds(),
              playedAnchors: this.playedAnchors, currentId: cur ? cur.id : null };
   },
 
@@ -10130,10 +10150,12 @@ const MIXSET = {
     if (!this.active) return null;
     const pick = mixsetPick(this.active, allTracks(), this._state());
     if (!pick || !pick.track) return null;
-    this.playedIds.add(pick.track.id);
+    const k = trackKey(pick.track);
+    if (k) this.playedKeys.add(k);
     if (pick.anchorIndex >= 0) this.playedAnchors.add(pick.anchorIndex);
-    if (pick.playInFull) this.playInFullIds.add(pick.track.id);
+    if (pick.playInFull && k) this.playInFullKeys.add(k);
     this._lastReason = pick.reason;
+    PERSIST.poke();                          // the night's progress is durable
     return pick.track;
   },
 
@@ -10141,7 +10163,7 @@ const MIXSET = {
   // finish (musical); otherwise the current section's style.
   styleForSeam(A){
     if (!this.active) return MIXER.style;
-    if (A && this.playInFullIds.has(A.id)) return 'musical';
+    if (A && this.playInFullKeys.has(trackKey(A))) return 'musical';
     return mixsetStyleAt(this.active, this.elapsedSec());
   },
 
@@ -10151,6 +10173,19 @@ const MIXSET = {
     const at = mixsetSectionAt(this.active, this.elapsedSec());
     if (!at) return '';
     return (this.active.name ? this.active.name + ' · ' : '') + (at.section.name || ('section ' + (at.index + 1)));
+  },
+
+  // the durable shape of a running set, small enough for the transport snapshot
+  snapshot(){
+    if (!this.active) return null;
+    return { obj: this.active, elapsedSec: Math.round(this.elapsedSec()),
+             playedKeys: [...this.playedKeys], playedAnchors: [...this.playedAnchors],
+             playInFullKeys: [...this.playInFullKeys] };
+  },
+  restore(s){
+    if (!s || !s.obj) return false;
+    return this.load(s.obj, { elapsedSec: s.elapsedSec, playedKeys: s.playedKeys,
+      playedAnchors: s.playedAnchors, playInFullKeys: s.playInFullKeys, quiet: true });
   },
 };
 window.loadMixset = obj => MIXSET.load(obj);   // console/testing hook
@@ -10365,7 +10400,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '002666156d';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '03eafb765a';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -12198,7 +12233,23 @@ window.addEventListener('drop', ev => {
   dragDepth = 0;
   el.drop.classList.remove('show');
   if (player._dragIdx !== -1) return;
-  if (ev.dataTransfer?.files?.length) player.addFiles(ev.dataTransfer.files);
+  const files = ev.dataTransfer?.files;
+  if (!files || !files.length) return;
+  // a single dropped .json that looks like a mixset LOADS THE SET (the room's
+  // config file, poured in by hand); anything else is queue audio as before.
+  const f = files[0];
+  if (files.length === 1 && /\.json$/i.test(f.name)){
+    const r = new FileReader();
+    r.onload = () => {
+      let obj = null; try { obj = JSON.parse(r.result); } catch (e){}
+      if (obj && Array.isArray(obj.sections) && obj.sections.length) MIXSET.load(obj);
+      else player.addFiles(files);
+    };
+    r.onerror = () => player.addFiles(files);
+    r.readAsText(f);
+    return;
+  }
+  player.addFiles(files);
 });
 
 /* idle → zen mode, choreographed around the cinematic waveform:
