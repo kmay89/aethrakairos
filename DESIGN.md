@@ -277,7 +277,24 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   ornament (the second image, the channel split, the area dimming). Measured at 20.8%
   of the frame moved with the correct near-field falloff. ECO remains the one place
   the pass does not run at all — that mode exists to give the battery to the music.
-- **The seam pre-roll failed a third time, and was reverted again.** Rolling the
+- **The pre-roll, done properly the fourth time — and still not shipped.** The three
+  casual attempts all rolled the deck early and then seeked it at `fire()` anyway:
+  two decoder flushes instead of one, measured worse (908 ms) than doing nothing.
+  The missing piece was arithmetic, not effort. A is playing at a known rate and the
+  seam fires when it reaches `startA − lead`, so the wall time until then is known —
+  and the incoming deck, running at that same rate, must begin exactly that much of
+  its own time short of its entry. `seamCuePoint()` computes it; `fire()` then has no
+  placement to make, and a late call costs nothing because both decks advance
+  together (the same time-invariance `seamEntry()` uses, from the other side).
+  It was written, unit-tested, and **reverted anyway** — because it cannot be
+  exercised. The mix fixture's incoming track mixes in at **0.00 s**, so it has
+  negative runway before its entry and the cue correctly declines on every seam.
+  Merging cue/uncue, re-cue-on-a-deferred-bar, and a skip branch in `fire()` that no
+  test can drive end to end is how a path rots. The finding is recorded at the top of
+  `mix_probe`, with what would make it measurable: a fixture pair whose incoming
+  track has several seconds before its mix-in point, plus the two `mix_acceptance`
+  assertions that count the crate's six rows.
+- **The three casual attempts before it, for the record.** Rolling the
   incoming deck silently a couple of seconds before the exit should have removed the
   210-680 ms resume: it made it **worse, 908 ms**, because `warm()` seeks away from
   the point `_preload` had already warmed and then `fire()` seeks again, so the seam

@@ -302,6 +302,24 @@ console.log('  B alone, after the seam settles: ' + pct(endLevel));
  * needs its own cancel/replan bookkeeping and a phase servo willing to trim a
  * residual instead of seeking it, so it is named here rather than guessed at. */
 const audibleMs = (Math.asin(0.06) * 2 / Math.PI) * plan.seconds * 1000;
+/* WHY A PRE-ROLLED CUE IS NOT HERE, having been designed properly and measured.
+ *
+ * The remaining latency is the incoming element's resume: 210-680 ms, against a
+ * 450 ms lead-in, so the tail arrives as a soft entry around -24 dB rather than a
+ * hole. The fix is a DJ's cued deck — roll it early from a point that carries it to
+ * its entry exactly as the seam fires, so fire() has no placement seek to make.
+ * seamCuePoint() works that out from A's position and rate, and the alignment is
+ * time-invariant: notice the moment late and both decks have advanced together.
+ *
+ * It cannot be measured here. This fixture's incoming track mixes in at 0.00 s, so
+ * it has NEGATIVE runway before its entry and the cue correctly declines every
+ * time. Shipping runtime state (cue, uncue, re-cue on a deferred bar, and a branch
+ * in fire() that skips placement) which no test can drive end to end is how a path
+ * rots — so it was reverted rather than merged unexercised.
+ *
+ * What would make it measurable: a fixture pair whose incoming track has several
+ * seconds of material before its mix-in point. That also means updating the two
+ * mix_acceptance assertions that count the crate's six rows. */
 O('the incoming deck is rolling before the blend can be heard',
   m.bLate != null && m.bMoved >= 0 && m.bLate <= audibleMs,
   m.bMoved == null ? 'not observed' : (m.bMoved < 0 ? 'playhead never advanced'
