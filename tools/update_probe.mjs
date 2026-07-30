@@ -178,14 +178,27 @@ if (want('current')){
       'button hidden ' + after.hidden + ' · still on ' + after.build);
 
     /* AND A CARD RAISED IN ERROR MUST BE ABLE TO LEAVE. Forcing the exact claim
-     * that caused the report — a shell offer with no build id — must end with the
-     * button withdrawn once the deployed shell is checked and found to be this
-     * very build, not with a card the listener has to dismiss forever. */
-    await page.evaluate(() => offerUpdate('shell', ''));
+     * that caused the report — a controllerchange nobody asked for, which carries
+     * no build id and measured nothing — must end with the button withdrawn once
+     * the deployed shell is checked and found to be this very build, not with a
+     * card the listener has to dismiss forever. */
+    await page.evaluate(() => offerUpdate('claim', ''));
     const withdrawn = await page.waitForFunction('document.getElementById("btnUpdate").hidden === true',
       null, { timeout: 15000 }).then(() => true).catch(() => false);
-    verdict('current: an unnamed claim is checked and withdrawn, not shown', withdrawn,
+    verdict('current: an unmeasured claim is checked and withdrawn, not shown', withdrawn,
       withdrawn ? 'verified against the deployed shell and dropped' : 'the card stayed up');
+
+    /* THE OTHER DIRECTION, and the reason this is judged by provenance at all: a
+     * 'shell' offer is the worker's byte-compare reporting that the deployed shell
+     * differs from the one this page was served. That is a measurement, and it has
+     * to stand even when the stamp did not move — an un-stamped deploy is the same
+     * build id with different bytes, and rejecting it on id equality is how the
+     * first version of this fix broke the badge entirely. */
+    await page.evaluate(() => offerUpdate('shell', ''));
+    await page.waitForTimeout(500);
+    const stands = await page.evaluate(() => !document.getElementById('btnUpdate').hidden);
+    verdict('current: a measured shell difference still stands, stamp or no stamp', stands,
+      stands ? 'the worker measured content — the offer is kept' : 'the offer was dropped');
   });
 }
 
