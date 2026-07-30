@@ -2,6 +2,17 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "05d9b7a1af",
+      "date": "2026-07-30",
+      "title": "No more silence between tracks on iPhone",
+      "notes": [
+        "the next track is now fetched while the current one plays, so the hand-off no longer waits on the network \u2014 the gap on a phone drops from over two seconds to the time the player itself needs",
+        "this works with the lock screen, not around it: playback never leaves the one element iOS trusts with background audio",
+        "on a slow or metered connection the app leaves it alone \u2014 Data Saver and 2G/3G are respected",
+        "touching the visuals now works on every device: weaker phones get a simpler version of the effect instead of none at all"
+      ]
+    },
+    {
       "build": "03eafb765a",
       "date": "2026-07-30",
       "title": "Your hand bends the world now",

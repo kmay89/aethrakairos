@@ -574,10 +574,53 @@ Which is the other half of this. A full-screen deformation is a vestibular event
 so `warpBudget()` caps it: 0.6 when the safety governor has already asked the
 show to calm down, 0.34 under `prefers-reduced-motion`, and the ripple's own
 clock freezes there so nothing swims. It shrinks and it **never closes** — a hand
-that touches the world and feels nothing is its own defect. On ECO, and on a
-device the adaptive governor has found to be struggling, the light pass is
-skipped entirely and the matter warp answers alone: a weak device gets a quieter
-reply, never a stuttering one.
+that touches the world and feels nothing is its own defect. On a device the adaptive governor
+has found to be struggling the light pass **degrades rather than disappears** —
+`LENS_FIELD_LEAN` is one texture tap through the same metric, same capture radius,
+same ceilings, dropping only the ornament (the second image, the channel split, the
+area dimming). It used to be switched off entirely, which meant the phones most
+likely to be holding this app had a touch that moved particles and left the light
+alone, and every raymarched scene answered a hand with silence. ECO is the one place
+it does not run at all: that mode exists to give the battery to the music.
+
+## The gap between two tracks, on a phone
+
+iOS is a different engine. The WebAudio graph is deliberately not live there —
+`createMediaElementSource` is a one-way door and a suspended context silences
+lock-screen playback — so the mixer stands down and every track change is the
+same-element advance: assign a new `src` to the **one** element holding the audio
+session, and play. That element is blessed. Moving playback to the other deck is an
+un-gestured start iOS blocks when the screen is locked, and alternating decks churns
+iOS's decoder budget until the blessing quietly lapses and the music stops mid-queue.
+Both of those were learned the hard way and are not up for renegotiation.
+
+Which left the cost of the swap itself, and nothing was warming it: the deck preload
+that covers this on desktop lives in `MIXER.arm()`, which never runs when the graph
+isn't live. Measured with an iPhone user-agent over a 900 kbps pipe, so the shipping
+iOS branch is the branch under test: **2148 ms of silence between tracks**.
+
+`PREFETCH` fetches the next track into memory while the current one plays and hands
+the element an object URL at swap time. One element, still blessed, no extra decoder
+— the bytes simply arrive from RAM instead of from the network.
+
+| | requests | served | gap |
+|---|---|---|---|
+| nothing warmed | 4 | 3.7 MB | **2148 ms** |
+| prefetch on | 3–4 | 5.1 MB | **~1500 ms**, none of it network |
+
+What's left is not ours. With the warm on, the app reaches `playIndex` **0 ms** after
+the track ends and there is no network in the path at all; every remaining millisecond
+is the media element tearing down one decoder and building another. On one element
+that cost cannot be removed, and the second element that would remove it is precisely
+what costs iOS the lock screen. So `tools/handover_probe.mjs` gates the parts this
+code owns — no app latency, no network in the path, playback never leaving the blessed
+element — and reports the total with its measurement rather than asserting a number
+this layer can't promise.
+
+Metered connections are left alone (`saveData`, 2g/3g). The draw is committed the way
+`MIXER.arm()` already commits it, and a running mixset's draw is never advanced early,
+because that one carries the set's own bookkeeping. A prefetch that fails is silent:
+playback falls back to the network URL, which is exactly what happened before.
 
 ## The front porch — fresh inspiration at the door
 
@@ -843,7 +886,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 200 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 206 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
@@ -874,7 +917,15 @@ node tools/update_probe.mjs         # 12 checks on the REACHABILITY of an update
 node tools/color_probe.mjs docs     # per-scene washout + chroma on a real GL context,
                                     #   and the shipped GLSL rolloff checked against
                                     #   its JS twin on the GPU
-node tools/touch_probe.mjs docs     # 26 checks that the hand is IN the world: the
+node tools/handover_probe.mjs /tmp/mb8-mix   # the gap between two tracks on the path a
+                                    #   PHONE takes: an iPhone user-agent so the shipping
+                                    #   iOS branch of playIndex is what runs, and a
+                                    #   throttled pipe, because a stall that only exists
+                                    #   over a real network is invisible on localhost.
+                                    #   Reports the gap broken into its legs and checks
+                                    #   playback never leaves the blessed element.
+                                    #   --nowarm measures the before picture (2148 ms)
+node tools/touch_probe.mjs docs     # 27 checks that the hand is IN the world: the
                                     #   overlay layers do not exist, the image bends
                                     #   where the metric claims and nowhere else, all
                                     #   four forces are genuinely different
