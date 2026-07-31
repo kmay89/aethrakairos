@@ -298,6 +298,38 @@ the handle's position and the colour under it always agree; and **LOW
 lamps** visibly hand the bassline over at the seam's midpoint — the
 one-bass rule, made watchable.
 
+**And it has hands.** Below the decks is an **FX rack in three banks**, laid out
+the way hardware lays them out because that layout is the argument:
+
+- **LOOP** — eight beat loops from a 32nd to 16 bars. Tap and the loop latches
+  on the **last grid line the ear already heard**, never the next one, because a
+  loop that begins in the future is a gap. Halve and double re-cut from the same
+  in-point, so a phrase can never slide out from under your hand.
+- **ROLL** — the same eight lengths, **momentary**: held, not latched. This is
+  the one difference that makes them two controls instead of one. A loop makes
+  the track *wait*; a roll stalls the music while the track keeps running
+  underneath, so releasing lands you where you would have been. The phrase stays
+  intact and the roll reads as a stutter *over* the music rather than a detour
+  through it.
+- **FX** — filter, echo, gate and drive on one knob, every time constant a beat
+  division read from the **same CLOCK the shaders and the haptics follow**. The
+  filter is one bipolar sweep with a real detent at the centre. The gate chops on
+  the beat rather than from an LFO, because an oscillator drifts against the music
+  within a bar and the beat clock does not. Plus a **BRAKE** that is a turntable
+  losing power, not a fade.
+
+The magical half is **AUTO**: the same hands, given to the director. A listener
+who never opens the booth still hears the echo bloom into a hand-off and the
+filter open across a build — chosen from the song's own structure, never from a
+timer, and never during a quiet passage or on a device that is struggling. The
+moment you touch anything, AUTO switches off and **stays** off until you arm it
+again. A room that quietly undid what you just set would be a fight you cannot
+win, because the room never tires.
+
+Nothing in the rack can strand the music: every unit is parked at bypass, every
+automation is bounded, and a track change hands the whole booth back — no seam
+ever inherits an effect the last track left switched on.
+
 **The playlist stays master — and you get override inserts.** Under the
 decks sits a row of **performance pads: the eight best next tracks from the
 whole shelf**, ranked by the same planner that performs the mix, each pad
