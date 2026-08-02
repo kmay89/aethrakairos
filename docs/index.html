@@ -2231,7 +2231,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     </div>
   </div>
   <div class="hud">
-    <button class="chip on" id="chipAuto" title="Auto director — scenes, palettes and camera follow the music">AUTO</button>
+    <button class="chip on" id="chipAuto" title="Auto director — the room arranges itself: which scene, how long it holds, how it answers your hand and how hot the colour runs, all from one reading of the music">AUTO</button>
     <button class="chip" id="chipMix" hidden title="Auto-mix — beatmixed transitions where the grids agree, honest fades where they don't">MIX</button>
     <button class="chip" id="chipStyle" hidden title="Transition style — how songs hand over. Adaptive: beatmix where it fits. Musical: let songs play out, then a quick fade. Club: long beatmatched blends. Tap to cycle.">≋ ADAPTIVE</button>
     <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
@@ -2246,7 +2246,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     <span class="sep"></span>
     <span class="ro" id="sceneName">—</span>
     <span class="ro opt" id="actName" title="Story act — where the director reads this track's arc">—</span>
-    <span class="ro opt tap" id="colorRo" title="Colour engine — palette read from this track's key and character. Click to cycle: AUTO · SPECTRUM · DUOTONE">
+    <span class="ro opt tap" id="colorRo" title="Colour engine — the palette is the key's own chord, read from this track's character. Click to cycle: AUTO · SPECTRUM · DUOTONE · NOCTURNE">
       <i class="csw" id="csw0"></i><i class="csw" id="csw1"></i><i class="csw" id="csw2"></i>
       <span id="colorScheme">—</span></span>
     <span class="spring"></span>
@@ -2324,18 +2324,40 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     into each bar, a slow rise across each 32-beat phrase, and a breath that never quite sits still.
     Even time itself is musical — the clock surges gently through each hit and relaxes between them.
     Staccato material moves sharp; legato material moves long. Paused, everything settles to breathing.</p>
+    <h3>The room arranges itself</h3>
+    <p class="lede">On <b>AUTO</b> the director is not shuffling scenes on a timer. It takes one
+    reading of where the music stands — <b>adrift · ascend · drive · apex · swarm · dissolve</b> — and
+    everything comes through that single word: which room is dealt next, how long it holds, which
+    force answers your hand, how the field plays itself while you are not touching it, and how hot
+    the colour runs. Four engines that used to roll their own dice now agree with each other, which
+    is the difference between a show that arranges itself and one that shuffles.</p>
+    <p class="lede">Every room declares <b>what it is for</b> — the tunnel wants bass, the fern wants
+    calm and no drum, the golden room wants coherence and no chaos — and the deal scores those
+    appetites against the live music. It also <b>remembers</b>: the last few rooms are held back and
+    let in again gradually, a room the night has not visited yet gets a lift, and the room you are
+    already in is never dealt, so a change is always a change. Over a long set the whole gallery gets
+    its turn instead of four favourites orbiting. A held-back passage is left to hold — the dwell
+    stretches under the section's own intensity ceiling rather than cutting to a clock that cannot
+    hear it.</p>
     <h3>The colour engine</h3>
     <p class="lede">The palette isn't random — it's read from the music. The track's detected
     key is mapped around the Camelot wheel to a root hue (the same mapping the Crate's key chips use,
     so the table and the room agree); minor keys sit darker and cooler, major keys warmer. The harmony
-    scheme follows the music's character — calm reads <i>analogous</i>, driving energy earns a
-    <i>complementary</i> accent, dense material opens to a <i>triad</i> — and every change glides over
+    scheme follows the music's character, and every scheme is a <b>chord</b>: the intervals of the key
+    become angles on the colour wheel, so calm material reads as neighbours a <i>semitone</i> apart,
+    quiet-but-restless material <i>hangs on the fourth</i>, driving energy earns the <i>tritone</i>,
+    clean drive <i>opens to the sixth</i>, dense material settles into a <i>triad</i>, and material
+    that is hot and arguing with itself <i>aches on the seventh</i> — which is a four-note chord, so
+    it hands the gradient a fourth colour the three swatches cannot carry. Every change glides over
     eight beats of the measured grid in a perceptually uniform colour space, the way a lighting
     console cues, not the way a screensaver fades. Mix harmonically and the colours mix harmonically
-    with you. The three dots in the HUD are the live palette — and they are also a button: click them
+    with you. The palette also <b>warms through the arc</b> — the same key runs hotter into an apex and
+    cools again at the edges, as one rotation of the whole chord, so the intervals never move.
+    The three dots in the HUD are the live palette — and they are also a button: click them
     to hold the room in <b>SPECTRUM</b> (a full wheel, anchored so the track's own key is the bright
-    point the rainbow falls away from) or <b>DUOTONE</b> (two colours, nothing pale to wash toward),
-    or leave it on AUTO and let the music choose.</p>
+    point the rainbow falls away from), <b>DUOTONE</b> (two colours, nothing pale to wash toward) or
+    <b>NOCTURNE</b> (the chord taken down into the dark with a single light left in it), or leave it
+    on AUTO and let the music choose.</p>
     <p class="lede">Those three colours are stretched into a continuous <b>gradient</b> before any
     scene sees them, interpolated the long way round the colour wheel. A straight blend between two
     saturated hues is always greyest exactly halfway — which is where most of a spiral's arm or a
@@ -2869,7 +2891,7 @@ function warpBudget(o){
 /* AUTO TOUCH — the scenes manager re-tunes the touch personality to the room
    it just walked into, so the field answers your hand differently scene to
    scene: a surprise you discover by playing, never a setting you manage. */
-function touchAffinity(sceneIdx, act, r){
+function touchAffinity(sceneIdx, act, r, mood){
   // each scene's native answer: spirals and rosettes want SPIN, tunnels and
   // op-art want the VOID, comets and the pulse want the PULL, the airy rooms
   // ripple. The act leans on it (the apex punches, the edges breathe), and a
@@ -2879,6 +2901,12 @@ function touchAffinity(sceneIdx, act, r){
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
+  // THE ROOM'S OWN LEAN. Some of the time the mood overrules the scene's map,
+  // which is how the same room visited twice in one night can answer a hand
+  // differently — and how the force agrees with what the music is doing rather
+  // than only with where it is. Absent a mood, nothing changes.
+  const bias = mood && MOODS[mood] && MOODS[mood].touch;
+  if (bias && r > 0.55 && r <= 0.84) key = bias;
   if (r > 0.84){
     const all = ['blackhole', 'grows', 'gathers', 'flows'];
     key = all[Math.floor(r * 97) % 4];
@@ -3114,7 +3142,7 @@ function ghostShould(o){
    want a curve, the lattice rooms want the snake, the wide diffuse ones want
    almost nothing. A wildcard keeps even a memorised map able to surprise, and
    the apex has the last word over both. */
-function ghostPattern(sceneIdx, act, r){
+function ghostPattern(sceneIdx, act, r, mood){
   const MAP = ['lissa', 'lissa', 'snake', 'bounce', 'drift', 'bounce', 'lissa', 'drift',
                'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa'];
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
@@ -3122,6 +3150,10 @@ function ghostPattern(sceneIdx, act, r){
   // the quiet edges of the arc are where a hand actually reads, so they get the
   // busiest choreography rather than the calmest
   if ((act === 0 || act === 4) && k === 'drift' && r < 0.5) k = 'paint';
+  // the room's own lean, exactly as the touch takes it — so the ghost moves the
+  // way the moment moves, and not merely the way this scene usually does
+  const bias = mood && MOODS[mood] && MOODS[mood].ghost;
+  if (bias && r > 0.55 && r <= 0.86) k = bias;
   if (r > 0.86) k = GHOST_KINDS[Math.floor(r * 97) % GHOST_KINDS.length];
   if (act === 2) k = 'drift';        // the apex belongs to the scenes — last word
   return k;
@@ -3146,6 +3178,193 @@ function ghostMirror(axis, x, y){
   if (a === 2) return { x: -x, y: -y };
   return { x: -x, y: y };
 }
+/* ================================================================
+   THE ROOM — what the auto director is really choosing.
+
+   It used to choose a scene, and everything else in the show made
+   its own decision separately: the touch rolled a personality, the
+   ghost rolled a choreography, the lens rolled a look, the palette
+   drifted on a timer of its own. Four engines, four unrelated dice,
+   and the reason a beautiful moment was always partly luck — nothing
+   in the app had an opinion about whether the four of them AGREED.
+
+   So there is now one reading of the moment, and everything reads it.
+   `roomMood` names where the music stands in six words; every room,
+   every force, every choreography and the colour's own chroma lean
+   are chosen through that one word. The result is a show that
+   arranges itself instead of shuffling itself.
+
+   Three further things the old picker could not do:
+
+     TASTE IS DECLARED, NOT HARD-CODED. A scene carries what it is
+       FOR as weights against the live feature vector, so adding a
+       room means writing its appetite next to it rather than editing
+       a ladder of `if (i === 13)`. (That ladder had a room missing
+       from it entirely — AUREA scored a flat 1 for its whole life
+       and was therefore only ever picked by accident.)
+     THE SET REMEMBERS. A recency ring keeps the last few rooms out of
+       the deal and lets them back gradually, and a room this session
+       has never shown gets a lift — so a long night tours the whole
+       gallery instead of four favourites orbiting for ever.
+     THE ROOM HOLDS FOR AS LONG AS IT DESERVES. The dwell comes from
+       the mood and the section's own ceiling, so a held-back passage
+       is not cut to pieces on a timer that cannot hear it.
+   ================================================================ */
+
+/* The canonical roster, in the order the scenes are built. Nothing DEPENDS on
+   this order — taste is keyed, never indexed — but a list you can read is how
+   you notice a room that got added and never given a character. */
+const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
+                    'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo'];
+
+/* WHAT EACH ROOM IS FOR, as an appetite for the live features.
+
+   A POSITIVE weight is an appetite. A NEGATIVE one is an appetite for the
+   ABSENCE — −1 on entropy means "this room wants order", and is worth a full
+   point when the material has none. `base` is a flat thumb on the scale.
+
+   A room with no entry here scores a plain 1 and still gets its turn, which is
+   deliberate: a scene added tomorrow participates in the deal without anyone
+   having to remember to edit the director. */
+const SCENE_TASTE = {
+  spiral:    { coupling: 2.0, base: 0.5 },                  // the π/e braid: coherence
+  helix:     { bass: 1.5, treble: 1.5 },                    // the two bands, twisted together
+  band:      { mid: 1.5, entropy: -1.0 },                   // one clean surface: tonal material
+  starburst: { beat: 2.0, energy: 1.5 },                    // percussive
+  nebula:    { entropy: 2.0, energy: -1.0 },                // diffuse, and quiet
+  tunnel:    { bass: 2.0, energy: 1.0 },                    // driving
+  ribbons:   { entropy: 1.5, calm: 1.2 },                   // airy, flowing
+  fractal:   { coupling: 1.5, entropy: -1.2 },              // sustained and tonal
+  comets:    { energy: 1.5, beat: 1.2 },                    // velocity
+  fern:      { calm: 1.6, beat: -0.8 },                     // organic, patient
+  rosette:   { coupling: 1.2, mid: 1.0 },                   // tonal circles
+  slinky:    { calm: 1.2, energy: -1.0 },                   // hypnotic
+  opart:     { beat: 1.4, treble: 1.0 },                    // sharp, rhythmic
+  pulse:     { beat: 1.0, bass: 0.8 },                      // the visual instrument
+  parlor:    { entropy: 1.2, mid: 0.8, beat: -0.4 },        // patient, perceptual
+  aurea:     { coupling: 1.4, calm: 0.8, entropy: -0.6 },   // the golden room — proportion, not force
+  halo:      { treble: 1.2, energy: 1.0, coupling: 0.5 },   // radiant, spectral
+};
+
+/* One room's appetite, scored against one moment. Also does duty as the mood's
+   own bias (a mood is an appetite too — just one that applies to every room at
+   once), which is why this takes a bare weight object rather than a scene. */
+function sceneScore(taste, f){
+  let x = 1;
+  const t = taste || null, feat = f || {};
+  if (!t) return x;
+  for (const k in t){
+    const w = t[k];
+    if (!(typeof w === 'number') || !isFinite(w)) continue;
+    if (k === 'base'){ x += w; continue; }
+    const v = clamp01(feat[k] == null ? 0 : feat[k]);
+    x += w >= 0 ? w * v : -w * (1 - v);
+  }
+  return x;
+}
+
+/* HOW RECENTLY WE WERE HERE. 0 is the room we just left: it comes back last,
+   and it comes back gradually rather than snapping from banned to eligible. */
+function recencyPenalty(recent, i, memory){
+  const list = recent || [], n = memory == null ? 5 : memory;
+  if (n <= 0) return 1;
+  const k = list.indexOf(i);
+  if (k < 0) return 1;
+  return 0.10 + 0.90 * clamp01(k / n);
+}
+
+/* THE MOOD — the whole show's single reading of where the music stands.
+
+   Six words, ordered from the most specific claim to the most general, so
+   reading the branches top to bottom is reading the taste in priority order.
+   Everything downstream (which room, how long, which force answers a hand, how
+   the ghost moves, how hot the colour runs) comes through this one call, which
+   is the entire reason those four things now agree with each other. */
+function roomMood(o){
+  const s = o || {};
+  const act = s.act == null ? -1 : s.act | 0;
+  const e = clamp01(s.energy || 0), ent = clamp01(s.entropy || 0);
+  const ceil = s.ceil == null ? 1 : clamp01(s.ceil);
+  if (act === 2 && ceil > 0.55 && e > 0.45) return 'apex';       // the earned peak
+  if (act === 4 || (act === 3 && e < 0.42)) return 'dissolve';   // the long way down
+  if (ent > 0.70 && e > 0.35) return 'swarm';                    // come apart, and moving
+  if (act === 0 || e < 0.30) return 'adrift';                    // before anything has happened
+  if (act === 1 && e > 0.48) return 'ascend';                    // going somewhere
+  return 'drive';                                                // the steady middle
+}
+
+/* …and what each mood asks of the show. `bias` leans every room's score at
+   once, `dwell` scales how long a room holds, `touch` and `ghost` are the
+   leans the hand and the ghost take when the mood overrules the scene's own
+   map, and `chroma` is what the colour engine adds to its saturation. */
+const MOODS = {
+  adrift:   { bias: { calm: 1.2, energy: -0.8 },   dwell: 1.35, touch: 'flows',     ghost: 'drift',  chroma: -0.10 },
+  ascend:   { bias: { energy: 0.8, beat: 0.5 },    dwell: 0.95, touch: 'gathers',   ghost: 'lissa',  chroma:  0.05 },
+  drive:    { bias: { beat: 1.0, bass: 0.6 },      dwell: 1.00, touch: 'blackhole', ghost: 'bounce', chroma:  0.00 },
+  apex:     { bias: { energy: 1.4, beat: 1.0 },    dwell: 0.60, touch: 'grows',     ghost: 'drift',  chroma:  0.14 },
+  swarm:    { bias: { entropy: 1.4, treble: 0.5 }, dwell: 0.85, touch: 'flows',     ghost: 'paint',  chroma:  0.07 },
+  dissolve: { bias: { calm: 1.0, entropy: 0.4 },   dwell: 1.45, touch: 'flows',     ghost: 'snake',  chroma: -0.06 },
+};
+
+/* HOW LONG A ROOM HOLDS. Busy material turns over faster than quiet material;
+   the mood scales that; and a section the structure has capped stretches it,
+   because a passage the music is holding back is the last thing that should be
+   cut to pieces by a timer which cannot hear it. */
+const ROOM_DWELL = { min: 16, max: 46, floor: 7 };
+function roomDwell(o){
+  const s = o || {};
+  const m = MOODS[s.mood] || MOODS.drive;
+  const base = ROOM_DWELL.max - (ROOM_DWELL.max - ROOM_DWELL.min) * clamp01(s.energy || 0);
+  const held = 1.25 - 0.25 * clamp01(s.ceil == null ? 1 : s.ceil);
+  return Math.max(ROOM_DWELL.floor, base * m.dwell * held);
+}
+
+/* THE DEAL. Weighted by appetite, leaned by the mood, damped by memory, gated
+   by the device — and then drawn with one number, so a test can hold the whole
+   arrangement to a shape instead of watching it for an hour and hoping. */
+function dealScene(o){
+  const s = o || {}, list = s.scenes || [];
+  if (!list.length) return 0;
+  const f = s.f || {};
+  const mood = MOODS[s.mood] || null;
+  const lean = mood && mood.bias ? sceneScore(mood.bias, f) - 1 : 0;
+  const w = [];
+  for (let i = 0; i < list.length; i++){
+    const sc = list[i] || {};
+    let x = sceneScore(sc.taste, f) + lean;
+    if (sc.calm && s.reduced) x *= 2;                  // reduced motion lives in the legible rooms
+    if (sc.heavy && !s.allowHeavy) x *= 0.02;          // a strained device, or ECO, is spared them
+    x *= recencyPenalty(s.recent, i, s.memory);
+    if (s.seen && !s.seen.has(i)) x *= 1.55;           // a room this set has never shown
+    /* THE ROOM WE ARE ALREADY IN IS NOT A CHANGE. The old ladder merely damped
+       it, which looked harmless and was not: setScene swallows a pick that
+       equals the active scene, and the SEGUE resets the dwell either way — so a
+       "change" that landed on the current room bought the field another full
+       dwell of nothing. A change means a change. */
+    w.push(i === s.active ? 0 : Math.max(0.02, x));
+  }
+  let sum = 0;
+  for (const v of w) sum += v;
+  // …unless there is genuinely nowhere else to go: one room, or a device that
+  // has vetoed every other one. Standing still beats returning nothing.
+  if (!(sum > 0)){ for (let i = 0; i < w.length; i++) w[i] = 1; sum = w.length; }
+  /* THE WALK, and why it skips zeros explicitly. A cumulative walk that
+     subtracts a zero weight and then asks `r <= 0` hands back the zero-weight
+     entry whenever r lands exactly on it — which at r = 0 is the very first
+     one, i.e. precisely the room we just excluded. Rounding does the same thing
+     at the far end. So a room with no weight is not a candidate at any point of
+     the walk, and the fall-through returns the last room that WAS one. */
+  let r = clamp01(s.r == null ? 0.5 : s.r) * sum;
+  let last = -1;
+  for (let i = 0; i < w.length; i++){
+    if (!(w[i] > 0)) continue;
+    last = i;
+    r -= w[i];
+    if (r <= 0) return i;
+  }
+  return last >= 0 ? last : 0;
+}
+
 /* UPDATE GATE — when a ready update may apply ITSELF. The whole policy in one
    pure, tested map: an explicit "after this track" wish is honoured above all
    (it fires at the track boundary or the pause, even mid-set); otherwise a
@@ -7432,10 +7651,104 @@ function goldenGate(frac){
   return Math.exp(-(d * d) / (2 * 0.055 * 0.055));
 }
 
+/* CHARACTER → CHORD. Six readings where there were four, and the two new ones
+   fill regions the old map had no word for: material that is calm but not
+   simple (which came out as flat neighbours), and material that is hot with
+   real internal argument (which came out as a plain complement). SPECTRUM is
+   still deliberately the rarest reading in the engine — it takes material that
+   has genuinely come apart, high entropy AND high energy together. A spectrum
+   laid over a calm track says nothing about the track, which is the reason most
+   visualizers' rainbows feel like wallpaper.
+
+   The boundaries are ordered from the rarest inward, so reading this top to
+   bottom is reading the taste in priority order. */
+function colorScheme(e, ent){
+  if (ent > 0.80 && e > 0.62) return 'spectrum';    // come apart: the whole wheel
+  if (ent > 0.62)             return 'triad';       // dense: three points of order
+  if (ent > 0.45 && e > 0.75) return 'seventh';     // hot AND arguing with itself
+  if (e > 0.55)               return ent <= 0.20 ? 'sixth' : 'complement';
+  if (ent > 0.35)             return 'suspended';   // quiet, but not settled
+  return 'analogous';                               // calm and tonal: neighbours
+}
+
+/* THE CHORD A SCHEME SPELLS, as hue offsets from the root.
+
+   Every one of these is an interval the ear already knows, turned into an angle
+   by the same log-map that makes octaves identities (see intervalHue): the
+   semitone leans, the fourth hangs unresolved, the tritone drives, the sixth
+   opens, the triad settles, the seventh aches. A listener who could not tell
+   you why two of these feel restless and two feel settled is nonetheless
+   hearing the reason. Unkeyed material (mic, unanalysed files) keeps the
+   classic art-school spreads — the intervals have to be earned by knowing the
+   key, and inventing one would be a lie told in light.
+
+     b     the harmony, in degrees from the root
+     c     the accent
+     d     an optional FOURTH stop. Three swatches is all uColA/B/C can carry;
+           a gradient can carry more, so the wide chords spend their extra note
+           on the ramp every scene walks rather than throwing it away.
+     lift  the accent is the pale bright stop rather than a chromatic one. The
+           two-note chords need somewhere to rise to; the wide ones do not. */
+function schemeChord(scheme, minor, keyed, rng){
+  const r = rng ? rng() : 0.5;
+  const third = keyed ? intervalHue(minor ? 6 : 5, minor ? 5 : 4) : 120;
+  const fifth = keyed ? intervalHue(3, 2) : 240;
+  switch (scheme){
+    case 'suspended':      // the perfect fourth — hanging, refusing to resolve
+      return { b: keyed ? intervalHue(4, 3) : 150,
+               c: (keyed ? intervalHue(4, 3) : 150) / 2, d: null, lift: true };
+    case 'complement':     // the TRITONE, 177.1° and not 180 — the eye cannot say why it is uneasy
+      { const s = keyed ? intervalHue(45, 32) : 180; return { b: s, c: s, d: null, lift: true }; }
+    case 'sixth':          // open and warm: the sixth, resting on the fifth
+      return { b: keyed ? intervalHue(minor ? 8 : 5, minor ? 5 : 3) : 210, c: fifth, d: null, lift: false };
+    case 'triad':
+      return { b: third, c: fifth, d: null, lift: false };
+    case 'seventh':        // third and minor seventh, with the fifth in the gradient
+      return { b: third, c: keyed ? intervalHue(9, 5) : 300, d: fifth, lift: false };
+    case 'analogous':
+    default:
+      { const s = keyed ? intervalHue(16, 15) : 24 + r * 12; return { b: s, c: -s, d: null, lift: true }; }
+  }
+}
+
+/* THE ARC'S TEMPERATURE. A five-act story is a temperature curve as much as an
+   intensity one — an overture is cold light, an apex is hot, a resolve cools
+   again — and honouring that means the SAME KEY reads differently at the two
+   ends of its own song. Returned as a pull toward a pole rather than as a hue,
+   because the palette must never leave the key it belongs to; and scaled by the
+   structure's ceiling, so an apex the music holds back is a warm room and not a
+   furnace. */
+const ACT_WARMTH = [-0.22, 0.0, 0.30, 0.14, -0.30];
+function actWarmth(act, heat){
+  const i = (act | 0) >= 0 && (act | 0) < ACT_WARMTH.length ? act | 0 : 1;
+  return ACT_WARMTH[i] * clamp01(heat == null ? 1 : heat);
+}
+/* …and how a pull becomes a hue: a partial walk along the SHORTER arc toward
+   the amber pole or the cold blue one.
+
+   TWO ceilings, because one was not enough. A fraction of the distance alone
+   behaves for a key already near a pole and misbehaves badly for one opposite
+   it: measured on 8B, an apex moved the root 53° — from blue to green-cyan,
+   which is not a warmer room, it is a different one. So the walk is also capped
+   in DEGREES. Warmth is meant to be felt and not identified; past about
+   a quarter-turn it stops being a temperature and starts being a key change,
+   and the key is not the light's to change. */
+const WARM_MAX_DEG = 26;
+function warmTilt(h, pull){
+  const w = Math.max(-1, Math.min(1, pull || 0));
+  const H = ((h % 360) + 360) % 360;
+  if (!w) return H;
+  const pole = w > 0 ? 45 : 225;
+  const d = ((pole - H + 540) % 360) - 180;
+  const move = d * Math.min(0.45, Math.abs(w));
+  return (H + Math.max(-WARM_MAX_DEG, Math.min(WARM_MAX_DEG, move)) + 360) % 360;
+}
+
 /* colorPlan — the designer's decision, pure.
-   in : { key, energy, entropy, brightness, act, seed }
-   out: { scheme, keyed, minor, root, colors:[a,b,c] } — OKLCH triple where
-        a carries the identity, b the harmony, c the accent/highlight. */
+   in : { key, energy, entropy, brightness, act, warm, seed }
+   out: { scheme, keyed, minor, root, colors:[a,b,c], extra } — OKLCH, where
+        a carries the identity, b the harmony, c the accent/highlight, and
+        `extra` is the wide chords' fourth note (null for the rest). */
 function colorPlan(inp){
   const rng = mulberry32((inp.seed | 0) || 1);
   const e = clamp01(inp.energy || 0), ent = clamp01(inp.entropy || 0);
@@ -7447,13 +7760,10 @@ function colorPlan(inp){
   if (!keyed) rootH = (br * 320 + ent * 160 + rng() * 40) % 360;
   // timbre tilts the root a little: bright material leans warm
   rootH = (rootH + (br - 0.35) * 26 + 360) % 360;
-  // character → scheme. SPECTRUM is the rainbow, and it is deliberately the
-  // rarest reading in the engine: it takes material that has genuinely come
-  // apart — high entropy AND high energy together. A spectrum laid over a
-  // calm track says nothing about the track, which is the reason most
-  // visualizers' rainbows feel like wallpaper.
-  const scheme = (ent > 0.80 && e > 0.62) ? 'spectrum'
-    : ent > 0.62 ? 'triad' : (e > 0.55 ? 'complement' : 'analogous');
+  // …and the arc tilts it further, if the caller is telling the plan where in
+  // the story it stands (see actWarmth). Absent, nothing moves.
+  if (inp.warm) rootH = warmTilt(rootH, inp.warm);
+  const scheme = colorScheme(e, ent);
   // SPECTRUM's swatches follow the triad's geometry: the sweep is the ramp's
   // business, but uColA/B/C still light the chrome, the waveform and the
   // scenes that route through named colours, so they must stay a real chord.
@@ -7465,25 +7775,19 @@ function colorPlan(inp){
   const C0 = 0.14 + e * 0.20 + act * 0.12;
   const L0 = lClamp((minor ? 0.50 : 0.56) + e * 0.08 + act * 0.05 - ent * 0.05);
   const H = (rootH + (minor ? 14 : -6) + 360) % 360;
-  // MOZART: a keyed room spells its chord in light — the harmony colour
-  // sits at the key's own just third, the accent at the fifth; a driving
-  // "complement" is really the TRITONE (177.1°, not 180 — the eye can't
-  // say why it's uneasy); calm analogous neighbours are a semitone apart.
-  // Unkeyed material (mic, unanalysed files) keeps the classic art-school
-  // spreads — the intervals are earned by knowing the key.
-  const spread = keyed
-    ? (base === 'analogous' ? intervalHue(16, 15)
-       : base === 'complement' ? intervalHue(45, 32)
-       : intervalHue(minor ? 6 : 5, minor ? 5 : 4))
-    : (base === 'analogous' ? 24 + rng() * 12 : (base === 'complement' ? 180 : 120));
+  const ch = schemeChord(base, minor, keyed, rng);
   const a = { l: L0, c: C0, h: H };
-  const b = { l: lClamp(L0 + (base === 'analogous' ? 0.06 : 0.04)), c: C0 * 0.9, h: (H + spread) % 360 };
+  const b = { l: lClamp(L0 + (base === 'analogous' ? 0.06 : 0.04)), c: C0 * 0.9, h: (H + ch.b + 360) % 360 };
   // even the bright accent carries real hue — a near-white accent is what
   // reads as "washed out" the moment particles stack additively
-  const c = base === 'triad'
-    ? { l: lClamp(L0 + 0.16), c: C0 * 0.85, h: (H + (keyed ? intervalHue(3, 2) : 240)) % 360 }
-    : { l: 0.85, c: 0.08 + e * 0.06, h: (H + (base === 'complement' ? spread : -spread) + 360) % 360 };
-  return { scheme, keyed, minor: !!minor, root: a, colors: [a, b, c] };
+  const c = ch.lift
+    ? { l: 0.85, c: 0.08 + e * 0.06, h: (H + ch.c + 360) % 360 }
+    : { l: lClamp(L0 + 0.16), c: C0 * 0.85, h: (H + ch.c + 360) % 360 };
+  // the fourth note sits UNDER the root rather than over it, so a wide chord
+  // gains depth in the gradient instead of another highlight to wash toward
+  const extra = ch.d == null ? null
+    : { l: lClamp(L0 - 0.07), c: C0 * 0.95, h: (H + ch.d + 360) % 360 };
+  return { scheme, keyed, minor: !!minor, root: a, colors: [a, b, c], extra };
 }
 
 /* ================================================================
@@ -7577,7 +7881,21 @@ const RAMP_N = 128;                               // texels; linear-filtered, so
 
 function rampStops(plan, mode){
   const [a, b, c] = plan.colors;
+  // the wide chords' fourth note, if this plan has one. Only the gradient can
+  // carry it — uColA/B/C is three swatches and always will be.
+  const x = plan.extra || null;
   const m = mode && mode !== 'auto' ? mode : (plan.scheme === 'spectrum' ? 'spectrum' : 'auto');
+  if (m === 'nocturne'){
+    /* NIGHT, WITH A LIGHT IN IT. The chord's own hues taken down into the dark
+       and held there for most of the sweep, with a single stop allowed to rise.
+       DUOTONE's opposite number: that one removes the highlight so nothing can
+       wash; this one keeps exactly one and spends the rest of the ramp making
+       it worth arriving at. Chroma goes UP as lightness comes down — a dark
+       stop that also desaturates is not night, it is grey. */
+    const deep = s => ({ l: lClamp(s.l - 0.26), c: Math.max(s.c * 1.12, 0.11), h: s.h });
+    const lamp = { l: lClamp(c.l + 0.06), c: Math.max(c.c, 0.10), h: c.h };
+    return x ? [deep(a), deep(b), lamp, deep(x)] : [deep(a), deep(b), lamp];
+  }
   if (m === 'spectrum'){
     // a rainbow that still belongs to the song: the sweep is ANCHORED on the
     // key's own hue and the lightness peaks there, so the track's colour is
@@ -7600,7 +7918,12 @@ function rampStops(plan, mode){
   // AUTO — identity, harmony, accent; and the accent arrives darker and more
   // chromatic than the plan hands it over. Its job in a gradient is to be the
   // bright stop, not the white one. White is the budget's to spend.
-  return [a, b, { l: lClamp(c.l - 0.08), c: Math.max(c.c, a.c * 0.55), h: c.h }];
+  const accent = { l: lClamp(c.l - 0.08), c: Math.max(c.c, a.c * 0.55), h: c.h };
+  // a wide chord closes the loop through its fourth note instead of jumping
+  // straight from the accent back to the root — the long way round, which is
+  // the whole reason the ear likes a seventh
+  return x ? [a, b, accent, { l: lClamp(x.l - 0.03), c: Math.max(x.c, a.c * 0.6), h: x.h }]
+           : [a, b, accent];
 }
 
 /* stops -> N RGBA texels, smoothstepped between stops and wrapping at the end.
@@ -14112,7 +14435,7 @@ function buildSpiral(){
 
   group.visible = false;
   scene.add(group);
-  return { name: 'MÖBIUS SPIRAL', group, update(){},
+  return { name: 'MÖBIUS SPIRAL', key: 'spiral', group, update(){},
     roll(){ varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random(); } };
 }
 
@@ -14188,7 +14511,7 @@ function buildHelix(){
 
   group.visible = false;
   scene.add(group);
-  return { name: 'π – e HELIX', group, update(){},
+  return { name: 'π – e HELIX', key: 'helix', group, update(){},
     roll(){ varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random(); } };
 }
 
@@ -14298,7 +14621,7 @@ function buildBand(){
 
   group.visible = false;
   scene.add(group);
-  return { name: 'MÖBIUS BAND', group, update(){},
+  return { name: 'MÖBIUS BAND', key: 'band', group, update(){},
     roll(){ varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random(); } };
 }
 
@@ -14365,7 +14688,7 @@ function buildStarburst(){
   group.visible = false;
   scene.add(group);
   let shockR = 0, shockA = 0;
-  return { name: 'STARBURST', group, update(dt){
+  return { name: 'STARBURST', key: 'starburst', group, update(dt){
     if (AE.f.onset && shockA < 0.3){ shockR = 1.5; shockA = 1.0; }
     shockR += dt * (14 + AE.f.energy * 20);
     shockA *= Math.exp(-dt / 0.4);
@@ -14415,7 +14738,7 @@ function buildNebula(){
   group.add(addShaderPoints(geo, FRAG_POINT, vert, varU));
   group.visible = false;
   scene.add(group);
-  return { name: 'NEBULA', group, update(){},
+  return { name: 'NEBULA', key: 'nebula', group, update(){},
     roll(){ varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random(); } };
 }
 
@@ -14471,7 +14794,7 @@ function buildTunnel(){
   group.visible = false;
   scene.add(group);
   let scroll = 0, speedMul = 1;
-  return { name: 'TUNNEL', group, update(dt){
+  return { name: 'TUNNEL', key: 'tunnel', group, update(dt){
     scroll += dt * (0.05 + AE.f.bass * 0.35 + AE.f.energy * 0.1) * speedMul;
     scrollU.uScroll.value = scroll;
   }, roll(){
@@ -14623,7 +14946,7 @@ function buildRibbons(){
   scene.add(group);
   let morph = 0;
   return {
-    name: 'RIBBONS', group,
+    name: 'RIBBONS', key: 'ribbons', group,
     update(dt){
       // entropy loosens the braid into mist; a double-tap impulse shatters it
       const f = AE.f;
@@ -15072,7 +15395,7 @@ function buildFractalField(){
   let D = [0, 0, 0];
 
   const api = {
-    name: 'FRACTAL FIELD', group, heavy: true,
+    name: 'FRACTAL FIELD', key: 'fractal', group, heavy: true,
     dice(){ return D.slice(); },
     setDice(a, b, c){ D = [a, b, c]; api.apply(); return api.name; },
 
@@ -15327,7 +15650,7 @@ function buildComets(){
   group.add(pts);
   group.visible = false;
   scene.add(group);
-  return { name: 'COMETS', group, update(){}, roll(){
+  return { name: 'COMETS', key: 'comets', group, update(){}, roll(){
     varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
   } };
 }
@@ -15437,7 +15760,7 @@ function buildFern(){
   group.add(addShaderPoints(geo, fernFrag, vert, varU, 'normal'));
   group.visible = false;
   scene.add(group);
-  return { name: 'FERN', group,
+  return { name: 'FERN', key: 'fern', group,
     update(dt){
       const prog = (typeof director !== 'undefined' && director.trackProg != null) ? director.trackProg : 0.5;
       const gGoal = 0.06 + prog * 1.1;
@@ -15523,7 +15846,7 @@ function buildRosette(){
   group.visible = false;
   scene.add(group);
   let dir = Math.random() < 0.5 ? -1 : 1, tAcc = 0;
-  return { name: 'ROSETTE', group, update(dt){
+  return { name: 'ROSETTE', key: 'rosette', group, update(dt){
     spinU.uSpinR.value += dt * (0.12 + AE.f.coupling * 0.5) * dir * (reducedMotion ? 0.4 : 1);
     // slow tumble keeps the wheel presented — edge-on is a passing moment
     tAcc += dt;
@@ -15598,7 +15921,7 @@ function buildSlinky(){
   group.visible = false;
   scene.add(group);
   let base = Math.random() < 0.5 ? -1 : 1;
-  return { name: 'SLINKY', group, update(dt){
+  return { name: 'SLINKY', key: 'slinky', group, update(dt){
     const swirl = (typeof INTERACT !== 'undefined') ? INTERACT.swirl : 0;
     spinU.uSpin.value += dt * (base * (0.35 + AE.f.energy * 0.7) + swirl * 1.3) * (reducedMotion ? 0.4 : 1);
   }, roll(){
@@ -15899,7 +16222,7 @@ function buildOpArt(){
   scene.add(group);
   const FORM_NAMES = ['ISO', 'MAZE', 'FLOOR', 'HYPNO', 'DISCO', 'RADAR',
                       'PLASMA', 'CHLADNI', 'BLOB', 'WARP'];
-  const api = { name: 'OP-ART', group, update(){
+  const api = { name: 'OP-ART', key: 'opart', group, update(){
     varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
   }, roll(){
     varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
@@ -16017,7 +16340,7 @@ function buildPulse(){
   group.add(mesh);
   group.visible = false;
   scene.add(group);
-  return { name: 'PULSE', group, calm: true, update(){
+  return { name: 'PULSE', key: 'pulse', group, calm: true, update(){
     varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
   }, roll(){
     varU.uSlots.value = 6 + Math.floor(Math.random() * 3) * 2;   // 6 / 8 / 10
@@ -16345,7 +16668,7 @@ function buildParlor(){
   const HYP = [[5, 4], [5, 5], [6, 4], [7, 3], [8, 3], [4, 5], [4, 6], [3, 7]];
   let wAng = 0, prevBeat = 0, gamJ = 0;
   const api = {
-    name: 'PARLOR', group, calm: true, heavy: true,
+    name: 'PARLOR', key: 'parlor', group, calm: true, heavy: true,
     roll(){
       const field = (Math.random() * FIELD_NAMES.length) | 0;
       // MOIRE full-field fringes ask the most of the governor; in CALM the
@@ -16656,7 +16979,8 @@ const GHOST = {
   // choreography that switched under a live hand would read as a glitch
   autoRoll(sceneIdx){
     if (this._live){ this._pend = sceneIdx; return; }
-    this.kind = ghostPattern(sceneIdx, typeof director !== 'undefined' ? director.act : -1, Math.random());
+    this.kind = ghostPattern(sceneIdx, typeof director !== 'undefined' ? director.act : -1, Math.random(),
+      typeof director !== 'undefined' ? director.mood : null);
     this.seed = (Math.random() * 1e6) | 0;
   },
   update(dt){
@@ -16803,7 +17127,8 @@ const TOUCHFX = {
       if (!handOff && this._autoT > 45) this._pendingScene = sceneIdx;   // owed: pay when the hand lifts
       return;
     }
-    const key = touchAffinity(sceneIdx, typeof director !== 'undefined' ? director.act : -1, Math.random());
+    const key = touchAffinity(sceneIdx, typeof director !== 'undefined' ? director.act : -1, Math.random(),
+      typeof director !== 'undefined' ? director.mood : null);
     if (key === this._resolved) { this._autoT = 0; return; }
     this._resolved = key;
     this._autoT = 0;
@@ -17216,8 +17541,8 @@ const COLOR = {
   // how the ramp reads the plan. AUTO lets the music choose (and it chooses
   // SPECTRUM only for material that has genuinely come apart); the other two
   // are the hand on the desk — a forced rainbow, or the two-colour poster.
-  modes: ['auto', 'spectrum', 'duo'],
-  modeLabels: { auto: 'AUTO', spectrum: 'SPECTRUM', duo: 'DUOTONE' },
+  modes: ['auto', 'spectrum', 'duo', 'nocturne'],
+  modeLabels: { auto: 'AUTO', spectrum: 'SPECTRUM', duo: 'DUOTONE', nocturne: 'NOCTURNE' },
   mode: 'auto',
   white: INK.whiteFloor, _rampT: 99,
 
@@ -17238,8 +17563,14 @@ const COLOR = {
       seed: this._hash(String(t ? (t.sha256 || t.url || t.id) : 'live')) + this._seedBump,
     });
     this.plan = plan;
-    this.from = (this.now || plan.colors).map(c => ({ l: c.l, c: c.c, h: c.h }));
-    this.target = plan.colors;
+    /* THE GLIDE CARRIES FOUR, ALWAYS. The wide chords (seventh) hand over a
+       fourth note for the gradient; the rest do not. Rather than let the array
+       change length between tracks — which would leave the lerp reading past
+       the end of `target` for exactly one glide — the fourth slot is always
+       there and simply repeats the accent when the chord has no extra note. */
+    this.plan.quad = plan.colors.concat([plan.extra || plan.colors[2]]);
+    this.from = (this.now || this.plan.quad).map(c => ({ l: c.l, c: c.c, h: c.h }));
+    this.target = this.plan.quad;
     this.glideT = 0;
     // eight beats on the measured grid reads as a lighting cue, not a fade
     this.glideDur = (mix && mix.bpm > 0) ? (60 / mix.bpm) * 8 : 6;
@@ -17310,17 +17641,35 @@ const COLOR = {
       while (this._echoes.length && this._echoes[0].at <= 0)
         this.bloom = Math.max(this.bloom, this._echoes.shift().amp);
     }
-    const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35 + golden * 0.22
+    // …and the ROOM's own lean on the saturation: the mood the whole show is
+    // reading (roomMood), eased by the director, so an apex runs richer and a
+    // drift runs cooler without anything else in the engine having to know why
+    const moodC = (typeof director !== 'undefined') ? (director.moodC || 0) : 0;
+    const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35 + golden * 0.22 + moodC
       + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0));
     const mulL = 0.97 + heat * 0.05;
     const w = this._wash;
-    const lit = w > 0.01
+    let lit = w > 0.01
       ? this.now.map(c => lerpOklch(c, { l: c.l * 0.94, c: c.c * 0.6, h: (c.h + 180) % 360 }, w))
       : this.now;
+    /* THE ARC'S TEMPERATURE, applied as ONE ROTATION of the whole chord.
+       Tilting each colour toward the warm pole separately would be the obvious
+       thing and it would be wrong: the pull is a fraction of each hue's own
+       distance to the pole, so the near ones move less than the far ones and
+       the chord COMPRESSES — the just third quietly stops being a third. The
+       intervals are the entire design (see schemeChord), so the root's tilt is
+       measured once and every stop is turned by that same angle. */
+    const warm = (typeof director !== 'undefined') ? (director.warmT || 0) : 0;
+    if (Math.abs(warm) > 0.005 && lit.length){
+      const d = ((warmTilt(lit[0].h, warm) - lit[0].h + 540) % 360) - 180;
+      if (Math.abs(d) > 0.05) lit = lit.map(c => ({ l: c.l, c: c.c, h: (c.h + d + 360) % 360 }));
+    }
     // the flash governor is the last hand on the light: hue passes freely,
-    // luminance excursions are rate-limited (WCAG 2.3.1, enforced not reviewed)
+    // luminance excursions are rate-limited (WCAG 2.3.1, enforced not reviewed).
+    // Three swatches is what it governs and what the shaders read; a fourth
+    // note, where the chord has one, exists only for the gradient below.
     const rgb = safeColorStep(SAFE.colorState,
-      lit.map(c => oklchToRgb(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),
+      lit.slice(0, 3).map(c => oklchToRgb(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),
       dt, SAFE.tuning());
     U.uColA.value.setRGB(rgb[0][0], rgb[0][1], rgb[0][2]);
     U.uColB.value.setRGB(rgb[1][0], rgb[1][1], rgb[1][2]);
@@ -17349,8 +17698,9 @@ const COLOR = {
       this._rampT = 0;
       const raw0 = oklchToRgb(lClamp(lit[0].l * mulL), Math.max(0, lit[0].c * mulC), lit[0].h);
       const gain = relLuma(raw0) > 1e-5 ? relLuma(rgb[0]) / relLuma(raw0) : 1;
-      const stops = rampStops({ scheme: this.plan.scheme, colors: lit.map(c =>
-        ({ l: lClamp(c.l * mulL), c: Math.max(0, c.c * mulC), h: c.h })) }, this.mode);
+      const cols = lit.map(c => ({ l: lClamp(c.l * mulL), c: Math.max(0, c.c * mulC), h: c.h }));
+      const stops = rampStops({ scheme: this.plan.scheme, colors: cols.slice(0, 3),
+        extra: this.plan.extra ? cols[3] : null }, this.mode);
       uploadRamp(buildRamp(stops, RAMP_N, gain));
     }
   },
@@ -17371,7 +17721,8 @@ const COLOR = {
     toast('Colour · <b>' + this.modeLabels[m] + '</b>' + (m === 'auto'
       ? ' — the palette follows the key and the character'
       : (m === 'spectrum' ? ' — a full wheel, anchored on the key'
-        : ' — two colours, no highlight to wash toward')));
+        : (m === 'duo' ? ' — two colours, no highlight to wash toward'
+          : ' — the chord taken down into the dark, and one light left in it'))));
     return m;
   },
   loadMode(){
@@ -17399,6 +17750,13 @@ const director = {
   fov: 62, dolly: 0,
   act: -1, actT: 0,
   transDur: 2.5,             // the crossfade length the SEGUE sets per transition
+  /* THE ROOM's shared state. `mood` is the one reading of the moment that the
+     scene deal, the dwell, the touch, the ghost and the colour's chroma all
+     come through — see roomMood. `recent` is the arrangement's memory (a ring,
+     newest first) and `seen` is every room this session has shown, which is
+     what makes a long night tour the gallery instead of orbiting favourites. */
+  mood: 'drive', moodC: 0, warmT: 0,
+  recent: [], seen: null, memory: 5,
 
   setAuto(on){
     this.auto = on;
@@ -17415,9 +17773,20 @@ const director = {
     if (scenes[i].roll) scenes[i].roll();      // fresh variation on every entry
     if (manual){ this.auto = false; el.chipAuto.classList.remove('on'); this.dwell = 0;
       if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer'); }   // you chose a scene
-    // the new room may re-tune the touch (AUTO only; deferred under a live hand)
+    /* THE ARRANGEMENT'S MEMORY. Newest first, capped at `memory`, and the room
+       we just LEFT is what goes in — the one we are entering is protected by
+       the active-scene damper instead, so it does not occupy two slots at once
+       and shut the ring down to four usable rooms. */
+    if (this.prev >= 0){
+      this.recent = [this.prev].concat(this.recent.filter(k => k !== this.prev)).slice(0, this.memory);
+    }
+    if (!this.seen) this.seen = new Set();
+    this.seen.add(i);
+    if (this.seen.size >= scenes.length) this.seen.clear();   // the gallery toured: start another lap
+    // the new room re-tunes the touch and the ghost THROUGH THE MOOD, so the
+    // force under a hand and the way the field plays itself agree with the
+    // room they arrived in (AUTO only; both defer under a live hand/stroke)
     if (typeof TOUCHFX !== 'undefined') TOUCHFX.autoRoll(i);
-    // ...and it deals the ghost a choreography to match (deferred mid-stroke)
     if (typeof GHOST !== 'undefined') GHOST.autoRoll(i);
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
@@ -17427,43 +17796,23 @@ const director = {
     this.palFrom = this.pal; this.palTo = to; this.palT = 0;
   },
 
+  /* WHICH ROOM NEXT. All the taste is in the pure block now (dealScene): each
+     scene's declared appetite, scored against the live features, leaned by the
+     mood, damped by what we have just shown, lifted for anywhere we have not
+     been yet, and gated by what this device can afford. This is the whole of
+     what is left here — reading the live state and handing it over. */
   pickScene(){
-    // weight scenes by current musical character
-    const f = AE.f;
-    const w = scenes.map((s, i) => {
-      let x = 1;
-      if (i === 0) x += f.coupling * 2 + 0.5;             // spiral: coupling
-      if (i === 1) x += (f.bass + f.treble) * 1.5;        // helix: bands
-      if (i === 2) x += f.mid * 1.5 + (1 - f.entropy);    // band: tonal
-      if (i === 3) x += f.beat * 2 + f.energy * 1.5;      // starburst: percussive
-      if (i === 4) x += f.entropy * 2 + (1 - f.energy);   // nebula: diffuse
-      if (i === 5) x += f.bass * 2 + f.energy;            // tunnel: driving
-      if (i === 6) x += f.entropy * 1.5 + f.calm * 1.2;            // ribbons: airy, flowing
-      if (i === 7) x += f.coupling * 1.5 + (1 - f.entropy) * 1.2;  // bulb: tonal, sustained
-      if (i === 8) x += f.energy * 1.5 + f.beat * 1.2;             // comets: velocity
-      if (i === 9) x += f.calm * 1.6 + (1 - f.beat) * 0.8;         // fern: organic, patient
-      if (i === 10) x += f.coupling * 1.2 + f.mid * 1.0;           // rosette: tonal circles
-      if (i === 11) x += f.calm * 1.2 + (1 - f.energy) * 1.0;      // slinky: hypnotic
-      if (i === 12) x += f.beat * 1.4 + f.treble * 1.0;            // op-art: sharp, rhythmic
-      if (i === 13) x += f.beat * 1.0 + f.bass * 0.8;              // pulse: the visual instrument
-      if (i === 14) x += f.entropy * 1.2 + f.mid * 0.8 + (1 - f.beat) * 0.4;  // parlor: patient, perceptual
-      if (i === 16) x += f.treble * 1.2 + f.energy * 1.0 + f.coupling * 0.5;  // halo: radiant, spectral
-      // reduced-motion / CALM listeners live in the legible room by default
-      if (s.calm && reducedMotion) x *= 2;
-      // a strained device is spared the heavy scenes — cheap rooms only, so
-      // it never lags (the music stays smooth regardless); ECO asks for the
-      // same mercy on purpose — cheap rooms are how the battery lasts the lawn
-      if (s.heavy && ((typeof PERF !== 'undefined' && PERF.struggling)
-        || (typeof POWER !== 'undefined' && !POWER.heavyOK))) x *= 0.02;
-      // the act leans on the deal: the apex wants percussion, the edges want air
-      if (this.act === 2 && (i === 3 || i === 5 || i === 8 || i === 12 || i === 16)) x *= 1.6;
-      if ((this.act === 0 || this.act === 4) && (i === 4 || i === 6 || i === 9 || i === 11)) x *= 1.6;
-      if (i === this.active) x *= 0.15;                   // avoid repeat
-      return Math.max(0.05, x);
+    return dealScene({
+      scenes, f: AE.f, mood: this.mood, active: this.active,
+      recent: this.recent, memory: this.memory, seen: this.seen,
+      reduced: reducedMotion,
+      // a strained device is spared the heavy rooms so it never lags (the music
+      // stays smooth regardless); ECO asks the same on purpose — cheap rooms
+      // are how the battery lasts the lawn
+      allowHeavy: !((typeof PERF !== 'undefined' && PERF.struggling)
+        || (typeof POWER !== 'undefined' && !POWER.heavyOK)),
+      r: Math.random(),
     });
-    let sum = w.reduce((a, b) => a + b, 0), r = Math.random() * sum;
-    for (let i = 0; i < w.length; i++){ r -= w[i]; if (r <= 0) return i; }
-    return 0;
   },
 
   update(dt){
@@ -17504,6 +17853,22 @@ const director = {
       const heatGoal = Math.min(ACTS[this.act].heat, ceil + 0.05);
       this.actT += (heatGoal - this.actT) * (1 - Math.exp(-dt / 3));
       U.uAct.value = this.actT;
+    }
+
+    /* THE MOOD — one reading, everything downstream. Recomputed every frame
+       because it is cheap and because it must never lag the music, but it is
+       only ACTED on where each consumer already had a gate: the scene deal, the
+       dwell, a touch re-tune, a ghost re-deal, the colour's chroma. The mood
+       changing is not itself an event — nothing cuts because a word changed. */
+    this.mood = roomMood({ act: this.act, energy: f.energy, entropy: f.entropy, ceil: this.ceil });
+    // the mood's chroma lean, eased — the colour engine reads this rather than
+    // the word, so a mood flicking between two neighbours cannot flicker the light
+    {
+      const goalC = (MOODS[this.mood] || MOODS.drive).chroma;
+      this.moodC += (goalC - this.moodC) * (1 - Math.exp(-dt / 2.5));
+      // …and the arc's own temperature, eased on the same slow clock
+      const goalW = actWarmth(this.act, this.ceil);
+      this.warmT += (goalW - this.warmT) * (1 - Math.exp(-dt / 4));
     }
 
     // energy phase
@@ -17550,7 +17915,9 @@ const director = {
     // land on the music, not mid-phrase
     this.dwell += dt;
     if (this.auto){
-      const want = (this.minDwell + (this.maxDwell - this.minDwell) * (1 - f.energy))
+      // how long this room deserves: the mood sets the pace, the energy sets the
+      // turnover, and the structure's ceiling stretches a passage being held back
+      const want = roomDwell({ mood: this.mood, energy: f.energy, ceil: this.ceil })
         * ACTS[this.act >= 0 ? this.act : 1].dwell;
       if (this.dwell > want || !player.playing) SEGUE.request(false);
       // palette drift
@@ -17822,7 +18189,7 @@ function buildAurea(){
     varU.uFib.value = FIBS[st.fib];
   }
 
-  return { name: 'AUREA', group, heavy: true,
+  return { name: 'AUREA', key: 'aurea', group, heavy: true,
     update(dt){
       const f = AE.f;
       // the spin precesses like the pattern is still growing
@@ -17966,7 +18333,7 @@ function buildHalo(){
   const _up = new THREE.Vector3(0, 1, 0), _dir = new THREE.Vector3();
   const _q = new THREE.Quaternion(), _pq = new THREE.Quaternion();
   const _wob = new THREE.Quaternion(), _eul = new THREE.Euler();
-  const api = { name: 'HALO', group,
+  const api = { name: 'HALO', key: 'halo', group,
     update(dt){
       // present the circle: lean the ring's axis most of the way toward the
       // camera, wherever the rig orbits, so the halo always reads as a
@@ -18019,6 +18386,13 @@ function initThree(){
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo());
+  /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
+     PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
+     announce which variation is up — so identity is the `key` its builder
+     declares, and the taste is looked up through that. A room with no entry in
+     the table gets no taste and scores a flat 1, which is exactly what should
+     happen to a scene somebody added and has not characterised yet. */
+  scenes.forEach(s => { s.taste = SCENE_TASTE[s.key] || null; });
 
   // scene dots
   scenes.forEach((s, i) => {
