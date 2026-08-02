@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -26,6 +26,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD,' +
+  ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -2427,6 +2428,132 @@ test('updateOffer: judged by provenance, because a difference is not a newer bui
   for (const src of ['worker', 'shell', 'claim'])
     assert.equal(S.updateOffer({ source: src, build: 'bbbb222222', running: run, requested: true }), 'ignore');
   assert.equal(S.updateOffer(null), 'verify', 'garbage in → check, never assert');
+});
+
+/* ---- THE BOOTH'S PERFORMANCE LAYER -----------------------------------------
+   These hold the logic a player's hands already know from real hardware. The
+   one that matters most is the loop/roll distinction: get it wrong and both
+   controls do the same thing, which is why cheap software has only one. */
+test('beatLen / loopBounds: a loop is beats, and it starts on a line already heard', () => {
+  assert.ok(Math.abs(S.beatLen(4, 120) - 2) < 1e-9, 'four beats at 120bpm is two seconds');
+  assert.ok(Math.abs(S.beatLen(0.25, 120) - 0.125) < 1e-9, 'a quarter-beat too');
+  assert.ok(S.beatLen(4, 0) > 0 && isFinite(S.beatLen(0, 120)), 'garbage tempo still yields a length');
+  // the in-point is the LAST grid line at or before the playhead — never the
+  // next one, because a loop that begins in the future is a gap
+  const b = S.loopBounds(10.3, 0.2, 120, 4);
+  assert.ok(b.start <= 10.3, 'starts at or before the playhead, got ' + b.start);
+  assert.ok(10.3 - b.start < 0.5, 'and within a beat of it');
+  assert.ok(Math.abs(((b.start - 0.2) / 0.5) - Math.round((b.start - 0.2) / 0.5)) < 1e-6,
+    'and exactly on the lattice');
+  assert.ok(Math.abs(b.end - b.start - 2) < 1e-9, 'four beats long at 120bpm');
+  assert.ok(S.loopBounds(0.05, 0.2, 120, 4).start >= 0, 'never negative before the first line');
+});
+test('loopWrap: a late tick may not make the loop late', () => {
+  const start = 10, len = 2;                       // four beats at 120bpm
+  // fired on time, or a hair early: land on the in-point
+  assert.ok(Math.abs(S.loopWrap(12.000, start, len) - 10) < 1e-9);
+  assert.ok(Math.abs(S.loopWrap(11.992, start, len) - 10) < 1e-9, 'early carries nothing');
+  // fired 40ms late — the lateness is carried, not thrown away
+  assert.ok(Math.abs(S.loopWrap(12.04, start, len) - 10.04) < 1e-9);
+  /* AND THAT IS THE WHOLE POINT: over many cycles the loop must not walk off the
+     grid. Seeking to `start` every time makes each cycle len + jitter; carrying
+     the overshoot makes it len on average, so the wraps stay on beat. */
+  const jitter = [0.045, 0.012, 0.061, 0.038, 0.005, 0.052, 0.029, 0.044];
+  let pos = start, elapsed = 0;
+  for (const j of jitter){ pos = S.loopWrap(pos + len + j, start, len); elapsed += len + j; }
+  // media time consumed per cycle, minus what the loop actually kept
+  const drift = elapsed - jitter.length * len - (pos - start);
+  assert.ok(Math.abs(drift) < 1e-9, 'no accumulated drift, got ' + drift);
+  assert.ok(pos >= start && pos < start + len, 'and never leaves the loop, got ' + pos);
+  // a pathological stall (a backgrounded tab) still lands inside the loop
+  const far = S.loopWrap(start + len * 7.3, start, len);
+  assert.ok(far >= start && far < start + len, 'a 6-cycle stall wraps in, got ' + far);
+});
+test('loopResize: halve and double, never sliding the in-point', () => {
+  assert.equal(S.loopResize(4, 1), 8);
+  assert.equal(S.loopResize(4, -1), 2);
+  assert.equal(S.loopResize(0.125, -1), 0.125, 'clamped at the short end');
+  assert.equal(S.loopResize(16, 1), 16, 'and at the long end');
+  assert.equal(S.loopResize(3, 1), 1, 'off-ladder input lands back on the ladder');
+  // every step is a power of two of its neighbour, which is what keeps a phrase
+  // intact while it is being re-cut
+  for (let i = 1; i < S.FX_DIVS.length; i++)
+    assert.ok(Math.abs(S.FX_DIVS[i] / S.FX_DIVS[i - 1] - 2) < 1e-9, 'ladder step ' + i);
+});
+test('rollReturn vs a loop: the one line that makes them different controls', () => {
+  const bpm = 120, beats = 1, start = 10;              // a one-beat roll at 120bpm
+  // A LOOP latches: the track waits inside it. A ROLL stalls the music while the
+  // track keeps running underneath, so releasing lands you where you WOULD have
+  // been and the phrase is intact. If these two ever agreed, one of them would be
+  // pointless — which is exactly the bug cheap software ships.
+  assert.ok(Math.abs(S.rollReturn(start, 1.5, bpm, beats) - 11.5) < 1e-9,
+    'held 1.5s → the track advanced 1.5s');
+  assert.ok(Math.abs(S.rollPos(start, 1.5, bpm, beats) - 10.0) < 1e-9,
+    'but you HEARD the top of the loop again (1.5s of a 0.5s loop wraps to 0)');
+  assert.ok(Math.abs(S.rollPos(start, 0.3, bpm, beats) - 10.3) < 1e-9, 'mid-loop wraps correctly');
+  assert.notEqual(S.rollReturn(start, 1.5, bpm, beats), S.rollPos(start, 1.5, bpm, beats));
+  assert.equal(S.rollReturn(start, -5, bpm, beats), start, 'negative hold is no hold');
+  assert.ok(S.rollReturn(0, 3, bpm, beats) >= 0);
+});
+test('fxWet: fine where it matters, and never a mute', () => {
+  assert.equal(S.fxWet(0), 0);
+  assert.ok(S.fxWet(1) <= 0.92 && S.fxWet(1) > 0.9, 'full travel stops short of swallowing the track');
+  // the cubic buys control low down: half travel is well under half wet
+  assert.ok(S.fxWet(0.5) < 0.2, 'half the knob is a light touch, got ' + S.fxWet(0.5));
+  let prev = -1;
+  for (let x = 0; x <= 1.001; x += 0.05){ const v = S.fxWet(x); assert.ok(v >= prev, 'monotone'); prev = v; }
+  assert.equal(S.fxWet(-3), 0); assert.equal(S.fxWet(9), S.fxWet(1));
+});
+test('fxFilter: one bipolar knob, a real detent, and hearing-shaped travel', () => {
+  const nyq = 22050;
+  const mid = S.fxFilter(0, nyq);
+  assert.equal(mid.active, false, 'the centre is bypass, not "nearly bypass"');
+  assert.ok(mid.lp >= 22000 - 1 && mid.hp <= 20, 'and both corners are out of the way');
+  assert.equal(S.fxFilter(0.04, nyq).active, false, 'the detent is real — a nudge does nothing');
+  const lo = S.fxFilter(-1, nyq), hi = S.fxFilter(1, nyq);
+  assert.ok(lo.active && lo.lp < 300, 'hard left is a closed lowpass, got ' + lo.lp);
+  assert.ok(hi.active && hi.hp > 6000, 'hard right is a high highpass, got ' + hi.hp);
+  // exponential, so the knob feels even end to end rather than doing everything
+  // in the last inch
+  const a = S.fxFilter(-0.5, nyq).lp, b = S.fxFilter(-0.75, nyq).lp;
+  assert.ok(b < a && b > lo.lp, 'monotone down the left half');
+  assert.ok(a < 4000, 'and already well down at half travel, got ' + a);
+  for (const v of [-2, 2, NaN, null])
+    assert.ok(isFinite(S.fxFilter(v, nyq).lp) && isFinite(S.fxFilter(v, nyq).hp), 'finite for ' + v);
+});
+test('fxTime / fxGateHold: on the grid, and never a mute either', () => {
+  assert.ok(Math.abs(S.fxTime(0.5, 120) - 0.25) < 1e-9, 'a half-beat echo at 120bpm');
+  assert.ok(Math.abs(S.fxTime(1, 174) - 60 / 174) < 1e-9, 'and at any tempo');
+  assert.equal(S.fxGateHold(0), 1, 'no depth is bypass');
+  assert.ok(S.fxGateHold(1) > 0.15 && S.fxGateHold(1) < 0.2, 'full depth still lets sound through');
+  assert.ok(S.fxGateHold(0.5) < S.fxGateHold(0.2), 'monotone');
+});
+test('brakeRate: a turntable losing power, and never a click', () => {
+  assert.ok(Math.abs(S.brakeRate(0, 1, 1) - 1) < 1e-9, 'starts where the deck was');
+  assert.ok(S.brakeRate(0.5, 1, 1) < 0.4, 'and falls away fast — weight, not a fade');
+  // NEVER zero: a media element at rate 0 is a paused element, and pausing
+  // mid-brake is the click this exists to avoid
+  for (const t of [1, 2, 10, 1e6]) assert.ok(S.brakeRate(t, 1, 1) >= 0.06, 'bottoms out, not stops');
+  assert.ok(S.brakeRate(0.5, 4, 1) > S.brakeRate(0.5, 1, 1), 'a longer brake decays slower');
+  assert.ok(S.brakeRate(-1, 1, 1) <= 1, 'negative time cannot speed it up');
+});
+test('fxAutoPick: the room only reaches for an effect the music has earned', () => {
+  const base = { ceil: 1, energy: 0.9, act: 2, phase: 'peak', bar: 2, toSeam: null };
+  // SILENCE IS THE DEFAULT, and the most common answer. An effect that fires
+  // because a timer said so is decoration; this reads the song's own structure.
+  assert.equal(S.fxAutoPick({ ...base, ceil: 0.3 }), 'none', 'a quiet passage is left alone');
+  assert.equal(S.fxAutoPick({ ...base, struggling: true }), 'none', 'a strained device pays for nothing');
+  assert.equal(S.fxAutoPick({ ...base, phase: 'flow', energy: 0.5 }), 'none');
+  // the last bar before a hand-off: the outgoing track leaves in its own tail
+  assert.equal(S.fxAutoPick({ ...base, toSeam: 1.2, bar: 2 }), 'echo');
+  assert.equal(S.fxAutoPick({ ...base, toSeam: 9, bar: 2 }), 'gate', 'but not a whole phrase early');
+  // a build IS a sweep — every pair of hands in the world knows this one
+  assert.equal(S.fxAutoPick({ ...base, phase: 'build', energy: 0.8 }), 'filter');
+  // a chop reads as energy at a real peak and as a fault anywhere calmer
+  assert.equal(S.fxAutoPick({ ...base, phase: 'peak', act: 2, energy: 0.9 }), 'gate');
+  assert.equal(S.fxAutoPick({ ...base, phase: 'peak', act: 1, energy: 0.9 }), 'none');
+  assert.equal(S.fxAutoPick({ ...base, phase: 'peak', act: 2, energy: 0.6 }), 'none');
+  assert.equal(S.fxAutoPick(null), 'none', 'garbage in → silence, never a random effect');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

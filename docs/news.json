@@ -2,6 +2,20 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "c4d132eea9",
+      "date": "2026-07-31",
+      "title": "The booth grew hands",
+      "notes": [
+        "loops and rolls on eight beat lengths, from a 32nd to sixteen bars — a loop makes the track wait, a roll stalls the music while the track runs on underneath, so letting go lands you where you would have been",
+        "a loop latches on the last beat line you actually heard, and halving or doubling it never moves where it began",
+        "filter, echo, gate and drive on one knob, every time constant read from the same beat clock the visuals follow — plus a brake that is a turntable losing power, not a fade",
+        "AUTO gives the same hands to the room: the echo blooms into a hand-off and the filter opens across a build, chosen from the song's own shape and never during a quiet passage",
+        "the moment you touch anything, AUTO steps back and stays back until you arm it again — it will not undo what you just set",
+        "fixed: the gate could silently stop on a busy frame instead of chopping",
+        "fixed: the booth could knock a blend off its beat lock by resetting a deck's speed just as the mix began"
+      ]
+    },
+    {
       "build": "74fea37ab0",
       "date": "2026-07-30",
       "title": "The update that kept asking",
@@ -16,9 +30,9 @@
       "date": "2026-07-30",
       "title": "No more silence between tracks on iPhone",
       "notes": [
-        "the next track is now fetched while the current one plays, so the hand-off no longer waits on the network \u2014 the gap on a phone drops from over two seconds to the time the player itself needs",
+        "the next track is now fetched while the current one plays, so the hand-off no longer waits on the network — the gap on a phone drops from over two seconds to the time the player itself needs",
         "this works with the lock screen, not around it: playback never leaves the one element iOS trusts with background audio",
-        "on a slow or metered connection the app leaves it alone \u2014 Data Saver and 2G/3G are respected",
+        "on a slow or metered connection the app leaves it alone — Data Saver and 2G/3G are respected",
         "touching the visuals now works on every device: weaker phones get a simpler version of the effect instead of none at all"
       ]
     },
@@ -27,10 +41,10 @@
       "date": "2026-07-30",
       "title": "Your hand bends the world now",
       "notes": [
-        "the touch no longer draws anything on top of the visuals \u2014 it deforms the space they live in, and everything obeys",
+        "the touch no longer draws anything on top of the visuals — it deforms the space they live in, and everything obeys",
         "the black hole is genuinely dark because light near it stops coming back, and the bright ring around it is real lensing",
         "hold your finger down and the horizon widens; let go and a wavefront leaves your fingertip and travels out",
-        "scenes with no particles answer your touch for the first time \u2014 the light itself is bent, so every scene reacts",
+        "scenes with no particles answer your touch for the first time — the light itself is bent, so every scene reacts",
         "reduced motion keeps the touch alive at a gentler strength instead of switching it off"
       ]
     },
@@ -39,7 +53,7 @@
       "date": "2026-07-29",
       "title": "The auto-mix holds its beat lock",
       "notes": [
-        "the intermittent glitch in the auto mix is fixed \u2014 blends stayed in time on an idle machine and drifted up to a quarter beat when the visuals were working hard",
+        "the intermittent glitch in the auto mix is fixed — blends stayed in time on an idle machine and drifted up to a quarter beat when the visuals were working hard",
         "the seam is now lined up against where the outgoing track actually is, so a busy frame can no longer cost a blend its timing",
         "the incoming track is given a moment to get rolling before the fader opens, so a blend starts full instead of easing in from nothing",
         "measured under full visual load: beat error down from 114 ms to under 8 ms, and it is now a test that has to keep passing"

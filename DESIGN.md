@@ -277,7 +277,24 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   ornament (the second image, the channel split, the area dimming). Measured at 20.8%
   of the frame moved with the correct near-field falloff. ECO remains the one place
   the pass does not run at all — that mode exists to give the battery to the music.
-- **The seam pre-roll failed a third time, and was reverted again.** Rolling the
+- **The pre-roll, done properly the fourth time — and still not shipped.** The three
+  casual attempts all rolled the deck early and then seeked it at `fire()` anyway:
+  two decoder flushes instead of one, measured worse (908 ms) than doing nothing.
+  The missing piece was arithmetic, not effort. A is playing at a known rate and the
+  seam fires when it reaches `startA − lead`, so the wall time until then is known —
+  and the incoming deck, running at that same rate, must begin exactly that much of
+  its own time short of its entry. `seamCuePoint()` computes it; `fire()` then has no
+  placement to make, and a late call costs nothing because both decks advance
+  together (the same time-invariance `seamEntry()` uses, from the other side).
+  It was written, unit-tested, and **reverted anyway** — because it cannot be
+  exercised. The mix fixture's incoming track mixes in at **0.00 s**, so it has
+  negative runway before its entry and the cue correctly declines on every seam.
+  Merging cue/uncue, re-cue-on-a-deferred-bar, and a skip branch in `fire()` that no
+  test can drive end to end is how a path rots. The finding is recorded at the top of
+  `mix_probe`, with what would make it measurable: a fixture pair whose incoming
+  track has several seconds before its mix-in point, plus the two `mix_acceptance`
+  assertions that count the crate's six rows.
+- **The three casual attempts before it, for the record.** Rolling the
   incoming deck silently a couple of seconds before the exit should have removed the
   210-680 ms resume: it made it **worse, 908 ms**, because `warm()` seeks away from
   the point `_preload` had already warmed and then `fire()` seeks again, so the seam
@@ -351,6 +368,93 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   viewport-aware click to dispatching on the element: the clicks had begun timing
   out with "element is outside of the viewport" as the HUD grew, which says
   something about layout in a headless window and nothing about update machinery.
+
+### 1.2g The booth grew hands — and the instrument had to be built first
+
+- **The ask:** loops, rolls, scratch FX, banks and pads, "serato level", following
+  the best logic of real hardware. The arithmetic went into the `@fx` pure block
+  (`loopBounds`, `loopWrap`, `loopResize`, `rollReturn`, `fxFilter`, `fxGateHold`,
+  `brakeRate`, `fxAutoPick`) and the graph work into an FX rack inserted between
+  the bus and the master. The unit tests passed on the first run, which is exactly
+  the problem: **the arithmetic was never the hard part.** A booth is the easiest
+  thing in an app to fake — pads light, knobs move, labels update, and none of it
+  reaches the sound.
+- **So the check had to measure output, and the first three attempts at that
+  measured something else.** `booth_probe` is now roughly half instrument-design
+  commentary, because every wrong reading it produced was a lesson about
+  measurement rather than about the booth:
+  1. **Comparing two moments of music and calling the difference an effect.**
+     Bypassed, the fixture's own >4 kHz band read 0 → 31554 → 1168 across three
+     consecutive takes. Nothing survives that. The rack is now characterised on a
+     **bench**: its input is swapped off the bus onto a seeded generated signal —
+     pink noise for the filters and the gate, a 900 Hz sine for the saturation,
+     whose odd harmonics land in a band that is empty when clean. Real nodes, real
+     params, real `apply()`; only the signal holds still.
+  2. **A dB scale read as if it were energy.** `getByteFrequencyData` clamps at
+     −100 dB, so a band the filter had cut by 46 dB still came back as a
+     respectable byte value; summed over 800 bins, an annihilated low end reported
+     as *"101% of dry"*. In linear power it reads 1%.
+  3. **An FFT asked an envelope question.** A 2048-sample window with smoothing on
+     cannot see a 45 ms hole, so the gate measured as bypass. Gates are a
+     time-domain question: 256 samples, no smoothing, quiet percentile over loud —
+     and against the 95th percentile, not the *mean*, because at full depth this
+     gate is open for only 18% of each slice and that pulls the mean down into the
+     hole it is supposed to be detecting.
+  4. **Resolution mistaken for noise.** A bypassed filter differed from a bypassed
+     filter by 5% — identical parameters, both `fxFilter(0)`. Below ~60 Hz a 46 ms
+     window cannot resolve a cycle, and on a pink signal in linear power those bins
+     are also the *largest*. A 16384-sample window took it to 0.3%.
+- **Two real defects the instrument then found, both of which unit tests could
+  not have.**
+  - **The gate stopped when a frame was slow.** Slices were queued 250 ms ahead
+    on the audio clock, and the thing refilling that queue is the animation frame —
+    measured on the probe's software renderer at 63 ms median one run and 197 ms
+    the next. One slow frame left a hole, and a hole here does not sound like a
+    glitch: gain is parked at 1 by the last event, so the gate silently **stops**.
+    `GATE_AHEAD` is a second now, which is free (it is all sample-accurate
+    scheduling) and survives a stall four times the worst frame seen. A knob moved
+    while it runs still lands at the *next slice*, by cancelling from there rather
+    than from now — the phase is kept and the change arrives on a beat, which is
+    what hardware does.
+  - **`FX.release()` was stealing a rate it did not own.** It reset
+    `playbackRate` unconditionally, to undo a brake. But `commitMix()` calls it —
+    and the mixer sets both decks' rates to tempo-match a few lines earlier, so
+    the incoming deck's match was wiped at the exact instant the blend began.
+    Worse, the seam's PLL only rewrites the rate when its own target *moves* by
+    more than 0.0004, so the wrong rate then stood until the trim drifted that
+    far. It surfaced as an 83.6 ms beat lock against a 40 ms contract on about one
+    seam in three — intermittency being the whole reason it was worth chasing
+    rather than shrugging at. `release()` now touches the rate only if a brake was
+    running, and the rule is pinned in `booth_probe` as a direct check so it fails
+    every time instead of sometimes.
+- **A design change the probe argued into existence.** `hand()` originally handed
+  control back to AUTO a few seconds after the last touch. It reads as
+  considerate and it is a footgun: a performer who sets a filter and holds it
+  would watch the room undo it, and the fight is unwinnable because the room never
+  tires. It was found the hard way — a gate measurement that kept coming back
+  bypassed, because AUTO had reclaimed the unit mid-reading. A hand now takes the
+  booth and **keeps** it until AUTO is armed again.
+- **What is deliberately tracked open rather than asserted.** `loopWrap` carries
+  the overshoot across a wrap instead of discarding it, so cycles cannot compound
+  — seeking to `start` every time makes each cycle *len + however late the tick
+  was*, which puts an 8-bar loop a third of a beat behind after eight passes. That
+  arithmetic is exact and unit-tested. What cannot be fixed from here is the
+  **seek**: re-pointing a streaming media element flushes its buffer and restarts
+  its decoder, costing 0–450 ms of real time depending on how hard the machine is
+  breathing. Buying it back would mean decoding loops through an
+  `AudioBufferSource`, which the rest of the app deliberately does not do because
+  streaming elements are what keep iOS's decoder budget and background-audio
+  blessing intact. So the probe reports the number and does not pretend it is a
+  contract; asserting it would be asserting the host's seek latency.
+- **And one lesson that was pure probe hygiene.** The fixture's tracks are 20–30 s
+  and the run is minutes, so playback walked off the end mid-measurement — and a
+  track change calls `FX.release()`, which parks the rack. Readings were being
+  taken with the effect switched off *by the app*, on a different song; a filter
+  reported at "47% of dry kept" was a filter that had been turned off half way
+  through. Fixed by `repeat:'one'` (which is what disables the auto-crossfade),
+  holding **both** decks back from their ends (the idle one is still rolling, and
+  its `ended` is what advances the crate), and a `deckHeld()` guard that fails
+  loudly rather than quietly reporting the wrong number.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
