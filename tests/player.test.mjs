@@ -36,8 +36,10 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
-  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, updateGate, updateOffer, newsSince,' +
-  ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget,' +
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, newsSince,' +
+  ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
+  ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
+  ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss };';
@@ -1785,6 +1787,258 @@ test('touchAutoShould: never under a live finger, never before the dwell, only u
   assert.ok(!S.touchAutoShould(90, false, 0.1), 'hand is on the field');
   assert.ok(S.touchAutoShould(90, true, 0.1), 'due, hand off, dice agree');
   assert.ok(!S.touchAutoShould(90, true, 0.9), 'even then, only usually');
+});
+test('touchPairMode: the second hand is never the same force as the first', () => {
+  for (const m of [-1, 0, 1, 2]) assert.notEqual(S.touchPairMode(m), m, `mode ${m} paired with itself`);
+  assert.equal(S.touchPairMode(0), 2, 'a void is answered by a well');
+  assert.equal(S.touchPairMode(2), 0, 'and a well by a void');
+  assert.equal(S.touchPairMode(-1), 1, 'a vortex is answered by its opposite chirality');
+  assert.equal(S.touchPairMode(1), -1);
+  assert.equal(S.touchPairMode(3), 3, 'ripples pair with ripples — two sources, interference');
+  // and every answer is a mode the metric actually implements
+  for (const m of [-1, 0, 1, 2, 3])
+    assert.ok([-1, 0, 1, 2, 3].includes(S.touchPairMode(m)), `mode ${m} paired to nothing real`);
+});
+
+// ---------------------------------------------------------------- the fabric, as a vector
+
+test('warpPush: a flat fabric moves nothing, and zero force moves nothing', () => {
+  const flat = S.warpPush(0.3, 0.2, 0.3, 0.2, 0, 0, {});      // on the centre, no force
+  assert.ok(Math.hypot(flat.x, flat.y) < 1e-9, 'no force, no push');
+  const far = S.warpPush(4, 4, 0, 0, 0, 1, {});                // far outside the reach window
+  assert.ok(Math.hypot(far.x, far.y) < 1e-6, `beyond the reach the room is still: ${far.x},${far.y}`);
+});
+test('warpPush: it IS warpDeflect — the push carries the deflection it promises', () => {
+  // the void throws the image outward: |p - c| grows by exactly rad
+  for (const r of [0.05, 0.12, 0.3, 0.6]){
+    const p = S.warpPush(r, 0, 0, 0, 0, 1, {});
+    const moved = Math.hypot(r + p.x, 0 + p.y);
+    const d = S.warpDeflect(0, r, {});
+    assert.ok(Math.abs(moved - (r + d.rad)) < 1e-6, `radius at r=${r}: ${moved} vs ${r + d.rad}`);
+    assert.ok(Math.abs(p.rad - d.rad) < 1e-12, 'the depth share is the radial term itself');
+  }
+});
+test('warpPush: the vortex turns space and keeps its radius', () => {
+  const r = 0.25;
+  const p = S.warpPush(r, 0, 0, 0, 1, 1, { spin: 0.8 });
+  const moved = Math.hypot(r + p.x, p.y);
+  assert.ok(Math.abs(moved - r) < 1e-6, `a rotation preserves the radius: ${moved} vs ${r}`);
+  assert.ok(Math.abs(p.y) > 1e-3, 'and it actually turned');
+  const anti = S.warpPush(r, 0, 0, 0, -1, 1, { spin: 0.8 });
+  assert.ok(Math.sign(anti.y) === -Math.sign(p.y), 'the two chiralities wind opposite ways');
+});
+test('warpPush: two hands superpose — the pair is the sum, not the winner', () => {
+  // the claim the GLSL makes when it adds the second push to the first
+  const a = S.warpPush(0.1, 0.05, -0.4, 0, 0, 1, {});
+  const b = S.warpPush(0.1, 0.05, 0.4, 0, 2, 1, {});
+  assert.ok(Math.hypot(a.x, a.y) > 1e-4 && Math.hypot(b.x, b.y) > 1e-4, 'both hands reach the middle');
+  // the void pushes away from itself, the well draws toward itself: between a
+  // pair placed like this they agree in direction, which is why the middle moves
+  assert.ok(a.x > 0 && b.x > 0, `a pair pulling the same way: ${a.x} ${b.x}`);
+});
+
+// ---------------------------------------------------------------- the ghost
+
+test('ghostPath: every choreography stays in the room — over a stroke, and long past one', () => {
+  for (const kind of S.GHOST_KINDS){
+    for (const seed of [1, 7, 4242]){
+      for (let t = 0; t < 600; t += 0.37){          // far beyond any stroke: still bounded
+        const p = S.ghostPath(kind, t, seed);
+        assert.ok(isFinite(p.x) && isFinite(p.y), `${kind} went non-finite at t=${t}`);
+        assert.ok(Math.abs(p.x) <= S.GHOST_TUNING.edge + 1e-9
+          && Math.abs(p.y) <= S.GHOST_TUNING.edge + 1e-9, `${kind} left the field at t=${t}: ${p.x},${p.y}`);
+      }
+    }
+  }
+});
+test('ghostPath: it is a path — it only ever jumps while the hand is off the field', () => {
+  // a jump between frames with the hand DOWN would read as a cut, not as a hand.
+  // PAINT is allowed to move its anchor, but only across a lift — that is the
+  // whole difference between painting and teleporting.
+  const T = S.GHOST_TUNING.maxLen * 3;
+  for (const kind of S.GHOST_KINDS){
+    for (const seed of [9, 260, 5551]){
+      let prev = S.ghostPath(kind, 0, seed);
+      for (let t = 1 / 60; t < T; t += 1 / 60){
+        const p = S.ghostPath(kind, t, seed);
+        assert.ok(p.on >= 0 && p.on <= 1, `${kind} returned a nonsense pen: ${p.on}`);
+        const step = Math.hypot(p.x - prev.x, p.y - prev.y);
+        if (step >= 0.12)
+          assert.ok(prev.on === 0, `${kind} jumped ${step.toFixed(3)} with the pen down at t=${t.toFixed(2)}`);
+        prev = p;
+      }
+    }
+  }
+});
+test('ghostPath: four choreographies are a drag; only PAINT lifts', () => {
+  for (const kind of S.GHOST_KINDS){
+    let lifted = false, down = false;
+    for (let t = 0; t < S.GHOST_TUNING.maxLen; t += 0.01){
+      const on = S.ghostPath(kind, t, 21).on;
+      if (on === 0) lifted = true;
+      if (on > 0.99) down = true;
+    }
+    assert.ok(down, `${kind} never actually touches the field`);
+    assert.equal(lifted, kind === 'paint', `${kind}: lifted=${lifted}`);
+  }
+});
+test('ghostPath: a stroke BEGINS — every choreography starts somewhere of its own', () => {
+  // the runtime hands each stroke a clock that starts at zero, so t=0 is the
+  // moment the hand goes down; two seeds must not put it in the same place
+  for (const kind of S.GHOST_KINDS){
+    const starts = new Set();
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]){
+      const p = S.ghostPath(kind, 0, seed);
+      starts.add(p.x.toFixed(4) + ',' + p.y.toFixed(4));
+    }
+    // the snake always begins at its home cell — that is the lattice's own rule
+    const want = kind === 'snake' ? 1 : 4;
+    assert.ok(starts.size >= want, `${kind} began in only ${starts.size} distinct places`);
+  }
+});
+test('ghostPath: each choreography is a DIFFERENT motion, not one wander renamed', () => {
+  const sig = kind => {
+    let travel = 0, prev = S.ghostPath(kind, 0, 3);
+    for (let t = 0.05; t < S.GHOST_TUNING.maxLen; t += 0.05){
+      const p = S.ghostPath(kind, t, 3);
+      travel += Math.hypot(p.x - prev.x, p.y - prev.y);
+      prev = p;
+    }
+    return travel;
+  };
+  const lens = S.GHOST_KINDS.map(sig);
+  assert.ok(new Set(lens.map(v => v.toFixed(2))).size === S.GHOST_KINDS.length,
+    'two choreographies travel exactly the same distance: ' + lens.map(v => v.toFixed(2)).join(' '));
+  // DRIFT is the resting hand and must be the least busy of the five
+  const drift = lens[S.GHOST_KINDS.indexOf('drift')];
+  for (const k of ['bounce', 'snake', 'lissa', 'paint'])
+    assert.ok(lens[S.GHOST_KINDS.indexOf(k)] > drift,
+      `${k} (${lens[S.GHOST_KINDS.indexOf(k)].toFixed(2)}) should out-travel drift (${drift.toFixed(2)})`);
+});
+test('ghostFold: a ball off the walls stays between them, for ever', () => {
+  for (let u = -50; u < 50; u += 0.013){
+    const v = S.ghostFold(u, 0.82);
+    assert.ok(v >= -0.82 - 1e-12 && v <= 0.82 + 1e-12, `escaped at u=${u}: ${v}`);
+  }
+  assert.ok(Math.abs(S.ghostFold(0, 1) + 1) < 1e-12, 'the fold starts at the wall');
+});
+test('ghostSnake: axis-aligned — one coordinate at a time, on a lattice', () => {
+  // the character of the snake IS the right angle. Between two samples inside a
+  // step, exactly one axis may have moved.
+  let both = 0, moved = 0;
+  for (let t = 0; t < 90; t += 0.02){
+    const a = S.ghostSnake(t, 5), b = S.ghostSnake(t + 0.02, 5);
+    const dx = Math.abs(b.x - a.x) > 1e-6, dy = Math.abs(b.y - a.y) > 1e-6;
+    if (dx || dy) moved++;
+    if (dx && dy) both++;
+  }
+  assert.ok(moved > 100, 'the snake actually moves');
+  // only the samples that straddle a step boundary may show both axes
+  assert.ok(both / moved < 0.06, `${both}/${moved} samples moved diagonally — that is not a snake`);
+});
+test('ghostSnake: the walk is bounded, and it stops rather than running away', () => {
+  const G = S.GHOST_TUNING;
+  const cap = G.step * G.lap;              // the guard: no stroke is ever this long
+  const a = S.ghostSnake(cap + 1, 11), b = S.ghostSnake(cap + 900, 11);
+  assert.ok(Math.hypot(b.x - a.x, b.y - a.y) < 1e-12, 'past the guard the snake holds still');
+  assert.ok(Math.abs(a.x) <= G.edge && Math.abs(a.y) <= G.edge, 'and holds still inside the room');
+  assert.deepEqual(S.ghostSnake(-5, 11), S.ghostSnake(0, 11), 'a negative clock is the start, not a crash');
+});
+test('ghostPhrase: it plays in phrases — mostly silence, and the ends fade', () => {
+  const G = S.GHOST_TUNING;
+  for (const seed of [1, 2, 77]){
+    let on = 0, n = 0, peak = 0;
+    for (let t = 0; t < G.slot * 40; t += 0.05){
+      const p = S.ghostPhrase(t, seed);
+      n++; if (p.on) on++;
+      peak = Math.max(peak, p.env);
+      if (!p.on) assert.equal(p.env, 0, 'silence is silent');
+      assert.ok(p.env >= 0 && p.env <= 1, 'the envelope is an envelope');
+    }
+    const duty = on / n;
+    assert.ok(duty > 0.1 && duty < 0.45, `duty cycle ${duty.toFixed(2)} — the field must be mostly untouched`);
+    assert.ok(peak > 0.98, 'a stroke does reach full amplitude');
+  }
+});
+test('ghostPhrase: the envelope never snaps — it lands slowly and lifts briskly', () => {
+  const G = S.GHOST_TUNING, dt = 0.02;
+  // the ceiling on one step is set by the FASTER of the two ramps; a lift is
+  // brisk on purpose (a hand that fades out has no charge left to release) but
+  // it is still a ramp and not a cliff
+  const cap = dt / Math.min(G.fade, G.lift) * 1.6;
+  let prev = S.ghostPhrase(0, 4).env;
+  for (let t = dt; t < 400; t += dt){
+    const e = S.ghostPhrase(t, 4).env;
+    assert.ok(Math.abs(e - prev) < cap, `presence stepped by ${(e - prev).toFixed(3)} at t=${t.toFixed(2)}`);
+    prev = e;
+  }
+  assert.ok(G.lift < G.fade, 'a stroke must leave faster than it arrives');
+});
+test('ghostAmp: never as loud as a hand, and quietest where the music is loudest', () => {
+  const quiet = S.ghostAmp({ act: 0, energy: 0 });
+  const apex = S.ghostAmp({ act: 2, energy: 1 });
+  assert.ok(quiet <= S.GHOST_TUNING.amp, 'the ceiling holds');
+  assert.ok(quiet < 1, 'a ghost is never a hand');
+  assert.ok(apex < quiet * 0.5, `the apex stands back: ${apex.toFixed(3)} vs ${quiet.toFixed(3)}`);
+  assert.ok(apex > 0, 'but it never goes to exactly nothing mid-stroke');
+  assert.ok(S.ghostAmp({ act: 0, energy: 0, calm: true }) < quiet, 'CALM asks for less and gets it');
+  for (const act of [-1, 0, 1, 2, 3, 4])
+    for (const energy of [0, 0.5, 1])
+      assert.ok(S.ghostAmp({ act, energy }) >= 0 && S.ghostAmp({ act, energy }) <= 1, 'always a presence');
+});
+test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
+  const base = { idle: 999 };
+  assert.ok(S.ghostShould(base), 'a still room plays');
+  assert.ok(!S.ghostShould({ ...base, reduced: true }), 'never for reduced motion');
+  assert.ok(!S.ghostShould({ ...base, human: true }), 'never over a live hand');
+  assert.ok(!S.ghostShould({ ...base, hidden: true }), 'never in a hidden tab');
+  assert.ok(!S.ghostShould({ ...base, eco: true }), 'never on ECO');
+  assert.ok(!S.ghostShould({ ...base, off: true }), 'never when switched off');
+  assert.ok(!S.ghostShould({ idle: 5 }), 'and never before the room has been still a while');
+  assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
+});
+test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
+  for (let sc = 0; sc < 17; sc++)
+    for (const act of [-1, 0, 1, 2, 3, 4])
+      for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
+        const k = S.ghostPattern(sc, act, r);
+        assert.ok(S.GHOST_KINDS.includes(k), `scene ${sc} act ${act} r ${r} -> ${k}`);
+        if (act === 2) assert.equal(k, 'drift', 'the apex belongs to the scenes');
+      }
+  assert.equal(S.ghostPattern(999, 1, 0.5), 'lissa', 'an unknown scene falls back to scene 0');
+  // the wildcard must be able to reach every choreography, or the map is the map
+  const wild = new Set();
+  for (let i = 0; i < 400; i++) wild.add(S.ghostPattern(4, 1, 0.87 + (i / 400) * 0.129));
+  assert.ok(wild.size >= 4, `the wildcard only ever produced ${wild.size} kinds`);
+});
+test('ghostSplit / ghostMirror: two hands, never at the apex, always a symmetry', () => {
+  assert.ok(!S.ghostSplit({ act: 2, r: 0 }), 'the apex never splits');
+  assert.ok(S.ghostSplit({ act: 0, r: 0.1 }), 'the quiet edges split readily');
+  assert.ok(!S.ghostSplit({ act: 0, r: 0.9 }), 'and even there, only sometimes');
+  assert.ok(S.ghostSplit({ act: 1, r: 0.1 }), 'the middle of the arc splits rarely');
+  assert.ok(!S.ghostSplit({ act: 1, r: 0.3 }));
+  assert.equal(S.ghostSplit({}), false, 'no dice, no split');
+  for (const [axis, want] of [[0, [-0.3, 0.4]], [1, [0.3, -0.4]], [2, [-0.3, -0.4]]]){
+    const m = S.ghostMirror(axis, 0.3, 0.4);
+    assert.ok(Math.abs(m.x - want[0]) < 1e-12 && Math.abs(m.y - want[1]) < 1e-12, `axis ${axis}`);
+  }
+  // whatever the axis, the pair is two DIFFERENT places on the field
+  for (const axis of [0, 1, 2, 3, -1]){
+    const m = S.ghostMirror(axis, 0.3, 0.4);
+    assert.ok(Math.hypot(m.x - 0.3, m.y - 0.4) > 1e-6, `axis ${axis} put both hands in one place`);
+  }
+});
+test('ghostRand: deterministic, spread, and different per seed', () => {
+  assert.equal(S.ghostRand(5, 3), S.ghostRand(5, 3), 'a choreography is replayable');
+  assert.notEqual(S.ghostRand(5, 3), S.ghostRand(6, 3), 'seeds differ');
+  assert.notEqual(S.ghostRand(5, 3), S.ghostRand(5, 4), 'steps differ');
+  let lo = 0, hi = 0;
+  for (let i = 0; i < 400; i++){
+    const v = S.ghostRand(31, i);
+    assert.ok(v >= 0 && v < 1, `out of range: ${v}`);
+    if (v < 0.5) lo++; else hi++;
+  }
+  assert.ok(lo > 140 && hi > 140, `lopsided draw: ${lo}/${hi}`);
 });
 
 // ---------------------------------------------------------------- self-update

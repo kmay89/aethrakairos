@@ -173,7 +173,8 @@ await page.evaluate(([w, h]) => {
     window.__pairWant = null;
     const I = INTERACT;
     const keep = { s: I.strength, b: I.burst, c: I.charge, sp: I.spinE, sw: I.swirl,
-      wx: I.wx, wy: I.wy, px: I.px, py: I.py, rp: I.ripplePhase };
+      wx: I.wx, wy: I.wy, px: I.px, py: I.py, rp: I.ripplePhase,
+      sx: I.sx, sy: I.sy, s2: I.s2, m2: I.mode2 };
     /* Frame A and frame B are both arbitrary hand states, not off-then-on. The
        graze-versus-hold comparison used two separate pair() calls and therefore
        two separate ticks, and on a fast-animating scene it duly reported the
@@ -194,6 +195,11 @@ await page.evaluate(([w, h]) => {
       I.swirl = o.swirl == null ? 1 : o.swirl;
       I.px = I.wx = o.x || 0; I.py = I.wy = o.y || 0;
       I.ripplePhase = 0;                 // one phase, so WAVE is comparable run to run
+      // THE SECOND HAND, driven the same way: a state per frame, so "with a pair"
+      // and "with one hand" can be compared inside a single tick like everything else
+      I.sx = o.x2 || 0; I.sy = o.y2 || 0;
+      I.s2 = st.off ? 0 : (st.s2 == null ? 0 : st.s2);
+      I.mode2 = o.mode2 == null ? touchPairMode(TOUCHFX.mode()) : o.mode2;
       // the uniforms the metric actually reads — written through the same
       // expressions the frame loop uses, so this exercises shipping code
       U.uPtr.value.set(I.wx, I.wy, I.strength);
@@ -201,14 +207,17 @@ await page.evaluate(([w, h]) => {
       U.uPtrF.value.set(TOUCHFX.mode(),
         warpBudget({ reduced: reducedMotion, calm: typeof SAFE !== 'undefined' && SAFE.calm }),
         AE.f.beat, I.ripplePhase);
+      U.uPtr2.value.set(I.sx, I.sy, I.s2, I.mode2);
     };
     put(false); lensRender(...a); const A = grab();
     put(true);  lensRender(...a); const B = grab();
     I.strength = keep.s; I.burst = keep.b; I.charge = keep.c; I.spinE = keep.sp;
     I.swirl = keep.sw; I.wx = keep.wx; I.wy = keep.wy; I.px = keep.px; I.py = keep.py;
     I.ripplePhase = keep.rp; I.dragging = false;
+    I.sx = keep.sx; I.sy = keep.sy; I.s2 = keep.s2; I.mode2 = keep.m2;
     U.uPtr.value.set(I.wx, I.wy, I.strength);
     U.uPtrX.value.set(I.charge, I.burst, I.spinE);
+    U.uPtr2.value.set(I.sx, I.sy, I.s2, I.mode2);
     lensRender(...a);
     window.__pair = { a: Array.from(A.px), b: Array.from(B.px), pngA: A.png, pngB: B.png };
   };
@@ -325,11 +334,17 @@ const parity = await page.evaluate(() => {
    * r=0 because a deflection of 1.6 saturated the encoding, which says nothing
    * about parity. Differencing on the GPU makes one 8-bit step ~4e-5 of drift
    * everywhere in the domain, which is the resolution this claim needs. */
+  /* Both halves of the metric are asked, not just one. warpDeflect is the shape
+   * of the deformation; warpPush is the vector every consumer actually applies —
+   * and it is the one a SECOND hand is built out of, so a drift there would show
+   * up as two hands bending the world by subtly different physics. */
   const fsSrc = 'precision highp float;\n' + GLSL_WARP + `
-    uniform float uMode, uR;
+    uniform float uMode, uR, uForce;
     uniform vec2 uExpect;      // what the JS metric says, at full float precision
+    uniform vec2 uP, uC;
+    uniform bool uPushMode;
     void main(){
-      vec2 d = warpDeflect(uMode, uR);
+      vec2 d = uPushMode ? warpPush(uP, uC, uMode, uForce).xy : warpDeflect(uMode, uR);
       gl_FragColor = vec4((d.x - uExpect.x) * 100.0 + 0.5,
                           (d.y - uExpect.y) * 100.0 + 0.5, 0.0, 1.0);
     }`;
@@ -348,6 +363,7 @@ const parity = await page.evaluate(() => {
   const uni = n => gl.getUniformLocation(pr, n);
   const px = new Uint8Array(4);
   let worstRad = 0, worstAng = 0, n = 0, worstAt = null;
+  let worstPush = 0, pushN = 0, pushAt = null;
   for (const mode of [-1, 0, 1, 2, 3]){
     for (const charge of [0, 0.5, 1]){
       for (const spin of [0, 0.8]){
@@ -356,6 +372,8 @@ const parity = await page.evaluate(() => {
           gl.uniform3f(uni('uPtr'), 0, 0, 1);
           gl.uniform3f(uni('uPtrX'), charge, 0, spin);
           gl.uniform4f(uni('uPtrF'), mode, 1, 0.4, 0.9);
+          gl.uniform4f(uni('uPtr2'), 0, 0, 0, 0);
+          gl.uniform1i(uni('uPushMode'), 0);
           gl.uniform1f(uni('uMode'), mode);
           gl.uniform1f(uni('uR'), r);
           const js = warpDeflect(mode, r, { charge, spin, beat: 0.4, phase: 0.9 });
@@ -366,11 +384,32 @@ const parity = await page.evaluate(() => {
           if (dR > worstRad){ worstRad = dR; worstAt = { mode, charge, spin, r: +r.toFixed(3) }; }
           if (dA > worstAng) worstAng = dA;
           n++;
+
+          // and the same question asked of the vector form, off-centre, so the
+          // rotation and the epsilon-nudged normalize are both in the answer
+          for (const force of [0.4, 1]){
+            const cx = 0.13, cy = -0.07;
+            const px0 = cx + r * 0.8, py0 = cy + r * 0.6;
+            gl.uniform1i(uni('uPushMode'), 1);
+            gl.uniform1f(uni('uForce'), force);
+            gl.uniform2f(uni('uP'), px0, py0);
+            gl.uniform2f(uni('uC'), cx, cy);
+            const jp = warpPush(px0, py0, cx, cy, mode, force, { charge, spin, beat: 0.4, phase: 0.9 });
+            gl.uniform2f(uni('uExpect'), jp.x, jp.y);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            const dX = Math.abs((px[0] / 255 - 0.5) / 100), dY = Math.abs((px[1] / 255 - 0.5) / 100);
+            if (Math.max(dX, dY) > worstPush){
+              worstPush = Math.max(dX, dY);
+              pushAt = { mode, charge, spin, force, r: +r.toFixed(3) };
+            }
+            pushN++;
+          }
         }
       }
     }
   }
-  return { worstRad, worstAng, n, worstAt };
+  return { worstRad, worstAng, n, worstAt, worstPush, pushN, pushAt };
 });
 if (parity.err || parity.skipped){
   R('the shipped GLSL metric matches the JS metric', false, parity.err || parity.skipped);
@@ -382,6 +421,10 @@ if (parity.err || parity.skipped){
     parity.n + ' samples · worst radial ' + parity.worstRad.toFixed(5)
       + ' · worst angular ' + parity.worstAng.toFixed(5)
       + (parity.worstAt ? ' @ ' + JSON.stringify(parity.worstAt) : ''));
+  R('and so does the displacement every consumer applies (warpPush)',
+    parity.worstPush < 3e-4,
+    parity.pushN + ' samples · worst ' + parity.worstPush.toFixed(5)
+      + (parity.pushAt ? ' @ ' + JSON.stringify(parity.pushAt) : ''));
 }
 
 // ---------------------------------------------------------------- 3 · THE BEND
@@ -649,6 +692,150 @@ const lbNear = Math.max(lb.rings[0], lb.rings[1]);
 R('the lean pass bends the world too, and in the near field',
   lb.moved > 0.03 && lbNear > lb.rings[5] * 2,
   pct(lb.moved) + ' moved · near ' + lbNear.toFixed(4) + ' vs far ' + lb.rings[5].toFixed(4));
+
+// ---------------------------------------------------------- 8 · TWO HANDS
+/* A second centre must be a second DEFORMATION, not a second cursor. Two claims,
+ * and they are different: that the field bends around the second hand at all
+ * (the uniform reaches the metric), and that adding it to a live first hand
+ * changes the frame WHERE THE SECOND HAND IS (they superpose rather than one
+ * winning). A pair that quietly replaced the first hand would pass the first
+ * check and fail the second, which is exactly why both are here. */
+console.log('\ntwo hands: a second centre, with its own force, superposed');
+await page.evaluate(i => director.setScene(i, false), POINTS);
+await page.waitForTimeout(900);
+const SX = -0.30, SY = -0.14;              // the second hand, well away from the first
+const alone = await pair({ x: HX, y: HY, x2: SX, y2: SY, mode2: 0,
+  b: { presence: 0, charge: 0, s2: 1 } });
+keep('pair-second-only', alone.pngB);
+const af = diffField(alone.a, alone.b, SX, SY);
+const aNear = Math.max(af.rings[0], af.rings[1]);
+R('a second hand alone bends the world, and bends it around ITSELF',
+  af.moved > 0.03 && aNear > af.rings[5] * 2.5,
+  pct(af.moved) + ' moved · near ' + aNear.toFixed(4) + ' vs far ' + af.rings[5].toFixed(4)
+    + ' · by annulus: ' + af.rings.map(v => v.toFixed(4)).join(' '));
+// the void is the second hand's mode here, so its core must go dark too — the
+// second centre gets the whole metric, capture radius included, not a soft copy
+const s2Off = coreLuma(alone.a, SX, SY, 0.06), s2On = coreLuma(alone.b, SX, SY, 0.06);
+R('and it gets the whole metric — the second void captures light as well',
+  s2On < s2Off * 0.6 + 0.01,
+  'core luma at the second hand ' + s2Off.toFixed(4) + ' -> ' + s2On.toFixed(4));
+
+const pairP = await pair({ x: HX, y: HY, x2: SX, y2: SY, mode2: 2,
+  a: { drag: true, s2: 0 }, b: { drag: true, s2: 1 } });
+keep('pair-one-hand', pairP.pngA); keep('pair-two-hands', pairP.pngB);
+const pf = diffField(pairP.a, pairP.b, SX, SY);
+const pNear = Math.max(pf.rings[0], pf.rings[1]);
+R('a pair superposes — adding the second hand changes the frame around the second hand',
+  pf.moved > 0.02 && pNear > pf.rings[5] * 2,
+  pct(pf.moved) + ' of the frame differs between one hand and two · near ' + pNear.toFixed(4)
+    + ' vs far ' + pf.rings[5].toFixed(4));
+// ...and the first hand is still doing its own work in the same frame
+const pFirst = diffField(pairP.a, pairP.b, HX, HY);
+R('and the first hand is not displaced by the second — the pair is a sum, not a swap',
+  pFirst.rings[0] < pNear,
+  'change at the first hand ' + pFirst.rings[0].toFixed(4) + ' vs at the second ' + pNear.toFixed(4));
+const twoCost = await page.evaluate(() => {
+  const I = INTERACT;
+  const k = { s: I.strength, b: I.burst, s2: I.s2 };
+  I.strength = 0; I.burst = 0; I.s2 = 0;
+  const idle = LENS.handLive();
+  I.s2 = 1;
+  const second = LENS.handLive();
+  I.strength = k.s; I.burst = k.b; I.s2 = k.s2;
+  return { idle, second };
+});
+R('a hand that is only a SECOND hand still wakes the pass',
+  twoCost.idle === false && twoCost.second === true,
+  'idle ' + twoCost.idle + ' · second hand only ' + twoCost.second);
+
+// ------------------------------------------------------------ 9 · THE GHOST
+/* The engine that answers a hand is worth nothing for the hours nobody is
+ * touching the glass, so something else plays it. What has to be true of that
+ * is not "it looks nice" — it is a set of facts:
+ *
+ *   IT PLAYS       after a while of stillness, the field is genuinely touched.
+ *   IN PHRASES     and most of the time it is NOT — a hand that never lifts is
+ *                  a screensaver, and the visuals have to be allowed to play.
+ *   QUIETLY        its presence never approaches a real hand's.
+ *   AND IT YIELDS  the instant a finger lands, mid-stroke, it is gone.
+ *
+ * Driven through the shipping objects at a fixed dt rather than measured off the
+ * wall clock, so this is a fact about the engine and not about how fast this
+ * machine happened to render three minutes of it. */
+console.log('\nthe field plays itself — in phrases, quietly, and it lets go');
+const ghost = await page.evaluate(() => {
+  const I = INTERACT, G = GHOST;
+  const keepI = { idle: I._idleT, s: I.strength, syn: I.synth, cap: I.cap, drag: I.dragging,
+    px: I.px, py: I.py, sw: I.swirl, ch: I.charge, bu: I.burst };
+  const keepG = { on: G.on, t: G.t, pt: G.pt, age: G._age, i: G._i, live: G._live, seed: G.seed };
+  G.on = true; G._age = 1e4; G.t = 0; G._i = -1; G._live = false; G._pen = 0;
+  I.dragging = false; I.second = false; I.strength = 0; I.charge = 0; I.burst = 0;
+  const dt = 1 / 60;
+  let touched = 0, frames = 0, peak = 0, split = 0, bursts = 0, prevBurst = 0;
+  for (let i = 0; i < 60 * 180; i++){          // three minutes of a room nobody is in
+    I._idleT = 1e4;                            // nothing human happens in any of it
+    G.update(dt); I.update(dt);
+    frames++;
+    if (I.synth) touched++;
+    if (I.ghost2) split++;
+    peak = Math.max(peak, I.strength);
+    if (I.burst > prevBurst + 0.01) bursts++;  // a stroke ended in a real release
+    prevBurst = I.burst;
+  }
+  const duty = touched / frames;
+  /* and now a finger lands MID-STROKE. Waiting a fixed few seconds and hoping
+   * was the first version of this, and it was a coin toss: a stroke starts
+   * somewhere inside its 14 s slot, so the finger sometimes arrived in the
+   * silence and the check reported "was playing false" on perfectly good code.
+   * Step the ghost until it is demonstrably playing, then interrupt it. */
+  G.t = 0; G._i = -1; G._live = false;
+  let waited = 0;
+  while (!I.synth && waited < 60 * 40){ I._idleT = 1e4; G.update(dt); I.update(dt); waited++; }
+  const wasPlaying = I.synth;
+  I.dragging = true;
+  G.update(dt);
+  const yielded = !I.synth && I.cap === 1;
+  I.dragging = false;
+  // switched off, it must never touch the field again
+  G.on = false; G._live = false;
+  let afterOff = 0;
+  for (let i = 0; i < 60 * 120; i++){ I._idleT = 1e4; G.update(dt); if (I.synth) afterOff++; }
+
+  Object.assign(I, { _idleT: keepI.idle, strength: keepI.s, synth: keepI.syn, cap: keepI.cap,
+    dragging: keepI.drag, px: keepI.px, py: keepI.py, swirl: keepI.sw, charge: keepI.ch, burst: keepI.bu });
+  I.ghost2 = false; I.s2 = 0;
+  Object.assign(G, { on: keepG.on, t: keepG.t, pt: keepG.pt, _age: keepG.age, _i: keepG.i,
+    _live: keepG.live, seed: keepG.seed });
+  return { duty, peak, split: split / Math.max(1, touched), bursts, wasPlaying, yielded, afterOff,
+    gate: {
+      fresh: ghostShould({ idle: 2 }),
+      still: ghostShould({ idle: 999 }),
+      reduced: ghostShould({ idle: 999, reduced: true }),
+      human: ghostShould({ idle: 999, human: true }),
+      eco: ghostShould({ idle: 999, eco: true }),
+    } };
+});
+R('left alone, the field is genuinely touched',
+  ghost.duty > 0.08, pct(ghost.duty) + ' of three minutes had a hand on the fabric');
+R('and it is mostly NOT — the visuals get the room to themselves',
+  ghost.duty < 0.45, pct(1 - ghost.duty) + ' of the time nothing is touching it');
+R('the ghost never plays as hard as a hand',
+  ghost.peak > 0.02 && ghost.peak < 0.6,
+  'peak presence ' + ghost.peak.toFixed(3) + ' against a finger\'s 1.0');
+R('its strokes end in a real release, not a fade-out',
+  ghost.bursts > 0, ghost.bursts + ' wavefronts left the field over three minutes');
+R('and sometimes it splits into a mirrored pair',
+  ghost.split > 0.02 && ghost.split < 0.8,
+  pct(ghost.split) + ' of the touched frames were two-handed');
+R('a finger takes the field back, mid-stroke, at once',
+  ghost.wasPlaying === true && ghost.yielded === true,
+  'was playing ' + ghost.wasPlaying + ' · yielded on the very next update ' + ghost.yielded);
+R('switched off, it never touches the field again',
+  ghost.afterOff === 0, ghost.afterOff + ' frames of hand after the switch');
+R('the gate: still rooms yes; fresh, reduced-motion, human and ECO rooms no',
+  ghost.gate.still === true && ghost.gate.fresh === false && ghost.gate.reduced === false
+    && ghost.gate.human === false && ghost.gate.eco === false,
+  JSON.stringify(ghost.gate));
 
 if (PNG_DIR){
   for (const [name, png] of shots)
