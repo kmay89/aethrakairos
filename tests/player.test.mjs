@@ -40,6 +40,8 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
+  ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
+  ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss };';
@@ -674,6 +676,122 @@ test('MOZART: a keyed palette is tuned — third to the harmony, fifth to the ac
     'unkeyed material keeps the classic art-school triad');
 });
 
+test('colorScheme: six readings, and the rainbow stays rare', () => {
+  const S6 = ['analogous', 'suspended', 'complement', 'sixth', 'triad', 'seventh', 'spectrum'];
+  const seen = new Set();
+  for (let e = 0; e <= 1.0001; e += 0.02)
+    for (let ent = 0; ent <= 1.0001; ent += 0.02){
+      const k = S.colorScheme(e, ent);
+      assert.ok(S6.includes(k), `(${e},${ent}) -> ${k}`);
+      seen.add(k);
+    }
+  assert.equal(seen.size, 7, 'every reading is reachable: ' + [...seen].join(' '));
+  // the two new readings occupy regions the old map had no word for
+  assert.equal(S.colorScheme(0.3, 0.5), 'suspended', 'quiet but not settled');
+  assert.equal(S.colorScheme(0.9, 0.55), 'seventh', 'hot and arguing with itself');
+  assert.equal(S.colorScheme(0.7, 0.1), 'sixth', 'driving and perfectly clean');
+  // …without displacing any of the four the engine already had taste about
+  assert.equal(S.colorScheme(0.2, 0.3), 'analogous');
+  assert.equal(S.colorScheme(0.8, 0.4), 'complement');
+  assert.equal(S.colorScheme(0.8, 0.8), 'triad');
+  assert.equal(S.colorScheme(0.9, 0.9), 'spectrum');
+  // and the rainbow is still a small corner of the space
+  let spectrum = 0, n = 0;
+  for (let e = 0; e <= 1.0001; e += 0.01)
+    for (let ent = 0; ent <= 1.0001; ent += 0.01){ n++; if (S.colorScheme(e, ent) === 'spectrum') spectrum++; }
+  assert.ok(spectrum / n < 0.09, `spectrum covers ${(spectrum / n * 100).toFixed(1)}% of the space`);
+});
+test('schemeChord: every scheme spells a real interval, and only the thin ones lift', () => {
+  for (const scheme of ['analogous', 'suspended', 'complement', 'sixth', 'triad', 'seventh'])
+    for (const minor of [false, true])
+      for (const keyed of [false, true]){
+        const ch = S.schemeChord(scheme, minor, keyed, S.mulberry32(3));
+        assert.ok(isFinite(ch.b) && isFinite(ch.c), `${scheme} ${minor} ${keyed}`);
+        assert.ok(ch.d == null || isFinite(ch.d));
+        assert.equal(typeof ch.lift, 'boolean');
+        // a chord whose harmony sits on the root is not a chord
+        assert.ok(Math.abs(((ch.b % 360) + 360) % 360) > 1e-9, `${scheme} has no harmony`);
+      }
+  const k = s => S.schemeChord(s, false, true, null);
+  assert.ok(Math.abs(k('suspended').b - S.intervalHue(4, 3)) < 0.01, 'the fourth hangs');
+  assert.ok(Math.abs(k('sixth').b - S.intervalHue(5, 3)) < 0.01, 'the major sixth opens');
+  assert.ok(Math.abs(S.schemeChord('sixth', true, true, null).b - S.intervalHue(8, 5)) < 0.01, 'the minor sixth');
+  assert.ok(Math.abs(k('seventh').c - S.intervalHue(9, 5)) < 0.01, 'the seventh aches');
+  assert.ok(Math.abs(k('seventh').d - S.intervalHue(3, 2)) < 0.01, 'and keeps the fifth for the gradient');
+  // only the two-note chords need somewhere pale to rise to
+  for (const s of ['analogous', 'suspended', 'complement']) assert.equal(k(s).lift, true, s);
+  for (const s of ['sixth', 'triad', 'seventh']) assert.equal(k(s).lift, false, s);
+  assert.equal(k('triad').d, null, 'a triad has three notes');
+  assert.ok(k('seventh').d != null, 'a seventh has four');
+});
+test('colorPlan: a wide chord hands the gradient a fourth note, and only then', () => {
+  const base = { key: '8B', brightness: 0.4, act: 0.5, seed: 5 };
+  const seventh = S.colorPlan({ ...base, energy: 0.9, entropy: 0.55 });
+  assert.equal(seventh.scheme, 'seventh');
+  assert.ok(seventh.extra, 'the seventh carries its fourth note');
+  assert.equal(seventh.colors.length, 3, 'but uColA/B/C is still three swatches');
+  assert.ok(seventh.extra.l < seventh.root.l, 'and it sits UNDER the root, not above it');
+  const dh = (a, b) => ((b - a + 720) % 360);
+  assert.ok(Math.abs(dh(seventh.root.h, seventh.extra.h) - S.intervalHue(3, 2)) < 0.01, 'at the fifth');
+  assert.equal(S.colorPlan({ ...base, energy: 0.2, entropy: 0.2 }).extra, null, 'a thin chord carries none');
+});
+test('warmTilt: the shorter arc, never more than halfway, and never off the key', () => {
+  assert.equal(S.warmTilt(200, 0), 200, 'no pull, no movement');
+  assert.equal(S.warmTilt(-40, 0), 320, 'and it normalises');
+  const warm = S.warmTilt(200, 0.3), cool = S.warmTilt(200, -0.3);
+  const toward = (from, to, pole) => Math.abs((((pole - to + 540) % 360) - 180))
+    < Math.abs((((pole - from + 540) % 360) - 180));
+  assert.ok(toward(200, warm, 45), 'a warm pull moves toward the amber pole');
+  assert.ok(toward(200, cool, 225), 'a cool pull moves toward the blue one');
+  for (const h of [0, 44, 46, 90, 180, 224, 226, 300, 359])
+    for (const w of [-1, -0.5, -0.1, 0.1, 0.5, 1]){
+      const out = S.warmTilt(h, w);
+      assert.ok(out >= 0 && out < 360, `${h} ${w} -> ${out}`);
+      const moved = Math.abs((((out - h + 540) % 360) - 180));
+      const pole = w > 0 ? 45 : 225;
+      const dist = Math.abs((((pole - h + 540) % 360) - 180));
+      assert.ok(moved <= dist * 0.451 + 1e-9,
+        `never past halfway: moved ${moved.toFixed(1)} of ${dist.toFixed(1)}`);
+      assert.ok(moved <= S.WARM_MAX_DEG + 1e-9,
+        `and never more than a warming: moved ${moved.toFixed(1)}°`);
+    }
+  // the case that made the degree cap necessary: a key sitting opposite the
+  // pole, where a plain fraction-of-the-distance walk is a key change
+  const far = S.warmTilt(212, 0.30);
+  assert.ok(Math.abs((((far - 212 + 540) % 360) - 180)) <= S.WARM_MAX_DEG + 1e-9,
+    `an apex on a cool key warms, it does not transpose: 212 -> ${far.toFixed(1)}`);
+});
+test('actWarmth: the arc is a temperature curve, and the ceiling holds it', () => {
+  assert.ok(S.actWarmth(2, 1) > 0, 'the apex is hot');
+  assert.ok(S.actWarmth(0, 1) < 0 && S.actWarmth(4, 1) < 0, 'both edges are cold');
+  assert.ok(S.actWarmth(4, 1) < S.actWarmth(0, 1), 'and the resolve is the coldest light in the song');
+  assert.equal(S.actWarmth(1, 1), 0, 'the rising middle is neutral');
+  assert.ok(S.actWarmth(2, 0.3) < S.actWarmth(2, 1), 'an apex the section caps is a warm room, not a furnace');
+  assert.equal(S.actWarmth(2, 0), 0, 'and a section that earns nothing gets nothing');
+  assert.equal(S.actWarmth(-1, 1), S.ACT_WARMTH[1], 'no act yet reads as the neutral middle');
+  assert.equal(S.actWarmth(99, 1), S.ACT_WARMTH[1]);
+  for (const a of [0, 1, 2, 3, 4]) assert.ok(Math.abs(S.actWarmth(a, 1)) < 0.45, 'and none of it is a lot');
+});
+test('NOCTURNE: the chord taken into the dark, with exactly one light left in it', () => {
+  const plan = { scheme: 'triad', colors: [
+    { l: 0.58, c: 0.18, h: 30 }, { l: 0.60, c: 0.16, h: 150 }, { l: 0.80, c: 0.12, h: 270 }] };
+  const auto = S.rampStops(plan, 'auto');
+  const noct = S.rampStops(plan, 'nocturne');
+  const lo = s => s.reduce((a, x) => Math.min(a, x.l), 9);
+  assert.ok(lo(noct) < lo(auto) - 0.15, `nocturne runs deeper: ${lo(noct)} vs ${lo(auto)}`);
+  const bright = noct.filter(s => s.l > 0.7);
+  assert.equal(bright.length, 1, 'exactly one stop is allowed to rise');
+  assert.equal(bright[0].h, 270, 'and it is the accent');
+  // dark must not mean grey — chroma goes UP as lightness comes down
+  assert.ok(noct[0].c >= plan.colors[0].c, 'the deep stops keep their colour');
+  for (const s of noct) assert.ok(s.c >= 0.10, 'nothing on the ramp is a grey');
+  // and a wide chord spends its fourth note here too
+  const wide = S.rampStops({ ...plan, extra: { l: 0.5, c: 0.17, h: 200 } }, 'nocturne');
+  assert.equal(wide.length, 4);
+  assert.equal(S.rampStops({ ...plan, extra: { l: 0.5, c: 0.17, h: 200 } }, 'auto').length, 4,
+    'as does AUTO — the gradient is where a fourth note can live');
+});
+
 test('MOZART: the golden gate peaks at phi of the phrase and fades symmetrically', () => {
   assert.ok(S.goldenGate(S.PHI) > 0.999, 'unity at the golden section');
   assert.ok(S.goldenGate(0.5) < 0.15, 'quiet at mid-phrase');
@@ -798,7 +916,7 @@ test('the ramp keeps chroma across the sweep where an RGB lerp loses it', () => 
 test('the ramp is cyclic, opaque, and correctly sized for any stop count', () => {
   const plan = { scheme: 'triad', colors: [
     { l: 0.55, c: 0.2, h: 10 }, { l: 0.6, c: 0.18, h: 130 }, { l: 0.8, c: 0.12, h: 250 }] };
-  for (const mode of ['auto', 'duo', 'spectrum']){
+  for (const mode of ['auto', 'duo', 'spectrum', 'nocturne']){
     const px = S.buildRamp(S.rampStops(plan, mode), 128);
     assert.equal(px.length, 128 * 4, mode + ' is RGBA and the right length');
     for (let i = 3; i < px.length; i += 4) assert.equal(px[i], 255, mode + ' is opaque');
@@ -1737,6 +1855,206 @@ test('echoSignals reads word count, questions and feelings honestly', () => {
   assert.equal(s.words, 3); assert.ok(s.question && s.feeling && s.short && s.me);
   const empty = S.echoSignals('');
   assert.equal(empty.words, 0); assert.ok(!empty.short && !empty.long);
+});
+
+// ---------------------------------------------------------------- the room
+
+const FEATS = ['bass', 'mid', 'treble', 'energy', 'calm', 'beat', 'entropy', 'centroid', 'coupling'];
+
+test('SCENE_TASTE: every room on the roster has a character, in real features', () => {
+  for (const k of S.SCENE_KEYS)
+    assert.ok(S.SCENE_TASTE[k], `${k} has no taste — it would score a flat 1 for ever`);
+  for (const k of Object.keys(S.SCENE_TASTE)){
+    assert.ok(S.SCENE_KEYS.includes(k), `${k} is not on the roster`);
+    for (const f of Object.keys(S.SCENE_TASTE[k]))
+      assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
+  }
+  // the whole point of the rewrite: no room is left out of the deal
+  assert.equal(S.SCENE_KEYS.length, 17);
+});
+test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
+  const loud = { energy: 1, entropy: 1, calm: 0 };
+  const quiet = { energy: 0, entropy: 0, calm: 1 };
+  assert.equal(S.sceneScore(null, loud), 1, 'a room with no taste still gets its turn');
+  assert.equal(S.sceneScore({}, loud), 1);
+  assert.equal(S.sceneScore({ energy: 2 }, loud), 3);
+  assert.equal(S.sceneScore({ energy: 2 }, quiet), 1);
+  assert.equal(S.sceneScore({ entropy: -1 }, quiet), 2, 'wanting order is worth a point when there is order');
+  assert.equal(S.sceneScore({ entropy: -1 }, loud), 1, '…and nothing when there is none');
+  assert.equal(S.sceneScore({ base: 0.5 }, loud), 1.5);
+  assert.equal(S.sceneScore({ energy: 1, junk: NaN }, loud), 2, 'nonsense weights are ignored, not NaN-ed');
+  // the rooms genuinely disagree about the same moment — that IS the engine
+  const hot = { energy: 0.95, beat: 0.9, bass: 0.8, entropy: 0.2, calm: 0.1, coupling: 0.3, mid: 0.4, treble: 0.6 };
+  const starburst = S.sceneScore(S.SCENE_TASTE.starburst, hot);
+  const fern = S.sceneScore(S.SCENE_TASTE.fern, hot);
+  assert.ok(starburst > fern * 1.8, `percussive material wants STARBURST (${starburst}) over FERN (${fern})`);
+});
+test('recencyPenalty: the room we just left comes back last, and gradually', () => {
+  const recent = [3, 7, 1];
+  assert.equal(S.recencyPenalty(recent, 9, 5), 1, 'somewhere we have not been is undamped');
+  assert.ok(S.recencyPenalty(recent, 3, 5) < 0.2, 'the room we just left is nearly out');
+  assert.ok(S.recencyPenalty(recent, 7, 5) > S.recencyPenalty(recent, 3, 5), 'older recovers');
+  assert.ok(S.recencyPenalty(recent, 1, 5) > S.recencyPenalty(recent, 7, 5), 'and older still recovers more');
+  assert.equal(S.recencyPenalty([], 0, 5), 1);
+  assert.equal(S.recencyPenalty(recent, 3, 0), 1, 'no memory, no damping');
+});
+test('roomMood: six words, in priority order', () => {
+  assert.equal(S.roomMood({ act: 2, ceil: 0.9, energy: 0.8 }), 'apex');
+  assert.equal(S.roomMood({ act: 2, ceil: 0.3, energy: 0.8 }), 'drive', 'an apex the section never earned is not one');
+  assert.equal(S.roomMood({ act: 4, energy: 0.9 }), 'dissolve', 'the outro is a comedown however loud');
+  assert.equal(S.roomMood({ act: 3, energy: 0.2 }), 'dissolve');
+  assert.equal(S.roomMood({ act: 1, energy: 0.6, entropy: 0.9 }), 'swarm');
+  assert.equal(S.roomMood({ act: 0, energy: 0.5 }), 'adrift');
+  assert.equal(S.roomMood({ act: 1, energy: 0.1 }), 'adrift');
+  assert.equal(S.roomMood({ act: 1, energy: 0.7 }), 'ascend');
+  assert.equal(S.roomMood({ act: 3, energy: 0.7 }), 'drive');
+  assert.equal(S.roomMood({}), 'adrift', 'nothing playing is not a peak');
+  // and every word it can say is a mood the show knows how to be in
+  for (const a of [-1, 0, 1, 2, 3, 4])
+    for (const e of [0, 0.35, 0.5, 0.8, 1])
+      for (const ent of [0, 0.5, 0.75, 1])
+        for (const ceil of [0.2, 0.6, 1])
+          assert.ok(S.MOODS[S.roomMood({ act: a, energy: e, entropy: ent, ceil })],
+            `act ${a} e ${e} ent ${ent} ceil ${ceil}`);
+});
+test('MOODS: each mood is a complete instruction to the whole show', () => {
+  const TOUCH = ['blackhole', 'grows', 'gathers', 'flows'];
+  for (const k of Object.keys(S.MOODS)){
+    const m = S.MOODS[k];
+    assert.ok(m.bias && Object.keys(m.bias).length, `${k} leans on nothing`);
+    for (const f of Object.keys(m.bias)) assert.ok(FEATS.includes(f), `${k} biases "${f}"`);
+    assert.ok(m.dwell > 0.4 && m.dwell < 2, `${k} dwell ${m.dwell}`);
+    assert.ok(TOUCH.includes(m.touch), `${k} touch ${m.touch}`);
+    assert.ok(S.GHOST_KINDS.includes(m.ghost), `${k} ghost ${m.ghost}`);
+    assert.ok(m.chroma > -0.3 && m.chroma < 0.3, `${k} chroma ${m.chroma}`);
+  }
+  assert.ok(S.MOODS.apex.chroma > S.MOODS.adrift.chroma, 'a peak is richer than a drift');
+  assert.ok(S.MOODS.apex.dwell < S.MOODS.dissolve.dwell, 'a peak cuts faster than a comedown');
+});
+test('roomDwell: busy turns over faster, a held-back section is left alone', () => {
+  const q = S.roomDwell({ mood: 'drive', energy: 0.05 });
+  const busy = S.roomDwell({ mood: 'drive', energy: 0.95 });
+  assert.ok(q > busy, `quiet holds longer: ${q} vs ${busy}`);
+  assert.ok(S.roomDwell({ mood: 'apex', energy: 0.5 }) < S.roomDwell({ mood: 'dissolve', energy: 0.5 }));
+  const held = S.roomDwell({ mood: 'drive', energy: 0.5, ceil: 0.2 });
+  const open = S.roomDwell({ mood: 'drive', energy: 0.5, ceil: 1 });
+  assert.ok(held > open, `a capped section is not cut to pieces: ${held} vs ${open}`);
+  for (const mood of Object.keys(S.MOODS))
+    for (const e of [0, 0.5, 1])
+      assert.ok(S.roomDwell({ mood, energy: e }) >= S.ROOM_DWELL.floor, 'never below the floor');
+  assert.ok(S.roomDwell({}) > 0, 'an unknown mood still returns a real dwell');
+});
+
+function roomSet(){
+  return S.SCENE_KEYS.map(k => ({
+    key: k, taste: S.SCENE_TASTE[k],
+    calm: k === 'pulse' || k === 'parlor',
+    heavy: k === 'fractal' || k === 'parlor' || k === 'aurea',
+  }));
+}
+const HOT = { energy: 0.95, beat: 0.9, bass: 0.85, entropy: 0.2, calm: 0.05, coupling: 0.3, mid: 0.4, treble: 0.7 };
+const COOL = { energy: 0.1, beat: 0.05, bass: 0.2, entropy: 0.25, calm: 0.9, coupling: 0.5, mid: 0.3, treble: 0.2 };
+// walk the whole draw so a test can talk about the DISTRIBUTION, not one roll
+function dealAll(o){
+  const out = [];
+  for (let i = 0; i <= 200; i++) out.push(S.dealScene({ ...o, r: i / 200 }));
+  return out;
+}
+
+test('dealScene: always a real room, whatever it is handed', () => {
+  const scenes = roomSet();
+  for (const o of [{}, { scenes: [] }, { scenes, f: null }, { scenes, r: -5 }, { scenes, r: 9 }]){
+    const i = S.dealScene(o);
+    assert.ok(Number.isInteger(i) && i >= 0, JSON.stringify(Object.keys(o)));
+  }
+  for (const i of dealAll({ scenes, f: HOT, mood: 'drive' }))
+    assert.ok(i >= 0 && i < scenes.length, 'in range');
+});
+test('dealScene: the music decides the room', () => {
+  const scenes = roomSet();
+  const key = i => scenes[i].key;
+  const hot = dealAll({ scenes, f: HOT, mood: 'apex' }).map(key);
+  const cool = dealAll({ scenes, f: COOL, mood: 'adrift' }).map(key);
+  const share = (list, k) => list.filter(x => x === k).length / list.length;
+  assert.ok(share(hot, 'starburst') + share(hot, 'comets') + share(hot, 'tunnel') > 0.25,
+    'a hot room deals percussion: ' + JSON.stringify([...new Set(hot)]));
+  assert.ok(share(cool, 'fern') + share(cool, 'slinky') + share(cool, 'nebula') + share(cool, 'ribbons') > 0.25,
+    'a quiet room deals air: ' + JSON.stringify([...new Set(cool)]));
+  assert.ok(share(hot, 'fern') < share(cool, 'fern'), 'FERN is not an apex room');
+  assert.ok(share(cool, 'starburst') < share(hot, 'starburst'), 'STARBURST is not a drift room');
+});
+test('dealScene: AUREA is in the deal — the room the old ladder forgot', () => {
+  // it scored a flat 1 for its whole life and could only ever be picked by
+  // accident; its own taste (proportion, coherence, order) must now reach it
+  const scenes = roomSet();
+  const golden = { energy: 0.35, beat: 0.15, bass: 0.3, entropy: 0.1, calm: 0.75, coupling: 0.95, mid: 0.5, treble: 0.3 };
+  const dealt = dealAll({ scenes, f: golden, mood: 'adrift', allowHeavy: true }).map(i => scenes[i].key);
+  assert.ok(dealt.includes('aurea'), 'AUREA reachable: ' + JSON.stringify([...new Set(dealt)]));
+});
+test('dealScene: the device gates, and reduced motion is housed', () => {
+  const scenes = roomSet();
+  const heavyShare = list => list.filter(k => k === 'fractal' || k === 'parlor' || k === 'aurea').length / list.length;
+  const lean = dealAll({ scenes, f: HOT, mood: 'drive', allowHeavy: false }).map(i => scenes[i].key);
+  const fat = dealAll({ scenes, f: HOT, mood: 'drive', allowHeavy: true }).map(i => scenes[i].key);
+  // a SOFT veto, deliberately, and the same 50× damper the ladder always used:
+  // a hard ban would mean a phone that struggled once could never see PARLOR
+  // again for the rest of the night, however well it recovered
+  assert.ok(heavyShare(lean) < 0.03,
+    'a strained device is all but never dealt a heavy room: ' + heavyShare(lean).toFixed(3));
+  assert.ok(heavyShare(fat) > heavyShare(lean) * 5, 'and a healthy one is dealt them freely: '
+    + heavyShare(fat).toFixed(3) + ' vs ' + heavyShare(lean).toFixed(3));
+  const calmShare = list => list.filter(k => k === 'pulse' || k === 'parlor').length / list.length;
+  const rm = dealAll({ scenes, f: COOL, mood: 'adrift', reduced: true, allowHeavy: true }).map(i => scenes[i].key);
+  const norm = dealAll({ scenes, f: COOL, mood: 'adrift', reduced: false, allowHeavy: true }).map(i => scenes[i].key);
+  assert.ok(calmShare(rm) > calmShare(norm), 'reduced motion is dealt the legible rooms more often');
+});
+test('dealScene: the set remembers — no orbiting, and the gallery gets toured', () => {
+  const scenes = roomSet();
+  const base = { scenes, f: HOT, mood: 'drive', allowHeavy: true, memory: 5 };
+  // the room we are already in is not a change — setScene would swallow it and
+  // the dwell would reset anyway, buying the field another dwell of nothing
+  assert.ok(!dealAll({ ...base, active: 3 }).includes(3), 'the active room is never dealt');
+  for (let a = 0; a < scenes.length; a++)
+    assert.ok(!dealAll({ ...base, active: a }).includes(a), `active ${a} is never dealt`);
+  // …unless there is nowhere else to go at all
+  assert.equal(S.dealScene({ scenes: [scenes[0]], f: HOT, active: 0, r: 0.5 }), 0,
+    'one room and nowhere to go: stand still rather than return nothing');
+  const withMem = dealAll({ ...base, recent: [8, 5, 12] });
+  const share = (list, i) => list.filter(x => x === i).length / list.length;
+  const without = dealAll(base);
+  for (const i of [8, 5, 12])
+    assert.ok(share(withMem, i) < share(without, i) + 1e-9, `room ${i} is damped after being shown`);
+  // the unseen lift: a room this set has not shown outranks the same room seen
+  const seen = new Set(scenes.map((s, i) => i).filter(i => i !== 9));
+  const lifted = dealAll({ ...base, f: COOL, seen });
+  assert.ok(share(lifted, 9) > share(dealAll({ ...base, f: COOL }), 9),
+    'the room the night has not visited gets its turn');
+});
+test('dealScene: deterministic in r, and the mood actually leans', () => {
+  const scenes = roomSet();
+  const o = { scenes, f: { energy: 0.5, beat: 0.5, entropy: 0.5, calm: 0.5, bass: 0.5, mid: 0.5, treble: 0.5, coupling: 0.5 },
+    allowHeavy: true, r: 0.37 };
+  assert.equal(S.dealScene({ ...o, mood: 'drive' }), S.dealScene({ ...o, mood: 'drive' }), 'same input, same room');
+  const a = dealAll({ ...o, mood: 'apex' }).join(',');
+  const b = dealAll({ ...o, mood: 'adrift' }).join(',');
+  assert.notEqual(a, b, 'the mood changes the deal on identical music');
+});
+test('the mood leans the hand and the ghost, and only when there IS one', () => {
+  // no mood → the map is exactly what it always was (the whole compatibility claim)
+  for (let sc = 0; sc < 17; sc++)
+    for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
+      assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
+      assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
+    }
+  // …and with one, the lean lands inside its window and nowhere else
+  assert.equal(S.touchAffinity(0, 1, 0.7, 'drive'), S.MOODS.drive.touch, 'the lean lands');
+  assert.equal(S.touchAffinity(0, 1, 0.2, 'drive'), S.touchAffinity(0, 1, 0.2), 'below the window: the map');
+  assert.equal(S.touchAffinity(0, 1, 0.9, 'drive'), S.touchAffinity(0, 1, 0.9), 'above it: the wildcard still wins');
+  assert.equal(S.ghostPattern(0, 1, 0.7, 'swarm'), S.MOODS.swarm.ghost);
+  assert.equal(S.ghostPattern(0, 2, 0.7, 'swarm'), 'drift', 'the apex still has the last word');
+  // an unknown mood must be inert, never a crash and never a silent default
+  assert.equal(S.touchAffinity(4, 1, 0.7, 'nonsense'), S.touchAffinity(4, 1, 0.7));
+  assert.equal(S.ghostPattern(4, 1, 0.7, 'nonsense'), S.ghostPattern(4, 1, 0.7));
 });
 
 // ---------------------------------------------------------------- touch feel

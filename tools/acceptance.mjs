@@ -211,6 +211,44 @@ R('all scenes render without shader errors', shaderErrs.length === 0 && sweep.n 
   sweep.n + ' scenes swept, last ' + sweep.name
   + (shaderErrs.length ? ' — ' + shaderErrs[0] : ''));
 R('story act readout is live', /OVERTURE|RISING|APEX|TURN|RESOLVE/.test(story.act), story.act);
+
+/* THE ARRANGEMENT. The claim the room engine makes is not "it picks a scene" —
+ * the old ladder did that — it is that a SET goes somewhere: every room carries
+ * a declared appetite, the deal remembers what it has just shown, and a room
+ * the night has not visited gets a lift. Measured by running forty auto changes
+ * through the shipping picker and counting what came out. An engine that orbits
+ * four favourites, or that shows the same room twice in a row, fails here. */
+const arrange = await page.evaluate(() => {
+  const keep = { auto: director.auto, active: director.active, recent: director.recent,
+    seen: director.seen, mood: director.mood };
+  director.recent = []; director.seen = new Set();
+  Object.assign(AE.f, { energy: 0.7, beat: 0.6, bass: 0.6, mid: 0.5, treble: 0.5,
+    entropy: 0.4, calm: 0.3, coupling: 0.5, centroid: 0.4 });
+  const tour = [];
+  for (let i = 0; i < 40; i++){
+    director.mood = roomMood({ act: i % 5, energy: AE.f.energy, entropy: AE.f.entropy, ceil: 1 });
+    const next = director.pickScene();
+    tour.push(next);
+    director.setScene(next, false);
+  }
+  const out = {
+    tasted: scenes.filter(s => s.taste).length, total: scenes.length,
+    distinct: new Set(tour).size,
+    repeats: tour.filter((k, i) => i > 0 && k === tour[i - 1]).length,
+    memory: director.recent.length,
+  };
+  director.auto = keep.auto; director.recent = keep.recent; director.seen = keep.seen;
+  director.mood = keep.mood;
+  director.setScene(keep.active < 0 ? 0 : keep.active, false);
+  return out;
+});
+R('every room declares what it is for', arrange.tasted === arrange.total,
+  arrange.tasted + '/' + arrange.total + ' scenes carry an appetite');
+R('the set tours the gallery instead of orbiting favourites',
+  arrange.distinct >= 12 && arrange.memory > 0,
+  arrange.distinct + '/' + arrange.total + ' rooms in 40 changes · memory depth ' + arrange.memory);
+R('and never shows the same room twice in a row',
+  arrange.repeats === 0, arrange.repeats + ' back-to-back repeats');
 await page.keyboard.press('7');
 await page.waitForTimeout(400);
 const scn7 = await page.evaluate(() => document.getElementById('sceneName').textContent);

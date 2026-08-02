@@ -527,6 +527,76 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   that it splits, that a finger takes the field back at once, and that switching it
   off means **0** frames of hand in two minutes.
 
+### 1.2i The room arranges itself, and the palette is a chord
+
+- **Four engines, four unrelated dice.** The director chose a scene; the touch rolled a
+  personality; the ghost rolled a choreography; the lens picked a look; the palette
+  drifted on a timer of its own. Every one of those decisions was defensible and
+  nothing in the app had an opinion about whether they AGREED — which is why a
+  beautiful moment was always partly luck. `roomMood()` is now the single reading
+  of where the music stands (**adrift · ascend · drive · apex · swarm · dissolve**,
+  branched from most specific claim to least) and the scene deal, the dwell, the
+  touch re-tune, the ghost's choreography and the colour's chroma lean all come
+  through it. The mood changing is not itself an event: nothing cuts because a
+  word changed, it only leans the decisions that were already due.
+- **Taste is declared, not hard-coded.** `pickScene` was a ladder of
+  `if (i === 13) x += f.beat * 1.0 + f.bass * 0.8`, one line per scene, indexed by
+  position. It had **AUREA missing from it entirely** — that room scored a flat 1
+  for its whole life and could only ever be picked by accident. Scenes now carry a
+  `key` (identity — `name` is a live label that OP-ART, PARLOR, HALO and the
+  FRACTAL FIELD all rewrite on every re-roll) and collect a declared appetite from
+  `SCENE_TASTE` at registration. A positive weight is an appetite; a negative one is
+  an appetite for the ABSENCE, worth a full point when the material has none. A room
+  with no entry scores 1 and still gets dealt, so a scene added tomorrow participates
+  without anyone remembering to edit the director.
+- **The set remembers.** A recency ring damps the last five rooms and lets them back
+  gradually (`recencyPenalty`), a room the session has not shown gets a ×1.55 lift,
+  and the lift resets when the gallery has been toured. Measured through the shipping
+  picker: **16 of 17 rooms in 40 changes, zero back-to-back repeats**, gated in
+  `acceptance`. The old ladder merely damped the active room ×0.15 — which looked
+  harmless and was not, because `setScene` SWALLOWS a pick equal to the active scene
+  while the SEGUE resets the dwell either way, so a "change" that landed on the
+  current room bought the field another full dwell of nothing. A change is now a
+  change, with a fallback for the case where there is genuinely nowhere else to go.
+- **One bug in the walk, worth remembering.** A cumulative weighted walk that
+  subtracts a zero weight and then asks `r <= 0` returns the zero-weight entry
+  whenever r lands exactly on it — at `r = 0` that is the first entry, i.e. exactly
+  the room just excluded. Rounding does the same at the far end. Zero-weight rooms
+  are skipped explicitly and the fall-through returns the last room that was a real
+  candidate.
+- **The dwell is earned.** `roomDwell()` reads the mood (apex 18.6 s, dissolve 44.9 s
+  at mid energy), turns over faster on busy material, and STRETCHES under the
+  structure's ceiling — a passage the music is holding back is the last thing that
+  should be cut to pieces by a timer that cannot hear it.
+- **Six chords where there were four.** `colorScheme` splits the (energy × entropy)
+  plane six ways instead of four, and the two new regions are ones the old map had no
+  word for: material that is quiet but not settled (which came out as flat
+  neighbours) now *hangs on the fourth*, and material that is hot and arguing with
+  itself (which came out as a plain complement) now *aches on the seventh*. Clean
+  drive opens to the sixth. Every scheme is a real interval through the same log-map
+  (`schemeChord`), so the palette is literally the chord — and all four of the
+  engine's existing readings keep their exact regions, which is checked.
+- **A fourth note, where the gradient can hold one.** `uColA/B/C` is three swatches
+  and always will be; the ramp is not. The seventh hands over `plan.extra` and the
+  gradient closes its loop through it instead of jumping accent→root. The glide
+  carries four slots always (repeating the accent when a chord has three), because a
+  target array that changes length between tracks reads past its end for exactly one
+  glide.
+- **The arc is a temperature curve.** `actWarmth` pulls the palette toward amber into
+  an apex and toward cold blue at the edges, scaled by the structure ceiling, so the
+  same key reads differently at the two ends of its own song. Applied as **one
+  rotation of the whole chord**: tilting each colour separately is the obvious thing
+  and it is wrong — the pull is a fraction of each hue's own distance to the pole, so
+  near hues move less than far ones and the chord compresses until the just third
+  quietly stops being a third. And it is capped in DEGREES as well as in fraction:
+  measured on 8B, an uncapped apex moved the root **53°**, blue to green-cyan, which
+  is not a warmer room but a different one. Warmth is meant to be felt, not
+  identified; the key is not the light's to change.
+- **NOCTURNE**, a fourth ramp reading and DUOTONE's opposite number: that one removes
+  the highlight so nothing can wash, this one keeps exactly one and spends the rest
+  of the sweep making it worth arriving at. Chroma rises as lightness falls, because
+  a dark stop that also desaturates is not night, it is grey.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature
