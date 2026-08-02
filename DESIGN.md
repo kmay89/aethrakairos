@@ -456,6 +456,77 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   its `ended` is what advances the crate), and a `deckHeld()` guard that fails
   loudly rather than quietly reporting the wrong number.
 
+### 1.2h The field plays itself, and it can be touched in two places
+
+- **The engine was idle for most of its life.** §1.2d built one metric that bends
+  light and matter together, four personalities, a charge, a release, a capture
+  radius — all of it reachable only by a finger on the glass. For a phone in a
+  pocket or a laptop across the room that is an engine doing nothing for the whole
+  set. `GHOST` closes that: after ~22 s of stillness a hand that is not there
+  starts playing the same fabric. It is not a second implementation of the touch —
+  it writes `INTERACT.px/py` and a presence ceiling and lets the shipping spring,
+  charge, chirality, release, metric and shaders answer exactly as they do for a
+  finger. Anything ever added to the touch is added to this for free, and deleting
+  the object leaves the touch untouched.
+- **Five choreographies, dealt by the scenes manager.** `ghostPattern()` is
+  `touchAffinity()` one layer up: each room picks how the ghost moves through it —
+  `bounce` (a ball folded off the walls), `snake` (a lattice walk, right angles
+  only, reflecting off the edges), `lissa` (a Lissajous curve whose amplitude
+  breathes), `paint` (short dabs with real lifts between them) and `drift` (the
+  resting hand). A wildcard keeps a memorised map able to surprise; the apex has
+  the last word and always rests. All pure, all bounded to `edge`, all unit-tested
+  for staying in the room, for continuity, and for being *different motions* rather
+  than one wander renamed.
+- **Restraint is the feature, and it is arithmetic.** `ghostPhrase()` plays one
+  stroke of 2.2–5.8 s per 14 s slot — measured duty cycle **30%**, so the visuals
+  have the room to themselves the other 70%. `ghostAmp()` caps presence at 0.5 of a
+  real hand and ducks it further where the music is already carrying the room:
+  ×0.45 at the apex, ×0.65 at full energy, ×0.7 under CALM — about a seventh of a
+  finger at a loud apex. A stroke lands over 0.9 s and *leaves* over 0.25 s,
+  because a hand that fades out has no charge left to release; the brisk lift is
+  what lets the ghost's strokes end in the same detonation a finger's do.
+- **The clock is stroke-local**, which is what makes a stateless snake affordable
+  (a dozen integer steps, not the history of the session) and, more importantly,
+  what makes every stroke a *gesture with a beginning* instead of a window onto one
+  endless wander. The first version replayed an absolute clock and re-seeded the
+  walk every 96 steps — caught by the continuity test as a **0.82-unit teleport**
+  mid-stroke. PAINT is the one choreography allowed to move discontinuously, and
+  only across a lift, which the tests assert as exactly that: a big move is legal
+  only while `on === 0`.
+- **Two hands.** `uPtr2` carries a second centre, its own presence and its own
+  mode; `warpPush()` (pure, GPU-parity-checked) is the deflection expressed as a
+  *vector*, because two hands superpose and radii do not. The point shaders add the
+  second push to the first, and the light-bending pass — full and lean — adds it to
+  the sample coordinate and unions the two capture radii. It costs one branch and
+  one metric evaluation, and only while the field is touched in two places.
+  `touchPairMode()` gives the second hand the *complement* of the first, so a pair
+  is never one force smeared twice: void ↔ accretion, the two chiralities against
+  each other, and ripples with ripples because two sources of one wave is the
+  pairing where sameness is the point. A real second finger takes that slot (it
+  does not steer the camera — two fingers fighting over one camera is how a bad
+  pinch feels), and so does the ghost when the music opens out, mirrored
+  left/right, top/bottom or through the centre.
+- **Where it must not play.** `prefers-reduced-motion` is a hard no, not a shrunken
+  budget: shrinking a deformation somebody asked for is one thing, a room that
+  starts moving on its own for somebody who asked it not to is another. ECO is a no
+  because the ghost wakes a full-screen pass and that mode gives the battery to the
+  music. Hidden tab, live finger, and the preference itself are the rest. The first
+  real touch takes the field back **on the very next update**, mid-stroke.
+- **Two bugs worth remembering.** (1) `TOUCHFX.load()` runs at module scope and
+  `TOUCHFX.paint()` asked `typeof GHOST` — which *throws* for a `const` still in
+  its temporal dead zone, so the whole app failed to boot. `typeof` is only a safe
+  guard for things that are not lexically declared later in the same script. (2)
+  The ghost's release fired at zero: the gain passed to `release()` was the
+  enveloped presence, which is ~0 at the moment a stroke ends, so three minutes of
+  play produced **0 wavefronts**. The weight a hand is worth and its presence right
+  now are different numbers, and only the first belongs in a release.
+- **Gated by `tools/touch_probe.mjs`**, which now runs 41 checks: the second hand
+  bends the world around *itself* and captures light like the first, a pair is a
+  sum rather than a swap (0.49 near the second hand against 0.12 at the first), the
+  ghost's duty cycle and presence ceiling, that its strokes end in real releases,
+  that it splits, that a finger takes the field back at once, and that switching it
+  off means **0** frames of hand in two minutes.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

@@ -2286,6 +2286,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
       <div class="keyrow"><kbd>T</kbd> Tap the beat — lock the grid to your tap if it ever drifts</div>
       <div class="keyrow"><kbd>G</kbd> Skip to the next drop</div>
       <div class="keyrow"><kbd>F</kbd> Fullscreen</div>
+      <div class="keyrow"><kbd>I</kbd> Let the field play itself when you leave it alone — or don't</div>
       <div class="keyrow"><kbd>H</kbd> Hide interface</div>
       <div class="keyrow"><kbd>?</kbd> This panel</div>
     </div>
@@ -2302,10 +2303,20 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
     outward as true rings that crest brighter on the beat. Hold, and a thin arc fills as the touch
     banks power; let go and the charge detonates as a wavefront from the lift point — flick it loose
     for a bigger blast. The touch chip (or the immersive toggle) cycles the personality; <b>AUTO</b>
-    lets each scene re-tune it. Every scene re-rolls its
+    lets each scene re-tune it. Two fingers at once plant two centres with <b>opposite</b> forces — a
+    well against a void, two ripple sources interfering — and the metric bends the light through
+    both. Every scene re-rolls its
     proportions each time it appears, and a five-act arc — <b>OVERTURE · RISING · APEX · TURN ·
     RESOLVE</b> — follows each track from intro to outro, leaning the camera, the palette warmth, and
     the pace of the cuts toward where the song is.</p>
+    <p class="lede">And when you put the phone down, <b>the field plays itself</b>. After twenty-odd
+    seconds of stillness a ghost hand starts working the same fabric your finger does — a ball bouncing off
+    the walls, a snake turning on its lattice, a slow Lissajous curve, or short painted strokes with
+    lifts between them; each room deals it a different one. It plays in <b>phrases</b> — a few seconds
+    on, several off — never as hard as a real hand, softer still through an apex where the scenes are
+    already doing the work, and sometimes it splits into a mirrored <b>pair</b> pulling opposite ways.
+    The first touch takes the field straight back. Hold the touch chip (or press <kbd>I</kbd>) if you
+    would rather it waited for you; it never plays for anyone who asked for reduced motion, or on ECO.</p>
     <h3>The dance engine</h3>
     <p class="lede">The visuals don't just flash on the beat — they move through it. Because the catalog
     carries a measured beat grid, the engine knows where the beat <i>is</i>, not just that it happened:
@@ -2644,6 +2655,21 @@ function touchFxMode(activeKey, swirl){
     default:        return 0;                          // black-hole repulsion (the original field)
   }
 }
+/* THE OTHER HAND. Two touches on the fabric must not be one force applied
+   twice — that reads as a smear, not as a duet. So the second hand answers with
+   the COMPLEMENT of the first: a void is met by a well (light thrown out against
+   light drawn in), a vortex by its own opposite chirality (the two shear the
+   space between them), and ripples by ripples, because two sources of the same
+   wave is the one pairing where sameness is the point — what you see between
+   them is interference. One switch, so a pairing is provable rather than a
+   matter of which finger happened to land first. */
+function touchPairMode(mode){
+  if (mode < -0.5) return 1;      // widdershins ↔ sunwise
+  if (mode < 0.5)  return 2;      // void ↔ accretion
+  if (mode < 1.5)  return -1;
+  if (mode < 2.5)  return 0;
+  return 3;                       // ripples pair with ripples: interference
+}
 /* TOUCH FEEL — the pure physics of an addictive hand. A held touch CHARGES
    (the force deepens the longer you commit); letting go SPENDS the charge as
    an expanding shockwave, boosted by the speed of the flick that released it.
@@ -2795,6 +2821,30 @@ function warpRho(mode, r, force, o){
   return Math.max(0, r + d.rad * force);
 }
 
+/* THE DISPLACEMENT, as a vector. warpRho answers "where does this sample read
+   from" for one hand, as a radius — which is enough while there is only ever one
+   centre, and useless the moment there are two, because deflections superpose
+   and radii do not. So this is the same arithmetic expressed as a push in the
+   plane: where a point at (px,py) is carried when a hand at (cx,cy) bends the
+   space between them. The point shaders move matter by it, the light-bending
+   pass moves its sample coordinate by it, and a second hand costs one more call
+   and nothing else. `rad` comes back separately because it is the share the
+   point shaders spend on DEPTH, and asking for it twice is a wasted metric. */
+function warpPush(px, py, cx, cy, mode, force, o){
+  const dx = px - cx, dy = py - cy;
+  const r = Math.hypot(dx, dy);
+  // the same epsilon-nudged normalize the GLSL uses — an identical expression is
+  // the only reason the JS and the GPU can be held to each other at 1e-4
+  const ex = dx + 1e-5, ey = dy + 1e-5;
+  const eL = Math.max(1e-12, Math.hypot(ex, ey));
+  const ux = ex / eL, uy = ey / eL;
+  const d = warpDeflect(mode, r, o);
+  const a = d.ang * force, rad = d.rad * force;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const rx = ux * ca - uy * sa, ry = ux * sa + uy * ca;
+  return { x: rx * (r + rad) - dx, y: ry * (r + rad) - dy, rad };
+}
+
 /* THE CAPTURE RADIUS. Only the void captures: inside this, light does not come
    back, so the middle is black because there is nothing there to sample — not
    because something dark was painted over it. The hold widens the horizon,
@@ -2839,6 +2889,262 @@ function touchAutoShould(since, handOff, r){
   // never under a live finger, never twitchy: a personality holds at least
   // ~45 s, and even then only usually — a missed roll is its own variety
   return since > 45 && !!handOff && r < 0.7;
+}
+
+/* ================================================================
+   THE GHOST — the field plays itself.
+
+   Everything above describes what happens when a hand is on the
+   fabric. For most of a set there is no hand: the phone is face-down
+   in a pocket, the laptop is across the room, and the whole touch
+   engine — four forces, a charge, a release, a metric that bends
+   light and matter together — sits behind the visuals doing nothing
+   at all. That idle engine is the waste this closes.
+
+   So when nobody has touched the field for a while, something else
+   does. Not a simulation of a user and not a demo mode: a hand with
+   its own choreography, driving the SAME INTERACT a finger drives, so
+   the spring, the charge, the release, the chirality and every
+   consumer downstream are the shipping ones. There is no second code
+   path to keep honest, and anything ever added to the touch is added
+   to this for free.
+
+   Three rules stop it from becoming a screensaver:
+
+     IT PLAYS IN PHRASES.  A few seconds on, several seconds off. The
+       field is untouched most of the time, and that is precisely what
+       makes the moments it IS touched read as something happening
+       rather than as wallpaper.
+     IT STANDS BACK.  Its presence is capped well under a real hand's,
+       and ducks further where the music is already carrying the room.
+       An apex belongs to the scenes; the ghost rests through it.
+     IT YIELDS.  The first real touch takes the field back mid-stroke,
+       and the ghost does not return until the room is still again.
+
+   Everything here is a pure function of a clock and a seed. There is
+   no state to drift, the duty cycle is a fact you can read off the
+   constants, and a choreography is replayable — which is the only
+   reason the tests below can hold it to a shape rather than to a vibe.
+   ================================================================ */
+const GHOST_TUNING = {
+  wake:   22,     // seconds of stillness before the field starts playing itself
+  slot:   14,     // one phrase slot: a stroke somewhere inside it, silence around it
+  minLen: 2.2,    // shortest stroke
+  maxLen: 5.8,    // longest — so at most 5.8 s of hand in every 14
+  fade:   0.9,    // how long a stroke takes to land — presence never snaps on
+  lift:   0.25,   // and how briskly it goes. A hand that fades out has nothing to
+                  // release; this one is still committed when it lets go, so the
+                  // charge it banked detonates the way a finger's does
+  amp:    0.5,    // the ghost's presence ceiling. A real hand is 1
+  duck:   0.55,   // how much of that ceiling the apex takes back
+  edge:   0.82,   // how far toward the corners a path may travel (ndc)
+  step:   0.5,    // seconds per cell of the SNAKE's lattice walk
+  lap:    96,     // the hard cap on that walk — no stroke reaches it; it is the guard
+};
+const GHOST_KINDS = ['drift', 'bounce', 'snake', 'lissa', 'paint'];
+
+// one deterministic draw from (seed, step). mulberry32 lives in the solver block;
+// declarations hoist across the single script, and the test harness concatenates
+// the blocks, so this is the same generator everywhere it matters.
+function ghostRand(seed, i){
+  return mulberry32(Math.imul(seed | 0, 0x9E3779B1) ^ Math.imul((i | 0) + 1, 0x85EBCA6B))();
+}
+
+/* BOUNCE — a ball off the walls. Fold a straight line into [-e, e] and it
+   bounces for ever; give the two axes speeds that share no useful common factor
+   and the path never repeats itself. Two constants and no state. */
+function ghostFold(u, e){
+  const p = 4 * e;
+  const x = ((u % p) + p) % p;
+  return x < 2 * e ? x - e : 3 * e - x;
+}
+
+/* SNAKE — the lattice walk. Axis-aligned moves on a coarse grid, one cell per
+   step, turning only at the cells, reflecting off the walls, never doubling
+   back. The right-angle geometry IS the character, so the arrival into each cell
+   is eased rather than rounded into a curve.
+
+   The walk is replayed from its first cell on every call, which is affordable
+   only because the clock it is handed is STROKE-LOCAL: a stroke lasts a few
+   seconds, so this is a dozen integer steps, not the history of the session.
+   `lap` is the guard on that promise — hand it a clock from some other era and
+   the snake stops at its last cell rather than burning a frame walking there. */
+function ghostSnake(t, seed){
+  const G = GHOST_TUNING, COLS = 5, ROWS = 4;
+  const raw = Math.floor(Math.max(0, t) / G.step);
+  const k = Math.min(raw, G.lap);
+  const u = raw >= G.lap ? 1 : clamp01(Math.max(0, t) / G.step - raw);
+  let cx = 2, cy = 1, dx = 1, dy = 0, ax = cx, ay = cy;
+  for (let i = 0; i <= k; i++){
+    ax = cx; ay = cy;
+    let nx = cx + dx, ny = cy + dy;
+    if (ghostRand(seed, i) < 0.34 || nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS){
+      const s = ghostRand(seed, i + 7717) < 0.5 ? 1 : -1;   // a right angle, either way
+      const qx = -dy * s, qy = dx * s;
+      dx = qx; dy = qy;
+      nx = cx + dx; ny = cy + dy;
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS){    // cornered: take the other right angle
+        dx = -dx; dy = -dy; nx = cx + dx; ny = cy + dy;
+      }
+    }
+    cx = nx; cy = ny;
+  }
+  const e = G.edge;
+  const gx = c => (c / (COLS - 1) * 2 - 1) * e;
+  const gy = c => (c / (ROWS - 1) * 2 - 1) * e * 0.82;
+  const s = u * u * (3 - 2 * u);
+  return { x: gx(ax) + (gx(cx) - gx(ax)) * s, y: gy(ay) + (gy(cy) - gy(ay)) * s, on: 1 };
+}
+
+/* PAINT — the intermittent one. Short dabs with real LIFTS between them, each
+   anchored somewhere new, each bending as it travels, with the small wobble a
+   finger has and a plotter does not. The least regular of the five, and the only
+   one whose character is the gaps: the pen comes up between dabs (`on` falls to
+   zero), which is both what makes it read as painting and what lets the anchor
+   jump to a new part of the field without anything visibly teleporting. */
+function ghostPaint(t, seed){
+  const G = GHOST_TUNING, S = 1.35, DOWN = 0.78;    // the share of a dab the pen is down for
+  const tt = Math.max(0, t);
+  const k = Math.floor(tt / S), u = clamp01(tt / S - k);
+  const ax = (ghostRand(seed, k * 5) * 2 - 1) * G.edge * 0.7;
+  const ay = (ghostRand(seed, k * 5 + 1) * 2 - 1) * G.edge * 0.7;
+  const ang = ghostRand(seed, k * 5 + 2) * 6.2831853;
+  const len = 0.28 + ghostRand(seed, k * 5 + 3) * 0.5;
+  const bend = (ghostRand(seed, k * 5 + 4) * 2 - 1) * 0.42;
+  const sp = clamp01(u / DOWN);
+  const s = sp * sp * (3 - 2 * sp), arc = Math.sin(s * Math.PI);
+  const nx = Math.cos(ang), ny = Math.sin(ang);
+  const px = ax + nx * len * s - ny * bend * arc + 0.014 * Math.sin(tt * 21.3);
+  const py = ay + ny * len * s + nx * bend * arc + 0.014 * Math.sin(tt * 17.7 + 1.1);
+  return { x: clamp(px, -G.edge, G.edge), y: clamp(py, -G.edge, G.edge),
+           on: clamp01(u / 0.09) * clamp01((DOWN - u) / 0.12) };
+}
+
+/* THE CHOREOGRAPHIES, dealt. Five deliberately different KINDS of motion rather
+   than five variations on a wander — a hand you can predict stops being
+   interesting on its second pass. Every one is bounded by GHOST_TUNING.edge, so
+   a stroke never walks out of the room.
+
+   `t` is STROKE-LOCAL: zero at the moment the ghost puts its hand down, a few
+   seconds at the moment it lifts. That is what makes every stroke a gesture with
+   a beginning instead of a window onto one endless wander — and it is also what
+   keeps the snake's replayed walk to a dozen steps. Between strokes the field is
+   untouched, so nothing is on screen to jump when the clock restarts.
+
+   Every one returns `on` as well as a point: how much of the hand is down right
+   now. Four of the five are a continuous drag and answer 1 throughout; PAINT
+   lifts between its dabs, and that lift is the only moment any choreography is
+   allowed to move discontinuously — because nothing is touching the field. */
+function ghostPath(kind, t, seed){
+  const G = GHOST_TUNING, e = G.edge, s = seed | 0;
+  if (kind === 'bounce'){
+    // speeds that share no useful common factor, so the two axes never fall into
+    // step and the stroke reads as a ball rather than as a diagonal
+    const vx = 0.55 + ghostRand(s, 1) * 0.4, vy = 0.35 + ghostRand(s, 2) * 0.33;
+    return { x: ghostFold(t * vx + ghostRand(s, 3) * 4 * e, e),
+             y: ghostFold(t * vy + ghostRand(s, 4) * 4 * e, e * 0.86), on: 1 };
+  }
+  if (kind === 'snake') return ghostSnake(t, s);
+  if (kind === 'paint') return ghostPaint(t, s);
+  if (kind === 'lissa'){
+    // a Lissajous figure whose amplitude breathes — a curve that never quite
+    // closes, which is the difference between a path and an ornament
+    const a = 0.75 + ghostRand(s, 5) * 0.5, b = a * (1.37 + ghostRand(s, 6) * 0.5);
+    const ph = ghostRand(s, 7) * 6.2831853;
+    const swell = 0.72 + 0.28 * Math.sin(t * 0.4);
+    return { x: e * swell * Math.sin(t * a + ph), y: e * 0.86 * swell * Math.sin(t * b), on: 1 };
+  }
+  // DRIFT — the resting hand: slow sines on a small radius, barely there. This
+  // is what the loud rooms get, because the least a hand can do is the most it
+  // should do while the scenes are already shouting.
+  const r1 = ghostRand(s, 8), r2 = ghostRand(s, 9);
+  return { x: e * 0.5 * (Math.sin(t * 0.33 + r1 * 6.2831853) * 0.7 + Math.sin(t * 0.19) * 0.3),
+           y: e * 0.44 * (Math.sin(t * 0.26 + r2 * 6.2831853) * 0.7 + Math.sin(t * 0.15 + 2) * 0.3), on: 1 };
+}
+
+/* THE PHRASING — when the ghost is touching, and when it has let go. One stroke
+   per slot, placed inside it by the seed, under an ASYMMETRIC envelope: it lands
+   over `fade` so presence never snaps on, and it goes over the much shorter
+   `lift`, because a hand that fades out has spent its charge before it lets go
+   and has nothing left to release. The runtime hands that falling edge to the
+   same release() a finger gets, so a ghost stroke ends in a real (small)
+   detonation rather than in a dissolve. */
+function ghostPhrase(t, seed){
+  const G = GHOST_TUNING;
+  const i = Math.floor(t / G.slot);
+  const u = t - i * G.slot;
+  const len = G.minLen + ghostRand(seed, i * 3) * (G.maxLen - G.minLen);
+  const start = 0.8 + ghostRand(seed, i * 3 + 1) * Math.max(0, G.slot - len - 1.6);
+  const on = u >= start && u < start + len;
+  const env = on ? Math.min(1, (u - start) / G.fade) * Math.min(1, (start + len - u) / G.lift) : 0;
+  return { i, on, u: on ? (u - start) / len : 0, env: clamp01(env), r: ghostRand(seed, i * 3 + 2) };
+}
+
+/* HOW LOUD A GHOST MAY BE. Never as loud as a hand, and quieter still wherever
+   the music is already carrying the room. This is the "do not overdo it" rule
+   written as arithmetic instead of as taste: at a full-energy apex the ceiling
+   is about a seventh of a real touch, which is a presence you notice only if you
+   were looking at that part of the field anyway. */
+function ghostAmp(o){
+  const s = o || {}, G = GHOST_TUNING;
+  let a = G.amp;
+  if (s.act === 2) a *= 1 - G.duck;                  // APEX: stand back
+  else if (s.act === 1 || s.act === 3) a *= 0.82;    // RISING / TURN: half a step back
+  a *= 1 - 0.35 * clamp01(s.energy || 0);            // a loud room needs no help
+  if (s.calm) a *= 0.7;
+  return clamp01(a);
+}
+
+/* WHETHER IT MAY PLAY AT ALL.
+
+   Reduced motion is the hard one, and it is a NO. Shrinking a deformation
+   somebody asked for is one thing; a room that starts moving on its own for
+   somebody who asked it not to is another, and no budget makes that acceptable.
+   ECO is a no because the ghost wakes a full-screen pass and that mode exists to
+   give the battery to the music. A hidden tab is a no because nobody is looking.
+   And a live hand is a no because the field is theirs, not the ghost's. */
+function ghostShould(o){
+  const s = o || {};
+  if (s.off || s.reduced || s.hidden || s.eco || s.human) return false;
+  return (s.idle || 0) >= (s.wake == null ? GHOST_TUNING.wake : s.wake);
+}
+
+/* THE SCENES MANAGER'S HAND ON THE CHOREOGRAPHY — touchAffinity's idea one layer
+   up. The room chooses how the ghost moves through it: the spirals and rosettes
+   want a curve, the lattice rooms want the snake, the wide diffuse ones want
+   almost nothing. A wildcard keeps even a memorised map able to surprise, and
+   the apex has the last word over both. */
+function ghostPattern(sceneIdx, act, r){
+  const MAP = ['lissa', 'lissa', 'snake', 'bounce', 'drift', 'bounce', 'lissa', 'drift',
+               'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa'];
+  const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
+  let k = MAP[i] || 'drift';
+  // the quiet edges of the arc are where a hand actually reads, so they get the
+  // busiest choreography rather than the calmest
+  if ((act === 0 || act === 4) && k === 'drift' && r < 0.5) k = 'paint';
+  if (r > 0.86) k = GHOST_KINDS[Math.floor(r * 97) % GHOST_KINDS.length];
+  if (act === 2) k = 'drift';        // the apex belongs to the scenes — last word
+  return k;
+}
+
+/* TWO HANDS. Where the music opens out, the ghost SPLITS: the field is touched
+   in two mirrored places at once, with complementary forces (touchPairMode) — a
+   well against a void, a shear against its opposite, two ripple sources whose
+   interference is the picture between them. Never at the apex, where one hand is
+   already one too many. */
+function ghostSplit(o){
+  const s = o || {};
+  if (s.act === 2) return false;
+  const chance = (s.act === 0 || s.act === 4) ? 0.46 : 0.2;
+  return (s.r == null ? 1 : s.r) < chance;
+}
+/* THE MIRROR the second hand is placed by: 0 splits the room left/right, 1
+   top/bottom, 2 through the centre. */
+function ghostMirror(axis, x, y){
+  const a = ((axis | 0) % 3 + 3) % 3;
+  if (a === 1) return { x: x, y: -y };
+  if (a === 2) return { x: -x, y: -y };
+  return { x: -x, y: y };
 }
 /* UPDATE GATE — when a ready update may apply ITSELF. The whole policy in one
    pure, tested map: an explicit "after this track" wish is honoured above all
@@ -13232,7 +13538,41 @@ if (el.zenXport){
   };
   el.zSceneNext && el.zSceneNext.addEventListener('click', () => { keepAwake(); stepScene(1); });
   el.zScenePrev && el.zScenePrev.addEventListener('click', () => { keepAwake(); stepScene(-1); });
-  el.zenTouch && el.zenTouch.addEventListener('click', () => { keepAwake(); TOUCHFX.cycle(); });
+  el.zenTouch && el.zenTouch.addEventListener('click', () => {
+    if (heldNotTapped(el.zenTouch)) return;
+    keepAwake(); TOUCHFX.cycle();
+  });
+  el.zenTouch && holdToToggleGhost(el.zenTouch, keepAwake);
+}
+/* THE SECOND GESTURE ON THE TOUCH BUTTONS: hold one, and the field stops (or
+   starts) playing itself. It sits on a hold rather than on a chip of its own
+   because it is a preference somebody sets roughly once, and the chip row is
+   already the busiest thing on the screen.
+
+   The tap that cycles the force still fires normally. The hold marks the node
+   instead of cancelling the click through the event system, because at the
+   TARGET element listeners run in registration order regardless of phase — a
+   stopPropagation from here would be a race against whoever registered first,
+   and races in input handling are how a button ends up doing both things. */
+function holdToToggleGhost(node, before){
+  let timer = 0;
+  const cancel = () => { if (timer) clearTimeout(timer); timer = 0; };
+  node.addEventListener('pointerdown', () => {
+    node.__ghostHeld = false;
+    cancel();
+    timer = setTimeout(() => {
+      node.__ghostHeld = true; timer = 0;
+      if (before) before();
+      GHOST.toggle();
+    }, 620);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(n => node.addEventListener(n, cancel));
+}
+// a hold has already answered — the click it drags behind it is not a tap
+function heldNotTapped(node){
+  if (!node || !node.__ghostHeld) return false;
+  node.__ghostHeld = false;
+  return true;
 }
 /* THE ORB's two gestures: a clean TAP unfurls the menu; a FLICK (or a hold)
    shifts the SCENE yourself — you take the wheel from the director, the orb
@@ -13320,6 +13660,7 @@ window.addEventListener('keydown', ev => {
       else if (k === '0') director.setScene(9, true);
       else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, same answer as the gaze
       else if (k === 'f' || k === 'F') TOUCHFX.cycle(); // cycle the touch-FX force (keyboard equivalent of the TOUCH chip)
+      else if (k === 'i' || k === 'I') GHOST.toggle();  // let the field play itself when idle, or don't
       else if (k === 'l' || k === 'L') LENS.cycle();     // cycle the post-process lens
   }
 });
@@ -13380,6 +13721,7 @@ const U = {
   uPtr:      { value: null },   // xy = the sprung warp centre (ndc), z = presence (set at init)
   uPtrX:     { value: null },   // the touch's DEPTH: x = hold charge, y = release burst, z = spin momentum (set at init)
   uPtrF:     { value: null },   // the FABRIC: x = mode, y = budget, z = beat, w = ripple phase (set at init)
+  uPtr2:     { value: null },   // the SECOND hand: xy = centre (ndc), z = presence, w = mode (set at init)
   uColA:     { value: new THREE.Color(PALETTES[0].a) },
   uColB:     { value: new THREE.Color(PALETTES[0].b) },
   uColC:     { value: new THREE.Color(PALETTES[0].c) },
@@ -13413,11 +13755,13 @@ const GLSL_INK = `
 
    uPtr   xy = the sprung warp centre (NDC), z = presence 0..1
    uPtrX  x = hold charge, y = release burst, z = spin momentum
-   uPtrF  x = mode, y = budget (accessibility ceiling), z = beat, w = ripple phase */
+   uPtrF  x = mode, y = budget (accessibility ceiling), z = beat, w = ripple phase
+   uPtr2  xy = the SECOND hand's centre (NDC), z = its presence, w = its mode */
 const GLSL_WARP = `
   uniform vec3 uPtr;
   uniform vec3 uPtrX;
   uniform vec4 uPtrF;
+  uniform vec4 uPtr2;
 
   float warpReach(float r, float reach){
     float x = clamp(1.0 - r / max(1e-4, reach), 0.0, 1.0);
@@ -13455,6 +13799,25 @@ const GLSL_WARP = `
   // the force the hand actually has right now: presence, scaled by the budget
   // the accessibility governor allows. Zero here means the fabric is flat.
   float warpForce(){ return uPtr.z * uPtrF.y; }
+  // ...and the second hand's, through the same budget. Zero whenever the field
+  // is being touched in only one place, which is nearly always.
+  float warpForce2(){ return uPtr2.z * uPtrF.y; }
+  /* THE DISPLACEMENT, as a vector — see warpPush() in the pure block, which is
+     this expression character for character. Matter is moved by it and the
+     light-bending pass moves its sample coordinate by it, so a SECOND hand is
+     one more call to this and nothing else: two deflections superpose, the way
+     two masses bend one ray, and neither hand has to know about the other.
+     z carries the radial part, which is the share spent on DEPTH. */
+  vec3 warpPush(vec2 p, vec2 c, float mode, float force){
+    vec2 d = p - c;
+    float r = length(d);
+    vec2 dir = normalize(d + 1e-5);
+    vec2 w = warpDeflect(mode, r);
+    float a = w.y * force, rad = w.x * force;
+    float ca = cos(a), sa = sin(a);
+    vec2 rot = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
+    return vec3(rot * (r + rad) - d, rad);
+  }
 `;
 
 const GLSL_MPHI = `
@@ -13593,34 +13956,40 @@ const VERT_POINT_HEAD = GLSL_MPHI + GLSL_WARP + `
      it is actually further away. */
   vec4 ptrWarp(vec4 mv){
     float burst = uPtrX.y;
-    float force = warpForce();
-    if (force < 0.003 && burst < 0.01) return mv;
+    float force = warpForce(), force2 = warpForce2();
+    if (force < 0.003 && burst < 0.01 && force2 < 0.003) return mv;
     float persp = max(0.6, -mv.z);
     vec2 scr = mv.xy / persp;
-    vec2 d = scr - uPtr.xy;
-    float dist = length(d);
-    vec2 dir = normalize(d + 1e-4);
-    vec2 warp = warpDeflect(uPtrF.x, dist);
-    // ALONG the radius, and AROUND it: the angular term is a real rotation of
-    // the offset, not a tangential shove, so a vortex winds space instead of
-    // smearing it — matter keeps its distance from your hand while it turns.
-    float a = warp.y * force;
-    float ca = cos(a), sa = sin(a);
-    vec2 rot = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
-    vec2 moved = rot * (dist + warp.x * force);
-    vec2 push = moved - d;
+    // ALONG the radius, and AROUND it: warpPush rotates the offset rather than
+    // shoving it tangentially, so a vortex winds space instead of smearing it —
+    // matter keeps its distance from the hand while it turns.
+    vec3 p1 = warpPush(scr, uPtr.xy, uPtrF.x, force);
+    vec2 push = p1.xy;
+    float radial = p1.z;
     // the release: one wavefront leaving the lift point, its radius riding the
     // burst's decay (1 -> 0 maps centre -> far field). Not a stroked ring: an
     // actual displacement travelling through the matter.
     if (burst > 0.01){
+      vec2 d = scr - uPtr.xy;
+      float dist = length(d);
       float front = exp(-abs(dist - (1.0 - burst) * ${WARP.front.toFixed(3)}) * 7.0);
-      push += dir * front * burst * 0.16;
+      push += normalize(d + 1e-5) * front * burst * 0.16;
+    }
+    /* THE SECOND HAND, superposed. Not a special case and not a blend: the same
+       metric evaluated about a second centre, with its own (complementary) mode,
+       and the two displacements added — which is what two masses do to one ray.
+       Matter between the pair is therefore pulled by both, and the shape of that
+       argument between them is the thing worth looking at. */
+    if (force2 >= 0.003){
+      vec3 p2 = warpPush(scr, uPtr2.xy, uPtr2.w, force2);
+      push += p2.xy;
+      radial += p2.z;
     }
     mv.xy += push * persp;
     // DEPTH. A share of the radial deformation is spent moving matter toward or
     // away from the eye — into the well, out of the void — which is what makes
     // the deformation a volume instead of a decal.
-    mv.z -= warp.x * force * persp * ${WARP.depth.toFixed(3)};
+    mv.z -= radial * persp * ${WARP.depth.toFixed(3)};
     return mv;
   }
 `;
@@ -16073,7 +16442,37 @@ const INTERACT = {
   spinE: 0,            // spin momentum the drags banked — the slung-record memory
   ripplePhase: 0,      // the WAVE metric's clock — advanced here, frozen for reduced motion
   dragging: false, holdOff: 0,
+  /* THE SECOND HAND — a real second finger, or the ghost's mirror of itself.
+     One extra centre with its own force (touchPairMode), fed to uPtr2 and
+     superposed by the same metric. Parked at zero presence nearly always, and
+     zero presence is a branch the shaders take before they do any work. */
+  sx: 0, sy: 0, s2: 0, mode2: 0,
+  second: false,       // a real second finger is down
+  ghost2: false,       // the GHOST has split into a mirrored pair
+  /* THE SYNTHETIC HAND. `synth` says the hand on the field is the ghost's, and
+     `cap` is the ceiling on its presence. Everything else about the touch —
+     the spring, the charge, the release, the chirality — is identical, which is
+     the whole point: there is no second implementation of the touch to keep
+     honest. What `synth` does gate is anything that would reach OUT of the
+     screen: no haptic buzz for a hand nobody is attached to. */
+  synth: false, cap: 1,
   _lx: 0, _ly: 0, _idleT: 999, _chargeTick: 0,
+  /* THE RELEASE, in one place. Whatever the hold charged detonates outward from
+     the lift point, boosted by the flick that released it — the spring's own
+     velocity IS that flick speed, already measured. `gain` is how much of the
+     blast this hand has earned: 1 for a finger, the ghost's own (much smaller)
+     amplitude for the ghost, so an unattended field never detonates like a
+     played one. Only a real hand is answered in the palm. */
+  release(human, gain){
+    const flick = Math.min(1, Math.hypot(this.vx, this.vy) / 3.5);
+    const b = touchBurst(this.charge, flick) * (gain == null ? 1 : clamp01(gain));
+    if (b > 0){
+      this.burst = Math.max(this.burst, b);
+      this.impulse = Math.max(this.impulse, b * 0.5);
+      if (human && b > 0.55) HAPTICS.pulse(b > 0.85);
+    }
+    return b;
+  },
   update(dt){
     this.impulse *= Math.exp(-dt / 0.5);
     // the ripple metric carries its own phase rather than reading uTime: it can
@@ -16082,8 +16481,10 @@ const INTERACT = {
     this.ripplePhase = (this.ripplePhase + dt * (reducedMotion ? 0 : 6.0)) % 6.2831853;
     this.swirl *= Math.exp(-dt / 1.8);
     // the touch's depth: charge while committed, drain when the hand rests;
-    // the burst rides its own decay so the wavefront outlives the finger
-    this.charge = touchCharge(this.charge, dt, this.dragging);
+    // the burst rides its own decay so the wavefront outlives the finger.
+    // A ghost stroke commits exactly the way a finger does — same curve, same
+    // constants — which is why its lifts detonate like a hand's.
+    this.charge = touchCharge(this.charge, dt, this.dragging || this.synth);
     this.burst *= Math.exp(-dt / 0.6);
     this.spinE += (Math.min(1, Math.abs(this.swirl) / 2.2) - this.spinE) * (1 - Math.exp(-dt / 0.5));
     // felt milestones: the hold whispers at half charge, knocks when it's full —
@@ -16094,9 +16495,15 @@ const INTERACT = {
     }
     this.holdOff = Math.max(0, this.holdOff - dt);
     this._idleT += dt;
-    // presence swells fast while the hand lives, relaxes slowly after it rests
-    const want = this.dragging ? 1 : (this._idleT < 1.2 ? 0.55 : 0);
+    // presence swells fast while the hand lives, relaxes slowly after it rests.
+    // The ghost's ceiling is its own (ghostAmp, well under a finger's 1) and it
+    // rides the very same easing, so its strokes arrive and leave like hands.
+    const want = this.dragging ? 1 : this.synth ? this.cap : (this._idleT < 1.2 ? 0.55 : 0);
     this.strength += (want - this.strength) * (1 - Math.exp(-dt / (want > this.strength ? 0.12 : 0.9)));
+    // the second hand's presence rides the same shape, one step behind
+    const want2 = this.second ? 1 : (this.ghost2 ? this.cap * 0.9 : 0);
+    this.s2 += (want2 - this.s2) * (1 - Math.exp(-dt / (want2 > this.s2 ? 0.12 : 0.6)));
+    if (this.s2 < 0.002) this.s2 = 0;                 // exactly zero, so the shaders branch out
     // The field has a little MASS. The warp centre doesn't teleport to the
     // finger — it's a puck on a spring, so a drag carries weight and a flick
     // slings it, overshooting and springing back to rest. K is stiff enough
@@ -16121,8 +16528,33 @@ const INTERACT = {
     INTERACT.px = (ev.clientX / window.innerWidth) * 2 - 1;
     INTERACT.py = -((ev.clientY / window.innerHeight) * 2 - 1);
   };
+  /* TWO FINGERS. The first pointer is the hand, exactly as it always was — it
+     steers the camera, banks the swirl, charges and detonates. A SECOND
+     concurrent pointer does none of that: it only plants a second centre, with
+     the complementary force, and the metric superposes the pair. Deliberately
+     asymmetric, because the alternative is two fingers fighting over one camera,
+     which is how a pinch-to-zoom feels when an app gets it wrong. */
+  let firstId = null, secondId = null;
+  const toSecond = ev => {
+    INTERACT.sx = (ev.clientX / window.innerWidth) * 2 - 1;
+    INTERACT.sy = -((ev.clientY / window.innerHeight) * 2 - 1);
+    INTERACT.mode2 = touchPairMode(TOUCHFX.mode());
+  };
   cv.addEventListener('pointerdown', ev => {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    // a real hand takes the field back from the ghost, mid-stroke, at once
+    if (typeof GHOST !== 'undefined') GHOST.yield();
+    // the second slot is offered only while the first hand is demonstrably live —
+    // a pointerup that never arrived (a stolen gesture, a lost capture) must not
+    // strand the primary path behind a stale id
+    if (INTERACT.dragging && firstId !== null && secondId === null && ev.pointerId !== firstId){
+      secondId = ev.pointerId;
+      INTERACT.second = true; INTERACT._idleT = 0;
+      toSecond(ev);
+      try { cv.setPointerCapture(ev.pointerId); } catch (e){}
+      return;
+    }
+    firstId = ev.pointerId;
     INTERACT.dragging = true;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
     toNdc(ev); INTERACT._idleT = 0;
@@ -16143,6 +16575,7 @@ const INTERACT = {
     try { cv.setPointerCapture(ev.pointerId); } catch (e){}
   });
   cv.addEventListener('pointermove', ev => {
+    if (ev.pointerId === secondId){ toSecond(ev); INTERACT._idleT = 0; return; }
     toNdc(ev); INTERACT._idleT = 0;
     DWELL.moved(ev.clientX, ev.clientY);
     if (!INTERACT.dragging) return;
@@ -16158,21 +16591,21 @@ const INTERACT = {
   // THE RELEASE is the payoff: everything the hold charged detonates outward
   // from the lift point, and a fast flick detonates even without the hold —
   // the spring's own velocity at release IS the flick speed, already measured.
-  const drop = () => {
-    if (INTERACT.dragging){
-      const flick = Math.min(1, Math.hypot(INTERACT.vx, INTERACT.vy) / 3.5);
-      const b = touchBurst(INTERACT.charge, flick);
-      if (b > 0){
-        INTERACT.burst = Math.max(INTERACT.burst, b);
-        INTERACT.impulse = Math.max(INTERACT.impulse, b * 0.5);
-        if (b > 0.55) HAPTICS.pulse(b > 0.85);
-      }
+  // INTERACT.release() holds that arithmetic, because the ghost lifts too.
+  const drop = ev => {
+    if (ev && ev.pointerId === secondId){          // the second finger just leaves
+      secondId = null; INTERACT.second = false; return;
     }
+    if (INTERACT.dragging) INTERACT.release(true, 1);
     INTERACT.dragging = false;
+    firstId = null;
   };
   cv.addEventListener('pointerup', drop);
   // a stolen gesture (scroll, OS swipe) is not a release — no detonation
-  cv.addEventListener('pointercancel', () => { INTERACT.dragging = false; });
+  cv.addEventListener('pointercancel', ev => {
+    if (ev && ev.pointerId === secondId){ secondId = null; INTERACT.second = false; return; }
+    INTERACT.dragging = false; firstId = null;
+  });
   // a long-press must cycle the FX, never raise the OS text-callout / copy box
   cv.addEventListener('contextmenu', ev => ev.preventDefault());
   cv.addEventListener('pointerleave', () => DWELL.gone());
@@ -16186,6 +16619,123 @@ const INTERACT = {
     AE.f.beat = Math.max(AE.f.beat, 1);   // the shockwave rides the beat channel too
   });
 }
+
+/* ================================================================
+   GHOST — the hand that plays the field when nobody is.
+
+   The pure block above holds the whole design and every constant.
+   This is the twelve lines of state that make it live: a clock that
+   only runs while the ghost is allowed to play, the choreography the
+   scenes manager last dealt it, and the phrase it is in the middle
+   of. Everything it does, it does by writing INTERACT.px / py / cap
+   and letting the shipping touch engine answer — the spring, the
+   charge, the chirality, the release, the metric, the shaders. Delete
+   this object and the touch works exactly as it did; nothing else
+   knows the difference between a finger and a ghost, which is the
+   only reason this is cheap.
+   ================================================================ */
+const GHOST = {
+  on: true,                 // the preference. Hold the TOUCH chip (or press I) to change it
+  t: 0,                     // the ghost's own clock — only advances while it may play
+  pt: 0,                    // the STROKE clock: zero every time the hand goes down
+  seed: 12345, kind: 'drift',
+  _age: 0,                  // how long the app has been up: nothing plays into a cold room
+  _i: -1, _live: false, _amp: 0, _split: false, _axis: 0, _pend: -1, _pen: 0,
+  allowed(){
+    return ghostShould({
+      off: !this.on,
+      reduced: reducedMotion,
+      hidden: !!document.hidden,
+      eco: typeof POWER !== 'undefined' && POWER.mode === 'eco',
+      human: INTERACT.dragging || INTERACT.second,
+      // whichever is shorter: the stillness, or the life of the session
+      idle: Math.min(INTERACT._idleT, this._age),
+    });
+  },
+  // the room changed: deal a new choreography, but never mid-stroke — a
+  // choreography that switched under a live hand would read as a glitch
+  autoRoll(sceneIdx){
+    if (this._live){ this._pend = sceneIdx; return; }
+    this.kind = ghostPattern(sceneIdx, typeof director !== 'undefined' ? director.act : -1, Math.random());
+    this.seed = (Math.random() * 1e6) | 0;
+  },
+  update(dt){
+    this._age += dt;
+    if (!this.allowed()){ this.yield(); return; }
+    this.t += dt;
+    const ph = ghostPhrase(this.t, this.seed);
+    if (ph.i !== this._i){                       // a new phrase — re-deal the shape of it
+      this._i = ph.i;
+      if (this._pend >= 0){ const s = this._pend; this._pend = -1; this.autoRoll(s); }
+      this._split = ghostSplit({ act: typeof director !== 'undefined' ? director.act : -1, r: ph.r });
+      this._axis = Math.floor(ph.r * 3);
+    }
+    if (!ph.on){ if (this._live) this.lift(); return; }
+    const first = !this._live;
+    this.pt = first ? 0 : this.pt + dt;         // a stroke's own clock starts at zero
+    const p = ghostPath(this.kind, this.pt, this.seed + this._i);
+    const pen = p.on == null ? 1 : p.on;        // PAINT lifts between its dabs
+    // the ghost's WEIGHT (what it is allowed to be worth in this room) and its
+    // presence RIGHT NOW are different numbers: the release is paid at the
+    // weight, or a stroke that ends mid-fade would detonate at nothing
+    this._amp = ghostAmp({
+      act: typeof director !== 'undefined' ? director.act : -1,
+      energy: AE.f.energy,
+      calm: typeof SAFE !== 'undefined' && SAFE.calm,
+    });
+    const amp = this._amp * ph.env * pen;
+    // land the spring wherever the hand comes DOWN rather than slinging it in
+    // from the last place — true of a fresh stroke and of each new painted dab
+    if (first || (pen > 0 && this._pen <= 0)){
+      this._live = true;
+      INTERACT.px = p.x; INTERACT.py = p.y;
+      INTERACT.wx = p.x; INTERACT.wy = p.y; INTERACT.vx = INTERACT.vy = 0;
+    }
+    this._pen = pen;
+    // the lateral travel banks chirality exactly as a drag does, so SPIN winds
+    // the way the ghost is moving rather than the way the last finger did
+    INTERACT.swirl = clamp(INTERACT.swirl + (p.x - INTERACT.px) * 1.1, -3, 3);
+    INTERACT.px = p.x; INTERACT.py = p.y;
+    INTERACT.synth = true; INTERACT.cap = amp;
+    // and where the music has opened out, the ghost is in two places at once
+    if (this._split){
+      const m = ghostMirror(this._axis, p.x, p.y);
+      INTERACT.sx = m.x; INTERACT.sy = m.y;
+      INTERACT.mode2 = touchPairMode(TOUCHFX.mode());
+      INTERACT.ghost2 = true;
+    } else INTERACT.ghost2 = false;
+  },
+  // the end of a stroke IS a release: the same detonation a finger gets, scaled
+  // to the ghost's own (small) weight, so the field breathes out and settles
+  lift(){
+    if (this._live) INTERACT.release(false, this._amp);
+    this._live = false; this._pen = 0;
+    INTERACT.synth = false; INTERACT.cap = 1; INTERACT.ghost2 = false;
+  },
+  // a real hand arrived, or the field is no longer allowed to play itself
+  yield(){
+    if (!this._live && !INTERACT.synth) return;
+    this._live = false; this._pen = 0;
+    INTERACT.synth = false; INTERACT.cap = 1; INTERACT.ghost2 = false;
+  },
+  set(on, save){
+    this.on = !!on;
+    if (!this.on) this.yield();
+    if (save !== false){ try { localStorage.setItem('mb8_ghost', this.on ? '1' : '0'); } catch (e){} }
+    if (typeof TOUCHFX !== 'undefined') TOUCHFX.paint();
+  },
+  toggle(){
+    this.set(!this.on, true);
+    toast(this.on
+      ? 'The field <b>plays itself</b> when you leave it alone — in phrases, quietly, and it lets go the moment you touch it'
+      : 'The field <b>waits for you</b> — it will not play itself');
+    HAPTICS.pulse(true);
+  },
+  load(){
+    try { const v = localStorage.getItem('mb8_ghost'); if (v != null) this.on = v === '1'; } catch (e){}
+  },
+};
+GHOST.load();
 
 /* ================================================================
    TOUCHFX — the BANK of forces the fabric can answer with. Each entry
@@ -16246,7 +16796,9 @@ const TOUCHFX = {
   // glint + a changed answer under the hand. The surprise IS the interface.
   autoRoll(sceneIdx){
     if (this.active !== 'auto') return;
-    const handOff = INTERACT.strength < 0.05 && !INTERACT.dragging;
+    // a GHOST stroke is not a hand to wait for — if anything, a personality
+    // change landing mid-ghost-stroke is exactly the surprise this is here for
+    const handOff = (INTERACT.strength < 0.05 || INTERACT.synth) && !INTERACT.dragging;
     if (!touchAutoShould(this._autoT, handOff, Math.random())){
       if (!handOff && this._autoT > 45) this._pendingScene = sceneIdx;   // owed: pay when the hand lifts
       return;
@@ -16287,9 +16839,17 @@ const TOUCHFX = {
     if (!chip) return;
     const fx = this.bank[this.actual()] || this.bank.blackhole;
     const autoOn = this.active === 'auto';
+    // the ghost's state lives in the chip's words, not in a badge: a marker that
+    // blinked on and off as the field played itself would be the very heads-up
+    // display this engine spent a rewrite getting rid of
+    const ghostOn = typeof GHOST === 'undefined' || GHOST.on;
+    const ghostSays = ghostOn
+      ? '  ·  left alone, the field plays itself (hold, or press I, to stop it)'
+      : '  ·  the field waits for you (hold, or press I, to let it play itself)';
     chip.textContent = autoOn ? '✦ ' + fx.chip : fx.chip;
-    chip.title = (autoOn ? 'Auto touch — the scenes re-tune this. Now: ' : '') + fx.label + ' — ' + fx.hint + '  ·  tap to change the touch';
-    chip.setAttribute('aria-label', 'Touch effect: ' + (autoOn ? 'auto, currently ' : '') + fx.label + '. ' + fx.hint);
+    chip.title = (autoOn ? 'Auto touch — the scenes re-tune this. Now: ' : '') + fx.label + ' — ' + fx.hint + '  ·  tap to change the touch' + ghostSays;
+    chip.setAttribute('aria-label', 'Touch effect: ' + (autoOn ? 'auto, currently ' : '') + fx.label + '. ' + fx.hint
+      + (ghostOn ? '. The field plays itself when left alone.' : '. The field waits for a touch.'));
     // the immersive touch-style toggle wears the same badge + a live hint
     if (el.zTouchLabel) el.zTouchLabel.textContent = (autoOn ? '✦ ' : '') + fx.chip;
     if (el.zenTouch) el.zenTouch.setAttribute('aria-label', 'Touch style: ' + fx.label + ' — ' + fx.hint + '. Tap to change.');
@@ -16326,6 +16886,7 @@ const TOUCHFX = {
      the AUTO resolution the scenes re-tune, and the chip that names them. */
 };
 TOUCHFX.load();
+
 
 /* ================================================================
    DWELL — dancing with your eyes, literally. Rest the pointer on the
@@ -16856,6 +17417,8 @@ const director = {
       if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('explorer'); }   // you chose a scene
     // the new room may re-tune the touch (AUTO only; deferred under a live hand)
     if (typeof TOUCHFX !== 'undefined') TOUCHFX.autoRoll(i);
+    // ...and it deals the ghost a choreography to match (deferred mid-stroke)
+    if (typeof GHOST !== 'undefined') GHOST.autoRoll(i);
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
     if (el.zSceneName) el.zSceneName.textContent = scenes[i].name;   // the immersive scene stepper
@@ -17450,6 +18013,7 @@ function initThree(){
   U.uPtr.value = new THREE.Vector3(0, 0, 0);
   U.uPtrX.value = new THREE.Vector3(0, 0, 0);
   U.uPtrF.value = new THREE.Vector4(0, 1, 0, 0);
+  U.uPtr2.value = new THREE.Vector4(0, 0, 0, 0);
   initAudioTexture();
   initRampTexture();
   buildStarfield();
@@ -17474,7 +18038,10 @@ function initThree(){
     chipFeel.addEventListener('click', () => HAPTICS.set(!HAPTICS.on, true));
   }
   const chipTouch = document.getElementById('chipTouch');
-  if (chipTouch) chipTouch.addEventListener('click', () => TOUCHFX.cycle());
+  if (chipTouch){
+    chipTouch.addEventListener('click', () => { if (!heldNotTapped(chipTouch)) TOUCHFX.cycle(); });
+    holdToToggleGhost(chipTouch);          // hold the chip: the field plays itself, or waits
+  }
   const chipLens = document.getElementById('chipLens');
   if (chipLens) chipLens.addEventListener('click', () => LENS.cycle());
   LENS.load();
@@ -17878,9 +18445,9 @@ const LENS_FIELD = `
   ` + GLSL_WARP + `
   void main(){
     vec2 uv = gl_FragCoord.xy / uResolution;
-    float force = warpForce();
+    float force = warpForce(), force2 = warpForce2();
     float burst = uPtrX.y;
-    if (force < 0.003 && burst < 0.01){ gl_FragColor = vec4(texture2D(tScene, uv).rgb, 1.0); return; }
+    if (force < 0.003 && burst < 0.01 && force2 < 0.003){ gl_FragColor = vec4(texture2D(tScene, uv).rgb, 1.0); return; }
     // work in a square screen space so the deformation is round, not an ellipse
     float aspect = uResolution.x / max(1.0, uResolution.y);
     vec2 p = (uv * 2.0 - 1.0) * vec2(aspect, 1.0);
@@ -17893,10 +18460,22 @@ const LENS_FIELD = `
     float ang = warp.y * force;
     float rad = warp.x * force;
 
+    /* THE SECOND HAND. One more deflection, about a second centre, with its own
+       mode — added to wherever this ray was already going to read from. Two
+       lenses in the path of one ray is exactly what this is, so the pair needs
+       no blending rule and no priority: whichever hand is nearer bends more,
+       and between them the two fields argue. Costs one branch and one extra
+       metric evaluation, and only while the field is touched in two places. */
+    vec2 c2 = uPtr2.xy * vec2(aspect, 1.0);
+    vec2 push2 = force2 >= 0.003 ? warpPush(p, c2, uPtr2.w, force2).xy : vec2(0.0);
+
     // CAPTURE. Inside the horizon the light is gone; the edge is soft over a
     // few percent of a radius so it reads as a horizon and not as a cut circle.
     float horizon = warpHorizon(mode, force);
     float caught = horizon > 0.0 ? 1.0 - smoothstep(horizon * 0.72, horizon * 1.15, dist) : 0.0;
+    float horizon2 = force2 >= 0.003 ? warpHorizon(uPtr2.w, force2) : 0.0;
+    if (horizon2 > 0.0)
+      caught = max(caught, 1.0 - smoothstep(horizon2 * 0.72, horizon2 * 1.15, length(p - c2)));
 
     // the release wavefront, travelling outward through the metric
     if (burst > 0.01){
@@ -17917,11 +18496,11 @@ const LENS_FIELD = `
     // be a third too, or the fabric would look harder-pressed than it is bent.
     float split = ${WARP.aberr.toFixed(4)} * uPtrX.x * uPtrF.y;
     vec3 img;
-    vec2 uA = (c + rotA * rA) / vec2(aspect, 1.0) * 0.5 + 0.5;
-    vec2 uB = (c + rotB * rB) / vec2(aspect, 1.0) * 0.5 + 0.5;
+    vec2 uA = (c + rotA * rA + push2) / vec2(aspect, 1.0) * 0.5 + 0.5;
+    vec2 uB = (c + rotB * rB + push2) / vec2(aspect, 1.0) * 0.5 + 0.5;
     if (split > 0.001){
-      vec2 sA = (c + rotA * (dist + rad * (1.0 + split))) / vec2(aspect, 1.0) * 0.5 + 0.5;
-      vec2 sB = (c + rotA * (dist + rad * (1.0 - split))) / vec2(aspect, 1.0) * 0.5 + 0.5;
+      vec2 sA = (c + rotA * (dist + rad * (1.0 + split)) + push2) / vec2(aspect, 1.0) * 0.5 + 0.5;
+      vec2 sB = (c + rotA * (dist + rad * (1.0 - split)) + push2) / vec2(aspect, 1.0) * 0.5 + 0.5;
       img = vec3(texture2D(tScene, clamp(sA, 0.0, 1.0)).r,
                  texture2D(tScene, clamp(uA, 0.0, 1.0)).g,
                  texture2D(tScene, clamp(sB, 0.0, 1.0)).b);
@@ -17964,9 +18543,9 @@ const LENS_FIELD_LEAN = `
   ` + GLSL_WARP + `
   void main(){
     vec2 uv = gl_FragCoord.xy / uResolution;
-    float force = warpForce();
+    float force = warpForce(), force2 = warpForce2();
     float burst = uPtrX.y;
-    if (force < 0.003 && burst < 0.01){ gl_FragColor = vec4(texture2D(tScene, uv).rgb, 1.0); return; }
+    if (force < 0.003 && burst < 0.01 && force2 < 0.003){ gl_FragColor = vec4(texture2D(tScene, uv).rgb, 1.0); return; }
     float aspect = uResolution.x / max(1.0, uResolution.y);
     vec2 p = (uv * 2.0 - 1.0) * vec2(aspect, 1.0);
     vec2 c = uPtr.xy * vec2(aspect, 1.0);
@@ -17982,9 +18561,18 @@ const LENS_FIELD_LEAN = `
     }
     float horizon = warpHorizon(mode, force);
     float caught = horizon > 0.0 ? 1.0 - smoothstep(horizon * 0.72, horizon * 1.15, dist) : 0.0;
+    // the second hand survives the cheap path too — the ornament degrades, the
+    // deformation never does, and a mirrored pair is a deformation
+    vec2 c2 = uPtr2.xy * vec2(aspect, 1.0);
+    vec2 push2 = vec2(0.0);
+    if (force2 >= 0.003){
+      push2 = warpPush(p, c2, uPtr2.w, force2).xy;
+      float h2 = warpHorizon(uPtr2.w, force2);
+      if (h2 > 0.0) caught = max(caught, 1.0 - smoothstep(h2 * 0.72, h2 * 1.15, length(p - c2)));
+    }
     float ca = cos(ang), sa = sin(ang);
     vec2 rot = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
-    vec2 uA = (c + rot * (dist + rad)) / vec2(aspect, 1.0) * 0.5 + 0.5;
+    vec2 uA = (c + rot * (dist + rad) + push2) / vec2(aspect, 1.0) * 0.5 + 0.5;
     gl_FragColor = vec4(texture2D(tScene, clamp(uA, 0.0, 1.0)).rgb * (1.0 - caught), 1.0);
   }`;
 
@@ -18058,7 +18646,7 @@ const LENS = {
         uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uWhite: U.uWhite, uSectors: { value: 6 },
         // the FIELD pass shares the hand's uniform objects with every point
         // shader by reference, so the light and the matter cannot disagree
-        uPtr: U.uPtr, uPtrX: U.uPtrX, uPtrF: U.uPtrF },
+        uPtr: U.uPtr, uPtrX: U.uPtrX, uPtrF: U.uPtrF, uPtr2: U.uPtr2 },
       vertexShader: LENS_VERT, fragmentShader: frag, depthTest: false, depthWrite: false,
     });
     this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS),
@@ -18131,7 +18719,7 @@ const LENS = {
   // phone. Presence or a still-travelling release wavefront both count.
   handLive(){
     if (typeof INTERACT === 'undefined') return false;
-    return INTERACT.strength > 0.004 || INTERACT.burst > 0.01;
+    return INTERACT.strength > 0.004 || INTERACT.burst > 0.01 || INTERACT.s2 > 0.004;
   },
   render(renderer, bgScene, bgCam, scene, camera){
     let passes = [];
@@ -18327,14 +18915,20 @@ function frame(now){
     drawSafe('booth',() => { BOOTH.draw(); if (BOOTH.open){ FXPADS.paint(); syncFxHud(); } });
   }
 
+  // the field plays itself when nobody is playing it — before INTERACT, because
+  // everything the ghost does, it does by moving the hand INTERACT then answers
+  GHOST.update(dt);
   INTERACT.update(dt);
   DWELL.update(dt);
   /* THE HAND, HANDED TO THE FABRIC. Nothing is drawn here any more — there is
-     no stage to perform on. These four uniforms ARE the touch: the metric reads
+     no stage to perform on. These uniforms ARE the touch: the metric reads
      them, the particles move through it, and the light-bending pass refracts
      the frame through the same numbers. */
   U.uPtr.value.set(INTERACT.wx, INTERACT.wy, INTERACT.strength);
   U.uPtrX.value.set(INTERACT.charge, INTERACT.burst, INTERACT.spinE);
+  // the second hand — a real second finger, or the ghost mirrored. Presence 0
+  // nearly always, and 0 is the branch every consumer takes before doing work.
+  U.uPtr2.value.set(INTERACT.sx, INTERACT.sy, INTERACT.s2, INTERACT.mode2);
   // the budget is where reduced-motion and the safety governor land: one scalar
   // that shrinks the whole deformation without ever closing it (warpBudget)
   U.uPtrF.value.set(
