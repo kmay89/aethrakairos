@@ -270,20 +270,24 @@ async fn native_update_apply<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(),
 /// Open the macOS Microphone privacy pane. The one answer the app cannot give
 /// itself: once a person has denied the mic, only System Settings can undo it,
 /// and an app that says "blocked" without saying where has told them nothing.
+/// Two whole functions rather than two `#[cfg]` blocks inside one: cfg stripping
+/// happens after parsing, so a cfg'd-out TRAILING block leaves the surviving one
+/// sitting in statement position, and the function quietly stops returning what
+/// it says it returns. Not worth being clever about.
+#[cfg(target_os = "macos")]
 #[tauri::command]
 fn open_mic_settings() -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        Ok(())
-    }
+    std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn open_mic_settings() -> Result<(), String> {
+    Ok(())
 }
 
 // --------------------------------------------------------------- the screens
