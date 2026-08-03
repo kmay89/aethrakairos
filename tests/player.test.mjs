@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -45,7 +45,9 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
-  ' SKINS, skinResolve, skinHexRgb, skinCss };';
+  ' SKINS, skinResolve, skinHexRgb, skinCss,' +
+  ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaMaxR, lavaFlow, lavaDragK, lavaWeber, lavaRing,' +
+  ' lavaOsc, lavaCoalesce, lavaFragment, lavaBudget, makeLava, lavaStep, lavaConfine, lavaVolume };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -1871,7 +1873,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 17);
+  assert.equal(S.SCENE_KEYS.length, 18);
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -3290,6 +3292,166 @@ test('fxAutoPick: the room only reaches for an effect the music has earned', () 
   assert.equal(S.fxAutoPick({ ...base, phase: 'peak', act: 1, energy: 0.9 }), 'none');
   assert.equal(S.fxAutoPick({ ...base, phase: 'peak', act: 2, energy: 0.6 }), 'none');
   assert.equal(S.fxAutoPick(null), 'none', 'garbage in → silence, never a random effect');
+});
+
+// ---------------------------------------------------------------- the lamp
+
+const LOPT = { rb: 0.44, rt: 0.30, sigma: 0.0014, mu: 1, wax: 8 };
+
+test('lavaFlow: a stream function cannot leak', () => {
+  // ψ is differentiated, not guessed, so ∇·u = ψ_yx − ψ_xy = 0 identically.
+  // Measured numerically in a straight-walled column, where the taper's own
+  // O(dR/dy) term is absent and the identity is the whole story.
+  const o = { rb: 0.4, rt: 0.4 };
+  let worst = 0;
+  for (let i = 0; i < 25; i++)
+    for (let j = 0; j < 25; j++){
+      const x = -0.4 + 0.8 * (i + 0.5) / 25;
+      const y = S.LAVA.yB + (S.LAVA.yT - S.LAVA.yB) * (j + 0.5) / 25;
+      const e = 1e-4;
+      const dux = (S.lavaFlow(x + e, y, o, 0.1, 0).u - S.lavaFlow(x - e, y, o, 0.1, 0).u) / (2 * e);
+      const dvy = (S.lavaFlow(x, y + e, o, 0.1, 0).v - S.lavaFlow(x, y - e, o, 0.1, 0).v) / (2 * e);
+      worst = Math.max(worst, Math.abs(dux + dvy));
+    }
+  assert.ok(worst < 1e-5, 'divergence ' + worst);
+  // …and nothing crosses a boundary: not the glass, not the heater, not the cap
+  assert.ok(Math.abs(S.lavaFlow(0.4, 0, o, 0.1, 0).u) < 1e-9, 'no flow through the wall');
+  assert.ok(Math.abs(S.lavaFlow(-0.4, 0.2, o, 0.1, 0).u) < 1e-9);
+  assert.ok(Math.abs(S.lavaFlow(0.1, S.LAVA.yB, o, 0.1, 0).v) < 1e-9, 'none through the heater');
+  assert.ok(Math.abs(S.lavaFlow(0.1, S.LAVA.yT, o, 0.1, 0).v) < 1e-9, 'none through the cap');
+  // the cell itself: up the middle, down the walls — the Bénard mode
+  assert.ok(S.lavaFlow(0, 0, o, 0.1, 0).v > 0.05, 'up the middle');
+  assert.ok(S.lavaFlow(0.39, 0, o, 0.1, 0).v < -0.05, 'down the walls');
+});
+
+test('lavaVisc / lavaDragK: cold wax is thick, and terminal speed goes as r²', () => {
+  assert.ok(S.lavaVisc(0) > S.lavaVisc(0.5) && S.lavaVisc(0.5) > S.lavaVisc(1), 'Arrhenius, monotone');
+  assert.ok(Math.abs(S.lavaVisc(0.5) - 1) < 1e-12, 'unit viscosity at the midpoint');
+  // v_term = a/k, and k ∝ 1/r² — so doubling the radius quadruples the speed
+  const k1 = S.lavaDragK(0.6, 0.05), k2 = S.lavaDragK(0.6, 0.10);
+  assert.ok(Math.abs(k1 / k2 - 4) < 1e-9, 'the exponent is exactly two');
+});
+
+test('lavaCoalesce: volume, momentum and heat all survive a merge', () => {
+  const a = { x: 0, y: 0, vx: 0.2, vy: -0.1, r: 0.08, T: 0.7 };
+  const b = { x: 0.1, y: 0.02, vx: -0.3, vy: 0.05, r: 0.06, T: 0.3 };
+  const m = S.lavaCoalesce(a, b);
+  const ma = a.r ** 3, mb = b.r ** 3;
+  assert.ok(Math.abs(m.r ** 3 - (ma + mb)) < 1e-15, 'volume adds');
+  assert.ok(Math.abs(m.vx * m.r ** 3 - (a.vx * ma + b.vx * mb)) < 1e-15, 'momentum adds');
+  assert.ok(Math.abs(m.vy * m.r ** 3 - (a.vy * ma + b.vy * mb)) < 1e-15);
+  assert.ok(m.T > b.T && m.T < a.T, 'temperature is the mass-weighted mean');
+  // two EQUAL drops release 26% of the new drop's surface energy, and that
+  // fraction is the amplitude of the wobble you actually watch
+  const e = S.lavaCoalesce({ x: 0, y: 0, vx: 0, vy: 0, r: 0.1, T: 0.5 },
+                           { x: 0.1, y: 0, vx: 0, vy: 0, r: 0.1, T: 0.5 });
+  assert.ok(Math.abs((1 - e.st) - 0.26) < 0.01, 'ring amplitude ' + (1 - e.st));
+});
+
+test('lavaFragment: a break-up creates nothing and pushes nothing', () => {
+  const rnd = S.mulberry32(9);
+  for (const n of [2, 3, 4]){
+    const p = { x: 0.05, y: -0.2, vx: 0.03, vy: 0.14, r: 0.13, T: 0.66, ax: 0, ay: 1 };
+    const kids = S.lavaFragment(p, n, rnd, 0.06);
+    assert.equal(kids.length, n);
+    const M = p.r ** 3;
+    let vol = 0, px = 0, py = 0;
+    for (const k of kids){ vol += k.r ** 3; px += k.vx * k.r ** 3; py += k.vy * k.r ** 3; }
+    assert.ok(Math.abs(vol - M) < 1e-14, 'volume conserved for n=' + n);
+    assert.ok(Math.abs(px - p.vx * M) < 1e-14, 'momentum conserved (x) for n=' + n);
+    assert.ok(Math.abs(py - p.vy * M) < 1e-14, 'momentum conserved (y) for n=' + n);
+    for (const k of kids) assert.ok(k.T === p.T, 'the pieces are as hot as the whole was');
+  }
+});
+
+test('lavaOsc: the exact solution cannot be blown up by a big step', () => {
+  const ring = S.lavaRing(0.03, 0.0014);          // the smallest, stiffest drop
+  assert.ok(ring.zTrue > 1, 'the true viscous damping IS overdamped — hence the cap');
+  assert.equal(ring.z, S.LAVA.oscZ, 'and the cap is what the lamp uses');
+  // one step of a whole second, on an oscillator whose period is far shorter:
+  // an explicit integrator detonates here, a closed form does not
+  let x = 0.4, v = 0;
+  for (let i = 0; i < 400; i++){
+    const o = S.lavaOsc(x, v, ring, 1.0);
+    x = o.x; v = o.v;
+    assert.ok(isFinite(x) && Math.abs(x) <= 0.4001, 'bounded at step ' + i + ': ' + x);
+  }
+  assert.ok(Math.abs(x) < 1e-6, 'and it rings down to nothing');
+});
+
+test('lavaBudget / lavaMaxR: the governor and the physics are one mechanism', () => {
+  const full = S.lavaBudget({}), eco = S.lavaBudget({ eco: true }),
+        weak = S.lavaBudget({ struggling: true });
+  assert.ok(eco.wax < full.wax && weak.wax <= eco.wax, 'less is asked of less');
+  assert.ok(weak.mergeK > full.mergeK, 'and the wax gets stickier rather than scarcer');
+  for (const b of [full, eco, weak])
+    assert.ok(b.wax + b.bub <= b.total && b.total <= 24, 'never past the shader array');
+  // a puddle on the heater may be enormous; the same wax in free fluid may not
+  const o = { rb: 0.44, rt: 0.30 };
+  assert.ok(S.lavaMaxR(S.LAVA.yB, o) > 2 * S.lavaMaxR(0.3, o), 'the floor carries the weight');
+  assert.ok(Math.abs(S.lavaMaxR(0.3, o) - S.LAVA.rDrop) < 1e-12, 'a free drop has one size');
+});
+
+test('the lamp runs for ten minutes and never invents wax', () => {
+  const st = S.makeLava(20260803, LOPT);
+  const V0 = S.lavaVolume(st);
+  const budget = S.lavaBudget({});
+  const h = 1 / 60;
+  let worstV = 0, escaped = 0, top = 0, bottom = 0, minN = 99, maxN = 0, fastest = 0;
+  for (let i = 0; i < 60 * 600; i++){
+    const t = i * h;
+    S.lavaStep(st, h, { heat: 0.88 + 0.1 * Math.sin(t * 0.05), flow: S.LAVA.flow,
+                        budget, entropy: 0.35, treble: 0.3 });
+    worstV = Math.max(worstV, Math.abs(S.lavaVolume(st) - V0) / V0);
+    minN = Math.min(minN, st.wax.length); maxN = Math.max(maxN, st.wax.length);
+    for (const b of st.wax){
+      assert.ok(isFinite(b.x) && isFinite(b.y) && isFinite(b.r) && isFinite(b.T),
+                'a number went missing at t=' + t.toFixed(1));
+      const R = S.lavaRadius(b.y, st.opt);
+      if (Math.abs(b.x) > R + 1e-6 || b.y < S.LAVA.yB - 1e-6 || b.y > S.LAVA.yT + 1e-6) escaped++;
+      if (b.y > S.LAVA.yB + (S.LAVA.yT - S.LAVA.yB) * 0.72) top++;
+      if (b.y < S.LAVA.yB + (S.LAVA.yT - S.LAVA.yB) * 0.16) bottom++;
+      fastest = Math.max(fastest, Math.hypot(b.vx, b.vy));
+    }
+  }
+  // THE CLAIM THIS TEST IS FOR: a lamp left on all night is still the same
+  // lamp. Merges, break-ups, sheds and drips are every one of them exact.
+  assert.ok(worstV < 1e-9, 'wax volume drifted by ' + worstV);
+  assert.equal(escaped, 0, 'the glass held');
+  assert.ok(minN >= 1 && maxN <= budget.wax + 4, 'count stayed in its lane: ' + minN + '..' + maxN);
+  assert.ok(top > 0, 'something reached the top — the lamp is convecting');
+  assert.ok(bottom > 0, 'and something came back down');
+  assert.ok(fastest < 3, 'nothing ran away: ' + fastest);
+});
+
+test('the lamp is the same lamp at any frame rate', () => {
+  // Nothing stiff is stepped, so a device drawing at six frames a second
+  // gets the physics, not a divergent cousin of it. Held to the same
+  // invariants as the 60 Hz run above — including a step ten times too big.
+  for (const h of [1 / 6, 1 / 30, 1 / 144]){
+    const st = S.makeLava(7, LOPT);
+    const V0 = S.lavaVolume(st);
+    const budget = S.lavaBudget({});
+    for (let i = 0; i < Math.round(180 / h); i++)
+      S.lavaStep(st, h, { heat: 0.9, flow: S.LAVA.flow, budget, entropy: 0.4, treble: 0.3 });
+    assert.ok(Math.abs(S.lavaVolume(st) - V0) / V0 < 1e-9, 'volume, at h=' + h.toFixed(4));
+    for (const b of st.wax){
+      assert.ok(isFinite(b.x) && isFinite(b.st) && isFinite(b.sv), 'finite at h=' + h.toFixed(4));
+      assert.ok(Math.hypot(b.vx, b.vy) < 3, 'bounded at h=' + h.toFixed(4));
+      assert.ok(Math.abs(b.x) <= S.lavaRadius(b.y, st.opt) + 1e-6, 'inside, at h=' + h.toFixed(4));
+    }
+  }
+});
+
+test('makeLava: the same seed is the same lamp, twice', () => {
+  const run = () => {
+    const st = S.makeLava(31415, LOPT);
+    const budget = S.lavaBudget({});
+    for (let i = 0; i < 60 * 45; i++)
+      S.lavaStep(st, 1 / 60, { heat: 0.9, flow: S.LAVA.flow, budget, entropy: 0.35, treble: 0.3 });
+    return st.wax.map(b => [b.x, b.y, b.r, b.T].map(v => v.toFixed(9)).join(',')).join('|');
+  };
+  assert.equal(run(), run(), 'deterministic from the seed');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
