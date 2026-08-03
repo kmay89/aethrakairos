@@ -92,6 +92,17 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
 - **Adaptive resolution governor**: the heavy raymarched scene lowers its
   render scale instead of dropping frames.
 
+### 1.2a·5 The native Mac shell
+- A thin Tauri process that hosts the LIVE site, so the player is always the
+  newest deploy and the app binary only updates for native changes. One window,
+  window state remembered, a signed update feed.
+- It does exactly what the web cannot do for itself and nothing else — report
+  who is hosting the player, offer the native update rather than impose it, open
+  the macOS privacy pane, enumerate displays, put a stage window fullscreen on a
+  chosen one, and fold the booth into a corner above everything. Each is a
+  command that resolves `null` in a browser, so the player never branches on
+  which shell it is in (§1.2n).
+
 ### 1.2b Self-update, and the app's account of itself
 - **Two paths, one policy.** A stamped deploy installs a new worker that
   *waits*; applying hands over (`SKIP_WAITING` → `controllerchange` → reload).
@@ -705,6 +716,158 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   when that verification happens under an open card, the card turns into the
   up-to-date status rather than quietly emptying.
 
+### 1.2l The stage: one field, several screens, and a booth nobody can see
+
+- **The ask, in one sentence:** the fullscreen button should be able to put the
+  visualizer on the television and leave the controls on the laptop, so the room
+  sees the field and nobody sees the mixer. Everything else here follows from taking
+  that literally.
+- **A stage screen is the same page, told to be a screen.** `?stage=screen` and the
+  player switches its chrome, its catalog, its transport and its audio off and waits
+  to be told what the booth's ears are hearing. Not a video feed: sixty frames of
+  pixels a second across a window boundary is precisely what a laptop driving a PA
+  cannot spare, and pixels lose the thing that matters — a screen holding the
+  NUMBERS renders at its own resolution, on its own GPU, at its own refresh, and can
+  take its own slice of a field far larger than itself. The wire carries about forty
+  floats over a `BroadcastChannel`.
+- **What crosses, and what does not.** The packet is a fixed, flat list of names,
+  each one clamped on arrival (`stageApplyFeat`): the spectrum and the beat, the
+  clock, the dancer's pulse and brace, the act and phase, the colour chord as three
+  OKLCH stops, the lens, the skin, the hand, and the camera. What does NOT cross is
+  everything that would make a screen think for itself. A half-arrived packet leaves
+  the last good reading in place — a screen facing an audience must degrade to
+  *held*, never to *zero*.
+- **The camera is sent as a POSE, not as the dials that make one.** Two screens
+  deriving a camera from the same dials are two chances to diverge — a different
+  frame time, a rounding, a scene that nudged the dolly — and the seam between two
+  televisions is exactly where half a degree becomes a visible tear. Position,
+  quaternion, field of view: eight numbers, and no arithmetic on the far side.
+- **The cut.** N screens do not each draw a little scene of their own. They draw ONE
+  camera whose frustum is N screens wide, each taking its own sub-rectangle
+  (`stageSlice` → three.js `setViewOffset`, applied to the scene camera *and* the
+  backdrop camera, or the sky tears at the seam). A shape crossing from screen 2 to
+  screen 3 leaves and arrives at the same height, the same size, the same instant,
+  because there was only ever one shape. `stageGrid` decides the arrangement: a row
+  is what a stage is, up to four; past that a row gives each screen a letterbox slit,
+  so it folds into the squarest grid that still fills — which is how a video wall is
+  actually built. The unit suite proves the slices tile the field exactly once, with
+  no gap and no overlap, for every wall from one screen to eight.
+- **The booth folds into a corner.** With the field elsewhere, the operator's window
+  becomes a mini player — transport, what is playing, how many screens are really
+  lit — with a chevron for the twenty controls that are not needed mid-set. In the
+  Mac app the shell shrinks the window itself and floats it above everything, so it
+  survives a laptop lid at the side of a stage; on the web it is the same bar in the
+  same corner. A folded booth draws NOTHING: the render is gated off entirely, so the
+  GPU belongs to the screen the room can see.
+- **The hand travels.** Nobody is standing at the television, so the touch that bends
+  the field has to be somewhere else: the mini player carries a pad, and a drag on it
+  sets exactly the fields a finger on that glass would have set — including the lift,
+  which detonates through the same `INTERACT.release` a real hand does. It marks
+  itself synthetic, so a hand that is not attached to anybody is never answered with
+  a haptic buzz.
+- **What is deliberately NOT synced, and why.** The library, the queue, the decks,
+  the mixer, every panel: a stage screen has no business holding a copy of them, and
+  a copy is a thing that can disagree. The screen also never applies an update by
+  itself — nothing is playing on it, so every gate that protects a listener reads
+  "idle, go ahead", and a screen facing an audience would reload itself mid-set.
+- **Failure is a state, not a freeze.** The booth stamps every packet and each screen
+  keeps a smoothed estimate of the difference between their clocks (`stageOffset`);
+  four seconds of silence and the screen says the booth stopped speaking rather than
+  holding a frozen picture the room reads as a crash. A closed screen tells the booth;
+  a closed booth tells the screens; the Mac shell reports a window destroyed by a
+  yanked cable the same way.
+- **Verified by `tools/stage_probe.mjs`** on two real windows with a real channel
+  between them: the screen hides every control and keeps the field, loads no catalog,
+  runs no director, takes the booth's spectrum, clock, act, chord, camera and hand,
+  and the middle screen of three really does cut the middle third out of a frustum
+  three screens wide. The geometry itself is in the unit suite, where the tiling
+  proof lives.
+
+### 1.2m Stage presence at scale — three to eight televisions *(planned)*
+
+What ships today is correct for any N — the address bar takes `screen` and `of`, the
+slices tile, the booth can open as many windows as the machine will give it. What is
+not yet done is everything that makes a WALL rather than several screens:
+
+- **Fullscreen-shader scenes still draw themselves, not their slice.** The mesh
+  scenes and the backdrop are continuous by construction because they are cut by the
+  camera. The raymarched and full-quad scenes compute from `vUv` and a resolution
+  uniform, so each screen currently draws the whole composition rather than its part
+  of one. The fix is a `uSlice` uniform (`vec4(fx, fy, fw, fh)`, identity by default)
+  applied in the four vertex shaders that assign `vUv = uv` — `MARCH_VERT` and the
+  three full-quad scenes — plus feeding those shaders the FULL field's aspect rather
+  than the window's. Small, mechanical, and unverifiable without a real wall in front
+  of it, which is why it is written down rather than guessed at.
+- **Bezels.** Televisions have frames, and a continuous field that ignores them
+  visibly stretches at every seam. A per-screen bezel compensation (millimetres of
+  frame as a fraction of panel width, folded into the slice's `fx/fw`) is the
+  standard answer and belongs in the same place the slice is computed.
+- **Arrangements that are not rectangles.** Stages have screens at angles, screens
+  of different sizes, one enormous one flanked by two small. The slice contract is
+  already a rectangle in a normalized field, so the general form is a per-screen
+  rectangle in the address (`&rect=x,y,w,h`) with the grid as the shorthand — the
+  code path stays one path.
+- **Roles beyond a slice.** Eight screens showing eight parts of one image is one
+  idea; eight screens where two carry the field, four carry mirrored halves and two
+  carry the waveform is a different and often better one. The packet already carries
+  everything a role would need; what is missing is the vocabulary (`&role=field|
+  mirror|wave|type`) and a way to say it without typing URLs.
+- **A clock good enough to cut on.** `stageOffset` is enough for smooth motion but
+  not for a hard cut landing on the same frame across eight panels. That wants a
+  proper round-trip estimate (the screens answer, the booth measures, the offset
+  becomes a median of samples) and a scheduled-cut protocol: the booth names a beat
+  in ITS clock, every screen converts and fires locally, so a late packet cannot
+  make one panel a frame behind.
+- **One address to hang a wall with.** Eight televisions should not each be typed
+  by hand. A single QR/short link per screen (`aethrakairos.com/#3of8`) that a smart
+  TV browser can open, and a roster in the booth that shows which numbers have
+  reported in and which are still dark.
+- **Bandwidth and blast radius.** One channel, ~40 floats at 30 Hz, is nothing on a
+  single machine. Across a LAN (screens on other computers, which is what eight
+  panels really means) the transport becomes a WebSocket or WebRTC data channel and
+  the same packet crosses unchanged — the design deliberately never made
+  `BroadcastChannel` part of the contract.
+
+---
+
+### 1.2n The native shell: what the app owed the player
+
+- **The Catalog button did nothing, and took the audio with it.** `window.prompt()`.
+  wry's `WKUIDelegate` implements a file panel and a media-capture grant and *no
+  JavaScript dialogs at all*, so the call returned instantly while WebKit still
+  counted a dialog as open — no card, no typing, and a page whose media had been
+  suspended behind a panel that was never on screen. The player now asks in its own
+  voice (`ASK`), which is better in a browser too: a system prompt on top of a
+  fullscreen visual field was always the wrong texture. `stage_probe` makes reaching
+  for `window.prompt`, `confirm` or `alert` an error, so this cannot come back.
+- **The microphone said "blocked" for four different reasons.** A denied permission,
+  a machine with no input, a device held by another app and a browser with no
+  microphone API all arrived as one sentence. They are named now — and inside the app
+  the answer is somewhere the app cannot reach, so it says where (System Settings →
+  Privacy & Security → Microphone) and the shell opens that pane. The entitlement and
+  the usage string were already right; note also that `Cargo.lock` was not committed,
+  so every build resolved a fresh `wry` — including, before 0.55, one with no
+  media-capture grant at all. It is committed now: a native app whose dependencies
+  drift between builds cannot be debugged from a bug report.
+- **The app sold you the app.** `display-mode: standalone` is false in a WKWebView,
+  so every browser-shaped test for "already installed" let install copy through into
+  the Mac app. The stylesheet now refuses install affordances outright inside the
+  shell, rather than leaving it to script that a future path could route around.
+- **The native updater ignored every promise the player makes.** It checked on
+  launch, downloaded, installed and called `restart()` — no ask, no save, mid-set, no
+  matter what SHOW mode said, because the player was never told. The shell reports
+  now and the player decides: the same button, the same card, the same three choices,
+  the place saved first. And a native update NEVER applies itself — every gate that
+  protects a listener is a gate about *playing*, and replacing the running process is
+  not something a quiet moment licenses.
+- **The seam is one bridge and one origin.** `withGlobalTauri` plus a capability
+  whose `remote.urls` is exactly `https://aethrakairos.com` — the player is served
+  from the web, so that is the only way it can reach the shell at all, and pinning the
+  door to one origin is what keeps that reasonable. Every command is optional by
+  construction: `NATIVE.call()` resolves `null` when there is no shell, or when the
+  shell is an older build that never heard of the command, so features ship on the
+  web first and light up natively later with no version checks anywhere in the player.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature
@@ -956,6 +1119,18 @@ material, synced-lyrics format + renderer (corpus grows album by album),
 share kit (track/journey deep links, QR, story cards), offline albums
 (deliberate SW carve-out), local Replay/Wrapped from the existing history
 store.
+
+### Phase IV·5 — Stage presence *(the room, not the window)*
+- The stage screen, the folded booth and the travelling hand: **shipped**
+  (§1.2l). What remains is the wall — §1.2m has the list, and the first two
+  items are the ones a real stage will notice: the `uSlice` uniform that makes
+  fullscreen-shader scenes cut like the mesh scenes already do, and bezel
+  compensation so a continuous field stops stretching at every frame.
+- Then the transport question: eight panels means other machines, so the same
+  packet over a WebSocket/WebRTC channel instead of `BroadcastChannel` — the
+  contract was written so that this is a change of pipe, not of design.
+- And a clock good enough to cut on, which is the difference between eight
+  screens moving together and eight screens landing a hit on the same frame.
 
 ### Phase V — The engine's next generation *(the trailblazing)*
 - TSL/WebGPU migration (`three/webgpu`, one shader source, automatic WebGL2

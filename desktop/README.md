@@ -49,11 +49,44 @@ desktop/
   src-tauri/
     tauri.conf.json       # window, bundle (dmg), updater feed + public key
     Cargo.toml            # rust deps: tauri, updater, single-instance
-    src/lib.rs            # single-instance + startup self-update check
+    Cargo.lock            # COMMITTED on purpose — see below
+    src/lib.rs            # the shell's commands: info, update, mic, displays, stage, mini
     src/main.rs           # thin entry point
-    capabilities/         # v2 permissions (core + updater)
+    capabilities/         # v2 permissions (core + updater) + the remote origin
     icons/                # generated from docs/icons/icon-512.png
 ```
+
+## What the shell does for the player, and nothing more
+
+The player is served from `aethrakairos.com`, so it reaches the shell through
+`window.__TAURI__` — `withGlobalTauri` is on, and the capability's `remote.urls`
+pins that door to exactly that one origin. Every command is optional by
+construction: `NATIVE.call()` in the player resolves `null` when there is no
+shell at all, *or* when the shell is an older build that never heard of the
+command. Features therefore ship on the web first and light up natively later,
+with no version checks anywhere in the player.
+
+| command | why it cannot live in the web app |
+|---|---|
+| `native_info` | who is hosting the player, and what version |
+| `native_update_check` / `native_update_apply` | the signed feed — **reported**, never imposed |
+| `open_mic_settings` | once the mic is denied, only System Settings can undo it |
+| `list_displays` | a browser cannot name the screens attached to the machine |
+| `open_stage` / `close_stage` | a real window, fullscreen, on a chosen display |
+| `set_mini` | the booth folded into a corner, floating above everything |
+| `reload_shell` | the escape hatch past every cache |
+
+**The native update is offered, not imposed.** It used to check on launch,
+download, install and `restart()` — which can take the app down in the middle of
+a set, and which no amount of care in the player's own update policy could
+prevent, because the player was never asked. Now the shell reports, the player
+raises its ordinary update card, and `native_update_apply` runs after the place
+has been saved. See DESIGN §1.2n.
+
+**`Cargo.lock` is committed.** It was not, which meant every build resolved fresh
+dependencies — including `wry`, whose `WKUIDelegate` only grants WebKit's
+media-capture permission from 0.55 onwards. A native app whose dependencies drift
+silently between builds cannot be debugged from a bug report.
 
 ## Build locally (on a Mac)
 

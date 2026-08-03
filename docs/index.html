@@ -885,7 +885,117 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   box-shadow:0 18px 50px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
   opacity:0;transition:opacity .35s ease,transform .35s ease;
 }
-#updateCard.in,#skinCard.in{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+#updateCard.in,#skinCard.in,#askCard.in{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+/* ============ ASK — the app's own prompt/confirm ============
+   The native shell's webview implements no JavaScript dialogs at all (wry's
+   WKUIDelegate has a file panel and a media-capture grant and nothing else), so
+   window.prompt() returned null instantly and WebKit still counted a dialog as
+   open — which is how "Catalog" opened nothing and took the audio down with it.
+   The room asks in its own voice now, on every platform. */
+#askCard{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(16px);
+  top:calc(56px + env(safe-area-inset-top));z-index:80;
+  display:none;flex-direction:column;gap:10px;
+  width:min(92vw,430px);padding:15px 17px;border-radius:16px;text-align:left;
+  background:var(--sheen),var(--card);border:1px solid var(--accent-line);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  opacity:0;transition:opacity .3s ease,transform .3s ease;
+}
+#askCard .ask-body{font-size:12px;line-height:1.55;color:var(--ink);white-space:pre-line}
+#askCard input{
+  width:100%;box-sizing:border-box;padding:9px 11px;border-radius:10px;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--ink);
+  font-size:12.5px;font-family:inherit;letter-spacing:.02em;
+}
+#askCard input:focus{outline:none;border-color:var(--accent-line);box-shadow:0 0 14px -4px var(--accent-glow)}
+#askScrim{position:fixed;inset:0;z-index:79;display:none;background:rgba(3,5,12,.42);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+#askScrim.in{display:block}
+/* ============ inside the native shell ============
+   The app is not a page that wants to become an app. Whatever raises a
+   browser-install affordance — a captured beforeinstallprompt, a first-run
+   hint, a nudge to go and get the very app you are already running — is not
+   merely hidden by script here; the stylesheet refuses it outright, so no
+   future path can put an Install chip in the Mac app's top bar again. */
+html.native #btnInstall,html.native .fr-install,html.native #macPromo{display:none!important}
+
+/* ============ STAGE — the screen the audience sees ============
+   A stage screen is this same page with everything but the field switched off.
+   One rule does it, and it is a denylist by exception rather than a list of
+   panels to remember: whatever gets added to the app later is hidden here by
+   default, which is the right way round for a window pointed at an audience. */
+body.stage-screen > *:not(#glcanvas):not(#stageWait){display:none!important}
+body.stage-screen{cursor:none;background:#000}
+#stageWait{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;
+  display:flex;flex-direction:column;gap:7px;align-items:center;text-align:center;
+  font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--faint,#5c6a86);
+}
+#stageWait b{font-size:13px;letter-spacing:.42em;color:var(--ink,#eaf2ff)}
+#stageWait[hidden]{display:none!important}
+
+/* ============ the mini booth ============ */
+body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim){display:none!important}
+body.mini{background:var(--void,#05060c)}
+#miniBar{
+  position:fixed;right:16px;bottom:16px;z-index:70;width:min(94vw,360px);
+  display:flex;flex-direction:column;gap:8px;padding:11px 12px;border-radius:15px;
+  background:var(--sheen),var(--card);border:1px solid var(--accent-line);
+  box-shadow:0 16px 44px rgba(0,0,0,.55);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+}
+/* in the native shell the window IS the mini bar, so it fills it edge to edge */
+body.mini #miniBar{right:0;bottom:0;left:0;top:0;width:auto;border-radius:0;border:0;box-shadow:none}
+#miniBar[hidden]{display:none!important}
+.mini-head{display:flex;align-items:center;gap:8px}
+.mini-now{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mini-now b{font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-now span{font-size:9.5px;letter-spacing:.08em;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-screens{font-size:9px;letter-spacing:.14em;color:var(--accent);white-space:nowrap}
+.mini-x{
+  width:26px;height:26px;flex:0 0 26px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+  font-size:12px;line-height:1;display:grid;place-items:center;
+}
+.mini-x:hover{color:var(--ink);border-color:var(--accent-line)}
+#miniExpand[aria-expanded="true"]{transform:rotate(180deg)}
+.mini-row{display:flex;align-items:center;gap:7px}
+.mini-b{
+  height:34px;min-width:38px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--ink);
+  font-size:10px;letter-spacing:.06em;
+}
+.mini-b:hover{border-color:var(--accent-line)}
+.mini-play{min-width:46px;border-color:var(--accent-line);box-shadow:0 0 14px -6px var(--accent-glow)}
+/* THE PAD. The stage screen has no one standing at it, so the hand that bends
+   the field has to travel: this is that hand, one finger wide, in the corner of
+   the laptop the audience cannot see. */
+.mini-pad{
+  flex:1;height:34px;border-radius:10px;position:relative;overflow:hidden;cursor:crosshair;
+  border:1px dashed var(--line-soft);background:
+    radial-gradient(circle at 50% 50%,var(--accent-dim,rgba(110,231,255,.14)),transparent 70%),var(--glass);
+  touch-action:none;-webkit-user-select:none;user-select:none;
+}
+.mini-pad.live{border-style:solid;border-color:var(--accent-line)}
+.mini-pad-hint{
+  position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;
+  font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);
+}
+.mini-pad.live .mini-pad-hint{opacity:0}
+.mini-pad-dot{
+  position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
+  background:var(--accent,#6ee7ff);box-shadow:0 0 14px 2px var(--accent-glow);
+  opacity:0;transition:opacity .18s ease;pointer-events:none;
+}
+.mini-pad.live .mini-pad-dot{opacity:.95}
+.mini-more{display:flex;flex-wrap:wrap;gap:6px;padding-top:2px;border-top:1px solid var(--line-soft)}
+.mini-more[hidden]{display:none!important}
+.mini-more button{
+  height:28px;padding:0 10px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+}
+.mini-more button:hover{color:var(--ink);border-color:var(--accent-line)}
+.mini-more button.on{color:var(--ink);border-color:var(--accent-line);box-shadow:0 0 12px -5px var(--accent-glow)}
+@media (prefers-reduced-motion:reduce){.mini-pad-dot{transition:none}}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -1812,7 +1922,11 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9.3 9a2.8 2.8 0 1 1 3.9 2.6c-.9.4-1.2 1-1.2 1.9"/><circle cx="12" cy="17.2" r=".4" fill="currentColor"/><circle cx="12" cy="12" r="9.2"/></svg>
         <span class="lbl mob-only">Help</span>
       </button>
-      <button class="btn icon" id="btnFull" role="menuitem" aria-label="Toggle fullscreen">
+      <button class="btn" id="btnStage" role="menuitem" aria-label="Stage mode — put the field on a screen of its own" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="4.4" width="14" height="10" rx="1.6"/><path d="M21.4 8.2v9a1.6 1.6 0 0 1-1.6 1.6H7.6"/></svg>
+        <span class="lbl">Stage</span>
+      </button>
+      <button class="btn icon" id="btnFull" role="menuitem" aria-label="Toggle fullscreen — hold for stage mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
         <span class="lbl mob-only">Fullscreen</span>
       </button>
@@ -2285,7 +2399,7 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
       <div class="keyrow"><kbd>M</kbd> Mute</div>
       <div class="keyrow"><kbd>T</kbd> Tap the beat — lock the grid to your tap if it ever drifts</div>
       <div class="keyrow"><kbd>G</kbd> Skip to the next drop</div>
-      <div class="keyrow"><kbd>F</kbd> Fullscreen</div>
+      <div class="keyrow"><kbd>F</kbd> Fullscreen &nbsp;·&nbsp; <kbd>⇧F</kbd> Stage mode — the field on a screen of its own</div>
       <div class="keyrow"><kbd>I</kbd> Let the field play itself when you leave it alone — or don't</div>
       <div class="keyrow"><kbd>H</kbd> Hide interface</div>
       <div class="keyrow"><kbd>?</kbd> This panel</div>
@@ -2552,6 +2666,44 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   <div class="up-fine">Your pick is kept on this device. The live accent still follows each track's key — a skin sets the room it glows in.</div>
   <div class="bp-row">
     <button class="bp-later" id="skinClose" type="button">Close</button>
+  </div>
+</div>
+
+<!-- THE BOOTH, FOLDED INTO A CORNER. When the field is on a screen of its own,
+     this is all that is left in the operator's window: the transport, what is
+     playing, and a pad that puts a hand on the picture the room can see. The
+     chevron opens the rest — because the controls you need mid-set are three,
+     and the controls you need occasionally are twenty. -->
+<div id="miniBar" hidden role="group" aria-label="Mini player">
+  <div class="mini-head">
+    <button class="mini-x" id="miniExit" type="button" title="Leave stage mode" aria-label="Leave stage mode">⤢</button>
+    <div class="mini-now"><b id="miniTitle">—</b><span id="miniSub"></span></div>
+    <span class="mini-screens" id="miniScreens" title="Screens following the booth"></span>
+    <button class="mini-x" id="miniExpand" type="button" aria-expanded="false" aria-label="More controls">⌃</button>
+  </div>
+  <div class="mini-row">
+    <button class="mini-b" id="miniPrev" type="button" aria-label="Previous">◀◀</button>
+    <button class="mini-b mini-play" id="miniPlay" type="button" aria-label="Play or pause">▶</button>
+    <button class="mini-b" id="miniNext" type="button" aria-label="Next">▶▶</button>
+    <div class="mini-pad" id="miniPad" role="application" aria-label="Touch pad — your finger bends the field on the stage screen">
+      <span class="mini-pad-dot" id="miniPadDot" aria-hidden="true"></span>
+      <span class="mini-pad-hint">touch the field</span>
+    </div>
+  </div>
+  <div class="mini-more" id="miniMore" hidden></div>
+</div>
+<!-- a stage screen says one thing, and only when it has nothing to show -->
+<div id="stageWait" hidden><b>Stage screen</b><span id="stageWaitWhy">waiting for the booth…</span></div>
+
+<div id="askScrim" hidden></div>
+<div id="askCard" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+  <div class="bp-t"><b id="askTitle">Aethra Kairos</b></div>
+  <div class="ask-body" id="askBody"></div>
+  <input id="askInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" hidden>
+  <div class="bp-row">
+    <button class="bp-later" id="askNo" type="button">Cancel</button>
+    <span class="spring"></span>
+    <button class="bp-go" id="askYes" type="button">OK</button>
   </div>
 </div>
 
@@ -3373,6 +3525,12 @@ function dealScene(o){
 const UP_APPLY_CAP = 3;                    // automatic swaps allowed per session
 function updateGate(o){
   if (!o.ready || o.requested) return 'wait';
+  /* A NATIVE UPDATE IS NOT A RELOAD. It replaces the running process and takes
+     the window with it, so no timer, no track boundary and no quiet moment is
+     licence enough — a person asks for that one, always. The shell used to do it
+     on launch without asking anybody, which is the same failure seen from the
+     other end: an update policy the update did not go through. */
+  if (o.native) return 'wait';
   if (o.armed === 'afterTrack') return (o.trackChanged || !o.playing) ? 'apply' : 'wait';
   /* THE LOOP BRAKE. Applying an update reloads the page, and a reloaded page
      asks again — so if a swap ever fails to change what the shell reports (a
@@ -3441,9 +3599,117 @@ function updateOffer(o){
     if (s.build && s.build !== s.running) return 'show';
     return 'verify';
   }
+  /* THE SHELL, reporting a signed release it has seen on its own feed. That is a
+     measurement about a DIFFERENT artefact — the Mac app, not the player — so it
+     is never weighed against the player's build id, and an unnamed one is not a
+     claim at all. */
+  if (s.source === 'native') return s.build ? 'show' : 'ignore';
   if (s.build) return s.build === s.running ? 'ignore' : 'show';
   return 'verify';                                  // an unmeasured claim proves nothing
 }
+/* ================================================================
+   STAGE — one field, several screens, and the arithmetic that keeps
+   them one field.
+
+   A stage screen is the SAME player with its audio and its chrome switched
+   off, told what the booth's ears are hearing sixty times a second. It is not
+   a video feed and not a second renderer with its own opinions: every screen
+   runs the identical engine over identical numbers, which is why they agree.
+
+   The geometry below is the whole answer to "where does this screen cut into
+   the picture". N screens do not each draw their own little scene — they draw
+   ONE camera whose frustum is N times as wide, each taking its own sub-rectangle
+   of it (three.js's setViewOffset is exactly this primitive). A shape crossing
+   the seam leaves screen 2 and enters screen 3 at the same height, the same
+   size, the same instant, because there was only ever one shape.
+   ================================================================ */
+/* how N screens are arranged. A row is what a stage is: TVs side by side behind
+   the booth, one continuous horizon. Past four, a row gets so wide that each
+   screen sees a letterbox slit, so the arrangement folds into the squarest grid
+   that still fills — which is also how a video wall is actually built. */
+function stageGrid(of, mode){
+  let n = Math.floor(Number(of));
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  n = Math.min(n, 16);
+  if (mode === 'row') return { cols: n, rows: 1 };
+  if (mode === 'column') return { cols: 1, rows: n };
+  if (n <= 4) return { cols: n, rows: 1 };
+  const cols = Math.ceil(Math.sqrt(n));
+  return { cols, rows: Math.ceil(n / cols) };
+}
+/* the sub-rectangle THIS screen draws, in the units setViewOffset wants.
+   Screens are numbered from 1, reading left to right and then down — the order
+   someone hanging them counts them in. An out-of-range index is clamped rather
+   than refused: a screen showing the wrong slice is a fixable mistake on the
+   night, a screen showing nothing is not. */
+function stageSlice(screen, of, mode){
+  const g = stageGrid(of, mode);
+  const total = g.cols * g.rows;
+  let i = Math.floor(Number(screen)) - 1;
+  if (!Number.isFinite(i) || i < 0) i = 0;
+  if (i > total - 1) i = total - 1;
+  return {
+    cols: g.cols, rows: g.rows,
+    col: i % g.cols, row: Math.floor(i / g.cols),
+    // fractions of the whole field, so the caller can scale by any pixel size
+    fx: (i % g.cols) / g.cols, fy: Math.floor(i / g.cols) / g.rows,
+    fw: 1 / g.cols, fh: 1 / g.rows,
+  };
+}
+/* what a screen was ASKED to be, read from its own address bar. The address is
+   the whole configuration: a screen can be opened by the native shell, by a
+   window the operator dragged onto a TV, or by a URL typed into a smart TV's
+   browser on the other side of the room, and all three arrive the same way. */
+function stageRole(search){
+  const q = {};
+  String(search || '').replace(/^\?/, '').split('&').forEach(p => {
+    const i = p.indexOf('=');
+    if (i > 0) q[decodeURIComponent(p.slice(0, i))] = decodeURIComponent(p.slice(i + 1).replace(/\+/g, ' '));
+  });
+  const num = (v, d) => {
+    const n = Math.floor(Number(v));
+    return Number.isFinite(n) && n >= 1 ? Math.min(n, 16) : d;
+  };
+  const on = q.stage === 'screen' || q.stage === '1' || q.stage === 'true';
+  const of = num(q.of, 1);
+  return {
+    role: on ? 'screen' : 'booth',
+    screen: Math.min(num(q.screen, 1), of),
+    of,
+    mode: q.wall === 'row' || q.wall === 'column' || q.wall === 'grid' ? q.wall : 'auto',
+  };
+}
+/* THE PACKET. A fixed, flat list of names — nothing else crosses. A stage
+   screen renders whatever it is told, so "whatever it is told" is the one place
+   a mistake could reach the audience: every field is a number, clamped on
+   arrival, and a packet missing half of itself leaves the rest of the field
+   exactly as it was rather than snapping to zero. */
+const STAGE_FIELDS = [
+  'bass', 'mid', 'treble', 'energy', 'beat', 'piE', 'eE', 'piAcc', 'eAcc',
+  'piPhase', 'ePhase', 'coupling', 'entropy', 'centroid', 'calm', 'bpm',
+];
+function stageApplyFeat(dst, src){
+  if (!dst || !src) return dst;
+  for (const k of STAGE_FIELDS){
+    const v = Number(src[k]);
+    if (Number.isFinite(v)) dst[k] = v;
+  }
+  return dst;
+}
+/* THE CLOCK BETWEEN MACHINES. Every screen has its own performance.now() with
+   its own zero, so the booth stamps each packet and each screen keeps a smoothed
+   estimate of the difference. Smoothed, because a single late packet is a fact
+   about the network and not about time — and clamped, because a screen whose
+   clock is minutes out is better off slightly wrong than lurching. */
+function stageOffset(prev, sentAt, now){
+  const d = Number(now) - Number(sentAt);
+  if (!Number.isFinite(d)) return Number.isFinite(prev) ? prev : 0;
+  const clamped = Math.max(-5000, Math.min(5000, d));
+  if (!Number.isFinite(prev)) return clamped;
+  // a jump of more than a second is a new clock, not a slow packet: take it
+  return Math.abs(clamped - prev) > 1000 ? clamped : prev + (clamped - prev) * 0.05;
+}
+
 /* what an offer IS, as one comparable string: the build this page is running,
    and the best name the claim has for what it would bring (a build id, else the
    fingerprint of the shell the worker measured, else bare provenance). Two
@@ -3759,6 +4025,63 @@ function toast(html){
   while (el.toasts.children.length > 3) el.toasts.firstChild.remove();
 }
 
+/* ASK — the room's own prompt() and confirm().
+   Not a style preference: the native shell hosts a WKWebView whose UI delegate
+   implements no JavaScript dialogs at all, so window.prompt() returned null the
+   instant it was called and WebKit still treated a dialog as open — the Catalog
+   button "did nothing", and the page's media was suspended behind a panel that
+   was never on screen. A dialog the app draws itself works everywhere, can be
+   dismissed, and never touches the audio.
+   One at a time by construction: a second ask resolves the first as cancelled
+   rather than stacking two cards on one another. */
+const ASK = {
+  _done: null,
+  _key: null,
+  /* text(): resolves the typed string, or null if cancelled/unavailable.
+     confirm(): resolves true only on a deliberate yes. */
+  text(o){ return this._open(Object.assign({ input: true }, o)); },
+  confirm(o){ return this._open(Object.assign({ input: false }, o)).then(v => v !== null); },
+  _open(o){
+    const card = document.getElementById('askCard'), scrim = document.getElementById('askScrim');
+    const body = document.getElementById('askBody'), input = document.getElementById('askInput');
+    const yes = document.getElementById('askYes'), no = document.getElementById('askNo');
+    const title = document.getElementById('askTitle');
+    if (!card || !body || !input || !yes || !no) return Promise.resolve(null);
+    this._close(null);                          // never two at once
+    title.textContent = o.title || 'Aethra Kairos';
+    body.textContent = o.body || '';
+    input.hidden = !o.input;
+    input.value = o.input ? (o.value || '') : '';
+    input.placeholder = o.placeholder || '';
+    yes.textContent = o.ok || 'OK';
+    no.textContent = o.cancel || 'Cancel';
+    if (scrim){ scrim.hidden = false; scrim.classList.add('in'); }
+    card.classList.add('in');
+    const finish = v => this._close(v);
+    yes.onclick = () => finish(o.input ? input.value : '');
+    no.onclick = () => finish(null);
+    if (scrim) scrim.onclick = () => finish(null);
+    this._key = ev => {
+      if (ev.key === 'Escape'){ ev.preventDefault(); finish(null); }
+      else if (ev.key === 'Enter' && (o.input || document.activeElement !== no)){
+        ev.preventDefault(); finish(o.input ? input.value : '');
+      }
+    };
+    document.addEventListener('keydown', this._key, true);
+    // focus after the transition starts, so the caret lands with the card
+    setTimeout(() => { try { (o.input ? input : yes).focus(); if (o.input) input.select(); } catch (e){} }, 60);
+    return new Promise(res => { this._done = res; });
+  },
+  _close(v){
+    const card = document.getElementById('askCard'), scrim = document.getElementById('askScrim');
+    if (card) card.classList.remove('in');
+    if (scrim){ scrim.classList.remove('in'); scrim.hidden = true; scrim.onclick = null; }
+    if (this._key){ document.removeEventListener('keydown', this._key, true); this._key = null; }
+    const done = this._done; this._done = null;
+    if (done) done(v);
+  },
+};
+
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ================================================================
@@ -3789,6 +4112,58 @@ const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
    native features build on. */
 const IS_NATIVE = / AethraKairosNative\//.test(navigator.userAgent);
 if (IS_NATIVE) document.documentElement.classList.add('native');
+
+/* THE NATIVE BRIDGE — one thin seam, and everything on the far side is optional.
+   The shell exposes a handful of commands the web cannot do for itself: place a
+   window on a chosen display, sit in a corner above everything, open the macOS
+   privacy pane, reload past every cache. Each call is a no-op that resolves null
+   when the shell is a browser, or an older build of the app that predates the
+   command — so a feature can ship on the web first and light up natively later
+   without a version check anywhere in the player. */
+const NATIVE = {
+  info: null,                    // { version, os } once the shell answers
+  _api(){
+    const t = window.__TAURI__;
+    return (IS_NATIVE && t && t.core && typeof t.core.invoke === 'function') ? t.core : null;
+  },
+  ready(){ return !!this._api(); },
+  async call(cmd, args){
+    const api = this._api();
+    if (!api) return null;
+    try { return await api.invoke(cmd, args || {}); }
+    catch (e){ return null; }     // an unknown command is a capability we do not have
+  },
+  async on(name, cb){
+    const t = window.__TAURI__;
+    if (!this.ready() || !t.event || typeof t.event.listen !== 'function') return;
+    try { await t.event.listen(name, cb); } catch (e){}
+  },
+  async boot(){
+    if (!this.ready()) return null;
+    this.info = await this.call('native_info');
+    if (this.info && this.info.version)
+      ACTIVITY.log('system', 'Running in the Mac app ' + this.info.version);
+    /* THE NATIVE UPDATE, OFFERED THROUGH THE SAME DOOR. The shell used to
+       download and install on launch and then restart the process — under a live
+       set, with no warning, and with every piece of the player's own careful
+       update policy bypassed because the player was never told. Now the shell
+       reports and this raises the ordinary offer: the same button, the same
+       card, the same three choices, the same save-first. */
+    this.on('native-update', ev => {
+      const v = (ev && ev.payload) ? String(ev.payload) : '';
+      NATIVE.pending = v;
+      offerUpdate('native', v, '');
+    });
+    this.on('native-update-none', () => {
+      if (UPDATE.source === 'native') withdrawOffer('the Mac app is already the newest', true);
+      else toast('The Mac app is up to date');
+    });
+    // the screen went away — by a close box, a person, or a yanked cable
+    this.on('stage-closed', () => { if (STAGE.on) STAGE.stop(); });
+    return this.info;
+  },
+  pending: '',
+};
 
 /* a real Mac desktop browser — not iOS (IS_IOS already catches iPad-as-Mac),
    and not the native app itself. The audience for the "get the Mac app" nudge.
@@ -4332,6 +4707,16 @@ async function toggleMic(){
     toast('Microphone off');
     return;
   }
+  /* A MISSING API IS NOT A REFUSED ONE. An insecure origin (plain http on a
+     LAN copy) has no navigator.mediaDevices at all, and calling into undefined
+     threw a TypeError that arrived as the same "blocked" toast as a denial —
+     three different problems wearing one sentence. */
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toast(location.protocol === 'https:' || location.hostname === 'localhost'
+      ? 'This browser has no microphone API'
+      : 'The microphone needs a secure page — open this over <b>https</b>');
+    return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
@@ -4352,7 +4737,26 @@ async function toggleMic(){
     el.trackTitle.classList.remove('idle');
     toast('Listening — the visuals follow the room');
   } catch (err){
-    toast('Microphone access was blocked');
+    /* NAME THE REFUSAL. "Blocked" covered a denied permission, a machine with no
+       input, a device held by another app and a browser that has no microphone
+       API — and on the Mac app the answer is somewhere the app cannot reach
+       (System Settings), so it has to say where. */
+    const name = (err && err.name) || '';
+    if (name === 'NotAllowedError' || name === 'SecurityError'){
+      if (IS_NATIVE){
+        toast('The microphone is off for Aethra Kairos — turn it on in <b>System Settings → Privacy &amp; Security → Microphone</b>');
+        NATIVE.call('open_mic_settings');           // no-op unless the shell offers it
+      } else {
+        toast('Microphone access was refused — allow it for this site and tap <b>Mic</b> again');
+      }
+    } else if (name === 'NotFoundError' || name === 'OverconstrainedError'){
+      toast('No microphone was found on this device');
+    } else if (name === 'NotReadableError'){
+      toast('The microphone is busy in another app');
+    } else {
+      toast('The microphone could not start' + (name ? ' — ' + escapeHTML(name) : ''));
+    }
+    ACTIVITY.log('system', 'Microphone did not start' + (name ? ' (' + name + ')' : ''));
   }
 }
 
@@ -9042,10 +9446,13 @@ function renderPlaylistShelf(list){
     bX.addEventListener('click', () => PLAYLISTS.exportFile(pl.name));
     const bD = document.createElement('button'); bD.textContent = '✕'; bD.title = 'Delete';
     bD.setAttribute('aria-label', 'Delete playlist ' + pl.name);
-    bD.addEventListener('click', () => {
-      if (confirm('Delete playlist "' + pl.name + '"? The tracks stay; only the list goes.')){
-        PLAYLISTS.remove(pl.name); renderLibrary();
-      }
+    bD.addEventListener('click', async () => {
+      const go = await ASK.confirm({
+        title: 'Delete playlist',
+        body: 'Delete "' + pl.name + '"? The tracks stay — only the list goes.',
+        ok: 'Delete', cancel: 'Keep it',
+      });
+      if (go){ PLAYLISTS.remove(pl.name); renderLibrary(); }
     });
     const { panel, toggle, exp } = attachPanel(row, () => PLAYLISTS.resolve(pl), {
       playlistName: pl.name,
@@ -10008,8 +10415,12 @@ async function conRenderSaved(){
 }
 el.conSave.addEventListener('click', async () => {
   if (!CON.lastDeal) return;
-  const name = window.prompt('Name this journey:', CON.lastDeal.mode + ' · ' + new Date().toLocaleDateString());
-  if (!name) return;
+  const name = await ASK.text({
+    title: 'Name this journey',
+    body: 'Saved as dials and a seed, so it can re-deal against a library that has grown since.',
+    value: CON.lastDeal.mode + ' · ' + new Date().toLocaleDateString(), ok: 'Save',
+  });
+  if (!name || !name.trim()) return;
   await DB.journeyPut(Object.assign({ name, savedAt: Date.now() }, CON.lastDeal));
   toast('Saved <b>' + escapeHTML(name) + '</b> — dials and seed, so it can re-deal against a grown library');
   conRenderSaved();
@@ -10064,8 +10475,12 @@ el.conClose.addEventListener('click', () => openConsole(false));
 el.consolePanel.addEventListener('click', ev => { if (ev.target === el.consolePanel) openConsole(false); });
 
 /* forget-everything: typed RESET, mirroring the wizard's ledger UX */
-function forgetHistoryFlow(){
-  const typed = window.prompt('This erases the play history used for recommendations.\nFavorites and saved journeys stay.\n\nType RESET to confirm:');
+async function forgetHistoryFlow(){
+  const typed = await ASK.text({
+    title: 'Erase play history',
+    body: 'This erases the play history used for recommendations.\nFavorites and saved journeys stay.\n\nType RESET to confirm:',
+    placeholder: 'RESET', ok: 'Erase', value: '',
+  });
   if (typed === 'RESET'){
     HIST.forgetEverything().then(() => toast('Play history cleared — it starts fresh from here.'));
   } else if (typed != null){
@@ -11495,6 +11910,7 @@ document.getElementById('mixExport').addEventListener('click', () => {
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
+  if (IS_NATIVE) return;             // the shell IS the install — never offer another
   deferredInstall = e;
   el.btnInstall.hidden = false;                    // an affordance, never a nag
   // if the welcome card is already up, upgrade its hint to a one-tap button
@@ -11524,7 +11940,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'b3c47720be';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '73655bab01';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -11536,7 +11952,7 @@ const UPDATE = {
   deferrals: 0,          // how many times this listener has said "later"
   lastRemindAt: 0,       // the snooze a reminder has already answered
   _armCur: -1,           // player.cur when "after this track" was armed
-  ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell'; },
+  ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell' || this.source === 'native'; },
   /* how many times THIS session has already swapped. Session-scoped on purpose:
      a genuine sequence of deploys across a long day should each land, but a
      page caught reloading itself must run out of rope in seconds. */
@@ -11827,11 +12243,17 @@ function raiseOffer(source, build, print){
   maybeAutoApply();
 }
 function maybeAutoApply(){
+  /* A STAGE SCREEN NEVER APPLIES ANYTHING BY ITSELF. Nothing is playing on it —
+     the music is a room away in the booth — so every gate that protects a
+     listener reads "idle, go ahead" and a screen facing an audience would
+     reload itself mid-set. It updates when it is next opened. */
+  if (typeof STAGE !== 'undefined' && STAGE.screen()) return;
   const verdict = updateGate({
     ready: UPDATE.ready(), requested: updateRequested,
     armed: UPDATE.armed,
     trackChanged: UPDATE.armed === 'afterTrack' && player.cur !== UPDATE._armCur,
     playing: player.playing,
+    native: UPDATE.source === 'native',
     show: typeof POWER !== 'undefined' && POWER.mode === 'show',
     snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),
     applies: UPDATE.applies(),
@@ -11894,6 +12316,11 @@ function updateRecover(){
 }
 function applyUpdate(){
   if (updateRequested) return;                 // one swap at a time, ever
+  /* THE NATIVE PATH LEAVES BY A DIFFERENT DOOR. There is no worker to hand over
+     and no shell to reload: the shell downloads a signed build, replaces itself
+     and comes back. Everything before that is identical — the place is saved
+     first, and the swap is one a person asked for. */
+  if (UPDATE.source === 'native'){ applyNativeUpdate(); return; }
   /* A TAP IS NEVER A NO-OP. This used to read `if (!ready()) { hide the
      button; return; }` — and that is exactly how the Update button came to do
      nothing at all. The state is real and easy to reach: a SIBLING CLIENT (a
@@ -11945,6 +12372,36 @@ function applyUpdate(){
     else if (step === 'recover') updateRecover();
   }, 500);
 }
+/* THE MAC APP'S OWN SWAP. The place is saved, the offer is remembered exactly
+   like any other, and then the process is handed to the shell. If the feed has
+   nothing after all (the offer was stale), the command succeeds without
+   restarting and the card withdraws itself rather than leaving a dead
+   "Updating…" on screen. */
+async function applyNativeUpdate(){
+  updateRequested = true;
+  UP_RUN.t0 = Date.now();
+  UPDATE.remember(updateOfferKey('native-' + ((NATIVE.info && NATIVE.info.version) || '?'), UPDATE.newBuild || 'native'));
+  try { PERSIST.save(); } catch (e){}
+  ACTIVITY.log('update', 'Applying the Mac app update ' + (UPDATE.newBuild || ''));
+  updateCardOpen(false);
+  el.btnUpdate.hidden = false;
+  el.btnUpdate.disabled = true;
+  const lbl = el.btnUpdate.querySelector('.lbl');
+  if (lbl) lbl.textContent = 'Updating…';
+  upProgressStart();
+  const r = await NATIVE.call('native_update_apply');
+  // still here? then the shell did not restart — say so and hand the app back
+  updateRequested = false;
+  upProgressStop(false);
+  el.btnUpdate.disabled = false;
+  if (lbl) lbl.textContent = 'Update';
+  if (r === null){
+    ACTIVITY.log('update', 'The Mac app update did not land - the app is unchanged');
+    toast('That update didn\'t install — nothing lost, the app is unchanged');
+  } else {
+    withdrawOffer('the Mac app is already the newest', true);
+  }
+}
 // the page is actually leaving — finish the bar honestly and stand down
 window.addEventListener('pagehide', () => {
   if (!updateRequested) return;
@@ -11984,9 +12441,25 @@ function updateCardOpen(open){
     if (n) n.hidden = false;
   }
   const b = document.getElementById('upBuilds');
-  if (b) b.textContent = MB8_BUILD + ' → ' + (UPDATE.newBuild || 'new');
+  const native = UPDATE.source === 'native';
+  if (b) b.textContent = native
+    ? ((NATIVE.info && NATIVE.info.version) || 'this app') + ' → ' + (UPDATE.newBuild || 'new')
+    : MB8_BUILD + ' → ' + (UPDATE.newBuild || 'new');
+  if (t) t.textContent = native ? 'Mac app update ready' : 'Update ready';
+  /* THE MAC APP IS A DIFFERENT ARTEFACT AND SAYS SO. Its changelog is not the
+     player's — news.json describes the deploy this page came from, which the
+     listener already has — and its two soft choices do not exist: there is no
+     track boundary to slip a process restart into. */
+  const after = document.getElementById('upAfter');
+  if (after) after.hidden = native;
+  const applyNote = document.getElementById('upApplyNote');
+  if (native && applyNote)
+    applyNote.textContent = 'The app saves your place, installs, and reopens — the music resumes paused where it was. Nothing here updates by itself.';
   const list = document.getElementById('upNotes');
-  if (list){
+  if (list && native){
+    list.innerHTML = '<li><b>The Mac app itself</b> — a new signed build of the shell that hosts the player. '
+      + 'The player inside it is already the newest; this is the window, the menu and the native plumbing.</li>';
+  } else if (list){
     list.innerHTML = '<li>Fetching the log…</li>';
     // page-side timeout too (the worker has its own): a first visit with no
     // worker yet must not leave "Fetching…" hanging on a black-holed request
@@ -13834,11 +14307,18 @@ document.querySelectorAll('.sortbtn').forEach(b => {
   b.addEventListener('click', () => { player.sortBy(b.dataset.sort); syncSortButtons(); });
 });
 
-/* catalog */
+/* catalog — asked in the room's own voice. This used to be window.prompt(), which
+   is the single line that made CATALOG look broken inside the Mac app: the native
+   webview draws no JavaScript dialogs, so nothing appeared, nothing was typed, and
+   the page sat behind a panel WebKit believed was open. */
 const openCatalogPrompt = async () => {
   const guess = catalog.url || 'catalog.json';
-  const url = window.prompt('Catalog manifest URL (JSON):', guess);
-  if (!url) return;
+  const url = await ASK.text({
+    title: 'Load a catalog',
+    body: 'Point the player at any catalog.json — your own library, or someone else\u2019s. That host needs CORS on the JSON.',
+    value: guess, placeholder: 'https://…/catalog.json', ok: 'Load',
+  });
+  if (!url || !url.trim()) return;
   const okLoad = await catalog.load(url.trim());
   if (okLoad) syncSortButtons();
 };
@@ -13883,12 +14363,52 @@ document.querySelectorAll('#help .cmd-copy').forEach(btn => {
 document.getElementById('btnForget').addEventListener('click', () => forgetHistoryFlow());
 el.help.addEventListener('click', ev => { if (ev.target === el.help) openHelp(false); });
 
-/* fullscreen */
+/* fullscreen — and the door beside it.
+   A tap is still exactly a tap: fullscreen, here, instantly. But "make this
+   big" and "put this on the television" are the same intention arriving at the
+   same button, so a HOLD (or a right-click, or shift) opens the stage chooser
+   instead. The Stage chip in the bar is the same thing said out loud, for
+   anyone who never discovers a long press. */
 function toggleFullscreen(){
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(() => toast('Fullscreen was blocked'));
 }
-el.btnFull.addEventListener('click', toggleFullscreen);
+let fullHold = 0, fullHeld = false;
+el.btnFull.addEventListener('click', ev => {
+  if (fullHeld){ fullHeld = false; return; }     // the hold already answered
+  if (ev.shiftKey || ev.altKey){ stageChooser(); return; }
+  toggleFullscreen();
+});
+el.btnFull.addEventListener('contextmenu', ev => { ev.preventDefault(); stageChooser(); });
+el.btnFull.addEventListener('pointerdown', () => {
+  fullHeld = false;
+  clearTimeout(fullHold);
+  fullHold = setTimeout(() => { fullHeld = true; stageChooser(); }, 480);
+});
+for (const e of ['pointerup', 'pointerleave', 'pointercancel'])
+  el.btnFull.addEventListener(e, () => clearTimeout(fullHold));
+const btnStage = document.getElementById('btnStage');
+if (btnStage) btnStage.addEventListener('click', () => stageChooser());
+/* the chooser: on or off, and how many screens. Kept to one card because the
+   only question that matters at 1 a.m. is "how many televisions are there". */
+async function stageChooser(){
+  if (STAGE.on){
+    const off = await ASK.confirm({
+      title: 'Stage mode',
+      body: 'The field is on ' + (STAGE.live() === 1 ? 'a screen' : STAGE.live() + ' screens') + ' of its own.\n\nBring it back into this window?',
+      ok: 'Bring it back', cancel: 'Leave it running',
+    });
+    if (off) STAGE.stop();
+    return;
+  }
+  const n = await ASK.text({
+    title: 'Stage mode',
+    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nHow many screens?',
+    value: '1', placeholder: '1', ok: 'Open the stage',
+  });
+  if (n === null) return;
+  await STAGE.open(Number(n) || 1);
+}
 
 /* the mobile More menu — folds the secondary controls into one sheet */
 function setMore(open){
@@ -14159,7 +14679,10 @@ window.addEventListener('keydown', ev => {
     case 'd': case 'D': BOOTH.toggle(); break;
     case 'm': case 'M': toggleMute(); break;
     case 't': case 'T': TAP.hit(); break;
-    case 'f': case 'F': toggleFullscreen(); break;
+    case 'f': toggleFullscreen(); break;
+    // the same intention, one shift away — and the same chord the Mac app's
+    // View menu uses, so the two ways in agree
+    case 'F': stageChooser(); break;
     case 'a': case 'A': director.setAuto(true); break;
     case 'g': case 'G': player.jumpToDrop(); break;
     case 'h': case 'H':
@@ -19375,6 +19898,383 @@ function stepBeatSpring(drive, dt){
   return _beatSpX;
 }
 
+/* ================================================================
+   §8z · STAGE — the field on a screen of its own
+   ================================================================
+   The booth keeps the music, the library, the decks and every control. A stage
+   screen keeps the picture. They are the SAME page: one is told to be a screen
+   by its own address, switches its chrome and its audio off, and then renders
+   whatever the booth's ears are hearing.
+
+   Why not stream a canvas? Because sixty frames of pixels a second across a
+   window boundary is the one thing a laptop driving a PA cannot afford, and
+   because pixels lose the thing that matters — a screen that has the NUMBERS
+   can render at its own resolution, on its own GPU, at its own refresh rate,
+   and take its own slice of the field (see stageSlice). The wire carries about
+   forty floats. The picture is drawn where it is shown.
+
+   Everything here degrades to nothing when there is no second screen: no
+   BroadcastChannel support, no native shell, a blocked popup — the booth simply
+   stays a booth, and says so. */
+const STAGE = {
+  cfg: (typeof stageRole === 'function') ? stageRole(location.search) : { role: 'booth', screen: 1, of: 1, mode: 'auto' },
+  chan: null,
+  on: false,                 // booth: a stage is running
+  mini: false,               // booth: folded into the corner
+  peers: new Map(),          // booth: screen number → last heard from
+  wins: [],                  // booth: windows we opened ourselves (web path)
+  last: null,                // screen: the newest packet
+  offset: NaN,               // screen: this machine's clock minus the booth's
+  seenAt: 0,                 // screen: when the booth last spoke
+  _acc: 0, _padId: null,
+
+  screen(){ return this.cfg.role === 'screen'; },
+
+  boot(){
+    try { this.chan = new BroadcastChannel('mb8-stage-v1'); }
+    catch (e){ this.chan = null; }                      // no channel: no stage, no crash
+    if (this.chan) this.chan.onmessage = ev => this.recv(ev.data);
+    if (this.screen()) this.becomeScreen();
+    else this.wireBooth();
+    // a screen that is closed, or a booth that is quit, should not leave the
+    // other side waiting for a partner that will never speak again
+    window.addEventListener('pagehide', () => {
+      this.send({ t: this.screen() ? 'screen-gone' : 'booth-gone', screen: this.cfg.screen });
+    });
+  },
+  send(m){ try { if (this.chan) this.chan.postMessage(m); } catch (e){} },
+
+  /* ---------------- the screen ---------------- */
+  becomeScreen(){
+    document.body.classList.add('stage-screen');
+    document.documentElement.classList.add('stage-screen');
+    const wait = document.getElementById('stageWait');
+    if (wait) wait.hidden = false;
+    // no transport, no ghost, no director of its own: this screen has one job
+    try { director.auto = false; } catch (e){}
+    try { if (typeof GHOST !== 'undefined') GHOST.on = false; } catch (e){}
+    // silence, belt and braces — a stage screen that made a sound would be a
+    // second copy of the music a room's width away from the first
+    try { if (AE.master && AE.master.gain) AE.master.gain.value = 0; } catch (e){}
+    this.applySlice();
+    window.addEventListener('resize', () => this.applySlice());
+    this.send({ t: 'here', screen: this.cfg.screen, of: this.cfg.of });
+    setInterval(() => {
+      this.send({ t: 'here', screen: this.cfg.screen, of: this.cfg.of });
+      // the booth has gone quiet: say so rather than hold a frozen picture
+      const idle = performance.now() - this.seenAt;
+      if (wait && this.seenAt) wait.hidden = idle < 4000;
+      const why = document.getElementById('stageWaitWhy');
+      if (why && this.seenAt && idle >= 4000) why.textContent = 'the booth stopped speaking';
+    }, 2000);
+  },
+  /* THE CUT. One camera, N screens wide; this screen takes its own rectangle of
+     it. Mesh scenes and the backdrop are continuous across the seam by
+     construction — there is one frustum, and each screen is a window into it. */
+  applySlice(){
+    // the camera may not exist yet — boot order is not ours to assume, so this
+    // is safe to call early, often, and again after every resize
+    if (!this.screen() || typeof camera === 'undefined' || !camera) return;
+    this._sliced = true;
+    const s = stageSlice(this.cfg.screen, this.cfg.of, this.cfg.mode === 'auto' ? null : this.cfg.mode);
+    const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
+    const fullW = w / s.fw, fullH = h / s.fh;
+    for (const c of [camera, typeof bgCam !== 'undefined' ? bgCam : null]){
+      if (!c) continue;
+      if (s.cols === 1 && s.rows === 1){ c.clearViewOffset(); c.aspect = w / h; }
+      else { c.setViewOffset(fullW, fullH, s.fx * fullW, s.fy * fullH, w, h); c.aspect = fullW / fullH; }
+      c.updateProjectionMatrix();
+    }
+  },
+  /* the numbers, on the frame they arrive. Called from frame() after the local
+     (silent) analysis, so everything downstream — uniforms, dance, colour,
+     safety — runs on the booth's reading exactly as if it were this machine's. */
+  pull(){
+    const p = this.last;
+    if (!p) return;
+    stageApplyFeat(AE.f, p.f);
+    if (p.clock){
+      CLOCK.haveGrid = !!p.clock.g;
+      CLOCK.idx = p.clock.i | 0;
+      CLOCK.barPhase = Number(p.clock.b) || 0;
+      CLOCK.bpm = Number(p.clock.t) || 0;
+    }
+    if (p.dance){
+      DANCE.pulse = Number(p.dance.p) || 0;
+      DANCE.warp = Number(p.dance.w) || 0;
+      DANCE.ear = Number(p.dance.e);
+      DANCE.brace = Number(p.dance.b) || 0;
+      DANCE.phraseFrac = Number(p.dance.f) || 0;
+      DANCE.haveGrid = !!p.dance.g;
+      if (!Number.isFinite(DANCE.ear)) DANCE.ear = 1;
+    }
+    if (p.dir){
+      director.act = p.dir.a | 0; director.actT = Number(p.dir.t) || 0;
+      director.phase = p.dir.p || 'flow';
+      director.moodC = Number(p.dir.c) || 0; director.warmT = Number(p.dir.w) || 0;
+      if (Number.isFinite(Number(p.dir.ceil))) director.ceil = Number(p.dir.ceil);
+      if (typeof p.dir.s === 'number' && p.dir.s !== director.active && director.transT >= 1)
+        director.setScene(p.dir.s, false);
+    }
+    // the light: the booth's own chord, dropped straight in. Everything the
+    // colour engine does ON TOP of it — the wash, the arc's warmth, the ramp —
+    // is computed here from the same base, so the rooms match without the
+    // screen needing a track, a key or a catalog.
+    if (p.col && p.col.length === 3){
+      COLOR.now = p.col.map(c => ({ l: c[0], c: c[1], h: c[2] }));
+      COLOR.target = COLOR.now; COLOR.from = COLOR.now; COLOR.glideT = 1;
+    }
+    if (p.lens && typeof LENS.set === 'function' && LENS.active !== p.lens) LENS.set(p.lens, false);
+    if (p.skin && typeof SKIN !== 'undefined' && SKIN.key !== p.skin) SKIN.apply(p.skin, true);
+  },
+  /* THE ARC AND THE CAMERA, RE-APPLIED AFTER THE LOCAL DIRECTOR HAS RUN.
+     A stage screen still runs director.update() — that is where the scenes
+     themselves animate — and that pass recomputes the act, the phase and the
+     camera from ITS reading of the room, which is a reading of silence. So the
+     booth's arc lands twice: once early (the hue uniform is set before the
+     director runs) and once here, where the colour engine will read it.
+     The camera is sent as a POSE rather than as the dials that produce one.
+     Two screens deriving a camera from the same dials is two chances to
+     diverge — a different frame time, a rounding, a scene that nudged the
+     dolly — and the seam between two televisions is exactly where a divergence
+     of half a degree becomes a visible tear. */
+  arc(){
+    const p = this.last;
+    if (!p) return;
+    if (p.dir){
+      director.act = p.dir.a | 0; director.actT = Number(p.dir.t) || 0;
+      director.phase = p.dir.p || 'flow';
+      director.moodC = Number(p.dir.c) || 0; director.warmT = Number(p.dir.w) || 0;
+      if (Number.isFinite(Number(p.dir.ceil))) director.ceil = Number(p.dir.ceil);
+    }
+    const c = p.cam;
+    if (c && c.length === 8 && typeof camera !== 'undefined' && camera){
+      camera.position.set(c[0], c[1], c[2]);
+      camera.quaternion.set(c[3], c[4], c[5], c[6]);
+      if (camera.fov !== c[7]){ camera.fov = c[7]; camera.updateProjectionMatrix(); }
+    }
+  },
+  /* the hand, applied after the local ghost has had its say and before the
+     spring reads it — the same fields a finger on this glass would have set */
+  hand(){
+    const p = this.last;
+    if (!p || !p.hand) return;
+    INTERACT.px = Number(p.hand.x) || 0;
+    INTERACT.py = Number(p.hand.y) || 0;
+    INTERACT.dragging = !!p.hand.d;
+    INTERACT.synth = !!p.hand.d;          // never buzz a hand that is not here
+    INTERACT.cap = 1;
+  },
+
+  /* ---------------- the booth ---------------- */
+  wireBooth(){
+    const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
+    on('miniExit', () => this.stop());
+    on('miniPlay', () => player.toggle());
+    on('miniPrev', () => player.prev());
+    on('miniNext', () => player.next());
+    on('miniExpand', () => this.expand());
+    this.wirePad();
+  },
+  /* THE PAD → THE FIELD. A drag here is a finger on the stage screen: the same
+     normalized coordinates a real touch would produce, applied to this window's
+     own hand so the operator's preview shows exactly what the room is seeing,
+     and carried out on the next packet like any other part of the picture. */
+  wirePad(){
+    const pad = document.getElementById('miniPad');
+    if (!pad) return;
+    const dot = document.getElementById('miniPadDot');
+    const at = ev => {
+      const r = pad.getBoundingClientRect();
+      const fx = clamp01((ev.clientX - r.left) / Math.max(1, r.width));
+      const fy = clamp01((ev.clientY - r.top) / Math.max(1, r.height));
+      if (dot){ dot.style.left = (fx * 100) + '%'; dot.style.top = (fy * 100) + '%'; }
+      INTERACT.px = fx * 2 - 1;
+      INTERACT.py = 1 - fy * 2;
+    };
+    pad.addEventListener('pointerdown', ev => {
+      this._padId = ev.pointerId;
+      try { pad.setPointerCapture(ev.pointerId); } catch (e){}
+      pad.classList.add('live');
+      at(ev); INTERACT.dragging = true; INTERACT.synth = true;
+      ev.preventDefault();
+    });
+    pad.addEventListener('pointermove', ev => { if (this._padId === ev.pointerId) at(ev); });
+    const up = ev => {
+      if (this._padId !== ev.pointerId) return;
+      this._padId = null;
+      pad.classList.remove('live');
+      INTERACT.dragging = false;
+      INTERACT.release(false, 1);         // the lift detonates, exactly as a finger's does
+      INTERACT.synth = false;
+    };
+    pad.addEventListener('pointerup', up);
+    pad.addEventListener('pointercancel', up);
+  },
+  /* the packet. Thirty a second is plenty: every consumer on the far side is a
+     smoother, a spring or a decay, and none of them can tell 30 from 60 — while
+     the difference in what a laptop has left for the music is real. */
+  push(now){
+    if (!this.on || this.screen() || !this.chan) return;
+    this._acc = this._acc || 0;
+    if (now - this._acc < 33) return;
+    this._acc = now;
+    const f = AE.f, p = { t: 'f', at: now, f: {} };
+    for (const k of STAGE_FIELDS) p.f[k] = f[k];
+    p.clock = { g: !!CLOCK.haveGrid, i: CLOCK.idx | 0, b: CLOCK.barPhase, t: CLOCK.bpm };
+    p.dance = { p: DANCE.pulse, w: DANCE.warp, e: DANCE.ear, b: DANCE.brace, f: DANCE.phraseFrac, g: !!DANCE.haveGrid };
+    p.dir = { s: director.active, a: director.act, t: director.actT, p: director.phase,
+      c: director.moodC, w: director.warmT, ceil: director.ceil };
+    p.hand = { x: INTERACT.px, y: INTERACT.py, d: !!INTERACT.dragging };
+    if (COLOR.now && COLOR.now.length >= 3)
+      p.col = COLOR.now.slice(0, 3).map(c => [c.l, c.c, c.h]);
+    p.cam = [camera.position.x, camera.position.y, camera.position.z,
+      camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w,
+      camera.fov];
+    if (typeof LENS !== 'undefined') p.lens = LENS.active;
+    if (typeof SKIN !== 'undefined') p.skin = SKIN.key;
+    this.send(p);
+  },
+  recv(m){
+    if (!m || !m.t) return;
+    if (this.screen()){
+      if (m.t === 'f'){
+        this.last = m;
+        this.seenAt = performance.now();
+        this.offset = stageOffset(this.offset, m.at, performance.now());
+        const wait = document.getElementById('stageWait');
+        if (wait) wait.hidden = true;
+      } else if (m.t === 'booth-gone'){
+        const wait = document.getElementById('stageWait'), why = document.getElementById('stageWaitWhy');
+        if (why) why.textContent = 'the booth closed';
+        if (wait) wait.hidden = false;
+      }
+      return;
+    }
+    // the booth keeps a roster, so it can say how many screens are really lit
+    if (m.t === 'here'){ this.peers.set(m.screen, Date.now()); this.paint(); }
+    else if (m.t === 'screen-gone'){ this.peers.delete(m.screen); this.paint(); }
+  },
+  live(){
+    const cut = Date.now() - 6000;
+    for (const [k, v] of this.peers) if (v < cut) this.peers.delete(k);
+    return this.peers.size;
+  },
+  paint(){
+    const n = this.live();
+    const box = document.getElementById('miniScreens');
+    if (box) box.textContent = n ? (n === 1 ? '1 screen' : n + ' screens') : 'no screen yet';
+    const t = document.getElementById('miniTitle'), s = document.getElementById('miniSub');
+    const tr = player.tracks[player.cur];
+    if (t) t.textContent = tr ? (tr.title || 'Untitled') : 'Nothing playing';
+    if (s) s.textContent = tr ? (tr.artist || '') : '';
+    const pb = document.getElementById('miniPlay');
+    if (pb) pb.textContent = player.playing ? '❚❚' : '▶';
+  },
+  expand(on){
+    const more = document.getElementById('miniMore'), btn = document.getElementById('miniExpand');
+    if (!more) return;
+    const open = on == null ? more.hidden : !!on;
+    more.hidden = !open;
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+    if (open && !more.childElementCount){
+      // the twenty controls, built once and only if they are ever asked for
+      const add = (label, title, fn, isOn) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = label; b.title = title;
+        if (isOn) b.classList.add('on');
+        b.addEventListener('click', () => { fn(b); this.expandPaint(); });
+        more.appendChild(b);
+      };
+      add('Scene', 'Next scene on every screen', () => director.setScene((director.active + 1) % scenes.length, true));
+      add('Auto', 'Hand the scenes back to the director', () => director.setAuto(!director.auto));
+      add('Lens', 'Cycle the lens', () => { if (typeof LENS.cycle === 'function') LENS.cycle(); });
+      add('Touch', 'Which force the pad applies', () => { if (typeof TOUCHFX.cycle === 'function') TOUCHFX.cycle(); });
+      add('Skins', 'Restyle the room', () => { if (typeof skinCardOpen === 'function') skinCardOpen(true); });
+      add('+ Screen', 'Open another stage screen', () => this.open(this.live() + 1));
+      add('Full booth', 'Bring the whole console back', () => this.setMini(false));
+    }
+    this.expandPaint();
+  },
+  expandPaint(){
+    const more = document.getElementById('miniMore');
+    if (!more || more.hidden) return;
+    const btns = more.querySelectorAll('button');
+    if (btns[1]) btns[1].classList.toggle('on', !!director.auto);
+    this.paint();
+  },
+
+  /* ---------------- turning it on ---------------- */
+  async toggle(){ if (this.on) this.stop(); else await this.open(1); },
+  /* open `n` screens. On the Mac the shell places a real window on a real
+     display and fullscreens it there; on the web they are ordinary windows the
+     operator drags onto the TVs — same page, same protocol, same picture. */
+  async open(n){
+    if (this.screen()) return;
+    const of = Math.max(1, Math.min(8, Math.floor(n) || 1));
+    if (!this.chan){
+      toast('This browser cannot talk between windows — a stage screen would go dark');
+      return;
+    }
+    let opened = 0;
+    if (NATIVE.ready()){
+      const displays = await NATIVE.call('list_displays') || [];
+      if (displays.length < 2 && of === 1)
+        toast('Only one display — the stage window opens here; drag it to the TV');
+      for (let i = 1; i <= of; i++){
+        // one screen per display where there are enough of them; past that they
+        // stack on the last one, which the operator can drag apart — better than
+        // refusing to open the fourth window on a three-screen rig
+        const r = await NATIVE.call('open_stage',
+          { display: Math.min(i, Math.max(0, displays.length - 1)), screen: i, of });
+        if (r === true) opened++;      // the command answers true; null is "no shell"
+      }
+    }
+    if (!opened){
+      const base = location.origin + location.pathname;
+      for (let i = 1; i <= of; i++){
+        const w = window.open(base + '?stage=screen&screen=' + i + '&of=' + of,
+          'mb8stage' + i, 'width=1280,height=720,menubar=no,toolbar=no');
+        if (w) this.wins.push(w); else break;
+      }
+      opened = this.wins.length;
+      if (!opened){
+        toast('The stage window was blocked — allow pop-ups for this site, then try again');
+        return;
+      }
+    }
+    this.on = true;
+    this.setMini(true);
+    ACTIVITY.log('system', 'Stage mode on - ' + of + (of === 1 ? ' screen' : ' screens'));
+    toast('Stage mode — the field is on ' + (of === 1 ? 'its own screen' : of + ' screens')
+      + '. This window is the booth.');
+  },
+  stop(){
+    this.on = false;
+    this.send({ t: 'booth-gone' });
+    if (NATIVE.ready()) NATIVE.call('close_stage');
+    for (const w of this.wins){ try { w.close(); } catch (e){} }
+    this.wins = [];
+    this.peers.clear();
+    this.setMini(false);
+    ACTIVITY.log('system', 'Stage mode off');
+    toast('Stage mode off');
+  },
+  setMini(on){
+    this.mini = !!on;
+    document.body.classList.toggle('mini', this.mini);
+    const chip = document.getElementById('btnStage');
+    if (chip){ chip.classList.toggle('on', this.on); chip.setAttribute('aria-pressed', String(this.on)); }
+    const bar = document.getElementById('miniBar');
+    if (bar) bar.hidden = !this.mini;
+    if (NATIVE.ready()) NATIVE.call('set_mini', { on: this.mini, width: 360, height: 148 });
+    if (this.mini) this.paint();
+    else this.expand(false);
+    // the field is not being drawn in a corner the size of a business card
+    if (typeof onResize === 'function') onResize();
+  },
+};
+
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
@@ -19384,7 +20284,7 @@ function frame(now){
   // ECO's frame divider: on a skipped frame the music-side logic below still
   // runs in full (clock, mixer, transport, persistence) — only the draws and
   // the GPU uploads sit out, and the glass simply holds its last frame
-  const drawing = typeof POWER === 'undefined' || POWER.frameGate();
+  const drawing = !STAGE.mini && (typeof POWER === 'undefined' || POWER.frameGate());
   const t = now / 1000;
   U.uTime.value = t;
 
@@ -19397,6 +20297,12 @@ function frame(now){
   // so the eye, the hand and the ear agree about where the beat is. The
   // live onset guesser still serves local files and the mic (no grid).
   CLOCK.update(t);
+  // a stage screen has no music of its own: the booth's reading lands here,
+  // after the (silent) local analysis and before a single consumer reads it
+  if (STAGE.screen()){
+    if (!STAGE._sliced) STAGE.applySlice();   // the camera exists by now
+    STAGE.pull();
+  }
   if (CLOCK.haveGrid){
     const idx = CLOCK.idx;
     // The grid keeps time even through an ambient bar — but the VISIBLE counter
@@ -19493,6 +20399,7 @@ function frame(now){
   // the field plays itself when nobody is playing it — before INTERACT, because
   // everything the ghost does, it does by moving the hand INTERACT then answers
   GHOST.update(dt);
+  if (STAGE.screen()) STAGE.hand();     // the booth's hand outranks a local ghost
   INTERACT.update(dt);
   DWELL.update(dt);
   /* THE HAND, HANDED TO THE FABRIC. Nothing is drawn here any more — there is
@@ -19514,6 +20421,9 @@ function frame(now){
   TOUCHFX.autoTick(dt);                // an owed personality change lands once the hand lifts
 
   director.update(dt);
+  // the booth owns the arc and the camera — a screen that computed its own
+  // would tear at the seam with the screen beside it
+  if (STAGE.screen()) STAGE.arc();
   COLOR.update(dt);
   LENS.autoTick(dt);   // the director may set a lens — sparse, gated by the song's ceiling
 
@@ -19552,6 +20462,7 @@ function frame(now){
       el.seekBuf.style.width = (d.a.buffered.end(d.a.buffered.length - 1) / d.a.duration * 100) + '%';
   }
   if (f.beat > 0.55) el.beatDot.classList.add('hit'); else el.beatDot.classList.remove('hit');
+  if (STAGE.mini && uiAccum > 0.08) STAGE.paint();
 
   // auto-crossfade near end of track
   if (d && player.playing && !AE.mic.on && !MIXER.on
@@ -19575,6 +20486,8 @@ function frame(now){
     persistAccum = 0;
     if (player.playing){ PERSIST.save(); mediaSessionPosition(); }
   }
+
+  STAGE.push(now);                     // ~30 Hz, and nothing at all unless a screen is lit
 
   uiAccum += dt;
   if (uiAccum > 0.08){
@@ -19607,14 +20520,18 @@ function frame(now){
   }
 }
 
-window.addEventListener('resize', () => {
+function onResize(){
   if (!three_ok) return;
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   bgCam.aspect = camera.aspect;
   bgCam.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  // a stage screen's frustum is N screens wide — re-cut it after every resize,
+  // because going fullscreen IS a resize and that is exactly when it matters
+  if (typeof STAGE !== 'undefined' && STAGE.screen()) STAGE.applySlice();
+}
+window.addEventListener('resize', onResize);
 /* ---------------- boot ---------------- */
 initThree();
 requestAnimationFrame(frame);
@@ -19681,7 +20598,12 @@ function firstRunStat(){
    instructions it requires; an already-installed copy shows nothing. */
 function frInstallSetup(){
   if (!el.frInstall) return;
-  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+  /* THE APP DOES NOT ASK YOU TO INSTALL THE APP. Inside the native shell there
+     is nothing to add to a home screen — it already is one — and `display-mode:
+     standalone` is FALSE in a WKWebView, so the browser-shaped test alone let
+     install copy through into the Mac app. */
+  const standalone = IS_NATIVE
+    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
     || window.navigator.standalone === true;
   if (standalone){ el.frInstall.hidden = true; el.frInstall.innerHTML = ''; return; }
   const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -20032,6 +20954,19 @@ const MACPROMO = {
   UPDATE.load();                 // "later" is a promise -- it outlives the page
   ACTIVITY.load();               // the receipt, back from this device's store
   ACTIVITY.log('system', 'Opened - build ' + MB8_BUILD);
+  NATIVE.boot();                 // the shell answers, or nothing does
+  STAGE.boot();
+
+  /* A STAGE SCREEN IS NOT A PLAYER. It loads no catalog (that is megabytes, on
+     every TV, for a library it will never show), restores no queue, and runs no
+     welcome — it waits for the booth and draws. Everything it needs arrives
+     thirty times a second over the channel. */
+  if (STAGE.screen()){
+    registerSW();
+    window.__mb8Booted = true;
+    dissolveSplash();
+    return;
+  }
 
   // If a catalog.json sits next to this file, load it automatically — that
   // makes self-hosting drop-in. ?catalog=https://…/catalog.json points one
