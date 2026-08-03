@@ -206,15 +206,37 @@ if (want('current')){
 
     /* THE OTHER DIRECTION, and the reason this is judged by provenance at all: a
      * 'shell' offer is the worker's byte-compare reporting that the deployed shell
-     * differs from the one this page was served. That is a measurement, and it has
-     * to stand even when the stamp did not move — an un-stamped deploy is the same
-     * build id with different bytes, and rejecting it on id equality is how the
-     * first version of this fix broke the badge entirely. */
-    await page.evaluate(() => offerUpdate('shell', ''));
+     * differs from the one this page was served. That is a measurement, it travels
+     * as the fingerprint of the bytes measured, and it has to stand even when the
+     * stamp did not move — an un-stamped deploy is the same build id with different
+     * bytes, and rejecting it on id equality is how the first version of this fix
+     * broke the badge entirely. */
+    await page.evaluate(() => offerUpdate('shell', '', 'probe0print0'));
     await page.waitForTimeout(500);
     const stands = await page.evaluate(() => !document.getElementById('btnUpdate').hidden);
-    verdict('current: a measured shell difference still stands, stamp or no stamp', stands,
+    verdict('current: a fingerprinted shell difference still stands, stamp or no stamp', stands,
       stands ? 'the worker measured content — the offer is kept' : 'the offer was dropped');
+
+    /* AND A CLAIM WITH NEITHER FINGERPRINT NOR BUILD IS A GHOST. Retired worker
+     * generations announce SHELL_FRESH with no print — before the print existed —
+     * and a listener's ACTIVE worker can be exactly that old, because a waiting
+     * worker only activates on an apply or a full close. That voice is what kept
+     * rendering "→ new" after everything else was fixed. It gets verified against
+     * the origin and, with no deploy behind it, withdrawn — and since the card is
+     * OPEN when it happens, the card must turn into the status the loop never
+     * had: "You're up to date". */
+    await page.evaluate(() => { withdrawOffer('probe reset', true); offerUpdate('shell', '', ''); });
+    const ghostGone = await page.waitForFunction('document.getElementById("btnUpdate").hidden === true',
+      null, { timeout: 15000 }).then(() => true).catch(() => false);
+    verdict('current: a nameless, unprinted shell claim is verified away, not believed', ghostGone,
+      ghostGone ? 'asked the origin, found this very build, stood down' : 'the ghost was believed');
+    await page.evaluate(() => { updateCardOpen(true); offerUpdate('shell', '', ''); });
+    const saysSo = await page.waitForFunction(
+      "document.getElementById('upTitle').textContent.indexOf('up to date') >= 0", null,
+      { timeout: 15000 }).then(() => true).catch(() => false);
+    verdict('current: with the card open, the verdict is spoken — "You\'re up to date"', saysSo,
+      'title "' + await page.evaluate(() => document.getElementById('upTitle').textContent) + '"');
+    await page.evaluate(() => updateCardOpen(false));
   });
 }
 

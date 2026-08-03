@@ -3006,12 +3006,26 @@ test('updateOffer: judged by provenance, because a difference is not a newer bui
      rejecting every claim whose id matches the running build kills the UN-STAMPED
      deploy — same id, different content — which is the whole reason the worker's
      byte-compare exists. A 'shell' claim is that compare's verdict about CONTENT,
-     so it stands whether or not the stamp moved. (echoes_power_smoke's "a fresh
-     deploy raises the update badge by itself" is the check that caught this.) */
-  assert.equal(S.updateOffer({ source: 'shell', build: run, running: run }), 'show',
-    'an unstamped deploy still reaches the listener');
-  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run }), 'show');
-  assert.equal(S.updateOffer({ source: 'shell', build: '', running: run }), 'show');
+     and the verdict travels WITH the claim as the fingerprint of the bytes it
+     measured: carrying one, it stands whether or not the stamp moved.
+     (echoes_power_smoke's "a fresh deploy raises the update badge by itself" is
+     the check that caught the first version.) */
+  assert.equal(S.updateOffer({ source: 'shell', build: run, print: '9:abc', running: run }), 'show',
+    'an unstamped deploy still reaches the listener — the fingerprint IS the measurement');
+  assert.equal(S.updateOffer({ source: 'shell', build: '', print: '9:abc', running: run }), 'show',
+    'a fingerprinted shell stands even un-named');
+  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run }), 'show',
+    'a cross-build claim stands on its id — an id is falsifiable');
+  /* BUT A CLAIM CARRYING NEITHER IS A VOICE, NOT A MEASUREMENT. Today's worker
+     always sends the print; an announcement without one is a retired worker
+     generation (installed before the guards existed, kept active because a
+     waiting worker only activates on an apply or a full close) — the exact
+     voice that rendered a card as "→ new" after everything else was fixed. It
+     is asked to produce evidence, not believed. */
+  assert.equal(S.updateOffer({ source: 'shell', build: '', running: run }), 'verify',
+    'a nameless, unprinted shell claim is checked, not believed');
+  assert.equal(S.updateOffer({ source: 'shell', build: run, running: run }), 'verify',
+    'a shell claim of the running build with no print cannot be told from an echo');
   /* A WAITING WORKER IS A FACT ABOUT sw.js, NOT ABOUT THE SHELL. It used to
      stand on its own — "a versioned release the browser installed itself" — and
      that is the offer that came back forever, rendering its target as the word
@@ -3035,7 +3049,7 @@ test('updateOffer: judged by provenance, because a difference is not a newer bui
   assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run, key,
     tried: S.updateOfferKey(run, 'cccc333333') }), 'show', 'a different swap is a different offer');
   assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: 'bbbb222222',
-    key: S.updateOfferKey('bbbb222222', 'bbbb222222'), tried: key }), 'show',
+    print: '9:def', key: S.updateOfferKey('bbbb222222', '9:def'), tried: key }), 'show',
     'the swap landed and the build moved — the memory no longer matches');
   // nothing is offered while an apply is already under way
   for (const src of ['worker', 'shell', 'claim'])

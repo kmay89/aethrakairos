@@ -2,6 +2,16 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "b3c47720be",
+      "date": "2026-08-03",
+      "title": "\"You're up to date\" — a status that finally says so",
+      "notes": [
+        "fixed: the update card could still come back reading \"→ new\" over and over — an announcement from an outdated background worker, or a check made while the site was unreachable, was believed without ever being verified",
+        "an offer that cannot name the build it brings is now re-checked against the site on every update check, and withdrawn the moment it turns out to be the build you already run",
+        "when a check finds you current while the card is open, the card now says \"You're up to date\" with the build id — and applying a refresh says the same, so the end of the loop is something you can actually see"
+      ]
+    },
+    {
       "build": "7dba7ac06f",
       "date": "2026-08-03",
       "title": "The update that knew it had landed",
