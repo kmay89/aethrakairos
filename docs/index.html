@@ -934,7 +934,7 @@ body.stage-screen{cursor:none;background:#000}
 #stageWait[hidden]{display:none!important}
 
 /* ============ the mini booth ============ */
-body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim){display:none!important}
+body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip){display:none!important}
 body.mini{background:var(--void,#05060c)}
 #miniBar{
   position:fixed;right:16px;bottom:16px;z-index:70;width:min(94vw,360px);
@@ -996,6 +996,64 @@ body.mini #miniBar{right:0;bottom:0;left:0;top:0;width:auto;border-radius:0;bord
 .mini-more button:hover{color:var(--ink);border-color:var(--accent-line)}
 .mini-more button.on{color:var(--ink);border-color:var(--accent-line);box-shadow:0 0 12px -5px var(--accent-glow)}
 @media (prefers-reduced-motion:reduce){.mini-pad-dot{transition:none}}
+
+/* ============ the stage, the size of a postcard ============
+   ONE SCREEN IS THE COMMON CASE. Almost nobody has a television plugged into
+   the laptop while they are learning what this does — and a stage that can only
+   exist on a second display is a stage nobody can try. So it also comes small:
+   a window that floats over the booth, dragged by its bar, resized by its
+   corner, pushed to full and back. Inside is an iframe of this very page told
+   to be a screen — which is the one door no popup blocker, no permission and no
+   missing monitor can shut. */
+#stagePip{
+  position:fixed;z-index:98;left:auto;top:auto;width:420px;height:262px;
+  display:flex;flex-direction:column;overflow:hidden;
+  border-radius:14px;border:1px solid var(--accent-line);background:#04050a;
+  box-shadow:0 22px 64px rgba(0,0,0,.66);
+}
+#stagePip[hidden]{display:none!important}
+/* when the Mac shell is holding the real window, all that is left here is the
+   hand that moves it: the same bar, without the picture under it */
+#stagePip.strip{width:auto;height:auto;border-radius:12px}
+#stagePip.strip .pip-head{border-bottom:0}
+#stagePip.full{left:0!important;top:0!important;width:100%!important;height:100%!important;border-radius:0;border-width:0 0 1px 0}
+#stagePip.moving{-webkit-user-select:none;user-select:none}
+/* while a hand is on the bar or the corner the picture must not eat the
+   pointer — an iframe is a different document, and it would swallow the drag */
+#stagePip.moving .pip-frame{pointer-events:none}
+.pip-head{
+  display:flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;flex:0 0 auto;
+  cursor:grab;touch-action:none;background:var(--sheen),var(--card);
+  border-bottom:1px solid var(--line-soft);
+}
+#stagePip.moving .pip-head{cursor:grabbing}
+#stagePip.full .pip-head{cursor:default}
+.pip-dot{
+  width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--accent,#6ee7ff);
+  box-shadow:0 0 10px 1px var(--accent-glow);
+}
+.pip-title{
+  flex:1;min-width:0;font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pip-b{
+  width:24px;height:22px;flex:0 0 24px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+  font-size:11px;line-height:1;display:grid;place-items:center;
+}
+.pip-b:hover{color:var(--ink);border-color:var(--accent-line)}
+.pip-frame{flex:1 1 auto;width:100%;min-height:0;border:0;display:block;background:#000}
+.pip-grip{
+  position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;touch-action:none;
+  background:linear-gradient(135deg,transparent 46%,var(--line-soft) 47%,transparent 52%,
+    var(--line-soft) 60%,transparent 66%);
+}
+#stagePip.full .pip-grip{display:none}
+/* the stage screen inside it is small and has a cursor over it — the room-sized
+   version hides both, this one cannot */
+body.stage-screen.pip{cursor:default}
+body.stage-screen.pip #stageWait{font-size:9px;letter-spacing:.14em;gap:5px}
+body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -4127,6 +4185,15 @@ const NATIVE = {
     return (IS_NATIVE && t && t.core && typeof t.core.invoke === 'function') ? t.core : null;
   },
   ready(){ return !!this._api(); },
+  /* WHAT THIS PARTICULAR SHELL CAN DO. The player is always newer than the app
+     around it — the web deploys in a minute and the signed binary takes a day —
+     so a native feature has to be asked for by name rather than assumed from
+     the mere presence of a shell. The shell lists what it has; an older build
+     lists nothing, and the web path underneath simply carries on. */
+  can(cap){
+    const c = this.info && this.info.caps;
+    return !!(c && c.indexOf && c.indexOf(cap) >= 0);
+  },
   async call(cmd, args){
     const api = this._api();
     if (!api) return null;
@@ -14395,19 +14462,41 @@ async function stageChooser(){
   if (STAGE.on){
     const off = await ASK.confirm({
       title: 'Stage mode',
-      body: 'The field is on ' + (STAGE.live() === 1 ? 'a screen' : STAGE.live() + ' screens') + ' of its own.\n\nBring it back into this window?',
-      ok: 'Bring it back', cancel: 'Leave it running',
+      body: STAGE.pip
+        ? 'The stage is running in the corner of this window.\n\nClose it?'
+        : 'The field is on ' + (STAGE.live() === 1 ? 'a screen' : STAGE.live() + ' screens') + ' of its own.\n\nBring it back into this window?',
+      ok: STAGE.pip ? 'Close it' : 'Bring it back', cancel: 'Leave it running',
     });
     if (off) STAGE.stop();
     return;
   }
+  /* HOW MANY SCREENS ARE REALLY THERE. Asked before the card goes up, so that
+     nothing is awaited between the operator's click on it and the window that
+     click opens — an await there is what spends the gesture a popup blocker is
+     looking for, and a stage that "did nothing" is how that failure reads. */
+  const displays = NATIVE.ready() ? (await NATIVE.call('list_displays') || []) : [];
+  const alone = NATIVE.ready()
+    ? displays.length < 2
+    : (window.screen && window.screen.isExtended === false);
+  if (alone){
+    const go = await ASK.confirm({
+      title: 'Stage mode',
+      body: 'There is only one screen here.\n\nSo the stage opens small: a window that floats above the booth, showing exactly what a television in the room would show. Drag it by its bar, pull the corner to resize it, ⤢ to fill this window — and ↗ when you do have a screen to send it to.',
+      ok: 'Open the stage', cancel: 'Not now',
+    });
+    if (go) await STAGE.open(1, { pip: true });
+    return;
+  }
   const n = await ASK.text({
     title: 'Stage mode',
-    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nHow many screens?',
+    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nHow many screens? (0 keeps it small, in the corner of this window.)',
     value: '1', placeholder: '1', ok: 'Open the stage',
   });
   if (n === null) return;
-  await STAGE.open(Number(n) || 1);
+  const want = Number(n);
+  // 0 is the small one asked for by name, on a rig that does have the screens
+  if (want === 0 || /^\s*(pip|small|corner)\s*$/i.test(n)){ await STAGE.open(1, { pip: true }); return; }
+  await STAGE.open(want || 1, { displays });
 }
 
 /* the mobile More menu — folds the secondary controls into one sheet */
@@ -19921,6 +20010,9 @@ const STAGE = {
   chan: null,
   on: false,                 // booth: a stage is running
   mini: false,               // booth: folded into the corner
+  pip: false,                // booth: the stage is a small window, not a room
+  pipNative: false,          // booth: …and the shell owns that window, not us
+  pipEl: null,               // booth: the in-page one, when it is ours
   peers: new Map(),          // booth: screen number → last heard from
   wins: [],                  // booth: windows we opened ourselves (web path)
   last: null,                // screen: the newest packet
@@ -19948,6 +20040,9 @@ const STAGE = {
   becomeScreen(){
     document.body.classList.add('stage-screen');
     document.documentElement.classList.add('stage-screen');
+    // a postcard-sized stage is worked with a pointer — it keeps its cursor and
+    // says less, where the room-sized one hides both
+    if (/[?&]pip=1/.test(location.search)) document.body.classList.add('pip');
     const wait = document.getElementById('stageWait');
     if (wait) wait.hidden = false;
     // no transport, no ghost, no director of its own: this screen has one job
@@ -20206,21 +20301,33 @@ const STAGE = {
 
   /* ---------------- turning it on ---------------- */
   async toggle(){ if (this.on) this.stop(); else await this.open(1); },
+  /* the address of a screen — one place, so every door opens the same page */
+  url(i, of, pip){
+    return location.origin + location.pathname
+      + '?stage=screen&screen=' + i + '&of=' + of + (pip ? '&pip=1' : '');
+  },
   /* open `n` screens. On the Mac the shell places a real window on a real
      display and fullscreens it there; on the web they are ordinary windows the
-     operator drags onto the TVs — same page, same protocol, same picture. */
-  async open(n){
+     operator drags onto the TVs — same page, same protocol, same picture.
+     And on a laptop with ONE screen — the machine almost everyone will first
+     try this on — a full-screen stage would bury the booth that drives it, so
+     the stage comes small instead: see openPip. Pass { pip: false } to insist
+     on the room-sized version anyway. */
+  async open(n, opts){
     if (this.screen()) return;
+    opts = opts || {};
     const of = Math.max(1, Math.min(8, Math.floor(n) || 1));
     if (!this.chan){
       toast('This browser cannot talk between windows — a stage screen would go dark');
       return;
     }
+    if (opts.pip === true && of === 1) return this.openPip();
     let opened = 0;
     if (NATIVE.ready()){
-      const displays = await NATIVE.call('list_displays') || [];
-      if (displays.length < 2 && of === 1)
-        toast('Only one display — the stage window opens here; drag it to the TV');
+      const displays = opts.displays || await NATIVE.call('list_displays') || [];
+      // one display and one screen asked for: small is the only shape of this
+      // that can actually be worked, so that is what opens
+      if (opts.pip !== false && of === 1 && displays.length < 2) return this.openPip();
       for (let i = 1; i <= of; i++){
         // one screen per display where there are enough of them; past that they
         // stack on the last one, which the operator can drag apart — better than
@@ -20231,28 +20338,238 @@ const STAGE = {
       }
     }
     if (!opened){
-      const base = location.origin + location.pathname;
       for (let i = 1; i <= of; i++){
-        const w = window.open(base + '?stage=screen&screen=' + i + '&of=' + of,
-          'mb8stage' + i, 'width=1280,height=720,menubar=no,toolbar=no');
+        const w = window.open(this.url(i, of), 'mb8stage' + i,
+          'width=1280,height=720,menubar=no,toolbar=no');
         if (w) this.wins.push(w); else break;
       }
       opened = this.wins.length;
-      if (!opened){
-        toast('The stage window was blocked — allow pop-ups for this site, then try again');
-        return;
-      }
+      /* A BLOCKED POPUP IS NOT A DEAD END. It used to be: the app said "allow
+         pop-ups" and stopped, which on the Mac shell — whose webview opens no
+         second window at all — meant the stage simply could not be reached.
+         There is always another way in, and it is the small one. */
+      if (!opened) return this.openPip({ blocked: of === 1 });
     }
     this.on = true;
+    this.pip = false;
     this.setMini(true);
     ACTIVITY.log('system', 'Stage mode on - ' + of + (of === 1 ? ' screen' : ' screens'));
     toast('Stage mode — the field is on ' + (of === 1 ? 'its own screen' : of + ' screens')
       + '. This window is the booth.');
   },
+
+  /* THE STAGE, THE SIZE OF A POSTCARD. Everything the room-sized screen is —
+     the same page, the same packet, the same picture — in a window that floats
+     over the booth and can be dragged, resized and pushed to full.
+     Two ways to get one, and the second cannot fail:
+       · the Mac shell gives it a real window, above every other app
+       · failing that the booth grows one itself, an iframe of this very page.
+     An iframe needs no second monitor, no popup permission and no shell, which
+     is exactly why it is the floor under all of this. */
+  async openPip(why){
+    why = why || {};
+    let native = false;
+    if (NATIVE.can('stage_pip')){
+      const r = await NATIVE.call('open_stage', { display: 0, screen: 1, of: 1, pip: true });
+      native = (r === true);
+    }
+    /* Either way the booth grows the same little bar. With a native window
+       behind it the bar is only the controls — drag, fill the screen, close —
+       because the picture is already floating over every other app; without one
+       the bar carries the picture too. Same three buttons, same place. */
+    if (!this.buildPip(native)){
+      toast('The stage could not open in this window');
+      return;
+    }
+    this.pipNative = native;
+    this.pip = true;
+    this.on = true;
+    // the picture is a preview here, not a hand-off: the booth stays whole,
+    // because the whole point is watching the room's screen WHILE working
+    this.setMini(false);
+    ACTIVITY.log('system', 'Stage mode on - picture in picture');
+    toast(why.blocked
+      ? 'A separate window was blocked — the stage opened here instead. Drag it, resize it, ⤢ for full.'
+      : native
+        ? 'Stage — a small window above every app. Drag it by its bar, resize it, ⤢ for the whole screen.'
+        : 'Stage — the picture the room would see, in the corner. Drag it, resize it, ⤢ full, ↗ its own window.');
+  },
+
+  /* the corner window itself: a bar to drag, a corner to pull, three buttons,
+     and an iframe that is a stage screen like any other */
+  buildPip(native){
+    if (this.pipEl){ this.pipEl.hidden = false; return true; }
+    try {
+      const box = document.createElement('div');
+      box.id = 'stagePip';
+      if (native) box.classList.add('strip');
+      box.setAttribute('role', 'group');
+      box.setAttribute('aria-label', 'Stage — picture in picture');
+      const head = document.createElement('div');
+      head.className = 'pip-head';
+      const dot = document.createElement('span'); dot.className = 'pip-dot';
+      const title = document.createElement('span');
+      title.className = 'pip-title';
+      title.textContent = native ? 'Stage · in its own window' : 'Stage · what the room sees';
+      const mk = (glyph, label) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'pip-b'; b.textContent = glyph;
+        b.title = label; b.setAttribute('aria-label', label);
+        return b;
+      };
+      const out = mk('↗', 'Open the stage in its own window');
+      const full = mk('⤢', native ? 'Fill the screen' : 'Fill this window');
+      const shut = mk('✕', 'Close the stage');
+      head.appendChild(dot); head.appendChild(title);
+      if (!native) head.appendChild(out);      // it already is its own window
+      head.appendChild(full); head.appendChild(shut);
+      box.appendChild(head);
+      if (!native){
+        const frame = document.createElement('iframe');
+        frame.className = 'pip-frame';
+        frame.title = 'Stage screen';
+        frame.setAttribute('scrolling', 'no');
+        frame.src = this.url(1, 1, true);
+        const grip = document.createElement('span');
+        grip.className = 'pip-grip'; grip.setAttribute('aria-hidden', 'true');
+        box.appendChild(frame); box.appendChild(grip);
+      }
+      document.body.appendChild(box);
+      this.pipEl = box;
+      const grip = box.querySelector('.pip-grip');
+
+      const g = this.pipGeom();
+      this.pipPlace(g.x, g.y, g.w, g.h);
+
+      /* one gesture, two jobs: the bar moves it, the corner sizes it. Pointer
+         capture keeps the drag alive over the picture, and the class above
+         stops the iframe eating the moves on the browsers where it would. */
+      const hold = (el, sizing) => el.addEventListener('pointerdown', ev => {
+        if (ev.button && ev.pointerType === 'mouse') return;
+        if (!sizing && ev.target.closest('button')) return;
+        if (box.classList.contains('full')) return;
+        const r = box.getBoundingClientRect();
+        const ox = ev.clientX - r.left, oy = ev.clientY - r.top;
+        box.classList.add('moving');
+        try { el.setPointerCapture(ev.pointerId); } catch (e){}
+        const move = e2 => sizing
+          ? this.pipPlace(r.left, r.top, e2.clientX - r.left, e2.clientY - r.top)
+          : this.pipPlace(e2.clientX - ox, e2.clientY - oy, r.width, r.height);
+        const up = () => {
+          el.removeEventListener('pointermove', move);
+          el.removeEventListener('pointerup', up);
+          el.removeEventListener('pointercancel', up);
+          box.classList.remove('moving');
+          this.pipSave();
+        };
+        el.addEventListener('pointermove', move);
+        el.addEventListener('pointerup', up);
+        el.addEventListener('pointercancel', up);
+        ev.preventDefault();
+      });
+      hold(head, false);
+      if (grip) hold(grip, true);
+
+      /* BIG AND SMALL ARE THE SAME STAGE. The window is never closed and
+         reopened to change its size — the packet would stop and the picture
+         would blink — so this only ever moves the one that is already running. */
+      let big = false;
+      full.addEventListener('click', async () => {
+        if (native){
+          const r = await NATIVE.call('stage_pip', { on: big });
+          if (r === null){ toast('This version of the app cannot resize the stage'); return; }
+        } else {
+          box.classList.toggle('full', !big);
+        }
+        big = !big;
+        full.textContent = big ? '⤡' : '⤢';
+        full.title = big ? 'Back to the corner' : (native ? 'Fill the screen' : 'Fill this window');
+        full.setAttribute('aria-label', full.title);
+      });
+      shut.addEventListener('click', () => this.stop());
+      /* THE WAY OUT, ON A CLICK. A click is a user gesture, so this window.open
+         is the one that is never blocked — which is the entire reason this
+         button exists rather than a line of advice about popup settings. */
+      out.addEventListener('click', () => {
+        const w = window.open(this.url(1, 1), 'mb8stage1',
+          'width=1280,height=720,menubar=no,toolbar=no');
+        if (!w){
+          toast('That window was blocked — allow pop-ups for this site, or keep it here');
+          return;
+        }
+        this.wins.push(w);
+        this.closePip();
+        this.setMini(true);
+        toast('Stage — drag that window onto the television.');
+      });
+
+      // a window that shrinks must not leave the picture out at sea
+      this._pipFit = () => {
+        if (!this.pipEl || this.pipEl.classList.contains('full')) return;
+        const r = this.pipEl.getBoundingClientRect();
+        this.pipPlace(r.left, r.top, r.width, r.height);
+      };
+      window.addEventListener('resize', this._pipFit);
+      return true;
+    } catch (e){
+      this.pipEl = null;
+      return false;
+    }
+  },
+  /* where it was last left, clamped to a window that may since have changed
+     size or monitor — a remembered position is a courtesy, never a trap */
+  pipGeom(){
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem('mb8_stage_pip_v1') || 'null'); } catch (e){}
+    const w = (s && Number(s.w)) || Math.min(440, Math.max(240, window.innerWidth - 40));
+    const h = (s && Number(s.h)) || Math.round(w * 0.5625) + 32;
+    const x = (s && Number.isFinite(Number(s.x))) ? Number(s.x) : window.innerWidth - w - 18;
+    const y = (s && Number.isFinite(Number(s.y))) ? Number(s.y) : window.innerHeight - h - 18;
+    return { x, y, w, h };
+  },
+  pipPlace(x, y, w, h){
+    const box = this.pipEl;
+    if (!box) return;
+    // the controls-only bar is whatever size its buttons are; only the one with
+    // a picture in it has a size worth arguing about
+    const strip = box.classList.contains('strip');
+    if (strip){ const r = box.getBoundingClientRect(); w = r.width; h = r.height; }
+    const vw = Math.max(240, window.innerWidth), vh = Math.max(160, window.innerHeight);
+    w = Math.min(Math.max(strip ? 1 : 220, w || 0), vw);
+    h = Math.min(Math.max(strip ? 1 : 150, h || 0), vh);
+    x = Math.min(Math.max(0, x || 0), vw - w);
+    y = Math.min(Math.max(0, y || 0), vh - h);
+    box.style.left = Math.round(x) + 'px';
+    box.style.top = Math.round(y) + 'px';
+    if (strip) return;
+    box.style.width = Math.round(w) + 'px';
+    box.style.height = Math.round(h) + 'px';
+  },
+  pipSave(){
+    if (!this.pipEl || this.pipEl.classList.contains('full')
+      || this.pipEl.classList.contains('strip')) return;
+    const r = this.pipEl.getBoundingClientRect();
+    try {
+      localStorage.setItem('mb8_stage_pip_v1', JSON.stringify(
+        { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }));
+    } catch (e){}
+  },
+  closePip(){
+    if (this._pipFit){ window.removeEventListener('resize', this._pipFit); this._pipFit = null; }
+    if (this.pipEl){
+      this.pipSave();
+      // removing the frame ends that page, which says goodbye on its way out
+      try { this.pipEl.remove(); } catch (e){}
+      this.pipEl = null;
+    }
+    this.pip = false;
+    this.pipNative = false;
+  },
   stop(){
     this.on = false;
     this.send({ t: 'booth-gone' });
     if (NATIVE.ready()) NATIVE.call('close_stage');
+    this.closePip();
     for (const w of this.wins){ try { w.close(); } catch (e){} }
     this.wins = [];
     this.peers.clear();

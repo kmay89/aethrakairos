@@ -249,6 +249,125 @@ if (want('stage')){
   await ctx.close();
 }
 
+// ------------------------------------------------------------------- pip
+/* ONE SCREEN IS STILL A STAGE. The laptop on the table has one display and no
+ * popup permission worth relying on, and for a long time that meant the stage
+ * could not be reached at all: the app said "allow pop-ups" and stopped. The
+ * small window is the answer, and it is the floor under everything — so what is
+ * checked here is that it opens, that it is a real screen on the real channel,
+ * that a hand can move and size it, and that a blocked popup arrives here
+ * rather than at a dead end. */
+if (want('pip')){
+  console.log('\none screen, and the stage still opens');
+  const ctx = await browser.newContext();
+  const { page: booth } = await open(ctx, '/');
+
+  await booth.evaluate(() => STAGE.open(1, { pip: true }));
+  await booth.waitForSelector('#stagePip', { timeout: 5000 });
+  const up = await booth.evaluate(() => {
+    const box = document.getElementById('stagePip');
+    const f = box.querySelector('iframe');
+    const r = box.getBoundingClientRect();
+    return {
+      on: STAGE.on, pip: STAGE.pip,
+      src: f ? f.getAttribute('src') : '',
+      mini: document.body.classList.contains('mini'),
+      topbar: getComputedStyle(document.querySelector('.topbar')).display,
+      w: Math.round(r.width), h: Math.round(r.height),
+      inView: r.left >= 0 && r.top >= 0
+        && r.right <= window.innerWidth + 1 && r.bottom <= window.innerHeight + 1,
+      buttons: box.querySelectorAll('.pip-head button').length,
+    };
+  });
+  verdict('pip: the stage opens in the corner of the booth', up.on && up.pip && !!up.src);
+  verdict('pip: and what is in it is a stage screen, told it is a small one',
+    /stage=screen/.test(up.src) && /pip=1/.test(up.src), up.src);
+  verdict('pip: the booth stays whole — this is a preview, not a hand-off',
+    !up.mini && up.topbar !== 'none');
+  verdict('pip: it starts inside the window, at a size a hand can use',
+    up.inView && up.w >= 220 && up.h >= 150, up.w + '×' + up.h);
+  verdict('pip: with a way out, a way big and a way closed', up.buttons === 3, up.buttons + ' buttons');
+
+  // the frame really is a screen, on the real channel, counted by the booth
+  const frame = booth.frames().find(f => /stage=screen/.test(f.url()));
+  let lit = 0, role = '';
+  if (frame){
+    await frame.waitForFunction('window.__mb8Booted === true', null, { timeout: 45000 });
+    role = await frame.evaluate(() => STAGE.cfg.role + '/' + (document.body.classList.contains('pip') ? 'pip' : ''));
+    await booth.waitForTimeout(900);
+    lit = await booth.evaluate(() => STAGE.live());
+  }
+  verdict('pip: the picture inside it knows it is a screen', role === 'screen/pip', role);
+  verdict('pip: and the booth counts it like any television', lit >= 1, lit + ' screen(s)');
+
+  // a hand on the bar moves it; a hand on the corner sizes it
+  const moved = await booth.evaluate(async () => {
+    const box = document.getElementById('stagePip');
+    const drag = (el, from, to) => {
+      el.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 3, clientX: from.x, clientY: from.y, bubbles: true }));
+      el.dispatchEvent(new PointerEvent('pointermove', { pointerId: 3, clientX: to.x, clientY: to.y, bubbles: true }));
+      el.dispatchEvent(new PointerEvent('pointerup', { pointerId: 3, clientX: to.x, clientY: to.y, bubbles: true }));
+    };
+    const a = box.getBoundingClientRect();
+    const head = box.querySelector('.pip-head');
+    drag(head, { x: a.left + 40, y: a.top + 10 }, { x: 120, y: 90 });
+    const b = box.getBoundingClientRect();
+    const grip = box.querySelector('.pip-grip');
+    drag(grip, { x: b.right - 4, y: b.bottom - 4 }, { x: b.left + 340, y: b.top + 250 });
+    const c = box.getBoundingClientRect();
+    // and off the edge of the world is not a place it can be put
+    drag(head, { x: c.left + 40, y: c.top + 10 }, { x: -900, y: -900 });
+    const d = box.getBoundingClientRect();
+    return {
+      x: Math.round(b.left), y: Math.round(b.top),
+      w: Math.round(c.width), h: Math.round(c.height),
+      clampX: Math.round(d.left), clampY: Math.round(d.top),
+    };
+  });
+  verdict('pip: the bar drags it', Math.abs(moved.x - 80) < 3 && Math.abs(moved.y - 80) < 3,
+    moved.x + ',' + moved.y);
+  verdict('pip: the corner sizes it', Math.abs(moved.w - 340) < 3 && Math.abs(moved.h - 250) < 3,
+    moved.w + '×' + moved.h);
+  verdict('pip: and it cannot be dragged out of the window', moved.clampX === 0 && moved.clampY === 0,
+    moved.clampX + ',' + moved.clampY);
+
+  const big = await booth.evaluate(async () => {
+    const box = document.getElementById('stagePip');
+    box.querySelectorAll('.pip-head button')[1].click();
+    await new Promise(r => setTimeout(r, 60));
+    const r = box.getBoundingClientRect();
+    return { full: box.classList.contains('full'), w: Math.round(r.width), h: Math.round(r.height),
+      vw: window.innerWidth, vh: window.innerHeight };
+  });
+  verdict('pip: and it fills the window when it is asked to',
+    big.full && Math.abs(big.w - big.vw) < 2 && Math.abs(big.h - big.vh) < 2,
+    big.w + '×' + big.h);
+
+  const shut = await booth.evaluate(async () => {
+    document.querySelectorAll('#stagePip .pip-head button')[2].click();
+    await new Promise(r => setTimeout(r, 120));
+    return { box: !!document.getElementById('stagePip'), on: STAGE.on, pip: STAGE.pip };
+  });
+  verdict('pip: the ✕ takes the whole thing away', !shut.box && !shut.on && !shut.pip);
+  await ctx.close();
+
+  /* THE BUG THIS EXISTS FOR: a window that will not open must not be the end of
+   * the road. The Mac shell's webview opens no second window at all, and the
+   * old code answered that with a sentence about popup settings and nothing
+   * else — the stage was simply unreachable there. */
+  const ctx2 = await browser.newContext();
+  const { page: p2 } = await open(ctx2, '/');
+  const fell = await p2.evaluate(async () => {
+    window.open = () => null;                      // every popup blocked, as in the shell
+    await STAGE.open(1);                           // the ordinary "put it on a screen"
+    await new Promise(r => setTimeout(r, 200));
+    return { box: !!document.getElementById('stagePip'), on: STAGE.on, pip: STAGE.pip };
+  });
+  verdict('pip: a blocked window falls back to the small stage, not to a dead end',
+    fell.box && fell.on && fell.pip);
+  await ctx2.close();
+}
+
 // ----------------------------------------------------------------- slice
 if (want('slice')){
   console.log('\none camera, cut across three televisions');

@@ -16,6 +16,7 @@
 //   open_mic_settings     macOS privacy pane — the one place the app can't reach
 //   list_displays         what screens exist, so the room can choose one
 //   open_stage / close    the visualizer, fullscreen, on the screen the audience sees
+//   stage_pip             …or the same stage small, above every app, on one screen
 //   set_mini              the booth folded into a corner, above everything
 
 use std::sync::Mutex;
@@ -31,6 +32,11 @@ const UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/60
 /// windows, not one, so the label cannot be a constant.
 fn stage_label(screen: u32) -> String { format!("stage-{}", screen) }
 
+/// The corner stage, in logical points. Sixteen by nine plus nothing: the
+/// window has a real title bar, so the room can drag and resize it by hand.
+const PIP_W: f64 = 480.0;
+const PIP_H: f64 = 270.0;
+
 /// The booth's own bounds before it folded into a corner, so leaving mini mode
 /// puts the window back exactly where the listener had it.
 #[derive(Default)]
@@ -41,6 +47,11 @@ struct NativeInfo {
     version: String,
     os: String,
     stage_open: bool,
+    /// What THIS build can do, by name. The player deploys in a minute and this
+    /// binary takes a day, so the web side asks for a native trick rather than
+    /// assuming one from the mere presence of a shell — an older app answers
+    /// with a shorter list and the web path underneath simply carries on.
+    caps: Vec<&'static str>,
 }
 
 #[derive(serde::Serialize)]
@@ -79,6 +90,7 @@ pub fn run() {
             open_mic_settings,
             list_displays,
             open_stage,
+            stage_pip,
             close_stage,
             set_mini,
             reload_shell,
@@ -222,6 +234,7 @@ fn native_info<R: Runtime>(app: tauri::AppHandle<R>) -> NativeInfo {
         version: app.package_info().version.to_string(),
         os: std::env::consts::OS.to_string(),
         stage_open: app.webview_windows().keys().any(|l| l.starts_with("stage-")),
+        caps: vec!["stage_pip"],
     }
 }
 
@@ -327,17 +340,33 @@ fn list_displays<R: Runtime>(app: tauri::AppHandle<R>) -> Vec<Display> {
         .collect()
 }
 
+/// Where a corner stage sits on a given display: top-right, clear of the menu
+/// bar, and never wider than the screen it is on.
+fn pip_bounds(d: &Display) -> (f64, f64, f64, f64) {
+    let w = PIP_W.min(d.width - 48.0).max(240.0);
+    let h = PIP_H.min(d.height - 96.0).max(150.0);
+    (d.x + (d.width - w - 24.0).max(0.0), d.y + 48.0, w, h)
+}
+
 /// Put the visualizer on a screen of its own, fullscreen, with no chrome — the
 /// window the audience sees. `screen`/`of` travel in the URL so the page knows
 /// which slice of one continuous field it is drawing.
+///
+/// With `pip`, the same stage instead opens SMALL: a real window with a title
+/// bar, above every other app, on the display the booth is already on. That is
+/// the only shape of this a one-screen laptop can actually work with — a
+/// fullscreen stage there would bury the booth that drives it — and it is how
+/// anyone tries the thing before they own a second screen.
 #[tauri::command]
 async fn open_stage<R: Runtime>(
     app: tauri::AppHandle<R>,
     display: Option<usize>,
     screen: Option<u32>,
     of: Option<u32>,
+    pip: Option<bool>,
 ) -> Result<bool, String> {
     let n = screen.unwrap_or(1);
+    let pip = pip.unwrap_or(false);
     let label = stage_label(n);
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.show();
@@ -349,28 +378,50 @@ async fn open_stage<R: Runtime>(
         return Err("no displays".into());
     }
     // default to a screen that is NOT the one the booth is on: the whole point
-    // is that the audience sees the field and not the controls
-    let idx = display.unwrap_or_else(|| if displays.len() > 1 { 1 } else { 0 });
+    // is that the audience sees the field and not the controls. A corner stage
+    // is the opposite — it belongs on the screen the operator is looking at.
+    let idx = display.unwrap_or_else(|| if displays.len() > 1 && !pip { 1 } else { 0 });
     let d = displays.get(idx).or_else(|| displays.first()).ok_or("no such display")?;
 
-    let url = format!("{}/?stage=screen&screen={}&of={}", LIVE, n, of.unwrap_or(1));
-    let win = tauri::WebviewWindowBuilder::new(
+    let url = format!(
+        "{}/?stage=screen&screen={}&of={}{}",
+        LIVE,
+        n,
+        of.unwrap_or(1),
+        if pip { "&pip=1" } else { "" }
+    );
+    let base = tauri::WebviewWindowBuilder::new(
         &app,
         &label,
         tauri::WebviewUrl::External(url.parse().map_err(|_| "bad stage url")?),
     )
     .title(format!("Aethra Kairos — Stage {}", n))
     .user_agent(UA)
-    .decorations(false)
-    .position(d.x, d.y)
-    .inner_size(d.width, d.height)
-    .background_color(tauri::window::Color(5, 6, 12, 255))
-    .build()
-    .map_err(|e| e.to_string())?;
+    .background_color(tauri::window::Color(5, 6, 12, 255));
+
+    let win = if pip {
+        let (x, y, w, h) = pip_bounds(d);
+        base.decorations(true)          // the title bar IS the handle to drag it by
+            .resizable(true)
+            .always_on_top(true)
+            .min_inner_size(240.0, 150.0)
+            .inner_size(w, h)
+            .position(x, y)
+            .build()
+            .map_err(|e| e.to_string())?
+    } else {
+        base.decorations(false)
+            .position(d.x, d.y)
+            .inner_size(d.width, d.height)
+            .build()
+            .map_err(|e| e.to_string())?
+    };
 
     // fullscreen AFTER placing it: macOS fullscreens onto whichever display the
     // window is currently on, so the position is what chooses the screen
-    let _ = win.set_fullscreen(true);
+    if !pip {
+        let _ = win.set_fullscreen(true);
+    }
 
     // the booth must always learn when its screen goes away — by a close box, a
     // yanked HDMI cable, or a person hitting Escape on the wrong window
@@ -382,6 +433,45 @@ async fn open_stage<R: Runtime>(
     });
     let _ = app.emit("stage-opened", idx);
     Ok(true)
+}
+
+/// Fold a running stage into the corner, or throw it back onto the whole
+/// screen. The same window either way — a stage tried small and then wanted big
+/// should not have to be closed and reopened, because the packet it is being
+/// fed would stop and the picture would blink.
+#[tauri::command]
+async fn stage_pip<R: Runtime>(app: tauri::AppHandle<R>, on: bool) -> Result<u32, String> {
+    let displays = list_displays(app.clone());
+    let mut touched = 0;
+    for (label, w) in app.webview_windows() {
+        if !label.starts_with("stage-") {
+            continue;
+        }
+        if on {
+            let _ = w.set_fullscreen(false);
+            let _ = w.set_decorations(true);
+            let _ = w.set_resizable(true);
+            let _ = w.set_always_on_top(true);
+            if let Some(d) = displays.first() {
+                let (x, y, ww, hh) = pip_bounds(d);
+                let _ = w.set_size(Size::Logical(LogicalSize::new(ww, hh)));
+                let _ = w.set_position(Position::Logical(LogicalPosition::new(x, y)));
+            }
+        } else {
+            let _ = w.set_always_on_top(false);
+            let _ = w.set_decorations(false);
+            // a stage that is going back to the room takes a screen of its own
+            // where there is one to take
+            if let Some(d) = displays.get(1).or_else(|| displays.first()) {
+                let _ = w.set_position(Position::Logical(LogicalPosition::new(d.x, d.y)));
+                let _ = w.set_size(Size::Logical(LogicalSize::new(d.width, d.height)));
+            }
+            let _ = w.set_fullscreen(true);
+        }
+        let _ = w.set_focus();
+        touched += 1;
+    }
+    Ok(touched)
 }
 
 /// Close every stage window there is. A wall is several windows and leaving one

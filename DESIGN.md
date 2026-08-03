@@ -99,9 +99,12 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
 - It does exactly what the web cannot do for itself and nothing else — report
   who is hosting the player, offer the native update rather than impose it, open
   the macOS privacy pane, enumerate displays, put a stage window fullscreen on a
-  chosen one, and fold the booth into a corner above everything. Each is a
-  command that resolves `null` in a browser, so the player never branches on
-  which shell it is in (§1.2n).
+  chosen one — or small and above every other app where there is only one screen
+  — and fold the booth into a corner above everything. Each is a command that
+  resolves `null` in a browser, so the player never branches on which shell it is
+  in (§1.2n). The shell also *names* what it can do (`native_info.caps`), so a
+  player that is always newer than the binary around it asks for a native trick
+  by name and falls back on its own where the answer is no.
 
 ### 1.2b Self-update, and the app's account of itself
 - **Two paths, one policy.** A stamped deploy installs a new worker that
@@ -776,6 +779,30 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   holding a frozen picture the room reads as a crash. A closed screen tells the booth;
   a closed booth tells the screens; the Mac shell reports a window destroyed by a
   yanked cable the same way.
+- **One screen is still a stage.** The room this was written for has a television in
+  it. The machine everyone actually *tries* it on does not — one laptop display, no
+  second monitor, and a webview whose popup policy is "no". That combination used to
+  be a dead end: the app said "allow pop-ups for this site" and stopped, which inside
+  the Mac shell (a WebKit view that opens no second window at all) meant the stage
+  could not be reached by any route. So the stage also comes small — a picture in
+  picture that floats over the booth, dragged by its bar, resized by its corner,
+  pushed to full and back, with `↗` to send it to a real window the day there is one
+  to send it to. It is reached three ways: asked for by name (the chooser offers it
+  outright when there is only one display), taken as the default when one display is
+  asked for one screen, and fallen back to when a window is blocked. The picture the
+  room would see, at postcard size, is a preview rather than a hand-off — so the
+  booth does NOT fold: the whole console stays, because the point of the small
+  version is watching the screen while working the mixer.
+- **The floor under that is an iframe, and it is chosen deliberately.** The Mac shell
+  gives the corner stage a real window — decorated, resizable, above every other app
+  — but the shell deploys in a day and the player deploys in a minute, so nothing may
+  *depend* on it: the shell now names what it can do (`native_info.caps`) and the web
+  asks by name. Where the answer is no, the booth grows the window itself: an iframe
+  of this very page, told to be a screen. An iframe needs no second display, no popup
+  permission and no shell, and it speaks the same `BroadcastChannel` as a screen on a
+  television — the booth counts it, drives it and cuts its frustum identically. There
+  is no second rendering path anywhere in this; there is one stage screen, hosted
+  three ways.
 - **Verified by `tools/stage_probe.mjs`** on two real windows with a real channel
   between them: the screen hides every control and keeps the field, loads no catalog,
   runs no director, takes the booth's spectrum, clock, act, chord, camera and hand,
