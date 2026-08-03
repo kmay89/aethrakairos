@@ -664,6 +664,47 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   install that had never started. The probe awaits the same call the app makes,
   which changes the harness's patience and not the app's behaviour.
 
+### 1.2k "You're up to date" — the status the loop never had
+
+- **The report, a third time:** the same card, now reading `7dba7ac06f → new`, on
+  the build deployed that very morning — after §1.2f and §1.2j had each closed real
+  ways in. What was left standing were the two voices that can still say "new"
+  without naming anything, and the absence of any state that says the opposite.
+- **A 'shell' claim is only a measurement when it arrives WITH the measurement.**
+  §1.2j trusted the provenance: the worker's byte-compare is a fact about content,
+  so its claims stood unconditionally. But the claim and its guards live in
+  different files. The page believes any `SHELL_FRESH` message, and the worker
+  ACTIVE on a listener's device can be generations older than the page it serves —
+  installed before the cold-cache guard, the dedup or the fingerprint existed, and
+  kept alive indefinitely, because a waiting worker only activates on an apply or a
+  full close while `revalidateShell` keeps recaching newer shells into the old
+  worker's cache. Those retired voices announce on the same channel with none of
+  the guarantees, and were believed on sight: rendered as "→ new" when they carried
+  no build, or as an offer of the running build when they echoed the stamp.
+  `updateOffer` now grades a shell claim by what it carries — a fingerprint stands
+  (the un-stamped deploy path lives exactly there), a cross-build id stands (an id
+  is falsifiable), and a claim with neither, or one naming the very build we run,
+  is verified against the origin like any other rumour.
+- **An offer that could not be named must not stand for the rest of the session.**
+  `verifyShell`'s failure path raises the one honest unnamed card (a waiting worker
+  is a real artefact in this device's storage, even offline) — and nothing ever
+  re-examined it. `checkForUpdate` REMINDED about it on every timer and re-verified
+  nothing, so one bad moment on the network pinned "→ new" until the next reload,
+  six-hourly nag included. Every check now re-verifies a standing unnamed offer:
+  the moment the origin is reachable again the card either gets its name or leaves.
+- **And the affirmative state finally exists.** Every earlier fix ended at "the
+  card leaves", which a listener cannot tell apart from "the card will be back".
+  When verification finds the deployed build is the one running while the card is
+  OPEN, the card now says so — "You're up to date", with the build id as the proof
+  — and a swap that lands on the build it left says the same in its toast instead
+  of the noncommittal "Refreshed". The loop's absence is something the listener
+  can finally SEE.
+- **What the probe watches now, on top of §1.2j's checks:** a fingerprinted shell
+  claim still stands (stamp or no stamp); a claim with neither fingerprint nor
+  build is verified against the origin and withdrawn rather than believed; and
+  when that verification happens under an open card, the card turns into the
+  up-to-date status rather than quietly emptying.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

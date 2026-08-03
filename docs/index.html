@@ -2532,11 +2532,11 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 
 <div id="upProgress" aria-hidden="true"><i></i></div>
 <div id="updateCard" role="dialog" aria-label="Update ready">
-  <div class="bp-t"><b>Update ready</b> · <span class="up-builds" id="upBuilds"></span></div>
+  <div class="bp-t"><b id="upTitle">Update ready</b> · <span class="up-builds" id="upBuilds"></span></div>
   <ul class="up-notes" id="upNotes"></ul>
   <div class="up-fine" id="upDeferNote" hidden></div>
   <div class="up-fine" id="upShowNote" hidden>⚡ SHOW is on — nothing ever applies by itself during a set.</div>
-  <div class="up-fine">Applying saves your place first — everything restores, music resumes paused where it was.</div>
+  <div class="up-fine" id="upApplyNote">Applying saves your place first — everything restores, music resumes paused where it was.</div>
   <div class="bp-row">
     <button class="bp-later" id="upClose" type="button">Close</button>
     <span class="spring"></span>
@@ -3423,7 +3423,24 @@ function updateOffer(o){
   const s = o || {};
   if (s.requested) return 'ignore';                 // we are already applying one
   if (s.key && s.tried && s.key === s.tried) return 'applied';
-  if (s.source === 'shell') return 'show';          // a MEASURED content difference
+  /* A 'shell' claim is only a measurement when it ARRIVES with the measurement.
+     The provenance rule trusted the byte-compare; but the compare and its guards
+     live in sw.js, and the worker ACTIVE on a listener's device can be
+     generations older than the page it serves — installed before the cold-cache
+     guard, the dedup or the fingerprint existed, and kept alive indefinitely
+     because a waiting worker only activates on an apply or a full close. Those
+     retired voices announce on the same channel, with none of the guarantees,
+     and being believed on sight is how "→ new" came back after everything else
+     was fixed. Today's worker always sends the print of the bytes it measured,
+     so: a fingerprint stands (the un-stamped deploy path lives there), a
+     cross-build id stands (ids are falsifiable), and a claim with neither — or
+     one naming the very build we run, which cannot be told from an echo — is
+     checked against the origin like any other rumour. */
+  if (s.source === 'shell'){
+    if (s.print) return 'show';                     // a MEASURED content difference, named by its print
+    if (s.build && s.build !== s.running) return 'show';
+    return 'verify';
+  }
   if (s.build) return s.build === s.running ? 'ignore' : 'show';
   return 'verify';                                  // an unmeasured claim proves nothing
 }
@@ -11507,7 +11524,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '7dba7ac06f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'b3c47720be';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -11668,6 +11685,15 @@ function checkForUpdate(){
   // whose stamp never changed
   if (swReg) swReg.update().catch(() => {});
   try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'CHECK_SHELL' }); } catch (e){}
+  /* A STANDING OFFER WITH NO NAME IS A QUESTION, NOT A FACT. The only card that
+     can be up without naming its build is the one raised while the origin was
+     unreachable — and nothing ever asked again: the timers REMINDED about it on
+     schedule and re-verified nothing, so one bad moment on the network pinned
+     "→ new" for the rest of the session, nagging included. Every check now
+     re-asks the origin: a real update gets its name, a phantom is withdrawn,
+     and an unnamed card can only ever be a transient. */
+  if (!updateRequested && UPDATE.source && !UPDATE.newBuild
+      && el.btnUpdate && !el.btnUpdate.hidden) verifyShell(UPDATE.source);
   UPDATE.remind();                 // and if a snooze just ran out, say so once
 }
 /* Ask the ORIGIN what the deployed shell is, past every cache. Same stamp as the
@@ -11715,9 +11741,12 @@ async function verifyShell(source){
         && updateOfferKey(MB8_BUILD, 'worker') !== UPDATE.tried) raiseOffer('worker', '', '');
   } finally { verifying = false; }
 }
-/* WE ARE CURRENT — and everything that thought otherwise has to stand down. */
+/* WE ARE CURRENT — and everything that thought otherwise has to stand down.
+   And if the listener is LOOKING, say so: every earlier fix ended at "the card
+   leaves", which cannot be told apart from "the card will be back". */
 function shellIsCurrent(why){
   withdrawOffer(why, true);
+  updateCardCurrent();
   /* A WAITING WORKER WITH NOTHING TO BRING IS RETIRED, NOT LEFT TO ASK AGAIN.
      sw.js and index.html are separate objects with separate journeys through a
      CDN, so a worker can install from a changed sw.js while the edge still serves
@@ -11755,7 +11784,7 @@ function offerUpdate(source, build, print){
      un-stamped deploy the same offer as the last one — and the second real one
      would be swallowed as "already applied". */
   const key = updateOfferKey(MB8_BUILD, print || build || source);
-  const verdict = updateOffer({ source, build, running: MB8_BUILD,
+  const verdict = updateOffer({ source, build, print, running: MB8_BUILD,
     requested: updateRequested, key, tried: UPDATE.tried });
   if (verdict === 'ignore') return;
   /* WE ALREADY DID THIS ONE. The listener applied exactly this offer, the page
@@ -11923,11 +11952,37 @@ window.addEventListener('pagehide', () => {
   upProgressStop(true);
 });
 /* ---- the update card: the log and the three honest choices ---- */
+/* THE STATUS THE LOOP NEVER HAD. When verification finds the deployed build is
+   the one running while the listener has the card OPEN — staring at an offer —
+   the card turns into the answer instead of vanishing: "You're up to date",
+   with the build id as the proof. Anything less reads as "it will be back". */
+function updateCardCurrent(){
+  const card = document.getElementById('updateCard');
+  if (!card || !card.classList.contains('in')) return;
+  const t = document.getElementById('upTitle');
+  if (t) t.textContent = 'You’re up to date';
+  const b = document.getElementById('upBuilds');
+  if (b) b.textContent = MB8_BUILD + ' — the newest deploy there is';
+  const list = document.getElementById('upNotes');
+  if (list) list.innerHTML = '<li>Checked against the site itself just now — nothing newer to bring you.</li>';
+  for (const id of ['upDeferNote', 'upShowNote', 'upApplyNote', 'upLater', 'upAfter', 'upNow']){
+    const n = document.getElementById(id);
+    if (n) n.hidden = true;
+  }
+}
 function updateCardOpen(open){
   const card = document.getElementById('updateCard');
   if (!card) return;
   card.classList.toggle('in', !!open);
   if (!open) return;
+  /* the card may last have been seen wearing its "up to date" clothes —
+     dress it as an offer again before painting one */
+  const t = document.getElementById('upTitle');
+  if (t) t.textContent = 'Update ready';
+  for (const id of ['upApplyNote', 'upLater', 'upAfter', 'upNow']){
+    const n = document.getElementById(id);
+    if (n) n.hidden = false;
+  }
   const b = document.getElementById('upBuilds');
   if (b) b.textContent = MB8_BUILD + ' → ' + (UPDATE.newBuild || 'new');
   const list = document.getElementById('upNotes');
@@ -12017,8 +12072,8 @@ try {
          already had. What matters is that the key applied is still remembered
          (applyUpdate wrote it), so whatever raises this same offer next gets
          "already applied" instead of another card. */
-      ACTIVITY.log('update', 'Refreshed to the newest deploy (' + MB8_BUILD + ')');
-      toast('Refreshed to the newest deploy');
+      ACTIVITY.log('update', 'Refreshed - you are up to date on build ' + MB8_BUILD);
+      toast('You’re up to date — build <b>' + escapeHTML(MB8_BUILD) + '</b> is the newest deploy');
     }
   }
 } catch (e){}
