@@ -113,6 +113,12 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
 - **A loop brake.** Three automatic swaps per session, then automatic
   application stands down — a host whose shell never compares equal cannot turn
   self-update into a reload loop. A deliberate tap is never rate-limited.
+- **An offer is falsifiable, and applying is remembered.** Nothing is shown until
+  the deployed stamp has been read from the origin past every cache — including
+  our own worker's, which is where the first attempt at this quietly failed
+  (§1.2j). An offer has an identity, applying stores it, and meeting the same one
+  again is proof the swap changed nothing: it is answered in the log, not with
+  another card.
 - **The activity log** (`ACTIVITY`): a bounded, device-local ring of what the
   app actually did — updates, plays, library loads, connectivity — with
   consecutive repeats coalesced into counts, shown at the foot of the Console.
@@ -596,6 +602,67 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   the highlight so nothing can wash, this one keeps exactly one and spends the rest
   of the sweep making it worth arriving at. Chroma rises as lightness falls, because
   a dark stop that also desaturates is not night, it is grey.
+
+### 1.2j The same update, offered again — and the verification that was verifying itself
+
+- **The report, unchanged from §1.2f:** "update is working but not knowing it has and
+  keeps offering it." The card in the screenshot reads `9e6b13a9be → new`, on the
+  build already deployed, and lists four changes the listener already has. §1.2f
+  built the rule that was supposed to end this; it ended one of the four ways in.
+- **The verification layer never left the building.** `verifyShell()` — the whole
+  point of §1.2f, the thing that turns "something changed" into "there is a newer
+  build" — fetched `index.html?_v=…` with `cache: 'no-store'` and a comment saying
+  "past every cache". The service worker's shell route matches on **path**; a query
+  string is not part of a path, so the probe was answered out of the versioned cache,
+  by us, in about a millisecond. `no-store` had nothing to say about it: that governs
+  the HTTP cache, and a service worker sits in front of that. Every verdict it
+  produced was the cache's opinion of itself, and it is wrong in *both* directions —
+  a page loaded from the network while the cache still holds the previous shell
+  "verifies" as stale and offers a downgrade. sw.js now passes anything carrying
+  `mb8probe` straight to the network, and the probe counts requests at the ORIGIN to
+  prove it arrived.
+- **A waiting worker is a fact about `sw.js`, not about the shell.** §1.2f let a
+  waiting worker stand on its own — "a versioned release the browser installed
+  itself, the strongest evidence there is". But `sw.js` and `index.html` are separate
+  objects with separate journeys through a CDN, and this repo ships them in a pair of
+  deploys per merge (the content push, then the stamp workflow's). A worker that
+  installs while the edge still serves the previous shell carries the build already
+  running: it waits, every launch finds `registration.waiting` and offers it, every
+  apply activates a worker whose cache holds the shell we already have, and the next
+  launch finds the next one. It also carries no build id, which is where the word
+  "new" in the screenshot comes from. It is checked against the deployed stamp now,
+  and when it has nothing to bring it is **retired** — handed over silently, since a
+  handover that changes no code costs the listener nothing.
+- **The rule that makes an offer falsifiable at all.** Every apply was the app's
+  first apply. Nothing was ever compared against anything, so a swap that *could not*
+  change the running build — an un-stamped deploy, a worker with nothing in it — was
+  offered again the moment the page came back, forever, and the loop had no memory to
+  break it. An offer now has an identity: `updateOfferKey(running build, what it
+  claims to bring)`, where "what it claims to bring" is the deployed stamp or, for an
+  un-stamped deploy, the worker's content fingerprint (the only name that case has).
+  Applying stores that key, and the store outlives the reload the apply causes —
+  which is the whole point, because the page that asks again is a different page.
+  Meeting the same key again returns `applied`: log it once, withdraw the card, stay
+  quiet. The key contains the running build, so a build that *did* move can never be
+  suppressed by an old memory, and `updateRecover()` forgets deliberately — a swap
+  that failed must stay applicable.
+- **The card also has to know what it already told you.** `newsSince()` walks the
+  changelog until it meets the running build, and most deploys ship no entry of their
+  own (polish, a fix, the stamp commit itself), so the running build was an id no
+  entry had ever heard of: the walk ran off the end and the card answered "what's
+  new?" with the last four things the listener already had. That is its own way of
+  not knowing an update has landed. `stamp_version.py` now records every stamped
+  build on the newest entry's `builds`, so the running build is always found.
+- **What the probe watches now:** that the origin probe reaches the origin (counted
+  server-side — under the old code it reached zero requests); that an un-stamped
+  deploy is offered, applied, lands its bytes, and is then *not* offered again when
+  the identical announcement is replayed; and that a worker installed from a changed
+  `sw.js` over an unchanged shell is retired rather than sold. That last one has a
+  harness lesson in it: `checkForUpdate()` fires `registration.update()` and walks
+  away, and in a headless page nobody is looking at, Chromium is in no hurry to run
+  an update job for a promise nothing holds — forty seconds of polling found an
+  install that had never started. The probe awaits the same call the app makes,
+  which changes the harness's patience and not the app's behaviour.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;

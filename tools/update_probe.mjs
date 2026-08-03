@@ -15,6 +15,12 @@
  *   stamped    a normal release — sw.js changes, a new worker waits
  *   unstamped  a deploy that forgot the stamp — only index.html differs, so
  *              only the worker's byte-compare can notice it
+ *   current    no deploy at all — a correct app is silent, and a card raised in
+ *              error can leave
+ *   again      the reported loop: the origin probe must reach the origin, and a
+ *              swap already applied must never be offered a second time
+ *   idle       a worker installed from a changed sw.js while the shell stayed
+ *              put — it carries the running build and must be retired, not sold
  *   sibling    two clients open; ONE applies. The other's waiting worker is
  *              consumed out from under it — the state that used to leave a
  *              dead Update button and a page stranded on old code
@@ -54,7 +60,9 @@ function site(tag){
   for (const f of ['index.html', 'sw.js', 'three.min.js', 'manifest.webmanifest', 'news.json', 'catalog.json'])
     if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(dir, f));
   if (existsSync(join(SRC, 'icons'))) cpSync(join(SRC, 'icons'), join(dir, 'icons'), { recursive: true });
+  const hits = [];                          // every request that reached the ORIGIN
   const server = createServer((req, res) => {
+    hits.push(req.url);
     const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     const f = join(dir, p === '/' ? 'index.html' : p.slice(1));
     if (!existsSync(f) || statSync(f).isDirectory()){ res.writeHead(404); res.end(); return; }
@@ -64,12 +72,20 @@ function site(tag){
       'Cache-Control': 'no-cache' });
     res.end(readFileSync(f));
   });
-  return { dir, server, close(){ server.close(); if (!KEEP) rmSync(dir, { recursive: true, force: true }); } };
+  return { dir, server, hits, close(){ server.close(); if (!KEEP) rmSync(dir, { recursive: true, force: true }); } };
 }
 function deploy(dir, stampSw){
   writeFileSync(join(dir, 'index.html'), readFileSync(join(dir, 'index.html'), 'utf8')
     .replace(/const MB8_BUILD = '[^']*';/, `const MB8_BUILD = '${NEW}';`));
   if (stampSw) writeFileSync(join(dir, 'sw.js'), readFileSync(join(dir, 'sw.js'), 'utf8')
+    .replace(/const VERSION = '[^']*';/, `const VERSION = '${NEW}';`));
+}
+/* A DEPLOY OF THE WORKER ALONE. sw.js and index.html are separate objects with
+ * separate journeys through a CDN, so this is not a hypothetical: a worker
+ * installs from a changed sw.js while the edge still serves the previous shell,
+ * and then waits — carrying the build already running. */
+function bumpWorkerOnly(dir){
+  writeFileSync(join(dir, 'sw.js'), readFileSync(join(dir, 'sw.js'), 'utf8')
     .replace(/const VERSION = '[^']*';/, `const VERSION = '${NEW}';`));
 }
 /* Clear the curtains and hold auto-apply off. SHOW mode is the app's own
@@ -99,7 +115,7 @@ async function run(tag, stampSw, fn){
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const ctx = await browser.newContext();
-  try { await fn({ origin, ctx, dir: s.dir, stampSw }); }
+  try { await fn({ origin, ctx, dir: s.dir, stampSw, hits: s.hits }); }
   finally { await browser.close(); s.close(); }
 }
 
@@ -199,6 +215,110 @@ if (want('current')){
     const stands = await page.evaluate(() => !document.getElementById('btnUpdate').hidden);
     verdict('current: a measured shell difference still stands, stamp or no stamp', stands,
       stands ? 'the worker measured content — the offer is kept' : 'the offer was dropped');
+  });
+}
+
+/* ------------------------------------------------- THE OFFER THAT KEPT COMING
+ * The report, in the listener's words: "update is working but not knowing it has
+ * and keeps offering it". Three separate mechanisms let that happen, and each
+ * gets a scenario here, because each is invisible to the other two.
+ */
+if (want('again')){
+  console.log('\napplied once — the same swap must never be offered again');
+  await run('again', false, async ({ origin, ctx, dir, hits }) => {
+    const page = await ctx.newPage();
+    await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+    await prep(page);
+    await page.waitForFunction('navigator.serviceWorker.controller !== null', null, { timeout: 25000 }).catch(() => {});
+
+    /* 1 · THE ORIGIN PROBE MUST REACH THE ORIGIN. verifyShell() is the whole
+     * verification layer, and it fetched `index.html?_v=…` — which the worker's
+     * shell route matches, because that route compares PATHS and a query string
+     * is not one. The probe was answered out of the cache, by the worker, and
+     * every verdict it produced was the cache's opinion of itself. */
+    const before = hits.length;
+    await page.evaluate(() => verifyShell('claim'));
+    await page.waitForTimeout(1500);
+    const probed = hits.slice(before).filter(u => /mb8probe/.test(u));
+    verdict('again: the origin probe reaches the origin, not our own cache', probed.length > 0,
+      probed.length + ' request(s) past the service worker');
+
+    /* 2 · AN UN-STAMPED DEPLOY, APPLIED, IS DONE. Same build id, different bytes
+     * — so applying it can never move MB8_BUILD, and nothing about the running
+     * page can prove the swap landed. What proves it is the memory of having
+     * applied that exact offer, which is why the memory has to outlive the
+     * reload the apply causes. */
+    writeFileSync(join(dir, 'index.html'), readFileSync(join(dir, 'index.html'), 'utf8')
+      .replace('</html>', '<!-- probe-unstamped --></html>'));
+    await page.evaluate(() => checkForUpdate());
+    const offered = await page.waitForFunction('!document.getElementById("btnUpdate").hidden', null,
+      { timeout: 30000 }).then(() => true).catch(() => false);
+    verdict('again: an un-stamped deploy is still offered', offered);
+    if (!offered) return;
+    const announced = await page.evaluate(() => UPDATE.key);
+    await page.evaluate(() => applyUpdate()).catch(() => {});
+    await page.waitForTimeout(4000);
+    await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 25000 }).catch(() => {});
+    await prep(page);
+    const landed = await page.evaluate(() => document.documentElement.outerHTML.includes('probe-unstamped'));
+    verdict('again: the swap landed — the new bytes are what is running', landed);
+    verdict('again: and the app remembers applying it',
+      (await page.evaluate(() => UPDATE.tried)) === announced,
+      'remembered "' + await page.evaluate(() => UPDATE.tried) + '"');
+
+    // now replay the exact announcement the worker would make. A correct app has
+    // nothing to say: it already did this one, and doing it again cannot help.
+    await page.evaluate(k => {
+      const t = String(k).split('>').pop();
+      offerUpdate('shell', MB8_BUILD, t);
+    }, announced);
+    await page.waitForTimeout(800);
+    for (let i = 0; i < 3; i++){ await page.evaluate(() => checkForUpdate()); await page.waitForTimeout(1200); }
+    verdict('again: the same offer, replayed, is not a card',
+      await page.evaluate(() => document.getElementById('btnUpdate').hidden === true),
+      'source "' + await page.evaluate(() => UPDATE.source) + '"');
+  });
+}
+
+/* 3 · A WAITING WORKER WITH NOTHING TO BRING. sw.js changed and index.html did
+ * not — a real CDN state, and one that used to raise a card on every single
+ * launch reading "<build> → new", because a waiting worker was believed on
+ * sight. Applying it activated a worker whose cache held the shell already
+ * running, changed nothing, and left the next launch to find the next one. */
+if (want('idle')){
+  console.log('\na waiting worker that carries this very build — retire it, do not offer it');
+  await run('idle', false, async ({ origin, ctx, dir }) => {
+    const page = await ctx.newPage();
+    await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+    await prep(page);
+    await page.waitForFunction('navigator.serviceWorker.controller !== null', null, { timeout: 25000 }).catch(() => {});
+    const running = await build(page);
+    bumpWorkerOnly(dir);
+    /* AWAIT the registration's own update job. checkForUpdate() fires it and
+     * walks away, which is right for the app and wrong for a probe: in a
+     * headless page nobody is looking at, Chromium is in no hurry to run an
+     * update job for a promise nothing holds, and forty seconds of polling
+     * found an install that had never started. Awaiting the same call the app
+     * makes changes the harness's patience, not the app's behaviour — from here
+     * on it is the page's own updatefound/statechange listeners doing the work.
+     *
+     * The retirement is then read out of the ACTIVITY log rather than by
+     * watching registration.waiting: the fix is faster than a poll can be — the
+     * worker is handed over within a round-trip of installing — so waiting for
+     * `waiting` to be non-null is a race the CORRECT app wins. The log is the
+     * receipt it leaves behind. */
+    await page.evaluate(() => swReg.update().catch(() => {}));
+    const retired = await page.waitForFunction(
+      "ACTIVITY.list.some(e => /handed over quietly/.test(e.m || ''))", null,
+      { timeout: 40000 }).then(() => true).catch(() => false);
+    verdict('idle: a worker carrying the running build is retired, not sold', retired,
+      retired ? 'handed over without a word' : 'no handover in the log');
+    verdict('idle: and it never became a card',
+      await page.evaluate(() => document.getElementById('btnUpdate').hidden === true),
+      'target was "' + await page.evaluate(() => UPDATE.newBuild || 'new') + '"');
+    verdict('idle: nothing is left waiting to ask again next launch',
+      await page.evaluate(() => !(swReg && swReg.waiting)));
+    verdict('idle: the listener is still on the build they booted', (await build(page)) === running);
   });
 }
 

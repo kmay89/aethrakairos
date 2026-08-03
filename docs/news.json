@@ -2,6 +2,17 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "7dba7ac06f",
+      "date": "2026-08-03",
+      "title": "The update that knew it had landed",
+      "notes": [
+        "fixed: applying an update could leave the app offering you the same one again, over and over, with nothing left to apply — an update you have already applied is now recognised as applied, and the app says so once instead of asking again",
+        "the check for a newer version asks the site itself rather than the copy it already has, so \"there is an update\" is something measured and not something assumed",
+        "a background update that carries the version you are running is retired quietly instead of becoming a card — and when there really is a new one, the card names it instead of calling it \"new\"",
+        "the what's-new list is the news you do not have yet: builds that shipped without a note of their own no longer make it repeat the last four"
+      ]
+    },
+    {
       "build": "c4d132eea9",
       "date": "2026-07-31",
       "title": "The booth grew hands",
@@ -13,6 +24,10 @@
         "the moment you touch anything, AUTO steps back and stays back until you arm it again — it will not undo what you just set",
         "fixed: the gate could silently stop on a busy frame instead of chopping",
         "fixed: the booth could knock a blend off its beat lock by resetting a deck's speed just as the mix began"
+      ],
+      "builds": [
+        "442fab86e1",
+        "9e6b13a9be"
       ]
     },
     {

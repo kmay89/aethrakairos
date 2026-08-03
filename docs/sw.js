@@ -25,7 +25,7 @@
 
 // Stamped by tools/stamp_version.py (run by publish.sh): a short hash of the
 // player file, so every player release is a new shell cache by construction.
-const VERSION = '9e6b13a9be';
+const VERSION = '7dba7ac06f';
 
 const SHELL_CACHE = 'mb8-shell-' + VERSION;
 const CATALOG_CACHE = 'mb8-catalog-v1';          // unversioned: survives updates
@@ -107,6 +107,7 @@ async function revalidateShell(){
     await cache.put('./', forRoot);
     const m = freshText.match(/const MB8_BUILD = '([^']*)'/);
     const build = m ? m[1] : '';
+    const print = shellPrint(freshText);
     /* NO REFERENCE, NO VERDICT. A cold cache differs from everything, and a new
        worker's cache is cold by construction — SHELL_CACHE is versioned, so every
        activation starts empty and this compare fired against nothing. The page it
@@ -118,11 +119,14 @@ async function revalidateShell(){
        announcing it again on the next check is how a card comes back forever.
        One announcement per distinct shell, fingerprinted by CONTENT so that an
        un-stamped deploy (same id, new bytes) still counts as a different shell. */
-    const print = shellPrint(freshText);
     if (print === announced) return;
     announced = print;
+    /* the fingerprint travels with the announcement: it is the only NAME an
+       un-stamped deploy has, and the page needs a name to remember having
+       applied one. Two announcements of the same shell are the same offer, and
+       an offer already applied is not offered again. */
     const clients = await self.clients.matchAll({ type: 'window' });
-    for (const c of clients) c.postMessage({ type: 'SHELL_FRESH', build });
+    for (const c of clients) c.postMessage({ type: 'SHELL_FRESH', build, print });
   } catch (e){}
 }
 
@@ -151,6 +155,15 @@ self.addEventListener('fetch', ev => {
   try { url = new URL(req.url); } catch (e){ return; }
   // only http(s) — data:, blob: and extension schemes throw in cache.put
   if (!/^https?:$/.test(url.protocol)) return;
+
+  /* THE PAGE'S ORIGIN PROBE GOES TO THE ORIGIN. verifyShell() asks what build is
+   * actually deployed before it will believe an offer, and the request it sends
+   * looked exactly like a shell request: same path, only a query string apart.
+   * The shell route below matches on PATH — a query is not part of it — so the
+   * probe was answered out of this cache, by us, and "past every cache" verified
+   * the shell against itself. No respondWith at all here: the request leaves for
+   * the network, which is the entire point of it. */
+  if (url.searchParams.has('mb8probe')) return;
 
   // audio: bail out entirely — the browser's own fetch handles Range
   if (isAudio(req, url)) return;

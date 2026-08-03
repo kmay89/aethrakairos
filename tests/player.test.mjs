@@ -36,7 +36,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
-  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, newsSince,' +
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
@@ -2389,6 +2389,25 @@ test('newsSince: walks newest-first until the running build, exclusive, capped',
   assert.deepEqual(S.newsSince(entries, 'unknown').map(e => e.build), ['d', 'c', 'b', 'a'], 'unknown build shows the newest few');
   assert.deepEqual(S.newsSince(entries, 'unknown', 2).map(e => e.build), ['d', 'c'], 'the cap holds');
   assert.deepEqual(S.newsSince(null, 'x'), [], 'no entries, no crash');
+  /* THE LINEAGE. Most deploys ship no changelog entry of their own — polish, a
+     fix, the stamp commit — and their build id is one no entry has heard of. The
+     walk then ran off the end and the card told a listener on the NEWEST build
+     about the last four things they already had, which is exactly what "the app
+     doesn't know it updated" looks like from the outside. stamp_version.py
+     records every stamped build on the newest entry; the walk stops there too. */
+  const lineage = [{ build: 'd', builds: ['d1', 'd2'] }, { build: 'c' }, { build: 'b' }];
+  assert.deepEqual(S.newsSince(lineage, 'd2').map(e => e.build), [],
+    'a build that shipped under the newest entry is current, not four behind');
+  assert.deepEqual(S.newsSince(lineage, 'c').map(e => e.build), ['d']);
+  assert.deepEqual(S.newsSince([{ build: 'd', builds: null }], 'd').map(e => e.build), [],
+    'a malformed lineage costs nothing');
+});
+test('updateOfferKey: two claims about the same swap are one string', () => {
+  assert.equal(S.updateOfferKey('aaaa', 'bbbb'), S.updateOfferKey('aaaa', 'bbbb'));
+  assert.notEqual(S.updateOfferKey('aaaa', 'bbbb'), S.updateOfferKey('bbbb', 'bbbb'),
+    'the build we are running is half of what an offer IS');
+  assert.notEqual(S.updateOfferKey('aaaa', 'bbbb'), S.updateOfferKey('aaaa', 'cccc'));
+  assert.equal(typeof S.updateOfferKey(null, undefined), 'string', 'garbage still keys');
 });
 
 // ------------------------------------------------ update progress + watchdog
@@ -2993,9 +3012,31 @@ test('updateOffer: judged by provenance, because a difference is not a newer bui
     'an unstamped deploy still reaches the listener');
   assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run }), 'show');
   assert.equal(S.updateOffer({ source: 'shell', build: '', running: run }), 'show');
-  // a waiting service worker is a versioned release the browser installed itself
-  assert.equal(S.updateOffer({ source: 'worker', build: '', running: run }), 'show');
-  assert.equal(S.updateOffer({ source: 'worker', build: run, running: run }), 'show');
+  /* A WAITING WORKER IS A FACT ABOUT sw.js, NOT ABOUT THE SHELL. It used to
+     stand on its own — "a versioned release the browser installed itself" — and
+     that is the offer that came back forever, rendering its target as the word
+     "new" because nothing had measured one. sw.js and index.html are separate
+     objects with separate journeys through a CDN: a worker that installs while
+     the edge still holds the previous index.html carries the shell already
+     running here, and activating it changes nothing. It gets checked. */
+  assert.equal(S.updateOffer({ source: 'worker', build: '', running: run }), 'verify');
+  assert.equal(S.updateOffer({ source: 'worker', build: run, running: run }), 'ignore',
+    'once named, a worker carrying this very build is not an update');
+  assert.equal(S.updateOffer({ source: 'worker', build: 'bbbb222222', running: run }), 'show');
+  /* AND THE RULE THAT MAKES AN OFFER FALSIFIABLE AT ALL: one already applied,
+     from the build still running, is proof that applying it changed nothing.
+     Every apply used to be the app's first apply — nothing was ever compared —
+     so a swap that could not move the build was offered again the moment the
+     page came back, forever. */
+  const key = S.updateOfferKey(run, 'bbbb222222');
+  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run, key, tried: key }), 'applied');
+  assert.equal(S.updateOffer({ source: 'worker', build: '', running: run, key, tried: key }), 'applied',
+    'the memory outranks provenance — it is evidence about THIS device');
+  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run, key,
+    tried: S.updateOfferKey(run, 'cccc333333') }), 'show', 'a different swap is a different offer');
+  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: 'bbbb222222',
+    key: S.updateOfferKey('bbbb222222', 'bbbb222222'), tried: key }), 'show',
+    'the swap landed and the build moved — the memory no longer matches');
   // nothing is offered while an apply is already under way
   for (const src of ['worker', 'shell', 'claim'])
     assert.equal(S.updateOffer({ source: src, build: 'bbbb222222', running: run, requested: true }), 'ignore');
