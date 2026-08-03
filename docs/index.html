@@ -3395,35 +3395,61 @@ function updateGate(o){
 
    So claims are judged by PROVENANCE, not by comparing ids:
 
-     worker  a waiting service worker: a versioned release the browser itself
-             installed. The strongest evidence there is; it stands.
      shell   the worker's own byte-compare said the deployed shell differs from
              the one this page was served. That is a fact about content, so it
              stands whether or not the stamp moved — and the worker will not raise
              it from a cold cache or raise the same shell twice.
+     worker  a waiting service worker. The browser installed it because sw.js
+             changed, which is a fact about sw.js and NOT about the shell: the two
+             files are separate objects on a CDN and arrive at their own pace. A
+             worker that installed while the edge still held the previous
+             index.html carries the shell already running here, and activating it
+             changes nothing — which is exactly the offer that came back forever,
+             rendering its target as the word "new" because nobody had measured
+             one. It is checked against the deployed stamp first.
      claim   something changed hands and nobody measured anything: a
              controllerchange we did not ask for. Evidence that a worker took over,
-             which is not evidence of newer code. It carries no build id, it is
-             what put "05d9b7a1af -> new" on a listener's screen, and it has to be
-             checked against the deployed shell before it earns a card.
+             which is not evidence of newer code. Checked, like the worker.
 
-   Returns 'show' | 'ignore' | 'verify'. */
+   AND ABOVE ALL OF IT, THE ONE RULE THAT MAKES AN OFFER FALSIFIABLE: an offer we
+   have already applied, from the build we are still running, is not an offer. Its
+   `key` is "what we run → what it claims to bring"; applying stores that key.
+   Meeting the same key again is proof the swap changed nothing — the reason the
+   card could return forever is that nothing ever compared the two, so every apply
+   was the app's first apply and the loop had no memory to break it.
+
+   Returns 'show' | 'ignore' | 'verify' | 'applied'. */
 function updateOffer(o){
   const s = o || {};
   if (s.requested) return 'ignore';                 // we are already applying one
-  if (s.source === 'worker' || s.source === 'shell') return 'show';
+  if (s.key && s.tried && s.key === s.tried) return 'applied';
+  if (s.source === 'shell') return 'show';          // a MEASURED content difference
   if (s.build) return s.build === s.running ? 'ignore' : 'show';
   return 'verify';                                  // an unmeasured claim proves nothing
 }
+/* what an offer IS, as one comparable string: the build this page is running,
+   and the best name the claim has for what it would bring (a build id, else the
+   fingerprint of the shell the worker measured, else bare provenance). Two
+   offers with the same key are the same swap. */
+function updateOfferKey(running, target){
+  return String(running || '?') + '>' + String(target || '?');
+}
 /* NEWS SINCE — which changelog entries are newer than the running build.
    Entries come newest-first; walk until the running build appears (exclusive).
-   A build the list has never heard of shows the newest few, capped — honest
-   about "there's news" without pretending to know exactly how far behind. */
+
+   An entry names the build it shipped in, and `builds` carries every later build
+   that shipped no note of its own — polish, a fix, a stamp — so the running build
+   is always FOUND somewhere in the list. Without that lineage every build that
+   skipped a changelog entry fell off the end of the walk, and the card answered
+   "what's new?" with the last four things you already have, which is its own way
+   of not knowing an update has landed. A build genuinely unknown to the list
+   (a fork, a hand-stamped local copy) still shows the newest few, capped. */
 function newsSince(entries, build, cap){
   const out = [];
   const lim = cap || 4;
   for (const e of entries || []){
-    if (!e || e.build === build) break;
+    if (!e) break;
+    if (e.build === build || (Array.isArray(e.builds) && e.builds.indexOf(build) >= 0)) break;
     out.push(e);
     if (out.length >= lim) break;
   }
@@ -11481,11 +11507,13 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '9e6b13a9be';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
-let swReg = null, updateRequested = false;
+const MB8_BUILD = '7dba7ac06f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
   newBuild: '',          // best-known incoming build id ('' when unknowable)
+  key: '',               // what a tap would apply (see updateOfferKey)
+  tried: '',             // the key we already applied — persisted, see load()
   armed: '',             // '' | 'afterTrack' — the listener's explicit wish
   snoozedUntil: 0,       // "later" holds auto-apply (persisted — see load())
   deferrals: 0,          // how many times this listener has said "later"
@@ -11510,6 +11538,7 @@ const UPDATE = {
       this.snoozedUntil = Number(localStorage.getItem('mb8_up_snooze')) || 0;
       this.deferrals = Math.max(0, Number(localStorage.getItem('mb8_up_defers')) || 0);
       this.lastRemindAt = Number(localStorage.getItem('mb8_up_remind')) || 0;
+      this.tried = String(localStorage.getItem('mb8_up_tried') || '');
     } catch (e){}
   },
   _persist(){
@@ -11517,7 +11546,22 @@ const UPDATE = {
       localStorage.setItem('mb8_up_snooze', String(this.snoozedUntil));
       localStorage.setItem('mb8_up_defers', String(this.deferrals));
       localStorage.setItem('mb8_up_remind', String(this.lastRemindAt));
+      localStorage.setItem('mb8_up_tried', String(this.tried || ''));
     } catch (e){}
+  },
+  /* THE MEMORY THAT BREAKS THE LOOP. An apply is remembered as the key it
+     answered, and the memory OUTLIVES the reload the apply causes — that is the
+     whole point, because the page asking again is a different page. It is cleared
+     the moment a swap actually moves the build (`forget()`), so a real sequence of
+     deploys is never suppressed; it survives only while applying changes nothing. */
+  remember(key){
+    this.tried = String(key || '');
+    this._persist();
+  },
+  forget(){
+    if (!this.tried) return;
+    this.tried = '';
+    this._persist();
   },
   defer(){
     this.snoozedUntil = Date.now() + UP_SNOOZE_MS;
@@ -11590,6 +11634,11 @@ function registerSW(){
     if (updateRequested){ location.reload(); return; }   // only when WE asked — never spontaneous
     const firstClaim = !hadController;
     hadController = true;
+    /* WE RETIRED A WORKER THAT HAD NOTHING TO BRING. shellIsCurrent() hands over
+       to a waiting worker whose shell is the build already running, precisely so
+       it stops offering itself on every launch. That handover is ours, it changes
+       no code, and it must not come back around as a claim. */
+    if (silentHandover){ silentHandover = false; return; }
     if (firstClaim) return;
     /* A DIFFERENT WORKER TOOK OVER AND IT WASN'T US. Another client applied the
        update; this page is now driven by a worker whose cached shell is newer
@@ -11600,10 +11649,12 @@ function registerSW(){
     ACTIVITY.log('update', 'Another window took over — checking whether its code is newer');
     offerUpdate('claim', '');
   });
-  // the worker tells us when its background byte-compare found a fresh shell
+  // the worker tells us when its background byte-compare found a fresh shell,
+  // and names it twice over: the stamp it reads, and a fingerprint of the bytes
+  // — which is the only name an un-stamped deploy has
   navigator.serviceWorker.addEventListener('message', ev => {
     const d = ev.data;
-    if (d && d.type === 'SHELL_FRESH') offerUpdate('shell', d.build || '');
+    if (d && d.type === 'SHELL_FRESH') offerUpdate('shell', d.build || '', d.print || '');
   });
   // look for new releases when the app comes to the foreground (the
   // home-screen reality) and on a slow timer while it stays open
@@ -11622,47 +11673,119 @@ function checkForUpdate(){
 /* Ask the ORIGIN what the deployed shell is, past every cache. Same stamp as the
    code running here means we are current, whatever a byte-compare thought — and
    any offer already on screen was wrong and is withdrawn. A network failure
-   decides nothing: silence is not evidence of a new build either. */
+   decides nothing: silence is not evidence of a new build either.
+
+   PAST EVERY CACHE INCLUDING OUR OWN, which is what this did not do and why the
+   whole verification layer was theatre. The request went out as
+   `index.html?_v=…`, and the service worker's shell route matches on PATH — the
+   query string is not part of it — so the fetch was answered from the versioned
+   cache, by the worker, in about a millisecond. Every verdict it produced was the
+   cache's opinion of itself. `no-store` had nothing to do with it: that governs
+   the HTTP cache, and a service worker sits in front of that. It is wrong in both
+   directions, too — a page loaded from the network while the cache still holds the
+   previous shell "verifies" as stale and offers a downgrade. The probe now carries
+   a marker sw.js is required to pass straight through to the network. */
 let verifying = false;
 async function verifyShell(source){
   if (verifying || updateRequested) return;
   verifying = true;
   try {
-    const r = await fetch('index.html?_v=' + Date.now(), { cache: 'no-store' });
+    const r = await fetch('index.html?mb8probe=1&_v=' + Date.now(), { cache: 'no-store' });
     if (!r || !r.ok) return;
     const m = (await r.text()).match(/const MB8_BUILD = '([^']*)'/);
     const build = m ? m[1] : '';
     if (!build) return;                      // could not read it — claim nothing
-    if (build === MB8_BUILD){ withdrawOffer('already current'); return; }
-    offerUpdate(source === 'claim' ? 'shell' : source, build);   // real, and now it has a name
+    if (build === MB8_BUILD){ shellIsCurrent('the deployed shell is this same build'); return; }
+    /* back through the front door, now that the claim has a NAME: a named claim
+       can never route here a second time (updateOffer only asks to verify what it
+       cannot name), and going round again is what puts it past the
+       already-applied memory. A worker that carries a genuinely newer stamp but
+       cannot deliver it — its cache was filled from an edge still serving the old
+       shell — would otherwise be offered on every single launch, verified true
+       every time, which is the loop wearing a different hat. */
+    offerUpdate(source === 'claim' ? 'shell' : source, build, '');
   } catch (e){
-    // offline, blocked, throttled — all of them mean "unknown", never "newer"
+    /* Offline, blocked, throttled — "unknown", never "newer". With one exception
+       that is evidence rather than inference: a service worker the browser
+       INSTALLED and parked is a real artefact sitting in this device's storage.
+       We cannot name it without the network, but refusing to mention it would
+       mean an update that only ever arrives while online can never be applied
+       offline, and the memory in UPDATE.tried already prevents it repeating. */
+    if (source === 'worker' && swReg && swReg.waiting
+        && updateOfferKey(MB8_BUILD, 'worker') !== UPDATE.tried) raiseOffer('worker', '', '');
   } finally { verifying = false; }
 }
+/* WE ARE CURRENT — and everything that thought otherwise has to stand down. */
+function shellIsCurrent(why){
+  withdrawOffer(why, true);
+  /* A WAITING WORKER WITH NOTHING TO BRING IS RETIRED, NOT LEFT TO ASK AGAIN.
+     sw.js and index.html are separate objects with separate journeys through a
+     CDN, so a worker can install from a changed sw.js while the edge still serves
+     the previous shell — it then waits, forever, carrying the build already
+     running here. Every launch found `registration.waiting` and offered it; every
+     apply activated it, changed no code, and left the next launch to find the
+     next one. Hand over quietly instead: the swap is real (the new worker owns
+     the caches now) and costs the listener nothing, because there is nothing to
+     reload. */
+  if (updateRequested || !swReg || !swReg.waiting) return;
+  silentHandover = true;
+  try { swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); }
+  catch (e){ silentHandover = false; return; }
+  ACTIVITY.log('update', 'A waiting worker carried this same build - handed over quietly, nothing to apply');
+}
 /* A card that should never have been shown must be able to LEAVE. Without this
-   the wrong offer stayed up until a reload, which was the shape the loop wore. */
-function withdrawOffer(why){
-  if (updateRequested || UPDATE.source === 'worker') return;
+   the wrong offer stayed up until a reload, which was the shape the loop wore.
+   `verified` is the origin's own verdict and outranks provenance — a worker offer
+   used to be immovable here, which is exactly how an unverifiable one stayed. */
+function withdrawOffer(why, verified){
+  if (updateRequested) return;
+  if (!verified && UPDATE.source === 'worker') return;
   if (el.btnUpdate && !el.btnUpdate.hidden){
     el.btnUpdate.hidden = true;
     el.btnUpdate.classList.remove('pulse');
     ACTIVITY.log('update', 'A pending update turned out to be this same build — ' + why);
   }
-  UPDATE.source = ''; UPDATE.newBuild = '';
+  UPDATE.source = ''; UPDATE.newBuild = ''; UPDATE.key = '';
   UPDATE.settle();                            // clear any deferral owed to a phantom
   UPDATE.paint();
 }
-function offerUpdate(source, build){
-  const verdict = updateOffer({ source, build, running: MB8_BUILD, requested: updateRequested });
+function offerUpdate(source, build, print){
+  /* the fingerprint FIRST: it is the finer name. An un-stamped deploy reports
+     the build already running, so keying on the build id would make every
+     un-stamped deploy the same offer as the last one — and the second real one
+     would be swallowed as "already applied". */
+  const key = updateOfferKey(MB8_BUILD, print || build || source);
+  const verdict = updateOffer({ source, build, running: MB8_BUILD,
+    requested: updateRequested, key, tried: UPDATE.tried });
   if (verdict === 'ignore') return;
+  /* WE ALREADY DID THIS ONE. The listener applied exactly this offer, the page
+     came back on the same build it left, and here it is again — so applying it a
+     second time cannot do anything the first did not. Say so once in the log and
+     stay quiet; the app is as current as this deploy can make it. */
+  if (verdict === 'applied'){ alreadyApplied(source); return; }
   /* AN UNNAMED CLAIM IS CHECKED, NOT BELIEVED. "Something changed" is not
      "there is a newer build", and acting on the difference alone is what put a
      card on screen offering the listener the build they were already running.
      Ask the deployed shell what it says it is; only a different stamp earns the
      card, and it arrives named rather than as "new". */
   if (verdict === 'verify'){ verifyShell(source); return; }
+  raiseOffer(source, build, print);
+}
+let appliedNoted = false;
+function alreadyApplied(source){
+  // take down a card only if the card IS this offer: a genuinely newer one may
+  // be on screen, and a late duplicate of an old claim must not clear it
+  if (!UPDATE.key || UPDATE.key === UPDATE.tried) shellIsCurrent('you already applied it and it landed');
+  if (appliedNoted) return;
+  appliedNoted = true;
+  ACTIVITY.log('update', 'That update is already applied — this is the newest build there is'
+    + (source ? ' (' + source + ' asked again)' : ''));
+}
+/* raise the card. Everything above decides WHETHER; this only does it. */
+function raiseOffer(source, build, print){
   if (source) UPDATE.source = UPDATE.source === 'worker' ? 'worker' : source;
   if (build) UPDATE.newBuild = build;
+  UPDATE.key = updateOfferKey(MB8_BUILD, print || build || source);
   if (el.btnUpdate.hidden){
     el.btnUpdate.hidden = false;
     el.btnUpdate.classList.add('pulse');
@@ -11729,6 +11852,12 @@ function updateRecover(){
   const lbl = el.btnUpdate.querySelector('.lbl');
   if (lbl) lbl.textContent = 'Update';
   UPDATE.source = UPDATE.source || 'shell';    // a plain reload still updates
+  /* AND IT IS STILL UNAPPLIED. applyUpdate() remembers the key on the way out,
+     because the way out is normally a reload it cannot come back from — but this
+     page never left. Forgetting is what keeps a swap that FAILED offerable;
+     without it the "already applied" rule would swallow the retry, which is the
+     opposite mistake from the one it exists to prevent. */
+  UPDATE.forget();
   UPDATE.snoozedUntil = Date.now() + 60 * 1000; // a breath before auto retries
   try { sessionStorage.removeItem('mb8_updated_from'); } catch (e){}
   ACTIVITY.log('update', 'The swap did not land — handed the app back alive, update still ready');
@@ -11752,6 +11881,11 @@ function applyUpdate(){
   updateRequested = true;
   UP_RUN.t0 = Date.now();
   UP_RUN.attempts = 0;
+  /* REMEMBER WHAT WE ARE ANSWERING, BEFORE ANSWERING IT. Written now rather than
+     on the way back because the way back is a reload: this page does not survive
+     to record anything. If the build moves, the next boot clears it; if it does
+     not, this string is what stops the same swap being offered forever. */
+  UPDATE.remember(UPDATE.key || updateOfferKey(MB8_BUILD, UPDATE.newBuild || UPDATE.source || 'shell'));
   try { PERSIST.save(); } catch (e){}          // best effort — never blocks the swap
   try {
     sessionStorage.setItem('mb8_updated_from', MB8_BUILD);
@@ -11858,6 +11992,12 @@ wireUpdateCard();
 try {
   const from = sessionStorage.getItem('mb8_updated_from');
   if (from){
+    /* load BEFORE anything here persists: this runs at parse time, ahead of
+       boot()'s own load(), and settle() writes the whole record back — including
+       the applied-key memory, which would be written as empty by a UPDATE that
+       had not read itself yet. That would erase the one fact this block exists
+       to preserve. */
+    UPDATE.load();
     sessionStorage.removeItem('mb8_updated_from');
     const t0 = Number(sessionStorage.getItem('mb8_update_t0'));
     sessionStorage.removeItem('mb8_update_t0');
@@ -11868,9 +12008,15 @@ try {
     } catch (e){}
     UPDATE.settle();                 // the promise was kept; forget the deferrals
     if (from !== MB8_BUILD){
+      UPDATE.forget();               // the build moved: nothing left to suppress
       ACTIVITY.log('update', 'Updated ' + from + ' → ' + MB8_BUILD + ' — everything restored');
       toast('Updated · build <b>' + escapeHTML(MB8_BUILD) + '</b> — everything restored');
     } else {
+      /* THE SWAP LANDED ON THE BUILD IT LEFT. Not a failure — an un-stamped
+         deploy is exactly this, and so is a worker that carried the shell we
+         already had. What matters is that the key applied is still remembered
+         (applyUpdate wrote it), so whatever raises this same offer next gets
+         "already applied" instead of another card. */
       ACTIVITY.log('update', 'Refreshed to the newest deploy (' + MB8_BUILD + ')');
       toast('Refreshed to the newest deploy');
     }
