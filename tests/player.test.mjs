@@ -42,6 +42,8 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
+  ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
+  ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
@@ -1871,7 +1873,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 17);
+  assert.equal(S.SCENE_KEYS.length, 18);
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -2042,7 +2044,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 17; sc++)
+  for (let sc = 0; sc < 18; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2089,7 +2091,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 16; sc++)
+  for (let sc = 0; sc < 18; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -2100,6 +2102,145 @@ test('touchAffinity: the map has taste — spirals spin, tunnels void, apex neve
   assert.equal(S.touchAffinity(8, 1, 0.5), 'gathers', 'comets want the PULL');
   assert.notEqual(S.touchAffinity(4, 2, 0.3), 'flows', 'the apex does not ripple');
   assert.equal(S.touchAffinity(999, 1, 0.5), 'grows', 'an unknown scene falls back to scene 0’s map entry');
+  assert.equal(S.touchAffinity(17, 1, 0.5), 'flows', 'a hand near a flame is a DRAUGHT');
+});
+
+// ---------------------------------------------------------- fire, measured
+
+test('the observer: monochromatic light comes out the colour it is', () => {
+  const hex = nm => S.rgbHex(S.wavelengthRGB(nm));
+  assert.equal(hex(532), '#00FF00', '532 nm is the green everybody’s laser pointer is');
+  const red = S.wavelengthRGB(650), blue = S.wavelengthRGB(445);
+  assert.ok(red.r > 0.9 && red.g < 0.1 && red.b < 0.1, `650 nm is red: ${JSON.stringify(red)}`);
+  assert.ok(blue.b > 0.9 && blue.r < blue.b, `445 nm is blue-violet: ${JSON.stringify(blue)}`);
+  // …and the whole visible band resolves to SOMETHING, at every step
+  for (let l = 380; l <= 720; l += 5){
+    const c = S.wavelengthRGB(l);
+    assert.ok(Math.max(c.r, c.g, c.b) > 0.99, `${l} nm is normalised`);
+    assert.ok(Math.min(c.r, c.g, c.b) >= 0, `${l} nm has no negative channel`);
+  }
+});
+test('the black body: hotter is bluer, and the whole ladder is monotone', () => {
+  // the one claim a colour-temperature model has to get right: as T rises the
+  // blue channel gains on the red, every step of the way, with no reversals
+  let prev = -1;
+  for (let K = 1000; K <= 12000; K += 250){
+    const c = S.kelvinRGB(K);
+    const ratio = c.b / Math.max(1e-6, c.r);
+    assert.ok(ratio > prev - 1e-9, `${K} K reversed: ${ratio} after ${prev}`);
+    prev = ratio;
+    assert.ok(Math.max(c.r, c.g, c.b) > 0.99 && Math.min(c.r, c.g, c.b) >= 0, `${K} K in gamut`);
+  }
+  const candle = S.kelvinRGB(1850), day = S.kelvinRGB(6500);
+  assert.ok(candle.b < 0.35, `a candle is not blue: ${S.rgbHex(candle)}`);
+  assert.ok(day.b > 0.9 && day.r > 0.9, `daylight is near-white: ${S.rgbHex(day)}`);
+  // luminance rises steeply with temperature — the reason a flame tip is
+  // dimmer as well as redder is a fact about the spectrum, not a fade we drew
+  assert.ok(S.blackbodyXYZ(2000).y > S.blackbodyXYZ(1200).y * 4,
+    'a 2000 K body vastly out-radiates a 1200 K one in the visible');
+});
+test('the bench: ten real sources, each with numbers you could measure', () => {
+  assert.equal(S.FLAME_SOURCES.length, 10);
+  const keys = S.FLAME_SOURCES.map(s => s.key);
+  for (const want of ['match', 'lighter', 'bic', 'zippo', 'clipper', 'torch', 'campfire',
+                      'flashlight', 'led', 'laser'])
+    assert.ok(keys.includes(want), `${want} is not on the bench`);
+  assert.equal(new Set(keys).size, 10, 'no two sources share a key');
+  for (const s of S.FLAME_SOURCES){
+    assert.ok(['flame', 'beam', 'laser'].includes(s.kind), `${s.key} has a real kind`);
+    assert.ok(s.dia > 0 && s.h > 0 && s.w > 0, `${s.key} has a real geometry`);
+    assert.ok(s.kind === 'laser' ? s.nm > 0 : s.kelvin >= 1000, `${s.key} has a real colour`);
+  }
+});
+test('the flicker IS the diameter — Strouhal, not a slider', () => {
+  const by = k => S.FLAME_SOURCES.find(s => s.key === k);
+  const campfire = S.flamePuff(by('campfire')), match = S.flamePuff(by('match'));
+  assert.ok(campfire > 1.5 && campfire < 2.5, `a campfire breathes about twice a second: ${campfire}`);
+  assert.ok(match > 15 && match < 25, `a match shivers about twenty times a second: ${match}`);
+  // f ∝ D^-1/2: four times the diameter, half the frequency, exactly
+  assert.ok(Math.abs(S.flamePuff({ dia: 0.04 }) / S.flamePuff({ dia: 0.01 }) - 0.5) < 1e-9);
+  for (const s of S.FLAME_SOURCES)
+    assert.equal(S.flamePuff(s) > 0, s.kind === 'flame', `${s.key}: only fire flickers`);
+  assert.equal(S.flamePuff(null), 1.5 / Math.sqrt(0.01), 'a source with no diameter still answers');
+});
+test('the plume is a temperature profile, and the tip is COLDER, not just dimmer', () => {
+  const zippo = S.FLAME_SOURCES.find(s => s.key === 'zippo');
+  const wick = S.flameTemp(zippo, 0), peak = S.flameTemp(zippo, 0.20), tip = S.flameTemp(zippo, 1);
+  assert.ok(peak > wick && peak > tip, `hottest a fifth of the way up: ${wick}/${peak}/${tip}`);
+  assert.equal(Math.round(peak), zippo.kelvin, 'and the rated temperature IS the peak');
+  // monotone down from the peak — no bumps to explain
+  let last = peak;
+  for (let u = 0.20; u <= 1.001; u += 0.02){
+    const K = S.flameTemp(zippo, u);
+    assert.ok(K <= last + 1e-9, `reversal at ${u}`);
+    last = K;
+  }
+  const led = S.FLAME_SOURCES.find(s => s.key === 'led');
+  assert.equal(S.flameTemp(led, 0), S.flameTemp(led, 1), 'an LED is one temperature all the way up');
+  assert.equal(S.flameTemp(zippo, -5), S.flameTemp(zippo, 0), 'nonsense heights are clamped, not NaN-ed');
+});
+test('the ramp: a blue base where a flame really has one, and nowhere else', () => {
+  const N = 64, blueness = (row, i) => row[i * 4 + 2] - row[i * 4];   // B − R
+  const bic = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'bic'), N);
+  const camp = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'campfire'), N);
+  assert.ok(blueness(bic, 0) > 40, 'a Bic burns premixed: the cone at its base is blue');
+  assert.ok(blueness(bic, N - 1) < -100, '…and its tip is not');
+  assert.ok(blueness(bic, 1) > blueness(camp, 1), 'a campfire has far less of one than a Bic');
+  // luminance: dark at the wick, brightest in the body, dying through the tip
+  const lum = (row, i) => row[i * 4 + 3];
+  const peak = Math.max(...Array.from({ length: N }, (_, i) => lum(bic, i)));
+  const at = Array.from({ length: N }, (_, i) => lum(bic, i)).indexOf(peak) / (N - 1);
+  assert.ok(at > 0.05 && at < 0.4, `the body is brightest a fifth of the way up: ${at}`);
+  assert.ok(lum(bic, 0) < peak && lum(bic, N - 1) < peak * 0.2, 'the wick is dark and the tip burns out');
+  // a beam falls off with distance; a laser barely does — that IS the difference
+  const torchB = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'flashlight'), N);
+  const laser = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'laser'), N);
+  assert.ok(lum(torchB, N - 1) < lum(torchB, 0) * 0.35, 'a cone of light thins out');
+  assert.ok(lum(laser, N - 1) > lum(laser, 0) * 0.85, 'a collimated one does not');
+  for (let i = 0; i < N; i++)
+    assert.equal(laser[i * 4] + laser[i * 4 + 2], 0, 'and it stays exactly one wavelength all the way');
+  assert.equal(S.flameRamp(null, 4).length, 16, 'a source that is nothing still yields a ramp');
+});
+test('the bands: ten lights split the spectrum the way hearing does', () => {
+  const n = S.FLAME_SOURCES.length;
+  let last = -1;
+  for (let i = 0; i < n; i++){
+    const u = S.flameBandU(i, n);
+    assert.ok(u > last, 'strictly rising left to right');
+    assert.ok(u >= 0 && u <= 1, 'and always a real texture coordinate');
+    last = u;
+  }
+  assert.ok(S.flameBandU(0, n) < 0.05, 'the first light is on the bass');
+  assert.ok(S.flameBandU(n - 1, n) > 0.4, 'the last one is up in the air');
+  // the walk is bent, not linear: the low half of the bench shares the low
+  // half of the spectrum far more finely than the top half shares the top
+  assert.ok(S.flameBandU(5, n) < S.flameBandU(n - 1, n) * 0.5, 'logarithmic, not linear');
+  assert.equal(S.flameBandU(0, 1), S.flameBandU(0, 0), 'a bench of one still answers');
+});
+test('the roll: about half the visits are the whole bench, and every source is reachable', () => {
+  const seen = new Set();
+  let vigil = 0;
+  for (let i = 0; i <= 1000; i++){
+    const r = S.flameRoll(i / 1000);
+    assert.ok(r.mode === 'vigil' || r.mode === 'solo');
+    if (r.mode === 'vigil'){ vigil++; assert.equal(r.src, -1); }
+    else { assert.ok(r.src >= 0 && r.src < S.FLAME_SOURCES.length); seen.add(r.src); }
+    assert.ok(typeof r.name === 'string' && r.name.length > 0, 'a roll always names itself');
+  }
+  assert.equal(seen.size, S.FLAME_SOURCES.length, 'every light on the bench gets its solo');
+  assert.ok(vigil / 1001 > 0.4 && vigil / 1001 < 0.52, `about half: ${vigil / 1001}`);
+  assert.equal(S.flameRoll(NaN).mode, 'vigil', 'nonsense rolls the safe one');
+  assert.deepEqual(S.flameRoll(0.7), S.flameRoll(1.7), 'the roll is a pure function of its fraction');
+});
+test('the readout says what colour the thing is — because that is the room', () => {
+  const laser = S.flameLabel(S.FLAME_SOURCES.find(s => s.key === 'laser'));
+  assert.ok(/LASER · 532 nm · #[0-9A-F]{6}$/.test(laser), laser);
+  const zippo = S.flameLabel(S.FLAME_SOURCES.find(s => s.key === 'zippo'));
+  assert.ok(/ZIPPO · 1500 K · #[0-9A-F]{6}$/.test(zippo), zippo);
+  for (const s of S.FLAME_SOURCES)
+    assert.ok(S.flameLabel(s).includes(S.rgbHex(S.flameRGB(s))), `${s.key} quotes its own colour`);
+  assert.equal(S.rgbHex({ r: 1, g: 0, b: 0 }), '#FF0000');
+  assert.equal(S.rgbHex({ r: -3, g: 9, b: 0.5 }), '#00FF80', 'out-of-range channels clamp, never wrap');
 });
 test('touchAutoShould: never under a live finger, never before the dwell, only usually', () => {
   assert.ok(!S.touchAutoShould(10, true, 0.1), 'too soon');
@@ -2317,7 +2458,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 17; sc++)
+  for (let sc = 0; sc < 18; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);

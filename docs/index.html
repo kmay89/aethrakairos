@@ -2520,6 +2520,27 @@ body.mini #miniBar{right:0;bottom:0;left:0;top:0;width:auto;border-radius:0;bord
     where each angle of the circle listens to one band of the live spectrum and swells where its
     band sings — an equalizer curled into a circle of light, threaded into bead-strands or relaxed
     into mist, with a beat soliton orbiting the ring.</p>
+    <h3>The bench of lights</h3>
+    <p class="lede">Scene 18 is <b>FLAME</b> — ten real light sources burning side by side: match,
+    lighter, Bic, Zippo, Clipper, torch, campfire, an iPhone flashlight, an LED and a laser. Each one
+    listens to <i>its own band</i> of the live spectrum and lifts when that band arrives, so the bench
+    is a spectrum analyser made out of fire — and under each light, its name and its colour, written in
+    that colour.
+    <b>Nothing in the room was art-directed.</b> Every colour is integrated from Planck's law through
+    the CIE 1931 observer: a Zippo is amber because 1500&nbsp;K <i>is</i> amber, and the laser's green
+    is a green no black body can make because 532&nbsp;nm is one wavelength rather than a whole curve.
+    Every flicker rate falls out of the flame's diameter through the Strouhal relation
+    f&nbsp;≈&nbsp;1.5·D<sup>−1/2</sup>, which is why the campfire breathes about twice a second and the
+    match shivers about twenty times. The blue at the base of a Bic is CH* at 431&nbsp;nm and the C2
+    Swan bands at 516&nbsp;nm, <i>summed</i> beside the black body rather than blended with it, because
+    light adds. And the orange at the tip is colder gas, not dimmer gas — the plume is a temperature
+    profile before it is ever a colour.
+    <b>Your hand is a draught.</b> The pointer is raycast into the bench's own plane and the plumes lean
+    away from it, further the higher you look, because the base is tied to the wick and the tip is not;
+    hold, and they are fed air and roar; let go, and the release blows them flat. A beam barely notices.
+    A laser does not care at all — and that difference is the most honest thing in the room. Half the
+    visits light the whole bench; the other half bring one source close enough to read the flicker
+    off it.</p>
     <h3>The parlor</h3>
     <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
     science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
@@ -3049,7 +3070,8 @@ function touchAffinity(sceneIdx, act, r, mood){
   // ripple. The act leans on it (the apex punches, the edges breathe), and a
   // small wildcard keeps even a memorised map able to surprise.
   const MAP = ['grows', 'grows', 'gathers', 'blackhole', 'flows', 'blackhole', 'flows', 'blackhole',
-               'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows'];
+               'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
+               'flows'];
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
@@ -3296,7 +3318,8 @@ function ghostShould(o){
    the apex has the last word over both. */
 function ghostPattern(sceneIdx, act, r, mood){
   const MAP = ['lissa', 'lissa', 'snake', 'bounce', 'drift', 'bounce', 'lissa', 'drift',
-               'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa'];
+               'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa',
+               'snake'];
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -3330,6 +3353,254 @@ function ghostMirror(axis, x, y){
   if (a === 2) return { x: -x, y: -y };
   return { x: -x, y: y };
 }
+
+/* ================================================================
+   FIRE, MEASURED — the physics under Scene 18.
+
+   Ten real light sources, and not ten presets. Each one carries the
+   numbers you could read off it with a photometer and a ruler: a
+   colour temperature (or, for the laser, one wavelength), the
+   diameter of its flame in METRES, how much soot it makes, how many
+   lumens it puts out. Everything you see is then computed from
+   those numbers rather than art-directed from them:
+
+     THE COLOUR IS A SPECTRUM, INTEGRATED. Planck's law gives the
+       radiance at each wavelength; the CIE 1931 observer turns that
+       spectrum into XYZ; sRGB turns XYZ into a pixel. A Zippo is
+       amber because 1500 K IS amber — nobody typed #ff8a2e. The
+       same colour-matching functions serve the laser, which is one
+       wavelength rather than a whole curve, so the green of 532 nm
+       and the amber of 1500 K come out of one model.
+     THE FLICKER IS A STROUHAL NUMBER. A buoyant diffusion flame
+       sheds vortices at about 1.5·D^-1/2 Hz. That is why a campfire
+       breathes about twice a second and a match shivers twenty
+       times a second — and why, here, they do too. The frequency is
+       not a slider; it falls out of the diameter.
+     THE FLAME IS NOT ONE TEMPERATURE. The reaction zone at the wick
+       runs cool, the sooting body runs hottest a quarter of the way
+       up, and the orange at the tip is COLDER gas, not dimmer gas.
+       The gradient every plume is drawn through is that profile,
+       resampled through the same spectral model, plus the blue of
+       CH* at 431 nm and the C2 Swan bands at 516 nm where a
+       premixed source (a Bic, a Clipper) actually shows one.
+
+   All of it is pure arithmetic over plain numbers, which is why the
+   tests can hold it to a photometer rather than to a vibe.
+   ================================================================ */
+
+const C2_RAD = 1.4388e7;    // nm·K — the second radiation constant, in the units we integrate in
+
+/* The CIE 1931 2° observer as three piecewise-Gaussian fits (Wyman, Sloan &
+   Shirley 2013). Within about 1% of the tabulated curves across the visible
+   band, and it is a closed form — no 471-row table to ship or mistype. */
+function cieGauss(l, mu, s1, s2){
+  const t = (l - mu) * (l < mu ? 1 / s1 : 1 / s2);
+  return Math.exp(-0.5 * t * t);
+}
+function cieXYZBar(nm){
+  const l = +nm;
+  return {
+    x: 1.056 * cieGauss(l, 599.8, 37.9, 31.0) + 0.362 * cieGauss(l, 442.0, 16.0, 26.7)
+       - 0.065 * cieGauss(l, 501.1, 20.4, 26.2),
+    y: 0.821 * cieGauss(l, 568.8, 46.9, 40.5) + 0.286 * cieGauss(l, 530.9, 16.3, 31.1),
+    z: 1.217 * cieGauss(l, 437.0, 11.8, 36.0) + 0.681 * cieGauss(l, 459.0, 26.0, 13.8),
+  };
+}
+/* Planck's law, up to a constant we divide out anyway: spectral radiance per
+   wavelength for a black body at K kelvin. */
+function planckRadiance(nm, K){
+  const l = Math.max(1, +nm), T = Math.max(1, +K || 1);
+  const e = Math.exp(C2_RAD / (l * T)) - 1;
+  return e <= 0 ? 0 : 1 / (Math.pow(l, 5) * e);
+}
+/* The spectrum, weighed by the eye. Returns unnormalised XYZ — Y is
+   proportional to the source's LUMINANCE, which is the number the ramp needs
+   to make a cooling flame tip genuinely dimmer as well as redder. */
+function blackbodyXYZ(K){
+  let X = 0, Y = 0, Z = 0;
+  for (let l = 360; l <= 830; l += 5){
+    const p = planckRadiance(l, K), b = cieXYZBar(l);
+    X += p * b.x; Y += p * b.y; Z += p * b.z;
+  }
+  return { x: X, y: Y, z: Z };
+}
+/* XYZ → sRGB, D65 primaries. Deep-red black bodies (a 1200 K campfire) sit
+   OUTSIDE the sRGB gamut and want a negative blue; clipping to zero is the
+   honest concession — the hue survives, a little saturation does not. */
+function xyzToLinearRGB(c){
+  const X = c.x, Y = c.y, Z = c.z;
+  return {
+    r: Math.max(0, 3.2406 * X - 1.5372 * Y - 0.4986 * Z),
+    g: Math.max(0, -0.9689 * X + 1.8758 * Y + 0.0415 * Z),
+    b: Math.max(0, 0.0557 * X - 0.2040 * Y + 1.0570 * Z),
+  };
+}
+function srgbEncode(v){
+  const c = Math.min(1, Math.max(0, v));
+  return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+/* Scale the brightest channel to 1 — we are asking "what COLOUR is this",
+   not "how bright"; brightness is carried separately, by luminance. */
+function normalizeRGB(c){
+  const m = Math.max(c.r, c.g, c.b);
+  if (!(m > 0)) return { r: 0, g: 0, b: 0 };
+  return { r: c.r / m, g: c.g / m, b: c.b / m };
+}
+function encodeRGB(lin){
+  return { r: srgbEncode(lin.r), g: srgbEncode(lin.g), b: srgbEncode(lin.b) };
+}
+function kelvinLinear(K){ return normalizeRGB(xyzToLinearRGB(blackbodyXYZ(K))); }
+function kelvinRGB(K){ return encodeRGB(kelvinLinear(K)); }
+/* One wavelength, through the same observer — this is what a laser is, and
+   the reason its green is a green no black body can make. */
+function wavelengthLinear(nm){
+  const b = cieXYZBar(nm);
+  return normalizeRGB(xyzToLinearRGB({ x: b.x, y: b.y, z: b.z }));
+}
+function wavelengthRGB(nm){ return encodeRGB(wavelengthLinear(nm)); }
+/* Light ADDS. Two emissions in the same place are their sum, not their
+   average — which is why the blue cone at a lighter's base survives beside a
+   yellow body five times brighter instead of greying out against it. */
+function addRGB(a, b){ return { r: a.r + b.r, g: a.g + b.g, b: a.b + b.b }; }
+function scaleRGB(c, k){ return { r: c.r * k, g: c.g * k, b: c.b * k }; }
+function peakRGB(c){ return Math.max(c.r, c.g, c.b); }
+function rgbHex(c){
+  const h = v => ('0' + Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16)).slice(-2).toUpperCase();
+  return '#' + h(c.r) + h(c.g) + h(c.b);
+}
+function mixRGB(a, b, t){
+  const u = clamp01(t);
+  return { r: a.r + (b.r - a.r) * u, g: a.g + (b.g - a.g) * u, b: a.b + (b.b - a.b) * u };
+}
+
+/* THE BENCH. Ten sources, in the order they stand on it — coolest-burning
+   fire on the left, running up through the flames to the electric light and
+   out the far end at coherent light, which is off the temperature scale
+   altogether. `dia` is the flame diameter in METRES (it is the only input to
+   the flicker), `h` and `w` are the drawn proportions, `blue` is how much of
+   the premixed cone you actually see, `soot` is how yellow and how short-lived
+   the luminous body is, `lm` is roughly what it puts out. */
+const FLAME_SOURCES = [
+  { key: 'match',      name: 'MATCH',      kind: 'flame', kelvin: 1700, dia: 0.006, h: 1.9, w: 0.30, blue: 0.30, soot: 0.62, spark: 0.10, lm: 5 },
+  { key: 'lighter',    name: 'LIGHTER',    kind: 'flame', kelvin: 1900, dia: 0.008, h: 2.4, w: 0.30, blue: 0.52, soot: 0.48, spark: 0.04, lm: 10 },
+  { key: 'bic',        name: 'BIC',        kind: 'flame', kelvin: 1977, dia: 0.007, h: 2.9, w: 0.24, blue: 0.66, soot: 0.40, spark: 0.02, lm: 11 },
+  { key: 'zippo',      name: 'ZIPPO',      kind: 'flame', kelvin: 1500, dia: 0.015, h: 2.6, w: 0.48, blue: 0.16, soot: 0.86, spark: 0.16, lm: 15 },
+  { key: 'clipper',    name: 'CLIPPER',    kind: 'flame', kelvin: 1850, dia: 0.010, h: 2.2, w: 0.35, blue: 0.46, soot: 0.52, spark: 0.05, lm: 12 },
+  { key: 'torch',      name: 'TORCH',      kind: 'flame', kelvin: 1300, dia: 0.120, h: 3.4, w: 0.60, blue: 0.08, soot: 0.92, spark: 0.38, lm: 100 },
+  { key: 'campfire',   name: 'CAMPFIRE',   kind: 'flame', kelvin: 1200, dia: 0.600, h: 4.2, w: 0.98, blue: 0.06, soot: 0.95, spark: 0.55, lm: 800 },
+  { key: 'flashlight', name: 'FLASHLIGHT', kind: 'beam',  kelvin: 5000, dia: 0.010, h: 5.4, w: 0.17, spread: 0.36, lm: 50 },
+  { key: 'led',        name: 'LED',        kind: 'beam',  kelvin: 6500, dia: 0.005, h: 4.6, w: 0.11, spread: 0.20, lm: 90 },
+  { key: 'laser',      name: 'LASER',      kind: 'laser', nm: 532,      dia: 0.001, h: 7.0, w: 0.03, spread: 0.008, lm: 5 },
+];
+
+/* THE FLICKER IS THE DIAMETER. Buoyant diffusion flames pulse at a frequency
+   that scales as the inverse square root of their width — the Strouhal
+   relation f ≈ 1.5·D^-1/2 Hz. A 6 mm match shivers around 19 Hz; a 60 cm
+   campfire breathes at about 2. Electric light does not flicker at all, which
+   is exactly the difference this room is for. */
+function flamePuff(src){
+  const s = src || {};
+  if (s.kind && s.kind !== 'flame') return 0;
+  return 1.5 / Math.sqrt(Math.max(1e-4, +s.dia || 0.01));
+}
+/* This source's colour at its own rated temperature (or its own wavelength) —
+   the single number the readout quotes. */
+function flameRGB(src){
+  const s = src || {};
+  return s.kind === 'laser' ? wavelengthRGB(+s.nm || 532) : kelvinRGB(+s.kelvin || 1500);
+}
+/* THE PLUME IS A TEMPERATURE PROFILE, not a colour. Cool at the wick where the
+   fuel has not finished mixing, hottest about a fifth of the way up where the
+   soot is incandescing, and falling away through the tip as that soot burns
+   out. Steady sources are one temperature all the way along, because they are. */
+function flameTemp(src, t){
+  const s = src || {}, K = +s.kelvin || 1500, u = clamp01(t);
+  if (s.kind && s.kind !== 'flame') return K;
+  const peak = K, base = K * 0.74, tip = K * (0.62 - 0.10 * clamp01(s.soot == null ? 0.5 : s.soot));
+  if (u <= 0.20){ const r = u / 0.20; return base + (peak - base) * r * r; }
+  return peak + (tip - peak) * Math.pow((u - 0.20) / 0.80, 0.85);
+}
+/* THE RAMP the shader draws every plume through: n stops from wick to tip,
+   RGB gamma-encoded and A the relative luminance at that height. Luminance is
+   the real Y of the real spectrum, compressed by a root so that a tip four
+   times dimmer still reads on a screen — the fall is honest in direction and
+   tamed in degree, which is the only place this model bends. */
+const FLAME_RAMP_N = 64;
+function flameRamp(src, n){
+  const s = src || {}, N = Math.max(2, (n | 0) || FLAME_RAMP_N);
+  const out = new Uint8Array(N * 4);
+  const flame = !s.kind || s.kind === 'flame';
+  const laser = s.kind === 'laser';
+  // CH* at 431 nm and the C2 Swan bands around 516 nm: the blue cone at the
+  // base of a premixed flame is CHEMILUMINESCENCE — light from the reaction
+  // itself, not from the heat — so it is summed in as its own emitter beside
+  // the black body rather than averaged against it
+  const chemi = normalizeRGB(addRGB(scaleRGB(wavelengthLinear(431), 0.66),
+                                    scaleRGB(wavelengthLinear(516), 0.34)));
+  const peakY = flame ? blackbodyXYZ(flameTemp(s, 0.20)).y : 1;
+  for (let i = 0; i < N; i++){
+    const u = i / (N - 1);
+    let col, lum;
+    if (laser){
+      col = wavelengthRGB(+s.nm || 532);
+      lum = 1 - u * 0.10;                       // a collimated beam barely attenuates
+    } else if (!flame){
+      col = kelvinRGB(+s.kelvin || 5000);
+      // inverse square: the reason a beam is a cone that fades, and the reason
+      // you can see one at all is the dust it lights on the way
+      lum = 1 / (1 + Math.pow(u * 2.6, 2));
+    } else {
+      const xyz = blackbodyXYZ(flameTemp(s, u));
+      // how much THERMAL light this height actually emits: the black body's own
+      // luminance (rooted, so a tip four times dimmer still reads on a screen),
+      // dark at the wick where nothing is burning yet, dying through the tip
+      // where the soot has burnt out
+      const thermal = Math.pow(clamp01(xyz.y / Math.max(1e-30, peakY)), 0.30)
+                    * Math.min(1, u / 0.06)
+                    * (1 - 0.62 * Math.pow(u, 2.4));
+      // ^1.5 on the source's own premixing: a Bic shows a real cone, a wood
+      // fire shows the trace it actually has rather than a blue puddle
+      const blueW = Math.pow(clamp01(s.blue || 0), 1.5) * Math.pow(clamp01(1 - u / 0.20), 2.0) * 0.95;
+      const sum = addRGB(scaleRGB(normalizeRGB(xyzToLinearRGB(xyz)), thermal),
+                         scaleRGB(chemi, blueW));
+      const m = peakRGB(sum);
+      col = m > 0 ? encodeRGB(scaleRGB(sum, 1 / m)) : { r: 0, g: 0, b: 0 };
+      lum = Math.min(1, m);
+    }
+    out[i * 4] = Math.round(clamp01(col.r) * 255);
+    out[i * 4 + 1] = Math.round(clamp01(col.g) * 255);
+    out[i * 4 + 2] = Math.round(clamp01(col.b) * 255);
+    out[i * 4 + 3] = Math.round(clamp01(lum) * 255);
+  }
+  return out;
+}
+/* TEN LIGHTS, TEN BANDS. The bench doubles as a spectrum analyser: the source
+   on the left listens to the bass, the one on the right to the air above the
+   hats, and the walk between them is bent because hearing is logarithmic and
+   an FFT bin is not. */
+function flameBandU(i, n){
+  const N = Math.max(1, n | 0), k = N <= 1 ? 0 : clamp01((i | 0) / (N - 1));
+  return 0.006 + 0.52 * Math.pow(k, 1.7);
+}
+/* What the readout says — and it says the colour, because showing you what
+   colour a thing is happens to be the whole point of the room. */
+function flameLabel(src){
+  const s = src || {}, hex = rgbHex(flameRGB(s));
+  return s.kind === 'laser'
+    ? `${s.name} · ${Math.round(+s.nm || 532)} nm · ${hex}`
+    : `${s.name} · ${Math.round(+s.kelvin || 0)} K · ${hex}`;
+}
+/* THE ROLL. Around half the visits are the whole bench lit at once — ten
+   lights, ten bands, one song. The rest is a single source, close enough to
+   read the flicker off. */
+function flameRoll(r){
+  const n = FLAME_SOURCES.length;
+  const x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
+  if (x < 0.46) return { mode: 'vigil', src: -1, name: 'VIGIL · TEN LIGHTS' };
+  const i = Math.min(n - 1, Math.floor((x - 0.46) / 0.54 * n));
+  return { mode: 'solo', src: i, name: flameLabel(FLAME_SOURCES[i]) };
+}
+
 /* ================================================================
    THE ROOM — what the auto director is really choosing.
 
@@ -3367,7 +3638,8 @@ function ghostMirror(axis, x, y){
    this order — taste is keyed, never indexed — but a list you can read is how
    you notice a room that got added and never given a character. */
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
-                    'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo'];
+                    'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
+                    'flame'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -3396,6 +3668,7 @@ const SCENE_TASTE = {
   parlor:    { entropy: 1.2, mid: 0.8, beat: -0.4 },        // patient, perceptual
   aurea:     { coupling: 1.4, calm: 0.8, entropy: -0.6 },   // the golden room — proportion, not force
   halo:      { treble: 1.2, energy: 1.0, coupling: 0.5 },   // radiant, spectral
+  flame:     { calm: 1.3, entropy: -0.4 },                  // the vigil — warm, patient, held up
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -14747,7 +15020,7 @@ const TAP = {
 if (el.btnTap) el.btnTap.addEventListener('click', () => TAP.hit());
 
 /* ================================================================
-   §8 · THREE — the field, sixteen scenes, and the director
+   §8 · THREE — the field, eighteen scenes, and the director
    ================================================================ */
 let renderer, scene, camera, three_ok = true;
 
@@ -17791,7 +18064,7 @@ GHOST.load();
    warpDeflect), which the point shaders obey as real displacement and
    the light-bending pass obeys as refraction. There is no performance
    layer: the personality IS the deformation, so it works on all
-   sixteen scenes and any added later without any of them knowing.
+   eighteen scenes and any added later without any of them knowing.
    The choice persists; AUTO lets the scenes re-tune it.
    ================================================================ */
 const TOUCHFX = {
@@ -19083,6 +19356,428 @@ function buildHalo(){
   return api;
 }
 
+/* =========================================================
+   Scene 18 — FLAME  (ten real lights, and what colour they are)
+
+   A bench of ten light sources — match, lighter, Bic, Zippo,
+   Clipper, torch, campfire, iPhone flashlight, LED, laser — burning
+   side by side, each one listening to its own band of the live
+   spectrum and lifting when that band arrives. Ten lights, ten
+   bands: the bench is a spectrum analyser made out of fire.
+
+   Nothing here is art-directed. Every colour on screen is integrated
+   from Planck's law through the CIE 1931 observer (see FIRE,
+   MEASURED, up in the pure block) — a Zippo is amber because 1500 K
+   is amber. Every flicker rate falls out of the flame's diameter
+   through the Strouhal relation, which is why the campfire breathes
+   about twice a second and the match shivers about twenty times.
+   The blue at the base of a Bic is CH* at 431 nm and the C2 Swan
+   bands at 516 nm, summed in as its own emitter beside the black
+   body, because light adds.
+
+   THE HAND IS A DRAUGHT. Not a warp dressed up as one: the pointer
+   is raycast into the bench's own plane, and the plumes lean away
+   from it — further the higher you look, because the base is tied to
+   the wick and the tip is not. Hold, and the flames are fed air and
+   roar. Let go, and the release blows them flat. A beam barely
+   notices. A laser does not care at all, and that difference is the
+   most honest thing in the room.
+
+   And under each light, its name and its colour, in that colour.
+   ========================================================= */
+const FLAME_LABEL_W = 512, FLAME_LABEL_H = 128;   // one cell of the label sheet
+function buildFlameLabelTexture(){
+  const cv = document.createElement('canvas');
+  cv.width = FLAME_LABEL_W; cv.height = FLAME_LABEL_H * FLAME_SOURCES.length;
+  const c = cv.getContext('2d');
+  const font = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  FLAME_SOURCES.forEach((s, i) => {
+    const y = i * FLAME_LABEL_H, hex = rgbHex(flameRGB(s));
+    try { c.letterSpacing = '6px'; } catch (e){}
+    c.font = '600 40px ' + font;
+    c.fillStyle = hex;
+    c.fillText(s.name, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.46);
+    // the measurement, under the name, in white — the colour is the swatch
+    // above it, so the number does not have to be the thing you look at
+    try { c.letterSpacing = '3px'; } catch (e){}
+    c.font = '500 26px ' + font;
+    c.fillStyle = 'rgba(255,255,255,0.66)';
+    const meas = s.kind === 'laser' ? `${s.nm} nm · ${hex}` : `${s.kelvin} K · ${hex}`;
+    c.fillText(meas, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.82);
+  });
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.flipY = false;        // the sheet is authored top-down, row 0 first
+  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
+}
+function buildFlame(){
+  const group = new THREE.Group();
+  const NS = FLAME_SOURCES.length;
+
+  /* THE RAMP SHEET — one row per source, 64 stops from wick to tip, RGB the
+     integrated colour and A the honest relative luminance. All the physics is
+     baked here, in JS, where the tests can read it; the shader only looks it
+     up. Linear filtering across the row, and every row sampled at its exact
+     texel centre so neighbours never bleed. */
+  const rampData = new Uint8Array(FLAME_RAMP_N * NS * 4);
+  FLAME_SOURCES.forEach((s, i) => rampData.set(flameRamp(s, FLAME_RAMP_N), i * FLAME_RAMP_N * 4));
+  const rampT = new THREE.DataTexture(rampData, FLAME_RAMP_N, NS, THREE.RGBAFormat);
+  rampT.magFilter = THREE.LinearFilter; rampT.minFilter = THREE.LinearFilter;
+  rampT.needsUpdate = true;
+
+  /* THE PARAMS SHEET — four texels per source. A uniform array would be the
+     obvious home for these, but GLSL ES 1.00 only promises constant indexing
+     into one, and this shader picks its row per PARTICLE. A nearest-filtered
+     texture is indexable by anything and costs a fetch. */
+  const PC = 4;
+  const pData = new Uint8Array(PC * NS * 4);
+  const q = (v, scale) => Math.max(0, Math.min(255, Math.round((v / scale) * 255)));
+  FLAME_SOURCES.forEach((s, i) => {
+    const row = i * PC * 4;
+    const kind = s.kind === 'laser' ? 2 : (s.kind === 'beam' ? 1 : 0);
+    pData[row + 0] = q(s.h, 8);  pData[row + 1] = q(s.w, 3);
+    pData[row + 2] = q(flamePuff(s), 24); pData[row + 3] = q(s.soot || 0, 1);
+    pData[row + 4] = q(s.spark || 0, 1); pData[row + 5] = q(kind, 2);
+    pData[row + 6] = q(s.spread || 0, 1); pData[row + 7] = q(s.blue || 0, 1);
+    pData[row + 8] = q(flameBandU(i, NS), 1);
+    // the output, log-compressed: a campfire is 160× a match and must not be
+    // 160× as loud, but it must not be the same either
+    pData[row + 9] = q(Math.log10(1 + (s.lm || 1)) / 3, 1);
+  });
+  const paramT = new THREE.DataTexture(pData, PC, NS, THREE.RGBAFormat);
+  paramT.magFilter = THREE.NearestFilter; paramT.minFilter = THREE.NearestFilter;
+  paramT.needsUpdate = true;
+
+  const varU = {
+    uFlameRamp: { value: rampT }, uFlameP: { value: paramT },
+    uSolo: { value: -1 },         // -1 = the whole bench; else the one source everything draws
+    uSpread: { value: 2.4 },      // how far apart the bench stands, fitted to the room
+    uScale: { value: 1 }, uBase: { value: -3.4 },
+    uRows: { value: 1 },          // one rank across a wide room, two across a tall one
+    uTier: { value: 6.6 },        // and how far apart those two ranks stand
+    uFlick: { value: 1 },         // the flicker's authority — it stands down under CALM
+    uDens: { value: 1 },          // solo packs every sprite into one plume; this pays for it
+    uHand: { value: new THREE.Vector3(0, 0, 0) },   // the draught, in the bench's own plane
+  };
+
+  /* THE PARTICLES. Every source gets a share of them in proportion to how much
+     there is to draw: a campfire is a wall of gas, a laser is a line. */
+  const N = IS_IOS ? 6400 : 12000;
+  const weight = FLAME_SOURCES.map(s => (s.kind === 'flame' ? 1 : 0.7) * (0.55 + s.w * 1.6));
+  const wSum = weight.reduce((a, b) => a + b, 0);
+  const aSrc = new Float32Array(N), aSeed = new Float32Array(N);
+  // seeded, not golden-ratio: a low-discrepancy walk hashed three ways lays a
+  // visible LATTICE through the plume, and a flame does not have one
+  const rnd = mulberry32(0x1f1a3e);
+  let cut = 0, k = 0;
+  for (let i = 0; i < NS; i++){
+    const upto = i === NS - 1 ? N : Math.round((cut += weight[i]) / wSum * N);
+    while (k < upto && k < N){ aSrc[k] = i; aSeed[k] = rnd(); k++; }
+  }
+  while (k < N){ aSrc[k] = NS - 1; aSeed[k] = rnd(); k++; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  geo.setAttribute('aSrc', new THREE.BufferAttribute(aSrc, 1));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(aSeed, 1));
+
+  const vert = VERT_POINT_HEAD + `
+    attribute float aSrc, aSeed;
+    uniform sampler2D uFlameRamp, uFlameP;
+    uniform float uSolo, uSpread, uScale, uBase, uFlick, uBarPhase, uBeatSpring, uRows, uTier;
+    uniform vec3 uHand;
+    varying vec3 vCol; varying float vLum, vHot, vSpk;
+    void main(){
+      float si = uSolo >= 0.0 ? uSolo : aSrc;
+      float v = (si + 0.5) / ${NS}.0;
+      vec4 P0 = texture2D(uFlameP, vec2(0.125, v));
+      vec4 P1 = texture2D(uFlameP, vec2(0.375, v));
+      vec4 P2 = texture2D(uFlameP, vec2(0.625, v));
+      float H = P0.r * 8.0 * uScale, W = P0.g * 3.0 * uScale;
+      float PUFF = P0.b * 24.0;
+      float SPARK = P1.r, KIND = floor(P1.g * 2.0 + 0.5), SPREAD = P1.b;
+      float BAND = P2.r, OUT = P2.g;
+
+      float h1 = fract(aSeed * 127.1), h2 = fract(aSeed * 311.7);
+      float h3 = fract(aSeed * 74.7),  h4 = fract(aSeed * 51.31);
+      float h5 = fract(aSeed * 197.13);
+
+      // THIS light's band of the live spectrum. Ten sources, ten bands — the
+      // bench doubles as a spectrum analyser, and every one of them is
+      // dancing to a different part of the same song.
+      float amp = texture2D(uAudio, vec2(BAND, 0.5)).r;
+
+      // an ember rather than a tongue of flame. Sootier fires throw more of
+      // them, and the treble throws more still.
+      float spk = step(1.0 - SPARK * (0.45 + uTreble * 0.9), h4);
+
+      // its band feeds the draught, so a source LIFTS when the music it is
+      // listening to arrives. The whole dance is one multiply.
+      float lift = 1.0 + amp * 1.05 + uBass * 0.30 + uBeatSpring * 0.26;
+      float t = fract(h2 + uTime * (0.40 + h1 * 0.26) * (0.55 + lift * 0.55));
+
+      // THE PUFF — 1.5·D^-1/2 Hz, straight off the diameter.
+      float puff = sin((uTime * PUFF - t * 2.6) * 6.2831853) * uFlick;
+
+      float ang = h3 * 6.2831853;
+      vec3 p; float hot;
+      if (KIND < 0.5){
+        // A DIFFUSION FLAME: pinched at the wick, widest a fifth of the way
+        // up, drawn to a point at the tip.
+        float rad = W * pow(t, 0.34) * (1.0 - t) * 2.5 * (1.0 + puff * 0.20) * sqrt(h5);
+        // instability grows downstream — the base stands still, the tip whips
+        float wob = sin(t * 4.1 + uTime * (1.1 + PUFF * 0.10) + h1 * 6.2831853)
+                  + 0.5 * sin(t * 7.9 - uTime * (0.8 + PUFF * 0.07) + h2 * 12.0);
+        float sway = wob * W * (0.34 + uEntropy * 0.6) * pow(t, 1.4) * uFlick;
+        p = vec3(cos(ang) * rad + sway, t * H * lift * (1.0 + puff * 0.05), sin(ang) * rad * 0.9);
+        if (spk > 0.5){
+          // an ember: thrown clear of the plume, still climbing after the
+          // flame that made it has gone
+          p.y += t * H * (0.55 + h1 * 1.5);
+          p.xz += vec2(cos(ang), sin(ang)) * t * W * (1.4 + h2 * 3.4);
+          p.x += sway * 1.6;
+        }
+        hot = 1.0 - smoothstep(0.05, 0.30, t);   // the white core sits just above the wick
+      } else {
+        // A BEAM is not a plume: it is a cone of dust motes, which is the only
+        // reason a beam is visible at all. A laser's cone is a hundred times
+        // tighter and it sweeps the bar instead of flickering, because
+        // coherent light has nothing to flicker.
+        float rad = SPREAD * t * H * (0.25 + h1 * 0.95) + W * 0.35;
+        float sweep = KIND > 1.5
+          ? sin(uBarPhase * 6.2831853 + si) * (0.16 + uEnergy * 0.34) * (0.30 + amp)
+          : sin(uTime * 0.4 + si) * 0.05;
+        p = vec3(cos(ang) * rad + sin(sweep) * t * H,
+                 t * H * (0.9 + amp * 0.35), sin(ang) * rad);
+        hot = 1.0 - smoothstep(0.0, 0.12, t);
+      }
+
+      // WHERE THIS LIGHT STANDS. One rank of ten across a wide room; two ranks
+      // of five across a tall one, so a phone held upright gets a bench whose
+      // captions you can actually read instead of ten hairlines. A solo stands
+      // dead centre and ignores the arrangement entirely.
+      float rack = step(uSolo, -0.5);
+      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
+      float ci = uRows > 1.5 ? mod(si, ${(NS / 2).toFixed(1)}) : si;
+      float ri = uRows > 1.5 ? floor(si / ${(NS / 2).toFixed(1)}) : 0.0;
+      p.x += (ci - (cols - 1.0) * 0.5) * uSpread * rack;
+      p.y += uBase + (uRows - 1.0 - ri) * uTier * rack;
+
+      // THE DRAUGHT — see the header. A flame leans away from a hand; a beam
+      // barely notices; a laser does not care.
+      float care = KIND < 0.5 ? 1.0 : (KIND < 1.5 ? 0.20 : 0.0);
+      float fan = 0.0;
+      if (uHand.z > 0.002 && care > 0.0){
+        vec2 d = p.xy - uHand.xy;
+        fan = exp(-dot(d, d) * 0.05) * uHand.z * care;
+        p.xy += normalize(d + vec2(1e-4)) * fan
+              * (0.8 + uPtrX.x * 0.9 + uPtrX.y * 2.6) * pow(t, 1.35) * 1.9;
+        p.y += fan * uPtrX.x * t * H * 0.45;     // held, it is fed air, and it roars
+      }
+
+      vec4 ramp4 = texture2D(uFlameRamp, vec2(clamp(t, 0.0, 1.0), v));
+      vCol = ramp4.rgb;
+      vLum = ramp4.a * (0.34 + OUT * 0.5 + amp * 0.85 + uBeat * 0.28 + fan)
+           * (spk > 0.5 ? 1.5 - t : 1.0)
+           * smoothstep(1.0, 0.84, t);      // the tip dissolves; the clock never shows its seam
+      vHot = hot * (0.40 + amp * 0.6 + fan);
+      vSpk = spk;
+      vT = t; vGlow = vLum;
+
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (0.7 + W * 1.35 * (spk > 0.5 ? 0.30 : 1.0) + amp * 0.9 + uAct * 0.3)
+                   * (KIND > 1.5 ? 0.55 : 1.0) * (300.0 / -mv.z);
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform vec3 uColC; uniform float uOpacity, uEnergy, uDens;
+    varying vec3 vCol; varying float vLum, vHot, vSpk;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      // an ember is a hard little point; a tongue of gas is a soft one
+      float a = smoothstep(0.5, 0.0, r); a = pow(a * a, 1.0 + vSpk * 1.7);
+      vec3 col = mix(vCol, uColC, 0.09);        // the room still matches, faintly
+      // the white core is what a photograph of a flame does — and it is spent
+      // from the same bleach budget as everything else, so a quiet flame keeps
+      // its measured colour and only the drop is allowed to glare
+      col = mix(col, vec3(1.0), vHot * (0.10 + uWhite * 0.45));
+      col = inkRolloff(col * (0.26 + vLum * 0.85 + uEnergy * 0.14));
+      gl_FragColor = vec4(col, a * uOpacity * uDens * (0.015 + vLum * 0.60));
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+
+  /* THE LABELS. A room whose subject is what colour a thing is owes you the
+     name of the thing — so each light is captioned in its own computed colour,
+     with the number underneath. One sheet, one draw call, and it crossfades
+     with the scene because it carries the same uOpacity every other material
+     in the room does. */
+  const labelTex = buildFlameLabelTexture();
+  const labelU = { uLabelTex: { value: labelTex }, uSpread: varU.uSpread, uBase: varU.uBase,
+                   uScale: varU.uScale, uRows: varU.uRows, uTier: varU.uTier, uRow: { value: 0 } };
+  const CELL_A = FLAME_LABEL_H / FLAME_LABEL_W;      // the caption's own aspect
+  const LABEL_FRAG = `
+    uniform sampler2D uLabelTex; uniform float uOpacity;
+    varying vec2 vUv;
+    void main(){
+      vec4 c = texture2D(uLabelTex, vUv);
+      gl_FragColor = vec4(c.rgb, c.a * uOpacity * 0.92);
+    }
+  `;
+  function labelMesh(slots, w, vertexShader){
+    const n = slots.length;
+    const pos = new Float32Array(n * 4 * 3), uvs = new Float32Array(n * 4 * 2);
+    const slotA = new Float32Array(n * 4);
+    const idx = [], h = w * CELL_A;
+    const corners = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+    slots.forEach((slot, j) => {
+      corners.forEach((c, m) => {
+        pos[(j * 4 + m) * 3] = c[0];
+        pos[(j * 4 + m) * 3 + 1] = c[1];
+        slotA[j * 4 + m] = slot.row;          // which light this caption belongs to
+        uvs[(j * 4 + m) * 2] = (c[0] / w) + 0.5;
+        // v runs DOWN the sheet, so the caption's own row is (row + 1) - local
+        uvs[(j * 4 + m) * 2 + 1] = (slot.row + 0.5 - (c[1] / h)) / NS;
+      });
+      idx.push(j * 4, j * 4 + 1, j * 4 + 2, j * 4, j * 4 + 2, j * 4 + 3);
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    g.setAttribute('aSlot', new THREE.BufferAttribute(slotA, 1));
+    g.setIndex(idx);
+    const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({
+      uniforms: matU(Object.assign({}, labelU)),
+      vertexShader, fragmentShader: LABEL_FRAG,
+      transparent: true, depthWrite: false, depthTest: false,
+      blending: THREE.AdditiveBlending,
+    }));
+    mesh.frustumCulled = false;
+    return mesh;
+  }
+  // the rack's captions scale with the bench, so each one always sits under
+  // its own light however wide the room turns out to be
+  const rackLabels = labelMesh(FLAME_SOURCES.map((s, i) => ({ row: i })), 0.94, `
+    attribute float aSlot;
+    uniform float uSpread, uBase, uRows, uTier;
+    varying vec2 vUv;
+    void main(){
+      // the same arrangement the lights take, so a caption is never anywhere
+      // but under the thing it names
+      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
+      float ci = uRows > 1.5 ? mod(aSlot, ${(NS / 2).toFixed(1)}) : aSlot;
+      float ri = uRows > 1.5 ? floor(aSlot / ${(NS / 2).toFixed(1)}) : 0.0;
+      float k = uSpread * (uRows > 1.5 ? 1.06 : 1.0);
+      vec3 p = vec3((ci - (cols - 1.0) * 0.5) * uSpread + position.x * k,
+                    position.y * k * 1.7 + uBase - 0.6 + (uRows - 1.0 - ri) * uTier, 0.0);
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }
+  `);
+  // …and the solo caption is one plate whose row the roll slides into place
+  const soloLabel = labelMesh([{ row: 0 }], 1, `
+    uniform float uBase, uRow, uScale;
+    varying vec2 vUv;
+    void main(){
+      float k = uScale * 2.2;
+      vec3 p = vec3(position.x * k, position.y * k + uBase - k * 0.30, 0.0);
+      vUv = vec2(uv.x, uv.y + uRow / ${NS}.0);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }
+  `);
+  group.add(rackLabels, soloLabel);
+  soloLabel.visible = false;
+
+  group.visible = false;
+  scene.add(group);
+
+  // orientation + raycast temps, allocated once — update() runs every frame
+  const _pq = new THREE.Quaternion(), _gq = new THREE.Quaternion();
+  const _dir = new THREE.Vector3(), _n = new THREE.Vector3(), _hit = new THREE.Vector3();
+  const _plane = new THREE.Plane(), _rc = new THREE.Raycaster(), _ndc = new THREE.Vector2();
+  const ORIGIN = new THREE.Vector3(0, 0, 0);
+
+  const api = { name: 'FLAME', key: 'flame', group,
+    update(dt){
+      // FACE THE ROOM, BUT KEEP UP UP. The bench turns to the camera's
+      // azimuth so you always see the flames side-on; it never tips, because
+      // buoyancy is the entire subject and a flame that leans with the camera
+      // is not a flame.
+      scene.getWorldQuaternion(_pq).invert();
+      _dir.set(camera.position.x, 0, camera.position.z);
+      if (_dir.lengthSq() < 1e-8) _dir.set(0, 0, 1);
+      _dir.normalize().applyQuaternion(_pq);
+      group.rotation.set(0, Math.atan2(_dir.x, _dir.z), 0);
+      group.updateMatrixWorld(true);
+
+      // THE BENCH FITS THE ROOM IT IS IN. Ten lights across four-fifths of
+      // whatever is actually visible, at whatever distance the rig has
+      // wandered to — so the row never runs off a phone held upright.
+      const dist = Math.max(1, camera.position.length());
+      const halfH = Math.tan(camera.fov * Math.PI / 360) * dist;
+      const halfW = halfH * camera.aspect;
+      const solo = varU.uSolo.value >= 0;
+      const ease = Math.min(1, dt * 4);
+      // a phone held upright is the case one rank of ten cannot serve: the
+      // captions collapse to hairlines and the tall half of the frame is wasted
+      const rows = camera.aspect < 1.0 ? 2 : 1;
+      varU.uRows.value = rows;
+      const spread = clamp(halfW * 1.5 / (rows > 1 ? NS / 2 - 1 : NS - 1), 1.05, 5.5);
+      varU.uSpread.value += (spread - varU.uSpread.value) * ease;
+      const wantScale = solo ? clamp(halfH * 0.24, 1.4, 5.0)
+                             : clamp(varU.uSpread.value / 2.6, 0.6, 2.0);
+      varU.uScale.value += (wantScale - varU.uScale.value) * ease;
+      // the ranks must clear each other: the tallest thing on the bench is the
+      // laser at 7 units, and a beam that runs up through the rank above it is
+      // worse than no second rank at all
+      varU.uTier.value = 8.4 * varU.uScale.value;
+      const wantBase = solo ? clamp(-halfH * 0.36, -7, -3)
+                            : (rows > 1 ? clamp(-(varU.uTier.value * 0.55 + 3.4), -14, -3.4) : -3.4);
+      varU.uBase.value += (wantBase - varU.uBase.value) * ease;
+
+      // THE HAND, BROUGHT INTO THE BENCH'S OWN PLANE. A draught happens in
+      // the room, not on the glass, so the pointer is raycast onto the plane
+      // the flames actually stand in rather than smeared across the screen.
+      _n.set(0, 0, 1).applyQuaternion(group.getWorldQuaternion(_gq));
+      _plane.setFromNormalAndCoplanarPoint(_n, ORIGIN);
+      _ndc.set(INTERACT.wx, INTERACT.wy);
+      _rc.setFromCamera(_ndc, camera);
+      if (INTERACT.strength > 0.002 && _rc.ray.intersectPlane(_plane, _hit)){
+        group.worldToLocal(_hit);
+        varU.uHand.value.set(_hit.x, _hit.y, INTERACT.strength);
+      } else varU.uHand.value.z = 0;
+
+      // the flicker stands down where somebody asked for less motion — the
+      // colour, the shape and the dance all survive; only the shiver goes
+      const wantFlick = (SAFE.calm || reducedMotion) ? 0.26 : 1;
+      varU.uFlick.value += (wantFlick - varU.uFlick.value) * Math.min(1, dt * 2);
+    },
+    roll(){
+      const r = flameRoll(Math.random());
+      const solo = r.mode === 'solo';
+      varU.uSolo.value = solo ? r.src : -1;
+      varU.uDens.value = solo ? 0.38 : 1;
+      labelU.uRow.value = solo ? r.src : 0;
+      rackLabels.visible = !solo;
+      soloLabel.visible = solo;
+      api.name = 'FLAME · ' + r.name;
+      return api.name;
+    } };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -19109,7 +19804,8 @@ function initThree(){
   initRampTexture();
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
-              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo());
+              buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
+              buildFlame());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
