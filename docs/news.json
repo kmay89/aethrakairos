@@ -2,6 +2,21 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "73655bab01",
+      "date": "2026-08-03",
+      "title": "The field can have a screen of its own",
+      "notes": [
+        "stage mode: the visualizer goes fullscreen on a second screen or a TV and this window becomes the booth — hold the fullscreen button, press ⇧F, or tap Stage",
+        "the booth folds into a corner player: what is playing, the transport, and a pad that puts your hand on the picture the room can see — the chevron opens the rest",
+        "a stage screen carries no controls, no library and no sound of its own; it draws what the booth hears, and says so if the booth goes quiet instead of freezing",
+        "several screens draw one field rather than one picture each — screen 2 of 3 shows the middle third of a single camera, so a shape crossing the seam stays one shape",
+        "fixed: on the Mac app, CATALOG opened nothing and stalled the audio — every dialog is the app’s own now, so naming a journey and erasing history work there too",
+        "the microphone says which of the four things went wrong, and on the Mac it opens the privacy pane where the answer actually lives",
+        "the Mac app no longer offers to install the app you are already in",
+        "the Mac app’s own update is offered instead of installed behind your back — same card, same three choices, and your place is saved before it restarts"
+      ]
+    },
+    {
       "build": "b3c47720be",
       "date": "2026-08-03",
       "title": "\"You're up to date\" — a status that finally says so",

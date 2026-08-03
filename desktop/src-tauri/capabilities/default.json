@@ -1,10 +1,19 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core window controls plus self-update.",
-  "windows": ["main"],
+  "description": "Core window controls, self-update, and the shell commands the player calls.",
+  "windows": [
+    "main",
+    "stage-*"
+  ],
   "permissions": [
     "core:default",
     "updater:default"
-  ]
+  ],
+  "remote": {
+    "urls": [
+      "https://aethrakairos.com",
+      "https://aethrakairos.com/*"
+    ]
+  }
 }

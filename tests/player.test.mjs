@@ -37,6 +37,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
+  ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
@@ -2401,6 +2402,114 @@ test('newsSince: walks newest-first until the running build, exclusive, capped',
   assert.deepEqual(S.newsSince(lineage, 'c').map(e => e.build), ['d']);
   assert.deepEqual(S.newsSince([{ build: 'd', builds: null }], 'd').map(e => e.build), [],
     'a malformed lineage costs nothing');
+});
+/* ---- STAGE: one field, several screens ------------------------------------
+   The arithmetic that decides where a screen cuts into the picture. It is worth
+   testing on its own because the failure it prevents is invisible in one
+   window and glaring in three: a seam where a shape jumps, changes size, or
+   arrives late. */
+test('updateGate + updateOffer: the Mac app is a different artefact, asked for by hand', () => {
+  const base = { ready: true, requested: false, armed: '', trackChanged: false,
+    playing: false, show: false, snoozedUntil: 0, now: 1000, applies: 0 };
+  assert.equal(S.updateGate(base), 'apply', 'an ordinary update still lands in the quiet');
+  /* A NATIVE UPDATE REPLACES THE PROCESS. Every gate that protects a listener
+     reads "idle, go ahead" when nothing is playing — and a stage screen is
+     ALWAYS idle. Nothing about the shell's update may ever be automatic. */
+  assert.equal(S.updateGate({ ...base, native: true }), 'wait');
+  assert.equal(S.updateGate({ ...base, native: true, armed: 'afterTrack', trackChanged: true }), 'wait',
+    'not even the boundary a listener explicitly asked for');
+  // and it is judged by its own name, never against the player's build id
+  const run = 'aaaa111111';
+  assert.equal(S.updateOffer({ source: 'native', build: '0.2.0', running: run }), 'show');
+  assert.equal(S.updateOffer({ source: 'native', build: run, running: run }), 'show',
+    'the app version and the player build are different numbers about different things');
+  assert.equal(S.updateOffer({ source: 'native', build: '', running: run }), 'ignore',
+    'an unnamed native claim is not a claim');
+  const key = S.updateOfferKey('native-0.1.1', '0.2.0');
+  assert.equal(S.updateOffer({ source: 'native', build: '0.2.0', running: run, key, tried: key }), 'applied');
+});
+test('stageGrid: a row is what a stage is, until a row becomes a slit', () => {
+  assert.deepEqual(S.stageGrid(1), { cols: 1, rows: 1 });
+  assert.deepEqual(S.stageGrid(3), { cols: 3, rows: 1 }, 'three TVs behind a booth is a row');
+  assert.deepEqual(S.stageGrid(4), { cols: 4, rows: 1 });
+  // past four a row gives each screen a letterbox slit of the field, so it folds
+  assert.deepEqual(S.stageGrid(6), { cols: 3, rows: 2 });
+  assert.deepEqual(S.stageGrid(8), { cols: 3, rows: 3 });
+  // the arrangement can always be said out loud instead
+  assert.deepEqual(S.stageGrid(6, 'row'), { cols: 6, rows: 1 });
+  assert.deepEqual(S.stageGrid(3, 'column'), { cols: 1, rows: 3 });
+  // garbage is a single screen, never a crash and never zero columns
+  for (const bad of [0, -4, NaN, null, undefined, 'x', 1e9])
+    assert.ok(S.stageGrid(bad).cols >= 1 && S.stageGrid(bad).rows >= 1, 'bad input: ' + bad);
+});
+test('stageSlice: the slices tile the field exactly once, with no gap and no overlap', () => {
+  for (const of of [1, 2, 3, 4, 5, 6, 7, 8]){
+    let area = 0;
+    const seen = new Set();
+    for (let i = 1; i <= of; i++){
+      const s = S.stageSlice(i, of);
+      area += s.fw * s.fh;
+      seen.add(s.fx.toFixed(6) + ':' + s.fy.toFixed(6));
+      assert.ok(s.fx >= 0 && s.fy >= 0 && s.fx + s.fw <= 1 + 1e-9 && s.fy + s.fh <= 1 + 1e-9,
+        of + ' screens: slice ' + i + ' left the field');
+    }
+    assert.equal(seen.size, of, of + ' screens must sit in ' + of + ' different places');
+    const g = S.stageGrid(of);
+    // a grid can hold more cells than there are screens (7 televisions, 3x3):
+    // the covered area is then the screens' share of it, never more than all
+    assert.ok(area <= 1 + 1e-9 && Math.abs(area - of / (g.cols * g.rows)) < 1e-9,
+      of + ' screens cover ' + area);
+  }
+  // reading order is left to right, then down — the order someone hangs them in
+  const mid = S.stageSlice(2, 3);
+  assert.ok(Math.abs(mid.fx - 1 / 3) < 1e-9 && mid.fy === 0, 'screen 2 of 3 is the middle third');
+  const wall = S.stageSlice(4, 6);
+  assert.equal(wall.row, 1, 'the fourth of six has wrapped to the second row');
+  assert.equal(wall.col, 0);
+  // an index nobody hung is clamped to a real slice rather than refused: a
+  // screen showing the wrong third is fixable on the night, a black one is not
+  assert.ok(S.stageSlice(9, 3).fw > 0);
+  assert.ok(S.stageSlice(0, 3).fw > 0);
+});
+test('stageRole: a screen is configured entirely by its own address', () => {
+  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto' });
+  assert.equal(S.stageRole('?stage=screen').role, 'screen');
+  assert.equal(S.stageRole('?stage=1').role, 'screen');
+  assert.equal(S.stageRole('?catalog=x&stage=screen&screen=2&of=3').screen, 2);
+  assert.equal(S.stageRole('?stage=screen&screen=2&of=3').of, 3);
+  assert.equal(S.stageRole('?stage=screen&wall=row').mode, 'row');
+  // a screen numbered past the wall it is in is pulled back into it
+  assert.equal(S.stageRole('?stage=screen&screen=9&of=3').screen, 3);
+  // nothing here may throw: this runs before the app exists
+  for (const bad of [null, undefined, '?stage', '?=&&=', '?of=NaN&screen=-2&stage=screen'])
+    assert.ok(S.stageRole(bad).screen >= 1);
+});
+test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
+  const dst = { bass: 0.5, energy: 0.5, beat: 0.5, extra: 'keep me' };
+  S.stageApplyFeat(dst, { bass: 0.9, energy: 'not a number', nope: 1 });
+  assert.equal(dst.bass, 0.9, 'a number lands');
+  assert.equal(dst.energy, 0.5, 'a non-number leaves the last good value alone');
+  assert.equal(dst.beat, 0.5, 'a field the packet omits is not zeroed — a half packet is not silence');
+  assert.equal(dst.nope, undefined, 'nothing outside the list crosses');
+  assert.equal(dst.extra, 'keep me');
+  S.stageApplyFeat(dst, { bass: NaN });
+  assert.equal(dst.bass, 0.9, 'NaN is not a reading');
+  assert.doesNotThrow(() => S.stageApplyFeat(dst, null));
+  assert.doesNotThrow(() => S.stageApplyFeat(null, { bass: 1 }));
+  assert.ok(S.STAGE_FIELDS.includes('beat') && S.STAGE_FIELDS.includes('bpm'));
+});
+test('stageOffset: two machines, two clocks, one smoothed difference', () => {
+  // the first reading is taken as-is — there is nothing to smooth against
+  assert.equal(S.stageOffset(NaN, 1000, 1040), 40);
+  // a late packet moves the estimate a little, not a lot
+  const a = S.stageOffset(40, 1000, 1140);
+  assert.ok(a > 40 && a < 50, 'one slow packet is a fact about the network, got ' + a);
+  // a real clock change is taken at once rather than crawled toward for a minute
+  assert.equal(S.stageOffset(40, 1000, 3000), 2000);
+  // garbage never becomes the clock
+  assert.equal(S.stageOffset(40, NaN, 1000), 40);
+  assert.equal(S.stageOffset(NaN, NaN, NaN), 0);
+  assert.ok(Math.abs(S.stageOffset(NaN, 0, 1e12)) <= 5000, 'and a wild one is clamped');
 });
 test('updateOfferKey: two claims about the same swap are one string', () => {
   assert.equal(S.updateOfferKey('aaaa', 'bbbb'), S.updateOfferKey('aaaa', 'bbbb'));
