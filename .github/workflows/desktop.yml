@@ -309,8 +309,14 @@ jobs:
       # PROVE IT, rather than trusting that the step which claimed to sign did.
       # A notarized build that quietly came out unsigned is the failure this
       # whole pipeline exists to prevent, and it is invisible without asking.
+      # ON EVERY SIGNED BUILD, AND ESPECIALLY THE VALIDATION ONE. This first
+      # carried `mode != 'validate'`, copied from the publish step below where
+      # it is correct — and the effect was that the run whose entire purpose is
+      # to PROVE signing was the one run that never asked. It went green having
+      # checked nothing, which is the precise failure this step exists to catch,
+      # committed by the step itself.
       - name: Verify the .dmg really is signed and notarized
-        if: ${{ vars.ENABLE_MACOS_SIGNING == 'true' && steps.plan.outputs.mode != 'validate' }}
+        if: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
         run: |
           set -euo pipefail
           DMG=$(ls desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
