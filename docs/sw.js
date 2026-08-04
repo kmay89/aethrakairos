@@ -168,11 +168,23 @@ self.addEventListener('fetch', ev => {
   // audio: bail out entirely — the browser's own fetch handles Range
   if (isAudio(req, url)) return;
 
-  // the shell page itself: cached INSTANTLY (second boot faster than first,
-  // the contract holds), revalidated in the background so the next launch —
-  // or this one, via the page's update card — always has the newest deploy
-  if (url.origin === location.origin
-      && (req.mode === 'navigate' || /\/(index\.html)?$/.test(url.pathname))){
+  /* the shell page itself: cached INSTANTLY (second boot faster than first,
+     the contract holds), revalidated in the background so the next launch —
+     or this one, via the page's update card — always has the newest deploy.
+
+     MATCHED ON PATH, AND ONLY THE SHELL'S PATH. This used to answer any
+     same-origin NAVIGATION with the player, and the site has a second page:
+     mac.html, the one the "Get the Mac app" button goes to. Anyone who had
+     ever loaded the player therefore had a worker that served them the player
+     again when they asked to download the app — the download page was reachable
+     exactly once, before the worker installed, and never again. A page nobody
+     with the app installed can read is a page that may as well not exist.
+
+     The shell's paths are `/` and `/index.html`; everything else same-origin
+     goes to the network, which is where it lives. A navigation that fails
+     offline is honest — mac.html links to release binaries and needs the
+     network anyway — where a navigation answered with the wrong page is not. */
+  if (url.origin === location.origin && /\/(index\.html)?$/.test(url.pathname)){
     ev.respondWith((async () => {
       const cache = await caches.open(SHELL_CACHE);
       const cached = await cache.match('./index.html') || await cache.match('./');
