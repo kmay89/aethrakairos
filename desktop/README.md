@@ -73,6 +73,7 @@ with no version checks anywhere in the player.
 | `open_mic_settings` | once the mic is denied, only System Settings can undo it |
 | `list_displays` | a browser cannot name the screens attached to the machine |
 | `open_stage` / `close_stage` | a real window, fullscreen, on a chosen display |
+| `stage_pip` | …or that same stage small, above every app, on the one screen there is |
 | `set_mini` | the booth folded into a corner, floating above everything |
 | `reload_shell` | the escape hatch past every cache |
 
