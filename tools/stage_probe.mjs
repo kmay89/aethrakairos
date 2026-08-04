@@ -13,7 +13,7 @@
  *           BroadcastChannel between them, and a screen that renders the booth's
  *           numbers without a catalog, a transport or a sound of its own.
  *
- *   node tools/stage_probe.mjs [--only ask,shell,stage,slice] [--keep]
+ *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,pages] [--keep]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -40,7 +40,7 @@ const want = n => !ONLY.length || ONLY.includes(n);
 
 rmSync(DIR, { recursive: true, force: true });
 mkdirSync(DIR, { recursive: true });
-for (const f of ['index.html', 'sw.js', 'three.min.js', 'manifest.webmanifest', 'news.json', 'catalog.json'])
+for (const f of ['index.html', 'mac.html', 'sw.js', 'three.min.js', 'manifest.webmanifest', 'news.json', 'catalog.json'])
   if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIR, f));
 if (existsSync(join(SRC, 'icons'))) cpSync(join(SRC, 'icons'), join(DIR, 'icons'), { recursive: true });
 
@@ -641,6 +641,50 @@ if (want('native')){
     both.wall ? 's1 ' + both.wall.s1.fw.toFixed(3) + ' s2 ' + both.wall.s2.fw.toFixed(3) : 'no wall');
   verdict('native: with the screens numbered left to right across the desk',
     !!both.wall && both.wall.s1.n === 1 && both.wall.s2.n === 2);
+  await ctx.close();
+}
+
+/* ----------------------------------------------------------------- pages
+ * THE SITE HAS A SECOND PAGE, AND THE WORKER USED TO EAT IT.
+ *
+ * The shell route matched any same-origin NAVIGATION, and mac.html — the page
+ * the "Get the Mac app" button goes to — is a same-origin navigation. So
+ * anyone who had ever loaded the player got a worker that answered the
+ * download page with the player: reachable exactly once, before the worker
+ * installed, and never again.
+ *
+ * This needs two navigations in one context with a real service worker
+ * between them, which is why it lives in a browser probe and not a test. */
+if (want('pages')){
+  console.log('\ntwo pages, and a worker that only claims one of them');
+  const ctx = await browser.newContext();
+  const { page } = await open(ctx, '/');
+  // the worker must actually be in charge before the question means anything
+  const controlled = await page.evaluate(async () => {
+    if (!navigator.serviceWorker) return 'unsupported';
+    const reg = await navigator.serviceWorker.ready.catch(() => null);
+    if (!reg) return 'none';
+    for (let i = 0; i < 60 && !navigator.serviceWorker.controller; i++)
+      await new Promise(r => setTimeout(r, 100));
+    return navigator.serviceWorker.controller ? 'yes' : 'uncontrolled';
+  });
+  verdict('pages: the worker is installed and in charge', controlled === 'yes', controlled);
+
+  const mac = await ctx.newPage();
+  await mac.goto(origin + '/mac.html', { waitUntil: 'domcontentloaded' });
+  await mac.waitForTimeout(300);
+  const got = await mac.evaluate(() => ({
+    h2: [...document.querySelectorAll('h2')].map(n => n.textContent.trim()),
+    title: document.title,
+    dl: !!document.getElementById('dlBtn'),
+    player: !!document.getElementById('onboard'),
+  }));
+  verdict('pages: asking for the download page gets the download page',
+    got.dl && !got.player, got.player ? 'got the player instead' : 'ok');
+  verdict('pages: with all of it, not a cached shell wearing its URL',
+    got.h2.length >= 4 && got.h2.some(h => /^Install/.test(h)), got.h2.join(' | '));
+  verdict('pages: and stage mode is the case it makes for the app',
+    got.h2.some(h => /Stage mode/.test(h)));
   await ctx.close();
 }
 

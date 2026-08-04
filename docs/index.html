@@ -1072,6 +1072,64 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 }
 @keyframes identIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){#stageIdent{animation:none}}
+/* ============ the rig — the room's lamps, drawn from the wire ============
+   Not a mock-up of a light show: a MONITOR. Every cone below is drawn from
+   dmxDecode() reading the same 512 bytes the interface is sending, so a
+   channel written wrongly looks wrong here. A preview drawn from the
+   renderer's own inputs would agree with the renderer by construction —
+   including after it broke, which is the one thing a preview must not do. */
+#rig{
+  position:fixed;inset:0;z-index:95;display:none;
+  align-items:center;justify-content:center;padding:16px;
+  background:rgba(4,5,12,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+#rig.open{display:flex}
+.rig-card{
+  width:min(1000px,96vw);max-height:92vh;overflow-y:auto;
+  background:var(--glass-hard);border:1px solid var(--line);border-radius:22px;
+  padding:22px 24px 18px;box-shadow:var(--shadow);
+  scrollbar-width:thin;scrollbar-color:var(--faint) transparent;
+}
+.rig-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.rig-title{font-family:var(--serif);font-style:italic;font-size:23px;font-weight:600}
+.rig-sub{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint)}
+.rig-head .spring{flex:1}
+#rigStage{
+  width:100%;aspect-ratio:16/7;display:block;border-radius:14px;
+  border:1px solid var(--line-soft);background:#03040a;
+}
+.rig-presets{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}
+.rig-presets button{
+  padding:6px 12px;border-radius:9px;cursor:pointer;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+}
+.rig-presets button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-chans{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.rig-fx{border:1px solid var(--line-soft);border-radius:12px;padding:9px 11px;background:var(--card)}
+.rig-fx h4{margin:0 0 2px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
+.rig-fx .addr{font-size:9px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
+.rig-fx .swatch{width:9px;height:9px;border-radius:50%;flex:0 0 9px;box-shadow:0 0 8px 1px currentColor}
+.rig-ch{display:flex;align-items:center;gap:6px;font-size:9px;color:var(--faint);margin-top:3px}
+.rig-ch .nm{flex:0 0 88px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rig-ch .bar{flex:1;height:4px;border-radius:3px;background:var(--line-soft);overflow:hidden}
+.rig-ch .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.rig-ch .v{flex:0 0 26px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+.rig-board{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;
+  padding-top:8px;border-top:1px solid var(--line-soft)}
+.rig-take{
+  flex:0 0 auto;padding:4px 9px;border-radius:8px;cursor:pointer;font-size:8.5px;
+  letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--line-soft);
+  background:var(--glass);color:var(--faint);
+}
+.rig-take.on{color:#04121a;background:var(--accent);border-color:var(--accent)}
+.rig-fader{flex:1 1 90px;min-width:70px;accent-color:var(--accent);height:16px}
+.rig-sws{display:flex;gap:3px;flex-wrap:wrap}
+.rig-sws button{
+  width:15px;height:15px;border-radius:4px;border:1px solid rgba(255,255,255,.16);
+  cursor:pointer;padding:0;
+}
+.rig-sws button:hover{transform:scale(1.16)}
+.rig-foot{margin-top:10px;font-size:10px;color:var(--faint);line-height:1.6}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -1925,6 +1983,7 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
   <button class="mp-x" type="button" aria-label="Dismiss">×</button>
   <div class="mp-title">Even better as a <b>Mac app</b></div>
   <ul class="mp-why">
+    <li><b>Stage mode, properly</b>: send the field <b>full screen to the monitor you name</b> while the controls stay on your laptop. A browser may open a window — it may not choose which screen it lands on</li>
     <li>The <b>same player</b> — it loads this exact site, always the latest</li>
     <li><b>Rock-solid memory</b>: its own window with the full RAM budget, never a background tab that gets dropped</li>
     <li><b>Updates itself</b> quietly — install once, never again</li>
@@ -1997,6 +2056,10 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
       <button class="btn icon" id="btnHelp" role="menuitem" aria-label="Help and keyboard shortcuts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9.3 9a2.8 2.8 0 1 1 3.9 2.6c-.9.4-1.2 1-1.2 1.9"/><circle cx="12" cy="17.2" r=".4" fill="currentColor"/><circle cx="12" cy="12" r="9.2"/></svg>
         <span class="lbl mob-only">Help</span>
+      </button>
+      <button class="btn" id="btnRig" role="menuitem" aria-label="The rig — what the room's lamps are being told" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v4M5 7h14l-2 4H7z"/><path d="M9 11l-3 9M15 11l3 9"/></svg>
+        <span class="lbl">Rig</span>
       </button>
       <button class="btn" id="btnStage" role="menuitem" aria-label="Stage mode — put the field on a screen of its own" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="4.4" width="14" height="10" rx="1.6"/><path d="M21.4 8.2v9a1.6 1.6 0 0 1-1.6 1.6H7.6"/></svg>
@@ -2110,6 +2173,11 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
       <p class="ob-body">Drag to move the camera, pick a scene or a mood, tap the beat to lock the grid. The visuals, the mix, and the colour follow the song — <b>and your input</b>.</p>
     </div>
     <div class="ob-panel">
+      <span class="ob-kicker">It fills the room</span>
+      <h1 class="ob-title">Every screen you own is <em>one screen.</em></h1>
+      <p class="ob-body">Say how many screens the room has and that many open — televisions, a projector, or <b>little windows on this one laptop</b> to rehearse with. They don't each play their own copy: they hold <b>one field, cut between them</b>, so a shape leaving one arrives on the next at the same height, the same size, the same instant. <b>Move a window and the picture follows it</b> — drag one onto the TV and its slice goes with it, live.</p>
+    </div>
+    <div class="ob-panel">
       <span class="ob-kicker">Measured, not guessed</span>
       <h1 class="ob-title">It reads each track's <em>real features.</em></h1>
       <p class="ob-body">Every song is analysed up front — its <b>tempo, key, structure, and energy</b>. That data drives the visuals and the DJ-style mixing between tracks. Opening it up for people to build on is on the roadmap.</p>
@@ -2130,6 +2198,22 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     </div>
   </div>
 </section>
+
+<!-- ============ the rig: what the lamps are being told ============ -->
+<div id="rig" class="chrome" role="dialog" aria-modal="true" aria-label="The rig — what the lamps are being told">
+  <div class="rig-card">
+    <div class="rig-head">
+      <span class="rig-title">The Rig</span>
+      <span class="rig-sub" id="rigSub">drawn from the wire</span>
+      <span class="spring"></span>
+      <button class="pl-x" id="rigClose" aria-label="Close the rig">&#10005;</button>
+    </div>
+    <canvas id="rigStage" width="1200" height="525"></canvas>
+    <div class="rig-presets" id="rigPresets" role="group" aria-label="Lighting presets"></div>
+    <div class="rig-chans" id="rigChans"></div>
+    <div class="rig-foot" id="rigFoot"></div>
+  </div>
+</div>
 
 <div id="dropOverlay"><span>Release to add to the field</span></div>
 
@@ -4500,6 +4584,626 @@ function skinCss(skin, fallback){
   };
 }
 // @pure-end
+
+// @dmx-start
+/* ================================================================
+   §2a · DMX — the room's own lights, on the same numbers as the picture
+
+   The field already knows the chord, the beat, the phrase and the act. A
+   lighting rig wants exactly those four things and nothing else, so the lamps
+   are not a second show to program: they are the same show, expressed in the
+   only vocabulary a lamp has.
+
+   THE SHAPE OF THIS, AND WHY. Three pieces, and the middle one is the point:
+
+     an INTENT   what the room should look like, said in a way no fixture
+                 could quite manage: an exact colour, a dimmer, a strobe, a
+                 direction of spin. Fixture-agnostic on purpose.
+     a PROFILE   what one real lamp can actually do about that intent — and,
+                 far more usefully, what it CANNOT. A profile is where the
+                 truth lives that a generic RGB driver throws away.
+     a FRAME     512 bytes. What actually goes down the wire.
+
+   The alternative — drive each lamp from its own little rule — is how rigs end
+   up with the wash on the chord and the moonflower on some unrelated colour
+   wheel, agreeing with nothing. One intent, several honest translations of it.
+
+   THE PROFILES ARE NOT DECORATION. The Mystic has no dimmer and no RGB: it has
+   seven discrete colour states on one channel, and that channel BECOMES a speed
+   control when the rainbow channel is up. The ThinTri's channel 5 is a strobe,
+   a speed or a microphone sensitivity depending on what channel 6 says, and its
+   colour macros silently OVERRIDE channels 1-3. Drive either as "just RGB" and
+   you get a fixture doing something you did not ask for and cannot explain from
+   the console. Every one of those interlocks is written down below, because a
+   constraint that is not written down is a constraint discovered at a gig.
+   ================================================================ */
+
+/* how a fixture is aimed and what it is for. The rig is described once and
+   everything else — patch, render, emulator — reads it. */
+const DMX_ROLES = ['wash', 'beam', 'accent'];
+
+/* the seven colours a Mystic can actually be, as the channel-2 value that
+   selects each and the light it really throws. Not a palette — a hardware
+   fact, read straight off the chart in the manual. */
+const MYSTIC_COLORS = [
+  { v: 20, r: 1, g: 0, b: 0 },      // 000-041 RED
+  { v: 62, r: 1, g: 1, b: 0 },      // 042-083 RED & GREEN
+  { v: 104, r: 0, g: 1, b: 0 },     // 084-125 GREEN
+  { v: 146, r: 0, g: 1, b: 1 },     // 126-167 GREEN & BLUE
+  { v: 188, r: 0, g: 0, b: 1 },     // 168-209 BLUE
+  { v: 230, r: 1, g: 0, b: 1 },     // 210-251 BLUE & RED
+  { v: 253, r: 1, g: 1, b: 1 },     // 252-255 ALL ON
+];
+
+const DMX_FIXTURES = {
+  /* ADJ MYSTIC LED — a moonflower. One lamp, a rotating array of narrow
+     beams, four channels, and less control than you would like:
+       · no dimmer at all. It is on, off, or strobing. "Half brightness" is
+         not a thing it can do, so a dim intent has to become something else
+         or be honestly refused.
+       · no RGB. Seven colour states, and the nearest one is the answer.
+       · channel 2 is the colour selector UNTIL the rainbow is switched on at
+         channel 3, at which point the same channel becomes the rainbow's
+         speed. One channel, two meanings, decided by another channel.
+       · channel 4's clockwise half runs FAST at 1 and SLOW at 85 — backwards
+         from the counter-clockwise half above it. Miss that and the rig spins
+         up when you ask it to slow down. */
+  'adj-mystic-led': {
+    key: 'adj-mystic-led',
+    name: 'ADJ Mystic LED',
+    make: 'American DJ',
+    kind: 'moonflower',
+    wire: 'dmx',
+    modes: { '4ch': 4 },
+    beams: 18,                    // narrow beams thrown around the room
+    spread: 130,                  // degrees the beam array covers
+    can: { rgb: false, dimmer: false, strobe: true, spin: true, rainbow: true, colors: 7, macros: false },
+    // IN CHANNEL ORDER, and checked against the manual by a test. A label
+    // that names the wrong channel is worse than no label: it is a console
+    // confidently reporting a fixture doing something it is not.
+    vars: ['strobe', 'color', 'rainbow', 'spin'],
+  },
+  /* VENUE ThinTri 38 — a flat RGB wash. True colour mixing, a real dimmer,
+     and two interlocks that bite:
+       · channel 4 (colour macros) OVERRIDES channels 1-3 the moment it goes
+         above 15. Leave it at 0 or lose your colour.
+       · channel 5 is a strobe, a program speed, or the microphone's
+         sensitivity — decided entirely by the band channel 6 is sitting in.
+     In 3-channel mode there is no dimmer channel at all, so the dimmer has to
+     be folded into the colour itself. Same fixture, genuinely different
+     arithmetic, which is why the mode is part of the patch and not a detail. */
+  'venue-thintri-38': {
+    key: 'venue-thintri-38',
+    name: 'Venue ThinTri 38',
+    make: 'Venue by Proline',
+    kind: 'wash',
+    wire: 'dmx',
+    modes: { '8ch': 8, '3ch': 3 },
+    beams: 1,
+    spread: 30,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: true },
+    vars: ['red', 'green', 'blue', 'macro', 'strobe', 'mode', 'dimmer', 'dimmerCurve'],
+  },
+  /* ---- and then the rest of the world ----------------------------------
+     THE TWO ABOVE ARE THE SAMPLES, NOT THE SCOPE. They are the fixtures this
+     was built against, so they are the ones whose every interlock is written
+     down from a manual. What follows is the long tail: the generic profiles
+     that cover most of what anybody actually owns, because the overwhelming
+     majority of stage LEDs are some arrangement of the same few channels in
+     the same few orders. A rig that is not in this table should still light
+     up — pick the generic profile whose channel order matches the back of the
+     fixture and it will be right, because there is nothing else to be right
+     about. */
+  'generic-rgb-3': {
+    key: 'generic-rgb-3', name: 'Generic RGB', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '3ch': 3 }, beams: 1, spread: 30,
+    can: { rgb: true, dimmer: false, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['red', 'green', 'blue'],
+  },
+  'generic-rgbd-4': {
+    key: 'generic-rgbd-4', name: 'Generic RGB + dimmer', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '4ch': 4 }, beams: 1, spread: 30,
+    can: { rgb: true, dimmer: true, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['red', 'green', 'blue', 'dimmer'],
+  },
+  /* the commonest PAR on earth: dimmer first, then colour, then a strobe.
+     "Dimmer first" is the convention almost every 7-channel PAR follows. */
+  'generic-par-7': {
+    key: 'generic-par-7', name: 'Generic PAR (D/RGBW/S)', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '7ch': 7 }, beams: 1, spread: 34,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['dimmer', 'red', 'green', 'blue', 'white', 'strobe', 'mode'],
+  },
+  /* RGBWA+UV, the six-colour bar. The extra emitters are not decoration: a
+     white channel is what stops a "white" from being a muddy RGB sum, and
+     amber is what stops a warm wash from going pink. Driven from the same
+     rgb intent, with the extras derived rather than left dark. */
+  'generic-rgbwauv-10': {
+    key: 'generic-rgbwauv-10', name: 'Generic RGBWA+UV', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '10ch': 10 }, beams: 1, spread: 36,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['dimmer', 'red', 'green', 'blue', 'white', 'amber', 'uv', 'strobe', 'mode', 'speed'],
+  },
+  /* one channel, one lamp, no colour at all — a blinder, a house light on a
+     dimmer pack, a practical. It is in the library because a rig with one of
+     these in it should not need a special case. */
+  'generic-dimmer-1': {
+    key: 'generic-dimmer-1', name: 'Generic dimmer', make: 'Any', kind: 'blinder', wire: 'dmx',
+    modes: { '1ch': 1 }, beams: 1, spread: 48,
+    can: { rgb: false, dimmer: true, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['dimmer'],
+  },
+  /* a small moving head, in the arrangement nearly all of them use. Pan and
+     tilt are 8-bit here on purpose: the 16-bit variants add fine channels
+     after each coarse one, which is a different profile rather than a flag. */
+  'generic-movinghead-11': {
+    key: 'generic-movinghead-11', name: 'Generic moving head', make: 'Any', kind: 'spot', wire: 'dmx',
+    modes: { '11ch': 11 }, beams: 1, spread: 14,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: true, move: true },
+    vars: ['pan', 'tilt', 'speed', 'dimmer', 'strobe', 'red', 'green', 'blue', 'white', 'macro', 'mode'],
+  },
+  /* PHILIPS HUE — the same show, on a wire that is not a wire.
+
+     A Hue bulb is not on the DMX line and never can be: it is Zigbee behind a
+     bridge, reached over the network. It is in this table anyway, and that is
+     the whole argument for having an intent layer at all. The engine above
+     asks for a colour and a brightness; what happens after that — 512 bytes
+     down an XLR cable, or a DTLS stream to a bridge on the LAN — is a detail
+     of the profile. Adding Hue cost a row in a table and a second transport,
+     rather than a second lighting engine.
+
+     What it genuinely cannot do is strobe. The Entertainment API streams at
+     around fifty updates a second, which sounds like plenty until you ask a
+     bulb with a real phosphor and a smoothing curve inside it to be dark for
+     eight milliseconds. So `strobe: false` — and the renderer turns a strobe
+     intent into a brightness dip instead of pretending. */
+  'philips-hue': {
+    key: 'philips-hue',
+    name: 'Philips Hue',
+    make: 'Signify',
+    kind: 'bulb',
+    wire: 'net',
+    modes: { 'rgb': 0 },
+    beams: 1,
+    spread: 360,                  // a bulb lights a room, it does not aim
+    can: { rgb: true, dimmer: true, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['red', 'green', 'blue', 'dimmer'],
+  },
+};
+
+/* which wire a fixture lives on. Anything that is not on the DMX line takes
+   no address and no channels, and must not be allowed to push the fixtures
+   that DO live there up the universe. */
+function dmxWire(key){ return (dmxProfile(key) || {}).wire || 'dmx'; }
+
+function dmxProfile(key){ return DMX_FIXTURES[key] || null; }
+/* how many channels one patched fixture eats. An unknown mode is the
+   fixture's first mode rather than a crash: a rig with a typo in it should
+   light up wrong, not not at all. */
+function dmxFootprint(key, mode){
+  const p = dmxProfile(key);
+  if (!p) return 0;
+  const n = p.modes[mode];
+  if (Number.isFinite(n)) return n;
+  const first = Object.keys(p.modes)[0];
+  return p.modes[first] || 0;
+}
+function dmxModeOf(key, mode){
+  const p = dmxProfile(key);
+  if (!p) return '';
+  return (mode && p.modes[mode]) ? mode : Object.keys(p.modes)[0];
+}
+
+/* THE PATCH. Addresses in, addresses out — and the arithmetic that says
+   whether the rig fits. DMX has 512 channels and no more, and a fixture whose
+   last channel falls past 512 does not half-work: it wraps, or it takes
+   somebody else's channel, which is worse because it looks like a fault in
+   the other lamp. Anything that will not fit is marked rather than dropped,
+   so the console can say WHICH lamp is homeless. */
+function dmxPatch(rig){
+  const out = [];
+  let next = 1;
+  for (const raw of (rig || [])){
+    if (!raw || !raw.key) continue;
+    const mode = dmxModeOf(raw.key, raw.mode);
+    const wire = dmxWire(raw.key);
+    const span = wire === 'net' ? 0 : dmxFootprint(raw.key, mode);
+    if (wire !== 'net' && !span) continue;
+    // a networked light has no address to collide with, and never advances the
+    // next free channel — patch a Hue bulb between two washes and the washes
+    // keep the addresses they were set to on their own displays
+    const at = wire === 'net' ? 0
+      : (Number.isFinite(Number(raw.at)) && Number(raw.at) >= 1 ? Math.floor(Number(raw.at)) : next);
+    const fits = wire === 'net' ? true : (at >= 1 && at + span - 1 <= 512);
+    out.push({
+      id: raw.id != null ? String(raw.id) : (raw.key + '@' + (wire === 'net' ? (raw.net || 'net') : at)),
+      key: raw.key, mode, at, span, fits, wire,
+      net: raw.net != null ? String(raw.net) : '',
+      role: DMX_ROLES.indexOf(raw.role) >= 0 ? raw.role : 'wash',
+      // where it hangs, so the emulator can draw the room and the engine can
+      // sweep light across it left to right rather than at random
+      x: Number.isFinite(Number(raw.x)) ? Number(raw.x) : 0,
+      y: Number.isFinite(Number(raw.y)) ? Number(raw.y) : 0,
+      z: Number.isFinite(Number(raw.z)) ? Number(raw.z) : -0.8,
+      pan: Number.isFinite(Number(raw.pan)) ? Number(raw.pan) : 0,
+      name: raw.name || (dmxProfile(raw.key) || {}).name || raw.key,
+    });
+    if (fits && wire !== 'net') next = Math.max(next, at + span);
+  }
+  return out;
+}
+function dmxUniverseUsed(patched){
+  let top = 0;
+  for (const f of patched || []) if (f && f.fits && f.wire !== 'net') top = Math.max(top, f.at + f.span - 1);
+  return top;
+}
+
+/* ---------------------------------------------------------------- intent */
+/* WHAT THE ROOM SHOULD LOOK LIKE, before any lamp has an opinion. Everything
+   is 0..1 except spin, which is signed because direction is a thing you can
+   see. Laundered hard: this is the boundary between a live render loop full
+   of springs and decays and a wire that goes to mains-powered lamps. */
+function dmxIntent(o){
+  const n = (v, d) => { const x = Number(v); return Number.isFinite(x) ? x : d; };
+  const u = (v, d) => Math.max(0, Math.min(1, n(v, d)));
+  return {
+    r: u(o && o.r, 0), g: u(o && o.g, 0), b: u(o && o.b, 0),
+    dim: u(o && o.dim, 1),
+    strobe: u(o && o.strobe, 0),
+    spin: Math.max(-1, Math.min(1, n(o && o.spin, 0))),
+    rainbow: u(o && o.rainbow, 0),
+    punch: u(o && o.punch, 0),
+    macro: Math.max(0, Math.min(255, Math.round(n(o && o.macro, 0)))),
+  };
+}
+
+/* THE SAFETY VALVE, AND IT IS NOT OPTIONAL. A strobe is the one thing in this
+   whole program that can hurt somebody: flash rates between roughly 3 and
+   65 Hz are the photosensitive-seizure band, and a rig driven from an
+   audio-reactive render loop will happily sit in the middle of it all night.
+   So the intent's 0..1 is mapped to a range that STOPS at 3 Hz — fast enough
+   to read as a strobe on a drop, below the band by construction. There is no
+   parameter to raise it, because the one thing a "pro mode" must never unlock
+   is this. */
+const DMX_STROBE_MAX_HZ = 3;
+function dmxStrobeHz(strobe){
+  const s = Math.max(0, Math.min(1, Number(strobe) || 0));
+  return s <= 0 ? 0 : 0.7 + s * (DMX_STROBE_MAX_HZ - 0.7);
+}
+
+/* the nearest thing a seven-colour lamp can be to a colour it cannot make.
+   Compared on direction rather than on distance, so a dim teal and a bright
+   teal pick the same lamp colour instead of the dim one collapsing to
+   whichever primary happens to be closest to black. */
+function dmxNearestColor(list, r, g, b){
+  const m = Math.sqrt(r * r + g * g + b * b) || 1;
+  const nr = r / m, ng = g / m, nb = b / m;
+  let best = list[0], bestD = -Infinity;
+  for (const c of list){
+    const cm = Math.sqrt(c.r * c.r + c.g * c.g + c.b * c.b) || 1;
+    const dot = (nr * c.r + ng * c.g + nb * c.b) / cm;
+    if (dot > bestD){ bestD = dot; best = c; }
+  }
+  return best;
+}
+
+/* ---------------------------------------------------------------- render */
+/* ONE FIXTURE'S CHANNELS, WRITTEN INTO THE FRAME. Every profile's quirks live
+   here and nowhere else, so the engine above may go on believing that light is
+   a colour and a brightness. */
+function dmxRenderFixture(f, intent, frame){
+  if (!f || !f.fits || !frame || f.wire === 'net') return frame;
+  const i = dmxIntent(intent);
+  const at = f.at - 1;                       // channel 1 is byte 0
+  const b255 = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+  const put = (ch, v) => { frame[at + ch - 1] = Math.max(0, Math.min(255, Math.round(v))); };
+
+  if (f.key === 'adj-mystic-led'){
+    /* Ch1 — off, strobe, or on. There being NO DIMMER is the whole character
+       of this lamp: a half-lit intent cannot be half-lit, so it is on until
+       the intent is genuinely dark, and the darkness threshold is low because
+       a moonflower that keeps blinking out on quiet passages reads as broken
+       rather than as subtle. */
+    const dark = i.dim < 0.06;
+    if (dark) put(1, 0);
+    else if (i.strobe > 0.02){
+      // 002-127 slow to fast. A punchy intent gets the RANDOM strobe band
+      // (136-253) instead, which on this fixture is markedly less regular
+      // and reads as an accent rather than as a machine.
+      if (i.punch > 0.6) put(4 - 3, 0);      // (no-op guard; ch1 set below)
+      if (i.punch > 0.6) put(1, 136 + i.strobe * (253 - 136));
+      else put(1, 2 + i.strobe * (127 - 2));
+    } else put(1, 130);                      // 128-135 LED ON, mid-band
+    /* Ch3/Ch2 — the interlock. With the rainbow up, channel 2 stops being a
+       colour and becomes the rainbow's speed, so the colour selection below
+       must not be written at all. */
+    const rain = i.rainbow > 0.5;
+    put(3, rain ? 96 : 0);                   // 064-127 ON, else OFF
+    if (rain) put(2, b255(Math.max(0.15, i.rainbow)));
+    else put(2, dmxNearestColor(MYSTIC_COLORS, i.r, i.g, i.b).v);
+    /* Ch4 — rotation, and the trap. Clockwise is 001-085 running FAST to
+       SLOW; counter-clockwise is 086-170 running SLOW to FAST. The two halves
+       run in opposite senses, so the clockwise side is inverted here. */
+    const sp = Math.abs(i.spin);
+    if (sp < 0.04) put(4, 0);
+    else if (i.spin > 0) put(4, 85 - sp * (85 - 1));
+    else put(4, 86 + sp * (170 - 86));
+    return frame;
+  }
+
+  /* THE GENERIC PATH. Everything above this line is a fixture whose quirks
+     were read out of a manual; everything below is a fixture described only
+     by the ORDER of its channels. That order is enough: `vars` names each
+     channel, so the renderer writes whatever it recognises and leaves alone
+     whatever it does not. A profile nobody has ever tested still behaves,
+     because there is nothing to get wrong beyond where the bytes go.
+
+     The extra emitters are derived rather than left dark. White is the grey
+     the colour already contains — without it a "white" is a muddy RGB sum —
+     and amber is the warm part of that white, without which a warm wash goes
+     pink. UV is left at zero: it is an effect, not a component of a colour,
+     and a rig that quietly lit its UV on every warm chord would be wrong. */
+  if (f.key !== 'adj-mystic-led' && f.key !== 'venue-thintri-38'){
+    const prof = dmxProfile(f.key);
+    if (!prof || !prof.vars) return frame;
+    const idx = n => prof.vars.indexOf(n) + 1;      // 0 when absent
+    const has = n => idx(n) > 0;
+    // with no dimmer channel the brightness has to live in the colour itself
+    const k = has('dimmer') ? 1 : i.dim;
+    const white = Math.min(i.r, i.g, i.b);
+    const set = (n, v) => { if (has(n) && idx(n) <= f.span) put(idx(n), v); };
+    set('dimmer', b255(i.dim));
+    set('red', b255(i.r * k)); set('green', b255(i.g * k)); set('blue', b255(i.b * k));
+    set('white', b255(white * k));
+    set('amber', b255(Math.max(0, Math.min(i.r, i.g * 0.75) - i.b) * k));
+    set('uv', 0);
+    set('strobe', i.strobe > 0.02 ? Math.round(16 + i.strobe * (255 - 16)) : 0);
+    set('mode', 0); set('macro', 0); set('speed', 0);
+    // a head that can aim is aimed across the room by the same signed spin
+    if (has('pan')) put(idx('pan'), b255(0.5 + i.spin * 0.42));
+    if (has('tilt')) put(idx('tilt'), b255(0.5 - Math.abs(i.spin) * 0.18));
+    return frame;
+  }
+
+  if (f.key === 'venue-thintri-38'){
+    if (f.mode === '3ch'){
+      // no dimmer channel exists, so the dimmer has to live in the colour
+      put(1, b255(i.r * i.dim)); put(2, b255(i.g * i.dim)); put(3, b255(i.b * i.dim));
+      return frame;
+    }
+    put(1, b255(i.r)); put(2, b255(i.g)); put(3, b255(i.b));
+    // Ch4 above 015 OVERRIDES the colour channels — held at 0 unless a preset
+    // has deliberately asked for one of the fixture's own macros
+    put(4, i.macro > 15 ? i.macro : 0);
+    /* Ch6 decides what Ch5 MEANS. Straight DMX control keeps Ch6 in its
+       no-function band, which is the band where Ch5 is the strobe — the only
+       arrangement in which this fixture does what the console says and
+       nothing of its own. */
+    put(6, 0);                               // 000-031 no function
+    put(5, i.strobe > 0.02 ? 16 + i.strobe * (255 - 16) : 0);
+    put(7, b255(i.dim));
+    /* Ch8 — the dimmer curve. Off means the dimmer follows the wire exactly,
+       which is what a lamp being driven at thirty frames a second wants; the
+       smoothing modes exist for consoles sending steps and would fight us. */
+    put(8, 0);
+    return frame;
+  }
+  return frame;
+}
+
+/* THE FRAME. 512 bytes, every one of them written on purpose — a universe
+   left half-initialised is a rig with somebody else's stale values in it. */
+function dmxRender(patched, intents){
+  const frame = new Uint8Array(512);
+  for (const f of patched || []){
+    if (!f) continue;
+    const it = intents && (intents[f.id] || intents[f.key]);
+    dmxRenderFixture(f, it || {}, frame);
+  }
+  return frame;
+}
+
+/* THE OTHER WIRE. Networked lights take the same intents and come back as a
+   list rather than as bytes, because a bridge wants colours and not channels.
+   Brightness is where the honesty lives: a bulb cannot strobe, so a strobe
+   intent becomes a dip in brightness — visibly less than the rig is doing,
+   which is correct, rather than a bulb pretending and lagging a beat behind. */
+function dmxRenderNet(patched, intents){
+  const out = [];
+  for (const f of patched || []){
+    if (!f || f.wire !== 'net') continue;
+    const i = dmxIntent(intents && (intents[f.id] || intents[f.key]));
+    const can = (dmxProfile(f.key) || { can: {} }).can || {};
+    const dim = can.strobe ? i.dim : i.dim * (1 - 0.45 * i.strobe);
+    out.push({ id: f.id, key: f.key, net: f.net, r: i.r, g: i.g, b: i.b,
+      dim: Math.max(0, Math.min(1, dim)) });
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------------- decode */
+/* WHAT THE WIRE IS ACTUALLY SAYING, read back out of the frame.
+
+   This exists so the emulator cannot lie. A preview drawn from the same
+   variables the renderer was given would agree with the renderer by
+   construction and would keep agreeing with it after the renderer broke —
+   which is the one thing a preview must not do. Drawing from the DECODED
+   FRAME means the picture on the laptop is downstream of the bytes on the
+   wire, so a channel written wrongly looks wrong on screen. */
+function dmxDecode(f, frame){
+  if (!f || !frame) return null;
+  if (f.wire === 'net') return null;         // read a networked light from its own transport
+  const at = f.at - 1;
+  const get = ch => frame[at + ch - 1] || 0;
+  const out = { id: f.id, key: f.key, kind: (dmxProfile(f.key) || {}).kind || 'wash',
+    r: 0, g: 0, b: 0, dim: 0, strobeHz: 0, spin: 0, rainbow: false, random: false };
+  if (f.key === 'adj-mystic-led'){
+    const c1 = get(1), c2 = get(2), c3 = get(3), c4 = get(4);
+    out.rainbow = c3 >= 64 && c3 <= 127;
+    if (c1 <= 1) out.dim = 0;
+    else if (c1 <= 127){ out.dim = 1; out.strobeHz = dmxStrobeHz((c1 - 2) / 125); }
+    else if (c1 <= 135) out.dim = 1;
+    else if (c1 <= 253){ out.dim = 1; out.random = true; out.strobeHz = dmxStrobeHz((c1 - 136) / 117); }
+    else out.dim = 1;
+    if (out.rainbow){ out.r = out.g = out.b = 1; }
+    else {
+      // the band c2 falls in IS the colour — the same chart, read backwards
+      const band = c2 <= 41 ? 0 : c2 <= 83 ? 1 : c2 <= 125 ? 2 : c2 <= 167 ? 3
+        : c2 <= 209 ? 4 : c2 <= 251 ? 5 : 6;
+      const c = MYSTIC_COLORS[band];
+      out.r = c.r; out.g = c.g; out.b = c.b;
+    }
+    if (c4 === 0 || (c4 >= 171 && c4 <= 178)) out.spin = 0;
+    else if (c4 <= 85) out.spin = (85 - c4) / 84;             // clockwise, inverted
+    else if (c4 <= 170) out.spin = -((c4 - 86) / 84);         // counter-clockwise
+    else { out.spin = (c4 - 179) / 76; out.random = true; }
+    return out;
+  }
+  if (f.key !== 'adj-mystic-led' && f.key !== 'venue-thintri-38'){
+    const prof = dmxProfile(f.key) || {};
+    const vars = prof.vars || [];
+    const at2 = n => { const i2 = vars.indexOf(n); return i2 >= 0 ? get(i2 + 1) / 255 : 0; };
+    out.r = at2('red'); out.g = at2('green'); out.b = at2('blue');
+    out.dim = vars.indexOf('dimmer') >= 0 ? at2('dimmer') : Math.max(out.r, out.g, out.b);
+    if (vars.indexOf('dimmer') < 0){
+      const m = out.dim || 1;
+      out.r /= m; out.g /= m; out.b /= m;
+    }
+    // a lamp with no colour at all reads as its own white
+    if (vars.indexOf('red') < 0){ out.r = out.g = out.b = 1; }
+    const st = vars.indexOf('strobe');
+    if (st >= 0 && get(st + 1) > 15) out.strobeHz = dmxStrobeHz((get(st + 1) - 16) / 239);
+    out.mode = 'dmx';
+    return out;
+  }
+  if (f.key === 'venue-thintri-38'){
+    out.r = get(1) / 255; out.g = get(2) / 255; out.b = get(3) / 255;
+    if (f.mode === '3ch'){
+      // brightness lives in the colour here, so the decoded dimmer is its peak
+      out.dim = Math.max(out.r, out.g, out.b);
+      const m = out.dim || 1;
+      out.r /= m; out.g /= m; out.b /= m;
+      return out;
+    }
+    out.dim = get(7) / 255;
+    out.macro = get(4) > 15 ? get(4) : 0;
+    const c6 = get(6), c5 = get(5);
+    if (c6 <= 31 && c5 > 15) out.strobeHz = dmxStrobeHz((c5 - 16) / 239);
+    out.mode = c6 <= 31 ? 'dmx' : c6 <= 127 ? 'pulse' : c6 <= 223 ? 'auto' : 'sound';
+    return out;
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------------- the show */
+/* WHAT THE LAMPS SHOULD BE DOING, from what the music is already doing.
+
+   This is the part that makes a rig look programmed when nobody programmed
+   it. Everything it reads — the chord, the beat, the phrase, the act — the
+   player already computed to draw the picture, so the lights are not
+   listening to the room and guessing: they are downstream of the same
+   analysis the visuals are. A microphone-driven rig can only react after a
+   drop lands. This one knows the drop is coming, because the director does.
+
+   ROLES, NOT FIXTURES. A rig is described by what each lamp is FOR — a wash,
+   a beam, an accent — and the show is expressed in those terms. Add two more
+   washes and they take their place in the chord without a line of code. */
+const DMX_PRESETS = {
+  /* the picture, on the walls. Colour straight off the chord, brightness off
+     the energy, movement off the phrase. The default because it is the one
+     that never fights the screen. */
+  follow: { key: 'follow', name: 'Follow the field', strobe: 0, spin: 0.35, floor: 0.16, beat: 0.35, rainbow: 0 },
+  /* the beat, in the room. Brightness is mostly beat, so the rig breathes
+     with the kick rather than with the arrangement. */
+  pulse: { key: 'pulse', name: 'On the beat', strobe: 0, spin: 0.5, floor: 0.08, beat: 0.85, rainbow: 0 },
+  /* slow, wide, no flicker at all — a room people are talking in, a yoga
+     studio, a bar before it fills. The strobe is not merely low here, it is
+     structurally absent. */
+  calm: { key: 'calm', name: 'Slow wash', strobe: 0, spin: 0.1, floor: 0.35, beat: 0.08, rainbow: 0 },
+  /* everything the rig has, kept for the moments that have earned it. Even
+     here the strobe goes through the same cap as everywhere else. */
+  peak: { key: 'peak', name: 'Peak', strobe: 0.85, spin: 1, floor: 0.05, beat: 0.7, rainbow: 0.35 },
+  /* the lamps' own colour cycling, for a moonflower left to be a moonflower */
+  spin: { key: 'spin', name: 'Let them spin', strobe: 0, spin: 1, floor: 0.2, beat: 0.3, rainbow: 1 },
+  /* off, and meaning it — a blackout that a beat cannot sneak past */
+  black: { key: 'black', name: 'Blackout', strobe: 0, spin: 0, floor: 0, beat: 0, rainbow: 0, off: true },
+};
+const DMX_PRESET_ORDER = ['follow', 'pulse', 'calm', 'peak', 'spin', 'black'];
+
+/* AUTO. Which preset the moment deserves, decided from the same act and phase
+   that already decide what the picture does — so the rig lifts into a chorus
+   and settles into a breakdown without anyone touching it, and without a
+   second set of rules that could disagree with the first. */
+function dmxAutoPreset(show){
+  const s = show || {};
+  const phase = String(s.phase || 'flow');
+  const energy = Math.max(0, Math.min(1, Number(s.energy) || 0));
+  if (s.silent) return 'calm';
+  if (phase === 'drop' || phase === 'peak') return energy > 0.62 ? 'peak' : 'pulse';
+  if (phase === 'lift' || phase === 'build') return 'pulse';
+  if (phase === 'rest' || phase === 'breakdown') return 'calm';
+  return energy > 0.72 ? 'pulse' : energy < 0.22 ? 'calm' : 'follow';
+}
+
+/* one lamp's share of the chord. Washes spread across the stops rather than
+   all taking the first one — two washes on the identical colour is a wall,
+   three on the chord is a room — and the beam takes the stop the picture
+   uses for its accents, so the moonflower agrees with the thing on screen. */
+function dmxChordStop(chord, role, i){
+  const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
+  if (role === 'beam' || role === 'accent') return list[Math.min(2, list.length - 1)];
+  return list[i % list.length];
+}
+
+/* THE WHOLE RIG, ONE FRAME'S WORTH OF INTENT.
+
+   `chord` arrives as plain rgb triples so this stays testable without a
+   colour engine attached; the caller converts its own OKLCH stops once.
+   Everything is clamped on the way out by dmxIntent, but the arithmetic here
+   is kept inside 0..1 anyway so a preset can be read and reasoned about. */
+function dmxShowIntents(show, patched){
+  const s = show || {};
+  const preset = DMX_PRESETS[s.preset] || DMX_PRESETS[dmxAutoPreset(s)] || DMX_PRESETS.follow;
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const energy = u(s.energy), beat = u(s.beat), pulse = u(s.pulse);
+  const phrase = u(s.phrase), master = s.master == null ? 1 : u(s.master);
+  const chord = s.chord || [];
+  const out = {};
+  let washN = 0;
+  for (const f of patched || []){
+    if (!f) continue;
+    const prof = dmxProfile(f.key) || { can: {} };
+    const role = f.role || 'wash';
+    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : 0);
+    if (preset.off || master <= 0){
+      out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
+      continue;
+    }
+    /* BRIGHTNESS. A floor so the room is never actually dark between beats —
+       a rig that blinks fully out on every off-beat reads as broken wiring
+       rather than as rhythm — plus the arrangement's energy, plus whatever
+       share of the beat this preset asked for. */
+    const rhythm = preset.beat * Math.max(beat, pulse);
+    const body = (1 - preset.beat) * (preset.floor + (1 - preset.floor) * energy);
+    let dim = u(body + rhythm) * master;
+    /* the beam is the accent, so it is allowed to be the thing that goes dark
+       between phrases where a wash may not — that contrast is the effect */
+    if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
+    const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
+    /* SPIN follows the phrase and reverses with it, because a moonflower that
+       only ever turns one way stops being noticed after ninety seconds. */
+    const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
+    const spin = prof.can.spin ? dir * preset.spin * (0.25 + 0.75 * energy) : 0;
+    out[f.id] = {
+      r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
+      dim, strobe, spin,
+      rainbow: prof.can.rainbow ? u(preset.rainbow) : 0,
+      punch: u(beat * energy),
+    };
+  }
+  return out;
+}
+// @dmx-end
 
 /* ================================================================
    §2 · PALETTES — every set orbits the π-amber / e-ice axis
@@ -12558,7 +13262,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '2fb6a34aa4';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'd991b891b6';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -23264,6 +23968,371 @@ const STAGE = {
   },
 };
 
+/* ================================================================
+   §8aa · THE RIG — the lamps, drawn from the bytes they are being sent
+
+   A monitor, not a mock-up. Every cone here is drawn from dmxDecode()
+   reading the same 512 bytes an interface would be sending, so a channel
+   written wrongly looks wrong on screen. Draw it from the renderer's own
+   inputs instead and the preview agrees with the renderer by construction —
+   including after the renderer breaks, which is the one thing a preview must
+   not do. It is also the only way to work on a rig with no rig plugged in,
+   which is where most of this gets built.
+   ================================================================ */
+const RIG = {
+  on: false,
+  preset: 'auto',
+  rig: null, patched: null,
+  manual: {},                // board: fixtures an operator has taken by hand
+  frame: null,
+  spin: [],                  // accumulated beam angle per fixture, radians
+  strobeT: 0,
+  _acc: 0,
+
+  /* THE ROOM AS SHIPPED: the three lamps this was built against, hung the way
+     they would actually be hung — washes out at the edges, the moonflower in
+     the middle where its beams reach both walls. Addresses are the DMX
+     defaults so a rig straight out of its boxes lights up without anyone
+     opening a menu on the back of a fixture. */
+  defaults(){
+    return [
+      { id: 'wash-l', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 1, x: -0.72, z: -0.8, name: 'Wash L' },
+      { id: 'flower', key: 'adj-mystic-led', mode: '4ch', role: 'beam', at: 9, x: 0, z: -0.9, name: 'Moonflower' },
+      { id: 'wash-r', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 13, x: 0.72, z: -0.8, name: 'Wash R' },
+    ];
+  },
+  boot(){
+    this.rig = this.defaults();
+    this.patched = dmxPatch(this.rig);
+    this.spin = this.patched.map(() => 0);
+    const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
+    on('rigClose', () => this.open(false));
+    on('btnRig', () => this.open());
+    this.buildPresets();
+  },
+  open(v){
+    const box = document.getElementById('rig');
+    if (!box) return;
+    this.on = v == null ? !box.classList.contains('open') : !!v;
+    box.classList.toggle('open', this.on);
+    const chip = document.getElementById('btnRig');
+    if (chip){ chip.classList.toggle('on', this.on); chip.setAttribute('aria-pressed', String(this.on)); }
+    if (this.on){ this.buildChans(); this.paintFoot(); }
+  },
+  buildPresets(){
+    const box = document.getElementById('rigPresets');
+    if (!box || box.childElementCount) return;
+    const add = (key, label) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = label; b.dataset.k = key;
+      b.addEventListener('click', () => { this.preset = key; this.paintPresets(); });
+      box.appendChild(b);
+    };
+    add('auto', 'Auto');
+    for (const k of DMX_PRESET_ORDER) add(k, DMX_PRESETS[k].name);
+    // and the way back: every fader released at once, which is the button an
+    // operator wants after a song they hand-drove
+    const rel = document.createElement('button');
+    rel.type = 'button'; rel.textContent = 'Release all';
+    rel.addEventListener('click', () => {
+      this.manual = {};
+      for (const f of this.patched) if (f._ui && f._ui.take){
+        f._ui.take.classList.remove('on'); f._ui.take.textContent = 'Following the music';
+      }
+    });
+    box.appendChild(rel);
+    this.paintPresets();
+  },
+  paintPresets(){
+    const box = document.getElementById('rigPresets');
+    if (!box) return;
+    for (const b of box.querySelectorAll('button')) b.classList.toggle('on', b.dataset.k === this.preset);
+  },
+
+  /* the show, as this frame's lamps see it. Everything here the player already
+     worked out to draw the picture — nothing is measured twice, and nothing is
+     guessed at from a microphone. */
+  show(){
+    const chord = [];
+    try {
+      for (const c of (COLOR.now || []).slice(0, 3)){
+        /* oklchToRgb ALREADY RETURNS 0..1 — it applies the sRGB transfer curve
+           and clamps on the way out. Dividing by 255 here turned every chord
+           into about four thousandths of itself, which arrived at the fixtures
+           as a byte value of 1: washes that were black at 79% dimmer, and a
+           moonflower whose nearest-colour search normalised near-zero into grey
+           and picked ALL ON. A whole rig lit white by a unit mismatch. */
+        const [r, g, b] = oklchToRgb(c.l, c.c, c.h);
+        chord.push({ r, g, b });
+      }
+    } catch (e){}
+    if (!chord.length) chord.push({ r: 1, g: 0.72, b: 0.33 });
+    const playing = !!(typeof player !== 'undefined' && player.playing);
+    return {
+      chord,
+      energy: Number(AE.f.energy) || 0,
+      beat: Number(AE.f.beat) || 0,
+      pulse: (typeof DANCE !== 'undefined' ? Number(DANCE.pulse) : 0) || 0,
+      phrase: (typeof DANCE !== 'undefined' ? Number(DANCE.phraseFrac) : 0) || 0,
+      phase: (typeof director !== 'undefined' ? director.phase : 'flow'),
+      silent: !playing,
+      preset: this.preset === 'auto' ? null : this.preset,
+      master: 1,
+    };
+  },
+  /* one turn of the whole chain — show → intents → 512 bytes → what each lamp
+     is now doing. Called at the rate the wire runs at, not the rate the screen
+     does: a lamp is not smoother for being told twice in a frame. */
+  step(now, dt){
+    if (!this.patched) return;
+    if (now - this._acc < 25) return;
+    this._acc = now;
+    const intents = dmxShowIntents(this.show(), this.patched);
+    /* THE BOARD SITS ON TOP OF THE SHOW, not beside it. A fixture with no
+       hand on it keeps following the music; a fixture the operator has taken
+       holds exactly what they set and nothing else touches it. That is what a
+       real board does — a channel is either in the cue or on a fader, and the
+       one thing it must never be is both at once, fighting. */
+    for (const id in this.manual){
+      const m = this.manual[id];
+      if (!m || !intents[id]) continue;
+      intents[id] = Object.assign({}, intents[id], m);
+    }
+    this.frame = dmxRender(this.patched, intents);
+    this.net = dmxRenderNet(this.patched, intents);
+    this.strobeT += dt;
+    // the beams turn because a decoded spin says they are turning
+    this.patched.forEach((f, i) => {
+      const d = dmxDecode(f, this.frame);
+      if (d && d.spin) this.spin[i] = (this.spin[i] || 0) + d.spin * dt * 3.4;
+    });
+    if (this.on){ this.draw(); this.paintChans(); }
+  },
+
+  /* ---------------- the picture ---------------- */
+  /* AN ISOMETRIC ROOM, because a rig is a thing in a space.
+
+     The flat elevation this replaced could show colour and it could show a
+     beam turning, but it could not show the one thing an operator is actually
+     judging: where the light LANDS. Two washes an arm's length apart and two
+     washes across a room throw completely different pictures onto a floor and
+     look identical in elevation. So the room is drawn in isometric — floor,
+     back wall, a truss the fixtures hang from — and every cone is projected
+     down onto that floor as a real pool.
+
+     The projection is the standard 2:1 isometric: x runs right-and-down, z
+     runs left-and-down, y is straight up. One function, used by everything, so
+     a lamp and the pool it throws cannot disagree about where they are. */
+  iso(x, y, z, W, H){
+    const s = Math.min(W, H) * 0.36;
+    return {
+      x: W * 0.5 + (x - z) * s * 0.866,
+      y: H * 0.60 + (x + z) * s * 0.5 - y * s * 0.62,
+    };
+  },
+  draw(){
+    const cv = document.getElementById('rigStage');
+    if (!cv || !this.frame) return;
+    const g = cv.getContext('2d');
+    if (!g) return;
+    const W = cv.width, H = cv.height;
+    const P = (x, y, z) => this.iso(x, y, z, W, H);
+    g.fillStyle = '#03040a'; g.fillRect(0, 0, W, H);
+
+    // the floor, as a grid — the only thing that makes the projection legible
+    g.strokeStyle = 'rgba(255,255,255,.055)'; g.lineWidth = 1;
+    const R = 1;
+    for (let i = -4; i <= 4; i++){
+      const t = i / 4 * R;
+      let a = P(t, 0, -R), b = P(t, 0, R);
+      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+      a = P(-R, 0, t); b = P(R, 0, t);
+      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    }
+    // the truss the lamps hang from
+    const t0 = P(-R, 1, -R), t1 = P(R, 1, -R);
+    g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(t0.x, t0.y); g.lineTo(t1.x, t1.y); g.stroke();
+
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < this.patched.length; i++){
+      const f = this.patched[i];
+      const d = f.wire === 'net' ? this.netState(f) : dmxDecode(f, this.frame);
+      if (!d) continue;
+      const prof = dmxProfile(f.key) || {};
+      const hx = (f.x || 0) * R, hz = (f.z == null ? -R * 0.82 : f.z);
+      const hy = prof.kind === 'bulb' ? 0.62 : 1;
+      const lamp = P(hx, hy, hz);
+      let live = d.dim;
+      if (d.strobeHz > 0){
+        const ph = (this.strobeT * d.strobeHz) % 1;
+        live = d.dim * (ph < 0.42 ? 1 : 0.06);
+      }
+      const col = a => 'rgba(' + Math.round(d.r * 255) + ',' + Math.round(d.g * 255) + ','
+        + Math.round(d.b * 255) + ',' + Math.max(0, a).toFixed(3) + ')';
+      /* THE POOL. Where the cone meets the floor, in the same projection as
+         everything else — an ellipse in screen space because a circle on an
+         isometric floor is one. This is the whole reason for the rewrite. */
+      const pool = (cx, cz, rad, alpha) => {
+        const c = P(cx, 0, cz);
+        const e = P(cx + rad, 0, cz), n = P(cx, 0, cz + rad);
+        const rx = Math.hypot(e.x - c.x, e.y - c.y), ry = Math.hypot(n.x - c.x, n.y - c.y);
+        const grd = g.createRadialGradient(c.x, c.y, 0, c.x, c.y, Math.max(rx, ry));
+        grd.addColorStop(0, col(alpha)); grd.addColorStop(1, col(0));
+        g.save(); g.translate(c.x, c.y); g.rotate(-Math.PI / 4);
+        g.fillStyle = grd; g.beginPath();
+        g.ellipse(0, 0, Math.max(rx, ry), Math.min(rx, ry) * 0.92, 0, 0, Math.PI * 2);
+        g.fill(); g.restore();
+        return c;
+      };
+      if (prof.kind === 'moonflower'){
+        const n = prof.beams || 18;
+        const reach = 1.35;
+        for (let k = 0; k < n; k++){
+          const a = (k / n) * Math.PI * 2 + (this.spin[i] || 0);
+          const ex = hx + Math.cos(a) * reach, ez = hz + Math.sin(a) * reach * 0.9 + 0.5;
+          const e = P(ex, 0, ez);
+          const grd = g.createLinearGradient(lamp.x, lamp.y, e.x, e.y);
+          grd.addColorStop(0, col(0.55 * live)); grd.addColorStop(1, col(0.02 * live));
+          g.strokeStyle = grd; g.lineWidth = 2.6; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(lamp.x, lamp.y); g.lineTo(e.x, e.y); g.stroke();
+          // each beam leaves a dot where it lands
+          const dot = P(ex, 0, ez);
+          g.fillStyle = col(0.5 * live);
+          g.beginPath(); g.arc(dot.x, dot.y, 2.6, 0, Math.PI * 2); g.fill();
+        }
+      } else if (prof.kind === 'bulb'){
+        pool(hx, hz + 0.55, 0.85, 0.30 * live);
+        const grd = g.createRadialGradient(lamp.x, lamp.y, 0, lamp.x, lamp.y, W * 0.09 * (0.4 + live));
+        grd.addColorStop(0, col(0.42 * live)); grd.addColorStop(1, col(0));
+        g.fillStyle = grd;
+        g.beginPath(); g.arc(lamp.x, lamp.y, W * 0.09 * (0.4 + live), 0, Math.PI * 2); g.fill();
+      } else {
+        // a cone: the lamp, and the ellipse it throws, joined by its own volume
+        const rad = Math.tan((prof.spread || 30) * Math.PI / 180) * 1.15 + 0.16;
+        const cz = hz + 0.72;
+        const c = pool(hx, cz, rad, 0.34 * live);
+        const l = P(hx - rad, 0, cz), r2 = P(hx + rad, 0, cz);
+        const grd = g.createLinearGradient(lamp.x, lamp.y, c.x, c.y);
+        grd.addColorStop(0, col(0.34 * live)); grd.addColorStop(1, col(0.02 * live));
+        g.fillStyle = grd;
+        g.beginPath(); g.moveTo(lamp.x, lamp.y); g.lineTo(l.x, l.y); g.lineTo(r2.x, r2.y);
+        g.closePath(); g.fill();
+      }
+      // the lamp body, and a little glow off it
+      g.fillStyle = col(0.3 + 0.7 * live);
+      g.beginPath(); g.arc(lamp.x, lamp.y, 6.5, 0, Math.PI * 2); g.fill();
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = 'rgba(230,238,255,.55)';
+      g.font = '600 11px system-ui, sans-serif'; g.textAlign = 'center';
+      g.fillText(f.name, lamp.x, lamp.y - 13);
+      g.globalCompositeOperation = 'lighter';
+    }
+    g.globalCompositeOperation = 'source-over';
+  },
+  netState(f){
+    for (const n of (this.net || [])) if (n.id === f.id)
+      return { r: n.r, g: n.g, b: n.b, dim: n.dim, strobeHz: 0, spin: 0 };
+    return null;
+  },
+
+  /* ---------------- the numbers ---------------- */
+  buildChans(){
+    const box = document.getElementById('rigChans');
+    if (!box) return;
+    box.textContent = '';
+    for (const f of this.patched){
+      const prof = dmxProfile(f.key) || {};
+      const card = document.createElement('div');
+      card.className = 'rig-fx';
+      const h = document.createElement('h4');
+      const sw = document.createElement('span'); sw.className = 'swatch';
+      h.appendChild(sw); h.appendChild(document.createTextNode(f.name));
+      const addr = document.createElement('div');
+      addr.className = 'addr';
+      addr.textContent = f.wire === 'net' ? 'network · no address'
+        : ('ch ' + f.at + '–' + (f.at + f.span - 1) + ' · ' + f.mode);
+      card.appendChild(h); card.appendChild(addr);
+      const rows = [];
+      for (let c = 1; c <= f.span; c++){
+        const row = document.createElement('div');
+        row.className = 'rig-ch';
+        const nm = document.createElement('span'); nm.className = 'nm';
+        nm.textContent = (prof.vars && prof.vars[c - 1]) || ('ch ' + c);
+        const bar = document.createElement('span'); bar.className = 'bar';
+        const fill = document.createElement('i');
+        const v = document.createElement('span'); v.className = 'v';
+        bar.appendChild(fill);
+        row.appendChild(nm); row.appendChild(bar); row.appendChild(v);
+        card.appendChild(row);
+        rows.push({ fill, v });
+      }
+      /* THE FADER AND THE COLOURS — the board half of the card. Taking a
+         fixture by hand is one click, and giving it back is the same click,
+         because on a real board the question "is this channel mine or the
+         cue's" must be answerable at a glance. */
+      const board = document.createElement('div');
+      board.className = 'rig-board';
+      const take = document.createElement('button');
+      take.type = 'button'; take.className = 'rig-take';
+      const fader = document.createElement('input');
+      fader.type = 'range'; fader.min = '0'; fader.max = '100'; fader.value = '100';
+      fader.className = 'rig-fader';
+      fader.setAttribute('aria-label', f.name + ' level');
+      const sws = document.createElement('div'); sws.className = 'rig-sws';
+      const COLS = [
+        ['#ffffff', 1, 1, 1], ['#ff2d2d', 1, 0.05, 0.05], ['#ff8a1e', 1, 0.42, 0.06],
+        ['#ffe14d', 1, 0.85, 0.15], ['#3dff7a', 0.12, 1, 0.4], ['#28e0ff', 0.1, 0.82, 1],
+        ['#3d6bff', 0.15, 0.3, 1], ['#c14dff', 0.7, 0.2, 1], ['#ff4dc4', 1, 0.2, 0.72],
+      ];
+      const setMan = patch => {
+        this.manual[f.id] = Object.assign({}, this.manual[f.id] || {}, patch);
+        take.classList.add('on'); take.textContent = 'On the fader';
+      };
+      for (const [hex, r, gg, b] of COLS){
+        const sb = document.createElement('button');
+        sb.type = 'button'; sb.style.background = hex; sb.title = hex;
+        sb.setAttribute('aria-label', 'Set ' + f.name + ' to ' + hex);
+        sb.addEventListener('click', () => setMan({ r, g: gg, b }));
+        sws.appendChild(sb);
+      }
+      fader.addEventListener('input', () => setMan({ dim: Number(fader.value) / 100 }));
+      take.textContent = 'Following the music';
+      take.addEventListener('click', () => {
+        if (this.manual[f.id]){
+          delete this.manual[f.id];
+          take.classList.remove('on'); take.textContent = 'Following the music';
+        } else setMan({ dim: Number(fader.value) / 100 });
+      });
+      board.appendChild(take); board.appendChild(fader); board.appendChild(sws);
+      card.appendChild(board);
+      box.appendChild(card);
+      f._ui = { sw, rows, take };
+    }
+  },
+  paintChans(){
+    if (!this.frame) return;
+    for (const f of this.patched){
+      if (!f._ui) continue;
+      const d = f.wire === 'net' ? this.netState(f) : dmxDecode(f, this.frame);
+      if (d) f._ui.sw.style.color = 'rgb(' + Math.round(d.r * 255 * d.dim) + ','
+        + Math.round(d.g * 255 * d.dim) + ',' + Math.round(d.b * 255 * d.dim) + ')';
+      for (let c = 0; c < f._ui.rows.length; c++){
+        const val = this.frame[f.at - 1 + c] || 0;
+        f._ui.rows[c].fill.style.width = (val / 255 * 100).toFixed(1) + '%';
+        f._ui.rows[c].v.textContent = val;
+      }
+    }
+  },
+  paintFoot(){
+    const n = document.getElementById('rigFoot');
+    if (!n) return;
+    const used = dmxUniverseUsed(this.patched);
+    n.textContent = 'Every bar above is a byte this frame would send. '
+      + used + ' of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.';
+  },
+};
+
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
@@ -23482,6 +24551,7 @@ function frame(now){
   }
 
   STAGE.push(now);                     // ~30 Hz, and nothing at all unless a screen is lit
+  RIG.step(now, dt);                   // and the lamps, at the rate the wire runs at
   // and the wall, on the frame a corner window moves — the booth reads its own
   // picture-in-picture rectangles here rather than waiting to be told
   if (STAGE.on && STAGE.pips.length) STAGE.pushWall();
@@ -23953,6 +25023,7 @@ const MACPROMO = {
   ACTIVITY.log('system', 'Opened - build ' + MB8_BUILD);
   NATIVE.boot();                 // the shell answers, or nothing does
   STAGE.boot();
+  try { RIG.boot(); } catch (e){}      // no rig is not a reason not to boot
 
   /* A STAGE SCREEN IS NOT A PLAYER. It loads no catalog (that is megabytes, on
      every TV, for a library it will never show), restores no queue, and runs no

@@ -94,7 +94,7 @@
     <div class="wrap">
       <div class="orb" aria-hidden="true"></div>
       <h1>Aethra Kairos for Mac</h1>
-      <p class="tagline">The open-source label player, now a native app — its own window, self-updating, and light on your machine.</p>
+      <p class="tagline">The open-source label player, now a native app — its own window, self-updating, light on your machine, and able to put the visuals full screen on every monitor in the room at once.</p>
       <!-- direct download of the newest stable build — a permanent URL the
            pipeline keeps current, so it never rots -->
       <a class="dl" id="dlBtn" href="https://github.com/kmay89/aethrakairos/releases/latest/download/Aethra-Kairos-macOS-universal.dmg">
@@ -128,6 +128,39 @@
     </section>
 
     <section>
+      <h2>Stage mode — the reason to have the app</h2>
+      <p class="cmd-lead">Everything else here is the same player you already have in a browser. This is the part that isn't.</p>
+      <p style="color:var(--dim);font-size:14px;line-height:1.6;margin:14px 0 0">
+        Tell it how many screens the room has and it opens that many, <b style="color:var(--ink)">full screen on the
+        monitors you name</b> — the televisions behind the booth, the projector, the wall — while this window folds into
+        a corner player with a pad that puts your hand on the picture the room can see.
+      </p>
+      <p style="color:var(--dim);font-size:14px;line-height:1.6;margin:10px 0 0">
+        They are not four copies of the same visual. They hold <b style="color:var(--ink)">one field, cut between
+        them</b>: a shape leaving one screen arrives on the next at the same height, the same size, the same instant,
+        because there was only ever one shape. Each screen renders only its own part, at its own resolution, on its own
+        GPU — so a wall of 4K panels costs the laptop about forty numbers a frame, not four streams of video.
+      </p>
+      <div class="cards" style="margin-top:16px">
+        <div class="card does">
+          <h3>✦ What the app adds</h3>
+          <ul>
+            <li>A window <b>full screen on a monitor you choose</b> — a browser may open a window, but may not pick its screen or fill it without a click on that window</li>
+            <li>The field is cut from <b>where the monitors actually are</b>, read from macOS — rearrange your displays in System&nbsp;Settings and the picture rearranges with them</li>
+            <li><b>Drag a window to another screen and its slice follows it</b>, live, mid-drag — the wall is wherever the windows are</li>
+            <li>Every screen can <b>hold up its own number</b>, the way the display-arrangement pane does, so you know which is which from across the room</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note">
+        <b>No second monitor yet?</b> Ask for three screens on a single-display laptop and you get three little windows
+        floating over the console, showing one field cut three ways. Slide them apart and the field stretches between
+        them; put them in a row and that is exactly what the truss will do. The night it meets the real screens, the
+        same windows get dragged onto them — and not one line of the arithmetic changes.
+      </div>
+    </section>
+
+    <section>
       <h2>What it is — and isn't</h2>
       <div class="cards">
         <div class="card is">
@@ -135,6 +168,7 @@
           <ul>
             <li>A <b>music player</b> for the Aethra Kairos&nbsp;/&nbsp;ERRERlabs catalog</li>
             <li>A <b>live visualizer</b> that moves to the music</li>
+            <li>A <b>stage rig</b> — one field across every screen in the room</li>
             <li><b>Free</b> and <b>open source</b> — forever</li>
           </ul>
         </div>
