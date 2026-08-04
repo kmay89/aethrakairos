@@ -10,10 +10,12 @@
 #                              "stable" run derives the tag from tauri.conf.json's version,
 #                              so cutting a release is one click — no hand-pushed tag.
 #
-# Apple code-signing/notarization IS wired (the APPLE_* env below) but dormant
-# until those secrets are set — until then builds are unsigned (first launch:
-# right-click → Open; see aethrakairos.com/mac). Updater signing is separate: set
-# the TAURI_SIGNING_PRIVATE_KEY secret to switch auto-update on for both channels.
+# Apple code-signing/notarization is OPT-IN on the `ENABLE_MACOS_SIGNING` repo
+# VARIABLE (not a secret) — set it to exactly `true` once the APPLE_DESKTOP_*
+# secrets exist. Until then builds are unsigned (first launch: right-click →
+# Open; see aethrakairos.com/mac). Runbook: desktop/SIGNING.md.
+# Updater signing is separate and free: set TAURI_SIGNING_PRIVATE_KEY to switch
+# auto-update on for both channels.
 name: desktop
 
 on:
@@ -111,52 +113,215 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # Apple signing is triggered merely by these vars being PRESENT — an empty
-      # APPLE_CERTIFICATE makes the bundler try to `security import` nothing and
-      # fail. So export them (into $GITHUB_ENV, for the build step) ONLY when a
-      # cert is actually set; absent → a clean unsigned build. This is the gate
-      # that keeps notarization dormant until the secrets exist.
-      - name: Enable Apple signing when configured
+      # ── macOS code signing ────────────────────────────────────────────────
+      # Ported from securaCV's desktop-release.yml, whose comments are a record
+      # of four failures that each cost a release cycle. The names and the
+      # preflight below are not style: every one of them is a scar.
+      #
+      # OPT-IN on the `ENABLE_MACOS_SIGNING` repository variable (Settings →
+      # Secrets and variables → Actions → Variables), and split into two build
+      # steps on purpose: tauri's macOS bundler treats APPLE_CERTIFICATE as
+      # "sign me" whenever the variable is DEFINED AT ALL — even as an empty
+      # string — and then fails importing nothing. So the unsigned path must
+      # define no APPLE_* keys whatsoever, which a single step with conditional
+      # env cannot express.
+      #
+      # THE SECRETS ARE DELIBERATELY NOT NAMED `APPLE_CERTIFICATE`. In securaCV
+      # the iOS pipeline used that name for an Apple *Distribution* .p12 (App
+      # Store signing), and a Mac app needs a *Developer ID Application* .p12
+      # (notarized, downloaded outside the store). They shared one name until
+      # 2026-07-29; setting up the iPhone app silently overwrote the desktop
+      # identity and three releases in a row died on "certificate ... does not
+      # match provided identity". One secret, one meaning.
+      - name: Verify the macOS signing certificate before spending a build on it
+        # Fail in seconds with the reason, rather than eight minutes into a
+        # bundle with tauri's terse mismatch error.
+        if: vars.ENABLE_MACOS_SIGNING == 'true'
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          CERT_B64: ${{ secrets.APPLE_DESKTOP_CERTIFICATE }}
+          CERT_PW: ${{ secrets.APPLE_DESKTOP_CERTIFICATE_PASSWORD }}
+          WANT: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CERT_B64:-}" ]; then
+            echo "::error::ENABLE_MACOS_SIGNING is on but APPLE_DESKTOP_CERTIFICATE is empty. The Mac app signs with its OWN secret (APPLE_DESKTOP_CERTIFICATE / _PASSWORD, a Developer ID Application .p12) so no other Apple pipeline can overwrite it. Setup: desktop/SIGNING.md."
+            exit 1
+          fi
+          if [ -z "${WANT:-}" ]; then
+            echo "::error::APPLE_SIGNING_IDENTITY is empty. It must be the identity string byte-for-byte, e.g. 'Developer ID Application: Your Name (TEAMID)'. Setup: desktop/SIGNING.md."
+            exit 1
+          fi
+          printf '%s' "$CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          # -legacy covers the RC2-encrypted .p12s Keychain Access still writes
+          if ! openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin env:CERT_PW -nokeys -legacy \
+                 > "$RUNNER_TEMP/certs.pem" 2>/dev/null; then
+            openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin env:CERT_PW -nokeys \
+                 > "$RUNNER_TEMP/certs.pem" 2>/dev/null || {
+              echo "::error::Could not open the .p12 — APPLE_DESKTOP_CERTIFICATE_PASSWORD is probably wrong, or the base64 is not a whole .p12 (use: base64 -i cert.p12)."
+              rm -f "$RUNNER_TEMP/cert.p12"; exit 1; }
+          fi
+          # Walk the certificates one at a time. NOT csplit: this runs on macOS,
+          # whose BSD csplit has no -z/-b, so it would produce no files, leave
+          # the list empty, and reject every certificate including the right one.
+          TOTAL=$(grep -c 'BEGIN CERTIFICATE' "$RUNNER_TEMP/certs.pem" || true)
+          : > "$RUNNER_TEMP/cns.txt"
+          i=1
+          while [ "$i" -le "${TOTAL:-0}" ]; do
+            awk -v want="$i" '/-----BEGIN CERTIFICATE-----/{c++} c==want' \
+              "$RUNNER_TEMP/certs.pem" > "$RUNNER_TEMP/one.pem"
+            openssl x509 -in "$RUNNER_TEMP/one.pem" -noout -subject -nameopt multiline 2>/dev/null \
+              | awk '/^ *commonName/{sub(/^ *commonName *= */, ""); print}' >> "$RUNNER_TEMP/cns.txt"
+            i=$((i + 1))
+          done
+          rm -f "$RUNNER_TEMP/one.pem"
+          CNS=$(awk 'NF' "$RUNNER_TEMP/cns.txt" | sort -u)
+          echo "Certificates inside APPLE_DESKTOP_CERTIFICATE:"
+          printf '%s\n' "$CNS" | awk '{print "  - " $0}'
+          echo "APPLE_SIGNING_IDENTITY asks for: $WANT"
+          # Tauri validates the LAST certificate in the .p12, so ANY extra
+          # identity aborts the bundle even when the right one is present.
+          # `security export -t identities` exports EVERY identity in the
+          # keychain, which is exactly how that happens.
+          EXTRA=$(printf '%s\n' "$CNS" | grep -vxF "$WANT" || true)
+          if [ -n "$EXTRA" ] && printf '%s\n' "$CNS" | grep -qxF "$WANT"; then
+            echo "::error::The .p12 holds identities besides the one being used. Tauri checks the LAST certificate it finds and will abort. Re-export ONLY '$WANT' (Keychain Access: expand that certificate, select the certificate row alone, right-click → Export). Extra identities found:"
+            printf '%s\n' "$EXTRA" | awk '{print "  - " $0}'
+            exit 1
+          fi
+          if ! printf '%s\n' "$CNS" | grep -qxF "$WANT"; then
+            echo "::error::The .p12 does not contain the identity named by APPLE_SIGNING_IDENTITY. Export the 'Developer ID Application: ...' identity (NOT Apple Distribution, NOT Apple Development) and set both secrets from the same certificate — desktop/SIGNING.md."
+            exit 1
+          fi
+          if ! printf '%s' "$WANT" | grep -q '^Developer ID Application:'; then
+            echo "::warning::APPLE_SIGNING_IDENTITY is not a 'Developer ID Application' identity. A .dmg downloaded outside the App Store needs that one to notarize and open cleanly."
+          fi
+          echo "Match confirmed."
+          # An expired certificate fails the signing step with a message about
+          # the identity rather than the date. Judge it here: already expired is
+          # fatal, expiring soon only warns — a release on the last valid day
+          # must still ship.
+          END_DATE="$(openssl x509 -in "$RUNNER_TEMP/certs.pem" -noout -enddate | cut -d= -f2)"
+          if ! openssl x509 -in "$RUNNER_TEMP/certs.pem" -checkend 0 >/dev/null 2>&1; then
+            echo "::error::The signing certificate EXPIRED on $END_DATE. Create a new Developer ID Application certificate at developer.apple.com, install it, and update the secrets."
+            exit 1
+          fi
+          if openssl x509 -in "$RUNNER_TEMP/certs.pem" -checkend 2592000 >/dev/null 2>&1; then
+            echo "Certificate valid until $END_DATE."
+          else
+            echo "::warning::The signing certificate expires within 30 days ($END_DATE)."
+          fi
+          # ── normalize the .p12 so `security import` will take it ───────────
+          # openssl and macOS disagree about PKCS#12. OpenSSL 3 writes AES-256
+          # with a SHA-256 MAC; macOS's Security framework understands only the
+          # legacy SHA-1 MAC and rejects the rest as "MAC verification failed
+          # during PKCS12 import (wrong password?)". The password is NOT wrong —
+          # that message is a lie, and it costs a full build to read. Every
+          # openssl check above passes on such a file.
+          if ! openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin env:CERT_PW \
+                 -nodes -legacy -out "$RUNNER_TEMP/all.pem" 2>/dev/null; then
+            openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin env:CERT_PW \
+                 -nodes -out "$RUNNER_TEMP/all.pem" 2>/dev/null \
+              || { echo "::error::Could not read the .p12 to normalize it."; exit 1; }
+          fi
+          openssl pkcs12 -export -in "$RUNNER_TEMP/all.pem" -passout env:CERT_PW \
+            -name "$WANT" -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+            -out "$RUNNER_TEMP/cert-macos.p12" \
+            || { echo "::error::Could not re-encrypt the .p12 for macOS."; exit 1; }
+          rm -f "$RUNNER_TEMP/all.pem" "$RUNNER_TEMP/cert.p12"
+          # Prove it with the SAME command tauri runs. Every check above is an
+          # openssl check, and openssl was perfectly happy with the file macOS
+          # refused — so this is the only one that means anything.
+          PROBE="$RUNNER_TEMP/probe.keychain"
+          security create-keychain -p probe "$PROBE" >/dev/null
+          if ! security import "$RUNNER_TEMP/cert-macos.p12" -k "$PROBE" \
+                 -P "$CERT_PW" -T /usr/bin/codesign >/dev/null 2>&1; then
+            security delete-keychain "$PROBE" >/dev/null 2>&1 || true
+            echo "::error::macOS still refuses to import the signing certificate after normalizing it. Re-export it from the Mac holding the key — desktop/SIGNING.md."
+            exit 1
+          fi
+          security delete-keychain "$PROBE" >/dev/null 2>&1 || true
+          B64="$(base64 -i "$RUNNER_TEMP/cert-macos.p12" | tr -d '\n')"
+          rm -f "$RUNNER_TEMP/cert-macos.p12"
+          echo "::add-mask::$B64"
+          echo "APPLE_CERT_P12_B64=$B64" >> "$GITHUB_ENV"
+          echo "Imported into a throwaway keychain — signing can proceed."
+
+      # NOTARIZATION NEEDS MORE THAN A CERTIFICATE, and a half-finished setup is
+      # the dangerous state: it ships an UNSIGNED app under a green checkmark.
+      - name: Check the notarization credentials
+        if: vars.ENABLE_MACOS_SIGNING == 'true'
+        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          if [ -z "$APPLE_CERTIFICATE" ]; then
-            echo "Apple signing not configured — unsigned build."
-            exit 0
+          missing=""
+          [ -z "${APPLE_ID:-}" ] && missing="$missing APPLE_ID"
+          [ -z "${APPLE_PASSWORD:-}" ] && missing="$missing APPLE_PASSWORD"
+          [ -z "${APPLE_TEAM_ID:-}" ] && missing="$missing APPLE_TEAM_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::ENABLE_MACOS_SIGNING is on but these are unset:$missing. Without them the app is signed but NOT notarized, and macOS still refuses to open it — which looks like a successful release until someone downloads it. Setup: desktop/SIGNING.md."
+            exit 1
           fi
-          echo "Apple signing configured — this build will be signed + notarized."
-          {
-            echo "APPLE_CERTIFICATE<<__AK_CERT__"
-            echo "$APPLE_CERTIFICATE"
-            echo "__AK_CERT__"
-            echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD"
-            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
-            echo "APPLE_ID=$APPLE_ID"
-            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
-            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
-          } >> "$GITHUB_ENV"
+          echo "Notarization credentials present."
 
-      - name: Build (and release for stable / dev)
+      - name: Build (and release for stable / dev) — unsigned
+        if: vars.ENABLE_MACOS_SIGNING != 'true'
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Apple signing vars arrive via $GITHUB_ENV from the step above — set
-          # only when a cert is configured, so unsigned builds carry none of them.
+          # NO APPLE_* keys here, deliberately — see the note above.
         with:
           projectPath: desktop
           args: ${{ steps.plan.outputs.args }}
           tagName: ${{ steps.plan.outputs.tag }}
           releaseName: ${{ steps.plan.outputs.name }}
-          releaseBody: "The native Mac app. Install help — aethrakairos.com/mac (first launch: right-click → Open). Universal .dmg; it self-updates from here on."
+          releaseBody: "The native Mac app. This build is unsigned — first launch: right-click → Open (help: aethrakairos.com/mac). Universal .dmg; it self-updates from here on."
           releaseDraft: false
           prerelease: ${{ steps.plan.outputs.prerelease }}
+
+      - name: Build (and release for stable / dev) — signed + notarized
+        if: vars.ENABLE_MACOS_SIGNING == 'true'
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The preflight re-encrypted the .p12 with the SHA-1 MAC macOS needs
+          # and proved it imports; APPLE_CERT_P12_B64 is that normalized file.
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERT_P12_B64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DESKTOP_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: desktop
+          args: ${{ steps.plan.outputs.args }}
+          tagName: ${{ steps.plan.outputs.tag }}
+          releaseName: ${{ steps.plan.outputs.name }}
+          releaseBody: "The native Mac app — **signed and notarized by Apple**. Drag it to Applications and open it: no Terminal, no warning. Universal .dmg; it self-updates from here on."
+          releaseDraft: false
+          prerelease: ${{ steps.plan.outputs.prerelease }}
+
+      # PROVE IT, rather than trusting that the step which claimed to sign did.
+      # A notarized build that quietly came out unsigned is the failure this
+      # whole pipeline exists to prevent, and it is invisible without asking.
+      - name: Verify the .dmg really is signed and notarized
+        if: ${{ vars.ENABLE_MACOS_SIGNING == 'true' && steps.plan.outputs.mode != 'validate' }}
+        run: |
+          set -euo pipefail
+          DMG=$(ls desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          echo "checking: $DMG"
+          spctl --assess --type open --context context:primary-signature -vv "$DMG" 2>&1 | tee "$RUNNER_TEMP/spctl.txt" || true
+          if grep -qi 'accepted' "$RUNNER_TEMP/spctl.txt"; then
+            echo "Gatekeeper accepts it — signed, notarized and stapled."
+          else
+            echo "::error::Gatekeeper REJECTED the built .dmg, so this release would still need the right-click dance. Read the notarization log in the build step above."
+            exit 1
+          fi
 
       # A STABLE-named copy of the .dmg so the website can link to a permanent,
       # never-rot URL: releases/latest/download/Aethra-Kairos-macOS-universal.dmg
