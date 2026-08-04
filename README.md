@@ -491,7 +491,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **seventeen scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **eighteen scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -508,7 +508,9 @@ palette channels), and **HALO** (the spectrum bent into a ring: a torus of
 thousands of rainbow motes where each angle of the circle listens to one
 band of the live spectrum and visibly swells where its band sings — an
 equalizer curled into a circle of light, with winding bead-strands, a
-beat soliton orbiting the ring, and treble twinkles). Keys `1`–`9` and
+beat soliton orbiting the ring, and treble twinkles), and the **LAVA LAMP**
+— see [The lamp](#the-lamp-a-scene-that-is-simulated-rather-than-animated)
+below. Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
 TILE relay, MOIRÉ interference, a breathing IRIS, and stacks of them — with
@@ -531,6 +533,92 @@ rather than a screensaver:
   fires a shockwave. But the touch itself is not drawn: your hand deforms the
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
+
+## The lamp — a scene that is simulated rather than animated
+
+Scene 18 is a lava lamp, and nothing in it is keyframed, noise-driven or
+faked. It is six laws and a bottle, and every recognisable thing a real lamp
+does falls out of them:
+
+- **Buoyancy is temperature, and nothing else.** Wax expands as it warms and
+  the fluid does not, so the whole density story collapses to one linear
+  Boussinesq term, `a = g·β·(T − T₀)`.
+- **Heat moves at a rate ∝ 1/r².** A drop's thermal time constant goes as
+  `r²/α`, so a small droplet takes the column's temperature almost at once
+  and the pool over the heater takes minutes. That single exponent is why a
+  lava lamp's rhythm is *slow*, and why a mist of droplets is quick.
+- **Viscosity is Arrhenius.** `μ(T) = μ₀·e^(−E·T)` — cold wax is nine times
+  thicker than hot wax, which is why blobs go up briskly and come down like
+  treacle. You have watched that asymmetry a hundred times; this is its name.
+- **Drag is Stokes', against the *local* fluid.** Terminal speed goes as r²,
+  so a big blob plows through the convection current while a droplet is
+  simply carried by it. Nobody decides which — the exponent decides.
+- **One surface tension decides three things.** Whether a collision
+  coalesces or bounces (the Weber number, and Ashgriz & Poo's regimes), how
+  hard the survivor rings afterwards (Rayleigh's `ω² = 8σ/ρr³` for the l=2
+  drop mode), and when a rising blob is torn apart. They agree with each
+  other because they are the same σ.
+- **Cohesion and adhesion.** A short-range attraction, which is why blobs
+  find each other, and a wetting film at the glass, which is why a cold one
+  slides down the wall and why the pool stays *stuck to the heater* instead
+  of taking off as one lump.
+
+The column itself is a single **Rayleigh–Bénard convection cell**, written
+as a stream function ψ rather than a velocity field: `u = ∂ψ/∂y`,
+`v = −∂ψ/∂x` is divergence-free *by construction*, so however hard the
+music drives it, the fluid can never source, sink, or leak through the
+glass. Two half-periods across the bottle puts the up-flow in the middle and
+the down-flow at the walls.
+
+**The best thing it does needs no script.** There is a largest possible free
+drop — past a Bond number of about 16 gravity beats surface tension and a
+drop cannot hold its own shape — but a *puddle* is not a drop, because the
+glass carries the weight the surface would otherwise have to. So the pool at
+the bottom is allowed to be enormous, and when it finally warms enough to
+lift off, the ceiling on its size falls away with the floor and it comes
+apart into a rising column of droplets on the way up. That is arithmetic,
+not choreography, and it never happens the same way twice.
+
+The **surface is not drawn** either. Every blob contributes `φ = r²/d²` to
+one scalar field, the wax is the level set `Σφ² = 1`, and that is why two
+blobs approaching grow a neck between them and why the neck thins and snaps
+by itself. Three things then come out of that field for free: ∇F is
+analytic, so `(F−1)/|∇F|` is the distance to the surface in world units and
+antialiasing is exact at any resolution; `h = √(1 − F^-½)` is *exactly* a
+sphere's height for a lone blob, so the lamp is lit as a real surface with
+no marching; and that same h is the thickness, so absorption is honest
+**Beer–Lambert** — a thin edge is pale, a fat middle is deep, and the light
+that does not get through is precisely the light that comes back as the glow
+inside. Refraction is a real `refract()` against the real normal, split into
+three wavelengths, reading the coil's own light in the fluid behind.
+Bubbles nucleate at the heater and **zig-zag** on the way up, because that is
+what vortex shedding does to a rising bubble at the Strouhal frequency.
+
+**The music is the thermostat.** Bass and the act's own heat turn the coil
+up; the column gets hotter, the wax rises faster and breaks more readily,
+and the convection cell drives harder. Everything a drop does to this lamp,
+it does through one number a physicist would recognise. Put a hand on it and
+the wax *flows* — and keeps flowing after you let go, because it is matter
+with momentum — while the room behind the glass bends through the same
+metric every other scene answers a hand with. Two different answers to one
+hand, because a fluid and a vacuum are not the same thing.
+
+**And the performance is the physics.** The cost is exactly one pass over
+the blob list per pixel — no render target, no feedback buffer, no second
+geometry pass — so N is the only term there is. A device that cannot afford
+as many blobs is therefore not given a coarser lamp: it is given *fewer,
+larger* ones, by raising the radius at which two of them coalesce. The
+governor and the physics are the same mechanism, which means the lamp under
+pressure looks **more** like a lava lamp, not less, and there is no second
+rendering path to keep honest. Nothing stiff is stepped, either — drag,
+thermal relaxation and the surface-tension ring all have closed forms and
+all three use them, so the simulation is unconditionally stable at any step
+size and a phone at 30 fps runs the same lamp a desktop at 120 does.
+
+It is headless and deterministic from a seed: `tests/player.test.mjs` runs
+it for ten simulated minutes and holds it to conservation of wax across
+every merge, break-up, shed and drip, to the glass never leaking, and to the
+column actually convecting.
 
 ## Touching the fabric
 
