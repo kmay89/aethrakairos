@@ -3133,6 +3133,65 @@ test('DMX_FIXTURES vars: the labels name the channel they are actually on', () =
   assert.equal(f[v.indexOf('macro')], 0, 'and the macro is the one held at zero');
 });
 
+test('the generic library: a fixture nobody wrote a profile for still lights up right', () => {
+  /* The two named fixtures are the samples, not the scope. Everything else is
+     described only by the ORDER of its channels — and that order is enough,
+     because there is nothing else to get wrong. */
+  for (const key of ['generic-rgb-3', 'generic-rgbd-4', 'generic-par-7',
+    'generic-rgbwauv-10', 'generic-dimmer-1', 'generic-movinghead-11']){
+    const p = S.dmxProfile(key);
+    assert.ok(p, key + ' is in the library');
+    const widest = Math.max(...Object.keys(p.modes).map(m => p.modes[m]));
+    assert.equal(p.vars.length, widest, key + ' labels every channel it claims');
+  }
+  // a 7-channel PAR puts the dimmer FIRST, which is the convention, and the
+  // renderer must follow the labels rather than assume RGB starts at 1
+  const par = S.dmxPatch([{ key: 'generic-par-7', id: 'p' }]);
+  const f = S.dmxRender(par, { p: { r: 1, g: 0.5, b: 0, dim: 0.8 } });
+  assert.equal(f[0], 204, 'ch1 is the dimmer');
+  assert.deepEqual([f[1], f[2], f[3]], [255, 128, 0], 'and the colour follows it');
+  // the white emitter is the grey the colour already contains
+  const wh = S.dmxRender(par, { p: { r: 1, g: 1, b: 1, dim: 1 } });
+  assert.equal(wh[4], 255, 'a true white lights the white emitter');
+  const red = S.dmxRender(par, { p: { r: 1, g: 0, b: 0, dim: 1 } });
+  assert.equal(red[4], 0, 'a saturated red does not');
+  /* NO DIMMER CHANNEL MEANS THE DIMMER LIVES IN THE COLOUR — the same rule
+     the 3-channel ThinTri follows, applied from the labels alone. */
+  const bare = S.dmxPatch([{ key: 'generic-rgb-3', id: 'b' }]);
+  const half = S.dmxRender(bare, { b: { r: 1, g: 1, b: 1, dim: 0.5 } });
+  assert.deepEqual([half[0], half[1], half[2]], [128, 128, 128]);
+  // UV is an effect, not a colour component: a warm chord may never light it
+  const uv = S.dmxPatch([{ key: 'generic-rgbwauv-10', id: 'u' }]);
+  const warm = S.dmxRender(uv, { u: { r: 1, g: 0.6, b: 0.1, dim: 1 } });
+  const vars = S.dmxProfile('generic-rgbwauv-10').vars;
+  assert.equal(warm[vars.indexOf('uv')], 0, 'UV stays dark on a warm wash');
+  assert.ok(warm[vars.indexOf('amber')] > 0, 'but amber carries the warmth');
+  // a one-channel dimmer has no colour and must not be written past its span
+  const dim = S.dmxPatch([{ key: 'generic-dimmer-1', id: 'd' }]);
+  const lit = S.dmxRender(dim, { d: { r: 1, g: 0, b: 0, dim: 0.6 } });
+  assert.equal(lit[0], 153);
+  assert.equal(lit[1], 0, 'nothing may be written past channel 1');
+  // and it decodes back as its own white rather than as black
+  const back = S.dmxDecode(dim[0], lit);
+  assert.ok(back.r === 1 && back.g === 1 && back.b === 1, 'a colourless lamp reads as white');
+  assert.ok(Math.abs(back.dim - 0.6) < 0.01);
+});
+test('the generic renderer decodes back to what it was asked for', () => {
+  for (const key of ['generic-rgbd-4', 'generic-par-7', 'generic-rgbwauv-10']){
+    const p = S.dmxPatch([{ key, id: 'x' }]);
+    const want = { r: 0.2, g: 0.8, b: 0.4, dim: 0.75 };
+    const d = S.dmxDecode(p[0], S.dmxRender(p, { x: want }));
+    for (const k of ['r', 'g', 'b', 'dim'])
+      assert.ok(Math.abs(d[k] - want[k]) < 0.02, key + ' ' + k + ': ' + d[k] + ' vs ' + want[k]);
+  }
+  // a moving head is aimed by the same signed spin the moonflower turns on
+  const mh = S.dmxPatch([{ key: 'generic-movinghead-11', id: 'm' }]);
+  const vars = S.dmxProfile('generic-movinghead-11').vars;
+  const l = S.dmxRender(mh, { m: { r: 1, g: 1, b: 1, dim: 1, spin: -1 } });
+  const r = S.dmxRender(mh, { m: { r: 1, g: 1, b: 1, dim: 1, spin: 1 } });
+  assert.ok(l[vars.indexOf('pan')] < r[vars.indexOf('pan')], 'pan follows the sign of the spin');
+});
+
 test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
   const dst = { bass: 0.5, energy: 0.5, beat: 0.5, extra: 'keep me' };
   S.stageApplyFeat(dst, { bass: 0.9, energy: 'not a number', nope: 1 });

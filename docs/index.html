@@ -1114,6 +1114,21 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 .rig-ch .bar{flex:1;height:4px;border-radius:3px;background:var(--line-soft);overflow:hidden}
 .rig-ch .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
 .rig-ch .v{flex:0 0 26px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+.rig-board{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;
+  padding-top:8px;border-top:1px solid var(--line-soft)}
+.rig-take{
+  flex:0 0 auto;padding:4px 9px;border-radius:8px;cursor:pointer;font-size:8.5px;
+  letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--line-soft);
+  background:var(--glass);color:var(--faint);
+}
+.rig-take.on{color:#04121a;background:var(--accent);border-color:var(--accent)}
+.rig-fader{flex:1 1 90px;min-width:70px;accent-color:var(--accent);height:16px}
+.rig-sws{display:flex;gap:3px;flex-wrap:wrap}
+.rig-sws button{
+  width:15px;height:15px;border-radius:4px;border:1px solid rgba(255,255,255,.16);
+  cursor:pointer;padding:0;
+}
+.rig-sws button:hover{transform:scale(1.16)}
 .rig-foot{margin-top:10px;font-size:10px;color:var(--faint);line-height:1.6}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -4669,6 +4684,64 @@ const DMX_FIXTURES = {
     can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: true },
     vars: ['red', 'green', 'blue', 'macro', 'strobe', 'mode', 'dimmer', 'dimmerCurve'],
   },
+  /* ---- and then the rest of the world ----------------------------------
+     THE TWO ABOVE ARE THE SAMPLES, NOT THE SCOPE. They are the fixtures this
+     was built against, so they are the ones whose every interlock is written
+     down from a manual. What follows is the long tail: the generic profiles
+     that cover most of what anybody actually owns, because the overwhelming
+     majority of stage LEDs are some arrangement of the same few channels in
+     the same few orders. A rig that is not in this table should still light
+     up — pick the generic profile whose channel order matches the back of the
+     fixture and it will be right, because there is nothing else to be right
+     about. */
+  'generic-rgb-3': {
+    key: 'generic-rgb-3', name: 'Generic RGB', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '3ch': 3 }, beams: 1, spread: 30,
+    can: { rgb: true, dimmer: false, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['red', 'green', 'blue'],
+  },
+  'generic-rgbd-4': {
+    key: 'generic-rgbd-4', name: 'Generic RGB + dimmer', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '4ch': 4 }, beams: 1, spread: 30,
+    can: { rgb: true, dimmer: true, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['red', 'green', 'blue', 'dimmer'],
+  },
+  /* the commonest PAR on earth: dimmer first, then colour, then a strobe.
+     "Dimmer first" is the convention almost every 7-channel PAR follows. */
+  'generic-par-7': {
+    key: 'generic-par-7', name: 'Generic PAR (D/RGBW/S)', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '7ch': 7 }, beams: 1, spread: 34,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['dimmer', 'red', 'green', 'blue', 'white', 'strobe', 'mode'],
+  },
+  /* RGBWA+UV, the six-colour bar. The extra emitters are not decoration: a
+     white channel is what stops a "white" from being a muddy RGB sum, and
+     amber is what stops a warm wash from going pink. Driven from the same
+     rgb intent, with the extras derived rather than left dark. */
+  'generic-rgbwauv-10': {
+    key: 'generic-rgbwauv-10', name: 'Generic RGBWA+UV', make: 'Any', kind: 'wash', wire: 'dmx',
+    modes: { '10ch': 10 }, beams: 1, spread: 36,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['dimmer', 'red', 'green', 'blue', 'white', 'amber', 'uv', 'strobe', 'mode', 'speed'],
+  },
+  /* one channel, one lamp, no colour at all — a blinder, a house light on a
+     dimmer pack, a practical. It is in the library because a rig with one of
+     these in it should not need a special case. */
+  'generic-dimmer-1': {
+    key: 'generic-dimmer-1', name: 'Generic dimmer', make: 'Any', kind: 'blinder', wire: 'dmx',
+    modes: { '1ch': 1 }, beams: 1, spread: 48,
+    can: { rgb: false, dimmer: true, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['dimmer'],
+  },
+  /* a small moving head, in the arrangement nearly all of them use. Pan and
+     tilt are 8-bit here on purpose: the 16-bit variants add fine channels
+     after each coarse one, which is a different profile rather than a flag. */
+  'generic-movinghead-11': {
+    key: 'generic-movinghead-11', name: 'Generic moving head', make: 'Any', kind: 'spot', wire: 'dmx',
+    modes: { '11ch': 11 }, beams: 1, spread: 14,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: true, move: true },
+    vars: ['pan', 'tilt', 'speed', 'dimmer', 'strobe', 'red', 'green', 'blue', 'white', 'macro', 'mode'],
+  },
   /* PHILIPS HUE — the same show, on a wire that is not a wire.
 
      A Hue bulb is not on the DMX line and never can be: it is Zigbee behind a
@@ -4751,6 +4824,7 @@ function dmxPatch(rig){
       // sweep light across it left to right rather than at random
       x: Number.isFinite(Number(raw.x)) ? Number(raw.x) : 0,
       y: Number.isFinite(Number(raw.y)) ? Number(raw.y) : 0,
+      z: Number.isFinite(Number(raw.z)) ? Number(raw.z) : -0.8,
       pan: Number.isFinite(Number(raw.pan)) ? Number(raw.pan) : 0,
       name: raw.name || (dmxProfile(raw.key) || {}).name || raw.key,
     });
@@ -4857,6 +4931,40 @@ function dmxRenderFixture(f, intent, frame){
     return frame;
   }
 
+  /* THE GENERIC PATH. Everything above this line is a fixture whose quirks
+     were read out of a manual; everything below is a fixture described only
+     by the ORDER of its channels. That order is enough: `vars` names each
+     channel, so the renderer writes whatever it recognises and leaves alone
+     whatever it does not. A profile nobody has ever tested still behaves,
+     because there is nothing to get wrong beyond where the bytes go.
+
+     The extra emitters are derived rather than left dark. White is the grey
+     the colour already contains — without it a "white" is a muddy RGB sum —
+     and amber is the warm part of that white, without which a warm wash goes
+     pink. UV is left at zero: it is an effect, not a component of a colour,
+     and a rig that quietly lit its UV on every warm chord would be wrong. */
+  if (f.key !== 'adj-mystic-led' && f.key !== 'venue-thintri-38'){
+    const prof = dmxProfile(f.key);
+    if (!prof || !prof.vars) return frame;
+    const idx = n => prof.vars.indexOf(n) + 1;      // 0 when absent
+    const has = n => idx(n) > 0;
+    // with no dimmer channel the brightness has to live in the colour itself
+    const k = has('dimmer') ? 1 : i.dim;
+    const white = Math.min(i.r, i.g, i.b);
+    const set = (n, v) => { if (has(n) && idx(n) <= f.span) put(idx(n), v); };
+    set('dimmer', b255(i.dim));
+    set('red', b255(i.r * k)); set('green', b255(i.g * k)); set('blue', b255(i.b * k));
+    set('white', b255(white * k));
+    set('amber', b255(Math.max(0, Math.min(i.r, i.g * 0.75) - i.b) * k));
+    set('uv', 0);
+    set('strobe', i.strobe > 0.02 ? Math.round(16 + i.strobe * (255 - 16)) : 0);
+    set('mode', 0); set('macro', 0); set('speed', 0);
+    // a head that can aim is aimed across the room by the same signed spin
+    if (has('pan')) put(idx('pan'), b255(0.5 + i.spin * 0.42));
+    if (has('tilt')) put(idx('tilt'), b255(0.5 - Math.abs(i.spin) * 0.18));
+    return frame;
+  }
+
   if (f.key === 'venue-thintri-38'){
     if (f.mode === '3ch'){
       // no dimmer channel exists, so the dimmer has to live in the colour
@@ -4949,6 +5057,23 @@ function dmxDecode(f, frame){
     else if (c4 <= 85) out.spin = (85 - c4) / 84;             // clockwise, inverted
     else if (c4 <= 170) out.spin = -((c4 - 86) / 84);         // counter-clockwise
     else { out.spin = (c4 - 179) / 76; out.random = true; }
+    return out;
+  }
+  if (f.key !== 'adj-mystic-led' && f.key !== 'venue-thintri-38'){
+    const prof = dmxProfile(f.key) || {};
+    const vars = prof.vars || [];
+    const at2 = n => { const i2 = vars.indexOf(n); return i2 >= 0 ? get(i2 + 1) / 255 : 0; };
+    out.r = at2('red'); out.g = at2('green'); out.b = at2('blue');
+    out.dim = vars.indexOf('dimmer') >= 0 ? at2('dimmer') : Math.max(out.r, out.g, out.b);
+    if (vars.indexOf('dimmer') < 0){
+      const m = out.dim || 1;
+      out.r /= m; out.g /= m; out.b /= m;
+    }
+    // a lamp with no colour at all reads as its own white
+    if (vars.indexOf('red') < 0){ out.r = out.g = out.b = 1; }
+    const st = vars.indexOf('strobe');
+    if (st >= 0 && get(st + 1) > 15) out.strobeHz = dmxStrobeHz((get(st + 1) - 16) / 239);
+    out.mode = 'dmx';
     return out;
   }
   if (f.key === 'venue-thintri-38'){
@@ -23831,6 +23956,7 @@ const RIG = {
   on: false,
   preset: 'auto',
   rig: null, patched: null,
+  manual: {},                // board: fixtures an operator has taken by hand
   frame: null,
   spin: [],                  // accumulated beam angle per fixture, radians
   strobeT: 0,
@@ -23843,9 +23969,9 @@ const RIG = {
      opening a menu on the back of a fixture. */
   defaults(){
     return [
-      { id: 'wash-l', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 1, x: -0.66, name: 'Wash L' },
-      { id: 'flower', key: 'adj-mystic-led', mode: '4ch', role: 'beam', at: 9, x: 0, name: 'Moonflower' },
-      { id: 'wash-r', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 13, x: 0.66, name: 'Wash R' },
+      { id: 'wash-l', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 1, x: -0.72, z: -0.8, name: 'Wash L' },
+      { id: 'flower', key: 'adj-mystic-led', mode: '4ch', role: 'beam', at: 9, x: 0, z: -0.9, name: 'Moonflower' },
+      { id: 'wash-r', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 13, x: 0.72, z: -0.8, name: 'Wash R' },
     ];
   },
   boot(){
@@ -23877,6 +24003,17 @@ const RIG = {
     };
     add('auto', 'Auto');
     for (const k of DMX_PRESET_ORDER) add(k, DMX_PRESETS[k].name);
+    // and the way back: every fader released at once, which is the button an
+    // operator wants after a song they hand-drove
+    const rel = document.createElement('button');
+    rel.type = 'button'; rel.textContent = 'Release all';
+    rel.addEventListener('click', () => {
+      this.manual = {};
+      for (const f of this.patched) if (f._ui && f._ui.take){
+        f._ui.take.classList.remove('on'); f._ui.take.textContent = 'Following the music';
+      }
+    });
+    box.appendChild(rel);
     this.paintPresets();
   },
   paintPresets(){
@@ -23892,8 +24029,14 @@ const RIG = {
     const chord = [];
     try {
       for (const c of (COLOR.now || []).slice(0, 3)){
+        /* oklchToRgb ALREADY RETURNS 0..1 — it applies the sRGB transfer curve
+           and clamps on the way out. Dividing by 255 here turned every chord
+           into about four thousandths of itself, which arrived at the fixtures
+           as a byte value of 1: washes that were black at 79% dimmer, and a
+           moonflower whose nearest-colour search normalised near-zero into grey
+           and picked ALL ON. A whole rig lit white by a unit mismatch. */
         const [r, g, b] = oklchToRgb(c.l, c.c, c.h);
-        chord.push({ r: r / 255, g: g / 255, b: b / 255 });
+        chord.push({ r, g, b });
       }
     } catch (e){}
     if (!chord.length) chord.push({ r: 1, g: 0.72, b: 0.33 });
@@ -23918,6 +24061,16 @@ const RIG = {
     if (now - this._acc < 25) return;
     this._acc = now;
     const intents = dmxShowIntents(this.show(), this.patched);
+    /* THE BOARD SITS ON TOP OF THE SHOW, not beside it. A fixture with no
+       hand on it keeps following the music; a fixture the operator has taken
+       holds exactly what they set and nothing else touches it. That is what a
+       real board does — a channel is either in the cue or on a fader, and the
+       one thing it must never be is both at once, fighting. */
+    for (const id in this.manual){
+      const m = this.manual[id];
+      if (!m || !intents[id]) continue;
+      intents[id] = Object.assign({}, intents[id], m);
+    }
     this.frame = dmxRender(this.patched, intents);
     this.net = dmxRenderNet(this.patched, intents);
     this.strobeT += dt;
@@ -23930,73 +24083,125 @@ const RIG = {
   },
 
   /* ---------------- the picture ---------------- */
+  /* AN ISOMETRIC ROOM, because a rig is a thing in a space.
+
+     The flat elevation this replaced could show colour and it could show a
+     beam turning, but it could not show the one thing an operator is actually
+     judging: where the light LANDS. Two washes an arm's length apart and two
+     washes across a room throw completely different pictures onto a floor and
+     look identical in elevation. So the room is drawn in isometric — floor,
+     back wall, a truss the fixtures hang from — and every cone is projected
+     down onto that floor as a real pool.
+
+     The projection is the standard 2:1 isometric: x runs right-and-down, z
+     runs left-and-down, y is straight up. One function, used by everything, so
+     a lamp and the pool it throws cannot disagree about where they are. */
+  iso(x, y, z, W, H){
+    const s = Math.min(W, H) * 0.36;
+    return {
+      x: W * 0.5 + (x - z) * s * 0.866,
+      y: H * 0.60 + (x + z) * s * 0.5 - y * s * 0.62,
+    };
+  },
   draw(){
     const cv = document.getElementById('rigStage');
     if (!cv || !this.frame) return;
     const g = cv.getContext('2d');
     if (!g) return;
     const W = cv.width, H = cv.height;
-    g.clearRect(0, 0, W, H);
-    // the room: a back wall that catches the light, and a floor
+    const P = (x, y, z) => this.iso(x, y, z, W, H);
     g.fillStyle = '#03040a'; g.fillRect(0, 0, W, H);
-    const floor = H * 0.86;
+
+    // the floor, as a grid — the only thing that makes the projection legible
+    g.strokeStyle = 'rgba(255,255,255,.055)'; g.lineWidth = 1;
+    const R = 1;
+    for (let i = -4; i <= 4; i++){
+      const t = i / 4 * R;
+      let a = P(t, 0, -R), b = P(t, 0, R);
+      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+      a = P(-R, 0, t); b = P(R, 0, t);
+      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    }
+    // the truss the lamps hang from
+    const t0 = P(-R, 1, -R), t1 = P(R, 1, -R);
+    g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(t0.x, t0.y); g.lineTo(t1.x, t1.y); g.stroke();
+
     g.globalCompositeOperation = 'lighter';
     for (let i = 0; i < this.patched.length; i++){
       const f = this.patched[i];
       const d = f.wire === 'net' ? this.netState(f) : dmxDecode(f, this.frame);
       if (!d) continue;
       const prof = dmxProfile(f.key) || {};
-      const x = W / 2 + (f.x || 0) * (W * 0.40);
-      const y = H * 0.13;
-      // a strobing lamp is dark for part of its cycle, and the preview says so
+      const hx = (f.x || 0) * R, hz = (f.z == null ? -R * 0.82 : f.z);
+      const hy = prof.kind === 'bulb' ? 0.62 : 1;
+      const lamp = P(hx, hy, hz);
       let live = d.dim;
       if (d.strobeHz > 0){
         const ph = (this.strobeT * d.strobeHz) % 1;
         live = d.dim * (ph < 0.42 ? 1 : 0.06);
       }
-      const col = (a) => 'rgba(' + Math.round(d.r * 255) + ',' + Math.round(d.g * 255) + ','
-        + Math.round(d.b * 255) + ',' + a.toFixed(3) + ')';
+      const col = a => 'rgba(' + Math.round(d.r * 255) + ',' + Math.round(d.g * 255) + ','
+        + Math.round(d.b * 255) + ',' + Math.max(0, a).toFixed(3) + ')';
+      /* THE POOL. Where the cone meets the floor, in the same projection as
+         everything else — an ellipse in screen space because a circle on an
+         isometric floor is one. This is the whole reason for the rewrite. */
+      const pool = (cx, cz, rad, alpha) => {
+        const c = P(cx, 0, cz);
+        const e = P(cx + rad, 0, cz), n = P(cx, 0, cz + rad);
+        const rx = Math.hypot(e.x - c.x, e.y - c.y), ry = Math.hypot(n.x - c.x, n.y - c.y);
+        const grd = g.createRadialGradient(c.x, c.y, 0, c.x, c.y, Math.max(rx, ry));
+        grd.addColorStop(0, col(alpha)); grd.addColorStop(1, col(0));
+        g.save(); g.translate(c.x, c.y); g.rotate(-Math.PI / 4);
+        g.fillStyle = grd; g.beginPath();
+        g.ellipse(0, 0, Math.max(rx, ry), Math.min(rx, ry) * 0.92, 0, 0, Math.PI * 2);
+        g.fill(); g.restore();
+        return c;
+      };
       if (prof.kind === 'moonflower'){
         const n = prof.beams || 18;
-        const spread = (prof.spread || 130) * Math.PI / 180;
+        const reach = 1.35;
         for (let k = 0; k < n; k++){
-          const a = -Math.PI / 2 + (k / n - 0.5) * spread * 2 + (this.spin[i] || 0);
-          const len = H * 0.95;
-          const ex = x + Math.cos(a + Math.PI / 2) * len, ey = y + Math.sin(a + Math.PI / 2) * len;
-          const grd = g.createLinearGradient(x, y, ex, ey);
-          grd.addColorStop(0, col(0.5 * live));
-          grd.addColorStop(1, col(0));
-          g.strokeStyle = grd; g.lineWidth = 3.5; g.lineCap = 'round';
-          g.beginPath(); g.moveTo(x, y); g.lineTo(ex, ey); g.stroke();
+          const a = (k / n) * Math.PI * 2 + (this.spin[i] || 0);
+          const ex = hx + Math.cos(a) * reach, ez = hz + Math.sin(a) * reach * 0.9 + 0.5;
+          const e = P(ex, 0, ez);
+          const grd = g.createLinearGradient(lamp.x, lamp.y, e.x, e.y);
+          grd.addColorStop(0, col(0.55 * live)); grd.addColorStop(1, col(0.02 * live));
+          g.strokeStyle = grd; g.lineWidth = 2.6; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(lamp.x, lamp.y); g.lineTo(e.x, e.y); g.stroke();
+          // each beam leaves a dot where it lands
+          const dot = P(ex, 0, ez);
+          g.fillStyle = col(0.5 * live);
+          g.beginPath(); g.arc(dot.x, dot.y, 2.6, 0, Math.PI * 2); g.fill();
         }
       } else if (prof.kind === 'bulb'){
-        const r = W * 0.16 * (0.5 + live);
-        const grd = g.createRadialGradient(x, y + H * 0.2, 0, x, y + H * 0.2, r);
-        grd.addColorStop(0, col(0.5 * live)); grd.addColorStop(1, col(0));
+        pool(hx, hz + 0.55, 0.85, 0.30 * live);
+        const grd = g.createRadialGradient(lamp.x, lamp.y, 0, lamp.x, lamp.y, W * 0.09 * (0.4 + live));
+        grd.addColorStop(0, col(0.42 * live)); grd.addColorStop(1, col(0));
         g.fillStyle = grd;
-        g.beginPath(); g.arc(x, y + H * 0.2, r, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.arc(lamp.x, lamp.y, W * 0.09 * (0.4 + live), 0, Math.PI * 2); g.fill();
       } else {
-        // a wash: a broad cone opening onto the floor
-        const half = Math.tan(((prof.spread || 30) * Math.PI / 180)) * (floor - y) + W * 0.06;
-        const grd = g.createLinearGradient(x, y, x, floor);
-        grd.addColorStop(0, col(0.46 * live)); grd.addColorStop(1, col(0.02 * live));
+        // a cone: the lamp, and the ellipse it throws, joined by its own volume
+        const rad = Math.tan((prof.spread || 30) * Math.PI / 180) * 1.15 + 0.16;
+        const cz = hz + 0.72;
+        const c = pool(hx, cz, rad, 0.34 * live);
+        const l = P(hx - rad, 0, cz), r2 = P(hx + rad, 0, cz);
+        const grd = g.createLinearGradient(lamp.x, lamp.y, c.x, c.y);
+        grd.addColorStop(0, col(0.34 * live)); grd.addColorStop(1, col(0.02 * live));
         g.fillStyle = grd;
-        g.beginPath(); g.moveTo(x - 9, y); g.lineTo(x + 9, y);
-        g.lineTo(x + half, floor); g.lineTo(x - half, floor); g.closePath(); g.fill();
-        // and the pool it throws
-        const pool = g.createRadialGradient(x, floor, 0, x, floor, half);
-        pool.addColorStop(0, col(0.34 * live)); pool.addColorStop(1, col(0));
-        g.fillStyle = pool;
-        g.beginPath(); g.ellipse(x, floor, half, H * 0.06, 0, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.moveTo(lamp.x, lamp.y); g.lineTo(l.x, l.y); g.lineTo(r2.x, r2.y);
+        g.closePath(); g.fill();
       }
-      // the lamp itself
-      g.fillStyle = col(0.25 + 0.75 * live);
-      g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
+      // the lamp body, and a little glow off it
+      g.fillStyle = col(0.3 + 0.7 * live);
+      g.beginPath(); g.arc(lamp.x, lamp.y, 6.5, 0, Math.PI * 2); g.fill();
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = 'rgba(230,238,255,.55)';
+      g.font = '600 11px system-ui, sans-serif'; g.textAlign = 'center';
+      g.fillText(f.name, lamp.x, lamp.y - 13);
+      g.globalCompositeOperation = 'lighter';
     }
     g.globalCompositeOperation = 'source-over';
-    g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(0, floor); g.lineTo(W, floor); g.stroke();
-    g.beginPath(); g.moveTo(0, H * 0.13); g.lineTo(W, H * 0.13); g.stroke();
   },
   netState(f){
     for (const n of (this.net || [])) if (n.id === f.id)
@@ -24035,8 +24240,47 @@ const RIG = {
         card.appendChild(row);
         rows.push({ fill, v });
       }
+      /* THE FADER AND THE COLOURS — the board half of the card. Taking a
+         fixture by hand is one click, and giving it back is the same click,
+         because on a real board the question "is this channel mine or the
+         cue's" must be answerable at a glance. */
+      const board = document.createElement('div');
+      board.className = 'rig-board';
+      const take = document.createElement('button');
+      take.type = 'button'; take.className = 'rig-take';
+      const fader = document.createElement('input');
+      fader.type = 'range'; fader.min = '0'; fader.max = '100'; fader.value = '100';
+      fader.className = 'rig-fader';
+      fader.setAttribute('aria-label', f.name + ' level');
+      const sws = document.createElement('div'); sws.className = 'rig-sws';
+      const COLS = [
+        ['#ffffff', 1, 1, 1], ['#ff2d2d', 1, 0.05, 0.05], ['#ff8a1e', 1, 0.42, 0.06],
+        ['#ffe14d', 1, 0.85, 0.15], ['#3dff7a', 0.12, 1, 0.4], ['#28e0ff', 0.1, 0.82, 1],
+        ['#3d6bff', 0.15, 0.3, 1], ['#c14dff', 0.7, 0.2, 1], ['#ff4dc4', 1, 0.2, 0.72],
+      ];
+      const setMan = patch => {
+        this.manual[f.id] = Object.assign({}, this.manual[f.id] || {}, patch);
+        take.classList.add('on'); take.textContent = 'On the fader';
+      };
+      for (const [hex, r, gg, b] of COLS){
+        const sb = document.createElement('button');
+        sb.type = 'button'; sb.style.background = hex; sb.title = hex;
+        sb.setAttribute('aria-label', 'Set ' + f.name + ' to ' + hex);
+        sb.addEventListener('click', () => setMan({ r, g: gg, b }));
+        sws.appendChild(sb);
+      }
+      fader.addEventListener('input', () => setMan({ dim: Number(fader.value) / 100 }));
+      take.textContent = 'Following the music';
+      take.addEventListener('click', () => {
+        if (this.manual[f.id]){
+          delete this.manual[f.id];
+          take.classList.remove('on'); take.textContent = 'Following the music';
+        } else setMan({ dim: Number(fader.value) / 100 });
+      });
+      board.appendChild(take); board.appendChild(fader); board.appendChild(sws);
+      card.appendChild(board);
       box.appendChild(card);
-      f._ui = { sw, rows };
+      f._ui = { sw, rows, take };
     }
   },
   paintChans(){
