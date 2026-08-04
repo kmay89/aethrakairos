@@ -540,6 +540,110 @@ if (want('wall')){
   await ctx.close();
 }
 
+/* ---------------------------------------------------------------- native
+ * THE BUG, REPORTED FROM A REAL MAC WITH A REAL MONITOR: the corner windows
+ * could not be got out of the app. `↗` reached for window.open, which is the
+ * one call the shell's WebKit view answers with null, so the only reply was a
+ * sentence about popup settings that no setting could fix — the same dead end
+ * the corner stage was built to escape, left standing in the one place it
+ * mattered most.
+ *
+ * The shell is stubbed here rather than run: what is being tested is that the
+ * player ASKS it, asks it for the right monitor, and believes the answer. */
+if (want('native')){
+  console.log('\ninside the Mac app — a corner window can get out, onto a monitor');
+  const ctx = await browser.newContext({ userAgent: NATIVE_UA });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    for (const k of ['prompt', 'confirm', 'alert'])
+      window[k] = () => { window.__rogueDialog = k; throw new Error('window.' + k); };
+    window.__calls = [];
+    window.__opened = 0;
+    const DISPLAYS = [
+      { index: 0, name: 'Built-in Liquid Retina', x: 0, y: 0, width: 1512, height: 982, scale: 2, primary: true },
+      { index: 1, name: 'LG UltraFine', x: 1512, y: -98, width: 1920, height: 1080, scale: 1, primary: false },
+    ];
+    window.__TAURI__ = {
+      core: {
+        invoke: async (cmd, args) => {
+          window.__calls.push({ cmd, args });
+          if (cmd === 'list_displays') return DISPLAYS;
+          if (cmd === 'native_info') return { version: '1.0.0', os: 'macos', caps: ['stage_pip'] };
+          if (cmd === 'open_stage') return true;
+          return null;
+        },
+      },
+      event: { listen: async () => {} },
+    };
+  });
+  await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 45000 });
+  // the shell's webview opens no second window at all — this is the whole bug
+  await page.evaluate(() => { window.open = () => { window.__opened++; return null; }; });
+
+  await page.evaluate(() => STAGE.open(2, { pip: true }));
+  await page.waitForFunction(() => document.querySelectorAll('.stage-pip').length === 2,
+    null, { timeout: 5000 });
+
+  // ↗ on the first one, and answer "the LG"
+  const out = await page.evaluate(async () => {
+    document.querySelectorAll('.stage-pip')[0].querySelectorAll('.pip-head button')[0].click();
+    await new Promise(r => setTimeout(r, 260));
+    const card = document.getElementById('askCard');
+    const body = card ? card.textContent : '';
+    document.getElementById('askInput').value = '2';
+    document.getElementById('askYes').click();
+    await new Promise(r => setTimeout(r, 300));
+    return {
+      body,
+      calls: window.__calls.filter(c => c.cmd === 'open_stage'),
+      popups: window.__opened,
+      pips: document.querySelectorAll('.stage-pip').length,
+      placed: STAGE.placed,
+      rogue: window.__rogueDialog || '',
+      wall: STAGE.wall ? STAGE.wall.map : null,
+    };
+  });
+  verdict('native: the operator is asked which monitor, by name',
+    /LG UltraFine/.test(out.body) && /Built-in/.test(out.body));
+  verdict('native: and no native dialog was reached for', !out.rogue, out.rogue || 'none');
+  verdict('native: the shell is asked for a real window on the monitor named',
+    out.calls.length === 1 && out.calls[0].args.display === 1 && out.calls[0].args.screen === 1,
+    JSON.stringify(out.calls.map(c => c.args)));
+  verdict('native: and window.open — the call the shell answers with null — is never reached',
+    out.popups === 0, out.popups + ' popup attempts');
+  verdict('native: the corner window is gone, the other one stays', out.pips === 1);
+  verdict('native: the booth remembers which monitor it filled',
+    !!out.placed.s1 && out.placed.s1.display === 1 && out.placed.s1.w === 1920,
+    JSON.stringify(out.placed.s1));
+  verdict('native: and the wall spans the monitor and the corner window at once',
+    !!out.wall && !!out.wall.s1 && !!out.wall.s2 && out.wall.s1.fw > 0.4 && out.wall.s2.fw < 0.4,
+    out.wall ? Object.keys(out.wall).map(k => k + ':' + out.wall[k].fw.toFixed(2)).join(' ') : 'no wall');
+
+  /* AND THE OTHER HALF OF THE REPORT: two monitors, two screens. This used to
+   * index displays by screen number and then clamp, which put BOTH fullscreen
+   * windows on the external monitor and left the other one dark. */
+  const both = await page.evaluate(async () => {
+    STAGE.stop();
+    window.__calls.length = 0;
+    await new Promise(r => setTimeout(r, 120));
+    await STAGE.open(2, { pip: false });
+    await new Promise(r => setTimeout(r, 200));
+    return { calls: window.__calls.filter(c => c.cmd === 'open_stage').map(c => c.args),
+      placed: STAGE.placed, wall: STAGE.wall ? STAGE.wall.map : null };
+  });
+  verdict('native: two screens on a two-monitor rig get one monitor each',
+    both.calls.length === 2 && both.calls[0].display === 0 && both.calls[1].display === 1,
+    JSON.stringify(both.calls.map(c => c.display)));
+  verdict('native: and the field spans both monitors as one wall',
+    !!both.wall && Math.abs(both.wall.s1.fw - 1512 / 3432) < 0.02
+      && Math.abs(both.wall.s2.fw - 1920 / 3432) < 0.02,
+    both.wall ? 's1 ' + both.wall.s1.fw.toFixed(3) + ' s2 ' + both.wall.s2.fw.toFixed(3) : 'no wall');
+  verdict('native: with the screens numbered left to right across the desk',
+    !!both.wall && both.wall.s1.n === 1 && both.wall.s2.n === 2);
+  await ctx.close();
+}
+
 await browser.close();
 server.close();
 if (!KEEP) rmSync(DIR, { recursive: true, force: true });
