@@ -25,7 +25,7 @@
 
 // Stamped by tools/stamp_version.py (run by publish.sh): a short hash of the
 // player file, so every player release is a new shell cache by construction.
-const VERSION = '76d0a50521';
+const VERSION = 'e54ffe0f85';
 
 const SHELL_CACHE = 'mb8-shell-' + VERSION;
 const CATALOG_CACHE = 'mb8-catalog-v1';          // unversioned: survives updates
@@ -167,6 +167,14 @@ self.addEventListener('fetch', ev => {
 
   // audio: bail out entirely — the browser's own fetch handles Range
   if (isAudio(req, url)) return;
+
+  /* the room mailbox (/api/…): a CONVERSATION, not a resource. The stage's
+   * wire polls it for WebRTC answers, and the cache-first fallback below —
+   * which ignores query strings on this origin — would answer every poll
+   * after the first from cache: the booth asks "any answers?" forever and
+   * hears the first "no" back forever, and a screen that knocked is never
+   * heard. Nothing under /api/ is ever cached or touched, on any origin. */
+  if (/\/api\//.test(url.pathname)) return;
 
   /* the shell page itself: cached INSTANTLY (second boot faster than first,
      the contract holds), revalidated in the background so the next launch —

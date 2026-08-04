@@ -4,6 +4,22 @@
     {
       "build": "unreleased",
       "date": "2026-08-04",
+      "title": "Any device is a screen — four letters, and your iPad joins the stage",
+      "notes": [
+        "type “invite” into the Stage card and you get four letters and a QR — scan it with an iPad, a phone or another laptop and that device is a screen of your stage",
+        "no pixels are streamed and nothing is mirrored: each device renders the field on its own GPU from about forty numbers a frame, sent directly between the machines — so there is no casting lag and the visuals sit on the beat",
+        "two devices are a row of two; a third walks in and the field re-cuts to thirds, live",
+        "a screen that reloads, or loses Wi‑Fi for a minute, rejoins under the same four letters by itself — same screen, same slice, nobody reads a new code aloud",
+        "the booth counts them beside its own screens, Identify puts a number on every glass, and closing the stage says goodbye to every device instead of leaving them frozen",
+        "the code is the same front door the games at kmay89.com use — the mailbox carries only the handshake, never a frame of the show, and forgets everything in fifteen minutes"
+      ],
+      "builds": [
+        "e54ffe0f85"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-08-04",
       "title": "The stage places its own windows now",
       "notes": [
         "in Chrome and Edge, stage mode can put each screen fullscreen on the monitor you name — the trick that used to need the Mac app, now behind one permission prompt on your own click",

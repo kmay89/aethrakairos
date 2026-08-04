@@ -13,7 +13,7 @@
  *           BroadcastChannel between them, and a screen that renders the booth's
  *           numbers without a catalog, a transport or a sound of its own.
  *
- *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,pages,install] [--keep]
+ *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,wire,pages,install] [--keep]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -44,10 +44,78 @@ for (const f of ['index.html', 'mac.html', 'sw.js', 'three.min.js', 'manifest.we
   if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIR, f));
 if (existsSync(join(SRC, 'icons'))) cpSync(join(SRC, 'icons'), join(DIR, 'icons'), { recursive: true });
 
+/* THE MAILBOX, IN MINIATURE. The wire's front door is an ephemeral pigeonhole
+ * (kmay89.com/api/room) that holds a WebRTC handshake under four letters —
+ * nothing else crosses it, so nothing else needs emulating. This is the same
+ * protocol the real one speaks (host/offer/join/answer/poll/close), held in a
+ * Map instead of a blob store, so the probe can watch two REAL pages shake
+ * hands and open a REAL data channel without leaving the loopback. */
+const rooms = new Map();
+function mailbox(req, res, q){
+  const say = (o, status) => {
+    res.writeHead(status || 200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(o));
+  };
+  let raw = '';
+  req.on('data', c => { raw += c; });
+  req.on('end', () => {
+    let b = {};
+    try { b = raw ? JSON.parse(raw) : {}; } catch (e){}
+    const a = q.get('a') || '';
+    if (a === 'ping') return say({ ok: true, t: Date.now() });
+    if (a === 'host'){
+      let code = b.code, key = b.key, room = code && rooms.get(code);
+      if (!room || room.key !== key){
+        key = 'k' + Math.random().toString(36).slice(2, 12);
+        code = '';
+        const AL = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        for (let i = 0; i < 4; i++) code += AL[Math.floor(Math.random() * AL.length)];
+        room = { key, seq: 0, slots: [] };
+        rooms.set(code, room);
+      } else room.slots = [];
+      room.seq++;
+      room.slots.push({ id: room.seq, offer: b.offer, claimed: false, answer: null });
+      return say({ code, key, slot: room.seq });
+    }
+    const code = String((b.code || q.get('code') || '')).toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return say({ error: 'that room has gone' }, 404);
+    if (a === 'offer'){
+      if (room.key !== b.key) return say({ error: 'not your room' }, 403);
+      room.seq++;
+      room.slots.push({ id: room.seq, offer: b.offer, claimed: false, answer: null });
+      return say({ slot: room.seq });
+    }
+    if (a === 'join'){
+      const slot = room.slots.find(s => !s.claimed);
+      if (!slot) return say({ error: 'That room is full up.' }, 409);
+      slot.claimed = true;
+      return say({ slot: slot.id, offer: slot.offer, name: 'The stage', host: 'The booth' });
+    }
+    if (a === 'answer'){
+      const slot = room.slots.find(s => s.id === b.slot);
+      if (!slot) return say({ error: 'that pigeonhole is gone' }, 404);
+      slot.answer = b.answer;
+      return say({ ok: true });
+    }
+    if (a === 'poll'){
+      if (room.key !== q.get('key')) return say({ error: 'not your room' }, 403);
+      const fresh = room.slots.filter(s => s.answer && !s.taken);
+      for (const s of fresh) s.taken = true;
+      return say({ answers: fresh.map(s => ({ slot: s.id, answer: s.answer, who: 'A screen' })),
+        free: room.slots.filter(s => !s.claimed).length });
+    }
+    if (a === 'close'){ rooms.delete(code); return say({ ok: true }); }
+    return say({ error: 'unknown request' }, 400);
+  });
+}
+
 const hits = [];
 const server = createServer((req, res) => {
   hits.push(req.url);
-  const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  const u = new URL(req.url, 'http://x');
+  const p = decodeURIComponent(u.pathname);
+  if (p === '/api/room') return mailbox(req, res, u.searchParams);
   const f = join(DIR, p === '/' ? 'index.html' : p.slice(1));
   if (!existsSync(f) || statSync(f).isDirectory()){ res.writeHead(404); res.end(); return; }
   res.writeHead(200, { 'Content-Type': MIME[extname(f)] || 'application/octet-stream',
@@ -58,7 +126,14 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader',
+    /* the wire section runs a real RTCPeerConnection over the loopback.
+     * Chromium hides host candidates behind mDNS names, and multicast does
+     * not exist inside a CI container — so the two pages would offer each
+     * other names neither can resolve and the handshake would hang. Plain
+     * addresses on the loopback are exactly what a probe wants. */
+    '--disable-features=WebRtcHideLocalIpsWithMdns',
+    '--allow-loopback-in-peer-connection'] });
 
 /* A DEAD DIALOG MUST BE AN ERROR, NOT A SILENCE. Every window.prompt/confirm/
  * alert is replaced with a throw before a line of the app runs, so any control
@@ -734,6 +809,83 @@ if (want('install')){
   verdict('install: off a Mac it is still the web-app install, hidden until offered',
     other.hidden === true && /Install/i.test(other.label || ''), JSON.stringify(other));
   await ctx.close(); await ctx2.close();
+}
+
+/* ------------------------------------------------------------------ wire
+ * FOUR LETTERS, AND ANOTHER MACHINE IS A SCREEN. Everything below runs over
+ * a REAL RTCPeerConnection between two real pages — the loopback stands in
+ * for the LAN, the miniature mailbox above stands in for kmay89.com, and
+ * nothing about the client knows the difference. What has to hold: the booth
+ * mints a code; a page told nothing but that code becomes a screen; the
+ * packet crosses the data channel and everything downstream reads it; a
+ * second device makes the wall re-cut to halves; and the booth going home is
+ * said out loud, not shown as a freeze. */
+if (want('wire')){
+  console.log('\nfour letters, and another machine is a screen');
+  const ctx = await browser.newContext();
+  const { page: booth } = await open(ctx, '/');
+
+  const minted = await booth.evaluate(async () => {
+    const r = await WIRE.host();
+    if (r) STAGE.on = true;                       // the packets flow from this frame on
+    return r && { code: r.code, base: WIRE.base };
+  });
+  verdict('wire: the booth minted four letters from the mailbox',
+    !!minted && /^[A-Z]{4}$/.test(minted.code), minted && (minted.code + ' via ' + minted.base));
+  if (!minted){ await ctx.close(); }
+  else {
+    // the "iPad": a page told nothing but the code in its address
+    const { page: pad } = await open(ctx, '/?stage=screen&join=' + minted.code);
+    await booth.waitForFunction('WIRE.count() >= 1', null, { timeout: 30000 });
+    verdict('wire: a device knocked and was adopted', true);
+    const who = await pad.evaluate(() => ({
+      role: STAGE.cfg.role, id: STAGE.cfg.id, linked: WIRE.linked,
+      body: document.body.classList.contains('stage-screen'),
+    }));
+    verdict('wire: and it is a screen, not a second booth', who.role === 'screen' && who.body);
+    verdict('wire: with an identity of its own minting, not a URL\'s',
+      /^n/.test(who.id), who.id);
+
+    // the packet crosses the channel and everything downstream reads it
+    await pad.waitForFunction('STAGE.seenAt > 0 && STAGE.last && STAGE.last.f', null, { timeout: 20000 });
+    const heard = await pad.evaluate(() => ({
+      offset: Number.isFinite(STAGE.offset),
+      waiting: !document.getElementById('stageWait').hidden,
+      cutOf: STAGE.cut ? STAGE.cut.of : 1,
+    }));
+    verdict('wire: the booth\'s ears reach the far machine', true);
+    verdict('wire: and the clocks are being reconciled', heard.offset);
+    verdict('wire: the waiting card left when the booth spoke', !heard.waiting);
+
+    // a second device walks in, and the wall re-cuts to halves — live
+    const { page: pad2 } = await open(ctx, '/?stage=screen&join=' + minted.code);
+    await booth.waitForFunction('WIRE.count() >= 2', null, { timeout: 30000 });
+    await pad.waitForFunction('STAGE.cut && STAGE.cut.of === 2', null, { timeout: 15000 });
+    const halves = await Promise.all([
+      pad.evaluate(() => ({ fx: STAGE.cut.fx, fw: STAGE.cut.fw, n: STAGE.cut.n })),
+      pad2.evaluate(() => STAGE.cut ? { fx: STAGE.cut.fx, fw: STAGE.cut.fw, n: STAGE.cut.n } : null),
+    ]);
+    verdict('wire: two devices are a row of two, cut at the join',
+      Math.abs(halves[0].fw - 0.5) < 1e-6 && halves[0].n === 1
+      && !!halves[1] && Math.abs(halves[1].fx - 0.5) < 1e-6 && halves[1].n === 2,
+      JSON.stringify(halves));
+    const counted = await booth.evaluate(() => {
+      STAGE.setMini(true);
+      STAGE.paint();
+      return document.getElementById('miniScreens').textContent;
+    });
+    verdict('wire: the booth counts them beside its own', /2 screens/.test(counted)
+      && /over the wire/.test(counted), counted);
+
+    // the booth goes home: said on the ordered channel, shown as words
+    await booth.evaluate(() => STAGE.stop());
+    await pad.waitForFunction(
+      '!document.getElementById("stageWait").hidden', null, { timeout: 10000 });
+    const why = await pad.evaluate(() => document.getElementById('stageWaitWhy').textContent);
+    verdict('wire: a booth that leaves says so — the screen never just freezes',
+      /closed|stopped/.test(why), why);
+    await ctx.close();
+  }
 }
 
 await browser.close();

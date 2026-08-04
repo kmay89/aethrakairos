@@ -39,6 +39,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal, stagePlan,' +
+  ' stageCodeTidy, stageCodeIs, stageNetWall,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
@@ -2651,7 +2652,13 @@ test('stageSlice: the slices tile the field exactly once, with no gap and no ove
   assert.ok(S.stageSlice(0, 3).fw > 0);
 });
 test('stageRole: a screen is configured entirely by its own address', () => {
-  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto', id: 's1' });
+  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto', join: null, id: 's1' });
+  // four letters in the address are a knock on another booth's door; a scan
+  // of an invite QR is exactly this URL, so scanning IS joining
+  assert.equal(S.stageRole('?stage=screen&join=buzz').join, 'BUZZ');
+  assert.equal(S.stageRole('?stage=screen&join=R0CK').join, 'ROCK', 'a misheard 0 is an O');
+  assert.equal(S.stageRole('?stage=screen&join=nope!').join, null, 'junk is not a code');
+  assert.equal(S.stageRole('?stage=screen').join, null);
   // identity travels in the address, because it has to outlive a renumbering
   assert.equal(S.stageRole('?stage=screen&screen=2&of=3').id, 's2', 'a screen with no id gets one from its number');
   assert.equal(S.stageRole('?stage=screen&screen=2&of=3&id=pip7').id, 'pip7');
@@ -2810,6 +2817,41 @@ test('stagePlan: screens are dealt to monitors in reading order, and the booth k
   for (const bad of [null, undefined, [null], [{}]])
     assert.doesNotThrow(() => S.stagePlan(bad, 2, 0));
   assert.ok(S.stagePlan(desk, NaN, 0).length === 1, 'a countless ask is one screen');
+});
+test('stageCodeTidy/Is: four letters are a door, a number is a count, and 0/1 are misheard letters', () => {
+  assert.equal(S.stageCodeTidy('buzz'), 'BUZZ');
+  assert.equal(S.stageCodeTidy('  b u-z z  '), 'BUZZ');
+  // read aloud, 0 is O and 1 is I — the mailbox never mints I or O, so a
+  // typed digit is a misheard letter and is put back as one
+  assert.equal(S.stageCodeTidy('R0CK'), 'ROCK');
+  assert.equal(S.stageCodeTidy('F1RE'), 'FIRE');
+  assert.equal(S.stageCodeTidy('TOOLONG'), 'TOOL');
+  assert.ok(S.stageCodeIs('BUZZ') && S.stageCodeIs(' buzz '));
+  // a count of screens must never be mistaken for a knock
+  assert.ok(!S.stageCodeIs('3') && !S.stageCodeIs('12') && !S.stageCodeIs('0'));
+  // nor a half-typed word, nor a code-with-junk — tidy would mangle both
+  assert.ok(!S.stageCodeIs('BUZ') && !S.stageCodeIs('BUZZY') && !S.stageCodeIs('BU-ZZ'));
+  for (const bad of [null, undefined, 7, {}])
+    assert.doesNotThrow(() => { S.stageCodeTidy(bad); S.stageCodeIs(bad); });
+});
+test('stageNetWall: screens with no desk form a wall of their own, in join order', () => {
+  // one device is the whole field
+  const one = S.stageNetWall(['na']);
+  assert.equal(one.na.of, 1);
+  assert.ok(one.na.fw > 0.999 && one.na.fh > 0.999);
+  // two devices are a row of two — the first to join is the left half
+  const two = S.stageNetWall(['na', 'nb']);
+  assert.ok(Math.abs(two.na.fw - 0.5) < 1e-9 && Math.abs(two.na.fx) < 1e-9);
+  assert.ok(Math.abs(two.nb.fx - 0.5) < 1e-9 && two.nb.n === 2 && two.nb.of === 2);
+  // walk in with a third and everyone re-cuts to thirds
+  const three = S.stageNetWall(['na', 'nb', 'nc']);
+  assert.ok(Math.abs(three.nb.fx - 1 / 3) < 1e-9 && Math.abs(three.nb.fw - 1 / 3) < 1e-9);
+  // the slices tile: offsets and widths sum to the whole
+  const sum = three.na.fw + three.nb.fw + three.nc.fw;
+  assert.ok(Math.abs(sum - 1) < 1e-9);
+  assert.deepEqual(S.stageNetWall([]), {});
+  for (const bad of [null, undefined, [null]])
+    assert.doesNotThrow(() => S.stageNetWall(bad));
 });
 test('stageMoved: a window that has not moved must not cost a message', () => {
   const a = { x: 10, y: 20, w: 300, h: 200 };
