@@ -1250,19 +1250,6 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 .meter i.on{background:var(--ink);border-color:var(--ink);transform:scale(1.25)}
 .meter i:first-child.on{background:var(--pi);border-color:var(--pi);transform:scale(1.35)}
 
-/* -------- the dwell ring: the gaze, answered -------- */
-#dwellRing{
-  position:fixed;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
-  pointer-events:none;z-index:60;display:none;opacity:.85;
-  background:conic-gradient(var(--e) calc(var(--p,0)*1turn), rgba(110,231,255,.12) 0);
-  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
-  mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
-}
-#dwellRing.charging{display:block}
-#dwellRing.fired{display:block;background:var(--e);
-  -webkit-mask:none;mask:none;opacity:.0;transform:scale(1.8);
-  transition:opacity .5s,transform .5s}
-
 /* -------- prefers-contrast: the chrome firms up -------- */
 @media (prefers-contrast:more){
   :root{
@@ -2677,9 +2664,8 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     the music by eye — nowhere more plainly than in <b>PULSE</b>, the visual meter: the
     bass is the ground, the melody is the ribbon, the percussion lands as ticks, and the bar itself is
     drawn as four circles with the downbeat heavier, so you can see the next hit <i>coming</i>. The HUD
-    carries the same meter beside the scene dots. Rest the pointer anywhere on the field and a ring
-    charges — hold it and the field answers with a soft bloom; an eye-tracker or head pointer gets the
-    same reply a hand gets, and <kbd>E</kbd> is the one-key equivalent. <b>CALM</b> tightens the flash
+    carries the same meter beside the scene dots. <kbd>E</kbd> nudges the field — a soft bloom, on
+    request, for anyone steering without a hand on the pointer. <b>CALM</b> tightens the flash
     governor (a WCAG&nbsp;2.3.1 luminance gate that is always on — no scene can strobe past it) and it
     engages automatically when the system asks for reduced motion, opening in PULSE, a room designed for
     that request rather than a dimmed copy of someone else's. <b>FEEL</b>, where the device supports it,
@@ -2962,7 +2948,6 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     <a class="bp-go" id="bpGo" href="https://echoesofplay.com/" target="_blank" rel="noopener noreferrer">Take a break →</a>
   </div>
 </div>
-<div id="dwellRing" aria-hidden="true"></div>
 <div id="plChooser" role="menu" aria-label="Add to playlist"></div>
 <div id="webglFail"><div>Aethra Kairos needs WebGL to render the field,<br>and this browser has it disabled.<br><br>Audio playback still works — try enabling hardware acceleration.</div></div>
 
@@ -5613,13 +5598,37 @@ const ASK = {
     if (scrim){ scrim.hidden = false; scrim.classList.add('in'); }
     card.classList.add('in');
     const finish = v => this._close(v);
-    yes.onclick = () => finish(o.input ? input.value : '');
+    /* THE SYNCHRONOUS HOOK, AND WHY IT HAS TO EXIST.
+
+       This card resolves a promise, so every caller reads its answer after an
+       `await` — which means the caller's code runs in a microtask AFTER this
+       click handler has returned. For almost everything that is fine. For
+       window.open it is fatal: a browser only treats a popup as wanted while
+       the click that asked for it is still on the stack, and Safari is
+       strictest of all. Stage mode's "open N windows" was blocked every single
+       time for exactly this reason — the gesture was spent by the await that
+       read the number the operator had just typed.
+
+       So a caller that must act WHILE the click is live passes onYes, which is
+       invoked here, synchronously, before the promise is resolved.
+
+       EVERY yes goes through submit(), including the Enter key. Typing a number
+       and pressing Return is how most people answer a one-field card, and that
+       path used to call finish() directly — so the hook fired for the button
+       and not for the keyboard, which is the same bug again for anyone who
+       never reaches for the mouse. A keydown carries user activation exactly
+       like a click does; the only thing that ever spent it was the await. */
+    const submit = v => {
+      if (typeof o.onYes === 'function'){ try { o.onYes(v); } catch (e){} }
+      finish(v);
+    };
+    yes.onclick = () => submit(o.input ? input.value : '');
     no.onclick = () => finish(null);
     if (scrim) scrim.onclick = () => finish(null);
     this._key = ev => {
       if (ev.key === 'Escape'){ ev.preventDefault(); finish(null); }
       else if (ev.key === 'Enter' && (o.input || document.activeElement !== no)){
-        ev.preventDefault(); finish(o.input ? input.value : '');
+        ev.preventDefault(); submit(o.input ? input.value : '');
       }
     };
     document.addEventListener('keydown', this._key, true);
@@ -13598,7 +13607,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '84846a07ed';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '76f223fcb5';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -16125,16 +16134,43 @@ async function stageChooser(){
     await STAGE.open(Math.max(1, Number(many) || 1), { pip: true });
     return;
   }
+  /* AND THE WINDOWS OPEN INSIDE THE CLICK. Every await between a click and a
+     window.open spends the gesture: the browser sees the call arrive on a
+     later microtask, from nobody, and blocks it. The displays lookup above was
+     already hoisted out for this reason — but the CARD ITSELF is a promise
+     too, resolved from the OK button's handler, so `await ASK.text(...)` then
+     `STAGE.open()` put every window one tick past the only click that could
+     have authorised them. Safari blocks that unconditionally; Chrome blocks it
+     often enough. onYes runs INSIDE the button's own handler, so the windows
+     are opened by the click that asked for them, and open() is handed the ones
+     that already exist rather than trying for its own. */
+  let wins = [];
   const n = await ASK.text({
     title: 'Stage mode',
     body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens.',
     value: '1', placeholder: '1', ok: 'Open the stage',
+    /* A COUNT, AND NOTHING ELSE, OPENS WINDOWS HERE. wired() is not consulted
+       even though it answers the same question: it NAVIGATES on a door code
+       and mints an invite, and this hook runs before the promise resolves —
+       so asking it here would do both of those twice. The numeric test is the
+       whole guard it needs: "invite" and a four-letter code are both NaN, and
+       0 / "pip" / "small" mean the corner windows, which need no popup. */
+    onYes: v => {
+      if (NATIVE.ready()) return;                     // the shell opens its own, natively
+      const want = Math.floor(Number(v));
+      if (!Number.isFinite(want) || want < 1) return;
+      // displays were read before the card went up, precisely so this line
+      // can place the windows without awaiting anything
+      wins = STAGE.openWindows(want, displays);       // clamps to 8 itself
+    },
   });
+  // cancelled after the windows were already up: take them back down
+  if (n === null){ for (const w of wins){ try { w.close(); } catch (e){} } wins = []; }
   if (wired(n)) return;
   const want = Number(n);
   // 0 is the small one asked for by name, on a rig that does have the screens
   if (want === 0 || /^\s*(pip|small|corner)\s*$/i.test(n)){ await STAGE.open(1, { pip: true }); return; }
-  await STAGE.open(want || 1, { displays });
+  await STAGE.open(want || 1, { displays, wins });
 }
 
 /* the mobile More menu — folds the secondary controls into one sheet */
@@ -16432,7 +16468,7 @@ window.addEventListener('keydown', ev => {
     default:
       if (k >= '1' && k <= '9') director.setScene(+k - 1, true);
       else if (k === '0') director.setScene(9, true);
-      else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, same answer as the gaze
+      else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, asked for
       else if (k === 'f' || k === 'F') TOUCHFX.cycle(); // cycle the touch-FX force (keyboard equivalent of the TOUCH chip)
       else if (k === 'i' || k === 'I') GHOST.toggle();  // let the field play itself when idle, or don't
       else if (k === 'l' || k === 'L') LENS.cycle();     // cycle the post-process lens
@@ -19351,7 +19387,6 @@ const INTERACT = {
   cv.addEventListener('pointermove', ev => {
     if (ev.pointerId === secondId){ toSecond(ev); INTERACT._idleT = 0; return; }
     toNdc(ev); INTERACT._idleT = 0;
-    DWELL.moved(ev.clientX, ev.clientY);
     if (!INTERACT.dragging) return;
     const dx = ev.clientX - INTERACT._lx, dy = ev.clientY - INTERACT._ly;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
@@ -19382,7 +19417,6 @@ const INTERACT = {
   });
   // a long-press must cycle the FX, never raise the OS text-callout / copy box
   cv.addEventListener('contextmenu', ev => ev.preventDefault());
-  cv.addEventListener('pointerleave', () => DWELL.gone());
   cv.addEventListener('wheel', ev => {
     ev.preventDefault();
     director.camTargetR = clamp(director.camTargetR + ev.deltaY * 0.03, 16, 44);
@@ -19665,58 +19699,28 @@ TOUCHFX.load();
 
 
 /* ================================================================
-   DWELL — dancing with your eyes, literally. Rest the pointer on the
-   field and a ring charges; hold it ~2.6 s and the field answers —
-   a soft shockwave and a chroma bloom through the colour conductor.
-   Eye-tracking rigs and head pointers present as a pointer, so a
-   listener who steers with their gaze gets the same reply the hand
-   gets. Fires once per park; move to re-arm. Key E is the switch-
-   access equivalent — one key, same answer. Purely additive: never
-   required, never in the way.
+   DWELL — the field, nudged. One key, E: a soft shockwave and a chroma
+   bloom through the colour conductor. It exists for switch access and
+   for anyone steering without a hand on the pointer.
+
+   IT USED TO FIRE BY ITSELF, and that is the whole story of what is not
+   here any more. Resting the pointer on the field for 0.8 s raised a
+   charging ring under the cursor and, at 2.6 s, bloomed the room. The
+   idea was that an eye-tracker or a head pointer would get the same
+   reply a hand gets. What it actually did was put a countdown under a
+   mouse that had merely been PARKED — every time you stopped to read
+   the HUD, look at the queue, or simply think, a ring started filling
+   at you. A gesture you have to keep moving to avoid is not an
+   affordance, it is a nag, and the fix for a nag is deletion rather
+   than a slower timer or a setting nobody will find.
+
+   The key stays. It was always the honest version of this: something
+   that happens because somebody asked for it.
    ================================================================ */
 const DWELL = {
-  SHOW: 0.8, CHARGE: 2.6, REARM_PX: 40,
-  x: 0, y: 0, still: 0, armed: true, present: false,
-  _ring: null, _fired: 0,
-  ring(){ return this._ring || (this._ring = document.getElementById('dwellRing')); },
-  moved(cx, cy){
-    const d = Math.hypot(cx - this.x, cy - this.y);
-    if (d > 6){
-      this.still = 0;
-      if (d > this.REARM_PX) this.armed = true;
-      this.x = cx; this.y = cy;
-    }
-    this.present = true;
-  },
-  gone(){ this.present = false; this.still = 0; const r = this.ring(); if (r) r.className = ''; },
   fire(){
     INTERACT.impulse = Math.max(INTERACT.impulse, 0.55);
     COLOR.bloom = 1;                    // answered in light, through the governor
-    this.armed = false; this.still = 0; this._fired = 0.5;
-    const r = this.ring();
-    if (r){ r.className = 'fired'; }
-  },
-  update(dt){
-    const r = this.ring();
-    if (this._fired > 0){
-      this._fired -= dt;
-      if (this._fired <= 0 && r) r.className = '';
-      return;
-    }
-    if (!this.present || !this.armed || INTERACT.dragging){
-      if (r && r.className === 'charging') r.className = '';
-      return;
-    }
-    this.still += dt;
-    if (!r) return;
-    if (this.still >= this.CHARGE){ this.fire(); return; }
-    if (this.still >= this.SHOW){
-      r.className = 'charging';
-      r.style.left = this.x + 'px'; r.style.top = this.y + 'px';
-      r.style.setProperty('--p', ((this.still - this.SHOW) / (this.CHARGE - this.SHOW)).toFixed(3));
-    } else if (r.className === 'charging'){
-      r.className = '';
-    }
   },
 };
 
@@ -23944,6 +23948,49 @@ const STAGE = {
       + '?stage=screen&screen=' + i + '&of=' + of
       + '&id=' + encodeURIComponent(id || ('s' + i)) + (pip ? '&pip=1' : '');
   },
+  /* THE POPUP LOOP, ON ITS OWN, SYNCHRONOUS. Called from inside a click
+     handler — never after an await — because that is the only moment a browser
+     will open a window without calling it a popup. Returns what it managed to
+     open, so the caller can tell "blocked" from "worked" without guessing. */
+  /* OPEN THE WINDOWS, SYNCHRONOUSLY, FROM INSIDE THE CLICK.
+
+     Nothing in here awaits, and that is the entire specification. A browser
+     grants window.open on the strength of the gesture still being on the
+     stack; one await — the dialog's own promise, a displays lookup, anything —
+     and the same call is a popup from nobody. So the chooser gathers what this
+     needs BEFORE the card goes up and calls this from the OK handler itself.
+
+     `displays` is optional and, when a Chromium booth has been shown the real
+     monitors, does the placement the async path used to do: each window born
+     on the monitor it belongs to, sized to it, fullscreen where the browser
+     allows a window to be born that way. Where they are is recorded in
+     `this.placed` on the spot, so the wall is right on the very first frame
+     rather than after the windows report in. Without displays they open as a
+     row near the booth and get dragged onto the televisions by hand — the old
+     manner, which is also the only one a single-screen laptop needs. */
+  openWindows(of, displays){
+    const n = Math.max(1, Math.min(8, Math.floor(of) || 1));
+    const out = [];
+    const ds = Array.isArray(displays) && displays.length > 1 ? displays : null;
+    const plan = ds ? stagePlan(ds, n, this.boothDisplay(ds)) : null;
+    const step = Math.max(180, Math.round((screen.availWidth || 1440) / (n + 1)));
+    for (let i = 1; i <= n; i++){
+      const d = plan ? ds[plan[i - 1]] : null;
+      const feat = d
+        ? 'left=' + Math.round(d.x) + ',top=' + Math.round(d.y)
+          + ',width=' + Math.round(d.width) + ',height=' + Math.round(d.height)
+          + ',menubar=no,toolbar=no' + (d.current ? '' : ',fullscreen')
+        : 'width=1280,height=720,menubar=no,toolbar=no'
+          + ',left=' + ((i - 1) * step) + ',top=' + ((i - 1) * 24);
+      let w = null;
+      try { w = window.open(this.url(i, n, false, 's' + i), 'mb8stage' + i, feat); }
+      catch (e){ w = null; }
+      if (!w) break;                 // the first refusal is the answer for all of them
+      out.push(w);
+      if (d) this.placed['s' + i] = { display: plan[i - 1], x: d.x, y: d.y, w: d.width, h: d.height };
+    }
+    return out;
+  },
   /* open `n` screens. On the Mac the shell places a real window on a real
      display and fullscreens it there; on the web they are ordinary windows the
      operator drags onto the TVs — same page, same protocol, same picture.
@@ -23992,6 +24039,16 @@ const STAGE = {
         }
       }
     }
+    /* WINDOWS THE CALLER ALREADY OPENED, while the click was still live, take
+       precedence over every attempt to open some here. They are the same names
+       — mb8stage1..N — so re-opening would merely re-navigate the windows that
+       already exist, throwing away the placement they were born with and
+       pushing each of them into this.wins twice. Adopted before the branches
+       below so neither of them runs against a stage that is already up. */
+    if (!opened && (opts.wins || []).length){
+      for (const w of opts.wins) if (w) this.wins.push(w);
+      opened = this.wins.length;
+    }
     if (!opened && !NATIVE.ready()){
       /* THE SHELL'S TRICK, WITHOUT THE SHELL. A Chromium booth that has been
          shown the screens can do what only the Mac app could: put each window
@@ -24022,20 +24079,6 @@ const STAGE = {
       }
     }
     if (!opened){
-      /* SPREAD THEM OUT ON THE WAY. A browser that stacks three popups at the
-         identical spot leaves three windows describing one rectangle, and the
-         wall is that rectangle — all three would show the same whole field
-         until a hand pulled them apart. Opening them in a row means the cut is
-         right on the first frame, and dragging one onto a television only
-         makes it more right. */
-      const step = Math.max(180, Math.round((screen.availWidth || 1440) / (of + 1)));
-      for (let i = 1; i <= of; i++){
-        const w = window.open(this.url(i, of, false, 's' + i), 'mb8stage' + i,
-          'width=1280,height=720,menubar=no,toolbar=no'
-          + ',left=' + ((i - 1) * step) + ',top=' + ((i - 1) * 24));
-        if (w) this.wins.push(w); else break;
-      }
-      opened = this.wins.length;
       /* A BLOCKED POPUP IS NOT A DEAD END. It used to be: the app said "allow
          pop-ups" and stopped, which on the Mac shell — whose webview opens no
          second window at all — meant the stage simply could not be reached.
@@ -24112,7 +24155,7 @@ const STAGE = {
     if (n > 1) this.identify(2400);
     ACTIVITY.log('system', 'Stage mode on - ' + n + (n === 1 ? ' screen' : ' screens') + ' in this window');
     toast(why.blocked
-      ? 'A separate window was blocked — the stage opened here instead. Drag it, resize it, ⤢ for full.'
+      ? 'Separate windows were blocked by the browser — the stage opened here instead. Press ↗ on a screen to pop it out into its own window.'
       : n > 1
         ? n + ' screens, one field. Drag them around — the picture is cut where they actually are.'
         : native
@@ -25691,7 +25734,6 @@ function frame(now){
   GHOST.update(dt);
   if (STAGE.screen()) STAGE.hand();     // the booth's hand outranks a local ghost
   INTERACT.update(dt);
-  DWELL.update(dt);
   /* THE HAND, HANDED TO THE FABRIC. Nothing is drawn here any more — there is
      no stage to perform on. These uniforms ARE the touch: the metric reads
      them, the particles move through it, and the light-bending pass refracts

@@ -13,7 +13,8 @@
         "loop stutter is gone: looping now hands the section to the browser's own audio loop instead of re-triggering it by hand every pass"
       ],
       "builds": [
-        "84846a07ed"
+        "84846a07ed",
+        "76f223fcb5"
       ]
     },
     {
@@ -29,7 +30,8 @@
         "the code is the same front door the games at kmay89.com use — the mailbox carries only the handshake, never a frame of the show, and forgets everything in fifteen minutes"
       ],
       "builds": [
-        "e54ffe0f85"
+        "e54ffe0f85",
+        "2b18bbdae1"
       ]
     },
     {
