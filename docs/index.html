@@ -1072,6 +1072,49 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 }
 @keyframes identIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){#stageIdent{animation:none}}
+/* ============ the rig — the room's lamps, drawn from the wire ============
+   Not a mock-up of a light show: a MONITOR. Every cone below is drawn from
+   dmxDecode() reading the same 512 bytes the interface is sending, so a
+   channel written wrongly looks wrong here. A preview drawn from the
+   renderer's own inputs would agree with the renderer by construction —
+   including after it broke, which is the one thing a preview must not do. */
+#rig{
+  position:fixed;inset:0;z-index:95;display:none;
+  align-items:center;justify-content:center;padding:16px;
+  background:rgba(4,5,12,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+#rig.open{display:flex}
+.rig-card{
+  width:min(1000px,96vw);max-height:92vh;overflow-y:auto;
+  background:var(--glass-hard);border:1px solid var(--line);border-radius:22px;
+  padding:22px 24px 18px;box-shadow:var(--shadow);
+  scrollbar-width:thin;scrollbar-color:var(--faint) transparent;
+}
+.rig-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.rig-title{font-family:var(--serif);font-style:italic;font-size:23px;font-weight:600}
+.rig-sub{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint)}
+.rig-head .spring{flex:1}
+#rigStage{
+  width:100%;aspect-ratio:16/7;display:block;border-radius:14px;
+  border:1px solid var(--line-soft);background:#03040a;
+}
+.rig-presets{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}
+.rig-presets button{
+  padding:6px 12px;border-radius:9px;cursor:pointer;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+}
+.rig-presets button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-chans{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.rig-fx{border:1px solid var(--line-soft);border-radius:12px;padding:9px 11px;background:var(--card)}
+.rig-fx h4{margin:0 0 2px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
+.rig-fx .addr{font-size:9px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
+.rig-fx .swatch{width:9px;height:9px;border-radius:50%;flex:0 0 9px;box-shadow:0 0 8px 1px currentColor}
+.rig-ch{display:flex;align-items:center;gap:6px;font-size:9px;color:var(--faint);margin-top:3px}
+.rig-ch .nm{flex:0 0 88px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rig-ch .bar{flex:1;height:4px;border-radius:3px;background:var(--line-soft);overflow:hidden}
+.rig-ch .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.rig-ch .v{flex:0 0 26px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+.rig-foot{margin-top:10px;font-size:10px;color:var(--faint);line-height:1.6}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -1999,6 +2042,10 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9.3 9a2.8 2.8 0 1 1 3.9 2.6c-.9.4-1.2 1-1.2 1.9"/><circle cx="12" cy="17.2" r=".4" fill="currentColor"/><circle cx="12" cy="12" r="9.2"/></svg>
         <span class="lbl mob-only">Help</span>
       </button>
+      <button class="btn" id="btnRig" role="menuitem" aria-label="The rig — what the room's lamps are being told" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v4M5 7h14l-2 4H7z"/><path d="M9 11l-3 9M15 11l3 9"/></svg>
+        <span class="lbl">Rig</span>
+      </button>
       <button class="btn" id="btnStage" role="menuitem" aria-label="Stage mode — put the field on a screen of its own" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="4.4" width="14" height="10" rx="1.6"/><path d="M21.4 8.2v9a1.6 1.6 0 0 1-1.6 1.6H7.6"/></svg>
         <span class="lbl">Stage</span>
@@ -2136,6 +2183,22 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     </div>
   </div>
 </section>
+
+<!-- ============ the rig: what the lamps are being told ============ -->
+<div id="rig" class="chrome" role="dialog" aria-modal="true" aria-label="The rig — what the lamps are being told">
+  <div class="rig-card">
+    <div class="rig-head">
+      <span class="rig-title">The Rig</span>
+      <span class="rig-sub" id="rigSub">drawn from the wire</span>
+      <span class="spring"></span>
+      <button class="pl-x" id="rigClose" aria-label="Close the rig">&#10005;</button>
+    </div>
+    <canvas id="rigStage" width="1200" height="525"></canvas>
+    <div class="rig-presets" id="rigPresets" role="group" aria-label="Lighting presets"></div>
+    <div class="rig-chans" id="rigChans"></div>
+    <div class="rig-foot" id="rigFoot"></div>
+  </div>
+</div>
 
 <div id="dropOverlay"><span>Release to add to the field</span></div>
 
@@ -4580,7 +4643,10 @@ const DMX_FIXTURES = {
     beams: 18,                    // narrow beams thrown around the room
     spread: 130,                  // degrees the beam array covers
     can: { rgb: false, dimmer: false, strobe: true, spin: true, rainbow: true, colors: 7, macros: false },
-    vars: ['color', 'strobe', 'spin', 'rainbow'],
+    // IN CHANNEL ORDER, and checked against the manual by a test. A label
+    // that names the wrong channel is worse than no label: it is a console
+    // confidently reporting a fixture doing something it is not.
+    vars: ['strobe', 'color', 'rainbow', 'spin'],
   },
   /* VENUE ThinTri 38 — a flat RGB wash. True colour mixing, a real dimmer,
      and two interlocks that bite:
@@ -4601,7 +4667,7 @@ const DMX_FIXTURES = {
     beams: 1,
     spread: 30,
     can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: true },
-    vars: ['red', 'green', 'blue', 'dimmer', 'strobe', 'mode', 'dimmerCurve', 'macro'],
+    vars: ['red', 'green', 'blue', 'macro', 'strobe', 'mode', 'dimmer', 'dimmerCurve'],
   },
   /* PHILIPS HUE — the same show, on a wire that is not a wire.
 
@@ -23750,6 +23816,252 @@ const STAGE = {
   },
 };
 
+/* ================================================================
+   §8aa · THE RIG — the lamps, drawn from the bytes they are being sent
+
+   A monitor, not a mock-up. Every cone here is drawn from dmxDecode()
+   reading the same 512 bytes an interface would be sending, so a channel
+   written wrongly looks wrong on screen. Draw it from the renderer's own
+   inputs instead and the preview agrees with the renderer by construction —
+   including after the renderer breaks, which is the one thing a preview must
+   not do. It is also the only way to work on a rig with no rig plugged in,
+   which is where most of this gets built.
+   ================================================================ */
+const RIG = {
+  on: false,
+  preset: 'auto',
+  rig: null, patched: null,
+  frame: null,
+  spin: [],                  // accumulated beam angle per fixture, radians
+  strobeT: 0,
+  _acc: 0,
+
+  /* THE ROOM AS SHIPPED: the three lamps this was built against, hung the way
+     they would actually be hung — washes out at the edges, the moonflower in
+     the middle where its beams reach both walls. Addresses are the DMX
+     defaults so a rig straight out of its boxes lights up without anyone
+     opening a menu on the back of a fixture. */
+  defaults(){
+    return [
+      { id: 'wash-l', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 1, x: -0.66, name: 'Wash L' },
+      { id: 'flower', key: 'adj-mystic-led', mode: '4ch', role: 'beam', at: 9, x: 0, name: 'Moonflower' },
+      { id: 'wash-r', key: 'venue-thintri-38', mode: '8ch', role: 'wash', at: 13, x: 0.66, name: 'Wash R' },
+    ];
+  },
+  boot(){
+    this.rig = this.defaults();
+    this.patched = dmxPatch(this.rig);
+    this.spin = this.patched.map(() => 0);
+    const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
+    on('rigClose', () => this.open(false));
+    on('btnRig', () => this.open());
+    this.buildPresets();
+  },
+  open(v){
+    const box = document.getElementById('rig');
+    if (!box) return;
+    this.on = v == null ? !box.classList.contains('open') : !!v;
+    box.classList.toggle('open', this.on);
+    const chip = document.getElementById('btnRig');
+    if (chip){ chip.classList.toggle('on', this.on); chip.setAttribute('aria-pressed', String(this.on)); }
+    if (this.on){ this.buildChans(); this.paintFoot(); }
+  },
+  buildPresets(){
+    const box = document.getElementById('rigPresets');
+    if (!box || box.childElementCount) return;
+    const add = (key, label) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = label; b.dataset.k = key;
+      b.addEventListener('click', () => { this.preset = key; this.paintPresets(); });
+      box.appendChild(b);
+    };
+    add('auto', 'Auto');
+    for (const k of DMX_PRESET_ORDER) add(k, DMX_PRESETS[k].name);
+    this.paintPresets();
+  },
+  paintPresets(){
+    const box = document.getElementById('rigPresets');
+    if (!box) return;
+    for (const b of box.querySelectorAll('button')) b.classList.toggle('on', b.dataset.k === this.preset);
+  },
+
+  /* the show, as this frame's lamps see it. Everything here the player already
+     worked out to draw the picture — nothing is measured twice, and nothing is
+     guessed at from a microphone. */
+  show(){
+    const chord = [];
+    try {
+      for (const c of (COLOR.now || []).slice(0, 3)){
+        const [r, g, b] = oklchToRgb(c.l, c.c, c.h);
+        chord.push({ r: r / 255, g: g / 255, b: b / 255 });
+      }
+    } catch (e){}
+    if (!chord.length) chord.push({ r: 1, g: 0.72, b: 0.33 });
+    const playing = !!(typeof player !== 'undefined' && player.playing);
+    return {
+      chord,
+      energy: Number(AE.f.energy) || 0,
+      beat: Number(AE.f.beat) || 0,
+      pulse: (typeof DANCE !== 'undefined' ? Number(DANCE.pulse) : 0) || 0,
+      phrase: (typeof DANCE !== 'undefined' ? Number(DANCE.phraseFrac) : 0) || 0,
+      phase: (typeof director !== 'undefined' ? director.phase : 'flow'),
+      silent: !playing,
+      preset: this.preset === 'auto' ? null : this.preset,
+      master: 1,
+    };
+  },
+  /* one turn of the whole chain — show → intents → 512 bytes → what each lamp
+     is now doing. Called at the rate the wire runs at, not the rate the screen
+     does: a lamp is not smoother for being told twice in a frame. */
+  step(now, dt){
+    if (!this.patched) return;
+    if (now - this._acc < 25) return;
+    this._acc = now;
+    const intents = dmxShowIntents(this.show(), this.patched);
+    this.frame = dmxRender(this.patched, intents);
+    this.net = dmxRenderNet(this.patched, intents);
+    this.strobeT += dt;
+    // the beams turn because a decoded spin says they are turning
+    this.patched.forEach((f, i) => {
+      const d = dmxDecode(f, this.frame);
+      if (d && d.spin) this.spin[i] = (this.spin[i] || 0) + d.spin * dt * 3.4;
+    });
+    if (this.on){ this.draw(); this.paintChans(); }
+  },
+
+  /* ---------------- the picture ---------------- */
+  draw(){
+    const cv = document.getElementById('rigStage');
+    if (!cv || !this.frame) return;
+    const g = cv.getContext('2d');
+    if (!g) return;
+    const W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+    // the room: a back wall that catches the light, and a floor
+    g.fillStyle = '#03040a'; g.fillRect(0, 0, W, H);
+    const floor = H * 0.86;
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < this.patched.length; i++){
+      const f = this.patched[i];
+      const d = f.wire === 'net' ? this.netState(f) : dmxDecode(f, this.frame);
+      if (!d) continue;
+      const prof = dmxProfile(f.key) || {};
+      const x = W / 2 + (f.x || 0) * (W * 0.40);
+      const y = H * 0.13;
+      // a strobing lamp is dark for part of its cycle, and the preview says so
+      let live = d.dim;
+      if (d.strobeHz > 0){
+        const ph = (this.strobeT * d.strobeHz) % 1;
+        live = d.dim * (ph < 0.42 ? 1 : 0.06);
+      }
+      const col = (a) => 'rgba(' + Math.round(d.r * 255) + ',' + Math.round(d.g * 255) + ','
+        + Math.round(d.b * 255) + ',' + a.toFixed(3) + ')';
+      if (prof.kind === 'moonflower'){
+        const n = prof.beams || 18;
+        const spread = (prof.spread || 130) * Math.PI / 180;
+        for (let k = 0; k < n; k++){
+          const a = -Math.PI / 2 + (k / n - 0.5) * spread * 2 + (this.spin[i] || 0);
+          const len = H * 0.95;
+          const ex = x + Math.cos(a + Math.PI / 2) * len, ey = y + Math.sin(a + Math.PI / 2) * len;
+          const grd = g.createLinearGradient(x, y, ex, ey);
+          grd.addColorStop(0, col(0.5 * live));
+          grd.addColorStop(1, col(0));
+          g.strokeStyle = grd; g.lineWidth = 3.5; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(x, y); g.lineTo(ex, ey); g.stroke();
+        }
+      } else if (prof.kind === 'bulb'){
+        const r = W * 0.16 * (0.5 + live);
+        const grd = g.createRadialGradient(x, y + H * 0.2, 0, x, y + H * 0.2, r);
+        grd.addColorStop(0, col(0.5 * live)); grd.addColorStop(1, col(0));
+        g.fillStyle = grd;
+        g.beginPath(); g.arc(x, y + H * 0.2, r, 0, Math.PI * 2); g.fill();
+      } else {
+        // a wash: a broad cone opening onto the floor
+        const half = Math.tan(((prof.spread || 30) * Math.PI / 180)) * (floor - y) + W * 0.06;
+        const grd = g.createLinearGradient(x, y, x, floor);
+        grd.addColorStop(0, col(0.46 * live)); grd.addColorStop(1, col(0.02 * live));
+        g.fillStyle = grd;
+        g.beginPath(); g.moveTo(x - 9, y); g.lineTo(x + 9, y);
+        g.lineTo(x + half, floor); g.lineTo(x - half, floor); g.closePath(); g.fill();
+        // and the pool it throws
+        const pool = g.createRadialGradient(x, floor, 0, x, floor, half);
+        pool.addColorStop(0, col(0.34 * live)); pool.addColorStop(1, col(0));
+        g.fillStyle = pool;
+        g.beginPath(); g.ellipse(x, floor, half, H * 0.06, 0, 0, Math.PI * 2); g.fill();
+      }
+      // the lamp itself
+      g.fillStyle = col(0.25 + 0.75 * live);
+      g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+    g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, floor); g.lineTo(W, floor); g.stroke();
+    g.beginPath(); g.moveTo(0, H * 0.13); g.lineTo(W, H * 0.13); g.stroke();
+  },
+  netState(f){
+    for (const n of (this.net || [])) if (n.id === f.id)
+      return { r: n.r, g: n.g, b: n.b, dim: n.dim, strobeHz: 0, spin: 0 };
+    return null;
+  },
+
+  /* ---------------- the numbers ---------------- */
+  buildChans(){
+    const box = document.getElementById('rigChans');
+    if (!box) return;
+    box.textContent = '';
+    for (const f of this.patched){
+      const prof = dmxProfile(f.key) || {};
+      const card = document.createElement('div');
+      card.className = 'rig-fx';
+      const h = document.createElement('h4');
+      const sw = document.createElement('span'); sw.className = 'swatch';
+      h.appendChild(sw); h.appendChild(document.createTextNode(f.name));
+      const addr = document.createElement('div');
+      addr.className = 'addr';
+      addr.textContent = f.wire === 'net' ? 'network · no address'
+        : ('ch ' + f.at + '–' + (f.at + f.span - 1) + ' · ' + f.mode);
+      card.appendChild(h); card.appendChild(addr);
+      const rows = [];
+      for (let c = 1; c <= f.span; c++){
+        const row = document.createElement('div');
+        row.className = 'rig-ch';
+        const nm = document.createElement('span'); nm.className = 'nm';
+        nm.textContent = (prof.vars && prof.vars[c - 1]) || ('ch ' + c);
+        const bar = document.createElement('span'); bar.className = 'bar';
+        const fill = document.createElement('i');
+        const v = document.createElement('span'); v.className = 'v';
+        bar.appendChild(fill);
+        row.appendChild(nm); row.appendChild(bar); row.appendChild(v);
+        card.appendChild(row);
+        rows.push({ fill, v });
+      }
+      box.appendChild(card);
+      f._ui = { sw, rows };
+    }
+  },
+  paintChans(){
+    if (!this.frame) return;
+    for (const f of this.patched){
+      if (!f._ui) continue;
+      const d = f.wire === 'net' ? this.netState(f) : dmxDecode(f, this.frame);
+      if (d) f._ui.sw.style.color = 'rgb(' + Math.round(d.r * 255 * d.dim) + ','
+        + Math.round(d.g * 255 * d.dim) + ',' + Math.round(d.b * 255 * d.dim) + ')';
+      for (let c = 0; c < f._ui.rows.length; c++){
+        const val = this.frame[f.at - 1 + c] || 0;
+        f._ui.rows[c].fill.style.width = (val / 255 * 100).toFixed(1) + '%';
+        f._ui.rows[c].v.textContent = val;
+      }
+    }
+  },
+  paintFoot(){
+    const n = document.getElementById('rigFoot');
+    if (!n) return;
+    const used = dmxUniverseUsed(this.patched);
+    n.textContent = 'Every bar above is a byte this frame would send. '
+      + used + ' of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.';
+  },
+};
+
 function frame(now){
   requestAnimationFrame(frame);
   if (!three_ok) return;
@@ -23968,6 +24280,7 @@ function frame(now){
   }
 
   STAGE.push(now);                     // ~30 Hz, and nothing at all unless a screen is lit
+  RIG.step(now, dt);                   // and the lamps, at the rate the wire runs at
   // and the wall, on the frame a corner window moves — the booth reads its own
   // picture-in-picture rectangles here rather than waiting to be told
   if (STAGE.on && STAGE.pips.length) STAGE.pushWall();
@@ -24439,6 +24752,7 @@ const MACPROMO = {
   ACTIVITY.log('system', 'Opened - build ' + MB8_BUILD);
   NATIVE.boot();                 // the shell answers, or nothing does
   STAGE.boot();
+  try { RIG.boot(); } catch (e){}      // no rig is not a reason not to boot
 
   /* A STAGE SCREEN IS NOT A PLAYER. It loads no catalog (that is megabytes, on
      every TV, for a library it will never show), restores no queue, and runs no
