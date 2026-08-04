@@ -57,6 +57,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss,' +
+  ' WARM_HUES, warmHue, warmBlend, WARM_PULL, warmDeal, togetherness, warmSpark, beatGrace, SCENE_SIGS, sceneSig,' +
   ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaFlow, lavaK6, lavaKS, lavaW, lavaGradW,' +
   ' lavaCohesion, lavaRestDensity, lavaRestGrad, lavaCohesionScale, lavaBudget,' +
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError };';
@@ -4568,6 +4569,136 @@ test('makeLava: the same seed is the same lamp, twice', () => {
     return s;
   };
   assert.equal(run(), run(), 'deterministic from the seed');
+});
+
+
+/* ---------------- the warm-up: joining as something you DO ---------------- */
+
+test('warmBlend: hues are angles, and the wrap is where the room lives', () => {
+  // the whole reason this is not an average. 350 and 10 meet at 0, and an
+  // arithmetic mean would answer 180 — the exact opposite colour, on the one
+  // pair of picks half a room actually makes.
+  const b = S.warmBlend([{ h: 350, c: 0.16 }, { h: 10, c: 0.16 }]);
+  const off = Math.min(Math.abs(b.h - 0), Math.abs(b.h - 360));
+  assert.ok(off < 1e-6, 'met at red, not at cyan: ' + b.h.toFixed(3));
+});
+
+test('warmBlend: agreement and scatter are told apart', () => {
+  const same = S.warmBlend([{ hue: 4 }, { hue: 4 }, { hue: 4 }]);
+  assert.ok(same.spread < 1e-6, 'a room that agrees has no spread');
+  // four picks at the compass points cancel: no direction at all
+  const wide = S.warmBlend([{ h: 0, c: 0.16 }, { h: 90, c: 0.16 },
+                            { h: 180, c: 0.16 }, { h: 270, c: 0.16 }]);
+  assert.ok(wide.spread > 0.99, 'a room pulling four ways is scatter: ' + wide.spread.toFixed(3));
+  assert.equal(wide.voices, 4);
+});
+
+test('warmBlend: standing in the room without steering it', () => {
+  const bone = S.WARM_HUES[S.WARM_HUES.length - 1];
+  assert.equal(bone.c, 0, 'the last swatch carries no colour');
+  const with_ = S.warmBlend([{ h: 200, c: 0.15 }, bone, bone]);
+  const alone = S.warmBlend([{ h: 200, c: 0.15 }]);
+  assert.ok(Math.abs(with_.h - alone.h) < 1e-9, 'colourless picks never drag the mean');
+  assert.equal(with_.n, 3, 'but they are in the room');
+  assert.equal(with_.voices, 1, 'and not in the vote');
+});
+
+test('warmBlend: nobody, and nobody with a colour', () => {
+  assert.deepEqual(S.warmBlend([]), { h: 0, c: 0, n: 0, spread: 0, voices: 0 });
+  assert.deepEqual(S.warmBlend(null), { h: 0, c: 0, n: 0, spread: 0, voices: 0 });
+  const q = S.warmBlend([{ h: 10, c: 0 }, { h: 300, c: 0 }]);
+  assert.equal(q.voices, 0, 'no voices');
+  assert.equal(q.n, 2, 'two people all the same');
+});
+
+test('warmHue: any index lands on a real swatch', () => {
+  for (const i of [-9, -1, 0, 3, 7, 8, 99, 1.7]){
+    const e = S.warmHue(i);
+    assert.ok(S.WARM_HUES.indexOf(e) >= 0, 'index ' + i + ' is somebody');
+  }
+  assert.strictEqual(S.warmHue(NaN), S.WARM_HUES[0], 'junk gets the first, not undefined');
+  assert.strictEqual(S.warmHue(-1), S.WARM_HUES[S.WARM_HUES.length - 1], 'wraps backwards');
+});
+
+test('warmDeal: the room leans the deal, it never seizes it', () => {
+  const all = S.warmDeal([{ scene: 'lava' }, { scene: 'lava' }, { scene: 'lava' }]);
+  assert.ok(all.lava > 1, 'a unanimous room is a real thumb on the scale');
+  assert.ok(all.lava <= 1 + S.WARM_PULL + 1e-9, 'and a bounded one: ' + all.lava);
+  assert.equal(all.flame, undefined, 'a room nobody picked is untouched, not punished');
+  const split = S.warmDeal([{ scene: 'lava' }, { scene: 'halo' },
+                            { scene: 'fern' }, { scene: 'opart' }]);
+  for (const k of Object.keys(split)) assert.ok(split[k] < all.lava, k + ' moves less than unanimity');
+  assert.deepEqual(S.warmDeal([]), {}, 'nobody has picked yet: no opinion at all');
+  assert.deepEqual(S.warmDeal([{ hue: 2 }]), {}, 'a colour pick is not a scene vote');
+});
+
+test('togetherness: the meter cannot be filled alone', () => {
+  const now = 10000;
+  const drum = [];
+  for (let i = 0; i < 40; i++) drum.push({ id: 'a', at: now - i * 20 });
+  assert.equal(S.togetherness(drum, now, 1200).v, 0, 'one thumb, however fast');
+  assert.equal(S.togetherness(drum, now, 1200).n, 1);
+  const four = [{ id: 'a', at: now - 100 }, { id: 'b', at: now - 300 },
+                { id: 'c', at: now - 800 }, { id: 'd', at: now - 1100 }];
+  assert.equal(S.togetherness(four, now, 1200).v, 1, 'four hands is the room');
+  assert.ok(S.togetherness(four.slice(0, 2), now, 1200).v > 0, 'two is a start');
+  // and it decays: the same four, a moment later, are history
+  assert.equal(S.togetherness(four, now + 5000, 1200).n, 0, 'the window really is a window');
+});
+
+test('togetherness: junk in the tap list is not a hand', () => {
+  const now = 500;
+  const t = S.togetherness([null, { at: now }, { id: 'a', at: now }, { id: 'a' }], now, 1200);
+  assert.equal(t.n, 1, 'one real id; the anonymous entry is nobody');
+});
+
+test('warmSpark: a stone in water, not a loading spinner', () => {
+  assert.deepEqual(S.warmSpark(-1, 2), { r: 0, a: 0 }, 'before it happened');
+  assert.deepEqual(S.warmSpark(3, 2), { r: 0, a: 0 }, 'after it is over');
+  const early = S.warmSpark(0.25, 2), late = S.warmSpark(1.75, 2);
+  assert.ok(early.r < late.r, 'the ring only ever grows');
+  assert.ok(early.a > late.a, 'and only ever fades');
+  // the first quarter of its life covers half the distance: fast, then settling
+  assert.ok(S.warmSpark(0.5, 2).r > 0.49, 'leaves fast: ' + S.warmSpark(0.5, 2).r.toFixed(3));
+  assert.ok(S.warmSpark(2, 2).a < 1e-9, 'gone at the end, not merely faint');
+});
+
+test('beatGrace: 0.98 is early, not late', () => {
+  assert.ok(S.beatGrace(0.98, 0.16) > 0.8, 'two hundredths early is on time');
+  assert.equal(S.beatGrace(0.5, 0.16), 0, 'the far side of the beat scores nothing');
+  assert.equal(S.beatGrace(0, 0.16), 1, 'dead on');
+  assert.equal(S.beatGrace(1, 0.16), 1, 'and the wrap is dead on too');
+  assert.equal(S.beatGrace(NaN, 0.16), 0, 'no grid, no bonus, no crash');
+  // it never goes negative — being off the beat costs nothing
+  for (let p = 0; p < 1; p += 0.017) assert.ok(S.beatGrace(p, 0.16) >= 0, 'never a penalty');
+});
+
+test('dealScene: the room leans the night without seizing it', () => {
+  // two rooms, identical appetite, and a crowd that all voted for the second
+  const scenes = [{ key: 'a', taste: {} }, { key: 'b', taste: {} }];
+  const crowd = S.warmDeal([{ scene: 'b' }, { scene: 'b' }, { scene: 'b' }]);
+  let a = 0, b = 0;
+  for (let i = 0; i < 400; i++){
+    const r = i / 400;
+    if (S.dealScene({ scenes, f: {}, active: -1, r, crowd }) === 1) b++; else a++;
+  }
+  assert.ok(b > a, 'the voted room comes up more often: ' + b + ' vs ' + a);
+  assert.ok(a > 0, 'and the other one still comes up at all — a lean, not a seizure');
+  // and with nobody in the room the deal is exactly what it always was
+  let plain = 0;
+  for (let i = 0; i < 400; i++){
+    if (S.dealScene({ scenes, f: {}, active: -1, r: i / 400, crowd: S.warmDeal([]) }) === 1) plain++;
+  }
+  assert.ok(Math.abs(plain - 200) <= 1, 'an empty room is a fair coin: ' + plain + '/400');
+});
+
+test('sceneSig: every room has a thumbnail somebody can point at', () => {
+  for (const k of S.SCENE_KEYS){
+    assert.ok(S.SCENE_SIGS[k], 'no signature for scene "' + k + '" — its tile would be blank');
+    assert.ok(S.SCENE_SIGS[k].kind, k + ' has a painter');
+    assert.ok(S.SCENE_SIGS[k].h >= 0 && S.SCENE_SIGS[k].h < 360, k + ' has a hue');
+  }
+  assert.ok(S.sceneSig('a room invented tomorrow').kind, 'an unknown key still draws something');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
