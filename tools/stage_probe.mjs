@@ -393,6 +393,153 @@ if (want('slice')){
   await ctx.close();
 }
 
+/* ------------------------------------------------------------------ wall
+ * THE THING THAT CANNOT BE UNIT TESTED: that the picture follows the window.
+ *
+ * The arithmetic has its own tests — the wall is the union, a slice is a share
+ * of it, the seam is exact. What only a browser can answer is whether that
+ * arithmetic is actually WIRED to anything: whether three corner windows open
+ * at all, whether the booth is reading their real rectangles rather than a
+ * grid, whether dragging one re-cuts the field under the hand rather than on
+ * the drop, and whether the window that ends up furthest left starts calling
+ * itself screen one. */
+if (want('wall')){
+  console.log('\nthree screens on a one-screen laptop, and a field that follows them');
+  const ctx = await browser.newContext();
+  const { page: booth } = await open(ctx, '/');
+
+  await booth.evaluate(() => STAGE.open(3, { pip: true }));
+  await booth.waitForFunction(() => document.querySelectorAll('.stage-pip').length === 3,
+    null, { timeout: 5000 });
+  const up = await booth.evaluate(() => {
+    const boxes = [...document.querySelectorAll('.stage-pip')];
+    return {
+      n: boxes.length,
+      on: STAGE.on, pip: STAGE.pip, pips: STAGE.pips.length,
+      srcs: boxes.map(b => b.querySelector('iframe').getAttribute('src')),
+      titles: boxes.map(b => b.querySelector('.pip-title').textContent),
+      inView: boxes.every(b => {
+        const r = b.getBoundingClientRect();
+        return r.left >= -1 && r.top >= -1
+          && r.right <= window.innerWidth + 1 && r.bottom <= window.innerHeight + 1;
+      }),
+      // opened as a row, which is what a stage is
+      row: (() => {
+        const ys = boxes.map(b => Math.round(b.getBoundingClientRect().top));
+        return ys.every(y => Math.abs(y - ys[0]) < 2);
+      })(),
+      booth: !document.body.classList.contains('mini'),
+    };
+  });
+  verdict('wall: three screens asked for, three windows opened', up.n === 3 && up.pips === 3, up.n + ' windows');
+  verdict('wall: each is a stage screen with an identity of its own',
+    up.srcs.every((s, i) => /stage=screen/.test(s) && /pip=1/.test(s) && s.includes('id=s' + (i + 1))),
+    up.srcs[0]);
+  verdict('wall: each carries its own number where a hand can read it',
+    up.titles.every((t, i) => t.includes(String(i + 1))), up.titles.join(' | '));
+  verdict('wall: they open as a row, inside the window, with the booth left whole',
+    up.row && up.inView && up.booth);
+
+  /* THE CUT COMES FROM THE RECTANGLES, NOT FROM THE COUNT. Three windows in a
+   * row with gaps between them do NOT each get a clean third — they get their
+   * true share of the union, gaps and all, exactly as three televisions with
+   * bezels would. A layout that returned 1/3 here would be the grid wearing
+   * the wall's clothes. */
+  const wall = await booth.evaluate(() => {
+    const L = stageLayout(STAGE.rects());
+    return { map: L.map, bounds: L.bounds, ids: Object.keys(L.map) };
+  });
+  const shares = wall.ids.map(id => wall.map[id].fw);
+  verdict('wall: the booth reads all three real rectangles', wall.ids.length === 3, wall.ids.join(','));
+  verdict('wall: and cuts the field where they actually are, gaps included',
+    shares.every(f => f > 0.2 && f < 1 / 3), shares.map(f => f.toFixed(3)).join(' '));
+  verdict('wall: which tiles left to right without overlapping',
+    Math.abs(wall.map.s1.fx) < 1e-9 && wall.map.s1.fx + wall.map.s1.fw <= wall.map.s2.fx + 1e-9
+      && wall.map.s2.fx + wall.map.s2.fw <= wall.map.s3.fx + 1e-9);
+
+  /* THE EFFECT ITSELF: drag one, and the cut moves with it — on the move, not
+   * on the drop. The far side of the wall is watched, because a window dragged
+   * left widens the wall and every OTHER window's slice must shrink to match:
+   * one field, not three that happen to agree. */
+  const dragged = await booth.evaluate(async () => {
+    const before = stageLayout(STAGE.rects()).map;
+    const box = [...document.querySelectorAll('.stage-pip')][2];
+    const head = box.querySelector('.pip-head');
+    const r = box.getBoundingClientRect();
+    head.dispatchEvent(new PointerEvent('pointerdown',
+      { pointerId: 9, clientX: r.left + 30, clientY: r.top + 10, bubbles: true }));
+    head.dispatchEvent(new PointerEvent('pointermove',
+      { pointerId: 9, clientX: 34, clientY: 40, bubbles: true }));
+    // a second move past the thirty-a-second valve, so what is read below is
+    // what the booth had actually broadcast rather than what it was holding
+    await new Promise(r2 => setTimeout(r2, 80));
+    head.dispatchEvent(new PointerEvent('pointermove',
+      { pointerId: 9, clientX: 34, clientY: 40, bubbles: true }));
+    // read the wall MID-DRAG: the pointer is still down
+    await new Promise(r2 => setTimeout(r2, 60));
+    const mid = { map: stageLayout(STAGE.rects()).map, sent: JSON.parse(JSON.stringify(STAGE.wall.map)) };
+    head.dispatchEvent(new PointerEvent('pointerup',
+      { pointerId: 9, clientX: 34, clientY: 40, bubbles: true }));
+    return { before, mid: mid.map, sent: mid.sent,
+      titles: [...document.querySelectorAll('.pip-title')].map(t => t.textContent) };
+  });
+  verdict('wall: the window that moved took its slice with it',
+    dragged.mid.s3.fx < dragged.before.s3.fx - 0.1,
+    dragged.before.s3.fx.toFixed(3) + ' → ' + dragged.mid.s3.fx.toFixed(3));
+  verdict('wall: and the others re-cut around it — one field, not three pictures',
+    Math.abs(dragged.mid.s1.fw - dragged.before.s1.fw) > 1e-3,
+    dragged.before.s1.fw.toFixed(3) + ' → ' + dragged.mid.s1.fw.toFixed(3));
+  verdict('wall: the booth had already broadcast the new cut before the hand lifted',
+    !!dragged.sent.s3 && Math.abs(dragged.sent.s3.fx - dragged.mid.s3.fx) < 1e-6);
+  verdict('wall: the window now furthest left calls itself screen one',
+    dragged.mid.s3.n === 1 && /1 of 3/.test(dragged.titles[2]), dragged.titles.join(' | '));
+
+  // and the frame inside really did take the cut it was sent
+  const inner = booth.frames().find(f => /id=s1/.test(f.url()));
+  let took = null;
+  if (inner){
+    await inner.waitForFunction('window.__mb8Booted === true', null, { timeout: 45000 });
+    await booth.evaluate(() => STAGE.pushWall(true));
+    await booth.waitForTimeout(400);
+    took = await inner.evaluate(() => ({
+      cut: STAGE.cut,
+      view: camera.view ? { on: camera.view.enabled, full: camera.view.fullWidth,
+        off: camera.view.offsetX } : null,
+      w: window.innerWidth,
+    }));
+  }
+  verdict('wall: the screen took the cut the booth sent it, not the one its address implied',
+    !!took && !!took.cut && !!took.view && took.view.on
+      && Math.abs(took.view.full - took.w / took.cut.fw) < 2,
+    took ? JSON.stringify(took.cut) : 'no frame');
+
+  // which one is which, held up in letters a room away can read
+  const ident = await booth.evaluate(async () => {
+    STAGE.identify(1200);
+    await new Promise(r => setTimeout(r, 300));
+    return document.querySelectorAll('.stage-pip iframe').length;
+  });
+  let badge = null;
+  if (inner) badge = await inner.evaluate(() => {
+    const b = document.getElementById('stageIdent');
+    return b && !b.hidden ? b.querySelector('b').textContent : null;
+  });
+  verdict('wall: identify puts a number on every screen', ident === 3 && badge !== null, 'badge ' + badge);
+
+  // one screen unplugged is one screen unplugged, and the rest re-cut
+  const shut = await booth.evaluate(async () => {
+    document.querySelectorAll('.stage-pip')[2].querySelectorAll('.pip-head button')[2].click();
+    await new Promise(r => setTimeout(r, 120));
+    const L = stageLayout(STAGE.rects());
+    return { left: document.querySelectorAll('.stage-pip').length, on: STAGE.on,
+      ids: Object.keys(L.map), fw: L.map.s1.fw };
+  });
+  verdict('wall: ✕ on one of several closes that one and re-cuts the rest',
+    shut.left === 2 && shut.on && shut.ids.length === 2 && shut.fw > 0.33,
+    shut.left + ' left, s1 now ' + shut.fw.toFixed(3));
+  await ctx.close();
+}
+
 await browser.close();
 server.close();
 if (!KEEP) rmSync(DIR, { recursive: true, force: true });

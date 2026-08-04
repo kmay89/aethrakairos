@@ -38,6 +38,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
+  ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
@@ -2622,7 +2623,11 @@ test('stageSlice: the slices tile the field exactly once, with no gap and no ove
   assert.ok(S.stageSlice(0, 3).fw > 0);
 });
 test('stageRole: a screen is configured entirely by its own address', () => {
-  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto' });
+  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto', id: 's1' });
+  // identity travels in the address, because it has to outlive a renumbering
+  assert.equal(S.stageRole('?stage=screen&screen=2&of=3').id, 's2', 'a screen with no id gets one from its number');
+  assert.equal(S.stageRole('?stage=screen&screen=2&of=3&id=pip7').id, 'pip7');
+  assert.ok(S.stageRole('?stage=screen&id=' + 'x'.repeat(400)).id.length <= 24, 'an id from a URL is bounded');
   assert.equal(S.stageRole('?stage=screen').role, 'screen');
   assert.equal(S.stageRole('?stage=1').role, 'screen');
   assert.equal(S.stageRole('?catalog=x&stage=screen&screen=2&of=3').screen, 2);
@@ -2634,6 +2639,134 @@ test('stageRole: a screen is configured entirely by its own address', () => {
   for (const bad of [null, undefined, '?stage', '?=&&=', '?of=NaN&screen=-2&stage=screen'])
     assert.ok(S.stageRole(bad).screen >= 1);
 });
+/* ---------------------------------------------------------------- the wall
+ * Screens stop being numbers and become rectangles. What has to hold:
+ *   · the wall is the union of wherever the windows actually are
+ *   · a window's slice is its own share of that union, in the units
+ *     setViewOffset wants — the SAME four numbers stageSlice produces, so the
+ *     grid stays a drop-in floor under a rig that cannot report geometry
+ *   · the seam is exact: every screen must derive the identical full frustum
+ *     from its own different pixel size, or a shape crossing between two
+ *     televisions tears
+ *   · nothing here may throw, whatever a window reports about itself */
+test('stageBounds: the wall is the union of wherever the windows are', () => {
+  // a laptop and a television beside it, the television taller
+  const b = S.stageBounds([{ x: 0, y: 90, w: 1440, h: 900 }, { x: 1440, y: 0, w: 1920, h: 1080 }]);
+  assert.deepEqual({ x: b.x, y: b.y, w: b.w, h: b.h }, { x: 0, y: 0, w: 3360, h: 1080 });
+  assert.equal(b.n, 2);
+  // a monitor above and to the left of the primary display: negative is a real
+  // place on a desk, not an error
+  const up = S.stageBounds([{ x: 0, y: 0, w: 100, h: 100 }, { x: -60, y: -40, w: 50, h: 30 }]);
+  assert.deepEqual({ x: up.x, y: up.y, w: up.w, h: up.h }, { x: -60, y: -40, w: 160, h: 140 });
+  // overlapping windows describe a SMALL wall and both show most of the field —
+  // which is exactly what two corner previews on one laptop should look like
+  const lap = S.stageBounds([{ x: 0, y: 0, w: 400, h: 200 }, { x: 20, y: 10, w: 400, h: 200 }]);
+  assert.deepEqual({ w: lap.w, h: lap.h }, { w: 420, h: 210 });
+  // no screens is a wall of one unit, because every caller divides by it
+  const none = S.stageBounds([]);
+  assert.ok(none.w >= 1 && none.h >= 1 && none.n === 0);
+  for (const bad of [null, undefined, [null], [{}], [{ x: NaN, y: 'x', w: 0, h: -5 }]])
+    assert.doesNotThrow(() => S.stageBounds(bad), 'bad rects: ' + JSON.stringify(bad));
+});
+test('stageLayout: a window\'s slice is its own share of the wall, and the seam is exact', () => {
+  // three identical televisions in a row is the grid, arrived at from geometry
+  const row = S.stageLayout([
+    { id: 'a', x: 0, y: 0, w: 1920, h: 1080 },
+    { id: 'b', x: 1920, y: 0, w: 1920, h: 1080 },
+    { id: 'c', x: 3840, y: 0, w: 1920, h: 1080 },
+  ]);
+  for (const [id, i] of [['a', 0], ['b', 1], ['c', 2]]){
+    const c = row.map[id], g = S.stageSlice(i + 1, 3);
+    assert.ok(Math.abs(c.fx - g.fx) < 1e-9 && Math.abs(c.fw - g.fw) < 1e-9,
+      id + ' must land exactly where the grid would have put it');
+    assert.ok(c.fy === 0 && Math.abs(c.fh - 1) < 1e-9);
+  }
+  /* THE SEAM. Each screen computes the full frustum as its own pixels divided
+     by its own fraction. Different pixel sizes, one answer — that identity is
+     the whole reason a shape can cross between two televisions without a tear,
+     so it is asserted on a deliberately mismatched pair. */
+  const odd = [{ id: 'lap', x: 0, y: 90, w: 1440, h: 900 }, { id: 'tv', x: 1440, y: 0, w: 1920, h: 1080 }];
+  const L = S.stageLayout(odd);
+  let fullW = null, fullH = null;
+  for (const r of odd){
+    const c = L.map[r.id];
+    const W = r.w / c.fw, H = r.h / c.fh;
+    if (fullW === null){ fullW = W; fullH = H; }
+    assert.ok(Math.abs(W - fullW) < 1e-6 && Math.abs(H - fullH) < 1e-6,
+      r.id + ' derived a different frustum: ' + W + '×' + H + ' vs ' + fullW + '×' + fullH);
+    // and its offset into that frustum is the true pixel distance from the
+    // left edge of the wall — the number setViewOffset is actually given
+    assert.ok(Math.abs(c.fx * W - (r.x - L.bounds.x)) < 1e-6, r.id + ' offset');
+    assert.ok(Math.abs(c.fy * H - (r.y - L.bounds.y)) < 1e-6, r.id + ' offset y');
+  }
+  assert.equal(fullW, 3360);
+  // one window on its own takes the whole field, which is the no-cut case
+  const solo = S.stageLayout([{ id: 'x', x: 700, y: 400, w: 800, h: 450 }]);
+  assert.deepEqual([solo.map.x.fx, solo.map.x.fy, solo.map.x.fw, solo.map.x.fh], [0, 0, 1, 1]);
+  // nothing may throw, and an entry with no identity is simply not a screen
+  assert.doesNotThrow(() => S.stageLayout([{ x: 0, y: 0, w: 1, h: 1 }, null, undefined]));
+  assert.equal(Object.keys(S.stageLayout([{ x: 0, y: 0, w: 9, h: 9 }]).map).length, 0);
+});
+test('stageOrder: screen one is the leftmost on the top shelf, whatever order it arrived in', () => {
+  // three in a row, reported back to front
+  assert.deepEqual(S.stageOrder([
+    { id: 'c', x: 3840, y: 0, w: 1920, h: 1080 },
+    { id: 'a', x: 0, y: 0, w: 1920, h: 1080 },
+    { id: 'b', x: 1920, y: 0, w: 1920, h: 1080 },
+  ]), ['a', 'b', 'c']);
+  // a video wall: reading order is across the top row and then down
+  assert.deepEqual(S.stageOrder([
+    { id: 'br', x: 100, y: 100, w: 100, h: 100 },
+    { id: 'tr', x: 100, y: 0, w: 100, h: 100 },
+    { id: 'bl', x: 0, y: 100, w: 100, h: 100 },
+    { id: 'tl', x: 0, y: 0, w: 100, h: 100 },
+  ]), ['tl', 'tr', 'bl', 'br']);
+  // televisions hung a few pixels out of true are still one shelf, not two
+  assert.deepEqual(S.stageOrder([
+    { id: 'r', x: 1920, y: 14, w: 1920, h: 1080 },
+    { id: 'l', x: 0, y: 0, w: 1920, h: 1080 },
+  ]), ['l', 'r']);
+  // THE RENUMBERING: drag the third window to the far left and it becomes
+  // screen one — identity follows the window, the number follows the place
+  const before = S.stageLayout([
+    { id: 'p1', x: 0, y: 0, w: 300, h: 200 },
+    { id: 'p2', x: 320, y: 0, w: 300, h: 200 },
+    { id: 'p3', x: 640, y: 0, w: 300, h: 200 },
+  ]);
+  assert.equal(before.map.p3.n, 3);
+  const after = S.stageLayout([
+    { id: 'p1', x: 0, y: 0, w: 300, h: 200 },
+    { id: 'p2', x: 320, y: 0, w: 300, h: 200 },
+    { id: 'p3', x: -400, y: 0, w: 300, h: 200 },
+  ]);
+  assert.equal(after.map.p3.n, 1, 'the window that moved left is screen one now');
+  assert.equal(after.map.p1.n, 2);
+  assert.equal(after.map.p3.of, 3);
+  assert.deepEqual(S.stageOrder([]), []);
+  for (const bad of [null, undefined, [null], [{ id: 'a' }]])
+    assert.doesNotThrow(() => S.stageOrder(bad));
+});
+test('stageMoved: a window that has not moved must not cost a message', () => {
+  const a = { x: 10, y: 20, w: 300, h: 200 };
+  assert.ok(!S.stageMoved(a, { x: 10, y: 20, w: 300, h: 200 }));
+  // a fraction of a pixel is a device ratio, not a drag
+  assert.ok(!S.stageMoved(a, { x: 10.2, y: 20, w: 300, h: 200 }));
+  assert.ok(S.stageMoved(a, { x: 12, y: 20, w: 300, h: 200 }));
+  assert.ok(S.stageMoved(a, { x: 10, y: 20, w: 300, h: 260 }), 'a resize is a move');
+  // the first reading, against nothing
+  assert.ok(S.stageMoved(null, a));
+  assert.ok(!S.stageMoved(null, null));
+  assert.doesNotThrow(() => S.stageMoved(a, { x: 'x', y: null, w: undefined, h: NaN }));
+});
+test('stageRect: a window that reports nonsense about itself is not allowed to poison a wall', () => {
+  const r = S.stageRect({ x: NaN, y: 'over there', w: 0, h: -400 });
+  assert.ok(Number.isFinite(r.x) && Number.isFinite(r.y));
+  assert.ok(r.w >= 1 && r.h >= 1, 'a zero-area window would divide the field by nothing');
+  assert.deepEqual(S.stageRect({ x: 5, y: 6, w: 7, h: 8 }), { x: 5, y: 6, w: 7, h: 8 });
+  for (const bad of [null, undefined, 0, 'x', []])
+    assert.doesNotThrow(() => S.stageRect(bad));
+});
+
 test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
   const dst = { bass: 0.5, energy: 0.5, beat: 0.5, extra: 'keep me' };
   S.stageApplyFeat(dst, { bass: 0.9, energy: 'not a number', nope: 1 });
