@@ -587,6 +587,16 @@ one Rayleigh–Bénard cell written as a **stream function**, `u = ∂ψ/∂y`,
 `v = −∂ψ/∂x` — divergence-free by construction, so however hard the music
 drives it the fluid cannot source, sink, or leak through the glass.
 
+**One number is measured five times a step, so it is measured once.** Every
+pass of the solver wants the same four facts about the same pair — the
+offset, the kernel, the gradient over r — and the first version recomputed
+all of them, square root and all, in each of five walks. They are computed
+once per solver sweep now and read by everything downstream, with nothing
+approximated: the cache is filled from the *same* positions the pass filling
+it is solving against. That paid for a third Jacobi sweep at no cost, which
+took the worst compression from 3.8% to 1.1% and peak speeds from 0.75 to
+0.31 — and then paid for the particle count to nearly double.
+
 **The picture is splatted, not evaluated.** Testing every blob against every
 pixel is fine for a dozen blobs and impossible for two hundred particles —
 the cost is O(pixels × N). So each particle draws its own kernel once,
@@ -605,11 +615,27 @@ light in the liquid behind. The splat is deliberately wider than the particle
 spacing: it low-pass-filters the field, so what you see is the shape of the
 *fluid* rather than the arrangement of the samples standing in for it.
 
-One thing only became possible here — the **temperature is splatted alongside
-the density**, in the next channel, weighted by the same kernel. So the wax
-is not one colour with a hot core painted on: every pixel reads the
+**What is splatted is a normalised field, not a density**, and that is the
+difference between a lamp with droplets in it and a lamp with one lump. A
+droplet of four particles is genuinely less dense than the middle of a pool —
+its kernels have less to overlap with — so any isosurface that puts the
+pool's edge in the right place makes the droplet vanish completely. Dividing
+each particle's contribution by its own density (which the solver has already
+measured, so it is free) turns the sum into an interpolation of the constant
+1 — the classic colour function — and one threshold is then right for a
+droplet and a pool alike. The beaded chain of drops pinching off a rising
+column only appears on screen because of that one division.
+
+Two more things fall out of the same texture. The **temperature is splatted
+alongside the density**, in the next channel, weighted by the same kernel, so
+the wax is not one colour with a hot core painted on: every pixel reads the
 temperature of the wax actually in front of it, and a blob that has just left
-the coil is visibly hotter where it left.
+the coil is visibly hotter where it left. And one extra tap *below* each
+pixel gives the **shadow** — the only light in the object is under the
+column, so a blob is between the coil and everything above it, and until that
+tap existed the room read as a flat cut-out however good the blob itself
+looked. Two fetches for the only depth cue a two-dimensional lamp can
+honestly have.
 
 **The music is the thermostat.** Bass and the act's own heat turn the coil
 up; the column gets hotter, the wax climbs faster and breaks more readily.

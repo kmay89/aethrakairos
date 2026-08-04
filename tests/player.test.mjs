@@ -4437,6 +4437,13 @@ test('lavaBudget: less asked of less, and never past the array', () => {
   const full = S.lavaBudget({}), eco = S.lavaBudget({ eco: true }),
         weak = S.lavaBudget({ struggling: true });
   assert.ok(eco.n < full.n && weak.n <= eco.n, 'fewer particles for a weaker device');
+  // …and a machine we already KNOW the answer for is not made to wait for the
+  // frame governor to discover it over someone's first ten seconds
+  assert.ok(S.lavaBudget({ ios: true }).n < full.n, 'a phone is budgeted as a phone');
+  assert.ok(S.lavaBudget({ cores: 2 }).n < full.n, 'and so is a two-core machine');
+  assert.equal(S.lavaBudget({ cores: 16 }).n, full.n, 'a big machine gets the lot');
+  assert.ok(S.lavaBudget({ ios: true, struggling: true }).n
+            <= S.lavaBudget({ ios: true }).n, 'the hints compose downward');
   for (const b of [full, eco, weak]) assert.ok(b.n <= S.LAVA.maxN, 'within the cap');
   // …and the fluid is COARSER, not smaller: the same wax fills the same
   // bottle out of fewer, larger parcels
