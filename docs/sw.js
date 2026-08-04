@@ -25,7 +25,7 @@
 
 // Stamped by tools/stamp_version.py (run by publish.sh): a short hash of the
 // player file, so every player release is a new shell cache by construction.
-const VERSION = '993ddabedb';
+const VERSION = 'e8b06a0e73';
 
 const SHELL_CACHE = 'mb8-shell-' + VERSION;
 const CATALOG_CACHE = 'mb8-catalog-v1';          // unversioned: survives updates
@@ -57,7 +57,78 @@ self.addEventListener('install', ev => {
 
 self.addEventListener('message', ev => {
   if (ev.data && ev.data.type === 'SKIP_WAITING') self.skipWaiting();
+  // the page can ask for a shell freshness check while it stays open (a
+  // home-screen copy may not navigate for days — timers ask instead)
+  if (ev.data && ev.data.type === 'CHECK_SHELL') ev.waitUntil(revalidateShell());
 });
+
+/* SHELL REVALIDATION — the un-stick. The versioned cache only turns over when
+ * sw.js itself changes; a deploy that forgot the stamp used to be invisible
+ * until someone deleted site data. Now every boot (and every CHECK_SHELL)
+ * quietly refetches index.html past the HTTP cache, compares BYTES with the
+ * cached copy, and on a difference: recaches it and tells every open page a new
+ * shell is ready. Stamped or not, a deploy always reaches the listener.
+ *
+ * Guards: response must be OK, text/html, and contain the app's own build marker
+ * — a captive portal or an error page can never replace the shell. Two more were
+ * added after a listener was offered, repeatedly, the build they were already
+ * running: a COLD cache differs from everything and proves nothing, and the same
+ * shell is never announced twice. The page verifies the claim on top of this;
+ * this end simply stops making claims it cannot support. */
+/* The last shell this worker told the pages about, as a fingerprint of its
+   CONTENT — not its build id. Keying on the id was wrong in precisely the case
+   that matters: an un-stamped deploy is the same id with different bytes, so a
+   worker that had already mentioned that id once would swallow the real one.
+   Measured as a one-in-two flake on "a fresh deploy raises the update badge by
+   itself" before this was content-keyed. */
+let announced = '';
+function shellPrint(t){
+  let h = 0x811c9dc5;                       // FNV-1a, enough to tell two deploys apart
+  for (let i = 0; i < t.length; i++){
+    h ^= t.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return t.length + ':' + h.toString(36);
+}
+async function revalidateShell(){
+  try {
+    const cache = await caches.open(SHELL_CACHE);
+    const res = await fetch(new Request('./index.html', { cache: 'no-cache' }));
+    if (!res || !res.ok) return;
+    const ct = res.headers.get('Content-Type') || '';
+    if (!/text\/html/i.test(ct)) return;
+    const forRoot = res.clone(), forIndex = res.clone();
+    const freshText = await res.text();
+    if (!/MB8_BUILD/.test(freshText)) return;          // not our app — never cache it
+    const cached = await cache.match('./index.html');
+    const cachedText = cached ? await cached.clone().text() : '';
+    if (freshText === cachedText) return;              // current — nothing to say
+    await cache.put('./index.html', forIndex);
+    await cache.put('./', forRoot);
+    const m = freshText.match(/const MB8_BUILD = '([^']*)'/);
+    const build = m ? m[1] : '';
+    const print = shellPrint(freshText);
+    /* NO REFERENCE, NO VERDICT. A cold cache differs from everything, and a new
+       worker's cache is cold by construction — SHELL_CACHE is versioned, so every
+       activation starts empty and this compare fired against nothing. The page it
+       then told about a "fresh shell" was, of course, running that very shell.
+       Populate quietly; there is nothing here worth reporting. */
+    if (!cachedText) return;
+    /* AND NEVER TWICE FOR THE SAME SHELL. Whatever makes two fetches of one
+       deploy differ — a host that rewrites its HTML, a stamp that did not move —
+       announcing it again on the next check is how a card comes back forever.
+       One announcement per distinct shell, fingerprinted by CONTENT so that an
+       un-stamped deploy (same id, new bytes) still counts as a different shell. */
+    if (print === announced) return;
+    announced = print;
+    /* the fingerprint travels with the announcement: it is the only NAME an
+       un-stamped deploy has, and the page needs a name to remember having
+       applied one. Two announcements of the same shell are the same offer, and
+       an offer already applied is not offered again. */
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const c of clients) c.postMessage({ type: 'SHELL_FRESH', build, print });
+  } catch (e){}
+}
 
 self.addEventListener('activate', ev => {
   ev.waitUntil((async () => {
@@ -85,8 +156,53 @@ self.addEventListener('fetch', ev => {
   // only http(s) — data:, blob: and extension schemes throw in cache.put
   if (!/^https?:$/.test(url.protocol)) return;
 
+  /* THE PAGE'S ORIGIN PROBE GOES TO THE ORIGIN. verifyShell() asks what build is
+   * actually deployed before it will believe an offer, and the request it sends
+   * looked exactly like a shell request: same path, only a query string apart.
+   * The shell route below matches on PATH — a query is not part of it — so the
+   * probe was answered out of this cache, by us, and "past every cache" verified
+   * the shell against itself. No respondWith at all here: the request leaves for
+   * the network, which is the entire point of it. */
+  if (url.searchParams.has('mb8probe')) return;
+
   // audio: bail out entirely — the browser's own fetch handles Range
   if (isAudio(req, url)) return;
+
+  // the shell page itself: cached INSTANTLY (second boot faster than first,
+  // the contract holds), revalidated in the background so the next launch —
+  // or this one, via the page's update card — always has the newest deploy
+  if (url.origin === location.origin
+      && (req.mode === 'navigate' || /\/(index\.html)?$/.test(url.pathname))){
+    ev.respondWith((async () => {
+      const cache = await caches.open(SHELL_CACHE);
+      const cached = await cache.match('./index.html') || await cache.match('./');
+      if (cached){ ev.waitUntil(revalidateShell()); return cached; }
+      try {
+        const res = await fetch(req);
+        if (res && res.ok){ const c2 = res.clone(); ev.waitUntil(cache.put('./index.html', c2)); }
+        return res;
+      } catch (e){ return new Response('', { status: 504 }); }
+    })());
+    return;
+  }
+
+  // news.json — the update card's changelog: network-first (it exists to be
+  // newer than this build), falling back to any cached copy offline
+  if (/\/news\.json(\?|$)/.test(url.pathname)){
+    ev.respondWith((async () => {
+      const cache = await caches.open(CATALOG_CACHE);
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 6000);
+        const res = await fetch(new Request(url.pathname, { cache: 'no-cache' }), { signal: ctl.signal });
+        clearTimeout(timer);
+        if (res && res.ok){ cache.put('./news.json', res.clone()); return res; }
+      } catch (e){}
+      const cached = await cache.match('./news.json');
+      return cached || new Response('{"entries":[]}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    })());
+    return;
+  }
 
   if (isCatalog(url)){
     // stale-while-revalidate

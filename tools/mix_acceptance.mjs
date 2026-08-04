@@ -224,20 +224,39 @@ const mixNow = await page.evaluate(() => {
   const p = MIXER.plan;
   return { ok, phase: MIXER.phase, pos,
     plan: p && { type: p.type, now: p.now, beats: p.beats, startA: p.startA },
-    barA: mA ? 4 * 60 / mA.bpm : 0, grid: mA ? mA.grid : 0 };
+    barA: mA ? 4 * 60 / mA.bpm : 0, grid: mA ? mA.grid : 0,
+    // the lead-in the seam is scheduled with, read from the engine rather than
+    // duplicated here — the contract belongs to SEAM_LEAD, not to this file
+    lead: typeof seamLeadFor === 'function' && p ? seamLeadFor(p) : 0 };
 });
 const barRel = (mixNow.plan.startA - mixNow.grid) / mixNow.barA;
 const latticeOffMs = Math.abs(barRel - Math.round(barRel)) * mixNow.barA * 1000;
 R('mix now arms a beatmix from HERE', mixNow.ok && mixNow.phase === 'armed'
   && mixNow.plan.type === 'beatmix' && mixNow.plan.now === true,
   JSON.stringify(mixNow.plan));
-// the plan stores startA at 1 ms resolution; 3 ms of lattice tolerance is
-// sub-frame — the ear's own resolution for "on the bar" is ~10 ms
-R('mix now seam sits on the next bar line',
+/* ON A BAR LINE, AND FAR ENOUGH AHEAD TO BE PLAYABLE.
+ *
+ * The plan stores startA at 1 ms resolution; 3 ms of lattice tolerance is
+ * sub-frame — the ear's own resolution for "on the bar" is ~10 ms.
+ *
+ * The window in front of `pos` moved when the seam gained its lead-in. A beatmix
+ * is now scheduled SEAM_LEAD ahead on the audio clock so the incoming deck is
+ * rolling before the fader opens, which means MIX NOW must pick the first bar at
+ * least a lead away — if it picked a nearer one, the seam would already be late
+ * the moment it was planned. This check still carried the old 0.2 s of slack, so
+ * whenever `pos` happened to land inside a lead of a bar line the engine
+ * correctly took the following bar and the check called it wrong: a flake whose
+ * frequency depended on how fast the machine booted. The contract is read from
+ * seamLeadFor() rather than restated, so the next change to the lead cannot
+ * leave this assertion behind again. */
+const leadTol = 0.05;                      // one frame of grace on either side
+R('mix now seam sits on the next playable bar line',
   latticeOffMs < 3
-  && mixNow.plan.startA > mixNow.pos && mixNow.plan.startA <= mixNow.pos + mixNow.barA + 0.2,
+  && mixNow.plan.startA >= mixNow.pos + mixNow.lead - leadTol
+  && mixNow.plan.startA <= mixNow.pos + mixNow.lead + mixNow.barA + leadTol,
   'startA ' + mixNow.plan.startA.toFixed(3) + ' (pos ' + mixNow.pos.toFixed(3)
-  + ', bar ' + mixNow.barA.toFixed(3) + ', off-lattice ' + latticeOffMs.toFixed(2) + ' ms)');
+  + ', bar ' + mixNow.barA.toFixed(3) + ', lead ' + mixNow.lead.toFixed(3)
+  + ', off-lattice ' + latticeOffMs.toFixed(2) + ' ms)');
 await page.waitForFunction('MIXER.phase === "running"', null, { timeout: 8000 });
 // the booth watches the live seam: open it mid-blend, read the room
 await page.evaluate(() => BOOTH.toggle(true));
@@ -253,10 +272,15 @@ const booth = await page.evaluate(() => {
   BOOTH.toggle(false);
   return out;
 });
+// The narrator names the move that is happening RIGHT NOW (mixTechnique:
+// 'beat-locked', 'bass swap', 'B leads') rather than repeating the static
+// plan label — so the running seam is asserted on the narrator's own verb,
+// MIXING, while the deck state still has to read 'on air — blending'.
 R('the booth watches the live seam — outgoing named, incoming on air, painted',
-  !booth.running || (/blending/.test(booth.plan) && booth.nmA === 'beta'
+  !booth.running || (/MIXING/.test(booth.plan) && booth.nmA === 'beta'
     && booth.nmB === 'alpha' && /on air/.test(booth.stB) && booth.lit > 30),
-  booth.nmA + ' → ' + booth.nmB + ' · ' + booth.plan + ' · ' + booth.lit + ' lit'
+  booth.nmA + ' → ' + booth.nmB + ' · plan=' + booth.plan + ' · stB=' + booth.stB
+  + ' · ' + booth.lit + ' lit'
   + (booth.running ? '' : ' (seam already handed over — skipped)'));
 const nowErr = await page.evaluate(() => new Promise(res => {
   let best = Infinity, n = 0;

@@ -226,6 +226,28 @@ mix is volume-envelope-only (the locked-pocket invariant outranks EQ), and
 with the screen off, plans degrade to crossfades on coarse timers — the
 music never stops, it just mixes less bravely.
 
+**Nothing the renderer does can be heard.** Every audible parameter of a seam
+is *scheduled* on the audio clock, never written per animation frame: the
+equal-power crossfade, the filtered fade, and the bass swap are all
+sample-accurate automation, and the seam's own position is read from the same
+clock those curves were scheduled on — so a dropped frame can't step the low
+end, and the blend can't be cut off mid-curve by a late frame. The heavy
+opportunistic work stays off the blend too: a whole-song fetch + decode (what
+draws the waveform overview) is never started while a seam is running, so it
+can't race the incoming deck for bandwidth or drop a song of PCM on the main
+thread mid-transition. It does that work in the 90-second armed window
+instead, where it belongs.
+
+**Ready means ready.** A blend only starts when the incoming deck actually
+owns the window it is about to play — `HAVE_FUTURE_DATA` plus either the
+browser's play-through promise or visible buffered bytes across the whole
+overlap. (`readyState >= 2` promises only the single frame under the
+playhead, which is how a beatmix becomes a stall two beats in.) When the
+stream isn't there yet, the mixer does what a DJ does and **takes another
+eight**: the seam waits a whole bar — still a downbeat, with B's entry point
+unmoved, so the wait buys buffer for exactly the window it's waiting on — and
+only falls back to an honest fade once it's out of bars or out of runway.
+
 **Fix it once, fixed forever.** The Console's **mix tuner** shows the
 planned transition for the current pair: override the type (beatmix 8/16/32,
 fade, gapless), nudge where the next track enters in ¼-beat steps, and nudge
@@ -275,6 +297,38 @@ the **crossfader rail blends A's colour into B's** with a centre detent, so
 the handle's position and the colour under it always agree; and **LOW
 lamps** visibly hand the bassline over at the seam's midpoint — the
 one-bass rule, made watchable.
+
+**And it has hands.** Below the decks is an **FX rack in three banks**, laid out
+the way hardware lays them out because that layout is the argument:
+
+- **LOOP** — eight beat loops from a 32nd to 16 bars. Tap and the loop latches
+  on the **last grid line the ear already heard**, never the next one, because a
+  loop that begins in the future is a gap. Halve and double re-cut from the same
+  in-point, so a phrase can never slide out from under your hand.
+- **ROLL** — the same eight lengths, **momentary**: held, not latched. This is
+  the one difference that makes them two controls instead of one. A loop makes
+  the track *wait*; a roll stalls the music while the track keeps running
+  underneath, so releasing lands you where you would have been. The phrase stays
+  intact and the roll reads as a stutter *over* the music rather than a detour
+  through it.
+- **FX** — filter, echo, gate and drive on one knob, every time constant a beat
+  division read from the **same CLOCK the shaders and the haptics follow**. The
+  filter is one bipolar sweep with a real detent at the centre. The gate chops on
+  the beat rather than from an LFO, because an oscillator drifts against the music
+  within a bar and the beat clock does not. Plus a **BRAKE** that is a turntable
+  losing power, not a fade.
+
+The magical half is **AUTO**: the same hands, given to the director. A listener
+who never opens the booth still hears the echo bloom into a hand-off and the
+filter open across a build — chosen from the song's own structure, never from a
+timer, and never during a quiet passage or on a device that is struggling. The
+moment you touch anything, AUTO switches off and **stays** off until you arm it
+again. A room that quietly undid what you just set would be a fight you cannot
+win, because the room never tires.
+
+Nothing in the rack can strand the music: every unit is parked at bypass, every
+automation is bounded, and a track change hands the whole booth back — no seam
+ever inherits an effect the last track left switched on.
 
 **The playlist stays master — and you get override inserts.** Under the
 decks sits a row of **performance pads: the eight best next tracks from the
@@ -344,7 +398,12 @@ the solver, portable to any surface that takes RGB):
   keys warmer and higher.
 - **Character → harmony scheme.** Consonant calm reads *analogous*;
   driving energy earns a *complementary* accent; dense, entropic material
-  opens to a *triad*.
+  opens to a *triad*; and material that has genuinely come apart — high
+  entropy *and* high energy together — opens to a **spectrum**: a full hue
+  wheel anchored so the track's own key is the bright point the rainbow
+  falls away from. It is the rarest reading in the engine on purpose. A
+  spectrum laid over a calm track says nothing about the track, which is
+  why most visualizers' rainbows read as wallpaper.
 - **Arousal → chroma; acts → heat.** Energy drives saturation
   monotonically, the five-act arc breathes chroma and lightness live, and
   energy-phase peaks/breaks push and pull the accent.
@@ -372,7 +431,30 @@ the solver, portable to any surface that takes RGB):
   **dreimal**, every third arrival answering three times, one fading echo
   per beat — the Magic Flute's threefold chord.
 
-Three dots in the HUD show the live palette next to the key and scheme.
+- **Three colours → a gradient.** Before any scene sees the plan, the three
+  stops are stretched into a 128-texel cyclic ramp interpolated in OKLCH. A
+  straight blend between two saturated hues is at its greyest *exactly*
+  halfway — which is where most of a spiral's arm or a coil's length happens
+  to live — so the ramp walks the hue around the wheel instead and holds
+  chroma the whole way across.
+- **A highlight rolloff, and a white budget.** Additive light is unbounded and
+  a framebuffer is not. Hundreds of glowing sprites summing into one pixel
+  used to clip channel-by-channel, and because the brightest channel clips
+  *first*, the colour died before the brightness did — that white blob with a
+  coloured rim is a hue failure, not a brightness one. The field now
+  accumulates in a half-float target (capability-probed, never assumed) and a
+  final GRADE pass compresses the max channel along a soft knee, rescaling the
+  triple by the same factor so hue and saturation survive **any** drive: a 5×
+  amber lands as a blazing amber, not as chalk. The curve approaches 1 from
+  below without arriving, so *light alone can no longer make white*. Bleaching
+  is spent from a budget the act and the section's own intensity ceiling open —
+  a loud intro stays a colour; the drop gets the glare. Devices without
+  half-float targets — and ECO power mode, which pays for no extra passes at
+  all — fall back to a tighter additive trim and the same per-layer rolloff.
+
+Three dots in the HUD show the live palette next to the key and scheme —
+and they are a button: click to hold the room in **SPECTRUM** or **DUOTONE**
+(two colours, nothing pale to wash toward), or leave it on AUTO.
 Unkeyed material (local files, the mic) plans from live brightness and
 entropy and re-deals itself periodically. This is the contract a
 Sphere-class surface wants: features in, palette out, deterministic,
@@ -409,7 +491,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **thirteen scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **eighteen scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -418,10 +500,21 @@ dot-by-dot as the track plays — a different species every visit), **ROSETTE**
 (spirograph rings drawn three times in offset palette channels, the
 chromatic fringe blooming on hits), **SLINKY** (a chalk-grain coil whose
 ambiguous spin you can argue with by dragging), and **OP-ART** (a flat
-pattern machine rolling between an isometric cube tessellation, a circular
-labyrinth around a black hole, and an infinity-mirror dance floor lit on
-the grid). Keys `1`–`9` and `0` reach the first ten; the scene dots reach
-them all. Three things keep it feeling like a storytelling machine
+pattern machine rolling between six forms: an isometric cube tessellation,
+a circular labyrinth around a black hole, an infinity-mirror dance floor
+lit on the grid, a scalloped psychedelic spiral, a dot-grid disco tunnel
+falling to its vanishing point, and dashed radar rings relayed in offset
+palette channels), and **HALO** (the spectrum bent into a ring: a torus of
+thousands of rainbow motes where each angle of the circle listens to one
+band of the live spectrum and visibly swells where its band sings — an
+equalizer curled into a circle of light, with winding bead-strands, a
+beat soliton orbiting the ring, and treble twinkles), and the **LAVA LAMP**
+— see [The lamp](#the-lamp-a-scene-that-is-simulated-rather-than-animated)
+below. Keys `1`–`9` and
+`0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
+frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
+TILE relay, MOIRÉ interference, a breathing IRIS, and stacks of them — with
+AUTO putting a lens on only where the song's structure earns it. Three things keep it feeling like a storytelling machine
 rather than a screensaver:
 
 - **Acts.** Every track runs a five-act arc — OVERTURE · RISING · APEX ·
@@ -435,11 +528,219 @@ rather than a screensaver:
   the band's number of half-twists (always odd — it stays a Möbius band),
   starburst reach, nebula swirl, tunnel radius and speed. The same scene
   never plays the same way twice.
-- **Touch.** Drag steers the camera (the auto rig waits ~9 s while you hold
-  it), scroll walks in and out, double-tap fires a shockwave impulse through
-  the scene, and particles near the pointer bend away from your hand
-  (`uPtr` view-space warp in every point shader). All of it is optional —
-  the director plays the whole show hands-free.
+- **Touch — the fabric, not a heads-up display.** Drag steers the camera (the
+  auto rig waits ~9 s while you hold it), scroll walks in and out, double-tap
+  fires a shockwave. But the touch itself is not drawn: your hand deforms the
+  metric the world lives in, and everything obeys it. See
+  [Touching the fabric](#touching-the-fabric) below.
+
+## The lamp — a scene that is simulated rather than animated
+
+Scene 18 is a lava lamp, and nothing in it is keyframed, noise-driven or
+faked. It is six laws and a bottle, and every recognisable thing a real lamp
+does falls out of them:
+
+- **Buoyancy is temperature, and nothing else.** Wax expands as it warms and
+  the fluid does not, so the whole density story collapses to one linear
+  Boussinesq term, `a = g·β·(T − T₀)`.
+- **Heat moves at a rate ∝ 1/r².** A drop's thermal time constant goes as
+  `r²/α`, so a small droplet takes the column's temperature almost at once
+  and the pool over the heater takes minutes. That single exponent is why a
+  lava lamp's rhythm is *slow*, and why a mist of droplets is quick.
+- **Viscosity is Arrhenius.** `μ(T) = μ₀·e^(−E·T)` — cold wax is nine times
+  thicker than hot wax, which is why blobs go up briskly and come down like
+  treacle. You have watched that asymmetry a hundred times; this is its name.
+- **Drag is Stokes', against the *local* fluid.** Terminal speed goes as r²,
+  so a big blob plows through the convection current while a droplet is
+  simply carried by it. Nobody decides which — the exponent decides.
+- **One surface tension decides three things.** Whether a collision
+  coalesces or bounces (the Weber number, and Ashgriz & Poo's regimes), how
+  hard the survivor rings afterwards (Rayleigh's `ω² = 8σ/ρr³` for the l=2
+  drop mode), and when a rising blob is torn apart. They agree with each
+  other because they are the same σ.
+- **Cohesion and adhesion.** A short-range attraction, which is why blobs
+  find each other, and a wetting film at the glass, which is why a cold one
+  slides down the wall and why the pool stays *stuck to the heater* instead
+  of taking off as one lump.
+
+The column itself is a single **Rayleigh–Bénard convection cell**, written
+as a stream function ψ rather than a velocity field: `u = ∂ψ/∂y`,
+`v = −∂ψ/∂x` is divergence-free *by construction*, so however hard the
+music drives it, the fluid can never source, sink, or leak through the
+glass. Two half-periods across the bottle puts the up-flow in the middle and
+the down-flow at the walls.
+
+**The best thing it does needs no script.** There is a largest possible free
+drop — past a Bond number of about 16 gravity beats surface tension and a
+drop cannot hold its own shape — but a *puddle* is not a drop, because the
+glass carries the weight the surface would otherwise have to. So the pool at
+the bottom is allowed to be enormous, and when it finally warms enough to
+lift off, the ceiling on its size falls away with the floor and it comes
+apart into a rising column of droplets on the way up. That is arithmetic,
+not choreography, and it never happens the same way twice.
+
+The **surface is not drawn** either. Every blob contributes `φ = r²/d²` to
+one scalar field, the wax is the level set `Σφ² = 1`, and that is why two
+blobs approaching grow a neck between them and why the neck thins and snaps
+by itself. Three things then come out of that field for free: ∇F is
+analytic, so `(F−1)/|∇F|` is the distance to the surface in world units and
+antialiasing is exact at any resolution; `h = √(1 − F^-½)` is *exactly* a
+sphere's height for a lone blob, so the lamp is lit as a real surface with
+no marching; and that same h is the thickness, so absorption is honest
+**Beer–Lambert** — a thin edge is pale, a fat middle is deep, and the light
+that does not get through is precisely the light that comes back as the glow
+inside. Refraction is a real `refract()` against the real normal, split into
+three wavelengths, reading the coil's own light in the fluid behind.
+Bubbles nucleate at the heater and **zig-zag** on the way up, because that is
+what vortex shedding does to a rising bubble at the Strouhal frequency.
+
+**The music is the thermostat.** Bass and the act's own heat turn the coil
+up; the column gets hotter, the wax rises faster and breaks more readily,
+and the convection cell drives harder. Everything a drop does to this lamp,
+it does through one number a physicist would recognise. Put a hand on it and
+the wax *flows* — and keeps flowing after you let go, because it is matter
+with momentum — while the room behind the glass bends through the same
+metric every other scene answers a hand with. Two different answers to one
+hand, because a fluid and a vacuum are not the same thing.
+
+**And the performance is the physics.** The cost is exactly one pass over
+the blob list per pixel — no render target, no feedback buffer, no second
+geometry pass — so N is the only term there is. A device that cannot afford
+as many blobs is therefore not given a coarser lamp: it is given *fewer,
+larger* ones, by raising the radius at which two of them coalesce. The
+governor and the physics are the same mechanism, which means the lamp under
+pressure looks **more** like a lava lamp, not less, and there is no second
+rendering path to keep honest. Nothing stiff is stepped, either — drag,
+thermal relaxation and the surface-tension ring all have closed forms and
+all three use them, so the simulation is unconditionally stable at any step
+size and a phone at 30 fps runs the same lamp a desktop at 120 does.
+
+It is headless and deterministic from a seed: `tests/player.test.mjs` runs
+it for ten simulated minutes and holds it to conservation of wax across
+every merge, break-up, shed and drip, to the glass never leaking, and to the
+column actually convecting.
+
+## Touching the fabric
+
+The touch used to have a *stage*. A full-screen 2D canvas at `z-index: 4` drew
+each personality: a photon ring stroked around the void, three spiral arms wound
+for the vortex, a disk of orbiting motes for the accretion, expanding rings for
+the waves, a progress arc banking the hold, a bright wavefront on release — all
+in the music's live palette, over a `<div>` that darkened the field with
+`mix-blend-mode: multiply`.
+
+Every number in it was correct, and it read as a HUD. That is not a tuning
+problem: a screen-space stroke at a fixed pixel width sits in *front* of the
+world. It ignores depth, ignores the camera, ignores which scene is up — and it
+needed a dark radial veil painted underneath so its glow would read over a busy
+field, which means the actual visuals were being dimmed so the decoration could
+be seen. A progress arc under your thumb is a UI element no matter what palette
+it borrows.
+
+All of it is deleted. `#touchCanvas`, `#voidFx` and `#voidRing` are gone from the
+document, and nothing replaced them in that layer. What answers your hand now is
+a **metric** — one description of how space is deformed around your touch, with
+two consumers reading the very same functions:
+
+- **the matter.** Every point shader displaces its particles through the metric,
+  in view space *and in depth*, so a well is a hole you can see into and matter
+  pushed away shrinks and dims through the same perspective divide as everything
+  else. Nothing is faked; it is actually further away.
+- **the light.** A full-screen pass refracts the composited frame through the
+  same metric. This is what makes the eleven raymarched scenes answer at all —
+  they have no particles to push, and until now a touch got them a camera nudge
+  and nothing more. It runs *before* the artistic lenses, so a kaleidoscope
+  repeats your distortion into every sector: the room's symmetry answering the
+  touch rather than covering it.
+
+The GLSL is generated from the same constants the JS holds, and
+`tools/touch_probe.mjs` evaluates it **on the GPU against the JS** and fails on
+drift (worst observed: 2 × 10⁻⁵). One fabric or none.
+
+### What each force is, now that nothing is drawn
+
+| | | |
+|---|---|---|
+| **VOID** | a black hole | Light bends *in*, so the image is pushed *out*. The core is black because light inside the capture radius does not come back — there is nothing there to sample. Hold, and the horizon genuinely widens. |
+| **SPIN** | a vortex | Frame dragging: space is *rotated*, chirality from your drag, speed from the spin you banked slinging it. Rotation preserves radius, so it winds the world without smearing it. |
+| **PULL** | an accretion disk | The well draws inward *and* shears into orbit. Light concentrates as space compresses, so the middle brightens — measured at 22× the surrounding luma. |
+| **WAVE** | ripples | The metric oscillates radially: real refraction rings, cresting harder on the beat, because the fabric is listening too. |
+
+The bright ring around the void is not stroked. A lens produces **two images** of
+whatever is behind it, and at the Einstein radius the two converge on the same
+source point and the light doubles — so the pass samples both deflections and
+adds them, and the ring appears where the physics puts it. The commitment you
+build by holding shows up as the horizon widening and the colour channels
+splitting under strain. The release travels: a wavefront leaving the lift point
+at (1−burst)·1.55 screen radii, measured moving from the innermost annulus to the
+fifth as it decays.
+
+### Bounded on purpose
+
+Real deflection goes as 1/*b* and therefore diverges at the centre. Physics is
+fine with that; a screen is not. The first attempt displaced samples by **1.6
+screen radii** under the finger and annihilated the frame. So the deflection is
+soft-clipped by `x/(1+|x|/max)` — exact for small *x*, which keeps the true 1/*r*
+tail in the far field where the "this is space" reading actually comes from, and
+asymptotic under the hand where the horizon has taken over anyway.
+
+The long tail matters more than the near field does. A decoration changes a disc
+of fixed pixel radius; gravity is felt across the room. Measured, in annuli
+around the touch: `0.097 0.097 0.052 0.013 0.010 0.003` — hard near the hand,
+faint far away, and **zero in the corners**, because a distortion with no edge is
+nausea rather than wonder.
+
+Which is the other half of this. A full-screen deformation is a vestibular event,
+so `warpBudget()` caps it: 0.6 when the safety governor has already asked the
+show to calm down, 0.34 under `prefers-reduced-motion`, and the ripple's own
+clock freezes there so nothing swims. It shrinks and it **never closes** — a hand
+that touches the world and feels nothing is its own defect. On a device the adaptive governor
+has found to be struggling the light pass **degrades rather than disappears** —
+`LENS_FIELD_LEAN` is one texture tap through the same metric, same capture radius,
+same ceilings, dropping only the ornament (the second image, the channel split, the
+area dimming). It used to be switched off entirely, which meant the phones most
+likely to be holding this app had a touch that moved particles and left the light
+alone, and every raymarched scene answered a hand with silence. ECO is the one place
+it does not run at all: that mode exists to give the battery to the music.
+
+## The gap between two tracks, on a phone
+
+iOS is a different engine. The WebAudio graph is deliberately not live there —
+`createMediaElementSource` is a one-way door and a suspended context silences
+lock-screen playback — so the mixer stands down and every track change is the
+same-element advance: assign a new `src` to the **one** element holding the audio
+session, and play. That element is blessed. Moving playback to the other deck is an
+un-gestured start iOS blocks when the screen is locked, and alternating decks churns
+iOS's decoder budget until the blessing quietly lapses and the music stops mid-queue.
+Both of those were learned the hard way and are not up for renegotiation.
+
+Which left the cost of the swap itself, and nothing was warming it: the deck preload
+that covers this on desktop lives in `MIXER.arm()`, which never runs when the graph
+isn't live. Measured with an iPhone user-agent over a 900 kbps pipe, so the shipping
+iOS branch is the branch under test: **2148 ms of silence between tracks**.
+
+`PREFETCH` fetches the next track into memory while the current one plays and hands
+the element an object URL at swap time. One element, still blessed, no extra decoder
+— the bytes simply arrive from RAM instead of from the network.
+
+| | requests | served | gap |
+|---|---|---|---|
+| nothing warmed | 4 | 3.7 MB | **2148 ms** |
+| prefetch on | 3–4 | 5.1 MB | **~1500 ms**, none of it network |
+
+What's left is not ours. With the warm on, the app reaches `playIndex` **0 ms** after
+the track ends and there is no network in the path at all; every remaining millisecond
+is the media element tearing down one decoder and building another. On one element
+that cost cannot be removed, and the second element that would remove it is precisely
+what costs iOS the lock screen. So `tools/handover_probe.mjs` gates the parts this
+code owns — no app latency, no network in the path, playback never leaving the blessed
+element — and reports the total with its measurement rather than asserting a number
+this layer can't promise.
+
+Metered connections are left alone (`saveData`, 2g/3g). The draw is committed the way
+`MIXER.arm()` already commits it, and a running mixset's draw is never advanced early,
+because that one carries the set's own bookkeeping. A prefetch that fails is silent:
+playback falls back to the network URL, which is exactly what happened before.
 
 ## The front porch — fresh inspiration at the door
 
@@ -480,6 +781,148 @@ and intercepting audio breaks seeking on iOS. Offline with a warm cache boots
 to the library with honest "streaming unavailable" states. Pinning albums
 offline is out of scope this build — a 1,000-track library is multiple GB, and
 we don't fake it.
+
+### Updating — a tap that always means something
+
+Two independent paths carry a new release to a running page, and one policy
+governs both. A stamped deploy is a new `sw.js`, so a new worker installs and
+**waits**; applying hands over (`SKIP_WAITING` → `controllerchange` → reload).
+A deploy that forgot the stamp still arrives, because the live worker
+byte-compares `index.html` on every boot and every check — bytes, not version
+strings — and tells the page when they differ. Nobody has to delete site data.
+
+The parts that took a real browser to get right:
+
+- **A tap is never a no-op.** `applyUpdate()` used to refuse when no worker was
+  waiting, and silently hide the button. That state is easy to reach: a second
+  client — another tab, or the installed app open beside the browser — applies
+  first, its `SKIP_WAITING` activates the new worker, and every *other* client's
+  `registration.waiting` drops to null. Those pages are the worst ones to
+  refuse: they are already controlled by the new worker, whose cache holds the
+  new shell, so a plain reload lands the update immediately. Now it reloads.
+- **A sibling handover is noticed.** A `controllerchange` we did not ask for
+  means the code running here is older than the shell the controlling worker has
+  cached. The page is never yanked mid-track, but the offer stays true. (The
+  *first* claim of an uncontrolled page is excluded — that is a first visit, not
+  an update, and treating it as one made every first visit update itself.)
+- **A difference is not a newer build.** A listener was shown `05d9b7a1af → new`
+  while running `05d9b7a1af`; applying it changed nothing and the next check
+  raised it again. Three things let that through: the "already current" guard only
+  rejected a matching build when a card was *already* on screen, so the first claim
+  of every check sailed past; the sibling-handover path carries no build id, so the
+  guard was skipped entirely and the card rendered its target as the word "new";
+  and the worker announced a fresh shell whenever the fetch differed from its
+  cache — **including when that cache was empty**, which it is on every activation,
+  because `SHELL_CACHE` is versioned. `updateOffer()` is the rule that was missing,
+  and it judges by **provenance**: a waiting worker stands on its own; a *shell*
+  claim is the worker's byte-compare reporting that the deployed shell differs from
+  the one this page was served, which is a fact about content and stands whether or
+  not the stamp moved; a bare *claim* — a `controllerchange` nobody asked for — is
+  evidence a worker took over and nothing more, so it is checked against the
+  deployed shell before it earns a card. A card raised in error now withdraws itself
+  instead of waiting for a reload.
+
+  The first attempt at this rule rejected any claim whose build id matched the
+  running one, which fixes the loop and **breaks the un-stamped deploy** — whose
+  entire signature is *same id, different content*. The smoke test's "a fresh deploy
+  raises the update badge by itself" caught it within minutes: a false positive
+  traded for a false negative, which is the worse of the two.
+
+  The loop brake in `updateGate` had been there since the deferral work and was
+  not enough: it rate-limits the *automatic* apply, which is why the app kept
+  working and also why the card kept coming back by hand. Braking the apply treats
+  the symptom; the offer itself was never gated.
+- **"Later" is a promise.** The snooze used to live in a variable, so the next
+  reload forgot it and the app went straight back to asking. It is stored now,
+  along with a count: the button wears that count as a badge, goes quiet while
+  the snooze holds, and reminds **once** when it runs out — then stops talking
+  after five deferrals and keeps only the badge. Applying clears the count.
+- **A loop brake.** Applying reloads, and a reloaded page asks again — so a host
+  that made the shell compare differently every time would reload forever, which
+  is worse than never updating. After three automatic swaps in one session,
+  automatic application stands down; a deliberate tap is never rate-limited.
+- Plus what was already there: an honest progress bar on a learned estimate, a
+  staged watchdog that escalates and then hands the app back alive rather than
+  leaving a dead "Updating…", and ⚡ SHOW mode, which holds every update so a
+  performance is never interrupted.
+
+### The mix engine — what is solid, and what is measured but not yet fixed
+
+The blend defaults to **eight beats**. That is a reliability decision before a
+taste one: at 124 bpm a 32-beat overlap is fifteen seconds during which two decks
+must hold phase and the tempo glide has to walk from one BPM to the other and
+back into lock, and any drift the lock cannot absorb has fifteen seconds to grow
+into a flam. Eight beats is under four seconds — long enough to read as a mix,
+short enough that error has no room to accumulate, and it is what a working DJ
+does on a floor that wants the next song. Longer blends stay available per pair
+in the Mix tuner; nothing takes one by default. Match scoring was decoupled from
+blend length at the same time — it now reads harmonic distance and tempo
+proximity, which are properties of the *pair*, rather than rewarding whichever
+plan happened to be longest.
+
+`tools/mix_probe.mjs` measures a real seam on a real graph. It localised a defect
+that had been reported as intermittent, and the fix is measured by the same tool:
+
+| condition | beat-phase error | | |
+|---|---|---|---|
+| | before | after | contract |
+| main thread free | 0.3 ms | **4.0 ms** | 40 ms |
+| visualizer running | 114–119 ms | **1.9–8.0 ms** | 40 ms |
+
+The seam was excellent when nothing else was competing and lost its beat lock when
+the visualizer saturated the main thread — a **coupling** problem, not a tuning
+one. The cause turned out to be a single line. The incoming deck was placed at its
+absolute planned entry point at whatever instant the animation loop *noticed* that
+the outgoing track had crossed its bar line, so the offset between the two beat
+grids was simply the frame's lateness: at 124 bpm a 114 ms frame is a quarter
+beat, which is exactly the flam a listener reports. Worse, the only window in
+which the phase servo is allowed to correct hard — while the incoming deck is
+still inaudible — had closed before the servo's once-a-beat check ever ran, so the
+error survived the whole blend at the ±0.4 % the tempo trim can absorb.
+
+Three changes, none of which depends on the frame rate:
+
+- **The seam is placed relative to where the outgoing track actually is.**
+  `seamEntry()` gives the incoming deck the outgoing deck's slip, so a late call
+  places a *correct* seam rather than a punctual wrong one. A whole beat late is
+  still in lock.
+- **Every seam is scheduled a lead-in ahead of itself on the audio clock**, and a
+  beatmix is triggered that much early so the fader still opens on the bar line.
+  The deck gets 450 ms to actually start rolling — media elements take 200–700 ms
+  to resume under load — through a window in which it cannot be heard.
+- **The servo latches the moment the incoming deck is genuinely rolling**, not a
+  beat later, so the hard align happens inside the lead-in where it is silent.
+
+Both `tools/mix_acceptance.mjs` phase checks (0.9 ms and 0.4 ms) and the probe's
+beat-lock check now pass under render load; the latter was promoted from a tracked
+number to a **regression gate**. What remains open, and is printed with its
+measurement on every run, is that the element's resume still runs 210–680 ms, so
+the lead does not always cover it. That no longer costs the lock — the servo
+measures the grids once the deck is rolling rather than trusting where it was
+placed — but the worst observed case is an onset around −20 dB a half-beat into
+the fade: a soft entry, not a hole. Closing it means rolling the incoming deck
+silently through the armed window so the seam never calls `play()` at all.
+
+**iOS is a different engine and is unchanged.** There the WebAudio graph is not
+live at all: `createMediaElementSource` is a one-way door and a suspended context
+would silence lock-screen playback, so decks play element-direct and the OS owns
+them. iOS also ignores `volume` on media elements, so a crossfade is not
+expressible — every transition falls to the same-element advance, which is the
+audible stop-and-reload between tracks. Fixing it means choosing between routing
+iOS through the graph (risking the pocketed phone going silent) and alternating
+two elements (which churns iOS's decoder budget and can quietly drop an element's
+autoplay blessing mid-queue). Both are real trades with real downside; neither
+should be made silently.
+
+### The activity log
+
+At the bottom of the Console: what the application has actually done on this
+device — updates offered, deferred, applied and recovered; what played; when the
+library loaded; when the network came and went. Newest first, bounded, with
+consecutive repeats coalesced into a count so a long set does not bury the one
+line that matters. Kept on the device, sent nowhere, and clearable. It exists
+because everything above happens behind the glass, and when something feels
+wrong there was previously nothing to look at.
 
 A web app gets **no CarPlay grid icon**. What it gets — and what this build
 drives completely — is the system **Now Playing** surface everywhere: title,
@@ -590,7 +1033,7 @@ Catalog chrome (Library, Console, Install) hides when irrelevant.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 58 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 207 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance (extracted from
                                     #   the shipped HTML, not a copy)
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
@@ -603,6 +1046,42 @@ node tools/mix_acceptance.mjs /tmp/mb8m      # 28 checks: grids, keys, live beat
                                     #   phase lock < 40 ms, gates, crate, mixfix
 node tools/update_acceptance.mjs /tmp/mb8u   # 9 checks: publish → Update button →
                                     #   one tap → new build live, state intact
+python3 tools/make_mix_fixture.py /tmp/mb8-mix
+node tools/mix_probe.mjs /tmp/mb8-mix        # the SEAM on a real graph: master-level
+                                    #   envelope across the blend, whether the incoming
+                                    #   deck was rolling before the blend could be heard,
+                                    #   the beat-phase error, and that no deck is left
+                                    #   off-unity afterwards. MB8_PROBE_RENDER=1 re-runs
+                                    #   it with the visualizer live, which is how the
+                                    #   seam's frame-rate coupling was found — and is now
+                                    #   the condition the beat lock is GATED under
+node tools/update_probe.mjs         # 17 checks on the REACHABILITY of an update:
+                                    #   stamped + unstamped deploys, a sibling client
+                                    #   consuming the waiting worker, and "Later"
+                                    #   surviving a reload. (acceptance asks whether
+                                    #   state survives a swap; this asks whether the
+                                    #   swap happens at all), plus the one nothing
+                                    #   was watching: with NO deploy, four checks
+                                    #   and a reload must produce no offer at all
+node tools/color_probe.mjs docs     # per-scene washout + chroma on a real GL context,
+                                    #   and the shipped GLSL rolloff checked against
+                                    #   its JS twin on the GPU
+node tools/handover_probe.mjs /tmp/mb8-mix   # the gap between two tracks on the path a
+                                    #   PHONE takes: an iPhone user-agent so the shipping
+                                    #   iOS branch of playIndex is what runs, and a
+                                    #   throttled pipe, because a stall that only exists
+                                    #   over a real network is invisible on localhost.
+                                    #   Reports the gap broken into its legs and checks
+                                    #   playback never leaves the blessed element.
+                                    #   --nowarm measures the before picture (2148 ms)
+node tools/touch_probe.mjs docs     # 27 checks that the hand is IN the world: the
+                                    #   overlay layers do not exist, the image bends
+                                    #   where the metric claims and nowhere else, all
+                                    #   four forces are genuinely different
+                                    #   deformations, a raymarched scene answers, the
+                                    #   GPU metric matches the JS one, and reduced
+                                    #   motion shrinks it without closing it.
+                                    #   --png DIR writes the before/after frames
 ```
 
 Physical-device acceptance (iPhone lock screen ≥ 10 min, Bluetooth

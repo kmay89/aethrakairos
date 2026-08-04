@@ -1,0 +1,220 @@
+{
+  "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
+  "entries": [
+    {
+      "build": "unreleased",
+      "date": "2026-08-03",
+      "title": "A lava lamp that is simulated, not animated",
+      "notes": [
+        "a new room — THE LAVA LAMP: wax that rises because it is warm, thins because it is hot, tears apart when it is going too fast, and rings like a struck drop for a second after two blobs collapse into one",
+        "the pool at the bottom is stuck to the heater by its own wetting film and pays out droplets from underneath — and on the rare occasion it warms enough to let go, it comes apart into a rising column of droplets on the way up, which nobody scripted",
+        "real refraction through the surface, split into three wavelengths, over the coil’s own light in the fluid behind; thin edges pale, fat middles deep, and bubbles that zig-zag on the way up the way rising bubbles actually do",
+        "the music is the thermostat: bass and the track’s arc turn the coil up, and everything else — how fast the wax climbs, how readily it breaks — follows from that one number",
+        "put a hand on it and the wax flows, and keeps flowing after you let go",
+        "a device that cannot afford as many blobs gets fewer, larger ones rather than a coarser picture — which is more like a lava lamp, not less"
+      ],
+      "builds": [
+        "dc335e7759",
+        "e8b06a0e73"
+      ]
+    },
+    {
+      "build": "73655bab01",
+      "date": "2026-08-03",
+      "title": "The field can have a screen of its own",
+      "notes": [
+        "stage mode: the visualizer goes fullscreen on a second screen or a TV and this window becomes the booth — hold the fullscreen button, press ⇧F, or tap Stage",
+        "the booth folds into a corner player: what is playing, the transport, and a pad that puts your hand on the picture the room can see — the chevron opens the rest",
+        "a stage screen carries no controls, no library and no sound of its own; it draws what the booth hears, and says so if the booth goes quiet instead of freezing",
+        "several screens draw one field rather than one picture each — screen 2 of 3 shows the middle third of a single camera, so a shape crossing the seam stays one shape",
+        "fixed: on the Mac app, CATALOG opened nothing and stalled the audio — every dialog is the app’s own now, so naming a journey and erasing history work there too",
+        "the microphone says which of the four things went wrong, and on the Mac it opens the privacy pane where the answer actually lives",
+        "the Mac app no longer offers to install the app you are already in",
+        "the Mac app’s own update is offered instead of installed behind your back — same card, same three choices, and your place is saved before it restarts"
+      ]
+    },
+    {
+      "build": "b3c47720be",
+      "date": "2026-08-03",
+      "title": "\"You're up to date\" — a status that finally says so",
+      "notes": [
+        "fixed: the update card could still come back reading \"→ new\" over and over — an announcement from an outdated background worker, or a check made while the site was unreachable, was believed without ever being verified",
+        "an offer that cannot name the build it brings is now re-checked against the site on every update check, and withdrawn the moment it turns out to be the build you already run",
+        "when a check finds you current while the card is open, the card now says \"You're up to date\" with the build id — and applying a refresh says the same, so the end of the loop is something you can actually see"
+      ]
+    },
+    {
+      "build": "7dba7ac06f",
+      "date": "2026-08-03",
+      "title": "The update that knew it had landed",
+      "notes": [
+        "fixed: applying an update could leave the app offering you the same one again, over and over, with nothing left to apply — an update you have already applied is now recognised as applied, and the app says so once instead of asking again",
+        "the check for a newer version asks the site itself rather than the copy it already has, so \"there is an update\" is something measured and not something assumed",
+        "a background update that carries the version you are running is retired quietly instead of becoming a card — and when there really is a new one, the card names it instead of calling it \"new\"",
+        "the what's-new list is the news you do not have yet: builds that shipped without a note of their own no longer make it repeat the last four"
+      ]
+    },
+    {
+      "build": "c4d132eea9",
+      "date": "2026-07-31",
+      "title": "The booth grew hands",
+      "notes": [
+        "loops and rolls on eight beat lengths, from a 32nd to sixteen bars — a loop makes the track wait, a roll stalls the music while the track runs on underneath, so letting go lands you where you would have been",
+        "a loop latches on the last beat line you actually heard, and halving or doubling it never moves where it began",
+        "filter, echo, gate and drive on one knob, every time constant read from the same beat clock the visuals follow — plus a brake that is a turntable losing power, not a fade",
+        "AUTO gives the same hands to the room: the echo blooms into a hand-off and the filter opens across a build, chosen from the song's own shape and never during a quiet passage",
+        "the moment you touch anything, AUTO steps back and stays back until you arm it again — it will not undo what you just set",
+        "fixed: the gate could silently stop on a busy frame instead of chopping",
+        "fixed: the booth could knock a blend off its beat lock by resetting a deck's speed just as the mix began"
+      ],
+      "builds": [
+        "442fab86e1",
+        "9e6b13a9be"
+      ]
+    },
+    {
+      "build": "74fea37ab0",
+      "date": "2026-07-30",
+      "title": "The update that kept asking",
+      "notes": [
+        "fixed: the app could offer you an update to the version you were already running, and keep offering it after you applied it",
+        "an update is only offered now when the build on the server is genuinely different from the one you have",
+        "when a check turns out to be a false alarm, the badge clears itself instead of waiting for a reload"
+      ]
+    },
+    {
+      "build": "05d9b7a1af",
+      "date": "2026-07-30",
+      "title": "No more silence between tracks on iPhone",
+      "notes": [
+        "the next track is now fetched while the current one plays, so the hand-off no longer waits on the network — the gap on a phone drops from over two seconds to the time the player itself needs",
+        "this works with the lock screen, not around it: playback never leaves the one element iOS trusts with background audio",
+        "on a slow or metered connection the app leaves it alone — Data Saver and 2G/3G are respected",
+        "touching the visuals now works on every device: weaker phones get a simpler version of the effect instead of none at all"
+      ]
+    },
+    {
+      "build": "03eafb765a",
+      "date": "2026-07-30",
+      "title": "Your hand bends the world now",
+      "notes": [
+        "the touch no longer draws anything on top of the visuals — it deforms the space they live in, and everything obeys",
+        "the black hole is genuinely dark because light near it stops coming back, and the bright ring around it is real lensing",
+        "hold your finger down and the horizon widens; let go and a wavefront leaves your fingertip and travels out",
+        "scenes with no particles answer your touch for the first time — the light itself is bent, so every scene reacts",
+        "reduced motion keeps the touch alive at a gentler strength instead of switching it off"
+      ]
+    },
+    {
+      "build": "e9ca59e869",
+      "date": "2026-07-29",
+      "title": "The auto-mix holds its beat lock",
+      "notes": [
+        "the intermittent glitch in the auto mix is fixed — blends stayed in time on an idle machine and drifted up to a quarter beat when the visuals were working hard",
+        "the seam is now lined up against where the outgoing track actually is, so a busy frame can no longer cost a blend its timing",
+        "the incoming track is given a moment to get rolling before the fader opens, so a blend starts full instead of easing in from nothing",
+        "measured under full visual load: beat error down from 114 ms to under 8 ms, and it is now a test that has to keep passing"
+      ]
+    },
+    {
+      "build": "a8e1bfde9f",
+      "date": "2026-07-29",
+      "title": "Shorter, tighter blends",
+      "notes": [
+        "auto-mix now blends in 8 beats by default instead of 32 — a punchier mix, and far less room for two decks to drift apart",
+        "the crate's match scores now rate the PAIR (key and tempo) rather than rewarding whichever blend was longest",
+        "longer blends are still there per pair in the Mix tuner"
+      ]
+    },
+    {
+      "build": "c64aec155b",
+      "date": "2026-07-29",
+      "title": "The Update button, fixed — and a log of what the app does",
+      "notes": [
+        "tapping Update always does something now: if another window already applied it, this one reloads instead of going quiet",
+        "\"Later\" is remembered across restarts — the button keeps a count and reminds you once when the time is up",
+        "SHOW mode still holds every update; nothing is ever applied out from under a set",
+        "new Activity log at the bottom of the Console: updates, what played, what the system decided — kept on this device only"
+      ]
+    },
+    {
+      "build": "d4122d90bc",
+      "date": "2026-07-29",
+      "title": "Colour that survives the brightest moment",
+      "notes": [
+        "bright scenes no longer wash out to white — overdriven light reads as deeper colour instead",
+        "blowing out to white is saved for the drop, where the music has earned it",
+        "the palette is now a full gradient, so sweeps stay vivid instead of going grey in the middle",
+        "click the three colour dots in the HUD: AUTO · SPECTRUM · DUOTONE"
+      ]
+    },
+    {
+      "build": "eeb9bcdf6a",
+      "date": "2026-07-25",
+      "title": "Four more skins",
+      "notes": [
+        "Sakura Night, Solstice, Ultramarine, Garnet & Silver — 12 in all",
+        "dialogs, the update bar, and the welcome card now follow your skin too"
+      ]
+    },
+    {
+      "build": "71492d2f84",
+      "date": "2026-07-25",
+      "title": "Skins + a bulletproof update bar",
+      "notes": [
+        "8 skins — dress the whole console; your pick stays on this device",
+        "the welcome says it plainly: a free jukebox, loaded and ready",
+        "updating shows an honest progress bar that never gets stuck",
+        "if a swap ever stalls, the player hands itself back — nothing lost"
+      ]
+    },
+    {
+      "build": "63660fc4f1",
+      "date": "2026-07-24",
+      "title": "Smart self-updating",
+      "notes": [
+        "updates now arrive by themselves — no more clearing site data",
+        "the Update button wears a badge and opens this log",
+        "choose: now, after this track, or later (6 h)",
+        "⚡ SHOW mode is never interrupted by an update"
+      ]
+    },
+    {
+      "build": "touch-epic",
+      "date": "2026-07-24",
+      "title": "The epic touch",
+      "notes": [
+        "hold to charge, release to detonate",
+        "sling the vortex and it keeps spinning",
+        "tap on the beat — the field answers louder",
+        "✦ AUTO: scenes re-tune your touch as they change"
+      ]
+    },
+    {
+      "build": "echoes-drift",
+      "date": "2026-07-24",
+      "title": "Echoes — passing thoughts",
+      "notes": [
+        "quotes drift by like clouds in the calm passages",
+        "✧ MUSE floats questions you can answer, kept on this device only"
+      ]
+    },
+    {
+      "build": "power-modes",
+      "date": "2026-07-24",
+      "title": "Power modes",
+      "notes": [
+        "⚡ SHOW: full density, screen kept awake",
+        "⚡ ECO: half the frames, quarter the pixels — battery goes to the music"
+      ]
+    },
+    {
+      "build": "84413e9a03",
+      "date": "2026-07-23",
+      "title": "Mobile booth redesign",
+      "notes": [
+        "real platters on mobile, a live monitor between them"
+      ]
+    }
+  ]
+}

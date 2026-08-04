@@ -38,12 +38,20 @@ Requires numpy always; Demucs + ffmpeg only when actually separating audio
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 import numpy as np
+
+# this script lives in tools/, but fingerprint.py (the audio decoder it uses to
+# read Demucs's output) sits at the repo root — put the root on sys.path so the
+# lazy `from fingerprint import decode_mono` in separate() resolves no matter the
+# CWD the script is launched from (running `python3 tools/stems.py` otherwise
+# puts only tools/ on the path, and every separation silently misses).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 CATALOG_PATH = Path("docs/catalog.json")
 AUDIO_ROOT = Path("docs/audio")
@@ -124,6 +132,17 @@ def _audio_path(album, tr):
     return AUDIO_ROOT / tag / file
 
 
+def _track_key(album, tr):
+    """A stable identifier for a track across catalog revisions — album tag +
+    file. Lets a batch's freshly computed stems be re-applied to a newer
+    catalog by IDENTITY, never by line position, so overlapping CI runs merge
+    into a clean union instead of colliding on git's line-level diff."""
+    tag, file = album.get("tag"), tr.get("file")
+    if not tag or not file:
+        return None
+    return f"{tag}/{file}"
+
+
 def _needs(tr, force):
     mix = tr.get("mix")
     if not isinstance(mix, dict):
@@ -136,6 +155,7 @@ def _needs(tr, force):
 
 def enrich(catalog, limit=None, force=False):
     done = skip = miss = 0
+    banked = {}                                      # track_key -> stems block, for sidecar re-apply
     for album, tr in _iter_tracks(catalog):
         if limit is not None and done >= limit:
             break                                    # stop scanning once the batch is full
@@ -158,8 +178,36 @@ def enrich(catalog, limit=None, force=False):
             miss += 1
             continue
         tr["mix"]["stems"] = block
+        key = _track_key(album, tr)
+        if key:
+            banked[key] = block
         done += 1
-    return done, skip, miss
+    return done, skip, miss, banked
+
+
+def reapply(catalog, banked, force=False):
+    """Merge a batch's computed stems (from a sidecar) into THIS catalog by
+    track identity. Used after a CI push loses the race and resets onto the
+    latest main: the freshly pulled catalog may already carry some of these
+    tracks (from the run that won the race) — those are left untouched — while
+    ours that are still missing get added. The result is the union of both
+    runs' work, re-serialized whole, so there is no line-level conflict to
+    resolve. Returns how many tracks this actually added."""
+    added = 0
+    for album, tr in _iter_tracks(catalog):
+        mix = tr.get("mix")
+        if not isinstance(mix, dict):
+            continue
+        key = _track_key(album, tr)
+        block = banked.get(key) if key else None
+        if block is None:
+            continue
+        st = mix.get("stems")
+        if not force and isinstance(st, dict) and st.get("sv") == STEMS_VERSION:
+            continue                                 # already banked upstream — keep theirs
+        mix["stems"] = block
+        added += 1
+    return added
 
 
 def coverage(catalog):
@@ -202,6 +250,22 @@ def selftest():
     # too little data → None, and an all-missing set → None
     assert stem_env([0.0, 0.1], sr) is None, "tiny → None"
     assert reduce_stems({"d": None, "b": None, "v": None, "o": None}, sr) is None
+    # reapply merges a sidecar into a newer catalog by identity: a track the
+    # winning run already banked keeps THEIRS; ours that are still missing get
+    # added — the union, never a clobber.
+    upstream = {"sv": STEMS_VERSION, "hz": ENV_HZ, "d": "9" * 48}
+    catalog = {"albums": [{"tag": "A", "tracks": [
+        {"file": "won.mp3", "mix": {"stems": upstream}},   # already banked upstream
+        {"file": "ours.mp3", "mix": {}},                    # ours, still missing
+        {"file": "nostems.mp3"},                            # no mix at all — untouched
+    ]}]}
+    sidecar = {"A/won.mp3": block, "A/ours.mp3": block}
+    added = reapply(catalog, sidecar)
+    tracks = catalog["albums"][0]["tracks"]
+    assert added == 1, f"only the missing track is added, got {added}"
+    assert tracks[0]["mix"]["stems"] is upstream, "the winning run's stems are kept"
+    assert tracks[1]["mix"]["stems"] == block, "our missing track gets banked"
+    assert "mix" not in tracks[2], "a track without mix is never fabricated"
     print("selftest OK — stem envelopes match the catalog's digit shape")
     return 0
 
@@ -213,6 +277,10 @@ def main(argv=None):
     ap.add_argument("--force", action="store_true", help="re-separate tracks that already have stems")
     ap.add_argument("--limit", type=int, default=None, help="separate at most N tracks this run")
     ap.add_argument("--catalog", default=str(CATALOG_PATH))
+    ap.add_argument("--sidecar", default=None,
+                    help="also write this run's banked stems to this JSON path (for conflict-free re-apply)")
+    ap.add_argument("--reapply", default=None, metavar="SIDECAR",
+                    help="don't separate; merge a sidecar's stems into the catalog by track identity")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
@@ -223,11 +291,24 @@ def main(argv=None):
         pct = (100.0 * have / total) if total else 0.0
         print(f"stems: {have}/{total} tracks have current-version envelopes ({pct:.0f}%)")
         return 0
-    done, skip, miss = enrich(catalog, limit=a.limit, force=a.force)
+    if a.reapply:
+        banked = json.loads(Path(a.reapply).read_text(encoding="utf-8"))
+        added = reapply(catalog, banked, force=a.force)
+        print(f"stems: re-applied {added} track(s) from {a.reapply} onto {path}")
+        if added:
+            path.write_text(json.dumps(catalog, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+            print(f"wrote {path}")
+        else:
+            print("no changes")
+        return 0
+    done, skip, miss, banked = enrich(catalog, limit=a.limit, force=a.force)
     print(f"stems: separated {done}, skipped {skip} (already current), missed {miss} (no audio / failed)")
     if done:
         path.write_text(json.dumps(catalog, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"wrote {path}")
+        if a.sidecar:                                # persist for a post-race re-apply
+            Path(a.sidecar).write_text(json.dumps(banked, ensure_ascii=False), encoding="utf-8")
+            print(f"wrote sidecar {a.sidecar} ({len(banked)} tracks)")
     else:
         print("no changes")
     return 0
