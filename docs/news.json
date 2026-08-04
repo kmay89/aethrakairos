@@ -14,7 +14,8 @@
         "a device that cannot afford as many blobs gets fewer, larger ones rather than a coarser picture — which is more like a lava lamp, not less"
       ],
       "builds": [
-        "dc335e7759"
+        "dc335e7759",
+        "e8b06a0e73"
       ]
     },
     {
