@@ -2711,8 +2711,7 @@ body.crowd{background:#000}
     <p class="lede">Scene 19 is <b>FLAME</b> — ten real light sources burning side by side: match,
     lighter, Bic, Zippo, Clipper, torch, campfire, an iPhone flashlight, an LED and a laser. Each one
     listens to <i>its own band</i> of the live spectrum and lifts when that band arrives, so the bench
-    is a spectrum analyser made out of fire — and under each light, its name and its colour, written in
-    that colour.
+    is a spectrum analyser made out of fire.
     <b>Nothing in the room was art-directed.</b> Every colour is integrated from Planck's law through
     the CIE 1931 observer: a Zippo is amber because 1500&nbsp;K <i>is</i> amber, and the laser's green
     is a green no black body can make because 532&nbsp;nm is one wavelength rather than a whole curve.
@@ -2727,7 +2726,18 @@ body.crowd{background:#000}
     hold, and they are fed air and roar; let go, and the release blows them flat. A beam barely notices.
     A laser does not care at all — and that difference is the most honest thing in the room. Half the
     visits light the whole bench; the other half bring one source close enough to read the flicker
-    off it.</p>
+    off it.
+    <b>And then the bench fires.</b> As the music earns it the room becomes a pyrotechnics show —
+    gerbs and mines off the sources, shells that rise as comets and <i>break</i> at the top of their
+    climb into peonies, chrysanthemums, willows, palms, rings, crossettes and strobes, with billows of
+    lit smoke rolling out underneath all of it. It is the same two ideas taken a few thousand feet up.
+    A star's colour is its <i>chemistry</i>, through the same observer: strontium's 650&nbsp;nm red,
+    barium at 515, copper's difficult blue at 452, sodium's D lines at 589, and a purple star that is
+    copper and strontium in one pellet, so its colour is their sum. The gold willow is not a colour at
+    all — it is charcoal, incandescing, and it comes out the same amber a Zippo does. And a star's
+    flight is one closed form: linear drag on its velocity, gravity underneath, integrated once so
+    thousands of them can live in a shader with no state. What separates a willow from a peony is not
+    a different animation — it is three numbers.</p>
     <h3>The parlor</h3>
     <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
     science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
@@ -2789,6 +2799,14 @@ body.crowd{background:#000}
     back as the glow inside. The temperature is splatted alongside the density, so every pixel reads
     the temperature of the wax actually in front of it — a blob that has just left the coil is
     visibly hotter where it left.</p>
+    <p class="lede">Two details are doing more work than they look like. What gets splatted is not
+    the density but a <b>normalised</b> field — each particle divided by its own density, which the
+    solver already measured — because a droplet of four particles is genuinely thinner than the
+    middle of a pool, and any threshold that draws the pool's edge correctly makes the droplet
+    disappear entirely. The beaded chain of drops pinching off a rising column is on screen because
+    of that one division. And one extra tap <i>below</i> each pixel gives the <b>shadow</b>: the only
+    light in the object is under the column, so a blob is between the coil and everything above it,
+    and without that the room reads as a flat cut-out however good the blob itself looks.</p>
     <p class="lede"><b>The music is the thermostat</b>: bass and the act's own heat turn the coil up,
     and the rise, the stretch and the break-up all follow from that one number. Put a hand on it and
     the wax <i>flows</i> — and keeps flowing after you let go, because it has momentum — while the
@@ -3825,6 +3843,146 @@ function flameRoll(r){
   if (x < 0.46) return { mode: 'vigil', src: -1, name: 'VIGIL · TEN LIGHTS' };
   const i = Math.min(n - 1, Math.floor((x - 0.46) / 0.54 * n));
   return { mode: 'solo', src: i, name: flameLabel(FLAME_SOURCES[i]) };
+}
+
+/* ================================================================
+   PYROTECHNICS — the bench, fired into the air.
+
+   The same two ideas as the flames, taken up a few thousand feet.
+
+     THE COLOUR IS STILL A SPECTRUM. A firework star is not "red" —
+     it is strontium monochloride emitting a band around 650 nm, or
+     barium at 515, or copper at 452, or sodium's D lines at 589.
+     Those go through the SAME CIE observer the flames and the laser
+     use, which is why a green shell here is a green no black body
+     can make and the gold willow, which really is just incandescent
+     charcoal, comes out the same amber as a Zippo. A purple star is
+     two emitters in one pellet — copper and strontium — so its
+     colour is their SUM, exactly as the blue cone sums beside a
+     lighter's yellow body.
+
+     THE MOTION IS STILL A CLOSED FORM. A star is a ballistic
+     particle in air: linear drag on its velocity, gravity
+     underneath. Integrated once, analytically, so the GPU can
+     evaluate any age directly instead of stepping a simulation it
+     would have to store — and so a test can hold it against the
+     limit where the air is taken away and it must reproduce
+     vacuum ballistics exactly.
+
+   What separates a peony from a willow is then nothing but three
+   numbers: how hard the stars are thrown, how thick the air is, and
+   how heavy they are. Not three different animations.
+   ================================================================ */
+
+/* The star chemistry. `nm` is a line/band emitter; `kelvin` is something
+   simply burning hot enough to glow (magnesium, titanium, charcoal); a star
+   with both wavelengths carries two emitters and its colour is their sum. */
+const PYRO_STARS = [
+  { key: 'strontium', name: 'STRONTIUM', nm: 650 },                    // deep red — SrCl
+  { key: 'calcium',   name: 'CALCIUM',   nm: 606 },                    // orange — CaCl
+  { key: 'sodium',    name: 'SODIUM',    nm: 589 },                    // yellow — the D lines
+  { key: 'barium',    name: 'BARIUM',    nm: 515 },                    // green — BaCl
+  { key: 'copper',    name: 'COPPER',    nm: 452 },                    // blue — CuCl, the hard one
+  { key: 'purple',    name: 'PURPLE',    nm: 452, nm2: 650, mix: 0.55 },// copper + strontium, together
+  { key: 'magnesium', name: 'MAGNESIUM', kelvin: 4300 },               // white — burning metal
+  { key: 'titanium',  name: 'TITANIUM',  kelvin: 2900 },               // silver sparks
+  { key: 'charcoal',  name: 'GOLD',      kelvin: 1750 },               // the gold willow: just charcoal
+];
+/* Two emitters in one pellet ADD, they do not average — the same reason a
+   lighter's blue cone survives beside a body five times brighter. */
+function pyroStarRGB(star){
+  const s = star || {};
+  if (s.nm && s.nm2){
+    const m = s.mix == null ? 0.5 : clamp01(s.mix);
+    return encodeRGB(normalizeRGB(addRGB(scaleRGB(wavelengthLinear(s.nm), m),
+                                         scaleRGB(wavelengthLinear(s.nm2), 1 - m))));
+  }
+  return s.nm ? wavelengthRGB(s.nm) : kelvinRGB(s.kelvin || 2500);
+}
+
+/* THE PIECES. `v0` is how hard the break throws its stars, `drag` how thick
+   the air is to them, `grav` how heavy they are; everything you would call a
+   shape falls out of those three plus which way the stars are aimed.
+   `lift` is the share of the piece's life spent as a comet on the way up —
+   zero for the ground pieces, which have nowhere to go. */
+const PYRO_SHELLS = [
+  { key: 'peony',     name: 'PEONY',     v0: 5.0, drag: 0.55, grav: 7.5, life: 3.4, lift: 0.30, trail: 0.10, form: 0 },
+  { key: 'chrys',     name: 'CHRYSANTHEMUM', v0: 5.2, drag: 0.70, grav: 8.5, life: 3.8, lift: 0.28, trail: 0.60, form: 0 },
+  { key: 'willow',    name: 'WILLOW',    v0: 5.5, drag: 0.90, grav: 13,  life: 4.6, lift: 0.26, trail: 0.85, form: 0 },
+  { key: 'palm',      name: 'PALM',      v0: 6.5, drag: 0.45, grav: 9.5, life: 3.6, lift: 0.34, trail: 0.75, form: 1 },
+  { key: 'ring',      name: 'RING',      v0: 5.5, drag: 0.50, grav: 6.5, life: 3.2, lift: 0.30, trail: 0.15, form: 2 },
+  { key: 'crossette', name: 'CROSSETTE', v0: 4.5, drag: 0.60, grav: 8,   life: 3.4, lift: 0.30, trail: 0.20, form: 3 },
+  { key: 'strobe',    name: 'STROBE',    v0: 4.6, drag: 0.85, grav: 7,   life: 4.0, lift: 0.28, trail: 0.05, form: 4 },
+  { key: 'gerb',      name: 'GERB',      v0: 5.0, drag: 1.00, grav: 13,  life: 2.4, lift: 0,    trail: 0.45, form: 5, spread: 0.16 },
+  { key: 'mine',      name: 'MINE',      v0: 6.0, drag: 0.70, grav: 12,  life: 2.8, lift: 0,    trail: 0.35, form: 5, spread: 0.45 },
+  { key: 'billow',    name: 'BILLOW',    v0: 6.0, drag: 1.40, grav: -2.6, life: 4.4, lift: 0,   trail: 0,    form: 6, spread: 1 },
+];
+function pyroShell(key){ return PYRO_SHELLS.find(s => s.key === key) || PYRO_SHELLS[0]; }
+
+/* A STAR IN AIR, in closed form. Linear drag means v̇ = −kv − g, which
+   integrates exactly: the distance along the launch direction is v₀·(1−e^{−kt})/k
+   and the fall underneath it is (g/k)·(t − (1−e^{−kt})/k). Evaluate at any age
+   without having stepped through the ages before it — which is the only reason
+   thousands of stars can live in a vertex shader with no state at all. */
+function pyroFlight(t, v0, drag, grav){
+  const T = Math.max(0, +t || 0);
+  const k = Math.max(1e-4, +drag || 0);
+  const u = (1 - Math.exp(-k * T)) / k;
+  return { reach: (+v0 || 0) * u, fall: (+grav || 0) / k * (T - u) };
+}
+
+/* HOW BUSY THE SKY IS — launches per second. Never a timer: the show is as
+   busy as the music, and it goes quiet when the music does. */
+/* `slots` is the whole table; the last `smoke` of them are kept back for
+   billows so a busy sky can never starve the room of the thing every fire
+   actually makes. */
+const PYRO_TUNING = { slots: 20, smoke: 7, base: 0.22, gain: 2.0, onsetFloor: 0.45,
+                      maxPerFrame: 3, calm: 0.45, smokeRate: 0.40, smokeGain: 1.15 };
+function pyroRate(o){
+  const s = o || {}, e = clamp01(+s.energy || 0), m = s.mood;
+  let r = PYRO_TUNING.base + e * PYRO_TUNING.gain;
+  if (m === 'apex') r *= 2.4;
+  else if (m === 'ascend') r *= 1.55;
+  else if (m === 'swarm') r *= 1.2;
+  else if (m === 'adrift' || m === 'dissolve') r *= 0.38;
+  if (s.calm) r *= PYRO_TUNING.calm;
+  return r;
+}
+/* Spend the budget. An onset is worth spending an ALMOST-full budget on, so a
+   shell breaks on the hit rather than a fraction of a second after the
+   arithmetic happens to come out even. */
+function pyroFire(acc, dt, rate, onset){
+  let a = Math.max(0, +acc || 0) + Math.max(0, +dt || 0) * Math.max(0, +rate || 0);
+  let n = 0;
+  if (onset && a >= PYRO_TUNING.onsetFloor){ n++; a -= Math.min(a, 1); }
+  while (a >= 1 && n < PYRO_TUNING.maxPerFrame){ n++; a -= 1; }
+  return { acc: Math.min(Math.max(0, a), 2), fire: n };
+}
+/* WHICH PIECE THE MOMENT HAS EARNED. The ground pieces carry the quiet — a
+   gerb is a flame doing a little more — and the sky opens as the music does.
+   Billows ride under everything: the smoke a fire makes is not an event. */
+function pyroPick(o, r){
+  const s = o || {}, e = clamp01(+s.energy || 0), m = s.mood;
+  const x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
+  if (m === 'adrift' || m === 'dissolve') return x < 0.62 ? 'billow' : (x < 0.86 ? 'gerb' : 'willow');
+  if (e < 0.30) return x < 0.44 ? 'billow' : (x < 0.78 ? 'gerb' : 'willow');
+  if (m === 'apex'){
+    const SKY = ['peony', 'chrys', 'palm', 'ring', 'crossette', 'strobe', 'peony', 'chrys'];
+    return x < 0.12 ? 'mine' : SKY[Math.floor(((x - 0.12) / 0.88) * SKY.length) % SKY.length];
+  }
+  const MID = ['gerb', 'mine', 'peony', 'chrys', 'willow', 'ring', 'crossette', 'billow'];
+  return MID[Math.floor(x * MID.length) % MID.length];
+}
+/* AND WHICH CHEMISTRY. Brightness wants metal (magnesium, titanium); warmth
+   wants the low salts; the top of the spectrum earns the hard colours — copper
+   blue is the expensive one in a real shell and it is the expensive one here. */
+function pyroSalt(o, r){
+  const s = o || {}, x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
+  const bright = clamp01(+s.treble || 0) * 0.6 + clamp01(+s.energy || 0) * 0.4;
+  const POOL = bright > 0.62 ? ['barium', 'copper', 'magnesium', 'titanium', 'purple', 'sodium']
+             : bright > 0.32 ? ['sodium', 'calcium', 'barium', 'magnesium', 'strontium', 'purple']
+                             : ['charcoal', 'strontium', 'calcium', 'charcoal', 'titanium', 'sodium'];
+  return POOL[Math.floor(x * POOL.length) % POOL.length];
 }
 
 /* ================================================================
@@ -13670,7 +13828,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '82b3044ff4';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '9bda7fb4ee';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -20954,15 +21112,15 @@ function buildHalo(){
 const LAVA = {
   yB: -0.66, yT: 0.80,        // the fluid column, in the field's own screen-y
   Tn: 0.44,                   // the temperature at which wax weighs what the fluid does
-  buoy: 2.2,                 // g·β — the Boussinesq gain
+  buoy: 2.7,                 // g·β — the Boussinesq gain
   muE: 2.2,                   // Arrhenius steepness
   skin: 26.0,                  // drag on the surface layer (see lavaStep)
-  iters: 2,                   // Jacobi sweeps of the density constraint
+  iters: 3,                   // Jacobi sweeps of the density constraint
   cfm: 0.05,                  // constraint force mixing, as a FRACTION of a full
                               // neighbourhood's own |∇C|² — see makeLava
   wall: 0.30,                 // what the glass is worth, as a share of rest density
   maxFix: 0.42,               // the largest position correction, in spacings
-  coh: 10.0,                  // cohesion — the surface tension, as a force
+  coh: 4.0,                  // cohesion — the surface tension, as a force
   xsph: 0.50,                 // XSPH viscosity — the line that makes it wax
   heatIn: 0.35,               // conductance across the free surface
   seatK: 6.0,                 // …and through the glass, where the coil is
@@ -20976,8 +21134,8 @@ const LAVA = {
   rest: 0.05,                 // what a wall gives back (wax: almost nothing)
   stir: 2.4, stirHeat: 0.32,  // what a hand does to the fluid, and to its heat
   bubBuoy: 26, bubMin: 0.014, bubMax: 0.032, strouhal: 0.21,
-  fill: 0.20,                 // how much of the bottle is wax
-  maxN: 320,                  // the hard ceiling on particles
+  fill: 0.19,                 // how much of the bottle is wax
+  maxN: 520,                  // the hard ceiling on particles
   hMax: 1 / 30,               // the longest step the neighbour list stays honest over
 };
 
@@ -21119,10 +21277,19 @@ function lavaRestGrad(h, d, rho0){
    bottle with fewer, larger parcels. Chunkier wax is still wax. */
 function lavaBudget(o){
   const s = o || {};
-  let n = 190, bub = 7;
-  if (s.eco){ n = 110; bub = 3; }
-  if (s.struggling){ n = Math.min(n, 90); bub = Math.min(bub, 2); }
-  if (s.calm) bub = Math.min(bub, 3);
+  /* THE PARTICLE COUNT IS THE WHOLE COST, on both sides — the solver is
+     O(N) and the renderer splats N sprites — so this one number is the
+     entire performance story of the room, and it is worth spending
+     honestly. A phone or a small-core machine is not merely "struggling
+     yet"; it is a machine we already know the answer for, and waiting for
+     the frame governor to discover that costs someone a visibly bad first
+     ten seconds. Measured on the reference machine: 0.43 ms a step at 190,
+     0.77 at 320, 1.12 at 440. */
+  let n = 340, bub = 8;
+  if (s.ios || (s.cores && s.cores <= 4)){ n = 200; bub = 6; }
+  if (s.eco){ n = Math.min(n, 130); bub = Math.min(bub, 3); }
+  if (s.struggling){ n = Math.min(n, 110); bub = Math.min(bub, 2); }
+  if (s.calm) bub = Math.min(bub, 4);
   n = Math.min(n, LAVA.maxN);
   return { n, bub };
 }
@@ -21197,6 +21364,18 @@ function makeLava(seed, o){
   S.MAXN = 48;
   S.nbr = new Int32Array(cap * S.MAXN);
   S.nbrN = new Int32Array(cap);
+  /* THE PAIR CACHE. Every pass of the solver wants the same four numbers
+     about the same pair — the offset, the kernel, and the gradient over r —
+     and the first version of this recomputed all of them five times a step,
+     square root and all. They are computed once per solver sweep now and
+     read by everything downstream, which is the difference between a fluid
+     this room can afford two hundred particles of and one it can afford
+     four hundred. Nothing is approximated: the cache is filled from the
+     SAME positions the pass that fills it is solving against. */
+  S.cdx = new Float32Array(cap * S.MAXN);
+  S.cdy = new Float32Array(cap * S.MAXN);
+  S.cw  = new Float32Array(cap * S.MAXN);
+  S.cg  = new Float32Array(cap * S.MAXN);
   return S;
 }
 
@@ -21220,6 +21399,7 @@ function lavaNeighbours(S){
   for (let i = 0; i < n; i++){ const c = cellOf[i]; idx[start[c] + cnt[c]++] = i; }
 
   const h2 = S.h * S.h, MAXN = S.MAXN, nbr = S.nbr, nbrN = S.nbrN;
+  const cdx = S.cdx, cdy = S.cdy;
   for (let i = 0; i < n; i++){
     const c = cellOf[i], cx = c % nx, cy = (c / nx) | 0;
     let k = 0;
@@ -21235,7 +21415,7 @@ function lavaNeighbours(S){
           if (j === i) continue;
           const ex = S.qx[i] - S.qx[j], ey = S.qy[i] - S.qy[j];
           if (ex * ex + ey * ey >= h2) continue;
-          if (k < MAXN) nbr[i * MAXN + k++] = j;
+          if (k < MAXN){ const s = i * MAXN + k; nbr[s] = j; cdx[s] = ex; cdy[s] = ey; k++; }
         }
       }
     }
@@ -21292,6 +21472,8 @@ function lavaStepOne(S, h, env){
   const T = S.T, rho = S.rho, lam = S.lam, free = S.free, dT = S.dT;
   const kh = S.h, rho0 = S.rho0, MAXN = S.MAXN, nbr = S.nbr, nbrN = S.nbrN;
   const k6 = S.k6, ks = S.ks, den = S.den;
+  const cdx = S.cdx, cdy = S.cdy, cw = S.cw, cg = S.cg;
+  const h2 = kh * kh, w0 = lavaW(0, kh, k6);
 
   /* ---- 0. cohesion, from LAST step's neighbours ----
      Reusing the previous step's list costs one frame of latency on a
@@ -21304,10 +21486,11 @@ function lavaStepOne(S, h, env){
     let fx = 0, fy = 0;
     const base = i * MAXN, cnt = nbrN[i];
     for (let a = 0; a < cnt; a++){
-      const j = nbr[base + a];
-      const ex = px[i] - px[j], ey = py[i] - py[j];
-      const r = Math.sqrt(ex * ex + ey * ey);
-      if (r < 1e-9) continue;
+      const s = base + a;
+      const ex = S.cdx[s], ey = S.cdy[s];
+      const r2 = ex * ex + ey * ey;
+      if (r2 < 1e-18) continue;
+      const r = Math.sqrt(r2);
       const c = lavaCohesion(r, kh) * gam / r;
       fx -= ex * c; fy -= ey * c;
     }
@@ -21351,17 +21534,24 @@ function lavaStepOne(S, h, env){
   const eps = LAVA.cfm * S.den0, fixMax = LAVA.maxFix * S.d;
   for (let iter = 0; iter < LAVA.iters; iter++){
     for (let i = 0; i < n; i++){
-      let r = lavaW(0, kh, k6);                             // itself
+      let r = w0;                                           // itself
       let gx = 0, gy = 0, sum = 0;
       const base = i * MAXN, cnt = nbrN[i];
+      const xi = qx[i], yi = qy[i];
       for (let a = 0; a < cnt; a++){
-        const j = nbr[base + a];
-        const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
+        const s = base + a, j = nbr[s];
+        const ex = xi - qx[j], ey = yi - qy[j];
         const r2 = ex * ex + ey * ey;
-        r += lavaW(r2, kh, k6);
+        // the kernel and its gradient, inlined and cached — this is the one
+        // place in the step where a square root is taken
+        const d2 = h2 - r2;
+        const w = d2 > 0 ? k6 * d2 * d2 * d2 : 0;
         const rr = Math.sqrt(r2);
-        const gw = lavaGradW(rr, kh, ks) / Math.max(rr, 1e-9) / rho0;
-        const cx = ex * gw, cy = ey * gw;
+        const dd = kh - rr;
+        const gw = (rr > 1e-9 && dd > 0) ? ks * dd * dd / rr : 0;
+        cdx[s] = ex; cdy[s] = ey; cw[s] = w; cg[s] = gw;
+        r += w;
+        const cx = ex * gw / rho0, cy = ey * gw / rho0;
         gx += cx; gy += cy;
         sum += cx * cx + cy * cy;                           // ∇_j C_i
       }
@@ -21382,10 +21572,8 @@ function lavaStepOne(S, h, env){
       let dx = 0, dy = 0;
       const base = i * MAXN, cnt = nbrN[i];
       for (let a = 0; a < cnt; a++){
-        const j = nbr[base + a];
-        const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
-        const r2 = ex * ex + ey * ey;
-        const rr = Math.sqrt(r2);
+        const s = base + a, j = nbr[s];
+        const ex = cdx[s], ey = cdy[s];
         /* THE ARTIFICIAL PRESSURE, which is the surface tension. A small
            extra repulsion at close range costs the interior nothing (it
            is balanced on all sides) and leaves the free surface with a
@@ -21393,8 +21581,7 @@ function lavaStepOne(S, h, env){
            between two of them fills in, and a thread pinches. Macklin's
            s_corr, and the only thing in this lamp that makes a merge
            happen. */
-        const gw = lavaGradW(rr, kh, ks) / Math.max(rr, 1e-9);
-        const m = (lam[i] + lam[j]) * gw / rho0;
+        const m = (lam[i] + lam[j]) * cg[s] / rho0;
         dx += ex * m; dy += ey * m;
       }
       /* A CEILING ON ONE CORRECTION. λ divides by Σ|∇C|², and a particle
@@ -21438,9 +21625,8 @@ function lavaStepOne(S, h, env){
     let sx = 0, sy = 0, st = 0, wsum = 0;
     const base = i * MAXN, cnt = nbrN[i];
     for (let a = 0; a < cnt; a++){
-      const j = nbr[base + a];
-      const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
-      const w = lavaW(ex * ex + ey * ey, kh, k6);
+      const s = base + a, j = nbr[s];
+      const w = cw[s];
       sx += (ux[j] - ux[i]) * w;
       sy += (uy[j] - uy[i]) * w;
       st += (T[j] - T[i]) * w;
@@ -21617,7 +21803,7 @@ const LAVA_R = {
      rather than the arrangement of the samples that stand for it. It costs
      nothing but sprite area, and sprite area is the one thing this
      renderer has to spare. */
-  splat: 2.35,     // the splat radius, in particle spacings
+  splat: 2.40,     // the splat radius, in particle spacings
   scale: 0.55,     // what a settled interior reads in the target (8 bits, so leave room)
   iso:   0.30,     // …and where the surface is, as a fraction of that
   res:   0.40,     // the target's height, as a fraction of the canvas's
@@ -21672,21 +21858,21 @@ function buildLava(){
 
   /* ---------- the splat pass: the field, drawn rather than solved ---------- */
   const sPos = new Float32Array(MAXP * 3);
-  const sAux = new Float32Array(MAXP * 2);     // x = temperature, y = 0 wax / 1 gas
+  const sAux = new Float32Array(MAXP * 3);     // x = temperature, y = 0 wax / 1 gas, z = weight
   const sRad = new Float32Array(MAXP);
   const sGeo = new THREE.BufferGeometry();
   sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3).setUsage(THREE.DynamicDrawUsage));
-  sGeo.setAttribute('aAux', new THREE.BufferAttribute(sAux, 2).setUsage(THREE.DynamicDrawUsage));
+  sGeo.setAttribute('aAux', new THREE.BufferAttribute(sAux, 3).setUsage(THREE.DynamicDrawUsage));
   sGeo.setAttribute('aRad', new THREE.BufferAttribute(sRad, 1).setUsage(THREE.DynamicDrawUsage));
   sGeo.setDrawRange(0, 0);
   const splatU = { uAspect: { value: 1 }, uRtH: { value: 256 }, uScale: { value: 0.25 } };
   const splatMat = new THREE.ShaderMaterial({
     uniforms: splatU,
     vertexShader: `
-      attribute vec2 aAux;
+      attribute vec3 aAux;
       attribute float aRad;
       uniform float uAspect, uRtH;
-      varying vec2 vAux;
+      varying vec3 vAux;
       void main(){
         vAux = aAux;
         // the target covers the same square-corrected space the field is in,
@@ -21697,7 +21883,7 @@ function buildLava(){
       }`,
     fragmentShader: `
       uniform float uScale;
-      varying vec2 vAux;
+      varying vec3 vAux;
       void main(){
         vec2 d = gl_PointCoord - 0.5;
         float r2 = dot(d, d) * 4.0;
@@ -21706,7 +21892,16 @@ function buildLava(){
         // picture is a picture OF the simulation rather than a second
         // opinion about where the wax is
         float a = 1.0 - r2;
-        float w = a * a * a * uScale;
+        /* …and weighted by aAux.z, which is what turns a sum of kernels
+           into a NORMALISED field. See pack(): a raw density splat reads
+           the bulk at one value and a four-particle droplet at a third of
+           it, so any isosurface that puts the bulk's edge in the right
+           place makes small droplets vanish entirely. Weighting each
+           particle by its own 1/ρ makes the sum an SPH interpolation of
+           the constant 1 — the classic colour function — which reads the
+           same inside a droplet as inside a pool however either is
+           packed. */
+        float w = a * a * a * uScale * vAux.z;
         float gas = vAux.y;
         gl_FragColor = vec4(w * (1.0 - gas), w * vAux.x * (1.0 - gas), w * gas, 1.0);
       }`,
@@ -21878,6 +22073,20 @@ function buildLava(){
 
         vec3 inner = fluid(p + hw);
 
+        /* WHAT THE WAX DOES TO THE LIGHT BEHIND IT. The one light in this
+           object is under the column, so a blob is between the coil and
+           everything above it — and until this line there was nothing above
+           any blob to say so, which is why the room read as a flat cut-out
+           however good the blob itself looked. One extra tap of the field,
+           BELOW this pixel, is the whole shadow: if there is wax under you,
+           less of the coil reaches you. A second, shorter tap down and to
+           the right answers the key light over the shoulder. Two fetches for
+           the only depth cue a two-dimensional lamp can honestly have. */
+        float shUp = fld(p - vec2(0.016, 0.105)).r;
+        float shKey = fld(p + vec2(0.040, -0.040)).r;
+        inner *= 1.0 - 0.30 * smoothstep(uIso * 0.22, uIso * 2.6, shUp)
+                     - 0.11 * smoothstep(uIso * 0.22, uIso * 2.6, shKey);
+
         // WAX. Coverage from the distance to the isosurface, depth from the field.
         float gl = max(length(Gw), 1e-4);
         float sd = (Fw - uIso) / gl;
@@ -21915,7 +22124,7 @@ function buildLava(){
              and its fat middle is dark and saturated — the same reason wax
              held up to a window looks like that, and the single thing that
              separates a translucent object from a coloured one. */
-          vec3 sss = wax * (vec3(1.0) - exp(-absorb * thick)) * (inner * 1.15 + 0.17 + 0.16 * uHeatV);
+          vec3 sss = wax * (vec3(1.0) - exp(-absorb * thick)) * (inner * 1.15 + 0.24 + 0.20 * uHeatV);
 
           vec3 L1 = normalize(vec3(-0.42, 0.70, 0.58));
           vec3 L2 = normalize(vec3(0.16, -0.92, 0.36));
@@ -21989,7 +22198,14 @@ function buildLava(){
       // the act leans the whole object's exposure — an overture is a lamp in
       // a dark room, an apex is a lamp somebody turned up
       col *= 0.86 + uAct * 0.26 + uEnergy * 0.06;
-      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+      /* ORDERED DITHER, a five-hundredth of a step. Almost everything in
+         this room is a smooth exponential over a large dark area, which is
+         the exact case eight bits per channel cannot hold: the gradients
+         come out as visible bands. A sub-quantum of noise, keyed to the
+         pixel rather than to time so it never crawls, costs one fract and
+         removes all of them. */
+      float dth = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      gl_FragColor = vec4(inkRolloff(col) + (dth - 0.5) * 0.0035, uOpacity);
     }
   `;
   const mat = new THREE.ShaderMaterial({
@@ -22056,27 +22272,41 @@ function buildLava(){
         full += a * a * a;
       }
     }
-    splatU.uScale.value = LAVA_R.scale / Math.max(1e-6, full);
+    fullSum = Math.max(1e-6, full);
+    splatU.uScale.value = LAVA_R.scale / fullSum;
     varU.uFull.value = LAVA_R.scale;                       // …so the interior reads exactly this
     varU.uIso.value = LAVA_R.scale * LAVA_R.iso;
     varU.uStep.value = Math.max(S.d * 0.55, 0.010);
     return rs;
   }
 
-  let splatR = 0.05;
+  let splatR = 0.05, fullSum = 1;
 
   function pack(){
     let k = 0;
     const n = Math.min(S.n, MAXP);
+    /* THE WEIGHT IS 1/ρ, AND IT COSTS NOTHING BECAUSE THE SOLVER ALREADY
+       MEASURED ρ. A droplet of four particles is genuinely less dense than
+       the middle of a pool — the kernels have less to overlap with — so a
+       raw density splat draws the pool's edge correctly and makes the
+       droplet disappear under any isosurface at all. Dividing each
+       particle's contribution by its own density turns the sum into an
+       interpolation of the constant 1: it reads the same inside a droplet
+       as inside a pool, so one threshold is right for both. The ceiling is
+       there because a particle entirely on its own would otherwise be
+       weighted by the whole neighbourhood it does not have. */
+    const wCap = fullSum;
     for (let i = 0; i < n; i++, k++){
       sPos[k * 3] = S.px[i]; sPos[k * 3 + 1] = S.py[i]; sPos[k * 3 + 2] = 0;
-      sAux[k * 2] = S.T[i]; sAux[k * 2 + 1] = 0;
+      const w = S.rho[i] > 1e-6 ? S.rho0 / S.rho[i] : wCap;
+      sAux[k * 3] = S.T[i]; sAux[k * 3 + 1] = 0;
+      sAux[k * 3 + 2] = w < 0.5 ? 0.5 : (w > wCap ? wCap : w);
       sRad[k] = splatR;
     }
     for (let i = 0; i < S.bub.length && k < MAXP; i++, k++){
       const b = S.bub[i];
       sPos[k * 3] = b.x; sPos[k * 3 + 1] = b.y; sPos[k * 3 + 2] = 0;
-      sAux[k * 2] = 1; sAux[k * 2 + 1] = 1;
+      sAux[k * 3] = 1; sAux[k * 3 + 1] = 1; sAux[k * 3 + 2] = 1;
       sRad[k] = b.r * 2.6 * Math.min(1, b.life);
     }
     sGeo.setDrawRange(0, k);
@@ -22100,7 +22330,11 @@ function buildLava(){
       varU.uAbs.value = 1.9 + Math.random() * 1.9;
       varU.uEta.value = 0.945 + Math.random() * 0.022;
       varU.uHs.value = 0.13 + Math.random() * 0.06;
-      budget = lavaBudget({});
+      budget = lavaBudget({
+        eco: typeof POWER !== 'undefined' && !POWER.heavyOK,
+        struggling: typeof PERF !== 'undefined' && PERF.struggling,
+        calm: SAFE.calm, ios: IS_IOS, cores: navigator.hardwareConcurrency,
+      });
       S = makeLava((Math.random() * 1e9) | 0,
                    { rb: varU.uRb.value, rt: varU.uRt.value, mu: wax.mu, n: budget.n });
       S.coh = wax.coh;
@@ -22149,7 +22383,7 @@ function buildLava(){
       const b = lavaBudget({
         eco: typeof POWER !== 'undefined' && !POWER.heavyOK,
         struggling: typeof PERF !== 'undefined' && PERF.struggling,
-        calm: SAFE.calm,
+        calm: SAFE.calm, ios: IS_IOS, cores: navigator.hardwareConcurrency,
       });
       // the particle count is fixed for the life of a pour — changing it
       // would change how much wax is in the bottle — so only the bubbles,
@@ -22236,34 +22470,6 @@ function buildLava(){
 
    And under each light, its name and its colour, in that colour.
    ========================================================= */
-const FLAME_LABEL_W = 512, FLAME_LABEL_H = 128;   // one cell of the label sheet
-function buildFlameLabelTexture(){
-  const cv = document.createElement('canvas');
-  cv.width = FLAME_LABEL_W; cv.height = FLAME_LABEL_H * FLAME_SOURCES.length;
-  const c = cv.getContext('2d');
-  const font = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-  FLAME_SOURCES.forEach((s, i) => {
-    const y = i * FLAME_LABEL_H, hex = rgbHex(flameRGB(s));
-    try { c.letterSpacing = '6px'; } catch (e){}
-    c.font = '600 40px ' + font;
-    c.fillStyle = hex;
-    c.fillText(s.name, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.46);
-    // the measurement, under the name, in white — the colour is the swatch
-    // above it, so the number does not have to be the thing you look at
-    try { c.letterSpacing = '3px'; } catch (e){}
-    c.font = '500 26px ' + font;
-    c.fillStyle = 'rgba(255,255,255,0.66)';
-    const meas = s.kind === 'laser' ? `${s.nm} nm · ${hex}` : `${s.kelvin} K · ${hex}`;
-    c.fillText(meas, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.82);
-  });
-  const tex = new THREE.CanvasTexture(cv);
-  tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = false;
-  tex.flipY = false;        // the sheet is authored top-down, row 0 first
-  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
-  return tex;
-}
 function buildFlame(){
   const group = new THREE.Group();
   const NS = FLAME_SOURCES.length;
@@ -22469,86 +22675,284 @@ function buildFlame(){
   pts.frustumCulled = false;
   group.add(pts);
 
-  /* THE LABELS. A room whose subject is what colour a thing is owes you the
-     name of the thing — so each light is captioned in its own computed colour,
-     with the number underneath. One sheet, one draw call, and it crossfades
-     with the scene because it carries the same uOpacity every other material
-     in the room does. */
-  const labelTex = buildFlameLabelTexture();
-  const labelU = { uLabelTex: { value: labelTex }, uSpread: varU.uSpread, uBase: varU.uBase,
-                   uScale: varU.uScale, uRows: varU.uRows, uTier: varU.uTier, uRow: { value: 0 } };
-  const CELL_A = FLAME_LABEL_H / FLAME_LABEL_W;      // the caption's own aspect
-  const LABEL_FRAG = `
-    uniform sampler2D uLabelTex; uniform float uOpacity;
-    varying vec2 vUv;
+  /* =======================================================================
+     THE SHOW. Twenty-four slots in the sky, and a firing script that spends
+     them on the music: a gerb where a flame is just doing a little more, a
+     mine off the bench on the hit, a shell that rises as a comet and BREAKS
+     at the top of its climb, a billow of lit smoke rolling off everything.
+
+     Not twenty-four animations. Every piece is the same closed-form star in
+     air — pyroFlight, up in the pure block — and what makes a willow a willow
+     rather than a peony is that its stars are thrown softer through thicker
+     air while being heavier. Change three numbers, get a different firework.
+
+     THE SLOT TABLE IS A TEXTURE, not a uniform array, for the same reason the
+     sources' parameters are: this shader picks its row per PARTICLE. Four
+     texels per slot, rewritten every frame — 384 bytes, which is nothing.
+     ======================================================================= */
+  const EV = PYRO_TUNING.slots, STARS = 64, TRAIL = 5;
+  const evData = new Uint8Array(EV * 4 * 4);          // EV wide, 4 rows
+  const evT = new THREE.DataTexture(evData, EV, 4, THREE.RGBAFormat);
+  evT.magFilter = THREE.NearestFilter; evT.minFilter = THREE.NearestFilter;
+  evT.needsUpdate = true;
+  // every slot's live state; t < 0 means the slot is cold
+  const slots = Array.from({ length: EV }, () => ({ t: -1, life: 1, kind: 0, src: 0,
+    col: [1, 1, 1], v0: 0, drag: 1, grav: 8, trail: 0, lift: 0, liftH: 0, spread: 0.4,
+    power: 1, seed: 0 }));
+  const SHELL_IDX = {}; PYRO_SHELLS.forEach((s, i) => { SHELL_IDX[s.key] = i; });
+
+  const PN = EV * STARS * TRAIL;
+  const aEv = new Float32Array(PN), aStar = new Float32Array(PN);
+  const aTrail = new Float32Array(PN), aPSeed = new Float32Array(PN);
+  {
+    const rp = mulberry32(0x9a12e5);
+    for (let i = 0; i < PN; i++){
+      aEv[i] = Math.floor(i / (STARS * TRAIL));
+      aStar[i] = Math.floor(i / TRAIL) % STARS;
+      aTrail[i] = i % TRAIL;
+      aPSeed[i] = rp();
+    }
+  }
+  const pgeo = new THREE.BufferGeometry();
+  pgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PN * 3), 3));
+  pgeo.setAttribute('aEv', new THREE.BufferAttribute(aEv, 1));
+  pgeo.setAttribute('aStar', new THREE.BufferAttribute(aStar, 1));
+  pgeo.setAttribute('aTrail', new THREE.BufferAttribute(aTrail, 1));
+  pgeo.setAttribute('aPSeed', new THREE.BufferAttribute(aPSeed, 1));
+
+  const pyroVert = VERT_POINT_HEAD + `
+    attribute float aEv, aStar, aTrail, aPSeed;
+    uniform sampler2D uPyroEv;
+    uniform float uSolo, uSpread, uScale, uBase, uRows, uTier, uFlick, uBeatSpring;
+    uniform vec3 uHand;
+    varying vec3 vCol; varying float vLum, vHot, vSmoke;
     void main(){
-      vec4 c = texture2D(uLabelTex, vUv);
-      gl_FragColor = vec4(c.rgb, c.a * uOpacity * 0.92);
+      float u = (aEv + 0.5) / ${EV}.0;
+      vec4 E0 = texture2D(uPyroEv, vec2(u, 0.125));   // age · form · source · power
+      vec4 E1 = texture2D(uPyroEv, vec2(u, 0.375));   // the star's own colour · trail
+      vec4 E2 = texture2D(uPyroEv, vec2(u, 0.625));   // v0 · drag · gravity · lift share
+      vec4 E3 = texture2D(uPyroEv, vec2(u, 0.875));   // climb · seed · spread · life
+      float age = E0.r;
+      if (age <= 0.002 || age >= 0.999){              // a cold slot costs one clip
+        gl_Position = vec4(0.0, 0.0, -2.0, 1.0); gl_PointSize = 0.0; return;
+      }
+      float form = floor(E0.g * 16.0 + 0.5);
+      // A BILLOW IS A FEW BIG PUFFS, not three hundred. It shares the slot
+      // table with the shells, so it has to throw away most of its allocation
+      // or the fill cost of hundred-pixel sprites eats the frame.
+      if (form > 5.5 && (aTrail > 0.5 || mod(aStar, 8.0) > 0.5)){
+        gl_Position = vec4(0.0, 0.0, -2.0, 1.0); gl_PointSize = 0.0; return;
+      }
+      float LIFE = E3.a * 8.0, seed = E3.g;
+      float W = max(0.35, uScale);
+      float v0 = E2.r * 40.0 * W, drag = max(0.02, E2.g * 4.0), grav = (E2.b * 30.0 - 6.0) * W;
+      float liftShare = E2.a, climb = E3.r * 30.0 * W, spread = E3.b;
+
+      // WHERE IT STANDS. The same bench arithmetic the flames use, so a gerb
+      // comes out of the light that fired it and not off to one side of it.
+      float si = uSolo >= 0.0 ? uSolo : floor(E0.b * 16.0 + 0.5);
+      float rack = step(uSolo, -0.5);
+      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
+      float ci = uRows > 1.5 ? mod(si, ${(NS / 2).toFixed(1)}) : si;
+      float ri = uRows > 1.5 ? floor(si / ${(NS / 2).toFixed(1)}) : 0.0;
+      vec3 origin = vec3((ci - (cols - 1.0) * 0.5) * uSpread * rack,
+                         uBase + (uRows - 1.0 - ri) * uTier * rack, 0.0);
+      // no two pieces leave from exactly the same point. Without this the
+      // comets stack into one dead-straight column and the whole thing reads
+      // as a machine rather than as a rack somebody lit.
+      origin.x += (seed - 0.5) * 2.0 * W;
+      origin.z += (fract(seed * 41.7) - 0.5) * 2.6 * W;
+
+      // THE STARS ARE PACKED ON A SPHERE, because that is how they are packed
+      // in the shell — a Fibonacci lattice, even everywhere, no poles.
+      float fi = aStar + 0.5;
+      float zc = 1.0 - 2.0 * fi / ${STARS}.0;
+      float rr = sqrt(max(0.0, 1.0 - zc * zc));
+      float th = fi * 2.39996323 + seed * 6.2831853;
+      vec3 dir = vec3(cos(th) * rr, zc, sin(th) * rr);
+
+      if (form > 0.5 && form < 1.5){                  // PALM — a few heavy fronds
+        float f = floor((th / 6.2831853 - floor(th / 6.2831853)) * 7.0);
+        float a2 = (f + 0.5) / 7.0 * 6.2831853;
+        dir = normalize(mix(dir, vec3(cos(a2) * 0.75, 0.62, sin(a2) * 0.75), 0.82));
+      } else if (form < 2.5 && form > 1.5){           // RING — every star in one plane
+        dir = normalize(vec3(cos(th), 0.0, sin(th)));
+        float tilt = seed * 2.2;
+        dir = vec3(dir.x, dir.z * sin(tilt), dir.z * cos(tilt));
+      } else if (form > 4.5 && form < 5.5){           // GERB / MINE — a cone off the bench
+        dir = normalize(mix(vec3(0.0, 1.0, 0.0), dir, spread));
+      } else if (form > 5.5){                         // BILLOW — a fat slow puff
+        dir = normalize(dir + vec3(0.0, 0.35, 0.0));
+      }
+
+      // THE CLIMB. A shell is a comet first: the stars ride the rising case
+      // and only exist as a sphere once it breaks at the top.
+      float T, burstAge;
+      vec3 p;
+      if (age < liftShare && liftShare > 0.001){
+        float lt = age / liftShare;
+        // the comet decelerates into its break, which is what a real lift does
+        float lag = (aStar / ${STARS}.0 + aTrail / ${TRAIL}.0 * 0.2) / 1.2;
+        p = origin + vec3(0.0, climb * (1.0 - (1.0 - lt) * (1.0 - lt)), 0.0);
+        p.y -= lag * lag * climb * 0.62 * lt;         // the tail it has already flown through
+        p += dir * 0.09 * W * lag * lag * 5.0;        // sparks shedding, widening behind
+        burstAge = 0.0; T = lag;                      // T carries the lag so the head is hottest
+      } else {
+        float a2 = liftShare >= 0.999 ? 0.0 : (age - liftShare) / (1.0 - liftShare);
+        burstAge = a2;
+        T = a2 * LIFE;
+        // each trail bead is the same star, a moment younger
+        T = max(0.0, T - aTrail * E1.a * 0.16);
+        float k = drag;
+        float s = (1.0 - exp(-k * T)) / k;            // pyroFlight, on the GPU
+        p = origin + vec3(0.0, climb, 0.0) * step(0.001, liftShare)
+          + dir * (v0 * (0.55 + 0.45 * aPSeed)) * s;
+        p.y -= grav / k * (T - s);
+        if (form > 2.5 && form < 3.5 && a2 > 0.42){   // CROSSETTE — each star splits again
+          float q = (a2 - 0.42) * LIFE;
+          vec3 d2 = normalize(vec3(cos(th * 3.7), sin(th * 2.3) * 0.5, sin(th * 3.7)));
+          p += d2 * 4.2 * W * (1.0 - exp(-1.6 * q)) / 1.6;
+        }
+      }
+
+      // THE DRAUGHT REACHES THE SKY TOO — a hand near the bench blows the
+      // smoke and the softest sparks off their line, and leaves the fast
+      // heavy stars alone, which is what wind actually does.
+      float care = form > 5.5 ? 1.0 : 0.22;
+      if (uHand.z > 0.002){
+        vec2 d = p.xy - uHand.xy;
+        float g = exp(-dot(d, d) * 0.035) * uHand.z * care;
+        p.xy += normalize(d + vec2(1e-4)) * g * (1.0 + uPtrX.y * 2.2) * 2.4;
+      }
+
+      vSmoke = form > 5.5 ? 1.0 : 0.0;
+      vec3 col = E1.rgb;
+      // the first instants of a star are its own metal burning, not its salt:
+      // white-hot, then the chemistry takes over as it cools
+      float hot = (age < liftShare && liftShare > 0.001)
+                ? exp(-T * 5.0)                       // the comet's head is the hot part
+                : exp(-burstAge * 9.0) * (1.0 - vSmoke);
+      vHot = hot;
+      if (form > 3.5 && form < 4.5)                   // STROBE — the crackle
+        col *= 0.35 + 0.65 * step(0.5, fract(T * 13.0 + aPSeed * 31.0)) * uFlick + (1.0 - uFlick) * 0.45;
+      vCol = col;
+      float burn = 1.0 - smoothstep(0.55, 1.0, age);  // stars burn out, they do not blink out
+      float tail = 1.0 - aTrail / ${TRAIL}.0 * 0.72;
+      vLum = E0.a * burn * tail * (0.5 + uBeatSpring * 0.18);
+      if (vSmoke > 0.5) vLum *= 0.34 * (1.0 - burstAge * 0.55);
+      vT = age; vGlow = vLum;
+
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      // a billow is a cloud: enormous and nearly transparent. A star is a
+      // point of burning metal, and stays one.
+      float sz = vSmoke > 0.5
+        ? (16.0 + burstAge * 34.0) * uScale
+        : (1.7 + hot * 3.8 + E0.a * 2.0) * tail * sqrt(W)
+          * (age < liftShare && liftShare > 0.001 ? (1.35 - T * 1.5) : 1.0);
+      gl_PointSize = max(0.0, sz * (300.0 / -mv.z));
     }
   `;
-  function labelMesh(slots, w, vertexShader){
-    const n = slots.length;
-    const pos = new Float32Array(n * 4 * 3), uvs = new Float32Array(n * 4 * 2);
-    const slotA = new Float32Array(n * 4);
-    const idx = [], h = w * CELL_A;
-    const corners = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
-    slots.forEach((slot, j) => {
-      corners.forEach((c, m) => {
-        pos[(j * 4 + m) * 3] = c[0];
-        pos[(j * 4 + m) * 3 + 1] = c[1];
-        slotA[j * 4 + m] = slot.row;          // which light this caption belongs to
-        uvs[(j * 4 + m) * 2] = (c[0] / w) + 0.5;
-        // v runs DOWN the sheet, so the caption's own row is (row + 1) - local
-        uvs[(j * 4 + m) * 2 + 1] = (slot.row + 0.5 - (c[1] / h)) / NS;
-      });
-      idx.push(j * 4, j * 4 + 1, j * 4 + 2, j * 4, j * 4 + 2, j * 4 + 3);
-    });
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    g.setAttribute('aSlot', new THREE.BufferAttribute(slotA, 1));
-    g.setIndex(idx);
-    const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({
-      uniforms: matU(Object.assign({}, labelU)),
-      vertexShader, fragmentShader: LABEL_FRAG,
-      transparent: true, depthWrite: false, depthTest: false,
-      blending: THREE.AdditiveBlending,
-    }));
-    mesh.frustumCulled = false;
-    return mesh;
+  const pyroFrag = GLSL_MPHI + `
+    uniform vec3 uColC; uniform float uOpacity, uEnergy, uDens;
+    varying vec3 vCol; varying float vLum, vHot, vSmoke;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r);
+      // smoke is soft all the way through; a star is a hard little point
+      a = vSmoke > 0.5 ? a * a * a : pow(a * a, 2.2);
+      vec3 col = mix(vCol, uColC, 0.06);
+      col = mix(col, vec3(1.0), vHot * (0.35 + uWhite * 0.45));
+      if (vSmoke > 0.5) col = mix(col, vec3(0.42, 0.38, 0.40), 0.55);   // lit smoke, not fire
+      col = inkRolloff(col * (0.30 + vLum * 1.5 + uEnergy * 0.10));
+      gl_FragColor = vec4(col, a * uOpacity * uDens * vLum * 1.15);
+    }
+  `;
+  const pyroMat = new THREE.ShaderMaterial({
+    uniforms: matU(Object.assign({ uPyroEv: { value: evT } }, varU)),
+    vertexShader: pyroVert, fragmentShader: pyroFrag,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pyroPts = new THREE.Points(pgeo, pyroMat);
+  pyroPts.frustumCulled = false;
+  group.add(pyroPts);
+
+  /* THE FIRING SCRIPT. `pyroRate` says how busy the sky should be, `pyroFire`
+     spends the budget (preferring the hit), `pyroPick` and `pyroSalt` choose
+     the piece and its chemistry — all of them pure, all of them tested. This
+     is only the part that has to touch a GPU buffer. */
+  const pyro = { acc: 0, cold: 0 };
+  const SKY_N = EV - PYRO_TUNING.smoke;
+  function pyroLaunch(kindKey, saltKey, srcIdx, power){
+    const smoke = kindKey === 'billow';
+    const lo = smoke ? SKY_N : 0, hi = smoke ? EV : SKY_N;
+    let s = null;
+    for (let i = lo; i < hi; i++) if (slots[i].t < 0){ s = slots[i]; break; }
+    if (!s){                                  // all lit: take the oldest rather than skip
+      let oldest = lo;
+      for (let i = lo + 1; i < hi; i++) if (slots[i].t / slots[i].life > slots[oldest].t / slots[oldest].life) oldest = i;
+      s = slots[oldest];
+    }
+    const sh = pyroShell(kindKey);
+    // a billow is lit by the fire that made it, so it wears that source's own
+    // measured colour rather than a salt it never contained
+    const star = PYRO_STARS.find(x => x.key === saltKey) || PYRO_STARS[0];
+    const c = smoke ? flameRGB(FLAME_SOURCES[srcIdx | 0] || FLAME_SOURCES[0]) : pyroStarRGB(star);
+    s.t = 0; s.life = sh.life; s.kind = sh.form; s.src = srcIdx;
+    s.col = [c.r, c.g, c.b];
+    s.v0 = sh.v0; s.drag = sh.drag; s.grav = sh.grav;
+    s.trail = sh.trail; s.lift = sh.lift; s.spread = sh.spread == null ? 0.4 : sh.spread;
+    // how high it climbs before it breaks, from the same flight the stars use
+    s.liftH = sh.lift > 0 ? clamp(pyroFlight(sh.life * sh.lift, 26, 0.9, 9.8).reach, 3.5, 11) : 0;
+    s.power = clamp01(power == null ? 1 : power);
+    s.seed = Math.random();
   }
-  // the rack's captions scale with the bench, so each one always sits under
-  // its own light however wide the room turns out to be
-  const rackLabels = labelMesh(FLAME_SOURCES.map((s, i) => ({ row: i })), 0.94, `
-    attribute float aSlot;
-    uniform float uSpread, uBase, uRows, uTier;
-    varying vec2 vUv;
-    void main(){
-      // the same arrangement the lights take, so a caption is never anywhere
-      // but under the thing it names
-      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
-      float ci = uRows > 1.5 ? mod(aSlot, ${(NS / 2).toFixed(1)}) : aSlot;
-      float ri = uRows > 1.5 ? floor(aSlot / ${(NS / 2).toFixed(1)}) : 0.0;
-      float k = uSpread * (uRows > 1.5 ? 1.06 : 1.0);
-      vec3 p = vec3((ci - (cols - 1.0) * 0.5) * uSpread + position.x * k,
-                    position.y * k * 1.7 + uBase - 0.6 + (uRows - 1.0 - ri) * uTier, 0.0);
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  function pyroStep(dt){
+    const f = AE.f, mood = director.mood, calm = SAFE.calm || reducedMotion;
+    // a device that is already shedding pixels does not also get a full sky:
+    // the show thins out rather than the music stuttering
+    const lean = typeof PERF !== 'undefined' && PERF.struggling ? 0.4 : 1;
+    const rate = pyroRate({ energy: f.energy, mood, calm }) * lean;
+    const shot = pyroFire(pyro.acc, dt, rate, !!f.onset);
+    pyro.acc = shot.acc;
+    for (let i = 0; i < shot.fire; i++){
+      const r = Math.random();
+      const kind = pyroPick({ energy: f.energy, mood }, r);
+      const salt = pyroSalt({ energy: f.energy, treble: f.treble }, Math.random());
+      // which light fires it: solo has only one, the bench picks by band, so
+      // the piece leaves the source that is actually singing
+      const src = varU.uSolo.value >= 0 ? varU.uSolo.value
+                                        : Math.min(NS - 1, Math.floor(Math.random() * NS));
+      pyroLaunch(kind, salt, src, 0.55 + f.energy * 0.45);
     }
-  `);
-  // …and the solo caption is one plate whose row the roll slides into place
-  const soloLabel = labelMesh([{ row: 0 }], 1, `
-    uniform float uBase, uRow, uScale;
-    varying vec2 vUv;
-    void main(){
-      float k = uScale * 2.2;
-      vec3 p = vec3(position.x * k, position.y * k + uBase - k * 0.30, 0.0);
-      vUv = vec2(uv.x, uv.y + uRow / ${NS}.0);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    pyro.smoke = (pyro.smoke || 0) + dt * (PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean;
+    while (pyro.smoke >= 1){
+      pyro.smoke -= 1;
+      const src = varU.uSolo.value >= 0 ? varU.uSolo.value : Math.floor(Math.random() * NS);
+      pyroLaunch('billow', 'charcoal', src, 0.5 + f.energy * 0.4);
     }
-  `);
-  group.add(rackLabels, soloLabel);
-  soloLabel.visible = false;
+    // age every slot and write the table the shader reads
+    for (let i = 0; i < EV; i++){
+      const s = slots[i], o = i * 4;
+      if (s.t >= 0){ s.t += dt; if (s.t >= s.life) s.t = -1; }
+      const age = s.t < 0 ? 0 : clamp01(s.t / s.life);
+      const q = (v, sc) => Math.max(0, Math.min(255, Math.round((v / sc) * 255)));
+      evData[o] = s.t < 0 ? 0 : Math.max(1, Math.round(age * 255));
+      evData[o + 1] = q(s.kind, 16); evData[o + 2] = q(s.src, 16); evData[o + 3] = q(s.power, 1);
+      const r1 = (EV + i) * 4;
+      evData[r1] = q(s.col[0], 1); evData[r1 + 1] = q(s.col[1], 1);
+      evData[r1 + 2] = q(s.col[2], 1); evData[r1 + 3] = q(s.trail, 1);
+      const r2 = (EV * 2 + i) * 4;
+      evData[r2] = q(s.v0, 40); evData[r2 + 1] = q(s.drag, 4);
+      evData[r2 + 2] = q(s.grav + 6, 30); evData[r2 + 3] = q(s.lift, 1);
+      const r3 = (EV * 3 + i) * 4;
+      evData[r3] = q(s.liftH, 30); evData[r3 + 1] = q(s.seed, 1);
+      evData[r3 + 2] = q(s.spread, 1); evData[r3 + 3] = q(s.life, 8);
+    }
+    evT.needsUpdate = true;
+  }
 
   group.visible = false;
   scene.add(group);
@@ -22613,15 +23017,21 @@ function buildFlame(){
       // colour, the shape and the dance all survive; only the shiver goes
       const wantFlick = (SAFE.calm || reducedMotion) ? 0.26 : 1;
       varU.uFlick.value += (wantFlick - varU.uFlick.value) * Math.min(1, dt * 2);
+
+      // and the show fires. dt is clamped because a tab that was in the
+      // background for a minute must not come back to a minute of shells.
+      pyroStep(Math.min(dt, 0.1));
     },
     roll(){
       const r = flameRoll(Math.random());
       const solo = r.mode === 'solo';
       varU.uSolo.value = solo ? r.src : -1;
       varU.uDens.value = solo ? 0.38 : 1;
-      labelU.uRow.value = solo ? r.src : 0;
-      rackLabels.visible = !solo;
-      soloLabel.visible = solo;
+      // a new room starts with an empty sky — nothing left burning from the
+      // last one, which would otherwise break over a source that no longer
+      // exists in this presentation
+      for (let i = 0; i < EV; i++) slots[i].t = -1;
+      pyro.acc = 0; pyro.smoke = 0;
       api.name = 'FLAME · ' + r.name;
       return api.name;
     } };
