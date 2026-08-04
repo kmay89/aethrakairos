@@ -934,7 +934,7 @@ body.stage-screen{cursor:none;background:#000}
 #stageWait[hidden]{display:none!important}
 
 /* ============ the mini booth ============ */
-body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip):not(#wireCard){display:none!important}
+body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip):not(.invite-card){display:none!important}
 body.mini{background:var(--void,#05060c)}
 #miniBar{
   position:fixed;right:16px;bottom:16px;z-index:70;width:min(94vw,360px);
@@ -1076,7 +1076,7 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
    The code in letters a room can read, the QR for the camera already in
    everyone's hand. It floats rather than blocking: an operator holds it up
    WHILE the show runs, and puts it away with the ×. */
-#wireCard{
+.invite-card{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:110;
   display:flex;flex-direction:column;align-items:center;gap:10px;
   padding:22px 26px 20px;max-width:min(86vw,380px);text-align:center;
@@ -1084,20 +1084,35 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
   border:1px solid var(--edge,rgba(120,150,190,.25));border-radius:16px;
   box-shadow:0 18px 60px rgba(0,0,0,.5);
 }
-#wireCard[hidden]{display:none!important}
-#wireCard .wc-x{
+.invite-card[hidden]{display:none!important}
+.invite-card .wc-x{
   position:absolute;right:8px;top:6px;border:0;background:none;color:inherit;
   font-size:20px;line-height:1;opacity:.6;cursor:pointer;padding:6px;
 }
-#wireCard .wc-x:hover{opacity:1}
-#wireCard .wc-title{font-size:12px;letter-spacing:.28em;text-transform:uppercase;opacity:.66}
-#wireCard .wc-code{
+.invite-card .wc-x:hover{opacity:1}
+.invite-card .wc-title{font-size:12px;letter-spacing:.28em;text-transform:uppercase;opacity:.66}
+.invite-card .wc-code{
   font-size:56px;line-height:1;font-weight:600;letter-spacing:.28em;
   padding-left:.28em; /* the tracking adds a phantom space after the last letter */
   text-shadow:0 0 22px var(--accent-glow,rgba(110,231,255,.45));
 }
-#wireCard .wc-qr{width:min(56vw,208px);height:auto;border-radius:8px;background:#fff;image-rendering:pixelated}
-#wireCard .wc-how{font-size:12.5px;line-height:1.55;opacity:.82;max-width:32ch}
+.invite-card .wc-qr{width:min(56vw,208px);height:auto;border-radius:8px;background:#fff;image-rendering:pixelated}
+.invite-card .wc-how{font-size:12.5px;line-height:1.55;opacity:.82;max-width:32ch}
+/* ============ the crowd — the whole show, in a hand ============
+   A phone that scanned a crowd code is all field: everything but the canvas
+   goes, like a stage screen, but the cursor and the touch stay — this glass
+   belongs to one person and their finger bends their own copy of the show.
+   The veil is the one tap that grants the microphone and starts it all. */
+body.crowd > *:not(#glcanvas):not(#crowdGo):not(#toasts):not(#askCard):not(#askScrim){display:none!important}
+body.crowd{background:#000}
+#crowdGo{
+  position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;gap:12px;
+  align-items:center;justify-content:center;text-align:center;cursor:pointer;
+  background:rgba(2,4,10,.55);color:var(--ink,#eaf2ff);padding:24px;
+  -webkit-tap-highlight-color:transparent;
+}
+#crowdGo b{font-size:20px;letter-spacing:.3em;text-transform:uppercase;padding-left:.3em}
+#crowdGo span{font-size:13px;opacity:.75;max-width:30ch;line-height:1.6}
 /* ============ the rig — the room's lamps, drawn from the wire ============
    Not a mock-up of a light show: a MONITOR. Every cone below is drawn from
    dmxDecode() reading the same 512 bytes the interface is sending, so a
@@ -4361,6 +4376,50 @@ function stageNetWall(ids){
   }
   return map;
 }
+/* THE PULSE — the crowd's whole vocabulary, and it is deliberately tiny.
+
+   A crowd is not a wall. A phone in a hand is not tile 143 of 300 — it wants
+   the whole field, beating to what ITS microphone hears, which scales for
+   free because the PA is the broadcast medium. What a thousand phones cannot
+   hear is which PALETTE the booth is in and which SCENE it chose — the two
+   slow truths that make a floor one show instead of a shimmer of different
+   ones. So that is all the pulse carries: three colours and a scene index,
+   packed small on the booth (every byte here is multiplied by a crowd) and
+   clamped hard on the phone (a pulse is the one thing a stranger's server
+   hands straight to the renderer). Everything fast stays local. */
+function crowdPack(col, scene){
+  if (!col || col.length < 3) return null;
+  const r3 = v => Math.round(v * 1000) / 1000;
+  const c = [];
+  for (let i = 0; i < 3; i++){
+    const k = col[i];
+    if (!k) return null;
+    const l = Number(k.l), ch = Number(k.c), h = Number(k.h);
+    if (!Number.isFinite(l) || !Number.isFinite(ch) || !Number.isFinite(h)) return null;
+    c.push([r3(clamp01(l)), r3(Math.max(0, Math.min(0.5, ch))),
+      Math.round(((h % 360) + 360) % 360 * 10) / 10]);
+  }
+  let s = Math.floor(Number(scene));
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  return { v: 1, c, s: Math.min(s, 63) };
+}
+/* the same shape, believed only after checking: numbers finite, ranges held,
+   or the whole pulse is refused — a half-good pulse would tint the room a
+   colour nobody chose. */
+function crowdClamp(p){
+  if (!p || p.v !== 1 || !Array.isArray(p.c) || p.c.length < 3) return null;
+  const c = [];
+  for (let i = 0; i < 3; i++){
+    const a = p.c[i];
+    if (!Array.isArray(a) || a.length < 3) return null;
+    const l = Number(a[0]), ch = Number(a[1]), h = Number(a[2]);
+    if (!Number.isFinite(l) || !Number.isFinite(ch) || !Number.isFinite(h)) return null;
+    c.push([clamp01(l), Math.max(0, Math.min(0.5, ch)), ((h % 360) + 360) % 360]);
+  }
+  let s = Math.floor(Number(p.s));
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  return { v: 1, c, s: Math.min(s, 63) };
+}
 /* THE HAND, IN THE COORDINATES OF THE WALL RATHER THAN OF A WINDOW.
 
    The booth's hand has always MEANT "here, on the field". With one screen that
@@ -4424,6 +4483,10 @@ function stageRole(search){
        card is exactly this address, so scanning it IS joining. Empty means
        what it always meant: a local screen on the booth's own machine. */
     join: stageCodeIs(q.join) ? stageCodeTidy(q.join) : null,
+    /* and the OTHER door: a crowd code. Not a screen at all — a phone in a
+       hand, listening with its own microphone, tuned to the booth's palette.
+       The two are separate on purpose; see CROWD. */
+    crowd: stageCodeIs(q.crowd) ? stageCodeTidy(q.crowd) : null,
     /* WHO THIS SCREEN IS, for as long as it is open. The wall is keyed by
        identity rather than by index because index is a thing the operator
        changes — dragging window three to the left of window two makes it
@@ -13607,7 +13670,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '76f223fcb5';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '82b3044ff4';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -16117,6 +16180,10 @@ async function stageChooser(){
       if (typeof WIRE !== 'undefined') WIRE.invite();
       return true;
     }
+    if (/^\s*(crowd|floor)\s*$/i.test(said)){
+      if (typeof CROWD !== 'undefined') CROWD.invite();
+      return true;
+    }
     if (stageCodeIs(said)){
       location.href = location.origin + location.pathname
         + '?stage=screen&join=' + stageCodeTidy(said);
@@ -16127,7 +16194,7 @@ async function stageChooser(){
   if (alone){
     const many = await ASK.text({
       title: 'Stage mode',
-      body: 'There is only one screen here — so the stage opens small: windows that float above the booth, each showing exactly what one television in the room would show.\n\nHow many screens is the rig? They open as a row you can drag apart, and the field is cut where they actually are — so this is the rig, rehearsed.\n\nDrag them by their bars, pull a corner to resize, ⤢ to fill this window, ↗ to send one to a real screen.\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens.',
+      body: 'There is only one screen here — so the stage opens small: windows that float above the booth, each showing exactly what one television in the room would show.\n\nHow many screens is the rig? They open as a row you can drag apart, and the field is cut where they actually are — so this is the rig, rehearsed.\n\nDrag them by their bars, pull a corner to resize, ⤢ to fill this window, ↗ to send one to a real screen.\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens. And “crowd” is the other thing entirely: a code that lets every phone in the room join the show, listening with its own mic in this booth’s palette.',
       value: '1', placeholder: '1', ok: 'Open the stage',
     });
     if (wired(many)) return;
@@ -16147,7 +16214,7 @@ async function stageChooser(){
   let wins = [];
   const n = await ASK.text({
     title: 'Stage mode',
-    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens.',
+    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens. And “crowd” is the other thing entirely: a code that lets every phone in the room join the show, listening with its own mic in this booth’s palette.',
     value: '1', placeholder: '1', ok: 'Open the stage',
     /* A COUNT, AND NOTHING ELSE, OPENS WINDOWS HERE. wired() is not consulted
        even though it answers the same question: it NAVIGATES on a door code
@@ -23438,6 +23505,8 @@ const STAGE = {
     // a screen whose address carries four letters knocks on them: the QR on
     // an invite card is exactly this URL, so scanning it IS joining
     if (this.screen() && this.cfg.join && typeof WIRE !== 'undefined') WIRE.join(this.cfg.join);
+    // and a crowd code is the other door — a phone, not a screen
+    if (!this.screen() && this.cfg.crowd && typeof CROWD !== 'undefined') CROWD.join(this.cfg.crowd);
     // a screen that is closed, or a booth that is quit, should not leave the
     // other side waiting for a partner that will never speak again
     window.addEventListener('pagehide', () => {
@@ -23447,7 +23516,8 @@ const STAGE = {
     // the OS releases wake locks on hide, silently — take it back on return
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return;
-      if (this.on || (this.screen() && !document.body.classList.contains('pip'))) this.wake(true);
+      if (this.on || (this.screen() && !document.body.classList.contains('pip'))
+        || (typeof CROWD !== 'undefined' && CROWD.tuned)) this.wake(true);
     });
   },
   /* one exit, two roads: the channel reaches every window on this machine,
@@ -23924,6 +23994,7 @@ const STAGE = {
       add('Skins', 'Restyle the room', () => { if (typeof skinCardOpen === 'function') skinCardOpen(true); });
       add('+ Screen', 'Open another stage screen', () => this.open(this.live() + 1));
       add('Invite', 'Four letters that turn any device into a screen', () => { if (typeof WIRE !== 'undefined') WIRE.invite(); });
+      add('Crowd', 'Four letters that tune every phone on the floor', () => { if (typeof CROWD !== 'undefined') CROWD.invite(); });
       add('Which?', 'Every screen holds up its own number', () => this.identify(3000));
       add('Full booth', 'Bring the whole console back', () => this.setMini(false));
     }
@@ -24860,6 +24931,34 @@ function drawQR(cv, text, dark, light){
   }
   return true;
 }
+/* the card an operator holds up: the letters big enough to read across a
+   kitchen, the QR for the camera already in everyone's hand. Two doors use
+   it — the wire's screens and the crowd's phones — same card, different
+   words, because the ritual is the same ritual. */
+function inviteCard(o){
+  let card = document.getElementById(o.id);
+  if (!card){
+    card = document.createElement('div');
+    card.id = o.id;
+    card.className = 'invite-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', o.label || 'Invite');
+    card.innerHTML = '<button class="wc-x" type="button" aria-label="Put the invite away">×</button>'
+      + '<div class="wc-title"></div>'
+      + '<div class="wc-code"></div>'
+      + '<canvas class="wc-qr" aria-label="Scan to join"></canvas>'
+      + '<div class="wc-how"></div>';
+    card.querySelector('.wc-x').addEventListener('click', () => { card.hidden = true; });
+    document.body.appendChild(card);
+  }
+  card.querySelector('.wc-title').textContent = o.title || '';
+  card.querySelector('.wc-code').textContent = o.code || '····';
+  card.querySelector('.wc-how').innerHTML = o.how || '';
+  const cv = card.querySelector('.wc-qr');
+  cv.hidden = !drawQR(cv, o.url || '');
+  card.hidden = false;
+  return card;
+}
 
 const WIRE = {
   /* same-origin first: a Netlify preview has the mailbox right there. The
@@ -24946,7 +25045,7 @@ const WIRE = {
     const slot = this.mintSlot();
     const sdp = await this.offerFrom(slot.pc).catch(() => null);
     if (!sdp){ this.dropSlot(slot); return null; }
-    const b = { offer: sdp, host: 'The booth', name: 'The stage', seats: 8 };
+    const b = { offer: sdp, host: 'The booth', name: 'The stage', seats: 16 };
     if (this.code && this.key){ b.code = this.code; b.key = this.key; }
     const r = await this.api('host', b);
     if (!r || r.error || !r.code){ this.dropSlot(slot); return null; }
@@ -24960,7 +25059,9 @@ const WIRE = {
      device to knock must not be told to try again — that is the ritual this
      exists to remove */
   async spare(){
-    if (!this.code || !this.key || this.pool.length >= 3) return null;
+    // sixteen is the whole wall — a seventeenth knock deserves a full room,
+    // not a pigeonhole nobody will adopt
+    if (!this.code || !this.key || this.pool.length >= 3 || this.peers.size >= 16) return null;
     const slot = this.mintSlot();
     const sdp = await this.offerFrom(slot.pc).catch(() => null);
     if (!sdp){ this.dropSlot(slot); return null; }
@@ -25005,6 +25106,10 @@ const WIRE = {
       if (!id) return;
       const known = this.peers.get(id);
       if (known){ known.at = Date.now(); return; }
+      // the wall is sixteen wide at most (stageGrid's widest tiling): a
+      // seventeenth device is turned away at the door rather than shown a
+      // slice the arithmetic cannot cut
+      if (this.peers.size >= 16){ this.dropSlot(slot); return; }
       if (!slot.id){
         slot.id = id;
         const i = this.pool.indexOf(slot);
@@ -25189,30 +25294,16 @@ const WIRE = {
   joinUrl(){
     return location.origin + location.pathname + '?stage=screen&join=' + this.code;
   },
-  /* the card an operator holds up: the letters big enough to read across a
-     kitchen, the QR for the camera that is already in everyone's hand */
   showInvite(){
-    let card = document.getElementById('wireCard');
-    if (!card){
-      card = document.createElement('div');
-      card.id = 'wireCard';
-      card.setAttribute('role', 'dialog');
-      card.setAttribute('aria-label', 'Invite a device as a screen');
-      card.innerHTML = '<button class="wc-x" type="button" aria-label="Put the invite away">×</button>'
-        + '<div class="wc-title">Any device is a screen</div>'
-        + '<div class="wc-code"></div>'
-        + '<canvas class="wc-qr" aria-label="Scan to join as a screen"></canvas>'
-        + '<div class="wc-how"></div>';
-      card.querySelector('.wc-x').addEventListener('click', () => this.hideInvite());
-      document.body.appendChild(card);
-    }
-    card.querySelector('.wc-code').textContent = this.code || '····';
-    card.querySelector('.wc-how').innerHTML = 'Scan with the device\'s camera — or open <b>'
-      + escapeHTML(location.host) + '</b> there, tap <b>Stage</b>, and type the four letters.'
-      + '<br>Same Wi‑Fi (or this machine\'s hotspot). The picture is rendered there, not streamed.';
-    const cv = card.querySelector('.wc-qr');
-    if (!drawQR(cv, this.joinUrl())) cv.hidden = true;
-    card.hidden = false;
+    inviteCard({
+      id: 'wireCard', label: 'Invite a device as a screen',
+      title: 'Any device is a screen',
+      code: this.code,
+      url: this.joinUrl(),
+      how: 'Scan with the device\'s camera — or open <b>' + escapeHTML(location.host)
+        + '</b> there, tap <b>Stage</b>, and type the four letters.'
+        + '<br>Same Wi‑Fi (or this machine\'s hotspot). The picture is rendered there, not streamed.',
+    });
   },
   hideInvite(){
     const card = document.getElementById('wireCard');
@@ -25235,6 +25326,170 @@ const WIRE = {
     this.linked = false;
     this._pc = null; this._ctl = null; this._feed = null;
     this.hideInvite();
+  },
+};
+
+/* ================================================================
+   §8ac · THE CROWD — the whole floor, in their hands.
+
+   Not the wire, on purpose. The wire makes a device a TILE of one field —
+   sixteen at most, each holding its slice, fed forty numbers a frame over a
+   peer connection. A crowd is the opposite shape: hundreds of phones that
+   each want the WHOLE field, and the trick that makes it scale is that the
+   heavy signal is already broadcast at concert volume — the PA. Every phone
+   listens with its own microphone and runs the whole engine on what it
+   hears, which costs the booth nothing whether the floor is two phones or
+   two thousand.
+
+   What a microphone cannot hear is which PALETTE the booth is in and which
+   SCENE it chose — the two slow truths that make a floor one show instead
+   of a shimmer of different ones. So the booth leaves a PULSE at the
+   mailbox — three colours and a scene, ~80 bytes, every 2.5 seconds — and
+   every phone reads it. The read is CDN-cacheable and the phone sends no
+   cache-buster, BY DESIGN: a thousand phones asking the identical question
+   collapse to one origin hit per couple of seconds at the edge. Nothing
+   fast crosses the network in either direction; the beat is in the air.
+
+   Degrades in layers: mailbox unreachable → phones dance to what they hear
+   in their own colours. Booth goes quiet for 24 seconds → the local palette
+   drift resumes (COLOR's own replan clock), which is the right failure — a
+   floor abandoned by its booth keeps dancing. Mic refused → the field still
+   glides through the booth's palette, just gently.
+   ================================================================ */
+const CROWD = {
+  code: null, key: null,
+  on: false,                  // booth: the pulse is going out
+  tuned: false,               // phone: joined a crowd
+  _pushT: null, _pollT: null, _seenAt: 0,
+
+  /* ---------------- the booth ---------------- */
+  async invite(){
+    if (STAGE.screen() || this.tuned) return;
+    if (this.on){
+      const off = await ASK.confirm({
+        title: 'Crowd mode',
+        body: 'The floor is tuned to this booth — code ' + this.code
+          + '.\n\nStop the pulse? The phones keep dancing to what they hear; they just stop following your palette and scene.',
+        ok: 'Stop the pulse', cancel: 'Keep it going',
+      });
+      if (off) this.stop(); else this.showCard();
+      return;
+    }
+    toast('Minting a crowd code…');
+    const r = await WIRE.api('beacon', { name: 'The show' });
+    if (!r || r.error || !r.code){
+      toast('The crowd mailbox is out of reach — a code needs the network, and the phones read the palette from it.');
+      return;
+    }
+    this.code = r.code; this.key = r.key;
+    this.start();
+    this.showCard();
+    ACTIVITY.log('system', 'Crowd mode on - code ' + this.code);
+  },
+  start(){
+    if (this._pushT) return;
+    this.on = true;
+    this._pushT = setInterval(() => this.push(), 2500);
+    this.push();
+  },
+  /* the pulse. 2.5 seconds apart because nothing in it is fast on purpose:
+     a palette glide reads as a lighting cue at any offset under a bar, and
+     a scene change landing a second late lands on a floor that never knew
+     when it was chosen. */
+  push(){
+    if (!this.code || !this.key) return;
+    const p = crowdPack(COLOR.now, typeof director !== 'undefined' ? director.active : 0);
+    if (!p) return;
+    WIRE.api('pulse', { code: this.code, key: this.key, pulse: p });
+  },
+  joinUrl(){ return location.origin + location.pathname + '?crowd=' + this.code; },
+  showCard(){
+    inviteCard({
+      id: 'crowdCard', label: 'Invite the whole floor',
+      title: 'The whole floor, in their hands',
+      code: this.code,
+      url: this.joinUrl(),
+      how: 'Anyone who scans this joins the show: their phone listens to the room through its <b>own microphone</b> and dances to what it hears, in this booth\'s palette and scene.'
+        + '<br>Two phones or two thousand — the speakers are the broadcast.',
+    });
+  },
+  stop(){
+    this.on = false;
+    if (this._pushT){ clearInterval(this._pushT); this._pushT = null; }
+    if (this.code && this.key) WIRE.api('close', { code: this.code, key: this.key, started: 0 });
+    this.code = null; this.key = null;
+    const card = document.getElementById('crowdCard');
+    if (card) card.hidden = true;
+    ACTIVITY.log('system', 'Crowd mode off');
+    toast('Crowd mode off — the floor keeps dancing to what it hears.');
+  },
+
+  /* ---------------- the phone ---------------- */
+  join(code){
+    this.code = stageCodeTidy(code);
+    this.tuned = true;
+    document.body.classList.add('crowd');
+    document.documentElement.classList.add('crowd');
+    // the booth chooses the scene for the whole floor; everything else —
+    // the beat, the energy, the finger on the glass — stays this phone's own
+    try { director.auto = false; } catch (e){}
+    /* the veil: one tap is the gesture everything downstream needs — the
+       microphone permission, the wake lock, fullscreen where the platform
+       allows a page one. Nothing starts until the hand says so. */
+    const veil = document.createElement('div');
+    veil.id = 'crowdGo';
+    veil.setAttribute('role', 'button');
+    veil.innerHTML = '<b>Join the show</b><span>one tap — your phone listens to the room and glows with the booth</span>';
+    document.body.appendChild(veil);
+    veil.addEventListener('click', () => {
+      veil.remove();
+      try { toggleMic(); } catch (e){}
+      STAGE.wake(true);
+      try { document.documentElement.requestFullscreen().catch(() => {}); } catch (e){}
+      this.watch();
+    }, { once: true });
+  },
+  watch(){
+    if (this._pollT) return;
+    const tick = () => this.fetchPulse().then(r => { if (r && r.pulse) this.apply(r.pulse); });
+    this._pollT = setInterval(tick, 2500);
+    tick();
+  },
+  /* NO CACHE-BUSTER, BY DESIGN. Every phone on the floor asks this exact
+     URL, so the CDN answers the crowd and the mailbox answers the CDN —
+     one origin hit per couple of seconds however many hands are up. The
+     mailbox's pulse route sets the cache headers that make this true. */
+  async fetchPulse(){
+    if (!WIRE.base) await WIRE.api('ping');
+    const base = WIRE.base || WIRE.PUBLIC;
+    try {
+      const r = await fetch(base + '?a=pulse&g=' + WIRE.GAME + '&code=' + this.code, { cache: 'default' });
+      const ct = r.headers.get('content-type') || '';
+      if (ct.indexOf('application/json') < 0) return null;
+      return await r.json().catch(() => null);
+    } catch (e){ return null; }
+  },
+  apply(raw){
+    const p = crowdClamp(raw);
+    if (!p) return;
+    this._seenAt = performance.now();
+    const chord = p.c.map(a => ({ l: a[0], c: a[1], h: a[2] }));
+    const quad = chord.concat([{ l: chord[2].l, c: chord[2].c, h: chord[2].h }]);
+    /* aimed as a GLIDE, never a snap: pulses arrive ~2.5 s apart and the
+       glide runs just behind them, so the floor breathes through palette
+       changes the way the booth's own ramp does. The drift clock is zeroed
+       on every pulse — while the booth speaks, the phone does not replan a
+       palette of its own; see the module comment for what 24 quiet seconds
+       mean. */
+    COLOR.from = (COLOR.now || quad).map(c => ({ l: c.l, c: c.c, h: c.h }));
+    COLOR.target = quad;
+    COLOR.glideT = 0;
+    COLOR.glideDur = 4;
+    COLOR._replanT = 0;
+    if (COLOR.plan){ COLOR.plan.quad = quad; COLOR.plan.colors = chord; }
+    if (typeof director !== 'undefined' && typeof scenes !== 'undefined'
+      && p.s < scenes.length && p.s !== director.active && director.transT >= 1)
+      director.setScene(p.s, false);
   },
 };
 
