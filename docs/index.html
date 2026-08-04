@@ -9354,13 +9354,30 @@ function moodOf(feat, key){
 }
 /* the intensity CEILING at a point in the song (0..1). A quiet passage caps
    the visuals low so nothing peaks in the wrong place; a loud block opens it
-   all the way. Floored so the room is never dead. */
+   all the way. Floored so the room is never dead.
+   Two sources: the client's frame-level env (finest grain, `lo`/`hi` on hand),
+   or the pipeline's precomputed `sections` (already 0..1 `energy` per block,
+   no raw envelope shipped — a 300-float array per track isn't worth the
+   catalog bytes when the section average reads the same to the eye). Either
+   way p lands in a section and that section's energy IS the ceiling for it. */
 function structureCeiling(struct, p, floor){
-  if (!struct || !struct.ok || !struct.env || !struct.env.length) return 1;
-  const N = struct.env.length, fl = floor == null ? 0.30 : floor;
-  const i = Math.round(clamp01(p) * (N - 1));
-  const norm = (struct.env[i] - struct.lo) / Math.max(1e-4, struct.hi - struct.lo);
-  return fl + (1 - fl) * clamp01(norm);
+  if (!struct || !struct.ok) return 1;
+  const fl = floor == null ? 0.30 : floor;
+  if (struct.env && struct.env.length){
+    const N = struct.env.length;
+    const i = Math.round(clamp01(p) * (N - 1));
+    const norm = (struct.env[i] - struct.lo) / Math.max(1e-4, struct.hi - struct.lo);
+    return fl + (1 - fl) * clamp01(norm);
+  }
+  if (struct.sections && struct.sections.length){
+    const pp = clamp01(p);
+    for (const sec of struct.sections){
+      if (pp >= sec.s && pp < sec.e) return fl + (1 - fl) * clamp01(sec.energy);
+    }
+    const last = struct.sections[struct.sections.length - 1];
+    return fl + (1 - fl) * clamp01(last.energy);
+  }
+  return 1;
 }
 
 // Which post-process LENS does the moment earn? A pure map from the story
@@ -11319,8 +11336,9 @@ const CRATE = {
     for (const t of allTracks()){
       if (q){
         const mood = moodOf(t.features, t.mix && t.mix.key);
+        const texture = (t.features && t.features.texture) || '';
         const hay = (t.title + ' ' + (t.album || '') + ' '
-          + (t.mix && t.mix.key || '') + ' ' + (t.mix && t.mix.bpm || '') + ' ' + mood).toLowerCase();
+          + (t.mix && t.mix.key || '') + ' ' + (t.mix && t.mix.bpm || '') + ' ' + mood + ' ' + texture).toLowerCase();
         if (!hay.includes(q)) continue;
       }
       let match = null;
@@ -11389,7 +11407,8 @@ const CRATE = {
       const eb = document.createElement('span'); eb.className = 'ebar';
       // the energy bar doubles as the mood tell — search "calm"/"driving"/
       // etc. in the filter box above and this is what it's matching against
-      eb.title = 'Mood: ' + moodOf(t.features, kk);
+      const texture = t.features && t.features.texture;
+      eb.title = 'Mood: ' + moodOf(t.features, kk) + (texture ? ' · ' + texture : '');
       const ei = document.createElement('i');
       ei.style.width = Math.round(((t.features && t.features.energy) || 0) * 100) + '%';
       eb.appendChild(ei);
@@ -13579,7 +13598,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'e54ffe0f85';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '84846a07ed';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived

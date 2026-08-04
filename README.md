@@ -51,7 +51,9 @@ naming the problem** — it never guesses.
       "title": "Amber Axis", "file": "01-amber-axis.mp3", "duration": 274.3,
       "sha256": "…", "published": "2026-07-18",
       "features": { "bpm": 122.0, "energy": 0.62, "brightness": 0.41,
-                    "entropy": 0.55, "onsets": 0.30 }
+                    "entropy": 0.55, "onsets": 0.30,
+                    "instr": { "bass": 0.64, "perc": 0.10, "tonal": 0.90, "air": 0.01 },
+                    "texture": "bass-driven" }
     }]
   }]
 }
@@ -65,6 +67,18 @@ journey-ineligible and the Console says how many tracks it can see; no duration
 recomputed over the whole catalog every build, so the space stays calibrated as
 the library grows. `bpm: 0` means unpitched/ambient — the solver treats it as a
 wildcard, eligible anywhere, never forced to match a tempo.
+
+`instr` is a per-track timbral fingerprint (bass/percussive/tonal/air, each a
+0–1 share of the track's own spectral energy) from a median-filtering
+harmonic/percussive split (Fitzgerald 2010) — no ML, no training data. `texture`
+is a catalog-relative label (`bass-driven` / `percussive` / `melodic` /
+`atmospheric` / `full-spectrum`) picked by percentile-scaling those four ratios
+against the whole library, so a track only earns a label when one axis genuinely
+stands out from the rest of the catalog. The `mix` block also carries a
+`structure` field — the same energy-hysteresis section arc (`intro` / `build` /
+`peak` / `drive` / `break` / `outro`) the player derives client-side from the
+waveform, precomputed server-side so the booth and Crate never have to guess it
+from a partial buffer.
 
 A `catalog.sig` (minisign) may sit next to the JSON. Present and valid → a
 small "signed · ERRERlabs" mark in the library header. Absent → fine. Invalid →

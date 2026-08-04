@@ -46,12 +46,31 @@ try:  # optional ~100× speedup for the sample-loop IIR; numpy-only path remains
 except ImportError:  # pragma: no cover
     _lfilter = None
 
+try:
+    from scipy.ndimage import median_filter
+except ImportError:  # pragma: no cover — a slower pure-numpy fallback
+    def median_filter(a, size):
+        """A tiny 2-D median filter (edge-replicated), used only when scipy
+        is unavailable. size=(t,1) or (1,f): exactly what instrumentation()
+        calls with, so a full general implementation isn't needed."""
+        ta, fa = size
+        pt, pf = ta // 2, fa // 2
+        padded = np.pad(a, ((pt, ta - 1 - pt), (pf, fa - 1 - pf)), mode="edge")
+        out = np.empty_like(a)
+        if ta > 1:
+            for i in range(a.shape[0]):
+                out[i] = np.median(padded[i:i + ta, pf:pf + a.shape[1]], axis=0)
+        else:
+            for j in range(a.shape[1]):
+                out[:, j] = np.median(padded[pt:pt + a.shape[0], j:j + fa], axis=1)
+        return out
+
 FFT = 2048
 HOP = 512
 ONSET_ENV_HZ = 100.0
 BPM_LO, BPM_HI = 70.0, 180.0
 
-FEATURES_VERSION = 3      # v3: adds the band-envelope score (env) for graphless platforms
+FEATURES_VERSION = 4      # v4: adds instrumentation/texture (bass/perc/tonal/air via median-filter HPSS)
 
 
 # ------------------------------------------------------- BS.1770-4 loudness
@@ -215,7 +234,7 @@ def estimate_bpm(flux, onsets, sr):
 # mixable in/out regions aligned to downbeats, and a `mixable` confidence
 # that tells the player when NOT to beatmix (the piano rule).
 
-MIX_VERSION = 2      # v2: constant-grid least-squares fit (bpm+anchor), gridRms/gridDrift/downConf
+MIX_VERSION = 3      # v3: adds structure (energy-arc sections, ported from analyzeStructure())
 
 # Krumhansl–Kessler key profiles (major, minor)
 _KK_MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09,
@@ -343,6 +362,126 @@ def fit_constant_grid(beat_times):
     return t0, spb, float(np.sqrt((r ** 2).mean())), drift
 
 
+# ------------------------------------------------------- structure + texture
+# No vocals in this catalog, so "verse/chorus" is the wrong vocabulary — the
+# player already has a real one (intro/build/peak/drive/break/outro, in
+# sectionLabel() in docs/index.html) derived purely from a loud/quiet energy
+# shape. That function already exists and is already tested; what it lacks is
+# a SERVER-SIDE map to read instead of decoding the track client-side. This
+# is that map: the exact same hysteresis segmentation the browser's
+# analyzeStructure() runs, over real per-frame spectral energy instead of a
+# decoded amplitude envelope, computed once at publish time.
+
+STRUCTURE_N = 300   # matches the player's own peak resolution
+
+
+def extract_structure(spec, dur):
+    """The catalog twin of analyzeStructure() in docs/index.html — same
+    algorithm (two-threshold hysteresis, ~6%-of-track minimum run length,
+    apex = middle of the loudest section, mixIn = first strong block, mixOut
+    = end of the last loud block past the midpoint), so a section a listener
+    sees in the booth is the same section the pipeline measured. Keep the
+    two in sync by hand; there's no shared source between Python and JS."""
+    energy = spec.sum(axis=1)
+    n = len(energy)
+    if n < 8:
+        return {"ok": False, "sections": [], "apex": 0.6, "mixIn": 0.0, "mixOut": 0.9}
+    idx = np.linspace(0, n - 1, STRUCTURE_N).astype(int)
+    env = np.sqrt(np.maximum(energy[idx], 0.0))
+    k = max(1, STRUCTURE_N // 24)
+    if k > 1:
+        pad = k // 2
+        padded = np.pad(env, (pad, k - 1 - pad), mode="edge")
+        env = np.convolve(padded, np.ones(k) / k, mode="valid")
+    lo, hi = float(env.min()), float(env.max())
+    span = max(1e-6, hi - lo)
+    thr_hi, thr_lo = lo + span * 0.55, lo + span * 0.42
+    loud_arr = np.zeros(STRUCTURE_N, dtype=bool)
+    loud = env[0] > lo + span * 0.5
+    for i in range(STRUCTURE_N):
+        if loud and env[i] < thr_lo:
+            loud = False
+        elif not loud and env[i] > thr_hi:
+            loud = True
+        loud_arr[i] = loud
+    min_len = max(4, round(STRUCTURE_N * 0.06))
+    runs, start = [], 0
+    for i in range(1, STRUCTURE_N + 1):
+        if i == STRUCTURE_N or loud_arr[i] != loud_arr[start]:
+            runs.append([start, i, bool(loud_arr[start])])
+            start = i
+    merged = []
+    for r in runs:
+        if merged and (r[1] - r[0]) < min_len:
+            merged[-1][1] = r[1]
+        else:
+            merged.append(r)
+    sections = []
+    for s, e, ld in merged:
+        seg = env[s:e]
+        eavg = (float(seg.mean()) - lo) / span if len(seg) else 0.0
+        sections.append({"s": round(s / STRUCTURE_N, 4), "e": round(e / STRUCTURE_N, 4),
+                          "energy": round(eavg, 3), "loud": ld})
+    apex, best = 0.6, -1e18
+    for sec in sections:
+        if sec["energy"] > best:
+            best, apex = sec["energy"], (sec["s"] + sec["e"]) / 2
+    mix_in = 0.0
+    for sec in sections:
+        if sec["loud"] and sec["s"] < 0.5:
+            mix_in = sec["s"]
+            break
+    mix_out = 0.9
+    for sec in sections:
+        if sec["loud"] and sec["e"] > 0.45:
+            mix_out = sec["e"] if sec["e"] < 0.97 else 0.97
+    return {"ok": True, "sections": sections, "apex": round(apex, 4),
+            "mixIn": round(mix_in, 4), "mixOut": round(mix_out, 4)}
+
+
+def instrumentation(spec, freqs):
+    """Coarse timbral-texture ratios, each a 0-1 fraction of the track's own
+    total spectral energy (physically meaningful on its own — a bassRatio of
+    0.4 means the same thing on any track, no catalog-wide normalization
+    needed): how much sits below 150 Hz (bass), how much above 6 kHz (air),
+    and a median-filtering harmonic/percussive split (Fitzgerald 2010):
+    genuinely harmonic content is stable ACROSS TIME at a fixed frequency (a
+    long median along the time axis estimates it), percussive/transient
+    content is stable ACROSS FREQUENCY at a fixed instant (a short median
+    along the frequency axis). Whichever estimate wins a bin claims its
+    energy; no ML, no training data, just two median filters."""
+    total = float(spec.sum()) + 1e-12
+    bass = float(spec[:, freqs < 150].sum()) / total
+    air = float(spec[:, freqs >= 6000].sum()) / total
+    harm_est = median_filter(spec, size=(17, 1))
+    perc_est = median_filter(spec, size=(1, 17))
+    perc_mask = perc_est > harm_est
+    perc = float(spec[perc_mask].sum()) / total
+    tonal = max(0.0, 1.0 - perc)
+    return {"bass": round(bass, 3), "perc": round(perc, 3),
+            "tonal": round(tonal, 3), "air": round(air, 3)}
+
+
+# Low frequencies dominate raw STFT power in nearly every mix (that's how
+# spectra work, not a property of the track) — so absolute bass/tonal
+# ratios can't be compared against each other directly, or "bass-driven"
+# wins on every track, always. Texture is judged CATALOG-RELATIVE instead:
+# each of the four ratios is percentile-scaled across the whole catalog
+# (same trick as energy/brightness/onsets below), and a track earns a label
+# only when one axis clears the runner-up by a real margin — otherwise it's
+# the honest "full-spectrum".
+TEXTURE_MARGIN = 0.15
+
+
+def texture_label(scaled):
+    """scaled: {'bass-driven':.., 'percussive':.., 'melodic':.., 'atmospheric':..}
+    — each already 0-1 catalog-percentile-scaled for this track."""
+    ranked = sorted(scaled.items(), key=lambda kv: -kv[1])
+    if ranked[0][1] - ranked[1][1] > TEXTURE_MARGIN:
+        return ranked[0][0]
+    return "full-spectrum"
+
+
 def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
     """The catalog `mix` block for one decoded track (None = not mixable)."""
     if spec is None:
@@ -352,8 +491,9 @@ def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
     dur = len(mono) / sr
     beats, bpm = beat_track(flux, sr)
     key, key_conf = detect_key(spec, freqs)
+    structure = extract_structure(spec, dur)   # an energy arc needs no beat grid — ambient tracks get one too
     if beats is None or bpm <= 0:
-        return {"v": MIX_VERSION, "mixable": 0.0, "key": key}
+        return {"v": MIX_VERSION, "mixable": 0.0, "key": key, "structure": structure}
     fps = sr / HOP
     beat_times = beats / fps + GRID_LATENCY
     ibi = np.diff(beat_times)
@@ -408,6 +548,7 @@ def extract_mix(mono, sr, spec=None, freqs=None, flux=None):
         "gridRms": round(grid_rms * 1000, 1),      # ms — per-beat jitter vs the lattice
         "gridDrift": round(grid_drift * 1000, 1),  # ms — constant-tempo honesty check
         "downConf": round(down_conf, 2),
+        "structure": structure,
     }
 
 
@@ -469,6 +610,7 @@ def extract(path):
         "onset_rate": round(onset_rate, 3),
         "bpm": bpm,
         "env": band_env(spec, freqs, flux, sr),
+        "instr": instrumentation(spec, freqs),
         "mix": extract_mix(mono, sr, spec, freqs, flux),
     }
 
@@ -496,14 +638,32 @@ def normalize_catalog(raw_list):
     energy = scale(energy_raw)
     brightness = scale([np.log10(max(r["centroid"], 20.0)) for r in raw_list])
     onsets = scale([r["onset_rate"] for r in raw_list])
+
+    # texture: each axis judged against the CATALOG's own spread, not an
+    # absolute threshold — see texture_label()'s docstring for why
+    def instr_of(r):
+        return r.get("instr") or {"bass": 0.0, "perc": 0.0, "tonal": 0.0, "air": 0.0}
+    bass_s = scale([instr_of(r)["bass"] for r in raw_list])
+    perc_s = scale([instr_of(r)["perc"] for r in raw_list])
+    tonal_s = scale([instr_of(r)["tonal"] for r in raw_list])
+    air_s = scale([instr_of(r)["air"] for r in raw_list])
+
     out = []
     for i, r in enumerate(raw_list):
+        texture = texture_label({
+            "bass-driven": float(bass_s[i]),
+            "percussive": float(perc_s[i]),
+            "melodic": float(tonal_s[i]),
+            "atmospheric": float(air_s[i]),
+        })
         out.append({
             "bpm": r["bpm"],
             "energy": round(float(energy[i]), 3),
             "brightness": round(float(brightness[i]), 3),
             "entropy": round(float(min(max(r["entropy"], 0.0), 1.0)), 3),
             "onsets": round(float(onsets[i]), 3),
+            "instr": r.get("instr"),
+            "texture": texture,
         })
     return out
 
