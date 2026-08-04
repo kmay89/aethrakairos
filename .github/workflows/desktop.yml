@@ -309,6 +309,40 @@ jobs:
       # PROVE IT, rather than trusting that the step which claimed to sign did.
       # A notarized build that quietly came out unsigned is the failure this
       # whole pipeline exists to prevent, and it is invisible without asking.
+      # ── notarize the thing people actually download ────────────────────
+      # TAURI NOTARIZES THE .app AND THEN BUILDS THE .dmg AROUND IT. The disk
+      # image itself is signed but never submitted, so Gatekeeper — which
+      # assesses whatever was downloaded, and what gets downloaded is the .dmg
+      # — reports "source=Unnotarized Developer ID" and refuses it. The app
+      # inside is perfectly notarized. That is not the file anybody double
+      # clicks.
+      #
+      # This was invisible until the verify step below started running: the
+      # first "successful" signed build produced exactly this .dmg and reported
+      # green, because the only step that would have noticed had excluded
+      # itself. Two bugs whose symptoms cancelled out.
+      #
+      # So: submit the .dmg, wait for Apple, staple the ticket into it. Stapling
+      # is what makes it open on a machine that is offline or behind a captive
+      # portal — without it Gatekeeper has to phone home, and a venue's wifi is
+      # the worst possible place to discover that.
+      - name: Notarize and staple the .dmg itself
+        if: vars.ENABLE_MACOS_SIGNING == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          DMG=$(ls desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          echo "submitting: $DMG"
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 30m
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          echo "stapled — it opens without asking Apple at launch time"
+
       # ON EVERY SIGNED BUILD, AND ESPECIALLY THE VALIDATION ONE. This first
       # carried `mode != 'validate'`, copied from the publish step below where
       # it is correct — and the effect was that the run whose entire purpose is
@@ -339,6 +373,12 @@ jobs:
         run: |
           DMG=$(ls desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
           echo "built: $DMG"
+          # RE-UPLOAD THE VERSIONED ASSET TOO. tauri-action publishes the .dmg
+          # during the build step — which is BEFORE it was stapled — so the copy
+          # sitting on the release is the one Gatekeeper rejects. Clobber it with
+          # the stapled file, or the release page serves the bad one while every
+          # local check says fine.
+          gh release upload "${{ steps.plan.outputs.tag }}" "$DMG" --clobber --repo "${{ github.repository }}"
           cp "$DMG" "Aethra-Kairos-macOS-universal.dmg"
           gh release upload "${{ steps.plan.outputs.tag }}" "Aethra-Kairos-macOS-universal.dmg" --clobber --repo "${{ github.repository }}"
 

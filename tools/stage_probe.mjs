@@ -13,7 +13,7 @@
  *           BroadcastChannel between them, and a screen that renders the booth's
  *           numbers without a catalog, a transport or a sound of its own.
  *
- *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,pages] [--keep]
+ *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,pages,install] [--keep]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -686,6 +686,54 @@ if (want('pages')){
   verdict('pages: and stage mode is the case it makes for the app',
     got.h2.some(h => /Stage mode/.test(h)));
   await ctx.close();
+}
+
+/* ------------------------------------------------------------------ install
+ * THE BUTTON THAT MEANT THE WRONG THING. "Install" was only ever the PWA
+ * affordance — hidden until beforeinstallprompt, which Safari never fires, so
+ * on the platform the native app EXISTS for it was invisible. And the only
+ * other route to the download page was a promo card that shows once and then
+ * remembers being dismissed forever.
+ *
+ * Both halves are checked: a Mac gets a visible button that opens mac.html,
+ * and every other platform keeps the web-app install it had. */
+if (want('install')){
+  console.log('\non a Mac, Install means the Mac app');
+  const MAC_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+    + '(KHTML, like Gecko) Version/17.4 Safari/605.1.15';
+  const ctx = await browser.newContext({ userAgent: MAC_UA });
+  const { page } = await open(ctx, '/');
+  const btn = await page.evaluate(() => {
+    const b = document.getElementById('btnInstall');
+    return b ? { hidden: b.hidden, label: (b.querySelector('.lbl') || {}).textContent,
+      aria: b.getAttribute('aria-label') } : null;
+  });
+  verdict('install: on a Mac the button is visible without waiting for a prompt Safari never sends',
+    !!btn && btn.hidden === false, btn ? JSON.stringify(btn) : 'no button');
+  verdict('install: and it says what it does', !!btn && /Mac app/i.test(btn.label || ''), btn && btn.label);
+
+  // clicking it opens the download page rather than a web-app prompt
+  const opened = await page.evaluate(() => {
+    let got = '';
+    window.open = u => { got = String(u); return { closed: false }; };
+    document.getElementById('btnInstall').click();
+    return got;
+  });
+  verdict('install: it opens the Mac download page', /mac\.html/.test(opened), opened || 'nothing opened');
+
+  /* AND THE OTHER PLATFORMS KEEP WHAT THEY HAD. A Windows or Android browser
+   * has no Mac app to offer, so the button must stay the web-app install and
+   * stay hidden until the browser actually offers one. */
+  const ctx2 = await browser.newContext({ userAgent:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' });
+  const { page: p2 } = await open(ctx2, '/');
+  const other = await p2.evaluate(() => {
+    const b = document.getElementById('btnInstall');
+    return { hidden: b.hidden, label: (b.querySelector('.lbl') || {}).textContent };
+  });
+  verdict('install: off a Mac it is still the web-app install, hidden until offered',
+    other.hidden === true && /Install/i.test(other.label || ''), JSON.stringify(other));
+  await ctx.close(); await ctx2.close();
 }
 
 await browser.close();

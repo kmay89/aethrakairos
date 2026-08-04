@@ -13410,11 +13410,43 @@ window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   if (IS_NATIVE) return;             // the shell IS the install — never offer another
   deferredInstall = e;
+  // on a Mac the button is already the Mac-app link and must not be taken over
+  if (IS_MAC) return;
   el.btnInstall.hidden = false;                    // an affordance, never a nag
   // if the welcome card is already up, upgrade its hint to a one-tap button
   if (el.firstRun && el.firstRun.classList.contains('open') && typeof frInstallSetup === 'function') frInstallSetup();
 });
+/* ON A MAC, "INSTALL" MEANS THE MAC APP.
+
+   This button was only ever the PWA affordance: hidden until the browser
+   fires beforeinstallprompt, which Safari — the browser most Macs are running
+   — never fires at all. So on the platform the native app actually exists
+   for, the Install button was invisible; and in Chrome, where it did appear,
+   pressing it offered to install the WEB app, which is not what anybody on a
+   Mac means by "install".
+
+   The only route to the download page was the corner promo card, which shows
+   once and then remembers being dismissed forever. Dismiss it and the Mac app
+   became unreachable from the player entirely.
+
+   So on a real Mac the button is always there and goes to the download page.
+   A new tab rather than a navigation, because the alternative is stopping the
+   music to read about an app. */
+if (IS_MAC && el.btnInstall){
+  el.btnInstall.hidden = false;
+  const lbl = el.btnInstall.querySelector('.lbl');
+  if (lbl) lbl.textContent = 'Mac app';
+  el.btnInstall.setAttribute('aria-label', 'Get the Mac app — opens the download page');
+  el.btnInstall.title = 'Download Aethra Kairos for Mac — signed, self-updating, its own window';
+}
 el.btnInstall.addEventListener('click', () => {
+  if (IS_MAC){
+    // a click is a user gesture, so this is the window.open that is never
+    // blocked; falling back to a plain navigation if it somehow is
+    const w = window.open('mac.html', '_blank', 'noopener');
+    if (!w) location.href = 'mac.html';
+    return;
+  }
   if (!deferredInstall) return;
   deferredInstall.prompt();
   deferredInstall.userChoice.finally(() => { deferredInstall = null; el.btnInstall.hidden = true; });
