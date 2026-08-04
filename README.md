@@ -1040,6 +1040,43 @@ all engage from the very first tap. Offline with a cold cache, a
 synthesized loop stands in.
 Catalog chrome (Library, Console, Install) hides when irrelevant.
 
+## Stage mode in a room — getting the best show out of one laptop
+
+Stage mode (the **Stage** chip, or hold **F** / press **⇧F**) puts the field
+fullscreen on the screens the audience sees while this window stays the booth.
+Every screen renders the field on its own GPU from ~40 shared numbers a frame —
+no pixels are streamed between windows — so the picture is as good as the
+display it lands on. What varies is how the display reaches the laptop:
+
+- **Wired is the show.** USB-C/Thunderbolt → HDMI (or a TV's own HDMI input via
+  a dock) gives full resolution at the panel's refresh rate with effectively no
+  added latency, so the visuals sit *on* the beat. An Apple-silicon MacBook Pro
+  drives one external display on M-base chips and two to four on Pro/Max —
+  enough for a real wall from one machine. In **System Settings → Displays**
+  choose *extend* (never mirror): the stage wants its own screen, and the wall
+  reads the real arrangement, so dragging the monitor tiles there rearranges
+  the field live.
+- **Apple TV / AirPlay works — as an extended display.** On the Mac, AirPlay to
+  an Apple TV and pick *Use As Extended Display* (not mirroring). macOS then
+  treats it as a real monitor: the Mac app can place a stage window on it, and
+  Chrome can too. The costs are AirPlay's, not the stage's: the picture is
+  compressed video with roughly a hundred milliseconds of latency, which a
+  music visual *shows* — motion lands audibly behind the beat — and a busy
+  venue's Wi-Fi can stutter it. If AirPlay is the only route: wire the Apple TV
+  to the router (or use peer-to-peer AirPlay with Wi-Fi off on neither device),
+  keep it on 5 GHz, and treat it as the ambience screen rather than the main
+  wall.
+- **In a browser**, Chrome and Edge can put each screen fullscreen on the
+  monitor you name (one permission prompt, on your own click on the Stage
+  chip). Safari and Firefox open the screens as windows in a row — drag each
+  onto its television and double-click the picture to fill it. The Mac app does
+  the placement in every browser's stead.
+- **The machine keeps itself honest** during a set: the booth and every
+  room-sized screen hold a screen wake lock, so nothing dims mid-show. Plug the
+  laptop into power anyway — a fullscreen field per monitor is real GPU work —
+  and close what you don't need; the booth folds itself into a corner player on
+  its own.
+
 ## Tests
 
 ```bash

@@ -38,7 +38,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
-  ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal,' +
+  ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal, stagePlan,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
@@ -2773,6 +2773,43 @@ test('stageOrder: screen one is the leftmost on the top shelf, whatever order it
   assert.deepEqual(S.stageOrder([]), []);
   for (const bad of [null, undefined, [null], [{ id: 'a' }]])
     assert.doesNotThrow(() => S.stageOrder(bad));
+});
+test('stagePlan: screens are dealt to monitors in reading order, and the booth keeps its own while it can', () => {
+  // the two-monitor rig almost everyone has: booth on the built-in display,
+  // one television to its right — one screen goes to the television
+  const desk = [
+    { x: 0, y: 0, width: 1512, height: 982 },      // the booth's
+    { x: 1512, y: 0, width: 1920, height: 1080 },  // the television
+  ];
+  assert.deepEqual(S.stagePlan(desk, 1, 0), [1], 'one screen spares the booth');
+  // ask for every monitor and you plainly mean all of them, booth included,
+  // numbered as they hang: leftmost is screen one
+  assert.deepEqual(S.stagePlan(desk, 2, 0), [0, 1]);
+  // the television is LEFT of the laptop: screen one is the leftmost monitor,
+  // whatever order the OS enumerated them in
+  const flipped = [
+    { x: 0, y: 0, width: 1512, height: 982 },       // the booth's, primary
+    { x: -1920, y: 0, width: 1920, height: 1080 },  // the television, to the left
+  ];
+  assert.deepEqual(S.stagePlan(flipped, 1, 0), [1]);
+  assert.deepEqual(S.stagePlan(flipped, 2, 0), [1, 0], 'reading order across the real desk');
+  // three monitors, two screens: the spare ones in reading order, booth spared
+  const three = [
+    { x: 0, y: 0, width: 1512, height: 982 },       // booth, centre of the desk
+    { x: 1512, y: 0, width: 1920, height: 1080 },   // right
+    { x: -1920, y: 0, width: 1920, height: 1080 },  // left
+  ];
+  assert.deepEqual(S.stagePlan(three, 2, 0), [2, 1], 'screen one on the left television');
+  // more screens than monitors: the extras stack on the last one, visibly,
+  // rather than being refused invisibly
+  assert.deepEqual(S.stagePlan(desk, 3, 0), [0, 1, 1]);
+  // a booth nobody located: nothing is spared, reading order still holds
+  assert.deepEqual(S.stagePlan(three, 3), [2, 0, 1]);
+  // nothing to plan against is an empty plan, not a throw
+  assert.deepEqual(S.stagePlan([], 2, 0), []);
+  for (const bad of [null, undefined, [null], [{}]])
+    assert.doesNotThrow(() => S.stagePlan(bad, 2, 0));
+  assert.ok(S.stagePlan(desk, NaN, 0).length === 1, 'a countless ask is one screen');
 });
 test('stageMoved: a window that has not moved must not cost a message', () => {
   const a = { x: 10, y: 20, w: 300, h: 200 };

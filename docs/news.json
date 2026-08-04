@@ -4,6 +4,23 @@
     {
       "build": "unreleased",
       "date": "2026-08-04",
+      "title": "The stage places its own windows now",
+      "notes": [
+        "in Chrome and Edge, stage mode can put each screen fullscreen on the monitor you name — the trick that used to need the Mac app, now behind one permission prompt on your own click",
+        "screens are dealt to monitors as they actually hang: the leftmost television is screen one, even when the system counted them in another order",
+        "a stage window that landed on its monitor but not fullscreen fills it on a double-click — and the same double-click works on any stage screen, anywhere",
+        "the booth and every room-sized screen now hold the display awake for the length of the set — nothing dims mid-show because nobody touched it for an hour",
+        "plugging a monitor in (or losing one) mid-show is announced instead of ignored",
+        "Safari and Firefox keep the old manners: windows open in a row, and you drag each onto its television"
+      ],
+      "builds": [
+        "81b5c5b3d1",
+        "04eded7918"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-08-04",
       "title": "The lava lamp’s wax is now a fluid",
       "notes": [
         "the wax used to be a dozen discs that merged when a rule said so — it wobbled, because a disc with a shape has a resonant frequency and wax does not ring, wax creeps",
