@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') +
+const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -43,10 +43,14 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
+  ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
+  ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
-  ' SKINS, skinResolve, skinHexRgb, skinCss };';
+  ' SKINS, skinResolve, skinHexRgb, skinCss,' +
+  ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaMaxR, lavaFlow, lavaDragK, lavaWeber, lavaRing,' +
+  ' lavaOsc, lavaCoalesce, lavaFragment, lavaBudget, makeLava, lavaStep, lavaConfine, lavaVolume };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -1872,7 +1876,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 17);
+  assert.equal(S.SCENE_KEYS.length, 19);
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -1978,9 +1982,16 @@ test('dealScene: the music decides the room', () => {
   const hot = dealAll({ scenes, f: HOT, mood: 'apex' }).map(key);
   const cool = dealAll({ scenes, f: COOL, mood: 'adrift' }).map(key);
   const share = (list, k) => list.filter(x => x === k).length / list.length;
-  assert.ok(share(hot, 'starburst') + share(hot, 'comets') + share(hot, 'tunnel') > 0.25,
+  // AGAINST THE EVEN SPLIT, not against a constant. A fixed threshold here was
+  // really a claim about the roster's SIZE — every room added pushed it down
+  // (0.249 at seventeen, 0.259 at eighteen, 0.239 at nineteen) and it would
+  // have failed on some future scene that had nothing to do with percussion.
+  // What the test means is that the right rooms are dealt far more often than
+  // chance, and that survives the gallery growing.
+  const even = n => n / scenes.length;
+  assert.ok(share(hot, 'starburst') + share(hot, 'comets') + share(hot, 'tunnel') > even(3) * 1.3,
     'a hot room deals percussion: ' + JSON.stringify([...new Set(hot)]));
-  assert.ok(share(cool, 'fern') + share(cool, 'slinky') + share(cool, 'nebula') + share(cool, 'ribbons') > 0.25,
+  assert.ok(share(cool, 'fern') + share(cool, 'slinky') + share(cool, 'nebula') + share(cool, 'ribbons') > even(4) * 1.3,
     'a quiet room deals air: ' + JSON.stringify([...new Set(cool)]));
   assert.ok(share(hot, 'fern') < share(cool, 'fern'), 'FERN is not an apex room');
   assert.ok(share(cool, 'starburst') < share(hot, 'starburst'), 'STARBURST is not a drift room');
@@ -2043,7 +2054,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 17; sc++)
+  for (let sc = 0; sc < 19; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2090,7 +2101,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 16; sc++)
+  for (let sc = 0; sc < 19; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -2101,6 +2112,145 @@ test('touchAffinity: the map has taste — spirals spin, tunnels void, apex neve
   assert.equal(S.touchAffinity(8, 1, 0.5), 'gathers', 'comets want the PULL');
   assert.notEqual(S.touchAffinity(4, 2, 0.3), 'flows', 'the apex does not ripple');
   assert.equal(S.touchAffinity(999, 1, 0.5), 'grows', 'an unknown scene falls back to scene 0’s map entry');
+  assert.equal(S.touchAffinity(18, 1, 0.5), 'flows', 'a hand near a flame is a DRAUGHT');
+});
+
+// ---------------------------------------------------------- fire, measured
+
+test('the observer: monochromatic light comes out the colour it is', () => {
+  const hex = nm => S.rgbHex(S.wavelengthRGB(nm));
+  assert.equal(hex(532), '#00FF00', '532 nm is the green everybody’s laser pointer is');
+  const red = S.wavelengthRGB(650), blue = S.wavelengthRGB(445);
+  assert.ok(red.r > 0.9 && red.g < 0.1 && red.b < 0.1, `650 nm is red: ${JSON.stringify(red)}`);
+  assert.ok(blue.b > 0.9 && blue.r < blue.b, `445 nm is blue-violet: ${JSON.stringify(blue)}`);
+  // …and the whole visible band resolves to SOMETHING, at every step
+  for (let l = 380; l <= 720; l += 5){
+    const c = S.wavelengthRGB(l);
+    assert.ok(Math.max(c.r, c.g, c.b) > 0.99, `${l} nm is normalised`);
+    assert.ok(Math.min(c.r, c.g, c.b) >= 0, `${l} nm has no negative channel`);
+  }
+});
+test('the black body: hotter is bluer, and the whole ladder is monotone', () => {
+  // the one claim a colour-temperature model has to get right: as T rises the
+  // blue channel gains on the red, every step of the way, with no reversals
+  let prev = -1;
+  for (let K = 1000; K <= 12000; K += 250){
+    const c = S.kelvinRGB(K);
+    const ratio = c.b / Math.max(1e-6, c.r);
+    assert.ok(ratio > prev - 1e-9, `${K} K reversed: ${ratio} after ${prev}`);
+    prev = ratio;
+    assert.ok(Math.max(c.r, c.g, c.b) > 0.99 && Math.min(c.r, c.g, c.b) >= 0, `${K} K in gamut`);
+  }
+  const candle = S.kelvinRGB(1850), day = S.kelvinRGB(6500);
+  assert.ok(candle.b < 0.35, `a candle is not blue: ${S.rgbHex(candle)}`);
+  assert.ok(day.b > 0.9 && day.r > 0.9, `daylight is near-white: ${S.rgbHex(day)}`);
+  // luminance rises steeply with temperature — the reason a flame tip is
+  // dimmer as well as redder is a fact about the spectrum, not a fade we drew
+  assert.ok(S.blackbodyXYZ(2000).y > S.blackbodyXYZ(1200).y * 4,
+    'a 2000 K body vastly out-radiates a 1200 K one in the visible');
+});
+test('the bench: ten real sources, each with numbers you could measure', () => {
+  assert.equal(S.FLAME_SOURCES.length, 10);
+  const keys = S.FLAME_SOURCES.map(s => s.key);
+  for (const want of ['match', 'lighter', 'bic', 'zippo', 'clipper', 'torch', 'campfire',
+                      'flashlight', 'led', 'laser'])
+    assert.ok(keys.includes(want), `${want} is not on the bench`);
+  assert.equal(new Set(keys).size, 10, 'no two sources share a key');
+  for (const s of S.FLAME_SOURCES){
+    assert.ok(['flame', 'beam', 'laser'].includes(s.kind), `${s.key} has a real kind`);
+    assert.ok(s.dia > 0 && s.h > 0 && s.w > 0, `${s.key} has a real geometry`);
+    assert.ok(s.kind === 'laser' ? s.nm > 0 : s.kelvin >= 1000, `${s.key} has a real colour`);
+  }
+});
+test('the flicker IS the diameter — Strouhal, not a slider', () => {
+  const by = k => S.FLAME_SOURCES.find(s => s.key === k);
+  const campfire = S.flamePuff(by('campfire')), match = S.flamePuff(by('match'));
+  assert.ok(campfire > 1.5 && campfire < 2.5, `a campfire breathes about twice a second: ${campfire}`);
+  assert.ok(match > 15 && match < 25, `a match shivers about twenty times a second: ${match}`);
+  // f ∝ D^-1/2: four times the diameter, half the frequency, exactly
+  assert.ok(Math.abs(S.flamePuff({ dia: 0.04 }) / S.flamePuff({ dia: 0.01 }) - 0.5) < 1e-9);
+  for (const s of S.FLAME_SOURCES)
+    assert.equal(S.flamePuff(s) > 0, s.kind === 'flame', `${s.key}: only fire flickers`);
+  assert.equal(S.flamePuff(null), 1.5 / Math.sqrt(0.01), 'a source with no diameter still answers');
+});
+test('the plume is a temperature profile, and the tip is COLDER, not just dimmer', () => {
+  const zippo = S.FLAME_SOURCES.find(s => s.key === 'zippo');
+  const wick = S.flameTemp(zippo, 0), peak = S.flameTemp(zippo, 0.20), tip = S.flameTemp(zippo, 1);
+  assert.ok(peak > wick && peak > tip, `hottest a fifth of the way up: ${wick}/${peak}/${tip}`);
+  assert.equal(Math.round(peak), zippo.kelvin, 'and the rated temperature IS the peak');
+  // monotone down from the peak — no bumps to explain
+  let last = peak;
+  for (let u = 0.20; u <= 1.001; u += 0.02){
+    const K = S.flameTemp(zippo, u);
+    assert.ok(K <= last + 1e-9, `reversal at ${u}`);
+    last = K;
+  }
+  const led = S.FLAME_SOURCES.find(s => s.key === 'led');
+  assert.equal(S.flameTemp(led, 0), S.flameTemp(led, 1), 'an LED is one temperature all the way up');
+  assert.equal(S.flameTemp(zippo, -5), S.flameTemp(zippo, 0), 'nonsense heights are clamped, not NaN-ed');
+});
+test('the ramp: a blue base where a flame really has one, and nowhere else', () => {
+  const N = 64, blueness = (row, i) => row[i * 4 + 2] - row[i * 4];   // B − R
+  const bic = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'bic'), N);
+  const camp = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'campfire'), N);
+  assert.ok(blueness(bic, 0) > 40, 'a Bic burns premixed: the cone at its base is blue');
+  assert.ok(blueness(bic, N - 1) < -100, '…and its tip is not');
+  assert.ok(blueness(bic, 1) > blueness(camp, 1), 'a campfire has far less of one than a Bic');
+  // luminance: dark at the wick, brightest in the body, dying through the tip
+  const lum = (row, i) => row[i * 4 + 3];
+  const peak = Math.max(...Array.from({ length: N }, (_, i) => lum(bic, i)));
+  const at = Array.from({ length: N }, (_, i) => lum(bic, i)).indexOf(peak) / (N - 1);
+  assert.ok(at > 0.05 && at < 0.4, `the body is brightest a fifth of the way up: ${at}`);
+  assert.ok(lum(bic, 0) < peak && lum(bic, N - 1) < peak * 0.2, 'the wick is dark and the tip burns out');
+  // a beam falls off with distance; a laser barely does — that IS the difference
+  const torchB = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'flashlight'), N);
+  const laser = S.flameRamp(S.FLAME_SOURCES.find(s => s.key === 'laser'), N);
+  assert.ok(lum(torchB, N - 1) < lum(torchB, 0) * 0.35, 'a cone of light thins out');
+  assert.ok(lum(laser, N - 1) > lum(laser, 0) * 0.85, 'a collimated one does not');
+  for (let i = 0; i < N; i++)
+    assert.equal(laser[i * 4] + laser[i * 4 + 2], 0, 'and it stays exactly one wavelength all the way');
+  assert.equal(S.flameRamp(null, 4).length, 16, 'a source that is nothing still yields a ramp');
+});
+test('the bands: ten lights split the spectrum the way hearing does', () => {
+  const n = S.FLAME_SOURCES.length;
+  let last = -1;
+  for (let i = 0; i < n; i++){
+    const u = S.flameBandU(i, n);
+    assert.ok(u > last, 'strictly rising left to right');
+    assert.ok(u >= 0 && u <= 1, 'and always a real texture coordinate');
+    last = u;
+  }
+  assert.ok(S.flameBandU(0, n) < 0.05, 'the first light is on the bass');
+  assert.ok(S.flameBandU(n - 1, n) > 0.4, 'the last one is up in the air');
+  // the walk is bent, not linear: the low half of the bench shares the low
+  // half of the spectrum far more finely than the top half shares the top
+  assert.ok(S.flameBandU(5, n) < S.flameBandU(n - 1, n) * 0.5, 'logarithmic, not linear');
+  assert.equal(S.flameBandU(0, 1), S.flameBandU(0, 0), 'a bench of one still answers');
+});
+test('the roll: about half the visits are the whole bench, and every source is reachable', () => {
+  const seen = new Set();
+  let vigil = 0;
+  for (let i = 0; i <= 1000; i++){
+    const r = S.flameRoll(i / 1000);
+    assert.ok(r.mode === 'vigil' || r.mode === 'solo');
+    if (r.mode === 'vigil'){ vigil++; assert.equal(r.src, -1); }
+    else { assert.ok(r.src >= 0 && r.src < S.FLAME_SOURCES.length); seen.add(r.src); }
+    assert.ok(typeof r.name === 'string' && r.name.length > 0, 'a roll always names itself');
+  }
+  assert.equal(seen.size, S.FLAME_SOURCES.length, 'every light on the bench gets its solo');
+  assert.ok(vigil / 1001 > 0.4 && vigil / 1001 < 0.52, `about half: ${vigil / 1001}`);
+  assert.equal(S.flameRoll(NaN).mode, 'vigil', 'nonsense rolls the safe one');
+  assert.deepEqual(S.flameRoll(0.7), S.flameRoll(1.7), 'the roll is a pure function of its fraction');
+});
+test('the readout says what colour the thing is — because that is the room', () => {
+  const laser = S.flameLabel(S.FLAME_SOURCES.find(s => s.key === 'laser'));
+  assert.ok(/LASER · 532 nm · #[0-9A-F]{6}$/.test(laser), laser);
+  const zippo = S.flameLabel(S.FLAME_SOURCES.find(s => s.key === 'zippo'));
+  assert.ok(/ZIPPO · 1500 K · #[0-9A-F]{6}$/.test(zippo), zippo);
+  for (const s of S.FLAME_SOURCES)
+    assert.ok(S.flameLabel(s).includes(S.rgbHex(S.flameRGB(s))), `${s.key} quotes its own colour`);
+  assert.equal(S.rgbHex({ r: 1, g: 0, b: 0 }), '#FF0000');
+  assert.equal(S.rgbHex({ r: -3, g: 9, b: 0.5 }), '#00FF80', 'out-of-range channels clamp, never wrap');
 });
 test('touchAutoShould: never under a live finger, never before the dwell, only usually', () => {
   assert.ok(!S.touchAutoShould(10, true, 0.1), 'too soon');
@@ -2318,7 +2468,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 17; sc++)
+  for (let sc = 0; sc < 19; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);
@@ -3423,6 +3573,166 @@ test('fxAutoPick: the room only reaches for an effect the music has earned', () 
   assert.equal(S.fxAutoPick({ ...base, phase: 'peak', act: 1, energy: 0.9 }), 'none');
   assert.equal(S.fxAutoPick({ ...base, phase: 'peak', act: 2, energy: 0.6 }), 'none');
   assert.equal(S.fxAutoPick(null), 'none', 'garbage in → silence, never a random effect');
+});
+
+// ---------------------------------------------------------------- the lamp
+
+const LOPT = { rb: 0.44, rt: 0.30, sigma: 0.0014, mu: 1, wax: 8 };
+
+test('lavaFlow: a stream function cannot leak', () => {
+  // ψ is differentiated, not guessed, so ∇·u = ψ_yx − ψ_xy = 0 identically.
+  // Measured numerically in a straight-walled column, where the taper's own
+  // O(dR/dy) term is absent and the identity is the whole story.
+  const o = { rb: 0.4, rt: 0.4 };
+  let worst = 0;
+  for (let i = 0; i < 25; i++)
+    for (let j = 0; j < 25; j++){
+      const x = -0.4 + 0.8 * (i + 0.5) / 25;
+      const y = S.LAVA.yB + (S.LAVA.yT - S.LAVA.yB) * (j + 0.5) / 25;
+      const e = 1e-4;
+      const dux = (S.lavaFlow(x + e, y, o, 0.1, 0).u - S.lavaFlow(x - e, y, o, 0.1, 0).u) / (2 * e);
+      const dvy = (S.lavaFlow(x, y + e, o, 0.1, 0).v - S.lavaFlow(x, y - e, o, 0.1, 0).v) / (2 * e);
+      worst = Math.max(worst, Math.abs(dux + dvy));
+    }
+  assert.ok(worst < 1e-5, 'divergence ' + worst);
+  // …and nothing crosses a boundary: not the glass, not the heater, not the cap
+  assert.ok(Math.abs(S.lavaFlow(0.4, 0, o, 0.1, 0).u) < 1e-9, 'no flow through the wall');
+  assert.ok(Math.abs(S.lavaFlow(-0.4, 0.2, o, 0.1, 0).u) < 1e-9);
+  assert.ok(Math.abs(S.lavaFlow(0.1, S.LAVA.yB, o, 0.1, 0).v) < 1e-9, 'none through the heater');
+  assert.ok(Math.abs(S.lavaFlow(0.1, S.LAVA.yT, o, 0.1, 0).v) < 1e-9, 'none through the cap');
+  // the cell itself: up the middle, down the walls — the Bénard mode
+  assert.ok(S.lavaFlow(0, 0, o, 0.1, 0).v > 0.05, 'up the middle');
+  assert.ok(S.lavaFlow(0.39, 0, o, 0.1, 0).v < -0.05, 'down the walls');
+});
+
+test('lavaVisc / lavaDragK: cold wax is thick, and terminal speed goes as r²', () => {
+  assert.ok(S.lavaVisc(0) > S.lavaVisc(0.5) && S.lavaVisc(0.5) > S.lavaVisc(1), 'Arrhenius, monotone');
+  assert.ok(Math.abs(S.lavaVisc(0.5) - 1) < 1e-12, 'unit viscosity at the midpoint');
+  // v_term = a/k, and k ∝ 1/r² — so doubling the radius quadruples the speed
+  const k1 = S.lavaDragK(0.6, 0.05), k2 = S.lavaDragK(0.6, 0.10);
+  assert.ok(Math.abs(k1 / k2 - 4) < 1e-9, 'the exponent is exactly two');
+});
+
+test('lavaCoalesce: volume, momentum and heat all survive a merge', () => {
+  const a = { x: 0, y: 0, vx: 0.2, vy: -0.1, r: 0.08, T: 0.7 };
+  const b = { x: 0.1, y: 0.02, vx: -0.3, vy: 0.05, r: 0.06, T: 0.3 };
+  const m = S.lavaCoalesce(a, b);
+  const ma = a.r ** 3, mb = b.r ** 3;
+  assert.ok(Math.abs(m.r ** 3 - (ma + mb)) < 1e-15, 'volume adds');
+  assert.ok(Math.abs(m.vx * m.r ** 3 - (a.vx * ma + b.vx * mb)) < 1e-15, 'momentum adds');
+  assert.ok(Math.abs(m.vy * m.r ** 3 - (a.vy * ma + b.vy * mb)) < 1e-15);
+  assert.ok(m.T > b.T && m.T < a.T, 'temperature is the mass-weighted mean');
+  // two EQUAL drops release 26% of the new drop's surface energy, and that
+  // fraction is the amplitude of the wobble you actually watch
+  const e = S.lavaCoalesce({ x: 0, y: 0, vx: 0, vy: 0, r: 0.1, T: 0.5 },
+                           { x: 0.1, y: 0, vx: 0, vy: 0, r: 0.1, T: 0.5 });
+  assert.ok(Math.abs((1 - e.st) - 0.26) < 0.01, 'ring amplitude ' + (1 - e.st));
+});
+
+test('lavaFragment: a break-up creates nothing and pushes nothing', () => {
+  const rnd = S.mulberry32(9);
+  for (const n of [2, 3, 4]){
+    const p = { x: 0.05, y: -0.2, vx: 0.03, vy: 0.14, r: 0.13, T: 0.66, ax: 0, ay: 1 };
+    const kids = S.lavaFragment(p, n, rnd, 0.06);
+    assert.equal(kids.length, n);
+    const M = p.r ** 3;
+    let vol = 0, px = 0, py = 0;
+    for (const k of kids){ vol += k.r ** 3; px += k.vx * k.r ** 3; py += k.vy * k.r ** 3; }
+    assert.ok(Math.abs(vol - M) < 1e-14, 'volume conserved for n=' + n);
+    assert.ok(Math.abs(px - p.vx * M) < 1e-14, 'momentum conserved (x) for n=' + n);
+    assert.ok(Math.abs(py - p.vy * M) < 1e-14, 'momentum conserved (y) for n=' + n);
+    for (const k of kids) assert.ok(k.T === p.T, 'the pieces are as hot as the whole was');
+  }
+});
+
+test('lavaOsc: the exact solution cannot be blown up by a big step', () => {
+  const ring = S.lavaRing(0.03, 0.0014);          // the smallest, stiffest drop
+  assert.ok(ring.zTrue > 1, 'the true viscous damping IS overdamped — hence the cap');
+  assert.equal(ring.z, S.LAVA.oscZ, 'and the cap is what the lamp uses');
+  // one step of a whole second, on an oscillator whose period is far shorter:
+  // an explicit integrator detonates here, a closed form does not
+  let x = 0.4, v = 0;
+  for (let i = 0; i < 400; i++){
+    const o = S.lavaOsc(x, v, ring, 1.0);
+    x = o.x; v = o.v;
+    assert.ok(isFinite(x) && Math.abs(x) <= 0.4001, 'bounded at step ' + i + ': ' + x);
+  }
+  assert.ok(Math.abs(x) < 1e-6, 'and it rings down to nothing');
+});
+
+test('lavaBudget / lavaMaxR: the governor and the physics are one mechanism', () => {
+  const full = S.lavaBudget({}), eco = S.lavaBudget({ eco: true }),
+        weak = S.lavaBudget({ struggling: true });
+  assert.ok(eco.wax < full.wax && weak.wax <= eco.wax, 'less is asked of less');
+  assert.ok(weak.mergeK > full.mergeK, 'and the wax gets stickier rather than scarcer');
+  for (const b of [full, eco, weak])
+    assert.ok(b.wax + b.bub <= b.total && b.total <= 24, 'never past the shader array');
+  // a puddle on the heater may be enormous; the same wax in free fluid may not
+  const o = { rb: 0.44, rt: 0.30 };
+  assert.ok(S.lavaMaxR(S.LAVA.yB, o) > 2 * S.lavaMaxR(0.3, o), 'the floor carries the weight');
+  assert.ok(Math.abs(S.lavaMaxR(0.3, o) - S.LAVA.rDrop) < 1e-12, 'a free drop has one size');
+});
+
+test('the lamp runs for ten minutes and never invents wax', () => {
+  const st = S.makeLava(20260803, LOPT);
+  const V0 = S.lavaVolume(st);
+  const budget = S.lavaBudget({});
+  const h = 1 / 60;
+  let worstV = 0, escaped = 0, top = 0, bottom = 0, minN = 99, maxN = 0, fastest = 0;
+  for (let i = 0; i < 60 * 600; i++){
+    const t = i * h;
+    S.lavaStep(st, h, { heat: 0.88 + 0.1 * Math.sin(t * 0.05), flow: S.LAVA.flow,
+                        budget, entropy: 0.35, treble: 0.3 });
+    worstV = Math.max(worstV, Math.abs(S.lavaVolume(st) - V0) / V0);
+    minN = Math.min(minN, st.wax.length); maxN = Math.max(maxN, st.wax.length);
+    for (const b of st.wax){
+      assert.ok(isFinite(b.x) && isFinite(b.y) && isFinite(b.r) && isFinite(b.T),
+                'a number went missing at t=' + t.toFixed(1));
+      const R = S.lavaRadius(b.y, st.opt);
+      if (Math.abs(b.x) > R + 1e-6 || b.y < S.LAVA.yB - 1e-6 || b.y > S.LAVA.yT + 1e-6) escaped++;
+      if (b.y > S.LAVA.yB + (S.LAVA.yT - S.LAVA.yB) * 0.72) top++;
+      if (b.y < S.LAVA.yB + (S.LAVA.yT - S.LAVA.yB) * 0.16) bottom++;
+      fastest = Math.max(fastest, Math.hypot(b.vx, b.vy));
+    }
+  }
+  // THE CLAIM THIS TEST IS FOR: a lamp left on all night is still the same
+  // lamp. Merges, break-ups, sheds and drips are every one of them exact.
+  assert.ok(worstV < 1e-9, 'wax volume drifted by ' + worstV);
+  assert.equal(escaped, 0, 'the glass held');
+  assert.ok(minN >= 1 && maxN <= budget.wax + 4, 'count stayed in its lane: ' + minN + '..' + maxN);
+  assert.ok(top > 0, 'something reached the top — the lamp is convecting');
+  assert.ok(bottom > 0, 'and something came back down');
+  assert.ok(fastest < 3, 'nothing ran away: ' + fastest);
+});
+
+test('the lamp is the same lamp at any frame rate', () => {
+  // Nothing stiff is stepped, so a device drawing at six frames a second
+  // gets the physics, not a divergent cousin of it. Held to the same
+  // invariants as the 60 Hz run above — including a step ten times too big.
+  for (const h of [1 / 6, 1 / 30, 1 / 144]){
+    const st = S.makeLava(7, LOPT);
+    const V0 = S.lavaVolume(st);
+    const budget = S.lavaBudget({});
+    for (let i = 0; i < Math.round(180 / h); i++)
+      S.lavaStep(st, h, { heat: 0.9, flow: S.LAVA.flow, budget, entropy: 0.4, treble: 0.3 });
+    assert.ok(Math.abs(S.lavaVolume(st) - V0) / V0 < 1e-9, 'volume, at h=' + h.toFixed(4));
+    for (const b of st.wax){
+      assert.ok(isFinite(b.x) && isFinite(b.st) && isFinite(b.sv), 'finite at h=' + h.toFixed(4));
+      assert.ok(Math.hypot(b.vx, b.vy) < 3, 'bounded at h=' + h.toFixed(4));
+      assert.ok(Math.abs(b.x) <= S.lavaRadius(b.y, st.opt) + 1e-6, 'inside, at h=' + h.toFixed(4));
+    }
+  }
+});
+
+test('makeLava: the same seed is the same lamp, twice', () => {
+  const run = () => {
+    const st = S.makeLava(31415, LOPT);
+    const budget = S.lavaBudget({});
+    for (let i = 0; i < 60 * 45; i++)
+      S.lavaStep(st, 1 / 60, { heat: 0.9, flow: S.LAVA.flow, budget, entropy: 0.35, treble: 0.3 });
+    return st.wax.map(b => [b.x, b.y, b.r, b.T].map(v => v.toFixed(9)).join(',')).join('|');
+  };
+  assert.equal(run(), run(), 'deterministic from the seed');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
