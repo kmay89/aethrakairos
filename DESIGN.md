@@ -891,6 +891,61 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   left renames itself screen one, and the page inside really did take the cut it was
   sent rather than the one its address implied.
 
+### 1.2l″ The door out of the app, and the hand that crosses the seam
+
+Reported from a real Mac with a real monitor: *"I can't get the PIP windows to escape
+the wider application to take them to other screens and then make them full screen."*
+Three separate faults, all on the path from a corner window to a monitor.
+
+- **`↗` reached for `window.open`, which is the one call the shell answers with
+  `null`.** So inside the Mac app the corner window was a room with no door — it could
+  be dragged around the booth and never out of it — and the button's only reply was a
+  sentence about popup settings that no setting could fix. That is precisely the dead
+  end 1.2l was built to escape, left standing in the one place it mattered most. The
+  shell is asked first now: it puts a real window on a real display and fullscreens it
+  there, which is the trick the web genuinely cannot do — a browser may open a window
+  but may not choose the monitor, and may not go fullscreen without a gesture on that
+  window itself. The operator is asked *which* monitor, by name and size. An older
+  shell that does not know the command says so in words that name a way forward,
+  because this page will often be newer than the binary around it.
+- **Two screens on a two-monitor rig both landed on one monitor.** The display index
+  came from the screen number — screen 1 to display 1, screen 2 to display 2 —
+  deliberately skipping display 0 so a fullscreen stage would not bury the booth. On
+  the two-monitor rig almost everyone has, that clamped screen 2 onto the same panel
+  as screen 1: two fullscreen windows stacked, the other monitor dark, and a wall one
+  screen wide. Asking for exactly as many screens as there are monitors plainly means
+  all of them, the booth's included — it folds into a corner for exactly this.
+- **The booth remembers which monitor it filled**, and that memory is in the wall. Not
+  bookkeeping: a window the shell has fullscreened on a known monitor has a rectangle
+  the booth knows *exactly*, so the wall is right on the frame the window opens rather
+  than a second later when the page inside has booted far enough to say so. It is also
+  the only rectangle that can be trusted if a webview reports its own position badly.
+  That failure has a signature — two windows claiming the same rectangle, which would
+  collapse the wall to one screen's worth of field with every screen showing all of it
+  — so it is detected rather than assumed away, and those windows fall back to the
+  monitor they were placed on. A window's own reading still outranks the placement
+  whenever it is real, because only the window knows it has been dragged.
+- **The hand was one touch per screen, not one gesture across the field.** The booth's
+  hand has always MEANT "here, on the field". With one screen that is the same thing as
+  "here, on this glass", so it crossed as-is — and with three screens it quietly became
+  "here, on EVERY glass": one drag, three touches, one centred on each panel, none of
+  them where the operator pointed. The hand is a point on the WALL now, and each screen
+  converts it to its own glass. A screen the hand is not over gets a coordinate outside
+  its own edges, which is right — the touch is somewhere else and its force falls off
+  with distance like any other. Leaving screen 1's right edge and entering screen 2's
+  left edge happen at the same instant, which is what makes dragging across two
+  televisions one drag. With one screen the conversion is the identity.
+
+No orientation setting is needed for any of this, and none is offered: the wall is the
+union of where the monitors actually are, read from the OS. Rearranging the displays in
+System Settings rearranges the field, live.
+
+Verified in `tools/stage_probe.mjs --only native`, against a stubbed shell with a
+1512×982 laptop at the origin and a 1920×1080 monitor at `(1512, −98)`: the operator is
+asked by name, the shell is asked for the monitor named, `window.open` is never reached
+at all, the placement is remembered, two screens get one monitor each, and the field
+spans both as a single wall with the screens numbered left to right.
+
 ### 1.2m Stage presence at scale — three to eight televisions *(planned)*
 
 What ships today is correct for any N — the address bar takes `screen` and `of`, the

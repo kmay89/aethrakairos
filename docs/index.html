@@ -4142,6 +4142,66 @@ function stageLayout(rects){
   }
   return { bounds: b, map, order };
 }
+/* WHOSE MEASUREMENT TO BELIEVE. Two sources say where a stage window is: the
+   window itself, reading its own position off `window`, and the booth, which
+   knows the monitor it asked the shell to fill.
+
+   The window's own reading is better whenever it is real — it survives the
+   operator dragging or resizing it, which the booth would never hear about.
+   But a webview embedded in a native shell may report every one of its windows
+   at the same place, and identical rectangles collapse the wall to one screen's
+   worth of field with every screen then showing all of it. That failure has a
+   signature — two windows claiming the same rectangle — so it is detected
+   rather than guessed at, and those windows fall back to the monitor the booth
+   put them on. A window with neither reading is not in the wall yet. */
+function stageResolveRects(list, placed){
+  const p = placed || {};
+  const key = r => Math.round(r.x) + ':' + Math.round(r.y) + ':' + Math.round(r.w) + ':' + Math.round(r.h);
+  const tally = new Map();
+  for (const e of list || []){
+    if (!e || e.id == null || !e.rect) continue;
+    const k = key(stageRect(e.rect));
+    tally.set(k, (tally.get(k) || 0) + 1);
+  }
+  const out = [];
+  for (const e of list || []){
+    if (!e || e.id == null) continue;
+    let use = null;
+    if (e.rect){
+      const r = stageRect(e.rect);
+      if ((tally.get(key(r)) || 0) < 2 || !p[e.id]) use = r;
+    }
+    if (!use && p[e.id]) use = stageRect(p[e.id]);
+    if (use) out.push({ id: e.id, x: use.x, y: use.y, w: use.w, h: use.h });
+  }
+  return out;
+}
+/* THE HAND, IN THE COORDINATES OF THE WALL RATHER THAN OF A WINDOW.
+
+   The booth's hand has always MEANT "here, on the field". With one screen that
+   is the same thing as "here, on this glass", so it was sent as-is — and with
+   three screens it quietly became "here, on EVERY glass": one gesture, three
+   touches, one per screen, none of them where the operator pointed.
+
+   The field is one field, so the hand is one hand. The booth's normalized
+   position is a point on the WALL, and each screen converts it into its own
+   glass. A screen the hand is not over gets a coordinate outside its own edges,
+   which is exactly right — the touch is somewhere else, and its force falls off
+   with distance like any other. Dragging across the seam is then one gesture
+   crossing one field, which is the whole reason the screens are a wall and not
+   three pictures. With one screen the conversion is the identity, so nothing
+   about a single stage changes. */
+function stageHandLocal(hand, cut){
+  const hx = Number(hand && hand.x), hy = Number(hand && hand.y);
+  const x = Number.isFinite(hx) ? hx : 0, y = Number.isFinite(hy) ? hy : 0;
+  if (!cut) return { x, y };
+  const fw = Math.max(1e-4, Number(cut.fw) || 1), fh = Math.max(1e-4, Number(cut.fh) || 1);
+  const fx = Number(cut.fx) || 0, fy = Number(cut.fy) || 0;
+  // wall fractions from the top-left; x runs -1..1 left to right and y runs
+  // 1..-1 top to bottom, which is the convention every consumer already uses
+  const wx = (x + 1) / 2, wy = (1 - y) / 2;
+  return { x: ((wx - fx) / fw) * 2 - 1, y: 1 - ((wy - fy) / fh) * 2 };
+}
 /* has the wall actually changed? A window that has not moved must not cause a
    message, and a pixel of jitter from a fractional device ratio is not a move.
    Cheap enough to ask on every frame, which is how often it is asked. */
@@ -22124,6 +22184,8 @@ const STAGE = {
   peers: new Map(),          // booth: screen id → { at, rect, screen, of }
   wins: [],                  // booth: windows we opened ourselves (web path)
   wall: null,                // booth: the last layout it computed and sent
+  placed: {},                // booth: screen id → the monitor the shell filled
+  displays: [],              // booth: what the shell last said the monitors are
   ident: false,              // booth: every screen is showing its own number
   last: null,                // screen: the newest packet
   offset: NaN,               // screen: this machine's clock minus the booth's
@@ -22337,8 +22399,10 @@ const STAGE = {
   hand(){
     const p = this.last;
     if (!p || !p.hand) return;
-    INTERACT.px = Number(p.hand.x) || 0;
-    INTERACT.py = Number(p.hand.y) || 0;
+    // the booth points at the FIELD; this screen holds a rectangle of it
+    const h = stageHandLocal(p.hand, this.cut);
+    INTERACT.px = h.x;
+    INTERACT.py = h.y;
     INTERACT.dragging = !!p.hand.d;
     INTERACT.synth = !!p.hand.d;          // never buzz a hand that is not here
     INTERACT.cap = 1;
@@ -22475,22 +22539,32 @@ const STAGE = {
      booth can simply read, and putting it in the same list is what lets a rig
      mix corner windows and televisions without a second code path. */
   rects(){
-    const out = [];
     this.live();
-    for (const [id, v] of this.peers) if (v && v.rect) out.push({ id, x: v.rect.x, y: v.rect.y, w: v.rect.w, h: v.rect.h });
+    const list = [];
+    for (const [id, v] of this.peers) list.push({ id, rect: (v && v.rect) || null });
     for (const p of this.pips){
       const r = this.pipRect(p);
       if (!r) continue;
-      const i = out.findIndex(o => o.id === p.sid);
+      const i = list.findIndex(o => o.id === p.sid);
       /* the booth's own reading wins, and counts even before the page inside
          has finished loading. It can see the frame move on the frame it moves,
          where the frame inside would have to notice and then speak — and a
          window that is demonstrably there should be in the wall from the first
          frame rather than joining it a second later and shoving the others. */
-      if (i >= 0) out[i] = Object.assign({ id: p.sid }, r);
-      else out.push(Object.assign({ id: p.sid }, r));
+      if (i >= 0) list[i] = { id: p.sid, rect: r };
+      else list.push({ id: p.sid, rect: r });
     }
-    return out;
+    /* AND EVERY MONITOR THE SHELL WAS TOLD TO FILL, whether or not the page on
+       it has ever spoken. A stage window on a television across the room may
+       take seconds to load and may — in a webview that cannot read its own
+       position — never report anything useful at all; neither is a reason for
+       it to be missing from the wall, because the booth knows perfectly well
+       that it is there and which monitor it is filling. */
+    for (const id in this.placed)
+      if (this.placed[id] && !list.some(o => o.id === id)) list.push({ id, rect: null });
+    // a monitor the shell was told to fill is a rectangle the booth knows for
+    // certain; a window's own reading of itself outranks it when it has one
+    return stageResolveRects(list, this.placed);
   },
   /* the wall, recomputed and broadcast — but only when it is different, and
      never more than thirty times a second. A drag is a hundred moves and one
@@ -22603,17 +22677,31 @@ const STAGE = {
     if (opts.pip === true) return this.openPip({ n: of });
     let opened = 0;
     if (NATIVE.ready()){
-      const displays = opts.displays || await NATIVE.call('list_displays') || [];
+      const displays = opts.displays || await this.displayList(true);
+      this.displays = displays;
       // more screens asked for than there are displays to put them on: the
       // extras become corner windows rather than a stack nobody can tell apart
       if (opts.pip !== false && displays.length < 2) return this.openPip({ n: of });
+      /* ONE SCREEN PER MONITOR, AND ONLY THEN A SECOND ON ONE.
+
+         This used to index the displays by the screen number — screen 1 to
+         display 1, screen 2 to display 2 — deliberately skipping display 0
+         because a fullscreen stage on the booth's own monitor buries the booth.
+         On the two-monitor rig almost everyone has, that arithmetic put screen
+         1 on the external monitor and then CLAMPED screen 2 onto the same one:
+         two fullscreen windows stacked on one panel, the other monitor dark,
+         and a wall one screen wide. Ask for exactly as many screens as there
+         are monitors and you plainly mean all of them, the booth's included —
+         it folds into a corner for precisely this. */
+      const skipBooth = of < displays.length;
       for (let i = 1; i <= of; i++){
-        // one screen per display where there are enough of them; past that they
-        // stack on the last one, which the operator can drag apart — better than
-        // refusing to open the fourth window on a three-screen rig
-        const r = await NATIVE.call('open_stage',
-          { display: Math.min(i, Math.max(0, displays.length - 1)), screen: i, of });
-        if (r === true) opened++;      // the command answers true; null is "no shell"
+        const idx = Math.min(skipBooth ? i : i - 1, Math.max(0, displays.length - 1));
+        const r = await NATIVE.call('open_stage', { display: idx, screen: i, of });
+        if (r === true){
+          opened++;                    // the command answers true; null is "no shell"
+          const d = displays[idx];
+          if (d) this.placed['s' + i] = { display: idx, x: d.x, y: d.y, w: d.width, h: d.height };
+        }
       }
     }
     if (!opened){
@@ -22640,6 +22728,9 @@ const STAGE = {
     this.on = true;
     this.pip = false;
     this.setMini(true);
+    // the monitors are known, so the wall is right before a screen has spoken
+    this._wallKey = '';
+    this.pushWall(true);
     ACTIVITY.log('system', 'Stage mode on - ' + of + (of === 1 ? ' screen' : ' screens'));
     toast('Stage mode — the field is on ' + (of === 1 ? 'its own screen' : of + ' screens')
       + '. This window is the booth.');
@@ -22707,6 +22798,75 @@ const STAGE = {
         : native
           ? 'Stage — a small window above every app. Drag it by its bar, resize it, ⤢ for the whole screen.'
           : 'Stage — the picture the room would see, in the corner. Drag it, resize it, ⤢ full, ↗ its own window.');
+  },
+
+  /* ---------------- the shell's real windows ---------------- */
+  /* WHICH MONITOR. The web may open a window but may not choose the screen it
+     lands on, and may not fullscreen it without a gesture on that window
+     itself — so on the desktop this is the only route to "that one, filling
+     that monitor". The shell is asked, and the operator is asked which. */
+  async displayList(force){
+    if (this.displays && this.displays.length && !force) return this.displays;
+    this.displays = (NATIVE.ready() && await NATIVE.call('list_displays')) || [];
+    return this.displays;
+  },
+  displayName(i){
+    const d = (this.displays || [])[i];
+    if (!d) return 'that screen';
+    const size = Math.round(d.width) + '×' + Math.round(d.height);
+    return (d.name ? d.name + ' · ' : '') + size + (d.primary ? ' (this Mac)' : '');
+  },
+  /* the one nothing is on yet, preferring a screen that is not the booth's —
+     the answer the operator was going to give anyway, offered as the default */
+  freeDisplay(){
+    const ds = this.displays || [];
+    const taken = new Set();
+    for (const k in this.placed) if (this.placed[k]) taken.add(this.placed[k].display);
+    for (let i = ds.length - 1; i >= 0; i--) if (!taken.has(i) && !ds[i].primary) return i;
+    for (let i = 0; i < ds.length; i++) if (!taken.has(i)) return i;
+    return ds.length > 1 ? 1 : 0;
+  },
+  async pickDisplay(n){
+    const ds = await this.displayList(true);
+    if (ds.length <= 1) return 0;
+    const def = this.freeDisplay();
+    const lines = ds.map((d, i) => '  ' + (i + 1) + ' · ' + this.displayName(i)
+      + (this.onDisplay(i) ? '  — a screen is already here' : '')).join('\n');
+    const said = await ASK.text({
+      title: 'Screen ' + n + ' — which monitor?',
+      body: 'It opens full screen on the monitor you name, and joins the field where that monitor actually sits. Put another one on the other monitor and the picture runs across both.\n\n' + lines,
+      value: String(def + 1), placeholder: String(def + 1), ok: 'Put it there',
+    });
+    if (said === null) return null;
+    const i = Math.floor(Number(said)) - 1;
+    return (Number.isFinite(i) && i >= 0 && i < ds.length) ? i : def;
+  },
+  onDisplay(i){
+    for (const k in this.placed) if (this.placed[k] && this.placed[k].display === i) return true;
+    return false;
+  },
+  /* HAND A SCREEN TO THE SHELL, AND REMEMBER WHERE IT WENT.
+
+     The remembering is not bookkeeping for its own sake. A stage window the
+     shell has fullscreened on a known monitor has a rectangle the booth
+     already knows exactly — it is that monitor — and knowing it here means the
+     wall is right on the frame the window opens, rather than a moment later
+     when the page inside has booted far enough to say so. It is also the only
+     rectangle that can be trusted if a webview reports a window's position on
+     the desktop badly, which some do. */
+  async openNative(n, sid, idx){
+    const ds = await this.displayList();
+    const of = Math.max(1, this.pips.length + Object.keys(this.placed).length);
+    const r = await NATIVE.call('open_stage', { display: idx, screen: n, of });
+    if (r !== true) return false;
+    const d = ds[idx];
+    if (d) this.placed[sid] = { display: idx, x: d.x, y: d.y, w: d.width, h: d.height };
+    // it counts from now, not from when it finishes loading — a screen that is
+    // demonstrably open should be in the wall before it can say hello
+    if (!this.peers.has(sid)) this.peers.set(sid, { at: Date.now(), rect: null, screen: n, of });
+    this._wallKey = '';
+    this.pushWall(true);
+    return true;
   },
 
   /* WHERE N WINDOWS GO WHEN NOBODY HAS SAID. A row along the bottom of the
@@ -22863,13 +23023,46 @@ const STAGE = {
         if (this.pips.length <= 1) this.stop();
         else this.closePip(sid);
       });
-      /* THE WAY OUT, ON A CLICK. A click is a user gesture, so this window.open
-         is the one that is never blocked — which is the entire reason this
-         button exists rather than a line of advice about popup settings. The
-         window that opens carries this screen's own id, so it rejoins the wall
-         as the same screen it was in the corner: the picture does not change,
-         only where it is. */
-      out.addEventListener('click', () => {
+      /* THE WAY OUT — AND IN THE MAC APP IT IS NOT window.open.
+
+         This button used to reach for window.open and nothing else, which is
+         the one call the shell's WebKit view answers with null. Inside the app
+         the corner window was therefore a room with no door: it could be
+         dragged around the booth and never out of it, and the button's only
+         reply was a sentence about popup settings that no setting could fix.
+         That is the same dead end the corner stage was built to escape, left
+         standing in the one place it mattered most.
+
+         So the shell gets asked first. It puts a real window on a real display
+         and fullscreens it there, which is the whole trick the web cannot do:
+         a browser may open a window but may not choose the monitor, and may
+         not go fullscreen without a gesture on that window itself.
+
+         Either way the window carries this screen's own id — the shell derives
+         the same one from the screen number — so it rejoins the wall as the
+         same screen it was in the corner. The picture does not change, only
+         where it is. */
+      out.addEventListener('click', async () => {
+        if (NATIVE.ready()){
+          const where = await this.pickDisplay(p.i);
+          if (where === null) return;                     // asked and thought better of it
+          if (await this.openNative(p.i, sid, where)){
+            const alone = this.pips.length <= 1;
+            this.closePip(sid, true);
+            if (alone) this.setMini(true);
+            toast('Screen ' + p.i + ' is on ' + this.displayName(where)
+              + ' — full screen. Send another one to the other monitor and the field spans both.');
+            return;
+          }
+          /* AN OLDER SHELL IS NOT A DEAD END EITHER. The player deploys in a
+             minute and the signed app takes a day, so this page will often be
+             newer than the binary around it and must never assume a command it
+             just invented is there. Say what happened in words that name a way
+             forward, and then still try the web door on the way past. */
+          toast('This version of the Mac app cannot place a window on a monitor — '
+            + 'open aethrakairos.com in a browser to use the second screen, or keep it here.');
+          return;
+        }
         const w = window.open(this.url(p.i, this.pips.length, false, sid), 'mb8stage' + p.i,
           'width=1280,height=720,menubar=no,toolbar=no');
         if (!w){
@@ -22880,7 +23073,7 @@ const STAGE = {
         const alone = this.pips.length <= 1;
         this.closePip(sid, true);
         if (alone) this.setMini(true);
-        toast('Screen ' + p.i + ' — drag that window onto the television.');
+        toast('Screen ' + p.i + ' — drag that window onto the television, then make it full screen.');
       });
 
       // a window that shrinks must not leave the picture out at sea
@@ -22993,6 +23186,7 @@ const STAGE = {
     this.wins = [];
     this.peers.clear();
     this.wall = null;
+    this.placed = {};
     this._wallKey = '';
     this.setMini(false);
     ACTIVITY.log('system', 'Stage mode off');

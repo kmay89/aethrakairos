@@ -38,7 +38,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
-  ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved,' +
+  ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
@@ -2765,6 +2765,78 @@ test('stageRect: a window that reports nonsense about itself is not allowed to p
   assert.deepEqual(S.stageRect({ x: 5, y: 6, w: 7, h: 8 }), { x: 5, y: 6, w: 7, h: 8 });
   for (const bad of [null, undefined, 0, 'x', []])
     assert.doesNotThrow(() => S.stageRect(bad));
+});
+
+test('stageResolveRects: a webview that cannot read its own position must not collapse the wall', () => {
+  const placed = {
+    s1: { x: 0, y: 0, w: 1512, h: 982 },
+    s2: { x: 1512, y: -98, w: 1920, h: 1080 },
+  };
+  // the good case: both windows know where they are, and are believed
+  const honest = S.stageResolveRects([
+    { id: 's1', rect: { x: 0, y: 0, w: 1512, h: 982 } },
+    { id: 's2', rect: { x: 1512, y: -98, w: 1920, h: 1080 } },
+  ], placed);
+  assert.equal(honest.length, 2);
+  assert.equal(honest[1].x, 1512);
+  /* THE FAILURE THIS EXISTS FOR: a shell whose webviews each report themselves
+     at the origin. Two identical rectangles is not two windows in one place —
+     it is a webview that cannot read itself — so the monitors the booth filled
+     are used instead, and the wall stays two monitors wide. */
+  const lying = S.stageResolveRects([
+    { id: 's1', rect: { x: 0, y: 0, w: 1512, h: 982 } },
+    { id: 's2', rect: { x: 0, y: 0, w: 1512, h: 982 } },
+  ], placed);
+  assert.deepEqual(lying.map(r => r.x), [0, 1512], 'the placements must win');
+  const wall = S.stageLayout(lying);
+  assert.ok(wall.bounds.w > 3000, 'the wall is still two monitors wide, got ' + wall.bounds.w);
+  assert.ok(wall.map.s1.fw < 0.5 && wall.map.s2.fw < 0.65, 'and neither screen shows all of it');
+  // a window that has not spoken yet still counts, from where it was put
+  const early = S.stageResolveRects([{ id: 's1', rect: null }, { id: 's2', rect: null }], placed);
+  assert.equal(early.length, 2);
+  // …and a window with neither a reading nor a placement is simply not there
+  assert.equal(S.stageResolveRects([{ id: 'ghost', rect: null }], placed).length, 0);
+  // two corner windows genuinely stacked, with no placements, are believed:
+  // overlapping previews on one laptop is a real thing to do
+  const stacked = S.stageResolveRects([
+    { id: 'a', rect: { x: 10, y: 10, w: 300, h: 200 } },
+    { id: 'b', rect: { x: 10, y: 10, w: 300, h: 200 } },
+  ], {});
+  assert.equal(stacked.length, 2);
+  for (const bad of [null, undefined, [null], [{}], [{ id: 'x', rect: 'nope' }]])
+    assert.doesNotThrow(() => S.stageResolveRects(bad, null), JSON.stringify(bad));
+});
+test('stageHandLocal: one gesture crossing one field, not one touch per screen', () => {
+  const near = (a, b, m) => assert.ok(Math.abs(a - b) < 1e-9, (m || '') + ' got ' + a + ' want ' + b);
+  // one screen: the conversion is the identity, so a single stage is untouched
+  const solo = { fx: 0, fy: 0, fw: 1, fh: 1 };
+  for (const [x, y] of [[0, 0], [-1, 1], [0.4, -0.7]]){
+    const h = S.stageHandLocal({ x, y }, solo);
+    near(h.x, x, 'x'); near(h.y, y, 'y');
+  }
+  assert.deepEqual(S.stageHandLocal({ x: 0.5, y: -0.5 }, null), { x: 0.5, y: -0.5 });
+  // three screens in a row: a hand at the middle of the FIELD is at the middle
+  // of the middle screen, and off the edge of the other two
+  const cut = i => S.stageSlice(i, 3);
+  near(S.stageHandLocal({ x: 0, y: 0 }, cut(2)).x, 0, 'middle screen holds the middle');
+  assert.ok(S.stageHandLocal({ x: 0, y: 0 }, cut(1)).x > 1, 'screen 1 sees it off to its right');
+  assert.ok(S.stageHandLocal({ x: 0, y: 0 }, cut(3)).x < -1, 'screen 3 sees it off to its left');
+  // the far left of the field is the far left of screen 1
+  near(S.stageHandLocal({ x: -1, y: 0 }, cut(1)).x, -1);
+  // and the seam is the seam: the hand leaving screen 1's right edge arrives
+  // at screen 2's left edge at the same instant, which is what makes a drag
+  // across two televisions one drag
+  const seam = -1 / 3;
+  near(S.stageHandLocal({ x: seam, y: 0 }, cut(1)).x, 1, 'leaves screen 1');
+  near(S.stageHandLocal({ x: seam, y: 0 }, cut(2)).x, -1, 'and enters screen 2');
+  // vertical too, on a screen that is the bottom half of the wall
+  const low = { fx: 0, fy: 0.5, fw: 1, fh: 0.5 };
+  near(S.stageHandLocal({ x: 0, y: 0 }, low).y, 1, 'the field\'s middle is this screen\'s top');
+  near(S.stageHandLocal({ x: 0, y: -1 }, low).y, -1, 'and the field\'s floor is its floor');
+  for (const bad of [null, undefined, { x: NaN, y: 'x' }])
+    assert.doesNotThrow(() => S.stageHandLocal(bad, cut(2)), JSON.stringify(bad));
+  const junk = S.stageHandLocal({ x: NaN, y: undefined }, { fw: 0, fh: null, fx: NaN });
+  assert.ok(Number.isFinite(junk.x) && Number.isFinite(junk.y), 'a bad cut may not produce a NaN hand');
 });
 
 test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
