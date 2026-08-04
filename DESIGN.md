@@ -1015,19 +1015,15 @@ What ships today is correct for any N — the address bar takes `screen` and `of
 slices tile, the booth can open as many windows as the machine will give it. What is
 not yet done is everything that makes a WALL rather than several screens:
 
-- **Fullscreen-shader scenes still draw themselves, not their slice.** The mesh
-  scenes and the backdrop are continuous by construction because they are cut by the
-  camera. The raymarched and full-quad scenes compute from `vUv` and a resolution
-  uniform, so each screen currently draws the whole composition rather than its part
-  of one. The fix is a `uSlice` uniform (`vec4(fx, fy, fw, fh)`, identity by default)
-  applied in the four vertex shaders that assign `vUv = uv` — `MARCH_VERT` and the
-  three full-quad scenes — plus feeding those shaders the FULL field's aspect rather
-  than the window's. Small, mechanical, and unverifiable without a real wall in front
-  of it, which is why it is written down rather than guessed at.
-- **Bezels.** Televisions have frames, and a continuous field that ignores them
-  visibly stretches at every seam. A per-screen bezel compensation (millimetres of
-  frame as a fraction of panel width, folded into the slice's `fx/fw`) is the
-  standard answer and belongs in the same place the slice is computed.
+- ~~**Fullscreen-shader scenes still draw themselves, not their slice.**~~ **Done
+  (1.2m‴).** The `uSlice` uniform written down here was built exactly as written —
+  and the count was five, not four: the raymarch, OP-ART, PULSE, PARLOR and the
+  LAVA LAMP (whose bottle now fits the wall, and whose splat pass shares the wall's
+  aspect or the field lookup would desync). Verified live in the probe rather than
+  guessed at: a quad scene on the middle screen of three holds the middle third
+  against the wall's aspect.
+- ~~**Bezels.**~~ **Done (1.2m‴).** The spread transform, the Seams knob, and a
+  ball to judge them by.
 - ~~**Arrangements that are not rectangles.**~~ **Done, and better than planned
   (1.2l′).** The intent here was a per-screen rectangle typed into the address
   (`&rect=x,y,w,h`) with the grid as shorthand. Nobody should have to type that: a
@@ -1182,6 +1178,68 @@ by flag: the beacon mints with no SDP, a page told nothing but the code becomes
 all-field behind a one-tap veil, the tap starts the mic and the poll, the
 booth's exact palette arrives as a glide and its scene is adopted, and every
 pulse read on the wire log is buster-free.
+
+### 1.2m‴ The wall earns its frames: every scene takes its slice, and the field passes behind the plastic
+
+What a video-wall processor sells, built into the player — the two 1.2m items
+that stood between "several screens" and "one picture", plus the rehearsal
+ritual that lets an operator judge both by eye.
+
+- **Five scenes were fullscreen quads, and a quad cannot be cut by a camera.**
+  `setViewOffset` slices everything the camera projects, which is why the mesh
+  scenes and the backdrop were continuous from the first night — but the
+  raymarched FRACTAL FIELD, OP-ART, PULSE, PARLOR and the LAVA LAMP build their
+  picture from `vUv` and an aspect, straight past the camera, so each drew the
+  WHOLE composition on every screen of a wall. The fix is the one 1.2m wrote
+  down: a `uSlice` uniform (identity by default) in each quad's vertex shader —
+  `vUv = uSlice.xy + uv * uSlice.zw` — plus the FULL field's aspect instead of
+  the window's. One answer serves all five: `STAGE.slice()` (and its
+  `sliceUniform` twin, which owns the y-flip between the wall's top-down
+  fractions and GL's bottom-up uv), read once per frame at exactly the sites
+  where each scene already updated its aspect. On a booth, a phone, a single
+  screen, it is the identity and nothing anywhere changes.
+  - The fractal needed two care points: its ray basis is copied from the real
+    camera (so `setViewOffset` never touched it — the slice must live in uv),
+    and its composite pass is a 1:1 blit of a render target that already holds
+    this screen's slab — so `MARCH_VERT` gained the slice and the blit kept a
+    plain vertex shader (`MARCH_BLIT`), or the slab would be sliced twice.
+  - The lamp needed three: the bottle fits the wall (`fitBottle(wall aspect)`),
+    the splat pass shares the wall's aspect (the field texture lookup would
+    desync against a window-shaped shading pass), and the anti-aliasing pixel
+    size is the wall's height in this screen's device pixels.
+- **Bezels: the field passes BEHIND the frames.** Two screens flush in desktop
+  coordinates are separated, physically, by two frame-widths of plastic, and a
+  wall built from the glass alone plays a shape across the seam with a teleport
+  the eye reads as squeeze. `stageSpread` (pure, tested) is every wall
+  processor's knob said in one transform: positions scale by `1 + 2·bezel`
+  about the wall's own corner, sizes stay, so every flush seam opens by exactly
+  two frames — and `stageLayout` already knew what to do with rectangles that
+  have gaps between them, which is why the whole feature is a preprocessing
+  step. The wire's grid wall wears its frames identically (`stageNetWall`
+  builds unit rectangles, spreads them, and lays them out by the same
+  arithmetic). The **Seams** control in the folded booth cycles the sizes real
+  frames come in, re-cuts both walls, and is remembered per rig.
+- **The ball.** Identify grew the wall trade's alignment ritual: every screen
+  shows its own edges (a dashed test-card frame) and ONE ball sweeps the whole
+  wall — each screen drawing only its own leg of the journey, computed from the
+  booth's stamped clock through this machine's measured offset, so no packet
+  carries a moving target. Crossing a seam on time is the proof the cut is
+  right; with bezels on it vanishes behind the plastic and comes out the other
+  side exactly when a real ball would, which is the proof the seams are right —
+  and the Seams knob holds the ball up after every press so the answer is
+  judged by eye, which is how walls are actually tuned.
+- **`tools/scene_smoke.mjs`** — every scene, twice: once as a booth, once as
+  the middle screen of three, failing on any shader compile error or frame
+  exception. A broken shader breaks silently (three.js logs and draws nothing),
+  and the uSlice work touched every fullscreen-quad program; now the sweep is a
+  command.
+
+Verified: unit tests for the spread (flush seams open by exactly two frames,
+the layout grows hidden gutters, absurd bezels are capped) and the framed grid;
+probe checks that a quad scene on the middle screen of three holds the middle
+third against the wall's aspect, that the ball rolls, and that Seams shrinks
+the glasses' share of a grown wall; and the scene smoke, clean on all nineteen
+scenes, booth and sliced screen alike.
 
 ---
 

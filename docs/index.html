@@ -1139,6 +1139,18 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 #stageIdent span{
   font-size:2vmin;letter-spacing:.3em;text-transform:uppercase;color:rgba(255,255,255,.66);
 }
+/* the test card's frame: each panel shows its own edges, so a cut that is
+   wrong by a centimetre is visible from the back of the room */
+#stageIdent::before{
+  content:'';position:absolute;inset:1.2vmin;pointer-events:none;
+  border:.4vmin dashed rgba(255,255,255,.32);border-radius:1vmin;
+}
+/* the ball that sweeps the whole wall — see STAGE.ballStep */
+#stageIdent .ball{
+  position:absolute;left:50%;top:50%;width:3vmin;height:3vmin;margin:-1.5vmin 0 0 -1.5vmin;
+  border-radius:50%;background:#fff;transition:opacity .12s linear;
+  box-shadow:0 0 3vmin var(--accent-glow,rgba(110,231,255,.8)),0 0 8vmin rgba(255,255,255,.35);
+}
 @keyframes identIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){#stageIdent{animation:none}}
 /* ============ the invite — four letters, held up across a table ============
@@ -4630,15 +4642,65 @@ function stageCodeIs(s){
    by the one arithmetic that never needed geometry: the grid, in join order.
    Two devices are a row of two; walk in with a third and everyone re-cuts.
    Returns the same map a 'wall' message carries, keyed by screen id. */
-function stageNetWall(ids){
+function stageNetWall(ids, bezel){
   const list = [];
   for (const id of ids || []) if (id != null) list.push(String(id));
-  const map = {};
-  for (let i = 0; i < list.length; i++){
-    const s = stageSlice(i + 1, list.length);
-    map[list[i]] = { fx: s.fx, fy: s.fy, fw: s.fw, fh: s.fh, n: i + 1, of: list.length };
+  const b = Number(bezel);
+  if (!Number.isFinite(b) || b <= 0 || list.length < 2){
+    const map = {};
+    for (let i = 0; i < list.length; i++){
+      const s = stageSlice(i + 1, list.length);
+      map[list[i]] = { fx: s.fx, fy: s.fy, fw: s.fw, fh: s.fh, n: i + 1, of: list.length };
+    }
+    return map;
   }
-  return map;
+  /* with frames on: the grid becomes unit rectangles, spread apart exactly
+     as a real wall's are, and laid out by the one arithmetic — so the
+     wire's wall and the desk's wall wear their bezels identically */
+  const rects = list.map((id, i) => {
+    const s = stageSlice(i + 1, list.length);
+    return { id, x: s.col, y: s.row, w: 1, h: 1 };
+  });
+  return stageLayout(stageSpread(rects, b)).map;
+}
+/* BEZELS — the field passes BEHIND the frames.
+
+   A television is glass in a frame, and the OS arranges only the glass:
+   two screens flush in desktop coordinates are separated, physically, by
+   two frame-widths of plastic. A wall built from the glass rectangles is
+   continuous but WRONG — a shape crossing the seam teleports the width of
+   the frames, which the eye reads as the picture being squeezed. Every
+   video-wall processor ever sold has the same knob for this, and this is
+   that knob: spread the rectangles apart by the frames they are wearing,
+   and the union grows hidden gutters the field passes behind. A ball
+   rolling across the wall goes BEHIND the plastic and comes out the other
+   side on time, which is the whole illusion.
+
+   `bezel` is the frame's thickness per edge as a fraction of a screen's
+   width (a centimetre of plastic on a metre of television ≈ 0.01). The
+   transform is exact for the rig this is for — matching panels hung in a
+   row or a grid: positions scale by (1 + 2·bezel) about the wall's own
+   corner, sizes stay, so every flush seam opens by exactly two frames.
+   Mixed sizes get the same scale, which is the right approximation and
+   adjustable by eye with the ball. Zero is zero: no allocation, no drift. */
+function stageSpread(rects, bezel){
+  const b = Number(bezel);
+  const list = [];
+  for (const raw of rects || []){
+    if (!raw) continue;
+    const r = stageRect(raw);
+    if (raw.id != null) r.id = raw.id;
+    list.push(r);
+  }
+  if (!Number.isFinite(b) || b <= 0 || list.length < 2) return list;
+  const s = 1 + 2 * Math.min(0.25, b);
+  let x0 = Infinity, y0 = Infinity;
+  for (const r of list){ if (r.x < x0) x0 = r.x; if (r.y < y0) y0 = r.y; }
+  return list.map(r => {
+    const out = { x: x0 + (r.x - x0) * s, y: y0 + (r.y - y0) * s, w: r.w, h: r.h };
+    if (r.id != null) out.id = r.id;
+    return out;
+  });
 }
 /* THE PULSE — the crowd's whole vocabulary, and it is deliberately tiny.
 
@@ -14141,7 +14203,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'b0659cedb0';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '4129940936';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -18092,7 +18154,14 @@ const GLSL_FRACTAL = `
   }
 `;
 
-const MARCH_VERT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+/* the raymarch quad carries the wall's slice: on a stage screen vUv spans
+   this window's rectangle OF THE WALL, so the rays it builds are the rays a
+   window into one shared frustum would build — the same trick setViewOffset
+   plays for meshes, said in uv. Identity everywhere else (see STAGE.slice). */
+const MARCH_VERT = `varying vec2 vUv; uniform vec4 uSlice; void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+/* the composite is a 1:1 blit of a render target that ALREADY holds this
+   screen's slab — slicing it twice would slice it twice */
+const MARCH_BLIT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
 const MARCH_FRAG = GLSL_FRACTAL + `
   precision highp float;
@@ -18358,6 +18427,7 @@ function buildFractalField(){
   // references, so every form's program reads the same live values.
   const bulbU = {
     uRes:    { value: new THREE.Vector2(1, 1) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
     uCamPos: { value: new THREE.Vector3() },
     uCamMat: { value: new THREE.Matrix3() },
     uTanFov: { value: Math.tan(31 * PI / 180) },
@@ -18400,7 +18470,7 @@ function buildFractalField(){
 
   const compMat = new THREE.ShaderMaterial({
     uniforms: Object.assign({}, U, { uTex: { value: rtBulb.texture } }),
-    vertexShader: MARCH_VERT,
+    vertexShader: MARCH_BLIT,
     fragmentShader: `
       uniform sampler2D uTex; uniform float uOpacity;
       varying vec2 vUv;
@@ -18524,7 +18594,13 @@ function buildFractalField(){
       const w = Math.max(64, Math.floor(renderer.domElement.width * bulbScale));
       const h = Math.max(64, Math.floor(renderer.domElement.height * bulbScale));
       if (rtBulb.width !== w || rtBulb.height !== h) rtBulb.setSize(w, h);
-      u.uRes.value.set(w, h);
+      /* the target is this screen's slab of pixels; the RESOLUTION the rays
+         are built against is the whole wall's, or every screen would build
+         rays for a wall of its own shape and the fractal would tear at the
+         seam. On anything that is not a slice, cut is the identity and this
+         is exactly the two lines it always was. */
+      const cut = STAGE.sliceUniform(u.uSlice);
+      u.uRes.value.set(w / cut.fw, h / cut.fh);
 
       const prev = renderer.getRenderTarget();
       renderer.setRenderTarget(rtBulb);
@@ -18980,11 +19056,13 @@ function buildOpArt(){
   const varU = {
     uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
     uForm: { value: Math.floor(Math.random() * 10) }, uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
   };
   const geo = new THREE.PlaneGeometry(2, 2);
   const vert = `
     varying vec2 vUv;
-    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
   `;
   const frag = GLSL_MPHI + `
     uniform float uTime, uBeat, uEnergy, uBass, uTreble, uCentroid, uAct, uOpacity;
@@ -19248,7 +19326,7 @@ function buildOpArt(){
   const FORM_NAMES = ['ISO', 'MAZE', 'FLOOR', 'HYPNO', 'DISCO', 'RADAR',
                       'PLASMA', 'CHLADNI', 'BLOB', 'WARP'];
   const api = { name: 'OP-ART', key: 'opart', group, update(){
-    varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+    varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
   }, roll(){
     varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
     varU.uForm.value = Math.floor(Math.random() * FORM_NAMES.length);
@@ -19277,13 +19355,15 @@ function buildPulse(){
   const group = new THREE.Group();
   const varU = {
     uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
     uSlots:  { value: 8 },                        // percussion tick columns
     uSeedP:  { value: Math.random() * 100 },
   };
   const geo = new THREE.PlaneGeometry(2, 2);
   const vert = `
     varying vec2 vUv;
-    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
   `;
   const frag = GLSL_MPHI + `
     uniform float uTime, uBeat, uEnergy, uBass, uMid, uTreble, uCalm, uOpacity;
@@ -19366,7 +19446,7 @@ function buildPulse(){
   group.visible = false;
   scene.add(group);
   return { name: 'PULSE', key: 'pulse', group, calm: true, update(){
-    varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+    varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
   }, roll(){
     varU.uSlots.value = 6 + Math.floor(Math.random() * 3) * 2;   // 6 / 8 / 10
     varU.uSeedP.value = Math.random() * 100;
@@ -19401,6 +19481,7 @@ function buildParlor(){
   const group = new THREE.Group();
   const varU = {
     uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
     uField:  { value: 0 }, uSpice: { value: 0 },
     uSeedI:  { value: Math.random() * 100 },
     uHypD:   { value: 1.2 }, uHypR: { value: 0.66 }, uHypP: { value: 5 },
@@ -19416,7 +19497,8 @@ function buildParlor(){
   const geo = new THREE.PlaneGeometry(2, 2);
   const vert = `
     varying vec2 vUv;
-    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
   `;
   const frag = GLSL_MPHI + `
     uniform float uTime, uBeat, uEnergy, uBass, uTreble, uEntropy, uCentroid, uAct, uOpacity, uCalm;
@@ -19719,7 +19801,7 @@ function buildParlor(){
       return api.name;
     },
     update(dt){
-      varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
       const f = AE.f;
       // the Möbius orbit: bass swells the reach, time walks the angle
       wAng += dt * (0.05 + f.energy * 0.1) * (reducedMotion ? 0.4 : 1);
@@ -22249,6 +22331,7 @@ function buildLava(){
   /* ---------- the shading pass: one full-screen quad, four taps ---------- */
   const varU = {
     uAspect: { value: 1 }, uPx: { value: 0.003 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
     uField: { value: rtField.texture },
     uStep:  { value: 0.02 },          // the tap spacing, in world units
     uIso:   { value: 0.55 },          // where the surface is, in field units
@@ -22263,7 +22346,8 @@ function buildLava(){
   const geo = new THREE.PlaneGeometry(2, 2);
   const vert = `
     varying vec2 vUv;
-    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
   `;
   const frag = GLSL_MPHI + GLSL_WARP + `
     uniform float uBeat, uEnergy, uBass, uAct, uOpacity;
@@ -22648,7 +22732,7 @@ function buildLava(){
       bottle = BOTTLES[(Math.random() * BOTTLES.length) | 0];
       bubGain = wax.bub;
       fitted = -1;
-      fitBottle(window.innerWidth / Math.max(1, window.innerHeight));
+      fitBottle(STAGE.slice().aspect);
       varU.uTint.value = Math.random() * 0.14;
       // a third of a turn, give or take — far enough to be another colour,
       // near enough to still be this track's chord
@@ -22683,10 +22767,15 @@ function buildLava(){
     },
     update(dt){
       const f = AE.f;
-      const asp = window.innerWidth / Math.max(1, window.innerHeight);
+      /* the lamp fits the WALL: aspect, pixel size and the bottle itself
+         are all measured against the full field, so three screens hold one
+         lamp rather than three little ones (see STAGE.slice). The splat
+         pass shares the aspect or the field lookup would desync. */
+      const cut = STAGE.sliceUniform(varU.uSlice);
+      const asp = cut.aspect;
       varU.uAspect.value = asp;
       splatU.uAspect.value = asp;
-      varU.uPx.value = 2 / Math.max(1, renderer.domElement.height);
+      varU.uPx.value = 2 / Math.max(1, renderer.domElement.height / cut.fh);
       fitBottle(asp);
       const lean = (typeof PERF !== 'undefined' && PERF.struggling)
                 || (typeof POWER !== 'undefined' && !POWER.lensOK);
@@ -24214,6 +24303,7 @@ const STAGE = {
   placed: {},                // booth: screen id → the monitor the shell filled
   displays: [],              // booth: what the shell last said the monitors are
   ident: false,              // booth: every screen is showing its own number
+  bezel: 0,                  // booth: the frames' thickness, as a fraction of a screen
   last: null,                // screen: the newest packet
   offset: NaN,               // screen: this machine's clock minus the booth's
   seenAt: 0,                 // screen: when the booth last spoke
@@ -24238,6 +24328,11 @@ const STAGE = {
     if (this.chan) this.chan.onmessage = ev => this.recv(ev.data);
     if (this.screen()) this.becomeScreen();
     else this.wireBooth();
+    // the frames, remembered: a rig's bezels do not change between nights
+    try {
+      const b = Number(localStorage.getItem('mb8_stage_bezel'));
+      if (Number.isFinite(b) && b > 0) this.bezel = Math.min(0.25, b);
+    } catch (e){}
     // a screen whose address carries four letters knocks on them: the QR on
     // an invite card is exactly this URL, so scanning it IS joining
     if (this.screen() && this.cfg.join && typeof WIRE !== 'undefined') WIRE.join(this.cfg.join);
@@ -24390,6 +24485,45 @@ const STAGE = {
          middle third. The floor under a television whose browser was pointed
          at a URL by hand, and what every screen shows for the first instant
          before the booth has heard from it. */
+  /* THE FIELD'S OWN SHAPE, for the scenes the camera cannot cut.
+
+     setViewOffset slices everything the camera projects — meshes, the
+     backdrop — but five scenes are fullscreen QUADS that build their
+     picture from vUv and an aspect, straight past the camera, and each of
+     them therefore drew the WHOLE composition on every screen of a wall.
+     This is the one answer they all read, once per frame, wherever they
+     already updated their aspect:
+
+       aspect   the FULL field's shape — the wall's, not this window's
+       uSlice   (x, y, w, h) to remap the quad's uv into wall space,
+                pre-flipped for GL's bottom-left origin so every vertex
+                shader says exactly `vUv = uSlice.xy + uv * uSlice.zw`
+       px       the wall's height in this screen's device pixels, for the
+                one scene that anti-aliases by pixel size
+
+     On a booth, a phone, a single screen — anything that is not a slice —
+     it is the identity, and every scene renders exactly as it always has. */
+  slice(){
+    const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
+    const s = this.screen()
+      ? (this.cut || stageSlice(this.cfg.screen, this.cfg.of, this.cfg.mode === 'auto' ? null : this.cfg.mode))
+      : null;
+    const fw = s ? Math.max(1e-4, Number(s.fw) || 1) : 1;
+    const fh = s ? Math.max(1e-4, Number(s.fh) || 1) : 1;
+    if (!s || (fw > 0.999 && fh > 0.999)){
+      return { on: false, fx: 0, fy: 0, fw: 1, fh: 1, aspect: w / h, px: h };
+    }
+    const fx = Number(s.fx) || 0, fy = Number(s.fy) || 0;
+    return { on: true, fx, fy, fw, fh, aspect: (w / fw) / (h / fh), px: h / fh };
+  },
+  /* the same four numbers in the uniform's own convention — GL's v runs
+     bottom-up, the wall's fy runs top-down, and this is the one place that
+     knows it */
+  sliceUniform(u){
+    const s = this.slice();
+    u.value.set(s.fx, 1 - s.fy - s.fh, s.fw, s.fh);
+    return s;
+  },
   applySlice(){
     // the camera may not exist yet — boot order is not ours to assume, so this
     // is safe to call early, often, and again after every resize
@@ -24417,11 +24551,15 @@ const STAGE = {
      open needs to know which one is about to be dragged where. */
   showIdent(on){
     let box = document.getElementById('stageIdent');
-    if (!on){ if (box) box.hidden = true; return; }
+    if (!on){
+      if (box) box.hidden = true;
+      if (this._ballR){ cancelAnimationFrame(this._ballR); this._ballR = 0; }
+      return;
+    }
     if (!box){
       box = document.createElement('div');
       box.id = 'stageIdent';
-      box.innerHTML = '<b></b><span></span>';
+      box.innerHTML = '<b></b><span></span><i class="ball" aria-hidden="true"></i>';
       document.body.appendChild(box);
     }
     const cut = this.cut;
@@ -24430,6 +24568,37 @@ const STAGE = {
       ? 'screen ' + cut.n + ' of ' + cut.of
       : 'screen ' + this.cfg.screen + ' of ' + this.cfg.of;
     box.hidden = false;
+    if (!this._ballR) this.ballStep();
+  },
+  /* THE BALL — the wall's rehearsal, borrowed from every video-wall
+     alignment ritual ever performed: one ball sweeps the WHOLE wall, and
+     every screen draws only its own slice of the journey. Crossing a seam
+     on time is the proof the cut is right; with bezels on it vanishes
+     BEHIND the frame and comes out the other side exactly when a real
+     ball would, which is the proof the seams are right too. Every screen
+     computes the same wall position from the booth's clock (the identify
+     message is stamped; this machine's measured offset converts), so no
+     packet has to carry a moving target. */
+  ballStep(){
+    if (!this.ident){ this._ballR = 0; return; }
+    const box = document.getElementById('stageIdent');
+    const dot = box && box.querySelector('.ball');
+    if (dot){
+      const off = Number.isFinite(this.offset) ? this.offset : 0;
+      const t = ((performance.now() - off) - (this._identAt || 0)) / 1000;
+      const ping = x => { const p = ((x % 2) + 2) % 2; return p < 1 ? p : 2 - p; };
+      const wx = ping(t / 2.6);
+      const wy = 0.5 + 0.32 * Math.sin(t * 1.3);
+      const c = this.cut || { fx: 0, fy: 0, fw: 1, fh: 1 };
+      const u = (wx - (c.fx || 0)) / Math.max(1e-4, c.fw || 1);
+      const v = (wy - (c.fy || 0)) / Math.max(1e-4, c.fh || 1);
+      dot.style.left = (u * 100) + '%';
+      dot.style.top = (v * 100) + '%';
+      // off this glass is off this glass — including inside a bezel gutter,
+      // which is precisely where the illusion lives
+      dot.style.opacity = (u > -0.05 && u < 1.05 && v > -0.05 && v < 1.05) ? '1' : '0';
+    }
+    this._ballR = requestAnimationFrame(() => this.ballStep());
   },
   /* the numbers, on the frame they arrive. Called from frame() after the local
      (silent) analysis, so everything downstream — uniforms, dance, colour,
@@ -24617,6 +24786,7 @@ const STAGE = {
         else if (this.cut){ this.cut = null; this.applySlice(); }
       } else if (m.t === 'ident'){
         this.ident = !!m.on;
+        this._identAt = Number(m.at) || 0;
         this.showIdent(this.ident);
       }
       return;
@@ -24692,7 +24862,7 @@ const STAGE = {
     this._wallAcc = now;
     const rects = this.rects();
     if (!rects.length){ this.wall = null; return; }
-    const L = stageLayout(rects);
+    const L = stageLayout(stageSpread(rects, this.bezel));
     const key = JSON.stringify(L.map);
     if (key === this._wallKey) return;
     this._wallKey = key;
@@ -24758,6 +24928,7 @@ const STAGE = {
       add('Invite', 'Four letters that turn any device into a screen', () => { if (typeof WIRE !== 'undefined') WIRE.invite(); });
       add('Crowd', 'Four letters that tune every phone on the floor', () => { if (typeof CROWD !== 'undefined') CROWD.invite(); });
       add('Which?', 'Every screen holds up its own number', () => this.identify(3000));
+      add('Seams', 'The field passes behind the televisions’ frames', () => this.seams());
       add('Full booth', 'Bring the whole console back', () => this.setMini(false));
     }
     this.expandPaint();
@@ -25492,12 +25663,30 @@ const STAGE = {
   identify(ms){
     if (this.screen()) return;
     this.ident = true;
-    this.send({ t: 'ident', on: true });
+    // stamped, so every screen rolls the same ball from the same instant
+    this.send({ t: 'ident', on: true, at: performance.now() });
     clearTimeout(this._identT);
     this._identT = setTimeout(() => {
       this.ident = false;
       this.send({ t: 'ident', on: false });
     }, Math.max(400, Number(ms) || 2400));
+  },
+  /* SEAMS — the video-wall knob, cycled through the sizes real frames come
+     in. Each press re-cuts every wall (the desk's and the wire's), holds
+     the ball up so the seam can be judged by eye, and remembers the answer
+     for the next night on this rig. */
+  seams(){
+    const steps = [0, 0.01, 0.02, 0.035, 0.05];
+    const i = steps.findIndex(v => Math.abs(v - this.bezel) < 1e-6);
+    this.bezel = steps[(i + 1) % steps.length];
+    try { localStorage.setItem('mb8_stage_bezel', String(this.bezel)); } catch (e){}
+    this._wallKey = '';
+    this.pushWall(true);
+    try { if (typeof WIRE !== 'undefined') WIRE.netWall(); } catch (e){}
+    this.identify(3600);
+    toast(this.bezel
+      ? 'Seams · <b>' + String(this.bezel * 100).replace(/(\.\d)0+$/, '$1') + '%</b> — the field passes behind the frames. Watch the ball cross.'
+      : 'Seams · <b>off</b> — the glasses are treated as touching.');
   },
   setMini(on){
     this.mini = !!on;
@@ -26373,7 +26562,7 @@ const WIRE = {
   netWall(){
     const ids = [...this.peers.entries()].sort((a, b) => a[1].born - b[1].born).map(e => e[0]);
     if (!ids.length) return;
-    const s = JSON.stringify({ t: 'wall', map: stageNetWall(ids) });
+    const s = JSON.stringify({ t: 'wall', map: stageNetWall(ids, STAGE.bezel) });
     for (const p of this.peers.values()){
       if (p.ctl && p.ctl.readyState === 'open'){ try { p.ctl.send(s); } catch (e){} }
     }
