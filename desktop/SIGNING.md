@@ -77,11 +77,24 @@ checks CI runs. macOS will ask permission to export the private key; that
 prompt is the keychain doing its job.
 
 Those three are the *certificate*. Signing also needs the notarization
-credentials and the variable, which the script does not invent — so it finishes
-by listing whatever is still missing, with the command for each. **Work through
-that list before §4.** Take it seriously: the workflow builds **unsigned**
-unless `ENABLE_MACOS_SIGNING` is exactly `true`, so a half-finished setup ships
-an unsigned app under a green checkmark instead of failing.
+credentials and the variable — which is the second script:
+
+```sh
+bash desktop/scripts/finish-signing-setup.sh
+```
+
+It asks for the Apple ID, the app-specific password and the Team ID, checks the
+shape of each before storing it (pasting your *account* password instead of an
+app-specific one is the single commonest mistake, and notarization only tells
+you eight minutes into a build), reports whether the updater key is set, and
+then flips `ENABLE_MACOS_SIGNING`. It refuses to arm signing until the
+certificate secrets are actually there.
+
+Both scripts are safe to re-run and neither ever prints a secret back.
+
+**Why two scripts and not one:** the certificate has to be exported on the Mac
+holding the private key, and nothing else does. Splitting them means the half
+that needs a specific machine is the only half that needs it.
 
 ---
 
@@ -113,6 +126,9 @@ Repo → **Settings → Secrets and variables → Actions**.
 |---|---|
 | `ENABLE_MACOS_SIGNING` | `true` |
 
+`finish-signing-setup.sh` sets all of these for you; the table is here so you
+can check its work, or do it by hand.
+
 Nothing signs until that variable is exactly `true`. That is on purpose: it
 means the switch is one visible thing, not "whether six secrets happen to all
 be set."
@@ -121,9 +137,22 @@ be set."
 
 `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`) has **nothing to do with Apple**
 and costs nothing. It is what lets the app verify an update it has downloaded —
-without it, auto-update cannot install anything. Generate with
-`npm run tauri signer generate`. It is the difference between "the app updates
-itself" and "I tell everyone to re-download."
+without it, auto-update cannot install anything. It is the difference between
+"the app updates itself" and "I tell everyone to re-download."
+
+⚠️ **`tauri.conf.json` already embeds a public key**, and an update is only
+installed if it was signed by the private half of *that* pair. Generating a
+fresh keypair without replacing the embedded public one produces releases every
+existing install silently refuses — silently, because a signature that does not
+verify is indistinguishable from no update being there at all. If you generate
+a new key:
+
+```sh
+cd desktop && npx @tauri-apps/cli signer generate -w ~/.tauri/aethra.key
+gh secret set TAURI_SIGNING_PRIVATE_KEY --repo kmay89/aethrakairos < ~/.tauri/aethra.key
+# then paste the PUBLIC key it printed into
+# desktop/src-tauri/tauri.conf.json → plugins.updater.pubkey, and commit it
+```
 
 ---
 
