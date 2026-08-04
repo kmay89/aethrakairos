@@ -22,7 +22,7 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
-  ' smoothEnv, analyzeStructure, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD,' +
@@ -1413,6 +1413,28 @@ test('structure: a featureless track degrades gracefully', () => {
   const tiny = S.analyzeStructure(new Float32Array(4).fill(0.5));
   assert.equal(tiny.ok, false, 'too little data → not ok, safe defaults');
   assert.equal(tiny.apex, 0.6);
+});
+
+// ---- moodOf: a mood bucket from features the catalog already measures ----
+test('moodOf: low energy + major/bright reads calm, not moody', () => {
+  assert.equal(S.moodOf({ energy: 0.15, onsets: 0.1, brightness: 0.6, entropy: 0.3 }, '8B'), 'calm');
+});
+test('moodOf: low energy + minor/dark reads moody, not calm', () => {
+  assert.equal(S.moodOf({ energy: 0.15, onsets: 0.1, brightness: 0.35, entropy: 0.7 }, '8A'), 'moody');
+});
+test('moodOf: high energy + major reads driving', () => {
+  assert.equal(S.moodOf({ energy: 0.9, onsets: 0.85, brightness: 0.6, entropy: 0.4 }, '9B'), 'driving');
+});
+test('moodOf: high energy + minor/dark reads dark, not driving', () => {
+  assert.equal(S.moodOf({ energy: 0.9, onsets: 0.85, brightness: 0.3, entropy: 0.75 }, '9A'), 'dark');
+});
+test('moodOf: mid energy splits warm (major) vs tense (minor) the same way', () => {
+  assert.equal(S.moodOf({ energy: 0.5, onsets: 0.5, brightness: 0.6, entropy: 0.3 }, '5B'), 'warm');
+  assert.equal(S.moodOf({ energy: 0.5, onsets: 0.5, brightness: 0.3, entropy: 0.7 }, '5A'), 'tense');
+});
+test('moodOf: missing features and an unknown key still return a bucket, never throw', () => {
+  assert.ok(['calm', 'warm', 'driving', 'moody', 'tense', 'dark'].includes(S.moodOf({}, null)));
+  assert.ok(['calm', 'warm', 'driving', 'moody', 'tense', 'dark'].includes(S.moodOf(null, 'not-a-key')));
 });
 
 // ---- the director's lens taste (pure map) ----

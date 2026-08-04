@@ -8340,6 +8340,29 @@ function analyzeStructure(peaks, opts){
   for (const sec of sections){ if (sec.loud && sec.e > 0.45) mixOut = sec.e < 0.97 ? sec.e : 0.97; }
   return { ok: true, env, lo, hi, sections, apex, mixIn, mixOut };
 }
+/* moodOf — a mood label from features the catalog already measures, no new
+   analysis required. Two honest axes, not a genre or emotion ground truth:
+     arousal   energy + onset density — how much is HAPPENING
+     valence   major/minor (the Camelot letter) + brightness − entropy —
+               how much of what's happening reads as OPEN vs UNSETTLED
+   Six buckets from the quadrants plus a calm/energetic split, phrased the
+   way a listener would ask for them ("something calm for the morning"),
+   not clinical VA-space labels. Missing features default to neutral (0.5)
+   so an under-measured track still gets a plausible bucket, never a crash. */
+function moodOf(feat, key){
+  feat = feat || {};
+  const energy = feat.energy == null ? 0.5 : feat.energy;
+  const onsets = feat.onsets == null ? 0.5 : feat.onsets;
+  const bright = feat.brightness == null ? 0.5 : feat.brightness;
+  const entropy = feat.entropy == null ? 0.5 : feat.entropy;
+  const cam = key && camelotParse(key);
+  const major = cam ? cam.l === 'B' : true;          // unknown key → treat as open/bright
+  const arousal = clamp01(energy * 0.65 + onsets * 0.35);
+  const valence = clamp01(0.5 + (major ? 0.18 : -0.18) + (bright - 0.5) * 0.4 - (entropy - 0.5) * 0.25);
+  if (arousal < 0.35) return valence >= 0.5 ? 'calm' : 'moody';
+  if (arousal < 0.62) return valence >= 0.5 ? 'warm' : 'tense';
+  return valence >= 0.5 ? 'driving' : 'dark';
+}
 /* the intensity CEILING at a point in the song (0..1). A quiet passage caps
    the visuals low so nothing peaks in the wrong place; a loud block opens it
    all the way. Floored so the room is never dead. */
@@ -10306,8 +10329,9 @@ const CRATE = {
     const out = [];
     for (const t of allTracks()){
       if (q){
+        const mood = moodOf(t.features, t.mix && t.mix.key);
         const hay = (t.title + ' ' + (t.album || '') + ' '
-          + (t.mix && t.mix.key || '') + ' ' + (t.mix && t.mix.bpm || '')).toLowerCase();
+          + (t.mix && t.mix.key || '') + ' ' + (t.mix && t.mix.bpm || '') + ' ' + mood).toLowerCase();
         if (!hay.includes(q)) continue;
       }
       let match = null;
@@ -10374,6 +10398,9 @@ const CRATE = {
       const col = kk && this.camelotColor(kk);
       if (col){ keyc.style.background = col.bg; keyc.style.color = col.fg; keyc.style.borderColor = 'transparent'; }
       const eb = document.createElement('span'); eb.className = 'ebar';
+      // the energy bar doubles as the mood tell — search "calm"/"driving"/
+      // etc. in the filter box above and this is what it's matching against
+      eb.title = 'Mood: ' + moodOf(t.features, kk);
       const ei = document.createElement('i');
       ei.style.width = Math.round(((t.features && t.features.energy) || 0) * 100) + '%';
       eb.appendChild(ei);
