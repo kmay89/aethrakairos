@@ -923,8 +923,12 @@ html.native #btnInstall,html.native .fr-install,html.native #macPromo{display:no
    One rule does it, and it is a denylist by exception rather than a list of
    panels to remember: whatever gets added to the app later is hidden here by
    default, which is the right way round for a window pointed at an audience. */
-body.stage-screen > *:not(#glcanvas):not(#stageWait){display:none!important}
+body.stage-screen > *:not(#glcanvas):not(#stageWait):not(#stageSparks):not(#warmup){display:none!important}
 body.stage-screen{cursor:none;background:#000}
+/* …except while somebody is picking. A warm-up is worked with a THUMB, and a
+   surface that hides its own cursor is a surface nobody can find the swatch on
+   when they are steering it with a trackpad from the back of the room. */
+body.stage-screen.warming{cursor:auto}
 #stageWait{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;
   display:flex;flex-direction:column;gap:7px;align-items:center;text-align:center;
@@ -932,6 +936,71 @@ body.stage-screen{cursor:none;background:#000}
 }
 #stageWait b{font-size:13px;letter-spacing:.42em;color:var(--ink,#eaf2ff)}
 #stageWait[hidden]{display:none!important}
+/* a screen that is warming up is not waiting for anything — it is busy */
+body.stage-screen.warming #stageWait{display:none!important}
+
+/* -------- the sparks layer: every hand in the room -------- */
+#stageSparks{
+  position:fixed;inset:0;width:100%;height:100%;z-index:4;
+  pointer-events:none;               /* the touches are taken on the field itself */
+  mix-blend-mode:screen;             /* light ADDS over the field, never masks it */
+}
+#stageSparks[hidden]{display:none!important}
+
+/* -------- the warm-up: two questions, one thumb -------- */
+#warmup{
+  position:fixed;inset:0;z-index:8;display:flex;flex-direction:column;
+  background:radial-gradient(120% 90% at 50% 0%,rgba(12,16,30,.86),rgba(3,4,9,.97));
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  padding:max(18px,4vmin);gap:max(12px,2.4vmin);
+  animation:wuIn .5s cubic-bezier(.2,.8,.3,1) both;
+}
+#warmup[hidden]{display:none!important}
+@keyframes wuIn{from{opacity:0;transform:scale(1.02)}to{opacity:1;transform:none}}
+#warmup .wu-head{display:flex;flex-direction:column;gap:5px;text-align:center;flex:none}
+#warmup .wu-head b{
+  font-size:clamp(15px,3.4vmin,26px);letter-spacing:.3em;text-transform:uppercase;
+  color:var(--ink,#eaf2ff);
+}
+#warmup .wu-head span{font-size:clamp(10px,1.7vmin,13px);letter-spacing:.14em;color:var(--faint,#5c6a86)}
+#warmup .wu-grid{
+  flex:1;min-height:0;display:grid;gap:max(8px,1.6vmin);
+  grid-template-columns:repeat(auto-fit,minmax(min(30vw,150px),1fr));
+  align-content:center;
+}
+#warmup .wu-foot{
+  flex:none;text-align:center;min-height:1.2em;
+  font-size:clamp(10px,1.7vmin,13px);letter-spacing:.16em;color:var(--faint,#5c6a86);
+}
+/* THE TARGET IS THE WHOLE TILE. A dark room, one thumb, and often a phone held
+   in the hand that is also holding a drink — a swatch with a small hit area is
+   a swatch that gets missed, and a miss here reads as the app being broken. */
+#warmup .wu-cell{
+  position:relative;border:0;padding:0;margin:0;cursor:pointer;
+  border-radius:max(10px,1.6vmin);overflow:hidden;
+  min-height:max(64px,11vmin);
+  background:#0a0c14;
+  box-shadow:inset 0 0 0 1px rgba(180,200,240,.14);
+  transition:transform .16s cubic-bezier(.2,.8,.3,1),box-shadow .16s;
+  -webkit-tap-highlight-color:transparent;
+}
+#warmup .wu-cell:hover,#warmup .wu-cell:focus-visible{transform:translateY(-2px) scale(1.015)}
+#warmup .wu-cell:focus-visible{outline:2px solid var(--ink,#eaf2ff);outline-offset:3px}
+#warmup .wu-cell:active{transform:scale(.985)}
+#warmup .wu-cell.picked{box-shadow:inset 0 0 0 2px var(--ink,#eaf2ff),0 0 24px rgba(255,255,255,.22)}
+#warmup .wu-cell canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#warmup .wu-cell .wu-name{
+  position:absolute;left:0;right:0;bottom:0;padding:.5em .7em;
+  font-size:clamp(9px,1.5vmin,12px);letter-spacing:.2em;text-transform:uppercase;
+  color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.9);
+  background:linear-gradient(to top,rgba(0,0,0,.6),transparent);
+  text-align:left;pointer-events:none;
+}
+@media (prefers-reduced-motion:reduce){
+  #warmup{animation:none}
+  #warmup .wu-cell{transition:none}
+  #warmup .wu-cell:hover,#warmup .wu-cell:focus-visible{transform:none}
+}
 
 /* ============ the mini booth ============ */
 body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip):not(#wireCard){display:none!important}
@@ -2604,6 +2673,25 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     already doing the work, and sometimes it splits into a mirrored <b>pair</b> pulling opposite ways.
     The first touch takes the field straight back. Hold the touch chip (or press <kbd>I</kbd>) if you
     would rather it waited for you; it never plays for anyone who asked for reduced motion, or on ECO.</p>
+    <h3>Everybody's hands</h3>
+    <p class="lede">A second screen is not a monitor, it is a <b>person holding one</b>. So joining is
+    something you <i>do</i>: type the four letters (or scan the code) and the field appears — then two
+    questions, each answerable with one thumb in a dark room. <b>Pick your colour</b>, from eight that
+    can be told apart across a venue and said out loud (&ldquo;I'm the sea one&rdquo;); it is yours for
+    the night. <b>Pick a look</b>, from a tile per room drawn as the <i>gesture</i> of that room rather
+    than a screenshot of it. What the room picks <b>leans</b> the director's deal toward those rooms —
+    it never seizes it, so the night still belongs to the booth.</p>
+    <p class="lede">Then <b>touch the picture</b>. Your ripple appears on <b>every screen in the
+    room</b>, in your colour, at the place in the wall you touched — so a hand on the phone by the
+    window travels across the television behind the bar. That is the whole mechanic, and it explains
+    itself the first time somebody else's ripple crosses your screen.</p>
+    <p class="lede">There is a game in it, barely. Touches that land near the <b>beat</b> push a meter
+    that <b>cannot be filled alone</b> — it counts distinct screens, not touches, so drumming your own
+    thumb does nothing and the only way up is other people. Fill it and the room answers: one bloom, in
+    everyone's colours at once, across the whole wall. Then it resets. Nothing is scored, nobody is
+    ranked, and the reward for playing is that the room looks better — which is also why everyone came.
+    The bloom goes through the same flash governor as everything else here; a room that earned a moment
+    must never be the thing that hurts somebody standing in it.</p>
     <h3>The dance engine</h3>
     <p class="lede">The visuals don't just flash on the beat — they move through it. Because the catalog
     carries a measured beat grid, the engine knows where the beat <i>is</i>, not just that it happened:
@@ -2659,7 +2747,7 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     Blowing out to white is still available — it is just a <b>budget</b> the music has to earn, opened
     by the act and the section's own intensity ceiling. A loud intro stays a colour. The drop gets the
     glare.</p>
-    <h3>Dancing with your eyes</h3>
+    <h3>Following the music by eye</h3>
     <p class="lede">Bass, melody, and percussion each get a <b>distinct visual voice</b>, so you can follow
     the music by eye — nowhere more plainly than in <b>PULSE</b>, the visual meter: the
     bass is the ground, the melody is the ribbon, the percussion lands as ticks, and the bar itself is
@@ -2927,6 +3015,17 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 </div>
 <!-- a stage screen says one thing, and only when it has nothing to show -->
 <div id="stageWait" hidden><b>Stage screen</b><span id="stageWaitWhy">waiting for the booth…</span></div>
+<!-- the wall's second surface: every hand in the room, drawn over the field.
+     A 2D canvas rather than more GL — the sparks are a dozen rings a frame and
+     they must keep drawing on a screen whose WebGL context has been lost. -->
+<canvas id="stageSparks" aria-hidden="true" hidden></canvas>
+<!-- THE WARM-UP: two questions and a thumb, in the gap where a joining screen
+     used to show a spinner. Built by WARM; empty until then. -->
+<div id="warmup" hidden>
+  <div class="wu-head"><b id="wuTitle">Pick your colour</b><span id="wuSub">it's yours for the night</span></div>
+  <div class="wu-grid" id="wuGrid"></div>
+  <div class="wu-foot" id="wuFoot"></div>
+</div>
 
 <div id="askScrim" hidden></div>
 <div id="askCard" role="dialog" aria-modal="true" aria-labelledby="askTitle">
@@ -3969,6 +4068,13 @@ function dealScene(o){
   for (let i = 0; i < list.length; i++){
     const sc = list[i] || {};
     let x = sceneScore(sc.taste, f) + lean;
+    /* THE ROOM'S OWN VOTE. A multiplier from warmDeal, applied before every
+       other adjustment so that recency, novelty and the device's limits all
+       still get their say on top of it — a room that voted for the heaviest
+       scene on the list does not thereby get it on a phone that cannot draw
+       it, and a room that voted for one scene does not get that scene twice
+       in a row. Absent (nobody has joined, nobody picked) this is 1. */
+    if (s.crowd && sc.key && s.crowd[sc.key]) x *= s.crowd[sc.key];
     if (sc.calm && s.reduced) x *= 2;                  // reduced motion lives in the legible rooms
     if (sc.heavy && !s.allowHeavy) x *= 0.02;          // a strained device, or ECO, is spared them
     x *= recencyPenalty(s.recent, i, s.memory);
@@ -4687,6 +4793,213 @@ function skinCss(skin, fallback){
     '--accent': hex('accent'), '--accent-2': hex('accent2'), '--accent-ink': hex('accentInk'),
     '--accent-dim': a('accent', 0.14), '--accent-glow': a('accent', 0.5), '--accent-line': a('accent', 0.34),
   };
+}
+
+/* ================================================================
+   THE WARM-UP — the arithmetic of joining a room, and of the game
+   the room plays once everyone is in.
+
+   A screen used to join by saying "here I am" and going black until
+   the booth spoke. Correct, and completely inert: the most
+   interesting moment of the whole night — six people holding six
+   glowing rectangles that have just become one picture — was spent
+   watching a spinner. This is what happens in that gap instead.
+
+   Two questions, both answerable with one thumb in a dark room, and
+   then the wall is yours to touch. Everything below is the pure half:
+   what a pick MEANS, what a room's picks average to, whether the
+   room is doing something together, and how a touch looks travelling
+   across four televisions. The performance of it lives in WARM.
+   ================================================================ */
+
+/* THE COLOURS ON OFFER, and why there are eight rather than a wheel.
+
+   A phone at arm's length in a dark room is the worst possible place
+   for a continuous picker: you cannot see what you chose until your
+   thumb comes off it. Eight named hues are pickable at a glance,
+   sayable out loud across a room ("I'm the sea one"), and — the part
+   that actually decides the number — TELLABLE APART on the wall,
+   which is the only place they are ever seen next to each other.
+
+   The last one carries no colour at all. Somebody always wants to be
+   in the room without steering it, and the honest way to offer that
+   is a swatch of its own rather than a step people learn to skip. */
+const WARM_HUES = [
+  { key: 'ember',  name: 'Ember',  h: 26,  c: 0.17 },
+  { key: 'gold',   name: 'Gold',   h: 78,  c: 0.16 },
+  { key: 'lime',   name: 'Lime',   h: 132, c: 0.17 },
+  { key: 'sea',    name: 'Sea',    h: 178, c: 0.14 },
+  { key: 'sky',    name: 'Sky',    h: 224, c: 0.15 },
+  { key: 'violet', name: 'Violet', h: 292, c: 0.16 },
+  { key: 'rose',   name: 'Rose',   h: 344, c: 0.17 },
+  { key: 'bone',   name: 'Bone',   h: 250, c: 0.00 },
+];
+function warmHue(i){
+  const n = WARM_HUES.length;
+  const k = Math.floor(Number(i));
+  if (!Number.isFinite(k)) return WARM_HUES[0];
+  return WARM_HUES[((k % n) + n) % n];
+}
+
+/* THE ROOM'S COLOUR, as the circular mean of everyone's.
+
+   Hues are ANGLES. The mean of 350° and 10° is 0°, and every
+   arithmetic mean gets that exactly backwards at the wrap — which is
+   the one place it matters, because the wrap is where red lives and
+   red is what half a room picks. So the picks are summed as vectors
+   and read back as one.
+
+   The resultant's LENGTH is the more interesting half. Short means
+   the room disagrees, and that is not a fault to be averaged into
+   mud: it comes back as `spread` so the wall can show a scattered
+   crowd AS scatter. A unanimous room gets one colour; a divided one
+   gets its own division, drawn.
+
+   Colourless picks count toward `n` and contribute no vector.
+   Standing in the room without steering it is a position, and it
+   must not drag the mean toward whatever hue we happened to store. */
+function warmBlend(picks){
+  const list = Array.isArray(picks) ? picks : [];
+  let x = 0, y = 0, n = 0, c = 0, voices = 0;
+  for (const p of list){
+    if (!p) continue;
+    n++;
+    const e = p.h != null ? p : warmHue(p.hue);
+    if (!(e.c > 0)) continue;
+    const a = e.h * Math.PI / 180;
+    x += Math.cos(a) * e.c; y += Math.sin(a) * e.c;
+    c += e.c; voices++;
+  }
+  if (!voices) return { h: 0, c: 0, n, spread: 0, voices: 0 };
+  const r = Math.hypot(x, y) / c;              // 1 unanimous, 0 scattered
+  let h = Math.atan2(y, x) * 180 / Math.PI;
+  if (h < 0) h += 360;
+  return { h, c: c / voices, n, spread: clamp01(1 - r), voices };
+}
+
+/* WHAT THE ROOM WANTS TO LOOK AT. Votes become a MULTIPLIER on the
+   director's existing appetite, never a replacement for it. A room
+   that all picked one scene should LEAN the deal — if it seized it,
+   the night would be ninety minutes of whatever everybody tapped
+   first, which is both boring and a worse answer than the director's.
+   A unanimous room is worth a bit over double; a room split four ways
+   barely moves. A scene nobody picked stays at 1 rather than being
+   punished — not voting for something is not voting against it. */
+const WARM_PULL = 1.2;
+function warmDeal(picks){
+  const list = Array.isArray(picks) ? picks : [];
+  const out = {};
+  let n = 0;
+  for (const p of list){
+    if (!p || !p.scene) continue;
+    out[p.scene] = (out[p.scene] || 0) + 1;
+    n++;
+  }
+  if (!n) return {};
+  for (const k of Object.keys(out)) out[k] = 1 + WARM_PULL * (out[k] / n);
+  return out;
+}
+
+/* ARE WE DOING THIS TOGETHER?
+
+   Distinct SCREENS inside the window, not touches. One person
+   drumming their thumb is one person however fast they drum, and the
+   entire point of the meter is that it cannot be filled alone — a
+   counter of touches would be filled alone within a second, by the
+   nearest six-year-old, and then it would mean nothing for the rest
+   of the night.
+
+   Two hands is a third, four is full. Four is where a room stops
+   being a couple of people trying it and starts being the room; past
+   that the meter should already be lit rather than still asking.
+   The count comes back too, because "3 hands" is worth putting on a
+   screen and 0.66 is not. */
+function togetherness(taps, now, ms){
+  const w = ms > 0 ? ms : 1200;
+  const t = Number(now) || 0;
+  const who = new Set();
+  for (const k of (Array.isArray(taps) ? taps : [])){
+    if (!k || k.id == null) continue;
+    if (t - (Number(k.at) || 0) <= w) who.add(String(k.id));
+  }
+  const n = who.size;
+  return { n, v: clamp01((n - 1) / 3) };
+}
+
+/* A TOUCH, SEEN FROM EVERY OTHER SCREEN.
+
+   Radius grows with the square root of age, so the ring leaves fast
+   and settles — that is how a stone in water reads, where a linear
+   ring reads as a loading spinner and nobody touches a loading
+   spinner twice. Alpha is the cube of what remains: plainly there for
+   the first third, then gone, rather than smeared across the whole
+   life and leaving the wall permanently hazy on a busy night. */
+function warmSpark(age, life){
+  const L = life > 0 ? life : 1;
+  const t = Number(age) / L;
+  if (!(t >= 0) || t > 1) return { r: 0, a: 0 };
+  const u = 1 - t;
+  return { r: Math.sqrt(t), a: u * u * u };
+}
+
+/* HOW CLOSE TO THE BEAT THAT LANDED.
+
+   Phase is 0..1 within the beat and it WRAPS: a touch at 0.98 is two
+   hundredths EARLY, not ninety-eight hundredths late, and forgetting
+   that is the standard way to build a rhythm game that hates the
+   people who are actually on time.
+
+   Inside the window it falls from 1 to 0 at the edge; outside it is
+   0. Nothing here punishes — an off-beat touch still sparks exactly
+   like any other, it simply does not push the meter. The worst
+   outcome of bad timing is an ordinary, pretty ripple. */
+function beatGrace(phase, width){
+  const w = width > 0 ? width : 0.16;
+  let p = Number(phase);
+  if (!Number.isFinite(p)) return 0;
+  p -= Math.floor(p);
+  return clamp01(1 - Math.min(p, 1 - p) / w);
+}
+
+/* THE THUMBNAIL, AS ARITHMETIC.
+
+   Picking a look from a list of WORDS asks somebody to already know
+   what "rosette" means. Picking from a picture does not — and this
+   step is being done by a guest, on a phone, in the dark, once.
+
+   A live preview would mean a second WebGL context per tile on a
+   phone, which is how a warm-up becomes a crash, so each room
+   declares a cheap 2D SIGNATURE instead: the GESTURE of the room
+   rather than a screenshot of it. A handful of painters, re-used at
+   different hues and densities, is enough for someone to point at the
+   one they want.
+
+   Every key in SCENE_KEYS has an entry and a test says so, because
+   the failure otherwise is silent: a room added next month shows a
+   blank tile, nobody ever picks it, and no error is ever raised. */
+const SCENE_SIGS = {
+  spiral:    { kind: 'spiral', h: 214, arms: 2, dense: 0.7 },
+  helix:     { kind: 'wave',   h: 168, arms: 2, twist: 1 },
+  band:      { kind: 'wave',   h: 122, arms: 1, twist: 0 },
+  starburst: { kind: 'burst',  h: 44,  arms: 12 },
+  nebula:    { kind: 'cloud',  h: 288, dense: 0.9 },
+  tunnel:    { kind: 'tunnel', h: 196, dense: 0.8 },
+  ribbons:   { kind: 'ribbon', h: 322, arms: 3 },
+  fractal:   { kind: 'spiral', h: 96,  arms: 5, dense: 1 },
+  comets:    { kind: 'burst',  h: 26,  arms: 5, tail: 1 },
+  fern:      { kind: 'spiral', h: 138, arms: 3, dense: 0.5 },
+  rosette:   { kind: 'ring',   h: 268, arms: 6 },
+  slinky:    { kind: 'spiral', h: 186, arms: 1, dense: 1 },
+  opart:     { kind: 'grid',   h: 250, c: 0 },
+  pulse:     { kind: 'wave',   h: 52,  arms: 4, meter: 1 },
+  parlor:    { kind: 'grid',   h: 340 },
+  aurea:     { kind: 'ring',   h: 46,  arms: 5 },
+  halo:      { kind: 'ring',   h: 300, arms: 10, rainbow: 1 },
+  lava:      { kind: 'blob',   h: 18,  dense: 0.6 },
+  flame:     { kind: 'blob',   h: 34,  dense: 1, flame: 1 },
+};
+function sceneSig(key){
+  return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
 }
 // @pure-end
 
@@ -19349,6 +19662,17 @@ const INTERACT = {
     INTERACT.dragging = true;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
     toNdc(ev); INTERACT._idleT = 0;
+    /* AND THE BOOTH IS A HAND IN THE ROOM. The operator's own touch ripples
+       across every screen exactly like a guest's — which is what makes the
+       mechanic discoverable at all: the first person to find out that touching
+       the picture does something to the whole wall is usually the one holding
+       the booth, and they are then the one who tells everybody else. On
+       pointerdown only; a drag is INTERACT's business, not a hosepipe of
+       ripples down the wire. */
+    try {
+      WARM.touch(ev.clientX / Math.max(1, window.innerWidth),
+                 ev.clientY / Math.max(1, window.innerHeight));
+    } catch (e){}
     INTERACT._chargeTick = 0;
     // start the sprung warp centre exactly under the finger (no velocity), so a
     // fresh touch never slings in from wherever the last one ended
@@ -20242,6 +20566,8 @@ const director = {
       scenes, f: AE.f, mood: this.mood, active: this.active,
       recent: this.recent, memory: this.memory, seen: this.seen,
       reduced: reducedMotion,
+      // what the room asked for when it walked in — empty until somebody has
+      crowd: (typeof WARM !== 'undefined') ? WARM.crowd() : null,
       // a strained device is spared the heavy rooms so it never lags (the music
       // stays smooth regardless); ECO asks the same on purpose — cheap rooms
       // are how the battery lasts the lawn
@@ -23491,6 +23817,21 @@ const STAGE = {
         } catch (e){}
       });
     }
+    /* THE PICTURE IS THE INPUT. There are no controls on a stage screen and
+       there never will be — it is pointed at an audience — so the only surface
+       left to touch is the field, and touching it is the entire interaction
+       this device has. pointerdown and pointermove both, because ripples
+       follow a dragged finger and that is most of the pleasure of it; WARM
+       rate-limits, so a drag is a stream rather than a flood. */
+    const hand = ev => {
+      if (ev.pointerType === 'mouse' && ev.buttons === 0 && ev.type === 'pointermove') return;
+      try {
+        WARM.touch(ev.clientX / Math.max(1, window.innerWidth),
+                   ev.clientY / Math.max(1, window.innerHeight));
+      } catch (e){}
+    };
+    window.addEventListener('pointerdown', hand);
+    window.addEventListener('pointermove', hand);
     this.applySlice();
     window.addEventListener('resize', () => { this.report(true); this.applySlice(); });
     this.report(true);
@@ -23744,6 +24085,10 @@ const STAGE = {
   },
   recv(m){
     if (!m || !m.t) return;
+    /* the warm-up's traffic is its own conversation and is answered before
+       anything here looks at it — sparks, the meter, the picks. It returns
+       true for what it took, so nothing below has to know these exist. */
+    try { if (typeof WARM !== 'undefined' && WARM.recv(m)) return; } catch (e){}
     if (this.screen()){
       if (m.t === 'f'){
         this.last = m;
@@ -23751,6 +24096,12 @@ const STAGE = {
         this.offset = stageOffset(this.offset, m.at, performance.now());
         const wait = document.getElementById('stageWait');
         if (wait) wait.hidden = true;
+        /* THE FIRST FRAME IS THE INVITATION. Not the connection — a screen
+           that has linked but seen nothing yet would ask somebody to pick a
+           colour over a black rectangle, and if the booth then never spoke
+           they would have decorated a crash. The picture arrives first; the
+           questions go over the top of it. */
+        try { if (typeof WARM !== 'undefined') WARM.begin(); } catch (e){}
       } else if (m.t === 'booth-gone'){
         const wait = document.getElementById('stageWait'), why = document.getElementById('stageWaitWhy');
         if (why) why.textContent = 'the booth closed';
@@ -23789,6 +24140,7 @@ const STAGE = {
       if (!was || stageMoved(was.rect, m.rect)) this.pushWall(true);
       this.paint();
     } else if (m.t === 'screen-gone'){
+      try { if (typeof WARM !== 'undefined') WARM.forget(m.id != null ? m.id : ('s' + m.screen)); } catch (e){}
       this.peers.delete(m.id != null ? m.id : ('s' + m.screen));
       this.pushWall(true);
       this.paint();
@@ -24842,6 +25194,481 @@ function drawQR(cv, text, dark, light){
   return true;
 }
 
+/* ================================================================
+   WARM — the warm-up, and the room's hands.
+
+   THE PROBLEM. Joining used to be: scan a code, watch a spinner, and
+   then your phone is a rectangle of somebody else's picture. Every
+   part of that works and none of it is anything you DID. The best
+   ten seconds available — a group of people holding glowing
+   rectangles that have just discovered they are one screen — were
+   being spent on a status message.
+
+   WHAT HAPPENS INSTEAD. Two questions, each answerable with one
+   thumb without reading anything: pick a colour, pick a look. Then
+   the overlay goes and the field is underneath it — and now touching
+   the picture puts a ripple on EVERY screen in the room, in your
+   colour, at the place in the wall you touched. A hand on screen two
+   travels across screens one and three. That is the whole mechanic
+   and it explains itself the first time somebody else's ripple
+   crosses your phone.
+
+   THE GAME, such as it is. Touches that land near the beat push a
+   meter that CANNOT BE FILLED ALONE — it counts distinct screens,
+   not touches, so drumming your own thumb does nothing and the only
+   way up is other people. Fill it and the room answers: one bloom,
+   everybody's colours at once, across the whole wall. Then it
+   resets, and nothing is scored, nothing is lost, and nobody is
+   ranked. Flow, not competition — the reward for playing is that the
+   room looks better, which is also the reason everyone came.
+
+   WHY THE PICKS MATTER AFTERWARDS. A choice that stops mattering the
+   moment it is made is a form. So the colour is yours all night —
+   your ripples, your slice's wash, your share of the bloom — and the
+   looks the room picked LEAN the director's deal (warmDeal), never
+   seize it: a room that all tapped one scene tilts the night toward
+   it without turning the night into it.
+   ================================================================ */
+const WARM = {
+  SPARK_LIFE: 1.5,                 // seconds a ripple takes to cross and fade
+  TAP_MS: 90,                      // a drag is a stream of taps, at a sane rate
+  WINDOW_MS: 1400,                 // how long a hand counts as "just now"
+  HOLD: 1.1,                       // seconds at full together before the room answers
+  MAX_SPARKS: 64,                  // a full room drumming still costs a fixed amount
+
+  /* `ask` is the question this screen is on — 0 colour, 1 look. It is not
+     called `step` because the per-frame method is, and an object literal with
+     both quietly keeps the LAST one: begin() then assigned 0 over the method
+     and every frame after that threw into a catch. Nothing broke visibly, the
+     sparks simply never drew. */
+  ask: 0,
+  hue: 4, scene: null, done: false,
+  sparks: [], taps: [], picks: new Map(),
+  v: 0, _hold: 0, _lastTap: 0, _cv: null, _ctx: null, _flash: 0, _sendT: 0, _sent: 0,
+
+  /* ---------------- what this device is ---------------- */
+  mine(){ return { hue: this.hue, scene: this.scene }; },
+  colour(){ return warmHue(this.hue); },
+  /* the room, as one colour and one measure of how much it agrees. The booth
+     holds every pick; a screen holds only its own, and answers for itself —
+     which is the right answer on a screen, where the only crowd it can speak
+     for is the crowd of one it can see. */
+  blend(){
+    const all = [...this.picks.values()];
+    if (!STAGE.screen() ) all.push(this.mine());
+    return warmBlend(all.length ? all : [this.mine()]);
+  },
+  crowd(){ return warmDeal([...this.picks.values()]); },
+
+  /* ---------------- the two questions ---------------- */
+  el(){ return document.getElementById('warmup'); },
+  /* Skipped entirely on a corner window. A pip is a REHEARSAL — one person at
+     one laptop looking at four postcards of their own rig — and asking that
+     person to pick a colour four times, once per postcard, is a form to fill
+     in rather than a thing to do. The warm-up is for devices that WALKED IN. */
+  begin(){
+    if (this.done || document.body.classList.contains('pip')) return;
+    const box = this.el();
+    if (!box) return;
+    document.body.classList.add('warming');
+    box.hidden = false;
+    this.ask = 0;
+    this.render();
+  },
+  finish(){
+    this.done = true;
+    const box = this.el();
+    if (box) box.hidden = true;
+    document.body.classList.remove('warming');
+    // say who you are and what you like, up whichever road exists
+    STAGE.send({ t: 'pick', id: STAGE.cfg.id, hue: this.hue, scene: this.scene });
+    // and answer yourself, so the first thing that happens after picking is
+    // your own colour blooming on your own screen — the pick, confirmed in the
+    // only language this app actually speaks
+    this.add({ x: 0.5, y: 0.5, h: this.colour().h, c: this.colour().c, big: 1 });
+  },
+  render(){
+    const box = this.el();
+    if (!box) return;
+    const grid = box.querySelector('#wuGrid');
+    const title = box.querySelector('#wuTitle'), sub = box.querySelector('#wuSub');
+    const foot = box.querySelector('#wuFoot');
+    if (!grid) return;
+    grid.innerHTML = '';
+    if (this.ask === 0){
+      title.textContent = 'Pick your colour';
+      sub.textContent = "it's yours for the night — every touch you make is in it";
+      foot.textContent = '';
+      WARM_HUES.forEach((e, i) => {
+        const b = this.cell(e.name);
+        b.style.background = 'linear-gradient(155deg,'
+          + this.css(oklchToRgb(0.72, e.c, e.h)) + ','
+          + this.css(oklchToRgb(0.34, e.c * 0.7, e.h)) + ')';
+        b.onclick = () => { this.hue = i; this.ask = 1; this.render(); };
+        grid.appendChild(b);
+      });
+      return;
+    }
+    title.textContent = 'Pick a look';
+    sub.textContent = 'what the room leans toward — the booth still runs the night';
+    foot.textContent = 'then touch the picture: everyone sees your ripple';
+    const list = typeof scenes !== 'undefined' && scenes.length
+      ? scenes.map(s => ({ key: s.key, name: s.name }))
+      : SCENE_KEYS.map(k => ({ key: k, name: k.toUpperCase() }));
+    for (const s of list){
+      const b = this.cell(s.name);
+      const cv = document.createElement('canvas');
+      b.insertBefore(cv, b.firstChild);
+      // painted after layout, so the canvas has a size to be painted at
+      requestAnimationFrame(() => this.tile(cv, s.key));
+      b.onclick = () => { this.scene = s.key; this.finish(); };
+      grid.appendChild(b);
+    }
+  },
+  cell(name){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wu-cell';
+    const t = document.createElement('span');
+    t.className = 'wu-name';
+    t.textContent = name;
+    b.appendChild(t);
+    return b;
+  },
+  /* oklchToRgb takes THREE NUMBERS and hands back an ARRAY of three, 0..1.
+     Calling it with an object instead — which is what its neighbours in the
+     colour engine look like they take — makes its chroma NaN, and its gamut
+     walk (`c -= 0.008` until the colour fits) then never terminates: the tab
+     locks solid, with no error anywhere. Worth the sharp edge being written
+     down rather than smoothed over, because a wrapper would just hide it. */
+  css(a, alpha){
+    const to = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+    const rgb = to(a[0]) + ',' + to(a[1]) + ',' + to(a[2]);
+    return alpha == null ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
+  },
+
+  /* THE TILE PAINTERS. Nine gestures, re-used across nineteen rooms at
+     different hues and densities — not screenshots, and deliberately not:
+     a still frame of a scene that is entirely about MOTION is a worse
+     description of it than a drawing of what the motion does. */
+  tile(cv, key){
+    if (!cv || !cv.isConnected) return;
+    const r = cv.getBoundingClientRect();
+    const W = Math.max(2, Math.round(r.width)), H = Math.max(2, Math.round(r.height));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const g = cv.getContext('2d');
+    if (!g) return;
+    g.scale(dpr, dpr);
+    const s = sceneSig(key);
+    const ink = (l, a, dh) =>
+      this.css(oklchToRgb(l, s.c === 0 ? 0 : (s.c || 0.15), (s.h + (dh || 0) + 360) % 360), a);
+    g.fillStyle = ink(0.16, 1, 0); g.fillRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.42;
+    const arms = s.arms || 3, dense = s.dense == null ? 0.7 : s.dense;
+    g.lineCap = 'round';
+    const rnd = mulberry32(0x5eed ^ key.length * 2654435761);
+    if (s.kind === 'spiral'){
+      for (let a = 0; a < arms; a++){
+        g.beginPath();
+        for (let t = 0; t <= 1.0001; t += 0.02){
+          const th = t * Math.PI * (2.6 + dense * 3) + (a / arms) * Math.PI * 2;
+          const rr = R * t;
+          const x = cx + Math.cos(th) * rr, y = cy + Math.sin(th) * rr;
+          if (t === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.strokeStyle = ink(0.82, 0.9, a * 14); g.lineWidth = 1.6; g.stroke();
+      }
+    } else if (s.kind === 'wave'){
+      for (let a = 0; a < arms; a++){
+        g.beginPath();
+        for (let x = 0; x <= W; x += 3){
+          const u = x / W;
+          const amp = H * (s.meter ? 0.12 + 0.26 * Math.abs(Math.sin(u * 7)) : 0.22);
+          const ph = a * (s.twist ? Math.PI / arms : 0.5);
+          const y = cy + Math.sin(u * Math.PI * 4 + ph) * amp * (s.twist ? Math.cos(u * Math.PI) : 1);
+          if (!x) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.strokeStyle = ink(0.8, 0.9, a * 18); g.lineWidth = 2; g.stroke();
+      }
+    } else if (s.kind === 'burst'){
+      for (let a = 0; a < arms; a++){
+        const th = (a / arms) * Math.PI * 2 + rnd() * 0.4;
+        const len = R * (0.5 + rnd() * 0.6);
+        g.beginPath(); g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(th) * len, cy + Math.sin(th) * len);
+        g.strokeStyle = ink(0.86, s.tail ? 0.55 : 0.9, a * 6);
+        g.lineWidth = s.tail ? 3 : 1.6; g.stroke();
+        if (s.tail){
+          g.beginPath();
+          g.arc(cx + Math.cos(th) * len, cy + Math.sin(th) * len, 2.6, 0, 7);
+          g.fillStyle = ink(0.95, 1, 0); g.fill();
+        }
+      }
+    } else if (s.kind === 'cloud'){
+      for (let i = 0; i < Math.round(26 * (0.5 + dense)); i++){
+        const x = cx + (rnd() - 0.5) * W * 0.9, y = cy + (rnd() - 0.5) * H * 0.8;
+        const rr = R * (0.08 + rnd() * 0.34);
+        const gr = g.createRadialGradient(x, y, 0, x, y, rr);
+        gr.addColorStop(0, ink(0.72, 0.30, (rnd() - 0.5) * 50));
+        gr.addColorStop(1, ink(0.5, 0, 0));
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+      }
+    } else if (s.kind === 'tunnel'){
+      for (let i = 1; i <= 9; i++){
+        const t = i / 9, rr = R * t * t;
+        g.beginPath(); g.arc(cx, cy - H * 0.04 * (1 - t), rr, 0, 7);
+        g.strokeStyle = ink(0.45 + 0.45 * (1 - t), 0.9, i * 5); g.lineWidth = 1.4; g.stroke();
+      }
+    } else if (s.kind === 'ribbon'){
+      for (let a = 0; a < arms; a++){
+        g.beginPath();
+        for (let t = 0; t <= 1.0001; t += 0.025){
+          const th = t * Math.PI * 2;
+          const rr = R * (0.55 + 0.35 * Math.sin(th * 3 + a * 1.3));
+          const x = cx + Math.cos(th) * rr, y = cy + Math.sin(th) * rr * 0.7;
+          if (t === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.closePath(); g.strokeStyle = ink(0.8, 0.75, a * 22); g.lineWidth = 3; g.stroke();
+      }
+    } else if (s.kind === 'grid'){
+      const n = 7, sw = W / n, sh = H / n;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++){
+        if ((i + j) % 2) continue;
+        const wob = Math.sin((i - n / 2) * 0.9) * sh * 0.22;
+        g.fillStyle = ink(0.78, 0.9, 0);
+        g.fillRect(i * sw, j * sh + wob, sw, sh);
+      }
+    } else if (s.kind === 'ring'){
+      for (let a = 0; a < arms; a++){
+        const th = (a / arms) * Math.PI * 2;
+        const x = cx + Math.cos(th) * R * 0.52, y = cy + Math.sin(th) * R * 0.52;
+        g.beginPath(); g.arc(x, y, R * 0.42, 0, 7);
+        g.strokeStyle = ink(0.82, 0.8, s.rainbow ? (a / arms) * 360 : a * 10);
+        g.lineWidth = 2; g.stroke();
+      }
+    } else {                              // blob — lava, flame
+      for (let i = 0; i < Math.round(6 * (0.5 + dense)); i++){
+        const x = cx + (rnd() - 0.5) * W * 0.5;
+        const y = H * (0.9 - i / 7) - (s.flame ? H * 0.05 : 0);
+        const rr = R * (0.34 - i * 0.03) * (s.flame ? 1.1 : 1);
+        const gr = g.createRadialGradient(x, y, 0, x, y, Math.max(2, rr));
+        gr.addColorStop(0, ink(s.flame ? 0.95 : 0.78, 0.95, s.flame ? -i * 6 : 0));
+        gr.addColorStop(1, ink(0.4, 0, 0));
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, Math.max(2, rr), 0, 7); g.fill();
+      }
+    }
+  },
+
+  /* ---------------- the hands ---------------- */
+  /* WALL COORDINATES, DECIDED AT THE HAND. A touch is turned into a point on
+     the WHOLE field by the screen that felt it, using the cut the booth gave
+     it, and every other screen turns that point back into its own pixels the
+     same way. The booth only relays. It could have done the arithmetic
+     centrally — it does for the wall itself, for good reasons — but a spark is
+     not geometry anybody has to AGREE on: half a degree of disagreement about
+     a ripple is invisible, where half a degree about a camera is a tear down
+     the seam between two televisions. Doing it at the edges means a ripple
+     survives a booth that is a frame behind. */
+  toWall(lx, ly){
+    const c = STAGE.screen() ? (STAGE.cut || null) : null;
+    if (!c) return { x: clamp01(lx), y: clamp01(ly) };
+    return {
+      x: (Number(c.fx) || 0) + clamp01(lx) * (Number(c.fw) || 1),
+      y: (Number(c.fy) || 0) + clamp01(ly) * (Number(c.fh) || 1),
+    };
+  },
+  toLocal(wx, wy){
+    const c = STAGE.screen() ? (STAGE.cut || null) : null;
+    if (!c) return { x: wx, y: wy };
+    const fw = Number(c.fw) || 1, fh = Number(c.fh) || 1;
+    return { x: (wx - (Number(c.fx) || 0)) / fw, y: (wy - (Number(c.fy) || 0)) / fh };
+  },
+  /* a touch on this device: rate-limited, because a drag is a hose and the
+     ctl channel is ordered — flooding it would delay the messages that
+     actually matter (the wall, the frame) behind a hundred ripples */
+  touch(lx, ly){
+    // a screen that has not finished picking is not touching the field, it is
+    // touching the card in front of it
+    if (STAGE.screen() && !this.done) return;
+    /* AND A BOOTH WITH NO ROOM RIPPLES AT NOTHING. Somebody listening alone on
+       a laptop is not in a room, and putting a ring on the field under every
+       click would be a new visual effect nobody asked for, arriving in an
+       update, on by default. It costs nothing to wait until there is actually
+       a stage or an invite up — which is the same moment the ripples have
+       somewhere to travel to. */
+    if (!STAGE.screen() && !STAGE.on) return;
+    const now = performance.now();
+    if (now - this._lastTap < this.TAP_MS) return;
+    this._lastTap = now;
+    const w = this.toWall(lx, ly);
+    const e = this.colour();
+    const m = { t: 'tap', id: STAGE.cfg.id, x: w.x, y: w.y, h: e.h, c: e.c };
+    if (STAGE.screen()) STAGE.send(m);
+    else this.heard(m, true);            // the booth is a hand in the room too
+    this.add({ x: lx, y: ly, h: e.h, c: e.c });   // instant local answer, no round trip
+  },
+  /* the booth heard a hand — anybody's, including its own. It relays the
+     spark to every screen, remembers WHO for the meter, and lets a touch that
+     landed on the beat push it. Nothing here can be pushed by one device. */
+  heard(m, local){
+    if (STAGE.screen()) return;
+    const id = String(m.id == null ? '?' : m.id);
+    const now = Date.now();
+    this.taps.push({ id, at: now });
+    if (this.taps.length > 240) this.taps.splice(0, this.taps.length - 240);
+    const grace = beatGrace(typeof CLOCK !== 'undefined' ? CLOCK.phase : NaN, 0.18);
+    const tog = togetherness(this.taps, now, this.WINDOW_MS);
+    // the meter rises only for hands that are BOTH together and on the beat,
+    // and falls back on its own — see step()
+    this.v = Math.max(this.v, tog.v * (0.35 + 0.65 * grace));
+    if (!local){
+      const l = this.toLocal(m.x, m.y);
+      this.add({ x: l.x, y: l.y, h: m.h, c: m.c });
+    }
+    STAGE.send({ t: 'spark', x: m.x, y: m.y, h: m.h, c: m.c, from: id });
+  },
+  add(s){
+    this.sparks.push({ x: s.x, y: s.y, h: s.h || 0, c: s.c == null ? 0.15 : s.c,
+                       big: s.big || 0, at: performance.now() });
+    if (this.sparks.length > this.MAX_SPARKS)
+      this.sparks.splice(0, this.sparks.length - this.MAX_SPARKS);
+  },
+
+  /* ---------------- the room answers ---------------- */
+  /* HELD, NOT HIT. A meter that fires the instant it touches full fires on a
+     coincidence — four people happening to tap in the same second, once. Held
+     for a beat and a bit, it can only be reached by a room that is doing this
+     ON PURPOSE, which is the only thing worth answering. */
+  step(dt){
+    if (!STAGE.screen()){
+      const tog = togetherness(this.taps, Date.now(), this.WINDOW_MS);
+      this.v += (tog.v - this.v) * Math.min(1, dt * 2.2);
+      if (this.v > 0.985){
+        this._hold += dt;
+        if (this._hold >= this.HOLD){ this.lock(); this._hold = 0; }
+      } else this._hold = 0;
+      /* THE METER IS ONLY BROADCAST WHEN THERE IS A METER. Sending it on a
+         timer regardless put four messages a second onto the channel and down
+         every wire for the whole of a night on which nobody ever touched
+         anything — and a booth with no stage at all was doing it to an empty
+         room. It goes out while the meter is up, plus one final packet on the
+         way down so a screen is never left showing a bar that has already
+         drained at the booth. */
+      this._sendT = (this._sendT || 0) + dt;
+      const worth = this.v > 0.01 || this._sent > 0.01;
+      if (worth && this._sendT > 0.25){
+        this._sendT = 0; this._sent = this.v;
+        STAGE.send({ t: 'sync', v: this.v });
+      }
+    }
+    if (this._flash > 0) this._flash = Math.max(0, this._flash - dt);
+    this.draw();
+  },
+  /* the room, answered. One bloom in everyone's colours at once — through the
+     same flash governor every other bright thing on this page goes through,
+     because a room that earned a moment must not be the thing that hurts
+     somebody in it. */
+  lock(){
+    const b = this.blend();
+    this.taps.length = 0; this.v = 0;
+    STAGE.send({ t: 'lock', h: b.h, c: b.c, n: b.n });
+    this.bloom(b);
+  },
+  bloom(b){
+    this._flash = 1;
+    try {
+      INTERACT.impulse = Math.max(INTERACT.impulse, 0.85);
+      COLOR.bloom = 1;
+    } catch (e){}
+    // a ring from each corner and the middle, in the room's own colour
+    for (const p of [[0.5, 0.5], [0.14, 0.16], [0.86, 0.16], [0.14, 0.84], [0.86, 0.84]])
+      this.add({ x: p[0], y: p[1], h: b.h, c: b.c || 0.15, big: 1 });
+  },
+
+  /* ---------------- drawing ---------------- */
+  cv(){
+    if (this._cv && this._cv.isConnected) return this._cv;
+    this._cv = document.getElementById('stageSparks');
+    this._ctx = this._cv ? this._cv.getContext('2d') : null;
+    return this._cv;
+  },
+  draw(){
+    const cv = this.cv(), g = this._ctx;
+    if (!cv || !g) return;
+    const live = this.sparks.length || this.v > 0.02 || this._flash > 0;
+    if (!live){ if (!cv.hidden){ cv.hidden = true; } return; }
+    cv.hidden = false;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = window.innerWidth, H = window.innerHeight;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const now = performance.now();
+    /* the ripple crosses the WALL at one speed, so a ring that leaves a phone
+       and arrives at a television is one ripple rather than two of different
+       sizes. The screen's own share of the wall is what converts that speed
+       into pixels here. */
+    const cut = STAGE.screen() ? (STAGE.cut || null) : null;
+    const span = Math.hypot(W / ((cut && cut.fw) || 1), H / ((cut && cut.fh) || 1));
+    for (let i = this.sparks.length - 1; i >= 0; i--){
+      const s = this.sparks[i];
+      const life = this.SPARK_LIFE * (s.big ? 1.9 : 1);
+      const e = warmSpark((now - s.at) / 1000, life);
+      if (e.a <= 0.002){ this.sparks.splice(i, 1); continue; }
+      const R = e.r * span * (s.big ? 0.55 : 0.24);
+      g.beginPath();
+      g.arc(s.x * W, s.y * H, Math.max(1, R), 0, 7);
+      g.strokeStyle = this.css(oklchToRgb(0.78, s.c, s.h), (e.a * 0.85).toFixed(3));
+      g.lineWidth = Math.max(1.2, span * 0.008 * (s.big ? 2.2 : 1) * e.a);
+      g.stroke();
+    }
+    /* THE METER, AS A HAIRLINE. Anything bigger is a HUD, and a HUD is the one
+       thing a screen pointed at an audience must never grow — the whole
+       argument for this being a line one pixel tall at the very bottom is that
+       it is invisible until somebody is looking for it, and unmistakable the
+       moment they are. */
+    if (this.v > 0.02){
+      const b = this.blend();
+      g.fillStyle = this.css(oklchToRgb(0.8, Math.max(0.06, b.c), b.h),
+                             (0.35 + 0.5 * this.v).toFixed(3));
+      g.fillRect(0, H - 2, W * clamp01(this.v), 2);
+    }
+  },
+
+  /* ---------------- the wire ---------------- */
+  /* everything the warm-up sends or receives, in one place. Screens speak
+     `pick` and `tap`; the booth answers `spark`, `sync` and `lock`. A message
+     that arrives on the wrong side is ignored rather than trusted — a screen
+     cannot tell the room it has locked. */
+  recv(m){
+    if (!m || !m.t) return false;
+    if (STAGE.screen()){
+      if (m.t === 'spark'){
+        if (String(m.from) === String(STAGE.cfg.id)) return true;   // already drawn locally
+        const l = this.toLocal(Number(m.x) || 0, Number(m.y) || 0);
+        this.add({ x: l.x, y: l.y, h: Number(m.h) || 0, c: Number(m.c) || 0.15 });
+        return true;
+      }
+      if (m.t === 'sync'){ this.v = clamp01(Number(m.v) || 0); return true; }
+      if (m.t === 'lock'){ this.bloom({ h: Number(m.h) || 0, c: Number(m.c) || 0.15 }); return true; }
+      return false;
+    }
+    if (m.t === 'pick'){
+      this.picks.set(String(m.id), { hue: Math.floor(Number(m.hue) || 0), scene: m.scene || null });
+      const e = warmHue(m.hue);
+      toast('A screen joined — ' + e.name.toLowerCase()
+        + (m.scene ? ', and wants ' + String(m.scene).toUpperCase() : ''));
+      return true;
+    }
+    if (m.t === 'tap'){ this.heard(m, false); return true; }
+    return false;
+  },
+  forget(id){ this.picks.delete(String(id)); },
+};
+
 const WIRE = {
   /* same-origin first: a Netlify preview has the mailbox right there. The
      canonical site is GitHub Pages, which has no serverless anything — it
@@ -25127,7 +25954,9 @@ const WIRE = {
     if (!m || !m.t) return;
     if (STAGE.screen()){
       if (!this.linked || !this._ctl || this._ctl.readyState !== 'open') return;
-      if (m.t !== 'here' && m.t !== 'screen-gone') return;
+      // a screen speaks four things now: it is here, it has gone, this is
+      // who I am, and I just touched the picture
+      if (m.t !== 'here' && m.t !== 'screen-gone' && m.t !== 'pick' && m.t !== 'tap') return;
       try { this._ctl.send(JSON.stringify(m)); } catch (e){}
       return;
     }
@@ -25715,6 +26544,7 @@ function frame(now){
   GHOST.update(dt);
   if (STAGE.screen()) STAGE.hand();     // the booth's hand outranks a local ghost
   INTERACT.update(dt);
+  try { WARM.step(dt); } catch (e){}
   /* THE HAND, HANDED TO THE FABRIC. Nothing is drawn here any more — there is
      no stage to perform on. These uniforms ARE the touch: the metric reads
      them, the particles move through it, and the light-bending pass refracts
