@@ -6,12 +6,15 @@
       "date": "2026-08-04",
       "title": "The lava lamp gets its droplets",
       "notes": [
-        "the wax now breaks into a beaded chain of drops pinching off a rising column, instead of travelling as one lump \u2014 the physics was already doing it, the picture just could not show it",
+        "the wax now breaks into a beaded chain of drops pinching off a rising column, instead of travelling as one lump — the physics was already doing it, the picture just could not show it",
         "a droplet of a few particles is genuinely thinner than the middle of a pool, so any threshold that drew the pool correctly made small drops vanish; dividing each particle by its own density fixes it, and costs nothing because the solver had already measured it",
-        "the wax casts a shadow through the fluid above it now \u2014 the only light is under the column, and without that the lamp read as a flat cut-out however good the wax looked",
+        "the wax casts a shadow through the fluid above it now — the only light is under the column, and without that the lamp read as a flat cut-out however good the wax looked",
         "nearly twice as many particles for the same money: every pass of the solver wanted the same four numbers about the same pair, and now they are worked out once instead of five times",
-        "which also bought a third pass of the incompressibility solver \u2014 the wax is three times less squashable and a third calmer than it was yesterday",
+        "which also bought a third pass of the incompressibility solver — the wax is three times less squashable and a third calmer than it was yesterday",
         "and a phone is budgeted as a phone from the first frame, rather than after the frame governor has spent ten seconds discovering it"
+      ],
+      "builds": [
+        "320e1bd95e"
       ]
     },
     {
