@@ -3103,6 +3103,36 @@ test('dmxShowIntents: nothing it produces can reach a lamp unlaundered', () => {
   assert.doesNotThrow(() => S.dmxShowIntents({ chord: [{ r: 1, g: 1, b: 1 }] }, null));
 });
 
+test('DMX_FIXTURES vars: the labels name the channel they are actually on', () => {
+  /* A LABEL THAT NAMES THE WRONG CHANNEL IS WORSE THAN NO LABEL — it is a
+     console confidently reporting a fixture doing something it is not. This
+     shipped wrong once and was caught by looking at the emulator, which is
+     exactly the kind of thing a test should be catching instead. Pinned here
+     against the charts in the two manuals. */
+  assert.deepEqual(S.DMX_FIXTURES['adj-mystic-led'].vars,
+    ['strobe', 'color', 'rainbow', 'spin'],
+    'Mystic: ch1 is off/strobe and ch2 is the colour, not the other way round');
+  assert.deepEqual(S.DMX_FIXTURES['venue-thintri-38'].vars,
+    ['red', 'green', 'blue', 'macro', 'strobe', 'mode', 'dimmer', 'dimmerCurve'],
+    'ThinTri: ch4 is the macro and ch7 is the dimmer');
+  // and every profile labels exactly as many channels as its widest mode has
+  for (const key of Object.keys(S.DMX_FIXTURES)){
+    const p = S.DMX_FIXTURES[key];
+    const widest = Math.max(...Object.keys(p.modes).map(m => p.modes[m]));
+    if (p.wire === 'net') continue;
+    assert.equal(p.vars.length, widest, key + ' labels ' + p.vars.length + ' of ' + widest + ' channels');
+  }
+  /* The labels are load-bearing: the emulator reads them positionally, so a
+     renderer and a label that disagree is a display that lies. Check one
+     against the bytes the renderer actually writes. */
+  const rig = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch', id: 'w' }]);
+  const f = S.dmxRender(rig, { w: { r: 0, g: 0, b: 0, dim: 1, strobe: 1 } });
+  const v = S.DMX_FIXTURES['venue-thintri-38'].vars;
+  assert.equal(f[v.indexOf('dimmer')], 255, 'the channel labelled dimmer is the one carrying the dimmer');
+  assert.ok(f[v.indexOf('strobe')] > 200, 'and the one labelled strobe carries the strobe');
+  assert.equal(f[v.indexOf('macro')], 0, 'and the macro is the one held at zero');
+});
+
 test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
   const dst = { bass: 0.5, energy: 0.5, beat: 0.5, extra: 'keep me' };
   S.stageApplyFeat(dst, { bass: 0.9, energy: 'not a number', nope: 1 });
