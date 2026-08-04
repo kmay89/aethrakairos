@@ -1983,7 +1983,7 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
   <button class="mp-x" type="button" aria-label="Dismiss">×</button>
   <div class="mp-title">Even better as a <b>Mac app</b></div>
   <ul class="mp-why">
-    <li><b>Stage mode, properly</b>: send the field <b>full screen to the monitor you name</b> while the controls stay on your laptop. A browser may open a window — it may not choose which screen it lands on</li>
+    <li><b>Stage mode, properly</b>: send the field <b>full screen to the monitor you name</b> while the controls stay on your laptop. Chrome can do this too, behind a permission prompt — the app does it in every browser's stead, Safari included</li>
     <li>The <b>same player</b> — it loads this exact site, always the latest</li>
     <li><b>Rock-solid memory</b>: its own window with the full RAM budget, never a background tab that gets dropped</li>
     <li><b>Updates itself</b> quietly — install once, never again</li>
@@ -4269,6 +4269,48 @@ function stageResolveRects(list, placed){
     if (!use && p[e.id]) use = stageRect(p[e.id]);
     if (use) out.push({ id: e.id, x: use.x, y: use.y, w: use.w, h: use.h });
   }
+  return out;
+}
+/* WHICH MONITOR EACH SCREEN GETS. Two doors open stage windows — the Mac
+   shell and, in a Chromium browser that has been shown the screens, the page
+   itself — and both used to do this arithmetic inline, differently. One place
+   now, and the rule is the operator's own: screens are dealt to monitors in
+   READING ORDER across the real desk (the same banding stageOrder uses),
+   because screen one belongs on the leftmost television and not on whichever
+   monitor the OS happened to enumerate first.
+
+   The booth's own monitor is spared while there are enough others to go
+   around — a fullscreen stage on the booth's display buries the booth — and
+   dealt in like any other the moment every monitor is asked for, which is
+   what asking for exactly as many screens as there are monitors plainly
+   means. Extras past the last monitor stack on the last one: a wrong count
+   is the operator's to notice, and a stacked window is noticeable where a
+   refused one is a mystery. Returns one display index per screen, into the
+   list as given; an empty list when there is nothing to plan against. */
+function stagePlan(displays, of, booth){
+  const list = [];
+  for (let i = 0; i < (displays || []).length; i++){
+    const d = displays[i];
+    if (!d) continue;
+    const r = stageRect({ x: d.x, y: d.y,
+      w: d.width != null ? d.width : d.w, h: d.height != null ? d.height : d.h });
+    r.i = i; list.push(r);
+  }
+  if (!list.length) return [];
+  let n = Math.floor(Number(of));
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  n = Math.min(n, 16);
+  let tol = Infinity, top = Infinity;
+  for (const r of list){ if (r.h < tol) tol = r.h; if (r.y < top) top = r.y; }
+  tol = Math.max(1, tol * 0.5);
+  const band = r => Math.round((r.y - top) / tol);
+  list.sort((a, b) => (band(a) - band(b)) || (a.x - b.x) || (a.i - b.i));
+  let b = Math.floor(Number(booth));
+  if (!Number.isFinite(b) || b < 0 || b >= (displays || []).length) b = -1;
+  const spare = list.filter(r => r.i !== b);
+  const order = (b >= 0 && n < list.length && spare.length) ? spare : list;
+  const out = [];
+  for (let k = 0; k < n; k++) out.push(order[Math.min(k, order.length - 1)].i);
   return out;
 }
 /* THE HAND, IN THE COORDINATES OF THE WALL RATHER THAN OF A WINDOW.
@@ -13470,7 +13512,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '45f380c517';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '04eded7918';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -15944,9 +15986,20 @@ async function stageChooser(){
   /* HOW MANY SCREENS ARE REALLY THERE. Asked before the card goes up, so that
      nothing is awaited between the operator's click on it and the window that
      click opens — an await there is what spends the gesture a popup blocker is
-     looking for, and a stage that "did nothing" is how that failure reads. */
-  const displays = NATIVE.ready() ? (await NATIVE.call('list_displays') || []) : [];
-  const alone = NATIVE.ready()
+     looking for, and a stage that "did nothing" is how that failure reads.
+     On the web the same click carries the window-management permission
+     prompt (webScreens), which is why it happens HERE and not inside open():
+     a browser asked out of nowhere is a browser that says no. And it is only
+     carried when there is more than one screen to manage — isExtended is free
+     to read, and a laptop alone on a kitchen table being asked to grant
+     window management is a question with no right answer. A browser without
+     the API answers with isExtended too — a count of one bit, but enough to
+     know whether this laptop is alone. */
+  const displays = NATIVE.ready()
+    ? (await NATIVE.call('list_displays') || [])
+    : (window.screen && window.screen.isExtended === false ? []
+      : (await STAGE.webScreens(true)) || []);
+  const alone = NATIVE.ready() || displays.length
     ? displays.length < 2
     : (window.screen && window.screen.isExtended === false);
   /* ONE SCREEN IS NOT ONE SCREEN'S WORTH OF STAGE. A laptop on a kitchen
@@ -23270,8 +23323,31 @@ const STAGE = {
       this.send({ t: this.screen() ? 'screen-gone' : 'booth-gone',
         screen: this.cfg.screen, id: this.cfg.id });
     });
+    // the OS releases wake locks on hide, silently — take it back on return
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      if (this.on || (this.screen() && !document.body.classList.contains('pip'))) this.wake(true);
+    });
   },
   send(m){ try { if (this.chan) this.chan.postMessage(m); } catch (e){} },
+  /* THE GLASS STAYS LIT FOR THE LENGTH OF THE SET. A booth driving a stage and
+     a screen facing a room are both surfaces that must not dim on an idle
+     timer — nobody touches either for an hour and that is the show going
+     WELL. Same shape as POWER.wake, held separately: the stage's claim on the
+     screen outlives any power mode the operator flips through. */
+  wake(on){
+    try {
+      if (on && !this._wl && navigator.wakeLock && navigator.wakeLock.request){
+        navigator.wakeLock.request('screen').then(wl => {
+          this._wl = wl;
+          wl.addEventListener('release', () => { if (this._wl === wl) this._wl = null; });
+        }).catch(() => {});
+      } else if (!on && this._wl){
+        const wl = this._wl; this._wl = null;
+        Promise.resolve(wl.release()).catch(() => {});
+      }
+    } catch (e){}
+  },
 
   /* ---------------- the screen ---------------- */
   becomeScreen(){
@@ -23288,6 +23364,24 @@ const STAGE = {
     // silence, belt and braces — a stage screen that made a sound would be a
     // second copy of the music a room's width away from the first
     try { if (AE.master && AE.master.gain) AE.master.gain.value = 0; } catch (e){}
+    if (!document.body.classList.contains('pip')){
+      /* a room-sized screen holds the glass awake itself. The booth cannot do
+         it for a window on a television across the room, and a screen that
+         dims mid-set reads as a crash from the back of the floor. A corner
+         window leaves this to the booth it floats over. */
+      this.wake(true);
+      /* AND IT CAN FILL ITS OWN SCREEN. A browser placed this window on the
+         right monitor but may not have been allowed to fullscreen it there —
+         only the shell and the newest Chromium can. The gesture a browser
+         demands has to happen on THIS window, so it is the video player's own
+         gesture: a double-click on the picture. */
+      window.addEventListener('dblclick', () => {
+        try {
+          if (document.fullscreenElement) document.exitFullscreen();
+          else document.documentElement.requestFullscreen().catch(() => {});
+        } catch (e){}
+      });
+    }
     this.applySlice();
     window.addEventListener('resize', () => { this.report(true); this.applySlice(); });
     this.report(true);
@@ -23754,16 +23848,48 @@ const STAGE = {
          two fullscreen windows stacked on one panel, the other monitor dark,
          and a wall one screen wide. Ask for exactly as many screens as there
          are monitors and you plainly mean all of them, the booth's included —
-         it folds into a corner for precisely this. */
-      const skipBooth = of < displays.length;
+         it folds into a corner for precisely this. The arithmetic that
+         learned all of that is stagePlan now — one place, unit-tested, and
+         shared with the web door below, which deals screens to monitors in
+         reading order across the real desk. */
+      const plan = stagePlan(displays, of, this.boothDisplay(displays));
       for (let i = 1; i <= of; i++){
-        const idx = Math.min(skipBooth ? i : i - 1, Math.max(0, displays.length - 1));
+        const idx = plan.length ? plan[i - 1] : 0;
         const r = await NATIVE.call('open_stage', { display: idx, screen: i, of });
         if (r === true){
           opened++;                    // the command answers true; null is "no shell"
           const d = displays[idx];
           if (d) this.placed['s' + i] = { display: idx, x: d.x, y: d.y, w: d.width, h: d.height };
         }
+      }
+    }
+    if (!opened && !NATIVE.ready()){
+      /* THE SHELL'S TRICK, WITHOUT THE SHELL. A Chromium booth that has been
+         shown the screens can do what only the Mac app could: put each window
+         ON the monitor it belongs to, sized to it — and, where the browser
+         allows a popup to be born fullscreen, already filling it. The wall is
+         told where each window went (this.placed) so the cut is right on the
+         frame the windows open, exactly as it is for the shell's. Anywhere
+         short of that — an older Chromium that placed the window but kept it
+         a window — the operator double-clicks the picture and it fills; see
+         becomeScreen. Browsers that never learned the API skip this branch
+         entirely and fall to the row below, which is the old manner: open
+         near, drag onto the television by hand. */
+      const ds = await this.webScreens();
+      if (ds && ds.length > 1){
+        const plan = stagePlan(ds, of, this.boothDisplay(ds));
+        for (let i = 1; i <= of; i++){
+          const d = ds[plan[i - 1]];
+          if (!d) break;
+          const w = window.open(this.url(i, of, false, 's' + i), 'mb8stage' + i,
+            'left=' + Math.round(d.x) + ',top=' + Math.round(d.y)
+            + ',width=' + Math.round(d.width) + ',height=' + Math.round(d.height)
+            + ',menubar=no,toolbar=no' + (d.current ? '' : ',fullscreen'));
+          if (!w) break;
+          this.wins.push(w);
+          this.placed['s' + i] = { display: plan[i - 1], x: d.x, y: d.y, w: d.width, h: d.height };
+        }
+        opened = this.wins.length;
       }
     }
     if (!opened){
@@ -23789,13 +23915,15 @@ const STAGE = {
     }
     this.on = true;
     this.pip = false;
+    this.wake(true);                   // a booth driving a stage must not dim
     this.setMini(true);
     // the monitors are known, so the wall is right before a screen has spoken
     this._wallKey = '';
     this.pushWall(true);
     ACTIVITY.log('system', 'Stage mode on - ' + of + (of === 1 ? ' screen' : ' screens'));
     toast('Stage mode — the field is on ' + (of === 1 ? 'its own screen' : of + ' screens')
-      + '. This window is the booth.');
+      + '. This window is the booth.'
+      + (NATIVE.ready() ? '' : ' Double-click a screen to fill its monitor.'));
   },
 
   /* THE STAGE, THE SIZE OF A POSTCARD — AND THERE CAN BE SEVERAL.
@@ -23845,6 +23973,7 @@ const STAGE = {
     this.pipNative = native;
     this.pip = true;
     this.on = true;
+    this.wake(true);                   // rehearsal dims no more than the show
     // the picture is a preview here, not a hand-off: the booth stays whole,
     // because the whole point is watching the room's screen WHILE working
     this.setMini(false);
@@ -23869,14 +23998,90 @@ const STAGE = {
      that monitor". The shell is asked, and the operator is asked which. */
   async displayList(force){
     if (this.displays && this.displays.length && !force) return this.displays;
-    this.displays = (NATIVE.ready() && await NATIVE.call('list_displays')) || [];
+    this.displays = (NATIVE.ready() && await NATIVE.call('list_displays'))
+      || (await this.webScreens()) || [];
     return this.displays;
+  },
+  /* THE SCREENS, ASKED OF THE BROWSER ITSELF. For years "a browser may open a
+     window but may not choose the monitor" was simply true, and the shell was
+     the only door to a named screen. It is not true anymore: Chromium's
+     window-management permission hands over the real list — positions, sizes,
+     labels, which one this window is on — and with it window.open() may say
+     `left` and `top` on ANOTHER monitor and mean it, and the newest builds
+     will even open the window already fullscreen there.
+
+     Asked once, cached for the session; the permission prompt rides the
+     operator's own click on the Stage chip — `ask` is true from exactly one
+     caller, the chooser, because that is the one moment a permission dialog
+     reads as an answer rather than an ambush. Every other door in (a keyboard
+     shortcut, a corner window's ↗) arrives QUIETLY: it uses the screens if
+     permission is already granted and otherwise takes the older manners,
+     because a prompt raised mid-open is a prompt nobody may ever answer —
+     getScreenDetails() simply never resolves while a dialog hangs, and an
+     open() awaiting it is a stage that never opens. A browser without the
+     API, or an operator who says no, returns null and the stage keeps those
+     older manners: windows in a row, dragged by hand. Refused is an answer,
+     not an error. */
+  async webScreens(ask){
+    if (NATIVE.ready() || typeof window.getScreenDetails !== 'function') return null;
+    if (this._sd) return this.webScreenList(this._sd);
+    if (!ask && !(await this.webScreensAllowed())) return null;
+    try {
+      const sd = await window.getScreenDetails();
+      this._sd = sd;
+      /* a monitor plugged in or lost mid-show is news the booth can act on —
+         said once, out loud, and the list refreshed so the next door opened
+         lands on the desk as it is now, not as it was at boot. */
+      sd.addEventListener('screenschange', () => {
+        this.displays = this.webScreenList(sd);
+        if (this.on) toast('The monitors changed — ' + this.displays.length
+          + ' now. Screens keep their windows; open another to use a new monitor.');
+      });
+      return this.webScreenList(sd);
+    } catch (e){ return null; }
+  },
+  /* has the operator already said yes? The permission's name changed on its
+     way to standardization, so both are asked; a browser that recognizes
+     neither has answered the real question too. */
+  async webScreensAllowed(){
+    if (!navigator.permissions || !navigator.permissions.query) return false;
+    for (const name of ['window-management', 'window-placement']){
+      try {
+        const st = await navigator.permissions.query({ name });
+        return st.state === 'granted';
+      } catch (e){}                      // an unknown name; try the other
+    }
+    return false;
+  },
+  /* the browser's screens, in the shell's own shape, so displayName, the
+     picker and the planner never learn which of the two answered */
+  webScreenList(sd){
+    const out = [];
+    for (const s of (sd && sd.screens) || []){
+      out.push({
+        x: Number(s.availLeft) || 0, y: Number(s.availTop) || 0,
+        width: Math.max(1, Number(s.availWidth) || 1),
+        height: Math.max(1, Number(s.availHeight) || 1),
+        primary: !!s.isPrimary, internal: !!s.isInternal,
+        name: s.label || '', current: s === sd.currentScreen,
+      });
+    }
+    return out;
+  },
+  /* which monitor the booth itself is on: the one thing the planner spares.
+     The web says exactly (currentScreen); the shell's list only marks the
+     primary, which is where a booth almost always lives. */
+  boothDisplay(ds){
+    let i = (ds || []).findIndex(d => d && d.current);
+    if (i < 0) i = (ds || []).findIndex(d => d && d.primary);
+    return i < 0 ? 0 : i;
   },
   displayName(i){
     const d = (this.displays || [])[i];
     if (!d) return 'that screen';
     const size = Math.round(d.width) + '×' + Math.round(d.height);
-    return (d.name ? d.name + ' · ' : '') + size + (d.primary ? ' (this Mac)' : '');
+    return (d.name ? d.name + ' · ' : '') + size
+      + (d.current || d.primary ? ' — the booth is here' : '');
   },
   /* the one nothing is on yet, preferring a screen that is not the booth's —
      the answer the operator was going to give anyway, offered as the default */
@@ -24125,17 +24330,37 @@ const STAGE = {
             + 'open aethrakairos.com in a browser to use the second screen, or keep it here.');
           return;
         }
-        const w = window.open(this.url(p.i, this.pips.length, false, sid), 'mb8stage' + p.i,
-          'width=1280,height=720,menubar=no,toolbar=no');
+        /* the browser's own door to a named monitor, where it has one: the
+           operator picks the screen exactly as they would in the shell, and
+           the window opens there — fullscreen where the browser allows a
+           popup to be, a double-click from it where it does not. */
+        const ds = await this.webScreens();
+        let feat = 'width=1280,height=720,menubar=no,toolbar=no';
+        let where = -1;
+        if (ds && ds.length > 1){
+          where = await this.pickDisplay(p.i);
+          if (where === null) return;                     // asked and thought better of it
+          const d = this.displays[where];
+          if (d) feat = 'left=' + Math.round(d.x) + ',top=' + Math.round(d.y)
+            + ',width=' + Math.round(d.width) + ',height=' + Math.round(d.height)
+            + ',menubar=no,toolbar=no' + (d.current ? '' : ',fullscreen');
+        }
+        const w = window.open(this.url(p.i, this.pips.length, false, sid), 'mb8stage' + p.i, feat);
         if (!w){
           toast('That window was blocked — allow pop-ups for this site, or keep it here');
           return;
         }
         this.wins.push(w);
+        if (where >= 0 && this.displays[where]){
+          const d = this.displays[where];
+          this.placed[sid] = { display: where, x: d.x, y: d.y, w: d.width, h: d.height };
+        }
         const alone = this.pips.length <= 1;
         this.closePip(sid, true);
         if (alone) this.setMini(true);
-        toast('Screen ' + p.i + ' — drag that window onto the television, then make it full screen.');
+        toast(where >= 0
+          ? 'Screen ' + p.i + ' is on ' + this.displayName(where) + ' — double-click it if it is not full screen.'
+          : 'Screen ' + p.i + ' — drag that window onto the television, then make it full screen.');
       });
 
       // a window that shrinks must not leave the picture out at sea
@@ -24239,6 +24464,7 @@ const STAGE = {
   },
   stop(){
     this.on = false;
+    this.wake(false);
     this.ident = false;
     this.send({ t: 'ident', on: false });
     this.send({ t: 'booth-gone' });

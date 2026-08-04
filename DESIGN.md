@@ -952,6 +952,55 @@ asked by name, the shell is asked for the monitor named, `window.open` is never 
 at all, the placement is remembered, two screens get one monitor each, and the field
 spans both as a single wall with the screens numbered left to right.
 
+### 1.2l‴ The web learns to place a window, and the show learns to stay awake
+
+For as long as this document has existed, one sentence has been the case for the Mac
+shell: *a browser may open a window but may not choose the monitor.* It stopped being
+true — Chromium's window-management permission hands the page the real list of screens
+(positions, sizes, labels, which one the booth is on), lets `window.open` say `left`
+and `top` on another monitor and mean it, and in recent builds lets a popup be born
+fullscreen there. So the web path now does what only the shell could:
+
+- **One arithmetic decides which screen goes on which monitor** — `stagePlan`, pure and
+  unit-tested, shared by the shell door and the web door. Screens are dealt to monitors
+  in READING ORDER across the real desk (the same banding `stageOrder` uses), because
+  screen one belongs on the leftmost television and not on whichever monitor the OS
+  enumerated first — which is also a bug the old inline arithmetic actually had: a
+  television plugged in to the *left* of the laptop still got screen one dealt as if it
+  hung to the right. The booth's monitor is spared while there are enough others, dealt
+  in the moment every monitor is asked for; extras stack visibly on the last one rather
+  than being refused invisibly.
+- **The permission prompt rides the operator's own click, and only that click.** The
+  chooser (the Stage chip) may ask; every other door in — a keyboard shortcut, a corner
+  window's `↗` — uses the screens only if permission is already granted, and otherwise
+  keeps the older manners. Not merely politeness: `getScreenDetails()` simply never
+  resolves while its dialog hangs, and the first draft of this awaited it inside
+  `open()` — in any context where nobody can answer (a webview, an automation, the
+  probe itself) the stage never opened at all. A prompt nobody may ever answer cannot
+  be on the opening path.
+- **The booth records where it sent each window** (`placed`), exactly as it does for
+  the shell's windows, so the wall is right on the frame the windows open. Where the
+  browser placed the window but was not allowed to fullscreen it — the gesture a
+  browser demands has to happen on THAT window — the answer is the video player's own
+  convention: a double-click on the picture fills the screen, said once in the toast.
+- **A monitor plugged in or lost mid-show is news, not silence.** `screenschange`
+  refreshes the list and says so out loud; the windows keep their places, and the next
+  door opened lands on the desk as it is now.
+- **The glass stays lit for the length of the set.** A booth driving a stage and a
+  room-sized screen both hold a wake lock now (same shape as `POWER.wake`, held
+  separately — the stage's claim outlives any power mode the operator flips through),
+  re-acquired when the tab returns because the OS releases them on hide, silently. A
+  corner window leaves this to the booth it floats over. Nobody touches either surface
+  for an hour precisely when the show is going *well*, and a television dimming
+  mid-set reads as a crash from the back of the floor.
+
+Safari and Firefox never learned the API and are not pretended at: they answer with
+`screen.isExtended` at most (a count of one bit, enough to know the laptop is not
+alone), windows open in a row, and the operator drags them onto the televisions —
+the manners the wall was designed around in the first place, which is why nothing
+above adds a second code path to the geometry. A placed window, a dragged window and
+a shell window are all just rectangles in the same roster.
+
 ### 1.2m Stage presence at scale — three to eight televisions *(planned)*
 
 What ships today is correct for any N — the address bar takes `screen` and `of`, the
