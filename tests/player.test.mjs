@@ -51,10 +51,13 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
   ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
+  ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
+  ' pyroRate, pyroFire, pyroPick, pyroSalt,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss,' +
+  ' WARM_HUES, warmHue, warmBlend, WARM_PULL, warmDeal, togetherness, warmSpark, beatGrace, SCENE_SIGS, sceneSig,' +
   ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaFlow, lavaK6, lavaKS, lavaW, lavaGradW,' +
   ' lavaCohesion, lavaRestDensity, lavaRestGrad, lavaCohesionScale, lavaBudget,' +
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError };';
@@ -2271,6 +2274,122 @@ test('the roll: about half the visits are the whole bench, and every source is r
   assert.equal(S.flameRoll(NaN).mode, 'vigil', 'nonsense rolls the safe one');
   assert.deepEqual(S.flameRoll(0.7), S.flameRoll(1.7), 'the roll is a pure function of its fraction');
 });
+// ------------------------------------------------------- and then it fires
+
+test('the stars are chemistry: real emitters, through the same observer', () => {
+  assert.equal(S.PYRO_STARS.length, 9);
+  const by = k => S.PYRO_STARS.find(x => x.key === k);
+  for (const st of S.PYRO_STARS){
+    assert.ok(st.nm ? st.nm >= 380 && st.nm <= 750 : st.kelvin >= 1000,
+      `${st.key} emits something real`);
+    const c = S.pyroStarRGB(st);
+    assert.ok(Math.max(c.r, c.g, c.b) > 0.99, `${st.key} is normalised`);
+    assert.ok(Math.min(c.r, c.g, c.b) >= 0, `${st.key} has no negative channel`);
+  }
+  const ba = S.pyroStarRGB(by('barium')), cu = S.pyroStarRGB(by('copper'));
+  assert.ok(ba.g > 0.9 && ba.r < 0.2, `barium at 515 nm is green: ${S.rgbHex(ba)}`);
+  assert.ok(cu.b > 0.9 && cu.g < 0.2, `copper at 452 nm is blue: ${S.rgbHex(cu)}`);
+  // the gold willow is not a colour, it is charcoal — so it must land on the
+  // same amber the black-body model gives a flame of that temperature
+  assert.equal(S.rgbHex(S.pyroStarRGB(by('charcoal'))), S.rgbHex(S.kelvinRGB(1750)),
+    'gold is incandescence, and comes from the same model the flames use');
+  // two emitters in one pellet ADD: purple must sit between its parents and be
+  // reachable by neither of them alone
+  const pu = S.pyroStarRGB(by('purple')), sr = S.pyroStarRGB(by('strontium'));
+  assert.ok(pu.r > 0.5 && pu.b > 0.5, `purple carries both lines: ${S.rgbHex(pu)}`);
+  assert.ok(pu.b > sr.b && pu.r > cu.r, 'and is neither of them');
+});
+test('pyroFlight: a star in air, and the vacuum it reduces to', () => {
+  // THE limit test: take the air away and it must reproduce schoolbook
+  // ballistics exactly, or the closed form is not the closed form
+  const t = 2, v0 = 10, g = 9.8;
+  // (the model floors drag at 1e-4 rather than dividing by zero, so the limit
+  // is approached to about a part in ten thousand rather than reached)
+  const vac = S.pyroFlight(t, v0, 1e-7, g);
+  assert.ok(Math.abs(vac.reach - v0 * t) < 0.01, `reach → v₀t: ${vac.reach}`);
+  assert.ok(Math.abs(vac.fall - 0.5 * g * t * t) < 0.01, `fall → ½gt²: ${vac.fall}`);
+  // with air, displacement is bounded by v₀/k however long you wait
+  assert.ok(Math.abs(S.pyroFlight(1e5, 10, 2, g).reach - 5) < 1e-6, 'terminal displacement is v₀/k');
+  assert.ok(S.pyroFlight(3, 10, 2, g).reach < 10 * 3, 'air always costs reach');
+  // and the fall is eventually linear — terminal velocity, not acceleration
+  const a = S.pyroFlight(20, 10, 2, g).fall, b = S.pyroFlight(21, 10, 2, g).fall;
+  assert.ok(Math.abs((b - a) - g / 2) < 1e-3, `terminal velocity g/k: ${b - a}`);
+  // monotone, and never NaN on nonsense
+  let last = -1;
+  for (let x = 0; x <= 5; x += 0.1){
+    const f = S.pyroFlight(x, 12, 0.8, g);
+    assert.ok(f.reach >= last - 1e-9 && isFinite(f.reach) && isFinite(f.fall), `at ${x}`);
+    last = f.reach;
+  }
+  const z = S.pyroFlight(-3, 10, 0, 0);
+  assert.equal(z.reach, 0); assert.equal(z.fall, 0);
+  assert.ok(isFinite(S.pyroFlight(NaN, NaN, NaN, NaN).reach), 'nonsense is not NaN');
+});
+test('the pieces differ by three numbers, not by three animations', () => {
+  const keys = S.PYRO_SHELLS.map(s => s.key);
+  assert.equal(new Set(keys).size, S.PYRO_SHELLS.length, 'no two pieces share a key');
+  for (const sh of S.PYRO_SHELLS){
+    assert.ok(sh.v0 > 0 && sh.drag > 0 && sh.life > 0, `${sh.key} is a real piece`);
+    assert.ok(sh.lift >= 0 && sh.lift < 1, `${sh.key}'s climb is a share of its life`);
+    // every piece must fit a room: terminal reach bounded, or it leaves the frame
+    assert.ok(sh.v0 / sh.drag < 16, `${sh.key} stays in the room: ${(sh.v0 / sh.drag).toFixed(1)}`);
+  }
+  const peony = S.pyroShell('peony'), willow = S.pyroShell('willow');
+  // a willow droops and a peony does not — and that IS the gravity number
+  assert.ok(willow.grav > peony.grav && willow.life > peony.life, 'a willow hangs and falls');
+  assert.ok(S.pyroShell('billow').grav < 0, 'smoke is buoyant, so its gravity points up');
+  assert.ok(S.pyroShell('gerb').lift === 0 && S.pyroShell('mine').lift === 0,
+    'the ground pieces have nowhere to climb to');
+  assert.equal(S.pyroShell('nonsense').key, S.PYRO_SHELLS[0].key, 'an unknown piece is still a piece');
+});
+test('pyroRate: the sky is as busy as the music, and quiet when it is', () => {
+  const at = (energy, mood, calm) => S.pyroRate({ energy, mood, calm });
+  assert.ok(at(0.9, 'apex') > at(0.9, 'drive'), 'an apex opens up');
+  assert.ok(at(0.9, 'drive') > at(0.1, 'drive'), 'and energy drives it');
+  assert.ok(at(0.9, 'adrift') < at(0.9, 'drive'), 'drifting goes quiet');
+  assert.ok(at(0.9, 'apex', true) < at(0.9, 'apex'), 'CALM thins the sky');
+  assert.ok(at(0, 'adrift') > 0, 'but it never stops entirely — something is always burning');
+  assert.ok(isFinite(S.pyroRate({})) && S.pyroRate({}) > 0, 'an unknown moment still fires');
+});
+test('pyroFire: the budget lands on the hit, and can never run away', () => {
+  assert.equal(S.pyroFire(0, 0.016, 2, false).fire, 0, 'a frame is not a firework');
+  assert.equal(S.pyroFire(0.9, 0.016, 2, true).fire, 1, 'an onset spends an almost-full budget');
+  assert.equal(S.pyroFire(0.1, 0.016, 2, true).fire, 0, 'but not an empty one');
+  assert.equal(S.pyroFire(0.99, 0.016, 2, false).fire, 1, 'and a full budget fires anyway');
+  // a tab that was in the background for a minute must not return to a minute
+  // of shells: both the count and the carried budget are capped
+  const huge = S.pyroFire(0, 60, 4, true);
+  assert.ok(huge.fire <= S.PYRO_TUNING.maxPerFrame, `capped: ${huge.fire}`);
+  assert.ok(huge.acc <= 2 && huge.acc >= 0, `and the carry is bounded: ${huge.acc}`);
+  for (const bad of [[NaN, 0.016, 2], [0, NaN, 2], [0, 0.016, NaN], [-5, -5, -5]]){
+    const r = S.pyroFire(bad[0], bad[1], bad[2], false);
+    assert.ok(isFinite(r.acc) && r.fire >= 0, JSON.stringify(bad));
+  }
+});
+test('pyroPick / pyroSalt: the moment chooses the piece and its chemistry', () => {
+  const shells = new Set(S.PYRO_SHELLS.map(s => s.key));
+  const salts = new Set(S.PYRO_STARS.map(s => s.key));
+  const walk = (fn, o) => Array.from({ length: 200 }, (_, i) => fn(o, i / 200));
+  for (const o of [{ energy: 0.9, mood: 'apex' }, { energy: 0.1, mood: 'adrift' },
+                   { energy: 0.5, mood: 'drive' }, {}]){
+    for (const k of walk(S.pyroPick, o)) assert.ok(shells.has(k), `${k} is not a piece`);
+    for (const k of walk(S.pyroSalt, o)) assert.ok(salts.has(k), `${k} is not a chemistry`);
+  }
+  const quiet = walk(S.pyroPick, { energy: 0.08, mood: 'adrift' });
+  const loud = walk(S.pyroPick, { energy: 0.95, mood: 'apex' });
+  const share = (l, k) => l.filter(x => x === k).length / l.length;
+  assert.ok(share(quiet, 'billow') > 0.4, 'a quiet room is mostly smoke');
+  assert.equal(share(quiet, 'peony'), 0, 'and never opens the sky');
+  const sky = ['peony', 'chrys', 'palm', 'ring', 'crossette', 'strobe'];
+  assert.ok(sky.reduce((a, k) => a + share(loud, k), 0) > 0.8, 'an apex is nearly all shells');
+  assert.equal(share(loud, 'billow'), 0, 'nobody watches smoke at the apex');
+  // the hard colours are earned: copper blue is expensive in a real shell too
+  const dim = walk(S.pyroSalt, { energy: 0.05, treble: 0.05 });
+  const bright = walk(S.pyroSalt, { energy: 0.95, treble: 0.95 });
+  assert.equal(share(dim, 'copper'), 0, 'a dim moment does not get copper');
+  assert.ok(share(bright, 'copper') > 0.1, 'a bright one does');
+  assert.ok(share(dim, 'charcoal') > share(bright, 'charcoal'), 'and the quiet keeps the gold');
+});
 test('the readout says what colour the thing is — because that is the room', () => {
   const laser = S.flameLabel(S.FLAME_SOURCES.find(s => s.key === 'laser'));
   assert.ok(/LASER · 532 nm · #[0-9A-F]{6}$/.test(laser), laser);
@@ -4363,6 +4482,13 @@ test('lavaBudget: less asked of less, and never past the array', () => {
   const full = S.lavaBudget({}), eco = S.lavaBudget({ eco: true }),
         weak = S.lavaBudget({ struggling: true });
   assert.ok(eco.n < full.n && weak.n <= eco.n, 'fewer particles for a weaker device');
+  // …and a machine we already KNOW the answer for is not made to wait for the
+  // frame governor to discover it over someone's first ten seconds
+  assert.ok(S.lavaBudget({ ios: true }).n < full.n, 'a phone is budgeted as a phone');
+  assert.ok(S.lavaBudget({ cores: 2 }).n < full.n, 'and so is a two-core machine');
+  assert.equal(S.lavaBudget({ cores: 16 }).n, full.n, 'a big machine gets the lot');
+  assert.ok(S.lavaBudget({ ios: true, struggling: true }).n
+            <= S.lavaBudget({ ios: true }).n, 'the hints compose downward');
   for (const b of [full, eco, weak]) assert.ok(b.n <= S.LAVA.maxN, 'within the cap');
   // …and the fluid is COARSER, not smaller: the same wax fills the same
   // bottle out of fewer, larger parcels
@@ -4487,6 +4613,136 @@ test('makeLava: the same seed is the same lamp, twice', () => {
     return s;
   };
   assert.equal(run(), run(), 'deterministic from the seed');
+});
+
+
+/* ---------------- the warm-up: joining as something you DO ---------------- */
+
+test('warmBlend: hues are angles, and the wrap is where the room lives', () => {
+  // the whole reason this is not an average. 350 and 10 meet at 0, and an
+  // arithmetic mean would answer 180 — the exact opposite colour, on the one
+  // pair of picks half a room actually makes.
+  const b = S.warmBlend([{ h: 350, c: 0.16 }, { h: 10, c: 0.16 }]);
+  const off = Math.min(Math.abs(b.h - 0), Math.abs(b.h - 360));
+  assert.ok(off < 1e-6, 'met at red, not at cyan: ' + b.h.toFixed(3));
+});
+
+test('warmBlend: agreement and scatter are told apart', () => {
+  const same = S.warmBlend([{ hue: 4 }, { hue: 4 }, { hue: 4 }]);
+  assert.ok(same.spread < 1e-6, 'a room that agrees has no spread');
+  // four picks at the compass points cancel: no direction at all
+  const wide = S.warmBlend([{ h: 0, c: 0.16 }, { h: 90, c: 0.16 },
+                            { h: 180, c: 0.16 }, { h: 270, c: 0.16 }]);
+  assert.ok(wide.spread > 0.99, 'a room pulling four ways is scatter: ' + wide.spread.toFixed(3));
+  assert.equal(wide.voices, 4);
+});
+
+test('warmBlend: standing in the room without steering it', () => {
+  const bone = S.WARM_HUES[S.WARM_HUES.length - 1];
+  assert.equal(bone.c, 0, 'the last swatch carries no colour');
+  const with_ = S.warmBlend([{ h: 200, c: 0.15 }, bone, bone]);
+  const alone = S.warmBlend([{ h: 200, c: 0.15 }]);
+  assert.ok(Math.abs(with_.h - alone.h) < 1e-9, 'colourless picks never drag the mean');
+  assert.equal(with_.n, 3, 'but they are in the room');
+  assert.equal(with_.voices, 1, 'and not in the vote');
+});
+
+test('warmBlend: nobody, and nobody with a colour', () => {
+  assert.deepEqual(S.warmBlend([]), { h: 0, c: 0, n: 0, spread: 0, voices: 0 });
+  assert.deepEqual(S.warmBlend(null), { h: 0, c: 0, n: 0, spread: 0, voices: 0 });
+  const q = S.warmBlend([{ h: 10, c: 0 }, { h: 300, c: 0 }]);
+  assert.equal(q.voices, 0, 'no voices');
+  assert.equal(q.n, 2, 'two people all the same');
+});
+
+test('warmHue: any index lands on a real swatch', () => {
+  for (const i of [-9, -1, 0, 3, 7, 8, 99, 1.7]){
+    const e = S.warmHue(i);
+    assert.ok(S.WARM_HUES.indexOf(e) >= 0, 'index ' + i + ' is somebody');
+  }
+  assert.strictEqual(S.warmHue(NaN), S.WARM_HUES[0], 'junk gets the first, not undefined');
+  assert.strictEqual(S.warmHue(-1), S.WARM_HUES[S.WARM_HUES.length - 1], 'wraps backwards');
+});
+
+test('warmDeal: the room leans the deal, it never seizes it', () => {
+  const all = S.warmDeal([{ scene: 'lava' }, { scene: 'lava' }, { scene: 'lava' }]);
+  assert.ok(all.lava > 1, 'a unanimous room is a real thumb on the scale');
+  assert.ok(all.lava <= 1 + S.WARM_PULL + 1e-9, 'and a bounded one: ' + all.lava);
+  assert.equal(all.flame, undefined, 'a room nobody picked is untouched, not punished');
+  const split = S.warmDeal([{ scene: 'lava' }, { scene: 'halo' },
+                            { scene: 'fern' }, { scene: 'opart' }]);
+  for (const k of Object.keys(split)) assert.ok(split[k] < all.lava, k + ' moves less than unanimity');
+  assert.deepEqual(S.warmDeal([]), {}, 'nobody has picked yet: no opinion at all');
+  assert.deepEqual(S.warmDeal([{ hue: 2 }]), {}, 'a colour pick is not a scene vote');
+});
+
+test('togetherness: the meter cannot be filled alone', () => {
+  const now = 10000;
+  const drum = [];
+  for (let i = 0; i < 40; i++) drum.push({ id: 'a', at: now - i * 20 });
+  assert.equal(S.togetherness(drum, now, 1200).v, 0, 'one thumb, however fast');
+  assert.equal(S.togetherness(drum, now, 1200).n, 1);
+  const four = [{ id: 'a', at: now - 100 }, { id: 'b', at: now - 300 },
+                { id: 'c', at: now - 800 }, { id: 'd', at: now - 1100 }];
+  assert.equal(S.togetherness(four, now, 1200).v, 1, 'four hands is the room');
+  assert.ok(S.togetherness(four.slice(0, 2), now, 1200).v > 0, 'two is a start');
+  // and it decays: the same four, a moment later, are history
+  assert.equal(S.togetherness(four, now + 5000, 1200).n, 0, 'the window really is a window');
+});
+
+test('togetherness: junk in the tap list is not a hand', () => {
+  const now = 500;
+  const t = S.togetherness([null, { at: now }, { id: 'a', at: now }, { id: 'a' }], now, 1200);
+  assert.equal(t.n, 1, 'one real id; the anonymous entry is nobody');
+});
+
+test('warmSpark: a stone in water, not a loading spinner', () => {
+  assert.deepEqual(S.warmSpark(-1, 2), { r: 0, a: 0 }, 'before it happened');
+  assert.deepEqual(S.warmSpark(3, 2), { r: 0, a: 0 }, 'after it is over');
+  const early = S.warmSpark(0.25, 2), late = S.warmSpark(1.75, 2);
+  assert.ok(early.r < late.r, 'the ring only ever grows');
+  assert.ok(early.a > late.a, 'and only ever fades');
+  // the first quarter of its life covers half the distance: fast, then settling
+  assert.ok(S.warmSpark(0.5, 2).r > 0.49, 'leaves fast: ' + S.warmSpark(0.5, 2).r.toFixed(3));
+  assert.ok(S.warmSpark(2, 2).a < 1e-9, 'gone at the end, not merely faint');
+});
+
+test('beatGrace: 0.98 is early, not late', () => {
+  assert.ok(S.beatGrace(0.98, 0.16) > 0.8, 'two hundredths early is on time');
+  assert.equal(S.beatGrace(0.5, 0.16), 0, 'the far side of the beat scores nothing');
+  assert.equal(S.beatGrace(0, 0.16), 1, 'dead on');
+  assert.equal(S.beatGrace(1, 0.16), 1, 'and the wrap is dead on too');
+  assert.equal(S.beatGrace(NaN, 0.16), 0, 'no grid, no bonus, no crash');
+  // it never goes negative — being off the beat costs nothing
+  for (let p = 0; p < 1; p += 0.017) assert.ok(S.beatGrace(p, 0.16) >= 0, 'never a penalty');
+});
+
+test('dealScene: the room leans the night without seizing it', () => {
+  // two rooms, identical appetite, and a crowd that all voted for the second
+  const scenes = [{ key: 'a', taste: {} }, { key: 'b', taste: {} }];
+  const crowd = S.warmDeal([{ scene: 'b' }, { scene: 'b' }, { scene: 'b' }]);
+  let a = 0, b = 0;
+  for (let i = 0; i < 400; i++){
+    const r = i / 400;
+    if (S.dealScene({ scenes, f: {}, active: -1, r, crowd }) === 1) b++; else a++;
+  }
+  assert.ok(b > a, 'the voted room comes up more often: ' + b + ' vs ' + a);
+  assert.ok(a > 0, 'and the other one still comes up at all — a lean, not a seizure');
+  // and with nobody in the room the deal is exactly what it always was
+  let plain = 0;
+  for (let i = 0; i < 400; i++){
+    if (S.dealScene({ scenes, f: {}, active: -1, r: i / 400, crowd: S.warmDeal([]) }) === 1) plain++;
+  }
+  assert.ok(Math.abs(plain - 200) <= 1, 'an empty room is a fair coin: ' + plain + '/400');
+});
+
+test('sceneSig: every room has a thumbnail somebody can point at', () => {
+  for (const k of S.SCENE_KEYS){
+    assert.ok(S.SCENE_SIGS[k], 'no signature for scene "' + k + '" — its tile would be blank');
+    assert.ok(S.SCENE_SIGS[k].kind, k + ' has a painter');
+    assert.ok(S.SCENE_SIGS[k].h >= 0 && S.SCENE_SIGS[k].h < 360, k + ' has a hue');
+  }
+  assert.ok(S.sceneSig('a room invented tomorrow').kind, 'an unknown key still draws something');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

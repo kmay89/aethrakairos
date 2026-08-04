@@ -13,7 +13,10 @@
  *           BroadcastChannel between them, and a screen that renders the booth's
  *           numbers without a catalog, a transport or a sound of its own.
  *
- *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,wire,crowd,pages,install] [--keep]
+ *   warm    the join, as something you DO: two questions, then every hand in
+ *           the room drawn on every screen in the room.
+ *
+ *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,wire,warm,crowd,pages,install] [--keep]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -972,6 +975,139 @@ if (want('wire')){
       /closed|stopped/.test(why), why);
     await ctx.close();
   }
+}
+
+// ----------------------------------------------------------------- warm
+if (want('warm')){
+  console.log('\nthe warm-up, and the room\'s hands');
+  const ctx = await browser.newContext();
+  const { page: booth } = await open(ctx, '/');
+  const { page: screen } = await open(ctx, '/?stage=screen&screen=1&of=1');
+
+  // nothing at all until the booth has actually shown a picture: a warm-up
+  // over a black rectangle is somebody decorating a crash
+  const early = await screen.evaluate(() => !document.getElementById('warmup').hidden);
+  verdict('warm: silent until the field is really there', early === false);
+
+  const frame = () => screen.evaluate(() => STAGE.recv({
+    t: 'f', at: performance.now(),
+    f: { bass: 0.4, mid: 0.4, treble: 0.2, energy: 0.5, beat: 0.4, centroid: 0.3 },
+    clock: { g: true, i: 3, b: 0.02, t: 120 },
+    dance: { p: 0.4, w: 0.01, e: 0.9, b: 0.2, f: 0.5, g: true },
+    dir: { s: 1, a: 2, t: 0.5, p: 'peak', c: 0.1, w: 0.2 },
+    cam: [3, 4, 12, 0, 0, 0, 1, 55],
+    col: [[0.7, 0.11, 200], [0.6, 0.12, 220], [0.5, 0.13, 240]],
+    hand: { x: 0, y: 0, d: false },
+  }));
+  await frame();
+  await screen.waitForTimeout(250);
+
+  const step1 = await screen.evaluate(() => ({
+    up: !document.getElementById('warmup').hidden,
+    cells: document.querySelectorAll('#wuGrid .wu-cell').length,
+    title: document.getElementById('wuTitle').textContent,
+    cursor: getComputedStyle(document.body).cursor,
+  }));
+  verdict('warm: the first frame brings the questions with it', step1.up === true);
+  verdict('warm: one swatch per colour, all of them tappable',
+    step1.cells === 8 && /colour/i.test(step1.title), step1.cells + ' cells, "' + step1.title + '"');
+  verdict('warm: a screen being PICKED on shows its cursor again — a hidden pointer\n'
+    + '        cannot find a swatch', step1.cursor !== 'none', step1.cursor);
+
+  await screen.click('#wuGrid .wu-cell:nth-child(5)');       // sky
+  await screen.waitForTimeout(400);
+  const step2 = await screen.evaluate(() => {
+    const tiles = [...document.querySelectorAll('#wuGrid .wu-cell')];
+    // a tile that painted nothing is a tile nobody will ever choose, so the
+    // pixels are read rather than the presence of a canvas trusted
+    let painted = 0;
+    for (const t of tiles){
+      const cv = t.querySelector('canvas');
+      if (!cv || !cv.width) continue;
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let lo = 255, hi = 0;
+      for (let i = 0; i < d.length; i += 4 * 37){
+        const v = d[i] + d[i + 1] + d[i + 2];
+        if (v < lo) lo = v; if (v > hi) hi = v;
+      }
+      if (hi - lo > 40) painted++;                            // it has CONTRAST, not just a fill
+    }
+    return { n: tiles.length, painted, title: document.getElementById('wuTitle').textContent };
+  });
+  verdict('warm: picking a colour asks the second question', /look/i.test(step2.title), step2.title);
+  verdict('warm: every room drew itself a thumbnail with something in it',
+    step2.n > 0 && step2.painted === step2.n, step2.painted + '/' + step2.n + ' painted');
+
+  await screen.click('#wuGrid .wu-cell:nth-child(2)');
+  await screen.waitForTimeout(600);
+  const after = await screen.evaluate(() => ({
+    up: !document.getElementById('warmup').hidden,
+    done: WARM.done, hue: WARM.hue, scene: WARM.scene,
+    sparks: WARM.sparks.length,
+    cursor: getComputedStyle(document.body).cursor,
+  }));
+  verdict('warm: picking a look ends the warm-up', after.up === false && after.done === true);
+  verdict('warm: and the pick is confirmed in light, not in words', after.sparks >= 1,
+    after.sparks + ' spark(s)');
+  verdict('warm: the audience surface hides its cursor again', after.cursor === 'none', after.cursor);
+
+  const heard = await booth.evaluate(() => {
+    const p = [...WARM.picks.values()];
+    return { n: WARM.picks.size, hue: p[0] && p[0].hue, scene: p[0] && p[0].scene,
+             crowd: WARM.crowd() };
+  });
+  verdict('warm: the booth learns who joined and what they like',
+    heard.n === 1 && heard.hue === after.hue && heard.scene === after.scene,
+    JSON.stringify(heard));
+  verdict('warm: and that vote reaches the director as a lean',
+    heard.crowd[after.scene] > 1, JSON.stringify(heard.crowd));
+
+  // A HAND ON THE PICTURE. The field is the only control a stage screen has.
+  await screen.mouse.move(240, 200);
+  await screen.mouse.down();
+  await screen.mouse.up();
+  await screen.waitForTimeout(500);
+  const rippled = await Promise.all([
+    screen.evaluate(() => WARM.sparks.length),
+    booth.evaluate(() => WARM.taps.length),
+    booth.evaluate(() => WARM.sparks.length),
+  ]);
+  verdict('warm: touching the picture ripples on the screen that felt it', rippled[0] >= 1);
+  verdict('warm: the booth hears the hand', rippled[1] >= 1, rippled[1] + ' tap(s)');
+  verdict('warm: and shows it on its own field — the operator sees the room',
+    rippled[2] >= 1, rippled[2] + ' spark(s)');
+
+  /* THE ONE THING THE METER MUST NOT DO. Filled by one person it is a toy that
+   * is over in four seconds; the whole design rests on it counting SCREENS.
+   *
+   * The meter is a RAMP driven by the frame loop, and a background tab's
+   * requestAnimationFrame is throttled to about a frame a second — so the
+   * booth is brought to the front first and then given real seconds. Read too
+   * early, a working meter shows 0.2 and this reads as a bug in the meter
+   * rather than in the probe; that is exactly what it did first time. */
+  await booth.bringToFront();
+  await booth.evaluate(() => {
+    const now = Date.now();
+    for (let i = 0; i < 60; i++) WARM.taps.push({ id: 'n-one-thumb', at: now - i * 15 });
+  });
+  await booth.waitForTimeout(1600);
+  const solo = await booth.evaluate(() => WARM.v);
+  verdict('warm: sixty touches from one screen do not move the meter', solo < 0.02,
+    'v = ' + solo.toFixed(3));
+
+  await booth.evaluate(() => {
+    const now = Date.now();
+    for (const id of ['n-a', 'n-b', 'n-c', 'n-d']) WARM.taps.push({ id, at: now });
+  });
+  await booth.waitForFunction('WARM.v > 0.5', null, { timeout: 8000 }).catch(() => {});
+  const room = await booth.evaluate(() => WARM.v);
+  verdict('warm: four screens do', room > 0.5, 'v = ' + room.toFixed(3));
+
+  // and a screen that leaves takes its vote with it
+  await screen.close();
+  await booth.evaluate(() => STAGE.recv({ t: 'screen-gone', id: 'nope' }));
+  await booth.waitForTimeout(200);
+  await ctx.close();
 }
 
 /* ----------------------------------------------------------------- crowd

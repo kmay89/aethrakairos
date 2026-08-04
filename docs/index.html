@@ -923,8 +923,12 @@ html.native #btnInstall,html.native .fr-install,html.native #macPromo{display:no
    One rule does it, and it is a denylist by exception rather than a list of
    panels to remember: whatever gets added to the app later is hidden here by
    default, which is the right way round for a window pointed at an audience. */
-body.stage-screen > *:not(#glcanvas):not(#stageWait){display:none!important}
+body.stage-screen > *:not(#glcanvas):not(#stageWait):not(#stageSparks):not(#warmup){display:none!important}
 body.stage-screen{cursor:none;background:#000}
+/* …except while somebody is picking. A warm-up is worked with a THUMB, and a
+   surface that hides its own cursor is a surface nobody can find the swatch on
+   when they are steering it with a trackpad from the back of the room. */
+body.stage-screen.warming{cursor:auto}
 #stageWait{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;
   display:flex;flex-direction:column;gap:7px;align-items:center;text-align:center;
@@ -932,6 +936,71 @@ body.stage-screen{cursor:none;background:#000}
 }
 #stageWait b{font-size:13px;letter-spacing:.42em;color:var(--ink,#eaf2ff)}
 #stageWait[hidden]{display:none!important}
+/* a screen that is warming up is not waiting for anything — it is busy */
+body.stage-screen.warming #stageWait{display:none!important}
+
+/* -------- the sparks layer: every hand in the room -------- */
+#stageSparks{
+  position:fixed;inset:0;width:100%;height:100%;z-index:4;
+  pointer-events:none;               /* the touches are taken on the field itself */
+  mix-blend-mode:screen;             /* light ADDS over the field, never masks it */
+}
+#stageSparks[hidden]{display:none!important}
+
+/* -------- the warm-up: two questions, one thumb -------- */
+#warmup{
+  position:fixed;inset:0;z-index:8;display:flex;flex-direction:column;
+  background:radial-gradient(120% 90% at 50% 0%,rgba(12,16,30,.86),rgba(3,4,9,.97));
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  padding:max(18px,4vmin);gap:max(12px,2.4vmin);
+  animation:wuIn .5s cubic-bezier(.2,.8,.3,1) both;
+}
+#warmup[hidden]{display:none!important}
+@keyframes wuIn{from{opacity:0;transform:scale(1.02)}to{opacity:1;transform:none}}
+#warmup .wu-head{display:flex;flex-direction:column;gap:5px;text-align:center;flex:none}
+#warmup .wu-head b{
+  font-size:clamp(15px,3.4vmin,26px);letter-spacing:.3em;text-transform:uppercase;
+  color:var(--ink,#eaf2ff);
+}
+#warmup .wu-head span{font-size:clamp(10px,1.7vmin,13px);letter-spacing:.14em;color:var(--faint,#5c6a86)}
+#warmup .wu-grid{
+  flex:1;min-height:0;display:grid;gap:max(8px,1.6vmin);
+  grid-template-columns:repeat(auto-fit,minmax(min(30vw,150px),1fr));
+  align-content:center;
+}
+#warmup .wu-foot{
+  flex:none;text-align:center;min-height:1.2em;
+  font-size:clamp(10px,1.7vmin,13px);letter-spacing:.16em;color:var(--faint,#5c6a86);
+}
+/* THE TARGET IS THE WHOLE TILE. A dark room, one thumb, and often a phone held
+   in the hand that is also holding a drink — a swatch with a small hit area is
+   a swatch that gets missed, and a miss here reads as the app being broken. */
+#warmup .wu-cell{
+  position:relative;border:0;padding:0;margin:0;cursor:pointer;
+  border-radius:max(10px,1.6vmin);overflow:hidden;
+  min-height:max(64px,11vmin);
+  background:#0a0c14;
+  box-shadow:inset 0 0 0 1px rgba(180,200,240,.14);
+  transition:transform .16s cubic-bezier(.2,.8,.3,1),box-shadow .16s;
+  -webkit-tap-highlight-color:transparent;
+}
+#warmup .wu-cell:hover,#warmup .wu-cell:focus-visible{transform:translateY(-2px) scale(1.015)}
+#warmup .wu-cell:focus-visible{outline:2px solid var(--ink,#eaf2ff);outline-offset:3px}
+#warmup .wu-cell:active{transform:scale(.985)}
+#warmup .wu-cell.picked{box-shadow:inset 0 0 0 2px var(--ink,#eaf2ff),0 0 24px rgba(255,255,255,.22)}
+#warmup .wu-cell canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#warmup .wu-cell .wu-name{
+  position:absolute;left:0;right:0;bottom:0;padding:.5em .7em;
+  font-size:clamp(9px,1.5vmin,12px);letter-spacing:.2em;text-transform:uppercase;
+  color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.9);
+  background:linear-gradient(to top,rgba(0,0,0,.6),transparent);
+  text-align:left;pointer-events:none;
+}
+@media (prefers-reduced-motion:reduce){
+  #warmup{animation:none}
+  #warmup .wu-cell{transition:none}
+  #warmup .wu-cell:hover,#warmup .wu-cell:focus-visible{transform:none}
+}
 
 /* ============ the mini booth ============ */
 body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip):not(.invite-card){display:none!important}
@@ -2631,6 +2700,25 @@ body.crowd{background:#000}
     already doing the work, and sometimes it splits into a mirrored <b>pair</b> pulling opposite ways.
     The first touch takes the field straight back. Hold the touch chip (or press <kbd>I</kbd>) if you
     would rather it waited for you; it never plays for anyone who asked for reduced motion, or on ECO.</p>
+    <h3>Everybody's hands</h3>
+    <p class="lede">A second screen is not a monitor, it is a <b>person holding one</b>. So joining is
+    something you <i>do</i>: type the four letters (or scan the code) and the field appears — then two
+    questions, each answerable with one thumb in a dark room. <b>Pick your colour</b>, from eight that
+    can be told apart across a venue and said out loud (&ldquo;I'm the sea one&rdquo;); it is yours for
+    the night. <b>Pick a look</b>, from a tile per room drawn as the <i>gesture</i> of that room rather
+    than a screenshot of it. What the room picks <b>leans</b> the director's deal toward those rooms —
+    it never seizes it, so the night still belongs to the booth.</p>
+    <p class="lede">Then <b>touch the picture</b>. Your ripple appears on <b>every screen in the
+    room</b>, in your colour, at the place in the wall you touched — so a hand on the phone by the
+    window travels across the television behind the bar. That is the whole mechanic, and it explains
+    itself the first time somebody else's ripple crosses your screen.</p>
+    <p class="lede">There is a game in it, barely. Touches that land near the <b>beat</b> push a meter
+    that <b>cannot be filled alone</b> — it counts distinct screens, not touches, so drumming your own
+    thumb does nothing and the only way up is other people. Fill it and the room answers: one bloom, in
+    everyone's colours at once, across the whole wall. Then it resets. Nothing is scored, nobody is
+    ranked, and the reward for playing is that the room looks better — which is also why everyone came.
+    The bloom goes through the same flash governor as everything else here; a room that earned a moment
+    must never be the thing that hurts somebody standing in it.</p>
     <h3>The dance engine</h3>
     <p class="lede">The visuals don't just flash on the beat — they move through it. Because the catalog
     carries a measured beat grid, the engine knows where the beat <i>is</i>, not just that it happened:
@@ -2686,7 +2774,7 @@ body.crowd{background:#000}
     Blowing out to white is still available — it is just a <b>budget</b> the music has to earn, opened
     by the act and the section's own intensity ceiling. A loud intro stays a colour. The drop gets the
     glare.</p>
-    <h3>Dancing with your eyes</h3>
+    <h3>Following the music by eye</h3>
     <p class="lede">Bass, melody, and percussion each get a <b>distinct visual voice</b>, so you can follow
     the music by eye — nowhere more plainly than in <b>PULSE</b>, the visual meter: the
     bass is the ground, the melody is the ribbon, the percussion lands as ticks, and the bar itself is
@@ -2723,8 +2811,7 @@ body.crowd{background:#000}
     <p class="lede">Scene 19 is <b>FLAME</b> — ten real light sources burning side by side: match,
     lighter, Bic, Zippo, Clipper, torch, campfire, an iPhone flashlight, an LED and a laser. Each one
     listens to <i>its own band</i> of the live spectrum and lifts when that band arrives, so the bench
-    is a spectrum analyser made out of fire — and under each light, its name and its colour, written in
-    that colour.
+    is a spectrum analyser made out of fire.
     <b>Nothing in the room was art-directed.</b> Every colour is integrated from Planck's law through
     the CIE 1931 observer: a Zippo is amber because 1500&nbsp;K <i>is</i> amber, and the laser's green
     is a green no black body can make because 532&nbsp;nm is one wavelength rather than a whole curve.
@@ -2739,7 +2826,18 @@ body.crowd{background:#000}
     hold, and they are fed air and roar; let go, and the release blows them flat. A beam barely notices.
     A laser does not care at all — and that difference is the most honest thing in the room. Half the
     visits light the whole bench; the other half bring one source close enough to read the flicker
-    off it.</p>
+    off it.
+    <b>And then the bench fires.</b> As the music earns it the room becomes a pyrotechnics show —
+    gerbs and mines off the sources, shells that rise as comets and <i>break</i> at the top of their
+    climb into peonies, chrysanthemums, willows, palms, rings, crossettes and strobes, with billows of
+    lit smoke rolling out underneath all of it. It is the same two ideas taken a few thousand feet up.
+    A star's colour is its <i>chemistry</i>, through the same observer: strontium's 650&nbsp;nm red,
+    barium at 515, copper's difficult blue at 452, sodium's D lines at 589, and a purple star that is
+    copper and strontium in one pellet, so its colour is their sum. The gold willow is not a colour at
+    all — it is charcoal, incandescing, and it comes out the same amber a Zippo does. And a star's
+    flight is one closed form: linear drag on its velocity, gravity underneath, integrated once so
+    thousands of them can live in a shader with no state. What separates a willow from a peony is not
+    a different animation — it is three numbers.</p>
     <h3>The parlor</h3>
     <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
     science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
@@ -2801,6 +2899,14 @@ body.crowd{background:#000}
     back as the glow inside. The temperature is splatted alongside the density, so every pixel reads
     the temperature of the wax actually in front of it — a blob that has just left the coil is
     visibly hotter where it left.</p>
+    <p class="lede">Two details are doing more work than they look like. What gets splatted is not
+    the density but a <b>normalised</b> field — each particle divided by its own density, which the
+    solver already measured — because a droplet of four particles is genuinely thinner than the
+    middle of a pool, and any threshold that draws the pool's edge correctly makes the droplet
+    disappear entirely. The beaded chain of drops pinching off a rising column is on screen because
+    of that one division. And one extra tap <i>below</i> each pixel gives the <b>shadow</b>: the only
+    light in the object is under the column, so a blob is between the coil and everything above it,
+    and without that the room reads as a flat cut-out however good the blob itself looks.</p>
     <p class="lede"><b>The music is the thermostat</b>: bass and the act's own heat turn the coil up,
     and the rise, the stretch and the break-up all follow from that one number. Put a hand on it and
     the wax <i>flows</i> — and keeps flowing after you let go, because it has momentum — while the
@@ -2954,6 +3060,17 @@ body.crowd{background:#000}
 </div>
 <!-- a stage screen says one thing, and only when it has nothing to show -->
 <div id="stageWait" hidden><b>Stage screen</b><span id="stageWaitWhy">waiting for the booth…</span></div>
+<!-- the wall's second surface: every hand in the room, drawn over the field.
+     A 2D canvas rather than more GL — the sparks are a dozen rings a frame and
+     they must keep drawing on a screen whose WebGL context has been lost. -->
+<canvas id="stageSparks" aria-hidden="true" hidden></canvas>
+<!-- THE WARM-UP: two questions and a thumb, in the gap where a joining screen
+     used to show a spinner. Built by WARM; empty until then. -->
+<div id="warmup" hidden>
+  <div class="wu-head"><b id="wuTitle">Pick your colour</b><span id="wuSub">it's yours for the night</span></div>
+  <div class="wu-grid" id="wuGrid"></div>
+  <div class="wu-foot" id="wuFoot"></div>
+</div>
 
 <div id="askScrim" hidden></div>
 <div id="askCard" role="dialog" aria-modal="true" aria-labelledby="askTitle">
@@ -3840,6 +3957,146 @@ function flameRoll(r){
 }
 
 /* ================================================================
+   PYROTECHNICS — the bench, fired into the air.
+
+   The same two ideas as the flames, taken up a few thousand feet.
+
+     THE COLOUR IS STILL A SPECTRUM. A firework star is not "red" —
+     it is strontium monochloride emitting a band around 650 nm, or
+     barium at 515, or copper at 452, or sodium's D lines at 589.
+     Those go through the SAME CIE observer the flames and the laser
+     use, which is why a green shell here is a green no black body
+     can make and the gold willow, which really is just incandescent
+     charcoal, comes out the same amber as a Zippo. A purple star is
+     two emitters in one pellet — copper and strontium — so its
+     colour is their SUM, exactly as the blue cone sums beside a
+     lighter's yellow body.
+
+     THE MOTION IS STILL A CLOSED FORM. A star is a ballistic
+     particle in air: linear drag on its velocity, gravity
+     underneath. Integrated once, analytically, so the GPU can
+     evaluate any age directly instead of stepping a simulation it
+     would have to store — and so a test can hold it against the
+     limit where the air is taken away and it must reproduce
+     vacuum ballistics exactly.
+
+   What separates a peony from a willow is then nothing but three
+   numbers: how hard the stars are thrown, how thick the air is, and
+   how heavy they are. Not three different animations.
+   ================================================================ */
+
+/* The star chemistry. `nm` is a line/band emitter; `kelvin` is something
+   simply burning hot enough to glow (magnesium, titanium, charcoal); a star
+   with both wavelengths carries two emitters and its colour is their sum. */
+const PYRO_STARS = [
+  { key: 'strontium', name: 'STRONTIUM', nm: 650 },                    // deep red — SrCl
+  { key: 'calcium',   name: 'CALCIUM',   nm: 606 },                    // orange — CaCl
+  { key: 'sodium',    name: 'SODIUM',    nm: 589 },                    // yellow — the D lines
+  { key: 'barium',    name: 'BARIUM',    nm: 515 },                    // green — BaCl
+  { key: 'copper',    name: 'COPPER',    nm: 452 },                    // blue — CuCl, the hard one
+  { key: 'purple',    name: 'PURPLE',    nm: 452, nm2: 650, mix: 0.55 },// copper + strontium, together
+  { key: 'magnesium', name: 'MAGNESIUM', kelvin: 4300 },               // white — burning metal
+  { key: 'titanium',  name: 'TITANIUM',  kelvin: 2900 },               // silver sparks
+  { key: 'charcoal',  name: 'GOLD',      kelvin: 1750 },               // the gold willow: just charcoal
+];
+/* Two emitters in one pellet ADD, they do not average — the same reason a
+   lighter's blue cone survives beside a body five times brighter. */
+function pyroStarRGB(star){
+  const s = star || {};
+  if (s.nm && s.nm2){
+    const m = s.mix == null ? 0.5 : clamp01(s.mix);
+    return encodeRGB(normalizeRGB(addRGB(scaleRGB(wavelengthLinear(s.nm), m),
+                                         scaleRGB(wavelengthLinear(s.nm2), 1 - m))));
+  }
+  return s.nm ? wavelengthRGB(s.nm) : kelvinRGB(s.kelvin || 2500);
+}
+
+/* THE PIECES. `v0` is how hard the break throws its stars, `drag` how thick
+   the air is to them, `grav` how heavy they are; everything you would call a
+   shape falls out of those three plus which way the stars are aimed.
+   `lift` is the share of the piece's life spent as a comet on the way up —
+   zero for the ground pieces, which have nowhere to go. */
+const PYRO_SHELLS = [
+  { key: 'peony',     name: 'PEONY',     v0: 5.0, drag: 0.55, grav: 7.5, life: 3.4, lift: 0.30, trail: 0.10, form: 0 },
+  { key: 'chrys',     name: 'CHRYSANTHEMUM', v0: 5.2, drag: 0.70, grav: 8.5, life: 3.8, lift: 0.28, trail: 0.60, form: 0 },
+  { key: 'willow',    name: 'WILLOW',    v0: 5.5, drag: 0.90, grav: 13,  life: 4.6, lift: 0.26, trail: 0.85, form: 0 },
+  { key: 'palm',      name: 'PALM',      v0: 6.5, drag: 0.45, grav: 9.5, life: 3.6, lift: 0.34, trail: 0.75, form: 1 },
+  { key: 'ring',      name: 'RING',      v0: 5.5, drag: 0.50, grav: 6.5, life: 3.2, lift: 0.30, trail: 0.15, form: 2 },
+  { key: 'crossette', name: 'CROSSETTE', v0: 4.5, drag: 0.60, grav: 8,   life: 3.4, lift: 0.30, trail: 0.20, form: 3 },
+  { key: 'strobe',    name: 'STROBE',    v0: 4.6, drag: 0.85, grav: 7,   life: 4.0, lift: 0.28, trail: 0.05, form: 4 },
+  { key: 'gerb',      name: 'GERB',      v0: 5.0, drag: 1.00, grav: 13,  life: 2.4, lift: 0,    trail: 0.45, form: 5, spread: 0.16 },
+  { key: 'mine',      name: 'MINE',      v0: 6.0, drag: 0.70, grav: 12,  life: 2.8, lift: 0,    trail: 0.35, form: 5, spread: 0.45 },
+  { key: 'billow',    name: 'BILLOW',    v0: 6.0, drag: 1.40, grav: -2.6, life: 4.4, lift: 0,   trail: 0,    form: 6, spread: 1 },
+];
+function pyroShell(key){ return PYRO_SHELLS.find(s => s.key === key) || PYRO_SHELLS[0]; }
+
+/* A STAR IN AIR, in closed form. Linear drag means v̇ = −kv − g, which
+   integrates exactly: the distance along the launch direction is v₀·(1−e^{−kt})/k
+   and the fall underneath it is (g/k)·(t − (1−e^{−kt})/k). Evaluate at any age
+   without having stepped through the ages before it — which is the only reason
+   thousands of stars can live in a vertex shader with no state at all. */
+function pyroFlight(t, v0, drag, grav){
+  const T = Math.max(0, +t || 0);
+  const k = Math.max(1e-4, +drag || 0);
+  const u = (1 - Math.exp(-k * T)) / k;
+  return { reach: (+v0 || 0) * u, fall: (+grav || 0) / k * (T - u) };
+}
+
+/* HOW BUSY THE SKY IS — launches per second. Never a timer: the show is as
+   busy as the music, and it goes quiet when the music does. */
+/* `slots` is the whole table; the last `smoke` of them are kept back for
+   billows so a busy sky can never starve the room of the thing every fire
+   actually makes. */
+const PYRO_TUNING = { slots: 20, smoke: 7, base: 0.22, gain: 2.0, onsetFloor: 0.45,
+                      maxPerFrame: 3, calm: 0.45, smokeRate: 0.40, smokeGain: 1.15 };
+function pyroRate(o){
+  const s = o || {}, e = clamp01(+s.energy || 0), m = s.mood;
+  let r = PYRO_TUNING.base + e * PYRO_TUNING.gain;
+  if (m === 'apex') r *= 2.4;
+  else if (m === 'ascend') r *= 1.55;
+  else if (m === 'swarm') r *= 1.2;
+  else if (m === 'adrift' || m === 'dissolve') r *= 0.38;
+  if (s.calm) r *= PYRO_TUNING.calm;
+  return r;
+}
+/* Spend the budget. An onset is worth spending an ALMOST-full budget on, so a
+   shell breaks on the hit rather than a fraction of a second after the
+   arithmetic happens to come out even. */
+function pyroFire(acc, dt, rate, onset){
+  let a = Math.max(0, +acc || 0) + Math.max(0, +dt || 0) * Math.max(0, +rate || 0);
+  let n = 0;
+  if (onset && a >= PYRO_TUNING.onsetFloor){ n++; a -= Math.min(a, 1); }
+  while (a >= 1 && n < PYRO_TUNING.maxPerFrame){ n++; a -= 1; }
+  return { acc: Math.min(Math.max(0, a), 2), fire: n };
+}
+/* WHICH PIECE THE MOMENT HAS EARNED. The ground pieces carry the quiet — a
+   gerb is a flame doing a little more — and the sky opens as the music does.
+   Billows ride under everything: the smoke a fire makes is not an event. */
+function pyroPick(o, r){
+  const s = o || {}, e = clamp01(+s.energy || 0), m = s.mood;
+  const x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
+  if (m === 'adrift' || m === 'dissolve') return x < 0.62 ? 'billow' : (x < 0.86 ? 'gerb' : 'willow');
+  if (e < 0.30) return x < 0.44 ? 'billow' : (x < 0.78 ? 'gerb' : 'willow');
+  if (m === 'apex'){
+    const SKY = ['peony', 'chrys', 'palm', 'ring', 'crossette', 'strobe', 'peony', 'chrys'];
+    return x < 0.12 ? 'mine' : SKY[Math.floor(((x - 0.12) / 0.88) * SKY.length) % SKY.length];
+  }
+  const MID = ['gerb', 'mine', 'peony', 'chrys', 'willow', 'ring', 'crossette', 'billow'];
+  return MID[Math.floor(x * MID.length) % MID.length];
+}
+/* AND WHICH CHEMISTRY. Brightness wants metal (magnesium, titanium); warmth
+   wants the low salts; the top of the spectrum earns the hard colours — copper
+   blue is the expensive one in a real shell and it is the expensive one here. */
+function pyroSalt(o, r){
+  const s = o || {}, x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
+  const bright = clamp01(+s.treble || 0) * 0.6 + clamp01(+s.energy || 0) * 0.4;
+  const POOL = bright > 0.62 ? ['barium', 'copper', 'magnesium', 'titanium', 'purple', 'sodium']
+             : bright > 0.32 ? ['sodium', 'calcium', 'barium', 'magnesium', 'strontium', 'purple']
+                             : ['charcoal', 'strontium', 'calcium', 'charcoal', 'titanium', 'sodium'];
+  return POOL[Math.floor(x * POOL.length) % POOL.length];
+}
+
+/* ================================================================
    THE ROOM — what the auto director is really choosing.
 
    It used to choose a scene, and everything else in the show made
@@ -3996,6 +4253,13 @@ function dealScene(o){
   for (let i = 0; i < list.length; i++){
     const sc = list[i] || {};
     let x = sceneScore(sc.taste, f) + lean;
+    /* THE ROOM'S OWN VOTE. A multiplier from warmDeal, applied before every
+       other adjustment so that recency, novelty and the device's limits all
+       still get their say on top of it — a room that voted for the heaviest
+       scene on the list does not thereby get it on a phone that cannot draw
+       it, and a room that voted for one scene does not get that scene twice
+       in a row. Absent (nobody has joined, nobody picked) this is 1. */
+    if (s.crowd && sc.key && s.crowd[sc.key]) x *= s.crowd[sc.key];
     if (sc.calm && s.reduced) x *= 2;                  // reduced motion lives in the legible rooms
     if (sc.heavy && !s.allowHeavy) x *= 0.02;          // a strained device, or ECO, is spared them
     x *= recencyPenalty(s.recent, i, s.memory);
@@ -4812,6 +5076,213 @@ function skinCss(skin, fallback){
     '--accent': hex('accent'), '--accent-2': hex('accent2'), '--accent-ink': hex('accentInk'),
     '--accent-dim': a('accent', 0.14), '--accent-glow': a('accent', 0.5), '--accent-line': a('accent', 0.34),
   };
+}
+
+/* ================================================================
+   THE WARM-UP — the arithmetic of joining a room, and of the game
+   the room plays once everyone is in.
+
+   A screen used to join by saying "here I am" and going black until
+   the booth spoke. Correct, and completely inert: the most
+   interesting moment of the whole night — six people holding six
+   glowing rectangles that have just become one picture — was spent
+   watching a spinner. This is what happens in that gap instead.
+
+   Two questions, both answerable with one thumb in a dark room, and
+   then the wall is yours to touch. Everything below is the pure half:
+   what a pick MEANS, what a room's picks average to, whether the
+   room is doing something together, and how a touch looks travelling
+   across four televisions. The performance of it lives in WARM.
+   ================================================================ */
+
+/* THE COLOURS ON OFFER, and why there are eight rather than a wheel.
+
+   A phone at arm's length in a dark room is the worst possible place
+   for a continuous picker: you cannot see what you chose until your
+   thumb comes off it. Eight named hues are pickable at a glance,
+   sayable out loud across a room ("I'm the sea one"), and — the part
+   that actually decides the number — TELLABLE APART on the wall,
+   which is the only place they are ever seen next to each other.
+
+   The last one carries no colour at all. Somebody always wants to be
+   in the room without steering it, and the honest way to offer that
+   is a swatch of its own rather than a step people learn to skip. */
+const WARM_HUES = [
+  { key: 'ember',  name: 'Ember',  h: 26,  c: 0.17 },
+  { key: 'gold',   name: 'Gold',   h: 78,  c: 0.16 },
+  { key: 'lime',   name: 'Lime',   h: 132, c: 0.17 },
+  { key: 'sea',    name: 'Sea',    h: 178, c: 0.14 },
+  { key: 'sky',    name: 'Sky',    h: 224, c: 0.15 },
+  { key: 'violet', name: 'Violet', h: 292, c: 0.16 },
+  { key: 'rose',   name: 'Rose',   h: 344, c: 0.17 },
+  { key: 'bone',   name: 'Bone',   h: 250, c: 0.00 },
+];
+function warmHue(i){
+  const n = WARM_HUES.length;
+  const k = Math.floor(Number(i));
+  if (!Number.isFinite(k)) return WARM_HUES[0];
+  return WARM_HUES[((k % n) + n) % n];
+}
+
+/* THE ROOM'S COLOUR, as the circular mean of everyone's.
+
+   Hues are ANGLES. The mean of 350° and 10° is 0°, and every
+   arithmetic mean gets that exactly backwards at the wrap — which is
+   the one place it matters, because the wrap is where red lives and
+   red is what half a room picks. So the picks are summed as vectors
+   and read back as one.
+
+   The resultant's LENGTH is the more interesting half. Short means
+   the room disagrees, and that is not a fault to be averaged into
+   mud: it comes back as `spread` so the wall can show a scattered
+   crowd AS scatter. A unanimous room gets one colour; a divided one
+   gets its own division, drawn.
+
+   Colourless picks count toward `n` and contribute no vector.
+   Standing in the room without steering it is a position, and it
+   must not drag the mean toward whatever hue we happened to store. */
+function warmBlend(picks){
+  const list = Array.isArray(picks) ? picks : [];
+  let x = 0, y = 0, n = 0, c = 0, voices = 0;
+  for (const p of list){
+    if (!p) continue;
+    n++;
+    const e = p.h != null ? p : warmHue(p.hue);
+    if (!(e.c > 0)) continue;
+    const a = e.h * Math.PI / 180;
+    x += Math.cos(a) * e.c; y += Math.sin(a) * e.c;
+    c += e.c; voices++;
+  }
+  if (!voices) return { h: 0, c: 0, n, spread: 0, voices: 0 };
+  const r = Math.hypot(x, y) / c;              // 1 unanimous, 0 scattered
+  let h = Math.atan2(y, x) * 180 / Math.PI;
+  if (h < 0) h += 360;
+  return { h, c: c / voices, n, spread: clamp01(1 - r), voices };
+}
+
+/* WHAT THE ROOM WANTS TO LOOK AT. Votes become a MULTIPLIER on the
+   director's existing appetite, never a replacement for it. A room
+   that all picked one scene should LEAN the deal — if it seized it,
+   the night would be ninety minutes of whatever everybody tapped
+   first, which is both boring and a worse answer than the director's.
+   A unanimous room is worth a bit over double; a room split four ways
+   barely moves. A scene nobody picked stays at 1 rather than being
+   punished — not voting for something is not voting against it. */
+const WARM_PULL = 1.2;
+function warmDeal(picks){
+  const list = Array.isArray(picks) ? picks : [];
+  const out = {};
+  let n = 0;
+  for (const p of list){
+    if (!p || !p.scene) continue;
+    out[p.scene] = (out[p.scene] || 0) + 1;
+    n++;
+  }
+  if (!n) return {};
+  for (const k of Object.keys(out)) out[k] = 1 + WARM_PULL * (out[k] / n);
+  return out;
+}
+
+/* ARE WE DOING THIS TOGETHER?
+
+   Distinct SCREENS inside the window, not touches. One person
+   drumming their thumb is one person however fast they drum, and the
+   entire point of the meter is that it cannot be filled alone — a
+   counter of touches would be filled alone within a second, by the
+   nearest six-year-old, and then it would mean nothing for the rest
+   of the night.
+
+   Two hands is a third, four is full. Four is where a room stops
+   being a couple of people trying it and starts being the room; past
+   that the meter should already be lit rather than still asking.
+   The count comes back too, because "3 hands" is worth putting on a
+   screen and 0.66 is not. */
+function togetherness(taps, now, ms){
+  const w = ms > 0 ? ms : 1200;
+  const t = Number(now) || 0;
+  const who = new Set();
+  for (const k of (Array.isArray(taps) ? taps : [])){
+    if (!k || k.id == null) continue;
+    if (t - (Number(k.at) || 0) <= w) who.add(String(k.id));
+  }
+  const n = who.size;
+  return { n, v: clamp01((n - 1) / 3) };
+}
+
+/* A TOUCH, SEEN FROM EVERY OTHER SCREEN.
+
+   Radius grows with the square root of age, so the ring leaves fast
+   and settles — that is how a stone in water reads, where a linear
+   ring reads as a loading spinner and nobody touches a loading
+   spinner twice. Alpha is the cube of what remains: plainly there for
+   the first third, then gone, rather than smeared across the whole
+   life and leaving the wall permanently hazy on a busy night. */
+function warmSpark(age, life){
+  const L = life > 0 ? life : 1;
+  const t = Number(age) / L;
+  if (!(t >= 0) || t > 1) return { r: 0, a: 0 };
+  const u = 1 - t;
+  return { r: Math.sqrt(t), a: u * u * u };
+}
+
+/* HOW CLOSE TO THE BEAT THAT LANDED.
+
+   Phase is 0..1 within the beat and it WRAPS: a touch at 0.98 is two
+   hundredths EARLY, not ninety-eight hundredths late, and forgetting
+   that is the standard way to build a rhythm game that hates the
+   people who are actually on time.
+
+   Inside the window it falls from 1 to 0 at the edge; outside it is
+   0. Nothing here punishes — an off-beat touch still sparks exactly
+   like any other, it simply does not push the meter. The worst
+   outcome of bad timing is an ordinary, pretty ripple. */
+function beatGrace(phase, width){
+  const w = width > 0 ? width : 0.16;
+  let p = Number(phase);
+  if (!Number.isFinite(p)) return 0;
+  p -= Math.floor(p);
+  return clamp01(1 - Math.min(p, 1 - p) / w);
+}
+
+/* THE THUMBNAIL, AS ARITHMETIC.
+
+   Picking a look from a list of WORDS asks somebody to already know
+   what "rosette" means. Picking from a picture does not — and this
+   step is being done by a guest, on a phone, in the dark, once.
+
+   A live preview would mean a second WebGL context per tile on a
+   phone, which is how a warm-up becomes a crash, so each room
+   declares a cheap 2D SIGNATURE instead: the GESTURE of the room
+   rather than a screenshot of it. A handful of painters, re-used at
+   different hues and densities, is enough for someone to point at the
+   one they want.
+
+   Every key in SCENE_KEYS has an entry and a test says so, because
+   the failure otherwise is silent: a room added next month shows a
+   blank tile, nobody ever picks it, and no error is ever raised. */
+const SCENE_SIGS = {
+  spiral:    { kind: 'spiral', h: 214, arms: 2, dense: 0.7 },
+  helix:     { kind: 'wave',   h: 168, arms: 2, twist: 1 },
+  band:      { kind: 'wave',   h: 122, arms: 1, twist: 0 },
+  starburst: { kind: 'burst',  h: 44,  arms: 12 },
+  nebula:    { kind: 'cloud',  h: 288, dense: 0.9 },
+  tunnel:    { kind: 'tunnel', h: 196, dense: 0.8 },
+  ribbons:   { kind: 'ribbon', h: 322, arms: 3 },
+  fractal:   { kind: 'spiral', h: 96,  arms: 5, dense: 1 },
+  comets:    { kind: 'burst',  h: 26,  arms: 5, tail: 1 },
+  fern:      { kind: 'spiral', h: 138, arms: 3, dense: 0.5 },
+  rosette:   { kind: 'ring',   h: 268, arms: 6 },
+  slinky:    { kind: 'spiral', h: 186, arms: 1, dense: 1 },
+  opart:     { kind: 'grid',   h: 250, c: 0 },
+  pulse:     { kind: 'wave',   h: 52,  arms: 4, meter: 1 },
+  parlor:    { kind: 'grid',   h: 340 },
+  aurea:     { kind: 'ring',   h: 46,  arms: 5 },
+  halo:      { kind: 'ring',   h: 300, arms: 10, rainbow: 1 },
+  lava:      { kind: 'blob',   h: 18,  dense: 0.6 },
+  flame:     { kind: 'blob',   h: 34,  dense: 1, flame: 1 },
+};
+function sceneSig(key){
+  return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
 }
 // @pure-end
 
@@ -9488,13 +9959,30 @@ function moodOf(feat, key){
 }
 /* the intensity CEILING at a point in the song (0..1). A quiet passage caps
    the visuals low so nothing peaks in the wrong place; a loud block opens it
-   all the way. Floored so the room is never dead. */
+   all the way. Floored so the room is never dead.
+   Two sources: the client's frame-level env (finest grain, `lo`/`hi` on hand),
+   or the pipeline's precomputed `sections` (already 0..1 `energy` per block,
+   no raw envelope shipped — a 300-float array per track isn't worth the
+   catalog bytes when the section average reads the same to the eye). Either
+   way p lands in a section and that section's energy IS the ceiling for it. */
 function structureCeiling(struct, p, floor){
-  if (!struct || !struct.ok || !struct.env || !struct.env.length) return 1;
-  const N = struct.env.length, fl = floor == null ? 0.30 : floor;
-  const i = Math.round(clamp01(p) * (N - 1));
-  const norm = (struct.env[i] - struct.lo) / Math.max(1e-4, struct.hi - struct.lo);
-  return fl + (1 - fl) * clamp01(norm);
+  if (!struct || !struct.ok) return 1;
+  const fl = floor == null ? 0.30 : floor;
+  if (struct.env && struct.env.length){
+    const N = struct.env.length;
+    const i = Math.round(clamp01(p) * (N - 1));
+    const norm = (struct.env[i] - struct.lo) / Math.max(1e-4, struct.hi - struct.lo);
+    return fl + (1 - fl) * clamp01(norm);
+  }
+  if (struct.sections && struct.sections.length){
+    const pp = clamp01(p);
+    for (const sec of struct.sections){
+      if (pp >= sec.s && pp < sec.e) return fl + (1 - fl) * clamp01(sec.energy);
+    }
+    const last = struct.sections[struct.sections.length - 1];
+    return fl + (1 - fl) * clamp01(last.energy);
+  }
+  return 1;
 }
 
 // Which post-process LENS does the moment earn? A pure map from the story
@@ -11453,8 +11941,9 @@ const CRATE = {
     for (const t of allTracks()){
       if (q){
         const mood = moodOf(t.features, t.mix && t.mix.key);
+        const texture = (t.features && t.features.texture) || '';
         const hay = (t.title + ' ' + (t.album || '') + ' '
-          + (t.mix && t.mix.key || '') + ' ' + (t.mix && t.mix.bpm || '') + ' ' + mood).toLowerCase();
+          + (t.mix && t.mix.key || '') + ' ' + (t.mix && t.mix.bpm || '') + ' ' + mood + ' ' + texture).toLowerCase();
         if (!hay.includes(q)) continue;
       }
       let match = null;
@@ -11523,7 +12012,8 @@ const CRATE = {
       const eb = document.createElement('span'); eb.className = 'ebar';
       // the energy bar doubles as the mood tell — search "calm"/"driving"/
       // etc. in the filter box above and this is what it's matching against
-      eb.title = 'Mood: ' + moodOf(t.features, kk);
+      const texture = t.features && t.features.texture;
+      eb.title = 'Mood: ' + moodOf(t.features, kk) + (texture ? ' · ' + texture : '');
       const ei = document.createElement('i');
       ei.style.width = Math.round(((t.features && t.features.energy) || 0) * 100) + '%';
       eb.appendChild(ei);
@@ -13713,7 +14203,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '8292881897';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '4129940936';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -19498,6 +19988,17 @@ const INTERACT = {
     INTERACT.dragging = true;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
     toNdc(ev); INTERACT._idleT = 0;
+    /* AND THE BOOTH IS A HAND IN THE ROOM. The operator's own touch ripples
+       across every screen exactly like a guest's — which is what makes the
+       mechanic discoverable at all: the first person to find out that touching
+       the picture does something to the whole wall is usually the one holding
+       the booth, and they are then the one who tells everybody else. On
+       pointerdown only; a drag is INTERACT's business, not a hosepipe of
+       ripples down the wire. */
+    try {
+      WARM.touch(ev.clientX / Math.max(1, window.innerWidth),
+                 ev.clientY / Math.max(1, window.innerHeight));
+    } catch (e){}
     INTERACT._chargeTick = 0;
     // start the sprung warp centre exactly under the finger (no velocity), so a
     // fresh touch never slings in from wherever the last one ended
@@ -20391,6 +20892,8 @@ const director = {
       scenes, f: AE.f, mood: this.mood, active: this.active,
       recent: this.recent, memory: this.memory, seen: this.seen,
       reduced: reducedMotion,
+      // what the room asked for when it walked in — empty until somebody has
+      crowd: (typeof WARM !== 'undefined') ? WARM.crowd() : null,
       // a strained device is spared the heavy rooms so it never lags (the music
       // stays smooth regardless); ECO asks the same on purpose — cheap rooms
       // are how the battery lasts the lawn
@@ -21017,15 +21520,15 @@ function buildHalo(){
 const LAVA = {
   yB: -0.66, yT: 0.80,        // the fluid column, in the field's own screen-y
   Tn: 0.44,                   // the temperature at which wax weighs what the fluid does
-  buoy: 2.2,                 // g·β — the Boussinesq gain
+  buoy: 2.7,                 // g·β — the Boussinesq gain
   muE: 2.2,                   // Arrhenius steepness
   skin: 26.0,                  // drag on the surface layer (see lavaStep)
-  iters: 2,                   // Jacobi sweeps of the density constraint
+  iters: 3,                   // Jacobi sweeps of the density constraint
   cfm: 0.05,                  // constraint force mixing, as a FRACTION of a full
                               // neighbourhood's own |∇C|² — see makeLava
   wall: 0.30,                 // what the glass is worth, as a share of rest density
   maxFix: 0.42,               // the largest position correction, in spacings
-  coh: 10.0,                  // cohesion — the surface tension, as a force
+  coh: 4.0,                  // cohesion — the surface tension, as a force
   xsph: 0.50,                 // XSPH viscosity — the line that makes it wax
   heatIn: 0.35,               // conductance across the free surface
   seatK: 6.0,                 // …and through the glass, where the coil is
@@ -21039,8 +21542,8 @@ const LAVA = {
   rest: 0.05,                 // what a wall gives back (wax: almost nothing)
   stir: 2.4, stirHeat: 0.32,  // what a hand does to the fluid, and to its heat
   bubBuoy: 26, bubMin: 0.014, bubMax: 0.032, strouhal: 0.21,
-  fill: 0.20,                 // how much of the bottle is wax
-  maxN: 320,                  // the hard ceiling on particles
+  fill: 0.19,                 // how much of the bottle is wax
+  maxN: 520,                  // the hard ceiling on particles
   hMax: 1 / 30,               // the longest step the neighbour list stays honest over
 };
 
@@ -21182,10 +21685,19 @@ function lavaRestGrad(h, d, rho0){
    bottle with fewer, larger parcels. Chunkier wax is still wax. */
 function lavaBudget(o){
   const s = o || {};
-  let n = 190, bub = 7;
-  if (s.eco){ n = 110; bub = 3; }
-  if (s.struggling){ n = Math.min(n, 90); bub = Math.min(bub, 2); }
-  if (s.calm) bub = Math.min(bub, 3);
+  /* THE PARTICLE COUNT IS THE WHOLE COST, on both sides — the solver is
+     O(N) and the renderer splats N sprites — so this one number is the
+     entire performance story of the room, and it is worth spending
+     honestly. A phone or a small-core machine is not merely "struggling
+     yet"; it is a machine we already know the answer for, and waiting for
+     the frame governor to discover that costs someone a visibly bad first
+     ten seconds. Measured on the reference machine: 0.43 ms a step at 190,
+     0.77 at 320, 1.12 at 440. */
+  let n = 340, bub = 8;
+  if (s.ios || (s.cores && s.cores <= 4)){ n = 200; bub = 6; }
+  if (s.eco){ n = Math.min(n, 130); bub = Math.min(bub, 3); }
+  if (s.struggling){ n = Math.min(n, 110); bub = Math.min(bub, 2); }
+  if (s.calm) bub = Math.min(bub, 4);
   n = Math.min(n, LAVA.maxN);
   return { n, bub };
 }
@@ -21260,6 +21772,18 @@ function makeLava(seed, o){
   S.MAXN = 48;
   S.nbr = new Int32Array(cap * S.MAXN);
   S.nbrN = new Int32Array(cap);
+  /* THE PAIR CACHE. Every pass of the solver wants the same four numbers
+     about the same pair — the offset, the kernel, and the gradient over r —
+     and the first version of this recomputed all of them five times a step,
+     square root and all. They are computed once per solver sweep now and
+     read by everything downstream, which is the difference between a fluid
+     this room can afford two hundred particles of and one it can afford
+     four hundred. Nothing is approximated: the cache is filled from the
+     SAME positions the pass that fills it is solving against. */
+  S.cdx = new Float32Array(cap * S.MAXN);
+  S.cdy = new Float32Array(cap * S.MAXN);
+  S.cw  = new Float32Array(cap * S.MAXN);
+  S.cg  = new Float32Array(cap * S.MAXN);
   return S;
 }
 
@@ -21283,6 +21807,7 @@ function lavaNeighbours(S){
   for (let i = 0; i < n; i++){ const c = cellOf[i]; idx[start[c] + cnt[c]++] = i; }
 
   const h2 = S.h * S.h, MAXN = S.MAXN, nbr = S.nbr, nbrN = S.nbrN;
+  const cdx = S.cdx, cdy = S.cdy;
   for (let i = 0; i < n; i++){
     const c = cellOf[i], cx = c % nx, cy = (c / nx) | 0;
     let k = 0;
@@ -21298,7 +21823,7 @@ function lavaNeighbours(S){
           if (j === i) continue;
           const ex = S.qx[i] - S.qx[j], ey = S.qy[i] - S.qy[j];
           if (ex * ex + ey * ey >= h2) continue;
-          if (k < MAXN) nbr[i * MAXN + k++] = j;
+          if (k < MAXN){ const s = i * MAXN + k; nbr[s] = j; cdx[s] = ex; cdy[s] = ey; k++; }
         }
       }
     }
@@ -21355,6 +21880,8 @@ function lavaStepOne(S, h, env){
   const T = S.T, rho = S.rho, lam = S.lam, free = S.free, dT = S.dT;
   const kh = S.h, rho0 = S.rho0, MAXN = S.MAXN, nbr = S.nbr, nbrN = S.nbrN;
   const k6 = S.k6, ks = S.ks, den = S.den;
+  const cdx = S.cdx, cdy = S.cdy, cw = S.cw, cg = S.cg;
+  const h2 = kh * kh, w0 = lavaW(0, kh, k6);
 
   /* ---- 0. cohesion, from LAST step's neighbours ----
      Reusing the previous step's list costs one frame of latency on a
@@ -21367,10 +21894,11 @@ function lavaStepOne(S, h, env){
     let fx = 0, fy = 0;
     const base = i * MAXN, cnt = nbrN[i];
     for (let a = 0; a < cnt; a++){
-      const j = nbr[base + a];
-      const ex = px[i] - px[j], ey = py[i] - py[j];
-      const r = Math.sqrt(ex * ex + ey * ey);
-      if (r < 1e-9) continue;
+      const s = base + a;
+      const ex = S.cdx[s], ey = S.cdy[s];
+      const r2 = ex * ex + ey * ey;
+      if (r2 < 1e-18) continue;
+      const r = Math.sqrt(r2);
       const c = lavaCohesion(r, kh) * gam / r;
       fx -= ex * c; fy -= ey * c;
     }
@@ -21414,17 +21942,24 @@ function lavaStepOne(S, h, env){
   const eps = LAVA.cfm * S.den0, fixMax = LAVA.maxFix * S.d;
   for (let iter = 0; iter < LAVA.iters; iter++){
     for (let i = 0; i < n; i++){
-      let r = lavaW(0, kh, k6);                             // itself
+      let r = w0;                                           // itself
       let gx = 0, gy = 0, sum = 0;
       const base = i * MAXN, cnt = nbrN[i];
+      const xi = qx[i], yi = qy[i];
       for (let a = 0; a < cnt; a++){
-        const j = nbr[base + a];
-        const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
+        const s = base + a, j = nbr[s];
+        const ex = xi - qx[j], ey = yi - qy[j];
         const r2 = ex * ex + ey * ey;
-        r += lavaW(r2, kh, k6);
+        // the kernel and its gradient, inlined and cached — this is the one
+        // place in the step where a square root is taken
+        const d2 = h2 - r2;
+        const w = d2 > 0 ? k6 * d2 * d2 * d2 : 0;
         const rr = Math.sqrt(r2);
-        const gw = lavaGradW(rr, kh, ks) / Math.max(rr, 1e-9) / rho0;
-        const cx = ex * gw, cy = ey * gw;
+        const dd = kh - rr;
+        const gw = (rr > 1e-9 && dd > 0) ? ks * dd * dd / rr : 0;
+        cdx[s] = ex; cdy[s] = ey; cw[s] = w; cg[s] = gw;
+        r += w;
+        const cx = ex * gw / rho0, cy = ey * gw / rho0;
         gx += cx; gy += cy;
         sum += cx * cx + cy * cy;                           // ∇_j C_i
       }
@@ -21445,10 +21980,8 @@ function lavaStepOne(S, h, env){
       let dx = 0, dy = 0;
       const base = i * MAXN, cnt = nbrN[i];
       for (let a = 0; a < cnt; a++){
-        const j = nbr[base + a];
-        const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
-        const r2 = ex * ex + ey * ey;
-        const rr = Math.sqrt(r2);
+        const s = base + a, j = nbr[s];
+        const ex = cdx[s], ey = cdy[s];
         /* THE ARTIFICIAL PRESSURE, which is the surface tension. A small
            extra repulsion at close range costs the interior nothing (it
            is balanced on all sides) and leaves the free surface with a
@@ -21456,8 +21989,7 @@ function lavaStepOne(S, h, env){
            between two of them fills in, and a thread pinches. Macklin's
            s_corr, and the only thing in this lamp that makes a merge
            happen. */
-        const gw = lavaGradW(rr, kh, ks) / Math.max(rr, 1e-9);
-        const m = (lam[i] + lam[j]) * gw / rho0;
+        const m = (lam[i] + lam[j]) * cg[s] / rho0;
         dx += ex * m; dy += ey * m;
       }
       /* A CEILING ON ONE CORRECTION. λ divides by Σ|∇C|², and a particle
@@ -21501,9 +22033,8 @@ function lavaStepOne(S, h, env){
     let sx = 0, sy = 0, st = 0, wsum = 0;
     const base = i * MAXN, cnt = nbrN[i];
     for (let a = 0; a < cnt; a++){
-      const j = nbr[base + a];
-      const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
-      const w = lavaW(ex * ex + ey * ey, kh, k6);
+      const s = base + a, j = nbr[s];
+      const w = cw[s];
       sx += (ux[j] - ux[i]) * w;
       sy += (uy[j] - uy[i]) * w;
       st += (T[j] - T[i]) * w;
@@ -21680,7 +22211,7 @@ const LAVA_R = {
      rather than the arrangement of the samples that stand for it. It costs
      nothing but sprite area, and sprite area is the one thing this
      renderer has to spare. */
-  splat: 2.35,     // the splat radius, in particle spacings
+  splat: 2.40,     // the splat radius, in particle spacings
   scale: 0.55,     // what a settled interior reads in the target (8 bits, so leave room)
   iso:   0.30,     // …and where the surface is, as a fraction of that
   res:   0.40,     // the target's height, as a fraction of the canvas's
@@ -21735,21 +22266,21 @@ function buildLava(){
 
   /* ---------- the splat pass: the field, drawn rather than solved ---------- */
   const sPos = new Float32Array(MAXP * 3);
-  const sAux = new Float32Array(MAXP * 2);     // x = temperature, y = 0 wax / 1 gas
+  const sAux = new Float32Array(MAXP * 3);     // x = temperature, y = 0 wax / 1 gas, z = weight
   const sRad = new Float32Array(MAXP);
   const sGeo = new THREE.BufferGeometry();
   sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3).setUsage(THREE.DynamicDrawUsage));
-  sGeo.setAttribute('aAux', new THREE.BufferAttribute(sAux, 2).setUsage(THREE.DynamicDrawUsage));
+  sGeo.setAttribute('aAux', new THREE.BufferAttribute(sAux, 3).setUsage(THREE.DynamicDrawUsage));
   sGeo.setAttribute('aRad', new THREE.BufferAttribute(sRad, 1).setUsage(THREE.DynamicDrawUsage));
   sGeo.setDrawRange(0, 0);
   const splatU = { uAspect: { value: 1 }, uRtH: { value: 256 }, uScale: { value: 0.25 } };
   const splatMat = new THREE.ShaderMaterial({
     uniforms: splatU,
     vertexShader: `
-      attribute vec2 aAux;
+      attribute vec3 aAux;
       attribute float aRad;
       uniform float uAspect, uRtH;
-      varying vec2 vAux;
+      varying vec3 vAux;
       void main(){
         vAux = aAux;
         // the target covers the same square-corrected space the field is in,
@@ -21760,7 +22291,7 @@ function buildLava(){
       }`,
     fragmentShader: `
       uniform float uScale;
-      varying vec2 vAux;
+      varying vec3 vAux;
       void main(){
         vec2 d = gl_PointCoord - 0.5;
         float r2 = dot(d, d) * 4.0;
@@ -21769,7 +22300,16 @@ function buildLava(){
         // picture is a picture OF the simulation rather than a second
         // opinion about where the wax is
         float a = 1.0 - r2;
-        float w = a * a * a * uScale;
+        /* …and weighted by aAux.z, which is what turns a sum of kernels
+           into a NORMALISED field. See pack(): a raw density splat reads
+           the bulk at one value and a four-particle droplet at a third of
+           it, so any isosurface that puts the bulk's edge in the right
+           place makes small droplets vanish entirely. Weighting each
+           particle by its own 1/ρ makes the sum an SPH interpolation of
+           the constant 1 — the classic colour function — which reads the
+           same inside a droplet as inside a pool however either is
+           packed. */
+        float w = a * a * a * uScale * vAux.z;
         float gas = vAux.y;
         gl_FragColor = vec4(w * (1.0 - gas), w * vAux.x * (1.0 - gas), w * gas, 1.0);
       }`,
@@ -21943,6 +22483,20 @@ function buildLava(){
 
         vec3 inner = fluid(p + hw);
 
+        /* WHAT THE WAX DOES TO THE LIGHT BEHIND IT. The one light in this
+           object is under the column, so a blob is between the coil and
+           everything above it — and until this line there was nothing above
+           any blob to say so, which is why the room read as a flat cut-out
+           however good the blob itself looked. One extra tap of the field,
+           BELOW this pixel, is the whole shadow: if there is wax under you,
+           less of the coil reaches you. A second, shorter tap down and to
+           the right answers the key light over the shoulder. Two fetches for
+           the only depth cue a two-dimensional lamp can honestly have. */
+        float shUp = fld(p - vec2(0.016, 0.105)).r;
+        float shKey = fld(p + vec2(0.040, -0.040)).r;
+        inner *= 1.0 - 0.30 * smoothstep(uIso * 0.22, uIso * 2.6, shUp)
+                     - 0.11 * smoothstep(uIso * 0.22, uIso * 2.6, shKey);
+
         // WAX. Coverage from the distance to the isosurface, depth from the field.
         float gl = max(length(Gw), 1e-4);
         float sd = (Fw - uIso) / gl;
@@ -21980,7 +22534,7 @@ function buildLava(){
              and its fat middle is dark and saturated — the same reason wax
              held up to a window looks like that, and the single thing that
              separates a translucent object from a coloured one. */
-          vec3 sss = wax * (vec3(1.0) - exp(-absorb * thick)) * (inner * 1.15 + 0.17 + 0.16 * uHeatV);
+          vec3 sss = wax * (vec3(1.0) - exp(-absorb * thick)) * (inner * 1.15 + 0.24 + 0.20 * uHeatV);
 
           vec3 L1 = normalize(vec3(-0.42, 0.70, 0.58));
           vec3 L2 = normalize(vec3(0.16, -0.92, 0.36));
@@ -22054,7 +22608,14 @@ function buildLava(){
       // the act leans the whole object's exposure — an overture is a lamp in
       // a dark room, an apex is a lamp somebody turned up
       col *= 0.86 + uAct * 0.26 + uEnergy * 0.06;
-      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+      /* ORDERED DITHER, a five-hundredth of a step. Almost everything in
+         this room is a smooth exponential over a large dark area, which is
+         the exact case eight bits per channel cannot hold: the gradients
+         come out as visible bands. A sub-quantum of noise, keyed to the
+         pixel rather than to time so it never crawls, costs one fract and
+         removes all of them. */
+      float dth = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      gl_FragColor = vec4(inkRolloff(col) + (dth - 0.5) * 0.0035, uOpacity);
     }
   `;
   const mat = new THREE.ShaderMaterial({
@@ -22121,27 +22682,41 @@ function buildLava(){
         full += a * a * a;
       }
     }
-    splatU.uScale.value = LAVA_R.scale / Math.max(1e-6, full);
+    fullSum = Math.max(1e-6, full);
+    splatU.uScale.value = LAVA_R.scale / fullSum;
     varU.uFull.value = LAVA_R.scale;                       // …so the interior reads exactly this
     varU.uIso.value = LAVA_R.scale * LAVA_R.iso;
     varU.uStep.value = Math.max(S.d * 0.55, 0.010);
     return rs;
   }
 
-  let splatR = 0.05;
+  let splatR = 0.05, fullSum = 1;
 
   function pack(){
     let k = 0;
     const n = Math.min(S.n, MAXP);
+    /* THE WEIGHT IS 1/ρ, AND IT COSTS NOTHING BECAUSE THE SOLVER ALREADY
+       MEASURED ρ. A droplet of four particles is genuinely less dense than
+       the middle of a pool — the kernels have less to overlap with — so a
+       raw density splat draws the pool's edge correctly and makes the
+       droplet disappear under any isosurface at all. Dividing each
+       particle's contribution by its own density turns the sum into an
+       interpolation of the constant 1: it reads the same inside a droplet
+       as inside a pool, so one threshold is right for both. The ceiling is
+       there because a particle entirely on its own would otherwise be
+       weighted by the whole neighbourhood it does not have. */
+    const wCap = fullSum;
     for (let i = 0; i < n; i++, k++){
       sPos[k * 3] = S.px[i]; sPos[k * 3 + 1] = S.py[i]; sPos[k * 3 + 2] = 0;
-      sAux[k * 2] = S.T[i]; sAux[k * 2 + 1] = 0;
+      const w = S.rho[i] > 1e-6 ? S.rho0 / S.rho[i] : wCap;
+      sAux[k * 3] = S.T[i]; sAux[k * 3 + 1] = 0;
+      sAux[k * 3 + 2] = w < 0.5 ? 0.5 : (w > wCap ? wCap : w);
       sRad[k] = splatR;
     }
     for (let i = 0; i < S.bub.length && k < MAXP; i++, k++){
       const b = S.bub[i];
       sPos[k * 3] = b.x; sPos[k * 3 + 1] = b.y; sPos[k * 3 + 2] = 0;
-      sAux[k * 2] = 1; sAux[k * 2 + 1] = 1;
+      sAux[k * 3] = 1; sAux[k * 3 + 1] = 1; sAux[k * 3 + 2] = 1;
       sRad[k] = b.r * 2.6 * Math.min(1, b.life);
     }
     sGeo.setDrawRange(0, k);
@@ -22165,7 +22740,11 @@ function buildLava(){
       varU.uAbs.value = 1.9 + Math.random() * 1.9;
       varU.uEta.value = 0.945 + Math.random() * 0.022;
       varU.uHs.value = 0.13 + Math.random() * 0.06;
-      budget = lavaBudget({});
+      budget = lavaBudget({
+        eco: typeof POWER !== 'undefined' && !POWER.heavyOK,
+        struggling: typeof PERF !== 'undefined' && PERF.struggling,
+        calm: SAFE.calm, ios: IS_IOS, cores: navigator.hardwareConcurrency,
+      });
       S = makeLava((Math.random() * 1e9) | 0,
                    { rb: varU.uRb.value, rt: varU.uRt.value, mu: wax.mu, n: budget.n });
       S.coh = wax.coh;
@@ -22219,7 +22798,7 @@ function buildLava(){
       const b = lavaBudget({
         eco: typeof POWER !== 'undefined' && !POWER.heavyOK,
         struggling: typeof PERF !== 'undefined' && PERF.struggling,
-        calm: SAFE.calm,
+        calm: SAFE.calm, ios: IS_IOS, cores: navigator.hardwareConcurrency,
       });
       // the particle count is fixed for the life of a pour — changing it
       // would change how much wax is in the bottle — so only the bubbles,
@@ -22306,34 +22885,6 @@ function buildLava(){
 
    And under each light, its name and its colour, in that colour.
    ========================================================= */
-const FLAME_LABEL_W = 512, FLAME_LABEL_H = 128;   // one cell of the label sheet
-function buildFlameLabelTexture(){
-  const cv = document.createElement('canvas');
-  cv.width = FLAME_LABEL_W; cv.height = FLAME_LABEL_H * FLAME_SOURCES.length;
-  const c = cv.getContext('2d');
-  const font = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-  FLAME_SOURCES.forEach((s, i) => {
-    const y = i * FLAME_LABEL_H, hex = rgbHex(flameRGB(s));
-    try { c.letterSpacing = '6px'; } catch (e){}
-    c.font = '600 40px ' + font;
-    c.fillStyle = hex;
-    c.fillText(s.name, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.46);
-    // the measurement, under the name, in white — the colour is the swatch
-    // above it, so the number does not have to be the thing you look at
-    try { c.letterSpacing = '3px'; } catch (e){}
-    c.font = '500 26px ' + font;
-    c.fillStyle = 'rgba(255,255,255,0.66)';
-    const meas = s.kind === 'laser' ? `${s.nm} nm · ${hex}` : `${s.kelvin} K · ${hex}`;
-    c.fillText(meas, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.82);
-  });
-  const tex = new THREE.CanvasTexture(cv);
-  tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = false;
-  tex.flipY = false;        // the sheet is authored top-down, row 0 first
-  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
-  return tex;
-}
 function buildFlame(){
   const group = new THREE.Group();
   const NS = FLAME_SOURCES.length;
@@ -22539,86 +23090,284 @@ function buildFlame(){
   pts.frustumCulled = false;
   group.add(pts);
 
-  /* THE LABELS. A room whose subject is what colour a thing is owes you the
-     name of the thing — so each light is captioned in its own computed colour,
-     with the number underneath. One sheet, one draw call, and it crossfades
-     with the scene because it carries the same uOpacity every other material
-     in the room does. */
-  const labelTex = buildFlameLabelTexture();
-  const labelU = { uLabelTex: { value: labelTex }, uSpread: varU.uSpread, uBase: varU.uBase,
-                   uScale: varU.uScale, uRows: varU.uRows, uTier: varU.uTier, uRow: { value: 0 } };
-  const CELL_A = FLAME_LABEL_H / FLAME_LABEL_W;      // the caption's own aspect
-  const LABEL_FRAG = `
-    uniform sampler2D uLabelTex; uniform float uOpacity;
-    varying vec2 vUv;
+  /* =======================================================================
+     THE SHOW. Twenty-four slots in the sky, and a firing script that spends
+     them on the music: a gerb where a flame is just doing a little more, a
+     mine off the bench on the hit, a shell that rises as a comet and BREAKS
+     at the top of its climb, a billow of lit smoke rolling off everything.
+
+     Not twenty-four animations. Every piece is the same closed-form star in
+     air — pyroFlight, up in the pure block — and what makes a willow a willow
+     rather than a peony is that its stars are thrown softer through thicker
+     air while being heavier. Change three numbers, get a different firework.
+
+     THE SLOT TABLE IS A TEXTURE, not a uniform array, for the same reason the
+     sources' parameters are: this shader picks its row per PARTICLE. Four
+     texels per slot, rewritten every frame — 384 bytes, which is nothing.
+     ======================================================================= */
+  const EV = PYRO_TUNING.slots, STARS = 64, TRAIL = 5;
+  const evData = new Uint8Array(EV * 4 * 4);          // EV wide, 4 rows
+  const evT = new THREE.DataTexture(evData, EV, 4, THREE.RGBAFormat);
+  evT.magFilter = THREE.NearestFilter; evT.minFilter = THREE.NearestFilter;
+  evT.needsUpdate = true;
+  // every slot's live state; t < 0 means the slot is cold
+  const slots = Array.from({ length: EV }, () => ({ t: -1, life: 1, kind: 0, src: 0,
+    col: [1, 1, 1], v0: 0, drag: 1, grav: 8, trail: 0, lift: 0, liftH: 0, spread: 0.4,
+    power: 1, seed: 0 }));
+  const SHELL_IDX = {}; PYRO_SHELLS.forEach((s, i) => { SHELL_IDX[s.key] = i; });
+
+  const PN = EV * STARS * TRAIL;
+  const aEv = new Float32Array(PN), aStar = new Float32Array(PN);
+  const aTrail = new Float32Array(PN), aPSeed = new Float32Array(PN);
+  {
+    const rp = mulberry32(0x9a12e5);
+    for (let i = 0; i < PN; i++){
+      aEv[i] = Math.floor(i / (STARS * TRAIL));
+      aStar[i] = Math.floor(i / TRAIL) % STARS;
+      aTrail[i] = i % TRAIL;
+      aPSeed[i] = rp();
+    }
+  }
+  const pgeo = new THREE.BufferGeometry();
+  pgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PN * 3), 3));
+  pgeo.setAttribute('aEv', new THREE.BufferAttribute(aEv, 1));
+  pgeo.setAttribute('aStar', new THREE.BufferAttribute(aStar, 1));
+  pgeo.setAttribute('aTrail', new THREE.BufferAttribute(aTrail, 1));
+  pgeo.setAttribute('aPSeed', new THREE.BufferAttribute(aPSeed, 1));
+
+  const pyroVert = VERT_POINT_HEAD + `
+    attribute float aEv, aStar, aTrail, aPSeed;
+    uniform sampler2D uPyroEv;
+    uniform float uSolo, uSpread, uScale, uBase, uRows, uTier, uFlick, uBeatSpring;
+    uniform vec3 uHand;
+    varying vec3 vCol; varying float vLum, vHot, vSmoke;
     void main(){
-      vec4 c = texture2D(uLabelTex, vUv);
-      gl_FragColor = vec4(c.rgb, c.a * uOpacity * 0.92);
+      float u = (aEv + 0.5) / ${EV}.0;
+      vec4 E0 = texture2D(uPyroEv, vec2(u, 0.125));   // age · form · source · power
+      vec4 E1 = texture2D(uPyroEv, vec2(u, 0.375));   // the star's own colour · trail
+      vec4 E2 = texture2D(uPyroEv, vec2(u, 0.625));   // v0 · drag · gravity · lift share
+      vec4 E3 = texture2D(uPyroEv, vec2(u, 0.875));   // climb · seed · spread · life
+      float age = E0.r;
+      if (age <= 0.002 || age >= 0.999){              // a cold slot costs one clip
+        gl_Position = vec4(0.0, 0.0, -2.0, 1.0); gl_PointSize = 0.0; return;
+      }
+      float form = floor(E0.g * 16.0 + 0.5);
+      // A BILLOW IS A FEW BIG PUFFS, not three hundred. It shares the slot
+      // table with the shells, so it has to throw away most of its allocation
+      // or the fill cost of hundred-pixel sprites eats the frame.
+      if (form > 5.5 && (aTrail > 0.5 || mod(aStar, 8.0) > 0.5)){
+        gl_Position = vec4(0.0, 0.0, -2.0, 1.0); gl_PointSize = 0.0; return;
+      }
+      float LIFE = E3.a * 8.0, seed = E3.g;
+      float W = max(0.35, uScale);
+      float v0 = E2.r * 40.0 * W, drag = max(0.02, E2.g * 4.0), grav = (E2.b * 30.0 - 6.0) * W;
+      float liftShare = E2.a, climb = E3.r * 30.0 * W, spread = E3.b;
+
+      // WHERE IT STANDS. The same bench arithmetic the flames use, so a gerb
+      // comes out of the light that fired it and not off to one side of it.
+      float si = uSolo >= 0.0 ? uSolo : floor(E0.b * 16.0 + 0.5);
+      float rack = step(uSolo, -0.5);
+      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
+      float ci = uRows > 1.5 ? mod(si, ${(NS / 2).toFixed(1)}) : si;
+      float ri = uRows > 1.5 ? floor(si / ${(NS / 2).toFixed(1)}) : 0.0;
+      vec3 origin = vec3((ci - (cols - 1.0) * 0.5) * uSpread * rack,
+                         uBase + (uRows - 1.0 - ri) * uTier * rack, 0.0);
+      // no two pieces leave from exactly the same point. Without this the
+      // comets stack into one dead-straight column and the whole thing reads
+      // as a machine rather than as a rack somebody lit.
+      origin.x += (seed - 0.5) * 2.0 * W;
+      origin.z += (fract(seed * 41.7) - 0.5) * 2.6 * W;
+
+      // THE STARS ARE PACKED ON A SPHERE, because that is how they are packed
+      // in the shell — a Fibonacci lattice, even everywhere, no poles.
+      float fi = aStar + 0.5;
+      float zc = 1.0 - 2.0 * fi / ${STARS}.0;
+      float rr = sqrt(max(0.0, 1.0 - zc * zc));
+      float th = fi * 2.39996323 + seed * 6.2831853;
+      vec3 dir = vec3(cos(th) * rr, zc, sin(th) * rr);
+
+      if (form > 0.5 && form < 1.5){                  // PALM — a few heavy fronds
+        float f = floor((th / 6.2831853 - floor(th / 6.2831853)) * 7.0);
+        float a2 = (f + 0.5) / 7.0 * 6.2831853;
+        dir = normalize(mix(dir, vec3(cos(a2) * 0.75, 0.62, sin(a2) * 0.75), 0.82));
+      } else if (form < 2.5 && form > 1.5){           // RING — every star in one plane
+        dir = normalize(vec3(cos(th), 0.0, sin(th)));
+        float tilt = seed * 2.2;
+        dir = vec3(dir.x, dir.z * sin(tilt), dir.z * cos(tilt));
+      } else if (form > 4.5 && form < 5.5){           // GERB / MINE — a cone off the bench
+        dir = normalize(mix(vec3(0.0, 1.0, 0.0), dir, spread));
+      } else if (form > 5.5){                         // BILLOW — a fat slow puff
+        dir = normalize(dir + vec3(0.0, 0.35, 0.0));
+      }
+
+      // THE CLIMB. A shell is a comet first: the stars ride the rising case
+      // and only exist as a sphere once it breaks at the top.
+      float T, burstAge;
+      vec3 p;
+      if (age < liftShare && liftShare > 0.001){
+        float lt = age / liftShare;
+        // the comet decelerates into its break, which is what a real lift does
+        float lag = (aStar / ${STARS}.0 + aTrail / ${TRAIL}.0 * 0.2) / 1.2;
+        p = origin + vec3(0.0, climb * (1.0 - (1.0 - lt) * (1.0 - lt)), 0.0);
+        p.y -= lag * lag * climb * 0.62 * lt;         // the tail it has already flown through
+        p += dir * 0.09 * W * lag * lag * 5.0;        // sparks shedding, widening behind
+        burstAge = 0.0; T = lag;                      // T carries the lag so the head is hottest
+      } else {
+        float a2 = liftShare >= 0.999 ? 0.0 : (age - liftShare) / (1.0 - liftShare);
+        burstAge = a2;
+        T = a2 * LIFE;
+        // each trail bead is the same star, a moment younger
+        T = max(0.0, T - aTrail * E1.a * 0.16);
+        float k = drag;
+        float s = (1.0 - exp(-k * T)) / k;            // pyroFlight, on the GPU
+        p = origin + vec3(0.0, climb, 0.0) * step(0.001, liftShare)
+          + dir * (v0 * (0.55 + 0.45 * aPSeed)) * s;
+        p.y -= grav / k * (T - s);
+        if (form > 2.5 && form < 3.5 && a2 > 0.42){   // CROSSETTE — each star splits again
+          float q = (a2 - 0.42) * LIFE;
+          vec3 d2 = normalize(vec3(cos(th * 3.7), sin(th * 2.3) * 0.5, sin(th * 3.7)));
+          p += d2 * 4.2 * W * (1.0 - exp(-1.6 * q)) / 1.6;
+        }
+      }
+
+      // THE DRAUGHT REACHES THE SKY TOO — a hand near the bench blows the
+      // smoke and the softest sparks off their line, and leaves the fast
+      // heavy stars alone, which is what wind actually does.
+      float care = form > 5.5 ? 1.0 : 0.22;
+      if (uHand.z > 0.002){
+        vec2 d = p.xy - uHand.xy;
+        float g = exp(-dot(d, d) * 0.035) * uHand.z * care;
+        p.xy += normalize(d + vec2(1e-4)) * g * (1.0 + uPtrX.y * 2.2) * 2.4;
+      }
+
+      vSmoke = form > 5.5 ? 1.0 : 0.0;
+      vec3 col = E1.rgb;
+      // the first instants of a star are its own metal burning, not its salt:
+      // white-hot, then the chemistry takes over as it cools
+      float hot = (age < liftShare && liftShare > 0.001)
+                ? exp(-T * 5.0)                       // the comet's head is the hot part
+                : exp(-burstAge * 9.0) * (1.0 - vSmoke);
+      vHot = hot;
+      if (form > 3.5 && form < 4.5)                   // STROBE — the crackle
+        col *= 0.35 + 0.65 * step(0.5, fract(T * 13.0 + aPSeed * 31.0)) * uFlick + (1.0 - uFlick) * 0.45;
+      vCol = col;
+      float burn = 1.0 - smoothstep(0.55, 1.0, age);  // stars burn out, they do not blink out
+      float tail = 1.0 - aTrail / ${TRAIL}.0 * 0.72;
+      vLum = E0.a * burn * tail * (0.5 + uBeatSpring * 0.18);
+      if (vSmoke > 0.5) vLum *= 0.34 * (1.0 - burstAge * 0.55);
+      vT = age; vGlow = vLum;
+
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      // a billow is a cloud: enormous and nearly transparent. A star is a
+      // point of burning metal, and stays one.
+      float sz = vSmoke > 0.5
+        ? (16.0 + burstAge * 34.0) * uScale
+        : (1.7 + hot * 3.8 + E0.a * 2.0) * tail * sqrt(W)
+          * (age < liftShare && liftShare > 0.001 ? (1.35 - T * 1.5) : 1.0);
+      gl_PointSize = max(0.0, sz * (300.0 / -mv.z));
     }
   `;
-  function labelMesh(slots, w, vertexShader){
-    const n = slots.length;
-    const pos = new Float32Array(n * 4 * 3), uvs = new Float32Array(n * 4 * 2);
-    const slotA = new Float32Array(n * 4);
-    const idx = [], h = w * CELL_A;
-    const corners = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
-    slots.forEach((slot, j) => {
-      corners.forEach((c, m) => {
-        pos[(j * 4 + m) * 3] = c[0];
-        pos[(j * 4 + m) * 3 + 1] = c[1];
-        slotA[j * 4 + m] = slot.row;          // which light this caption belongs to
-        uvs[(j * 4 + m) * 2] = (c[0] / w) + 0.5;
-        // v runs DOWN the sheet, so the caption's own row is (row + 1) - local
-        uvs[(j * 4 + m) * 2 + 1] = (slot.row + 0.5 - (c[1] / h)) / NS;
-      });
-      idx.push(j * 4, j * 4 + 1, j * 4 + 2, j * 4, j * 4 + 2, j * 4 + 3);
-    });
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    g.setAttribute('aSlot', new THREE.BufferAttribute(slotA, 1));
-    g.setIndex(idx);
-    const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({
-      uniforms: matU(Object.assign({}, labelU)),
-      vertexShader, fragmentShader: LABEL_FRAG,
-      transparent: true, depthWrite: false, depthTest: false,
-      blending: THREE.AdditiveBlending,
-    }));
-    mesh.frustumCulled = false;
-    return mesh;
+  const pyroFrag = GLSL_MPHI + `
+    uniform vec3 uColC; uniform float uOpacity, uEnergy, uDens;
+    varying vec3 vCol; varying float vLum, vHot, vSmoke;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r);
+      // smoke is soft all the way through; a star is a hard little point
+      a = vSmoke > 0.5 ? a * a * a : pow(a * a, 2.2);
+      vec3 col = mix(vCol, uColC, 0.06);
+      col = mix(col, vec3(1.0), vHot * (0.35 + uWhite * 0.45));
+      if (vSmoke > 0.5) col = mix(col, vec3(0.42, 0.38, 0.40), 0.55);   // lit smoke, not fire
+      col = inkRolloff(col * (0.30 + vLum * 1.5 + uEnergy * 0.10));
+      gl_FragColor = vec4(col, a * uOpacity * uDens * vLum * 1.15);
+    }
+  `;
+  const pyroMat = new THREE.ShaderMaterial({
+    uniforms: matU(Object.assign({ uPyroEv: { value: evT } }, varU)),
+    vertexShader: pyroVert, fragmentShader: pyroFrag,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pyroPts = new THREE.Points(pgeo, pyroMat);
+  pyroPts.frustumCulled = false;
+  group.add(pyroPts);
+
+  /* THE FIRING SCRIPT. `pyroRate` says how busy the sky should be, `pyroFire`
+     spends the budget (preferring the hit), `pyroPick` and `pyroSalt` choose
+     the piece and its chemistry — all of them pure, all of them tested. This
+     is only the part that has to touch a GPU buffer. */
+  const pyro = { acc: 0, cold: 0 };
+  const SKY_N = EV - PYRO_TUNING.smoke;
+  function pyroLaunch(kindKey, saltKey, srcIdx, power){
+    const smoke = kindKey === 'billow';
+    const lo = smoke ? SKY_N : 0, hi = smoke ? EV : SKY_N;
+    let s = null;
+    for (let i = lo; i < hi; i++) if (slots[i].t < 0){ s = slots[i]; break; }
+    if (!s){                                  // all lit: take the oldest rather than skip
+      let oldest = lo;
+      for (let i = lo + 1; i < hi; i++) if (slots[i].t / slots[i].life > slots[oldest].t / slots[oldest].life) oldest = i;
+      s = slots[oldest];
+    }
+    const sh = pyroShell(kindKey);
+    // a billow is lit by the fire that made it, so it wears that source's own
+    // measured colour rather than a salt it never contained
+    const star = PYRO_STARS.find(x => x.key === saltKey) || PYRO_STARS[0];
+    const c = smoke ? flameRGB(FLAME_SOURCES[srcIdx | 0] || FLAME_SOURCES[0]) : pyroStarRGB(star);
+    s.t = 0; s.life = sh.life; s.kind = sh.form; s.src = srcIdx;
+    s.col = [c.r, c.g, c.b];
+    s.v0 = sh.v0; s.drag = sh.drag; s.grav = sh.grav;
+    s.trail = sh.trail; s.lift = sh.lift; s.spread = sh.spread == null ? 0.4 : sh.spread;
+    // how high it climbs before it breaks, from the same flight the stars use
+    s.liftH = sh.lift > 0 ? clamp(pyroFlight(sh.life * sh.lift, 26, 0.9, 9.8).reach, 3.5, 11) : 0;
+    s.power = clamp01(power == null ? 1 : power);
+    s.seed = Math.random();
   }
-  // the rack's captions scale with the bench, so each one always sits under
-  // its own light however wide the room turns out to be
-  const rackLabels = labelMesh(FLAME_SOURCES.map((s, i) => ({ row: i })), 0.94, `
-    attribute float aSlot;
-    uniform float uSpread, uBase, uRows, uTier;
-    varying vec2 vUv;
-    void main(){
-      // the same arrangement the lights take, so a caption is never anywhere
-      // but under the thing it names
-      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
-      float ci = uRows > 1.5 ? mod(aSlot, ${(NS / 2).toFixed(1)}) : aSlot;
-      float ri = uRows > 1.5 ? floor(aSlot / ${(NS / 2).toFixed(1)}) : 0.0;
-      float k = uSpread * (uRows > 1.5 ? 1.06 : 1.0);
-      vec3 p = vec3((ci - (cols - 1.0) * 0.5) * uSpread + position.x * k,
-                    position.y * k * 1.7 + uBase - 0.6 + (uRows - 1.0 - ri) * uTier, 0.0);
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  function pyroStep(dt){
+    const f = AE.f, mood = director.mood, calm = SAFE.calm || reducedMotion;
+    // a device that is already shedding pixels does not also get a full sky:
+    // the show thins out rather than the music stuttering
+    const lean = typeof PERF !== 'undefined' && PERF.struggling ? 0.4 : 1;
+    const rate = pyroRate({ energy: f.energy, mood, calm }) * lean;
+    const shot = pyroFire(pyro.acc, dt, rate, !!f.onset);
+    pyro.acc = shot.acc;
+    for (let i = 0; i < shot.fire; i++){
+      const r = Math.random();
+      const kind = pyroPick({ energy: f.energy, mood }, r);
+      const salt = pyroSalt({ energy: f.energy, treble: f.treble }, Math.random());
+      // which light fires it: solo has only one, the bench picks by band, so
+      // the piece leaves the source that is actually singing
+      const src = varU.uSolo.value >= 0 ? varU.uSolo.value
+                                        : Math.min(NS - 1, Math.floor(Math.random() * NS));
+      pyroLaunch(kind, salt, src, 0.55 + f.energy * 0.45);
     }
-  `);
-  // …and the solo caption is one plate whose row the roll slides into place
-  const soloLabel = labelMesh([{ row: 0 }], 1, `
-    uniform float uBase, uRow, uScale;
-    varying vec2 vUv;
-    void main(){
-      float k = uScale * 2.2;
-      vec3 p = vec3(position.x * k, position.y * k + uBase - k * 0.30, 0.0);
-      vUv = vec2(uv.x, uv.y + uRow / ${NS}.0);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    pyro.smoke = (pyro.smoke || 0) + dt * (PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean;
+    while (pyro.smoke >= 1){
+      pyro.smoke -= 1;
+      const src = varU.uSolo.value >= 0 ? varU.uSolo.value : Math.floor(Math.random() * NS);
+      pyroLaunch('billow', 'charcoal', src, 0.5 + f.energy * 0.4);
     }
-  `);
-  group.add(rackLabels, soloLabel);
-  soloLabel.visible = false;
+    // age every slot and write the table the shader reads
+    for (let i = 0; i < EV; i++){
+      const s = slots[i], o = i * 4;
+      if (s.t >= 0){ s.t += dt; if (s.t >= s.life) s.t = -1; }
+      const age = s.t < 0 ? 0 : clamp01(s.t / s.life);
+      const q = (v, sc) => Math.max(0, Math.min(255, Math.round((v / sc) * 255)));
+      evData[o] = s.t < 0 ? 0 : Math.max(1, Math.round(age * 255));
+      evData[o + 1] = q(s.kind, 16); evData[o + 2] = q(s.src, 16); evData[o + 3] = q(s.power, 1);
+      const r1 = (EV + i) * 4;
+      evData[r1] = q(s.col[0], 1); evData[r1 + 1] = q(s.col[1], 1);
+      evData[r1 + 2] = q(s.col[2], 1); evData[r1 + 3] = q(s.trail, 1);
+      const r2 = (EV * 2 + i) * 4;
+      evData[r2] = q(s.v0, 40); evData[r2 + 1] = q(s.drag, 4);
+      evData[r2 + 2] = q(s.grav + 6, 30); evData[r2 + 3] = q(s.lift, 1);
+      const r3 = (EV * 3 + i) * 4;
+      evData[r3] = q(s.liftH, 30); evData[r3 + 1] = q(s.seed, 1);
+      evData[r3 + 2] = q(s.spread, 1); evData[r3 + 3] = q(s.life, 8);
+    }
+    evT.needsUpdate = true;
+  }
 
   group.visible = false;
   scene.add(group);
@@ -22683,15 +23432,21 @@ function buildFlame(){
       // colour, the shape and the dance all survive; only the shiver goes
       const wantFlick = (SAFE.calm || reducedMotion) ? 0.26 : 1;
       varU.uFlick.value += (wantFlick - varU.uFlick.value) * Math.min(1, dt * 2);
+
+      // and the show fires. dt is clamped because a tab that was in the
+      // background for a minute must not come back to a minute of shells.
+      pyroStep(Math.min(dt, 0.1));
     },
     roll(){
       const r = flameRoll(Math.random());
       const solo = r.mode === 'solo';
       varU.uSolo.value = solo ? r.src : -1;
       varU.uDens.value = solo ? 0.38 : 1;
-      labelU.uRow.value = solo ? r.src : 0;
-      rackLabels.visible = !solo;
-      soloLabel.visible = solo;
+      // a new room starts with an empty sky — nothing left burning from the
+      // last one, which would otherwise break over a source that no longer
+      // exists in this presentation
+      for (let i = 0; i < EV; i++) slots[i].t = -1;
+      pyro.acc = 0; pyro.smoke = 0;
       api.name = 'FLAME · ' + r.name;
       return api.name;
     } };
@@ -23656,6 +24411,21 @@ const STAGE = {
         } catch (e){}
       });
     }
+    /* THE PICTURE IS THE INPUT. There are no controls on a stage screen and
+       there never will be — it is pointed at an audience — so the only surface
+       left to touch is the field, and touching it is the entire interaction
+       this device has. pointerdown and pointermove both, because ripples
+       follow a dragged finger and that is most of the pleasure of it; WARM
+       rate-limits, so a drag is a stream rather than a flood. */
+    const hand = ev => {
+      if (ev.pointerType === 'mouse' && ev.buttons === 0 && ev.type === 'pointermove') return;
+      try {
+        WARM.touch(ev.clientX / Math.max(1, window.innerWidth),
+                   ev.clientY / Math.max(1, window.innerHeight));
+      } catch (e){}
+    };
+    window.addEventListener('pointerdown', hand);
+    window.addEventListener('pointermove', hand);
     this.applySlice();
     window.addEventListener('resize', () => { this.report(true); this.applySlice(); });
     this.report(true);
@@ -23983,6 +24753,10 @@ const STAGE = {
   },
   recv(m){
     if (!m || !m.t) return;
+    /* the warm-up's traffic is its own conversation and is answered before
+       anything here looks at it — sparks, the meter, the picks. It returns
+       true for what it took, so nothing below has to know these exist. */
+    try { if (typeof WARM !== 'undefined' && WARM.recv(m)) return; } catch (e){}
     if (this.screen()){
       if (m.t === 'f'){
         this.last = m;
@@ -23990,6 +24764,12 @@ const STAGE = {
         this.offset = stageOffset(this.offset, m.at, performance.now());
         const wait = document.getElementById('stageWait');
         if (wait) wait.hidden = true;
+        /* THE FIRST FRAME IS THE INVITATION. Not the connection — a screen
+           that has linked but seen nothing yet would ask somebody to pick a
+           colour over a black rectangle, and if the booth then never spoke
+           they would have decorated a crash. The picture arrives first; the
+           questions go over the top of it. */
+        try { if (typeof WARM !== 'undefined') WARM.begin(); } catch (e){}
       } else if (m.t === 'booth-gone'){
         const wait = document.getElementById('stageWait'), why = document.getElementById('stageWaitWhy');
         if (why) why.textContent = 'the booth closed';
@@ -24029,6 +24809,7 @@ const STAGE = {
       if (!was || stageMoved(was.rect, m.rect)) this.pushWall(true);
       this.paint();
     } else if (m.t === 'screen-gone'){
+      try { if (typeof WARM !== 'undefined') WARM.forget(m.id != null ? m.id : ('s' + m.screen)); } catch (e){}
       this.peers.delete(m.id != null ? m.id : ('s' + m.screen));
       this.pushWall(true);
       this.paint();
@@ -25130,6 +25911,481 @@ function inviteCard(o){
   return card;
 }
 
+/* ================================================================
+   WARM — the warm-up, and the room's hands.
+
+   THE PROBLEM. Joining used to be: scan a code, watch a spinner, and
+   then your phone is a rectangle of somebody else's picture. Every
+   part of that works and none of it is anything you DID. The best
+   ten seconds available — a group of people holding glowing
+   rectangles that have just discovered they are one screen — were
+   being spent on a status message.
+
+   WHAT HAPPENS INSTEAD. Two questions, each answerable with one
+   thumb without reading anything: pick a colour, pick a look. Then
+   the overlay goes and the field is underneath it — and now touching
+   the picture puts a ripple on EVERY screen in the room, in your
+   colour, at the place in the wall you touched. A hand on screen two
+   travels across screens one and three. That is the whole mechanic
+   and it explains itself the first time somebody else's ripple
+   crosses your phone.
+
+   THE GAME, such as it is. Touches that land near the beat push a
+   meter that CANNOT BE FILLED ALONE — it counts distinct screens,
+   not touches, so drumming your own thumb does nothing and the only
+   way up is other people. Fill it and the room answers: one bloom,
+   everybody's colours at once, across the whole wall. Then it
+   resets, and nothing is scored, nothing is lost, and nobody is
+   ranked. Flow, not competition — the reward for playing is that the
+   room looks better, which is also the reason everyone came.
+
+   WHY THE PICKS MATTER AFTERWARDS. A choice that stops mattering the
+   moment it is made is a form. So the colour is yours all night —
+   your ripples, your slice's wash, your share of the bloom — and the
+   looks the room picked LEAN the director's deal (warmDeal), never
+   seize it: a room that all tapped one scene tilts the night toward
+   it without turning the night into it.
+   ================================================================ */
+const WARM = {
+  SPARK_LIFE: 1.5,                 // seconds a ripple takes to cross and fade
+  TAP_MS: 90,                      // a drag is a stream of taps, at a sane rate
+  WINDOW_MS: 1400,                 // how long a hand counts as "just now"
+  HOLD: 1.1,                       // seconds at full together before the room answers
+  MAX_SPARKS: 64,                  // a full room drumming still costs a fixed amount
+
+  /* `ask` is the question this screen is on — 0 colour, 1 look. It is not
+     called `step` because the per-frame method is, and an object literal with
+     both quietly keeps the LAST one: begin() then assigned 0 over the method
+     and every frame after that threw into a catch. Nothing broke visibly, the
+     sparks simply never drew. */
+  ask: 0,
+  hue: 4, scene: null, done: false,
+  sparks: [], taps: [], picks: new Map(),
+  v: 0, _hold: 0, _lastTap: 0, _cv: null, _ctx: null, _flash: 0, _sendT: 0, _sent: 0,
+
+  /* ---------------- what this device is ---------------- */
+  mine(){ return { hue: this.hue, scene: this.scene }; },
+  colour(){ return warmHue(this.hue); },
+  /* the room, as one colour and one measure of how much it agrees. The booth
+     holds every pick; a screen holds only its own, and answers for itself —
+     which is the right answer on a screen, where the only crowd it can speak
+     for is the crowd of one it can see. */
+  blend(){
+    const all = [...this.picks.values()];
+    if (!STAGE.screen() ) all.push(this.mine());
+    return warmBlend(all.length ? all : [this.mine()]);
+  },
+  crowd(){ return warmDeal([...this.picks.values()]); },
+
+  /* ---------------- the two questions ---------------- */
+  el(){ return document.getElementById('warmup'); },
+  /* Skipped entirely on a corner window. A pip is a REHEARSAL — one person at
+     one laptop looking at four postcards of their own rig — and asking that
+     person to pick a colour four times, once per postcard, is a form to fill
+     in rather than a thing to do. The warm-up is for devices that WALKED IN. */
+  begin(){
+    if (this.done || document.body.classList.contains('pip')) return;
+    const box = this.el();
+    if (!box) return;
+    document.body.classList.add('warming');
+    box.hidden = false;
+    this.ask = 0;
+    this.render();
+  },
+  finish(){
+    this.done = true;
+    const box = this.el();
+    if (box) box.hidden = true;
+    document.body.classList.remove('warming');
+    // say who you are and what you like, up whichever road exists
+    STAGE.send({ t: 'pick', id: STAGE.cfg.id, hue: this.hue, scene: this.scene });
+    // and answer yourself, so the first thing that happens after picking is
+    // your own colour blooming on your own screen — the pick, confirmed in the
+    // only language this app actually speaks
+    this.add({ x: 0.5, y: 0.5, h: this.colour().h, c: this.colour().c, big: 1 });
+  },
+  render(){
+    const box = this.el();
+    if (!box) return;
+    const grid = box.querySelector('#wuGrid');
+    const title = box.querySelector('#wuTitle'), sub = box.querySelector('#wuSub');
+    const foot = box.querySelector('#wuFoot');
+    if (!grid) return;
+    grid.innerHTML = '';
+    if (this.ask === 0){
+      title.textContent = 'Pick your colour';
+      sub.textContent = "it's yours for the night — every touch you make is in it";
+      foot.textContent = '';
+      WARM_HUES.forEach((e, i) => {
+        const b = this.cell(e.name);
+        b.style.background = 'linear-gradient(155deg,'
+          + this.css(oklchToRgb(0.72, e.c, e.h)) + ','
+          + this.css(oklchToRgb(0.34, e.c * 0.7, e.h)) + ')';
+        b.onclick = () => { this.hue = i; this.ask = 1; this.render(); };
+        grid.appendChild(b);
+      });
+      return;
+    }
+    title.textContent = 'Pick a look';
+    sub.textContent = 'what the room leans toward — the booth still runs the night';
+    foot.textContent = 'then touch the picture: everyone sees your ripple';
+    const list = typeof scenes !== 'undefined' && scenes.length
+      ? scenes.map(s => ({ key: s.key, name: s.name }))
+      : SCENE_KEYS.map(k => ({ key: k, name: k.toUpperCase() }));
+    for (const s of list){
+      const b = this.cell(s.name);
+      const cv = document.createElement('canvas');
+      b.insertBefore(cv, b.firstChild);
+      // painted after layout, so the canvas has a size to be painted at
+      requestAnimationFrame(() => this.tile(cv, s.key));
+      b.onclick = () => { this.scene = s.key; this.finish(); };
+      grid.appendChild(b);
+    }
+  },
+  cell(name){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wu-cell';
+    const t = document.createElement('span');
+    t.className = 'wu-name';
+    t.textContent = name;
+    b.appendChild(t);
+    return b;
+  },
+  /* oklchToRgb takes THREE NUMBERS and hands back an ARRAY of three, 0..1.
+     Calling it with an object instead — which is what its neighbours in the
+     colour engine look like they take — makes its chroma NaN, and its gamut
+     walk (`c -= 0.008` until the colour fits) then never terminates: the tab
+     locks solid, with no error anywhere. Worth the sharp edge being written
+     down rather than smoothed over, because a wrapper would just hide it. */
+  css(a, alpha){
+    const to = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+    const rgb = to(a[0]) + ',' + to(a[1]) + ',' + to(a[2]);
+    return alpha == null ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
+  },
+
+  /* THE TILE PAINTERS. Nine gestures, re-used across nineteen rooms at
+     different hues and densities — not screenshots, and deliberately not:
+     a still frame of a scene that is entirely about MOTION is a worse
+     description of it than a drawing of what the motion does. */
+  tile(cv, key){
+    if (!cv || !cv.isConnected) return;
+    const r = cv.getBoundingClientRect();
+    const W = Math.max(2, Math.round(r.width)), H = Math.max(2, Math.round(r.height));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const g = cv.getContext('2d');
+    if (!g) return;
+    g.scale(dpr, dpr);
+    const s = sceneSig(key);
+    const ink = (l, a, dh) =>
+      this.css(oklchToRgb(l, s.c === 0 ? 0 : (s.c || 0.15), (s.h + (dh || 0) + 360) % 360), a);
+    g.fillStyle = ink(0.16, 1, 0); g.fillRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.42;
+    const arms = s.arms || 3, dense = s.dense == null ? 0.7 : s.dense;
+    g.lineCap = 'round';
+    const rnd = mulberry32(0x5eed ^ key.length * 2654435761);
+    if (s.kind === 'spiral'){
+      for (let a = 0; a < arms; a++){
+        g.beginPath();
+        for (let t = 0; t <= 1.0001; t += 0.02){
+          const th = t * Math.PI * (2.6 + dense * 3) + (a / arms) * Math.PI * 2;
+          const rr = R * t;
+          const x = cx + Math.cos(th) * rr, y = cy + Math.sin(th) * rr;
+          if (t === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.strokeStyle = ink(0.82, 0.9, a * 14); g.lineWidth = 1.6; g.stroke();
+      }
+    } else if (s.kind === 'wave'){
+      for (let a = 0; a < arms; a++){
+        g.beginPath();
+        for (let x = 0; x <= W; x += 3){
+          const u = x / W;
+          const amp = H * (s.meter ? 0.12 + 0.26 * Math.abs(Math.sin(u * 7)) : 0.22);
+          const ph = a * (s.twist ? Math.PI / arms : 0.5);
+          const y = cy + Math.sin(u * Math.PI * 4 + ph) * amp * (s.twist ? Math.cos(u * Math.PI) : 1);
+          if (!x) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.strokeStyle = ink(0.8, 0.9, a * 18); g.lineWidth = 2; g.stroke();
+      }
+    } else if (s.kind === 'burst'){
+      for (let a = 0; a < arms; a++){
+        const th = (a / arms) * Math.PI * 2 + rnd() * 0.4;
+        const len = R * (0.5 + rnd() * 0.6);
+        g.beginPath(); g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(th) * len, cy + Math.sin(th) * len);
+        g.strokeStyle = ink(0.86, s.tail ? 0.55 : 0.9, a * 6);
+        g.lineWidth = s.tail ? 3 : 1.6; g.stroke();
+        if (s.tail){
+          g.beginPath();
+          g.arc(cx + Math.cos(th) * len, cy + Math.sin(th) * len, 2.6, 0, 7);
+          g.fillStyle = ink(0.95, 1, 0); g.fill();
+        }
+      }
+    } else if (s.kind === 'cloud'){
+      for (let i = 0; i < Math.round(26 * (0.5 + dense)); i++){
+        const x = cx + (rnd() - 0.5) * W * 0.9, y = cy + (rnd() - 0.5) * H * 0.8;
+        const rr = R * (0.08 + rnd() * 0.34);
+        const gr = g.createRadialGradient(x, y, 0, x, y, rr);
+        gr.addColorStop(0, ink(0.72, 0.30, (rnd() - 0.5) * 50));
+        gr.addColorStop(1, ink(0.5, 0, 0));
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+      }
+    } else if (s.kind === 'tunnel'){
+      for (let i = 1; i <= 9; i++){
+        const t = i / 9, rr = R * t * t;
+        g.beginPath(); g.arc(cx, cy - H * 0.04 * (1 - t), rr, 0, 7);
+        g.strokeStyle = ink(0.45 + 0.45 * (1 - t), 0.9, i * 5); g.lineWidth = 1.4; g.stroke();
+      }
+    } else if (s.kind === 'ribbon'){
+      for (let a = 0; a < arms; a++){
+        g.beginPath();
+        for (let t = 0; t <= 1.0001; t += 0.025){
+          const th = t * Math.PI * 2;
+          const rr = R * (0.55 + 0.35 * Math.sin(th * 3 + a * 1.3));
+          const x = cx + Math.cos(th) * rr, y = cy + Math.sin(th) * rr * 0.7;
+          if (t === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.closePath(); g.strokeStyle = ink(0.8, 0.75, a * 22); g.lineWidth = 3; g.stroke();
+      }
+    } else if (s.kind === 'grid'){
+      const n = 7, sw = W / n, sh = H / n;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++){
+        if ((i + j) % 2) continue;
+        const wob = Math.sin((i - n / 2) * 0.9) * sh * 0.22;
+        g.fillStyle = ink(0.78, 0.9, 0);
+        g.fillRect(i * sw, j * sh + wob, sw, sh);
+      }
+    } else if (s.kind === 'ring'){
+      for (let a = 0; a < arms; a++){
+        const th = (a / arms) * Math.PI * 2;
+        const x = cx + Math.cos(th) * R * 0.52, y = cy + Math.sin(th) * R * 0.52;
+        g.beginPath(); g.arc(x, y, R * 0.42, 0, 7);
+        g.strokeStyle = ink(0.82, 0.8, s.rainbow ? (a / arms) * 360 : a * 10);
+        g.lineWidth = 2; g.stroke();
+      }
+    } else {                              // blob — lava, flame
+      for (let i = 0; i < Math.round(6 * (0.5 + dense)); i++){
+        const x = cx + (rnd() - 0.5) * W * 0.5;
+        const y = H * (0.9 - i / 7) - (s.flame ? H * 0.05 : 0);
+        const rr = R * (0.34 - i * 0.03) * (s.flame ? 1.1 : 1);
+        const gr = g.createRadialGradient(x, y, 0, x, y, Math.max(2, rr));
+        gr.addColorStop(0, ink(s.flame ? 0.95 : 0.78, 0.95, s.flame ? -i * 6 : 0));
+        gr.addColorStop(1, ink(0.4, 0, 0));
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, Math.max(2, rr), 0, 7); g.fill();
+      }
+    }
+  },
+
+  /* ---------------- the hands ---------------- */
+  /* WALL COORDINATES, DECIDED AT THE HAND. A touch is turned into a point on
+     the WHOLE field by the screen that felt it, using the cut the booth gave
+     it, and every other screen turns that point back into its own pixels the
+     same way. The booth only relays. It could have done the arithmetic
+     centrally — it does for the wall itself, for good reasons — but a spark is
+     not geometry anybody has to AGREE on: half a degree of disagreement about
+     a ripple is invisible, where half a degree about a camera is a tear down
+     the seam between two televisions. Doing it at the edges means a ripple
+     survives a booth that is a frame behind. */
+  toWall(lx, ly){
+    const c = STAGE.screen() ? (STAGE.cut || null) : null;
+    if (!c) return { x: clamp01(lx), y: clamp01(ly) };
+    return {
+      x: (Number(c.fx) || 0) + clamp01(lx) * (Number(c.fw) || 1),
+      y: (Number(c.fy) || 0) + clamp01(ly) * (Number(c.fh) || 1),
+    };
+  },
+  toLocal(wx, wy){
+    const c = STAGE.screen() ? (STAGE.cut || null) : null;
+    if (!c) return { x: wx, y: wy };
+    const fw = Number(c.fw) || 1, fh = Number(c.fh) || 1;
+    return { x: (wx - (Number(c.fx) || 0)) / fw, y: (wy - (Number(c.fy) || 0)) / fh };
+  },
+  /* a touch on this device: rate-limited, because a drag is a hose and the
+     ctl channel is ordered — flooding it would delay the messages that
+     actually matter (the wall, the frame) behind a hundred ripples */
+  touch(lx, ly){
+    // a screen that has not finished picking is not touching the field, it is
+    // touching the card in front of it
+    if (STAGE.screen() && !this.done) return;
+    /* AND A BOOTH WITH NO ROOM RIPPLES AT NOTHING. Somebody listening alone on
+       a laptop is not in a room, and putting a ring on the field under every
+       click would be a new visual effect nobody asked for, arriving in an
+       update, on by default. It costs nothing to wait until there is actually
+       a stage or an invite up — which is the same moment the ripples have
+       somewhere to travel to. */
+    if (!STAGE.screen() && !STAGE.on) return;
+    const now = performance.now();
+    if (now - this._lastTap < this.TAP_MS) return;
+    this._lastTap = now;
+    const w = this.toWall(lx, ly);
+    const e = this.colour();
+    const m = { t: 'tap', id: STAGE.cfg.id, x: w.x, y: w.y, h: e.h, c: e.c };
+    if (STAGE.screen()) STAGE.send(m);
+    else this.heard(m, true);            // the booth is a hand in the room too
+    this.add({ x: lx, y: ly, h: e.h, c: e.c });   // instant local answer, no round trip
+  },
+  /* the booth heard a hand — anybody's, including its own. It relays the
+     spark to every screen, remembers WHO for the meter, and lets a touch that
+     landed on the beat push it. Nothing here can be pushed by one device. */
+  heard(m, local){
+    if (STAGE.screen()) return;
+    const id = String(m.id == null ? '?' : m.id);
+    const now = Date.now();
+    this.taps.push({ id, at: now });
+    if (this.taps.length > 240) this.taps.splice(0, this.taps.length - 240);
+    const grace = beatGrace(typeof CLOCK !== 'undefined' ? CLOCK.phase : NaN, 0.18);
+    const tog = togetherness(this.taps, now, this.WINDOW_MS);
+    // the meter rises only for hands that are BOTH together and on the beat,
+    // and falls back on its own — see step()
+    this.v = Math.max(this.v, tog.v * (0.35 + 0.65 * grace));
+    if (!local){
+      const l = this.toLocal(m.x, m.y);
+      this.add({ x: l.x, y: l.y, h: m.h, c: m.c });
+    }
+    STAGE.send({ t: 'spark', x: m.x, y: m.y, h: m.h, c: m.c, from: id });
+  },
+  add(s){
+    this.sparks.push({ x: s.x, y: s.y, h: s.h || 0, c: s.c == null ? 0.15 : s.c,
+                       big: s.big || 0, at: performance.now() });
+    if (this.sparks.length > this.MAX_SPARKS)
+      this.sparks.splice(0, this.sparks.length - this.MAX_SPARKS);
+  },
+
+  /* ---------------- the room answers ---------------- */
+  /* HELD, NOT HIT. A meter that fires the instant it touches full fires on a
+     coincidence — four people happening to tap in the same second, once. Held
+     for a beat and a bit, it can only be reached by a room that is doing this
+     ON PURPOSE, which is the only thing worth answering. */
+  step(dt){
+    if (!STAGE.screen()){
+      const tog = togetherness(this.taps, Date.now(), this.WINDOW_MS);
+      this.v += (tog.v - this.v) * Math.min(1, dt * 2.2);
+      if (this.v > 0.985){
+        this._hold += dt;
+        if (this._hold >= this.HOLD){ this.lock(); this._hold = 0; }
+      } else this._hold = 0;
+      /* THE METER IS ONLY BROADCAST WHEN THERE IS A METER. Sending it on a
+         timer regardless put four messages a second onto the channel and down
+         every wire for the whole of a night on which nobody ever touched
+         anything — and a booth with no stage at all was doing it to an empty
+         room. It goes out while the meter is up, plus one final packet on the
+         way down so a screen is never left showing a bar that has already
+         drained at the booth. */
+      this._sendT = (this._sendT || 0) + dt;
+      const worth = this.v > 0.01 || this._sent > 0.01;
+      if (worth && this._sendT > 0.25){
+        this._sendT = 0; this._sent = this.v;
+        STAGE.send({ t: 'sync', v: this.v });
+      }
+    }
+    if (this._flash > 0) this._flash = Math.max(0, this._flash - dt);
+    this.draw();
+  },
+  /* the room, answered. One bloom in everyone's colours at once — through the
+     same flash governor every other bright thing on this page goes through,
+     because a room that earned a moment must not be the thing that hurts
+     somebody in it. */
+  lock(){
+    const b = this.blend();
+    this.taps.length = 0; this.v = 0;
+    STAGE.send({ t: 'lock', h: b.h, c: b.c, n: b.n });
+    this.bloom(b);
+  },
+  bloom(b){
+    this._flash = 1;
+    try {
+      INTERACT.impulse = Math.max(INTERACT.impulse, 0.85);
+      COLOR.bloom = 1;
+    } catch (e){}
+    // a ring from each corner and the middle, in the room's own colour
+    for (const p of [[0.5, 0.5], [0.14, 0.16], [0.86, 0.16], [0.14, 0.84], [0.86, 0.84]])
+      this.add({ x: p[0], y: p[1], h: b.h, c: b.c || 0.15, big: 1 });
+  },
+
+  /* ---------------- drawing ---------------- */
+  cv(){
+    if (this._cv && this._cv.isConnected) return this._cv;
+    this._cv = document.getElementById('stageSparks');
+    this._ctx = this._cv ? this._cv.getContext('2d') : null;
+    return this._cv;
+  },
+  draw(){
+    const cv = this.cv(), g = this._ctx;
+    if (!cv || !g) return;
+    const live = this.sparks.length || this.v > 0.02 || this._flash > 0;
+    if (!live){ if (!cv.hidden){ cv.hidden = true; } return; }
+    cv.hidden = false;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = window.innerWidth, H = window.innerHeight;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const now = performance.now();
+    /* the ripple crosses the WALL at one speed, so a ring that leaves a phone
+       and arrives at a television is one ripple rather than two of different
+       sizes. The screen's own share of the wall is what converts that speed
+       into pixels here. */
+    const cut = STAGE.screen() ? (STAGE.cut || null) : null;
+    const span = Math.hypot(W / ((cut && cut.fw) || 1), H / ((cut && cut.fh) || 1));
+    for (let i = this.sparks.length - 1; i >= 0; i--){
+      const s = this.sparks[i];
+      const life = this.SPARK_LIFE * (s.big ? 1.9 : 1);
+      const e = warmSpark((now - s.at) / 1000, life);
+      if (e.a <= 0.002){ this.sparks.splice(i, 1); continue; }
+      const R = e.r * span * (s.big ? 0.55 : 0.24);
+      g.beginPath();
+      g.arc(s.x * W, s.y * H, Math.max(1, R), 0, 7);
+      g.strokeStyle = this.css(oklchToRgb(0.78, s.c, s.h), (e.a * 0.85).toFixed(3));
+      g.lineWidth = Math.max(1.2, span * 0.008 * (s.big ? 2.2 : 1) * e.a);
+      g.stroke();
+    }
+    /* THE METER, AS A HAIRLINE. Anything bigger is a HUD, and a HUD is the one
+       thing a screen pointed at an audience must never grow — the whole
+       argument for this being a line one pixel tall at the very bottom is that
+       it is invisible until somebody is looking for it, and unmistakable the
+       moment they are. */
+    if (this.v > 0.02){
+      const b = this.blend();
+      g.fillStyle = this.css(oklchToRgb(0.8, Math.max(0.06, b.c), b.h),
+                             (0.35 + 0.5 * this.v).toFixed(3));
+      g.fillRect(0, H - 2, W * clamp01(this.v), 2);
+    }
+  },
+
+  /* ---------------- the wire ---------------- */
+  /* everything the warm-up sends or receives, in one place. Screens speak
+     `pick` and `tap`; the booth answers `spark`, `sync` and `lock`. A message
+     that arrives on the wrong side is ignored rather than trusted — a screen
+     cannot tell the room it has locked. */
+  recv(m){
+    if (!m || !m.t) return false;
+    if (STAGE.screen()){
+      if (m.t === 'spark'){
+        if (String(m.from) === String(STAGE.cfg.id)) return true;   // already drawn locally
+        const l = this.toLocal(Number(m.x) || 0, Number(m.y) || 0);
+        this.add({ x: l.x, y: l.y, h: Number(m.h) || 0, c: Number(m.c) || 0.15 });
+        return true;
+      }
+      if (m.t === 'sync'){ this.v = clamp01(Number(m.v) || 0); return true; }
+      if (m.t === 'lock'){ this.bloom({ h: Number(m.h) || 0, c: Number(m.c) || 0.15 }); return true; }
+      return false;
+    }
+    if (m.t === 'pick'){
+      this.picks.set(String(m.id), { hue: Math.floor(Number(m.hue) || 0), scene: m.scene || null });
+      const e = warmHue(m.hue);
+      toast('A screen joined — ' + e.name.toLowerCase()
+        + (m.scene ? ', and wants ' + String(m.scene).toUpperCase() : ''));
+      return true;
+    }
+    if (m.t === 'tap'){ this.heard(m, false); return true; }
+    return false;
+  },
+  forget(id){ this.picks.delete(String(id)); },
+};
+
 const WIRE = {
   /* same-origin first: a Netlify preview has the mailbox right there. The
      canonical site is GitHub Pages, which has no serverless anything — it
@@ -25421,7 +26677,9 @@ const WIRE = {
     if (!m || !m.t) return;
     if (STAGE.screen()){
       if (!this.linked || !this._ctl || this._ctl.readyState !== 'open') return;
-      if (m.t !== 'here' && m.t !== 'screen-gone') return;
+      // a screen speaks four things now: it is here, it has gone, this is
+      // who I am, and I just touched the picture
+      if (m.t !== 'here' && m.t !== 'screen-gone' && m.t !== 'pick' && m.t !== 'tap') return;
       try { this._ctl.send(JSON.stringify(m)); } catch (e){}
       return;
     }
@@ -26159,6 +27417,7 @@ function frame(now){
   GHOST.update(dt);
   if (STAGE.screen()) STAGE.hand();     // the booth's hand outranks a local ghost
   INTERACT.update(dt);
+  try { WARM.step(dt); } catch (e){}
   /* THE HAND, HANDED TO THE FABRIC. Nothing is drawn here any more — there is
      no stage to perform on. These uniforms ARE the touch: the metric reads
      them, the particles move through it, and the light-bending pass refracts

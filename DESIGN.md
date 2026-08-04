@@ -63,7 +63,7 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   FERN (IFS fractal that grows with track progress), ROSETTE, SLINKY, OP-ART,
   PULSE, PARLOR, AUREA, HALO, and the LAVA LAMP.
 - **The lamp's wax is a fluid** (`@lava` pure block): a position-based fluid
-  (Macklin & Müller) of ~190 particles — density as a *constraint* solved in
+  (Macklin & Müller) of ~340 particles (device-budgeted) — density as a *constraint* solved in
   two Jacobi sweeps, Akinci cohesion as the surface tension, XSPH viscosity,
   a counting-sort neighbour grid, and one neighbour list a step reused by
   every pass. The constraint only ever pushes: letting it pull is what made
@@ -75,7 +75,15 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   small target — cost becomes O(N·sprite) + O(pixels) instead of
   O(pixels·N) — then shaded from four taps: screen-exact AA from
   (F−iso)/|∇F|, real normals, Beer–Lambert thickness, three-wavelength
-  refraction, and temperature carried in its own channel. The solver caps
+  refraction, temperature carried in its own channel, and one extra tap
+  below each pixel for the shadow the coil casts through the wax. What is
+  splatted is NORMALISED by each particle's own density (the colour
+  function), so a four-particle droplet and a pool read the same value and
+  one isosurface is right for both — without that division small droplets
+  are invisible at any threshold. A per-pair geometry cache means the
+  offset, kernel and gradient are computed once a sweep rather than five
+  times a step, which paid for the third Jacobi iteration and the particle
+  count. The solver caps
   its own step, so it is step-size independent; headless, seeded, and
   unit-tested for not leaking, not compressing, and going *quiet* when
   nothing is touching it.
