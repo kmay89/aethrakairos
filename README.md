@@ -1121,7 +1121,23 @@ other — venue Wi-Fi with client isolation blocks device-to-device traffic, in
 which case share a hotspot that has internet and join every device to it. The
 internet is needed only at the door: minting and joining a code fetches the
 ~600-character handshake from the family's mailbox at kmay89.com. The show
-itself never touches it — once linked, the devices talk directly.
+itself never touches it — once linked, the devices talk directly. A wall is
+up to **16** screens wide.
+
+### The whole crowd — every phone on the floor
+
+The wire makes a device a *tile*; crowd mode makes it a *hand*. Type **crowd**
+into the Stage card (or tap **Crowd** in the folded booth) and put the QR on
+the projector: anyone who scans it gets a one-tap "Join the show" veil, and
+their phone becomes the whole field — listening to the room through its **own
+microphone** and dancing to what it actually hears, in this booth's palette
+and scene. The speakers are the broadcast, so it scales to any crowd the room
+holds: nothing fast ever crosses the network. The booth leaves only a *pulse*
+at the mailbox — three colours and a scene, ~80 bytes every 2.5 seconds — and
+every phone reads it through the CDN, so a thousand phones cost the mailbox
+one request every couple of seconds. Phones need internet (cellular is fine —
+they never talk to your laptop, only to the pulse); if the booth goes quiet,
+the floor keeps dancing in colours of its own.
 
 ## Tests
 

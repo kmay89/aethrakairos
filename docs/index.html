@@ -934,7 +934,7 @@ body.stage-screen{cursor:none;background:#000}
 #stageWait[hidden]{display:none!important}
 
 /* ============ the mini booth ============ */
-body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip):not(#wireCard){display:none!important}
+body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip):not(.invite-card){display:none!important}
 body.mini{background:var(--void,#05060c)}
 #miniBar{
   position:fixed;right:16px;bottom:16px;z-index:70;width:min(94vw,360px);
@@ -1076,7 +1076,7 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
    The code in letters a room can read, the QR for the camera already in
    everyone's hand. It floats rather than blocking: an operator holds it up
    WHILE the show runs, and puts it away with the ×. */
-#wireCard{
+.invite-card{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:110;
   display:flex;flex-direction:column;align-items:center;gap:10px;
   padding:22px 26px 20px;max-width:min(86vw,380px);text-align:center;
@@ -1084,20 +1084,35 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
   border:1px solid var(--edge,rgba(120,150,190,.25));border-radius:16px;
   box-shadow:0 18px 60px rgba(0,0,0,.5);
 }
-#wireCard[hidden]{display:none!important}
-#wireCard .wc-x{
+.invite-card[hidden]{display:none!important}
+.invite-card .wc-x{
   position:absolute;right:8px;top:6px;border:0;background:none;color:inherit;
   font-size:20px;line-height:1;opacity:.6;cursor:pointer;padding:6px;
 }
-#wireCard .wc-x:hover{opacity:1}
-#wireCard .wc-title{font-size:12px;letter-spacing:.28em;text-transform:uppercase;opacity:.66}
-#wireCard .wc-code{
+.invite-card .wc-x:hover{opacity:1}
+.invite-card .wc-title{font-size:12px;letter-spacing:.28em;text-transform:uppercase;opacity:.66}
+.invite-card .wc-code{
   font-size:56px;line-height:1;font-weight:600;letter-spacing:.28em;
   padding-left:.28em; /* the tracking adds a phantom space after the last letter */
   text-shadow:0 0 22px var(--accent-glow,rgba(110,231,255,.45));
 }
-#wireCard .wc-qr{width:min(56vw,208px);height:auto;border-radius:8px;background:#fff;image-rendering:pixelated}
-#wireCard .wc-how{font-size:12.5px;line-height:1.55;opacity:.82;max-width:32ch}
+.invite-card .wc-qr{width:min(56vw,208px);height:auto;border-radius:8px;background:#fff;image-rendering:pixelated}
+.invite-card .wc-how{font-size:12.5px;line-height:1.55;opacity:.82;max-width:32ch}
+/* ============ the crowd — the whole show, in a hand ============
+   A phone that scanned a crowd code is all field: everything but the canvas
+   goes, like a stage screen, but the cursor and the touch stay — this glass
+   belongs to one person and their finger bends their own copy of the show.
+   The veil is the one tap that grants the microphone and starts it all. */
+body.crowd > *:not(#glcanvas):not(#crowdGo):not(#toasts):not(#askCard):not(#askScrim){display:none!important}
+body.crowd{background:#000}
+#crowdGo{
+  position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;gap:12px;
+  align-items:center;justify-content:center;text-align:center;cursor:pointer;
+  background:rgba(2,4,10,.55);color:var(--ink,#eaf2ff);padding:24px;
+  -webkit-tap-highlight-color:transparent;
+}
+#crowdGo b{font-size:20px;letter-spacing:.3em;text-transform:uppercase;padding-left:.3em}
+#crowdGo span{font-size:13px;opacity:.75;max-width:30ch;line-height:1.6}
 /* ============ the rig — the room's lamps, drawn from the wire ============
    Not a mock-up of a light show: a MONITOR. Every cone below is drawn from
    dmxDecode() reading the same 512 bytes the interface is sending, so a
@@ -1249,19 +1264,6 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 .meter i:first-child{width:10px;height:10px}     /* the downbeat dot is the heavy one */
 .meter i.on{background:var(--ink);border-color:var(--ink);transform:scale(1.25)}
 .meter i:first-child.on{background:var(--pi);border-color:var(--pi);transform:scale(1.35)}
-
-/* -------- the dwell ring: the gaze, answered -------- */
-#dwellRing{
-  position:fixed;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
-  pointer-events:none;z-index:60;display:none;opacity:.85;
-  background:conic-gradient(var(--e) calc(var(--p,0)*1turn), rgba(110,231,255,.12) 0);
-  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
-  mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
-}
-#dwellRing.charging{display:block}
-#dwellRing.fired{display:block;background:var(--e);
-  -webkit-mask:none;mask:none;opacity:.0;transform:scale(1.8);
-  transition:opacity .5s,transform .5s}
 
 /* -------- prefers-contrast: the chrome firms up -------- */
 @media (prefers-contrast:more){
@@ -2677,9 +2679,8 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     the music by eye — nowhere more plainly than in <b>PULSE</b>, the visual meter: the
     bass is the ground, the melody is the ribbon, the percussion lands as ticks, and the bar itself is
     drawn as four circles with the downbeat heavier, so you can see the next hit <i>coming</i>. The HUD
-    carries the same meter beside the scene dots. Rest the pointer anywhere on the field and a ring
-    charges — hold it and the field answers with a soft bloom; an eye-tracker or head pointer gets the
-    same reply a hand gets, and <kbd>E</kbd> is the one-key equivalent. <b>CALM</b> tightens the flash
+    carries the same meter beside the scene dots. <kbd>E</kbd> nudges the field — a soft bloom, on
+    request, for anyone steering without a hand on the pointer. <b>CALM</b> tightens the flash
     governor (a WCAG&nbsp;2.3.1 luminance gate that is always on — no scene can strobe past it) and it
     engages automatically when the system asks for reduced motion, opening in PULSE, a room designed for
     that request rather than a dimmed copy of someone else's. <b>FEEL</b>, where the device supports it,
@@ -2710,8 +2711,7 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     <p class="lede">Scene 19 is <b>FLAME</b> — ten real light sources burning side by side: match,
     lighter, Bic, Zippo, Clipper, torch, campfire, an iPhone flashlight, an LED and a laser. Each one
     listens to <i>its own band</i> of the live spectrum and lifts when that band arrives, so the bench
-    is a spectrum analyser made out of fire — and under each light, its name and its colour, written in
-    that colour.
+    is a spectrum analyser made out of fire.
     <b>Nothing in the room was art-directed.</b> Every colour is integrated from Planck's law through
     the CIE 1931 observer: a Zippo is amber because 1500&nbsp;K <i>is</i> amber, and the laser's green
     is a green no black body can make because 532&nbsp;nm is one wavelength rather than a whole curve.
@@ -2726,7 +2726,18 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     hold, and they are fed air and roar; let go, and the release blows them flat. A beam barely notices.
     A laser does not care at all — and that difference is the most honest thing in the room. Half the
     visits light the whole bench; the other half bring one source close enough to read the flicker
-    off it.</p>
+    off it.
+    <b>And then the bench fires.</b> As the music earns it the room becomes a pyrotechnics show —
+    gerbs and mines off the sources, shells that rise as comets and <i>break</i> at the top of their
+    climb into peonies, chrysanthemums, willows, palms, rings, crossettes and strobes, with billows of
+    lit smoke rolling out underneath all of it. It is the same two ideas taken a few thousand feet up.
+    A star's colour is its <i>chemistry</i>, through the same observer: strontium's 650&nbsp;nm red,
+    barium at 515, copper's difficult blue at 452, sodium's D lines at 589, and a purple star that is
+    copper and strontium in one pellet, so its colour is their sum. The gold willow is not a colour at
+    all — it is charcoal, incandescing, and it comes out the same amber a Zippo does. And a star's
+    flight is one closed form: linear drag on its velocity, gravity underneath, integrated once so
+    thousands of them can live in a shader with no state. What separates a willow from a peony is not
+    a different animation — it is three numbers.</p>
     <h3>The parlor</h3>
     <p class="lede">Scene 15 is <b>PARLOR</b> — the illusion machine. It rolls a century of perceptual
     science like dice: an Escher circle-limit tiling panned by true Möbius transforms, de Bruijn's
@@ -2970,7 +2981,6 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     <a class="bp-go" id="bpGo" href="https://echoesofplay.com/" target="_blank" rel="noopener noreferrer">Take a break →</a>
   </div>
 </div>
-<div id="dwellRing" aria-hidden="true"></div>
 <div id="plChooser" role="menu" aria-label="Add to playlist"></div>
 <div id="webglFail"><div>Aethra Kairos needs WebGL to render the field,<br>and this browser has it disabled.<br><br>Audio playback still works — try enabling hardware acceleration.</div></div>
 
@@ -3836,6 +3846,146 @@ function flameRoll(r){
 }
 
 /* ================================================================
+   PYROTECHNICS — the bench, fired into the air.
+
+   The same two ideas as the flames, taken up a few thousand feet.
+
+     THE COLOUR IS STILL A SPECTRUM. A firework star is not "red" —
+     it is strontium monochloride emitting a band around 650 nm, or
+     barium at 515, or copper at 452, or sodium's D lines at 589.
+     Those go through the SAME CIE observer the flames and the laser
+     use, which is why a green shell here is a green no black body
+     can make and the gold willow, which really is just incandescent
+     charcoal, comes out the same amber as a Zippo. A purple star is
+     two emitters in one pellet — copper and strontium — so its
+     colour is their SUM, exactly as the blue cone sums beside a
+     lighter's yellow body.
+
+     THE MOTION IS STILL A CLOSED FORM. A star is a ballistic
+     particle in air: linear drag on its velocity, gravity
+     underneath. Integrated once, analytically, so the GPU can
+     evaluate any age directly instead of stepping a simulation it
+     would have to store — and so a test can hold it against the
+     limit where the air is taken away and it must reproduce
+     vacuum ballistics exactly.
+
+   What separates a peony from a willow is then nothing but three
+   numbers: how hard the stars are thrown, how thick the air is, and
+   how heavy they are. Not three different animations.
+   ================================================================ */
+
+/* The star chemistry. `nm` is a line/band emitter; `kelvin` is something
+   simply burning hot enough to glow (magnesium, titanium, charcoal); a star
+   with both wavelengths carries two emitters and its colour is their sum. */
+const PYRO_STARS = [
+  { key: 'strontium', name: 'STRONTIUM', nm: 650 },                    // deep red — SrCl
+  { key: 'calcium',   name: 'CALCIUM',   nm: 606 },                    // orange — CaCl
+  { key: 'sodium',    name: 'SODIUM',    nm: 589 },                    // yellow — the D lines
+  { key: 'barium',    name: 'BARIUM',    nm: 515 },                    // green — BaCl
+  { key: 'copper',    name: 'COPPER',    nm: 452 },                    // blue — CuCl, the hard one
+  { key: 'purple',    name: 'PURPLE',    nm: 452, nm2: 650, mix: 0.55 },// copper + strontium, together
+  { key: 'magnesium', name: 'MAGNESIUM', kelvin: 4300 },               // white — burning metal
+  { key: 'titanium',  name: 'TITANIUM',  kelvin: 2900 },               // silver sparks
+  { key: 'charcoal',  name: 'GOLD',      kelvin: 1750 },               // the gold willow: just charcoal
+];
+/* Two emitters in one pellet ADD, they do not average — the same reason a
+   lighter's blue cone survives beside a body five times brighter. */
+function pyroStarRGB(star){
+  const s = star || {};
+  if (s.nm && s.nm2){
+    const m = s.mix == null ? 0.5 : clamp01(s.mix);
+    return encodeRGB(normalizeRGB(addRGB(scaleRGB(wavelengthLinear(s.nm), m),
+                                         scaleRGB(wavelengthLinear(s.nm2), 1 - m))));
+  }
+  return s.nm ? wavelengthRGB(s.nm) : kelvinRGB(s.kelvin || 2500);
+}
+
+/* THE PIECES. `v0` is how hard the break throws its stars, `drag` how thick
+   the air is to them, `grav` how heavy they are; everything you would call a
+   shape falls out of those three plus which way the stars are aimed.
+   `lift` is the share of the piece's life spent as a comet on the way up —
+   zero for the ground pieces, which have nowhere to go. */
+const PYRO_SHELLS = [
+  { key: 'peony',     name: 'PEONY',     v0: 5.0, drag: 0.55, grav: 7.5, life: 3.4, lift: 0.30, trail: 0.10, form: 0 },
+  { key: 'chrys',     name: 'CHRYSANTHEMUM', v0: 5.2, drag: 0.70, grav: 8.5, life: 3.8, lift: 0.28, trail: 0.60, form: 0 },
+  { key: 'willow',    name: 'WILLOW',    v0: 5.5, drag: 0.90, grav: 13,  life: 4.6, lift: 0.26, trail: 0.85, form: 0 },
+  { key: 'palm',      name: 'PALM',      v0: 6.5, drag: 0.45, grav: 9.5, life: 3.6, lift: 0.34, trail: 0.75, form: 1 },
+  { key: 'ring',      name: 'RING',      v0: 5.5, drag: 0.50, grav: 6.5, life: 3.2, lift: 0.30, trail: 0.15, form: 2 },
+  { key: 'crossette', name: 'CROSSETTE', v0: 4.5, drag: 0.60, grav: 8,   life: 3.4, lift: 0.30, trail: 0.20, form: 3 },
+  { key: 'strobe',    name: 'STROBE',    v0: 4.6, drag: 0.85, grav: 7,   life: 4.0, lift: 0.28, trail: 0.05, form: 4 },
+  { key: 'gerb',      name: 'GERB',      v0: 5.0, drag: 1.00, grav: 13,  life: 2.4, lift: 0,    trail: 0.45, form: 5, spread: 0.16 },
+  { key: 'mine',      name: 'MINE',      v0: 6.0, drag: 0.70, grav: 12,  life: 2.8, lift: 0,    trail: 0.35, form: 5, spread: 0.45 },
+  { key: 'billow',    name: 'BILLOW',    v0: 6.0, drag: 1.40, grav: -2.6, life: 4.4, lift: 0,   trail: 0,    form: 6, spread: 1 },
+];
+function pyroShell(key){ return PYRO_SHELLS.find(s => s.key === key) || PYRO_SHELLS[0]; }
+
+/* A STAR IN AIR, in closed form. Linear drag means v̇ = −kv − g, which
+   integrates exactly: the distance along the launch direction is v₀·(1−e^{−kt})/k
+   and the fall underneath it is (g/k)·(t − (1−e^{−kt})/k). Evaluate at any age
+   without having stepped through the ages before it — which is the only reason
+   thousands of stars can live in a vertex shader with no state at all. */
+function pyroFlight(t, v0, drag, grav){
+  const T = Math.max(0, +t || 0);
+  const k = Math.max(1e-4, +drag || 0);
+  const u = (1 - Math.exp(-k * T)) / k;
+  return { reach: (+v0 || 0) * u, fall: (+grav || 0) / k * (T - u) };
+}
+
+/* HOW BUSY THE SKY IS — launches per second. Never a timer: the show is as
+   busy as the music, and it goes quiet when the music does. */
+/* `slots` is the whole table; the last `smoke` of them are kept back for
+   billows so a busy sky can never starve the room of the thing every fire
+   actually makes. */
+const PYRO_TUNING = { slots: 20, smoke: 7, base: 0.22, gain: 2.0, onsetFloor: 0.45,
+                      maxPerFrame: 3, calm: 0.45, smokeRate: 0.40, smokeGain: 1.15 };
+function pyroRate(o){
+  const s = o || {}, e = clamp01(+s.energy || 0), m = s.mood;
+  let r = PYRO_TUNING.base + e * PYRO_TUNING.gain;
+  if (m === 'apex') r *= 2.4;
+  else if (m === 'ascend') r *= 1.55;
+  else if (m === 'swarm') r *= 1.2;
+  else if (m === 'adrift' || m === 'dissolve') r *= 0.38;
+  if (s.calm) r *= PYRO_TUNING.calm;
+  return r;
+}
+/* Spend the budget. An onset is worth spending an ALMOST-full budget on, so a
+   shell breaks on the hit rather than a fraction of a second after the
+   arithmetic happens to come out even. */
+function pyroFire(acc, dt, rate, onset){
+  let a = Math.max(0, +acc || 0) + Math.max(0, +dt || 0) * Math.max(0, +rate || 0);
+  let n = 0;
+  if (onset && a >= PYRO_TUNING.onsetFloor){ n++; a -= Math.min(a, 1); }
+  while (a >= 1 && n < PYRO_TUNING.maxPerFrame){ n++; a -= 1; }
+  return { acc: Math.min(Math.max(0, a), 2), fire: n };
+}
+/* WHICH PIECE THE MOMENT HAS EARNED. The ground pieces carry the quiet — a
+   gerb is a flame doing a little more — and the sky opens as the music does.
+   Billows ride under everything: the smoke a fire makes is not an event. */
+function pyroPick(o, r){
+  const s = o || {}, e = clamp01(+s.energy || 0), m = s.mood;
+  const x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
+  if (m === 'adrift' || m === 'dissolve') return x < 0.62 ? 'billow' : (x < 0.86 ? 'gerb' : 'willow');
+  if (e < 0.30) return x < 0.44 ? 'billow' : (x < 0.78 ? 'gerb' : 'willow');
+  if (m === 'apex'){
+    const SKY = ['peony', 'chrys', 'palm', 'ring', 'crossette', 'strobe', 'peony', 'chrys'];
+    return x < 0.12 ? 'mine' : SKY[Math.floor(((x - 0.12) / 0.88) * SKY.length) % SKY.length];
+  }
+  const MID = ['gerb', 'mine', 'peony', 'chrys', 'willow', 'ring', 'crossette', 'billow'];
+  return MID[Math.floor(x * MID.length) % MID.length];
+}
+/* AND WHICH CHEMISTRY. Brightness wants metal (magnesium, titanium); warmth
+   wants the low salts; the top of the spectrum earns the hard colours — copper
+   blue is the expensive one in a real shell and it is the expensive one here. */
+function pyroSalt(o, r){
+  const s = o || {}, x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
+  const bright = clamp01(+s.treble || 0) * 0.6 + clamp01(+s.energy || 0) * 0.4;
+  const POOL = bright > 0.62 ? ['barium', 'copper', 'magnesium', 'titanium', 'purple', 'sodium']
+             : bright > 0.32 ? ['sodium', 'calcium', 'barium', 'magnesium', 'strontium', 'purple']
+                             : ['charcoal', 'strontium', 'calcium', 'charcoal', 'titanium', 'sodium'];
+  return POOL[Math.floor(x * POOL.length) % POOL.length];
+}
+
+/* ================================================================
    THE ROOM — what the auto director is really choosing.
 
    It used to choose a scene, and everything else in the show made
@@ -4384,6 +4534,50 @@ function stageNetWall(ids){
   }
   return map;
 }
+/* THE PULSE — the crowd's whole vocabulary, and it is deliberately tiny.
+
+   A crowd is not a wall. A phone in a hand is not tile 143 of 300 — it wants
+   the whole field, beating to what ITS microphone hears, which scales for
+   free because the PA is the broadcast medium. What a thousand phones cannot
+   hear is which PALETTE the booth is in and which SCENE it chose — the two
+   slow truths that make a floor one show instead of a shimmer of different
+   ones. So that is all the pulse carries: three colours and a scene index,
+   packed small on the booth (every byte here is multiplied by a crowd) and
+   clamped hard on the phone (a pulse is the one thing a stranger's server
+   hands straight to the renderer). Everything fast stays local. */
+function crowdPack(col, scene){
+  if (!col || col.length < 3) return null;
+  const r3 = v => Math.round(v * 1000) / 1000;
+  const c = [];
+  for (let i = 0; i < 3; i++){
+    const k = col[i];
+    if (!k) return null;
+    const l = Number(k.l), ch = Number(k.c), h = Number(k.h);
+    if (!Number.isFinite(l) || !Number.isFinite(ch) || !Number.isFinite(h)) return null;
+    c.push([r3(clamp01(l)), r3(Math.max(0, Math.min(0.5, ch))),
+      Math.round(((h % 360) + 360) % 360 * 10) / 10]);
+  }
+  let s = Math.floor(Number(scene));
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  return { v: 1, c, s: Math.min(s, 63) };
+}
+/* the same shape, believed only after checking: numbers finite, ranges held,
+   or the whole pulse is refused — a half-good pulse would tint the room a
+   colour nobody chose. */
+function crowdClamp(p){
+  if (!p || p.v !== 1 || !Array.isArray(p.c) || p.c.length < 3) return null;
+  const c = [];
+  for (let i = 0; i < 3; i++){
+    const a = p.c[i];
+    if (!Array.isArray(a) || a.length < 3) return null;
+    const l = Number(a[0]), ch = Number(a[1]), h = Number(a[2]);
+    if (!Number.isFinite(l) || !Number.isFinite(ch) || !Number.isFinite(h)) return null;
+    c.push([clamp01(l), Math.max(0, Math.min(0.5, ch)), ((h % 360) + 360) % 360]);
+  }
+  let s = Math.floor(Number(p.s));
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  return { v: 1, c, s: Math.min(s, 63) };
+}
 /* THE HAND, IN THE COORDINATES OF THE WALL RATHER THAN OF A WINDOW.
 
    The booth's hand has always MEANT "here, on the field". With one screen that
@@ -4447,6 +4641,10 @@ function stageRole(search){
        card is exactly this address, so scanning it IS joining. Empty means
        what it always meant: a local screen on the booth's own machine. */
     join: stageCodeIs(q.join) ? stageCodeTidy(q.join) : null,
+    /* and the OTHER door: a crowd code. Not a screen at all — a phone in a
+       hand, listening with its own microphone, tuned to the booth's palette.
+       The two are separate on purpose; see CROWD. */
+    crowd: stageCodeIs(q.crowd) ? stageCodeTidy(q.crowd) : null,
     /* WHO THIS SCREEN IS, for as long as it is open. The wall is keyed by
        identity rather than by index because index is a thing the operator
        changes — dragging window three to the left of window two makes it
@@ -5621,13 +5819,37 @@ const ASK = {
     if (scrim){ scrim.hidden = false; scrim.classList.add('in'); }
     card.classList.add('in');
     const finish = v => this._close(v);
-    yes.onclick = () => finish(o.input ? input.value : '');
+    /* THE SYNCHRONOUS HOOK, AND WHY IT HAS TO EXIST.
+
+       This card resolves a promise, so every caller reads its answer after an
+       `await` — which means the caller's code runs in a microtask AFTER this
+       click handler has returned. For almost everything that is fine. For
+       window.open it is fatal: a browser only treats a popup as wanted while
+       the click that asked for it is still on the stack, and Safari is
+       strictest of all. Stage mode's "open N windows" was blocked every single
+       time for exactly this reason — the gesture was spent by the await that
+       read the number the operator had just typed.
+
+       So a caller that must act WHILE the click is live passes onYes, which is
+       invoked here, synchronously, before the promise is resolved.
+
+       EVERY yes goes through submit(), including the Enter key. Typing a number
+       and pressing Return is how most people answer a one-field card, and that
+       path used to call finish() directly — so the hook fired for the button
+       and not for the keyboard, which is the same bug again for anyone who
+       never reaches for the mouse. A keydown carries user activation exactly
+       like a click does; the only thing that ever spent it was the await. */
+    const submit = v => {
+      if (typeof o.onYes === 'function'){ try { o.onYes(v); } catch (e){} }
+      finish(v);
+    };
+    yes.onclick = () => submit(o.input ? input.value : '');
     no.onclick = () => finish(null);
     if (scrim) scrim.onclick = () => finish(null);
     this._key = ev => {
       if (ev.key === 'Escape'){ ev.preventDefault(); finish(null); }
       else if (ev.key === 'Enter' && (o.input || document.activeElement !== no)){
-        ev.preventDefault(); finish(o.input ? input.value : '');
+        ev.preventDefault(); submit(o.input ? input.value : '');
       }
     };
     document.addEventListener('keydown', this._key, true);
@@ -13587,7 +13809,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'e54ffe0f85';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '999ee79326';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -16097,6 +16319,10 @@ async function stageChooser(){
       if (typeof WIRE !== 'undefined') WIRE.invite();
       return true;
     }
+    if (/^\s*(crowd|floor)\s*$/i.test(said)){
+      if (typeof CROWD !== 'undefined') CROWD.invite();
+      return true;
+    }
     if (stageCodeIs(said)){
       location.href = location.origin + location.pathname
         + '?stage=screen&join=' + stageCodeTidy(said);
@@ -16107,23 +16333,50 @@ async function stageChooser(){
   if (alone){
     const many = await ASK.text({
       title: 'Stage mode',
-      body: 'There is only one screen here — so the stage opens small: windows that float above the booth, each showing exactly what one television in the room would show.\n\nHow many screens is the rig? They open as a row you can drag apart, and the field is cut where they actually are — so this is the rig, rehearsed.\n\nDrag them by their bars, pull a corner to resize, ⤢ to fill this window, ↗ to send one to a real screen.\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens.',
+      body: 'There is only one screen here — so the stage opens small: windows that float above the booth, each showing exactly what one television in the room would show.\n\nHow many screens is the rig? They open as a row you can drag apart, and the field is cut where they actually are — so this is the rig, rehearsed.\n\nDrag them by their bars, pull a corner to resize, ⤢ to fill this window, ↗ to send one to a real screen.\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens. And “crowd” is the other thing entirely: a code that lets every phone in the room join the show, listening with its own mic in this booth’s palette.',
       value: '1', placeholder: '1', ok: 'Open the stage',
     });
     if (wired(many)) return;
     await STAGE.open(Math.max(1, Number(many) || 1), { pip: true });
     return;
   }
+  /* AND THE WINDOWS OPEN INSIDE THE CLICK. Every await between a click and a
+     window.open spends the gesture: the browser sees the call arrive on a
+     later microtask, from nobody, and blocks it. The displays lookup above was
+     already hoisted out for this reason — but the CARD ITSELF is a promise
+     too, resolved from the OK button's handler, so `await ASK.text(...)` then
+     `STAGE.open()` put every window one tick past the only click that could
+     have authorised them. Safari blocks that unconditionally; Chrome blocks it
+     often enough. onYes runs INSIDE the button's own handler, so the windows
+     are opened by the click that asked for them, and open() is handed the ones
+     that already exist rather than trying for its own. */
+  let wins = [];
   const n = await ASK.text({
     title: 'Stage mode',
-    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens.',
+    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens. And “crowd” is the other thing entirely: a code that lets every phone in the room join the show, listening with its own mic in this booth’s palette.',
     value: '1', placeholder: '1', ok: 'Open the stage',
+    /* A COUNT, AND NOTHING ELSE, OPENS WINDOWS HERE. wired() is not consulted
+       even though it answers the same question: it NAVIGATES on a door code
+       and mints an invite, and this hook runs before the promise resolves —
+       so asking it here would do both of those twice. The numeric test is the
+       whole guard it needs: "invite" and a four-letter code are both NaN, and
+       0 / "pip" / "small" mean the corner windows, which need no popup. */
+    onYes: v => {
+      if (NATIVE.ready()) return;                     // the shell opens its own, natively
+      const want = Math.floor(Number(v));
+      if (!Number.isFinite(want) || want < 1) return;
+      // displays were read before the card went up, precisely so this line
+      // can place the windows without awaiting anything
+      wins = STAGE.openWindows(want, displays);       // clamps to 8 itself
+    },
   });
+  // cancelled after the windows were already up: take them back down
+  if (n === null){ for (const w of wins){ try { w.close(); } catch (e){} } wins = []; }
   if (wired(n)) return;
   const want = Number(n);
   // 0 is the small one asked for by name, on a rig that does have the screens
   if (want === 0 || /^\s*(pip|small|corner)\s*$/i.test(n)){ await STAGE.open(1, { pip: true }); return; }
-  await STAGE.open(want || 1, { displays });
+  await STAGE.open(want || 1, { displays, wins });
 }
 
 /* the mobile More menu — folds the secondary controls into one sheet */
@@ -16421,7 +16674,7 @@ window.addEventListener('keydown', ev => {
     default:
       if (k >= '1' && k <= '9') director.setScene(+k - 1, true);
       else if (k === '0') director.setScene(9, true);
-      else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, same answer as the gaze
+      else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, asked for
       else if (k === 'f' || k === 'F') TOUCHFX.cycle(); // cycle the touch-FX force (keyboard equivalent of the TOUCH chip)
       else if (k === 'i' || k === 'I') GHOST.toggle();  // let the field play itself when idle, or don't
       else if (k === 'l' || k === 'L') LENS.cycle();     // cycle the post-process lens
@@ -19340,7 +19593,6 @@ const INTERACT = {
   cv.addEventListener('pointermove', ev => {
     if (ev.pointerId === secondId){ toSecond(ev); INTERACT._idleT = 0; return; }
     toNdc(ev); INTERACT._idleT = 0;
-    DWELL.moved(ev.clientX, ev.clientY);
     if (!INTERACT.dragging) return;
     const dx = ev.clientX - INTERACT._lx, dy = ev.clientY - INTERACT._ly;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
@@ -19371,7 +19623,6 @@ const INTERACT = {
   });
   // a long-press must cycle the FX, never raise the OS text-callout / copy box
   cv.addEventListener('contextmenu', ev => ev.preventDefault());
-  cv.addEventListener('pointerleave', () => DWELL.gone());
   cv.addEventListener('wheel', ev => {
     ev.preventDefault();
     director.camTargetR = clamp(director.camTargetR + ev.deltaY * 0.03, 16, 44);
@@ -19654,58 +19905,28 @@ TOUCHFX.load();
 
 
 /* ================================================================
-   DWELL — dancing with your eyes, literally. Rest the pointer on the
-   field and a ring charges; hold it ~2.6 s and the field answers —
-   a soft shockwave and a chroma bloom through the colour conductor.
-   Eye-tracking rigs and head pointers present as a pointer, so a
-   listener who steers with their gaze gets the same reply the hand
-   gets. Fires once per park; move to re-arm. Key E is the switch-
-   access equivalent — one key, same answer. Purely additive: never
-   required, never in the way.
+   DWELL — the field, nudged. One key, E: a soft shockwave and a chroma
+   bloom through the colour conductor. It exists for switch access and
+   for anyone steering without a hand on the pointer.
+
+   IT USED TO FIRE BY ITSELF, and that is the whole story of what is not
+   here any more. Resting the pointer on the field for 0.8 s raised a
+   charging ring under the cursor and, at 2.6 s, bloomed the room. The
+   idea was that an eye-tracker or a head pointer would get the same
+   reply a hand gets. What it actually did was put a countdown under a
+   mouse that had merely been PARKED — every time you stopped to read
+   the HUD, look at the queue, or simply think, a ring started filling
+   at you. A gesture you have to keep moving to avoid is not an
+   affordance, it is a nag, and the fix for a nag is deletion rather
+   than a slower timer or a setting nobody will find.
+
+   The key stays. It was always the honest version of this: something
+   that happens because somebody asked for it.
    ================================================================ */
 const DWELL = {
-  SHOW: 0.8, CHARGE: 2.6, REARM_PX: 40,
-  x: 0, y: 0, still: 0, armed: true, present: false,
-  _ring: null, _fired: 0,
-  ring(){ return this._ring || (this._ring = document.getElementById('dwellRing')); },
-  moved(cx, cy){
-    const d = Math.hypot(cx - this.x, cy - this.y);
-    if (d > 6){
-      this.still = 0;
-      if (d > this.REARM_PX) this.armed = true;
-      this.x = cx; this.y = cy;
-    }
-    this.present = true;
-  },
-  gone(){ this.present = false; this.still = 0; const r = this.ring(); if (r) r.className = ''; },
   fire(){
     INTERACT.impulse = Math.max(INTERACT.impulse, 0.55);
     COLOR.bloom = 1;                    // answered in light, through the governor
-    this.armed = false; this.still = 0; this._fired = 0.5;
-    const r = this.ring();
-    if (r){ r.className = 'fired'; }
-  },
-  update(dt){
-    const r = this.ring();
-    if (this._fired > 0){
-      this._fired -= dt;
-      if (this._fired <= 0 && r) r.className = '';
-      return;
-    }
-    if (!this.present || !this.armed || INTERACT.dragging){
-      if (r && r.className === 'charging') r.className = '';
-      return;
-    }
-    this.still += dt;
-    if (!r) return;
-    if (this.still >= this.CHARGE){ this.fire(); return; }
-    if (this.still >= this.SHOW){
-      r.className = 'charging';
-      r.style.left = this.x + 'px'; r.style.top = this.y + 'px';
-      r.style.setProperty('--p', ((this.still - this.SHOW) / (this.CHARGE - this.SHOW)).toFixed(3));
-    } else if (r.className === 'charging'){
-      r.className = '';
-    }
   },
 };
 
@@ -22230,34 +22451,6 @@ function buildLava(){
 
    And under each light, its name and its colour, in that colour.
    ========================================================= */
-const FLAME_LABEL_W = 512, FLAME_LABEL_H = 128;   // one cell of the label sheet
-function buildFlameLabelTexture(){
-  const cv = document.createElement('canvas');
-  cv.width = FLAME_LABEL_W; cv.height = FLAME_LABEL_H * FLAME_SOURCES.length;
-  const c = cv.getContext('2d');
-  const font = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-  FLAME_SOURCES.forEach((s, i) => {
-    const y = i * FLAME_LABEL_H, hex = rgbHex(flameRGB(s));
-    try { c.letterSpacing = '6px'; } catch (e){}
-    c.font = '600 40px ' + font;
-    c.fillStyle = hex;
-    c.fillText(s.name, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.46);
-    // the measurement, under the name, in white — the colour is the swatch
-    // above it, so the number does not have to be the thing you look at
-    try { c.letterSpacing = '3px'; } catch (e){}
-    c.font = '500 26px ' + font;
-    c.fillStyle = 'rgba(255,255,255,0.66)';
-    const meas = s.kind === 'laser' ? `${s.nm} nm · ${hex}` : `${s.kelvin} K · ${hex}`;
-    c.fillText(meas, FLAME_LABEL_W / 2, y + FLAME_LABEL_H * 0.82);
-  });
-  const tex = new THREE.CanvasTexture(cv);
-  tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = false;
-  tex.flipY = false;        // the sheet is authored top-down, row 0 first
-  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
-  return tex;
-}
 function buildFlame(){
   const group = new THREE.Group();
   const NS = FLAME_SOURCES.length;
@@ -22463,86 +22656,284 @@ function buildFlame(){
   pts.frustumCulled = false;
   group.add(pts);
 
-  /* THE LABELS. A room whose subject is what colour a thing is owes you the
-     name of the thing — so each light is captioned in its own computed colour,
-     with the number underneath. One sheet, one draw call, and it crossfades
-     with the scene because it carries the same uOpacity every other material
-     in the room does. */
-  const labelTex = buildFlameLabelTexture();
-  const labelU = { uLabelTex: { value: labelTex }, uSpread: varU.uSpread, uBase: varU.uBase,
-                   uScale: varU.uScale, uRows: varU.uRows, uTier: varU.uTier, uRow: { value: 0 } };
-  const CELL_A = FLAME_LABEL_H / FLAME_LABEL_W;      // the caption's own aspect
-  const LABEL_FRAG = `
-    uniform sampler2D uLabelTex; uniform float uOpacity;
-    varying vec2 vUv;
+  /* =======================================================================
+     THE SHOW. Twenty-four slots in the sky, and a firing script that spends
+     them on the music: a gerb where a flame is just doing a little more, a
+     mine off the bench on the hit, a shell that rises as a comet and BREAKS
+     at the top of its climb, a billow of lit smoke rolling off everything.
+
+     Not twenty-four animations. Every piece is the same closed-form star in
+     air — pyroFlight, up in the pure block — and what makes a willow a willow
+     rather than a peony is that its stars are thrown softer through thicker
+     air while being heavier. Change three numbers, get a different firework.
+
+     THE SLOT TABLE IS A TEXTURE, not a uniform array, for the same reason the
+     sources' parameters are: this shader picks its row per PARTICLE. Four
+     texels per slot, rewritten every frame — 384 bytes, which is nothing.
+     ======================================================================= */
+  const EV = PYRO_TUNING.slots, STARS = 64, TRAIL = 5;
+  const evData = new Uint8Array(EV * 4 * 4);          // EV wide, 4 rows
+  const evT = new THREE.DataTexture(evData, EV, 4, THREE.RGBAFormat);
+  evT.magFilter = THREE.NearestFilter; evT.minFilter = THREE.NearestFilter;
+  evT.needsUpdate = true;
+  // every slot's live state; t < 0 means the slot is cold
+  const slots = Array.from({ length: EV }, () => ({ t: -1, life: 1, kind: 0, src: 0,
+    col: [1, 1, 1], v0: 0, drag: 1, grav: 8, trail: 0, lift: 0, liftH: 0, spread: 0.4,
+    power: 1, seed: 0 }));
+  const SHELL_IDX = {}; PYRO_SHELLS.forEach((s, i) => { SHELL_IDX[s.key] = i; });
+
+  const PN = EV * STARS * TRAIL;
+  const aEv = new Float32Array(PN), aStar = new Float32Array(PN);
+  const aTrail = new Float32Array(PN), aPSeed = new Float32Array(PN);
+  {
+    const rp = mulberry32(0x9a12e5);
+    for (let i = 0; i < PN; i++){
+      aEv[i] = Math.floor(i / (STARS * TRAIL));
+      aStar[i] = Math.floor(i / TRAIL) % STARS;
+      aTrail[i] = i % TRAIL;
+      aPSeed[i] = rp();
+    }
+  }
+  const pgeo = new THREE.BufferGeometry();
+  pgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PN * 3), 3));
+  pgeo.setAttribute('aEv', new THREE.BufferAttribute(aEv, 1));
+  pgeo.setAttribute('aStar', new THREE.BufferAttribute(aStar, 1));
+  pgeo.setAttribute('aTrail', new THREE.BufferAttribute(aTrail, 1));
+  pgeo.setAttribute('aPSeed', new THREE.BufferAttribute(aPSeed, 1));
+
+  const pyroVert = VERT_POINT_HEAD + `
+    attribute float aEv, aStar, aTrail, aPSeed;
+    uniform sampler2D uPyroEv;
+    uniform float uSolo, uSpread, uScale, uBase, uRows, uTier, uFlick, uBeatSpring;
+    uniform vec3 uHand;
+    varying vec3 vCol; varying float vLum, vHot, vSmoke;
     void main(){
-      vec4 c = texture2D(uLabelTex, vUv);
-      gl_FragColor = vec4(c.rgb, c.a * uOpacity * 0.92);
+      float u = (aEv + 0.5) / ${EV}.0;
+      vec4 E0 = texture2D(uPyroEv, vec2(u, 0.125));   // age · form · source · power
+      vec4 E1 = texture2D(uPyroEv, vec2(u, 0.375));   // the star's own colour · trail
+      vec4 E2 = texture2D(uPyroEv, vec2(u, 0.625));   // v0 · drag · gravity · lift share
+      vec4 E3 = texture2D(uPyroEv, vec2(u, 0.875));   // climb · seed · spread · life
+      float age = E0.r;
+      if (age <= 0.002 || age >= 0.999){              // a cold slot costs one clip
+        gl_Position = vec4(0.0, 0.0, -2.0, 1.0); gl_PointSize = 0.0; return;
+      }
+      float form = floor(E0.g * 16.0 + 0.5);
+      // A BILLOW IS A FEW BIG PUFFS, not three hundred. It shares the slot
+      // table with the shells, so it has to throw away most of its allocation
+      // or the fill cost of hundred-pixel sprites eats the frame.
+      if (form > 5.5 && (aTrail > 0.5 || mod(aStar, 8.0) > 0.5)){
+        gl_Position = vec4(0.0, 0.0, -2.0, 1.0); gl_PointSize = 0.0; return;
+      }
+      float LIFE = E3.a * 8.0, seed = E3.g;
+      float W = max(0.35, uScale);
+      float v0 = E2.r * 40.0 * W, drag = max(0.02, E2.g * 4.0), grav = (E2.b * 30.0 - 6.0) * W;
+      float liftShare = E2.a, climb = E3.r * 30.0 * W, spread = E3.b;
+
+      // WHERE IT STANDS. The same bench arithmetic the flames use, so a gerb
+      // comes out of the light that fired it and not off to one side of it.
+      float si = uSolo >= 0.0 ? uSolo : floor(E0.b * 16.0 + 0.5);
+      float rack = step(uSolo, -0.5);
+      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
+      float ci = uRows > 1.5 ? mod(si, ${(NS / 2).toFixed(1)}) : si;
+      float ri = uRows > 1.5 ? floor(si / ${(NS / 2).toFixed(1)}) : 0.0;
+      vec3 origin = vec3((ci - (cols - 1.0) * 0.5) * uSpread * rack,
+                         uBase + (uRows - 1.0 - ri) * uTier * rack, 0.0);
+      // no two pieces leave from exactly the same point. Without this the
+      // comets stack into one dead-straight column and the whole thing reads
+      // as a machine rather than as a rack somebody lit.
+      origin.x += (seed - 0.5) * 2.0 * W;
+      origin.z += (fract(seed * 41.7) - 0.5) * 2.6 * W;
+
+      // THE STARS ARE PACKED ON A SPHERE, because that is how they are packed
+      // in the shell — a Fibonacci lattice, even everywhere, no poles.
+      float fi = aStar + 0.5;
+      float zc = 1.0 - 2.0 * fi / ${STARS}.0;
+      float rr = sqrt(max(0.0, 1.0 - zc * zc));
+      float th = fi * 2.39996323 + seed * 6.2831853;
+      vec3 dir = vec3(cos(th) * rr, zc, sin(th) * rr);
+
+      if (form > 0.5 && form < 1.5){                  // PALM — a few heavy fronds
+        float f = floor((th / 6.2831853 - floor(th / 6.2831853)) * 7.0);
+        float a2 = (f + 0.5) / 7.0 * 6.2831853;
+        dir = normalize(mix(dir, vec3(cos(a2) * 0.75, 0.62, sin(a2) * 0.75), 0.82));
+      } else if (form < 2.5 && form > 1.5){           // RING — every star in one plane
+        dir = normalize(vec3(cos(th), 0.0, sin(th)));
+        float tilt = seed * 2.2;
+        dir = vec3(dir.x, dir.z * sin(tilt), dir.z * cos(tilt));
+      } else if (form > 4.5 && form < 5.5){           // GERB / MINE — a cone off the bench
+        dir = normalize(mix(vec3(0.0, 1.0, 0.0), dir, spread));
+      } else if (form > 5.5){                         // BILLOW — a fat slow puff
+        dir = normalize(dir + vec3(0.0, 0.35, 0.0));
+      }
+
+      // THE CLIMB. A shell is a comet first: the stars ride the rising case
+      // and only exist as a sphere once it breaks at the top.
+      float T, burstAge;
+      vec3 p;
+      if (age < liftShare && liftShare > 0.001){
+        float lt = age / liftShare;
+        // the comet decelerates into its break, which is what a real lift does
+        float lag = (aStar / ${STARS}.0 + aTrail / ${TRAIL}.0 * 0.2) / 1.2;
+        p = origin + vec3(0.0, climb * (1.0 - (1.0 - lt) * (1.0 - lt)), 0.0);
+        p.y -= lag * lag * climb * 0.62 * lt;         // the tail it has already flown through
+        p += dir * 0.09 * W * lag * lag * 5.0;        // sparks shedding, widening behind
+        burstAge = 0.0; T = lag;                      // T carries the lag so the head is hottest
+      } else {
+        float a2 = liftShare >= 0.999 ? 0.0 : (age - liftShare) / (1.0 - liftShare);
+        burstAge = a2;
+        T = a2 * LIFE;
+        // each trail bead is the same star, a moment younger
+        T = max(0.0, T - aTrail * E1.a * 0.16);
+        float k = drag;
+        float s = (1.0 - exp(-k * T)) / k;            // pyroFlight, on the GPU
+        p = origin + vec3(0.0, climb, 0.0) * step(0.001, liftShare)
+          + dir * (v0 * (0.55 + 0.45 * aPSeed)) * s;
+        p.y -= grav / k * (T - s);
+        if (form > 2.5 && form < 3.5 && a2 > 0.42){   // CROSSETTE — each star splits again
+          float q = (a2 - 0.42) * LIFE;
+          vec3 d2 = normalize(vec3(cos(th * 3.7), sin(th * 2.3) * 0.5, sin(th * 3.7)));
+          p += d2 * 4.2 * W * (1.0 - exp(-1.6 * q)) / 1.6;
+        }
+      }
+
+      // THE DRAUGHT REACHES THE SKY TOO — a hand near the bench blows the
+      // smoke and the softest sparks off their line, and leaves the fast
+      // heavy stars alone, which is what wind actually does.
+      float care = form > 5.5 ? 1.0 : 0.22;
+      if (uHand.z > 0.002){
+        vec2 d = p.xy - uHand.xy;
+        float g = exp(-dot(d, d) * 0.035) * uHand.z * care;
+        p.xy += normalize(d + vec2(1e-4)) * g * (1.0 + uPtrX.y * 2.2) * 2.4;
+      }
+
+      vSmoke = form > 5.5 ? 1.0 : 0.0;
+      vec3 col = E1.rgb;
+      // the first instants of a star are its own metal burning, not its salt:
+      // white-hot, then the chemistry takes over as it cools
+      float hot = (age < liftShare && liftShare > 0.001)
+                ? exp(-T * 5.0)                       // the comet's head is the hot part
+                : exp(-burstAge * 9.0) * (1.0 - vSmoke);
+      vHot = hot;
+      if (form > 3.5 && form < 4.5)                   // STROBE — the crackle
+        col *= 0.35 + 0.65 * step(0.5, fract(T * 13.0 + aPSeed * 31.0)) * uFlick + (1.0 - uFlick) * 0.45;
+      vCol = col;
+      float burn = 1.0 - smoothstep(0.55, 1.0, age);  // stars burn out, they do not blink out
+      float tail = 1.0 - aTrail / ${TRAIL}.0 * 0.72;
+      vLum = E0.a * burn * tail * (0.5 + uBeatSpring * 0.18);
+      if (vSmoke > 0.5) vLum *= 0.34 * (1.0 - burstAge * 0.55);
+      vT = age; vGlow = vLum;
+
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      // a billow is a cloud: enormous and nearly transparent. A star is a
+      // point of burning metal, and stays one.
+      float sz = vSmoke > 0.5
+        ? (16.0 + burstAge * 34.0) * uScale
+        : (1.7 + hot * 3.8 + E0.a * 2.0) * tail * sqrt(W)
+          * (age < liftShare && liftShare > 0.001 ? (1.35 - T * 1.5) : 1.0);
+      gl_PointSize = max(0.0, sz * (300.0 / -mv.z));
     }
   `;
-  function labelMesh(slots, w, vertexShader){
-    const n = slots.length;
-    const pos = new Float32Array(n * 4 * 3), uvs = new Float32Array(n * 4 * 2);
-    const slotA = new Float32Array(n * 4);
-    const idx = [], h = w * CELL_A;
-    const corners = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
-    slots.forEach((slot, j) => {
-      corners.forEach((c, m) => {
-        pos[(j * 4 + m) * 3] = c[0];
-        pos[(j * 4 + m) * 3 + 1] = c[1];
-        slotA[j * 4 + m] = slot.row;          // which light this caption belongs to
-        uvs[(j * 4 + m) * 2] = (c[0] / w) + 0.5;
-        // v runs DOWN the sheet, so the caption's own row is (row + 1) - local
-        uvs[(j * 4 + m) * 2 + 1] = (slot.row + 0.5 - (c[1] / h)) / NS;
-      });
-      idx.push(j * 4, j * 4 + 1, j * 4 + 2, j * 4, j * 4 + 2, j * 4 + 3);
-    });
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    g.setAttribute('aSlot', new THREE.BufferAttribute(slotA, 1));
-    g.setIndex(idx);
-    const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({
-      uniforms: matU(Object.assign({}, labelU)),
-      vertexShader, fragmentShader: LABEL_FRAG,
-      transparent: true, depthWrite: false, depthTest: false,
-      blending: THREE.AdditiveBlending,
-    }));
-    mesh.frustumCulled = false;
-    return mesh;
+  const pyroFrag = GLSL_MPHI + `
+    uniform vec3 uColC; uniform float uOpacity, uEnergy, uDens;
+    varying vec3 vCol; varying float vLum, vHot, vSmoke;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r);
+      // smoke is soft all the way through; a star is a hard little point
+      a = vSmoke > 0.5 ? a * a * a : pow(a * a, 2.2);
+      vec3 col = mix(vCol, uColC, 0.06);
+      col = mix(col, vec3(1.0), vHot * (0.35 + uWhite * 0.45));
+      if (vSmoke > 0.5) col = mix(col, vec3(0.42, 0.38, 0.40), 0.55);   // lit smoke, not fire
+      col = inkRolloff(col * (0.30 + vLum * 1.5 + uEnergy * 0.10));
+      gl_FragColor = vec4(col, a * uOpacity * uDens * vLum * 1.15);
+    }
+  `;
+  const pyroMat = new THREE.ShaderMaterial({
+    uniforms: matU(Object.assign({ uPyroEv: { value: evT } }, varU)),
+    vertexShader: pyroVert, fragmentShader: pyroFrag,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pyroPts = new THREE.Points(pgeo, pyroMat);
+  pyroPts.frustumCulled = false;
+  group.add(pyroPts);
+
+  /* THE FIRING SCRIPT. `pyroRate` says how busy the sky should be, `pyroFire`
+     spends the budget (preferring the hit), `pyroPick` and `pyroSalt` choose
+     the piece and its chemistry — all of them pure, all of them tested. This
+     is only the part that has to touch a GPU buffer. */
+  const pyro = { acc: 0, cold: 0 };
+  const SKY_N = EV - PYRO_TUNING.smoke;
+  function pyroLaunch(kindKey, saltKey, srcIdx, power){
+    const smoke = kindKey === 'billow';
+    const lo = smoke ? SKY_N : 0, hi = smoke ? EV : SKY_N;
+    let s = null;
+    for (let i = lo; i < hi; i++) if (slots[i].t < 0){ s = slots[i]; break; }
+    if (!s){                                  // all lit: take the oldest rather than skip
+      let oldest = lo;
+      for (let i = lo + 1; i < hi; i++) if (slots[i].t / slots[i].life > slots[oldest].t / slots[oldest].life) oldest = i;
+      s = slots[oldest];
+    }
+    const sh = pyroShell(kindKey);
+    // a billow is lit by the fire that made it, so it wears that source's own
+    // measured colour rather than a salt it never contained
+    const star = PYRO_STARS.find(x => x.key === saltKey) || PYRO_STARS[0];
+    const c = smoke ? flameRGB(FLAME_SOURCES[srcIdx | 0] || FLAME_SOURCES[0]) : pyroStarRGB(star);
+    s.t = 0; s.life = sh.life; s.kind = sh.form; s.src = srcIdx;
+    s.col = [c.r, c.g, c.b];
+    s.v0 = sh.v0; s.drag = sh.drag; s.grav = sh.grav;
+    s.trail = sh.trail; s.lift = sh.lift; s.spread = sh.spread == null ? 0.4 : sh.spread;
+    // how high it climbs before it breaks, from the same flight the stars use
+    s.liftH = sh.lift > 0 ? clamp(pyroFlight(sh.life * sh.lift, 26, 0.9, 9.8).reach, 3.5, 11) : 0;
+    s.power = clamp01(power == null ? 1 : power);
+    s.seed = Math.random();
   }
-  // the rack's captions scale with the bench, so each one always sits under
-  // its own light however wide the room turns out to be
-  const rackLabels = labelMesh(FLAME_SOURCES.map((s, i) => ({ row: i })), 0.94, `
-    attribute float aSlot;
-    uniform float uSpread, uBase, uRows, uTier;
-    varying vec2 vUv;
-    void main(){
-      // the same arrangement the lights take, so a caption is never anywhere
-      // but under the thing it names
-      float cols = uRows > 1.5 ? ${(NS / 2).toFixed(1)} : ${NS}.0;
-      float ci = uRows > 1.5 ? mod(aSlot, ${(NS / 2).toFixed(1)}) : aSlot;
-      float ri = uRows > 1.5 ? floor(aSlot / ${(NS / 2).toFixed(1)}) : 0.0;
-      float k = uSpread * (uRows > 1.5 ? 1.06 : 1.0);
-      vec3 p = vec3((ci - (cols - 1.0) * 0.5) * uSpread + position.x * k,
-                    position.y * k * 1.7 + uBase - 0.6 + (uRows - 1.0 - ri) * uTier, 0.0);
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  function pyroStep(dt){
+    const f = AE.f, mood = director.mood, calm = SAFE.calm || reducedMotion;
+    // a device that is already shedding pixels does not also get a full sky:
+    // the show thins out rather than the music stuttering
+    const lean = typeof PERF !== 'undefined' && PERF.struggling ? 0.4 : 1;
+    const rate = pyroRate({ energy: f.energy, mood, calm }) * lean;
+    const shot = pyroFire(pyro.acc, dt, rate, !!f.onset);
+    pyro.acc = shot.acc;
+    for (let i = 0; i < shot.fire; i++){
+      const r = Math.random();
+      const kind = pyroPick({ energy: f.energy, mood }, r);
+      const salt = pyroSalt({ energy: f.energy, treble: f.treble }, Math.random());
+      // which light fires it: solo has only one, the bench picks by band, so
+      // the piece leaves the source that is actually singing
+      const src = varU.uSolo.value >= 0 ? varU.uSolo.value
+                                        : Math.min(NS - 1, Math.floor(Math.random() * NS));
+      pyroLaunch(kind, salt, src, 0.55 + f.energy * 0.45);
     }
-  `);
-  // …and the solo caption is one plate whose row the roll slides into place
-  const soloLabel = labelMesh([{ row: 0 }], 1, `
-    uniform float uBase, uRow, uScale;
-    varying vec2 vUv;
-    void main(){
-      float k = uScale * 2.2;
-      vec3 p = vec3(position.x * k, position.y * k + uBase - k * 0.30, 0.0);
-      vUv = vec2(uv.x, uv.y + uRow / ${NS}.0);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    pyro.smoke = (pyro.smoke || 0) + dt * (PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean;
+    while (pyro.smoke >= 1){
+      pyro.smoke -= 1;
+      const src = varU.uSolo.value >= 0 ? varU.uSolo.value : Math.floor(Math.random() * NS);
+      pyroLaunch('billow', 'charcoal', src, 0.5 + f.energy * 0.4);
     }
-  `);
-  group.add(rackLabels, soloLabel);
-  soloLabel.visible = false;
+    // age every slot and write the table the shader reads
+    for (let i = 0; i < EV; i++){
+      const s = slots[i], o = i * 4;
+      if (s.t >= 0){ s.t += dt; if (s.t >= s.life) s.t = -1; }
+      const age = s.t < 0 ? 0 : clamp01(s.t / s.life);
+      const q = (v, sc) => Math.max(0, Math.min(255, Math.round((v / sc) * 255)));
+      evData[o] = s.t < 0 ? 0 : Math.max(1, Math.round(age * 255));
+      evData[o + 1] = q(s.kind, 16); evData[o + 2] = q(s.src, 16); evData[o + 3] = q(s.power, 1);
+      const r1 = (EV + i) * 4;
+      evData[r1] = q(s.col[0], 1); evData[r1 + 1] = q(s.col[1], 1);
+      evData[r1 + 2] = q(s.col[2], 1); evData[r1 + 3] = q(s.trail, 1);
+      const r2 = (EV * 2 + i) * 4;
+      evData[r2] = q(s.v0, 40); evData[r2 + 1] = q(s.drag, 4);
+      evData[r2 + 2] = q(s.grav + 6, 30); evData[r2 + 3] = q(s.lift, 1);
+      const r3 = (EV * 3 + i) * 4;
+      evData[r3] = q(s.liftH, 30); evData[r3 + 1] = q(s.seed, 1);
+      evData[r3 + 2] = q(s.spread, 1); evData[r3 + 3] = q(s.life, 8);
+    }
+    evT.needsUpdate = true;
+  }
 
   group.visible = false;
   scene.add(group);
@@ -22607,15 +22998,21 @@ function buildFlame(){
       // colour, the shape and the dance all survive; only the shiver goes
       const wantFlick = (SAFE.calm || reducedMotion) ? 0.26 : 1;
       varU.uFlick.value += (wantFlick - varU.uFlick.value) * Math.min(1, dt * 2);
+
+      // and the show fires. dt is clamped because a tab that was in the
+      // background for a minute must not come back to a minute of shells.
+      pyroStep(Math.min(dt, 0.1));
     },
     roll(){
       const r = flameRoll(Math.random());
       const solo = r.mode === 'solo';
       varU.uSolo.value = solo ? r.src : -1;
       varU.uDens.value = solo ? 0.38 : 1;
-      labelU.uRow.value = solo ? r.src : 0;
-      rackLabels.visible = !solo;
-      soloLabel.visible = solo;
+      // a new room starts with an empty sky — nothing left burning from the
+      // last one, which would otherwise break over a source that no longer
+      // exists in this presentation
+      for (let i = 0; i < EV; i++) slots[i].t = -1;
+      pyro.acc = 0; pyro.smoke = 0;
       api.name = 'FLAME · ' + r.name;
       return api.name;
     } };
@@ -23499,6 +23896,8 @@ const STAGE = {
     // a screen whose address carries four letters knocks on them: the QR on
     // an invite card is exactly this URL, so scanning it IS joining
     if (this.screen() && this.cfg.join && typeof WIRE !== 'undefined') WIRE.join(this.cfg.join);
+    // and a crowd code is the other door — a phone, not a screen
+    if (!this.screen() && this.cfg.crowd && typeof CROWD !== 'undefined') CROWD.join(this.cfg.crowd);
     // a screen that is closed, or a booth that is quit, should not leave the
     // other side waiting for a partner that will never speak again
     window.addEventListener('pagehide', () => {
@@ -23508,7 +23907,8 @@ const STAGE = {
     // the OS releases wake locks on hide, silently — take it back on return
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return;
-      if (this.on || (this.screen() && !document.body.classList.contains('pip'))) this.wake(true);
+      if (this.on || (this.screen() && !document.body.classList.contains('pip'))
+        || (typeof CROWD !== 'undefined' && CROWD.tuned)) this.wake(true);
     });
   },
   /* one exit, two roads: the channel reaches every window on this machine,
@@ -23985,6 +24385,7 @@ const STAGE = {
       add('Skins', 'Restyle the room', () => { if (typeof skinCardOpen === 'function') skinCardOpen(true); });
       add('+ Screen', 'Open another stage screen', () => this.open(this.live() + 1));
       add('Invite', 'Four letters that turn any device into a screen', () => { if (typeof WIRE !== 'undefined') WIRE.invite(); });
+      add('Crowd', 'Four letters that tune every phone on the floor', () => { if (typeof CROWD !== 'undefined') CROWD.invite(); });
       add('Which?', 'Every screen holds up its own number', () => this.identify(3000));
       add('Full booth', 'Bring the whole console back', () => this.setMini(false));
     }
@@ -24008,6 +24409,49 @@ const STAGE = {
     return location.origin + location.pathname
       + '?stage=screen&screen=' + i + '&of=' + of
       + '&id=' + encodeURIComponent(id || ('s' + i)) + (pip ? '&pip=1' : '');
+  },
+  /* THE POPUP LOOP, ON ITS OWN, SYNCHRONOUS. Called from inside a click
+     handler — never after an await — because that is the only moment a browser
+     will open a window without calling it a popup. Returns what it managed to
+     open, so the caller can tell "blocked" from "worked" without guessing. */
+  /* OPEN THE WINDOWS, SYNCHRONOUSLY, FROM INSIDE THE CLICK.
+
+     Nothing in here awaits, and that is the entire specification. A browser
+     grants window.open on the strength of the gesture still being on the
+     stack; one await — the dialog's own promise, a displays lookup, anything —
+     and the same call is a popup from nobody. So the chooser gathers what this
+     needs BEFORE the card goes up and calls this from the OK handler itself.
+
+     `displays` is optional and, when a Chromium booth has been shown the real
+     monitors, does the placement the async path used to do: each window born
+     on the monitor it belongs to, sized to it, fullscreen where the browser
+     allows a window to be born that way. Where they are is recorded in
+     `this.placed` on the spot, so the wall is right on the very first frame
+     rather than after the windows report in. Without displays they open as a
+     row near the booth and get dragged onto the televisions by hand — the old
+     manner, which is also the only one a single-screen laptop needs. */
+  openWindows(of, displays){
+    const n = Math.max(1, Math.min(8, Math.floor(of) || 1));
+    const out = [];
+    const ds = Array.isArray(displays) && displays.length > 1 ? displays : null;
+    const plan = ds ? stagePlan(ds, n, this.boothDisplay(ds)) : null;
+    const step = Math.max(180, Math.round((screen.availWidth || 1440) / (n + 1)));
+    for (let i = 1; i <= n; i++){
+      const d = plan ? ds[plan[i - 1]] : null;
+      const feat = d
+        ? 'left=' + Math.round(d.x) + ',top=' + Math.round(d.y)
+          + ',width=' + Math.round(d.width) + ',height=' + Math.round(d.height)
+          + ',menubar=no,toolbar=no' + (d.current ? '' : ',fullscreen')
+        : 'width=1280,height=720,menubar=no,toolbar=no'
+          + ',left=' + ((i - 1) * step) + ',top=' + ((i - 1) * 24);
+      let w = null;
+      try { w = window.open(this.url(i, n, false, 's' + i), 'mb8stage' + i, feat); }
+      catch (e){ w = null; }
+      if (!w) break;                 // the first refusal is the answer for all of them
+      out.push(w);
+      if (d) this.placed['s' + i] = { display: plan[i - 1], x: d.x, y: d.y, w: d.width, h: d.height };
+    }
+    return out;
   },
   /* open `n` screens. On the Mac the shell places a real window on a real
      display and fullscreens it there; on the web they are ordinary windows the
@@ -24057,6 +24501,16 @@ const STAGE = {
         }
       }
     }
+    /* WINDOWS THE CALLER ALREADY OPENED, while the click was still live, take
+       precedence over every attempt to open some here. They are the same names
+       — mb8stage1..N — so re-opening would merely re-navigate the windows that
+       already exist, throwing away the placement they were born with and
+       pushing each of them into this.wins twice. Adopted before the branches
+       below so neither of them runs against a stage that is already up. */
+    if (!opened && (opts.wins || []).length){
+      for (const w of opts.wins) if (w) this.wins.push(w);
+      opened = this.wins.length;
+    }
     if (!opened && !NATIVE.ready()){
       /* THE SHELL'S TRICK, WITHOUT THE SHELL. A Chromium booth that has been
          shown the screens can do what only the Mac app could: put each window
@@ -24087,20 +24541,6 @@ const STAGE = {
       }
     }
     if (!opened){
-      /* SPREAD THEM OUT ON THE WAY. A browser that stacks three popups at the
-         identical spot leaves three windows describing one rectangle, and the
-         wall is that rectangle — all three would show the same whole field
-         until a hand pulled them apart. Opening them in a row means the cut is
-         right on the first frame, and dragging one onto a television only
-         makes it more right. */
-      const step = Math.max(180, Math.round((screen.availWidth || 1440) / (of + 1)));
-      for (let i = 1; i <= of; i++){
-        const w = window.open(this.url(i, of, false, 's' + i), 'mb8stage' + i,
-          'width=1280,height=720,menubar=no,toolbar=no'
-          + ',left=' + ((i - 1) * step) + ',top=' + ((i - 1) * 24));
-        if (w) this.wins.push(w); else break;
-      }
-      opened = this.wins.length;
       /* A BLOCKED POPUP IS NOT A DEAD END. It used to be: the app said "allow
          pop-ups" and stopped, which on the Mac shell — whose webview opens no
          second window at all — meant the stage simply could not be reached.
@@ -24177,7 +24617,7 @@ const STAGE = {
     if (n > 1) this.identify(2400);
     ACTIVITY.log('system', 'Stage mode on - ' + n + (n === 1 ? ' screen' : ' screens') + ' in this window');
     toast(why.blocked
-      ? 'A separate window was blocked — the stage opened here instead. Drag it, resize it, ⤢ for full.'
+      ? 'Separate windows were blocked by the browser — the stage opened here instead. Press ↗ on a screen to pop it out into its own window.'
       : n > 1
         ? n + ' screens, one field. Drag them around — the picture is cut where they actually are.'
         : native
@@ -24882,6 +25322,34 @@ function drawQR(cv, text, dark, light){
   }
   return true;
 }
+/* the card an operator holds up: the letters big enough to read across a
+   kitchen, the QR for the camera already in everyone's hand. Two doors use
+   it — the wire's screens and the crowd's phones — same card, different
+   words, because the ritual is the same ritual. */
+function inviteCard(o){
+  let card = document.getElementById(o.id);
+  if (!card){
+    card = document.createElement('div');
+    card.id = o.id;
+    card.className = 'invite-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', o.label || 'Invite');
+    card.innerHTML = '<button class="wc-x" type="button" aria-label="Put the invite away">×</button>'
+      + '<div class="wc-title"></div>'
+      + '<div class="wc-code"></div>'
+      + '<canvas class="wc-qr" aria-label="Scan to join"></canvas>'
+      + '<div class="wc-how"></div>';
+    card.querySelector('.wc-x').addEventListener('click', () => { card.hidden = true; });
+    document.body.appendChild(card);
+  }
+  card.querySelector('.wc-title').textContent = o.title || '';
+  card.querySelector('.wc-code').textContent = o.code || '····';
+  card.querySelector('.wc-how').innerHTML = o.how || '';
+  const cv = card.querySelector('.wc-qr');
+  cv.hidden = !drawQR(cv, o.url || '');
+  card.hidden = false;
+  return card;
+}
 
 const WIRE = {
   /* same-origin first: a Netlify preview has the mailbox right there. The
@@ -24968,7 +25436,7 @@ const WIRE = {
     const slot = this.mintSlot();
     const sdp = await this.offerFrom(slot.pc).catch(() => null);
     if (!sdp){ this.dropSlot(slot); return null; }
-    const b = { offer: sdp, host: 'The booth', name: 'The stage', seats: 8 };
+    const b = { offer: sdp, host: 'The booth', name: 'The stage', seats: 16 };
     if (this.code && this.key){ b.code = this.code; b.key = this.key; }
     const r = await this.api('host', b);
     if (!r || r.error || !r.code){ this.dropSlot(slot); return null; }
@@ -24982,7 +25450,9 @@ const WIRE = {
      device to knock must not be told to try again — that is the ritual this
      exists to remove */
   async spare(){
-    if (!this.code || !this.key || this.pool.length >= 3) return null;
+    // sixteen is the whole wall — a seventeenth knock deserves a full room,
+    // not a pigeonhole nobody will adopt
+    if (!this.code || !this.key || this.pool.length >= 3 || this.peers.size >= 16) return null;
     const slot = this.mintSlot();
     const sdp = await this.offerFrom(slot.pc).catch(() => null);
     if (!sdp){ this.dropSlot(slot); return null; }
@@ -25027,6 +25497,10 @@ const WIRE = {
       if (!id) return;
       const known = this.peers.get(id);
       if (known){ known.at = Date.now(); return; }
+      // the wall is sixteen wide at most (stageGrid's widest tiling): a
+      // seventeenth device is turned away at the door rather than shown a
+      // slice the arithmetic cannot cut
+      if (this.peers.size >= 16){ this.dropSlot(slot); return; }
       if (!slot.id){
         slot.id = id;
         const i = this.pool.indexOf(slot);
@@ -25211,30 +25685,16 @@ const WIRE = {
   joinUrl(){
     return location.origin + location.pathname + '?stage=screen&join=' + this.code;
   },
-  /* the card an operator holds up: the letters big enough to read across a
-     kitchen, the QR for the camera that is already in everyone's hand */
   showInvite(){
-    let card = document.getElementById('wireCard');
-    if (!card){
-      card = document.createElement('div');
-      card.id = 'wireCard';
-      card.setAttribute('role', 'dialog');
-      card.setAttribute('aria-label', 'Invite a device as a screen');
-      card.innerHTML = '<button class="wc-x" type="button" aria-label="Put the invite away">×</button>'
-        + '<div class="wc-title">Any device is a screen</div>'
-        + '<div class="wc-code"></div>'
-        + '<canvas class="wc-qr" aria-label="Scan to join as a screen"></canvas>'
-        + '<div class="wc-how"></div>';
-      card.querySelector('.wc-x').addEventListener('click', () => this.hideInvite());
-      document.body.appendChild(card);
-    }
-    card.querySelector('.wc-code').textContent = this.code || '····';
-    card.querySelector('.wc-how').innerHTML = 'Scan with the device\'s camera — or open <b>'
-      + escapeHTML(location.host) + '</b> there, tap <b>Stage</b>, and type the four letters.'
-      + '<br>Same Wi‑Fi (or this machine\'s hotspot). The picture is rendered there, not streamed.';
-    const cv = card.querySelector('.wc-qr');
-    if (!drawQR(cv, this.joinUrl())) cv.hidden = true;
-    card.hidden = false;
+    inviteCard({
+      id: 'wireCard', label: 'Invite a device as a screen',
+      title: 'Any device is a screen',
+      code: this.code,
+      url: this.joinUrl(),
+      how: 'Scan with the device\'s camera — or open <b>' + escapeHTML(location.host)
+        + '</b> there, tap <b>Stage</b>, and type the four letters.'
+        + '<br>Same Wi‑Fi (or this machine\'s hotspot). The picture is rendered there, not streamed.',
+    });
   },
   hideInvite(){
     const card = document.getElementById('wireCard');
@@ -25257,6 +25717,170 @@ const WIRE = {
     this.linked = false;
     this._pc = null; this._ctl = null; this._feed = null;
     this.hideInvite();
+  },
+};
+
+/* ================================================================
+   §8ac · THE CROWD — the whole floor, in their hands.
+
+   Not the wire, on purpose. The wire makes a device a TILE of one field —
+   sixteen at most, each holding its slice, fed forty numbers a frame over a
+   peer connection. A crowd is the opposite shape: hundreds of phones that
+   each want the WHOLE field, and the trick that makes it scale is that the
+   heavy signal is already broadcast at concert volume — the PA. Every phone
+   listens with its own microphone and runs the whole engine on what it
+   hears, which costs the booth nothing whether the floor is two phones or
+   two thousand.
+
+   What a microphone cannot hear is which PALETTE the booth is in and which
+   SCENE it chose — the two slow truths that make a floor one show instead
+   of a shimmer of different ones. So the booth leaves a PULSE at the
+   mailbox — three colours and a scene, ~80 bytes, every 2.5 seconds — and
+   every phone reads it. The read is CDN-cacheable and the phone sends no
+   cache-buster, BY DESIGN: a thousand phones asking the identical question
+   collapse to one origin hit per couple of seconds at the edge. Nothing
+   fast crosses the network in either direction; the beat is in the air.
+
+   Degrades in layers: mailbox unreachable → phones dance to what they hear
+   in their own colours. Booth goes quiet for 24 seconds → the local palette
+   drift resumes (COLOR's own replan clock), which is the right failure — a
+   floor abandoned by its booth keeps dancing. Mic refused → the field still
+   glides through the booth's palette, just gently.
+   ================================================================ */
+const CROWD = {
+  code: null, key: null,
+  on: false,                  // booth: the pulse is going out
+  tuned: false,               // phone: joined a crowd
+  _pushT: null, _pollT: null, _seenAt: 0,
+
+  /* ---------------- the booth ---------------- */
+  async invite(){
+    if (STAGE.screen() || this.tuned) return;
+    if (this.on){
+      const off = await ASK.confirm({
+        title: 'Crowd mode',
+        body: 'The floor is tuned to this booth — code ' + this.code
+          + '.\n\nStop the pulse? The phones keep dancing to what they hear; they just stop following your palette and scene.',
+        ok: 'Stop the pulse', cancel: 'Keep it going',
+      });
+      if (off) this.stop(); else this.showCard();
+      return;
+    }
+    toast('Minting a crowd code…');
+    const r = await WIRE.api('beacon', { name: 'The show' });
+    if (!r || r.error || !r.code){
+      toast('The crowd mailbox is out of reach — a code needs the network, and the phones read the palette from it.');
+      return;
+    }
+    this.code = r.code; this.key = r.key;
+    this.start();
+    this.showCard();
+    ACTIVITY.log('system', 'Crowd mode on - code ' + this.code);
+  },
+  start(){
+    if (this._pushT) return;
+    this.on = true;
+    this._pushT = setInterval(() => this.push(), 2500);
+    this.push();
+  },
+  /* the pulse. 2.5 seconds apart because nothing in it is fast on purpose:
+     a palette glide reads as a lighting cue at any offset under a bar, and
+     a scene change landing a second late lands on a floor that never knew
+     when it was chosen. */
+  push(){
+    if (!this.code || !this.key) return;
+    const p = crowdPack(COLOR.now, typeof director !== 'undefined' ? director.active : 0);
+    if (!p) return;
+    WIRE.api('pulse', { code: this.code, key: this.key, pulse: p });
+  },
+  joinUrl(){ return location.origin + location.pathname + '?crowd=' + this.code; },
+  showCard(){
+    inviteCard({
+      id: 'crowdCard', label: 'Invite the whole floor',
+      title: 'The whole floor, in their hands',
+      code: this.code,
+      url: this.joinUrl(),
+      how: 'Anyone who scans this joins the show: their phone listens to the room through its <b>own microphone</b> and dances to what it hears, in this booth\'s palette and scene.'
+        + '<br>Two phones or two thousand — the speakers are the broadcast.',
+    });
+  },
+  stop(){
+    this.on = false;
+    if (this._pushT){ clearInterval(this._pushT); this._pushT = null; }
+    if (this.code && this.key) WIRE.api('close', { code: this.code, key: this.key, started: 0 });
+    this.code = null; this.key = null;
+    const card = document.getElementById('crowdCard');
+    if (card) card.hidden = true;
+    ACTIVITY.log('system', 'Crowd mode off');
+    toast('Crowd mode off — the floor keeps dancing to what it hears.');
+  },
+
+  /* ---------------- the phone ---------------- */
+  join(code){
+    this.code = stageCodeTidy(code);
+    this.tuned = true;
+    document.body.classList.add('crowd');
+    document.documentElement.classList.add('crowd');
+    // the booth chooses the scene for the whole floor; everything else —
+    // the beat, the energy, the finger on the glass — stays this phone's own
+    try { director.auto = false; } catch (e){}
+    /* the veil: one tap is the gesture everything downstream needs — the
+       microphone permission, the wake lock, fullscreen where the platform
+       allows a page one. Nothing starts until the hand says so. */
+    const veil = document.createElement('div');
+    veil.id = 'crowdGo';
+    veil.setAttribute('role', 'button');
+    veil.innerHTML = '<b>Join the show</b><span>one tap — your phone listens to the room and glows with the booth</span>';
+    document.body.appendChild(veil);
+    veil.addEventListener('click', () => {
+      veil.remove();
+      try { toggleMic(); } catch (e){}
+      STAGE.wake(true);
+      try { document.documentElement.requestFullscreen().catch(() => {}); } catch (e){}
+      this.watch();
+    }, { once: true });
+  },
+  watch(){
+    if (this._pollT) return;
+    const tick = () => this.fetchPulse().then(r => { if (r && r.pulse) this.apply(r.pulse); });
+    this._pollT = setInterval(tick, 2500);
+    tick();
+  },
+  /* NO CACHE-BUSTER, BY DESIGN. Every phone on the floor asks this exact
+     URL, so the CDN answers the crowd and the mailbox answers the CDN —
+     one origin hit per couple of seconds however many hands are up. The
+     mailbox's pulse route sets the cache headers that make this true. */
+  async fetchPulse(){
+    if (!WIRE.base) await WIRE.api('ping');
+    const base = WIRE.base || WIRE.PUBLIC;
+    try {
+      const r = await fetch(base + '?a=pulse&g=' + WIRE.GAME + '&code=' + this.code, { cache: 'default' });
+      const ct = r.headers.get('content-type') || '';
+      if (ct.indexOf('application/json') < 0) return null;
+      return await r.json().catch(() => null);
+    } catch (e){ return null; }
+  },
+  apply(raw){
+    const p = crowdClamp(raw);
+    if (!p) return;
+    this._seenAt = performance.now();
+    const chord = p.c.map(a => ({ l: a[0], c: a[1], h: a[2] }));
+    const quad = chord.concat([{ l: chord[2].l, c: chord[2].c, h: chord[2].h }]);
+    /* aimed as a GLIDE, never a snap: pulses arrive ~2.5 s apart and the
+       glide runs just behind them, so the floor breathes through palette
+       changes the way the booth's own ramp does. The drift clock is zeroed
+       on every pulse — while the booth speaks, the phone does not replan a
+       palette of its own; see the module comment for what 24 quiet seconds
+       mean. */
+    COLOR.from = (COLOR.now || quad).map(c => ({ l: c.l, c: c.c, h: c.h }));
+    COLOR.target = quad;
+    COLOR.glideT = 0;
+    COLOR.glideDur = 4;
+    COLOR._replanT = 0;
+    if (COLOR.plan){ COLOR.plan.quad = quad; COLOR.plan.colors = chord; }
+    if (typeof director !== 'undefined' && typeof scenes !== 'undefined'
+      && p.s < scenes.length && p.s !== director.active && director.transT >= 1)
+      director.setScene(p.s, false);
   },
 };
 
@@ -25756,7 +26380,6 @@ function frame(now){
   GHOST.update(dt);
   if (STAGE.screen()) STAGE.hand();     // the booth's hand outranks a local ghost
   INTERACT.update(dt);
-  DWELL.update(dt);
   /* THE HAND, HANDED TO THE FABRIC. Nothing is drawn here any more — there is
      no stage to perform on. These uniforms ARE the touch: the metric reads
      them, the particles move through it, and the light-bending pass refracts

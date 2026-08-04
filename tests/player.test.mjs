@@ -39,7 +39,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal, stagePlan,' +
-  ' stageCodeTidy, stageCodeIs, stageNetWall,' +
+  ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
@@ -51,6 +51,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
   ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
+  ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
+  ' pyroRate, pyroFire, pyroPick, pyroSalt,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
@@ -2271,6 +2273,122 @@ test('the roll: about half the visits are the whole bench, and every source is r
   assert.equal(S.flameRoll(NaN).mode, 'vigil', 'nonsense rolls the safe one');
   assert.deepEqual(S.flameRoll(0.7), S.flameRoll(1.7), 'the roll is a pure function of its fraction');
 });
+// ------------------------------------------------------- and then it fires
+
+test('the stars are chemistry: real emitters, through the same observer', () => {
+  assert.equal(S.PYRO_STARS.length, 9);
+  const by = k => S.PYRO_STARS.find(x => x.key === k);
+  for (const st of S.PYRO_STARS){
+    assert.ok(st.nm ? st.nm >= 380 && st.nm <= 750 : st.kelvin >= 1000,
+      `${st.key} emits something real`);
+    const c = S.pyroStarRGB(st);
+    assert.ok(Math.max(c.r, c.g, c.b) > 0.99, `${st.key} is normalised`);
+    assert.ok(Math.min(c.r, c.g, c.b) >= 0, `${st.key} has no negative channel`);
+  }
+  const ba = S.pyroStarRGB(by('barium')), cu = S.pyroStarRGB(by('copper'));
+  assert.ok(ba.g > 0.9 && ba.r < 0.2, `barium at 515 nm is green: ${S.rgbHex(ba)}`);
+  assert.ok(cu.b > 0.9 && cu.g < 0.2, `copper at 452 nm is blue: ${S.rgbHex(cu)}`);
+  // the gold willow is not a colour, it is charcoal — so it must land on the
+  // same amber the black-body model gives a flame of that temperature
+  assert.equal(S.rgbHex(S.pyroStarRGB(by('charcoal'))), S.rgbHex(S.kelvinRGB(1750)),
+    'gold is incandescence, and comes from the same model the flames use');
+  // two emitters in one pellet ADD: purple must sit between its parents and be
+  // reachable by neither of them alone
+  const pu = S.pyroStarRGB(by('purple')), sr = S.pyroStarRGB(by('strontium'));
+  assert.ok(pu.r > 0.5 && pu.b > 0.5, `purple carries both lines: ${S.rgbHex(pu)}`);
+  assert.ok(pu.b > sr.b && pu.r > cu.r, 'and is neither of them');
+});
+test('pyroFlight: a star in air, and the vacuum it reduces to', () => {
+  // THE limit test: take the air away and it must reproduce schoolbook
+  // ballistics exactly, or the closed form is not the closed form
+  const t = 2, v0 = 10, g = 9.8;
+  // (the model floors drag at 1e-4 rather than dividing by zero, so the limit
+  // is approached to about a part in ten thousand rather than reached)
+  const vac = S.pyroFlight(t, v0, 1e-7, g);
+  assert.ok(Math.abs(vac.reach - v0 * t) < 0.01, `reach → v₀t: ${vac.reach}`);
+  assert.ok(Math.abs(vac.fall - 0.5 * g * t * t) < 0.01, `fall → ½gt²: ${vac.fall}`);
+  // with air, displacement is bounded by v₀/k however long you wait
+  assert.ok(Math.abs(S.pyroFlight(1e5, 10, 2, g).reach - 5) < 1e-6, 'terminal displacement is v₀/k');
+  assert.ok(S.pyroFlight(3, 10, 2, g).reach < 10 * 3, 'air always costs reach');
+  // and the fall is eventually linear — terminal velocity, not acceleration
+  const a = S.pyroFlight(20, 10, 2, g).fall, b = S.pyroFlight(21, 10, 2, g).fall;
+  assert.ok(Math.abs((b - a) - g / 2) < 1e-3, `terminal velocity g/k: ${b - a}`);
+  // monotone, and never NaN on nonsense
+  let last = -1;
+  for (let x = 0; x <= 5; x += 0.1){
+    const f = S.pyroFlight(x, 12, 0.8, g);
+    assert.ok(f.reach >= last - 1e-9 && isFinite(f.reach) && isFinite(f.fall), `at ${x}`);
+    last = f.reach;
+  }
+  const z = S.pyroFlight(-3, 10, 0, 0);
+  assert.equal(z.reach, 0); assert.equal(z.fall, 0);
+  assert.ok(isFinite(S.pyroFlight(NaN, NaN, NaN, NaN).reach), 'nonsense is not NaN');
+});
+test('the pieces differ by three numbers, not by three animations', () => {
+  const keys = S.PYRO_SHELLS.map(s => s.key);
+  assert.equal(new Set(keys).size, S.PYRO_SHELLS.length, 'no two pieces share a key');
+  for (const sh of S.PYRO_SHELLS){
+    assert.ok(sh.v0 > 0 && sh.drag > 0 && sh.life > 0, `${sh.key} is a real piece`);
+    assert.ok(sh.lift >= 0 && sh.lift < 1, `${sh.key}'s climb is a share of its life`);
+    // every piece must fit a room: terminal reach bounded, or it leaves the frame
+    assert.ok(sh.v0 / sh.drag < 16, `${sh.key} stays in the room: ${(sh.v0 / sh.drag).toFixed(1)}`);
+  }
+  const peony = S.pyroShell('peony'), willow = S.pyroShell('willow');
+  // a willow droops and a peony does not — and that IS the gravity number
+  assert.ok(willow.grav > peony.grav && willow.life > peony.life, 'a willow hangs and falls');
+  assert.ok(S.pyroShell('billow').grav < 0, 'smoke is buoyant, so its gravity points up');
+  assert.ok(S.pyroShell('gerb').lift === 0 && S.pyroShell('mine').lift === 0,
+    'the ground pieces have nowhere to climb to');
+  assert.equal(S.pyroShell('nonsense').key, S.PYRO_SHELLS[0].key, 'an unknown piece is still a piece');
+});
+test('pyroRate: the sky is as busy as the music, and quiet when it is', () => {
+  const at = (energy, mood, calm) => S.pyroRate({ energy, mood, calm });
+  assert.ok(at(0.9, 'apex') > at(0.9, 'drive'), 'an apex opens up');
+  assert.ok(at(0.9, 'drive') > at(0.1, 'drive'), 'and energy drives it');
+  assert.ok(at(0.9, 'adrift') < at(0.9, 'drive'), 'drifting goes quiet');
+  assert.ok(at(0.9, 'apex', true) < at(0.9, 'apex'), 'CALM thins the sky');
+  assert.ok(at(0, 'adrift') > 0, 'but it never stops entirely — something is always burning');
+  assert.ok(isFinite(S.pyroRate({})) && S.pyroRate({}) > 0, 'an unknown moment still fires');
+});
+test('pyroFire: the budget lands on the hit, and can never run away', () => {
+  assert.equal(S.pyroFire(0, 0.016, 2, false).fire, 0, 'a frame is not a firework');
+  assert.equal(S.pyroFire(0.9, 0.016, 2, true).fire, 1, 'an onset spends an almost-full budget');
+  assert.equal(S.pyroFire(0.1, 0.016, 2, true).fire, 0, 'but not an empty one');
+  assert.equal(S.pyroFire(0.99, 0.016, 2, false).fire, 1, 'and a full budget fires anyway');
+  // a tab that was in the background for a minute must not return to a minute
+  // of shells: both the count and the carried budget are capped
+  const huge = S.pyroFire(0, 60, 4, true);
+  assert.ok(huge.fire <= S.PYRO_TUNING.maxPerFrame, `capped: ${huge.fire}`);
+  assert.ok(huge.acc <= 2 && huge.acc >= 0, `and the carry is bounded: ${huge.acc}`);
+  for (const bad of [[NaN, 0.016, 2], [0, NaN, 2], [0, 0.016, NaN], [-5, -5, -5]]){
+    const r = S.pyroFire(bad[0], bad[1], bad[2], false);
+    assert.ok(isFinite(r.acc) && r.fire >= 0, JSON.stringify(bad));
+  }
+});
+test('pyroPick / pyroSalt: the moment chooses the piece and its chemistry', () => {
+  const shells = new Set(S.PYRO_SHELLS.map(s => s.key));
+  const salts = new Set(S.PYRO_STARS.map(s => s.key));
+  const walk = (fn, o) => Array.from({ length: 200 }, (_, i) => fn(o, i / 200));
+  for (const o of [{ energy: 0.9, mood: 'apex' }, { energy: 0.1, mood: 'adrift' },
+                   { energy: 0.5, mood: 'drive' }, {}]){
+    for (const k of walk(S.pyroPick, o)) assert.ok(shells.has(k), `${k} is not a piece`);
+    for (const k of walk(S.pyroSalt, o)) assert.ok(salts.has(k), `${k} is not a chemistry`);
+  }
+  const quiet = walk(S.pyroPick, { energy: 0.08, mood: 'adrift' });
+  const loud = walk(S.pyroPick, { energy: 0.95, mood: 'apex' });
+  const share = (l, k) => l.filter(x => x === k).length / l.length;
+  assert.ok(share(quiet, 'billow') > 0.4, 'a quiet room is mostly smoke');
+  assert.equal(share(quiet, 'peony'), 0, 'and never opens the sky');
+  const sky = ['peony', 'chrys', 'palm', 'ring', 'crossette', 'strobe'];
+  assert.ok(sky.reduce((a, k) => a + share(loud, k), 0) > 0.8, 'an apex is nearly all shells');
+  assert.equal(share(loud, 'billow'), 0, 'nobody watches smoke at the apex');
+  // the hard colours are earned: copper blue is expensive in a real shell too
+  const dim = walk(S.pyroSalt, { energy: 0.05, treble: 0.05 });
+  const bright = walk(S.pyroSalt, { energy: 0.95, treble: 0.95 });
+  assert.equal(share(dim, 'copper'), 0, 'a dim moment does not get copper');
+  assert.ok(share(bright, 'copper') > 0.1, 'a bright one does');
+  assert.ok(share(dim, 'charcoal') > share(bright, 'charcoal'), 'and the quiet keeps the gold');
+});
 test('the readout says what colour the thing is — because that is the room', () => {
   const laser = S.flameLabel(S.FLAME_SOURCES.find(s => s.key === 'laser'));
   assert.ok(/LASER · 532 nm · #[0-9A-F]{6}$/.test(laser), laser);
@@ -2652,7 +2770,12 @@ test('stageSlice: the slices tile the field exactly once, with no gap and no ove
   assert.ok(S.stageSlice(0, 3).fw > 0);
 });
 test('stageRole: a screen is configured entirely by its own address', () => {
-  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto', join: null, id: 's1' });
+  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto', join: null, crowd: null, id: 's1' });
+  // a crowd code is the OTHER door — a phone, not a screen — parsed by the
+  // same rules: a scanned QR is this URL, misheard digits are letters
+  assert.equal(S.stageRole('?crowd=buzz').crowd, 'BUZZ');
+  assert.equal(S.stageRole('?crowd=R0CK').crowd, 'ROCK');
+  assert.equal(S.stageRole('?crowd=12').crowd, null, 'a number is never a knock');
   // four letters in the address are a knock on another booth's door; a scan
   // of an invite QR is exactly this URL, so scanning IS joining
   assert.equal(S.stageRole('?stage=screen&join=buzz').join, 'BUZZ');
@@ -2852,6 +2975,35 @@ test('stageNetWall: screens with no desk form a wall of their own, in join order
   assert.deepEqual(S.stageNetWall([]), {});
   for (const bad of [null, undefined, [null]])
     assert.doesNotThrow(() => S.stageNetWall(bad));
+});
+test('crowdPack/crowdClamp: the pulse is tiny, and only a whole good pulse is believed', () => {
+  const chord = [{ l: 0.7, c: 0.11, h: 200 }, { l: 0.6, c: 0.12, h: 220 }, { l: 0.5, c: 0.13, h: 240 }];
+  const p = S.crowdPack(chord, 3);
+  assert.equal(p.v, 1);
+  assert.equal(p.s, 3);
+  assert.equal(p.c.length, 3);
+  assert.deepEqual(p.c[0], [0.7, 0.11, 200]);
+  // small on the wire: every byte is multiplied by a crowd
+  assert.ok(JSON.stringify(p).length < 120, JSON.stringify(p).length + ' bytes');
+  // the round trip is the identity for a good pulse
+  const back = S.crowdClamp(JSON.parse(JSON.stringify(p)));
+  assert.deepEqual(back.c, p.c);
+  assert.equal(back.s, p.s);
+  // out-of-range values are clamped on the way out…
+  const wild = S.crowdPack([{ l: 4, c: 9, h: -160 }, chord[1], chord[2]], 999);
+  assert.ok(wild.c[0][0] <= 1 && wild.c[0][1] <= 0.5 && wild.c[0][2] >= 0 && wild.c[0][2] < 360);
+  assert.ok(wild.s <= 63);
+  // …and on the way in — a stranger's server hands this to the renderer
+  const hot = S.crowdClamp({ v: 1, s: -5, c: [[9, 9, 900], [0.5, 0.1, 10], [0.5, 0.1, 20]] });
+  assert.ok(hot.c[0][0] <= 1 && hot.c[0][1] <= 0.5 && hot.c[0][2] < 360 && hot.s === 0);
+  // a HALF-good pulse is refused whole — it would tint the room a colour
+  // nobody chose
+  assert.equal(S.crowdClamp({ v: 1, s: 1, c: [[0.5, 0.1, NaN], [0.5, 0.1, 10], [0.5, 0.1, 20]] }), null);
+  assert.equal(S.crowdClamp({ v: 2, s: 1, c: [[0.5, 0.1, 5], [0.5, 0.1, 10], [0.5, 0.1, 20]] }), null, 'an unknown version is not guessed at');
+  for (const bad of [null, undefined, {}, { v: 1 }, { v: 1, c: [] }, 'x'])
+    assert.equal(S.crowdClamp(bad), null);
+  assert.equal(S.crowdPack(null, 1), null);
+  assert.equal(S.crowdPack([{ l: NaN, c: 0.1, h: 1 }, {}, {}], 1), null);
 });
 test('stageMoved: a window that has not moved must not cost a message', () => {
   const a = { x: 10, y: 20, w: 300, h: 200 };
