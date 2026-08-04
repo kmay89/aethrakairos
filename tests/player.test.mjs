@@ -43,6 +43,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
   ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents,' +
+  ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
@@ -3212,6 +3213,111 @@ test('the generic renderer decodes back to what it was asked for', () => {
   const l = S.dmxRender(mh, { m: { r: 1, g: 1, b: 1, dim: 1, spin: -1 } });
   const r = S.dmxRender(mh, { m: { r: 1, g: 1, b: 1, dim: 1, spin: 1 } });
   assert.ok(l[vars.indexOf('pan')] < r[vars.indexOf('pan')], 'pan follows the sign of the spin');
+});
+
+test('hueIsLan: the fence around a native fetch, which has no CORS to fall back on', () => {
+  /* THE MOST SECURITY-SENSITIVE FUNCTION IN THE PLAYER. A native fetch is a
+     hole straight through the browser's model — no CORS, no mixed content
+     rule, no same-origin policy — so this predicate is the only thing between
+     it and a confused deputy that any script on the page could aim anywhere. */
+  for (const h of ['192.168.1.2', '10.0.0.1', '172.16.0.1', '172.31.255.255',
+    '127.0.0.1', '169.254.1.1', 'philips-hue.local', 'Philips-Hue.LOCAL'])
+    assert.ok(S.hueIsLan(h), h + ' is on my own network');
+  // the public internet, and the near-misses at the edges of each range
+  for (const h of ['8.8.8.8', 'example.com', 'hue.example.com', '172.32.0.1',
+    '172.15.0.1', '192.169.1.1', '11.0.0.1', '126.0.0.1', '169.255.1.1'])
+    assert.ok(!S.hueIsLan(h), h + ' must be refused');
+  /* AND THE SHAPES THAT EXIST TO FOOL A CARELESS PARSER. URL() would accept
+     the first of these and report a host of evil.com; a resolver reading
+     octal makes the second loopback while a decimal parser does not. Both are
+     refused rather than interpreted, because a disagreement about what an
+     address MEANS is exactly the bug this prevents. */
+  for (const h of ['127.0.0.1@evil.com', 'evil.com/192.168.1.1', '0177.0.0.1',
+    '010.0.0.1', '192.168.1.256', '192.168.1', '192.168.1.1.1', 'a.b.local',
+    '-bad.local', '.local', '192.168.1.2:80', '[::1]', 'localhost'])
+    assert.ok(!S.hueIsLan(h), h + ' must be refused');
+  for (const bad of [null, undefined, 0, {}, [], ' ', 'x'.repeat(400)])
+    assert.equal(S.hueIsLan(bad), false, JSON.stringify(bad));
+});
+test('hueXY: a bulb has no red, green and blue to set', () => {
+  // the primaries land in the right corners of the diagram
+  const r = S.hueXY(1, 0, 0), g = S.hueXY(0, 1, 0), b = S.hueXY(0, 0, 1);
+  assert.ok(r.x > 0.6 && r.y < 0.35, 'red: ' + JSON.stringify(r));
+  assert.ok(g.y > 0.6 && g.x < 0.25, 'green: ' + JSON.stringify(g));
+  assert.ok(b.x < 0.2 && b.y < 0.15, 'blue: ' + JSON.stringify(b));
+  // white sits on the D65 point, which is what "white" means to a bridge
+  const w = S.hueXY(1, 1, 1);
+  assert.ok(Math.abs(w.x - 0.3227) < 0.02 && Math.abs(w.y - 0.329) < 0.02, JSON.stringify(w));
+  /* GAMMA IS EXPANDED FIRST. Skipping it is why so much Hue code renders
+     midtones washed out: half-way up the sRGB ramp is nowhere near half the
+     light. A 50% grey must carry markedly less luminance than a white. */
+  const mid = S.hueXY(0.5, 0.5, 0.5);
+  assert.ok(mid.Y < 0.25, 'a 50% grey is ' + mid.Y.toFixed(3) + ' of the light, not half');
+  assert.ok(Math.abs(mid.x - w.x) < 1e-6, 'but it is the same colour as white');
+  // black has no chromaticity at all, and must not produce a NaN
+  const k = S.hueXY(0, 0, 0);
+  assert.ok(Number.isFinite(k.x) && Number.isFinite(k.y) && k.Y === 0);
+  for (const bad of [[NaN, 1, 1], [2, -1, 'x'], [null, undefined, {}]]){
+    const o = S.hueXY(bad[0], bad[1], bad[2]);
+    assert.ok(Number.isFinite(o.x) && Number.isFinite(o.y), JSON.stringify(bad));
+  }
+});
+test('hueUpdate: a bridge is not a DMX wire, and a queue is worse than a dropped frame', () => {
+  const first = S.hueUpdate({ r: 1, g: 0, b: 0, dim: 1 }, null, 1000);
+  assert.ok(first && first.body.on.on === true);
+  assert.ok(first.body.color.xy.x > 0.6, 'red went out as a chromaticity');
+  assert.equal(first.body.dimming.brightness, 100);
+  assert.equal(first.body.dynamics.duration, S.HUE_MIN_MS, 'the bridge fades over exactly the gap to the next command');
+  /* TEN A SECOND, PER LIGHT. Past that the bridge queues, and a queue means
+     the bulbs fall progressively further behind the music until they are
+     answering a beat that has already gone. */
+  assert.equal(S.hueUpdate({ r: 0, g: 1, b: 0, dim: 1 }, first.state, 1050), null,
+    'a frame inside the window is dropped, however different it is');
+  const later = S.hueUpdate({ r: 0, g: 1, b: 0, dim: 1 }, first.state, 1200);
+  assert.ok(later && later.body.color.xy.y > 0.6, 'and taken once the window has passed');
+  // a frame that says nothing new costs a request a real change needed
+  assert.equal(S.hueUpdate({ r: 1, g: 0, b: 0, dim: 1 }, first.state, 5000), null,
+    'an unchanged frame is not sent at all');
+  const nudge = S.hueUpdate({ r: 1, g: 0, b: 0, dim: 0.999 }, first.state, 5000);
+  assert.equal(nudge, null, 'nor is a change no bulb could render');
+  assert.ok(S.hueUpdate({ r: 1, g: 0, b: 0, dim: 0.5 }, first.state, 5000), 'a real change is');
+  // dark is off, and an off command carries no colour to argue with
+  const off = S.hueUpdate({ r: 1, g: 1, b: 1, dim: 0 }, first.state, 9000);
+  assert.ok(off && off.body.on.on === false);
+  assert.equal(off.body.color, undefined);
+  assert.doesNotThrow(() => S.hueUpdate(null, null, NaN));
+});
+test('huePairResult: "not pressed yet" is the normal case, not a failure', () => {
+  /* A bridge answers a pairing request with 200 whether it worked or not.
+     Error 101 is what the operator sees for the ten seconds before they walk
+     over and press the button, so it has to read as an instruction. */
+  const wait = S.huePairResult([{ error: { type: 101, description: 'link button not pressed' } }]);
+  assert.equal(wait.ok, false);
+  assert.equal(wait.press, true, 'and it asks for the button rather than reporting a fault');
+  const good = S.huePairResult([{ success: { username: 'abc123', clientkey: 'DEADBEEF' } }]);
+  assert.deepEqual([good.ok, good.user, good.key], [true, 'abc123', 'DEADBEEF']);
+  // the clientkey is what an Entertainment stream will need later; a bridge
+  // that does not send one is still a successful pairing
+  const old = S.huePairResult([{ success: { username: 'u' } }]);
+  assert.equal(old.ok, true); assert.equal(old.key, '');
+  const refused = S.huePairResult([{ error: { type: 7, description: 'invalid value' } }]);
+  assert.equal(refused.ok, false); assert.equal(refused.press, false);
+  for (const bad of [null, undefined, [], {}, 'x'])
+    assert.equal(S.huePairResult(bad).ok, false, JSON.stringify(bad));
+});
+test('hueLights: the light list, flattened to what a patch needs', () => {
+  const out = S.hueLights({ data: [
+    { id: 'b', metadata: { name: 'Kitchen' }, dimming: {}, color: {} },
+    { id: 'a', metadata: { name: 'Attic' }, dimming: {} },
+    { id: 'c' },
+    null,
+  ] });
+  assert.equal(out.length, 3);
+  assert.deepEqual(out.map(l => l.name), ['Attic', 'Hue light', 'Kitchen'], 'sorted by name');
+  assert.equal(out.find(l => l.id === 'b').color, true);
+  assert.equal(out.find(l => l.id === 'a').color, false, 'a white-only bulb says so');
+  for (const bad of [null, undefined, {}, { data: null }])
+    assert.deepEqual(S.hueLights(bad), [], JSON.stringify(bad));
 });
 
 test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
