@@ -2,6 +2,19 @@
   "_": "The update card's changelog. Newest first. Each entry: build (the stamp it shipped as), title, notes. newsSince() shows entries until it meets the running build — keep this list short and honest.",
   "entries": [
     {
+      "build": "unreleased",
+      "date": "2026-08-03",
+      "title": "A lava lamp that is simulated, not animated",
+      "notes": [
+        "a new room \u2014 THE LAVA LAMP: wax that rises because it is warm, thins because it is hot, tears apart when it is going too fast, and rings like a struck drop for a second after two blobs collapse into one",
+        "the pool at the bottom is stuck to the heater by its own wetting film and pays out droplets from underneath \u2014 and on the rare occasion it warms enough to let go, it comes apart into a rising column of droplets on the way up, which nobody scripted",
+        "real refraction through the surface, split into three wavelengths, over the coil\u2019s own light in the fluid behind; thin edges pale, fat middles deep, and bubbles that zig-zag on the way up the way rising bubbles actually do",
+        "the music is the thermostat: bass and the track\u2019s arc turn the coil up, and everything else \u2014 how fast the wax climbs, how readily it breaks \u2014 follows from that one number",
+        "put a hand on it and the wax flows, and keeps flowing after you let go",
+        "a device that cannot afford as many blobs gets fewer, larger ones rather than a coarser picture \u2014 which is more like a lava lamp, not less"
+      ]
+    },
+    {
       "build": "73655bab01",
       "date": "2026-08-03",
       "title": "The field can have a screen of its own",

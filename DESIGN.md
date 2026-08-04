@@ -57,10 +57,22 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   affordance.
 
 ### 1.2 The visual engine (§8, ~2,300 lines)
-- **Three.js/WebGL**, 13 registered scenes, each a hand-written GLSL
+- **Three.js/WebGL**, 18 registered scenes, each a hand-written GLSL
   factory: MÖBIUS SPIRAL, π–e HELIX, MÖBIUS BAND, STARBURST, NEBULA, TUNNEL,
   RIBBONS, FRACTAL FIELD (raymarched, 1,000 dice-rolled variants), COMETS,
-  FERN (IFS fractal that grows with track progress), ROSETTE, SLINKY, OP-ART.
+  FERN (IFS fractal that grows with track progress), ROSETTE, SLINKY, OP-ART,
+  PULSE, PARLOR, AUREA, HALO, and the LAVA LAMP.
+- **The lamp is a simulation, not an animation** (`@lava` pure block, ~2765):
+  Boussinesq buoyancy, Arrhenius viscosity, Stokes drag against a
+  divergence-free Rayleigh–Bénard stream function, one surface tension
+  driving coalescence/bounce (Weber), ring-down (Rayleigh l=2) and break-up,
+  and a Bond-number ceiling on drop size that makes the pool's lift-off
+  shatter into rising droplets without anyone scripting it. Rendered as the
+  level set of Σ(r²/d²)², with analytic gradient (exact AA), an exact
+  sphere height field (real normals, no marching) and Beer–Lambert
+  absorption. Everything stiff is integrated in closed form, so the lamp is
+  step-size independent; headless, seeded and unit-tested against
+  conservation of wax over ten simulated minutes.
 - **A director** (~6787): weights scenes by the music's live features, runs a
   five-act story arc across each track, cuts on energy peaks/breaks, drives a
   camera rig (bass→FOV, onset→dolly).
