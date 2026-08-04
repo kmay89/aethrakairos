@@ -62,17 +62,23 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   RIBBONS, FRACTAL FIELD (raymarched, 1,000 dice-rolled variants), COMETS,
   FERN (IFS fractal that grows with track progress), ROSETTE, SLINKY, OP-ART,
   PULSE, PARLOR, AUREA, HALO, and the LAVA LAMP.
-- **The lamp is a simulation, not an animation** (`@lava` pure block, ~2765):
-  Boussinesq buoyancy, Arrhenius viscosity, Stokes drag against a
-  divergence-free Rayleigh–Bénard stream function, one surface tension
-  driving coalescence/bounce (Weber), ring-down (Rayleigh l=2) and break-up,
-  and a Bond-number ceiling on drop size that makes the pool's lift-off
-  shatter into rising droplets without anyone scripting it. Rendered as the
-  level set of Σ(r²/d²)², with analytic gradient (exact AA), an exact
-  sphere height field (real normals, no marching) and Beer–Lambert
-  absorption. Everything stiff is integrated in closed form, so the lamp is
-  step-size independent; headless, seeded and unit-tested against
-  conservation of wax over ten simulated minutes.
+- **The lamp's wax is a fluid** (`@lava` pure block): a position-based fluid
+  (Macklin & Müller) of ~190 particles — density as a *constraint* solved in
+  two Jacobi sweeps, Akinci cohesion as the surface tension, XSPH viscosity,
+  a counting-sort neighbour grid, and one neighbour list a step reused by
+  every pass. The constraint only ever pushes: letting it pull is what made
+  the first version hum, because a position correction becomes a velocity
+  when divided by h. Drag and heat both ride the density deficit the solver
+  already computes, so "on the surface" costs nothing to know. Thermodynamics
+  as before (Boussinesq lift, Arrhenius viscosity, a divergence-free
+  Rayleigh–Bénard stream function). Rendered by SPLATTING the field into a
+  small target — cost becomes O(N·sprite) + O(pixels) instead of
+  O(pixels·N) — then shaded from four taps: screen-exact AA from
+  (F−iso)/|∇F|, real normals, Beer–Lambert thickness, three-wavelength
+  refraction, and temperature carried in its own channel. The solver caps
+  its own step, so it is step-size independent; headless, seeded, and
+  unit-tested for not leaking, not compressing, and going *quiet* when
+  nothing is touching it.
 - **A director** (~6787): weights scenes by the music's live features, runs a
   five-act story arc across each track, cuts on energy peaks/breaks, drives a
   camera rig (bass→FOV, onset→dolly).

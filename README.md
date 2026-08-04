@@ -509,8 +509,7 @@ thousands of rainbow motes where each angle of the circle listens to one
 band of the live spectrum and visibly swells where its band sings — an
 equalizer curled into a circle of light, with winding bead-strands, a
 beat soliton orbiting the ring, and treble twinkles), and the **LAVA LAMP**
-— see [The lamp](#the-lamp-a-scene-that-is-simulated-rather-than-animated)
-below. Keys `1`–`9` and
+— see [The lamp](#the-lamp--a-scene-where-the-wax-is-a-fluid) below. Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
 TILE relay, MOIRÉ interference, a breathing IRIS, and stacks of them — with
@@ -534,91 +533,105 @@ rather than a screensaver:
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
 
-## The lamp — a scene that is simulated rather than animated
+## The lamp — a scene where the wax is a fluid
 
-Scene 18 is a lava lamp, and nothing in it is keyframed, noise-driven or
-faked. It is six laws and a bottle, and every recognisable thing a real lamp
-does falls out of them:
+Scene 18 is a lava lamp, and the wax in it is *solved*, not animated. The
+first version of this room was a dozen discs, each with a radius and a
+wobble, merged by a rule when they touched — and every recognisable failure
+of it came from that one decision. A rule that fires cannot show you a neck
+thinning. A disc with a shape parameter has a resonant frequency, so it
+**rings**, and wax does not ring — wax creeps. So the wax is now a
+**position-based fluid** (Macklin & Müller 2013), a couple of hundred
+particles in the same bottle.
 
-- **Buoyancy is temperature, and nothing else.** Wax expands as it warms and
-  the fluid does not, so the whole density story collapses to one linear
-  Boussinesq term, `a = g·β·(T − T₀)`.
-- **Heat moves at a rate ∝ 1/r².** A drop's thermal time constant goes as
-  `r²/α`, so a small droplet takes the column's temperature almost at once
-  and the pool over the heater takes minutes. That single exponent is why a
-  lava lamp's rhythm is *slow*, and why a mist of droplets is quick.
-- **Viscosity is Arrhenius.** `μ(T) = μ₀·e^(−E·T)` — cold wax is nine times
-  thicker than hot wax, which is why blobs go up briskly and come down like
-  treacle. You have watched that asymmetry a hundred times; this is its name.
-- **Drag is Stokes', against the *local* fluid.** Terminal speed goes as r²,
-  so a big blob plows through the convection current while a droplet is
-  simply carried by it. Nobody decides which — the exponent decides.
-- **One surface tension decides three things.** Whether a collision
-  coalesces or bounces (the Weber number, and Ashgriz & Poo's regimes), how
-  hard the survivor rings afterwards (Rayleigh's `ω² = 8σ/ρr³` for the l=2
-  drop mode), and when a rising blob is torn apart. They agree with each
-  other because they are the same σ.
-- **Cohesion and adhesion.** A short-range attraction, which is why blobs
-  find each other, and a wetting film at the glass, which is why a cold one
-  slides down the wall and why the pool stays *stuck to the heater* instead
-  of taking off as one lump.
+- **Incompressibility is a constraint, not a force.** Each particle measures
+  the density around it with an SPH kernel and the solver finds the position
+  correction that puts every density back to rest — two Jacobi sweeps, no
+  stiffness, no timestep limit. That is what makes the wax hold a *volume*
+  rather than a radius, and it is why a pool spreads on the heater and a
+  droplet is round without either being written down.
+- **Surface tension is a smooth pairwise force**, and the constraint only
+  ever *pushes*. That combination is the whole fix for the wobble, and it is
+  worth being precise about why: a position correction becomes a **velocity**
+  when you divide it by the timestep, so letting the density constraint pull
+  as well as push hands every particle on every free surface a velocity it
+  did not earn, sixty times a second. Measured, with gravity, heat and flow
+  all switched off and the fluid at rest, the first draft peaked at 1.0 in a
+  bottle one unit wide. Cohesion is a force now — it can no more inject a
+  spike than gravity can — and the same spline turns *repulsive* below half a
+  kernel, so it does the anti-clustering job an artificial-pressure term
+  would otherwise be added for.
+- **Nothing decides that a merge has happened**, because nothing has to. Two
+  droplets drifting together are drawn the last little way by that cohesion,
+  the contact widens on its own, and the neck fills in over about a second. A
+  thread that thins past a point pinches, by the same number.
+- **Viscosity is XSPH** — each particle takes a share of its neighbours'
+  velocity — and it is the single line that separates wax from water. At the
+  coefficient this lamp runs, a droplet struck by another does not bounce,
+  does not ring and does not wobble: it deforms, and then it stops.
+- **Drag acts on the skin, and so does heat.** The clear fluid is not
+  simulated, so its drag has to be applied somewhere — and applying it to
+  every particle would make every blob rise at the same speed whatever its
+  size. It is applied instead to the particles the solver has *already*
+  identified: a density deficit is exactly what "near the free surface"
+  means, and it costs nothing to read. A blob's skin grows as its radius and
+  its mass as the area, so the big ones rise faster for the reason they
+  really do. Heat enters through the same skin and then conducts inward
+  between neighbours, which is why a big blob has a hot skin and a cold core
+  — the real mechanism behind the plume that lifts off the pool.
 
-The column itself is a single **Rayleigh–Bénard convection cell**, written
-as a stream function ψ rather than a velocity field: `u = ∂ψ/∂y`,
-`v = −∂ψ/∂x` is divergence-free *by construction*, so however hard the
-music drives it, the fluid can never source, sink, or leak through the
-glass. Two half-periods across the bottle puts the up-flow in the middle and
-the down-flow at the walls.
+The thermodynamics are unchanged and unglamorous: buoyancy is Boussinesq
+(lift is temperature and nothing else), viscosity is Arrhenius (cold wax is
+nine times thicker, so the fall never looks like the rise), and the column is
+one Rayleigh–Bénard cell written as a **stream function**, `u = ∂ψ/∂y`,
+`v = −∂ψ/∂x` — divergence-free by construction, so however hard the music
+drives it the fluid cannot source, sink, or leak through the glass.
 
-**The best thing it does needs no script.** There is a largest possible free
-drop — past a Bond number of about 16 gravity beats surface tension and a
-drop cannot hold its own shape — but a *puddle* is not a drop, because the
-glass carries the weight the surface would otherwise have to. So the pool at
-the bottom is allowed to be enormous, and when it finally warms enough to
-lift off, the ceiling on its size falls away with the floor and it comes
-apart into a rising column of droplets on the way up. That is arithmetic,
-not choreography, and it never happens the same way twice.
+**The picture is splatted, not evaluated.** Testing every blob against every
+pixel is fine for a dozen blobs and impossible for two hundred particles —
+the cost is O(pixels × N). So each particle draws its own kernel once,
+additively, into a small texture, and the cost becomes O(N × sprite) +
+O(pixels): N leaves the pixel loop entirely, which is what allowed the fluid
+to get good. Four taps of that texture give the gradient, and everything the
+old room did analytically still falls out of it — `(F−iso)/|∇F|` is the
+distance to the surface in world units, so the antialiasing is still computed
+against the *screen's* pixel size and stays exact at full resolution over a
+deliberately coarse field; the same field gives a real surface normal and a
+thickness; and the thickness makes the absorption honest Beer–Lambert, so a
+thin edge is pale and a fat middle is deep, with the light that does *not*
+get through coming back as the glow inside. Refraction is a real `refract()`
+against that normal, split into three wavelengths, reading the coil's own
+light in the liquid behind. The splat is deliberately wider than the particle
+spacing: it low-pass-filters the field, so what you see is the shape of the
+*fluid* rather than the arrangement of the samples standing in for it.
 
-The **surface is not drawn** either. Every blob contributes `φ = r²/d²` to
-one scalar field, the wax is the level set `Σφ² = 1`, and that is why two
-blobs approaching grow a neck between them and why the neck thins and snaps
-by itself. Three things then come out of that field for free: ∇F is
-analytic, so `(F−1)/|∇F|` is the distance to the surface in world units and
-antialiasing is exact at any resolution; `h = √(1 − F^-½)` is *exactly* a
-sphere's height for a lone blob, so the lamp is lit as a real surface with
-no marching; and that same h is the thickness, so absorption is honest
-**Beer–Lambert** — a thin edge is pale, a fat middle is deep, and the light
-that does not get through is precisely the light that comes back as the glow
-inside. Refraction is a real `refract()` against the real normal, split into
-three wavelengths, reading the coil's own light in the fluid behind.
-Bubbles nucleate at the heater and **zig-zag** on the way up, because that is
-what vortex shedding does to a rising bubble at the Strouhal frequency.
+One thing only became possible here — the **temperature is splatted alongside
+the density**, in the next channel, weighted by the same kernel. So the wax
+is not one colour with a hot core painted on: every pixel reads the
+temperature of the wax actually in front of it, and a blob that has just left
+the coil is visibly hotter where it left.
 
 **The music is the thermostat.** Bass and the act's own heat turn the coil
-up; the column gets hotter, the wax rises faster and breaks more readily,
-and the convection cell drives harder. Everything a drop does to this lamp,
-it does through one number a physicist would recognise. Put a hand on it and
-the wax *flows* — and keeps flowing after you let go, because it is matter
-with momentum — while the room behind the glass bends through the same
-metric every other scene answers a hand with. Two different answers to one
-hand, because a fluid and a vacuum are not the same thing.
+up; the column gets hotter, the wax climbs faster and breaks more readily.
+Put a hand on it and the wax *flows*, and keeps flowing after you let go,
+because it is matter with momentum — while the room behind the glass bends
+through the same metric every other scene answers a hand with.
 
-**And the performance is the physics.** The cost is exactly one pass over
-the blob list per pixel — no render target, no feedback buffer, no second
-geometry pass — so N is the only term there is. A device that cannot afford
-as many blobs is therefore not given a coarser lamp: it is given *fewer,
-larger* ones, by raising the radius at which two of them coalesce. The
-governor and the physics are the same mechanism, which means the lamp under
-pressure looks **more** like a lava lamp, not less, and there is no second
-rendering path to keep honest. Nothing stiff is stepped, either — drag,
-thermal relaxation and the surface-tension ring all have closed forms and
-all three use them, so the simulation is unconditionally stable at any step
-size and a phone at 30 fps runs the same lamp a desktop at 120 does.
+**The budget is one number, and it governs both halves.** The solver is O(N)
+and the renderer splats N sprites, so a device that cannot afford as many
+particles is given a **coarser** fluid rather than a smaller lamp: the
+spacing and the kernel widen together and the same wax fills the same bottle
+out of fewer, larger parcels. Nothing has a stiffness limit either — the
+solver caps its own internal step so the caller can hand it anything,
+including the long strides the warm-up uses, and get the same fluid out.
 
-It is headless and deterministic from a seed: `tests/player.test.mjs` runs
-it for ten simulated minutes and holds it to conservation of wax across
-every merge, break-up, shed and drip, to the glass never leaking, and to the
-column actually convecting.
+It is headless, pure and deterministic from a seed. `tests/player.test.mjs`
+runs it for ten simulated minutes and holds it to not leaking and not
+compressing; checks the 2D kernels really integrate to one on a plane; and
+carries the regression test for the defect this room was rebuilt over — with
+gravity, heat, flow and hands all switched off, **an undisturbed fluid has to
+go quiet**, and two droplets left alone have to become one round body on
+their own.
 
 ## Touching the fabric
 

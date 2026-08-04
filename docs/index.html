@@ -2646,34 +2646,45 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
     exaggerate perspective without changing how big the subject sits in frame.
     That's <b>1000 combinations</b>, and the palette keeps rotating underneath them.</p>
     <h3>The lamp</h3>
-    <p class="lede">Scene 18 is the <b>LAVA LAMP</b>, and none of what it does is animated — it is
-    <i>simulated</i>, from six laws you could look up. Wax expands as it warms, so <b>lift is
-    temperature and nothing else</b>. Each blob takes on the column's heat at a rate that goes as
-    1/r², so a droplet changes its mind in a second and the pool at the heater takes minutes — which
-    is the whole reason a lava lamp's rhythm is slow. Cold wax is nine times thicker than hot wax
-    (Arrhenius), which is why the blobs go up briskly and come down like treacle. Drag is Stokes', so
-    terminal speed goes as r²: a big blob plows through the convection current and a droplet is
-    simply <i>carried</i> by it, and nobody had to decide which. One surface tension sets three
-    different things and they agree because they come from the same number — whether two blobs
-    <b>coalesce or bounce</b> (the Weber number), how the survivor <b>wobbles</b> afterwards
-    (Rayleigh's drop mode), and when a rising blob is <b>torn apart</b>. And there is a largest
-    possible drop, because gravity beats surface tension past a certain size (the Bond number) — so
-    when the pool at the bottom finally warms enough to lift off the glass, the size it is allowed to
-    be falls away underneath it and <b>it comes apart into a rising column of droplets on the way
-    up</b>. Nobody scripted that; it is the arithmetic.</p>
-    <p class="lede">The <b>surface is not drawn</b> either: the blobs are a level set of one scalar
-    field, which is why two of them approaching grow a neck between them, and why the neck thins and
-    snaps by itself. The light is real — refraction through the actual surface normal, split into
-    three wavelengths, reading the coil's own glow in the fluid behind; Beer–Lambert absorption, so a
-    thin edge is pale and a fat middle is deep; and the light that does <i>not</i> get through is
-    exactly the light that comes back as the glow inside. Bubbles nucleate at the heater and zig-zag
-    on the way up because that is what vortex shedding does to a rising bubble. <b>The music is the
-    thermostat</b>: bass and the act's own heat turn the coil up, and everything else follows from
-    that one number. Put a hand on it and the wax <i>flows</i> — and keeps flowing after you let go,
-    because it has momentum, while the room behind the glass bends through the same metric every
-    other scene answers a hand with. It costs one pass over the blob list per pixel, and a device
-    that cannot afford as many blobs is given <i>fewer, larger</i> ones — which is more like a lava
-    lamp, not less.</p>
+    <p class="lede">Scene 18 is the <b>LAVA LAMP</b>, and the wax in it is not animated — it is
+    <b>simulated as a fluid</b>. A couple of hundred particles, solved as a
+    <i>position-based fluid</i>: incompressibility is a constraint the solver satisfies rather than a
+    force it applies, so the wax holds a <b>volume</b> instead of a radius — which is why a pool
+    spreads on the heater and a droplet is round without either being written down anywhere.
+    <b>Nothing decides that two blobs have merged</b>, because there is nothing in the code that
+    could: surface tension is a smooth pairwise pull, so two droplets drifting together are drawn the
+    last little way by it, the contact widens on its own, and the neck fills in over about a second.
+    A thread that thins past a point pinches, for the same reason and by the same number.
+    <b>Viscosity</b> is the one line that separates wax from water — each particle takes a share of
+    its neighbours' velocity — and at the amount this lamp runs, a blob struck by another does not
+    bounce and does not ring: it deforms, and then it stops.</p>
+    <p class="lede">The rest is the thermodynamics, and they are the same as ever. Wax expands as it
+    warms, so <b>lift is temperature and nothing else</b>. Cold wax is nine times thicker than hot
+    wax (Arrhenius), which is why blobs go up briskly and come down like treacle. The clear fluid is
+    one <b>Rayleigh–Bénard convection cell</b> written as a stream function — divergence-free by
+    construction, so however hard the music drives it, it cannot leak. Two things ride on the same
+    number the solver already computes: <b>drag acts on the skin</b> (a density deficit is exactly
+    what "near the surface" means, and it is why a big blob rises faster than a small one), and
+    <b>heat enters through the skin too</b>, then conducts inward — so a big blob has a hot skin and
+    a cold core, which is the real mechanism behind the plume that lifts off the pool.</p>
+    <p class="lede">The picture is made the way real-time fluids are made: the wax's field is
+    <b>splatted</b> — every particle draws its own kernel once into a small texture — so the cost of
+    the surface stops depending on how many particles there are, and the fluid was allowed to get
+    good. Four taps of that texture give the gradient, and out of it come an edge antialiased against
+    the <i>screen's</i> pixels rather than the texture's, a real surface normal, and a thickness. The
+    light is honest from there: refraction through that normal split into three wavelengths, over the
+    coil's own glow in the liquid behind; Beer–Lambert absorption, so a thin edge is pale and a fat
+    middle is deep; and the light that does <i>not</i> get through is exactly the light that comes
+    back as the glow inside. The temperature is splatted alongside the density, so every pixel reads
+    the temperature of the wax actually in front of it — a blob that has just left the coil is
+    visibly hotter where it left.</p>
+    <p class="lede"><b>The music is the thermostat</b>: bass and the act's own heat turn the coil up,
+    and the rise, the stretch and the break-up all follow from that one number. Put a hand on it and
+    the wax <i>flows</i> — and keeps flowing after you let go, because it has momentum — while the
+    room behind the glass bends through the same metric every other scene answers a hand with. A
+    device that cannot afford as many particles gets a <b>coarser</b> fluid, not a smaller lamp: the
+    spacing and the kernel widen together, so the same wax fills the same bottle out of fewer,
+    larger parcels.</p>
     <h3>Catalog</h3>
     <p class="lede">Put a <b>catalog.json</b> next to this file and it loads on start — that turns the
     page into a front-end for a hosted library (title, artist, album, genre, year, art, duration).
@@ -19696,150 +19707,132 @@ function buildHalo(){
   return api;
 }
 
-/* =========================================================
-   Scene 18 — LAVA LAMP  (the physics, then the light)
-   ========================================================= */
 // @lava-start
 /* ================================================================
-   THE LAMP — a lava lamp written as physics, not as an animation.
+   THE LAMP — wax as a fluid, not as a set of blobs that pretend.
 
-   Everything you watch a real lamp do falls out of six laws and one
-   vessel, so none of it is scripted and none of it repeats:
+   The first version of this room modelled the wax as a dozen discs,
+   each with a radius and a wobble, and merged them with a rule when
+   they touched. Every recognisable failure of it came from that one
+   decision. A rule that fires cannot show you a neck thinning. A disc
+   with a shape parameter has a resonant frequency, so it RINGS — and
+   wax does not ring, wax creeps. And a merge that happens at an
+   instant can never be the slow, reluctant, surface-tension-driven
+   swallow that is the entire reason anyone looks at a lava lamp.
 
-     BUOYANCY (Boussinesq). Wax expands as it warms; the fluid does
-       not. The whole density story collapses to one linear term,
-       a = g·β·(T − T₀) — lift is temperature, and nothing else.
-     HEAT. Each blob relaxes toward the column's local temperature at
-       a rate ∝ 1/r², because a drop's thermal time constant goes as
-       r²/α. Small droplets take the column's temperature almost at
-       once; the pool at the heater takes minutes. That single
-       exponent is why a lamp's rhythm is slow and a mist's is quick.
-     VISCOSITY (Arrhenius). μ(T) = μ₀·e^(−E·T): cold wax is nine times
-       thicker than hot wax, and thickness is what makes the fall look
-       nothing like the rise — blobs go up briskly and come down like
-       treacle, which is a thing you have watched a hundred times and
-       probably never had a reason to name.
-     DRAG (Stokes). a = −(9μ/2ρr²)·(v − u) against the LOCAL fluid
-       velocity, so terminal speed goes as r². A big blob plows
-       through the convection current; a droplet is simply carried by
-       it. Nobody has to decide which — the exponent decides.
-     SURFACE TENSION. It sets three different things at once and they
-       agree because they come from one σ: which collisions coalesce
-       and which bounce (the Weber number, Ashgriz & Poo's regimes),
-       how a merged drop rings afterwards (Rayleigh's ω² = 8σ/ρr³),
-       and when a rising blob is torn apart (We > We_crit).
-     COHESION and ADHESION. A short-range attraction between blobs —
-       which is why they find each other — and a wetting film at the
-       glass, which is why a cold one slides down the wall instead of
-       falling past it.
+   So the wax is now a fluid, solved as one: a POSITION-BASED FLUID
+   (Macklin & Müller 2013), ~180 particles, in the same bottle.
 
-   THE COLUMN ITSELF is one Rayleigh–Bénard convection cell, and it is
-   written as a STREAM FUNCTION ψ rather than as a velocity field:
-   u = ∂ψ/∂y, v = −∂ψ/∂x is divergence-free by construction, so the
-   fluid can never source or sink no matter what the music does to the
-   amplitude. Two half-periods across the glass puts the up-flow in the
-   middle and the down-flow at the walls, with nothing crossing either.
+     INCOMPRESSIBILITY is a constraint, not a force. Each particle
+       measures the density around it with an SPH kernel and the solver
+       finds the position correction that puts every density back to
+       rest — two Jacobi iterations, no stiffness, no timestep limit.
+       This is what makes the wax hold a VOLUME instead of a radius,
+       and it is why a pool spreads on the heater and a droplet is
+       round without either being written down.
+     SURFACE TENSION is Macklin's artificial pressure: a small
+       repulsion at short range that leaves a slight net attraction at
+       the free surface. Two droplets drifting together are pulled the
+       last little way by it, the contact widens on its own, and the
+       neck between them fills in over about a second. Nothing decides
+       that a merge has happened, because nothing has to.
+     VISCOSITY is XSPH: each particle takes a share of its neighbours'
+       velocity. This is the single line that separates wax from water.
+       At the coefficient this lamp runs, a droplet struck by another
+       does not bounce, does not ring, and does not wobble — it
+       deforms, and then it stops, which is what treacle does.
+     DRAG ACTS ON THE SKIN. The clear fluid the wax swims in is not
+       simulated — it is the convection cell (below) — so its drag has
+       to be applied somewhere, and applying it to every particle would
+       make every blob rise at the same speed no matter its size. It is
+       applied instead to the particles the solver has ALREADY told us
+       are on the surface: a density deficit is exactly what "near the
+       free surface" means, and it costs nothing to read. A blob's skin
+       grows as its radius and its mass as the area, so the big ones
+       rise faster than the small ones for the reason they really do.
+     HEAT ENTERS THROUGH THE SURFACE, for the same reason and by the
+       same number, and then CONDUCTS inward between neighbours as an
+       SPH Laplacian. A big blob therefore has a hot skin and a cold
+       core — which is the actual mechanism behind the thing a lava
+       lamp does best, where the pool warms from below and sheds a
+       plume from its own boundary layer without anybody scripting a
+       "shed".
 
-   NOTHING STIFF IS STEPPED; IT IS SOLVED. Three things in here are
-   stiff enough to explode an explicit integrator: the drag on a small
-   droplet (hundreds per second), the thermal relaxation of the same
-   droplet, and the surface-tension ring of the smallest blob (ω near
-   35 rad/s). All three are LINEAR, so all three have closed forms, and
-   all three use them — exponential relaxation for the first two, the
-   exact damped-oscillator solution for the third. The result is a
-   simulation that is unconditionally stable at ANY step size, which
-   buys two things that matter: the lamp on a phone at 30 fps behaves
-   like the lamp on a desktop at 120 rather than being a twitchier
-   relative of it, and the scene can warm a cold lamp up through twenty
-   seconds of its own life in two hundred coarse steps when it opens,
-   because taking a step ten times too large is not a hazard here.
+   What is left of the old model is what was right about it: buoyancy
+   is Boussinesq (lift is temperature and nothing else), viscosity is
+   Arrhenius (cold wax is nine times thicker, so the fall never looks
+   like the rise), the column is a Rayleigh–Bénard cell written as a
+   stream function (divergence-free by construction — the fluid cannot
+   leak), and the vessel is a truncated cone because that shape is most
+   of why the thing reads as a lava lamp.
 
-   Deterministic from a seed, pure, and headless: tests/player.test.mjs
-   runs this lamp for ten simulated minutes and holds it to conservation
-   of volume across every merge and every break-up.
+   WHAT IT COSTS. ~180 particles × ~20 neighbours, a counting-sort
+   spatial hash, one neighbour list per step reused by every pass:
+   about 25k pair operations a step, which is a fraction of a
+   millisecond. The particle count is the only knob, and it is the same
+   knob the renderer uses (the field is splatted, not evaluated per
+   pixel), so one number governs both halves.
+
+   Deterministic from a seed, pure and headless: the tests run it for
+   ten simulated minutes and hold it to the wax neither leaking out of
+   the glass nor compressing, at four different frame rates.
    ================================================================ */
 const LAVA = {
   yB: -0.66, yT: 0.80,        // the fluid column, in the field's own screen-y
-  Tn: 0.44,                   // the temperature at which wax weighs exactly what the fluid does
-  buoy: 0.82,                 // g·β — the Boussinesq gain
-  bubBuoy: 40,                // a bubble has no wax to weigh it down
-  muE: 2.2,                   // Arrhenius steepness: e^±1.5 across the column
-  stokes: 0.045,              // 9μ/2ρ, in the lamp's own units
-  sigma: 0.00125,             // surface tension — coalescence, ring-down and break-up all read this
-  heatK: 0.00045,              // thermal conductance; the 1/r² is applied at the call
-  lam: 0.36,                  // how far up the column the heater is felt (fraction of height)
-  cohere: 0.55, cohMax: 0.045,  // the short-range attraction, and its ceiling
-  cohR: 1.5,                  // …and how far it reaches, in summed radii
-  adhere: 0.22, film: 0.05,   // the wetting film at the glass, and how thick it is
-  wallDrag: 2.4,              // the no-slip boundary layer, as a drag multiplier
-  weBounce: 2.4,              // below this a collision coalesces; above it, the drops bounce
-  weBreak: 12.0,              // the classic critical Weber number for drop break-up
-  neckT: 0.55,                // how long a blob necks before it lets go
-  rMin: 0.024,
-  rDrop: 0.136,               // the largest drop surface tension can hold together in free fluid
-  rPool: 2.1,                 // …and how much larger the glass lets a puddle be (see lavaMaxR)
-  rest: 0.26,                 // restitution of a bounce
-  filmGap: 1.02,              // how far apart a pair that would not join is held
-  oscZ: 0.20,                 // the ring-down the lamp keeps (see lavaRing)
-  flow: 0.035,                // the convection cell's amplitude at rest
-  shedT: 0.03, shedR: 0.125,  // when the pool's boundary layer lets go (Rayleigh–Taylor)
-  shedFrac: 0.50,             // …and how much of the parent leaves with it, as a radius ratio
-  shedRate: 1.30, dripRate: 0.30,   // per SECOND, never per step — see lavaStep
-  floorGrip: 0.30,            // what the heater's own wetting film holds the pool down with
-  stir: 3.2, stirHeat: 0.30,  // what a hand does to the fluid, and to its temperature
-  bubMin: 0.016, bubMax: 0.038,
-  strouhal: 0.21,             // vortex shedding — why a rising bubble zig-zags
+  Tn: 0.44,                   // the temperature at which wax weighs what the fluid does
+  buoy: 2.2,                 // g·β — the Boussinesq gain
+  muE: 2.2,                   // Arrhenius steepness
+  skin: 26.0,                  // drag on the surface layer (see lavaStep)
+  iters: 2,                   // Jacobi sweeps of the density constraint
+  cfm: 0.05,                  // constraint force mixing, as a FRACTION of a full
+                              // neighbourhood's own |∇C|² — see makeLava
+  wall: 0.30,                 // what the glass is worth, as a share of rest density
+  maxFix: 0.42,               // the largest position correction, in spacings
+  coh: 10.0,                  // cohesion — the surface tension, as a force
+  xsph: 0.50,                 // XSPH viscosity — the line that makes it wax
+  heatIn: 0.35,               // conductance across the free surface
+  seatK: 6.0,                 // …and through the glass, where the coil is
+  bury: 0.16,                 // …and the floor under both, for buried wax
+  cond: 0.10,                  // …and inward, between neighbours
+  lam: 0.16,                  // how far up the column the heater is felt
+  flow: 0.13,                // the convection cell's amplitude at rest
+  drift: 0.22,                // …and how far it wanders off centre
+  wallFric: 0.55,             // the no-slip glass
+  adhere: 0.13,               // …and the wetting film that holds wax to it
+  rest: 0.05,                 // what a wall gives back (wax: almost nothing)
+  stir: 2.4, stirHeat: 0.32,  // what a hand does to the fluid, and to its heat
+  bubBuoy: 26, bubMin: 0.014, bubMax: 0.032, strouhal: 0.21,
+  fill: 0.20,                 // how much of the bottle is wax
+  maxN: 320,                  // the hard ceiling on particles
+  hMax: 1 / 30,               // the longest step the neighbour list stays honest over
 };
 
-/* VISCOSITY, ARRHENIUS. One exponential, and the fall stops looking like
-   the rise: cold wax at the top is ~20x the treacle hot wax is. */
+/* VISCOSITY, ARRHENIUS. One exponential, and the fall stops looking
+   like the rise: cold wax at the top is nine times the treacle hot wax
+   at the heater is. */
 function lavaVisc(T){ return Math.exp(-LAVA.muE * (clamp01(T) - 0.5)); }
 
-/* THE VESSEL — a truncated cone, wide at the heater. `rb`/`rt` are the
-   half-widths at the two ends; everything else in the lamp asks here. */
+/* THE VESSEL — a truncated cone, wide at the heater. */
 function lavaRadius(y, o){
   const t = clamp01((y - LAVA.yB) / (LAVA.yT - LAVA.yB));
   return o.rb + (o.rt - o.rb) * t;
 }
 
-/* THE COLUMN'S OWN TEMPERATURE. The heater at the base, falling away
-   exponentially with height — a stratified fluid, which is the only
-   reason anything ever comes back down. */
+/* THE COLUMN'S OWN TEMPERATURE — the heater at the base, falling away
+   exponentially with height. A stratified fluid is the only reason
+   anything ever comes back down. */
 function lavaAmbient(y, heat){
   const t = clamp01((y - LAVA.yB) / (LAVA.yT - LAVA.yB));
   return 0.02 + Math.max(0, heat) * Math.exp(-t / LAVA.lam);
 }
 
-/* THE BIGGEST DROP THERE CAN BE.
-
-   Surface tension holds a drop together and gravity pulls it apart, and the
-   ratio of the two is the Bond number, Bo = Δρ·g·d²/σ. Past Bo ≈ 16 a free
-   drop cannot hold its own shape: it flattens, necks and comes apart. So the
-   lamp has a largest possible blob, and it is not a tuning constant — it is
-   the reason a lava lamp looks like a lava lamp instead of like one lump
-   sloshing.
-
-   A PUDDLE IS NOT A DROP, though. Wax resting on the heater has the glass
-   carrying the weight that surface tension would otherwise have to, so the
-   ceiling relaxes as the floor gets close — which is how the pool at the
-   bottom is allowed to be enormous. And it is why the best thing this whole
-   lamp does needs no scripting at all: when the pool finally warms enough to
-   lift off, the ceiling above it falls away with the floor, the mass it was
-   is suddenly far past what it can be, and it comes apart into a rising
-   column of droplets on the way up. */
-function lavaMaxR(y, o){
-  const sit = clamp01(1 - (y - LAVA.yB) / (0.26 * (LAVA.yT - LAVA.yB)));
-  return LAVA.rDrop * (1 + LAVA.rPool * sit * sit);
-}
-
 /* THE CONVECTION CELL, from a stream function.
-
-   ψ = A·sin(π(ξ+1))·sin(πη) over the normalised column, u = ∂ψ/∂y and
-   v = −∂ψ/∂x. Two half-periods across the glass: up the middle, down
-   the walls, in along the heater, out under the cap — and, because it
-   is a stream function, exactly zero divergence and exactly zero flow
-   through any of the four boundaries. `drift` walks the cell sideways
-   so the column is never perfectly symmetrical, which no real lamp is. */
+   ψ = A·sin(π(ξ+1))·sin(πη), u = ∂ψ/∂y, v = −∂ψ/∂x — divergence-free
+   by construction, with exactly zero flow through any of the four
+   boundaries. Two half-periods across the glass: up the middle, down
+   the walls, in along the heater, out under the cap. `amp` is the peak
+   speed at the centre, and `drift` walks the whole cell sideways so
+   the column is never symmetrical, which no real lamp is. */
 function lavaFlow(x, y, o, amp, drift){
   const R = Math.max(1e-4, lavaRadius(y, o)), H = LAVA.yT - LAVA.yB;
   const xi = clamp((x / R) - (drift || 0), -1, 1);
@@ -19849,608 +19842,728 @@ function lavaFlow(x, y, o, amp, drift){
            v: -amp * Math.cos(kx) * Math.sin(ky) };
 }
 
-/* STOKES DRAG, as a rate. Terminal speed goes as r²/μ, which is the
-   whole of why big blobs rise and droplets ride the current. */
-function lavaDragK(T, r){
-  return LAVA.stokes * lavaVisc(T) / Math.max(1e-6, r * r);
+/* THE KERNELS, in two dimensions — and they must BE two-dimensional.
+   Poly6 and Spiky are quoted everywhere with their 3D normalisations,
+   and using those in a plane gives a rest density that disagrees with
+   the one the solver measures, which shows up as a fluid that slowly
+   inflates or collapses. These are the 2D constants. */
+/* The normalisations are hoisted out because these two are the hot loop of
+   the whole room — a Math.pow per kernel evaluation is a hundred thousand
+   transcendentals a frame for a constant that never changes. Passing them
+   in keeps ONE definition of each kernel, which is the part that matters:
+   a solver whose density kernel and gradient kernel disagree by a
+   normalisation drifts in a way nothing catches. */
+function lavaK6(h){ return 4 / (PI * Math.pow(h, 8)); }        // poly6, 2D
+function lavaKS(h){ return -30 / (PI * Math.pow(h, 5)); }      // spiky, 2D
+function lavaW(r2, h, k6){                   // poly6, 4/(πh⁸)·(h²−r²)³
+  const h2 = h * h;
+  if (r2 >= h2) return 0;
+  const d = h2 - r2;
+  return (k6 === undefined ? lavaK6(h) : k6) * d * d * d;
+}
+function lavaGradW(r, h, ks){                // spiky, −30/(πh⁵)·(h−r)², per unit r̂
+  if (r >= h || r <= 1e-9) return 0;
+  const d = h - r;
+  return (ks === undefined ? lavaKS(h) : ks) * d * d;
 }
 
-/* THE WEBER NUMBER — inertia against surface tension, ρv²d/σ. One
-   number decides three different questions in this lamp: whether a
-   collision coalesces or bounces, whether a rising blob survives the
-   current, and how hard the survivor rings afterwards. */
-function lavaWeber(v, d, sigma){
-  return v * v * d / Math.max(1e-6, sigma == null ? LAVA.sigma : sigma);
+/* COHESION, as Akinci's spline (2013) — and the reason this is a force
+   rather than another constraint.
+
+   The obvious way to make a fluid cohere in a position-based solver is to
+   let the density constraint pull as well as push: a particle at the free
+   surface reads under-dense, and an unclamped correction hauls it back
+   toward its neighbours. It works, and it is exactly what made the first
+   draft of this fluid unusable — because a position correction becomes a
+   VELOCITY when it is divided by the timestep, and a surface particle's
+   correction never converges to zero. Sixty times a second, every particle
+   on every surface was handed a velocity it had not earned. Measured, with
+   gravity and heat and flow all switched off and the fluid at rest: peak
+   speeds of 1.0 in a bottle one unit wide. That is the wiggle, and no
+   amount of viscosity downstream of it would have been a fix.
+
+   So the constraint only ever pushes (see lavaStep: C is clamped at zero,
+   which is compression), and the pull is this instead — a smooth, bounded
+   FORCE, integrated with everything else, that can no more inject a
+   velocity spike than gravity can. The spline is negative below h/2, so it
+   also does the job the artificial pressure used to: particles cannot
+   collapse into a clump, because the last thing holding them apart is the
+   same term that draws them together. */
+function lavaCohesion(r, h){
+  if (r <= 0 || r >= h) return 0;
+  const a = h - r, a3 = a * a * a, r3 = r * r * r;
+  const k = 32 / (PI * Math.pow(h, 9));
+  return (2 * r > h) ? k * a3 * r3
+                     : k * (2 * a3 * r3 - Math.pow(h, 6) / 64);
 }
 
-/* RAYLEIGH'S DROP, ringing. ω² = 8σ/ρr³ for the l=2 mode — the shape a
-   drop makes in the second after it has swallowed another one, and the
-   only part of a merge you actually watch.
-
-   The damping is Lamb's, 5ν/r², computed here and then CAPPED. Wax this
-   viscous is enormously overdamped — ζ comes out around 7 — so the true
-   number would kill the ring inside a single frame and the collapse
-   would read as a snap. The cap is the one place in this lamp where the
-   physics is overruled on purpose, so it is written down as an
-   overruling rather than hidden in a magic constant: if a wax were ever
-   thin enough to ring for real, the min() would let it. */
-function lavaRing(r, sigma, mu){
-  const s = sigma == null ? LAVA.sigma : sigma;
-  const w = Math.sqrt(8 * s / Math.max(1e-9, r * r * r));
-  const zTrue = 5 * LAVA.stokes * (mu == null ? 1 : mu) / Math.max(1e-9, r * r * w);
-  return { w, z: Math.min(zTrue, LAVA.oscZ), zTrue };
-}
-
-/* THE RING, STEPPED EXACTLY. ẍ = −ω²x − 2ζωẋ is the one differential
-   equation everybody knows the answer to, so there is no reason to
-   approximate it: this is that answer, evaluated at h. It costs one
-   exp, one sin and one cos, it cannot blow up at any step size however
-   small the drop, and it is the reason the pre-warm may take strides a
-   naive integrator would detonate on. */
-function lavaOsc(x0, v0, ring, h){
-  const w = ring.w, z = ring.z;
-  const wd = w * Math.sqrt(Math.max(1e-6, 1 - z * z));
-  const e = Math.exp(-z * w * h);
-  const c = Math.cos(wd * h), s = Math.sin(wd * h);
-  return {
-    x: e * (x0 * c + (v0 + z * w * x0) / wd * s),
-    v: e * (v0 * c - (w * w * x0 + z * w * v0) / wd * s),
-  };
-}
-
-/* COALESCENCE. Volume adds (r³), momentum adds (mv), temperature is the
-   mass-weighted mean — all three exactly, because a lamp that quietly
-   invents or loses wax is a lamp whose slow rhythm drifts over an hour.
-   The surface energy the join RELEASES, as a fraction of the new drop's
-   own, is the amplitude it rings with: (ra²+rb²−r²)/r². Two equal drops
-   release 26% of it, and that is the wobble you see. */
-function lavaCoalesce(a, b){
-  const ma = a.r * a.r * a.r, mb = b.r * b.r * b.r, m = ma + mb;
-  const r = Math.cbrt(m);
-  const dx = b.x - a.x, dy = b.y - a.y;
-  const L = Math.max(1e-6, Math.hypot(dx, dy));
-  const amp = clamp((a.r * a.r + b.r * b.r - r * r) / (r * r), 0, 0.6);
-  return {
-    x: (a.x * ma + b.x * mb) / m, y: (a.y * ma + b.y * mb) / m,
-    vx: (a.vx * ma + b.vx * mb) / m, vy: (a.vy * ma + b.vy * mb) / m,
-    r, T: (a.T * ma + b.T * mb) / m,
-    ax: dx / L, ay: dy / L,
-    st: 1 - amp, sv: 0, life: 1, neck: 0,
-  };
-}
-
-/* BREAK-UP. The blob is torn along the axis it was travelling; the
-   children's volumes sum to the parent's and the mass-weighted mean of
-   their velocities IS the parent's, so nothing is created and nothing
-   is pushed. The separation is what makes it a spray rather than a
-   fission — and while the children are still close the field draws
-   them as one mass with a thinning neck, which is the only way to get
-   that moment right: it is not drawn, it is what two nearby blobs
-   ARE. */
-function lavaFragment(p, n, rnd, kick){
-  const N = Math.max(2, Math.min(4, n | 0));
-  const M = p.r * p.r * p.r;
-  const w = [];
-  let sum = 0;
-  for (let i = 0; i < N; i++){ const v = 0.55 + (rnd ? rnd() : 0.5); w.push(v); sum += v; }
-  const ax = p.ax, ay = p.ay;
-  const kids = [], off = [];
-  for (let i = 0; i < N; i++){
-    const m = M * w[i] / sum;
-    const s = (i - (N - 1) / 2) / Math.max(1, (N - 1) / 2);   // −1 … +1 along the axis
-    kids.push({ m, s, r: Math.cbrt(m) });
-    off.push(s);
+/* THE REST DENSITY, measured rather than guessed. A hexagonal packing
+   at the spacing the lamp is actually filled with, summed through the
+   same kernel the solver uses — so the number the constraint drives
+   toward is by construction the number a settled fluid produces, and
+   the wax neither swells nor shrinks on the first frame. */
+function lavaRestDensity(h, d){
+  let rho = 0;
+  const rows = Math.ceil(h / (d * 0.8660254)) + 1;
+  for (let j = -rows; j <= rows; j++){
+    const y = j * d * 0.8660254;
+    const off = (j & 1) ? d * 0.5 : 0;
+    const cols = Math.ceil(h / d) + 1;
+    for (let i = -cols; i <= cols; i++){
+      const x = i * d + off;
+      rho += lavaW(x * x + y * y, h);
+    }
   }
-  // momentum: the separation velocities are taken about the mass centre,
-  // so Σ mᵢvᵢ = Mv exactly however the volumes were dealt
-  let mv = 0;
-  for (let i = 0; i < N; i++) mv += kids[i].m * off[i];
-  const mean = mv / M;
-  const sep = (kick == null ? 0.055 : kick);
-  const out = [];
-  for (let i = 0; i < N; i++){
-    const k = kids[i], s = off[i] - mean;
-    out.push({
-      x: p.x + ax * k.s * (p.r * 0.85), y: p.y + ay * k.s * (p.r * 0.85),
-      vx: p.vx + ax * s * sep, vy: p.vy + ay * s * sep,
-      r: k.r, T: p.T, ax, ay, st: 1, sv: 0, life: 1, neck: 0,
-    });
-  }
-  return out;
+  return rho;
 }
 
-/* THE BUDGET — and the one idea that makes this scene affordable.
+/* THE CONSTRAINT'S OWN SCALE. Σ|∇C|² for one particle in the middle of a
+   hexagonal packing at rest — the number ε is a fraction of, and the number
+   a lone particle's degenerate denominator is measured against. */
+function lavaRestGrad(h, d, rho0){
+  const ks = lavaKS(h);
+  let gx = 0, gy = 0, sum = 0;
+  const rows = Math.ceil(h / (d * 0.8660254)) + 1, cols = Math.ceil(h / d) + 1;
+  for (let j = -rows; j <= rows; j++){
+    const y = j * d * 0.8660254, off = (j & 1) ? d * 0.5 : 0;
+    for (let i = -cols; i <= cols; i++){
+      const x = i * d + off, r = Math.hypot(x, y);
+      if (r < 1e-9 || r >= h) continue;
+      const gw = lavaGradW(r, h, ks) / r / rho0;
+      const cx = x * gw, cy = y * gw;
+      gx += cx; gy += cy; sum += cx * cx + cy * cy;
+    }
+  }
+  return sum + gx * gx + gy * gy;
+}
 
-   Every pixel of the lamp costs one pass over the blob list, so the cost
-   is exactly O(N) per pixel and N is the only knob there is. A weaker
-   device is therefore not given a coarser lamp or a smaller one: it is
-   given FEWER, LARGER blobs, by raising the radius at which two of them
-   decide to coalesce. Which is to say the performance governor and the
-   physics are the same mechanism — the lamp under pressure looks MORE
-   like a lava lamp, not less, and there is no second rendering path to
-   keep honest. */
+/* THE BUDGET. The particle count is the only cost term in this room —
+   the solver is O(N) and the renderer splats N sprites rather than
+   testing N blobs per pixel — so one number governs both halves. A
+   weaker device is given a COARSER fluid, not a smaller lamp: the
+   spacing and the kernel widen together so the same wax fills the same
+   bottle with fewer, larger parcels. Chunkier wax is still wax. */
 function lavaBudget(o){
   const s = o || {};
-  let wax = 13, bub = 7;
-  if (s.eco){ wax = 8; bub = 3; }
-  if (s.struggling) { wax = Math.min(wax, 7); bub = Math.min(bub, 2); }
+  let n = 190, bub = 7;
+  if (s.eco){ n = 110; bub = 3; }
+  if (s.struggling){ n = Math.min(n, 90); bub = Math.min(bub, 2); }
   if (s.calm) bub = Math.min(bub, 3);
-  const total = 24;                                  // the shader's array, and its hard ceiling
-  bub = Math.min(bub, total - wax);
-  // …and the coalescence radius follows the budget: a tighter budget makes
-  // the wax stickier, so the count falls by MERGING rather than by culling
-  const mergeK = clamp(0.80 + (13 - wax) * 0.035, 0.80, 1.02);
-  return { wax, bub, total, mergeK };
+  n = Math.min(n, LAVA.maxN);
+  return { n, bub };
 }
 
-/* THE LAMP AT REST — a pool on the heater, a few blobs already in
-   flight, and one that has just started to fall. Seeded, so a test can
-   run the same lamp twice and a session can roll a new one. */
+/* THE LAMP, POURED. Particles on a hexagonal lattice filling the
+   bottom of the bottle — a real pool, at rest, at the temperature the
+   column has there. Everything after this is the solver's business. */
 function makeLava(seed, o){
   const rnd = mulberry32((seed | 0) || 1);
-  const opt = Object.assign({ rb: 0.42, rt: 0.30, sigma: LAVA.sigma, mu: 1, wax: 11 }, o || {});
-  const S = { t: 0, rnd, opt, wax: [], bub: [], nid: 1,
-              ev: { merged: 0, split: 0, shed: 0, popped: 0, born: 0 } };
+  const opt = Object.assign({ rb: 0.44, rt: 0.30, mu: 1, n: 190, fill: LAVA.fill }, o || {});
+  const cap = Math.min(LAVA.maxN, Math.max(24, opt.n | 0));
   const H = LAVA.yT - LAVA.yB;
-  // the pool: most of the wax, sitting on the glass over the heater
-  S.wax.push({ x: 0, y: LAVA.yB + 0.13, vx: 0, vy: 0, r: 0.265, T: 0.30,
-               ax: 0, ay: 1, st: 1.35, sv: 0, life: 1, neck: 0, id: S.nid++ });
-  const n = Math.max(2, Math.min(10, opt.wax | 0));
-  for (let i = 1; i < n; i++){
-    const h = (i / n) * 0.86 + 0.05;
-    const R = lavaRadius(LAVA.yB + h * H, opt);
-    S.wax.push({
-      x: (rnd() * 2 - 1) * R * 0.55, y: LAVA.yB + h * H,
-      vx: 0, vy: 0, r: 0.045 + rnd() * 0.055,
-      T: clamp01(lavaAmbient(LAVA.yB + h * H, 0.9) + (rnd() - 0.5) * 0.14),
-      ax: 0, ay: 1, st: 1, sv: 0, life: 1, neck: 0, id: S.nid++,
-    });
+
+  // the spacing that puts `cap` particles into the wax's share of the
+  // bottle, and the kernel that goes with it — both derived, so the
+  // budget can move and the fluid stays the same fluid
+  const area = (opt.rb + opt.rt) * H * opt.fill;
+  const d = Math.sqrt(area / cap / 0.8660254);
+  const h = d * 2.6;
+  const rho0 = lavaRestDensity(h, d);
+  /* …and the |∇C|² a SETTLED neighbourhood produces, measured the same way.
+     PBF's ε is quoted as a bare number, and a bare number is meaningless
+     here: it is added to a sum whose size depends entirely on the kernel
+     width and the rest density, so an ε that relaxes the solver nicely at
+     one particle count detonates it at another. Expressed as a fraction of
+     this, it means the same thing at every budget. */
+  const den0 = lavaRestGrad(h, d, rho0);
+  const coh0 = lavaCohesionScale(h, d);
+
+  const S = {
+    t: 0, rnd, opt, n: 0, cap, d, h, rho0, den0, coh0, mu: opt.mu,
+    k6: lavaK6(h), ks: lavaKS(h),
+    px: new Float32Array(cap), py: new Float32Array(cap),
+    vx: new Float32Array(cap), vy: new Float32Array(cap),
+    qx: new Float32Array(cap), qy: new Float32Array(cap),   // predicted
+    T:  new Float32Array(cap), rho: new Float32Array(cap),
+    lam: new Float32Array(cap), den: new Float32Array(cap), dT: new Float32Array(cap),
+    ux: new Float32Array(cap), uy: new Float32Array(cap),     // XSPH reads these
+    cax: new Float32Array(cap), cay: new Float32Array(cap),   // cohesion
+    free: new Float32Array(cap),                             // 0 = buried, 1 = surface
+    bub: [], nid: 1,
+  };
+
+  // pour: rows from the heater up, inside the glass, until we run out
+  let y = LAVA.yB + d * 0.6, row = 0;
+  while (S.n < cap && y < LAVA.yT - d){
+    const R = lavaRadius(y, opt) - d * 0.55;
+    const off = (row & 1) ? d * 0.5 : 0;
+    for (let x = -R + off; x <= R && S.n < cap; x += d){
+      const i = S.n++;
+      S.px[i] = x + (rnd() - 0.5) * d * 0.08;
+      S.py[i] = y + (rnd() - 0.5) * d * 0.08;
+      /* …at the temperature the column has THERE, not cold. A lamp that
+         opens as a cold puddle and takes a minute to do anything is a lamp
+         nobody watches, and pre-heating the pour is both cheaper and more
+         honest than simulating the twenty minutes a real one takes to warm
+         up: this is the state a running lamp is in, so this is the state it
+         is poured in. */
+      S.T[i] = clamp01(lavaAmbient(y - d, 0.92) * 0.60);
+    }
+    y += d * 0.8660254; row++;
   }
+
+  // the grid the neighbour search lives in — sized once, from the bottle
+  const cell = h;
+  const x0 = -Math.max(opt.rb, opt.rt) - cell, y0 = LAVA.yB - cell;
+  const nx = Math.ceil((2 * Math.max(opt.rb, opt.rt) + 2 * cell) / cell) + 1;
+  const ny = Math.ceil((H + 2 * cell) / cell) + 1;
+  S.grid = { cell, x0, y0, nx, ny,
+             count: new Int32Array(nx * ny), start: new Int32Array(nx * ny + 1),
+             idx: new Int32Array(cap), cellOf: new Int32Array(cap) };
+  S.MAXN = 48;
+  S.nbr = new Int32Array(cap * S.MAXN);
+  S.nbrN = new Int32Array(cap);
   return S;
 }
 
-/* ONE STEP OF THE LAMP. Fixed h, called from an accumulator, so the
-   physics is the same on every device and at every frame rate. */
+/* THE NEIGHBOUR LIST — a counting sort into a uniform grid of one
+   kernel radius, built ONCE per step and read by every pass after it.
+   O(N), no allocation, no sorting comparisons. */
+function lavaNeighbours(S){
+  const g = S.grid, n = S.n, cs = g.cell, nx = g.nx, ny = g.ny;
+  const cnt = g.count, start = g.start, idx = g.idx, cellOf = g.cellOf;
+  cnt.fill(0);
+  for (let i = 0; i < n; i++){
+    let cx = ((S.qx[i] - g.x0) / cs) | 0, cy = ((S.qy[i] - g.y0) / cs) | 0;
+    cx = cx < 0 ? 0 : (cx >= nx ? nx - 1 : cx);
+    cy = cy < 0 ? 0 : (cy >= ny ? ny - 1 : cy);
+    const c = cy * nx + cx;
+    cellOf[i] = c; cnt[c]++;
+  }
+  let s = 0;
+  for (let c = 0; c < nx * ny; c++){ start[c] = s; s += cnt[c]; cnt[c] = 0; }
+  start[nx * ny] = s;
+  for (let i = 0; i < n; i++){ const c = cellOf[i]; idx[start[c] + cnt[c]++] = i; }
+
+  const h2 = S.h * S.h, MAXN = S.MAXN, nbr = S.nbr, nbrN = S.nbrN;
+  for (let i = 0; i < n; i++){
+    const c = cellOf[i], cx = c % nx, cy = (c / nx) | 0;
+    let k = 0;
+    for (let dy = -1; dy <= 1; dy++){
+      const yy = cy + dy;
+      if (yy < 0 || yy >= ny) continue;
+      for (let dx = -1; dx <= 1; dx++){
+        const xx = cx + dx;
+        if (xx < 0 || xx >= nx) continue;
+        const cc = yy * nx + xx;
+        for (let a = start[cc], b = start[cc + 1]; a < b; a++){
+          const j = idx[a];
+          if (j === i) continue;
+          const ex = S.qx[i] - S.qx[j], ey = S.qy[i] - S.qy[j];
+          if (ex * ex + ey * ey >= h2) continue;
+          if (k < MAXN) nbr[i * MAXN + k++] = j;
+        }
+      }
+    }
+    nbrN[i] = k;
+  }
+}
+
+/* THE GLASS. A particle is projected back inside, and what it loses
+   crossing the wall it loses to friction rather than to a bounce —
+   wax does not bounce off glass, it sticks and slides. */
+function lavaConfine(S, i){
+  const o = S.opt;
+  const R = lavaRadius(S.qy[i], o) - S.d * 0.35;
+  if (S.qx[i] > R){ S.qx[i] = R; }
+  else if (S.qx[i] < -R){ S.qx[i] = -R; }
+  const floor = LAVA.yB + S.d * 0.35, ceil = LAVA.yT - S.d * 0.35;
+  if (S.qy[i] < floor) S.qy[i] = floor;
+  else if (S.qy[i] > ceil) S.qy[i] = ceil;
+}
+
+/* ONE STEP OF THE LAMP — and its own speed limit.
+
+   A position-based solver has no stiffness limit, which is why this one is
+   stable at any step at all. Stable is not the same as ACCURATE, though:
+   the neighbour list is rebuilt once a step, so a step long enough for a
+   particle to cross a kernel is a step spent solving against neighbours it
+   no longer has, and it shows up as compression. Measured, at a tenth of a
+   second: nothing blows up, and the wax is a fifth too dense. So the step
+   has a ceiling of its own and takes as many as it needs — the caller can
+   hand this whatever it likes, including the long strides the warm-up uses,
+   and get the same fluid out. */
 function lavaStep(S, h, env){
-  const E = env || {}, opt = S.opt, rnd = S.rnd;
+  const cap = LAVA.hMax;
+  if (h > cap * 1.0001){
+    const k = Math.ceil(h / cap), sub = h / k;
+    for (let i = 0; i < k; i++) lavaStepOne(S, sub, env);
+    return S;
+  }
+  return lavaStepOne(S, h, env);
+}
+function lavaStepOne(S, h, env){
+  const E = env || {}, opt = S.opt, n = S.n;
+  if (!n) return S;
   const heat = E.heat == null ? 0.85 : E.heat;
   const amp = (E.flow == null ? LAVA.flow : E.flow);
-  const sigma = opt.sigma, muScale = opt.mu;
-  const budget = E.budget || lavaBudget({});
-  const ent = clamp01(E.entropy == null ? 0.35 : E.entropy);
+  const mu = S.mu;
   S.t += h;
-  // the cell wanders: two slow incommensurable sines, so the column leans
-  // one way and then the other and never finds a period
-  const drift = 0.26 * Math.sin(S.t * 0.061) + 0.16 * Math.sin(S.t * 0.107 + 1.7);
-  // THE COIL IS NEVER CENTRED. A real heater warms one side of the base more
-  // than the other, and it wanders as the lamp's own convection moves the
-  // warm fluid around. Without this the column is left-right symmetrical and
-  // every blob does the same thing at the same time, which is the one way a
-  // lava lamp never looks. One cosine, and the lamp stops marching in step.
+  const drift = LAVA.drift * (0.62 * Math.sin(S.t * 0.061) + 0.38 * Math.sin(S.t * 0.107 + 1.7));
+  // THE COIL IS NEVER CENTRED, and that asymmetry is what stops the
+  // column from doing the same thing on both sides at the same time.
   const hot = 0.9 * Math.sin(S.t * 0.043 + 0.6) + 0.5 * Math.sin(S.t * 0.019);
 
-  const W = S.wax, B = S.bub;
+  const px = S.px, py = S.py, vx = S.vx, vy = S.vy, qx = S.qx, qy = S.qy;
+  const T = S.T, rho = S.rho, lam = S.lam, free = S.free, dT = S.dT;
+  const kh = S.h, rho0 = S.rho0, MAXN = S.MAXN, nbr = S.nbr, nbrN = S.nbrN;
+  const k6 = S.k6, ks = S.ks, den = S.den;
 
-  /* ---- forces that need every pair: cohesion ---- */
-  for (let i = 0; i < W.length; i++){ W[i].fx = 0; W[i].fy = 0; }
-  for (let i = 0; i < W.length; i++){
-    const a = W[i];
-    for (let j = i + 1; j < W.length; j++){
-      const b = W[j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const d2 = dx * dx + dy * dy;
-      const range = (a.r + b.r) * LAVA.cohR;
-      if (d2 > range * range || d2 < 1e-9) continue;
-      const d = Math.sqrt(d2);
-      // short-range, windowed to zero at the edge of its reach so nothing
-      // ever snaps into existence at a threshold
-      const win = 1 - d / range;
-      const f = Math.min(LAVA.cohMax, LAVA.cohere * win * win / (d2 + 0.004));
-      const ux = dx / d, uy = dy / d;
-      const ma = a.r * a.r * a.r, mb = b.r * b.r * b.r;
-      a.fx += ux * f * mb / (ma + 1e-6); a.fy += uy * f * mb / (ma + 1e-6);
-      b.fx -= ux * f * ma / (mb + 1e-6); b.fy -= uy * f * ma / (mb + 1e-6);
+  /* ---- 0. cohesion, from LAST step's neighbours ----
+     Reusing the previous step's list costs one frame of latency on a
+     neighbourhood that changes over tens of frames, and saves building the
+     list twice — the alternative is to predict, search, cohere, predict
+     again, which is two searches a step for a force that is smooth. */
+  const cax = S.cax, cay = S.cay,
+        gam = (S.coh == null ? LAVA.coh : S.coh) / Math.max(1e-9, S.coh0);
+  for (let i = 0; i < n; i++){
+    let fx = 0, fy = 0;
+    const base = i * MAXN, cnt = nbrN[i];
+    for (let a = 0; a < cnt; a++){
+      const j = nbr[base + a];
+      const ex = px[i] - px[j], ey = py[i] - py[j];
+      const r = Math.sqrt(ex * ex + ey * ey);
+      if (r < 1e-9) continue;
+      const c = lavaCohesion(r, kh) * gam / r;
+      fx -= ex * c; fy -= ey * c;
+    }
+    cax[i] = fx; cay[i] = fy;
+  }
+
+  /* ---- 1. predict: forces, then a straight-line guess ---- */
+  const stirOn = E.stir && E.stir.f > 0.003;
+  for (let i = 0; i < n; i++){
+    const y = py[i], x = px[i];
+    // buoyancy: lift is temperature, and nothing else
+    let ax = cax[i], ay = LAVA.buoy * (T[i] - LAVA.Tn) + cay[i];
+    if (stirOn){
+      const p = warpPush(x, y, E.stir.x, E.stir.y, E.stir.mode, E.stir.f,
+                         { charge: E.stir.charge, spin: E.stir.spin,
+                           beat: E.stir.beat, phase: E.stir.phase });
+      ax += p.x * LAVA.stir; ay += p.y * LAVA.stir;
+    }
+    // …and the ambient's drag, on the SKIN only (free[] is last step's
+    // density deficit — the solver already knows who is on the outside)
+    const fl = lavaFlow(x, y, opt, amp, drift);
+    const k = LAVA.skin * free[i] * lavaVisc(T[i]) * mu;
+    // exact for the linear part: v' = a − k(v − u) has a closed form, so
+    // the drag cannot explode however large the step or the coefficient
+    const ek = Math.exp(-k * h);
+    const vix = fl.u + ax / Math.max(k, 1e-6), viy = fl.v + ay / Math.max(k, 1e-6);
+    if (k > 1e-4){
+      vx[i] = vix + (vx[i] - vix) * ek;
+      vy[i] = viy + (vy[i] - viy) * ek;
+    } else {
+      vx[i] += ax * h; vy[i] += ay * h;
+    }
+    qx[i] = x + vx[i] * h;
+    qy[i] = y + vy[i] * h;
+    lavaConfine(S, i);
+  }
+
+  lavaNeighbours(S);
+
+  /* ---- 2. the density constraint, solved as positions ---- */
+  const eps = LAVA.cfm * S.den0, fixMax = LAVA.maxFix * S.d;
+  for (let iter = 0; iter < LAVA.iters; iter++){
+    for (let i = 0; i < n; i++){
+      let r = lavaW(0, kh, k6);                             // itself
+      let gx = 0, gy = 0, sum = 0;
+      const base = i * MAXN, cnt = nbrN[i];
+      for (let a = 0; a < cnt; a++){
+        const j = nbr[base + a];
+        const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
+        const r2 = ex * ex + ey * ey;
+        r += lavaW(r2, kh, k6);
+        const rr = Math.sqrt(r2);
+        const gw = lavaGradW(rr, kh, ks) / Math.max(rr, 1e-9) / rho0;
+        const cx = ex * gw, cy = ey * gw;
+        gx += cx; gy += cy;
+        sum += cx * cx + cy * cy;                           // ∇_j C_i
+      }
+      // …and the wall, worth the fluid it hides (see lavaWallDensity)
+      r += lavaWallDensity(S, qx[i], qy[i]);
+      rho[i] = r;
+      sum += gx * gx + gy * gy;                             // ∇_i C_i
+      den[i] = sum + eps;
+      /* COMPRESSION ONLY. max(0, …) is the whole difference between a fluid
+         that sits still when nothing is pushing it and one that hums. An
+         over-dense particle is a real error and gets corrected; an
+         under-dense one is simply near the surface, which is not an error
+         and must not be answered with a position change, because a position
+         change here is a velocity. Cohesion is a force, and lives above. */
+      lam[i] = -Math.max(0, (r / rho0) - 1) / den[i];
+    }
+    for (let i = 0; i < n; i++){
+      let dx = 0, dy = 0;
+      const base = i * MAXN, cnt = nbrN[i];
+      for (let a = 0; a < cnt; a++){
+        const j = nbr[base + a];
+        const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
+        const r2 = ex * ex + ey * ey;
+        const rr = Math.sqrt(r2);
+        /* THE ARTIFICIAL PRESSURE, which is the surface tension. A small
+           extra repulsion at close range costs the interior nothing (it
+           is balanced on all sides) and leaves the free surface with a
+           net inward pull — so droplets round themselves off, a neck
+           between two of them fills in, and a thread pinches. Macklin's
+           s_corr, and the only thing in this lamp that makes a merge
+           happen. */
+        const gw = lavaGradW(rr, kh, ks) / Math.max(rr, 1e-9);
+        const m = (lam[i] + lam[j]) * gw / rho0;
+        dx += ex * m; dy += ey * m;
+      }
+      /* A CEILING ON ONE CORRECTION. λ divides by Σ|∇C|², and a particle
+         with one lonely neighbour has almost none — the classic
+         position-based singularity, where a droplet of two flings itself
+         across the bottle. ε softens it; this bounds it. Under a fifth of a
+         spacing in normal running, so it is a fuse rather than a governor,
+         and it is the difference between a solver that is stable and one
+         that has not blown up yet. */
+      const fl2 = dx * dx + dy * dy;
+      if (fl2 > fixMax * fixMax){
+        const k = fixMax / Math.sqrt(fl2);
+        dx *= k; dy *= k;
+      }
+      qx[i] += dx; qy[i] += dy;
+      lavaConfine(S, i);
     }
   }
 
-  /* ---- the wax ---- */
-  for (let i = 0; i < W.length; i++){
-    const b = W[i];
-    // HEAT, at the blob's lowest point: a pool is warmed at the glass, not
-    // at its middle, and that is the whole reason it sheds from underneath
-    const Rh = Math.max(1e-4, lavaRadius(b.y, opt));
-    const Ta = clamp01(lavaAmbient(b.y - b.r * 0.7, heat) * (1 + 0.26 * Math.cos(PI * b.x / Rh + hot)));
-    /* …and faster when it is SEATED. Wax resting on the heater is warmed
-       through the glass, which conducts far better than the fluid around
-       it does; the pool is therefore not a slow version of a blob, it is
-       the only thing in the lamp with a hot boundary underneath it. */
-    const seated = clamp01(1 - (b.y - LAVA.yB) / Math.max(1e-4, b.r * 1.7));
-    const kT = LAVA.heatK / Math.max(1e-6, b.r * b.r) * (1 + 3.2 * seated);
-    b.T = Ta + (b.T - Ta) * Math.exp(-kT * h);
+  /* ---- 3. velocities from the corrected positions ---- */
+  const inv = 1 / h;
+  for (let i = 0; i < n; i++){
+    vx[i] = (qx[i] - px[i]) * inv;
+    vy[i] = (qy[i] - py[i]) * inv;
+    // WHO IS ON THE OUTSIDE. The density deficit, straight from the
+    // solver — no extra pass, no normals, no marching. It is what the
+    // drag rides on, what the heat enters through, and what the renderer
+    // would call the surface.
+    free[i] = clamp01(1.35 * (1 - rho[i] / rho0));
+  }
 
-    // the hand: it stirs the fluid AND warms it — a held finger boils the
-    // wax toward itself, which is the most direct thing a touch can mean here
-    let sx = 0, sy = 0;
-    if (E.stir && E.stir.f > 0.003){
-      const p = warpPush(b.x, b.y, E.stir.x, E.stir.y, E.stir.mode, E.stir.f,
-                         { charge: E.stir.charge, spin: E.stir.spin, beat: E.stir.beat, phase: E.stir.phase });
-      sx = p.x * LAVA.stir; sy = p.y * LAVA.stir;
-      const dh = Math.hypot(b.x - E.stir.x, b.y - E.stir.y);
-      const near = Math.exp(-dh * dh / 0.09) * E.stir.f * (0.3 + (E.stir.charge || 0));
-      b.T = clamp01(b.T + near * LAVA.stirHeat * h);
+  /* ---- 4. XSPH viscosity, and heat — one shared neighbour walk ---- */
+  /* The velocities are snapshotted first. Reading a neighbour that has
+     already been damped this sweep makes the result depend on particle
+     ORDER, and particle order is an artefact of a sort — a fluid whose
+     motion changes when the grid renumbers it is not a fluid. */
+  const ux = S.ux, uy = S.uy;
+  ux.set(vx.subarray(0, n)); uy.set(vy.subarray(0, n));
+  const cx = LAVA.xsph, kc = LAVA.cond;
+  for (let i = 0; i < n; i++){
+    let sx = 0, sy = 0, st = 0, wsum = 0;
+    const base = i * MAXN, cnt = nbrN[i];
+    for (let a = 0; a < cnt; a++){
+      const j = nbr[base + a];
+      const ex = qx[i] - qx[j], ey = qy[i] - qy[j];
+      const w = lavaW(ex * ex + ey * ey, kh, k6);
+      sx += (ux[j] - ux[i]) * w;
+      sy += (uy[j] - uy[i]) * w;
+      st += (T[j] - T[i]) * w;
+      wsum += w;
     }
-
-    /* AND THE FLOOR HOLDS ON. A puddle is stuck to the glass by the same
-       wetting film that holds a drop to a windowpane, and the wider the
-       contact the harder it holds. Without this the pool is just a very
-       large drop: it warms through, turns buoyant all at once, and the
-       whole lamp leaves the ground together — which is a thing lava lamps
-       emphatically do not do. With it, the pool stays put and pays out
-       droplets from underneath instead, and the rare occasion it DOES
-       tear itself free is an event rather than the daily routine. */
-    const ax = b.fx + sx;
-    const ay = LAVA.buoy * (b.T - LAVA.Tn) + b.fy + sy - LAVA.floorGrip * seated;
-
-    const fl = lavaFlow(b.x, b.y, opt, amp, drift);
-    // the boundary layer: the glass holds what touches it
-    const R = lavaRadius(b.y, opt);
-    const gap = R - (Math.abs(b.x) + b.r);
-    const wet = gap < LAVA.film ? clamp01(1 - gap / LAVA.film) : 0;
-    let k = lavaDragK(b.T, b.r) * muScale * (1 + LAVA.wallDrag * wet);
-    k = Math.max(0.05, k);
-    // ADHESION: the wetting film pulls the last of the gap closed
-    const adx = wet > 0 ? Math.sign(b.x || 1) * LAVA.adhere * wet : 0;
-
-    // THE EXACT STEP. v' = a − k(v − u) has a closed solution; use it, and
-    // the lamp stops caring what the frame rate is.
-    const ek = Math.exp(-k * h), inv = (1 - ek) / k;
-    const vix = fl.u + (ax + adx) / k, viy = fl.v + ay / k;
-    b.x += vix * h + (b.vx - vix) * inv;
-    b.y += viy * h + (b.vy - viy) * inv;
-    b.vx = vix + (b.vx - vix) * ek;
-    b.vy = viy + (b.vy - viy) * ek;
-
-    /* SHAPE. A drop rising through a fluid flattens across its motion —
-       that is real, and it is a Weber number again — and a drop being torn
-       stretches ALONG it. Both live in one signed deformation about the
-       axis it is travelling, with Rayleigh's ring-down added on top. */
-    const slip = Math.hypot(b.vx - fl.u, b.vy - fl.v);
-    if (slip > 1e-4){ b.ax = (b.vx - fl.u) / slip; b.ay = (b.vy - fl.v) / slip; }
-    const we = lavaWeber(slip, b.r * 2, sigma);
-    // necking: past the critical Weber the blob commits to coming apart,
-    // and spends a beat visibly stretching first
-    const over = b.r / Math.max(1e-4, lavaMaxR(b.y, opt));
-    if ((we > LAVA.weBreak * (1 - 0.35 * ent) || over > 1.02) && b.r > LAVA.rMin * 2.6)
-      b.neck += h * (over > 1.02 ? 1 + 2.4 * (over - 1) : 1);
-    else b.neck = Math.max(0, b.neck - h * 1.6);
-    const oblate = clamp(we * 0.035, 0, 0.45);           // flattened across the motion
-    const prolate = clamp(b.neck / LAVA.neckT, 0, 1) * 0.55;
-    const target = 1 + oblate - prolate;
-    const ring = lavaRing(b.r, sigma, muScale);
-    const osc = lavaOsc(b.st - target, b.sv, ring, h);
-    b.st = clamp(target + osc.x, 0.45, 2.2);
-    b.sv = osc.v;
-    b.life = Math.min(1, b.life + h * 1.6);
+    if (wsum > 1e-9){
+      /* XSPH: a share of the neighbourhood's velocity, which is the one
+         line that separates wax from water. Normalised by the weight
+         sum so a particle at the surface — with half its neighbours
+         missing — is damped as hard as one in the middle, and the skin
+         does not shimmer against a still interior. */
+      vx[i] += cx * sx / wsum;
+      vy[i] += cx * sy / wsum;
+      dT[i] = kc * st / wsum;
+    } else dT[i] = 0;
   }
 
-  /* ---- the glass: the ones that touch it flatten against it ---- */
-  for (let i = 0; i < W.length; i++) lavaConfine(W[i], opt);
-
-  /* ---- contacts: coalesce, or bounce ---- */
-  for (let i = 0; i < W.length; i++){
-    for (let j = i + 1; j < W.length; j++){
-      const a = W[i], b = W[j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const d = Math.hypot(dx, dy);
-      const touch = (a.r + b.r) * budget.mergeK;
-      if (d > touch || d < 1e-9) continue;
-      const nx = dx / d, ny = dy / d;
-      const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
-      const vn = rvx * nx + rvy * ny;
-      const d32 = 2 * a.r * b.r / (a.r + b.r);
-      const we = lavaWeber(Math.abs(vn), d32 * 2, sigma);
-      const rj = Math.cbrt(a.r * a.r * a.r + b.r * b.r * b.r);
-      if (we < LAVA.weBounce && a.life > 0.5 && b.life > 0.5 &&
-          rj < lavaMaxR((a.y * a.r + b.y * b.r) / (a.r + b.r), opt)){
-        const m = lavaCoalesce(a, b);
-        m.id = a.id; m.fx = 0; m.fy = 0;
-        W[i] = m; W.splice(j, 1);
-        S.ev.merged++;
-        j = i;                                     // the new blob may reach further
-        continue;
-      }
-      /* THEY DID NOT JOIN — so they must not lie inside one another either.
-         Two drops that refuse to coalesce are held apart by a film that
-         never drains, and the excluded volume is the whole reason a lamp
-         shows you SEVERAL blobs rather than one accumulating lump. So the
-         overlap is pushed out unconditionally (mass-weighted, so the small
-         one moves and the pool does not), and a genuine approach is
-         answered with an impulse on top. */
-      const ma = a.r * a.r * a.r, mb = b.r * b.r * b.r, m = ma + mb;
-      const keep = (a.r + b.r) * LAVA.filmGap;
-      if (d < keep){
-        const push = (keep - d);
-        a.x -= nx * push * (mb / m); a.y -= ny * push * (mb / m);
-        b.x += nx * push * (ma / m); b.y += ny * push * (ma / m);
-      }
-      if (vn < 0){
-        const jn = -(1 + LAVA.rest) * vn / (1 / ma + 1 / mb);
-        a.vx -= jn * nx / ma; a.vy -= jn * ny / ma;
-        b.vx += jn * nx / mb; b.vy += jn * ny / mb;
-      }
+  /* ---- 5. heat: in through the skin, then inward by conduction ---- */
+  for (let i = 0; i < n; i++){
+    const Ta = clamp01(lavaAmbient(qy[i], heat)
+                       * (1 + 0.26 * Math.cos(PI * qx[i] / Math.max(1e-4, lavaRadius(qy[i], opt)) + hot)));
+    // the surface is the only way in or out — a buried particle can only
+    // talk to its neighbours, which is exactly what a hot core is
+    /* …and through the GLASS at the heater, which is not the free surface
+       and is the only reason the pool ever warms at all. A particle sitting
+       on the base is buried in wax — the solver correctly reports it as
+       interior, with no free surface to exchange through — and if that were
+       the whole story the pool would stay at whatever temperature it was
+       poured at for ever. The base is a hot boundary, and it conducts. */
+    const seat = clamp01(1 - (qy[i] - LAVA.yB) / (S.h * 1.2));
+    /* …and buried wax is INSULATED, but not perfectly. A blob's interior
+       has no free surface, so on the surface term alone it would keep
+       whatever temperature it was born with for ever, and a lamp whose
+       core never changes its mind is a lamp that rises once and then sits
+       there — measured, over seven simulated minutes. The clear fluid does
+       percolate; `bury` is the floor under the exchange that says so. */
+    const kin = LAVA.heatIn * Math.max(free[i], seat * LAVA.seatK, LAVA.bury);
+    let t = Ta + (T[i] - Ta) * Math.exp(-kin * h);
+    t += dT[i] * h;
+    if (stirOn){
+      const dh = Math.hypot(qx[i] - E.stir.x, qy[i] - E.stir.y);
+      t += Math.exp(-dh * dh / 0.09) * E.stir.f * (0.3 + (E.stir.charge || 0)) * LAVA.stirHeat * h;
     }
+    T[i] = clamp01(t);
   }
 
-  /* ---- break-up: what necked long enough lets go ---- */
-  for (let i = W.length - 1; i >= 0; i--){
-    const b = W[i];
-    if (b.neck < LAVA.neckT) continue;
-    if (W.length + 1 > budget.wax + 3) { b.neck = 0; continue; }
-    // a blob far past the Bond limit does not split in two — it shatters
-    const over = b.r / Math.max(1e-4, lavaMaxR(b.y, opt));
-    const n = over > 1.5 ? 4 : over > 1.2 ? 3 : (rnd() < 0.45 + ent * 0.3 ? 3 : 2);
-    const kids = lavaFragment(b, n, rnd, 0.05 + ent * 0.05);
-    W.splice(i, 1, ...kids.map(k => Object.assign(k, { id: S.nid++, fx: 0, fy: 0 })));
-    S.ev.split++;
-  }
-
-  /* ---- the boundary layer at the heater lets go: Rayleigh–Taylor ----
-     A pool is warmed at the glass, not through its middle, so what
-     actually rises off it is a thin hot skin — a detail well under the
-     resolution of one blob. This is that detail, modelled: when the pool
-     is large enough and hot enough, a droplet leaves from underneath and
-     takes the heat with it, exactly, so the column's energy is not
-     invented at the seam. It is the signature event of the whole object
-     and everything else in the lamp follows from it. */
-  {
-    const room = budget.wax - W.length;
-    if (room > 0){
-      for (let i = W.length - 1; i >= 0; i--){
-        const b = W[i];
-        if (b.r < LAVA.shedR) continue;
-        if (b.T < LAVA.Tn + LAVA.shedT) continue;
-        if (b.y > LAVA.yB + (LAVA.yT - LAVA.yB) * 0.32) continue;
-        // …at a rate that RISES with the excess: the hotter the pool, the
-        // faster it sheds, and every shed carries heat away with it. That
-        // is a negative feedback loop, and it is why the pool settles at a
-        // working temperature instead of charging up until it lifts off.
-        const excess = clamp((b.T - LAVA.Tn - LAVA.shedT) / 0.25, 0, 1.8);
-        if (rnd() > LAVA.shedRate * excess * h) continue;
-        const M = b.r * b.r * b.r;
-        const rc = Math.max(LAVA.rMin, b.r * LAVA.shedFrac * (0.82 + rnd() * 0.36));
-        const mc = rc * rc * rc;
-        if (mc > M * 0.6) continue;
-        const rp = Math.cbrt(M - mc);
-        // heat, exactly conserved: the child leaves as the hot skin, and the
-        // parent is left with what is left
-        const dT = 0.34;
-        const Tc = clamp01(b.T + dT);
-        const Tp = (b.T * M - Tc * mc) / (M - mc);
-        const kid = { x: b.x + (rnd() - 0.5) * b.r * 0.4, y: b.y + rp * 0.5,
-                      vx: b.vx * 0.4, vy: Math.max(0, b.vy) + 0.03, r: rc, T: Tc,
-                      ax: 0, ay: 1, st: 0.72, sv: 0, life: 0.35, neck: 0,
-                      id: S.nid++, fx: 0, fy: 0 };
-        b.r = rp; b.T = clamp01(Tp); b.st = 1.25; b.sv = 0.4;
-        W.push(kid);
-        S.ev.shed++;
-        break;
-      }
+  /* ---- 6. commit, and the glass has the last word ---- */
+  for (let i = 0; i < n; i++){
+    lavaConfine(S, i);
+    // the wall takes the tangential speed it is owed, and holds a film
+    const o = opt, R = lavaRadius(qy[i], o) - S.d * 0.35;
+    const gap = R - Math.abs(qx[i]);
+    if (gap < S.d * 0.8){
+      const w = 1 - gap / (S.d * 0.8);
+      vy[i] *= 1 - LAVA.wallFric * w * h * 6;
+      vx[i] += Math.sign(qx[i] || 1) * LAVA.adhere * w * h;
     }
+    px[i] = qx[i]; py[i] = qy[i];
   }
 
-  /* ---- and the mirror of it under the cap: cold wax hangs, then drips ---- */
-  {
-    const room = budget.wax - W.length;
-    if (room > 0){
-      for (let i = W.length - 1; i >= 0; i--){
-        const b = W[i];
-        if (b.r < LAVA.shedR) continue;
-        if (b.T > LAVA.Tn - LAVA.shedT * 0.7) continue;
-        if (b.y < LAVA.yB + (LAVA.yT - LAVA.yB) * 0.70) continue;
-        if (rnd() > LAVA.dripRate * h) continue;
-        const M = b.r * b.r * b.r;
-        const rc = Math.max(LAVA.rMin, b.r * LAVA.shedFrac);
-        const mc = rc * rc * rc;
-        if (mc > M * 0.6) continue;
-        const rp = Math.cbrt(M - mc);
-        const Tc = clamp01(b.T - 0.16);
-        const Tp = (b.T * M - Tc * mc) / (M - mc);
-        W.push({ x: b.x + (rnd() - 0.5) * b.r * 0.4, y: b.y - rp * 0.5,
-                 vx: b.vx * 0.4, vy: Math.min(0, b.vy) - 0.02, r: rc, T: Tc,
-                 ax: 0, ay: 1, st: 0.75, sv: 0, life: 0.35, neck: 0,
-                 id: S.nid++, fx: 0, fy: 0 });
-        b.r = rp; b.T = clamp01(Tp); b.st = 1.2; b.sv = 0.3;
-        S.ev.shed++;
-        break;
-      }
-    }
-  }
+  lavaBubbles(S, h, env, amp, drift, heat);
+  return S;
+}
 
-  /* ---- the budget, kept by coalescence rather than by culling ---- */
-  while (W.length > budget.wax){
-    let bi = -1, bj = -1, best = 1e9;
-    for (let i = 0; i < W.length; i++)
-      for (let j = i + 1; j < W.length; j++){
-        const d = Math.hypot(W[j].x - W[i].x, W[j].y - W[i].y) - (W[i].r + W[j].r);
-        if (d < best){ best = d; bi = i; bj = j; }
-      }
-    if (bi < 0) break;
-    const m = lavaCoalesce(W[bi], W[bj]);
-    m.id = W[bi].id; m.fx = 0; m.fy = 0;
-    W[bi] = m; W.splice(bj, 1);
-    S.ev.merged++;
-  }
+/* WHAT THE GLASS IS WORTH, as density. A particle against the wall has
+   no neighbours on the far side of it and reads as under-dense, and an
+   under-dense particle is one the constraint drags INTO the wall. So
+   the missing half-plane is accounted for: a smooth ramp that reaches
+   half of rest density at the wall itself and nothing a kernel away.
+   It is an approximation of a definite integral rather than the
+   integral, and it is written down as one. */
+function lavaWallDensity(S, x, y){
+  const R = lavaRadius(y, S.opt);
+  const kh = S.h;
+  let d = Math.min(R - Math.abs(x), y - LAVA.yB);
+  d = Math.min(d, LAVA.yT - y);
+  if (d >= kh) return 0;
+  const t = clamp01(1 - Math.max(0, d) / kh);
+  return S.rho0 * LAVA.wall * t * t;
+}
 
-  /* ---- THE GLASS GETS THE LAST WORD. Confining once after the integration
-     sets each blob's contact shape before anything else reads it, but three
-     things AFTER that move blobs around: a pair pushing its overlap out, a
-     break-up dealing children along an axis, and the pool shedding one from
-     underneath. Any of the three can put a blob a hair outside the wall, and
-     a lamp that leaks — even by a hair, even once an hour — is not a lamp.
-     So the wall is enforced again at the end, when nothing is left to move
-     anything. ---- */
-  for (let i = 0; i < W.length; i++) lavaConfine(W[i], opt);
-
-  /* ---- bubbles: nucleate at the heater, rise, zig-zag, join, surface ---- */
-  const bubWant = budget.bub;
-  if (B.length < bubWant && rnd() < (0.9 + 2.4 * clamp01(E.treble || 0)) * h * (heat > 0.5 ? 1 : 0.2)){
+/* BUBBLES — a garnish, and deliberately not part of the fluid. Gas in
+   wax is a different phase with a different density by three orders of
+   magnitude, and solving it in the same constraint would spend most of
+   the step on the least interesting thing in the bottle. They rise,
+   they zig-zag at the Strouhal frequency because that is what vortex
+   shedding does, they join when they meet, and they go at the top. */
+function lavaBubbles(S, h, env, amp, drift, heat){
+  const E = env || {}, B = S.bub, opt = S.opt, rnd = S.rnd;
+  const want = (E.budget && E.budget.bub) || 0;
+  if (B.length < want && rnd() < (0.9 + 2.4 * clamp01(E.treble || 0)) * h * (heat > 0.5 ? 1 : 0.2)){
     const R = lavaRadius(LAVA.yB, opt);
-    B.push({ x: (rnd() * 2 - 1) * R * 0.7, y: LAVA.yB + 0.012,
-             vx: 0, vy: 0, r: LAVA.bubMin + rnd() * (LAVA.bubMax - LAVA.bubMin),
-             T: 1, ax: 0, ay: 1, st: 1, sv: 0, life: 0, neck: 0,
-             ph: rnd() * 6.283, id: S.nid++ });
-    S.ev.born++;
+    B.push({ x: (rnd() * 2 - 1) * R * 0.7, y: LAVA.yB + 0.012, vx: 0, vy: 0,
+             r: LAVA.bubMin + rnd() * (LAVA.bubMax - LAVA.bubMin),
+             ph: rnd() * 6.283, life: 0 });
   }
   for (let i = B.length - 1; i >= 0; i--){
     const b = B[i];
-    const Tl = lavaAmbient(b.y, heat);
     const fl = lavaFlow(b.x, b.y, opt, amp, drift);
-    const k = Math.max(0.05, lavaDragK(Tl, b.r) * muScale);
-    // VORTEX SHEDDING. Above a modest Reynolds number a rising bubble does
-    // not go straight up: it sheds vortices alternately and zig-zags at the
-    // Strouhal frequency, f = St·v/d. That wobble is the tell, and it is
-    // cheaper to write down than to fake.
+    const k = Math.max(0.05, 0.9 * lavaVisc(lavaAmbient(b.y, heat)) * S.mu / (b.r * b.r) * 0.02);
     const spd = Math.max(0.02, Math.abs(b.vy));
     b.ph += 6.2831853 * LAVA.strouhal * spd / (2 * b.r) * h;
-    const lat = Math.sin(b.ph) * 0.9;
-    const ek = Math.exp(-k * h), inv = (1 - ek) / k;
-    const vix = fl.u + lat / k * 0.35, viy = fl.v + LAVA.bubBuoy / k;
-    b.x += vix * h + (b.vx - vix) * inv;
-    b.y += viy * h + (b.vy - viy) * inv;
+    const ek = Math.exp(-k * h), iv = (1 - ek) / k;
+    const vix = fl.u + Math.sin(b.ph) * 0.9 / k * 0.35, viy = fl.v + LAVA.bubBuoy / k;
+    b.x += vix * h + (b.vx - vix) * iv;
+    b.y += viy * h + (b.vy - viy) * iv;
     b.vx = vix + (b.vx - vix) * ek;
     b.vy = viy + (b.vy - viy) * ek;
     b.life = Math.min(1, b.life + h * 2.2);
     const R = lavaRadius(b.y, opt);
     if (Math.abs(b.x) + b.r > R) b.x = Math.sign(b.x) * (R - b.r);
-    if (b.y + b.r > LAVA.yT - 0.004){ B.splice(i, 1); S.ev.popped++; continue; }
+    if (b.y + b.r > LAVA.yT - 0.004) B.splice(i, 1);
   }
-  // bubbles that meet, join — the same volume rule, and the bigger one that
-  // results rises faster because Stokes says it must
   for (let i = 0; i < B.length; i++){
     for (let j = i + 1; j < B.length; j++){
       const a = B[i], b = B[j];
       const d = Math.hypot(b.x - a.x, b.y - a.y);
       if (d > (a.r + b.r) * 0.9) continue;
-      const m = lavaCoalesce(a, b);
-      m.ph = a.ph; m.id = a.id; m.st = 1; m.life = Math.min(a.life, b.life);
-      if (m.r > LAVA.bubMax * 2.4) m.r = LAVA.bubMax * 2.4;
-      B[i] = m; B.splice(j, 1); j = i;
+      const ma = a.r ** 3, mb = b.r ** 3, m = ma + mb;
+      a.x = (a.x * ma + b.x * mb) / m; a.y = (a.y * ma + b.y * mb) / m;
+      a.vx = (a.vx * ma + b.vx * mb) / m; a.vy = (a.vy * ma + b.vy * mb) / m;
+      a.r = Math.min(LAVA.bubMax * 2.4, Math.cbrt(m));
+      B.splice(j, 1); j = i;
     }
-  }
-  // a bubble inside a blob slides around it rather than through it
-  for (let i = 0; i < B.length; i++){
-    const b = B[i];
-    for (let j = 0; j < W.length; j++){
-      const w = W[j];
-      const dx = b.x - w.x, dy = b.y - w.y;
-      const d = Math.hypot(dx, dy);
-      const lim = w.r + b.r * 0.35;
-      if (d > lim || d < 1e-9) continue;
-      const nx = dx / d, ny = dy / d;
-      b.x = w.x + nx * lim; b.y = w.y + ny * lim;
-      const vn = b.vx * nx + b.vy * ny;
-      if (vn < 0){ b.vx -= vn * nx; b.vy -= vn * ny; }     // keep the tangent, drop the normal
-    }
-  }
-  return S;
-}
-
-/* THE GLASS. A blob cannot leave; what touches the wall flattens against
-   it, and what rests on the heater spreads under its own weight. */
-function lavaConfine(b, o){
-  const R = lavaRadius(b.y, o);
-  const lim = R - b.r;
-  if (Math.abs(b.x) > lim){
-    b.x = Math.sign(b.x) * Math.max(0, lim);
-    if (b.vx * Math.sign(b.x) > 0) b.vx *= -LAVA.rest;
-    // flattened against the glass: the deformation axis turns horizontal
-    b.ax = 1; b.ay = 0; b.st = Math.max(b.st, 1.18);
-  }
-  const floor = LAVA.yB + b.r * 0.82, ceil = LAVA.yT - b.r * 0.82;
-  if (b.y < floor){
-    b.y = floor;
-    if (b.vy < 0) b.vy *= -LAVA.rest;
-    b.ax = 0; b.ay = 1; b.st = Math.max(b.st, 1.22);
-  } else if (b.y > ceil){
-    b.y = ceil;
-    if (b.vy > 0) b.vy *= -LAVA.rest;
-    b.ax = 0; b.ay = 1; b.st = Math.max(b.st, 1.18);
   }
 }
 
-/* THE TOTAL, for the tests and for the lamp's own conscience: wax is
-   neither created nor destroyed by any event in here. */
-function lavaVolume(S){
-  let v = 0;
-  for (const b of S.wax) v += b.r * b.r * b.r;
-  return v;
+/* THE COHESION'S OWN SCALE, so `coh` means the same thing at every budget.
+   The kernel carries an h⁻⁹, the neighbour count carries an h², and the
+   spacing carries the rest — leave any of it out and a lamp that looks
+   right at 190 particles is soup at 90. This is one particle's worth of
+   pull from a full rest neighbourhood, and `coh` is measured against it. */
+function lavaCohesionScale(h, d){
+  let s = 0;
+  const rows = Math.ceil(h / (d * 0.8660254)) + 1, cols = Math.ceil(h / d) + 1;
+  for (let j = -rows; j <= rows; j++){
+    const y = j * d * 0.8660254, off = (j & 1) ? d * 0.5 : 0;
+    for (let i = -cols; i <= cols; i++){
+      const x = i * d + off, r = Math.hypot(x, y);
+      if (r < 1e-9 || r >= h) continue;
+      s += Math.abs(lavaCohesion(r, h));
+    }
+  }
+  return s;
+}
+
+/* WHAT THE TESTS WEIGH THE LAMP WITH. The particle count IS the volume
+   — nothing in the step creates or destroys one — so the honest
+   measure of whether the fluid is behaving is its DENSITY: a solver
+   that is drifting shows up here as wax that is quietly inflating or
+   collapsing, long before anybody could see it. */
+function lavaDensityError(S){
+  /* COMPRESSION, not deviation. A particle at the free surface is under-dense
+     by half and that is not an error — it is what a surface IS — so the
+     honest measure of whether the solver is doing its job is how far it lets
+     the fluid be SQUASHED. */
+  let worst = 0;
+  for (let i = 0; i < S.n; i++)
+    worst = Math.max(worst, S.rho[i] / S.rho0 - 1);
+  return Math.max(0, worst);
 }
 // @lava-end
 
+/* THE FIELD'S OWN DIALS — the renderer's, not the fluid's, and kept apart
+   from it on purpose: none of these change what the wax DOES, only how far
+   outside the particles its surface is drawn and how coarse the texture it
+   is drawn into may be. */
+const LAVA_R = {
+  /* THE SPLAT IS DELIBERATELY WIDER THAN THE PARTICLE. At one spacing the
+     field is a sum of little bumps and the surface comes out knobbly —
+     cauliflower, not wax. Widening it low-pass-filters the field: each
+     particle's kernel overlaps five or six of its neighbours', the bumps
+     add to something flat, and what is left is the shape of the FLUID
+     rather than the arrangement of the samples that stand for it. It costs
+     nothing but sprite area, and sprite area is the one thing this
+     renderer has to spare. */
+  splat: 2.35,     // the splat radius, in particle spacings
+  scale: 0.55,     // what a settled interior reads in the target (8 bits, so leave room)
+  iso:   0.30,     // …and where the surface is, as a fraction of that
+  res:   0.40,     // the target's height, as a fraction of the canvas's
+};
+
 /* =========================================================
-   Scene 18 — LAVA LAMP  (the physics above, made of light)
+   Scene 18 — LAVA LAMP  (the fluid above, made of light)
 
-   THE SURFACE IS NOT DRAWN. Every blob contributes r²/d² to one scalar
-   field and the wax is the level set F = 1 — which is why two blobs
-   approaching grow a neck between them, and why the neck thins and
-   snaps on its own. Nothing in here knows what a merge looks like.
+   THE SURFACE IS NOT DRAWN, AND IT IS NOT EVALUATED PER PIXEL EITHER.
 
-   THREE THINGS FALL OUT OF THAT FIELD FOR FREE, and each replaces a
-   trick the first draft of this scene had to fake:
+   The first version of this room tested every blob against every pixel.
+   That is fine for a dozen blobs and impossible for two hundred
+   particles — the cost is O(pixels × N), and N is the number the fluid
+   solver needs to be large. So the field is SPLATTED instead: each
+   particle draws its own kernel once, additively, into a small texture,
+   and the cost becomes O(N × sprite) + O(pixels). N leaves the pixel
+   loop entirely. At two hundred particles and a third-resolution
+   target that is about a fifth of a megapixel of splatting for a full
+   screen of shading, which is why the fluid was allowed to get good.
 
-     THE EDGE. ∇F comes out of the same loop as F, analytically — no
-     finite differences, no second pass — and (F−1)/|∇F| is the first-
-     order distance to the surface in world units. Divide by the pixel
-     size and you have exact antialiasing at any resolution, on any
-     device, including the ones the governor has just halved.
+   Everything the old room did with an analytic field, this one does
+   with four taps of that texture, and none of it got worse:
 
-     THE DEPTH. Take φ = r²/d² per blob and sum the SQUARES: F = Σφ².
-     Then h = √(1 − 1/√F) is EXACTLY the height of a sphere for a lone
-     blob — check it: √F = r²/d², so h = √(1 − d²/r²) — and it blends
-     smoothly wherever blobs overlap. Squaring costs one multiply and
-     buys the thing the plain inverse-square kernel could not give: a
-     pair of drops fuses only when it is genuinely close, instead of
-     welding itself to everything within two diameters and turning a
-     lamp into one amoeba. The surface is still F = 1, the sphere is
-     still exact, and the normal is still one analytic derivative of a
-     field we already had.
+     THE EDGE. ∇F from four bilinear taps, and (F−iso)/|∇F| is still
+     the distance to the surface in world units — so the antialiasing is
+     still computed against the SCREEN's pixel size and stays exact at
+     full resolution even though the field underneath it is coarse. A
+     low-resolution field is not a low-resolution edge, because the
+     field is smooth by construction: it is a sum of smooth kernels.
 
-     THE COLOUR. Thickness is that same h, so absorption is honest
-     Beer–Lambert through the wax: a thin edge is pale and a fat middle
-     is saturated, and the light that does NOT get through is exactly
-     the light re-emitted as the internal glow. Refraction is a real
-     refract() against the real normal, split into three wavelengths,
-     and what it reads is the bulb's own light in the fluid behind.
+     THE DEPTH. h = √((F−iso)/(F_interior−iso)) — a dome that rises like
+     a sphere at the rim and flattens where the wax is deep, which is
+     what a puddle does and what the old exact-sphere formula could not
+     say.
 
-   COST, honestly: one pass over N blobs per pixel and nothing else —
-   no render target, no feedback buffer, no second geometry pass. N is
-   the only term, and it is the term the physics is already governing
-   (see lavaBudget), so a weak device gets a lamp with fewer, larger
-   blobs, which is a lava lamp, rather than a coarser one, which is an
-   apology.
+     THE COLOUR. That same h is the thickness, so absorption is still
+     honest Beer–Lambert, refraction is still a real refract() against
+     the real normal in three wavelengths, and the light that does not
+     get through is still exactly the light that comes back as the glow
+     inside.
+
+   And one thing that only became possible here: the temperature is
+   splatted alongside the density, in the next channel, weighted by the
+   same kernel. So the wax is not one colour with a hot core drawn on
+   it — every pixel reads the temperature of the wax actually in front
+   of it, interpolated the way the fluid itself interpolates. A blob
+   that has just left the coil is visibly hotter at its trailing edge.
    ========================================================= */
 function buildLava(){
   const group = new THREE.Group();
-  const MAXB = 24;
-  const arrB = [], arrS = [];
-  for (let i = 0; i < MAXB; i++){
-    arrB.push(new THREE.Vector4(0, 0, 0, 0));
-    arrS.push(new THREE.Vector4(0, 1, 1, 0));
-  }
+  const MAXP = LAVA.maxN + 24;                 // particles, plus the bubbles
+
+  /* ---------- the splat pass: the field, drawn rather than solved ---------- */
+  const sPos = new Float32Array(MAXP * 3);
+  const sAux = new Float32Array(MAXP * 2);     // x = temperature, y = 0 wax / 1 gas
+  const sRad = new Float32Array(MAXP);
+  const sGeo = new THREE.BufferGeometry();
+  sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3).setUsage(THREE.DynamicDrawUsage));
+  sGeo.setAttribute('aAux', new THREE.BufferAttribute(sAux, 2).setUsage(THREE.DynamicDrawUsage));
+  sGeo.setAttribute('aRad', new THREE.BufferAttribute(sRad, 1).setUsage(THREE.DynamicDrawUsage));
+  sGeo.setDrawRange(0, 0);
+  const splatU = { uAspect: { value: 1 }, uRtH: { value: 256 }, uScale: { value: 0.25 } };
+  const splatMat = new THREE.ShaderMaterial({
+    uniforms: splatU,
+    vertexShader: `
+      attribute vec2 aAux;
+      attribute float aRad;
+      uniform float uAspect, uRtH;
+      varying vec2 vAux;
+      void main(){
+        vAux = aAux;
+        // the target covers the same square-corrected space the field is in,
+        // so a particle's world radius is a point size in target pixels and
+        // nothing has to be transformed twice
+        gl_Position = vec4(position.x / uAspect, position.y, 0.0, 1.0);
+        gl_PointSize = max(2.0, aRad * uRtH);
+      }`,
+    fragmentShader: `
+      uniform float uScale;
+      varying vec2 vAux;
+      void main(){
+        vec2 d = gl_PointCoord - 0.5;
+        float r2 = dot(d, d) * 4.0;
+        if (r2 >= 1.0) discard;
+        // the same poly6 shape the solver measures density with, so the
+        // picture is a picture OF the simulation rather than a second
+        // opinion about where the wax is
+        float a = 1.0 - r2;
+        float w = a * a * a * uScale;
+        float gas = vAux.y;
+        gl_FragColor = vec4(w * (1.0 - gas), w * vAux.x * (1.0 - gas), w * gas, 1.0);
+      }`,
+    transparent: true, depthTest: false, depthWrite: false,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneFactor,
+  });
+  const splatPts = new THREE.Points(sGeo, splatMat);
+  splatPts.frustumCulled = false;
+  const splatScene = new THREE.Scene();
+  splatScene.add(splatPts);
+  const splatCam = new THREE.Camera();
+  let rtField = new THREE.WebGLRenderTarget(4, 4, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false,
+  });
+
+  /* ---------- the shading pass: one full-screen quad, four taps ---------- */
   const varU = {
     uAspect: { value: 1 }, uPx: { value: 0.003 },
-    uB: { value: arrB }, uS: { value: arrS },
-    uN: { value: 0 }, uNW: { value: 0 },
-    uRb: { value: 0.44 }, uRt: { value: 0.31 },
+    uField: { value: rtField.texture },
+    uStep:  { value: 0.02 },          // the tap spacing, in world units
+    uIso:   { value: 0.55 },          // where the surface is, in field units
+    uFull:  { value: 2.0 },           // …and what the field reads deep inside
+    uRb: { value: 0.50 }, uRt: { value: 0.335 },
     uYb: { value: LAVA.yB }, uYt: { value: LAVA.yT },
-    uHeatV: { value: 0.85 },       // how hard the coil is running, for the light
-    uTint: { value: 0.06 },        // where on the gradient this lamp's wax sits
-    uFluidT: { value: 0.44 },      // …and where the LIQUID sits, a third of a turn away
-    uAbs: { value: 2.6 },          // Beer–Lambert coefficient
-    uEta: { value: 0.955 },        // wax against fluid — close indices, gentle bending
-    uDisp: { value: 0.014 },       // and how far the three wavelengths disagree
-    uHs: { value: 0.30 },          // the height field's scale, in world units
-    uLean: { value: 0 },           // 1 = the cheap path: one wavelength, no bubbles
+    uHeatV: { value: 0.85 },
+    uTint: { value: 0.06 }, uFluidT: { value: 0.44 },
+    uAbs: { value: 2.6 }, uEta: { value: 0.955 }, uDisp: { value: 0.014 },
+    uHs: { value: 0.16 }, uLean: { value: 0 },
   };
   const geo = new THREE.PlaneGeometry(2, 2);
   const vert = `
@@ -20458,14 +20571,11 @@ function buildLava(){
     void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
   `;
   const frag = GLSL_MPHI + GLSL_WARP + `
-    #define MAXB ${MAXB}
-    #define CULL 0.020
     uniform float uBeat, uEnergy, uBass, uAct, uOpacity;
-    uniform float uAspect, uPx, uN, uNW, uRb, uRt, uYb, uYt;
+    uniform float uAspect, uPx, uStep, uIso, uFull, uRb, uRt, uYb, uYt;
     uniform float uHeatV, uTint, uFluidT, uAbs, uEta, uDisp, uHs, uLean;
     uniform vec3 uColA, uColB, uColC;
-    uniform vec4 uB[MAXB];
-    uniform vec4 uS[MAXB];
+    uniform sampler2D uField;
     varying vec2 vUv;
 
     /* THE VESSEL. A truncated cone — wider at the heater — because that
@@ -20479,10 +20589,10 @@ function buildLava(){
     /* THE HAND, ON THE ROOM. The wax answers a touch by FLOWING — it is
        matter with momentum, and it keeps what you gave it after you let
        go. What bends here is the space the glass stands in: the same
-       warpPush() the light-bending pass reads, about the same centres,
-       so the lamp is lensed by the identical metric that moves every
-       other room in this field. Two different answers to one hand,
-       because a fluid and a vacuum are not the same thing. */
+       warpPush() the light-bending pass reads, about the same centres, so
+       the lamp is lensed by the identical metric that moves every other
+       room in this field. Two different answers to one hand, because a
+       fluid and a vacuum are not the same thing. */
     vec2 handRoom(vec2 p){
       float f = warpForce(), f2 = warpForce2();
       if (f < 0.003 && f2 < 0.003) return vec2(0.0);
@@ -20493,77 +20603,41 @@ function buildLava(){
     }
 
     /* THE FLUID BEHIND THE WAX — and the only light source in the object.
-       The coil sits under the column; its light falls off through the
-       fluid, so the bottom of the lamp is where the colour lives and the
-       top is where it runs out. Everything the wax refracts is reading
-       THIS, which is why the lamp looks lit from inside rather than
-       painted. */
+       The coil sits under the column; its light falls off through the fluid,
+       so the bottom of the lamp is where the colour lives and the top is
+       where it runs out. Everything the wax refracts is reading THIS, which
+       is why the lamp looks lit from inside rather than painted. */
     vec3 fluid(vec2 q){
       float t = clamp((q.y - uYb) / max(1e-4, uYt - uYb), 0.0, 1.0);
-      // one exponential up the column: the coil's light, absorbed by the
-      // fluid it is shining through. The lamp is bright at the bottom and
-      // runs out at the top for the same reason a real one does.
       float coil = exp(-t * 2.1) * (0.62 + uHeatV * 0.72);
       float bulb = exp(-length(vec2(q.x * 0.55, (q.y - uYb - 0.03) * 1.35)) * 2.6);
-      /* THE LIQUID IS NOT THE WAX'S COLOUR. Every lava lamp ever made is
-         two colours arguing — orange in blue, pink in violet — and the
-         palette already knows how to give us a pair: the gradient is
-         cyclic, so a third of a turn away from the wax is guaranteed to
-         be a different hue of the SAME chord, whatever key the track is
-         in. The contrast is therefore never a colour someone picked; it
-         is an interval. */
+      /* THE LIQUID IS NOT THE WAX'S COLOUR. Every lava lamp ever made is two
+         colours arguing — orange in blue, pink in violet — and the palette
+         already knows how to give us a pair: the gradient is cyclic, so a
+         third of a turn from the wax is guaranteed to be a different hue of
+         the SAME chord, whatever key the track is in. The contrast is
+         therefore never a colour someone picked; it is an interval. */
       vec3 c = ramp(uFluidT) * (0.10 + coil * 0.34)
              + ramp(uFluidT + 0.10) * coil * 0.26
              + ramp(uTint + 0.02) * coil * coil * 0.20
              + uColC * bulb * (0.26 + uBass * 0.20 + uBeat * 0.08);
-      // the far side of the glass falls away toward the rim: the fluid is
-      // deeper across the middle than it is at the edges, and it reads
       float R = max(1e-4, vesselR(q.y));
       c *= 1.0 - 0.45 * smoothstep(R * 0.45, R * 1.03, abs(q.x));
       return c;
     }
 
-    /* THE FIELD, AND ITS GRADIENT, IN ONE PASS.
-       Anisotropy is a symmetric linear map M = I + (k−1)·êê᷉, so the
-       chain rule costs one extra dot product and the gradient stays
-       exact — a rising drop can flatten and a necking one can stretch
-       without the lighting ever guessing. */
-    void lavaField(vec2 p, out float Fw, out vec2 Gw, out float Tw,
-                   out float Fb, out vec2 Gb){
-      Fw = 0.0; Gw = vec2(0.0); Tw = 0.0; Fb = 0.0; Gb = vec2(0.0);
-      for (int i = 0; i < MAXB; i++){
-        if (float(i) >= uN) break;
-        vec4 b = uB[i];
-        vec4 s = uS[i];
-        vec2 d = p - b.xy;
-        float km1 = s.z - 1.0;
-        vec2 q = d + s.xy * dot(d, s.xy) * km1;
-        float dd = dot(q, q) + 1e-7;
-        float rr = b.z * b.z * b.w;
-        float phi = rr / dd;
-        // THE CULL, made continuous. A blob this far away cannot move the
-        // surface, but dropping it outright would leave a seam where it
-        // stops counting — so its contribution is offset to zero at the
-        // threshold instead, and the field stays smooth across it.
-        if (phi < CULL) continue;
-        phi -= CULL;
-        // F = Σφ², so ∇F = Σ 2φ∇φ — one more multiply, and the same loop
-        vec2 mq = q + s.xy * dot(q, s.xy) * km1;
-        vec2 g = mq * (-4.0 * phi * rr / (dd * dd));
-        float f = phi * phi;
-        if (float(i) < uNW){ Fw += f; Gw += g; Tw += f * s.w; }
-        else { Fb += f; Gb += g; }
-      }
-      Tw = Fw > 1e-5 ? Tw / Fw : 0.0;
+    // the splatted field: r = wax density, g = wax density × temperature,
+    // b = gas. One tap answers all three.
+    vec3 fld(vec2 p){
+      return texture2D(uField, vec2(p.x / uAspect, p.y) * 0.5 + 0.5).rgb;
     }
-
-    /* the surface, as a normal — h = √(1 − F^-½) differentiated exactly:
-       ∂h/∂p = F^-³ᐟ² ∇F / (4h). At the silhouette h → 0 and the slope
-       diverges, which is precisely what a sphere's edge does, and
-       normalize() lands it there rather than anywhere else. */
-    vec3 fieldNormal(float F, vec2 G, float hgt, float scale){
-      float f32 = inversesqrt(max(F, 1e-4)); f32 = f32 * f32 * f32;
-      vec2 dh = G * (scale * f32 / (4.0 * max(hgt, 1e-3)));
+    /* THE SURFACE, AS A NORMAL. h = √((F−iso)/(F_full−iso)) differentiated
+       through the chain rule, with ∇F from a four-tap central difference in
+       WORLD units — so the slope is a real slope and not a texel count, and
+       it means the same thing whatever resolution the governor has left the
+       field at. */
+    vec3 fieldNormal(vec2 g, float hgt, float scale){
+      vec2 dh = g * (scale / (2.0 * max(hgt, 1e-3) * max(uFull - uIso, 1e-3)));
       return normalize(vec3(-dh, 1.0));
     }
 
@@ -20583,29 +20657,26 @@ function buildLava(){
         col = ramp(uFluidT + 0.06) * 0.020 + ramp(0.03) * haze * (0.16 + uHeatV * 0.16);
         col *= 1.0 - 0.35 * smoothstep(0.2, 1.4, length(q));
         /* AND THE LAMP LIGHTS ITS OWN ROOM. A pool of light on whatever the
-           thing is standing on — an ellipse because that is what a circle
-           of light on a surface below the eye looks like — dimming with the
-           square of the distance, and brightening with the coil. It is the
-           cheapest thing in this shader and it is most of why the object
-           reads as being SOMEWHERE rather than floating on black. */
+           thing is standing on — an ellipse, because that is what a circle of
+           light on a surface below the eye looks like. It is the cheapest
+           thing in this shader and most of why the object reads as being
+           SOMEWHERE rather than floating on black. */
         float fy = (q.y + 1.0);
         float pool = exp(-(q.x * q.x * 1.7 + fy * fy * 12.0)) * step(q.y, uYb);
         col += ramp(0.04) * pool * (0.16 + uHeatV * 0.30);
       }
 
-      /* ---- the base: a cone of dark metal with the coil's heat at its lip ---- */
+      /* ---- the base: a cone of turned metal with the coil's heat at its lip ---- */
       {
         float t = clamp((p.y + 1.0) / max(1e-4, uYb + 1.0), 0.0, 1.0);
         float bw = mix(uRb * 1.30, uRb * 1.02, t);
         float m = (1.0 - smoothstep(bw - 0.008, bw + 0.008, abs(p.x))) * (1.0 - step(uYb, p.y));
         float lat = abs(p.x) / max(1e-4, bw);
-        // the flutes: a real base is turned metal, and the giveaway is that
-        // its highlights run vertically and repeat
         float flute = 0.5 + 0.5 * cos(lat * 26.0);
         vec3 metal = ramp(0.50) * (0.05 + 0.19 * (1.0 - lat) + 0.05 * flute * (1.0 - lat * 0.7))
                    + uColC * 0.07 * smoothstep(0.0, 1.0, t * t);
-        metal += uColC * (0.55 + uHeatV * 0.75) * smoothstep(0.84, 1.0, t);   // the lip glows
-        metal *= 1.0 - 0.55 * smoothstep(0.92, 1.0, lat);                     // its own edge falls away
+        metal += uColC * (0.55 + uHeatV * 0.75) * smoothstep(0.84, 1.0, t);
+        metal *= 1.0 - 0.55 * smoothstep(0.92, 1.0, lat);
         col = mix(col, metal, m);
       }
       /* ---- and the cap, which catches the same light from underneath ---- */
@@ -20620,18 +20691,27 @@ function buildLava(){
 
       /* ---- inside the glass ---- */
       if (inCol > 0.5 && glassSd < 0.02){
-        float Fw, Tw, Fb; vec2 Gw, Gb;
-        lavaField(p, Fw, Gw, Tw, Fb, Gb);
+        vec2 e = vec2(uStep, 0.0);
+        vec3 c0 = fld(p);
+        // four taps, in world units — the gradient of the wax field and the
+        // gradient of the gas field come out of the same four fetches
+        vec3 xp = fld(p + e.xy), xm = fld(p - e.xy);
+        vec3 yp = fld(p + e.yx), ym = fld(p - e.yx);
+        float Fw = c0.r, Fb = c0.b;
+        vec2 Gw = vec2(xp.r - xm.r, yp.r - ym.r) / (2.0 * uStep);
+        vec2 Gb = vec2(xp.b - xm.b, yp.b - ym.b) / (2.0 * uStep);
+        float Tw = c0.r > 1e-4 ? clamp(c0.g / c0.r, 0.0, 1.0) : 0.0;
+
         vec3 inner = fluid(p + hw);
 
-        // WAX. Coverage from the analytic distance, depth from the field.
+        // WAX. Coverage from the distance to the isosurface, depth from the field.
         float gl = max(length(Gw), 1e-4);
-        float sd = (Fw - 1.0) / gl;
+        float sd = (Fw - uIso) / gl;
         float cov = smoothstep(-uPx, uPx, sd);
         if (cov > 0.001){
-          float u = max(0.0, 1.0 - inversesqrt(max(Fw, 1e-4)));
+          float u = clamp((Fw - uIso) / max(uFull - uIso, 1e-3), 0.0, 1.0);
           float hgt = sqrt(u);
-          vec3 n = fieldNormal(Fw, Gw, hgt, uHs);
+          vec3 n = fieldNormal(Gw, hgt, uHs);
           vec3 V = normalize(vec3(p * 0.10, 1.0));
           float thick = 2.0 * uHs * hgt;
 
@@ -20655,9 +20735,6 @@ function buildLava(){
             through = vec3(fluid(p + hw + or_).r, fluid(p + hw + base).g, fluid(p + hw + ob).b)
                     * exp(-absorb * thick);
           }
-
-          // …and the light that did NOT get through is the light the wax
-          // scatters: absorption and glow are one number seen twice
           /* …and the light that did NOT get through is the light the wax
              SCATTERED. Absorption and glow are one number seen from two
              sides, which is why the thin edge of a blob is bright and pale
@@ -20666,7 +20743,6 @@ function buildLava(){
              separates a translucent object from a coloured one. */
           vec3 sss = wax * (vec3(1.0) - exp(-absorb * thick)) * (inner * 1.15 + 0.17 + 0.16 * uHeatV);
 
-          // two lights: a cool key over the shoulder, and the coil below
           vec3 L1 = normalize(vec3(-0.42, 0.70, 0.58));
           vec3 L2 = normalize(vec3(0.16, -0.92, 0.36));
           vec3 hv1 = normalize(L1 + V), hv2 = normalize(L2 + V);
@@ -20674,19 +20750,18 @@ function buildLava(){
                    + pow(max(dot(n, hv1), 0.0), 12.0) * 0.10
                    + pow(max(dot(n, hv2), 0.0), 24.0) * 0.38 * (0.4 + uHeatV);
           float fres = 0.035 + 0.965 * pow(1.0 - max(dot(n, V), 0.0), 5.0);
-          /* WHAT A BLOB REFLECTS IS THE LAMP. At a grazing angle Fresnel
-             says almost everything is reflected rather than transmitted,
-             so whatever this is becomes the whole edge of every blob and
-             the whole of every neck between two of them. Reflecting a dark
-             room there is what draws a black groove down the middle of a
-             merge — the one moment the scene exists to show. The
-             environment is the glowing fluid these things are swimming in,
-             so that is what goes here, and the necks glow. */
+          /* WHAT A BLOB REFLECTS IS THE LAMP. At a grazing angle Fresnel says
+             almost everything is reflected rather than transmitted, so
+             whatever this is becomes the whole edge of every blob and the
+             whole of every neck between two of them. Reflecting a dark room
+             there is what draws a black groove down the middle of a merge —
+             the one moment the scene exists to show. The environment is the
+             glowing fluid these things are swimming in, so that is what goes
+             here, and the necks glow. */
           vec3 env = mix(inner * 1.05, ramp(0.12) * 0.30 + inner * 0.5, n.y * 0.5 + 0.5);
 
           vec3 body = mix(through + sss, env, fres * 0.62);
           body += uColC * sp * (0.55 + uBeat * 0.25);
-          // the rim: thin wax at the silhouette, lit from behind by the coil
           // the silhouette is the THINNEST wax there is, so it is where the
           // coil shows straight through — the bright wire round every blob
           body += ramp(uTint + 0.04) * pow(1.0 - abs(n.z), 3.6) * (0.50 + uHeatV * 0.55);
@@ -20695,22 +20770,22 @@ function buildLava(){
 
           // CAUSTIC. A blob is a lens, and a lens puts the light it gathers
           // somewhere: just outside the silhouette, where the surface is
-          // steepest and the rays cross. One smoothstep on the same sdf.
+          // steepest and the rays cross. One smoothstep on the same distance.
           float caus = (1.0 - cov) * exp(-max(0.0, sd) * 26.0) * 0.55;
           inner += ramp(0.05) * caus * (0.5 + uHeatV * 0.8);
         }
 
-        // BUBBLES. Gas in liquid — the index step runs the other way, so
-        // the bending is severe, the middle is nearly a window and all the
-        // light is in the rim. A thin shell, and cheap: the same field.
-        if (uLean < 0.5 && Fb > 0.02){
+        // BUBBLES. Gas in liquid — the index step runs the other way, so the
+        // bending is severe, the middle is nearly a window and all the light
+        // is in the rim. A thin shell, out of the same four taps.
+        if (uLean < 0.5 && Fb > uIso * 0.6){
           float glb = max(length(Gb), 1e-4);
-          float sdb = (Fb - 1.0) / glb;
+          float sdb = (Fb - uIso * 0.8) / glb;
           float cb = smoothstep(-uPx, uPx, sdb);
           if (cb > 0.001){
-            float ub = max(0.0, 1.0 - inversesqrt(max(Fb, 1e-4)));
+            float ub = clamp((Fb - uIso * 0.8) / max(uFull - uIso, 1e-3), 0.0, 1.0);
             float hb = sqrt(ub);
-            vec3 nb = fieldNormal(Fb, Gb, hb, uHs * 0.55);
+            vec3 nb = fieldNormal(Gb, hb, uHs * 0.55);
             vec3 V = normalize(vec3(p * 0.10, 1.0));
             vec3 rdb = refract(-V, nb, 1.34);
             vec2 ob = rdb.xy / max(abs(rdb.z), 0.25) * hb * 0.14;
@@ -20723,14 +20798,13 @@ function buildLava(){
 
         /* THE GLASS ITSELF — two specular streaks and a rim, which is all a
            cylinder of glass ever is. The left one is the room's light, the
-           right one is its reflection off the far wall, narrower and dimmer. */
+           right one its reflection off the far wall, narrower and dimmer. */
         float gx = abs(p.x) / max(1e-4, R);
         float s1 = exp(-pow((p.x + R * 0.60) / (R * 0.13), 2.0)) * 0.30;
         float s2 = exp(-pow((p.x - R * 0.72) / (R * 0.07), 2.0)) * 0.13;
         inner += ramp(0.14) * (s1 + s2) * (0.6 + uHeatV * 0.4);
-        inner *= 1.0 - 0.45 * smoothstep(0.80, 1.0, gx);          // the wall thickens
-        inner += ramp(0.12) * 0.42 * smoothstep(0.950, 0.995, gx);  // …and catches the light
-        // the meniscus, and the film of wax the glass keeps at the very bottom
+        inner *= 1.0 - 0.45 * smoothstep(0.80, 1.0, gx);
+        inner += ramp(0.12) * 0.42 * smoothstep(0.950, 0.995, gx);
         inner *= 1.0 - 0.5 * smoothstep(uYt - 0.030, uYt, p.y);
         inner += ramp(0.04) * 0.16 * (1.0 - smoothstep(uYb, uYb + 0.045, p.y));
 
@@ -20755,14 +20829,15 @@ function buildLava(){
   group.visible = false;
   scene.add(group);
 
-  /* THE RECIPES. A lamp is a wax, a fluid and a bottle, and changing any
-     of the three changes what the object does rather than how it is
-     painted — a thick wax genuinely climbs more slowly. */
+  /* THE RECIPES. A lamp is a wax, a fluid and a bottle, and changing any of
+     the three changes what the object DOES rather than how it is painted —
+     a thicker wax genuinely climbs more slowly, because `mu` is the number
+     the Arrhenius drag is multiplied by. */
   const WAXES = [
-    { n: 'SLOW',  mu: 1.30, sigma: 0.0011, flow: 0.85, bub: 0.7 },
-    { n: 'BRISK', mu: 0.76, sigma: 0.0014, flow: 1.25, bub: 1.0 },
-    { n: 'HEAVY', mu: 1.65, sigma: 0.0021, flow: 0.72, bub: 0.5 },
-    { n: 'FIZZ',  mu: 0.92, sigma: 0.0009, flow: 1.10, bub: 1.9 },
+    { n: 'SLOW',  mu: 1.35, coh: 13, flow: 0.85, bub: 0.7 },
+    { n: 'BRISK', mu: 0.78, coh: 9,  flow: 1.25, bub: 1.0 },
+    { n: 'HEAVY', mu: 1.65, coh: 16, flow: 0.72, bub: 0.5 },
+    { n: 'FIZZ',  mu: 0.92, coh: 8,  flow: 1.10, bub: 1.9 },
   ];
   const BOTTLES = [
     { n: 'TALL',    rb: 0.42, rt: 0.255 },
@@ -20770,14 +20845,15 @@ function buildLava(){
     { n: 'SQUAT',   rb: 0.60, rt: 0.465 },
   ];
 
-  let S = null, wax = WAXES[1], bottle = BOTTLES[1], acc = 0, bubGain = 1, owed = 0, fitted = -1;
-  /* THE BOTTLE FITS THE ROOM IT IS IN. A phone held upright is barely half
-     a screen wide in this scene's own units, and a bottle designed for a
+  let S = null, wax = WAXES[1], bottle = BOTTLES[1], acc = 0, bubGain = 1;
+  let owed = 0, fitted = -1, budget = lavaBudget({});
+  const H = 1 / 60;                        // the lamp's own clock, fixed forever
+  const WARM = LAVA.hMax;                  // …and the stride the warm-up may take
+
+  /* THE BOTTLE FITS THE ROOM IT IS IN. A phone held upright is barely half a
+     screen wide in this scene's own units, and a bottle designed for a
      desktop would have both walls off the sides of it — which is not a
-     bigger lamp, it is no lamp at all, because the glass IS the object.
-     So the vessel is scaled to the narrower axis, once, whenever that
-     changes; the fluid column and everything swimming in it follow, since
-     they have only ever asked lavaRadius() where the wall is. */
+     bigger lamp, it is no lamp at all, because the glass IS the object. */
   function fitBottle(asp){
     if (Math.abs(asp - fitted) < 0.01) return;
     fitted = asp;
@@ -20786,27 +20862,53 @@ function buildLava(){
     varU.uRt.value = bottle.rt * k;
     if (S){ S.opt.rb = varU.uRb.value; S.opt.rt = varU.uRt.value; }
   }
-  const H = 1 / 60;                       // the lamp's own clock, fixed forever
-  const WARM = 1 / 8;                     // …and the stride the warm-up may take
+
+  /* THE FIELD'S OWN CONSTANTS, from the fluid's. The splat radius is set in
+     spacings and the isosurface in units of one particle's own kernel, so a
+     budget that changes the particle count changes both together and the
+     wax neither swells nor thins on a device that can afford less of it. */
+  function fieldConsts(){
+    const rs = S.d * LAVA_R.splat;
+    // what the field reads at the centre of a settled packing: the same hex
+    // lattice the rest density was measured on, through the splat kernel
+    let full = 0;
+    const rows = Math.ceil(rs / (S.d * 0.8660254)) + 1, cols = Math.ceil(rs / S.d) + 1;
+    for (let j = -rows; j <= rows; j++){
+      const y = j * S.d * 0.8660254, off = (j & 1) ? S.d * 0.5 : 0;
+      for (let i = -cols; i <= cols; i++){
+        const x = i * S.d + off, r2 = (x * x + y * y) / (rs * rs);
+        if (r2 >= 1) continue;
+        const a = 1 - r2;
+        full += a * a * a;
+      }
+    }
+    splatU.uScale.value = LAVA_R.scale / Math.max(1e-6, full);
+    varU.uFull.value = LAVA_R.scale;                       // …so the interior reads exactly this
+    varU.uIso.value = LAVA_R.scale * LAVA_R.iso;
+    varU.uStep.value = Math.max(S.d * 0.55, 0.010);
+    return rs;
+  }
+
+  let splatR = 0.05;
 
   function pack(){
     let k = 0;
-    const nw = Math.min(S.wax.length, MAXB);
-    for (let i = 0; i < nw; i++, k++){
-      const b = S.wax[i];
-      // the deformation is volume-preserving: an ellipsoid with semi-axes
-      // (r/k, r, r) holds r³/k, so the radius carries the cube root back
-      const kf = Math.cbrt(Math.max(0.2, b.st));
-      arrB[k].set(b.x, b.y, b.r * kf, Math.max(0, Math.min(1, b.life)));
-      arrS[k].set(b.ax, b.ay, b.st, clamp01(b.T));
+    const n = Math.min(S.n, MAXP);
+    for (let i = 0; i < n; i++, k++){
+      sPos[k * 3] = S.px[i]; sPos[k * 3 + 1] = S.py[i]; sPos[k * 3 + 2] = 0;
+      sAux[k * 2] = S.T[i]; sAux[k * 2 + 1] = 0;
+      sRad[k] = splatR;
     }
-    varU.uNW.value = k;
-    for (let i = 0; i < S.bub.length && k < MAXB; i++, k++){
+    for (let i = 0; i < S.bub.length && k < MAXP; i++, k++){
       const b = S.bub[i];
-      arrB[k].set(b.x, b.y, b.r, Math.max(0, Math.min(1, b.life)));
-      arrS[k].set(0, 1, 1, 1);
+      sPos[k * 3] = b.x; sPos[k * 3 + 1] = b.y; sPos[k * 3 + 2] = 0;
+      sAux[k * 2] = 1; sAux[k * 2 + 1] = 1;
+      sRad[k] = b.r * 2.6 * Math.min(1, b.life);
     }
-    varU.uN.value = k;
+    sGeo.setDrawRange(0, k);
+    sGeo.attributes.position.needsUpdate = true;
+    sGeo.attributes.aAux.needsUpdate = true;
+    sGeo.attributes.aRad.needsUpdate = true;
   }
 
   const api = {
@@ -20823,46 +20925,44 @@ function buildLava(){
       varU.uFluidT.value = varU.uTint.value + 0.34 + Math.random() * 0.13;
       varU.uAbs.value = 1.9 + Math.random() * 1.9;
       varU.uEta.value = 0.945 + Math.random() * 0.022;
-      varU.uHs.value = 0.26 + Math.random() * 0.09;
+      varU.uHs.value = 0.13 + Math.random() * 0.06;
+      budget = lavaBudget({});
       S = makeLava((Math.random() * 1e9) | 0,
-                   { rb: varU.uRb.value, rt: varU.uRt.value,
-                     sigma: wax.sigma, mu: wax.mu, wax: 8 });
-/* A LAMP IS NEVER NEW. Arriving in this room mid-set and finding a
-         cold puddle is the one thing the object cannot do, so the lamp is
-         run forward through twenty-odd seconds of its own life before the
-         first frame is drawn.
-
-         It is run there in EIGHTHS of a second, which no explicit
-         integrator would survive and this one does not notice, because
-         everything stiff in it has a closed form (see lavaStep). And the
-         warm-up is not paid all at once: a third of it lands in roll(),
-         the rest is owed and spent a few strides at a time over the next
-         half second — which is exactly the crossfade this room arrives
-         through, so the lamp finishes warming up behind the fade and no
-         frame anywhere pays more than a fraction of a millisecond. */
-      const b0 = lavaBudget({});
-      const warmEnv = { heat: 0.92, flow: LAVA.flow * wax.flow, budget: b0,
+                   { rb: varU.uRb.value, rt: varU.uRt.value, mu: wax.mu, n: budget.n });
+      S.coh = wax.coh;
+      splatR = fieldConsts();
+      /* A LAMP IS NEVER NEW. Arriving in this room mid-set and finding a
+         cold puddle is the one thing the object cannot do. Most of that is
+         handled where it costs nothing — the pour is already at the
+         temperature a running column has (see makeLava) — and the rest is
+         letting the packing settle, which takes a few seconds of fluid and
+         is spent a few strides at a time over the next second rather than
+         all at once. That second is the crossfade this room arrives through,
+         so no frame anywhere pays more than about a millisecond. */
+      const warmEnv = { heat: 0.92, flow: LAVA.flow * wax.flow, budget,
                         entropy: 0.35, treble: 0.25 };
-      for (let i = 0; i < 60; i++) lavaStep(S, WARM, warmEnv);
-      owed = 120;
+      for (let i = 0; i < 20; i++) lavaStep(S, WARM, warmEnv);
+      owed = 150;
       pack();
       api.name = 'LAVA · ' + wax.n + ' · ' + bottle.n;
       return api.name;
     },
     update(dt){
       const f = AE.f;
-      varU.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+      const asp = window.innerWidth / Math.max(1, window.innerHeight);
+      varU.uAspect.value = asp;
+      splatU.uAspect.value = asp;
       varU.uPx.value = 2 / Math.max(1, renderer.domElement.height);
-      fitBottle(varU.uAspect.value);
+      fitBottle(asp);
       const lean = (typeof PERF !== 'undefined' && PERF.struggling)
                 || (typeof POWER !== 'undefined' && !POWER.lensOK);
       varU.uLean.value = lean ? 1 : 0;
 
-      /* THE MUSIC IS THE THERMOSTAT. Not a multiplier on the animation —
-         the coil. Bass and the act's own heat turn the heater up, which
-         raises the column's temperature, which is what makes the wax rise
-         faster and break more readily. Everything the drop does to this
-         lamp, it does through one number that a physicist would recognise. */
+      /* THE MUSIC IS THE THERMOSTAT. Not a multiplier on the animation — the
+         coil. Bass and the act's own heat turn the heater up, which raises
+         the column's temperature, which is what makes the wax rise faster and
+         break more readily. Everything the drop does to this lamp, it does
+         through one number a physicist would recognise. */
       const heat = clamp(0.62 + f.bass * 0.26 + U.uAct.value * 0.34
                          + f.energy * 0.10, 0.45, 1.35)
                  * (SAFE.calm ? 0.82 : 1);
@@ -20872,21 +20972,19 @@ function buildLava(){
       varU.uHeatV.value += (clamp01((heat - 0.45) / 0.9) - varU.uHeatV.value)
                          * (1 - Math.exp(-dt / 1.6));
 
-      const budget = lavaBudget({
+      const b = lavaBudget({
         eco: typeof POWER !== 'undefined' && !POWER.heavyOK,
         struggling: typeof PERF !== 'undefined' && PERF.struggling,
         calm: SAFE.calm,
       });
-      // a fizzy wax asks for more bubbles — but never more than the room the
-      // wax has left in the shader's array, or the extra ones would be packed
-      // and then silently dropped, which is a bug that looks like a shortage
-      budget.bub = Math.max(0, Math.min(Math.round(budget.bub * bubGain),
-                                        budget.total - budget.wax - 3));
+      // the particle count is fixed for the life of a pour — changing it
+      // would change how much wax is in the bottle — so only the bubbles,
+      // which are a garnish and come and go anyway, follow the budget live
+      budget.bub = Math.max(0, Math.round(b.bub * bubGain));
 
       // the hand, as a stir — the same metric the shader lenses the room
       // with, read here as a force on the fluid, so what you push keeps
       // moving after you let go
-      const asp = varU.uAspect.value;
       const stir = INTERACT.strength > 0.004 ? {
         x: INTERACT.wx * asp, y: INTERACT.wy,
         f: INTERACT.strength * warpBudget({ reduced: reducedMotion, calm: SAFE.calm }),
@@ -20894,27 +20992,46 @@ function buildLava(){
         spin: INTERACT.spinE, beat: f.beat, phase: INTERACT.ripplePhase,
       } : null;
 
-      const env = { heat, flow, budget, stir,
-                    entropy: f.entropy, treble: f.treble * bubGain };
-      /* THE ACCUMULATOR. Fixed steps, and a hard ceiling on how many of
-         them one frame may spend — a tab that was in the background for a
-         minute comes back to a lamp that has moved on a little, not to a
-         four-second freeze while it catches up. */
+      const env = { heat, flow, budget, stir, entropy: f.entropy, treble: f.treble * bubGain };
       if (owed > 0){
-        const n = Math.min(owed, 4);
-        for (let i = 0; i < n; i++) lavaStep(S, WARM, env);
-        owed -= n;
+        const k = Math.min(owed, 4);
+        for (let i = 0; i < k; i++) lavaStep(S, WARM, env);
+        owed -= k;
       }
+      /* THE ACCUMULATOR. Fixed steps, and a hard ceiling on how many of them
+         one frame may spend — a tab that was in the background for a minute
+         comes back to a lamp that has moved on a little, not to a four-second
+         freeze while it catches up. */
       acc = Math.min(acc + dt, 0.25);
       let guard = 0;
-      while (acc >= H && guard++ < 8){ lavaStep(S, H, env); acc -= H; }
+      while (acc >= H && guard++ < 6){ lavaStep(S, H, env); acc -= H; }
       pack();
+
+      /* ---- and the field is drawn, once, into its own small target ---- */
+      const cw = renderer.domElement.width, ch = renderer.domElement.height;
+      const rh = Math.max(96, Math.min(384, Math.round(ch * LAVA_R.res)));
+      const rw = Math.max(96, Math.min(640, Math.round(rh * asp)));
+      if (rtField.width !== rw || rtField.height !== rh){
+        rtField.setSize(rw, rh);
+        varU.uStep.value = Math.max(S.d * 0.55, 2.2 / rh);
+      }
+      splatU.uRtH.value = rh;
+      /* The target is cleared to the shell's own clear colour rather than to
+         black, because saving and restoring the renderer's clear state every
+         frame is three state changes to avoid a constant of 0.02 — which is
+         a twentieth of the isosurface and therefore not a thing anybody can
+         see. Cheaper, and one less piece of global state to put back. */
+      const prev = renderer.getRenderTarget();
+      renderer.setRenderTarget(rtField);
+      renderer.clear(true, false, false);
+      renderer.render(splatScene, splatCam);
+      renderer.setRenderTarget(prev);
+      void cw;
     },
   };
   api.roll();
   return api;
 }
-
 
 /* =========================================================
    Scene 19 — FLAME  (ten real lights, and what colour they are)
