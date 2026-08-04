@@ -3,6 +3,19 @@
   "entries": [
     {
       "build": "unreleased",
+      "date": "2026-08-04",
+      "title": "The lava lamp\u2019s wax is now a fluid",
+      "notes": [
+        "the wax used to be a dozen discs that merged when a rule said so \u2014 it wobbled, because a disc with a shape has a resonant frequency and wax does not ring, wax creeps",
+        "it is a real fluid now: a couple of hundred particles solved for incompressibility, so the wax holds a volume instead of a radius \u2014 a pool spreads on the heater and a droplet is round because it has to be, not because anything says so",
+        "nothing decides that two blobs have merged any more, because nothing can: surface tension pulls them the last little way, the contact widens on its own, and the neck fills in over about a second. A thread that thins past a point pinches",
+        "viscosity is the line that makes it wax: a blob struck by another does not bounce and does not ring, it deforms and then it stops",
+        "a big blob has a hot skin and a cold core, because heat gets in the same way drag does \u2014 through the surface \u2014 and that is the whole mechanism behind the plume that lifts off the pool",
+        "and it is cheaper than the old one: the surface is splatted rather than tested against every pixel, so the number of particles no longer costs anything to draw"
+      ]
+    },
+    {
+      "build": "unreleased",
       "date": "2026-08-03",
       "title": "A lava lamp that is simulated, not animated",
       "notes": [
