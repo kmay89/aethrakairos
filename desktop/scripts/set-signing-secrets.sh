@@ -67,9 +67,15 @@ say "Checking tools"
 [ "$(uname -s)" = "Darwin" ] || die "This has to run on the Mac that holds the signing key."
 command -v security >/dev/null || die "No /usr/bin/security."
 command -v openssl  >/dev/null || die "No openssl."
-command -v gh       >/dev/null || die "GitHub CLI missing. Install it: brew install gh"
-gh auth status >/dev/null 2>&1 || die "gh is not signed in. Run: gh auth login"
-ok "security, openssl, gh (signed in)"
+if [ "${PASTE:-0}" = "1" ]; then
+  command -v pbcopy >/dev/null || die "No pbcopy — PASTE=1 needs macOS's clipboard."
+else
+  command -v gh       >/dev/null || die "GitHub CLI missing. Install it: brew install gh
+  (or re-run with PASTE=1 to paste the values into the web UI instead)"
+  gh auth status >/dev/null 2>&1 || die "gh is not signed in. Run: gh auth login
+  (or re-run with PASTE=1 to paste the values into the web UI instead)"
+fi
+ok "security, openssl, and a way to deliver the secrets"
 
 # ------------------------------------------------------------------- identity
 # find-identity -p codesigning lists only codesigning-valid identities, which
@@ -206,15 +212,37 @@ B64="$(base64 -i "$WORK/desktop.p12" | tr -d '\n')"
 ok "base64 is ${#B64} characters"
 
 # ---------------------------------------------------------------------- upload
-# Values go in on stdin, never argv: keeps the key and password out of shell
-# history and out of `ps`.
-say "Setting the secrets on $REPO"
-printf '%s' "$B64"   | gh secret set APPLE_DESKTOP_CERTIFICATE          --repo "$REPO"
-printf '%s' "$NEWPW" | gh secret set APPLE_DESKTOP_CERTIFICATE_PASSWORD --repo "$REPO"
-# Set the identity from the same certificate that just went up, so the
+# Two ways out, because the certificate is a 3,000-character blob nobody can
+# retype and the password is generated here — so "just paste it in the web UI"
+# has to mean the clipboard, not the terminal.
+#
+# PASTE=1 hands each value over one at a time via pbcopy and waits, which is
+# the only sane way to fill GitHub's web form. Otherwise the values go up on
+# STDIN, never argv: that keeps the key and the password out of shell history
+# and out of `ps`.
+hand_over() {   # name, value
+  local name="$1" value="$2"
+  if [ "${PASTE:-0}" = "1" ]; then
+    printf '%s' "$value" | pbcopy
+    printf '\n  \033[1m%s\033[0m\n' "$name"
+    printf '    copied to your clipboard (%s characters).\n' "${#value}"
+    printf '    Paste it at: https://github.com/%s/settings/secrets/actions/new\n' "$REPO"
+    printf '    Press RETURN when it is saved. '
+    read -r _
+    # Leaving a Developer ID private key on the clipboard is a real exposure —
+    # any app running can read it. Overwrite as soon as it has been used.
+    printf 'aethra-signing-clipboard-cleared' | pbcopy
+  else
+    printf '%s' "$value" | gh secret set "$name" --repo "$REPO"
+  fi
+}
+say "The three certificate secrets"
+hand_over APPLE_DESKTOP_CERTIFICATE          "$B64"
+hand_over APPLE_DESKTOP_CERTIFICATE_PASSWORD "$NEWPW"
+# The identity comes from the same certificate that just went up, so the
 # workflow's exact-string comparison cannot fail on a stray space or an old
 # team name.
-printf '%s' "$IDENT" | gh secret set APPLE_SIGNING_IDENTITY             --repo "$REPO"
+hand_over APPLE_SIGNING_IDENTITY             "$IDENT"
 ok "APPLE_DESKTOP_CERTIFICATE, APPLE_DESKTOP_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY"
 
 # ------------------------------------------------------------------------ keep
