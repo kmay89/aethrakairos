@@ -4,6 +4,21 @@
     {
       "build": "unreleased",
       "date": "2026-08-04",
+      "title": "Crowd mode — the whole floor, in their hands",
+      "notes": [
+        "type “crowd” into the Stage card and put the QR on the projector: anyone who scans it taps once and their phone becomes the show — the whole field, dancing to the room",
+        "each phone listens through its own microphone, so the speakers are the broadcast and it scales to any crowd the room holds — two phones or two thousand cost the booth the same: nothing",
+        "the booth sends only a pulse — three colours and a scene, about eighty bytes every couple of seconds — so every phone glows in the booth's palette and changes scene when the booth does",
+        "phones need only internet (cellular is fine — they never talk to your laptop); if the booth goes quiet the floor keeps dancing, in colours of its own",
+        "this is not the wire: a crowd phone is a hand holding the whole show, not a tile of the wall — and the stage wall itself grew to sixteen screens"
+      ],
+      "builds": [
+        "1da5c82f83"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-08-04",
       "title": "Any device is a screen — four letters, and your iPad joins the stage",
       "notes": [
         "type “invite” into the Stage card and you get four letters and a QR — scan it with an iPad, a phone or another laptop and that device is a screen of your stage",

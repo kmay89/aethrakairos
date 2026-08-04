@@ -13,7 +13,7 @@
  *           BroadcastChannel between them, and a screen that renders the booth's
  *           numbers without a catalog, a transport or a sound of its own.
  *
- *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,wire,pages,install] [--keep]
+ *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,wire,crowd,pages,install] [--keep]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -77,6 +77,17 @@ function mailbox(req, res, q){
       room.slots.push({ id: room.seq, offer: b.offer, claimed: false, answer: null });
       return say({ code, key, slot: room.seq });
     }
+    if (a === 'beacon'){
+      let code = b.code, key = b.key, room = code && rooms.get(code);
+      if (!room || room.key !== key){
+        key = 'k' + Math.random().toString(36).slice(2, 12);
+        code = '';
+        const AL = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        for (let i = 0; i < 4; i++) code += AL[Math.floor(Math.random() * AL.length)];
+        rooms.set(code, { key, seq: 0, slots: [], pulse: null });
+      }
+      return say({ code, key });
+    }
     const code = String((b.code || q.get('code') || '')).toUpperCase();
     const room = rooms.get(code);
     if (!room) return say({ error: 'that room has gone' }, 404);
@@ -106,13 +117,21 @@ function mailbox(req, res, q){
         free: room.slots.filter(s => !s.claimed).length });
     }
     if (a === 'close'){ rooms.delete(code); return say({ ok: true }); }
+    if (a === 'pulse'){
+      if (req.method === 'POST'){
+        if (room.key !== b.key) return say({ error: 'not your room' }, 403);
+        room.pulse = b.pulse || null;
+        return say({ ok: true });
+      }
+      return say({ pulse: room.pulse || null });
+    }
     return say({ error: 'unknown request' }, 400);
   });
 }
 
 const hits = [];
 const server = createServer((req, res) => {
-  hits.push(req.url);
+  hits.push(req.method + ' ' + req.url);
   const u = new URL(req.url, 'http://x');
   const p = decodeURIComponent(u.pathname);
   if (p === '/api/room') return mailbox(req, res, u.searchParams);
@@ -133,7 +152,11 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
      * other names neither can resolve and the handshake would hang. Plain
      * addresses on the loopback are exactly what a probe wants. */
     '--disable-features=WebRtcHideLocalIpsWithMdns',
-    '--allow-loopback-in-peer-connection'] });
+    '--allow-loopback-in-peer-connection',
+    /* the crowd section joins with a microphone: a fake device, granted
+     * without a prompt, because there is no hand here to tap "allow" */
+    '--use-fake-ui-for-media-stream',
+    '--use-fake-device-for-media-stream'] });
 
 /* A DEAD DIALOG MUST BE AN ERROR, NOT A SILENCE. Every window.prompt/confirm/
  * alert is replaced with a throw before a line of the app runs, so any control
@@ -860,7 +883,10 @@ if (want('wire')){
     // a second device walks in, and the wall re-cuts to halves — live
     const { page: pad2 } = await open(ctx, '/?stage=screen&join=' + minted.code);
     await booth.waitForFunction('WIRE.count() >= 2', null, { timeout: 30000 });
+    // BOTH devices must hold the re-cut before it is sampled — the wall
+    // message crosses two separate channels and lands a beat apart
     await pad.waitForFunction('STAGE.cut && STAGE.cut.of === 2', null, { timeout: 15000 });
+    await pad2.waitForFunction('STAGE.cut && STAGE.cut.of === 2', null, { timeout: 15000 });
     const halves = await Promise.all([
       pad.evaluate(() => ({ fx: STAGE.cut.fx, fw: STAGE.cut.fw, n: STAGE.cut.n })),
       pad2.evaluate(() => STAGE.cut ? { fx: STAGE.cut.fx, fw: STAGE.cut.fw, n: STAGE.cut.n } : null),
@@ -884,6 +910,78 @@ if (want('wire')){
     const why = await pad.evaluate(() => document.getElementById('stageWaitWhy').textContent);
     verdict('wire: a booth that leaves says so — the screen never just freezes',
       /closed|stopped/.test(why), why);
+    await ctx.close();
+  }
+}
+
+/* ----------------------------------------------------------------- crowd
+ * THE WHOLE FLOOR, IN THEIR HANDS. Not the wire: a phone that scans a crowd
+ * code takes no seat and holds no slice — it listens with its own microphone
+ * (a fake one here, granted by flag) and reads the booth's pulse from the
+ * mailbox. What has to hold: the booth mints a beacon with no handshake; a
+ * page told nothing but the code becomes all-field with a one-tap veil; the
+ * tap grants the mic and starts the poll; the booth's palette and scene
+ * arrive and are applied as a glide; and — the contract that makes a crowd
+ * affordable — the pulse reads carry NO cache-buster, so a CDN can answer
+ * them. */
+if (want('crowd')){
+  console.log('\nthe whole floor, in their hands');
+  const ctx = await browser.newContext();
+  const { page: booth } = await open(ctx, '/');
+  const minted = await booth.evaluate(async () => {
+    const r = await WIRE.api('beacon', { name: 'The show' });
+    if (!r || r.error || !r.code) return null;
+    CROWD.code = r.code; CROWD.key = r.key;
+    // a known palette and scene, held still so the far phone's colours are
+    // checkable to the digit — the live engine would breathe them
+    COLOR.on = false;
+    COLOR.now = [{ l: 0.7, c: 0.11, h: 200 }, { l: 0.6, c: 0.12, h: 220 }, { l: 0.5, c: 0.13, h: 240 }];
+    director.active = 2;
+    CROWD.start();
+    return r.code;
+  });
+  verdict('crowd: the booth minted a beacon — a code with no handshake at all',
+    !!minted && /^[A-Z]{4}$/.test(minted), minted);
+  if (!minted){ await ctx.close(); }
+  else {
+    const { page: phone } = await open(ctx, '/?crowd=' + minted);
+    const veiled = await phone.evaluate(() => ({
+      crowd: document.body.classList.contains('crowd'),
+      veil: !!document.getElementById('crowdGo'),
+      topbar: getComputedStyle(document.querySelector('.topbar')).display,
+      canvas: getComputedStyle(document.getElementById('glcanvas')).display,
+      auto: director.auto,
+    }));
+    verdict('crowd: the phone is all field behind a one-tap veil',
+      veiled.crowd && veiled.veil && veiled.topbar === 'none' && veiled.canvas !== 'none',
+      'topbar ' + veiled.topbar + ', veil ' + veiled.veil);
+    verdict('crowd: and its director does not choose scenes — the booth does', veiled.auto === false);
+
+    // the tap: mic granted (fake device), poll starts
+    await phone.evaluate(() => document.getElementById('crowdGo').click());
+    await phone.waitForFunction('AE.mic.on === true', null, { timeout: 15000 });
+    verdict('crowd: one tap and the phone is listening to the room', true);
+    await phone.waitForFunction(
+      'COLOR.target && Math.round(COLOR.target[0].h) === 200 && Math.round(COLOR.target[1].h) === 220',
+      null, { timeout: 15000 });
+    const got = await phone.evaluate(() => ({
+      glide: COLOR.glideT < 1 || COLOR.glideDur === 4,
+      scene: director.active,
+      veilGone: !document.getElementById('crowdGo'),
+    }));
+    verdict('crowd: the booth\'s palette arrives, and as a glide rather than a snap', got.glide);
+    verdict('crowd: and the booth\'s scene', got.scene === 2, 'scene ' + got.scene);
+    verdict('crowd: the veil left with the tap', got.veilGone);
+
+    /* THE AFFORDABILITY CONTRACT: every pulse read is the identical URL —
+     * no cache-buster — or a CDN could never answer the crowd and every
+     * phone would be an origin hit. The booth's own POSTs may bust away;
+     * only the reads multiply by the crowd. */
+    const reads = hits.filter(u => /^GET /.test(u) && /a=pulse/.test(u) && !/[?&]_=/.test(u));
+    const busted = hits.filter(u => /^GET /.test(u) && /a=pulse/.test(u) && /[?&]_=/.test(u));
+    verdict('crowd: pulse reads carry no cache-buster — the CDN can answer the floor',
+      reads.length > 0 && busted.length === 0,
+      reads.length + ' clean read(s), ' + busted.length + ' busted');
     await ctx.close();
   }
 }

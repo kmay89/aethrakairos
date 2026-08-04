@@ -39,7 +39,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal, stagePlan,' +
-  ' stageCodeTidy, stageCodeIs, stageNetWall,' +
+  ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
@@ -2652,7 +2652,12 @@ test('stageSlice: the slices tile the field exactly once, with no gap and no ove
   assert.ok(S.stageSlice(0, 3).fw > 0);
 });
 test('stageRole: a screen is configured entirely by its own address', () => {
-  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto', join: null, id: 's1' });
+  assert.deepEqual(S.stageRole(''), { role: 'booth', screen: 1, of: 1, mode: 'auto', join: null, crowd: null, id: 's1' });
+  // a crowd code is the OTHER door — a phone, not a screen — parsed by the
+  // same rules: a scanned QR is this URL, misheard digits are letters
+  assert.equal(S.stageRole('?crowd=buzz').crowd, 'BUZZ');
+  assert.equal(S.stageRole('?crowd=R0CK').crowd, 'ROCK');
+  assert.equal(S.stageRole('?crowd=12').crowd, null, 'a number is never a knock');
   // four letters in the address are a knock on another booth's door; a scan
   // of an invite QR is exactly this URL, so scanning IS joining
   assert.equal(S.stageRole('?stage=screen&join=buzz').join, 'BUZZ');
@@ -2852,6 +2857,35 @@ test('stageNetWall: screens with no desk form a wall of their own, in join order
   assert.deepEqual(S.stageNetWall([]), {});
   for (const bad of [null, undefined, [null]])
     assert.doesNotThrow(() => S.stageNetWall(bad));
+});
+test('crowdPack/crowdClamp: the pulse is tiny, and only a whole good pulse is believed', () => {
+  const chord = [{ l: 0.7, c: 0.11, h: 200 }, { l: 0.6, c: 0.12, h: 220 }, { l: 0.5, c: 0.13, h: 240 }];
+  const p = S.crowdPack(chord, 3);
+  assert.equal(p.v, 1);
+  assert.equal(p.s, 3);
+  assert.equal(p.c.length, 3);
+  assert.deepEqual(p.c[0], [0.7, 0.11, 200]);
+  // small on the wire: every byte is multiplied by a crowd
+  assert.ok(JSON.stringify(p).length < 120, JSON.stringify(p).length + ' bytes');
+  // the round trip is the identity for a good pulse
+  const back = S.crowdClamp(JSON.parse(JSON.stringify(p)));
+  assert.deepEqual(back.c, p.c);
+  assert.equal(back.s, p.s);
+  // out-of-range values are clamped on the way out…
+  const wild = S.crowdPack([{ l: 4, c: 9, h: -160 }, chord[1], chord[2]], 999);
+  assert.ok(wild.c[0][0] <= 1 && wild.c[0][1] <= 0.5 && wild.c[0][2] >= 0 && wild.c[0][2] < 360);
+  assert.ok(wild.s <= 63);
+  // …and on the way in — a stranger's server hands this to the renderer
+  const hot = S.crowdClamp({ v: 1, s: -5, c: [[9, 9, 900], [0.5, 0.1, 10], [0.5, 0.1, 20]] });
+  assert.ok(hot.c[0][0] <= 1 && hot.c[0][1] <= 0.5 && hot.c[0][2] < 360 && hot.s === 0);
+  // a HALF-good pulse is refused whole — it would tint the room a colour
+  // nobody chose
+  assert.equal(S.crowdClamp({ v: 1, s: 1, c: [[0.5, 0.1, NaN], [0.5, 0.1, 10], [0.5, 0.1, 20]] }), null);
+  assert.equal(S.crowdClamp({ v: 2, s: 1, c: [[0.5, 0.1, 5], [0.5, 0.1, 10], [0.5, 0.1, 20]] }), null, 'an unknown version is not guessed at');
+  for (const bad of [null, undefined, {}, { v: 1 }, { v: 1, c: [] }, 'x'])
+    assert.equal(S.crowdClamp(bad), null);
+  assert.equal(S.crowdPack(null, 1), null);
+  assert.equal(S.crowdPack([{ l: NaN, c: 0.1, h: 1 }, {}, {}], 1), null);
 });
 test('stageMoved: a window that has not moved must not cost a message', () => {
   const a = { x: 10, y: 20, w: 300, h: 200 };
