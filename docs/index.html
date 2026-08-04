@@ -1925,6 +1925,7 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
   <button class="mp-x" type="button" aria-label="Dismiss">×</button>
   <div class="mp-title">Even better as a <b>Mac app</b></div>
   <ul class="mp-why">
+    <li><b>Stage mode, properly</b>: send the field <b>full screen to the monitor you name</b> while the controls stay on your laptop. A browser may open a window — it may not choose which screen it lands on</li>
     <li>The <b>same player</b> — it loads this exact site, always the latest</li>
     <li><b>Rock-solid memory</b>: its own window with the full RAM budget, never a background tab that gets dropped</li>
     <li><b>Updates itself</b> quietly — install once, never again</li>
@@ -2108,6 +2109,11 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
       <span class="ob-kicker">It responds</span>
       <h1 class="ob-title">You can <em>steer it.</em></h1>
       <p class="ob-body">Drag to move the camera, pick a scene or a mood, tap the beat to lock the grid. The visuals, the mix, and the colour follow the song — <b>and your input</b>.</p>
+    </div>
+    <div class="ob-panel">
+      <span class="ob-kicker">It fills the room</span>
+      <h1 class="ob-title">Every screen you own is <em>one screen.</em></h1>
+      <p class="ob-body">Say how many screens the room has and that many open — televisions, a projector, or <b>little windows on this one laptop</b> to rehearse with. They don't each play their own copy: they hold <b>one field, cut between them</b>, so a shape leaving one arrives on the next at the same height, the same size, the same instant. <b>Move a window and the picture follows it</b> — drag one onto the TV and its slice goes with it, live.</p>
     </div>
     <div class="ob-panel">
       <span class="ob-kicker">Measured, not guessed</span>
@@ -4500,6 +4506,513 @@ function skinCss(skin, fallback){
   };
 }
 // @pure-end
+
+// @dmx-start
+/* ================================================================
+   §2a · DMX — the room's own lights, on the same numbers as the picture
+
+   The field already knows the chord, the beat, the phrase and the act. A
+   lighting rig wants exactly those four things and nothing else, so the lamps
+   are not a second show to program: they are the same show, expressed in the
+   only vocabulary a lamp has.
+
+   THE SHAPE OF THIS, AND WHY. Three pieces, and the middle one is the point:
+
+     an INTENT   what the room should look like, said in a way no fixture
+                 could quite manage: an exact colour, a dimmer, a strobe, a
+                 direction of spin. Fixture-agnostic on purpose.
+     a PROFILE   what one real lamp can actually do about that intent — and,
+                 far more usefully, what it CANNOT. A profile is where the
+                 truth lives that a generic RGB driver throws away.
+     a FRAME     512 bytes. What actually goes down the wire.
+
+   The alternative — drive each lamp from its own little rule — is how rigs end
+   up with the wash on the chord and the moonflower on some unrelated colour
+   wheel, agreeing with nothing. One intent, several honest translations of it.
+
+   THE PROFILES ARE NOT DECORATION. The Mystic has no dimmer and no RGB: it has
+   seven discrete colour states on one channel, and that channel BECOMES a speed
+   control when the rainbow channel is up. The ThinTri's channel 5 is a strobe,
+   a speed or a microphone sensitivity depending on what channel 6 says, and its
+   colour macros silently OVERRIDE channels 1-3. Drive either as "just RGB" and
+   you get a fixture doing something you did not ask for and cannot explain from
+   the console. Every one of those interlocks is written down below, because a
+   constraint that is not written down is a constraint discovered at a gig.
+   ================================================================ */
+
+/* how a fixture is aimed and what it is for. The rig is described once and
+   everything else — patch, render, emulator — reads it. */
+const DMX_ROLES = ['wash', 'beam', 'accent'];
+
+/* the seven colours a Mystic can actually be, as the channel-2 value that
+   selects each and the light it really throws. Not a palette — a hardware
+   fact, read straight off the chart in the manual. */
+const MYSTIC_COLORS = [
+  { v: 20, r: 1, g: 0, b: 0 },      // 000-041 RED
+  { v: 62, r: 1, g: 1, b: 0 },      // 042-083 RED & GREEN
+  { v: 104, r: 0, g: 1, b: 0 },     // 084-125 GREEN
+  { v: 146, r: 0, g: 1, b: 1 },     // 126-167 GREEN & BLUE
+  { v: 188, r: 0, g: 0, b: 1 },     // 168-209 BLUE
+  { v: 230, r: 1, g: 0, b: 1 },     // 210-251 BLUE & RED
+  { v: 253, r: 1, g: 1, b: 1 },     // 252-255 ALL ON
+];
+
+const DMX_FIXTURES = {
+  /* ADJ MYSTIC LED — a moonflower. One lamp, a rotating array of narrow
+     beams, four channels, and less control than you would like:
+       · no dimmer at all. It is on, off, or strobing. "Half brightness" is
+         not a thing it can do, so a dim intent has to become something else
+         or be honestly refused.
+       · no RGB. Seven colour states, and the nearest one is the answer.
+       · channel 2 is the colour selector UNTIL the rainbow is switched on at
+         channel 3, at which point the same channel becomes the rainbow's
+         speed. One channel, two meanings, decided by another channel.
+       · channel 4's clockwise half runs FAST at 1 and SLOW at 85 — backwards
+         from the counter-clockwise half above it. Miss that and the rig spins
+         up when you ask it to slow down. */
+  'adj-mystic-led': {
+    key: 'adj-mystic-led',
+    name: 'ADJ Mystic LED',
+    make: 'American DJ',
+    kind: 'moonflower',
+    wire: 'dmx',
+    modes: { '4ch': 4 },
+    beams: 18,                    // narrow beams thrown around the room
+    spread: 130,                  // degrees the beam array covers
+    can: { rgb: false, dimmer: false, strobe: true, spin: true, rainbow: true, colors: 7, macros: false },
+    vars: ['color', 'strobe', 'spin', 'rainbow'],
+  },
+  /* VENUE ThinTri 38 — a flat RGB wash. True colour mixing, a real dimmer,
+     and two interlocks that bite:
+       · channel 4 (colour macros) OVERRIDES channels 1-3 the moment it goes
+         above 15. Leave it at 0 or lose your colour.
+       · channel 5 is a strobe, a program speed, or the microphone's
+         sensitivity — decided entirely by the band channel 6 is sitting in.
+     In 3-channel mode there is no dimmer channel at all, so the dimmer has to
+     be folded into the colour itself. Same fixture, genuinely different
+     arithmetic, which is why the mode is part of the patch and not a detail. */
+  'venue-thintri-38': {
+    key: 'venue-thintri-38',
+    name: 'Venue ThinTri 38',
+    make: 'Venue by Proline',
+    kind: 'wash',
+    wire: 'dmx',
+    modes: { '8ch': 8, '3ch': 3 },
+    beams: 1,
+    spread: 30,
+    can: { rgb: true, dimmer: true, strobe: true, spin: false, rainbow: false, colors: 0, macros: true },
+    vars: ['red', 'green', 'blue', 'dimmer', 'strobe', 'mode', 'dimmerCurve', 'macro'],
+  },
+  /* PHILIPS HUE — the same show, on a wire that is not a wire.
+
+     A Hue bulb is not on the DMX line and never can be: it is Zigbee behind a
+     bridge, reached over the network. It is in this table anyway, and that is
+     the whole argument for having an intent layer at all. The engine above
+     asks for a colour and a brightness; what happens after that — 512 bytes
+     down an XLR cable, or a DTLS stream to a bridge on the LAN — is a detail
+     of the profile. Adding Hue cost a row in a table and a second transport,
+     rather than a second lighting engine.
+
+     What it genuinely cannot do is strobe. The Entertainment API streams at
+     around fifty updates a second, which sounds like plenty until you ask a
+     bulb with a real phosphor and a smoothing curve inside it to be dark for
+     eight milliseconds. So `strobe: false` — and the renderer turns a strobe
+     intent into a brightness dip instead of pretending. */
+  'philips-hue': {
+    key: 'philips-hue',
+    name: 'Philips Hue',
+    make: 'Signify',
+    kind: 'bulb',
+    wire: 'net',
+    modes: { 'rgb': 0 },
+    beams: 1,
+    spread: 360,                  // a bulb lights a room, it does not aim
+    can: { rgb: true, dimmer: true, strobe: false, spin: false, rainbow: false, colors: 0, macros: false },
+    vars: ['red', 'green', 'blue', 'dimmer'],
+  },
+};
+
+/* which wire a fixture lives on. Anything that is not on the DMX line takes
+   no address and no channels, and must not be allowed to push the fixtures
+   that DO live there up the universe. */
+function dmxWire(key){ return (dmxProfile(key) || {}).wire || 'dmx'; }
+
+function dmxProfile(key){ return DMX_FIXTURES[key] || null; }
+/* how many channels one patched fixture eats. An unknown mode is the
+   fixture's first mode rather than a crash: a rig with a typo in it should
+   light up wrong, not not at all. */
+function dmxFootprint(key, mode){
+  const p = dmxProfile(key);
+  if (!p) return 0;
+  const n = p.modes[mode];
+  if (Number.isFinite(n)) return n;
+  const first = Object.keys(p.modes)[0];
+  return p.modes[first] || 0;
+}
+function dmxModeOf(key, mode){
+  const p = dmxProfile(key);
+  if (!p) return '';
+  return (mode && p.modes[mode]) ? mode : Object.keys(p.modes)[0];
+}
+
+/* THE PATCH. Addresses in, addresses out — and the arithmetic that says
+   whether the rig fits. DMX has 512 channels and no more, and a fixture whose
+   last channel falls past 512 does not half-work: it wraps, or it takes
+   somebody else's channel, which is worse because it looks like a fault in
+   the other lamp. Anything that will not fit is marked rather than dropped,
+   so the console can say WHICH lamp is homeless. */
+function dmxPatch(rig){
+  const out = [];
+  let next = 1;
+  for (const raw of (rig || [])){
+    if (!raw || !raw.key) continue;
+    const mode = dmxModeOf(raw.key, raw.mode);
+    const wire = dmxWire(raw.key);
+    const span = wire === 'net' ? 0 : dmxFootprint(raw.key, mode);
+    if (wire !== 'net' && !span) continue;
+    // a networked light has no address to collide with, and never advances the
+    // next free channel — patch a Hue bulb between two washes and the washes
+    // keep the addresses they were set to on their own displays
+    const at = wire === 'net' ? 0
+      : (Number.isFinite(Number(raw.at)) && Number(raw.at) >= 1 ? Math.floor(Number(raw.at)) : next);
+    const fits = wire === 'net' ? true : (at >= 1 && at + span - 1 <= 512);
+    out.push({
+      id: raw.id != null ? String(raw.id) : (raw.key + '@' + (wire === 'net' ? (raw.net || 'net') : at)),
+      key: raw.key, mode, at, span, fits, wire,
+      net: raw.net != null ? String(raw.net) : '',
+      role: DMX_ROLES.indexOf(raw.role) >= 0 ? raw.role : 'wash',
+      // where it hangs, so the emulator can draw the room and the engine can
+      // sweep light across it left to right rather than at random
+      x: Number.isFinite(Number(raw.x)) ? Number(raw.x) : 0,
+      y: Number.isFinite(Number(raw.y)) ? Number(raw.y) : 0,
+      pan: Number.isFinite(Number(raw.pan)) ? Number(raw.pan) : 0,
+      name: raw.name || (dmxProfile(raw.key) || {}).name || raw.key,
+    });
+    if (fits && wire !== 'net') next = Math.max(next, at + span);
+  }
+  return out;
+}
+function dmxUniverseUsed(patched){
+  let top = 0;
+  for (const f of patched || []) if (f && f.fits && f.wire !== 'net') top = Math.max(top, f.at + f.span - 1);
+  return top;
+}
+
+/* ---------------------------------------------------------------- intent */
+/* WHAT THE ROOM SHOULD LOOK LIKE, before any lamp has an opinion. Everything
+   is 0..1 except spin, which is signed because direction is a thing you can
+   see. Laundered hard: this is the boundary between a live render loop full
+   of springs and decays and a wire that goes to mains-powered lamps. */
+function dmxIntent(o){
+  const n = (v, d) => { const x = Number(v); return Number.isFinite(x) ? x : d; };
+  const u = (v, d) => Math.max(0, Math.min(1, n(v, d)));
+  return {
+    r: u(o && o.r, 0), g: u(o && o.g, 0), b: u(o && o.b, 0),
+    dim: u(o && o.dim, 1),
+    strobe: u(o && o.strobe, 0),
+    spin: Math.max(-1, Math.min(1, n(o && o.spin, 0))),
+    rainbow: u(o && o.rainbow, 0),
+    punch: u(o && o.punch, 0),
+    macro: Math.max(0, Math.min(255, Math.round(n(o && o.macro, 0)))),
+  };
+}
+
+/* THE SAFETY VALVE, AND IT IS NOT OPTIONAL. A strobe is the one thing in this
+   whole program that can hurt somebody: flash rates between roughly 3 and
+   65 Hz are the photosensitive-seizure band, and a rig driven from an
+   audio-reactive render loop will happily sit in the middle of it all night.
+   So the intent's 0..1 is mapped to a range that STOPS at 3 Hz — fast enough
+   to read as a strobe on a drop, below the band by construction. There is no
+   parameter to raise it, because the one thing a "pro mode" must never unlock
+   is this. */
+const DMX_STROBE_MAX_HZ = 3;
+function dmxStrobeHz(strobe){
+  const s = Math.max(0, Math.min(1, Number(strobe) || 0));
+  return s <= 0 ? 0 : 0.7 + s * (DMX_STROBE_MAX_HZ - 0.7);
+}
+
+/* the nearest thing a seven-colour lamp can be to a colour it cannot make.
+   Compared on direction rather than on distance, so a dim teal and a bright
+   teal pick the same lamp colour instead of the dim one collapsing to
+   whichever primary happens to be closest to black. */
+function dmxNearestColor(list, r, g, b){
+  const m = Math.sqrt(r * r + g * g + b * b) || 1;
+  const nr = r / m, ng = g / m, nb = b / m;
+  let best = list[0], bestD = -Infinity;
+  for (const c of list){
+    const cm = Math.sqrt(c.r * c.r + c.g * c.g + c.b * c.b) || 1;
+    const dot = (nr * c.r + ng * c.g + nb * c.b) / cm;
+    if (dot > bestD){ bestD = dot; best = c; }
+  }
+  return best;
+}
+
+/* ---------------------------------------------------------------- render */
+/* ONE FIXTURE'S CHANNELS, WRITTEN INTO THE FRAME. Every profile's quirks live
+   here and nowhere else, so the engine above may go on believing that light is
+   a colour and a brightness. */
+function dmxRenderFixture(f, intent, frame){
+  if (!f || !f.fits || !frame || f.wire === 'net') return frame;
+  const i = dmxIntent(intent);
+  const at = f.at - 1;                       // channel 1 is byte 0
+  const b255 = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+  const put = (ch, v) => { frame[at + ch - 1] = Math.max(0, Math.min(255, Math.round(v))); };
+
+  if (f.key === 'adj-mystic-led'){
+    /* Ch1 — off, strobe, or on. There being NO DIMMER is the whole character
+       of this lamp: a half-lit intent cannot be half-lit, so it is on until
+       the intent is genuinely dark, and the darkness threshold is low because
+       a moonflower that keeps blinking out on quiet passages reads as broken
+       rather than as subtle. */
+    const dark = i.dim < 0.06;
+    if (dark) put(1, 0);
+    else if (i.strobe > 0.02){
+      // 002-127 slow to fast. A punchy intent gets the RANDOM strobe band
+      // (136-253) instead, which on this fixture is markedly less regular
+      // and reads as an accent rather than as a machine.
+      if (i.punch > 0.6) put(4 - 3, 0);      // (no-op guard; ch1 set below)
+      if (i.punch > 0.6) put(1, 136 + i.strobe * (253 - 136));
+      else put(1, 2 + i.strobe * (127 - 2));
+    } else put(1, 130);                      // 128-135 LED ON, mid-band
+    /* Ch3/Ch2 — the interlock. With the rainbow up, channel 2 stops being a
+       colour and becomes the rainbow's speed, so the colour selection below
+       must not be written at all. */
+    const rain = i.rainbow > 0.5;
+    put(3, rain ? 96 : 0);                   // 064-127 ON, else OFF
+    if (rain) put(2, b255(Math.max(0.15, i.rainbow)));
+    else put(2, dmxNearestColor(MYSTIC_COLORS, i.r, i.g, i.b).v);
+    /* Ch4 — rotation, and the trap. Clockwise is 001-085 running FAST to
+       SLOW; counter-clockwise is 086-170 running SLOW to FAST. The two halves
+       run in opposite senses, so the clockwise side is inverted here. */
+    const sp = Math.abs(i.spin);
+    if (sp < 0.04) put(4, 0);
+    else if (i.spin > 0) put(4, 85 - sp * (85 - 1));
+    else put(4, 86 + sp * (170 - 86));
+    return frame;
+  }
+
+  if (f.key === 'venue-thintri-38'){
+    if (f.mode === '3ch'){
+      // no dimmer channel exists, so the dimmer has to live in the colour
+      put(1, b255(i.r * i.dim)); put(2, b255(i.g * i.dim)); put(3, b255(i.b * i.dim));
+      return frame;
+    }
+    put(1, b255(i.r)); put(2, b255(i.g)); put(3, b255(i.b));
+    // Ch4 above 015 OVERRIDES the colour channels — held at 0 unless a preset
+    // has deliberately asked for one of the fixture's own macros
+    put(4, i.macro > 15 ? i.macro : 0);
+    /* Ch6 decides what Ch5 MEANS. Straight DMX control keeps Ch6 in its
+       no-function band, which is the band where Ch5 is the strobe — the only
+       arrangement in which this fixture does what the console says and
+       nothing of its own. */
+    put(6, 0);                               // 000-031 no function
+    put(5, i.strobe > 0.02 ? 16 + i.strobe * (255 - 16) : 0);
+    put(7, b255(i.dim));
+    /* Ch8 — the dimmer curve. Off means the dimmer follows the wire exactly,
+       which is what a lamp being driven at thirty frames a second wants; the
+       smoothing modes exist for consoles sending steps and would fight us. */
+    put(8, 0);
+    return frame;
+  }
+  return frame;
+}
+
+/* THE FRAME. 512 bytes, every one of them written on purpose — a universe
+   left half-initialised is a rig with somebody else's stale values in it. */
+function dmxRender(patched, intents){
+  const frame = new Uint8Array(512);
+  for (const f of patched || []){
+    if (!f) continue;
+    const it = intents && (intents[f.id] || intents[f.key]);
+    dmxRenderFixture(f, it || {}, frame);
+  }
+  return frame;
+}
+
+/* THE OTHER WIRE. Networked lights take the same intents and come back as a
+   list rather than as bytes, because a bridge wants colours and not channels.
+   Brightness is where the honesty lives: a bulb cannot strobe, so a strobe
+   intent becomes a dip in brightness — visibly less than the rig is doing,
+   which is correct, rather than a bulb pretending and lagging a beat behind. */
+function dmxRenderNet(patched, intents){
+  const out = [];
+  for (const f of patched || []){
+    if (!f || f.wire !== 'net') continue;
+    const i = dmxIntent(intents && (intents[f.id] || intents[f.key]));
+    const can = (dmxProfile(f.key) || { can: {} }).can || {};
+    const dim = can.strobe ? i.dim : i.dim * (1 - 0.45 * i.strobe);
+    out.push({ id: f.id, key: f.key, net: f.net, r: i.r, g: i.g, b: i.b,
+      dim: Math.max(0, Math.min(1, dim)) });
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------------- decode */
+/* WHAT THE WIRE IS ACTUALLY SAYING, read back out of the frame.
+
+   This exists so the emulator cannot lie. A preview drawn from the same
+   variables the renderer was given would agree with the renderer by
+   construction and would keep agreeing with it after the renderer broke —
+   which is the one thing a preview must not do. Drawing from the DECODED
+   FRAME means the picture on the laptop is downstream of the bytes on the
+   wire, so a channel written wrongly looks wrong on screen. */
+function dmxDecode(f, frame){
+  if (!f || !frame) return null;
+  if (f.wire === 'net') return null;         // read a networked light from its own transport
+  const at = f.at - 1;
+  const get = ch => frame[at + ch - 1] || 0;
+  const out = { id: f.id, key: f.key, kind: (dmxProfile(f.key) || {}).kind || 'wash',
+    r: 0, g: 0, b: 0, dim: 0, strobeHz: 0, spin: 0, rainbow: false, random: false };
+  if (f.key === 'adj-mystic-led'){
+    const c1 = get(1), c2 = get(2), c3 = get(3), c4 = get(4);
+    out.rainbow = c3 >= 64 && c3 <= 127;
+    if (c1 <= 1) out.dim = 0;
+    else if (c1 <= 127){ out.dim = 1; out.strobeHz = dmxStrobeHz((c1 - 2) / 125); }
+    else if (c1 <= 135) out.dim = 1;
+    else if (c1 <= 253){ out.dim = 1; out.random = true; out.strobeHz = dmxStrobeHz((c1 - 136) / 117); }
+    else out.dim = 1;
+    if (out.rainbow){ out.r = out.g = out.b = 1; }
+    else {
+      // the band c2 falls in IS the colour — the same chart, read backwards
+      const band = c2 <= 41 ? 0 : c2 <= 83 ? 1 : c2 <= 125 ? 2 : c2 <= 167 ? 3
+        : c2 <= 209 ? 4 : c2 <= 251 ? 5 : 6;
+      const c = MYSTIC_COLORS[band];
+      out.r = c.r; out.g = c.g; out.b = c.b;
+    }
+    if (c4 === 0 || (c4 >= 171 && c4 <= 178)) out.spin = 0;
+    else if (c4 <= 85) out.spin = (85 - c4) / 84;             // clockwise, inverted
+    else if (c4 <= 170) out.spin = -((c4 - 86) / 84);         // counter-clockwise
+    else { out.spin = (c4 - 179) / 76; out.random = true; }
+    return out;
+  }
+  if (f.key === 'venue-thintri-38'){
+    out.r = get(1) / 255; out.g = get(2) / 255; out.b = get(3) / 255;
+    if (f.mode === '3ch'){
+      // brightness lives in the colour here, so the decoded dimmer is its peak
+      out.dim = Math.max(out.r, out.g, out.b);
+      const m = out.dim || 1;
+      out.r /= m; out.g /= m; out.b /= m;
+      return out;
+    }
+    out.dim = get(7) / 255;
+    out.macro = get(4) > 15 ? get(4) : 0;
+    const c6 = get(6), c5 = get(5);
+    if (c6 <= 31 && c5 > 15) out.strobeHz = dmxStrobeHz((c5 - 16) / 239);
+    out.mode = c6 <= 31 ? 'dmx' : c6 <= 127 ? 'pulse' : c6 <= 223 ? 'auto' : 'sound';
+    return out;
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------------- the show */
+/* WHAT THE LAMPS SHOULD BE DOING, from what the music is already doing.
+
+   This is the part that makes a rig look programmed when nobody programmed
+   it. Everything it reads — the chord, the beat, the phrase, the act — the
+   player already computed to draw the picture, so the lights are not
+   listening to the room and guessing: they are downstream of the same
+   analysis the visuals are. A microphone-driven rig can only react after a
+   drop lands. This one knows the drop is coming, because the director does.
+
+   ROLES, NOT FIXTURES. A rig is described by what each lamp is FOR — a wash,
+   a beam, an accent — and the show is expressed in those terms. Add two more
+   washes and they take their place in the chord without a line of code. */
+const DMX_PRESETS = {
+  /* the picture, on the walls. Colour straight off the chord, brightness off
+     the energy, movement off the phrase. The default because it is the one
+     that never fights the screen. */
+  follow: { key: 'follow', name: 'Follow the field', strobe: 0, spin: 0.35, floor: 0.16, beat: 0.35, rainbow: 0 },
+  /* the beat, in the room. Brightness is mostly beat, so the rig breathes
+     with the kick rather than with the arrangement. */
+  pulse: { key: 'pulse', name: 'On the beat', strobe: 0, spin: 0.5, floor: 0.08, beat: 0.85, rainbow: 0 },
+  /* slow, wide, no flicker at all — a room people are talking in, a yoga
+     studio, a bar before it fills. The strobe is not merely low here, it is
+     structurally absent. */
+  calm: { key: 'calm', name: 'Slow wash', strobe: 0, spin: 0.1, floor: 0.35, beat: 0.08, rainbow: 0 },
+  /* everything the rig has, kept for the moments that have earned it. Even
+     here the strobe goes through the same cap as everywhere else. */
+  peak: { key: 'peak', name: 'Peak', strobe: 0.85, spin: 1, floor: 0.05, beat: 0.7, rainbow: 0.35 },
+  /* the lamps' own colour cycling, for a moonflower left to be a moonflower */
+  spin: { key: 'spin', name: 'Let them spin', strobe: 0, spin: 1, floor: 0.2, beat: 0.3, rainbow: 1 },
+  /* off, and meaning it — a blackout that a beat cannot sneak past */
+  black: { key: 'black', name: 'Blackout', strobe: 0, spin: 0, floor: 0, beat: 0, rainbow: 0, off: true },
+};
+const DMX_PRESET_ORDER = ['follow', 'pulse', 'calm', 'peak', 'spin', 'black'];
+
+/* AUTO. Which preset the moment deserves, decided from the same act and phase
+   that already decide what the picture does — so the rig lifts into a chorus
+   and settles into a breakdown without anyone touching it, and without a
+   second set of rules that could disagree with the first. */
+function dmxAutoPreset(show){
+  const s = show || {};
+  const phase = String(s.phase || 'flow');
+  const energy = Math.max(0, Math.min(1, Number(s.energy) || 0));
+  if (s.silent) return 'calm';
+  if (phase === 'drop' || phase === 'peak') return energy > 0.62 ? 'peak' : 'pulse';
+  if (phase === 'lift' || phase === 'build') return 'pulse';
+  if (phase === 'rest' || phase === 'breakdown') return 'calm';
+  return energy > 0.72 ? 'pulse' : energy < 0.22 ? 'calm' : 'follow';
+}
+
+/* one lamp's share of the chord. Washes spread across the stops rather than
+   all taking the first one — two washes on the identical colour is a wall,
+   three on the chord is a room — and the beam takes the stop the picture
+   uses for its accents, so the moonflower agrees with the thing on screen. */
+function dmxChordStop(chord, role, i){
+  const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
+  if (role === 'beam' || role === 'accent') return list[Math.min(2, list.length - 1)];
+  return list[i % list.length];
+}
+
+/* THE WHOLE RIG, ONE FRAME'S WORTH OF INTENT.
+
+   `chord` arrives as plain rgb triples so this stays testable without a
+   colour engine attached; the caller converts its own OKLCH stops once.
+   Everything is clamped on the way out by dmxIntent, but the arithmetic here
+   is kept inside 0..1 anyway so a preset can be read and reasoned about. */
+function dmxShowIntents(show, patched){
+  const s = show || {};
+  const preset = DMX_PRESETS[s.preset] || DMX_PRESETS[dmxAutoPreset(s)] || DMX_PRESETS.follow;
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const energy = u(s.energy), beat = u(s.beat), pulse = u(s.pulse);
+  const phrase = u(s.phrase), master = s.master == null ? 1 : u(s.master);
+  const chord = s.chord || [];
+  const out = {};
+  let washN = 0;
+  for (const f of patched || []){
+    if (!f) continue;
+    const prof = dmxProfile(f.key) || { can: {} };
+    const role = f.role || 'wash';
+    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : 0);
+    if (preset.off || master <= 0){
+      out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
+      continue;
+    }
+    /* BRIGHTNESS. A floor so the room is never actually dark between beats —
+       a rig that blinks fully out on every off-beat reads as broken wiring
+       rather than as rhythm — plus the arrangement's energy, plus whatever
+       share of the beat this preset asked for. */
+    const rhythm = preset.beat * Math.max(beat, pulse);
+    const body = (1 - preset.beat) * (preset.floor + (1 - preset.floor) * energy);
+    let dim = u(body + rhythm) * master;
+    /* the beam is the accent, so it is allowed to be the thing that goes dark
+       between phrases where a wash may not — that contrast is the effect */
+    if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
+    const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
+    /* SPIN follows the phrase and reverses with it, because a moonflower that
+       only ever turns one way stops being noticed after ninety seconds. */
+    const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
+    const spin = prof.can.spin ? dir * preset.spin * (0.25 + 0.75 * energy) : 0;
+    out[f.id] = {
+      r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
+      dim, strobe, spin,
+      rainbow: prof.can.rainbow ? u(preset.rainbow) : 0,
+      punch: u(beat * energy),
+    };
+  }
+  return out;
+}
+// @dmx-end
 
 /* ================================================================
    §2 · PALETTES — every set orbits the π-amber / e-ice axis
