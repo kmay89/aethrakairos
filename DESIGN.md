@@ -1045,13 +1045,83 @@ not yet done is everything that makes a WALL rather than several screens:
   TV browser can open, and a roster in the booth that shows which numbers have
   reported in and which are still dark. *(Half of this landed with the wall: the
   booth keeps a roster keyed by identity with every screen's live rectangle in it,
-  and `Identify` puts each screen's number on its own glass. What is missing is the
-  short link and a visible map of the roster rather than a count.)*
-- **Bandwidth and blast radius.** One channel, ~40 floats at 30 Hz, is nothing on a
-  single machine. Across a LAN (screens on other computers, which is what eight
-  panels really means) the transport becomes a WebSocket or WebRTC data channel and
-  the same packet crosses unchanged — the design deliberately never made
-  `BroadcastChannel` part of the contract.
+  and `Identify` puts each screen's number on its own glass. The wire (1.2m′)
+  landed most of the rest: one QR on the invite card is the whole address — scan
+  it and the device is a screen, numbered by join order. What is missing is a
+  visible map of the roster rather than a count.)*
+- ~~**Bandwidth and blast radius.**~~ **Done (1.2m′).** One channel, ~40 floats at
+  30 Hz, is nothing on a single machine. Across a LAN (screens on other computers,
+  which is what eight panels really means) the transport becomes a WebRTC data
+  channel and the same packet crosses unchanged — the design deliberately never made
+  `BroadcastChannel` part of the contract, and cashing that in took no change to the
+  packet, the wall message, identify, or the hand.
+
+### 1.2m′ The wire: four letters, and another machine is a screen
+
+Open the player on an iPad, type four letters, and the iPad is a television. This is
+1.2m's "bandwidth and blast radius" bullet cashed in, and it cost the stage nothing:
+the design never made `BroadcastChannel` part of the contract, so the same packet,
+the same `wall` message, the same identify and the same hand cross a WebRTC data
+channel unchanged. Each device renders the field on its own GPU from ~40 shared
+numbers a frame — which is why this beats casting pixels (AirPlay is compressed
+video arriving ~a tenth of a second late; the wire is arithmetic arriving in a
+millisecond or two on a LAN, drawn locally at the panel's own refresh).
+
+- **The front door is the family's own.** A WebRTC handshake is ~600 characters and
+  cannot be typed; four letters can. The mailbox that holds the handshake under the
+  code is the SAME one every game on kmay89.com uses (ABOUT's `/api/room`, one new
+  `stage` namespace) — aethrakairos.com is GitHub Pages, no serverless anything, so
+  the wire knocks on the family's mailbox exactly the way the games' GitHub Pages
+  mirrors do. Nothing about the show crosses it: handshakes in, handshakes out,
+  everything forgotten in a quarter hour. The invite card shows the letters big
+  enough to read across a kitchen and a QR whose payload is just the join URL —
+  scanning IS joining, because a screen's whole configuration has always been its
+  address (1.2l).
+- **Two channels, because the feed and the truth have different politics.** The
+  30 Hz feature packet rides unordered and unacknowledged — a late frame is
+  worthless, the next one is already here, and a straggler that beats a fresher
+  packet loses on its stamp. The wall, identify and goodbye ride an ordered channel
+  beside it. A game cannot drop a move; a visual must drop a frame. A stuffed pipe
+  drops feed frames rather than backing the link up.
+- **Remote screens form a wall of their own.** An iPad reporting `0,0,810×1080` is
+  not to the left of anything on the booth's desk — its rectangle is real only in
+  its own machine's coordinates, and unioning it into the local wall would collapse
+  both. So network screens are cut by the arithmetic that never needed geometry:
+  the grid, in join order (`stageNetWall`, unit-tested). Two devices are a row of
+  two; walk in with a third and everyone re-cuts, live. For the same reason a
+  screen that joined by code leaves the local `BroadcastChannel` entirely — left on
+  it, its own booth would count it twice and its rectangle would poison the union.
+- **Identity survives the reload; the code survives the booth.** A screen mints its
+  id once per session and keeps it, so the device that comes back after a dropped
+  Wi-Fi is the same screen, not a new one shoving the wall. The booth's poll keeps
+  the room alive on the mailbox and a spare pigeonhole always waiting, so healing
+  is a knock on the same four letters — nobody reads a new code aloud. Eight
+  seconds of silence from a device and the wall re-cuts around it; a booth that
+  leaves says so on the ordered channel, and the screen shows "the booth closed"
+  rather than a freeze the room reads as a crash.
+- **The worker learned the difference between a resource and a conversation.** The
+  service worker's fallback route is cache-first and ignores query strings on this
+  origin — correct for a shell, fatal for a mailbox: the first `?a=poll` was cached
+  and every later poll was answered from it, so the booth asked "any answers?"
+  forever and heard the first "no" forever. The handshake's POSTs sailed through,
+  which made the failure exquisitely partial — a screen could knock and answer and
+  never be heard. Nothing under `/api/` is touched by the worker now, on any
+  origin.
+- **Degrades in layers, and says which.** No `RTCPeerConnection`: the wire says so.
+  Mailbox unreachable: the invite says the code needs the network once (the screens
+  themselves talk directly). A venue AP with client isolation blocks peer-to-peer:
+  the laptop's own hotspot is the fix, and the README says so. STUN is asked for
+  candidates but never waited on past 1.8 s — on the same network, host candidates
+  are the ones that matter anyway.
+
+Verified in `tools/stage_probe.mjs --only wire` over a REAL `RTCPeerConnection`
+between two real pages, with a miniature in-memory mailbox speaking the real
+protocol: the booth mints letters, a page told nothing but the code becomes a
+screen with a minted identity, the packet crosses and everything downstream reads
+it, a second device re-cuts the wall to halves live, the booth counts wire screens
+beside its own, and a closed booth is words on the far screen, not a freeze.
+(Chromium's mDNS candidate obfuscation is disabled for the probe — multicast does
+not exist in a CI container; real LANs resolve those names fine.)
 
 ---
 

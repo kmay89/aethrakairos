@@ -1077,6 +1077,26 @@ display it lands on. What varies is how the display reaches the laptop:
   and close what you don't need; the booth folds itself into a corner player on
   its own.
 
+### Any device is a screen — the wire
+
+No cable at all: type **invite** into the Stage card (or tap **Invite** in the
+folded booth) and you get four letters and a QR. Scan the QR with an iPad,
+a phone, or open the site on another laptop, tap **Stage**, and type the
+letters — that device is now a screen of your stage. Each one renders the
+field on its **own** GPU from ~40 numbers a frame sent peer-to-peer over
+your network; no pixels are streamed, so there's no AirPlay-style compression
+or lag — on the same Wi-Fi the numbers arrive in a millisecond or two and the
+visuals sit on the beat. Two devices become a row of two, a third re-cuts the
+field to thirds, live; a device that reloads or drops Wi-Fi rejoins under the
+same code by itself.
+
+Practicalities: all devices need to reach the same network **and** each
+other — venue Wi-Fi with client isolation blocks device-to-device traffic, in
+which case share a hotspot that has internet and join every device to it. The
+internet is needed only at the door: minting and joining a code fetches the
+~600-character handshake from the family's mailbox at kmay89.com. The show
+itself never touches it — once linked, the devices talk directly.
+
 ## Tests
 
 ```bash

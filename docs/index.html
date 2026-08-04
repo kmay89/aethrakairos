@@ -934,7 +934,7 @@ body.stage-screen{cursor:none;background:#000}
 #stageWait[hidden]{display:none!important}
 
 /* ============ the mini booth ============ */
-body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip){display:none!important}
+body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip):not(#wireCard){display:none!important}
 body.mini{background:var(--void,#05060c)}
 #miniBar{
   position:fixed;right:16px;bottom:16px;z-index:70;width:min(94vw,360px);
@@ -1072,6 +1072,32 @@ body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
 }
 @keyframes identIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){#stageIdent{animation:none}}
+/* ============ the invite — four letters, held up across a table ============
+   The code in letters a room can read, the QR for the camera already in
+   everyone's hand. It floats rather than blocking: an operator holds it up
+   WHILE the show runs, and puts it away with the ×. */
+#wireCard{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:110;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:22px 26px 20px;max-width:min(86vw,380px);text-align:center;
+  background:var(--panel,rgba(10,14,22,.96));color:var(--ink,#eaf2ff);
+  border:1px solid var(--edge,rgba(120,150,190,.25));border-radius:16px;
+  box-shadow:0 18px 60px rgba(0,0,0,.5);
+}
+#wireCard[hidden]{display:none!important}
+#wireCard .wc-x{
+  position:absolute;right:8px;top:6px;border:0;background:none;color:inherit;
+  font-size:20px;line-height:1;opacity:.6;cursor:pointer;padding:6px;
+}
+#wireCard .wc-x:hover{opacity:1}
+#wireCard .wc-title{font-size:12px;letter-spacing:.28em;text-transform:uppercase;opacity:.66}
+#wireCard .wc-code{
+  font-size:56px;line-height:1;font-weight:600;letter-spacing:.28em;
+  padding-left:.28em; /* the tracking adds a phantom space after the last letter */
+  text-shadow:0 0 22px var(--accent-glow,rgba(110,231,255,.45));
+}
+#wireCard .wc-qr{width:min(56vw,208px);height:auto;border-radius:8px;background:#fff;image-rendering:pixelated}
+#wireCard .wc-how{font-size:12.5px;line-height:1.55;opacity:.82;max-width:32ch}
 /* ============ the rig — the room's lamps, drawn from the wire ============
    Not a mock-up of a light show: a MONITOR. Every cone below is drawn from
    dmxDecode() reading the same 512 bytes the interface is sending, so a
@@ -4313,6 +4339,43 @@ function stagePlan(displays, of, booth){
   for (let k = 0; k < n; k++) out.push(order[Math.min(k, order.length - 1)].i);
   return out;
 }
+/* FOUR LETTERS, AND A DEVICE IS A SCREEN. The same front door every game on
+   the family's site uses (see kmay89/ABOUT — room.js): the booth reads four
+   letters out loud, the iPad types them, and that is the whole ritual. The
+   mailbox never mints I or O because read aloud they are 1 and 0 — so a
+   typed 0 or 1 is a misheard letter, and is put back as one. */
+function stageCodeTidy(s){
+  return String(s == null ? '' : s).toUpperCase()
+    .replace(/0/g, 'O').replace(/1/g, 'I')
+    .replace(/[^A-Z]/g, '')
+    .slice(0, 4);
+}
+/* is this WHOLE string a code, rather than something that merely starts with
+   letters? "3" is a screen count and "BUZZ" is a door — both arrive down the
+   same input, and tidy() would happily mangle anything into four capitals.
+   A 0 or a 1 among letters is a misheard O or I and counts; a string that is
+   nothing but digits is a number and never a knock. */
+function stageCodeIs(s){
+  const raw = String(s == null ? '' : s).trim();
+  return /^[A-Za-z01]{4}$/.test(raw) && !/^\d+$/.test(raw);
+}
+/* THE WALL, FOR SCREENS THAT HAVE NO DESK. A remote screen's rectangle is in
+   its own machine's coordinates — an iPad reporting 0,0,810×1080 is not to
+   the left of anything on the booth's desk, and unioning it into the local
+   wall would collapse both. So network screens form a wall of their own, cut
+   by the one arithmetic that never needed geometry: the grid, in join order.
+   Two devices are a row of two; walk in with a third and everyone re-cuts.
+   Returns the same map a 'wall' message carries, keyed by screen id. */
+function stageNetWall(ids){
+  const list = [];
+  for (const id of ids || []) if (id != null) list.push(String(id));
+  const map = {};
+  for (let i = 0; i < list.length; i++){
+    const s = stageSlice(i + 1, list.length);
+    map[list[i]] = { fx: s.fx, fy: s.fy, fw: s.fw, fh: s.fh, n: i + 1, of: list.length };
+  }
+  return map;
+}
 /* THE HAND, IN THE COORDINATES OF THE WALL RATHER THAN OF A WINDOW.
 
    The booth's hand has always MEANT "here, on the field". With one screen that
@@ -4372,6 +4435,10 @@ function stageRole(search){
     screen,
     of,
     mode: q.wall === 'row' || q.wall === 'column' || q.wall === 'grid' ? q.wall : 'auto',
+    /* the code this screen should knock on — the QR on the booth's invite
+       card is exactly this address, so scanning it IS joining. Empty means
+       what it always meant: a local screen on the booth's own machine. */
+    join: stageCodeIs(q.join) ? stageCodeTidy(q.join) : null,
     /* WHO THIS SCREEN IS, for as long as it is open. The wall is keyed by
        identity rather than by index because index is a thing the operator
        changes — dragging window three to the left of window two makes it
@@ -13512,7 +13579,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '76d0a50521';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'e54ffe0f85';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -16010,22 +16077,41 @@ async function stageChooser(){
      that is the row; drag one to the far side and the field stretches to it.
      The night it meets the real screens, the windows get dragged onto them and
      nothing about the arithmetic changes. */
+  /* THE SAME BOX ANSWERS THREE QUESTIONS. A number is a local rig; four
+     LETTERS are a knock on another booth's door — this device walks over and
+     becomes one of its screens; the word "invite" mints four letters of this
+     booth's own, for the iPad across the table. One box, because the person
+     standing at it knows which of the three they mean and should not have to
+     find the right one of three doors first. */
+  const wired = said => {
+    if (said === null) return true;
+    if (/^\s*(invite|wire)\s*$/i.test(said)){
+      if (typeof WIRE !== 'undefined') WIRE.invite();
+      return true;
+    }
+    if (stageCodeIs(said)){
+      location.href = location.origin + location.pathname
+        + '?stage=screen&join=' + stageCodeTidy(said);
+      return true;
+    }
+    return false;
+  };
   if (alone){
     const many = await ASK.text({
       title: 'Stage mode',
-      body: 'There is only one screen here — so the stage opens small: windows that float above the booth, each showing exactly what one television in the room would show.\n\nHow many screens is the rig? They open as a row you can drag apart, and the field is cut where they actually are — so this is the rig, rehearsed.\n\nDrag them by their bars, pull a corner to resize, ⤢ to fill this window, ↗ to send one to a real screen.',
+      body: 'There is only one screen here — so the stage opens small: windows that float above the booth, each showing exactly what one television in the room would show.\n\nHow many screens is the rig? They open as a row you can drag apart, and the field is cut where they actually are — so this is the rig, rehearsed.\n\nDrag them by their bars, pull a corner to resize, ⤢ to fill this window, ↗ to send one to a real screen.\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens.',
       value: '1', placeholder: '1', ok: 'Open the stage',
     });
-    if (many === null) return;
+    if (wired(many)) return;
     await STAGE.open(Math.max(1, Number(many) || 1), { pip: true });
     return;
   }
   const n = await ASK.text({
     title: 'Stage mode',
-    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)',
+    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)\n\nOther devices can be screens too: type “invite” for a four-letter code an iPad or another laptop can join with — or type a code from another booth to make THIS device one of its screens.',
     value: '1', placeholder: '1', ok: 'Open the stage',
   });
-  if (n === null) return;
+  if (wired(n)) return;
   const want = Number(n);
   // 0 is the small one asked for by name, on a rig that does have the screens
   if (want === 0 || /^\s*(pip|small|corner)\s*$/i.test(n)){ await STAGE.open(1, { pip: true }); return; }
@@ -23314,9 +23400,21 @@ const STAGE = {
   boot(){
     try { this.chan = new BroadcastChannel('mb8-stage-v1'); }
     catch (e){ this.chan = null; }                      // no channel: no stage, no crash
+    /* a screen that joined by CODE belongs to the booth on the far end of
+       the wire — not to whatever booth happens to share this machine. Left
+       on the local channel it would be counted twice by its own booth (once
+       over the wire, once here) and its rectangle — real only on its own
+       desk — would poison the local wall's union. It speaks the wire only. */
+    if (this.screen() && this.cfg.join){
+      try { if (this.chan) this.chan.close(); } catch (e){}
+      this.chan = null;
+    }
     if (this.chan) this.chan.onmessage = ev => this.recv(ev.data);
     if (this.screen()) this.becomeScreen();
     else this.wireBooth();
+    // a screen whose address carries four letters knocks on them: the QR on
+    // an invite card is exactly this URL, so scanning it IS joining
+    if (this.screen() && this.cfg.join && typeof WIRE !== 'undefined') WIRE.join(this.cfg.join);
     // a screen that is closed, or a booth that is quit, should not leave the
     // other side waiting for a partner that will never speak again
     window.addEventListener('pagehide', () => {
@@ -23329,7 +23427,14 @@ const STAGE = {
       if (this.on || (this.screen() && !document.body.classList.contains('pip'))) this.wake(true);
     });
   },
-  send(m){ try { if (this.chan) this.chan.postMessage(m); } catch (e){} },
+  /* one exit, two roads: the channel reaches every window on this machine,
+     the wire reaches every device that knocked. Neither knows the other
+     exists, and a packet that cannot travel one road still travels the
+     other. */
+  send(m){
+    try { if (this.chan) this.chan.postMessage(m); } catch (e){}
+    try { if (typeof WIRE !== 'undefined') WIRE.cast(m); } catch (e){}
+  },
   /* THE GLASS STAYS LIT FOR THE LENGTH OF THE SET. A booth driving a stage and
      a screen facing a room are both surfaces that must not dim on an idle
      timer — nobody touches either for an hour and that is the show going
@@ -23742,8 +23847,12 @@ const STAGE = {
   },
   paint(){
     const n = this.live();
+    const w = (typeof WIRE !== 'undefined') ? WIRE.count() : 0;
+    const all = n + w;
     const box = document.getElementById('miniScreens');
-    if (box) box.textContent = n ? (n === 1 ? '1 screen' : n + ' screens') : 'no screen yet';
+    if (box) box.textContent = all
+      ? (all === 1 ? '1 screen' : all + ' screens') + (w ? ' · ' + w + ' over the wire' : '')
+      : 'no screen yet';
     const t = document.getElementById('miniTitle'), s = document.getElementById('miniSub');
     const tr = player.tracks[player.cur];
     if (t) t.textContent = tr ? (tr.title || 'Untitled') : 'Nothing playing';
@@ -23791,6 +23900,7 @@ const STAGE = {
       add('Touch', 'Which force the pad applies', () => { if (typeof TOUCHFX.cycle === 'function') TOUCHFX.cycle(); });
       add('Skins', 'Restyle the room', () => { if (typeof skinCardOpen === 'function') skinCardOpen(true); });
       add('+ Screen', 'Open another stage screen', () => this.open(this.live() + 1));
+      add('Invite', 'Four letters that turn any device into a screen', () => { if (typeof WIRE !== 'undefined') WIRE.invite(); });
       add('Which?', 'Every screen holds up its own number', () => this.identify(3000));
       add('Full booth', 'Bring the whole console back', () => this.setMini(false));
     }
@@ -24468,6 +24578,7 @@ const STAGE = {
     this.ident = false;
     this.send({ t: 'ident', on: false });
     this.send({ t: 'booth-gone' });
+    try { if (typeof WIRE !== 'undefined') WIRE.stop(); } catch (e){}
     if (NATIVE.ready()) NATIVE.call('close_stage');
     this.closePips();
     for (const w of this.wins){ try { w.close(); } catch (e){} }
@@ -24505,6 +24616,563 @@ const STAGE = {
     else this.expand(false);
     // the field is not being drawn in a corner the size of a business card
     if (typeof onResize === 'function') onResize();
+  },
+};
+
+/* ================================================================
+   §8ab · THE WIRE — the same stage, across machines.
+
+   Open the player on an iPad, type four letters, and the iPad is a
+   television: same engine, same packet, its own GPU, no pixels streamed.
+   This is the sentence DESIGN 1.2m wrote down before it was true — "the
+   transport becomes a WebRTC data channel and the same packet crosses
+   unchanged; the design deliberately never made BroadcastChannel part of
+   the contract" — kept.
+
+   The front door is the family's own (kmay89/ABOUT, room.js): a WebRTC
+   handshake is ~600 characters and cannot be typed, so an ephemeral
+   mailbox holds it under a four-letter code, and the code is the whole
+   ritual. The mailbox stores nothing but handshakes, carries not one
+   frame of the show, and forgets everything in a quarter hour. Once two
+   devices have shaken hands they talk directly — on a venue's LAN or a
+   laptop's own hotspot the packet arrives in a millisecond or two, which
+   is the difference between visuals ON the beat and visuals near it
+   (AirPlay streams compressed pixels a tenth of a second late; this
+   streams forty numbers and draws locally).
+
+   Two channels per screen, because the feed and the truth have different
+   politics. The 30 Hz feature packet rides UNORDERED and UNACKNOWLEDGED
+   (a late frame is worthless — the next one is already here; stamped, so
+   a straggler that beats a fresher packet loses). Everything that must
+   arrive — the wall, identify, goodbye — rides an ordered channel beside
+   it. A game cannot drop a move; a visual must drop a frame.
+
+   The wall: a remote screen's rectangle is in its own machine's
+   coordinates and means nothing on the booth's desk, so network screens
+   form a wall of their own — the grid, in join order (stageNetWall).
+   Walk in with a third device and everyone re-cuts, live.
+
+   Everything degrades to nothing, in layers: no RTCPeerConnection, an
+   unreachable mailbox, a refused knock — the booth simply says so, and
+   the local stage never notices the wire exists.
+   ================================================================ */
+/* a tiny QR encoder (byte mode, ECC L) — the public-domain qrcodegen
+   algorithm (Project Nayuki), the same port every game in the family
+   carries, so an invite can be scanned instead of read aloud. */
+const QR_ECC_L = [-1,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30];
+const QR_NB_L = [-1,1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25];
+const QR_EXP = new Uint8Array(512), QR_LOG = new Uint8Array(256);
+(function (){ let x = 1; for (let i = 0; i < 255; i++){ QR_EXP[i] = x; QR_LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11D; } for (let j = 255; j < 512; j++) QR_EXP[j] = QR_EXP[j - 255]; })();
+function qrMul(a, b){ return (a && b) ? QR_EXP[QR_LOG[a] + QR_LOG[b]] : 0; }
+function qrRawModules(v){ let r = (16 * v + 128) * v + 64; if (v >= 2){ const na = Math.floor(v / 7) + 2; r -= (25 * na - 10) * na - 55; if (v >= 7) r -= 36; } return r; }
+function qrDataCW(v){ return (qrRawModules(v) >> 3) - QR_ECC_L[v] * QR_NB_L[v]; }
+function qrDivisor(deg){
+  const res = new Uint8Array(deg); res[deg - 1] = 1; let root2 = 1;
+  for (let i = 0; i < deg; i++){ for (let j = 0; j < deg; j++){ res[j] = qrMul(res[j], root2) ^ (j + 1 < deg ? res[j + 1] : 0); } root2 = qrMul(root2, 2); }
+  return res;
+}
+function qrRemainder(data, div){
+  const res = new Uint8Array(div.length);
+  for (let k = 0; k < data.length; k++){
+    const f = data[k] ^ res[0];
+    res.copyWithin(0, 1); res[res.length - 1] = 0;
+    for (let j = 0; j < div.length; j++) res[j] ^= qrMul(div[j], f);
+  }
+  return res;
+}
+function qrEncode(text){
+  const bytes = new TextEncoder().encode(text); let v = 0;
+  for (let t = 1; t <= 40; t++){ if (4 + (t < 10 ? 8 : 16) + bytes.length * 8 <= qrDataCW(t) * 8){ v = t; break; } }
+  if (!v) return null;
+  const cap = qrDataCW(v) * 8, bits = [];
+  const push = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+  push(4, 4); push(bytes.length, v < 10 ? 8 : 16);
+  for (let bi = 0; bi < bytes.length; bi++) push(bytes[bi], 8);
+  push(0, Math.min(4, cap - bits.length)); if (bits.length % 8) push(0, 8 - bits.length % 8);
+  for (let pad = 0xEC; bits.length < cap; pad ^= 0xEC ^ 0x11) push(pad, 8);
+  const data = new Uint8Array(cap / 8);
+  for (let di = 0; di < bits.length; di++) data[di >> 3] |= bits[di] << (7 - (di & 7));
+  const nb = QR_NB_L[v], ecl = QR_ECC_L[v], total = qrRawModules(v) >> 3;
+  const shortData = Math.floor(total / nb) - ecl, numLong = total % nb, div = qrDivisor(ecl), blocks = [];
+  let off = 0;
+  for (let b1 = 0; b1 < nb; b1++){
+    const len = shortData + (b1 >= nb - numLong ? 1 : 0);
+    const d = data.slice(off, off + len); off += len;
+    blocks.push({ d, e: qrRemainder(d, div) });
+  }
+  const cw = [];
+  for (let i1 = 0; i1 <= shortData; i1++) for (let b2 = 0; b2 < blocks.length; b2++){ if (i1 < blocks[b2].d.length) cw.push(blocks[b2].d[i1]); }
+  for (let i2 = 0; i2 < ecl; i2++) for (let b3 = 0; b3 < blocks.length; b3++) cw.push(blocks[b3].e[i2]);
+  const size = v * 4 + 17, mod = new Uint8Array(size * size), fun = new Uint8Array(size * size);
+  const set = (x, y, dark) => { mod[y * size + x] = dark ? 1 : 0; fun[y * size + x] = 1; };
+  const finder = (cx, cy) => {
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++){
+      const x = cx + dx, y = cy + dy;
+      if (x < 0 || y < 0 || x >= size || y >= size) continue;
+      const dd = Math.max(Math.abs(dx), Math.abs(dy));
+      set(x, y, dd !== 2 && dd !== 4);
+    }
+  };
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  for (let ti = 0; ti < size; ti++){ if (!fun[6 * size + ti]) set(ti, 6, ti % 2 === 0); if (!fun[ti * size + 6]) set(6, ti, ti % 2 === 0); }
+  if (v >= 2){
+    const na = Math.floor(v / 7) + 2;
+    const step = (v === 32) ? 26 : Math.ceil((v * 4 + 4) / (na * 2 - 2)) * 2;
+    const posl = [6]; for (let p2 = size - 7; posl.length < na; p2 -= step) posl.splice(1, 0, p2);
+    for (let ai = 0; ai < na; ai++) for (let aj = 0; aj < na; aj++){
+      if ((ai === 0 && aj === 0) || (ai === 0 && aj === na - 1) || (ai === na - 1 && aj === 0)) continue;
+      const cx2 = posl[aj], cy2 = posl[ai];
+      for (let dy2 = -2; dy2 <= 2; dy2++) for (let dx2 = -2; dx2 <= 2; dx2++) set(cx2 + dx2, cy2 + dy2, Math.max(Math.abs(dx2), Math.abs(dy2)) !== 1);
+    }
+  }
+  if (v >= 7){
+    let rem = v; for (let vi = 0; vi < 12; vi++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+    const vb = (v << 12) | rem;
+    for (let vk = 0; vk < 18; vk++){ const bit = (vb >>> vk) & 1, aa = size - 11 + vk % 3, bb = Math.floor(vk / 3); set(aa, bb, bit); set(bb, aa, bit); }
+  }
+  for (let fi = 0; fi <= 8; fi++){ if (fi !== 6){ fun[8 * size + fi] = 1; fun[fi * size + 8] = 1; } }
+  for (let f2 = 0; f2 < 8; f2++) fun[8 * size + size - 1 - f2] = 1;
+  for (let f3 = 0; f3 < 7; f3++) fun[(size - 7 + f3) * size + 8] = 1;
+  set(8, size - 8, true);
+  const dataPos = []; let up = true;
+  for (let right = size - 1; right >= 1; right -= 2){
+    if (right === 6) right = 5;
+    for (let kk = 0; kk < size; kk++){
+      const yy = up ? size - 1 - kk : kk;
+      const cols = [right, right - 1];
+      for (let cc = 0; cc < 2; cc++) if (!fun[yy * size + cols[cc]]) dataPos.push([cols[cc], yy]);
+    }
+    up = !up;
+  }
+  for (let dp = 0; dp < dataPos.length; dp++){
+    const xy = dataPos[dp];
+    mod[xy[1] * size + xy[0]] = (dp >> 3) < cw.length ? (cw[dp >> 3] >>> (7 - (dp & 7))) & 1 : 0;
+  }
+  const MASKS = [
+    (x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0,
+    (x, y) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+    (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0,
+    (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
+    (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0,
+    (x, y) => ((x + y) % 2 + (x * y) % 3) % 2 === 0];
+  const writeFormat = mask => {
+    const fb = (1 << 3) | mask; let rem2 = fb;
+    for (let i = 0; i < 10; i++) rem2 = (rem2 << 1) ^ ((rem2 >>> 9) * 0x537);
+    const fbits = ((fb << 10) | rem2) ^ 0x5412;
+    const bitAt = i => (fbits >>> i) & 1;
+    for (let i0 = 0; i0 <= 5; i0++) mod[i0 * size + 8] = bitAt(i0);
+    mod[7 * size + 8] = bitAt(6); mod[8 * size + 8] = bitAt(7); mod[8 * size + 7] = bitAt(8);
+    for (let i9 = 9; i9 < 15; i9++) mod[8 * size + (14 - i9)] = bitAt(i9);
+    for (let i8 = 0; i8 < 8; i8++) mod[8 * size + (size - 1 - i8)] = bitAt(i8);
+    for (let i7 = 8; i7 < 15; i7++) mod[(size - 15 + i7) * size + 8] = bitAt(i7);
+  };
+  const applyMask = mask => {
+    for (let i = 0; i < dataPos.length; i++){
+      const q = dataPos[i];
+      mod[q[1] * size + q[0]] ^= MASKS[mask](q[0], q[1]) ? 1 : 0;
+    }
+  };
+  const penalty = () => {
+    let p = 0, x, y, run;
+    for (y = 0; y < size; y++){ run = 1; for (x = 1; x < size; x++){ if (mod[y * size + x] === mod[y * size + x - 1]){ run++; if (x === size - 1 && run >= 5) p += run - 2; } else { if (run >= 5) p += run - 2; run = 1; } } }
+    for (x = 0; x < size; x++){ run = 1; for (y = 1; y < size; y++){ if (mod[y * size + x] === mod[(y - 1) * size + x]){ run++; if (y === size - 1 && run >= 5) p += run - 2; } else { if (run >= 5) p += run - 2; run = 1; } } }
+    let dark = 0; for (let i = 0; i < size * size; i++) dark += mod[i];
+    p += 10 * Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size));
+    return p;
+  };
+  let best = 0, bp = 1e9;
+  for (let mi = 0; mi < 8; mi++){ applyMask(mi); writeFormat(mi); const pn = penalty(); if (pn < bp){ bp = pn; best = mi; } applyMask(mi); }
+  applyMask(best); writeFormat(best);
+  return { size, mod };
+}
+function drawQR(cv, text, dark, light){
+  const q = qrEncode(text);
+  if (!q || !cv) return false;
+  const quiet = 4, n = q.size + quiet * 2, scale = Math.max(2, Math.floor(560 / n));
+  cv.width = n * scale; cv.height = n * scale;
+  const g = cv.getContext('2d');
+  g.fillStyle = light || '#ffffff'; g.fillRect(0, 0, cv.width, cv.height);
+  g.fillStyle = dark || '#10141c';
+  for (let y = 0; y < q.size; y++) for (let x = 0; x < q.size; x++){
+    if (q.mod[y * q.size + x]) g.fillRect((x + quiet) * scale, (y + quiet) * scale, scale, scale);
+  }
+  return true;
+}
+
+const WIRE = {
+  /* same-origin first: a Netlify preview has the mailbox right there. The
+     canonical site is GitHub Pages, which has no serverless anything — it
+     falls through to the family's mailbox, which is where the games live
+     too. If neither answers with JSON there is no mailbox, and the wire
+     says so instead of pretending. */
+  SAME: '/api/room',
+  PUBLIC: 'https://kmay89.com/api/room',
+  GAME: 'stage',
+  base: null,
+  code: null, key: null,     // booth: the four letters, and the secret that reclaims them
+  linked: false,             // screen: the booth is on the other end
+  peers: new Map(),          // booth: id → { pc, feed, ctl, at, born }
+  pool: [],                  // booth: pigeonholes waiting for a knock
+  _pollT: null, _joinT: null, _seq: 0, _lastAt: 0, _tries: 0,
+
+  can(){ return typeof RTCPeerConnection === 'function'; },
+  count(){ return this.peers.size; },
+
+  /* ---------------- the mailbox ---------------- */
+  async api(a, body, qs){
+    const once = async url => {
+      const to = url + '?a=' + a + '&g=' + this.GAME + (qs ? '&' + qs : '') + '&_=' + Date.now();
+      const opts = body
+        ? { method: 'POST', cache: 'no-store', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body) }
+        : { cache: 'no-store' };
+      try {
+        const r = await fetch(to, opts);
+        /* a plain static host answers 404 HTML here — the content type, not
+           the status, is what says whether a mailbox exists at all */
+        const ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') < 0) return null;
+        return await r.json().catch(() => ({}));
+      } catch (e){ return null; }
+    };
+    if (this.base){
+      const j = await once(this.base);
+      if (j) return j;
+      if (this.base === this.PUBLIC) return null;
+      this.base = null;                       // it moved out from under us; re-find it
+    }
+    const j = await once(this.SAME);
+    if (j){ this.base = this.SAME; return j; }
+    const k = await once(this.PUBLIC);
+    if (k){ this.base = this.PUBLIC; return k; }
+    return null;
+  },
+
+  /* ---------------- plumbing ---------------- */
+  rtc(){
+    return new RTCPeerConnection({
+      iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }],
+    });
+  },
+  /* non-trickle, capped: wait for the candidate set so one deposit carries
+     everything, but never wait on a STUN server that a venue's firewall has
+     eaten — the host candidates gathered by then are exactly what a
+     same-network link uses anyway. */
+  iceDone(pc){
+    if (pc.iceGatheringState === 'complete') return Promise.resolve();
+    return new Promise(res => {
+      let t = 0;
+      const done = () => { pc.removeEventListener('icegatheringstatechange', look); clearTimeout(t); res(); };
+      const look = () => { if (pc.iceGatheringState === 'complete') done(); };
+      t = setTimeout(done, 1800);
+      pc.addEventListener('icegatheringstatechange', look);
+    });
+  },
+  offerFrom(pc){
+    return pc.createOffer()
+      .then(o => pc.setLocalDescription(o))
+      .then(() => this.iceDone(pc))
+      .then(() => pc.localDescription.sdp);
+  },
+
+  /* ---------------- the booth ---------------- */
+  /* mint a code, or reclaim the one already on everyone's screen — the
+     reclaim is what makes a booth that rebooted come back under the same
+     four letters, so nobody re-reads anything aloud. */
+  async host(){
+    if (STAGE.screen() || !this.can()) return null;
+    const slot = this.mintSlot();
+    const sdp = await this.offerFrom(slot.pc).catch(() => null);
+    if (!sdp){ this.dropSlot(slot); return null; }
+    const b = { offer: sdp, host: 'The booth', name: 'The stage', seats: 8 };
+    if (this.code && this.key){ b.code = this.code; b.key = this.key; }
+    const r = await this.api('host', b);
+    if (!r || r.error || !r.code){ this.dropSlot(slot); return null; }
+    slot.slot = r.slot || 1;
+    this.code = r.code; this.key = r.key;
+    this.watch();
+    this.spare();                     // two devices tapping in the same second
+    return r;
+  },
+  /* the pool keeps a pigeonhole waiting at all times: the second and third
+     device to knock must not be told to try again — that is the ritual this
+     exists to remove */
+  async spare(){
+    if (!this.code || !this.key || this.pool.length >= 3) return null;
+    const slot = this.mintSlot();
+    const sdp = await this.offerFrom(slot.pc).catch(() => null);
+    if (!sdp){ this.dropSlot(slot); return null; }
+    const r = await this.api('offer', { code: this.code, key: this.key, offer: sdp });
+    if (!r || r.error || !r.slot){ this.dropSlot(slot); return null; }
+    slot.slot = r.slot;
+    return r;
+  },
+  mintSlot(){
+    const pc = this.rtc();
+    const slot = { pc, feed: null, ctl: null, slot: 0, id: null };
+    slot.feed = pc.createDataChannel('feed', { ordered: false, maxRetransmits: 0 });
+    slot.ctl = pc.createDataChannel('ctl');
+    slot.ctl.onmessage = ev => this.fromScreen(slot, ev);
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed'){
+        if (slot.id) this.drop(slot.id);
+        else this.dropSlot(slot);
+      }
+    };
+    this.pool.push(slot);
+    return slot;
+  },
+  dropSlot(slot){
+    const i = this.pool.indexOf(slot);
+    if (i >= 0) this.pool.splice(i, 1);
+    try { slot.pc.close(); } catch (e){}
+  },
+  /* everything a remote screen says arrives here. It only ever says two
+     things — "here I am" and "goodbye" — and the first hello is the moment
+     a pigeonhole becomes a screen: it joins the roster under the id IT
+     chose (identity must survive a reload on its side), the wall re-cuts,
+     and a fresh pigeonhole goes up for whoever walks in next. Nothing from
+     the wire ever reaches the geometric wall: an iPad's rectangle is in
+     its own machine's coordinates and would poison the union. */
+  fromScreen(slot, ev){
+    let m = null;
+    try { m = JSON.parse(ev.data); } catch (e){ return; }
+    if (!m || !m.t) return;
+    if (m.t === 'here'){
+      const id = m.id != null ? String(m.id).slice(0, 24) : null;
+      if (!id) return;
+      const known = this.peers.get(id);
+      if (known){ known.at = Date.now(); return; }
+      if (!slot.id){
+        slot.id = id;
+        const i = this.pool.indexOf(slot);
+        if (i >= 0) this.pool.splice(i, 1);
+        this.peers.set(id, { pc: slot.pc, feed: slot.feed, ctl: slot.ctl, at: Date.now(), born: ++this._seq });
+        this.netWall();
+        this.spare();
+        STAGE.paint();
+        toast('A screen joined over the wire — ' + this.peers.size + ' now.');
+      }
+    } else if (m.t === 'screen-gone' && slot.id){
+      this.drop(slot.id);
+    }
+  },
+  drop(id){
+    const p = this.peers.get(id);
+    if (!p) return;
+    this.peers.delete(id);
+    try { p.pc.close(); } catch (e){}
+    this.netWall();
+    STAGE.paint();
+  },
+  /* the wall for the wire: the grid, in join order — see stageNetWall */
+  netWall(){
+    const ids = [...this.peers.entries()].sort((a, b) => a[1].born - b[1].born).map(e => e[0]);
+    if (!ids.length) return;
+    const s = JSON.stringify({ t: 'wall', map: stageNetWall(ids) });
+    for (const p of this.peers.values()){
+      if (p.ctl && p.ctl.readyState === 'open'){ try { p.ctl.send(s); } catch (e){} }
+    }
+  },
+  /* the poll doubles as the pulse: it collects answers, keeps the room's
+     code alive on the mailbox, and notices a screen that stopped saying
+     "here" — eight seconds of silence is a device gone, and the wall
+     re-cuts around it rather than holding a dark third of the field. */
+  watch(){
+    if (this._pollT) return;
+    this._pollT = setInterval(async () => {
+      if (!this.code || !this.key) return;
+      const r = await this.api('poll', null, 'code=' + this.code + '&key=' + encodeURIComponent(this.key));
+      if (r && !r.error){
+        for (const a of r.answers || []){
+          const slot = this.pool.find(s => s.slot === a.slot);
+          if (slot) slot.pc.setRemoteDescription({ type: 'answer', sdp: a.answer }).catch(() => {});
+        }
+        if ((r.answers || []).length || (r.free | 0) < 1) this.spare();
+      }
+      const cut = Date.now() - 8000;
+      for (const [id, p] of this.peers) if (p.at < cut) this.drop(id);
+    }, 2400);
+  },
+
+  /* ---------------- the screen ---------------- */
+  /* knock on four letters. The id is minted here and kept for the session,
+     because identity has to survive a reload: the screen that comes back
+     is the same screen, not a new one shoving the wall. */
+  async join(code){
+    if (!this.can()){ this.saidNoRtc(); return; }
+    this.code = stageCodeTidy(code);
+    if (!/^n/.test(String(STAGE.cfg.id || ''))){
+      let id = null;
+      try { id = sessionStorage.getItem('mb8_wire_id'); } catch (e){}
+      if (!id){
+        id = 'n' + Math.random().toString(36).slice(2, 8);
+        try { sessionStorage.setItem('mb8_wire_id', id); } catch (e){}
+      }
+      STAGE.cfg.id = id;
+    }
+    const r = await this.api('join', { code: this.code, name: 'A screen' });
+    if (!r || r.error || !r.offer){
+      this.saidWhy(r && r.error ? r.error : 'the booth is out of reach');
+      this.rejoin();
+      return;
+    }
+    const pc = this.rtc();
+    this._pc = pc;
+    pc.ondatachannel = ev => {
+      const ch = ev.channel;
+      ch.onmessage = e => this.inbound(e);
+      if (ch.label === 'ctl'){
+        this._ctl = ch;
+        const hello = () => { this.linked = true; this._tries = 0; STAGE.report(true); };
+        if (ch.readyState === 'open') hello(); else ch.onopen = hello;
+      } else {
+        this._feed = ch;
+      }
+    };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.rejoin();
+    };
+    try {
+      await pc.setRemoteDescription({ type: 'offer', sdp: r.offer });
+      const a = await pc.createAnswer();
+      await pc.setLocalDescription(a);
+      await this.iceDone(pc);
+      const ok = await this.api('answer', { code: this.code, slot: r.slot, answer: pc.localDescription.sdp });
+      if (!ok || ok.error) this.rejoin();
+    } catch (e){ this.rejoin(); }
+  },
+  /* the healing loop: patient, and it never invents a new code. The room
+     outlives the link on the mailbox, the booth keeps a pigeonhole up, so
+     a screen that lost its Wi-Fi for a minute knocks on the same four
+     letters and is the same screen again. */
+  rejoin(){
+    if (this._joinT || !this.code || !STAGE.screen()) return;
+    this.linked = false;
+    try { if (this._pc) this._pc.close(); } catch (e){}
+    this._pc = null; this._ctl = null; this._feed = null;
+    const wait = Math.min(15000, 1500 * Math.pow(2, Math.min(this._tries, 4)));
+    this._tries++;
+    this._joinT = setTimeout(() => { this._joinT = null; this.join(this.code); }, wait);
+  },
+  /* everything the booth says arrives here. The feed is unordered on
+     purpose, so a straggler that arrives after a fresher packet loses —
+     stamped at the booth, judged here. */
+  inbound(ev){
+    let m = null;
+    try { m = JSON.parse(ev.data); } catch (e){ return; }
+    if (!m || !m.t) return;
+    if (m.t === 'f'){
+      const at = Number(m.at) || 0;
+      if (at && at < this._lastAt) return;
+      this._lastAt = at;
+    }
+    STAGE.recv(m);
+  },
+  saidWhy(why){
+    const box = document.getElementById('stageWaitWhy');
+    if (box) box.textContent = String(why);
+  },
+  saidNoRtc(){ this.saidWhy('this browser cannot speak WebRTC'); },
+
+  /* ---------------- both sides of the bridge ---------------- */
+  /* every message STAGE sends passes through here too. A screen only ever
+     speaks up the wire ("here", "goodbye"); a booth broadcasts down it —
+     the feed on the lossy channel, the truth on the ordered one, and a
+     stuffed pipe drops frames rather than backing the link up. */
+  cast(m){
+    if (!m || !m.t) return;
+    if (STAGE.screen()){
+      if (!this.linked || !this._ctl || this._ctl.readyState !== 'open') return;
+      if (m.t !== 'here' && m.t !== 'screen-gone') return;
+      try { this._ctl.send(JSON.stringify(m)); } catch (e){}
+      return;
+    }
+    if (!this.peers.size) return;
+    const s = JSON.stringify(m);
+    for (const p of this.peers.values()){
+      const ch = (m.t === 'f' && p.feed && p.feed.readyState === 'open') ? p.feed
+        : (p.ctl && p.ctl.readyState === 'open' ? p.ctl : null);
+      if (!ch) continue;
+      if (m.t === 'f' && ch.bufferedAmount > 65536) continue;
+      try { ch.send(s); } catch (e){}
+    }
+  },
+
+  /* ---------------- the invite ---------------- */
+  async invite(){
+    if (STAGE.screen()) return;
+    if (!this.can()){
+      toast('This browser cannot speak WebRTC — the wire needs it.');
+      return;
+    }
+    if (this.code && this.key){ this.showInvite(); return; }
+    toast('Minting an invite…');
+    const r = await this.host();
+    if (!r){
+      toast('The invite mailbox is out of reach — four letters need the network once. The screens themselves talk directly.');
+      return;
+    }
+    /* a booth with a code is a stage that is on, even before anyone has
+       knocked: the packets have to be flowing the moment the first screen
+       connects, not a discovery later */
+    if (!STAGE.on){
+      STAGE.on = true;
+      STAGE.wake(true);
+      STAGE.setMini(false);
+      ACTIVITY.log('system', 'Stage wire on - invite ' + this.code);
+    }
+    this.showInvite();
+  },
+  joinUrl(){
+    return location.origin + location.pathname + '?stage=screen&join=' + this.code;
+  },
+  /* the card an operator holds up: the letters big enough to read across a
+     kitchen, the QR for the camera that is already in everyone's hand */
+  showInvite(){
+    let card = document.getElementById('wireCard');
+    if (!card){
+      card = document.createElement('div');
+      card.id = 'wireCard';
+      card.setAttribute('role', 'dialog');
+      card.setAttribute('aria-label', 'Invite a device as a screen');
+      card.innerHTML = '<button class="wc-x" type="button" aria-label="Put the invite away">×</button>'
+        + '<div class="wc-title">Any device is a screen</div>'
+        + '<div class="wc-code"></div>'
+        + '<canvas class="wc-qr" aria-label="Scan to join as a screen"></canvas>'
+        + '<div class="wc-how"></div>';
+      card.querySelector('.wc-x').addEventListener('click', () => this.hideInvite());
+      document.body.appendChild(card);
+    }
+    card.querySelector('.wc-code').textContent = this.code || '····';
+    card.querySelector('.wc-how').innerHTML = 'Scan with the device\'s camera — or open <b>'
+      + escapeHTML(location.host) + '</b> there, tap <b>Stage</b>, and type the four letters.'
+      + '<br>Same Wi‑Fi (or this machine\'s hotspot). The picture is rendered there, not streamed.';
+    const cv = card.querySelector('.wc-qr');
+    if (!drawQR(cv, this.joinUrl())) cv.hidden = true;
+    card.hidden = false;
+  },
+  hideInvite(){
+    const card = document.getElementById('wireCard');
+    if (card) card.hidden = true;
+  },
+
+  stop(){
+    const bye = JSON.stringify({ t: 'booth-gone' });
+    for (const p of this.peers.values()){
+      try { if (p.ctl && p.ctl.readyState === 'open') p.ctl.send(bye); } catch (e){}
+      try { p.pc.close(); } catch (e){}
+    }
+    this.peers.clear();
+    for (const s of this.pool){ try { s.pc.close(); } catch (e){} }
+    this.pool = [];
+    if (this._pollT){ clearInterval(this._pollT); this._pollT = null; }
+    if (this._joinT){ clearTimeout(this._joinT); this._joinT = null; }
+    if (this.code && this.key) this.api('close', { code: this.code, key: this.key, started: 0 });
+    this.code = null; this.key = null;
+    this.linked = false;
+    this._pc = null; this._ctl = null; this._feed = null;
+    this.hideInvite();
   },
 };
 
