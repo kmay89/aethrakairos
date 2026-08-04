@@ -4,6 +4,55 @@
     {
       "build": "unreleased",
       "date": "2026-08-04",
+      "title": "The lava lamp gets its droplets",
+      "notes": [
+        "the wax now breaks into a beaded chain of drops pinching off a rising column, instead of travelling as one lump — the physics was already doing it, the picture just could not show it",
+        "a droplet of a few particles is genuinely thinner than the middle of a pool, so any threshold that drew the pool correctly made small drops vanish; dividing each particle by its own density fixes it, and costs nothing because the solver had already measured it",
+        "the wax casts a shadow through the fluid above it now — the only light is under the column, and without that the lamp read as a flat cut-out however good the wax looked",
+        "nearly twice as many particles for the same money: every pass of the solver wanted the same four numbers about the same pair, and now they are worked out once instead of five times",
+        "which also bought a third pass of the incompressibility solver — the wax is three times less squashable and a third calmer than it was yesterday",
+        "and a phone is budgeted as a phone from the first frame, rather than after the frame governor has spent ten seconds discovering it"
+      ],
+      "builds": [
+        "320e1bd95e"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-08-04",
+      "title": "Crowd mode — the whole floor, in their hands",
+      "notes": [
+        "type “crowd” into the Stage card and put the QR on the projector: anyone who scans it taps once and their phone becomes the show — the whole field, dancing to the room",
+        "each phone listens through its own microphone, so the speakers are the broadcast and it scales to any crowd the room holds — two phones or two thousand cost the booth the same: nothing",
+        "the booth sends only a pulse — three colours and a scene, about eighty bytes every couple of seconds — so every phone glows in the booth's palette and changes scene when the booth does",
+        "phones need only internet (cellular is fine — they never talk to your laptop); if the booth goes quiet the floor keeps dancing, in colours of its own",
+        "this is not the wire: a crowd phone is a hand holding the whole show, not a tile of the wall — and the stage wall itself grew to sixteen screens"
+      ],
+      "builds": [
+        "1da5c82f83",
+        "82b3044ff4",
+        "999ee79326"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-08-04",
+      "title": "The catalog now knows what a track is made of",
+      "notes": [
+        "instrumentation: every track carries a bass/percussive/tonal/air fingerprint from a real harmonic/percussive split of its own spectrum — no ML, no tagging by hand",
+        "texture: the Crate's mood tooltip now names a track bass-driven, percussive, melodic or atmospheric when it genuinely stands out from the rest of the library — or honestly full-spectrum when nothing does",
+        "the song's energy ARC — intro, build, peak, drive, break, outro — is now computed once, server-side, and shipped in the catalog instead of guessed frame-by-frame from whatever of the waveform happens to be loaded",
+        "fixed: the visual intensity ceiling silently went flat (always wide open) the moment a track's structure came from the catalog instead of the browser — it now reads the catalog's own section energies instead of an envelope that was never shipped",
+        "loop stutter is gone: looping now hands the section to the browser's own audio loop instead of re-triggering it by hand every pass"
+      ],
+      "builds": [
+        "84846a07ed",
+        "76f223fcb5"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-08-04",
       "title": "Any device is a screen — four letters, and your iPad joins the stage",
       "notes": [
         "type “invite” into the Stage card and you get four letters and a QR — scan it with an iPad, a phone or another laptop and that device is a screen of your stage",
@@ -14,7 +63,8 @@
         "the code is the same front door the games at kmay89.com use — the mailbox carries only the handshake, never a frame of the show, and forgets everything in fifteen minutes"
       ],
       "builds": [
-        "e54ffe0f85"
+        "e54ffe0f85",
+        "2b18bbdae1"
       ]
     },
     {

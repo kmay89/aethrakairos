@@ -51,7 +51,9 @@ naming the problem** — it never guesses.
       "title": "Amber Axis", "file": "01-amber-axis.mp3", "duration": 274.3,
       "sha256": "…", "published": "2026-07-18",
       "features": { "bpm": 122.0, "energy": 0.62, "brightness": 0.41,
-                    "entropy": 0.55, "onsets": 0.30 }
+                    "entropy": 0.55, "onsets": 0.30,
+                    "instr": { "bass": 0.64, "perc": 0.10, "tonal": 0.90, "air": 0.01 },
+                    "texture": "bass-driven" }
     }]
   }]
 }
@@ -65,6 +67,18 @@ journey-ineligible and the Console says how many tracks it can see; no duration
 recomputed over the whole catalog every build, so the space stays calibrated as
 the library grows. `bpm: 0` means unpitched/ambient — the solver treats it as a
 wildcard, eligible anywhere, never forced to match a tempo.
+
+`instr` is a per-track timbral fingerprint (bass/percussive/tonal/air, each a
+0–1 share of the track's own spectral energy) from a median-filtering
+harmonic/percussive split (Fitzgerald 2010) — no ML, no training data. `texture`
+is a catalog-relative label (`bass-driven` / `percussive` / `melodic` /
+`atmospheric` / `full-spectrum`) picked by percentile-scaling those four ratios
+against the whole library, so a track only earns a label when one axis genuinely
+stands out from the rest of the catalog. The `mix` block also carries a
+`structure` field — the same energy-hysteresis section arc (`intro` / `build` /
+`peak` / `drive` / `break` / `outro`) the player derives client-side from the
+waveform, precomputed server-side so the booth and Crate never have to guess it
+from a partial buffer.
 
 A `catalog.sig` (minisign) may sit next to the JSON. Present and valid → a
 small "signed · ERRERlabs" mark in the library header. Absent → fine. Invalid →
@@ -587,6 +601,16 @@ one Rayleigh–Bénard cell written as a **stream function**, `u = ∂ψ/∂y`,
 `v = −∂ψ/∂x` — divergence-free by construction, so however hard the music
 drives it the fluid cannot source, sink, or leak through the glass.
 
+**One number is measured five times a step, so it is measured once.** Every
+pass of the solver wants the same four facts about the same pair — the
+offset, the kernel, the gradient over r — and the first version recomputed
+all of them, square root and all, in each of five walks. They are computed
+once per solver sweep now and read by everything downstream, with nothing
+approximated: the cache is filled from the *same* positions the pass filling
+it is solving against. That paid for a third Jacobi sweep at no cost, which
+took the worst compression from 3.8% to 1.1% and peak speeds from 0.75 to
+0.31 — and then paid for the particle count to nearly double.
+
 **The picture is splatted, not evaluated.** Testing every blob against every
 pixel is fine for a dozen blobs and impossible for two hundred particles —
 the cost is O(pixels × N). So each particle draws its own kernel once,
@@ -605,11 +629,27 @@ light in the liquid behind. The splat is deliberately wider than the particle
 spacing: it low-pass-filters the field, so what you see is the shape of the
 *fluid* rather than the arrangement of the samples standing in for it.
 
-One thing only became possible here — the **temperature is splatted alongside
-the density**, in the next channel, weighted by the same kernel. So the wax
-is not one colour with a hot core painted on: every pixel reads the
+**What is splatted is a normalised field, not a density**, and that is the
+difference between a lamp with droplets in it and a lamp with one lump. A
+droplet of four particles is genuinely less dense than the middle of a pool —
+its kernels have less to overlap with — so any isosurface that puts the
+pool's edge in the right place makes the droplet vanish completely. Dividing
+each particle's contribution by its own density (which the solver has already
+measured, so it is free) turns the sum into an interpolation of the constant
+1 — the classic colour function — and one threshold is then right for a
+droplet and a pool alike. The beaded chain of drops pinching off a rising
+column only appears on screen because of that one division.
+
+Two more things fall out of the same texture. The **temperature is splatted
+alongside the density**, in the next channel, weighted by the same kernel, so
+the wax is not one colour with a hot core painted on: every pixel reads the
 temperature of the wax actually in front of it, and a blob that has just left
-the coil is visibly hotter where it left.
+the coil is visibly hotter where it left. And one extra tap *below* each
+pixel gives the **shadow** — the only light in the object is under the
+column, so a blob is between the coil and everything above it, and until that
+tap existed the room read as a flat cut-out however good the blob itself
+looked. Two fetches for the only depth cue a two-dimensional lamp can
+honestly have.
 
 **The music is the thermostat.** Bass and the act's own heat turn the coil
 up; the column gets hotter, the wax climbs faster and breaks more readily.
@@ -1095,7 +1135,23 @@ other — venue Wi-Fi with client isolation blocks device-to-device traffic, in
 which case share a hotspot that has internet and join every device to it. The
 internet is needed only at the door: minting and joining a code fetches the
 ~600-character handshake from the family's mailbox at kmay89.com. The show
-itself never touches it — once linked, the devices talk directly.
+itself never touches it — once linked, the devices talk directly. A wall is
+up to **16** screens wide.
+
+### The whole crowd — every phone on the floor
+
+The wire makes a device a *tile*; crowd mode makes it a *hand*. Type **crowd**
+into the Stage card (or tap **Crowd** in the folded booth) and put the QR on
+the projector: anyone who scans it gets a one-tap "Join the show" veil, and
+their phone becomes the whole field — listening to the room through its **own
+microphone** and dancing to what it actually hears, in this booth's palette
+and scene. The speakers are the broadcast, so it scales to any crowd the room
+holds: nothing fast ever crosses the network. The booth leaves only a *pulse*
+at the mailbox — three colours and a scene, ~80 bytes every 2.5 seconds — and
+every phone reads it through the CDN, so a thousand phones cost the mailbox
+one request every couple of seconds. Phones need internet (cellular is fine —
+they never talk to your laptop, only to the pulse); if the booth goes quiet,
+the floor keeps dancing in colours of its own.
 
 ## Tests
 

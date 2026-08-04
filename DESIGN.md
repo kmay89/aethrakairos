@@ -63,7 +63,7 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   FERN (IFS fractal that grows with track progress), ROSETTE, SLINKY, OP-ART,
   PULSE, PARLOR, AUREA, HALO, and the LAVA LAMP.
 - **The lamp's wax is a fluid** (`@lava` pure block): a position-based fluid
-  (Macklin & Müller) of ~190 particles — density as a *constraint* solved in
+  (Macklin & Müller) of ~340 particles (device-budgeted) — density as a *constraint* solved in
   two Jacobi sweeps, Akinci cohesion as the surface tension, XSPH viscosity,
   a counting-sort neighbour grid, and one neighbour list a step reused by
   every pass. The constraint only ever pushes: letting it pull is what made
@@ -75,7 +75,15 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   small target — cost becomes O(N·sprite) + O(pixels) instead of
   O(pixels·N) — then shaded from four taps: screen-exact AA from
   (F−iso)/|∇F|, real normals, Beer–Lambert thickness, three-wavelength
-  refraction, and temperature carried in its own channel. The solver caps
+  refraction, temperature carried in its own channel, and one extra tap
+  below each pixel for the shadow the coil casts through the wax. What is
+  splatted is NORMALISED by each particle's own density (the colour
+  function), so a four-particle droplet and a pool read the same value and
+  one isosurface is right for both — without that division small droplets
+  are invisible at any threshold. A per-pair geometry cache means the
+  offset, kernel and gradient are computed once a sweep rather than five
+  times a step, which paid for the third Jacobi iteration and the particle
+  count. The solver caps
   its own step, so it is step-size independent; headless, seeded, and
   unit-tested for not leaking, not compressing, and going *quiet* when
   nothing is touching it.
@@ -1122,6 +1130,58 @@ it, a second device re-cuts the wall to halves live, the booth counts wire scree
 beside its own, and a closed booth is words on the far screen, not a freeze.
 (Chromium's mDNS candidate obfuscation is disabled for the probe — multicast does
 not exist in a CI container; real LANs resolve those names fine.)
+
+### 1.2m″ The crowd: the whole floor, in their hands
+
+"Could this support the whole crowd — everyone joins with their phones?" Not by
+widening the wire: a crowd is not a wall. The wire makes a device a TILE of one
+field — sixteen at most now, each fed forty floats a frame over its own peer
+connection — and every screen added is another connection the booth carries. A
+phone in a hand wants the opposite: the WHOLE field, beating to the room. So the
+crowd is a separate mode with a separate insight: **the heavy signal is already
+broadcast at concert volume.** The PA is the transport. Every phone listens with
+its own microphone (§the mic mode that has always existed) and runs the whole
+engine on what it hears — beat, energy, dance, touch — which costs the booth
+nothing whether the floor is two phones or two thousand.
+
+- **What a microphone cannot hear** is which palette the booth is in and which
+  scene it chose — the two slow truths that make a floor one show instead of a
+  shimmer of different ones. That, and only that, is the PULSE: three colours
+  and a scene index, ~80 bytes (`crowdPack`, clamped on arrival by `crowdClamp`
+  — a pulse is the one thing a stranger's server hands the renderer), left at
+  the family mailbox under a four-letter code every 2.5 seconds.
+- **A beacon, not a room.** The crowd's code is minted by a new mailbox action
+  with no handshake at all — no slots, no seats, advertised to nobody, reclaimed
+  like any host's code because it is already on a projector. Phones never "join"
+  it; they only read.
+- **The affordability contract.** The pulse read is CDN-cacheable
+  (`netlify-cdn-cache-control: max-age=2`) and the phone sends NO cache-buster —
+  every phone on the floor asks the identical URL, so the edge answers the crowd
+  and the mailbox answers the edge: one origin hit per couple of seconds per
+  PoP, whatever the crowd is. This is the entire reason a static site can serve
+  a stadium, and the probe asserts the no-buster contract because one habitual
+  `&_=Date.now()` would silently turn every phone into an origin hit.
+- **Applied as a glide, never a snap** — the phone's colour engine is aimed
+  (`from = now, target = pulse, glideT = 0`) rather than overwritten, so palette
+  changes land as lighting cues. The local palette drift stands down while the
+  booth speaks (the replan clock is zeroed each pulse) and resumes after 24
+  quiet seconds, which is the right failure: a floor abandoned by its booth
+  keeps dancing, in colours of its own.
+- **One tap is the door.** `?crowd=CODE` (the QR on the crowd card) shows a veil;
+  the tap is the gesture everything downstream needs — the microphone
+  permission, the wake lock, fullscreen where the platform grants a page one.
+  The booth chooses the scene for the whole floor (`director.auto = false`);
+  the beat, the energy and the finger on the glass stay each phone's own.
+- **Separate from the wire on purpose.** Typing `crowd` in the stage chooser (or
+  the Crowd button in the folded booth) mints its code; `invite` still mints the
+  wire's. A device can be a tile or a hand, and the two doors never share state
+  beyond the mailbox client.
+
+Verified in `tools/stage_probe.mjs --only crowd` with a fake microphone granted
+by flag: the beacon mints with no SDP, a page told nothing but the code becomes
+all-field behind a one-tap veil, the tap starts the mic and the poll, the
+booth's exact palette arrives as a glide and its scene is adopted, and every
+pulse read on the wire log is buster-free.
 
 ---
 
