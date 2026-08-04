@@ -30,7 +30,9 @@ const LIVE: &str = "https://aethrakairos.com";
 const UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 AethraKairosNative/1.0";
 /// Stage windows are labelled by the screen they are: a wall is several
 /// windows, not one, so the label cannot be a constant.
-fn stage_label(screen: u32) -> String { format!("stage-{}", screen) }
+fn stage_label(screen: u32) -> String {
+    format!("stage-{}", screen)
+}
 
 /// The corner stage, in logical points. Sixteen by nine plus nothing: the
 /// window has a real title bar, so the room can drag and resize it by hand.
@@ -94,6 +96,7 @@ pub fn run() {
             close_stage,
             set_mini,
             reload_shell,
+            net_fetch,
         ])
         .menu(|handle| build_menu(handle))
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -121,15 +124,13 @@ pub fn run() {
             "stage" => {
                 if let Some(w) = app.get_webview_window("main") {
                     /* The player owns the choice of screen and the sync — the menu
-                       only asks, so the menu, the Stage chip and Shift-F all run
-                       one code path. Note the `typeof` guard rather than
-                       `window.stageChooser`: the player is one classic script, so
-                       its top-level bindings are lexical globals and are NOT
-                       properties of `window` — reaching for one that way finds
-                       undefined even while the function is perfectly available. */
-                    let _ = w.eval(
-                        "typeof stageChooser === 'function' ? stageChooser() : null",
-                    );
+                    only asks, so the menu, the Stage chip and Shift-F all run
+                    one code path. Note the `typeof` guard rather than
+                    `window.stageChooser`: the player is one classic script, so
+                    its top-level bindings are lexical globals and are NOT
+                    properties of `window` — reaching for one that way finds
+                    undefined even while the function is perfectly available. */
+                    let _ = w.eval("typeof stageChooser === 'function' ? stageChooser() : null");
                 }
             }
             _ => {}
@@ -138,13 +139,13 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 /* THE UPDATE IS OFFERED, NOT IMPOSED. This used to download and
-                   install on launch and then call restart() — which can take the
-                   app down in the middle of a set, and which no amount of care in
-                   the player's own update policy (SHOW mode is never yanked, the
-                   place is saved first, music resumes paused) could prevent,
-                   because the player was never asked. Now the shell reports, the
-                   player decides, and native_update_apply does the deed after the
-                   page has saved its state. */
+                install on launch and then call restart() — which can take the
+                app down in the middle of a set, and which no amount of care in
+                the player's own update policy (SHOW mode is never yanked, the
+                place is saved first, music resumes paused) could prevent,
+                because the player was never asked. Now the shell reports, the
+                player decides, and native_update_apply does the deed after the
+                page has saved its state. */
                 if let Ok(Some(v)) = check_native_update(handle.clone()).await {
                     let _ = handle.emit("native-update", v);
                 }
@@ -157,8 +158,13 @@ pub fn run() {
 
 /// The macOS menu bar — standard, expected controls plus a manual update check.
 fn build_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let check_updates =
-        MenuItem::with_id(handle, "check-updates", "Check for Updates…", true, None::<&str>)?;
+    let check_updates = MenuItem::with_id(
+        handle,
+        "check-updates",
+        "Check for Updates…",
+        true,
+        None::<&str>,
+    )?;
     let reload = MenuItem::with_id(handle, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
     let stage = MenuItem::with_id(
         handle,
@@ -173,7 +179,11 @@ fn build_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>
         "Aethra Kairos",
         true,
         &[
-            &PredefinedMenuItem::about(handle, Some("Aethra Kairos"), Some(AboutMetadata::default()))?,
+            &PredefinedMenuItem::about(
+                handle,
+                Some("Aethra Kairos"),
+                Some(AboutMetadata::default()),
+            )?,
             &check_updates,
             &PredefinedMenuItem::separator(handle)?,
             &PredefinedMenuItem::hide(handle, None)?,
@@ -233,8 +243,181 @@ fn native_info<R: Runtime>(app: tauri::AppHandle<R>) -> NativeInfo {
     NativeInfo {
         version: app.package_info().version.to_string(),
         os: std::env::consts::OS.to_string(),
-        stage_open: app.webview_windows().keys().any(|l| l.starts_with("stage-")),
-        caps: vec!["stage_pip"],
+        stage_open: app
+            .webview_windows()
+            .keys()
+            .any(|l| l.starts_with("stage-")),
+        caps: vec!["stage_pip", "net_fetch"],
+    }
+}
+
+// ------------------------------------------------------- the local network
+
+/// IS THIS ADDRESS ON THIS MACHINE'S OWN NETWORK.
+///
+/// The fence around `net_fetch`, and the most important function in this file.
+/// A native fetch is a hole straight through the browser's security model —
+/// no CORS, no mixed-content rule, no same-origin policy — so the only thing
+/// standing between it and a confused deputy is this predicate.
+///
+/// The player checks the same thing before it calls, and this checks it again,
+/// because one check is a single bug away from no check, and the two live in
+/// codebases that ship on completely different clocks.
+///
+/// Strict on purpose: the four private ranges, loopback, link-local, and the
+/// `.local` names mDNS hands out. A leading zero in a quad is refused outright
+/// rather than parsed — `0177.0.0.1` is loopback to a resolver reading octal
+/// and something else entirely to a decimal parser, and a disagreement about
+/// what an address means is exactly the bug this exists to prevent.
+fn is_lan_host(host: &str) -> bool {
+    let h = host.trim().to_ascii_lowercase();
+    if h.is_empty() || h.len() > 253 {
+        return false;
+    }
+    if h.contains(['@', '/', '\\', '?', '#', ' ', '[', ']']) {
+        return false;
+    }
+    let parts: Vec<&str> = h.split('.').collect();
+    if parts.len() == 4 && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit())) {
+        for p in &parts {
+            if p.is_empty() || p.len() > 3 || (p.len() > 1 && p.starts_with('0')) {
+                return false;
+            }
+        }
+        let q: Vec<u16> = parts.iter().filter_map(|p| p.parse::<u16>().ok()).collect();
+        if q.len() != 4 || q.iter().any(|v| *v > 255) {
+            return false;
+        }
+        return q[0] == 10
+            || (q[0] == 172 && (16..=31).contains(&q[1]))
+            || (q[0] == 192 && q[1] == 168)
+            || q[0] == 127
+            || (q[0] == 169 && q[1] == 254);
+    }
+    // one label, then .local — "philips-hue.local" and nothing deeper
+    if parts.len() == 2 && parts[1] == "local" {
+        let n = parts[0];
+        return !n.is_empty()
+            && n.len() <= 63
+            && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+            && !n.starts_with('-');
+    }
+    false
+}
+
+#[derive(serde::Serialize)]
+pub struct NetReply {
+    status: u16,
+    ok: bool,
+    body: String,
+}
+
+/// ONE HTTP REQUEST TO A MACHINE ON THIS NETWORK — the whole of what the shell
+/// does for Hue, and deliberately the whole of it.
+///
+/// Every line of Hue logic lives in the player: discovery, pairing, the colour
+/// maths, the rate limiting. The player deploys in a minute and the signed app
+/// takes a week, and Hue's API is the part of all this most likely to move —
+/// so the shell gets a capability that never needs to change rather than a
+/// feature that will.
+///
+/// `insecure` exists for exactly one reason: a Hue bridge presents a
+/// certificate signed by Signify's private CA, which no system trust store
+/// carries. It is not a general escape hatch — it only reaches addresses that
+/// already passed `is_lan_host`, so the worst it can do is fail to authenticate
+/// a machine on the operator's own network.
+#[tauri::command]
+async fn net_fetch(
+    url: String,
+    method: Option<String>,
+    body: Option<String>,
+    headers: Option<std::collections::HashMap<String, String>>,
+    insecure: Option<bool>,
+) -> Result<NetReply, String> {
+    let parsed = reqwest::Url::parse(&url).map_err(|_| "bad url".to_string())?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => return Err("only http(s)".into()),
+    }
+    let host = parsed.host_str().ok_or("no host")?;
+    if !is_lan_host(host) {
+        return Err(format!("{} is not on this network", host));
+    }
+    // a request that hangs must not hold a lamp frame open forever
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(insecure.unwrap_or(false))
+        .timeout(std::time::Duration::from_secs(6))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let m = method.unwrap_or_else(|| "GET".into()).to_uppercase();
+    let mut req = match m.as_str() {
+        "GET" => client.get(parsed),
+        "POST" => client.post(parsed),
+        "PUT" => client.put(parsed),
+        "DELETE" => client.delete(parsed),
+        _ => return Err("unsupported method".into()),
+    };
+    if let Some(hs) = headers {
+        for (k, v) in hs {
+            req = req.header(k, v);
+        }
+    }
+    if let Some(b) = body {
+        req = req.header("content-type", "application/json").body(b);
+    }
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    let status = res.status().as_u16();
+    let ok = res.status().is_success();
+    let text = res.text().await.unwrap_or_default();
+    Ok(NetReply {
+        status,
+        ok,
+        body: text,
+    })
+}
+
+#[cfg(test)]
+mod lan_tests {
+    use super::is_lan_host;
+
+    #[test]
+    fn private_space_is_allowed() {
+        for h in [
+            "192.168.1.2",
+            "10.0.0.1",
+            "172.16.0.1",
+            "172.31.255.255",
+            "127.0.0.1",
+            "169.254.1.1",
+            "philips-hue.local",
+        ] {
+            assert!(is_lan_host(h), "{h} should be reachable");
+        }
+    }
+
+    #[test]
+    fn everything_else_is_refused() {
+        for h in [
+            "8.8.8.8",
+            "example.com",
+            "172.32.0.1",
+            "172.15.0.1",
+            "192.169.1.1",
+            "11.0.0.1",
+            "",
+            "192.168.1.2:80",
+            // the shapes that exist to fool a careless parser
+            "127.0.0.1@evil.com",
+            "0177.0.0.1",
+            "010.0.0.1",
+            "192.168.1.256",
+            "evil.com/192.168.1.1",
+            "a.b.local",
+            "-bad.local",
+            "192.168.1",
+        ] {
+            assert!(!is_lan_host(h), "{h} must be refused");
+        }
     }
 }
 
@@ -325,7 +508,10 @@ fn list_displays<R: Runtime>(app: tauri::AppHandle<R>) -> Vec<Display> {
             let scale = m.scale_factor();
             let pos = m.position();
             let size = m.size();
-            let name = m.name().cloned().unwrap_or_else(|| format!("Display {}", index + 1));
+            let name = m
+                .name()
+                .cloned()
+                .unwrap_or_else(|| format!("Display {}", index + 1));
             Display {
                 index,
                 primary: primary.as_ref() == Some(&name),
@@ -381,7 +567,10 @@ async fn open_stage<R: Runtime>(
     // is that the audience sees the field and not the controls. A corner stage
     // is the opposite — it belongs on the screen the operator is looking at.
     let idx = display.unwrap_or_else(|| if displays.len() > 1 && !pip { 1 } else { 0 });
-    let d = displays.get(idx).or_else(|| displays.first()).ok_or("no such display")?;
+    let d = displays
+        .get(idx)
+        .or_else(|| displays.first())
+        .ok_or("no such display")?;
 
     let url = format!(
         "{}/?stage=screen&screen={}&of={}{}",
@@ -401,7 +590,7 @@ async fn open_stage<R: Runtime>(
 
     let win = if pip {
         let (x, y, w, h) = pip_bounds(d);
-        base.decorations(true)          // the title bar IS the handle to drag it by
+        base.decorations(true) // the title bar IS the handle to drag it by
             .resizable(true)
             .always_on_top(true)
             .min_inner_size(240.0, 150.0)
@@ -550,6 +739,9 @@ async fn set_mini<R: Runtime>(
 #[tauri::command]
 fn reload_shell<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
     let w = app.get_webview_window("main").ok_or("no main window")?;
-    w.eval(&format!("window.location.replace('{}/?fresh=' + Date.now())", LIVE))
-        .map_err(|e| e.to_string())
+    w.eval(&format!(
+        "window.location.replace('{}/?fresh=' + Date.now())",
+        LIVE
+    ))
+    .map_err(|e| e.to_string())
 }

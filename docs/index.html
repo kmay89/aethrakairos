@@ -5203,6 +5203,171 @@ function dmxShowIntents(show, patched){
   }
   return out;
 }
+
+/* ---------------------------------------------------------------- Hue */
+/* THE BRIDGE, AND WHY ALMOST NONE OF THIS IS NATIVE CODE.
+
+   A Hue bridge cannot be reached from a web page. It presents a certificate
+   signed by Signify's own private CA, so a script served over HTTPS gets a
+   TLS failure before it gets a chance to be told about CORS. That is not a
+   bug to route around; it is how the local API works, and it is the reason
+   Hue only happens inside the Mac app.
+
+   The tempting shape is to put Hue in the shell: discovery, pairing, the
+   light list, the colour maths, all in Rust. That would be wrong. The shell
+   ships as a signed binary on a good day and a slow week; the player deploys
+   in a minute. Anything that lives in the shell is frozen at whatever it was
+   the day it was signed — and Hue's API is the part of this most likely to
+   need a change.
+
+   So the shell gets ONE capability that never needs to change — "make this
+   HTTP request to a machine on my own network" — and every line of Hue logic
+   lives here, in the part that updates itself. What follows is testable
+   without a bridge, deployable without a release, and fixable in a minute.
+
+   THE PRICE OF THAT CAPABILITY IS A FENCE, and it is the most important
+   function in this file. A native fetch is a hole straight through the
+   browser's security model: no CORS, no mixed-content rule, no same-origin
+   policy. Pointed at the open internet it would turn the app into a confused
+   deputy that any script on the page could aim at anything. So it is pointed
+   ONLY at private address space, checked here and checked again in the shell,
+   because one check is a bug away from no check. */
+const HUE_APP = 'aethrakairos#player';
+
+/* IS THIS ADDRESS ON MY OWN NETWORK. Deliberately strict: the four private
+   ranges from RFC 1918, loopback, link-local, and the .local names mDNS
+   hands out. Everything else — a public IP, a hostname, anything with
+   credentials or a port trick in it — is refused.
+
+   The parsing is done by hand rather than with URL(), because URL() is
+   generous in exactly the ways an attacker needs: it will happily accept
+   "http://127.0.0.1@evil.com/" and report a host of evil.com to a careless
+   reader, and octal and hexadecimal quads ("http://0177.0.0.1/") resolve to
+   loopback while failing a naive decimal check. Both forms are rejected. */
+function hueIsLan(host){
+  const h = String(host == null ? '' : host).trim().toLowerCase();
+  if (!h || h.length > 253) return false;
+  if (/[@\/\\?#\s]/.test(h)) return false;             // no credentials, no path, no games
+  if (/^\[.*\]$/.test(h)) return false;                // IPv6 literals are not in scope
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m){
+    const q = m.slice(1).map(Number);
+    // a leading zero means the quad may be read as octal by some resolvers,
+    // so a decimal reading of it proves nothing
+    for (const part of m.slice(1)) if (part.length > 1 && part[0] === '0') return false;
+    if (q.some(v => !(v >= 0 && v <= 255))) return false;
+    if (q[0] === 10) return true;                                   // 10.0.0.0/8
+    if (q[0] === 172 && q[1] >= 16 && q[1] <= 31) return true;      // 172.16.0.0/12
+    if (q[0] === 192 && q[1] === 168) return true;                  // 192.168.0.0/16
+    if (q[0] === 127) return true;                                  // loopback
+    if (q[0] === 169 && q[1] === 254) return true;                  // link-local
+    return false;
+  }
+  // mDNS names only, and only one label deep — "philips-hue.local"
+  return /^[a-z0-9][a-z0-9-]{0,62}\.local$/.test(h);
+}
+
+/* RGB → CIE xy, which is the only colour a bridge accepts.
+
+   Not a convenience: a bulb has no red, green and blue to set. Hue takes a
+   chromaticity and a brightness, so the conversion has to happen somewhere,
+   and doing it here means the same chord that lights a DMX wash lights a bulb
+   the same colour rather than a near-enough one. Gamma expansion first —
+   skipping it is why so much Hue code renders midtones washed out — then the
+   Wide-RGB D65 matrix Signify's own documentation specifies. */
+function hueXY(r, g, b){
+  const u = v => { const x = Number(v); return Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0; };
+  const lin = v => (v > 0.04045 ? Math.pow((v + 0.055) / 1.055, 2.4) : v / 12.92);
+  const R = lin(u(r)), G = lin(u(g)), B = lin(u(b));
+  const X = R * 0.649926 + G * 0.103455 + B * 0.197109;
+  const Y = R * 0.234327 + G * 0.743075 + B * 0.022598;
+  const Z = R * 0.0000000 + G * 0.053077 + B * 1.035763;
+  const sum = X + Y + Z;
+  // black has no chromaticity at all; white is the least wrong answer for it
+  if (!(sum > 1e-9)) return { x: 0.3127, y: 0.3290, Y: 0 };
+  return { x: X / sum, y: Y / sum, Y };
+}
+
+/* WHAT TO SEND, AND — far more often — WHETHER TO SEND ANYTHING.
+
+   A bridge is not a DMX wire. It will take roughly ten commands a second per
+   light before it starts queueing them, and a queue is worse than a dropped
+   frame: the bulbs fall progressively further behind the music until they are
+   answering a beat that has already gone. So the engine's thirty frames a
+   second are decimated here, and a frame that would say nothing new is not
+   sent at all — which on a slow wash is most of them.
+
+   The comparison is deliberately coarse. Chromaticity below a thousandth and
+   brightness below a percent are differences no bulb can render and no eye
+   can see, and spending a request on one costs a request that a real change
+   needed. */
+const HUE_MIN_MS = 100;              // ten a second, per light
+const HUE_EPS_XY = 0.001;
+const HUE_EPS_BRI = 0.01;
+function hueUpdate(intent, prev, now){
+  const i = dmxIntent(intent);
+  const t = Number(now) || 0;
+  const xy = hueXY(i.r, i.g, i.b);
+  const on = i.dim > 0.004;
+  const bri = Math.max(0, Math.min(100, i.dim * 100));
+  const next = { on, x: xy.x, y: xy.y, bri, at: t };
+  if (prev){
+    if (t - (Number(prev.at) || 0) < HUE_MIN_MS) return null;
+    const same = prev.on === on
+      && Math.abs(prev.x - xy.x) < HUE_EPS_XY
+      && Math.abs(prev.y - xy.y) < HUE_EPS_XY
+      && Math.abs(prev.bri - bri) < HUE_EPS_BRI * 100;
+    if (same) return null;
+  }
+  /* dynamics.duration is the bridge's own interpolation, and it is doing the
+     work a DMX fixture does by simply being fast: told to fade over exactly
+     the gap until the next command, a bulb that is updated ten times a second
+     looks continuous rather than stepped. */
+  const body = { on: { on }, dynamics: { duration: HUE_MIN_MS } };
+  if (on){
+    body.dimming = { brightness: Math.round(bri * 10) / 10 };
+    body.color = { xy: { x: Math.round(xy.x * 1e4) / 1e4, y: Math.round(xy.y * 1e4) / 1e4 } };
+  }
+  return { body, state: next };
+}
+
+/* the pairing handshake, as a verdict rather than as a response body. A
+   bridge answers a pairing request with a 200 whether it worked or not; the
+   difference is inside the array, and the case that matters — error type 101,
+   "link button not pressed" — is the normal case, not a failure. It is what
+   the operator sees for the ten seconds before they walk over and press it. */
+function huePairResult(res){
+  const first = Array.isArray(res) ? res[0] : (res && res[0]) || res;
+  if (!first) return { ok: false, press: false, why: 'no answer from the bridge' };
+  if (first.error){
+    const t = Number(first.error.type);
+    if (t === 101) return { ok: false, press: true, why: 'press the round button on the bridge' };
+    return { ok: false, press: false, why: String(first.error.description || 'the bridge refused') };
+  }
+  const s = first.success;
+  if (s && s.username) return { ok: true, press: false, user: String(s.username), key: s.clientkey ? String(s.clientkey) : '' };
+  return { ok: false, press: false, why: 'the bridge answered with nothing usable' };
+}
+
+/* the light list, flattened out of CLIP v2's shape into the two things a
+   patch needs: something to address it by and something to call it. */
+function hueLights(json){
+  const rows = (json && json.data) || [];
+  const out = [];
+  for (const r of rows){
+    if (!r || !r.id) continue;
+    const meta = r.metadata || {};
+    out.push({
+      id: String(r.id),
+      name: String(meta.name || 'Hue light'),
+      archetype: String(meta.archetype || ''),
+      dimmable: !!r.dimming,
+      color: !!r.color,
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  return out;
+}
 // @dmx-end
 
 /* ================================================================
