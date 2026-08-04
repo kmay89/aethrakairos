@@ -4,6 +4,21 @@
     {
       "build": "unreleased",
       "date": "2026-08-04",
+      "title": "The wall earns its frames — every scene, one picture, seams and all",
+      "notes": [
+        "every scene now spans a wall of televisions as one picture — the fractal, the op-art rooms, the pulse, the parlor and the lava lamp used to draw the whole composition on every screen; each takes its slice of one shared field now, like everything else always did",
+        "the lava lamp on three screens is one lamp three screens wide, not three little lamps",
+        "SEAMS — the video-wall knob: the field passes behind the televisions' frames instead of teleporting across them, cycled through the sizes real frames come in and remembered for your rig",
+        "the Which? card grew the wall trade's alignment ritual: each screen shows its edges, and one ball rolls the whole wall — crossing a seam on time is the proof the cut is right, and with seams on it disappears behind the plastic and comes out the other side when a real ball would",
+        "works the same on the wire: sixteen devices wear their frames exactly like sixteen monitors"
+      ],
+      "builds": [
+        "8292881897"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-08-04",
       "title": "Crowd mode — the whole floor, in their hands",
       "notes": [
         "type “crowd” into the Stage card and put the QR on the projector: anyone who scans it taps once and their phone becomes the show — the whole field, dancing to the room",

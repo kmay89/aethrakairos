@@ -1071,6 +1071,13 @@ display it lands on. What varies is how the display reaches the laptop:
   chip). Safari and Firefox open the screens as windows in a row — drag each
   onto its television and double-click the picture to fill it. The Mac app does
   the placement in every browser's stead.
+- **Every scene spans the wall as one picture** — the camera-cut scenes always
+  did, and the shader scenes (the fractal, the op-art rooms, the lava lamp)
+  now take their slice of one composition too. **Seams** (in the folded booth)
+  is the video-wall knob: it opens hidden gutters so the field passes *behind*
+  the televisions' frames instead of teleporting across them — and **Which?**
+  holds up each screen's number, its edges, and a ball that rolls the whole
+  wall so you can judge the seams by eye, the way walls are actually tuned.
 - **The machine keeps itself honest** during a set: the booth and every
   room-sized screen hold a screen wake lock, so nothing dims mid-show. Plug the
   laptop into power anyway — a fullscreen field per monitor is real GPU work —

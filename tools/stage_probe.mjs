@@ -488,6 +488,34 @@ if (want('slice')){
     !!cut.view && Math.abs(cut.view.offsetX - cut.w) < 2 && Math.abs(cut.view.width - cut.w) < 2);
   verdict('slice: the backdrop is cut the same way, or the sky would tear at the seam',
     cut.bg !== null && Math.abs(cut.bg - cut.w) < 2, String(cut.bg));
+
+  /* AND THE QUAD SCENES TAKE THEIR SLICE TOO. Five scenes are fullscreen
+   * quads that build their picture from vUv, straight past the camera —
+   * for them setViewOffset does nothing, and each used to draw the WHOLE
+   * composition on every screen of a wall. Their uSlice uniform (identity
+   * everywhere else) is what cuts them now: switch a quad scene live on
+   * the middle screen of three and its material must be holding the middle
+   * third and the wall's aspect, not the window's. */
+  const quad = await page.evaluate(async () => {
+    const i = scenes.findIndex(s => /OP.?ART|PARLOR|PULSE/i.test(String(s.name || '')));
+    if (i < 0) return { found: false };
+    director.setScene(i, false);
+    await new Promise(r => setTimeout(r, 500));
+    let got = null;
+    scene.traverse(o => {
+      const u = o.material && o.material.uniforms;
+      if (!got && u && u.uSlice && u.uAspect && u.uSlice.value.z < 0.999)
+        got = { s: u.uSlice.value.toArray(), a: u.uAspect.value };
+    });
+    return { found: true, got, winAsp: window.innerWidth / Math.max(1, window.innerHeight) };
+  });
+  verdict('slice: a fullscreen-shader scene holds the middle third of the wall, not the whole picture',
+    quad.found && !!quad.got
+    && Math.abs(quad.got.s[0] - 1 / 3) < 1e-3 && Math.abs(quad.got.s[2] - 1 / 3) < 1e-3,
+    JSON.stringify(quad.got));
+  verdict('slice: and builds it against the wall\'s aspect, not the window\'s',
+    quad.found && !!quad.got && Math.abs(quad.got.a - quad.winAsp * 3) < 1e-3,
+    quad.got && (quad.got.a.toFixed(3) + ' vs window ' + quad.winAsp.toFixed(3)));
   await ctx.close();
 }
 
@@ -623,6 +651,38 @@ if (want('wall')){
     return b && !b.hidden ? b.querySelector('b').textContent : null;
   });
   verdict('wall: identify puts a number on every screen', ident === 3 && badge !== null, 'badge ' + badge);
+
+  /* the ball: one point sweeps the WHOLE wall on the booth's clock, and each
+   * screen draws only its own leg of the journey — the seam rehearsal */
+  let ball = null;
+  if (inner) ball = await inner.evaluate(async () => {
+    const at = () => {
+      const d = document.querySelector('#stageIdent .ball');
+      return d ? { x: parseFloat(d.style.left), on: d.style.opacity !== '0' } : null;
+    };
+    const a = at();
+    await new Promise(r => setTimeout(r, 260));
+    const b = at();
+    return a && b ? { moved: Math.abs(b.x - a.x) > 0.01, a: a.x, b: b.x } : null;
+  });
+  verdict('wall: and a ball rolls the wall for the seams to be judged by',
+    !!ball && ball.moved, ball ? ball.a.toFixed(1) + '% → ' + ball.b.toFixed(1) + '%' : 'no ball');
+
+  /* SEAMS: one press and the field passes behind the frames — the wall
+   * re-cuts with hidden gutters between the glasses */
+  const seams = await booth.evaluate(async () => {
+    const share = m => Object.values(m).reduce((a, c) => a + c.fw, 0);
+    const flat = share(stageLayout(stageSpread(STAGE.rects(), 0)).map);
+    STAGE.seams();                                     // 0 → 1%
+    await new Promise(r => setTimeout(r, 200));
+    const framed = STAGE.wall ? share(STAGE.wall.map) : -1;
+    // put the knob back where the next section expects it
+    while (STAGE.bezel !== 0) STAGE.seams();
+    return { flat, framed };
+  });
+  verdict('wall: seams grow the wall behind the frames — the glasses take a smaller share of it',
+    seams.framed > 0 && seams.framed < seams.flat - 1e-6,
+    'glass share ' + seams.flat.toFixed(3) + ' → ' + seams.framed.toFixed(3));
 
   // one screen unplugged is one screen unplugged, and the rest re-cut
   const shut = await booth.evaluate(async () => {

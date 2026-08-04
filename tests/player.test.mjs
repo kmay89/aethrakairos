@@ -39,7 +39,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal, stagePlan,' +
-  ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp,' +
+  ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp, stageSpread,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
@@ -2857,6 +2857,50 @@ test('stageNetWall: screens with no desk form a wall of their own, in join order
   assert.deepEqual(S.stageNetWall([]), {});
   for (const bad of [null, undefined, [null]])
     assert.doesNotThrow(() => S.stageNetWall(bad));
+});
+test('stageSpread: the field passes behind the frames, and every flush seam opens by two of them', () => {
+  // three matching TVs flush in desktop coordinates, 2% frames
+  const row = [
+    { id: 'a', x: 0, y: 0, w: 1920, h: 1080 },
+    { id: 'b', x: 1920, y: 0, w: 1920, h: 1080 },
+    { id: 'c', x: 3840, y: 0, w: 1920, h: 1080 },
+  ];
+  const out = S.stageSpread(row, 0.02);
+  // sizes are the glass and the glass did not grow
+  for (const r of out) assert.equal(r.w, 1920);
+  // each seam opened by exactly two frame-widths
+  const gap = out[1].x - (out[0].x + out[0].w);
+  assert.ok(Math.abs(gap - 2 * 0.02 * 1920) < 1e-6, 'gap ' + gap);
+  assert.ok(Math.abs((out[2].x - (out[1].x + out[1].w)) - gap) < 1e-6, 'seams match');
+  // …and the wall's slices now EXCLUDE the gutters: a ball crossing the
+  // seam spends real time behind the plastic
+  const L = S.stageLayout(out);
+  assert.ok(L.map.a.fx + L.map.a.fw < L.map.b.fx, 'a hidden gutter lives between the slices');
+  // identity is the identity: zero bezel, one screen, junk — all unmoved
+  assert.deepEqual(S.stageSpread(row, 0).map(r => r.x), [0, 1920, 3840]);
+  assert.deepEqual(S.stageSpread([row[0]], 0.05)[0].x, 0, 'one screen has no seams');
+  // a grid spreads both axes
+  const quad = S.stageSpread([
+    { x: 0, y: 0, w: 100, h: 100 }, { x: 100, y: 0, w: 100, h: 100 },
+    { x: 0, y: 100, w: 100, h: 100 }, { x: 100, y: 100, w: 100, h: 100 },
+  ], 0.05);
+  assert.ok(quad[3].x - 100 > 1e-6 && quad[3].y - 100 > 1e-6);
+  // absurd bezels are capped rather than believed
+  const wild = S.stageSpread(row, 9);
+  assert.ok(wild[1].x - 1920 <= 2 * 0.25 * 1920 + 1e-6);
+  for (const bad of [null, undefined, [null], [{}]])
+    assert.doesNotThrow(() => S.stageSpread(bad, 0.02));
+});
+test('stageNetWall with bezels: the wire\'s wall wears its frames like the desk\'s', () => {
+  const flat = S.stageNetWall(['na', 'nb'], 0);
+  const framed = S.stageNetWall(['na', 'nb'], 0.02);
+  // without frames the halves touch; with frames a gutter lives between them
+  assert.ok(Math.abs((flat.na.fx + flat.na.fw) - flat.nb.fx) < 1e-9);
+  assert.ok(framed.na.fx + framed.na.fw < framed.nb.fx, 'the seam opened');
+  // numbering and count survive the frames
+  assert.ok(framed.na.n === 1 && framed.nb.n === 2 && framed.nb.of === 2);
+  // and each glass is still a glass-shaped share, just of a wider wall
+  assert.ok(framed.na.fw < flat.na.fw);
 });
 test('crowdPack/crowdClamp: the pulse is tiny, and only a whole good pulse is believed', () => {
   const chord = [{ l: 0.7, c: 0.11, h: 200 }, { l: 0.6, c: 0.12, h: 220 }, { l: 0.5, c: 0.13, h: 240 }];
