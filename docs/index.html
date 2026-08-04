@@ -4903,6 +4903,115 @@ function dmxDecode(f, frame){
   }
   return out;
 }
+
+/* ---------------------------------------------------------------- the show */
+/* WHAT THE LAMPS SHOULD BE DOING, from what the music is already doing.
+
+   This is the part that makes a rig look programmed when nobody programmed
+   it. Everything it reads — the chord, the beat, the phrase, the act — the
+   player already computed to draw the picture, so the lights are not
+   listening to the room and guessing: they are downstream of the same
+   analysis the visuals are. A microphone-driven rig can only react after a
+   drop lands. This one knows the drop is coming, because the director does.
+
+   ROLES, NOT FIXTURES. A rig is described by what each lamp is FOR — a wash,
+   a beam, an accent — and the show is expressed in those terms. Add two more
+   washes and they take their place in the chord without a line of code. */
+const DMX_PRESETS = {
+  /* the picture, on the walls. Colour straight off the chord, brightness off
+     the energy, movement off the phrase. The default because it is the one
+     that never fights the screen. */
+  follow: { key: 'follow', name: 'Follow the field', strobe: 0, spin: 0.35, floor: 0.16, beat: 0.35, rainbow: 0 },
+  /* the beat, in the room. Brightness is mostly beat, so the rig breathes
+     with the kick rather than with the arrangement. */
+  pulse: { key: 'pulse', name: 'On the beat', strobe: 0, spin: 0.5, floor: 0.08, beat: 0.85, rainbow: 0 },
+  /* slow, wide, no flicker at all — a room people are talking in, a yoga
+     studio, a bar before it fills. The strobe is not merely low here, it is
+     structurally absent. */
+  calm: { key: 'calm', name: 'Slow wash', strobe: 0, spin: 0.1, floor: 0.35, beat: 0.08, rainbow: 0 },
+  /* everything the rig has, kept for the moments that have earned it. Even
+     here the strobe goes through the same cap as everywhere else. */
+  peak: { key: 'peak', name: 'Peak', strobe: 0.85, spin: 1, floor: 0.05, beat: 0.7, rainbow: 0.35 },
+  /* the lamps' own colour cycling, for a moonflower left to be a moonflower */
+  spin: { key: 'spin', name: 'Let them spin', strobe: 0, spin: 1, floor: 0.2, beat: 0.3, rainbow: 1 },
+  /* off, and meaning it — a blackout that a beat cannot sneak past */
+  black: { key: 'black', name: 'Blackout', strobe: 0, spin: 0, floor: 0, beat: 0, rainbow: 0, off: true },
+};
+const DMX_PRESET_ORDER = ['follow', 'pulse', 'calm', 'peak', 'spin', 'black'];
+
+/* AUTO. Which preset the moment deserves, decided from the same act and phase
+   that already decide what the picture does — so the rig lifts into a chorus
+   and settles into a breakdown without anyone touching it, and without a
+   second set of rules that could disagree with the first. */
+function dmxAutoPreset(show){
+  const s = show || {};
+  const phase = String(s.phase || 'flow');
+  const energy = Math.max(0, Math.min(1, Number(s.energy) || 0));
+  if (s.silent) return 'calm';
+  if (phase === 'drop' || phase === 'peak') return energy > 0.62 ? 'peak' : 'pulse';
+  if (phase === 'lift' || phase === 'build') return 'pulse';
+  if (phase === 'rest' || phase === 'breakdown') return 'calm';
+  return energy > 0.72 ? 'pulse' : energy < 0.22 ? 'calm' : 'follow';
+}
+
+/* one lamp's share of the chord. Washes spread across the stops rather than
+   all taking the first one — two washes on the identical colour is a wall,
+   three on the chord is a room — and the beam takes the stop the picture
+   uses for its accents, so the moonflower agrees with the thing on screen. */
+function dmxChordStop(chord, role, i){
+  const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
+  if (role === 'beam' || role === 'accent') return list[Math.min(2, list.length - 1)];
+  return list[i % list.length];
+}
+
+/* THE WHOLE RIG, ONE FRAME'S WORTH OF INTENT.
+
+   `chord` arrives as plain rgb triples so this stays testable without a
+   colour engine attached; the caller converts its own OKLCH stops once.
+   Everything is clamped on the way out by dmxIntent, but the arithmetic here
+   is kept inside 0..1 anyway so a preset can be read and reasoned about. */
+function dmxShowIntents(show, patched){
+  const s = show || {};
+  const preset = DMX_PRESETS[s.preset] || DMX_PRESETS[dmxAutoPreset(s)] || DMX_PRESETS.follow;
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const energy = u(s.energy), beat = u(s.beat), pulse = u(s.pulse);
+  const phrase = u(s.phrase), master = s.master == null ? 1 : u(s.master);
+  const chord = s.chord || [];
+  const out = {};
+  let washN = 0;
+  for (const f of patched || []){
+    if (!f) continue;
+    const prof = dmxProfile(f.key) || { can: {} };
+    const role = f.role || 'wash';
+    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : 0);
+    if (preset.off || master <= 0){
+      out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
+      continue;
+    }
+    /* BRIGHTNESS. A floor so the room is never actually dark between beats —
+       a rig that blinks fully out on every off-beat reads as broken wiring
+       rather than as rhythm — plus the arrangement's energy, plus whatever
+       share of the beat this preset asked for. */
+    const rhythm = preset.beat * Math.max(beat, pulse);
+    const body = (1 - preset.beat) * (preset.floor + (1 - preset.floor) * energy);
+    let dim = u(body + rhythm) * master;
+    /* the beam is the accent, so it is allowed to be the thing that goes dark
+       between phrases where a wash may not — that contrast is the effect */
+    if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
+    const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
+    /* SPIN follows the phrase and reverses with it, because a moonflower that
+       only ever turns one way stops being noticed after ninety seconds. */
+    const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
+    const spin = prof.can.spin ? dir * preset.spin * (0.25 + 0.75 * energy) : 0;
+    out[f.id] = {
+      r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
+      dim, strobe, spin,
+      rainbow: prof.can.rainbow ? u(preset.rainbow) : 0,
+      punch: u(beat * energy),
+    };
+  }
+  return out;
+}
 // @dmx-end
 
 /* ================================================================

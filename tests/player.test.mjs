@@ -42,6 +42,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
+  ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
@@ -3016,6 +3017,90 @@ test('dmxIntent: what reaches a mains-powered lamp is laundered first', () => {
   const f = S.dmxRender(S.dmxPatch([{ key: 'adj-mystic-led' }]), {});
   assert.equal(f.length, 512);
   assert.ok(f.every(v => Number.isFinite(v) && v >= 0 && v <= 255));
+});
+
+test('dmxShowIntents: the rig is downstream of the same analysis as the picture', () => {
+  const rig = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w1' },
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w2' },
+    { key: 'adj-mystic-led', role: 'beam', id: 'fl' },
+    { key: 'philips-hue', net: 'b1', role: 'wash', id: 'h1' },
+  ]);
+  const chord = [{ r: 1, g: 0, b: 0 }, { r: 0, g: 1, b: 0 }, { r: 0, g: 0, b: 1 }];
+  const show = { chord, energy: 0.6, beat: 0.5, pulse: 0.5, phrase: 0.1, preset: 'follow' };
+  const i = S.dmxShowIntents(show, rig);
+  assert.equal(Object.keys(i).length, 4, 'every fixture gets an intent, whatever wire it is on');
+  /* TWO WASHES ON THE SAME COLOUR IS A WALL. They take different stops of the
+     chord; three on the chord is a room. */
+  assert.notDeepEqual([i.w1.r, i.w1.g, i.w1.b], [i.w2.r, i.w2.g, i.w2.b]);
+  assert.deepEqual([i.w1.r, i.w1.g, i.w1.b], [1, 0, 0]);
+  assert.deepEqual([i.w2.r, i.w2.g, i.w2.b], [0, 1, 0]);
+  // the beam takes the accent stop, so the moonflower agrees with the screen
+  assert.deepEqual([i.fl.r, i.fl.g, i.fl.b], [0, 0, 1]);
+  // a fixture that cannot spin is never told to
+  assert.equal(i.w1.spin, 0);
+  assert.equal(i.h1.spin, 0, 'a bulb has no motor');
+  assert.ok(Math.abs(i.fl.spin) > 0, 'and the one that does, does');
+  assert.equal(i.h1.rainbow, 0, 'nor a rainbow it cannot run');
+});
+test('dmxShowIntents: brightness has a floor, because a rig that blinks out reads as broken', () => {
+  const rig = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch', id: 'w' }]);
+  const chord = [{ r: 1, g: 1, b: 1 }];
+  const dead = S.dmxShowIntents({ chord, energy: 0, beat: 0, pulse: 0, preset: 'follow' }, rig);
+  assert.ok(dead.w.dim > 0.05, 'silence is dim, not dark: ' + dead.w.dim);
+  const loud = S.dmxShowIntents({ chord, energy: 1, beat: 1, pulse: 1, preset: 'follow' }, rig);
+  assert.ok(loud.w.dim > dead.w.dim, 'and it still has somewhere to go');
+  assert.ok(loud.w.dim <= 1);
+  // the master is a real master
+  const half = S.dmxShowIntents({ chord, energy: 1, beat: 1, preset: 'follow', master: 0.5 }, rig);
+  assert.ok(Math.abs(half.w.dim - loud.w.dim * 0.5) < 1e-6);
+  /* BLACKOUT MEANS BLACKOUT — a beat may not sneak past it, which is the
+     whole reason anybody reaches for the button. */
+  const off = S.dmxShowIntents({ chord, energy: 1, beat: 1, pulse: 1, preset: 'black' }, rig);
+  assert.deepEqual([off.w.dim, off.w.strobe, off.w.r], [0, 0, 0]);
+  const master0 = S.dmxShowIntents({ chord, energy: 1, beat: 1, preset: 'peak', master: 0 }, rig);
+  assert.equal(master0.w.dim, 0);
+});
+test('dmxShowIntents: the strobe is earned, and calm has none to earn', () => {
+  const rig = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch', id: 'w' }]);
+  const chord = [{ r: 1, g: 1, b: 1 }];
+  const at = (preset, energy) => S.dmxShowIntents({ chord, energy, beat: 1, preset }, rig).w.strobe;
+  assert.equal(at('peak', 0.5), 0, 'below the threshold even peak does not strobe');
+  assert.ok(at('peak', 1) > 0.5, 'and at full energy it does');
+  assert.ok(at('peak', 0.8) < at('peak', 1), 'it ramps rather than switching');
+  /* CALM IS STRUCTURALLY INCAPABLE OF STROBING — not merely set low. A room
+     people are talking in must not be one energy spike away from a flash. */
+  for (const e of [0, 0.5, 0.9, 1]) assert.equal(at('calm', e), 0, 'calm at energy ' + e);
+  assert.equal(S.DMX_PRESETS.calm.strobe, 0);
+});
+test('dmxAutoPreset: the rig lifts into a chorus and settles into a breakdown by itself', () => {
+  assert.equal(S.dmxAutoPreset({ phase: 'drop', energy: 0.9 }), 'peak');
+  assert.equal(S.dmxAutoPreset({ phase: 'drop', energy: 0.3 }), 'pulse', 'a quiet drop is not a peak');
+  assert.equal(S.dmxAutoPreset({ phase: 'lift', energy: 0.5 }), 'pulse');
+  assert.equal(S.dmxAutoPreset({ phase: 'breakdown', energy: 0.9 }), 'calm');
+  assert.equal(S.dmxAutoPreset({ phase: 'flow', energy: 0.5 }), 'follow');
+  assert.equal(S.dmxAutoPreset({ phase: 'flow', energy: 0.05 }), 'calm');
+  // nothing playing is not a light show
+  assert.equal(S.dmxAutoPreset({ phase: 'drop', energy: 1, silent: true }), 'calm');
+  for (const bad of [null, undefined, {}, { phase: 42 }])
+    assert.ok(S.DMX_PRESETS[S.dmxAutoPreset(bad)], 'auto must always name a real preset: ' + JSON.stringify(bad));
+  // and every preset in the order actually exists, both ways
+  for (const k of S.DMX_PRESET_ORDER) assert.ok(S.DMX_PRESETS[k], k);
+  assert.equal(S.DMX_PRESET_ORDER.length, Object.keys(S.DMX_PRESETS).length);
+});
+test('dmxShowIntents: nothing it produces can reach a lamp unlaundered', () => {
+  const rig = S.dmxPatch([{ key: 'adj-mystic-led', id: 'fl', role: 'beam' }]);
+  for (const bad of [null, undefined, {}, { chord: null, energy: NaN, beat: 'x', preset: 'nope' }]){
+    const out = S.dmxShowIntents(bad, rig);
+    const i = out.fl;
+    assert.ok(i, 'a fixture always gets something: ' + JSON.stringify(bad));
+    for (const k of ['r', 'g', 'b', 'dim', 'strobe', 'spin'])
+      assert.ok(Number.isFinite(i[k]), k + ' was not finite from ' + JSON.stringify(bad));
+    // and the frame it renders to is still 512 clean bytes
+    const f = S.dmxRender(rig, out);
+    assert.ok(f.every(v => v >= 0 && v <= 255));
+  }
+  assert.doesNotThrow(() => S.dmxShowIntents({ chord: [{ r: 1, g: 1, b: 1 }] }, null));
 });
 
 test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
