@@ -2775,6 +2775,20 @@ function rampGain(gain, to, dur, shape){
 }
 
 function activeDeck(){ return AE.decks ? AE.decks[AE.active] : null; }
+/* repeat-one used to restart a finished track by hand: reseek to 0, call
+   play() again, on the 'ended' event. That's a real gap — decode restart,
+   a fresh buffering pass, sometimes an audible click — nothing like a real
+   deck's seamless loop. The native <audio> `loop` flag does this in the
+   media pipeline itself: no 'ended' event at all while it's set, no JS in
+   the loop, no gap. Synced here on every place the active deck can change
+   (a track start, a mix hand-off, the repeat button) so it's never stale;
+   the idle deck is always explicitly un-looped so a future swap can't
+   inherit a stray true. */
+function syncLoopFlag(){
+  if (!AE.decks) return;
+  const d = activeDeck(), on = player.repeat === 'one';
+  AE.decks.forEach(dk => { dk.a.loop = dk === d && on; });
+}
 
 /* ---------------- feature extraction, once per frame ---------------- */
 function analyse(dt, now){
@@ -3305,6 +3319,7 @@ const player = {
     this.playing = false;
     const bi = this._bag.indexOf(track.id);
     if (bi >= 0) this._bag.splice(bi, 1);
+    syncLoopFlag();                      // a restored repeat-one queue resumes seamless, not reseeking
     this.refreshTitle();
     this.renderList();
     updatePlayIcon();
@@ -3465,6 +3480,7 @@ const player = {
     }
     AE.active = newIdx;
     applyVolume();                       // element-volume routing follows the deck swap
+    syncLoopFlag();                      // the newly active deck picks up repeat-one, natively
     clearTimeout(this._fadeT);
     this._fadeT = setTimeout(() => {
       AE.xfading = false;
@@ -9720,6 +9736,7 @@ el.btnRepeat.addEventListener('click', () => {
   player.repeat = player.repeat === 'off' ? 'all' : player.repeat === 'all' ? 'one' : 'off';
   el.btnRepeat.classList.toggle('on', player.repeat !== 'off');
   el.rep1.style.display = player.repeat === 'one' ? 'block' : 'none';
+  syncLoopFlag();
   toast('Repeat: ' + player.repeat);
 });
 
