@@ -934,7 +934,7 @@ body.stage-screen{cursor:none;background:#000}
 #stageWait[hidden]{display:none!important}
 
 /* ============ the mini booth ============ */
-body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip){display:none!important}
+body.mini > *:not(#miniBar):not(#toasts):not(#askCard):not(#askScrim):not(#stagePip):not(.stage-pip){display:none!important}
 body.mini{background:var(--void,#05060c)}
 #miniBar{
   position:fixed;right:16px;bottom:16px;z-index:70;width:min(94vw,360px);
@@ -1005,29 +1005,29 @@ body.mini #miniBar{right:0;bottom:0;left:0;top:0;width:auto;border-radius:0;bord
    corner, pushed to full and back. Inside is an iframe of this very page told
    to be a screen — which is the one door no popup blocker, no permission and no
    missing monitor can shut. */
-#stagePip{
+.stage-pip{
   position:fixed;z-index:98;left:auto;top:auto;width:420px;height:262px;
   display:flex;flex-direction:column;overflow:hidden;
   border-radius:14px;border:1px solid var(--accent-line);background:#04050a;
   box-shadow:0 22px 64px rgba(0,0,0,.66);
 }
-#stagePip[hidden]{display:none!important}
+.stage-pip[hidden]{display:none!important}
 /* when the Mac shell is holding the real window, all that is left here is the
    hand that moves it: the same bar, without the picture under it */
-#stagePip.strip{width:auto;height:auto;border-radius:12px}
-#stagePip.strip .pip-head{border-bottom:0}
-#stagePip.full{left:0!important;top:0!important;width:100%!important;height:100%!important;border-radius:0;border-width:0 0 1px 0}
-#stagePip.moving{-webkit-user-select:none;user-select:none}
+.stage-pip.strip{width:auto;height:auto;border-radius:12px}
+.stage-pip.strip .pip-head{border-bottom:0}
+.stage-pip.full{left:0!important;top:0!important;width:100%!important;height:100%!important;border-radius:0;border-width:0 0 1px 0}
+.stage-pip.moving{-webkit-user-select:none;user-select:none}
 /* while a hand is on the bar or the corner the picture must not eat the
    pointer — an iframe is a different document, and it would swallow the drag */
-#stagePip.moving .pip-frame{pointer-events:none}
+.stage-pip.moving .pip-frame{pointer-events:none}
 .pip-head{
   display:flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;flex:0 0 auto;
   cursor:grab;touch-action:none;background:var(--sheen),var(--card);
   border-bottom:1px solid var(--line-soft);
 }
-#stagePip.moving .pip-head{cursor:grabbing}
-#stagePip.full .pip-head{cursor:default}
+.stage-pip.moving .pip-head{cursor:grabbing}
+.stage-pip.full .pip-head{cursor:default}
 .pip-dot{
   width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--accent,#6ee7ff);
   box-shadow:0 0 10px 1px var(--accent-glow);
@@ -1048,12 +1048,30 @@ body.mini #miniBar{right:0;bottom:0;left:0;top:0;width:auto;border-radius:0;bord
   background:linear-gradient(135deg,transparent 46%,var(--line-soft) 47%,transparent 52%,
     var(--line-soft) 60%,transparent 66%);
 }
-#stagePip.full .pip-grip{display:none}
+.stage-pip.full .pip-grip{display:none}
 /* the stage screen inside it is small and has a cursor over it — the room-sized
    version hides both, this one cannot */
 body.stage-screen.pip{cursor:default}
 body.stage-screen.pip #stageWait{font-size:9px;letter-spacing:.14em;gap:5px}
 body.stage-screen.pip #stageWait b{font-size:10px;letter-spacing:.22em}
+/* IDENTIFY — the number this screen is, at the size a display-arrangement
+   pane uses, because the question is asked from across a room. Sized in vmin
+   so it is legible on a corner window and enormous on a television. */
+#stageIdent{
+  position:fixed;inset:0;z-index:60;display:grid;place-content:center;gap:.6vmin;
+  justify-items:center;pointer-events:none;background:rgba(2,4,10,.42);
+  animation:identIn .18s ease-out;
+}
+#stageIdent[hidden]{display:none!important}
+#stageIdent b{
+  font-size:22vmin;line-height:.9;font-weight:600;color:#fff;
+  text-shadow:0 0 6vmin var(--accent-glow,rgba(110,231,255,.5));
+}
+#stageIdent span{
+  font-size:2vmin;letter-spacing:.3em;text-transform:uppercase;color:rgba(255,255,255,.66);
+}
+@keyframes identIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){#stageIdent{animation:none}}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -3714,6 +3732,124 @@ function stageSlice(screen, of, mode){
     fw: 1 / g.cols, fh: 1 / g.rows,
   };
 }
+
+/* ================================================================
+   THE WALL — the grid above, but discovered instead of declared.
+
+   stageGrid answers "where does screen 2 of 3 belong" with a guess: three
+   equal boxes in a row. That guess is right on the night the televisions are
+   identical and hung in a line, and wrong every other night — a laptop beside
+   a projector, two windows an operator dragged somewhere sensible, three of
+   four monitors in use and the fourth turned off.
+
+   So a screen stops being a NUMBER and becomes a RECTANGLE. Every screen
+   reports where it actually is — window.screenX/screenY for its top-left,
+   innerWidth/innerHeight for its size, which in every modern browser is the
+   viewport's own position on the virtual desktop, in CSS pixels, measured
+   from the top-left of the primary display. The booth takes the union of
+   those rectangles and calls it the wall. Each screen's slice of the field
+   is then simply its own rectangle's share of the wall — the identical four
+   numbers setViewOffset already wanted, arrived at from geometry rather than
+   from arithmetic on an index.
+
+   The consequence is the whole point: MOVE A WINDOW AND THE PICTURE FOLLOWS.
+   Drag a stage window from the laptop onto the television and its slice slides
+   with it, live, because the wall is recomputed from where the windows are on
+   the frame after they moved. The field stops being three pictures that agree
+   and becomes one field the windows are holes cut into.
+
+   The offsets work out exactly, which is worth showing once. A screen w CSS
+   pixels wide taking fraction fw of the wall computes the wall as fullW = w/fw
+   in its own pixels, and its offset into it as fx·fullW = (x − left)/W · W =
+   x − left — the true distance in pixels from the left edge of the wall to the
+   left edge of this window. Every screen derives the same fullW from different
+   numbers, so the frustum is one frustum and the seam is exact.
+   ================================================================ */
+/* one window's rectangle, laundered. Anything unreadable becomes a harmless
+   1×1 at the origin rather than a NaN that would poison a bounding box and
+   take every screen down with it. */
+function stageRect(r){
+  const n = (v, d) => { const x = Number(v); return Number.isFinite(x) ? x : d; };
+  return {
+    x: n(r && r.x, 0), y: n(r && r.y, 0),
+    w: Math.max(1, Math.abs(n(r && r.w, 1))),
+    h: Math.max(1, Math.abs(n(r && r.h, 1))),
+  };
+}
+/* the wall: the smallest rectangle containing every screen. Note that it is
+   the UNION and not the sum — two windows overlapping on one laptop describe
+   a small wall and both show most of the field, which is exactly what a
+   preview of a three-television rig on a single screen should look like. */
+function stageBounds(rects){
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, n = 0;
+  for (const raw of rects || []){
+    if (!raw) continue;
+    const r = stageRect(raw);
+    n++;
+    if (r.x < x0) x0 = r.x;
+    if (r.y < y0) y0 = r.y;
+    if (r.x + r.w > x1) x1 = r.x + r.w;
+    if (r.y + r.h > y1) y1 = r.y + r.h;
+  }
+  // no screens at all is not an error here; it is simply a wall of one unit,
+  // which every caller below divides by safely
+  if (!n) return { x: 0, y: 0, w: 1, h: 1, n: 0 };
+  return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0), n };
+}
+/* WHO IS SCREEN ONE — reading order across the real desk, not join order.
+   The first window to say hello is not the leftmost one, and an operator
+   counting televisions counts along the top shelf and then down. Windows
+   within half the shortest window's height of each other are on the same
+   shelf; below that they are on the next one. */
+function stageOrder(rects){
+  const list = [];
+  for (const raw of rects || []){
+    if (!raw || raw.id == null) continue;
+    const r = stageRect(raw); r.id = raw.id; list.push(r);
+  }
+  if (!list.length) return [];
+  let tol = Infinity, top = Infinity;
+  for (const r of list){ if (r.h < tol) tol = r.h; if (r.y < top) top = r.y; }
+  tol = Math.max(1, tol * 0.5);
+  const band = r => Math.round((r.y - top) / tol);
+  list.sort((a, b) => (band(a) - band(b)) || (a.x - b.x)
+    || String(a.id).localeCompare(String(b.id)));
+  return list.map(r => r.id);
+}
+/* the layout: every screen's slice of the wall, by id, in the units
+   setViewOffset wants — the same fx/fy/fw/fh stageSlice returns, so the two
+   are interchangeable at the point of use and the grid stays the floor under
+   a rig that cannot report its geometry. `n` is the reading-order position,
+   which is what an operator is told and what an identify badge shows. */
+function stageLayout(rects){
+  const list = [];
+  for (const raw of rects || []){
+    if (!raw || raw.id == null) continue;
+    const r = stageRect(raw); r.id = raw.id; list.push(r);
+  }
+  const b = stageBounds(list);
+  const order = stageOrder(list);
+  const map = {};
+  for (const r of list){
+    map[r.id] = {
+      fx: (r.x - b.x) / b.w, fy: (r.y - b.y) / b.h,
+      fw: r.w / b.w, fh: r.h / b.h,
+      n: order.indexOf(r.id) + 1, of: list.length,
+    };
+  }
+  return { bounds: b, map, order };
+}
+/* has the wall actually changed? A window that has not moved must not cause a
+   message, and a pixel of jitter from a fractional device ratio is not a move.
+   Cheap enough to ask on every frame, which is how often it is asked. */
+function stageMoved(a, b, tol){
+  const t = Number.isFinite(Number(tol)) ? Number(tol) : 0.5;
+  if (!a || !b) return !!a !== !!b;
+  const p = stageRect(a), q = stageRect(b);
+  return Math.abs(p.x - q.x) > t || Math.abs(p.y - q.y) > t
+    || Math.abs(p.w - q.w) > t || Math.abs(p.h - q.h) > t;
+}
+
 /* what a screen was ASKED to be, read from its own address bar. The address is
    the whole configuration: a screen can be opened by the native shell, by a
    window the operator dragged onto a TV, or by a URL typed into a smart TV's
@@ -3730,11 +3866,20 @@ function stageRole(search){
   };
   const on = q.stage === 'screen' || q.stage === '1' || q.stage === 'true';
   const of = num(q.of, 1);
+  const screen = Math.min(num(q.screen, 1), of);
   return {
     role: on ? 'screen' : 'booth',
-    screen: Math.min(num(q.screen, 1), of),
+    screen,
     of,
     mode: q.wall === 'row' || q.wall === 'column' || q.wall === 'grid' ? q.wall : 'auto',
+    /* WHO THIS SCREEN IS, for as long as it is open. The wall is keyed by
+       identity rather than by index because index is a thing the operator
+       changes — dragging window three to the left of window two makes it
+       screen two, and the roster has to survive that renumbering without
+       two windows briefly believing they are the same one. A screen reached
+       by typing the URL into a television's browser carries no id and gets
+       one from its number, which is the best it can do and enough. */
+    id: (q.id ? String(q.id).slice(0, 24) : 's' + screen),
   };
 }
 /* THE PACKET. A fixed, flat list of names — nothing else crosses. A stage
@@ -14460,12 +14605,19 @@ if (btnStage) btnStage.addEventListener('click', () => stageChooser());
    only question that matters at 1 a.m. is "how many televisions are there". */
 async function stageChooser(){
   if (STAGE.on){
+    // while the card is up, every screen holds up its own number — the answer
+    // to "which of these am I about to close" arrives before the question does
+    STAGE.identify(6000);
+    const nPip = STAGE.pips.length;
     const off = await ASK.confirm({
       title: 'Stage mode',
       body: STAGE.pip
-        ? 'The stage is running in the corner of this window.\n\nClose it?'
-        : 'The field is on ' + (STAGE.live() === 1 ? 'a screen' : STAGE.live() + ' screens') + ' of its own.\n\nBring it back into this window?',
-      ok: STAGE.pip ? 'Close it' : 'Bring it back', cancel: 'Leave it running',
+        ? (nPip > 1
+          ? nPip + ' screens are running in the corner of this window — each one showing you its number now.\n\nClose them?'
+          : 'The stage is running in the corner of this window.\n\nClose it?')
+        : 'The field is on ' + (STAGE.live() === 1 ? 'a screen' : STAGE.live() + ' screens') + ' of its own — each one showing you its number now.\n\nBring it back into this window?',
+      ok: STAGE.pip ? (nPip > 1 ? 'Close them' : 'Close it') : 'Bring it back',
+      cancel: 'Leave it running',
     });
     if (off) STAGE.stop();
     return;
@@ -14478,18 +14630,27 @@ async function stageChooser(){
   const alone = NATIVE.ready()
     ? displays.length < 2
     : (window.screen && window.screen.isExtended === false);
+  /* ONE SCREEN IS NOT ONE SCREEN'S WORTH OF STAGE. A laptop on a kitchen
+     table is where this gets designed, and a rig gets designed by being
+     WATCHED — so the same question is asked here as on a three-television
+     truss, and the answer opens that many corner windows instead of that many
+     televisions. One field, cut across them, live: slide them into a row and
+     that is the row; drag one to the far side and the field stretches to it.
+     The night it meets the real screens, the windows get dragged onto them and
+     nothing about the arithmetic changes. */
   if (alone){
-    const go = await ASK.confirm({
+    const many = await ASK.text({
       title: 'Stage mode',
-      body: 'There is only one screen here.\n\nSo the stage opens small: a window that floats above the booth, showing exactly what a television in the room would show. Drag it by its bar, pull the corner to resize it, ⤢ to fill this window — and ↗ when you do have a screen to send it to.',
-      ok: 'Open the stage', cancel: 'Not now',
+      body: 'There is only one screen here — so the stage opens small: windows that float above the booth, each showing exactly what one television in the room would show.\n\nHow many screens is the rig? They open as a row you can drag apart, and the field is cut where they actually are — so this is the rig, rehearsed.\n\nDrag them by their bars, pull a corner to resize, ⤢ to fill this window, ↗ to send one to a real screen.',
+      value: '1', placeholder: '1', ok: 'Open the stage',
     });
-    if (go) await STAGE.open(1, { pip: true });
+    if (many === null) return;
+    await STAGE.open(Math.max(1, Number(many) || 1), { pip: true });
     return;
   }
   const n = await ASK.text({
     title: 'Stage mode',
-    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nHow many screens? (0 keeps it small, in the corner of this window.)',
+    body: 'The field goes fullscreen on a screen of its own and this window becomes the booth — a corner player with a pad that puts your hand on the picture the room can see.\n\nEach screen takes its slice of one field from where it actually sits, so dragging a window onto a television moves its slice with it.\n\nHow many screens? (0 keeps them small, in the corner of this window.)',
     value: '1', placeholder: '1', ok: 'Open the stage',
   });
   if (n === null) return;
@@ -20012,13 +20173,18 @@ const STAGE = {
   mini: false,               // booth: folded into the corner
   pip: false,                // booth: the stage is a small window, not a room
   pipNative: false,          // booth: …and the shell owns that window, not us
-  pipEl: null,               // booth: the in-page one, when it is ours
-  peers: new Map(),          // booth: screen number → last heard from
+  pipEl: null,               // booth: the first in-page one (compat)
+  pips: [],                  // booth: every in-page window, in the order opened
+  peers: new Map(),          // booth: screen id → { at, rect, screen, of }
   wins: [],                  // booth: windows we opened ourselves (web path)
+  wall: null,                // booth: the last layout it computed and sent
+  ident: false,              // booth: every screen is showing its own number
   last: null,                // screen: the newest packet
   offset: NaN,               // screen: this machine's clock minus the booth's
   seenAt: 0,                 // screen: when the booth last spoke
-  _acc: 0, _padId: null,
+  cut: null,                 // screen: my slice of the wall, when the booth knows
+  mine: null,                // screen: my own rectangle, as last reported
+  _acc: 0, _padId: null, _wallAcc: 0, _geomAcc: 0,
 
   screen(){ return this.cfg.role === 'screen'; },
 
@@ -20031,7 +20197,8 @@ const STAGE = {
     // a screen that is closed, or a booth that is quit, should not leave the
     // other side waiting for a partner that will never speak again
     window.addEventListener('pagehide', () => {
-      this.send({ t: this.screen() ? 'screen-gone' : 'booth-gone', screen: this.cfg.screen });
+      this.send({ t: this.screen() ? 'screen-gone' : 'booth-gone',
+        screen: this.cfg.screen, id: this.cfg.id });
     });
   },
   send(m){ try { if (this.chan) this.chan.postMessage(m); } catch (e){} },
@@ -20052,10 +20219,10 @@ const STAGE = {
     // second copy of the music a room's width away from the first
     try { if (AE.master && AE.master.gain) AE.master.gain.value = 0; } catch (e){}
     this.applySlice();
-    window.addEventListener('resize', () => this.applySlice());
-    this.send({ t: 'here', screen: this.cfg.screen, of: this.cfg.of });
+    window.addEventListener('resize', () => { this.report(true); this.applySlice(); });
+    this.report(true);
     setInterval(() => {
-      this.send({ t: 'here', screen: this.cfg.screen, of: this.cfg.of });
+      this.report(true);
       // the booth has gone quiet: say so rather than hold a frozen picture
       const idle = performance.now() - this.seenAt;
       if (wait && this.seenAt) wait.hidden = idle < 4000;
@@ -20063,23 +20230,93 @@ const STAGE = {
       if (why && this.seenAt && idle >= 4000) why.textContent = 'the booth stopped speaking';
     }, 2000);
   },
+  /* WHERE THIS WINDOW IS, SAID OUT LOUD. There is no event for "the user
+     dragged this window onto the other monitor" — no browser fires one — so
+     the only way to know is to look, and the only place it is free to look is
+     the frame loop that is already running. Reading four numbers off `window`
+     costs nothing; SENDING them is what costs, so nothing is sent unless the
+     window actually moved, and a heartbeat every two seconds covers the case
+     where it never does. That is the whole mechanism behind a picture that
+     follows a window across a desk.
+
+     screenX/screenY are the viewport's own top-left on the virtual desktop —
+     the same origin every other window measures from — which is what makes
+     rectangles from four different windows comparable at all. */
+  geom(){
+    return {
+      x: Number(window.screenX) || 0, y: Number(window.screenY) || 0,
+      w: Math.max(1, window.innerWidth), h: Math.max(1, window.innerHeight),
+    };
+  },
+  report(force){
+    if (!this.screen()) return;
+    const g = this.geom();
+    if (!force && !stageMoved(this.mine, g)) return;
+    this.mine = g;
+    this.send({ t: 'here', id: this.cfg.id, screen: this.cfg.screen, of: this.cfg.of,
+      rect: g, dpr: window.devicePixelRatio || 1 });
+  },
+  /* the look, on the frame. Rate-limited to ~20 Hz because a drag produces a
+     new position on every frame and the booth only needs to keep up with a
+     hand, not with a compositor. */
+  watch(now){
+    if (!this.screen()) return;
+    if (now - this._geomAcc < 50) return;
+    this._geomAcc = now;
+    this.report(false);
+  },
   /* THE CUT. One camera, N screens wide; this screen takes its own rectangle of
      it. Mesh scenes and the backdrop are continuous across the seam by
-     construction — there is one frustum, and each screen is a window into it. */
+     construction — there is one frustum, and each screen is a window into it.
+
+     Two ways to know which rectangle is this screen's, and they produce the
+     same four numbers:
+       · the wall — the booth has everyone's real geometry and has said where
+         this window falls in it. Live, so the cut follows the window.
+       · the grid — nobody knows where anything is, so screen 2 of 3 takes the
+         middle third. The floor under a television whose browser was pointed
+         at a URL by hand, and what every screen shows for the first instant
+         before the booth has heard from it. */
   applySlice(){
     // the camera may not exist yet — boot order is not ours to assume, so this
     // is safe to call early, often, and again after every resize
     if (!this.screen() || typeof camera === 'undefined' || !camera) return;
     this._sliced = true;
-    const s = stageSlice(this.cfg.screen, this.cfg.of, this.cfg.mode === 'auto' ? null : this.cfg.mode);
+    const s = this.cut
+      || stageSlice(this.cfg.screen, this.cfg.of, this.cfg.mode === 'auto' ? null : this.cfg.mode);
     const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
-    const fullW = w / s.fw, fullH = h / s.fh;
+    const fw = Math.max(1e-4, Number(s.fw) || 1), fh = Math.max(1e-4, Number(s.fh) || 1);
+    const fullW = w / fw, fullH = h / fh;
+    const whole = fw > 0.999 && fh > 0.999;
     for (const c of [camera, typeof bgCam !== 'undefined' ? bgCam : null]){
       if (!c) continue;
-      if (s.cols === 1 && s.rows === 1){ c.clearViewOffset(); c.aspect = w / h; }
-      else { c.setViewOffset(fullW, fullH, s.fx * fullW, s.fy * fullH, w, h); c.aspect = fullW / fullH; }
+      if (whole){ c.clearViewOffset(); c.aspect = w / h; }
+      else {
+        c.setViewOffset(fullW, fullH, (Number(s.fx) || 0) * fullW, (Number(s.fy) || 0) * fullH, w, h);
+        c.aspect = fullW / fullH;
+      }
       c.updateProjectionMatrix();
     }
+  },
+  /* THE BADGE. Which window is this, said in letters a room away can read —
+     the same gesture as a display arrangement pane flashing a number onto
+     every monitor, and for the same reason: an operator with four windows
+     open needs to know which one is about to be dragged where. */
+  showIdent(on){
+    let box = document.getElementById('stageIdent');
+    if (!on){ if (box) box.hidden = true; return; }
+    if (!box){
+      box = document.createElement('div');
+      box.id = 'stageIdent';
+      box.innerHTML = '<b></b><span></span>';
+      document.body.appendChild(box);
+    }
+    const cut = this.cut;
+    box.querySelector('b').textContent = String((cut && cut.n) || this.cfg.screen);
+    box.querySelector('span').textContent = cut
+      ? 'screen ' + cut.n + ' of ' + cut.of
+      : 'screen ' + this.cfg.screen + ' of ' + this.cfg.of;
+    box.hidden = false;
   },
   /* the numbers, on the frame they arrive. Called from frame() after the local
      (silent) analysis, so everything downstream — uniforms, dance, colour,
@@ -20243,17 +20480,89 @@ const STAGE = {
         const wait = document.getElementById('stageWait'), why = document.getElementById('stageWaitWhy');
         if (why) why.textContent = 'the booth closed';
         if (wait) wait.hidden = false;
+      } else if (m.t === 'wall'){
+        /* MY SLICE, AS THE BOOTH SEES IT. Only the booth computes the wall,
+           and for the same reason it sends a camera pose rather than the dials
+           behind one: two screens deriving a bounding box from two slightly
+           different rosters is two chances to disagree, and the seam between
+           two televisions is exactly where a disagreement of half a degree
+           becomes a visible tear. One arithmetic, in one place, broadcast. */
+        const c = m.map && m.map[this.cfg.id];
+        if (c){ this.cut = c; this.applySlice(); if (this.ident) this.showIdent(true); }
+        else if (this.cut){ this.cut = null; this.applySlice(); }
+      } else if (m.t === 'ident'){
+        this.ident = !!m.on;
+        this.showIdent(this.ident);
       }
       return;
     }
-    // the booth keeps a roster, so it can say how many screens are really lit
-    if (m.t === 'here'){ this.peers.set(m.screen, Date.now()); this.paint(); }
-    else if (m.t === 'screen-gone'){ this.peers.delete(m.screen); this.paint(); }
+    /* the booth keeps a roster: who is out there, and where. Everything the
+       operator is told about the stage — how many screens are lit, which one
+       is which, how the field is cut across them — is read off this map. */
+    if (m.t === 'here'){
+      const id = m.id != null ? m.id : ('s' + m.screen);
+      const was = this.peers.get(id);
+      this.peers.set(id, { at: Date.now(), rect: m.rect || (was && was.rect) || null,
+        screen: m.screen, of: m.of, dpr: m.dpr });
+      /* a window that moved is news; a window merely still there is not. A
+         window saying hello for the FIRST time is news even when it changes
+         nothing about the wall — a corner window's rectangle was already known
+         to the booth that drew it, so its arrival leaves the layout identical
+         and would otherwise be deduplicated into silence, leaving the page
+         inside it waiting forever for a cut nobody was going to send again. */
+      if (!was) this._wallKey = '';
+      if (!was || stageMoved(was.rect, m.rect)) this.pushWall(true);
+      this.paint();
+    } else if (m.t === 'screen-gone'){
+      this.peers.delete(m.id != null ? m.id : ('s' + m.screen));
+      this.pushWall(true);
+      this.paint();
+    }
   },
   live(){
     const cut = Date.now() - 6000;
-    for (const [k, v] of this.peers) if (v < cut) this.peers.delete(k);
+    for (const [k, v] of this.peers) if (!v || v.at < cut) this.peers.delete(k);
     return this.peers.size;
+  },
+  /* every rectangle the booth currently believes in, including the ones it is
+     holding itself: a picture-in-picture is a stage screen whose geometry the
+     booth can simply read, and putting it in the same list is what lets a rig
+     mix corner windows and televisions without a second code path. */
+  rects(){
+    const out = [];
+    this.live();
+    for (const [id, v] of this.peers) if (v && v.rect) out.push({ id, x: v.rect.x, y: v.rect.y, w: v.rect.w, h: v.rect.h });
+    for (const p of this.pips){
+      const r = this.pipRect(p);
+      if (!r) continue;
+      const i = out.findIndex(o => o.id === p.sid);
+      /* the booth's own reading wins, and counts even before the page inside
+         has finished loading. It can see the frame move on the frame it moves,
+         where the frame inside would have to notice and then speak — and a
+         window that is demonstrably there should be in the wall from the first
+         frame rather than joining it a second later and shoving the others. */
+      if (i >= 0) out[i] = Object.assign({ id: p.sid }, r);
+      else out.push(Object.assign({ id: p.sid }, r));
+    }
+    return out;
+  },
+  /* the wall, recomputed and broadcast — but only when it is different, and
+     never more than thirty times a second. A drag is a hundred moves and one
+     new arrangement per frame; this is the valve between them. */
+  pushWall(force){
+    if (this.screen() || !this.on) return;
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (!force && now - this._wallAcc < 33) return;
+    this._wallAcc = now;
+    const rects = this.rects();
+    if (!rects.length){ this.wall = null; return; }
+    const L = stageLayout(rects);
+    const key = JSON.stringify(L.map);
+    if (key === this._wallKey) return;
+    this._wallKey = key;
+    this.wall = L;
+    this.send({ t: 'wall', map: L.map, bounds: L.bounds });
+    this.paint();
   },
   paint(){
     const n = this.live();
@@ -20265,6 +20574,25 @@ const STAGE = {
     if (s) s.textContent = tr ? (tr.artist || '') : '';
     const pb = document.getElementById('miniPlay');
     if (pb) pb.textContent = player.playing ? '❚❚' : '▶';
+    this.paintPips();
+  },
+  /* THE BARS RENUMBER THEMSELVES. Screen one is whichever screen is furthest
+     left on the top shelf, and if that is the window just dragged there then
+     that window is screen one now — its bar says so before the hand is off it.
+     A label that lies about which slice a window is showing is worse than no
+     label, and there is no moment here at which it could be caught lying. */
+  paintPips(){
+    if (!this.pips.length) return;
+    const map = (this.wall && this.wall.map) || null;
+    for (const p of this.pips){
+      const title = p.el && p.el.querySelector('.pip-title');
+      if (!title || p.native) continue;
+      const c = map && map[p.sid];
+      const of = c ? c.of : this.pips.length;
+      if (of <= 1){ title.textContent = 'Stage · what the room sees'; continue; }
+      title.textContent = 'Screen ' + (c ? c.n : p.i) + ' of ' + of;
+      if (p.el) p.el.setAttribute('aria-label', 'Stage screen ' + (c ? c.n : p.i) + ' of ' + of);
+    }
   },
   expand(on){
     const more = document.getElementById('miniMore'), btn = document.getElementById('miniExpand');
@@ -20287,6 +20615,7 @@ const STAGE = {
       add('Touch', 'Which force the pad applies', () => { if (typeof TOUCHFX.cycle === 'function') TOUCHFX.cycle(); });
       add('Skins', 'Restyle the room', () => { if (typeof skinCardOpen === 'function') skinCardOpen(true); });
       add('+ Screen', 'Open another stage screen', () => this.open(this.live() + 1));
+      add('Which?', 'Every screen holds up its own number', () => this.identify(3000));
       add('Full booth', 'Bring the whole console back', () => this.setMini(false));
     }
     this.expandPaint();
@@ -20301,10 +20630,14 @@ const STAGE = {
 
   /* ---------------- turning it on ---------------- */
   async toggle(){ if (this.on) this.stop(); else await this.open(1); },
-  /* the address of a screen — one place, so every door opens the same page */
-  url(i, of, pip){
+  /* the address of a screen — one place, so every door opens the same page.
+     The id travels in the address because it has to outlive a renumbering:
+     drag window three to the left of window two and it BECOMES screen two,
+     and the roster must follow the window rather than the label. */
+  url(i, of, pip, id){
     return location.origin + location.pathname
-      + '?stage=screen&screen=' + i + '&of=' + of + (pip ? '&pip=1' : '');
+      + '?stage=screen&screen=' + i + '&of=' + of
+      + '&id=' + encodeURIComponent(id || ('s' + i)) + (pip ? '&pip=1' : '');
   },
   /* open `n` screens. On the Mac the shell places a real window on a real
      display and fullscreens it there; on the web they are ordinary windows the
@@ -20321,13 +20654,13 @@ const STAGE = {
       toast('This browser cannot talk between windows — a stage screen would go dark');
       return;
     }
-    if (opts.pip === true && of === 1) return this.openPip();
+    if (opts.pip === true) return this.openPip({ n: of });
     let opened = 0;
     if (NATIVE.ready()){
       const displays = opts.displays || await NATIVE.call('list_displays') || [];
-      // one display and one screen asked for: small is the only shape of this
-      // that can actually be worked, so that is what opens
-      if (opts.pip !== false && of === 1 && displays.length < 2) return this.openPip();
+      // more screens asked for than there are displays to put them on: the
+      // extras become corner windows rather than a stack nobody can tell apart
+      if (opts.pip !== false && displays.length < 2) return this.openPip({ n: of });
       for (let i = 1; i <= of; i++){
         // one screen per display where there are enough of them; past that they
         // stack on the last one, which the operator can drag apart — better than
@@ -20338,9 +20671,17 @@ const STAGE = {
       }
     }
     if (!opened){
+      /* SPREAD THEM OUT ON THE WAY. A browser that stacks three popups at the
+         identical spot leaves three windows describing one rectangle, and the
+         wall is that rectangle — all three would show the same whole field
+         until a hand pulled them apart. Opening them in a row means the cut is
+         right on the first frame, and dragging one onto a television only
+         makes it more right. */
+      const step = Math.max(180, Math.round((screen.availWidth || 1440) / (of + 1)));
       for (let i = 1; i <= of; i++){
-        const w = window.open(this.url(i, of), 'mb8stage' + i,
-          'width=1280,height=720,menubar=no,toolbar=no');
+        const w = window.open(this.url(i, of, false, 's' + i), 'mb8stage' + i,
+          'width=1280,height=720,menubar=no,toolbar=no'
+          + ',left=' + ((i - 1) * step) + ',top=' + ((i - 1) * 24));
         if (w) this.wins.push(w); else break;
       }
       opened = this.wins.length;
@@ -20348,7 +20689,7 @@ const STAGE = {
          pop-ups" and stopped, which on the Mac shell — whose webview opens no
          second window at all — meant the stage simply could not be reached.
          There is always another way in, and it is the small one. */
-      if (!opened) return this.openPip({ blocked: of === 1 });
+      if (!opened) return this.openPip({ blocked: true, n: of });
     }
     this.on = true;
     this.pip = false;
@@ -20358,26 +20699,47 @@ const STAGE = {
       + '. This window is the booth.');
   },
 
-  /* THE STAGE, THE SIZE OF A POSTCARD. Everything the room-sized screen is —
-     the same page, the same packet, the same picture — in a window that floats
-     over the booth and can be dragged, resized and pushed to full.
+  /* THE STAGE, THE SIZE OF A POSTCARD — AND THERE CAN BE SEVERAL.
+
+     Everything a room-sized screen is — the same page, the same packet, the
+     same picture — in windows that float over the booth and can be dragged,
+     resized and pushed to full.
+
+     Why more than one? Because a stage rig is a thing you have to be able to
+     REHEARSE, and almost nobody rehearses in the room. Ask for three screens
+     on a one-screen laptop and three corner windows open: not three previews
+     of three separate scenes, but one field cut three ways, live. Slide them
+     apart and the field stretches between them; overlap them and they show
+     nearly the same picture; put them in a row and you are looking at exactly
+     what three televisions behind the booth will do that night. Then, in the
+     room, the same three windows get dragged onto the real screens and made
+     fullscreen by hand, and nothing about the arithmetic changes — the wall
+     was always the union of wherever the windows actually were.
+
      Two ways to get one, and the second cannot fail:
        · the Mac shell gives it a real window, above every other app
        · failing that the booth grows one itself, an iframe of this very page.
      An iframe needs no second monitor, no popup permission and no shell, which
-     is exactly why it is the floor under all of this. */
+     is exactly why it is the floor under all of this. The shell's floating
+     window is a single-screen trick — it is one window above every app — so
+     asking for several is asking for the corner windows, which can hold any
+     number of them. */
   async openPip(why){
     why = why || {};
+    const n = Math.max(1, Math.min(8, Math.floor(why.n) || 1));
     let native = false;
-    if (NATIVE.can('stage_pip')){
+    if (n === 1 && NATIVE.can('stage_pip')){
       const r = await NATIVE.call('open_stage', { display: 0, screen: 1, of: 1, pip: true });
       native = (r === true);
     }
     /* Either way the booth grows the same little bar. With a native window
        behind it the bar is only the controls — drag, fill the screen, close —
        because the picture is already floating over every other app; without one
-       the bar carries the picture too. Same three buttons, same place. */
-    if (!this.buildPip(native)){
+       the bar carries the picture too. Same buttons, same place. */
+    const place = this.pipLayout(n);
+    let built = 0;
+    for (let i = 1; i <= n; i++) if (this.buildPip(i, n, native, place[i - 1])) built++;
+    if (!built){
       toast('The stage could not open in this window');
       return;
     }
@@ -20387,39 +20749,88 @@ const STAGE = {
     // the picture is a preview here, not a hand-off: the booth stays whole,
     // because the whole point is watching the room's screen WHILE working
     this.setMini(false);
-    ACTIVITY.log('system', 'Stage mode on - picture in picture');
+    this.pushWall(true);
+    // which one is which, said once and unprompted — with three windows in a
+    // corner the first question is always "which of these is screen one"
+    if (n > 1) this.identify(2400);
+    ACTIVITY.log('system', 'Stage mode on - ' + n + (n === 1 ? ' screen' : ' screens') + ' in this window');
     toast(why.blocked
       ? 'A separate window was blocked — the stage opened here instead. Drag it, resize it, ⤢ for full.'
-      : native
-        ? 'Stage — a small window above every app. Drag it by its bar, resize it, ⤢ for the whole screen.'
-        : 'Stage — the picture the room would see, in the corner. Drag it, resize it, ⤢ full, ↗ its own window.');
+      : n > 1
+        ? n + ' screens, one field. Drag them around — the picture is cut where they actually are.'
+        : native
+          ? 'Stage — a small window above every app. Drag it by its bar, resize it, ⤢ for the whole screen.'
+          : 'Stage — the picture the room would see, in the corner. Drag it, resize it, ⤢ full, ↗ its own window.');
   },
 
-  /* the corner window itself: a bar to drag, a corner to pull, three buttons,
-     and an iframe that is a stage screen like any other */
-  buildPip(native){
-    if (this.pipEl){ this.pipEl.hidden = false; return true; }
+  /* WHERE N WINDOWS GO WHEN NOBODY HAS SAID. A row along the bottom of the
+     booth, in reading order, because a row is what a stage is and because the
+     arrangement should show the trick on the first frame rather than after the
+     operator has dragged four overlapping boxes apart. Below the width where a
+     row would give each window a letterbox slit, they cascade instead. */
+  pipLayout(n){
+    const vw = Math.max(320, window.innerWidth), vh = Math.max(240, window.innerHeight);
+    const pad = 18, gap = 10, bar = 32;
+    const saved = this.pipSaved(n);
+    if (saved) return saved;
+    const each = (vw - pad * 2 - gap * (n - 1)) / n;
+    if (n === 1 || each >= 210){
+      const w = Math.min(each, 520);
+      const h = Math.round(w * 0.5625) + bar;
+      const y = Math.max(pad, vh - h - pad);
+      const x0 = Math.round((vw - (w * n + gap * (n - 1))) / 2);
+      const out = [];
+      for (let i = 0; i < n; i++) out.push({ x: Math.round(x0 + i * (w + gap)), y, w: Math.round(w), h });
+      return out;
+    }
+    // too many for a row: a cascade, which at least starts them all reachable
+    const w = Math.min(380, vw - pad * 2), h = Math.round(w * 0.5625) + bar;
+    const out = [];
+    for (let i = 0; i < n; i++){
+      const step = i * 26;
+      out.push({ x: Math.min(pad + step, vw - w - pad), y: Math.min(pad + step, vh - h - pad), w, h });
+    }
+    return out;
+  },
+  /* where these were last left, and only if there were this many of them —
+     three remembered corners are no help at all to a rig now asking for one */
+  pipSaved(n){
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem('mb8_stage_pip_v2') || 'null'); } catch (e){}
+    if (!s || s.n !== n || !Array.isArray(s.at) || s.at.length !== n) return null;
+    for (const r of s.at) if (!r || !Number.isFinite(Number(r.w)) || !Number.isFinite(Number(r.x))) return null;
+    return s.at.map(r => ({ x: Number(r.x), y: Number(r.y), w: Number(r.w), h: Number(r.h) }));
+  },
+
+  /* one corner window: a bar to drag, a corner to pull, its buttons, and an
+     iframe that is a stage screen like any other — same address, same channel,
+     same engine as a television across the room. */
+  buildPip(i, of, native, at){
+    const sid = 's' + i;
+    if (this.pips.some(p => p.sid === sid)) return true;
     try {
       const box = document.createElement('div');
-      box.id = 'stagePip';
+      box.className = 'stage-pip';
+      if (i === 1) box.id = 'stagePip';        // the first one keeps its name
       if (native) box.classList.add('strip');
       box.setAttribute('role', 'group');
-      box.setAttribute('aria-label', 'Stage — picture in picture');
+      box.setAttribute('aria-label', 'Stage screen ' + i + ' of ' + of);
       const head = document.createElement('div');
       head.className = 'pip-head';
       const dot = document.createElement('span'); dot.className = 'pip-dot';
       const title = document.createElement('span');
       title.className = 'pip-title';
-      title.textContent = native ? 'Stage · in its own window' : 'Stage · what the room sees';
+      title.textContent = native ? 'Stage · in its own window'
+        : of > 1 ? 'Screen ' + i : 'Stage · what the room sees';
       const mk = (glyph, label) => {
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'pip-b'; b.textContent = glyph;
         b.title = label; b.setAttribute('aria-label', label);
         return b;
       };
-      const out = mk('↗', 'Open the stage in its own window');
+      const out = mk('↗', 'Open this screen in its own window');
       const full = mk('⤢', native ? 'Fill the screen' : 'Fill this window');
-      const shut = mk('✕', 'Close the stage');
+      const shut = mk('✕', of > 1 ? 'Close this screen' : 'Close the stage');
       head.appendChild(dot); head.appendChild(title);
       if (!native) head.appendChild(out);      // it already is its own window
       head.appendChild(full); head.appendChild(shut);
@@ -20427,23 +20838,31 @@ const STAGE = {
       if (!native){
         const frame = document.createElement('iframe');
         frame.className = 'pip-frame';
-        frame.title = 'Stage screen';
+        frame.title = 'Stage screen ' + i;
         frame.setAttribute('scrolling', 'no');
-        frame.src = this.url(1, 1, true);
+        frame.src = this.url(i, of, true, sid);
         const grip = document.createElement('span');
         grip.className = 'pip-grip'; grip.setAttribute('aria-hidden', 'true');
         box.appendChild(frame); box.appendChild(grip);
       }
       document.body.appendChild(box);
-      this.pipEl = box;
+      const p = { sid, i, of, el: box, native: !!native };
+      this.pips.push(p);
+      if (i === 1) this.pipEl = box;
       const grip = box.querySelector('.pip-grip');
 
-      const g = this.pipGeom();
-      this.pipPlace(g.x, g.y, g.w, g.h);
+      const g = at || this.pipLayout(of)[i - 1] || { x: 20, y: 20, w: 420, h: 262 };
+      this.pipPlace(box, g.x, g.y, g.w, g.h);
 
       /* one gesture, two jobs: the bar moves it, the corner sizes it. Pointer
          capture keeps the drag alive over the picture, and the class above
-         stops the iframe eating the moves on the browsers where it would. */
+         stops the iframe eating the moves on the browsers where it would.
+
+         THE WALL IS RECOMPUTED ON EVERY MOVE, not on the drop. That is the
+         whole effect: the field re-cuts under the hand, so a window being
+         dragged across the booth is a window being dragged across the
+         picture — the same thing that will happen when it is dragged onto a
+         television. Waiting for the mouse-up would make it a slideshow. */
       const hold = (el, sizing) => el.addEventListener('pointerdown', ev => {
         if (ev.button && ev.pointerType === 'mouse') return;
         if (!sizing && ev.target.closest('button')) return;
@@ -20451,15 +20870,19 @@ const STAGE = {
         const r = box.getBoundingClientRect();
         const ox = ev.clientX - r.left, oy = ev.clientY - r.top;
         box.classList.add('moving');
+        this.pipRaise(p);
         try { el.setPointerCapture(ev.pointerId); } catch (e){}
-        const move = e2 => sizing
-          ? this.pipPlace(r.left, r.top, e2.clientX - r.left, e2.clientY - r.top)
-          : this.pipPlace(e2.clientX - ox, e2.clientY - oy, r.width, r.height);
+        const move = e2 => {
+          if (sizing) this.pipPlace(box, r.left, r.top, e2.clientX - r.left, e2.clientY - r.top);
+          else this.pipPlace(box, e2.clientX - ox, e2.clientY - oy, r.width, r.height);
+          this.pushWall();
+        };
         const up = () => {
           el.removeEventListener('pointermove', move);
           el.removeEventListener('pointerup', up);
           el.removeEventListener('pointercancel', up);
           box.classList.remove('moving');
+          this.pushWall(true);
           this.pipSave();
         };
         el.addEventListener('pointermove', move);
@@ -20480,63 +20903,90 @@ const STAGE = {
           if (r === null){ toast('This version of the app cannot resize the stage'); return; }
         } else {
           box.classList.toggle('full', !big);
+          this.pipRaise(p);
         }
         big = !big;
         full.textContent = big ? '⤡' : '⤢';
         full.title = big ? 'Back to the corner' : (native ? 'Fill the screen' : 'Fill this window');
         full.setAttribute('aria-label', full.title);
+        this.pushWall(true);
       });
-      shut.addEventListener('click', () => this.stop());
+      /* ✕ on the last screen is ✕ on the stage; on one of several it is one
+         television unplugged, and the field re-cuts across the rest. */
+      shut.addEventListener('click', () => {
+        if (this.pips.length <= 1) this.stop();
+        else this.closePip(sid);
+      });
       /* THE WAY OUT, ON A CLICK. A click is a user gesture, so this window.open
          is the one that is never blocked — which is the entire reason this
-         button exists rather than a line of advice about popup settings. */
+         button exists rather than a line of advice about popup settings. The
+         window that opens carries this screen's own id, so it rejoins the wall
+         as the same screen it was in the corner: the picture does not change,
+         only where it is. */
       out.addEventListener('click', () => {
-        const w = window.open(this.url(1, 1), 'mb8stage1',
+        const w = window.open(this.url(p.i, this.pips.length, false, sid), 'mb8stage' + p.i,
           'width=1280,height=720,menubar=no,toolbar=no');
         if (!w){
           toast('That window was blocked — allow pop-ups for this site, or keep it here');
           return;
         }
         this.wins.push(w);
-        this.closePip();
-        this.setMini(true);
-        toast('Stage — drag that window onto the television.');
+        const alone = this.pips.length <= 1;
+        this.closePip(sid, true);
+        if (alone) this.setMini(true);
+        toast('Screen ' + p.i + ' — drag that window onto the television.');
       });
 
       // a window that shrinks must not leave the picture out at sea
-      this._pipFit = () => {
-        if (!this.pipEl || this.pipEl.classList.contains('full')) return;
-        const r = this.pipEl.getBoundingClientRect();
-        this.pipPlace(r.left, r.top, r.width, r.height);
-      };
-      window.addEventListener('resize', this._pipFit);
+      if (!this._pipFit){
+        this._pipFit = () => {
+          for (const q of this.pips){
+            if (!q.el || q.el.classList.contains('full')) continue;
+            const r = q.el.getBoundingClientRect();
+            this.pipPlace(q.el, r.left, r.top, r.width, r.height);
+          }
+          this.pushWall(true);
+        };
+        window.addEventListener('resize', this._pipFit);
+      }
       return true;
     } catch (e){
-      this.pipEl = null;
+      if (i === 1) this.pipEl = null;
       return false;
     }
   },
-  /* where it was last left, clamped to a window that may since have changed
-     size or monitor — a remembered position is a courtesy, never a trap */
-  pipGeom(){
-    let s = null;
-    try { s = JSON.parse(localStorage.getItem('mb8_stage_pip_v1') || 'null'); } catch (e){}
-    const w = (s && Number(s.w)) || Math.min(440, Math.max(240, window.innerWidth - 40));
-    const h = (s && Number(s.h)) || Math.round(w * 0.5625) + 32;
-    const x = (s && Number.isFinite(Number(s.x))) ? Number(s.x) : window.innerWidth - w - 18;
-    const y = (s && Number.isFinite(Number(s.y))) ? Number(s.y) : window.innerHeight - h - 18;
-    return { x, y, w, h };
+  /* the one being handled goes on top — with four of them overlapping, the
+     window under the hand is the window you want to see */
+  pipRaise(p){
+    let z = 98;
+    for (const q of this.pips) if (q !== p && q.el) q.el.style.zIndex = String(z++);
+    if (p && p.el) p.el.style.zIndex = String(z);
   },
-  pipPlace(x, y, w, h){
-    const box = this.pipEl;
+  /* WHERE A CORNER WINDOW IS, in the coordinates every other screen uses.
+     The booth reads this itself rather than asking the frame inside, because
+     the booth is what moves it — it knows on the frame the drag happens, where
+     the page inside would have to notice and then say so. It is the PICTURE's
+     rectangle and not the box's: the title bar is furniture, not field. */
+  pipRect(p){
+    if (!p || !p.el || p.el.hidden) return null;
+    const el = p.el.querySelector('.pip-frame') || p.el;
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return null;
+    return {
+      x: (Number(window.screenX) || 0) + r.left,
+      y: (Number(window.screenY) || 0) + r.top,
+      w: r.width, h: r.height,
+    };
+  },
+  pipPlace(box, x, y, w, h){
     if (!box) return;
     // the controls-only bar is whatever size its buttons are; only the one with
     // a picture in it has a size worth arguing about
     const strip = box.classList.contains('strip');
     if (strip){ const r = box.getBoundingClientRect(); w = r.width; h = r.height; }
     const vw = Math.max(240, window.innerWidth), vh = Math.max(160, window.innerHeight);
-    w = Math.min(Math.max(strip ? 1 : 220, w || 0), vw);
-    h = Math.min(Math.max(strip ? 1 : 150, h || 0), vh);
+    w = Math.min(Math.max(strip ? 1 : 180, w || 0), vw);
+    h = Math.min(Math.max(strip ? 1 : 130, h || 0), vh);
     x = Math.min(Math.max(0, x || 0), vw - w);
     y = Math.min(Math.max(0, y || 0), vh - h);
     box.style.left = Math.round(x) + 'px';
@@ -20546,36 +20996,74 @@ const STAGE = {
     box.style.height = Math.round(h) + 'px';
   },
   pipSave(){
-    if (!this.pipEl || this.pipEl.classList.contains('full')
-      || this.pipEl.classList.contains('strip')) return;
-    const r = this.pipEl.getBoundingClientRect();
-    try {
-      localStorage.setItem('mb8_stage_pip_v1', JSON.stringify(
-        { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }));
-    } catch (e){}
-  },
-  closePip(){
-    if (this._pipFit){ window.removeEventListener('resize', this._pipFit); this._pipFit = null; }
-    if (this.pipEl){
-      this.pipSave();
-      // removing the frame ends that page, which says goodbye on its way out
-      try { this.pipEl.remove(); } catch (e){}
-      this.pipEl = null;
+    const at = [];
+    for (const p of this.pips){
+      if (!p.el || p.el.classList.contains('full') || p.el.classList.contains('strip')) return;
+      const r = p.el.getBoundingClientRect();
+      at.push({ x: Math.round(r.left), y: Math.round(r.top),
+        w: Math.round(r.width), h: Math.round(r.height) });
     }
+    if (!at.length) return;
+    try { localStorage.setItem('mb8_stage_pip_v2', JSON.stringify({ n: at.length, at })); }
+    catch (e){}
+  },
+  /* one corner window away. `keep` is for the screen that is not really
+     closing but moving into a window of its own — its place on the wall is
+     about to be claimed by the popup carrying the same id, so the roster
+     entry is left alone rather than torn down and rebuilt. */
+  closePip(sid, keep){
+    const i = this.pips.findIndex(p => p.sid === sid);
+    if (i < 0) return;
+    const p = this.pips[i];
+    this.pips.splice(i, 1);
+    if (this.pipEl === p.el) this.pipEl = this.pips.length ? this.pips[0].el : null;
+    // removing the frame ends that page, which says goodbye on its way out
+    try { p.el.remove(); } catch (e){}
+    if (!keep) this.peers.delete(sid);
+    if (!this.pips.length && !this.wins.length) this.pip = false;
+    this.pushWall(true);
+    this.paint();
+  },
+  closePips(){
+    if (this._pipFit){ window.removeEventListener('resize', this._pipFit); this._pipFit = null; }
+    this.pipSave();
+    for (const p of this.pips){
+      try { p.el.remove(); } catch (e){}
+      this.peers.delete(p.sid);
+    }
+    this.pips = [];
+    this.pipEl = null;
     this.pip = false;
     this.pipNative = false;
   },
   stop(){
     this.on = false;
+    this.ident = false;
+    this.send({ t: 'ident', on: false });
     this.send({ t: 'booth-gone' });
     if (NATIVE.ready()) NATIVE.call('close_stage');
-    this.closePip();
+    this.closePips();
     for (const w of this.wins){ try { w.close(); } catch (e){} }
     this.wins = [];
     this.peers.clear();
+    this.wall = null;
+    this._wallKey = '';
     this.setMini(false);
     ACTIVITY.log('system', 'Stage mode off');
     toast('Stage mode off');
+  },
+  /* IDENTIFY — every screen holds up its own number, big enough to read from
+     the back of the room. The one question an operator with four windows open
+     always has, answered the way a display-arrangement pane answers it. */
+  identify(ms){
+    if (this.screen()) return;
+    this.ident = true;
+    this.send({ t: 'ident', on: true });
+    clearTimeout(this._identT);
+    this._identT = setTimeout(() => {
+      this.ident = false;
+      this.send({ t: 'ident', on: false });
+    }, Math.max(400, Number(ms) || 2400));
   },
   setMini(on){
     this.mini = !!on;
@@ -20618,6 +21106,11 @@ function frame(now){
   // after the (silent) local analysis and before a single consumer reads it
   if (STAGE.screen()){
     if (!STAGE._sliced) STAGE.applySlice();   // the camera exists by now
+    // NO BROWSER FIRES AN EVENT WHEN A WINDOW IS DRAGGED TO ANOTHER MONITOR.
+    // The frame loop is the only place that can notice, so it is where the
+    // noticing happens: four numbers read, and said out loud only if they
+    // changed. This one line is what makes the picture follow the window.
+    STAGE.watch(now);
     STAGE.pull();
   }
   if (CLOCK.haveGrid){
@@ -20805,6 +21298,9 @@ function frame(now){
   }
 
   STAGE.push(now);                     // ~30 Hz, and nothing at all unless a screen is lit
+  // and the wall, on the frame a corner window moves — the booth reads its own
+  // picture-in-picture rectangles here rather than waiting to be told
+  if (STAGE.on && STAGE.pips.length) STAGE.pushWall();
 
   uiAccum += dt;
   if (uiAccum > 0.08){

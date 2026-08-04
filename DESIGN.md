@@ -810,6 +810,75 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   three screens wide. The geometry itself is in the unit suite, where the tiling
   proof lives.
 
+### 1.2l′ The wall: screens that are rectangles, not numbers
+
+- **The ask, in one sentence:** pick how many screens, watch them pop into existence,
+  drag them onto the monitors and fullscreen them by hand — and have each one *know
+  who it is and where it is* while you are still moving it.
+- **What was wrong with a grid.** `stageSlice` answers "where does screen 2 of 3
+  belong" with a guess: three equal boxes in a row. That guess is right on the night
+  the televisions are identical and hung in a line, and wrong on every other night —
+  a laptop beside a projector, one screen turned off, two windows an operator dragged
+  somewhere sensible. Worse, it is *static*: nothing about dragging a window from the
+  laptop to the television changes what that window thinks it is showing.
+- **So a screen stopped being a number and became a rectangle.** Every screen reports
+  where it actually is — `window.screenX/screenY` for its top-left, `innerWidth/
+  innerHeight` for its size, which in every modern browser is the viewport's own
+  position on the virtual desktop in CSS pixels from the primary display's corner.
+  The booth takes the **union** of those rectangles and calls it the wall. A screen's
+  slice is then simply its rectangle's share of the wall: the identical four numbers
+  `setViewOffset` already wanted (`stageLayout` returns exactly `stageSlice`'s shape),
+  arrived at from geometry instead of from arithmetic on an index. The grid stays the
+  floor underneath, for a television whose browser was pointed at a URL by hand and
+  for the first instant before the booth has heard from anyone.
+- **The seam still has to be exact, and it is — provably.** A screen `w` pixels wide
+  taking fraction `fw` computes the wall as `fullW = w/fw` in its own pixels, and its
+  offset into it as `fx·fullW = (x − left)`. Every screen derives the *same* frustum
+  from different numbers, so a shape crossing between two panels leaves one and
+  enters the other at the same height, size and instant. The unit suite asserts this
+  on a deliberately mismatched pair — a 1440×900 laptop beside a 1920×1080 television,
+  vertically offset — because identical screens would prove nothing.
+- **No browser fires an event when a window is dragged to another monitor.** There is
+  no API for this and there is no way to ask to be told. The only place that can
+  notice is the frame loop that is already running, so that is where the noticing
+  happens: four numbers read per frame, and *sent* only when they change, with a
+  two-second heartbeat under it. Reading is free; broadcasting is what costs. (This
+  is the mechanism behind bgstaal's `multipleWindow3dScene`, the demo everybody has
+  seen — it polls `-screenX/-screenY` per frame and translates a shared world by it.
+  The same discovery, put through a camera frustum instead of a world transform,
+  which is what makes it a *stage* rather than an effect: the field is cut, not
+  moved, so each panel renders only its own part at its own resolution.)
+- **One arithmetic, in one place.** Only the booth computes the wall, and it is
+  broadcast — for the same reason the camera crosses as a pose rather than as the
+  dials that produce one. Two screens deriving a bounding box from two slightly
+  different rosters is two chances to disagree, and the seam is exactly where a
+  disagreement of half a degree becomes a visible tear.
+- **Identity survives renumbering, because the number is a property of the place.**
+  Screens are keyed by an id that travels in the address; the *number* is reading
+  order across the real desk — leftmost on the top shelf is screen one. Drag the
+  third window to the far left and it becomes screen one, and its title bar says so
+  before the hand is off it. `Identify` puts that number on every screen at the size
+  a display-arrangement pane uses, because "which of these is screen two" is the
+  first question anyone with four windows open asks.
+- **And it rehearses on one laptop, which is where it will actually be built.** Ask
+  for three screens on a single-display machine and three corner windows open, in a
+  row, showing one field cut three ways — not three previews of three scenes. Slide
+  them apart and the field stretches between them; overlap them and they show nearly
+  the same picture; put them in a row and that is what the truss will do. The night
+  it meets the real screens, the same windows get dragged onto them and made
+  fullscreen by hand, and **not one line of the arithmetic changes** — the wall was
+  always the union of wherever the windows really were. A corner window's rectangle
+  is read by the booth that drew it rather than reported by the page inside it, which
+  is why it is right on the frame the drag happens.
+- **Verified by `tools/stage_probe.mjs --only wall`**, which is the part no unit test
+  can reach: three windows open with three identities, the booth reads three real
+  rectangles and cuts the field where they are (gaps included — three windows with
+  space between them get *less* than a clean third each, exactly as three televisions
+  with bezels would), a drag re-cuts the field **mid-gesture** and the others shrink
+  to match, the new cut is broadcast before the hand lifts, the window now furthest
+  left renames itself screen one, and the page inside really did take the cut it was
+  sent rather than the one its address implied.
+
 ### 1.2m Stage presence at scale — three to eight televisions *(planned)*
 
 What ships today is correct for any N — the address bar takes `screen` and `of`, the
@@ -829,11 +898,15 @@ not yet done is everything that makes a WALL rather than several screens:
   visibly stretches at every seam. A per-screen bezel compensation (millimetres of
   frame as a fraction of panel width, folded into the slice's `fx/fw`) is the
   standard answer and belongs in the same place the slice is computed.
-- **Arrangements that are not rectangles.** Stages have screens at angles, screens
-  of different sizes, one enormous one flanked by two small. The slice contract is
-  already a rectangle in a normalized field, so the general form is a per-screen
-  rectangle in the address (`&rect=x,y,w,h`) with the grid as the shorthand — the
-  code path stays one path.
+- ~~**Arrangements that are not rectangles.**~~ **Done, and better than planned
+  (1.2l′).** The intent here was a per-screen rectangle typed into the address
+  (`&rect=x,y,w,h`) with the grid as shorthand. Nobody should have to type that: a
+  window already knows where it is, so the rectangle is *measured* rather than
+  declared, and the wall is the union of the measurements. Screens of different
+  sizes, one enormous one flanked by two small, a laptop beside a projector — all
+  fall out of it, and they follow the windows as they move. What is still open is
+  screens at ANGLES, which the union of axis-aligned rectangles cannot express and
+  which wants a per-screen homography rather than a viewport offset.
 - **Roles beyond a slice.** Eight screens showing eight parts of one image is one
   idea; eight screens where two carry the field, four carry mirrored halves and two
   carry the waveform is a different and often better one. The packet already carries
@@ -848,7 +921,10 @@ not yet done is everything that makes a WALL rather than several screens:
 - **One address to hang a wall with.** Eight televisions should not each be typed
   by hand. A single QR/short link per screen (`aethrakairos.com/#3of8`) that a smart
   TV browser can open, and a roster in the booth that shows which numbers have
-  reported in and which are still dark.
+  reported in and which are still dark. *(Half of this landed with the wall: the
+  booth keeps a roster keyed by identity with every screen's live rectangle in it,
+  and `Identify` puts each screen's number on its own glass. What is missing is the
+  short link and a visible map of the roster rather than a count.)*
 - **Bandwidth and blast radius.** One channel, ~40 floats at 30 Hz, is nothing on a
   single machine. Across a LAN (screens on other computers, which is what eight
   panels really means) the transport becomes a WebSocket or WebRTC data channel and
