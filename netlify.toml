@@ -2,8 +2,33 @@
 # worker, icons, catalog.json, audio) — publish that, not the repo root.
 # Canonical hosting is GitHub Pages at aethrakairos.com (see HOSTING.md);
 # Netlify serves deploy previews for pull requests against this repo.
+# THE AUDIO IS 1.1 GB, AND IT MUST NOT BE COPIED PER PREVIEW.
+#
+# Netlify publishes `docs`, and docs/audio is the whole catalog. Every pull
+# request therefore deployed a fresh 1.1 GB site — and on 2026-08-04 a run of
+# nine PRs in one evening exhausted the account's usage and PAUSED the project,
+# taking every preview down with it.
+#
+# Previews exist to look at the player, not to host a record label. So the
+# audio is stripped from the publish directory and the requests are redirected
+# to the canonical origin, which is GitHub Pages and where the music actually
+# lives (see HOSTING.md). A preview drops from 1.1 GB to a few megabytes and
+# still plays, because the player already sets crossOrigin='anonymous' for the
+# analyser and Pages answers with Access-Control-Allow-Origin: *.
+#
+# This changes NOTHING about production: GitHub Pages serves docs/ straight
+# from the repo and never runs this file.
 [build]
   publish = "docs"
+  command = "rm -rf docs/audio && echo 'audio stripped from the preview; /audio/* redirects to the canonical origin'"
+
+# force = true so this answers even though the directory is now absent —
+# without it Netlify would 404 first and never reach the rule
+[[redirects]]
+  from = "/audio/*"
+  to = "https://aethrakairos.com/audio/:splat"
+  status = 302
+  force = true
 
 # the service worker must never be served stale, or updates stall
 [[headers]]
@@ -16,12 +41,10 @@
   [headers.values]
     Access-Control-Allow-Origin = "*"
 
-# The audio is the bandwidth cost. Tell crawlers not to index it, and let the
-# CDN hold it for a week so a repeat stream is served from the edge, not origin.
-# (These headers apply on the Netlify previews; GitHub Pages, the canonical host,
-# ignores them — there, docs/robots.txt is what keeps bots out of /audio/.)
+# The audio no longer exists on a preview — it is stripped above and redirected
+# — so these headers are kept only for the redirect response itself. On GitHub
+# Pages, the canonical host, docs/robots.txt is what keeps bots out of /audio/.
 [[headers]]
   for = "/audio/*"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
-    Cache-Control = "public, max-age=604800"
