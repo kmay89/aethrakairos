@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') +
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -39,6 +39,9 @@ const code = block('pure') + '\n' + block('solver') + '\n' + block('color') + '\
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal,' +
+  ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
+  ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
+  ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
@@ -2837,6 +2840,182 @@ test('stageHandLocal: one gesture crossing one field, not one touch per screen',
     assert.doesNotThrow(() => S.stageHandLocal(bad, cut(2)), JSON.stringify(bad));
   const junk = S.stageHandLocal({ x: NaN, y: undefined }, { fw: 0, fh: null, fx: NaN });
   assert.ok(Number.isFinite(junk.x) && Number.isFinite(junk.y), 'a bad cut may not produce a NaN hand');
+});
+
+
+/* ------------------------------------------------------------------- DMX
+ * The rig is the first thing this program does that can be WRONG IN A ROOM.
+ * Everything else renders a picture; this drives mains-powered lamps from a
+ * channel map read out of a manual, and a byte in the wrong place is a
+ * fixture doing something nobody asked for at a gig. So the manuals' charts
+ * are the fixtures under test: every band boundary, every interlock, and
+ * every place the hardware is less capable than the intent handed to it. */
+test('dmxPatch: addresses stack, the universe ends at 512, and a networked light takes none', () => {
+  const p = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch' },
+    { key: 'venue-thintri-38', mode: '8ch' },
+    { key: 'adj-mystic-led' },
+  ]);
+  assert.deepEqual(p.map(f => f.at), [1, 9, 17], 'each fixture starts where the last one ended');
+  assert.deepEqual(p.map(f => f.span), [8, 8, 4]);
+  assert.equal(S.dmxUniverseUsed(p), 20);
+  // an address given by hand is kept — it is set on the fixture's own display
+  const hand = S.dmxPatch([{ key: 'adj-mystic-led', at: 100 }, { key: 'venue-thintri-38', mode: '3ch' }]);
+  assert.deepEqual(hand.map(f => f.at), [100, 104]);
+  /* A HUE BULB IS NOT ON THE WIRE. It must take no address, and — the part
+     that would actually break a rig — it must not push the fixtures that ARE
+     on the wire up the universe. Patch a bulb between two washes and both
+     washes keep the addresses they were set to on their own displays. */
+  const mixed = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch' },
+    { key: 'philips-hue', net: 'bulb-3' },
+    { key: 'venue-thintri-38', mode: '8ch' },
+  ]);
+  assert.deepEqual(mixed.map(f => f.at), [1, 0, 9], 'the bulb costs the wire nothing');
+  assert.equal(mixed[1].wire, 'net');
+  assert.equal(S.dmxUniverseUsed(mixed), 16);
+  // and 512 is a real edge: a fixture hanging off the end is marked, not dropped
+  const over = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch', at: 509 }]);
+  assert.equal(over.length, 1);
+  assert.equal(over[0].fits, false, 'ch 509-516 does not fit in 512');
+  assert.equal(S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch', at: 505 }])[0].fits, true);
+  for (const bad of [null, undefined, [null], [{}], [{ key: 'nope' }]])
+    assert.doesNotThrow(() => S.dmxPatch(bad), JSON.stringify(bad));
+  assert.equal(S.dmxPatch([{ key: 'nope' }]).length, 0, 'a fixture nobody has a profile for is not patched');
+});
+test('dmxRender ThinTri 38: true RGB, a real dimmer, and the two interlocks that bite', () => {
+  const p = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch' }]);
+  const f = S.dmxRender(p, { [p[0].id]: { r: 1, g: 0.5, b: 0, dim: 1 } });
+  assert.equal(f.length, 512);
+  assert.deepEqual([f[0], f[1], f[2]], [255, 128, 0], 'RGB lands on channels 1-3');
+  assert.equal(f[6], 255, 'channel 7 is the dimmer');
+  /* CHANNEL 4 OVERRIDES THE COLOUR CHANNELS above 015, so it is held at zero.
+     A renderer that left junk there would produce a fixture showing a macro
+     colour while the console insisted it was showing the chord. */
+  assert.equal(f[3], 0, 'no colour macro unless one was asked for');
+  /* CHANNEL 5 ONLY MEANS "STROBE" WHILE CHANNEL 6 IS IN ITS NO-FUNCTION BAND.
+     Anywhere else it is a program speed or the microphone's sensitivity. */
+  assert.equal(f[5], 0, 'channel 6 stays in the band where the console is in charge');
+  const st = S.dmxRender(p, { [p[0].id]: { r: 1, g: 1, b: 1, dim: 1, strobe: 1 } });
+  assert.ok(st[4] > 200, 'a full strobe intent is near the top of 016-255, got ' + st[4]);
+  assert.ok(st[5] <= 31, 'and channel 6 must stay put or channel 5 stops being a strobe');
+  const none = S.dmxRender(p, { [p[0].id]: { r: 1, g: 1, b: 1, dim: 1, strobe: 0 } });
+  assert.equal(none[4], 0, '000-015 is "no function", so no strobe means zero');
+  // the dimmer curve is off: this fixture is being driven 30 times a second
+  assert.equal(none[7], 0);
+});
+test('dmxRender ThinTri 38 in 3-channel mode: no dimmer channel exists, so the dimmer is the colour', () => {
+  const p = S.dmxPatch([{ key: 'venue-thintri-38', mode: '3ch' }]);
+  assert.equal(p[0].span, 3);
+  const half = S.dmxRender(p, { [p[0].id]: { r: 1, g: 1, b: 1, dim: 0.5 } });
+  assert.deepEqual([half[0], half[1], half[2]], [128, 128, 128],
+    'half brightness has to be folded into RGB — there is no channel 7 here');
+  const full = S.dmxRender(p, { [p[0].id]: { r: 1, g: 0, b: 0, dim: 1 } });
+  assert.deepEqual([full[0], full[1], full[2]], [255, 0, 0]);
+  // and nothing may be written past the fixture's three channels
+  assert.equal(full[3], 0);
+});
+test('dmxRender Mystic LED: seven colours, no dimmer, and a clockwise channel that runs backwards', () => {
+  const p = S.dmxPatch([{ key: 'adj-mystic-led' }]);
+  const at = id => S.dmxRender(p, { [p[0].id]: id });
+  // ch1: 128-135 is LED ON. There is no dimmer on this fixture at all.
+  const on = at({ r: 1, g: 0, b: 0, dim: 1 });
+  assert.ok(on[0] >= 128 && on[0] <= 135, 'LED ON band, got ' + on[0]);
+  assert.ok(on[1] <= 41, 'red is the 000-041 band, got ' + on[1]);
+  // a genuinely dark intent is the only thing that can turn it off
+  assert.equal(at({ r: 1, g: 0, b: 0, dim: 0 })[0], 0);
+  // ch2: a colour it cannot make becomes the nearest one it can
+  assert.ok(at({ r: 0, g: 0, b: 1, dim: 1 })[1] >= 168, 'blue → the 168-209 band');
+  const cyan = at({ r: 0, g: 0.9, b: 1, dim: 1 })[1];
+  assert.ok(cyan >= 126 && cyan <= 167, 'teal → GREEN & BLUE, got ' + cyan);
+  // brightness must not change WHICH colour is chosen — a dim teal is still teal
+  assert.equal(at({ r: 0, g: 0.09, b: 0.1, dim: 1 })[1], cyan, 'a dark teal picks the same lamp colour');
+  /* THE RAINBOW INTERLOCK. With channel 3 in 064-127 the fixture stops
+     reading channel 2 as a colour and reads it as the rainbow's SPEED, so a
+     colour written there would be a speed nobody chose. */
+  const rain = at({ r: 1, g: 0, b: 0, dim: 1, rainbow: 1 });
+  assert.ok(rain[2] >= 64 && rain[2] <= 127, 'rainbow on, got ' + rain[2]);
+  assert.ok(rain[1] > 200, 'and channel 2 is now the speed, not the red we asked for');
+  assert.equal(at({ r: 1, g: 0, b: 0, dim: 1, rainbow: 0 })[2], 0, 'rainbow off is below 064');
+  /* CHANNEL 4, AND THE TRAP. Clockwise is 001-085 running FAST to SLOW;
+     counter-clockwise is 086-170 running SLOW to FAST. The halves run in
+     opposite senses, so a naive mapping spins UP when asked to slow down. */
+  assert.equal(at({ dim: 1, spin: 0 })[3], 0, 'no spin is 000');
+  const cwFast = at({ dim: 1, spin: 1 })[3], cwSlow = at({ dim: 1, spin: 0.1 })[3];
+  assert.ok(cwFast >= 1 && cwFast <= 85 && cwSlow >= 1 && cwSlow <= 85, 'both in the clockwise band');
+  assert.ok(cwFast < cwSlow, 'faster clockwise is a LOWER value: ' + cwFast + ' vs ' + cwSlow);
+  const ccwFast = at({ dim: 1, spin: -1 })[3], ccwSlow = at({ dim: 1, spin: -0.1 })[3];
+  assert.ok(ccwFast > ccwSlow, 'counter-clockwise runs the other way: ' + ccwFast + ' vs ' + ccwSlow);
+  assert.ok(ccwFast <= 170 && ccwSlow >= 86, 'and stays inside 086-170');
+});
+test('dmxStrobeHz: the one number in this program that can hurt somebody', () => {
+  /* 3-65 Hz is the photosensitive-seizure band. A rig driven from an
+     audio-reactive loop would otherwise sit in the middle of it all night. */
+  assert.equal(S.dmxStrobeHz(0), 0, 'no strobe is no strobe');
+  assert.ok(S.dmxStrobeHz(1) <= S.DMX_STROBE_MAX_HZ, 'a full-throttle strobe stops at the cap');
+  assert.ok(S.DMX_STROBE_MAX_HZ <= 3, 'the cap must stay below the band');
+  assert.ok(S.dmxStrobeHz(0.5) > S.dmxStrobeHz(0.1), 'and it is still a control, not a switch');
+  // there is no way to ask for more, whatever is handed in
+  for (const bad of [99, Infinity, NaN, -5, '10', null])
+    assert.ok(S.dmxStrobeHz(bad) <= S.DMX_STROBE_MAX_HZ, 'unsafe from ' + bad);
+});
+test('dmxDecode: the emulator reads the wire, so it cannot agree with a broken renderer', () => {
+  const p = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch' }, { key: 'adj-mystic-led' }]);
+  const [wash, fl] = p;
+  const frame = S.dmxRender(p, {
+    [wash.id]: { r: 1, g: 0.5, b: 0, dim: 0.8 },
+    [fl.id]: { r: 0, g: 0, b: 1, dim: 1, spin: -0.5 },
+  });
+  const a = S.dmxDecode(wash, frame);
+  assert.ok(Math.abs(a.r - 1) < 0.01 && Math.abs(a.g - 0.5) < 0.01 && Math.abs(a.b) < 0.01);
+  assert.ok(Math.abs(a.dim - 0.8) < 0.01, 'the dimmer comes back off channel 7');
+  assert.equal(a.mode, 'dmx', 'and the fixture is reported as console-driven');
+  const b = S.dmxDecode(fl, frame);
+  assert.deepEqual([b.r, b.g, b.b], [0, 0, 1], 'the colour band decodes back to blue');
+  assert.ok(b.spin < 0, 'counter-clockwise comes back negative, got ' + b.spin);
+  assert.ok(b.dim > 0);
+  // a round trip through the wire must survive: render → decode → same picture
+  const spun = S.dmxDecode(fl, S.dmxRender(p, { [fl.id]: { dim: 1, spin: 0.8 } }));
+  assert.ok(spun.spin > 0.7 && spun.spin <= 1, 'clockwise 0.8 came back as ' + spun.spin);
+  // a networked light has no bytes to read, and says so rather than inventing them
+  const hue = S.dmxPatch([{ key: 'philips-hue', net: 'x' }])[0];
+  assert.equal(S.dmxDecode(hue, frame), null);
+  assert.equal(S.dmxDecode(null, frame), null);
+});
+test('dmxRenderNet: Hue takes the same intent, and does not pretend to strobe', () => {
+  const p = S.dmxPatch([
+    { key: 'philips-hue', net: 'bulb-1' },
+    { key: 'philips-hue', net: 'bulb-2' },
+    { key: 'venue-thintri-38', mode: '8ch' },
+  ]);
+  const out = S.dmxRenderNet(p, {
+    [p[0].id]: { r: 1, g: 0.2, b: 0, dim: 1 },
+    [p[1].id]: { r: 0, g: 0, b: 1, dim: 0.5, strobe: 1 },
+    [p[2].id]: { r: 1, g: 1, b: 1, dim: 1 },
+  });
+  assert.equal(out.length, 2, 'only the networked lights come back here');
+  assert.equal(out[0].net, 'bulb-1');
+  assert.ok(Math.abs(out[0].r - 1) < 1e-9 && Math.abs(out[0].g - 0.2) < 1e-9);
+  /* A BULB CANNOT STROBE — around fifty updates a second, with a phosphor and
+     a smoothing curve in the way. So a strobe intent becomes a dip in
+     brightness: visibly less than the rig is doing, which is honest, rather
+     than a bulb pretending and landing a beat late. */
+  assert.ok(out[1].dim < 0.5, 'the strobe became a brightness dip, got ' + out[1].dim);
+  assert.ok(out[1].dim > 0, 'but not a blackout');
+  assert.doesNotThrow(() => S.dmxRenderNet(null, null));
+  assert.equal(S.dmxRenderNet(p, {}).length, 2, 'a light nobody addressed still reports itself');
+});
+test('dmxIntent: what reaches a mains-powered lamp is laundered first', () => {
+  const i = S.dmxIntent({ r: 2, g: -1, b: 'x', dim: NaN, strobe: 9, spin: -40, macro: 900 });
+  assert.equal(i.r, 1); assert.equal(i.g, 0); assert.equal(i.b, 0);
+  assert.equal(i.dim, 1, 'an unreadable dimmer is full, not dark — a dead rig reads as a fault');
+  assert.equal(i.strobe, 1); assert.equal(i.spin, -1); assert.equal(i.macro, 255);
+  for (const bad of [null, undefined, 0, 'x'])
+    assert.doesNotThrow(() => S.dmxIntent(bad), String(bad));
+  // and every byte of a frame is written on purpose — no stale values anywhere
+  const f = S.dmxRender(S.dmxPatch([{ key: 'adj-mystic-led' }]), {});
+  assert.equal(f.length, 512);
+  assert.ok(f.every(v => Number.isFinite(v) && v >= 0 && v <= 255));
 });
 
 test('stageApplyFeat: a screen renders what it is told, so what it is told is fenced', () => {
