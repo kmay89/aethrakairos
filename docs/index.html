@@ -14203,7 +14203,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '4129940936';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '51ec1a2831';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -24662,10 +24662,21 @@ const STAGE = {
       if (Number.isFinite(Number(p.dir.ceil))) director.ceil = Number(p.dir.ceil);
     }
     const c = p.cam;
+    /* EVERY NUMBER, OR NONE. The camera is the one sink a bad packet does
+       not wash out of: a NaN in the quaternion poisons the matrices and the
+       screen stays black through every GOOD packet that follows, because
+       nothing downstream ever renormalizes it. That was survivable when
+       packets only crossed a BroadcastChannel from our own code; the wire
+       carries them from another machine, and a screen facing an audience
+       holds its last good pose rather than gambling on a new one. */
     if (c && c.length === 8 && typeof camera !== 'undefined' && camera){
-      camera.position.set(c[0], c[1], c[2]);
-      camera.quaternion.set(c[3], c[4], c[5], c[6]);
-      if (camera.fov !== c[7]){ camera.fov = c[7]; camera.updateProjectionMatrix(); }
+      let ok = true;
+      for (let i = 0; i < 8; i++) if (!Number.isFinite(Number(c[i]))){ ok = false; break; }
+      if (ok){
+        camera.position.set(c[0], c[1], c[2]);
+        camera.quaternion.set(c[3], c[4], c[5], c[6]);
+        if (camera.fov !== c[7]){ camera.fov = c[7]; camera.updateProjectionMatrix(); }
+      }
     }
   },
   /* the hand, applied after the local ghost has had its say and before the
@@ -26582,6 +26593,23 @@ const WIRE = {
           if (slot) slot.pc.setRemoteDescription({ type: 'answer', sdp: a.answer }).catch(() => {});
         }
         if ((r.answers || []).length || (r.free | 0) < 1) this.spare();
+      } else if (r && /gone/.test(String(r.error || ''))){
+        /* THE ROOM OUTLIVED ITS TTL — a booth that slept through the
+           mailbox's quarter hour. The screens already linked never notice
+           (they are peer-to-peer), but the DOOR died silently: every new
+           knock would hear "no room by that name" forever. Re-host, which
+           mints fresh letters (the mailbox cannot resurrect a code it has
+           forgotten), and re-say the invite card if it is up — the code on
+           it is a lie now, and a lying invite is worse than none. The old
+           code and key stay put until the new ones land: they are only
+           reclaim hints to host(), and a failed re-host must leave this
+           loop still trying rather than holding a null nobody retries. */
+        const back = await this.host();
+        if (back){
+          const card = document.getElementById('wireCard');
+          if (card && !card.hidden) this.showInvite();
+          toast('The invite expired while the booth was away — fresh letters: <b>' + this.code + '</b>');
+        }
       }
       const cut = Date.now() - 8000;
       for (const [id, p] of this.peers) if (p.at < cut) this.drop(id);
@@ -26824,11 +26852,26 @@ const CROWD = {
      a palette glide reads as a lighting cue at any offset under a bar, and
      a scene change landing a second late lands on a floor that never knew
      when it was chosen. */
-  push(){
+  async push(){
     if (!this.code || !this.key) return;
     const p = crowdPack(COLOR.now, typeof director !== 'undefined' ? director.active : 0);
     if (!p) return;
-    WIRE.api('pulse', { code: this.code, key: this.key, pulse: p });
+    const r = await WIRE.api('pulse', { code: this.code, key: this.key, pulse: p });
+    /* the beacon outlived by its booth: a laptop that slept through the
+       mailbox's quarter hour comes back to a room that is gone, and every
+       pulse after that would 404 in silence while the floor slowly drifts
+       into colours of its own. Re-mint (the old code and key ride along as
+       reclaim hints; a forgotten room means fresh letters), re-say the card
+       if it is up, and say so once — the QR on the projector is stale. */
+    if (r && /gone/.test(String(r.error || ''))){
+      const back = await WIRE.api('beacon', { name: 'The show', code: this.code, key: this.key });
+      if (back && !back.error && back.code){
+        this.code = back.code; this.key = back.key;
+        const card = document.getElementById('crowdCard');
+        if (card && !card.hidden) this.showCard();
+        toast('The crowd code expired while the booth was away — fresh letters: <b>' + this.code + '</b>');
+      }
+    }
   },
   joinUrl(){ return location.origin + location.pathname + '?crowd=' + this.code; },
   showCard(){
@@ -26893,9 +26936,13 @@ const CROWD = {
     try {
       const r = await fetch(base + '?a=pulse&g=' + WIRE.GAME + '&code=' + this.code, { cache: 'default' });
       const ct = r.headers.get('content-type') || '';
-      if (ct.indexOf('application/json') < 0) return null;
+      /* a base that stopped answering JSON is a base that moved out from
+         under us (a preview torn down, a proxy in the way): unlatch it, so
+         the next tick re-finds the mailbox instead of asking a dead address
+         every 2.5 seconds for the rest of the night */
+      if (ct.indexOf('application/json') < 0){ WIRE.base = null; return null; }
       return await r.json().catch(() => null);
-    } catch (e){ return null; }
+    } catch (e){ WIRE.base = null; return null; }
   },
   apply(raw){
     const p = crowdClamp(raw);
