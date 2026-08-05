@@ -999,8 +999,16 @@ if (want('warm')){
     col: [[0.7, 0.11, 200], [0.6, 0.12, 220], [0.5, 0.13, 240]],
     hand: { x: 0, y: 0, d: false },
   }));
+  /* A STREAM, NOT A PACKET. The booth sends 't':'f' sixty times a second, and
+   * the first version of this probe sent exactly one — which is precisely the
+   * sequence in which a warm-up that re-renders itself on every frame still
+   * works. It shipped untouchable: the swatches were drawn and lit, and the
+   * button under your finger was destroyed and rebuilt between pointerdown and
+   * pointerup, so `click` was never delivered. Anything that reacts to the
+   * heartbeat has to be probed WITH the heartbeat running. */
   await frame();
-  await screen.waitForTimeout(250);
+  const beat = setInterval(() => { frame().catch(() => {}); }, 16);
+  await screen.waitForTimeout(400);
 
   const step1 = await screen.evaluate(() => ({
     up: !document.getElementById('warmup').hidden,
@@ -1013,6 +1021,18 @@ if (want('warm')){
     step1.cells === 8 && /colour/i.test(step1.title), step1.cells + ' cells, "' + step1.title + '"');
   verdict('warm: a screen being PICKED on shows its cursor again — a hidden pointer\n'
     + '        cannot find a swatch', step1.cursor !== 'none', step1.cursor);
+
+  /* the identity of a swatch, held across the heartbeat. If the grid is being
+   * rebuilt underneath, this node is detached moments later — a far sharper
+   * test than "did something get clicked", and the one that would have caught
+   * it before a listener did. */
+  const held = await screen.evaluateHandle(
+    () => document.querySelector('#wuGrid .wu-cell:nth-child(5)'));
+  await screen.waitForTimeout(500);
+  const stable = await screen.evaluate(n => !!n && n.isConnected, held);
+  verdict('warm: the card survives the booth\'s heartbeat — a grid rebuilt on\n'
+    + '        every frame destroys the button between press and release, and no\n'
+    + '        click is ever delivered', stable === true);
 
   await screen.click('#wuGrid .wu-cell:nth-child(5)');       // sky
   await screen.waitForTimeout(400);
@@ -1040,6 +1060,7 @@ if (want('warm')){
 
   await screen.click('#wuGrid .wu-cell:nth-child(2)');
   await screen.waitForTimeout(600);
+  clearInterval(beat);
   const after = await screen.evaluate(() => ({
     up: !document.getElementById('warmup').hidden,
     done: WARM.done, hue: WARM.hue, scene: WARM.scene,
