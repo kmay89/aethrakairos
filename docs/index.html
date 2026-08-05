@@ -25107,9 +25107,28 @@ const STAGE = {
     // the monitors are known, so the wall is right before a screen has spoken
     this._wallKey = '';
     this.pushWall(true);
-    ACTIVITY.log('system', 'Stage mode on - ' + of + (of === 1 ? ' screen' : ' screens'));
-    toast('Stage mode — the field is on ' + (of === 1 ? 'its own screen' : of + ' screens')
+    /* SAY WHAT ACTUALLY OPENED, NOT WHAT WAS ASKED FOR.
+
+       Firefox allows one window per gesture and blocks the rest — ask for
+       three and you get one, plus a notification bar the operator may not
+       connect to anything. The wall itself was never wrong: it is built from
+       the rectangles that really reported in, so a window that never opened
+       is simply not in it. The MESSAGE was, and "the field is on 3 screens"
+       over a rig with one is the kind of confident lie that sends somebody
+       looking for the other two behind the furniture.
+
+       The remedy is the browser's, so it is named: allowing pop-ups for this
+       site once is permanent, and every screen opens on the next try. */
+    const got = NATIVE.ready() ? opened : Math.max(opened, this.wins.length);
+    const short = got < of;
+    ACTIVITY.log('system', 'Stage mode on - ' + got + (got === 1 ? ' screen' : ' screens')
+      + (short ? ' of ' + of + ' asked for (blocked)' : ''));
+    toast('Stage mode — the field is on ' + (got === 1 ? 'its own screen' : got + ' screens')
       + '. This window is the booth.'
+      + (short
+        ? ' Your browser allowed ' + got + ' of ' + of
+          + ' — allow pop-ups for this site and the rest will open.'
+        : '')
       + (NATIVE.ready() ? '' : ' Double-click a screen to fill its monitor.'));
   },
 
@@ -25973,6 +25992,7 @@ const WARM = {
   hue: 4, scene: null, done: false,
   sparks: [], taps: [], picks: new Map(),
   v: 0, _hold: 0, _lastTap: 0, _cv: null, _ctx: null, _flash: 0, _sendT: 0, _sent: 0,
+  _up: false,                      // the card is on screen — see begin()
 
   /* ---------------- what this device is ---------------- */
   mine(){ return { hue: this.hue, scene: this.scene }; },
@@ -25994,10 +26014,28 @@ const WARM = {
      one laptop looking at four postcards of their own rig — and asking that
      person to pick a colour four times, once per postcard, is a form to fill
      in rather than a thing to do. The warm-up is for devices that WALKED IN. */
+  /* CALLED ON EVERY FRAME PACKET, AND THEREFORE EXACTLY ONCE.
+
+     This is the bug that made the whole warm-up untouchable, and it looked
+     like nothing at all: the card was up, the swatches were drawn, they lit
+     under the pointer — and clicking one did nothing, on every browser.
+
+     begin() is reached from STAGE.recv on a 't':'f' packet, which is the
+     booth's sixty-a-second heartbeat, not an event. Without this guard it
+     re-rendered the grid sixty times a second. A `click` is only delivered
+     when pointerDOWN and pointerUP land on the SAME element, and the button
+     you pressed had been destroyed and replaced several times over before you
+     could lift your finger. `ask` was being reset to 0 on the same schedule,
+     so even a click that did land was undone in the next 16 ms.
+
+     The unit tests could not see it (this is not arithmetic) and the probe
+     could not either: it sent ONE frame and then clicked, which is the one
+     sequence in which the broken version works. It sends a stream now. */
   begin(){
-    if (this.done || document.body.classList.contains('pip')) return;
+    if (this.done || this._up || document.body.classList.contains('pip')) return;
     const box = this.el();
     if (!box) return;
+    this._up = true;
     document.body.classList.add('warming');
     box.hidden = false;
     this.ask = 0;
@@ -26005,6 +26043,7 @@ const WARM = {
   },
   finish(){
     this.done = true;
+    this._up = false;
     const box = this.el();
     if (box) box.hidden = true;
     document.body.classList.remove('warming');
