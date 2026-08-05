@@ -505,7 +505,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **eighteen scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **twenty-four scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -522,8 +522,33 @@ palette channels), and **HALO** (the spectrum bent into a ring: a torus of
 thousands of rainbow motes where each angle of the circle listens to one
 band of the live spectrum and visibly swells where its band sings — an
 equalizer curled into a circle of light, with winding bead-strands, a
-beat soliton orbiting the ring, and treble twinkles), and the **LAVA LAMP**
-— see [The lamp](#the-lamp--a-scene-where-the-wax-is-a-fluid) below. Keys `1`–`9` and
+beat soliton orbiting the ring, and treble twinkles), the **LAVA LAMP**
+— see [The lamp](#the-lamp--a-scene-where-the-wax-is-a-fluid) below — and the
+mood-board wing: **CUBE SHEETS** (three lattices of rainbow blocks bobbing on
+a rippled clock — the bob's phase travels outward from a rolled origin, so the
+lattice moves as a wave, and contact is *earned*: quiet material bobs short of
+touching while the bass and the beat drive the sheets the last inch into a
+clap that visibly squashes), **MANDALA** (the kaleidoscope as a subject rather
+than a treatment, dealt two ways: a k-fold petal BLOOM in the palette's five
+hard colours, or the dotted SWIRL vortex on a log-spiral lattice where every
+scale listens to its own band of the live spectrum), **OIL FILM** (thin-film
+interference on a dark current: three wavelengths of one marbled thickness,
+so the low end *walks* every fringe instead of brightening it, and the beat
+drops a ripple ring), and **BUBBLES** (a glass cluster drifting upward, each
+shell nearly empty in the middle with all its light on the rim, the rim's hue
+walking the spectrum around itself, every bubble swelling with its own band),
+and **CONSTELLATIONS** — a star viewer with a real catalog in it. Every
+constellation star is a bright star at its J2000 coordinates, projected to
+altitude/azimuth for latitude 39.96° N — Columbus, Ohio — at a sidereal hour
+rolled fresh each visit, so what hangs above the horizon is what that sky
+actually holds (ORION owns the winter roll, CYGNUS the summer one, and URSA
+MAJOR never sets). The music drives a cycle: the sky pans until the next
+figure faces you, it is drawn in gold one edge per beat — each star the pen
+reaches flares a diffraction cross and casts an expanding ring — the finished
+shape holds and glows, then fizzles into particles that fan back out into the
+star map while the sky swings away to find the next. The constellation's name
+rides the HUD while its figure is up.
+Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
 TILE relay, MOIRÉ interference, a breathing IRIS, and stacks of them — with
