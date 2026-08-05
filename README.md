@@ -505,7 +505,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **twenty-three scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **twenty-four scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -536,7 +536,18 @@ interference on a dark current: three wavelengths of one marbled thickness,
 so the low end *walks* every fringe instead of brightening it, and the beat
 drops a ripple ring), and **BUBBLES** (a glass cluster drifting upward, each
 shell nearly empty in the middle with all its light on the rim, the rim's hue
-walking the spectrum around itself, every bubble swelling with its own band).
+walking the spectrum around itself, every bubble swelling with its own band),
+and **CONSTELLATIONS** — a star viewer with a real catalog in it. Every
+constellation star is a bright star at its J2000 coordinates, projected to
+altitude/azimuth for latitude 39.96° N — Columbus, Ohio — at a sidereal hour
+rolled fresh each visit, so what hangs above the horizon is what that sky
+actually holds (ORION owns the winter roll, CYGNUS the summer one, and URSA
+MAJOR never sets). The music drives a cycle: the sky pans until the next
+figure faces you, it is drawn in gold one edge per beat — each star the pen
+reaches flares a diffraction cross and casts an expanding ring — the finished
+shape holds and glows, then fizzles into particles that fan back out into the
+star map while the sky swings away to find the next. The constellation's name
+rides the HUD while its figure is up.
 Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored

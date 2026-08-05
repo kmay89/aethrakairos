@@ -3427,8 +3427,9 @@ function touchAffinity(sceneIdx, act, r, mood){
   const MAP = ['grows', 'grows', 'gathers', 'blackhole', 'flows', 'blackhole', 'flows', 'blackhole',
                'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
                'grows', 'flows',
-               'flows', 'grows', 'flows', 'gathers'];   // …the lattice and the film ripple,
-                                                        // the mandala spins, the bubbles pull
+               'flows', 'grows', 'flows', 'gathers',
+               'grows'];   // …the lattice and the film ripple, the mandala spins,
+                           // the bubbles pull, and a hand on the SKY winds the stars
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
@@ -3677,8 +3678,9 @@ function ghostPattern(sceneIdx, act, r, mood){
   const MAP = ['lissa', 'lissa', 'snake', 'bounce', 'drift', 'bounce', 'lissa', 'drift',
                'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa',
                'lissa', 'snake',
-               'snake', 'lissa', 'paint', 'drift'];   // …SHEETS walks the lattice, MANDALA
-                                                      // curves, OIL paints, BUBBLES drift
+               'snake', 'lissa', 'paint', 'drift',
+               'drift'];   // …SHEETS walks the lattice, MANDALA curves, OIL paints,
+                           // BUBBLES drift, and the SKY is drifted through, slowly
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -4138,7 +4140,7 @@ function pyroSalt(o, r){
    you notice a room that got added and never given a character. */
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
-                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles'];
+                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -4173,6 +4175,7 @@ const SCENE_TASTE = {
   mandala:   { coupling: 1.0, mid: 0.8, calm: 0.5 },        // symmetric, tonal, patient
   oilslick:  { entropy: 1.0, calm: 0.8, bass: 0.5 },        // slow chromatic weather
   bubbles:   { calm: 1.1, treble: 0.7, energy: -0.6 },      // glass, air, quiet
+  sky:       { calm: 1.0, coupling: 0.7, entropy: -0.4 },   // the night sky — patient, coherent
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -5292,6 +5295,7 @@ const SCENE_SIGS = {
   mandala:   { kind: 'ring',   h: 132, arms: 8, rainbow: 1 },
   oilslick:  { kind: 'ribbon', h: 232, arms: 4 },
   bubbles:   { kind: 'cloud',  h: 196, dense: 0.6 },
+  sky:       { kind: 'burst',  h: 84,  arms: 7, tail: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -23970,6 +23974,456 @@ function buildBubbles(){
   } };
 }
 
+/* =========================================================
+   Scene 24 — CONSTELLATIONS  (the sky over Ohio, drawn in gold)
+   A star viewer with a real catalog in it: every constellation star
+   below is a bright star at its J2000 right ascension and
+   declination, projected to altitude/azimuth for latitude 39.96° N —
+   Columbus, Ohio — at a sidereal hour rolled fresh on every visit.
+   What hangs above the horizon at that hour is what you get, which
+   is why ORION owns the winter roll and CYGNUS the summer one, and
+   why URSA MAJOR and CASSIOPEIA are always somewhere in the room
+   (at 40° N they never set). The show is a cycle the music drives:
+   the sky PANS until the next constellation faces you, the figure is
+   DRAWN in gold one edge per beat — each star it reaches flares with
+   a diffraction cross and casts an expanding ring — the finished
+   shape HOLDS and glows, then FIZZLES into particles that fan back
+   out into the star field, and the sky swings away to find the next.
+   The constellation's name rides the HUD while its figure is up.
+   ========================================================= */
+const SKY_LAT = 39.96 * Math.PI / 180;    // Columbus, Ohio
+const SKY_R = 120;                        // the dome, beyond the camera's whole orbit
+/* [ra hours, dec degrees, magnitude, warmth 0..1] — J2000, to the precision a
+   dome this size can show. Warmth is the star's real colour class, roughly:
+   Betelgeuse and Antares burn warm, Rigel and Alkaid run blue. */
+const SKY_CONS = [
+  { n: 'URSA MAJOR', s: [[11.062,61.751,1.79,0.7],[11.031,56.382,2.37,0.4],[11.897,53.695,2.44,0.4],[12.257,57.033,3.31,0.4],[12.900,55.960,1.77,0.4],[13.399,54.925,2.27,0.4],[13.792,49.313,1.86,0.2]],
+    e: [[6,5],[5,4],[4,3],[3,2],[2,1],[1,0],[0,3]] },
+  { n: 'CASSIOPEIA', s: [[0.153,59.150,2.27,0.6],[0.675,56.537,2.24,0.7],[0.945,60.717,2.47,0.2],[1.430,60.235,2.68,0.4],[1.907,63.670,3.38,0.2]],
+    e: [[0,1],[1,2],[2,3],[3,4]] },
+  { n: 'ORION', s: [[5.919,7.407,0.42,1.0],[5.418,6.350,1.64,0.15],[5.679,-1.943,1.77,0.15],[5.604,-1.202,1.69,0.15],[5.533,-0.299,2.23,0.15],[5.796,-9.670,2.09,0.15],[5.242,-8.202,0.13,0.1]],
+    e: [[0,1],[1,4],[4,3],[3,2],[2,0],[2,5],[5,6],[6,4]] },
+  { n: 'CYGNUS', s: [[20.690,45.280,1.25,0.4],[20.371,40.257,2.23,0.6],[20.770,33.970,2.48,0.7],[19.749,45.131,2.86,0.3],[19.512,27.960,3.05,0.8]],
+    e: [[0,1],[1,4],[3,1],[1,2]] },
+  { n: 'LYRA', s: [[18.616,38.784,0.03,0.2],[18.746,37.605,4.34,0.4],[18.898,36.899,4.22,0.8],[18.982,32.690,3.25,0.6],[18.835,33.363,3.52,0.4]],
+    e: [[0,1],[1,4],[4,3],[3,2],[2,1]] },
+  { n: 'AQUILA', s: [[19.846,8.868,0.76,0.3],[19.771,10.613,2.72,0.8],[19.922,6.407,3.71,0.6],[19.425,3.115,3.36,0.5]],
+    e: [[1,0],[0,2],[0,3]] },
+  { n: 'LEO', s: [[10.140,11.967,1.36,0.3],[10.122,16.763,3.48,0.5],[10.333,19.842,2.61,0.8],[10.278,23.417,3.43,0.5],[9.879,26.007,3.88,0.6],[9.764,23.774,2.97,0.6],[11.818,14.572,2.14,0.3],[11.235,20.524,2.56,0.3],[11.237,15.430,3.33,0.4]],
+    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[2,7],[7,6],[6,8],[8,0]] },
+  { n: 'GEMINI', s: [[7.577,31.888,1.58,0.3],[7.755,28.026,1.14,0.8],[6.629,16.399,1.93,0.3],[7.335,21.982,3.53,0.5],[6.732,25.131,2.98,0.6],[6.383,22.514,2.88,0.9]],
+    e: [[0,1],[0,4],[4,5],[1,3],[3,2]] },
+  { n: 'TAURUS', s: [[4.599,16.509,0.86,1.0],[5.438,28.608,1.68,0.2],[5.628,21.143,3.00,0.2],[4.330,15.628,3.65,0.6],[4.477,19.180,3.53,0.7]],
+    e: [[1,4],[4,3],[3,0],[0,2]] },
+  { n: 'BOÖTES', s: [[14.261,19.182,-0.05,0.9],[14.750,27.074,2.35,0.8],[15.258,33.315,3.47,0.5],[15.032,40.390,3.49,0.6],[14.535,38.308,3.04,0.4],[14.530,30.371,3.57,0.5],[13.911,18.398,2.68,0.6]],
+    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,6]] },
+  { n: 'PERSEUS', s: [[3.405,49.861,1.79,0.6],[3.136,40.956,2.09,0.3],[3.080,53.506,2.91,0.6],[3.715,47.787,3.01,0.5],[3.964,40.010,2.90,0.4]],
+    e: [[2,0],[0,3],[3,4],[0,1]] },
+  { n: 'PEGASUS', s: [[23.079,15.205,2.49,0.4],[23.063,28.083,2.42,0.9],[0.220,15.184,2.83,0.3],[0.140,29.090,2.06,0.3],[21.736,9.875,2.38,0.8]],
+    e: [[0,1],[1,3],[3,2],[2,0],[0,4]] },
+  { n: 'CANIS MAJOR', s: [[6.752,-16.716,-1.46,0.2],[6.378,-17.956,1.98,0.2],[6.977,-28.972,1.50,0.2],[7.140,-26.393,1.83,0.6],[7.401,-29.303,2.45,0.3]],
+    e: [[0,1],[0,3],[3,2],[3,4]] },
+  { n: 'AURIGA', s: [[5.278,45.998,0.08,0.7],[5.992,44.947,1.90,0.4],[5.995,37.213,2.65,0.5],[5.438,28.608,1.68,0.2],[4.950,33.166,2.69,0.8],[5.033,43.823,3.03,0.6]],
+    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]] },
+  { n: 'ANDROMEDA', s: [[0.140,29.090,2.06,0.3],[0.656,30.861,3.27,0.6],[1.162,35.620,2.05,0.9],[2.065,42.330,2.26,0.7]],
+    e: [[0,1],[1,2],[2,3]] },
+  { n: 'CEPHEUS', s: [[21.310,62.585,2.44,0.4],[21.478,70.561,3.23,0.3],[23.655,77.632,3.21,0.7],[22.181,58.201,3.35,0.5],[22.828,66.201,3.52,0.5]],
+    e: [[0,1],[1,4],[4,3],[3,0],[1,2],[2,4]] },
+  // the anchors with no figure: never drawn, always present when up.
+  // Polaris first — from Ohio it hangs at 40° over true north, every night.
+  { n: '', s: [[2.530,89.264,1.98,0.5],[7.655,5.225,0.34,0.4],[13.420,-11.161,0.97,0.2],[16.490,-26.432,1.09,1.0],[22.961,-29.622,1.16,0.3]], e: [] },
+];
+function buildSky(){
+  const group = new THREE.Group();
+  const GOLD = 'vec3(1.0, 0.78, 0.36)';
+  const varU = {
+    uActiveCon: { value: -1 }, uProg: { value: 0 },
+    uGlowC: { value: 0 }, uFade: { value: 1 }, uFizzT: { value: 0 },
+  };
+
+  // ---- the catalog, flattened once ----
+  const NCON = SKY_CONS.length;
+  let NS = 0, NE = 0;
+  for (const c of SKY_CONS){ NS += c.s.length; NE += c.e.length; }
+  const starOf = [];                      // [conIdx, starIdxInCon] per flat star
+  const flatBase = [];                    // first flat index of each constellation
+  { let k = 0; for (let ci = 0; ci < NCON; ci++){ flatBase.push(k); for (let si = 0; si < SKY_CONS[ci].s.length; si++, k++) starOf.push([ci, si]); } }
+
+  // ---- node layer: every catalog star ----
+  const nPos = new Float32Array(NS * 3);
+  const nMag = new Float32Array(NS), nTint = new Float32Array(NS), nSeed = new Float32Array(NS);
+  const nBirth = new Float32Array(NS).fill(-1e3);
+  const nActive = new Float32Array(NS), nUp = new Float32Array(NS);
+  for (let i = 0; i < NS; i++){
+    const [ci, si] = starOf[i];
+    nMag[i] = SKY_CONS[ci].s[si][2]; nTint[i] = SKY_CONS[ci].s[si][3]; nSeed[i] = (i + 0.5) / NS;
+  }
+  const nGeo = new THREE.BufferGeometry();
+  nGeo.setAttribute('position', new THREE.BufferAttribute(nPos, 3));
+  nGeo.setAttribute('aMag', new THREE.BufferAttribute(nMag, 1));
+  nGeo.setAttribute('aTint', new THREE.BufferAttribute(nTint, 1));
+  nGeo.setAttribute('aSeed', new THREE.BufferAttribute(nSeed, 1));
+  nGeo.setAttribute('aBirth', new THREE.BufferAttribute(nBirth, 1));
+  nGeo.setAttribute('aActive', new THREE.BufferAttribute(nActive, 1));
+  nGeo.setAttribute('aUp', new THREE.BufferAttribute(nUp, 1));
+  const nVert = VERT_POINT_HEAD + `
+    attribute float aMag, aTint, aSeed, aBirth, aActive, aUp;
+    varying float vFlash, vActive, vTint, vUp, vTw;
+    void main(){
+      vTint = aTint; vActive = aActive; vUp = aUp;
+      float age = max(0.0, uTime - aBirth);
+      vFlash = exp(-age * 1.6);
+      // two incommensurate rates: the twinkle never visibly loops
+      vTw = 0.62 + 0.38 * sin(uTime * 1.9 + aSeed * 41.0) * cos(uTime * 1.13 + aSeed * 17.0);
+      vT = aSeed; vGlow = vFlash;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
+      gl_Position = projectionMatrix * mv;
+      // brighter is BIGGER, the photographic convention (Sirius at -1.5 dwarfs
+      // a mag-4 Lyra corner); the flare swells the star it just reached
+      float s = clamp(4.6 - aMag * 0.95, 1.3, 6.5) * (1.0 + aActive * 0.35 + uBeat * 0.10);
+      s += vFlash * 9.0 * aActive;
+      gl_PointSize = s * (300.0 / -mv.z) * aUp;
+    }
+  `;
+  const nFrag = GLSL_MPHI + `
+    uniform float uOpacity, uGlowC, uTreble;
+    varying float vFlash, vActive, vTint, vUp, vTw;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float core = smoothstep(0.30, 0.0, r);
+      // the diffraction cross every telescope photograph wears
+      float spikes = (exp(-abs(d.x) * 26.0) + exp(-abs(d.y) * 26.0)) * smoothstep(0.5, 0.04, r);
+      // the flare's expanding ring, cast when the gold draw reaches this star
+      float ringR = (1.0 - vFlash) * 0.46;
+      float ring = exp(-abs(r - ringR) * 20.0) * vFlash * vActive;
+      // real star colour: warm K giants to blue B stars, around white
+      vec3 star = mix(vec3(0.72, 0.82, 1.0), vec3(1.0, 0.82, 0.58), vTint);
+      vec3 col = star * (core * (0.8 + vTw * 0.5) + spikes * (0.35 + vTw * 0.25));
+      col = mix(col, ${GOLD} * 1.2, vActive * (0.35 + uGlowC * 0.4) * (core + spikes * 0.5));
+      col += ${GOLD} * ring * 1.6;
+      col = inkRolloff(col * (1.0 + vFlash * 1.2));
+      float a = (core + spikes * 0.55 + ring) * vUp * uOpacity;
+      gl_FragColor = vec4(col, a);
+    }
+  `;
+  group.add(addShaderPoints(nGeo, nFrag, nVert, varU));
+
+  // ---- the dust behind the catalog: seeded filler, above the horizon ----
+  const FN2 = 720;
+  const fPos = new Float32Array(FN2 * 3), fSeed2 = new Float32Array(FN2);
+  const fGeo = new THREE.BufferGeometry();
+  fGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
+  fGeo.setAttribute('aSeed', new THREE.BufferAttribute(fSeed2, 1));
+  const fVert = VERT_POINT_HEAD + `
+    attribute float aSeed;
+    void main(){
+      vT = aSeed;
+      float tw = 0.5 + 0.5 * sin(uTime * 1.4 + aSeed * 63.0) * cos(uTime * 0.9 + aSeed * 29.0);
+      vGlow = tw * 0.5 + uTreble * 0.2;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (0.7 + fract(aSeed * 91.7) * 1.9 + tw * 0.5) * (300.0 / -mv.z);
+    }
+  `;
+  group.add(addShaderPoints(fGeo, FRAG_POINT, fVert));
+
+  // ---- the gold lines, one segment pair per edge ----
+  const lPos = new Float32Array(NE * 2 * 3);
+  const lCon = new Float32Array(NE * 2), lEdge = new Float32Array(NE * 2), lEnd = new Float32Array(NE * 2);
+  { let k = 0; for (let ci = 0; ci < NCON; ci++) for (let ei = 0; ei < SKY_CONS[ci].e.length; ei++){
+      lCon[k] = ci; lEdge[k] = ei; lEnd[k] = 0; k++;
+      lCon[k] = ci; lEdge[k] = ei; lEnd[k] = 1; k++;
+  } }
+  const lGeo = new THREE.BufferGeometry();
+  lGeo.setAttribute('position', new THREE.BufferAttribute(lPos, 3));
+  lGeo.setAttribute('aCon', new THREE.BufferAttribute(lCon, 1));
+  lGeo.setAttribute('aEdge', new THREE.BufferAttribute(lEdge, 1));
+  lGeo.setAttribute('aEnd', new THREE.BufferAttribute(lEnd, 1));
+  const lVert = GLSL_MPHI + `
+    attribute float aCon, aEdge, aEnd;
+    uniform float uActiveCon, uProg;
+    varying float vT2, vReveal;
+    void main(){
+      vT2 = aEnd;
+      // how much of THIS edge the pen has drawn: 0 untouched, 1 complete
+      vReveal = (abs(aCon - uActiveCon) < 0.5) ? clamp(uProg - aEdge, 0.0, 1.0) : 0.0;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+  const lFrag = GLSL_MPHI + `
+    uniform float uOpacity, uGlowC, uFade, uBeat;
+    varying float vT2, vReveal;
+    void main(){
+      // the pen: drawn behind the head, dark ahead of it, a hot spark AT it
+      float drawn = smoothstep(0.0, 0.035, vReveal - vT2);
+      float head = exp(-abs(vReveal - vT2) * 9.0) * step(0.001, vReveal) * (1.0 - step(0.999, vReveal));
+      vec3 col = ${GOLD} * (0.85 + uGlowC * (1.1 + uBeat * 0.4)) + vec3(1.0, 0.92, 0.6) * head * 1.7;
+      col = inkRolloff(col);
+      gl_FragColor = vec4(col, (drawn * (0.75 + uGlowC * 0.25) + head) * uFade * uOpacity);
+    }
+  `;
+  group.add(addShaderLines(lGeo, lFrag, lVert, varU, true));
+
+  // ---- the pen's own spark, riding the draw head ----
+  const hPos = new Float32Array(3);
+  const hGeo = new THREE.BufferGeometry();
+  hGeo.setAttribute('position', new THREE.BufferAttribute(hPos, 3));
+  hGeo.setAttribute('aSeed', new THREE.BufferAttribute(new Float32Array([0.5]), 1));
+  const hVert = VERT_POINT_HEAD + `
+    attribute float aSeed;
+    uniform float uGlowC, uFade;
+    void main(){
+      vT = fract(uTime * 0.13); vGlow = 1.0;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (7.0 + uBeat * 5.0) * uFade * (1.0 - uGlowC) * (300.0 / -mv.z);
+    }
+  `;
+  const hFrag = GLSL_MPHI + `
+    uniform float uOpacity;
+    varying float vGlow; varying float vT;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r); a *= a * a;
+      float spikes = (exp(-abs(d.x) * 20.0) + exp(-abs(d.y) * 20.0)) * smoothstep(0.5, 0.05, r);
+      vec3 col = inkRolloff(${GOLD} * (1.3 + spikes));
+      gl_FragColor = vec4(col, (a + spikes * 0.5) * uOpacity);
+    }
+  `;
+  const headPt = addShaderPoints(hGeo, hFrag, hVert, varU);
+  headPt.visible = false;
+  group.add(headPt);
+
+  // ---- the fizzle: the figure dissolving back into the star map ----
+  const FZ = 360;
+  const zP0 = new Float32Array(FZ * 3), zVel = new Float32Array(FZ * 3), zSeed = new Float32Array(FZ);
+  for (let i = 0; i < FZ; i++) zSeed[i] = (i + 0.5) / FZ;
+  const zGeo = new THREE.BufferGeometry();
+  zGeo.setAttribute('position', new THREE.BufferAttribute(zP0, 3));
+  zGeo.setAttribute('aVel', new THREE.BufferAttribute(zVel, 3));
+  zGeo.setAttribute('aSeed', new THREE.BufferAttribute(zSeed, 1));
+  const zVert = VERT_POINT_HEAD + `
+    attribute vec3 aVel;
+    attribute float aSeed;
+    uniform float uFizzT;
+    varying float vLive;
+    void main(){
+      // decelerating fan: fast off the line, easing as it rejoins the sky
+      float k = uFizzT * (2.0 - uFizzT);
+      vec3 p = position + aVel * k * (0.7 + fract(aSeed * 57.3) * 0.6);
+      vLive = step(0.001, uFizzT) * (1.0 - smoothstep(0.55, 1.0, uFizzT + fract(aSeed * 31.7) * 0.25));
+      vT = aSeed; vGlow = vLive;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (1.6 + fract(aSeed * 77.7) * 2.6) * vLive * (300.0 / -mv.z);
+    }
+  `;
+  const zFrag = GLSL_MPHI + `
+    uniform float uOpacity, uFizzT;
+    varying float vLive; varying float vT; varying float vGlow;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r); a *= a;
+      // gold leaving, star-white arriving — the ember cools into the sky
+      vec3 col = inkRolloff(mix(${GOLD} * 1.15, ramp(vT) * 0.8, uFizzT * 0.75));
+      gl_FragColor = vec4(col, a * vLive * uOpacity);
+    }
+  `;
+  group.add(addShaderPoints(zGeo, zFrag, zVert, varU));
+
+  group.visible = false;
+  scene.add(group);
+
+  // ---- the sky, computed: RA/Dec -> alt/az at SKY_LAT for a rolled hour ----
+  const dirs = new Array(NS);             // unit vector per catalog star (scene units: x east, y up, z north)
+  const centers = new Array(NCON);        // normalized figure centre per constellation
+  const minAlt = new Float32Array(NCON);  // its lowest star, radians
+  function skyDir(raH, decDeg, lstH){
+    const H = (lstH - raH) * Math.PI / 12, dec = decDeg * Math.PI / 180;
+    const sinAlt = Math.sin(dec) * Math.sin(SKY_LAT) + Math.cos(dec) * Math.cos(SKY_LAT) * Math.cos(H);
+    const alt = Math.asin(clamp(sinAlt, -1, 1));
+    const az = Math.atan2(-Math.cos(dec) * Math.sin(H),
+                          (Math.sin(dec) - sinAlt * Math.sin(SKY_LAT)) / Math.cos(SKY_LAT));
+    const ca = Math.cos(alt);
+    return { v: new THREE.Vector3(ca * Math.sin(az), sinAlt, ca * Math.cos(az)), alt };
+  }
+  function dealSky(lstH, rng){
+    for (let ci = 0; ci < NCON; ci++){
+      const base = flatBase[ci];
+      let cx = 0, cy = 0, cz = 0, lo = Math.PI;
+      for (let si = 0; si < SKY_CONS[ci].s.length; si++){
+        const st = SKY_CONS[ci].s[si];
+        const d = skyDir(st[0], st[1], lstH);
+        dirs[base + si] = d.v;
+        const i = base + si;
+        nPos[i * 3] = d.v.x * SKY_R; nPos[i * 3 + 1] = d.v.y * SKY_R; nPos[i * 3 + 2] = d.v.z * SKY_R;
+        // atmospheric honesty: a star on the horizon is dimmed to nothing
+        nUp[i] = d.alt <= 0.02 ? 0 : Math.min(1, 0.25 + 0.75 * d.alt / 0.25);
+        cx += d.v.x; cy += d.v.y; cz += d.v.z;
+        if (d.alt < lo) lo = d.alt;
+      }
+      centers[ci] = new THREE.Vector3(cx, cy, cz).normalize();
+      minAlt[ci] = lo;
+    }
+    nGeo.attributes.position.needsUpdate = true;
+    nGeo.attributes.aUp.needsUpdate = true;
+    // the lines follow their stars
+    { let k = 0; for (let ci = 0; ci < NCON; ci++){
+        const base = flatBase[ci];
+        for (const [a, b] of SKY_CONS[ci].e){
+          const A = dirs[base + a], B = dirs[base + b];
+          lPos[k * 3] = A.x * SKY_R; lPos[k * 3 + 1] = A.y * SKY_R; lPos[k * 3 + 2] = A.z * SKY_R; k++;
+          lPos[k * 3] = B.x * SKY_R; lPos[k * 3 + 1] = B.y * SKY_R; lPos[k * 3 + 2] = B.z * SKY_R; k++;
+        }
+    } }
+    lGeo.attributes.position.needsUpdate = true;
+    // the dust: seeded, above the horizon only, thicker toward the zenith
+    for (let i = 0; i < FN2; i++){
+      let v = null;
+      for (let tries = 0; tries < 12 && !v; tries++){
+        const y = rng(), az = rng() * Math.PI * 2;
+        const alt = Math.asin(y * 0.999);
+        if (alt < 0.03) continue;
+        const ca = Math.cos(alt);
+        v = [ca * Math.sin(az), Math.sin(alt), ca * Math.cos(az)];
+      }
+      if (!v) v = [0, 1, 0];
+      fPos[i * 3] = v[0] * SKY_R; fPos[i * 3 + 1] = v[1] * SKY_R; fPos[i * 3 + 2] = v[2] * SKY_R;
+      fSeed2[i] = rng();
+    }
+    fGeo.attributes.position.needsUpdate = true;
+    fGeo.attributes.aSeed.needsUpdate = true;
+  }
+
+  // ---- the show ----
+  const st = { mode: 'pan', t: 0, con: -1, prog: 0, seen: new Set() };
+  const _pq = new THREE.Quaternion(), _tq = new THREE.Quaternion();
+  const _dir = new THREE.Vector3(), _va = new THREE.Vector3(), _vb = new THREE.Vector3();
+  function candidates(){
+    const out = [];
+    for (let ci = 0; ci < NCON; ci++)
+      if (SKY_CONS[ci].e.length && minAlt[ci] > 0.10 && ci !== st.con) out.push(ci);
+    return out;
+  }
+  function pickNext(){
+    let pool = candidates().filter(ci => !st.seen.has(ci));
+    if (!pool.length){ st.seen.clear(); pool = candidates(); }
+    if (!pool.length) return st.con < 0 ? 0 : st.con;   // cannot happen at 40°N — UMa and Cassiopeia never set
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  function setTarget(ci){
+    st.con = ci; st.seen.add(ci);
+    st.prog = 0;
+    varU.uActiveCon.value = ci;
+    varU.uProg.value = 0; varU.uGlowC.value = 0; varU.uFade.value = 1; varU.uFizzT.value = 0;
+    for (let i = 0; i < NS; i++){ nActive[i] = starOf[i][0] === ci ? 1 : 0; nBirth[i] = -1e3; }
+    nGeo.attributes.aActive.needsUpdate = true;
+    nGeo.attributes.aBirth.needsUpdate = true;
+  }
+  function stamp(si){
+    const i = flatBase[st.con] + si;
+    if (nBirth[i] < 0){ nBirth[i] = U.uTime.value; nGeo.attributes.aBirth.needsUpdate = true; }
+  }
+  function seedFizz(){
+    const base = flatBase[st.con], edges = SKY_CONS[st.con].e;
+    const C = centers[st.con];
+    for (let i = 0; i < FZ; i++){
+      const [a, b] = edges[Math.floor(Math.random() * edges.length)];
+      const u = Math.random();
+      _va.copy(dirs[base + a]).multiplyScalar(SKY_R).lerp(_vb.copy(dirs[base + b]).multiplyScalar(SKY_R), u);
+      zP0[i * 3] = _va.x; zP0[i * 3 + 1] = _va.y; zP0[i * 3 + 2] = _va.z;
+      // fan OUTWARD from the figure's centre, along the dome, with a scatter
+      _vb.copy(_va).sub(_dir.copy(C).multiplyScalar(SKY_R)).normalize();
+      zVel[i * 3] = _vb.x * 11 + (Math.random() - 0.5) * 5;
+      zVel[i * 3 + 1] = _vb.y * 11 + (Math.random() - 0.5) * 5;
+      zVel[i * 3 + 2] = _vb.z * 11 + (Math.random() - 0.5) * 5;
+    }
+    zGeo.attributes.position.needsUpdate = true;
+    zGeo.attributes.aVel.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'CONSTELLATIONS', key: 'sky', group,
+    update(dt){
+      if (!group.visible || st.con < 0) return;
+      const f = AE.f;
+      const beat = (typeof DANCE !== 'undefined' && DANCE.period > 0.2) ? DANCE.period : 0.55;
+      // THE PAN, always: the sky leans so the working constellation faces the
+      // camera — through the scene's own world-spin, like the flame bench does
+      scene.getWorldQuaternion(_pq).invert();
+      _dir.copy(camera.position).multiplyScalar(-1).normalize().applyQuaternion(_pq);
+      _tq.setFromUnitVectors(centers[st.con], _dir);
+      const rate = st.mode === 'pan' ? (0.9 + f.energy * 0.9) : 0.35;
+      group.quaternion.slerp(_tq, 1 - Math.exp(-dt * rate));
+      st.t += dt;
+      if (st.mode === 'pan'){
+        if (group.quaternion.angleTo(_tq) < 0.14 && st.t > beat * 2){
+          st.mode = 'draw'; st.t = 0; st.prog = 0;
+          stamp(SKY_CONS[st.con].e[0][0]);
+          headPt.visible = true;
+          api.name = 'CONSTELLATIONS · ' + SKY_CONS[st.con].n;
+          if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = api.name;
+          if (typeof el !== 'undefined' && el.zSceneName) el.zSceneName.textContent = api.name;
+        }
+      } else if (st.mode === 'draw'){
+        const E = SKY_CONS[st.con].e.length;
+        const before = Math.floor(st.prog);
+        // one edge per beat, leaning into the music's drive
+        st.prog = Math.min(E, st.prog + dt / beat * (0.55 + f.energy * 0.6 + f.beat * 0.35));
+        const after = Math.min(E - 1, Math.floor(st.prog));
+        for (let ei = before; ei <= after; ei++){
+          stamp(SKY_CONS[st.con].e[ei][0]);
+          if (st.prog > ei + 0.98 || ei < after) stamp(SKY_CONS[st.con].e[ei][1]);
+        }
+        varU.uProg.value = st.prog;
+        // the spark rides the pen
+        { const ei = Math.min(E - 1, Math.floor(st.prog)), fr = clamp01(st.prog - ei);
+          const [a, b] = SKY_CONS[st.con].e[ei], base = flatBase[st.con];
+          _va.copy(dirs[base + a]).multiplyScalar(SKY_R).lerp(_vb.copy(dirs[base + b]).multiplyScalar(SKY_R), fr);
+          hPos[0] = _va.x; hPos[1] = _va.y; hPos[2] = _va.z;
+          hGeo.attributes.position.needsUpdate = true; }
+        if (st.prog >= E){
+          stamp(SKY_CONS[st.con].e[E - 1][1]);
+          st.mode = 'hold'; st.t = 0; headPt.visible = false;
+        }
+      } else if (st.mode === 'hold'){
+        // the finished figure glows — harder on the beat
+        varU.uGlowC.value = Math.min(1, st.t / 0.5);
+        if (st.t > beat * 4){ seedFizz(); st.mode = 'fizzle'; st.t = 0; }
+      } else if (st.mode === 'fizzle'){
+        const z = Math.min(1, st.t / (beat * 3.5));
+        varU.uFizzT.value = z;
+        varU.uFade.value = 1 - z;
+        varU.uGlowC.value = Math.max(0, 1 - z * 2);
+        if (z >= 1){
+          setTarget(pickNext());
+          st.mode = 'pan'; st.t = 0;
+          api.name = 'CONSTELLATIONS';
+          if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = api.name;
+        }
+      }
+    },
+    roll(){
+      // a fresh sidereal hour: a different real sky over the same Ohio horizon
+      const rng = mulberry32((Math.random() * 0xffffffff) >>> 0);
+      dealSky(rng() * 24, rng);
+      st.seen.clear(); st.mode = 'pan'; st.t = 0;
+      headPt.visible = false;
+      setTarget(pickNext());
+      api.name = 'CONSTELLATIONS';
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -23997,7 +24451,7 @@ function initThree(){
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
-              buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles());
+              buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -26630,7 +27084,7 @@ const WARM = {
     return alpha == null ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
   },
 
-  /* THE TILE PAINTERS. Nine gestures, re-used across twenty-three rooms at
+  /* THE TILE PAINTERS. Nine gestures, re-used across twenty-four rooms at
      different hues and densities — not screenshots, and deliberately not:
      a still frame of a scene that is entirely about MOTION is a worse
      description of it than a drawing of what the motion does. */
