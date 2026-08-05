@@ -1,5 +1,16 @@
 # aethrakairos.com — hosting setup (one-time, ~15 minutes)
 
+> **Where production actually is (2026-08-05):** aethrakairos.com and www
+> both resolve to the Netlify project (`aethrakairos.netlify.app`), not
+> GitHub Pages — the checklist below was never completed, and this repo has
+> no Pages deployments. Netlify is production today, configured by
+> `netlify.toml`: production ships `docs/` with the audio; deploy previews
+> strip it and borrow production's copy. Anyone editing `netlify.toml` must
+> keep that split — a rule that strips or redirects `/audio/*` in the
+> production context points the site at itself and silences every track
+> (that is exactly what happened on 2026-08-04). If the domain ever moves
+> to Pages as planned below, revisit the preview redirect target too.
+
 The site and the music are served together from GitHub Pages, same origin,
 free. This is the checklist; steps 2–3 can only be done by someone with
 access to the GitHub repo settings and the domain registrar.
