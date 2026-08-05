@@ -6152,6 +6152,52 @@ const el = {
   btnCrate: $('btnCrate'), crate: $('crate'),
 };
 
+/* THE ROOM DOES NOT TALK OVER ITS OWN TEACHING. While the intro story, the
+   welcome card, the coach-mark tour or the help panel is on screen, the
+   listener is READING — an info card sliding up under it splits their
+   attention exactly when the app asked for it. So while any of those is up,
+   cards are HELD rather than shown: they queue (deduped, newest last, three
+   deep — the same cap the screen has) and appear once the teaching surface
+   closes. A card that has been held longer than thirty seconds is stale by
+   its own standards — a toast lives 2.6 s — and is let go rather than
+   resurrected; anything still TRUE (a failing stream, a dead host) keeps
+   re-issuing itself and so keeps its place fresh. */
+function uiTeaching(){
+  const ob = document.getElementById('onboard');
+  return (ob && ob.classList.contains('open'))
+    || (typeof TUTOR !== 'undefined' && (TUTOR.active || TUTOR._pending))
+    || (el.help && el.help.classList.contains('open'))
+    || (el.firstRun && el.firstRun.classList.contains('open'));
+}
+const TOAST_HELD = [];
+function heldPush(html){
+  const i = TOAST_HELD.findIndex(h => h.html === html);
+  if (i >= 0) TOAST_HELD.splice(i, 1);              // same sentence again: keep one, fresh
+  TOAST_HELD.push({ html, at: performance.now() });
+  while (TOAST_HELD.length > 3) TOAST_HELD.shift();
+}
+/* sweep cards already on screen into the held queue — called the moment a
+   teaching surface opens, so nothing lingers over it */
+function toastsHold(){
+  for (const t of [...el.toasts.children]){
+    clearTimeout(t._t); t.remove();
+    if (t._html) heldPush(t._html);
+  }
+}
+function toastsFlush(){
+  if (uiTeaching()) return;                          // still reading — keep holding
+  const now = performance.now();
+  for (const h of TOAST_HELD.splice(0))
+    if (now - h.at < 30000) toast(h.html);
+}
+/* the janitor: any card that slips on screen while teaching is swept within a
+   beat, and the held queue flushes itself once the room is calm again — no
+   close-handler anywhere has to remember to do either */
+setInterval(() => {
+  if (uiTeaching()){ if (el.toasts.children.length) toastsHold(); }
+  else if (TOAST_HELD.length) toastsFlush();
+}, 700);
+
 /* THE SAME SENTENCE TWICE IS STILL ONE SENTENCE. A retry loop says the same
    thing on every attempt, and three stacked copies of "weak signal — holding
    X" read as three separate problems rather than one that has not gone away.
@@ -6159,6 +6205,7 @@ const el = {
    the message stays up for as long as it keeps being true, which is what it
    was always trying to say. */
 function toast(html){
+  if (uiTeaching()){ heldPush(html); return; }       // the room is teaching — hold the card
   const last = el.toasts.lastElementChild;
   if (last && last._html === html){
     clearTimeout(last._t);
@@ -7283,7 +7330,10 @@ const catalog = {
       catalogChromeSync();
       renderLibrary();
       ACTIVITY.log('system', 'Library loaded - ' + added.length + ' tracks');
-      toast('Loaded <b>' + added.length + '</b> tracks · ' + albumsUI.length
+      // the automatic boot load is quiet in success as well as failure — the
+      // library speaks for itself on screen, and on a first run this card was
+      // landing on top of the intro story. A deliberate load still confirms.
+      if (!quiet) toast('Loaded <b>' + added.length + '</b> tracks · ' + albumsUI.length
         + (albumsUI.length === 1 ? ' album' : ' albums') + ' from ' + escapeHTML(this.meta.title));
       this.verifySignature(url).catch(() => {});
       this.loading = false;
@@ -8816,10 +8866,19 @@ const ACHIEVE = {
    Every step is skippable and never blocks the audio. ================ */
 const TUTOR = {
   key: 'mb8_tutored_v1', favKey: 'mb8_favlesson_v1', shareKey: 'mb8_sharelesson_v1',
-  i: -1, active: false, _reveal: null, _onResize: null,
+  i: -1, active: false, _pending: false, _reveal: null, _onResize: null,
   steps: [
+    /* the first step's body is decided when it is SHOWN, not when it was
+       written: "already moving" was a claim, and on a device where autoplay
+       was refused or the stream never arrived it was a false one — the tour
+       said the music was playing over a silent room. Say what is true. */
     { sel: '#btnPlay',     kicker: 'The tour · 1 of 4', title: 'Play',
-      body: 'Möbius Walking is already moving. This is play and pause — in here the music never has to stop.' },
+      body: () => {
+        const d = (typeof activeDeck === 'function') ? activeDeck() : null;
+        return (player.playing && d && !d.a.paused)
+          ? 'Möbius Walking is already moving. This is play and pause — in here the music never has to stop.'
+          : 'This is play and pause — if the room is quiet, tap it to start the music. In here it never has to stop.';
+      } },
     { sel: '#chipLens',    kicker: 'The tour · 2 of 4', title: 'The lens',
       body: 'AUTO lets the song choose a look at its peaks — mirrors, a rolling wave, a prism, more. Tap it any time to drive the glass yourself.' },
     { sel: '#fxOrb', reveal: true, kicker: 'The tour · 3 of 4', title: 'The control orb',
@@ -8833,9 +8892,11 @@ const TUTOR = {
   _mark(k){ try { localStorage.setItem(k, '1'); } catch (e){} },
 
   start(){
+    this._pending = false;         // scheduled or not, the wait is over either way
     if (this.active || this.seen() || reducedMotion) return;   // once, and never over a reduced-motion listener
     if (!el.coach) return;
     this.active = true; this.i = -1;
+    toastsHold();                  // no info cards over the lesson — they queue for after
     // keep the MENU up for the whole lesson: leave immersive mode and hold off
     // the idle auto-hide (enterZen checks TUTOR.active), so the control a step
     // points at can never fade out from under the caption
@@ -8874,7 +8935,8 @@ const TUTOR = {
     }
     el.coachBubble.querySelector('.coach-step').textContent = step.kicker;
     el.coachBubble.querySelector('.coach-title').textContent = step.title;
-    el.coachBubble.querySelector('.coach-body').textContent = step.body;
+    el.coachBubble.querySelector('.coach-body').textContent
+      = typeof step.body === 'function' ? step.body() : step.body;
     el.coachNext.textContent = this.i === this.steps.length - 1 ? 'Done ✦' : 'Next ▸';
     this._target = target;
     this._readyAt = performance.now() + 1100;   // a beat to read before a veil-tap advances
@@ -8940,6 +9002,7 @@ const TUTOR = {
     setTimeout(() => {
       const heart = document.querySelector('#playlist .heart') || document.querySelector('.heart');
       this.active = true;
+      toastsHold();                // the lesson gets the floor to itself
       el.coach.classList.add('on'); el.coach.setAttribute('aria-hidden', 'false');
       el.coachNext.textContent = 'Got it ✦';
       el.coachNext.onclick = () => this._favDone();
@@ -8984,6 +9047,7 @@ const TUTOR = {
     if (typeof shareUrlFor !== 'function' || !shareUrlFor(player.tracks[player.cur])) return;
     this._mark(this.shareKey);
     this.active = true;
+    toastsHold();                  // the lesson gets the floor to itself
     el.coach.classList.add('on'); el.coach.setAttribute('aria-hidden', 'false');
     el.coachNext.textContent = 'Got it ✦';
     el.coachNext.onclick = () => this._shareDone();
@@ -14273,7 +14337,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'a761faa200';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'e5cd0b4a6c';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -16670,7 +16734,10 @@ el.btnPlaylist.addEventListener('click', () => openPlaylist(!el.playlist.classLi
 el.plClose.addEventListener('click', () => openPlaylist(false));
 
 /* help */
-function openHelp(open){ el.help.classList.toggle('open', open); }
+function openHelp(open){
+  el.help.classList.toggle('open', open);
+  if (open) toastsHold();          // reading the keys — info cards wait their turn
+}
 el.btnHelp.addEventListener('click', () => openHelp(true));
 el.helpClose.addEventListener('click', () => openHelp(false));
 /* the publish recipe's COPY buttons: exact command to the clipboard, with a
@@ -27727,6 +27794,7 @@ function firstRunOpen(){
   firstRunStat();
   try { SKIN.frPaint(); } catch (e){}    // the teaser row — never load-bearing
   frInstallSetup();
+  toastsHold();                    // the welcome card is a teaching surface too
   el.firstRun.classList.add('open');
   // the tap that dismissed the onboarding can synthesize a click that falls
   // through onto our buttons the instant we appear — the card would "disappear
@@ -27824,8 +27892,12 @@ function crateEngage(tracks, label, startAt){
   MINDFUL.begin();                              // start counting toward a gentle break offer
   // a first-time listener gets the guided tour, once — it plays OVER the music
   // (Möbius Walking leads the first run) and never blocks it
-  if (typeof TUTOR !== 'undefined' && !TUTOR.seen())
+  if (typeof TUTOR !== 'undefined' && !TUTOR.seen()){
+    // _pending bridges the 900 ms gap so held info cards don't flash into the
+    // space between the welcome card closing and the first coach mark
+    TUTOR._pending = true;
     setTimeout(() => TUTOR.start(), 900);       // let the card close + the sound arrive
+  }
   return true;
 }
 
@@ -27866,7 +27938,9 @@ const MINDFUL = {
     this._timer = setInterval(() => {
       if (!player.playing || this.showing) return;   // only real, foreground listening counts
       this.played++;
-      if (this.played >= this.next) this.offer();
+      // never over a teaching surface (the help panel, a lesson) — the time
+      // still counts, the offer just waits for a calm second
+      if (this.played >= this.next && !uiTeaching()) this.offer();
     }, 1000);
   },
   offer(){
@@ -28048,6 +28122,7 @@ const ONBOARD = {
     this.wire();
     this._handoff = handoff || null;
     this.go(0);
+    toastsHold();                  // the story gets a clean stage — cards queue for after
     document.getElementById('onboard').classList.add('open');
   },
   finish(){
@@ -28097,12 +28172,11 @@ const MACPROMO = {
     box.querySelector('.mp-x').onclick = () => this.dismiss();
     box.querySelector('.mp-later').onclick = () => this.dismiss();
     box.querySelector('.mp-get').onclick = () => { this._silence(); this.hide(); };   // the link still opens
-    const onboard = document.getElementById('onboard');
     const tick = () => {
       if (this._done) return;
-      const busy = (onboard && onboard.classList.contains('open'))
-        || (typeof TUTOR !== 'undefined' && TUTOR.active)
-        || document.body.classList.contains('zen');
+      // uiTeaching covers the intro story, the tour, the help panel and the
+      // welcome card — every surface the listener is actually reading
+      const busy = uiTeaching() || document.body.classList.contains('zen');
       if (busy){ setTimeout(tick, 4000); return; }   // wait for a calm moment
       this.show();
     };
