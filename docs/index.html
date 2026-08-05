@@ -3426,7 +3426,9 @@ function touchAffinity(sceneIdx, act, r, mood){
   // small wildcard keeps even a memorised map able to surprise.
   const MAP = ['grows', 'grows', 'gathers', 'blackhole', 'flows', 'blackhole', 'flows', 'blackhole',
                'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
-               'grows', 'flows'];   // …LAVA (as it already resolved), FLAME
+               'grows', 'flows',
+               'flows', 'grows', 'flows', 'gathers'];   // …the lattice and the film ripple,
+                                                        // the mandala spins, the bubbles pull
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
@@ -3674,7 +3676,9 @@ function ghostShould(o){
 function ghostPattern(sceneIdx, act, r, mood){
   const MAP = ['lissa', 'lissa', 'snake', 'bounce', 'drift', 'bounce', 'lissa', 'drift',
                'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa',
-               'lissa', 'snake'];   // …LAVA (as it already resolved), FLAME
+               'lissa', 'snake',
+               'snake', 'lissa', 'paint', 'drift'];   // …SHEETS walks the lattice, MANDALA
+                                                      // curves, OIL paints, BUBBLES drift
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -4134,7 +4138,7 @@ function pyroSalt(o, r){
    you notice a room that got added and never given a character. */
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
-                    'lava', 'flame'];
+                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -4165,6 +4169,10 @@ const SCENE_TASTE = {
   halo:      { treble: 1.2, energy: 1.0, coupling: 0.5 },   // radiant, spectral
   lava:      { calm: 1.5, bass: 0.9, beat: -0.6, entropy: -0.5 },  // slow, warm, patient
   flame:     { calm: 1.3, entropy: -0.4 },                  // the vigil — warm, patient, held up
+  sheets:    { beat: 1.4, bass: 1.0, entropy: -0.5 },       // the collider: percussive order
+  mandala:   { coupling: 1.0, mid: 0.8, calm: 0.5 },        // symmetric, tonal, patient
+  oilslick:  { entropy: 1.0, calm: 0.8, bass: 0.5 },        // slow chromatic weather
+  bubbles:   { calm: 1.1, treble: 0.7, energy: -0.6 },      // glass, air, quiet
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -5280,6 +5288,10 @@ const SCENE_SIGS = {
   halo:      { kind: 'ring',   h: 300, arms: 10, rainbow: 1 },
   lava:      { kind: 'blob',   h: 18,  dense: 0.6 },
   flame:     { kind: 'blob',   h: 34,  dense: 1, flame: 1 },
+  sheets:    { kind: 'grid',   h: 12,  dense: 1 },
+  mandala:   { kind: 'ring',   h: 132, arms: 8, rainbow: 1 },
+  oilslick:  { kind: 'ribbon', h: 232, arms: 4 },
+  bubbles:   { kind: 'cloud',  h: 196, dense: 0.6 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -23524,6 +23536,440 @@ function buildFlame(){
   return api;
 }
 
+/* =========================================================
+   Scene 20 — CUBE SHEETS  (three rainbow lattices, clapping)
+   Three sheets of blocks stacked in the dark, every column bobbing
+   on a clock whose phase leaves a rolled origin and travels outward
+   — rippled timing, so the lattice moves as a WAVE and never as one
+   block. The middle sheet runs in antiphase: on one half-cycle the
+   bottom pair meets, on the other the top pair does. Contact is
+   EARNED, not scheduled — quiet material bobs short of touching, and
+   the bass and the beat drive the sheets the last inch into a clap.
+   The clap squashes the cube and flashes it, because an elastic
+   collision you can see give is the whole difference between blocks
+   colliding and blocks passing through each other. The diagonal
+   wears the spectrum, tinted toward the key so the room still
+   belongs to the music. All motion is pure vertex shader over one
+   merged geometry: 432 cubes, zero per-frame JS.
+   ========================================================= */
+function buildSheets(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() } };
+  const GRID = 12, SHEETS = 3, CUBES = GRID * GRID * SHEETS;
+  // the template box, replicated per cube with its lattice address baked into
+  // an attribute — the vertex shader then owns every cube's whole life
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const bp = box.attributes.position.array, bn = box.attributes.normal.array, bi = box.index.array;
+  const VB = bp.length / 3;                                     // 24 verts a box
+  const pos = new Float32Array(CUBES * VB * 3);
+  const nor = new Float32Array(CUBES * VB * 3);
+  const cel = new Float32Array(CUBES * VB * 3);
+  const idx = new Uint16Array(CUBES * bi.length);               // 10 368 verts: 16 bits reach them all
+  let c = 0;
+  for (let s = 0; s < SHEETS; s++)
+    for (let gz = 0; gz < GRID; gz++)
+      for (let gx = 0; gx < GRID; gx++, c++){
+        const vo = c * VB;
+        for (let v = 0; v < VB; v++){
+          pos[(vo + v) * 3] = bp[v * 3];     pos[(vo + v) * 3 + 1] = bp[v * 3 + 1]; pos[(vo + v) * 3 + 2] = bp[v * 3 + 2];
+          nor[(vo + v) * 3] = bn[v * 3];     nor[(vo + v) * 3 + 1] = bn[v * 3 + 1]; nor[(vo + v) * 3 + 2] = bn[v * 3 + 2];
+          cel[(vo + v) * 3] = gx;            cel[(vo + v) * 3 + 1] = gz;            cel[(vo + v) * 3 + 2] = s;
+        }
+        for (let k = 0; k < bi.length; k++) idx[c * bi.length + k] = vo + bi[k];
+      }
+  box.dispose();
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aNorm', new THREE.BufferAttribute(nor, 3));
+  geo.setAttribute('aCell', new THREE.BufferAttribute(cel, 3));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+
+  const vert = VERT_POINT_HEAD + `
+    attribute vec3 aNorm, aCell;
+    uniform float uVarA, uVarB, uVarC, uBeatSpring;
+    varying float vHue; varying float vShade; varying float vClap;
+    void main(){
+      const float GRID = 12.0, SP = 2.05, GAP = 3.2;
+      vec2 cellXZ = (aCell.xy - (GRID - 1.0) * 0.5) * SP;
+      float sh = aCell.z;
+      // rippled timing: the bob's phase is the distance from a rolled origin,
+      // so each cycle crosses the lattice as a travelling crest
+      vec2 org = (vec2(uVarA, uVarB) - 0.5) * GRID * SP * 0.8;
+      float rr = length(cellXZ - org);
+      float ph = uTime * (1.5 + uEnergy * 1.6) - rr * (0.30 + uVarC * 0.35);
+      float wave = sin(ph);
+      // antiphase middle sheet: adjacent sheets always approach each other
+      // somewhere in the cycle — top pair on one crest, bottom pair on the next
+      float dir = abs(sh - 1.0) < 0.5 ? -1.0 : 1.0;
+      // the reach: how far the drive actually sends the sheets. Faces meet
+      // exactly at |wave| = 1 when reach saturates — contact is the music's to earn
+      float reach = clamp(0.30 + uBass * 0.55 + uBeatSpring * 0.35 + uEnergy * 0.15, 0.0, 1.0);
+      float travel = (GAP - 0.92) * 0.5 * reach;
+      // the clap: only at the crest, and only when driven near contact
+      float clap = smoothstep(0.88, 1.0, abs(wave)) * smoothstep(0.72, 0.95, reach);
+      // squash & stretch — the cube gives on the clap axis and bulges wide,
+      // which is what makes the collision read as elastic rather than as overlap
+      vec3 corner = position;
+      corner.y  *= 1.0 - clap * 0.38;
+      corner.xz *= 1.0 + clap * 0.20;
+      float y = (sh - 1.0) * GAP + dir * travel * wave;
+      vec3 p = vec3(cellXZ.x, y, cellXZ.y) + corner * 0.92;
+      // the diagonal wears the spectrum, one drifting rainbow per sheet
+      vHue = fract((aCell.x + aCell.y) / (GRID * 2.0) + sh * 0.06 + uTime * 0.012);
+      // flat lambert off the baked normal: lit top, stepped-down sides — the
+      // shading that makes a lattice of cubes read as SOLID under additive rooms
+      vShade = 0.40 + 0.60 * max(0.0, dot(aNorm, normalize(vec3(0.35, 0.9, 0.2))));
+      vClap = clap;
+      vT = vHue; vGlow = clap * (0.6 + uBeat * 0.6);
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uOpacity, uEnergy;
+    varying float vHue; varying float vShade; varying float vClap;
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+    void main(){
+      vec3 col = hsv(vHue, 0.78, 1.0);
+      col = mix(col, ramp(vHue), 0.22);                  // the rainbow leans to the key
+      col *= vShade;
+      // the impact flash spends from the same bleach budget as every other room
+      col = mix(col, vec3(1.0), vClap * (0.22 + uWhite * 0.35));
+      col = inkRolloff(col * (0.75 + uEnergy * 0.35));
+      gl_FragColor = vec4(col, uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: true, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+  return { name: 'CUBE SHEETS', key: 'sheets', group, update(){}, roll(){
+    // a fresh ripple origin and wavelength — the wave crosses a new diagonal
+    varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+  } };
+}
+
+/* =========================================================
+   Scene 21 — MANDALA  (the kaleidoscope, dealt two ways)
+   BLOOM folds the frame into k mirrored sectors and grows petal
+   rings outward — the stained-glass mandala, in the five hard
+   colours of the room's own palette, lamps at the petal tips
+   answering the beat. SWIRL is the other classic: a vortex of
+   dotted scales on a log-spiral lattice, so every scale is the same
+   apparent size at every radius, each one listening to its own slice
+   of the live spectrum and swelling where its band sings. The
+   MIRRORS lens can already fold any scene; this room is the fold as
+   a SUBJECT — the symmetry is the artwork, not a treatment over one.
+   ========================================================= */
+function buildMandala(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uForm: { value: 0 }, uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBeat, uBeatSpring, uEnergy, uBass, uTreble, uCentroid, uOpacity;
+    uniform float uVarA, uVarB, uVarC, uForm, uAspect;
+    uniform vec3 uColA, uColB, uColC;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+    // the op-art rule again: five hard colours, all of them real
+    vec3 cell5(float h){
+      if (h < 0.2) return uColA;
+      if (h < 0.4) return uColB;
+      if (h < 0.6) return uColC;
+      if (h < 0.8) return ramp(0.5) * 0.55;
+      return mix(ramp(0.14), vec3(1.0), 0.28 + uWhite * 0.42);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float r = length(p) + 1e-4;
+      float a0 = atan(p.y, p.x);
+      vec3 col;
+      if (uForm < 0.5){
+        // ---- BLOOM: k-fold petal rings ----
+        float k = 5.0 + floor(uVarA * 5.0);
+        float spin = uTime * 0.05 * (uVarC < 0.5 ? -1.0 : 1.0);
+        float sector = 6.2831853 / k;
+        float a = abs(mod(a0 + spin, sector) - sector * 0.5);    // the fold
+        // bass swells the whole bloom; the spring lets the swell overshoot
+        float rb = r * (3.6 + uVarB * 2.2) * (1.0 - uBass * 0.10 - uBeatSpring * 0.05);
+        // ring boundaries scalloped by the folded angle: petals, deepening
+        float ring = rb - 0.9 * cos(a * k) - 0.35 * cos(a * k * 3.0) + uTime * 0.10;
+        float ri = floor(ring), rf = fract(ring);
+        col = cell5(fract(ri * 0.23 + uCentroid * 0.3 + uVarB * 0.5));
+        // dark seams keep the stained glass crisp, never a strobe
+        col *= 0.25 + 0.75 * smoothstep(0.0, 0.18, rf) * smoothstep(1.0, 0.82, rf);
+        // the lamps: bright studs at the petal tips, breathing with the beat
+        float lamp = exp(-pow(a * k * 2.0, 2.0)) * smoothstep(0.34, 0.18, abs(rf - 0.5));
+        col += mix(uColC, vec3(1.0), 0.3 + uWhite * 0.4) * lamp * (0.35 + uBeat * 0.65);
+        col *= smoothstep(0.02, 0.10, r);                        // a quiet eye
+        col *= 1.0 - smoothstep(1.05, 1.6, r) * 0.8;             // vignette
+      } else {
+        // ---- SWIRL: the dotted vortex ----
+        float lr = log(r);
+        float tw = (2.2 + uVarB * 2.4) * (uVarC < 0.5 ? -1.0 : 1.0);
+        float arms = 14.0 + floor(uVarA * 10.0);
+        // log-spiral cells: winding by tw, marching inward with the music
+        vec2 g = vec2(a0 / 6.2831853 * arms + lr * tw,
+                      lr * (6.0 + uVarA * 3.0) - uTime * (0.5 + uEnergy * 0.8));
+        vec2 id = floor(g), f = fract(g) - 0.5;
+        // every scale listens to its own band of the LIVE spectrum
+        float amp = texture2D(uAudio, vec2(fract(id.y * 0.061 + id.x * 0.013), 0.5)).r;
+        float dotR = 0.16 + amp * 0.26 + uBeat * 0.05;
+        float d = length(f * vec2(1.0, 1.35));
+        float disc = smoothstep(dotR, dotR - 0.10, d);
+        float hue = fract(id.x / arms + lr * 0.22 + uTime * 0.02);
+        vec3 dcol = mix(hsv(hue, 0.62, 1.0), ramp(hue), 0.30);
+        col = dcol * disc * (0.45 + amp * 0.9);
+        // the scallop rim each scale carries
+        col += dcol * smoothstep(dotR, dotR - 0.03, d)
+                    * smoothstep(dotR - 0.16, dotR - 0.05, d) * 0.35;
+        col *= smoothstep(0.015, 0.12, r);                       // the vortex eye rests dark
+        col *= 1.0 - smoothstep(1.1, 1.7, r) * 0.75;
+      }
+      col *= 0.8 + uEnergy * 0.35;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+  const FORM_NAMES = ['BLOOM', 'SWIRL'];
+  const api = { name: 'MANDALA', key: 'mandala', group, update(){
+    varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+  }, roll(){
+    varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+    varU.uForm.value = Math.floor(Math.random() * FORM_NAMES.length);
+    api.name = 'MANDALA · ' + FORM_NAMES[varU.uForm.value];
+    return api.name;
+  } };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   Scene 22 — OIL FILM  (thin-film interference on a dark current)
+   A film of oil on black water, marbled by two nested domain warps
+   and read as INTERFERENCE: three wavelengths of one thickness, so
+   where the film thins the fringes crowd and the streaks go
+   chromatic — the physics behind every oil-slick photograph, run on
+   the field the music is stirring. The low end thickens the film
+   (all the colours walk), the treble catches the crests, and the
+   beat drops one ripple ring from a rolled point. The picture keeps
+   the room's key by leaning the fringes toward the palette ramp
+   rather than replacing them with it — an oil slick in C minor is
+   still an oil slick.
+   ========================================================= */
+function buildOilslick(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBeat, uBeatSpring, uEnergy, uBass, uTreble, uCentroid, uOpacity;
+    uniform float uVarA, uVarB, uVarC, uAspect;
+    uniform vec3 uColA;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
+    float vnoise(vec2 x){
+      vec2 i = floor(x), f = fract(x);
+      f = f * f * (3.0 - 2.0 * f);
+      float a = hash21(i), b = hash21(i + vec2(1.0, 0.0)), c = hash21(i + vec2(0.0, 1.0)), d = hash21(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    }
+    float fbm(vec2 x){
+      float s = 0.0, w = 0.5;
+      for (int i = 0; i < 4; i++){ s += w * vnoise(x); x = x * 2.03 + 11.7; w *= 0.5; }
+      return s;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // one slow lateral current; the marbling is two warps deep, each one
+      // bending the space the next one reads — the whole liquid look
+      float t = uTime * (0.05 + uEnergy * 0.05);
+      vec2 q = p * (1.6 + uVarA * 1.2);
+      q.x -= t * 1.2;
+      vec2 w1 = vec2(fbm(q + vec2(0.0, t)), fbm(q + vec2(5.2, 1.3 - t)));
+      vec2 w2 = vec2(fbm(q + 2.6 * w1 + vec2(1.7, 9.2)), fbm(q + 2.6 * w1 + vec2(8.3, 2.8)));
+      float h = fbm(q + 2.4 * w2);
+      // the beat drops a ripple ring from a rolled point; the spring carries
+      // its afterbounce so the ring dies like water rather than like a gate
+      vec2 src = (vec2(uVarB, uVarC) - 0.5) * 1.6;
+      float rr = length(p - src);
+      h += 0.08 * uBeatSpring * sin(rr * 18.0 - uTime * 3.0) * exp(-rr * 2.2);
+      // thickness -> interference: three wavelengths of one film. The bass
+      // thickens the film, which WALKS every fringe rather than brightening it
+      float dth = h * (3.0 + uBass * 1.8) + uCentroid * 1.5;
+      vec3 fringe = 0.5 + 0.5 * cos(6.2831853 * (dth * vec3(1.00, 1.15, 1.32)) + vec3(0.0, 0.9, 1.8));
+      // dark pools, glowing crests: the streak look of the reference frame
+      float crest = pow(0.5 + 0.5 * cos(6.2831853 * dth + 1.6), 6.0);
+      vec3 col = fringe * fringe * (0.16 + 0.46 * h * h);
+      col += fringe * crest * (0.7 + uTreble * 0.8 + uBeat * 0.3);
+      // keyed, not replaced: the film floats over the room's own colour
+      col = mix(col, ramp(fract(dth * 0.25)) * (0.3 + crest), 0.28);
+      col += uColA * 0.03;                                       // the water is never true black
+      col *= 0.9 + uEnergy * 0.3;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+  return { name: 'OIL FILM', key: 'oilslick', group, update(){
+    varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+  }, roll(){
+    // a fresh current, a fresh ripple source
+    varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+  } };
+}
+
+/* =========================================================
+   Scene 23 — BUBBLES  (a glass cluster, rims wearing the spectrum)
+   A loose cloud of glass spheres drifting upward — under water,
+   everything is going up — each one drawn as a photograph of a
+   bubble actually looks: nearly empty in the middle, all of its
+   light on the rim, one specular window up-left. The rim's hue walks
+   AROUND the shell (thin-film interference again, curled into a
+   circle), and every bubble listens to its own band of the live
+   spectrum and swells where its band sings. Beneath the cluster a
+   fizz of micro-bubbles rises faster, because a drink with no fizz
+   is flat. Buoyancy wraps: a bubble that leaves the top returns to
+   the bottom, so the cloud never empties and never pops.
+   ========================================================= */
+function buildBubbles(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() } };
+
+  // the cluster
+  const N = 160;
+  const pos = new Float32Array(N * 3), aSeed = new Float32Array(N);
+  for (let i = 0; i < N; i++) aSeed[i] = (i + 0.5) / N;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(aSeed, 1));
+  const vert = VERT_POINT_HEAD + `
+    attribute float aSeed;
+    uniform float uVarA, uVarB, uVarC;
+    void main(){
+      float h1 = fract(aSeed * 127.1), h2 = fract(aSeed * 311.7);
+      float h3 = fract(aSeed * 74.7),  h4 = fract(aSeed * 269.5);
+      // a home in a loose ellipsoid, an orbit around it, and the rise
+      vec3 home = (vec3(h1, h2, h4) - 0.5) * vec3(26.0 + uVarA * 10.0, 0.0, 24.0 + uVarB * 8.0);
+      float ang = uTime * (0.05 + h3 * 0.12) + h1 * 6.2831853;
+      float rise = mod(h2 * 40.0 + uTime * (0.55 + h3 * 1.3), 34.0) - 17.0;
+      vec3 p = vec3(home.x + cos(ang) * (1.2 + h2 * 2.4), rise, home.z + sin(ang) * (1.2 + h2 * 2.4));
+      // each bubble listens to its own band and swells where it sings
+      float amp = texture2D(uAudio, vec2(h1, 0.5)).r;
+      vT = h1; vGlow = amp;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      // a power-law size: many small, few grand — like the photograph
+      gl_PointSize = (6.0 + pow(h4, 2.0) * 30.0) * (1.0 + uBeat * 0.10 + amp * 0.22) * (300.0 / -mv.z);
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform vec3 uColC; uniform float uOpacity, uTreble, uTime;
+    varying float vGlow; varying float vT;
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      // a glass shell: the middle is nearly empty, the light lives on the rim
+      float rim = smoothstep(0.30, 0.475, r) * smoothstep(0.5, 0.46, r);
+      float film = smoothstep(0.5, 0.1, r) * 0.05;
+      // the rim wears the spectrum AROUND itself — interference, curled closed
+      float ang = atan(d.y, d.x);
+      float hue = fract(vT + ang * 0.0716 + uTime * 0.01);
+      vec3 col = mix(hsv(hue, 0.55, 1.0), ramp(hue), 0.35);
+      // one specular window, up-left, like every photograph of a bubble
+      vec2 hp = d - vec2(-0.15, 0.17);
+      float hl = exp(-dot(hp, hp) * 90.0);
+      col = col * rim * (0.7 + vGlow * 0.9) + vec3(1.0) * hl * (0.35 + uTreble * 0.4);
+      col += uColC * film;
+      col = inkRolloff(col);
+      gl_FragColor = vec4(col, (rim * 0.9 + film + hl * 0.5) * uOpacity);
+    }
+  `;
+  group.add(addShaderPoints(geo, frag, vert, varU));
+
+  // the fizz: micro-bubbles rising faster, treble-lit
+  const FN = 240;
+  const fpos = new Float32Array(FN * 3), fSeed = new Float32Array(FN);
+  for (let i = 0; i < FN; i++) fSeed[i] = (i + 0.5) / FN;
+  const fgeo = new THREE.BufferGeometry();
+  fgeo.setAttribute('position', new THREE.BufferAttribute(fpos, 3));
+  fgeo.setAttribute('aSeed', new THREE.BufferAttribute(fSeed, 1));
+  const fvert = VERT_POINT_HEAD + `
+    attribute float aSeed;
+    void main(){
+      float h1 = fract(aSeed * 127.1), h2 = fract(aSeed * 311.7), h3 = fract(aSeed * 74.7);
+      float rise = mod(h2 * 60.0 + uTime * (2.2 + h3 * 3.0), 36.0) - 18.0;
+      // the wobble every small bubble climbs with
+      vec3 p = vec3((h1 - 0.5) * 34.0 + sin(uTime * (1.2 + h3) + h2 * 40.0) * 0.5,
+                    rise,
+                    (h3 - 0.5) * 30.0);
+      vT = h1; vGlow = uTreble * 0.8;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (1.2 + h2 * 2.2) * (300.0 / -mv.z);
+    }
+  `;
+  group.add(addShaderPoints(fgeo, FRAG_POINT, fvert));
+
+  group.visible = false;
+  scene.add(group);
+  return { name: 'BUBBLES', key: 'bubbles', group, update(){}, roll(){
+    varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+  } };
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -23551,7 +23997,7 @@ function initThree(){
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
-              buildLava(), buildFlame());
+              buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -26184,7 +26630,7 @@ const WARM = {
     return alpha == null ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
   },
 
-  /* THE TILE PAINTERS. Nine gestures, re-used across nineteen rooms at
+  /* THE TILE PAINTERS. Nine gestures, re-used across twenty-three rooms at
      different hues and densities — not screenshots, and deliberately not:
      a still frame of a scene that is entirely about MOTION is a worse
      description of it than a drawing of what the motion does. */
