@@ -6152,12 +6152,24 @@ const el = {
   btnCrate: $('btnCrate'), crate: $('crate'),
 };
 
+/* THE SAME SENTENCE TWICE IS STILL ONE SENTENCE. A retry loop says the same
+   thing on every attempt, and three stacked copies of "weak signal — holding
+   X" read as three separate problems rather than one that has not gone away.
+   An identical card that is still on screen has its clock restarted instead:
+   the message stays up for as long as it keeps being true, which is what it
+   was always trying to say. */
 function toast(html){
+  const last = el.toasts.lastElementChild;
+  if (last && last._html === html){
+    clearTimeout(last._t);
+    last._t = setTimeout(() => { last.classList.remove('in'); setTimeout(() => last.remove(), 350); }, 2600);
+    return;
+  }
   const t = document.createElement('div');
-  t.className = 'toast'; t.innerHTML = html;
+  t.className = 'toast'; t.innerHTML = html; t._html = html;
   el.toasts.appendChild(t);
   requestAnimationFrame(() => t.classList.add('in'));
-  setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 350); }, 2600);
+  t._t = setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 350); }, 2600);
   while (el.toasts.children.length > 3) el.toasts.firstChild.remove();
 }
 
@@ -6496,10 +6508,43 @@ function ensureCtx(){
       // A live set rides straight through a weak-signal blip. (Sustained
       // progress refills the retry budget, so a long track on a flaky pipe can
       // recover as many times as it needs, as long as it keeps advancing.)
+      /* WHAT ACTUALLY WENT WRONG, kept rather than thrown away. The element
+         says which of four things happened and this handler used to ignore it
+         entirely, reporting every one of them as "Couldn't decode" — so a file
+         the server never sent, a file the server refused on CORS, and a file
+         that really is corrupt all read identically, and none of the three
+         told anybody what to go and fix. A wrong diagnosis is worse than none:
+         somebody chasing a decoder bug is looking at the one layer that is
+         working. */
+      const code = (d.a.error && d.a.error.code) || 0;
+      const NET = 2, DECODE = 3, UNSUPPORTED = 4;
+      // 4 is the one that reads as "corrupt file" and almost never is: it is
+      // what a 404, a 403, a blocked mixed-content request and a missing
+      // Access-Control-Allow-Origin all arrive as
+      const reachable = code !== NET && code !== UNSUPPORTED;
       const streaming = t && !t.local && !t.demo;
-      if (streaming && navigator.onLine && player.playing){
+      /* A 404 IS NOT A WEAK SIGNAL, AND HOLDING IT FOUR TIMES HELPS NOBODY.
+         The rebuffer loop exists for a stream that DROPS — a real blip on a
+         real connection, where trying again in a moment genuinely works. A
+         file the server never sent will not have been sent four attempts
+         later either, so all the retry bought was four identical "weak
+         signal" cards and six seconds of silence per track before the truth.
+         That is most of what the listener who reported this actually saw.
+         Retry a network drop, and anything that had already made progress —
+         which is the mid-stream case the loop was written for. Refuse to
+         pretend about a load that never started. */
+      const worthRetry = code === NET || (isFinite(AE._lastGoodT) && AE._lastGoodT > 0.2);
+      if (streaming && worthRetry && navigator.onLine && player.playing){
         t._netTries = (t._netTries || 0) + 1;
-        if (t._netTries <= 4){
+        /* AND A LIFETIME CAP ON TOP OF THE REFILLABLE BUDGET. _netTries is
+           cleared by two seconds of progress, which is right for a long track
+           on a flaky pipe — and unbounded, which is how a stream that plays
+           three seconds and drops, forever, becomes an endless parade of
+           identical "weak signal" cards while nothing ever plays. Reported
+           from a real listener; the budget refilled faster than it was spent.
+           _netHolds is never cleared for the life of the track. */
+        t._netHolds = (t._netHolds || 0) + 1;
+        if (t._netTries <= 4 && t._netHolds <= 12){
           t._errPos = isFinite(AE._lastGoodT) ? AE._lastGoodT : 0;
           const wait = Math.min(4000, 400 * t._netTries);   // 0.4s → 1.6s
           LOADER.begin('reconnecting…');
@@ -6518,9 +6563,32 @@ function ensureCtx(){
       clearTimeout(d._reT);          // give up any pending rebuffer so it can't reload the NEXT track's deck
       LOADER.done();                 // the wait is over, even if it ended badly
       const offline = !navigator.onLine && t && !t.local;
+      const name = t ? escapeHTML(t.title) : 'track';
+      /* A DEAD PIPE IS NOT TWO HUNDRED BAD FILES. Skipping on failure is right
+         for one unplayable track and catastrophic for a host that is down: the
+         player marches through the entire catalog, one card per track, and
+         arrives at "end of playlist" having said nothing true. Three in a row
+         that could not be REACHED is not a coincidence — it stops, and says
+         the one thing worth acting on. Cleared by any track that plays. */
+      if (!offline && streaming && !reachable){
+        player._netSkips = (player._netSkips || 0) + 1;
+        if (player._netSkips >= 3){
+          player._netSkips = 0;
+          player.pause();
+          toast('Can\'t reach the music — the server is refusing or not answering.'
+            + ' Nothing is wrong with the files; playback is paused.');
+          return;
+        }
+      }
       toast(offline
-        ? 'Offline — streaming unavailable for <b>' + escapeHTML(t.title) + '</b>'
-        : 'Couldn\'t decode <b>' + (t ? escapeHTML(t.title) : 'track') + '</b> — skipping');
+        ? 'Offline — streaming unavailable for <b>' + name + '</b>'
+        : !reachable
+          // named plainly, because this is the one people can act on
+          ? 'Couldn\'t load <b>' + name + '</b> — the server didn\'t send it'
+            + ' (missing, blocked, or cross-origin). Skipping.'
+          : code === DECODE
+            ? 'Couldn\'t decode <b>' + name + '</b> — the file is damaged. Skipping.'
+            : 'Couldn\'t play <b>' + name + '</b> — skipping');
       if (!offline) setTimeout(() => player.next(true), 400);
       else { player.playing = false; updatePlayIcon(); }
     });
@@ -6543,7 +6611,8 @@ function ensureCtx(){
     d.a.addEventListener('seeked', () => { if (i === AE.active) mediaSessionPosition(); });
     d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
     // the loading spin clears the instant true audio flows (or stalls again)
-    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall(); player._stallSkips = 0; } });
+    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall();
+      player._stallSkips = 0; player._netSkips = 0; } });   // audio flowed: the pipe is alive
     d.a.addEventListener('timeupdate', () => {
       if (i !== AE.active) return;
       const ct = d.a.currentTime;
@@ -6551,6 +6620,7 @@ function ensureCtx(){
         LOADER.done();
         player._clearStall();                     // real audio flowed — the backstop stands down
         player._stallSkips = 0;                   // a clean start clears the weak-signal streak
+        player._netSkips = 0;                     // …and the unreachable-host streak with it
         AE._lastGoodT = ct;                       // the spot to rebuffer from if the stream drops
         const t = player.tracks[player.cur];       // sustained progress past a blip refills the retry budget
         if (t && t._netTries && ct > (t._errPos || 0) + 2){ t._netTries = 0; }
