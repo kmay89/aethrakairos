@@ -623,6 +623,41 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   .echo-cloud{transition:opacity 2s ease}
   .echo-cloud.live{transform:none}
 }
+/* ============ the sky card — scene 24 says what you are looking at ============
+   The constellation being drawn, named and placed: IAU name, genitive, what
+   the figure is, which quadrant it belongs to, and — computed live from this
+   roll — the compass point, the altitude, and whether it is rising or setting.
+   Every star the gold pen reaches adds its own line. DOM text over the field,
+   never in it: a shader that could spell "Betelgeuse" would cost more than the
+   whole scene does. It never takes the pointer. */
+#skyCard{
+  position:fixed;left:clamp(12px,3vw,42px);top:50%;
+  transform:translateY(-50%) translateX(-16px);
+  z-index:6;width:min(84vw,336px);pointer-events:none;opacity:0;
+  transition:opacity .85s ease,transform .85s cubic-bezier(.22,1,.36,1);
+  text-shadow:0 1px 14px rgba(0,0,0,.8),0 0 34px rgba(0,0,0,.55);
+}
+#skyCard.on{opacity:1;transform:translateY(-50%) translateX(0)}
+.sk-ab{font-family:var(--mono);font-size:9.5px;letter-spacing:.28em;color:#f0c46a;opacity:.92;text-transform:uppercase}
+.sk-n{font-size:clamp(20px,3.3vw,30px);letter-spacing:.07em;margin:3px 0 5px;color:#fff;font-weight:600;line-height:1.1}
+.sk-g{font-family:var(--serif);font-style:italic;font-size:13.5px;color:rgba(255,255,255,.74)}
+.sk-w{margin-top:10px;font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;color:#8fd9ff}
+.sk-m{margin-top:3px;font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--dim)}
+.sk-note{margin-top:11px;font-size:12.5px;line-height:1.52;color:rgba(255,255,255,.7);max-width:32ch}
+.sk-list{margin:13px 0 0;padding:0;list-style:none;border-left:1px solid rgba(240,196,106,.3)}
+.sk-list li{
+  padding:4px 0 4px 11px;font-family:var(--mono);font-size:10px;line-height:1.5;
+  letter-spacing:.03em;color:rgba(255,255,255,.6);
+  opacity:0;transform:translateX(-7px);animation:skIn .55s ease forwards;
+}
+.sk-list li b{color:#f5cf7d;font-weight:600;letter-spacing:.05em}
+.sk-list li i{font-style:normal;color:var(--dim)}
+@keyframes skIn{to{opacity:1;transform:none}}
+@media (max-height:640px){.sk-note{display:none}.sk-list li:nth-last-child(n+4){display:none}}
+@media (prefers-reduced-motion:reduce){
+  #skyCard,#skyCard.on{transition:opacity .5s ease;transform:translateY(-50%)}
+  .sk-list li{animation:none;opacity:1;transform:none}
+}
 #echoPanel{
   position:fixed;left:50%;transform:translateX(-50%) translateY(16px);
   bottom:calc(94px + env(safe-area-inset-bottom));z-index:56;
@@ -21030,6 +21065,9 @@ const director = {
     syncSceneDots();
     el.sceneName.textContent = scenes[i].name;
     if (el.zSceneName) el.zSceneName.textContent = scenes[i].name;   // the immersive scene stepper
+    // the sky's caption belongs to the sky: a room change takes it away, so it
+    // can never be left glowing over a scene that has nothing to narrate
+    if (typeof SKYCARD !== 'undefined') SKYCARD.roomChanged(scenes[i].key);
   },
   rotatePalette(to){
     this.palFrom = this.pal; this.palTo = to; this.palT = 0;
@@ -24042,147 +24080,645 @@ function buildBubbles(){
 }
 
 /* =========================================================
-   Scene 24 — CONSTELLATIONS  (the sky over Ohio, drawn in gold)
-   A star viewer with a real catalog in it: every constellation star
-   below is a bright star at its J2000 right ascension and
-   declination, projected to altitude/azimuth for latitude 39.96° N —
-   Columbus, Ohio — at a sidereal hour rolled fresh on every visit.
-   What hangs above the horizon at that hour is what you get, which
-   is why ORION owns the winter roll and CYGNUS the summer one, and
-   why URSA MAJOR and CASSIOPEIA are always somewhere in the room
-   (at 40° N they never set). The show is a cycle the music drives:
-   the sky PANS until the next constellation faces you, the figure is
-   DRAWN in gold one edge per beat — each star it reaches flares with
-   a diffraction cross and casts an expanding ring — the finished
-   shape HOLDS and glows, then FIZZLES into particles that fan back
-   out into the star field, and the sky swings away to find the next.
-   The constellation's name rides the HUD while its figure is up.
+   Scene 24 — CONSTELLATIONS  (the real sky over Ohio, drawn in gold)
+
+   This is a star viewer with an actual catalogue behind it. Every
+   star below is a real star at its J2000 right ascension and
+   declination, carrying its Bayer letter, its proper name, its
+   spectral class, its visual magnitude and its distance in light
+   years. Twenty-two IAU constellations are drawn as their
+   traditional figures — not three-line sketches: Orion gets his
+   shield, his club and his sword; Draco winds fourteen segments
+   from the Little Dipper's tail to his head; Hercules gets the
+   Keystone and both arms.
+
+   The projection is honest. Right ascension and declination are
+   converted to altitude and azimuth for latitude 39.96° N —
+   Columbus, Ohio — at a local sidereal time rolled fresh on every
+   visit. So what stands above the horizon is what that sky really
+   holds at that hour: ORION owns the winter roll, CYGNUS and the
+   Summer Triangle the July one, SCORPIUS never gets more than a
+   few degrees up because from Ohio it never does, and URSA MAJOR,
+   CASSIOPEIA, CEPHEUS, DRACO and URSA MINOR are always somewhere
+   in the room because above 40° N they never set. Stars fade out
+   as they approach the horizon, the way they actually do through
+   the thickness of the air.
+
+   The show is a cycle the music drives:
+
+     PAN     the sky swings — yaw first, then tilt, so the horizon
+             stays level the way a planetarium's does — until the
+             next figure faces you
+     DRAW    the figure is drawn in gold, paced off the measured
+             beat grid, a spark riding the pen; every star it
+             reaches flares a six-point diffraction cross, casts an
+             expanding ring, and writes its own name into the sky
+     HOLD    the completed figure glows and breathes on the beat
+     FIZZLE  the gold strokes come apart into particles that fan
+             outward and cool to starlight as they rejoin the map
+
+   While a figure is up, the card at the left says what you are
+   looking at: the IAU name, genitive and abbreviation, what the
+   figure is, which quadrant of sky it belongs to, how big it is,
+   and — computed live from this roll — which compass direction it
+   is standing in, how far above the horizon, and whether it is
+   rising or setting. Each star the pen touches adds its own line,
+   and the ones with a story tell it.
    ========================================================= */
-const SKY_LAT = 39.96 * Math.PI / 180;    // Columbus, Ohio
-const SKY_R = 120;                        // the dome, beyond the camera's whole orbit
-/* [ra hours, dec degrees, magnitude, warmth 0..1] — J2000, to the precision a
-   dome this size can show. Warmth is the star's real colour class, roughly:
-   Betelgeuse and Antares burn warm, Rigel and Alkaid run blue. */
+const SKY_LAT = 39.9612 * Math.PI / 180;   // Columbus, Ohio
+const SKY_R = 120;                         // the dome, beyond the camera's whole orbit
+
+/* THE CATALOGUE. Per constellation: IAU name, abbreviation, genitive,
+   what the figure is, area in square degrees and its rank among the 88,
+   the sky quadrant, the month it stands highest at nightfall, and one
+   thing worth knowing. Per star: [RA hours, dec degrees, visual
+   magnitude, Bayer letter, proper name, spectral description, distance
+   in light years, and an optional note the room reads out]. */
 const SKY_CONS = [
-  { n: 'URSA MAJOR', s: [[11.062,61.751,1.79,0.7],[11.031,56.382,2.37,0.4],[11.897,53.695,2.44,0.4],[12.257,57.033,3.31,0.4],[12.900,55.960,1.77,0.4],[13.399,54.925,2.27,0.4],[13.792,49.313,1.86,0.2]],
-    e: [[6,5],[5,4],[4,3],[3,2],[2,1],[1,0],[0,3]] },
-  { n: 'CASSIOPEIA', s: [[0.153,59.150,2.27,0.6],[0.675,56.537,2.24,0.7],[0.945,60.717,2.47,0.2],[1.430,60.235,2.68,0.4],[1.907,63.670,3.38,0.2]],
-    e: [[0,1],[1,2],[2,3],[3,4]] },
-  { n: 'ORION', s: [[5.919,7.407,0.42,1.0],[5.418,6.350,1.64,0.15],[5.679,-1.943,1.77,0.15],[5.604,-1.202,1.69,0.15],[5.533,-0.299,2.23,0.15],[5.796,-9.670,2.09,0.15],[5.242,-8.202,0.13,0.1]],
-    e: [[0,1],[1,4],[4,3],[3,2],[2,0],[2,5],[5,6],[6,4]] },
-  { n: 'CYGNUS', s: [[20.690,45.280,1.25,0.4],[20.371,40.257,2.23,0.6],[20.770,33.970,2.48,0.7],[19.749,45.131,2.86,0.3],[19.512,27.960,3.05,0.8]],
-    e: [[0,1],[1,4],[3,1],[1,2]] },
-  { n: 'LYRA', s: [[18.616,38.784,0.03,0.2],[18.746,37.605,4.34,0.4],[18.898,36.899,4.22,0.8],[18.982,32.690,3.25,0.6],[18.835,33.363,3.52,0.4]],
-    e: [[0,1],[1,4],[4,3],[3,2],[2,1]] },
-  { n: 'AQUILA', s: [[19.846,8.868,0.76,0.3],[19.771,10.613,2.72,0.8],[19.922,6.407,3.71,0.6],[19.425,3.115,3.36,0.5]],
-    e: [[1,0],[0,2],[0,3]] },
-  { n: 'LEO', s: [[10.140,11.967,1.36,0.3],[10.122,16.763,3.48,0.5],[10.333,19.842,2.61,0.8],[10.278,23.417,3.43,0.5],[9.879,26.007,3.88,0.6],[9.764,23.774,2.97,0.6],[11.818,14.572,2.14,0.3],[11.235,20.524,2.56,0.3],[11.237,15.430,3.33,0.4]],
-    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[2,7],[7,6],[6,8],[8,0]] },
-  { n: 'GEMINI', s: [[7.577,31.888,1.58,0.3],[7.755,28.026,1.14,0.8],[6.629,16.399,1.93,0.3],[7.335,21.982,3.53,0.5],[6.732,25.131,2.98,0.6],[6.383,22.514,2.88,0.9]],
-    e: [[0,1],[0,4],[4,5],[1,3],[3,2]] },
-  { n: 'TAURUS', s: [[4.599,16.509,0.86,1.0],[5.438,28.608,1.68,0.2],[5.628,21.143,3.00,0.2],[4.330,15.628,3.65,0.6],[4.477,19.180,3.53,0.7]],
-    e: [[1,4],[4,3],[3,0],[0,2]] },
-  { n: 'BOÖTES', s: [[14.261,19.182,-0.05,0.9],[14.750,27.074,2.35,0.8],[15.258,33.315,3.47,0.5],[15.032,40.390,3.49,0.6],[14.535,38.308,3.04,0.4],[14.530,30.371,3.57,0.5],[13.911,18.398,2.68,0.6]],
-    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,6]] },
-  { n: 'PERSEUS', s: [[3.405,49.861,1.79,0.6],[3.136,40.956,2.09,0.3],[3.080,53.506,2.91,0.6],[3.715,47.787,3.01,0.5],[3.964,40.010,2.90,0.4]],
-    e: [[2,0],[0,3],[3,4],[0,1]] },
-  { n: 'PEGASUS', s: [[23.079,15.205,2.49,0.4],[23.063,28.083,2.42,0.9],[0.220,15.184,2.83,0.3],[0.140,29.090,2.06,0.3],[21.736,9.875,2.38,0.8]],
-    e: [[0,1],[1,3],[3,2],[2,0],[0,4]] },
-  { n: 'CANIS MAJOR', s: [[6.752,-16.716,-1.46,0.2],[6.378,-17.956,1.98,0.2],[6.977,-28.972,1.50,0.2],[7.140,-26.393,1.83,0.6],[7.401,-29.303,2.45,0.3]],
-    e: [[0,1],[0,3],[3,2],[3,4]] },
-  { n: 'AURIGA', s: [[5.278,45.998,0.08,0.7],[5.992,44.947,1.90,0.4],[5.995,37.213,2.65,0.5],[5.438,28.608,1.68,0.2],[4.950,33.166,2.69,0.8],[5.033,43.823,3.03,0.6]],
-    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]] },
-  { n: 'ANDROMEDA', s: [[0.140,29.090,2.06,0.3],[0.656,30.861,3.27,0.6],[1.162,35.620,2.05,0.9],[2.065,42.330,2.26,0.7]],
-    e: [[0,1],[1,2],[2,3]] },
-  { n: 'CEPHEUS', s: [[21.310,62.585,2.44,0.4],[21.478,70.561,3.23,0.3],[23.655,77.632,3.21,0.7],[22.181,58.201,3.35,0.5],[22.828,66.201,3.52,0.5]],
-    e: [[0,1],[1,4],[4,3],[3,0],[1,2],[2,4]] },
-  // the anchors with no figure: never drawn, always present when up.
-  // Polaris first — from Ohio it hangs at 40° over true north, every night.
-  { n: '', s: [[2.530,89.264,1.98,0.5],[7.655,5.225,0.34,0.4],[13.420,-11.161,0.97,0.2],[16.490,-26.432,1.09,1.0],[22.961,-29.622,1.16,0.3]], e: [] },
+  { n:'ORION', ab:'Ori', gen:'Orionis', en:'the Hunter', area:594, rank:26, q:'NQ1', best:'January',
+    note:'The one everybody finds first — and the only place in the sky where you can watch stars being born tonight.',
+    s:[[5.9195,7.4070,0.42,'α','Betelgeuse','M1 red supergiant',548,'So vast it would swallow the orbit of Jupiter, and the first star ever imaged as a disc rather than a point.'],
+       [5.4188,6.3497,1.64,'γ','Bellatrix','B2 giant',250],
+       [5.2423,-8.2016,0.13,'β','Rigel','B8 blue supergiant',863,'Forty thousand Suns of light, from a star burning through its fuel in a few million years.'],
+       [5.7959,-9.6696,2.09,'κ','Saiph','B0.5 supergiant',650],
+       [5.5334,-0.2991,2.23,'δ','Mintaka','O9.5 giant',1200,'Sits within a hair of the celestial equator — it rises due east from everywhere on Earth.'],
+       [5.6036,-1.2019,1.69,'ε','Alnilam','B0 supergiant',2000],
+       [5.6793,-1.9426,1.77,'ζ','Alnitak','O9.5 supergiant',1260],
+       [5.5855,9.9342,3.39,'λ','Meissa','O8 giant',1100],
+       [5.5935,-5.9099,2.77,'ι','Hatysa','O9 giant',1300,'The sword — and the Orion Nebula hangs just above it.'],
+       [5.4076,-2.3971,3.36,'η','','B1 binary',900],
+       [4.8307,6.9611,3.19,'π³','Tabit','F6 dwarf',26.3,'A near neighbour hiding in plain sight: 26 light years, and close to a twin of the Sun.'],
+       [4.8511,5.6051,3.68,'π⁴','','B2 binary',1250],
+       [4.9017,2.4413,3.71,'π⁵','','B2 giant',1342],
+       [4.8437,8.9002,4.35,'π²','','A1 dwarf',194],
+       [4.8300,10.1503,4.65,'π¹','','A0 dwarf',119],
+       [4.9750,1.7143,4.45,'π⁶','','K2 giant',954],
+       [6.0384,9.6493,4.12,'μ','','A0 multiple',152],
+       [6.1281,14.7684,4.42,'ν','','B3 giant',520],
+       [6.1971,14.2088,4.45,'ξ','','B3 giant',617],
+       [5.9088,20.2761,4.39,'χ¹','','G0 dwarf',28.3],
+       [6.0651,20.1383,4.63,'χ²','','B2 supergiant',3626]],
+    e:[[0,1],[1,4],[4,5],[5,6],[6,0],[2,4],[6,3],[5,9],[9,8],[0,7],[7,1],
+       [1,13],[13,14],[13,10],[10,11],[11,12],[12,15],
+       [0,16],[16,18],[18,17],[16,19],[19,20]] },
+
+  { n:'URSA MAJOR', ab:'UMa', gen:'Ursae Majoris', en:'the Great Bear', area:1280, rank:3, q:'NQ2', best:'April',
+    note:'Third-largest of the 88, and never sets from Ohio. Five of the seven Dipper stars are moving through the galaxy together — one cluster, seen from inside.',
+    s:[[11.0622,61.7511,1.79,'α','Dubhe','K0 giant',123,'Dubhe and Merak are the Pointers: the line between them runs straight to Polaris.'],
+       [11.0307,56.3824,2.37,'β','Merak','A1 dwarf',79.7],
+       [11.8972,53.6948,2.44,'γ','Phecda','A0 dwarf',83.2],
+       [12.2571,57.0326,3.31,'δ','Megrez','A3 dwarf',80.5],
+       [12.9005,55.9598,1.77,'ε','Alioth','A1 peculiar',82.6],
+       [13.3987,54.9254,2.27,'ζ','Mizar','A2 dwarf',82.9,'The naked-eye double the old astronomers used as an eyesight test — and the first star ever photographed as a binary.'],
+       [13.7923,49.3133,1.86,'η','Alkaid','B3 dwarf',103.9],
+       [8.5045,60.7182,3.35,'ο','Muscida','G5 giant',179],
+       [9.8494,59.0388,3.78,'υ','','F2 subgiant',115],
+       [9.5479,51.6773,3.17,'θ','','F6 subgiant',43.9],
+       [8.9862,48.0417,3.14,'ι','Talitha','A7 subgiant',47.3],
+       [9.0598,47.1567,3.60,'κ','Alkaphrah','A1 dwarf',358],
+       [10.2851,42.9145,3.45,'λ','Tania Borealis','A2 subgiant',138],
+       [10.3722,41.4996,3.05,'μ','Tania Australis','M0 giant',249],
+       [11.3079,33.0943,3.49,'ν','Alula Borealis','K3 giant',399],
+       [11.3031,31.5292,3.79,'ξ','Alula Australis','G0 dwarf',29.3,'The first binary star whose orbit was ever computed — Savary, 1828.'],
+       [11.1611,44.4986,3.01,'ψ','','K1 giant',147]],
+    e:[[0,1],[1,2],[2,3],[3,0],[3,4],[4,5],[5,6],
+       [0,7],[7,8],[8,9],[9,10],[10,11],
+       [2,16],[16,12],[12,13],[16,14],[14,15]] },
+
+  { n:'DRACO', ab:'Dra', gen:'Draconis', en:'the Dragon', area:1083, rank:8, q:'NQ3', best:'July',
+    note:'Winds right around the Little Dipper. Because the Earth wobbles, the dragon once held the pole — and will again.',
+    s:[[11.5313,69.3312,3.84,'λ','Giausar','M0 giant',334],
+       [12.5583,69.7881,3.87,'κ','','B6 giant',498],
+       [14.0730,64.3758,3.65,'α','Thuban','A0 giant',303,'The pole star of the pyramid builders — the Great Pyramid has a shaft aimed straight at where it stood.'],
+       [15.4155,58.9661,3.29,'ι','Edasich','K2 giant',101],
+       [16.0198,58.5648,4.01,'θ','','F8 subgiant',68.6],
+       [16.3999,61.5141,2.73,'η','Athebyne','G8 giant',92.1],
+       [17.1465,65.7147,3.17,'ζ','Aldhibah','B6 giant',330],
+       [18.3474,72.7328,3.57,'χ','','F7 dwarf',26.3],
+       [19.8022,70.2679,3.83,'ε','Tyl','G8 giant',148],
+       [19.2093,67.6615,3.07,'δ','Altais','G9 giant',97.4],
+       [17.8924,56.8727,3.75,'ξ','Grumium','K2 giant',112],
+       [17.5372,55.1730,4.88,'ν','Kuma','A8 pair',99.3,'A pair of near-identical white stars — the easiest double in the sky for binoculars.'],
+       [17.5072,52.3014,2.79,'β','Rastaban','G2 supergiant',380],
+       [17.9434,51.4889,2.23,'γ','Eltanin','K5 giant',154,'In a million and a half years it will pass within 28 light years of us and become the brightest star in the sky.']],
+    e:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12],[12,13],[13,10]] },
+
+  { n:'HERCULES', ab:'Her', gen:'Herculis', en:'the Kneeling Giant', area:1225, rank:5, q:'NQ3', best:'July',
+    note:'Fifth-largest constellation, and the Sun is flying toward a point just inside it at 12 miles a second.',
+    s:[[17.2444,14.3903,3.35,'α','Rasalgethi','M5 supergiant',360,'So large and so unstable that its diameter visibly changes over the years.'],
+       [16.5036,21.4896,2.77,'β','Kornephoros','G7 giant',139],
+       [16.3719,19.1531,3.75,'γ','','A9 giant',195],
+       [17.2503,24.8392,3.12,'δ','Sarin','A3 subgiant',75.1],
+       [17.0048,30.9265,3.92,'ε','','A0 dwarf',155],
+       [16.6882,31.6033,2.81,'ζ','','G0 subgiant',35.0],
+       [16.7146,38.9223,3.48,'η','','G8 giant',112],
+       [17.2508,36.8092,3.16,'π','','K3 giant',115],
+       [17.7746,27.7204,3.42,'μ','','G5 subgiant',27.1],
+       [17.9612,29.2478,3.70,'ξ','','K0 giant',136],
+       [18.1249,28.7625,3.83,'ο','','B9 dwarf',346],
+       [16.3245,46.3131,3.89,'τ','','B5 dwarf',318],
+       [16.5619,42.4370,4.20,'σ','','B9 dwarf',305],
+       [17.6603,46.0063,3.80,'ι','','B3 dwarf',495],
+       [17.9391,37.2504,3.86,'θ','','K1 giant',700]],
+    e:[[5,4],[4,7],[7,6],[6,5],[5,1],[1,2],[2,0],[4,3],[3,8],[8,9],[9,10],[6,12],[12,11],[7,14],[14,13]] },
+
+  { n:'PEGASUS', ab:'Peg', gen:'Pegasi', en:'the Winged Horse', area:1121, rank:7, q:'NQ4', best:'October',
+    note:'The Great Square is the autumn signpost — and one of its stars belongs to Andromeda, because the IAU drew the borders in 1930 and left it there.',
+    s:[[23.0793,15.2053,2.49,'α','Markab','B9 giant',133],
+       [23.0629,28.0828,2.42,'β','Scheat','M2 giant',196],
+       [0.2206,15.1836,2.83,'γ','Algenib','B2 subgiant',470],
+       [21.7364,9.8750,2.38,'ε','Enif','K2 supergiant',690,'The horse’s nose, and the brightest star in Pegasus despite not being alpha.'],
+       [22.6910,10.8313,3.40,'ζ','Homam','B8 dwarf',209],
+       [22.1699,6.1978,3.53,'θ','Biham','A2 dwarf',97.3],
+       [22.7169,30.2211,2.94,'η','Matar','G8 giant',214],
+       [0.1398,29.0904,2.06,'α And','Alpheratz','B9 mercury star',97.0,'The fourth corner of the Great Square — officially a star of Andromeda, borrowed by the horse.'],
+       [23.0629,23.7404,4.40,'51','51 Pegasi','G2 dwarf',50.9,'The first Sun-like star ever found with a planet, in 1995 — the discovery that opened the field.']],
+    e:[[0,1],[1,7],[7,2],[2,0],[0,4],[4,5],[5,3],[1,6]] },
+
+  { n:'LEO', ab:'Leo', gen:'Leonis', en:'the Lion', area:947, rank:12, q:'NQ2', best:'April',
+    note:'One of the few figures that genuinely looks like its animal — the Sickle is the mane, and the Leonid meteors radiate from inside it every November.',
+    s:[[10.1395,11.9672,1.36,'α','Regulus','B8 dwarf',79.3,'Spins so fast it is visibly egg-shaped, and sits almost exactly on the ecliptic — the Moon can cover it.'],
+       [10.1222,16.7627,3.48,'η','','A0 supergiant',1270],
+       [10.3329,19.8415,2.61,'γ','Algieba','K1 giant pair',130,'Two golden giants in a 500-year orbit — one of the finest doubles in the sky.'],
+       [10.2785,23.4173,3.43,'ζ','Adhafera','F0 giant',260],
+       [9.8792,26.0071,3.88,'μ','Rasalas','K2 giant',133],
+       [9.7640,23.7743,2.97,'ε','Algenubi','G1 giant',247],
+       [9.5289,22.9680,4.31,'λ','Alterf','K5 giant',336],
+       [9.4046,26.1826,4.46,'κ','','K2 giant',213],
+       [11.2372,15.4297,3.33,'θ','Chertan','A2 dwarf',165],
+       [11.8177,14.5721,2.14,'β','Denebola','A3 dwarf',35.9],
+       [11.2351,20.5237,2.56,'δ','Zosma','A4 dwarf',58.4],
+       [9.6813,9.8924,3.52,'ο','Subra','A5 pair',135]],
+    e:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[4,7],[0,8],[8,9],[9,10],[10,2],[0,11]] },
+
+  { n:'BOÖTES', ab:'Boo', gen:'Boötis', en:'the Herdsman', area:907, rank:13, q:'NQ3', best:'June',
+    note:'Follow the arc of the Dipper’s handle and it lands on Arcturus — the oldest navigation trick there is.',
+    s:[[14.2610,19.1825,-0.05,'α','Arcturus','K1.5 giant',36.7,'The brightest star north of the celestial equator, and a visitor: it is crossing the galaxy at right angles to the disc.'],
+       [14.7498,27.0742,2.35,'ε','Izar','K0 + A2 pair',210,'Struve called it Pulcherrima — the loveliest — an orange giant with a blue-green companion.'],
+       [15.2582,33.3149,3.47,'δ','','G8 giant',121],
+       [15.0322,40.3906,3.49,'β','Nekkar','G8 giant',219],
+       [14.5346,38.3082,3.03,'γ','Seginus','A7 giant',85.0],
+       [14.5288,30.3714,3.58,'ρ','','K3 giant',149],
+       [13.9114,18.3977,2.68,'η','Muphrid','G0 subgiant',37.2],
+       [14.6851,13.7284,3.78,'ζ','','A2 pair',180]],
+    e:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,6],[0,7]] },
+
+  { n:'SAGITTARIUS', ab:'Sgr', gen:'Sagittarii', en:'the Archer', area:867, rank:15, q:'SQ4', best:'August',
+    note:'The centre of the Milky Way lies just off the spout of the Teapot — the black hole at the heart of the galaxy is in this direction, 26 000 light years down.',
+    s:[[18.4029,-34.3846,1.85,'ε','Kaus Australis','B9.5 dwarf',143],
+       [18.3499,-29.8281,2.70,'δ','Kaus Media','K3 giant',348],
+       [18.4661,-25.4217,2.81,'λ','Kaus Borealis','K1 giant',78.2],
+       [18.0966,-30.4241,2.99,'γ²','Alnasl','K0 giant',96.9,'The tip of the arrow — and it points straight at the galactic centre.'],
+       [18.9211,-26.2967,2.05,'σ','Nunki','B2.5 dwarf',228],
+       [19.0436,-29.8801,2.60,'ζ','Ascella','A2 pair',88.0],
+       [19.1152,-27.6705,3.32,'τ','','K1 giant',122],
+       [18.7460,-26.9908,3.17,'φ','','B8 giant',231]],
+    e:[[3,1],[1,0],[0,5],[5,6],[6,4],[4,7],[7,1],[7,2],[2,1]] },
+
+  { n:'CYGNUS', ab:'Cyg', gen:'Cygni', en:'the Swan', area:804, rank:16, q:'NQ4', best:'September',
+    note:'The Northern Cross, flying down the Milky Way. The first black hole ever identified — Cygnus X-1 — sits between Sadr and Aljanah.',
+    s:[[20.6905,45.2803,1.25,'α','Deneb','A2 supergiant',2615,'One of the most luminous stars known: two hundred thousand Suns, and still this bright from 2 600 light years away.'],
+       [20.3705,40.2567,2.23,'γ','Sadr','F8 supergiant',1800],
+       [19.5121,27.9597,3.05,'β','Albireo','K3 giant + B8',430,'The finest colour contrast in the sky — gold and blue, split by the smallest telescope.'],
+       [19.7498,45.1308,2.86,'δ','','B9 giant',165],
+       [20.7702,33.9703,2.48,'ε','Aljanah','K0 giant',72.7],
+       [21.2150,30.2265,3.20,'ζ','','G8 giant',151],
+       [19.4956,51.7294,3.79,'ι','','A5 subgiant',121],
+       [19.2870,53.3685,3.77,'κ','','K0 giant',124],
+       [19.9964,35.0834,3.89,'η','','K0 giant',139],
+       [21.3096,38.0453,5.21,'61','61 Cygni','K5 pair',11.4,'The first star to have its distance measured — Bessel, 1838, and the moment the universe acquired a scale.']],
+    e:[[0,1],[1,8],[8,2],[1,3],[3,6],[6,7],[1,4],[4,5]] },
+
+  { n:'TAURUS', ab:'Tau', gen:'Tauri', en:'the Bull', area:797, rank:17, q:'NQ1', best:'January',
+    note:'Carries the two finest star clusters in the sky — the Hyades make the face, the Pleiades ride the shoulder — and the wreck of the supernova of 1054 sits on the southern horn.',
+    s:[[4.5987,16.5093,0.86,'α','Aldebaran','K5 giant',65.3,'The bull’s eye only looks like a Hyad: it sits at half the cluster’s distance, in the line of sight.'],
+       [5.4382,28.6076,1.68,'β','Elnath','B7 giant',134],
+       [5.6274,21.1426,3.00,'ζ','','B4 giant',417,'The Crab Nebula lies just off this horn — the expanding wreck of a star seen to explode in 1054.'],
+       [4.3299,15.6276,3.65,'γ','Prima Hyadum','G8 giant',154],
+       [4.3829,17.5425,3.76,'δ¹','','K0 giant',153],
+       [4.4776,19.1804,3.53,'ε','Ain','K0 giant',155,'A Hyades giant with a planet several times the mass of Jupiter.'],
+       [4.4784,15.8709,3.40,'θ²','','A7 dwarf',150],
+       [4.0114,12.4903,3.47,'λ','','B3 eclipsing pair',480],
+       [3.4529,9.7328,3.73,'ξ','','B9 multiple',222],
+       [3.4131,9.0290,3.60,'ο','','G6 giant',212],
+       [3.7914,24.1051,2.87,'η','Alcyone','B7 giant',440,'Brightest of the Pleiades — a hot blue star in the sky’s most famous cluster.']],
+    e:[[5,4],[4,3],[3,6],[6,0],[0,2],[5,1],[3,7],[7,8],[8,9]] },
+
+  { n:'VIRGO', ab:'Vir', gen:'Virginis', en:'the Maiden', area:1294, rank:2, q:'SQ3', best:'May',
+    note:'Second-largest constellation, and the doorway to the Virgo Cluster — two thousand galaxies in one bowl of sky.',
+    s:[[13.4199,-11.1613,0.97,'α','Spica','B1 pair',250,'Two stars whirling around each other every four days, so close that each pulls the other into an egg.'],
+       [13.5786,-0.5959,3.37,'ζ','Heze','A3 dwarf',74.1],
+       [12.6943,-1.4494,2.74,'γ','Porrima','twin F0 pair',38.1,'Two near-identical suns in a 169-year orbit — they closed to a single point in 2005 and are opening again.'],
+       [12.9266,3.3975,3.38,'δ','Auva','M3 giant',198],
+       [13.0362,10.9591,2.83,'ε','Vindemiatrix','G8 giant',110],
+       [12.3320,-0.6669,3.89,'η','Zaniah','A2 triple',265],
+       [11.8447,1.7648,3.60,'β','Zavijava','F9 dwarf',35.6],
+       [14.2662,-6.0001,4.07,'ι','Syrma','F6 dwarf',72.5],
+       [14.7178,-5.6584,3.87,'μ','Rijl al Awwa','F2 dwarf',60.9]],
+    e:[[4,3],[3,2],[2,5],[5,6],[2,1],[1,0],[0,7],[7,8]] },
+
+  { n:'AURIGA', ab:'Aur', gen:'Aurigae', en:'the Charioteer', area:657, rank:21, q:'NQ2', best:'February',
+    note:'A pentagon overhead in winter, sharing a star with Taurus — and holding the strangest eclipsing binary known.',
+    s:[[5.2782,45.9980,0.08,'α','Capella','two G giants',42.9,'Two yellow giants orbiting each other in 104 days — sixth-brightest star in the sky, and a pair.'],
+       [5.9922,44.9474,1.90,'β','Menkalinan','A2 eclipsing pair',81.1],
+       [5.9953,37.2126,2.65,'θ','','A0 peculiar',166],
+       [4.9497,33.1661,2.69,'ι','Hassaleh','K3 giant',490],
+       [5.0328,43.8233,2.99,'ε','Almaaz','F0 supergiant',2000,'Eclipsed every 27 years, for two entire years, by something nobody has ever seen — most likely a disc of dust around an unseen companion.'],
+       [5.1085,41.2349,3.17,'η','','B3 dwarf',219],
+       [5.0410,41.0759,3.75,'ζ','','K4 eclipsing pair',790],
+       [5.4382,28.6076,1.68,'β Tau','Elnath','B7 giant',134,'The Charioteer’s foot and the Bull’s northern horn — one star, two figures.']],
+    e:[[0,1],[1,2],[2,7],[7,3],[3,4],[4,0],[4,5],[5,6]] },
+
+  { n:'PERSEUS', ab:'Per', gen:'Persei', en:'the Hero', area:615, rank:24, q:'NQ1', best:'December',
+    note:'The Perseid meteors come from here every August, and the Double Cluster hangs between Perseus and Cassiopeia — two swarms of young stars in one binocular field.',
+    s:[[3.4054,49.8612,1.79,'α','Mirfak','F5 supergiant',510],
+       [3.1361,40.9556,2.09,'β','Algol','eclipsing pair',90.0,'The Demon Star. Every 2.87 days a companion crosses in front of it and the light drops by a third — visible to the naked eye, and known to be variable since 1667.'],
+       [3.0799,53.5065,2.91,'γ','','G8 giant',243],
+       [3.7154,47.7877,3.01,'δ','','B5 giant',520],
+       [3.9644,40.0102,2.89,'ε','','B0.5 dwarf',540],
+       [3.9024,31.8836,2.85,'ζ','','B1 supergiant',750],
+       [3.0805,38.8404,3.39,'ρ','Gorgonea Tertia','M4 giant',325],
+       [2.8450,55.8953,3.76,'η','Miram','K3 supergiant',1331],
+       [3.9791,35.7910,4.04,'ξ','Menkib','O7 giant',1200]],
+    e:[[7,2],[2,0],[0,3],[3,4],[4,8],[8,5],[0,1],[1,6]] },
+
+  { n:'CASSIOPEIA', ab:'Cas', gen:'Cassiopeiae', en:'the Seated Queen', area:598, rank:25, q:'NQ1', best:'November',
+    note:'The W that never sets from Ohio — turn it upside down and it is the queen on her throne. Tycho’s supernova of 1572 blazed here, bright enough for daylight.',
+    s:[[0.1530,59.1498,2.27,'β','Caph','F2 giant',54.7],
+       [0.6751,56.5373,2.24,'α','Schedar','K0 giant',228],
+       [0.9451,60.7167,2.47,'γ','','B0 shell star',550,'Spinning so fast it flings rings of its own gas into space — the prototype of its whole class of variable.'],
+       [1.4304,60.2353,2.68,'δ','Ruchbah','A5 giant',99.4],
+       [1.9067,63.6701,3.38,'ε','Segin','B3 giant',442],
+       [0.8180,57.8149,3.44,'η','Achird','G0 + K7 pair',19.3,'Nineteen light years away — a Sun-like star with an orange dwarf companion, and one of the closest doubles you can split.'],
+       [0.6169,53.8969,3.66,'ζ','Fulu','B2 dwarf',600]],
+    e:[[0,1],[1,2],[2,3],[3,4],[1,5],[1,6]] },
+
+  { n:'CEPHEUS', ab:'Cep', gen:'Cephei', en:'the King', area:588, rank:27, q:'NQ4', best:'November',
+    note:'A crooked house next to the pole, holding the star that gave astronomy its measuring rod and one of the reddest suns the eye can reach.',
+    s:[[21.3096,62.5856,2.44,'α','Alderamin','A7 dwarf',49.0,'In about 5 500 years the wobble of the Earth’s axis will make this the pole star.'],
+       [21.4776,70.5607,3.23,'β','Alfirk','B2 pulsating giant',690],
+       [23.6557,77.6320,3.21,'γ','Errai','K1 giant',44.9,'Will take its turn as the pole star around the year 4000.'],
+       [22.1810,58.2012,3.35,'ζ','','K1 supergiant',730],
+       [22.8283,66.2007,3.52,'ι','','K0 giant',115],
+       [22.4909,58.4152,3.75,'δ','Delta Cephei','Cepheid prototype',887,'The star that gave us the size of the universe: its brightness pulses in step with its true luminosity, so its beat is a distance.'],
+       [21.7255,58.7800,4.08,'μ','the Garnet Star','M2 supergiant',3000,'Herschel’s Garnet Star — one of the reddest stars visible to the naked eye, and big enough to reach past Saturn.']],
+    e:[[3,0],[0,1],[1,2],[2,4],[4,3],[3,5],[3,6]] },
+
+  { n:'AQUILA', ab:'Aql', gen:'Aquilae', en:'the Eagle', area:652, rank:22, q:'NQ4', best:'September',
+    note:'Altair is one corner of the Summer Triangle, with Deneb and Vega — and at 16.7 light years it is one of the nearest bright stars.',
+    s:[[19.8464,8.8683,0.76,'α','Altair','A7 dwarf',16.7,'Turns once every nine hours — fast enough to flatten itself by a quarter, and it has been imaged as a visibly squashed disc.'],
+       [19.9219,6.4068,3.71,'β','Alshain','G8 subgiant',44.7],
+       [19.7710,10.6133,2.72,'γ','Tarazed','K3 giant',395],
+       [19.0905,13.8635,2.99,'ζ','Okab','A0 dwarf',83.0],
+       [19.4254,3.1148,3.36,'δ','','F0 subgiant',50.6],
+       [19.8724,1.0056,3.90,'η','','Cepheid variable',1400,'One of the brightest Cepheids in the sky — it swells and fades every 7.2 days, plainly visible to the eye.'],
+       [20.1883,-0.8215,3.23,'θ','','B9.5 dwarf',287],
+       [19.1042,-4.8825,3.43,'λ','Althalimain','B9 dwarf',125]],
+    e:[[3,2],[2,0],[0,1],[0,4],[4,5],[5,6],[4,7]] },
+
+  { n:'GEMINI', ab:'Gem', gen:'Geminorum', en:'the Twins', area:514, rank:30, q:'NQ2', best:'February',
+    note:'Two stick figures holding hands. Pluto was discovered against this patch of sky in 1930, and the Geminid meteors — the year’s best shower — radiate from beside Castor.',
+    s:[[7.5767,31.8883,1.58,'α','Castor','six stars',51.0,'Looks like one star. It is six — three pairs, all bound together.'],
+       [7.7553,28.0262,1.14,'β','Pollux','K0 giant',33.8,'The nearest giant star to the Sun, and it has a planet twice the mass of Jupiter.'],
+       [7.1849,30.2453,4.41,'τ','','K2 giant',321],
+       [6.8804,33.9613,3.60,'θ','','A3 giant',195],
+       [6.7323,25.1311,2.98,'ε','Mebsuta','G8 supergiant',840],
+       [6.3827,22.5137,2.88,'μ','Tejat','M3 giant',230],
+       [6.2488,22.5067,3.28,'η','Propus','M3 variable',349],
+       [6.6285,16.3993,1.93,'γ','Alhena','A1 subgiant',109],
+       [6.7549,12.8961,3.35,'ξ','Alzirr','F5 subgiant',58.7],
+       [7.3353,21.9823,3.53,'δ','Wasat','F0 subgiant',60.5,'Pluto was sitting right beside this star on the night Tombaugh found it.'],
+       [7.0686,20.5703,3.79,'ζ','Mekbuda','Cepheid variable',1200],
+       [7.4310,16.5401,3.58,'λ','','A3 dwarf',101],
+       [7.4288,27.7981,3.78,'ι','','G9 giant',124]],
+    e:[[0,2],[2,4],[4,5],[5,6],[0,3],[3,4],[1,12],[12,9],[9,10],[10,7],[9,11],[11,8]] },
+
+  { n:'SCORPIUS', ab:'Sco', gen:'Scorpii', en:'the Scorpion', area:497, rank:33, q:'SQ3', best:'July',
+    note:'From Ohio it never gets far off the southern horizon — the sting stays below it. The red heart is a supergiant that will end as a supernova.',
+    s:[[16.4901,-26.4320,1.09,'α','Antares','M1.5 supergiant',550,'The rival of Mars — 700 times the Sun across. Put it where the Sun is and it would swallow the orbit of Mars.'],
+       [16.3536,-25.5928,2.89,'σ','Alniyat','B1 supergiant',696],
+       [16.0055,-22.6217,2.29,'δ','Dschubba','B0 dwarf',402],
+       [16.0906,-19.8055,2.56,'β','Acrab','B1 multiple',404],
+       [15.9810,-26.1140,2.89,'π','Fang','B1 triple',590],
+       [15.9569,-29.2141,3.87,'ρ','','B2 dwarf',472],
+       [16.5983,-28.2160,2.82,'τ','Paikauhale','B0 dwarf',472],
+       [16.8361,-34.2933,2.29,'ε','Larawag','K2 giant',65.4]],
+    e:[[3,2],[2,1],[1,0],[2,4],[4,5],[0,6],[6,7]] },
+
+  { n:'LYRA', ab:'Lyr', gen:'Lyrae', en:'the Lyre', area:286, rank:52, q:'NQ4', best:'August',
+    note:'Small, and impossible to miss: Vega sits at one corner and the Ring Nebula hangs between the two stars at the bottom.',
+    s:[[18.6157,38.7837,0.03,'α','Vega','A0 dwarf',25.0,'The zero point of the magnitude scale, the first star ever photographed, and the pole star of 12 000 BC — and of 12 000 years from now.'],
+       [18.7379,39.6701,4.67,'ε','the Double Double','two pairs',162,'A double star that becomes two doubles under magnification — four suns in one glance.'],
+       [18.7460,37.6051,4.34,'ζ','','A4 pair',156],
+       [18.9137,36.8985,4.30,'δ²','','M4 giant',740],
+       [18.9824,32.6896,3.25,'γ','Sulafat','B9 giant',620],
+       [18.8340,33.3627,3.52,'β','Sheliak','eclipsing pair',960,'Two stars close enough to pour gas into one another — the brightness changes every 13 days as they trade mass.']],
+    e:[[0,1],[0,2],[2,3],[3,4],[4,5],[5,2]] },
+
+  { n:'URSA MINOR', ab:'UMi', gen:'Ursae Minoris', en:'the Little Bear', area:256, rank:56, q:'NQ3', best:'June',
+    note:'The whole sky turns on the end of this tail. From Ohio, Polaris stands 40° up, due north, all night, every night of the year.',
+    s:[[2.5303,89.2641,1.98,'α','Polaris','F7 Cepheid supergiant',433,'The pole star — and a Cepheid: it pulses every four days, which is how we know it so well.'],
+       [17.5369,86.5865,4.36,'δ','Yildun','A1 dwarf',183],
+       [16.7661,82.0373,4.23,'ε','','G5 giant',300],
+       [15.7346,77.7945,4.32,'ζ','Ahfa al Farkadain','A3 dwarf',380],
+       [14.8451,74.1555,2.08,'β','Kochab','K4 giant',131,'Kochab and Pherkad are the Guardians of the Pole — and Kochab was itself the pole star around 1000 BC.'],
+       [15.3455,71.8340,3.05,'γ','Pherkad','A3 giant',487],
+       [16.2919,75.7553,4.95,'η','Anwar al Farkadain','F5 dwarf',97.3]],
+    e:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,3]] },
+
+  { n:'ANDROMEDA', ab:'And', gen:'Andromedae', en:'the Chained Maiden', area:722, rank:19, q:'NQ1', best:'November',
+    note:'Holds the furthest thing the naked eye can see: the Andromeda Galaxy, two and a half million light years out, and closing on us at 70 miles a second.',
+    s:[[0.1398,29.0904,2.06,'α','Alpheratz','B9 mercury star',97.0],
+       [0.6555,30.8611,3.27,'δ','','K3 giant',105],
+       [1.1622,35.6206,2.05,'β','Mirach','M0 giant',197,'Aim a telescope one degree away and a whole galaxy appears out of its glare.'],
+       [2.0650,42.3297,2.26,'γ','Almach','K3 giant + B8',350,'Gold and blue, and the blue one is itself a triple — four suns in a single point of light.'],
+       [1.1548,38.4992,3.86,'μ','','A5 dwarf',136],
+       [1.1401,41.0794,4.53,'ν','','B5 dwarf',680,'Follow Mirach up through this star and you land on the Andromeda Galaxy.']],
+    e:[[0,1],[1,2],[2,3],[2,4],[4,5]] },
+
+  { n:'CANIS MAJOR', ab:'CMa', gen:'Canis Majoris', en:'the Greater Dog', area:380, rank:43, q:'SQ2', best:'February',
+    note:'Follows Orion across the winter sky carrying the brightest star there is — and, three degrees away, one of the largest stars known.',
+    s:[[6.7525,-16.7161,-1.46,'α','Sirius','A1 dwarf + white dwarf',8.60,'The brightest star in the night sky, and one of the closest: 8.6 light years. Its companion is an Earth-sized cinder as heavy as the Sun.'],
+       [6.3783,-17.9559,1.98,'β','Mirzam','B1 pulsating giant',490],
+       [7.0625,-15.6333,4.11,'γ','Muliphein','B8 giant',402],
+       [7.0500,-23.8333,3.02,'ο²','','B3 supergiant',2600],
+       [7.1399,-26.3932,1.83,'δ','Wezen','F8 supergiant',1600,'A supergiant so far along its life that it will explode within a hundred thousand years.'],
+       [7.4015,-29.3031,2.45,'η','Aludra','B5 supergiant',2000],
+       [6.9771,-28.9721,1.50,'ε','Adhara','B2 giant',430,'Five million years ago it passed close enough to be the brightest star ever seen from Earth — magnitude −3.99.'],
+       [6.3390,-30.0634,3.02,'ζ','Furud','B2.5 dwarf',362],
+       [7.0287,-27.9348,3.47,'σ','Unurgunite','K7 supergiant',1200]],
+    e:[[1,0],[0,2],[0,3],[3,4],[4,5],[4,6],[6,8],[6,7]] },
+
+  { n:'CORONA BOREALIS', ab:'CrB', gen:'Coronae Borealis', en:'the Northern Crown', area:179, rank:73, q:'NQ3', best:'July',
+    note:'A perfect little arc of seven stars — and it holds T CrB, the Blaze Star, which flares to naked-eye brightness roughly every eighty years.',
+    s:[[15.5781,26.7147,2.23,'α','Alphecca','A0 eclipsing pair',75.0,'The jewel of the crown — a young star wrapped in a disc of dust, like the early Solar System.'],
+       [15.4638,29.1058,3.66,'β','Nusakan','F0 peculiar',114],
+       [15.5599,31.3596,4.14,'θ','','B6 dwarf',380],
+       [15.7096,26.2965,3.84,'γ','','B9 dwarf',146],
+       [15.8248,26.0682,4.63,'δ','','G5 giant',165],
+       [15.9598,26.8776,4.14,'ε','','K2 giant',242],
+       [16.0248,29.8511,4.99,'ι','','A0 dwarf',312]],
+    e:[[2,1],[1,0],[0,3],[3,4],[4,5],[5,6]] },
+
+  { n:'CANCER', ab:'Cnc', gen:'Cancri', en:'the Crab', area:506, rank:31, q:'NQ2', best:'March',
+    note:'The faintest constellation of the zodiac, and worth finding for one reason: the Beehive Cluster sits in the middle of it, a thousand stars the eye reads as a smudge.',
+    s:[[8.2753,9.1856,3.53,'β','Tarf','K4 giant',290],
+       [8.7449,18.1543,3.94,'δ','Asellus Australis','K0 giant',131,'The southern donkey — and the Beehive Cluster is the manger they are feeding from.'],
+       [8.7214,21.4685,4.66,'γ','Asellus Borealis','A1 subgiant',181],
+       [8.7784,28.7602,4.02,'ι','','G8 giant',330],
+       [8.9748,11.8577,4.25,'α','Acubens','A5 multiple',174],
+       [8.9754,28.3308,5.95,'55','55 Cancri','G8 dwarf',41.0,'Five planets known, including one that orbits its sun in eighteen hours.']],
+    e:[[0,1],[1,2],[2,3],[1,4]] },
 ];
+
+/* THE DEEP SKY. Not stars — the objects an observer actually swings the
+   scope to. [RA, dec, magnitude, catalogue, name, what it is, how far]. */
+const SKY_DSO = [
+  [0.7123, 41.2692, 3.4, 'M31', 'Andromeda Galaxy', 'spiral galaxy', '2.5 million ly'],
+  [5.5883, -5.3911, 4.0, 'M42', 'Orion Nebula', 'star nursery', '1 344 ly'],
+  [3.7833, 24.1167, 1.6, 'M45', 'the Pleiades', 'open cluster', '444 ly'],
+  [16.6949, 36.4613, 5.8, 'M13', 'Hercules Cluster', 'globular cluster', '22 200 ly'],
+  [8.6700, 19.6700, 3.7, 'M44', 'the Beehive', 'open cluster', '577 ly'],
+  [2.3300, 57.1400, 4.3, 'NGC 869', 'Double Cluster', 'open clusters', '7 500 ly'],
+  [18.8935, 33.0294, 8.8, 'M57', 'Ring Nebula', 'planetary nebula', '2 300 ly'],
+  [19.9935, 22.7212, 7.4, 'M27', 'Dumbbell Nebula', 'planetary nebula', '1 360 ly'],
+  [5.5750, 22.0139, 8.4, 'M1', 'Crab Nebula', 'supernova remnant', '6 500 ly'],
+  [9.9258, 69.0653, 6.9, 'M81', "Bode's Galaxy", 'spiral galaxy', '12 million ly'],
+  [13.4978, 47.1953, 8.4, 'M51', 'Whirlpool Galaxy', 'spiral galaxy', '31 million ly'],
+  [17.9128, -18.9861, 6.0, 'M8', 'Lagoon Nebula', 'star nursery', '4 100 ly'],
+];
+
+/* THE COMPASS, in words. Sixteen points, because "west-northwest" is how
+   somebody standing in a field would actually tell you where to look. */
+const SKY_COMPASS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function skyCompass(azRad){
+  const a = ((azRad * 180 / Math.PI) % 360 + 360) % 360;
+  return SKY_COMPASS[Math.round(a / 22.5) % 16];
+}
+
+/* THE TYPE FOUNDRY. Text in a WebGL scene needs to arrive as pixels, so
+   every label the sky will ever show is laid out ONCE into a single
+   atlas — star names, deep-sky names, the cardinal points — and each
+   label is then two triangles reading its own rectangle out of it. One
+   texture, one draw call, no per-frame text work at all. */
+function skyAtlas(labels){
+  const SS = 2, FS = 15 * SS, PAD = 5 * SS, LH = 22 * SS;   // drawn at 2×, sampled down
+  const font = '600 ' + FS + "px 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.font = font;
+  const W = 2048;
+  const box = [];
+  let x = PAD, y = PAD, rowH = LH;
+  for (const s of labels){
+    const w = Math.ceil(probe.measureText(s).width) + PAD * 2;
+    if (x + w > W){ x = PAD; y += rowH + PAD; }
+    box.push({ s, x, y, w, h: LH });
+    x += w + PAD;
+  }
+  let H = 1;
+  while (H < y + rowH + PAD) H *= 2;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.font = font;                      // sizing the canvas resets the context
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  const rect = new Map();
+  for (const b of box){
+    const cx = b.x + PAD, cy = b.y + b.h / 2;
+    // a dark stroke first: a label has to stay readable over a bright star
+    g.lineWidth = 5 * SS;
+    g.strokeStyle = 'rgba(0,0,0,0.92)';
+    g.strokeText(b.s, cx, cy);
+    g.fillStyle = '#ffffff';
+    g.fillText(b.s, cx, cy);
+    rect.set(b.s, [b.x / W, b.y / H, (b.x + b.w) / W, (b.y + b.h) / H, b.w / SS, b.h / SS]);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.flipY = false;                  // so v maps straight down the canvas
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  return { tex, rect };
+}
+
+/* THE CARD. What you are looking at, in words, while it is drawn — DOM
+   text over the field rather than in it, because a shader that could
+   spell "Betelgeuse" would cost more than this whole scene does. It
+   never takes the pointer, and it never appears on a wall slice: a
+   caption belongs on the instrument, not on six television screens. */
+const SKYCARD = {
+  el: null, list: null, note: null, on: false,
+  ensure(){
+    if (this.el) return this.el;
+    const d = document.createElement('aside');
+    d.id = 'skyCard';
+    d.setAttribute('aria-hidden', 'true');
+    d.innerHTML = '<div class="sk-ab"></div><div class="sk-n"></div><div class="sk-g"></div>'
+                + '<div class="sk-w"></div><div class="sk-m"></div>'
+                + '<div class="sk-note"></div><ul class="sk-list"></ul>';
+    document.body.appendChild(d);
+    this.el = d;
+    this.list = d.querySelector('.sk-list');
+    this.note = d.querySelector('.sk-note');
+    return d;
+  },
+  show(c, where){
+    if (typeof STAGE !== 'undefined' && STAGE.screen && STAGE.screen()) return;
+    const d = this.ensure();
+    d.querySelector('.sk-ab').textContent = c.ab + ' · ' + c.q + ' · best in ' + c.best;
+    d.querySelector('.sk-n').textContent = c.n;
+    d.querySelector('.sk-g').textContent = c.gen + ' — ' + c.en;
+    d.querySelector('.sk-w').textContent = where;
+    d.querySelector('.sk-m').textContent = c.area.toLocaleString() + ' sq° · ' + c.rank
+      + (c.rank === 1 ? 'st' : c.rank === 2 ? 'nd' : c.rank === 3 ? 'rd' : 'th') + ' of 88 · '
+      + c.s.length + ' stars · ' + c.e.length + ' lines';
+    this.note.textContent = c.note || '';
+    this.list.innerHTML = '';
+    d.classList.add('on');
+    this.on = true;
+  },
+  where(txt){
+    if (this.el && this.on) this.el.querySelector('.sk-w').textContent = txt;
+  },
+  /* one line per star the pen reaches. The list is capped because a
+     fourteen-segment dragon would otherwise run off the bottom of a
+     phone — the oldest lines leave as the newest arrive. */
+  star(st, ab){
+    if (!this.on || !this.list) return;
+    const li = document.createElement('li');
+    const name = st[4] ? '<b>' + st[4] + '</b> ' : '';
+    li.innerHTML = name + '<i>' + st[3] + ' ' + ab + '</i> · mag ' + st[2].toFixed(2)
+      + ' · ' + (st[6] >= 1000 ? Math.round(st[6]).toLocaleString() : st[6]) + ' ly'
+      + (st[5] ? '<br><i>' + st[5] + '</i>' : '');
+    this.list.appendChild(li);
+    while (this.list.children.length > 5) this.list.removeChild(this.list.firstChild);
+    if (st[7] && this.note) this.note.textContent = st[7];
+  },
+  hide(){
+    this.on = false;
+    if (this.el) this.el.classList.remove('on');
+  },
+  /* the director calls this on every room change, so the card can never
+     be left behind glowing over a scene that is not the sky */
+  roomChanged(key){ if (key !== 'sky') this.hide(); },
+};
+
 function buildSky(){
   const group = new THREE.Group();
-  const GOLD = 'vec3(1.0, 0.78, 0.36)';
+  const GOLD = 'vec3(1.0, 0.80, 0.40)';
   const varU = {
-    uActiveCon: { value: -1 }, uProg: { value: 0 },
-    uGlowC: { value: 0 }, uFade: { value: 1 }, uFizzT: { value: 0 },
+    uActiveCon: { value: -1 }, uProg: { value: 0 }, uGlowC: { value: 0 },
+    uFade: { value: 1 }, uFizzT: { value: 0 },
+    uRes: { value: new THREE.Vector2(1200, 800) },
   };
 
-  // ---- the catalog, flattened once ----
+  // ---------- the catalogue, flattened ----------
   const NCON = SKY_CONS.length;
+  const starOf = [], flatBase = [];
   let NS = 0, NE = 0;
-  for (const c of SKY_CONS){ NS += c.s.length; NE += c.e.length; }
-  const starOf = [];                      // [conIdx, starIdxInCon] per flat star
-  const flatBase = [];                    // first flat index of each constellation
-  { let k = 0; for (let ci = 0; ci < NCON; ci++){ flatBase.push(k); for (let si = 0; si < SKY_CONS[ci].s.length; si++, k++) starOf.push([ci, si]); } }
+  for (let ci = 0; ci < NCON; ci++){
+    flatBase.push(NS);
+    for (let si = 0; si < SKY_CONS[ci].s.length; si++, NS++) starOf.push([ci, si]);
+    NE += SKY_CONS[ci].e.length;
+  }
+  // the draw ORDER of each star: which edge first reaches it (used to time
+  // both its flare and the arrival of its name)
+  const starOrder = new Float32Array(NS).fill(-1);
+  for (let ci = 0; ci < NCON; ci++){
+    const base = flatBase[ci], E = SKY_CONS[ci].e;
+    for (let ei = 0; ei < E.length; ei++)
+      for (const k of [0, 1]){
+        const i = base + E[ei][k];
+        const at = ei + k * 0.999;
+        if (starOrder[i] < 0 || at < starOrder[i]) starOrder[i] = at;
+      }
+  }
 
-  // ---- node layer: every catalog star ----
+  // ---------- layer 1: every catalogue star ----------
   const nPos = new Float32Array(NS * 3);
   const nMag = new Float32Array(NS), nTint = new Float32Array(NS), nSeed = new Float32Array(NS);
-  const nBirth = new Float32Array(NS).fill(-1e3);
-  const nActive = new Float32Array(NS), nUp = new Float32Array(NS);
+  const nCon = new Float32Array(NS), nOrd = new Float32Array(NS), nUp = new Float32Array(NS);
+  /* colour from spectral class, because a hot star really is blue and a
+     supergiant really is orange — the sky's own palette, not the room's */
+  const TINT = { O: 0.02, B: 0.10, A: 0.30, F: 0.52, G: 0.70, K: 0.86, M: 1.0 };
   for (let i = 0; i < NS; i++){
-    const [ci, si] = starOf[i];
-    nMag[i] = SKY_CONS[ci].s[si][2]; nTint[i] = SKY_CONS[ci].s[si][3]; nSeed[i] = (i + 0.5) / NS;
+    const [ci, si] = starOf[i], st = SKY_CONS[ci].s[si];
+    nMag[i] = st[2];
+    const cls = (st[5] || 'A')[0];
+    nTint[i] = TINT[cls] == null ? 0.45 : TINT[cls];
+    nSeed[i] = (i + 0.5) / NS;
+    nCon[i] = ci;
+    nOrd[i] = starOrder[i];
   }
   const nGeo = new THREE.BufferGeometry();
   nGeo.setAttribute('position', new THREE.BufferAttribute(nPos, 3));
   nGeo.setAttribute('aMag', new THREE.BufferAttribute(nMag, 1));
   nGeo.setAttribute('aTint', new THREE.BufferAttribute(nTint, 1));
   nGeo.setAttribute('aSeed', new THREE.BufferAttribute(nSeed, 1));
-  nGeo.setAttribute('aBirth', new THREE.BufferAttribute(nBirth, 1));
-  nGeo.setAttribute('aActive', new THREE.BufferAttribute(nActive, 1));
+  nGeo.setAttribute('aCon', new THREE.BufferAttribute(nCon, 1));
+  nGeo.setAttribute('aOrd', new THREE.BufferAttribute(nOrd, 1));
   nGeo.setAttribute('aUp', new THREE.BufferAttribute(nUp, 1));
   const nVert = VERT_POINT_HEAD + `
-    attribute float aMag, aTint, aSeed, aBirth, aActive, aUp;
-    varying float vFlash, vActive, vTint, vUp, vTw;
+    attribute float aMag, aTint, aSeed, aCon, aOrd, aUp;
+    uniform float uActiveCon, uProg, uGlowC, uFade;
+    varying float vFlare, vActive, vTint, vUp, vTw;
     void main(){
-      vTint = aTint; vActive = aActive; vUp = aUp;
-      float age = max(0.0, uTime - aBirth);
-      vFlash = exp(-age * 1.6);
-      // two incommensurate rates: the twinkle never visibly loops
+      vTint = aTint; vUp = aUp;
+      vActive = (abs(aCon - uActiveCon) < 0.5) ? uFade : 0.0;
+      // the flare is a function of the PEN, not of a clock: it fires as the
+      // draw crosses this star and decays over about a beat and a half
+      float since = max(0.0, uProg - aOrd);
+      vFlare = vActive * step(0.0, uProg - aOrd) * exp(-since * 1.5);
       vTw = 0.62 + 0.38 * sin(uTime * 1.9 + aSeed * 41.0) * cos(uTime * 1.13 + aSeed * 17.0);
-      vT = aSeed; vGlow = vFlash;
+      vT = aSeed; vGlow = vFlare;
       vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
       gl_Position = projectionMatrix * mv;
-      // brighter is BIGGER, the photographic convention (Sirius at -1.5 dwarfs
-      // a mag-4 Lyra corner); the flare swells the star it just reached
-      float s = clamp(4.6 - aMag * 0.95, 1.3, 6.5) * (1.0 + aActive * 0.35 + uBeat * 0.10);
-      s += vFlash * 9.0 * aActive;
+      // brighter IS bigger: the photographic convention, so Sirius at −1.46
+      // dwarfs a fifth-magnitude corner star exactly as it does on a plate
+      float s = clamp(5.8 - aMag * 1.02, 1.4, 8.6) * (1.0 + uBeat * 0.08);
+      s *= 1.0 + vActive * (0.30 + uGlowC * 0.25) + vFlare * 2.6;
       gl_PointSize = s * (300.0 / -mv.z) * aUp;
     }
   `;
   const nFrag = GLSL_MPHI + `
     uniform float uOpacity, uGlowC, uTreble;
-    varying float vFlash, vActive, vTint, vUp, vTw;
+    varying float vFlare, vActive, vTint, vUp, vTw;
     void main(){
       vec2 d = gl_PointCoord - 0.5;
       float r = length(d);
       if (r > 0.5) discard;
-      float core = smoothstep(0.30, 0.0, r);
-      // the diffraction cross every telescope photograph wears
-      float spikes = (exp(-abs(d.x) * 26.0) + exp(-abs(d.y) * 26.0)) * smoothstep(0.5, 0.04, r);
-      // the flare's expanding ring, cast when the gold draw reaches this star
-      float ringR = (1.0 - vFlash) * 0.46;
-      float ring = exp(-abs(r - ringR) * 20.0) * vFlash * vActive;
-      // real star colour: warm K giants to blue B stars, around white
-      vec3 star = mix(vec3(0.72, 0.82, 1.0), vec3(1.0, 0.82, 0.58), vTint);
-      vec3 col = star * (core * (0.8 + vTw * 0.5) + spikes * (0.35 + vTw * 0.25));
-      col = mix(col, ${GOLD} * 1.2, vActive * (0.35 + uGlowC * 0.4) * (core + spikes * 0.5));
-      col += ${GOLD} * ring * 1.6;
-      col = inkRolloff(col * (1.0 + vFlash * 1.2));
-      float a = (core + spikes * 0.55 + ring) * vUp * uOpacity;
-      gl_FragColor = vec4(col, a);
+      float core = smoothstep(0.28, 0.0, r);
+      /* the six-point diffraction star every long exposure wears — three
+         crossed vanes, not four, because that is what a three-vane spider
+         does to a point source and it is the shape the eye reads as STAR */
+      vec2 e1 = vec2(0.866, 0.5), e2 = vec2(-0.866, 0.5);
+      float sp = exp(-abs(d.x) * 30.0) + exp(-abs(dot(d, e1)) * 30.0) + exp(-abs(dot(d, e2)) * 30.0);
+      sp *= smoothstep(0.5, 0.03, r) * (0.30 + vTw * 0.22 + vFlare * 1.1);
+      // the shockwave the pen leaves behind, expanding out of the star
+      float ringR = (1.0 - exp(-(1.0 - min(vFlare, 0.999)) * 1.4)) * 0.47;
+      float ring = exp(-abs(r - ringR) * 17.0) * vFlare;
+      vec3 star = mix(vec3(0.68, 0.80, 1.0), vec3(1.0, 0.79, 0.52), vTint);
+      vec3 col = star * (core * (0.85 + vTw * 0.45) + sp);
+      col = mix(col, ${GOLD} * 1.25, vActive * (0.30 + uGlowC * 0.45) * (core + sp * 0.4));
+      col += ${GOLD} * ring * 1.9;
+      col = inkRolloff(col * (1.0 + vFlare * 1.6));
+      gl_FragColor = vec4(col, (core + sp * 0.5 + ring) * vUp * uOpacity);
     }
   `;
   group.add(addShaderPoints(nGeo, nFrag, nVert, varU));
 
-  // ---- the dust behind the catalog: seeded filler, above the horizon ----
-  const FN2 = 720;
-  const fPos = new Float32Array(FN2 * 3), fSeed2 = new Float32Array(FN2);
+  // ---------- layer 2: the field stars behind the catalogue ----------
+  /* ENOUGH STARS TO BE A SKY AT A TELESCOPE'S FIELD. Whole-sphere counts are
+     misleading: a thousand stars spread over 41 000 square degrees puts about
+     four of them in a 20° eyepiece, which reads as an empty room. About nine
+     thousand stars are visible to the naked eye from a dark site, and that is
+     roughly the number that makes a narrow field look like a real one. */
+  const FN = 11000;
+  const fPos = new Float32Array(FN * 3), fSeed = new Float32Array(FN);
   const fGeo = new THREE.BufferGeometry();
   fGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
-  fGeo.setAttribute('aSeed', new THREE.BufferAttribute(fSeed2, 1));
+  fGeo.setAttribute('aSeed', new THREE.BufferAttribute(fSeed, 1));
   const fVert = VERT_POINT_HEAD + `
     attribute float aSeed;
     void main(){
@@ -24196,13 +24732,85 @@ function buildSky(){
   `;
   group.add(addShaderPoints(fGeo, FRAG_POINT, fVert));
 
-  // ---- the gold lines, one segment pair per edge ----
+  // ---------- layer 3: the gold stroke, as a river of sprites ----------
+  /* WHY THE LINE IS NOT A LINE. WebGL will not give you a thick line —
+     lineWidth is 1 on every desktop driver there is — and a one-pixel
+     thread is exactly what made the first version of this room look
+     like a wireframe instead of a drawing. So the stroke is drawn as
+     points sampled along each segment: twenty-eight sprites a segment,
+     additive, which gives a stroke with real WIDTH, a hot core, and a
+     glow that blooms on the beat. It is also what makes the fizzle
+     free — the stroke is ALREADY particles, so coming apart is just
+     giving each one a velocity. */
+  const PPE = 28, NP = NE * PPE;
+  const gPos = new Float32Array(NP * 3), gVel = new Float32Array(NP * 3);
+  const gCon = new Float32Array(NP), gEdge = new Float32Array(NP), gU = new Float32Array(NP), gSeed = new Float32Array(NP);
+  { let k = 0;
+    for (let ci = 0; ci < NCON; ci++)
+      for (let ei = 0; ei < SKY_CONS[ci].e.length; ei++)
+        for (let p = 0; p < PPE; p++, k++){
+          gCon[k] = ci; gEdge[k] = ei; gU[k] = p / (PPE - 1); gSeed[k] = (k % 997) / 997;
+        } }
+  const gGeo = new THREE.BufferGeometry();
+  gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
+  gGeo.setAttribute('aVel', new THREE.BufferAttribute(gVel, 3));
+  gGeo.setAttribute('aCon', new THREE.BufferAttribute(gCon, 1));
+  gGeo.setAttribute('aEdge', new THREE.BufferAttribute(gEdge, 1));
+  gGeo.setAttribute('aU', new THREE.BufferAttribute(gU, 1));
+  gGeo.setAttribute('aSeed', new THREE.BufferAttribute(gSeed, 1));
+  const gVert = VERT_POINT_HEAD + `
+    attribute vec3 aVel;
+    attribute float aCon, aEdge, aU, aSeed;
+    uniform float uActiveCon, uProg, uGlowC, uFade, uFizzT;
+    varying float vHead, vLive, vFizz;
+    void main(){
+      float mine = (abs(aCon - uActiveCon) < 0.5) ? 1.0 : 0.0;
+      float reveal = clamp(uProg - aEdge, 0.0, 1.0);
+      // laid down BEHIND the pen and nowhere ahead of it
+      float on = smoothstep(aU - 0.07, aU + 0.01, reveal) * mine;
+      vHead = exp(-abs(reveal - aU) * 13.0) * mine * step(0.001, reveal) * (1.0 - step(0.999, uProg - aEdge));
+      vFizz = uFizzT;
+      vLive = on * uFade;
+      // the fizzle: the stroke comes apart and the pieces fan out, easing
+      // as they rejoin the sky rather than flying off at a constant rate
+      float k = uFizzT * (2.0 - uFizzT);
+      vec3 p = position + aVel * k * (0.75 + fract(aSeed * 57.3) * 0.55);
+      vT = fract(aU * 0.3 + aSeed);
+      vGlow = vHead;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      float s = 4.6 + vHead * 7.5 + uBeat * 1.5 + uGlowC * 1.4;
+      s *= 1.0 - uFizzT * 0.45;
+      gl_PointSize = s * on * (300.0 / -mv.z);
+    }
+  `;
+  const gFrag = GLSL_MPHI + `
+    uniform float uOpacity, uGlowC, uBeat;
+    varying float vHead, vLive, vFizz; varying float vT; varying float vGlow;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r); a *= a;
+      // gold going out, starlight coming back — the ember cools into the map
+      vec3 col = mix(${GOLD}, ramp(vT) * 0.85, vFizz * 0.8);
+      col *= 0.85 + uGlowC * (0.55 + uBeat * 0.35) + vHead * 1.6;
+      col = mix(col, vec3(1.0, 0.95, 0.80), vHead * 0.55);
+      col = inkRolloff(col);
+      gl_FragColor = vec4(col, a * vLive * (0.74 + uGlowC * 0.26) * uOpacity);
+    }
+  `;
+  group.add(addShaderPoints(gGeo, gFrag, gVert, varU));
+
+  // ---------- layer 4: the thin core the sprites are wrapped around ----------
   const lPos = new Float32Array(NE * 2 * 3);
   const lCon = new Float32Array(NE * 2), lEdge = new Float32Array(NE * 2), lEnd = new Float32Array(NE * 2);
-  { let k = 0; for (let ci = 0; ci < NCON; ci++) for (let ei = 0; ei < SKY_CONS[ci].e.length; ei++){
-      lCon[k] = ci; lEdge[k] = ei; lEnd[k] = 0; k++;
-      lCon[k] = ci; lEdge[k] = ei; lEnd[k] = 1; k++;
-  } }
+  { let k = 0;
+    for (let ci = 0; ci < NCON; ci++)
+      for (let ei = 0; ei < SKY_CONS[ci].e.length; ei++){
+        lCon[k] = ci; lEdge[k] = ei; lEnd[k] = 0; k++;
+        lCon[k] = ci; lEdge[k] = ei; lEnd[k] = 1; k++;
+      } }
   const lGeo = new THREE.BufferGeometry();
   lGeo.setAttribute('position', new THREE.BufferAttribute(lPos, 3));
   lGeo.setAttribute('aCon', new THREE.BufferAttribute(lCon, 1));
@@ -24214,38 +24822,34 @@ function buildSky(){
     varying float vT2, vReveal;
     void main(){
       vT2 = aEnd;
-      // how much of THIS edge the pen has drawn: 0 untouched, 1 complete
       vReveal = (abs(aCon - uActiveCon) < 0.5) ? clamp(uProg - aEdge, 0.0, 1.0) : 0.0;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `;
   const lFrag = GLSL_MPHI + `
-    uniform float uOpacity, uGlowC, uFade, uBeat;
+    uniform float uOpacity, uGlowC, uFade, uFizzT, uBeat;
     varying float vT2, vReveal;
     void main(){
-      // the pen: drawn behind the head, dark ahead of it, a hot spark AT it
-      float drawn = smoothstep(0.0, 0.035, vReveal - vT2);
-      float head = exp(-abs(vReveal - vT2) * 9.0) * step(0.001, vReveal) * (1.0 - step(0.999, vReveal));
-      vec3 col = ${GOLD} * (0.85 + uGlowC * (1.1 + uBeat * 0.4)) + vec3(1.0, 0.92, 0.6) * head * 1.7;
-      col = inkRolloff(col);
-      gl_FragColor = vec4(col, (drawn * (0.75 + uGlowC * 0.25) + head) * uFade * uOpacity);
+      float drawn = smoothstep(0.0, 0.03, vReveal - vT2);
+      vec3 col = inkRolloff(${GOLD} * (1.0 + uGlowC * (0.7 + uBeat * 0.3)));
+      // the core leaves FIRST when the figure comes apart: what is left is
+      // the stroke breaking into its own particles
+      gl_FragColor = vec4(col, drawn * (0.55 + uGlowC * 0.35) * uFade * (1.0 - uFizzT) * uOpacity);
     }
   `;
   group.add(addShaderLines(lGeo, lFrag, lVert, varU, true));
 
-  // ---- the pen's own spark, riding the draw head ----
+  // ---------- layer 5: the pen ----------
   const hPos = new Float32Array(3);
   const hGeo = new THREE.BufferGeometry();
   hGeo.setAttribute('position', new THREE.BufferAttribute(hPos, 3));
-  hGeo.setAttribute('aSeed', new THREE.BufferAttribute(new Float32Array([0.5]), 1));
   const hVert = VERT_POINT_HEAD + `
-    attribute float aSeed;
-    uniform float uGlowC, uFade;
+    uniform float uGlowC;
     void main(){
       vT = fract(uTime * 0.13); vGlow = 1.0;
       vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = (7.0 + uBeat * 5.0) * uFade * (1.0 - uGlowC) * (300.0 / -mv.z);
+      gl_PointSize = (9.0 + uBeat * 6.0) * (300.0 / -mv.z);
     }
   `;
   const hFrag = GLSL_MPHI + `
@@ -24256,163 +24860,414 @@ function buildSky(){
       float r = length(d);
       if (r > 0.5) discard;
       float a = smoothstep(0.5, 0.0, r); a *= a * a;
-      float spikes = (exp(-abs(d.x) * 20.0) + exp(-abs(d.y) * 20.0)) * smoothstep(0.5, 0.05, r);
-      vec3 col = inkRolloff(${GOLD} * (1.3 + spikes));
-      gl_FragColor = vec4(col, (a + spikes * 0.5) * uOpacity);
+      vec2 e1 = vec2(0.866, 0.5), e2 = vec2(-0.866, 0.5);
+      float sp = (exp(-abs(d.x) * 22.0) + exp(-abs(dot(d, e1)) * 22.0) + exp(-abs(dot(d, e2)) * 22.0))
+               * smoothstep(0.5, 0.04, r);
+      vec3 col = inkRolloff(mix(${GOLD}, vec3(1.0, 0.97, 0.88), 0.45) * (1.4 + sp));
+      gl_FragColor = vec4(col, (a + sp * 0.45) * uOpacity);
     }
   `;
   const headPt = addShaderPoints(hGeo, hFrag, hVert, varU);
   headPt.visible = false;
   group.add(headPt);
 
-  // ---- the fizzle: the figure dissolving back into the star map ----
-  const FZ = 360;
-  const zP0 = new Float32Array(FZ * 3), zVel = new Float32Array(FZ * 3), zSeed = new Float32Array(FZ);
-  for (let i = 0; i < FZ; i++) zSeed[i] = (i + 0.5) / FZ;
-  const zGeo = new THREE.BufferGeometry();
-  zGeo.setAttribute('position', new THREE.BufferAttribute(zP0, 3));
-  zGeo.setAttribute('aVel', new THREE.BufferAttribute(zVel, 3));
-  zGeo.setAttribute('aSeed', new THREE.BufferAttribute(zSeed, 1));
-  const zVert = VERT_POINT_HEAD + `
-    attribute vec3 aVel;
-    attribute float aSeed;
-    uniform float uFizzT;
-    varying float vLive;
+  // ---------- layer 6: the deep sky ----------
+  const ND = SKY_DSO.length;
+  const dPos = new Float32Array(ND * 3), dMag = new Float32Array(ND), dKind = new Float32Array(ND), dUp = new Float32Array(ND);
+  for (let i = 0; i < ND; i++){
+    dMag[i] = SKY_DSO[i][2];
+    const w = SKY_DSO[i][5];
+    dKind[i] = w.indexOf('galaxy') >= 0 ? 0 : (w.indexOf('cluster') >= 0 ? 1 : 2);
+  }
+  const dGeo = new THREE.BufferGeometry();
+  dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3));
+  dGeo.setAttribute('aMag', new THREE.BufferAttribute(dMag, 1));
+  dGeo.setAttribute('aKind', new THREE.BufferAttribute(dKind, 1));
+  dGeo.setAttribute('aUp', new THREE.BufferAttribute(dUp, 1));
+  const dVert = VERT_POINT_HEAD + `
+    attribute float aMag, aKind, aUp;
+    uniform float uCalm;
+    varying float vKind, vUp;
     void main(){
-      // decelerating fan: fast off the line, easing as it rejoins the sky
-      float k = uFizzT * (2.0 - uFizzT);
-      vec3 p = position + aVel * k * (0.7 + fract(aSeed * 57.3) * 0.6);
-      vLive = step(0.001, uFizzT) * (1.0 - smoothstep(0.55, 1.0, uFizzT + fract(aSeed * 31.7) * 0.25));
-      vT = aSeed; vGlow = vLive;
-      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      vKind = aKind; vUp = aUp; vT = aKind * 0.3; vGlow = 0.4;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = (1.6 + fract(aSeed * 77.7) * 2.6) * vLive * (300.0 / -mv.z);
+      // extended objects: big and soft, and they do NOT twinkle — a galaxy
+      // is not a point source and pretending otherwise is the tell
+      gl_PointSize = clamp(30.0 - aMag * 2.2, 9.0, 30.0) * (1.0 + uCalm * 0.10) * (300.0 / -mv.z) * aUp;
     }
   `;
-  const zFrag = GLSL_MPHI + `
-    uniform float uOpacity, uFizzT;
-    varying float vLive; varying float vT; varying float vGlow;
+  const dFrag = GLSL_MPHI + `
+    uniform float uOpacity;
+    varying float vKind, vUp;
     void main(){
       vec2 d = gl_PointCoord - 0.5;
       float r = length(d);
       if (r > 0.5) discard;
-      float a = smoothstep(0.5, 0.0, r); a *= a;
-      // gold leaving, star-white arriving — the ember cools into the sky
-      vec3 col = inkRolloff(mix(${GOLD} * 1.15, ramp(vT) * 0.8, uFizzT * 0.75));
-      gl_FragColor = vec4(col, a * vLive * uOpacity);
+      float a = exp(-r * r * 11.0) - exp(-2.75);
+      vec3 col = vKind < 0.5 ? vec3(1.0, 0.90, 0.74)      // galaxies: old starlight
+               : vKind < 1.5 ? vec3(0.72, 0.85, 1.0)      // clusters: young and hot
+                             : vec3(0.55, 1.0, 0.86);     // nebulae: oxygen green-teal
+      gl_FragColor = vec4(inkRolloff(col * 0.85), max(a, 0.0) * 0.55 * vUp * uOpacity);
     }
   `;
-  group.add(addShaderPoints(zGeo, zFrag, zVert, varU));
+  group.add(addShaderPoints(dGeo, dFrag, dVert, varU));
+
+  // ---------- layer 7: the horizon, and the almucantars ----------
+  /* A star viewer without a horizon is just a bag of dots. The ring at
+     altitude 0 is where Ohio ends, and the two faint circles above it are
+     30° and 60° up — the altitude grid an observer actually calls angles
+     from ("about a third of the way up, in the north-east"). */
+  const RINGS = [[0, 0.62], [30, 0.20], [60, 0.14]];
+  const RSEG = 128;
+  const rPos = new Float32Array(RINGS.length * RSEG * 2 * 3);
+  const rA = new Float32Array(RINGS.length * RSEG * 2);
+  { let k = 0;
+    for (const [altDeg, amp] of RINGS){
+      const alt = altDeg * Math.PI / 180, ca = Math.cos(alt), sa = Math.sin(alt);
+      for (let i = 0; i < RSEG; i++){
+        for (const j of [0, 1]){
+          const th = ((i + j) % RSEG) / RSEG * Math.PI * 2;
+          rPos[k * 3] = Math.sin(th) * ca * SKY_R;
+          rPos[k * 3 + 1] = sa * SKY_R;
+          rPos[k * 3 + 2] = Math.cos(th) * ca * SKY_R;
+          // a dashed grid reads as an instrument; a solid one reads as a wall
+          rA[k] = amp * (0.35 + 0.65 * (fractLocal(th / Math.PI * 8) > 0.5 ? 1 : 0));
+          k++;
+        }
+      }
+    } }
+  function fractLocal(x){ return x - Math.floor(x); }
+  const rGeo = new THREE.BufferGeometry();
+  rGeo.setAttribute('position', new THREE.BufferAttribute(rPos, 3));
+  rGeo.setAttribute('aA', new THREE.BufferAttribute(rA, 1));
+  const rVert = GLSL_MPHI + `
+    attribute float aA;
+    varying float vA;
+    void main(){ vA = aA; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `;
+  const rFrag = GLSL_MPHI + `
+    uniform float uOpacity; uniform vec3 uColA;
+    varying float vA;
+    void main(){ gl_FragColor = vec4(inkRolloff(mix(vec3(0.42,0.56,0.74), uColA, 0.35)), vA * 0.5 * uOpacity); }
+  `;
+  group.add(addShaderLines(rGeo, rFrag, rVert, varU, true));
+
+  // ---------- layer 8: every label, out of one atlas ----------
+  const labelSpec = [];        // { text, kind, con, ord, dir }
+  for (let ci = 0; ci < NCON; ci++){
+    const c = SKY_CONS[ci];
+    for (let si = 0; si < c.s.length; si++){
+      const st = c.s[si];
+      labelSpec.push({ text: st[4] ? st[3] + ' ' + c.ab + ' · ' + st[4] : st[3] + ' ' + c.ab,
+                       kind: 0, con: ci, ord: starOrder[flatBase[ci] + si] < 0 ? 99 : starOrder[flatBase[ci] + si],
+                       star: flatBase[ci] + si });
+    }
+  }
+  for (let i = 0; i < ND; i++)
+    labelSpec.push({ text: SKY_DSO[i][3] + ' · ' + SKY_DSO[i][4], kind: 1, con: -1, ord: 0, dso: i });
+  const CARD = [['N', 0], ['E', 90], ['S', 180], ['W', 270]];
+  for (const [t, az] of CARD)
+    labelSpec.push({ text: t, kind: 2, con: -1, ord: 0, az: az });
+
+  const atlas = skyAtlas(labelSpec.map(l => l.text));
+  const NL = labelSpec.length;
+  const qPos = new Float32Array(NL * 4 * 3), qCorner = new Float32Array(NL * 4 * 2);
+  const qUV = new Float32Array(NL * 4 * 2), qPx = new Float32Array(NL * 4 * 2);
+  const qCon = new Float32Array(NL * 4), qOrd = new Float32Array(NL * 4);
+  const qKind = new Float32Array(NL * 4), qUp = new Float32Array(NL * 4);
+  const qIdx = new Uint16Array(NL * 6);
+  const qOff = new Float32Array(NL * 4 * 2);
+  for (let i = 0; i < NL; i++){
+    const L = labelSpec[i], r = atlas.rect.get(L.text);
+    const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    /* WHERE THE NAME SITS. Every label pinned to the same corner of its star
+       turns a compact figure — the Little Dipper, the Keystone — into one
+       illegible pile of type. So the anchors walk a six-slot cycle: three
+       heights, and alternating sides, with a left-hand label shifted by its
+       own width so it ends where the star begins. Deterministic, free, and it
+       is what a chart draughtsman does by hand for exactly this reason. */
+    const side = (i % 2) ? -1 : 1;
+    const dx = side > 0 ? 14 : -(r[4] + 14);
+    const dy = ((i % 3) - 1) * 17 + 6;
+    for (let v = 0; v < 4; v++){
+      const j = i * 4 + v;
+      qOff[j * 2] = dx; qOff[j * 2 + 1] = dy;
+      qCorner[j * 2] = corners[v][0]; qCorner[j * 2 + 1] = corners[v][1];
+      // v is measured DOWN the canvas (flipY is off), so the top of the
+      // label is r[1] and the corner with y = 1 must read it
+      qUV[j * 2] = r[0] + (r[2] - r[0]) * corners[v][0];
+      qUV[j * 2 + 1] = corners[v][1] > 0.5 ? r[1] : r[3];
+      qPx[j * 2] = r[4]; qPx[j * 2 + 1] = r[5];
+      qCon[j] = L.con; qOrd[j] = L.ord; qKind[j] = L.kind; qUp[j] = L.kind === 2 ? 1 : 0;
+    }
+    const b = i * 4;
+    qIdx[i * 6] = b; qIdx[i * 6 + 1] = b + 1; qIdx[i * 6 + 2] = b + 2;
+    qIdx[i * 6 + 3] = b; qIdx[i * 6 + 4] = b + 2; qIdx[i * 6 + 5] = b + 3;
+  }
+  const qGeo = new THREE.BufferGeometry();
+  qGeo.setAttribute('position', new THREE.BufferAttribute(qPos, 3));
+  qGeo.setAttribute('aCorner', new THREE.BufferAttribute(qCorner, 2));
+  qGeo.setAttribute('aUV2', new THREE.BufferAttribute(qUV, 2));
+  qGeo.setAttribute('aPx', new THREE.BufferAttribute(qPx, 2));
+  qGeo.setAttribute('aOff', new THREE.BufferAttribute(qOff, 2));
+  qGeo.setAttribute('aCon', new THREE.BufferAttribute(qCon, 1));
+  qGeo.setAttribute('aOrd', new THREE.BufferAttribute(qOrd, 1));
+  qGeo.setAttribute('aKind', new THREE.BufferAttribute(qKind, 1));
+  qGeo.setAttribute('aUp', new THREE.BufferAttribute(qUp, 1));
+  qGeo.setIndex(new THREE.BufferAttribute(qIdx, 1));
+  const qMat = new THREE.ShaderMaterial({
+    uniforms: Object.assign({}, matU(varU), { uAtlas: { value: atlas.tex } }),
+    vertexShader: `
+      attribute vec2 aCorner, aUV2, aPx, aOff;
+      attribute float aCon, aOrd, aKind, aUp;
+      uniform float uActiveCon, uProg, uFade, uFizzT;
+      uniform vec2 uRes;
+      varying vec2 vUvL; varying float vA, vKind;
+      void main(){
+        vUvL = aUV2; vKind = aKind;
+        vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        /* A LABEL IS A FIXED NUMBER OF PIXELS, not a size in the world: text
+           that shrinks with distance is unreadable exactly when you need it.
+           Dividing the pixel offset by the viewport and multiplying by w
+           undoes the perspective divide for the offset only, so the anchor
+           still sits on the star and the type stays the size type is. */
+        vec2 off = (aCorner * aPx + aOff) * 2.0 / uRes;
+        clip.xy += off * clip.w;
+        gl_Position = clip;
+        float a = 0.0;
+        if (aKind < 0.5){
+          // a star writes its name as the pen arrives, and takes it away
+          // with the figure
+          a = (abs(aCon - uActiveCon) < 0.5)
+            ? smoothstep(aOrd, aOrd + 0.45, uProg) * uFade * (1.0 - uFizzT) : 0.0;
+        } else if (aKind < 1.5){
+          a = 0.42 * aUp;                 // the deep sky is always named, quietly
+        } else {
+          a = 0.30;                       // and so is the compass
+        }
+        if (clip.w <= 0.0) a = 0.0;       // behind the eye
+        vA = a;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uAtlas; uniform float uOpacity;
+      varying vec2 vUvL; varying float vA, vKind;
+      void main(){
+        vec4 t = texture2D(uAtlas, vUvL);
+        vec3 c = vKind < 0.5 ? vec3(1.0, 0.84, 0.50)
+               : vKind < 1.5 ? vec3(0.66, 0.88, 1.0)
+                             : vec3(0.80, 0.84, 0.95);
+        gl_FragColor = vec4(c * t.rgb, t.a * vA * uOpacity);
+      }
+    `,
+    transparent: true, depthTest: false, depthWrite: false, blending: THREE.NormalBlending,
+  });
+  const labels = new THREE.Mesh(qGeo, qMat);
+  labels.frustumCulled = false;
+  labels.renderOrder = 8;
+  group.add(labels);
 
   group.visible = false;
   scene.add(group);
 
-  // ---- the sky, computed: RA/Dec -> alt/az at SKY_LAT for a rolled hour ----
-  const dirs = new Array(NS);             // unit vector per catalog star (scene units: x east, y up, z north)
-  const centers = new Array(NCON);        // normalized figure centre per constellation
-  const minAlt = new Float32Array(NCON);  // its lowest star, radians
-  function skyDir(raH, decDeg, lstH){
+  // ---------- the sky itself: RA/Dec → alt/az for Ohio ----------
+  const dirs = new Array(NS), centers = new Array(NCON), minAlt = new Float32Array(NCON);
+  const conRA = new Float32Array(NCON), conRad = new Float32Array(NCON);
+  let lstH = 0;
+  const _v = new THREE.Vector3();
+  function skyDir(raH, decDeg){
+    /* The standard transformation, and nothing hidden in it: H is the hour
+       angle (how far the star is past the meridian), and altitude and
+       azimuth fall out of the spherical triangle between the pole, the
+       zenith and the star. */
     const H = (lstH - raH) * Math.PI / 12, dec = decDeg * Math.PI / 180;
     const sinAlt = Math.sin(dec) * Math.sin(SKY_LAT) + Math.cos(dec) * Math.cos(SKY_LAT) * Math.cos(H);
     const alt = Math.asin(clamp(sinAlt, -1, 1));
     const az = Math.atan2(-Math.cos(dec) * Math.sin(H),
-                          (Math.sin(dec) - sinAlt * Math.sin(SKY_LAT)) / Math.cos(SKY_LAT));
+                          (Math.sin(dec) - sinAlt * Math.sin(SKY_LAT)) / Math.max(1e-6, Math.cos(SKY_LAT)));
     const ca = Math.cos(alt);
-    return { v: new THREE.Vector3(ca * Math.sin(az), sinAlt, ca * Math.cos(az)), alt };
+    // scene axes: x east, y up, z north — azimuth measured from north
+    return { v: new THREE.Vector3(ca * Math.sin(az), Math.sin(alt), ca * Math.cos(az)), alt, az };
   }
-  function dealSky(lstH, rng){
+  // extinction: the air is 38 airmasses thick along the horizon, so a star
+  // there is genuinely gone. This is the curve, not a fade-out for looks.
+  function upness(alt){ return alt <= 0.015 ? 0 : Math.min(1, 0.18 + 0.82 * (alt / 0.30)); }
+
+  function dealSky(hour, rng){
+    lstH = hour;
     for (let ci = 0; ci < NCON; ci++){
-      const base = flatBase[ci];
-      let cx = 0, cy = 0, cz = 0, lo = Math.PI;
-      for (let si = 0; si < SKY_CONS[ci].s.length; si++){
-        const st = SKY_CONS[ci].s[si];
-        const d = skyDir(st[0], st[1], lstH);
-        dirs[base + si] = d.v;
+      const c = SKY_CONS[ci], base = flatBase[ci];
+      let cx = 0, cy = 0, cz = 0, lo = Math.PI, ra = 0;
+      for (let si = 0; si < c.s.length; si++){
+        const d = skyDir(c.s[si][0], c.s[si][1]);
         const i = base + si;
+        dirs[i] = d.v;
         nPos[i * 3] = d.v.x * SKY_R; nPos[i * 3 + 1] = d.v.y * SKY_R; nPos[i * 3 + 2] = d.v.z * SKY_R;
-        // atmospheric honesty: a star on the horizon is dimmed to nothing
-        nUp[i] = d.alt <= 0.02 ? 0 : Math.min(1, 0.25 + 0.75 * d.alt / 0.25);
-        cx += d.v.x; cy += d.v.y; cz += d.v.z;
+        nUp[i] = upness(d.alt);
+        cx += d.v.x; cy += d.v.y; cz += d.v.z; ra += c.s[si][0];
         if (d.alt < lo) lo = d.alt;
       }
       centers[ci] = new THREE.Vector3(cx, cy, cz).normalize();
       minAlt[ci] = lo;
+      conRA[ci] = ra / c.s.length;
+      // how big the figure actually is on the sky, which is what decides the
+      // eyepiece it gets framed in
+      let rad = 0;
+      for (let si = 0; si < c.s.length; si++)
+        rad = Math.max(rad, centers[ci].angleTo(dirs[base + si]));
+      conRad[ci] = rad;
     }
     nGeo.attributes.position.needsUpdate = true;
     nGeo.attributes.aUp.needsUpdate = true;
-    // the lines follow their stars
-    { let k = 0; for (let ci = 0; ci < NCON; ci++){
-        const base = flatBase[ci];
+
+    // the stroke follows its stars, and each sprite is handed the velocity
+    // it will leave on — outward from the figure, so the shape blows apart
+    // from its own middle rather than drifting sideways
+    { let k = 0, q = 0;
+      for (let ci = 0; ci < NCON; ci++){
+        const base = flatBase[ci], C = centers[ci];
         for (const [a, b] of SKY_CONS[ci].e){
           const A = dirs[base + a], B = dirs[base + b];
-          lPos[k * 3] = A.x * SKY_R; lPos[k * 3 + 1] = A.y * SKY_R; lPos[k * 3 + 2] = A.z * SKY_R; k++;
-          lPos[k * 3] = B.x * SKY_R; lPos[k * 3 + 1] = B.y * SKY_R; lPos[k * 3 + 2] = B.z * SKY_R; k++;
+          lPos[q * 3] = A.x * SKY_R; lPos[q * 3 + 1] = A.y * SKY_R; lPos[q * 3 + 2] = A.z * SKY_R; q++;
+          lPos[q * 3] = B.x * SKY_R; lPos[q * 3 + 1] = B.y * SKY_R; lPos[q * 3 + 2] = B.z * SKY_R; q++;
+          for (let p = 0; p < PPE; p++, k++){
+            const u = p / (PPE - 1);
+            _v.copy(A).lerp(B, u).multiplyScalar(SKY_R);
+            gPos[k * 3] = _v.x; gPos[k * 3 + 1] = _v.y; gPos[k * 3 + 2] = _v.z;
+            const ox = _v.x - C.x * SKY_R, oy = _v.y - C.y * SKY_R, oz = _v.z - C.z * SKY_R;
+            const m = Math.hypot(ox, oy, oz) || 1;
+            gVel[k * 3] = ox / m * 13 + (rng() - 0.5) * 6;
+            gVel[k * 3 + 1] = oy / m * 13 + (rng() - 0.5) * 6;
+            gVel[k * 3 + 2] = oz / m * 13 + (rng() - 0.5) * 6;
+          }
         }
-    } }
+      } }
+    gGeo.attributes.position.needsUpdate = true;
+    gGeo.attributes.aVel.needsUpdate = true;
     lGeo.attributes.position.needsUpdate = true;
-    // the dust: seeded, above the horizon only, thicker toward the zenith
-    for (let i = 0; i < FN2; i++){
-      let v = null;
-      for (let tries = 0; tries < 12 && !v; tries++){
-        const y = rng(), az = rng() * Math.PI * 2;
-        const alt = Math.asin(y * 0.999);
-        if (alt < 0.03) continue;
-        const ca = Math.cos(alt);
-        v = [ca * Math.sin(az), Math.sin(alt), ca * Math.cos(az)];
+
+    // the deep sky
+    for (let i = 0; i < ND; i++){
+      const d = skyDir(SKY_DSO[i][0], SKY_DSO[i][1]);
+      dPos[i * 3] = d.v.x * SKY_R; dPos[i * 3 + 1] = d.v.y * SKY_R; dPos[i * 3 + 2] = d.v.z * SKY_R;
+      dUp[i] = upness(d.alt) > 0.5 ? 1 : 0;
+    }
+    dGeo.attributes.position.needsUpdate = true;
+    dGeo.attributes.aUp.needsUpdate = true;
+
+    // every label goes where its object went
+    for (let i = 0; i < NL; i++){
+      const L = labelSpec[i];
+      let p, up = 1;
+      if (L.kind === 0){ p = dirs[L.star]; up = nUp[L.star] > 0.05 ? 1 : 0; }
+      else if (L.kind === 1){ p = new THREE.Vector3(dPos[L.dso * 3], dPos[L.dso * 3 + 1], dPos[L.dso * 3 + 2]).divideScalar(SKY_R); up = dUp[L.dso]; }
+      else {
+        const th = L.az * Math.PI / 180;
+        p = new THREE.Vector3(Math.sin(th) * 0.999, 0.035, Math.cos(th) * 0.999);
       }
-      if (!v) v = [0, 1, 0];
-      fPos[i * 3] = v[0] * SKY_R; fPos[i * 3 + 1] = v[1] * SKY_R; fPos[i * 3 + 2] = v[2] * SKY_R;
-      fSeed2[i] = rng();
+      for (let v = 0; v < 4; v++){
+        const j = i * 4 + v;
+        qPos[j * 3] = p.x * SKY_R; qPos[j * 3 + 1] = p.y * SKY_R; qPos[j * 3 + 2] = p.z * SKY_R;
+        qUp[j] = up;
+      }
+    }
+    qGeo.attributes.position.needsUpdate = true;
+    qGeo.attributes.aUp.needsUpdate = true;
+
+    // the field stars: seeded, above the horizon, thinning toward it
+    for (let i = 0; i < FN; i++){
+      const y = rng(), az = rng() * Math.PI * 2;
+      const alt = Math.asin(clamp(y * 0.999, -1, 1));
+      const ca = Math.cos(alt);
+      fPos[i * 3] = ca * Math.sin(az) * SKY_R;
+      fPos[i * 3 + 1] = Math.sin(alt) * SKY_R;
+      fPos[i * 3 + 2] = ca * Math.cos(az) * SKY_R;
+      fSeed[i] = rng();
     }
     fGeo.attributes.position.needsUpdate = true;
     fGeo.attributes.aSeed.needsUpdate = true;
   }
 
-  // ---- the show ----
-  const st = { mode: 'pan', t: 0, con: -1, prog: 0, seen: new Set() };
+  // ---------- the show ----------
+  const st = { mode: 'pan', t: 0, con: -1, prog: 0, said: 0, queue: [], fov: 62, fovWant: 40, seen: new Set() };
   const _pq = new THREE.Quaternion(), _tq = new THREE.Quaternion();
-  const _dir = new THREE.Vector3(), _va = new THREE.Vector3(), _vb = new THREE.Vector3();
+  const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
+  const _eye = new THREE.Vector3(), _axis = new THREE.Vector3(), _chk = new THREE.Vector3();
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3();
+  const AXIS_Y = new THREE.Vector3(0, 1, 0);
+
+  /* THE PAN, the way a planetarium does it: yaw to the constellation's
+     azimuth, THEN tilt to its altitude. A shortest-arc slerp between two
+     directions is the obvious thing and it is wrong — it rolls the horizon,
+     and a horizon that tilts while you turn is the one motion that makes
+     people seasick in a dome. If the decomposition ever fails to land, the
+     shortest arc is still there as a fallback, checked rather than trusted. */
+  function panTarget(ci, out){
+    scene.getWorldQuaternion(_pq).invert();
+    /* THE DIRECTION THE EYE IS LOOKING, not the direction it is standing in.
+       The camera orbits the origin and looks back at it, so the piece of dome
+       you can actually see is the one OPPOSITE the camera — aiming a figure at
+       camera.position puts it precisely behind your head, which is exactly
+       what the first cut of this did. */
+    _eye.copy(camera.position).multiplyScalar(-1).normalize();
+    /* AND IT DOES NOT AIM AT THE MIDDLE WHEN SOMETHING IS IN THE WAY. The card
+       owns the left third of the frame while it is up, so the figure is aimed
+       a little right of the view axis — along the camera's OWN right vector, so
+       the offset is in the frame rather than in the world and it stays correct
+       however far up the sky the room is looking. */
+    if (SKYCARD.on){
+      _axis.setFromMatrixColumn(camera.matrixWorld, 0);   // the camera's right
+      _eye.addScaledVector(_axis, 0.19).normalize();
+    }
+    _eye.applyQuaternion(_pq);
+    const camAz = Math.atan2(_eye.x, _eye.z), camAlt = Math.asin(clamp(_eye.y, -1, 1));
+    const c = centers[ci];
+    const conAz = Math.atan2(c.x, c.z), conAlt = Math.asin(clamp(c.y, -1, 1));
+    _qa.setFromAxisAngle(AXIS_Y, camAz - conAz);
+    _axis.set(Math.cos(camAz), 0, -Math.sin(camAz));
+    _qb.setFromAxisAngle(_axis, conAlt - camAlt);
+    out.copy(_qb).multiply(_qa);
+    _chk.copy(c).applyQuaternion(out);
+    if (_chk.angleTo(_eye) > 0.05) out.setFromUnitVectors(c, _eye);
+  }
+
   function candidates(){
     const out = [];
     for (let ci = 0; ci < NCON; ci++)
-      if (SKY_CONS[ci].e.length && minAlt[ci] > 0.10 && ci !== st.con) out.push(ci);
+      if (SKY_CONS[ci].e.length && minAlt[ci] > 0.12 && ci !== st.con) out.push(ci);
     return out;
   }
   function pickNext(){
     let pool = candidates().filter(ci => !st.seen.has(ci));
     if (!pool.length){ st.seen.clear(); pool = candidates(); }
-    if (!pool.length) return st.con < 0 ? 0 : st.con;   // cannot happen at 40°N — UMa and Cassiopeia never set
+    if (!pool.length) return st.con < 0 ? 0 : st.con;   // unreachable at 40° N: five never set
     return pool[Math.floor(Math.random() * pool.length)];
   }
+  function whereText(ci){
+    const c = centers[ci];
+    const az = Math.atan2(c.x, c.z), alt = Math.asin(clamp(c.y, -1, 1)) * 180 / Math.PI;
+    // hour angle: east of the meridian is still climbing, west is going down
+    let ha = lstH - conRA[ci];
+    while (ha < -12) ha += 24;
+    while (ha > 12) ha -= 24;
+    const arc = alt > 75 ? 'overhead' : (ha < -0.4 ? 'rising' : ha > 0.4 ? 'setting' : 'on the meridian');
+    return skyCompass(az) + ' · ' + Math.round(alt) + '° above the horizon · ' + arc;
+  }
   function setTarget(ci){
-    st.con = ci; st.seen.add(ci);
-    st.prog = 0;
+    st.con = ci; st.prog = 0; st.said = 0;
+    st.queue = [];
+    for (let si = 0; si < SKY_CONS[ci].s.length; si++){
+      const o = starOrder[flatBase[ci] + si];
+      if (o >= 0) st.queue.push([o, si]);
+    }
+    st.queue.sort((a, b) => a[0] - b[0]);
+    /* the eyepiece for this figure: its own angular radius, opened out far
+       enough that the outermost star and its label both clear the edge */
+    st.fovWant = clamp(conRad[ci] * 180 / Math.PI * 3.6, 15, 60);
+    st.seen.add(ci);
     varU.uActiveCon.value = ci;
     varU.uProg.value = 0; varU.uGlowC.value = 0; varU.uFade.value = 1; varU.uFizzT.value = 0;
-    for (let i = 0; i < NS; i++){ nActive[i] = starOf[i][0] === ci ? 1 : 0; nBirth[i] = -1e3; }
-    nGeo.attributes.aActive.needsUpdate = true;
-    nGeo.attributes.aBirth.needsUpdate = true;
-  }
-  function stamp(si){
-    const i = flatBase[st.con] + si;
-    if (nBirth[i] < 0){ nBirth[i] = U.uTime.value; nGeo.attributes.aBirth.needsUpdate = true; }
-  }
-  function seedFizz(){
-    const base = flatBase[st.con], edges = SKY_CONS[st.con].e;
-    const C = centers[st.con];
-    for (let i = 0; i < FZ; i++){
-      const [a, b] = edges[Math.floor(Math.random() * edges.length)];
-      const u = Math.random();
-      _va.copy(dirs[base + a]).multiplyScalar(SKY_R).lerp(_vb.copy(dirs[base + b]).multiplyScalar(SKY_R), u);
-      zP0[i * 3] = _va.x; zP0[i * 3 + 1] = _va.y; zP0[i * 3 + 2] = _va.z;
-      // fan OUTWARD from the figure's centre, along the dome, with a scatter
-      _vb.copy(_va).sub(_dir.copy(C).multiplyScalar(SKY_R)).normalize();
-      zVel[i * 3] = _vb.x * 11 + (Math.random() - 0.5) * 5;
-      zVel[i * 3 + 1] = _vb.y * 11 + (Math.random() - 0.5) * 5;
-      zVel[i * 3 + 2] = _vb.z * 11 + (Math.random() - 0.5) * 5;
-    }
-    zGeo.attributes.position.needsUpdate = true;
-    zGeo.attributes.aVel.needsUpdate = true;
   }
 
   const api = {
@@ -24421,54 +25276,74 @@ function buildSky(){
       if (!group.visible || st.con < 0) return;
       const f = AE.f;
       const beat = (typeof DANCE !== 'undefined' && DANCE.period > 0.2) ? DANCE.period : 0.55;
-      // THE PAN, always: the sky leans so the working constellation faces the
-      // camera — through the scene's own world-spin, like the flame bench does
-      scene.getWorldQuaternion(_pq).invert();
-      _dir.copy(camera.position).multiplyScalar(-1).normalize().applyQuaternion(_pq);
-      _tq.setFromUnitVectors(centers[st.con], _dir);
-      const rate = st.mode === 'pan' ? (0.9 + f.energy * 0.9) : 0.35;
+      const c = SKY_CONS[st.con], E = c.e.length;
+      varU.uRes.value.set(renderer.domElement.width, renderer.domElement.height);
+
+      /* THE INSTRUMENT FRAMES EACH FIGURE. At the room's usual 62° every
+         constellation is a thumbnail in the middle of the screen, and one
+         fixed zoom is no better: Lyra is five degrees across and Draco is
+         forty. So the field of view is computed from the figure's own angular
+         radius — the way you would choose an eyepiece — and the room opens
+         back out to a wide field while it PANS, so you can see where in the
+         sky it is going before it closes in on what it found. The director
+         rewrites camera.fov every frame before the scenes run, so this is an
+         override with nothing to restore: stop running and the wide angle
+         comes straight back. */
+      const wide = camera.fov;
+      st.fov += ((st.mode === 'pan' ? 58 : st.fovWant) - st.fov) * Math.min(1, dt * 1.1);
+      camera.fov = clamp(st.fov + (wide - 62) * 0.25, 10, 75);   // a whisper of the bass still breathes
+      camera.updateProjectionMatrix();
+
+      panTarget(st.con, _tq);
+      /* The camera never stops orbiting, so the aim is a moving target: once
+         the figure is being drawn the sky TRACKS it rather than drifting after
+         it, or the drawing slides out of frame while the pen is still on it. */
+      const rate = st.mode === 'pan' ? (0.85 + f.energy * 0.8) : 1.5;
       group.quaternion.slerp(_tq, 1 - Math.exp(-dt * rate));
       st.t += dt;
+
       if (st.mode === 'pan'){
-        if (group.quaternion.angleTo(_tq) < 0.14 && st.t > beat * 2){
+        if (group.quaternion.angleTo(_tq) < 0.16 && st.t > beat * 1.5){
           st.mode = 'draw'; st.t = 0; st.prog = 0;
-          stamp(SKY_CONS[st.con].e[0][0]);
           headPt.visible = true;
-          api.name = 'CONSTELLATIONS · ' + SKY_CONS[st.con].n;
+          api.name = 'CONSTELLATIONS · ' + c.n;
           if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = api.name;
           if (typeof el !== 'undefined' && el.zSceneName) el.zSceneName.textContent = api.name;
+          SKYCARD.show(c, whereText(st.con));
         }
       } else if (st.mode === 'draw'){
-        const E = SKY_CONS[st.con].e.length;
-        const before = Math.floor(st.prog);
-        // one edge per beat, leaning into the music's drive
-        st.prog = Math.min(E, st.prog + dt / beat * (0.55 + f.energy * 0.6 + f.beat * 0.35));
-        const after = Math.min(E - 1, Math.floor(st.prog));
-        for (let ei = before; ei <= after; ei++){
-          stamp(SKY_CONS[st.con].e[ei][0]);
-          if (st.prog > ei + 0.98 || ei < after) stamp(SKY_CONS[st.con].e[ei][1]);
-        }
+        /* PACE. One edge a beat is right for a five-line figure and absurd
+           for a fourteen-segment dragon, so the pen takes more of the
+           figure per beat the longer the figure is — every constellation
+           draws in about the same eight seconds however complicated it is. */
+        const perBeat = Math.max(1, E / 9) * (0.55 + f.energy * 0.5 + f.beat * 0.3);
+        st.prog = Math.min(E, st.prog + dt / beat * perBeat);
         varU.uProg.value = st.prog;
-        // the spark rides the pen
-        { const ei = Math.min(E - 1, Math.floor(st.prog)), fr = clamp01(st.prog - ei);
-          const [a, b] = SKY_CONS[st.con].e[ei], base = flatBase[st.con];
-          _va.copy(dirs[base + a]).multiplyScalar(SKY_R).lerp(_vb.copy(dirs[base + b]).multiplyScalar(SKY_R), fr);
-          hPos[0] = _va.x; hPos[1] = _va.y; hPos[2] = _va.z;
-          hGeo.attributes.position.needsUpdate = true; }
-        if (st.prog >= E){
-          stamp(SKY_CONS[st.con].e[E - 1][1]);
-          st.mode = 'hold'; st.t = 0; headPt.visible = false;
+        // the card narrates in step with the pen: the queue is the stars in
+        // the order the figure reaches them, popped as the draw passes each
+        while (st.said < st.queue.length && st.queue[st.said][0] <= st.prog){
+          SKYCARD.star(c.s[st.queue[st.said][1]], c.ab);
+          st.said++;
         }
+        { const ei = Math.min(E - 1, Math.floor(st.prog)), fr = clamp01(st.prog - ei);
+          const base = flatBase[st.con], [a, b] = c.e[ei];
+          _a.copy(dirs[base + a]).multiplyScalar(SKY_R);
+          _b.copy(dirs[base + b]).multiplyScalar(SKY_R);
+          _a.lerp(_b, fr);
+          hPos[0] = _a.x; hPos[1] = _a.y; hPos[2] = _a.z;
+          hGeo.attributes.position.needsUpdate = true; }
+        if (st.prog >= E){ st.mode = 'hold'; st.t = 0; headPt.visible = false; }
       } else if (st.mode === 'hold'){
-        // the finished figure glows — harder on the beat
-        varU.uGlowC.value = Math.min(1, st.t / 0.5);
-        if (st.t > beat * 4){ seedFizz(); st.mode = 'fizzle'; st.t = 0; }
+        varU.uGlowC.value = Math.min(1, st.t / 0.6);
+        SKYCARD.where(whereText(st.con));
+        if (st.t > beat * 5){ st.mode = 'fizzle'; st.t = 0; }
       } else if (st.mode === 'fizzle'){
         const z = Math.min(1, st.t / (beat * 3.5));
         varU.uFizzT.value = z;
-        varU.uFade.value = 1 - z;
+        varU.uFade.value = 1 - z * 0.85;
         varU.uGlowC.value = Math.max(0, 1 - z * 2);
         if (z >= 1){
+          SKYCARD.hide();
           setTarget(pickNext());
           st.mode = 'pan'; st.t = 0;
           api.name = 'CONSTELLATIONS';
@@ -24477,11 +25352,12 @@ function buildSky(){
       }
     },
     roll(){
-      // a fresh sidereal hour: a different real sky over the same Ohio horizon
+      // a fresh hour of a real night: the same Ohio horizon, a different sky
       const rng = mulberry32((Math.random() * 0xffffffff) >>> 0);
       dealSky(rng() * 24, rng);
-      st.seen.clear(); st.mode = 'pan'; st.t = 0;
+      st.seen.clear(); st.mode = 'pan'; st.t = 0; st.fov = 62;   // the lens opens wide, then closes in
       headPt.visible = false;
+      SKYCARD.hide();
       setTarget(pickNext());
       api.name = 'CONSTELLATIONS';
       return api.name;
