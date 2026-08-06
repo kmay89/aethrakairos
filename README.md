@@ -537,17 +537,7 @@ so the low end *walks* every fringe instead of brightening it, and the beat
 drops a ripple ring), and **BUBBLES** (a glass cluster drifting upward, each
 shell nearly empty in the middle with all its light on the rim, the rim's hue
 walking the spectrum around itself, every bubble swelling with its own band),
-and **CONSTELLATIONS** — a star viewer with a real catalog in it. Every
-constellation star is a bright star at its J2000 coordinates, projected to
-altitude/azimuth for latitude 39.96° N — Columbus, Ohio — at a sidereal hour
-rolled fresh each visit, so what hangs above the horizon is what that sky
-actually holds (ORION owns the winter roll, CYGNUS the summer one, and URSA
-MAJOR never sets). The music drives a cycle: the sky pans until the next
-figure faces you, it is drawn in gold one edge per beat — each star the pen
-reaches flares a diffraction cross and casts an expanding ring — the finished
-shape holds and glows, then fizzles into particles that fan back out into the
-star map while the sky swings away to find the next. The constellation's name
-rides the HUD while its figure is up.
+and **CONSTELLATIONS** — see [The sky over Ohio](#the-sky-over-ohio--a-star-viewer-that-talks) below.
 Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
@@ -571,6 +561,61 @@ rather than a screensaver:
   fires a shockwave. But the touch itself is not drawn: your hand deforms the
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
+
+## The sky over Ohio — a star viewer that talks
+
+Scene 24 is a planetarium with an actual catalogue behind it. Every star in
+it is a real star at its J2000 right ascension and declination, carrying its
+Bayer letter, its proper name, its spectral class, its visual magnitude and
+its distance in light years. **Twenty-two IAU constellations** are drawn as
+their traditional figures, not three-line sketches: Orion gets his shield,
+club and sword; **Draco winds fourteen segments** from the Little Dipper's
+tail to the head diamond; Hercules gets the Keystone and both arms.
+
+**The projection is honest.** RA and dec are converted to altitude and
+azimuth for **latitude 39.96° N — Columbus, Ohio** — at a local sidereal
+time rolled fresh on every visit, so what stands above the horizon is what
+that sky really holds at that hour. ORION owns the winter roll, CYGNUS and
+the Summer Triangle the July one, SCORPIUS never climbs more than a few
+degrees because from Ohio it never does, and URSA MAJOR, CASSIOPEIA,
+CEPHEUS, DRACO and URSA MINOR are always somewhere in the room because
+above 40° N they never set. Stars fade out toward the horizon the way they
+actually do through the thickness of the air, twelve deep-sky objects sit
+where they belong (M31, M42, M45, M13, M44, the Double Cluster…), and a
+dashed **altitude grid** marks the horizon and the 30° and 60° almucantars.
+
+The music drives a four-beat cycle:
+
+- **PAN** — the sky opens to a wide field and swings, *yaw first and then
+  tilt*, so the horizon stays level. A shortest-arc slerp is the obvious
+  implementation and it is the wrong one: it rolls the horizon, and a horizon
+  that tilts while you turn is the single motion that makes people ill in a dome.
+- **DRAW** — the figure is drawn in gold, paced off the measured beat grid,
+  a spark riding the pen. Every star it reaches flares a **six-point
+  diffraction cross**, casts an expanding ring, and **writes its own name
+  into the sky**. The stroke is not a line — WebGL will not give you a thick
+  one — but a river of additive sprites sampled along each segment, which is
+  what makes it read as a brushstroke and what makes the fizzle free.
+- **HOLD** — the completed figure glows and breathes on the beat.
+- **FIZZLE** — the strokes come apart into particles that fan outward from
+  the figure's own centre and cool from gold to starlight as they rejoin the map.
+
+**The room frames each figure like an observatory would.** One fixed zoom
+cannot serve both Lyra (five degrees across) and Draco (forty), so the field
+of view is computed from the figure's own angular radius the way you would
+choose an eyepiece — and opens back out while panning, so you see where in
+the sky it is going before it closes in on what it found.
+
+**And it tells you what you are looking at.** While a figure is up, the card
+at the left carries the IAU name, genitive and abbreviation, what the figure
+is, which quadrant it belongs to, its area and rank among the 88, and —
+computed live from this roll — the compass point it stands in, its altitude
+in degrees, and whether it is rising, setting or on the meridian. Each star
+the pen touches adds its own line (magnitude, distance, spectral class), and
+the ones with a story tell it: Algol dimming every 2.87 days, Thuban holding
+the pole for the pyramid builders, δ Cephei whose pulse became the
+measuring rod for the universe, 61 Cygni as the first star ever to have its
+distance measured.
 
 ## The lamp — a scene where the wax is a fluid
 
