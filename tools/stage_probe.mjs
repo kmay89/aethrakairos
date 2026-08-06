@@ -16,7 +16,7 @@
  *   warm    the join, as something you DO: two questions, then every hand in
  *           the room drawn on every screen in the room.
  *
- *   node tools/stage_probe.mjs [--only ask,shell,stage,pip,slice,wall,native,wire,warm,crowd,pages,install] [--keep]
+ *   node tools/stage_probe.mjs [--only ask,shell,stage,console,pip,slice,wall,native,wire,warm,crowd,pages,install] [--keep]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -347,6 +347,66 @@ if (want('stage')){
     Math.abs(mini.down.px - 0.5) < 0.06 && Math.abs(mini.down.py - 0.5) < 0.06 && mini.down.dragging,
     JSON.stringify(mini.down));
   verdict('stage: lifting it lets go', mini.up === false);
+  await ctx.close();
+}
+
+// --------------------------------------------------------------- console
+/* THE DECK. The strip is right for the shell's 360×148 sliver; the same
+ * console owning a monitor-sized browser window used to be three buttons
+ * over a void. What is checked here is the answer: a roomy window lays the
+ * controls on the desk, gives every screen a live tile — fed by the
+ * screen's own postcard of its own glass, not by a hopeful local re-render
+ * — and folds back to the strip the moment the window really is a sliver,
+ * at which point the screens are told to stop photographing themselves. */
+if (want('console')){
+  console.log('\nthe console, given a window worth using');
+  const ctx = await browser.newContext();
+  const { page: booth } = await open(ctx, '/');
+  const { page: screen } = await open(ctx, '/?stage=screen&screen=1&of=1');
+  await booth.evaluate(() => { STAGE.on = true; STAGE.setMini(true); });
+  await booth.waitForTimeout(1200);                     // roster, wall, deckSync
+  const deck = await booth.evaluate(() => ({
+    deck: document.body.classList.contains('deck'),
+    mons: !document.getElementById('miniMons').hidden,
+    tiles: document.querySelectorAll('.mon-tile[data-sid]').length,
+    add: !!document.querySelector('.mon-tile.add'),
+    more: !document.getElementById('miniMore').hidden,
+    moreBtns: document.getElementById('miniMore').childElementCount,
+    chevron: getComputedStyle(document.getElementById('miniExpand')).display,
+    padH: document.getElementById('miniPad').getBoundingClientRect().height,
+    airplay: document.getElementById('miniAirplay').style.display,
+    airplaySays: (player.cur !== -1 && airplaySupported()),
+  }));
+  verdict('console: a roomy window is a desk, not a strip in a void', deck.deck && deck.mons);
+  verdict('console: the twenty controls are ON the desk — no chevron to know about',
+    deck.more && deck.moreBtns >= 10 && deck.chevron === 'none', deck.moreBtns + ' controls');
+  verdict('console: the pad grows into the room it was given', deck.padH >= 100,
+    Math.round(deck.padH) + 'px');
+  verdict('console: every screen is a tile, and one tile adds a screen',
+    deck.tiles >= 1 && deck.add, deck.tiles + ' tile(s)');
+  verdict('console: AirPlay shows exactly when the platform can answer it',
+    (deck.airplay === '') === deck.airplaySays, 'display "' + deck.airplay + '"');
+  const shotOn = await screen.evaluate(() => STAGE.shotsOn === true);
+  verdict('console: the screen was told somebody is looking', shotOn);
+  await booth.waitForTimeout(2400);
+  const shot = await booth.evaluate(() => {
+    const img = document.querySelector('.mon-tile[data-sid] img');
+    return { has: !!img, jpeg: !!img && /^data:image\/jpeg/.test(img.src),
+      size: img ? img.src.length : 0 };
+  });
+  verdict('console: the tile is the screen\'s own postcard, not a guess',
+    shot.has && shot.jpeg && shot.size > 400, (shot.size / 1024).toFixed(1) + ' KB');
+  await booth.setViewportSize({ width: 400, height: 160 });
+  await booth.waitForTimeout(500);
+  const strip = await booth.evaluate(() => ({
+    deck: document.body.classList.contains('deck'),
+    chevron: getComputedStyle(document.getElementById('miniExpand')).display !== 'none',
+    mons: document.getElementById('miniMons').hidden,
+  }));
+  verdict('console: a sliver of a window is a strip again',
+    !strip.deck && strip.chevron && strip.mons);
+  const shotOff = await screen.evaluate(() => STAGE.shotsOn === false);
+  verdict('console: and the screens stop photographing themselves for nobody', shotOff);
   await ctx.close();
 }
 
