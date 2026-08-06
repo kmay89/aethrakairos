@@ -26137,7 +26137,7 @@ const STAGE = {
       add.title = 'Open another stage screen';
       add.setAttribute('aria-label', 'Open another stage screen');
       add.innerHTML = '<span class="mon-plus" aria-hidden="true">+</span><span class="mon-n">screen</span>';
-      add.addEventListener('click', () => this.open(this.live() + 1));
+      add.addEventListener('click', () => this.addScreen());
       grew = true;
     }
     if (grew || box.lastElementChild !== add) box.appendChild(add);
@@ -26197,7 +26197,7 @@ const STAGE = {
       add('Lens', 'Cycle the lens', () => { if (typeof LENS.cycle === 'function') LENS.cycle(); });
       add('Touch', 'Which force the pad applies', () => { if (typeof TOUCHFX.cycle === 'function') TOUCHFX.cycle(); });
       add('Skins', 'Restyle the room', () => { if (typeof skinCardOpen === 'function') skinCardOpen(true); });
-      add('+ Screen', 'Open another stage screen', () => this.open(this.live() + 1));
+      add('+ Screen', 'Open another stage screen', () => this.addScreen());
       add('Invite', 'Four letters that turn any device into a screen', () => { if (typeof WIRE !== 'undefined') WIRE.invite(); });
       add('Crowd', 'Four letters that tune every phone on the floor', () => { if (typeof CROWD !== 'undefined') CROWD.invite(); });
       add('Which?', 'Every screen holds up its own number', () => this.identify(3000));
@@ -26216,6 +26216,45 @@ const STAGE = {
 
   /* ---------------- turning it on ---------------- */
   async toggle(){ if (this.on) this.stop(); else await this.open(1); },
+  /* ONE MORE SCREEN, THE KIND THE RIG ALREADY IS. The first popped-out
+     window opens from a click that is still on the stack — the chooser's
+     OK, or a pip's ↗ — and then "+ screen" used to hand every LATER screen
+     to open(), which on a one-monitor web booth always answers with a
+     corner window. A rig standing on real windows grew by a window stuck
+     inside the booth's own glass (the report, verbatim: "they end up stuck
+     in the bounds of the window again").
+
+     So the add follows the rig. A stage of popped-out windows grows by a
+     popped-out window — opened HERE, synchronously, inside the click,
+     because a popup from a stale gesture is a blocked popup — offset a
+     hand's width so the new glass is visibly NEW, then dragged onto its
+     television like the others were. A rehearsal rig of corner windows
+     keeps growing corner windows, which is what a rehearsal is; and a
+     blocked popup still falls through to the corner, which remains the
+     floor under everything. */
+  addScreen(){
+    if (this.screen()) return;
+    const want = this.live() + 1;
+    if (this.on && !NATIVE.ready() && this.wins.length){
+      // a name already on the roster would re-navigate a window that is
+      // out there working — walk to the first number nobody answers to
+      let idx = want;
+      while (this.peers.has('s' + idx) || this.pips.some(p => p.sid === 's' + idx)) idx++;
+      const step = 48 * (this.wins.length % 6);
+      let w = null;
+      try {
+        w = window.open(this.url(idx, want, false, 's' + idx), 'mb8stage' + idx,
+          'width=1280,height=720,menubar=no,toolbar=no,left=' + (60 + step) + ',top=' + (60 + step));
+      } catch (e){ w = null; }
+      if (w){
+        this.wins.push(w);
+        toast('Another screen — drag it onto its television, and double-click the picture to fill it.');
+        return;
+      }
+      // blocked — the corner window below says so, and still opens
+    }
+    return this.open(want);
+  },
   /* the address of a screen — one place, so every door opens the same page.
      The id travels in the address because it has to outlive a renumbering:
      drag window three to the left of window two and it BECOMES screen two,

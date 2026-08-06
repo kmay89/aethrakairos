@@ -396,15 +396,36 @@ if (want('console')){
   });
   verdict('console: the tile is the screen\'s own postcard, not a guess',
     shot.has && shot.jpeg && shot.size > 400, (shot.size / 1024).toFixed(1) + ' KB');
+  /* a rig standing on popped-out windows grows by a popped-out window — the
+   * add tile is clicked for REAL so the gesture is live, which is the whole
+   * mechanism: window.open inside the click, never a corner pip. */
+  await booth.evaluate(() => { STAGE.wins.push({ closed: false }); });
+  const popup = ctx.waitForEvent('page', { timeout: 6000 }).catch(() => null);
+  await booth.click('.mon-tile.add');
+  const pw = await popup;
+  if (pw) await pw.waitForLoadState('domcontentloaded').catch(() => {});
+  const grown = await booth.evaluate(() => STAGE.wins.length);
+  verdict('console: a rig of popped-out windows grows by a popped-out window',
+    !!pw && /stage=screen/.test(pw.url()) && grown === 2,
+    pw ? pw.url().replace(/^[^?]*/, '') : 'no window opened');
+  if (pw) await pw.close();
+  /* the shrink is waited for by its arrival, not by a stopwatch — on a
+   * software-GL runner the resize can take longer than any polite guess.
+   * And the booth is brought forward first: resize events ride rendering
+   * frames, which a backgrounded page may not get at all — while a real
+   * operator resizing a real window is, necessarily, looking at it. */
+  await booth.bringToFront();
   await booth.setViewportSize({ width: 400, height: 160 });
-  await booth.waitForTimeout(500);
+  await booth.waitForFunction(() => window.innerWidth <= 420, null, { timeout: 8000 });
+  await booth.waitForTimeout(250);
   const strip = await booth.evaluate(() => ({
     deck: document.body.classList.contains('deck'),
     chevron: getComputedStyle(document.getElementById('miniExpand')).display !== 'none',
     mons: document.getElementById('miniMons').hidden,
   }));
   verdict('console: a sliver of a window is a strip again',
-    !strip.deck && strip.chevron && strip.mons);
+    !strip.deck && strip.chevron && strip.mons, JSON.stringify(strip));
+  await screen.waitForFunction(() => STAGE.shotsOn === false, null, { timeout: 4000 }).catch(() => {});
   const shotOff = await screen.evaluate(() => STAGE.shotsOn === false);
   verdict('console: and the screens stop photographing themselves for nobody', shotOff);
   await ctx.close();
