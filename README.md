@@ -1096,9 +1096,34 @@ handlers including `seekto`/`seekforward`/`seekbackward`, `setPositionState`
 kept current through seeks and rate changes, artwork in multiple sizes). That
 covers the lock screen, control center, Bluetooth AVRCP (steering wheels,
 headphone buttons), the CarPlay Now Playing screen, and watch controls.
-AirPlay: `x-webkit-airplay="allow"` plus a route button that calls the WebKit
-target picker where it exists and the Remote Playback API elsewhere — hidden
-when neither does.
+**AirPlay — and why it needs the decks rebuilt.** AirPlay routes a media
+element's *own* playback pipeline. Desktop decks are fed through
+`createMediaElementSource` into the WebAudio graph — which is what buys the
+mixer, the FX rack and the analyser — and an element in that state has no
+pipeline left to route: the sound leaves through the AudioContext's
+destination, into whatever the system output happens to be. Picking an Apple
+TV in the picker moved silence. iOS never had the problem because iOS decks
+bypass the graph entirely, which is the shape of the fix.
+
+So the route button goes **element-direct first, then opens the picker**:
+fresh elements that have never been through that one-way door, the current
+track restored at its position, and `AE.graphLive` false. Everything
+downstream already understands that mode because iOS has always run in it —
+the mixer stands down to same-element advances, volume becomes element
+volume, the rack parks at bypass, and the visuals fall back to the shipped
+per-track envelope score. Coming off the route rebuilds the graph the same
+way. `tools/airplay_probe.mjs` holds the rebuild to the parts that don't need
+an Apple TV: same track, same place, still playing, graph genuinely gone and
+genuinely back.
+
+The button is also gated on a real receiver now. `WebKitPlaybackTargetAvailabilityEvent`
+existing means the browser knows what AirPlay *is*, not that an Apple TV is
+awake — the availability **event** is the only thing that knows that, and
+nothing was listening, so every Safari showed a route button all night and in
+an empty room it opened an empty picker. Where availability genuinely cannot
+be judged the control is shown rather than guessed at. System-level routing
+(Control Centre → an AirPlay speaker) is untouched and always worked: it moves
+the output device underneath the app, graph and all.
 
 **Self-updating, seamlessly.** Every player release carries a build id
 (stamped into `index.html` and `sw.js` by `tools/stamp_version.py`, which
@@ -1311,6 +1336,11 @@ node tools/update_probe.mjs         # 17 checks on the REACHABILITY of an update
 node tools/color_probe.mjs docs     # per-scene washout + chroma on a real GL context,
                                     #   and the shipped GLSL rolloff checked against
                                     #   its JS twin on the GPU
+node tools/airplay_probe.mjs        # the deck rebuild a route change runs: same track,
+                                    #   same place, still playing, the WebAudio graph
+                                    #   genuinely gone and genuinely back — plus the
+                                    #   route button hidden when no receiver is there.
+                                    #   The wireless hop itself needs an Apple TV
 node tools/handover_probe.mjs /tmp/mb8-mix   # the gap between two tracks on the path a
                                     #   PHONE takes: an iPhone user-agent so the shipping
                                     #   iOS branch of playIndex is what runs, and a

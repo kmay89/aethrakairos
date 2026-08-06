@@ -6626,39 +6626,59 @@ function ensureCtx(){
     AE.echo = { in: inGain, delay, fb, wet };
   }
 
-  AE.decks = [0, 1].map(() => {
+  /* ONE ELEMENT FACTORY, because the decks are built more than once.
+     `createMediaElementSource` is a ONE-WAY DOOR: once an element's audio has
+     been pulled into the graph there is no API to give it back, and an element
+     in that state cannot be AirPlayed — the route carries the element's own
+     pipeline, and the element no longer has one. So the only way to hand the
+     music to an Apple TV is to play it out of an element that has never been
+     through that door, which means building fresh ones. See AIRPLAY below. */
+  AE._deckEl = () => {
     const a = new Audio();
     a.preload = 'auto';
     a.setAttribute('playsinline', '');
     a.setAttribute('x-webkit-airplay', 'allow');
     a.crossOrigin = 'anonymous';           // required for the analyser on remote audio
-    if (IS_IOS){
-      // direct to output — the element IS the playback path, always
-      a.volume = 0;
-      return { a, src: null, shelf: null, gain: null };
-    }
-    const src = AE.ctx.createMediaElementSource(a);
-    const shelf = AE.ctx.createBiquadFilter();
-    shelf.type = 'lowshelf'; shelf.frequency.value = 200; shelf.gain.value = 0;
+    return a;
+  };
+  /* …and one graph factory, so the chain a deck wears is described once. Direct
+     mode simply never calls it. */
+  AE._deckGraph = (d) => {
+    d.src = AE.ctx.createMediaElementSource(d.a);
+    d.shelf = AE.ctx.createBiquadFilter();
+    d.shelf.type = 'lowshelf'; d.shelf.frequency.value = 200; d.shelf.gain.value = 0;
     // a sweepable lowpass, parked wide open (≈bypass) — the mixer sweeps it DOWN
     // on a fading-out deck so a plain crossfade reads as a pro "filter out": the
     // old track sinks away under the filter instead of just getting quieter
-    const filter = AE.ctx.createBiquadFilter();
-    filter.type = 'lowpass'; filter.frequency.value = FILTER_OPEN; filter.Q.value = 0.7;
-    const gain = AE.ctx.createGain();
-    gain.gain.value = 0;
+    d.filter = AE.ctx.createBiquadFilter();
+    d.filter.type = 'lowpass'; d.filter.frequency.value = FILTER_OPEN; d.filter.Q.value = 0.7;
+    d.gain = AE.ctx.createGain();
+    d.gain.gain.value = 0;
     // a post-filter tap into the shared echo, silent by default; the mixer blooms
     // it on a fading-out deck so the track leaves in a trail of echoes
-    const echoSend = AE.ctx.createGain();
-    echoSend.gain.value = 0;
-    src.connect(shelf); shelf.connect(filter); filter.connect(gain); gain.connect(AE.bus);
-    filter.connect(echoSend); echoSend.connect(AE.echo.in);
-    return { a, src, shelf, filter, gain, echoSend };
+    d.echoSend = AE.ctx.createGain();
+    d.echoSend.gain.value = 0;
+    d.src.connect(d.shelf); d.shelf.connect(d.filter); d.filter.connect(d.gain); d.gain.connect(AE.bus);
+    d.filter.connect(d.echoSend); d.echoSend.connect(AE.echo.in);
+    return d;
+  };
+  AE.decks = [0, 1].map(() => {
+    const a = AE._deckEl();
+    if (IS_IOS){
+      // direct to output — the element IS the playback path, always
+      a.volume = 0;
+      return { a, src: null, shelf: null, filter: null, gain: null, echoSend: null };
+    }
+    return AE._deckGraph({ a });
   });
   AE.graphLive = !IS_IOS;
   SPEED.apply();                 // decks are born at the listener's chosen speed
-  // deck events — registered once, filtered to the active deck
-  AE.decks.forEach((d, i) => {
+  /* DECK EVENTS — filtered to the active deck. Held as a function rather than
+     run inline because a route change builds new elements underneath the same
+     deck objects, and a deck whose handlers were left behind on the discarded
+     element is a deck that never reports an end, an error or a stall. */
+  AE._wireDeck = (d, i) => {
+    AIRPLAY.watch(d);
     d.a.addEventListener('ended', () => { if (!d.priming && i === AE.active && !AE.xfading) player.onEnded(); });
     d.a.addEventListener('error', () => {
       if (d.priming || i !== AE.active) return;
@@ -6791,7 +6811,8 @@ function ensureCtx(){
       }
     });
     d.a.addEventListener('waiting', () => { if (i === AE.active && player.playing) LOADER.begin('buffering…'); });
-  });
+  };
+  AE.decks.forEach(AE._wireDeck);
   applyVolume();
 }
 
@@ -11768,22 +11789,210 @@ function mediaSessionPosition(){
   } catch (e){}
 }
 
-/* AirPlay / remote playback: WebKit target picker where it exists, the
-   Remote Playback API elsewhere, and no button at all when neither does. */
+/* ================================================================
+   AIRPLAY — handing the music to the room, and why it needs a rebuild
+
+   The route button used to be a lie on the one platform most likely to
+   press it. Two separate defects, both worth naming:
+
+   THE BUTTON APPEARED WHETHER OR NOT THERE WAS ANYWHERE TO SEND TO.
+   `window.WebKitPlaybackTargetAvailabilityEvent` says this browser knows
+   what AirPlay IS, not that an Apple TV is awake on the network. The
+   availability EVENT is the only thing that knows that, and nobody was
+   listening to it — so every Safari showed a route button all night, and
+   in a room with no receiver it opened an empty picker.
+
+   AND ON THE MAC IT COULD NOT HAVE CARRIED THE MUSIC ANYWAY. AirPlay
+   routes a media element's own playback pipeline. Desktop decks are fed
+   through `createMediaElementSource` into the WebAudio graph — which is
+   what buys the mixer, the FX rack and the analyser — and an element in
+   that state has no pipeline of its own left to route: the sound leaves
+   through the AudioContext's destination, into whatever the system
+   output happens to be. Picking an Apple TV in the picker would have
+   moved silence. iOS never had the problem because iOS decks bypass the
+   graph entirely, which is exactly the shape of the fix.
+
+   So going wireless REBUILDS the decks element-direct: new elements that
+   have never been through `createMediaElementSource` (a one-way door —
+   there is no API to give an element back), the current track restored at
+   its position, and `AE.graphLive` false. Everything downstream already
+   understands that mode because iOS has always run in it — the mixer
+   stands down to same-element advances, volume becomes element volume,
+   the FX rack parks at bypass, and the visuals fall back to the shipped
+   per-track envelope score instead of a live analyser. Coming back off
+   the route rebuilds the graph the same way.
+
+   What this deliberately does NOT touch: iOS, which is already direct and
+   whose lock-screen blessing is not worth risking for a mode it is
+   permanently in; and system-level routing (macOS Control Centre → an
+   AirPlay speaker), which moves the whole output device underneath us and
+   has always worked, graph and all.
+   ================================================================ */
+const AIRPLAY = {
+  avail: false,      // is there actually a receiver out there?
+  told: false,       // …did anything authoritative say so?
+  out: false,        // is the music going out to one right now?
+  busy: false,       // a rebuild is in flight
+  tookGraph: false,  // we are the reason the graph is down, so we owe it back
+
+  /* every deck element, new or original, reports what it can see. Availability
+     is a property of the room rather than of the element, but the listener has
+     to live on an element, and a rebuilt deck needs its own. */
+  watch(d){
+    if (!d || !d.a) return;
+    const a = d.a;
+    a.addEventListener('webkitplaybacktargetavailabilitychanged', e => {
+      AIRPLAY.told = true;
+      AIRPLAY.avail = e.availability === 'available';
+      syncAirplayButton();
+    });
+    a.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+      AIRPLAY.routeChanged(!!a.webkitCurrentPlaybackTargetIsWireless);
+    });
+  },
+  /* THE REMOTE PLAYBACK HALF, ATTACHED ONLY WHEN IT CAN MATTER — which is
+     after somebody has actually asked for a route, because the API cannot
+     connect without a prompt and a prompt needs a gesture.
+
+     It is late on purpose. Touching `element.remote` on Chromium wakes that
+     browser's remote-playback machinery (discovery included) for a protocol
+     it uses for Cast and this button does not use at all, and doing it at
+     deck-build time put that work on the main thread at the worst possible
+     moment: the deck build is what a route change runs, and `mix_acceptance`
+     caught the cost as an intermittently missed beat-phase sample on the
+     seam right after. Two runs in four, against three clean runs on main —
+     small, but a mix engine that measures its own lock in milliseconds does
+     not get to shrug at that. `watchAvailability` is not called at all for
+     the same reason, and because its only use would be to HIDE a button.
+     Where availability cannot be judged the control is shown, which is what
+     Chrome does with Cast anyway. */
+  watchRemote(){
+    if (this._remoteWired || !AE.decks) return;
+    this._remoteWired = true;
+    AE.decks.forEach(d => {
+      if (!d.a.remote) return;
+      try {
+        d.a.remote.addEventListener('connect', () => AIRPLAY.routeChanged(true));
+        d.a.remote.addEventListener('disconnect', () => AIRPLAY.routeChanged(false));
+      } catch (e){}
+    });
+  },
+  unwatch(){ this._remoteWired = false; },
+
+  /* the route came or went — including when the listener picked it from the
+     system's own picker rather than ours, which is why this is an event
+     handler and not just the tail of route() */
+  routeChanged(on){
+    if (this.out === !!on) return;
+    this.out = !!on;
+    syncAirplayButton();
+    if (!this.out && this.tookGraph && !this.busy){
+      // it came home: give the mixer, the rack and the analyser back
+      this.setDirect(false).then(() => { this.tookGraph = false; });
+      toast('Back on this device — the mixer is live again');
+    }
+  },
+
+  /* THE BUTTON. Order matters and is the whole trick: go element-direct
+     FIRST, then open the picker, so the element the listener assigns the
+     Apple TV to is one that still owns its own audio. Opening the picker
+     first would bind the route to a deck whose sound has already been
+     captured, which is precisely the silence this exists to fix. */
+  async route(){
+    const d = activeDeck();
+    if (!d || this.busy) return;
+    if (AE.graphLive){
+      toast('Sending to AirPlay — the mixer stands down while the music is out there');
+      const ok = await this.setDirect(true);
+      if (!ok){ toast('Could not hand the audio over — staying on this device'); return; }
+      this.tookGraph = true;
+    }
+    const a = activeDeck().a;
+    if (a.webkitShowPlaybackTargetPicker) a.webkitShowPlaybackTargetPicker();
+    else if (a.remote && a.remote.prompt){
+      this.watchRemote();                 // now it can matter, so now it is wired
+      a.remote.prompt().catch(() => {});
+    }
+  },
+
+  /* THE REBUILD. New elements under the same deck objects, so every reference
+     anybody is holding stays valid, and the track that was playing comes back
+     where it was. Never on iOS: it is already direct, permanently. */
+  async setDirect(direct){
+    if (IS_IOS || !AE.decks || !AE.ctx) return false;
+    if (this.busy || AE.graphLive === !direct) return true;
+    this.busy = true;
+    try {
+      const i = AE.active, cur = AE.decks[i];
+      const wasPlaying = !!(typeof player !== 'undefined' && player.playing);
+      const at = cur && isFinite(cur.a.currentTime) ? cur.a.currentTime : 0;
+      const url = cur ? (cur.a.currentSrc || cur.a.src || '') : '';
+      // a seam in flight has nowhere to land once the graph goes
+      if (typeof MIXER !== 'undefined' && MIXER.phase !== 'idle') MIXER.cancel('route');
+      AE.xfading = false;
+      AE.decks.forEach(dk => {
+        try { dk.a.pause(); } catch (e){}
+        AIRPLAY.unwatch(dk);
+        for (const n of [dk.src, dk.shelf, dk.filter, dk.gain, dk.echoSend])
+          { try { if (n) n.disconnect(); } catch (e){} }
+        // let the old element go: an abandoned element still holding a decoder
+        // is exactly what costs a mobile browser its next one
+        try { dk.a.removeAttribute('src'); dk.a.load(); } catch (e){}
+      });
+      AE.decks.forEach((dk, k) => {
+        dk.a = AE._deckEl();
+        dk.src = dk.shelf = dk.filter = dk.gain = dk.echoSend = null;
+        if (direct) dk.a.volume = 0; else AE._deckGraph(dk);
+        AE._wireDeck(dk, k);
+      });
+      AE.graphLive = !direct;
+      SPEED.apply();
+      applyVolume();
+      if (url){
+        const a = AE.decks[i].a;
+        await new Promise(res => {
+          let done = false;
+          const go = () => { if (done) return; done = true; try { a.currentTime = at; } catch (e){} res(); };
+          a.addEventListener('loadedmetadata', go, { once: true });
+          a.addEventListener('error', () => { if (!done){ done = true; res(); } }, { once: true });
+          // a stalled load must never leave the app wedged mid-route
+          setTimeout(() => { if (!done){ done = true; res(); } }, 4000);
+          a.src = url;
+        });
+        applyVolume();
+        if (wasPlaying) try { await AE.decks[i].a.play(); } catch (e){}
+      }
+      syncMixHud();
+      return true;
+    } catch (e){
+      return false;
+    } finally { this.busy = false; }
+  },
+};
+
+/* Is there anywhere to send to? The API existing is not a receiver existing —
+   so when something authoritative has told us, obey it; when nothing can
+   (a browser with a prompt but no availability watcher) don't hide a control
+   we have no grounds to hide. */
 function airplaySupported(){
-  const a = activeDeck();
-  return !!(window.WebKitPlaybackTargetAvailabilityEvent
-    || (a && a.a.remote && a.a.remote.prompt));
+  const d = activeDeck();
+  if (!d) return false;
+  const webkit = !!window.WebKitPlaybackTargetAvailabilityEvent;
+  const remote = !!(d.a.remote && d.a.remote.prompt);
+  if (!webkit && !remote) return false;
+  return AIRPLAY.told ? AIRPLAY.avail : true;
 }
 function syncAirplayButton(){
   el.btnAirplay.style.display =
     (player.cur !== -1 && airplaySupported()) ? '' : 'none';
+  // lit while the room has it: the transport says where the sound is going
+  el.btnAirplay.classList.toggle('on', AIRPLAY.out);
+  el.btnAirplay.setAttribute('aria-pressed', AIRPLAY.out ? 'true' : 'false');
+  el.btnAirplay.title = AIRPLAY.out
+    ? 'Playing to an AirPlay device — tap to change where the sound goes'
+    : 'Choose audio output (AirPlay)';
 }
-function airplayPick(){
-  const a = activeDeck(); if (!a) return;
-  if (a.a.webkitShowPlaybackTargetPicker) a.a.webkitShowPlaybackTargetPicker();
-  else if (a.a.remote && a.a.remote.prompt) a.a.remote.prompt().catch(() => {});
-}
+function airplayPick(){ AIRPLAY.route(); }
 el.btnAirplay.addEventListener('click', airplayPick);
 
 /* ================================================================
