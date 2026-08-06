@@ -1,0 +1,18 @@
+{
+  "grant": 1,
+  "work": "sha256:84dee9ec394b0e8edaa581f697013494a0ab3488acc678e0111202856662a220",
+  "title": "Runners club",
+  "issuer": "ed25519:S1w2ori4x0g7wuL5OnOFkyry9Ti457N5/H4rrJiYsCU=",
+  "issued": "2026-08-06",
+  "expires": null,
+  "permits": [
+    "excerpt",
+    "layer",
+    "publish-score",
+    "separate",
+    "timestretch"
+  ],
+  "terms": "LICENSE-AUDIO \u00b7 remix grant",
+  "note": "Demo grant so the example remix verifies out of the box.",
+  "sig": "ed25519:9khZsFzD8XuVKm4vrbbl5ngPcCtfU3V0++Twi6ccVYgEetVFzn0IJxEkOI2IcomnLdqbq99FZEtZv5KcK99/BQ=="
+}

@@ -1,0 +1,87 @@
+# The remix gate. Every pull request that touches a score, a grant, or the
+# trust file gets its licence chain checked before a human reads it.
+#
+# This job holds NO AUDIO — the runner clones a repository whose docs/audio is
+# not populated for it, and installs nothing. That is deliberate: the entire
+# structural, licence and lineage audit has to be possible without the
+# recordings, because that is the whole premise of the remix layer. Receipt
+# checks, which genuinely need the audio and Demucs, report "unproven" here and
+# are re-run by whoever holds the files. Unproven is never printed as passed.
+#
+# To make it BLOCK merges: Settings → Branches → rule for `main` → "Require
+# status checks to pass" → select **remix**.
+name: remix
+
+on:
+  pull_request:
+    paths:
+      - 'remixes/**'
+      - 'grants/**'
+      - 'TRUST'
+      - 'remix.py'
+      - 'signing.py'
+      - 'tests/test_remix.py'
+      - 'docs/catalog.json'
+      - '.github/workflows/remix.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'remixes/**'
+      - 'grants/**'
+      - 'TRUST'
+      - 'remix.py'
+      - 'signing.py'
+      - 'tests/test_remix.py'
+  workflow_dispatch: {}
+
+concurrency:
+  group: remix-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  remix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # No pip install anywhere in this job, on purpose. If the gate ever needs
+      # a dependency to check a signature, the signature has become perishable.
+      - name: Ed25519 vectors and canonicalisation
+        run: python3 signing.py selftest
+
+      - name: Remix-layer unit tests
+        run: python3 tests/test_remix.py
+
+      - name: Verify every score in the tree
+        run: |
+          shopt -s nullglob
+          manifests=(remixes/*/remix.json)
+          if [ ${#manifests[@]} -eq 0 ]; then
+            echo "no scores to check"; exit 0
+          fi
+          # Expiry is judged against the commit date, not "now", so re-running
+          # this job on an old commit gives the same answer it gave then.
+          AS_OF=$(git log -1 --format=%cs)
+          echo "checking ${#manifests[@]} score(s) as of $AS_OF"
+          python3 remix.py verify "${manifests[@]}" --as-of "$AS_OF" | tee report.txt
+
+      - name: Put the report on the pull request
+        if: always()
+        run: |
+          {
+            echo '### Remix gate'
+            echo
+            echo 'No audio on this runner — licence, lineage and timing are checked;'
+            echo 'receipts are reported `unproven` and must be confirmed by someone'
+            echo 'who holds the recordings.'
+            echo
+            echo '```'
+            cat report.txt 2>/dev/null || echo 'nothing to report'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

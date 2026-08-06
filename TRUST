@@ -1,0 +1,25 @@
+# TRUST — the keys this label accepts grants and scores from.
+#
+# One key per line:   ed25519:<base64>   <who they are>   [# note]
+#
+# There is no certificate authority here and no registry to phone. A key is
+# trusted because a human read a pull request and merged it, and `git blame`
+# on this file says who, when, and in which commit. That is a smaller and more
+# honest trust model than any PKI: the question "why does the label accept
+# this person's grants?" always has an answer, and the answer is a link.
+#
+# To join:  python3 signing.py keygen --out keys/you --name "Your Name"
+#           add the printed ed25519: line below, open a pull request.
+#
+# To leave, or after a compromise: delete the line. Everything that key ever
+# signed stops verifying on the next CI run — which is the point of checking
+# grants at verification time rather than baking a decision into a file once.
+
+ed25519:S1w2ori4x0g7wuL5OnOFkyry9Ti457N5/H4rrJiYsCU=  DEMO KEY — BURNED, remove before real use
+
+# ERRERlabs / Aethra Kairos — the label's own key. Generate it offline, keep
+# the secret off every machine that touches the internet, and replace the line
+# below. Until then the example remix in remixes/ is signed by the demo key,
+# whose secret is committed in tests/fixtures/ and therefore means nothing.
+#
+# ed25519:<the real label key>  ERRERlabs / Aethra Kairos

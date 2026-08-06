@@ -1,0 +1,121 @@
+{
+  "dna": 1,
+  "id": "01-137-x-01-runners-club",
+  "title": "Runners club over 137",
+  "author": {
+    "name": "Aethra Kairos (demo)",
+    "key": "ed25519:S1w2ori4x0g7wuL5OnOFkyry9Ti457N5/H4rrJiYsCU="
+  },
+  "created": "2026-08-06",
+  "license": "LICENSE-CODE",
+  "note": "Drafted by `remix.py pair` from catalog metadata alone: a 80-bar window of 137 that carries no vocal, hosting Runners club's longest sung passage, warped +0.0% onto 128.01 BPM.",
+  "grid": {
+    "bpm": 128.007,
+    "beatsPerBar": 4,
+    "bars": 80,
+    "key": "8B"
+  },
+  "sources": {
+    "bed": {
+      "sha256": "74a4f4553b948a17906d860417238226c4d71649c7e444f23aa1b9e836c2bc75",
+      "title": "137",
+      "file": "01-137.mp3"
+    },
+    "top": {
+      "sha256": "84dee9ec394b0e8edaa581f697013494a0ab3488acc678e0111202856662a220",
+      "title": "Runners club",
+      "file": "01-runners-club.mp3"
+    }
+  },
+  "lanes": [
+    {
+      "id": "bed-drums",
+      "source": "bed",
+      "stem": "drums"
+    },
+    {
+      "id": "bed-bass",
+      "source": "bed",
+      "stem": "bass"
+    },
+    {
+      "id": "bed-other",
+      "source": "bed",
+      "stem": "other"
+    },
+    {
+      "id": "top-vocals",
+      "source": "top",
+      "stem": "vocals"
+    }
+  ],
+  "clips": [
+    {
+      "lane": "bed-drums",
+      "from": {
+        "bar": 26
+      },
+      "beats": 320,
+      "at": {
+        "bar": 1
+      },
+      "fade": {
+        "in": 4,
+        "out": 8
+      }
+    },
+    {
+      "lane": "bed-bass",
+      "from": {
+        "bar": 26
+      },
+      "beats": 320,
+      "at": {
+        "bar": 1
+      },
+      "fade": {
+        "in": 4,
+        "out": 8
+      }
+    },
+    {
+      "lane": "bed-other",
+      "from": {
+        "bar": 26
+      },
+      "beats": 320,
+      "at": {
+        "bar": 1
+      },
+      "gain": -2.0,
+      "fade": {
+        "in": 8,
+        "out": 8
+      }
+    },
+    {
+      "lane": "top-vocals",
+      "from": {
+        "bar": 1
+      },
+      "beats": 320,
+      "at": {
+        "bar": 1
+      },
+      "warp": true,
+      "fade": {
+        "in": 1,
+        "out": 4
+      }
+    }
+  ],
+  "parents": [
+    "sha256:74a4f4553b948a17906d860417238226c4d71649c7e444f23aa1b9e836c2bc75",
+    "sha256:84dee9ec394b0e8edaa581f697013494a0ab3488acc678e0111202856662a220"
+  ],
+  "publish": {
+    "audio": false,
+    "commercial": false
+  },
+  "sig": "ed25519:IVPBz6Cpm1U446DvgsuVxOv1x6FWPWU9VvyYLfntbkjJWIGo4MeuxCTfkW2Hho9XbNUwd33IhtV68G3/gEVOBQ=="
+}

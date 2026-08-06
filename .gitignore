@@ -7,3 +7,5 @@ masters/
 synthetic-deploy/
 tests/_tmp_*/
 node_modules
+keys/
+build/
