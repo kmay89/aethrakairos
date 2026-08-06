@@ -28,9 +28,51 @@ make_catalog.py            catalog builder · dedupe · fingerprint gate · feat
 features.py                Python feature extractor (wizard-matching definitions)
 fingerprint.py             the perceptual identity matrix (index / check / verify)
 publish.sh                 the whole maintenance loop, one command
+remix.py                   the remix layer — scores, grants, lineage (REMIX.md)
+signing.py                 Ed25519 in pure Python + canonical JSON
+TRUST                      the keys this label accepts grants and scores from
+grants/                    signed permissions to make derivative works
+remixes/<slug>/remix.json  a remix: a signed score, containing no audio
 LICENSE-CODE               MIT (the code)
 LICENSE-AUDIO              all rights reserved (the recordings)
+LICENSE-DNA                CC0 (the measurements — fingerprints, grid, key, stems)
 ```
+
+## the remix layer — [REMIX.md](REMIX.md)
+
+*The score is open. The sound is not.*
+
+A remix here is a signed JSON document containing **no audio**: operations
+addressed in bars and beats against recordings named by content hash. It
+forks, diffs and merges because it is text; the audio materialises only on a
+machine that already holds the files. That is what makes an open-source label
+possible on a public host — the repository distributes a score, and a score of
+a work you may lawfully arrange is not a copy of it.
+
+Three layers, three licences. The recordings stay all-rights-reserved. The
+**measurements** — fingerprints, tempo, key, structure, the 12 Hz per-stem
+envelopes — go to the public domain under `LICENSE-DNA`, because a tempo is a
+fact, and that is where the "open" is real. Arrangements are MIT.
+
+Permission to make a derivative is a **grant**: a signed capability naming one
+work, some verbs (`excerpt`, `separate`, `timestretch`, `layer`,
+`publish-score`, `render-public`, `commercial`), and an expiry. Verification
+*computes* the verbs a score actually uses and refuses anything the grant does
+not cover — so holding a trusted key does not let you exceed your grant.
+
+Because the DNA is open and rich, the tooling can draft a musically valid
+mashup with no audio present at all:
+
+```sh
+python3 remix.py suggest --instrumental      # where can a vocal live?
+python3 remix.py pair BED TOP --out remixes/x  # 80 vocal-free bars, key- and tempo-matched
+python3 remix.py verify remixes/*/remix.json   # the gate CI runs
+```
+
+Signatures are Ed25519 implemented in ~150 lines of stdlib arithmetic, because
+a grant issued today must still verify in 2040 from a clone with nothing
+installed. There is no blockchain: git is already a Merkle DAG with a social
+consensus layer, and `TRUST` is a file whose every line has a `git blame`.
 
 ## catalog.json v2
 

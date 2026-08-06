@@ -1,0 +1,53 @@
+LICENSE — DNA (the analysis layer)
+
+CC0 1.0 Universal — public domain dedication.
+
+WHAT THIS COVERS
+  Everything the pipeline MEASURES about a recording, as distinct from the
+  recording itself:
+
+    · dna/**.fp                 Haitsma–Kalker fingerprint indices, including
+                                dna/stems/ (fingerprints of separated stems)
+    · the analysis fields of docs/catalog.json — `mix` (bpm, grid, key,
+      phrases, in/out, structure, stems envelopes), `features`, `env`, `gain`,
+      `duration`, `sha256`
+    · features-cache.json
+    · every remix manifest's derived data: timelines, splits, receipts
+
+  To the extent ERRERlabs holds any copyright, database right, or other
+  proprietary right in the above, it is irrevocably waived worldwide. Use it
+  for anything: build a player, train a model, run a competing label, publish
+  a paper. No attribution required (though it is appreciated, and honest).
+
+  This includes an explicit waiver of the EU/UK *sui generis* database right
+  in the compiled catalog, which is a real right, separate from copyright,
+  that would otherwise attach to the effort of assembling this data. Waiving
+  it deliberately is the difference between "open" and "open-looking".
+
+WHY THIS IS A SEPARATE FILE
+  A tempo is a fact. So is a key, a loudness, a spectral centroid, the time
+  the third section begins, and the shape of a vocal's energy over time. In
+  the United States, facts are not copyrightable no matter how much work went
+  into finding them (Feist v. Rural Telephone, 499 U.S. 340). In Europe the
+  database right could bite, so it is waived above. Publishing the measurement
+  layer under CC0 states plainly what we believe is already true, and removes
+  the argument entirely.
+
+  The practical consequence is the whole point of this repository's remix
+  layer: you can analyse, search, plan, draft, and verify a remix of a
+  restricted recording using only public-domain data, on a machine that holds
+  no audio at all. See REMIX.md.
+
+WHAT THIS DOES *NOT* COVER
+  · The recordings. Every file under docs/audio/ remains all rights reserved
+    — see LICENSE-AUDIO. A fingerprint is not a recording, cannot be played,
+    and cannot be inverted into one; a stem envelope is nine hundred digits
+    describing loudness over time. Holding this data grants you nothing over
+    the audio it describes.
+  · The code that produces the data — see LICENSE-CODE (MIT).
+  · Anyone else's recordings. If a third party's work is analysed into this
+    tree, this dedication covers only OUR measurements of it, and cannot and
+    does not purport to license their underlying work.
+
+  A grant under LICENSE-AUDIO is what permits derivative use of a RECORDING.
+  This file is not that, and no amount of DNA adds up to one.

@@ -1,0 +1,3 @@
+# DEMO public key — its secret half is committed next to it, so this key
+# is burned by design. See demo-label.key.
+ed25519:S1w2ori4x0g7wuL5OnOFkyry9Ti457N5/H4rrJiYsCU=

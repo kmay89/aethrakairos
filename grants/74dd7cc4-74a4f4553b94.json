@@ -1,0 +1,18 @@
+{
+  "grant": 1,
+  "work": "sha256:74a4f4553b948a17906d860417238226c4d71649c7e444f23aa1b9e836c2bc75",
+  "title": "137",
+  "issuer": "ed25519:S1w2ori4x0g7wuL5OnOFkyry9Ti457N5/H4rrJiYsCU=",
+  "issued": "2026-08-06",
+  "expires": null,
+  "permits": [
+    "excerpt",
+    "layer",
+    "publish-score",
+    "separate",
+    "timestretch"
+  ],
+  "terms": "LICENSE-AUDIO \u00b7 remix grant",
+  "note": "Demo grant so the example remix verifies out of the box.",
+  "sig": "ed25519:KP0lFUz8OryasrHofKsC+P4kPG8XiQ9apnH1zkMXsQFQPtFWsOhc9YbYPdbitYtnpj6CEqA5rf3f8igYB8VUDQ=="
+}
