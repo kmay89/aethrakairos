@@ -1302,6 +1302,15 @@ scenes, booth and sliced screen alike.
   ask rides the wall packet so late joiners hear it, and `booth-gone` silences it. The
   booth trusts the postcards as far as `data:image/` and 256 KB, and no further: a
   hostile wire peer costs a dropped tile, never a console.
+- **The add follows the rig.** The first popped-out window opens from a click that
+  is still on the stack — the chooser's OK, or a pip's ↗ — but "+ screen" handed
+  every later screen to `open()`, which on a one-monitor web booth always answers
+  with a corner pip: a rig of real windows grew by a window stuck inside the booth's
+  own glass. `STAGE.addScreen` now opens the next real window synchronously inside
+  the click when the stage already stands on real windows (`wins.length`), walks to
+  a screen number nobody answers to so no working window gets re-navigated, and
+  still falls through to the corner pip — the floor under everything — when the
+  popup is refused or the rig was corner windows to begin with.
 - **AirPlay was already in the house; now it is on the desk.** The audio elements have
   carried `x-webkit-airplay` since the analyser work, and the toolbar button routes the
   *sound* to an Apple TV or HomePod through the platform picker. The deck shows the
