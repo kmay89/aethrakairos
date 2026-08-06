@@ -547,7 +547,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **twenty-four scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **twenty-five scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -577,7 +577,8 @@ scale listens to its own band of the live spectrum), **OIL FILM** (thin-film
 interference on a dark current: three wavelengths of one marbled thickness,
 so the low end *walks* every fringe instead of brightening it, and the beat
 drops a ripple ring), **BUBBLES** — see [Soap films](#soap-films--the-rainbow-solved-not-painted) below —
-and **CONSTELLATIONS** — see [The sky over Ohio](#the-sky-over-ohio--a-star-viewer-that-talks) below.
+**CONSTELLATIONS** — see [The sky over Ohio](#the-sky-over-ohio--a-star-viewer-that-talks) below —
+and **FIREWORKS** — see [The show](#the-show--fired-to-the-grid) below.
 Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
@@ -601,6 +602,71 @@ rather than a screensaver:
   fires a shockwave. But the touch itself is not drawn: your hand deforms the
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
+
+## The bench — three ways to make a photon
+
+Scene 19 used to light all ten sources at once. Ten lights at once is a
+photograph of a bench; it is not a demonstration of anything, because the one
+thing worth showing — that these are **three different pieces of physics** that
+happen to both end in light — is exactly what gets lost when they are all lit
+together and equally small.
+
+So the bench **tours** by default: one source at a time, held for about eight
+beats, stepping on a beat rather than mid-phrase. The card names what is lit,
+how it makes light, the numbers you could measure off it, and draws **its actual
+emission spectrum**:
+
+- **INCANDESCENCE** — the seven flames. The yellow is not burning gas, it is
+  solid soot heated white and radiating as a black body; the blue at the wick is
+  different light entirely, excited CH· and C₂ emitting as they react. The
+  spectrum is a broad Planck hump running off the red end, with the
+  chemiluminescence lines standing on top of it wherever the flame is premixed.
+- **ELECTROLUMINESCENCE** — the LED and the flashlight. Nothing here is hot.
+  Electrons drop across a band gap and emit blue; a phosphor absorbs some of it
+  and re-emits broad yellow. The spectrum is two humps with the **cyan hole**
+  between them that no white LED fills — and the "6500 K" on the box is the
+  colour it *matches*, not a temperature it has.
+- **STIMULATED EMISSION** — the laser. Every photon emitted by a copy of the one
+  that triggered it: same wavelength, same phase, same direction. One line, two
+  nanometres wide, and nothing else at all.
+
+`flameSpectrum()` is pure and the tests hold each shape to what it claims: the
+laser's width, that its line lands at 532 nm, that a cool flame peaks off the
+red end, and that the LED really has its cyan gap.
+
+## The show — fired to the grid
+
+Scene 25 is a fireworks show, and a show is not "more fireworks". It is a script.
+
+**The one trick that matters: a shell is fired early.** A shell takes about a
+second to climb before it breaks. Fire it *on* the beat and the break lands a
+second late — which is precisely what makes amateur footage look wrong and why
+nobody can say why. Every choreographed show in the world solves it the same
+way: you know the cue, you know the lift time of the piece, so you fire at
+**cue − lift**. This room can do that honestly because the beat grid is measured
+at publish time and the clock reads ahead of itself — the same grid the mixer
+plans seams on. The scheduler asks when the next cue is, subtracts that piece's
+own lift (`pyroLead`, pure and tested), and lights the fuse then. The break is on
+the beat because it was aimed there. With no grid it falls back to firing on the
+onset — late by a lift, and honest about it.
+
+**The show has an arc, and it is the track's own.** The five acts drive a real
+program rather than a rate knob (`pyroProgram`, also pure): OVERTURE fires single
+shells, low and far apart; RISING opens into pairs and fans; **APEX fires salvos**
+— a fan of shells as one cue, so a row of breaks lands together across the sky —
+on every beat rather than once a bar; TURN is the long slow willows and palms
+falling; RESOLVE gets one last barrage and is then allowed to go quiet, because a
+show that never stops is a sky nobody looks up at. A phrase boundary earns the
+wide salvo. Cues stay grid-aligned at every rate, so a denser program is never an
+off-the-music one.
+
+Every piece is still the same three numbers the bench used — how hard the break
+throws its stars, how thick the air is, how heavy they are — so a willow and a
+peony are one shader and not two animations, and the stars are still real
+emitters (strontium at 650 nm, barium at 515, copper at 452) through the same CIE
+observer as everything else. Rings leave in a plane, palms in a few thick fronds,
+crossettes split into four mid-flight, strobes blink, and a colour-change shell
+carries a second salt under the first.
 
 ## Soap films — the rainbow solved, not painted
 

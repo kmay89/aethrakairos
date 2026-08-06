@@ -52,7 +52,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
-  ' pyroRate, pyroFire, pyroPick, pyroSalt,' +
+  ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
@@ -1908,7 +1908,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 24);
+  assert.equal(S.SCENE_KEYS.length, 25);
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -2086,7 +2086,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 24; sc++)
+  for (let sc = 0; sc < 25; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2133,7 +2133,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 24; sc++)
+  for (let sc = 0; sc < 25; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -2259,20 +2259,92 @@ test('the bands: ten lights split the spectrum the way hearing does', () => {
   assert.ok(S.flameBandU(5, n) < S.flameBandU(n - 1, n) * 0.5, 'logarithmic, not linear');
   assert.equal(S.flameBandU(0, 1), S.flameBandU(0, 0), 'a bench of one still answers');
 });
-test('the roll: about half the visits are the whole bench, and every source is reachable', () => {
-  const seen = new Set();
-  let vigil = 0;
+test('the roll: the bench TOURS by default, and every source is reachable', () => {
+  const seen = new Set(), soloSeen = new Set();
+  let tour = 0, vigil = 0;
   for (let i = 0; i <= 1000; i++){
     const r = S.flameRoll(i / 1000);
-    assert.ok(r.mode === 'vigil' || r.mode === 'solo');
+    assert.ok(r.mode === 'tour' || r.mode === 'vigil' || r.mode === 'solo', r.mode);
     if (r.mode === 'vigil'){ vigil++; assert.equal(r.src, -1); }
-    else { assert.ok(r.src >= 0 && r.src < S.FLAME_SOURCES.length); seen.add(r.src); }
+    else {
+      assert.ok(r.src >= 0 && r.src < S.FLAME_SOURCES.length);
+      seen.add(r.src);
+      if (r.mode === 'tour') tour++; else soloSeen.add(r.src);
+    }
     assert.ok(typeof r.name === 'string' && r.name.length > 0, 'a roll always names itself');
   }
-  assert.equal(seen.size, S.FLAME_SOURCES.length, 'every light on the bench gets its solo');
-  assert.ok(vigil / 1001 > 0.4 && vigil / 1001 < 0.52, `about half: ${vigil / 1001}`);
-  assert.equal(S.flameRoll(NaN).mode, 'vigil', 'nonsense rolls the safe one');
+  // the point of the rewrite: ten lights at once is a photograph, not a
+  // demonstration, so it is the RARE look now and the walk is the default
+  assert.ok(tour / 1001 > 0.55 && tour / 1001 < 0.65, `the tour is the default: ${tour / 1001}`);
+  assert.ok(vigil / 1001 > 0.1 && vigil / 1001 < 0.2, `the whole bench survives, rarely: ${vigil / 1001}`);
+  assert.equal(seen.size, S.FLAME_SOURCES.length, 'every light can open a visit');
+  assert.equal(soloSeen.size, S.FLAME_SOURCES.length, 'and every light gets its own solo');
+  assert.ok(S.flameRoll(NaN).src >= 0, 'nonsense still lands on a real light');
   assert.deepEqual(S.flameRoll(0.7), S.flameRoll(1.7), 'the roll is a pure function of its fraction');
+});
+test('every source declares HOW it makes light, and the spectrum agrees', () => {
+  const HOW = new Set(['INCANDESCENCE', 'ELECTROLUMINESCENCE', 'STIMULATED EMISSION']);
+  for (const s of S.FLAME_SOURCES){
+    assert.ok(HOW.has(s.how), `${s.name} names a real mechanism, not "${s.how}"`);
+    assert.ok(typeof s.sub === 'string' && s.sub.length > 0, `${s.name} says what it is`);
+  }
+  const peak = sp => sp.indexOf(Math.max(...sp));
+  /* WIDTH AT A TENTH of the peak, not at a half. A 1200 K black body is so
+     steep across the visible that only its top eighth clears half-peak — the
+     half-height measure says a campfire is nearly as narrow as a laser, which
+     is true of that statistic and false of the physics. A tenth separates
+     "one line" from "a continuum" the way the eye does. */
+  const width = sp => sp.filter(v => v > 0.1).length / sp.length;
+  const laser = S.flameSpectrum(S.FLAME_SOURCES.find(s => s.kind === 'laser'), 200);
+  const led   = S.flameSpectrum(S.FLAME_SOURCES.find(s => s.kind === 'beam'), 200);
+  const fire  = S.flameSpectrum(S.FLAME_SOURCES.find(s => s.key === 'campfire'), 200);
+  // a laser is ONE line: essentially nothing is above half its peak
+  assert.ok(width(laser) < 0.05, `a laser is a line, not a hump: ${width(laser)}`);
+  // 532 nm should land where 532 nm is
+  const at = nm => Math.round((nm - 380) / (750 - 380) * 199);
+  assert.ok(Math.abs(peak(laser) - at(532)) < 4, 'and it is at 532 nm');
+  // a thermal source is broad, and at 1200 K it climbs all the way to the red end
+  assert.ok(width(fire) > 0.3, `a black body is a continuum: ${width(fire)}`);
+  assert.ok(width(fire) > width(laser) * 8, 'and nothing like a line');
+  assert.ok(width(led) > 0.6, `a phosphor LED is broader still: ${width(led)}`);
+  assert.equal(peak(fire), 199, 'a cool flame peaks off the red end of the visible');
+  // a white LED is TWO humps with a dip between them — the cyan gap
+  const dip = led.slice(at(480), at(510));
+  assert.ok(Math.min(...dip) < led[at(452)] * 0.85 && Math.min(...dip) < led[at(565)] * 0.85,
+    'a white LED has the cyan hole between its die and its phosphor');
+  for (const sp of [laser, led, fire]){
+    assert.ok(Math.max(...sp) > 0.999 && Math.max(...sp) <= 1.0001, 'normalised to its own peak');
+    assert.ok(sp.every(v => v >= 0 && isFinite(v)), 'and never negative or NaN');
+  }
+});
+test('pyroLead: a shell is fired EARLY, by exactly its own lift', () => {
+  for (const sh of S.PYRO_SHELLS){
+    const lead = S.pyroLead(sh);
+    assert.ok(lead >= 0 && isFinite(lead), sh.key);
+    // a ground piece has nowhere to climb, so it fires ON the cue
+    if (!sh.lift) assert.equal(lead, 0, `${sh.key} is a ground piece`);
+    else assert.ok(lead > 0.4 && lead < sh.life, `${sh.key} leads by ${lead}s of its ${sh.life}s`);
+  }
+  assert.equal(S.pyroLead(null), 0, 'nonsense never schedules into the past');
+  assert.equal(S.pyroLead({ life: 4, lift: 0.25 }), 1);
+});
+test('pyroProgram: the show has an arc, and it is the track’s own', () => {
+  const at = (act, energy) => S.pyroProgram({ act, energy });
+  assert.equal(at(2, 0.9).name, 'APEX');
+  assert.equal(at(0, 0.2).name, 'OVERTURE');
+  assert.equal(at(3, 0.5).name, 'TURN');
+  assert.equal(at(4, 0.5).name, 'RESOLVE');
+  // the peak is the busiest thing in the show, and the opening the quietest
+  assert.ok(at(2, 0.9).salvo > at(0, 0.2).salvo * 3, 'the apex earns a salvo');
+  assert.ok(at(2, 0.9).chance > at(0, 0.2).chance, 'and fires more often');
+  assert.ok(at(2, 0.9).big >= at(3, 0.5).big, 'and bigger');
+  // an apex with no energy behind it is not an apex
+  assert.notEqual(at(2, 0.05).name, 'APEX');
+  for (const a of [-1, 0, 1, 2, 3, 4])
+    for (const e of [0, 0.5, 1]){
+      const p = at(a, e);
+      assert.ok(p.salvo >= 1 && p.perCue >= 1 && p.chance > 0 && p.chance <= 1, `act ${a} e ${e}`);
+    }
 });
 // ------------------------------------------------------- and then it fires
 
@@ -2616,7 +2688,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 24; sc++)
+  for (let sc = 0; sc < 25; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);

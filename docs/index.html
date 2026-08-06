@@ -623,6 +623,31 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   .echo-cloud{transition:opacity 2s ease}
   .echo-cloud.live{transform:none}
 }
+/* ============ the bench card — scene 19 says which physics is lit ============
+   The tour names the source, the mechanism, the numbers you could measure off
+   it, and draws its actual emission spectrum: a thermal hump, or a band-gap
+   spike under a phosphor hump, or one line. Same language as the sky card,
+   opposite side of the room so the two can never collide. */
+#flameCard{
+  position:fixed;right:clamp(12px,3vw,42px);top:50%;
+  transform:translateY(-50%) translateX(16px);
+  z-index:6;width:min(84vw,320px);pointer-events:none;opacity:0;
+  transition:opacity .8s ease,transform .8s cubic-bezier(.22,1,.36,1);
+  text-shadow:0 1px 14px rgba(0,0,0,.8),0 0 34px rgba(0,0,0,.55);text-align:right;
+}
+#flameCard.on{opacity:1;transform:translateY(-50%) translateX(0)}
+.fl-how{font-family:var(--mono);font-size:9.5px;letter-spacing:.28em;color:#ffb867;opacity:.95}
+.fl-n{font-size:clamp(20px,3.2vw,29px);letter-spacing:.07em;margin:3px 0 4px;color:#fff;font-weight:600;line-height:1.1}
+.fl-sub{font-family:var(--serif);font-style:italic;font-size:13px;color:rgba(255,255,255,.72)}
+.fl-num{margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim)}
+.fl-num b{color:#ffd9a8;font-weight:600}
+.fl-spec{margin-top:10px;width:100%;height:56px;display:block;opacity:.95}
+.fl-axis{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;color:var(--dim);opacity:.8;margin-top:2px}
+.fl-note{margin-top:10px;font-size:12px;line-height:1.5;color:rgba(255,255,255,.68);margin-left:auto;max-width:34ch}
+@media (max-height:640px){.fl-note{display:none}}
+@media (prefers-reduced-motion:reduce){
+  #flameCard,#flameCard.on{transition:opacity .5s ease;transform:translateY(-50%)}
+}
 /* ============ the sky card — scene 24 says what you are looking at ============
    The constellation being drawn, named and placed: IAU name, genitive, what
    the figure is, which quadrant it belongs to, and — computed live from this
@@ -3529,8 +3554,9 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
                'grows', 'flows',
                'flows', 'grows', 'flows', 'gathers',
-               'grows'];   // …the lattice and the film ripple, the mandala spins,
-                           // the bubbles pull, and a hand on the SKY winds the stars
+               'grows', 'gathers'];   // …the lattice and the film ripple, the mandala
+                           // spins, the bubbles pull, a hand on the SKY winds the stars,
+                           // and the SHOW gathers its sparks
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
@@ -3780,8 +3806,9 @@ function ghostPattern(sceneIdx, act, r, mood){
                'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa',
                'lissa', 'snake',
                'snake', 'lissa', 'paint', 'drift',
-               'drift'];   // …SHEETS walks the lattice, MANDALA curves, OIL paints,
-                           // BUBBLES drift, and the SKY is drifted through, slowly
+               'drift', 'bounce'];   // …SHEETS walks the lattice, MANDALA curves, OIL
+                           // paints, BUBBLES drift, the SKY is drifted through slowly,
+                           // and the SHOW bounces like the shells do
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -3942,17 +3969,41 @@ function mixRGB(a, b, t){
    the flicker), `h` and `w` are the drawn proportions, `blue` is how much of
    the premixed cone you actually see, `soot` is how yellow and how short-lived
    the luminous body is, `lm` is roughly what it puts out. */
+/* `how` is the MECHANISM — which of the three ways of making a photon this
+   source uses — and it is the whole reason the bench is worth touring rather
+   than lighting all at once. A match and a laser are not two settings of one
+   effect; they are two different pieces of physics that happen to both end in
+   light, and the room can say so. */
 const FLAME_SOURCES = [
-  { key: 'match',      name: 'MATCH',      kind: 'flame', kelvin: 1700, dia: 0.006, h: 1.9, w: 0.30, blue: 0.30, soot: 0.62, spark: 0.10, lm: 5 },
-  { key: 'lighter',    name: 'LIGHTER',    kind: 'flame', kelvin: 1900, dia: 0.008, h: 2.4, w: 0.30, blue: 0.52, soot: 0.48, spark: 0.04, lm: 10 },
-  { key: 'bic',        name: 'BIC',        kind: 'flame', kelvin: 1977, dia: 0.007, h: 2.9, w: 0.24, blue: 0.66, soot: 0.40, spark: 0.02, lm: 11 },
-  { key: 'zippo',      name: 'ZIPPO',      kind: 'flame', kelvin: 1500, dia: 0.015, h: 2.6, w: 0.48, blue: 0.16, soot: 0.86, spark: 0.16, lm: 15 },
-  { key: 'clipper',    name: 'CLIPPER',    kind: 'flame', kelvin: 1850, dia: 0.010, h: 2.2, w: 0.35, blue: 0.46, soot: 0.52, spark: 0.05, lm: 12 },
-  { key: 'torch',      name: 'TORCH',      kind: 'flame', kelvin: 1300, dia: 0.120, h: 3.4, w: 0.60, blue: 0.08, soot: 0.92, spark: 0.38, lm: 100 },
-  { key: 'campfire',   name: 'CAMPFIRE',   kind: 'flame', kelvin: 1200, dia: 0.600, h: 4.2, w: 0.98, blue: 0.06, soot: 0.95, spark: 0.55, lm: 800 },
-  { key: 'flashlight', name: 'FLASHLIGHT', kind: 'beam',  kelvin: 5000, dia: 0.010, h: 5.4, w: 0.17, spread: 0.36, lm: 50 },
-  { key: 'led',        name: 'LED',        kind: 'beam',  kelvin: 6500, dia: 0.005, h: 4.6, w: 0.11, spread: 0.20, lm: 90 },
-  { key: 'laser',      name: 'LASER',      kind: 'laser', nm: 532,      dia: 0.001, h: 7.0, w: 0.03, spread: 0.008, lm: 5 },
+  { key: 'match',      name: 'MATCH',      kind: 'flame', kelvin: 1700, dia: 0.006, h: 1.9, w: 0.30, blue: 0.30, soot: 0.62, spark: 0.10, lm: 5,
+    how: 'INCANDESCENCE', sub: 'glowing soot, plus chemiluminescence at the base',
+    note: 'The yellow is not burning gas — it is solid soot particles heated white and radiating as a black body. The faint blue at the wick is different light entirely: excited CH· and C₂ molecules emitting as they react.' },
+  { key: 'lighter',    name: 'LIGHTER',    kind: 'flame', kelvin: 1900, dia: 0.008, h: 2.4, w: 0.30, blue: 0.52, soot: 0.48, spark: 0.04, lm: 10,
+    how: 'INCANDESCENCE', sub: 'butane, half premixed',
+    note: 'More air reaches the fuel before it burns, so more of the flame is a clean blue cone and less of it is soot.' },
+  { key: 'bic',        name: 'BIC',        kind: 'flame', kelvin: 1977, dia: 0.007, h: 2.9, w: 0.24, blue: 0.66, soot: 0.40, spark: 0.02, lm: 11,
+    how: 'INCANDESCENCE', sub: 'the hottest of the pocket flames',
+    note: 'Two thirds premixed: the blue cone is most of the picture, and the tip is where the last of the soot finally lights.' },
+  { key: 'zippo',      name: 'ZIPPO',      kind: 'flame', kelvin: 1500, dia: 0.015, h: 2.6, w: 0.48, blue: 0.16, soot: 0.86, spark: 0.16, lm: 15,
+    how: 'INCANDESCENCE', sub: 'naphtha, barely premixed',
+    note: 'A wick flame with almost no air mixed in — nearly all soot, which is why it is the orange one, and why it smells.' },
+  { key: 'clipper',    name: 'CLIPPER',    kind: 'flame', kelvin: 1850, dia: 0.010, h: 2.2, w: 0.35, blue: 0.46, soot: 0.52, spark: 0.05, lm: 12,
+    how: 'INCANDESCENCE', sub: 'butane, half premixed' },
+  { key: 'torch',      name: 'TORCH',      kind: 'flame', kelvin: 1300, dia: 0.120, h: 3.4, w: 0.60, blue: 0.08, soot: 0.92, spark: 0.38, lm: 100,
+    how: 'INCANDESCENCE', sub: 'a pitch flame, all soot',
+    note: 'Twelve centimetres across, so it breathes at about four times a second — the flicker of a real torch, and it comes from the width, not from a slider.' },
+  { key: 'campfire',   name: 'CAMPFIRE',   kind: 'flame', kelvin: 1200, dia: 0.600, h: 4.2, w: 0.98, blue: 0.06, soot: 0.95, spark: 0.55, lm: 800,
+    how: 'INCANDESCENCE', sub: 'wood, and the coolest thing here',
+    note: 'The coolest flame on the bench and the brightest object — 800 lumens at 1200 K. Temperature sets the colour; size sets the output. They are not the same number.' },
+  { key: 'flashlight', name: 'FLASHLIGHT', kind: 'beam',  kelvin: 5000, dia: 0.010, h: 5.4, w: 0.17, spread: 0.36, lm: 50,
+    how: 'ELECTROLUMINESCENCE', sub: 'a blue die under yellow phosphor',
+    note: 'Nothing here is hot. Electrons drop across a semiconductor band gap and emit blue; a phosphor coat absorbs some of it and re-emits broad yellow. The "5000 K" on the box is the colour it MATCHES, not a temperature it has.' },
+  { key: 'led',        name: 'LED',        kind: 'beam',  kelvin: 6500, dia: 0.005, h: 4.6, w: 0.11, spread: 0.20, lm: 90,
+    how: 'ELECTROLUMINESCENCE', sub: 'band gap + phosphor, no heat at all',
+    note: 'Two humps and a hole between them: the blue spike the die actually makes, the phosphor hump it excites, and a dip at cyan no white LED fills. That gap is why some things look wrong under one.' },
+  { key: 'laser',      name: 'LASER',      kind: 'laser', nm: 532,      dia: 0.001, h: 7.0, w: 0.03, spread: 0.008, lm: 5,
+    how: 'STIMULATED EMISSION', sub: '532 nm, one line, in step',
+    note: 'The weakest source on the bench at five lumens, and the only one you must not look at. Every photon is emitted by a copy of the one that triggered it — same wavelength, same phase, same direction. One line, no width, no spread.' },
 ];
 
 /* THE FLICKER IS THE DIAMETER. Buoyant diffusion flames pulse at a frequency
@@ -4052,15 +4103,65 @@ function flameLabel(src){
     ? `${s.name} · ${Math.round(+s.nm || 532)} nm · ${hex}`
     : `${s.name} · ${Math.round(+s.kelvin || 0)} K · ${hex}`;
 }
-/* THE ROLL. Around half the visits are the whole bench lit at once — ten
-   lights, ten bands, one song. The rest is a single source, close enough to
-   read the flicker off. */
+/* THE ROLL. Ten lights at once is a photograph of a bench; it is not a
+   demonstration of anything, because the one thing worth showing — that these
+   are three different pieces of physics — is exactly what gets lost when they
+   are all lit together and equally small. So the room TOURS by default: one
+   source at a time, held long enough to read the flicker off it, walked in an
+   order that puts the mechanisms next to each other. A quarter of visits stay
+   on one light, and the whole bench survives as the rarer look it deserves to
+   be rather than the default it was. */
 function flameRoll(r){
   const n = FLAME_SOURCES.length;
   const x = (typeof r === 'number' && isFinite(r)) ? ((r % 1) + 1) % 1 : 0;
-  if (x < 0.46) return { mode: 'vigil', src: -1, name: 'VIGIL · TEN LIGHTS' };
-  const i = Math.min(n - 1, Math.floor((x - 0.46) / 0.54 * n));
-  return { mode: 'solo', src: i, name: flameLabel(FLAME_SOURCES[i]) };
+  if (x < 0.60) return { mode: 'tour', src: Math.min(n - 1, Math.floor(x / 0.60 * n)),
+                         name: 'THE BENCH · ONE AT A TIME' };
+  if (x < 0.86){
+    const i = Math.min(n - 1, Math.floor((x - 0.60) / 0.26 * n));
+    return { mode: 'solo', src: i, name: flameLabel(FLAME_SOURCES[i]) };
+  }
+  return { mode: 'vigil', src: -1, name: 'VIGIL · TEN LIGHTS' };
+}
+/* WHERE THE LIGHT ACTUALLY COMES FROM, as a spectrum — 380 to 750 nm,
+   normalised to its own peak. This is the readout that makes the three
+   mechanisms impossible to confuse, because they do not look remotely alike:
+
+     a flame   Planck's law, a broad thermal hump running off the red end,
+               with the CH· (431 nm) and C₂ Swan (516 nm) chemiluminescence
+               lines standing on top of it wherever the flame is premixed
+     an LED    two humps — the band-gap spike the die emits, and the broad
+               phosphor re-emission — with the cyan dip between them that no
+               white LED fills
+     a laser   one line, a couple of nanometres wide, and nothing else at all
+
+   Pure, so a test can hold each shape to what it claims to be. */
+function flameSpectrum(src, n){
+  const s = src || {}, N = Math.max(8, (n | 0) || 96);
+  const out = new Float32Array(N);
+  const kind = s.kind || 'flame';
+  const gauss = (x, mu, sd) => Math.exp(-0.5 * Math.pow((x - mu) / sd, 2));
+  for (let i = 0; i < N; i++){
+    const nm = 380 + (750 - 380) * (i / (N - 1));
+    let v = 0;
+    if (kind === 'laser'){
+      v = gauss(nm, +s.nm || 532, 2.4);
+    } else if (kind === 'beam'){
+      // the die, then what the phosphor makes of it
+      v = 0.85 * gauss(nm, 452, 14) + 1.0 * gauss(nm, 565, 58) + 0.18 * gauss(nm, 620, 42);
+    } else {
+      // Planck, in relative terms: (1/λ⁵)/(exp(c₂/λT) − 1), c₂ = 1.4388e-2 m·K
+      const T = Math.max(1, flameTemp(s, 0.20)), lam = nm * 1e-9;
+      v = (1 / Math.pow(lam, 5)) / (Math.exp(0.014388 / (lam * T)) - 1);
+      v *= 2.2e-13;                                   // into the same range as the lines
+      const b = clamp01(s.blue || 0);
+      v += b * (0.42 * gauss(nm, 431, 7) + 0.26 * gauss(nm, 516, 11));
+    }
+    out[i] = v;
+  }
+  let m = 0;
+  for (let i = 0; i < N; i++) if (out[i] > m) m = out[i];
+  if (m > 0) for (let i = 0; i < N; i++) out[i] /= m;
+  return out;
 }
 
 /* ================================================================
@@ -4203,6 +4304,38 @@ function pyroSalt(o, r){
   return POOL[Math.floor(x * POOL.length) % POOL.length];
 }
 
+const PYRO_SHOW = {
+  EV: 24,          // shells in the air at once
+  STARS: 120,      // stars in a break
+  TRAIL: 3,        // ghosts behind each star — the comet, for free
+  GROUND: -13,     // where the mortars stand
+};
+/* WHEN TO LIGHT THE FUSE, so the break is on the cue. A piece's lift is the
+   share of its life it spends climbing, so this is the whole of the aiming:
+   pure, and held to by a test, because the entire look of a show is downstream
+   of it being right. */
+function pyroLead(shell){
+  const s = shell || {};
+  return Math.max(0, (+s.life || 0) * clamp01(+s.lift || 0));
+}
+/* THE PROGRAM. What the sky is doing right now, from the act and the energy —
+   how many shells a cue is worth, whether it is a salvo, and which pool the
+   pieces come from. Pure, so the arc can be read without watching an hour. */
+function pyroProgram(o){
+  const s = o || {};
+  const act = s.act == null ? -1 : s.act | 0;
+  const e = clamp01(+s.energy || 0);
+  if (act === 2 && e > 0.45)
+    return { name: 'APEX', salvo: 5, perCue: 2, spread: 1.0, chance: 0.95, big: 1.0 };
+  if (act === 1 || (act === 2 && e > 0.2))
+    return { name: 'RISING', salvo: 3, perCue: 1, spread: 0.75, chance: 0.72, big: 0.7 };
+  if (act === 3)
+    return { name: 'TURN', salvo: 2, perCue: 1, spread: 0.6, chance: 0.5, big: 0.55 };
+  if (act === 4)
+    return { name: 'RESOLVE', salvo: 4, perCue: 1, spread: 0.9, chance: 0.34, big: 0.8 };
+  return { name: 'OVERTURE', salvo: 1, perCue: 1, spread: 0.45, chance: 0.3, big: 0.4 };
+}
+
 /* ================================================================
    THE ROOM — what the auto director is really choosing.
 
@@ -4241,7 +4374,7 @@ function pyroSalt(o, r){
    you notice a room that got added and never given a character. */
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
-                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky'];
+                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -4277,6 +4410,9 @@ const SCENE_TASTE = {
   oilslick:  { entropy: 1.0, calm: 0.8, bass: 0.5 },        // slow chromatic weather
   bubbles:   { calm: 1.1, treble: 0.7, energy: -0.6 },      // glass, air, quiet
   sky:       { calm: 1.0, coupling: 0.7, entropy: -0.4 },   // the night sky — patient, coherent
+  pyro:      { energy: 1.4, beat: 1.0, treble: 0.7, calm: -0.6 },  // the show — it wants a peak to fire into,
+                                                            // and the ABSENCE of calm: a firework in a
+                                                            // quiet passage is a firework nobody asked for
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -5397,6 +5533,7 @@ const SCENE_SIGS = {
   oilslick:  { kind: 'ribbon', h: 232, arms: 4 },
   bubbles:   { kind: 'cloud',  h: 196, dense: 0.6 },
   sky:       { kind: 'burst',  h: 84,  arms: 7, tail: 1 },
+  pyro:      { kind: 'burst',  h: 8,   arms: 14, rainbow: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -21344,6 +21481,7 @@ const director = {
     // the sky's caption belongs to the sky: a room change takes it away, so it
     // can never be left glowing over a scene that has nothing to narrate
     if (typeof SKYCARD !== 'undefined') SKYCARD.roomChanged(scenes[i].key);
+    if (typeof FLAMECARD !== 'undefined') FLAMECARD.roomChanged(scenes[i].key);
   },
   rotatePalette(to){
     this.palFrom = this.pal; this.palTo = to; this.palT = 0;
@@ -23844,6 +23982,10 @@ function buildFlame(){
   const _dir = new THREE.Vector3(), _n = new THREE.Vector3(), _hit = new THREE.Vector3();
   const _plane = new THREE.Plane(), _rc = new THREE.Raycaster(), _ndc = new THREE.Vector2();
   const ORIGIN = new THREE.Vector3(0, 0, 0);
+  /* THE TOUR'S OWN CLOCK. Each light is held for a PHRASE rather than a fixed
+     number of seconds, so the bench changes hands where the music does — and
+     long enough either way to actually read a 4 Hz flicker off a torch. */
+  const tour = { on: false, i: 0, t: 0 };
 
   const api = { name: 'FLAME', key: 'flame', group,
     update(dt){
@@ -23895,6 +24037,27 @@ function buildFlame(){
         varU.uHand.value.set(_hit.x, _hit.y, INTERACT.strength);
       } else varU.uHand.value.z = 0;
 
+      /* THE TOUR STEPS. A held light is worth about eight beats — long enough
+         to read its flicker, short enough that a visit shows most of the
+         bench — and it steps on a beat rather than mid-phrase. */
+      if (tour.on){
+        tour.t += dt;
+        const beat = (typeof DANCE !== 'undefined' && DANCE.period > 0.2) ? DANCE.period : 0.55;
+        const hold = Math.max(4.5, beat * 8);
+        if (tour.t >= hold && (!DANCE.haveGrid || DANCE.barFrac < 0.12)){
+          tour.t = 0;
+          tour.i = (tour.i + 1) % NS;
+          varU.uSolo.value = tour.i;
+          for (let k = 0; k < EV; k++) slots[k].t = -1;      // nothing left burning from the last light
+          pyro.acc = 0; pyro.smoke = 0;
+          const src = FLAME_SOURCES[tour.i];
+          api.name = 'FLAME · ' + flameLabel(src);
+          if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = api.name;
+          if (typeof el !== 'undefined' && el.zSceneName) el.zSceneName.textContent = api.name;
+          FLAMECARD.show(src);
+        }
+      }
+
       // the flicker stands down where somebody asked for less motion — the
       // colour, the shape and the dance all survive; only the shiver goes
       const wantFlick = (SAFE.calm || reducedMotion) ? 0.26 : 1;
@@ -23906,15 +24069,24 @@ function buildFlame(){
     },
     roll(){
       const r = flameRoll(Math.random());
-      const solo = r.mode === 'solo';
-      varU.uSolo.value = solo ? r.src : -1;
+      /* THE TOUR is the default now, and it is a walk rather than a shuffle:
+         starting wherever the roll landed and stepping forward through the
+         bench, so the mechanisms arrive next to each other — the soot flames,
+         then the two that are not hot at all, then the one line. */
+      tour.on = r.mode === 'tour';
+      tour.i = r.src < 0 ? 0 : r.src;
+      tour.t = 0;
+      const solo = r.mode === 'solo' || tour.on;
+      varU.uSolo.value = solo ? (tour.on ? tour.i : r.src) : -1;
       varU.uDens.value = solo ? 0.38 : 1;
+      if (solo) FLAMECARD.show(FLAME_SOURCES[varU.uSolo.value]);
+      else FLAMECARD.hide();
       // a new room starts with an empty sky — nothing left burning from the
       // last one, which would otherwise break over a source that no longer
       // exists in this presentation
       for (let i = 0; i < EV; i++) slots[i].t = -1;
       pyro.acc = 0; pyro.smoke = 0;
-      api.name = 'FLAME · ' + r.name;
+      api.name = 'FLAME · ' + (tour.on ? flameLabel(FLAME_SOURCES[tour.i]) : r.name);
       return api.name;
     } };
   api.roll();
@@ -25045,6 +25217,77 @@ function skyAtlas(labels){
    spell "Betelgeuse" would cost more than this whole scene does. It
    never takes the pointer, and it never appears on a wall slice: a
    caption belongs on the instrument, not on six television screens. */
+/* THE BENCH CARD. What is lit, how it makes light, and the spectrum it makes
+   it with — drawn from flameSpectrum(), so the picture and the physics cannot
+   disagree. Same rules as the sky card: never takes the pointer, never appears
+   on a wall slice. */
+const FLAMECARD = {
+  el: null, on: false, key: null,
+  ensure(){
+    if (this.el) return this.el;
+    const d = document.createElement('aside');
+    d.id = 'flameCard';
+    d.setAttribute('aria-hidden', 'true');
+    d.innerHTML = '<div class="fl-how"></div><div class="fl-n"></div><div class="fl-sub"></div>'
+                + '<div class="fl-num"></div><canvas class="fl-spec"></canvas>'
+                + '<div class="fl-axis">380 nm — 750 nm</div><div class="fl-note"></div>';
+    document.body.appendChild(d);
+    this.el = d;
+    return d;
+  },
+  show(src){
+    if (!src) return;
+    if (typeof STAGE !== 'undefined' && STAGE.screen && STAGE.screen()) return;
+    const d = this.ensure();
+    if (this.key === src.key && this.on) return;      // already saying this
+    this.key = src.key;
+    d.querySelector('.fl-how').textContent = src.how || '';
+    d.querySelector('.fl-n').textContent = src.name;
+    d.querySelector('.fl-sub').textContent = src.sub || '';
+    const hz = flamePuff(src);
+    const bits = [];
+    if (src.kind === 'laser') bits.push('<b>' + Math.round(src.nm) + ' nm</b>');
+    else bits.push('<b>' + Math.round(src.kelvin) + ' K</b>' + (src.kind === 'beam' ? ' (matched)' : ''));
+    bits.push(rgbHex(flameRGB(src)));
+    bits.push('<b>' + src.lm + '</b> lm');
+    bits.push(hz > 0 ? '<b>' + hz.toFixed(1) + '</b> Hz flicker' : 'no flicker');
+    d.querySelector('.fl-num').innerHTML = bits.join(' · ');
+    d.querySelector('.fl-note').textContent = src.note || '';
+    this.paint(d.querySelector('.fl-spec'), src);
+    d.classList.add('on');
+    this.on = true;
+  },
+  /* the spectrum, drawn as the colours it is made of: each column is its own
+     wavelength through the same CIE observer everything else in the room uses */
+  paint(cv, src){
+    if (!cv) return;
+    const r = cv.getBoundingClientRect();
+    const W = Math.max(40, Math.round(r.width || 300)), H = 56;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const g = cv.getContext('2d');
+    if (!g) return;
+    g.scale(dpr, dpr);
+    g.clearRect(0, 0, W, H);
+    const N = Math.max(60, Math.min(240, W));
+    const sp = flameSpectrum(src, N);
+    for (let i = 0; i < N; i++){
+      const nm = 380 + (750 - 380) * (i / (N - 1));
+      const c = wavelengthRGB(nm);
+      const x = (i / N) * W, w = W / N + 0.6;
+      const h = Math.max(0, sp[i]) * (H - 3);
+      g.fillStyle = 'rgb(' + Math.round(clamp01(c.r) * 255) + ','
+                           + Math.round(clamp01(c.g) * 255) + ','
+                           + Math.round(clamp01(c.b) * 255) + ')';
+      g.globalAlpha = 0.35 + 0.65 * Math.max(0, sp[i]);
+      g.fillRect(x, H - h, w, h);
+    }
+    g.globalAlpha = 1;
+  },
+  hide(){ this.on = false; this.key = null; if (this.el) this.el.classList.remove('on'); },
+  roomChanged(key){ if (key !== 'flame') this.hide(); },
+};
+
 const SKYCARD = {
   el: null, list: null, note: null, on: false,
   ensure(){
@@ -25865,6 +26108,359 @@ function buildSky(){
   return api;
 }
 
+/* =========================================================
+   Scene 25 — FIREWORKS  (a show, fired to the grid)
+
+   The bench next door already knew how to throw a star: a firework
+   colour is a real emitter through the same CIE observer everything
+   else in this room uses, and a star in air is a closed form — linear
+   drag, gravity underneath, integrated once so the GPU can evaluate
+   any age directly. What that scene did not have is a SHOW, and a
+   show is not "more fireworks". It is a script.
+
+   THE ONE TRICK THAT MATTERS: A SHELL IS FIRED EARLY.
+
+   A shell takes about a second to climb before it breaks. Fire it ON
+   the beat and the break lands a second late, which is precisely the
+   thing that makes amateur footage look wrong and why nobody can say
+   why. Every choreographed show in the world solves it the same way:
+   you know the cue, you know the lift time of the piece, so you fire
+   at cue − lift. This room can do that honestly because the beat grid
+   is MEASURED at publish time and the clock reads ahead of itself —
+   the same grid the mixer plans seams on. So the scheduler asks when
+   the next downbeat is, subtracts that piece's own lift, and lights
+   the fuse then. The break is on the beat because it was aimed there.
+
+   THE SHOW HAS AN ARC, and it is the track's own. The five acts drive
+   a real program rather than a rate knob:
+
+     OVERTURE  single shells, low and far apart — the sky establishing
+               that it is dark
+     RISING    pairs and fans, the colour opening up
+     APEX      SALVOS: a fan of shells fired as one cue, so a row of
+               breaks lands together across the sky. Multi-break and
+               colour-change shells, and the rate that earns the word
+     TURN      willows and palms — the long slow ones, falling
+     RESOLVE   one last barrage on the phrase, and then the sky is
+               allowed to go quiet, because a show that never stops is
+               a sky nobody looks up at
+
+   A phrase boundary earns a salvo; a downbeat earns a shell; a quiet
+   passage earns almost nothing. And every piece is still the same
+   three numbers the bench used — how hard the break throws its stars,
+   how thick the air is, how heavy they are — so a willow and a peony
+   are one shader and not two animations.
+   ========================================================= */
+function buildPyroShow(){
+  const group = new THREE.Group();
+  const EV = PYRO_SHOW.EV, SN = PYRO_SHOW.STARS, TR = PYRO_SHOW.TRAIL;
+  const N = EV * SN * TR;
+
+  /* THE EVENT TABLE, as a texture. Six rows per shell: a uniform array would
+     be the obvious home, but GLSL ES 1.00 only promises constant indexing into
+     one and this shader picks its row PER PARTICLE. */
+  const ROWS = 6;
+  const evData = new Uint8Array(EV * ROWS * 4);
+  const evT = new THREE.DataTexture(evData, EV, ROWS, THREE.RGBAFormat);
+  evT.magFilter = THREE.NearestFilter; evT.minFilter = THREE.NearestFilter;
+  evT.needsUpdate = true;
+
+  const slots = [];
+  for (let i = 0; i < EV; i++)
+    slots.push({ t: -1, life: 1, form: 0, col: [1, 1, 1], col2: [1, 1, 1], change: 0,
+                 v0: 5, drag: 0.6, grav: 8, lift: 0.3, trail: 0.2, spread: 0.4,
+                 x: 0, z: 0, breakH: 6, seed: 0, power: 1 });
+
+  const aSlot = new Float32Array(N), aStar = new Float32Array(N), aTr = new Float32Array(N);
+  for (let i = 0, k = 0; i < EV; i++)
+    for (let j = 0; j < SN; j++)
+      for (let t = 0; t < TR; t++, k++){ aSlot[k] = i; aStar[k] = j; aTr[k] = t; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  geo.setAttribute('aSlot', new THREE.BufferAttribute(aSlot, 1));
+  geo.setAttribute('aStar', new THREE.BufferAttribute(aStar, 1));
+  geo.setAttribute('aTr', new THREE.BufferAttribute(aTr, 1));
+
+  const varU = { uPyroEv: { value: evT }, uEvN: { value: EV }, uStarN: { value: SN } };
+
+  const vert = VERT_POINT_HEAD + `
+    attribute float aSlot, aStar, aTr;
+    uniform sampler2D uPyroEv;
+    uniform float uEvN, uStarN;
+    varying vec3 vCol; varying float vLum, vHot, vLift;
+    vec4 ev(float row){
+      return texture2D(uPyroEv, vec2((aSlot + 0.5) / uEvN, (row + 0.5) / ${ROWS}.0));
+    }
+    /* A STAR IN AIR, in closed form: v̇ = −kv − g integrates exactly, so any
+       age can be evaluated without having stepped through the ages before it.
+       This is the same arithmetic pyroFlight() holds in JS, and the reason
+       thousands of stars need no state at all. */
+    vec2 flight(float t, float v0, float k, float g){
+      float u = (1.0 - exp(-k * t)) / max(k, 1e-3);
+      return vec2(v0 * u, g / max(k, 1e-3) * (t - u));
+    }
+    void main(){
+      vec4 e0 = ev(0.0), e1 = ev(1.0), e2 = ev(2.0), e3 = ev(3.0), e4 = ev(4.0), e5 = ev(5.0);
+      float alive = step(0.5 / 255.0, e0.r);
+      float life  = e3.a * 8.0;
+      float age   = e0.r * life;                    // seconds since the fuse
+      float form  = floor(e0.g * 16.0 + 0.5);
+      float power = e0.a;
+      float trail = e1.a;
+      float v0    = e2.r * 40.0, drag = e2.g * 4.0, grav = e2.b * 30.0 - 6.0;
+      float liftS = e2.a;                            // share of life spent climbing
+      float breakH = e3.r * 30.0, seed = e3.g, spread = e3.b;
+      vec3  launch = vec3(e4.r * 80.0 - 40.0, ${PYRO_SHOW.GROUND}.0, e4.g * 80.0 - 40.0);
+      float change = e4.a;                           // when the colour turns over
+      float liftT = life * liftS;
+
+      // the ghost trail: each star is drawn TR times at small age offsets, so
+      // a comet is three points and not three passes
+      float dt = aTr * 0.055 * (0.4 + trail);
+      float t = age - dt;
+      if (t < 0.0 || alive < 0.5){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+
+      float fi = aStar;                              // the star's index in its break
+      vec3 p; float burn;
+      if (t < liftT){
+        /* THE LIFT. One comet climbing from the mortar — the whole shell is a
+           single rising ember until it breaks, which is what makes the break
+           read as an event rather than as an appearance.
+
+           And it is a FEW sparks, not the whole shell. Drawing all of a break's
+           stars stacked inside one ember costs nothing extra in a vertex shader
+           and looks like nothing at all: a hundred sprites at one point, each
+           clamped to the same maximum size, composite into a pale disc — which
+           is exactly what the first cut of this put in the sky whenever a
+           mortar happened to stand near the camera. */
+        if (fi > 9.0){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+        vec2 fl = flight(t, 26.0, 0.9, 9.8);
+        p = launch + vec3(0.0, fl.x - fl.y, 0.0);
+        // a comet has a tail, so the sparks trail BELOW the head rather than
+        // scattering around it
+        p.y -= fi * 0.16;
+        p.x += (fract(seed * 91.0 + fi * 0.37) - 0.5) * 0.22;
+        p.z += (fract(seed * 57.0 + fi * 0.71) - 0.5) * 0.22;
+        burn = (1.0 - t / max(liftT, 1e-3) * 0.25) * (1.0 - fi / 12.0);
+        vLift = 1.0;
+      } else {
+        float bt = t - liftT;                       // age since the break
+        /* THE BREAK. A Fibonacci sphere is how you get stars spaced EVENLY on
+           a sphere rather than bunched at its poles, which is exactly the
+           difference between a peony and a badly-seeded scatter. */
+        float y = 1.0 - 2.0 * (fi + 0.5) / uStarN;
+        float rr = sqrt(max(0.0, 1.0 - y * y));
+        float phi = fi * 2.39996323;
+        vec3 dir = vec3(cos(phi) * rr, y, sin(phi) * rr);
+
+        if (form > 1.5 && form < 2.5){
+          // RING: the stars leave in a plane, tipped so you see it as an ellipse
+          dir = normalize(vec3(cos(phi), sin(phi) * 0.16, sin(phi)));
+        } else if (form > 0.5 && form < 1.5){
+          // PALM: a few thick fronds instead of a shell of stars
+          float K = 9.0;
+          float band = floor(fi / uStarN * K);
+          float pa = band / K * 6.2831853 + seed * 6.28;
+          dir = normalize(vec3(cos(pa) * 0.9, 0.55 + fract(fi * 0.37) * 0.5, sin(pa) * 0.9));
+        } else if (form > 4.5 && form < 5.5){
+          // WILLOW: thrown wide and heavy, so it hangs and then falls
+          dir = normalize(dir + vec3(0.0, -0.25, 0.0));
+        }
+
+        vec2 fl = flight(bt, v0 * (0.75 + power * 0.45), drag, grav);
+        p = launch + vec3(0.0, breakH, 0.0) + dir * fl.x - vec3(0.0, fl.y, 0.0);
+
+        /* CROSSETTE: each star splits into four at a fixed age. Real crossettes
+           carry a tiny bursting charge; here the star simply acquires a second
+           velocity, which is the same thing seen from far enough away. */
+        if (form > 2.5 && form < 3.5){
+          float st = life * 0.34;
+          if (bt > st){
+            float q = floor(fract(fi * 0.25) * 4.0);
+            float qa = q * 1.5707963 + seed * 3.0;
+            vec3 sd = normalize(vec3(cos(qa), 0.35, sin(qa)));
+            vec2 f2 = flight(bt - st, v0 * 0.55, drag * 1.2, grav);
+            p += sd * f2.x - vec3(0.0, f2.y, 0.0);
+          }
+        }
+        burn = 1.0 - bt / max(life - liftT, 1e-3);
+        vLift = 0.0;
+      }
+
+      burn = clamp(burn, 0.0, 1.0);
+      // the ghosts behind the head are dimmer and older
+      float ghost = 1.0 - aTr / ${TR}.0 * 0.75;
+      /* COLOUR CHANGE — the classic two-stage star: it burns one salt and then
+         the layer under it takes over. One mix, and it costs nothing. */
+      vec3 c1 = e1.rgb, c2 = e5.rgb;
+      float turn = change > 0.01 ? smoothstep(change - 0.06, change + 0.06, 1.0 - burn) : 0.0;
+      vCol = mix(c1, c2, turn);
+
+      // STROBE: the pellet is a blinker, so it is on or it is off
+      float strobe = (form > 3.5 && form < 4.5) ? step(0.5, fract(t * 11.0 + fi * 0.13)) : 1.0;
+
+      vLum = burn * burn * ghost * strobe * (0.55 + power * 0.55);
+      vHot = smoothstep(0.75, 1.0, burn);            // the flash the break opens with
+      if (vLift > 0.5){ vCol = mix(vCol, vec3(1.0, 0.85, 0.55), 0.55); vLum *= 0.9; }
+
+      vT = fract(seed + fi * 0.017); vGlow = vLum;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      float sz = (1.6 + vHot * 4.5 + power * 1.4) * (0.5 + ghost * 0.7);
+      // a shell that happens to launch near the eye must not become a disc:
+      // the perspective term is unbounded and the mortar line is not far away
+      gl_PointSize = clamp(sz * (300.0 / -mv.z), 0.0, 48.0);
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uOpacity, uEnergy;
+    varying vec3 vCol; varying float vLum, vHot, vLift;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, r);
+      a = pow(a * a, 1.7);
+      vec3 col = mix(vCol, vec3(1.0), vHot * (0.45 + uWhite * 0.4));
+      col = inkRolloff(col * (0.35 + vLum * 1.8 + uEnergy * 0.1));
+      gl_FragColor = vec4(col, a * vLum * uOpacity * 1.2);
+    }
+  `;
+  group.add(addShaderPoints(geo, frag, vert, varU));
+  group.visible = false;
+  scene.add(group);
+
+  /* ---------------- the firing script ---------------- */
+  const show = { cue: -1, salvoLeft: 0, salvoT: 0, lastPhrase: 0, prog: null, name: 'FIREWORKS' };
+
+  function launch(kindKey, saltKey, x, z, power, big){
+    let s = null;
+    for (let i = 0; i < EV; i++) if (slots[i].t < 0){ s = slots[i]; break; }
+    if (!s){                              // all lit: take the oldest rather than skip a cue
+      let o = 0;
+      for (let i = 1; i < EV; i++) if (slots[i].t / slots[i].life > slots[o].t / slots[o].life) o = i;
+      s = slots[o];
+    }
+    const sh = pyroShell(kindKey);
+    const star = PYRO_STARS.find(x2 => x2.key === saltKey) || PYRO_STARS[0];
+    const c = pyroStarRGB(star);
+    // a colour-change shell carries a second salt underneath the first
+    const other = PYRO_STARS[Math.floor(Math.random() * PYRO_STARS.length)];
+    const c2 = pyroStarRGB(other);
+    s.t = 0; s.life = sh.life; s.form = sh.form;
+    s.col = [c.r, c.g, c.b];
+    s.col2 = [c2.r, c2.g, c2.b];
+    s.change = Math.random() < 0.28 ? 0.45 + Math.random() * 0.2 : 0;
+    s.v0 = sh.v0 * (0.85 + big * 0.4); s.drag = sh.drag; s.grav = sh.grav;
+    s.trail = sh.trail; s.lift = sh.lift == null ? 0.3 : sh.lift;
+    s.spread = sh.spread == null ? 0.4 : sh.spread;
+    s.x = x; s.z = z;
+    s.breakH = 12 + big * 12 + Math.random() * 4;
+    s.power = clamp01(power == null ? 1 : power);
+    s.seed = Math.random();
+  }
+
+  /* THE CUE. A downbeat is worth a shell and a phrase is worth a salvo — but
+     both are aimed at a moment in the FUTURE, and the fuse is lit `lead`
+     seconds before it so the break arrives on time. */
+  function fireCue(prog, wide){
+    const f = AE.f;
+    const n = wide ? prog.salvo : prog.perCue;
+    const span = 13 * prog.spread;
+    for (let i = 0; i < n; i++){
+      // a salvo fans ACROSS the sky rather than stacking in one place
+      const u = n <= 1 ? (Math.random() - 0.5) : (i / (n - 1) - 0.5);
+      const x = u * span * 2 + (Math.random() - 0.5) * 4;
+      const z = (Math.random() - 0.5) * 16;
+      const kind = pyroPick({ energy: f.energy, mood: director.mood }, Math.random());
+      const salt = pyroSalt({ energy: f.energy, treble: f.treble }, Math.random());
+      launch(kind, salt, x, z, 0.6 + f.energy * 0.4, prog.big);
+    }
+  }
+
+  function step(dt){
+    const f = AE.f;
+    const prog = pyroProgram({ act: director.act, energy: f.energy });
+    show.prog = prog;
+    const lean = (typeof PERF !== 'undefined' && PERF.struggling) ? 0.5 : 1;
+    const calm = SAFE.calm || reducedMotion;
+
+    /* THE AIM. How far ahead the next downbeat is, and how long a shell needs
+       to get there: light the fuse when those two meet. Without a grid there
+       is nothing to aim at, so the show falls back to firing on the onset —
+       late by a lift, and honest about it. */
+    const beat = (typeof DANCE !== 'undefined' && DANCE.period > 0.2) ? DANCE.period : 0.5;
+    const lead = pyroLead(pyroShell('peony'));
+    if (DANCE.haveGrid){
+      /* HOW OFTEN A CUE COMES. A show does not fire once a bar all night: the
+         opening breathes, and the finale is on the beat. Both are still
+         GRID-ALIGNED — the cue is a whole number of beats into the bar, so a
+         faster program is denser and never off the music. */
+      const cueBeats = prog.salvo >= 5 ? 1 : (prog.salvo >= 3 ? 2 : 4);
+      const barPos = clamp01(DANCE.barFrac) * 4;
+      const nextCue = Math.ceil((barPos + 1e-4) / cueBeats) * cueBeats;
+      const toDown = (nextCue - barPos) * beat;
+      const cueId = Math.round((U.uTime.value + toDown) / (beat * cueBeats));
+      // one shot per cue, fired exactly a lift before the beat it is aimed at
+      if (cueId !== show.cue && toDown <= lead && Math.random() < prog.chance * lean * (calm ? 0.4 : 1)){
+        show.cue = cueId;
+        const phrase = DANCE.phraseFrac;
+        const wide = phrase < 0.06 || phrase > 0.94;    // the phrase turn earns the salvo
+        fireCue(prog, wide);
+      }
+    } else if (f.onset && Math.random() < prog.chance * 0.5 * lean){
+      fireCue(prog, false);
+    }
+
+    // age every slot and write the table the shader reads
+    const q = (v, sc) => Math.max(0, Math.min(255, Math.round((v / sc) * 255)));
+    for (let i = 0; i < EV; i++){
+      const s = slots[i], o = i * 4;
+      if (s.t >= 0){ s.t += dt; if (s.t >= s.life) s.t = -1; }
+      const age = s.t < 0 ? 0 : clamp01(s.t / s.life);
+      evData[o] = s.t < 0 ? 0 : Math.max(1, Math.round(age * 255));
+      evData[o + 1] = q(s.form, 16); evData[o + 2] = 0; evData[o + 3] = q(s.power, 1);
+      const r1 = (EV + i) * 4;
+      evData[r1] = q(s.col[0], 1); evData[r1 + 1] = q(s.col[1], 1);
+      evData[r1 + 2] = q(s.col[2], 1); evData[r1 + 3] = q(s.trail, 1);
+      const r2 = (EV * 2 + i) * 4;
+      evData[r2] = q(s.v0, 40); evData[r2 + 1] = q(s.drag, 4);
+      evData[r2 + 2] = q(s.grav + 6, 30); evData[r2 + 3] = q(s.lift, 1);
+      const r3 = (EV * 3 + i) * 4;
+      evData[r3] = q(s.breakH, 30); evData[r3 + 1] = q(s.seed, 1);
+      evData[r3 + 2] = q(s.spread, 1); evData[r3 + 3] = q(s.life, 8);
+      const r4 = (EV * 4 + i) * 4;
+      evData[r4] = q(s.x + 40, 80); evData[r4 + 1] = q(s.z + 40, 80);
+      evData[r4 + 2] = 0; evData[r4 + 3] = q(s.change, 1);
+      const r5 = (EV * 5 + i) * 4;
+      evData[r5] = q(s.col2[0], 1); evData[r5 + 1] = q(s.col2[1], 1);
+      evData[r5 + 2] = q(s.col2[2], 1); evData[r5 + 3] = 0;
+    }
+    evT.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'FIREWORKS', key: 'pyro', group,
+    update(dt){
+      if (!group.visible) return;
+      step(Math.min(dt, 0.1));
+      const nm = 'FIREWORKS · ' + (show.prog ? show.prog.name : 'OVERTURE');
+      if (nm !== api.name){
+        api.name = nm;
+        if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = nm;
+      }
+    },
+    roll(){
+      for (let i = 0; i < EV; i++) slots[i].t = -1;    // an empty sky to open on
+      show.cue = -1;
+      api.name = 'FIREWORKS';
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -25892,7 +26488,8 @@ function initThree(){
   buildStarfield();
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
-              buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky());
+              buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
+              buildPyroShow());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -28724,7 +29321,7 @@ const WARM = {
     return alpha == null ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
   },
 
-  /* THE TILE PAINTERS. Nine gestures, re-used across twenty-four rooms at
+  /* THE TILE PAINTERS. Nine gestures, re-used across twenty-five rooms at
      different hues and densities — not screenshots, and deliberately not:
      a still frame of a scene that is entirely about MOTION is a worse
      description of it than a drawing of what the motion does. */
