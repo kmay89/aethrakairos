@@ -58,8 +58,42 @@ jobs:
       - name: Remix-layer unit tests
         run: python3 tests/test_remix.py
 
-      - name: Verify every score in the tree
+      # A gate that has never been seen to reject anything is not a gate, it is
+      # a decoration. Before trusting this job's green, make it go red on
+      # purpose: take the shipped score, exceed its grant, re-sign it CORRECTLY
+      # with the committed demo key, and require a non-zero exit. This catches
+      # the whole class of bug where verification silently stops running.
+      - name: Prove the gate can actually reject
+        shell: bash
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, sys
+          sys.path.insert(0, ".")
+          import signing
+          src = pathlib.Path("remixes/137-x-runners-club/remix.json")
+          if not src.exists():
+              print("no example score to tamper with"); raise SystemExit(0)
+          m = json.loads(src.read_text())
+          m["publish"] = {"audio": True, "commercial": True}   # no grant permits this
+          m["sig"] = signing.sign_obj(m, signing.read_secret("tests/fixtures/demo-label.key"))
+          pathlib.Path("tampered.json").write_text(json.dumps(m))
+          PY
+          if [ ! -f tampered.json ]; then echo "nothing to prove"; exit 0; fi
+          if python3 remix.py verify tampered.json > tampered-report.txt 2>&1; then
+            echo "::error::the gate ACCEPTED a score that exceeds its grant"
+            cat tampered-report.txt
+            exit 1
+          fi
+          echo "gate correctly rejected an over-reaching score:"
+          grep FAIL tampered-report.txt || true
+          rm -f tampered.json tampered-report.txt
+
+      - name: Verify every score in the tree
+        shell: bash            # `shell: bash` gets -o pipefail; the default `bash -e` does not
+        run: |
+          set -euo pipefail    # explicit, because a `| tee` that swallows a
+                               # non-zero exit is exactly how a gate goes quiet
           shopt -s nullglob
           manifests=(remixes/*/remix.json)
           if [ ${#manifests[@]} -eq 0 ]; then
