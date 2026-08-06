@@ -1281,6 +1281,36 @@ scenes, booth and sliced screen alike.
   shell is an older build that never heard of the command, so features ship on the
   web first and light up natively later with no version checks anywhere in the player.
 
+### 1.2o The console earns the window: the deck, the postcards, and AirPlay on the desk
+
+- **The report, verbatim: "this view is kinda a waste."** Stage mode folds the booth
+  into `body.mini`, and in the native shell that is a 360×148 sliver where the strip —
+  three transport buttons, a finger-wide pad, a chevron hiding the other twenty
+  controls — is exactly right. But the *web* booth puts the whole browser window into
+  mini, and the same strip floated at the top of a monitor's worth of void. The fix is
+  one class, `deck`, set from measured pixels rather than a media query (`STAGE.deckSync`,
+  ≥520×380) so the shell, the probe and the eye read the same ruler: given room, the
+  chevron dies, the twenty controls lie on the desk, the pad grows to the size of the
+  hand that uses it, and the monitors become a wall of live tiles.
+- **The tiles are postcards, not previews.** The booth stops rendering in mini
+  (`drawing = !STAGE.mini && …`) and could only *guess* what a screen shows anyway —
+  and the difference between *should draw* and *is drawing* (a lost GL context, a
+  buried window, a sleeping monitor) is the entire reason an operator looks at a
+  monitor wall. So each screen photographs its own glass: captured in the frame loop
+  right after the render (the drawing buffer does not survive the composite), a
+  postcard wide, JPEG, at most one per 1.5 s, and only while a deck is looking — the
+  ask rides the wall packet so late joiners hear it, and `booth-gone` silences it. The
+  booth trusts the postcards as far as `data:image/` and 256 KB, and no further: a
+  hostile wire peer costs a dropped tile, never a console.
+- **AirPlay was already in the house; now it is on the desk.** The audio elements have
+  carried `x-webkit-airplay` since the analyser work, and the toolbar button routes the
+  *sound* to an Apple TV or HomePod through the platform picker. The deck shows the
+  same button, and the invite card now says the honest sentence out loud: an Apple TV
+  has no browser to knock on the wire with — AirPlay carries it the sound, mirroring a
+  stage window carries it the picture, and any device *with* a browser should take the
+  four letters instead, because rendering locally beats streaming pixels on every axis
+  the room can see.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

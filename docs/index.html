@@ -1099,6 +1099,63 @@ body.mini #miniBar{right:0;bottom:0;left:0;top:0;width:auto;border-radius:0;bord
 }
 .mini-more button:hover{color:var(--ink);border-color:var(--accent-line)}
 .mini-more button.on{color:var(--ink);border-color:var(--accent-line);box-shadow:0 0 12px -5px var(--accent-glow)}
+
+/* ============ THE DECK — the console when it owns the window ============
+   The strip above is a corner accessory, sized for the shell's 360×148
+   sliver. But stage mode in a browser puts the BOOTH'S WHOLE WINDOW into
+   mini — and a console with a monitor's worth of glass that shows three
+   buttons over a void is a waste of a good window. Given room (the deck
+   class, set from measured pixels in STAGE.deckSync — not a media query,
+   so the shell, the probe and the eye all read the same ruler) the same
+   markup becomes the desk: every monitor a live tile, every control on
+   the surface, and the pad grown from a business card to the size of the
+   hand that uses it. */
+body.mini.deck #miniBar{gap:14px;padding:18px 20px}
+body.mini.deck #miniExpand{display:none}
+body.mini.deck .mini-now b{font-size:14px}
+body.mini.deck .mini-now span{font-size:11px}
+body.mini.deck .mini-screens{font-size:10px}
+body.mini.deck .mini-row{flex:1 1 auto;min-height:120px;align-items:stretch}
+/* only the pad drinks the height — a play button the size of a door is not a
+   bigger control, it is a smaller room */
+body.mini.deck .mini-b{height:64px;min-width:56px;font-size:12px;align-self:center}
+body.mini.deck .mini-pad{height:auto;min-height:120px}
+body.mini.deck .mini-pad-hint{font-size:10px;letter-spacing:.22em}
+body.mini.deck .mini-more{padding-top:8px}
+body.mini.deck .mini-more button{height:34px;padding:0 13px;font-size:10px}
+/* the monitor wall: a black tile is a screen that is really black — the one
+   fact a booth cannot afford to imagine */
+.mini-mons{display:none}
+body.mini.deck .mini-mons{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;
+  max-height:36vh;overflow:auto;
+}
+.mon-tile{
+  position:relative;aspect-ratio:16/9;border-radius:11px;overflow:hidden;cursor:pointer;
+  border:1px solid var(--line-soft);background:#000;padding:0;
+}
+.mon-tile:hover{border-color:var(--accent-line)}
+.mon-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.mon-tile.stale img{opacity:.3;filter:grayscale(1)}
+.mon-tile .mon-n{
+  position:absolute;left:8px;bottom:6px;font-size:10px;letter-spacing:.14em;
+  color:var(--ink);text-shadow:0 1px 6px rgba(0,0,0,.85);text-transform:uppercase;
+}
+.mon-tile .mon-w{
+  position:absolute;right:8px;top:6px;font-size:8.5px;letter-spacing:.16em;
+  color:var(--accent);text-transform:uppercase;
+}
+.mon-tile .mon-dark{
+  position:absolute;inset:0;display:grid;place-items:center;
+  font-size:9px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase;
+}
+.mon-tile.add{border-style:dashed;background:var(--glass)}
+.mon-tile.add .mon-plus{
+  position:absolute;inset:0;display:grid;place-items:center;
+  font-size:22px;color:var(--dim);
+}
+.mon-tile.add:hover .mon-plus{color:var(--ink)}
+.mon-tile.add .mon-n{left:auto;right:8px}
 @media (prefers-reduced-motion:reduce){.mini-pad-dot{transition:none}}
 
 /* ============ the stage, the size of a postcard ============
@@ -3080,8 +3137,17 @@ body.crowd{background:#000}
     <button class="mini-x" id="miniExit" type="button" title="Leave stage mode" aria-label="Leave stage mode">⤢</button>
     <div class="mini-now"><b id="miniTitle">—</b><span id="miniSub"></span></div>
     <span class="mini-screens" id="miniScreens" title="Screens following the booth"></span>
+    <button class="mini-x" id="miniAirplay" type="button" style="display:none"
+      title="Send the sound to an AirPlay device — an Apple TV or HomePod carries the music while the screens keep drawing"
+      aria-label="Choose audio output (AirPlay)">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 16.5A8.5 8.5 0 1 1 19 16.5"/><path d="M12 14l5 6H7z" fill="currentColor" stroke="none"/></svg>
+    </button>
     <button class="mini-x" id="miniExpand" type="button" aria-expanded="false" aria-label="More controls">⌃</button>
   </div>
+  <!-- THE MONITOR WALL — deck mode only. One tile per screen, each showing the
+       postcard that screen last mailed home (STAGE.shot): what it is REALLY
+       drawing, not what it was told to draw. Built and kept by STAGE.paintMons. -->
+  <div class="mini-mons" id="miniMons" hidden role="group" aria-label="Connected screens"></div>
   <div class="mini-row">
     <button class="mini-b" id="miniPrev" type="button" aria-label="Previous">◀◀</button>
     <button class="mini-b mini-play" id="miniPlay" type="button" aria-label="Play or pause">▶</button>
@@ -11713,11 +11779,12 @@ function syncAirplayButton(){
   el.btnAirplay.style.display =
     (player.cur !== -1 && airplaySupported()) ? '' : 'none';
 }
-el.btnAirplay.addEventListener('click', () => {
+function airplayPick(){
   const a = activeDeck(); if (!a) return;
   if (a.a.webkitShowPlaybackTargetPicker) a.a.webkitShowPlaybackTargetPicker();
   else if (a.a.remote && a.a.remote.prompt) a.a.remote.prompt().catch(() => {});
-});
+}
+el.btnAirplay.addEventListener('click', airplayPick);
 
 /* ================================================================
    §6e · LIBRARY DRAWER — the label's shelf (left edge, B)
@@ -26217,6 +26284,8 @@ const STAGE = {
   displays: [],              // booth: what the shell last said the monitors are
   ident: false,              // booth: every screen is showing its own number
   bezel: 0,                  // booth: the frames' thickness, as a fraction of a screen
+  deck: false,               // booth: the console has a whole window, and uses it
+  shots: new Map(),          // booth: screen id → { url, at } — the postcards home
   last: null,                // screen: the newest packet
   offset: NaN,               // screen: this machine's clock minus the booth's
   seenAt: 0,                 // screen: when the booth last spoke
@@ -26263,6 +26332,8 @@ const STAGE = {
       if (this.on || (this.screen() && !document.body.classList.contains('pip'))
         || (typeof CROWD !== 'undefined' && CROWD.tuned)) this.wake(true);
     });
+    // a console's window changes size, and the deck/strip answer changes with it
+    if (!this.screen()) window.addEventListener('resize', () => this.deckSync());
   },
   /* one exit, two roads: the channel reaches every window on this machine,
      the wire reaches every device that knocked. Neither knows the other
@@ -26614,6 +26685,7 @@ const STAGE = {
     on('miniPrev', () => player.prev());
     on('miniNext', () => player.next());
     on('miniExpand', () => this.expand());
+    on('miniAirplay', () => { if (typeof airplayPick === 'function') airplayPick(); });
     this.wirePad();
   },
   /* THE PAD → THE FIELD. A drag here is a finger on the stage screen: the same
@@ -26698,6 +26770,7 @@ const STAGE = {
         const wait = document.getElementById('stageWait'), why = document.getElementById('stageWaitWhy');
         if (why) why.textContent = 'the booth closed';
         if (wait) wait.hidden = false;
+        this.shotsOn = false;            // nobody is looking at the postcards now
       } else if (m.t === 'wall'){
         /* MY SLICE, AS THE BOOTH SEES IT. Only the booth computes the wall,
            and for the same reason it sends a camera pose rather than the dials
@@ -26708,10 +26781,15 @@ const STAGE = {
         const c = m.map && m.map[this.cfg.id];
         if (c){ this.cut = c; this.applySlice(); if (this.ident) this.showIdent(true); }
         else if (this.cut){ this.cut = null; this.applySlice(); }
+        // the wall carries the deck's standing question too, so a screen that
+        // joined after the deck opened still learns it is being looked at
+        if ('shots' in m) this.shotsOn = !!m.shots;
       } else if (m.t === 'ident'){
         this.ident = !!m.on;
         this._identAt = Number(m.at) || 0;
         this.showIdent(this.ident);
+      } else if (m.t === 'shots'){
+        this.shotsOn = !!m.on;
       }
       return;
     }
@@ -26737,6 +26815,18 @@ const STAGE = {
       this.peers.delete(m.id != null ? m.id : ('s' + m.screen));
       this.pushWall(true);
       this.paint();
+    } else if (m.t === 'shot'){
+      /* a postcard from a screen. The url is drawn into an <img>, and a
+         screen — especially one that knocked over the wire — is not trusted
+         to put arbitrary strings there: only an inline image, and only a
+         reasonable one. A hostile or broken peer costs a dropped tile,
+         never a console. */
+      const url = typeof m.url === 'string' ? m.url : '';
+      if (url.startsWith('data:image/') && url.length < 262144){
+        const id = m.id != null ? m.id : ('s' + m.screen);
+        this.shots.set(id, { url, at: Date.now() });
+        this.monImg(id);
+      }
     }
   },
   live(){
@@ -26791,7 +26881,7 @@ const STAGE = {
     if (key === this._wallKey) return;
     this._wallKey = key;
     this.wall = L;
-    this.send({ t: 'wall', map: L.map, bounds: L.bounds });
+    this.send({ t: 'wall', map: L.map, bounds: L.bounds, shots: !!this._shotsWant });
     this.paint();
   },
   paint(){
@@ -26808,7 +26898,142 @@ const STAGE = {
     if (s) s.textContent = tr ? (tr.artist || '') : '';
     const pb = document.getElementById('miniPlay');
     if (pb) pb.textContent = player.playing ? '❚❚' : '▶';
+    // the sound has a door of its own: AirPlay, exactly when the platform has it
+    const ap = document.getElementById('miniAirplay');
+    if (ap) ap.style.display =
+      (player.cur !== -1 && typeof airplaySupported === 'function' && airplaySupported()) ? '' : 'none';
     this.paintPips();
+    if (this.deck) this.paintMons();
+  },
+  /* THE DECK ANSWER — strip or desk, read off the window itself. The shell's
+     mini window is 360×148 and must stay a strip; a browser window in stage
+     mode is usually a monitor and deserves the desk. Measured pixels rather
+     than a media query so this file, the probe and the native shell cannot
+     disagree about which side of the line a window is on. */
+  deckSync(){
+    const want = this.mini && !this.screen()
+      && window.innerWidth >= 520 && window.innerHeight >= 380;
+    if (want !== this.deck){
+      this.deck = want;
+      document.body.classList.toggle('deck', want);
+      const mons = document.getElementById('miniMons');
+      if (mons) mons.hidden = !want;
+      // the desk lays its twenty controls on the surface; the strip folds them
+      this.expand(want);
+    }
+    // the screens only paint postcards somebody is looking at
+    this.shotsAsk(this.deck);
+    if (this.deck) this.paintMons();
+  },
+  shotsAsk(on){
+    on = !!on;
+    if (this._shotsWant === on) return;
+    this._shotsWant = on;
+    this.send({ t: 'shots', on });
+  },
+  /* THE POSTCARD HOME — a screen photographs its own glass. Not a re-render
+     of what it was TOLD to draw: a lost WebGL context, a window burying the
+     field, a monitor asleep — the difference between should and is, is the
+     whole reason an operator looks at a monitor wall. Captured right after
+     the render (the drawing buffer does not survive the composite), a
+     postcard wide, a few kilobytes, at most one every 1.5 s, and only while
+     a deck is actually looking. */
+  shot(now, drew){
+    if (!this.screen() || !this.shotsOn || !drew || document.hidden) return;
+    if (now - (this._shotAt || 0) < 1500) return;
+    if (typeof renderer === 'undefined' || !renderer || !renderer.domElement) return;
+    const src = renderer.domElement;
+    if (!src.width || !src.height) return;
+    this._shotAt = now;
+    try {
+      const w = 192, h = Math.max(2, Math.round(w * src.height / src.width));
+      let cv = this._shotCv;
+      if (!cv) cv = this._shotCv = document.createElement('canvas');
+      if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+      cv.getContext('2d').drawImage(src, 0, 0, w, h);
+      this.send({ t: 'shot', id: this.cfg.id, screen: this.cfg.screen,
+        url: cv.toDataURL('image/jpeg', 0.55) });
+    } catch (e){}
+  },
+  /* THE MONITOR WALL — one tile per screen the booth believes in, in the
+     roster's own order, diffed in place because this runs at the paint
+     rate. The label is the wall's number for that screen (the same one
+     identify holds up); the picture is the screen's own postcard, greyed
+     once it is five seconds stale. Tapping any tile asks every screen to
+     hold up its number — the question an operator at a wall of tiles is
+     actually asking. */
+  paintMons(){
+    const box = document.getElementById('miniMons');
+    if (!box || !this.deck) return;
+    if (!this._monEls) this._monEls = new Map();
+    const map = (this.wall && this.wall.map) || {};
+    const roster = this.rects();
+    const seen = new Set();
+    let i = 0, grew = false;
+    for (const r of roster){
+      i++;
+      seen.add(r.id);
+      let tile = this._monEls.get(r.id);
+      if (!tile){
+        tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'mon-tile';
+        tile.dataset.sid = r.id;
+        tile.innerHTML = '<span class="mon-dark">no picture yet</span>'
+          + '<span class="mon-n"></span><span class="mon-w"></span>';
+        tile.addEventListener('click', () => this.identify(2600));
+        this._monEls.set(r.id, tile);
+        box.appendChild(tile);
+        grew = true;
+        this.monImg(r.id);               // a postcard may have beaten its tile here
+      }
+      const c = map[r.id];
+      const n = c ? c.n : i;
+      const lbl = tile.querySelector('.mon-n');
+      if (lbl && lbl.textContent !== 'Screen ' + n) lbl.textContent = 'Screen ' + n;
+      tile.title = 'Screen ' + n + ' — tap and every screen holds up its number';
+      const wired = typeof WIRE !== 'undefined' && WIRE.peers && WIRE.peers.has(r.id);
+      const wb = tile.querySelector('.mon-w');
+      if (wb && wb.textContent !== (wired ? 'wire' : '')) wb.textContent = wired ? 'wire' : '';
+      const s = this.shots.get(r.id);
+      tile.classList.toggle('stale', !!s && Date.now() - s.at > 5000);
+    }
+    for (const [id, el2] of this._monEls){
+      if (seen.has(id)) continue;
+      try { el2.remove(); } catch (e){}
+      this._monEls.delete(id);
+      this.shots.delete(id);
+    }
+    // the add tile — always present, always last, the spatial way to say MORE
+    let add = this._monAdd;
+    if (!add){
+      add = this._monAdd = document.createElement('button');
+      add.type = 'button';
+      add.className = 'mon-tile add';
+      add.title = 'Open another stage screen';
+      add.setAttribute('aria-label', 'Open another stage screen');
+      add.innerHTML = '<span class="mon-plus" aria-hidden="true">+</span><span class="mon-n">screen</span>';
+      add.addEventListener('click', () => this.open(this.live() + 1));
+      grew = true;
+    }
+    if (grew || box.lastElementChild !== add) box.appendChild(add);
+  },
+  monImg(id){
+    if (!this._monEls) return;
+    const tile = this._monEls.get(id);
+    if (!tile) return;
+    const s = this.shots.get(id);
+    if (!s || !s.url) return;
+    let img = tile.querySelector('img');
+    if (!img){
+      img = document.createElement('img');
+      img.alt = '';
+      tile.prepend(img);
+      const dark = tile.querySelector('.mon-dark');
+      if (dark) dark.remove();
+    }
+    img.src = s.url;
+    tile.classList.remove('stale');
   },
   /* THE BARS RENUMBER THEMSELVES. Screen one is whichever screen is furthest
      left on the top shelf, and if that is the window just dragged there then
@@ -27596,6 +27821,7 @@ const STAGE = {
     this.wall = null;
     this.placed = {};
     this._wallKey = '';
+    this.shots.clear();                  // the postcards go with the screens
     this.setMini(false);
     ACTIVITY.log('system', 'Stage mode off');
     toast('Stage mode off');
@@ -27639,6 +27865,7 @@ const STAGE = {
     const bar = document.getElementById('miniBar');
     if (bar) bar.hidden = !this.mini;
     if (NATIVE.ready()) NATIVE.call('set_mini', { on: this.mini, width: 360, height: 148 });
+    this.deckSync();                     // strip or desk, measured off the window
     if (this.mini) this.paint();
     else this.expand(false);
     // the field is not being drawn in a corner the size of a business card
@@ -28710,7 +28937,9 @@ const WIRE = {
       url: this.joinUrl(),
       how: 'Scan with the device\'s camera — or open <b>' + escapeHTML(location.host)
         + '</b> there, tap <b>Stage</b>, and type the four letters.'
-        + '<br>Same Wi‑Fi (or this machine\'s hotspot). The picture is rendered there, not streamed.',
+        + '<br>Same Wi‑Fi (or this machine\'s hotspot). The picture is rendered there, not streamed.'
+        + '<br>An Apple TV has no browser to knock with: the <b>AirPlay</b> button sends it the sound, '
+        + 'and mirroring a stage window from Control Centre sends it the picture.',
     });
   },
   hideInvite(){
@@ -29503,6 +29732,7 @@ function frame(now){
   }
 
   STAGE.push(now);                     // ~30 Hz, and nothing at all unless a screen is lit
+  STAGE.shot(now, drawing);            // a screen's postcard home — after the render, so the pixels are this frame's
   RIG.step(now, dt);                   // and the lamps, at the rate the wire runs at
   // and the wall, on the frame a corner window moves — the booth reads its own
   // picture-in-picture rectangles here rather than waiting to be told
