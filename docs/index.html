@@ -24252,80 +24252,283 @@ function buildOilslick(){
 }
 
 /* =========================================================
-   Scene 23 — BUBBLES  (a glass cluster, rims wearing the spectrum)
-   A loose cloud of glass spheres drifting upward — under water,
-   everything is going up — each one drawn as a photograph of a
-   bubble actually looks: nearly empty in the middle, all of its
-   light on the rim, one specular window up-left. The rim's hue walks
-   AROUND the shell (thin-film interference again, curled into a
-   circle), and every bubble listens to its own band of the live
-   spectrum and swells where its band sings. Beneath the cluster a
-   fizz of micro-bubbles rises faster, because a drink with no fizz
-   is flat. Buoyancy wraps: a bubble that leaves the top returns to
-   the bottom, so the cloud never empties and never pops.
+   Scene 23 — BUBBLES  (soap films, solved rather than painted)
+
+   The first version of this room walked a hue around each disc with
+   atan(y, x) and called it iridescence. It is not: that makes the
+   colour a function of WHERE ON THE SCREEN a pixel sits, so the
+   rainbow is painted onto the bubble like a decal and slides with the
+   camera instead of living on the film. Every recognisable failure of
+   it came from that one decision — no shape, no depth, and colours
+   that never move the way a real bubble's do.
+
+   What a soap bubble actually is: a film of water a few hundred
+   nanometres thick with air on both sides. Light reflects off the
+   front surface AND the back, the two reflections travel different
+   distances, and where that difference is a whole number of
+   wavelengths they add and where it is a half they cancel. So the
+   colour is set by three things, all of them physical:
+
+     Δ = 2·n·d·cosθt    the optical path difference, where d is the
+                        film's thickness, n = 1.33 is soap water, and
+                        θt is the REFRACTED angle inside the film
+                        (Snell's law from the angle you are looking at
+                        the surface from)
+     +λ/2              the hard-surface phase flip: reflecting off the
+                        denser medium turns the wave over, which is why
+                        a film thinner than the wavelength goes BLACK
+                        rather than white — the two reflections cancel
+     F(θ)              Fresnel. At n = 1.33 only about 2% of light
+                        comes back head-on and nearly all of it at
+                        grazing incidence, which is the whole reason a
+                        bubble is a bright ring around a clear middle
+
+   Because θ is measured from the surface NORMAL, the colour depends
+   on the angle between your eye and the film — so on a sphere it is a
+   function of the radius across the disc, and it stays put as the
+   camera moves. That one correction is most of the difference between
+   this and the decal.
+
+   Each sprite is a SPHERE IMPOSTOR: the fragment reconstructs the
+   normal it would have had on a real ball (n.z = √(1−r²)), so the
+   shading, the Fresnel and the interference are all evaluated against
+   true 3D geometry, and the film pattern is anchored in WORLD space
+   (the normal is rotated back out of view space by the trick that
+   v * mat3(viewMatrix) is transpose(V)·v, since GLSL ES 1.0 has no
+   transpose()). Turn the camera and the swirl stays on the bubble.
+
+   Everything else follows from the physics:
+
+   - The film DRAINS. Gravity pulls it down, so it is thin at the top
+     and thick at the bottom, which is why real bubbles wear
+     horizontal bands that sink. The thickness map is that gradient
+     plus advected noise for the marbling.
+   - It drains over the bubble's LIFE too, so the colours march
+     through the spectrum, and the crown eventually thins past the
+     black film — at which point the bubble POPS, in a bright
+     expanding ring, and a new one rises from the bottom.
+   - You see the film TWICE, front and back, so a second dimmer
+     interference image sits inside the first: the inverted ghost
+     every bubble photograph has.
+   - Two lights, a key and a fill, and a real Blinn-Phong lobe off the
+     impostor normal — so the specular window is a highlight rather
+     than a drawn dot.
+
+   The music drives the drainage rate and the wobble; each bubble
+   still listens to its own band of the live spectrum and swells where
+   its band sings. Beneath the cluster the fizz rises faster, because
+   a drink with no fizz is flat.
    ========================================================= */
 function buildBubbles(){
   const group = new THREE.Group();
   const varU = { uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() } };
 
-  // the cluster
-  const N = 160;
+  /* THE FILM, IN GLSL. Shared by the bubbles and the fizz so the two
+     layers cannot drift apart into two different physics. */
+  const GLSL_FILM = `
+    /* value noise on the sphere's own world normal, so the marbling is
+       anchored to the film and not to the screen */
+    float fHash(vec3 p){
+      p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
+      p *= 17.0;
+      return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+    }
+    float fNoise(vec3 x){
+      vec3 i = floor(x), f = fract(x);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(mix(fHash(i + vec3(0,0,0)), fHash(i + vec3(1,0,0)), f.x),
+                     mix(fHash(i + vec3(0,1,0)), fHash(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(fHash(i + vec3(0,0,1)), fHash(i + vec3(1,0,1)), f.x),
+                     mix(fHash(i + vec3(0,1,1)), fHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+    }
+    /* TWO-BEAM INTERFERENCE, per wavelength.
+       d  — film thickness in nanometres
+       ci — cosine of the incidence angle, from the impostor normal
+       Returns the reflected spectrum sampled at R/G/B, 0..1. The +π is
+       the phase flip off the denser medium: it is what makes a film
+       thinner than the light going black instead of white, and leaving
+       it out is the classic way to get a rainbow that never dies. */
+    vec3 filmSpectrum(float d, float ci){
+      const float N = 1.33;                       // soap water
+      float sinT2 = (1.0 - ci * ci) / (N * N);    // Snell, squared
+      float cosT = sqrt(max(0.0, 1.0 - sinT2));
+      float delta = 2.0 * N * d * cosT;           // optical path difference, nm
+      vec3 lambda = vec3(650.0, 545.0, 460.0);    // R, G, B sample wavelengths
+      vec3 phase = 6.2831853 * delta / lambda + 3.14159265;
+      return 0.5 + 0.5 * cos(phase);
+    }
+    // Schlick, for air → soap. R0 is tiny (~2%), which is exactly why the
+    // middle of a bubble is a window and the rim is a mirror.
+    float filmFresnel(float ci){
+      const float R0 = 0.0202;
+      float m = clamp(1.0 - ci, 0.0, 1.0);
+      return R0 + (1.0 - R0) * pow(m, 5.0);
+    }
+  `;
+
+  // ---------------- the cluster ----------------
+  const N = 88;
   const pos = new Float32Array(N * 3), aSeed = new Float32Array(N);
   for (let i = 0; i < N; i++) aSeed[i] = (i + 0.5) / N;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('aSeed', new THREE.BufferAttribute(aSeed, 1));
+
   const vert = VERT_POINT_HEAD + `
     attribute float aSeed;
     uniform float uVarA, uVarB, uVarC;
+    varying float vSeed, vAmp, vLife, vPop;
     void main(){
       float h1 = fract(aSeed * 127.1), h2 = fract(aSeed * 311.7);
       float h3 = fract(aSeed * 74.7),  h4 = fract(aSeed * 269.5);
-      // a home in a loose ellipsoid, an orbit around it, and the rise
-      vec3 home = (vec3(h1, h2, h4) - 0.5) * vec3(26.0 + uVarA * 10.0, 0.0, 24.0 + uVarB * 8.0);
-      float ang = uTime * (0.05 + h3 * 0.12) + h1 * 6.2831853;
-      float rise = mod(h2 * 40.0 + uTime * (0.55 + h3 * 1.3), 34.0) - 17.0;
-      vec3 p = vec3(home.x + cos(ang) * (1.2 + h2 * 2.4), rise, home.z + sin(ang) * (1.2 + h2 * 2.4));
-      // each bubble listens to its own band and swells where it sings
+      vSeed = h1;
+
+      /* A LIFE, not a loop. Each bubble rises, its film drains, and at the
+         end of the cycle it pops and a new one starts from the bottom — so
+         the cloud renews itself instead of teleporting its members. The
+         drain runs faster when the music does. */
+      float span = 13.0 + h3 * 12.0;
+      float t = uTime * (0.55 + uEnergy * 0.45) / span + h2 * 7.31;
+      float life = fract(t);
+      vLife = life;
+      // the last twentieth of the life is the burst
+      vPop = smoothstep(0.955, 1.0, life);
+
+      float rise = (life - 0.5) * 34.0;
+      float ang = uTime * (0.05 + h3 * 0.12) + h1 * 6.2831853 + floor(t) * 2.4;
+      float sway = 1.2 + h2 * 2.6;
+      vec3 p = vec3((h1 - 0.5) * (44.0 + uVarA * 14.0) + cos(ang) * sway,
+                    rise,
+                    (h4 - 0.5) * (40.0 + uVarB * 12.0) + sin(ang) * sway);
+
+      // each bubble listens to its own band and swells where its band sings
       float amp = texture2D(uAudio, vec2(h1, 0.5)).r;
+      vAmp = amp;
       vT = h1; vGlow = amp;
+
+      // a power law: many small, a few grand — like the photograph
+      float big = 6.0 + pow(h4, 2.4) * 28.0;
+      // surface tension makes a bubble RING when something hits it
+      float wob = 1.0 + uBeat * 0.06 * sin(uTime * 9.0 + h1 * 20.0);
+      float grow = 1.0 + amp * 0.22 + vPop * 0.85;      // the burst flares outward
+
       vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
       gl_Position = projectionMatrix * mv;
-      // a power-law size: many small, few grand — like the photograph
-      gl_PointSize = (6.0 + pow(h4, 2.0) * 30.0) * (1.0 + uBeat * 0.10 + amp * 0.22) * (300.0 / -mv.z);
+      gl_PointSize = big * wob * grow * (300.0 / -mv.z);
     }
   `;
-  const frag = GLSL_MPHI + `
-    uniform vec3 uColC; uniform float uOpacity, uTreble, uTime;
-    varying float vGlow; varying float vT;
-    vec3 hsv(float h, float s, float v){
-      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
-      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
-    }
-    void main(){
-      vec2 d = gl_PointCoord - 0.5;
-      float r = length(d);
-      if (r > 0.5) discard;
-      // a glass shell: the middle is nearly empty, the light lives on the rim
-      float rim = smoothstep(0.30, 0.475, r) * smoothstep(0.5, 0.46, r);
-      float film = smoothstep(0.5, 0.1, r) * 0.05;
-      // the rim wears the spectrum AROUND itself — interference, curled closed
-      float ang = atan(d.y, d.x);
-      float hue = fract(vT + ang * 0.0716 + uTime * 0.01);
-      vec3 col = mix(hsv(hue, 0.55, 1.0), ramp(hue), 0.35);
-      // one specular window, up-left, like every photograph of a bubble
-      vec2 hp = d - vec2(-0.15, 0.17);
-      float hl = exp(-dot(hp, hp) * 90.0);
-      col = col * rim * (0.7 + vGlow * 0.9) + vec3(1.0) * hl * (0.35 + uTreble * 0.4);
-      col += uColC * film;
-      col = inkRolloff(col);
-      gl_FragColor = vec4(col, (rim * 0.9 + film + hl * 0.5) * uOpacity);
-    }
-  `;
-  group.add(addShaderPoints(geo, frag, vert, varU));
 
-  // the fizz: micro-bubbles rising faster, treble-lit
-  const FN = 240;
+  const frag = GLSL_MPHI + GLSL_FILM + `
+    uniform float uOpacity, uTreble, uTime, uBass, uEnergy, uBeat;
+    varying float vSeed, vAmp, vLife, vPop;
+    void main(){
+      vec2 pc = gl_PointCoord * 2.0 - 1.0;
+      pc.y = -pc.y;                       // point coords run down the screen
+      float r2 = dot(pc, pc);
+      if (r2 > 1.0) discard;
+      float r = sqrt(r2);
+
+      /* THE POP. A film that has drained past black lets go: what is left
+         for a moment is an expanding ring of droplets, and then nothing. */
+      if (vPop > 0.001){
+        float ringR = mix(0.35, 1.0, vPop);
+        float ring = exp(-abs(r - ringR) * 9.0) * (1.0 - vPop);
+        vec3 burst = mix(vec3(1.0, 0.95, 0.85), ramp(vSeed), 0.5);
+        gl_FragColor = vec4(inkRolloff(burst * ring * 2.2), ring * uOpacity);
+        return;
+      }
+
+      /* THE SPHERE, RECONSTRUCTED. n.z = √(1−r²) is the normal the pixel
+         would have on a real ball, in VIEW space — which is what lets the
+         shading, the Fresnel and the interference all be evaluated against
+         true geometry instead of against a picture of it. */
+      vec3 n = vec3(pc, sqrt(max(0.0, 1.0 - r2)));
+      // the sprite is billboarded, so the eye axis IS the view axis and the
+      // cosine falls straight out of the impostor: 1 in the middle, 0 at the rim
+      vec3 V = vec3(0.0, 0.0, 1.0);
+      float ci = n.z;
+
+      /* THE FILM'S OWN COORDINATES. Rotating the view-space normal back into
+         the world anchors the pattern to the bubble: GLSL ES 1.0 has no
+         transpose(), and v * m is exactly transpose(m) * v. */
+      vec3 nw = n * mat3(viewMatrix);
+
+      /* THICKNESS. Gravity drains the film downward, so it is thin at the
+         crown and thick at the foot — the horizontal bands every real
+         bubble wears, sinking as it ages. Over the bubble's life the whole
+         film thins toward the black film, and the music stirs it. */
+      float age = vLife;
+      float drain = 1.0 - age * 0.62;
+      float dNm = (150.0 + 620.0 * (0.5 - 0.5 * nw.y)) * drain;
+      // marbling: two octaves of noise, advected so the swirl actually flows
+      vec3 q = nw * 2.3 + vec3(0.0, -uTime * 0.10 - age * 1.4, vSeed * 31.0);
+      dNm += (fNoise(q) - 0.5) * 260.0 * (0.6 + uBass * 0.5);
+      dNm = max(dNm, 0.0);
+
+      float F = filmFresnel(ci);
+      /* FRONT AND BACK. You are looking through the bubble, so the far wall
+         of the film reflects too — a second, dimmer interference image
+         inside the first, at a different angle and a slightly different
+         thickness. That ghost is in every bubble photograph. */
+      vec3 spec1 = filmSpectrum(dNm, ci);
+      vec3 spec2 = filmSpectrum(dNm * 1.18 + 40.0, max(ci * 0.72, 0.05));
+      vec3 film = spec1 * F + spec2 * F * 0.45;
+
+      /* AND THE BANDS ACROSS THE SHELL. Reflecting the whole environment at
+         n·V puts every colour on the rim, because that is where the Fresnel
+         is — but a photograph of a bubble is banded right across its face.
+         That colour is the reflection of a LIGHT rather than of the room, and
+         a specular reflection is taken at the half-vector: the angle through
+         the film is n·H, which sweeps its own set of bands over the surface
+         and moves as the bubble turns. This is also why a bubble's highlight
+         is coloured rather than white — the specular below is tinted by it. */
+      vec3 H1 = normalize(normalize(vec3(-0.45, 0.62, 0.65)) + V);
+      float cH = clamp(dot(n, H1), 0.0, 1.0);
+      vec3 band = filmSpectrum(dNm, cH) * filmFresnel(cH);
+      film += band * 3.2 * smoothstep(0.0, 0.35, cH);
+
+      /* Fresnel alone is 2% head-on, which is physically right and visually
+         a black screen — a real bubble is lit by a bright room. This is the
+         room: a broad gain that keeps the rim/centre RATIO the physics gave
+         us while making the film visible across the whole shell. */
+      film *= 5.0 + uEnergy * 2.0;
+      film = mix(film, film * ramp(fract(vSeed + dNm * 0.0006)), 0.35);   // the key tints the light
+
+      // TWO LIGHTS, and a real lobe: the specular window is a highlight now
+      vec3 L2 = normalize(vec3(0.55, -0.25, 0.55));
+      vec3 H2 = normalize(L2 + V);
+      float s1 = pow(cH, 220.0);
+      float s2 = pow(max(dot(n, H2), 0.0), 90.0) * 0.35;
+      // the window in the film is tinted BY the film — never a white dot
+      vec3 spec = mix(vec3(1.0, 0.98, 0.94), band + 0.35, 0.45)
+                * (s1 * (1.0 + uTreble * 0.6) + s2);
+
+      // what comes THROUGH: a soap wall is mostly window, and the room's own
+      // colour is what is behind it
+      vec3 through = ramp(fract(vSeed * 0.7 + 0.15)) * 0.10 * (1.0 - F);
+
+      vec3 col = film + spec + through;
+      col *= 0.75 + vAmp * 0.85 + uBeat * 0.12;          // its own band, singing
+      col = inkRolloff(col);
+
+      /* THE EDGE. Alpha follows the reflectance, so the silhouette is the
+         physics' own: a bright rim, a nearly clear middle, and a soft last
+         pixel so a 40-pixel sprite has no staircase on it. */
+      float a = clamp(F * 5.0 + s1 + s2 * 0.5 + 0.035, 0.0, 1.0);
+      a *= smoothstep(1.0, 0.985, r);
+      gl_FragColor = vec4(col, a * uOpacity);
+    }
+  `;
+  /* NORMAL BLENDING, NOT ADDITIVE. A soap wall is a TRANSPARENT surface: two
+     of them overlapping should composite — you see the far one through the
+     near one — not sum. Added, a hundred shells stack into one white blob in
+     the middle of the cloud, which is what the first pass of this looked like.
+     Compositing also lets the alpha carry the physics: the Fresnel curve makes
+     the rim opaque and the middle a window, which IS the silhouette. */
+  group.add(addShaderPoints(geo, frag, vert, varU, 'normal'));
+
+  // ---------------- the fizz: micro-bubbles, rising faster ----------------
+  const FN = 260;
   const fpos = new Float32Array(FN * 3), fSeed = new Float32Array(FN);
   for (let i = 0; i < FN; i++) fSeed[i] = (i + 0.5) / FN;
   const fgeo = new THREE.BufferGeometry();
@@ -24333,8 +24536,10 @@ function buildBubbles(){
   fgeo.setAttribute('aSeed', new THREE.BufferAttribute(fSeed, 1));
   const fvert = VERT_POINT_HEAD + `
     attribute float aSeed;
+    varying float vSeed2;
     void main(){
       float h1 = fract(aSeed * 127.1), h2 = fract(aSeed * 311.7), h3 = fract(aSeed * 74.7);
+      vSeed2 = h1;
       float rise = mod(h2 * 60.0 + uTime * (2.2 + h3 * 3.0), 36.0) - 18.0;
       // the wobble every small bubble climbs with
       vec3 p = vec3((h1 - 0.5) * 34.0 + sin(uTime * (1.2 + h3) + h2 * 40.0) * 0.5,
@@ -24343,10 +24548,27 @@ function buildBubbles(){
       vT = h1; vGlow = uTreble * 0.8;
       vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = (1.2 + h2 * 2.2) * (300.0 / -mv.z);
+      gl_PointSize = (1.6 + h2 * 3.4) * (300.0 / -mv.z);
     }
   `;
-  group.add(addShaderPoints(fgeo, FRAG_POINT, fvert));
+  const ffrag = GLSL_MPHI + GLSL_FILM + `
+    uniform float uOpacity, uTreble, uEnergy;
+    varying float vSeed2; varying float vT; varying float vGlow;
+    void main(){
+      vec2 pc = gl_PointCoord * 2.0 - 1.0;
+      float r2 = dot(pc, pc);
+      if (r2 > 1.0) discard;
+      // the same film on a much smaller shell — a fizz bubble is thin, so it
+      // sits at the blue end where a young film belongs
+      float ci = sqrt(max(0.0, 1.0 - r2));
+      float F = filmFresnel(ci);
+      vec3 col = filmSpectrum(210.0 + vSeed2 * 260.0, ci) * F * 9.0;
+      col = mix(col, ramp(vT), 0.3);
+      col = inkRolloff(col * (0.8 + vGlow + uEnergy * 0.3));
+      gl_FragColor = vec4(col, clamp(F * 6.0 + 0.05, 0.0, 1.0) * uOpacity);
+    }
+  `;
+  group.add(addShaderPoints(fgeo, ffrag, fvert, varU));
 
   group.visible = false;
   scene.add(group);

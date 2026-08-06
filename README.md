@@ -576,9 +576,7 @@ hard colours, or the dotted SWIRL vortex on a log-spiral lattice where every
 scale listens to its own band of the live spectrum), **OIL FILM** (thin-film
 interference on a dark current: three wavelengths of one marbled thickness,
 so the low end *walks* every fringe instead of brightening it, and the beat
-drops a ripple ring), and **BUBBLES** (a glass cluster drifting upward, each
-shell nearly empty in the middle with all its light on the rim, the rim's hue
-walking the spectrum around itself, every bubble swelling with its own band),
+drops a ripple ring), **BUBBLES** — see [Soap films](#soap-films--the-rainbow-solved-not-painted) below —
 and **CONSTELLATIONS** — see [The sky over Ohio](#the-sky-over-ohio--a-star-viewer-that-talks) below.
 Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
@@ -603,6 +601,57 @@ rather than a screensaver:
   fires a shockwave. But the touch itself is not drawn: your hand deforms the
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
+
+## Soap films — the rainbow solved, not painted
+
+The first cut of scene 23 walked a hue around each disc with `atan(y, x)` and
+called it iridescence. It isn't: that makes the colour a function of **where
+on the screen** a pixel sits, so the rainbow is a decal that slides with the
+camera. No shape, no depth, and colours that never move the way a real
+bubble's do.
+
+A soap bubble is a film of water a few hundred nanometres thick with air on
+both sides. Light reflects off the front surface *and* the back; where the two
+reflections differ by a whole wavelength they add, where they differ by a half
+they cancel. Three numbers, all physical:
+
+- **Δ = 2·n·d·cosθt** — the optical path difference, with `d` the thickness,
+  `n = 1.33` for soap water, and θt the *refracted* angle inside the film
+  (Snell's law from the angle you're viewing the surface at).
+- **+λ/2** — the phase flip on reflection off the denser medium. It's why a
+  film thinner than the light goes **black** rather than white, and leaving it
+  out is the classic way to get a rainbow that never dies.
+- **F(θ)** — Fresnel. At n = 1.33 only ~2 % of light comes back head-on and
+  nearly all of it at grazing incidence, which is the entire reason a bubble is
+  a bright ring around a clear middle.
+
+Because θ is measured from the surface **normal**, the colour depends on the
+angle between eye and film — so on a sphere it's a function of radius across
+the disc, and it stays put as the camera moves. Each sprite is a **sphere
+impostor**: the fragment reconstructs the normal it would have on a real ball
+(`n.z = √(1−r²)`), so shading, Fresnel and interference are all evaluated
+against true 3D geometry, and the film pattern is anchored in *world* space
+(the normal is rotated back out of view space by `v * mat3(viewMatrix)`, since
+GLSL ES 1.0 has no `transpose()`).
+
+Everything else falls out of the same physics. **The film drains** — gravity
+pulls it down, so it's thin at the crown and thick at the foot, which is why
+real bubbles wear sinking horizontal bands; it drains over the bubble's life
+too, so the colours march and the crown eventually thins past the black film,
+at which point the bubble **pops** in an expanding ring and a new one rises.
+**You see the film twice**, front wall and back, so a second dimmer
+interference image sits inside the first — the ghost in every bubble
+photograph. And the bands that sweep *across* a bubble's face are the
+reflection of a **light** rather than of the room, so they're taken at the
+half-vector `n·H` — which is also why a bubble's highlight is coloured instead
+of white.
+
+Two details that are craft rather than physics: the shells **composite**
+rather than sum (a hundred added-together transparent walls stack into one
+white blob — normal blending lets the far one show through the near one, and
+lets the Fresnel curve carry the silhouette), and the whole film gets a broad
+exposure gain, because 2 % reflectance is honest and also a black screen — a
+real bubble is lit by a bright room, and that gain is the room.
 
 ## The sky over Ohio — a star viewer that talks
 
