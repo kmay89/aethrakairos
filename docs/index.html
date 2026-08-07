@@ -3554,9 +3554,9 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
                'grows', 'flows',
                'flows', 'grows', 'flows', 'gathers',
-               'grows', 'gathers'];   // …the lattice and the film ripple, the mandala
-                           // spins, the bubbles pull, a hand on the SKY winds the stars,
-                           // and the SHOW gathers its sparks
+               'grows', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
+                           // mandala spins, the bubbles pull, a hand on the SKY winds the
+                           // stars, the SHOW gathers its sparks, and the SET is a well
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
@@ -3806,9 +3806,9 @@ function ghostPattern(sceneIdx, act, r, mood){
                'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa',
                'lissa', 'snake',
                'snake', 'lissa', 'paint', 'drift',
-               'drift', 'bounce'];   // …SHEETS walks the lattice, MANDALA curves, OIL
-                           // paints, BUBBLES drift, the SKY is drifted through slowly,
-                           // and the SHOW bounces like the shells do
+               'drift', 'bounce', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
+                           // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
+                           // the SHOW bounces like its shells, and the SET is walked in curves
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -4336,6 +4336,30 @@ function pyroProgram(o){
   return { name: 'OVERTURE', salvo: 1, perCue: 1, spread: 0.45, chance: 0.3, big: 0.4 };
 }
 
+/* Points worth diving into. Not random: each one is a place where the
+   boundary is famously ornate — the seahorse valley, the elephant
+   valley, the spike, a Misiurewicz point where the lace is densest. */
+const MANDEL_TARGETS = [
+  [-0.7436447860, 0.1318252536, 'SEAHORSE VALLEY'],
+  [ 0.2925755000, 0.0149220000, 'THE FILAMENTS'],
+  [-0.1010963000, 0.9562865000, 'THE ANTENNA'],
+  [-1.7492046000, 0.0000283000, 'THE SPIKE'],
+  [ 0.2520000000, 0.0000000000, 'ELEPHANT VALLEY'],
+  [-0.7453000000, 0.1130000000, 'THE DOUBLE SPIRAL'],
+];
+/* c walks the edge of the cardioid, which is where a Julia set is
+   neither a disc nor dust but the dendritic lace between the two —
+   the interesting boundary of the interesting boundary. */
+function mandelJuliaC(t){
+  const th = (typeof t === 'number' && isFinite(t)) ? t : 0;
+  // the cardioid: c = e^{iθ}/2 − e^{2iθ}/4, pushed a hair outside it so
+  // the set is a dendrite rather than a solid blob
+  const c1 = Math.cos(th) * 0.5 - Math.cos(2 * th) * 0.25;
+  const c2 = Math.sin(th) * 0.5 - Math.sin(2 * th) * 0.25;
+  const k = 1.0012;
+  return [c1 * k, c2 * k];
+}
+
 /* ================================================================
    THE ROOM — what the auto director is really choosing.
 
@@ -4374,7 +4398,7 @@ function pyroProgram(o){
    you notice a room that got added and never given a character. */
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
-                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro'];
+                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -4410,6 +4434,9 @@ const SCENE_TASTE = {
   oilslick:  { entropy: 1.0, calm: 0.8, bass: 0.5 },        // slow chromatic weather
   bubbles:   { calm: 1.1, treble: 0.7, energy: -0.6 },      // glass, air, quiet
   sky:       { calm: 1.0, coupling: 0.7, entropy: -0.4 },   // the night sky — patient, coherent
+  mandel:    { coupling: 1.2, entropy: -0.8, calm: 0.3 },   // the set rewards a held, coherent passage —
+                                                            // a dive wants time, and chaos is not the same
+                                                            // thing as structure
   pyro:      { energy: 1.4, beat: 1.0, treble: 0.7, calm: -0.6 },  // the show — it wants a peak to fire into,
                                                             // and the ABSENCE of calm: a firework in a
                                                             // quiet passage is a firework nobody asked for
@@ -5534,6 +5561,7 @@ const SCENE_SIGS = {
   bubbles:   { kind: 'cloud',  h: 196, dense: 0.6 },
   sky:       { kind: 'burst',  h: 84,  arms: 7, tail: 1 },
   pyro:      { kind: 'burst',  h: 8,   arms: 14, rainbow: 1 },
+  mandel:    { kind: 'spiral', h: 42,  arms: 7, dense: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -26461,6 +26489,260 @@ function buildPyroShow(){
   return api;
 }
 
+/* =========================================================
+   Scene 26 — FILIGREE  (the escape-time set, rendered properly)
+
+   The room already had a fractal — a raymarched Mandelbulb — but not
+   the one everybody means: the flat escape-time set, and the lace that
+   grows on its boundary. Three techniques separate a Mandelbrot that
+   looks like a poster from one that looks like a screensaver, and this
+   room uses all three.
+
+   1. THE SMOOTH ITERATION COUNT. Colouring by the integer escape count
+      gives concentric bands with hard steps in them, which is the
+      single most recognisable tell of a naive renderer. The fix is to
+      subtract the fractional part the orbit had already earned when it
+      escaped:
+
+          ν = n − log₂(log₂|z|)
+
+      That is continuous across the whole plane, so the bands dissolve
+      into a gradient and the palette can actually be used as a palette.
+
+   2. THE DISTANCE ESTIMATOR. Carrying the derivative alongside the
+      orbit — dz′ = 2·z·dz + 1, one complex multiply a step — gives the
+      distance to the set itself:
+
+          d = |z|·log|z| / |dz|
+
+      That is a real length in the plane, so the boundary can be drawn
+      at a width measured in PIXELS rather than in iterations. It is why
+      the filaments here stay one hair wide at any zoom instead of
+      aliasing into mush — and it is the difference between a fractal
+      that survives a projector and one that does not.
+
+   3. ORBIT TRAPS. Watch how close the orbit passes to some shape — a
+      point, a line, a circle, a cross — and colour by the closest
+      approach. The set does not change; what changes is what you are
+      asking about it, and the answer is the ornamental lace that grows
+      along every filament. This is where the gold filigree comes from.
+      It is not decoration laid on top: every curl is a place where the
+      orbits happen to sweep past the trap.
+
+   Two forms, because they fail in opposite directions. MANDELBROT
+   zooms, and a zoom is finite here: single-precision floats run out of
+   relative resolution around 10⁻⁵, after which the plane goes visibly
+   blocky. So this one dives, hangs at the bottom, and lifts back out on
+   a phrase rather than pretending it can go forever. JULIA does not
+   zoom at all — it MORPHS, walking c around the cardioid's edge, where
+   the set reorganises itself continuously and no precision is ever
+   spent. Between them the room can be endless and honest at once.
+
+   The music drives the dive rate, the walk of c, and the trap radius —
+   so the lace opens and closes on the beat.
+   ========================================================= */
+function buildFiligree(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uForm:   { value: 0 },
+    uCenter: { value: new THREE.Vector2(-0.7436447860, 0.1318252536) },
+    uZoom:   { value: 1.6 },                 // half-height of the view, in plane units
+    uJuliaC: { value: new THREE.Vector2(-0.4, 0.6) },
+    uTrap:   { value: 0 },                   // which shape the orbit is measured against
+    uTrapR:  { value: 0.55 },
+    uIter:   { value: 190 },                 // the adaptive budget
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBeat, uBeatSpring, uEnergy, uBass, uTreble, uCentroid, uOpacity;
+    uniform float uVarA, uVarB, uVarC, uForm, uAspect, uZoom, uTrap, uTrapR, uIter;
+    uniform vec2 uCenter, uJuliaC;
+    uniform vec3 uColA, uColB, uColC;
+    varying vec2 vUv;
+
+    vec2 cmul(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+
+    void main(){
+      vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      bool julia = uForm > 0.5;
+
+      /* THE PLANE. A Mandelbrot pixel IS its own c; a Julia pixel is a
+         starting z and every pixel shares one c. That one swap is the whole
+         difference between the two sets, and it is why they can share a loop. */
+      vec2 p = uv * uZoom + (julia ? vec2(0.0) : uCenter);
+      vec2 c = julia ? uJuliaC : p;
+      vec2 z = julia ? p : vec2(0.0);
+      vec2 dz = vec2(1.0, 0.0);              // the derivative, carried alongside
+
+      float trapMin = 1e9, trapAng = 0.0;
+      float n = 0.0;
+      bool escaped = false;
+      const float BAIL = 2048.0;             // large, because the smooth count wants it
+
+      for (int i = 0; i < 220; i++){
+        if (float(i) >= uIter) break;
+        if (dot(z, z) > BAIL){ escaped = true; break; }
+        // derivative FIRST: it must be the derivative of the z going in
+        dz = 2.0 * cmul(z, dz) + vec2(1.0, 0.0);
+        z = cmul(z, z) + c;
+
+        /* THE TRAP. How close this orbit passed to the shape — the closest
+           approach over the whole orbit is the ornament. */
+        float d;
+        if (uTrap < 0.5)      d = length(z) ;                       // a point at the origin
+        else if (uTrap < 1.5) d = abs(length(z) - uTrapR);          // a circle
+        else if (uTrap < 2.5) d = min(abs(z.x), abs(z.y));          // a cross
+        else                  d = abs(z.y - sin(z.x * 2.0) * 0.35); // a wave
+        if (d < trapMin){ trapMin = d; trapAng = atan(z.y, z.x); }
+        n += 1.0;
+      }
+
+      vec3 col;
+      if (!escaped){
+        /* INSIDE. Black is the honest answer and a wasted third of the frame,
+           so the interior is coloured by its own trap instead — the ornament
+           continues under the surface, dimmer, the way a real engraving does. */
+        float t = 1.0 - exp(-trapMin * 3.0);
+        col = mix(uColA * 0.12, ramp(fract(trapAng / 6.2831853 + uCentroid)), 0.45) * (0.09 + t * 0.46);
+      } else {
+        // THE SMOOTH COUNT: n minus the fraction the orbit had already earned
+        float sn = n - log2(log2(dot(z, z))) + 4.0;
+
+        /* THE DISTANCE ESTIMATE, in plane units, converted to PIXELS by the
+           same scale the view is drawn at. A boundary drawn at a pixel width
+           stays one hair wide at every zoom — which is the entire reason this
+           does not turn to mush on the way down. */
+        float de = 0.5 * length(z) * log(length(z)) / max(length(dz), 1e-12);
+        float px = uZoom * 2.0 / 900.0;               // plane units per pixel, near enough
+        float edge = clamp(de / px, 0.0, 24.0);
+
+        /* THE PALETTE IS WALKED IN LOG, not linearly. The escape count is
+           tiny over most of the plane and enormous in a thin skin around the
+           boundary, so a linear walk spends the whole gradient on the far
+           field — which is why the first cut of this was a flat orange sheet
+           with a thread of detail in it. In log the colour changes at the
+           same visual rate everywhere, which is the layered look a good
+           Mandelbrot plate has. */
+        float u = fract(log(sn + 1.0) * (0.55 + uVarB * 0.42) + uCentroid * 0.5);
+        /* THE BANDS CARRY REAL HUE RANGE. The room's ramp is three stops of the
+           track's own key, which is right for a field and wrong for this: a
+           zoom's whole pleasure is the layered spectrum the bands walk through,
+           and three stops of amber cannot walk anywhere. So the count drives a
+           full hue circle, mixed back toward the key so the room still owns the
+           colour — the same bargain COMETS strikes with its rainbow. */
+        col = mix(ramp(u), hsv(u, 0.62 + uVarC * 0.22, 1.0), 0.55);
+
+        /* THE LACE. The trap is what makes the filigree: near approaches are
+           the bright curls, and they are gold because the ornament is the
+           subject and the palette is the ground it sits on. */
+        float lace = exp(-trapMin * (7.0 + uVarA * 9.0));
+        vec3 gold = mix(vec3(1.0, 0.82, 0.42), ramp(fract(u + 0.5)), 0.35);
+        col = mix(col * (0.35 + 0.65 * lace), gold, lace * (0.55 + uBeat * 0.25));
+
+        // and the boundary itself, drawn from the distance estimate
+        float fil = exp(-edge * 0.55);
+        col += mix(vec3(1.0, 0.93, 0.78), gold, 0.5) * fil * (0.5 + uBeatSpring * 0.4);
+
+        /* AND THE FAR FIELD DIMS, not the near one. This term was inverted in
+           the first cut — it darkened by escape count, which shades the thin
+           intricate skin around the boundary and leaves the empty plane
+           blazing. It is the wrong way round: the detail is what the room is
+           for, so the fast-escaping field falls away and the boundary keeps
+           the light. */
+        col *= 0.22 + 0.78 * smoothstep(1.5, 26.0, sn);
+      }
+
+      col *= 1.05 + uEnergy * 0.35;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  /* THE DIVE. Down for a while, hang at the floor, and lift back out —
+     because single-precision runs out of relative resolution around 1e-5 and
+     a zoom that pretends otherwise just goes blocky. The floor is set above
+     that, and the way back up is the room admitting where the limit is. */
+  const st = { form: 0, t: 0, target: 0, zoom: 1.6, dir: -1, julia: 0, name: 'FILIGREE' };
+  const FLOOR = 2.2e-4, CEIL = 1.9;
+
+  const api = {
+    name: 'FILIGREE', key: 'mandel', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f;
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+      st.t += dt;
+
+      // a struggling device gets a shallower orbit, not a stuttering room
+      const want = (typeof PERF !== 'undefined' && PERF.struggling) ? 90
+                 : (typeof POWER !== 'undefined' && !POWER.heavyOK) ? 120 : 190;
+      varU.uIter.value += (want - varU.uIter.value) * Math.min(1, dt * 2);
+
+      if (st.form === 0){
+        // THE DIVE: exponential in the zoom, so the apparent speed is constant
+        const rate = (0.10 + f.energy * 0.16) * st.dir;
+        st.zoom *= Math.exp(rate * dt);
+        if (st.zoom < FLOOR){ st.zoom = FLOOR; st.dir = 1; }
+        if (st.zoom > CEIL){
+          st.zoom = CEIL; st.dir = -1;
+          // a new valley each time we surface
+          st.target = (st.target + 1 + Math.floor(Math.random() * 2)) % MANDEL_TARGETS.length;
+          const T = MANDEL_TARGETS[st.target];
+          varU.uCenter.value.set(T[0], T[1]);
+          api.name = 'FILIGREE · ' + T[2];
+          if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = api.name;
+        }
+        varU.uZoom.value = st.zoom;
+      } else {
+        // THE MORPH: c walks the cardioid's edge, forever, at no cost in precision
+        st.julia += dt * (0.045 + f.energy * 0.075);
+        const c = mandelJuliaC(st.julia);
+        varU.uJuliaC.value.set(c[0], c[1]);
+        varU.uZoom.value = 1.35 + Math.sin(st.t * 0.11) * 0.25 - f.bass * 0.08;
+      }
+      // the lace opens and closes with the music
+      varU.uTrapR.value = 0.42 + f.mid * 0.35 + f.beat * 0.06;
+    },
+    roll(){
+      st.form = Math.random() < 0.55 ? 0 : 1;
+      varU.uForm.value = st.form;
+      st.target = Math.floor(Math.random() * MANDEL_TARGETS.length);
+      const T = MANDEL_TARGETS[st.target];
+      varU.uCenter.value.set(T[0], T[1]);
+      st.zoom = CEIL; st.dir = -1; st.t = 0;
+      st.julia = Math.random() * 6.283;
+      varU.uZoom.value = st.zoom;
+      varU.uTrap.value = Math.floor(Math.random() * 4);
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      api.name = st.form === 0 ? 'FILIGREE · ' + T[2] : 'FILIGREE · JULIA MORPH';
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -26489,7 +26771,7 @@ function initThree(){
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
-              buildPyroShow());
+              buildPyroShow(), buildFiligree());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -29321,7 +29603,7 @@ const WARM = {
     return alpha == null ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
   },
 
-  /* THE TILE PAINTERS. Nine gestures, re-used across twenty-five rooms at
+  /* THE TILE PAINTERS. Nine gestures, re-used across twenty-six rooms at
      different hues and densities — not screenshots, and deliberately not:
      a still frame of a scene that is entirely about MOTION is a worse
      description of it than a drawing of what the motion does. */
