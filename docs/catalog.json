@@ -89,7 +89,7 @@
      "features": {
       "bpm": 119.8,
       "energy": 0.0,
-      "brightness": 0.215,
+      "brightness": 0.214,
       "entropy": 0.313,
       "onsets": 0.0
      },
@@ -177,10 +177,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.241,
-      "brightness": 0.571,
+      "energy": 0.235,
+      "brightness": 0.57,
       "entropy": 0.382,
-      "onsets": 0.024
+      "onsets": 0.022
      },
      "gain": 1.05,
      "env": {
@@ -272,7 +272,7 @@
      },
      "features": {
       "bpm": 168.8,
-      "energy": 0.428,
+      "energy": 0.422,
       "brightness": 0.695,
       "entropy": 0.369,
       "onsets": 1.0
@@ -385,8 +385,8 @@
      },
      "features": {
       "bpm": 170.7,
-      "energy": 0.817,
-      "brightness": 0.712,
+      "energy": 0.81,
+      "brightness": 0.711,
       "entropy": 0.376,
       "onsets": 0.854
      },
@@ -474,10 +474,10 @@
      },
      "features": {
       "bpm": 142.1,
-      "energy": 0.309,
-      "brightness": 0.099,
+      "energy": 0.302,
+      "brightness": 0.098,
       "entropy": 0.26,
-      "onsets": 0.064
+      "onsets": 0.061
      },
      "gain": 0.33,
      "env": {
@@ -563,10 +563,10 @@
      },
      "features": {
       "bpm": 130.1,
-      "energy": 0.221,
+      "energy": 0.215,
       "brightness": 0.352,
       "entropy": 0.324,
-      "onsets": 0.256
+      "onsets": 0.254
      },
      "gain": 0.34,
      "env": {
@@ -747,7 +747,7 @@
      },
      "features": {
       "bpm": 96.2,
-      "energy": 0.522,
+      "energy": 0.515,
       "brightness": 0.758,
       "entropy": 0.409,
       "onsets": 0.472
@@ -830,10 +830,10 @@
      },
      "features": {
       "bpm": 172.8,
-      "energy": 0.629,
-      "brightness": 0.338,
+      "energy": 0.622,
+      "brightness": 0.337,
       "entropy": 0.397,
-      "onsets": 0.185
+      "onsets": 0.183
      },
      "gain": -0.4,
      "env": {
@@ -925,10 +925,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.379,
-      "brightness": 0.268,
+      "energy": 0.373,
+      "brightness": 0.267,
       "entropy": 0.368,
-      "onsets": 0.306
+      "onsets": 0.304
      },
      "gain": -0.22,
      "env": {
@@ -1020,10 +1020,10 @@
      },
      "features": {
       "bpm": 137.0,
-      "energy": 0.501,
+      "energy": 0.495,
       "brightness": 0.684,
       "entropy": 0.394,
-      "onsets": 0.245
+      "onsets": 0.243
      },
      "gain": -0.4,
      "env": {
@@ -1109,10 +1109,10 @@
      },
      "features": {
       "bpm": 155.4,
-      "energy": 0.576,
+      "energy": 0.569,
       "brightness": 0.652,
       "entropy": 0.357,
-      "onsets": 0.233
+      "onsets": 0.231
      },
      "gain": 1.21,
      "env": {
@@ -1192,10 +1192,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 1.0,
+      "energy": 0.999,
       "brightness": 0.885,
       "entropy": 0.42,
-      "onsets": 0.238
+      "onsets": 0.237
      },
      "gain": -0.09,
      "env": {
@@ -1281,7 +1281,7 @@
      },
      "features": {
       "bpm": 128.2,
-      "energy": 0.841,
+      "energy": 0.834,
       "brightness": 0.89,
       "entropy": 0.479,
       "onsets": 0.632
@@ -1376,10 +1376,10 @@
      },
      "features": {
       "bpm": 136.3,
-      "energy": 0.641,
-      "brightness": 0.248,
+      "energy": 0.635,
+      "brightness": 0.247,
       "entropy": 0.32,
-      "onsets": 0.304
+      "onsets": 0.303
      },
      "gain": -1.1,
      "env": {
@@ -1465,7 +1465,7 @@
      },
      "features": {
       "bpm": 142.0,
-      "energy": 0.769,
+      "energy": 0.763,
       "brightness": 0.425,
       "entropy": 0.329,
       "onsets": 0.665
@@ -1554,10 +1554,10 @@
      },
      "features": {
       "bpm": 125.8,
-      "energy": 0.575,
+      "energy": 0.569,
       "brightness": 0.268,
       "entropy": 0.349,
-      "onsets": 0.581
+      "onsets": 0.58
      },
      "gain": 0.4,
      "env": {
@@ -1656,7 +1656,7 @@
      "features": {
       "bpm": 0.0,
       "energy": 0.0,
-      "brightness": 0.051,
+      "brightness": 0.05,
       "entropy": 0.303,
       "onsets": 0.0
      },
@@ -1744,10 +1744,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.473,
-      "brightness": 0.204,
+      "energy": 0.466,
+      "brightness": 0.203,
       "entropy": 0.303,
-      "onsets": 0.187
+      "onsets": 0.185
      },
      "gain": 1.81,
      "env": {
@@ -1833,7 +1833,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.254,
+      "energy": 0.248,
       "brightness": 0.645,
       "entropy": 0.349,
       "onsets": 0.0
@@ -1928,10 +1928,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.449,
+      "energy": 0.443,
       "brightness": 0.654,
       "entropy": 0.409,
-      "onsets": 0.255
+      "onsets": 0.253
      },
      "gain": 0.47,
      "env": {
@@ -2023,7 +2023,7 @@
      },
      "features": {
       "bpm": 144.6,
-      "energy": 0.729,
+      "energy": 0.723,
       "brightness": 1.0,
       "entropy": 0.421,
       "onsets": 0.519
@@ -2118,10 +2118,10 @@
      },
      "features": {
       "bpm": 130.0,
-      "energy": 0.579,
-      "brightness": 0.073,
+      "energy": 0.572,
+      "brightness": 0.072,
       "entropy": 0.296,
-      "onsets": 0.965
+      "onsets": 0.966
      },
      "gain": 1.23,
      "env": {
@@ -2213,8 +2213,8 @@
      },
      "features": {
       "bpm": 93.4,
-      "energy": 0.738,
-      "brightness": 0.964,
+      "energy": 0.731,
+      "brightness": 0.965,
       "entropy": 0.396,
       "onsets": 0.626
      },
@@ -2308,10 +2308,10 @@
      },
      "features": {
       "bpm": 130.1,
-      "energy": 0.761,
+      "energy": 0.754,
       "brightness": 0.626,
       "entropy": 0.354,
-      "onsets": 0.385
+      "onsets": 0.383
      },
      "gain": 0.4,
      "env": {
@@ -2409,10 +2409,10 @@
      },
      "features": {
       "bpm": 172.5,
-      "energy": 0.581,
+      "energy": 0.575,
       "brightness": 0.66,
       "entropy": 0.372,
-      "onsets": 0.976
+      "onsets": 0.977
      },
      "gain": 1.07,
      "env": {
@@ -2498,8 +2498,8 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.416,
-      "brightness": 0.987,
+      "energy": 0.41,
+      "brightness": 0.988,
       "entropy": 0.481,
       "onsets": 0.0
      },
@@ -2593,10 +2593,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.834,
+      "energy": 0.827,
       "brightness": 0.82,
       "entropy": 0.36,
-      "onsets": 0.822
+      "onsets": 0.823
      },
      "gain": 1.01,
      "env": {
@@ -2676,10 +2676,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.492,
+      "energy": 0.485,
       "brightness": 0.701,
       "entropy": 0.364,
-      "onsets": 0.042
+      "onsets": 0.04
      },
      "gain": 0.85,
      "env": {
@@ -2777,10 +2777,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.987,
+      "energy": 0.98,
       "brightness": 0.784,
       "entropy": 0.371,
-      "onsets": 0.153
+      "onsets": 0.151
      },
      "gain": 0.5,
      "env": {
@@ -2872,10 +2872,10 @@
      },
      "features": {
       "bpm": 130.1,
-      "energy": 0.936,
-      "brightness": 0.421,
+      "energy": 0.929,
+      "brightness": 0.42,
       "entropy": 0.336,
-      "onsets": 0.401
+      "onsets": 0.4
      },
      "gain": 0.24,
      "env": {
@@ -2961,10 +2961,10 @@
      },
      "features": {
       "bpm": 130.1,
-      "energy": 0.221,
+      "energy": 0.215,
       "brightness": 0.352,
       "entropy": 0.324,
-      "onsets": 0.256
+      "onsets": 0.254
      },
      "gain": 0.34,
      "env": {
@@ -3050,10 +3050,10 @@
      },
      "features": {
       "bpm": 124.0,
-      "energy": 0.613,
+      "energy": 0.606,
       "brightness": 0.441,
       "entropy": 0.36,
-      "onsets": 0.269
+      "onsets": 0.268
      },
      "gain": 0.85,
      "env": {
@@ -3151,10 +3151,10 @@
      },
      "features": {
       "bpm": 149.9,
-      "energy": 0.299,
-      "brightness": 0.58,
+      "energy": 0.293,
+      "brightness": 0.579,
       "entropy": 0.343,
-      "onsets": 0.114
+      "onsets": 0.112
      },
      "gain": 1.41,
      "env": {
@@ -3240,10 +3240,10 @@
      },
      "features": {
       "bpm": 160.7,
-      "energy": 0.998,
+      "energy": 0.991,
       "brightness": 0.526,
       "entropy": 0.399,
-      "onsets": 0.386
+      "onsets": 0.385
      },
      "gain": 0.0,
      "env": {
@@ -3335,10 +3335,10 @@
      },
      "features": {
       "bpm": 135.0,
-      "energy": 0.42,
-      "brightness": 0.542,
+      "energy": 0.413,
+      "brightness": 0.541,
       "entropy": 0.407,
-      "onsets": 0.337
+      "onsets": 0.336
      },
      "gain": 0.57,
      "env": {
@@ -3430,10 +3430,10 @@
      },
      "features": {
       "bpm": 170.5,
-      "energy": 0.551,
+      "energy": 0.544,
       "brightness": 0.742,
       "entropy": 0.371,
-      "onsets": 0.779
+      "onsets": 0.78
      },
      "gain": 0.8,
      "env": {
@@ -3519,10 +3519,10 @@
      },
      "features": {
       "bpm": 173.4,
-      "energy": 0.569,
+      "energy": 0.563,
       "brightness": 0.454,
       "entropy": 0.338,
-      "onsets": 0.464
+      "onsets": 0.463
      },
      "gain": 1.31,
      "env": {
@@ -3603,9 +3603,9 @@
      "features": {
       "bpm": 155.2,
       "energy": 1.0,
-      "brightness": 0.367,
+      "brightness": 0.366,
       "entropy": 0.285,
-      "onsets": 0.39
+      "onsets": 0.388
      },
      "gain": -0.17,
      "env": {
@@ -3697,10 +3697,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.261,
+      "energy": 0.255,
       "brightness": 0.158,
       "entropy": 0.354,
-      "onsets": 0.28
+      "onsets": 0.278
      },
      "gain": 2.44,
      "env": {
@@ -3798,10 +3798,10 @@
      },
      "features": {
       "bpm": 127.0,
-      "energy": 0.665,
+      "energy": 0.658,
       "brightness": 0.897,
       "entropy": 0.429,
-      "onsets": 0.583
+      "onsets": 0.582
      },
      "gain": 0.58,
      "env": {
@@ -3875,10 +3875,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.723,
+      "energy": 0.716,
       "brightness": 0.864,
       "entropy": 0.399,
-      "onsets": 0.448
+      "onsets": 0.447
      },
      "gain": 1.28,
      "env": {
@@ -3970,10 +3970,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.036,
+      "energy": 0.029,
       "brightness": 0.608,
       "entropy": 0.355,
-      "onsets": 0.457
+      "onsets": 0.456
      },
      "gain": 1.19,
      "env": {
@@ -4047,7 +4047,7 @@
      },
      "features": {
       "bpm": 124.9,
-      "energy": 0.698,
+      "energy": 0.691,
       "brightness": 1.0,
       "entropy": 0.424,
       "onsets": 1.0
@@ -4142,10 +4142,10 @@
      },
      "features": {
       "bpm": 130.1,
-      "energy": 0.873,
+      "energy": 0.866,
       "brightness": 0.823,
       "entropy": 0.417,
-      "onsets": 0.277
+      "onsets": 0.275
      },
      "gain": 0.44,
      "env": {
@@ -4255,7 +4255,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.842,
+      "energy": 0.835,
       "brightness": 0.838,
       "entropy": 0.38,
       "onsets": 0.907
@@ -4344,8 +4344,8 @@
      },
      "features": {
       "bpm": 165.7,
-      "energy": 0.047,
-      "brightness": 0.064,
+      "energy": 0.041,
+      "brightness": 0.063,
       "entropy": 0.335,
       "onsets": 0.759
      },
@@ -4439,8 +4439,8 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.918,
-      "brightness": 0.166,
+      "energy": 0.911,
+      "brightness": 0.165,
       "entropy": 0.322,
       "onsets": 0.783
      },
@@ -4522,10 +4522,10 @@
      },
      "features": {
       "bpm": 149.8,
-      "energy": 0.059,
-      "brightness": 0.333,
+      "energy": 0.052,
+      "brightness": 0.332,
       "entropy": 0.302,
-      "onsets": 0.471
+      "onsets": 0.47
      },
      "gain": 2.1,
      "env": {
@@ -4605,10 +4605,10 @@
      },
      "features": {
       "bpm": 90.0,
-      "energy": 0.131,
-      "brightness": 0.375,
+      "energy": 0.125,
+      "brightness": 0.374,
       "entropy": 0.368,
-      "onsets": 0.16
+      "onsets": 0.158
      },
      "gain": 1.1,
      "env": {
@@ -4706,10 +4706,10 @@
      },
      "features": {
       "bpm": 174.6,
-      "energy": 0.623,
+      "energy": 0.616,
       "brightness": 0.639,
       "entropy": 0.42,
-      "onsets": 0.301
+      "onsets": 0.3
      },
      "gain": -0.58,
      "env": {
@@ -4804,7 +4804,7 @@
       "energy": 0.0,
       "brightness": 0.143,
       "entropy": 0.319,
-      "onsets": 0.24
+      "onsets": 0.239
      },
      "gain": 3.99,
      "env": {
@@ -4896,10 +4896,10 @@
      },
      "features": {
       "bpm": 158.6,
-      "energy": 0.392,
-      "brightness": 0.04,
+      "energy": 0.386,
+      "brightness": 0.039,
       "entropy": 0.294,
-      "onsets": 0.258
+      "onsets": 0.257
      },
      "gain": 0.7,
      "env": {
@@ -4992,7 +4992,7 @@
      "features": {
       "bpm": 0.0,
       "energy": 0.0,
-      "brightness": 0.217,
+      "brightness": 0.216,
       "entropy": 0.326,
       "onsets": 0.48
      },
@@ -5086,10 +5086,10 @@
      },
      "features": {
       "bpm": 128.2,
-      "energy": 0.772,
-      "brightness": 0.791,
+      "energy": 0.765,
+      "brightness": 0.79,
       "entropy": 0.447,
-      "onsets": 0.407
+      "onsets": 0.406
      },
      "gain": 0.86,
      "env": {
@@ -5175,10 +5175,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.502,
+      "energy": 0.495,
       "brightness": 1.0,
       "entropy": 0.479,
-      "onsets": 0.202
+      "onsets": 0.201
      },
      "gain": 1.14,
      "env": {
@@ -5267,7 +5267,7 @@
       "energy": 1.0,
       "brightness": 1.0,
       "entropy": 0.424,
-      "onsets": 0.416
+      "onsets": 0.415
      },
      "gain": 0.48,
      "env": {
@@ -5353,10 +5353,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.717,
-      "brightness": 0.216,
+      "energy": 0.71,
+      "brightness": 0.215,
       "entropy": 0.364,
-      "onsets": 0.047
+      "onsets": 0.045
      },
      "gain": -1.46,
      "env": {
@@ -5430,8 +5430,8 @@
      },
      "features": {
       "bpm": 129.4,
-      "energy": 0.997,
-      "brightness": 0.539,
+      "energy": 0.99,
+      "brightness": 0.538,
       "entropy": 0.395,
       "onsets": 0.591
      },
@@ -5525,7 +5525,7 @@
      },
      "features": {
       "bpm": 170.4,
-      "energy": 0.793,
+      "energy": 0.787,
       "brightness": 1.0,
       "entropy": 0.436,
       "onsets": 1.0
@@ -5614,10 +5614,10 @@
      },
      "features": {
       "bpm": 130.1,
-      "energy": 0.699,
+      "energy": 0.693,
       "brightness": 0.806,
       "entropy": 0.36,
-      "onsets": 0.462
+      "onsets": 0.461
      },
      "gain": 1.34,
      "env": {
@@ -5709,8 +5709,8 @@
      },
      "features": {
       "bpm": 125.8,
-      "energy": 0.892,
-      "brightness": 0.627,
+      "energy": 0.885,
+      "brightness": 0.626,
       "entropy": 0.334,
       "onsets": 0.756
      },
@@ -5810,10 +5810,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.6,
+      "energy": 0.593,
       "brightness": 0.864,
       "entropy": 0.404,
-      "onsets": 0.378
+      "onsets": 0.377
      },
      "gain": 1.06,
      "env": {
@@ -5923,10 +5923,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.756,
-      "brightness": 0.297,
+      "energy": 0.749,
+      "brightness": 0.296,
       "entropy": 0.333,
-      "onsets": 0.789
+      "onsets": 0.79
      },
      "gain": -0.17,
      "env": {
@@ -6006,10 +6006,10 @@
      },
      "features": {
       "bpm": 149.9,
-      "energy": 0.27,
-      "brightness": 0.304,
+      "energy": 0.264,
+      "brightness": 0.303,
       "entropy": 0.304,
-      "onsets": 0.07
+      "onsets": 0.067
      },
      "gain": 1.52,
      "env": {
@@ -6101,10 +6101,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.219,
+      "energy": 0.213,
       "brightness": 0.572,
       "entropy": 0.335,
-      "onsets": 0.308
+      "onsets": 0.306
      },
      "gain": 2.17,
      "env": {
@@ -6190,7 +6190,7 @@
      },
      "features": {
       "bpm": 160.5,
-      "energy": 0.112,
+      "energy": 0.105,
       "brightness": 0.67,
       "entropy": 0.381,
       "onsets": 0.0
@@ -6273,10 +6273,10 @@
      },
      "features": {
       "bpm": 160.6,
-      "energy": 0.059,
+      "energy": 0.053,
       "brightness": 0.72,
       "entropy": 0.413,
-      "onsets": 0.224
+      "onsets": 0.222
      },
      "gain": 0.06,
      "env": {
@@ -6369,9 +6369,9 @@
      "features": {
       "bpm": 135.5,
       "energy": 0.0,
-      "brightness": 0.133,
+      "brightness": 0.132,
       "entropy": 0.358,
-      "onsets": 0.015
+      "onsets": 0.012
      },
      "gain": 4.39,
      "env": {
@@ -6469,8 +6469,8 @@
      },
      "features": {
       "bpm": 175.8,
-      "energy": 0.141,
-      "brightness": 0.175,
+      "energy": 0.135,
+      "brightness": 0.174,
       "entropy": 0.296,
       "onsets": 0.608
      },
@@ -6570,10 +6570,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.767,
+      "energy": 0.76,
       "brightness": 0.938,
       "entropy": 0.439,
-      "onsets": 0.014
+      "onsets": 0.012
      },
      "gain": 0.81,
      "env": {
@@ -6671,10 +6671,10 @@
      },
      "features": {
       "bpm": 171.2,
-      "energy": 0.66,
+      "energy": 0.654,
       "brightness": 0.747,
       "entropy": 0.391,
-      "onsets": 0.527
+      "onsets": 0.526
      },
      "gain": 1.24,
      "env": {
@@ -6763,7 +6763,7 @@
       "energy": 0.0,
       "brightness": 0.801,
       "entropy": 0.43,
-      "onsets": 0.452
+      "onsets": 0.451
      },
      "gain": 2.02,
      "env": {
@@ -6849,10 +6849,10 @@
      },
      "features": {
       "bpm": 109.9,
-      "energy": 0.257,
+      "energy": 0.251,
       "brightness": 0.504,
       "entropy": 0.371,
-      "onsets": 0.117
+      "onsets": 0.115
      },
      "gain": 0.74,
      "env": {
@@ -6938,10 +6938,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.65,
-      "brightness": 0.529,
+      "energy": 0.644,
+      "brightness": 0.528,
       "entropy": 0.396,
-      "onsets": 0.205
+      "onsets": 0.203
      },
      "gain": 1.58,
      "env": {
@@ -7021,10 +7021,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.833,
+      "energy": 0.826,
       "brightness": 0.496,
       "entropy": 0.341,
-      "onsets": 0.353
+      "onsets": 0.352
      },
      "gain": 0.79,
      "env": {
@@ -7098,10 +7098,10 @@
      },
      "features": {
       "bpm": 147.7,
-      "energy": 0.815,
-      "brightness": 0.082,
+      "energy": 0.808,
+      "brightness": 0.081,
       "entropy": 0.29,
-      "onsets": 0.329
+      "onsets": 0.328
      },
      "gain": 0.29,
      "env": {
@@ -7193,7 +7193,7 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.631,
+      "energy": 0.624,
       "brightness": 0.388,
       "entropy": 0.34,
       "onsets": 0.495
@@ -7282,10 +7282,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.373,
+      "energy": 0.366,
       "brightness": 1.0,
       "entropy": 0.462,
-      "onsets": 0.189
+      "onsets": 0.187
      },
      "gain": 1.04,
      "env": {
@@ -7383,10 +7383,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.737,
+      "energy": 0.73,
       "brightness": 0.507,
       "entropy": 0.367,
-      "onsets": 0.324
+      "onsets": 0.322
      },
      "gain": 0.12,
      "env": {
@@ -7478,10 +7478,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.646,
+      "energy": 0.64,
       "brightness": 0.602,
       "entropy": 0.342,
-      "onsets": 0.466
+      "onsets": 0.465
      },
      "gain": 0.0,
      "env": {
@@ -7567,10 +7567,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.443,
-      "brightness": 0.412,
+      "energy": 0.437,
+      "brightness": 0.411,
       "entropy": 0.321,
-      "onsets": 0.561
+      "onsets": 0.56
      },
      "gain": 0.44,
      "env": {
@@ -7656,7 +7656,7 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.876,
+      "energy": 0.869,
       "brightness": 0.928,
       "entropy": 0.456,
       "onsets": 0.673
@@ -7751,10 +7751,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.239,
-      "brightness": 0.945,
+      "energy": 0.232,
+      "brightness": 0.946,
       "entropy": 0.464,
-      "onsets": 0.35
+      "onsets": 0.349
      },
      "gain": 1.44,
      "env": {
@@ -7840,10 +7840,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.466,
+      "energy": 0.46,
       "brightness": 0.509,
       "entropy": 0.384,
-      "onsets": 0.348
+      "onsets": 0.347
      },
      "gain": 0.33,
      "env": {
@@ -7929,8 +7929,8 @@
      },
      "features": {
       "bpm": 170.4,
-      "energy": 0.414,
-      "brightness": 0.382,
+      "energy": 0.407,
+      "brightness": 0.381,
       "entropy": 0.386,
       "onsets": 0.809
      },
@@ -8018,8 +8018,8 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.628,
-      "brightness": 0.551,
+      "energy": 0.621,
+      "brightness": 0.55,
       "entropy": 0.395,
       "onsets": 0.725
      },
@@ -8107,10 +8107,10 @@
      },
      "features": {
       "bpm": 153.1,
-      "energy": 0.315,
-      "brightness": 0.051,
+      "energy": 0.309,
+      "brightness": 0.05,
       "entropy": 0.295,
-      "onsets": 0.369
+      "onsets": 0.368
      },
      "gain": 2.12,
      "env": {
@@ -8208,7 +8208,7 @@
      },
      "features": {
       "bpm": 171.0,
-      "energy": 0.934,
+      "energy": 0.927,
       "brightness": 0.447,
       "entropy": 0.383,
       "onsets": 0.781
@@ -8309,10 +8309,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.88,
+      "energy": 0.873,
       "brightness": 0.748,
       "entropy": 0.404,
-      "onsets": 0.344
+      "onsets": 0.343
      },
      "gain": -0.25,
      "env": {
@@ -8392,10 +8392,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.887,
-      "brightness": 0.126,
+      "energy": 0.88,
+      "brightness": 0.125,
       "entropy": 0.302,
-      "onsets": 0.909
+      "onsets": 0.91
      },
      "gain": 0.05,
      "env": {
@@ -8476,7 +8476,7 @@
      "features": {
       "bpm": 142.9,
       "energy": 1.0,
-      "brightness": 0.683,
+      "brightness": 0.682,
       "entropy": 0.357,
       "onsets": 0.558
      },
@@ -8576,10 +8576,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.367,
-      "brightness": 0.689,
+      "energy": 0.36,
+      "brightness": 0.688,
       "entropy": 0.386,
-      "onsets": 0.087
+      "onsets": 0.085
      },
      "gain": 1.45,
      "env": {
@@ -8671,10 +8671,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.478,
+      "energy": 0.471,
       "brightness": 0.554,
       "entropy": 0.301,
-      "onsets": 0.291
+      "onsets": 0.289
      },
      "gain": 1.77,
      "env": {
@@ -8766,10 +8766,10 @@
      },
      "features": {
       "bpm": 120.0,
-      "energy": 0.569,
-      "brightness": 0.679,
+      "energy": 0.562,
+      "brightness": 0.678,
       "entropy": 0.389,
-      "onsets": 0.4
+      "onsets": 0.399
      },
      "gain": 1.84,
      "env": {
@@ -8956,10 +8956,10 @@
      },
      "features": {
       "bpm": 150.9,
-      "energy": 0.469,
-      "brightness": 0.536,
+      "energy": 0.462,
+      "brightness": 0.535,
       "entropy": 0.299,
-      "onsets": 0.231
+      "onsets": 0.229
      },
      "gain": 0.85,
      "env": {
@@ -9051,10 +9051,10 @@
      },
      "features": {
       "bpm": 150.1,
-      "energy": 0.111,
-      "brightness": 0.014,
+      "energy": 0.104,
+      "brightness": 0.013,
       "entropy": 0.277,
-      "onsets": 0.215
+      "onsets": 0.213
      },
      "gain": 2.77,
      "env": {
@@ -9146,10 +9146,10 @@
      },
      "features": {
       "bpm": 145.7,
-      "energy": 0.609,
-      "brightness": 0.275,
+      "energy": 0.602,
+      "brightness": 0.274,
       "entropy": 0.381,
-      "onsets": 0.192
+      "onsets": 0.19
      },
      "gain": -2.48,
      "env": {
@@ -9247,8 +9247,8 @@
      },
      "features": {
       "bpm": 120.0,
-      "energy": 0.22,
-      "brightness": 0.309,
+      "energy": 0.213,
+      "brightness": 0.308,
       "entropy": 0.357,
       "onsets": 0.496
      },
@@ -9324,10 +9324,10 @@
      },
      "features": {
       "bpm": 160.7,
-      "energy": 0.739,
-      "brightness": 0.198,
+      "energy": 0.732,
+      "brightness": 0.197,
       "entropy": 0.354,
-      "onsets": 0.024
+      "onsets": 0.022
      },
      "gain": -0.54,
      "env": {
@@ -9419,10 +9419,10 @@
      },
      "features": {
       "bpm": 170.5,
-      "energy": 0.682,
+      "energy": 0.675,
       "brightness": 0.544,
       "entropy": 0.4,
-      "onsets": 0.801
+      "onsets": 0.802
      },
      "gain": 0.18,
      "env": {
@@ -9520,8 +9520,8 @@
      },
      "features": {
       "bpm": 170.6,
-      "energy": 0.482,
-      "brightness": 0.067,
+      "energy": 0.475,
+      "brightness": 0.066,
       "entropy": 0.31,
       "onsets": 1.0
      },
@@ -9621,7 +9621,7 @@
      },
      "features": {
       "bpm": 171.7,
-      "energy": 0.897,
+      "energy": 0.891,
       "brightness": 0.0,
       "entropy": 0.3,
       "onsets": 0.628
@@ -9716,8 +9716,8 @@
      },
      "features": {
       "bpm": 170.7,
-      "energy": 0.359,
-      "brightness": 0.033,
+      "energy": 0.352,
+      "brightness": 0.032,
       "entropy": 0.273,
       "onsets": 1.0
      },
@@ -9817,7 +9817,7 @@
      },
      "features": {
       "bpm": 175.8,
-      "energy": 0.138,
+      "energy": 0.132,
       "brightness": 0.171,
       "entropy": 0.296,
       "onsets": 0.6
@@ -9906,10 +9906,10 @@
      },
      "features": {
       "bpm": 128.2,
-      "energy": 0.278,
+      "energy": 0.272,
       "brightness": 0.734,
       "entropy": 0.428,
-      "onsets": 0.382
+      "onsets": 0.381
      },
      "gain": 1.22,
      "env": {
@@ -10007,10 +10007,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.153,
+      "energy": 0.146,
       "brightness": 0.792,
       "entropy": 0.421,
-      "onsets": 0.459
+      "onsets": 0.458
      },
      "gain": 2.63,
      "env": {
@@ -10078,7 +10078,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.789,
+      "energy": 0.782,
       "brightness": 0.857,
       "entropy": 0.387,
       "onsets": 0.625
@@ -10155,8 +10155,8 @@
      },
      "features": {
       "bpm": 172.7,
-      "energy": 0.107,
-      "brightness": 0.4,
+      "energy": 0.101,
+      "brightness": 0.399,
       "entropy": 0.317,
       "onsets": 1.0
      },
@@ -10244,10 +10244,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.687,
+      "energy": 0.68,
       "brightness": 1.0,
       "entropy": 0.424,
-      "onsets": 0.249
+      "onsets": 0.247
      },
      "gain": 0.86,
      "env": {
@@ -10333,7 +10333,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.855,
+      "energy": 0.848,
       "brightness": 0.749,
       "entropy": 0.385,
       "onsets": 0.61
@@ -10422,10 +10422,10 @@
      },
      "features": {
       "bpm": 164.5,
-      "energy": 0.691,
+      "energy": 0.684,
       "brightness": 0.842,
       "entropy": 0.452,
-      "onsets": 0.481
+      "onsets": 0.48
      },
      "gain": -0.34,
      "env": {
@@ -10517,10 +10517,10 @@
      },
      "features": {
       "bpm": 102.1,
-      "energy": 0.201,
+      "energy": 0.194,
       "brightness": 0.0,
       "entropy": 0.301,
-      "onsets": 0.107
+      "onsets": 0.105
      },
      "gain": 1.17,
      "env": {
@@ -10606,10 +10606,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.591,
+      "energy": 0.585,
       "brightness": 0.603,
       "entropy": 0.313,
-      "onsets": 0.302
+      "onsets": 0.3
      },
      "gain": 0.64,
      "env": {
@@ -10701,7 +10701,7 @@
      },
      "features": {
       "bpm": 123.7,
-      "energy": 0.728,
+      "energy": 0.721,
       "brightness": 0.0,
       "entropy": 0.332,
       "onsets": 0.0
@@ -10784,8 +10784,8 @@
      },
      "features": {
       "bpm": 0.0,
-      "energy": 0.063,
-      "brightness": 0.239,
+      "energy": 0.057,
+      "brightness": 0.238,
       "entropy": 0.346,
       "onsets": 0.0
      },
@@ -10879,7 +10879,7 @@
      },
      "features": {
       "bpm": 136.6,
-      "energy": 0.596,
+      "energy": 0.59,
       "brightness": 0.0,
       "entropy": 0.229,
       "onsets": 0.777
@@ -10974,7 +10974,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.808,
+      "energy": 0.801,
       "brightness": 0.786,
       "entropy": 0.378,
       "onsets": 0.678
@@ -11063,10 +11063,10 @@
      },
      "features": {
       "bpm": 142.0,
-      "energy": 0.39,
-      "brightness": 0.079,
+      "energy": 0.384,
+      "brightness": 0.078,
       "entropy": 0.326,
-      "onsets": 0.515
+      "onsets": 0.514
      },
      "gain": 2.34,
      "env": {
@@ -11158,10 +11158,10 @@
      },
      "features": {
       "bpm": 160.6,
-      "energy": 0.116,
-      "brightness": 0.191,
+      "energy": 0.109,
+      "brightness": 0.19,
       "entropy": 0.309,
-      "onsets": 0.431
+      "onsets": 0.43
      },
      "gain": 2.51,
      "env": {
@@ -11247,10 +11247,10 @@
      },
      "features": {
       "bpm": 173.4,
-      "energy": 0.462,
-      "brightness": 0.244,
+      "energy": 0.455,
+      "brightness": 0.243,
       "entropy": 0.35,
-      "onsets": 0.406
+      "onsets": 0.405
      },
      "gain": 0.95,
      "env": {
@@ -11342,10 +11342,10 @@
      },
      "features": {
       "bpm": 90.9,
-      "energy": 0.498,
-      "brightness": 0.369,
+      "energy": 0.492,
+      "brightness": 0.368,
       "entropy": 0.375,
-      "onsets": 0.277
+      "onsets": 0.276
      },
      "gain": -0.34,
      "env": {
@@ -11437,10 +11437,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.683,
+      "energy": 0.676,
       "brightness": 0.766,
       "entropy": 0.434,
-      "onsets": 0.759
+      "onsets": 0.76
      },
      "gain": 0.01,
      "env": {
@@ -11526,7 +11526,7 @@
      },
      "features": {
       "bpm": 125.8,
-      "energy": 1.0,
+      "energy": 0.995,
       "brightness": 0.735,
       "entropy": 0.431,
       "onsets": 0.657
@@ -11615,7 +11615,7 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.445,
+      "energy": 0.439,
       "brightness": 0.626,
       "entropy": 0.396,
       "onsets": 0.817
@@ -11710,10 +11710,10 @@
      },
      "features": {
       "bpm": 149.9,
-      "energy": 0.631,
+      "energy": 0.624,
       "brightness": 0.865,
       "entropy": 0.39,
-      "onsets": 0.516
+      "onsets": 0.515
      },
      "gain": 1.42,
      "env": {
@@ -11805,10 +11805,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.79,
+      "energy": 0.783,
       "brightness": 0.674,
       "entropy": 0.354,
-      "onsets": 0.346
+      "onsets": 0.345
      },
      "gain": 0.82,
      "env": {
@@ -11900,7 +11900,7 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.714,
+      "energy": 0.707,
       "brightness": 0.999,
       "entropy": 0.399,
       "onsets": 0.524
@@ -11978,7 +11978,7 @@
      "features": {
       "bpm": 127.0,
       "energy": 1.0,
-      "brightness": 0.267,
+      "brightness": 0.266,
       "entropy": 0.34,
       "onsets": 0.677
      },
@@ -12078,10 +12078,10 @@
      },
      "features": {
       "bpm": 149.9,
-      "energy": 0.724,
+      "energy": 0.718,
       "brightness": 0.766,
       "entropy": 0.367,
-      "onsets": 0.418
+      "onsets": 0.417
      },
      "gain": 1.2,
      "env": {
@@ -12161,7 +12161,7 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.397,
+      "energy": 0.391,
       "brightness": 0.927,
       "entropy": 0.38,
       "onsets": 0.553
@@ -12262,10 +12262,10 @@
      },
      "features": {
       "bpm": 170.1,
-      "energy": 0.637,
-      "brightness": 0.387,
+      "energy": 0.63,
+      "brightness": 0.386,
       "entropy": 0.383,
-      "onsets": 0.234
+      "onsets": 0.232
      },
      "gain": -0.53,
      "env": {
@@ -12339,10 +12339,10 @@
      },
      "features": {
       "bpm": 170.3,
-      "energy": 0.769,
-      "brightness": 0.425,
+      "energy": 0.762,
+      "brightness": 0.424,
       "entropy": 0.398,
-      "onsets": 0.171
+      "onsets": 0.169
      },
      "gain": 0.07,
      "env": {
@@ -12440,10 +12440,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.637,
+      "energy": 0.631,
       "brightness": 0.774,
       "entropy": 0.448,
-      "onsets": 0.086
+      "onsets": 0.084
      },
      "gain": 0.68,
      "env": {
@@ -12529,7 +12529,7 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.574,
+      "energy": 0.567,
       "brightness": 0.499,
       "entropy": 0.332,
       "onsets": 0.616
@@ -12630,7 +12630,7 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.865,
+      "energy": 0.858,
       "brightness": 0.865,
       "entropy": 0.392,
       "onsets": 0.62
@@ -12725,10 +12725,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.508,
+      "energy": 0.501,
       "brightness": 0.586,
       "entropy": 0.366,
-      "onsets": 0.424
+      "onsets": 0.423
      },
      "gain": 0.76,
      "env": {
@@ -12814,10 +12814,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.265,
-      "brightness": 0.386,
+      "energy": 0.259,
+      "brightness": 0.385,
       "entropy": 0.361,
-      "onsets": 0.309
+      "onsets": 0.307
      },
      "gain": 1.1,
      "env": {
@@ -12909,10 +12909,10 @@
      },
      "features": {
       "bpm": 135.4,
-      "energy": 0.553,
-      "brightness": 0.052,
+      "energy": 0.547,
+      "brightness": 0.051,
       "entropy": 0.301,
-      "onsets": 0.983
+      "onsets": 0.984
      },
      "gain": 0.72,
      "env": {
@@ -12998,10 +12998,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.412,
+      "energy": 0.406,
       "brightness": 0.863,
       "entropy": 0.383,
-      "onsets": 0.419
+      "onsets": 0.418
      },
      "gain": 2.54,
      "env": {
@@ -13093,7 +13093,7 @@
      },
      "features": {
       "bpm": 160.7,
-      "energy": 0.566,
+      "energy": 0.56,
       "brightness": 0.0,
       "entropy": 0.24,
       "onsets": 1.0
@@ -13188,10 +13188,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.506,
-      "brightness": 0.37,
+      "energy": 0.5,
+      "brightness": 0.369,
       "entropy": 0.315,
-      "onsets": 0.183
+      "onsets": 0.181
      },
      "gain": 1.77,
      "env": {
@@ -13283,10 +13283,10 @@
      },
      "features": {
       "bpm": 179.8,
-      "energy": 0.305,
+      "energy": 0.298,
       "brightness": 0.482,
       "entropy": 0.315,
-      "onsets": 0.441
+      "onsets": 0.44
      },
      "gain": 2.03,
      "env": {
@@ -13378,10 +13378,10 @@
      },
      "features": {
       "bpm": 149.9,
-      "energy": 0.703,
+      "energy": 0.696,
       "brightness": 0.853,
       "entropy": 0.367,
-      "onsets": 0.236
+      "onsets": 0.234
      },
      "gain": 0.55,
      "env": {
@@ -13491,10 +13491,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.764,
-      "brightness": 0.592,
+      "energy": 0.757,
+      "brightness": 0.591,
       "entropy": 0.328,
-      "onsets": 0.781
+      "onsets": 0.782
      },
      "gain": -0.36,
      "env": {
@@ -13592,10 +13592,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.602,
-      "brightness": 0.539,
+      "energy": 0.595,
+      "brightness": 0.538,
       "entropy": 0.346,
-      "onsets": 0.195
+      "onsets": 0.193
      },
      "gain": 0.72,
      "env": {
@@ -13681,10 +13681,10 @@
      },
      "features": {
       "bpm": 0.0,
-      "energy": 0.868,
+      "energy": 0.862,
       "brightness": 0.691,
       "entropy": 0.431,
-      "onsets": 0.602
+      "onsets": 0.601
      },
      "gain": 0.03,
      "env": {
@@ -13776,10 +13776,10 @@
      },
      "features": {
       "bpm": 93.9,
-      "energy": 0.783,
-      "brightness": 0.122,
+      "energy": 0.776,
+      "brightness": 0.121,
       "entropy": 0.367,
-      "onsets": 0.431
+      "onsets": 0.43
      },
      "gain": -0.47,
      "env": {
@@ -13871,10 +13871,10 @@
      },
      "features": {
       "bpm": 95.1,
-      "energy": 0.166,
+      "energy": 0.16,
       "brightness": 0.39,
       "entropy": 0.375,
-      "onsets": 0.376
+      "onsets": 0.375
      },
      "gain": 1.42,
      "env": {
@@ -13966,10 +13966,10 @@
      },
      "features": {
       "bpm": 173.3,
-      "energy": 0.485,
-      "brightness": 0.11,
+      "energy": 0.478,
+      "brightness": 0.109,
       "entropy": 0.341,
-      "onsets": 0.434
+      "onsets": 0.433
      },
      "gain": -0.23,
      "env": {
@@ -14055,7 +14055,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.617,
+      "energy": 0.61,
       "brightness": 0.759,
       "entropy": 0.367,
       "onsets": 0.885
@@ -14150,10 +14150,10 @@
      },
      "features": {
       "bpm": 125.8,
-      "energy": 0.276,
+      "energy": 0.269,
       "brightness": 1.0,
       "entropy": 0.439,
-      "onsets": 0.037
+      "onsets": 0.035
      },
      "gain": 2.56,
      "env": {
@@ -14239,10 +14239,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.629,
+      "energy": 0.622,
       "brightness": 1.0,
       "entropy": 0.426,
-      "onsets": 0.526
+      "onsets": 0.525
      },
      "gain": 1.15,
      "env": {
@@ -14328,10 +14328,10 @@
      },
      "features": {
       "bpm": 152.2,
-      "energy": 0.46,
-      "brightness": 0.052,
+      "energy": 0.454,
+      "brightness": 0.051,
       "entropy": 0.214,
-      "onsets": 0.355
+      "onsets": 0.354
      },
      "gain": 1.05,
      "env": {
@@ -14418,7 +14418,7 @@
      "features": {
       "bpm": 156.4,
       "energy": 0.0,
-      "brightness": 0.094,
+      "brightness": 0.093,
       "entropy": 0.312,
       "onsets": 0.0
      },
@@ -14506,10 +14506,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.923,
+      "energy": 0.916,
       "brightness": 0.606,
       "entropy": 0.391,
-      "onsets": 0.654
+      "onsets": 0.653
      },
      "gain": -0.71,
      "env": {
@@ -14619,7 +14619,7 @@
      },
      "features": {
       "bpm": 170.5,
-      "energy": 0.495,
+      "energy": 0.488,
       "brightness": 0.461,
       "entropy": 0.371,
       "onsets": 0.729
@@ -14714,7 +14714,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.219,
+      "energy": 0.212,
       "brightness": 0.526,
       "entropy": 0.327,
       "onsets": 0.784
@@ -14809,7 +14809,7 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.789,
+      "energy": 0.782,
       "brightness": 0.0,
       "entropy": 0.266,
       "onsets": 0.828
@@ -14898,10 +14898,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.608,
-      "brightness": 0.142,
+      "energy": 0.601,
+      "brightness": 0.141,
       "entropy": 0.316,
-      "onsets": 0.242
+      "onsets": 0.241
      },
      "gain": 0.91,
      "env": {
@@ -14999,7 +14999,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.517,
+      "energy": 0.51,
       "brightness": 0.36,
       "entropy": 0.312,
       "onsets": 0.62
@@ -15082,10 +15082,10 @@
      },
      "features": {
       "bpm": 175.8,
-      "energy": 0.152,
-      "brightness": 0.073,
+      "energy": 0.145,
+      "brightness": 0.072,
       "entropy": 0.284,
-      "onsets": 0.448
+      "onsets": 0.447
      },
      "gain": 3.29,
      "env": {
@@ -15177,10 +15177,10 @@
      },
      "features": {
       "bpm": 165.8,
-      "energy": 0.745,
+      "energy": 0.738,
       "brightness": 0.322,
       "entropy": 0.333,
-      "onsets": 0.994
+      "onsets": 0.995
      },
      "gain": 1.05,
      "env": {
@@ -15272,10 +15272,10 @@
      },
      "features": {
       "bpm": 0.0,
-      "energy": 0.674,
+      "energy": 0.667,
       "brightness": 0.783,
       "entropy": 0.45,
-      "onsets": 0.439
+      "onsets": 0.438
      },
      "gain": 0.09,
      "env": {
@@ -15361,7 +15361,7 @@
      },
      "features": {
       "bpm": 169.9,
-      "energy": 1.0,
+      "energy": 0.993,
       "brightness": 0.553,
       "entropy": 0.421,
       "onsets": 0.748
@@ -15450,10 +15450,10 @@
      },
      "features": {
       "bpm": 162.9,
-      "energy": 0.827,
+      "energy": 0.82,
       "brightness": 0.522,
       "entropy": 0.405,
-      "onsets": 0.303
+      "onsets": 0.302
      },
      "gain": 0.21,
      "env": {
@@ -15557,10 +15557,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.523,
+      "energy": 0.516,
       "brightness": 0.88,
       "entropy": 0.435,
-      "onsets": 0.097
+      "onsets": 0.095
      },
      "gain": 0.59,
      "env": {
@@ -15658,10 +15658,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.108,
+      "energy": 0.102,
       "brightness": 0.966,
       "entropy": 0.474,
-      "onsets": 0.12
+      "onsets": 0.118
      },
      "gain": 1.48,
      "env": {
@@ -15741,10 +15741,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.941,
+      "energy": 0.934,
       "brightness": 0.749,
       "entropy": 0.358,
-      "onsets": 0.537
+      "onsets": 0.536
      },
      "gain": 0.66,
      "env": {
@@ -15830,10 +15830,10 @@
      },
      "features": {
       "bpm": 85.3,
-      "energy": 0.864,
+      "energy": 0.857,
       "brightness": 0.775,
       "entropy": 0.382,
-      "onsets": 0.974
+      "onsets": 0.975
      },
      "gain": 0.78,
      "env": {
@@ -15913,10 +15913,10 @@
      },
      "features": {
       "bpm": 150.1,
-      "energy": 0.926,
+      "energy": 0.919,
       "brightness": 0.568,
       "entropy": 0.349,
-      "onsets": 0.495
+      "onsets": 0.494
      },
      "gain": -0.68,
      "env": {
@@ -16014,7 +16014,7 @@
      },
      "features": {
       "bpm": 119.9,
-      "energy": 0.423,
+      "energy": 0.416,
       "brightness": 0.791,
       "entropy": 0.383,
       "onsets": 0.539
@@ -16097,10 +16097,10 @@
      },
      "features": {
       "bpm": 130.2,
-      "energy": 0.925,
+      "energy": 0.918,
       "brightness": 0.776,
       "entropy": 0.382,
-      "onsets": 0.402
+      "onsets": 0.401
      },
      "gain": 0.43,
      "env": {
@@ -16192,10 +16192,10 @@
      },
      "features": {
       "bpm": 170.7,
-      "energy": 0.793,
+      "energy": 0.786,
       "brightness": 0.617,
       "entropy": 0.323,
-      "onsets": 0.987
+      "onsets": 0.988
      },
      "gain": 1.03,
      "env": {
@@ -16287,8 +16287,8 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.722,
-      "brightness": 0.196,
+      "energy": 0.715,
+      "brightness": 0.195,
       "entropy": 0.327,
       "onsets": 0.682
      },
@@ -16382,8 +16382,8 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.321,
-      "brightness": 0.5,
+      "energy": 0.315,
+      "brightness": 0.499,
       "entropy": 0.335,
       "onsets": 0.643
      },
@@ -16472,9 +16472,9 @@
      "features": {
       "bpm": 146.4,
       "energy": 0.0,
-      "brightness": 0.17,
+      "brightness": 0.169,
       "entropy": 0.295,
-      "onsets": 0.18
+      "onsets": 0.178
      },
      "gain": 1.95,
      "env": {
@@ -16560,10 +16560,10 @@
      },
      "features": {
       "bpm": 179.2,
-      "energy": 0.178,
-      "brightness": 0.379,
+      "energy": 0.171,
+      "brightness": 0.378,
       "entropy": 0.318,
-      "onsets": 0.287
+      "onsets": 0.286
      },
      "gain": 1.3,
      "env": {
@@ -16661,10 +16661,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.676,
+      "energy": 0.669,
       "brightness": 0.314,
       "entropy": 0.35,
-      "onsets": 0.539
+      "onsets": 0.538
      },
      "gain": 0.78,
      "env": {
@@ -16738,7 +16738,7 @@
      },
      "features": {
       "bpm": 170.8,
-      "energy": 0.721,
+      "energy": 0.714,
       "brightness": 0.707,
       "entropy": 0.39,
       "onsets": 1.0
@@ -16821,10 +16821,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.451,
-      "brightness": 0.21,
+      "energy": 0.444,
+      "brightness": 0.209,
       "entropy": 0.329,
-      "onsets": 0.789
+      "onsets": 0.79
      },
      "gain": 2.09,
      "env": {
@@ -17017,10 +17017,10 @@
      },
      "features": {
       "bpm": 128.1,
-      "energy": 0.77,
+      "energy": 0.763,
       "brightness": 0.62,
       "entropy": 0.393,
-      "onsets": 0.279
+      "onsets": 0.277
      },
      "gain": 0.75,
      "env": {
@@ -17106,10 +17106,10 @@
      },
      "features": {
       "bpm": 170.7,
-      "energy": 0.585,
-      "brightness": 0.13,
+      "energy": 0.578,
+      "brightness": 0.129,
       "entropy": 0.327,
-      "onsets": 0.967
+      "onsets": 0.968
      },
      "gain": 2.25,
      "env": {
@@ -17201,10 +17201,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.679,
+      "energy": 0.672,
       "brightness": 1.0,
       "entropy": 0.412,
-      "onsets": 0.354
+      "onsets": 0.352
      },
      "gain": 1.11,
      "env": {
@@ -17302,7 +17302,7 @@
      },
      "features": {
       "bpm": 171.0,
-      "energy": 0.76,
+      "energy": 0.753,
       "brightness": 0.63,
       "entropy": 0.418,
       "onsets": 1.0
@@ -17403,7 +17403,7 @@
      },
      "features": {
       "bpm": 170.4,
-      "energy": 0.924,
+      "energy": 0.917,
       "brightness": 0.464,
       "entropy": 0.401,
       "onsets": 0.599
@@ -17510,10 +17510,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.371,
+      "energy": 0.364,
       "brightness": 0.621,
       "entropy": 0.341,
-      "onsets": 0.215
+      "onsets": 0.214
      },
      "gain": 1.74,
      "env": {
@@ -17599,7 +17599,7 @@
      },
      "features": {
       "bpm": 168.8,
-      "energy": 0.942,
+      "energy": 0.935,
       "brightness": 0.459,
       "entropy": 0.366,
       "onsets": 1.0
@@ -17688,7 +17688,7 @@
      },
      "features": {
       "bpm": 135.4,
-      "energy": 0.145,
+      "energy": 0.138,
       "brightness": 0.519,
       "entropy": 0.378,
       "onsets": 0.0
@@ -17777,10 +17777,10 @@
      },
      "features": {
       "bpm": 129.1,
-      "energy": 0.568,
+      "energy": 0.562,
       "brightness": 0.706,
       "entropy": 0.415,
-      "onsets": 0.139
+      "onsets": 0.137
      },
      "gain": 0.51,
      "env": {
@@ -17854,10 +17854,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.713,
+      "energy": 0.706,
       "brightness": 0.691,
       "entropy": 0.391,
-      "onsets": 0.232
+      "onsets": 0.23
      },
      "gain": 0.81,
      "env": {
@@ -17949,7 +17949,7 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.844,
+      "energy": 0.837,
       "brightness": 0.725,
       "entropy": 0.342,
       "onsets": 0.804
@@ -18038,10 +18038,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.539,
+      "energy": 0.532,
       "brightness": 0.648,
       "entropy": 0.379,
-      "onsets": 0.381
+      "onsets": 0.38
      },
      "gain": 1.02,
      "env": {
@@ -18127,7 +18127,7 @@
      },
      "features": {
       "bpm": 126.1,
-      "energy": 0.839,
+      "energy": 0.832,
       "brightness": 0.947,
       "entropy": 0.402,
       "onsets": 0.52
@@ -18222,10 +18222,10 @@
      },
      "features": {
       "bpm": 133.4,
-      "energy": 0.827,
+      "energy": 0.82,
       "brightness": 0.0,
       "entropy": 0.272,
-      "onsets": 0.871
+      "onsets": 0.872
      },
      "gain": 0.13,
      "env": {
@@ -18311,10 +18311,10 @@
      },
      "features": {
       "bpm": 175.7,
-      "energy": 0.479,
+      "energy": 0.472,
       "brightness": 0.374,
       "entropy": 0.38,
-      "onsets": 0.254
+      "onsets": 0.252
      },
      "gain": 0.94,
      "env": {
@@ -18418,10 +18418,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.44,
+      "energy": 0.433,
       "brightness": 0.66,
       "entropy": 0.356,
-      "onsets": 0.294
+      "onsets": 0.292
      },
      "gain": 0.69,
      "env": {
@@ -18507,7 +18507,7 @@
      },
      "features": {
       "bpm": 134.1,
-      "energy": 0.552,
+      "energy": 0.546,
       "brightness": 0.468,
       "entropy": 0.401,
       "onsets": 0.776
@@ -18608,7 +18608,7 @@
      },
      "features": {
       "bpm": 126.8,
-      "energy": 0.779,
+      "energy": 0.772,
       "brightness": 0.632,
       "entropy": 0.409,
       "onsets": 0.543
@@ -18697,10 +18697,10 @@
      },
      "features": {
       "bpm": 162.0,
-      "energy": 0.478,
+      "energy": 0.471,
       "brightness": 0.0,
       "entropy": 0.294,
-      "onsets": 0.321
+      "onsets": 0.32
      },
      "gain": 0.74,
      "env": {
@@ -18786,10 +18786,10 @@
      },
      "features": {
       "bpm": 173.4,
-      "energy": 0.683,
+      "energy": 0.677,
       "brightness": 0.898,
       "entropy": 0.479,
-      "onsets": 0.416
+      "onsets": 0.415
      },
      "gain": 0.12,
      "env": {
@@ -18875,10 +18875,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.654,
-      "brightness": 0.609,
+      "energy": 0.647,
+      "brightness": 0.608,
       "entropy": 0.418,
-      "onsets": 0.432
+      "onsets": 0.431
      },
      "gain": 0.04,
      "env": {
@@ -18970,10 +18970,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.781,
+      "energy": 0.774,
       "brightness": 1.0,
       "entropy": 0.458,
-      "onsets": 0.333
+      "onsets": 0.332
      },
      "gain": 1.23,
      "env": {
@@ -19066,7 +19066,7 @@
      "features": {
       "bpm": 135.5,
       "energy": 0.0,
-      "brightness": 0.133,
+      "brightness": 0.132,
       "entropy": 0.358,
       "onsets": 0.0
      },
@@ -19148,10 +19148,10 @@
      },
      "features": {
       "bpm": 132.4,
-      "energy": 0.789,
+      "energy": 0.782,
       "brightness": 0.306,
       "entropy": 0.32,
-      "onsets": 0.262
+      "onsets": 0.26
      },
      "gain": 0.88,
      "env": {
@@ -19231,10 +19231,10 @@
      },
      "features": {
       "bpm": 130.1,
-      "energy": 0.729,
+      "energy": 0.722,
       "brightness": 0.626,
       "entropy": 0.359,
-      "onsets": 0.55
+      "onsets": 0.549
      },
      "gain": 0.99,
      "env": {
@@ -19320,7 +19320,7 @@
      },
      "features": {
       "bpm": 170.4,
-      "energy": 0.657,
+      "energy": 0.651,
       "brightness": 0.826,
       "entropy": 0.42,
       "onsets": 0.598
@@ -19415,10 +19415,10 @@
      },
      "features": {
       "bpm": 102.1,
-      "energy": 0.2,
+      "energy": 0.194,
       "brightness": 0.0,
       "entropy": 0.301,
-      "onsets": 0.052
+      "onsets": 0.05
      },
      "gain": 1.17,
      "env": {
@@ -19504,10 +19504,10 @@
      },
      "features": {
       "bpm": 149.9,
-      "energy": 0.606,
-      "brightness": 0.268,
+      "energy": 0.599,
+      "brightness": 0.267,
       "entropy": 0.292,
-      "onsets": 0.174
+      "onsets": 0.172
      },
      "gain": 0.92,
      "env": {
@@ -19599,10 +19599,10 @@
      },
      "features": {
       "bpm": 150.1,
-      "energy": 0.369,
+      "energy": 0.362,
       "brightness": 0.726,
       "entropy": 0.365,
-      "onsets": 0.086
+      "onsets": 0.084
      },
      "gain": -0.03,
      "env": {
@@ -19682,10 +19682,10 @@
      },
      "features": {
       "bpm": 127.9,
-      "energy": 0.52,
+      "energy": 0.513,
       "brightness": 1.0,
       "entropy": 0.425,
-      "onsets": 0.61
+      "onsets": 0.609
      },
      "gain": 0.24,
      "env": {
@@ -19765,10 +19765,10 @@
      },
      "features": {
       "bpm": 138.3,
-      "energy": 0.344,
-      "brightness": 0.582,
+      "energy": 0.338,
+      "brightness": 0.581,
       "entropy": 0.35,
-      "onsets": 0.429
+      "onsets": 0.428
      },
      "gain": 0.75,
      "env": {
@@ -19949,10 +19949,10 @@
      },
      "features": {
       "bpm": 98.3,
-      "energy": 0.657,
+      "energy": 0.65,
       "brightness": 0.624,
       "entropy": 0.401,
-      "onsets": 0.338
+      "onsets": 0.336
      },
      "gain": 0.34,
      "env": {
@@ -20044,10 +20044,10 @@
      },
      "features": {
       "bpm": 139.9,
-      "energy": 0.676,
+      "energy": 0.669,
       "brightness": 0.745,
       "entropy": 0.366,
-      "onsets": 0.116
+      "onsets": 0.114
      },
      "gain": 0.62,
      "env": {
@@ -20139,8 +20139,8 @@
      },
      "features": {
       "bpm": 160.6,
-      "energy": 0.562,
-      "brightness": 0.008,
+      "energy": 0.555,
+      "brightness": 0.007,
       "entropy": 0.278,
       "onsets": 0.426
      },
@@ -20228,7 +20228,7 @@
      },
      "features": {
       "bpm": 172.8,
-      "energy": 0.753,
+      "energy": 0.747,
       "brightness": 0.655,
       "entropy": 0.427,
       "onsets": 1.0
@@ -20324,9 +20324,9 @@
      "features": {
       "bpm": 125.9,
       "energy": 1.0,
-      "brightness": 0.37,
+      "brightness": 0.369,
       "entropy": 0.341,
-      "onsets": 0.564
+      "onsets": 0.563
      },
      "gain": -1.38,
      "env": {
@@ -20418,8 +20418,8 @@
      },
      "features": {
       "bpm": 167.6,
-      "energy": 0.837,
-      "brightness": 0.373,
+      "energy": 0.83,
+      "brightness": 0.372,
       "entropy": 0.353,
       "onsets": 0.711
      },
@@ -20513,10 +20513,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.742,
+      "energy": 0.735,
       "brightness": 0.578,
       "entropy": 0.338,
-      "onsets": 0.401
+      "onsets": 0.4
      },
      "gain": 1.13,
      "env": {
@@ -20608,7 +20608,7 @@
      },
      "features": {
       "bpm": 160.7,
-      "energy": 0.567,
+      "energy": 0.56,
       "brightness": 0.0,
       "entropy": 0.24,
       "onsets": 1.0
@@ -20703,10 +20703,10 @@
      },
      "features": {
       "bpm": 96.8,
-      "energy": 0.407,
+      "energy": 0.401,
       "brightness": 1.0,
       "entropy": 0.409,
-      "onsets": 0.55
+      "onsets": 0.549
      },
      "gain": 1.76,
      "env": {
@@ -20792,10 +20792,10 @@
      },
      "features": {
       "bpm": 125.8,
-      "energy": 0.569,
-      "brightness": 0.189,
+      "energy": 0.562,
+      "brightness": 0.188,
       "entropy": 0.343,
-      "onsets": 0.517
+      "onsets": 0.516
      },
      "gain": 0.15,
      "env": {
@@ -20881,7 +20881,7 @@
      },
      "features": {
       "bpm": 166.7,
-      "energy": 0.417,
+      "energy": 0.41,
       "brightness": 0.0,
       "entropy": 0.259,
       "onsets": 1.0
@@ -20976,10 +20976,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.906,
+      "energy": 0.899,
       "brightness": 0.826,
       "entropy": 0.393,
-      "onsets": 0.193
+      "onsets": 0.192
      },
      "gain": -1.72,
      "env": {
@@ -21059,10 +21059,10 @@
      },
      "features": {
       "bpm": 124.9,
-      "energy": 0.089,
+      "energy": 0.082,
       "brightness": 0.536,
       "entropy": 0.384,
-      "onsets": 0.203
+      "onsets": 0.202
      },
      "gain": 2.1,
      "env": {
@@ -21148,10 +21148,10 @@
      },
      "features": {
       "bpm": 149.8,
-      "energy": 0.341,
-      "brightness": 0.891,
+      "energy": 0.335,
+      "brightness": 0.892,
       "entropy": 0.412,
-      "onsets": 0.221
+      "onsets": 0.219
      },
      "gain": 1.3,
      "env": {
@@ -21243,10 +21243,10 @@
      },
      "features": {
       "bpm": 100.0,
-      "energy": 0.413,
+      "energy": 0.407,
       "brightness": 0.443,
       "entropy": 0.335,
-      "onsets": 0.362
+      "onsets": 0.361
      },
      "gain": 1.07,
      "env": {
@@ -21320,10 +21320,10 @@
      },
      "features": {
       "bpm": 139.8,
-      "energy": 0.173,
-      "brightness": 0.102,
+      "energy": 0.167,
+      "brightness": 0.101,
       "entropy": 0.295,
-      "onsets": 0.401
+      "onsets": 0.4
      },
      "gain": 1.45,
      "env": {
@@ -21409,10 +21409,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.295,
+      "energy": 0.288,
       "brightness": 0.701,
       "entropy": 0.397,
-      "onsets": 0.094
+      "onsets": 0.092
      },
      "gain": 1.12,
      "env": {
@@ -21504,10 +21504,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.333,
+      "energy": 0.326,
       "brightness": 0.964,
       "entropy": 0.454,
-      "onsets": 0.279
+      "onsets": 0.278
      },
      "gain": 1.83,
      "env": {
@@ -21587,10 +21587,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.775,
-      "brightness": 0.801,
+      "energy": 0.768,
+      "brightness": 0.8,
       "entropy": 0.368,
-      "onsets": 0.61
+      "onsets": 0.609
      },
      "gain": 0.8,
      "env": {
@@ -21670,10 +21670,10 @@
      },
      "features": {
       "bpm": 173.2,
-      "energy": 0.579,
+      "energy": 0.573,
       "brightness": 0.67,
       "entropy": 0.399,
-      "onsets": 0.402
+      "onsets": 0.401
      },
      "gain": 0.6,
      "env": {
@@ -21753,10 +21753,10 @@
      },
      "features": {
       "bpm": 150.0,
-      "energy": 0.486,
+      "energy": 0.479,
       "brightness": 0.473,
       "entropy": 0.318,
-      "onsets": 0.226
+      "onsets": 0.224
      },
      "gain": 1.22,
      "env": {
@@ -21849,9 +21849,9 @@
      "features": {
       "bpm": 100.0,
       "energy": 0.0,
-      "brightness": 0.598,
+      "brightness": 0.597,
       "entropy": 0.401,
-      "onsets": 0.258
+      "onsets": 0.256
      },
      "gain": 1.6,
      "env": {
@@ -21937,8 +21937,8 @@
      },
      "features": {
       "bpm": 120.0,
-      "energy": 0.427,
-      "brightness": 0.47,
+      "energy": 0.42,
+      "brightness": 0.469,
       "entropy": 0.382,
       "onsets": 0.588
      },
@@ -22026,10 +22026,10 @@
      },
      "features": {
       "bpm": 170.2,
-      "energy": 0.038,
+      "energy": 0.032,
       "brightness": 0.611,
       "entropy": 0.394,
-      "onsets": 0.136
+      "onsets": 0.134
      },
      "gain": 1.34,
      "env": {
@@ -22097,10 +22097,10 @@
      },
      "features": {
       "bpm": 133.1,
-      "energy": 0.965,
+      "energy": 0.958,
       "brightness": 0.758,
       "entropy": 0.358,
-      "onsets": 0.471
+      "onsets": 0.47
      },
      "gain": 0.16,
      "env": {
@@ -22187,9 +22187,9 @@
      "features": {
       "bpm": 146.5,
       "energy": 0.0,
-      "brightness": 0.175,
+      "brightness": 0.174,
       "entropy": 0.295,
-      "onsets": 0.244
+      "onsets": 0.242
      },
      "gain": 1.95,
      "env": {
@@ -22275,7 +22275,7 @@
      },
      "features": {
       "bpm": 85.3,
-      "energy": 0.633,
+      "energy": 0.627,
       "brightness": 0.632,
       "entropy": 0.396,
       "onsets": 0.531
@@ -22367,7 +22367,7 @@
       "energy": 0.0,
       "brightness": 0.877,
       "entropy": 0.412,
-      "onsets": 0.144
+      "onsets": 0.142
      },
      "gain": 1.9,
      "env": {
@@ -22450,7 +22450,7 @@
       "energy": 1.0,
       "brightness": 0.506,
       "entropy": 0.412,
-      "onsets": 0.197
+      "onsets": 0.196
      },
      "gain": -1.9,
      "env": {
@@ -22536,8 +22536,8 @@
      },
      "features": {
       "bpm": 130.0,
-      "energy": 0.675,
-      "brightness": 0.155,
+      "energy": 0.669,
+      "brightness": 0.154,
       "entropy": 0.285,
       "onsets": 0.605
      },
@@ -22649,10 +22649,10 @@
      },
      "features": {
       "bpm": 128.0,
-      "energy": 0.593,
+      "energy": 0.587,
       "brightness": 0.819,
       "entropy": 0.357,
-      "onsets": 0.376
+      "onsets": 0.375
      },
      "gain": 0.64,
      "env": {
@@ -22744,10 +22744,10 @@
      },
      "features": {
       "bpm": 120.0,
-      "energy": 0.353,
-      "brightness": 0.449,
+      "energy": 0.347,
+      "brightness": 0.448,
       "entropy": 0.329,
-      "onsets": 0.504
+      "onsets": 0.503
      },
      "gain": 1.63,
      "env": {
@@ -22839,10 +22839,10 @@
      },
      "features": {
       "bpm": 179.6,
-      "energy": 0.618,
+      "energy": 0.611,
       "brightness": 0.547,
       "entropy": 0.394,
-      "onsets": 0.367
+      "onsets": 0.365
      },
      "gain": -1.15,
      "env": {
@@ -22922,10 +22922,10 @@
      },
      "features": {
       "bpm": 143.0,
-      "energy": 0.478,
-      "brightness": 0.605,
+      "energy": 0.471,
+      "brightness": 0.604,
       "entropy": 0.41,
-      "onsets": 0.246
+      "onsets": 0.245
      },
      "gain": 0.16,
      "env": {
@@ -23124,10 +23124,10 @@
      },
      "features": {
       "bpm": 121.9,
-      "energy": 0.489,
+      "energy": 0.482,
       "brightness": 0.543,
       "entropy": 0.388,
-      "onsets": 0.135
+      "onsets": 0.133
      },
      "gain": 0.88,
      "env": {
@@ -23213,7 +23213,7 @@
      },
      "features": {
       "bpm": 129.8,
-      "energy": 0.793,
+      "energy": 0.787,
       "brightness": 0.865,
       "entropy": 0.446,
       "onsets": 0.462
@@ -23308,10 +23308,10 @@
      },
      "features": {
       "bpm": 133.4,
-      "energy": 0.827,
+      "energy": 0.82,
       "brightness": 0.0,
       "entropy": 0.272,
-      "onsets": 0.859
+      "onsets": 0.86
      },
      "gain": 0.13,
      "env": {
@@ -23403,8 +23403,8 @@
      },
      "features": {
       "bpm": 120.0,
-      "energy": 0.462,
-      "brightness": 0.356,
+      "energy": 0.455,
+      "brightness": 0.355,
       "entropy": 0.309,
       "onsets": 0.0
      },
@@ -23504,10 +23504,10 @@
      },
      "features": {
       "bpm": 105.0,
-      "energy": 0.456,
-      "brightness": 0.683,
+      "energy": 0.449,
+      "brightness": 0.682,
       "entropy": 0.368,
-      "onsets": 0.326
+      "onsets": 0.324
      },
      "gain": 1.03,
      "env": {
@@ -23593,10 +23593,10 @@
      },
      "features": {
       "bpm": 122.6,
-      "energy": 0.157,
-      "brightness": 0.417,
+      "energy": 0.151,
+      "brightness": 0.416,
       "entropy": 0.32,
-      "onsets": 0.198
+      "onsets": 0.197
      },
      "gain": 2.28,
      "env": {
@@ -23688,7 +23688,7 @@
      },
      "features": {
       "bpm": 123.7,
-      "energy": 0.728,
+      "energy": 0.721,
       "brightness": 0.0,
       "entropy": 0.331,
       "onsets": 0.0
@@ -23789,10 +23789,10 @@
      },
      "features": {
       "bpm": 174.6,
-      "energy": 0.758,
-      "brightness": 0.053,
+      "energy": 0.751,
+      "brightness": 0.052,
       "entropy": 0.279,
-      "onsets": 0.603
+      "onsets": 0.602
      },
      "gain": 0.59,
      "env": {
@@ -23967,10 +23967,10 @@
      },
      "features": {
       "bpm": 170.6,
-      "energy": 0.359,
+      "energy": 0.353,
       "brightness": 0.709,
       "entropy": 0.417,
-      "onsets": 0.839
+      "onsets": 0.84
      },
      "gain": 1.04,
      "env": {
@@ -24062,10 +24062,10 @@
      },
      "features": {
       "bpm": 160.6,
-      "energy": 0.56,
-      "brightness": 0.006,
+      "energy": 0.553,
+      "brightness": 0.005,
       "entropy": 0.278,
-      "onsets": 0.382
+      "onsets": 0.381
      },
      "gain": 1.36,
      "env": {
@@ -24163,10 +24163,10 @@
      },
      "features": {
       "bpm": 127.7,
-      "energy": 0.53,
+      "energy": 0.524,
       "brightness": 0.551,
       "entropy": 0.432,
-      "onsets": 0.608
+      "onsets": 0.607
      },
      "gain": 0.76,
      "env": {
@@ -24259,9 +24259,9 @@
      "features": {
       "bpm": 91.8,
       "energy": 0.0,
-      "brightness": 0.057,
+      "brightness": 0.056,
       "entropy": 0.331,
-      "onsets": 0.132
+      "onsets": 0.13
      },
      "gain": 2.45,
      "env": {
@@ -24347,8 +24347,8 @@
      },
      "features": {
       "bpm": 128.2,
-      "energy": 0.855,
-      "brightness": 0.214,
+      "energy": 0.848,
+      "brightness": 0.213,
       "entropy": 0.272,
       "onsets": 0.0
      },
@@ -24358,6 +24358,231 @@
       "m": "5999558998558887559997667678688576555498589997797876887866887975865865876435768867647755544349877568676589896499863497697665786544775899975887667877745778867667768653447568754558676445666676587555568765688744677765544865445887898777877569878667657555577545666475665444555465444454875887765554546999755767875547744446776898765677645686566598765677665538554554334975976346769877999876779669748877556777667666477787998667897656887665998866786754435877876539998755436789876999765576688688676577686666665676867887566976898865777877766768664997659955679899964362344461279932344812477825433701658423558156899235547116896245681236581244470179971289922489923554801577812337423768133448004657028995366781344471157581244562379999659854876533979984445965669976648735449846548656345468455464299987695454697564444985676875865323755654325646754329855569866679667699578676464343495465696999887996796998666999976999999975786449986569999886597665598777698887899986888776975987855656999978879859989659989759689789776698599799664587897998874997774998755987976877768867887558769977658776579886588777566599697766664994984652999987426567146567256567255656245683346571445472554562655643575814545815674615456535558135777246667264556345582476572455572555582565743555814565825565736456535658146557653687548654433347653171233361154471333631354712443711554812667424557123337114438123346135471233371145471255562465832344711454712333712557424337114558125557235555133371134480233271155455432222665543222665532656433576444576444565444447554457544566566755566654367743342467645765434333455444434776433325555336665434436546555433344343143232254456665555443433553332454543324654454326654335435433468765456654376454367543376665554564444654666555765435764334436654346434343234355442267553342276554455444565433555433543644545655545645566546645437643333356554355356434653365313332575543623323513556224326114436133336125454244462345461332261243552332612344613433612434523446236546134227124436133354135461333271254362354543344613432612443612323512544543333324542244326644264443455484475463655466544544454735854735643655645434447347568456537655355555473467574678785573443454744755736655654745434646566647255446646344344455565473455467677435742177424442565234776665876544987656765435546766338756448667888688866586654387664486576555433454765544543654335765547755439865338644345446442257453377477898898655675443777533554543876422221005765225756555443333211111122000000",
       "t": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011111132221111111111111111111111111111111111111111111111111111111111010011000000000000000000000000000000000000000000000000000000000000000000100000000000000000010011111100111111111111111111123222224323324324334233333232333233343233243333433323433323433332433433434244334234334324334434433444443454454354454355444445534545544554653654454555356464345556555344544456554576686776663678953599913667813799835667623989135899246998366567239993245582368981345571269952468923678813445712788623458235899135557126896236793357891355571258972345742489899658975899755999998897433333222322211221111111111111111111110000000000000000000000000000000000000000000000000000000000001000001000011011011010011011111110111110111110211111211111211212322333334445555566777766655555454444443343322332222332222322212322212222222222223222223222122221122221122221232222222432322432322532435854434334446445446437877557566665677686798777787766777778889789889989989459999259997279997369995389992599982698972699964899925998926999827989638999349999269887279997389995489992599982587863799864798924888825998726989636999248998259998333422235444466796586573455673366752565842566713556832566524769535657146668325666245575247661355673256661366762566713555842566614556723667235558424666136677346663355584247771355673266653333222444445768866755555555444445444434343333433333333334322332212211111111111111110100100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001111232233256566576576576576586675665775765765765765755655657646657646547647557557567467567576576586475577787888877887877887877877888778888788888878878778778888887888888787742223222222223455643433777778446978467769457668466579458793467694476684675694487846765944766835546944868546769459988456559348676566594476693555593476774586954776836655934866756658745655222111111111123444244275888898795799986897798956877977858999859977989667779878479988579768797687788784899985798799985777987946999847977988968779869379998379779988688789883799993798799963322212222212223545678634455334455333344333333222332222222222221111111111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "o": "8135333334343232362342352233443333433433734332423333323533435334325334333345324333336332333343333332243344343862423533423633323533426633324333333333334233435343263232332232222132242233942322222222222222222223322232222222222223323222222222232222222232222222332221222222322312222223322322223223223223223222212222222232232222222222222232222222322322322223222323222324432339124239233289252392254291254282255392655924424922655923553922679426269125569225529234689362792363793266293279595659925738935974962762755769355279246579528839629432234332343333233343323493223733324733223622333732235228227333326324336222252192352322352244262222642963612922512333622224819935232235124326222244259272192232223252223341193652333522332332293224932239634222323332233222223222233233242232242231241132352221412321521411411722423615312115125116117117223198162192162192151191151491431921511921421921312923528225218215216223118224373132232142242332342233532322612523722433822533925438224249226239225239246392263291262273252392253862743922822922922722924829438239228229329239328297362392272392252372362482532823332333222222222325624256234239234228236258344361332262332382332292332823422733433533623823529233236233247234327337278233391241392342382243372332923522922523823425623427225237236328236234323922372222253323462292223352453723322512423922225423929125234124229232234249397232241392392422341392592452413422923232512924923335125229222224139229225242253292323241394292322463982422233443922232733333727223223223324233212224234222242232232241142332221321222421422322422411422224226222224224222223233233243333332363321223332224321433333332431232433342232323314223215221121223122232332233362262251242352741722522622622723622827528219229228128326136237194282182282271292292362782921924723533443432432545335246245236445424424445362342342443554254263243422224222532323323322729932246236238322256229269232262392382292362283372232623922723226822824922337529357225336238329222275386392333372292392222862393822932722632722324434946422427229343423433224232223342391293233233383453662732933923223522935433944437237253233529325235235584492223342293343262243562923323625943432932453949334234329336329434238376345362493242342252383322223223332222223423222222242222332222232222223223332232223222232223222221221232322213322432322332323423233222233234322323222224223233232232222243242252332533322322332233322322333223233232211211114222134231231222222111212121112111",
+      "hz": 12.0
+     }
+    }
+   ]
+  },
+  {
+   "title": "Earwarming",
+   "tag": "earwarming",
+   "tracks": [
+    {
+     "title": "Earwarming",
+     "file": "01-earwarming.mp3",
+     "duration": 193.0,
+     "sha256": "2bf6d670923f47d0a206450e55f92893b5e53bdf579ea5fee88c93db6b82af0d",
+     "published": "2026-08-07",
+     "mix": {
+      "v": 3,
+      "bpm": 125.954,
+      "grid": 1.0915,
+      "key": "7B",
+      "keyConf": 0.41,
+      "phrases": 32,
+      "in": {
+       "start": 1.091,
+       "beats": 64
+      },
+      "out": {
+       "start": 161.15,
+       "beats": 64
+      },
+      "mixable": 0.64,
+      "gridRms": 31.1,
+      "gridDrift": 1.0,
+      "downConf": 0.03,
+      "structure": {
+       "ok": true,
+       "v": 1,
+       "sections": [
+        {
+         "s": 0.0,
+         "e": 0.1457,
+         "energy": 0.358,
+         "loud": false
+        },
+        {
+         "s": 0.1457,
+         "e": 1.0,
+         "energy": 0.783,
+         "loud": true
+        }
+       ],
+       "apex": 0.5728,
+       "mixIn": 0.1457,
+       "mixOut": 0.97
+      }
+     },
+     "features": {
+      "bpm": 94.4,
+      "energy": 1.0,
+      "brightness": 0.203,
+      "entropy": 0.327,
+      "onsets": 0.595,
+      "instr": {
+       "bass": 0.69,
+       "perc": 0.085,
+       "tonal": 0.915,
+       "air": 0.012
+      }
+     },
+     "gain": -0.51,
+     "env": {
+      "b": "0000000000000000000012135555545443333454311100000000000000000000000000000000000000000000000000000000000000002222222222222222222222222222222222333344444444332112222222222211111111100000000000000000000000000000010101332323323344433544444333444322222222222222222222222222222222222222222222222221123331000000000000000000011111222233333333333334566666554443333333333333310000044333243434344343499577797344896434896334997565984345983115972236975778964459964549953459854659854668733468745679767778544499534488534599667687434797222686233897787785555975555874466975676874558863446852546964552153534353434333424333434344434323344324253324231324243324363334353334453322442233443332777776777566666665555554766564645454422434412323222324332223232222123222223222212132223242122697576697767896757896764996766996667986666987678976667967579967578967659855559855569755569655489666679675799675699665598666697657897757797757996665895555985555985566975556975557965457865549964324333434431323321212222212211111000000000022323201333333333202333212111101122434452325343988986988568987367878378977378877479953569755569767768663579643779553589544588444599444597334697899557776478887468886588875578774688774688775778764666444675333443445454434442334443434432435564534444445554445435445645344534344435345434565322454344565332454243443352234464521225722454444443343544453535543645544545554535555634434577676768786667677666767566766455668564445566665553265665475443353333455444443546434765420000019964559853569854669743578744579644588645498545598557698457797556798467896555896455985455985466983345974357974357863458864458852449853559843569744669744679634578645486545434545334535344546698778797546896556895555998787985466985576975567998997962009950008940029930139831259831269744479767779655699776587556698767687556787767686657886677666666665554444443344444444443333221122335644334233221111100000001011111122333333333332222222223344444323473321463522453554665665996676996676995476995587985588976679965668965669965669955779865769855679745689655699535599545599546688646798546797546997656896555996676996567995476986577975477975579953558953569842558743679755644223520014300334298653431234300245311433796544422346897446522345599654379977438987532698555433998646432211111111101245444444444444433333333333333222221111122222333434444444434443444444444444444369997564322123222221122212111111100000000000000000000000",
+      "m": "0000000000000000000011331222222223455643544433233333333444444455555554655444444455555688641221211211111111116777777777777777777777777777787778766654455666786552233233332222211111104656454545445445454564566667769775656656466456555446665678877775556678888899999888888889999999999999999999999987777557976444445311111111111122334445555677889888887776777788999999999999951000132100131223221002411333505586505575506495412225214596113445137764023335065955143644144952243561354651488752485441233330649540547421669501233413277512453415664412223313235324344113334123443123335122333122223234849454747456767456656448664756488645298759575858475757465666576666676585677597878796876496223453544564544435445665455867553635375647576755455554555533555544545544545453546454545743222602343504565513354413424414255214456135345123445034445044645054653134352233351133451233441233350244440443440425521432512435503534514445513243513334413345324335123335123334123325123334123333122347453456543456543466545477678689879698968686868677878787878788777677766777776545545456566223335123456134455243545133544223554245562344561234341364462455551445552444531446732656623754602222443334433333543333323345533344323445323454222443333755533535554755434856577967445666557854454354445455436454445443445444556554444444444554476544475434365743365555554543454333654355655444445544545444644344655445645555556445455544342445343434333334422333443234444643444254546555765444444454656665355553243556454555433335766563123361133461234461244461234351334452343441334622333601332612233601343613434503345413356224446022335123446123335133336133345123353133261244361233461244361344451334441446498546598545596445512433502333513455513335324446223336124455023335234445123425123334003352224461226560446451376552443352434452436634544623444535434635654646565535766555454545454434344655555544545454645655544221121111111000000000023443333345677878787776655444444456788898531111521110521142411223313465213467124556124665134545033545244654345762245661245661355552345552345452344452455631347712566523545513356513666613444405576324435124456113345234436234445235545255664255672244551254451355445546565536586548631548574747574757696667514568566656613656475869733444562243444223245422343553711111112211110000000899999999999999999999999999999999999999999999999999999999999999999999999999999621122111110101100000000000000000000000000000000000000000",
+      "t": "0000000000000000000023773222222334444333441111111111111223444555566687777998999899987752111111111100000000004444444454344443433334333334433333333222222222235992222322232222211111118958395979879668677666675565655464435354443343354344434433333333222222222222222222222222222222222222222222222222233334567889999322111111000000000000000000112233323222111111121111211111296210581110666464731124821111503051603143413335101116021516132616141607211225032443133361225261325150316162415074517571111471334612232743151600112733050624172824264711126749456457536457527578638374637689998689576113262214071203081304080304070304270214461232731231722130712030812030712030712030502031603138421316231407230407230418121447233366234376577798988898879898989899988798979798978797888995322523434734051503154632136243537542625141617452615233457341534133465222365698995788975798986788852445673546422353652143614272745171514071835272424557659755458737568637467728477736688987589985334463323153112042101053102052102051112251012332232643231413141734140626151735264755656765648431107421825110727311837324666326453447475537375544495849361729383749552679764788735797857697833211721222722223612225511116411116322227322339422319331329455857596475223185314196739583994273324293323694668676963884352965262976586968697977999866336845677579539788989797429472939398449788799896377658775795396747394638393737493737774454765453755453857363946272937383937464947566766767655758565759675759493838484848554459777962478784689764689885899865889976899946899956899857998936898645252722262468899539988356667446735368978479986578998588995799995799984899795889975789786879864689865889954455753353833362824272844443837283527376646666322327464846152738372826211148313444243386216271315294416260415184454674434573234531143753252621152842161522152842154744223635445453647473737463737272729373728666764111111111000000000000055321111111111111111122222222221111111112610000910002910465610636321317432516230607330406220727241544233565334262314174416062406084406076889876788956899957998623353743172615172935465423467624455334747543535233638463826576748375745686665376576899987898482214191203190213390222642121741141932030822030721030713050822130933053942637593333649334354932545528821111000000000000000921111111111111111111112222222221111212222222222222222222222222222222222223333942221111000000000000000000000000000000000000000000000000",
+      "o": "0010000000000000010111001102001010000000000000000000000200002101000001101000000000000000000000000000000000097000000000000000000000000000100112000002101010001100000000000000000000095050312033220220102101101111010102031330310510301130013002011100110000000000000000000000000000000000000000012001012100111010000000000000000000211111010100100000000000001122201101202011520000900000905040500002200102564619083909060909021113060909022979039393001140919090709090709090709090538290367940221100021302180906091803170901111302859603916021709000222030407010526040519000233031661000020000010005070606190717190867992673927370906180905080905070906080906173907579514839354609162709071809010517032566036572136180316070305060306070203030001120112220011200020201120200120201020400003910001101829090909000113060908010709092986013695100010119090909090001120002020002030001120202201110201080606090700061305181701774755926001707000212010306000305011406000263014261001030001010002090305090015190005690044850041900040600040703060902040806158701459421212110103050403020302001019003968009461009070008090009091233080013290011111194932190902090903090802070903072711241200006510115121114010006000106010116000113110111004161104071206071303070105081205190337561221721070712060803070602030801041701275812435221314001002010409020607020317000002102284225170211070000010001070205160302260224742242612040502030411040502050602052622263824435231506030506130506021314021314021425021351414040506050210110101050000010000020000220011300000200100201000200010300010201010300323100708000202010103010413010409000312001221002120002020002020002020003030004021002210031200030200020202140503041603052604351511123031706060904041806000402030906072933039572011130007070508070006090608760207691767622100210040300180704080401070603172411586404824001806110005050605050605061715142636546261515050000030000000000000000000000190011110000000000000000000000000000000001300009300009000909000909000509020709010796006794009290248090109090109090008280309290139920094900010201000200110200010401031300292554935000202001202030906070904020815012432036451014140124040004030204040002020001030024942462904170903190900050903090904090905182900157826678900060905090903042350105061010500602002009000000000000000000009600000102100000000000000000000000000000000000000000001000000000000000000000002221000000000000000000000000011000000000000000000000000000",
+      "hz": 12.0
+     }
+    }
+   ]
+  },
+  {
+   "title": "Love and Connection",
+   "tag": "love-and-connection",
+   "tracks": [
+    {
+     "title": "Love and Connection",
+     "file": "01-love-and-connection.mp3",
+     "duration": 196.3,
+     "sha256": "cba45529395a63983243571dddc45dbe8f0dc07881264890f9af4258f25dad3a",
+     "published": "2026-08-07",
+     "mix": {
+      "v": 3,
+      "bpm": 122.829,
+      "grid": 0.3798,
+      "key": "7B",
+      "keyConf": 0.09,
+      "phrases": 32,
+      "in": {
+       "start": 0.38,
+       "beats": 64
+      },
+      "out": {
+       "start": 164.51,
+       "beats": 64
+      },
+      "mixable": 0.0,
+      "gridRms": 458.8,
+      "gridDrift": 169.6,
+      "downConf": 0.18,
+      "structure": {
+       "ok": true,
+       "v": 1,
+       "sections": [
+        {
+         "s": 0.0,
+         "e": 0.0526,
+         "energy": 0.172,
+         "loud": false
+        },
+        {
+         "s": 0.0526,
+         "e": 1.0,
+         "energy": 0.748,
+         "loud": true
+        }
+       ],
+       "apex": 0.5263,
+       "mixIn": 0.0526,
+       "mixOut": 0.97
+      }
+     },
+     "features": {
+      "bpm": 90.5,
+      "energy": 1.0,
+      "brightness": 0.163,
+      "entropy": 0.341,
+      "onsets": 0.484,
+      "instr": {
+       "bass": 0.707,
+       "perc": 0.086,
+       "tonal": 0.914,
+       "air": 0.009
+      }
+     },
+     "gain": -1.63,
+     "env": {
+      "b": "00000000000000000000000000001112222212222222121222212222231122221112221123321111111111112200000000000000000000111111000000000000000000000000000000000000000000000001122222222222234444445677888878888888999999999998888877786997699869967996787642433223332221234554455552000001110002565552111102667510000255610001566300025660004661014540036620155312563123432111100000000000000000000000000000000000000000000000001123224545453644567777659998888766755555555534456776665555554433444333344444333222100012332211000011232111000111000011000012344444333333333333222223443333221242222443210455998766545554332333322233333332233223333227876567886765556552233432222213222223343334332334354559998866665544333323222323232333222223233357865667877744456733343332333344433333332222333322233388877765445544444444445344433444333344334343433244434343333233333233334333223232334223211200110998656899566999566899566999476999476999466988677998776988466988355988666987476987476986476987588986456986468996477995678995567985468995568986669983448984449883449984559973769983874343532143779977878884869864769864779763569763679864779875789966778754589745689745799745689736799746799735599767798737798636598636798636698636798637798545798768798646797535698536897547797447897547797446799766465333453333454222443233454333565333431122433444541344554433542233432343431233422332322213998775878686887562323223999697878686886652333326989697878686886567865676767677576766676766766758786664543112323320000001211210000000000000000069854679854689854679765789734689754699745689755699746599726699736699626699647698646698636698536698656698437798537698547798426798536798436798436798666798445997345898445897455897466997466997355898621212211222100211001211111211111111222233222555432344322343322344332244332243333244434232433255444333333333333334444445555545444444444544454334554443344454444444434444444433333334445443333444434444433333334444443433335655444544434543444343333599986534745434444443333322322222222224998796879787897766544544322222222222336655544433332344334432344899999666788755554434443433332222222222223332113422798778645766587754368763439885888678875987598858886698743254311023210003321002221001321000222100122224579863569854779974869884779975687986597987487986476997478787559798749799838798736778744779973879875879975578976477976376986467996468797559787537687545699987755778776778776778787567766676655475656555665789985432111100011000000000000000000000",
+      "m": "00000000000001122233333344566555655545454645465564455656465646657757776766657777878777787779988854333232222222223445455555555554556455644565665657756566788643333335677888888888887887777776666666777778988988778999999999986232444355445332211112121111112111599999999998983222121117999977994228987679822999678946987799589869949879979879598799886998979988789776899877899775666665787565557775665556666666666666556665556565555555444334364221111110001000112234666566678999999999999999999998857688878687978596969596988596958696859697969799988786868687878787968787878656867666877667879878322557653648755758766868775868664878686985454964233546665658765668776889656678877789767587777993334477544477556676765477776677666675768753556545446566646478767677778677867666667554657675646545535365547596568696857565667696779797678687767585678676676697889797877786567788788555667557865714554502255612355502646402356302347312457212447113446113457014456113557013446124446124655123545234664236666135645146655235645147766234665234455236664144774236653157772345552123433334443344442245562433262346452355462567663445661336451434361234452325573455553435362345552245561334441335642334433435633544522455722455624444712343512347712443524344634456523455723454513453723344523543413223545375646352756574875475875454755542777485884354988565864465765445997677867666988687888798422423233423211114211117421423242413211114211116121413241413211114123336363645565657565556564545345636364768687759684869787878565556455555566762455662445462447562335463566462445361425452546554555541556632457631555622566632545622556622556623657633665644565623554634665624554634354624554523455624543624543623444634544524544423445423456433323944333964214954215986566998766999988998667986686987787998798876688998898987789999878677867556559876759775456555325665544545443536584748542867764544554233533343745453654333675543474545598646576557879676656574548684877765675656475867476667766733346786201187666777778767666666665878222323233241423455676211376676666667668777666666657555778767666822233444444466555665556557888877776757988697779899913443443112362344482344443234823382339223752338234923222495211086311039631008641006964111974211697211282348791488892376572265664156646246657135556236588234554634663724576711366733456462446471245571355573245764165777245777235577425553623543722454622545442234489554668464758767556976585879688757975563658531100000000000000000000000000000000000",
+      "t": "00000000000000000000000000011111111111222222233243443434334225324344224443354444454433444667799964443333322222225789999999999988897999989998897979697598773212111111233344555555555444444543231111223333333333333334334445789422943394389333222211111111000000575544333347721111100007533349992227433699222843499627533896174369656349565399273499652877548666587597999987996844964533765443376544333356444443333434444444444444555556666566582110000000000000000011111112212221222222333333333334725161825253625454736444535446745536854546965657444436644526343516553526142416342418762518673749322319983429899999999739999999999997655468356667222259963349999999999867889998998897777687755483223199945399999999998499999999999997665493738393323299933299989887879595555666658566868787969961121741231732231722121822231823240713230713141813330813341713342835354835453835463988897988785522235513153313255410235112446423444122446423225211116342735042727311235031616241616466958555867444448352835467847353745466867252855454967355863333466254854569875355764568674224273636363737463111186724275679796667275567685668651637183627162212286524165667685647365566775667432547673747631222766442546787855665556898967677515474856473622121867241656777956582656676846585635575845575922131612032603042603153722144603144622145513246523236413236312236312336533436333447433547545569221626151519210019643339231716171617110129643349131726161737110057100057364656455666556565666595355256547673456298869684556296757484749473637272446173628151446183718251456373727241628562627452455553546421454654556522453654565435474745463634452746473524461747372514461736282616282736281724132735699445699746599546688646677336789546787411115511104500005400005300005300004411113312225300011301021400010401020400020401020513030512020410011599722296322121101040001020001032211114010304000109997436643333311110200010200010200011220101030003356567863232257342427342326442435634453967665611123785111396555666666378654556666749261718352553711112985111697777767667274332222222629411631055103611000984111586666697886489555558564847353537535141611000997111465567784777673212642164217421643127323732221320000030000022000003000003100000300000310001341004262416161426284426441132736251714051716452634221233656541554331531163456898866776541215164415242212346250705151716443634437373637282567785656777542111161212143111115020305231324513040827274757566451111100000000000000000000000000000000",
+      "o": "01010100000000100010001101000101011020302020212304022031306031031040124111222021041110200210000000000000000000145212422224433454453433354415414050320420000000000012101000011101201000110000111011110100210100000000000001000002500450050000000000000000000008400000000010000000000059000100000058000100007610010007001000070110050211050220610200605006021040120510300101203103000222100200030002011220120221021000000000000001100000000000010000000000000112111111110001010000011021000110000003053719051809050707050605040408070509050709040504030408030507040509041507042408034418033338033511013272002153000000001030000000001000102070405060003070002050001010002040001000001000111030101050003170012150000000001250000000001000121623341512131710020610000000020300000000030003030203050402030904360904350903060903360904480904470905070913342922242912121501011301111211113200002100217011012020909080904002203090904020809090924000003000213040909090934002212080934030919010212000202000011022663010130025340010020126150104030115030101120209060101020205030000020106070706070516230112130005280101110003280001010003060567320145930121200072700000100050800000200040806070301050301050300060900010201040700010200050506061302070900221300250900000100244600011100232111112000101000229031519061809061809011709050909010809050809020709050909040609040609000105020104010105010103110826161739002132000093035984486692002130000090228190717170000090000090709090708080705050313020224080708090735180709090836190727172637381727980224410164815562301251906340402170907060401050803250402060907330402080904252402060905092402060902243402161905234401254905333302659426744102639112624001314021302011303010302010204020202010201000009000009000009000009000009000008012014000002000509030607010519142628323363814262906170607070801040600010300010230113380304060405070606080405073023628000302001103020315243352805050904060805060915344130303020202040202041222333020304020314021133901100200000900000000001060000000001236080808090807000211300000800000000001160000000004269000900090009010001900000900000210002060000030003329090809080509031011900000900000130003030009000880009000900090002400000700000990000090000095000009000009000000900000400094900429590909370409090809040529494291964060909010906010439303087303070901010100012412819620609090109090417293382762030708050804051656601060204060300000952327090404090523709030809030819439190705070600000000000000000000000010000000000000",
+      "hz": 12.0
+     }
+    }
+   ]
+  },
+  {
+   "title": "Zencraft",
+   "tag": "zencraft",
+   "tracks": [
+    {
+     "title": "Zencraft",
+     "file": "01-zencraft.mp3",
+     "duration": 223.6,
+     "sha256": "d243a46fd1962ee026bb68a3099dc0babf6290e2b0a73c6dd04791daf9b077ff",
+     "published": "2026-08-07",
+     "mix": {
+      "v": 3,
+      "bpm": 125.586,
+      "grid": 0.6481,
+      "key": "7B",
+      "keyConf": 0.27,
+      "phrases": 32,
+      "in": {
+       "start": 0.648,
+       "beats": 64
+      },
+      "out": {
+       "start": 191.753,
+       "beats": 64
+      },
+      "mixable": 0.0,
+      "gridRms": 680.3,
+      "gridDrift": 201.3,
+      "downConf": 0.19,
+      "structure": {
+       "ok": true,
+       "v": 1,
+       "sections": [
+        {
+         "s": 0.0,
+         "e": 0.0385,
+         "energy": 0.519,
+         "loud": false
+        },
+        {
+         "s": 0.0385,
+         "e": 1.0,
+         "energy": 0.697,
+         "loud": true
+        }
+       ],
+       "apex": 0.5192,
+       "mixIn": 0.0385,
+       "mixOut": 0.97
+      }
+     },
+     "features": {
+      "bpm": 0.0,
+      "energy": 1.0,
+      "brightness": 0.245,
+      "entropy": 0.321,
+      "onsets": 0.577,
+      "instr": {
+       "bass": 0.74,
+       "perc": 0.086,
+       "tonal": 0.914,
+       "air": 0.009
+      }
+     },
+     "gain": -0.8,
+     "env": {
+      "b": "00000000000000000000000000255687455564443564522214544444443333333333122123333344557631045444322144455555566555366346456245556343345543233533513322222222222222321012123333333334431045432132143333333322223322222222333896554985564975466975337964558965549855649645649754569645589555498543298300000011000011000035896665995455975465975326965558955548846549645632310000000000000000000000000000000000000000036897455996476983576994558984448974659963559954579956669835699736589835598555599455798356787356997454995466983576994558984448973549953559955679846669835699736589735599556699445898345798355697685333333333332222116875552212211212223333359788821122223333222222488787456455366466243344798788654433444457520000000000000000000000000000000000000000000000000000000000000000000000007996657985559863658964669855569845589736688645598766598545798457798366985002874005973006872008975658974459853668844479876679835598546588545698543688343786355886245985455764556863557754447754543444323201123332131102212331221120222111115543355334532432233354432242244331232238758658854554444433343343343233332333332222222221111233444444444444444454443444444444444444544444346555366455266554265363364454553553544543532225995556994778963548975659866669847779747679735598756598457798366798355997454996456884566983568854548975769845659946679756679757698557699456798566797366985465995456985556983558974658974545666652110000000000000034432110000000000000000465332211100000000000002443221000000000000001169686776875686755486755574432656432655213645324654225554326441124440032332332232243233233223698455687455987486896577985566883789973868864569955568837889837789745598557687356787366786356985455884557983777983779964558846879837878745599534477457687356688343876476774466873576762557997764323313443434444459998523211013443324444469998520023339998633234369997669998769998669999763200013441002441002442001354245334223444444425545599998879977879886669985557986676996677998566897566799975599866699856679955559956778986778985666996666898666532321222101033321023210013321113433212322338974556996555995456798455798555599655689745679855559955468964557974566995555996456797445798454589645569945563243221112333432332222222212222121222122233378767658745658874665874455986456687466597456678735669754438765557863565885454887100000000000000010000049854557864566753433775344786466587555576424557733449864666873665863565775455697455478646677534547643545755554422332332121221122232243222322322222222222228886555885366886344577434498645558734559852446752455985356687356697566567734469744437642346752333663344785654333333223322101049755543334423433323120132034499646433334432343433332886455444433433333333333233333322332232133323332123212101023333369766644477464433322211322121011111110000000000000000000000",
+      "m": "00000000000000000001111112335722343456678958639528999999989999989987378368788778797322299995494599988889899999999997996996433212467888976836538888888878888879889468368777787889842199796384598888887777777777777777766923568634469145469146799246559336677355582445581354692465593455683469943647652887776985987744722458535569135469146799237559236577343682246633365655511154344311355445311444344434432544634614677414648136637115678135556246675235581246581245472454382364561365822566813454823543723665614778314648136537116778135656245584246581256481355462365472364551466823566723665812664713655311114786687687668788784222238766777766777876743222285677677667678768532322786875975975997996322221222119999986899999999996776666676566455444444443333333343333344545544444554445544544449011127114466236472134290112271144491254461333821111711333913452711545734648233469124557235539123356124592346570155481233370163662343722444911454711444934655514748113557234448225447234553435656866687887986687896597798799879878979999965666965965675687788778689789879559668973562552344445665696664476569786678777668968876865754544444444444444333333334333333333333333233344564422364522654412755412742642642744665576476568136888005448447674135692344482355493454471366933554823565924555812557735658224558246658235538455474034392355571145492344562454833475812555924544724557634558114669245558234458234474234454345554543352143353356677643446533533543532545632235554345434335325337444555545244554155453371224433233523233634343644566655677555667565656344445343353357776566766666567666556656756543713665613567422436104538235556234456134362245681355562355562244620356815655623544734756434657125666235657124455035482266671243271243352344821455623333723434612457422336222337233336234366235558468469999766677781112198398389998777778981123399499383112399497273235671246662124552123569411169621119722129962117965974998998987998886686661132271155271248646126668227537115646413776623566712233621154382376471268891247445117537126767134666821112522332995445594264499753499654479978539638569125359124457624533812444902435842254492453381244491234557125449144337113435723534813424912434741265471010000000000049998648876999998667898566899666678762467661148246237536124437222652612553612465551166552343353224336225436114766512443511531455451177679981268755126327467426223776613654611475455777361256772114335125236134524411654601445511374353475261357646332117437646744632853743664565575466476556667767777112226112623624642411467741265561246782244336134437123433511322612441342256571233352234446124335123444623345885585598674175183344448218625756988842752675671132154125117644412723722222375587679779998998998888788644976785559544974376226566677981122222330111000000000000000000000000000000000000000000000",
+      "t": "00000000000000000000000112359832222234578314115118454543446344366353151175444444463111293341461552222112633334843443511715621111223457525216116433222236332255343062063334333253200172220340531111222222333345554555558322224122125123225116545213342222351231363385383233252133332123412454512668721644777511876927532235123134123225116544213342222351286674385385399999932499999933999999733999999999974998976534658635116345118417555245576453162454185265562465585441533541763565623444854766645824855737434559635116346119418554245586442162464185276663455684441433541763665624555854767646779756768522214333235324315323458322254542553553453344293222255435534424524534942222722623714516516319622222111116543456677767767767788989999999999999999987777777788788887977778999999999999999997122246325451443064251051233374154343250654665612333741534522513632505446799457878267768558645344474243540352074174351222463255513431744754512979742654577526436878227327678427679547787674331341342353353153154334334414413414422432442541443434244244144244225324425324444443483372273222232142232232423423423323322522432986889999999999988767676778899999988899999999996499998896653876643976733967723964966967879799699799998112237206054344174178563566684562364662652686735655744622645714723867345557417656468238567255566684263163462173196664676854621645841831866635667645516346417418656345457334463334374355683211185456396357697746852111964552963664975567621118546549636739859678279899994299994299874742222632222622222823335634447444447344447345567445475344474356786677776677777767767767876775623335645446245417416426123347446163355185465461233374471544561752443723433854755543656546655123338545446337165256361232284461173271564453612899967833866987635999566448668878677549677675222253151164223233222183111151151173222242222183111161151182111151151171123371123371122371111242000042000024000006000006104203400500400400510320631100383120041231065226325003008313105103424732432510000742120342230173153260032066214006005109324325211121321322413315423246353253451384842647947639665246256335464157921731644604537545477444893175696460445655538655499417427946579954759956559998753395451110000000000011222113222211212222333211122211112541000173141041004006205204003402620600400520542150050056773337534317206315435101867811921899861274322250000064124005113006313532300300631411433350172164340023236215125234106422610400543631320241130063242053100004005004101101300300400410430251161072163145233111226314204211400731553410010163162040038886566755133813520210400310542142130089995679866467587555775411123610510442240050052211125005004004443500510853310040051044016324204402422111221151143224214111411230031003100310021003200452046443333340011123953210000000000000000000000000000000000000000000000",
+      "o": "00011200000000000000001001120020000200210006059095010000040000030020170180000100220000700300800501010001210000101101307021000001410011013025075000001040000030020080080000000220000900200600900000110010000001011000011224659326609325697384060360681353592266090240351224912515922526913600531942309502212207001021112339214518203586153060130580231561272060131350450020000800400000700500001800400433104022032000002004018003062031010000010010090010740040010000110100900200800300200000100301001006000009000002004029002082031020000010000090010730030020000100100800200600400100000100001000001000003000003204446452671440590000044343045045374344911000413435543441540554900006219048008009008033010000000061000201000010002002001010000200200300031000000000010010012000000000000000000000011000021060792770071060292000110828906600911102111000112869657207006009102432005004500242111052111010095496160751941831000210806928600700212220202113157112006106002005074002091121070000012023154066485556715707816646662851860687658469066077269556727908628695673890680583665392193280211311303303322533331431332424324134002012134000000000000000000000000000000000010010011000100000810000900001900009209109007109122202101101220020061090220340151110010110110510100400500101002100105310105015012010211116003001041010050000010050262120422421101001100100502104313502100001002006111034025202210010020120201020111310000931514902446911660900009815369125169016519000019235692151590280181050010010650010610102200000301100301004100003000003000003000022000030010020010020020020000100100100100110110110111100002000002234024012034000020010090570240000031000200100805701500300232444203149023044003318110022000020450040020050000130010805500400000200200200007213102002002000024001013101130000010002260080090002130102390000870930920000400000930000970970930000950950940020220200032100040001010000090000090000091000009009009009106406904600802400000910450092030090090052057091016009009003003200400102400500901120910290150090090090093049093003004213044145542640551633525804526385155064571870690692715809017489064069106700280684802808903236390030122950890161796303709017002022068210250931327900300200000000000000120010010020100000111000011000203121410000510070090090091017009009009007702900500900800970063320060490485093009002107359401900900600900000460051090080095003089008005005509400624900300810180070070290066456104008007009403733500500900552932050090000092029019007009009301900920902701851190071060061101113007009114209300811500400710170090060020002014002007005301900500900710350250010000040012103002012010012400900902310670090000270096009006004006701902800430280090090204005009000210412920080060035007200400090009000900080009000600090011020560000030400000000000000000000010010000000000000000000000000",
       "hz": 12.0
      }
     }
