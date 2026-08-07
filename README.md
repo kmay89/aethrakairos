@@ -547,12 +547,16 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **twenty-five scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **twenty-six scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
 every streak its own colour), **FERN** (an iterated-function fractal drawn
-dot-by-dot as the track plays — a different species every visit), **ROSETTE**
+dot-by-dot as the track plays — a different species every visit, and **coloured
+by which of its four affine maps placed each dot**: the chaos game's only
+structure is that choice, so the stem, the body and the two side fronds read as
+their own colour families and their own depths, and the plant becomes a picture
+of its own recursion rather than a green silhouette), **ROSETTE**
 (spirograph rings drawn three times in offset palette channels, the
 chromatic fringe blooming on hits), **SLINKY** (a chalk-grain coil whose
 ambiguous spin you can argue with by dragging), and **OP-ART** (a flat
@@ -578,7 +582,8 @@ interference on a dark current: three wavelengths of one marbled thickness,
 so the low end *walks* every fringe instead of brightening it, and the beat
 drops a ripple ring), **BUBBLES** — see [Soap films](#soap-films--the-rainbow-solved-not-painted) below —
 **CONSTELLATIONS** — see [The sky over Ohio](#the-sky-over-ohio--a-star-viewer-that-talks) below —
-and **FIREWORKS** — see [The show](#the-show--fired-to-the-grid) below.
+**FIREWORKS** — see [The show](#the-show--fired-to-the-grid) below —
+and **FILIGREE** — see [The escape-time set](#the-escape-time-set--three-techniques-and-an-honest-floor) below.
 Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
@@ -602,6 +607,51 @@ rather than a screensaver:
   fires a shockwave. But the touch itself is not drawn: your hand deforms the
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
+
+## The escape-time set — three techniques, and an honest floor
+
+The room already had a fractal — a raymarched Mandelbulb — but not the one
+everybody means: the flat escape-time set, and the lace that grows on its
+boundary. Three techniques separate a Mandelbrot that looks like a plate from
+one that looks like a screensaver, and scene 26 uses all three.
+
+**The smooth iteration count.** Colouring by the integer escape count gives
+concentric bands with hard steps, which is the most recognisable tell of a
+naive renderer. Subtracting the fraction the orbit had already earned —
+`ν = n − log₂(log₂|z|)` — is continuous across the whole plane, so the bands
+dissolve into a gradient the palette can actually use.
+
+**The distance estimator.** Carrying the derivative alongside the orbit
+(`dz′ = 2·z·dz + 1`, one complex multiply a step) gives the distance to the set
+itself: `d = |z|·log|z| / |dz|`. That's a real length in the plane, so the
+boundary can be drawn at a width measured in *pixels* rather than iterations —
+which is why the filaments stay one hair wide at any zoom instead of aliasing
+into mush, and the difference between a fractal that survives a projector and
+one that doesn't.
+
+**Orbit traps.** Watch how close the orbit passes to a shape — point, line,
+circle, wave — and colour by the closest approach. The set doesn't change; what
+changes is what you're asking about it, and the answer is the ornamental lace
+along every filament. Every curl is a place where the orbits sweep past the
+trap, not decoration laid on top.
+
+Two forms, because they fail in opposite directions. **MANDELBROT** zooms, and
+a zoom is finite here: single-precision floats run out of relative resolution
+around 10⁻⁵, after which the plane goes visibly blocky. So it dives into a named
+valley — Seahorse, Elephant, the Spike, the Antenna — hangs at a floor set
+*above* that limit, and lifts back out on a phrase rather than pretending it can
+go forever. **JULIA** doesn't zoom at all; it morphs, walking c around the
+cardioid's edge where the set reorganises continuously and no precision is ever
+spent. Between them the room is endless and honest at once.
+
+Two things the screenshots caught. The far-field dimming was **inverted** — it
+shaded by escape count, which darkens the thin intricate skin around the
+boundary and leaves the empty plane blazing; the detail is what the room is for,
+so it's the fast-escaping field that falls away now. And the palette is walked
+in **log**: the escape count is tiny over most of the plane and enormous in a
+thin skin, so a linear walk spends the whole gradient on the far field — which
+is exactly what made the first cut a flat orange sheet with a thread of detail
+in it.
 
 ## The bench — three ways to make a photon
 
