@@ -737,7 +737,19 @@ def build(args):
               "(60 req/hr/IP since May 2025 — a listener trap); "
               "the catalog now defaults to the same-origin 'audio' tree. "
               "Use --base to point at a CDN instead.")
-    base = args.base or "audio"
+    # ONCE THE BYTES HAVE GRADUATED, THEY STAY GRADUATED. publish.sh calls
+    # this script with no --base, so a plain `./publish.sh` after the move to
+    # a CDN would quietly reset the catalog to the same-origin 'audio' tree —
+    # and the site would point at bytes that are no longer under it. Every
+    # track would go silent on the next release, for the same reason the
+    # 2026-08-04 redirect silenced them: a config default outliving the
+    # configuration it was written for. An absolute base already in the
+    # catalog is therefore inherited unless --base says otherwise.
+    prior_base = prior_cat.get("base") if isinstance(prior_cat, dict) else None
+    inherited = prior_base if str(prior_base or "").startswith("http") else None
+    base = args.base or inherited or "audio"
+    if inherited and not args.base:
+        print(f"· base inherited from the shipped catalog: {base}")
 
     # the license files must live inside the published tree to be linkable
     for lic in ("LICENSE-CODE", "LICENSE-AUDIO"):
@@ -888,16 +900,24 @@ def doctor(args):
                 if p.stat().st_size > 90 * 1024 * 1024:
                     bad(f"{p} is {p.stat().st_size / 2**20:.0f} MB — GitHub "
                         "rejects files over 100 MiB; re-encode or split it")
-        if tree_bytes > 1536 * 1024 * 1024:
+        # The site's size ceiling only binds while the SITE is what serves the
+        # audio. Once 'base' points at a CDN the tree is a master copy that no
+        # deploy ships, and telling the label to "plan the graduation" it has
+        # already done is how a check stops being read.
+        graduated = str(cat.get("base", "")).startswith("http")
+        if graduated:
+            ok(f"audio tree {tree_bytes / 2**20:.0f} MB — served from "
+               f"{cat['base']}, not from this deploy (file cap 100 MiB)")
+        elif tree_bytes > 1536 * 1024 * 1024:
             bad(f"audio tree is {tree_bytes / 2**30:.2f} GB — well past the "
-                "~1 GB Pages soft limit; graduate 'base' to a CDN (HOSTING.md "
+                "~1 GB site soft limit; graduate 'base' to a CDN (HOSTING.md "
                 "has the R2 path) before adding more")
         elif tree_bytes > 900 * 1024 * 1024:
-            # Pages' ~1 GB is a soft limit — sites this size generally serve
-            # fine — so the label's first pressing is not blocked on it; the
+            # ~1 GB is a soft limit — sites this size generally serve fine —
+            # so the label's first pressing is not blocked on it; the
             # graduation clock is ticking, though
             print(f"  ! audio tree is {tree_bytes / 2**30:.2f} GB — near the "
-                  "~1 GB Pages soft limit; plan the CDN graduation "
+                  "~1 GB site soft limit; plan the CDN graduation "
                   "(HOSTING.md → Cloudflare R2) before the next big drop")
         else:
             ok(f"audio tree {tree_bytes / 2**20:.0f} MB "
