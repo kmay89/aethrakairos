@@ -19408,21 +19408,29 @@ function buildFern(){
   };
   const N = 22000;
   const pos = new Float32Array(N * 3), aIdx = new Float32Array(N), aRnd = new Float32Array(N);
+  /* WHICH MAP PLACED THIS DOT. The chaos game picks one of four affine
+     transforms every step — the stem, the body, and the two side fronds — and
+     that choice is the only structure in the whole algorithm. Recording it
+     costs one attribute and turns the fern from a green silhouette into a
+     picture of its own recursion: every dot says which rule made it. */
+  const aMap = new Float32Array(N);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('aIdx', new THREE.BufferAttribute(aIdx, 1));
   geo.setAttribute('aRnd', new THREE.BufferAttribute(aRnd, 1));
+  geo.setAttribute('aMap', new THREE.BufferAttribute(aMap, 1));
 
   function generate(){
     const set = FERN_SETS[Math.floor(Math.random() * FERN_SETS.length)];
     const mirror = Math.random() < 0.5 ? -1 : 1;
     const lean = (Math.random() - 0.5) * 0.5;
     let x = 0, y = 0;
-    const xs = new Float32Array(N), ys = new Float32Array(N);
+    const xs = new Float32Array(N), ys = new Float32Array(N), ms = new Float32Array(N);
     let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
     for (let i = 0; i < N; i++){
-      let r = Math.random(), m = set[set.length - 1];
-      for (const cand of set){ if (r < cand[0]){ m = cand; break; } r -= cand[0]; }
+      let r = Math.random(), m = set[set.length - 1], mi = set.length - 1;
+      for (let k = 0; k < set.length; k++){ if (r < set[k][0]){ m = set[k]; mi = k; break; } r -= set[k][0]; }
+      ms[i] = mi;
       const nx = m[1] * x + m[2] * y + m[5];
       const ny = m[3] * x + m[4] * y + m[6];
       x = nx; y = ny;
@@ -19440,7 +19448,16 @@ function buildFern(){
       const rx = px * cs - py * sn, ry = px * sn + py * cs;
       pos[i * 3] = rx;
       pos[i * 3 + 1] = ry;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 2.4;
+      /* DEPTH FROM THE MAP, not from a random number. Giving each transform
+         its own plane sets the fronds off the body by a few units, so the
+         plant has a front and a back instead of being a flat sheet with
+         jitter — and the depth agrees with the colour, because both are
+         reading the same fact. */
+      // a unit apart, not two: enough that the fronds sit off the body and
+      // the plant has a front and a back, little enough that it stays one
+      // plant rather than three slabs floating past each other
+      pos[i * 3 + 2] = (ms[i] - (set.length - 1) * 0.5) * 0.95 + (Math.random() - 0.5) * 0.8;
+      aMap[i] = set.length > 1 ? ms[i] / (set.length - 1) : 0;
       aRnd[i] = Math.random();
     }
     // reveal in chaos-game order — the fern is drawn the way the math draws
@@ -19450,14 +19467,16 @@ function buildFern(){
     geo.attributes.position.needsUpdate = true;
     geo.attributes.aIdx.needsUpdate = true;
     geo.attributes.aRnd.needsUpdate = true;
+    geo.attributes.aMap.needsUpdate = true;
   }
   generate();
 
   const vert = VERT_POINT_HEAD + `
-    attribute float aIdx, aRnd;
+    attribute float aIdx, aRnd, aMap;
     uniform float uVarA, uVarB, uVarC, uGrow, uScatter;
+    varying float vMap;
     void main(){
-      vT = aIdx;
+      vT = aIdx; vMap = aMap;
       float grown = step(aIdx, uGrow);
       vec3 p = position;
       p.x += sin(uTime * 0.6 + p.y * 0.25 + uVarB * 6.2831853) * (0.05 + uBass * 0.14) * (p.y * 0.12 + 1.2);
@@ -19475,13 +19494,16 @@ function buildFern(){
   // but the inspiration is flat solid dots — overlaps stay palette-coloured
   const fernFrag = GLSL_MPHI + `
     uniform vec3 uColA, uColB, uColC; uniform float uOpacity, uBeat, uEnergy;
-    varying float vGlow; varying float vT;
+    varying float vGlow; varying float vT; varying float vMap;
     void main(){
       vec2 d = gl_PointCoord - 0.5;
       float r = length(d);
       if (r > 0.5) discard;
       float a = smoothstep(0.5, 0.1, r);
       vec3 col = ramp(vT);
+      // the transform's own colour, over the height gradient: the stem, the
+      // body and the two fronds each read as their own family
+      col = mix(col, ramp(fract(vT * 0.35 + 0.30 + vMap * 0.55)), 0.5);
       col = mix(col, uColC, vGlow * 0.28);
       col = inkRolloff(col * (0.75 + vGlow * 0.6 + uEnergy * 0.2));
       gl_FragColor = vec4(col, a * uOpacity * 0.9);

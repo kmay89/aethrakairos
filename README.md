@@ -552,7 +552,11 @@ Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
 every streak its own colour), **FERN** (an iterated-function fractal drawn
-dot-by-dot as the track plays — a different species every visit), **ROSETTE**
+dot-by-dot as the track plays — a different species every visit, and **coloured
+by which of its four affine maps placed each dot**: the chaos game's only
+structure is that choice, so the stem, the body and the two side fronds read as
+their own colour families and their own depths, and the plant becomes a picture
+of its own recursion rather than a green silhouette), **ROSETTE**
 (spirograph rings drawn three times in offset palette channels, the
 chromatic fringe blooming on hits), **SLINKY** (a chalk-grain coil whose
 ambiguous spin you can argue with by dragging), and **OP-ART** (a flat
