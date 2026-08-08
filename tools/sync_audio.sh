@@ -33,8 +33,17 @@ SRC="docs/audio"
 ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 if ! command -v aws >/dev/null 2>&1; then
-  echo "✗ the AWS CLI is not installed — R2 speaks S3, so that is the client:" >&2
-  echo "    pip install awscli     (or: brew install awscli)" >&2
+  echo "✗ the AWS CLI is not installed — R2 speaks S3, so that is the client." >&2
+  if [ "$(uname -s)" = "Darwin" ] && ! command -v brew >/dev/null 2>&1; then
+    # macOS has no `pip`, and a pip install of awscli routinely lands the
+    # binary outside PATH — it reports success and `aws` still is not found.
+    echo "    curl -o AWSCLIV2.pkg https://awscli.amazonaws.com/AWSCLIV2.pkg" >&2
+    echo "    sudo installer -pkg AWSCLIV2.pkg -target / && rm AWSCLIV2.pkg" >&2
+  elif [ "$(uname -s)" = "Darwin" ]; then
+    echo "    brew install awscli" >&2
+  else
+    echo "    python3 -m pip install awscli" >&2
+  fi
   exit 1
 fi
 [ -d "$SRC" ] || { echo "✗ no $SRC to sync — is this the repo root?" >&2; exit 1; }
@@ -58,6 +67,13 @@ fi
 
 DRY=()
 [ "${1:-}" = "--dry-run" ] && DRY=(--dryrun)
+
+# NOTE for the two aws calls below: both arrays are expanded as
+# ${arr[@]+"${arr[@]}"} rather than plain "${arr[@]}". macOS still ships bash
+# 3.2, where expanding an EMPTY array counts as an unbound variable under
+# `set -u` and aborts the script — and both arrays are empty on the common
+# path (credentials in the environment, no --dry-run), so this failed on every
+# Mac and no Linux box, whose bash is 4.4+. Do not "simplify" them back.
 
 DEST="s3://$BUCKET/audio"
 echo "· mirroring $SRC → $DEST  ($(du -sh "$SRC" | cut -f1))"
@@ -84,7 +100,7 @@ aws s3 sync "$SRC" "$DEST" \
   --exclude "*" --include "*.mp3" \
   --size-only --delete \
   --cache-control "public, max-age=31536000, immutable" \
-  "${AUTH[@]}" "${DRY[@]}"
+  ${AUTH[@]+"${AUTH[@]}"} ${DRY[@]+"${DRY[@]}"}
 
 # 2 · cover art and anything else. A cover CAN be replaced under the same
 # name, so it gets neither --size-only nor a year of immutability.
@@ -95,7 +111,7 @@ aws s3 sync "$SRC" "$DEST" \
   --exclude "*.mp3" \
   --delete \
   --cache-control "public, max-age=86400" \
-  "${AUTH[@]}" "${DRY[@]}"
+  ${AUTH[@]+"${AUTH[@]}"} ${DRY[@]+"${DRY[@]}"}
 
 echo
 echo "· synced. Prove it before you trust it:"
