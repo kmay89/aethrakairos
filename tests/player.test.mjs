@@ -53,6 +53,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
   ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
+  ' CIE_LOBES, XYZ_TO_SRGB, xyzToLinearRGB, DISC_PITCH, AIRY_J1_ZERO, rayleighSep, DISP_WB,' +
+  ' FILAMENT_FORMS, LORENZ, THOMAS_B, FILM_N, FILM_R0, FILM_AGES, filmState, TERRAIN_FORMS,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
@@ -1908,7 +1910,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 26);
+  assert.equal(S.SCENE_KEYS.length, 31);
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -1987,7 +1989,7 @@ function roomSet(){
   return S.SCENE_KEYS.map(k => ({
     key: k, taste: S.SCENE_TASTE[k],
     calm: k === 'pulse' || k === 'parlor',
-    heavy: k === 'fractal' || k === 'parlor' || k === 'aurea',
+    heavy: ['fractal', 'parlor', 'aurea', 'disperse', 'filament', 'soapfilm', 'terrain'].includes(k),
   }));
 }
 const HOT = { energy: 0.95, beat: 0.9, bass: 0.85, entropy: 0.2, calm: 0.05, coupling: 0.3, mid: 0.4, treble: 0.7 };
@@ -2086,7 +2088,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 26; sc++)
+  for (let sc = 0; sc < 31; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2133,7 +2135,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 26; sc++)
+  for (let sc = 0; sc < 31; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -2688,7 +2690,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 26; sc++)
+  for (let sc = 0; sc < 31; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);
@@ -4815,6 +4817,155 @@ test('sceneSig: every room has a thumbnail somebody can point at', () => {
     assert.ok(S.SCENE_SIGS[k].h >= 0 && S.SCENE_SIGS[k].h < 360, k + ' has a hue');
   }
   assert.ok(S.sceneSig('a room invented tomorrow').kind, 'an unknown key still draws something');
+});
+
+// ------------------------------------------------- the observer, on both sides
+
+test('CIE_LOBES: the fit is the shape the shader generator expects', () => {
+  // GLSL_CIE writes one `k * cieGauss(l, mu, s1, s2)` per entry, so an entry of
+  // the wrong arity would generate a shader that fails to compile at runtime —
+  // on a device, in the dark, at a gig. Caught here instead.
+  for (const band of ['x', 'y', 'z']){
+    const ls = S.CIE_LOBES[band];
+    assert.ok(Array.isArray(ls) && ls.length >= 2, `${band} has no lobes`);
+    for (const l of ls){
+      assert.equal(l.length, 4, `${band} lobe is not (k, mu, s1, s2)`);
+      for (const v of l) assert.ok(typeof v === 'number' && isFinite(v));
+      assert.ok(l[1] > 350 && l[1] < 700, 'a lobe outside the visible band');
+      assert.ok(l[2] > 0 && l[3] > 0, 'a lobe with a non-positive width');
+    }
+  }
+  assert.equal(S.XYZ_TO_SRGB.length, 3);
+  for (const row of S.XYZ_TO_SRGB) assert.equal(row.length, 3);
+});
+test('cieXYZBar: the eye peaks green, and 555 nm is the top of it', () => {
+  let best = 0, bestL = 0;
+  for (let l = 380; l <= 780; l++){
+    const y = S.cieXYZBar(l).y;
+    if (y > best){ best = y; bestL = l; }
+  }
+  assert.ok(Math.abs(bestL - 555) <= 8, `photopic peak at ${bestL} nm, not 555`);
+  assert.ok(Math.abs(best - 1) < 0.03, 'the luminous efficiency peak is normalised to 1');
+  assert.ok(S.cieXYZBar(420).z > S.cieXYZBar(420).x, 'violet is mostly Z');
+  assert.ok(S.cieXYZBar(650).x > S.cieXYZBar(650).z, 'deep red is mostly X');
+  // and the one negative lobe survives the refactor into a table
+  assert.ok(S.cieXYZBar(500).x < S.cieXYZBar(490).x + 0.02, 'the x dip near 500 nm is gone');
+});
+test('DISP_WB: a flat lamp comes out neutral, not warm', () => {
+  const N = 24;
+  let X = 0, Y = 0, Z = 0;
+  for (let i = 0; i < N; i++){
+    const b = S.cieXYZBar(400 + 300 * (i + 0.5) / N);
+    X += b.x; Y += b.y; Z += b.z;
+  }
+  const raw = S.xyzToLinearRGB({ x: X / N, y: Y / N, z: Z / N });
+  const bal = S.xyzToLinearRGB({ x: X / N * S.DISP_WB[0], y: Y / N * S.DISP_WB[1], z: Z / N * S.DISP_WB[2] });
+  const spread = c => (Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b)) / Math.max(c.r, c.g, c.b);
+  assert.ok(spread(raw) > 0.05, 'illuminant E really is off-white — otherwise there is nothing to correct');
+  assert.ok(spread(bal) < 0.02, `white balanced flat spectrum still has a cast: ${spread(bal)}`);
+});
+
+// -------------------------------------------------------------- diffraction
+
+test('rayleighSep: the resolution limit is λ over D, and nothing else', () => {
+  const D = 12000;
+  assert.ok(Math.abs(S.rayleighSep(D, 550) - S.AIRY_J1_ZERO * 550 / D) < 1e-12);
+  // twice the wavelength, twice the limit; twice the aperture, half of it
+  assert.ok(Math.abs(S.rayleighSep(D, 1100) - 2 * S.rayleighSep(D, 550)) < 1e-12);
+  assert.ok(Math.abs(S.rayleighSep(2 * D, 550) - 0.5 * S.rayleighSep(D, 550)) < 1e-12);
+  // blue resolves finer than red through the same glass — the whole reason a
+  // telescope is specified at a wavelength
+  assert.ok(S.rayleighSep(D, 440) < S.rayleighSep(D, 660));
+  assert.ok(isFinite(S.rayleighSep(0, 550)), 'a zero aperture does not divide by zero');
+});
+test('DISC_PITCH: the discs get finer, and a Blu-ray cannot throw a red first order', () => {
+  const d = S.DISC_PITCH.map(x => x.d);
+  for (let i = 1; i < d.length; i++) assert.ok(d[i] < d[i - 1], 'the ladder is not descending');
+  assert.equal(S.DISC_PITCH[0].d, 1600, 'a CD track pitch is 1.6 µm');
+  assert.equal(S.DISC_PITCH[1].d, 740,  'a DVD track pitch is 0.74 µm');
+  /* THE CLAIM IN THE COMMENT, CHECKED. The grating equation is
+     (sinθd − sinθi) = mλ/d, and the left side cannot exceed 2 however you hold
+     the disc. So an order exists only when mλ ≤ 2d — which a CD manages for
+     every visible wavelength and a Blu-ray, at 320 nm, does not manage for red
+     at all. That is why one of them is a rainbow and the other is a sheen. */
+  const orders = (pitch, nm) => Math.floor(2 * pitch / nm);
+  assert.ok(orders(1600, 700) >= 4, 'a CD should throw several orders of red');
+  assert.ok(orders(740, 700) >= 2, 'a DVD should throw at least two');
+  assert.equal(orders(320, 700), 0, 'a Blu-ray cannot diffract 700 nm at any angle');
+  assert.ok(orders(320, 450) >= 1, '…but it can still just manage blue');
+});
+
+// ------------------------------------------------------------ the soap film
+
+test('FILM_R0: two per cent a face, eight per cent a film', () => {
+  assert.ok(Math.abs(S.FILM_R0 - 0.02) < 0.001, `one interface reflects ${S.FILM_R0}, not ~2%`);
+  assert.ok(Math.abs(4 * S.FILM_R0 - 0.08) < 0.004, 'a bright fringe is ~8%, which is as bright as a film gets');
+  assert.ok(S.FILM_N > 1.3 && S.FILM_N < 1.36, 'soapy water is water');
+});
+test('the black film: as the top thins, every wavelength cancels together', () => {
+  // R(λ) = 4·R0·sin²(2π n h / λ). This is the formula the shader runs, and the
+  // property that matters is that it goes to zero at EVERY λ at once — which is
+  // what makes the band black rather than merely dark, or worse, coloured.
+  const R = (h, nm) => 4 * S.FILM_R0 * Math.pow(Math.sin(2 * Math.PI * S.FILM_N * h / nm), 2);
+  for (const nm of [420, 480, 550, 620, 680]){
+    assert.ok(R(5, nm) < 1e-3, `a 5 nm Newton black film still reflects ${nm} nm`);
+    assert.ok(R(30, nm) < 0.03, `a 30 nm common black film is still bright at ${nm} nm`);
+  }
+  /* AND IT GOES BLUE ON THE WAY OUT, which is the detail that makes the band
+     read right. Cancellation is not simultaneous: δ = 4πnh/λ is LARGER at
+     short wavelengths, so at a given small thickness the blue is furthest from
+     zero and the red is closest. A draining film goes straw, then grey, then
+     faintly blue-grey, then black — in that order, because of this. */
+  assert.ok(R(30, 420) > R(30, 680) * 2, 'the last colour out of a thinning film should be blue');
+  assert.ok(R(5, 420) > R(5, 680), '…and it is still true right down at the Newton film');
+  // and a first-order fringe really is loud
+  const peak = 550 / (4 * S.FILM_N);            // quarter wave: the brightest thickness
+  assert.ok(R(peak, 550) > 0.075, 'the quarter-wave fringe should be at the 8% ceiling');
+});
+test('FILM_AGES: every state is a real film, thin at the top', () => {
+  for (const a of S.FILM_AGES){
+    assert.ok(a.top < a.bot, `${a.name} is thicker at the top than the bottom — that is not drainage`);
+    assert.ok(a.top > 0 && a.bot < 4000);
+  }
+  const tops = S.FILM_AGES.map(a => a.top);
+  for (let i = 1; i < tops.length; i++) assert.ok(tops[i] < tops[i - 1], 'the ages do not age');
+});
+test('filmState: the label follows the film, not the roll', () => {
+  assert.equal(S.filmState(8), 'BLACK FILM');
+  assert.equal(S.filmState(89), 'BLACK FILM');
+  assert.equal(S.filmState(90), 'DRAINING');
+  assert.equal(S.filmState(299), 'DRAINING');
+  assert.equal(S.filmState(300), 'NEW FILM');
+  assert.equal(S.filmState(1500), 'NEW FILM');
+  assert.equal(S.filmState(0), 'BLACK FILM', 'nothing left is the blackest film there is');
+  assert.equal(S.filmState(NaN), 'BLACK FILM', 'and junk does not produce an undefined label');
+  // every rolled state must be able to announce itself correctly on arrival
+  for (const a of S.FILM_AGES) assert.equal(S.filmState(a.top), a.name, `${a.name} mislabels itself`);
+});
+
+// ------------------------------------------------- the tangles and the ground
+
+test('LORENZ / THOMAS: the published constants, unrounded', () => {
+  assert.equal(S.LORENZ.sigma, 10);
+  assert.equal(S.LORENZ.rho, 28, 'ρ=28 is where the attractor is — 24.74 is where it starts');
+  assert.ok(Math.abs(S.LORENZ.beta - 8 / 3) < 1e-12);
+  assert.ok(Math.abs(S.THOMAS_B - 0.1998) < 1e-9, 'b=0.1998 is chaotic; 0.32 spirals to rest');
+  const keys = S.FILAMENT_FORMS.map(f => f.key);
+  assert.equal(new Set(keys).size, keys.length, 'two tangles share a key');
+  for (const f of S.FILAMENT_FORMS) assert.ok(f.name && f.name === f.name.toUpperCase());
+});
+test('TERRAIN_FORMS: four grounds out of one pipeline', () => {
+  const keys = S.TERRAIN_FORMS.map(f => f.key);
+  assert.equal(new Set(keys).size, keys.length, 'two grounds share a key');
+  for (const f of S.TERRAIN_FORMS){
+    assert.ok(f.ridged >= 0 && f.ridged <= 1, `${f.key} ridged is a blend, not a scale`);
+    assert.ok(f.step === 0 || f.step >= 2, `${f.key} would terrace into one step`);
+  }
+  assert.equal(S.TERRAIN_FORMS.filter(f => f.water > -1).length, 1, 'exactly one ground is flooded');
+  assert.equal(S.TERRAIN_FORMS.filter(f => f.step > 0).length, 1, 'exactly one ground is terraced');
+  const dune = S.TERRAIN_FORMS.find(f => f.key === 'dune');
+  assert.equal(dune.ridged, 0, 'dunes are plain fBm — creasing them would make them mountains');
+  assert.equal(S.TERRAIN_FORMS.find(f => f.key === 'ridge').ridged, 1, 'ridges are fully creased');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
