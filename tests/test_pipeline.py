@@ -658,7 +658,12 @@ class TestShippedCatalog(unittest.TestCase):
         cat = self.cat
         self.assertEqual(cat["version"], 2)
         self.assertTrue(cat["albums"], "ships at least one record")
-        base = self.root / "docs" / cat.get("base", "audio")
+        # The MASTER COPY is always docs/audio/, whatever `base` says. `base`
+        # is where LISTENERS fetch from — once it graduates to a CDN it is an
+        # absolute URL, and joining that onto a path yields
+        # docs/https:/media.aethrakairos.com/audio, so every track would read
+        # as missing from disk when nothing had moved at all.
+        base = self.root / "docs" / "audio"
         for al in cat["albums"]:
             for k in ("title", "tag", "art", "tracks"):
                 self.assertIn(k, al)

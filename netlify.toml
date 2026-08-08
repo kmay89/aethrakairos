@@ -1,5 +1,5 @@
 # The site IS the player, and it lives in docs/ (player, manifest, service
-# worker, icons, catalog.json, audio) — publish that, not the repo root.
+# worker, icons, catalog.json) — publish that, not the repo root.
 #
 # WHERE PRODUCTION ACTUALLY IS (learned 2026-08-05, the hard way):
 # aethrakairos.com and www.aethrakairos.com both resolve to THIS Netlify
@@ -8,35 +8,29 @@
 # deployments and the domain's DNS points here. Production is Netlify,
 # so this file configures production.
 #
-# That is why the 2026-08-04 change silenced the site. It stripped the
-# audio from EVERY build and redirected /audio/* to aethrakairos.com, on
-# the belief that aethrakairos.com was a different host that still had
-# the files. It was this site. From the next production deploy on, every
-# track request 302'd to itself until the browser gave up: the player
-# booted, the catalog listed all 264 tracks, and no audio could ever
-# arrive.
+# WHERE THE MUSIC ACTUALLY IS (2026-08-07): a Cloudflare R2 bucket at
+# media.aethrakairos.com. The audio has GRADUATED off this host — see
+# HOSTING.md §5. docs/audio/ is still the master copy in the repo (the
+# pipeline, the fingerprint index and the stems job all read it), but no
+# deploy ships it any more: 1.09 GB per deploy is what exhausted this
+# account's usage on 2026-08-04 and paused the project.
 #
-# The strip was still right for the builds it was written about — nine PR
-# previews in one evening (2026-08-04) each shipped 1.1 GB, exhausted the
-# account's usage and PAUSED the project. So it lives on below, scoped to
-# preview and branch builds only. Production ships the music, because
-# production is where the music lives.
+# THE RULE THAT MUST NOT BE BROKEN AGAIN: a redirect for /audio/* may only
+# ever point at a DIFFERENT host. On 2026-08-04 one pointed at
+# aethrakairos.com — which IS this site — and every track request 302'd to
+# itself until the browser gave up: the player booted, the catalog listed
+# all 264 tracks, and no audio could ever arrive. The rule below targets
+# media.aethrakairos.com, so it cannot close that loop.
 [build]
   publish = "docs"
-
-# PREVIEWS: strip the 1.1 GB and borrow production's audio instead. The
-# redirect is written as a _redirects file by the same command that
-# deletes the files, so it can only exist in a build that has nothing
-# real at /audio/* — production never sees the rule and can never loop
-# again. The ! keeps the rule answering even though the directory is
-# absent. Cross-origin playback works because production sends
-# Access-Control-Allow-Origin on /audio/* (below) and the player already
-# sets crossOrigin='anonymous' for the analyser.
-[context.deploy-preview]
-  command = "rm -rf docs/audio && echo '/audio/* https://aethrakairos.com/audio/:splat 302!' > docs/_redirects"
-
-[context.branch-deploy]
-  command = "rm -rf docs/audio && echo '/audio/* https://aethrakairos.com/audio/:splat 302!' > docs/_redirects"
+  # Strip the audio from EVERY deploy and hand /audio/* to the bucket. The
+  # redirect is not dead weight: sw.js serves catalog.json
+  # stale-while-revalidate, so a returning listener plays a whole session
+  # off the OLD catalog — the one whose base is still the same-origin
+  # 'audio' tree — before the new one lands. This rule is what keeps that
+  # session playing. The ! keeps it answering even though the directory is
+  # absent.
+  command = "rm -rf docs/audio && echo '/audio/* https://media.aethrakairos.com/audio/:splat 302!' > docs/_redirects"
 
 # the service worker must never be served stale, or updates stall
 [[headers]]
@@ -49,13 +43,17 @@
   [headers.values]
     Access-Control-Allow-Origin = "*"
 
-# Production serves the music to its own pages (same origin) and to
-# deploy previews (cross origin, via the redirect above): the ACAO header
-# is what lets a preview's crossOrigin='anonymous' <audio> read the
-# stream. The robots tag keeps crawlers out of the tracks — docs/robots.txt
-# asks politely, this header insists.
-[[headers]]
-  for = "/audio/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    X-Robots-Tag = "noindex, nofollow"
+# NOTE — two things this host used to do for /audio/* that the BUCKET must
+# now do, because nothing here serves those bytes any more:
+#
+#   Access-Control-Allow-Origin: *   the player sets crossOrigin='anonymous'
+#                                    so the analyser can read the stream; a
+#                                    bucket without CORS plays silently to
+#                                    the eye, or not at all
+#   X-Robots-Tag: noindex, nofollow  keeps crawlers out of the tracks;
+#                                    docs/robots.txt asks politely, a header
+#                                    insists — and robots.txt does not reach
+#                                    across to media.aethrakairos.com
+#
+# `make_catalog.py doctor` (without --no-net) is the acceptance test: it
+# samples real track URLs and demands 206 + Access-Control-Allow-Origin: *.

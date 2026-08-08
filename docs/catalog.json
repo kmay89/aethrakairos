@@ -6,7 +6,7 @@
   "code": "LICENSE-CODE",
   "audio": "LICENSE-AUDIO"
  },
- "base": "audio",
+ "base": "https://media.aethrakairos.com/audio",
  "albums": [
   {
    "title": "Kindled Logic",
