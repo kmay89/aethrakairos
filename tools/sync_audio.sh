@@ -13,14 +13,15 @@
 #   export AWS_ACCESS_KEY_ID=...
 #   export AWS_SECRET_ACCESS_KEY=...
 #
-# WHY sync AND NOT cp: `aws s3 sync` uploads only what changed, so the first
-# run moves 1.09 GB and every run after a release moves the one new track.
-# R2 egress is free; ingress is free; you are paying for storage alone.
+# WHY sync AND NOT cp: it uploads only what changed, so the first run moves
+# 1.09 GB and every run after a release moves the one new track. R2 charges
+# nothing for egress or ingress; you are paying for storage alone.
 #
-# WHAT THIS DOES NOT DO: CORS and the noindex header live on the bucket, not
-# in this script — see HOSTING.md §5. `python3 make_catalog.py doctor` (no
-# --no-net) is what proves they are right, and it is worth running after the
-# first sync rather than trusting the dashboard.
+# WHAT THIS DOES NOT DO: CORS and the noindex header live on the bucket and
+# on a Cloudflare Transform Rule, not in this script — see HOSTING.md §5.
+# `python3 make_catalog.py doctor` (no --no-net) is what proves they are
+# right, and it is worth running after the first sync rather than trusting
+# the dashboard.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -38,6 +39,17 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 [ -d "$SRC" ] || { echo "✗ no $SRC to sync — is this the repo root?" >&2; exit 1; }
 
+# R2 has no regions, but the S3 client refuses to sign a request without one:
+# 'auto' is the value R2 documents for exactly this.
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-auto}"
+
+# Recent AWS CLI v2 sends flexible-checksum headers on every upload by
+# default; R2 rejects some of them and the sync dies partway with an opaque
+# error. Both knobs fall back to the older behaviour, which R2 accepts. They
+# are set only if the caller has not chosen already.
+export AWS_REQUEST_CHECKSUM_CALCULATION="${AWS_REQUEST_CHECKSUM_CALCULATION:-when_required}"
+export AWS_RESPONSE_CHECKSUM_VALIDATION="${AWS_RESPONSE_CHECKSUM_VALIDATION:-when_required}"
+
 # credentials: explicit env wins, else the named profile
 AUTH=()
 if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
@@ -47,18 +59,42 @@ fi
 DRY=()
 [ "${1:-}" = "--dry-run" ] && DRY=(--dryrun)
 
-echo "· mirroring $SRC → s3://$BUCKET/audio  ($(du -sh "$SRC" | cut -f1))"
+DEST="s3://$BUCKET/audio"
+echo "· mirroring $SRC → $DEST  ($(du -sh "$SRC" | cut -f1))"
+echo
 
-# --size-only: MP3s are content-addressed by the catalog's sha256 and never
-# rewritten in place, so a size match IS a content match here — and it skips
-# re-hashing a gigabyte on every run. --delete retires audio the catalog has
-# dropped, so the bucket can never drift into holding tracks the library has
-# forgotten.
-aws s3 sync "$SRC" "s3://$BUCKET/audio" \
+# TWO PASSES, BECAUSE THE TWO KINDS OF FILE WANT DIFFERENT CACHING — and
+# because a blanket --content-type would label the cover art as audio.
+# Content types are left to the client, which reads them off the extension:
+# .mp3 → audio/mpeg, .png → image/png. Getting that wrong on a cover is a
+# broken image; getting it wrong on a track is a track that will not play.
+#
+# --delete on BOTH passes, with complementary filters, adds up to a full
+# reconciliation: audio the catalog has dropped is retired from the bucket,
+# so it can never drift into holding tracks the library has forgotten.
+
+# 1 · the tracks. --size-only because a track is never rewritten in place —
+# make_catalog gives new audio a new filename rather than reusing one — so a
+# size match IS a content match here. Without it, sync compares timestamps,
+# and a fresh clone has today's mtime on all 267 files: every run would
+# re-upload the entire gigabyte.
+echo "· tracks (immutable, one year)"
+aws s3 sync "$SRC" "$DEST" \
   --endpoint-url "$ENDPOINT" \
+  --exclude "*" --include "*.mp3" \
   --size-only --delete \
-  --content-type audio/mpeg \
   --cache-control "public, max-age=31536000, immutable" \
+  "${AUTH[@]}" "${DRY[@]}"
+
+# 2 · cover art and anything else. A cover CAN be replaced under the same
+# name, so it gets neither --size-only nor a year of immutability.
+echo
+echo "· artwork (one day)"
+aws s3 sync "$SRC" "$DEST" \
+  --endpoint-url "$ENDPOINT" \
+  --exclude "*.mp3" \
+  --delete \
+  --cache-control "public, max-age=86400" \
   "${AUTH[@]}" "${DRY[@]}"
 
 echo

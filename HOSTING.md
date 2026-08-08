@@ -86,14 +86,22 @@ listener resolves track URLs against, so pointing it at an empty bucket
 silences the entire library exactly the way 2026-08-04 did.
 
 1. Create the R2 bucket, connect the custom domain `media.aethrakairos.com`,
-   and set on the bucket:
-   - **CORS** allowing `https://aethrakairos.com` (and the
-     `*.netlify.app` preview origins) — the player sets
+   and set:
+   - **CORS on the bucket, with `AllowedOrigins: ["*"]`.** The player sets
      `crossOrigin='anonymous'` so the analyser can read the stream, and a
-     bucket without CORS plays to a dead visualiser or not at all.
-   - **`X-Robots-Tag: noindex, nofollow`** — `docs/robots.txt` cannot reach
-     across to another host, and this is what used to keep crawlers out of
-     the tracks.
+     bucket without CORS plays to a dead visualiser or not at all. It has
+     to be `*` rather than a list of origins for two reasons: deploy
+     previews get a fresh hostname each time
+     (`deploy-preview-176--aethrakairos.netlify.app`), so no fixed list can
+     cover them, and `doctor` asserts the header is exactly `*`. This is
+     the same posture Netlify served `/audio/*` with, not a loosening.
+     `AllowedHeaders` must include `Range`, or seeking dies.
+   - **`X-Robots-Tag: noindex, nofollow`** via a Cloudflare **Transform
+     Rule** (Rules → Transform Rules → Modify Response Header) on the
+     `media.aethrakairos.com` hostname. It cannot come from the upload:
+     it is not one of the S3 headers `aws s3 sync` knows how to set.
+     `docs/robots.txt` cannot reach across to another host, so this rule is
+     the only thing keeping crawlers out of the tracks.
 2. Upload the tree and wait for it to finish:
    ```bash
    export R2_ACCOUNT_ID=...  AWS_ACCESS_KEY_ID=...  AWS_SECRET_ACCESS_KEY=...
