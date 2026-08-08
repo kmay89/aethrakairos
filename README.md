@@ -547,7 +547,7 @@ scroll strip, and the transport grows to full thumb size.
 ## The storyteller field — abstract art that answers back
 
 The visualizer is one engine now (the best of the retired quantum/π-e pages
-folded into Möbius⁸, see `legacy/`): **twenty-six scenes** — spiral, helix,
+folded into Möbius⁸, see `legacy/`): **thirty-one scenes** — spiral, helix,
 Möbius band, starburst, nebula, tunnel, **RIBBONS** (six spectral ribbons
 that dissolve into particle mist as the music's entropy rises), the
 raymarched fractal field, and the new wing: **COMETS** (neon meteor rain,
@@ -583,7 +583,13 @@ so the low end *walks* every fringe instead of brightening it, and the beat
 drops a ripple ring), **BUBBLES** — see [Soap films](#soap-films--the-rainbow-solved-not-painted) below —
 **CONSTELLATIONS** — see [The sky over Ohio](#the-sky-over-ohio--a-star-viewer-that-talks) below —
 **FIREWORKS** — see [The show](#the-show--fired-to-the-grid) below —
-and **FILIGREE** — see [The escape-time set](#the-escape-time-set--three-techniques-and-an-honest-floor) below.
+**FILIGREE** — see [The escape-time set](#the-escape-time-set--three-techniques-and-an-honest-floor) below —
+and the perception-and-optics wing:
+**DRIFT** — see [Pictures that move without moving](#pictures-that-move-without-moving) below —
+**DISPERSION** — see [Light, taken apart by an edge](#light-taken-apart-by-an-edge) below —
+**FILAMENT** — see [A wire, seen through a bad lens](#a-wire-seen-through-a-bad-lens) below —
+**SOAP FILM** — see [The sheet that drains](#the-sheet-that-drains) below —
+and **TERRAIN** — see [A country with the colour turned up](#a-country-with-the-colour-turned-up) below.
 Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
@@ -652,6 +658,260 @@ in **log**: the escape count is tiny over most of the plane and enormous in a
 thin skin, so a linear walk spends the whole gradient on the far field — which
 is exactly what made the first cut a flat orange sheet with a thread of detail
 in it.
+
+## Pictures that move without moving
+
+Every other room here earns its motion: something is animated and you see it
+move. Scene 27 animates almost nothing and you see it move anyway, because the
+motion is manufactured inside your visual system rather than inside the frame.
+It is the only scene in the player whose subject is the observer.
+
+**Peripheral drift** — Kitaoka's *Rotating Snakes* — is four luminance steps
+laid tangentially around a ring. Low-contrast edges are processed with a longer
+latency than high-contrast ones, so the four edges of one cell arrive at
+motion-sensitive cortex at four different times; sequenced asymmetrically, those
+arrival times look exactly like a moving edge, and V5 reports motion that is not
+there. Three facts fall out of that mechanism and all three are honoured:
+
+- **It is luminance, not hue.** The famous blue and yellow are decoration; the
+  effect survives in greyscale and dies if you equate the four luminances. So
+  the scene takes its **hue** from the live palette and then **forces the
+  luminance** of every patch onto the four-step run. The room keeps the colour;
+  the illusion keeps the brightness.
+- **The order is the direction.** Reverse the run and the ring turns the other
+  way. Adjacent rings alternate, which is why the plate shears against itself.
+- **It needs a refresh.** The drift fires on transients — blinks and saccades —
+  and fades under hard fixation. So the one thing this room animates is a
+  couple of degrees of rotational **jog on the beat**, sprung so it returns
+  exactly to zero. That is not an effect laid on top; it is the stimulus the
+  illusion requires, and the music is supplying the blink.
+
+The cell size is the mechanism, not a taste call. The first cut used a fixed
+handful of segments per ring and drew a dartboard: at that scale the four edges
+of one run land in different parts of the visual field, the latency differences
+never get compared, and the plate is a pattern instead of an illusion. The
+count is `2π·(ring index)` now, which makes every cell square.
+
+Three more plates share the room. **BULGE** is a flat grid of flat tiles, each
+carrying a small linear ramp along the gradient of a dome — every tile's mean
+luminance is identical and its hue never varies, so there is no vignette and no
+shading anywhere in the frame, only local gradients, and the grid swells off the
+screen. (The first cut leaked the dome into the hue and drew a *lamp*; a lamp is
+a picture of a bulge and this has to be evidence of one.) **ENIGMA** is Leviant's
+— high-frequency radial spokes with plain coloured annuli over them, where the
+rings stream and nobody quite agrees why; it is in precisely because it is the
+one still under argument. **OUCHI** is two check fields at right angles, where
+the disc reads as a separate sheet sliding over the ground.
+
+And a line on **reduced motion**, which matters more here than anywhere else in
+the player: a room whose entire purpose is to manufacture apparent motion is
+exactly the wrong room for a vestibular listener. Under
+`prefers-reduced-motion` the four steps are re-tuned **symmetric** — 0, ½, 1, ½ —
+which kills the drift signal at its source while leaving the pattern on screen.
+Not dimmed, not slowed: defused. The plate is still there and it no longer turns.
+
+## Light, taken apart by an edge
+
+A prism splits light because glass has a different index at every wavelength.
+Nothing in scene 28 is dispersive at all — there is no glass, no index, no
+material property. There is an **obstacle**, and the only length in the problem
+is the wavelength, so every angle in every pattern is proportional to λ and the
+colours fall out of geometry alone.
+
+**The colour is not a palette; it is an integral.** Every pixel is the intensity
+of the diffraction pattern at two dozen wavelengths across 400–700 nm, each
+weighted by the CIE 1931 observer, summed into XYZ and converted once. It is the
+same observer the flame bench integrates a black body against — `GLSL_CIE` is
+**generated** from the very table `cieXYZBar()` reads, so the green of a laser
+and the green of a first-order fringe come out of one set of numbers or neither
+does. `tools/spectrum_probe.mjs` runs the shipped shader on the GPU across the
+band and compares it against the shipped JS, the same way `touch_probe` checks
+the fabric metric. This is the second room in the player that declines the
+track's palette, for the reason the first one does: the colour here is a
+measurement, and a measurement you can re-tint is not one.
+
+- **AIRY.** A circular aperture: `I = [2·J₁(x)/x]²`, with J₁ from the
+  Abramowitz & Stegun polynomial rather than a table. The first dark ring is at
+  x = 3.8317 for *every* wavelength — which means it is at a different **angle**
+  for each, blue's rings tight and red's wide, and the fringes are coloured
+  without anything being coloured. Roll two sources and the room becomes
+  **Rayleigh's criterion, walked**: the pair drifts together until the second
+  core lands in the first one's first dark ring, which is the exact moment a
+  telescope stops being able to tell them apart. You can watch the pair stop
+  being two.
+- **GRATING.** N slits of width a at pitch d, the exact textbook product —
+  `[sin(Nβ)/(N·sinβ)]²` for the interference between slits times `sinc²(α)` for
+  one slit's own diffraction. Set N = 2 and it is **Young's experiment**; wind N
+  up and the orders snap into a spectrometer's sharp spectra. There is a ceiling
+  on N and it is an honest one: order width goes as 1/N, so a hundred-line
+  grating resolves a passband far narrower than two dozen samples across the band
+  can represent, and what comes out is not a finer spectrum but an **aliased**
+  one — red, green and blue dots where a rainbow should be. The first cut ran
+  twenty-four slits and drew exactly that.
+- **DISC.** A CD is a reflection grating with circular tracks at 1.6 µm, and this
+  is the real grating equation on real geometry: incident and viewing directions
+  computed from an actual lamp and an actual eye, and the order that reaches you
+  is `m = d·(d̂−î)·ĝ/λ`. Which has a consequence worth watching for — **spinning
+  the disc does nothing.** The tracks are circles, so the grating is rotationally
+  symmetric and the pattern cannot know the disc turned; a CD's rainbow moves
+  when the *lamp* moves. So here, the lamp moves. CD, DVD and Blu-ray are their
+  real pitches, and the Blu-ray's 320 nm is why it throws a sheen and not a
+  rainbow: `mλ ≤ 2d` means **700 nm has no first order at any angle**, which is a
+  claim the unit tests check.
+
+One concession, stated where it happens: the Airy rings past the first are 1.7 %,
+0.4 %, 0.2 % of the core. Shown linearly you would see a white dot on black,
+which is why every published Airy photograph is stretched. So is this one — but
+the stretch is applied to **luminance only** and the chromaticity is carried
+through untouched, so it is a long exposure of the real thing rather than a
+repainting of it. (A per-channel gamma, which is the obvious way to do it, shifts
+every hue in the frame toward whichever primary happened to be largest.)
+
+## A wire, seen through a bad lens
+
+Two ideas in scene 29, and the second is why it exists.
+
+**The wire is a real curve.** Nothing is drawn with noise. **COILED COIL** is
+what is actually inside an incandescent bulb and the nicest piece of engineering
+most people have never looked at: the tungsten is wound into a helix, and that
+helix is wound into another one, so a long hot wire packs into a small volume,
+convects less, and runs hotter for the same watts. It is built here the way it is
+built there — a primary helix on a torus, and a secondary helix carried on the
+primary's own moving frame, because a secondary coil laid in world space wanders
+off the wire. **LORENZ** is σ=10, ρ=28, β=8/3 integrated with RK4, transient
+discarded before anything is drawn. **TORUS KNOT** is the exact (p, q)
+parametrisation with p and q coprime — otherwise the curve closes early and draws
+a smaller knot than the one on the label. **THOMAS** is the cyclically symmetric
+attractor at b = 0.1998, the value at which the flow is chaotic rather than
+spiralling to rest; it looks more like a dropped tangle of glowing wire than
+anything else in the player, and it is a three-line differential equation.
+
+**And the lens is honestly bad.** Every filament carries a colour fringe, and it
+is the fringe a real simple lens makes. Glass has a higher index at short
+wavelengths, so blue focuses shorter, so the blue image is **smaller** than the
+red one — which means the sign is not a taste call: red on the far side of an
+edge, blue on the near side. **Lateral** aberration grows with distance off the
+optical axis and fringes the corners; **axial** aberration is each wavelength
+focusing at a different *distance* and is present everywhere including dead
+centre, which is why even a centred highlight on a cheap lens has a colour edge.
+Both terms are here, computed rather than painted, and they are most of why the
+tangle reads as something photographed instead of something drawn.
+
+## The sheet that drains
+
+[Soap films](#soap-films--the-rainbow-solved-not-painted) above does thin-film
+interference on a **sphere**. Scene 30 does it on the thing a bubble is made of,
+which behaves completely differently.
+
+**It drains.** A vertical film is being pulled down by gravity the whole time, so
+it is thin at the top and thick at the bottom and thinner everywhere as it ages.
+The colour of every point is a readout of its thickness, which makes the picture
+a live map of where the water has gone — and the room keeps draining while you
+watch it, walking down the ladder from new film to the loud first-order colours
+to the black band creeping down from the top. The label follows the film rather
+than the roll, because a scene announcing NEW FILM over a black band is a scene
+lying to you.
+
+**The top goes black, and that is the whole point.** Reflection off the front
+face flips phase by half a wavelength; reflection off the back does not. So as
+the thickness runs to zero the two reflections arrive out of step at *every*
+wavelength at once and the film stops reflecting anything — not dark, black, a
+hole where a surface was. That band is real, it is called the black film, it is
+about thirty nanometres thick, and its appearance means the bubble has seconds to
+live. Nothing paints it: it falls out of `4·R₀·sin²(δ/2)` as δ → 0 and it could
+not be removed without breaking the physics. (It also goes **blue on the way
+out** — δ is larger at short wavelengths, so blue is the last colour to cancel.
+The unit tests check that too.)
+
+**The swirls are not turbulence.** They are **marginal regeneration**, which is
+stranger: patches of thin film are less dense than the thick film around them, so
+they **rise** — buoyantly, upward, against the drainage — dragging the colour
+bands into plumes and fingers. That is why the flow in this room runs up while
+the water runs down. The bands lie down because a rising plume is climbing
+through a stack of horizontal iso-thickness bands and gets stretched sideways by
+them, so the field is sampled at about six times the vertical frequency of the
+horizontal one; sample it isotropically, as the first cut did, and you get blobs,
+which is what a film looks like nowhere.
+
+The colour is an **integral**, not a lookup — `R(λ) = 4·R₀·sin²(2πnh·cosθ/λ)` at
+two dozen wavelengths through the same CIE observer the grating uses. Which is
+why the high orders wash out to pearl on their own: past about a micron the
+fringes are packed closer than the eye's colour channels can separate, the
+integral averages them away, and nobody had to decide that. Fresnel makes the
+edges silver at a glance, as a tilted film does. And eight per cent is the
+brightest a soap film ever gets, so there is an exposure on top — which changes
+how bright the film is and nothing at all about what colour it is.
+
+## A country with the colour turned up
+
+Scene 31 is the loudest room in the player and it says so. Everything else in
+this wing answers to a measurement; this one answers to a poster. But the
+**shape** is not invented, because the thing that makes a landscape look like a
+landscape is a specific piece of arithmetic:
+
+**Ridged multifractal.** Ordinary fBm — octaves of noise at halving amplitude and
+doubling frequency — gives hills. Pleasant, wrong. Real mountains have sharp
+crests and rounded valleys, and the asymmetry comes from erosion, which fBm knows
+nothing about. The standard fix is one character long: take `1 − |n|` on each
+octave before adding it. The absolute value folds every zero crossing into a
+crease, the creases at successive scales land on each other, and out of a sum of
+smooth functions you get arêtes. Weight each octave by the previous one and the
+detail piles onto the crests and leaves the valleys smooth — which is where
+erosion actually concentrates. Leave the fold out and you get **DUNES**; quantise
+the sum and you get **MESAS**; flood it and you get an **ARCHIPELAGO**. One
+pipeline, four worlds.
+
+**The air is thick.** Distance is drawn by aerial perspective and nothing else —
+extinction is exponential in depth and the light that replaces the ground is the
+*sky*, so the far ridges go violet on their own rather than merely grey. Leonardo
+wrote the rule down around 1500 and it is still the only one that matters for
+making a picture read as deep. The world has to end somewhere, and fog alone
+cannot end it — fog replaces ground with sky, which is still opaque, so the first
+cut drew a crisply-edged slab of sky hanging in the star field. Fading the alpha
+on a circle turns the edge into distance instead: the country runs out of air
+before it runs out of ground.
+
+**The contours are level sets**, so where they crowd the ground is steep and
+where they open out it is flat — a topographic map drawn on the terrain it
+describes. WebGL 1 has no `fwidth()` without an extension, so the line width is
+estimated from the slope and the distance, which is exactly what makes contours
+crowd and what makes a far ridge's contours fall below a pixel.
+
+Two framing decisions, and they are the only two in this batch. The director's
+rig orbits from high above the origin to well below it while always looking *at*
+the origin, so a world-aligned ground plane spends a third of every set being
+viewed from underneath — a flat coloured ceiling — and another third out of frame
+entirely. What fixes it is putting the ground into the **rig's own frame**: hang
+it fifteen units below the eye along the rig's up vector, and the horizon lands
+at eye level every time while the roam reads as bank and pitch. And on an
+infinite plane the horizon sits at eye level whatever your altitude, so a level
+view spends the top half of the frame on empty sky — raising the camera does not
+help and cannot. Pitch is the only control that does.
+
+The colour is where the room stops being a measurement and starts being a
+decision, and it says so: altitude drives a full hue circle at close to maximum
+saturation, mixed back toward the track's own key so the room still belongs to
+the set it is in. Nothing about a mountain is magenta. It is magenta here on
+purpose.
+
+### What this wing costs, measured
+
+Four of these five rooms carry the `heavy` flag, and it is a measurement rather
+than a guess. On the software rasteriser the smoke tests run under, SPIRAL is
+the reference: DRIFT draws at about a third of its rate, which is where LAVA and
+CONSTELLATIONS already live, and DISPERSION, FILAMENT, SOAP FILM and TERRAIN
+draw at a fifth to a sixth — below anything shipping before this batch. So the
+director's existing gate applies: on a strained device or in ECO those four
+score 2 % and effectively step aside, and the two that integrate a spectrum
+per pixel also stand their sample count down from 24 to 10 under
+`PERF.struggling`. The flag matters because the sample-count fallback only helps
+*after* the device has struggled.
+
+The number is honest about what it is. A CPU rasteriser punishes a fragment
+shader far harder than a real GPU does, and every expensive thing in this wing
+is per-pixel work, so these ratios are a floor and not a forecast — which is
+also why the fix here was a flag rather than a rewrite of arithmetic that is
+correct.
 
 ## The bench — three ways to make a photon
 
@@ -1468,9 +1728,14 @@ the floor keeps dancing in colours of its own.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 207 tests: solver, quantum, history, restore, planner,
-                                    #   colour, safety governor, clock, dance (extracted from
+node tests/player.test.mjs          # 352 tests: solver, quantum, history, restore, planner,
+                                    #   colour, safety governor, clock, dance, the CIE observer,
+                                    #   diffraction limits, the black film (extracted from
                                     #   the shipped HTML, not a copy)
+node tools/spectrum_probe.mjs       # the CIE 1931 observer, run on the GPU out of the shipped
+                                    #   GLSL_CIE and compared against the shipped JS across 96
+                                    #   wavelengths — the guard on "generated from one table,
+                                    #   so they cannot drift"
 python3 tools/make_synthetic_deploy.py /tmp/mb8 1000
 node tools/acceptance.mjs /tmp/mb8  # 36 browser checks: boot < 2 s warm, deal < 100 ms,
                                     #   restore-paused, v1 rejection, SW audio bypass, crate,

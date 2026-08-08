@@ -3554,7 +3554,7 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
                'grows', 'flows',
                'flows', 'grows', 'flows', 'gathers',
-               'grows', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
+               'grows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'grows', 'flows', 'grows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, and the SET is a well
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
@@ -3806,7 +3806,7 @@ function ghostPattern(sceneIdx, act, r, mood){
                'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa',
                'lissa', 'snake',
                'snake', 'lissa', 'paint', 'drift',
-               'drift', 'bounce', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
+               'drift', 'bounce', 'lissa', 'drift', 'lissa', 'snake', 'paint', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, and the SET is walked in curves
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
@@ -3886,14 +3886,25 @@ function cieGauss(l, mu, s1, s2){
   const t = (l - mu) * (l < mu ? 1 / s1 : 1 / s2);
   return Math.exp(-0.5 * t * t);
 }
+/* The lobes themselves, as data. Written down once because the GPU needs this
+   observer too — DISPERSION integrates a diffraction pattern against it a few
+   million times a second — and a second copy of seven magic quadruples typed
+   into a shader is a copy that drifts. GLSL_CIE below is GENERATED from this
+   table, so the colour a laser is on the bench and the colour a grating order
+   is on screen come out of one set of numbers or neither does. */
+const CIE_LOBES = {
+  x: [[1.056, 599.8, 37.9, 31.0], [0.362, 442.0, 16.0, 26.7], [-0.065, 501.1, 20.4, 26.2]],
+  y: [[0.821, 568.8, 46.9, 40.5], [0.286, 530.9, 16.3, 31.1]],
+  z: [[1.217, 437.0, 11.8, 36.0], [0.681, 459.0, 26.0, 13.8]],
+};
+function cieBand(l, lobes){
+  let s = 0;
+  for (let i = 0; i < lobes.length; i++) s += lobes[i][0] * cieGauss(l, lobes[i][1], lobes[i][2], lobes[i][3]);
+  return s;
+}
 function cieXYZBar(nm){
   const l = +nm;
-  return {
-    x: 1.056 * cieGauss(l, 599.8, 37.9, 31.0) + 0.362 * cieGauss(l, 442.0, 16.0, 26.7)
-       - 0.065 * cieGauss(l, 501.1, 20.4, 26.2),
-    y: 0.821 * cieGauss(l, 568.8, 46.9, 40.5) + 0.286 * cieGauss(l, 530.9, 16.3, 31.1),
-    z: 1.217 * cieGauss(l, 437.0, 11.8, 36.0) + 0.681 * cieGauss(l, 459.0, 26.0, 13.8),
-  };
+  return { x: cieBand(l, CIE_LOBES.x), y: cieBand(l, CIE_LOBES.y), z: cieBand(l, CIE_LOBES.z) };
 }
 /* Planck's law, up to a constant we divide out anyway: spectral radiance per
    wavelength for a black body at K kelvin. */
@@ -3916,12 +3927,15 @@ function blackbodyXYZ(K){
 /* XYZ → sRGB, D65 primaries. Deep-red black bodies (a 1200 K campfire) sit
    OUTSIDE the sRGB gamut and want a negative blue; clipping to zero is the
    honest concession — the hue survives, a little saturation does not. */
+const XYZ_TO_SRGB = [[3.2406, -1.5372, -0.4986],
+                     [-0.9689, 1.8758, 0.0415],
+                     [0.0557, -0.2040, 1.0570]];   // rows, D65 — GLSL_CIE reads this too
 function xyzToLinearRGB(c){
-  const X = c.x, Y = c.y, Z = c.z;
+  const X = c.x, Y = c.y, Z = c.z, M = XYZ_TO_SRGB;
   return {
-    r: Math.max(0, 3.2406 * X - 1.5372 * Y - 0.4986 * Z),
-    g: Math.max(0, -0.9689 * X + 1.8758 * Y + 0.0415 * Z),
-    b: Math.max(0, 0.0557 * X - 0.2040 * Y + 1.0570 * Z),
+    r: Math.max(0, M[0][0] * X + M[0][1] * Y + M[0][2] * Z),
+    g: Math.max(0, M[1][0] * X + M[1][1] * Y + M[1][2] * Z),
+    b: Math.max(0, M[2][0] * X + M[2][1] * Y + M[2][2] * Z),
   };
 }
 function srgbEncode(v){
@@ -4360,6 +4374,105 @@ function mandelJuliaC(t){
   return [c1 * k, c2 * k];
 }
 
+/* the three optical discs, as the track pitch you could measure with a laser
+   pointer and a protractor. It is the whole reason a CD throws a broad lazy
+   rainbow, a DVD a violent one, and a Blu-ray barely any: at 320 nm the first
+   order needs a steeper angle than most of the visible band can reach. */
+const DISC_PITCH = [
+  { name: 'CD', d: 1600 },
+  { name: 'DVD', d: 740 },
+  { name: 'BLU-RAY', d: 320 },
+];
+/* WHERE THE RINGS ARE. The first zero of the Airy pattern is the first zero of
+   J1, at x = 3.8317 — so two point sources are exactly at the Rayleigh
+   criterion when the second one's centre lands on the first one's first dark
+   ring. Given the scene's aperture constant this is that separation, in the
+   same screen units the shader works in, which is how the room can be driven
+   THROUGH the resolution limit rather than near it. */
+const AIRY_J1_ZERO = 3.8317059702;
+
+/* WHITE-BALANCED TO THE LAMP. Integrating a FLAT spectrum over 400–700 nm and
+   converting with the D65 matrix does not give white — it gives illuminant E,
+   which is visibly warm, and every picture in this room would come out on a
+   red thumb. So the integral is scaled so that a flat spectrum lands exactly on
+   D65. That is not a colour grade; it is the white balance any camera pointed
+   at this apparatus would have to set, and setting it explicitly is how the
+   fringes get to be the only colour in the frame. */
+const DISP_WB = (function(){
+  const N = 24, D65 = [0.95047, 1, 1.08883];
+  let X = 0, Y = 0, Z = 0;
+  for (let i = 0; i < N; i++){
+    const b = cieXYZBar(400 + 300 * (i + 0.5) / N);
+    X += b.x; Y += b.y; Z += b.z;
+  }
+  return [D65[0] * Y / X, 1, D65[2] * Y / Z];
+})();
+
+function rayleighSep(apertureK, nm){
+  return AIRY_J1_ZERO * (nm || 550) / Math.max(1e-6, apertureK);
+}
+
+/* THE FOUR TANGLES, as the systems they actually are rather than as noise that
+   happens to curl. Every constant below is the published one — Lorenz's ρ=28 is
+   ρ=28 because that is where the attractor lives, and Thomas's b=0.1998 is the
+   dissipation at which the cyclically symmetric flow is chaotic rather than
+   settling to a fixed point. Nudge either and you get a different picture, which
+   is the whole reason to use them instead of making something up. */
+const FILAMENT_FORMS = [
+  { key: 'coil',   name: 'COILED COIL' },
+  { key: 'lorenz', name: 'LORENZ' },
+  { key: 'knot',   name: 'TORUS KNOT' },
+  { key: 'thomas', name: 'THOMAS TANGLE' },
+];
+const LORENZ = { sigma: 10, rho: 28, beta: 8 / 3 };
+const THOMAS_B = 0.1998;
+
+/* THE FILM, AS A MATERIAL. n = 1.33 is water and close enough to soapy water
+   that no measurement would tell them apart at this thickness. The amplitude
+   reflection coefficient at an air/water face is r = (1−n)/(1+n) = −0.1416, so
+   one face returns r² = 2.0% of the light — and the two faces together, in
+   antiphase, can return four times that. Eight per cent is the brightest a
+   soap film ever is, and it is the number this scene works in before any
+   exposure is applied. */
+const FILM_N = 1.333;
+const FILM_R0 = Math.pow((1 - FILM_N) / (1 + FILM_N), 2);
+/* WHAT THE THICKNESS SEQUENCE LOOKS LIKE, in nanometres, as anyone who has
+   watched a film drain has seen it: black at the top where the film is thinner
+   than a fifth of a wavelength, then straw, then the loud first-order colours,
+   then the pastel high orders below. The three states this room rolls are just
+   three windows onto that same ladder. */
+const FILM_AGES = [
+  { name: 'NEW FILM',   top: 620,  bot: 1500 },   // thick everywhere, high orders, washed
+  { name: 'DRAINING',   top: 180,  bot: 1050 },   // the whole ladder in one frame
+  { name: 'BLACK FILM', top: 8,    bot: 640 },    // the top has gone, and it is about to pop
+];
+/* WHICH STATE A FILM IS IN, from the one number that decides it: how thick the
+   top is. The thresholds are the physics, not a mood — below about a fifth of a
+   wavelength the two reflections cancel at every colour at once and the top is
+   BLACK, and above roughly half a micron the first-order fringes have all gone
+   past and what is left is washed high orders. The room keeps draining after it
+   is rolled, so the LABEL has to follow the film rather than the roll: a scene
+   that announces NEW FILM over a black band is a scene lying to you. */
+function filmState(nmTop){
+  const t = +nmTop;
+  return !(t > 0) || t < 90 ? 'BLACK FILM' : t < 300 ? 'DRAINING' : 'NEW FILM';
+}
+
+/* THE FOUR GROUNDS, and the one number that separates them. A fractal terrain
+   is a sum of octaves; what you get depends entirely on what you do to each
+   octave before you add it. Leave it alone and you get rolling dunes. Take one
+   minus its absolute value and every octave grows a CREASE at its zero
+   crossing, and the creases at different scales line up into ridgelines — that
+   is ridged multifractal, and it is why real mountains have arêtes and
+   Perlin hills do not. Quantise the sum and you get mesas. Flood it and you
+   get islands. One pipeline, four worlds. */
+const TERRAIN_FORMS = [
+  { key: 'ridge',  name: 'RIDGES',      ridged: 1,   step: 0,   water: -9 },
+  { key: 'dune',   name: 'DUNES',       ridged: 0,   step: 0,   water: -9 },
+  { key: 'mesa',   name: 'MESAS',       ridged: 0.4, step: 7,   water: -9 },
+  { key: 'isles',  name: 'ARCHIPELAGO', ridged: 0.7, step: 0,   water: 0.30 },
+];
+
 /* ================================================================
    THE ROOM — what the auto director is really choosing.
 
@@ -4398,7 +4511,8 @@ function mandelJuliaC(t){
    you notice a room that got added and never given a character. */
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
-                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel'];
+                    'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
+                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -4440,6 +4554,13 @@ const SCENE_TASTE = {
   pyro:      { energy: 1.4, beat: 1.0, treble: 0.7, calm: -0.6 },  // the show — it wants a peak to fire into,
                                                             // and the ABSENCE of calm: a firework in a
                                                             // quiet passage is a firework nobody asked for
+  disperse:  { treble: 1.2, coupling: 0.9, entropy: -0.5 },  // spectral material for a spectral instrument
+  filament:  { energy: 1.1, coupling: 0.8, treble: 0.6 },   // a current wants something to carry
+  soapfilm:  { calm: 1.2, entropy: 0.8, beat: -0.4 },       // a film drains on its own clock
+  terrain:   { energy: 1.2, bass: 0.9, calm: 0.4 },         // a country wants somewhere to be going
+  drift:     { calm: 1.4, energy: -0.8, beat: -0.5 },       // the illusions need a STILL room to work in —
+                                                            // the appetite is for the absence of drive,
+                                                            // because the movement here is the viewer's
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -5562,6 +5683,11 @@ const SCENE_SIGS = {
   sky:       { kind: 'burst',  h: 84,  arms: 7, tail: 1 },
   pyro:      { kind: 'burst',  h: 8,   arms: 14, rainbow: 1 },
   mandel:    { kind: 'spiral', h: 42,  arms: 7, dense: 1 },
+  drift:     { kind: 'ring',   h: 174, arms: 9, rainbow: 1 },
+  disperse:  { kind: 'ring',   h: 258, arms: 5, rainbow: 1, dense: 0.8 },
+  filament:  { kind: 'ribbon', h: 30,  arms: 6, dense: 1 },
+  soapfilm:  { kind: 'blob',   h: 205, dense: 0.9, rainbow: 1 },
+  terrain:   { kind: 'wave',   h: 292, arms: 5, twist: 1, rainbow: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -17875,6 +18001,37 @@ const GLSL_MPHI = `
   vec3 ramp(float t){ return texture2D(uRamp, vec2(fract(t), 0.5)).rgb; }
 ` + GLSL_INK;
 
+/* THE EYE, ON THE GPU — the same observer the flame bench integrates a black
+   body against, generated from CIE_LOBES and XYZ_TO_SRGB so the two can never
+   disagree. A scene that has to answer "what colour is 587 nm" a few million
+   times a frame cannot round-trip through JS, and a hand-typed second copy of
+   the fit would be a defect nobody could see until someone compared a laser to
+   a grating order and found them different greens. */
+const GLSL_CIE = (function(){
+  const lobe = a => `${a[0].toFixed(4)} * cieGauss(l, ${a[1].toFixed(1)}, ${a[2].toFixed(1)}, ${a[3].toFixed(1)})`;
+  const band = ls => ls.map(lobe).join(' + ');
+  const M = XYZ_TO_SRGB;                       // GLSL mat3 takes COLUMNS, so this transposes
+  const col = j => `${M[0][j].toFixed(4)}, ${M[1][j].toFixed(4)}, ${M[2][j].toFixed(4)}`;
+  return `
+  float cieGauss(float l, float mu, float s1, float s2){
+    float t = (l - mu) * (l < mu ? 1.0 / s1 : 1.0 / s2);
+    return exp(-0.5 * t * t);
+  }
+  vec3 cieXYZBar(float l){
+    return vec3(${band(CIE_LOBES.x)},
+                ${band(CIE_LOBES.y)},
+                ${band(CIE_LOBES.z)});
+  }
+  /* Deep spectral ends sit OUTSIDE sRGB and want a negative primary; clamping
+     to zero is the honest concession — the hue survives, some saturation does
+     not. Exactly what xyzToLinearRGB() concedes in JS, for exactly that reason. */
+  vec3 xyzToLinearRGB(vec3 c){
+    return max(vec3(0.0), mat3(${col(0)}, ${col(1)}, ${col(2)}) * c);
+  }
+  vec3 wavelengthLinearRGB(float l){ return xyzToLinearRGB(cieXYZBar(l)); }
+`;
+})();
+
 /* the gradient's home on the GPU. RepeatWrapping matters: the ramp is cyclic
    and linear-filtered, so with clamped edges the texel between t=1 and t=0
    would blend against itself and leave a visible seam on every scene that
@@ -26765,6 +26922,1570 @@ function buildFiligree(){
   return api;
 }
 
+/* =========================================================
+   SCENE 27 · DRIFT — the picture that moves without moving
+
+   Every other room in this player earns its motion: something is
+   animated, and you see it move. This one animates almost nothing and
+   you see it move anyway, because the motion is manufactured inside
+   the viewer's visual system rather than inside the frame. It is the
+   only scene here whose subject is the observer.
+
+   FOUR REAL ILLUSIONS, each one a different bug in early vision:
+
+   PERIPHERAL DRIFT (Kitaoka's "Rotating Snakes"). A repeating run of
+     four luminance steps — black, dark, white, light — laid tangentially
+     around a ring. Low-contrast edges are processed with a LONGER
+     latency than high-contrast ones (Backus & Oruç 2005; Conway 2005),
+     so the four edges of one cell arrive at motion-sensitive cortex at
+     four different times. Sequenced asymmetrically, those arrival times
+     look exactly like a moving edge, and V5 reports motion that is not
+     there. Three facts fall out of that mechanism and all three are
+     honoured here:
+       · IT IS LUMINANCE, NOT HUE. The blue and yellow of the famous
+         plate are decoration; the effect survives in greyscale and dies
+         if you equate the four luminances. So this scene takes its HUE
+         from the room's live palette and then FORCES the luminance of
+         every patch to the four-step sequence. The room still owns the
+         colour; the illusion still owns the brightness.
+       · THE ORDER IS THE DIRECTION. Reverse the run and the ring turns
+         the other way. Adjacent rings here alternate, which is why the
+         plate appears to counter-rotate against itself.
+       · IT NEEDS A REFRESH. The drift fires on transients — blinks and
+         saccades — and fades if you hold a hard fixation. So the one
+         thing this room animates is a tiny rotational JOG on the beat:
+         a couple of degrees, decaying. That is not an effect laid on
+         top. It is the stimulus the illusion actually requires, and the
+         music is supplying the blink.
+   BULGE. A flat grid of flat squares, each carrying a small linear
+     luminance ramp whose direction is the gradient of a dome. No global
+     shading, no vignette, no perspective — only local gradients that
+     are consistent with a curved surface, and the grid swells off the
+     screen. It is shape-from-shading running on evidence that was never
+     integrated into a shape.
+   ENIGMA (Leviant). High-frequency radial spokes with plain coloured
+     annuli over them. The rings stream. Nobody agrees why — the best
+     account is jitter from fixational microsaccades being read as flow
+     along the only contour that permits it — and it is included exactly
+     because it is the one on this list still under argument.
+   OUCHI. Two orthogonally-oriented check fields, one disc inside one
+     ground. The eye cannot solve the aperture problem the same way in
+     both orientations, so the disc reads as a separate sheet sliding
+     over the ground.
+
+   AND A LINE ON REDUCED MOTION, which matters more here than anywhere
+   else in this player: a room whose entire purpose is to manufacture
+   apparent motion is precisely the wrong room for a vestibular
+   listener. Under prefers-reduced-motion the four steps are re-tuned
+   SYMMETRIC — 0, ½, 1, ½ — which kills the drift signal at its source
+   while leaving the pattern on screen. Not dimmed, not slowed:
+   defused. The plate is still there and it no longer turns.
+   ========================================================= */
+function buildDrift(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uForm:   { value: 0 },
+    uSpiral: { value: 0 },                                  // rings, or one continuous spiral
+    uRings:  { value: 5.5 },
+    uSpokes: { value: 48 },
+    uRainbow: { value: 0.5 },                               // how far past the room's key the hue may walk
+    uSteps:  { value: new THREE.Vector4(0.02, 0.30, 1.0, 0.70) },
+    uAmp:    { value: 1 },                                  // the illusion's own gain
+    uJog:    { value: 0 },                                  // the beat's blink, in radians
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBeat, uBeatSpring, uEnergy, uCalm, uCentroid, uOpacity;
+    uniform float uVarA, uVarB, uVarC, uForm, uAspect, uSpiral, uRings, uSpokes, uAmp, uJog, uRainbow;
+    uniform vec4 uSteps;
+    varying vec2 vUv;
+
+    const float TAU = 6.28318530718;
+
+    /* THE ONE PRIMITIVE THIS ROOM IS BUILT ON: take a colour the palette
+       chose and put it at the luminance the illusion needs. Darkening is a
+       scale — the chromaticity is preserved exactly. Brightening past what
+       the hue can carry has to desaturate toward white, because no more
+       saturated version of that hue EXISTS at that luminance; pretending
+       otherwise would clip a channel and quietly shift the hue. Rec.709
+       coefficients, the same ones the flash governor gates on. */
+    vec3 atLuma(vec3 c, float L){
+      float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      if (L <= y) return c * (L / max(y, 1e-4));
+      return mix(c, vec3(1.0), clamp((L - y) / max(1.0 - y, 1e-4), 0.0, 1.0));
+    }
+    // the four-step run, indexed 0..3 — a vec4 subscripted without an int
+    float stepL(float i){
+      return i < 0.5 ? uSteps.x : i < 1.5 ? uSteps.y : i < 2.5 ? uSteps.z : uSteps.w;
+    }
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+    // gain, applied about mid-grey: this is the knob prefers-reduced-motion turns
+    float gain(float L){ return 0.5 + (L - 0.5) * uAmp; }
+
+    void main(){
+      vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // THE BLINK. A whole-field rotation of a couple of degrees on the beat —
+      // the transient the drift needs to re-fire, and the only motion here.
+      float cj = cos(uJog), sj = sin(uJog);
+      vec2 p = vec2(uv.x * cj - uv.y * sj, uv.x * sj + uv.y * cj);
+      float rad = length(p), ang = atan(p.y, p.x);
+
+      float L = 0.5;                  // the luminance this pixel must end up at
+      float hue = uCentroid;          // where in the palette its colour comes from
+      float sat = 1.0;                // how much of the palette's chroma survives
+
+      if (uForm < 0.5){
+        /* ROTATING SNAKES. Ring index continuous in the radius; add a shear in
+           the angle and the same construction becomes one unbroken SPIRAL —
+           the rings are just the spiral with its pitch set to zero. */
+        float ringF = rad * uRings + uSpiral * (ang / TAU);
+        float ring = floor(ringF), rf = fract(ringF);
+        /* THE CELLS MUST BE SQUARE. Circumference is TAU·r and the ring is
+           1/uRings wide, so the count that makes each four-step run as long as
+           the ring is deep is TAU·ringF — it grows with the radius rather than
+           the outer rings being built from wedges four times the size of the
+           inner ones. The first cut used a fixed handful per ring and drew a
+           dartboard: at that scale the four edges of one run land in different
+           parts of the visual field, the latency differences never get
+           compared, and the plate is a pattern instead of an illusion. Size is
+           not a taste question here — it is the mechanism. */
+        float cells = max(8.0, floor(TAU * (ring + 0.5)));
+        // ADJACENT RINGS RUN THE SEQUENCE BACKWARDS, which is what makes the
+        // plate shear against itself instead of turning as one disc
+        float dir = mod(ring, 2.0) < 0.5 ? 1.0 : -1.0;
+        float a = fract((ang / TAU + 0.5) * cells);
+        float q = dir > 0.0 ? a : 1.0 - a;
+        L = gain(stepL(floor(q * 4.0)));
+
+        /* THE GROUND IS THE POINT OF THE GAPS. A mid-grey between rings gives
+           both ends of the run — the black and the white — the same size of
+           step to sit against, so no ring borrows contrast from its neighbour. */
+        float band = smoothstep(0.10, 0.20, rf) * (1.0 - smoothstep(0.80, 0.90, rf));
+        L = mix(gain(0.50), L, band);
+        hue = fract(ring * 0.17 + uCentroid * 0.6 + uVarA);
+        sat = mix(0.10, 1.0, band);
+      } else if (uForm < 1.5){
+        /* BULGE. The height field is a gaussian dome; each tile is painted with
+           a linear ramp along that dome's LOCAL GRADIENT and nothing else. Every
+           tile's MEAN luminance is exactly mid-grey and its hue never varies, so
+           there is no vignette, no shading, no global cue of any kind in the
+           frame — only local gradients, and the surface they imply is not flat.
+           The first cut leaked the dome into the hue and drew a lamp; a lamp is
+           a picture of a bulge and this has to be evidence of one. */
+        float ca = cos(uVarC * 1.57), sa = sin(uVarC * 1.57);
+        vec2 pr = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
+        float cw = 0.075 * (0.8 + uVarB * 0.7);
+        vec2 g = pr / cw;
+        vec2 cid = floor(g), f = fract(g) - 0.5;
+        vec2 cc = (cid + 0.5) * cw;
+        float sig = 0.46;
+        float dome = exp(-dot(cc, cc) / (2.0 * sig * sig));
+        vec2 grd = -cc / (sig * sig) * dome * uSpiral;   // ±1: a bulge, or a dent
+        float gm = length(grd);
+        vec2 gdir = grd / max(gm, 1e-4);
+        // |∇h| peaks at r = sigma with value e^-0.5/sigma, so this normalises to 0..1
+        float amp = clamp(gm * sig / 0.6065, 0.0, 1.0);
+        float e = clamp(dot(f, gdir) * 2.0, -1.0, 1.0);
+        L = gain(0.5 + e * amp * 0.46);
+        // a hairline gutter, so the tiles read as tiles rather than as a blur
+        float bord = max(abs(f.x), abs(f.y));
+        L *= 1.0 - smoothstep(0.42, 0.50, bord) * 0.8;
+        hue = fract(uCentroid * 0.7 + uVarA);
+        sat = 0.5;
+      } else if (uForm < 2.5){
+        /* ENIGMA. Spokes under, plain annuli over. The rings must be FLAT —
+           any gradient in them gives the eye a real motion cue to lock to and
+           the streaming stops. Boring rings are the whole trick. */
+        float spokes = 0.5 + 0.5 * sign(sin(ang * uSpokes));
+        L = gain(mix(uSteps.x, uSteps.z, spokes));
+        sat = 0.2;
+        hue = fract(uCentroid + uVarA);
+        float rr = rad * (2.4 + uVarB * 1.2);
+        float k = floor(rr), kf = fract(rr);
+        float ann = smoothstep(0.28, 0.33, kf) * (1.0 - smoothstep(0.62, 0.67, kf));
+        float annL = gain(0.52);
+        L = mix(L, annL, ann);
+        hue = mix(hue, fract(k * 0.29 + uCentroid + uVarC), ann);
+        sat = mix(sat, 1.0, ann);
+      } else {
+        /* OUCHI. One check field inside another at right angles. Each region's
+           edges are all vertical or all horizontal, so each solves the aperture
+           problem along a different axis, and the two answers disagree. */
+        float inside = smoothstep(0.44, 0.41, rad);
+        vec2 sIn = vec2(5.0, 26.0), sOut = vec2(26.0, 5.0);
+        vec2 s = mix(sOut, sIn, inside);
+        // the disc is offset a hair on the beat: the relative slip is what the
+        // illusion reads, and a static plate needs the observer to supply it
+        vec2 q = p + vec2(uJog * 0.9, 0.0) * inside;
+        float chk = mod(floor(q.x * s.x) + floor(q.y * s.y), 2.0);
+        L = gain(mix(uSteps.x, uSteps.z, chk));
+        hue = fract(uCentroid + inside * 0.42 + uVarA);
+        sat = 0.42;
+      }
+
+      /* THE PALETTE, WIDENED. The room's ramp is three stops of the track's own
+         key, which cannot walk a rainbow — and a plate whose rings are all one
+         hue is the plate everybody has already seen. So the hue index also
+         drives a full circle, mixed back toward the ramp so the room still owns
+         the colour. The same bargain FILIGREE and COMETS strike. */
+      vec3 base = mix(vec3(1.0), mix(ramp(hue), hsv(hue, 0.85, 1.0), uRainbow), sat);
+      vec3 col = atLuma(base, clamp(L, 0.0, 1.0));
+      // the room is allowed to breathe on the music, but only in the LIGHT it
+      // is lit by — never in the pattern, which has to stay still to work
+      col *= 0.86 + uEnergy * 0.20 + uBeatSpring * 0.06;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { form: 0, jog: 0, jogV: 0, lastBeat: 0, t: 0 };
+
+  const api = {
+    name: 'DRIFT', key: 'drift', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f;
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+      st.t += dt;
+
+      /* THE BLINK, as a spring. A beat kicks a small angular velocity in; a
+         stiff spring pulls it back to zero over about a third of a second.
+         The plate ends every beat exactly where it started, so nothing ever
+         accumulates and the picture is, over any bar, genuinely still. */
+      if (f.beat > 0.55 && st.t - st.lastBeat > 0.22){
+        st.lastBeat = st.t;
+        st.jogV += (0.035 + f.energy * 0.030) * (Math.random() < 0.5 ? -1 : 1) * varU.uAmp.value;
+      }
+      st.jogV += (-st.jog * 78 - st.jogV * 13) * Math.min(dt, 0.05);
+      st.jog += st.jogV * Math.min(dt, 0.05);
+      varU.uJog.value = st.jog;
+
+      // and a very slow breath in the SCALE — under a percent a second, which
+      // is below the threshold where it reads as animation but keeps the plate
+      // from being the same pixels for four minutes
+      if (varU.uForm.value < 0.5)
+        varU.uRings.value = st.rings0 * (1 + Math.sin(st.t * 0.055) * 0.05 + f.calm * 0.04);
+    },
+    roll(){
+      st.form = Math.floor(Math.random() * 4);
+      varU.uForm.value = st.form;
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      const spiral = st.form === 0 && Math.random() < 0.45;
+      // form 0 reads uSpiral as a PITCH (0 = plain rings); form 1 reads it as
+      // the sign of the height field, and there it must never be zero — a dome
+      // with no curvature has no gradient and the tiles would all be flat grey
+      const sign = Math.random() < 0.5 ? 1 : -1;
+      varU.uSpiral.value = st.form === 1 ? sign : (spiral ? sign : 0);
+      st.rings0 = 6.5 + Math.random() * 3.5;
+      varU.uRings.value = st.rings0;
+      varU.uSpokes.value = 36 + Math.floor(Math.random() * 5) * 8;
+      varU.uRainbow.value = st.form === 0 ? 0.42 + Math.random() * 0.3 : 0.25;
+      /* THE FOUR STEPS. Asymmetric is the working plate: the climb from black
+         passes through a DARK mid and the fall from white through a LIGHT one,
+         and that asymmetry is the entire motion signal. Symmetric is the same
+         picture with the signal removed, which is what a reduced-motion
+         listener is owed — the pattern, without the manufactured movement. */
+      if (reducedMotion) varU.uSteps.value.set(0.03, 0.50, 0.98, 0.50);
+      else               varU.uSteps.value.set(0.02, 0.26 + Math.random() * 0.10, 0.98, 0.66 + Math.random() * 0.10);
+      varU.uAmp.value = reducedMotion ? 0.55 : 1;
+      st.jog = 0; st.jogV = 0; st.t = 0;
+      api.name = 'DRIFT · ' + (st.form === 0 ? (spiral ? 'RAINBOW SPIRAL' : 'ROTATING SNAKES')
+                             : st.form === 1 ? (sign > 0 ? 'BULGE' : 'DENT')
+                             : st.form === 2 ? 'ENIGMA' : 'OUCHI');
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 28 · DISPERSION — light, taken apart by an edge
+
+   A prism splits light because glass has a different refractive index at
+   every wavelength. Everything in THIS room splits it for a different
+   reason and a better one: nothing here is dispersive at all. There is
+   no glass, no index, no material property. There is an OBSTACLE, and
+   the only length in the problem is the wavelength — so every angle in
+   every pattern below is proportional to λ, and the colours fall out of
+   geometry alone.
+
+   THE COLOUR IS NOT A PALETTE. Every pixel is an integral: the intensity
+   of the diffraction pattern at two dozen wavelengths across 400–700 nm,
+   each weighted by the CIE 1931 observer and summed into XYZ, then sRGB.
+   The same observer the flame bench uses on a black body — generated
+   into GLSL from the same table, so the green of a laser and the green
+   of a first-order fringe are the same green. This is the second room in
+   the player that declines the track's palette, and for the same reason
+   the first one does: the colour here is a measurement, and a measurement
+   you can re-tint is not one.
+
+   THREE INSTRUMENTS:
+
+   AIRY. A circular aperture. I(x) = [2·J₁(x)/x]², x = πD·sinθ/λ, with
+     J₁ from the Abramowitz & Stegun polynomial rather than a table. The
+     first dark ring sits at x = 3.8317 for EVERY wavelength, which means
+     it sits at a different ANGLE for each — blue's rings tight, red's
+     wide — and the fringes are coloured without anything being coloured.
+     Roll two sources and the room becomes Rayleigh's criterion, walked:
+     two stars drift together until the second one's core lands in the
+     first one's first dark ring, which is the exact moment a telescope
+     stops being able to tell them apart. You can watch the pair stop
+     being two.
+   GRATING. N slits of width a, pitch d. The exact textbook product —
+     [sin(Nβ)/(N·sinβ)]² for the interference between slits times
+     sinc²(α) for one slit's own diffraction — evaluated per wavelength.
+     Set N = 2 and it is Young's experiment, broad soft fringes; wind N
+     up and the orders snap into the sharp spectra a spectrometer lives
+     on. Same equation, and you can see the sharpening happen.
+   DISC. A CD is a reflection grating with circular tracks at 1.6 µm, and
+     this is the real grating equation on real geometry: at each point the
+     incident and viewing directions are computed from an actual lamp
+     position and an actual eye, and the order that lands in your eye is
+     m = d·(d̂−î)·ĝ/λ. Which has a consequence worth watching for —
+     SPINNING THE DISC DOES NOTHING. The tracks are circles, so the
+     grating is rotationally symmetric and the pattern cannot know the
+     disc turned. The rainbow moves when the LAMP moves. So here, it is
+     the lamp that moves.
+
+   ONE HONEST CONCESSION, stated where it happens: the Airy rings past the
+   first are 1.7%, 0.4%, 0.2% of the core. Shown linearly you would see a
+   white dot on black and nothing else, which is why every published Airy
+   photograph is stretched. So is this one — but the stretch is applied to
+   LUMINANCE only and the chromaticity is carried through untouched, so
+   what you are looking at is a long exposure of the real thing rather
+   than a repainting of it.
+   ========================================================= */
+function buildDispersion(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uForm:    { value: 0 },
+    uSamples: { value: 24 },
+    uAperture:{ value: 12000 },        // πD/λ collected into one constant, per screen unit
+    uSep:     { value: 0 },            // the pair's separation, in screen units
+    uPair:    { value: 0 },
+    uPitch:   { value: 1600 },         // nm — grating pitch, or disc track pitch
+    uSlitW:   { value: 420 },          // nm — one slit's width
+    uSlits:   { value: 16 },
+    uSpread:  { value: 0.55 },         // screen units → sin θ
+    uCross:   { value: 0 },
+    uSpin:    { value: 0 },
+    uLamp:    { value: new THREE.Vector3(0.7, 0.9, 1.4) },
+    uEye:     { value: new THREE.Vector3(0, 0, 2.4) },
+    uWB:      { value: new THREE.Vector3(DISP_WB[0], DISP_WB[1], DISP_WB[2]) },
+    uExpose:  { value: 6 },
+    uGamma:   { value: 0.42 },
+    uAspect:  { value: 1 },
+    uSlice:   { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + GLSL_CIE + `
+    uniform float uTime, uBeat, uBeatSpring, uEnergy, uBass, uMid, uOpacity;
+    uniform float uVarA, uVarB, uVarC, uForm, uAspect, uSamples, uAperture, uSep, uPair;
+    uniform float uPitch, uSlitW, uSlits, uSpread, uCross, uSpin, uExpose, uGamma;
+    uniform vec3 uLamp, uEye, uWB;
+    varying vec2 vUv;
+
+    /* J₁, from Abramowitz & Stegun 9.4.4 / 9.4.6 — the rational form, not the
+       Numerical Recipes one, because that one's coefficients run to eleven
+       significant figures and a single-precision GPU carries seven. Accurate to
+       about 1e-7 either side of x = 3, which is far better than the pattern
+       needs and safe in every precision a phone might give us. */
+    float besselJ1(float x){
+      float ax = abs(x);
+      if (ax < 3.0){
+        float y = x / 3.0; y = y * y;
+        return x * (0.5 + y * (-0.56249985 + y * (0.21093573 + y * (-0.03954289
+                 + y * (0.00443319 + y * (-0.00031761 + y * 0.00001109))))));
+      }
+      float y = 3.0 / ax;
+      float f1 = 0.79788456 + y * (0.00000156 + y * (0.01659667 + y * (0.00017105
+               + y * (-0.00249511 + y * (0.00113653 + y * (-0.00020033))))));
+      float t1 = ax - 2.35619449 + y * (0.12499612 + y * (0.00005650 + y * (-0.00637879
+               + y * (0.00074348 + y * (0.00079824 + y * (-0.00029166))))));
+      float r = f1 * cos(t1) / sqrt(ax);
+      return x < 0.0 ? -r : r;
+    }
+    float airyI(float x){
+      if (x < 1.0e-3) return 1.0;
+      float a = 2.0 * besselJ1(x) / x;
+      return a * a;
+    }
+    /* THE GRATING, EXACTLY AS IT IS WRITTEN DOWN. Two factors and neither is a
+       fudge: the first is the interference BETWEEN slits (it is what puts the
+       orders where they are and what sharpens them as N grows), the second is
+       the diffraction of ONE slit (it is what decides how bright each order
+       gets to be, and why the second order of a wide slit can vanish). */
+    float gratingI(float s, float lam){
+      float beta  = PI * uPitch * s / lam;
+      float alpha = PI * uSlitW * s / lam;
+      float sb = sin(beta);
+      float inter = abs(sb) < 1.0e-4 ? 1.0 : sin(uSlits * beta) / (uSlits * sb);
+      float sa = abs(alpha) < 1.0e-4 ? 1.0 : sin(alpha) / alpha;
+      return inter * inter * sa * sa;
+    }
+    // one wavelength's intensity at this point, for whichever instrument is up
+    float patternI(vec2 q, float lam){
+      if (uForm < 0.5){
+        float x1 = uAperture * length(q - vec2(uSep, 0.0) * 0.5) / lam;
+        float I = airyI(x1);
+        // TWO STARS ADD IN INTENSITY, NOT IN AMPLITUDE. They are independent
+        // sources with no fixed phase relation, so there is no cross term —
+        // which is exactly why Rayleigh's criterion is about the ENVELOPE.
+        if (uPair > 0.5) I += airyI(uAperture * length(q + vec2(uSep, 0.0) * 0.5) / lam);
+        return I;
+      }
+      if (uForm < 1.5){
+        float I = gratingI(q.x * uSpread, lam);
+        /* ACROSS THE FAN: either a second grating at right angles — a lattice
+           of orders, which is what a mesh does to a streetlight — or the SLIT
+           ITSELF. A spectrometer's aperture is tall and narrow, and a tall
+           aperture diffracts hardly at all along its length: sinc² of a slit
+           forty times the width is a thin horizontal band, which is exactly the
+           shape of every spectrum ever photographed through one. */
+        if (uCross > 0.5) return I * gratingI(q.y * uSpread, lam);
+        float sy = PI * uSlitW * 6.0 * (q.y * uSpread) / lam;
+        float e = abs(sy) < 1.0e-4 ? 1.0 : sin(sy) / sy;
+        return I * e * e;
+      }
+      /* THE DISC. Real geometry: a lamp somewhere above the plane, an eye
+         somewhere else, and at every point the grating vector is RADIAL because
+         the tracks are circles. The order that reaches the eye is whatever m
+         satisfies d·(d̂−î)·ĝ = mλ — so we ask each wavelength which order it
+         would need, and light it up to the extent that order is an integer. */
+      float rr = length(q);
+      vec3 P = vec3(q, 0.0);
+      vec3 iHat = normalize(P - uLamp);
+      vec3 dHat = normalize(uEye - P);
+      vec2 gHat = q / max(rr, 1.0e-4);
+      float G = dot((dHat - iHat).xy, gHat);
+      float m = G * uPitch / lam;
+      float f = m - floor(m + 0.5);              // how far from an integer order
+      float order = abs(floor(m + 0.5));
+      /* HOW MANY GROOVES ARE COHERENTLY ILLUMINATED sets how narrow the
+         passband is, and a CD's rainbow is BROAD — a real lamp has an angular
+         size, a real eye a finite pupil, and both smear the order over a good
+         fraction of the band. Resolve it like a spectrometer (fifteen, twenty)
+         and the disc comes out in near-monochromatic stripes that alias
+         against the sampling. Five is what a disc under a room light does. */
+      const float NG = 5.0;
+      float sf = sin(PI * f);
+      float inter = abs(sf) < 1.0e-4 ? 1.0 : sin(NG * PI * f) / (NG * sf);
+      float I = inter * inter;
+      if (order < 0.5) I *= 0.06;                // m=0 is the specular white, not the rainbow
+      I *= 1.0 / (1.0 + order * order * 0.7);    // and the high orders are faint
+      return I;
+    }
+
+    void main(){
+      vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float cs = cos(uSpin), sn = sin(uSpin);
+      vec2 q = vec2(uv.x * cs - uv.y * sn, uv.x * sn + uv.y * cs);
+
+      float mask = 1.0;
+      if (uForm > 1.5){
+        // a disc has an edge and a hub, and both are part of what it looks like
+        float rr = length(q);
+        mask = smoothstep(1.02, 0.98, rr) * smoothstep(0.16, 0.21, rr);
+      }
+
+      /* THE INTEGRAL. Two dozen samples across the visible band, each weighted
+         by the eye. Fewer and the spectra band into stripes; this many and the
+         orders come out as continuous rainbows the way they do in life. */
+      vec3 xyz = vec3(0.0);
+      for (int i = 0; i < 28; i++){
+        if (float(i) >= uSamples) break;
+        float lam = 400.0 + 300.0 * (float(i) + 0.5) / uSamples;
+        xyz += cieXYZBar(lam) * patternI(q, lam);
+      }
+      /* THE CLAMP GOES AT THE END, NOT INSIDE THE SUM. Converting each sample
+         to RGB and adding those clamps a negative primary once per wavelength,
+         and a clamp inside an integral is energy invented out of nothing —
+         the first cut of this did exactly that and painted the Airy core
+         orange when the sum of every wavelength at full intensity is, by
+         construction, white. Integrate in XYZ; concede the gamut once. */
+      vec3 acc = xyzToLinearRGB(xyz * uWB / uSamples);
+
+      /* THE STRETCH, ON LUMINANCE ALONE. Set the exposure, curve it, then
+         rescale the colour to land there — so the picture gets brighter and
+         the chromaticity of every fringe is exactly what the integral said. A
+         per-channel gamma would have shifted every hue in the frame toward
+         whichever primary happened to be largest. */
+      float y = dot(acc, vec3(0.2126, 0.7152, 0.0722));
+      float ys = pow(clamp(y * uExpose, 0.0, 12.0), uGamma);
+      vec3 col = acc * (ys / max(y, 1.0e-7)) * mask;
+      if (uForm > 1.5){
+        /* AND THE DISC IS ALSO JUST A MIRROR. Every rainbow you have seen on a
+           CD sits inside a plain white sheen — the zeroth order, which carries
+           most of the light and none of the colour. Leave it out and the disc
+           reads as a rainbow floating in a hole rather than as an object. */
+        vec3 P = vec3(q, 0.0);
+        vec3 R = reflect(normalize(P - uLamp), vec3(0.0, 0.0, 1.0));
+        float spec = pow(max(0.0, dot(R, normalize(uEye - P))), 20.0);
+        col += vec3(1.0, 0.97, 0.92) * spec * 0.6 * mask;
+      }
+      col *= 0.9 + uEnergy * 0.3 + uBeatSpring * 0.12;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { form: 0, t: 0, disc: 0, pair: false, spin: 0 };
+
+  const api = {
+    /* HEAVY, MEASURED RATHER THAN GUESSED. On the software rasteriser the smoke
+       tests run under, this room draws at about a fifth of the rate SPIRAL
+       does — below every scene already shipping. The spectral integral and the
+       sample count already stand down under PERF.struggling, but that only
+       helps AFTER the device has struggled; the flag is what keeps it off a
+       phone that was never going to manage it in the first place. */
+    name: 'DISPERSION', key: 'disperse', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f;
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+      st.t += dt;
+
+      // a struggling device integrates a coarser spectrum, not a stuttering one
+      const want = (typeof PERF !== 'undefined' && PERF.struggling) ? 10
+                 : (typeof POWER !== 'undefined' && !POWER.heavyOK) ? 15 : 24;
+      varU.uSamples.value += (want - varU.uSamples.value) * Math.min(1, dt * 2);
+
+      if (st.form === 0){
+        // THE IRIS. A real aperture, opened and closed by the bass — and every
+        // ring in the pattern moves because every ring's angle is λ/D.
+        varU.uAperture.value = st.ap0 * (1 + Math.sin(st.t * 0.09) * 0.22 + f.bass * 0.30);
+        if (st.pair){
+          /* WALKED THROUGH RAYLEIGH. The separation sweeps from twice the
+             criterion down to a third of it and back, so the pair resolves,
+             merges and separates again — and the moment it stops being two is
+             a real number, not a look. */
+          const rR = rayleighSep(varU.uAperture.value, 550);
+          const k = 1.15 + Math.cos(st.t * 0.16) * 0.85;
+          varU.uSep.value = rR * k * 2;
+          api.name = 'DISPERSION · RAYLEIGH · ' + (k > 1 ? 'RESOLVED' : 'MERGED');
+          if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = api.name;
+        }
+      } else if (st.form === 1){
+        // the fan turns slowly, and the pitch breathes — the orders walk in and
+        // out along with it, because their angle is mλ/d and d is what moved
+        st.spin += dt * (0.030 + f.coupling * 0.05) * st.dir;
+        if (Math.abs(st.spin) > 0.42) st.dir = -st.dir;      // and stays near level
+        varU.uSpin.value = st.spin;
+        varU.uPitch.value = st.pitch0 * (1 + Math.sin(st.t * 0.13) * 0.18 + f.mid * 0.22);
+      } else {
+        /* THE LAMP ORBITS, AND THE DISC DOES NOT. Circular tracks make the
+           grating rotationally symmetric: turn the disc and the pattern is
+           identical, which is why a CD's rainbow slides when you move your head
+           and not when you spin it. So the thing that moves here is the light. */
+        const a = st.t * (0.22 + f.energy * 0.30);
+        const rl = 0.85 + Math.sin(st.t * 0.31) * 0.35 + f.bass * 0.2;
+        varU.uLamp.value.set(Math.cos(a) * rl, Math.sin(a * 0.83) * rl, 1.25 + Math.sin(st.t * 0.19) * 0.35);
+      }
+      varU.uExpose.value = st.expose0 * (0.85 + f.energy * 0.4 + f.beat * 0.12);
+    },
+    roll(){
+      st.form = Math.random() < 0.38 ? 0 : Math.random() < 0.55 ? 1 : 2;
+      varU.uForm.value = st.form;
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      // the fan reads as a fan when it is roughly level; a spectrum stood on
+      // end is a spectrum nobody recognises, so this drifts around the
+      // horizontal rather than starting anywhere on the circle
+      st.t = 0; st.spin = (Math.random() - 0.5) * 0.5; st.dir = Math.random() < 0.5 ? 1 : -1;
+      varU.uSpin.value = st.form === 1 ? st.spin : 0;
+      let label;
+      if (st.form === 0){
+        // the first dark ring is at 3.83·λ/D — big enough that a dozen rings
+        // fit across the frame, or the picture is one fat blob with a halo
+        st.ap0 = 8500 + Math.random() * 9000;
+        varU.uAperture.value = st.ap0;
+        st.pair = Math.random() < 0.5;
+        varU.uPair.value = st.pair ? 1 : 0;
+        varU.uSep.value = st.pair ? rayleighSep(st.ap0, 550) * 2.2 : 0;
+        st.expose0 = 14;
+        varU.uGamma.value = 0.24;
+        label = st.pair ? 'RAYLEIGH' : 'AIRY DISC';
+      } else if (st.form === 1){
+        // N = 2 is Young's experiment; N in the tens is a spectrometer. Same
+        // formula, and the name says which one you are looking at.
+        const two = Math.random() < 0.3;
+        /* AND NOT TOO MANY SLITS. Order width goes as 1/N, so a hundred-line
+           grating resolves a passband far narrower than two dozen samples
+           across the band can represent — and what comes out is not a finer
+           spectrum but an ALIASED one: red, green and blue dots where a
+           rainbow should be. The first cut ran twenty-four slits and drew
+           exactly that. This is the honest ceiling for the sampling. */
+        varU.uSlits.value = two ? 2 : 4 + Math.floor(Math.random() * 5) * 2;
+        st.pitch0 = 1150 + Math.random() * 1500;
+        varU.uPitch.value = st.pitch0;
+        varU.uSlitW.value = st.pitch0 * (0.25 + Math.random() * 0.28);
+        varU.uSpread.value = 0.62 + Math.random() * 0.3;
+        // Young's experiment is ONE pair of slits — crossing it doubles the
+        // apparatus and loses the thing the experiment is famous for
+        varU.uCross.value = !two && Math.random() < 0.5 ? 1 : 0;
+        st.expose0 = 26;
+        varU.uGamma.value = 0.40;
+        label = two ? "YOUNG'S SLITS"
+              : (varU.uCross.value > 0.5 ? 'CROSSED GRATING' : 'GRATING · ' + varU.uSlits.value + ' SLITS');
+      } else {
+        st.disc = Math.random() < 0.5 ? 0 : (Math.random() < 0.72 ? 1 : 2);
+        varU.uPitch.value = DISC_PITCH[st.disc].d;
+        st.expose0 = 8;
+        varU.uGamma.value = 0.55;
+        label = DISC_PITCH[st.disc].name + ' · ' + DISC_PITCH[st.disc].d + ' nm';
+      }
+      varU.uExpose.value = st.expose0;
+      api.name = 'DISPERSION · ' + label;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 29 · FILAMENT — a wire, glowing, seen through a bad lens
+
+   Two ideas, and the second one is the reason this room exists.
+
+   THE WIRE IS A REAL CURVE. Nothing here is drawn with noise. Four
+   systems, each with its published constants:
+
+     COILED COIL. What is actually inside an incandescent bulb, and the
+       nicest piece of engineering most people have never looked at: the
+       tungsten is wound into a helix, and that helix is wound into
+       another one. It is done to pack a long hot wire into a small
+       volume so the gas around it convects less and the filament runs
+       hotter for the same watts — and it is why a filament looks like a
+       spring made of springs when you get close. Built here the way it
+       is built there: a primary helix on a torus, a secondary helix
+       carried on the primary's own moving frame.
+     LORENZ. σ=10, ρ=28, β=8/3, integrated with RK4. The transient is
+       thrown away before anything is drawn, so what you see is the
+       attractor and not the approach to it.
+     TORUS KNOT. (p, q) coprime, exact parametrisation. The only one of
+       the four that closes — it is the same wire arriving back where it
+       started, which after two attractors is worth having.
+     THOMAS. Cyclically symmetric, b=0.1998: the value at which the flow
+       is chaotic rather than spiralling into rest. It looks the most
+       like a dropped tangle of glowing wire of anything in this player,
+       and it is a three-line differential equation.
+
+   AND THE LENS IS HONESTLY BAD. Every filament here carries a colour
+   fringe, and it is the fringe a real simple lens makes: LATERAL
+   chromatic aberration. Glass has a higher index at short wavelengths,
+   so blue focuses shorter, so the blue image is SMALLER than the red
+   one — every off-axis point comes out as a tiny red-outside,
+   blue-inside smear. Which means the sign matters and is not a taste
+   call: red fringes on the far side of an edge, blue on the near side,
+   and the effect grows with distance from the axis and vanishes dead
+   centre. It does all three here, because it is computed rather than
+   painted, and it is why the tangle reads as something photographed
+   instead of something drawn.
+   ========================================================= */
+function buildFilament(){
+  const group = new THREE.Group();
+  const STRANDS = 6, PER = 4600, N = STRANDS * PER;
+  const pos = new Float32Array(N * 3);
+  const aT = new Float32Array(N), aS = new Float32Array(N);
+  for (let i = 0; i < N; i++){
+    aT[i] = (i % PER) / (PER - 1);
+    aS[i] = STRANDS > 1 ? Math.floor(i / PER) / (STRANDS - 1) : 0;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  geo.setAttribute('aS', new THREE.BufferAttribute(aS, 1));
+
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uChroma: { value: 0.16 },      // the lens's transverse colour error, at the frame edge
+    uFlow:   { value: 0 },         // where the current pulse has got to, in arclength
+    uThick:  { value: 1 },
+    uStrands:{ value: STRANDS },
+  };
+
+  const vert = VERT_POINT_HEAD + `
+    attribute float aT, aS;
+    uniform float uVarA, uVarB, uVarC, uFlow, uThick, uStrands;
+    varying float vAxis;           // how far off the optical axis this sprite landed
+    void main(){
+      float amp = texture2D(uAudio, vec2(aT, 0.5)).r;
+      vT = fract(aT * 1.6 + aS * 0.37 + uCentroid * 0.5);
+      vec3 p = position;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      vec4 cp = projectionMatrix * mv;
+      gl_Position = cp;
+      /* THE CURRENT. A bright head runs along the arclength of every strand,
+         each strand offset — which is what a filament looks like coming up to
+         temperature and what a plasma filament looks like all the time. */
+      float head = fract(aT - uFlow - aS * 0.31);
+      float pulse = exp(-head * head * 260.0) + exp(-(1.0 - head) * (1.0 - head) * 260.0);
+      vGlow = 0.20 + amp * 1.1 + pulse * (0.7 + uBeat * 0.9) + uEnergy * 0.25;
+      // off-axis distance in clip space: zero in the middle of the frame, one
+      // at the corners — the term lateral aberration is proportional to
+      vAxis = clamp(length(cp.xy / max(cp.w, 1e-3)), 0.0, 1.6);
+      gl_PointSize = (1.1 + amp * 3.4 + uBeat * 1.4) * uThick * (300.0 / -mv.z);
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uOpacity, uEnergy, uBeat, uChroma;
+    uniform vec3 uColC;
+    varying float vGlow; varying float vT; varying float vAxis;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d) * 2.0;
+      if (r > 1.0) discard;
+      /* LATERAL CHROMATIC ABERRATION, WITH THE SIGN THE PHYSICS GIVES IT. n is
+         larger at short wavelengths, so blue focuses shorter, so blue is
+         magnified LESS. Sampling blue's profile at a LARGER radius is the same
+         statement: its disc runs out sooner. Red gets the opposite. And the
+         whole effect scales with distance off the axis, which is why the
+         middle of the frame stays clean and the corners fringe. */
+      /* TWO ABERRATIONS, NOT ONE. LATERAL error grows with distance off the
+         axis and is what fringes the corners; AXIAL error — each wavelength
+         focusing at a different DISTANCE — is present everywhere including
+         dead centre, which is why even a centred highlight on a cheap lens has
+         a colour edge on it. The constant term is the axial share. */
+      float k = uChroma * (0.35 + vAxis);
+      float pr = max(0.0, 1.0 - r * (1.0 - k));
+      float pg = max(0.0, 1.0 - r);
+      float pb = max(0.0, 1.0 - r * (1.0 + k));
+      vec3 prof = vec3(pr * pr * pr, pg * pg * pg, pb * pb * pb);
+      vec3 col = ramp(vT) * prof;
+      // the core goes white where the wire is hottest — a filament at
+      // temperature is a black body, and a hot enough black body is white
+      col += vec3(1.0) * prof.g * prof.g * clamp(vGlow - 0.7, 0.0, 1.4) * 0.55;
+      float a = max(max(prof.r, prof.g), prof.b);
+      gl_FragColor = vec4(inkRolloff(col * (0.5 + vGlow)), a * uOpacity * (0.10 + vGlow * 0.45));
+    }
+  `;
+  const pts = addShaderPoints(geo, frag, vert, varU);
+  group.add(pts);
+
+  // the wire itself: successive points on one strand, joined. The sprites are
+  // the glow around it; this is the thread you can actually follow.
+  const li = [];
+  for (let s = 0; s < STRANDS; s++)
+    for (let k = 0; k < PER - 1; k++) li.push(s * PER + k, s * PER + k + 1);
+  const lgeo = new THREE.BufferGeometry();
+  lgeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  lgeo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  lgeo.setAttribute('aS', new THREE.BufferAttribute(aS, 1));
+  lgeo.setIndex(li);
+  const lvert = VERT_POINT_HEAD + `
+    attribute float aT, aS;
+    uniform float uVarA, uVarB, uVarC, uFlow;
+    void main(){
+      vT = fract(aT * 1.6 + aS * 0.37 + uCentroid * 0.5);
+      float head = fract(aT - uFlow - aS * 0.31);
+      vGlow = 0.25 + exp(-head * head * 260.0) * (0.9 + uBeat * 0.8) + uEnergy * 0.2;
+      gl_Position = projectionMatrix * ptrWarp(modelViewMatrix * vec4(position, 1.0));
+    }
+  `;
+  const lfrag = GLSL_MPHI + `
+    uniform float uOpacity, uEnergy;
+    varying float vGlow; varying float vT;
+    void main(){ gl_FragColor = vec4(inkRolloff(mix(ramp(vT), vec3(1.0), clamp(vGlow - 0.8, 0.0, 1.0) * 0.6) * (0.45 + vGlow)),
+                                     uOpacity * (0.16 + vGlow * 0.5)); }
+  `;
+  group.add(addShaderLines(lgeo, lfrag, lvert, varU, true));
+  group.visible = false;
+  scene.add(group);
+
+  const st = { form: 0, t: 0, flow: 0, spin: 0, scale: 1 };
+
+  /* THE ROOM IS BIG. The director's rig orbits between sixteen and forty-four
+     units out at a 62° field, so anything built at unit scale arrives as a
+     bright speck in the middle of a lot of nothing — which is exactly what the
+     first cut of this did. Every generator below works in its system's OWN
+     natural units, which is the only sane way to keep Lorenz's ρ=28 legible as
+     ρ=28, and st.scale is where those units become metres. */
+  function put(i, x, y, z){
+    const k = st.scale;
+    pos[i * 3] = x * k; pos[i * 3 + 1] = y * k; pos[i * 3 + 2] = z * k;
+  }
+
+  /* THE COILED COIL, built the way it is wound. The secondary helix has to ride
+     the PRIMARY's frame, not the world's, or it wanders off the wire — so the
+     primary's tangent is taken by finite difference and the little coil is laid
+     in the plane perpendicular to it. That is the whole trick, and it is why
+     this comes out looking like a filament and not like two unrelated springs. */
+  function coilPoint(u, R, r1, k1, tilt){
+    const cu = Math.cos(u), su = Math.sin(u), a1 = k1 * u;
+    const ca = Math.cos(a1), sa = Math.sin(a1);
+    return [ (R + r1 * ca) * cu, (R + r1 * ca) * su, r1 * sa + tilt * u ];
+  }
+  function genCoil(s, base, r){
+    const R = 2.5 + r() * 0.7 + s * 0.16;
+    const r1 = 0.55 + r() * 0.2, r2 = r1 * (0.16 + r() * 0.08);
+    const k1 = 22 + Math.floor(r() * 12), k2 = k1 * (8 + Math.floor(r() * 5));
+    const tilt = (r() - 0.5) * 0.12;
+    const du = 1e-3;
+    for (let j = 0; j < PER; j++){
+      const u = (j / (PER - 1)) * 6.283185307;
+      const p0 = coilPoint(u, R, r1, k1, tilt), p1 = coilPoint(u + du, R, r1, k1, tilt);
+      let tx = p1[0] - p0[0], ty = p1[1] - p0[1], tz = p1[2] - p0[2];
+      const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+      // the primary's outward normal, then the binormal that completes the frame
+      const a1 = k1 * u, cu = Math.cos(u), su = Math.sin(u);
+      let nx = Math.cos(a1) * cu, ny = Math.cos(a1) * su, nz = Math.sin(a1);
+      const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+      const bx = ty * nz - tz * ny, by = tz * nx - tx * nz, bz = tx * ny - ty * nx;
+      const a2 = k2 * u, c2 = Math.cos(a2), s2 = Math.sin(a2);
+      put(base + j, p0[0] + r2 * (nx * c2 + bx * s2),
+                    p0[1] + r2 * (ny * c2 + by * s2),
+                    p0[2] + r2 * (nz * c2 + bz * s2));
+    }
+  }
+  /* LORENZ, RK4. Euler at a step this size drifts off the attractor visibly —
+     the spiral radius grows where it should hold — and the difference costs
+     three extra derivative evaluations per step, once, at roll time. */
+  function lorenzD(v, o){
+    o[0] = LORENZ.sigma * (v[1] - v[0]);
+    o[1] = v[0] * (LORENZ.rho - v[2]) - v[1];
+    o[2] = v[0] * v[1] - LORENZ.beta * v[2];
+  }
+  function thomasD(v, o){
+    o[0] = Math.sin(v[1]) - THOMAS_B * v[0];
+    o[1] = Math.sin(v[2]) - THOMAS_B * v[1];
+    o[2] = Math.sin(v[0]) - THOMAS_B * v[2];
+  }
+  const _k1 = [0, 0, 0], _k2 = [0, 0, 0], _k3 = [0, 0, 0], _k4 = [0, 0, 0], _tmp = [0, 0, 0];
+  function rk4(v, h, D){
+    D(v, _k1);
+    for (let i = 0; i < 3; i++) _tmp[i] = v[i] + h * 0.5 * _k1[i];  D(_tmp, _k2);
+    for (let i = 0; i < 3; i++) _tmp[i] = v[i] + h * 0.5 * _k2[i];  D(_tmp, _k3);
+    for (let i = 0; i < 3; i++) _tmp[i] = v[i] + h * _k3[i];        D(_tmp, _k4);
+    for (let i = 0; i < 3; i++) v[i] += h / 6 * (_k1[i] + 2 * _k2[i] + 2 * _k3[i] + _k4[i]);
+  }
+  function genFlow(s, base, r, D, seed, h, sub, scale, centre, warm){
+    const v = [seed[0] + (r() - 0.5) * 0.6, seed[1] + (r() - 0.5) * 0.6, seed[2] + (r() - 0.5) * 0.6];
+    for (let w = 0; w < warm; w++) rk4(v, h, D);      // throw the transient away
+    for (let j = 0; j < PER; j++){
+      for (let k = 0; k < sub; k++) rk4(v, h, D);
+      put(base + j, v[0] * scale, (v[2] - centre) * scale, v[1] * scale);
+    }
+  }
+  function genKnot(s, base, r, P, Q){
+    const scale = 1.25 + s * 0.06, roll = s * 0.9;
+    for (let j = 0; j < PER; j++){
+      const th = (j / (PER - 1)) * 6.283185307 * P + roll;
+      const w = Q * th / P, cw = Math.cos(w);
+      put(base + j, (2 + cw) * Math.cos(th) * scale, (2 + cw) * Math.sin(th) * scale, Math.sin(w) * scale * 1.6);
+    }
+  }
+
+  const api = {
+    /* HEAVY, MEASURED RATHER THAN GUESSED. On the software rasteriser the smoke
+       tests run under, this room draws at about a fifth of the rate SPIRAL
+       does — below every scene already shipping. The spectral integral and the
+       sample count already stand down under PERF.struggling, but that only
+       helps AFTER the device has struggled; the flag is what keeps it off a
+       phone that was never going to manage it in the first place. */
+    name: 'FILAMENT', key: 'filament', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f;
+      st.t += dt;
+      // the current runs faster when the room does, and the tangle turns slowly
+      st.flow = (st.flow + dt * (0.10 + f.energy * 0.22 + f.beat * 0.10) * st.dir) % 1;
+      varU.uFlow.value = st.flow;
+      group.rotation.y += dt * (0.05 + f.coupling * 0.10) * st.dir * (reducedMotion ? 0.35 : 1);
+      group.rotation.x = Math.sin(st.t * 0.07) * 0.34 * (reducedMotion ? 0.4 : 1);
+      // a worse lens on the drop: the fringe opens with the room
+      varU.uChroma.value = st.chroma0 * (0.7 + f.energy * 0.5 + f.beat * 0.25);
+      varU.uThick.value = 0.85 + f.bass * 0.5;
+    },
+    roll(){
+      st.form = Math.floor(Math.random() * FILAMENT_FORMS.length);
+      const r = Math.random;
+      st.dir = r() < 0.5 ? 1 : -1;
+      st.chroma0 = 0.16 + r() * 0.20;
+      varU.uChroma.value = st.chroma0;
+      varU.uVarA.value = r(); varU.uVarB.value = r(); varU.uVarC.value = r();
+      let label = FILAMENT_FORMS[st.form].name;
+      const kind = FILAMENT_FORMS[st.form].key;
+      if (kind === 'knot'){
+        // p and q must be COPRIME or the curve closes early and draws a
+        // different, smaller knot than the one on the label
+        const pairs = [[2, 3], [2, 5], [3, 4], [3, 5], [3, 7], [4, 5], [5, 6], [2, 7]];
+        const pq = pairs[Math.floor(r() * pairs.length)];
+        st.scale = 3.6;
+        for (let s = 0; s < STRANDS; s++) genKnot(s, s * PER, r, pq[0], pq[1]);
+        label += ' (' + pq[0] + ',' + pq[1] + ')';
+      } else if (kind === 'coil'){
+        st.scale = 3.8;
+        for (let s = 0; s < STRANDS; s++) genCoil(s, s * PER, r);
+      } else if (kind === 'lorenz'){
+        st.scale = 3.6;
+        for (let s = 0; s < STRANDS; s++)
+          genFlow(s, s * PER, r, lorenzD, [0.8, 0.6, 24], 0.0032, 2, 0.135, 26, 900);
+      } else {
+        st.scale = 3.6;
+        for (let s = 0; s < STRANDS; s++)
+          genFlow(s, s * PER, r, thomasD, [1.2, 0.4, 0.7], 0.030, 2, 0.62, 0, 1200);
+      }
+      geo.attributes.position.needsUpdate = true;
+      lgeo.attributes.position.needsUpdate = true;
+      st.t = 0; st.flow = 0;
+      group.rotation.set(0, r() * 6.283, 0);
+      api.name = 'FILAMENT · ' + label;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+
+/* =========================================================
+   SCENE 30 · SOAP FILM — a sheet three hundred atoms thick
+
+   BUBBLES already does thin-film interference on a sphere. This does it
+   on the thing a bubble is actually made of, which behaves completely
+   differently, and the difference is worth a room:
+
+   IT DRAINS. A vertical film is being pulled down by gravity all the
+   time, so it is thin at the top and thick at the bottom, and it gets
+   thinner everywhere as it ages. The colour of every point is a
+   readout of its thickness, which means the picture is a live map of
+   where the water has gone.
+
+   THE TOP GOES BLACK, AND THAT IS THE WHOLE POINT. Reflection off the
+   front face flips phase by half a wavelength; reflection off the back
+   face does not. So as the thickness runs to zero the two reflections
+   arrive exactly out of step at EVERY wavelength at once and the film
+   stops reflecting anything. Not dark — black, blacker than the
+   background, a hole where a surface was. That band is real, it is
+   called the black film, it is about thirty nanometres thick, and its
+   appearance means the bubble has seconds to live. Nothing here paints
+   it: it falls out of 4·R₀·sin²(δ/2) as δ → 0, and it would be
+   impossible to remove without breaking the physics.
+
+   THE SWIRLS ARE NOT TURBULENCE. They are MARGINAL REGENERATION, which
+   is much stranger: patches of thin film are LESS DENSE than the thick
+   film around them, so they rise — buoyantly, upward, against the
+   drainage — and drag the colour bands into the plumes and fingers that
+   make a soap film look alive. That is why the flow in this room runs
+   UP while the water runs down, and why the thin patches are the ones
+   doing the climbing.
+
+   THE COLOUR IS AN INTEGRAL, not a lookup. R(λ) = 4·R₀·sin²(2πnh·cosθ/λ)
+   at two dozen wavelengths, weighted by the CIE 1931 observer — the same
+   observer DISPERSION uses on a grating and the bench uses on a flame.
+   Which is why the high orders wash out to pastel on their own: past
+   about a micron the fringes are packed closer than the eye's colour
+   channels can separate, the integral averages them away, and the film
+   goes pearly. Nobody had to decide that; it is what happens when you
+   integrate.
+
+   AND IT IS A MIRROR AT A GLANCE. Fresnel: R₀ climbs toward 1 at
+   grazing incidence, so the edges of a curved sheet go silver. Which is
+   exactly what a soap film does when you tilt it, and it is one Schlick
+   term rather than a decision.
+   ========================================================= */
+function buildSoapFilm(){
+  const group = new THREE.Group();
+  const SEG = 168;
+  /* WIDE AND SHORT ON PURPOSE. The gradient that matters runs top to bottom,
+     so the film is cut to overflow the frame sideways and to show its top and
+     bottom edges — which makes the two wires the only two you see, and makes
+     the black band unmistakably the TOP of something rather than a dark patch
+     somewhere in a picture. */
+  const geo = new THREE.PlaneGeometry(72, 30, SEG, Math.round(SEG * 0.5));
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uHTop:    { value: 180 },        // nm at the top of the frame
+    uHBot:    { value: 1050 },       // nm at the bottom
+    uRise:    { value: 0.06 },       // marginal regeneration, in frames per second of climb
+    uChurn:   { value: 1 },
+    uSamples: { value: 22 },
+    uWB:      { value: new THREE.Vector3(DISP_WB[0], DISP_WB[1], DISP_WB[2]) },
+    uExpose:  { value: 20 },
+    uWave:    { value: 1 },
+    uFlap:    { value: 0 },
+    uN:       { value: FILM_N },
+    uR0:      { value: FILM_R0 },
+  };
+
+  /* ONE NOISE FIELD, DEFINED ONCE AND USED IN BOTH STAGES — the vertex shader
+     needs it to shake the sheet and the fragment shader needs it to lay the
+     thickness down, and if the two disagree the highlights sit somewhere other
+     than the folds they belong to. */
+  const NOISE = `
+    float hash21(vec2 p){
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    float fbm(vec2 p){
+      float a = 0.5, s = 0.0;
+      for (int o = 0; o < 4; o++){ s += a * vnoise(p); p *= 2.03; a *= 0.5; }
+      return s;
+    }
+  `;
+
+  const vert = GLSL_WARP + NOISE + `
+    uniform float uTime, uBass, uMid, uEnergy, uBeat, uBeatSpring, uWave, uFlap, uVarA, uVarB;
+    varying vec2 vUv;
+    varying vec3 vNrm, vView;
+    /* THE SHEET IS SLACK. A soap film in a frame is under tension but it is
+       still a membrane, and a membrane answers a room full of air. Four
+       travelling waves with ANALYTIC derivatives, because a normal taken by
+       finite difference across a 168-segment grid is a normal one texel wide
+       and the specular crawls. */
+    void main(){
+      vUv = uv;
+      vec2 q = position.xy;
+      float t = uTime;
+      float k1 = 0.17 + uVarA * 0.06, k2 = 0.31, k3 = 0.09, k4 = 0.44;
+      float a1 = 0.9 + uBass * 1.4, a2 = 0.45 + uMid * 0.5, a3 = 1.5, a4 = 0.22 + uBeatSpring * 0.35;
+      float z = a1 * sin(q.x * k1 + t * 0.55) * uWave
+              + a2 * sin(q.y * k2 - t * 0.71 + q.x * 0.05) * uWave
+              + a3 * sin((q.x * 0.6 + q.y) * k3 + t * 0.31) * uWave
+              + a4 * sin(q.x * k4 - t * 1.3) * uFlap;
+      float dzdx = a1 * k1 * cos(q.x * k1 + t * 0.55) * uWave
+                 + a2 * 0.05 * cos(q.y * k2 - t * 0.71 + q.x * 0.05) * uWave
+                 + a3 * k3 * 0.6 * cos((q.x * 0.6 + q.y) * k3 + t * 0.31) * uWave
+                 + a4 * k4 * cos(q.x * k4 - t * 1.3) * uFlap;
+      float dzdy = a2 * k2 * cos(q.y * k2 - t * 0.71 + q.x * 0.05) * uWave
+                 + a3 * k3 * cos((q.x * 0.6 + q.y) * k3 + t * 0.31) * uWave;
+      vec3 p = vec3(q, z);
+      vNrm = normalize(vec3(-dzdx, -dzdy, 1.0));
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      vec3 push = warpPush(mv.xy / max(-mv.z, 1e-3) * 0.6, uPtr.xy, uPtrF.x, warpForce());
+      mv.xy += push.xy * 3.0;
+      vView = normalize(-mv.xyz);
+      gl_Position = projectionMatrix * mv;
+    }
+  `;
+  const frag = GLSL_MPHI + GLSL_CIE + NOISE + `
+    uniform float uTime, uEnergy, uBeat, uOpacity, uEntropy;
+    uniform float uHTop, uHBot, uRise, uChurn, uSamples, uExpose, uN, uR0, uVarA, uVarB, uVarC;
+    uniform vec3 uWB;
+    varying vec2 vUv;
+    varying vec3 vNrm, vView;
+
+    void main(){
+      /* THE THICKNESS FIELD. Gravity sets the floor of it — thin at the top,
+         thick at the bottom, on a curve rather than a line because drainage is
+         faster where the film is thicker. Everything on top of that is
+         MARGINAL REGENERATION: patches of thin film are lighter than their
+         surroundings and rise, so the noise is advected UPWARD while the water
+         goes down, and stretched sideways because that is the shape a rising
+         plume gets pulled into by the bands it climbs through. */
+      float depth = 1.0 - vUv.y;                       // 0 at the top of the frame
+      float base = mix(uHTop, uHBot, pow(depth, 1.45));
+      /* AND THE BANDS LIE DOWN. A rising plume is climbing through a stack of
+         horizontal iso-thickness bands, and it gets stretched sideways by them
+         — so the field is sampled at roughly six times the vertical frequency
+         of the horizontal one. Sample it isotropically (the first cut did) and
+         you get blobs, which is what a film looks like nowhere. */
+      vec2 flow = vec2(vUv.x * (1.4 + uVarA * 1.1), vUv.y * (9.0 + uVarB * 5.0) + uTime * uRise);
+      float n1 = fbm(flow);
+      float n2 = fbm(flow * 2.7 + vec2(n1 * 1.4, -uTime * uRise * 1.6));
+      float n3 = vnoise(flow * 7.5 + vec2(n2 * 2.0, -uTime * uRise * 2.4));
+      float h = base * (0.42 + 1.05 * n1 * (0.55 + uChurn * 0.6) + 0.30 * n2 * uChurn
+                             + 0.10 * n3 * uChurn);
+      h = max(h, 0.0);
+
+      /* THE ANGLE INSIDE THE FILM, by Snell. It matters: cos θt shortens the
+         path at a glance and walks every fringe toward the blue, which is why
+         the colours of a tilted film are not the colours of a flat one. */
+      vec3 N = normalize(vNrm);
+      vec3 V = normalize(vView);
+      float cosI = clamp(abs(dot(N, V)), 0.0, 1.0);
+      float sinI = sqrt(max(0.0, 1.0 - cosI * cosI));
+      float sinT = sinI / uN;
+      float cosT = sqrt(max(0.0, 1.0 - sinT * sinT));
+
+      // Schlick: one interface's reflectance climbs to 1 at grazing, and a
+      // soap film held edge-on really does turn into a mirror
+      float R0 = uR0 + (1.0 - uR0) * pow(1.0 - cosI, 5.0);
+
+      /* THE INTEGRAL. Two beams, opposite phase at the front face, so the
+         reflectance is 4·R₀·sin²(δ/2) with δ = 4πnh·cosθ/λ. As h → 0 every
+         term goes to zero together and the film goes BLACK — that is the whole
+         physics of the black film, in one line, unremovable. */
+      vec3 xyz = vec3(0.0);
+      for (int i = 0; i < 26; i++){
+        if (float(i) >= uSamples) break;
+        float lam = 400.0 + 300.0 * (float(i) + 0.5) / uSamples;
+        float sd = sin(6.28318530718 * uN * h * cosT / lam);
+        xyz += cieXYZBar(lam) * min(1.0, 4.0 * R0 * sd * sd);
+      }
+      /* AND THEN AN EXPOSURE, because eight per cent is DIM. A soap film is
+         not a light source; it is a very slightly reflective sheet, and every
+         photograph of one ever taken was taken at a stop that would blow out
+         the room behind it. The number below is that stop. It multiplies the
+         whole integral, so it changes how bright the film is and nothing at
+         all about what colour it is. */
+      vec3 col = xyzToLinearRGB(xyz * uWB / uSamples) * uExpose;
+
+      // the film is a surface, so it also carries a plain specular — the white
+      // glare that sits on top of the colour rather than instead of it
+      vec3 L = normalize(vec3(0.35, 0.8, 0.75));
+      float spec = pow(max(0.0, dot(reflect(-V, N), L)), 34.0) * R0 * 9.0;
+      col += vec3(1.0, 0.98, 0.95) * spec;
+
+      col *= 0.85 + uEnergy * 0.35 + uBeat * 0.12;
+
+      /* THE FRAME. A film has to be held in something, and the wire is not
+         decoration: it is what tells you which way is up, which is the only
+         reason the black band at the top reads as drainage rather than as a
+         dark patch. Rectangular, because that is the demonstration everyone
+         has actually seen. */
+      float ed = abs(vUv.y - 0.5) * 2.0;
+      float inside = 1.0 - smoothstep(0.962, 0.999, ed);
+      float rim = smoothstep(0.936, 0.966, ed) * (1.0 - smoothstep(0.984, 1.0, ed));
+
+      // ALPHA IS THE REFLECTANCE. Where the film reflects nothing it shows
+      // nothing, which is how the black band gets to be a hole and not a smudge.
+      float a = clamp(max(max(col.r, col.g), col.b) * 2.2, 0.0, 1.0) * inside;
+      col = col * inside + vec3(0.78, 0.83, 0.92) * rim * 0.7;
+      gl_FragColor = vec4(inkRolloff(col), max(a, rim * 0.85) * uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { age: 1, t: 0 };
+
+  const api = {
+    /* HEAVY, MEASURED RATHER THAN GUESSED. On the software rasteriser the smoke
+       tests run under, this room draws at about a fifth of the rate SPIRAL
+       does — below every scene already shipping. The spectral integral and the
+       sample count already stand down under PERF.struggling, but that only
+       helps AFTER the device has struggled; the flag is what keeps it off a
+       phone that was never going to manage it in the first place. */
+    name: 'SOAP FILM', key: 'soapfilm', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f;
+      st.t += dt;
+      /* THE SHEET FACES YOU. The director's rig orbits, and a flat film seen
+         edge-on is a bright line — so the frame is turned to the camera and
+         given a slow lean of its own, which is also how anyone holding a wand
+         actually looks at one. */
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        /* AND IT IS FRAMED, not placed. The rig orbits between sixteen and
+           forty-four units out, so a fixed-size film would be cropped at one
+           end of that and lost in the middle of the frame at the other — and
+           cropping this one costs you the black band, which is the thing worth
+           watching. Scaling with the distance holds the film at a constant
+           ANGULAR size: a composition decision, and the only one in here. */
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+        group.rotateZ(Math.sin(st.t * 0.11) * 0.10 * (reducedMotion ? 0.4 : 1));
+        group.rotateX(Math.sin(st.t * 0.07) * 0.22 * (reducedMotion ? 0.4 : 1));
+        group.rotateY(Math.sin(st.t * 0.09 + 1.1) * 0.26 * (reducedMotion ? 0.4 : 1));
+      }
+      const want = (typeof PERF !== 'undefined' && PERF.struggling) ? 10
+                 : (typeof POWER !== 'undefined' && !POWER.heavyOK) ? 15 : 22;
+      varU.uSamples.value += (want - varU.uSamples.value) * Math.min(1, dt * 2);
+
+      /* IT KEEPS DRAINING. Over a couple of minutes the film walks down the
+         thickness ladder on its own — new, then the loud colours, then the
+         black band creeping down from the top — and the music only sets how
+         fast. A film that held its colours would be the one thing a real one
+         never does. */
+      const drain = dt * (0.010 + f.energy * 0.016);
+      varU.uHTop.value = Math.max(6, varU.uHTop.value * (1 - drain * 1.7));
+      varU.uHBot.value = Math.max(240, varU.uHBot.value * (1 - drain * 0.55));
+      varU.uRise.value = st.rise0 * (0.6 + f.energy * 0.9 + f.beat * 0.3);
+      varU.uChurn.value = 0.55 + f.entropy * 0.7 + f.mid * 0.3;
+      varU.uFlap.value = f.beat * 0.8 + f.bass * 0.5;
+      varU.uExpose.value = st.expose0 * (0.85 + f.energy * 0.35);
+
+      // and the label follows the film down the ladder rather than the roll
+      const nm = varU.uHTop.value;
+      const nn = 'SOAP FILM · ' + filmState(nm) + ' · ' + Math.round(nm) + ' nm';
+      if (nn !== api.name){
+        api.name = nn;
+        if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = nn;
+      }
+    },
+    roll(){
+      // DRAINING is the state with the whole ladder in one frame, so it comes
+      // up twice as often as the two ends of the film's life
+      st.age = Math.random() < 0.5 ? 1 : (Math.random() < 0.5 ? 0 : 2);
+      const A = FILM_AGES[st.age];
+      varU.uHTop.value = A.top * (0.8 + Math.random() * 0.4);
+      varU.uHBot.value = A.bot * (0.85 + Math.random() * 0.3);
+      st.rise0 = 0.05 + Math.random() * 0.09;
+      st.expose0 = 17 + Math.random() * 9;
+      varU.uExpose.value = st.expose0;
+      varU.uWave.value = 0.7 + Math.random() * 0.7;
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      st.t = 0;
+      api.name = 'SOAP FILM · ' + A.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+
+/* =========================================================
+   SCENE 31 · TERRAIN — a country with the colour turned all the way up
+
+   The last room, and the loudest. Everything else in this batch answers
+   to a measurement; this one answers to a poster. But the SHAPE is not
+   invented, because the thing that makes a landscape look like a
+   landscape is a specific piece of arithmetic and it is worth getting
+   right:
+
+   RIDGED MULTIFRACTAL. Ordinary fractional Brownian motion — add
+     octaves of noise at halving amplitude and doubling frequency —
+     gives you hills. Pleasant, wrong. Real mountains have SHARP crests
+     and rounded valleys, and the asymmetry comes from erosion, which fBm
+     knows nothing about. The standard fix is one character long: take
+     1 − |n| on each octave before adding it. The absolute value folds
+     every zero crossing into a crease; the creases at successive scales
+     land on top of each other; and out of a sum of smooth functions you
+     get arêtes. Weight each octave by the previous one and the ridges
+     only sharpen where the ground is already high, which is where
+     erosion actually concentrates. Every mountain in here is that.
+
+   AND THE AIR IS THICK. Distance is drawn by AERIAL PERSPECTIVE and
+     nothing else — no outlines, no desaturation-by-hand. Extinction is
+     exponential in depth, the light that replaces the ground is the sky,
+     and because the sky here is a strong blue-violet the far ridges go
+     violet on their own. Leonardo wrote this rule down in about 1500 and
+     it is still the only one that matters for making a picture read as
+     deep.
+
+   THE CONTOURS ARE HONEST TOO. They are level sets — one line per fixed
+     rise in altitude — so where they crowd, the ground is steep, and
+     where they open out it is flat. A topographic map drawn on the
+     terrain it describes. They glow, because this room is allowed one
+     indulgence and that is the one.
+
+   The colour is where this room stops being a measurement and starts
+   being a decision, and it says so: altitude drives a full hue circle at
+   maximum saturation, mixed back toward the track's own key so the room
+   still belongs to the set it is in. Nothing about a mountain is
+   magenta. It is magenta here on purpose.
+   ========================================================= */
+function buildTerrain(){
+  const group = new THREE.Group();
+  // 150 rather than 190: the height field is evaluated THREE times per vertex
+  // (the value and its two neighbours, for the normal) at six octaves each, so
+  // the grid is the whole cost of this room — and past about this density the
+  // extra vertices land inside a pixel and buy nothing.
+  const SEG = 150;
+  const geo = new THREE.PlaneGeometry(240, 240, SEG, SEG);
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uRidged:  { value: 1 },
+    uStep:    { value: 0 },
+    uWater:   { value: -9 },
+    uAmp:     { value: 15 },
+    uFreq:    { value: 0.020 },
+    uDrift:   { value: new THREE.Vector2(0, 0) },
+    uFog:     { value: 0.020 },
+    uSun:     { value: new THREE.Vector3(0.55, 0.16, -0.82) },
+    uContour: { value: 1 },
+    uSat:     { value: 0.9 },
+  };
+
+  const NOISE = `
+    float hash21(vec2 p){
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    /* THE HEIGHT FIELD. Six octaves, and the two lines that matter are the
+       ridge fold and the weight. RIDGE: 1 − |2n − 1| turns each octave's zero
+       crossing into a crease. WEIGHT: each octave is multiplied by how high the
+       sum already is, so detail piles onto the crests and leaves the valleys
+       smooth — which is what erosion does, and the cheapest way to say so. */
+    float terrainH(vec2 p, float ridged, float step){
+      float a = 0.5, s = 0.0, w = 1.0, norm = 0.0;
+      for (int o = 0; o < 6; o++){
+        float n = vnoise(p);
+        float r = 1.0 - abs(2.0 * n - 1.0);
+        float v = mix(n, r * r, ridged);
+        s += a * v * mix(1.0, clamp(w, 0.0, 1.0), ridged);
+        w = v * 1.9;
+        norm += a;
+        p = p * 2.03 + vec2(37.1, 11.7);
+        a *= 0.5;
+      }
+      s /= max(norm, 1e-4);
+      // and the mesas: quantise the height and the ground grows terraces. The
+      // smoothstep inside the step is the cliff face, without which every
+      // terrace edge is one pixel wide and crawls.
+      if (step > 0.5){
+        float q = s * step;
+        s = (floor(q) + smoothstep(0.62, 0.96, fract(q))) / step;
+      }
+      return s;
+    }
+  `;
+
+  const vert = NOISE + `
+    uniform float uTime, uBass, uMid, uEnergy, uBeat, uBeatSpring;
+    uniform float uRidged, uStep, uAmp, uFreq, uWater;
+    uniform vec2 uDrift;
+    varying float vH, vSlope, vDist, vR;
+    varying vec3 vNrm;
+    varying vec2 vXZ;
+    void main(){
+      vR = length(position.xy);
+      vec2 q = position.xy + uDrift;
+      float e = 1.0 / uFreq * 0.012;               // the finite-difference step, in world units
+      float h  = terrainH(q * uFreq, uRidged, uStep);
+      float hx = terrainH((q + vec2(e, 0.0)) * uFreq, uRidged, uStep);
+      float hy = terrainH((q + vec2(0.0, e)) * uFreq, uRidged, uStep);
+      float amp = uAmp * (1.0 + uBass * 0.22 + uBeatSpring * 0.10);
+      float y = h * amp;
+      // the water is a LEVEL, so everything under it is flat — which is the
+      // only thing that makes a coastline read as a coastline
+      float wl = uWater * amp;
+      if (uWater > -1.0) y = max(y, wl);
+      vH = h; vXZ = q;
+      // the normal from the two neighbours, in the plane's own frame
+      vec3 n = normalize(vec3(-(hx - h) * amp / e, 1.0, -(hy - h) * amp / e));
+      vNrm = n;
+      vSlope = 1.0 - clamp(n.y, 0.0, 1.0);
+      if (uWater > -1.0 && h * amp <= wl){ vNrm = vec3(0.0, 1.0, 0.0); vSlope = 0.0; }
+      vec3 p = vec3(position.x, y, position.y);
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      vDist = -mv.z;
+      gl_Position = projectionMatrix * mv;
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uEnergy, uBeat, uCentroid, uOpacity, uCalm;
+    uniform float uVarA, uVarB, uVarC, uFog, uContour, uSat, uAmp, uWater, uStep;
+    uniform vec3 uSun, uColA, uColC;
+    varying float vH, vSlope, vDist, vR;
+    varying vec3 vNrm;
+    varying vec2 vXZ;
+
+    vec3 hsv(float h, float s, float v){
+      vec3 k = abs(fract(vec3(h) + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0);
+      return v * mix(vec3(1.0), clamp(k - 1.0, 0.0, 1.0), s);
+    }
+
+    void main(){
+      vec3 N = normalize(vNrm);
+      vec3 L = normalize(uSun);
+      float lam = max(0.0, dot(N, L));
+      // a low sun, so the sky fills the shadows from above rather than leaving
+      // them black — one bounce, and the cheapest honest ambient there is
+      float sky = 0.5 + 0.5 * N.y;
+
+      /* THE COLOUR. Altitude walks a full hue circle at close to maximum
+         saturation, then is mixed back toward the room's own ramp so this
+         belongs to the set rather than sitting outside it. This is the
+         decision in this room; everything above it was arithmetic. */
+      float band = fract(vH * (1.5 + uVarA * 1.6) + uCentroid * 0.7 + uVarB);
+      vec3 col = mix(ramp(band), hsv(band, uSat, 1.0), 0.74);
+      // rock where it is steep: the hue survives, the chroma does not
+      col = mix(col, col * 0.55 + vec3(0.16), smoothstep(0.35, 0.85, vSlope) * 0.7);
+
+      bool wet = uWater > -1.0 && vH <= uWater + 0.001;
+      if (wet){
+        // still water is a mirror with a Fresnel edge and almost no body
+        col = mix(uColA * 0.35, ramp(fract(uCentroid + 0.45)), 0.5) * 0.55;
+      }
+
+      /* AND IT IS LIT LIKE A POSTER, NOT LIKE A FIELD. A sun this low leaves
+         most of the ground at grazing incidence, which is realistic and dark;
+         the ambient term is what keeps the colour up where this room wants it.
+         Stating that plainly: the geometry is measured, the exposure is not. */
+      col *= 0.48 + lam * 1.05 + sky * 0.38;
+
+      /* THE CONTOURS. Level sets of the height field, so they crowd where the
+         ground is steep — which means the LINE DENSITY is a slope readout you
+         get for free. Widened by the local gradient so they stay one line wide
+         on a cliff instead of turning into a solid block. */
+      if (uContour > 0.5 && !wet){
+        float k = 26.0;
+        float c = fract(vH * k);
+        /* HOW WIDE ONE LINE IS. WebGL 1 has no fwidth() without an extension,
+           so the screen-space rate of change of the height is estimated the
+           only other way available: from the SLOPE, which is exactly what
+           makes contours crowd, and from the DISTANCE, which is what makes a
+           far ridge's contours fall below a pixel. Without this the lines go
+           solid on every cliff and shimmer on every horizon. */
+        float g = max(0.02, (0.02 + vSlope * 0.9) * (1.0 + vDist * 0.05) * 0.05) * k;
+        float line = 1.0 - smoothstep(0.0, min(0.45, g), min(c, 1.0 - c));
+        col += mix(vec3(1.0, 0.95, 0.85), ramp(fract(band + 0.5)), 0.45) * line * (0.32 + uBeat * 0.25);
+      }
+
+      /* AERIAL PERSPECTIVE. Extinction is exponential in distance and what
+         replaces the ground is the sky — so the far ridges go the sky's colour
+         and not merely grey. This is the entire depth cue in the frame. */
+      float t = 1.0 - exp(-vDist * uFog);
+      vec3 skyCol = mix(ramp(fract(uCentroid + 0.62)), vec3(0.34, 0.40, 0.86), 0.55);
+      col = mix(col, skyCol * (0.75 + uEnergy * 0.45), clamp(t, 0.0, 0.97));
+
+      col *= 0.95 + uEnergy * 0.3;
+      /* AND THE WORLD HAS TO END SOMEWHERE. A 240-unit sheet ends in a straight
+         line hanging in the star field unless something takes it away, and fog
+         alone cannot: fog replaces the ground with SKY, which is still opaque,
+         so the first cut drew a crisply-edged slab of sky. Fading the alpha on
+         a circle turns the edge into distance instead of into geometry — the
+         country runs out of air before it runs out of ground. */
+      float edge = 1.0 - smoothstep(92.0, 116.0, vR);
+      gl_FragColor = vec4(inkRolloff(col), uOpacity * edge);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.position.y = -15;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { form: 0, t: 0, dx: 0, dy: 0 };
+
+  const api = {
+    /* HEAVY, MEASURED RATHER THAN GUESSED. On the software rasteriser the smoke
+       tests run under, this room draws at about a fifth of the rate SPIRAL
+       does — below every scene already shipping. The spectral integral and the
+       sample count already stand down under PERF.struggling, but that only
+       helps AFTER the device has struggled; the flag is what keeps it off a
+       phone that was never going to manage it in the first place. */
+    name: 'TERRAIN', key: 'terrain', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f;
+      st.t += dt;
+      /* AND THE GROUND STAYS UNDER YOU. The director's rig swings from high
+         above the origin to well below it while always looking AT the origin,
+         so a world-aligned ground plane spends a third of every set being
+         viewed from underneath — a flat coloured ceiling — and another third
+         out of frame entirely below the look direction. Neither is fixable by
+         moving the plane down, which is what the first cut tried.
+         What fixes it is turning the plane into the camera's own frame: take
+         the rig's orientation, hang the ground fifteen units below the eye
+         along the rig's OWN up, and the horizon lands at eye level every time.
+         The rig's roam then reads as bank and pitch — which is what it looks
+         like out of an aeroplane window — and the country's motion comes from
+         the drift below rather than from the orbit. Second framing decision in
+         this batch, after the soap film's, and the last. */
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        /* AND THEN PITCHED DOWN. On an infinite plane the horizon sits at eye
+           level whatever your altitude, so a level view spends the top half of
+           the frame on empty sky — raising the camera does not help and cannot.
+           Pitch is the only control that does: about twenty-five degrees puts
+           the horizon two thirds of the way up and the country in the rest. */
+        group.rotateX(0.38 + Math.sin(st.t * 0.06) * 0.08 * (reducedMotion ? 0.4 : 1));
+      }
+      /* THE GROUND MOVES, NOT THE CAMERA. The director's rig is already
+         orbiting; flying it forward as well would be two motions fighting. So
+         the height field is translated underneath instead — the country scrolls
+         and the camera keeps doing what it does everywhere else. */
+      const v = (2.6 + f.energy * 5.5) * (reducedMotion ? 0.35 : 1);
+      st.dx += Math.cos(st.head) * v * dt;
+      st.dy += Math.sin(st.head) * v * dt;
+      st.head += dt * 0.035 * st.turn;
+      varU.uDrift.value.set(st.dx, st.dy);
+      // and the sun crosses, low, so the shadows swing across the ridges
+      const a = st.sun0 + st.t * 0.020;
+      varU.uSun.value.set(Math.cos(a), 0.26 + Math.sin(st.t * 0.05) * 0.10 + f.calm * 0.08, Math.sin(a));
+      varU.uAmp.value = st.amp0 * (0.9 + f.bass * 0.25);
+      varU.uSat.value = 0.86 + f.energy * 0.13;
+      varU.uFog.value = st.fog0 * (1.25 - f.energy * 0.4);
+    },
+    roll(){
+      st.form = Math.floor(Math.random() * TERRAIN_FORMS.length);
+      const F = TERRAIN_FORMS[st.form];
+      varU.uRidged.value = F.ridged;
+      varU.uStep.value = F.step;
+      varU.uWater.value = F.water;
+      // vertical exaggeration, and unapologetic about it: a real range at true
+      // scale over this much ground is a gentle swell, and this room is not
+      // about gentle. Map-makers have been doing exactly this for a century.
+      st.amp0 = F.key === 'dune' ? 14 + Math.random() * 7 : 26 + Math.random() * 16;
+      varU.uAmp.value = st.amp0;
+      varU.uFreq.value = (F.key === 'dune' ? 0.012 : 0.020) + Math.random() * 0.012;
+      // thick enough that the far edge of a 240-unit sheet is buried in air
+      // rather than ending in a straight line across the sky
+      st.fog0 = 0.016 + Math.random() * 0.012;
+      varU.uFog.value = st.fog0;
+      varU.uContour.value = Math.random() < 0.62 ? 1 : 0;
+      st.sun0 = Math.random() * 6.283;
+      st.head = Math.random() * 6.283;
+      st.turn = Math.random() < 0.5 ? 1 : -1;
+      st.dx = Math.random() * 900; st.dy = Math.random() * 900;
+      st.t = 0;
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      api.name = 'TERRAIN · ' + F.name + (varU.uContour.value > 0.5 ? ' · CONTOURED' : '');
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -26793,7 +28514,7 @@ function initThree(){
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
-              buildPyroShow(), buildFiligree());
+              buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
