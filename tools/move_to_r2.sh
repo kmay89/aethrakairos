@@ -69,17 +69,43 @@ git pull --quiet --ff-only origin "$BRANCH" 2>/dev/null && ok "branch is up to d
 
 # ------------------------------------------------------------------ 3 · tools
 step "3/6  Checking the tools this needs"
-MISSING=""
-command -v aws     >/dev/null 2>&1 || MISSING="$MISSING awscli"
 command -v python3 >/dev/null 2>&1 || die "python3 is not installed" \
-  "Install Python 3, then run this again."
-python3 -c "import numpy" >/dev/null 2>&1 || MISSING="$MISSING numpy"
-if [ -n "$MISSING" ]; then
-  die "missing:$MISSING" \
-      "Install with this one command, then run this script again:" \
-      "    pip install$MISSING"
+  "On a Mac: xcode-select --install"
+command -v curl >/dev/null 2>&1 || die "curl is not installed"
+
+# aws is the only hard requirement. Naming the RIGHT install command matters
+# more than naming one: 'pip' does not exist on macOS (it is pip3), and a pip
+# install of awscli commonly lands the binary somewhere not on PATH, so it
+# reports success and the next run still cannot find it.
+if ! command -v aws >/dev/null 2>&1; then
+  if [ "$(uname -s)" = "Darwin" ]; then
+    if command -v brew >/dev/null 2>&1; then
+      die "the AWS command-line tool is not installed" \
+          "You have Homebrew, so this is the one to use:" \
+          "    brew install awscli" \
+          "Then run this script again."
+    fi
+    die "the AWS command-line tool is not installed" \
+        "Use Amazon's official macOS installer — it puts 'aws' somewhere your" \
+        "shell can actually find it, which pip often does not. Copy all three:" \
+        "" \
+        "    curl -o AWSCLIV2.pkg https://awscli.amazonaws.com/AWSCLIV2.pkg" \
+        "    sudo installer -pkg AWSCLIV2.pkg -target /" \
+        "    rm AWSCLIV2.pkg" \
+        "" \
+        "It will ask for your Mac password. Then run this script again."
+  fi
+  die "the AWS command-line tool is not installed" \
+      "    python3 -m pip install awscli" \
+      "Then run this script again."
 fi
-ok "aws, python3 and numpy are all present"
+ok "aws and python3 are present"
+
+# numpy is OPTIONAL. It is only needed to run the repo's own doctor, and the
+# checks that actually gate the merge are HTTP probes this script can make on
+# its own. Nobody should have to install a numerical library to upload files.
+HAVE_NUMPY=0
+python3 -c "import numpy" >/dev/null 2>&1 && HAVE_NUMPY=1
 
 TRACKS=$(find docs/audio -name '*.mp3' | wc -l | tr -d ' ')
 SIZE=$(du -sh docs/audio | cut -f1)
@@ -178,38 +204,69 @@ fi
 step "6/6  Proving the bucket before you merge"
 FAIL=0
 
-printf '  %s· asking doctor to sample five real tracks…%s\n' "$dim" "$off"
-if DOC="$(python3 make_catalog.py doctor 2>&1)"; then
-  printf '%s\n' "$DOC" | grep -E '206 \+ CORS|clean bill' | sed 's/^/    /'
-  ok "doctor is happy"
-else
-  printf '%s\n' "$DOC" | grep -E '✗|probe' | sed 's/^/    /'
-  warn "doctor found problems — see above"
-  FAIL=1
-fi
+# Sample five real track URLs straight out of the shipped catalog — stdlib
+# only, so this works whether or not numpy is installed.
+URLS="$(python3 -c "
+import json, random
+c = json.load(open('docs/catalog.json'))
+u = [c['base'] + '/' + a['tag'] + '/' + t['file']
+     for a in c['albums'] for t in a['tracks']]
+print('\n'.join(random.sample(u, min(5, len(u)))))" 2>/dev/null)"
+[ -n "$URLS" ] || die "could not read track URLs out of docs/catalog.json"
 
-URL="$(python3 -c "
-import json
-c=json.load(open('docs/catalog.json')); a=c['albums'][-1]
-print(c['base']+'/'+a['tag']+'/'+a['tracks'][0]['file'])")"
-printf '\n  %s· checking headers on %s%s\n' "$dim" "${URL##*/}" "$off"
-H="$(curl -sI -r 0-1 -H 'Origin: https://aethrakairos.com' "$URL" 2>&1 | tr -d '\r')"
+# A GET carrying a Range header, exactly as a browser seeking a track sends
+# it. NOT curl -I: that sends HEAD, which servers may answer 200 even when
+# ranges work, so it cannot tell you what you need to know here.
+probe(){ curl -s -o /dev/null -D - --max-time 30 -r 0-1 \
+           -H 'Origin: https://example.com' "$1" 2>&1 | tr -d '\r'; }
 
-case "$H" in
-  *" 206"*) ok "206 Partial Content — seeking will work" ;;
-  *" 200"*) warn "200, not 206 — the track plays but SEEKING IS BROKEN"
-            warn "fix: add \"Range\" to AllowedHeaders in the CORS policy (step 3)"; FAIL=1 ;;
-  *" 404"*) warn "404 — that track is not in the bucket; the upload is incomplete"; FAIL=1 ;;
-  *)        warn "unexpected response:"; printf '%s\n' "$H" | head -5 | sed 's/^/      /'; FAIL=1 ;;
-esac
-case "$H" in
-  *[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin:\ \*) ok "CORS header is *" ;;
-  *) warn "CORS header missing or not '*' — re-check step 3"; FAIL=1 ;;
-esac
-case "$H" in
+printf '  %s· fetching the first two bytes of five random tracks…%s\n' "$dim" "$off"
+GOOD=0; N=0
+while IFS= read -r u; do
+  [ -n "$u" ] || continue
+  N=$((N + 1)); H="$(probe "$u")"; NAME="${u##*/}"
+  case "$H" in
+    *" 206"*)
+      case "$H" in
+        *[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin:\ \**)
+          ok "206 + CORS  $NAME"; GOOD=$((GOOD + 1)) ;;
+        *) warn "206 but no 'Access-Control-Allow-Origin: *'  $NAME"; FAIL=1 ;;
+      esac ;;
+    *" 200"*)
+      warn "200, not 206  $NAME — it plays, but SEEKING IS BROKEN"
+      warn "   fix: add \"Range\" to AllowedHeaders in the CORS policy (step 3)"; FAIL=1 ;;
+    *" 404"*)
+      warn "404  $NAME — not in the bucket; the upload is incomplete"; FAIL=1 ;;
+    *" 401"*|*" 403"*)
+      warn "not public  $NAME — check the custom domain in step 2"; FAIL=1 ;;
+    *)
+      warn "no usable response for $NAME:"
+      printf '%s\n' "$H" | head -3 | sed 's/^/      /'; FAIL=1 ;;
+  esac
+done <<EOF
+$URLS
+EOF
+[ "$GOOD" -eq "$N" ] && ok "all $N sampled tracks serve correctly"
+
+FIRST="$(printf '%s\n' "$URLS" | head -1)"
+printf '\n  %s· checking the crawler header%s\n' "$dim" "$off"
+case "$(probe "$FIRST")" in
   *[Xx]-[Rr]obots-[Tt]ag:*noindex*) ok "X-Robots-Tag is set" ;;
   *) warn "X-Robots-Tag missing — re-check the Transform Rule (step 4)"; FAIL=1 ;;
 esac
+
+if [ "$HAVE_NUMPY" -eq 1 ]; then
+  printf '\n  %s· running the repo'"'"'s own doctor as well%s\n' "$dim" "$off"
+  if DOC="$(python3 make_catalog.py doctor 2>&1)"; then
+    ok "doctor: clean bill of health"
+  else
+    printf '%s\n' "$DOC" | grep -E '✗' | sed 's/^/      /'
+    warn "doctor found problems — see above"; FAIL=1
+  fi
+else
+  printf '\n  %s· skipping the repo doctor (numpy not installed) — the probes\n' "$dim"
+  printf '    above are the checks that gate the merge, and they ran%s\n' "$off"
+fi
 
 printf '\n%s' "$bold"
 if [ "$FAIL" -eq 0 ]; then
