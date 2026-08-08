@@ -92,15 +92,23 @@ printf '  The secret will not appear on screen as you paste it.%s\n\n' "$off"
 
 trim(){ local v="$1"; v="${v#"${v%%[![:space:]]*}"}"; printf '%s' "${v%"${v##*[![:space:]]}"}"; }
 
+# ASK EVERY TIME, EVEN IF THE ENVIRONMENT ALREADY HAS AWS CREDENTIALS.
+# Anyone who uses AWS for anything else has AWS_ACCESS_KEY_ID exported
+# already, and silently signing R2 requests with an Amazon key produces
+# "SignatureDoesNotMatch" — an error that sends you hunting through a token
+# you never actually typed. Ambient AWS settings are cleared for the same
+# reason: a stale session token or a default profile breaks signing in ways
+# that read as a credentials problem.
+if [ -n "${AWS_ACCESS_KEY_ID:-}${AWS_PROFILE:-}${AWS_SESSION_TOKEN:-}" ]; then
+  warn "ignoring the AWS credentials already in your environment — R2 needs its own"
+fi
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE
+
 # accepts the bare hex, the hostname, or the whole endpoint URL — all three
 # get reduced to the account id, because pasting the full URL is the single
 # most common way this goes wrong
-if [ -z "${R2_ACCOUNT_ID:-}" ]; then
-  printf '  Account ID %s(or paste the whole S3 endpoint URL)%s: ' "$dim" "$off"
-  read -r RAW
-else
-  RAW="$R2_ACCOUNT_ID"; printf '  Account ID: using R2_ACCOUNT_ID from your environment\n'
-fi
+printf '  Account ID %s(or paste the whole S3 endpoint URL)%s: ' "$dim" "$off"
+read -r RAW
 RAW="$(trim "$RAW")"; RAW="${RAW#https://}"; RAW="${RAW#http://}"
 RAW="${RAW%%/*}"; ACCOUNT="${RAW%.r2.cloudflarestorage.com}"
 [ -n "$ACCOUNT" ] || die "no account ID given"
@@ -111,18 +119,14 @@ case "$ACCOUNT" in
 esac
 ok "account ID: $ACCOUNT"
 
-if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
-  printf '  Access Key ID: '; read -r AWS_ACCESS_KEY_ID
-  AWS_ACCESS_KEY_ID="$(trim "$AWS_ACCESS_KEY_ID")"
-fi
+printf '  Access Key ID: '; read -r AWS_ACCESS_KEY_ID
+AWS_ACCESS_KEY_ID="$(trim "$AWS_ACCESS_KEY_ID")"
 [ -n "$AWS_ACCESS_KEY_ID" ] || die "no access key ID given"
 ok "access key ID: ${AWS_ACCESS_KEY_ID:0:6}…"
 
-if [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-  printf '  Secret Access Key %s(hidden)%s: ' "$dim" "$off"
-  read -rs AWS_SECRET_ACCESS_KEY; printf '\n'
-  AWS_SECRET_ACCESS_KEY="$(trim "$AWS_SECRET_ACCESS_KEY")"
-fi
+printf '  Secret Access Key %s(hidden)%s: ' "$dim" "$off"
+read -rs AWS_SECRET_ACCESS_KEY; printf '\n'
+AWS_SECRET_ACCESS_KEY="$(trim "$AWS_SECRET_ACCESS_KEY")"
 [ -n "$AWS_SECRET_ACCESS_KEY" ] || die "no secret access key given"
 ok "secret received"
 
@@ -142,9 +146,16 @@ DRY="$(./tools/sync_audio.sh --dry-run 2>&1)" || {
       die "there is no bucket called '$BUCKET'" \
           "Check the name in Cloudflare matches exactly, or re-run as:" \
           "    R2_BUCKET=your-bucket-name ./tools/move_to_r2.sh" ;;
-    *"Could not connect"*|*EndpointConnectionError*)
+    *"Could not connect"*|*EndpointConnectionError*|*"SSL validation failed"*|\
+    *"Name or service not known"*|*"nodename nor servname"*|*"Temporary failure in name resolution"*)
       die "could not reach $ACCOUNT.r2.cloudflarestorage.com" \
-          "The account ID is probably wrong. It is the hex string only." ;;
+          "Almost always a wrong account ID — it is the hex string only, e.g." \
+          "    https://a1b2c3d4.r2.cloudflarestorage.com  ->  a1b2c3d4" \
+          "If the ID is definitely right, check your internet connection." ;;
+    *AccessDenied*)
+      die "R2 accepted the key but refused the bucket" \
+          "The token was probably scoped to a different bucket, or created" \
+          "as read-only. It needs Object Read & Write on '$BUCKET'." ;;
     *) die "the dry run failed — the last lines are above" ;;
   esac
 }
