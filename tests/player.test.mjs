@@ -22,6 +22,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
+  ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
@@ -4966,6 +4967,64 @@ test('TERRAIN_FORMS: four grounds out of one pipeline', () => {
   const dune = S.TERRAIN_FORMS.find(f => f.key === 'dune');
   assert.equal(dune.ridged, 0, 'dunes are plain fBm — creasing them would make them mountains');
   assert.equal(S.TERRAIN_FORMS.find(f => f.key === 'ridge').ridged, 1, 'ridges are fully creased');
+});
+
+// ------------------------------------------------- how one room becomes the next
+
+test('segueFx: every answer is a real transition, at every input', () => {
+  const OK = S.XFORM_KINDS.concat(['dissolve']);
+  for (const kind of ['cut', 'morph', 'dissolve', undefined, 'nonsense'])
+    for (const energy of [0, 0.29, 0.3, 0.6, 1])
+      for (const last of [''].concat(OK))
+        for (let i = 0; i <= 20; i++){
+          const k = S.segueFx({ kind, energy, last, r: i / 20 });
+          assert.ok(OK.includes(k), `${kind}/${energy}/${i} → ${k}`);
+        }
+  assert.ok(OK.includes(S.segueFx()), 'no arguments at all still returns something drawable');
+});
+test('segueFx: reduced motion is answered with a crossfade, always', () => {
+  // this is the whole accessibility contract for the feature: not a slower
+  // shatter, not a dimmer one — no manufactured large-field motion at all
+  for (const kind of ['cut', 'morph', 'dissolve'])
+    for (let i = 0; i <= 20; i++)
+      assert.equal(S.segueFx({ kind, energy: 1, r: i / 20, reduced: true }), 'dissolve');
+});
+test('segueFx: a drop gets a drop’s transition, a quiet room gets a quiet one', () => {
+  const draw = o => { const out = new Set(); for (let i = 0; i <= 60; i++) out.add(S.segueFx({ ...o, r: i / 60 })); return out; };
+  const cut = draw({ kind: 'cut', energy: 0.9 });
+  for (const slow of ['scatter', 'fold', 'luma', 'dissolve'])
+    assert.ok(!cut.has(slow), `a drop must never draw ${slow}`);
+  assert.ok(cut.has('shatter') && cut.has('streak'), 'the drop pool is not being reached');
+
+  const quiet = draw({ kind: 'dissolve', energy: 0.1 });
+  for (const loud of ['shatter', 'streak', 'prism'])
+    assert.ok(!quiet.has(loud), `a quiet passage must never draw ${loud}`);
+  assert.ok(quiet.has('dissolve'), 'the plain crossfade has to keep coming up');
+
+  const morph = draw({ kind: 'morph', energy: 0.6 });
+  for (const hit of ['shatter', 'streak'])
+    assert.ok(!morph.has(hit), `a section turn is not a hit — ${hit} does not belong`);
+});
+test('segueFx: never the same form twice in a row', () => {
+  // the second shatter in a row is the one that starts to look like a screensaver
+  for (const kind of ['cut', 'morph', 'dissolve'])
+    for (const energy of [0.1, 0.5, 0.95])
+      for (let i = 0; i <= 60; i++){
+        const first = S.segueFx({ kind, energy, r: i / 60 });
+        assert.notEqual(S.segueFx({ kind, energy, r: i / 60, last: first }), first,
+          `${kind} repeated ${first}`);
+      }
+});
+test('segueFxDur: a form is never given less time than it needs to read', () => {
+  for (const k of S.XFORM_KINDS){
+    assert.ok(S.XFORM_MIN_DUR[k] > 0, `${k} has no floor`);
+    assert.equal(S.segueFxDur(k, 0.05), S.XFORM_MIN_DUR[k], `${k} was allowed to flash past`);
+    assert.equal(S.segueFxDur(k, 2.0), 2.0, 'a duration the music asked for survives');
+    assert.equal(S.segueFxDur(k, 900), 5, 'and nothing runs for fifteen minutes');
+    assert.ok(isFinite(S.segueFxDur(k, NaN)), 'junk does not become a NaN duration');
+  }
+  // SCATTER is the slowest for a reason: every grain has to leave AND arrive
+  assert.ok(S.XFORM_MIN_DUR.scatter > S.XFORM_MIN_DUR.prism);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

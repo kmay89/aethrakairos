@@ -2195,7 +2195,7 @@ body.crowd{background:#000}
   </button>
 </div>
 <!-- the touch-style toggle: a gesture glyph so the "your finger moves the light"
-     feature is discoverable, and a tap cycles VOID · SPIN · PULL · WAVE -->
+     feature is discoverable, and a tap cycles PULL · AUTO · VOID · SPIN · WAVE -->
 <button id="zenTouch" type="button" aria-label="Change touch style">
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74a4.5 4.5 0 1 0-5 0zm9.84 4.63-4.54-2.26a1.5 1.5 0 0 0-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1.1 1.1 0 0 0-1.03.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27a1.6 1.6 0 0 0-.9-1.61z"/></svg>
   <span id="zTouchLabel">VOID</span>
@@ -2737,7 +2737,7 @@ body.crowd{background:#000}
     <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
     <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
-    <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; in play mode, flick the orb.">VOID</button>
+    <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; in play mode, flick the orb.">PULL</button>
     <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris. Tap to cycle (L).">◈ NONE</button>
     <button class="chip" id="chipPower" title="Power — AUTO adapts quality to this device; SHOW holds full density and keeps the screen awake; ECO halves the draw for pocket listening. Tap to cycle.">⚡ AUTO</button>
     <button class="chip" id="chipEcho" title="Echoes — passing thoughts drift by like clouds: physicists, mathematicians, stoics. MUSE adds a question now and then you can answer. Tap to cycle.">✧ DRIFT</button>
@@ -3557,7 +3557,9 @@ function touchAffinity(sceneIdx, act, r, mood){
                'grows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'grows', 'flows', 'grows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, and the SET is a well
-  let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'blackhole';
+  // PULL is what an unmapped room falls back to — see TOUCHFX for why the
+  // accretion well is the personality the field defaults to
+  let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
   if (act === 2 && key === 'flows') key = r < 0.5 ? 'blackhole' : 'gathers';
   else if ((act === 0 || act === 4) && key === 'blackhole' && r < 0.4) key = 'flows';
   // THE ROOM'S OWN LEAN. Some of the time the mood overrules the scene's map,
@@ -10600,6 +10602,70 @@ function segueStyle(ctx){
   if (ctx.big) return { kind: 'morph', dur: 1.6 };                        // a section turn: a morph-length blend
   const dur = Math.max(0.9, Math.min(3.0, 2.6 - e * 1.4));               // hotter → quicker
   return { kind: 'dissolve', dur };
+}
+
+/* ---------------------------------------------------------------------------
+   HOW ONE ROOM BECOMES THE NEXT.
+
+   segueStyle above decides how LONG a change takes; this decides what it LOOKS
+   like. They are separate because the two answers come from different places: a
+   duration is a musical judgement (a drop wants 0.35 s, a comedown wants three
+   and a half), while the FORM is about what the eye can read in that time. Give
+   a shatter 3 s and it stops being a hit; give a luma wipe 0.35 s and nobody
+   sees it happen at all.
+
+   So each of segueStyle's three kinds gets its own pool:
+
+     cut       the drop. Violent, short, over before you have parsed it —
+               SHATTER, STREAK, PRISM.
+     morph     a section turn. Something that reads as ONE room becoming
+               another rather than being replaced by it — SCATTER (both rooms
+               blown along the same field, in opposite directions), FOLD, LUMA.
+     dissolve  everything else. The gentle end when the room is quiet, the
+               whole spread when it is not.
+
+   Two rules on top. `dissolve` stays IN the pools — a night where every single
+   change is an event has no events in it, so the plain crossfade has to keep
+   coming up. And a kind never immediately repeats: the second shatter in a row
+   is the one that starts to look like a screensaver.
+   --------------------------------------------------------------------------- */
+const XFORM_KINDS = ['luma', 'shatter', 'scatter', 'streak', 'prism', 'iris', 'fold', 'ripple'];
+/* HOW LONG EACH ONE NEEDS TO READ. A floor, not a setting: below these the
+   effect happens but nobody sees what happened, which is worse than a plain
+   crossfade because it reads as a glitch. SCATTER needs the most — every grain
+   has to leave and every grain has to arrive. */
+const XFORM_MIN_DUR = { luma: 0.75, shatter: 0.55, scatter: 0.95, streak: 0.50,
+                        prism: 0.45, iris: 0.60, fold: 0.85, ripple: 0.70 };
+function segueFx(o){
+  o = o || {};
+  // A room whose whole point is manufactured large-field motion is exactly what
+  // prefers-reduced-motion exists to refuse. The crossfade is not a downgrade
+  // here — it is the correct answer.
+  if (o.reduced) return 'dissolve';
+  const e = o.energy == null ? 0.5 : o.energy;
+  const r = o.r == null ? 0.5 : o.r;
+  let pool;
+  if (o.kind === 'cut')        pool = ['shatter', 'streak', 'prism', 'shatter'];
+  else if (o.kind === 'morph') pool = ['scatter', 'fold', 'luma', 'scatter'];
+  else if (e < 0.30)           pool = ['luma', 'iris', 'dissolve', 'ripple'];
+  else                         pool = ['luma', 'iris', 'ripple', 'scatter', 'prism', 'dissolve'];
+  const i = Math.floor(Math.abs(r) * 997) % pool.length;
+  let k = pool[i];
+  /* AND NOT THE SAME FORM TWICE. Stepping ONE place forward is not enough: a
+     pool weights a form by listing it twice, so a single step off the second
+     copy lands straight back on the first. Walk until the entry is genuinely
+     different, which keeps the weighting and still guarantees the change. */
+  if (k === o.last){
+    for (let n = 1; n < pool.length; n++){
+      const c = pool[(i + n) % pool.length];
+      if (c !== o.last){ k = c; break; }
+    }
+  }
+  return k;
+}
+function segueFxDur(kind, dur){
+  const d = dur == null || !isFinite(dur) ? 1.4 : dur;
+  return Math.max(XFORM_MIN_DUR[kind] || 0.4, Math.min(5, d));
 }
 
 // segueShouldFire — should a QUEUED change fire this frame? A structural boundary
@@ -17690,7 +17756,7 @@ if (el.zenXport){
 /* immersive SCENE stepper + touch-style toggle — direct the visuals without
    opening the menu. Stepping a scene by hand pins it (manual): the choice is
    yours until you flick the orb or tap AUTO. The touch button cycles the force
-   your finger applies (VOID · SPIN · PULL · WAVE) so the gesture is discoverable. */
+   your finger applies (PULL · VOID · SPIN · WAVE) so the gesture is discoverable. */
 {
   const keepAwake = () => { orbWake(false); leaveDeep(); rearmZenDeep(); };
   const stepScene = dir => {
@@ -20995,11 +21061,19 @@ GHOST.load();
    The choice persists; AUTO lets the scenes re-tune it.
    ================================================================ */
 const TOUCHFX = {
-  // AUTO is the new default: the scenes manager re-tunes the touch to each
-  // room it walks into — a surprise you find with your hand, not a setting.
-  // Every saved manual choice from before is honoured on load.
-  active: 'auto',
-  order: ['auto', 'blackhole', 'grows', 'gathers', 'flows'],
+  /* PULL IS THE HOUSE DEFAULT. AUTO — the scenes manager re-tuning the touch
+     to each room it walks into — is the more interesting idea and it is one tap
+     away, but it has a problem as a DEFAULT: the first thing a new listener
+     does with the field is put a finger on it, and whichever personality
+     happens to be dealt at that moment is the one they judge the whole feature
+     by. Accretion is the one that reads instantly — the room falls toward your
+     hand, shears into orbit, and detonates when you let go — so that is the one
+     the field opens with. Every saved choice from before, AUTO included, is
+     honoured on load and nothing about AUTO's behaviour has changed; only which
+     door the room is standing at when you arrive.
+     The cycle order starts there too, so the first tap after PULL is AUTO. */
+  active: 'gathers',
+  order: ['gathers', 'auto', 'blackhole', 'grows', 'flows'],
   // Each effect is a motif from the "Everything That…" covers, mapped to a
   // deformation of space (see touchFxMode → warpDeflect). The old `dark` /
   // `ring` / `pure` flags described which overlay each one wore; the overlays
@@ -21014,7 +21088,8 @@ const TOUCHFX = {
     flows:     { chip: 'WAVE', label: 'Ripples',    hint: 'the fabric oscillates outward, cresting on the beat' },
   },
   // AUTO's live resolution — the personality the scenes manager last dealt
-  _resolved: 'blackhole', _autoT: 999, _pendingScene: -1, _introduced: false,
+  // …and AUTO opens on the same door, so switching to it is not a lottery either
+  _resolved: 'gathers', _autoT: 999, _pendingScene: -1, _introduced: false,
   actual(){ return this.active === 'auto' ? this._resolved : this.active; },
   // the single number the field shader reads (chirality from the live drag)
   mode(){ return touchFxMode(this.actual(), INTERACT.swirl); },
@@ -21644,6 +21719,7 @@ const director = {
   fov: 62, dolly: 0,
   act: -1, actT: 0,
   transDur: 2.5,             // the crossfade length the SEGUE sets per transition
+  transKind: 'dissolve',     // …and the FORM of it, which XFORM turns into a look
   /* THE ROOM's shared state. `mood` is the one reading of the moment that the
      scene deal, the dwell, the touch, the ghost and the colour's chroma all
      come through — see roomMood. `recent` is the arrangement's memory (a ring,
@@ -21660,6 +21736,14 @@ const director = {
   setScene(i, manual){
     if (i === this.active && this.transT >= 1) { if (manual) this.setAuto(false); return; }
     if (manual) this.transDur = 1.0;           // a hand on the wheel gets a snappy blend; the SEGUE sets its own
+    /* THE CUT IS DECIDED BEFORE ANYTHING MOVES. XFORM has to photograph the
+       room being left while it is still the visible, active scene — one line
+       further down and the incoming room is already in the frame. If it takes
+       the cut it also names the duration, because a shatter and a luma wipe
+       need different amounts of time to read and segueStyle only knows what the
+       MUSIC wanted. */
+    const hard = XFORM.arm({ kind: manual ? 'cut' : (this.transKind || 'dissolve'), dur: this.transDur });
+    if (hard) this.transDur = XFORM.dur;
     this.prev = this.active;
     this.active = i;
     this.transT = 0;
@@ -21674,6 +21758,11 @@ const director = {
     if (this.prev >= 0){
       this.recent = [this.prev].concat(this.recent.filter(k => k !== this.prev)).slice(0, this.memory);
     }
+    /* AND THE OLD ROOM IS LET GO OF, ENTIRELY. Its frozen copy is what the
+       transition draws now, so leaving the live one running would draw it
+       twice — once shattering and once calmly fading underneath, which reads
+       as a ghost image and is exactly the bug this line prevents. */
+    if (hard && this.prev >= 0){ scenes[this.prev].group.visible = false; this.prev = -1; }
     if (!this.seen) this.seen = new Set();
     this.seen.add(i);
     if (this.seen.size >= scenes.length) this.seen.clear();   // the gallery toured: start another lap
@@ -21784,6 +21873,7 @@ const director = {
     if (this.transT < 1){
       this.transT = Math.min(1, this.transT + dt / Math.max(0.2, this.transDur || 2.5));
       if (this.prev >= 0 && this.transT >= 1){ scenes[this.prev].group.visible = false; this.prev = -1; }
+      if (this.transT >= 1) XFORM.end();
     }
     // additive scenes: hundreds of sprites SUM in the framebuffer, and a
     // channel that clips bleaches to white — the real "washed out". Two
@@ -21799,10 +21889,16 @@ const director = {
     const addTrim = (typeof LENS !== 'undefined' && LENS.graded())
       ? 0.62 + 0.30 * AE.f.energy
       : 0.34 + 0.26 * AE.f.energy + 0.24 * clamp01(COLOR.white);
+    const xforming = typeof XFORM !== 'undefined' && XFORM.on;
     for (let i = 0; i < scenes.length; i++){
       const s = scenes[i];
       if (!s.group.visible) continue;
-      let op = i === this.active ? this.transT : (i === this.prev ? 1 - this.transT : 0);
+      /* UNDER A TRANSITION THE OPACITY LADDER STANDS DOWN. The shader is doing
+         all the blending from two full-strength images, so fading the incoming
+         room in underneath would blend it twice and wash the first half of
+         every cut. */
+      let op = xforming ? (i === this.active ? 1 : 0)
+             : (i === this.active ? this.transT : (i === this.prev ? 1 - this.transT : 0));
       s.group.traverse(o => {
         if (!o.material || !o.material.uniforms) return;
         const trim = o.material.blending === THREE.AdditiveBlending ? addTrim : 1;
@@ -21938,6 +22034,9 @@ const SEGUE = {
     if (fire && director.transT >= 1){
       const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: this.big });
       director.transDur = style.dur;
+      // the FORM of the cut comes from the same style the duration does, so a
+      // drop gets a drop's transition rather than whatever was next in a list
+      director.transKind = style.kind;
       director.setScene(director.pickScene(), false);
       director.dwell = 0;
       this.lastKind = style.kind;
@@ -28915,6 +29014,205 @@ const LENS_GRADE = `
     gl_FragColor = vec4(inkRolloff(texture2D(tScene, gl_FragCoord.xy / uResolution).rgb), 1.0);
   }`;
 
+/* ================================================================
+   THE TRANSITION — how one room becomes the next.
+
+   Until now a scene change was a crossfade: both rooms live, one fading
+   up through the other. That is the right answer often and a wasted
+   moment the rest of the time, because a cut is the ONE instant in a set
+   when the field has the audience's whole attention and nothing to lose.
+
+   THE TRICK IS THE FREEZE. On the single frame a cut happens, the room
+   being LEFT is rendered once into a texture and never simulated again.
+   From that instant it is a still image — and a still image can be
+   shattered into spinning shards, blown apart grain by grain, folded into
+   a kaleidoscope and collapsed to a point, or used as its own wipe mask,
+   none of which is possible while it is still a live particle system with
+   its own update loop. One extra render every twenty to forty seconds
+   buys the whole vocabulary.
+
+   And the room ARRIVING stays live throughout, which is what makes these
+   read as transitions rather than as video wipes: the new field is
+   already answering the music while the old one is still coming apart
+   over the top of it.
+
+   Eight forms, one shader, chosen by segueFx from what the music is doing.
+   The two that are worth naming:
+
+     LUMA — the old room draws the new one in WITH ITS OWN LIGHT. The
+       outgoing frame's brightness is the wipe mask, so the new field
+       appears first wherever the old one was brightest and last in its
+       shadows. Every cut is therefore shaped by the picture that happened
+       to be on screen, and no two are alike, because no two frames are.
+     SCATTER — both rooms are pushed along ONE flow field in opposite
+       directions, grain by grain on independent clocks. The old does not
+       fade and the new does not appear; the same particles rearrange.
+
+   The seam is lit in the palette rather than in white, because the colour
+   is the one thing the two rooms already have in common.
+   ================================================================ */
+const XFORM_FRAG = `
+  precision highp float;
+  uniform sampler2D tScene;      // the room being ARRIVED in — live, still animating
+  uniform sampler2D tGhost;      // the room being LEFT — frozen on the frame of the cut
+  uniform vec2 uResolution;
+  uniform float uT, uKind, uSeed, uTime, uEnergy, uBeat;
+  ` + GLSL_MPHI + `
+  float h21(vec2 p){
+    p = fract(p * vec2(127.1, 311.7));
+    p += dot(p, p + 34.23);
+    return fract(p.x * p.y);
+  }
+  float vnz(vec2 p){
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x),
+               mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float lum(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+  mat2 rot2(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+  vec3 GH(vec2 uv){ return texture2D(tGhost, clamp(uv, 0.0, 1.0)).rgb; }
+  vec3 SC(vec2 uv){ return texture2D(tScene, clamp(uv, 0.0, 1.0)).rgb; }
+
+  void main(){
+    vec2 R = uResolution;
+    vec2 uv = gl_FragCoord.xy / R;
+    float asp = R.x / max(R.y, 1.0);
+    vec2 c = (uv - 0.5) * vec2(asp, 1.0);
+    float t = clamp(uT, 0.0, 1.0);
+    vec3 col;
+    float glow = 0.0;                 // where the seam is right now, for the edge light
+
+    if (uKind < 0.5){
+      /* LUMA. The mask is the outgoing frame's own brightness, so the new room
+         comes up through the old one's highlights first. A little noise is
+         mixed into the threshold — without it a smooth gradient in the old
+         frame sweeps as a hard straight edge, which reads as a wipe rather
+         than as a burn-through. */
+      float y = lum(GH(uv));
+      float k = 1.0 - clamp(y * 1.7, 0.0, 1.0);
+      k += (vnz(uv * 7.0 + uSeed * 31.0) - 0.5) * 0.24;
+      float w = 0.13;
+      float T = t * (1.0 + 2.0 * w) - w;
+      float m = smoothstep(T - w, T + w, k);            // 1 = still the old room
+      col = mix(SC(uv), GH(uv), m);
+      glow = 1.0 - abs(m * 2.0 - 1.0);
+    } else if (uKind < 1.5){
+      /* SHATTER. Each shard has its own start time, its own direction and its
+         own spin, and the sample is taken by UNDOING that motion — translate
+         back, un-rotate, un-scale — so what flies is a real piece of the old
+         picture rather than a copy of the whole frame behind a mask. A pixel
+         that lands outside its own cell after the inverse has no shard on it,
+         which is what opens the gaps the new room shows through. */
+      vec2 cells = floor(vec2(9.0, 6.0) * (0.75 + uSeed * 0.9)) + 1.0;
+      vec2 id = floor(uv * cells);
+      float hh = h21(id + uSeed * 17.0);
+      float lag = hh * 0.42;
+      float p = clamp((t - lag) / max(0.15, 1.0 - lag), 0.0, 1.0);
+      vec2 mid = (id + 0.5) / cells;
+      vec2 dir = normalize((mid - 0.5) + (vec2(h21(id + 3.1), h21(id + 9.7)) - 0.5) * 0.6 + 1e-4);
+      vec2 q = (uv - mid) - dir * p * p * (0.5 + hh * 0.9);
+      q = (rot2(-(hh - 0.5) * p * 2.6) * (q * vec2(asp, 1.0))) / vec2(asp, 1.0);
+      q /= max(1.0 - p * 0.28, 0.05);
+      vec2 lim = 0.5 / cells;
+      float alive = (abs(q.x) < lim.x && abs(q.y) < lim.y) ? 1.0 : 0.0;
+      alive *= 1.0 - smoothstep(0.70, 1.0, p);
+      col = mix(SC(uv), GH(mid + q), alive);
+      glow = alive * smoothstep(0.0, 0.35, p) * 0.45;
+    } else if (uKind < 2.5){
+      /* SCATTER. One flow field, two directions. The old is pushed along it and
+         the new is pulled in against it, and both are gated grain by grain on
+         independent clocks — so for most of the transition BOTH are partly
+         present and the frame is a genuine mixture rather than a fade. */
+      float a = vnz(uv * 2.6 + uSeed * 11.0) * 6.2831853;
+      vec2 f = vec2(cos(a), sin(a));
+      float grain = h21(floor(gl_FragCoord.xy * 0.5) + uSeed * 5.0);
+      float go = 1.0 - smoothstep(0.0, 1.0, (t - grain * 0.40) / 0.60);
+      float ni = smoothstep(0.0, 1.0, (t - 0.22 - grain * 0.34) / 0.56);
+      col = GH(uv - f * t * t * 0.32) * go + SC(uv + f * (1.0 - t) * (1.0 - t) * 0.32) * ni;
+      glow = go * ni * 1.6;
+    } else if (uKind < 3.5){
+      /* STREAK. The old room accelerates out past the camera and the new one
+         arrives from far off, both smeared along the radius by eight taps —
+         which is what a zoom blur is, and the reason this reads as speed and
+         not as a scale animation. */
+      vec3 g = vec3(0.0), n = vec3(0.0);
+      for (int i = 0; i < 8; i++){
+        float sp = float(i) / 7.0;
+        g += GH(0.5 + (uv - 0.5) / (1.0 + t * t * (1.3 + sp * 1.5)));
+        n += SC(0.5 + (uv - 0.5) * (1.0 + (1.0 - t) * (1.0 - t) * (0.6 + sp * 2.2)));
+      }
+      g *= 0.125; n *= 0.125;
+      col = mix(g * (1.0 - t * 0.5), n * (0.5 + t * 0.5), smoothstep(0.28, 0.74, t));
+      float k = 1.0 - abs(t * 2.0 - 1.0);
+      glow = k * k;
+    } else if (uKind < 4.5){
+      /* PRISM. The three channels fly apart on the way out and converge on the
+         way in, 120° apart — the room's own PRISM lens, run once, with a
+         different scene on either side of it. */
+      float k = sin(t * PI);
+      float amt = k * (0.09 + uEnergy * 0.05);
+      float m = smoothstep(0.15, 0.85, t);
+      float b0 = uSeed * 6.2831853;
+      vec2 d0 = vec2(cos(b0), sin(b0)) * amt / vec2(asp, 1.0);
+      vec2 d1 = vec2(cos(b0 + 2.0943951), sin(b0 + 2.0943951)) * amt / vec2(asp, 1.0);
+      vec2 d2 = vec2(cos(b0 + 4.1887902), sin(b0 + 4.1887902)) * amt / vec2(asp, 1.0);
+      col = vec3(mix(GH(uv + d0).r, SC(uv - d0).r, m),
+                 mix(GH(uv + d1).g, SC(uv - d1).g, m),
+                 mix(GH(uv + d2).b, SC(uv - d2).b, m));
+      glow = k * 0.5;
+    } else if (uKind < 5.5){
+      /* IRIS. A lobed aperture rather than a circle, because a circle opening
+         on a rectangle is a shape everybody has seen and a rosette is not. The
+         old room is dragged outward a hair by the opening edge, which is what
+         stops the boundary reading as a cut-out. */
+      float lobes = 3.0 + floor(uSeed * 5.0);
+      float rr = length(c), ang = atan(c.y, c.x);
+      float Rr = t * 1.35 * (1.0 + 0.14 * sin(ang * lobes + uSeed * 6.2831853));
+      float w = 0.05 + 0.03 * uEnergy;
+      float m = smoothstep(Rr, Rr - w, rr);            // 1 inside → the new room
+      col = mix(GH(uv + normalize(c + 1e-5) * 0.02 * m / vec2(asp, 1.0)), SC(uv), m);
+      float d = (rr - Rr) / w;
+      glow = exp(-d * d);
+    } else if (uKind < 6.5){
+      /* FOLD. The old room folds into N-fold symmetry and collapses toward the
+         centre; the new one unfolds back out of the same point. The fold is the
+         kaleidoscope's own arithmetic, run as an ANIMATION from none to full
+         and back — so the room does not cut, it goes through a mirror. */
+      float sect = 3.0 + floor(uSeed * 7.0);
+      float rr = length(c), ang = atan(c.y, c.x);
+      float seg = 6.2831853 / sect;
+      float fa = mod(ang, seg); fa = abs(fa - 0.5 * seg);
+      float fo = smoothstep(0.0, 0.78, t);
+      float fn = smoothstep(1.0, 0.22, t);
+      vec2 qo = vec2(cos(mix(ang, fa, fo)), sin(mix(ang, fa, fo))) * rr * (1.0 + fo * 3.2);
+      vec2 qn = vec2(cos(mix(ang, fa, fn)), sin(mix(ang, fa, fn))) * rr * (1.0 + fn * 3.2);
+      col = GH(qo / vec2(asp, 1.0) + 0.5) * (1.0 - t) + SC(qn / vec2(asp, 1.0) + 0.5) * t;
+      glow = (1.0 - abs(t * 2.0 - 1.0)) * 0.7;
+    } else {
+      /* RIPPLE. One shockwave crosses the frame, and the room behind it has
+         changed. The ring refracts both sides as it passes — the old outward,
+         the new inward — so the swap happens INSIDE a lens rather than along a
+         line drawn across the picture. */
+      float rr = length(c);
+      float Rr = t * 1.5;
+      float w = 0.09 + 0.05 * uEnergy;
+      float d = rr - Rr;
+      float ring = exp(-(d * d) / (w * w));
+      vec2 dir = normalize(c + 1e-5) / vec2(asp, 1.0);
+      float m = smoothstep(Rr + w * 0.4, Rr - w * 0.4, rr);
+      col = mix(GH(uv + dir * ring * 0.05), SC(uv - dir * ring * 0.03), m);
+      glow = ring;
+    }
+
+    /* THE SEAM IS LIT IN THE PALETTE, not in white. Both rooms are already
+       wearing the track's colour, so the one place they meet is the one place
+       that colour is unambiguously right — and it makes the boundary read as
+       something the music is doing rather than as a compositing artefact. */
+    col += ramp(fract(uTime * 0.05 + uSeed)) * glow * (0.30 + uBeat * 0.45 + uEnergy * 0.30);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
 /* FIELD — the light itself, bent by the hand. THIS is the pass that ends the
    overlay, and it earns its place by doing three things a canvas stroke cannot.
 
@@ -29155,6 +29453,18 @@ const LENS = {
     this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS),
       wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE), grade: mk(LENS_GRADE),
       field: mk(LENS_FIELD), fieldLean: mk(LENS_FIELD_LEAN) };
+    /* The transition needs a SECOND texture — the frozen room — so it cannot
+       come out of mk(), which exists to make every lens interchangeable on one
+       scene input. It shares the live uniform objects by reference exactly the
+       way the others do, so the seam's palette and the room's palette are the
+       same object and cannot drift apart mid-cut. */
+    this._mats.xform = new THREE.ShaderMaterial({
+      uniforms: { tScene: { value: null }, tGhost: { value: null },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        uT: { value: 0 }, uKind: { value: 0 }, uSeed: { value: 0 },
+        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uWhite: U.uWhite, uRamp: U.uRamp },
+      vertexShader: LENS_VERT, fragmentShader: XFORM_FRAG, depthTest: false, depthWrite: false,
+    });
     this._ready = true;
   },
   chain(){
@@ -29247,6 +29557,14 @@ const LENS = {
     const strained = (typeof PERF !== 'undefined' && PERF.struggling);
     if (allowed && this._ready && this.handLive())
       passes = [strained ? this._mats.fieldLean : this._mats.field].concat(passes);
+    /* THE TRANSITION GOES FIRST, ahead of the hand and ahead of the glass. Put
+       it last and the kaleidoscope would fold only the room arriving, with the
+       room leaving glued flat over the top of the folded result; put it first
+       and both rooms go through the same symmetry, the same hand and the same
+       grade — which is the difference between a transition that happens INSIDE
+       the field and one that happens on a layer in front of it. */
+    const xf = (allowed && this._ready && typeof XFORM !== 'undefined') ? XFORM.pass() : null;
+    if (xf) passes = [xf].concat(passes);
     // GRADE always runs last where HDR exists: the lenses fold and refract the
     // light while it is still linear and unbounded, and the rolloff has the
     // final word on what reaches the glass.
@@ -29285,6 +29603,118 @@ const LENS = {
       const t = src; src = dst; dst = t;
     }
     renderer.setRenderTarget(null);
+  },
+};
+
+/* ================================================================
+   XFORM — the transition's live half. The taste is in segueFx (pure,
+   unit-tested); this is the render-target plumbing and the one extra
+   frame of work that makes the whole thing possible.
+   ================================================================ */
+const XFORM = {
+  kind: '', seed: 0, on: false, last: '', dur: 1,
+  // set for exactly one arm() when a booth on the wire has already decided the
+  // cut — every screen in a room then does the same thing at the same moment
+  force: null,
+  _rt: null,
+  // how many frames the pass has actually been handed to the chain since the
+  // cut armed. Only tools/xform_probe.mjs reads it, and it is the one thing
+  // that distinguishes "the transition ran" from "the transition was configured
+  // and then quietly dropped by the render path" — which is a bug that looks
+  // exactly like a crossfade and would otherwise ship.
+  _frames: 0,
+
+  /* WHERE THIS STANDS DOWN, and why each one is right rather than merely safe:
+     prefers-reduced-motion, because a shatter is precisely the large-field
+     motion that setting exists to refuse and a crossfade is the correct answer
+     rather than a degraded one; ECO, because that mode's whole job is giving
+     the battery to the music and it already draws every other frame; and a
+     struggling governor, because a room that stutters through its own cut is
+     worse than one that fades. In all three the director's opacity crossfade
+     takes over untouched — there is no half-transition state to get wrong. */
+  allowed(){
+    if (typeof reducedMotion !== 'undefined' && reducedMotion) return false;
+    if (typeof POWER !== 'undefined' && !POWER.lensOK) return false;
+    if (typeof PERF !== 'undefined' && PERF.struggling) return false;
+    return true;
+  },
+
+  /* THE FREEZE — one render of the room being left, into a texture, on the one
+     frame the cut happens. Everything else in this feature is downstream of
+     this: a live particle system cannot be shattered, but a still image can.
+     The camera matrices and every uniform are still the ones the last visible
+     frame used, so what lands in the texture is exactly what the eye last saw
+     — not an approximation of it. */
+  capture(){
+    if (typeof renderer === 'undefined' || !renderer) return false;
+    if (typeof scene === 'undefined' || !scene || typeof camera === 'undefined' || !camera) return false;
+    const w = Math.max(2, renderer.domElement.width), h = Math.max(2, renderer.domElement.height);
+    try {
+      if (!this._rt){
+        const opt = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+          depthBuffer: false, stencilBuffer: false };
+        // match the lens targets' precision: the ghost is mixed with the live
+        // frame BEFORE the grade, so an 8-bit ghost would clip the outgoing
+        // room's highlights at the moment of the cut and nowhere else
+        if (this._hdrOK()) opt.type = THREE.HalfFloatType;
+        this._rt = new THREE.WebGLRenderTarget(w, h, opt);
+      } else if (this._rt.width !== w || this._rt.height !== h) this._rt.setSize(w, h);
+      const prev = renderer.getRenderTarget();
+      renderer.setRenderTarget(this._rt);
+      renderer.autoClear = true;
+      if (typeof bgScene !== 'undefined' && bgScene && typeof bgCam !== 'undefined' && bgCam)
+        renderer.render(bgScene, bgCam);
+      renderer.autoClear = false;
+      renderer.render(scene, camera);
+      renderer.autoClear = true;
+      renderer.setRenderTarget(prev);
+      return true;
+    } catch (e){ return false; }
+  },
+  _hdrOK(){ return typeof LENS !== 'undefined' && LENS._hdr; },
+
+  /* Called by the director on the way into a new room, while the old one is
+     still the visible, active scene. Returns true if it took the cut — in which
+     case the director hands the outgoing room over entirely and stops fading
+     it, because the frozen copy is now the only one being drawn. */
+  arm(style){
+    this.on = false;
+    if (!this.allowed()) return false;
+    if (typeof director === 'undefined' || director.active < 0) return false;   // nothing to leave yet
+    if (typeof LENS === 'undefined') return false;
+    LENS._init();
+    if (!LENS._ready || !LENS._mats) return false;
+    const forced = this.force && XFORM_KINDS.indexOf(this.force.kind) >= 0 ? this.force : null;
+    const key = forced ? forced.kind : segueFx({
+      kind: style && style.kind, energy: AE.f.energy, last: this.last,
+      reduced: typeof reducedMotion !== 'undefined' && reducedMotion, r: Math.random(),
+    });
+    // …but a forced cut still bows to the stand-downs above: a follower screen
+    // on a strained phone gets the crossfade even when the booth is shattering
+    if (key === 'dissolve') { this.last = key; return false; }   // the plain crossfade, on purpose
+    if (!this.capture()) return false;
+    this.kind = key; this.last = key;
+    this.seed = forced ? forced.seed : Math.random();
+    this.dur = segueFxDur(key, style && style.dur);
+    this._frames = 0;
+    this.on = true;
+    return true;
+  },
+  end(){ this.on = false; },
+
+  // the pass the lens chain runs, or null when no cut is in flight
+  pass(){
+    if (!this.on || typeof LENS === 'undefined' || !LENS._mats || !LENS._mats.xform) return null;
+    if (!this._rt) return null;
+    const m = LENS._mats.xform;
+    m.uniforms.tGhost.value = this._rt.texture;
+    // the director's own crossfade clock drives this, so a cut can never be
+    // half-transitioned in one system and finished in the other
+    m.uniforms.uT.value = typeof director !== 'undefined' ? director.transT : 1;
+    m.uniforms.uKind.value = Math.max(0, XFORM_KINDS.indexOf(this.kind));
+    m.uniforms.uSeed.value = this.seed;
+    this._frames++;
+    return m;
   },
 };
 
@@ -29664,8 +30094,13 @@ const STAGE = {
       director.phase = p.dir.p || 'flow';
       director.moodC = Number(p.dir.c) || 0; director.warmT = Number(p.dir.w) || 0;
       if (Number.isFinite(Number(p.dir.ceil))) director.ceil = Number(p.dir.ceil);
-      if (typeof p.dir.s === 'number' && p.dir.s !== director.active && director.transT >= 1)
+      if (typeof p.dir.s === 'number' && p.dir.s !== director.active && director.transT >= 1){
+        // take the booth's transition rather than rolling one — see the packet
+        XFORM.force = p.dir.xk ? { kind: p.dir.xk, seed: Number(p.dir.xs) || 0 } : null;
+        if (Number(p.dir.xd) > 0) director.transDur = Number(p.dir.xd);
         director.setScene(p.dir.s, false);
+        XFORM.force = null;
+      }
     }
     // the light: the booth's own chord, dropped straight in. Everything the
     // colour engine does ON TOP of it — the wash, the arc's warmth, the ramp —
@@ -29788,8 +30223,15 @@ const STAGE = {
     for (const k of STAGE_FIELDS) p.f[k] = f[k];
     p.clock = { g: !!CLOCK.haveGrid, i: CLOCK.idx | 0, b: CLOCK.barPhase, t: CLOCK.bpm };
     p.dance = { p: DANCE.pulse, w: DANCE.warp, e: DANCE.ear, b: DANCE.brace, f: DANCE.phraseFrac, g: !!DANCE.haveGrid };
+    /* THE CUT GOES ON THE WIRE TOO. A follower screen gets the scene index and
+       calls setScene itself, which would otherwise roll its OWN transition form
+       and its own seed — so a three-panel wall would shatter, ripple and fold
+       at the same instant, which reads as three broken screens rather than one
+       show. The geometry is still per-panel (so is the kaleidoscope's, and for
+       the same reason), but the FORM has to be one decision. */
     p.dir = { s: director.active, a: director.act, t: director.actT, p: director.phase,
-      c: director.moodC, w: director.warmT, ceil: director.ceil };
+      c: director.moodC, w: director.warmT, ceil: director.ceil,
+      xk: XFORM.on ? XFORM.kind : '', xs: XFORM.seed, xd: director.transDur };
     p.hand = { x: INTERACT.px, y: INTERACT.py, d: !!INTERACT.dragging };
     if (COLOR.now && COLOR.now.length >= 3)
       p.col = COLOR.now.slice(0, 3).map(c => [c.l, c.c, c.h]);
@@ -32235,6 +32677,11 @@ const CROWD = {
     COLOR.glideDur = 4;
     COLOR._replanT = 0;
     if (COLOR.plan){ COLOR.plan.quad = quad; COLOR.plan.colors = chord; }
+    /* THE FORM OF THE CUT IS DELIBERATELY *NOT* ON THIS WIRE. A stage wall is
+       one picture cut into panels and has to agree with itself; a floor full of
+       phones is not, and forty screens all shattering on the same grid at the
+       same instant would look like a stunt rather than like a room. Each phone
+       rolls its own — same moment, same room, its own way in. */
     if (typeof director !== 'undefined' && typeof scenes !== 'undefined'
       && p.s < scenes.length && p.s !== director.active && director.transT >= 1)
       director.setScene(p.s, false);
