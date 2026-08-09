@@ -614,6 +614,85 @@ rather than a screensaver:
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
 
+## The cut — how one room becomes the next
+
+A scene change used to be a crossfade: both rooms live, one fading up through
+the other. That is the right answer often and a wasted moment the rest of the
+time, because a cut is the one instant in a set when the field has your whole
+attention and nothing to lose.
+
+**The trick is the freeze.** On the single frame a cut happens, the room being
+*left* is rendered once into a texture and never simulated again. From that
+instant it is a still image — and a still image can be shattered into spinning
+shards, blown apart grain by grain, folded into a kaleidoscope and collapsed to
+a point, or used as its own wipe mask, none of which is possible while it is
+still a live particle system with an update loop of its own. One extra render
+every twenty to forty seconds buys the entire vocabulary. The room *arriving*
+stays live throughout, which is what makes these read as transitions rather than
+as video wipes: the new field is already answering the music while the old one
+is still coming apart over the top of it.
+
+Eight forms, one shader. The two worth naming:
+
+- **LUMA** — the old room draws the new one in **with its own light**. The
+  outgoing frame's brightness is the wipe mask, so the new field comes up
+  through the old one's highlights first and its shadows last. Every cut is
+  shaped by whatever picture happened to be on screen, and no two are alike,
+  because no two frames are.
+- **SCATTER** — both rooms are pushed along **one** flow field in opposite
+  directions, grain by grain on independent clocks. The old does not fade and
+  the new does not appear; the same particles rearrange.
+
+The rest: **SHATTER** (a grid of shards, each with its own start time, direction
+and spin — sampled by *undoing* that motion, so what flies is a real piece of the
+old picture and the gaps it opens are where the new room shows through),
+**STREAK** (a zoom blur either way — the old accelerates out past the camera, the
+new arrives from far off), **PRISM** (the three channels fly apart on the way out
+and converge on the way in, 120° apart), **IRIS** (a lobed aperture, because a
+circle opening on a rectangle is a shape everyone has seen), **FOLD** (the old
+folds into N-fold symmetry and collapses toward the centre while the new unfolds
+back out of the same point — the kaleidoscope's own arithmetic, run as an
+animation), and **RIPPLE** (one shockwave crosses the frame, refracting both
+sides as it passes, and the room behind it has changed).
+
+**The music picks the form, not a list.** `segueStyle` already decided how *long*
+a change takes; `segueFx` decides what it looks like, from the same three kinds
+and for a different reason — a duration is a musical judgement, but the form is
+about what the eye can read in that time. Give a shatter three seconds and it
+stops being a hit; give a luma wipe a third of a second and nobody sees it
+happen. So a **drop** draws from SHATTER · STREAK · PRISM, a **section turn**
+from SCATTER · FOLD · LUMA, and a quiet passage from the gentle end. Two rules
+on top: the plain crossfade stays *in* the pools, because a night where every
+change is an event has no events in it; and a form never immediately repeats,
+because the second shatter in a row is the one that starts to look like a
+screensaver. And the cut still lands where it always did — on the next bar
+downbeat, or the next phrase for a big one.
+
+**Where it stands down, and why each one is right rather than merely safe.**
+Under `prefers-reduced-motion` there is no transition at all: a shatter is
+precisely the large-field motion that setting exists to refuse, and the
+crossfade is the correct answer rather than a degraded one. In ECO, because that
+mode's whole job is giving the battery to the music. And on a device the
+governor has found to be struggling, because a room that stutters through its
+own cut is worse than one that fades. In all three the director's opacity
+crossfade takes over untouched — there is no half-transition state to get wrong,
+and `tools/xform_probe.mjs` asserts all three stand-downs in a real browser.
+
+Two details that took a defect each to find. The old room has to be **let go of
+entirely** the moment the freeze is taken: its frozen copy is what the
+transition draws, so leaving the live one running draws it twice — once
+shattering, once calmly fading underneath — which is invisible in a screenshot
+and obvious in motion. And the transition pass goes **first** in the lens chain,
+ahead of the hand and ahead of the glass: put it last and a kaleidoscope would
+fold only the room arriving, with the room leaving glued flat over the top of
+the folded result.
+
+On a **stage wall** the form and the seed go on the wire with the scene index,
+because a wall is one picture cut into panels and has to agree with itself. On a
+**floor full of phones** they deliberately do not: forty screens shattering on
+the same grid at the same instant would look like a stunt rather than like a
+room, so each phone rolls its own way into the same moment.
+
 ## The escape-time set — three techniques, and an honest floor
 
 The room already had a fractal — a raymarched Mandelbulb — but not the one
@@ -1247,6 +1326,18 @@ The GLSL is generated from the same constants the JS holds, and
 `tools/touch_probe.mjs` evaluates it **on the GPU against the JS** and fails on
 drift (worst observed: 2 × 10⁻⁵). One fabric or none.
 
+### PULL is the door the field opens at
+
+**AUTO** — the scenes manager re-tuning the touch to whichever room it walks
+into — is the more interesting idea, and it has a problem as a *default*: the
+first thing anyone does with the field is put a finger on it, and whichever
+personality happens to be dealt at that moment is the one they judge the whole
+feature by. **PULL** is the one that reads instantly — the room falls toward
+your hand, shears into orbit and detonates when you let go — so that is what
+the field ships on, and AUTO is the first tap away. Every saved choice from
+before, AUTO included, is honoured on load; nothing about AUTO's behaviour
+changed. Only which door the room is standing at when you arrive.
+
 ### What each force is, now that nothing is drawn
 
 | | | |
@@ -1728,10 +1819,16 @@ the floor keeps dancing in colours of its own.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 352 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 357 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance, the CIE observer,
-                                    #   diffraction limits, the black film (extracted from
-                                    #   the shipped HTML, not a copy)
+                                    #   diffraction limits, the black film, which transition a
+                                    #   cut deserves (extracted from the shipped HTML, not a copy)
+node tools/xform_probe.mjs          # 15 checks on the scene transition in a real browser: the
+                                    #   freeze is captured and is not a black frame, the pass is
+                                    #   really in the chain (not configured and then dropped),
+                                    #   all eight forms compile, the outgoing room is released
+                                    #   rather than drawn twice, and it stands down under
+                                    #   prefers-reduced-motion, ECO and a strained governor
 node tools/spectrum_probe.mjs       # the CIE 1931 observer, run on the GPU out of the shipped
                                     #   GLSL_CIE and compared against the shipped JS across 96
                                     #   wavelengths — the guard on "generated from one table,
