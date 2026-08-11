@@ -619,79 +619,113 @@ rather than a screensaver:
 A scene change used to be a crossfade: both rooms live, one fading up through
 the other. That is the right answer often and a wasted moment the rest of the
 time, because a cut is the one instant in a set when the field has your whole
-attention and nothing to lose.
+attention.
 
 **The trick is the freeze.** On the single frame a cut happens, the room being
 *left* is rendered once into a texture and never simulated again. From that
-instant it is a still image — and a still image can be shattered into spinning
-shards, blown apart grain by grain, folded into a kaleidoscope and collapsed to
-a point, or used as its own wipe mask, none of which is possible while it is
-still a live particle system with an update loop of its own. One extra render
-every twenty to forty seconds buys the entire vocabulary. The room *arriving*
-stays live throughout, which is what makes these read as transitions rather than
-as video wipes: the new field is already answering the music while the old one
-is still coming apart over the top of it.
+instant it is a still image — and a still image can be carried along a flow
+field, thrown out of focus, pushed back into haze or bent through glass, none of
+which is possible while it is still a live particle system with an update loop of
+its own. One extra render every twenty to forty seconds buys the entire
+vocabulary. The room *arriving* stays live throughout, which is why these read as
+the field changing rather than as two videos being mixed.
 
-Eight forms, one shader. The two worth naming:
+### Nothing here has an edge
 
-- **LUMA** — the old room draws the new one in **with its own light**. The
-  outgoing frame's brightness is the wipe mask, so the new field comes up
-  through the old one's highlights first and its shadows last. Every cut is
-  shaped by whatever picture happened to be on screen, and no two are alike,
-  because no two frames are.
-- **SCATTER** — both rooms are pushed along **one** flow field in opposite
-  directions, grain by grain on independent clocks. The old does not fade and
-  the new does not appear; the same particles rearrange.
+That is the constraint the whole thing is built around, and it is worth being
+blunt about because the obvious transitions all violate it. A grid of spinning
+shards. An opening aperture. A shockwave ring crossing the frame. A glowing seam
+down the middle. Every one of those is legible in a single frozen frame, and what
+it is legible *as* is **"a transition"** — which breaks the only claim the field
+makes, that it is a space and not a screen with effects played over it.
 
-The rest: **SHATTER** (a grid of shards, each with its own start time, direction
-and spin — sampled by *undoing* that motion, so what flies is a real piece of the
-old picture and the gaps it opens are where the new room shows through),
-**STREAK** (a zoom blur either way — the old accelerates out past the camera, the
-new arrives from far off), **PRISM** (the three channels fly apart on the way out
-and converge on the way in, 120° apart), **IRIS** (a lobed aperture, because a
-circle opening on a rectangle is a shape everyone has seen), **FOLD** (the old
-folds into N-fold symmetry and collapses toward the centre while the new unfolds
-back out of the same point — the kaleidoscope's own arithmetic, run as an
-animation), and **RIPPLE** (one shockwave crosses the frame, refracting both
-sides as it passes, and the room behind it has changed).
+So there is no geometry in here the world does not already contain, no boundary
+travelling across the picture, and no seam lit in any colour. What is left is
+seven things that could be happening to the light or to the matter:
 
-**The music picks the form, not a list.** `segueStyle` already decided how *long*
-a change takes; `segueFx` decides what it looks like, from the same three kinds
-and for a different reason — a duration is a musical judgement, but the form is
-about what the eye can read in that time. Give a shatter three seconds and it
-stops being a hit; give a luma wipe a third of a second and nobody sees it
-happen. So a **drop** draws from SHATTER · STREAK · PRISM, a **section turn**
-from SCATTER · FOLD · LUMA, and a quiet passage from the gentle end. Two rules
-on top: the plain crossfade stays *in* the pools, because a night where every
-change is an event has no events in it; and a form never immediately repeats,
-because the second shatter in a row is the one that starts to look like a
-screensaver. And the cut still lands where it always did — on the next bar
-downbeat, or the next phrase for a big one.
+- **LUMA** — the old room hands over **with its own light**. Its brightness is
+  what decides where the new field comes through first, so every cut is shaped by
+  whatever picture happened to be on screen and no two are alike. The threshold is
+  dissolved into two scales of noise and the band is deliberately wide, so the
+  handover happens grain by grain and there is no front to follow. Narrow it and
+  a smooth gradient in the old frame sweeps as a hard line — which is a wipe, and
+  a wipe is the thing being avoided.
+- **SCATTER** — both rooms carried along **one** flow field in opposite
+  directions, each gated on its own clock. The old does not fade and the new does
+  not appear; the same material rearranges. The gate is smooth noise at two
+  scales, not a per-pixel hash: a hash looks like dither, or worse like a bad
+  JPEG, and a room that appears to be *compressing* itself is not a room
+  dissolving.
+- **DEFOCUS** — a rack focus, and the most invisible cut there is. Ten taps on a
+  golden-angle spiral at radius √f, which fills a **disc** evenly rather than a
+  ring, so a highlight opens into round bokeh the way a lens makes one instead of
+  smearing into a star. The two rooms cross while *both* are soft, so at no point
+  is there a sharp edge anywhere in the frame to notice.
+- **AERIAL** — the old room recedes and the new one comes forward, and the thing
+  between them is air. Extinction is exponential in depth and the departing room
+  fades toward the **sky**, not toward black — the same rule TERRAIN draws its
+  horizon with, and the reason a distant ridge is paler than a near one rather
+  than dimmer. The scale change is two per cent: enough to read as depth, far
+  short of reading as a zoom.
+- **REFRACT** — one smooth low-frequency displacement across the whole frame,
+  swelling to its peak at the midpoint and exactly zero at both ends, so the
+  transition begins and finishes on an undistorted picture and the swap happens
+  underneath the distortion. A hair of dispersion on the way, because glass in
+  this player disperses.
+- **PRISM** — the three channels separate and re-converge, 120° apart, at **three
+  per cent** of the frame rather than nine. At nine it is an effect with a name;
+  at three it is a lens that was briefly not quite right, which is the whole
+  difference.
+- **FOLD** — both rooms folded into the same N-fold symmetry by the same amount,
+  rising to full at the midpoint and relaxing back to none, so at the moment of
+  the swap the frame is a symmetry belonging to neither room and the join has
+  nowhere to show. An earlier version collapsed the old room to a point and
+  unfolded the new one out of it — a lovely trick, and unmistakably a trick.
 
-**Where it stands down, and why each one is right rather than merely safe.**
-Under `prefers-reduced-motion` there is no transition at all: a shatter is
-precisely the large-field motion that setting exists to refuse, and the
-crossfade is the correct answer rather than a degraded one. In ECO, because that
-mode's whole job is giving the battery to the music. And on a device the
-governor has found to be struggling, because a room that stutters through its
-own cut is worse than one that fades. In all three the director's opacity
-crossfade takes over untouched — there is no half-transition state to get wrong,
-and `tools/xform_probe.mjs` asserts all three stand-downs in a real browser.
+And a plain crossfade, which still comes up often enough to keep the others rare.
+
+### The music picks the form
+
+`segueStyle` already decided how *long* a change takes; `segueFx` decides what it
+looks like, and they are separate because a duration is a musical judgement while
+a form is about what the eye can read in that time. A **drop** draws from
+DEFOCUS · PRISM · REFRACT — decisive, and decisive does not mean loud; a hard
+rack focus lands harder than any shattering glass. A **section turn** draws from
+SCATTER · AERIAL · FOLD · LUMA, the forms that read as one room *becoming*
+another. A quiet passage draws from the gentle end. Two rules on top: the plain
+crossfade stays **in** the pools, because a night where every change is an event
+has no events in it; and a form never immediately repeats, because the second one
+in a row is where the eye starts looking for the mechanism instead of at the
+room. Cuts land where they always did — the next bar downbeat, or the next phrase
+for a big one.
+
+The duration floors are long on purpose. A transition that has to be quick to
+survive is a transition doing something drastic, and drastic is what this
+vocabulary exists to avoid.
+
+### Where it stands down
+
+Under `prefers-reduced-motion` there is no transition at all — manufactured
+large-field motion is exactly what that setting refuses, and the crossfade is the
+correct answer rather than a degraded one. In ECO, because that mode's job is
+giving the battery to the music. And on a device the governor has found to be
+struggling. In all three the director's opacity crossfade takes over untouched;
+there is no half-transition state to get wrong, and `tools/xform_probe.mjs`
+asserts all three stand-downs in a real browser.
 
 Two details that took a defect each to find. The old room has to be **let go of
-entirely** the moment the freeze is taken: its frozen copy is what the
-transition draws, so leaving the live one running draws it twice — once
-shattering, once calmly fading underneath — which is invisible in a screenshot
-and obvious in motion. And the transition pass goes **first** in the lens chain,
-ahead of the hand and ahead of the glass: put it last and a kaleidoscope would
-fold only the room arriving, with the room leaving glued flat over the top of
-the folded result.
+entirely** the moment the freeze is taken: its frozen copy is what the transition
+draws, so leaving the live one running draws it twice — once transforming, once
+calmly fading underneath — which is invisible in a screenshot and obvious in
+motion. And the transition pass goes **first** in the lens chain, ahead of the
+hand and ahead of the glass: put it last and a kaleidoscope would fold only the
+room arriving, with the room leaving glued flat over the top of the folded result.
 
 On a **stage wall** the form and the seed go on the wire with the scene index,
 because a wall is one picture cut into panels and has to agree with itself. On a
-**floor full of phones** they deliberately do not: forty screens shattering on
-the same grid at the same instant would look like a stunt rather than like a
-room, so each phone rolls its own way into the same moment.
+**floor full of phones** they deliberately do not: forty screens doing the same
+thing on the same grid at the same instant would look like a stunt rather than
+like a room.
 
 ## The escape-time set — three techniques, and an honest floor
 
@@ -1819,7 +1853,7 @@ the floor keeps dancing in colours of its own.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 357 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 358 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance, the CIE observer,
                                     #   diffraction limits, the black film, which transition a
                                     #   cut deserves (extracted from the shipped HTML, not a copy)

@@ -10607,35 +10607,59 @@ function segueStyle(ctx){
 /* ---------------------------------------------------------------------------
    HOW ONE ROOM BECOMES THE NEXT.
 
-   segueStyle above decides how LONG a change takes; this decides what it LOOKS
+   segueStyle above decides how LONG a change takes; this decides what it looks
    like. They are separate because the two answers come from different places: a
-   duration is a musical judgement (a drop wants 0.35 s, a comedown wants three
-   and a half), while the FORM is about what the eye can read in that time. Give
-   a shatter 3 s and it stops being a hit; give a luma wipe 0.35 s and nobody
-   sees it happen at all.
+   duration is a musical judgement, while the FORM is about what the eye can
+   read in that time.
 
-   So each of segueStyle's three kinds gets its own pool:
+   THE RULE THAT DECIDES WHICH FORMS EXIST. The field's whole claim is that it
+   is a SPACE and not a screen with effects played over it. A transition breaks
+   that claim the moment it draws something the world does not contain — a grid
+   of shards, an aperture, a shockwave ring, a glowing seam. Those all read
+   instantly, and what they read as is "a transition", which is precisely the
+   one thing nobody should be looking at.
 
-     cut       the drop. Violent, short, over before you have parsed it —
-               SHATTER, STREAK, PRISM.
-     morph     a section turn. Something that reads as ONE room becoming
-               another rather than being replaced by it — SCATTER (both rooms
-               blown along the same field, in opposite directions), FOLD, LUMA.
-     dissolve  everything else. The gentle end when the room is quiet, the
-               whole spread when it is not.
+   So every form here is something that could be happening to the LIGHT or to
+   the MATTER, and nothing here has an edge:
+
+     LUMA     the old room's own brightness is what lets the new one through,
+              handed over grain by grain so there is no front anywhere.
+     SCATTER  both rooms carried along one flow field in opposite directions;
+              the same particles rearrange.
+     DEFOCUS  a rack focus. The old room goes soft, the new one comes sharp,
+              and they cross while BOTH are soft — the oldest and most
+              invisible cut in cinema.
+     AERIAL   the old room recedes into haze and the new one comes forward out
+              of it. Depth, not geometry.
+     REFRACT  the frame passes through slow moving glass and the swap happens
+              under the distortion.
+     PRISM    a small chromatic separation that opens and closes. The room
+              already splits light in DISPERSION; this is the same idea, once.
+     FOLD     both rooms pass through ONE shared symmetry and come out the
+              other side. The kaleidoscope the lens engine already owns, run
+              as a movement rather than a setting.
+
+   Each of segueStyle's three kinds gets its own pool:
+
+     cut       a drop. Short and decisive, and decisive does not mean loud —
+               a hard rack focus lands harder than any shattering glass.
+     morph     a section turn: one room BECOMING another rather than being
+               replaced by it.
+     dissolve  everything else.
 
    Two rules on top. `dissolve` stays IN the pools — a night where every single
-   change is an event has no events in it, so the plain crossfade has to keep
-   coming up. And a kind never immediately repeats: the second shatter in a row
-   is the one that starts to look like a screensaver.
+   change is an event has no events in it. And a form never immediately
+   repeats, because the second one in a row is where the eye starts looking for
+   the mechanism instead of at the room.
    --------------------------------------------------------------------------- */
-const XFORM_KINDS = ['luma', 'shatter', 'scatter', 'streak', 'prism', 'iris', 'fold', 'ripple'];
-/* HOW LONG EACH ONE NEEDS TO READ. A floor, not a setting: below these the
-   effect happens but nobody sees what happened, which is worse than a plain
-   crossfade because it reads as a glitch. SCATTER needs the most — every grain
-   has to leave and every grain has to arrive. */
-const XFORM_MIN_DUR = { luma: 0.75, shatter: 0.55, scatter: 0.95, streak: 0.50,
-                        prism: 0.45, iris: 0.60, fold: 0.85, ripple: 0.70 };
+const XFORM_KINDS = ['luma', 'scatter', 'defocus', 'aerial', 'refract', 'prism', 'fold'];
+/* HOW LONG EACH ONE NEEDS. A floor, not a setting — and these are LONG, on
+   purpose. A transition that has to be quick to survive is a transition doing
+   something drastic, and drastic is the thing being avoided. Rushed, all of
+   these read as a glitch rather than as a change. SCATTER needs the most:
+   every grain has to leave and every grain has to arrive. */
+const XFORM_MIN_DUR = { luma: 1.00, scatter: 1.25, defocus: 0.70, aerial: 1.10,
+                        refract: 0.95, prism: 0.55, fold: 1.00 };
 function segueFx(o){
   o = o || {};
   // A room whose whole point is manufactured large-field motion is exactly what
@@ -10645,10 +10669,10 @@ function segueFx(o){
   const e = o.energy == null ? 0.5 : o.energy;
   const r = o.r == null ? 0.5 : o.r;
   let pool;
-  if (o.kind === 'cut')        pool = ['shatter', 'streak', 'prism', 'shatter'];
-  else if (o.kind === 'morph') pool = ['scatter', 'fold', 'luma', 'scatter'];
-  else if (e < 0.30)           pool = ['luma', 'iris', 'dissolve', 'ripple'];
-  else                         pool = ['luma', 'iris', 'ripple', 'scatter', 'prism', 'dissolve'];
+  if (o.kind === 'cut')        pool = ['defocus', 'prism', 'refract', 'defocus'];
+  else if (o.kind === 'morph') pool = ['scatter', 'aerial', 'fold', 'luma', 'dissolve'];
+  else if (e < 0.30)           pool = ['luma', 'aerial', 'dissolve', 'defocus'];
+  else                         pool = ['luma', 'aerial', 'scatter', 'refract', 'defocus', 'dissolve'];
   const i = Math.floor(Math.abs(r) * 997) % pool.length;
   let k = pool[i];
   /* AND NOT THE SAME FORM TWICE. Stepping ONE place forward is not enough: a
@@ -29020,43 +29044,48 @@ const LENS_GRADE = `
    Until now a scene change was a crossfade: both rooms live, one fading
    up through the other. That is the right answer often and a wasted
    moment the rest of the time, because a cut is the ONE instant in a set
-   when the field has the audience's whole attention and nothing to lose.
+   when the field has the audience's whole attention.
 
    THE TRICK IS THE FREEZE. On the single frame a cut happens, the room
    being LEFT is rendered once into a texture and never simulated again.
-   From that instant it is a still image — and a still image can be
-   shattered into spinning shards, blown apart grain by grain, folded into
-   a kaleidoscope and collapsed to a point, or used as its own wipe mask,
-   none of which is possible while it is still a live particle system with
-   its own update loop. One extra render every twenty to forty seconds
-   buys the whole vocabulary.
+   From that instant it is a still image, and a still image can be carried
+   along a flow field, thrown out of focus, pushed back into haze or bent
+   through glass — none of which is possible while it is still a live
+   particle system with an update loop of its own. One extra render every
+   twenty to forty seconds buys the whole vocabulary. The room ARRIVING
+   stays live throughout, which is why these read as the field changing
+   rather than as two videos being mixed.
 
-   And the room ARRIVING stays live throughout, which is what makes these
-   read as transitions rather than as video wipes: the new field is
-   already answering the music while the old one is still coming apart
-   over the top of it.
+   AND NOTHING HERE HAS AN EDGE. That is the constraint the whole file is
+   built around, and it is worth being explicit about because the obvious
+   transitions all violate it: a grid of shards, an opening aperture, a
+   shockwave ring, a glowing seam down the middle of the frame. Every one
+   of those is legible in a single frame, and what it is legible AS is "a
+   transition" — which breaks the only claim the field makes, that it is a
+   space rather than a screen with effects played over it. So there is no
+   geometry in here that the world does not already contain, no boundary
+   travelling across the picture, and no seam lit in any colour. What is
+   left is seven things that could be happening to the light or to the
+   matter, and a plain crossfade that still comes up often enough to keep
+   the others rare.
 
-   Eight forms, one shader, chosen by segueFx from what the music is doing.
-   The two that are worth naming:
+   The two worth naming:
 
-     LUMA — the old room draws the new one in WITH ITS OWN LIGHT. The
-       outgoing frame's brightness is the wipe mask, so the new field
-       appears first wherever the old one was brightest and last in its
-       shadows. Every cut is therefore shaped by the picture that happened
-       to be on screen, and no two are alike, because no two frames are.
-     SCATTER — both rooms are pushed along ONE flow field in opposite
-       directions, grain by grain on independent clocks. The old does not
-       fade and the new does not appear; the same particles rearrange.
-
-   The seam is lit in the palette rather than in white, because the colour
-   is the one thing the two rooms already have in common.
+     LUMA — the old room hands over WITH ITS OWN LIGHT. Its brightness is
+       what decides where the new field comes through first, so every cut
+       is shaped by whatever picture happened to be on screen and no two
+       are alike. The threshold is dissolved into two scales of noise so
+       the handover happens grain by grain and there is no front to see.
+     DEFOCUS — a rack focus, and the most invisible cut there is. Both
+       rooms cross while BOTH are soft, so at no point in the transition
+       is there a sharp edge anywhere in the frame to notice.
    ================================================================ */
 const XFORM_FRAG = `
   precision highp float;
   uniform sampler2D tScene;      // the room being ARRIVED in — live, still animating
   uniform sampler2D tGhost;      // the room being LEFT — frozen on the frame of the cut
   uniform vec2 uResolution;
-  uniform float uT, uKind, uSeed, uTime, uEnergy, uBeat;
+  uniform float uT, uKind, uSeed, uTime, uEnergy, uBeat, uCentroid;
   ` + GLSL_MPHI + `
   float h21(vec2 p){
     p = fract(p * vec2(127.1, 311.7));
@@ -29070,7 +29099,6 @@ const XFORM_FRAG = `
                mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
   }
   float lum(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
-  mat2 rot2(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
   vec3 GH(vec2 uv){ return texture2D(tGhost, clamp(uv, 0.0, 1.0)).rgb; }
   vec3 SC(vec2 uv){ return texture2D(tScene, clamp(uv, 0.0, 1.0)).rgb; }
 
@@ -29080,79 +29108,110 @@ const XFORM_FRAG = `
     float asp = R.x / max(R.y, 1.0);
     vec2 c = (uv - 0.5) * vec2(asp, 1.0);
     float t = clamp(uT, 0.0, 1.0);
+    /* THE HANDOVER IS AN S, NOT A RAMP. A linear mix spends the whole middle
+       of the transition at a flat fifty-fifty, which is the one state that
+       looks like neither room and reads as a dissolve no matter what else is
+       happening. Easing it means the frame commits to one side or the other
+       for most of the run and only passes THROUGH the middle. */
+    float m = smoothstep(0.30, 0.70, t);
     vec3 col;
-    float glow = 0.0;                 // where the seam is right now, for the edge light
 
     if (uKind < 0.5){
       /* LUMA. The mask is the outgoing frame's own brightness, so the new room
-         comes up through the old one's highlights first. A little noise is
-         mixed into the threshold — without it a smooth gradient in the old
-         frame sweeps as a hard straight edge, which reads as a wipe rather
-         than as a burn-through. */
+         comes up through the old one's highlights first. Two scales of noise go
+         into the threshold and the band is deliberately WIDE: with a narrow
+         band and no noise, a smooth gradient in the old frame sweeps as a hard
+         line and the whole thing becomes a wipe. Wide and dithered, the
+         handover happens grain by grain and there is no front to follow. */
       float y = lum(GH(uv));
       float k = 1.0 - clamp(y * 1.7, 0.0, 1.0);
-      k += (vnz(uv * 7.0 + uSeed * 31.0) - 0.5) * 0.24;
-      float w = 0.13;
+      k += (vnz(uv * 6.0 + uSeed * 31.0) - 0.5) * 0.26
+         + (h21(gl_FragCoord.xy + uSeed * 7.0) - 0.5) * 0.20;
+      k = clamp(k, 0.0, 1.0);
+      float w = 0.30;
       float T = t * (1.0 + 2.0 * w) - w;
-      float m = smoothstep(T - w, T + w, k);            // 1 = still the old room
-      col = mix(SC(uv), GH(uv), m);
-      glow = 1.0 - abs(m * 2.0 - 1.0);
+      col = mix(SC(uv), GH(uv), smoothstep(T - w, T + w, k));
     } else if (uKind < 1.5){
-      /* SHATTER. Each shard has its own start time, its own direction and its
-         own spin, and the sample is taken by UNDOING that motion — translate
-         back, un-rotate, un-scale — so what flies is a real piece of the old
-         picture rather than a copy of the whole frame behind a mask. A pixel
-         that lands outside its own cell after the inverse has no shard on it,
-         which is what opens the gaps the new room shows through. */
-      vec2 cells = floor(vec2(9.0, 6.0) * (0.75 + uSeed * 0.9)) + 1.0;
-      vec2 id = floor(uv * cells);
-      float hh = h21(id + uSeed * 17.0);
-      float lag = hh * 0.42;
-      float p = clamp((t - lag) / max(0.15, 1.0 - lag), 0.0, 1.0);
-      vec2 mid = (id + 0.5) / cells;
-      vec2 dir = normalize((mid - 0.5) + (vec2(h21(id + 3.1), h21(id + 9.7)) - 0.5) * 0.6 + 1e-4);
-      vec2 q = (uv - mid) - dir * p * p * (0.5 + hh * 0.9);
-      q = (rot2(-(hh - 0.5) * p * 2.6) * (q * vec2(asp, 1.0))) / vec2(asp, 1.0);
-      q /= max(1.0 - p * 0.28, 0.05);
-      vec2 lim = 0.5 / cells;
-      float alive = (abs(q.x) < lim.x && abs(q.y) < lim.y) ? 1.0 : 0.0;
-      alive *= 1.0 - smoothstep(0.70, 1.0, p);
-      col = mix(SC(uv), GH(mid + q), alive);
-      glow = alive * smoothstep(0.0, 0.35, p) * 0.45;
-    } else if (uKind < 2.5){
-      /* SCATTER. One flow field, two directions. The old is pushed along it and
-         the new is pulled in against it, and both are gated grain by grain on
-         independent clocks — so for most of the transition BOTH are partly
-         present and the frame is a genuine mixture rather than a fade. */
-      float a = vnz(uv * 2.6 + uSeed * 11.0) * 6.2831853;
+      /* SCATTER. One flow field, two directions. The old is carried along it
+         and the new is drawn in against it, each gated on its own clock — so
+         for most of the transition both are partly present and the frame is a
+         genuine mixture of two rooms' material rather than a fade between two
+         pictures. Both gates must REACH their ends for every grain or the last
+         instant pops; the arrival window is sized so the slowest grain still
+         completes exactly at t = 1. */
+      float a = vnz(uv * 2.2 + uSeed * 11.0) * 6.2831853;
       vec2 f = vec2(cos(a), sin(a));
-      float grain = h21(floor(gl_FragCoord.xy * 0.5) + uSeed * 5.0);
+      /* THE GATE IS SMOOTH NOISE, NOT A HASH. Per-pixel randomness looks like
+         dither — or worse, like a bad JPEG — and a room that appears to be
+         compressing itself is not a room dissolving. Two scales of VALUE noise,
+         one about sixteen pixels across and one across the whole frame, hand
+         the material over in soft patches instead. */
+      float grain = vnz(gl_FragCoord.xy * 0.06 + uSeed * 13.0) * 0.70
+                  + vnz(uv * 4.0 + uSeed * 3.0) * 0.30;
       float go = 1.0 - smoothstep(0.0, 1.0, (t - grain * 0.40) / 0.60);
-      float ni = smoothstep(0.0, 1.0, (t - 0.22 - grain * 0.34) / 0.56);
-      col = GH(uv - f * t * t * 0.32) * go + SC(uv + f * (1.0 - t) * (1.0 - t) * 0.32) * ni;
-      glow = go * ni * 1.6;
-    } else if (uKind < 3.5){
-      /* STREAK. The old room accelerates out past the camera and the new one
-         arrives from far off, both smeared along the radius by eight taps —
-         which is what a zoom blur is, and the reason this reads as speed and
-         not as a scale animation. */
+      float ni = smoothstep(0.0, 1.0, (t - 0.20 - grain * 0.30) / 0.50);
+      col = GH(uv - f * t * t * 0.30) * go + SC(uv + f * (1.0 - t) * (1.0 - t) * 0.30) * ni;
+    } else if (uKind < 2.5){
+      /* DEFOCUS. A real disc of confusion: ten taps on a golden-angle spiral
+         with radius √f, which fills a DISC evenly rather than a ring — so a
+         highlight opens into a round bokeh the way a lens makes one, instead of
+         smearing into a star. The two rooms cross while both are soft, so
+         there is no sharp edge anywhere in the frame at the moment of the swap.
+         Written out twice rather than passed a sampler, because sampler
+         arguments are legal in GLSL ES 1.0 and not uniformly loved by the
+         drivers this has to survive. */
+      float bo = t * (0.055 + uEnergy * 0.02);
+      float bn = (1.0 - t) * (0.055 + uEnergy * 0.02);
       vec3 g = vec3(0.0), n = vec3(0.0);
-      for (int i = 0; i < 8; i++){
-        float sp = float(i) / 7.0;
-        g += GH(0.5 + (uv - 0.5) / (1.0 + t * t * (1.3 + sp * 1.5)));
-        n += SC(0.5 + (uv - 0.5) * (1.0 + (1.0 - t) * (1.0 - t) * (0.6 + sp * 2.2)));
+      for (int i = 0; i < 10; i++){
+        float fi = (float(i) + 0.5) * 0.1;
+        float ang = float(i) * 2.39996323;
+        vec2 o = vec2(cos(ang), sin(ang)) * sqrt(fi) / vec2(asp, 1.0);
+        g += GH(uv + o * bo);
+        n += SC(uv + o * bn);
       }
-      g *= 0.125; n *= 0.125;
-      col = mix(g * (1.0 - t * 0.5), n * (0.5 + t * 0.5), smoothstep(0.28, 0.74, t));
-      float k = 1.0 - abs(t * 2.0 - 1.0);
-      glow = k * k;
+      col = mix(g * 0.1, n * 0.1, m);
+    } else if (uKind < 3.5){
+      /* AERIAL. The old room recedes and the new one comes forward, and the
+         thing between them is air. Extinction is exponential in the distance
+         travelled, so the departing room does not fade toward black — it fades
+         toward the SKY, which is the same rule TERRAIN draws its horizon with.
+         The scale change is small on purpose: a couple of per cent reads as
+         depth, ten reads as a zoom. */
+      /* …and the air is LIT. Extinction toward a dark colour is a fade to
+         black with extra steps; real aerial perspective fades toward a bright
+         sky, which is why a distant ridge is paler than a near one rather than
+         dimmer. Softening the rate too, so the midpoint is a room seen through
+         air rather than a blank beat. */
+      float eo = 1.0 - exp(-t * 2.2);
+      float en = 1.0 - exp(-(1.0 - t) * 2.2);
+      vec3 haze = mix(ramp(fract(uCentroid + 0.60)), vec3(0.30, 0.35, 0.52), 0.5)
+                * (0.52 + uEnergy * 0.20);
+      vec3 g = mix(GH(0.5 + (uv - 0.5) * (1.0 + t * 0.06)), haze, eo);
+      vec3 n = mix(SC(0.5 + (uv - 0.5) * (1.0 - (1.0 - t) * 0.06)), haze, en);
+      col = mix(g, n, m);
     } else if (uKind < 4.5){
-      /* PRISM. The three channels fly apart on the way out and converge on the
-         way in, 120° apart — the room's own PRISM lens, run once, with a
-         different scene on either side of it. */
+      /* REFRACT. Slow moving glass across the whole frame — one smooth,
+         low-frequency displacement that swells to its peak at the midpoint and
+         is exactly zero at both ends, so the transition begins and finishes on
+         an undistorted picture. The swap happens underneath it, which is the
+         point: there is no front, only a moment where the room is being seen
+         through something. A hair of dispersion on the way, because glass in
+         this player disperses. */
       float k = sin(t * PI);
-      float amt = k * (0.09 + uEnergy * 0.05);
-      float m = smoothstep(0.15, 0.85, t);
+      vec2 w = vec2(vnz(uv * 1.6 + uSeed * 9.0), vnz(uv * 1.6 + 13.7 + uSeed * 9.0)) - 0.5;
+      vec2 d = w * k * (0.13 + uEnergy * 0.04) / vec2(asp, 1.0);
+      float ca = k * 0.010;
+      vec3 g = vec3(GH(uv + d * (1.0 + ca)).r, GH(uv + d).g, GH(uv + d * (1.0 - ca)).b);
+      vec3 n = vec3(SC(uv - d * (1.0 + ca)).r, SC(uv - d).g, SC(uv - d * (1.0 - ca)).b);
+      col = mix(g, n, m);
+    } else if (uKind < 5.5){
+      /* PRISM. The three channels separate and re-converge, 120° apart. Kept
+         SMALL — three per cent of the frame, not nine: at nine it is a effect
+         with a name, at three it is a lens that was briefly not quite right,
+         which is the difference this whole file is about. */
+      float k = sin(t * PI);
+      float amt = k * (0.028 + uEnergy * 0.014);
       float b0 = uSeed * 6.2831853;
       vec2 d0 = vec2(cos(b0), sin(b0)) * amt / vec2(asp, 1.0);
       vec2 d1 = vec2(cos(b0 + 2.0943951), sin(b0 + 2.0943951)) * amt / vec2(asp, 1.0);
@@ -29160,56 +29219,24 @@ const XFORM_FRAG = `
       col = vec3(mix(GH(uv + d0).r, SC(uv - d0).r, m),
                  mix(GH(uv + d1).g, SC(uv - d1).g, m),
                  mix(GH(uv + d2).b, SC(uv - d2).b, m));
-      glow = k * 0.5;
-    } else if (uKind < 5.5){
-      /* IRIS. A lobed aperture rather than a circle, because a circle opening
-         on a rectangle is a shape everybody has seen and a rosette is not. The
-         old room is dragged outward a hair by the opening edge, which is what
-         stops the boundary reading as a cut-out. */
-      float lobes = 3.0 + floor(uSeed * 5.0);
-      float rr = length(c), ang = atan(c.y, c.x);
-      float Rr = t * 1.35 * (1.0 + 0.14 * sin(ang * lobes + uSeed * 6.2831853));
-      float w = 0.05 + 0.03 * uEnergy;
-      float m = smoothstep(Rr, Rr - w, rr);            // 1 inside → the new room
-      col = mix(GH(uv + normalize(c + 1e-5) * 0.02 * m / vec2(asp, 1.0)), SC(uv), m);
-      float d = (rr - Rr) / w;
-      glow = exp(-d * d);
-    } else if (uKind < 6.5){
-      /* FOLD. The old room folds into N-fold symmetry and collapses toward the
-         centre; the new one unfolds back out of the same point. The fold is the
-         kaleidoscope's own arithmetic, run as an ANIMATION from none to full
-         and back — so the room does not cut, it goes through a mirror. */
-      float sect = 3.0 + floor(uSeed * 7.0);
+    } else {
+      /* FOLD. BOTH rooms are folded into the same N-fold symmetry by the same
+         amount, which rises to full at the midpoint and relaxes back to none —
+         so at the moment of the swap the frame is a symmetry that belongs to
+         neither room and the join has nowhere to show. The earlier version of
+         this collapsed the old room to a point and unfolded the new one out of
+         it, which is a lovely trick and unmistakably a trick. */
+      float sect = 3.0 + floor(uSeed * 5.0);
       float rr = length(c), ang = atan(c.y, c.x);
       float seg = 6.2831853 / sect;
       float fa = mod(ang, seg); fa = abs(fa - 0.5 * seg);
-      float fo = smoothstep(0.0, 0.78, t);
-      float fn = smoothstep(1.0, 0.22, t);
-      vec2 qo = vec2(cos(mix(ang, fa, fo)), sin(mix(ang, fa, fo))) * rr * (1.0 + fo * 3.2);
-      vec2 qn = vec2(cos(mix(ang, fa, fn)), sin(mix(ang, fa, fn))) * rr * (1.0 + fn * 3.2);
-      col = GH(qo / vec2(asp, 1.0) + 0.5) * (1.0 - t) + SC(qn / vec2(asp, 1.0) + 0.5) * t;
-      glow = (1.0 - abs(t * 2.0 - 1.0)) * 0.7;
-    } else {
-      /* RIPPLE. One shockwave crosses the frame, and the room behind it has
-         changed. The ring refracts both sides as it passes — the old outward,
-         the new inward — so the swap happens INSIDE a lens rather than along a
-         line drawn across the picture. */
-      float rr = length(c);
-      float Rr = t * 1.5;
-      float w = 0.09 + 0.05 * uEnergy;
-      float d = rr - Rr;
-      float ring = exp(-(d * d) / (w * w));
-      vec2 dir = normalize(c + 1e-5) / vec2(asp, 1.0);
-      float m = smoothstep(Rr + w * 0.4, Rr - w * 0.4, rr);
-      col = mix(GH(uv + dir * ring * 0.05), SC(uv - dir * ring * 0.03), m);
-      glow = ring;
+      float fold = sin(t * PI);
+      float ao = mix(ang, fa, fold);
+      vec2 q = vec2(cos(ao), sin(ao)) * rr * (1.0 + fold * 0.10);
+      vec2 fuv = q / vec2(asp, 1.0) + 0.5;
+      col = mix(GH(fuv), SC(fuv), m);
     }
 
-    /* THE SEAM IS LIT IN THE PALETTE, not in white. Both rooms are already
-       wearing the track's colour, so the one place they meet is the one place
-       that colour is unambiguously right — and it makes the boundary read as
-       something the music is doing rather than as a compositing artefact. */
-    col += ramp(fract(uTime * 0.05 + uSeed)) * glow * (0.30 + uBeat * 0.45 + uEnergy * 0.30);
     gl_FragColor = vec4(col, 1.0);
   }`;
 
@@ -29462,7 +29489,8 @@ const LENS = {
       uniforms: { tScene: { value: null }, tGhost: { value: null },
         uResolution: { value: new THREE.Vector2(1, 1) },
         uT: { value: 0 }, uKind: { value: 0 }, uSeed: { value: 0 },
-        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uWhite: U.uWhite, uRamp: U.uRamp },
+        uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uCentroid: U.uCentroid,
+        uWhite: U.uWhite, uRamp: U.uRamp },
       vertexShader: LENS_VERT, fragmentShader: XFORM_FRAG, depthTest: false, depthWrite: false,
     });
     this._ready = true;
