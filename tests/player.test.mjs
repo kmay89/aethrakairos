@@ -22,6 +22,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
+  ' SIGNATURE_RE, isSignature, signatureFirst,' +
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
@@ -341,6 +342,58 @@ test('freshPicks: the front porch — hot by plays, crate by publish date, press
   const p3 = S.freshPicks([{ sha256: 'x', title: 'x' }], new Map([['x', 1]]), key, NOW);
   assert.equal(p3.fresh, null, 'no publish dates → no pressing, no crate');
   assert.equal(p3.hot.sha256, 'x', 'but local plays still crown a hot track');
+});
+
+test('signatureFirst: the introduction leads, and everything else keeps its order', () => {
+  const T = (t) => ({ title: t });
+  const a = T('Amber Axis'), b = T('Breathing'), c = T('Cinder');
+  const m = T('Möbius Walking'), mo = T('mobius walking (edit)');
+
+  assert.deepEqual(S.signatureFirst([a, b, m, c]), [m, a, b, c],
+    'pulled to the front, the rest in the order they arrived');
+  assert.deepEqual(S.signatureFirst([m, a, b]), [m, a, b], 'already first → untouched');
+  assert.deepEqual(S.signatureFirst([a, b]), [a, b], 'absent from both list and pool → left alone');
+  // THE CASE THE CRATE NEEDS: pinned in from the wider shelf when the window
+  // it was cut from has already aged past it
+  assert.deepEqual(S.signatureFirst([a, b], [c, m, a]), [m, a, b],
+    'not in the list but in the pool → pinned to the front anyway');
+  assert.deepEqual(S.signatureFirst([], [m]), [m], 'an empty list still gets the introduction');
+  assert.deepEqual(S.signatureFirst(null, null), [], 'nothing in, nothing out — no throw');
+  // spelled both ways in the wild, and the id is not the promise — the title is
+  assert.equal(S.isSignature(mo), true, 'matched without the umlaut');
+  assert.equal(S.isSignature(m), true);
+  assert.equal(S.isSignature(a), false);
+  assert.equal(S.isSignature({}), false, 'a track with no title is not the introduction');
+  assert.equal(S.isSignature(null), false);
+  // and the original array is not rearranged under the caller
+  const src = [a, b, m];
+  S.signatureFirst(src);
+  assert.deepEqual(src, [a, b, m], 'the input list is left as it was found');
+});
+
+test('freshPicks: the crate opens on the introduction, window or no window', () => {
+  const NOW = Date.UTC(2026, 6, 19), day = 86400000;
+  const iso = d => new Date(NOW - d * day).toISOString().slice(0, 10);
+  const T = (sha, title, days) => ({ sha256: sha, title, published: iso(days) });
+  const key = t => t.sha256 || null;
+  // Möbius Walking is old enough to fall outside the 35-day window, and four
+  // fresher pressings would otherwise fill the crate ahead of it
+  const cat = [
+    T('a', 'Amber Axis', 2), T('b', 'Breathing', 9), T('c', 'Cinder', 20), T('e', 'Ember', 33),
+    T('m', 'Möbius Walking', 400),
+  ];
+  const p = S.freshPicks(cat, new Map(), key, NOW);
+  assert.equal(p.crate[0].title, 'Möbius Walking', 'the crate leads with the introduction');
+  assert.deepEqual(p.crate.slice(1).map(t => t.sha256), ['a', 'b', 'c', 'e'],
+    'then the latest pressings, newest first, exactly as before');
+  assert.equal(p.fresh.sha256, 'a', 'the pressing is still the genuinely newest — not the hero');
+  // inside the window it is promoted rather than duplicated
+  const near = S.freshPicks([T('a', 'Amber Axis', 2), T('m', 'Möbius Walking', 5), T('b', 'Breathing', 9)],
+    new Map(), key, NOW);
+  assert.deepEqual(near.crate.map(t => t.sha256), ['m', 'a', 'b'], 'in-window → moved up, listed once');
+  // no introduction in the catalogue → plain newest-first, unchanged
+  const none = S.freshPicks([T('a', 'Amber Axis', 2), T('b', 'Breathing', 9)], new Map(), key, NOW);
+  assert.deepEqual(none.crate.map(t => t.sha256), ['a', 'b'], 'no hero → the crate is untouched');
 });
 
 test('openingSet: Möbius Walking leads, then the freshest, cued for a first visit', () => {
