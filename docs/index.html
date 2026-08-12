@@ -6820,7 +6820,7 @@ const FADE_BASS_CUT = -22;
 const BEATMIX_BASS_DUCK = -14;
 
 const AE = {
-  ctx: null, bus: null, master: null, analyser: null,
+  ctx: null, bus: null, busGate: null, master: null, analyser: null,
   decks: null, active: 0, xfading: false,
   graphLive: false,           // true when playback actually feeds the analyser
   mic: { stream: null, node: null, gain: null, on: false },
@@ -6890,7 +6890,16 @@ function ensureCtx(){
     const wet = AE.ctx.createGain(); wet.gain.value = 1;
     const out = AE.ctx.createGain();
 
-    AE.bus.connect(inn);
+    /* ONE GATE BETWEEN THE DECKS AND THE ROOM, and it exists for exactly one
+       reason: the seamless loop (LOOPER) needs to take the room away from the
+       decks without touching them. Muting a deck's own gain would fight the
+       MIXER, which owns those gains across a seam, and would also silence the
+       tape the loop is recorded from. Closing it here leaves the decks playing,
+       leaves the recorder fed, and leaves nothing audible. Parked wide open, so
+       a listener who never loops pays one gain node of nothing. */
+    AE.busGate = AE.ctx.createGain();
+    AE.bus.connect(AE.busGate);
+    AE.busGate.connect(inn);
     inn.connect(hp); hp.connect(lp); lp.connect(gate);
     gate.connect(driveDry); driveDry.connect(out);
     gate.connect(drive); drive.connect(driveWet); driveWet.connect(out);
@@ -6901,9 +6910,13 @@ function ensureCtx(){
     AE.fx = { in: inn, lp, hp, gate, drive, driveWet, driveDry, send, delay, fb, damp, wet, out };
   }
   AE.master.connect(AE.ctx.destination);
-  // the analyser watches the BUS, before the rack: the visuals follow the music,
-  // not the effect on top of it — a closed filter must not make the room go dark
-  AE.bus.connect(AE.analyser);
+  /* the analyser watches the bus gate, before the rack: the visuals follow the
+     music, not the effect on top of it — a closed filter must not make the room
+     go dark. AFTER the gate rather than before it, so that when a loop takes
+     the room the analyser follows the LOOP (which also feeds this node) rather
+     than the muted deck still running on underneath it — otherwise the visuals
+     would keep dancing to music nobody can hear. */
+  AE.busGate.connect(AE.analyser);
 
   // a shared ECHO unit for the "echo out": a fading deck's tail is sent into a
   // feedback delay that keeps ringing AFTER the track itself has gone — the
@@ -13898,6 +13911,162 @@ function rollPos(loopStart, heldFor, bpm, beats){
   const held = heldFor > 0 ? heldFor : 0;
   return loopStart + (held % len);
 }
+
+/* ================================================================
+   THE LOOP THAT DOES NOT SEEK.
+
+   loopWrap above is an honest fix for the wrong problem. Re-seeking a
+   media element on an animation frame keeps the loop ON the grid — the
+   overshoot is carried, so the AVERAGE period is exactly len — but the
+   INSTANTANEOUS period still jitters by however late the tick was, and
+   setting currentTime on an <audio> element is not a sample-accurate
+   operation. The decoder is asked to jump; it re-primes; the graph gets a
+   short hole. Once a cycle. On a two-beat loop at 128 BPM that is a tick
+   every 940 ms, and it is the exact thing the ear is listening for.
+   Nothing in the arithmetic can fix it, because the arithmetic was never
+   the problem: the SEEK is.
+
+   So: don't seek. Record the loop as it plays past for the first time,
+   then hand the sound over to an AudioBufferSourceNode with loop = true.
+   From that instant the wrap happens in the audio thread, between two
+   adjacent samples, with no main thread involved at all — which is what
+   hardware does and what "no drift, no click, forever" actually requires.
+
+   Three pieces of arithmetic make that safe, and they are all here so they
+   can be checked without a browser:
+
+     WHERE IN THE TAPE   the recording is a ring, and a loop is a slice of
+                         it. ringSlice hands back the one or two runs that
+                         slice is made of, or nothing at all if the tape
+                         has already rolled past it.
+     WHEN TO HAND OVER   the instant the deck reaches the loop's out-point,
+                         read off the deck's own clock — so the handover
+                         needs no knowledge of the graph's latency, because
+                         a source node started at time T enters the graph at
+                         exactly the same place the deck's audio does.
+     WHAT THE JOIN IS    a loop point is a splice: sample len is followed by
+                         sample 0, and if the waveform disagrees across that
+                         join it clicks, every single cycle, forever. So the
+                         head of the buffer is blended with the audio that
+                         really did follow the out-point. That one blend
+                         fixes BOTH joins — the live-to-loop handover and
+                         every wrap after it — because the buffer's first
+                         sample now IS the sample the deck was about to play.
+   ================================================================ */
+// the length of that blend: long enough to swallow a discontinuity, far too
+// short to hear as a fade. Capped against the loop itself so a 1/8-beat roll
+// is not mostly crossfade.
+const LOOP_XFADE = 0.012;
+// how much tape must still be spare beyond the out-point before the blend can
+// be built at all; with less than this the head is windowed instead
+const LOOP_RING_SEC = 24;          // how much of the recent past the tape holds
+function loopXfadeLen(len, spare){
+  const L = len > 0 ? len : 0.01;
+  const want = Math.min(LOOP_XFADE, L / 8);
+  return Math.max(0, Math.min(want, spare > 0 ? spare : 0));
+}
+/* THE BLEND ITSELF. i runs 0…n across the head of the buffer. `tail` weights the
+   audio that FOLLOWED the out-point and starts at full, `head` weights the
+   audio at the in-point and ends at full — so the buffer's very first sample is
+   exactly what came next, and by sample n it is the loop proper. Equal power,
+   because the two are different music and summing them linearly would dip. */
+function loopHeadBlend(i, n){
+  if (!(n > 0)) return { head: 1, tail: 0 };
+  const f = i <= 0 ? 0 : i >= n ? 1 : i / n;
+  const ep = equalPowerXfade(f);
+  return { head: ep.b, tail: ep.a };
+}
+/* WHERE A SAMPLE LIVES IN THE TAPE. The recorder notes, on every block it
+   writes, the deck's own playhead — so the tape and the music share one index
+   and the graph's latency never enters the arithmetic. `rate` is the deck's
+   playback rate: one sample of tape is one sample of context time, which is
+   `rate` seconds of MUSIC. */
+function ringIndexOf(pIdx, pMedia, sr, rate, media){
+  const r = rate > 0 ? rate : 1;
+  return Math.round(pIdx + (media - pMedia) * sr / r);
+}
+/* THE SLICE. The tape holds the last `cap` samples of everything ever written;
+   ask for [from, from+n) and get back the one or two runs it is made of, or
+   null when the request has fallen off either end — which is the only honest
+   answer, and the difference between a loop and a buffer full of silence. */
+function ringSlice(cap, written, from, n){
+  if (!(cap > 0) || !(n > 0)) return null;
+  if (from < written - cap || from + n > written || from < 0) return null;
+  const out = [];
+  let i = from, left = n;
+  while (left > 0){
+    const at = i % cap;
+    const run = Math.min(left, cap - at);
+    out.push({ at, len: run });
+    i += run; left -= run;
+  }
+  return out;
+}
+/* WHEN THE HANDOVER FALLS. The deck is at `mediaNow` at context time `ctxNow`;
+   the loop ends at `start + len` of music, which is (start+len−mediaNow)/rate
+   seconds of REAL time away. A buffer source started then enters the graph at
+   the same point the deck's audio does, so whatever the output latency is, it
+   is the same for both and cancels. */
+function loopHandoverAt(ctxNow, mediaNow, start, len, rate){
+  const r = rate > 0 ? rate : 1;
+  return ctxNow + (start + len - mediaNow) / r;
+}
+/* AND WHEN WE MISS IT. Cutting the buffer is main-thread work and the main
+   thread is also drawing thirty-one rooms; a stalled frame can walk straight
+   past the handover. Landing late is not an option — a source started late
+   plays late forever. So take another lap: push the handover on by WHOLE loop
+   lengths, which keeps the in-point exactly where it was on the grid and costs
+   the listener one more perfectly ordinary cycle of the music they were
+   already hearing. Nobody can hear a loop that starts one bar later; everybody
+   can hear one that starts 40 ms late. */
+function loopLateHandover(at, now, len, lead){
+  const L = len > 0 ? len : 0.01;
+  const deadline = at - (lead > 0 ? lead : 0);
+  if (now <= deadline) return at;
+  return at + Math.ceil((now - deadline) / L) * L;
+}
+/* WHERE THE LOOP IS RIGHT NOW, as a phase in seconds since the handover. */
+function loopPhaseAt(t, handAt, len){
+  const L = len > 0 ? len : 0.01;
+  const d = t - handAt;
+  return d <= 0 ? 0 : d % L;
+}
+/* WHERE TO PUT THE DECK SO IT CAN TAKE THE MUSIC BACK. Letting go of a loop is
+   a splice too, and the deck cannot be seeked and heard in the same instant —
+   an element asked to jump takes a moment to have audio again. So it is seeked
+   EARLY, `lead` seconds before the handback, while the loop is still playing
+   and covering for it. Nobody can tell: it is a loop, one more lap of it is
+   indistinguishable from the last.
+
+     roll     the track ran on underneath the whole time and the deck is
+              already exactly where it should be — that is the roll's entire
+              idea, and it means the release needs no seek at all.
+     loop     the deck ran on too, but a latched loop lets go INSIDE itself,
+              the way a CDJ does, so the deck comes back to the loop's own
+              position — `lead` short of it, so it arrives on time. */
+function loopHandbackPos(mode, start, len, phase, deckNow, lead){
+  const L = len > 0 ? len : 0.01;
+  const ld = lead > 0 ? lead : 0;
+  if (mode === 'roll') return Math.max(0, deckNow);
+  const p = ((phase % L) + L) % L;
+  const want = p + ld >= L ? p + ld - L : p + ld;   // where the loop will BE
+  return Math.max(0, start + want - ld + (want - ld < 0 ? L : 0));
+}
+/* AND WHERE THE LOOP MAY BEGIN AT ALL. The in-point is the last grid line at or
+   before the playhead, which is up to a beat in the PAST — fine once the tape
+   is rolling, impossible on the very first press of a session, when there is no
+   past to cut from. Rather than quietly shorten the loop (a loop that is not
+   the length it says it is, forever), take the next grid line: the loop lands
+   one beat later, on the grid, the full length, once. */
+function loopInPoint(pos, grid, bpm, beats, haveSec){
+  const b = loopBounds(pos, grid, bpm, beats);
+  const spb = beatLen(1, bpm);
+  const back = pos - b.start;
+  const have = haveSec > 0 ? haveSec : 0;
+  const push = back > have ? Math.ceil((back - have) / spb) : 0;
+  const start = b.start + push * spb;
+  return { start, len: b.len, end: start + b.len, pushed: push };
+}
 /* THE WET CURVE. A cubic, so the first two thirds of the travel buy fine control
    and the last third opens up — which is how a real wet knob feels — and capped
    below 1 because an effect that entirely replaces the track is not an effect,
@@ -16249,6 +16418,400 @@ function paintLane(ctx, x, y, w, h, tr, frac, accent){
 }
 
 /* ================================================================
+   LOOPER — the tape under the booth.
+
+   A beat loop used to be a re-seek: watch the playhead on an animation
+   frame, and when it passes the out-point write currentTime back to the
+   in-point. loopWrap made that land on the grid, which is the half of the
+   problem arithmetic can solve. The other half it cannot: setting
+   currentTime on a media element asks a decoder to jump, and a decoder
+   asked to jump takes a moment to have audio again. Once per cycle,
+   forever, exactly on the beat — the most audible place a fault can be.
+
+   So this records the loop the first time it goes past and then plays it
+   from an AudioBufferSourceNode with loop = true. After the handover the
+   wrap happens in the audio thread between two adjacent samples: no
+   drift, no decoder, no animation frame, and — measurably — no seek at
+   all for as long as the loop is held.
+
+   THE TAPE. A ScriptProcessorNode, deprecated for fifteen years and still
+   the only way to get PCM out of a graph without cross-origin isolation:
+   an AudioWorklet cannot hand samples to the main thread without either a
+   SharedArrayBuffer (which needs COOP/COEP headers a static site cannot
+   set) or a postMessage per block, which is the same main-thread hop with
+   more moving parts. So: a 4096-frame processor writing into a ring, one
+   memcpy per block, output silenced.
+
+   THE ONE MEASUREMENT EVERYTHING RESTS ON. To cut the loop out of the
+   tape we have to know which tape sample the graph is playing at a given
+   moment — and the tape is written AHEAD of what is audible, by an amount
+   nobody documents and every device gets differently. Guessing it wrong
+   does not fail loudly; it makes the handover land on the wrong sample
+   and puts one audible jump at the top of the first loop. So it is not
+   guessed: at open() a single-sample impulse is fired into the tape's
+   input at a known context time and found again in the ring, which gives
+   the tape-index-to-context-time relation exactly, on the actual device.
+   The impulse never reaches the room — it is connected to the recorder,
+   not to the bus — and it is zeroed out of the ring once it has been
+   read.
+
+   WHAT IT REFUSES TO DO. Land late. A source node started late plays late
+   forever, and the cut is main-thread work on a main thread that is also
+   drawing thirty-one rooms — measured on the software rasteriser this is
+   built against, animation frames run 60 to 200 ms and the recorder's
+   blocks arrive over a tenth of a second behind the music. There is no
+   arrangement of leads and timers that wins that race every time on every
+   device.
+
+   So it does not race. THE OLD RE-SEEK LOOP KEEPS RUNNING until the
+   handover can be made properly: the loop loops from the instant it is
+   pressed, exactly as it always did, and the tape quietly takes over on
+   the first out-point it can reach in time — the very first one on a
+   healthy device, a lap or two later on a struggling one. The failure
+   mode of the new machinery is therefore the OLD machinery, which is the
+   only failure mode worth having. What it can never be is a loop that
+   does not loop while something waits for a buffer.
+   ================================================================ */
+const LOOP_MIN_LEAD   = 0.040;   // the least warning a scheduled handover needs
+const LOOP_POLL_MS    = 20;      // how often the tape is asked whether it has it
+const LOOP_GIVEUP     = 8;       // laps to keep trying before leaving well alone
+const LOOP_HAND_RAMP  = 0.006;   // the gain crossfade either side of a handover
+const LOOP_BACK_LEAD  = 0.16;    // how long the deck is given to find its place
+const LOOP_CAL_DELAY  = 0.20;    // when the calibration impulse is fired
+const LOOP_CAL_GIVEUP = 1.50;    // …and how long we wait for it before modelling
+const LOOP_IDLE_SEC   = 45;      // how long the tape keeps rolling unused
+
+const LOOPER = {
+  ring: null, cap: 0, sr: 0, written: 0, liveFrom: 0,
+  K: null, _cal: null,                     // tape index n is heard at n/sr + K
+  tap: null, sink: null, out: null, src: null,
+  armed: false, pending: false, on: false, mode: 'loop',
+  start: 0, len: 0, tIn: 0, handAt: 0, deckRate: 1,
+  cycles: 0, laps: 0, seeks: 0, _timer: 0, idle: 0,
+
+  /* iOS plays element-direct — there is no graph to record and no bus to take
+     the room from, so the whole layer stands down and the booth keeps the
+     re-seek loop it has always had. Everything below assumes a live graph. */
+  ok(){
+    return !!(AE.graphLive && AE.ctx && AE.fx && AE.busGate
+              && typeof AE.ctx.createScriptProcessor === 'function');
+  },
+  // how much of the tape is real music rather than the calibration silence
+  have(){ return this.ring ? Math.max(0, Math.min(this.written - this.liveFrom, this.cap)) / this.sr : 0; },
+  ready(){ return !!(this.ring && this.K != null); },
+
+  open(){
+    if (this.tap) return true;
+    if (!this.ok()) return false;
+    const ctx = AE.ctx;
+    try {
+      this.sr = ctx.sampleRate;
+      this.cap = Math.max(1, Math.ceil(LOOP_RING_SEC * this.sr));
+      this.ring = [new Float32Array(this.cap), new Float32Array(this.cap)];
+      // nothing on the tape counts as music until the marker has been found and
+      // the bus is actually connected — until then have() must read zero, or a
+      // loop would try to cut its in-point out of the calibration silence
+      this.written = 0; this.liveFrom = Infinity; this.K = null;
+      const sp = ctx.createScriptProcessor(4096, 2, 1);
+      sp.onaudioprocess = e => this._write(e);
+      // a processor nobody listens to is a processor the graph never pulls, so
+      // it is wired to the destination through a gain that is exactly zero
+      const sink = ctx.createGain(); sink.gain.value = 0;
+      sp.connect(sink); sink.connect(ctx.destination);
+      // where the loop comes back OUT: into the rack, so a filter sweep or a
+      // gate still lands on it, and into the analyser, so the room dances to
+      // the loop rather than to the muted deck still running underneath
+      const out = ctx.createGain(); out.gain.value = 0;
+      out.connect(AE.fx.in); out.connect(AE.analyser);
+      this.tap = sp; this.sink = sink; this.out = out;
+      this._calibrate();
+      return true;
+    } catch (e){ this.close(); return false; }
+  },
+  close(){
+    this.cancel();
+    // disconnect() lets go of a node's OUTPUTS; the bus feeding the recorder is
+    // an input, and leaving it attached would keep the graph pulling a processor
+    // that no longer records anything
+    if (this.tap && AE.bus) try { AE.bus.disconnect(this.tap); } catch (e){}
+    for (const n of [this.tap, this.sink, this.out]) { if (n) try { n.disconnect(); } catch (e){} }
+    if (this.tap) this.tap.onaudioprocess = null;
+    if (this._cal){ try { this._cal.src.disconnect(); } catch (e){} this._cal = null; }
+    this.tap = this.sink = this.out = null;
+    this.ring = null; this.K = null; this.written = 0; this.liveFrom = 0;
+  },
+
+  /* THE IMPULSE. One sample of 1.0, scheduled at a known context time, into the
+     recorder's input and nowhere else. Where it lands in the ring is the answer
+     to "which tape sample is the graph playing right now", measured rather than
+     modelled — see the header. The bus is connected only once it has been found,
+     so the search cannot mistake a kick drum for the marker. */
+  _calibrate(){
+    const ctx = AE.ctx;
+    try {
+      const b = ctx.createBuffer(1, 8, this.sr);
+      b.getChannelData(0)[0] = 1;
+      const s = ctx.createBufferSource();
+      s.buffer = b; s.connect(this.tap);
+      const at = ctx.currentTime + LOOP_CAL_DELAY;
+      s.start(at);
+      this._cal = { at, src: s, until: at + LOOP_CAL_GIVEUP };
+    } catch (e){ this._calDone(null); }
+  },
+  _calDone(idx){
+    const c = this._cal; this._cal = null;
+    if (c) try { c.src.disconnect(); } catch (e){}
+    if (idx != null && c){
+      this.K = c.at - idx / this.sr;
+    } else {
+      /* THE MODEL, used only if the marker never arrived. A processor of B
+         frames is read about B frames ahead of what the device is playing, plus
+         whatever the context admits to; being wrong here costs the loop a few
+         milliseconds of phase against the beat grid, which is inaudible, and is
+         still far better than refusing to loop at all. */
+      const ahead = 4096 / this.sr + (AE.ctx.baseLatency || 0);
+      this.K = AE.ctx.currentTime + ahead - this.written / this.sr;
+    }
+    try { AE.bus.connect(this.tap); } catch (e){}
+    this.liveFrom = this.written;
+  },
+
+  _write(e){
+    if (!this.ring) return;
+    const inp = e.inputBuffer, n = inp.length, cap = this.cap, nCh = inp.numberOfChannels;
+    const base = this.written;
+    for (let c = 0; c < 2; c++){
+      const src = inp.getChannelData(nCh > 1 ? c : 0), dst = this.ring[c];
+      let i = 0, p = base % cap;
+      while (i < n){
+        const run = Math.min(n - i, cap - p);
+        dst.set(src.subarray(i, i + run), p);
+        i += run; p += run; if (p >= cap) p = 0;
+      }
+    }
+    this.written = base + n;
+    if (this._cal){
+      const src = inp.getChannelData(0);
+      for (let i = 0; i < n; i++) if (src[i] > 0.5){
+        const at = (base + i) % cap;
+        this.ring[0][at] = 0; this.ring[1][at] = 0;   // never let the marker be heard
+        this._calDone(base + i);
+        return;
+      }
+      if (AE.ctx.currentTime > this._cal.until) this._calDone(null);
+    }
+  },
+
+  // pull [from, from+n) out of the ring as one flat array, or null if the tape
+  // has already rolled past it
+  _read(c, from, n){
+    const segs = ringSlice(this.cap, this.written, from, n);
+    if (!segs) return null;
+    const out = new Float32Array(n), tape = this.ring[c];
+    let w = 0;
+    for (const s of segs){ out.set(tape.subarray(s.at, s.at + s.len), w); w += s.len; }
+    return out;
+  },
+  /* CUT THE LOOP OUT OF THE TAPE. `tIn` is the context time the in-point was
+     heard at; everything else follows from K. The head of the buffer is blended
+     with the audio that really did follow the out-point, which is what makes
+     both the handover and every wrap after it continuous — see loopHeadBlend. */
+  _cutBuffer(tIn, len){
+    const sr = this.sr;
+    const i0 = Math.round((tIn - this.K) * sr);
+    const n = Math.max(2, Math.round(len * sr));
+    const spare = (this.written - (i0 + n)) / sr;
+    if (spare < 0) return null;
+    const xn = Math.max(0, Math.round(loopXfadeLen(len, spare) * sr));
+    const buf = AE.ctx.createBuffer(2, n, sr);
+    for (let c = 0; c < 2; c++){
+      const body = this._read(c, i0, n);
+      if (!body) return null;
+      const over = xn > 1 ? this._read(c, i0 + n, xn) : null;
+      if (over){
+        for (let i = 0; i < xn; i++){
+          const w = loopHeadBlend(i, xn);
+          body[i] = body[i] * w.head + over[i] * w.tail;
+        }
+      } else {
+        // no tape to blend with (a loop shorter than the blend itself): window
+        // the join instead, so the wrap dips rather than clicks
+        const wn = Math.min(n >> 2, Math.round(0.003 * sr));
+        for (let i = 0; i < wn; i++){ body[i] *= i / wn; body[n - 1 - i] *= i / wn; }
+      }
+      buf.copyToChannel(body, c);
+    }
+    return buf;
+  },
+  _source(buf, at){
+    const s = AE.ctx.createBufferSource();
+    s.buffer = buf; s.loop = true; s.loopStart = 0; s.loopEnd = buf.length / this.sr;
+    s.connect(this.out);
+    s.start(at);
+    return s;
+  },
+  /* THE CROSSOVER, and why it is LINEAR. At the join the two sides carry the
+     SAME audio — the buffer's first sample IS what the deck was about to play —
+     and an equal-power law would sum two identical signals to +3 dB, putting a
+     bump exactly where the seam is. Linear keeps a + b = 1, so the crossover is
+     arithmetically silent. */
+  _fade(toLoop, at){
+    const set = (p, to) => { if (!p) return; try {
+      p.cancelScheduledValues(at);
+      p.setValueAtTime(p.value, at);
+      p.linearRampToValueAtTime(to, at + LOOP_HAND_RAMP);
+    } catch (e){ try { p.value = to; } catch (e2){} } };
+    set(AE.busGate && AE.busGate.gain, toLoop ? 0 : 1);
+    set(this.out && this.out.gain, toLoop ? 1 : 0);
+  },
+
+  /* ARMING COMMITS TO NOTHING. It says which slice of music the loop is and
+     starts asking the tape, every twenty milliseconds, whether it has that slice
+     yet. Until it does — which covers the calibration, a stalled frame, a block
+     of audio still queued behind a slow render — the booth's own re-seek loop is
+     what the listener hears, so the loop is a loop from the instant the pad went
+     down. Nothing here is allowed to be the reason a loop does not loop. */
+  arm(start, len, mode){
+    if (!this.open()) return false;
+    const d = activeDeck();
+    if (!d) return false;
+    this.cancel();
+    const ctx = AE.ctx, rate = d.a.playbackRate || 1;
+    this.mode = mode === 'roll' ? 'roll' : 'loop';
+    this.start = start; this.len = len; this.deckRate = rate;
+    /* THE ANCHOR, and it never moves again. tIn is the context time the loop's
+       in-point was (or will be) heard at, off the deck's own clock. The first
+       pass past it is clean linear audio whether or not the re-seek loop is
+       running underneath, so it stays the slice every cut is taken from, however
+       many laps it takes to get one. An error in it shifts the loop's phase
+       against the beat grid by a few milliseconds and nothing else. */
+    this.tIn = ctx.currentTime + (start - d.a.currentTime) / rate;
+    this.handAt = 0;
+    this.armed = true; this.pending = false; this.laps = 0; this.idle = 0;
+    this._timer = setTimeout(() => this._poll(), Math.max(0, (this.tIn + len - ctx.currentTime) * 1000));
+    return true;
+  },
+  _poll(){
+    this._timer = 0;
+    if (!this.armed || !this.ring || !AE.ctx) return;
+    const now = AE.ctx.currentTime;
+    this.laps = Math.max(0, Math.floor((now - this.tIn) / this.len));
+    // give up quietly rather than hold a timer forever: the booth's own loop is
+    // running and the listener is not missing anything but the upgrade
+    if (this.laps > LOOP_GIVEUP || now - this.tIn > LOOP_RING_SEC * 0.7){ this.armed = false; return; }
+    if (this.ready() && this._engage()) return;
+    this._timer = setTimeout(() => this._poll(), LOOP_POLL_MS);
+  },
+  /* THE HANDOVER IS AIMED AT THE DECK, not at the calendar. Under the re-seek
+     loop the playhead wanders by up to a frame either side of the grid, and
+     handing over on the grid rather than on the deck would splice those few
+     milliseconds together audibly. So the moment is taken from where the deck
+     actually is: the next time IT reaches the out-point. loopLateHandover then
+     pushes that on by whole loops if it is too close to schedule, which keeps
+     the in-point exactly where it was. */
+  _engage(){
+    const ctx = AE.ctx, d = activeDeck();
+    if (!d) return false;
+    const buf = this._cutBuffer(this.tIn, this.len);
+    if (!buf) return false;
+    const rate = d.a.playbackRate || 1;
+    const raw = ctx.currentTime + (this.start + this.len - d.a.currentTime) / rate;
+    const at = loopLateHandover(raw, ctx.currentTime, this.len, LOOP_MIN_LEAD);
+    try { this.src = this._source(buf, at); } catch (e){ return false; }
+    this.handAt = at; this.deckRate = rate;
+    this.armed = false; this.pending = true;
+    this._fade(true, at);
+    return true;
+  },
+  /* PENDING UNTIL THE INSTANT IT IS AUDIBLE. The source is scheduled, the fade
+     is scheduled, and neither has happened yet — so the booth must keep holding
+     the loop the old way right up to that instant and stop dead on it. */
+  settle(){
+    if (this.pending && AE.ctx && AE.ctx.currentTime >= this.handAt){
+      this.pending = false; this.on = true; this.cycles++;
+    }
+  },
+  engaged(){ return this.on || this.pending; },
+
+  /* HALVE AND DOUBLE. Shorter is free and exact: move the out-point and the
+     audio thread applies it on the next wrap. Longer needs tape the node is not
+     holding — available once the (still running, still muted) deck has played
+     that far past the in-point — and swaps in a fresh cut on a wrap boundary,
+     from the same in-point, so the phrase cannot slide. When the tape does not
+     reach that far yet the resize is refused rather than faked. */
+  retarget(len){
+    if (!this.on || !this.src || !AE.ctx || !this.ready()) return false;
+    const sr = this.sr, n = Math.max(2, Math.round(len * sr));
+    if (n <= this.src.buffer.length){
+      try { this.src.loopEnd = n / sr; this.len = len; return true; } catch (e){ return false; }
+    }
+    // swap on a WRAP, so the new cut begins where the old one was about to
+    const at = loopLateHandover(this.handAt, AE.ctx.currentTime, this.len, LOOP_MIN_LEAD);
+    const buf = this._cutBuffer(this.tIn, len);
+    if (!buf) return false;
+    let s;
+    try { s = this._source(buf, at); } catch (e){ return false; }
+    try { this.src.stop(at); } catch (e){}
+    this.src = s; this.len = len; this.handAt = at;
+    return true;
+  },
+
+  /* THE DECK KEEPS ITS OWN TEMPO. The tape was recorded at whatever rate the
+     deck was running, so the buffer already sounds the way it did; but if the
+     rate MOVES while the loop is held — the mixer matching a tempo, a listener
+     on the speed slider — the loop has to move with it or the room ends up in
+     two tempos at once. */
+  follow(d){
+    if (!this.on || !this.src || !d) return;
+    const r = (d.a.playbackRate || 1) / (this.deckRate || 1);
+    if (Math.abs((this.src.playbackRate.value || 1) - r) > 0.001)
+      { try { ramp(this.src.playbackRate, r, 0.08); } catch (e){} }
+  },
+
+  /* GIVE THE ROOM BACK. The deck cannot be seeked and heard in the same instant,
+     so it is seeked EARLY and the loop covers for it — one more lap of a loop is
+     indistinguishable from the last. A ROLL needs no seek at all: the deck ran
+     on underneath the whole time, which is the roll's entire idea, and it is
+     already exactly where it should be. Returns the seconds until the handback,
+     so a caller can keep its own state in step. */
+  handBack(seekTo){
+    // a handover that has not become audible yet is not a handback, it is a
+    // cancellation: the deck never stopped being the thing the room was hearing
+    if (!this.on || !AE.ctx){ this.cancel(); return 0; }
+    const ctx = AE.ctx, at = ctx.currentTime + LOOP_BACK_LEAD, d = activeDeck();
+    if (d){
+      const phase = loopPhaseAt(ctx.currentTime, this.handAt, this.len);
+      const to = seekTo != null ? seekTo
+        : loopHandbackPos(this.mode, this.start, this.len, phase, d.a.currentTime, LOOP_BACK_LEAD);
+      if (isFinite(to) && (seekTo != null || this.mode !== 'roll')){
+        try { d.a.currentTime = Math.max(0, to); this.seeks++; } catch (e){}
+      }
+    }
+    this._fade(false, at);
+    const s = this.src; this.src = null;
+    if (s) try { s.stop(at + LOOP_HAND_RAMP + 0.05); } catch (e){}
+    this.on = false; this.armed = false; this.pending = false;
+    clearTimeout(this._timer); this._timer = 0;
+    return LOOP_BACK_LEAD;
+  },
+  // the blunt version: used when a track changes hands and nothing may be left
+  // playing. Still ramped — a booth that clicks on a track change is a fault.
+  cancel(){
+    clearTimeout(this._timer); this._timer = 0;
+    const s = this.src; this.src = null;
+    const at = AE.ctx ? AE.ctx.currentTime : 0;
+    // a PENDING handover has a fade already written into the future; cancelling
+    // has to unwrite it, or the room would go quiet at a handover that is no
+    // longer coming
+    if (this.engaged() && AE.ctx) this._fade(false, at);
+    if (s) try { s.stop(at + LOOP_HAND_RAMP + 0.05); } catch (e){}
+    this.armed = false; this.pending = false; this.on = false;
+    if (AE.busGate) ramp(AE.busGate.gain, 1, 0.02);
+    if (this.out) ramp(this.out.gain, 0, 0.02);
+  },
+};
+
+/* ================================================================
    FX — the booth's hands. The pure arithmetic lives in the @fx block;
    this is the part that touches the graph and the deck.
 
@@ -16364,14 +16927,32 @@ const FX = {
     this.loopTick();
     this.brakeTick(dt);
     this.autoTick(dt);
+    /* THE TAPE IS NOT FREE TO LEAVE RUNNING. It is nine megabytes of ring and a
+       hop to the main thread every eighty milliseconds, which is nothing on a
+       desk and not nothing on a phone in somebody's pocket. So it rolls while
+       the booth is being used and stops itself when it is not. */
+    if (LOOPER.tap){
+      const busy = !!this.loop || LOOPER.engaged() || LOOPER.armed;
+      LOOPER.idle = busy ? 0 : LOOPER.idle + dt;
+      if (LOOPER.idle > LOOP_IDLE_SEC) LOOPER.close();
+    }
   },
 
   /* ---- loops and rolls ------------------------------------------------ */
   setLoop(beats, roll){
     const d = activeDeck();
     if (!d || !player.playing) return;
-    const b = loopBounds(d.a.currentTime, this.grid(), this.bpm(), beats);
+    /* WHERE THE LOOP MAY BEGIN depends on how much tape there is. The in-point
+       is the last grid line at or BEFORE the playhead, which is up to a beat in
+       the past — there for the taking once the recorder has been running, and
+       simply not there on the first press of a session. loopInPoint takes the
+       next line instead in that one case. Where there is no recorder at all
+       (iOS, element-direct) the constraint does not apply: the old re-seek loop
+       does not need a tape, and Infinity leaves loopBounds exactly as it was. */
+    const tape = (LOOPER.ok() && LOOPER.open()) ? LOOPER.have() : Infinity;
+    const b = loopInPoint(d.a.currentTime, this.grid(), this.bpm(), beats, tape);
     this.loop = { start: b.start, len: b.len, beats, roll: !!roll, heldFrom: d.a.currentTime };
+    LOOPER.arm(b.start, b.len, roll ? 'roll' : 'loop');
     this.hand();
     HAPTICS.pulse(true);
   },
@@ -16379,14 +16960,28 @@ const FX = {
     if (!this.loop) return;
     // re-cut from the SAME in-point: the phrase must not slide under the hand
     const beats = loopResize(this.loop.beats, dir);
+    if (beats === this.loop.beats) return;
+    const len = beatLen(beats, this.bpm());
+    // shorter is instant and exact; longer needs tape the node is not holding,
+    // and LOOPER refuses rather than fakes it — see retarget()
+    if (LOOPER.on){ if (!LOOPER.retarget(len)) return; }
+    // not handed over yet: the re-seek loop is holding this one, so the tape's
+    // pending cut has to be re-aimed at the new length from the same in-point
+    else if (LOOPER.engaged() || LOOPER.armed) LOOPER.arm(this.loop.start, len, this.loop.roll ? 'roll' : 'loop');
     this.loop.beats = beats;
-    this.loop.len = beatLen(beats, this.bpm());
+    this.loop.len = len;
     this.hand();
   },
   clearLoop(){
     const L = this.loop;
     this.loop = null;
     if (!L) return;
+    /* THE TAPE IS PLAYING, so letting go is a handback rather than a seek: the
+       deck is put where the music should continue from while the loop is still
+       covering, and the two are crossed over on the audio clock. A roll needs no
+       seek at all — the deck ran on underneath the whole time. */
+    if (LOOPER.on){ LOOPER.handBack(); this.hand(); return; }
+    if (LOOPER.engaged() || LOOPER.armed){ LOOPER.cancel(); }
     // A ROLL RETURNS YOU TO REAL TIME. The track ran on underneath while the
     // music stalled, so releasing lands where it would have been — the phrase
     // is intact and the roll reads as a stutter over the music, not a detour.
@@ -16401,9 +16996,38 @@ const FX = {
   },
   loopTick(){
     const L = this.loop, d = activeDeck();
-    if (!L || !d || !player.playing) return;
+    if (!L || !d) return;
+    /* PAUSE STOPS EVERYTHING, including a loop the audio thread is holding. A
+       buffer source does not know the transport exists and would happily play
+       on over a paused deck. */
+    if (!player.playing){
+      if (LOOPER.engaged() || LOOPER.armed){ LOOPER.cancel(); this.loop = null; }
+      return;
+    }
+    LOOPER.settle();
+    if (LOOPER.on){
+      /* THE WHOLE POINT: nothing is done to the playhead. The deck runs on,
+         muted, and the wrap happens between two samples in the audio thread.
+         The one thing still worth watching is the END of the track — a deck
+         free-running under a held loop would otherwise walk off it and hand the
+         room to the next song from inside a loop nobody let go of. That seek is
+         inaudible (the bus is closed) and it never happens under a roll, where
+         running out really is the end of the track. */
+      LOOPER.follow(d);
+      if (!L.roll && isFinite(d.a.duration) && d.a.duration - d.a.currentTime < 4){
+        try { d.a.currentTime = L.start; } catch (e){}
+      }
+      return;
+    }
     if (L.roll) L.heldFor = (L.heldFor || 0) + (L._last != null ? Math.max(0, d.a.currentTime - L._last) : 0);
     L._last = d.a.currentTime;
+    /* THE LAST LAP BEFORE A HANDOVER IS NOT WRAPPED. A source has already been
+       scheduled to come in exactly when the deck reaches the out-point, so
+       pulling the playhead back twelve milliseconds early — which is what this
+       loop does, and rightly, when it is the thing holding the loop — would
+       splice those twelve milliseconds into the join and undo the whole point of
+       the exercise. Let it run to the out-point; the tape is waiting there. */
+    if (LOOPER.pending) return;
     if (d.a.currentTime >= L.start + L.len - 0.012){
       // carry the overshoot across the wrap so the loop cannot drift late — see
       // loopWrap. A tick that fires 40 ms after the end is not an excuse to make
@@ -16460,6 +17084,8 @@ const FX = {
   release(){
     const braking = this.brakeT >= 0;
     this.loop = null; this.brakeT = -1; this.unit = ''; this.amount = 0; this._autoUnit = '';
+    // nothing the tape is holding may outlive the track it was cut from
+    LOOPER.cancel();
     /* PUT THE RATE BACK ONLY IF THE BOOTH IS WHAT MOVED IT. The brake is the one
        thing in here that touches playbackRate — and the MIXER owns that same
        property during a seam, tempo-matching both decks a few lines before
