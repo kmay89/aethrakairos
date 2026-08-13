@@ -6735,6 +6735,47 @@ const XFADE = 4.0;                 // auto-mix crossfade seconds
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+// @media-start
+/* LOAD, AND LAND AT A POSITION BEFORE ANYTHING IS AUDIBLE.
+   Three separate places used to write `el.load(); el.currentTime = at` back to
+   back — the weak-signal rebuffer, the stall watchdog's last resort, and the
+   boot restore — and all three restarted the track from the beginning on iOS.
+   load() drops the element to HAVE_NOTHING: no metadata, no duration. A
+   currentTime written there is, per spec, a request to be REMEMBERED as the
+   default playback start position, and iOS Safari routinely forgets it. The
+   element then plays from zero, which is exactly the reported "it starts the
+   song over, plays ten seconds, then jumps to where I was" — the jump being
+   the ranged request for the real spot finally landing.
+   Waiting for loadedmetadata is the difference between asking for a position
+   and getting one. `done` runs exactly once — after the seek is issued, on
+   error, or on a timeout — so a load that never resolves can never wedge a
+   caller that is holding playback back until it hears from this. */
+function loadAndLandAt(el, url, at, done){
+  let fired = false, timer = null;
+  const finish = ok => {
+    if (fired) return;
+    fired = true;
+    clearTimeout(timer);
+    el.removeEventListener('loadedmetadata', onMeta);
+    el.removeEventListener('error', onErr);
+    if (done) done(ok);
+  };
+  const onMeta = () => {
+    if (at > 0.2 && isFinite(el.duration) && el.duration > 0){
+      // never the very end: landing there fires 'ended' and skips the track
+      try { el.currentTime = Math.min(at, Math.max(0, el.duration - 0.25)); } catch (e){}
+    }
+    finish(true);
+  };
+  const onErr = () => finish(false);
+  el.addEventListener('loadedmetadata', onMeta);
+  el.addEventListener('error', onErr);
+  timer = setTimeout(() => finish(false), 8000);
+  // an empty url means "reload what is already loaded" — the watchdog's case
+  try { if (url && el.src !== url) el.src = url; el.load(); } catch (e){ finish(false); }
+}
+// @media-end
+
 /* The native Mac shell (Tauri) tags its webview's user-agent, so the web app can
    adapt with zero coupling — a plain browser never matches, so this is a no-op
    on the web. Used to offer the download only OUTSIDE the app, and as the hook
@@ -6939,14 +6980,28 @@ function ensureCtx(){
      pipeline, and the element no longer has one. So the only way to hand the
      music to an Apple TV is to play it out of an element that has never been
      through that door, which means building fresh ones. See AIRPLAY below. */
-  AE._deckEl = () => {
+  AE._deckEl = (cors) => {
     const a = new Audio();
     a.preload = 'auto';
     a.setAttribute('playsinline', '');
     a.setAttribute('x-webkit-airplay', 'allow');
-    a.crossOrigin = 'anonymous';           // required for the analyser on remote audio
+    /* CORS MODE IS FOR THE ANALYSER, AND ONLY THE ANALYSER — so ask for it
+       exactly where something reads the samples. An AnalyserNode may only see
+       a cross-origin stream the server has opted in to, hence this; but the
+       samples are only ever read through the Web Audio graph, and iOS never
+       builds one. ROUTE.setDirect refuses outright there ("Never on iOS: it
+       is already direct, permanently"), the decks go straight to the speaker,
+       and the visuals run off the precomputed score instead.
+       So on iOS the header dance buys nothing and costs a whole class of
+       failure: in CORS mode EVERY ranged request must come back with a valid
+       Access-Control-Allow-Origin, across redirects too, and one response
+       that does not — a redirect hop, a revalidation, an edge cache miss —
+       fails the load outright as MEDIA_ERR_SRC_NOT_SUPPORTED. Mid-track. */
+    if (cors === undefined ? !IS_IOS : cors) a.crossOrigin = 'anonymous';
     return a;
   };
+  // the tested helper above the AE block; decks reach it through AE like everything else
+  AE._loadAt = loadAndLandAt;
   /* …and one graph factory, so the chain a deck wears is described once. Direct
      mode simply never calls it. */
   AE._deckGraph = (d) => {
@@ -7043,9 +7098,16 @@ function ensureCtx(){
           d._reT = setTimeout(() => {
             if (i !== AE.active) return;
             d._healing = true;                       // the reload's pause is ours — don't flip the UI to paused
-            try { d.a.src = t.url; d.a.load(); if (t._errPos > 0.2) d.a.currentTime = t._errPos; } catch (e){}
-            d.a.play().catch(() => {});
-            setTimeout(() => { d._healing = false; }, 900);
+            /* Rebuffer AT THE SPOT IT DROPPED, which means waiting for the
+               element to know where its spots are. Seeking straight after
+               load() asks an element with no metadata, and iOS drops the
+               request — so the "durable broadcast" resumed every weak-signal
+               blip from zero, and the listener heard the track start over. */
+            AE._loadAt(d.a, t.url, t._errPos, () => {
+              if (i !== AE.active){ d._healing = false; return; }
+              d.a.play().catch(() => {});
+              setTimeout(() => { d._healing = false; }, 900);
+            });
           }, wait);
           return;
         }
@@ -7111,7 +7173,14 @@ function ensureCtx(){
         player._clearStall();                     // real audio flowed — the backstop stands down
         player._stallSkips = 0;                   // a clean start clears the weak-signal streak
         player._netSkips = 0;                     // …and the unreachable-host streak with it
-        AE._lastGoodT = ct;                       // the spot to rebuffer from if the stream drops
+        /* THE MARK ONLY MOVES BACKWARD WHEN THE LISTENER MOVES IT.
+           While a heal is landing, the element can report positions from the
+           head of the file before the seek takes hold. Letting those overwrite
+           the mark threw away the exact spot the heal was trying to return to,
+           so a second blip resumed from near zero and the track was lost for
+           good — each recovery cost more than the one before. During a heal
+           the mark holds unless the clock has actually got back past it. */
+        if (!d._healing || ct >= AE._lastGoodT) AE._lastGoodT = ct;
         const t = player.tracks[player.cur];       // sustained progress past a blip refills the retry budget
         if (t && t._netTries && ct > (t._errPos || 0) + 2){ t._netTries = 0; }
       }
@@ -7842,15 +7911,40 @@ const player = {
     if (!track) return;
     ensureCtx();
     const d = AE.decks[AE.active];
-    d.a.src = track.url;
     d.norm = normLin(track);
-    if (pos > 0){
-      const seekOnce = () => {
-        d.a.removeEventListener('loadedmetadata', seekOnce);
-        if (isFinite(d.a.duration)) d.a.currentTime = Math.min(pos, Math.max(0, d.a.duration - 1));
-      };
-      d.a.addEventListener('loadedmetadata', seekOnce);
+    /* RESUMING IS NOT THE SAME AS STARTING, AND THE DIFFERENCE IS AUDIBLE.
+       Waiting for loadedmetadata gets the seek issued; it does not get it
+       LANDED. A seek into a remote file needs a fresh ranged request, and
+       while that is in flight the element happily sings the head of the file
+       it already has — the listener hears the track from the top for as long
+       as the round trip takes, then a jump to where they actually were.
+       So the resume is gated on 'seeked', not on the seek being asked for:
+       the deck stays silent until the position is real. `_seekPending` is
+       what player.resume() waits on, and it is always cleared — on seeked,
+       on error, or on a timeout — because a resume that can never start is
+       worse than one that starts in the wrong place. */
+    d._seekPending = false;
+    clearTimeout(d._seekT);
+    /* EVERY WAY OUT OF THE WAIT GOES THROUGH HERE, so the deck can never be
+       left muted: the seek landing, the load failing, and the timeout all
+       release it. A silent player that looks like it is playing would be a
+       worse bug than the one being fixed — everything on screen says yes. */
+    const release = () => {
+      clearTimeout(d._seekT);
+      d.a.removeEventListener('seeked', release);
+      d.a.removeEventListener('error', release);
+      if (!d._seekPending) return;
+      d._seekPending = false;
+      d.a.muted = false;                  // the position is real — let it be heard
+      LOADER.done();
+    };
+    if (pos > 0.2){
+      d._seekPending = true;
+      d.a.addEventListener('seeked', release);
+      d.a.addEventListener('error', release);
+      d._seekT = setTimeout(release, 8000);
     }
+    AE._loadAt(d.a, track.url, pos, ok => { if (!ok) release(); });
     if (AE.graphLive) rampGain(d.gain, d.norm, 0.02, 'in');
     applyVolume();
     this.cur = i;
@@ -8009,6 +8103,12 @@ const player = {
     this._everPlayed = true;
     if (track) track._netTries = 0;   // fresh track → fresh rebuffer budget
     AE._lastGoodT = 0;
+    /* No deck ever starts a track muted. A restored deck mutes itself while
+       its resume seek lands (see prepare/resume); skipping to another track
+       before that lands would otherwise strand the mute on the new one, and a
+       player that plays a waveform in silence is the worst bug on this list —
+       everything looks right. Cheap to clear unconditionally, so it is. */
+    AE.decks.forEach(dk => { dk._seekPending = false; clearTimeout(dk._seekT); dk.a.muted = false; });
     this._armStall(track, newIdx);    // the backstop: a silent stall must never freeze the queue
     nd.a.play().catch(err => {
       // A decode/network failure fires the element's 'error' event (handled
@@ -8113,6 +8213,18 @@ const player = {
     const d = activeDeck(); if (!d) return;
     ensureCtx();
     if (AE.mic.on) toggleMic();
+    /* A restored deck whose seek has not landed plays MUTED for the moment it
+       takes to land, rather than not playing at all. play() has to be called
+       inside this gesture — that call is what unlocks audio on iOS, and
+       deferring it to a 'seeked' handler would leave the tap doing nothing at
+       all. So the element starts here as it always did; it just does not sing
+       the head of the file while the ranged request for the real spot is
+       still in flight. prepare()'s handler unmutes the instant the position
+       is real, and after 8 s regardless. */
+    if (d._seekPending){
+      d.a.muted = true;                 // muted, not silenced by volume: the
+      LOADER.begin('picking up where you left off…');   // graph owns volume on
+    }                                                   // desktop, nothing owns muted
     d.a.play().catch(() => {});
     if (AE.graphLive) rampGain(d.gain, 1, 0.08, 'in');
     applyVolume();
@@ -12120,9 +12232,16 @@ const WATCHDOG = {
     } else if (this.stall >= 7){
       const at = t;                                  // ~7 s: last resort — reload at the spot, quietly
       d._healing = true;                             // the pause this triggers is ours, not the user's
-      try { d.a.load(); if (isFinite(at) && at > 0.2) d.a.currentTime = at; } catch (e){}
-      d.a.play().catch(() => {});
-      setTimeout(() => { d._healing = false; }, 900);
+      /* "at the spot" is the entire point of this branch, and it was the one
+         thing it did not do on iOS: load() empties the element, and the seek
+         written on the next line went to something with no duration yet, so
+         the track came back at zero. On a phone that drops its media
+         connection every few minutes, that is the reported loop — playback
+         stops, the reload restarts the song, and the spot arrives late. */
+      AE._loadAt(d.a, '', at, () => {
+        d.a.play().catch(() => {});
+        setTimeout(() => { d._healing = false; }, 900);
+      });
       this.stall = 0;
     }
   },
@@ -12368,7 +12487,9 @@ const AIRPLAY = {
         try { dk.a.removeAttribute('src'); dk.a.load(); } catch (e){}
       });
       AE.decks.forEach((dk, k) => {
-        dk.a = AE._deckEl();
+        // graph mode is the mode that reads the samples, so it is the mode
+        // that needs the cross-origin opt-in; direct mode does not
+        dk.a = AE._deckEl(!direct);
         dk.src = dk.shelf = dk.filter = dk.gain = dk.echoSend = null;
         if (direct) dk.a.volume = 0; else AE._deckGraph(dk);
         AE._wireDeck(dk, k);
@@ -15248,7 +15369,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'a8febbcc50';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'd154566216';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived

@@ -18,8 +18,8 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') +
-  '\nreturn { touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') +
+  '\nreturn { loadAndLandAt, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' SIGNATURE_RE, isSignature, signatureFirst,' +
@@ -70,9 +70,22 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
+/* Async tests are AWAITED, not fired and forgotten. `try { fn() }` around a
+   function returning a promise catches nothing: the assertions run after the
+   try block has already reported 'ok', so a failing async test printed a pass
+   and then crashed the process on an unhandled rejection — after the summary
+   line had gone out claiming everything was fine. Anything thenable is parked
+   here and settled before the totals are printed. */
+const pending = [];
 function test(name, fn){
-  try { fn(); passed++; console.log('  ok', name); }
-  catch (e){ failed++; console.error('  FAIL', name, '\n   ', e.message); }
+  const ok = () => { passed++; console.log('  ok', name); };
+  const bad = e => { failed++; console.error('  FAIL', name, '\n   ', (e && e.message) || e); };
+  try {
+    const r = fn();
+    if (r && typeof r.then === 'function') pending.push(r.then(ok, bad));
+    else ok();
+  }
+  catch (e){ bad(e); }
 }
 
 // ---------------------------------------------------------------- fixtures
@@ -5253,4 +5266,74 @@ test('segueFxDur: a form is never given less time than it needs to read', () => 
     assert.ok(S.XFORM_MIN_DUR[k] >= 0.5, `${k} is fast enough to read as a glitch`);
 });
 
+/* ---- loadAndLandAt: resuming lands where it was asked to ----
+   Modelled on the iOS media element, whose one relevant behaviour is that a
+   currentTime written while readyState is HAVE_NOTHING is DROPPED rather than
+   remembered. That single quirk is what made a weak-signal blip, a stall
+   recovery and a boot restore all silently restart the track from zero. */
+function iosEl(metaDelay = 5, failAfter = 0){
+  return {
+    readyState: 0, duration: NaN, src: '', _ct: 0, L: {}, loads: 0,
+    get currentTime(){ return this._ct; },
+    set currentTime(v){ if (this.readyState === 0) return; this._ct = v; },   // the quirk
+    addEventListener(t, fn){ (this.L[t] = this.L[t] || []).push(fn); },
+    removeEventListener(t, fn){ this.L[t] = (this.L[t] || []).filter(f => f !== fn); },
+    emit(t){ (this.L[t] || []).slice().forEach(f => f()); },
+    load(){
+      this.loads++; this.readyState = 0; this._ct = 0; this.duration = NaN;
+      if (failAfter){ setTimeout(() => this.emit('error'), failAfter); return; }
+      if (metaDelay === Infinity) return;                    // a load that never resolves
+      setTimeout(() => { this.readyState = 1; this.duration = 200; this.emit('loadedmetadata'); }, metaDelay);
+    },
+  };
+}
+const landed = (el, at, opts = {}) => new Promise(res =>
+  S.loadAndLandAt(el, opts.url === undefined ? 'x.mp3' : opts.url, at, ok => res(ok)));
+
+test('loadAndLandAt: the seek waits for metadata instead of being dropped', async () => {
+  const el = iosEl();
+  // what the code used to do, for contrast: the position is simply lost
+  const old = iosEl();
+  old.src = 'x.mp3'; old.load(); old.currentTime = 120.5;
+  assert.equal(old.currentTime, 0, 'the old pattern lands at zero — this is the bug');
+  assert.equal(await landed(el, 120.5), true);
+  assert.equal(el.currentTime, 120.5, 'the track resumes where the listener was');
+});
+test('loadAndLandAt: a position past the end is clamped, never onto the end', async () => {
+  const el = iosEl();
+  await landed(el, 9999);
+  // landing exactly on duration fires 'ended' and skips the track
+  assert.ok(el.currentTime < el.duration, 'a clamped resume must not end the track');
+  assert.equal(el.currentTime, 199.75);
+});
+test('loadAndLandAt: a position of zero seeks nothing', async () => {
+  const el = iosEl();
+  await landed(el, 0);
+  assert.equal(el.currentTime, 0);
+});
+test('loadAndLandAt: an empty url reloads what is loaded — the watchdog case', async () => {
+  const el = iosEl();
+  el.src = 'already.mp3';
+  await landed(el, 42, { url: '' });
+  assert.equal(el.src, 'already.mp3', 'the watchdog must not re-point the element');
+  assert.equal(el.loads, 1, 'it still reloads');
+  assert.equal(el.currentTime, 42);
+});
+test('loadAndLandAt: a failed load still reports back', async () => {
+  assert.equal(await landed(iosEl(5, 3), 60), false, 'error must resolve, not hang');
+});
+test('loadAndLandAt: done fires exactly once, whatever the element does', async () => {
+  const el = iosEl();
+  let n = 0;
+  await new Promise(res => S.loadAndLandAt(el, 'x.mp3', 30, () => { n++; res(); }));
+  el.emit('loadedmetadata'); el.emit('error'); el.emit('loadedmetadata');
+  assert.equal(n, 1, 'a caller holding playback back must be released once and only once');
+});
+
+await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed`);
+/* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
+   and exited 0, so `node tests/player.test.mjs` — the whole of the `unit`
+   job, and the check CONTRIBUTING.md tells you to require before merging —
+   went green on a red suite. A gate that cannot fail is not a gate. */
+process.exitCode = failed ? 1 : 0;
