@@ -3,7 +3,7 @@
  * segueFx decides WHICH form a cut takes and is unit-tested. This checks the
  * half that unit tests cannot see: that the frozen copy of the outgoing room is
  * actually captured, that the shader compiles and runs, that the frame during a
- * cut is genuinely neither of the two rooms, that the old room is let go of
+ * cut is drawn from both rooms at once, that the old room is let go of
  * rather than drawn twice — and, the part that matters most, that the whole
  * thing STANDS DOWN where it is supposed to.
  *
@@ -65,14 +65,19 @@ const PIN = () => { try { Object.defineProperty(PERF, 'struggling', { get(){ ret
   const { page, ctx, errs } = await boot();
   await page.evaluate(PIN);
   const keys = await page.evaluate(() => scenes.map(s => s.key));
-  const A = keys.indexOf('mandala'), B = keys.indexOf('spiral');
+  /* THE OUTGOING ROOM IS A FULL-FRAME ONE, on purpose. Most scenes here are
+     sparse point clouds on black, so "the capture is not empty" is not a claim
+     a handful of pixels can settle for them — the honest reading would be
+     indistinguishable from a real failure. TERRAIN fills the frame edge to
+     edge, so a capture of it either has light in it or the capture is broken. */
+  const A = keys.indexOf('terrain'), B = keys.indexOf('mandala');
 
   await page.evaluate(i => { director.setScene(i, false); director.transDur = 0.2; }, A);
   await page.waitForTimeout(1200);
   const before = await page.screenshot();
 
   const armed = await page.evaluate(({ j }) => {
-    segueFx = () => 'shatter';                    // pin the form; the picker is unit-tested
+    segueFx = () => 'defocus';                    // pin the form; the picker is unit-tested
     director.setScene(j, false);
     director.transDur = 8; XFORM.dur = 8;         // stretch it so a screenshot lands mid-cut
     return { on: XFORM.on, kind: XFORM.kind,
@@ -81,7 +86,7 @@ const PIN = () => { try { Object.defineProperty(PERF, 'struggling', { get(){ ret
              prevVisible: director.prev >= 0 ? scenes[director.prev].group.visible : false };
   }, { j: B });
 
-  R('a cut arms and names its form', armed.on && armed.kind === 'shatter', 'kind=' + armed.kind);
+  R('a cut arms and names its form', armed.on && armed.kind === 'defocus', 'kind=' + armed.kind);
   R('the outgoing room is photographed at canvas size',
     armed.rtW > 0 && armed.rtW === armed.canvasW, `rt ${armed.rtW} vs canvas ${armed.canvasW}`);
   /* THE OLD ROOM IS LET GO OF. Its frozen copy is what the transition draws, so
@@ -102,11 +107,17 @@ const PIN = () => { try { Object.defineProperty(PERF, 'struggling', { get(){ ret
        zeroes, which is indistinguishable from a genuinely black capture and is
        exactly what the first cut of this check reported. Either way a black
        pixel is all-zero bits, so counting non-zero bits works for both. */
-    const w = 24, h = 16, hdr = XFORM._rt.texture.type === THREE.HalfFloatType;
+    const w = 160, h = 100, hdr = XFORM._rt.texture.type === THREE.HalfFloatType;
     const buf = hdr ? new Uint16Array(w * h * 4) : new Uint8Array(w * h * 4);
     let lit = 0;
     try {
-      renderer.readRenderTargetPixels(XFORM._rt, 0, 0, w, h, buf);
+      /* READ THE MIDDLE, not the corner. Every scene here is composed around
+         the origin and most of them leave the corners of the frame empty, so a
+         patch at (0,0) reports a black capture for a perfectly good one — which
+         is what this check did on its first honest run. */
+      const cx = Math.max(0, ((XFORM._rt.width - w) / 2) | 0);
+      const cy = Math.max(0, ((XFORM._rt.height - h) / 2) | 0);
+      renderer.readRenderTargetPixels(XFORM._rt, cx, cy, w, h, buf);
       for (let i = 0; i < buf.length; i += 4)
         if (buf[i] || buf[i + 1] || buf[i + 2]) lit++;
     } catch (e){ return { err: String(e) }; }
@@ -121,7 +132,7 @@ const PIN = () => { try { Object.defineProperty(PERF, 'struggling', { get(){ ret
   R('the transition pass really ran, every frame of it', mid.frames > 3, 'frames=' + mid.frames);
   R('…driven by the director\'s own crossfade clock', Math.abs(mid.uT - mid.t) < 0.05,
     `uT=${(mid.uT || 0).toFixed(2)} transT=${(mid.t || 0).toFixed(2)}`);
-  R('the frozen copy holds a real picture, not a black frame', mid.lit > 0.2,
+  R('the frozen copy holds a real picture, not a black frame', mid.lit > 0.85,
     'lit=' + (mid.lit == null ? mid.err : mid.lit.toFixed(2)));
 
   await page.evaluate(() => { director.transDur = 0.2; });
@@ -166,7 +177,7 @@ const PIN = () => { try { Object.defineProperty(PERF, 'struggling', { get(){ ret
   await page.evaluate(i => director.setScene(i, false), keys.indexOf('mandala'));
   await page.waitForTimeout(900);
   const r = await page.evaluate(j => {
-    segueFx = () => 'shatter';                    // even asked for directly
+    segueFx = () => 'defocus';                    // even asked for directly
     director.setScene(j, false);
     return { reduced: reducedMotion, on: XFORM.on, allowed: XFORM.allowed() };
   }, keys.indexOf('spiral'));
@@ -181,7 +192,7 @@ const PIN = () => { try { Object.defineProperty(PERF, 'struggling', { get(){ ret
   await page.waitForTimeout(900);
   const r = await page.evaluate(j => {
     try { Object.defineProperty(PERF, 'struggling', { get(){ return true; }, set(){}, configurable: true }); } catch (e) {}
-    segueFx = () => 'shatter';
+    segueFx = () => 'defocus';
     director.setScene(j, false);
     const on = XFORM.on;
     // and the plain crossfade takes over — the outgoing room is still there,
@@ -200,7 +211,7 @@ const PIN = () => { try { Object.defineProperty(PERF, 'struggling', { get(){ ret
   const r = await page.evaluate(j => {
     if (typeof POWER === 'undefined') return { skip: true };
     try { Object.defineProperty(POWER, 'lensOK', { get(){ return false; }, set(){}, configurable: true }); } catch (e) {}
-    segueFx = () => 'shatter';
+    segueFx = () => 'defocus';
     director.setScene(j, false);
     return { on: XFORM.on };
   }, keys.indexOf('spiral'));

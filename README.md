@@ -360,7 +360,8 @@ the way hardware lays them out because that layout is the argument:
 - **LOOP** — eight beat loops from a 32nd to 16 bars. Tap and the loop latches
   on the **last grid line the ear already heard**, never the next one, because a
   loop that begins in the future is a gap. Halve and double re-cut from the same
-  in-point, so a phrase can never slide out from under your hand.
+  in-point, so a phrase can never slide out from under your hand. And it does not
+  seek — see below.
 - **ROLL** — the same eight lengths, **momentary**: held, not latched. This is
   the one difference that makes them two controls instead of one. A loop makes
   the track *wait*; a roll stalls the music while the track keeps running
@@ -385,6 +386,61 @@ win, because the room never tires.
 Nothing in the rack can strand the music: every unit is parked at bypass, every
 automation is bounded, and a track change hands the whole booth back — no seam
 ever inherits an effect the last track left switched on.
+
+### The loop does not seek
+
+A beat loop in a browser is normally a **re-seek**: watch the playhead on an
+animation frame and, when it passes the out-point, write `currentTime` back to
+the in-point. The arithmetic here was always right — the overshoot is carried
+across the wrap, so the average cycle is exactly the length it says it is and the
+loop never drifts off the grid. That is the half a unit test can prove, and it
+was never the problem. The other half it cannot touch: **setting `currentTime` on
+a media element asks a decoder to jump, and a decoder asked to jump takes a
+moment to have audio again.** Once per cycle, forever, exactly on the beat — the
+single most audible place a fault can be.
+
+So the loop stopped seeking. A recorder on the mix keeps the last twenty-four
+seconds; the first time the loop goes past, it is **cut out of that tape and
+handed to an `AudioBufferSourceNode` with `loop = true`**. From that instant the
+wrap happens in the audio thread between two adjacent samples — no drift, no
+decoder, no animation frame, and no seek at all for as long as the loop is held.
+The deck keeps running underneath, silent, so letting go is a crossfade rather
+than a jump; a **roll** does not even need that, because the track really did run
+on underneath it and is already exactly where it should be.
+
+Three things make it honest rather than merely clever:
+
+- **The head of the loop is blended with the audio that really did follow the
+  out-point**, over about twelve milliseconds. A loop point is a splice — sample
+  *len* is followed by sample 0 — and if the waveform disagrees there it clicks
+  on every single cycle. That one blend fixes both joins at once: the buffer's
+  first sample *is* the sample the deck was about to play, so the handover is
+  continuous and so is every wrap after it.
+- **The tape calibrates itself.** Cutting the loop out needs to know which
+  recorded sample the graph is playing right now, and the recorder runs ahead of
+  what is audible by an amount nobody documents and every device gets
+  differently. Guessing it wrong does not fail loudly — it puts one audible jump
+  at the top of the first loop. So it is not guessed: a single-sample impulse is
+  fired into the recorder at a known clock time and found again in the ring,
+  which measures the relation exactly, on the actual device. It never reaches the
+  room, and it is zeroed out of the tape once it has been read.
+- **It never races.** Cutting the buffer is main-thread work on a main thread
+  that is also drawing thirty-one rooms, and there is no arrangement of leads and
+  timers that wins that race on every device. So the **old re-seek loop keeps
+  running until the handover can be made properly** — the loop loops from the
+  instant the pad goes down, and the tape takes over on the first out-point it
+  can reach in time. The failure mode of the new machinery is the old machinery,
+  which is the only failure mode worth having. On iOS, where playback is
+  element-direct and there is no graph to record, the whole layer stands down.
+
+`tools/loop_probe.mjs` measures it in a real browser, on real music, both ways:
+a recorder on the master, every write to the playhead counted. The seeking loop
+writes the playhead on **every cycle**; the taped one writes it **zero times**,
+and the wrap in the buffer the audio thread is looping is a step around **one
+per cent** of the largest the music itself contains. The probe measures its own
+instrument first — a `ScriptProcessorNode` on a starved main thread leaves
+artefacts larger than the fault — so the numbers are read against that floor
+rather than against nothing.
 
 **The playlist stays master — and you get override inserts.** Under the
 decks sits a row of **performance pads: the eight best next tracks from the
@@ -619,79 +675,113 @@ rather than a screensaver:
 A scene change used to be a crossfade: both rooms live, one fading up through
 the other. That is the right answer often and a wasted moment the rest of the
 time, because a cut is the one instant in a set when the field has your whole
-attention and nothing to lose.
+attention.
 
 **The trick is the freeze.** On the single frame a cut happens, the room being
 *left* is rendered once into a texture and never simulated again. From that
-instant it is a still image — and a still image can be shattered into spinning
-shards, blown apart grain by grain, folded into a kaleidoscope and collapsed to
-a point, or used as its own wipe mask, none of which is possible while it is
-still a live particle system with an update loop of its own. One extra render
-every twenty to forty seconds buys the entire vocabulary. The room *arriving*
-stays live throughout, which is what makes these read as transitions rather than
-as video wipes: the new field is already answering the music while the old one
-is still coming apart over the top of it.
+instant it is a still image — and a still image can be carried along a flow
+field, thrown out of focus, pushed back into haze or bent through glass, none of
+which is possible while it is still a live particle system with an update loop of
+its own. One extra render every twenty to forty seconds buys the entire
+vocabulary. The room *arriving* stays live throughout, which is why these read as
+the field changing rather than as two videos being mixed.
 
-Eight forms, one shader. The two worth naming:
+### Nothing here has an edge
 
-- **LUMA** — the old room draws the new one in **with its own light**. The
-  outgoing frame's brightness is the wipe mask, so the new field comes up
-  through the old one's highlights first and its shadows last. Every cut is
-  shaped by whatever picture happened to be on screen, and no two are alike,
-  because no two frames are.
-- **SCATTER** — both rooms are pushed along **one** flow field in opposite
-  directions, grain by grain on independent clocks. The old does not fade and
-  the new does not appear; the same particles rearrange.
+That is the constraint the whole thing is built around, and it is worth being
+blunt about because the obvious transitions all violate it. A grid of spinning
+shards. An opening aperture. A shockwave ring crossing the frame. A glowing seam
+down the middle. Every one of those is legible in a single frozen frame, and what
+it is legible *as* is **"a transition"** — which breaks the only claim the field
+makes, that it is a space and not a screen with effects played over it.
 
-The rest: **SHATTER** (a grid of shards, each with its own start time, direction
-and spin — sampled by *undoing* that motion, so what flies is a real piece of the
-old picture and the gaps it opens are where the new room shows through),
-**STREAK** (a zoom blur either way — the old accelerates out past the camera, the
-new arrives from far off), **PRISM** (the three channels fly apart on the way out
-and converge on the way in, 120° apart), **IRIS** (a lobed aperture, because a
-circle opening on a rectangle is a shape everyone has seen), **FOLD** (the old
-folds into N-fold symmetry and collapses toward the centre while the new unfolds
-back out of the same point — the kaleidoscope's own arithmetic, run as an
-animation), and **RIPPLE** (one shockwave crosses the frame, refracting both
-sides as it passes, and the room behind it has changed).
+So there is no geometry in here the world does not already contain, no boundary
+travelling across the picture, and no seam lit in any colour. What is left is
+seven things that could be happening to the light or to the matter:
 
-**The music picks the form, not a list.** `segueStyle` already decided how *long*
-a change takes; `segueFx` decides what it looks like, from the same three kinds
-and for a different reason — a duration is a musical judgement, but the form is
-about what the eye can read in that time. Give a shatter three seconds and it
-stops being a hit; give a luma wipe a third of a second and nobody sees it
-happen. So a **drop** draws from SHATTER · STREAK · PRISM, a **section turn**
-from SCATTER · FOLD · LUMA, and a quiet passage from the gentle end. Two rules
-on top: the plain crossfade stays *in* the pools, because a night where every
-change is an event has no events in it; and a form never immediately repeats,
-because the second shatter in a row is the one that starts to look like a
-screensaver. And the cut still lands where it always did — on the next bar
-downbeat, or the next phrase for a big one.
+- **LUMA** — the old room hands over **with its own light**. Its brightness is
+  what decides where the new field comes through first, so every cut is shaped by
+  whatever picture happened to be on screen and no two are alike. The threshold is
+  dissolved into two scales of noise and the band is deliberately wide, so the
+  handover happens grain by grain and there is no front to follow. Narrow it and
+  a smooth gradient in the old frame sweeps as a hard line — which is a wipe, and
+  a wipe is the thing being avoided.
+- **SCATTER** — both rooms carried along **one** flow field in opposite
+  directions, each gated on its own clock. The old does not fade and the new does
+  not appear; the same material rearranges. The gate is smooth noise at two
+  scales, not a per-pixel hash: a hash looks like dither, or worse like a bad
+  JPEG, and a room that appears to be *compressing* itself is not a room
+  dissolving.
+- **DEFOCUS** — a rack focus, and the most invisible cut there is. Ten taps on a
+  golden-angle spiral at radius √f, which fills a **disc** evenly rather than a
+  ring, so a highlight opens into round bokeh the way a lens makes one instead of
+  smearing into a star. The two rooms cross while *both* are soft, so at no point
+  is there a sharp edge anywhere in the frame to notice.
+- **AERIAL** — the old room recedes and the new one comes forward, and the thing
+  between them is air. Extinction is exponential in depth and the departing room
+  fades toward the **sky**, not toward black — the same rule TERRAIN draws its
+  horizon with, and the reason a distant ridge is paler than a near one rather
+  than dimmer. The scale change is two per cent: enough to read as depth, far
+  short of reading as a zoom.
+- **REFRACT** — one smooth low-frequency displacement across the whole frame,
+  swelling to its peak at the midpoint and exactly zero at both ends, so the
+  transition begins and finishes on an undistorted picture and the swap happens
+  underneath the distortion. A hair of dispersion on the way, because glass in
+  this player disperses.
+- **PRISM** — the three channels separate and re-converge, 120° apart, at **three
+  per cent** of the frame rather than nine. At nine it is an effect with a name;
+  at three it is a lens that was briefly not quite right, which is the whole
+  difference.
+- **FOLD** — both rooms folded into the same N-fold symmetry by the same amount,
+  rising to full at the midpoint and relaxing back to none, so at the moment of
+  the swap the frame is a symmetry belonging to neither room and the join has
+  nowhere to show. An earlier version collapsed the old room to a point and
+  unfolded the new one out of it — a lovely trick, and unmistakably a trick.
 
-**Where it stands down, and why each one is right rather than merely safe.**
-Under `prefers-reduced-motion` there is no transition at all: a shatter is
-precisely the large-field motion that setting exists to refuse, and the
-crossfade is the correct answer rather than a degraded one. In ECO, because that
-mode's whole job is giving the battery to the music. And on a device the
-governor has found to be struggling, because a room that stutters through its
-own cut is worse than one that fades. In all three the director's opacity
-crossfade takes over untouched — there is no half-transition state to get wrong,
-and `tools/xform_probe.mjs` asserts all three stand-downs in a real browser.
+And a plain crossfade, which still comes up often enough to keep the others rare.
+
+### The music picks the form
+
+`segueStyle` already decided how *long* a change takes; `segueFx` decides what it
+looks like, and they are separate because a duration is a musical judgement while
+a form is about what the eye can read in that time. A **drop** draws from
+DEFOCUS · PRISM · REFRACT — decisive, and decisive does not mean loud; a hard
+rack focus lands harder than any shattering glass. A **section turn** draws from
+SCATTER · AERIAL · FOLD · LUMA, the forms that read as one room *becoming*
+another. A quiet passage draws from the gentle end. Two rules on top: the plain
+crossfade stays **in** the pools, because a night where every change is an event
+has no events in it; and a form never immediately repeats, because the second one
+in a row is where the eye starts looking for the mechanism instead of at the
+room. Cuts land where they always did — the next bar downbeat, or the next phrase
+for a big one.
+
+The duration floors are long on purpose. A transition that has to be quick to
+survive is a transition doing something drastic, and drastic is what this
+vocabulary exists to avoid.
+
+### Where it stands down
+
+Under `prefers-reduced-motion` there is no transition at all — manufactured
+large-field motion is exactly what that setting refuses, and the crossfade is the
+correct answer rather than a degraded one. In ECO, because that mode's job is
+giving the battery to the music. And on a device the governor has found to be
+struggling. In all three the director's opacity crossfade takes over untouched;
+there is no half-transition state to get wrong, and `tools/xform_probe.mjs`
+asserts all three stand-downs in a real browser.
 
 Two details that took a defect each to find. The old room has to be **let go of
-entirely** the moment the freeze is taken: its frozen copy is what the
-transition draws, so leaving the live one running draws it twice — once
-shattering, once calmly fading underneath — which is invisible in a screenshot
-and obvious in motion. And the transition pass goes **first** in the lens chain,
-ahead of the hand and ahead of the glass: put it last and a kaleidoscope would
-fold only the room arriving, with the room leaving glued flat over the top of
-the folded result.
+entirely** the moment the freeze is taken: its frozen copy is what the transition
+draws, so leaving the live one running draws it twice — once transforming, once
+calmly fading underneath — which is invisible in a screenshot and obvious in
+motion. And the transition pass goes **first** in the lens chain, ahead of the
+hand and ahead of the glass: put it last and a kaleidoscope would fold only the
+room arriving, with the room leaving glued flat over the top of the folded result.
 
 On a **stage wall** the form and the seed go on the wire with the scene index,
 because a wall is one picture cut into panels and has to agree with itself. On a
-**floor full of phones** they deliberately do not: forty screens shattering on
-the same grid at the same instant would look like a stunt rather than like a
-room, so each phone rolls its own way into the same moment.
+**floor full of phones** they deliberately do not: forty screens doing the same
+thing on the same grid at the same instant would look like a stunt rather than
+like a room.
 
 ## The escape-time set — three techniques, and an honest floor
 
@@ -1428,13 +1518,22 @@ playback falls back to the network URL, which is exactly what happened before.
 The label is always pressing new music, so the library greets you with
 what's fresh instead of an alphabetical wall: **Hot this week** (the most
 played track on this device — your own honest taste, from the local
-history, never a server), **This month's crate** (the latest pressings by
-publish date, tappable as a ready-made set), and the **Fresh pressing**
-(the newest drop). All of it computes itself — the crate reads the
-catalog's `published` dates the build already stamps, the hot track reads
-the play history the player already keeps, and a slow month quietly widens
+history, never a server), **This month's crate** (the introduction, then the
+latest pressings by publish date, tappable as a ready-made set), and the
+**Fresh pressing** (the newest drop). All of it computes itself — the crate
+reads the catalog's `published` dates the build already stamps, the hot track
+reads the play history the player already keeps, and a slow month quietly widens
 the window so the porch is never empty. Publish music and the porch
 updates; play music and it learns.
+
+**The crate opens on Möbius Walking**, the way the opening set and the library
+walk already did. It is the calibrated piece — analysed with a measured grid, so
+the beat lock, the structure reader and the colour conductor are all fully
+engaged from the first bar instead of warming up on whatever happened to be
+pressed most recently. It is pinned to the front rather than sorted there, so it
+leads even once it has aged out of the window: being the introduction is not a
+function of a publish date. The Fresh pressing badge still names the genuinely
+newest track — the introduction leads the list, it does not pretend to be new.
 
 ## The player remembers
 
@@ -1819,10 +1918,19 @@ the floor keeps dancing in colours of its own.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 357 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 368 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance, the CIE observer,
                                     #   diffraction limits, the black film, which transition a
-                                    #   cut deserves (extracted from the shipped HTML, not a copy)
+                                    #   cut deserves, the tape a seamless loop is cut from
+                                    #   (extracted from the shipped HTML, not a copy)
+node tools/loop_probe.mjs           # 20 checks on the booth loop in a real browser, playing
+                                    #   real music, with a recorder on the master: the loop
+                                    #   hands over to the audio thread, the cycle is exactly the
+                                    #   beats asked for, the wrap is a step the music itself
+                                    #   already contains — and the playhead is written ZERO
+                                    #   times, against every cycle on the path it replaces.
+                                    #   Measures its own instrument first, and holds the numbers
+                                    #   to that floor rather than to nothing
 node tools/xform_probe.mjs          # 15 checks on the scene transition in a real browser: the
                                     #   freeze is captured and is not a black frame, the pass is
                                     #   really in the chain (not configured and then dropped),

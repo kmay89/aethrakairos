@@ -22,12 +22,15 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   '\nreturn { loadAndLandAt, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
+  ' SIGNATURE_RE, isSignature, signatureFirst,' +
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
+  ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
+  ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -354,6 +357,58 @@ test('freshPicks: the front porch — hot by plays, crate by publish date, press
   const p3 = S.freshPicks([{ sha256: 'x', title: 'x' }], new Map([['x', 1]]), key, NOW);
   assert.equal(p3.fresh, null, 'no publish dates → no pressing, no crate');
   assert.equal(p3.hot.sha256, 'x', 'but local plays still crown a hot track');
+});
+
+test('signatureFirst: the introduction leads, and everything else keeps its order', () => {
+  const T = (t) => ({ title: t });
+  const a = T('Amber Axis'), b = T('Breathing'), c = T('Cinder');
+  const m = T('Möbius Walking'), mo = T('mobius walking (edit)');
+
+  assert.deepEqual(S.signatureFirst([a, b, m, c]), [m, a, b, c],
+    'pulled to the front, the rest in the order they arrived');
+  assert.deepEqual(S.signatureFirst([m, a, b]), [m, a, b], 'already first → untouched');
+  assert.deepEqual(S.signatureFirst([a, b]), [a, b], 'absent from both list and pool → left alone');
+  // THE CASE THE CRATE NEEDS: pinned in from the wider shelf when the window
+  // it was cut from has already aged past it
+  assert.deepEqual(S.signatureFirst([a, b], [c, m, a]), [m, a, b],
+    'not in the list but in the pool → pinned to the front anyway');
+  assert.deepEqual(S.signatureFirst([], [m]), [m], 'an empty list still gets the introduction');
+  assert.deepEqual(S.signatureFirst(null, null), [], 'nothing in, nothing out — no throw');
+  // spelled both ways in the wild, and the id is not the promise — the title is
+  assert.equal(S.isSignature(mo), true, 'matched without the umlaut');
+  assert.equal(S.isSignature(m), true);
+  assert.equal(S.isSignature(a), false);
+  assert.equal(S.isSignature({}), false, 'a track with no title is not the introduction');
+  assert.equal(S.isSignature(null), false);
+  // and the original array is not rearranged under the caller
+  const src = [a, b, m];
+  S.signatureFirst(src);
+  assert.deepEqual(src, [a, b, m], 'the input list is left as it was found');
+});
+
+test('freshPicks: the crate opens on the introduction, window or no window', () => {
+  const NOW = Date.UTC(2026, 6, 19), day = 86400000;
+  const iso = d => new Date(NOW - d * day).toISOString().slice(0, 10);
+  const T = (sha, title, days) => ({ sha256: sha, title, published: iso(days) });
+  const key = t => t.sha256 || null;
+  // Möbius Walking is old enough to fall outside the 35-day window, and four
+  // fresher pressings would otherwise fill the crate ahead of it
+  const cat = [
+    T('a', 'Amber Axis', 2), T('b', 'Breathing', 9), T('c', 'Cinder', 20), T('e', 'Ember', 33),
+    T('m', 'Möbius Walking', 400),
+  ];
+  const p = S.freshPicks(cat, new Map(), key, NOW);
+  assert.equal(p.crate[0].title, 'Möbius Walking', 'the crate leads with the introduction');
+  assert.deepEqual(p.crate.slice(1).map(t => t.sha256), ['a', 'b', 'c', 'e'],
+    'then the latest pressings, newest first, exactly as before');
+  assert.equal(p.fresh.sha256, 'a', 'the pressing is still the genuinely newest — not the hero');
+  // inside the window it is promoted rather than duplicated
+  const near = S.freshPicks([T('a', 'Amber Axis', 2), T('m', 'Möbius Walking', 5), T('b', 'Breathing', 9)],
+    new Map(), key, NOW);
+  assert.deepEqual(near.crate.map(t => t.sha256), ['m', 'a', 'b'], 'in-window → moved up, listed once');
+  // no introduction in the catalogue → plain newest-first, unchanged
+  const none = S.freshPicks([T('a', 'Amber Axis', 2), T('b', 'Breathing', 9)], new Map(), key, NOW);
+  assert.deepEqual(none.crate.map(t => t.sha256), ['a', 'b'], 'no hero → the crate is untouched');
 });
 
 test('openingSet: Möbius Walking leads, then the freshest, cued for a first visit', () => {
@@ -4432,6 +4487,157 @@ test('rollReturn vs a loop: the one line that makes them different controls', ()
   assert.equal(S.rollReturn(start, -5, bpm, beats), start, 'negative hold is no hold');
   assert.ok(S.rollReturn(0, 3, bpm, beats) >= 0);
 });
+// ------------------------------------------------ the loop that does not seek
+
+test('ringSlice: a tape is a ring, and it says so when it has rolled past you', () => {
+  const cap = 100;
+  // one run when the request does not straddle the seam
+  assert.deepEqual(S.ringSlice(cap, 150, 120, 20), [{ at: 20, len: 20 }]);
+  // two when it does — the loop is the same audio either way
+  assert.deepEqual(S.ringSlice(cap, 150, 90, 20), [{ at: 90, len: 10 }, { at: 0, len: 10 }]);
+  const segs = S.ringSlice(cap, 150, 55, 95);
+  assert.equal(segs.reduce((a, s) => a + s.len, 0), 95, 'every requested sample is accounted for');
+  assert.ok(segs.every(s => s.at >= 0 && s.at + s.len <= cap), 'and none of them runs off the array');
+  // THE REFUSALS, which are the whole reason this is a function and not a modulo
+  assert.equal(S.ringSlice(cap, 150, 49, 10), null, 'fallen off the old end → nothing');
+  assert.equal(S.ringSlice(cap, 150, 145, 10), null, 'not written yet → nothing');
+  assert.deepEqual(S.ringSlice(cap, 150, 140, 10), [{ at: 40, len: 10 }],
+    'the newest sample is exactly reachable');
+  assert.deepEqual(S.ringSlice(cap, 150, 50, 10), [{ at: 50, len: 10 }],
+    '…and so is the oldest one still on the tape');
+  assert.equal(S.ringSlice(cap, 150, -3, 10), null, 'before the tape ever rolled → nothing');
+  assert.equal(S.ringSlice(0, 150, 100, 10), null);
+  assert.equal(S.ringSlice(cap, 150, 100, 0), null);
+  // the whole tape, exactly, is a legal request
+  assert.equal(S.ringSlice(cap, 150, 50, 100).reduce((a, s) => a + s.len, 0), 100);
+});
+
+test('ringIndexOf: the tape and the music share one index, at any speed', () => {
+  const sr = 48000;
+  // the recorder noted: tape index 96000 was the deck's 12.0 s
+  assert.equal(S.ringIndexOf(96000, 12, sr, 1, 12), 96000);
+  assert.equal(S.ringIndexOf(96000, 12, sr, 1, 13), 96000 + sr, 'a second later is a second of tape');
+  assert.equal(S.ringIndexOf(96000, 12, sr, 1, 11.5), 96000 - sr / 2, 'and backwards too');
+  /* AT SPEED, a second of TAPE is `rate` seconds of MUSIC — the tape records
+     the graph, and the graph is already playing the track fast. Getting this
+     upside down would put the in-point in the wrong place by the pitch. */
+  assert.equal(S.ringIndexOf(0, 0, sr, 2, 2), sr, 'two seconds of music at 2× is one of tape');
+  assert.equal(S.ringIndexOf(0, 0, sr, 0.5, 1), 2 * sr);
+  assert.equal(S.ringIndexOf(0, 0, sr, 0, 1), sr, 'a nonsense rate falls back to 1×');
+});
+
+test('loopHandoverAt: the handover is the deck\'s own clock, not the graph\'s', () => {
+  // deck at 12.0 s of music at context time 100.0; a 2 s loop that began at 11.5
+  assert.ok(Math.abs(S.loopHandoverAt(100, 12, 11.5, 2, 1) - 101.5) < 1e-9);
+  // half a loop already gone by → half a loop of real time left
+  assert.ok(Math.abs(S.loopHandoverAt(100, 12.5, 11.5, 2, 1) - 101) < 1e-9);
+  // at double speed the same music arrives in half the time
+  assert.ok(Math.abs(S.loopHandoverAt(100, 12, 11.5, 2, 2) - 100.75) < 1e-9);
+  assert.ok(Math.abs(S.loopHandoverAt(100, 12, 11.5, 2, 0) - 101.5) < 1e-9, 'a zero rate is 1×');
+});
+
+test('loopLateHandover: miss it and take another lap — never land late', () => {
+  const len = 2, lead = 0.03;
+  // comfortably in time → untouched
+  assert.equal(S.loopLateHandover(101.5, 101.0, len, lead), 101.5);
+  assert.equal(S.loopLateHandover(101.5, 101.47, len, lead), 101.5, 'right on the deadline still stands');
+  /* PAST IT → a WHOLE loop later, so the in-point stays exactly where it was on
+     the grid. Pushing by anything else would move the phrase, which is the one
+     thing a loop may never do. */
+  const a = S.loopLateHandover(101.5, 101.48, len, lead);
+  assert.ok(Math.abs(a - 103.5) < 1e-9, 'one lap, got ' + a);
+  const b = S.loopLateHandover(101.5, 106.2, len, lead);   // a very bad stall
+  assert.ok(Math.abs(b - 107.5) < 1e-9, 'three laps, got ' + b);
+  assert.ok(b > 106.2, 'and the answer is always still in the future');
+  for (let n = 1; n < 40; n++){
+    const now = 101.5 + n * 0.37;
+    const at = S.loopLateHandover(101.5, now, len, lead);
+    assert.ok(at - now >= lead - 1e-9, 'always leaves time to cut, at n=' + n);
+    assert.ok(Math.abs(((at - 101.5) / len) - Math.round((at - 101.5) / len)) < 1e-9,
+      'always a whole number of loops on, at n=' + n);
+  }
+});
+
+test('loopHeadBlend: the buffer starts on the audio that really did follow', () => {
+  const n = 64;
+  const a = S.loopHeadBlend(0, n);
+  assert.ok(Math.abs(a.tail - 1) < 1e-9 && Math.abs(a.head) < 1e-9,
+    'the very first sample IS what the deck was about to play — that is what makes the join silent');
+  const z = S.loopHeadBlend(n, n);
+  assert.ok(Math.abs(z.head - 1) < 1e-9 && Math.abs(z.tail) < 1e-9, 'and by the end it is the loop proper');
+  // equal power all the way across: two different pieces of music, so a linear
+  // sum would dip in the middle and the wrap would breathe
+  for (let i = 0; i <= n; i++){
+    const w = S.loopHeadBlend(i, n);
+    assert.ok(Math.abs(w.head * w.head + w.tail * w.tail - 1) < 1e-9, 'power holds at ' + i);
+    assert.ok(w.head >= 0 && w.tail >= 0);
+  }
+  assert.ok(S.loopHeadBlend(1, n).head > S.loopHeadBlend(0, n).head, 'monotone into the loop');
+  const none = S.loopHeadBlend(0, 0);
+  assert.ok(none.head === 1 && none.tail === 0, 'no blend asked for, no blend given');
+});
+
+test('loopXfadeLen: long enough to swallow a splice, never long enough to hear', () => {
+  assert.ok(Math.abs(S.loopXfadeLen(2, 1) - S.LOOP_XFADE) < 1e-9, 'a normal loop gets the full blend');
+  // a 1/8-beat roll is 60 ms at 128bpm — a 12 ms blend would be a fifth of it
+  const tiny = S.loopXfadeLen(0.06, 1);
+  assert.ok(tiny <= 0.06 / 8 + 1e-9 && tiny > 0, 'a very short loop gets a proportional one, got ' + tiny);
+  assert.equal(S.loopXfadeLen(2, 0), 0, 'no spare tape, no blend — the caller windows instead');
+  assert.equal(S.loopXfadeLen(2, -1), 0);
+  assert.ok(S.loopXfadeLen(2, 0.004) <= 0.004 + 1e-9, 'never asks for tape that is not there');
+  assert.ok(S.loopXfadeLen(0, 1) >= 0, 'a nonsense length does not produce a nonsense blend');
+});
+
+test('loopPhaseAt / loopHandbackPos: giving the room back without a gap', () => {
+  const len = 2, hand = 100, start = 30;
+  assert.equal(S.loopPhaseAt(99, hand, len), 0, 'before the handover there is no phase yet');
+  assert.ok(Math.abs(S.loopPhaseAt(100.5, hand, len) - 0.5) < 1e-9);
+  assert.ok(Math.abs(S.loopPhaseAt(107.5, hand, len) - 1.5) < 1e-9, 'and it wraps, forever');
+  const lead = 0.16;
+  /* A ROLL NEEDS NO SEEK. The track ran on underneath the whole time — that is
+     the roll's entire idea — so the deck is already exactly where it belongs and
+     touching it would undo the thing that makes a roll a roll. */
+  assert.equal(S.loopHandbackPos('roll', start, len, 1.2, 44.44, lead), 44.44);
+  /* A LATCHED LOOP lets go INSIDE itself, the way a CDJ does. The deck is seeked
+     `lead` short of where the loop WILL be, so that when the crossover happens it
+     has arrived — and it is the loop, not the deck, that is audible while it
+     travels. */
+  const p = 1.2;
+  const back = S.loopHandbackPos('loop', start, len, p, 999, lead);
+  assert.ok(Math.abs(back - (start + p + lead - lead)) < 1e-9, 'lands on the loop\'s own phase, got ' + back);
+  assert.ok(back >= start && back < start + len, 'and inside the loop');
+  // and when the lead crosses the wrap, it comes back round rather than falling out
+  for (const ph of [0, 0.02, 0.1, 1.85, 1.99, 1.9999]){
+    const b = S.loopHandbackPos('loop', start, len, ph, 999, lead);
+    assert.ok(b >= start - 1e-9 && b < start + len + 1e-9, 'phase ' + ph + ' stayed inside, got ' + b);
+  }
+  assert.ok(S.loopHandbackPos('loop', 0, len, 0, 999, lead) >= 0, 'never negative at the top of a track');
+});
+
+test('loopInPoint: a loop may not begin before the tape was rolling', () => {
+  const bpm = 120, grid = 0, spb = 0.5;
+  // plenty of tape → exactly loopBounds, the line already heard
+  const easy = S.loopInPoint(10.3, grid, bpm, 4, 24);
+  assert.ok(Math.abs(easy.start - 10) < 1e-9, 'the last line at or before the playhead');
+  assert.equal(easy.pushed, 0);
+  assert.ok(Math.abs(easy.len - 2) < 1e-9, '4 beats at 120bpm is 2s');
+  // FIRST PRESS OF A SESSION: no past to cut from, so take the next line rather
+  // than quietly shipping a loop that is not the length it says it is
+  const cold = S.loopInPoint(10.3, grid, bpm, 4, 0);
+  assert.equal(cold.pushed, 1);
+  assert.ok(Math.abs(cold.start - 10.5) < 1e-9, 'one beat later, still on the grid, got ' + cold.start);
+  assert.ok(Math.abs(cold.len - easy.len) < 1e-9, 'and the full length either way');
+  assert.ok(Math.abs((cold.start - easy.start) / spb - Math.round((cold.start - easy.start) / spb)) < 1e-9,
+    'the push is a whole number of beats — the phrase does not slide');
+  // a little tape is enough when the playhead is barely past the line
+  assert.equal(S.loopInPoint(10.05, grid, bpm, 4, 0.2).pushed, 0);
+  assert.equal(S.loopInPoint(10.45, grid, bpm, 4, 0.2).pushed, 1);
+  // no recorder at all (iOS) → the constraint does not exist and nothing moves
+  const ios = S.loopInPoint(10.3, grid, bpm, 4, Infinity);
+  assert.ok(Math.abs(ios.start - S.loopBounds(10.3, grid, bpm, 4).start) < 1e-9);
+  assert.ok(Math.abs(ios.end - (ios.start + ios.len)) < 1e-9, 'end is start plus length, always');
+});
+
 test('fxWet: fine where it matters, and never a mute', () => {
   assert.equal(S.fxWet(0), 0);
   assert.ok(S.fxWet(1) <= 0.92 && S.fxWet(1) > 0.9, 'full travel stops short of swallowing the track');
@@ -5002,21 +5208,36 @@ test('segueFx: reduced motion is answered with a crossfade, always', () => {
     for (let i = 0; i <= 20; i++)
       assert.equal(S.segueFx({ kind, energy: 1, r: i / 20, reduced: true }), 'dissolve');
 });
+test('segueFx: nothing in the vocabulary draws an edge', () => {
+  /* THE DESIGN RULE, AS AN ASSERTION. Every form that got cut from this list
+     did so for the same reason: a grid of shards, an opening aperture and a
+     travelling shockwave are all legible in a single frame, and what they are
+     legible AS is "a transition" — which is the one thing the field must never
+     look like. This test does not stop someone re-adding them; it makes doing
+     so a deliberate act with a failing test attached. */
+  for (const gone of ['shatter', 'iris', 'ripple', 'streak', 'wipe', 'slide'])
+    assert.ok(!S.XFORM_KINDS.includes(gone), `${gone} draws an edge and does not belong here`);
+  assert.equal(new Set(S.XFORM_KINDS).size, S.XFORM_KINDS.length, 'a form is listed twice');
+});
 test('segueFx: a drop gets a drop’s transition, a quiet room gets a quiet one', () => {
   const draw = o => { const out = new Set(); for (let i = 0; i <= 60; i++) out.add(S.segueFx({ ...o, r: i / 60 })); return out; };
   const cut = draw({ kind: 'cut', energy: 0.9 });
-  for (const slow of ['scatter', 'fold', 'luma', 'dissolve'])
+  // a drop has to get SOMETHING, and it has to be something that survives being
+  // over in half a second — the long forms and the plain crossfade both fail that
+  for (const slow of ['scatter', 'aerial', 'fold', 'luma', 'dissolve'])
     assert.ok(!cut.has(slow), `a drop must never draw ${slow}`);
-  assert.ok(cut.has('shatter') && cut.has('streak'), 'the drop pool is not being reached');
+  assert.ok(cut.has('defocus'), 'the rack focus is the drop’s sharpest tool and is not being reached');
 
   const quiet = draw({ kind: 'dissolve', energy: 0.1 });
-  for (const loud of ['shatter', 'streak', 'prism'])
-    assert.ok(!quiet.has(loud), `a quiet passage must never draw ${loud}`);
   assert.ok(quiet.has('dissolve'), 'the plain crossfade has to keep coming up');
+  for (const quick of ['prism', 'refract', 'scatter'])
+    assert.ok(!quiet.has(quick), `a quiet passage does not need ${quick}`);
 
+  // a section turn is one room BECOMING another; the incidental forms are not that
   const morph = draw({ kind: 'morph', energy: 0.6 });
-  for (const hit of ['shatter', 'streak'])
-    assert.ok(!morph.has(hit), `a section turn is not a hit — ${hit} does not belong`);
+  for (const incidental of ['prism', 'refract', 'defocus'])
+    assert.ok(!morph.has(incidental), `a section turn is not ${incidental}`);
+  assert.ok(morph.has('scatter') && morph.has('dissolve'));
 });
 test('segueFx: never the same form twice in a row', () => {
   // the second shatter in a row is the one that starts to look like a screensaver
@@ -5038,6 +5259,11 @@ test('segueFxDur: a form is never given less time than it needs to read', () => 
   }
   // SCATTER is the slowest for a reason: every grain has to leave AND arrive
   assert.ok(S.XFORM_MIN_DUR.scatter > S.XFORM_MIN_DUR.prism);
+  /* AND NOTHING HERE IS A FLASH. A transition that needs to be under half a
+     second to work is a transition doing something drastic, and drastic is the
+     thing this vocabulary exists to avoid. */
+  for (const k of S.XFORM_KINDS)
+    assert.ok(S.XFORM_MIN_DUR[k] >= 0.5, `${k} is fast enough to read as a glitch`);
 });
 
 /* ---- loadAndLandAt: resuming lands where it was asked to ----
