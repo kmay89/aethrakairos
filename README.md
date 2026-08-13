@@ -360,7 +360,8 @@ the way hardware lays them out because that layout is the argument:
 - **LOOP** — eight beat loops from a 32nd to 16 bars. Tap and the loop latches
   on the **last grid line the ear already heard**, never the next one, because a
   loop that begins in the future is a gap. Halve and double re-cut from the same
-  in-point, so a phrase can never slide out from under your hand.
+  in-point, so a phrase can never slide out from under your hand. And it does not
+  seek — see below.
 - **ROLL** — the same eight lengths, **momentary**: held, not latched. This is
   the one difference that makes them two controls instead of one. A loop makes
   the track *wait*; a roll stalls the music while the track keeps running
@@ -385,6 +386,61 @@ win, because the room never tires.
 Nothing in the rack can strand the music: every unit is parked at bypass, every
 automation is bounded, and a track change hands the whole booth back — no seam
 ever inherits an effect the last track left switched on.
+
+### The loop does not seek
+
+A beat loop in a browser is normally a **re-seek**: watch the playhead on an
+animation frame and, when it passes the out-point, write `currentTime` back to
+the in-point. The arithmetic here was always right — the overshoot is carried
+across the wrap, so the average cycle is exactly the length it says it is and the
+loop never drifts off the grid. That is the half a unit test can prove, and it
+was never the problem. The other half it cannot touch: **setting `currentTime` on
+a media element asks a decoder to jump, and a decoder asked to jump takes a
+moment to have audio again.** Once per cycle, forever, exactly on the beat — the
+single most audible place a fault can be.
+
+So the loop stopped seeking. A recorder on the mix keeps the last twenty-four
+seconds; the first time the loop goes past, it is **cut out of that tape and
+handed to an `AudioBufferSourceNode` with `loop = true`**. From that instant the
+wrap happens in the audio thread between two adjacent samples — no drift, no
+decoder, no animation frame, and no seek at all for as long as the loop is held.
+The deck keeps running underneath, silent, so letting go is a crossfade rather
+than a jump; a **roll** does not even need that, because the track really did run
+on underneath it and is already exactly where it should be.
+
+Three things make it honest rather than merely clever:
+
+- **The head of the loop is blended with the audio that really did follow the
+  out-point**, over about twelve milliseconds. A loop point is a splice — sample
+  *len* is followed by sample 0 — and if the waveform disagrees there it clicks
+  on every single cycle. That one blend fixes both joins at once: the buffer's
+  first sample *is* the sample the deck was about to play, so the handover is
+  continuous and so is every wrap after it.
+- **The tape calibrates itself.** Cutting the loop out needs to know which
+  recorded sample the graph is playing right now, and the recorder runs ahead of
+  what is audible by an amount nobody documents and every device gets
+  differently. Guessing it wrong does not fail loudly — it puts one audible jump
+  at the top of the first loop. So it is not guessed: a single-sample impulse is
+  fired into the recorder at a known clock time and found again in the ring,
+  which measures the relation exactly, on the actual device. It never reaches the
+  room, and it is zeroed out of the tape once it has been read.
+- **It never races.** Cutting the buffer is main-thread work on a main thread
+  that is also drawing thirty-one rooms, and there is no arrangement of leads and
+  timers that wins that race on every device. So the **old re-seek loop keeps
+  running until the handover can be made properly** — the loop loops from the
+  instant the pad goes down, and the tape takes over on the first out-point it
+  can reach in time. The failure mode of the new machinery is the old machinery,
+  which is the only failure mode worth having. On iOS, where playback is
+  element-direct and there is no graph to record, the whole layer stands down.
+
+`tools/loop_probe.mjs` measures it in a real browser, on real music, both ways:
+a recorder on the master, every write to the playhead counted. The seeking loop
+writes the playhead on **every cycle**; the taped one writes it **zero times**,
+and the wrap in the buffer the audio thread is looping is a step around **one
+per cent** of the largest the music itself contains. The probe measures its own
+instrument first — a `ScriptProcessorNode` on a starved main thread leaves
+artefacts larger than the fault — so the numbers are read against that floor
+rather than against nothing.
 
 **The playlist stays master — and you get override inserts.** Under the
 decks sits a row of **performance pads: the eight best next tracks from the
@@ -1462,13 +1518,22 @@ playback falls back to the network URL, which is exactly what happened before.
 The label is always pressing new music, so the library greets you with
 what's fresh instead of an alphabetical wall: **Hot this week** (the most
 played track on this device — your own honest taste, from the local
-history, never a server), **This month's crate** (the latest pressings by
-publish date, tappable as a ready-made set), and the **Fresh pressing**
-(the newest drop). All of it computes itself — the crate reads the
-catalog's `published` dates the build already stamps, the hot track reads
-the play history the player already keeps, and a slow month quietly widens
+history, never a server), **This month's crate** (the introduction, then the
+latest pressings by publish date, tappable as a ready-made set), and the
+**Fresh pressing** (the newest drop). All of it computes itself — the crate
+reads the catalog's `published` dates the build already stamps, the hot track
+reads the play history the player already keeps, and a slow month quietly widens
 the window so the porch is never empty. Publish music and the porch
 updates; play music and it learns.
+
+**The crate opens on Möbius Walking**, the way the opening set and the library
+walk already did. It is the calibrated piece — analysed with a measured grid, so
+the beat lock, the structure reader and the colour conductor are all fully
+engaged from the first bar instead of warming up on whatever happened to be
+pressed most recently. It is pinned to the front rather than sorted there, so it
+leads even once it has aged out of the window: being the introduction is not a
+function of a publish date. The Fresh pressing badge still names the genuinely
+newest track — the introduction leads the list, it does not pretend to be new.
 
 ## The player remembers
 
@@ -1853,10 +1918,19 @@ the floor keeps dancing in colours of its own.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 358 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 368 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance, the CIE observer,
                                     #   diffraction limits, the black film, which transition a
-                                    #   cut deserves (extracted from the shipped HTML, not a copy)
+                                    #   cut deserves, the tape a seamless loop is cut from
+                                    #   (extracted from the shipped HTML, not a copy)
+node tools/loop_probe.mjs           # 20 checks on the booth loop in a real browser, playing
+                                    #   real music, with a recorder on the master: the loop
+                                    #   hands over to the audio thread, the cycle is exactly the
+                                    #   beats asked for, the wrap is a step the music itself
+                                    #   already contains — and the playhead is written ZERO
+                                    #   times, against every cycle on the path it replaces.
+                                    #   Measures its own instrument first, and holds the numbers
+                                    #   to that floor rather than to nothing
 node tools/xform_probe.mjs          # 15 checks on the scene transition in a real browser: the
                                     #   freeze is captured and is not a black frame, the pass is
                                     #   really in the chain (not configured and then dropped),
