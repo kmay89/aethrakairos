@@ -25,7 +25,7 @@
 
 // Stamped by tools/stamp_version.py (run by publish.sh): a short hash of the
 // player file, so every player release is a new shell cache by construction.
-const VERSION = 'd154566216';
+const VERSION = '536402ec0c';
 
 const SHELL_CACHE = 'mb8-shell-' + VERSION;
 const CATALOG_CACHE = 'mb8-catalog-v1';          // unversioned: survives updates
