@@ -4993,8 +4993,23 @@ function updateGate(o){
   if ((Number(o.applies) || 0) >= UP_APPLY_CAP) return 'wait';
   if (o.now < (o.snoozedUntil || 0)) return 'wait';
   if (o.show) return 'wait';
-  return o.playing ? 'wait' : 'apply';
+  if (o.playing) return 'wait';
+  /* THE QUIET IS A DURATION, NOT AN INSTANT. "Not playing right now" is true in
+     the two-second gap while the next track's element loads, true during a phone
+     call, true the moment a listener pauses to answer the door — and the gate
+     used to be polled every five seconds, so a pending deploy turned any one of
+     those blinks into a white flash, a reload, and a set handed back PAUSED
+     (restore never auto-plays; the browser would not allow it). The moment that
+     failure wears is always "it randomly stops after some minutes", because the
+     deploy lands minutes after the page opened and the first blink after that
+     is the fuse. So an automatic swap now requires the room to have been silent
+     for a sustained stretch — long enough that no seam, interruption or breath
+     between songs ever qualifies. An unknown quiet (NaN, missing) is not quiet.
+     A listener's explicit "after this track" is untouched above: that boundary
+     is one they asked for. */
+  return (Number(o.quietFor) >= UP_QUIET_MS) ? 'apply' : 'wait';
 }
+const UP_QUIET_MS = 2 * 60 * 1000;         // what "the quiet" means: two minutes, not a blink
 /* SHOULD THIS OFFER STAND? The rule that was missing, and the reason a card could
    reappear forever: A DIFFERENCE IS NOT A NEWER BUILD. But the converse trap is
    just as real, and the first version of this walked straight into it — rejecting
@@ -15647,7 +15662,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '536402ec0c';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '1fafd0a84e';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -15659,6 +15674,9 @@ const UPDATE = {
   deferrals: 0,          // how many times this listener has said "later"
   lastRemindAt: 0,       // the snooze a reminder has already answered
   _armCur: -1,           // player.cur when "after this track" was armed
+  _lastPlayingAt: 0,     // when playback was last OBSERVED playing — what "the
+                         // quiet" is measured from. Zero (never played) reads as
+                         // quiet-forever, so an idle page still updates itself.
   ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell' || this.source === 'native'; },
   /* how many times THIS session has already swapped. Session-scoped on purpose:
      a genuine sequence of deploys across a long day should each land, but a
@@ -15955,11 +15973,14 @@ function maybeAutoApply(){
      listener reads "idle, go ahead" and a screen facing an audience would
      reload itself mid-set. It updates when it is next opened. */
   if (typeof STAGE !== 'undefined' && STAGE.screen()) return;
+  // the quiet clock: five-second granularity is plenty against a two-minute bar
+  if (player.playing) UPDATE._lastPlayingAt = Date.now();
   const verdict = updateGate({
     ready: UPDATE.ready(), requested: updateRequested,
     armed: UPDATE.armed,
     trackChanged: UPDATE.armed === 'afterTrack' && player.cur !== UPDATE._armCur,
     playing: player.playing,
+    quietFor: Date.now() - UPDATE._lastPlayingAt,
     native: UPDATE.source === 'native',
     show: typeof POWER !== 'undefined' && POWER.mode === 'show',
     snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),

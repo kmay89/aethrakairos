@@ -62,7 +62,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' EIGEN, EIGEN_LESSONS, eigenDot, eigenTql2, eigenLanczos, eigenSolve, eigenOccupation, eigenTimeUnit,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
-  ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
+  ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, UP_QUIET_MS, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss,' +
   ' WARM_HUES, warmHue, warmBlend, WARM_PULL, warmDeal, togetherness, warmSpark, beatGrace, SCENE_SIGS, sceneSig,' +
   ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaFlow, lavaK6, lavaKS, lavaW, lavaGradW,' +
@@ -2813,16 +2813,26 @@ test('updateGate: not ready or already requested → wait', () => {
   assert.equal(S.updateGate({ ready: false, playing: false, now: 0 }), 'wait');
   assert.equal(S.updateGate({ ready: true, requested: true, playing: false, now: 0 }), 'wait');
 });
-test('updateGate: idle applies, playing waits', () => {
-  assert.equal(S.updateGate({ ready: true, playing: false, now: 0 }), 'apply');
-  assert.equal(S.updateGate({ ready: true, playing: true, now: 0 }), 'wait');
+test('updateGate: sustained quiet applies, playing waits — and a BLINK is not the quiet', () => {
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: S.UP_QUIET_MS, now: 0 }), 'apply');
+  assert.equal(S.updateGate({ ready: true, playing: true, quietFor: 9e9, now: 0 }), 'wait');
+  /* the failure this rule exists for: the two-second gap while the next track
+     loads, a phone call, a breath between songs — each reads "not playing" at
+     one five-second poll, and each used to cost the listener a white flash, a
+     reload, and a set handed back paused */
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 2000, now: 0 }), 'wait', 'a seam gap is not the quiet');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: S.UP_QUIET_MS - 1, now: 0 }), 'wait', 'almost quiet is not quiet');
+  for (const bad of [undefined, null, NaN, 'x', -5])
+    assert.equal(S.updateGate({ ready: true, playing: false, quietFor: bad, now: 0 }), 'wait', 'unknown quiet is not quiet: ' + bad);
+  // the wish a listener expressed still fires at its boundary, whatever the clock says
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: true, trackChanged: true, quietFor: 0, now: 0 }), 'apply');
 });
 test('updateGate: SHOW mode is never yanked, even paused', () => {
-  assert.equal(S.updateGate({ ready: true, playing: false, show: true, now: 0 }), 'wait');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, show: true, now: 0 }), 'wait');
 });
 test('updateGate: a snooze holds auto-apply until it lapses', () => {
-  assert.equal(S.updateGate({ ready: true, playing: false, snoozedUntil: 100, now: 50 }), 'wait');
-  assert.equal(S.updateGate({ ready: true, playing: false, snoozedUntil: 100, now: 150 }), 'apply');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, snoozedUntil: 100, now: 50 }), 'wait');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, snoozedUntil: 100, now: 150 }), 'apply');
 });
 test('updateGate: "after this track" fires at the boundary or the pause — above snooze and SHOW', () => {
   const base = { ready: true, armed: 'afterTrack', snoozedUntil: 9e9, show: true, now: 0 };
@@ -2857,7 +2867,7 @@ test('newsSince: walks newest-first until the running build, exclusive, capped',
    arrives late. */
 test('updateGate + updateOffer: the Mac app is a different artefact, asked for by hand', () => {
   const base = { ready: true, requested: false, armed: '', trackChanged: false,
-    playing: false, show: false, snoozedUntil: 0, now: 1000, applies: 0 };
+    playing: false, quietFor: 9e9, show: false, snoozedUntil: 0, now: 1000, applies: 0 };
   assert.equal(S.updateGate(base), 'apply', 'an ordinary update still lands in the quiet');
   /* A NATIVE UPDATE REPLACES THE PROCESS. Every gate that protects a listener
      reads "idle, go ahead" when nothing is playing — and a stage screen is
@@ -3828,8 +3838,8 @@ test('updateWatchdogStep: a broken clock reads as wait, never a panic reload', (
 });
 
 test('updateGate: the loop brake stops AUTOMATIC swaps, never a deliberate one', () => {
-  const base = { ready: true, requested: false, armed: '', playing: false, show: false,
-    snoozedUntil: 0, now: 1000 };
+  const base = { ready: true, requested: false, armed: '', playing: false, quietFor: 9e9,
+    show: false, snoozedUntil: 0, now: 1000 };
   assert.equal(S.updateGate(base), 'apply', 'a quiet moment applies');
   assert.equal(S.updateGate({ ...base, applies: S.UP_APPLY_CAP - 1 }), 'apply', 'under the cap, still automatic');
   assert.equal(S.updateGate({ ...base, applies: S.UP_APPLY_CAP }), 'wait', 'at the cap, stand down');
