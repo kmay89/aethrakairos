@@ -7181,6 +7181,36 @@ function ensureCtx(){
   if (AE.ctx){ if (AE.ctx.state === 'suspended') AE.ctx.resume(); return; }
   const Ctx = window.AudioContext || window.webkitAudioContext;
   AE.ctx = new Ctx();
+  /* THE CONTEXT KEEPER. On iOS a suspended context costs visuals and nothing
+     else — the decks play direct. Everywhere ELSE the graph IS the signal
+     path: every sample flows deck → gain → master → destination, so a context
+     the browser suspends mid-set (a Bluetooth headset reconnecting, the OS
+     switching output devices, a power-saving heuristic) is SILENCE wearing a
+     playing UI — the elements keep "playing" into a dead graph, no pause event
+     fires, and nothing recovered until the listener happened to touch
+     something. ensureResume() only ever ran on gestures and tab-returns, which
+     is exactly never for a set left to play across the room. So the context
+     now announces its own suspension and is argued with: resume immediately,
+     and keep asking on a slow clock while the music is supposed to be audible.
+     A browser that insists on a gesture keeps refusing harmlessly — and the
+     very next gesture already resumes it by the old path. */
+  AE.ctx.onstatechange = () => {
+    if (!AE.ctx) return;
+    const st = AE.ctx.state;
+    if (st === 'running'){ clearInterval(AE._ctxKeepT); AE._ctxKeepT = 0; return; }
+    if (st === 'closed') return;
+    // 'suspended' — or Safari's non-standard 'interrupted'
+    try { AE.ctx.resume().catch(() => {}); } catch (e){}
+    if (!AE.graphLive || !player.playing || AE._ctxKeepT) return;
+    if (typeof ACTIVITY !== 'undefined')
+      ACTIVITY.log('system', 'The audio engine was suspended mid-play (route change or power saving) — arguing it back');
+    AE._ctxKeepT = setInterval(() => {
+      if (!AE.ctx || AE.ctx.state === 'running' || !player.playing){
+        clearInterval(AE._ctxKeepT); AE._ctxKeepT = 0; return;
+      }
+      try { AE.ctx.resume().catch(() => {}); } catch (e){}
+    }, 1500);
+  };
   AE.bus = AE.ctx.createGain();
   AE.master = AE.ctx.createGain();
   AE.master.gain.value = parseInt(el.vol.value, 10) / 100;
@@ -7441,7 +7471,13 @@ function ensureCtx(){
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
       if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
-      if (player.playing && !d.a.ended){ player.playing = false; updatePlayIcon(); player.renderList(); }
+      if (player.playing && !d.a.ended){
+        player.playing = false; updatePlayIcon(); player.renderList();
+        // forensics: a pause nobody in this app asked for gets named, so "it
+        // just stopped" reports arrive with the culprit already in the log
+        if (typeof ACTIVITY !== 'undefined')
+          ACTIVITY.log('system', 'The system paused the audio (call, Siri, route change, or another app)');
+      }
     });
     d.a.addEventListener('play', () => {
       if (d.priming) return;
@@ -9481,6 +9517,7 @@ const PERSIST = {
       queue: player.tracks.map(trackKey).filter(Boolean),
       cur: trackKey(cur),
       pos: d && isFinite(d.a.currentTime) ? d.a.currentTime : 0,
+      playing: !!player.playing,     // whether the set was LIVE — the update swap reads this back
       bag: player._bag.map(id => { const t = player.tracks.find(x => x.id === id); return trackKey(t); }).filter(Boolean),
       shuffle: player.shuffle, repeat: player.repeat,
       vol: parseInt(el.vol.value, 10),
@@ -9524,6 +9561,32 @@ const PERSIST = {
       // the restore renders ready-to-resume: one tap.
       const i = player.tracks.indexOf(curTrack);
       player.prepare(i, s.pos || 0);
+      /* THE ONE RELOAD THAT MAY RESUME ITSELF. Restore-paused is right for
+         every reload the app did not choose — a browser will not let a page
+         that just appeared start making sound, and pretending otherwise
+         leaves a play button lying. But an UPDATE SWAP is a reload this app
+         performed, mid-set, with the listener's own sanction ("update now",
+         "after this track") — and handing their set back paused made every
+         update cost a walk to the play button. So a swap-return whose saved
+         transport says the set was LIVE tries to pick it straight back up.
+         Where the browser allows it (an origin this listener plays daily
+         usually does), the update is a one-second blink in the music; where
+         it refuses, play() rejects, the optimistic state is put back
+         honestly, and the button asks for the one tap it always asked for. */
+      if (window.__mb8SwapReturn && s.playing){
+        window.__mb8SwapReturn = false;
+        setTimeout(() => {
+          player.resume();
+          setTimeout(() => {
+            const d = activeDeck();
+            if (player.playing && d && d.a.paused){
+              player.playing = false;
+              updatePlayIcon(); player.renderList();
+              toast('Updated — tap <b>play</b> to pick the set back up');
+            }
+          }, 900);
+        }, 250);
+      }
     }
     player.renderList();
     syncMixHud();
@@ -12467,10 +12530,19 @@ function initMediaSession(){
   const ms = navigator.mediaSession;
   const act = (name, fn) => { try { ms.setActionHandler(name, fn); } catch (e){} };
   act('play', () => { if (player.cur !== -1) player.resume(); else player.toggle(); });
-  act('pause', () => player.pause());
+  // forensics on both stop verbs: a lock-screen tap, a Bluetooth button, an
+  // earbud coming out — all arrive here, and none should read as "it stopped
+  // by itself" when the log can name the hand that pressed it
+  act('pause', () => {
+    if (typeof ACTIVITY !== 'undefined') ACTIVITY.log('system', 'Pause from the system controls (lock screen / headset / car)');
+    player.pause();
+  });
   act('previoustrack', () => player.prev());
   act('nexttrack', () => player.next(false, false));
-  act('stop', () => player.pause());
+  act('stop', () => {
+    if (typeof ACTIVITY !== 'undefined') ACTIVITY.log('system', 'Stop from the system controls (lock screen / headset / car)');
+    player.pause();
+  });
   act('seekbackward', d => player.nudge(-(d && d.seekOffset || 10)));
   act('seekforward', d => player.nudge(d && d.seekOffset || 10));
   act('seekto', d => {
@@ -15662,7 +15734,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '1fafd0a84e';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '3e8a6aa7cd';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -16248,6 +16320,8 @@ wireUpdateCard();
 try {
   const from = sessionStorage.getItem('mb8_updated_from');
   if (from){
+    // the transport restore reads this: a reload WE performed may resume the set
+    window.__mb8SwapReturn = true;
     /* load BEFORE anything here persists: this runs at parse time, ahead of
        boot()'s own load(), and settle() writes the whole record back — including
        the applied-key memory, which would be written as empty by a UPDATE that
@@ -34934,6 +35008,8 @@ const TABSYNC = {
     if (player.playing){
       try { player.pause(); } catch (e){}
       toast('Paused — playing in another tab');
+      if (typeof ACTIVITY !== 'undefined')
+        ACTIVITY.log('system', 'Another tab claimed the audio — this one stood down');
     }
   },
   announce(){
