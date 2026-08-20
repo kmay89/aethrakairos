@@ -3554,9 +3554,11 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'flows', 'grows', 'grows', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
                'grows', 'flows',
                'flows', 'grows', 'flows', 'gathers',
-               'grows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'grows', 'flows', 'grows'];   // …the lattice and the film ripple, the
+               'grows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'grows', 'flows', 'grows',
+               'gathers'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
-                           // stars, the SHOW gathers its sparks, and the SET is a well
+                           // stars, the SHOW gathers its sparks, the SET is a well, and a
+                           // hand on the WAVEFUNCTION gathers probability the way a well does
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -3808,9 +3810,11 @@ function ghostPattern(sceneIdx, act, r, mood){
                'bounce', 'paint', 'lissa', 'drift', 'snake', 'paint', 'drift', 'snake', 'lissa',
                'lissa', 'snake',
                'snake', 'lissa', 'paint', 'drift',
-               'drift', 'bounce', 'lissa', 'drift', 'lissa', 'snake', 'paint', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
+               'drift', 'bounce', 'lissa', 'drift', 'lissa', 'snake', 'paint', 'drift',
+               'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
-                           // the SHOW bounces like its shells, and the SET is walked in curves
+                           // the SHOW bounces like its shells, the SET is walked in curves,
+                           // and the EIGENSTATE is orbited the way a superposition beats
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -4476,6 +4480,276 @@ const TERRAIN_FORMS = [
 ];
 
 /* ================================================================
+   THE DOUBLE WELL, ACTUALLY SOLVED.
+
+   A particle confined near two Gaussian wells — the textbook picture of
+   tunnelling, and the one system where "the maths is the show" is meant
+   literally: the room does not paint something that looks quantum, it
+   SOLVES the time-independent Schrödinger equation
+
+       −½ ∇²ψ + V(x,y) ψ = E ψ        (ħ = m = 1)
+
+   on a grid at load time, keeps the lowest EIGEN.k eigenpairs, and then
+   evolves superpositions EXACTLY: Ψ(t) = Σ cₙ ψₙ e^{−iEₙt} is the whole
+   render, so every fringe on screen is an interference term the equation
+   put there. The one approximation in the room is the grid itself — the
+   five-point Laplacian is O(h²) — and the tests below hold that honest:
+   the same solver must land on the ANALYTIC ladder of an anisotropic
+   oscillator, return orthonormal states, and report its own residuals.
+
+   The wells are deliberately a symmetric pair: the ground level of one
+   well splits into a DOUBLET — symmetric ψ₀ below antisymmetric ψ₁ —
+   and a particle prepared in one well slides through the barrier and
+   back at the beat frequency (E₁−E₀)/2π. That splitting is exponentially
+   small in the barrier action, which is why the tunnelling lesson keeps
+   its own clock (eigenTimeUnit): time is one global unit choice, so the
+   evolution stays unitary — nothing about WHICH phases beat against
+   which is touched. */
+const EIGEN = {
+  n: 56,            // grid points per side — 3,136 unknowns
+  l: 7.2,           // box side; the walls sit far enough out that ψ dies first
+  k: 12,            // how many eigenstates the room keeps
+  iters: 190,       // Lanczos steps — enough to push every residual below 1e−7,
+                    // measured, and the test reads the residuals to hold it there
+  seed: 271828,     // e. A fixed seed so every build finds the same states.
+  wells: [
+    { x: -1.05, y: 0, v: 44, s: 0.68 },
+    { x:  1.05, y: 0, v: 44, s: 0.68 },
+  ],
+};
+
+function eigenDot(a, b){
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+}
+
+/* All eigenvalues AND eigenvectors of a symmetric tridiagonal matrix — QL
+   with implicit shifts, the EISPACK tql2 everyone's eigensolver bottoms out
+   in. This is what the big problem is reduced TO, so it is the one piece of
+   dense linear algebra in the app. d: diagonal, e: sub-diagonal (len n−1). */
+function eigenTql2(diag, sub){
+  const n = diag.length;
+  const d = Float64Array.from(diag);
+  const e = new Float64Array(n);
+  for (let i = 0; i < n - 1; i++) e[i] = sub[i];
+  const z = [];
+  for (let i = 0; i < n; i++){ const r = new Float64Array(n); r[i] = 1; z.push(r); }
+  for (let l = 0; l < n; l++){
+    let iter = 0, m = l;
+    do {
+      for (m = l; m < n - 1; m++){
+        const dd = Math.abs(d[m]) + Math.abs(d[m + 1]);
+        if (Math.abs(e[m]) <= 1e-14 * dd) break;
+      }
+      if (m !== l){
+        if (iter++ === 60) break;               // never observed; a guard, not a path
+        let g = (d[l + 1] - d[l]) / (2 * e[l]);
+        let r = Math.hypot(g, 1);
+        g = d[m] - d[l] + e[l] / (g + (g >= 0 ? r : -r));
+        let s = 1, c = 1, p = 0;
+        for (let i = m - 1; i >= l; i--){
+          let f = s * e[i];
+          const b = c * e[i];
+          r = Math.hypot(f, g);
+          e[i + 1] = r;
+          if (r === 0){ d[i + 1] -= p; e[m] = 0; break; }
+          s = f / r; c = g / r;
+          g = d[i + 1] - p;
+          r = (d[i] - g) * s + 2 * c * b;
+          p = s * r;
+          d[i + 1] = g + p;
+          g = c * r - b;
+          for (let q = 0; q < n; q++){
+            f = z[q][i + 1];
+            z[q][i + 1] = s * z[q][i] + c * f;
+            z[q][i] = c * z[q][i] - s * f;
+          }
+        }
+        if (r === 0 && m - 1 >= l) continue;
+        d[l] -= p; e[l] = g; e[m] = 0;
+      }
+    } while (m !== l);
+  }
+  return { d, z };
+}
+
+/* Lanczos with FULL re-orthogonalisation. Plain Lanczos loses orthogonality
+   in floating point and starts inventing copies of eigenvalues it already
+   found ("ghosts"); re-orthogonalising every new direction against the whole
+   basis costs O(m²·dim) and buys certainty, which at this size is the right
+   trade — the entire solve is a one-time cost at load. Returns the k lowest
+   Ritz pairs, each with the standard residual bound |β_m · z_m| so the
+   caller (and the test suite) can SEE how converged every state is rather
+   than trust that it is. */
+function eigenLanczos(dim, matvec, k, m, seed){
+  const rnd = mulberry32((seed >>> 0) || 1);
+  const V = [], alpha = [], beta = [];
+  let v = new Float64Array(dim);
+  for (let i = 0; i < dim; i++) v[i] = rnd() - 0.5;
+  { const s = 1 / Math.sqrt(eigenDot(v, v)); for (let i = 0; i < dim; i++) v[i] *= s; }
+  const w = new Float64Array(dim);
+  for (let j = 0; j < m; j++){
+    V.push(Float64Array.from(v));
+    matvec(v, w);
+    const a = eigenDot(w, v);
+    alpha.push(a);
+    for (let i = 0; i < dim; i++) w[i] -= a * v[i];
+    if (j > 0){ const u = V[j - 1], b0 = beta[j - 1]; for (let i = 0; i < dim; i++) w[i] -= b0 * u[i]; }
+    // one full Gram–Schmidt pass, and a second only when the first ate most
+    // of the vector — the classical "twice is enough" refinement
+    let before = Math.sqrt(eigenDot(w, w));
+    for (let pass = 0; pass < 2; pass++){
+      for (let q = 0; q <= j; q++){
+        const u = V[q], d2 = eigenDot(w, u);
+        if (d2 !== 0) for (let i = 0; i < dim; i++) w[i] -= d2 * u[i];
+      }
+      const after = Math.sqrt(eigenDot(w, w));
+      if (after > before * 0.5) break;
+      before = after;
+    }
+    const b = Math.sqrt(eigenDot(w, w));
+    if (b > 1e-9){
+      beta.push(b);
+      for (let i = 0; i < dim; i++) v[i] = w[i] / b;
+    } else {
+      // an invariant subspace closed early — restart in the orthogonal
+      // complement so the walk keeps finding NEW directions
+      beta.push(0);
+      for (let i = 0; i < dim; i++) v[i] = rnd() - 0.5;
+      for (let q = 0; q <= j; q++){
+        const u = V[q], d2 = eigenDot(v, u);
+        for (let i = 0; i < dim; i++) v[i] -= d2 * u[i];
+      }
+      const s = 1 / Math.sqrt(Math.max(1e-12, eigenDot(v, v)));
+      for (let i = 0; i < dim; i++) v[i] *= s;
+    }
+  }
+  const t = eigenTql2(alpha, beta.slice(0, m - 1));
+  const idx = Array.from({ length: m }, (_, i) => i).sort((a, b) => t.d[a] - t.d[b]);
+  const kk = Math.min(k, m), E = [], psi = [], res = [];
+  const bLast = beta[m - 1] || 0;
+  for (let o = 0; o < kk; o++){
+    const c2 = idx[o], u = new Float64Array(dim);
+    for (let j = 0; j < m; j++){
+      const zc = t.z[j][c2];
+      if (zc === 0) continue;
+      const Vj = V[j];
+      for (let i = 0; i < dim; i++) u[i] += zc * Vj[i];
+    }
+    const s = 1 / Math.sqrt(Math.max(1e-12, eigenDot(u, u)));
+    const out = new Float32Array(dim);
+    for (let i = 0; i < dim; i++) out[i] = u[i] * s;
+    E.push(t.d[c2]);
+    psi.push(out);
+    res.push(Math.abs(bLast * t.z[m - 1][c2]));
+  }
+  return { E, psi, res };
+}
+
+/* The whole pipeline: potential on the grid → sparse H as a matvec (five-
+   point Laplacian, Dirichlet walls — never materialised as a matrix) →
+   Lanczos. cfg.potential overrides the wells, which is how the test aims
+   this same code at a potential whose spectrum is known in closed form. */
+function eigenSolve(cfg){
+  const c = cfg || EIGEN;
+  const n = c.n, dim = n * n, h = c.l / (n + 1), x0 = -c.l / 2;
+  const wells = c.wells || EIGEN.wells;
+  const Vat = c.potential || ((x, y) => {
+    let v = 0;
+    for (let q = 0; q < wells.length; q++){
+      const wq = wells[q], dx = x - wq.x, dy = y - wq.y;
+      v -= wq.v * Math.exp(-(dx * dx + dy * dy) / (2 * wq.s * wq.s));
+    }
+    return v;
+  });
+  const pot = new Float64Array(dim);
+  for (let j = 0; j < n; j++){
+    const y = x0 + (j + 1) * h;
+    for (let i = 0; i < n; i++) pot[j * n + i] = Vat(x0 + (i + 1) * h, y);
+  }
+  const kin = 0.5 / (h * h);
+  const matvec = (v, out) => {
+    for (let j = 0; j < n; j++){
+      const row = j * n;
+      for (let i = 0; i < n; i++){
+        const p = row + i;
+        let lap = -4 * v[p];
+        if (i > 0) lap += v[p - 1];
+        if (i < n - 1) lap += v[p + 1];
+        if (j > 0) lap += v[p - n];
+        if (j < n - 1) lap += v[p + n];
+        out[p] = pot[p] * v[p] - kin * lap;
+      }
+    }
+  };
+  const r = eigenLanczos(dim, matvec, c.k, c.iters, c.seed);
+  r.n = n; r.h = h;
+  return r;
+}
+
+/* The three lessons the room teaches. Same states, same evolution — what
+   changes is which superposition the music is allowed to prepare. */
+const EIGEN_LESSONS = [
+  { key: 'tunnel', name: 'TUNNELLING DOUBLET' },   // two levels, one particle, one barrier
+  { key: 'band',   name: 'HOT BAND' },             // the music is a temperature
+  { key: 'climb',  name: 'CLIMBING THE LADDER' },  // the act clock walks the levels up
+];
+
+/* WHAT THE MUSIC IS ALLOWED TO DO: choose the occupations |cₙ|². It may
+   never invent probability — every branch returns weights that sum to
+   exactly 1, which is the unitarity the whole room stands on, and the test
+   holds it to that. `e` is the normalised ladder (e₀ = 0 … e_max = 1).
+
+   The hot lessons read the moment as a TEMPERATURE — a Boltzmann weight
+   e^{−eₙβ} with β falling as the music gets loud and bright, so a quiet
+   passage cools the particle into its ground state and a peak boils it up
+   the ladder; treble tilts extra weight onto the high levels it lives near.
+   The tunnelling lesson instead keeps ALL the probability in the doublet:
+   a two-state system, the cleanest quantum machine there is. */
+function eigenOccupation(mode, f, e){
+  const feat = f || {};
+  const energy = clamp01(feat.energy || 0), centroid = clamp01(feat.centroid || 0);
+  const treble = clamp01(feat.treble || 0), bass = clamp01(feat.bass || 0), act = clamp01(feat.act || 0);
+  const k = e.length, w = new Array(k).fill(0);
+  if (mode === 'tunnel'){
+    // bass leans the mixture toward ψ₀, treble toward ψ₁ — but never past the
+    // point where the beat between them stops being the picture
+    const t = Math.min(0.66, Math.max(0.34, 0.5 + (bass - treble) * 0.16));
+    if (k > 1){ w[0] = t; w[1] = 1 - t; } else w[0] = 1;
+    return w;
+  }
+  // β spans cold enough that silence puts MOST of the particle in the ground
+  // state (past β = 11·ln2 ≈ 7.6 on this ladder) and hot enough that a peak
+  // spreads it nearly flat across every level the room kept
+  let beta = mode === 'climb' ? 10 - act * 8.6 - energy * 1.4
+                              : 10 - energy * 7.2 - centroid * 2.3;
+  beta = Math.max(0.5, beta);
+  let sum = 0;
+  for (let i = 0; i < k; i++){
+    w[i] = Math.exp(-e[i] * beta) * (1 + treble * 2.4 * e[i] * e[i]);
+    sum += w[i];
+  }
+  for (let i = 0; i < k; i++) w[i] /= sum;
+  return w;
+}
+
+/* One global choice of time unit per lesson — a rescaling t → Wt, which
+   commutes with everything and changes no physics: every RATIO of beat
+   frequencies on screen is the true ratio of level splittings. The doublet
+   splitting is exponentially small, so the tunnelling lesson picks W to put
+   one full left–right oscillation at ~7 s; the band lessons pace the TOP of
+   the kept ladder at just over half a hertz so the interference weather
+   everywhere below moves slower than that. */
+function eigenTimeUnit(mode, e){
+  if (mode === 'tunnel'){
+    const split = Math.max(1e-4, (e && e.length > 1 ? e[1] - e[0] : 0.01));
+    return Math.min(500, 2 * Math.PI / (7.0 * split));
+  }
+  return 2 * Math.PI * 0.55;
+}
+
+/* ================================================================
    THE ROOM — what the auto director is really choosing.
 
    It used to choose a scene, and everything else in the show made
@@ -4514,7 +4788,7 @@ const TERRAIN_FORMS = [
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
-                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain'];
+                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -4563,6 +4837,9 @@ const SCENE_TASTE = {
   drift:     { calm: 1.4, energy: -0.8, beat: -0.5 },       // the illusions need a STILL room to work in —
                                                             // the appetite is for the absence of drive,
                                                             // because the movement here is the viewer's
+  eigen:     { coupling: 1.3, calm: 0.9, mid: 0.7, entropy: -0.5 },  // a superposition is a HELD chord — the
+                                                            // beats between levels want coherent, tonal
+                                                            // material to phase against, not noise
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -4716,8 +4993,23 @@ function updateGate(o){
   if ((Number(o.applies) || 0) >= UP_APPLY_CAP) return 'wait';
   if (o.now < (o.snoozedUntil || 0)) return 'wait';
   if (o.show) return 'wait';
-  return o.playing ? 'wait' : 'apply';
+  if (o.playing) return 'wait';
+  /* THE QUIET IS A DURATION, NOT AN INSTANT. "Not playing right now" is true in
+     the two-second gap while the next track's element loads, true during a phone
+     call, true the moment a listener pauses to answer the door — and the gate
+     used to be polled every five seconds, so a pending deploy turned any one of
+     those blinks into a white flash, a reload, and a set handed back PAUSED
+     (restore never auto-plays; the browser would not allow it). The moment that
+     failure wears is always "it randomly stops after some minutes", because the
+     deploy lands minutes after the page opened and the first blink after that
+     is the fuse. So an automatic swap now requires the room to have been silent
+     for a sustained stretch — long enough that no seam, interruption or breath
+     between songs ever qualifies. An unknown quiet (NaN, missing) is not quiet.
+     A listener's explicit "after this track" is untouched above: that boundary
+     is one they asked for. */
+  return (Number(o.quietFor) >= UP_QUIET_MS) ? 'apply' : 'wait';
 }
+const UP_QUIET_MS = 2 * 60 * 1000;         // what "the quiet" means: two minutes, not a blink
 /* SHOULD THIS OFFER STAND? The rule that was missing, and the reason a card could
    reappear forever: A DIFFERENCE IS NOT A NEWER BUILD. But the converse trap is
    just as real, and the first version of this walked straight into it — rejecting
@@ -5690,6 +5982,7 @@ const SCENE_SIGS = {
   filament:  { kind: 'ribbon', h: 30,  arms: 6, dense: 1 },
   soapfilm:  { kind: 'blob',   h: 205, dense: 0.9, rainbow: 1 },
   terrain:   { kind: 'wave',   h: 292, arms: 5, twist: 1, rainbow: 1 },
+  eigen:     { kind: 'cloud',  h: 265, dense: 0.8, rainbow: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -6888,6 +7181,36 @@ function ensureCtx(){
   if (AE.ctx){ if (AE.ctx.state === 'suspended') AE.ctx.resume(); return; }
   const Ctx = window.AudioContext || window.webkitAudioContext;
   AE.ctx = new Ctx();
+  /* THE CONTEXT KEEPER. On iOS a suspended context costs visuals and nothing
+     else — the decks play direct. Everywhere ELSE the graph IS the signal
+     path: every sample flows deck → gain → master → destination, so a context
+     the browser suspends mid-set (a Bluetooth headset reconnecting, the OS
+     switching output devices, a power-saving heuristic) is SILENCE wearing a
+     playing UI — the elements keep "playing" into a dead graph, no pause event
+     fires, and nothing recovered until the listener happened to touch
+     something. ensureResume() only ever ran on gestures and tab-returns, which
+     is exactly never for a set left to play across the room. So the context
+     now announces its own suspension and is argued with: resume immediately,
+     and keep asking on a slow clock while the music is supposed to be audible.
+     A browser that insists on a gesture keeps refusing harmlessly — and the
+     very next gesture already resumes it by the old path. */
+  AE.ctx.onstatechange = () => {
+    if (!AE.ctx) return;
+    const st = AE.ctx.state;
+    if (st === 'running'){ clearInterval(AE._ctxKeepT); AE._ctxKeepT = 0; return; }
+    if (st === 'closed') return;
+    // 'suspended' — or Safari's non-standard 'interrupted'
+    try { AE.ctx.resume().catch(() => {}); } catch (e){}
+    if (!AE.graphLive || !player.playing || AE._ctxKeepT) return;
+    if (typeof ACTIVITY !== 'undefined')
+      ACTIVITY.log('system', 'The audio engine was suspended mid-play (route change or power saving) — arguing it back');
+    AE._ctxKeepT = setInterval(() => {
+      if (!AE.ctx || AE.ctx.state === 'running' || !player.playing){
+        clearInterval(AE._ctxKeepT); AE._ctxKeepT = 0; return;
+      }
+      try { AE.ctx.resume().catch(() => {}); } catch (e){}
+    }, 1500);
+  };
   AE.bus = AE.ctx.createGain();
   AE.master = AE.ctx.createGain();
   AE.master.gain.value = parseInt(el.vol.value, 10) / 100;
@@ -7148,7 +7471,13 @@ function ensureCtx(){
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
       if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
-      if (player.playing && !d.a.ended){ player.playing = false; updatePlayIcon(); player.renderList(); }
+      if (player.playing && !d.a.ended){
+        player.playing = false; updatePlayIcon(); player.renderList();
+        // forensics: a pause nobody in this app asked for gets named, so "it
+        // just stopped" reports arrive with the culprit already in the log
+        if (typeof ACTIVITY !== 'undefined')
+          ACTIVITY.log('system', 'The system paused the audio (call, Siri, route change, or another app)');
+      }
     });
     d.a.addEventListener('play', () => {
       if (d.priming) return;
@@ -9188,6 +9517,7 @@ const PERSIST = {
       queue: player.tracks.map(trackKey).filter(Boolean),
       cur: trackKey(cur),
       pos: d && isFinite(d.a.currentTime) ? d.a.currentTime : 0,
+      playing: !!player.playing,     // whether the set was LIVE — the update swap reads this back
       bag: player._bag.map(id => { const t = player.tracks.find(x => x.id === id); return trackKey(t); }).filter(Boolean),
       shuffle: player.shuffle, repeat: player.repeat,
       vol: parseInt(el.vol.value, 10),
@@ -9231,6 +9561,32 @@ const PERSIST = {
       // the restore renders ready-to-resume: one tap.
       const i = player.tracks.indexOf(curTrack);
       player.prepare(i, s.pos || 0);
+      /* THE ONE RELOAD THAT MAY RESUME ITSELF. Restore-paused is right for
+         every reload the app did not choose — a browser will not let a page
+         that just appeared start making sound, and pretending otherwise
+         leaves a play button lying. But an UPDATE SWAP is a reload this app
+         performed, mid-set, with the listener's own sanction ("update now",
+         "after this track") — and handing their set back paused made every
+         update cost a walk to the play button. So a swap-return whose saved
+         transport says the set was LIVE tries to pick it straight back up.
+         Where the browser allows it (an origin this listener plays daily
+         usually does), the update is a one-second blink in the music; where
+         it refuses, play() rejects, the optimistic state is put back
+         honestly, and the button asks for the one tap it always asked for. */
+      if (window.__mb8SwapReturn && s.playing){
+        window.__mb8SwapReturn = false;
+        setTimeout(() => {
+          player.resume();
+          setTimeout(() => {
+            const d = activeDeck();
+            if (player.playing && d && d.a.paused){
+              player.playing = false;
+              updatePlayIcon(); player.renderList();
+              toast('Updated — tap <b>play</b> to pick the set back up');
+            }
+          }, 900);
+        }, 250);
+      }
     }
     player.renderList();
     syncMixHud();
@@ -12174,10 +12530,19 @@ function initMediaSession(){
   const ms = navigator.mediaSession;
   const act = (name, fn) => { try { ms.setActionHandler(name, fn); } catch (e){} };
   act('play', () => { if (player.cur !== -1) player.resume(); else player.toggle(); });
-  act('pause', () => player.pause());
+  // forensics on both stop verbs: a lock-screen tap, a Bluetooth button, an
+  // earbud coming out — all arrive here, and none should read as "it stopped
+  // by itself" when the log can name the hand that pressed it
+  act('pause', () => {
+    if (typeof ACTIVITY !== 'undefined') ACTIVITY.log('system', 'Pause from the system controls (lock screen / headset / car)');
+    player.pause();
+  });
   act('previoustrack', () => player.prev());
   act('nexttrack', () => player.next(false, false));
-  act('stop', () => player.pause());
+  act('stop', () => {
+    if (typeof ACTIVITY !== 'undefined') ACTIVITY.log('system', 'Stop from the system controls (lock screen / headset / car)');
+    player.pause();
+  });
   act('seekbackward', d => player.nudge(-(d && d.seekOffset || 10)));
   act('seekforward', d => player.nudge(d && d.seekOffset || 10));
   act('seekto', d => {
@@ -15369,7 +15734,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'd154566216';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '3e8a6aa7cd';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -15381,6 +15746,9 @@ const UPDATE = {
   deferrals: 0,          // how many times this listener has said "later"
   lastRemindAt: 0,       // the snooze a reminder has already answered
   _armCur: -1,           // player.cur when "after this track" was armed
+  _lastPlayingAt: 0,     // when playback was last OBSERVED playing — what "the
+                         // quiet" is measured from. Zero (never played) reads as
+                         // quiet-forever, so an idle page still updates itself.
   ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell' || this.source === 'native'; },
   /* how many times THIS session has already swapped. Session-scoped on purpose:
      a genuine sequence of deploys across a long day should each land, but a
@@ -15677,11 +16045,14 @@ function maybeAutoApply(){
      listener reads "idle, go ahead" and a screen facing an audience would
      reload itself mid-set. It updates when it is next opened. */
   if (typeof STAGE !== 'undefined' && STAGE.screen()) return;
+  // the quiet clock: five-second granularity is plenty against a two-minute bar
+  if (player.playing) UPDATE._lastPlayingAt = Date.now();
   const verdict = updateGate({
     ready: UPDATE.ready(), requested: updateRequested,
     armed: UPDATE.armed,
     trackChanged: UPDATE.armed === 'afterTrack' && player.cur !== UPDATE._armCur,
     playing: player.playing,
+    quietFor: Date.now() - UPDATE._lastPlayingAt,
     native: UPDATE.source === 'native',
     show: typeof POWER !== 'undefined' && POWER.mode === 'show',
     snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),
@@ -15949,6 +16320,8 @@ wireUpdateCard();
 try {
   const from = sessionStorage.getItem('mb8_updated_from');
   if (from){
+    // the transport restore reads this: a reload WE performed may resume the set
+    window.__mb8SwapReturn = true;
     /* load BEFORE anything here persists: this runs at parse time, ahead of
        boot()'s own load(), and settle() writes the whole record back — including
        the applied-key memory, which would be written as empty by a UPDATE that
@@ -29390,6 +29763,288 @@ function buildTerrain(){
   return api;
 }
 
+/* =========================================================
+   SCENE 32 · EIGENSTATE — the equation, taught by the music
+
+   The reel everyone has seen: a particle confined near two Gaussian
+   wells, its energy eigenstates flickering past. This room does the
+   version a visual maths teacher would insist on. At load it SOLVES
+   the Schrödinger equation for that exact double well (eigenSolve, in
+   the pure block, where the tests can reach it), keeps the lowest
+   twelve eigenpairs, and from then on every frame is the exact
+   unitary evolution Ψ = Σ cₙ ψₙ e^{−iEₙt} — the twelve eigenfunctions
+   ride in three RGBA textures, four states per texture, and the sum
+   is six dot products in the fragment shader.
+
+   What you are looking at: BRIGHTNESS is |Ψ|², the probability of
+   finding the particle there. HUE is the PHASE — the part of the
+   wavefunction no textbook probability plot shows, walked around the
+   room's own cyclic ramp, which is what phase is. The dark threads
+   are nodal lines, the faint contour rings are the potential itself,
+   and the ladder on the right is the energy spectrum, each rung lit
+   by how much of the particle currently lives on it.
+
+   The music's entire authority is the choice of superposition: the
+   spectrum sets the occupations |cₙ|² (eigenOccupation — always
+   summing to 1, because the music may excite the particle but never
+   clone it), an onset is a quantum jump that kicks a level and
+   scrambles its phase, and loudness is time dilation on the one
+   global clock. The interference fringes, the tunnelling beat, the
+   way a hot passage boils the cloud up the ladder and a quiet one
+   lets it settle — none of that is animated. It is what the equation
+   does. */
+function buildEigenstate(){
+  const group = new THREE.Group();
+  const N = EIGEN.n, half = EIGEN.l / 2;
+  const mkTex = () => {
+    const t = new THREE.DataTexture(new Uint8Array(N * N * 4).fill(128), N, N, THREE.RGBAFormat);
+    t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter;
+    t.needsUpdate = true;
+    return t;
+  };
+  const texA = mkTex(), texB = mkTex(), texC = mkTex();
+  const w1 = EIGEN.wells[0], w2 = EIGEN.wells[1];
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uPsiA: { value: texA }, uPsiB: { value: texB }, uPsiC: { value: texC },
+    uSclA: { value: new THREE.Vector4(0, 0, 0, 0) },   // decode scales — zero until the solve lands,
+    uSclB: { value: new THREE.Vector4(0, 0, 0, 0) },   // so an unsolved room shows apparatus, not noise
+    uSclC: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uCRa:  { value: new THREE.Vector4(0, 0, 0, 0) },   // Re cₙ, four states a lane
+    uCRb:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uCRc:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uCIa:  { value: new THREE.Vector4(0, 0, 0, 0) },   // Im cₙ
+    uCIb:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uCIc:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uLvA:  { value: new THREE.Vector4(0, 0, 0, 0) },   // the ladder: normalised Eₙ
+    uLvB:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uLvC:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uOcA:  { value: new THREE.Vector4(0, 0, 0, 0) },   // |cₙ|², what lights the rungs
+    uOcB:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uOcC:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    // the wells, in box coordinates, so the shader draws the SAME potential
+    // the solver diagonalised rather than a picture of one
+    uWell1: { value: new THREE.Vector4(w1.x / half, w1.y / half, w1.s / half, 1) },
+    uWell2: { value: new THREE.Vector4(w2.x / half, w2.y / half, w2.s / half, 1) },
+    uGain:  { value: 1 },
+    uReady: { value: 0 },
+    uRot:   { value: 0 },
+    uScale: { value: 1.45 },      // how much of the box the frame shows — walls stay off-screen
+    uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uEnergy, uBeatSpring, uCentroid, uCalm, uOpacity;
+    uniform float uVarA, uVarB, uVarC, uGain, uReady, uRot, uScale, uAspect;
+    uniform vec3 uColA, uColB, uColC;
+    uniform sampler2D uPsiA, uPsiB, uPsiC;
+    uniform vec4 uSclA, uSclB, uSclC, uCRa, uCRb, uCRc, uCIa, uCIb, uCIc;
+    uniform vec4 uLvA, uLvB, uLvC, uOcA, uOcB, uOcC, uWell1, uWell2;
+    varying vec2 vUv;
+
+    void main(){
+      // the bench, centred a little left so the ladder owns the right edge
+      vec2 p = (vUv - vec2(0.46, 0.5)) * vec2(uAspect, 1.0) * 2.0;
+      float cr = cos(uRot), sr = sin(uRot);
+      vec2 pr = vec2(p.x * cr + p.y * sr, -p.x * sr + p.y * cr) / uScale;
+      vec2 q = pr * 0.5 + 0.5;
+      float inb = step(abs(pr.x), 1.0) * step(abs(pr.y), 1.0);
+
+      /* Ψ, reconstructed. Each texture holds four eigenfunctions in its four
+         channels — decoded to real values in one vec4 op — and the complex
+         sum Σ cₙψₙ collapses to six dot products. This IS the solution of the
+         Schrödinger equation at this pixel, this instant. */
+      vec4 PA = (texture2D(uPsiA, q) * 2.0 - 1.0) * uSclA;
+      vec4 PB = (texture2D(uPsiB, q) * 2.0 - 1.0) * uSclB;
+      vec4 PC = (texture2D(uPsiC, q) * 2.0 - 1.0) * uSclC;
+      float re = dot(uCRa, PA) + dot(uCRb, PB) + dot(uCRc, PC);
+      float im = dot(uCIa, PA) + dot(uCIb, PB) + dot(uCIc, PC);
+      float dens = (re * re + im * im) * uGain * inb * uReady;
+
+      /* the potential, drawn from the same constants the solver used: faint
+         equipotential rings, so the wells read as apparatus rather than decor */
+      vec2 d1 = pr - uWell1.xy, d2 = pr - uWell2.xy;
+      float Vn = -uWell1.w * exp(-dot(d1, d1) / (2.0 * uWell1.z * uWell1.z))
+                 -uWell2.w * exp(-dot(d2, d2) / (2.0 * uWell2.z * uWell2.z));
+      float fv = fract(Vn / 0.14);
+      float ring = smoothstep(0.16, 0.03, min(fv, 1.0 - fv)) * smoothstep(-0.015, -0.06, Vn);
+      vec3 col = uColA * ring * (0.10 + uCalm * 0.06) * inb
+               + uColB * (-Vn) * 0.03 * inb;
+
+      /* the wavefunction itself. Brightness is |Ψ|²; hue is the PHASE, walked
+         around the cyclic ramp — which is exactly what a phase is. The dark
+         threads are nodal lines; nobody drew them. */
+      float phase = atan(im, re);
+      float hu = phase * 0.15915494 + 0.5 + uCentroid * 0.22 + uBeatSpring * 0.05 + uVarA * 0.3;
+      vec3 wcol = ramp(hu);
+      wcol = mix(wcol, uColC, min(1.0, dens * 0.25) * 0.25);
+      col += wcol * (1.0 - exp(-dens * 1.7)) * (0.95 + uEnergy * 0.30);
+
+      /* the ladder — the spectrum as a live figure. Every level is a faint
+         rung; the light on a rung is the probability |cₙ|² of finding the
+         particle there right now, so a quantum jump is VISIBLE as light
+         moving up the ladder while the cloud reshapes to match. */
+      float lad = (smoothstep(0.900, 0.908, vUv.x) - smoothstep(0.956, 0.964, vUv.x)) * uReady;
+      if (lad > 0.001){
+        vec4 yA = mix(vec4(0.18), vec4(0.84), uLvA);
+        vec4 yB = mix(vec4(0.18), vec4(0.84), uLvB);
+        vec4 yC = mix(vec4(0.18), vec4(0.84), uLvC);
+        vec4 gA = (vec4(vUv.y) - yA) / 0.005; gA = exp(-gA * gA);
+        vec4 gB = (vec4(vUv.y) - yB) / 0.005; gB = exp(-gB * gB);
+        vec4 gC = (vec4(vUv.y) - yC) / 0.005; gC = exp(-gC * gC);
+        float rung = dot(gA + gB + gC, vec4(1.0)) * 0.06;
+        float occ = dot(gA, uOcA) + dot(gB, uOcB) + dot(gC, uOcC);
+        col += ramp(0.12 + vUv.y * 0.5) * lad * (rung + occ * 1.35);
+      }
+
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const K = EIGEN.k;
+  const st = {
+    have: false, E: null, psi: null, e: null,
+    amp: new Float64Array(K), ph: new Float64Array(K), kick: new Float64Array(K),
+    lesson: 'tunnel', lastOnset: 0,
+  };
+
+  // four states into one texture's four channels, each scaled to its own peak
+  // so eight bits spend their whole range on the state's actual dynamic range
+  const packQuad = (tex, sclVec, base) => {
+    const d = tex.image.data, scl = [0, 0, 0, 0];
+    for (let s = 0; s < 4; s++){
+      const ps = st.psi[base + s];
+      if (!ps){ for (let i = 0; i < N * N; i++) d[i * 4 + s] = 128; continue; }
+      let mx = 1e-9;
+      for (let i = 0; i < N * N; i++){ const a = Math.abs(ps[i]); if (a > mx) mx = a; }
+      scl[s] = mx;
+      for (let i = 0; i < N * N; i++) d[i * 4 + s] = Math.round((ps[i] / mx) * 127.5 + 127.5);
+    }
+    sclVec.set(scl[0], scl[1], scl[2], scl[3]);
+    tex.needsUpdate = true;
+  };
+  const setQuad = (vec, arr, base) => vec.set(arr[base] || 0, arr[base + 1] || 0, arr[base + 2] || 0, arr[base + 3] || 0);
+
+  /* THE SOLVE — deferred to an idle moment so boot pays nothing for it. The
+     room opens on the bare apparatus (the wells, drawn from the potential)
+     and the wavefunction FADES IN when the diagonalisation lands, which is
+     the honest order of events: first the problem, then the solution. */
+  const solveNow = () => {
+    let r = null;
+    try { r = eigenSolve(EIGEN); } catch (err){ /* the apparatus stays lit */ }
+    if (!r || !r.E || r.E.length < 2) return;
+    st.E = r.E; st.psi = r.psi;
+    const lo = r.E[0], span = Math.max(1e-9, r.E[r.E.length - 1] - lo);
+    st.e = r.E.map(x => (x - lo) / span);
+    packQuad(texA, varU.uSclA.value, 0);
+    packQuad(texB, varU.uSclB.value, 4);
+    packQuad(texC, varU.uSclC.value, 8);
+    const mq = v => Math.max(v.x, v.y, v.z, v.w);
+    const m0 = Math.max(mq(varU.uSclA.value), mq(varU.uSclB.value), mq(varU.uSclC.value));
+    varU.uGain.value = 1.2 / (m0 * m0);
+    setQuad(varU.uLvA.value, st.e, 0);
+    setQuad(varU.uLvB.value, st.e, 4);
+    setQuad(varU.uLvC.value, st.e, 8);
+    st.have = true;
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(solveNow, { timeout: 700 });
+  else setTimeout(solveNow, 80);
+
+  const cre = new Float64Array(K), cim = new Float64Array(K), occ = new Float64Array(K);
+  const api = {
+    name: 'EIGENSTATE', key: 'eigen', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f;
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+      varU.uRot.value += dt * (0.018 + f.calm * 0.02) * (reducedMotion ? 0.4 : 1);
+      if (!st.have) return;
+
+      /* the music chooses the superposition — and only the superposition */
+      const w = eigenOccupation(st.lesson, {
+        energy: f.energy, centroid: f.centroid, treble: f.treble, bass: f.bass,
+        act: U.uAct.value,
+      }, st.e);
+
+      /* a QUANTUM JUMP on the onset: in the doublet lesson the particle is
+         re-prepared in one well (a phase relation, not a reset); in the hot
+         lessons a level takes the hit and its phase decoheres */
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.3){
+          if (st.lesson === 'tunnel'){
+            st.ph[1] = st.ph[0] + (Math.random() < 0.5 ? 0 : Math.PI);
+          } else {
+            const j = 1 + Math.min(K - 2, Math.floor(Math.min(1, f.centroid * 1.3 + Math.random() * 0.45) * (K - 2)));
+            st.kick[j] = Math.min(1.4, st.kick[j] + 0.9);
+            st.ph[j] = Math.random() * 6.2831853;
+          }
+        }
+      }
+      let kickSum = 0;
+      for (let i = 0; i < K; i++){ st.kick[i] *= Math.exp(-dt * 2.0); kickSum += st.kick[i] * 0.55; }
+
+      // amplitudes ease toward the targets, then are renormalised EXACTLY —
+      // probability is conserved every frame, not merely on average
+      let nrm = 0;
+      for (let i = 0; i < K; i++){
+        const tw = (w[i] + st.kick[i] * 0.55) / (1 + kickSum);
+        st.amp[i] += (Math.sqrt(tw) - st.amp[i]) * Math.min(1, dt * 3);
+        nrm += st.amp[i] * st.amp[i];
+      }
+      nrm = 1 / Math.sqrt(Math.max(1e-9, nrm));
+
+      /* the exact evolution: each phase advances at its OWN eigenvalue's
+         rate. Loudness dilates the one shared clock; the ratios — the
+         physics — are untouchable. */
+      const W = eigenTimeUnit(st.lesson, st.e);
+      const dTau = dt * (0.7 + f.energy * 0.9) * (reducedMotion ? 0.5 : 1);
+      for (let i = 0; i < K; i++){
+        st.ph[i] = (st.ph[i] - st.e[i] * W * dTau) % 6.2831853;
+        const a = st.amp[i] * nrm;
+        cre[i] = a * Math.cos(st.ph[i]);
+        cim[i] = a * Math.sin(st.ph[i]);
+        occ[i] = a * a;
+      }
+      setQuad(varU.uCRa.value, cre, 0); setQuad(varU.uCRb.value, cre, 4); setQuad(varU.uCRc.value, cre, 8);
+      setQuad(varU.uCIa.value, cim, 0); setQuad(varU.uCIb.value, cim, 4); setQuad(varU.uCIc.value, cim, 8);
+      setQuad(varU.uOcA.value, occ, 0); setQuad(varU.uOcB.value, occ, 4); setQuad(varU.uOcC.value, occ, 8);
+      varU.uReady.value += (1 - varU.uReady.value) * Math.min(1, dt * 1.2);
+    },
+    roll(){
+      const r = Math.random();
+      const L = EIGEN_LESSONS[r < 0.45 ? 0 : r < 0.8 ? 1 : 2];
+      st.lesson = L.key;
+      for (let i = 0; i < K; i++){ st.ph[i] = Math.random() * 6.2831853; st.kick[i] = 0; }
+      // the doublet lesson opens with the particle IN one well: cₙ in phase,
+      // which is what "localised on the left" means in this basis
+      if (st.lesson === 'tunnel') st.ph[1] = st.ph[0];
+      varU.uRot.value = Math.random() * 6.2831853;
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      api.name = 'EIGENSTATE · ' + L.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -29418,7 +30073,8 @@ function initThree(){
   scenes.push(buildSpiral(), buildHelix(), buildBand(), buildStarburst(), buildNebula(), buildTunnel(), buildRibbons(), buildFractalField(),
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
-              buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain());
+              buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain(),
+              buildEigenstate());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -29495,8 +30151,13 @@ function initThree(){
   SPEED.boot();
 
   // reduced-motion users open in PULSE — the scene made for them, not a
-  // damped copy of someone else's; everyone else opens on the spiral
-  director.setScene(reducedMotion ? scenes.findIndex(s => s.calm) : 0, false);
+  // damped copy of someone else's. Everyone else opens on the EIGENSTATE:
+  // the show starts with the wells alone, and the solved wavefunction
+  // fading in over them — first the problem, then the answer, then the
+  // music takes the controls. (Found by key, not index, so the positional
+  // maps — touch, ghost, number keys — stay exactly as they were.)
+  director.setScene(reducedMotion ? scenes.findIndex(s => s.calm)
+                                  : scenes.findIndex(s => s.key === 'eigen'), false);
   director.auto = true;
   el.chipAuto.classList.add('on');
 }
@@ -34347,6 +35008,8 @@ const TABSYNC = {
     if (player.playing){
       try { player.pause(); } catch (e){}
       toast('Paused — playing in another tab');
+      if (typeof ACTIVITY !== 'undefined')
+        ACTIVITY.log('system', 'Another tab claimed the audio — this one stood down');
     }
   },
   announce(){

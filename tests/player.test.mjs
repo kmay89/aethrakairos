@@ -59,9 +59,10 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
   ' CIE_LOBES, XYZ_TO_SRGB, xyzToLinearRGB, DISC_PITCH, AIRY_J1_ZERO, rayleighSep, DISP_WB,' +
   ' FILAMENT_FORMS, LORENZ, THOMAS_B, FILM_N, FILM_R0, FILM_AGES, filmState, TERRAIN_FORMS,' +
+  ' EIGEN, EIGEN_LESSONS, eigenDot, eigenTql2, eigenLanczos, eigenSolve, eigenOccupation, eigenTimeUnit,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
-  ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, updateReminder, ACT_CAP, activityPush, activityAgo,' +
+  ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, UP_QUIET_MS, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss,' +
   ' WARM_HUES, warmHue, warmBlend, WARM_PULL, warmDeal, togetherness, warmSpark, beatGrace, SCENE_SIGS, sceneSig,' +
   ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaFlow, lavaK6, lavaKS, lavaW, lavaGradW,' +
@@ -1979,7 +1980,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 31);
+  assert.equal(S.SCENE_KEYS.length, 32);
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -2063,10 +2064,14 @@ function roomSet(){
 }
 const HOT = { energy: 0.95, beat: 0.9, bass: 0.85, entropy: 0.2, calm: 0.05, coupling: 0.3, mid: 0.4, treble: 0.7 };
 const COOL = { energy: 0.1, beat: 0.05, bass: 0.2, entropy: 0.25, calm: 0.9, coupling: 0.5, mid: 0.3, treble: 0.2 };
-// walk the whole draw so a test can talk about the DISTRIBUTION, not one roll
+// walk the whole draw so a test can talk about the DISTRIBUTION, not one roll.
+// The sweep is fine-grained on purpose: a mood is an additive lean, so two
+// moods differ by small shifts in the walk's boundaries — a coarse grid can
+// step clean over every one of them once the roster is large enough (it did,
+// at 32 rooms and 201 points).
 function dealAll(o){
   const out = [];
-  for (let i = 0; i <= 200; i++) out.push(S.dealScene({ ...o, r: i / 200 }));
+  for (let i = 0; i <= 1000; i++) out.push(S.dealScene({ ...o, r: i / 1000 }));
   return out;
 }
 
@@ -2808,16 +2813,26 @@ test('updateGate: not ready or already requested → wait', () => {
   assert.equal(S.updateGate({ ready: false, playing: false, now: 0 }), 'wait');
   assert.equal(S.updateGate({ ready: true, requested: true, playing: false, now: 0 }), 'wait');
 });
-test('updateGate: idle applies, playing waits', () => {
-  assert.equal(S.updateGate({ ready: true, playing: false, now: 0 }), 'apply');
-  assert.equal(S.updateGate({ ready: true, playing: true, now: 0 }), 'wait');
+test('updateGate: sustained quiet applies, playing waits — and a BLINK is not the quiet', () => {
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: S.UP_QUIET_MS, now: 0 }), 'apply');
+  assert.equal(S.updateGate({ ready: true, playing: true, quietFor: 9e9, now: 0 }), 'wait');
+  /* the failure this rule exists for: the two-second gap while the next track
+     loads, a phone call, a breath between songs — each reads "not playing" at
+     one five-second poll, and each used to cost the listener a white flash, a
+     reload, and a set handed back paused */
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 2000, now: 0 }), 'wait', 'a seam gap is not the quiet');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: S.UP_QUIET_MS - 1, now: 0 }), 'wait', 'almost quiet is not quiet');
+  for (const bad of [undefined, null, NaN, 'x', -5])
+    assert.equal(S.updateGate({ ready: true, playing: false, quietFor: bad, now: 0 }), 'wait', 'unknown quiet is not quiet: ' + bad);
+  // the wish a listener expressed still fires at its boundary, whatever the clock says
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: true, trackChanged: true, quietFor: 0, now: 0 }), 'apply');
 });
 test('updateGate: SHOW mode is never yanked, even paused', () => {
-  assert.equal(S.updateGate({ ready: true, playing: false, show: true, now: 0 }), 'wait');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, show: true, now: 0 }), 'wait');
 });
 test('updateGate: a snooze holds auto-apply until it lapses', () => {
-  assert.equal(S.updateGate({ ready: true, playing: false, snoozedUntil: 100, now: 50 }), 'wait');
-  assert.equal(S.updateGate({ ready: true, playing: false, snoozedUntil: 100, now: 150 }), 'apply');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, snoozedUntil: 100, now: 50 }), 'wait');
+  assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, snoozedUntil: 100, now: 150 }), 'apply');
 });
 test('updateGate: "after this track" fires at the boundary or the pause — above snooze and SHOW', () => {
   const base = { ready: true, armed: 'afterTrack', snoozedUntil: 9e9, show: true, now: 0 };
@@ -2852,7 +2867,7 @@ test('newsSince: walks newest-first until the running build, exclusive, capped',
    arrives late. */
 test('updateGate + updateOffer: the Mac app is a different artefact, asked for by hand', () => {
   const base = { ready: true, requested: false, armed: '', trackChanged: false,
-    playing: false, show: false, snoozedUntil: 0, now: 1000, applies: 0 };
+    playing: false, quietFor: 9e9, show: false, snoozedUntil: 0, now: 1000, applies: 0 };
   assert.equal(S.updateGate(base), 'apply', 'an ordinary update still lands in the quiet');
   /* A NATIVE UPDATE REPLACES THE PROCESS. Every gate that protects a listener
      reads "idle, go ahead" when nothing is playing — and a stage screen is
@@ -3823,8 +3838,8 @@ test('updateWatchdogStep: a broken clock reads as wait, never a panic reload', (
 });
 
 test('updateGate: the loop brake stops AUTOMATIC swaps, never a deliberate one', () => {
-  const base = { ready: true, requested: false, armed: '', playing: false, show: false,
-    snoozedUntil: 0, now: 1000 };
+  const base = { ready: true, requested: false, armed: '', playing: false, quietFor: 9e9,
+    show: false, snoozedUntil: 0, now: 1000 };
   assert.equal(S.updateGate(base), 'apply', 'a quiet moment applies');
   assert.equal(S.updateGate({ ...base, applies: S.UP_APPLY_CAP - 1 }), 'apply', 'under the cap, still automatic');
   assert.equal(S.updateGate({ ...base, applies: S.UP_APPLY_CAP }), 'wait', 'at the cap, stand down');
@@ -5186,6 +5201,111 @@ test('TERRAIN_FORMS: four grounds out of one pipeline', () => {
   const dune = S.TERRAIN_FORMS.find(f => f.key === 'dune');
   assert.equal(dune.ridged, 0, 'dunes are plain fBm — creasing them would make them mountains');
   assert.equal(S.TERRAIN_FORMS.find(f => f.key === 'ridge').ridged, 1, 'ridges are fully creased');
+});
+
+/* ------------------------------------------------- the eigenstate room
+
+   The claim on the marquee is "mathematically rigorous", so the tests are the
+   ones a numerical-methods examiner would set. The solver must land on a
+   spectrum KNOWN IN CLOSED FORM (an anisotropic oscillator — ω_y/ω_x = √2 is
+   irrational, so every level is non-degenerate and Lanczos has no excuse);
+   the states it returns must be orthonormal and carry small residuals; and
+   the production double well must show the physics the room is built to
+   teach: a tunnelling doublet, symmetric below antisymmetric. */
+
+test('eigensolver: the anisotropic oscillator ladder, against the closed form', () => {
+  const wy = Math.SQRT2;
+  const r = S.eigenSolve({
+    n: 48, l: 12, k: 8, iters: 150, seed: 7,
+    potential: (x, y) => 0.5 * (x * x + 2 * y * y),   // ω_x = 1, ω_y = √2
+  });
+  const exact = [];
+  for (let nx = 0; nx < 7; nx++)
+    for (let ny = 0; ny < 7; ny++) exact.push((nx + 0.5) + wy * (ny + 0.5));
+  exact.sort((a, b) => a - b);
+  assert.equal(r.E.length, 8);
+  for (let i = 0; i < 8; i++){
+    assert.ok(Math.abs(r.E[i] - exact[i]) / exact[i] < 0.02,
+      `E${i} = ${r.E[i].toFixed(4)}, analytic ${exact[i].toFixed(4)} — off by more than the grid explains`);
+    if (i) assert.ok(r.E[i] >= r.E[i - 1], 'the ladder is sorted');
+  }
+});
+
+test('eigensolver: the pairs it returns actually solve the equation', () => {
+  const r = S.eigenSolve({
+    n: 40, l: 12, k: 6, iters: 130, seed: 11,
+    potential: (x, y) => 0.5 * (x * x + 2 * y * y),
+  });
+  for (let i = 0; i < r.E.length; i++)
+    assert.ok(r.res[i] < 1e-3, `state ${i} residual ${r.res[i]} — not converged`);
+  for (let i = 0; i < r.psi.length; i++)
+    for (let j = 0; j <= i; j++){
+      const d = S.eigenDot(r.psi[i], r.psi[j]);
+      assert.ok(Math.abs(d - (i === j ? 1 : 0)) < 1e-5, `⟨ψ${i}|ψ${j}⟩ = ${d}`);
+    }
+});
+
+test('the double well: a tunnelling doublet over a symmetric ground state', () => {
+  const r = S.eigenSolve(S.EIGEN);
+  const n = S.EIGEN.n;
+  assert.equal(r.E.length, S.EIGEN.k);
+  for (let i = 1; i < r.E.length; i++) assert.ok(r.E[i] >= r.E[i - 1], 'sorted');
+  assert.ok(r.E[r.E.length - 1] < 0, 'every kept state is BOUND — the room never shows continuum junk');
+  for (let i = 0; i < r.E.length; i++) assert.ok(r.res[i] < 5e-3, `state ${i} residual ${r.res[i]}`);
+  // the signature of tunnelling: the lowest two levels are a DOUBLET, split
+  // far more finely than the gap to the next shell above them
+  const split = r.E[1] - r.E[0], gap = r.E[2] - r.E[1];
+  assert.ok(split > 0, 'the doublet is split — no barrier is not the lesson');
+  assert.ok(split < gap * 0.25, `doublet split ${split.toFixed(3)} should be well under the shell gap ${gap.toFixed(3)}`);
+  // ψ₀ even under x → −x, ψ₁ odd — which is WHY their sum sits in one well
+  let mx = 0;
+  for (let i = 0; i < n * n; i++) mx = Math.max(mx, Math.abs(r.psi[0][i]));
+  let evenErr = 0, oddErr = 0;
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++){
+      const a0 = r.psi[0][j * n + i], b0 = r.psi[0][j * n + (n - 1 - i)];
+      const a1 = r.psi[1][j * n + i], b1 = r.psi[1][j * n + (n - 1 - i)];
+      evenErr = Math.max(evenErr, Math.abs(a0 - b0));
+      oddErr = Math.max(oddErr, Math.abs(a1 + b1));
+    }
+  assert.ok(evenErr < mx * 0.05, `ψ₀ should be symmetric (err ${evenErr}, peak ${mx})`);
+  assert.ok(oddErr < mx * 0.05, `ψ₁ should be antisymmetric (err ${oddErr})`);
+  // and the ground state has no nodes: one sign everywhere that matters
+  let lo = 0, hi = 0;
+  for (let i = 0; i < n * n; i++){ lo = Math.min(lo, r.psi[0][i]); hi = Math.max(hi, r.psi[0][i]); }
+  assert.ok(Math.min(-lo, hi) < 0.02 * Math.max(-lo, hi), 'ψ₀ crosses zero — a ground state never does');
+});
+
+test('eigenOccupation: the music may excite the particle but never clone it', () => {
+  const e = Array.from({ length: S.EIGEN.k }, (_, i) => i / (S.EIGEN.k - 1));
+  const sum = w => w.reduce((a, b) => a + b, 0);
+  for (const L of S.EIGEN_LESSONS)
+    for (const f of [{}, { energy: 1, centroid: 1, treble: 1 }, { bass: 1 }, { energy: 0.4, act: 0.9 }]){
+      const w = S.eigenOccupation(L.key, f, e);
+      assert.ok(Math.abs(sum(w) - 1) < 1e-9, `${L.key}: Σ|cₙ|² = ${sum(w)} — unitarity is not optional`);
+      for (const x of w) assert.ok(x >= 0 && isFinite(x), `${L.key}: a negative probability`);
+    }
+  // the doublet lesson is a genuine two-state system…
+  const t = S.eigenOccupation('tunnel', { bass: 0.8 }, e);
+  assert.ok(t[0] + t[1] === 1 && sum(t.slice(2)) === 0, 'tunnel keeps ALL probability in the doublet');
+  assert.ok(Math.min(t[0], t[1]) >= 0.34, 'and never lets one branch die — no beat, no lesson');
+  // …and the hot band actually gets hot: a loud bright moment lifts the ladder
+  const cold = S.eigenOccupation('band', { energy: 0, centroid: 0 }, e);
+  const hot = S.eigenOccupation('band', { energy: 1, centroid: 1, treble: 1 }, e);
+  assert.ok(sum(hot.slice(2)) > sum(cold.slice(2)) * 2, 'loud and bright should boil the particle upward');
+  assert.ok(cold[0] > 0.5, 'a quiet passage cools it into the ground state');
+});
+
+test('eigenTimeUnit: one clock, chosen so each lesson is watchable', () => {
+  const e = [0, 0.006, 0.4, 1];
+  const Wt = S.eigenTimeUnit('tunnel', e);
+  // the doublet beats at 2π/7s BY CONSTRUCTION, whatever the raw splitting is
+  assert.ok(Math.abs((e[1] - e[0]) * Wt - 2 * Math.PI / 7) < 1e-9 || Wt === 500,
+    'the tunnelling period is pinned near 7 s (or the safety cap engaged)');
+  assert.ok(S.eigenTimeUnit('band', e) > 0 && S.eigenTimeUnit('band', e) < 10, 'the band clock is sane');
+  assert.ok(S.eigenTimeUnit('tunnel', [0]) > 0, 'a degenerate input still returns a clock');
+  const keys = S.EIGEN_LESSONS.map(l => l.key);
+  assert.equal(new Set(keys).size, 3, 'three lessons, three keys');
 });
 
 // ------------------------------------------------- how one room becomes the next
