@@ -6979,7 +6979,11 @@ const el = {
    re-issuing itself and so keeps its place fresh. */
 function uiTeaching(){
   const ob = document.getElementById('onboard');
-  return (ob && ob.classList.contains('open'))
+  // the language gate is the first teaching surface of all — while it holds
+  // the screen, toasts queue and the Mac promo waits, exactly as they do for
+  // the story and the welcome card behind it (the gate removes itself on pick)
+  return !!document.getElementById('langGate')
+    || (ob && ob.classList.contains('open'))
     || (typeof TUTOR !== 'undefined' && (TUTOR.active || TUTOR._pending))
     || (el.help && el.help.classList.contains('open'))
     || (el.firstRun && el.firstRun.classList.contains('open'));
