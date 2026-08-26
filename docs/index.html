@@ -606,6 +606,13 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   font-size:clamp(15px,2.3vw,21px);line-height:1.55;letter-spacing:.2px;
   color:rgba(255,255,255,.86);white-space:pre-line;
 }
+/* the gloss: when a quote drifts by in its own tongue, the reader's tongue
+   rides beneath it — quieter, upright, unmistakably the translation */
+.echo-cloud .eq-tr{
+  margin-top:7px;font-family:var(--serif);font-style:normal;font-weight:400;
+  font-size:clamp(12.5px,1.8vw,16px);line-height:1.5;letter-spacing:.2px;
+  color:rgba(255,255,255,.62);white-space:pre-line;
+}
 .echo-cloud .eq-a{
   margin-top:9px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;
   color:var(--dim);
@@ -12376,33 +12383,48 @@ const ECHO_QUOTES = [
   { t: 'We are a way for the cosmos to know itself.', a: 'Carl Sagan', p: 'physics' },
   { t: 'I seem to have been only like a boy playing on the sea-shore, whilst the great ocean of truth lay all undiscovered before me.', a: 'Isaac Newton', p: 'physics' },
   { t: 'A mathematician, like a painter or a poet, is a maker of patterns.', a: 'G. H. Hardy', p: 'math' },
-  { t: 'The essence of mathematics lies in its freedom.', a: 'Georg Cantor', p: 'math' },
-  { t: 'It is by logic that we prove, but by intuition that we discover.', a: 'Henri Poincaré', p: 'math' },
-  { t: 'Science is built up with facts, as a house is with stones. But a collection of facts is no more a science than a heap of stones is a house.', a: 'Henri Poincaré', p: 'math' },
+  { t: 'The essence of mathematics lies in its freedom.', a: 'Georg Cantor', p: 'math',
+    o: 'Das Wesen der Mathematik liegt gerade in ihrer Freiheit.', ol: 'de' },
+  { t: 'It is by logic that we prove, but by intuition that we discover.', a: 'Henri Poincaré', p: 'math',
+    o: 'C’est par la logique qu’on démontre, c’est par l’intuition qu’on invente.', ol: 'fr' },
+  { t: 'Science is built up with facts, as a house is with stones. But a collection of facts is no more a science than a heap of stones is a house.', a: 'Henri Poincaré', p: 'math',
+    o: 'On fait la science avec des faits, comme on fait une maison avec des pierres : mais une accumulation de faits n’est pas plus une science qu’un tas de pierres n’est une maison.', ol: 'fr' },
   { t: 'Why are numbers beautiful? It’s like asking why is Beethoven’s Ninth Symphony beautiful.', a: 'Paul Erdős', p: 'math' },
-  { t: 'We must know — we will know.', a: 'David Hilbert', p: 'math' },
-  { t: 'It is impossible to be a mathematician without being a poet in soul.', a: 'Sofia Kovalevskaya', p: 'math' },
+  { t: 'We must know — we will know.', a: 'David Hilbert', p: 'math',
+    o: 'Wir müssen wissen — wir werden wissen.', ol: 'de' },
+  { t: 'It is impossible to be a mathematician without being a poet in soul.', a: 'Sofia Kovalevskaya', p: 'math',
+    o: 'Нельзя быть математиком, не будучи в то же время и поэтом в душе.', ol: 'ru' },
   { t: 'Imagination is the Discovering Faculty, pre-eminently.', a: 'Ada Lovelace', p: 'math' },
   { t: 'Dwell on the beauty of life. Watch the stars, and see yourself running with them.', a: 'Marcus Aurelius', p: 'stoic' },
   { t: 'You have power over your mind — not outside events. Realize this, and you will find strength.', a: 'Marcus Aurelius', p: 'stoic' },
   { t: 'Very little is needed to make a happy life; it is all within yourself, in your way of thinking.', a: 'Marcus Aurelius', p: 'stoic' },
   { t: 'Confine yourself to the present.', a: 'Marcus Aurelius', p: 'stoic' },
-  { t: 'We suffer more often in imagination than in reality.', a: 'Seneca', p: 'stoic' },
-  { t: 'It is not that we have a short time to live, but that we waste a lot of it.', a: 'Seneca', p: 'stoic' },
-  { t: 'Men are disturbed not by things, but by the views they take of them.', a: 'Epictetus', p: 'stoic' },
-  { t: 'No man is free who is not master of himself.', a: 'Epictetus', p: 'stoic' },
-  { t: 'No man ever steps in the same river twice.', a: 'Heraclitus', p: 'stoic' },
+  { t: 'We suffer more often in imagination than in reality.', a: 'Seneca', p: 'stoic',
+    o: 'Saepius opinione quam re laboramus.', ol: 'la' },
+  { t: 'It is not that we have a short time to live, but that we waste a lot of it.', a: 'Seneca', p: 'stoic',
+    o: 'Non exiguum temporis habemus, sed multum perdidimus.', ol: 'la' },
+  { t: 'Men are disturbed not by things, but by the views they take of them.', a: 'Epictetus', p: 'stoic',
+    o: 'Ταράσσει τοὺς ἀνθρώπους οὐ τὰ πράγματα, ἀλλὰ τὰ περὶ τῶν πραγμάτων δόγματα.', ol: 'grc' },
+  { t: 'No man is free who is not master of himself.', a: 'Epictetus', p: 'stoic',
+    o: 'Οὐδεὶς ἐλεύθερος ἑαυτοῦ μὴ κρατῶν.', ol: 'grc' },
+  { t: 'No man ever steps in the same river twice.', a: 'Heraclitus', p: 'stoic',
+    o: 'Δὶς ἐς τὸν αὐτὸν ποταμὸν οὐκ ἂν ἐμβαίης.', ol: 'grc' },
   { t: 'There is geometry in the humming of the strings, there is music in the spacing of the spheres.', a: 'Pythagoras (attr.)', p: 'music' },
   { t: 'The heavenly motions are nothing but a continuous song for several voices.', a: 'Johannes Kepler', p: 'music' },
-  { t: 'Music is the pleasure the human mind experiences from counting without being aware that it is counting.', a: 'Gottfried Leibniz', p: 'music' },
-  { t: 'Without music, life would be a mistake.', a: 'Friedrich Nietzsche', p: 'music' },
+  { t: 'Music is the pleasure the human mind experiences from counting without being aware that it is counting.', a: 'Gottfried Leibniz', p: 'music',
+    o: 'Musica est exercitium arithmeticae occultum nescientis se numerare animi.', ol: 'la' },
+  { t: 'Without music, life would be a mistake.', a: 'Friedrich Nietzsche', p: 'music',
+    o: 'Ohne Musik wäre das Leben ein Irrtum.', ol: 'de' },
   { t: 'Music is the space between the notes.', a: 'Claude Debussy (attr.)', p: 'music' },
   { t: 'I’ll tell you what freedom is to me: no fear.', a: 'Nina Simone', p: 'music' },
   { t: 'The only way to make sense out of change is to plunge into it, move with it, and join the dance.', a: 'Alan Watts', p: 'wonder' },
-  { t: 'Live the questions now. Perhaps you will then gradually, without noticing it, live along some distant day into the answer.', a: 'Rainer Maria Rilke', p: 'wonder' },
+  { t: 'Live the questions now. Perhaps you will then gradually, without noticing it, live along some distant day into the answer.', a: 'Rainer Maria Rilke', p: 'wonder',
+    o: 'Leben Sie jetzt die Fragen. Vielleicht leben Sie dann allmählich, ohne es zu merken, eines fernen Tages in die Antwort hinein.', ol: 'de' },
   { t: 'Time is but the stream I go a-fishing in.', a: 'Henry David Thoreau', p: 'wonder' },
-  { t: 'Life can only be understood backwards; but it must be lived forwards.', a: 'Søren Kierkegaard', p: 'wonder' },
-  { t: 'Attention is the rarest and purest form of generosity.', a: 'Simone Weil', p: 'wonder' },
+  { t: 'Life can only be understood backwards; but it must be lived forwards.', a: 'Søren Kierkegaard', p: 'wonder',
+    o: 'Livet forstås baglæns, men må leves forlæns.', ol: 'da' },
+  { t: 'Attention is the rarest and purest form of generosity.', a: 'Simone Weil', p: 'wonder',
+    o: 'L’attention est la forme la plus rare et la plus pure de la générosité.', ol: 'fr' },
   { t: 'When we try to pick out anything by itself, we find it hitched to everything else in the Universe.', a: 'John Muir', p: 'wonder' },
   { t: 'Who looks outside, dreams; who looks inside, awakes.', a: 'Carl Jung', p: 'wonder' },
   { t: 'Nature does not hurry, yet everything is accomplished.', a: 'Lao Tzu', p: 'wonder' },
@@ -12697,12 +12719,25 @@ const ECHO = {
     return c;
   },
   floatQuote(){
-    const QP = I18N.lang === 'es' ? ECHO_ES.QUOTES : ECHO_QUOTES;
-    const i = echoPick(QP.length, this._recent, this.rng());
+    /* the quote drifts by in its OWN tongue, with the reader's tongue riding
+       quietly beneath — Seneca in Latin over the English or Spanish, Hilbert
+       in German, Feynman glossed only when the reader's language isn't his.
+       Originals are carried only where the source text is genuinely attested
+       (a canonical `o` on the English pool entry); an attributed line without
+       a reliable original simply speaks the reader's language alone. The two
+       pools are index-aligned, so one deal serves both. */
+    const es = I18N.lang === 'es';
+    const i = echoPick(ECHO_QUOTES.length, this._recent, this.rng());
     if (i < 0) return;
     this._recent.push(i); if (this._recent.length > 12) this._recent.shift();
-    const q = QP[i];
-    this._cloud('<div class="eq-t">' + escapeHTML(q.t) + '</div><div class="eq-a">— ' + escapeHTML(q.a) + '</div>', 30);
+    const src = ECHO_QUOTES[i];
+    const shown = (es && ECHO_ES.QUOTES[i]) || src;
+    const orig = src.o || src.t;
+    const origLang = src.o ? src.ol : 'en';
+    const gloss = shown.t !== orig ? shown.t : '';
+    this._cloud('<div class="eq-t" lang="' + origLang + '">' + escapeHTML(orig) + '</div>'
+      + (gloss ? '<div class="eq-tr" lang="' + (es ? 'es' : 'en') + '">' + escapeHTML(gloss) + '</div>' : '')
+      + '<div class="eq-a">— ' + escapeHTML(shown.a) + '</div>', gloss ? 34 : 30);
   },
   floatPrompt(){
     const PP = I18N.lang === 'es' ? ECHO_ES.PROMPTS : ECHO_PROMPTS;
