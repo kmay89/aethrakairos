@@ -5450,6 +5450,19 @@ test('loadAndLandAt: done fires exactly once, whatever the element does', async 
   assert.equal(n, 1, 'a caller holding playback back must be released once and only once');
 });
 
+// ---------------------------------------------------------------- language packs
+/* every docs/lang/*.json is held to the golden schema (es.json's key set,
+   which IS the exact English the player emits): complete coverage, intact
+   {placeholders} and HTML tags, CLDR-shaped plural objects, echo pools
+   index-aligned with the English pools above. The doctor is the shared
+   implementation, so the CLI report and this gate can never disagree. */
+test('every language pack passes the i18n doctor', async () => {
+  const { runDoctor } = await import('../tools/i18n_doctor.mjs');
+  const { errs, files } = runDoctor();
+  assert.ok(files.includes('es.json'), 'the golden pack exists');
+  assert.deepEqual(errs, [], errs.slice(0, 5).join('\n'));
+});
+
 await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures

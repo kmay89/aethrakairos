@@ -145,7 +145,12 @@ function isAudio(req, url){
     || /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|weba|webm)(\?|$)/i.test(url.pathname);
 }
 function isCatalog(url){
-  return /catalog\.(json|sig)(\?|$)/.test(url.pathname);
+  // the language dictionaries ride the same contract as the catalog:
+  // stale-while-revalidate in the unversioned cache, so a fixed translation
+  // reaches listeners without waiting for a player release — and a chosen
+  // language keeps working offline
+  return /catalog\.(json|sig)(\?|$)/.test(url.pathname)
+    || /\/lang\/[a-z-]+\.json(\?|$)/.test(url.pathname);
 }
 
 self.addEventListener('fetch', ev => {
