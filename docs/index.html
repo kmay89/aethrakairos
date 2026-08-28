@@ -27153,11 +27153,12 @@ const SKYCARD = {
     d.querySelector('.sk-n').textContent = c.n;
     d.querySelector('.sk-g').textContent = c.gen + ' — ' + T(c.en);
     d.querySelector('.sk-w').textContent = where;
-    d.querySelector('.sk-m').textContent = (I18N.lang === 'es'
-      ? c.area.toLocaleString() + ' °² · ' + c.rank + '.º de 88 · ' + c.s.length + ' estrellas · ' + c.e.length + ' líneas'
-      : c.area.toLocaleString() + ' sq° · ' + c.rank
+    d.querySelector('.sk-m').textContent = (I18N.lang === 'en'
+      ? c.area.toLocaleString() + ' sq° · ' + c.rank
         + (c.rank === 1 ? 'st' : c.rank === 2 ? 'nd' : c.rank === 3 ? 'rd' : 'th') + ' of 88 · '
-        + c.s.length + ' stars · ' + c.e.length + ' lines');
+        + c.s.length + ' stars · ' + c.e.length + ' lines'
+      : T('{area} sq° · no. {rank} of 88 · {stars} stars · {lines} lines',
+          { area: c.area.toLocaleString(I18N.lang), rank: c.rank, stars: c.s.length, lines: c.e.length }));
     this.note.textContent = T(c.note || '');
     this.list.innerHTML = '';
     d.classList.add('on');
@@ -35263,7 +35264,7 @@ function firstRunStat(){
   if (secs >= 3600) size = T('{n} hours', { n: Math.round(secs / 3600) });
   else if (secs >= 60) size = T('{n} minutes', { n: Math.round(secs / 60) });
   else size = null;
-  const nStr = n.toLocaleString();
+  const nStr = n.toLocaleString(I18N.lang);
   // the welcome bullet says the real number the moment we know it
   const fc = document.getElementById('frCount');
   if (fc) fc.textContent = nStr;
@@ -35272,7 +35273,7 @@ function firstRunStat(){
   const stats = libraryHeardStats();
   if (stats.heard > 0 && stats.fresh > 0){
     el.frStat.innerHTML = T('Welcome back — you\'ve heard <b>{heard} of {total}</b>. <b>{fresh}</b> still fresh to hear.',
-      { heard: stats.heard.toLocaleString(), total: stats.total.toLocaleString(), fresh: stats.fresh.toLocaleString() });
+      { heard: stats.heard.toLocaleString(I18N.lang), total: stats.total.toLocaleString(I18N.lang), fresh: stats.fresh.toLocaleString(I18N.lang) });
   } else if (stats.total && stats.fresh === 0){
     el.frStat.innerHTML = T('You\'ve heard <b>the whole library</b> — every track is a friend now. Press play for another lap.');
   } else {
