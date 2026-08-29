@@ -241,7 +241,7 @@
    "Quay lại với điều này khi set nhạc kết thúc.",
    "Dù bạn đã tìm thấy điều gì, thì chính bạn đã tìm ra nó — không phải cỗ máy."
   ],
-  "feel": "\\b(sợ|sợ hãi|hoảng sợ|giận|tức giận|lo lắng|lo âu|cô đơn|xấu hổ|bình yên|tự do|hài lòng|biết ơn|hạnh phúc|nặng nề|hy vọng|tổn thương|lạc lõng|yêu thương|kỳ lạ|trống rỗng|thanh thản|tự hào|buồn|mắc kẹt|mệt mỏi|hoài niệm|bình thản|tan vỡ|nhẹ nhõm)\\b"
+  "feel": "(?:^|[^A-Za-zÀ-ỹ])(sợ|sợ hãi|hoảng sợ|giận|tức giận|lo lắng|lo âu|cô đơn|xấu hổ|bình yên|tự do|hài lòng|biết ơn|hạnh phúc|nặng nề|hy vọng|tổn thương|lạc lõng|yêu thương|kỳ lạ|trống rỗng|thanh thản|tự hào|buồn|mắc kẹt|mệt mỏi|hoài niệm|bình thản|tan vỡ|nhẹ nhõm)(?=[^A-Za-zÀ-ỹ]|$)"
  },
  "tuning the first track…": "đang so dây bản đầu tiên…",
  "Even better as a <b>Mac app</b>": "Còn hay hơn khi là <b>app Mac</b>",

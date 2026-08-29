@@ -241,7 +241,7 @@
    "Seans bittiğinde buna geri dön.",
    "Ne bulduysan, onu sen buldun — makine değil."
   ],
-  "feel": "\\b(kork\\w*|kızgın\\w*|öfke\\w*|endişe\\w*|kaygı\\w*|yalnız\\w*|utan\\w*|sakin\\w*|özgür\\w*|mutlu\\w*|minnettar\\w*|ağır\\w*|umut\\w*|yaralı\\w*|kayıp\\w*|aşk\\w*|sevgi\\w*|tuhaf\\w*|boş\\w*|huzur\\w*|gurur\\w*|üzgün\\w*|sıkış\\w*|yorgun\\w*|nostalji\\w*|kırık\\w*|mahzun\\w*)\\b"
+  "feel": "(?:^|[^A-Za-zÀ-ỹ])(kork[A-Za-zÀ-ỹ]*|kızgın[A-Za-zÀ-ỹ]*|öfke[A-Za-zÀ-ỹ]*|endişe[A-Za-zÀ-ỹ]*|kaygı[A-Za-zÀ-ỹ]*|yalnız[A-Za-zÀ-ỹ]*|utan[A-Za-zÀ-ỹ]*|sakin[A-Za-zÀ-ỹ]*|özgür[A-Za-zÀ-ỹ]*|mutlu[A-Za-zÀ-ỹ]*|minnettar[A-Za-zÀ-ỹ]*|ağır[A-Za-zÀ-ỹ]*|umut[A-Za-zÀ-ỹ]*|yaralı[A-Za-zÀ-ỹ]*|kayıp[A-Za-zÀ-ỹ]*|aşk[A-Za-zÀ-ỹ]*|sevgi[A-Za-zÀ-ỹ]*|tuhaf[A-Za-zÀ-ỹ]*|boş[A-Za-zÀ-ỹ]*|huzur[A-Za-zÀ-ỹ]*|gurur[A-Za-zÀ-ỹ]*|üzgün[A-Za-zÀ-ỹ]*|sıkış[A-Za-zÀ-ỹ]*|yorgun[A-Za-zÀ-ỹ]*|nostalji[A-Za-zÀ-ỹ]*|kırık[A-Za-zÀ-ỹ]*|mahzun[A-Za-zÀ-ỹ]*)(?=[^A-Za-zÀ-ỹ]|$)"
  },
  "tuning the first track…": "ilk parça akort ediliyor…",
  "Even better as a <b>Mac app</b>": "<b>Mac uygulaması</b> olarak daha da iyi",
