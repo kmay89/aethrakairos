@@ -50,3 +50,24 @@ With this on, `main` can only change through a PR you have reviewed and approved
 
 `.github/CODEOWNERS` assigns the whole repository to **@kmay89**, so every pull
 request automatically requests your review.
+
+## Languages — one file per tongue
+
+The player speaks many languages, and every one of them is a single JSON
+file: `docs/lang/<code>.json`. The keys are the exact English strings the
+player emits (English in the code is the source of truth); the values are
+your language. `docs/lang/es.json` is the reference pack — same shape,
+finished with care.
+
+To improve a translation, edit that one file. To add a language, copy the
+shape, fill every key, add the language to the `LANGS` roster near the top
+of the player's script, and hold your work to the same gate CI does:
+
+```
+node tools/i18n_doctor.mjs <code>
+```
+
+The doctor checks completeness against the reference pack, that every
+`{placeholder}` and HTML tag survived translation, that plural objects are
+CLDR-shaped, and that the echo pools stay index-aligned with the English
+originals. A pack the doctor passes is a pack the player can wear.
