@@ -6871,6 +6871,7 @@ const PALETTES = [
    browser's own ordered languages lean the boot, and the first run asks
    outright. A missing dictionary or key falls back to English, honestly.
    ================================================================ */
+// @i18n-start
 const LANGS = [
   { code: 'en', name: 'English',          en: 'English' },
   { code: 'es', name: 'Español',          en: 'Spanish' },
@@ -6888,7 +6889,17 @@ const LANGS = [
   { code: 'ko', name: '한국어',            en: 'Korean' },
   { code: 'tr', name: 'Türkçe',           en: 'Turkish' },
   { code: 'vi', name: 'Tiếng Việt',       en: 'Vietnamese' },
+  { code: 'it', name: 'Italiano',         en: 'Italian' },
+  { code: 'fa', name: 'فارسی',             en: 'Persian', dir: 'rtl' },
+  { code: 'pl', name: 'Polski',           en: 'Polish' },
+  { code: 'uk', name: 'Українська',       en: 'Ukrainian' },
+  { code: 'fil', name: 'Filipino',        en: 'Filipino' },
+  { code: 'th', name: 'ไทย',              en: 'Thai' },
+  { code: 'sw', name: 'Kiswahili',        en: 'Swahili' },
+  { code: 'pa', name: 'ਪੰਜਾਬੀ',            en: 'Punjabi' },
 ];
+/* the odd tags browsers still speak: Android reports Filipino as 'tl' */
+const I18N_ALIAS = { tl: 'fil' };
 const I18N_NORM = s => String(s).replace(/\s+/g, ' ').trim();
 /* the active dictionary — English key → translation (string, or a plural
    object). One object for the app's whole life; the loader refills it. */
@@ -6905,7 +6916,8 @@ const I18N = {
     let cands = [];
     try { cands = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language]).filter(Boolean).map(t => String(t).toLowerCase()); } catch (e){}
     for (const t of cands){
-      const hit = LANGS.find(l => t === l.code || t.indexOf(l.code + '-') === 0);
+      const base = I18N_ALIAS[t.split('-')[0]] || t;
+      const hit = LANGS.find(l => base === l.code || base.indexOf(l.code + '-') === 0);
       if (hit) return hit.code;
     }
     return 'en';
@@ -7029,6 +7041,7 @@ function applyI18nDom(root){
     }
   }
 }
+// @i18n-end
 /* the ago-stamp and its duration twin, translated at the display: the pure
    activityAgo() stays English (and tested); other tongues rephrase its
    output through ordinary dictionary templates. */

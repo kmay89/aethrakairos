@@ -71,3 +71,11 @@ The doctor checks completeness against the reference pack, that every
 `{placeholder}` and HTML tag survived translation, that plural objects are
 CLDR-shaped, and that the echo pools stay index-aligned with the English
 originals. A pack the doctor passes is a pack the player can wear.
+
+The same machinery lives as a reusable, product-agnostic engine in
+`i18n/` — `engine.js` (the runtime any sibling app can import) and
+`doctor.mjs` (the same gate, config-driven). `i18n/README.md` documents the
+pack format, the feel-regex boundary rules per script, and the adoption
+steps. The player keeps its own inlined copy of the core (the `@i18n`
+marker block) so it stays one self-contained file; the unit suite holds
+the two to the same behavior.

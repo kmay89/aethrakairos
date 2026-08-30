@@ -5463,6 +5463,80 @@ test('every language pack passes the i18n doctor', async () => {
   assert.deepEqual(errs, [], errs.slice(0, 5).join('\n'));
 });
 
+// ---------------------------------------------------------------- the reusable engine
+/* i18n/engine.js is the extractable form of the player's inlined @i18n
+   block, for sibling products (Echoes of Play). The player keeps its own
+   copy so it stays one file; these tests hold the two to the same behavior
+   so they can never drift apart in silence. */
+const I18NB = new Function('"use strict";' + block('i18n') + '\nreturn { LANGS, I18N_ALIAS, I18N, T, TN };')();
+test('engine and player resolve T() and plural objects identically', async () => {
+  const { createI18n } = await import('../i18n/engine.js');
+  const eng = createI18n({ langs: I18NB.LANGS, aliases: I18NB.I18N_ALIAS });
+  const dict = {
+    '@meta': { code: 'ru', name: 'Русский', en: 'Russian' },
+    'Play': 'Играть', 'FLAME': 'ПЛАМЯ', 'SLITS': 'ЩЕЛИ',
+    'Saved <b>{name}</b>': 'Сохранено <b>{name}</b>',
+    '{n} tracks': { one: '{n} трек', few: '{n} трека', many: '{n} треков', other: '{n} трека' },
+  };
+  I18NB.I18N._install('ru', dict);
+  eng.I18N._install('ru', dict);
+  for (const n of [1, 2, 5, 11, 21, 101])
+    assert.equal(eng.T('{n} tracks', { n }), I18NB.T('{n} tracks', { n }), 'plural parity at n=' + n);
+  assert.equal(eng.T('{n} tracks', { n: 3 }), '3 трека', 'CLDR few-form via Intl.PluralRules');
+  assert.equal(eng.T('Saved <b>{name}</b>', { name: 'x' }), I18NB.T('Saved <b>{name}</b>', { name: 'x' }));
+  assert.equal(eng.TN('FLAME · 7 SLITS'), I18NB.TN('FLAME · 7 SLITS'), 'TN segment parity');
+  assert.equal(eng.TN('FLAME · 7 SLITS'), 'ПЛАМЯ · 7 ЩЕЛИ', 'numeric-prefix segments translate');
+  assert.equal(eng.I18N.dir, I18NB.I18N.dir, 'direction parity');
+});
+test('engine honours @meta.dir even without a registry hint', async () => {
+  const { createI18n } = await import('../i18n/engine.js');
+  const eng = createI18n({ langs: [{ code: 'en', name: 'English', en: 'English' }, { code: 'xx', name: 'X', en: 'X' }] });
+  eng.I18N._install('xx', { '@meta': { code: 'xx', name: 'X', en: 'X', dir: 'rtl' } });
+  assert.equal(eng.I18N.dir, 'rtl', 'the pack itself may declare rtl');
+});
+test('engine detect() walks ordered languages with prefix and alias mapping', async () => {
+  const { createI18n } = await import('../i18n/engine.js');
+  const eng = createI18n({ langs: I18NB.LANGS, aliases: I18NB.I18N_ALIAS });
+  const withNav = (langs, fn) => {
+    const d = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    try { Object.defineProperty(globalThis, 'navigator', { value: { languages: langs }, configurable: true }); }
+    catch (e){ return; }                                // navigator pinned: skip, other asserts still hold
+    try { fn(); } finally { d ? Object.defineProperty(globalThis, 'navigator', d) : delete globalThis.navigator; }
+  };
+  withNav(['pt-BR', 'en'], () => {
+    assert.equal(eng.I18N.detect(), 'pt', 'pt-BR negotiates to pt');
+    assert.equal(I18NB.I18N.detect(), 'pt', 'and the player agrees');
+  });
+  withNav(['tl-PH', 'en'], () => {
+    assert.equal(eng.I18N.detect(), 'fil', "Android's 'tl' finds Filipino");
+    assert.equal(I18NB.I18N.detect(), 'fil', 'and the player agrees');
+  });
+  withNav(['xx', 'yy'], () => assert.equal(eng.I18N.detect(), 'en', 'nothing carried → English'));
+});
+test('engine echoSignals matches the tested player implementation', async () => {
+  const eng = await import('../i18n/engine.js');
+  for (const s of ['am I lost?', 'six small words land here', 'x '.repeat(45), 'feeling grateful tonight', 'plain note', ''])
+    assert.deepEqual(eng.echoSignals(s), S.echoSignals(s), JSON.stringify(s.slice(0, 20)));
+});
+test('engine echoComposeFrom deals pools by shape, widened by the pack feel regex', async () => {
+  const { echoComposeFrom } = await import('../i18n/engine.js');
+  const pools = {
+    ack: { q: ['Q'], short: ['S'], long: ['L'], feel: ['F'], plain: ['P'] },
+    frags: ['fr1', 'fr2'], turn: ['t1'], feel: '(?:^|[^A-Za-z])(triste)(?=[^A-Za-z]|$)',
+  };
+  const rng = () => 0;
+  assert.equal(echoComposeFrom(pools, '¿dónde estoy?', rng).ack, 'Q', 'a question is a question in any tongue');
+  assert.equal(echoComposeFrom(pools, 'hoy me siento muy triste de verdad otra vez', rng).ack, 'F', "the pack's own feeling words register");
+  assert.equal(echoComposeFrom(pools, 'palabras neutrales sin sentimiento aparente aqui mismo', rng).ack, 'P');
+  assert.equal(echoComposeFrom(null, 'x', rng), null, 'no pools → null, the caller keeps its English path');
+});
+test('the generalized doctor holds every shipped pack to the golden contract', async () => {
+  const { runDoctor } = await import('../i18n/doctor.mjs');
+  const { errs, files } = runDoctor(new URL('../docs/lang', import.meta.url).pathname, 'es', null);
+  assert.ok(files.includes('es.json'), 'the golden pack exists');
+  assert.deepEqual(errs, [], errs.slice(0, 5).join('\n'));
+});
+
 await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
