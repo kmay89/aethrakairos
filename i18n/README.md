@@ -6,9 +6,12 @@ player — extracted so a sibling product (**Echoes of Play** first among them)
 can adopt it by copying two files and writing zero framework code.
 
 ```
-i18n/engine.js    the runtime — createI18n(), T(), TN(), applyI18nDom(),
-                  plus the echo machinery (echoSignals, echoComposeFrom)
-i18n/doctor.mjs   the gate — holds every pack to the golden pack's contract
+i18n/engine.js      the runtime — createI18n(), T(), TN(), applyI18nDom(),
+                    plus the echo machinery (echoSignals, echoComposeFrom)
+i18n/engine.es5.js  the same engine, ES5 syntax, classic-script/UMD — for
+                    siblings with no build step (the unit suite holds the
+                    two builds to behavioral parity)
+i18n/doctor.mjs     the gate — holds every pack to the golden pack's contract
 ```
 
 No dependencies, no build step. The player itself keeps an inlined,
@@ -77,9 +80,19 @@ wrong fails **silently** — the regex compiles and simply never matches.
 Never use lookbehind (`(?<=…)`) — unsupported before Safari 16.4. The doctor
 rejects lookbehind and `\b`-beside-non-Latin outright.
 
+### Inline dictionaries — single-file, zero-network products
+
+A product whose identity is "one HTML file, zero network" (Echoes of Play)
+ships its packs inside the file instead of a `lang/` directory: pass them
+as `dicts: { es: {…}, … }` in the config. Inline packs install
+**synchronously** — no fetch, no localStorage mirror, no `ready` to await —
+and `prefetch`/`fetchDict` serve them without touching the network. Use
+`engine.es5.js` there if the product is ES5-only.
+
 ## Adopting the engine (Echoes of Play)
 
-1. Copy `engine.js` (and `doctor.mjs` for CI) into the project.
+1. Copy `engine.js` (and `doctor.mjs` for CI) into the project — or
+   `engine.es5.js` inlined, for a single-file ES5 product.
 2. Create `lang/` with a **golden pack** — the first fully-translated
    language (the player uses Spanish). Its key set becomes the schema.
 3. Wire the boot:

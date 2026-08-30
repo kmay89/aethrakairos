@@ -5530,6 +5530,51 @@ test('engine echoComposeFrom deals pools by shape, widened by the pack feel rege
   assert.equal(echoComposeFrom(pools, 'palabras neutrales sin sentimiento aparente aqui mismo', rng).ack, 'P');
   assert.equal(echoComposeFrom(null, 'x', rng), null, 'no pools → null, the caller keeps its English path');
 });
+test('the ES5 engine build matches the module engine, behavior for behavior', async () => {
+  const { createRequire } = await import('module');
+  const es5 = createRequire(import.meta.url)('../i18n/engine.es5.js');
+  const mod = await import('../i18n/engine.js');
+  const langs = [{ code: 'en', name: 'English', en: 'English' }, { code: 'ru', name: 'Русский', en: 'Russian' }];
+  const dict = {
+    '@meta': { code: 'ru', name: 'Русский', en: 'Russian' },
+    'Enter': 'Войти', 'FLAME': 'ПЛАМЯ', 'SLITS': 'ЩЕЛИ',
+    '{n} tracks': { one: '{n} трек', few: '{n} трека', many: '{n} треков', other: '{n} трека' },
+  };
+  const a = mod.createI18n({ langs, onApply: () => {} });
+  const b = es5.createI18n({ langs, onApply: () => {} });
+  a.I18N._install('ru', dict);
+  b.I18N._install('ru', dict);
+  for (const n of [1, 3, 15, 21]) assert.equal(b.T('{n} tracks', { n }), a.T('{n} tracks', { n }), 'plural parity n=' + n);
+  assert.equal(b.T('Enter'), a.T('Enter'));
+  assert.equal(b.TN('FLAME · 7 SLITS'), a.TN('FLAME · 7 SLITS'));
+  assert.equal(b.I18N.dir, a.I18N.dir);
+  for (const s of ['am I lost?', 'grateful tonight and here', 'plain words', ''])
+    assert.deepEqual(es5.echoSignals(s), mod.echoSignals(s), 'echoSignals parity');
+  const pools = { ack: { q: ['Q'], short: ['S'], long: ['L'], feel: ['F'], plain: ['P'] }, frags: ['f'], turn: ['t'] };
+  assert.equal(es5.echoComposeFrom(pools, 'why me?', () => 0).ack, mod.echoComposeFrom(pools, 'why me?', () => 0).ack);
+});
+test('inline dictionaries install synchronously with no fetch and no mirror', async () => {
+  const { createRequire } = await import('module');
+  for (const eng of [await import('../i18n/engine.js'), createRequire(import.meta.url)('../i18n/engine.es5.js')]){
+    let applied = 0;
+    const dict = { '@meta': { code: 'es', name: 'Español', en: 'Spanish' }, 'Enter': 'Entrar' };
+    const i = eng.createI18n({
+      langs: [{ code: 'en', name: 'English', en: 'English' }, { code: 'es', name: 'Español', en: 'Spanish' }],
+      dicts: { es: dict },
+      storageKey: 'x_no_such_key',
+      onApply: () => { applied++; },
+    });
+    // no localStorage and no navigator match in Node: force the choice, then init
+    i.I18N.set = () => {};
+    i.I18N.stored = () => 'es';
+    i.I18N.init();                                  // must complete synchronously
+    assert.equal(applied, 1, 'applied in the same tick');
+    assert.equal(i.T('Enter'), 'Entrar', 'inline dictionary is live');
+    assert.equal(await i.I18N.prefetch('es'), true, 'prefetch of an inline pack is a no-op success');
+    const d = await i.I18N.fetchDict('es');
+    assert.equal(d['Enter'], 'Entrar', 'fetchDict serves the inline pack without touching the network');
+  }
+});
 test('the generalized doctor holds every shipped pack to the golden contract', async () => {
   const { runDoctor } = await import('../i18n/doctor.mjs');
   const { errs, files } = runDoctor(new URL('../docs/lang', import.meta.url).pathname, 'es', null);

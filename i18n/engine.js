@@ -54,6 +54,12 @@ export function createI18n(config){
   const KEY = config.storageKey || 'i18n_lang';
   const CACHE = config.cacheKey || 'i18n_dict_v1';
   const URL_OF = config.dictUrl || (code => 'lang/' + code + '.json');
+  const INLINE = config.dicts || null;           // { es: {…}, … } — dictionaries
+                                                 // carried inside the app itself:
+                                                 // a single-file, zero-network
+                                                 // product (Echoes of Play) ships
+                                                 // its packs inline and never
+                                                 // fetches at all
   const REFRESH_MS = config.refreshDelayMs == null ? 6000 : config.refreshDelayMs;
   const FALLBACK = 'en';
 
@@ -111,6 +117,7 @@ export function createI18n(config){
       try { localStorage.setItem(CACHE, JSON.stringify({ code, at: Date.now(), dict })); } catch (e){}
     },
     async fetchDict(code){
+      if (INLINE && INLINE[code]) return INLINE[code];
       const r = await fetch(URL_OF(code), { cache: 'no-cache' });
       if (!r || !r.ok) throw new Error(URL_OF(code) + ' → ' + (r && r.status));
       return r.json();
@@ -131,6 +138,11 @@ export function createI18n(config){
       const stored = this.stored();
       const code = this.entry(stored) ? stored : this.detect();
       if (code === FALLBACK){ this._apply(); return; }
+      if (INLINE && INLINE[code]){                 // inline pack: synchronous,
+        this._install(code, INLINE[code]);        // no mirror, no network, ever
+        this._apply();
+        return;
+      }
       const cached = this._cacheRead(code);
       if (cached){
         this._install(code, cached);
