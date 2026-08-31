@@ -4028,6 +4028,20 @@ function wavelengthLinear(nm){
   return normalizeRGB(xyzToLinearRGB({ x: b.x, y: b.y, z: b.z }));
 }
 function wavelengthRGB(nm){ return encodeRGB(wavelengthLinear(nm)); }
+/* CHERENKOV, HONESTLY. Frank–Tamm: the energy a charge outrunning light in a
+   medium sheds per unit path per unit wavelength goes as 1/λ² — more of
+   everything at the short end, which is WHY a reactor pool glows blue and not
+   white. The colour here is that spectrum integrated against the CIE
+   observer — 1/λ²·(x̄,ȳ,z̄) summed over the visible band, taken to linear
+   sRGB and normalised — not a hex somebody liked. */
+function cherenkovRGB(){
+  const acc = { x: 0, y: 0, z: 0 };
+  for (let nm = 380; nm <= 700; nm += 4){
+    const w = 1e6 / (nm * nm), b = cieXYZBar(nm);
+    acc.x += w * b.x; acc.y += w * b.y; acc.z += w * b.z;
+  }
+  return normalizeRGB(xyzToLinearRGB(acc));
+}
 /* Light ADDS. Two emissions in the same place are their sum, not their
    average — which is why the blue cone at a lighter's base survives beside a
    yellow body five times brighter instead of greying out against it. */
@@ -4547,10 +4561,11 @@ const TERRAIN_FORMS = [
    tip IGNITES. That is the entire trick of the dot-drawn "cosine creature"
    — a spine, ribs whose reach is the wave, and ember tips where the wave
    peaks — and it generalises the way a pattern book generalises: hold the
-   field, swap the body it is laid on. Three pages here, after the pages a
-   book of shapes is organised by — FLOW (an open spine: the WYRM), ORGANIC
-   (a scalloped closed rim: the MEDUSA), RADIAL (a petalled rosette: the
-   BLOOM).
+   field, swap the body it is laid on. Six pages here, after the pages a
+   book of shapes is organised by — FLOW open (a spine: the WYRM) and FLOW
+   closed (the spine eating its tail: the OUROBOROS), ORGANIC (a scalloped
+   closed rim: the MEDUSA; and lit from within: the COMB JELLY), RADIAL (a
+   petalled rosette: the BLOOM), GRID (a rooted, swaying stalk: the KELP).
 
    Everything a creature IS lives in this genome — dealt once per visit,
    bounded here, and handed to the GPU as four vec4s. The scene's vertex
@@ -4566,7 +4581,22 @@ const CREATURE_FORMS = [
   { key: 'wyrm',   name: 'WYRM' },     // the flow page — an open spine, ribbed
   { key: 'medusa', name: 'MEDUSA' },   // the organic page — a blob rim, tentacled
   { key: 'bloom',  name: 'BLOOM' },    // the radial page — petals on a whorl
+  { key: 'ouro',   name: 'OUROBOROS' },// the flow page, closed — the spine eats its tail
+  { key: 'kelp',   name: 'KELP' },     // the grid page — rooted, swaying, fronded
+  { key: 'comb',   name: 'COMB JELLY' },// the organic page, lit — cilia rows that ripple light
 ];
+/* WHICH SONG, WHICH ANIMAL. A track's identity hashed to a 32-bit seed
+   (FNV-1a, the same construction the colour conductor uses for its plans),
+   fed to mulberry32 so the deal is a pure function of the song: the same
+   track always grows the SAME creature, tonight and next year — every song
+   in the library has its own animal. No track, no seed: the room falls
+   back to fresh dice, which is what a silent room deserves. */
+function creatureSeed(id){
+  const s = String(id == null ? '' : id);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
 function creatureGenome(form, rnd){
   const r = typeof rnd === 'function' ? rnd : Math.random;
   const pick = (a, b) => a + (b - a) * r();
@@ -4605,6 +4635,30 @@ function creatureGenome(form, rnd){
     g.span   = pick(22, 30);
     g.ribLen = pick(8, 13);
     g.tip    = pick(0.70, 0.92);            // petal apexes only — rarer, brighter
+  }
+  if (form === 'ouro'){
+    g.petals = Math.round(pick(2, 5));      // how many lobes the ring weaves through — closed, whole
+    g.ribs   = Math.round(pick(4, 9));      // the rib field runs the full circle — whole
+    g.waveF1 = Math.round(pick(1, 3));      // the ring's own radial harmonics — whole
+    g.waveF2 = Math.round(pick(4, 7));
+    g.span   = pick(22, 30);
+    g.ribLen = pick(4.5, 7.5);
+    g.curl   = pick(0.5, 1.5);
+  }
+  if (form === 'kelp'){
+    g.span   = pick(24, 32);                // the stalk's height — open, so everything may stay fractional
+    g.ribLen = pick(7, 12);                 // the fronds carry the silhouette — reach matters
+    g.curl   = pick(0.3, 1.0);
+    g.sway   = pick(1.2, 2.0);              // a kelp IS its sway
+  }
+  if (form === 'comb'){
+    g.petals = Math.round(pick(6, 10));     // cilia rows down the bell — closed, whole
+    g.ribs   = Math.round(pick(2, 5));      // trailing tentacles — whole
+    g.waveF1 = Math.round(pick(2, 4));
+    g.waveF2 = Math.round(pick(5, 8));
+    g.span   = pick(18, 24);
+    g.ribLen = pick(10, 16);                // the tentacles trail far below the body
+    g.tip    = pick(0.50, 0.75);
   }
   return g;
 }
@@ -11546,14 +11600,19 @@ function segueStyle(ctx){
    repeats, because the second one in a row is where the eye starts looking for
    the mechanism instead of at the room.
    --------------------------------------------------------------------------- */
-const XFORM_KINDS = ['luma', 'scatter', 'defocus', 'aerial', 'refract', 'prism', 'fold'];
+const XFORM_KINDS = ['luma', 'scatter', 'defocus', 'aerial', 'refract', 'prism', 'fold',
+                     'cherenkov', 'aurora', 'ember'];
 /* HOW LONG EACH ONE NEEDS. A floor, not a setting — and these are LONG, on
    purpose. A transition that has to be quick to survive is a transition doing
    something drastic, and drastic is the thing being avoided. Rushed, all of
    these read as a glitch rather than as a change. SCATTER needs the most:
-   every grain has to leave and every grain has to arrive. */
+   every grain has to leave and every grain has to arrive. The three LIT forms
+   (the reactor wall, the sky's curtains, the burn) are slower still than most:
+   a light that crosses a room in half a second is a flash, and a flash is the
+   one thing the safety engine exists to refuse. */
 const XFORM_MIN_DUR = { luma: 1.00, scatter: 1.25, defocus: 0.70, aerial: 1.10,
-                        refract: 0.95, prism: 0.55, fold: 1.00 };
+                        refract: 0.95, prism: 0.55, fold: 1.00,
+                        cherenkov: 1.15, aurora: 1.30, ember: 1.05 };
 function segueFx(o){
   o = o || {};
   // A room whose whole point is manufactured large-field motion is exactly what
@@ -11564,9 +11623,9 @@ function segueFx(o){
   const r = o.r == null ? 0.5 : o.r;
   let pool;
   if (o.kind === 'cut')        pool = ['defocus', 'prism', 'refract', 'defocus'];
-  else if (o.kind === 'morph') pool = ['scatter', 'aerial', 'fold', 'luma', 'dissolve'];
-  else if (e < 0.30)           pool = ['luma', 'aerial', 'dissolve', 'defocus'];
-  else                         pool = ['luma', 'aerial', 'scatter', 'refract', 'defocus', 'dissolve'];
+  else if (o.kind === 'morph') pool = ['scatter', 'aerial', 'fold', 'luma', 'aurora', 'ember', 'dissolve'];
+  else if (e < 0.30)           pool = ['luma', 'aerial', 'dissolve', 'aurora', 'defocus'];
+  else                         pool = ['luma', 'aerial', 'scatter', 'refract', 'defocus', 'cherenkov', 'ember', 'dissolve'];
   const i = Math.floor(Math.abs(r) * 997) % pool.length;
   let k = pool[i];
   /* AND NOT THE SAME FORM TWICE. Stepping ONE place forward is not enough: a
@@ -30514,9 +30573,25 @@ function buildEigenstate(){
    IGNITES ember-red. That one trick — the dot-drawn "cosine creature"
    — is held fixed while the body under it is swapped, the way a book
    of shapes turns pages: the WYRM lays the field on an open spine
-   (the flow page), the MEDUSA hangs it from a scalloped blob rim as
-   tentacles (the organic page), the BLOOM opens it into petals around
-   a golden-angle whorl of florets (the radial page).
+   (the flow page), the OUROBOROS bends that spine into a ring that
+   eats its own tail (flow, closed), the MEDUSA hangs it from a
+   scalloped blob rim as tentacles (the organic page), the COMB JELLY
+   raises it as cilia rows that ripple light (organic, lit), the BLOOM
+   opens it into petals around a golden-angle whorl (the radial page),
+   and the KELP roots it to the floor and lets it sway (the grid page).
+
+   Four senses beyond the roll, each riding a signal the app already
+   keeps: the ribs wear the LIVE SPECTRUM (station s reads bin s of
+   uAudio, so a chord is a posture), the rib field drifts on the π and
+   e phases (two incommensurate clocks — the animal never repeats a
+   pose), every onset sends one PULSE of light down the body's own
+   coordinate (down the comb jelly's cilia rows, a lap of the
+   ouroboros), and a held touch is a current the free end leans into
+   before the warp even bends the water. And the deal itself now
+   listens: a playing track seeds the genome from its own identity, so
+   EVERY SONG HAS ITS OWN ANIMAL, the same one every time it plays —
+   while a re-deal on the same page metamorphoses the live body toward
+   the new genome instead of teleporting it.
 
    The deal happens once: creatureGenome (in the pure block, where the
    tests hold its ranges) is folded into four vec4s, and from then on
@@ -30537,7 +30612,7 @@ function buildCreature(){
   const group = new THREE.Group();
   const varU = {
     uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
-    uGrow:  { value: 0 }, uFlick: { value: 0 }, uForm: { value: 0 },
+    uGrow:  { value: 0 }, uFlick: { value: 0 }, uForm: { value: 0 }, uPulse: { value: 9 },
     uGenA: { value: new THREE.Vector4(3, 6, 0.7, 0.9) },   // ribs, ribLen, tip, curl
     uGenB: { value: new THREE.Vector4(1.4, 4, 3.6, 1.6) }, // the axis' two cosines: f1, a1, f2, a2
     uGenC: { value: new THREE.Vector4(30, 0, 2.5, 0) },    // span, petals, puff, seed
@@ -30573,7 +30648,7 @@ function buildCreature(){
 
   const vert = VERT_POINT_HEAD + `
     attribute float aS, aR, aSide, aRnd;
-    uniform float uVarA, uVarB, uVarC, uGrow, uFlick, uForm;
+    uniform float uVarA, uVarB, uVarC, uGrow, uFlick, uForm, uPulse;
     uniform vec4 uGenA, uGenB, uGenC, uGenD;
     varying float vTip;
     vec2 rot2(vec2 v, float t){ float c = cos(t), s = sin(t); return vec2(v.x * c - v.y * s, v.x * s + v.y * c); }
@@ -30583,12 +30658,22 @@ function buildCreature(){
       float ph = uGenC.w * TAU;
       bool rib = abs(aSide) > 0.5;
       /* THE RIB FIELD — the one cosine the whole engine turns on. Its square
-         gates both how far a limb reaches and whether its tip ignites. */
-      float k = cos(aS * uGenA.x * TAU + ph * 2.7);
+         gates both how far a limb reaches and whether its tip ignites. The π
+         and e phases drift it along the body at two incommensurate rates, so
+         the animal never strikes exactly the same pose twice — aperiodicity
+         for free, from clocks the app already keeps. */
+      float k = cos(aS * uGenA.x * TAU + ph * 2.7 + uPiPhase * 0.6 + uEPhase * 0.37);
       float kk = k * k;
+      /* THE SPECTRUM, WORN AS A BODY. Station s reads its own bin of the live
+         spectrum texture, so the ribs are not decorated by the audio — they
+         ARE the song's spectrum laid along the creature: bass swells one end,
+         treble shivers the other, and a chord is a posture. */
+      float spec = texture2D(uAudio, vec2(0.04 + aS * 0.82, 0.5)).r;
       float startle = uFlick;                                  // the onset, already eased in JS
       vec3 p;
       float lenN = 0.0;                                        // how far along its reach this dot sits
+      float tcol = -1.0;                                       // a form may claim its own colour walk
+      float pcoord = aS;                                       // …and its own coordinate for the pulse
 
       if (uForm < 0.5){
         /* WYRM — the flow page. The axis IS the two cosine waves; the ribs
@@ -30604,7 +30689,8 @@ function buildCreature(){
         vec2 tang = normalize(vec2(uGenC.x, dy));
         vec2 nrm = vec2(-tang.y, tang.x);
         if (rib){
-          float len = uGenA.y * (0.30 + 0.70 * kk) * taper * (1.0 + uBass * 0.35 + startle * 0.5);
+          float len = uGenA.y * (0.30 + 0.70 * kk) * taper * (0.70 + 0.60 * spec)
+                    * (1.0 + uBass * 0.35 + startle * 0.5);
           float bend = (uGenA.w * (0.5 + 0.5 * k) + startle * 0.9) * aR;
           float wig = sin(aR * 5.0 - sw * 2.0 + aS * 11.0) * (0.05 + uTreble * 0.09) * aR * uGenD.y;
           p.xy += rot2(nrm * aSide, bend * aSide) * (aR * len) + tang * wig;
@@ -30624,7 +30710,8 @@ function buildCreature(){
                 * (1.0 - 0.10 * jet);
         if (rib){
           float skirt = aSide < 0.0 ? 0.45 : 1.0;              // outer tentacles, inner frill
-          float len = uGenA.y * (0.40 + 0.60 * kk) * skirt * (1.0 + uBass * 0.30 + jet * 0.20);
+          float len = uGenA.y * (0.40 + 0.60 * kk) * skirt * (0.75 + 0.50 * spec)
+                    * (1.0 + uBass * 0.30 + jet * 0.20);
           float drop = aR * len;
           vec2 rim = vec2(cos(th), sin(th)) * R * mix(0.78, 1.0, skirt);
           p.x = rim.x * (1.0 + aR * 0.22);
@@ -30641,7 +30728,7 @@ function buildCreature(){
           float dome = cos(rr * 1.35) * uGenC.x * 0.20 * (1.0 + uBass * 0.18 + jet * 0.22);
           p = vec3(cos(thd) * rr * R, uGenC.x * 0.14 + dome, sin(thd) * rr * R);
         }
-      } else {
+      } else if (uForm < 2.5){
         /* BLOOM — the radial page. The rib field sets each ray's reach; the
            petal envelope |cos(P·θ/2)|^sharp cuts the rays into petals. The
            mirror side is the inner whorl, half a petal out of phase — two
@@ -30651,7 +30738,8 @@ function buildCreature(){
         float env = pow(abs(cos(th * uGenC.y * 0.5 + ph)), uGenD.z);
         if (rib){
           float len = uGenA.y * (0.25 + 0.75 * env) * (0.55 + 0.45 * kk)
-                    * mix(1.0, 0.55, whorl) * (1.0 + uBass * 0.25 + startle * 0.4);
+                    * mix(1.0, 0.55, whorl) * (0.75 + 0.50 * spec)
+                    * (1.0 + uBass * 0.25 + startle * 0.4);
           float rad = uGenC.x * 0.09 + aR * len;
           p = vec3(cos(th) * rad, sin(th) * rad, 0.0);
           // the cup: petals lift out of plane as they extend, each whorl its own way
@@ -30664,12 +30752,85 @@ function buildCreature(){
           float rr = sqrt(aS) * uGenC.x * 0.10;
           p = vec3(cos(thd) * rr, sin(thd) * rr, cos(sqrt(aS) * 1.5) * 1.2 + uBass * 0.6);
         }
+      } else if (uForm < 3.5){
+        /* OUROBOROS — the flow page, closed: the wyrm's spine bent into a
+           ring that meets itself (whole harmonics — the closure rule),
+           weaving out of plane on \`petals\` lobes. Ribs radiate in the
+           ring's plane — one side outward, the mirror side into the
+           middle — so the pulse runs a lap of light around the whole
+           animal on every onset. */
+        float th = aS * TAU + sw * 0.10;
+        float R = uGenC.x * 0.34 * (1.0 + 0.10 * cos(aS * uGenB.x * TAU + ph * TAU)
+                                        + 0.06 * cos(aS * uGenB.z * TAU - sw * 0.618));
+        vec2 cdir = vec2(cos(th), sin(th));
+        p = vec3(cdir * R, sin(aS * uGenC.y * TAU + sw * 0.7) * uGenC.z * 0.8);
+        if (rib){
+          float len = uGenA.y * (0.30 + 0.70 * kk) * (0.70 + 0.60 * spec)
+                    * (1.0 + uBass * 0.35 + startle * 0.5);
+          float bend = (uGenA.w * (0.5 + 0.5 * k) + startle * 0.9) * aR;
+          p.xy += rot2(cdir * aSide, bend * aSide) * (aR * len);
+          p.z += aSide * aR * 0.7 * (0.5 + 0.5 * k);
+          lenN = aR;
+        }
+      } else if (uForm < 4.5){
+        /* KELP — the grid page: rooted at the floor, swaying more the
+           higher it reaches (a cantilever, not a snake), fronds drooping
+           as they extend. An open body: fractional waves welcome — a
+           stalk just ends. */
+        float bendPh = sw * 0.9 + ph;
+        float lean = (cos(aS * uGenB.x * TAU * 0.5 + bendPh) * uGenB.y
+                    + cos(aS * uGenB.z * TAU * 0.5 - sw * 0.618 + ph * 3.0) * uGenB.w) * aS * aS;
+        p = vec3(lean, (aS - 0.5) * uGenC.x, sin(bendPh * 0.53 + aS * 2.0) * uGenB.y * 0.5 * aS);
+        if (rib){
+          float blade = 0.25 + 0.75 * sin(aS * 3.14159265);    // fullest mid-stalk
+          float len = uGenA.y * (0.30 + 0.70 * kk) * blade * (0.70 + 0.60 * spec)
+                    * (1.0 + uBass * 0.30 + startle * 0.4);
+          float droop = (0.50 + uGenA.w * (0.5 + 0.5 * k) + startle * 0.6) * aR;
+          float wig = sin(aR * 4.0 - sw * 1.8 + aS * 9.0) * (0.05 + uTreble * 0.08) * aR * uGenD.y;
+          p.xy += rot2(vec2(aSide, 0.0), -droop * aSide) * (aR * len);
+          p.y += wig;
+          p.z += aSide * aR * uGenC.z * 0.3;
+          lenN = aR;
+        }
+      } else {
+        /* COMB JELLY — the organic page, lit from within: a prolate bell
+           whose spine dots are CILIA ROWS — \`petals\` meridians of dots
+           down the body — and the onset pulse runs DOWN the rows as a
+           travelling band of colour, which is precisely what a real
+           ctenophore does with light. The rows walk the palette shimmered
+           by the treble's own bins: the iridescence is the ramp itself. */
+        float jet = uBeat * 0.5 + startle;
+        if (rib){
+          float th = aS * TAU;
+          float skirt = aSide < 0.0 ? 0.5 : 1.0;               // two long trailers, an inner frill
+          float len = uGenA.y * (0.35 + 0.65 * kk) * skirt * (0.75 + 0.50 * spec)
+                    * (1.0 + uBass * 0.25 + jet * 0.25);
+          float drop = aR * len;
+          float R = uGenC.x * 0.20 * mix(0.6, 1.0, skirt);
+          p.x = cos(th) * R * (1.0 - aR * 0.3);
+          p.z = sin(th) * R * (1.0 - aR * 0.3);
+          p.y = -uGenC.x * 0.16 - drop;
+          p.x += sin(drop * 0.5 - sw * 2.0 + th * 3.0) * aR * aR * uGenD.y * (1.0 + uMid * 0.7);
+          p.z += cos(drop * 0.45 - sw * 1.7 + th * 5.0) * aR * aR * uGenD.y;
+          lenN = aR;
+        } else {
+          float rows = max(4.0, uGenC.y);
+          float row = floor(aS * rows) / rows * TAU + sw * 0.05;
+          float v = fract(aS * rows);                          // top of the row → past the equator
+          float lat = 0.35 + v * 2.45;
+          float br = sin(lat) * uGenC.x * 0.22 * (1.0 + 0.05 * cos(row * 3.0));
+          p = vec3(cos(row) * br, cos(lat) * uGenC.x * 0.30 * (1.0 + jet * 0.10), sin(row) * br);
+          pcoord = v;
+          float shimmer = texture2D(uAudio, vec2(0.45 + v * 0.45, 0.5)).r;
+          tcol = fract(v * 1.3 + row * 0.08 + uTime * 0.04 + shimmer * 0.25);
+        }
       }
       p.z += (fract(aRnd * 13.7) - 0.5) * 0.9;                 // a dust of depth — dots, not a decal
 
-      /* the reveal — the animal grows in along its own body: the wyrm head to
-         tail, the radial forms centre outward, the skeleton slightly ahead */
-      float rc = rib ? (uForm < 0.5 ? aS : aR) : aS * 0.5;
+      /* the reveal — the animal grows in along its own body: the open forms
+         head to tail (the kelp root to tip, the ouroboros around its lap),
+         the crowns centre outward, the skeleton slightly ahead */
+      float rc = rib ? ((uForm < 0.5 || (uForm > 2.5 && uForm < 4.5)) ? aS : aR) : aS * 0.5;
       float grown = step(rc, uGrow);
       float edge = smoothstep(uGrow, uGrow - 0.05, rc);
 
@@ -30677,15 +30838,38 @@ function buildCreature(){
          rib field's square clears the genome's threshold, tips only */
       vTip = step(uGenA.z, kk) * smoothstep(0.70, 0.94, lenN) * grown;
 
-      vT = uForm < 0.5 ? aS : fract(aS * 2.0 + aR * 0.35);
+      /* THE PULSE — one wavefront of light leaving the head on every onset,
+         swimming the body's own coordinate: bioluminescence, not a blink.
+         On the comb jelly it runs down the cilia rows, which is the animal's
+         whole reputation. */
+      float lum = exp(-abs(pcoord - uPulse) * 9.0) * step(uPulse, 1.25);
+
+      vT = tcol >= 0.0 ? tcol
+         : (uForm < 0.5 || (uForm > 3.5 && uForm < 4.5)) ? aS
+         : fract(aS * 2.0 + aR * 0.35);
       vGlow = kk * 0.22 + fract(aRnd * 5.7) * 0.18 + (1.0 - edge) * 0.8 * grown
-            + vTip * (0.5 + uTreble * 0.5) + uBeat * 0.15 * lenN;
-      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+            + vTip * (0.5 + uTreble * 0.5) + uBeat * 0.15 * lenN + lum * 0.9 * grown;
+
+      /* THE HAND IS A CURRENT, and the free end knows it: the head leans
+         toward a held touch before the metric even bends — read from the
+         same uPtr the warp reads, in the same screen space, so leading the
+         creature and warping its water are one gesture, not two systems. */
+      vec4 mvRaw = modelViewMatrix * vec4(p, 1.0);
+      float fw = warpForce();
+      if (fw > 0.003){
+        float persp = max(0.6, -mvRaw.z);
+        vec2 scr = mvRaw.xy / persp;
+        float headW = uForm < 0.5 ? smoothstep(0.4, 0.0, aS)
+                    : (uForm > 3.5 && uForm < 4.5) ? smoothstep(0.55, 1.0, aS)
+                    : 0.12;
+        mvRaw.xy += (uPtr.xy - scr) * persp * min(0.35, fw * 0.5) * headW;
+      }
+      vec4 mv = ptrWarp(mvRaw);
       gl_Position = projectionMatrix * mv;
       // small flat dots — the drawing is the SPACING, not the glow; the spine
       // stays near-invisible, a dark river the ribs radiate from
       float base = rib ? 0.85 + fract(aRnd * 9.1) * 0.85 : 0.55 + fract(aRnd * 9.1) * 0.4;
-      gl_PointSize = grown * (base + vTip * (0.8 + uBeat * 0.7)) * (300.0 / -mv.z);
+      gl_PointSize = grown * (base + vTip * (0.8 + uBeat * 0.7) + lum * 0.6) * (300.0 / -mv.z);
     }
   `;
   const creatureFrag = GLSL_MPHI + `
@@ -30711,7 +30895,7 @@ function buildCreature(){
   group.visible = false;
   scene.add(group);
 
-  const st = { flick: 0, lastOnset: 0, spin: 0 };
+  const st = { flick: 0, pulse: 9, lastOnset: 0, spin: 0, goal: null };
   const api = {
     name: 'CREATURE', key: 'creature', group,
     update(dt){
@@ -30719,32 +30903,72 @@ function buildCreature(){
       const prog = (typeof director !== 'undefined' && director.trackProg != null) ? director.trackProg : 0.5;
       const gGoal = 0.10 + prog * 1.05;
       varU.uGrow.value += (gGoal - varU.uGrow.value) * (1 - Math.exp(-dt / 1.6));
-      // the startle — a hard onset snaps the ribs out / jets the bell, then eases off
       const f = AE.f || {};
       if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
         st.lastOnset = f.lastOnsetAt;
-        if (f.beat > 0.35) st.flick = Math.min(1.2, st.flick + 0.7);
+        st.pulse = -0.15;                        // EVERY onset sends light down the body…
+        if (f.beat > 0.35) st.flick = Math.min(1.2, st.flick + 0.7);  // …a real hit startles the flesh too
       }
       st.flick *= Math.exp(-dt * 3.0);
+      if (st.pulse < 8) st.pulse += dt * (0.55 + (f.energy || 0) * 0.6);
+      varU.uPulse.value = st.pulse;
       const imp = (typeof INTERACT !== 'undefined') ? INTERACT.impulse : 0;
       varU.uFlick.value = Math.min(1.5, st.flick + imp * 0.8);
-      // the radial pages turn slowly on their own axis; the wyrm swims in place
+      /* METAMORPHOSIS — the genome eases toward its goal, so a same-page
+         re-deal is a transformation the eye can watch, not a teleport.
+         Whole-count fields were snapped at deal time, so the closure rule
+         holds even mid-morph. */
+      if (st.goal){
+        const e = 1 - Math.exp(-dt / 2.4);
+        varU.uGenA.value.lerp(st.goal.A, e);
+        varU.uGenB.value.lerp(st.goal.B, e);
+        varU.uGenC.value.lerp(st.goal.C, e);
+        varU.uGenD.value.lerp(st.goal.D, e);
+      }
+      // the radial pages turn slowly on their own axis; the open bodies hold still
       group.rotation.z += dt * st.spin * (reducedMotion ? 0.4 : 1);
     },
     roll(){
-      const r = Math.random();
-      const form = CREATURE_FORMS[r < 0.42 ? 0 : r < 0.74 ? 1 : 2];
-      const g = creatureGenome(form.key, Math.random);
-      varU.uGenA.value.set(g.ribs, g.ribLen, g.tip, g.curl);
-      varU.uGenB.value.set(g.waveF1, g.waveA1, g.waveF2, g.waveA2);
-      varU.uGenC.value.set(g.span, g.petals, g.puff, g.seed);
-      varU.uGenD.value.set(g.swim, g.sway, g.sharp, 0);
-      varU.uForm.value = form.key === 'wyrm' ? 0 : form.key === 'medusa' ? 1 : 2;
-      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
-      varU.uGrow.value = 0;
-      // the pose: the wyrm holds its diagonal; the crown and the flower turn
-      group.rotation.set(0, 0, (g.seed - 0.5) * 1.2);
-      st.spin = form.key === 'wyrm' ? 0 : (g.seed - 0.5) * 0.14;
+      /* THE SONG'S OWN ANIMAL. When a track is playing, the whole deal —
+         which page, which genome, which pose — is a pure function of that
+         track's identity, so this song always grows THIS creature: tonight,
+         next month, on your friend's phone. Silence and the mic keep the
+         fresh dice a live room deserves. */
+      const t = (typeof player !== 'undefined' && player.tracks) ? player.tracks[player.cur] : null;
+      const live = (typeof AE !== 'undefined' && AE.mic && AE.mic.on);
+      const id = !live && t ? String(t.sha256 || t.url || t.id) : null;
+      const rng = id != null ? mulberry32(creatureSeed(id)) : Math.random;
+      const r = rng();
+      const form = CREATURE_FORMS[r < 0.24 ? 0 : r < 0.42 ? 1 : r < 0.58 ? 2 : r < 0.72 ? 3 : r < 0.86 ? 4 : 5];
+      const fi = CREATURE_FORMS.indexOf(form);
+      const g = creatureGenome(form.key, rng);
+      const A = new THREE.Vector4(g.ribs, g.ribLen, g.tip, g.curl);
+      const B = new THREE.Vector4(g.waveF1, g.waveA1, g.waveF2, g.waveA2);
+      const C = new THREE.Vector4(g.span, g.petals, g.puff, g.seed);
+      const D = new THREE.Vector4(g.swim, g.sway, g.sharp, 0);
+      if (st.goal && varU.uForm.value === fi && varU.uGrow.value > 0.15){
+        /* same page, new animal: metamorphose. Whole-count fields snap NOW,
+           into the live value and the goal alike — a closed rim passing
+           through ribs = 5.5 on its way would tear mid-morph (the closure
+           rule); everything continuous glides over a few seconds. */
+        if (form.key !== 'wyrm' && form.key !== 'kelp'){
+          varU.uGenA.value.x = A.x; varU.uGenB.value.x = B.x;
+          varU.uGenB.value.z = B.z; varU.uGenC.value.y = C.y;
+        }
+        st.goal.A.copy(A); st.goal.B.copy(B); st.goal.C.copy(C); st.goal.D.copy(D);
+      } else {
+        // a new page: the new body grows in from its own beginning
+        st.goal = st.goal || { A: new THREE.Vector4(), B: new THREE.Vector4(), C: new THREE.Vector4(), D: new THREE.Vector4() };
+        st.goal.A.copy(A); st.goal.B.copy(B); st.goal.C.copy(C); st.goal.D.copy(D);
+        varU.uGenA.value.copy(A); varU.uGenB.value.copy(B); varU.uGenC.value.copy(C); varU.uGenD.value.copy(D);
+        varU.uForm.value = fi;
+        varU.uGrow.value = 0;
+        // the pose: the swimmers hold a diagonal; the rooted and hanging bodies stay upright
+        const tilt = form.key === 'kelp' ? 0.25 : form.key === 'comb' ? 0.45 : 1.2;
+        group.rotation.set(0, 0, (g.seed - 0.5) * tilt);
+      }
+      varU.uVarA.value = rng(); varU.uVarB.value = rng(); varU.uVarC.value = rng();
+      st.spin = (form.key === 'wyrm' || form.key === 'kelp') ? 0 : (g.seed - 0.5) * 0.14;
       api.name = 'CREATURE · ' + form.name;
       return api.name;
     },
@@ -31230,13 +31454,26 @@ const LENS_GRADE = `
        rooms cross while BOTH are soft, so at no point in the transition
        is there a sharp edge anywhere in the frame to notice.
    ================================================================ */
+/* THE LIT FORMS' COLOURS, baked from the pure spectral machinery at boot:
+   the Frank–Tamm blue a reactor pool actually glows, the aurora's two real
+   lines (oxygen green at 557.7 nm, the N₂⁺ violet at 427.8 nm), and the
+   burn's two blackbody temperatures — physics chosen once, in JS where the
+   tests can reach it, and handed to the GPU as constants. */
+const XFORM_LIGHTS = (() => {
+  const v = c => 'vec3(' + [c.r, c.g, c.b].map(x => (+x).toFixed(4)).join(', ') + ')';
+  return '\n  const vec3 CHER = ' + v(cherenkovRGB()) + ';'
+       + '\n  const vec3 AUR_G = ' + v(wavelengthLinear(557.7)) + ';'
+       + '\n  const vec3 AUR_V = ' + v(wavelengthLinear(427.8)) + ';'
+       + '\n  const vec3 EMB_LO = ' + v(kelvinLinear(1500)) + ';'
+       + '\n  const vec3 EMB_HI = ' + v(kelvinLinear(2600)) + ';\n';
+})();
 const XFORM_FRAG = `
   precision highp float;
   uniform sampler2D tScene;      // the room being ARRIVED in — live, still animating
   uniform sampler2D tGhost;      // the room being LEFT — frozen on the frame of the cut
   uniform vec2 uResolution;
   uniform float uT, uKind, uSeed, uTime, uEnergy, uBeat, uCentroid;
-  ` + GLSL_MPHI + `
+  ` + GLSL_MPHI + XFORM_LIGHTS + `
   float h21(vec2 p){
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 34.23);
@@ -31369,7 +31606,7 @@ const XFORM_FRAG = `
       col = vec3(mix(GH(uv + d0).r, SC(uv - d0).r, m),
                  mix(GH(uv + d1).g, SC(uv - d1).g, m),
                  mix(GH(uv + d2).b, SC(uv - d2).b, m));
-    } else {
+    } else if (uKind < 6.5){
       /* FOLD. BOTH rooms are folded into the same N-fold symmetry by the same
          amount, which rises to full at the midpoint and relaxes back to none —
          so at the moment of the swap the frame is a symmetry that belongs to
@@ -31385,6 +31622,81 @@ const XFORM_FRAG = `
       vec2 q = vec2(cos(ao), sin(ao)) * rr * (1.0 + fold * 0.10);
       vec2 fuv = q / vec2(asp, 1.0) + 0.5;
       col = mix(GH(fuv), SC(fuv), m);
+    } else if (uKind < 7.5){
+      /* CHERENKOV. The reactor pool's light, honestly: CHER above is the
+         Frank–Tamm 1/λ² spectrum integrated against the CIE observer at
+         boot — the colour physics gives a charge outrunning light in water.
+         A wall of that light crosses the room in a seed-dealt direction, and
+         the handover happens INSIDE the glow, on a wide, dithered band —
+         LUMA's no-edge bargain, lit: there is a front of light but never a
+         line a ruler could find. Ahead of the wall the glow is dim and
+         sharp; behind it it blooms, striated like light through moving
+         water, with the occasional charged track racing the front. */
+      float b0 = uSeed * 6.2831853;
+      vec2 dirw = vec2(cos(b0), sin(b0));
+      float span = abs(dirw.x) * asp + abs(dirw.y);
+      float dn = dot(c, dirw) / max(0.30, 0.55 * span);   // −1..1 across the frame, any direction
+      float F = mix(-1.35, 1.35, t);
+      float d = dn - F;
+      float dith = (vnz(uv * 7.0 + uSeed * 23.0) - 0.5) * 0.34
+                 + (h21(gl_FragCoord.xy + uSeed * 5.0) - 0.5) * 0.18;
+      col = mix(SC(uv), GH(uv), smoothstep(-0.16, 0.16, d + dith));
+      float amp = sin(t * PI);
+      /* the pool is a DARK room — the wall reads because the water around it
+         dims, not only because the light adds. A wide veil travels with the
+         front so the blue carries even over a bright, saturated scene. */
+      float veil = exp(-abs(d) * 1.6);
+      col *= 1.0 - 0.45 * amp * veil;
+      float glow = exp(-abs(d) * (d > 0.0 ? 5.5 : 2.0));
+      float across = dot(c, vec2(-dirw.y, dirw.x));
+      float water = 0.75 + 0.25 * vnz(vec2(across * 5.0, dn * 2.0 - uTime * 0.8) + uSeed * 31.0);
+      float trk = pow(vnz(vec2(across * 26.0, dn * 4.0 - t * 9.0) + uSeed * 47.0), 8.0);
+      col += CHER * amp * (glow * (1.60 + uEnergy * 0.30) * water + trk * glow * 2.2);
+    } else if (uKind < 8.5){
+      /* AURORA. The sky's two real lines — oxygen green at 557.7 nm, with
+         the N₂⁺ violet climbing above it — descend through the room as a
+         curtain whose hem wobbles and whose folds drift sideways. The swap
+         hides inside the light exactly as CHERENKOV's does: a wide dithered
+         band under the brightest part of the hem. */
+      float wob = (vnz(vec2(uv.x * 2.6, t * 1.3) + uSeed * 13.0) - 0.5) * 0.30;
+      float e = 1.18 - t * 1.42 + wob;                    // the curtain's lower hem
+      float d = uv.y - e;
+      float dith = (vnz(uv * 6.0 + uSeed * 29.0) - 0.5) * 0.30
+                 + (h21(gl_FragCoord.xy + uSeed * 3.0) - 0.5) * 0.16;
+      col = mix(GH(uv), SC(uv), smoothstep(-0.14, 0.14, d + dith));
+      float amp = sin(t * PI);
+      float folds = 0.55 + 0.45 * vnz(vec2(uv.x * 24.0 + uSeed * 41.0, uv.y * 1.5 - t * 2.2));
+      float hem = exp(-abs(d) * 9.0);
+      float skirt = exp(-max(0.0, -d) * 5.0);             // the green falls below the hem
+      float veil = exp(-max(0.0, d) * 7.0);               // the violet climbs above it
+      col += (AUR_G * (hem * 0.9 + skirt * 0.35) + AUR_V * veil * 0.45)
+           * folds * amp * (0.8 + uEnergy * 0.2);
+    } else {
+      /* EMBER. No front at all: the old room CATCHES, grain by grain, its
+         own highlights first — LUMA's mask, lit. The burn line is fractal
+         noise glowing between two real blackbody temperatures (1500 K deep
+         in the char, 2600 K where it is burning hardest), and behind the
+         char is the new room. Burning paper, at room scale, with nothing in
+         the frame a ruler could find. */
+      /* the mask leans on the old room's highlights but STANDS on spatial
+         noise — a ghost frame that happens to be dark must still burn
+         patchily across the whole run, not flip all at once at the end */
+      float y = lum(GH(uv));
+      float k = vnz(uv * 3.0 + uSeed * 19.0) * 0.55
+              + (1.0 - clamp(y * 1.7, 0.0, 1.0)) * 0.28
+              + vnz(uv * 17.0 + uSeed * 7.0) * 0.12
+              + h21(gl_FragCoord.xy + uSeed * 11.0) * 0.05;
+      float w = 0.26;
+      float T = t * (1.0 + 2.0 * w) - w;
+      float burn = smoothstep(T - w, T + w, k);           // 1 = still the old room
+      col = mix(SC(uv), GH(uv), burn);
+      float amp = sin(t * PI);
+      // the paper BROWNS just ahead of the flame — the heat arrives before the light
+      float near = smoothstep(T + w + 0.10, T + w, k) * burn;
+      col *= mix(vec3(1.0), vec3(0.62, 0.47, 0.36), near * amp * 0.7);
+      float edge = burn * (1.0 - burn) * 4.0;             // hottest where the handover is NOW
+      vec3 fire = mix(EMB_LO, EMB_HI, clamp(edge + h21(gl_FragCoord.xy + t * 60.0) * 0.35, 0.0, 1.0));
+      col += fire * edge * edge * amp * (1.15 + uBeat * 0.4);
     }
 
     gl_FragColor = vec4(col, 1.0);

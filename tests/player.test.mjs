@@ -53,13 +53,13 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
-  ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
+  ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, cherenkovRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
   ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
   ' CIE_LOBES, XYZ_TO_SRGB, xyzToLinearRGB, DISC_PITCH, AIRY_J1_ZERO, rayleighSep, DISP_WB,' +
   ' FILAMENT_FORMS, LORENZ, THOMAS_B, FILM_N, FILM_R0, FILM_AGES, filmState, TERRAIN_FORMS,' +
-  ' CREATURE_FORMS, creatureGenome,' +
+  ' CREATURE_FORMS, creatureGenome, creatureSeed,' +
   ' EIGEN, EIGEN_LESSONS, eigenDot, eigenTql2, eigenLanczos, eigenSolve, eigenOccupation, eigenTimeUnit,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
@@ -1985,28 +1985,43 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
 });
 
 test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
+  const OPEN = ['wyrm', 'kelp'];              // a spine or a stalk just ends
+  assert.equal(S.CREATURE_FORMS.length, 6, 'six pages in the book');
   for (const F of S.CREATURE_FORMS){
     const rng = S.mulberry32(7 + F.key.length);
     for (let n = 0; n < 200; n++){
       const g = S.creatureGenome(F.key, rng);
       assert.equal(g.form, F.key);
-      for (const [k, lo, hi] of [['ribs', 2, 7], ['ribLen', 4.5, 15], ['tip', 0.55, 0.92],
-        ['curl', 0.2, 1.5], ['span', 20, 34], ['puff', 1.5, 4], ['seed', 0, 1],
+      for (const [k, lo, hi] of [['ribs', 2, 9], ['ribLen', 4.5, 16], ['tip', 0.5, 0.92],
+        ['curl', 0.2, 1.5], ['span', 18, 34], ['puff', 1.5, 4], ['seed', 0, 1],
         ['swim', 0.6, 1.4], ['sway', 0.8, 2], ['sharp', 0.8, 2.6]])
         assert.ok(g[k] >= lo && g[k] <= hi, `${F.key}.${k} = ${g[k]} outside [${lo}, ${hi}]`);
-      if (F.key === 'wyrm') assert.equal(g.petals, 0, 'an open spine has no symmetry order');
+      if (OPEN.includes(F.key)) assert.equal(g.petals, 0, 'an open body has no symmetry order');
       else {
         /* the closure rule: cos(n·θ) only meets itself around a circle when n
            is whole — a rim harmonic that misses its own start is a tear */
         for (const k of ['petals', 'ribs', 'waveF1', 'waveF2'])
           assert.equal(g[k], Math.round(g[k]), `${F.key}.${k} must be whole, got ${g[k]}`);
-        assert.ok(g.petals >= 5, 'a crown carries at least five scallops/petals');
+        assert.ok(g.petals >= 2, 'a closed body carries a real symmetry order');
       }
     }
   }
   // the deal is a pure function of its rng: same seed, same animal
   assert.deepEqual(S.creatureGenome('medusa', S.mulberry32(99)),
                    S.creatureGenome('medusa', S.mulberry32(99)), 'no hidden dice');
+});
+
+test('creatureSeed: a song is a stable animal — same id, same seed, same genome', () => {
+  assert.equal(S.creatureSeed('sha-abc123'), S.creatureSeed('sha-abc123'));
+  assert.notEqual(S.creatureSeed('sha-abc123'), S.creatureSeed('sha-abc124'),
+    'different songs, different animals');
+  const s = S.creatureSeed('x');
+  assert.ok(Number.isInteger(s) && s >= 0 && s <= 0xFFFFFFFF, 'a 32-bit seed for mulberry32');
+  assert.equal(S.creatureSeed(null), S.creatureSeed(''), 'nothing hashes honestly, never throws');
+  // and the whole deal downstream is deterministic: id → seed → rng → genome
+  assert.deepEqual(S.creatureGenome('comb', S.mulberry32(S.creatureSeed('song-1'))),
+                   S.creatureGenome('comb', S.mulberry32(S.creatureSeed('song-1'))),
+    'the same song grows the same creature');
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -5363,7 +5378,21 @@ test('segueFx: nothing in the vocabulary draws an edge', () => {
      so a deliberate act with a failing test attached. */
   for (const gone of ['shatter', 'iris', 'ripple', 'streak', 'wipe', 'slide'])
     assert.ok(!S.XFORM_KINDS.includes(gone), `${gone} draws an edge and does not belong here`);
+  /* …and when fronts of light DID come — asked for by name — they came under
+     this rule's terms: CHERENKOV, AURORA and EMBER all hide their handover on
+     a wide dithered band inside the glow (LUMA's bargain, lit), so there is a
+     wall of light but never a line a ruler could find. The names above stay
+     banned because they are geometry with nothing to hide in. */
+  for (const lit of ['cherenkov', 'aurora', 'ember'])
+    assert.ok(S.XFORM_KINDS.includes(lit), `${lit} belongs to the vocabulary now`);
   assert.equal(new Set(S.XFORM_KINDS).size, S.XFORM_KINDS.length, 'a form is listed twice');
+});
+test('cherenkovRGB: the reactor pool is blue because 1/λ² says so', () => {
+  const c = S.cherenkovRGB();
+  assert.equal(c.b, 1, 'normalised to its brightest channel — which had better be blue');
+  assert.ok(c.g < c.b && c.r < c.g, `blue over green over red, got ${JSON.stringify(c)}`);
+  assert.ok(c.r >= 0 && c.g >= 0, 'no negative light');
+  assert.deepEqual(S.cherenkovRGB(), c, 'the physics does not roll dice');
 });
 test('segueFx: a drop gets a drop’s transition, a quiet room gets a quiet one', () => {
   const draw = o => { const out = new Set(); for (let i = 0; i <= 60; i++) out.add(S.segueFx({ ...o, r: i / 60 })); return out; };
@@ -5376,7 +5405,8 @@ test('segueFx: a drop gets a drop’s transition, a quiet room gets a quiet one'
 
   const quiet = draw({ kind: 'dissolve', energy: 0.1 });
   assert.ok(quiet.has('dissolve'), 'the plain crossfade has to keep coming up');
-  for (const quick of ['prism', 'refract', 'scatter'])
+  assert.ok(quiet.has('aurora'), 'a quiet passage may get the sky');
+  for (const quick of ['prism', 'refract', 'scatter', 'cherenkov'])
     assert.ok(!quiet.has(quick), `a quiet passage does not need ${quick}`);
 
   // a section turn is one room BECOMING another; the incidental forms are not that
