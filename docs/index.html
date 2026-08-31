@@ -4561,11 +4561,13 @@ const TERRAIN_FORMS = [
    tip IGNITES. That is the entire trick of the dot-drawn "cosine creature"
    — a spine, ribs whose reach is the wave, and ember tips where the wave
    peaks — and it generalises the way a pattern book generalises: hold the
-   field, swap the body it is laid on. Six pages here, after the pages a
-   book of shapes is organised by — FLOW open (a spine: the WYRM) and FLOW
-   closed (the spine eating its tail: the OUROBOROS), ORGANIC (a scalloped
-   closed rim: the MEDUSA; and lit from within: the COMB JELLY), RADIAL (a
-   petalled rosette: the BLOOM), GRID (a rooted, swaying stalk: the KELP).
+   field, swap the body it is laid on. Nine pages here, after the pages a
+   book of shapes is organised by — FLOW open (a spine: the WYRM; a colonial
+   chain trailing its lines: the SIPHONOPHORE) and FLOW closed (the spine
+   eating its tail: the OUROBOROS), ORGANIC (a scalloped closed rim: the
+   MEDUSA; lit from within: the COMB JELLY; winged: the MOTH), RADIAL (a
+   petalled rosette: the BLOOM), GRID (a rooted, swaying stalk: the KELP; a
+   glass sphere bristling spicules: the RADIOLARIAN).
 
    Everything a creature IS lives in this genome — dealt once per visit,
    bounded here, and handed to the GPU as four vec4s. The scene's vertex
@@ -4584,6 +4586,9 @@ const CREATURE_FORMS = [
   { key: 'ouro',   name: 'OUROBOROS' },// the flow page, closed — the spine eats its tail
   { key: 'kelp',   name: 'KELP' },     // the grid page — rooted, swaying, fronded
   { key: 'comb',   name: 'COMB JELLY' },// the organic page, lit — cilia rows that ripple light
+  { key: 'siphon', name: 'SIPHONOPHORE' },// the flow page, colonial — a drifting chain trailing its lines
+  { key: 'radiol', name: 'RADIOLARIAN' },// the grid page, spherical — a glass lattice bristling spicules
+  { key: 'moth',   name: 'MOTH' },     // the organic page, winged — two dotted fans that beat the air
 ];
 /* WHICH SONG, WHICH ANIMAL. A track's identity hashed to a 32-bit seed
    (FNV-1a, the same construction the colour conductor uses for its plans),
@@ -4659,6 +4664,27 @@ function creatureGenome(form, rnd){
     g.span   = pick(18, 24);
     g.ribLen = pick(10, 16);                // the tentacles trail far below the body
     g.tip    = pick(0.50, 0.75);
+  }
+  if (form === 'siphon'){
+    g.span   = pick(26, 34);                // the colony's whole length — open, fractional welcome
+    g.ribLen = pick(8, 14);                 // the tentilla trail long
+    g.curl   = pick(0.6, 1.5);              // …and coil, which is what tentilla do
+    g.sway   = pick(1.0, 1.8);
+  }
+  if (form === 'radiol'){
+    g.petals = Math.round(pick(2, 5));      // the secondary spicule field's order — whole
+    g.ribs   = Math.round(pick(3, 8));      // the primary field over the shell — whole
+    g.waveF1 = Math.round(pick(1, 3));
+    g.waveF2 = Math.round(pick(4, 7));
+    g.span   = pick(16, 22);                // the capsule — the spicules reach past it
+    g.ribLen = pick(6, 10);
+    g.curl   = pick(0.2, 0.6);              // glass barely bends
+  }
+  if (form === 'moth'){
+    g.span   = pick(20, 28);                // the wingspan
+    g.ribLen = pick(9, 14);
+    g.curl   = pick(0.2, 0.8);
+    g.sharp  = pick(1.2, 2.6);              // the wing's taper
   }
   return g;
 }
@@ -6753,6 +6779,46 @@ function dmxChordStop(chord, role, i){
    colour engine attached; the caller converts its own OKLCH stops once.
    Everything is clamped on the way out by dmxIntent, but the arithmetic here
    is kept inside 0..1 anyway so a preset can be read and reasoned about. */
+/* THE RIG RIDES THE TRANSITION. While a lit segue crosses the screen the
+   lamps are handed the same light: the wash leans toward the transition's
+   own colour and the room's brightness rides its envelope — the eclipse
+   genuinely darkens the rig through totality, the way a real eclipse
+   darkens a field. A pure function of (kind, t) so the wire, the tests and
+   tomorrow's kinds all read one table. The unlit forms return null and the
+   lamps stay the music's alone. STROBE IS NEVER TOUCHED: a transition is
+   not permission to flash anybody. The colours are the same physics the
+   screen bakes — Frank–Tamm blue, the auroral pair, two ember kelvins, the
+   sprite's N₂ red, the chromosphere's Hα — computed lazily so block order
+   never matters. */
+let _segueLights = null;
+function dmxSegueLights(){
+  if (!_segueLights) _segueLights = {
+    cher:   encodeRGB(cherenkovRGB()),
+    aurG:   wavelengthRGB(557.7), aurV: wavelengthRGB(427.8),
+    embLo:  kelvinRGB(1500), embHi: kelvinRGB(2600),
+    sprite: wavelengthRGB(662.0),
+    chromo: wavelengthRGB(656.3),
+  };
+  return _segueLights;
+}
+function dmxSegueTint(kind, t){
+  const x = Math.max(0, Math.min(1, Number(t) || 0));
+  const amp = Math.sin(x * Math.PI);
+  if (!(amp > 0.001)) return null;                 // the ends are exactly a no-op
+  const L = dmxSegueLights();
+  const lerp = (a, b, k) => ({ r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k });
+  let c, mix, lift;
+  switch (String(kind)){
+    case 'cherenkov': c = L.cher;                mix = amp * 0.80; lift = amp * 0.25; break;
+    case 'aurora':    c = lerp(L.aurG, L.aurV, x); mix = amp * 0.70; lift = amp * 0.15; break;
+    case 'ember':     c = lerp(L.embLo, L.embHi, amp); mix = amp * 0.70; lift = amp * 0.20; break;
+    case 'sprite':    c = L.sprite;              mix = amp * 0.75; lift = amp * 0.30; break;
+    case 'eclipse':   c = L.chromo;              mix = amp * 0.30; lift = -amp * 0.85; break;
+    default: return null;
+  }
+  return { r: c.r, g: c.g, b: c.b, mix, lift };
+}
+
 function dmxShowIntents(show, patched){
   const s = show || {};
   const preset = DMX_PRESETS[s.preset] || DMX_PRESETS[dmxAutoPreset(s)] || DMX_PRESETS.follow;
@@ -6792,6 +6858,18 @@ function dmxShowIntents(show, patched){
       rainbow: prof.can.rainbow ? u(preset.rainbow) : 0,
       punch: u(beat * energy),
     };
+  }
+  /* the lit transitions reach the lamps too — same light, same clock. Never
+     on an off rig, and never through the strobe channel. */
+  const tint = s.segue && !preset.off && master > 0 ? dmxSegueTint(s.segue.kind, s.segue.t) : null;
+  if (tint){
+    for (const id in out){
+      const it = out[id];
+      it.r = u(it.r + (tint.r - it.r) * tint.mix);
+      it.g = u(it.g + (tint.g - it.g) * tint.mix);
+      it.b = u(it.b + (tint.b - it.b) * tint.mix);
+      it.dim = u(tint.lift >= 0 ? it.dim + (1 - it.dim) * tint.lift : it.dim * (1 + tint.lift));
+    }
   }
   return out;
 }
@@ -11601,7 +11679,7 @@ function segueStyle(ctx){
    the mechanism instead of at the room.
    --------------------------------------------------------------------------- */
 const XFORM_KINDS = ['luma', 'scatter', 'defocus', 'aerial', 'refract', 'prism', 'fold',
-                     'cherenkov', 'aurora', 'ember'];
+                     'cherenkov', 'aurora', 'ember', 'sprite', 'eclipse'];
 /* HOW LONG EACH ONE NEEDS. A floor, not a setting — and these are LONG, on
    purpose. A transition that has to be quick to survive is a transition doing
    something drastic, and drastic is the thing being avoided. Rushed, all of
@@ -11612,7 +11690,8 @@ const XFORM_KINDS = ['luma', 'scatter', 'defocus', 'aerial', 'refract', 'prism',
    one thing the safety engine exists to refuse. */
 const XFORM_MIN_DUR = { luma: 1.00, scatter: 1.25, defocus: 0.70, aerial: 1.10,
                         refract: 0.95, prism: 0.55, fold: 1.00,
-                        cherenkov: 1.15, aurora: 1.30, ember: 1.05 };
+                        cherenkov: 1.15, aurora: 1.30, ember: 1.05,
+                        sprite: 1.25, eclipse: 1.60 };
 function segueFx(o){
   o = o || {};
   // A room whose whole point is manufactured large-field motion is exactly what
@@ -11623,9 +11702,9 @@ function segueFx(o){
   const r = o.r == null ? 0.5 : o.r;
   let pool;
   if (o.kind === 'cut')        pool = ['defocus', 'prism', 'refract', 'defocus'];
-  else if (o.kind === 'morph') pool = ['scatter', 'aerial', 'fold', 'luma', 'aurora', 'ember', 'dissolve'];
-  else if (e < 0.30)           pool = ['luma', 'aerial', 'dissolve', 'aurora', 'defocus'];
-  else                         pool = ['luma', 'aerial', 'scatter', 'refract', 'defocus', 'cherenkov', 'ember', 'dissolve'];
+  else if (o.kind === 'morph') pool = ['scatter', 'aerial', 'fold', 'luma', 'aurora', 'ember', 'eclipse', 'dissolve'];
+  else if (e < 0.30)           pool = ['luma', 'aerial', 'dissolve', 'aurora', 'eclipse', 'defocus'];
+  else                         pool = ['luma', 'aerial', 'scatter', 'refract', 'defocus', 'cherenkov', 'ember', 'sprite', 'dissolve'];
   const i = Math.floor(Math.abs(r) * 997) % pool.length;
   let k = pool[i];
   /* AND NOT THE SAME FORM TWICE. Stepping ONE place forward is not enough: a
@@ -30792,7 +30871,7 @@ function buildCreature(){
           p.z += aSide * aR * uGenC.z * 0.3;
           lenN = aR;
         }
-      } else {
+      } else if (uForm < 5.5){
         /* COMB JELLY — the organic page, lit from within: a prolate bell
            whose spine dots are CILIA ROWS — \`petals\` meridians of dots
            down the body — and the onset pulse runs DOWN the rows as a
@@ -30824,13 +30903,89 @@ function buildCreature(){
           float shimmer = texture2D(uAudio, vec2(0.45 + v * 0.45, 0.5)).r;
           tcol = fract(v * 1.3 + row * 0.08 + uTime * 0.04 + shimmer * 0.25);
         }
+      } else if (uForm < 6.5){
+        /* SIPHONOPHORE — the flow page, colonial: not one animal but a
+           CHAIN of them, drifting head-down through the water with a
+           curtain of coiled tentilla streaming behind. The spine dots are
+           the colony's stem; one mirror side is the row of little swimming
+           bells hugging it, the other is the long lines — and the lines
+           COIL, because tentilla do. */
+        float drift = sin(sw * 0.7 + ph) * 2.0;
+        p = vec3(drift * aS + cos(aS * uGenB.x * TAU + sw * 0.5 + ph) * uGenB.y * 0.35 * aS,
+                 (0.5 - aS) * uGenC.x,
+                 sin(aS * uGenB.z * TAU * 0.5 - sw * 0.4) * uGenB.w * 0.5 * aS);
+        if (rib){
+          if (aSide > 0.0){
+            // the nectophores: small bells riding the stem, pulsing with the beat
+            float bell = 0.8 + 0.5 * kk + uBeat * 0.35;
+            float aa = aR * TAU;
+            p.x += cos(aa) * bell; p.z += sin(aa) * bell * 0.8;
+            p.y += sin(aa * 2.0 + sw) * 0.3;
+            lenN = 0.0;                                        // bells carry no ember tips
+          } else {
+            // the tentilla: long trailing lines that coil as they fall
+            float len = uGenA.y * (0.35 + 0.65 * kk) * (0.70 + 0.60 * spec)
+                      * (1.0 + uBass * 0.25 + startle * 0.4);
+            float drop = aR * len;
+            p.y -= drop;
+            p.x += sin(drop * uGenA.w * 1.8 - sw * 1.6 + aS * 17.0) * aR * uGenD.y * 0.9;
+            p.z += cos(drop * uGenA.w * 1.5 - sw * 1.3 + aS * 23.0) * aR * uGenD.y * 0.7;
+            lenN = aR;
+          }
+        }
+      } else if (uForm < 7.5){
+        /* RADIOLARIAN — the grid page made spherical: the glass plankton.
+           The spine dots lay a golden-angle lattice over the capsule; the
+           ribs are SPICULES marching straight out along their own station's
+           direction on the same lattice, their reach set by the rib field
+           and the spectrum — a geodesic sea-creature whose spines are the
+           song. Glass barely bends, so the curl is spent on a slow twist of
+           the whole lattice instead. */
+        float tw = sw * 0.15 * uGenA.w;
+        float zz = 1.0 - 2.0 * aS;
+        float rr = sqrt(max(0.0, 1.0 - zz * zz));
+        float thg = aS * 650.0 * 2.39996323 + tw + (rib && aSide < 0.0 ? 1.199982 : 0.0);
+        vec3 dir3 = vec3(cos(thg) * rr, zz, sin(thg) * rr);
+        float shell = uGenC.x * 0.32 * (1.0 + uBass * 0.10 + startle * 0.15);
+        if (rib){
+          float second = aSide < 0.0 ? 0.45 : 1.0;             // a finer inner bristle between the great spines
+          float len = uGenA.y * (0.30 + 0.70 * kk) * second * (0.70 + 0.60 * spec)
+                    * (1.0 + uBass * 0.20 + startle * 0.5);
+          p = dir3 * (shell + aR * len);
+          lenN = aR;
+        } else {
+          p = dir3 * shell;                                     // the capsule itself, breathing
+        }
+      } else {
+        /* MOTH — the organic page, winged: two dotted fans beating from a
+           short furred body. Each station is one wing ray; the rib field
+           and the fan envelope set its reach, the sharp exponent tapers
+           the wing, and the whole fan ROTATES out of plane on the beat —
+           the wings genuinely beat the air of the music. Tips ignite at
+           the wing edge: eyespots, where the field peaks. */
+        float fan = mix(-0.42, 0.58, aS) * 3.14159265;         // the wing's spread, hind to fore
+        float env = pow(sin(aS * 3.14159265), uGenD.z * 0.5 + 0.35);
+        float flap = sin(sw * 1.8 + ph) * (0.45 + uBass * 0.45 + startle * 0.5);
+        p = vec3(0.0, (aS - 0.5) * uGenC.x * 0.16, 0.0);       // the body: short, quiet
+        if (rib){
+          float len = uGenA.y * (0.40 + 0.60 * kk) * env * (0.70 + 0.60 * spec);
+          float reach = aR * len;
+          float wx = cos(fan) * reach, wy = sin(fan) * reach;
+          // the flap: the wing plane rotates about the body's own axis
+          p.x = aSide * wx * cos(flap * aSide);
+          p.y += wy * (0.8 + 0.2 * cos(flap));
+          p.z = aSide * wx * sin(flap * aSide) + sin(reach * 0.4 + sw) * 0.3;
+          // a hair of curl: the trailing edge lags the stroke
+          p.z += aSide * uGenA.w * aR * aR * sin(flap * aSide) * 0.6;
+          lenN = aR;
+        }
       }
       p.z += (fract(aRnd * 13.7) - 0.5) * 0.9;                 // a dust of depth — dots, not a decal
 
       /* the reveal — the animal grows in along its own body: the open forms
          head to tail (the kelp root to tip, the ouroboros around its lap),
          the crowns centre outward, the skeleton slightly ahead */
-      float rc = rib ? ((uForm < 0.5 || (uForm > 2.5 && uForm < 4.5)) ? aS : aR) : aS * 0.5;
+      float rc = rib ? ((uForm < 0.5 || (uForm > 2.5 && uForm < 4.5) || (uForm > 5.5 && uForm < 6.5)) ? aS : aR) : aS * 0.5;
       float grown = step(rc, uGrow);
       float edge = smoothstep(uGrow, uGrow - 0.05, rc);
 
@@ -30845,7 +31000,7 @@ function buildCreature(){
       float lum = exp(-abs(pcoord - uPulse) * 9.0) * step(uPulse, 1.25);
 
       vT = tcol >= 0.0 ? tcol
-         : (uForm < 0.5 || (uForm > 3.5 && uForm < 4.5)) ? aS
+         : (uForm < 0.5 || (uForm > 3.5 && uForm < 4.5) || (uForm > 5.5 && uForm < 6.5)) ? aS
          : fract(aS * 2.0 + aR * 0.35);
       vGlow = kk * 0.22 + fract(aRnd * 5.7) * 0.18 + (1.0 - edge) * 0.8 * grown
             + vTip * (0.5 + uTreble * 0.5) + uBeat * 0.15 * lenN + lum * 0.9 * grown;
@@ -30859,7 +31014,7 @@ function buildCreature(){
       if (fw > 0.003){
         float persp = max(0.6, -mvRaw.z);
         vec2 scr = mvRaw.xy / persp;
-        float headW = uForm < 0.5 ? smoothstep(0.4, 0.0, aS)
+        float headW = (uForm < 0.5 || (uForm > 5.5 && uForm < 6.5)) ? smoothstep(0.4, 0.0, aS)
                     : (uForm > 3.5 && uForm < 4.5) ? smoothstep(0.55, 1.0, aS)
                     : 0.12;
         mvRaw.xy += (uPtr.xy - scr) * persp * min(0.35, fw * 0.5) * headW;
@@ -30939,7 +31094,8 @@ function buildCreature(){
       const id = !live && t ? String(t.sha256 || t.url || t.id) : null;
       const rng = id != null ? mulberry32(creatureSeed(id)) : Math.random;
       const r = rng();
-      const form = CREATURE_FORMS[r < 0.24 ? 0 : r < 0.42 ? 1 : r < 0.58 ? 2 : r < 0.72 ? 3 : r < 0.86 ? 4 : 5];
+      const form = CREATURE_FORMS[r < 0.16 ? 0 : r < 0.28 ? 1 : r < 0.39 ? 2 : r < 0.49 ? 3 : r < 0.59 ? 4
+                                : r < 0.70 ? 5 : r < 0.80 ? 6 : r < 0.90 ? 7 : 8];
       const fi = CREATURE_FORMS.indexOf(form);
       const g = creatureGenome(form.key, rng);
       const A = new THREE.Vector4(g.ribs, g.ribLen, g.tip, g.curl);
@@ -30964,11 +31120,15 @@ function buildCreature(){
         varU.uForm.value = fi;
         varU.uGrow.value = 0;
         // the pose: the swimmers hold a diagonal; the rooted and hanging bodies stay upright
-        const tilt = form.key === 'kelp' ? 0.25 : form.key === 'comb' ? 0.45 : 1.2;
+        const tilt = form.key === 'kelp' ? 0.25
+                   : form.key === 'comb' ? 0.45
+                   : form.key === 'siphon' ? 0.35
+                   : form.key === 'moth' ? 0.5 : 1.2;
         group.rotation.set(0, 0, (g.seed - 0.5) * tilt);
       }
       varU.uVarA.value = rng(); varU.uVarB.value = rng(); varU.uVarC.value = rng();
-      st.spin = (form.key === 'wyrm' || form.key === 'kelp') ? 0 : (g.seed - 0.5) * 0.14;
+      st.spin = (form.key === 'wyrm' || form.key === 'kelp' || form.key === 'siphon' || form.key === 'moth')
+              ? 0 : (g.seed - 0.5) * 0.14;
       api.name = 'CREATURE · ' + form.name;
       return api.name;
     },
@@ -31465,7 +31625,9 @@ const XFORM_LIGHTS = (() => {
        + '\n  const vec3 AUR_G = ' + v(wavelengthLinear(557.7)) + ';'
        + '\n  const vec3 AUR_V = ' + v(wavelengthLinear(427.8)) + ';'
        + '\n  const vec3 EMB_LO = ' + v(kelvinLinear(1500)) + ';'
-       + '\n  const vec3 EMB_HI = ' + v(kelvinLinear(2600)) + ';\n';
+       + '\n  const vec3 EMB_HI = ' + v(kelvinLinear(2600)) + ';'
+       + '\n  const vec3 SPR_R = ' + v(wavelengthLinear(662.0)) + ';'    // N₂ first positive — the sprite's carmine
+       + '\n  const vec3 HALPHA = ' + v(wavelengthLinear(656.3)) + ';\n'; // Hα — the chromosphere's rim
 })();
 const XFORM_FRAG = `
   precision highp float;
@@ -31671,7 +31833,7 @@ const XFORM_FRAG = `
       float veil = exp(-max(0.0, d) * 7.0);               // the violet climbs above it
       col += (AUR_G * (hem * 0.9 + skirt * 0.35) + AUR_V * veil * 0.45)
            * folds * amp * (0.8 + uEnergy * 0.2);
-    } else {
+    } else if (uKind < 9.5){
       /* EMBER. No front at all: the old room CATCHES, grain by grain, its
          own highlights first — LUMA's mask, lit. The burn line is fractal
          noise glowing between two real blackbody temperatures (1500 K deep
@@ -31697,6 +31859,57 @@ const XFORM_FRAG = `
       float edge = burn * (1.0 - burn) * 4.0;             // hottest where the handover is NOW
       vec3 fire = mix(EMB_LO, EMB_HI, clamp(edge + h21(gl_FragCoord.xy + t * 60.0) * 0.35, 0.0, 1.0));
       col += fire * edge * edge * amp * (1.15 + uBeat * 0.4);
+    } else if (uKind < 10.5){
+      /* SPRITE. The lightning that happens ABOVE a storm — a glow
+         discharge, not a bolt: carmine at the top (N₂'s first positive
+         system, the same red the mesosphere shows a camera), blue tendrils
+         reaching below it (N₂⁺'s first negative — the 427.8 the aurora
+         already carries). It blooms downward on filament streaks; the
+         handover rides its dithered hem exactly as the aurora's does. Slow
+         on purpose: a sprite on screen for half a second is a flash, and
+         the flash stays refused. */
+      float wob = (vnz(vec2(uv.x * 3.4, t * 1.1) + uSeed * 17.0) - 0.5) * 0.26;
+      float e = 1.14 - t * 1.38 + wob;
+      float d = uv.y - e;
+      float dith = (vnz(uv * 6.0 + uSeed * 37.0) - 0.5) * 0.30
+                 + (h21(gl_FragCoord.xy + uSeed * 9.0) - 0.5) * 0.16;
+      col = mix(GH(uv), SC(uv), smoothstep(-0.14, 0.14, d + dith));
+      float amp = sin(t * PI);
+      // the filaments: tall thin streamers, denser toward the discharge column
+      float colm = exp(-pow((uv.x - 0.30 - fract(uSeed * 7.31) * 0.40) * 2.6, 2.0));
+      float fil = pow(vnz(vec2(uv.x * 34.0 + uSeed * 43.0, uv.y * 2.4 - t * 1.8)), 3.0);
+      float body = exp(-abs(d) * 7.0);
+      float tendril = exp(-max(0.0, -d) * 4.5);           // the blue reaches DOWN
+      float crown = exp(-max(0.0, d) * 5.0);              // the red blooms above
+      col += (SPR_R * crown * (0.55 + fil * 0.9) + AUR_V * tendril * fil * 1.1 + SPR_R * body * 0.35)
+           * (0.35 + 0.65 * colm) * amp * (0.85 + uEnergy * 0.25);
+    } else {
+      /* ECLIPSE. Totality crosses the room. The moon's shadow is a
+         PENUMBRA — a gradient the width of the sky, never a line — and as
+         the frame falls toward night the corona opens: streamers drawn by
+         noise, the chromosphere's Hα red at the rim, the K-corona's plain
+         white (it is scattered photosphere — white is the honest colour).
+         The handover happens IN the dark, because the one moment nobody
+         can see a landscape change hands is totality. The only edges here
+         are made of light, on a frame the shadow has already taken. */
+      vec2 ctr = vec2((fract(uSeed * 7.31) - 0.5) * 0.6, (fract(uSeed * 3.97) - 0.5) * 0.4);
+      float dark = sin(t * PI);                           // the shadow's depth — totality at the middle
+      float m2 = smoothstep(0.42, 0.58, t);               // the swap, inside the dark
+      vec3 base = mix(GH(uv), SC(uv), m2);
+      float rr = length(c - ctr);
+      float pen = 1.0 - dark * (0.92 - 0.30 * smoothstep(0.0, 1.2, rr));
+      col = base * pen;
+      float tot = dark * dark;                            // the corona belongs to totality alone
+      float disc = 0.17;
+      float ang = atan(c.y - ctr.y, c.x - ctr.x);
+      float ray = pow(vnz(vec2(ang * 4.0 + uSeed * 13.0, 0.5 + t * 0.15)), 2.0);
+      float inner = exp(-abs(rr - disc) * 10.0);
+      float streamer = exp(-max(0.0, rr - disc) * 3.0) * ray;
+      float chrom = exp(-abs(rr - disc) * 26.0);
+      col *= mix(1.0, smoothstep(disc * 0.70, disc * 1.02, rr), tot);   // the disc swallows its light
+      // …the corona's too: streamers live OUTSIDE the limb, or the moon is not a moon
+      float limb = smoothstep(disc * 0.88, disc * 1.05, rr);
+      col += (vec3(0.95, 0.97, 1.03) * (inner * 0.8 + streamer * 0.75) + HALPHA * chrom * 0.55) * tot * limb;
     }
 
     gl_FragColor = vec4(col, 1.0);
@@ -35279,6 +35492,9 @@ const RIG = {
       silent: !playing,
       preset: this.preset === 'auto' ? null : this.preset,
       master: 1,
+      // a running lit segue rides out to the lamps on the director's own clock
+      segue: (typeof XFORM !== 'undefined' && XFORM.on && typeof director !== 'undefined')
+           ? { kind: XFORM.kind, t: director.transT } : null,
     };
   },
   /* one turn of the whole chain — show → intents → 512 bytes → what each lamp
