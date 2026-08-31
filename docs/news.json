@@ -12,6 +12,9 @@
         "LOOKS — press K and this exact moment (scene, lens, colour) is written into the link and copied, validated on the way back in; open the link anywhere and the room walks its dials back",
         "mixsets learned to plan the ROOM: a section may carry a visual cue — {\"visual\": {\"scene\": \"verse\", \"lens\": \"mirrors\"}} — and the first dance gets its words the way it gets its song",
         "thirty-five rooms; the auto director still runs the night, and every one of these is a nudge it folds in, never a lock"
+      ],
+      "builds": [
+        "9ab436be8d"
       ]
     },
     {
