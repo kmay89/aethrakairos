@@ -53,7 +53,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
-  ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
+  ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, cherenkovRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
   ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
@@ -5378,7 +5378,21 @@ test('segueFx: nothing in the vocabulary draws an edge', () => {
      so a deliberate act with a failing test attached. */
   for (const gone of ['shatter', 'iris', 'ripple', 'streak', 'wipe', 'slide'])
     assert.ok(!S.XFORM_KINDS.includes(gone), `${gone} draws an edge and does not belong here`);
+  /* …and when fronts of light DID come — asked for by name — they came under
+     this rule's terms: CHERENKOV, AURORA and EMBER all hide their handover on
+     a wide dithered band inside the glow (LUMA's bargain, lit), so there is a
+     wall of light but never a line a ruler could find. The names above stay
+     banned because they are geometry with nothing to hide in. */
+  for (const lit of ['cherenkov', 'aurora', 'ember'])
+    assert.ok(S.XFORM_KINDS.includes(lit), `${lit} belongs to the vocabulary now`);
   assert.equal(new Set(S.XFORM_KINDS).size, S.XFORM_KINDS.length, 'a form is listed twice');
+});
+test('cherenkovRGB: the reactor pool is blue because 1/λ² says so', () => {
+  const c = S.cherenkovRGB();
+  assert.equal(c.b, 1, 'normalised to its brightest channel — which had better be blue');
+  assert.ok(c.g < c.b && c.r < c.g, `blue over green over red, got ${JSON.stringify(c)}`);
+  assert.ok(c.r >= 0 && c.g >= 0, 'no negative light');
+  assert.deepEqual(S.cherenkovRGB(), c, 'the physics does not roll dice');
 });
 test('segueFx: a drop gets a drop’s transition, a quiet room gets a quiet one', () => {
   const draw = o => { const out = new Set(); for (let i = 0; i <= 60; i++) out.add(S.segueFx({ ...o, r: i / 60 })); return out; };
@@ -5391,7 +5405,8 @@ test('segueFx: a drop gets a drop’s transition, a quiet room gets a quiet one'
 
   const quiet = draw({ kind: 'dissolve', energy: 0.1 });
   assert.ok(quiet.has('dissolve'), 'the plain crossfade has to keep coming up');
-  for (const quick of ['prism', 'refract', 'scatter'])
+  assert.ok(quiet.has('aurora'), 'a quiet passage may get the sky');
+  for (const quick of ['prism', 'refract', 'scatter', 'cherenkov'])
     assert.ok(!quiet.has(quick), `a quiet passage does not need ${quick}`);
 
   // a section turn is one room BECOMING another; the incidental forms are not that

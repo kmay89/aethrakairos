@@ -4028,6 +4028,20 @@ function wavelengthLinear(nm){
   return normalizeRGB(xyzToLinearRGB({ x: b.x, y: b.y, z: b.z }));
 }
 function wavelengthRGB(nm){ return encodeRGB(wavelengthLinear(nm)); }
+/* CHERENKOV, HONESTLY. Frank–Tamm: the energy a charge outrunning light in a
+   medium sheds per unit path per unit wavelength goes as 1/λ² — more of
+   everything at the short end, which is WHY a reactor pool glows blue and not
+   white. The colour here is that spectrum integrated against the CIE
+   observer — 1/λ²·(x̄,ȳ,z̄) summed over the visible band, taken to linear
+   sRGB and normalised — not a hex somebody liked. */
+function cherenkovRGB(){
+  const acc = { x: 0, y: 0, z: 0 };
+  for (let nm = 380; nm <= 700; nm += 4){
+    const w = 1e6 / (nm * nm), b = cieXYZBar(nm);
+    acc.x += w * b.x; acc.y += w * b.y; acc.z += w * b.z;
+  }
+  return normalizeRGB(xyzToLinearRGB(acc));
+}
 /* Light ADDS. Two emissions in the same place are their sum, not their
    average — which is why the blue cone at a lighter's base survives beside a
    yellow body five times brighter instead of greying out against it. */
@@ -11586,14 +11600,19 @@ function segueStyle(ctx){
    repeats, because the second one in a row is where the eye starts looking for
    the mechanism instead of at the room.
    --------------------------------------------------------------------------- */
-const XFORM_KINDS = ['luma', 'scatter', 'defocus', 'aerial', 'refract', 'prism', 'fold'];
+const XFORM_KINDS = ['luma', 'scatter', 'defocus', 'aerial', 'refract', 'prism', 'fold',
+                     'cherenkov', 'aurora', 'ember'];
 /* HOW LONG EACH ONE NEEDS. A floor, not a setting — and these are LONG, on
    purpose. A transition that has to be quick to survive is a transition doing
    something drastic, and drastic is the thing being avoided. Rushed, all of
    these read as a glitch rather than as a change. SCATTER needs the most:
-   every grain has to leave and every grain has to arrive. */
+   every grain has to leave and every grain has to arrive. The three LIT forms
+   (the reactor wall, the sky's curtains, the burn) are slower still than most:
+   a light that crosses a room in half a second is a flash, and a flash is the
+   one thing the safety engine exists to refuse. */
 const XFORM_MIN_DUR = { luma: 1.00, scatter: 1.25, defocus: 0.70, aerial: 1.10,
-                        refract: 0.95, prism: 0.55, fold: 1.00 };
+                        refract: 0.95, prism: 0.55, fold: 1.00,
+                        cherenkov: 1.15, aurora: 1.30, ember: 1.05 };
 function segueFx(o){
   o = o || {};
   // A room whose whole point is manufactured large-field motion is exactly what
@@ -11604,9 +11623,9 @@ function segueFx(o){
   const r = o.r == null ? 0.5 : o.r;
   let pool;
   if (o.kind === 'cut')        pool = ['defocus', 'prism', 'refract', 'defocus'];
-  else if (o.kind === 'morph') pool = ['scatter', 'aerial', 'fold', 'luma', 'dissolve'];
-  else if (e < 0.30)           pool = ['luma', 'aerial', 'dissolve', 'defocus'];
-  else                         pool = ['luma', 'aerial', 'scatter', 'refract', 'defocus', 'dissolve'];
+  else if (o.kind === 'morph') pool = ['scatter', 'aerial', 'fold', 'luma', 'aurora', 'ember', 'dissolve'];
+  else if (e < 0.30)           pool = ['luma', 'aerial', 'dissolve', 'aurora', 'defocus'];
+  else                         pool = ['luma', 'aerial', 'scatter', 'refract', 'defocus', 'cherenkov', 'ember', 'dissolve'];
   const i = Math.floor(Math.abs(r) * 997) % pool.length;
   let k = pool[i];
   /* AND NOT THE SAME FORM TWICE. Stepping ONE place forward is not enough: a
@@ -31435,13 +31454,26 @@ const LENS_GRADE = `
        rooms cross while BOTH are soft, so at no point in the transition
        is there a sharp edge anywhere in the frame to notice.
    ================================================================ */
+/* THE LIT FORMS' COLOURS, baked from the pure spectral machinery at boot:
+   the Frank–Tamm blue a reactor pool actually glows, the aurora's two real
+   lines (oxygen green at 557.7 nm, the N₂⁺ violet at 427.8 nm), and the
+   burn's two blackbody temperatures — physics chosen once, in JS where the
+   tests can reach it, and handed to the GPU as constants. */
+const XFORM_LIGHTS = (() => {
+  const v = c => 'vec3(' + [c.r, c.g, c.b].map(x => (+x).toFixed(4)).join(', ') + ')';
+  return '\n  const vec3 CHER = ' + v(cherenkovRGB()) + ';'
+       + '\n  const vec3 AUR_G = ' + v(wavelengthLinear(557.7)) + ';'
+       + '\n  const vec3 AUR_V = ' + v(wavelengthLinear(427.8)) + ';'
+       + '\n  const vec3 EMB_LO = ' + v(kelvinLinear(1500)) + ';'
+       + '\n  const vec3 EMB_HI = ' + v(kelvinLinear(2600)) + ';\n';
+})();
 const XFORM_FRAG = `
   precision highp float;
   uniform sampler2D tScene;      // the room being ARRIVED in — live, still animating
   uniform sampler2D tGhost;      // the room being LEFT — frozen on the frame of the cut
   uniform vec2 uResolution;
   uniform float uT, uKind, uSeed, uTime, uEnergy, uBeat, uCentroid;
-  ` + GLSL_MPHI + `
+  ` + GLSL_MPHI + XFORM_LIGHTS + `
   float h21(vec2 p){
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 34.23);
@@ -31574,7 +31606,7 @@ const XFORM_FRAG = `
       col = vec3(mix(GH(uv + d0).r, SC(uv - d0).r, m),
                  mix(GH(uv + d1).g, SC(uv - d1).g, m),
                  mix(GH(uv + d2).b, SC(uv - d2).b, m));
-    } else {
+    } else if (uKind < 6.5){
       /* FOLD. BOTH rooms are folded into the same N-fold symmetry by the same
          amount, which rises to full at the midpoint and relaxes back to none —
          so at the moment of the swap the frame is a symmetry that belongs to
@@ -31590,6 +31622,81 @@ const XFORM_FRAG = `
       vec2 q = vec2(cos(ao), sin(ao)) * rr * (1.0 + fold * 0.10);
       vec2 fuv = q / vec2(asp, 1.0) + 0.5;
       col = mix(GH(fuv), SC(fuv), m);
+    } else if (uKind < 7.5){
+      /* CHERENKOV. The reactor pool's light, honestly: CHER above is the
+         Frank–Tamm 1/λ² spectrum integrated against the CIE observer at
+         boot — the colour physics gives a charge outrunning light in water.
+         A wall of that light crosses the room in a seed-dealt direction, and
+         the handover happens INSIDE the glow, on a wide, dithered band —
+         LUMA's no-edge bargain, lit: there is a front of light but never a
+         line a ruler could find. Ahead of the wall the glow is dim and
+         sharp; behind it it blooms, striated like light through moving
+         water, with the occasional charged track racing the front. */
+      float b0 = uSeed * 6.2831853;
+      vec2 dirw = vec2(cos(b0), sin(b0));
+      float span = abs(dirw.x) * asp + abs(dirw.y);
+      float dn = dot(c, dirw) / max(0.30, 0.55 * span);   // −1..1 across the frame, any direction
+      float F = mix(-1.35, 1.35, t);
+      float d = dn - F;
+      float dith = (vnz(uv * 7.0 + uSeed * 23.0) - 0.5) * 0.34
+                 + (h21(gl_FragCoord.xy + uSeed * 5.0) - 0.5) * 0.18;
+      col = mix(SC(uv), GH(uv), smoothstep(-0.16, 0.16, d + dith));
+      float amp = sin(t * PI);
+      /* the pool is a DARK room — the wall reads because the water around it
+         dims, not only because the light adds. A wide veil travels with the
+         front so the blue carries even over a bright, saturated scene. */
+      float veil = exp(-abs(d) * 1.6);
+      col *= 1.0 - 0.45 * amp * veil;
+      float glow = exp(-abs(d) * (d > 0.0 ? 5.5 : 2.0));
+      float across = dot(c, vec2(-dirw.y, dirw.x));
+      float water = 0.75 + 0.25 * vnz(vec2(across * 5.0, dn * 2.0 - uTime * 0.8) + uSeed * 31.0);
+      float trk = pow(vnz(vec2(across * 26.0, dn * 4.0 - t * 9.0) + uSeed * 47.0), 8.0);
+      col += CHER * amp * (glow * (1.60 + uEnergy * 0.30) * water + trk * glow * 2.2);
+    } else if (uKind < 8.5){
+      /* AURORA. The sky's two real lines — oxygen green at 557.7 nm, with
+         the N₂⁺ violet climbing above it — descend through the room as a
+         curtain whose hem wobbles and whose folds drift sideways. The swap
+         hides inside the light exactly as CHERENKOV's does: a wide dithered
+         band under the brightest part of the hem. */
+      float wob = (vnz(vec2(uv.x * 2.6, t * 1.3) + uSeed * 13.0) - 0.5) * 0.30;
+      float e = 1.18 - t * 1.42 + wob;                    // the curtain's lower hem
+      float d = uv.y - e;
+      float dith = (vnz(uv * 6.0 + uSeed * 29.0) - 0.5) * 0.30
+                 + (h21(gl_FragCoord.xy + uSeed * 3.0) - 0.5) * 0.16;
+      col = mix(GH(uv), SC(uv), smoothstep(-0.14, 0.14, d + dith));
+      float amp = sin(t * PI);
+      float folds = 0.55 + 0.45 * vnz(vec2(uv.x * 24.0 + uSeed * 41.0, uv.y * 1.5 - t * 2.2));
+      float hem = exp(-abs(d) * 9.0);
+      float skirt = exp(-max(0.0, -d) * 5.0);             // the green falls below the hem
+      float veil = exp(-max(0.0, d) * 7.0);               // the violet climbs above it
+      col += (AUR_G * (hem * 0.9 + skirt * 0.35) + AUR_V * veil * 0.45)
+           * folds * amp * (0.8 + uEnergy * 0.2);
+    } else {
+      /* EMBER. No front at all: the old room CATCHES, grain by grain, its
+         own highlights first — LUMA's mask, lit. The burn line is fractal
+         noise glowing between two real blackbody temperatures (1500 K deep
+         in the char, 2600 K where it is burning hardest), and behind the
+         char is the new room. Burning paper, at room scale, with nothing in
+         the frame a ruler could find. */
+      /* the mask leans on the old room's highlights but STANDS on spatial
+         noise — a ghost frame that happens to be dark must still burn
+         patchily across the whole run, not flip all at once at the end */
+      float y = lum(GH(uv));
+      float k = vnz(uv * 3.0 + uSeed * 19.0) * 0.55
+              + (1.0 - clamp(y * 1.7, 0.0, 1.0)) * 0.28
+              + vnz(uv * 17.0 + uSeed * 7.0) * 0.12
+              + h21(gl_FragCoord.xy + uSeed * 11.0) * 0.05;
+      float w = 0.26;
+      float T = t * (1.0 + 2.0 * w) - w;
+      float burn = smoothstep(T - w, T + w, k);           // 1 = still the old room
+      col = mix(SC(uv), GH(uv), burn);
+      float amp = sin(t * PI);
+      // the paper BROWNS just ahead of the flame — the heat arrives before the light
+      float near = smoothstep(T + w + 0.10, T + w, k) * burn;
+      col *= mix(vec3(1.0), vec3(0.62, 0.47, 0.36), near * amp * 0.7);
+      float edge = burn * (1.0 - burn) * 4.0;             // hottest where the handover is NOW
+      vec3 fire = mix(EMB_LO, EMB_HI, clamp(edge + h21(gl_FragCoord.xy + t * 60.0) * 0.35, 0.0, 1.0));
+      col += fire * edge * edge * amp * (1.15 + uBeat * 0.4);
     }
 
     gl_FragColor = vec4(col, 1.0);
