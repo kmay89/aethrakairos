@@ -59,7 +59,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
   ' CIE_LOBES, XYZ_TO_SRGB, xyzToLinearRGB, DISC_PITCH, AIRY_J1_ZERO, rayleighSep, DISP_WB,' +
   ' FILAMENT_FORMS, LORENZ, THOMAS_B, FILM_N, FILM_R0, FILM_AGES, filmState, TERRAIN_FORMS,' +
-  ' CREATURE_FORMS, creatureGenome,' +
+  ' CREATURE_FORMS, creatureGenome, creatureSeed,' +
   ' EIGEN, EIGEN_LESSONS, eigenDot, eigenTql2, eigenLanczos, eigenSolve, eigenOccupation, eigenTimeUnit,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
@@ -1985,28 +1985,43 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
 });
 
 test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
+  const OPEN = ['wyrm', 'kelp'];              // a spine or a stalk just ends
+  assert.equal(S.CREATURE_FORMS.length, 6, 'six pages in the book');
   for (const F of S.CREATURE_FORMS){
     const rng = S.mulberry32(7 + F.key.length);
     for (let n = 0; n < 200; n++){
       const g = S.creatureGenome(F.key, rng);
       assert.equal(g.form, F.key);
-      for (const [k, lo, hi] of [['ribs', 2, 7], ['ribLen', 4.5, 15], ['tip', 0.55, 0.92],
-        ['curl', 0.2, 1.5], ['span', 20, 34], ['puff', 1.5, 4], ['seed', 0, 1],
+      for (const [k, lo, hi] of [['ribs', 2, 9], ['ribLen', 4.5, 16], ['tip', 0.5, 0.92],
+        ['curl', 0.2, 1.5], ['span', 18, 34], ['puff', 1.5, 4], ['seed', 0, 1],
         ['swim', 0.6, 1.4], ['sway', 0.8, 2], ['sharp', 0.8, 2.6]])
         assert.ok(g[k] >= lo && g[k] <= hi, `${F.key}.${k} = ${g[k]} outside [${lo}, ${hi}]`);
-      if (F.key === 'wyrm') assert.equal(g.petals, 0, 'an open spine has no symmetry order');
+      if (OPEN.includes(F.key)) assert.equal(g.petals, 0, 'an open body has no symmetry order');
       else {
         /* the closure rule: cos(n·θ) only meets itself around a circle when n
            is whole — a rim harmonic that misses its own start is a tear */
         for (const k of ['petals', 'ribs', 'waveF1', 'waveF2'])
           assert.equal(g[k], Math.round(g[k]), `${F.key}.${k} must be whole, got ${g[k]}`);
-        assert.ok(g.petals >= 5, 'a crown carries at least five scallops/petals');
+        assert.ok(g.petals >= 2, 'a closed body carries a real symmetry order');
       }
     }
   }
   // the deal is a pure function of its rng: same seed, same animal
   assert.deepEqual(S.creatureGenome('medusa', S.mulberry32(99)),
                    S.creatureGenome('medusa', S.mulberry32(99)), 'no hidden dice');
+});
+
+test('creatureSeed: a song is a stable animal — same id, same seed, same genome', () => {
+  assert.equal(S.creatureSeed('sha-abc123'), S.creatureSeed('sha-abc123'));
+  assert.notEqual(S.creatureSeed('sha-abc123'), S.creatureSeed('sha-abc124'),
+    'different songs, different animals');
+  const s = S.creatureSeed('x');
+  assert.ok(Number.isInteger(s) && s >= 0 && s <= 0xFFFFFFFF, 'a 32-bit seed for mulberry32');
+  assert.equal(S.creatureSeed(null), S.creatureSeed(''), 'nothing hashes honestly, never throws');
+  // and the whole deal downstream is deterministic: id → seed → rng → genome
+  assert.deepEqual(S.creatureGenome('comb', S.mulberry32(S.creatureSeed('song-1'))),
+                   S.creatureGenome('comb', S.mulberry32(S.creatureSeed('song-1'))),
+    'the same song grows the same creature');
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
