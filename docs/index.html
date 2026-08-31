@@ -1699,6 +1699,14 @@ body.crowd{background:#000}
 }
 .help-close{margin-top:24px;width:100%;justify-content:center}
 
+/* ============ the clip light — recording is never a secret ============ */
+body.clipping::after{
+  content:'';position:fixed;top:14px;right:14px;width:10px;height:10px;border-radius:50%;
+  background:#e33;box-shadow:0 0 10px #e339;z-index:60;pointer-events:none;
+  animation:clipPulse 1.6s ease-in-out infinite;
+}
+@keyframes clipPulse{0%,100%{opacity:.95}50%{opacity:.35}}
+
 /* ============ toasts ============ */
 #toasts{
   position:fixed;left:50%;transform:translateX(-50%);
@@ -3613,11 +3621,13 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'flows', 'gathers',
                'grows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'grows', 'flows', 'grows',
                'gathers',
-               'flows'];   // …the lattice and the film ripple, the
+               'flows',
+               'grows', 'gathers'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
-                           // does, and a hand near the CREATURE is a current in its water
+                           // does, a hand near the CREATURE is a current in its water,
+                           // and a hand on the EXCITABLE medium GROWS a wave from nothing
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -3871,11 +3881,13 @@ function ghostPattern(sceneIdx, act, r, mood){
                'snake', 'lissa', 'paint', 'drift',
                'drift', 'bounce', 'lissa', 'drift', 'lissa', 'snake', 'paint', 'drift',
                'lissa',
-               'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
+               'lissa',
+               'paint', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
-                           // and the CREATURE is swum alongside in slow figure-eights
+                           // the CREATURE is swum alongside in slow figure-eights, and the
+                           // ghost PAINTS on the EXCITABLE medium — strokes of live fire
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -4690,6 +4702,67 @@ function creatureGenome(form, rnd){
 }
 
 /* ================================================================
+   THE EXCITABLE MEDIUM, ACTUALLY INTEGRATED.
+
+   The Barkley model — the two-variable caricature of every excitable
+   medium there is: the Belousov–Zhabotinsky dish, heart muscle, a
+   slime mould's signalling field.
+
+       ∂u/∂t = ε⁻¹ · u(1−u)(u − (v+b)/a) + ∇²u
+       ∂v/∂t = u − v
+
+   u is the EXCITATION (the flame front), v the RECOVERY (the ash
+   behind it). The cubic gives u exactly two homes — quiet and firing
+   — with a threshold between them that the recovery drags around, and
+   that one sentence is the whole phenomenon: a poke above threshold
+   fires a wave, the wave leaves refractory ash it cannot re-enter, and
+   a wavefront broken against its own ash curls into the ROTATING
+   SPIRAL these systems are famous for. Nothing here draws a spiral;
+   the equation rotates it.
+
+   The room integrates this on the GPU (ping-pong textures, forward
+   Euler, five-point Laplacian on a torus), and THIS function is the
+   same integrator in JS, one step on a little grid, so the tests can
+   hold the physics: the rest state must be dead, a sub-threshold poke
+   must die, a real one must PROPAGATE, and a pulse on a ring must
+   still be circulating when we stop watching. The GPU shader is this
+   arithmetic transcribed — one truth, two dialects, and ε chosen so
+   plain forward Euler at BARKLEY.dt is honestly stable (softer fronts
+   than a stiff cardiac solver, and the show is better for it).
+   ================================================================ */
+const BARKLEY = { dt: 0.05, n: 512 };          // the step and the shipped grid side
+/* the three weathers — MEASURED, not guessed: each of these parameterisations
+   was swept through the JS integrator and holds a travelling front alive
+   around the test ring; ε much past 0.06 is sub-excitable at this stiffness
+   and the wave dies mid-flight, which is exactly the failure the propagation
+   test below exists to catch */
+const BARKLEY_REGIMES = [
+  { key: 'spiral',  name: 'SPIRAL',  a: 0.78, b: 0.03, eps: 0.04, seed: 'cross' },
+  { key: 'meander', name: 'MEANDER', a: 0.66, b: 0.02, eps: 0.05, seed: 'cross' },
+  { key: 'storm',   name: 'STORM',   a: 0.75, b: 0.06, eps: 0.05, seed: 'sparks' },
+];
+function barkleyStep(u, v, w, h, p){
+  const a = p && p.a || 0.75, b = p && p.b != null ? p.b : 0.03,
+        eps = p && p.eps || 0.08, dt = p && p.dt || BARKLEY.dt;
+  const un = new Float64Array(u.length), vn = new Float64Array(v.length);
+  for (let y = 0; y < h; y++){
+    const y0 = y * w, ym = ((y + h - 1) % h) * w, yp = ((y + 1) % h) * w;
+    for (let x = 0; x < w; x++){
+      const xm = (x + w - 1) % w, xp = (x + 1) % w;
+      const uu = u[y0 + x], vv = v[y0 + x];
+      const lap = u[y0 + xm] + u[y0 + xp] + u[ym + x] + u[yp + x] - 4 * uu;
+      const uth = (vv + b) / a;
+      const f = uu * (1 - uu) * (uu - uth) / eps;
+      let U2 = uu + dt * (f + lap);
+      let V2 = vv + dt * (uu - vv);
+      un[y0 + x] = U2 < 0 ? 0 : U2 > 1 ? 1 : U2;
+      vn[y0 + x] = V2 < 0 ? 0 : V2 > 1.2 ? 1.2 : V2;
+    }
+  }
+  return { u: un, v: vn };
+}
+
+/* ================================================================
    THE DOUBLE WELL, ACTUALLY SOLVED.
 
    A particle confined near two Gaussian wells — the textbook picture of
@@ -4998,7 +5071,7 @@ function eigenTimeUnit(mode, e){
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
-                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature'];
+                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5053,6 +5126,11 @@ const SCENE_TASTE = {
   creature:  { calm: 1.2, entropy: 0.7, treble: 0.6, beat: -0.5 },  // something alive wants water, not a drum
                                                             // kit: airy, flowing material to swim in —
                                                             // the treble is what lights its tips
+  barkley:   { beat: 1.1, coupling: 0.8, mid: 0.6, calm: 0.4 },  // an excitable medium wants STIMULI — every
+                                                            // onset is an electrode, so material with a
+                                                            // pulse keeps the weather alive
+  verse:     { calm: 0.9, coupling: 0.8, treble: 0.6, entropy: -0.4 },  // a word needs a held, legible moment —
+                                                            // chaos scatters letters nobody asked to read
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6197,9 +6275,32 @@ const SCENE_SIGS = {
   terrain:   { kind: 'wave',   h: 292, arms: 5, twist: 1, rainbow: 1 },
   eigen:     { kind: 'cloud',  h: 265, dense: 0.8, rainbow: 1 },
   creature:  { kind: 'ribbon', h: 352, arms: 5, dense: 0.7 },
+  barkley:   { kind: 'spiral', h: 16, arms: 2, dense: 1 },
+  verse:     { kind: 'grid',   h: 46, dense: 0.6 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
+}
+
+/* LOOKS — one moment of the room, written small enough for a URL fragment.
+   scene~lens~colour, every segment validated against a roster on the way
+   back in: a look is a bookmark, and a bookmark that can inject arbitrary
+   state is not a bookmark. Unknown segments decode to null and the room
+   simply keeps its own counsel about them. */
+function lookEncode(o){
+  const seg = v => String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9+-]/g, '');
+  const s = o || {};
+  return [seg(s.scene), seg(s.lens), seg(s.color)].join('~').replace(/~+$/, '');
+}
+function lookDecode(str, valid){
+  const p = String(str || '').toLowerCase().split('~');
+  const v = valid || {};
+  const inList = (x, list) => (x && Array.isArray(list) && list.indexOf(x) >= 0) ? x : null;
+  return {
+    scene: inList(p[0], v.scenes || SCENE_KEYS),
+    lens:  inList(p[1], v.lenses || null),
+    color: inList(p[2], v.colors || null),
+  };
 }
 // @pure-end
 
@@ -15326,6 +15427,23 @@ function mixsetStyleAt(mixset, elapsedSec){
   return MIX_STYLES[st] ? st : (MIX_STYLES[def] ? def : 'adaptive');
 }
 
+/* A section may carry a VISUAL cue — { visual: { scene, lens } } — asking the
+   room to open that scene and lens as the section begins: the first dance
+   gets the verse, the peak gets the storm, planned the way the music is.
+   Pure and shape-checked here; the frame loop applies it once per section
+   crossing, and unknown keys are simply ignored where they land. */
+function mixsetVisualAt(mixset, elapsedSec){
+  const at = mixsetSectionAt(mixset, elapsedSec);
+  const vv = at && at.section && at.section.visual;
+  if (!vv || typeof vv !== 'object') return null;
+  const out = {
+    section: (at.section.name || '') + '',
+    scene: typeof vv.scene === 'string' ? vv.scene : null,
+    lens:  typeof vv.lens === 'string' ? vv.lens : null,
+  };
+  return (out.scene || out.lens) ? out : null;
+}
+
 // Would this track be refused anywhere? (the do-not-play list — an explicit
 // track, a whole tag, an energy ceiling.) Applies in every section.
 function mixsetForbids(mixset, track){
@@ -15978,6 +16096,26 @@ const MIXSET = {
   playedAnchors: new Set(),
   playInFullKeys: new Set(),
   _lastReason: '',
+  _lastCue: '',
+
+  /* the set's visual cues: applied exactly once as the clock crosses into a
+     section that declares one — the operator planned the room the way they
+     planned the music, and the plan is a nudge, not a lock: AUTO keeps
+     directing afterwards, and a section with no cue changes nothing */
+  visualTick(){
+    if (!this.active || typeof scenes === 'undefined' || typeof director === 'undefined') return;
+    const cue = mixsetVisualAt(this.active, (Date.now() - this.t0) / 1000);
+    const key = cue ? cue.section + '|' + (cue.scene || '') + '|' + (cue.lens || '') : '';
+    if (key === this._lastCue) return;
+    this._lastCue = key;
+    if (!cue) return;
+    if (cue.scene){
+      const i = scenes.findIndex(s => s.key === cue.scene);
+      if (i >= 0 && i !== director.active) director.setScene(i, false);
+    }
+    if (cue.lens && typeof LENS !== 'undefined' && LENS.labels && (cue.lens in LENS.labels))
+      LENS.set(cue.lens, false);
+  },
 
   // opts: { elapsedSec, playedKeys[], playedAnchors[], playInFullKeys[] } — the
   // last three rehydrate a restored set; omit them to start the clock fresh.
@@ -19382,6 +19520,113 @@ document.addEventListener('click', ev => {
   if (el.overflow.classList.contains('open') && !ev.target.closest('.topactions')) setMore(false);
 });
 
+/* ================================================================
+   CLIP — the show, cut and kept.
+
+   Everything on this canvas is ephemeral by design; this is the one
+   exception, asked for by hand. captureStream() taps the composited
+   canvas at 30 fps — after the scenes, the lenses, the transition —
+   and the audio comes off AE.master through a MediaStreamDestination,
+   so the clip hears exactly what the room hears, ducking and echoes
+   included. MediaRecorder does the packing (vp9 where the browser
+   offers it, down to whatever it will sign for), nothing leaves the
+   machine, and the file lands in the downloads like any other thing
+   the user chose to keep. Sixty seconds is the ceiling: a clip is a
+   postcard, not an archive. */
+const CLIP = {
+  on: false, rec: null, chunks: [], dest: null, timer: 0, MAX: 60,
+  supported(){ return !!(el.canvas && el.canvas.captureStream && window.MediaRecorder); },
+  mime(){
+    const M = window.MediaRecorder;
+    for (const m of ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'])
+      if (M.isTypeSupported && M.isTypeSupported(m)) return m;
+    return '';
+  },
+  toggle(){ if (this.on) this.stop(); else this.start(); },
+  start(){
+    if (this.on) return;
+    if (!this.supported()){ toast(T('Recording is not supported here')); return; }
+    try {
+      const stream = el.canvas.captureStream(30);
+      // the audio tap is wired once and kept — a silent parallel listener on
+      // the master bus costs nothing between clips
+      if (AE.ctx && AE.master){
+        if (!this.dest){ this.dest = AE.ctx.createMediaStreamDestination(); AE.master.connect(this.dest); }
+        for (const tr of this.dest.stream.getAudioTracks()) stream.addTrack(tr);
+      }
+      const m = this.mime();
+      this.rec = new MediaRecorder(stream, m ? { mimeType: m, videoBitsPerSecond: 8e6 } : undefined);
+      this.chunks = [];
+      this.rec.ondataavailable = e => { if (e.data && e.data.size) this.chunks.push(e.data); };
+      this.rec.onstop = () => this._save();
+      this.rec.start(250);
+      this.on = true;
+      document.body.classList.add('clipping');
+      this.timer = setTimeout(() => this.stop(), this.MAX * 1000);
+      toast(T('Recording — X cuts the clip'));
+      if (typeof ACTIVITY !== 'undefined') ACTIVITY.log('system', T('Recording — X cuts the clip'));
+    } catch (e){ this.on = false; toast(T('Recording is not supported here')); }
+  },
+  stop(){
+    if (!this.on || !this.rec) return;
+    clearTimeout(this.timer);
+    this.on = false;
+    document.body.classList.remove('clipping');
+    try { this.rec.stop(); } catch (e){}
+  },
+  _save(){
+    const type = (this.rec && this.rec.mimeType) || 'video/webm';
+    const blob = new Blob(this.chunks, { type: type.split(';')[0] });
+    this.chunks = []; this.rec = null;
+    if (!blob.size){ toast(T('Nothing recorded')); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'aethra-kairos-clip-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+               + (type.includes('mp4') ? '.mp4' : '.webm');
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(T('Clip saved'));
+  },
+};
+
+/* ================================================================
+   LOOK — this exact moment of the room, kept in the link.
+
+   One key writes scene~lens~colour into the URL fragment and puts the
+   whole address on the clipboard; opening that link walks the same
+   three dials back to where they were, each segment validated against
+   its roster on the way in (lookDecode — a bookmark must never be an
+   injection point). Ninety factory presets is a menu; a look you kept
+   because THIS was the moment is a memory. */
+const LOOK = {
+  save(){
+    if (typeof scenes === 'undefined' || typeof director === 'undefined' || director.active < 0) return;
+    const code = lookEncode({
+      scene: (scenes[director.active] || {}).key,
+      lens: (typeof LENS !== 'undefined') ? LENS.active : '',
+      color: (typeof COLOR !== 'undefined') ? COLOR.mode : '',
+    });
+    try { history.replaceState(null, '', '#look=' + code); } catch (e){}
+    const url = location.origin + location.pathname + '#look=' + code;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).catch(() => {});
+    toast(T('Look kept — the link carries it now'));
+  },
+  apply(){
+    const m = String(location.hash || '').match(/look=([a-z0-9~+-]+)/i);
+    if (!m || typeof scenes === 'undefined' || !scenes.length) return;
+    const o = lookDecode(m[1], {
+      lenses: (typeof LENS !== 'undefined') ? LENS.order : null,
+      colors: (typeof COLOR !== 'undefined') ? COLOR.modes : null,
+    });
+    if (o.scene){
+      const i = scenes.findIndex(s => s.key === o.scene);
+      if (i >= 0) director.setScene(i, true);
+    }
+    if (o.lens && typeof LENS !== 'undefined') LENS.set(o.lens, false);
+    if (o.color && typeof COLOR !== 'undefined') COLOR.setMode(o.color, false);
+  },
+};
+
 /* drag & drop anywhere */
 let dragDepth = 0;
 window.addEventListener('dragenter', ev => {
@@ -19405,6 +19650,39 @@ window.addEventListener('drop', ev => {
   // a single dropped .json that looks like a mixset LOADS THE SET (the room's
   // config file, poured in by hand); anything else is queue audio as before.
   const f = files[0];
+  /* the field takes offerings: an image becomes the VERSE room's totem, a
+     .txt's lines become its verse — both land in the room that spells */
+  if (files.length === 1 && /^image\//.test(f.type || '')){
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const vs = typeof scenes !== 'undefined' && scenes.find && scenes.find(s => s.key === 'verse');
+      if (vs && vs.setImage){
+        vs.setImage(img);
+        director.setScene(scenes.indexOf(vs), true);
+        toast(T('Totem raised'));
+      }
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+    return;
+  }
+  if (files.length === 1 && /\.(txt|lrc)$/i.test(f.name)){
+    const r = new FileReader();
+    r.onload = () => {
+      const lines = String(r.result).split(/\r?\n/)
+        .map(s => s.replace(/^\[[^\]]*\]\s*/, '').trim()).filter(Boolean);
+      const vs = typeof scenes !== 'undefined' && scenes.find && scenes.find(s => s.key === 'verse');
+      if (vs && vs.setLines && lines.length){
+        vs.setLines(lines);
+        director.setScene(scenes.indexOf(vs), true);
+        toast(T('The verse is yours'));
+      }
+    };
+    r.readAsText(f);
+    return;
+  }
   if (files.length === 1 && /\.json$/i.test(f.name)){
     const r = new FileReader();
     r.onload = () => {
@@ -19635,6 +19913,8 @@ window.addEventListener('keydown', ev => {
     case 'd': case 'D': BOOTH.toggle(); break;
     case 'm': case 'M': toggleMute(); break;
     case 't': case 'T': TAP.hit(); break;
+    case 'x': case 'X': CLIP.toggle(); break;
+    case 'k': case 'K': LOOK.save(); break;
     case 'f': toggleFullscreen(); break;
     // the same intention, one shift away — and the same chord the Mac app's
     // View menu uses, so the two ways in agree
@@ -31138,6 +31418,460 @@ function buildCreature(){
 }
 
 /* ================================================================
+   THE EXCITABLE MEDIUM — the Barkley model, integrated live.
+
+   See the pure block for the equation and why it spirals; this room
+   is that arithmetic transcribed to the GPU. Two 256² textures
+   ping-pong: each substep reads (u, v), takes the five-point
+   Laplacian on a TORUS (repeat wrapping — the medium has no walls,
+   and on the video wall it tiles), steps the cubic kinetics and the
+   recovery exactly as barkleyStep does in JS, and writes the pair
+   back. The display pass is separate on purpose: brightness where
+   the medium FIRES, the palette on the ash it leaves, a white-hot
+   line on |∇u| where the front is passing this instant. Nobody draws
+   a spiral anywhere in this file.
+
+   The music is the stimulus, never the paint: every onset pokes the
+   medium above threshold somewhere along the spectrum's centroid and
+   a wave is BORN there; loudness runs the clock (more substeps);
+   and a held touch is an electrode — draw with your finger and the
+   medium fires where you drew. Each visit deals a REGIME (rigid
+   spiral, meander, storm) seeded from the playing track, so a song's
+   weather is its own. Half-float textures where the driver allows
+   (probed, never assumed — the LENS taught us that); on the byte
+   fallback a whisper of dither keeps the quantised medium from
+   freezing mid-thought. */
+function buildBarkley(){
+  const group = new THREE.Group();
+  // power-of-two, for the torus (WebGL1 only wraps POT); phones get the
+  // smaller weather and never notice — the fronts scale with the grid
+  const N = IS_IOS ? 256 : BARKLEY.n;
+  const probeHalf = () => {
+    try {
+      const gl = renderer.getContext();
+      if (!(gl.getExtension('EXT_color_buffer_half_float') || gl.getExtension('EXT_color_buffer_float')
+            || gl.getExtension('OES_texture_half_float'))) return false;
+      const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType,
+        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false });
+      renderer.setRenderTarget(rt);
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      renderer.setRenderTarget(null);
+      rt.dispose();
+      return ok;
+    } catch (e){ return false; }
+  };
+  const half = probeHalf();
+  const opt = {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+    wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping,
+    format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false,
+  };
+  if (half) opt.type = THREE.HalfFloatType;
+  let rtA = new THREE.WebGLRenderTarget(N, N, opt);
+  let rtB = new THREE.WebGLRenderTarget(N, N, opt);
+
+  // the compute stage: one big triangle, a bare camera, two materials
+  const simScene = new THREE.Scene();
+  const simCam = new THREE.Camera();
+  const triGeo = new THREE.BufferGeometry();
+  triGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
+  triGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 2, 0, 0, 2]), 2));
+  const SIM_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+  const simU = {
+    tUV: { value: null }, uTexel: { value: 1 / N },
+    uABE: { value: new THREE.Vector3(0.78, 0.03, 0.085) },
+    uDtStep: { value: BARKLEY.dt },
+    uPokeA: { value: new THREE.Vector4(0, 0, 0.035, 0) },
+    uPokeB: { value: new THREE.Vector4(0, 0, 0.05, 0) },
+    uDither: { value: half ? 0 : 1 },
+  };
+  const simMat = new THREE.ShaderMaterial({
+    uniforms: simU, vertexShader: SIM_VERT, depthTest: false, depthWrite: false,
+    /* THE SAME ARITHMETIC AS barkleyStep, in GLSL — one truth, two dialects.
+       v is advanced with the OLD u, exactly as the JS does, so the tests'
+       physics and the screen's physics are one integrator. */
+    fragmentShader: `
+      precision highp float;
+      uniform sampler2D tUV; uniform float uTexel, uDtStep, uDither;
+      uniform vec3 uABE; uniform vec4 uPokeA, uPokeB;
+      varying vec2 vUv;
+      float h21(vec2 p){ p = fract(p * vec2(127.1, 311.7)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
+      void main(){
+        vec2 e = vec2(uTexel, 0.0);
+        vec2 c = texture2D(tUV, vUv).rg;
+        float u = c.r, v = c.g;
+        float lap = texture2D(tUV, vUv + e.xy).r + texture2D(tUV, vUv - e.xy).r
+                  + texture2D(tUV, vUv + e.yx).r + texture2D(tUV, vUv - e.yx).r - 4.0 * u;
+        float uth = (v + uABE.y) / uABE.x;
+        float f = u * (1.0 - u) * (u - uth) / uABE.z;
+        u += uDtStep * (f + lap);
+        v += uDtStep * (c.r - v);
+        // the stimuli: the music's onsets, and the hand's electrode
+        if (uPokeA.w > 0.0) u = max(u, uPokeA.w * smoothstep(uPokeA.z, uPokeA.z * 0.25, distance(vUv, uPokeA.xy)));
+        if (uPokeB.w > 0.0) u = max(u, uPokeB.w * smoothstep(uPokeB.z, uPokeB.z * 0.25, distance(vUv, uPokeB.xy)));
+        // byte-texture fallback: a whisper of dither so quantisation cannot
+        // freeze the medium between representable values
+        u += uDither * (h21(gl_FragCoord.xy + fract(uDtStep * 977.0)) - 0.5) * 0.006;
+        gl_FragColor = vec4(clamp(u, 0.0, 1.0), clamp(v, 0.0, 1.2), 0.0, 1.0);
+      }`,
+  });
+  const seedU = { uMode: { value: 0 }, uSeedR: { value: 0.5 } };
+  const seedMat = new THREE.ShaderMaterial({
+    uniforms: seedU, vertexShader: SIM_VERT, depthTest: false, depthWrite: false,
+    /* the initial conditions are the only authored thing in the room: a
+       BROKEN FRONT (fire with ash on one flank — its free end has nowhere
+       to go but around, which is where the spiral comes from), or a field
+       of sparks old enough to carry their own ash for the storm */
+    fragmentShader: `
+      precision highp float;
+      uniform float uMode, uSeedR;
+      varying vec2 vUv;
+      float h21(vec2 p){ p = fract(p * vec2(127.1, 311.7)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
+      void main(){
+        float u = 0.0, v = 0.0;
+        float off = (uSeedR - 0.5) * 0.2;
+        if (uMode < 0.5){
+          // a SHORT broken front: both ends free, so both curl — a
+          // counter-rotating spiral pair is the seed's whole intention
+          float band = smoothstep(0.030, 0.012, abs(vUv.y - 0.5 - off));
+          float run = smoothstep(0.18, 0.22, vUv.x) * step(vUv.x, 0.55);
+          u = band * run;
+          v = 0.75 * smoothstep(0.5 + off, 0.46 + off, vUv.y) * run;
+        } else {
+          vec2 cell = floor(vUv * 14.0);
+          u = step(0.92, h21(cell + uSeedR * 41.0));
+          v = 0.5 * step(0.85, h21(cell + uSeedR * 17.0));
+        }
+        gl_FragColor = vec4(u, v, 0.0, 1.0);
+      }`,
+  });
+  const tri = new THREE.Mesh(triGeo, simMat);
+  tri.frustumCulled = false;
+  simScene.add(tri);
+
+  // the display: the medium, lit — ash wears the palette, fire wears the light
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    tUV: { value: rtA.texture }, uTexel: { value: 1 / N },
+    uAspect: { value: 1 }, uZoom: { value: 1.15 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const dispVert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const dispFrag = GLSL_MPHI + `
+    uniform sampler2D tUV;
+    uniform float uOpacity, uEnergy, uBeat, uTreble, uCentroid, uVarA, uTexel, uAspect, uZoom;
+    varying vec2 vUv;
+    void main(){
+      // aspect-true and torus-tiled: spirals stay round, the seam does not exist
+      vec2 q = vUv * vec2(uAspect, 1.0) * uZoom;
+      float u = texture2D(tUV, q).r;
+      float v = texture2D(tUV, q).g;
+      vec2 e = vec2(uTexel, 0.0);
+      float gx = texture2D(tUV, q + e.xy).r - texture2D(tUV, q - e.xy).r;
+      float gy = texture2D(tUV, q + e.yx).r - texture2D(tUV, q - e.yx).r;
+      float edge = length(vec2(gx, gy));
+      vec3 col = ramp(0.08 + v * 0.50 + uVarA + uCentroid * 0.12) * (0.20 + v * 0.65);
+      col += ramp(fract(0.62 + uVarA)) * u * (0.55 + uEnergy * 0.35);
+      col += vec3(1.0, 0.95, 0.85) * edge * (1.3 + uBeat * 0.8 + uTreble * 0.5);
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const dispMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: dispVert, fragmentShader: dispFrag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), dispMat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { regime: BARKLEY_REGIMES[0], lastOnset: 0, poke: 0, needSeed: true };
+  const seedNow = () => {
+    tri.material = seedMat;
+    renderer.setRenderTarget(rtA);
+    renderer.render(simScene, simCam);
+    renderer.setRenderTarget(null);
+    tri.material = simMat;
+    varU.tUV.value = rtA.texture;
+    st.needSeed = false;
+  };
+  const api = {
+    name: 'EXCITABLE', key: 'barkley', group,
+    update(dt){
+      if (!group.visible) return;
+      if (st.needSeed) seedNow();
+      const f = AE.f || {};
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+      // the onset is a stimulus, placed by the spectrum's own centre of mass
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.2){
+          simU.uPokeA.value.set(
+            0.15 + Math.min(1, (f.centroid || 0.4)) * 0.7 + (Math.random() - 0.5) * 0.15,
+            0.15 + Math.random() * 0.7, 0.035, 1.0);
+          st.poke = 2;                             // fire the electrode for two substeps
+        }
+      }
+      // the hand: wherever it presses, the medium is above threshold
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.05){
+        const s = varU.uSlice.value;
+        const px = (s.x + (U.uPtr.value.x * 0.5 + 0.5) * s.z) * varU.uAspect.value * varU.uZoom.value;
+        const py = (s.y + (U.uPtr.value.y * 0.5 + 0.5) * s.w) * varU.uZoom.value;
+        simU.uPokeB.value.set(px - Math.floor(px), py - Math.floor(py), 0.045, Math.min(1, force * 1.2));
+      } else simU.uPokeB.value.w = 0;
+      // loudness runs the clock
+      const steps = reducedMotion ? 2 : 3 + Math.round(Math.min(1, f.energy || 0) * 3);
+      for (let i = 0; i < steps; i++){
+        simU.tUV.value = rtA.texture;
+        simU.uPokeA.value.w = st.poke > 0 ? 1.0 : 0.0;
+        if (st.poke > 0) st.poke--;
+        renderer.setRenderTarget(rtB);
+        renderer.render(simScene, simCam);
+        const t = rtA; rtA = rtB; rtB = t;
+      }
+      renderer.setRenderTarget(null);
+      varU.tUV.value = rtA.texture;
+    },
+    roll(){
+      /* the song's own weather — the same track-stable deal the creature
+         makes, so this song always opens on this regime, this seed */
+      const t = (typeof player !== 'undefined' && player.tracks) ? player.tracks[player.cur] : null;
+      const live = (typeof AE !== 'undefined' && AE.mic && AE.mic.on);
+      const id = !live && t ? String(t.sha256 || t.url || t.id) : null;
+      const rng = id != null ? mulberry32(creatureSeed(id)) : Math.random;
+      st.regime = BARKLEY_REGIMES[Math.floor(rng() * BARKLEY_REGIMES.length) % BARKLEY_REGIMES.length];
+      simU.uABE.value.set(st.regime.a, st.regime.b, st.regime.eps);
+      seedU.uMode.value = st.regime.seed === 'sparks' ? 1 : 0;
+      seedU.uSeedR.value = rng();
+      varU.uVarA.value = rng(); varU.uVarB.value = rng(); varU.uVarC.value = rng();
+      st.needSeed = true;                          // reseeded on the first visible frame
+      api.name = 'EXCITABLE · ' + st.regime.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
+   VERSE / TOTEM — the field learns to spell.
+
+   Nine thousand dots with two homes each: a slow wandering nebula,
+   and a TARGET — one pixel of a word (or of a dropped image),
+   rasterised offscreen and sampled down to exactly this many dots.
+   The word is never drawn; the dots ASSEMBLE it, each on its own
+   delay, hold it breathing against the beat, then let it dissolve
+   back into weather before the next word gathers. Glyph EDGES are
+   found at sampling time (a filled pixel with an empty neighbour)
+   and ignite with the treble exactly the way the creature's rib tips
+   do — the letters are lit from their outlines, which is what makes
+   them read as made of fire rather than printed.
+
+   The words are the song's own by default — title, then artist,
+   cycling on the phrase — and the room accepts offerings: drop a
+   .txt on the field and its lines become the verse; drop an IMAGE
+   and the dots become a TOTEM of it, luminance carried per-dot. The
+   rasteriser is the browser's own canvas text engine, so every
+   script the packs speak — Arabic, Devanagari, Burmese, CJK — shapes
+   correctly for free. */
+function buildVerse(){
+  const group = new THREE.Group();
+  const N = 9000, SPAN = 30;
+  const pos = new Float32Array(N * 3);
+  const aTarget = new Float32Array(N * 3);
+  const aRnd = new Float32Array(N), aEdge = new Float32Array(N), aLum = new Float32Array(N);
+  for (let i = 0; i < N; i++) aRnd[i] = Math.random();
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aTarget', new THREE.BufferAttribute(aTarget, 3));
+  geo.setAttribute('aRnd', new THREE.BufferAttribute(aRnd, 1));
+  geo.setAttribute('aEdge', new THREE.BufferAttribute(aEdge, 1));
+  geo.setAttribute('aLum', new THREE.BufferAttribute(aLum, 1));
+
+  /* rasterise → sample: any draw call becomes N dot targets. Sampling keeps
+     the dot count EXACT (walk the candidates at a fractional stride), so no
+     dot is ever unemployed — spares park at the word's baseline with lum 0
+     and simply stay dim weather. */
+  const CW = 440, CH = 160;
+  const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH;
+  const cctx = cv.getContext('2d', { willReadFrequently: true });
+  function retarget(draw){
+    cctx.clearRect(0, 0, CW, CH);
+    draw(cctx, CW, CH);
+    const d = cctx.getImageData(0, 0, CW, CH).data;
+    const A = (x, y) => (x < 0 || y < 0 || x >= CW || y >= CH) ? 0 : d[(y * CW + x) * 4 + 3];
+    const cand = [];
+    for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++){
+      const i = (y * CW + x) * 4;
+      if (d[i + 3] > 100){
+        const edge = (A(x - 1, y) <= 100 || A(x + 1, y) <= 100 || A(x, y - 1) <= 100 || A(x, y + 1) <= 100) ? 1 : 0;
+        const lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+        cand.push(x, y, edge, lum);
+      }
+    }
+    const M = cand.length / 4;
+    for (let i = 0; i < N; i++){
+      if (M > 0){
+        const j = Math.floor((i / N) * M) * 4;
+        const x = cand[j] + Math.random() - 0.5, y = cand[j + 1] + Math.random() - 0.5;
+        aTarget[i * 3]     = (x / CW - 0.5) * SPAN;
+        aTarget[i * 3 + 1] = (0.5 - y / CH) * SPAN * (CH / CW);
+        aTarget[i * 3 + 2] = (Math.random() - 0.5) * 1.4;
+        aEdge[i] = cand[j + 2];
+        aLum[i] = cand[j + 3];
+      } else { aTarget[i * 3] = 0; aTarget[i * 3 + 1] = 0; aTarget[i * 3 + 2] = 0; aEdge[i] = 0; aLum[i] = 0; }
+    }
+    geo.attributes.aTarget.needsUpdate = true;
+    geo.attributes.aEdge.needsUpdate = true;
+    geo.attributes.aLum.needsUpdate = true;
+  }
+  const drawWord = word => (ctx, w, h) => {
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let size = 120;
+    ctx.font = '900 ' + size + 'px system-ui, sans-serif';
+    const m = ctx.measureText(word);
+    if (m.width > w * 0.92) size = Math.max(26, Math.floor(size * w * 0.92 / m.width));
+    ctx.font = '900 ' + size + 'px system-ui, sans-serif';
+    ctx.fillText(word, w / 2, h / 2);
+  };
+  const drawImage = img => (ctx, w, h) => {
+    const s = Math.min(w / img.width, h / img.height);
+    const iw = img.width * s, ih = img.height * s;
+    ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
+  };
+
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uGather: { value: 0 }, uSpan: { value: SPAN }, uImage: { value: 0 },
+  };
+  const vert = VERT_POINT_HEAD + `
+    attribute vec3 aTarget;
+    attribute float aRnd, aEdge, aLum;
+    uniform float uVarA, uVarB, uVarC, uGather, uSpan, uImage;
+    varying float vTip; varying float vLum;
+    void main(){
+      // the wandering home: a slow private orbit, so the dissolved word is
+      // weather rather than an explosion held in mid-air
+      float t1 = uTime * (0.13 + fract(aRnd * 7.3) * 0.1) + aRnd * 39.0;
+      vec3 home = vec3(
+        sin(t1) * (9.0 + fract(aRnd * 3.7) * 13.0),
+        cos(t1 * 0.83 + aRnd * 17.0) * (6.0 + fract(aRnd * 5.1) * 8.0),
+        sin(t1 * 0.61 + aRnd * 23.0) * 7.0);
+      // each dot answers the gather on its own delay — words arrive as a
+      // wave of dots, not as a cut
+      float k = smoothstep(0.0, 1.0, clamp(uGather * 1.45 - aRnd * 0.45, 0.0, 1.0));
+      vec3 p = mix(home, aTarget, k);
+      // assembled letters breathe against the beat and shiver with the treble
+      p.x += sin(uTime * 3.1 + aRnd * 51.0) * (0.05 + uTreble * 0.22) * k;
+      p.y += cos(uTime * 2.7 + aRnd * 43.0) * (0.05 + uBeat * 0.30) * k;
+      vTip = aEdge * k;
+      vLum = mix(1.0, aLum, uImage);
+      vT = clamp(aTarget.x / uSpan + 0.5, 0.0, 1.0);
+      vGlow = fract(aRnd * 5.7) * 0.25 + aEdge * (0.35 + uTreble * 0.55) * k + uBeat * 0.18 * k;
+      /* A WORD FACES THE READER, always: this room lives in VIEW space —
+         the camera may orbit every other scene, but text seen edge-on is
+         not text, so here the orbit happens to the weather and never to
+         the letters. ptrWarp still applies: a hand bends the words the
+         way it bends everything else. */
+      vec4 mv = ptrWarp(vec4(p.xy, p.z - 30.0, 1.0));
+      gl_Position = projectionMatrix * mv;
+      float base = 0.9 + fract(aRnd * 9.1) * 0.9 + aEdge * 0.5 * k;
+      gl_PointSize = base * (0.35 + 0.65 * vLum + 0.2) * (300.0 / -mv.z);
+    }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform vec3 uColA, uColB, uColC; uniform float uOpacity, uBeat, uEnergy, uTreble, uImage;
+    varying float vGlow; varying float vT; varying float vTip; varying float vLum;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.12, r);
+      vec3 col = ramp(vT);
+      // an image keeps its own light per dot; a word takes the room's
+      col *= mix(1.0, 0.35 + vLum * 0.95, uImage);
+      vec3 ember = mix(uColC, vec3(1.0, 0.24, 0.14), 0.72);
+      col = mix(col, ember, vTip * (0.55 + uTreble * 0.4) * (1.0 - uImage * 0.6));
+      col = inkRolloff(col * (0.60 + vGlow * 0.60 + uEnergy * 0.20));
+      gl_FragColor = vec4(col, a * uOpacity * (0.55 + vGlow * 0.35));
+    }
+  `;
+  group.add(addShaderPoints(geo, frag, vert, varU, 'normal'));
+  group.visible = false;
+  scene.add(group);
+
+  const st = { words: [], wi: 0, mode: 'words', phase: 'gather', t: 0, hold: 4.5, img: null, custom: null };
+  const wordsNow = () => {
+    if (st.custom && st.custom.length) return st.custom;
+    const t = (typeof player !== 'undefined' && player.tracks) ? player.tracks[player.cur] : null;
+    const out = [];
+    if (t){
+      if (t.title) out.push(...String(t.title).toUpperCase().split(/\s+/).filter(w => w.length > 1));
+      if (t.artist) out.push(String(t.artist).toUpperCase());
+    }
+    return out.length ? out : ['AETHRA', 'KAIROS'];
+  };
+  const nextWord = () => {
+    st.words = wordsNow();
+    st.wi = (st.wi + 1) % st.words.length;
+    retarget(drawWord(st.words[st.wi]));
+  };
+  const api = {
+    name: 'VERSE', key: 'verse', group,
+    /* the offerings: a .txt's lines become the verse; an image becomes the
+       totem. Both arrive through the app's one drop handler. */
+    setLines(lines){
+      st.custom = (lines || []).map(s => String(s).trim()).filter(Boolean).slice(0, 64);
+      st.mode = 'words'; st.wi = -1; varU.uImage.value = 0;
+      st.phase = 'dissolve'; st.t = 0;
+      api.name = 'VERSE';
+    },
+    setImage(img){
+      st.img = img; st.mode = 'image'; varU.uImage.value = 1;
+      retarget(drawImage(img));
+      st.phase = 'gather'; st.t = 0;
+      api.name = 'TOTEM';
+    },
+    update(dt){
+      if (!group.visible) return;
+      st.t += dt;
+      const f = AE.f || {};
+      if (st.phase === 'gather'){
+        varU.uGather.value = Math.min(1, varU.uGather.value + dt / 1.4);
+        if (varU.uGather.value >= 1){ st.phase = 'hold'; st.t = 0; st.hold = st.mode === 'image' ? 14 : 3.6 + Math.random() * 2.2; }
+      } else if (st.phase === 'hold'){
+        if (st.t > st.hold && st.mode === 'words'){ st.phase = 'dissolve'; st.t = 0; }
+        if (st.t > st.hold && st.mode === 'image'){ st.t = 0; }   // a totem holds until the room moves on
+      } else {
+        varU.uGather.value = Math.max(0, varU.uGather.value - dt / 0.9);
+        if (varU.uGather.value <= 0){
+          if (st.mode === 'image' && st.img) retarget(drawImage(st.img));
+          else nextWord();
+          st.phase = 'gather'; st.t = 0;
+        }
+      }
+    },
+    roll(){
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      if (st.mode === 'image' && st.img){ retarget(drawImage(st.img)); api.name = 'TOTEM'; }
+      else { st.wi = -1; nextWord(); api.name = 'VERSE'; }
+      varU.uGather.value = 0; st.phase = 'gather'; st.t = 0;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -31166,7 +31900,7 @@ function initThree(){
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
               buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain(),
-              buildEigenstate(), buildCreature());
+              buildEigenstate(), buildCreature(), buildBarkley(), buildVerse());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -35764,6 +36498,7 @@ function frame(now){
 
   analyse(dt, t);
   if (drawing) uploadAudioTexture();
+  if (typeof MIXSET !== 'undefined') MIXSET.visualTick();
 
   // THE beat clock: one authoritative read per frame (regression-filtered,
   // output-latency compensated) — the HUD meter, the haptics, the shader
@@ -36596,6 +37331,7 @@ const MACPROMO = {
     registerSW();
   }
   UPDATE.paint();                // a deferral from a past session shows at once
+  try { LOOK.apply(); } catch (e){}                // a kept look in the link walks the dials back
   window.__mb8Booted = true;                       // acceptance probe reads this
   // an unmirrored dictionary (first visit in a new tongue, or a cleared
   // mirror) finishes fetching under the splash — capped, so a dead network
