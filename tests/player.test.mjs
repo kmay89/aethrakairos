@@ -59,13 +59,14 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
   ' CIE_LOBES, XYZ_TO_SRGB, xyzToLinearRGB, DISC_PITCH, AIRY_J1_ZERO, rayleighSep, DISP_WB,' +
   ' FILAMENT_FORMS, LORENZ, THOMAS_B, FILM_N, FILM_R0, FILM_AGES, filmState, TERRAIN_FORMS,' +
-  ' CREATURE_FORMS, creatureGenome, creatureSeed,' +
+  ' CREATURE_FORMS, creatureGenome, creatureSeed, BARKLEY, BARKLEY_REGIMES, barkleyStep,' +
   ' EIGEN, EIGEN_LESSONS, eigenDot, eigenTql2, eigenLanczos, eigenSolve, eigenOccupation, eigenTimeUnit,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
   ' UP_SNOOZE_MS, UP_NAG_CAP, UP_APPLY_CAP, UP_QUIET_MS, updateReminder, ACT_CAP, activityPush, activityAgo,' +
   ' SKINS, skinResolve, skinHexRgb, skinCss,' +
   ' WARM_HUES, warmHue, warmBlend, WARM_PULL, warmDeal, togetherness, warmSpark, beatGrace, SCENE_SIGS, sceneSig,' +
+  ' lookEncode, lookDecode, mixsetVisualAt,' +
   ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaFlow, lavaK6, lavaKS, lavaW, lavaGradW,' +
   ' lavaCohesion, lavaRestDensity, lavaRestGrad, lavaCohesionScale, lavaBudget,' +
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError };';
@@ -1981,7 +1982,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 33);
+  assert.equal(S.SCENE_KEYS.length, 35);
 });
 
 test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
@@ -2009,6 +2010,76 @@ test('creatureGenome: every form deals a bounded genome, whole where closed', ()
   // the deal is a pure function of its rng: same seed, same animal
   assert.deepEqual(S.creatureGenome('medusa', S.mulberry32(99)),
                    S.creatureGenome('medusa', S.mulberry32(99)), 'no hidden dice');
+});
+
+test('barkleyStep: the medium is excitable — dead stays dead, a whisper dies, a wave travels', () => {
+  const W = 48, H = 12;
+  const P = S.BARKLEY_REGIMES.find(r => r.key === 'spiral');
+  const mk = () => ({ u: new Float64Array(W * H), v: new Float64Array(W * H) });
+  const step = (s, n) => { for (let i = 0; i < n; i++) s = S.barkleyStep(s.u, s.v, W, H, P); return s; };
+  const maxU = s => { let m = 0; for (const x of s.u) if (x > m) m = x; return m; };
+  const peakCol = s => {
+    const col = new Float64Array(W);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) col[x] += s.u[y * W + x];
+    let best = 0; for (let x = 1; x < W; x++) if (col[x] > col[best]) best = x;
+    return best;
+  };
+  // 1 · the rest state is genuinely dead: u = v = 0 is an equilibrium
+  assert.equal(maxU(step(mk(), 40)), 0, 'nothing fires from nothing');
+  // 2 · a sub-threshold whisper dissolves instead of igniting
+  let s = mk(); s.u[6 * W + 24] = 0.05;
+  assert.ok(maxU(step(s, 120)) < 0.05, 'a whisper is not a wave');
+  // 3 · a supra-threshold front PROPAGATES — fire with ash on one flank moves
+  //     away from the ash, and is still burning long after it left home
+  s = mk();
+  for (let y = 0; y < H; y++){
+    for (let x = 2; x <= 4; x++) s.u[y * W + x] = 1;
+    for (let x = 0; x < 2; x++) s.v[y * W + x] = 0.8;
+  }
+  const mid = step(s, 60);
+  assert.ok(maxU(mid) > 0.8, 'the front is alive on the way');
+  assert.ok(peakCol(mid) > 6, `…and it has left home: peak at col ${peakCol(mid)}`);
+  const late = step(mid, 90);
+  assert.ok(maxU(late) > 0.8, 'on a ring the pulse just keeps circulating');
+  // 4 · the integrator launders its inputs — nothing escapes [0,1]×[0,1.2]
+  s = mk(); s.u[0] = 5; s.v[1] = -3;
+  const one = S.barkleyStep(s.u, s.v, W, H, P);
+  assert.ok(one.u.every(x => x >= 0 && x <= 1) && one.v.every(x => x >= 0 && x <= 1.2));
+});
+test('looks: a kept moment round-trips, and a poisoned link decodes to nothing', () => {
+  const valid = { lenses: ['none', 'mirrors', 'mirrors+moire'], colors: ['auto', 'duo'] };
+  const code = S.lookEncode({ scene: 'creature', lens: 'mirrors+moire', color: 'duo' });
+  assert.deepEqual(S.lookDecode(code, valid), { scene: 'creature', lens: 'mirrors+moire', color: 'duo' });
+  // every segment is validated against its roster — a bookmark is not an injection point
+  assert.deepEqual(S.lookDecode('nonsense~<script>~%00', valid), { scene: null, lens: null, color: null });
+  assert.deepEqual(S.lookDecode('', valid), { scene: null, lens: null, color: null });
+  assert.deepEqual(S.lookDecode(null, valid), { scene: null, lens: null, color: null });
+  assert.equal(S.lookDecode('barkley', valid).scene, 'barkley', 'the scene roster is the pure block’s own');
+  assert.equal(S.lookEncode({ scene: 'A B<>', lens: null }), 'ab', 'the encoder launders on the way out too');
+});
+test('mixsetVisualAt: a section may plan the room, and only a real plan counts', () => {
+  const set = { sections: [
+    { name: 'Dinner', minutes: 1, visual: { scene: 'verse' } },
+    { name: 'Dancing', minutes: 1, visual: { scene: 'barkley', lens: 'mirrors' } },
+    { name: 'Late', minutes: 1 },
+    { name: 'Junk', minutes: 1, visual: { scene: 42 } },
+  ] };
+  assert.deepEqual(S.mixsetVisualAt(set, 10), { section: 'Dinner', scene: 'verse', lens: null });
+  assert.deepEqual(S.mixsetVisualAt(set, 70), { section: 'Dancing', scene: 'barkley', lens: 'mirrors' });
+  assert.equal(S.mixsetVisualAt(set, 130), null, 'no cue, no nudge');
+  assert.equal(S.mixsetVisualAt(set, 190), null, 'a malformed cue is no cue');
+  assert.equal(S.mixsetVisualAt(null, 0), null);
+});
+
+test('BARKLEY_REGIMES: three weathers, each a lawful parameterisation', () => {
+  assert.equal(new Set(S.BARKLEY_REGIMES.map(r => r.key)).size, S.BARKLEY_REGIMES.length);
+  for (const r of S.BARKLEY_REGIMES){
+    assert.ok(r.name && typeof r.name === 'string');
+    assert.ok(r.b > 0 && r.b < r.a && r.a <= 1, `${r.key}: the threshold (v+b)/a must live inside (0,1)`);
+    assert.ok(r.eps > 0 && r.eps <= 0.2, `${r.key}: ε=${r.eps} must keep forward Euler honest at dt=${S.BARKLEY.dt}`);
+    assert.ok(['cross', 'sparks'].includes(r.seed));
+  }
+  assert.ok(S.BARKLEY.dt > 0 && S.BARKLEY.dt <= 0.25, 'under the diffusion stability ceiling h²/4');
 });
 
 test('creatureSeed: a song is a stable animal — same id, same seed, same genome', () => {
@@ -2203,7 +2274,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 33; sc++)
+  for (let sc = 0; sc < 35; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2250,7 +2321,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 33; sc++)
+  for (let sc = 0; sc < 35; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -2805,7 +2876,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 33; sc++)
+  for (let sc = 0; sc < 35; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);
