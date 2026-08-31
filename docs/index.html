@@ -3612,10 +3612,12 @@ function touchAffinity(sceneIdx, act, r, mood){
                'grows', 'flows',
                'flows', 'grows', 'flows', 'gathers',
                'grows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'grows', 'flows', 'grows',
-               'gathers'];   // …the lattice and the film ripple, the
+               'gathers',
+               'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
-                           // stars, the SHOW gathers its sparks, the SET is a well, and a
-                           // hand on the WAVEFUNCTION gathers probability the way a well does
+                           // stars, the SHOW gathers its sparks, the SET is a well, a
+                           // hand on the WAVEFUNCTION gathers probability the way a well
+                           // does, and a hand near the CREATURE is a current in its water
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -3868,10 +3870,12 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa', 'snake',
                'snake', 'lissa', 'paint', 'drift',
                'drift', 'bounce', 'lissa', 'drift', 'lissa', 'snake', 'paint', 'drift',
+               'lissa',
                'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
-                           // and the EIGENSTATE is orbited the way a superposition beats
+                           // the EIGENSTATE is orbited the way a superposition beats,
+                           // and the CREATURE is swum alongside in slow figure-eights
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -4536,6 +4540,75 @@ const TERRAIN_FORMS = [
   { key: 'isles',  name: 'ARCHIPELAGO', ridged: 0.7, step: 0,   water: 0.30 },
 ];
 
+/* THE ORGANIC SHAPE ENGINE — a genome, not a model.
+
+   Not biology. One cosine field k = cos(ribs·τ·s) laid along a body, and a
+   rule the whole animal is known by: where k² crosses its threshold, the
+   tip IGNITES. That is the entire trick of the dot-drawn "cosine creature"
+   — a spine, ribs whose reach is the wave, and ember tips where the wave
+   peaks — and it generalises the way a pattern book generalises: hold the
+   field, swap the body it is laid on. Three pages here, after the pages a
+   book of shapes is organised by — FLOW (an open spine: the WYRM), ORGANIC
+   (a scalloped closed rim: the MEDUSA), RADIAL (a petalled rosette: the
+   BLOOM).
+
+   Everything a creature IS lives in this genome — dealt once per visit,
+   bounded here, and handed to the GPU as four vec4s. The scene's vertex
+   shader is a pure function of (genome, station, rib-fraction, clock), so
+   the CPU never touches a dot after the deal.
+
+   One closure rule, held by a test: an OPEN body may take fractional wave
+   counts (a spine just ends), but a CLOSED rim must take whole ones —
+   cos(n·θ) only meets itself around a circle when n is an integer, and a
+   scallop that misses its own start by half a wave reads as a tear, not a
+   shape. */
+const CREATURE_FORMS = [
+  { key: 'wyrm',   name: 'WYRM' },     // the flow page — an open spine, ribbed
+  { key: 'medusa', name: 'MEDUSA' },   // the organic page — a blob rim, tentacled
+  { key: 'bloom',  name: 'BLOOM' },    // the radial page — petals on a whorl
+];
+function creatureGenome(form, rnd){
+  const r = typeof rnd === 'function' ? rnd : Math.random;
+  const pick = (a, b) => a + (b - a) * r();
+  const g = {
+    form,
+    ribs:   pick(2.2, 5.2),      // rib-field waves along the body (k's frequency)
+    ribLen: pick(4.5, 8.5),      // the longest rib's reach, world units
+    tip:    pick(0.55, 0.82),    // the ignition line — ember where k² ≥ tip
+    curl:   pick(0.4, 1.5),      // radians a rib turns through on its way out
+    waveF1: pick(0.8, 2.2),      // the axis' two cosines: frequency (turns)…
+    waveA1: pick(2.5, 5.5),      // …and amplitude (units) — the swim itself
+    waveF2: pick(2.6, 5.2),
+    waveA2: pick(0.8, 2.6),
+    span:   pick(26, 34),        // body length / crown diameter, world units
+    petals: 0,                   // radial symmetry order — the open spine has none
+    puff:   pick(1.5, 4),        // how far the body leaves its plane
+    seed:   r(),                 // the phase everything private hangs off
+    swim:   pick(0.6, 1.4),      // the clock's own rate multiplier
+    sway:   pick(0.8, 2.0),      // how far the free ends ride that clock
+    sharp:  pick(0.8, 2.6),      // petal/rib taper exponent
+  };
+  if (form === 'medusa'){
+    g.petals = Math.round(pick(5, 9));      // the bell's scallops — closed, so whole
+    g.ribs   = Math.round(pick(3, 7));      // tentacle field around the rim — whole
+    g.waveF1 = Math.round(pick(2, 4));      // rim harmonics — whole, same reason
+    g.waveF2 = Math.round(pick(5, 8));
+    g.span   = pick(20, 27);
+    g.ribLen = pick(9, 15);
+    g.curl   = pick(0.2, 0.7);
+  }
+  if (form === 'bloom'){
+    g.petals = Math.round(pick(5, 13));     // the rosette's order — whole
+    g.ribs   = Math.round(pick(2, 6));      // the petal-length field — whole
+    g.waveF1 = Math.round(pick(1, 3));
+    g.waveF2 = Math.round(pick(4, 7));
+    g.span   = pick(22, 30);
+    g.ribLen = pick(8, 13);
+    g.tip    = pick(0.70, 0.92);            // petal apexes only — rarer, brighter
+  }
+  return g;
+}
+
 /* ================================================================
    THE DOUBLE WELL, ACTUALLY SOLVED.
 
@@ -4845,7 +4918,7 @@ function eigenTimeUnit(mode, e){
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
-                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen'];
+                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -4897,6 +4970,9 @@ const SCENE_TASTE = {
   eigen:     { coupling: 1.3, calm: 0.9, mid: 0.7, entropy: -0.5 },  // a superposition is a HELD chord — the
                                                             // beats between levels want coherent, tonal
                                                             // material to phase against, not noise
+  creature:  { calm: 1.2, entropy: 0.7, treble: 0.6, beat: -0.5 },  // something alive wants water, not a drum
+                                                            // kit: airy, flowing material to swim in —
+                                                            // the treble is what lights its tips
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6040,6 +6116,7 @@ const SCENE_SIGS = {
   soapfilm:  { kind: 'blob',   h: 205, dense: 0.9, rainbow: 1 },
   terrain:   { kind: 'wave',   h: 292, arms: 5, twist: 1, rainbow: 1 },
   eigen:     { kind: 'cloud',  h: 265, dense: 0.8, rainbow: 1 },
+  creature:  { kind: 'ribbon', h: 352, arms: 5, dense: 0.7 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -30428,6 +30505,255 @@ function buildEigenstate(){
 }
 
 /* ================================================================
+   THE CREATURE — the organic shape engine, embodied.
+
+   Not biology. Just two cosine waves and a rule: one wave is the AXIS
+   (the body's own swim, drawn by the spine), the other is the RIB
+   FIELD k = cos(ribs·τ·s) laid along it — a rib reaches as far as the
+   field says, and where k² crosses the genome's threshold the tip
+   IGNITES ember-red. That one trick — the dot-drawn "cosine creature"
+   — is held fixed while the body under it is swapped, the way a book
+   of shapes turns pages: the WYRM lays the field on an open spine
+   (the flow page), the MEDUSA hangs it from a scalloped blob rim as
+   tentacles (the organic page), the BLOOM opens it into petals around
+   a golden-angle whorl of florets (the radial page).
+
+   The deal happens once: creatureGenome (in the pure block, where the
+   tests hold its ranges) is folded into four vec4s, and from then on
+   every dot is placed by the vertex shader as a pure function of
+   (genome, station s, rib-fraction r, clock) — the CPU never touches
+   a dot after the roll, exactly the FERN's bargain.
+
+   The music is the life in it, not a decoration on it: bass is
+   breath (the ribs reach, the bell fills, the petals open), treble is
+   what lights the tips, a hard onset is a STARTLE — the wyrm's ribs
+   snap out, the medusa jets, the bloom flares its whorl — and the
+   whole animal grows in along its own body as the track plays, the
+   way the fern sprouts. A hand in the field is a current in its
+   water: same ptrWarp as everything else, so the creature bends with
+   the metric rather than dodging a cursor.
+   ================================================================ */
+function buildCreature(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() }, uVarC: { value: Math.random() },
+    uGrow:  { value: 0 }, uFlick: { value: 0 }, uForm: { value: 0 },
+    uGenA: { value: new THREE.Vector4(3, 6, 0.7, 0.9) },   // ribs, ribLen, tip, curl
+    uGenB: { value: new THREE.Vector4(1.4, 4, 3.6, 1.6) }, // the axis' two cosines: f1, a1, f2, a2
+    uGenC: { value: new THREE.Vector4(30, 0, 2.5, 0) },    // span, petals, puff, seed
+    uGenD: { value: new THREE.Vector4(1, 1.3, 1.6, 0) },   // swim, sway, sharp, —
+  };
+  /* the body, parameterised once and never revisited: RIBS stations along
+     the body, DOTS dots per rib (a rib is a DOTTED line — the dots ARE the
+     drawing, as in the inspiration), two mirrored sides, and a run of
+     spine dots with aR = 0 that draw the skeleton the ribs hang from */
+  const RIBS = 88, DOTS = 26, SPINE = 650;
+  const N = RIBS * DOTS * 2 + SPINE;
+  const pos = new Float32Array(N * 3);      // never written — the shader owns placement
+  const aS = new Float32Array(N), aR = new Float32Array(N);
+  const aSide = new Float32Array(N), aRnd = new Float32Array(N);
+  let i = 0;
+  for (let st = 0; st < RIBS; st++)
+    for (let side = -1; side <= 1; side += 2)
+      for (let d = 0; d < DOTS; d++, i++){
+        aS[i] = (st + 0.5) / RIBS;
+        aR[i] = (d + 1) / DOTS;
+        aSide[i] = side;
+        aRnd[i] = Math.random();
+      }
+  for (let sp = 0; sp < SPINE; sp++, i++){
+    aS[i] = sp / SPINE; aR[i] = 0; aSide[i] = 0; aRnd[i] = Math.random();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aS', new THREE.BufferAttribute(aS, 1));
+  geo.setAttribute('aR', new THREE.BufferAttribute(aR, 1));
+  geo.setAttribute('aSide', new THREE.BufferAttribute(aSide, 1));
+  geo.setAttribute('aRnd', new THREE.BufferAttribute(aRnd, 1));
+
+  const vert = VERT_POINT_HEAD + `
+    attribute float aS, aR, aSide, aRnd;
+    uniform float uVarA, uVarB, uVarC, uGrow, uFlick, uForm;
+    uniform vec4 uGenA, uGenB, uGenC, uGenD;
+    varying float vTip;
+    vec2 rot2(vec2 v, float t){ float c = cos(t), s = sin(t); return vec2(v.x * c - v.y * s, v.x * s + v.y * c); }
+    void main(){
+      float TAU = 6.2831853;
+      float sw = uTime * (0.45 + uEnergy * 0.85) * uGenD.x;   // the swim clock — loudness is speed
+      float ph = uGenC.w * TAU;
+      bool rib = abs(aSide) > 0.5;
+      /* THE RIB FIELD — the one cosine the whole engine turns on. Its square
+         gates both how far a limb reaches and whether its tip ignites. */
+      float k = cos(aS * uGenA.x * TAU + ph * 2.7);
+      float kk = k * k;
+      float startle = uFlick;                                  // the onset, already eased in JS
+      vec3 p;
+      float lenN = 0.0;                                        // how far along its reach this dot sits
+
+      if (uForm < 0.5){
+        /* WYRM — the flow page. The axis IS the two cosine waves; the ribs
+           leave it along the normal and curl as they go. */
+        float taper = pow(sin(aS * 3.14159265), 0.6);          // a body, not a comb: thin ends
+        float a1 = aS * uGenB.x * TAU + sw + ph;
+        float a2 = aS * uGenB.z * TAU - sw * 0.618 + ph * 3.0;
+        p = vec3((aS - 0.5) * uGenC.x,
+                 cos(a1) * uGenB.y + cos(a2) * uGenB.w,
+                 sin(aS * uGenB.x * 0.5 * TAU - sw * 0.41) * uGenB.y * 0.8);
+        // the tangent from the same two cosines' derivative — one truth, two uses
+        float dy = -sin(a1) * uGenB.x * TAU * uGenB.y - sin(a2) * uGenB.z * TAU * uGenB.w;
+        vec2 tang = normalize(vec2(uGenC.x, dy));
+        vec2 nrm = vec2(-tang.y, tang.x);
+        if (rib){
+          float len = uGenA.y * (0.30 + 0.70 * kk) * taper * (1.0 + uBass * 0.35 + startle * 0.5);
+          float bend = (uGenA.w * (0.5 + 0.5 * k) + startle * 0.9) * aR;
+          float wig = sin(aR * 5.0 - sw * 2.0 + aS * 11.0) * (0.05 + uTreble * 0.09) * aR * uGenD.y;
+          p.xy += rot2(nrm * aSide, bend * aSide) * (aR * len) + tang * wig;
+          p.z += aSide * aR * uGenC.z * (0.35 + 0.45 * k);     // ribs fan out of plane: a body, not a sheet
+          lenN = aR;
+        }
+      } else if (uForm < 1.5){
+        /* MEDUSA — the organic page. The rim is a BLOB: mean radius plus two
+           whole-numbered cosine harmonics (the same move every organic SVG
+           outline is made of), scalloped by the petal count. Tentacles hang
+           the rib field from it; the mirror side is the shorter inner skirt. */
+        float th = aS * TAU;
+        float jet = uBeat * 0.6 + startle;                     // the squeeze IS the swim
+        float R = uGenC.x * 0.30 * (1.0 + 0.14 * cos(th * uGenB.x + ph * TAU)
+                                        + 0.10 * cos(th * uGenB.z - ph * 9.0)
+                                        + 0.06 * cos(th * uGenC.y + sw))
+                * (1.0 - 0.10 * jet);
+        if (rib){
+          float skirt = aSide < 0.0 ? 0.45 : 1.0;              // outer tentacles, inner frill
+          float len = uGenA.y * (0.40 + 0.60 * kk) * skirt * (1.0 + uBass * 0.30 + jet * 0.20);
+          float drop = aR * len;
+          vec2 rim = vec2(cos(th), sin(th)) * R * mix(0.78, 1.0, skirt);
+          p.x = rim.x * (1.0 + aR * 0.22);
+          p.z = rim.y * (1.0 + aR * 0.22);
+          p.y = uGenC.x * 0.14 - drop;
+          // the sway: free ends trail the clock, quadratically — anchored at the rim
+          p.x += sin(drop * 0.55 - sw * 2.2 + th * 3.0) * aR * aR * uGenD.y * (1.1 + uMid * 0.8);
+          p.z += cos(drop * 0.47 - sw * 1.9 + th * 5.0) * aR * aR * uGenD.y;
+          lenN = aR;
+        } else {
+          // the bell: a golden-angle spiral dome — florets of dots, breathing
+          float thd = aS * 650.0 * 2.39996323;
+          float rr = sqrt(aS);
+          float dome = cos(rr * 1.35) * uGenC.x * 0.20 * (1.0 + uBass * 0.18 + jet * 0.22);
+          p = vec3(cos(thd) * rr * R, uGenC.x * 0.14 + dome, sin(thd) * rr * R);
+        }
+      } else {
+        /* BLOOM — the radial page. The rib field sets each ray's reach; the
+           petal envelope |cos(P·θ/2)|^sharp cuts the rays into petals. The
+           mirror side is the inner whorl, half a petal out of phase — two
+           layers, the way real corollas stack. */
+        float whorl = aSide < 0.0 ? 1.0 : 0.0;
+        float th = aS * TAU + sw * 0.12 + whorl * (3.14159265 / max(1.0, uGenC.y));
+        float env = pow(abs(cos(th * uGenC.y * 0.5 + ph)), uGenD.z);
+        if (rib){
+          float len = uGenA.y * (0.25 + 0.75 * env) * (0.55 + 0.45 * kk)
+                    * mix(1.0, 0.55, whorl) * (1.0 + uBass * 0.25 + startle * 0.4);
+          float rad = uGenC.x * 0.09 + aR * len;
+          p = vec3(cos(th) * rad, sin(th) * rad, 0.0);
+          // the cup: petals lift out of plane as they extend, each whorl its own way
+          p.z = aR * aR * uGenC.z * (0.5 + 0.5 * k) * mix(1.0, -0.6, whorl)
+              + sin(th * uGenC.y + sw) * aR * 0.4 * uGenD.y;
+          lenN = aR * step(0.02, env);                         // between petals there is no tip
+        } else {
+          // the disc: golden-angle florets at the centre — the whorl the petals leave
+          float thd = aS * 650.0 * 2.39996323;
+          float rr = sqrt(aS) * uGenC.x * 0.10;
+          p = vec3(cos(thd) * rr, sin(thd) * rr, cos(sqrt(aS) * 1.5) * 1.2 + uBass * 0.6);
+        }
+      }
+      p.z += (fract(aRnd * 13.7) - 0.5) * 0.9;                 // a dust of depth — dots, not a decal
+
+      /* the reveal — the animal grows in along its own body: the wyrm head to
+         tail, the radial forms centre outward, the skeleton slightly ahead */
+      float rc = rib ? (uForm < 0.5 ? aS : aR) : aS * 0.5;
+      float grown = step(rc, uGrow);
+      float edge = smoothstep(uGrow, uGrow - 0.05, rc);
+
+      /* THE IGNITION — the mark the creature is known by: ember where the
+         rib field's square clears the genome's threshold, tips only */
+      vTip = step(uGenA.z, kk) * smoothstep(0.70, 0.94, lenN) * grown;
+
+      vT = uForm < 0.5 ? aS : fract(aS * 2.0 + aR * 0.35);
+      vGlow = kk * 0.22 + fract(aRnd * 5.7) * 0.18 + (1.0 - edge) * 0.8 * grown
+            + vTip * (0.5 + uTreble * 0.5) + uBeat * 0.15 * lenN;
+      vec4 mv = ptrWarp(modelViewMatrix * vec4(p, 1.0));
+      gl_Position = projectionMatrix * mv;
+      // small flat dots — the drawing is the SPACING, not the glow; the spine
+      // stays near-invisible, a dark river the ribs radiate from
+      float base = rib ? 0.85 + fract(aRnd * 9.1) * 0.85 : 0.55 + fract(aRnd * 9.1) * 0.4;
+      gl_PointSize = grown * (base + vTip * (0.8 + uBeat * 0.7)) * (300.0 / -mv.z);
+    }
+  `;
+  const creatureFrag = GLSL_MPHI + `
+    uniform vec3 uColA, uColB, uColC; uniform float uOpacity, uBeat, uEnergy, uTreble;
+    varying float vGlow; varying float vT; varying float vTip;
+    void main(){
+      vec2 d = gl_PointCoord - 0.5;
+      float r = length(d);
+      if (r > 0.5) discard;
+      float a = smoothstep(0.5, 0.15, r);
+      vec3 col = ramp(vT);
+      /* the ember: the accent leaned hard toward incandescent red — the one
+         colour the cosine creature is known by, lit harder by the treble */
+      vec3 ember = mix(uColC, vec3(1.0, 0.24, 0.14), 0.72);
+      col = mix(col, ember, vTip * (0.6 + uTreble * 0.4));
+      col = inkRolloff(col * (0.60 + vGlow * 0.55 + uEnergy * 0.20));
+      gl_FragColor = vec4(col, a * uOpacity * (0.55 + vGlow * 0.35 + vTip * 0.30));
+    }
+  `;
+  // NORMAL blending, FERN's bargain for the same reason: the inspiration is
+  // flat solid dots on the dark — overlaps must stay drawn, not burn to white
+  group.add(addShaderPoints(geo, creatureFrag, vert, varU, 'normal'));
+  group.visible = false;
+  scene.add(group);
+
+  const st = { flick: 0, lastOnset: 0, spin: 0 };
+  const api = {
+    name: 'CREATURE', key: 'creature', group,
+    update(dt){
+      if (!group.visible) return;
+      const prog = (typeof director !== 'undefined' && director.trackProg != null) ? director.trackProg : 0.5;
+      const gGoal = 0.10 + prog * 1.05;
+      varU.uGrow.value += (gGoal - varU.uGrow.value) * (1 - Math.exp(-dt / 1.6));
+      // the startle — a hard onset snaps the ribs out / jets the bell, then eases off
+      const f = AE.f || {};
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.35) st.flick = Math.min(1.2, st.flick + 0.7);
+      }
+      st.flick *= Math.exp(-dt * 3.0);
+      const imp = (typeof INTERACT !== 'undefined') ? INTERACT.impulse : 0;
+      varU.uFlick.value = Math.min(1.5, st.flick + imp * 0.8);
+      // the radial pages turn slowly on their own axis; the wyrm swims in place
+      group.rotation.z += dt * st.spin * (reducedMotion ? 0.4 : 1);
+    },
+    roll(){
+      const r = Math.random();
+      const form = CREATURE_FORMS[r < 0.42 ? 0 : r < 0.74 ? 1 : 2];
+      const g = creatureGenome(form.key, Math.random);
+      varU.uGenA.value.set(g.ribs, g.ribLen, g.tip, g.curl);
+      varU.uGenB.value.set(g.waveF1, g.waveA1, g.waveF2, g.waveA2);
+      varU.uGenC.value.set(g.span, g.petals, g.puff, g.seed);
+      varU.uGenD.value.set(g.swim, g.sway, g.sharp, 0);
+      varU.uForm.value = form.key === 'wyrm' ? 0 : form.key === 'medusa' ? 1 : 2;
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random(); varU.uVarC.value = Math.random();
+      varU.uGrow.value = 0;
+      // the pose: the wyrm holds its diagonal; the crown and the flower turn
+      group.rotation.set(0, 0, (g.seed - 0.5) * 1.2);
+      st.spin = form.key === 'wyrm' ? 0 : (g.seed - 0.5) * 0.14;
+      api.name = 'CREATURE · ' + form.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -30456,7 +30782,7 @@ function initThree(){
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
               buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain(),
-              buildEigenstate());
+              buildEigenstate(), buildCreature());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

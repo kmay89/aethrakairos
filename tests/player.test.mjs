@@ -59,6 +59,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
   ' CIE_LOBES, XYZ_TO_SRGB, xyzToLinearRGB, DISC_PITCH, AIRY_J1_ZERO, rayleighSep, DISP_WB,' +
   ' FILAMENT_FORMS, LORENZ, THOMAS_B, FILM_N, FILM_R0, FILM_AGES, filmState, TERRAIN_FORMS,' +
+  ' CREATURE_FORMS, creatureGenome,' +
   ' EIGEN, EIGEN_LESSONS, eigenDot, eigenTql2, eigenLanczos, eigenSolve, eigenOccupation, eigenTimeUnit,' +
   ' colorScheme, schemeChord, warmTilt, actWarmth, ACT_WARMTH, WARM_MAX_DEG,' +
   ' UP_EST, updateProgress, updateEstimate, updateWatchdogStep,' +
@@ -1980,7 +1981,32 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 32);
+  assert.equal(S.SCENE_KEYS.length, 33);
+});
+
+test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
+  for (const F of S.CREATURE_FORMS){
+    const rng = S.mulberry32(7 + F.key.length);
+    for (let n = 0; n < 200; n++){
+      const g = S.creatureGenome(F.key, rng);
+      assert.equal(g.form, F.key);
+      for (const [k, lo, hi] of [['ribs', 2, 7], ['ribLen', 4.5, 15], ['tip', 0.55, 0.92],
+        ['curl', 0.2, 1.5], ['span', 20, 34], ['puff', 1.5, 4], ['seed', 0, 1],
+        ['swim', 0.6, 1.4], ['sway', 0.8, 2], ['sharp', 0.8, 2.6]])
+        assert.ok(g[k] >= lo && g[k] <= hi, `${F.key}.${k} = ${g[k]} outside [${lo}, ${hi}]`);
+      if (F.key === 'wyrm') assert.equal(g.petals, 0, 'an open spine has no symmetry order');
+      else {
+        /* the closure rule: cos(n·θ) only meets itself around a circle when n
+           is whole — a rim harmonic that misses its own start is a tear */
+        for (const k of ['petals', 'ribs', 'waveF1', 'waveF2'])
+          assert.equal(g[k], Math.round(g[k]), `${F.key}.${k} must be whole, got ${g[k]}`);
+        assert.ok(g.petals >= 5, 'a crown carries at least five scallops/petals');
+      }
+    }
+  }
+  // the deal is a pure function of its rng: same seed, same animal
+  assert.deepEqual(S.creatureGenome('medusa', S.mulberry32(99)),
+                   S.creatureGenome('medusa', S.mulberry32(99)), 'no hidden dice');
 });
 test('sceneScore: an appetite is for presence, a negative one for ABSENCE', () => {
   const loud = { energy: 1, entropy: 1, calm: 0 };
@@ -2162,7 +2188,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 31; sc++)
+  for (let sc = 0; sc < 33; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2209,7 +2235,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 31; sc++)
+  for (let sc = 0; sc < 33; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -2764,7 +2790,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 31; sc++)
+  for (let sc = 0; sc < 33; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);
