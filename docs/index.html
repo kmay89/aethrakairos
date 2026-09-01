@@ -12851,6 +12851,196 @@ function danceTimeWarp(phi, period, energy){
   const amp = Math.min(0.045, period * 0.09) * clamp01(energy);
   return -amp * 0.5 * (1 + Math.cos(clamp01(phi) * Math.PI * 2));
 }
+
+/* ================================================================
+   THE CHOREOGRAPHER'S REPERTOIRE — the difference between reacting
+   and DANCING. Everything above answers the current frame; a dancer
+   works in FIGURES that span bars: commit to a move, carry it through
+   with anticipation and follow-through, hand over on the count. The
+   vocabulary below is that repertoire, danceDeal is the taste that
+   picks the next figure, danceMovePose is the figure itself — and the
+   `flow` channel each figure carries is RUBATO: musical time bent per
+   move, so the whole field tears through a whip and thickens in a
+   held breath instead of playing at one speed underneath the song.
+   All pure, so the entire dance is dealt and measured by the tests.
+   ================================================================ */
+
+/* the vocabulary. beats: how long the figure is carried (dealt on the
+   count, handed over on the count). lo..hi: the energy window where the
+   figure makes sense — a whip in a lullaby is as wrong as a drift in a
+   drop. w: the base appetite inside that window. `drop` is not in the
+   open pool: it is dealt only by the landing itself (see danceDeal). */
+const DANCE_MOVES = [
+  { name: 'orbit',    beats: 8,  lo: 0.00, hi: 1.00, w: 1.0 },  // the resting carousel
+  { name: 'float',    beats: 16, lo: 0.00, hi: 0.45, w: 1.1 },  // weightless, time at half speed
+  { name: 'pushin',   beats: 8,  lo: 0.25, hi: 0.90, w: 0.9 },  // the slow creep toward the heart
+  { name: 'reveal',   beats: 4,  lo: 0.00, hi: 0.70, w: 0.7 },  // draw away, open the frame
+  { name: 'pendulum', beats: 8,  lo: 0.15, hi: 0.80, w: 0.9 },  // one swing across and back
+  { name: 'spiral',   beats: 16, lo: 0.30, hi: 0.85, w: 0.8 },  // the rising corkscrew
+  { name: 'strut',    beats: 4,  lo: 0.50, hi: 1.00, w: 1.0 },  // step-turns that LAND on each beat
+  { name: 'rush',     beats: 4,  lo: 0.55, hi: 1.00, w: 1.0 },  // the whip through the downbeat
+  { name: 'suspend',  beats: 4,  lo: 0.00, hi: 0.60, w: 0.4 },  // the held breath
+  { name: 'drop',     beats: 4,  lo: 0.65, hi: 1.00, w: 0.6 },  // the crash cut — landing only
+];
+
+/* danceDeal — which figure next. ctx: energy 0..1 (how hard the moment is
+   going), brace 0..1 (a drop is COMING — precognition), impact (the drop
+   just LANDED), phraseFrac, last (the figure just finished), motif (the
+   figure that opened the previous phrase), rand() → 0..1. Deterministic
+   given rand, so the tests can deal thousands of nights. */
+function danceDeal(ctx){
+  const c = ctx || {};
+  const rand = c.rand || Math.random;
+  const e = clamp01(c.energy == null ? 0.5 : c.energy);
+  const byName = n => { for (let i = 0; i < DANCE_MOVES.length; i++) if (DANCE_MOVES[i].name === n) return DANCE_MOVES[i]; return DANCE_MOVES[0]; };
+  const vary = m => ({ name: m.name, beats: m.beats,
+    dir: rand() < 0.5 ? -1 : 1, va: rand(), vb: rand() });
+  // the landing overrides everything: the crash cut on the exact hit
+  if (c.impact) return vary(byName('drop'));
+  // a drop is coming: coil — hold the breath so the landing hits harder
+  if ((c.brace || 0) > 0.5 && c.last !== 'suspend' && c.last !== 'drop')
+    return vary(byName('suspend'));
+  /* choreography REPEATS on purpose. At the phrase turn the dealer may
+     call back the figure that opened the previous phrase — the AABA the
+     body recognises without being told. Only if the room still holds it. */
+  if (c.motif && c.motif !== c.last && (c.phraseFrac || 0) < 0.06){
+    const m = byName(c.motif);
+    if (m.name === c.motif && e >= m.lo - 0.1 && e <= m.hi + 0.1 && rand() < 0.45)
+      return vary(m);
+  }
+  // otherwise: every figure whose energy window holds this moment, weighted
+  // toward the centre of its comfort zone — and never the same figure twice
+  const pool = [];
+  for (let i = 0; i < DANCE_MOVES.length; i++){
+    const m = DANCE_MOVES[i];
+    if (m.name !== c.last && m.name !== 'drop' && e >= m.lo && e <= m.hi) pool.push(m);
+  }
+  if (!pool.length) return vary(byName('orbit'));
+  let sum = 0;
+  const w = pool.map(m => {
+    const mid = (m.lo + m.hi) / 2, half = (m.hi - m.lo) / 2 + 1e-6;
+    const fit = 1 - Math.min(1, Math.abs(e - mid) / half);
+    const wt = m.w * (0.25 + 0.75 * fit); sum += wt; return wt;
+  });
+  let r = rand() * sum;
+  for (let i = 0; i < pool.length; i++){ r -= w[i]; if (r <= 0) return vary(pool[i]); }
+  return vary(pool[pool.length - 1]);
+}
+
+/* danceMovePose — the figure itself at progress u (0 at the deal, 1 at the
+   handover), as OFFSETS from where the camera stood when the move began:
+   dth/dphi (orbit angles, rad), dr (radius), roll (rad), dfov (deg),
+   flow (musical time rate — the rubato), spin (world-turn multiplier),
+   snap (how hard the rig chases the goal — whips and struts track fast).
+   Continuous at u=0 for every figure except `drop`, whose opening
+   discontinuity IS the cut; roll/dfov resolve to ~0 and flow to ~1 by
+   u=1 so every handover is seamless. o carries the deal's variation:
+   dir ±1, va/vb 0..1. */
+function danceMovePose(name, u, o){
+  o = o || {};
+  const dir = o.dir === -1 ? -1 : 1;
+  const va = clamp01(o.va == null ? 0.5 : o.va), vb = clamp01(o.vb == null ? 0.5 : o.vb);
+  u = clamp01(u);
+  const s = danceSmooth;
+  const arc = Math.sin(u * Math.PI);        // rises, peaks mid-figure, resolves
+  const p = { dth: 0, dphi: 0, dr: 0, roll: 0, dfov: 0, flow: 1, spin: 1, snap: 0 };
+  switch (name){
+    case 'float':
+      p.dth = dir * 0.3 * u;
+      p.dphi = 0.2 * (va - 0.5) * Math.sin(u * Math.PI * 2);
+      p.dr = 3.5 * arc;
+      p.roll = 0.05 * Math.sin(u * Math.PI * 2) * arc;
+      p.dfov = -2 * arc;
+      p.flow = 0.55 + 0.45 * s(0.8, 1, u);  // drifts at half speed, released to tempo
+      p.spin = 0.35;
+      break;
+    case 'pushin':
+      p.dth = dir * 0.3 * u;
+      p.dr = -(7 + va * 4) * u * u * (3 - 2 * u);
+      p.dfov = -3 * arc;
+      p.flow = 1 - 0.25 * arc;              // time thickens as we close in
+      p.spin = 0.7;
+      break;
+    case 'reveal':
+      p.dth = dir * 0.5 * u;
+      p.dphi = -0.15 * u;
+      p.dr = (6 + va * 5) * (1 - Math.pow(1 - u, 3));
+      p.dfov = 5 * arc;
+      p.flow = 1 + 0.15 * arc;
+      p.spin = 0.8;
+      break;
+    case 'pendulum':
+      p.dth = dir * (0.8 + va * 0.5) * Math.sin(u * Math.PI * 2);
+      p.dphi = 0.1 * Math.sin(u * Math.PI * 4) * (vb - 0.5);
+      p.roll = dir * 0.2 * Math.cos(u * Math.PI * 2) * arc;   // leaning into the swing
+      p.spin = 1.2;
+      break;
+    case 'spiral':
+      p.dth = dir * (1.8 + va * 0.8) * u;
+      p.dphi = -(0.45 + vb * 0.2) * arc;
+      p.dr = -4 * arc;
+      p.roll = dir * 0.06 * Math.sin(u * Math.PI * 2) * arc;
+      p.dfov = -3 * arc;
+      p.flow = 1 + 0.2 * arc;
+      p.spin = 1.5;
+      break;
+    case 'strut': {
+      // footwork: four step-turns, each SNAPPING home on its beat, the
+      // field itself holding still — quantised motion reads as designed
+      const b = u * 4, k = Math.floor(b), w = b - k;
+      const snapK = 1 - Math.exp(-w * 12);
+      p.dth = dir * 0.22 * (k + snapK);
+      p.dr = -5.6 * snapK * (1 - snapK);    // the little dip of each step
+      p.roll = dir * 0.04 * Math.sin(u * Math.PI * 8) * arc;
+      p.spin = 0;
+      p.snap = 4;
+      break;
+    }
+    case 'rush': {
+      // the whip: wind up against the turn, tear through the downbeat,
+      // overshoot, settle — anticipation and follow-through in one arc
+      const sweep = s(0.2, 0.8, u)
+        - 0.10 * Math.sin(Math.min(1, u / 0.2) * Math.PI) * (1 - s(0.15, 0.35, u))
+        + 0.09 * Math.sin(clamp01((u - 0.72) / 0.28) * Math.PI);
+      p.dth = dir * (1.6 + va * 1.0) * sweep;
+      p.dr = -4 * arc;
+      p.dfov = (4 + vb * 3) * arc;
+      p.roll = dir * 0.1 * Math.sin(u * Math.PI * 2) * arc;
+      p.flow = 1 + 0.65 * arc;              // time surges with the whip
+      p.spin = 1.8;
+      p.snap = 1.5;
+      break;
+    }
+    case 'suspend':
+      // the held breath: near-stillness, time at a crawl — and the release
+      // ramps back to tempo in the last bar so the landing arrives AT speed
+      p.dth = dir * 0.05 * u;
+      p.dphi = -0.05 * u;
+      p.dr = 2.5 * s(0, 0.4, u);
+      p.dfov = -2.5 * arc;
+      p.flow = 1 - 0.55 * s(0, 0.25, u) * (1 - s(0.82, 1, u));
+      p.spin = 0.25 + 0.75 * s(0.82, 1, u);
+      break;
+    case 'drop': {
+      // the crash: an angle CUT on the hit, zoom shock, ringing recover —
+      // the one figure allowed to open discontinuous, because the jump IS it
+      const atk = 1 - Math.exp(-u * 18);
+      p.dth = dir * (0.7 + va * 0.5) * atk;
+      p.dr = -(6 + vb * 4) * atk * Math.exp(-u * 2.2);
+      p.dfov = 9 * atk * Math.exp(-u * 3);
+      p.roll = dir * 0.14 * atk * Math.exp(-u * 2.5) * Math.cos(u * Math.PI * 3);
+      p.flow = 1 + 0.85 * Math.exp(-u * 2.6);
+      p.spin = 0.8 + 1.4 * Math.exp(-u * 2);
+      p.snap = 5 * Math.exp(-u * 3);
+      break;
+    }
+    default:                                 // 'orbit' — nothing to prove
+      p.dth = dir * (0.55 + va * 0.5) * u;
+      p.dphi = 0.12 * (vb - 0.5) * arc;
+      break;
+  }
+  return p;
+}
 // @dance-end
 
 /* ================================================================
@@ -23420,6 +23610,13 @@ const DANCE = {
   on: true,
   phase: 0, barFrac: 0, phraseFrac: 0, haveGrid: false, period: 0.5,
   pulse: 0, sway: 0, lift: 0, breath: 0, warp: 0, ear: 1, brace: 0, flow: 0,
+  /* MUSICAL TIME. `rate` is the choreographer's rubato (CHOREO sets it,
+     clamped well above zero); `time` integrates dt·rate and is the clock
+     every shader breathes by — monotone by construction, so a surge is
+     felt and a held breath thickens, but nothing ever rewinds. `beats`
+     is the raw running count (grid or freewheel) the figures are dealt
+     and carried on. */
+  rate: 1, time: 0, beats: 0,
   _freePhase: 0, _out: 0, _wasComing: 0,
 
   update(dt, t){
@@ -23448,6 +23645,7 @@ const DANCE = {
       phi = this._freePhase % 1;
     }
     this.phase = phi;
+    this.beats = beats;
     this.barFrac = (beats / 4) % 1;
     this.phraseFrac = (beats / 32) % 1;
 
@@ -23545,6 +23743,89 @@ const DANCE = {
     this.breath = Math.sin(t * 0.88 + Math.sin(t * 0.213) * 1.7) * (0.35 + f.calm * 0.65);
     // the melody also bends musical time a touch — a subtle rubato on the riff
     this.warp = playing ? danceTimeWarp(phi, this.period, clamp01(f.energy + this.flow * 0.3)) : 0;
+  },
+};
+
+/* ================================================================
+   CHOREO — the choreographer. DANCE feels the beat; CHOREO decides the
+   FIGURE. A move is dealt from the pure vocabulary (danceDeal), carried
+   for its counted beats (danceMovePose), and handed over on the count —
+   so the camera stops wandering and starts performing: it winds up
+   before the whip, steps on the beats, coils when precognition sees a
+   drop coming and crash-cuts on the exact landing. And each figure
+   carries a `flow`: musical time itself runs rubato through DANCE.rate,
+   so every room's OWN motion surges and rests with the song instead of
+   playing at one speed underneath it. The first figure of each phrase
+   becomes a motif the next phrase may call back — repetition the body
+   recognises. Stands down for reduced motion and under a live hand;
+   a stage screen takes the booth's reading off the wire instead.
+   ================================================================ */
+const CHOREO = {
+  on: true,
+  move: null, u: 0, pose: null,
+  motif: null, _last: '', start: 0,
+  base: null, _wasBrace: 0, _rate: 1,
+
+  _deal(forced){
+    const f = AE.f;
+    // the moment's heat: spectral energy leaned by the ear (real transients
+    // only) and the arc's phase — a break dances lower than a peak
+    const phase = director.phase;
+    const energy = clamp01(f.energy * 0.7 + DANCE.ear * 0.3
+      + (phase === 'peak' ? 0.15 : phase === 'break' ? -0.18 : 0));
+    const d = forced || danceDeal({
+      energy, brace: DANCE.brace, impact: false,
+      phraseFrac: DANCE.phraseFrac, last: this._last, motif: this.motif,
+      rand: Math.random,
+    });
+    this.move = d; this._last = d.name;
+    this.start = Math.floor(DANCE.beats || 0);
+    // the figure that opens a phrase becomes its motif — the callback
+    if (DANCE.phraseFrac < 0.13) this.motif = d.name;
+    /* the new figure starts from where the camera STANDS — with a gentle
+       homing so eight push-ins in a row can never walk the rig into the
+       wall: each deal relaxes a quarter of the way back to the act's own
+       preferred distance and a fifth back to the level gaze. */
+    const home = clamp(30 * ACTS[director.act >= 0 ? director.act : 1].cam, 18, 40);
+    this.base = {
+      th: director.camTheta,
+      phi: director.camPhi + (1.2 - director.camPhi) * 0.2,
+      r: clamp(director.camTargetR + (home - director.camTargetR) * 0.25, 18, 40),
+    };
+  },
+
+  update(dt){
+    // a stage screen dances to the booth's reading, delivered on the wire
+    if (typeof STAGE !== 'undefined' && STAGE.screen()){ this.pose = null; return; }
+    if (!this.on || !DANCE.on || reducedMotion){
+      this.pose = null; this.move = null; this._rate = 1; DANCE.rate = 1; return;
+    }
+    const playing = player.playing || AE.mic.on;
+    if (!playing){
+      // silence: ease time back to the wall's tempo and put the cards down
+      this._rate += (1 - this._rate) * (1 - Math.exp(-dt / 0.5));
+      DANCE.rate = this._rate; this.pose = null; this.move = null; return;
+    }
+    const beats = DANCE.beats || 0;
+    const rnd = Math.random;
+    // the landing interrupts everything: the crash cut on the exact hit
+    const landed = this._wasBrace > 0.5 && DANCE.brace < 0.15;
+    this._wasBrace = DANCE.brace;
+    if (landed)
+      this._deal({ name: 'drop', beats: 4, dir: rnd() < 0.5 ? -1 : 1, va: rnd(), vb: rnd() });
+    // a drop is coming: coil NOW, whatever figure was running
+    else if (DANCE.brace > 0.5 && this.move
+        && this.move.name !== 'suspend' && this.move.name !== 'drop')
+      this._deal({ name: 'suspend', beats: 4, dir: this.move.dir, va: rnd(), vb: rnd() });
+    // hand over on the count — and re-deal if the clock itself rewound
+    // (a track change re-derives the grid; the freewheel never goes back)
+    else if (!this.move || beats - this.start >= this.move.beats || beats < this.start - 1)
+      this._deal(null);
+    this.u = clamp01((beats - this.start) / this.move.beats);
+    this.pose = danceMovePose(this.move.name, this.u, this.move);
+    // the rubato: eased so it reads as breath, bounded so no sim can break
+    this._rate += (this.pose.flow - this._rate) * (1 - Math.exp(-dt / 0.28));
+    DANCE.rate = Math.min(1.9, Math.max(0.4, this._rate));
   },
 };
 
@@ -23956,7 +24237,12 @@ const director = {
         const trim = o.material.blending === THREE.AdditiveBlending ? addTrim : 1;
         o.material.uniforms.uOpacity.value = op * trim;
       });
-      s.update(dt);
+      /* THE RUBATO REACHES THE ROOMS THEMSELVES. Every scene's own motion
+         steps through musical time, not wall time: the choreographer's rate
+         (bounded 0.4..1.9, exactly 1 when standing down) makes the whole
+         field float through a held breath and tear through the whip — the
+         "speeds" of the dance, not just its shapes. */
+      s.update(dt * (DANCE.rate || 1));
     }
     // auto scene switching: the dwell decides a change is DUE; the SEGUE decides
     // the moment (the next downbeat / phrase / section) and the feel — so cuts
@@ -23986,9 +24272,19 @@ const director = {
       if (this.palT >= 1) this.pal = this.palTo;
     }
 
-    // ---- camera rig: slow spherical drift + bass FOV breathing + beat dolly ----
+    // ---- camera rig. When the music plays the CHOREOGRAPHER holds it: the
+    // rig performs the dealt figure (offsets from where the move began), the
+    // tracking snaps harder for whips and struts, and the old random wander
+    // is what remains for silence, reduced motion, and a live hand. ----
+    const chor = (typeof CHOREO !== 'undefined' && CHOREO.pose && CHOREO.base
+      && INTERACT.holdOff <= 0) ? CHOREO.pose : null;
     this.camDwell = (this.camDwell || 0) + dt;
-    if (this.camDwell > 7 && this.transT >= 1 && INTERACT.holdOff <= 0
+    if (chor){
+      this.camGoalTheta = CHOREO.base.th + chor.dth;
+      this.camGoalPhi = clamp(CHOREO.base.phi + chor.dphi, 0.5, 2.5);
+      this.camTargetR = clamp(CHOREO.base.r + chor.dr, 15, 45);
+      this.camDwell = 0;
+    } else if (this.camDwell > 7 && this.transT >= 1 && INTERACT.holdOff <= 0
         && (!DANCE.haveGrid || DANCE.barFrac < 0.08)){
       this.camGoalTheta = this.camTheta + (Math.random() - 0.5) * 2.2;
       this.camGoalPhi = clamp(0.7 + Math.random() * 1.3, 0.5, 2.5);
@@ -23996,9 +24292,11 @@ const director = {
       this.camDwell = 0;
     }
     const spd = reducedMotion ? 0.4 : 1;
-    this.camTheta += (this.camGoalTheta - this.camTheta) * dt * 0.3 * spd + dt * 0.02;
-    this.camPhi   += (this.camGoalPhi - this.camPhi) * dt * 0.3 * spd;
-    this.camRadius += (this.camTargetR - this.camRadius) * dt * 0.4;
+    const chase = Math.min(1, dt * 0.3 * spd * (1 + (chor ? chor.snap * 6 : 0)));
+    this.camTheta += (this.camGoalTheta - this.camTheta) * chase + dt * 0.02;
+    this.camPhi   += (this.camGoalPhi - this.camPhi) * chase;
+    this.camRadius += (this.camTargetR - this.camRadius)
+      * Math.min(1, dt * (0.4 + (chor ? chor.snap * 1.5 : 0)));
     if (f.onset) this.dolly = Math.min(this.dolly + 0.4, 1.2);
     this.dolly *= Math.exp(-dt / 0.3);
     const R = this.camRadius - this.dolly * 3 - f.bass * 4 - DANCE.pulse * 1.4;
@@ -24008,15 +24306,19 @@ const director = {
       Math.sin(this.camPhi) * Math.sin(this.camTheta) * R
     );
     camera.lookAt(0, 0, 0);
-    // head-tilt: the camera leans with the bar, after lookAt so it composes
-    camera.rotation.z += DANCE.sway * 0.035 * (reducedMotion ? 0.3 : 1);
-    const goalFov = 62 + f.bass * 10 + DANCE.pulse * 4 + DANCE.lift * 3;
+    // head-tilt: the camera leans with the bar, after lookAt so it composes —
+    // and the figure adds its own committed lean (pendulum, whip, crash)
+    camera.rotation.z += DANCE.sway * 0.035 * (reducedMotion ? 0.3 : 1)
+      + (chor ? chor.roll : 0);
+    const goalFov = 62 + f.bass * 10 + DANCE.pulse * 4 + DANCE.lift * 3
+      + (chor ? chor.dfov : 0);
     this.fov += (goalFov - this.fov) * dt * 3;
     camera.fov = this.fov; camera.updateProjectionMatrix();
 
-    // world rotation for extra life
+    // world rotation for extra life — the figure conducts it too: the field
+    // HOLDS still through a strut and tears around through a whip
     scene.rotation.y += dt * (0.02 + f.coupling * 0.06) * spd
-      * ACTS[this.act >= 0 ? this.act : 1].spin;
+      * ACTS[this.act >= 0 ? this.act : 1].spin * (chor ? chor.spin : 1);
     sceneObjExtra.forEach(o => { o.rotation.y -= dt * 0.005; });
 
     // ---- the dance: the whole room leans into the bar, rises with the
@@ -33525,6 +33827,10 @@ const STAGE = {
       DANCE.phraseFrac = Number(p.dance.f) || 0;
       DANCE.haveGrid = !!p.dance.g;
       if (!Number.isFinite(DANCE.ear)) DANCE.ear = 1;
+      // the booth's rubato: the wall's rooms step through the SAME bent time,
+      // so a three-panel body breathes as one dancer (CHOREO stands down on
+      // screens — this line is what it stands down FOR)
+      DANCE.rate = Math.min(1.9, Math.max(0.4, Number(p.dance.r) || 1));
     }
     if (p.dir){
       director.act = p.dir.a | 0; director.actT = Number(p.dir.t) || 0;
@@ -33659,7 +33965,7 @@ const STAGE = {
     const f = AE.f, p = { t: 'f', at: now, f: {} };
     for (const k of STAGE_FIELDS) p.f[k] = f[k];
     p.clock = { g: !!CLOCK.haveGrid, i: CLOCK.idx | 0, b: CLOCK.barPhase, t: CLOCK.bpm };
-    p.dance = { p: DANCE.pulse, w: DANCE.warp, e: DANCE.ear, b: DANCE.brace, f: DANCE.phraseFrac, g: !!DANCE.haveGrid };
+    p.dance = { p: DANCE.pulse, w: DANCE.warp, e: DANCE.ear, b: DANCE.brace, f: DANCE.phraseFrac, g: !!DANCE.haveGrid, r: DANCE.rate };
     /* THE CUT GOES ON THE WIRE TOO. A follower screen gets the scene index and
        calls setScene itself, which would otherwise roll its OWN transition form
        and its own seed — so a three-panel wall would shatter, ripple and fold
@@ -36494,7 +36800,14 @@ function frame(now){
   // the GPU uploads sit out, and the glass simply holds its last frame
   const drawing = !STAGE.mini && (typeof POWER === 'undefined' || POWER.frameGate());
   const t = now / 1000;
-  U.uTime.value = t;
+  /* MUSICAL TIME. The clock the shaders breathe by is no longer the wall's:
+     it integrates dt · rate, and the choreographer bends the rate (rubato —
+     see CHOREO), so every room surges through the whip and thickens in the
+     held breath. Monotone by construction — the rate is clamped well above
+     zero — so nothing ever rewinds; the wall's own t still drives the beat
+     clock, the analysis and the transports, which must not warp. */
+  DANCE.time += dt * (DANCE.rate || 1);
+  U.uTime.value = DANCE.time + DANCE.warp;
 
   analyse(dt, t);
   if (drawing) uploadAudioTexture();
@@ -36555,6 +36868,7 @@ function frame(now){
   }
 
   DANCE.update(dt, t);
+  if (typeof CHOREO !== 'undefined') CHOREO.update(dt);
 
   // feed uniforms — the beat channel carries the DANCED pulse (anticipation,
   // impact, rebound; uTime surges through the hit as musical time), and then
@@ -36562,7 +36876,7 @@ function frame(now){
   // full-amplitude pulses respect the WCAG gap. Choreography proposes;
   // safety disposes — the governor is always the last hand on the light.
   const f = AE.f;
-  U.uTime.value = t + DANCE.warp;
+  U.uTime.value = DANCE.time + DANCE.warp;
   U.uBass.value = f.bass; U.uMid.value = f.mid; U.uTreble.value = f.treble; U.uEnergy.value = f.energy;
   U.uBeat.value = safeBeatStep(SAFE.beatState,
     // the live onset detector IS the music's own hit — it always punches

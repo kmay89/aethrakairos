@@ -37,7 +37,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' INK, inkRolloff, whiteBudget, rampStops, buildRamp, RAMP_N,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
-  ' dancePulse, danceSway, danceTimeWarp, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
+  ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
@@ -1262,6 +1262,125 @@ test('musical time surges but never runs backwards', () => {
   assert.ok(Math.abs(S.danceTimeWarp(0, 0.5, 1) - S.danceTimeWarp(1, 0.5, 1)) < 1e-9, 'continuous at the wrap');
   for (let i = 0; i < 20; i++)
     assert.ok(Math.abs(S.danceTimeWarp(i / 20, 0.5, 1)) <= 0.045 + 1e-9, 'bounded to 45 ms');
+});
+
+// ------------------------------------------------- the choreographer's repertoire
+
+test('the vocabulary is well-formed: counted in beats, windowed in energy', () => {
+  const names = new Set();
+  for (const m of S.DANCE_MOVES){
+    assert.ok(!names.has(m.name), 'unique name: ' + m.name);
+    names.add(m.name);
+    assert.ok([4, 8, 16].includes(m.beats), m.name + ' is counted in whole bars/half-bars');
+    assert.ok(m.lo >= 0 && m.hi <= 1 && m.lo < m.hi, m.name + ' has a sane energy window');
+    assert.ok(m.w > 0, m.name + ' has appetite');
+  }
+  const orbit = S.DANCE_MOVES.find(m => m.name === 'orbit');
+  assert.ok(orbit.lo === 0 && orbit.hi === 1, 'the resting figure is never out of place');
+});
+
+test('every figure is bounded, finite, and resolves for the handover', () => {
+  const rng = S.mulberry32(77);
+  for (const m of S.DANCE_MOVES){
+    for (let trial = 0; trial < 4; trial++){
+      const o = { dir: trial % 2 ? -1 : 1, va: rng(), vb: rng() };
+      let last = null;
+      for (let i = 0; i <= 200; i++){
+        const u = i / 200;
+        const p = S.danceMovePose(m.name, u, o);
+        for (const k of ['dth', 'dphi', 'dr', 'roll', 'dfov', 'flow', 'spin', 'snap'])
+          assert.ok(Number.isFinite(p[k]), m.name + '.' + k + ' finite at u=' + u);
+        assert.ok(Math.abs(p.dth) <= 3.2, m.name + ' theta stays on the rig');
+        assert.ok(Math.abs(p.dphi) <= 0.8, m.name + ' never flips over the pole');
+        assert.ok(Math.abs(p.dr) <= 12, m.name + ' radius stays in the hall');
+        assert.ok(Math.abs(p.roll) <= 0.35, m.name + ' roll stays a lean, not a tumble');
+        assert.ok(Math.abs(p.dfov) <= 14, m.name + ' fov punch is a punch, not a fisheye');
+        assert.ok(p.flow >= 0.4 - 1e-9 && p.flow <= 1.9 + 1e-9, m.name + ' rubato is bounded');
+        assert.ok(p.spin >= -0.6 && p.spin <= 3, m.name + ' spin conducts, not spins out');
+        assert.ok(p.snap >= 0 && p.snap <= 6, m.name + ' snap is bounded');
+        last = p;
+      }
+      // the handover: lean and lens resolve, time returns to tempo — the next
+      // figure starts from a camera at rest in its new place
+      assert.ok(Math.abs(last.roll) < 0.03, m.name + ' puts the lean down by the count');
+      assert.ok(Math.abs(last.dfov) < 0.6, m.name + ' hands the lens back');
+      assert.ok(Math.abs(last.flow - 1) <= 0.3, m.name + ' arrives back at tempo');
+      // …and every figure except the crash OPENS from stillness
+      if (m.name !== 'drop'){
+        const p0 = S.danceMovePose(m.name, 0, o);
+        assert.ok(Math.abs(p0.dth) < 0.05 && Math.abs(p0.dr) < 0.3 && Math.abs(p0.roll) < 0.03,
+          m.name + ' opens continuous');
+      }
+    }
+  }
+});
+
+test('the crash cut opens discontinuous — that jump IS the figure', () => {
+  const early = S.danceMovePose('drop', 0.1, { dir: 1, va: 0.5, vb: 0.5 });
+  const late = S.danceMovePose('drop', 1, { dir: 1, va: 0.5, vb: 0.5 });
+  assert.ok(early.dth > late.dth * 0.4, 'most of the angle lands in the first tenth');
+  assert.ok(early.dfov > 5, 'the zoom shock is on the hit');
+  assert.ok(S.danceMovePose('drop', 0.01, {}).flow > 1.5, 'time tears through the landing');
+});
+
+test('the strut steps land quantised on the beats, the field holding still', () => {
+  const o = { dir: 1, va: 0.5, vb: 0.5 };
+  // plateau late in step one vs. the snap just after the second beat lands
+  const plateau = S.danceMovePose('strut', 0.24, o).dth;
+  const landed = S.danceMovePose('strut', 0.30, o).dth;
+  assert.ok(Math.abs(S.danceMovePose('strut', 0.20, o).dth - plateau) < 0.02, 'the hold between steps');
+  assert.ok(landed - plateau > 0.1, 'the step SNAPS on the count');
+  assert.equal(S.danceMovePose('strut', 0.5, o).spin, 0, 'the field holds still under the footwork');
+  assert.ok(S.danceMovePose('strut', 0.1, o).snap >= 3, 'the rig tracks fast enough to read the step');
+});
+
+test('the rubato has a shape: breath held, whip surged, always released', () => {
+  const o = { dir: 1, va: 0.5, vb: 0.5 };
+  assert.ok(S.danceMovePose('suspend', 0.5, o).flow < 0.6, 'the held breath thickens time');
+  assert.ok(S.danceMovePose('suspend', 1, o).flow > 0.9, 'and releases it before the landing');
+  assert.ok(S.danceMovePose('float', 0.3, o).flow < 0.7, 'the drift floats below tempo');
+  let peak = 0;
+  for (let i = 0; i <= 40; i++) peak = Math.max(peak, S.danceMovePose('rush', i / 40, o).flow);
+  assert.ok(peak > 1.4, 'the whip surges through');
+  // steady figures keep steady time
+  for (let i = 0; i <= 20; i++)
+    assert.equal(S.danceMovePose('orbit', i / 20, o).flow, 1, 'the carousel keeps tempo');
+  // the wind-up: the whip pulls BACK before it tears forward
+  let dipped = false;
+  for (let i = 1; i <= 10; i++) if (S.danceMovePose('rush', i * 0.02, o).dth < -0.02) dipped = true;
+  assert.ok(dipped, 'anticipation before the whip');
+});
+
+test('the dealer respects the room: windows, no repeats, the coil and the crash', () => {
+  const rng = S.mulberry32(4242);
+  for (let i = 0; i < 400; i++){
+    const quiet = S.danceDeal({ energy: 0.05, last: '', rand: rng });
+    assert.ok(!['rush', 'strut', 'drop', 'spiral', 'pushin'].includes(quiet.name),
+      'a lullaby never gets the whip: ' + quiet.name);
+    const loud = S.danceDeal({ energy: 0.97, last: '', rand: rng });
+    assert.ok(['orbit', 'strut', 'rush'].includes(loud.name), 'a banger dances hard: ' + loud.name);
+    const varied = S.danceDeal({ energy: 0.5, last: 'orbit', rand: rng });
+    assert.ok(varied.name !== 'orbit', 'never the same figure twice');
+    assert.ok(S.DANCE_MOVES.some(m => m.name === varied.name && m.beats === varied.beats),
+      'the deal carries its own count');
+    assert.ok(varied.dir === 1 || varied.dir === -1, 'a direction is always chosen');
+  }
+  assert.equal(S.danceDeal({ energy: 0.9, impact: true, rand: rng }).name, 'drop',
+    'the landing deals the crash — nothing else does');
+  assert.equal(S.danceDeal({ energy: 0.3, brace: 0.8, last: 'orbit', rand: rng }).name, 'suspend',
+    'precognition deals the coil');
+  assert.ok(S.danceDeal({ energy: 0.3, brace: 0.8, last: 'suspend', rand: rng }).name !== 'suspend',
+    'but never coils twice in a row');
+});
+
+test('choreography repeats on purpose: the motif answers at the phrase turn', () => {
+  const call = S.danceDeal({ energy: 0.4, phraseFrac: 0.01, last: 'orbit',
+    motif: 'pendulum', rand: () => 0.3 });
+  assert.equal(call.name, 'pendulum', 'the phrase head calls the motif back');
+  // the callback still respects the room: a quiet figure is not forced on a peak
+  const outgrown = S.danceDeal({ energy: 0.98, phraseFrac: 0.01, last: 'orbit',
+    motif: 'float', rand: () => 0.3 });
+  assert.ok(outgrown.name !== 'float', 'a motif the room has outgrown is let go');
 });
 
 // ---------------------------------------------------------------- the score
