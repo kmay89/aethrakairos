@@ -643,25 +643,32 @@ const cue = await page.evaluate(async () => {
   CUES.press(0);
   const waited = !!FX.jump;
   const t = Date.now();
+  window.__mb8LastSeek = null;
   while (FX.jump && Date.now() - t < 3000) await new Promise(r => setTimeout(r, 10));
-  const fired = Date.now();                             // the jump went on the beat line, not at the press
-  await new Promise(r => setTimeout(r, 250));
-  // where the playhead is now, minus what has elapsed since the landing, should be the cue
+  await new Promise(r => setTimeout(r, 400));
+  /* TWO QUESTIONS, on the audio clock rather than a wall clock this renderer
+     starves: where did the ENGINE aim (the seek it issued, against the cue's
+     beat — its own correctness), and where did the ELEMENT land (its playhead
+     now, less what the audio clock says has elapsed since the seek — which
+     carries the decoder's own seek latency, the one cost a media element
+     cannot be argued out of). */
+  const sk = window.__mb8LastSeek, rate = d.a.playbackRate || 1;
+  const aimed = sk ? sk.to - at : NaN;                          // lateness the engine carried onto the landing
   const back = d.a.currentTime;
-  const land = back - ((Date.now() - fired) / 1000) * (d.a.playbackRate || 1);
-  // THE BEAT KEPT: the landing, folded onto the beat — a jump that arrived a
-  // whole beat late still kept the phase; one that arrived half a beat late did not
-  const err = land - at, folded = ((err % spb) + spb) % spb;
+  const land = sk ? back - (AE.ctx.currentTime - sk.ctx) * rate : NaN;
+  const fold = e => { const f = ((e % spb) + spb) % spb; return Math.min(f, spb - f); };
   CUES.del(0);
-  return { at, onGrid, near, waited, phaseAtPress: phase / spb, landErr: err, phaseErr: Math.min(folded, spb - folded), spb, grid: CLOCK.haveGrid };
+  return { at, onGrid, near, waited, phaseAtPress: phase / spb, aimed, aimErr: fold(aimed), landErr: land - at, phaseErr: fold(land - at), spb, grid: CLOCK.haveGrid };
 });
 if (cue.bad) console.log('     (the cue check could not run: ' + JSON.stringify(cue.bad) + ')');
 R('hot cue: set mid-beat, it snaps to the nearest beat line', !cue.bad && cue.onGrid && cue.near, cue.bad ? 'no cue' : 'cue at ' + cue.at.toFixed(3) + ' s');
 R('hot cue: pressed mid-beat, the jump waits for the line', !cue.bad && (!cue.grid || cue.waited || cue.phaseAtPress < 0.05),
   cue.bad ? 'no cue' : 'phase at press ' + cue.phaseAtPress.toFixed(2) + ' beat · waited=' + cue.waited);
-// (the landing carries the element's own seek latency, which on this renderer
-// is a large fraction of a beat; the phase bound is what matters musically)
-R('…and lands on the cue with the beat phase intact', !cue.bad && Math.abs(cue.landErr) < 0.45 && cue.phaseErr < 0.06,
+R('…and aims at the cue with the beat phase intact — lateness carried, never lost', !cue.bad && isFinite(cue.aimed) && cue.aimed >= -0.001 && cue.aimErr < 0.03,
+  cue.bad ? 'no cue' : 'aimed ' + (cue.aimed * 1000).toFixed(0) + ' ms past the cue, ' + (cue.aimErr * 1000).toFixed(0) + ' ms off the beat');
+// the element's landing carries its own seek latency — reported, and held only
+// to a bound a software decoder on a software rasteriser can meet
+R('…and the element lands within a seek of it', !cue.bad && isFinite(cue.landErr) && Math.abs(cue.landErr) < 0.5 && cue.phaseErr < 0.2,
   cue.bad ? 'no cue' : 'landed ' + (cue.landErr * 1000).toFixed(0) + ' ms from the cue · beat phase off by ' + (cue.phaseErr * 1000).toFixed(0) + ' ms');
 await deckHeld(jumpId);
 

@@ -18918,6 +18918,7 @@ const FX = {
     const keep = L && !L.roll ? L.beats : 0;
     if (L) this.clearLoop();
     try { d.a.currentTime = Math.max(0, to); } catch (e){}
+    window.__mb8LastSeek = { to: Math.max(0, to), ctx: AE.ctx ? AE.ctx.currentTime : 0 };   // the probes read where it aimed
     if (keep) this.setLoop(keep, false);
     if (typeof mediaSessionPosition === 'function') mediaSessionPosition();
   },
