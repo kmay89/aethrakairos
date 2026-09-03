@@ -368,6 +368,100 @@ R('…and the track really did run on underneath it, untouched', roll.ran > 2.0 
    does that literally rather than by arithmetic. */
 R('…so releasing it needs no seek at all', roll.onRelease === 0, 'seeks=' + roll.onRelease);
 
+/* THE TAPE THAT TORE. A recorder block the main thread failed to collect is a
+   hole in the ring, and a loop cut across it carries the splice on every lap.
+   The recorder notes tears off the processor's own clock; nothing in this
+   sandbox can be made to drop a block on demand, so one is planted by hand in
+   the exact slice the next loop wants — and the cut must refuse it, then take
+   the following lap, whose tape is whole. */
+const torn = await page.evaluate(async () => {
+  if (FX.loop) FX.clearLoop();
+  await new Promise(r => setTimeout(r, 400));
+  const refusedBefore = LOOPER.refused || 0;
+  const tearsBefore = LOOPER.torn;
+  // arm, then plant a tear where the first cut will be taken from
+  FX.setLoop(1, false);
+  const i0 = Math.round((LOOPER.tIn - LOOPER.K) * LOOPER.sr);
+  LOOPER.tears.push(i0 + Math.round(0.5 * LOOPER.sr));
+  const t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 15000) await new Promise(r => setTimeout(r, 30));
+  const on = LOOPER.on;
+  const refused = (LOOPER.refused || 0) - refusedBefore;
+  // the cut it finally took must not span the tear
+  const cutFrom = Math.round((LOOPER.tIn - LOOPER.K) * LOOPER.sr);
+  const spans = ringTornIn(LOOPER.tears, cutFrom, LOOPER.src ? LOOPER.src.buffer.length : 0);
+  const period = LOOPER.src ? LOOPER.src.buffer.length : 0;
+  const laps = LOOPER.laps;
+  FX.clearLoop();
+  await new Promise(r => setTimeout(r, 500));
+  return { on, refused, spans, period, want: Math.round(LOOPER.len * LOOPER.sr), laps, tears: LOOPER.torn - tearsBefore };
+});
+R('a cut across a tear in the tape is refused', torn.refused >= 1, `${torn.refused} refusal(s)`);
+R('…and the loop is taken from a later lap instead, whole', torn.on && !torn.spans && torn.period === torn.want,
+  `on=${torn.on} spans=${torn.spans} ${torn.period} vs ${torn.want} samples after ${torn.laps} lap(s)`);
+console.log(`    (the recorder itself reported ${torn.tears} tear(s) during the run)`);
+
+/* THE HANDBACK ASKS THE DECK. The deck is seeked early and the loop covers;
+   the crossover used to be scheduled at a fixed lead regardless of whether the
+   deck had anything to play there. The deck is made to report an empty buffer
+   for a while, and the handback must wait for it — then go the moment it can. */
+const wait = await page.evaluate(async () => {
+  FX.setLoop(1, false);
+  const t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 15000) await new Promise(r => setTimeout(r, 30));
+  if (!LOOPER.on) return { on: false };
+  const d = activeDeck();
+  const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'buffered');
+  const empty = { length: 0, start(){ return 0; }, end(){ return 0; } };
+  let starve = true;
+  Object.defineProperty(d.a, 'buffered', { configurable: true, get(){ return starve ? empty : desc.get.call(this); } });
+  const t0 = AE.ctx.currentTime;
+  const lead = LOOPER.handBack();
+  const waiting = !!LOOPER.backing && LOOPER.on;
+  await new Promise(r => setTimeout(r, 450));
+  const stillWaiting = !!LOOPER.backing && LOOPER.on && LOOPER.out.gain.value > 0.99;
+  starve = false;                        // the bytes arrive
+  const t1 = Date.now();
+  while (LOOPER.backing && Date.now() - t1 < 3000) await new Promise(r => setTimeout(r, 20));
+  const went = !LOOPER.backing && !LOOPER.on;
+  const at = LOOPER.backAt - t0;
+  Object.defineProperty(d.a, 'buffered', { configurable: true, get(){ return desc.get.call(this); } });
+  FX.loop = null;
+  await new Promise(r => setTimeout(r, 400));
+  return { on: true, lead, waiting, stillWaiting, went, at, playing: player.playing, gate: AE.busGate.gain.value, waits: LOOPER.waits };
+});
+R('a handback into an unbuffered deck waits, with the loop still covering', wait.on && wait.waiting && wait.stillWaiting,
+  `waiting=${wait.waiting} still=${wait.stillWaiting} after 450 ms`);
+R('…and goes the moment the deck has the bytes — late, never empty', wait.went && wait.at > 0.4 && wait.at < 2.0 && wait.gate > 0.99 && wait.playing,
+  `handed back ${(wait.at * 1000).toFixed(0)} ms after the call (fixed lead was ${(wait.lead * 1000).toFixed(0)} ms) · busGate=${wait.gate.toFixed(3)}`);
+
+/* THE ROOM CHANGED SHAPE. K is a measurement of one output device; a route
+   change is another device. The tape must measure again — when idle at once,
+   under a held loop only once the loop is let go. */
+const recal = await page.evaluate(async () => {
+  const k0 = LOOPER.K, before = LOOPER.recals || 0;
+  LOOPER.routeChanged();
+  const t = Date.now();
+  while (LOOPER.K == null && Date.now() - t < 5000) await new Promise(r => setTimeout(r, 30));
+  const idle = (LOOPER.recals || 0) - before;
+  const k1 = LOOPER.K;
+  // now under a held loop: deferred, and the loop keeps its K
+  FX.setLoop(1, false);
+  const t2 = Date.now();
+  while (!LOOPER.on && Date.now() - t2 < 15000) await new Promise(r => setTimeout(r, 30));
+  const kHeld = LOOPER.K;
+  LOOPER.routeChanged();
+  const deferred = LOOPER._recal === true && LOOPER.on && LOOPER.K === kHeld;
+  FX.clearLoop();
+  const t3 = Date.now();
+  while ((LOOPER._recal || LOOPER.K == null) && Date.now() - t3 < 6000) await new Promise(r => setTimeout(r, 40));
+  const later = (LOOPER.recals || 0) - before;
+  return { k0, k1, idle, deferred, later, kNow: LOOPER.K };
+});
+R('a route change re-measures an idle tape at once', recal.idle === 1 && recal.k1 != null, `K ${recal.k0 && recal.k0.toFixed(4)} → ${recal.k1 && recal.k1.toFixed(4)}`);
+R('…and waits for a held loop to let go before touching its K', recal.deferred && recal.later === 2 && recal.kNow != null,
+  `deferred=${recal.deferred} recals=${recal.later}`);
+
 /* THE STAND-DOWN. Where there is no live graph there is no tape, and the booth
    must keep the loop it has always had rather than losing the feature. */
 const ios = await page.evaluate(() => {

@@ -235,6 +235,8 @@ body.zen #eqStrip{opacity:.85;height:18px}
 .fx-rack{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:8px;
   border-top:1px solid rgba(233,237,246,.10)}
 .fx-row{display:flex;align-items:center;gap:6px}
+.fx-banks{flex-wrap:wrap;row-gap:5px}
+.fx-banks .fxb{padding:6px 7px}
 .fx-row .spring{flex:1}
 .fxb{font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--dim);
   background:rgba(233,237,246,.05);border:1px solid rgba(233,237,246,.14);border-radius:7px;
@@ -2617,6 +2619,9 @@ body.clipping::after{
     <div class="fx-row fx-banks">
       <button class="fxb on" id="fxBankLoop"  data-bank="loop"  aria-pressed="true">LOOP</button>
       <button class="fxb"    id="fxBankRoll"  data-bank="roll"  aria-pressed="false">ROLL</button>
+      <button class="fxb"    id="fxBankCue"   data-bank="cue"   aria-pressed="false" title="Hot cues — tap an empty pad to mark the beat you are on; tap it again to jump back, on the beat; hold to clear">CUE</button>
+      <button class="fxb"    id="fxBankJump"  data-bank="jump"  aria-pressed="false" title="Beat jump — whole beats forward or back, phase kept">JUMP</button>
+      <button class="fxb"    id="fxBankEq"    data-bank="eq"    aria-pressed="false" title="EQ — kill or dip a band on the mix; press again to undo">EQ</button>
       <button class="fxb"    id="fxBankFx"    data-bank="fx"    aria-pressed="false">FX</button>
       <span class="spring"></span>
       <button class="fxb fx-auto on" id="fxAuto" aria-pressed="true"
@@ -2802,8 +2807,8 @@ body.clipping::after{
     <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
     <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
     <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
-    <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle; in play mode, flick the orb.">PULL</button>
-    <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris. Tap to cycle (L).">◈ NONE</button>
+    <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle (W); in play mode, flick the orb.">PULL</button>
+    <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris. Tap to cycle (⇧L).">◈ NONE</button>
     <button class="chip" id="chipPower" title="Power — AUTO adapts quality to this device; SHOW holds full density and keeps the screen awake; ECO halves the draw for pocket listening. Tap to cycle.">⚡ AUTO</button>
     <button class="chip" id="chipEcho" title="Echoes — passing thoughts drift by like clouds: physicists, mathematicians, stoics. MUSE adds a question now and then you can answer. Tap to cycle.">✧ DRIFT</button>
     <span class="meter" id="meterBar" role="img" aria-label="Beat meter — the downbeat dot lands heavier"><i></i><i></i><i></i><i></i></span>
@@ -2843,13 +2848,15 @@ body.clipping::after{
       <div class="keyrow"><kbd>1</kbd>–<kbd>9</kbd>&nbsp;<kbd>0</kbd> Choose a scene (the dots reach the rest)</div>
       <div class="keyrow"><kbd>A</kbd> Auto director on</div>
       <div class="keyrow"><kbd>S</kbd> Shuffle &nbsp;·&nbsp; <kbd>R</kbd> Repeat</div>
-      <div class="keyrow"><kbd>L</kbd> Playlist</div>
+      <div class="keyrow"><kbd>L</kbd> Playlist &nbsp;·&nbsp; <kbd>⇧L</kbd> Cycle the lens &nbsp;·&nbsp; <kbd>W</kbd> Cycle the touch force</div>
       <div class="keyrow"><kbd>B</kbd> Library</div>
       <div class="keyrow"><kbd>J</kbd> Journey console</div>
       <div class="keyrow"><kbd>D</kbd> The booth — watch the engine mix</div>
       <div class="keyrow"><kbd>M</kbd> Mute</div>
       <div class="keyrow"><kbd>T</kbd> Tap the beat — lock the grid to your tap if it ever drifts</div>
       <div class="keyrow"><kbd>G</kbd> Skip to the next drop</div>
+      <div class="keyrow"><kbd>,</kbd> <kbd>.</kbd> Jump a beat back / forward &nbsp;·&nbsp; <kbd>&lt;</kbd> <kbd>&gt;</kbd> four beats</div>
+      <div class="keyrow"><kbd>⇧1</kbd>–<kbd>⇧8</kbd> Hot cues — set on an empty one, jump on the beat to a set one</div>
       <div class="keyrow"><kbd>F</kbd> Fullscreen &nbsp;·&nbsp; <kbd>⇧F</kbd> Stage mode — the field on a screen of its own</div>
       <div class="keyrow"><kbd>I</kbd> Let the field play itself when you leave it alone — or don't</div>
       <div class="keyrow"><kbd>H</kbd> Hide interface</div>
@@ -3381,6 +3388,24 @@ function encodeWAV(chL, chR, sampleRate){
   return buf;
 }
 
+/* TWO FINGERS, TWO AXES. The first finger owns the orbit and the second plants
+   its own force — and the DISTANCE between them owns the camera's reach: spread
+   them and the room comes closer, pinch and it recedes. Distance is an axis
+   neither finger can claim alone, which is why the two never fight over the
+   camera the way a pinch-to-zoom does when an app gets it wrong. */
+function pinchDolly(r0, d0, d, lo, hi){
+  const a = lo != null ? lo : 16, b = hi != null ? hi : 44;
+  if (!(r0 > 0) || !(d0 > 0) || !(d > 0)) return Math.max(a, Math.min(b, r0 > 0 ? r0 : a));
+  return Math.max(a, Math.min(b, r0 * d0 / d));
+}
+// a pointer's place on the glass as the shader sees it (−1…1, y up), from the
+// canvas's own rectangle rather than the window's — the two agree only while
+// the canvas is the window, and nothing should depend on that
+function ndcOf(clientX, clientY, rect){
+  const w = rect && rect.width > 0 ? rect.width : 1, h = rect && rect.height > 0 ? rect.height : 1;
+  const x = clientX - (rect ? rect.left : 0), y = clientY - (rect ? rect.top : 0);
+  return [(x / w) * 2 - 1, -((y / h) * 2 - 1)];
+}
 // The touch's PERSONALITY, as the single number the field shader reads.
 // Each touch-FX maps to a physical force: the black hole is a repulsion
 // (0), GROWS a spiral vortex whose chirality follows the drag (±1),
@@ -7789,6 +7814,287 @@ const AE = {
   muted: false, volBeforeMute: 0.8,
 };
 
+/* ================================================================
+   @master — THE LAST HAND ON THE SIGNAL, as pure arithmetic.
+
+   Everything upstream of the speaker is allowed to be loud: two decks at
+   +6 dB of loudness make-up, an echo unit that sums back in pre-fader, a
+   drive stage whose wet and dry add, a beat echo in parallel with both.
+   Nothing upstream is allowed to CLIP — and nothing upstream prevented it.
+   The browser hard-clips at the DAC, which is the one distortion that is
+   not a choice: flat-topped, full-band, and permanent for the length of
+   the peak.
+
+   So this is a brickwall true-peak limiter, transparent by construction:
+     · LOOKAHEAD. The signal is delayed a few milliseconds and the gain
+       that will be needed is computed from the samples still in the delay
+       line, so the gain has already ARRIVED by the time the peak does — no
+       overshoot to catch, no click at the attack.
+     · TRUE PEAK. The detector estimates the waveform BETWEEN samples with a
+       cubic through its neighbours, so a peak the DAC's reconstruction
+       filter will reach but no sample carries is still seen (ITU-R BS.1770
+       does this with a 4× FIR; a cubic is the same idea, cheaper, and the
+       ceiling leaves room for the difference).
+     · STEREO-LINKED. One gain for both channels, or the image would lurch
+       toward whichever side was quieter on every hit.
+     · UNITY UNTIL NEEDED. Below the ceiling the kernel is a pure delay:
+       the output IS the input, bit for bit. A limiter that colours the
+       music it was told to protect is a fault, and the unit test holds it
+       to bit-exactness.
+     · A HARD RAIL LAST. The gain follower is exponential and reaches its
+       target asymptotically, so a residual of a few hundredths of a dB can
+       survive it on a step; a final clamp at the ceiling catches that, and
+       is expected to do nothing else, ever.
+
+   The same kernel runs in two places: on the audio thread inside an
+   AudioWorklet (the graph installs it by serialising these very functions
+   into the worklet's module, so what is tested IS what runs), and here in
+   the unit suite on synthetic blocks. No copy exists to drift.
+   ================================================================ */
+// @master-start
+const LIMITER = {
+  ceilingDb:   -1.0,    // dBTP — the reconstruction filter gets a decibel of room
+  lookaheadMs:  3.0,    // the delay the gain gets to arrive in
+  releaseMs:   120,     // how fast the gain lets go — slow enough not to pump
+  attackFrac:   0.2,    // of the lookahead: the one-pole reaches ~e⁻⁵ by the peak
+};
+function dbToLin(db){ return Math.pow(10, db / 20); }
+function linToDb(x){ return x > 0 ? 20 * Math.log10(x) : -Infinity; }
+/* THE INTER-SAMPLE PEAK between b and c, from the four samples a b c d around
+   the gap: a Catmull-Rom cubic sampled at three interior points. Enough to
+   see the overshoot a reconstruction filter produces on a hard corner;
+   never less than the samples themselves. */
+function interPeak(a, b, c, d){
+  const c1 = 0.5 * (c - a), c2 = a - 2.5 * b + 2 * c - 0.5 * d, c3 = 0.5 * (-a + 3 * b - 3 * c + d);
+  let pk = 0;
+  for (let t = 0.25; t < 1; t += 0.25){
+    const v = b + t * (c1 + t * (c2 + t * c3));
+    const av = v < 0 ? -v : v;
+    if (av > pk) pk = av;
+  }
+  return pk;
+}
+function makeLimiter(sr, opts){
+  const o = Object.assign({}, LIMITER, opts || {});
+  const rate = sr > 0 ? sr : 48000;
+  const L = Math.max(1, Math.round(o.lookaheadMs * 1e-3 * rate));
+  return {
+    sr: rate, L, R: L + 1,
+    ceil: dbToLin(o.ceilingDb),
+    kA: 1 - Math.exp(-1 / Math.max(1, L * o.attackFrac)),
+    kR: 1 - Math.exp(-1 / Math.max(1, o.releaseMs * 1e-3 * rate)),
+    dl: [new Float32Array(L), new Float32Array(L)],   // the lookahead delay line
+    need: new Float32Array(L + 1),                    // the gain each queued sample needs
+    w: 0, wn: 0,                                      // ring heads: delay line, need ring
+    mv: 1, ma: 0,                                     // the sliding minimum and its age
+    g: 1,                                             // the smoothed gain
+    gr: 1,                                            // deepest gain in the last block
+    l1: 0, l2: 0, l3: 0, r1: 0, r2: 0, r3: 0,         // the three samples before now
+    over: 0,                                          // samples the rail had to touch
+  };
+}
+/* ONE BLOCK. Reads n samples from inL/inR, writes n to outL/outR. The state
+   carries everything across the block edge, so a stream cut into 128-sample
+   pieces produces the same output as one uncut pass — and a test checks. */
+function limiterProcess(S, inL, inR, outL, outR, n){
+  const L = S.L, R = S.R, ceil = S.ceil, dl0 = S.dl[0], dl1 = S.dl[1], need = S.need;
+  const kA = S.kA, kR = S.kR;
+  let w = S.w, wn = S.wn, mv = S.mv, ma = S.ma, g = S.g, gr = 1, over = 0;
+  let l1 = S.l1, l2 = S.l2, l3 = S.l3, r1 = S.r1, r2 = S.r2, r3 = S.r3;
+  for (let i = 0; i < n; i++){
+    const xl = inL[i], xr = inR ? inR[i] : xl;
+    // the peak this sample brings: itself, and the curve between the two before it
+    let pk = xl < 0 ? -xl : xl;
+    const axr = xr < 0 ? -xr : xr;
+    if (axr > pk) pk = axr;
+    const il = interPeak(l3, l2, l1, xl); if (il > pk) pk = il;
+    const ir = interPeak(r3, r2, r1, xr); if (ir > pk) pk = ir;
+    l3 = l2; l2 = l1; l1 = xl; r3 = r2; r2 = r1; r1 = xr;
+    const nd = pk > ceil ? ceil / pk : 1;
+    // the queued sample leaves the line as the fresh one enters
+    const yl = dl0[w], yr = dl1[w];
+    dl0[w] = xl; dl1[w] = xr;
+    w = w + 1 === L ? 0 : w + 1;
+    // the sliding minimum over every sample still queued, this one included
+    need[wn] = nd;
+    wn = wn + 1 === R ? 0 : wn + 1;
+    ma++;
+    if (nd <= mv){ mv = nd; ma = 0; }
+    else if (ma >= R){
+      // the old minimum just left the window: find the new one
+      mv = 1; ma = 0;
+      let k = wn === 0 ? R - 1 : wn - 1;
+      for (let j = 0; j < R; j++){
+        const v = need[k];
+        if (v < mv){ mv = v; ma = j; }
+        k = k === 0 ? R - 1 : k - 1;
+      }
+    }
+    // the follower: fast toward less gain, slow back toward unity
+    g += (mv - g) * (mv < g ? kA : kR);
+    if (g > 1) g = 1;
+    let ol = yl * g, or = yr * g;
+    // the rail
+    if (ol > ceil){ ol = ceil; over++; } else if (ol < -ceil){ ol = -ceil; over++; }
+    if (or > ceil){ or = ceil; over++; } else if (or < -ceil){ or = -ceil; over++; }
+    outL[i] = ol; outR[i] = or;
+    if (g < gr) gr = g;
+  }
+  S.w = w; S.wn = wn; S.mv = mv; S.ma = ma; S.g = g; S.gr = gr; S.over += over;
+  S.l1 = l1; S.l2 = l2; S.l3 = l3; S.r1 = r1; S.r2 = r2; S.r3 = r3;
+  return S;
+}
+/* THE WORKLET MODULE, written from the functions above so the audio thread
+   runs exactly the arithmetic the suite ran. A string, because a worklet is
+   loaded from a URL and this player is one file: the URL is a blob of this. */
+function limiterWorkletSource(){
+  return [
+    'const LIMITER = ' + JSON.stringify(LIMITER) + ';',
+    dbToLin.toString(), interPeak.toString(), makeLimiter.toString(), limiterProcess.toString(),
+    'class MB8Limiter extends AudioWorkletProcessor {',
+    '  constructor(o){ super(); this.S = makeLimiter(sampleRate, o && o.processorOptions); this.n = 0; this.gr = 1;',
+    '    this.port.onmessage = e => { if (e.data && e.data.retune) this.S = makeLimiter(sampleRate, e.data.retune); }; }',
+    '  process(inputs, outputs){',
+    '    const inp = inputs[0], out = outputs[0];',
+    '    if (!out || !out.length) return true;',
+    '    if (!inp || !inp.length){ for (const ch of out) ch.fill(0); return true; }',
+    '    const l = inp[0], r = inp[1] || inp[0], n = l.length;',
+    '    limiterProcess(this.S, l, r, out[0], out[1] || out[0], n);',
+    '    if (this.S.gr < this.gr) this.gr = this.S.gr;',
+    '    this.n += n;',
+    '    if (this.n >= sampleRate / 20){ this.port.postMessage({ gr: this.gr, over: this.S.over }); this.n = 0; this.gr = 1; }',
+    '    return true; } }',
+    "registerProcessor('mb8-limiter', MB8Limiter);",
+  ].join('\n');
+}
+/* WHERE THE SPECTRUM'S BANDS FALL, in bins, for THIS context's sample rate.
+   The analyser's bins are fftSize/2 across 0…sr/2, so a band edge in Hz is a
+   bin index that moves with the rate — 44.1 k and 48 k contexts are both
+   common and were both being read with the 44.1 k table, which put every
+   crossover nine percent sharp on half the machines. */
+const BAND_HZ = { bass: [21, 180], mid: [190, 2000], treble: [2020, 9000], flux: [21, 2740] };
+function bandBins(sr, fft, hz){
+  const rate = sr > 0 ? sr : 44100, n = fft > 0 ? fft : 2048;
+  const perBin = rate / n, H = hz || BAND_HZ, out = {};
+  for (const k in H){
+    const lo = Math.max(1, Math.round(H[k][0] / perBin));
+    const hi = Math.max(lo, Math.min(n / 2 - 1, Math.round(H[k][1] / perBin)));
+    out[k] = { lo, hi, n: hi - lo + 1 };
+  }
+  return out;
+}
+// @master-end
+
+/* ================================================================
+   MASTERLIM — the limiter's seat in the graph. The kernel is pure and
+   lives in the @master block; this is the part that loads it onto the
+   audio thread and wires it in as the LAST stage before the speaker.
+
+   Two paths leave the master: a direct one, live from the first sample so
+   the music never waits on a module load, and the limited one, which is
+   crossfaded in the moment the worklet is ready — a few milliseconds of
+   two copies of the same signal, one of them three milliseconds late,
+   which is below anything a room can hear. Where there is no
+   AudioWorklet at all (an old WebKit) a DynamicsCompressor at a hard
+   ratio takes the seat: not transparent, not true-peak, but a rail.
+
+   It reports what it does. A limiter nobody can see is a limiter nobody
+   can trust, so the gain reduction is posted back at 20 Hz and the booth
+   draws it — and the honest expectation is that the lamp stays dark: a
+   clean set never reaches the rail, and the rail is there for the moment
+   two full-scale decks, an echo tail and a drive stage all agree to peak
+   on the same downbeat.
+   ================================================================ */
+const MASTERLIM = {
+  node: null, gain: null, kind: 'none', gr: 1, over: 0, _grAt: 0, _url: '', _busy: false,
+  ready(){ return this.kind !== 'none' && !!this.node; },
+  // gain reduction in dB (≤ 0) — the worklet's own reading, or the compressor's
+  grDb(){
+    if (!this.ready()) return 0;
+    if (this.kind === 'compressor'){ const r = this.node.reduction; return typeof r === 'number' ? Math.min(0, r) : 0; }
+    // a reading older than half a second is a reading from a stopped graph
+    if (performance.now() - this._grAt > 500) return 0;
+    return Math.min(0, linToDb(this.gr));
+  },
+  async install(){
+    if (!AE.ctx || !AE.master || !AE.out || this.node || this._busy) return;
+    const ctx = AE.ctx;
+    this._busy = true;
+    let node = null, kind = 'none';
+    if (ctx.audioWorklet && typeof AudioWorkletNode === 'function' && typeof Blob === 'function'
+        && window.URL && URL.createObjectURL){
+      try {
+        if (!this._url) this._url = URL.createObjectURL(new Blob([limiterWorkletSource()], { type: 'text/javascript' }));
+        await ctx.audioWorklet.addModule(this._url);
+        if (AE.ctx !== ctx){ this._busy = false; return; }   // the graph was rebuilt while the module loaded
+        node = new AudioWorkletNode(ctx, 'mb8-limiter', {
+          numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+          channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers',
+        });
+        node.port.onmessage = e => {
+          const d = e.data || {};
+          this.gr = d.gr != null ? d.gr : 1; this.over = d.over || 0; this._grAt = performance.now();
+        };
+        node.onprocessorerror = () => this.retire();
+        kind = 'worklet';
+      } catch (e){ node = null; }
+    }
+    if (!node){
+      try {
+        const c = ctx.createDynamicsCompressor();
+        c.threshold.value = LIMITER.ceilingDb - 2; c.knee.value = 0; c.ratio.value = 20;
+        c.attack.value = 0.001; c.release.value = LIMITER.releaseMs / 1000;
+        node = c; kind = 'compressor';
+      } catch (e){ this._busy = false; return; }
+    }
+    const g = ctx.createGain(); g.gain.value = 0;
+    try {
+      AE.master.connect(node); node.connect(g); g.connect(AE.out);
+    } catch (e){ this._busy = false; return; }
+    this.node = node; this.gain = g; this.kind = kind;
+    // THE SWAP. Silent when nothing is playing; a 40 ms crossfade when
+    // something is, so the seat is taken without a step in the waveform.
+    const t = ctx.currentTime;
+    const X = (typeof player !== 'undefined' && player.playing) ? 0.04 : 0.005;
+    try {
+      AE.direct.gain.cancelScheduledValues(t); AE.direct.gain.setValueAtTime(1, t);
+      AE.direct.gain.linearRampToValueAtTime(0, t + X);
+      g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(1, t + X);
+    } catch (e){ AE.direct.gain.value = 0; g.gain.value = 1; }
+    this._busy = false;
+    window.__mb8Limiter = kind;               // the probes read which seat was taken
+  },
+  // a processor that threw is a processor that is no longer limiting: put the
+  // direct path back before the silence is noticed
+  retire(){
+    if (!AE.ctx) return;
+    const t = AE.ctx.currentTime;
+    try { AE.direct.gain.cancelScheduledValues(t); AE.direct.gain.setValueAtTime(AE.direct.gain.value, t); AE.direct.gain.linearRampToValueAtTime(1, t + 0.02); } catch (e){}
+    if (this.gain) try { this.gain.gain.cancelScheduledValues(t); this.gain.gain.setValueAtTime(this.gain.gain.value, t); this.gain.gain.linearRampToValueAtTime(0, t + 0.02); } catch (e){}
+    const n = this.node, g = this.gain;
+    setTimeout(() => { for (const x of [n, g]) if (x) try { x.disconnect(); } catch (e){} }, 100);
+    this.node = null; this.gain = null; this.kind = 'none'; this.gr = 1;
+    window.__mb8Limiter = 'none';
+  },
+};
+
+/* THE MASTER IS NEVER WRITTEN, it is ramped. A slider drag that writes a gain
+   node forty times a second is forty small steps in the waveform — the zipper
+   — and a mute that steps to zero is a click. A few milliseconds of ramp is
+   below anything a hand can feel and above anything an ear can hear. */
+function setMasterGain(v, secs){
+  const p = AE.master && AE.master.gain;
+  if (!p) return;
+  if (!AE.ctx){ p.value = v; return; }
+  try {
+    const t = AE.ctx.currentTime;
+    p.cancelScheduledValues(t);
+    p.setValueAtTime(p.value, t);
+    p.linearRampToValueAtTime(v, t + Math.max(0.005, secs || 0.03));
+  } catch (e){ try { p.value = v; } catch (e2){} }
+}
+
 function ensureCtx(){
   if (AE.ctx){ if (AE.ctx.state === 'suspended') AE.ctx.resume(); return; }
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -7809,8 +8115,15 @@ function ensureCtx(){
   AE.ctx.onstatechange = () => {
     if (!AE.ctx) return;
     const st = AE.ctx.state;
-    if (st === 'running'){ clearInterval(AE._ctxKeepT); AE._ctxKeepT = 0; return; }
+    if (st === 'running'){
+      clearInterval(AE._ctxKeepT); AE._ctxKeepT = 0;
+      // a context that was suspended came back on whatever device is there now
+      if (AE._wasSuspended && typeof LOOPER !== 'undefined') LOOPER.routeChanged();
+      AE._wasSuspended = false;
+      return;
+    }
     if (st === 'closed') return;
+    AE._wasSuspended = true;
     // 'suspended' — or Safari's non-standard 'interrupted'
     try { AE.ctx.resume().catch(() => {}); } catch (e){}
     if (!AE.graphLive || !player.playing || AE._ctxKeepT) return;
@@ -7823,6 +8136,13 @@ function ensureCtx(){
       try { AE.ctx.resume().catch(() => {}); } catch (e){}
     }, 1500);
   };
+  // and the OS's own word that the output changed (a headset, a dock, AirPlay)
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener && !AE._devHook){
+      AE._devHook = true;
+      navigator.mediaDevices.addEventListener('devicechange', () => { if (typeof LOOPER !== 'undefined') LOOPER.routeChanged(); });
+    }
+  } catch (e){}
   AE.bus = AE.ctx.createGain();
   AE.master = AE.ctx.createGain();
   AE.master.gain.value = parseInt(el.vol.value, 10) / 100;
@@ -7838,6 +8158,11 @@ function ensureCtx(){
      of silence. */
   {
     const inn = AE.ctx.createGain();
+    // the EQ: a channel strip's three bands on the mix, parked flat — a lowshelf,
+    // a peaking mid, a highshelf, the corners a DJ mixer puts them at
+    const eqLo = AE.ctx.createBiquadFilter(); eqLo.type = 'lowshelf';  eqLo.frequency.value = EQ_BANDS.lo;  eqLo.gain.value = 0;
+    const eqMid = AE.ctx.createBiquadFilter(); eqMid.type = 'peaking'; eqMid.frequency.value = EQ_BANDS.mid; eqMid.Q.value = 0.9; eqMid.gain.value = 0;
+    const eqHi = AE.ctx.createBiquadFilter(); eqHi.type = 'highshelf'; eqHi.frequency.value = EQ_BANDS.hi;  eqHi.gain.value = 0;
     // the DJ filter: a lowpass and a highpass in series driven from one bipolar
     // value, so the centre detent is genuinely both wide open (see fxFilter)
     const lp = AE.ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 22000; lp.Q.value = 0.9;
@@ -7876,16 +8201,25 @@ function ensureCtx(){
     AE.busGate = AE.ctx.createGain();
     AE.bus.connect(AE.busGate);
     AE.busGate.connect(inn);
-    inn.connect(hp); hp.connect(lp); lp.connect(gate);
+    inn.connect(eqLo); eqLo.connect(eqMid); eqMid.connect(eqHi); eqHi.connect(hp);
+    hp.connect(lp); lp.connect(gate);
     gate.connect(driveDry); driveDry.connect(out);
     gate.connect(drive); drive.connect(driveWet); driveWet.connect(out);
     gate.connect(send);
     send.connect(delay); delay.connect(damp); damp.connect(fb); fb.connect(delay);
     delay.connect(wet); wet.connect(out);
     out.connect(AE.master);
-    AE.fx = { in: inn, lp, hp, gate, drive, driveWet, driveDry, send, delay, fb, damp, wet, out };
+    AE.fx = { in: inn, eqLo, eqMid, eqHi, lp, hp, gate, drive, driveWet, driveDry, send, delay, fb, damp, wet, out };
   }
-  AE.master.connect(AE.ctx.destination);
+  /* THE OUTPUT STAGE: master → (direct | limiter) → out → speaker. The direct
+     path is live from the first sample; the limiter takes the seat the moment
+     its module has loaded (MASTERLIM), and everything that listens to the
+     finished mix — the clip recorder, the probes — listens at AE.out. */
+  AE.out = AE.ctx.createGain();
+  AE.direct = AE.ctx.createGain();
+  AE.master.connect(AE.direct); AE.direct.connect(AE.out);
+  AE.out.connect(AE.ctx.destination);
+  MASTERLIM.install();
   /* the analyser watches the bus gate, before the rack: the visuals follow the
      music, not the effect on top of it — a closed filter must not make the room
      go dark. AFTER the gate rather than before it, so that when a loop takes
@@ -8133,7 +8467,7 @@ function ensureCtx(){
 /* one volume authority for both routings */
 function applyVolume(){
   const v = AE.muted ? 0 : parseInt(el.vol.value, 10) / 100;
-  if (AE.master) AE.master.gain.value = v;
+  if (AE.master) setMasterGain(v, 0.03);
   if (AE.decks && !AE.graphLive){
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'running'){
       MIXER.setVolumes(MIXER.lastF);         // the overlap owns the envelopes
@@ -8376,14 +8710,17 @@ function analyse(dt, now){
   AE.analyser.getByteFrequencyData(AE.freq);
   const fr = AE.freq;
 
-  // bands (≈21.5 Hz per bin @ 44.1k)
+  // bands in Hz, resolved to bins for THIS context's sample rate (bandBins):
+  // a 48 k context read with a 44.1 k bin table had every crossover 9% sharp
+  const BB = (AE._bands && AE._bands.sr === AE.ctx.sampleRate) ? AE._bands
+    : (AE._bands = Object.assign(bandBins(AE.ctx.sampleRate, FFT), { sr: AE.ctx.sampleRate }));
   let b = 0, m = 0, t = 0;
-  for (let i = 1;  i <= 8;   i++) b += fr[i];
-  for (let i = 9;  i <= 93;  i++) m += fr[i];
-  for (let i = 94; i <= 418; i++) t += fr[i];
-  f.bass   = smooth(f.bass,   b / (8   * 255), dt, 0.06);
-  f.mid    = smooth(f.mid,    m / (85  * 255), dt, 0.06);
-  f.treble = smooth(f.treble, t / (325 * 255), dt, 0.08);
+  for (let i = BB.bass.lo;   i <= BB.bass.hi;   i++) b += fr[i];
+  for (let i = BB.mid.lo;    i <= BB.mid.hi;    i++) m += fr[i];
+  for (let i = BB.treble.lo; i <= BB.treble.hi; i++) t += fr[i];
+  f.bass   = smooth(f.bass,   b / (BB.bass.n   * 255), dt, 0.06);
+  f.mid    = smooth(f.mid,    m / (BB.mid.n    * 255), dt, 0.06);
+  f.treble = smooth(f.treble, t / (BB.treble.n * 255), dt, 0.08);
   const E = clamp(f.bass * 1.25 + f.mid * 1.0 + f.treble * 0.8, 0, 2) / 2;
   f.energy = E;
   f.calm   = smooth(f.calm,   E, dt, 2.5);   // seconds-long constant: no transient can move this
@@ -8392,12 +8729,13 @@ function analyse(dt, now){
 
   // spectral flux over the low/mid range → onset detection
   let flux = 0;
-  for (let i = 1; i < 128; i++){
+  const fxHi = BB.flux.hi, fxW = 0.7056 / fxHi;   // the same taper the 44.1 k table had
+  for (let i = BB.flux.lo; i <= fxHi; i++){
     const d = fr[i] - AE.prevFreq[i];
-    if (d > 0) flux += d * (1 - i / 180);
+    if (d > 0) flux += d * (1 - i * fxW);
     AE.prevFreq[i] = fr[i];
   }
-  for (let i = 128; i < NBINS; i++) AE.prevFreq[i] = fr[i];
+  for (let i = fxHi + 1; i < NBINS; i++) AE.prevFreq[i] = fr[i];
   AE.fluxHist[AE.fluxIdx] = flux;
   AE.fluxIdx = (AE.fluxIdx + 1) % AE.fluxHist.length;
   AE.fluxFill = Math.min(AE.fluxFill + 1, AE.fluxHist.length);
@@ -10810,7 +11148,7 @@ const SLEEP = {
       const v = (AE.muted ? 0 : parseInt(el.vol.value, 10) / 100) * (left / 20000);
       // fade wherever the audio actually flows: the master gain on the live
       // graph, the sounding element on iOS (where the deck is played direct)
-      if (AE.graphLive && AE.master) AE.master.gain.value = v;
+      if (AE.graphLive && AE.master) setMasterGain(v, 0.25);
       else { const d = activeDeck(); if (d) d.a.volume = v; }
     }
   },
@@ -10822,7 +11160,20 @@ const SLEEP = {
    the visuals stay honest at any speed. */
 const SPEED = {
   STEPS: [1, 1.25, 1.5, 0.75], idx: 0,
+  /* KEY LOCK, and the choice it is. With it on, a deck bent to match a tempo
+     keeps its pitch through the browser's time-stretcher — the right default,
+     and the one every listener expects. With it off the pitch rides the tempo,
+     the way vinyl does: a beatmix at +3% is a third of a semitone sharp — and
+     it is also free of the stretcher's artefacts, which on some engines is the
+     more transparent sound over a small trim. A DJ's call, so it is a pad. */
+  keyLock: true,
   get rate(){ return this.STEPS[this.idx]; },
+  setKeyLock(on){
+    this.keyLock = !!on;
+    this.apply();
+    DB.kvSet('keylock', this.keyLock ? '1' : '0').catch(() => {});
+    toast(this.keyLock ? T('Key lock <b>on</b> — pitch held through any tempo') : T('Key lock <b>off</b> — pitch rides the tempo, like vinyl'));
+  },
   cycle(){
     this.idx = (this.idx + 1) % this.STEPS.length;
     this.apply();
@@ -10833,8 +11184,8 @@ const SPEED = {
     if (AE.decks) for (const d of AE.decks){
       try {
         d.a.playbackRate = this.rate;
-        if ('preservesPitch' in d.a) d.a.preservesPitch = true;
-        else if ('webkitPreservesPitch' in d.a) d.a.webkitPreservesPitch = true;
+        if ('preservesPitch' in d.a) d.a.preservesPitch = this.keyLock;
+        else if ('webkitPreservesPitch' in d.a) d.a.webkitPreservesPitch = this.keyLock;
       } catch (e){}
     }
     const b = document.getElementById('btnSpeed');
@@ -10843,7 +11194,9 @@ const SPEED = {
   async boot(){
     const v = await DB.kvGet('speed').catch(() => null);
     const i = parseInt(v, 10);
-    if (Number.isFinite(i) && i >= 0 && i < this.STEPS.length && i !== 0){ this.idx = i; this.apply(); }
+    const kl = await DB.kvGet('keylock').catch(() => null);
+    if (kl === '0') this.keyLock = false;
+    if ((Number.isFinite(i) && i >= 0 && i < this.STEPS.length && i !== 0) || !this.keyLock){ if (Number.isFinite(i) && i >= 0 && i < this.STEPS.length) this.idx = i; this.apply(); }
   },
 };
 
@@ -15161,6 +15514,45 @@ function seamEntry(plan, tA, maxSlip){
   const slip = raw < -lead ? -lead : (raw > cap ? cap : raw);
   return Math.max(0, (p.startB || 0) + slip);
 }
+/* THE ROOM CHANGES HANDS WITH THE MUSIC. A seam is the one moment a set
+   has that is bigger than a bar line — a new track, a new key, a new
+   tempo — and the visual director used to sleep through it, changing rooms
+   on its own dwell clock a few bars later or a few bars earlier. Now the
+   seam CUES the room: the change is scheduled on the audio clock at the
+   instant the music itself changes hands.
+
+     beatmix   the midpoint — the bass swap, when the one-bass rule hands the
+               low end over; the visual crossfade is sized to that swap
+               (two beats), so the picture and the bass move together
+     fade      where the incoming becomes the louder of the two
+     gapless   the butt join, and quietly — same album, same room, a
+               dissolve rather than a shatter; and not at all if the room
+               only just arrived
+
+   The decision is pure and the director keeps its rules: an automatic
+   director only, reduced motion takes its dissolve, and a change is a
+   change (dealScene never re-deals the active room). */
+const SEAM_SCENE = { minDwellGapless: 12, swapBeats: 2, durMin: 0.5, durMax: 2.4 };
+function seamSceneCue(o){
+  const p = (o && o.plan) || {};
+  const out = { fire: false, big: false, delay: 0, dur: 1.2 };
+  if (!o || !o.auto || !p.type) return out;
+  const sec = p.type === 'gapless' ? 0 : Math.max(0, (o.overlap != null ? o.overlap : p.seconds) || 0);
+  if (p.type === 'beatmix'){
+    const spb = p.bpmB > 0 ? 60 / p.bpmB : (p.bpmA > 0 ? 60 / p.bpmA : 0.5);
+    out.fire = true; out.big = true;
+    out.delay = sec * 0.5;
+    out.dur = Math.max(SEAM_SCENE.durMin, Math.min(SEAM_SCENE.durMax, SEAM_SCENE.swapBeats * spb));
+  } else if (p.type === 'fade'){
+    out.fire = true; out.big = true;
+    out.delay = sec * 0.6;
+    out.dur = Math.max(SEAM_SCENE.durMin, Math.min(SEAM_SCENE.durMax, sec * 0.5));
+  } else if (p.type === 'gapless'){
+    if ((o.dwell || 0) >= SEAM_SCENE.minDwellGapless){ out.fire = true; out.big = false; out.delay = 0; out.dur = 2.6; }
+  }
+  if (o.reduced) out.dur = Math.max(out.dur, 2.0);
+  return out;
+}
 // @mix-end
 
 /* ================================================================
@@ -15477,6 +15869,97 @@ function fxAutoPick(o){
   if (s.phase === 'peak' && s.act === 2 && s.energy > 0.86) return 'gate';
   return 'none';
 }
+/* HOT CUES, BEAT JUMPS, and the EQ — the rest of what two hands do.
+
+   A cue is a place in a track worth returning to, and on hardware it is a
+   pad: empty, it takes the playhead; set, it jumps there. The grid decides
+   WHERE it takes it: a cue set with a beat grid snaps to the nearest beat
+   (cueSnap), so the jump lands on the lattice rather than a frame's
+   lateness away from it. And a jump is QUANTISED the way a CDJ quantises:
+   pressed mid-beat, it waits for the beat line before it goes (cueJumpAt),
+   so the phrase never stumbles — the overshoot of a late tick is carried
+   across, exactly as the loop carries its own. Without a grid both are
+   immediate, which is what a track with no grid deserves. */
+const CUE_SLOTS = 8;
+const CUE_COLORS = ['#ff5c4a', '#ffb054', '#ffe45c', '#7ce07a', '#4ad6ff', '#8f8bff', '#ff7ad9', '#e9edf6'];
+function cueSnap(pos, grid, bpm, haveGrid){
+  const p = pos > 0 ? pos : 0;
+  if (!haveGrid || !(bpm > 0)) return p;
+  const spb = beatLen(1, bpm);
+  return Math.max(0, grid + Math.round((p - grid) / spb) * spb);
+}
+/* WHEN a cue jump goes, and WHERE it lands. Returns { fireAt, to }: the deck
+   position at which to leave (the next beat line at or after `pos`, never
+   more than a beat away) and the cue itself. A tick that notices late seeks
+   to `to + lateness` (see cueJumpLand), so the landing is on the beat however
+   late the tick was. */
+function cueJumpAt(pos, cue, grid, bpm, haveGrid){
+  const c = cue > 0 ? cue : 0;
+  if (!haveGrid || !(bpm > 0)) return { fireAt: pos, to: c };
+  const spb = beatLen(1, bpm);
+  const k = Math.ceil((pos - grid) / spb - 1e-6);
+  const fireAt = grid + k * spb;
+  return { fireAt: fireAt < pos ? pos : fireAt, to: c };
+}
+function cueJumpLand(pos, fireAt, to){
+  const late = pos - fireAt;
+  return Math.max(0, to + (late > 0 ? late : 0));
+}
+/* A BEAT JUMP keeps the phase by construction: whole beats forward or back,
+   from wherever the playhead is, clamped to the track. */
+function beatJumpTarget(pos, beats, bpm, dur){
+  const spb = beatLen(1, bpm > 0 ? bpm : 120);
+  const t = pos + beats * spb;
+  const top = dur > 0.3 ? dur - 0.25 : Infinity;
+  return Math.max(0, Math.min(top, t));
+}
+/* THE EQ: three bands on the mix, the way a mixer's channel strip has them,
+   and the thing a hand does to them most is KILL one. A kill is deep, not
+   infinite — −36 dB reads as gone and still lets the band breathe back in
+   without a step — and a pad that is already doing what it is asked to do
+   is a pad that undoes it (fxEqToggle), so every pad is its own release. */
+const EQ_KILL_DB = -36;
+const EQ_BANDS = { lo: 250, mid: 1000, hi: 4000 };
+function fxEqToggle(cur, val){
+  const v = Math.max(-40, Math.min(6, +val || 0));
+  return Math.abs((+cur || 0) - v) < 1e-6 ? 0 : v;
+}
+function fxEqIsFlat(eq){
+  return !eq || (!(Math.abs(eq.lo || 0) > 1e-6) && !(Math.abs(eq.mid || 0) > 1e-6) && !(Math.abs(eq.hi || 0) > 1e-6));
+}
+/* THE TAPE CAN TEAR. The recorder runs on the main thread, and a block the
+   main thread fails to collect in time is a block that never reached the ring:
+   the tape then holds two moments of music butted together as if they were
+   one, and a loop cut across that join carries the splice on every lap. The
+   recorder notes where each tear fell (tapeTear, from the processor's own
+   clock); a cut that spans one is refused (ringTornIn) and taken from the
+   next lap instead, where the music is whole. */
+function tapeTear(playbackTime, expected, blockSec){
+  if (!(expected > 0) || !(blockSec > 0) || !(playbackTime >= 0)) return false;
+  return playbackTime - expected > blockSec * 0.5;
+}
+function ringTornIn(tears, from, n){
+  if (!tears || !tears.length || !(n > 0)) return false;
+  const to = from + n;
+  for (let i = 0; i < tears.length; i++){ const t = tears[i]; if (t > from && t < to) return true; }
+  return false;
+}
+/* WHEN THE DECK MAY TAKE THE ROOM BACK. It was seeked early; until its buffer
+   actually holds the return point it would come back as silence, and a
+   handback into silence is a hole exactly where the loop let go. So the deck
+   is ASKED (loopDeckReady: real data, and buffered bytes across the window
+   it is about to play) and the handback waits for the answer — late rather
+   than empty, and never past `maxWait`, because a loop that cannot be let go
+   of is the worse fault. Returns the handback time, or null to keep waiting. */
+function loopDeckReady(readyState, ranges, at, need){
+  if (!(readyState >= 3)) return false;
+  return seamBuffered(ranges, at, need > 0 ? need : 0.4);
+}
+function loopHandbackAt(at, now, lead, ready, waited, maxWait){
+  const ld = lead > 0 ? lead : 0;
+  if (!ready && !(waited >= (maxWait > 0 ? maxWait : 0))) return null;
+  return Math.max(at, now + ld);
+}
 // @fx-end
 
 
@@ -15765,6 +16248,7 @@ const MIXER = {
 
   cancel(){
     if (this.phase === 'idle'){ syncMixHud(); return; }
+    if (typeof SEGUE !== 'undefined') SEGUE.cueSeam(null);
     this.plan = null; this.next = -1; this.phase = 'idle';
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     this.audioT0 = null; this._shelfScheduled = false;
@@ -15982,7 +16466,7 @@ const MIXER = {
     } catch (e){}
     this._bT = nd.a.currentTime;      // the latch watches for this to move
     if (p.type === 'beatmix'){
-      try { od.a.preservesPitch = true; nd.a.preservesPitch = true; } catch (e){}
+      try { od.a.preservesPitch = SPEED.keyLock; nd.a.preservesPitch = SPEED.keyLock; } catch (e){}
       const g = glideRates(p.bpmA, p.bpmB, 0);
       od.a.playbackRate = this._lastRateA = g.rateA * SPEED.rate;
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
@@ -16089,6 +16573,8 @@ const MIXER = {
     }
     this.phase = 'running';
     syncMixHud();
+    // and the ROOM is cued to change hands with the music (see seamSceneCue)
+    if (typeof SEGUE !== 'undefined') SEGUE.cueSeam(p, this.overlap, seamT0);
   },
 
   setVolumes(f){
@@ -17894,9 +18380,13 @@ const LOOP_BACK_LEAD  = 0.16;    // how long the deck is given to find its place
 const LOOP_CAL_DELAY  = 0.20;    // when the calibration impulse is fired
 const LOOP_CAL_GIVEUP = 1.50;    // …and how long we wait for it before modelling
 const LOOP_IDLE_SEC   = 45;      // how long the tape keeps rolling unused
+const LOOP_BACK_NEED  = 0.40;    // buffered seconds the deck must hold past its return point
+const LOOP_BACK_MAX   = 1.50;    // how long a handback will wait for that before going anyway
 
 const LOOPER = {
   ring: null, cap: 0, sr: 0, written: 0, liveFrom: 0,
+  tears: [], torn: 0, _expectPT: 0,        // where the recorder lost blocks (tape indices)
+  backing: null, _backT: 0, waits: 0, backLate: 0,   // a handback waiting on the deck
   K: null, _cal: null,                     // tape index n is heard at n/sr + K
   tap: null, sink: null, out: null, src: null,
   armed: false, pending: false, on: false, mode: 'loop',
@@ -17926,6 +18416,7 @@ const LOOPER = {
       // the bus is actually connected — until then have() must read zero, or a
       // loop would try to cut its in-point out of the calibration silence
       this.written = 0; this.liveFrom = Infinity; this.K = null;
+      this.tears = []; this._expectPT = 0;
       const sp = ctx.createScriptProcessor(4096, 2, 1);
       sp.onaudioprocess = e => this._write(e);
       // a processor nobody listens to is a processor the graph never pulls, so
@@ -17994,6 +18485,14 @@ const LOOPER = {
     if (!this.ring) return;
     const inp = e.inputBuffer, n = inp.length, cap = this.cap, nCh = inp.numberOfChannels;
     const base = this.written;
+    // a block that arrives later than the last one ended is a block with a
+    // hole in front of it: the join is noted at the sample about to be written
+    if (tapeTear(e.playbackTime, this._expectPT, n / this.sr)){
+      this.tears.push(base); this.torn++;
+      while (this.tears.length && this.tears[0] < base - cap) this.tears.shift();
+      if (this.tears.length > 64) this.tears.shift();
+    }
+    this._expectPT = (e.playbackTime >= 0 ? e.playbackTime : 0) + n / this.sr;
     for (let c = 0; c < 2; c++){
       const src = inp.getChannelData(nCh > 1 ? c : 0), dst = this.ring[c];
       let i = 0, p = base % cap;
@@ -18037,6 +18536,8 @@ const LOOPER = {
     const spare = (this.written - (i0 + n)) / sr;
     if (spare < 0) return null;
     const xn = Math.max(0, Math.round(loopXfadeLen(len, spare) * sr));
+    // never across a tear: a splice in the tape would be a splice in every lap
+    if (ringTornIn(this.tears, i0, n + xn)){ this.refused = (this.refused || 0) + 1; return 'torn'; }
     const buf = AE.ctx.createBuffer(2, n, sr);
     for (let c = 0; c < 2; c++){
       const body = this._read(c, i0, n);
@@ -18127,6 +18628,20 @@ const LOOPER = {
     const ctx = AE.ctx, d = activeDeck();
     if (!d) return false;
     const buf = this._cutBuffer(this.tIn, this.len);
+    if (buf === 'torn'){
+      /* THE NEXT LAP'S TAPE. The anchor is fixed on purpose (see arm), but a
+         slice with a tear in it is a slice that will never be whole, however
+         long we wait. The re-seek loop is replaying the same music underneath,
+         so the current lap is the same slice, recorded again — re-anchor on it
+         (where the deck is now says when its in-point was heard) and let the
+         poll take the cut once that lap has passed the out-point. */
+      const pos = d.a.currentTime, r = d.a.playbackRate || 1;
+      if (pos >= this.start && pos < this.start + this.len){
+        const tIn2 = ctx.currentTime - (pos - this.start) / r;
+        if (tIn2 > this.tIn + this.len * 0.5) this.tIn = tIn2;
+      }
+      return false;
+    }
     if (!buf) return false;
     const rate = d.a.playbackRate || 1;
     const raw = ctx.currentTime + (this.start + this.len - d.a.currentTime) / rate;
@@ -18162,7 +18677,7 @@ const LOOPER = {
     // swap on a WRAP, so the new cut begins where the old one was about to
     const at = loopLateHandover(this.handAt, AE.ctx.currentTime, this.len, LOOP_MIN_LEAD);
     const buf = this._cutBuffer(this.tIn, len);
-    if (!buf) return false;
+    if (!buf || buf === 'torn') return false;
     let s;
     try { s = this._source(buf, at); } catch (e){ return false; }
     try { this.src.stop(at); } catch (e){}
@@ -18192,26 +18707,83 @@ const LOOPER = {
     // a handover that has not become audible yet is not a handback, it is a
     // cancellation: the deck never stopped being the thing the room was hearing
     if (!this.on || !AE.ctx){ this.cancel(); return 0; }
+    if (this.backing) return Math.max(0, this.backing.at - AE.ctx.currentTime);
     const ctx = AE.ctx, at = ctx.currentTime + LOOP_BACK_LEAD, d = activeDeck();
+    let to = null;
     if (d){
       const phase = loopPhaseAt(ctx.currentTime, this.handAt, this.len);
-      const to = seekTo != null ? seekTo
+      to = seekTo != null ? seekTo
         : loopHandbackPos(this.mode, this.start, this.len, phase, d.a.currentTime, LOOP_BACK_LEAD);
       if (isFinite(to) && (seekTo != null || this.mode !== 'roll')){
         try { d.a.currentTime = Math.max(0, to); this.seeks++; } catch (e){}
+      } else to = null;
+    }
+    /* THE DECK IS ASKED, NOT ASSUMED. The seek above lands in 0–450 ms
+       depending on how hard the machine is breathing and whether the return
+       point is even buffered; a crossover scheduled at a fixed lead would fade
+       the loop out into an element that has nothing to play yet. So the
+       crossover is not scheduled here — it is scheduled by _backPoll, the
+       moment the deck reports the window it is about to play (see
+       loopDeckReady), and the loop covers until then. */
+    this.backing = { at, to, deck: d, tSeek: ctx.currentTime, t0: ctx.currentTime, waited: 0, reseeks: 0 };
+    this._backPoll();
+    return LOOP_BACK_LEAD;
+  },
+  _backPoll(){
+    const b = this.backing;
+    if (!b || !AE.ctx) return;
+    const ctx = AE.ctx, now = ctx.currentTime, d = b.deck;
+    b.waited = now - b.t0;
+    // the window it must hold: the usual lead, or whatever the track has left
+    const need = d && isFinite(d.a.duration) && d.a.duration > 0 ? Math.min(LOOP_BACK_NEED, Math.max(0.05, d.a.duration - (b.to || 0))) : LOOP_BACK_NEED;
+    const ready = b.to == null || !d || loopDeckReady(d.a.readyState, d.a.buffered, b.to, need);
+    const at = loopHandbackAt(b.at, now, LOOP_MIN_LEAD, ready, b.waited, LOOP_BACK_MAX);
+    if (at == null){ this._backT = setTimeout(() => this._backPoll(), LOOP_POLL_MS); return; }
+    /* LATE IS FINE UNTIL THE LOOP WRAPS. Both the deck and the loop run on in
+       real time, so a handback that lands after the planned instant still
+       lands on the right sample — unless the loop has wrapped in between,
+       when the deck is a whole loop ahead of it. Then the deck is put back
+       where the loop will be, once more, and asked once more. */
+    if (at > b.at + 0.001 && b.to != null && d && this.mode !== 'roll'){
+      const r = d.a.playbackRate || 1;
+      const want = this.start + loopPhaseAt(at, this.handAt, this.len);
+      const will = b.to + (at - b.tSeek) * r;
+      if (Math.abs(will - want) > 0.02 && b.reseeks < 3){
+        const to2 = Math.max(0, want - (at - now) * r);
+        try { d.a.currentTime = to2; this.seeks++; } catch (e){}
+        b.to = to2; b.tSeek = now; b.at = now + LOOP_BACK_LEAD; b.t0 = now; b.waited = 0; b.reseeks++;
+        this._backT = setTimeout(() => this._backPoll(), LOOP_POLL_MS);
+        return;
       }
     }
+    if (at > b.at + 0.001){ this.backLate++; }
+    if (b.waited > 0.001 && !ready) this.waits++;
+    this._finishBack(at);
+  },
+  _finishBack(at){
+    clearTimeout(this._backT); this._backT = 0; this.backing = null;
     this._fade(false, at);
     const s = this.src; this.src = null;
     if (s) try { s.stop(at + LOOP_HAND_RAMP + 0.05); } catch (e){}
     this.on = false; this.armed = false; this.pending = false;
     clearTimeout(this._timer); this._timer = 0;
-    return LOOP_BACK_LEAD;
+    this.backAt = at;
+  },
+  /* THE ROOM CHANGED SHAPE. K — which tape sample the graph is playing right
+     now — was measured on one output device, and a Bluetooth reconnect or an
+     OS route change is a different device with a different latency. A stale K
+     puts the handover on the wrong sample. So the tape is measured again, when
+     it is next idle; a loop being held keeps the K it was cut with. */
+  routeChanged(){
+    if (!this.tap) return;
+    if (this.engaged() || this.armed || this.backing){ this._recal = true; return; }
+    this.close(); this.open(); this.recals = (this.recals || 0) + 1;
   },
   // the blunt version: used when a track changes hands and nothing may be left
   // playing. Still ramped — a booth that clicks on a track change is a fault.
   cancel(){
     clearTimeout(this._timer); this._timer = 0;
+    clearTimeout(this._backT); this._backT = 0; this.backing = null;
     const s = this.src; this.src = null;
     const at = AE.ctx ? AE.ctx.currentTime : 0;
     // a PENDING handover has a fade already written into the future; cancelling
@@ -18254,6 +18826,8 @@ const FX = {
   auto: true,                    // the director performs unless a hand takes over
   unit: '', amount: 0, div: 1,   // the live effect, its knob, its beat division
   loop: null,                    // { start, len, beats, roll, heldFrom }
+  eq: { lo: 0, mid: 0, hi: 0 },  // the three bands, in dB — flat until a hand
+  jump: null,                    // a quantised cue jump waiting for its beat line
   brakeT: -1, _brakeFrom: 1,
   _handT: 0,                     // how long ago a hand last touched something (display only)
   _autoUnit: '', _gateAt: 0, _pads: 'loop',
@@ -18270,6 +18844,65 @@ const FX = {
      visible, deliberate tap. (Found by a probe whose gate measurement kept coming
      back bypassed: AUTO had reclaimed the unit mid-measurement.) */
   hand(){ this._handT = 6; this.auto = false; },
+
+  /* ---- the EQ ---------------------------------------------------------- */
+  setEq(band, val){
+    if (!(band in this.eq)) return;
+    this.eq[band] = fxEqToggle(this.eq[band], val);
+    this.hand(); this.applyEq();
+  },
+  flatEq(){ this.eq.lo = this.eq.mid = this.eq.hi = 0; this.applyEq(); },
+  applyEq(){
+    if (!this.live()) return;
+    const f = AE.fx;
+    if (!f.eqLo) return;
+    ramp(f.eqLo.gain, this.eq.lo, 0.06); ramp(f.eqMid.gain, this.eq.mid, 0.06); ramp(f.eqHi.gain, this.eq.hi, 0.06);
+  },
+
+  /* ---- jumps ----------------------------------------------------------- */
+  /* A SEEK THAT KEEPS THE LOOP. A beat jump or a cue under a held loop moves
+     the loop with it — the loop is let go, the deck moves, the same length is
+     latched again at the new place — so the hand never has to choose between
+     the two. A roll simply ends: the track was running on underneath anyway. */
+  _seek(d, to){
+    const L = this.loop;
+    const keep = L && !L.roll ? L.beats : 0;
+    if (L) this.clearLoop();
+    try { d.a.currentTime = Math.max(0, to); } catch (e){}
+    if (keep) this.setLoop(keep, false);
+    if (typeof mediaSessionPosition === 'function') mediaSessionPosition();
+  },
+  beatJump(beats){
+    const d = activeDeck();
+    if (!d || !isFinite(d.a.duration) || !(d.a.duration > 0)) return;
+    if (this.jump) this.jump = null;          // a jump in hand outranks one waiting
+    const to = beatJumpTarget(d.a.currentTime, beats, this.bpm(), d.a.duration);
+    this._seek(d, to);
+    this.hand();
+    HAPTICS.pulse(false);
+  },
+  /* the cue jump: quantised to the next beat line when a grid is known (the
+     tick below fires it), immediate when it is not */
+  cueJump(cue){
+    const d = activeDeck();
+    if (!d || !isFinite(d.a.duration) || !(d.a.duration > 0)) return;
+    const j = cueJumpAt(d.a.currentTime, cue, this.grid(), this.bpm(), CLOCK.haveGrid && player.playing);
+    this.hand();
+    if (j.fireAt <= d.a.currentTime + 0.012 || !player.playing){ this.jump = null; this._seek(d, j.to); return; }
+    this.jump = { fireAt: j.fireAt, to: j.to, deck: d, armedAt: performance.now() };
+  },
+  jumpTick(){
+    const j = this.jump;
+    if (!j) return;
+    const d = activeDeck();
+    // the deck changed hands, or the wait went stale (a pause, a seek away): drop it
+    if (!d || d !== j.deck || !player.playing || performance.now() - j.armedAt > 4000){ this.jump = null; return; }
+    const pos = d.a.currentTime;
+    if (pos >= j.fireAt - 0.012){
+      this.jump = null;
+      this._seek(d, cueJumpLand(pos, j.fireAt, j.to));
+    }
+  },
 
   /* ---- the rack ------------------------------------------------------- */
   set(unit, amount){
@@ -18339,6 +18972,7 @@ const FX = {
       this._gateAt = AE.ctx.currentTime;
     }
     this.loopTick();
+    this.jumpTick();
     this.brakeTick(dt);
     this.autoTick(dt);
     /* THE TAPE IS NOT FREE TO LEAVE RUNNING. It is nine megabytes of ring and a
@@ -18346,8 +18980,9 @@ const FX = {
        desk and not nothing on a phone in somebody's pocket. So it rolls while
        the booth is being used and stops itself when it is not. */
     if (LOOPER.tap){
-      const busy = !!this.loop || LOOPER.engaged() || LOOPER.armed;
+      const busy = !!this.loop || LOOPER.engaged() || LOOPER.armed || !!LOOPER.backing;
       LOOPER.idle = busy ? 0 : LOOPER.idle + dt;
+      if (!busy && LOOPER._recal){ LOOPER._recal = false; LOOPER.routeChanged(); }
       if (LOOPER.idle > LOOP_IDLE_SEC) LOOPER.close();
     }
   },
@@ -18497,7 +19132,8 @@ const FX = {
      ever inherits a booth the last one left switched on */
   release(){
     const braking = this.brakeT >= 0;
-    this.loop = null; this.brakeT = -1; this.unit = ''; this.amount = 0; this._autoUnit = '';
+    this.loop = null; this.jump = null; this.brakeT = -1; this.unit = ''; this.amount = 0; this._autoUnit = '';
+    this.eq.lo = this.eq.mid = this.eq.hi = 0;
     // nothing the tape is holding may outlive the track it was cut from
     LOOPER.cancel();
     /* PUT THE RATE BACK ONLY IF THE BOOTH IS WHAT MOVED IT. The brake is the one
@@ -18518,12 +19154,86 @@ const FX = {
     if (!this.live()) return;
     const f = AE.fx, t = AE.ctx.currentTime;
     for (const [p, v] of [[f.lp.frequency, 22000], [f.hp.frequency, 20], [f.gate.gain, 1],
-                          [f.send.gain, 0], [f.driveWet.gain, 0], [f.driveDry.gain, 1]]){
+                          [f.send.gain, 0], [f.driveWet.gain, 0], [f.driveDry.gain, 1],
+                          [f.eqLo && f.eqLo.gain, 0], [f.eqMid && f.eqMid.gain, 0], [f.eqHi && f.eqHi.gain, 0]]){
+      if (!p) continue;
       try { p.cancelScheduledValues(t); ramp(p, v, 0.08); } catch (e){}
     }
     this._gateAt = t;
   },
 };
+/* THE CUES — eight per track, remembered. Keyed on the track's stable
+   identity (its hash, or its URL when it has none), in the same local store
+   everything else the player remembers lives in; a republished path keeps
+   its cues, and nothing ever leaves the device. */
+const CUES = {
+  key: null, slots: new Array(CUE_SLOTS).fill(null), _cache: new Map(),
+  keyOf(t){ return t ? (trackKey(t) || (t.local ? 'local:' + t.title : null)) : null; },
+  async follow(track){
+    const k = this.keyOf(track);
+    if (k === this.key) return;
+    this.key = k;
+    this.slots = new Array(CUE_SLOTS).fill(null);
+    if (!k){ FXPADS.paint(); return; }
+    let got = this._cache.get(k);
+    if (!got){
+      try { got = await DB.kvGet('cues:' + k); } catch (e){ got = null; }
+    }
+    if (this.key !== k) return;                 // the track moved on while we read
+    // MERGE, never replace: a cue set while the store was being read is newer
+    // than anything the store holds, and a read must not be what loses it
+    if (Array.isArray(got)) for (let i = 0; i < CUE_SLOTS; i++)
+      if (this.slots[i] == null && typeof got[i] === 'number' && got[i] >= 0) this.slots[i] = got[i];
+    FXPADS.paint();
+  },
+  _save(){
+    if (!this.key) return;
+    const arr = this.slots.slice();
+    this._cache.set(this.key, arr);
+    DB.kvSet('cues:' + this.key, arr).catch(() => {});
+  },
+  // the cues belong to the playing track, booth open or not — a keyboard cue
+  // with the booth closed must still land in the right track's store
+  _here(){ if (typeof player !== 'undefined') this.follow(player.tracks[player.cur]); },
+  set(i, pos){
+    if (i < 0 || i >= CUE_SLOTS) return null;
+    this._here();
+    const d = activeDeck();
+    const at = pos != null ? pos : (d ? d.a.currentTime : 0);
+    const snapped = cueSnap(at, FX.grid(), FX.bpm(), CLOCK.haveGrid);
+    this.slots[i] = Math.round(snapped * 1000) / 1000;
+    this._save();
+    return this.slots[i];
+  },
+  del(i){
+    this._here();
+    if (i < 0 || i >= CUE_SLOTS || this.slots[i] == null) return;
+    this.slots[i] = null;
+    this._save();
+  },
+  /* THE PAD'S ONE RULE: empty takes the playhead, set jumps to it. */
+  press(i){
+    this._here();
+    if (!player.playing && this.slots[i] == null) return;
+    if (this.slots[i] == null){
+      const at = this.set(i);
+      if (at != null){ HAPTICS.pulse(true); toast(T('Cue {n} set · {t}', { n: i + 1, t: cueFmt(at) })); }
+    } else {
+      FX.cueJump(this.slots[i]);
+      HAPTICS.pulse(false);
+    }
+    FXPADS.paint();
+  },
+  label(i){
+    const v = this.slots[i];
+    return v == null ? String(i + 1) : cueFmt(v);
+  },
+};
+function cueFmt(sec){
+  const s = Math.max(0, sec || 0);
+  return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') + '.' + Math.floor((s % 1) * 10);
+}
+
 /* THE PADS — eight of them, in banks, laid out the way hardware lays them out.
    The banks are the three things hands actually do between two decks:
 
@@ -18538,9 +19248,15 @@ const FXPADS = {
   bank: 'loop',
   LOOPS: [0.125, 0.25, 0.5, 1, 2, 4, 8, 16],
   UNITS: [['filter', 'FILTER'], ['echo', 'ECHO'], ['gate', 'GATE'], ['drive', 'DRIVE']],
+  JUMPS: [-16, -8, -4, -1, 1, 4, 8, 16],
+  // the EQ bank: three kills, a reset, three dips and a lift — each pad is a
+  // band and a value, and pressing what is already there undoes it
+  EQS: [['lo', EQ_KILL_DB, 'KILL LOW'], ['mid', EQ_KILL_DB, 'KILL MID'], ['hi', EQ_KILL_DB, 'KILL HI'], ['flat', 0, 'FLAT'],
+        ['lo', -6, 'LOW −6'], ['mid', -6, 'MID −6'], ['hi', -6, 'HI −6'], ['hi', 3, 'HI +3']],
   DIVS: [0.25, 0.5, 0.75, 1, 2, 4],
   _divI: 3,
   label(n){ return n < 1 ? '1/' + Math.round(1 / n) : String(n); },
+  jumpLabel(n){ return (n > 0 ? '+' : '−') + Math.abs(n); },
   setBank(b){
     this.bank = b;
     for (const el2 of document.querySelectorAll('.fx-banks .fxb[data-bank]')){
@@ -18554,7 +19270,10 @@ const FXPADS = {
     const host = document.getElementById('fxPads');
     if (!host) return;
     const cells = this.bank === 'fx'
-      ? this.UNITS.map(u => ({ key: u[0], text: u[1] }))
+      ? this.UNITS.map(u => ({ key: u[0], text: u[1] })).concat([{ key: 'keylock', text: 'KEY LOCK' }])
+      : this.bank === 'cue' ? CUES.slots.map((_, i) => ({ key: i, text: CUES.label(i) }))
+      : this.bank === 'jump' ? this.JUMPS.map(n => ({ key: n, text: this.jumpLabel(n) }))
+      : this.bank === 'eq' ? this.EQS.map((e, i) => ({ key: i, text: e[2] }))
       : this.LOOPS.map(n => ({ key: n, text: this.label(n) }));
     if (host._sig !== this.bank + cells.length){
       host._sig = this.bank + cells.length;
@@ -18562,7 +19281,12 @@ const FXPADS = {
       for (const c of cells){
         const b = document.createElement('button');
         b.className = 'fxp'; b.textContent = c.text; b.type = 'button';
-        b.setAttribute('aria-label', this.bank === 'fx' ? T('{name} effect', { name: c.text }) : T('{n}-beat {bank}', { n: c.text, bank: this.bank }));
+        b.setAttribute('aria-label',
+          this.bank === 'fx' ? T('{name} effect', { name: c.text })
+          : this.bank === 'cue' ? T('Hot cue {n} — tap to set or jump, hold to clear', { n: c.key + 1 })
+          : this.bank === 'jump' ? T('Jump {n} beats', { n: c.text })
+          : this.bank === 'eq' ? c.text
+          : T('{n}-beat {bank}', { n: c.text, bank: this.bank }));
         this._bind(b, c.key);
         host.appendChild(b);
       }
@@ -18585,6 +19309,36 @@ const FXPADS = {
         if (on) FX.clearLoop(); else FX.setLoop(key, false);
         this.paint();
       });
+    } else if (this.bank === 'cue'){
+      /* TAP sets or jumps; HOLD clears. The hold is the pad's own timer, so a
+         tap that lifts before it is a tap and a press that outlasts it is a
+         clear — and the click that follows a completed hold is swallowed. */
+      let held = 0, cleared = false;
+      const down = ev => {
+        if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+        cleared = false;
+        clearTimeout(held);
+        held = setTimeout(() => {
+          if (CUES.slots[key] != null){ CUES.del(key); cleared = true; HAPTICS.pulse(true); this.paint(); toast(T('Cue {n} cleared', { n: key + 1 })); }
+        }, 600);
+      };
+      const up = () => { clearTimeout(held); held = 0; };
+      b.addEventListener('pointerdown', down);
+      b.addEventListener('pointerup', up);
+      b.addEventListener('pointerleave', up);
+      b.addEventListener('pointercancel', up);
+      b.addEventListener('click', () => { if (cleared){ cleared = false; return; } CUES.press(key); });
+    } else if (this.bank === 'jump'){
+      b.addEventListener('click', () => { FX.beatJump(key); this.paint(); });
+    } else if (this.bank === 'eq'){
+      b.addEventListener('click', () => {
+        const e = this.EQS[key];
+        if (e[0] === 'flat'){ FX.hand(); FX.flatEq(); } else FX.setEq(e[0], e[1]);
+        this.paint();
+      });
+    } else if (key === 'keylock'){
+      b.title = T('Key lock — hold the pitch through a tempo match (on), or let it ride the tempo like vinyl (off)');
+      b.addEventListener('click', () => { SPEED.setKeyLock(!SPEED.keyLock); this.paint(); });
     } else {
       b.addEventListener('click', () => {
         FX.hand();
@@ -18597,13 +19351,33 @@ const FXPADS = {
     const host = document.getElementById('fxPads');
     if (!host) return;
     const kids = host.children;
-    const cells = this.bank === 'fx' ? this.UNITS.map(u => u[0]) : this.LOOPS;
+    const cells = this.bank === 'fx' ? this.UNITS.map(u => u[0]).concat(['keylock']) : this.bank === 'cue' ? CUES.slots.map((_, i) => i)
+      : this.bank === 'jump' ? this.JUMPS : this.bank === 'eq' ? this.EQS.map((_, i) => i) : this.LOOPS;
     for (let i = 0; i < kids.length; i++){
-      const key = cells[i];
-      const lit = this.bank === 'fx'
-        ? FX.unit === key
-        : !!(FX.loop && FX.loop.beats === key && (this.bank === 'roll') === !!FX.loop.roll);
-      kids[i].classList.toggle('lit', !!lit);
+      const key = cells[i], k = kids[i];
+      let lit;
+      if (this.bank === 'fx') lit = key === 'keylock' ? SPEED.keyLock : FX.unit === key;
+      else if (this.bank === 'cue'){
+        // a set cue wears its colour; an empty pad is a number in the dark
+        const v = CUES.slots[key], col = CUE_COLORS[key];
+        const txt = CUES.label(key);
+        if (k.textContent !== txt) k.textContent = txt;
+        const want = v != null ? col : '';
+        if (k._cue !== want){
+          k._cue = want;
+          k.style.borderColor = want; k.style.color = want;
+          k.style.boxShadow = want ? '0 0 14px -6px ' + want : '';
+        }
+        // and it flashes while a quantised jump to it waits for its beat line
+        lit = !!(FX.jump && v != null && Math.abs(FX.jump.to - v) < 1e-6);
+      }
+      else if (this.bank === 'jump') lit = false;
+      else if (this.bank === 'eq'){
+        const e = this.EQS[key];
+        lit = e[0] === 'flat' ? false : Math.abs((FX.eq[e[0]] || 0) - e[1]) < 1e-6;
+      }
+      else lit = !!(FX.loop && FX.loop.beats === key && (this.bank === 'roll') === !!FX.loop.roll);
+      k.classList.toggle('lit', !!lit);
     }
   },
 };
@@ -18615,7 +19389,42 @@ function syncFxHud(){
   const a = document.getElementById('fxAuto');
   if (a){ a.classList.toggle('on', FX.auto); a.setAttribute('aria-pressed', FX.auto ? 'true' : 'false'); }
 }
+/* THE WAVE IS A SCRUB STRIP. A finger or a mouse on lane A seeks the deck that
+   owns the room — a drag follows it — and the seek keeps a held loop the way a
+   beat jump does. Not during a seam: the outgoing deck belongs to the mixer
+   then, and a hand on it would fight the blend. */
+function wireBoothScrub(){
+  const cv = el.boothCv;
+  if (!cv) return;
+  let id = null;
+  const at = ev => {
+    const L = BOOTH._laneA;
+    if (!L || !L.deck || !(L.dur > 0)) return null;
+    const r = cv.getBoundingClientRect();
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    if (y < L.y || y > L.y + L.h) return null;
+    return { deck: L.deck, to: clamp01((x - L.x) / L.w) * L.dur };
+  };
+  cv.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    const p = at(ev);
+    if (!p) return;
+    id = ev.pointerId;
+    try { cv.setPointerCapture(id); } catch (e){}
+    FX._seek(p.deck, p.to); FX.hand();
+    ev.preventDefault();
+  });
+  cv.addEventListener('pointermove', ev => {
+    if (ev.pointerId !== id) return;
+    const p = at(ev);
+    if (p){ try { p.deck.a.currentTime = p.to; } catch (e){} }
+  });
+  const up = ev => { if (ev.pointerId === id){ id = null; if (typeof mediaSessionPosition === 'function') mediaSessionPosition(); } };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
 function wireFxRack(){
+  wireBoothScrub();
   for (const b of document.querySelectorAll('.fx-banks .fxb[data-bank]'))
     b.addEventListener('click', () => FXPADS.setBank(b.dataset.bank));
   const amt = document.getElementById('fxAmt');
@@ -19085,10 +19894,11 @@ const BOOTH = {
     const tB = running ? player.tracks[player.cur] : (armed ? player.tracks[MIXER.next] : null);
     if (tB && tB.url && !tB._peaks && !tB._peaksPending && !tB._peaksErr) computePeaks(tB);
 
-    // the pad row follows what's playing
+    // the pad row follows what's playing — and so do the cues
     const pcur = player.tracks[player.cur];
     const pkey = pcur ? (trackKey(pcur) || pcur.url || String(pcur.id)) : null;
     if (pkey !== this._padKey){ this._padKey = pkey; this.refreshPads(); }
+    if (typeof CUES !== 'undefined') CUES.follow(pcur);
 
     const cv = el.boothCv, ctx = this._ctx || (this._ctx = cv.getContext('2d'));
     const w = cv.clientWidth, h = cv.clientHeight;
@@ -19205,6 +20015,23 @@ const BOOTH = {
         ctx.restore();
       }
     }
+    // HOT CUES on the lane that owns the room: a flag in the slot's colour at
+    // the beat it marks, numbered, so a pad and a place on the wave agree
+    if (!running && durA > 0 && typeof CUES !== 'undefined'){
+      for (let i = 0; i < CUE_SLOTS; i++){
+        const v = CUES.slots[i];
+        if (v == null || v > durA) continue;
+        const x = laneX + (v / durA) * laneW, col = CUE_COLORS[i];
+        ctx.fillStyle = col; ctx.globalAlpha = 0.9;
+        ctx.fillRect(x - 0.5, yA, 1, laneH);
+        ctx.beginPath(); ctx.moveTo(x, yA); ctx.lineTo(x + 9, yA); ctx.lineTo(x + 9, yA + 9); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0a0d12'; ctx.font = 'bold 7px monospace';
+        ctx.fillText(String(i + 1), x + 3.5, yA + 6.5);
+        ctx.globalAlpha = 1;
+      }
+    }
+    // remembered for the hand: the lane is a scrub strip (see wireBoothScrub)
+    this._laneA = { x: laneX, y: yA, w: laneW, h: laneH, deck: running ? null : dA, dur: durA };
     this._playhead(ctx, yA, laneH, laneW, fracOf(dA), accA, laneX);
     const durB = dB && isFinite(dB.a.duration) && dB.a.duration > 0 ? dB.a.duration : (tB && tB.duration) || 0;
     if (tB && durB > 0) this._structureOverlay(ctx, yB2, laneH, laneW, tB, durB, laneX);
@@ -19240,6 +20067,19 @@ const BOOTH = {
       };
       drawVu(laneX, running ? aG : 1, 'CH A');
       drawVu(w - laneX - vuW, running ? bG : 0, 'CH B');
+      // THE RAIL, visible. A lamp that lights only while the master limiter is
+      // holding the peak down — the honest expectation is that it stays dark
+      if (typeof MASTERLIM !== 'undefined' && MASTERLIM.ready()){
+        const gr = MASTERLIM.grDb();
+        const on = clamp01(-gr / 6);
+        this._limOn = Math.max(on, (this._limOn || 0) * 0.85);   // decays, so a hit is seen
+        const lx = w - laneX - vuW + 34;
+        ctx.globalAlpha = 0.25 + 0.75 * this._limOn;
+        ctx.fillStyle = this._limOn > 0.5 ? '#ff5c4a' : this._limOn > 0.05 ? '#ffbe4a' : '#fff';
+        ctx.font = '7px monospace';
+        ctx.fillText(this._limOn > 0.02 ? 'LIM ' + gr.toFixed(1) : 'LIM', lx, cy - 8);
+        ctx.globalAlpha = 1;
+      }
       // the one-bass rule, visible: LOW lamps hand over at the midpoint
       if (running && p && p.type === 'beatmix'){
         const swapBeats = 2 / Math.max(4, p.beats || 16);
@@ -19741,7 +20581,7 @@ const CLIP = {
       // the audio tap is wired once and kept — a silent parallel listener on
       // the master bus costs nothing between clips
       if (AE.ctx && AE.master){
-        if (!this.dest){ this.dest = AE.ctx.createMediaStreamDestination(); AE.master.connect(this.dest); }
+        if (!this.dest){ this.dest = AE.ctx.createMediaStreamDestination(); (AE.out || AE.master).connect(this.dest); }
         for (const tr of this.dest.stream.getAudioTracks()) stream.addTrack(tr);
       }
       const m = this.mime();
@@ -20086,6 +20926,12 @@ window.addEventListener('keydown', ev => {
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const k = ev.key;
   if (k !== 'h' && k !== 'H') pokeChrome();
+  // ⇧1…⇧8 are the hot cues, by physical key so every layout agrees
+  if (ev.shiftKey && /^Digit[1-8]$/.test(ev.code || '')){
+    ev.preventDefault();
+    if (typeof CUES !== 'undefined') CUES.press(+ev.code.slice(5) - 1);
+    return;
+  }
   switch (k){
     case ' ': ev.preventDefault(); player.toggle(); break;
     case 'ArrowRight': ev.preventDefault(); player.nudge(5); break;
@@ -20096,7 +20942,14 @@ window.addEventListener('keydown', ev => {
     case 'p': case 'P': player.prev(); break;
     case 's': case 'S': el.btnShuffle.click(); break;
     case 'r': case 'R': el.btnRepeat.click(); break;
-    case 'l': case 'L': el.btnPlaylist.click(); break;
+    case 'l': el.btnPlaylist.click(); break;
+    case 'L': LENS.cycle(); break;              // the lens, one shift away from the playlist
+    case 'w': case 'W': TOUCHFX.cycle(); break; // the touch force (the keyboard's TOUCH chip)
+    // beat jumps: a beat on the comma and the period, four with shift
+    case ',': FX.beatJump(-1); break;
+    case '.': FX.beatJump(1); break;
+    case '<': FX.beatJump(-4); break;
+    case '>': FX.beatJump(4); break;
     case 'b': case 'B': if (!el.btnLibrary.hidden) openLibrary(!el.library.classList.contains('open')); break;
     case 'c': case 'C': openCrate(!CRATE.open); break;
     case 'j': case 'J': openConsole(!CON.open); break;
@@ -20132,9 +20985,7 @@ window.addEventListener('keydown', ev => {
       if (k >= '1' && k <= '9') director.setScene(+k - 1, true);
       else if (k === '0') director.setScene(9, true);
       else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, asked for
-      else if (k === 'f' || k === 'F') TOUCHFX.cycle(); // cycle the touch-FX force (keyboard equivalent of the TOUCH chip)
       else if (k === 'i' || k === 'I') GHOST.toggle();  // let the field play itself when idle, or don't
-      else if (k === 'l' || k === 'L') LENS.cycle();     // cycle the post-process lens
   }
 });
 
@@ -23070,9 +23921,14 @@ const INTERACT = {
 };
 {
   const cv = el.canvas;
+  // the glass's rectangle, read once per layout rather than once per event
+  let rect = null;
+  const rectOf = () => rect || (rect = cv.getBoundingClientRect());
+  window.addEventListener('resize', () => { rect = null; });
+  window.addEventListener('orientationchange', () => { rect = null; });
   const toNdc = ev => {
-    INTERACT.px = (ev.clientX / window.innerWidth) * 2 - 1;
-    INTERACT.py = -((ev.clientY / window.innerHeight) * 2 - 1);
+    const p = ndcOf(ev.clientX, ev.clientY, rectOf());
+    INTERACT.px = p[0]; INTERACT.py = p[1];
   };
   /* TWO FINGERS. The first pointer is the hand, exactly as it always was — it
      steers the camera, banks the swirl, charges and detonates. A SECOND
@@ -23081,10 +23937,19 @@ const INTERACT = {
      asymmetric, because the alternative is two fingers fighting over one camera,
      which is how a pinch-to-zoom feels when an app gets it wrong. */
   let firstId = null, secondId = null;
+  // the pinch: where each finger is on the glass, and how far apart they were
+  // when the second one landed, against the camera's reach at that moment
+  let p1x = 0, p1y = 0, p2x = 0, p2y = 0, pinchD0 = 0, pinchR0 = 0;
   const toSecond = ev => {
-    INTERACT.sx = (ev.clientX / window.innerWidth) * 2 - 1;
-    INTERACT.sy = -((ev.clientY / window.innerHeight) * 2 - 1);
+    const p = ndcOf(ev.clientX, ev.clientY, rectOf());
+    INTERACT.sx = p[0]; INTERACT.sy = p[1];
     INTERACT.mode2 = touchPairMode(TOUCHFX.mode());
+  };
+  const pinch = () => {
+    if (secondId === null || !(pinchD0 > 0)) return;
+    const d = Math.hypot(p2x - p1x, p2y - p1y);
+    director.camTargetR = pinchDolly(pinchR0, pinchD0, d, 16, 44);
+    INTERACT.holdOff = 9;
   };
   cv.addEventListener('pointerdown', ev => {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
@@ -23097,10 +23962,16 @@ const INTERACT = {
       secondId = ev.pointerId;
       INTERACT.second = true; INTERACT._idleT = 0;
       toSecond(ev);
+      p2x = ev.clientX; p2y = ev.clientY;
+      pinchD0 = Math.hypot(p2x - p1x, p2y - p1y); pinchR0 = director.camTargetR;
       try { cv.setPointerCapture(ev.pointerId); } catch (e){}
       return;
     }
+    // a THIRD finger is nobody's: both hands are taken, and letting it seize the
+    // primary slot orphaned the finger that was actually holding the field
+    if (INTERACT.dragging && firstId !== null && secondId !== null && ev.pointerId !== firstId && ev.pointerId !== secondId) return;
     firstId = ev.pointerId;
+    p1x = ev.clientX; p1y = ev.clientY; pinchD0 = 0;
     INTERACT.dragging = true;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
     toNdc(ev); INTERACT._idleT = 0;
@@ -23132,11 +24003,14 @@ const INTERACT = {
     try { cv.setPointerCapture(ev.pointerId); } catch (e){}
   });
   cv.addEventListener('pointermove', ev => {
-    if (ev.pointerId === secondId){ toSecond(ev); INTERACT._idleT = 0; return; }
+    if (ev.pointerId === secondId){ toSecond(ev); p2x = ev.clientX; p2y = ev.clientY; pinch(); INTERACT._idleT = 0; return; }
+    if (INTERACT.dragging && firstId !== null && ev.pointerId !== firstId) return;   // a finger that was never seated
     toNdc(ev); INTERACT._idleT = 0;
     if (!INTERACT.dragging) return;
     const dx = ev.clientX - INTERACT._lx, dy = ev.clientY - INTERACT._ly;
     INTERACT._lx = ev.clientX; INTERACT._ly = ev.clientY;
+    p1x = ev.clientX; p1y = ev.clientY;
+    if (secondId !== null) pinch();
     director.camGoalTheta -= dx * 0.006;
     director.camGoalPhi = clamp(director.camGoalPhi + dy * 0.004, 0.5, 2.5);
     INTERACT.swirl = clamp(INTERACT.swirl + dx * 0.02, -3, 3);
@@ -23150,17 +24024,19 @@ const INTERACT = {
   // INTERACT.release() holds that arithmetic, because the ghost lifts too.
   const drop = ev => {
     if (ev && ev.pointerId === secondId){          // the second finger just leaves
-      secondId = null; INTERACT.second = false; return;
+      secondId = null; INTERACT.second = false; pinchD0 = 0; return;
     }
+    if (ev && INTERACT.dragging && firstId !== null && ev.pointerId !== firstId) return;   // a third finger lifting
     if (INTERACT.dragging) INTERACT.release(true, 1);
     INTERACT.dragging = false;
-    firstId = null;
+    firstId = null; pinchD0 = 0;
   };
   cv.addEventListener('pointerup', drop);
   // a stolen gesture (scroll, OS swipe) is not a release — no detonation
   cv.addEventListener('pointercancel', ev => {
-    if (ev && ev.pointerId === secondId){ secondId = null; INTERACT.second = false; return; }
-    INTERACT.dragging = false; firstId = null;
+    if (ev && ev.pointerId === secondId){ secondId = null; INTERACT.second = false; pinchD0 = 0; return; }
+    if (ev && firstId !== null && ev.pointerId !== firstId) return;
+    INTERACT.dragging = false; firstId = null; pinchD0 = 0;
   });
   // a long-press must cycle the FX, never raise the OS text-callout / copy box
   cv.addEventListener('contextmenu', ev => ev.preventDefault());
@@ -24351,12 +25227,44 @@ const director = {
 const SEGUE = {
   pending: false, big: false, waited: 0, lastKind: '',
   _lastBar: 0, _lastPhrase: 0, _lastSection: -1,
+  seam: null, seams: 0,                      // a change cued on the audio clock by the mixer
 
   request(big){
     if (!this.pending){ this.pending = true; this.big = !!big; this.waited = 0; }
     else if (big){ this.big = true; }        // an upgrade to a bigger change keeps the queue
   },
+  /* THE MIXER'S CUE. `at` is the seam's origin on the audio clock; the change
+     lands `delay` after it. Null withdraws a cue (the seam was cancelled). */
+  cueSeam(plan, overlap, at){
+    if (!plan){ this.seam = null; return; }
+    const cue = seamSceneCue({ plan, overlap, auto: director.auto, dwell: director.dwell, reduced: reducedMotion });
+    if (!cue.fire || !AE.ctx){ this.seam = null; return; }
+    this.seam = { at: (at != null ? at : AE.ctx.currentTime) + cue.delay, big: cue.big, dur: cue.dur, type: plan.type };
+  },
   tick(dt){
+    // a seam's cue outranks the dwell clock and the bar wait: the music itself
+    // is the boundary, and it is on the grid by construction. A crossfade still
+    // running when the cue lands is let finish first — it advances by frame
+    // time, and on a slow renderer a three-second dissolve is seven seconds of
+    // wall clock — and only a cue nobody could take for twelve seconds is dropped
+    if (this.seam && director.auto && AE.ctx && AE.ctx.currentTime >= this.seam.at){
+      if (!this.seam.due){ this.seam.due = true; this.seam.waited = director.transT < 1; this.seam.dueT = director.transT; }
+      if (director.transT < 1 && AE.ctx.currentTime <= this.seam.at + 30) return;   // let the running crossfade finish
+      const sm = this.seam; this.seam = null;
+      window.__mb8SeamCue = { late: AE.ctx.currentTime - sm.at, waited: sm.waited, transT: sm.dueT, fired: director.transT >= 1 };
+      if (director.transT >= 1){
+        window.__mb8SeamSceneLate = AE.ctx.currentTime - sm.at;   // how far past the cue it landed
+        window.__mb8SeamSceneWaited = !!sm.waited;                // …because a crossfade was still running
+        const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: sm.big });
+        director.transDur = sm.dur;
+        director.transKind = sm.big ? style.kind : 'dissolve';
+        director.setScene(director.pickScene(), false);
+        director.dwell = 0;
+        this.lastKind = director.transKind; this.seams++;
+        this.pending = false; this.big = false; this.waited = 0;
+        window.__mb8SeamScene = this.seams;
+      }
+    } else if (this.seam && !director.auto) this.seam = null;
     const grid = typeof CLOCK !== 'undefined' && CLOCK.haveGrid;
     // has the song's STRUCTURE turned a page since last frame?
     let sectionBoundary = false;

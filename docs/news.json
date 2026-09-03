@@ -3,6 +3,21 @@
   "entries": [
     {
       "build": "unreleased",
+      "date": "2026-09-03",
+      "title": "The rail before the speaker, and the booth grows a second hand",
+      "notes": [
+        "the master now ends in a brickwall TRUE-PEAK LIMITER on the audio thread — three milliseconds of lookahead so the gain has arrived before the peak does, a cubic between the samples so a peak no sample carries is still seen, one gain for both channels so the image never lurches, and bit-exact unity below the ceiling: a clean set never touches it, and the booth's new LIM lamp stays dark to prove it",
+        "the volume is never written, it is ramped — a slider drag used to be forty small steps in the waveform — and the analyser's band edges are now frequencies rather than bins, so the visuals dance to the same crossovers on a 48 kHz machine as on a 44.1",
+        "HOT CUES: eight per track, remembered on the device, snapped to the beat line when set and QUANTISED when pressed — mid-beat, the jump waits for the line and lands with the phase intact; ⇧1–⇧8 from the keyboard, flags on the waveform in the pad's colour, hold to clear",
+        "BEAT JUMP, one to sixteen beats either way (, . < > from the keyboard), moving a held loop with it; a three-band EQ on the mix with KILLS that read as gone and breathe back in without a step; a KEY LOCK pad, so the pitch can ride the tempo like vinyl when that is the cleaner sound; and the waveform is a scrub strip",
+        "the seamless loop learned three honesties: it refuses to cut across a tear in its own tape and takes the next lap instead; letting go now ASKS the deck whether it has the bytes and waits with the loop covering rather than handing back into silence; and a route change re-measures the tape on the device that is actually there",
+        "the room changes hands with the music: a seam cues the scene change on the audio clock, landing a beatmix's on the bass swap and sized to it, so the picture and the low end move together",
+        "two fingers, two axes: spread them and the room comes closer, pinch and it recedes — the first finger keeps the orbit, the second its force, and a third finger no longer orphans the hand that was holding the field",
+        "⇧L cycles the lens and W the touch force — L and F were quietly doing two jobs each and only ever managing the first"
+      ]
+    },
+    {
+      "build": "unreleased",
       "date": "2026-08-31",
       "title": "The room learned to dance",
       "notes": [
