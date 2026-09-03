@@ -15885,8 +15885,8 @@ const CUE_COLORS = ['#ff5c4a', '#ffb054', '#ffe45c', '#7ce07a', '#4ad6ff', '#8f8
 function cueSnap(pos, grid, bpm, haveGrid){
   const p = pos > 0 ? pos : 0;
   if (!haveGrid || !(bpm > 0)) return p;
-  const spb = beatLen(1, bpm);
-  return Math.max(0, grid + Math.round((p - grid) / spb) * spb);
+  const spb = beatLen(1, bpm), g = isFinite(grid) ? grid : 0;
+  return Math.max(0, g + Math.round((p - g) / spb) * spb);
 }
 /* WHEN a cue jump goes, and WHERE it lands. Returns { fireAt, to }: the deck
    position at which to leave (the next beat line at or after `pos`, never
@@ -15896,9 +15896,9 @@ function cueSnap(pos, grid, bpm, haveGrid){
 function cueJumpAt(pos, cue, grid, bpm, haveGrid){
   const c = cue > 0 ? cue : 0;
   if (!haveGrid || !(bpm > 0)) return { fireAt: pos, to: c };
-  const spb = beatLen(1, bpm);
-  const k = Math.ceil((pos - grid) / spb - 1e-6);
-  const fireAt = grid + k * spb;
+  const spb = beatLen(1, bpm), g = isFinite(grid) ? grid : 0;
+  const k = Math.ceil((pos - g) / spb - 1e-6);
+  const fireAt = g + k * spb;
   return { fireAt: fireAt < pos ? pos : fireAt, to: c };
 }
 function cueJumpLand(pos, fireAt, to){
@@ -24405,7 +24405,7 @@ const CLOCK = {
     return clamp01(0.34 * rms + 0.33 * dft + 0.33 * dcf);
   },
   reset(){
-    this.haveGrid = false; this.beats = -1; this.idx = -1;
+    this.haveGrid = false; this.beats = -1; this.idx = -1; this.grid = 0;
     this.trim = 0; this._lock = null; this._kPrev = 0;
     clockReset(this.mclk);
   },
@@ -24470,8 +24470,14 @@ const CLOCK = {
 
     // the healed grid: shift by the trim (in beats), latency-compensated
     const b = (pos - this.latency() * rate - grid) / spb - this.trim;
-    if (b < 0){ this.haveGrid = false; this.beats = -1; this.idx = -1; return; }
+    if (b < 0){ this.haveGrid = false; this.beats = -1; this.idx = -1; this.grid = 0; return; }
     this.haveGrid = true;
+    /* THE LATTICE, in the deck's own time: the first beat line as healed by
+       the lock, so anything that SEEKS to a beat — a loop's in-point, a hot
+       cue, a jump — lands on the line the ear is hearing rather than on a
+       multiple of the beat from zero. (Latency is not applied: this is where
+       the beat is in the file, not when it reaches the ear.) */
+    this.grid = grid + this.trim * spb;
     this.beats = b;
     this.idx = Math.floor(b);
     this.phase = b % 1;

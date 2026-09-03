@@ -6006,6 +6006,8 @@ test('cueSnap: a cue set with a grid lands on the nearest beat; without one, whe
   assert.equal(S.cueSnap(0.80, grid, bpm, true), 0.75);
   assert.equal(S.cueSnap(1.10, grid, bpm, true), 1.25);
   assert.equal(S.cueSnap(0.80, grid, bpm, false), 0.80, 'no grid, no snap');
+  assert.equal(S.cueSnap(0.80, undefined, bpm, true), 1.0, 'a grid the clock has not resolved reads as zero, never NaN');
+  assert.ok(isFinite(S.cueJumpAt(10.2, 4, NaN, bpm, true).fireAt), 'likewise for the jump');
   assert.equal(S.cueSnap(-3, grid, bpm, true), 0.25, 'before the start snaps to the first beat');
   assert.equal(S.cueSnap(0.0, 0.3, bpm, true), 0, 'a snap that would land before zero is clamped');
 });

@@ -529,6 +529,11 @@ Three more things, found by listening harder:
   handback **waits for the answer**: late rather than empty, never past a budget,
   and if the loop wrapped while it waited the deck is put back where the loop
   will be and asked again.
+- **The lattice is the track's own.** The clock resolves the first beat line
+  as healed by its kick lock and now publishes it, so a loop's in-point, a cue
+  and a jump land on the line the ear is hearing rather than on a multiple of
+  the beat from zero, which is what they quietly did when the offset went
+  unread.
 - **The room can change shape.** The calibration is a measurement of one output
   device; a Bluetooth reconnect or an OS route change is another device with
   another latency, and a stale reading puts the handover on the wrong sample. A
