@@ -1433,6 +1433,40 @@ photosensitivity gate applies as everywhere: CALM and reduced-motion cut the
 flash, the fringing and the shake. The names and sprites are the room's own
 homages, not the trademarked characters.
 
+## The scope — an oscilloscope that draws
+
+Scene 37 is one cathode-ray tube with a P31 phosphor, ruled ten divisions by
+eight, and a beam that draws the pictures every engineer has watched on one:
+
+- **Lissajous** — two sines, one on each plate. The ratio is the interval the
+  music is in (re-dealt every other bar from the centroid and the entropy),
+  the beat turns the figure, the bass hums on the X plate and the treble on Y.
+- **Harmonograph** — two damped pendulums a plate each. The figure is a
+  strike decaying, and a strike is an onset with bass under it.
+- **Vector** — a cube, an octahedron or an icosahedron, in vector-display
+  style. The energy spins it, an onset kicks the spin, the bar changes the
+  solid.
+- **Epicycle** — a Fourier series, drawn: the fundamental is the circle, the
+  bands are its second, third, fifth and seventh harmonics, the phases drift.
+- **Dual trace** — a Y–T sweep. CH1 is the live waveform, triggered on a
+  rising edge so it holds still the way a real scope's does (or, where there
+  is no analyser, a waveform built from the bands the pipeline measured);
+  CH2 is the same 1024 spectrum bins every shader reads.
+
+What makes scope art read as real rather than as a plot is one rule, and
+it is the rule here: a phosphor is lit in proportion to how long the beam
+**dwells** on it. Every segment is drawn with a brightness inverse to the
+beam's speed, so slow curves burn, fast retraces vanish, and the blanking
+between a polyhedron's edges is never coded — it simply happens. The trace
+is written into a canvas that fades rather than clears (the persistence,
+longer in a calm passage), the segments are bucketed by brightness so the
+canvas sees six strokes a frame rather than thousands, and one fullscreen
+shader makes the canvas a tube: halation through the phosphor layer and the
+glass, the green that whitens where the beam saturates, the graticule with
+its minor ticks, the bezel, and a TRIG lamp that blinks on the onset. The
+readout is the shared pixel font. A hand on the glass is the position knob.
+The phrase turns the page to the next picture.
+
 ## The lamp — a scene where the wax is a fluid
 
 Scene 18 is a lava lamp, and the wax in it is *solved*, not animated. The
