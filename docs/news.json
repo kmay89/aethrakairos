@@ -15,6 +15,9 @@
         "the room changes hands with the music: a seam cues the scene change on the audio clock, landing a beatmix's on the bass swap and sized to it, so the picture and the low end move together",
         "two fingers, two axes: spread them and the room comes closer, pinch and it recedes — the first finger keeps the orbit, the second its force, and a third finger no longer orphans the hand that was holding the field",
         "⇧L cycles the lens and W the touch force — L and F were quietly doing two jobs each and only ever managing the first"
+      ],
+      "builds": [
+        "c75391e6f6"
       ]
     },
     {
