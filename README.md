@@ -316,6 +316,55 @@ canon on every device.
 A seamless hour is one tap: a ritual picks the arc, the solver deals the
 order, MIX compiles the transitions.
 
+### The last hand on the signal
+
+Everything upstream of the speaker is allowed to be loud: two decks at +6 dB
+of loudness make-up, an echo unit that sums back in pre-fader, a drive stage
+whose wet and dry add, a beat echo in parallel with both. Nothing upstream
+was allowed to *clip*, and nothing upstream prevented it — the browser
+hard-clips at the DAC, which is the one distortion that is not a choice.
+
+So the master now ends in a **brickwall true-peak limiter**, transparent by
+construction and running on the audio thread inside an `AudioWorklet`:
+
+- **lookahead** — the signal is delayed three milliseconds and the gain that
+  will be needed is computed from the samples still in the delay line, so the
+  gain has already *arrived* when the peak does; a hard step from silence
+  comes out already tamed, with no overshoot and no click at the attack
+- **true peak** — the detector estimates the waveform *between* samples with a
+  cubic through its neighbours, so a peak the DAC's reconstruction filter will
+  reach but no sample carries is still seen; the ceiling sits at −1 dBTP
+- **stereo-linked** — one gain for both channels, or the image would lurch
+  toward whichever side was quieter on every hit
+- **unity until needed** — below the ceiling the kernel is a pure delay: the
+  output *is* the input, bit for bit, and the unit suite holds it to
+  bit-exactness. A limiter that colours the music it was told to protect is a
+  fault
+- **visible** — the gain reduction is posted back twenty times a second and the
+  booth draws it as a `LIM` lamp beside the channel meters. The honest
+  expectation is that it stays dark: a clean set never reaches the rail
+
+The kernel is pure arithmetic in the `@master` block; the worklet module is
+those very functions serialised into a blob, so what the suite tested is what
+the audio thread runs — there is no copy to drift. Where there is no
+`AudioWorklet` at all a `DynamicsCompressor` at a hard ratio takes the seat:
+not transparent, not true-peak, but a rail. The direct path is live from the
+first sample and the limiter is crossfaded in the moment its module loads, so
+the music never waits on it. On iOS, where playback is element-direct, none
+of this applies and none of it is claimed.
+
+Two smaller things landed with it. **The master is never written, it is
+ramped**: a volume slider that wrote a gain node forty times a second was
+forty small steps in the waveform, and a mute that stepped to zero was a
+click. And the analyser's **band edges are frequencies, not bins**: the
+44.1 kHz table was being read on 48 kHz contexts too, which put every
+crossover nine percent sharp on half the machines the visuals dance on.
+
+`tools/master_probe.mjs` proves the rail is *there*, on a real graph: a
++12 dB mix never crosses the ceiling at the speaker while a clean one passes
+untouched, the meter agrees with the recorder, and a hard volume drag leaves
+no step the music does not already contain.
+
 ## The Booth (key `D`) — watch the engine mix
 
 The mixer has always run two decks, planned the seam on the bar line and
@@ -354,7 +403,7 @@ the handle's position and the colour under it always agree; and **LOW
 lamps** visibly hand the bassline over at the seam's midpoint — the
 one-bass rule, made watchable.
 
-**And it has hands.** Below the decks is an **FX rack in three banks**, laid out
+**And it has hands.** Below the decks is an **FX rack in six banks**, laid out
 the way hardware lays them out because that layout is the argument:
 
 - **LOOP** — eight beat loops from a 32nd to 16 bars. Tap and the loop latches
@@ -368,12 +417,41 @@ the way hardware lays them out because that layout is the argument:
   underneath, so releasing lands you where you would have been. The phrase stays
   intact and the roll reads as a stutter *over* the music rather than a detour
   through it.
+- **CUE** — eight **hot cues per track, remembered**. An empty pad takes the
+  playhead and **snaps it to the nearest beat line**; a set pad jumps back to it
+  — and the jump is **quantised the way a CDJ quantises**: pressed mid-beat it
+  waits for the beat line before it goes, and a tick that noticed late carries
+  its lateness onto the landing, so the phrase never stumbles. Hold a pad to
+  clear it. The cues are keyed on the track's hash, so a republished file keeps
+  them, and they never leave the device. `⇧1`–`⇧8` are the same eight pads from
+  the keyboard, booth open or not; the flags sit on the waveform in the pad's
+  colour.
+- **JUMP** — whole beats forward or back, one to sixteen, phase kept by
+  construction (`,` `.` and `<` `>` from the keyboard). A jump under a held loop
+  **moves the loop with it**: the loop lets go, the deck moves, the same length
+  latches again at the new place — the hand never has to choose between the two.
+- **EQ** — a channel strip's three bands on the mix, at the corners a DJ mixer
+  puts them (250 Hz shelf, 1 kHz bell, 4 kHz shelf), and the thing a hand does
+  to them most: **kill one**. Kills are deep, not infinite (−36 dB reads as gone
+  and still lets the band breathe back in without a step), a pad that is already
+  doing what it is asked undoes it, FLAT is bypass to the same standard as the
+  filter's detent — and `booth_probe` measures each band on the bench.
 - **FX** — filter, echo, gate and drive on one knob, every time constant a beat
   division read from the **same CLOCK the shaders and the haptics follow**. The
   filter is one bipolar sweep with a real detent at the centre. The gate chops on
   the beat rather than from an LFO, because an oscillator drifts against the music
   within a bar and the beat clock does not. Plus a **BRAKE** that is a turntable
-  losing power, not a fade.
+  losing power, not a fade — and a **KEY LOCK** pad. On, a deck bent to match a
+  tempo keeps its pitch through the browser's time-stretcher, which is the
+  right default. Off, the pitch rides the tempo the way vinyl does: a third of
+  a semitone sharp at +3%, and free of the stretcher's artefacts, which on some
+  engines is the more transparent sound over a small trim. A DJ's call, so it
+  is a pad, and it is remembered.
+
+The waveform on lane A is a **scrub strip**: a finger or a mouse on it seeks the
+deck that owns the room, a drag follows it, and the seek keeps a held loop the
+way a beat jump does. Not during a seam — the outgoing deck belongs to the
+mixer then.
 
 The magical half is **AUTO**: the same hands, given to the director. A listener
 who never opens the booth still hears the echo bloom into a hand-off and the
@@ -432,6 +510,49 @@ Three things make it honest rather than merely clever:
   can reach in time. The failure mode of the new machinery is the old machinery,
   which is the only failure mode worth having. On iOS, where playback is
   element-direct and there is no graph to record, the whole layer stands down.
+
+Three more things, found by listening harder:
+
+- **The tape can tear.** The recorder runs on the main thread, and a block the
+  main thread fails to collect in time is a block that never reached the ring —
+  the tape then holds two moments of music butted together as if they were one,
+  and a loop cut across that join carries the splice on every lap. The recorder
+  now notes where each tear fell — by measuring the tape against the audio
+  clock, because the processor's own `playbackTime` turned out to be stamped at
+  dispatch and jitters by a block under ordinary load: a stall's backlog is a
+  lag that rises and drains in no clock time, a hole is a lag that is still
+  standing half a second of clock later. And one thing no lag can see: across
+  a stall of seconds every sample arrives and some of them are zero, the
+  buffer recycled under the queue — a block of exact silence off a playing
+  deck is a tear on its face. A cut that
+  spans one is **refused**, the anchor is moved to the next lap (the re-seek
+  loop is replaying the same slice underneath), and the loop is taken from tape
+  that is whole.
+- **The handback asks the deck.** Letting go of a loop seeks the deck early and
+  lets the loop cover for it — but the crossover used to be scheduled at a fixed
+  lead regardless of whether the deck had anything to play there, and a seek
+  into a cold range takes as long as it takes. Now the deck is asked — real
+  data, and buffered bytes across the window it is about to play — and the
+  handback **waits for the answer**: late rather than empty, never past a budget,
+  and if the loop wrapped while it waited the deck is put back where the loop
+  will be and asked again.
+- **A pushed handover still wraps.** When the tape has to push a handover on by
+  a whole lap, the deck must wrap at the out-point in between — the push
+  assumed exactly that. The frame-driven wrap was suppressed for the whole
+  wait, so on a renderer slow enough for the tape's poll to beat the frame to
+  the out-point the deck ran straight past the loop, audibly, for a lap. Now
+  only the final half-loop before the handover is left unwrapped.
+- **The lattice is the track's own.** The clock resolves the first beat line
+  as healed by its kick lock and now publishes it, so a loop's in-point, a cue
+  and a jump land on the line the ear is hearing rather than on a multiple of
+  the beat from zero, which is what they quietly did when the offset went
+  unread.
+- **The room can change shape.** The calibration is a measurement of one output
+  device; a Bluetooth reconnect or an OS route change is another device with
+  another latency, and a stale reading puts the handover on the wrong sample. A
+  context that comes back from suspension, or a `devicechange` from the OS,
+  **measures the tape again** — at once when it is idle, and once a held loop
+  has been let go when it is not.
 
 `tools/loop_probe.mjs` measures it in a real browser, on real music, both ways:
 a recorder on the master, every write to the playhead counted. The seeking loop
@@ -669,6 +790,22 @@ rather than a screensaver:
   fires a shockwave. But the touch itself is not drawn: your hand deforms the
   metric the world lives in, and everything obeys it. See
   [Touching the fabric](#touching-the-fabric) below.
+
+## The room changes hands with the music
+
+A seam is the one moment a set has that is bigger than a bar line — a new
+track, a new key, a new tempo — and the visual director used to sleep through
+it, changing rooms on its own dwell clock a few bars later or a few bars
+earlier. Now **the seam cues the room**: the moment the mixer fires a blend,
+a scene change is scheduled on the audio clock at the instant the music
+itself changes hands. A beatmix lands it on the **bass swap**, when the
+one-bass rule hands the low end over, and the visual crossfade is sized to
+that swap — two beats of the incoming tempo — so the picture and the bass
+move together. A fade lands it where the incoming becomes the louder of the
+two. A gapless join takes a quiet dissolve, same album, same room, and
+nothing at all if the room only just arrived. The decision is pure
+(`seamSceneCue`), an automatic director only, reduced motion takes its slow
+dissolve, and a cancelled seam withdraws its cue.
 
 ## The cut — how one room becomes the next
 
@@ -1416,6 +1553,19 @@ The GLSL is generated from the same constants the JS holds, and
 `tools/touch_probe.mjs` evaluates it **on the GPU against the JS** and fails on
 drift (worst observed: 2 × 10⁻⁵). One fabric or none.
 
+### Two fingers, two axes
+
+The first finger owns the orbit and the second plants its own force, as
+before — and now the **distance between them owns the camera's reach**:
+spread them and the room comes closer, pinch and it recedes. Distance is an
+axis neither finger can claim alone, which is why the two never fight over
+the camera the way a pinch-to-zoom does when an app gets it wrong. A third
+finger is nobody's: both hands are taken, and letting it seize the primary
+slot used to orphan the finger that was actually holding the field. And the
+hand's place on the glass is read from the canvas's own rectangle rather than
+the window's — the two agree only while the canvas *is* the window, and
+nothing should depend on that.
+
 ### PULL is the door the field opens at
 
 **AUTO** — the scenes manager re-tuning the touch to whichever room it walks
@@ -1918,19 +2068,34 @@ the floor keeps dancing in colours of its own.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 368 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 427 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance, the CIE observer,
                                     #   diffraction limits, the black film, which transition a
-                                    #   cut deserves, the tape a seamless loop is cut from
+                                    #   cut deserves, the tape a seamless loop is cut from,
+                                    #   the true-peak limiter held to the bit, hot cues and
+                                    #   the EQ, the seam's cue to the room, the pinch
                                     #   (extracted from the shipped HTML, not a copy)
-node tools/loop_probe.mjs           # 20 checks on the booth loop in a real browser, playing
+node tools/master_probe.mjs         # 12 checks on the rail before the speaker: the worklet
+                                    #   takes the seat, a clean mix passes untouched, a +12 dB
+                                    #   mix never crosses the ceiling at AE.out, the booth's
+                                    #   meter agrees with the recorder, and a hard volume
+                                    #   drag leaves no step the music does not already contain
+node tools/loop_probe.mjs           # 26 checks on the booth loop in a real browser, playing
                                     #   real music, with a recorder on the master: the loop
                                     #   hands over to the audio thread, the cycle is exactly the
                                     #   beats asked for, the wrap is a step the music itself
                                     #   already contains — and the playhead is written ZERO
                                     #   times, against every cycle on the path it replaces.
                                     #   Measures its own instrument first, and holds the numbers
-                                    #   to that floor rather than to nothing
+                                    #   to that floor rather than to nothing. Plus: a cut across
+                                    #   a planted tear is refused and taken from the next lap,
+                                    #   a handback into a starved deck waits with the loop
+                                    #   covering, and a route change re-measures the tape
+node tools/booth_probe.mjs /tmp/mb8-mix      # the rack measured at its OUTPUT on a bench signal:
+                                    #   filter, drive, gate, the EQ kills and FLAT; then the
+                                    #   transport on the real track — loop, roll, brake, a
+                                    #   four-beat jump that is four beats, a hot cue that snaps
+                                    #   to the grid and jumps back ON the beat line
 node tools/xform_probe.mjs          # 15 checks on the scene transition in a real browser: the
                                     #   freeze is captured and is not a black frame, the pass is
                                     #   really in the chain (not configured and then dropped),

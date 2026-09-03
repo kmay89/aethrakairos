@@ -1320,6 +1320,79 @@ scenes, booth and sliced screen alike.
   four letters instead, because rendering locally beats streaming pixels on every axis
   the room can see.
 
+### 1.2p The rail before the speaker, and the booth's second hand
+
+- **The ask:** "rock solid playback, Serato-level looping and mixing, sound-card
+  accuracy for audiophiles, auto-DJ and scene mixing, visuals and touch — next
+  level." Read against what was here, most of it already was; what was not fell
+  into four honest gaps, each of which had been *measured* by a probe and then
+  left as a number.
+- **Nothing protected the DAC.** Two decks at +6 dB of make-up, the seam's echo
+  summing back pre-fader, a drive whose wet and dry add, a beat echo in parallel
+  — and a plain gain into `destination`. The browser hard-clips there. The
+  `@master` block is a **true-peak lookahead limiter** as pure arithmetic
+  (3 ms lookahead, a cubic between samples for the inter-sample peak, one gain
+  for both channels, bit-exact unity below −1 dBTP, a hard rail last), and the
+  worklet module is *those functions serialised into a blob*, so what the suite
+  holds to the bit is what the audio thread runs. Where there is no
+  `AudioWorklet`, a `DynamicsCompressor` at 20:1 takes the seat; the direct path
+  plays from the first sample and the limiter is crossfaded in when its module
+  loads. `master_probe` records at `AE.out` and holds a +12 dB mix to the
+  ceiling while a clean one passes untouched. The booth draws the reduction
+  (`LIM`) — the honest expectation being that nobody ever sees it light.
+- **Two things the same probe found on the way.** `applyVolume()` wrote the
+  master gain directly, which on a slider drag is a zipper; it is ramped now,
+  everywhere, including the sleep fade. And the analyser's band table was in
+  *bins* for 44.1 kHz on contexts that are frequently 48 kHz — `bandBins`
+  resolves Hz to bins per context, reproducing the old table exactly at 44.1 k.
+- **The tape could tear and did not know.** The recorder is a
+  `ScriptProcessorNode` on the main thread; a block it fails to collect is a
+  hole in the ring, and a loop cut across it is a splice on every lap. The
+  processor's own `playbackTime` says where each block belongs, so a tear is
+  now noted where it fell (`tapeTearStep`: the tape measured against the audio clock — a lag still standing half a second of clock later, never the dispatch-stamped `playbackTime`, whose gaps are jitter, and never a backlog, which drains in no clock time; plus `tapeTearSilent`, because a stall of seconds was measured to lose no samples and still write zeros), a cut that spans one is refused
+  (`ringTornIn`), and the anchor moves to the current lap — the re-seek loop is
+  replaying the same slice underneath, so the same music is on the tape again
+  a lap later, whole. The loop probe plants a tear by hand and watches the cut
+  refuse it and take the next lap.
+- **The handback assumed the deck.** Letting go seeked the deck 160 ms early
+  and scheduled the crossover at a fixed lead, whatever the deck had buffered
+  there. Now the deck is *asked* (`loopDeckReady`, `loopHandbackAt`): real data
+  and buffered bytes across the return window, or the loop keeps covering —
+  and if the loop wrapped while it waited, the deck is put back where the loop
+  will be and asked again. The probe starves the element's `buffered` for
+  450 ms and watches the handback wait, then go. And K — the tape's one
+  measurement — is re-measured on a route change, at once when idle and once a
+  held loop is let go when not.
+- **The booth had no cues.** Hot cues (`cueSnap`, `cueJumpAt`, `cueJumpLand`)
+  snap to the grid when set and *quantise* when pressed — the jump waits for the
+  beat line and carries a late tick's lateness onto the landing, the way the
+  loop carries its overshoot. Persisted per track in `kv` under the track's
+  hash, merged rather than replaced when the store answers late. Beat jumps
+  (`beatJumpTarget`) keep phase by construction and move a held loop with them.
+  A three-band EQ sits in the rack ahead of the DJ filter, with kills at −36 dB
+  (`fxEqToggle`), benched by `booth_probe` band by band. Key lock became a pad,
+  because on some engines vinyl-style pitch is the cleaner sound over a small
+  trim, and that is a DJ's call. The waveform scrubs.
+- **The director slept through the seam.** `seamSceneCue` schedules the room
+  change on the audio clock at the instant the music changes hands — a beatmix
+  on the bass swap, sized to two beats of the incoming tempo; a fade where the
+  incoming wins; a gapless join a quiet dissolve or nothing. SEGUE takes the cue
+  ahead of its bar wait because the seam is on the grid by construction.
+- **The hand.** Two fingers now own two axes (`pinchDolly`): the first the
+  orbit, the second its force, and the distance between them the camera's reach
+  — the pinch that was rejected as "two fingers fighting over one camera" is not
+  a fight when the axes are disjoint. A third finger is nobody's; it used to
+  seize the primary slot and orphan the hand that was holding the field. And
+  NDC comes from the canvas rectangle (`ndcOf`), not the window.
+- **What was left alone, on purpose.** The pre-roll (§1.2e) is still not
+  shipped; the lead-in covers it in measurement. `latencyHint` stays default:
+  the tape and the gate scheduler would like `'playback'`, the pads would not.
+  The iOS path stays element-direct and none of the above is claimed there.
+  `booth_probe`'s brake and drive checks were already flaky on this
+  rasteriser before this round and still are; its loop check now samples the
+  position the room *hears* (the loop's phase once the tape has it) rather than
+  a deck that is, by design, running on muted underneath.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature
