@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') +
   '\nreturn { loadAndLandAt, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -39,6 +39,10 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' INK, inkRolloff, whiteBudget, rampStops, buildRamp, RAMP_N,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
+  ' FITTS, fittsTime, fittsReach, rectGrow, rectOverlap, fittsBudget, fittsSteals, travelCost,' +
+  ' HICK, hickTime, hickGrouped, MILLER, millerChunk, millerOver, DOHERTY_MS, dohertyOk, dohertyNeedsAck,' +
+  ' serialPosition, serialOrder, peakEnd, paretoVital, vonRestorffLone, vonRestorffPick, zeigarnikProgress,' +
+  ' GESTALT, proximityOk, parkinsonBudget, teslerShare, occamPick, postelUrl,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
@@ -6117,6 +6121,164 @@ test('ndcOf: the glass is its own rectangle, not the window', () => {
   const c = S.ndcOf(300, 150, r); assert.ok(Math.abs(c[0]) < 1e-9 && Math.abs(c[1]) < 1e-9);
   assert.deepEqual(S.ndcOf(0, 0, null), [-1, 1], 'no rectangle: a 1×1 origin, never NaN');
   assert.ok(Number.isFinite(S.ndcOf(10, 10, { left: 0, top: 0, width: 0, height: 0 })[0]), 'a zero-size glass never divides by zero');
+});
+
+// ---------------------------------------------------------------- @ux — the laws of the hand and the eye
+test('Fitts: the time is a log, and a target twice as wide is not twice as fast', () => {
+  const near = S.fittsTime(100, 44), far = S.fittsTime(400, 44);
+  assert.ok(far > near, 'further is slower');
+  assert.ok(far < near * 2, 'and only by a log: ' + near.toFixed(0) + ' → ' + far.toFixed(0) + ' ms');
+  assert.ok(S.fittsTime(200, 88) < S.fittsTime(200, 44), 'wider is faster');
+  assert.equal(S.fittsTime(0, 44), S.FITTS.a, 'a target under the finger costs only the constant');
+  assert.ok(isFinite(S.fittsTime(200, 0)), 'a zero-width target does not divide by zero');
+});
+test('Fitts: the reach is what the ink is missing, halved to each side — and zero when it already fits', () => {
+  const r = S.fittsReach(50, 19);           // a HUD chip: wide enough, far too short
+  assert.equal(r.x, 0, 'nothing to add across');
+  assert.ok(Math.abs(r.y - 12.5) < 1e-9, 'and 12.5 px above and below to make 44: ' + r.y);
+  assert.deepEqual(S.fittsReach(48, 48), { x: 0, y: 0 }, 'a target that already passes grows by nothing');
+  assert.deepEqual(S.fittsReach(0, 0), { x: 22, y: 22 }, 'and one with no ink at all is all reach');
+});
+test('Fitts: a reach may take half the gap and never more', () => {
+  assert.equal(S.fittsBudget(12.5, 14), 7, 'half of the 14 px the HUD leaves between chips');
+  assert.equal(S.fittsBudget(12.5, 40), 12.5, 'where there is room, the whole ask');
+  assert.equal(S.fittsBudget(12.5, 0), 0, 'touching neighbours get nothing');
+  assert.equal(S.fittsBudget(-3, 20), 0, 'never negative');
+});
+test('Fitts: a reach that swallows a neighbour is the failure nobody checks for', () => {
+  const chip = { left: 0, top: 0, right: 50, bottom: 19 };
+  const next = { left: 64, top: 0, right: 114, bottom: 19 };   // 14 px of gap
+  const polite = S.rectGrow(chip, 7, 12.5);
+  assert.equal(S.fittsSteals(polite, next), false, 'half the gap keeps its hands to itself');
+  const greedy = S.rectGrow(chip, 20, 12.5);
+  assert.equal(S.fittsSteals(greedy, next), true, 'more than the gap eats the neighbour');
+  assert.equal(S.rectOverlap(chip, next), 0, 'the ink never overlapped to begin with');
+  assert.ok(S.rectOverlap(greedy, next) > 0);
+  assert.equal(S.rectOverlap(null, next), 0);
+});
+test('travelCost: a layout is charged for the journeys it asks for', () => {
+  const together = [{ x: 0, y: 0 }, { x: 3, y: 4 }, { x: 3, y: 8 }];
+  assert.equal(S.travelCost(together), 9, '5 then 4');
+  assert.equal(S.travelCost([{ x: 0, y: 0 }]), 0, 'one target is no journey');
+  assert.equal(S.travelCost([]), 0);
+  assert.ok(S.travelCost([{ x: 0, y: 0 }, { x: 900, y: 0 }]) > S.travelCost(together), 'across the screen costs more');
+});
+test('Hick: ten choices is not ten times one, and grouping is worth what the log says', () => {
+  const one = S.hickTime(1), ten = S.hickTime(10);
+  assert.ok(ten / one < 4, 'ten options cost ' + (ten / one).toFixed(1) + '× one, not 10×');
+  assert.ok(S.hickTime(0) < one, 'no choice at all is the cheapest thing there is');
+  assert.ok(S.hickGrouped(3, 3, 0) > 1, 'under Hick ALONE a split loses — two decisions, two constants');
+  assert.ok(S.hickGrouped(5, 5, 40) < 1, 'but once finding is paid for, five groups of five beats a flat twenty-five');
+  assert.ok(S.hickGrouped(3, 3, 40) > 0.95, 'and at nine options the split is a wash — grouping there is for the eye');
+  assert.ok(S.hickGrouped(1, 9, 40) > 1, 'one group of nine is the flat pile with extra steps');
+});
+test('Miller: chunks are what is counted, and the span is where it stops being free', () => {
+  const eleven = Array.from({ length: 11 }, (_, i) => i);
+  const g = S.millerChunk(eleven, 4);
+  assert.deepEqual(g.map(x => x.length), [4, 4, 3], 'eleven in fours');
+  assert.deepEqual([].concat.apply([], g), eleven, 'and nothing is lost or reordered');
+  assert.equal(S.millerChunk(eleven, 99)[0].length, S.MILLER.span + S.MILLER.slack, 'a chunk is capped at nine');
+  assert.equal(S.millerOver([3, 4, 4]), 0, 'three small groups are free');
+  assert.equal(S.millerOver([3, 11]), 1, 'one group of eleven is not');
+});
+test('Doherty: 400 ms is the line, and what cannot be fast must say so inside it', () => {
+  assert.equal(S.dohertyOk(120), true);
+  assert.equal(S.dohertyOk(S.DOHERTY_MS), true, 'exactly on the line still counts as the same event');
+  assert.equal(S.dohertyOk(401), false);
+  assert.equal(S.dohertyNeedsAck(90), false, 'a fast job is its own acknowledgement');
+  assert.equal(S.dohertyNeedsAck(1500), true, 'a slow one owes the listener a word');
+});
+test('serial position: the ends are what is remembered, the middle is where things go to be forgotten', () => {
+  const n = 9, w = Array.from({ length: n }, (_, i) => S.serialPosition(i, n));
+  const trough = w.indexOf(Math.min.apply(null, w));
+  assert.ok(w[0] > w[trough] && w[n - 1] > w[trough], 'both ends beat the trough');
+  assert.ok(w[n - 1] > w[0], 'and recency is the sharper of the two');
+  assert.ok(trough > (n - 1) / 2 && trough < n - 2,
+    'so the worst seat is not the centre but just past it: ' + trough + ' of ' + n);
+  assert.equal(S.serialPosition(0, 1), 1, 'a list of one is all ends');
+});
+test('serialOrder: the heaviest first, the next heaviest last, the rest out of the light', () => {
+  const items = [{ n: 'a', w: 1 }, { n: 'b', w: 9 }, { n: 'c', w: 8 }, { n: 'd', w: 2 }, { n: 'e', w: 5 }];
+  const out = S.serialOrder(items, x => x.w).map(x => x.n);
+  assert.equal(out[0], 'b', 'the heaviest opens');
+  assert.equal(out[out.length - 1], 'c', 'the next heaviest closes');
+  assert.equal(out.length, items.length, 'and nothing is dropped');
+  assert.deepEqual(out.slice().sort(), ['a', 'b', 'c', 'd', 'e']);
+  assert.ok(out.indexOf('a') > 0 && out.indexOf('a') < out.length - 1, 'the lightest is in the middle');
+});
+test('peak-end: the best moment and the last one, never the average', () => {
+  const spike = [1, 1, 9, 1, 1], flat = [3, 3, 3, 3, 3];
+  assert.equal(S.peakEnd(spike), 5, 'one high point carries the memory');
+  assert.equal(S.peakEnd(flat), 3);
+  assert.ok(S.peakEnd(spike) > S.peakEnd(flat), 'even though the flat run has the higher mean');
+  assert.equal(S.peakEnd([1, 1, 9, 1, 8]), 8.5, 'ending well is worth as much as peaking well');
+  assert.equal(S.peakEnd([]), 0);
+});
+test('Pareto: the vital few, named by what is actually reached for', () => {
+  const counts = [100, 80, 5, 4, 3, 2, 1, 1];
+  const vital = S.paretoVital(counts);
+  assert.deepEqual(vital, [0, 1], 'two controls carry four fifths of the use');
+  assert.ok(S.paretoVital(counts, 0.99).length > vital.length, 'a stricter fraction takes more');
+  assert.deepEqual(S.paretoVital([]), []);
+  assert.deepEqual(S.paretoVital([0, 0, 0]), [], 'a control nobody touches is never vital');
+});
+test('Von Restorff: the budget is exactly one, and it goes to the best candidate that is live', () => {
+  assert.equal(S.vonRestorffLone([false, true, false]), true);
+  assert.equal(S.vonRestorffLone([true, true, false]), false, 'two glows are a pattern, and a pattern is wallpaper');
+  assert.equal(S.vonRestorffLone([false, false]), false, 'and none is a screen with no way in');
+  assert.equal(S.vonRestorffPick([{ key: 'play', rank: 5, live: true }, { key: 'update', rank: 9, live: true }]), 'update');
+  assert.equal(S.vonRestorffPick([{ key: 'play', rank: 5, live: true }, { key: 'update', rank: 9, live: false }]), 'play',
+    'a primary nobody can press is not a primary');
+  assert.equal(S.vonRestorffPick([]), null);
+});
+test('Zeigarnik: a bar never sits at zero and never lies about being done', () => {
+  assert.equal(S.zeigarnikProgress(0, 10), 0.04, 'started is not nothing');
+  assert.ok(Math.abs(S.zeigarnikProgress(5, 10) - 0.5) < 1e-9);
+  assert.ok(S.zeigarnikProgress(9.99, 10) < 1, 'nearly done is not done');
+  assert.equal(S.zeigarnikProgress(10, 10), 1, 'done is done');
+  assert.equal(S.zeigarnikProgress(99, 10), 1, 'and never more than done');
+  assert.equal(S.zeigarnikProgress(1, 0), null, 'nothing to be finished is no bar at all');
+});
+test('proximity: a group reads as a group only when the air outside beats the air inside', () => {
+  assert.equal(S.proximityOk(6, 14), true, 'the HUD: six inside a group, fourteen between them');
+  assert.equal(S.proximityOk(12, 14), false, 'gaps that nearly match read as one long row');
+  assert.equal(S.proximityOk(0, 14), true, 'touching things are unambiguously together');
+  assert.equal(S.proximityOk(6, 0), false, 'and no gap at all groups nothing');
+});
+test('Parkinson and Tesler: a budget is the design, and the machine should be carrying it', () => {
+  assert.deepEqual(S.parkinsonBudget(300, 400), { over: false, frac: 0.75 });
+  assert.equal(S.parkinsonBudget(900, 400).over, true);
+  assert.equal(S.parkinsonBudget(900, 0).over, false, 'no budget, nothing to be over');
+  assert.equal(S.teslerShare(9, 1), 0.9, 'the engine beatmatches, the listener presses play');
+  assert.equal(S.teslerShare(0, 0), 1, 'a task with no complexity is nobody\'s burden');
+  assert.ok(S.teslerShare(1, 9) < 0.5, 'and a design that hands the work back is failing');
+});
+test('Occam: of the readings that work, the one with fewer parts', () => {
+  const pick = S.occamPick([{ n: 'wizard', parts: 7, works: true }, { n: 'one button', parts: 1, works: true },
+                            { n: 'nothing', parts: 0, works: false }]);
+  assert.equal(pick.n, 'one button');
+  assert.equal(S.occamPick([{ parts: 1, works: false }]), null, 'simplest is no virtue if it does not work');
+});
+test('Postel: every unambiguous paste is accepted, and nothing dangerous is guessed at', () => {
+  const P = (s, o) => S.postelUrl(s, o);
+  assert.equal(P('https://x.com/catalog.json'), 'https://x.com/catalog.json', 'the plain case is untouched');
+  assert.equal(P('  https://x.com/catalog.json  '), 'https://x.com/catalog.json', 'whitespace');
+  assert.equal(P('"https://x.com/catalog.json"'), 'https://x.com/catalog.json', 'the quotes a copy brought with it');
+  assert.equal(P('Load https://x.com/catalog.json.'.slice(5).trim()), 'https://x.com/catalog.json', 'the full stop of the sentence it was in');
+  assert.equal(P('x.com'), 'https://x.com/catalog.json', 'a bare host means the file everybody names the same thing');
+  assert.equal(P('x.com/music/'), 'https://x.com/music/catalog.json', 'and so does a directory');
+  assert.equal(P('//x.com/catalog.json'), 'https://x.com/catalog.json', 'a protocol-relative link');
+  assert.equal(P('x.com/api/feed'), 'https://x.com/api/feed', 'a path that points AT something is left exactly alone');
+  assert.equal(P('http://x.com/catalog.json', { secure: true }), 'https://x.com/catalog.json',
+    'an http link on an https page is upgraded, not fetched into a mixed-content refusal');
+  assert.equal(P('http://x.com/catalog.json', { secure: false }), 'http://x.com/catalog.json', 'and left alone off it');
+  assert.equal(P('catalog.json', { base: 'https://y.com/app/' }), 'https://y.com/app/catalog.json',
+    'a bare filename is a file next to the page, not a host that happens to look like one');
+  assert.equal(P('x.com/catalog.json', { base: 'https://y.com/app/' }), 'https://x.com/catalog.json',
+    'and the slash is what tells the two apart');
+  assert.equal(P('catalog.json'), null, 'with nothing to resolve against, it is refused rather than invented');
+  for (const bad of ['javascript:alert(1)', 'data:text/json,{}', 'blob:https://x/1', 'file:///etc/passwd', '', '   ', null, undefined])
+    assert.equal(P(bad), null, 'refused rather than guessed at: ' + bad);
 });
 
 await Promise.all(pending);

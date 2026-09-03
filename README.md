@@ -1593,6 +1593,109 @@ gravity, heat, flow and hands all switched off, **an undisturbed fluid has to
 go quiet**, and two droplets left alone have to become one round body on
 their own.
 
+## The laws, and the one ring
+
+Twenty "UX laws" get passed around as a list to be agreed with. A named
+observation is not a design, so the useful half of each one was taken —
+which for most of them is a **number** — and made into pure arithmetic in
+the `@ux` block, where the unit suite proves it and
+`tools/ux_probe.mjs` holds the shipped page to it. The interface answers
+to measurement now, the same bargain the mix engine and the colour
+governor already made.
+
+**Fitts's law — the finger's target, not the ink's.** Reaching a control
+costs the log of how far away it is over how wide it is, so the cheapest
+improvement any interface can buy is a bigger target: 44 px on a touch
+screen (Apple's HIG), 24 px anywhere (WCAG 2.5.8). The *ink* of a dense
+instrument panel has no business obeying either — a nine-pixel readout
+chip is the right nine pixels, and inflating it would turn a console into
+a phone app. So the pixels stayed and the **target** grew: a transparent
+layer centred on each control that reaches out to the floor without
+moving anything on screen. Two things make that honest rather than a
+trick. It is **budgeted** — a reach may take half the gap to its
+neighbour and never more, and where the gap cannot pay, the *gap* is what
+changes, not the budget. And it knows **what is pointing at it**: Fitts's
+constants are not the same for a mouse and a thumb, so a fine pointer
+keeps the density it came for and a coarse one gets the full 44.
+
+The probe measures both halves by hit-testing rather than by reading CSS,
+because the only opinion that counts is the browser's — every control's
+target must land on it, and no control's reach may have swallowed its
+neighbour. That second one is the failure nobody looks for and every
+crowded toolbar has. It also sampled the *corners* at first and reported
+a 129×34 button as unreachable, which is true of the four points nobody
+aims at and false of the button: a rounded rectangle's corner is not part
+of it. It samples edge midpoints now.
+
+**Miller, proximity, uniform connectedness — ten chips read as three.**
+Seven plus or minus two is a count of *chunks*, not items, so the HUD
+strip is now three named groups — the room, comfort and power, the mix —
+ordered by the serial position effect, which puts what people came for at
+the front, the headline at the back, and the set-once comfort controls in
+the middle where things that are set once belong. What makes a grouping
+real is the spacing: 6 px inside a group against 16 px between them is
+2.7×, past the 1.8× `proximityOk()` calls the line between a group and a
+long row, and a hairline does the rest, because a shared container
+outranks mere nearness.
+
+Under **Hick's law** alone that grouping does not pay, and the code says
+so rather than flattering itself: two decisions cost two constants, and
+the log was forgiving to begin with — the "flat beats deep" result the
+menu literature keeps re-finding. It pays on the *other* cost, the linear
+one: finding the lens among four labelled room controls is four glances
+and among ten undifferentiated chips it is ten. `hickGrouped()` carries
+both terms and the unit suite pins the crossover.
+
+**Von Restorff — the budget is exactly one.** The thing that looks unlike
+its neighbours is the thing that is remembered, so two glowing buttons are
+not twice as memorable; they are a pattern, and a pattern is wallpaper.
+This is where the spinning ring lives, and it is not a class any button
+may wear. There is **one ring in the document and it travels**: to the
+language the browser leans toward on the first screen, to the onboarding's
+last door, to the invitation to press play — and *away* the moment the
+music starts, because the invitation has been accepted and a mark that
+never leaves is decoration. An update waiting is worth pointing at, but
+only once the music is going and only while it is genuinely new; nobody
+came here to update. The rule cannot be broken by forgetting to remove a
+class, because there is only one of the thing, and the probe counts it.
+
+The turn itself is one CSS trick worth naming. A conic gradient's angle is
+normally just a string to the animation engine, so the gradient cannot
+rotate. Registered through `@property` with `syntax:"<angle>"` the browser
+knows it is an angle, interpolates it, and hands the whole rotation to the
+compositor — no JavaScript, no layout, and it keeps turning smoothly while
+the main thread is drawing thirty-five rooms. Where `@property` is not
+understood the `var()` falls back to `0deg` and the ring is simply still:
+marked, not moving, never broken. Reduced motion stops it dead and leaves
+the mark, which is the distinction that setting is actually asking for.
+
+**Doherty — 400 ms.** Under it, the answer is part of the press; over it,
+it is a wait, and attention leaves and has to be fetched back. The
+consequence is not "be fast" but that anything which *cannot* be fast owes
+an acknowledgement inside the threshold. The probe presses real controls
+and measures to the DOM change: 0–23 ms.
+
+**Postel — liberal in what you accept.** The catalog box is where that was
+worth real money. A bare hostname, a directory, a link that arrived with
+its quotes attached or wearing the full stop of the sentence it was in:
+every one of those is unambiguous to a human and used to be a failed
+fetch. All of them are accepted now, an `http:` link on an `https:` page
+is upgraded rather than fetched into a mixed-content refusal, and
+`javascript:`, `data:`, `blob:` and `file:` are still refused rather than
+guessed at — being liberal about input is not the same as being careless
+about what you will go and execute. The one genuinely ambiguous case is
+`catalog.json`, which is both a plausible hostname and the single most
+likely thing anyone types; the slash decides, and the unit suite pins it.
+
+**And what the laws did not get to buy.** Thirty-five scene dots on a
+phone cannot each have forty-four pixels and remain one strip. They went
+from 22×18 to 32×32, they are honestly reported as short of the floor
+rather than quietly exempted, and the considered path to a scene stays the
+look grid. Pareto is the reason the standard is split at all: the controls
+you touch *while listening* are held to the floor without argument, and
+the dense expert strips are measured just as carefully and reported. A
+passing number bought with a worse interface is not a pass.
+
 ## Touching the fabric
 
 The touch used to have a *stage*. A full-screen 2D canvas at `z-index: 4` drew
@@ -2145,13 +2248,28 @@ the floor keeps dancing in colours of its own.
 python3 tests/test_pipeline.py      # 41 tests: build, dedupe, ingest-convert, name-pick, folder-is-album, orphan-sweep, gate, doctor, features, mix,
                                     #   the score's band envelopes, + the shipped catalog's
                                     #   hashes match the audio on disk
-node tests/player.test.mjs          # 427 tests: solver, quantum, history, restore, planner,
+node tests/player.test.mjs          # 446 tests: solver, quantum, history, restore, planner,
                                     #   colour, safety governor, clock, dance, the CIE observer,
                                     #   diffraction limits, the black film, which transition a
                                     #   cut deserves, the tape a seamless loop is cut from,
                                     #   the true-peak limiter held to the bit, hot cues and
-                                    #   the EQ, the seam's cue to the room, the pinch
+                                    #   the EQ, the seam's cue to the room, the pinch, and the
+                                    #   interface laws — Fitts's reach and its budget, Hick,
+                                    #   Miller, Doherty, serial position, peak-end, Pareto,
+                                    #   Von Restorff, Zeigarnik, Postel's liberal parser
                                     #   (extracted from the shipped HTML, not a copy)
+node tools/ux_probe.mjs             # 20 checks that the interface obeys the laws it claims:
+                                    #   every control you touch while listening reaches its
+                                    #   floor (44 px under a thumb, 24 under a mouse) — measured
+                                    #   by HIT TESTING, not by reading CSS — and no control's
+                                    #   reach has swallowed its neighbour; exactly one ring in
+                                    #   the document, over the action the ladder names, and
+                                    #   genuinely turning (the registered angle advancing between
+                                    #   two samples); the chip strip chunked inside Miller's span
+                                    #   with the air between groups beating the air inside one;
+                                    #   a press answered inside the Doherty threshold; a focus
+                                    #   ring on every control; and reduced motion stopping the
+                                    #   turn dead while leaving the mark. --png DIR writes frames
 node tools/master_probe.mjs         # 12 checks on the rail before the speaker: the worklet
                                     #   takes the seat, a clean mix passes untouched, a +12 dB
                                     #   mix never crosses the ceiling at AE.out, the booth's
