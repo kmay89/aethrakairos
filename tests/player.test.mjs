@@ -32,7 +32,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
   ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
-  ' TEAR_WINDOW, TEAR_MIN, makeTearWatch, tapeTearStep, ringTornIn, loopDeckReady, loopHandbackAt,' +
+  ' TEAR_HOLD, TEAR_MIN, makeTearWatch, tapeTearStep, tapeTearSilent, ringTornIn, loopDeckReady, loopHandbackAt,' +
   ' CUE_SLOTS, CUE_COLORS, cueSnap, cueJumpAt, cueJumpLand, beatJumpTarget, EQ_KILL_DB, EQ_BANDS, fxEqToggle, fxEqIsFlat,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
@@ -5968,32 +5968,41 @@ test('the generalized doctor holds every shipped pack to the golden contract', a
 
 // ---------------------------------------------------------------- the tape tears, the deck is asked
 test('tapeTearStep: jitter is not a tear, a stall that drains is not a tear, a drop that stays is', () => {
-  const B = 4096, w = S.makeTearWatch();
-  let at = 0, tears = [];
-  const step = lag => { const r = S.tapeTearStep(w, lag, at, B); at += B; if (r != null) tears.push(r); };
-  // steady state: the clock runs a little ahead, with dispatch jitter of up to a block
+  const B = 4096, SR = 44100, w = S.makeTearWatch();
+  let at = 0, ct = 0, tears = [];
+  // an ordinary event: one block of tape, one block of clock
+  const step = lag => { const r = S.tapeTearStep(w, lag, at, ct, B); at += B; ct += B / SR; if (r != null) tears.push(r); };
+  // a burst event: one block of tape at a FROZEN clock (a backlog draining)
+  const burst = lag => { const r = S.tapeTearStep(w, lag, at, ct, B); at += B; if (r != null) tears.push(r); };
   const jit = [0.2, 0.6, 0.1, 0.9, 0.3, 0.7, 0.05, 0.5, 0.4, 0.8, 0.2, 0.3];
-  for (let i = 0; i < 40; i++) step(B * (0.3 + jit[i % jit.length]));
+  for (let i = 0; i < 60; i++) step(B * (0.3 + jit[i % jit.length]));
   assert.deepEqual(tears, [], 'ordinary jitter never tears the tape');
-  // a stall: the lag spikes by six blocks, then the backlog drains in a burst
-  step(B * 6.9); step(B * 5.2); step(B * 4.1); step(B * 3.0); step(B * 2.1); step(B * 1.1);
-  for (let i = 0; i < 20; i++) step(B * (0.3 + jit[i % jit.length]));
-  assert.deepEqual(tears, [], 'a backlog that drains is not a hole');
-  // a real drop: two blocks never arrive, so the lag rises by two and stays
+  // a five-second stall: fifty-four blocks queue, then drain one per event at one clock time
+  ct += 5.0;
+  for (let k = 54; k >= 0; k--) burst(B * (k + 0.4));
+  for (let i = 0; i < 60; i++) step(B * (0.3 + jit[i % jit.length]));
+  assert.deepEqual(tears, [], 'a backlog that drains is not a hole, however long the stall');
+  // a real drop: two blocks never arrive, so the lag rises by two and stays while the clock runs
   const dropAt = at;
-  for (let i = 0; i < 20; i++) step(B * (2.3 + jit[i % jit.length]));
+  for (let i = 0; i < 12; i++) step(B * (2.3 + jit[i % jit.length]));
   assert.equal(tears.length, 1, 'one tear');
   assert.ok(Math.abs(tears[0] - dropAt) <= B, 'placed where the rise began (a jitter block early is fine): ' + tears[0] + ' vs ' + dropAt);
   assert.ok(w.base > B * 2, 'the floor moved up to the new lag');
-  // and life goes on: the same jitter at the new floor is not another tear
   for (let i = 0; i < 40; i++) step(B * (2.3 + jit[i % jit.length]));
-  assert.equal(tears.length, 1);
-  // a second drop is a second tear
+  assert.equal(tears.length, 1, 'the same jitter at the new floor is not another tear');
   const drop2 = at;
-  for (let i = 0; i < 20; i++) step(B * (3.4 + jit[i % jit.length]));
+  for (let i = 0; i < 12; i++) step(B * (3.4 + jit[i % jit.length]));
   assert.equal(tears.length, 2); assert.ok(Math.abs(tears[1] - drop2) <= B);
-  assert.equal(S.tapeTearStep(null, 1, 0, B), null, 'no watch, no tear');
-  assert.equal(S.tapeTearStep(S.makeTearWatch(), NaN, 0, B), null, 'a broken reading is ignored');
+  assert.equal(S.tapeTearStep(null, 1, 0, 0, B), null, 'no watch, no tear');
+  assert.equal(S.tapeTearStep(S.makeTearWatch(), NaN, 0, 0, B), null, 'a broken reading is ignored');
+});
+test('tapeTearSilent: a block of exact zeros is a tear on its face; the quietest music is not', () => {
+  const z = new Float32Array(4096);
+  assert.equal(S.tapeTearSilent(z, 4096), true);
+  z[2000] = 1e-5;
+  assert.equal(S.tapeTearSilent(z, 4096), false, 'one sample of anything and it is music');
+  assert.equal(S.tapeTearSilent(null, 4096), false);
+  assert.equal(S.tapeTearSilent(z, 0), false);
 });
 test('ringTornIn: a cut is refused only when a tear falls strictly inside it', () => {
   assert.equal(S.ringTornIn([], 100, 50), false);

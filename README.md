@@ -520,7 +520,11 @@ Three more things, found by listening harder:
   now notes where each tear fell — by measuring the tape against the audio
   clock, because the processor's own `playbackTime` turned out to be stamped at
   dispatch and jitters by a block under ordinary load: a stall's backlog is a
-  lag that rises and drains, a hole is a lag that rises and stays. A cut that
+  lag that rises and drains in no clock time, a hole is a lag that is still
+  standing half a second of clock later. And one thing no lag can see: across
+  a stall of seconds every sample arrives and some of them are zero, the
+  buffer recycled under the queue — a block of exact silence off a playing
+  deck is a tear on its face. A cut that
   spans one is **refused**, the anchor is moved to the next lap (the re-seek
   loop is replaying the same slice underneath), and the loop is taken from tape
   that is whole.
@@ -532,6 +536,12 @@ Three more things, found by listening harder:
   handback **waits for the answer**: late rather than empty, never past a budget,
   and if the loop wrapped while it waited the deck is put back where the loop
   will be and asked again.
+- **A pushed handover still wraps.** When the tape has to push a handover on by
+  a whole lap, the deck must wrap at the out-point in between — the push
+  assumed exactly that. The frame-driven wrap was suppressed for the whole
+  wait, so on a renderer slow enough for the tape's poll to beat the frame to
+  the out-point the deck ran straight past the loop, audibly, for a lap. Now
+  only the final half-loop before the handover is left unwrapped.
 - **The lattice is the track's own.** The clock resolves the first beat line
   as healed by its kick lock and now publishes it, so a loop's in-point, a cue
   and a jump land on the line the ear is hearing rather than on a multiple of

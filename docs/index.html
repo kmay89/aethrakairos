@@ -15938,35 +15938,47 @@ function fxEqIsFlat(eq){
    is stamped at DISPATCH, not counted in samples: measured, consecutive
    stamps jitter between 0.6 and 1.3 blocks apart under ordinary load, and a
    600 ms stall delivers six queued blocks with identical stamps and loses
-   none of them. A detector that read those gaps as holes refused every
-   other cut. So the tape is measured against the audio clock instead: the
-   LAG is how many samples the clock has advanced beyond what the tape has
-   received. A stall makes the lag spike and then fall back as the backlog
-   drains; a real drop makes it rise and STAY. Only a rise that outlasts a
-   window of blocks — the low point of the rise still above the old floor —
-   is a tear, placed at the block where the rise began. */
-const TEAR_WINDOW = 8;        // blocks a rise must persist to be a tear (~0.75 s at 4096/44.1k)
+   none of them — measured up to a five-second stall, not one sample lost. A
+   detector that read those gaps as holes refused every other cut. So the
+   tape is measured against the audio clock instead: the LAG is how many
+   samples the clock has advanced beyond what the tape has received. A stall
+   makes the lag spike and then drain, one block per event at a frozen
+   clock; a real drop makes it rise and STAY while the clock runs on. So a
+   tear is a rise that is still standing HALF A SECOND OF CLOCK later — a
+   backlog cannot be, because it drains in no clock time at all — placed at
+   the block where the rise began.
+
+   And one thing no lag can see: across a long stall the samples all arrive
+   and some of them are ZERO — the buffer was recycled under the queue. A
+   block of exact silence written from a playing deck is a tear on its face
+   (tapeTearSilent); a track's own digital silence costs a refused cut there,
+   which is nothing. */
+const TEAR_HOLD = 0.5;        // seconds of clock a rise must outlast to be a tear
 const TEAR_MIN = 0.75;        // of a block: less is jitter
-function makeTearWatch(){ return { base: null, riseAt: null, low: Infinity, count: 0 }; }
-function tapeTearStep(w, lag, at, blockN){
-  if (!w || !(blockN > 0) || !isFinite(lag)) return null;
+function makeTearWatch(){ return { base: null, riseAt: null, riseCt: 0, low: Infinity }; }
+function tapeTearStep(w, lag, at, ct, blockN){
+  if (!w || !(blockN > 0) || !isFinite(lag) || !isFinite(ct)) return null;
   if (w.base == null){ w.base = lag; return null; }
   const thr = w.base + blockN * TEAR_MIN;
   if (lag > thr){
-    if (w.riseAt == null){ w.riseAt = at; w.low = lag; w.count = 0; }
+    if (w.riseAt == null){ w.riseAt = at; w.riseCt = ct; w.low = lag; }
     if (lag < w.low) w.low = lag;
-    w.count++;
-    if (w.count >= TEAR_WINDOW && w.low > thr){
+    if (ct - w.riseCt >= TEAR_HOLD && w.low > thr){
       const tearAt = w.riseAt;
-      w.base = w.low; w.riseAt = null; w.low = Infinity; w.count = 0;
+      w.base = w.low; w.riseAt = null; w.low = Infinity;
       return tearAt;
     }
     return null;
   }
   // back at the floor: the rise was a backlog, not a hole; the floor may settle lower
-  w.riseAt = null; w.low = Infinity; w.count = 0;
+  w.riseAt = null; w.low = Infinity;
   if (lag < w.base) w.base = lag;
   return null;
+}
+function tapeTearSilent(block, n){
+  if (!block || !(n > 0)) return false;
+  for (let i = 0; i < n; i++){ const v = block[i]; if (v > 1e-7 || v < -1e-7) return false; }
+  return true;
 }
 function ringTornIn(tears, from, n){
   if (!tears || !tears.length || !(n > 0)) return false;
@@ -18515,12 +18527,15 @@ const LOOPER = {
     if (!this.ring) return;
     const inp = e.inputBuffer, n = inp.length, cap = this.cap, nCh = inp.numberOfChannels;
     const base = this.written;
-    // the tape against the clock: a lag that rises and stays is a hole (see tapeTearStep)
+    // the tape against the clock: a lag that rises and stays is a hole (see
+    // tapeTearStep) — and a block of exact silence off a playing deck is one too
     {
       const ct = AE.ctx.currentTime;
       if (this._openCt == null) this._openCt = ct - base / this.sr;
       const lag = (ct - this._openCt) * this.sr - (base + n);
-      const tearAt = tapeTearStep(this._tearW, lag, base, n);
+      let tearAt = tapeTearStep(this._tearW, lag, base, ct, n);
+      if (tearAt == null && this.liveFrom < base && typeof player !== 'undefined' && player.playing
+          && tapeTearSilent(inp.getChannelData(0), n)) tearAt = base;
       if (tearAt != null){
         this.tears.push(tearAt); this.torn++;
         while (this.tears.length && this.tears[0] < base - cap) this.tears.shift();
@@ -18924,16 +18939,35 @@ const FX = {
     this.hand();
     if (j.fireAt <= d.a.currentTime + 0.012 || !player.playing){ this.jump = null; this._seek(d, j.to); return; }
     this.jump = { fireAt: j.fireAt, to: j.to, deck: d, armedAt: performance.now() };
+    /* AIMED BY A TIMER, NOT A FRAME. The animation frame is the wrong clock to
+       fire a beat-line on: under load it runs at five or six a second, and
+       every one of those late ticks is carried onto the landing (cueJumpLand
+       keeps the phase, but the ear hears the wait). A timer aimed at the line
+       and polled finely in its last stretch lands within a few milliseconds
+       of it, whatever the renderer is doing. jumpTick still stands guard for
+       the stale cases. */
+    clearTimeout(this._jumpT);
+    const lead = Math.max(0, (j.fireAt - d.a.currentTime) / (d.a.playbackRate || 1) * 1000 - 30);
+    this._jumpT = setTimeout(() => this._jumpPoll(), lead);
+  },
+  _jumpPoll(){
+    const j = this.jump;
+    if (!j) return;
+    const d = activeDeck();
+    if (!d || d !== j.deck || !player.playing){ this.jump = null; return; }
+    const pos = d.a.currentTime;
+    if (pos >= j.fireAt - 0.004){ this.jump = null; this._seek(d, cueJumpLand(pos, j.fireAt, j.to)); return; }
+    this._jumpT = setTimeout(() => this._jumpPoll(), 4);
   },
   jumpTick(){
     const j = this.jump;
     if (!j) return;
     const d = activeDeck();
     // the deck changed hands, or the wait went stale (a pause, a seek away): drop it
-    if (!d || d !== j.deck || !player.playing || performance.now() - j.armedAt > 4000){ this.jump = null; return; }
+    if (!d || d !== j.deck || !player.playing || performance.now() - j.armedAt > 4000){ this.jump = null; clearTimeout(this._jumpT); return; }
     const pos = d.a.currentTime;
     if (pos >= j.fireAt - 0.012){
-      this.jump = null;
+      this.jump = null; clearTimeout(this._jumpT);
       this._seek(d, cueJumpLand(pos, j.fireAt, j.to));
     }
   },
@@ -19110,7 +19144,14 @@ const FX = {
        loop does, and rightly, when it is the thing holding the loop — would
        splice those twelve milliseconds into the join and undo the whole point of
        the exercise. Let it run to the out-point; the tape is waiting there. */
-    if (LOOPER.pending) return;
+    /* …BUT ONLY THE LAST LAP. A handover the tape had to push on by whole
+       loops (loopLateHandover) lands a lap or more away, and the deck must
+       still wrap at the out-point in between — the push assumed exactly that
+       ("one more perfectly ordinary cycle"). Suppressing the wrap for the whole
+       wait let the deck run straight past the loop, audibly, for a lap, on any
+       renderer slow enough for the tape's poll to beat the frame to the
+       out-point. */
+    if (LOOPER.pending && AE.ctx && LOOPER.handAt - AE.ctx.currentTime < L.len * 0.5) return;
     if (d.a.currentTime >= L.start + L.len - 0.012){
       // carry the overshoot across the wrap so the loop cannot drift late — see
       // loopWrap. A tick that fires 40 ms after the end is not an excuse to make
@@ -19166,7 +19207,7 @@ const FX = {
      ever inherits a booth the last one left switched on */
   release(){
     const braking = this.brakeT >= 0;
-    this.loop = null; this.jump = null; this.brakeT = -1; this.unit = ''; this.amount = 0; this._autoUnit = '';
+    this.loop = null; this.jump = null; clearTimeout(this._jumpT); this.brakeT = -1; this.unit = ''; this.amount = 0; this._autoUnit = '';
     this.eq.lo = this.eq.mid = this.eq.hi = 0;
     // nothing the tape is holding may outlive the track it was cut from
     LOOPER.cancel();
