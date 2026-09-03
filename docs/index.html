@@ -3041,6 +3041,15 @@ body.clipping::after{
     And listen closely to what you see: several of these illusions have a measurable strength dial, and
     it rides the song's long-term energy — <b>the picture lies harder as the music builds</b>, and
     comes clean in the quiet.</p>
+    <h3>The oscilloscope</h3>
+    <p class="lede">Scene 37 is the <b>SCOPE</b> — one cathode-ray tube with a green P31 phosphor, ruled ten
+    divisions by eight, and a beam that draws the pictures every engineer has watched on one: <b>Lissajous</b>
+    figures (the interval is the ratio, the beat turns the figure), the <b>harmonograph</b>'s decaying spirals
+    (an onset strikes the pendulums), a wireframe <b>polyhedron</b> in vector-display style, <b>epicycle</b>
+    rosettes (a Fourier series whose harmonics are the bands), and a <b>dual-trace</b> Y–T sweep of the live
+    waveform over the live spectrum, triggered on a rising edge. Every segment is lit by the beam's
+    <i>dwell</i> — slow curves burn, fast retraces vanish — which is what makes scope art read as real, and
+    the phosphor's persistence lengthens in a calm passage. A hand on the glass is the position knob.</p>
     <h3>Video game mode</h3>
     <p class="lede">Scene 36 is the <b>ARCADE</b> — one cathode-ray tube, six of the games every arcade had,
     played by the music. Each is a real little simulation, not a video: a chomper walks a <b>MAZE</b> of pellets
@@ -3658,13 +3667,14 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers',
                'flows',
                'grows', 'gathers',
-               'gathers'];   // …the lattice and the film ripple, the
+               'gathers', 'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
                            // does, a hand near the CREATURE is a current in its water,
                            // and a hand on the EXCITABLE medium GROWS a wave from nothing;
-                           // a hand on the ARCADE's glass PULLS — it is also the paddle
+                           // a hand on the ARCADE's glass PULLS — it is also the paddle,
+                           // and a hand on the SCOPE's glass RIPPLES the trace
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -3920,13 +3930,14 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa',
                'lissa',
                'paint', 'drift',
-               'bounce'];   // …SHEETS walks the lattice, MANDALA curves,
+               'bounce', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
                            // the CREATURE is swum alongside in slow figure-eights, and the
                            // ghost PAINTS on the EXCITABLE medium — strokes of live fire,
-                           // and BOUNCES on the ARCADE like the ball it is watching
+                           // and BOUNCES on the ARCADE like the ball it is watching;
+                           // on the SCOPE it draws the LISSAJOUS the tube is drawing
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -5110,7 +5121,7 @@ function eigenTimeUnit(mode, e){
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
-                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade'];
+                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade', 'scope'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5174,6 +5185,9 @@ const SCENE_TASTE = {
                                                             // move lands on the half-beat, so material with a
                                                             // beat keeps the games alive; a still passage is
                                                             // an attract mode nobody is watching
+  scope:     { coupling: 1.3, treble: 0.6, calm: 0.5, entropy: -0.6 },  // a Lissajous figure is two clean tones —
+                                                            // the beam wants coherent, tonal material; noise
+                                                            // on the plates is a smear, not a picture
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6321,6 +6335,7 @@ const SCENE_SIGS = {
   barkley:   { kind: 'spiral', h: 16, arms: 2, dense: 1 },
   verse:     { kind: 'grid',   h: 46, dense: 0.6 },
   arcade:    { kind: 'grid',   h: 58, dense: 1, c: 0 },
+  scope:     { kind: 'wave',   h: 140, arms: 3, twist: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -17180,7 +17195,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '412f7f6603';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '93a6b9a239';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -33182,6 +33197,32 @@ function buildVerse(){
   return api;
 }
 
+/* A 3×5 PIXEL FONT, shared by the rooms that have a readout — the arcade's
+   score and the scope's channel legend. Digits, capitals, and the four marks
+   an instrument needs. Drawn with fillRect, so it scales by integers and
+   stays crisp on a nearest-filtered tube. */
+const PIXFONT = (() => {
+  const GLYPHS = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001',
+    '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111',
+    '010101111101101', '110101110101110', '111100100100111', '110101101101110', '111100110100111',
+    '111100110100100', '111100101101111', '101101111101101', '111010010010111', '001001001101111',
+    '101101110101101', '100100100100111', '101111111101101', '110101101101101', '111101101101111',
+    '111101111100100', '111101101111001', '111101110101101', '111100111001111', '111010010010010',
+    '101101101101111', '101101101101010', '101101111111101', '101101010101101', '101101010010010',
+    '111001010100111', '000000111000000', '000000000000010', '010010010000010', '000010000010000', '000000000000000'];
+  const F = {};
+  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.!: '.split('').forEach((ch, i) => { F[ch] = GLYPHS[i]; });
+  return F;
+})();
+function pixText(g, s, x, y, col, sc){
+  sc = sc || 1; g.fillStyle = col;
+  for (let i = 0; i < s.length; i++){
+    const gl = PIXFONT[s[i]] || PIXFONT[' '];
+    for (let k = 0; k < 15; k++) if (gl[k] === '1') g.fillRect(x + i * 4 * sc + (k % 3) * sc, y + ((k / 3) | 0) * sc, sc, sc);
+  }
+}
+const pixTextW = (s, sc) => s.length * 4 * (sc || 1) - (sc || 1);
+
 /* ================================================================
    ARCADE — video game mode.
 
@@ -33301,25 +33342,8 @@ function buildArcade(){
     pal.ab = css(A, B, 0.5); pal.bc = css(B, C, 0.5); pal.hi = '#' + _c.copy(C).lerp(_w, 0.7).getHexString();
   }
 
-  /* a 3×5 pixel font: digits, capitals, and the four marks an arcade needs */
-  const GLYPHS = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001',
-    '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111',
-    '010101111101101', '110101110101110', '111100100100111', '110101101101110', '111100110100111',
-    '111100110100100', '111100101101111', '101101111101101', '111010010010111', '001001001101111',
-    '101101110101101', '100100100100111', '101111111101101', '110101101101101', '111101101101111',
-    '111101111100100', '111101101111001', '111101110101101', '111100111001111', '111010010010010',
-    '101101101101111', '101101101101010', '101101111111101', '101101010101101', '101101010010010',
-    '111001010100111', '000000111000000', '000000000000010', '010010010000010', '000010000010000', '000000000000000'];
-  const FONT = {};
-  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.!: '.split('').forEach((ch, i) => { FONT[ch] = GLYPHS[i]; });
-  function text(s, x, y, col, sc){
-    sc = sc || 1; g.fillStyle = col;
-    for (let i = 0; i < s.length; i++){
-      const gl = FONT[s[i]] || FONT[' '];
-      for (let k = 0; k < 15; k++) if (gl[k] === '1') g.fillRect(x + i * 4 * sc + (k % 3) * sc, y + ((k / 3) | 0) * sc, sc, sc);
-    }
-  }
-  const textW = (s, sc) => s.length * 4 * (sc || 1) - (sc || 1);
+  const text = (s, x, y, col, sc) => pixText(g, s, x, y, col, sc);
+  const textW = pixTextW;
   const centre = (s, y, col, sc) => text(s, Math.round((W - textW(s, sc)) / 2), y, col, sc);
   function blit(rows, x, y, col){
     g.fillStyle = col;
@@ -33946,6 +33970,380 @@ function buildArcade(){
 }
 
 /* ================================================================
+   SCOPE — the oscilloscope.
+
+   One cathode-ray tube with a P31 phosphor, ruled ten divisions by
+   eight, and a beam that DRAWS. The pictures are the ones every
+   engineer has watched on one: Lissajous figures (two sines, one on
+   each plate — the ratio is the interval), the harmonograph's
+   decaying spirals, a wireframe polyhedron in vector-display style,
+   epicycle rosettes (a Fourier series, drawn), and a dual-trace Y–T
+   sweep of the live waveform over the live spectrum, triggered on a
+   rising edge the way a real scope is.
+
+   What makes scope art read as real rather than as a plot is one
+   rule, and it is the rule here: a phosphor is lit in proportion to
+   how long the beam DWELLS on it. So every segment is drawn with a
+   brightness inverse to the beam's speed — slow curves burn, fast
+   retraces vanish, and the blanking between a polyhedron's edges is
+   never coded, it simply happens. The trace is written into a canvas
+   that fades rather than clears (the persistence), and one fullscreen
+   shader makes the canvas a tube: halation through the phosphor
+   layer, the green that whitens where the beam saturates, the
+   graticule with its minor ticks, the glass, the bezel, and a trigger
+   lamp that blinks on the onset.
+
+   The music is the signal. The interval picks the Lissajous ratio and
+   the beat turns the figure; the bands shape the rosette; an onset
+   strikes the harmonograph and spins the polyhedron; the waveform is
+   the waveform. Persistence lengthens in a calm passage, so a quiet
+   part lingers and a loud one is crisp. A hand on the glass is the
+   position knob. */
+function buildScope(){
+  const group = new THREE.Group();
+  const W = 500, H = 400;                    // ten divisions by eight, 50 px a division
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', { alpha: false });
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+
+  const varU = {
+    uTex: { value: tex }, uAspect: { value: 1 }, uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uGlow: { value: 0.6 }, uTrig: { value: 0 }, uVarA: { value: Math.random() },
+  };
+  const vert = `
+    varying vec2 vUv; uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform sampler2D uTex;
+    uniform float uAspect, uOpacity, uBeat, uBeatSpring, uEnergy, uTime, uGlow, uTrig, uCalm, uVarA;
+    uniform vec3 uColA, uColB, uColC;
+    varying vec2 vUv;
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // a 5:4 tube fitted to the room
+      float sy = min(0.86, uAspect * 0.92 * 0.8), sx = sy * 1.25;
+      vec2 q = p / vec2(sx, sy);
+      float rr = dot(q, q);
+      vec2 qb = q * (1.0 + 0.045 * rr);
+      float edge = pow(abs(qb.x), 12.0) + pow(abs(qb.y), 12.0);
+      float inside = 1.0 - smoothstep(0.975, 1.0, edge);
+      float d = max(abs(qb.x), abs(qb.y)) - 1.0;
+      vec2 uv = qb * 0.5 + 0.5;
+      vec2 px = vec2(1.0 / 500.0, 1.0 / 400.0);
+      /* the phosphor: the beam's own light, then HALATION — light spreading
+         sideways through the phosphor layer (a tight ring) and scattering in
+         the glass (a wide one). Both are what a bright trace looks like on a
+         real tube: a hard green core inside a soft green haze. */
+      float i0 = texture2D(uTex, uv).g;
+      float near = 0.0, wide = 0.0;
+      for (int k = 0; k < 8; k++){
+        float a = float(k) * 0.7853982;
+        vec2 o = vec2(cos(a), sin(a));
+        near += texture2D(uTex, uv + o * px * 2.5).g;
+        wide += texture2D(uTex, uv + o * px * 8.0).g;
+      }
+      float i = i0 + near * 0.125 * 0.55 * uGlow + wide * 0.125 * 0.45 * uGlow;
+      const vec3 P31 = vec3(0.36, 1.0, 0.56);
+      vec3 col = P31 * i * 1.15 + vec3(0.75, 1.0, 0.82) * pow(clamp(i0, 0.0, 1.0), 3.0) * 0.9;
+      /* the graticule: ten by eight, etched on the glass, with minor ticks
+         every fifth of a division along the two centre lines */
+      vec2 dv = uv * vec2(10.0, 8.0);
+      vec2 w = fwidth(dv) * 1.2;
+      vec2 gd = abs(fract(dv + 0.5) - 0.5);
+      float grid = max(1.0 - smoothstep(0.0, w.x, gd.x), 1.0 - smoothstep(0.0, w.y, gd.y));
+      vec2 ad = abs(dv - vec2(5.0, 4.0));
+      float axis = max(1.0 - smoothstep(0.0, w.x, ad.x), 1.0 - smoothstep(0.0, w.y, ad.y));
+      vec2 td = abs(fract(dv * 5.0 + 0.5) - 0.5) / 5.0;
+      float tick = max((1.0 - smoothstep(0.0, w.x, td.x)) * step(ad.y, 0.1),
+                       (1.0 - smoothstep(0.0, w.y, td.y)) * step(ad.x, 0.1));
+      col += P31 * (grid * 0.055 + axis * 0.10 + tick * 0.12) * (0.8 + uCalm * 0.3);
+      // the tube's own faint glow, and the glass
+      col += P31 * 0.012;
+      col *= mix(1.0, 0.72, smoothstep(0.5, 1.9, rr));
+      col += vec3(0.05, 0.06, 0.06) * pow(max(0.0, 1.0 - length(q - vec2(-0.55, 0.75)) * 0.9), 2.0);
+      col *= inside;
+      /* the instrument: a dark case, a bezel with one highlight, the trace's
+         light on it, and the TRIG lamp beside the glass */
+      float halo = exp(-max(0.0, d) * 5.0) * (1.0 - inside);
+      float bez = step(0.975, edge) * (1.0 - smoothstep(0.05, 0.075, d));
+      col += P31 * halo * (0.04 + uGlow * 0.05) * (0.5 + i0 * 0.0);
+      col += bez * (vec3(0.075, 0.08, 0.085) + vec3(0.05) * max(0.0, -q.y) * (1.0 - inside));
+      float lamp = 1.0 - smoothstep(0.012, 0.03, length((q - vec2(1.13, 0.92)) * vec2(1.0, 1.25)));
+      col += lamp * mix(vec3(0.10, 0.02, 0.02), vec3(1.0, 0.25, 0.15), uTrig) * (1.0 - inside);
+      col += (1.0 - smoothstep(0.03, 0.06, length((q - vec2(1.13, 0.92)) * vec2(1.0, 1.25)))) * vec3(0.4, 0.1, 0.05) * uTrig * (1.0 - inside);
+      gl_FragColor = vec4(inkRolloff(col), uOpacity * mix(0.55 + halo * 0.4, 1.0, max(inside, bez)));
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+    extensions: { derivatives: true },
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  /* THE BEAM. A frame is up to N samples of where the beam went; the
+     brightness of each segment is the dwell — inverse to the distance the
+     beam covered in that sample — so the same rule lights a slow curve
+     and blanks a retrace. Segments are bucketed by brightness and each
+     bucket stroked once, so the canvas sees six strokes, not thousands. */
+  const N = 2400;
+  const bx = new Float32Array(N), by = new Float32Array(N);
+  const LEVELS = [0.035, 0.08, 0.16, 0.28, 0.45, 0.72];
+  const paths = LEVELS.map(() => new Path2D());
+  let used = 0;
+  const st = {
+    mode: 0, t: 0, th: 0, phi: 0, a: 3, b: 2, bar: -1, phrase: 0,
+    hf: [2, 3, 2, 3], hp: [0, 0, 0, 0], hd: [0.003, 0.004, 0.003, 0.004], ha: [0.5, 0.5, 0.5, 0.5], hth: 0,
+    shape: 0, rx: 0.3, ry: 0.6, rz: 0, spin: 0, ep: [0, 0, 0, 0, 0],
+    trig: 0, lastX: 0, lastY: 0, gain: 1, ox: 0, oy: 0, label: '', wave: null, lastOnset: 0,
+  };
+
+  /* ---------- the signals ---------- */
+  const RATIOS = [[1, 1], [1, 2], [2, 3], [3, 4], [3, 5], [4, 5], [5, 6], [2, 5], [3, 7], [1, 3]];
+  function lissajous(f){
+    // the interval is the ratio; the beat turns the figure; the treble is the hum on the Y plate
+    const cyc = 2, ax = 0.62 + f.bass * 0.22, ay = 0.62 + f.treble * 0.22;
+    for (let i = 0; i < N; i++){
+      const th = (i / N) * 6.2831853 * cyc;
+      bx[i] = ax * Math.sin(st.a * th + st.phi) + f.bass * 0.04 * Math.sin(th * 0.5 + st.t * 2.0);
+      by[i] = ay * Math.sin(st.b * th) + f.treble * 0.03 * Math.sin(th * 41.0 + st.t * 9.0);
+    }
+    used = N;
+    st.label = 'XY  LISSAJOUS ' + st.a + ':' + st.b;
+  }
+  function harmonograph(f){
+    // two damped pendulums a plate each — the figure is a strike decaying, and a strike is an onset
+    const span = 0.9 + f.energy * 0.6;
+    for (let i = 0; i < N; i++){
+      const t = st.hth + (i / N) * span;
+      const e0 = Math.exp(-st.hd[0] * t), e1 = Math.exp(-st.hd[1] * t), e2 = Math.exp(-st.hd[2] * t), e3 = Math.exp(-st.hd[3] * t);
+      bx[i] = st.ha[0] * Math.sin(st.hf[0] * t + st.hp[0]) * e0 + st.ha[1] * Math.sin(st.hf[1] * t + st.hp[1]) * e1;
+      by[i] = st.ha[2] * Math.sin(st.hf[2] * t + st.hp[2]) * e2 + st.ha[3] * Math.sin(st.hf[3] * t + st.hp[3]) * e3;
+    }
+    st.hth += span;
+    used = N;
+    st.label = 'XY  HARMONOGRAPH';
+  }
+  function strike(){
+    const pick = () => 1 + Math.floor(Math.random() * 4) + (Math.random() - 0.5) * 0.06;
+    st.hf = [pick(), pick(), pick(), pick()];
+    st.hp = [0, 1, 2, 3].map(() => Math.random() * 6.2831853);
+    st.ha = [0.42 + Math.random() * 0.2, 0.25 + Math.random() * 0.2, 0.42 + Math.random() * 0.2, 0.25 + Math.random() * 0.2];
+    st.hd = [0, 1, 2, 3].map(() => 0.0025 + Math.random() * 0.003);
+    st.hth = 0;
+  }
+  const PHI = 1.6180339;
+  const SHAPES = [
+    { name: 'CUBE', v: [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]].map(p => p.map(x => x * 0.58)),
+      e: [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]] },
+    { name: 'OCTAHEDRON', v: [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map(p => p.map(x => x * 0.9)),
+      e: [[0, 2], [0, 3], [0, 4], [0, 5], [1, 2], [1, 3], [1, 4], [1, 5], [2, 4], [2, 5], [3, 4], [3, 5]] },
+    { name: 'ICOSAHEDRON', v: [[0, 1, PHI], [0, -1, PHI], [0, 1, -PHI], [0, -1, -PHI], [1, PHI, 0], [-1, PHI, 0], [1, -PHI, 0], [-1, -PHI, 0],
+                                [PHI, 0, 1], [-PHI, 0, 1], [PHI, 0, -1], [-PHI, 0, -1]].map(p => p.map(x => x * 0.5)), e: null },
+  ];
+  // the icosahedron's thirty edges are the vertex pairs at the shortest distance
+  (() => {
+    const s = SHAPES[2], out = []; let dmin = 1e9;
+    for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++){ const d = Math.hypot(...s.v[i].map((x, k) => x - s.v[j][k])); dmin = Math.min(dmin, d); }
+    for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++){ const d = Math.hypot(...s.v[i].map((x, k) => x - s.v[j][k])); if (d < dmin * 1.01) out.push([i, j]); }
+    s.e = out;
+  })();
+  function vector(f, dt){
+    // a vector display: the beam walks every edge; the jump between edges is fast, so it blanks itself
+    const S = SHAPES[st.shape], K = 22;
+    st.spin *= Math.exp(-dt * 1.5);
+    st.rx += dt * (0.35 + f.energy * 0.8 + st.spin);
+    st.ry += dt * (0.55 + f.bass * 0.7 + st.spin * 0.6);
+    st.rz += dt * 0.12;
+    const cx = Math.cos(st.rx), sx = Math.sin(st.rx), cy = Math.cos(st.ry), sy = Math.sin(st.ry), cz = Math.cos(st.rz), sz = Math.sin(st.rz);
+    const P = S.v.map(([x, y, z]) => {
+      let y1 = y * cx - z * sx, z1 = y * sx + z * cx;
+      let x2 = x * cy + z1 * sy, z2 = -x * sy + z1 * cy;
+      const x3 = x2 * cz - y1 * sz, y3 = x2 * sz + y1 * cz;
+      const k = 1.0 / (2.6 - z2) * (1.55 + f.beat * 0.12);
+      return [x3 * k, y3 * k];
+    });
+    let n = 0;
+    for (const [a, b] of S.e){
+      for (let k = 0; k <= K && n < N; k++){ const s = k / K; bx[n] = P[a][0] + (P[b][0] - P[a][0]) * s; by[n] = P[a][1] + (P[b][1] - P[a][1]) * s; n++; }
+    }
+    used = n;
+    st.label = 'XY  VECTOR ' + S.name;
+  }
+  function epicycle(f, dt){
+    // a Fourier series, drawn: the fundamental is the circle, the bands are its harmonics, the phases drift
+    const rates = [0.11, -0.23, 0.37, -0.19, 0.29];
+    for (let k = 0; k < 5; k++) st.ep[k] += dt * rates[k] * (0.6 + f.energy);
+    const amp = [0.58, 0.20 * f.mid + 0.04, 0.18 * f.treble + 0.03, 0.14 * f.bass + 0.02, 0.07 * f.energy + 0.01];
+    const ks = [1, 2, 3, 5, 7];
+    for (let i = 0; i < N; i++){
+      const th = (i / N) * 6.2831853 * 2;
+      let x = 0, y = 0;
+      for (let k = 0; k < 5; k++){ x += amp[k] * Math.cos(ks[k] * th + st.ep[k]); y += amp[k] * Math.sin(ks[k] * th + st.ep[k] * 0.7); }
+      bx[i] = x; by[i] = y;
+    }
+    used = N;
+    st.label = 'XY  EPICYCLE';
+  }
+  function dualTrace(f){
+    /* CH1: the waveform, triggered on a rising edge so it holds still the
+       way a real scope's does. CH2: the spectrum the whole room already
+       dances to — the same 1024 bins the shaders read. */
+    const M = 1000;
+    let n = 0;
+    const an = AE.analyser, live = an && (AE.graphLive || AE.mic.on);
+    if (live){
+      if (!st.wave || st.wave.length !== an.fftSize) st.wave = new Uint8Array(an.fftSize);
+      an.getByteTimeDomainData(st.wave);
+      const L = st.wave.length, span = Math.min(M, L >> 1);
+      let t0 = 0;
+      for (let i = 1; i < L - span; i++) if (st.wave[i - 1] < 124 && st.wave[i] >= 128){ t0 = i; break; }
+      for (let i = 0; i < span; i++){ bx[n] = -0.95 + (i / span) * 1.9; by[n] = 0.45 + ((st.wave[t0 + i] - 128) / 128) * 0.40 * Math.min(1.1, st.gain); n++; }
+    } else {
+      // no analyser on this platform: a waveform made from the bands the pipeline measured
+      for (let i = 0; i < M; i++){
+        const s = i / M;
+        const v = f.bass * Math.sin(s * 12.566) + f.mid * 0.55 * Math.sin(s * 37.7 + st.t * 3.0) + f.treble * 0.3 * Math.sin(s * 113.1 + st.t * 7.0);
+        bx[n] = -0.95 + s * 1.9; by[n] = 0.45 + v * 0.34; n++;
+      }
+    }
+    const spec = audioTex ? audioTex.image.data : null;
+    const M2 = 600;
+    for (let i = 0; i < M2; i++){
+      const s = i / M2, bin = Math.min(1023, Math.floor(Math.pow(s, 2.2) * 520));
+      const v = spec ? spec[bin] / 255 : 0;
+      bx[n] = -0.95 + s * 1.9; by[n] = -0.92 + v * 0.8; n++;
+    }
+    used = n;
+    st.label = 'YT  DUAL TRACE  ' + (live ? 'CH1 LIVE' : 'CH1 SCORE');
+  }
+  const MODES = [lissajous, harmonograph, vector, epicycle, dualTrace];
+  const MODE_NAMES = ['LISSAJOUS', 'HARMONOGRAPH', 'VECTOR', 'EPICYCLE', 'DUAL TRACE'];
+
+  function setMode(i){
+    st.mode = ((i | 0) % MODES.length + MODES.length) % MODES.length;
+    if (st.mode === 1) strike();
+    api.name = 'SCOPE · ' + MODE_NAMES[st.mode];
+    if (group.visible){
+      if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = TN(api.name);
+      if (typeof el !== 'undefined' && el.zSceneName) el.zSceneName.textContent = TN(api.name);
+    }
+  }
+
+  /* ---------- the tube's face ---------- */
+  function drawBeam(dt, f, calm){
+    // persistence: the frame fades rather than clears — longer in a calm passage
+    const fade = Math.max(0.10, Math.min(0.5, 0.42 - f.calm * 0.28 + (calm ? 0.06 : 0)));
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = 'rgba(0,0,0,' + fade.toFixed(3) + ')'; g.fillRect(0, 0, W, H);
+    if (used < 2) return;
+    const yt = st.mode === 4, sxp = yt ? W / 2 : H / 2, syp = H / 2;
+    const ox = W / 2 + st.ox * 80, oy = H / 2 - st.oy * 80;
+    for (let k = 0; k < LEVELS.length; k++) paths[k] = new Path2D();
+    const norm = 0.0167 / Math.max(0.004, Math.min(0.05, dt));
+    const gain = (1.0 + f.beat * 0.5) * (yt ? 1.6 : 1.0);
+    let px = ox + st.lastX * sxp, py = oy - st.lastY * syp;
+    for (let i = 0; i < used; i++){
+      const x = ox + bx[i] * sxp, y = oy - by[i] * syp;
+      const len = Math.hypot(x - px, y - py) * norm;
+      const a = Math.min(1, gain * 2.4 / (len + 1.4));
+      // the Z axis: a beam moving this fast is blanked, the way a scope's retrace is
+      if (a >= 0.05){
+        let k = 0; while (k < LEVELS.length - 1 && LEVELS[k + 1] <= a) k++;
+        const P = paths[k]; P.moveTo(px, py); P.lineTo(x, y);
+      }
+      px = x; py = y;
+    }
+    st.lastX = bx[used - 1]; st.lastY = by[used - 1];
+    g.globalCompositeOperation = 'lighter';
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (let k = 0; k < LEVELS.length; k++){
+      g.lineWidth = k >= 4 ? 1.9 : 1.5;
+      g.strokeStyle = 'rgba(130,255,165,' + LEVELS[k].toFixed(3) + ')';
+      g.stroke(paths[k]);
+    }
+    // the spot: where the beam is right now
+    const gr = g.createRadialGradient(px, py, 0, px, py, 4);
+    gr.addColorStop(0, 'rgba(235,255,240,0.9)'); gr.addColorStop(1, 'rgba(130,255,165,0)');
+    g.fillStyle = gr; g.fillRect(px - 4, py - 4, 8, 8);
+  }
+  function readout(f){
+    g.globalCompositeOperation = 'source-over';
+    const dim = 'rgba(120,235,150,0.55)', hot = 'rgba(200,255,215,0.9)';
+    pixText(g, st.label, 26, 14, dim, 2);
+    if (st.trig > 0.05) pixText(g, 'TRIG', W - 26 - pixTextW('TRIG', 2), 14, hot, 2);
+    const bpm = Math.round(typeof CLOCK !== 'undefined' && CLOCK.haveGrid && CLOCK.bpm > 0 ? CLOCK.bpm : (f.bpm > 0 ? f.bpm : 0));
+    if (bpm) pixText(g, bpm + ' BPM', 26, H - 26, dim, 2);
+    const vd = st.mode === 4 ? '0.5V  2MS' : '1V  1V';
+    pixText(g, vd, W - 26 - pixTextW(vd, 2), H - 26, dim, 2);
+  }
+
+  const api = {
+    name: 'SCOPE', key: 'scope', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f, calm = SAFE.calm || reducedMotion;
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+      st.t += dt;
+      /* the signal's own events: an onset is a trigger — it turns the
+         figure, strikes the pendulums, spins the solid — and a new bar
+         re-deals the Lissajous interval from the interval the music is in */
+      const onset = f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset && f.beat > 0.5;
+      if (onset){
+        st.lastOnset = f.lastOnsetAt; st.trig = 1;
+        st.phi += 0.35 + f.beat * 0.4;
+        st.spin += 1.2 + f.bass * 1.5;
+        if (st.mode === 1 && f.bass > 0.55 && st.hth > 40) strike();
+      }
+      st.trig *= Math.exp(-dt * 7);
+      st.phi += dt * (0.25 + f.energy * 1.1);
+      const bar = typeof DANCE !== 'undefined' ? Math.floor((DANCE.beats || 0) / 4) : Math.floor(st.t / 2);
+      if (bar !== st.bar){
+        st.bar = bar;
+        if ((bar & 1) === 0){
+          const r = RATIOS[Math.min(RATIOS.length - 1, Math.floor(f.centroid * 6 + f.entropy * 4 + Math.random() * 2))];
+          st.a = r[0]; st.b = r[1];
+        }
+        if (st.mode === 2 && (bar & 3) === 0 && Math.random() < 0.6) st.shape = (st.shape + 1) % SHAPES.length;
+      }
+      // the phrase turns the page: the next picture in the book
+      const ph = typeof DANCE !== 'undefined' ? (DANCE.phraseFrac || 0) : (st.t / 24) % 1;
+      if (ph < st.phrase - 0.5) setMode(st.mode + 1);
+      st.phrase = ph;
+      // the position knob is the hand
+      const pt = U.uPtr.value, tx = (pt && pt.z > 0.5) ? pt.x : 0, ty = (pt && pt.z > 0.5) ? pt.y : 0;
+      st.ox += (tx - st.ox) * Math.min(1, dt * 4); st.oy += (ty - st.oy) * Math.min(1, dt * 4);
+      st.gain = 0.7 + f.energy * 0.6;
+
+      MODES[st.mode](f, dt);
+      drawBeam(dt, f, calm);
+      readout(f);
+      tex.needsUpdate = true;
+      varU.uGlow.value = (0.6 + f.beat * 0.5 + f.energy * 0.3) * (calm ? 0.7 : 1);
+      varU.uTrig.value = calm ? Math.min(0.5, st.trig) : st.trig;
+    },
+    roll(){
+      varU.uVarA.value = Math.random();
+      setMode(Math.floor(Math.random() * MODES.length));
+      st.shape = Math.floor(Math.random() * SHAPES.length);
+      g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      return api.name;
+    },
+    /* pick a picture by hand — the smoke tools walk all five this way */
+    play(i){ setMode(i); return api.name; },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -33974,7 +34372,7 @@ function initThree(){
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
               buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain(),
-              buildEigenstate(), buildCreature(), buildBarkley(), buildVerse(), buildArcade());
+              buildEigenstate(), buildCreature(), buildBarkley(), buildVerse(), buildArcade(), buildScope());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
