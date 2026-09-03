@@ -3034,6 +3034,16 @@ body.clipping::after{
     And listen closely to what you see: several of these illusions have a measurable strength dial, and
     it rides the song's long-term energy — <b>the picture lies harder as the music builds</b>, and
     comes clean in the quiet.</p>
+    <h3>Video game mode</h3>
+    <p class="lede">Scene 36 is the <b>ARCADE</b> — one cathode-ray tube, six of the games every arcade had,
+    played by the music. Each is a real little simulation, not a video: a chomper walks a <b>MAZE</b> of pellets
+    by breadth-first search with four spooks after it, a fleet of <b>INVADERS</b> marches with its ranks lit by
+    the bands (bass at the bottom, treble at the top), a wall of <b>BRICKS</b> is the live spectrum, a tidy
+    player stacks <b>BLOCKS</b> in a well, a <b>SNAKE</b> hunts its food, and two paddles keep a <b>PONG</b>
+    rally. Every move lands on the <b>half-beat</b>, an onset is a shot or a kick, a real kick slams a block
+    home, and the paddles' aim wanders with the energy so points fall on the drop. The games are drawn on a
+    256×192 canvas; one shader makes it a television — barrel glass, scanlines, a slot mask, bloom, fringing on
+    the hit, and the light the picture throws on the cabinet. Your hand on the glass is the paddle.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3622,12 +3632,14 @@ function touchAffinity(sceneIdx, act, r, mood){
                'grows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'grows', 'flows', 'grows',
                'gathers',
                'flows',
-               'grows', 'gathers'];   // …the lattice and the film ripple, the
+               'grows', 'gathers',
+               'gathers'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
                            // does, a hand near the CREATURE is a current in its water,
-                           // and a hand on the EXCITABLE medium GROWS a wave from nothing
+                           // and a hand on the EXCITABLE medium GROWS a wave from nothing;
+                           // a hand on the ARCADE's glass PULLS — it is also the paddle
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -3882,12 +3894,14 @@ function ghostPattern(sceneIdx, act, r, mood){
                'drift', 'bounce', 'lissa', 'drift', 'lissa', 'snake', 'paint', 'drift',
                'lissa',
                'lissa',
-               'paint', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
+               'paint', 'drift',
+               'bounce'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
                            // the CREATURE is swum alongside in slow figure-eights, and the
-                           // ghost PAINTS on the EXCITABLE medium — strokes of live fire
+                           // ghost PAINTS on the EXCITABLE medium — strokes of live fire,
+                           // and BOUNCES on the ARCADE like the ball it is watching
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -5071,7 +5085,7 @@ function eigenTimeUnit(mode, e){
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
-                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse'];
+                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5131,6 +5145,10 @@ const SCENE_TASTE = {
                                                             // pulse keeps the weather alive
   verse:     { calm: 0.9, coupling: 0.8, treble: 0.6, entropy: -0.4 },  // a word needs a held, legible moment —
                                                             // chaos scatters letters nobody asked to read
+  arcade:    { beat: 1.4, energy: 0.9, treble: 0.5, calm: -0.4 },  // a cabinet wants a pulse to step to — every
+                                                            // move lands on the half-beat, so material with a
+                                                            // beat keeps the games alive; a still passage is
+                                                            // an attract mode nobody is watching
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6277,6 +6295,7 @@ const SCENE_SIGS = {
   creature:  { kind: 'ribbon', h: 352, arms: 5, dense: 0.7 },
   barkley:   { kind: 'spiral', h: 16, arms: 2, dense: 1 },
   verse:     { kind: 'grid',   h: 46, dense: 0.6 },
+  arcade:    { kind: 'grid',   h: 58, dense: 1, c: 0 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -16633,7 +16652,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '542be5832f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '2a529b079a';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -32174,6 +32193,769 @@ function buildVerse(){
 }
 
 /* ================================================================
+   ARCADE — video game mode.
+
+   Six of the games every arcade had, played by the music on one
+   cathode-ray tube. Nothing here is a video: each game is a real
+   little simulation — a maze walked, a fleet marching, a wall of
+   bricks, a well of falling blocks, a snake, a rally — and the beat
+   is its clock. A move happens on the half-beat, so the room STEPS
+   with the song instead of merely flashing at it, and the bands own
+   the parts of each game they suit: the bass is the maze wall and
+   the fleet's bottom rank, the treble is the power pellet's blink
+   and the top rank, an onset is a shot or a kick, a surge on a kick
+   slams a block home. The players are the room's own: a BFS walks
+   the maze and the snake, a one-ply search stacks the blocks the way
+   a tidy player would, the paddles track the ball with an error
+   that grows with the energy — so points fall on the drop.
+
+   The bang for the buck is in the split. The games are drawn on a
+   256×192 canvas with fillRect — a few hundred lines for all six —
+   and ONE fullscreen shader makes that canvas a television: barrel
+   glass, scanlines, a slot mask, bloom, chromatic fringing on the
+   hit, a bezel, and the light the picture throws on the cabinet.
+   Every game gets the whole look for free, and the look is what
+   makes eight-pixel sprites read as a memory rather than a mock-up.
+   The whole room costs one 256×192 texture upload a frame and one
+   quad, so it is the cheapest scene on the roster after the band.
+   The names and sprites are homages of the room's own, not the
+   trademarked characters. */
+function buildArcade(){
+  const group = new THREE.Group();
+  const W = 256, H = 192;                    // one tube's worth of phosphor
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', { alpha: false });
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+
+  const varU = {
+    uTex: { value: tex }, uAspect: { value: 1 }, uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uGlow: { value: 0.5 }, uAber: { value: 0.3 }, uFlash: { value: 0 },
+    uShake: { value: new THREE.Vector2(0, 0) }, uVarA: { value: Math.random() },
+  };
+  const vert = `
+    varying vec2 vUv; uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  /* THE TUBE. Everything a memory of a CRT is made of, in one pass over one
+     small texture: the glass bows the picture out toward the corners, the
+     rows are real rows (the scanline sits between texels, not at some
+     screen frequency that would alias against them), the slot mask is on
+     the screen's own pixels, and the bloom is eight taps on two rings so
+     light leaks past the pixel it belongs to. The fringing is the beat's:
+     a kick smears the reds and blues apart at the edges. */
+  const frag = GLSL_MPHI + `
+    uniform sampler2D uTex;
+    uniform float uAspect, uOpacity, uBeat, uBeatSpring, uBass, uTreble, uEnergy, uTime, uGlow, uAber, uFlash, uCalm, uVarA;
+    uniform vec2 uShake; uniform vec3 uColA, uColB, uColC;
+    varying vec2 vUv;
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // a 4:3 tube fitted to the room, breathing a little on the beat
+      float sy = min(0.90, uAspect * 0.94 * 0.75), sx = sy * 1.3333;
+      vec2 q = (p + uShake) / vec2(sx, sy) / (1.0 + uBeatSpring * 0.012);
+      float rr = dot(q, q);
+      vec2 qb = q * (1.0 + 0.07 * rr);
+      float edge = pow(abs(qb.x), 10.0) + pow(abs(qb.y), 10.0);      // rounded corners: a superellipse
+      float inside = 1.0 - smoothstep(0.975, 1.0, edge);
+      float d = max(abs(qb.x), abs(qb.y)) - 1.0;                       // distance past the glass
+      vec2 uv = qb * 0.5 + 0.5;
+      vec2 px = vec2(1.0 / 256.0, 1.0 / 192.0);
+      vec2 ab = qb * uAber * 0.0035;
+      vec3 col = vec3(texture2D(uTex, uv + ab).r, texture2D(uTex, uv).g, texture2D(uTex, uv - ab).b);
+      vec3 bl = texture2D(uTex, uv + vec2(px.x, 0.0) * 1.5).rgb + texture2D(uTex, uv - vec2(px.x, 0.0) * 1.5).rgb
+              + texture2D(uTex, uv + vec2(0.0, px.y) * 1.5).rgb + texture2D(uTex, uv - vec2(0.0, px.y) * 1.5).rgb
+              + texture2D(uTex, uv + px * 3.0).rgb + texture2D(uTex, uv - px * 3.0).rgb
+              + texture2D(uTex, uv + vec2(px.x, -px.y) * 3.0).rgb + texture2D(uTex, uv - vec2(px.x, -px.y) * 3.0).rgb;
+      col = col * 1.3 + bl * 0.125 * uGlow;
+      float row = uv.y * 192.0;
+      float sl = mix(0.74, 1.0, smoothstep(0.52, 0.18, abs(fract(row) - 0.5)));
+      float mx = gl_FragCoord.x * 2.0943951;
+      vec3 mask = 0.90 + 0.10 * vec3(sin(mx), sin(mx + 2.0943951), sin(mx + 4.1887902));
+      col *= sl * mask;
+      col *= mix(1.0, 0.55, smoothstep(0.55, 1.9, rr));                 // the tube darkens toward its corners
+      col += vec3(0.05, 0.06, 0.08) * pow(max(0.0, 1.0 - length(q - vec2(-0.6, 0.75)) * 0.85), 2.0);  // the glass's own highlight
+      col += vec3(uFlash);
+      col *= inside;
+      // the cabinet: dark plastic, a lip with one highlight, and the picture's light thrown on it
+      float halo = exp(-max(0.0, d) * 5.0) * (1.0 - inside);
+      float bez = step(0.975, edge) * (1.0 - smoothstep(0.045, 0.07, d));
+      col += (uColA * 0.6 + uColB * 0.4) * halo * (0.05 + uGlow * 0.07 + uFlash * 0.3);
+      col += bez * (vec3(0.06, 0.065, 0.08) + vec3(0.05) * max(0.0, -q.y) * (1.0 - inside));
+      gl_FragColor = vec4(inkRolloff(col), uOpacity * mix(0.55 + halo * 0.4, 1.0, max(inside, bez)));
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  /* THE INKS. The games are drawn in the room's own palette — the three
+     chord colours and their blends — lifted off the floor so a dark chord
+     still lights a phosphor. `hi` is the near-white the score is kept in. */
+  const _c = new THREE.Color(), _w = new THREE.Color(1, 1, 1);
+  const lift = c => { const l = c.r * 0.3 + c.g * 0.59 + c.b * 0.11; return l < 0.42 ? c.lerp(_w, 0.42 - l) : c; };
+  const css = (x, y, t) => '#' + lift(_c.copy(x).lerp(y, t)).getHexString();
+  const pal = { a: '#fff', b: '#fff', c: '#fff', ab: '#fff', bc: '#fff', hi: '#fff' };
+  const rampCss = t => (t = Math.max(0, Math.min(1, t)) * 2) < 1
+    ? css(U.uColA.value, U.uColB.value, t) : css(U.uColB.value, U.uColC.value, t - 1);
+  function refreshPal(){
+    const A = U.uColA.value, B = U.uColB.value, C = U.uColC.value;
+    pal.a = css(A, A, 0); pal.b = css(B, B, 0); pal.c = css(C, C, 0);
+    pal.ab = css(A, B, 0.5); pal.bc = css(B, C, 0.5); pal.hi = '#' + _c.copy(C).lerp(_w, 0.7).getHexString();
+  }
+
+  /* a 3×5 pixel font: digits, capitals, and the four marks an arcade needs */
+  const GLYPHS = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001',
+    '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111',
+    '010101111101101', '110101110101110', '111100100100111', '110101101101110', '111100110100111',
+    '111100110100100', '111100101101111', '101101111101101', '111010010010111', '001001001101111',
+    '101101110101101', '100100100100111', '101111111101101', '110101101101101', '111101101101111',
+    '111101111100100', '111101101111001', '111101110101101', '111100111001111', '111010010010010',
+    '101101101101111', '101101101101010', '101101111111101', '101101010101101', '101101010010010',
+    '111001010100111', '000000111000000', '000000000000010', '010010010000010', '000010000010000', '000000000000000'];
+  const FONT = {};
+  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.!: '.split('').forEach((ch, i) => { FONT[ch] = GLYPHS[i]; });
+  function text(s, x, y, col, sc){
+    sc = sc || 1; g.fillStyle = col;
+    for (let i = 0; i < s.length; i++){
+      const gl = FONT[s[i]] || FONT[' '];
+      for (let k = 0; k < 15; k++) if (gl[k] === '1') g.fillRect(x + i * 4 * sc + (k % 3) * sc, y + ((k / 3) | 0) * sc, sc, sc);
+    }
+  }
+  const textW = (s, sc) => s.length * 4 * (sc || 1) - (sc || 1);
+  const centre = (s, y, col, sc) => text(s, Math.round((W - textW(s, sc)) / 2), y, col, sc);
+  function blit(rows, x, y, col){
+    g.fillStyle = col;
+    for (let r = 0; r < rows.length; r++) for (let c = 0; c < rows[r].length; c++) if (rows[r][c] === '#') g.fillRect(x + c, y + r, 1, 1);
+  }
+
+  /* sparks — one particle pool the games share; an alien, a brick, a lost
+     ball and an eaten ghost all die the same bright way */
+  const parts = [];
+  function burst(x, y, n, col, sp){
+    for (let i = 0; i < n && parts.length < 320; i++){
+      const a = Math.random() * 6.2831853, v = (0.3 + Math.random()) * (sp || 40);
+      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 0.4 + Math.random() * 0.6, c: col });
+    }
+  }
+  function stepParts(dt){
+    for (let i = parts.length - 1; i >= 0; i--){
+      const p = parts[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 30 * dt; p.l -= dt;
+      if (p.l <= 0) parts.splice(i, 1);
+    }
+  }
+  function drawParts(){ for (const p of parts){ g.fillStyle = p.c; const s = p.l > 0.4 ? 2 : 1; g.fillRect(p.x | 0, p.y | 0, s, s); } }
+
+  const st = { gi: 0, mode: 'title', modeT: 0, clock: 0, lastHalf: 0, phase: 0, tk: 0, bPrev: null,
+               score: 0, lives: 3, flash: 0, shake: 0, msg: '' };
+  const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  function endGame(msg){ st.mode = 'over'; st.msg = msg; st.modeT = 0; st.flash = Math.max(st.flash, 0.4); }
+
+  /* ---------- MAZE: a chomper, four spooks, and the pellets between ---------- */
+  const MAZE_MAP = [
+    '#####################',
+    '#o.......#.#.......o#',
+    '#.##.###.#.#.###.##.#',
+    '#...................#',
+    '#.##.#.#######.#.##.#',
+    '#....#....#....#....#',
+    '####.####.#.####.####',
+    '#....#....#....#....#',
+    '#.##.#.#######.#.##.#',
+    '#...................#',
+    '#.##.###.#.#.###.##.#',
+    '#o.......#.#.......o#',
+    '#####################'];
+  const maze = {
+    name: 'MAZE', trail: 0.7,
+    init(){
+      this.ts = 10; this.x0 = 23; this.y0 = 30;
+      this.cells = MAZE_MAP.map(r => r.split(''));
+      this.pellets = 0; for (const r of this.cells) for (const c of r) if (c === '.' || c === 'o') this.pellets++;
+      this.power = 0; this.frame = 0; this.dead = 0; this.pop = [];
+      this.reset();
+    },
+    reset(){
+      this.p = { x: 10, y: 3, px: 10, py: 3, d: 0 };
+      this.gh = [[10, 9], [4, 6], [16, 6], [2, 5]].map(([x, y], i) => ({ x, y, px: x, py: y, d: 2, i, home: [x, y] }));
+    },
+    wall(x, y){ return x < 0 || y < 0 || x >= 21 || y >= 13 || this.cells[y][x] === '#'; },
+    /* the chomper's whole mind: breadth-first to the nearest pellet, with any
+       tile beside an unfrightened spook struck off the map */
+    route(sx, sy){
+      const seen = new Int8Array(273).fill(-1), q = [sx + sy * 21]; seen[q[0]] = 4; let head = 0;
+      while (head < q.length){
+        const cur = q[head++], x = cur % 21, y = (cur / 21) | 0, c = this.cells[y][x];
+        if (cur !== q[0] && (c === '.' || c === 'o')) return seen[cur];
+        for (let d = 0; d < 4; d++){
+          const nx = x + DIRS[d][0], ny = y + DIRS[d][1];
+          if (this.wall(nx, ny)) continue;
+          const ni = nx + ny * 21; if (seen[ni] >= 0) continue;
+          if (!this.power && this.gh.some(G => Math.abs(G.x - nx) + Math.abs(G.y - ny) <= 1)) continue;
+          seen[ni] = cur === q[0] ? d : seen[cur]; q.push(ni);
+        }
+      }
+      return null;
+    },
+    tick(k, f){
+      this.frame ^= 1;
+      for (const q of this.pop) q.t--; this.pop = this.pop.filter(q => q.t > 0);
+      if (this.dead){ if (--this.dead === 0){ if (--st.lives <= 0) return endGame('GAME OVER'); this.reset(); } return; }
+      const P = this.p; P.px = P.x; P.py = P.y;
+      const step = this.route(P.x, P.y);
+      if (step != null){ P.d = step; P.x += DIRS[step][0]; P.y += DIRS[step][1]; }
+      const c = this.cells[P.y][P.x];
+      if (c === '.' || c === 'o'){
+        this.cells[P.y][P.x] = ' '; this.pellets--; st.score += c === 'o' ? 50 : 10;
+        if (c === 'o'){ this.power = 16; st.flash = Math.max(st.flash, 0.45); }
+        if (!this.pellets) return endGame('MAZE CLEAR');
+      }
+      if (this.power > 0) this.power--;
+      for (const G of this.gh){
+        G.px = G.x; G.py = G.y;
+        if (this.power && (k & 1)) continue;                    // a frightened spook is a slow one
+        const opts = [];
+        for (let d = 0; d < 4; d++){
+          if (d === (G.d + 2) % 4) continue;
+          if (!this.wall(G.x + DIRS[d][0], G.y + DIRS[d][1])) opts.push(d);
+        }
+        if (!opts.length) opts.push((G.d + 2) % 4);
+        const dist = d => Math.abs(G.x + DIRS[d][0] - P.x) + Math.abs(G.y + DIRS[d][1] - P.y);
+        opts.sort((a, b) => (dist(a) - dist(b)) * (this.power ? -1 : 1));
+        G.d = (Math.random() < 0.25 && opts.length > 1) ? opts[1] : opts[0];
+        G.x += DIRS[G.d][0]; G.y += DIRS[G.d][1];
+        const met = (G.x === P.x && G.y === P.y) || (G.x === P.px && G.y === P.py && G.px === P.x && G.py === P.y);
+        if (!met) continue;
+        const cx = this.x0 + G.x * this.ts + 5, cy = this.y0 + G.y * this.ts + 5;
+        if (this.power){
+          st.score += 200; burst(cx, cy, 16, pal.hi, 50); this.pop.push({ x: cx, y: cy, t: 4 });
+          G.x = G.px = G.home[0]; G.y = G.py = G.home[1];
+        } else { this.dead = 5; burst(cx, cy, 24, pal.c, 45); st.shake = 1; }
+      }
+    },
+    draw(f){
+      const ts = this.ts, x0 = this.x0, y0 = this.y0, ph = st.phase;
+      // the walls are outlines where a wall meets a corridor — the neon of the thing — lit by the bass
+      g.globalAlpha = 0.16; g.fillStyle = pal.a;
+      for (let y = 0; y < 13; y++) for (let x = 0; x < 21; x++) if (this.cells[y][x] === '#') g.fillRect(x0 + x * ts, y0 + y * ts, ts, ts);
+      g.globalAlpha = 0.55 + f.bass * 0.45;
+      for (let y = 0; y < 13; y++) for (let x = 0; x < 21; x++){
+        if (this.cells[y][x] !== '#') continue;
+        const X = x0 + x * ts, Y = y0 + y * ts;
+        if (!this.wall(x + 1, y)) g.fillRect(X + ts - 2, Y + 1, 1, ts - 2);
+        if (!this.wall(x - 1, y)) g.fillRect(X + 1, Y + 1, 1, ts - 2);
+        if (!this.wall(x, y + 1)) g.fillRect(X + 1, Y + ts - 2, ts - 2, 1);
+        if (!this.wall(x, y - 1)) g.fillRect(X + 1, Y + 1, ts - 2, 1);
+      }
+      g.globalAlpha = 1;
+      const blink = this.frame || f.treble > 0.45;
+      for (let y = 0; y < 13; y++) for (let x = 0; x < 21; x++){
+        const c = this.cells[y][x];
+        if (c === '.'){ g.fillStyle = pal.b; g.fillRect(x0 + x * ts + 4, y0 + y * ts + 4, 2, 2); }
+        else if (c === 'o' && blink){ g.fillStyle = pal.hi; const s = 4 + Math.round(f.treble * 2); g.fillRect(x0 + x * ts + 5 - s / 2, y0 + y * ts + 5 - s / 2, s, s); }
+      }
+      const P = this.p;
+      const px = x0 + (P.px + (P.x - P.px) * ph) * ts + 5, py = y0 + (P.py + (P.y - P.py) * ph) * ts + 5;
+      const ang = Math.atan2(DIRS[P.d][1], DIRS[P.d][0]);
+      const mouth = this.dead ? 0.1 + (5 - this.dead) * 0.55 : 0.08 + f.treble * 0.15 + 0.5 * Math.abs(Math.sin(ph * Math.PI));
+      g.fillStyle = pal.c; g.beginPath(); g.moveTo(px, py);
+      g.arc(px, py, this.dead ? 4.5 * (this.dead / 5) : 4.5, ang + mouth, ang - mouth + 6.2831853); g.closePath(); g.fill();
+      const cols = [pal.c, pal.ab, pal.b, pal.bc];
+      for (const G of this.gh){
+        const gx = x0 + (G.px + (G.x - G.px) * ph) * ts + 5, gy = y0 + (G.py + (G.y - G.py) * ph) * ts + 5;
+        const fr = this.power > 0;
+        g.fillStyle = fr ? ((this.power <= 4 && this.frame) ? pal.hi : '#3348ff') : cols[G.i];
+        g.beginPath(); g.arc(gx, gy - 1, 4, Math.PI, 6.2831853); g.fill();
+        g.fillRect(gx - 4, gy - 1, 8, 4);
+        const w = this.frame ? 0 : 1;
+        g.fillRect(gx - 4 + w, gy + 3, 2, 1); g.fillRect(gx - 1, gy + 3, 2, 1); g.fillRect(gx + 2 - w, gy + 3, 2, 1);
+        g.fillStyle = '#fff'; g.fillRect(gx - 3, gy - 2, 2, 2); g.fillRect(gx + 1, gy - 2, 2, 2);
+        if (!fr){ g.fillStyle = '#204'; g.fillRect(gx - 3 + (DIRS[G.d][0] > 0 ? 1 : 0), gy - 2 + (DIRS[G.d][1] > 0 ? 1 : 0), 1, 1); g.fillRect(gx + 1 + (DIRS[G.d][0] > 0 ? 1 : 0), gy - 2 + (DIRS[G.d][1] > 0 ? 1 : 0), 1, 1); }
+      }
+      for (const q of this.pop) text('200', q.x - 5, q.y - 8 - (4 - q.t) * 2, pal.hi);
+    },
+  };
+
+  /* ---------- INVADERS: the fleet is the spectrum, rank by rank ---------- */
+  const ALIEN = [
+    [['..####..', '.######.', '##.##.##', '########', '.#.##.#.', '#.#..#.#'], ['..####..', '.######.', '##.##.##', '########', '..#..#..', '.#....#.']],
+    [['..#..#..', '.######.', '##.##.##', '########', '#.####.#', '#.#..#.#'], ['..#..#..', '#.####.#', '########', '#.#..#.#', '#.####.#', '..#..#..']],
+    [['...##...', '..####..', '.######.', '##.##.##', '########', '.#.##.#.'], ['...##...', '..####..', '.######.', '##.##.##', '########', '#.#..#.#']],
+  ];
+  const GUN = ['......#......', '.....###.....', '.....###.....', '.###########.', '#############', '#############', '#############'];
+  const inv = {
+    name: 'INVADERS', trail: 0.5,
+    init(){ this.wave = 0; this.newWave(); this.gun = { x: W / 2, dead: 0 }; this.tc = 5; this.shots = []; this.bombs = []; this.frame = 0; },
+    newWave(){
+      this.al = []; for (let r = 0; r < 5; r++) for (let c = 0; c < 11; c++) this.al.push({ c, r, a: 1 });
+      this.fx = 30; this.fy = 24 + this.wave * 8; this.dir = 1; this.cw = 16; this.ch = 12;
+      this.sh = [];
+      for (let i = 0; i < 4; i++){
+        const cells = [];
+        for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) cells.push((y >= 5 && x >= 5 && x < 11) || (y === 0 && (x < 2 || x > 13)) ? 0 : 1);
+        this.sh.push({ x: 34 + i * 56, y: H - 46, cells });
+      }
+    },
+    erode(s, x, y, r){
+      const cx = (x - s.x) | 0, cy = (y - s.y) | 0;
+      if (cx < 0 || cy < 0 || cx >= 16 || cy >= 8 || !s.cells[cy * 16 + cx]) return false;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++){
+        const X = cx + dx, Y = cy + dy; if (X >= 0 && Y >= 0 && X < 16 && Y < 8 && Math.random() < 0.8) s.cells[Y * 16 + X] = 0;
+      }
+      burst(x, y, 4, pal.b, 20);
+      return true;
+    },
+    tick(k, f){
+      const alive = this.al.filter(a => a.a);
+      if (!alive.length){
+        this.wave++; st.score += 500; st.flash = 0.6;
+        if (this.wave >= 3) return endGame('EARTH SAVED');
+        this.newWave(); return;
+      }
+      if (alive.length <= 8 || !(k & 1)){        // the fleet marches on the beat — on the half-beat once thinned
+        this.frame ^= 1;
+        let mn = 99, mx = -99, low = 0;
+        for (const a of alive){ mn = Math.min(mn, a.c); mx = Math.max(mx, a.c); low = Math.max(low, a.r); }
+        const L = this.fx + mn * this.cw, R = this.fx + mx * this.cw + 12;
+        if ((this.dir > 0 && R + 6 > W - 6) || (this.dir < 0 && L - 6 < 6)){ this.dir *= -1; this.fy += 8; }
+        else this.fx += this.dir * 6;
+        if (this.fy + low * this.ch + 8 >= H - 30) return endGame('INVADED');
+      }
+      if (Math.random() < 0.3 + f.energy * 0.35){   // a bomb from a bottom-rank alien
+        const bottom = {}; for (const a of alive) if (!bottom[a.c] || a.r > bottom[a.c].r) bottom[a.c] = a;
+        const bs = Object.values(bottom), b = bs[(Math.random() * bs.length) | 0];
+        this.bombs.push({ x: this.fx + b.c * this.cw + 6, y: this.fy + b.r * this.ch + 8 });
+      }
+      if (Math.random() < 0.5) this.tc = alive[(Math.random() * alive.length) | 0].c;
+    },
+    step(dt, f){
+      const G = this.gun, tx = this.fx + this.tc * this.cw + 6;
+      if (G.dead > 0) G.dead -= dt;
+      G.x += (Math.max(8, Math.min(W - 8, tx)) - G.x) * Math.min(1, dt * 5);
+      if (f.onset && f.beat > 0.5 && G.dead <= 0 && this.shots.length < 3) this.shots.push({ x: G.x, y: H - 24 });
+      for (let i = this.shots.length - 1; i >= 0; i--){
+        const s = this.shots[i]; s.y -= 170 * dt;
+        let hit = s.y < 10;
+        for (const sh of this.sh) if (!hit && this.erode(sh, s.x, s.y, 1)) hit = true;
+        for (const a of this.al){
+          if (hit || !a.a) continue;
+          const ax = this.fx + a.c * this.cw, ay = this.fy + a.r * this.ch;
+          if (s.x >= ax && s.x <= ax + 12 && s.y >= ay && s.y <= ay + 8){
+            a.a = 0; hit = true; st.score += (5 - a.r) * 10; st.flash = Math.max(st.flash, 0.12);
+            burst(ax + 6, ay + 4, 14, rampCss(1 - a.r / 4), 45);
+          }
+        }
+        if (hit) this.shots.splice(i, 1);
+      }
+      for (let i = this.bombs.length - 1; i >= 0; i--){
+        const b = this.bombs[i]; b.y += 60 * dt;
+        let hit = b.y > H - 12;
+        for (const sh of this.sh) if (!hit && this.erode(sh, b.x, b.y, 2)) hit = true;
+        if (!hit && G.dead <= 0 && b.y > H - 24 && Math.abs(b.x - G.x) < 7){
+          hit = true; G.dead = 1.5; burst(G.x, H - 20, 30, pal.c, 50); st.shake = 1;
+          if (--st.lives <= 0) return endGame('GAME OVER');
+        }
+        if (hit) this.bombs.splice(i, 1);
+      }
+    },
+    draw(f){
+      // the ranks are the bands — the bottom is the bass, the top the treble — and a rank lights with its band
+      for (const a of this.al){
+        if (!a.a) continue;
+        const band = a.r >= 3 ? f.bass : a.r >= 1 ? f.mid : f.treble;
+        g.globalAlpha = 0.5 + band * 0.5;
+        blit(ALIEN[a.r === 0 ? 0 : a.r < 3 ? 1 : 2][this.frame], this.fx + a.c * this.cw + 2, this.fy + a.r * this.ch, rampCss(1 - a.r / 4));
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = pal.b;
+      for (const s of this.sh) for (let i = 0; i < 128; i++) if (s.cells[i]) g.fillRect(s.x + (i % 16), s.y + ((i / 16) | 0), 1, 1);
+      if (this.gun.dead <= 0 || this.frame) blit(GUN, (this.gun.x | 0) - 6, H - 22, this.gun.dead > 0 ? pal.hi : pal.c);
+      g.fillStyle = pal.hi; for (const s of this.shots) g.fillRect(s.x | 0, s.y | 0, 1, 4);
+      g.fillStyle = pal.c; for (const b of this.bombs) g.fillRect((b.x | 0) + ((b.y / 3) & 1), b.y | 0, 1, 3);
+      g.fillStyle = pal.a; g.fillRect(6, H - 12, W - 12, 1);
+    },
+  };
+
+  /* ---------- BRICKS: the wall is an equaliser ---------- */
+  const bricks = {
+    name: 'BRICKS', trail: 0.45,
+    init(){ this.cols = 16; this.rows = 7; this.bw = 15; this.bh = 6; this.x0 = 8; this.y0 = 20; this.fill(); this.pad = { x: W / 2, w: 30 }; this.serve(); },
+    fill(){ this.br = new Int8Array(this.cols * this.rows).fill(1); this.left = this.cols * this.rows; },
+    serve(){ this.ball = { x: W / 2, y: H - 40, vx: (Math.random() < 0.5 ? -1 : 1) * 45, vy: -65, kick: 0 }; },
+    tick(){},
+    step(dt, f){
+      const B = this.ball, P = this.pad;
+      if (f.onset && f.beat >= 1) B.kick = 1;
+      B.kick *= Math.exp(-dt * 2);
+      const sp = 1 + f.energy * 0.8 + B.kick * 0.7;
+      let nx = B.x + B.vx * sp * dt, ny = B.y + B.vy * sp * dt;
+      if (nx < 2){ nx = 2; B.vx = Math.abs(B.vx); } else if (nx > W - 4){ nx = W - 4; B.vx = -Math.abs(B.vx); }
+      if (ny < 12){ ny = 12; B.vy = Math.abs(B.vy); }
+      const c = Math.floor((nx + 1 - this.x0) / this.bw), r = Math.floor((ny + 1 - this.y0) / this.bh);
+      if (c >= 0 && c < this.cols && r >= 0 && r < this.rows && this.br[r * this.cols + c]){
+        this.br[r * this.cols + c] = 0; this.left--; st.score += (this.rows - r) * 10; st.flash = Math.max(st.flash, 0.1);
+        burst(this.x0 + c * this.bw + 7, this.y0 + r * this.bh + 3, 10, rampCss(r / (this.rows - 1)), 40);
+        const by = this.y0 + r * this.bh;
+        if (B.y + 1 <= by || B.y + 1 >= by + this.bh) B.vy = -B.vy; else B.vx = -B.vx;
+        if (!this.left){ st.score += 1000; st.flash = 0.6; return endGame('WALL CLEAR'); }
+        return;
+      }
+      if (B.vy > 0 && ny >= H - 14 && ny <= H - 9 && Math.abs(nx + 1 - P.x) <= P.w / 2 + 1){
+        B.vy = -Math.abs(B.vy); B.vx = ((nx + 1 - P.x) / (P.w / 2)) * 75;
+        const m = Math.hypot(B.vx, B.vy) || 1; B.vx *= 82 / m; B.vy *= 82 / m;
+        if (Math.abs(B.vy) < 30) B.vy = -30;
+        burst(nx, H - 13, 4, pal.hi, 25);
+      }
+      B.x = nx; B.y = ny;
+      if (ny > H){
+        st.shake = 0.8; burst(nx, H - 4, 20, pal.c, 45);
+        if (--st.lives <= 0) return endGame('GAME OVER');
+        this.serve();
+      }
+      // the paddle: where the ball will land — or where the hand is
+      let tx = B.vy > 0 ? B.x + B.vx * ((H - 12 - B.y) / Math.max(1, B.vy)) : W / 2 + (B.x - W / 2) * 0.5;
+      const pt = U.uPtr.value; if (pt && pt.z > 0.5) tx = (pt.x * 0.5 + 0.5) * W;
+      tx = Math.max(P.w / 2 + 2, Math.min(W - P.w / 2 - 2, tx));
+      P.x += (tx - P.x) * Math.min(1, dt * (5 + f.energy * 6));
+    },
+    draw(f){
+      const spec = audioTex ? audioTex.image.data : null;
+      for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++){
+        if (!this.br[r * this.cols + c]) continue;
+        const bin = spec ? spec[Math.min(1023, Math.floor(Math.pow((c + 0.5) / this.cols, 2) * 600))] / 255 : 0.4;
+        g.globalAlpha = 0.4 + bin * 0.6; g.fillStyle = rampCss(r / (this.rows - 1));
+        g.fillRect(this.x0 + c * this.bw, this.y0 + r * this.bh, this.bw - 1, this.bh - 1);
+        g.globalAlpha = 0.2 + bin * 0.3; g.fillStyle = pal.hi; g.fillRect(this.x0 + c * this.bw, this.y0 + r * this.bh, this.bw - 1, 1);
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = pal.hi; g.fillRect((this.pad.x - this.pad.w / 2) | 0, H - 12, this.pad.w, 3);
+      g.fillRect(this.ball.x | 0, this.ball.y | 0, 3, 3);
+    },
+  };
+
+  /* ---------- BLOCKS: a well, seven shapes, a tidy player ---------- */
+  const SHAPES = [[[0, 0], [1, 0], [2, 0], [3, 0]], [[0, 0], [1, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [2, 0], [1, 1]],
+                  [[0, 0], [1, 0], [2, 0], [0, 1]], [[0, 0], [1, 0], [2, 0], [2, 1]], [[1, 0], [2, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [1, 1], [2, 1]]];
+  const rot = (cells, r) => {
+    let c = cells;
+    for (let i = 0; i < r; i++){
+      c = c.map(([x, y]) => [-y, x]);
+      const mx = Math.min(...c.map(p => p[0])), my = Math.min(...c.map(p => p[1]));
+      c = c.map(([x, y]) => [x - mx, y - my]);
+    }
+    return c;
+  };
+  const blocks = {
+    name: 'BLOCKS', trail: 0.5,
+    init(){ this.cs = 9; this.x0 = 83; this.y0 = 22; this.grid = new Int8Array(180); this.next = 1 + ((Math.random() * 7) | 0); this.clear = []; this.lines = 0; this.wipe = -1; this.spawn(); },
+    fits(cells, x, y){
+      for (const [cx, cy] of cells){
+        const gx = x + cx, gy = y + cy;
+        if (gx < 0 || gx >= 10 || gy >= 18 || (gy >= 0 && this.grid[gy * 10 + gx])) return false;
+      }
+      return true;
+    },
+    /* the plan: every rotation at every column, scored the way a tidy player
+       scores — low, flat, no holes, and lines above all */
+    rate(cells, x, y){
+      const gr = this.grid.slice();
+      for (const [cx, cy] of cells) if (y + cy >= 0) gr[(y + cy) * 10 + x + cx] = 1;
+      let lines = 0, agg = 0, holes = 0, bump = 0, prev = -1;
+      for (let r = 0; r < 18; r++){ let full = 1; for (let c = 0; c < 10; c++) if (!gr[r * 10 + c]){ full = 0; break; } lines += full; }
+      for (let c = 0; c < 10; c++){
+        let h = 0; for (let r = 0; r < 18; r++) if (gr[r * 10 + c]){ h = 18 - r; break; }
+        agg += h; if (prev >= 0) bump += Math.abs(h - prev); prev = h;
+        for (let r = 19 - h; r < 18; r++) if (!gr[r * 10 + c]) holes++;
+      }
+      return lines * 3 - agg * 0.5 - holes * 2.2 - bump * 0.35;
+    },
+    spawn(){
+      this.pc = { k: this.next, r: 0, x: 3, y: -1 }; this.next = 1 + ((Math.random() * 7) | 0);
+      const shape = SHAPES[this.pc.k - 1];
+      let best = null;
+      for (let r = 0; r < 4; r++){
+        const cells = rot(shape, r), w = Math.max(...cells.map(p => p[0])) + 1;
+        for (let x = 0; x <= 10 - w; x++){
+          let y = -2; while (this.fits(cells, x, y + 1)) y++;
+          if (!this.fits(cells, x, y)) continue;
+          const s = this.rate(cells, x, y) + Math.random() * 0.2;
+          if (!best || s > best.s) best = { s, r, x, y };
+        }
+      }
+      this.plan = best || { r: 0, x: 3, y: 0 };
+      if (!this.fits(rot(shape, 0), 3, 0)) this.wipe = 0;    // the well is full: the wipe begins
+    },
+    lock(cells){
+      const P = this.pc;
+      for (const [cx, cy] of cells) if (P.y + cy >= 0) this.grid[(P.y + cy) * 10 + P.x + cx] = P.k;
+      st.score += 10;
+      for (let r = 0; r < 18; r++){ let full = 1; for (let c = 0; c < 10; c++) if (!this.grid[r * 10 + c]){ full = 0; break; } if (full) this.clear.push(r); }
+      if (this.clear.length){
+        const n = this.clear.length; st.score += [0, 100, 300, 500, 800][n]; st.flash = 0.25 + n * 0.12; this.lines += n;
+        if (n === 4) st.shake = 0.7;
+        for (const r of this.clear) burst(this.x0 + 40, this.y0 + r * this.cs + 4, 10, pal.hi, 60);
+        if (this.lines >= 20) return endGame('WELL DONE');
+      } else this.spawn();
+    },
+    tick(k, f){
+      if (this.wipe >= 0){                                   // the well empties bottom-up, two rows a tick
+        for (let i = 0; i < 2 && this.wipe < 18; i++){ this.grid.fill(0, (17 - this.wipe) * 10, (18 - this.wipe) * 10); this.wipe++; }
+        if (this.wipe >= 18){ this.wipe = -1; return endGame('GAME OVER'); }
+        return;
+      }
+      if (this.clear.length){
+        for (const r of this.clear){ this.grid.copyWithin(10, 0, r * 10); this.grid.fill(0, 0, 10); }
+        this.clear = []; this.spawn(); return;
+      }
+      // one rotation, one column, one row per half-beat — a player's hands, at the song's tempo
+      const P = this.pc, shape = SHAPES[P.k - 1];
+      if (P.r !== this.plan.r){ const nr = (P.r + 1) % 4; if (this.fits(rot(shape, nr), P.x, P.y)) P.r = nr; }
+      else if (P.x !== this.plan.x){ const dx = Math.sign(this.plan.x - P.x); if (this.fits(rot(shape, P.r), P.x + dx, P.y)) P.x += dx; }
+      const cells = rot(shape, P.r);
+      const slam = P.r === this.plan.r && P.x === this.plan.x && f.beat > 0.8 && f.bass > 0.6;   // a real kick slams it home
+      for (let i = 0, n = slam ? 18 : 1; i < n; i++){
+        if (this.fits(cells, P.x, P.y + 1)) P.y++;
+        else { this.lock(cells); break; }
+      }
+    },
+    draw(f){
+      const cs = this.cs, x0 = this.x0, y0 = this.y0;
+      g.fillStyle = pal.a; g.globalAlpha = 0.7;
+      g.fillRect(x0 - 2, y0 - 1, 1, 18 * cs + 2); g.fillRect(x0 + 10 * cs + 1, y0 - 1, 1, 18 * cs + 2); g.fillRect(x0 - 2, y0 + 18 * cs + 1, 10 * cs + 4, 1);
+      g.globalAlpha = 1;
+      for (let i = 0; i < 180; i++){
+        const k = this.grid[i]; if (!k) continue;
+        const r = (i / 10) | 0, c = i % 10;
+        const flash = this.clear.indexOf(r) >= 0;
+        g.globalAlpha = flash ? 1 : 0.7 + f.bass * 0.3;
+        g.fillStyle = flash ? pal.hi : rampCss((k - 1) / 6);
+        g.fillRect(x0 + c * cs, y0 + r * cs, cs - 1, cs - 1);
+      }
+      g.globalAlpha = 1;
+      if (this.wipe < 0){
+        const P = this.pc, cells = rot(SHAPES[P.k - 1], P.r), col = rampCss((P.k - 1) / 6);
+        g.globalAlpha = 0.18; g.fillStyle = col;
+        for (const [cx, cy] of rot(SHAPES[P.k - 1], this.plan.r)) g.fillRect(x0 + (this.plan.x + cx) * cs, y0 + (this.plan.y + cy) * cs, cs - 1, cs - 1);
+        g.globalAlpha = 1;
+        for (const [cx, cy] of cells) if (P.y + cy >= 0) g.fillRect(x0 + (P.x + cx) * cs, y0 + (P.y + cy) * cs, cs - 1, cs - 1);
+        g.fillStyle = pal.hi; g.globalAlpha = 0.9;
+        for (const [cx, cy] of cells) if (P.y + cy >= 0) g.fillRect(x0 + (P.x + cx) * cs, y0 + (P.y + cy) * cs, cs - 1, 1);
+        g.globalAlpha = 1;
+      }
+      text('NEXT', x0 + 10 * cs + 12, y0 + 2, pal.b);
+      g.fillStyle = rampCss((this.next - 1) / 6);
+      for (const [cx, cy] of SHAPES[this.next - 1]) g.fillRect(x0 + 10 * cs + 12 + cx * 6, y0 + 12 + cy * 6, 5, 5);
+      text('LINES', x0 + 10 * cs + 12, y0 + 34, pal.b); text(String(this.lines), x0 + 10 * cs + 12, y0 + 42, pal.hi);
+    },
+  };
+
+  /* ---------- SNAKE: a path to the food, or any safe move at all ---------- */
+  const snake = {
+    name: 'SNAKE', trail: 0.55,
+    init(){ this.cs = 8; this.x0 = 8; this.y0 = 24; this.reset(); },
+    reset(){ this.body = [[15, 9], [14, 9], [13, 9]]; this.d = 0; this.grow = 0; this.dead = 0; this.place(); },
+    place(){
+      do { this.food = [(Math.random() * 30) | 0, (Math.random() * 18) | 0]; }
+      while (this.body.some(b => b[0] === this.food[0] && b[1] === this.food[1]));
+    },
+    free(x, y){
+      if (x < 0 || y < 0 || x >= 30 || y >= 18) return false;
+      const n = this.body.length - (this.grow > 0 ? 0 : 1);      // the tail moves on unless the snake is growing
+      for (let i = 0; i < n; i++) if (this.body[i][0] === x && this.body[i][1] === y) return false;
+      return true;
+    },
+    route(){
+      const seen = new Int8Array(540).fill(-1), h = this.body[0], q = [h[0] + h[1] * 30]; seen[q[0]] = 4; let head = 0;
+      while (head < q.length){
+        const cur = q[head++], x = cur % 30, y = (cur / 30) | 0;
+        if (x === this.food[0] && y === this.food[1]) return seen[cur];
+        for (let d = 0; d < 4; d++){
+          const nx = x + DIRS[d][0], ny = y + DIRS[d][1];
+          if (!this.free(nx, ny)) continue;
+          const ni = nx + ny * 30; if (seen[ni] >= 0) continue;
+          seen[ni] = cur === q[0] ? d : seen[cur]; q.push(ni);
+        }
+      }
+      return null;
+    },
+    tick(k, f){
+      if (this.dead){ if (--this.dead === 0){ if (--st.lives <= 0) return endGame('GAME OVER'); this.reset(); } return; }
+      let d = this.route();
+      if (d == null){
+        const safe = [0, 1, 2, 3].filter(nd => nd !== (this.d + 2) % 4 && this.free(this.body[0][0] + DIRS[nd][0], this.body[0][1] + DIRS[nd][1]));
+        d = safe.length ? safe[(Math.random() * safe.length) | 0] : this.d;
+      }
+      this.d = d;
+      const h = this.body[0], nx = h[0] + DIRS[d][0], ny = h[1] + DIRS[d][1];
+      if (!this.free(nx, ny)){
+        this.dead = 5; st.shake = 1; burst(this.x0 + h[0] * this.cs + 4, this.y0 + h[1] * this.cs + 4, 30, pal.c, 50); return;
+      }
+      this.body.unshift([nx, ny]);
+      if (nx === this.food[0] && ny === this.food[1]){
+        st.score += 25; this.grow += 2; st.flash = Math.max(st.flash, 0.2);
+        burst(this.x0 + nx * this.cs + 4, this.y0 + ny * this.cs + 4, 12, pal.hi, 40);
+        this.place();
+        if (this.body.length >= 70) return endGame('WELL FED');
+      }
+      if (this.grow > 0) this.grow--; else this.body.pop();
+    },
+    draw(f){
+      const cs = this.cs, x0 = this.x0, y0 = this.y0, n = this.body.length;
+      g.fillStyle = pal.a; g.globalAlpha = 0.5;
+      g.fillRect(x0 - 2, y0 - 2, 30 * cs + 4, 1); g.fillRect(x0 - 2, y0 + 18 * cs + 1, 30 * cs + 4, 1);
+      g.fillRect(x0 - 2, y0 - 2, 1, 18 * cs + 4); g.fillRect(x0 + 30 * cs + 1, y0 - 2, 1, 18 * cs + 4);
+      // the body wears the ramp, and the bass runs down it as a pulse of light
+      for (let i = n - 1; i >= 0; i--){
+        const b = this.body[i];
+        const pulse = 0.5 + 0.5 * Math.sin(i * 0.7 - st.clock * 6.2831853);
+        g.globalAlpha = this.dead ? (this.dead & 1 ? 0.3 : 0.9) : 0.55 + 0.45 * pulse * (0.3 + f.bass * 0.7);
+        g.fillStyle = i ? rampCss(i / Math.max(8, n)) : pal.hi;
+        g.fillRect(x0 + b[0] * cs + 1, y0 + b[1] * cs + 1, cs - 2, cs - 2);
+      }
+      g.globalAlpha = 1;
+      const h = this.body[0], ex = DIRS[this.d][0], ey = DIRS[this.d][1];
+      g.fillStyle = '#204';
+      g.fillRect(x0 + h[0] * cs + 3 + ex * 2 - ey, y0 + h[1] * cs + 3 + ey * 2 - ex, 1, 1);
+      g.fillRect(x0 + h[0] * cs + 3 + ex * 2 + ey, y0 + h[1] * cs + 3 + ey * 2 + ex, 1, 1);
+      const s = 3 + Math.round(f.treble * 2) + (st.phase < 0.5 ? 1 : 0);
+      g.fillStyle = pal.c; g.fillRect(x0 + this.food[0] * cs + 4 - (s >> 1), y0 + this.food[1] * cs + 4 - (s >> 1), s, s);
+    },
+  };
+
+  /* ---------- PONG: two paddles that miss on the drop ---------- */
+  const pong = {
+    name: 'PONG', trail: 0.4,
+    init(){ this.s = [0, 0]; this.pl = [{ x: 10, y: H / 2, off: 0 }, { x: W - 13, y: H / 2, off: 0 }]; this.serve(1); },
+    serve(dir){ this.ball = { x: W / 2, y: H / 2, vx: dir * 75, vy: (Math.random() - 0.5) * 80, kick: 0 }; this.rally = 0; },
+    tick(k, f){
+      // each paddle re-rolls its error on the half-beat, and the error grows with the energy
+      for (const p of this.pl) p.off = (Math.random() - 0.5) * (4 + f.energy * 30);
+    },
+    step(dt, f){
+      const B = this.ball;
+      if (f.onset && f.beat >= 1) B.kick = 1;
+      B.kick *= Math.exp(-dt * 2.5);
+      const sp = (1 + Math.min(12, this.rally) * 0.06) * (0.85 + f.energy * 0.6 + B.kick * 0.5);
+      B.x += B.vx * sp * dt; B.y += B.vy * sp * dt;
+      if (B.y < 14){ B.y = 14; B.vy = Math.abs(B.vy); } else if (B.y > H - 4){ B.y = H - 4; B.vy = -Math.abs(B.vy); }
+      const pt = U.uPtr.value;
+      this.pl.forEach((p, i) => {
+        const coming = (i === 0) === (B.vx < 0);
+        let ty = coming ? B.y + p.off : H / 2 + (B.y - H / 2) * 0.3;
+        if (i === 0 && pt && pt.z > 0.5) ty = (0.5 - pt.y * 0.5) * H;
+        p.y += (Math.max(20, Math.min(H - 10, ty)) - p.y) * Math.min(1, dt * (4 + f.energy * 5));
+        if (Math.abs(B.x - p.x) < 3 && Math.abs(B.y - p.y) < 10 && ((i === 0 && B.vx < 0) || (i === 1 && B.vx > 0))){
+          B.vx = -B.vx; B.vy += (B.y - p.y) * 5; this.rally++;
+          burst(B.x, B.y, 6, pal.hi, 30); st.flash = Math.max(st.flash, 0.08);
+        }
+      });
+      if (B.x < -4 || B.x > W + 4){
+        const w = B.x < 0 ? 1 : 0;
+        this.s[w]++; st.score += 100; st.flash = 0.45; st.shake = 0.6;
+        burst(B.x < 0 ? 2 : W - 2, B.y, 24, pal.c, 50);
+        if (this.s[w] >= 7) return endGame(w === 0 ? 'LEFT WINS' : 'RIGHT WINS');
+        this.serve(w === 0 ? 1 : -1);
+      }
+    },
+    draw(f){
+      g.fillStyle = pal.a; g.globalAlpha = 0.6;
+      for (let y = 14; y < H - 2; y += 6) g.fillRect(W / 2 - 1, y, 2, 3);
+      g.globalAlpha = 0.55 + f.mid * 0.45;
+      text(String(this.s[0]), W / 2 - 34, 18, pal.b, 3); text(String(this.s[1]), W / 2 + 24, 18, pal.b, 3);
+      g.globalAlpha = 1; g.fillStyle = pal.hi;
+      for (const p of this.pl) g.fillRect(p.x | 0, (p.y | 0) - 8, 3, 16);
+      g.fillRect((this.ball.x | 0) - 1, (this.ball.y | 0) - 1, 3, 3);
+    },
+  };
+
+  const GAMES = [maze, inv, bricks, blocks, snake, pong];
+  function startGame(i){
+    st.gi = i; st.mode = 'title'; st.modeT = 0; st.score = 0; st.lives = 3; parts.length = 0;
+    GAMES[i].init();
+    api.name = 'ARCADE · ' + GAMES[i].name;
+    if (group.visible){                    // a cabinet that rotates mid-stay says so on the readout
+      if (typeof el !== 'undefined' && el.sceneName) el.sceneName.textContent = TN(api.name);
+      if (typeof el !== 'undefined' && el.zSceneName) el.zSceneName.textContent = TN(api.name);
+    }
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  }
+  function hud(G){
+    text('SCORE ' + String(st.score).padStart(6, '0'), 10, 5, pal.hi);
+    text(G.name, W - textW(G.name) - 10, 5, pal.b);
+    g.fillStyle = pal.c; for (let i = 0; i < st.lives; i++) g.fillRect(10 + i * 6, H - 9, 4, 3);
+  }
+
+  const api = {
+    name: 'ARCADE', key: 'arcade', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f, calm = SAFE.calm || reducedMotion;
+      varU.uAspect.value = STAGE.sliceUniform(varU.uSlice).aspect;
+      /* THE CLOCK. The dance's own beat count while it runs — grid-locked
+         when there is a grid, freewheeling when there is not — and a 120
+         bpm attract-mode tick when nothing is playing, so the cabinet is
+         never a still picture. Moves land on the half-beat. */
+      const b = (typeof DANCE !== 'undefined' && DANCE.beats) || 0;
+      const db = st.bPrev == null ? 0 : b - st.bPrev; st.bPrev = b;
+      st.clock += (db > 0 && db < 2) ? db : dt * 2;
+      const half = Math.floor(st.clock * 2); st.phase = st.clock * 2 - half;
+      const n = Math.min(2, half - st.lastHalf); st.lastHalf = half;
+      const G = GAMES[st.gi];
+      for (let i = 0; i < n; i++){
+        st.tk++;
+        if (st.mode === 'title'){ if (++st.modeT >= 6){ st.mode = 'play'; st.modeT = 0; } }
+        else if (st.mode === 'over'){ if (++st.modeT >= 6) startGame((st.gi + 1 + ((Math.random() * (GAMES.length - 1)) | 0)) % GAMES.length); }
+        else { G.tick(st.tk, f); if (st.mode === 'play' && ++st.modeT > 150) endGame('TIME UP'); }
+      }
+      if (st.mode === 'play' && G.step) G.step(dt, f);
+      stepParts(dt);
+      refreshPal();
+      // phosphor persistence: the last frame fades rather than clears, so the fast games trail
+      g.fillStyle = 'rgba(0,0,0,' + (1 - G.trail * (calm ? 0.6 : 1)).toFixed(2) + ')'; g.fillRect(0, 0, W, H);
+      G.draw(f);
+      drawParts();
+      hud(G);
+      if (st.mode === 'title'){
+        g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(0, 60, W, 66);
+        centre(G.name, 70, pal.hi, 3);
+        if (half & 1) centre('INSERT COIN', 106, pal.b, 1);
+      } else if (st.mode === 'over'){
+        g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(0, 76, W, 30);
+        centre(st.msg, 84, pal.hi, 2);
+      }
+      tex.needsUpdate = true;
+      // the tube answers the music: the glow and the fringing ride the hit, a flash is an event's, a shake is a loss's
+      st.flash *= Math.exp(-dt * 6); st.shake *= Math.exp(-dt * 8);
+      varU.uGlow.value = (0.55 + f.beat * 0.9 + f.energy * 0.3) * (calm ? 0.6 : 1);
+      varU.uAber.value = (0.25 + f.beat * 1.6 + f.bass * 0.5) * (calm ? 0.3 : 1);
+      varU.uFlash.value = Math.min(calm ? 0.12 : 0.4, st.flash);
+      const sh = calm ? 0 : st.shake * 0.012;
+      varU.uShake.value.set(Math.sin(st.clock * 97) * sh, Math.cos(st.clock * 131) * sh);
+    },
+    roll(){
+      varU.uVarA.value = Math.random();
+      startGame((Math.random() * GAMES.length) | 0);
+      return api.name;
+    },
+    /* pick a cabinet by hand — the smoke tools walk all six this way */
+    play(i, now){
+      startGame(((i | 0) % GAMES.length + GAMES.length) % GAMES.length);
+      if (now) st.mode = 'play';
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -32202,7 +32984,7 @@ function initThree(){
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
               buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain(),
-              buildEigenstate(), buildCreature(), buildBarkley(), buildVerse());
+              buildEigenstate(), buildCreature(), buildBarkley(), buildVerse(), buildArcade());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

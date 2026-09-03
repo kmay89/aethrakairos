@@ -2101,7 +2101,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 35);
+  assert.equal(S.SCENE_KEYS.length, 36);
 });
 
 test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
@@ -2393,7 +2393,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 35; sc++)
+  for (let sc = 0; sc < 36; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2440,7 +2440,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 35; sc++)
+  for (let sc = 0; sc < 36; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -2995,7 +2995,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 35; sc++)
+  for (let sc = 0; sc < 36; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);

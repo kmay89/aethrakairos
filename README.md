@@ -1253,6 +1253,49 @@ the pole for the pyramid builders, δ Cephei whose pulse became the
 measuring rod for the universe, 61 Cygni as the first star ever to have its
 distance measured.
 
+## The arcade — video game mode
+
+Scene 36 is one cathode-ray tube and six of the games every arcade had,
+played by the music. None of it is a video. Each game is a small, real
+simulation with a player of its own:
+
+- **MAZE** — a chomper walks a maze of pellets by breadth-first search to the
+  nearest one, with any tile beside an unfrightened spook struck off the map;
+  four spooks chase (or flee) with a little chance in them. A power pellet
+  turns them, and eating one is a burst and a `200`.
+- **INVADERS** — the fleet marches on the beat and its ranks *are* the bands:
+  the bottom rank lights with the bass, the top with the treble. The gun
+  fires on an onset; the shields erode.
+- **BRICKS** — the wall is an equaliser: every column's brightness is the
+  live spectrum bin under it. The paddle goes where the ball will land, or
+  where your hand is.
+- **BLOCKS** — a one-ply search scores every rotation at every column the way
+  a tidy player does (low, flat, no holes, lines above all) and then plays
+  the move with a player's hands: one rotation, one column, one row per
+  half-beat. A real kick slams the piece home.
+- **SNAKE** — breadth-first to the food, or any safe move at all; the bass
+  runs down the body as a pulse of light.
+- **PONG** — two paddles that track the ball with an error that grows with
+  the energy, so the points fall on the drop.
+
+The clock is the dance's own beat count — grid-locked when there is a grid,
+freewheeling when there is not, and a 120 bpm attract-mode tick when nothing
+plays — and every move lands on the **half-beat**, so the room steps with
+the song rather than flashing at it.
+
+The bang for the buck is in the split. The games are drawn on a 256×192
+canvas with `fillRect` — a few hundred lines for all six — and **one**
+fullscreen shader makes that canvas a television: barrel glass, scanlines
+on the real rows, a slot mask on the real screen pixels, an eight-tap bloom,
+chromatic fringing that rides the beat, a bezel, and the light the picture
+throws on the cabinet. Every game gets the whole look for free, and the look
+is what makes eight-pixel sprites read as a memory rather than a mock-up.
+The whole room costs one small texture upload a frame and one quad, so it is
+among the cheapest scenes on the roster, and it is never `heavy`. The
+photosensitivity gate applies as everywhere: CALM and reduced-motion cut the
+flash, the fringing and the shake. The names and sprites are the room's own
+homages, not the trademarked characters.
+
 ## The lamp — a scene where the wax is a fluid
 
 Scene 18 is a lava lamp, and the wax in it is *solved*, not animated. The

@@ -3,6 +3,19 @@
   "entries": [
     {
       "build": "unreleased",
+      "date": "2026-09-03",
+      "title": "Video game mode",
+      "notes": [
+        "a new room: ARCADE — one cathode-ray tube and six of the games every arcade had, played by the music. A chomper walks a MAZE of pellets with four spooks after it, a fleet of INVADERS marches with its ranks lit by the bands (bass at the bottom, treble at the top), a wall of BRICKS is the live spectrum, a tidy player stacks BLOCKS in a well, a SNAKE hunts its food, and two paddles keep a PONG rally — every move on the half-beat, an onset a shot or a kick, a real kick slamming a block home",
+        "the games are drawn on a 256×192 canvas and one shader makes it a television — barrel glass, scanlines, a slot mask, bloom, chromatic fringing on the hit, a bezel, and the light the picture throws on the cabinet — so the room costs one small texture a frame and is never heavy",
+        "your hand on the glass is the paddle; CALM and reduced motion cut the flash, the fringing and the shake"
+      ],
+      "builds": [
+        "2a529b079a"
+      ]
+    },
+    {
+      "build": "unreleased",
       "date": "2026-08-31",
       "title": "The room learned to dance",
       "notes": [
