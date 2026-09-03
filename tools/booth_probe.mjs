@@ -638,10 +638,11 @@ const cue = await page.evaluate(async () => {
   const waited = !!FX.jump;
   const t = Date.now();
   while (FX.jump && Date.now() - t < 3000) await new Promise(r => setTimeout(r, 10));
+  const fired = Date.now();                             // the jump went on the beat line, not at the press
   await new Promise(r => setTimeout(r, 250));
   // where the playhead is now, minus what has elapsed since the landing, should be the cue
   const back = d.a.currentTime;
-  const land = back - ((Date.now() - t) / 1000) * (d.a.playbackRate || 1);
+  const land = back - ((Date.now() - fired) / 1000) * (d.a.playbackRate || 1);
   const phaseNow = ((back - grid) % spb + spb) % spb;
   CUES.del(0);
   return { at, onGrid, near, waited, phaseAtPress: phase / spb, landErr: land - at, phaseErr: Math.min(phaseNow, spb - phaseNow), spb, grid: CLOCK.haveGrid };

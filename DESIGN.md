@@ -1349,7 +1349,7 @@ scenes, booth and sliced screen alike.
   `ScriptProcessorNode` on the main thread; a block it fails to collect is a
   hole in the ring, and a loop cut across it is a splice on every lap. The
   processor's own `playbackTime` says where each block belongs, so a tear is
-  now noted where it fell (`tapeTear`), a cut that spans one is refused
+  now noted where it fell (`tapeTearStep`: the tape measured against the audio clock — a lag that rises and stays, never the dispatch-stamped `playbackTime`, whose gaps are jitter), a cut that spans one is refused
   (`ringTornIn`), and the anchor moves to the current lap — the re-seek loop is
   replaying the same slice underneath, so the same music is on the tape again
   a lap later, whole. The loop probe plants a tear by hand and watches the cut

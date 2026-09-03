@@ -32,7 +32,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
   ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
-  ' tapeTear, ringTornIn, loopDeckReady, loopHandbackAt,' +
+  ' TEAR_WINDOW, TEAR_MIN, makeTearWatch, tapeTearStep, ringTornIn, loopDeckReady, loopHandbackAt,' +
   ' CUE_SLOTS, CUE_COLORS, cueSnap, cueJumpAt, cueJumpLand, beatJumpTarget, EQ_KILL_DB, EQ_BANDS, fxEqToggle, fxEqIsFlat,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
@@ -5967,14 +5967,33 @@ test('the generalized doctor holds every shipped pack to the golden contract', a
 }
 
 // ---------------------------------------------------------------- the tape tears, the deck is asked
-test('tapeTear: a block that arrives later than the last one ended is a tear; on time is not', () => {
-  const blk = 4096 / 48000;
-  assert.equal(S.tapeTear(1.0, 1.0, blk), false, 'exactly on time');
-  assert.equal(S.tapeTear(1.0 + blk * 0.3, 1.0, blk), false, 'jitter under half a block is the clock, not a hole');
-  assert.equal(S.tapeTear(1.0 + blk * 1.0, 1.0, blk), true, 'a whole block missing');
-  assert.equal(S.tapeTear(1.0 + blk * 7, 1.0, blk), true, 'a stalled frame');
-  assert.equal(S.tapeTear(undefined, 1.0, blk), false, 'a browser without playbackTime never reports a tear');
-  assert.equal(S.tapeTear(1.0, 0, blk), false, 'the first block has nothing to be late against');
+test('tapeTearStep: jitter is not a tear, a stall that drains is not a tear, a drop that stays is', () => {
+  const B = 4096, w = S.makeTearWatch();
+  let at = 0, tears = [];
+  const step = lag => { const r = S.tapeTearStep(w, lag, at, B); at += B; if (r != null) tears.push(r); };
+  // steady state: the clock runs a little ahead, with dispatch jitter of up to a block
+  const jit = [0.2, 0.6, 0.1, 0.9, 0.3, 0.7, 0.05, 0.5, 0.4, 0.8, 0.2, 0.3];
+  for (let i = 0; i < 40; i++) step(B * (0.3 + jit[i % jit.length]));
+  assert.deepEqual(tears, [], 'ordinary jitter never tears the tape');
+  // a stall: the lag spikes by six blocks, then the backlog drains in a burst
+  step(B * 6.9); step(B * 5.2); step(B * 4.1); step(B * 3.0); step(B * 2.1); step(B * 1.1);
+  for (let i = 0; i < 20; i++) step(B * (0.3 + jit[i % jit.length]));
+  assert.deepEqual(tears, [], 'a backlog that drains is not a hole');
+  // a real drop: two blocks never arrive, so the lag rises by two and stays
+  const dropAt = at;
+  for (let i = 0; i < 20; i++) step(B * (2.3 + jit[i % jit.length]));
+  assert.equal(tears.length, 1, 'one tear');
+  assert.ok(Math.abs(tears[0] - dropAt) <= B, 'placed where the rise began (a jitter block early is fine): ' + tears[0] + ' vs ' + dropAt);
+  assert.ok(w.base > B * 2, 'the floor moved up to the new lag');
+  // and life goes on: the same jitter at the new floor is not another tear
+  for (let i = 0; i < 40; i++) step(B * (2.3 + jit[i % jit.length]));
+  assert.equal(tears.length, 1);
+  // a second drop is a second tear
+  const drop2 = at;
+  for (let i = 0; i < 20; i++) step(B * (3.4 + jit[i % jit.length]));
+  assert.equal(tears.length, 2); assert.ok(Math.abs(tears[1] - drop2) <= B);
+  assert.equal(S.tapeTearStep(null, 1, 0, B), null, 'no watch, no tear');
+  assert.equal(S.tapeTearStep(S.makeTearWatch(), NaN, 0, B), null, 'a broken reading is ignored');
 });
 test('ringTornIn: a cut is refused only when a tear falls strictly inside it', () => {
   assert.equal(S.ringTornIn([], 100, 50), false);

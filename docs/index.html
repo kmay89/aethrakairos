@@ -15930,13 +15930,43 @@ function fxEqIsFlat(eq){
 /* THE TAPE CAN TEAR. The recorder runs on the main thread, and a block the
    main thread fails to collect in time is a block that never reached the ring:
    the tape then holds two moments of music butted together as if they were
-   one, and a loop cut across that join carries the splice on every lap. The
-   recorder notes where each tear fell (tapeTear, from the processor's own
-   clock); a cut that spans one is refused (ringTornIn) and taken from the
-   next lap instead, where the music is whole. */
-function tapeTear(playbackTime, expected, blockSec){
-  if (!(expected > 0) || !(blockSec > 0) || !(playbackTime >= 0)) return false;
-  return playbackTime - expected > blockSec * 0.5;
+   one, and a loop cut across that join carries the splice on every lap. A cut
+   that spans a tear is refused (ringTornIn) and taken from the next lap
+   instead, where the music is whole.
+
+   HOW A TEAR IS SEEN — and how it is not. The processor's own playbackTime
+   is stamped at DISPATCH, not counted in samples: measured, consecutive
+   stamps jitter between 0.6 and 1.3 blocks apart under ordinary load, and a
+   600 ms stall delivers six queued blocks with identical stamps and loses
+   none of them. A detector that read those gaps as holes refused every
+   other cut. So the tape is measured against the audio clock instead: the
+   LAG is how many samples the clock has advanced beyond what the tape has
+   received. A stall makes the lag spike and then fall back as the backlog
+   drains; a real drop makes it rise and STAY. Only a rise that outlasts a
+   window of blocks — the low point of the rise still above the old floor —
+   is a tear, placed at the block where the rise began. */
+const TEAR_WINDOW = 8;        // blocks a rise must persist to be a tear (~0.75 s at 4096/44.1k)
+const TEAR_MIN = 0.75;        // of a block: less is jitter
+function makeTearWatch(){ return { base: null, riseAt: null, low: Infinity, count: 0 }; }
+function tapeTearStep(w, lag, at, blockN){
+  if (!w || !(blockN > 0) || !isFinite(lag)) return null;
+  if (w.base == null){ w.base = lag; return null; }
+  const thr = w.base + blockN * TEAR_MIN;
+  if (lag > thr){
+    if (w.riseAt == null){ w.riseAt = at; w.low = lag; w.count = 0; }
+    if (lag < w.low) w.low = lag;
+    w.count++;
+    if (w.count >= TEAR_WINDOW && w.low > thr){
+      const tearAt = w.riseAt;
+      w.base = w.low; w.riseAt = null; w.low = Infinity; w.count = 0;
+      return tearAt;
+    }
+    return null;
+  }
+  // back at the floor: the rise was a backlog, not a hole; the floor may settle lower
+  w.riseAt = null; w.low = Infinity; w.count = 0;
+  if (lag < w.base) w.base = lag;
+  return null;
 }
 function ringTornIn(tears, from, n){
   if (!tears || !tears.length || !(n > 0)) return false;
@@ -18385,7 +18415,7 @@ const LOOP_BACK_MAX   = 1.50;    // how long a handback will wait for that befor
 
 const LOOPER = {
   ring: null, cap: 0, sr: 0, written: 0, liveFrom: 0,
-  tears: [], torn: 0, _expectPT: 0,        // where the recorder lost blocks (tape indices)
+  tears: [], torn: 0, _tearW: null, _openCt: null,   // where the recorder lost blocks (tape indices)
   backing: null, _backT: 0, waits: 0, backLate: 0,   // a handback waiting on the deck
   K: null, _cal: null,                     // tape index n is heard at n/sr + K
   tap: null, sink: null, out: null, src: null,
@@ -18416,7 +18446,7 @@ const LOOPER = {
       // the bus is actually connected — until then have() must read zero, or a
       // loop would try to cut its in-point out of the calibration silence
       this.written = 0; this.liveFrom = Infinity; this.K = null;
-      this.tears = []; this._expectPT = 0;
+      this.tears = []; this._tearW = makeTearWatch(); this._openCt = null;
       const sp = ctx.createScriptProcessor(4096, 2, 1);
       sp.onaudioprocess = e => this._write(e);
       // a processor nobody listens to is a processor the graph never pulls, so
@@ -18485,14 +18515,18 @@ const LOOPER = {
     if (!this.ring) return;
     const inp = e.inputBuffer, n = inp.length, cap = this.cap, nCh = inp.numberOfChannels;
     const base = this.written;
-    // a block that arrives later than the last one ended is a block with a
-    // hole in front of it: the join is noted at the sample about to be written
-    if (tapeTear(e.playbackTime, this._expectPT, n / this.sr)){
-      this.tears.push(base); this.torn++;
-      while (this.tears.length && this.tears[0] < base - cap) this.tears.shift();
-      if (this.tears.length > 64) this.tears.shift();
+    // the tape against the clock: a lag that rises and stays is a hole (see tapeTearStep)
+    {
+      const ct = AE.ctx.currentTime;
+      if (this._openCt == null) this._openCt = ct - base / this.sr;
+      const lag = (ct - this._openCt) * this.sr - (base + n);
+      const tearAt = tapeTearStep(this._tearW, lag, base, n);
+      if (tearAt != null){
+        this.tears.push(tearAt); this.torn++;
+        while (this.tears.length && this.tears[0] < base - cap) this.tears.shift();
+        if (this.tears.length > 64) this.tears.shift();
+      }
     }
-    this._expectPT = (e.playbackTime >= 0 ? e.playbackTime : 0) + n / this.sr;
     for (let c = 0; c < 2; c++){
       const src = inp.getChannelData(nCh > 1 ? c : 0), dst = this.ring[c];
       let i = 0, p = base % cap;
@@ -19201,7 +19235,7 @@ const CUES = {
     const d = activeDeck();
     const at = pos != null ? pos : (d ? d.a.currentTime : 0);
     const snapped = cueSnap(at, FX.grid(), FX.bpm(), CLOCK.haveGrid);
-    this.slots[i] = Math.round(snapped * 1000) / 1000;
+    this.slots[i] = snapped;                  // full precision: a beat line is not a millisecond
     this._save();
     return this.slots[i];
   },

@@ -517,10 +517,13 @@ Three more things, found by listening harder:
   main thread fails to collect in time is a block that never reached the ring —
   the tape then holds two moments of music butted together as if they were one,
   and a loop cut across that join carries the splice on every lap. The recorder
-  now notes where each tear fell, off the processor's own clock; a cut that spans
-  one is **refused**, the anchor is moved to the next lap (the re-seek loop is
-  replaying the same slice underneath), and the loop is taken from tape that is
-  whole.
+  now notes where each tear fell — by measuring the tape against the audio
+  clock, because the processor's own `playbackTime` turned out to be stamped at
+  dispatch and jitters by a block under ordinary load: a stall's backlog is a
+  lag that rises and drains, a hole is a lag that rises and stays. A cut that
+  spans one is **refused**, the anchor is moved to the next lap (the re-seek
+  loop is replaying the same slice underneath), and the loop is taken from tape
+  that is whole.
 - **The handback asks the deck.** Letting go of a loop seeks the deck early and
   lets the loop cover for it — but the crossover used to be scheduled at a fixed
   lead regardless of whether the deck had anything to play there, and a seek
