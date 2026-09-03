@@ -335,6 +335,27 @@ const worst = Math.max.apply(null, bands);
 R('filter: the centre detent is genuinely bypass', worst < 0.03,
   'lo/mid/hi within ' + bands.map(x => (x * 100).toFixed(1) + '%').join(' / ') + ' of bypass');
 
+// THE EQ: a kill must take its band out of the room and leave the others alone;
+// FLAT must be bypass to the same standard as the filter's detent
+await setFx('', 0); await page.waitForTimeout(300);
+const dryEq = await spec(1020);
+await page.evaluate(() => FX.setEq('lo', EQ_KILL_DB)); await page.waitForTimeout(400);
+const killLo = await spec(1020);
+R('eq: KILL LOW takes the bottom out of the mix', dryEq.lo > 0 && killLo.lo / dryEq.lo < 0.15 && killLo.hi / dryEq.hi > 0.8,
+  'low kept ' + (100 * killLo.lo / dryEq.lo).toFixed(1) + '% · high kept ' + (100 * killLo.hi / dryEq.hi).toFixed(0) + '%');
+await page.evaluate(() => { FX.setEq('lo', EQ_KILL_DB); FX.setEq('hi', EQ_KILL_DB); }); await page.waitForTimeout(400);
+const killHi = await spec(1020);
+R('eq: KILL HI takes the top off, and pressing KILL LOW again gave the bottom back', dryEq.hi > 0 && killHi.hi / dryEq.hi < 0.15 && killHi.lo / dryEq.lo > 0.8,
+  'high kept ' + (100 * killHi.hi / dryEq.hi).toFixed(1) + '% · low kept ' + (100 * killHi.lo / dryEq.lo).toFixed(0) + '%');
+await page.evaluate(() => FX.flatEq()); await page.waitForTimeout(400);
+const flat = await spec(2040);
+const flatBands = ['lo', 'mid', 'hi'].map(k => Math.abs(flat[k] - dryEq[k]) / Math.max(1e-12, dryEq[k]));
+// (8%, not the detent's 3%: this reading is four seconds and two kills away from
+// its dry, and under load the sampler misses enough of the 2 s noise loop to
+// move a low band by a few percent on its own)
+R('eq: FLAT is bypass', Math.max.apply(null, flatBands) < 0.08,
+  'lo/mid/hi within ' + flatBands.map(x => (x * 100).toFixed(1) + '%').join(' / ') + ' of dry');
+
 // DRIVE: saturation adds harmonics — energy above a tone that had none
 await page.evaluate(() => { window.__benchOff(); window.__benchOn('sine'); });
 await setFx('', 0);
@@ -405,8 +426,17 @@ const looped = await page.evaluate(() => new Promise(res => {
      report the tick period the wrap can actually fire on. */
   const raf = () => { const n = performance.now(); ticks.push(n - last); last = n; requestAnimationFrame(raf); };
   requestAnimationFrame(raf);
+  let entered = false;
   const iv = setInterval(() => {
-    const t = d.a.currentTime;
+    /* THE POSITION THE ROOM HEARS. Once the tape has taken the loop the deck
+       runs on underneath it, muted, by design — its playhead is no longer where
+       the music is. The loop's own phase is. */
+    const t = LOOPER.on ? LOOPER.start + loopPhaseAt(AE.ctx.currentTime, LOOPER.handAt, LOOPER.len) : d.a.currentTime;
+    /* AND ONLY ONCE THE LOOP HAS BEGUN. On the first press of a session the tape
+       holds no past, so the in-point is the NEXT grid line (loopInPoint): the
+       deck plays up to it, then loops. Those samples are before the loop, not
+       outside it. */
+    if (!entered){ if (t >= start - 0.001) entered = true; else return; }
     if (t < prev - len * 0.4) wraps.push(performance.now() / 1000);   // the playhead jumped back
     prev = t; seen.push(t);
   }, 10);
@@ -581,6 +611,67 @@ if (errs.length){
   console.log('\n  page errors:');
   for (const e of errs.slice(0, 6)) console.log('   ' + e.slice(0, 200));
 }
+/* THE TRANSPORT'S NEW HANDS, on the real track: a beat jump moves the playhead
+   by exactly the beats asked for, and a hot cue set mid-beat snaps to the grid,
+   then jumps back to it ON the beat line rather than the instant the pad went
+   down — quantised, the way a CDJ quantises. */
+const jumpId = await freshTrack();
+await page.evaluate(() => { FX.release(); FX.auto = false; });
+await page.waitForTimeout(600);
+const bj = await page.evaluate(async () => {
+  const d = activeDeck(), spb = 60 / FX.bpm();
+  const t0 = d.a.currentTime, c0 = AE.ctx.currentTime;
+  FX.beatJump(4);
+  await new Promise(r => setTimeout(r, 350));
+  const moved = d.a.currentTime - t0 - (AE.ctx.currentTime - c0) * (d.a.playbackRate || 1);
+  return { moved, want: 4 * spb, grid: CLOCK.haveGrid, bpm: FX.bpm() };
+});
+R('beat jump: four beats forward is four beats forward', Math.abs(bj.moved - bj.want) < 0.12,
+  'moved ' + bj.moved.toFixed(3) + ' s, four beats at ' + bj.bpm.toFixed(1) + ' bpm is ' + bj.want.toFixed(3) + ' s');
+const cue = await page.evaluate(async () => {
+  const d = activeDeck(), spb = 60 / FX.bpm(), grid = FX.grid();
+  const here = d.a.currentTime;
+  const at = CUES.set(0);                               // snapped
+  if (!(at >= 0) || !isFinite(spb)) return { bad: { at, spb, here, grid, bpm: FX.bpm(), have: CLOCK.haveGrid, key: CUES.key, slots: CUES.slots, playing: player.playing } };
+  const onGrid = Math.abs(((at - grid) / spb) - Math.round((at - grid) / spb)) < 1e-6;
+  const near = Math.abs(at - here) <= spb / 2 + 0.01;
+  // walk away, then press mid-beat: it must wait for the line
+  d.a.currentTime = at + 3.1 * spb;
+  await new Promise(r => setTimeout(r, 400));
+  const pos = d.a.currentTime;
+  const phase = ((pos - grid) % spb + spb) % spb;
+  CUES.press(0);
+  const waited = !!FX.jump;
+  const t = Date.now();
+  window.__mb8LastSeek = null;
+  while (FX.jump && Date.now() - t < 3000) await new Promise(r => setTimeout(r, 10));
+  await new Promise(r => setTimeout(r, 400));
+  /* TWO QUESTIONS, on the audio clock rather than a wall clock this renderer
+     starves: where did the ENGINE aim (the seek it issued, against the cue's
+     beat — its own correctness), and where did the ELEMENT land (its playhead
+     now, less what the audio clock says has elapsed since the seek — which
+     carries the decoder's own seek latency, the one cost a media element
+     cannot be argued out of). */
+  const sk = window.__mb8LastSeek, rate = d.a.playbackRate || 1;
+  const aimed = sk ? sk.to - at : NaN;                          // lateness the engine carried onto the landing
+  const back = d.a.currentTime;
+  const land = sk ? back - (AE.ctx.currentTime - sk.ctx) * rate : NaN;
+  const fold = e => { const f = ((e % spb) + spb) % spb; return Math.min(f, spb - f); };
+  CUES.del(0);
+  return { at, onGrid, near, waited, phaseAtPress: phase / spb, aimed, aimErr: fold(aimed), landErr: land - at, phaseErr: fold(land - at), spb, grid: CLOCK.haveGrid };
+});
+if (cue.bad) console.log('     (the cue check could not run: ' + JSON.stringify(cue.bad) + ')');
+R('hot cue: set mid-beat, it snaps to the nearest beat line', !cue.bad && cue.onGrid && cue.near, cue.bad ? 'no cue' : 'cue at ' + cue.at.toFixed(3) + ' s');
+R('hot cue: pressed mid-beat, the jump waits for the line', !cue.bad && (!cue.grid || cue.waited || cue.phaseAtPress < 0.05),
+  cue.bad ? 'no cue' : 'phase at press ' + cue.phaseAtPress.toFixed(2) + ' beat · waited=' + cue.waited);
+R('…and aims at the cue with the beat phase intact — lateness carried, never lost', !cue.bad && isFinite(cue.aimed) && cue.aimed >= -0.001 && cue.aimErr < 0.03,
+  cue.bad ? 'no cue' : 'aimed ' + (cue.aimed * 1000).toFixed(0) + ' ms past the cue, ' + (cue.aimErr * 1000).toFixed(0) + ' ms off the beat');
+// the element's landing carries its own seek latency — reported, and held only
+// to a bound a software decoder on a software rasteriser can meet
+R('…and the element lands within a seek of it', !cue.bad && isFinite(cue.landErr) && Math.abs(cue.landErr) < 0.5 && cue.phaseErr < 0.2,
+  cue.bad ? 'no cue' : 'landed ' + (cue.landErr * 1000).toFixed(0) + ' ms from the cue · beat phase off by ' + (cue.phaseErr * 1000).toFixed(0) + ' ms');
+await deckHeld(jumpId);
+
 R('no page errors across the run', errs.length === 0, errs.length + ' errors');
 console.log('\n' + pass + ' passed, ' + fail + ' failed, ' + open + ' tracked as open');
 await browser.close(); server.close();

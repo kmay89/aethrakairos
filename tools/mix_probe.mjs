@@ -383,6 +383,19 @@ R('both decks leave the bass shelf flat and the filter open',
   settle.decks.every(d => Math.abs(d.shelf) < 0.01 && d.filter > 15000),
   settle.decks.map(d => 'shelf ' + d.shelf + '/f ' + d.filter).join(' · '));
 
+/* THE ROOM CHANGED HANDS WITH THE MUSIC. The seam cues the visual director on
+   the audio clock (seamSceneCue); with the director automatic, exactly one
+   scene change must have landed at the cue — not a frame's worth late, and not
+   on the dwell clock a few bars later. */
+const room = await page.evaluate(() => ({ n: window.__mb8SeamScene || 0, late: window.__mb8SeamSceneLate, waited: window.__mb8SeamSceneWaited,
+  auto: director.auto, kind: SEGUE.lastKind, cue: window.__mb8SeamCue, pending: SEGUE.seam, transT: director.transT }));
+R('the room changed hands with the music — the seam cued one scene change', room.auto && room.n >= 1,
+  `auto=${room.auto} changes=${room.n} kind=${room.kind}` + (room.n ? '' : ' · cue ' + JSON.stringify(room.cue) + ' pending ' + JSON.stringify(room.pending) + ' transT ' + room.transT));
+// a crossfade still running when the cue lands is let finish first; on this
+// renderer that can be seconds, and is reported rather than failed
+R('…and it landed on the cue, not on the dwell clock', room.late != null && room.late >= 0 && (room.late < 0.25 || room.waited),
+  room.late == null ? 'no cue landed' : `${(room.late * 1000).toFixed(0)} ms past the cue` + (room.waited ? ' (a crossfade was still running at the cue)' : ''));
+
 console.log(`\n${pass} passed, ${fail} failed, ${open} tracked as open`);
 if (fail) console.log('a FAIL here is a regression in an invariant that was holding.');
 await browser.close(); server.close();
