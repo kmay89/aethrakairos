@@ -4,6 +4,22 @@
     {
       "build": "unreleased",
       "date": "2026-09-03",
+      "title": "The laws, and the one ring",
+      "notes": [
+        "ONE RING, and it travels: the single most useful action on the screen wears a conic-gradient light that genuinely turns — the language your browser leans toward, then the invitation to press play, which it leaves the moment the music starts, because a mark that never goes away is decoration. There is exactly one of it in the document, so the rule that there may only be one cannot be broken by forgetting",
+        "the turn is a registered custom property (@property with syntax:\"<angle>\"), which is the only way a conic gradient can rotate at all — so it runs on the compositor and keeps turning while the main thread draws thirty-six rooms; reduced motion stops it dead and keeps the mark",
+        "FITTS'S LAW, without moving a pixel: every control now reaches a real target — 44 px under a thumb, 24 under a mouse — through a transparent layer that grows the TARGET and not the ink, budgeted to half the gap so it can never swallow its neighbour. Where the gap could not pay for it, the gap is what changed; the seek strip and the volume slider grew for real, because a drag has to begin inside the thing being dragged",
+        "ten HUD chips are now three groups — the room, comfort and power, the mix — with the air between them beating the air inside one by 2.7×, ordered so that what you came for opens, the booth closes, and the set-once controls sit in the middle where things that are set once belong",
+        "the catalog box accepts what people actually paste: a bare hostname, a directory, a link still wearing its quotes or the full stop of the sentence it came from — and upgrades an http link on an https page instead of failing silently on mixed content, while still refusing javascript:, data: and file: rather than guessing",
+        "twenty named laws became twenty pure functions with a unit suite, and a new probe (tools/ux_probe.mjs) measures the shipped page against them by hit-testing rather than by reading the stylesheet — it found the scene dots and the top bar quietly keeping their old sizes, and said so"
+      ],
+      "builds": [
+        "f2d482b3f0"
+      ]
+    },
+    {
+      "build": "unreleased",
+      "date": "2026-09-03",
       "title": "The oscilloscope",
       "notes": [
         "a new room: SCOPE — one cathode-ray tube with a green P31 phosphor, ruled ten by eight, and a beam that draws: Lissajous figures whose ratio is the interval and whose turn is the beat, the harmonograph's decaying spirals struck by an onset, a wireframe polyhedron in vector-display style, epicycle rosettes whose harmonics are the bands, and a dual-trace Y–T sweep of the live waveform, triggered on a rising edge, over the live spectrum",

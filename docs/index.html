@@ -916,7 +916,9 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 
 /* -------- HUD readout: the instrument strip -------- */
 .hud{
-  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  /* 16 between groups against 6 inside one: 2.7×, comfortably past the 1.8×
+     proximityOk() calls the line between "a group" and "a long row" */
+  display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;
   border-top:1px solid var(--line-soft);padding-top:7px;
   font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--faint);
   user-select:none;
@@ -926,6 +928,143 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   letter-spacing:.18em;cursor:pointer;color:var(--dim);transition:all .2s;min-height:0;
 }
 .hud .chip.on{color:var(--accent-ink);background:linear-gradient(120deg,var(--accent-2),var(--accent));border-color:transparent;font-weight:600;box-shadow:0 0 14px -3px var(--accent-glow)}
+/* ============================================================
+   FITTS'S LAW — the finger's target, not the ink's.
+
+   Reaching a control costs the log of how far away it is over how wide it
+   is, so the cheapest improvement any interface can buy is a bigger
+   target. The floor is 44 CSS px on a touch screen (Apple's HIG) and
+   24 px anywhere (WCAG 2.5.8) — and the INK of a dense instrument panel
+   has no business obeying either. A nine-pixel readout chip is the right
+   nine pixels; making it forty-four would turn a console into a phone
+   app, which is a worse answer to a real problem.
+
+   So the pixels stay and the TARGET grows: a transparent layer, centred
+   on each control, that reaches out to the floor without moving a single
+   thing on the screen. Two rules make it honest rather than a trick:
+
+     · IT IS BUDGETED. A reach may take half the gap to its neighbour and
+       never more (fittsBudget) — past that the targets meet and the one in
+       front eats the one behind, which is the failure mode nobody looks
+       for and every crowded toolbar has. Where the gap cannot pay for the
+       floor, the GAP is what changes, not the budget.
+     · IT KNOWS WHAT IS POINTING AT IT. Fitts's constants are not the same
+       for a mouse and a thumb, so a fine pointer gets the 24 px floor and
+       the density it came for, and a coarse one gets the full 44.
+
+   `tools/ux_probe.mjs` measures both halves on the shipped page: every
+   control reaches the floor, and no control's reach touches a neighbour.
+   ============================================================ */
+:root{ --hit:24px; }
+@media (pointer:coarse){ :root{ --hit:44px; } }
+.hud .chip,.sdot,.tbtn,.fxb,.fxp,.tapbtn,.pl-x,.sortbtn,.fr-mini,.ob-dot,.btn,.con-mode,.lg-opt{
+  position:relative;
+}
+.hud .chip::before,.sdot::before,.tbtn::before,.fxb::before,.fxp::before,.tapbtn::before,
+.pl-x::before,.sortbtn::before,.fr-mini::before,.ob-dot::before,.btn::before,.con-mode::before{
+  content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:max(100%,var(--hit));height:max(100%,var(--hit));
+  border-radius:inherit;
+}
+/* THE VOLUME SLIDER IS FOUR PIXELS TALL, and a four-pixel drag target is a
+   miss with a shrug attached. The control grows to the floor at every pointer
+   size; the gradient still paints in the same 4 px strip because it is clipped
+   to the content box, so the transport looks exactly as it did. */
+#vol{height:24px;padding:10px 0;background-clip:content-box;background-origin:content-box}
+
+/* ============================================================
+   THE LONE RING — one action, marked by a light that turns.
+
+   The Von Restorff effect is a budget of exactly ONE: the thing that
+   looks unlike its neighbours is the thing that is remembered, and two of
+   them are not twice as memorable — they are a pattern, and a pattern is
+   wallpaper. Every interface that puts a glow on all of its buttons has
+   spent that budget on nothing.
+
+   So this is not a class that any button may wear. There is ONE ring in
+   the document and it TRAVELS: when the most valuable action on the
+   screen changes — an update lands, the empty state gives way to the
+   transport, the music starts and the invitation to press play is over —
+   the ring slides to wherever that action now is. The rule cannot be
+   broken by forgetting to remove a class, because there is only one of
+   the thing. (Which action, and why that one, is in LONE.)
+
+   THE TURN IS A REGISTERED CUSTOM PROPERTY, and that is the whole trick.
+   A conic gradient's angle is normally just a string to the animation
+   engine, so it cannot be interpolated and the gradient cannot rotate.
+   Declared through `@property` with `syntax:"<angle>"` the browser knows
+   it is an angle, interpolates it properly, and hands the rotation to the
+   compositor — no JavaScript, no layout, and it keeps turning smoothly
+   while the main thread is busy drawing thirty-five rooms. Where
+   @property is not understood the var() falls back to 0deg and the ring
+   is simply still: marked, not moving, never broken.
+
+   The ring is hollowed out with a two-layer mask (border box minus
+   content box) so it is a RING and not a filled tile, and the bloom is a
+   pair of drop-shadows, which follow the gradient's own shape rather than
+   painting a rectangle of light around it.
+   ============================================================ */
+@property --mb8-turn{ syntax:'<angle>'; inherits:false; initial-value:0deg }
+#loneRing{
+  /* above every dialog in the file (60…96) and below the splash (100), because
+     the action worth marking is often INSIDE a dialog — and pointer-events:none
+     throughout, so a ring can never be the thing a press lands on */
+  position:fixed;z-index:99;pointer-events:none;opacity:0;
+  transition:opacity .34s ease,
+    top .42s cubic-bezier(.3,0,.15,1),left .42s cubic-bezier(.3,0,.15,1),
+    width .42s cubic-bezier(.3,0,.15,1),height .42s cubic-bezier(.3,0,.15,1),
+    border-radius .42s cubic-bezier(.3,0,.15,1);
+}
+#loneRing.on{opacity:1}
+/* the ring travels; on its FIRST appearance it has nowhere to travel from,
+   so it arrives in place rather than flying in from the top-left corner */
+#loneRing.warp{transition:opacity .34s ease}
+#loneRing i{
+  position:absolute;inset:0;border-radius:inherit;display:block;
+  padding:1.7px;                                  /* the ring's own thickness */
+  background:conic-gradient(from var(--mb8-turn,0deg),
+    transparent 0 4%,var(--accent) 15%,var(--accent-2) 21%,transparent 34%,
+    transparent 54%,var(--accent) 71%,var(--accent-2) 77%,transparent 90% 100%);
+  -webkit-mask-image:linear-gradient(#000 0 0),linear-gradient(#000 0 0);
+  -webkit-mask-clip:content-box,border-box;
+  -webkit-mask-composite:xor;
+  mask-image:linear-gradient(#000 0 0),linear-gradient(#000 0 0);
+  mask-clip:content-box,border-box;
+  mask-composite:exclude;
+  filter:drop-shadow(0 0 6px var(--accent-glow)) drop-shadow(0 0 16px var(--accent-glow));
+  animation:mb8Turn 4.2s linear infinite;
+}
+@keyframes mb8Turn{ to{ --mb8-turn:360deg } }
+/* CALM slows the light everywhere else; it slows this too. Reduced motion
+   stops it dead — the mark stays, the movement goes, which is the whole
+   distinction that setting is asking for. */
+html.calm #loneRing i{animation-duration:11s;filter:drop-shadow(0 0 5px var(--accent-glow))}
+@media (prefers-reduced-motion:reduce){
+  #loneRing i{animation:none}
+  #loneRing{transition:opacity .34s ease}
+}
+/* the immersive view is the one place with nothing to point at */
+body.zen #loneRing{opacity:0}
+
+/* MILLER · PROXIMITY · UNIFORM CONNECTEDNESS — ten chips, read as three.
+   Seven plus or minus two is a count of CHUNKS, not of items, so a strip of
+   ten controls in three named groups is three things to hold rather than
+   ten. What makes the grouping real is not the naming but the SPACING: the
+   air inside a group must beat the air between groups by enough to read as
+   deliberate (proximityOk holds it to 1.8×, and 6 against 16 is 2.7×), and a
+   shared container outranks mere nearness — hence the hairline, which is the
+   cheapest uniform connectedness there is.
+
+   Under Hick alone this grouping does not pay; hickGrouped says as much and
+   the unit suite proves it. It pays on the OTHER cost, the linear one:
+   finding the lens control among four labelled room controls is four
+   glances, and among ten undifferentiated chips it is ten. */
+.chipgroup{
+  display:flex;align-items:center;gap:6px;
+  padding:3px 7px;border:1px solid var(--line-soft);border-radius:11px;
+}
+@media (max-width:560px){ .chipgroup{padding:2px 5px;gap:5px} }
+
 /* ============ the smart update: badge + card ============ */
 #btnUpdate{position:relative}
 #btnUpdate.pulse::after{
@@ -2160,7 +2299,9 @@ body.clipping::after{
     -webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
   .scenedots::-webkit-scrollbar{display:none}
   .sdot{flex:none}
-  .hud{gap:8px;font-size:9px}
+  /* 14 between groups against 5 inside one is 2.8× — and the 10 px row gap is
+     what pays for the chips' vertical reach (34 + 10 = 44) */
+  .hud{gap:10px 14px;font-size:9px}
   .hud .ro:not(#mixNext){display:none}
   .hud .sep{display:none}
 }
@@ -2213,6 +2354,39 @@ body.clipping::after{
 #langGate .lg-x:hover{color:var(--ink)}
 #langGate .lg-card{position:relative}
 #langGate .lg-busy{font-size:12px;color:var(--faint);letter-spacing:.3em;min-height:14px}
+/* ============================================================
+   THE REACH, PAID FOR — last in the sheet on purpose.
+
+   Everything here overrides a rule written further up, and a few of them
+   override the phone's own breakpoint block, so this has to be the last
+   word or it is not a word at all. (It was not, the first time: the scene
+   dots and the top bar kept the sizes their own later rules gave them, and
+   the probe said so.)
+
+   Nothing here moves a pixel of the design on a desktop. On a touch
+   screen it buys the difference between a control that is aimed at and one
+   that is aimed near, and every number in it is a gap that could not pay
+   for the reach on its own (fittsBudget): half of a 7 px gap buys 42 where
+   44 is wanted, so the GAP is what changes.
+   ============================================================ */
+@media (pointer:coarse){
+  .hud{gap:10px 16px}
+  .hud .chip{padding:7px 10px}
+  .fxb{padding:9px 11px}
+  .tapbtn{padding:6px 9px}
+  .topactions{gap:10px}
+  .btn{min-height:44px}
+  .t-left,.t-right{gap:8px}
+  .tbtn.mode{width:38px;height:38px}
+  .sdot{width:32px;height:32px}
+  .volwrap{width:120px}
+  /* the two DRAG targets, which a hit layer cannot help: a drag has to begin
+     inside the thing being dragged, so these grow for real. Their ink does
+     not — the seek scope and rail sit where they always did, and the volume
+     gradient still paints in its own 4 px strip. */
+  #seek{height:44px}
+  #vol{height:44px;padding:20px 0}
+}
 </style>
 </head>
 <body>
@@ -2245,6 +2419,10 @@ body.clipping::after{
   <div id="zenTag"></div>
 </div>
 <canvas id="eqStrip" aria-hidden="true"></canvas>
+<!-- the one ring: which action it marks is LONE's business, and there is
+     deliberately only one of it in the whole document (Von Restorff) -->
+<div id="loneRing" aria-hidden="true"><i></i></div>
+
 <div id="fxOrb" role="button" tabindex="0" aria-label="Control orb — tap to bring the menu back, flick to shift the scene"><span class="orb-core"></span></div>
 <!-- immersive SCENE direction: step the look without opening the menu. Fades in
      with the light; taps here never summon the menu. -->
@@ -2801,16 +2979,29 @@ body.clipping::after{
     </div>
   </div>
   <div class="hud">
-    <button class="chip on" id="chipAuto" title="Auto director — the room arranges itself: which scene, how long it holds, how it answers your hand and how hot the colour runs, all from one reading of the music">AUTO</button>
-    <button class="chip" id="chipMix" hidden title="Auto-mix — beatmixed transitions where the grids agree, honest fades where they don't">MIX</button>
-    <button class="chip" id="chipStyle" hidden title="Transition style — how songs hand over. Adaptive: beatmix where it fits. Musical: let songs play out, then a quick fade. Club: long beatmatched blends. Tap to cycle.">≋ ADAPTIVE</button>
-    <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
-    <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
-    <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
-    <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle (W); in play mode, flick the orb.">PULL</button>
-    <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris. Tap to cycle (⇧L).">◈ NONE</button>
-    <button class="chip" id="chipPower" title="Power — AUTO adapts quality to this device; SHOW holds full density and keeps the screen awake; ECO halves the draw for pocket listening. Tap to cycle.">⚡ AUTO</button>
-    <button class="chip" id="chipEcho" title="Echoes — passing thoughts drift by like clouds: physicists, mathematicians, stoics. MUSE adds a question now and then you can answer. Tap to cycle.">✧ DRIFT</button>
+    <!-- TEN CHIPS, READ AS THREE. Grouped by what they govern — the room, the
+         listener's comfort, the mix — with the air inside a group beating the
+         air between them by 2.7× and a hairline to make the reading
+         unambiguous (Miller · proximity · uniform connectedness; see the CSS).
+         The order is the serial position effect: what people came for opens,
+         the headline feature closes, and the set-once comfort controls sit in
+         the middle, which is exactly where things that are set once belong. -->
+    <span class="chipgroup" role="group" aria-label="The room">
+      <button class="chip on" id="chipAuto" title="Auto director — the room arranges itself: which scene, how long it holds, how it answers your hand and how hot the colour runs, all from one reading of the music">AUTO</button>
+      <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle (W); in play mode, flick the orb.">PULL</button>
+      <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris. Tap to cycle (⇧L).">◈ NONE</button>
+      <button class="chip" id="chipEcho" title="Echoes — passing thoughts drift by like clouds: physicists, mathematicians, stoics. MUSE adds a question now and then you can answer. Tap to cycle.">✧ DRIFT</button>
+    </span>
+    <span class="chipgroup" role="group" aria-label="Comfort and power">
+      <button class="chip" id="chipCalm" aria-pressed="false" title="Calm — stricter flash governor, gentler pulses, slower light. The safety floor is always on; CALM lowers it further.">CALM</button>
+      <button class="chip" id="chipFeel" hidden aria-pressed="false" title="Feel — the beat as vibration in the hand that holds the phone">FEEL</button>
+      <button class="chip" id="chipPower" title="Power — AUTO adapts quality to this device; SHOW holds full density and keeps the screen awake; ECO halves the draw for pocket listening. Tap to cycle.">⚡ AUTO</button>
+    </span>
+    <span class="chipgroup" role="group" aria-label="The mix">
+      <button class="chip" id="chipMix" hidden title="Auto-mix — beatmixed transitions where the grids agree, honest fades where they don't">MIX</button>
+      <button class="chip" id="chipStyle" hidden title="Transition style — how songs hand over. Adaptive: beatmix where it fits. Musical: let songs play out, then a quick fade. Club: long beatmatched blends. Tap to cycle.">≋ ADAPTIVE</button>
+      <button class="chip" id="chipBooth" title="The booth — two decks, the seam, the phase lock: watch the engine mix (D)">BOOTH</button>
+    </span>
     <span class="meter" id="meterBar" role="img" aria-label="Beat meter — the downbeat dot lands heavier"><i></i><i></i><i></i><i></i></span>
     <span class="scenedots" id="sceneDots" role="group" aria-label="Scene select"></span>
     <span class="sep"></span>
@@ -12902,6 +13093,292 @@ function countFlashes(trace){
 }
 // @safe-end
 
+
+/* ================================================================
+   §7f · @ux — THE LAWS OF THE HAND AND THE EYE, as arithmetic.
+
+   A "UX law" is a named observation, and a named observation is not a
+   design. What makes this set worth shipping is that the useful half of
+   each one is a NUMBER: how long a choice costs, how far a thumb travels,
+   how many things a person can hold at once, how long a wait stops
+   feeling like part of the press. Numbers are pure functions, pure
+   functions are tested, and `tools/ux_probe.mjs` holds the shipped page
+   to them — so the interface answers to measurement rather than to
+   anybody's taste, which is the same bargain the mix engine and the
+   colour governor already made.
+
+   Three of them are not arithmetic and are not pretended to be. The
+   Gestalt readings — proximity, similarity, uniform connectedness,
+   Prägnanz — have no constant of their own, so each is stated as the one
+   claim a real layout can be checked against: a group's inner gap must be
+   smaller than the gap to what is outside it, or the grouping the eye
+   performs is not the grouping the design intended.
+
+   And two are not rules for the interface at all, but for the people
+   building it — Parkinson's law (work fills the time given, so the budget
+   is the design) and Tesler's law (a task's complexity is conserved, so
+   the only question is who carries it). They live here as budgets the
+   code can be held to, not as decoration.
+   ================================================================ */
+// @ux-start
+/* FITTS'S LAW — the cost of reaching. Time grows with the log of distance
+   over width, so a control is made easier by moving it nearer or making it
+   bigger, and the second is very nearly free. The floor is 44 CSS px
+   (Apple's HIG; WCAG 2.5.5 at AAA), which the INK of a dense instrument
+   panel has no business obeying — a nine-pixel chip is the right nine
+   pixels. What must be 44 is the TARGET. fittsReach says how far a
+   control's hit area has to grow past its own ink to get there;
+   fittsSteals says when that growth has gone too far and begun swallowing
+   its neighbour, which is the failure mode nobody checks for and every
+   crowded toolbar has. */
+const FITTS = { min: 44, a: 50, b: 150 };
+function fittsTime(dist, width, k){
+  const t = k || FITTS, w = width > 0 ? width : 1;
+  return t.a + t.b * Math.log2(Math.abs(dist || 0) / w + 1);
+}
+function fittsReach(w, h, min){
+  const m = min > 0 ? min : FITTS.min;
+  return { x: Math.max(0, (m - (w > 0 ? w : 0)) / 2), y: Math.max(0, (m - (h > 0 ? h : 0)) / 2) };
+}
+function rectGrow(r, px, py){
+  return { left: r.left - px, top: r.top - py, right: r.right + px, bottom: r.bottom + py };
+}
+function rectOverlap(a, b){
+  if (!a || !b) return 0;
+  const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+  const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+/* HOW FAR A REACH MAY GO. Half the gap to the neighbour, never more: past
+   that the two targets meet and the one in front eats the one behind. So
+   the honest expansion is the smaller of what Fitts wants and what the
+   layout can spare — and where those disagree, the gap is the bug. */
+function fittsBudget(want, gap){
+  const g = gap > 0 ? gap : 0;
+  return Math.max(0, Math.min(want > 0 ? want : 0, g / 2));
+}
+function fittsSteals(hit, ink, tol){
+  return rectOverlap(hit, ink) > (tol >= 0 ? tol : 1);
+}
+/* MINIMISE TARGET DISTANCE — controls used one after another belong next
+   to each other, and the cost of a layout is the travel its own sequences
+   ask for. */
+function travelCost(points){
+  let d = 0;
+  for (let i = 1; i < (points ? points.length : 0); i++){
+    const a = points[i - 1], b = points[i];
+    d += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return d;
+}
+/* HICK'S LAW — the cost of choosing. Deciding among n equally likely
+   things costs the log of n, so ten chips in a row is not ten times one
+   chip; it is about three and a half. The way to spend that budget is to
+   make the options UNEQUAL — one obvious default, the rest a step away —
+   because a log is only paid on what is actually being weighed. */
+const HICK = { a: 50, b: 150 };
+function hickTime(n, k){
+  const t = k || HICK;
+  return n > 0 ? t.a + t.b * Math.log2(n + 1) : t.a;
+}
+/* …and what grouping is actually WORTH, which is not what everyone assumes.
+   Under Hick alone, splitting nine options into three groups of three costs
+   MORE than the flat nine: two decisions, two constants, and a log that was
+   forgiving to begin with. That is the "flat beats deep" result the menu
+   literature keeps re-finding, and it is why this function exists rather
+   than a comfortable assertion that grouping is good.
+
+   Grouping pays for the OTHER cost — finding, which is linear. Scanning
+   three labelled groups of three is six glances; scanning nine unlabelled
+   things is nine. So the comparison has to carry both terms, and once it
+   does the answer is honest and useful: below about a dozen options a flat
+   row wins and the grouping is for the eye rather than the clock, and above
+   it the grouping starts winning outright. Below one, the split paid. */
+function hickGrouped(groups, perGroup, scanMs, k){
+  const scan = scanMs > 0 ? scanMs : 0, n = groups * perGroup;
+  const flat = hickTime(n, k) + scan * n;
+  const deep = hickTime(groups, k) + hickTime(perGroup, k) + scan * (groups + perGroup);
+  return flat > 0 ? deep / flat : 1;
+}
+/* MILLER'S LAW — seven plus or minus two, and the useful half is that
+   CHUNKS are counted, not items: eleven controls in three named groups is
+   three things to hold, not eleven. */
+const MILLER = { span: 7, slack: 2 };
+function millerChunk(list, size){
+  const n = Math.max(1, Math.min(size || MILLER.span, MILLER.span + MILLER.slack));
+  const out = [], src = list || [];
+  for (let i = 0; i < src.length; i += n) out.push(src.slice(i, i + n));
+  return out;
+}
+function millerOver(sizes){
+  return (sizes || []).filter(n => n > MILLER.span + MILLER.slack).length;
+}
+/* THE DOHERTY THRESHOLD — under about 400 ms a response is the same event
+   as the press; over it, it is a wait, and attention leaves and has to be
+   fetched back. The consequence is not "be fast": it is that anything
+   which CANNOT be fast must acknowledge inside the threshold, because the
+   acknowledgement is the response. */
+const DOHERTY_MS = 400;
+function dohertyOk(ms){ return !(ms > DOHERTY_MS); }
+function dohertyNeedsAck(estMs){ return estMs > DOHERTY_MS; }
+/* THE SERIAL POSITION EFFECT — the first and last of a list are what is
+   remembered; the middle is where things go to be forgotten. So a menu
+   puts what matters at its ends, and serialOrder does exactly that: the
+   heaviest item first, the next heaviest last, and the rest folded into
+   the middle where their weight is not being spent. */
+function serialPosition(i, n){
+  if (!(n > 1)) return 1;
+  const k = i / (n - 1);
+  /* two curves, and the larger wins: primacy decaying from the front,
+     recency rising sharply into the back. Because recency is the steeper of
+     the two, the trough sits a little PAST the middle rather than on it —
+     which is the shape the effect actually has, and the reason the worst
+     seat in a menu is not the centre but just after it. */
+  return Math.max(0.85 * Math.exp(-3.2 * k), Math.exp(-5 * (1 - k)));
+}
+function serialOrder(items, weight){
+  const w = typeof weight === 'function' ? weight : (x => (x && x.weight) || 0);
+  const rank = (items || []).map((it, i) => ({ it, i, w: w(it, i) }))
+    .sort((a, b) => b.w - a.w || a.i - b.i);
+  const head = [], tail = [];
+  for (let i = 0; i < rank.length; i++) (i % 2 ? tail : head).push(rank[i].it);
+  return head.concat(tail.reverse());
+}
+/* THE PEAK-END RULE — an experience is remembered by its best moment and
+   its last one, not by its average. Which makes the ending worth as much
+   design as the opening, and makes one deliberate high point worth more
+   than a uniformly pleasant hour. */
+function peakEnd(samples){
+  if (!samples || !samples.length) return 0;
+  let peak = -Infinity;
+  for (const s of samples) if (s > peak) peak = s;
+  return (peak + samples[samples.length - 1]) / 2;
+}
+/* THE PARETO PRINCIPLE — a few controls carry nearly all of the use, and
+   the rest earn their place only by being out of the way. Given how often
+   each is actually reached for, this names the vital few. */
+function paretoVital(counts, frac){
+  const f = frac > 0 ? frac : 0.8;
+  const rank = (counts || []).map((c, i) => ({ c: c > 0 ? c : 0, i }))
+    .sort((a, b) => b.c - a.c || a.i - b.i);
+  let total = 0;
+  for (const x of rank) total += x.c;
+  if (!(total > 0)) return [];
+  const out = [];
+  let run = 0;
+  for (const x of rank){ out.push(x.i); run += x.c; if (run / total >= f) break; }
+  return out;
+}
+/* THE VON RESTORFF EFFECT — the thing that looks unlike its neighbours is
+   the thing that is remembered, which makes it a budget of exactly ONE.
+   Two glowing buttons on a screen are not twice as memorable; they are a
+   pattern, and a pattern is wallpaper. This is the rule the spinning ring
+   below is governed by, and the probe fails the page if it is broken. */
+function vonRestorffLone(flags){
+  let n = 0;
+  for (const f of flags || []) if (f) n++;
+  return n === 1;
+}
+/* …and WHICH one, when several ask: the highest-priority candidate that is
+   actually available. A primary nobody can press is not a primary. */
+function vonRestorffPick(cands){
+  let best = null;
+  for (const c of cands || []){
+    if (!c || !c.live) continue;
+    if (!best || (c.rank || 0) > (best.rank || 0)) best = c;
+  }
+  return best ? best.key : null;
+}
+/* THE ZEIGARNIK EFFECT — what is unfinished stays on the mind, which is
+   why a progress bar is not decoration: it turns a wait into an open loop
+   the mind is willing to hold. Nothing is ever shown as complete before it
+   is, and nothing sits at zero: a bar that has not moved is a bar that has
+   died. */
+function zeigarnikProgress(done, total, floor){
+  const t = total > 0 ? total : 0;
+  if (!(t > 0)) return null;
+  const d = Math.max(0, Math.min(done > 0 ? done : 0, t));
+  const f = floor > 0 ? floor : 0.04;
+  return d >= t ? 1 : Math.max(f, Math.min(1 - f, d / t));
+}
+/* PROXIMITY · SIMILARITY · UNIFORM CONNECTEDNESS · PRÄGNANZ — the Gestalt
+   readings, which have no constant of their own. Stated as the one thing a
+   real layout can be held to: what belongs together must sit closer to
+   each other than to anything outside, by a margin big enough to read as
+   deliberate rather than accidental. A shared container (uniform
+   connectedness) outranks mere nearness, which is why the groups below get
+   a hairline rather than just more air. */
+const GESTALT = { ratio: 1.8 };
+function proximityOk(within, between, ratio){
+  const r = ratio > 0 ? ratio : GESTALT.ratio;
+  if (!(within >= 0) || !(between > 0)) return false;
+  return between >= Math.max(within, 0.001) * r;
+}
+/* PARKINSON'S LAW — work expands to fill the time available, so the budget
+   IS the design. A step given no deadline takes the whole session; a step
+   given one is finished inside it. */
+function parkinsonBudget(spent, budget){
+  const b = budget > 0 ? budget : 0;
+  if (!(b > 0)) return { over: false, frac: 0 };
+  const f = (spent > 0 ? spent : 0) / b;
+  return { over: f > 1, frac: f };
+}
+/* TESLER'S LAW — every task has a complexity that cannot be removed, only
+   MOVED. The only question a design gets to answer is who carries it: the
+   person, or the machine. This scores that answer, and the machine should
+   be winning. */
+function teslerShare(machine, person){
+  const m = machine > 0 ? machine : 0, p = person > 0 ? person : 0;
+  return m + p > 0 ? m / (m + p) : 1;
+}
+/* OCCAM'S RAZOR — of two readings that both work, the one with fewer parts
+   is the one that survives contact with a stranger. */
+function occamPick(options){
+  let best = null;
+  for (const o of options || []){
+    if (!o || !o.works) continue;
+    if (!best || (o.parts || 0) < (best.parts || 0)) best = o;
+  }
+  return best;
+}
+/* POSTEL'S LAW — conservative in what you emit, liberal in what you
+   accept. The catalog box is where this is worth real money: people paste
+   a bare hostname, a directory, a link with the quotes still attached, a
+   URL wearing a trailing full stop from the sentence it was in. Every one
+   of those is unambiguous to a human and used to be a failed fetch. What
+   is NOT accepted is anything that could not be a catalog at all —
+   javascript:, data:, blob: and file: are refused rather than guessed at,
+   because being liberal about input is not the same as being careless
+   about what you will go and execute. And an http: link on an https page
+   is upgraded rather than fetched: the browser would refuse it as mixed
+   content, and a host that has no TLS should fail saying so. */
+function postelUrl(raw, opts){
+  const o = opts || {};
+  let s = String(raw == null ? '' : raw).trim();
+  s = s.replace(/^[<("'`“‘\s]+/, '').replace(/[>)"'`”’\s,;.]+$/, '');
+  if (!s) return null;
+  if (/^(javascript|data|blob|file|vbscript):/i.test(s)) return null;
+  if (/^\/\//.test(s)) s = (o.secure === false ? 'http:' : 'https:') + s;
+  /* A BARE HOSTNAME AND A BARE FILENAME LOOK THE SAME, and "catalog.json"
+     is both a plausible host and the single most likely thing anyone types
+     here. The slash is what tells them apart: something with no slash at
+     all that ends in .json is a file next to the page, and everything else
+     shaped like a host is a host. */
+  else if (!/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^[^/]+\.json$/i.test(s)
+           && /^[\w-]+(\.[\w-]+)+(:\d+)?(\/|$|\?)/.test(s)) s = 'https://' + s;
+  let u;
+  try { u = new URL(s, o.base || undefined); } catch (e){ return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.protocol === 'http:' && o.secure) u.protocol = 'https:';
+  /* a bare host or a directory means the file everybody names the same
+     thing. A path that already points AT something is left exactly alone —
+     an endpoint with no .json on it is still an endpoint, and guessing a
+     filename onto it would break the one case that was already working. */
+  if (u.pathname === '' || /\/$/.test(u.pathname)) u.pathname = u.pathname + 'catalog.json';
+  return u.href;
+}
+// @ux-end
+
 // @clock-start
 /* ================================================================
    MEDIA CLOCK + MIX-NOW PLANNER — pure, node-tested.
@@ -13073,11 +13550,130 @@ const SAFE = {
   tuning(){ return this.calm ? Object.assign({}, SAFE_TUNING, SAFE_TUNING.calm) : SAFE_TUNING; },
   set(on, save){
     this.calm = !!on;
+    // CSS gets to read this too — the ring slows with everything else
+    try { document.documentElement.classList.toggle('calm', this.calm); } catch (e){}
     const chip = document.getElementById('chipCalm');
     if (chip){ chip.classList.toggle('on', this.calm); chip.setAttribute('aria-pressed', String(this.calm)); }
     if (save){ this._saved = true; DB.kvSet('safeCalm', this.calm ? '1' : '0'); }
+    if (typeof LONE !== 'undefined') LONE.sync();
   },
 };
+/* ================================================================
+   LONE — which action is worth the ring, and the guarantee that it is
+   only ever one of them. The ring itself is CSS (see #loneRing); this
+   decides where it goes.
+
+   RANK IS NOT PRIDE. It is "how much does this listener want this action
+   right now", which is a different question from "how pleased are we with
+   this feature". An update that has already downloaded outranks
+   everything, because it is the one action on the page with a deadline
+   attached. The invitation to press play outranks nothing, because the
+   moment the music starts the invitation has been accepted and the ring
+   has no further business there — a mark that never leaves is not a mark,
+   it is decoration, and decoration is what spends the budget on nothing.
+
+   A candidate must be LIVE, and live means a stranger could actually
+   press it: on the page, inside the viewport, big enough to see, and not
+   sitting underneath a dialog. That last test is the one that matters —
+   without it the ring cheerfully marks the play button through the
+   onboarding card covering it, pointing at something nobody can reach.
+   ================================================================ */
+function elLive(e){
+  if (!e || e.hidden) return false;
+  const r = e.getBoundingClientRect();
+  if (!(r.width > 2 && r.height > 2)) return false;                 // display:none, here or above
+  const cs = getComputedStyle(e);
+  if (cs.visibility === 'hidden' || (+cs.opacity || 0) < 0.05) return false;
+  const W = window.innerWidth, H = window.innerHeight;
+  if (!(r.bottom > 0 && r.right > 0 && r.top < H && r.left < W)) return false;
+  // …and nothing is on top of it. #loneRing takes no pointer events, so it
+  // can never be the thing it finds.
+  const hit = document.elementFromPoint(Math.min(W - 1, Math.max(0, r.left + r.width / 2)),
+                                        Math.min(H - 1, Math.max(0, r.top + r.height / 2)));
+  return !!hit && (hit === e || e.contains(hit) || hit.contains(e));
+}
+const LONE = {
+  el: null, inner: null, key: null, seen: false, moves: 0, _t: 0,
+  /* the ladder, richest first. `when` is an extra condition beyond being on
+     the screen — the play button's is the whole point of the ring. */
+  LADDER: [
+    /* the language gate is the true first screen, and the option the browser's
+       own language leans toward is the answer nine visitors in ten want —
+       Jakob's law says the expected default should also be the obvious one */
+    { key: 'lang',      sel: '#langGate .lg-opt.lean', rank: 99 },
+    { key: 'obEnter',   rank: 80 },
+    { key: 'frStart',   rank: 70 },
+    { key: 'btnDemo',   rank: 65 },
+    /* the invitation, and only while it stands: the moment the music starts it
+       has been accepted, and a mark that never leaves is decoration */
+    { key: 'btnPlay',   rank: 60, when: () => typeof player !== 'undefined' && !player.playing },
+    /* an update is worth pointing at, but it is not what anybody came for — so
+       it waits until the music is going and the listener has attention to
+       spare, and only while it is genuinely NEW (a snoozed one has been
+       answered already, and asking twice is nagging, not marking) */
+    { key: 'btnUpdate', rank: 40, when: () => {
+      const b = document.getElementById('btnUpdate');
+      return !!b && b.classList.contains('pulse') && !b.classList.contains('snoozed');
+    } },
+  ],
+  node(c){ return c.sel ? document.querySelector(c.sel) : document.getElementById(c.key); },
+  start(){
+    this.el = document.getElementById('loneRing');
+    if (!this.el) return;
+    this.inner = this.el.firstElementChild;
+    this.sync();
+    // its own slow clock: four times a second is nothing, and it keeps the
+    // ring honest without putting anything else in the render loop's way
+    clearInterval(this._t);
+    this._t = setInterval(() => this.sync(), 250);
+    window.addEventListener('resize', () => this.sync());
+    window.addEventListener('orientationchange', () => this.sync());
+  },
+  stop(){ clearInterval(this._t); this._t = 0; if (this.el) this.el.classList.remove('on'); this.key = null; },
+  candidates(){
+    return this.LADDER.map(c => ({
+      key: c.key, rank: c.rank,
+      live: (!c.when || c.when()) && elLive(this.node(c)),
+    }));
+  },
+  sync(){
+    if (!this.el || document.hidden) return;
+    // a stage screen is a picture with no controls on it, and the immersive
+    // view has deliberately put them all away
+    if ((typeof STAGE !== 'undefined' && STAGE.screen()) || document.body.classList.contains('zen')){
+      if (this.key){ this.el.classList.remove('on'); this.key = null; }
+      return;
+    }
+    const key = vonRestorffPick(this.candidates());
+    const spec = key ? this.LADDER.find(c => c.key === key) : null;
+    const target = spec ? this.node(spec) : null;
+    if (!target){
+      if (this.key){ this.el.classList.remove('on'); this.key = null; }
+      return;
+    }
+    const fresh = this.key !== key;
+    if (fresh){ this.key = key; if (this.seen) this.moves++; }
+    const r = target.getBoundingClientRect(), pad = 5, st = this.el.style;
+    /* NOWHERE TO TRAVEL FROM. A ring that has never been placed would
+       otherwise fly in from the top-left corner of the window on its first
+       appearance, which reads as a bug rather than as an arrival. */
+    this.el.classList.toggle('warp', !this.seen);
+    st.left = (r.left - pad) + 'px';
+    st.top = (r.top - pad) + 'px';
+    st.width = (r.width + pad * 2) + 'px';
+    st.height = (r.height + pad * 2) + 'px';
+    const br = getComputedStyle(target).borderRadius || '0px';
+    st.borderRadius = br.indexOf('%') >= 0 ? br : ((parseFloat(br) || 0) + pad) + 'px';
+    this.el.classList.add('on');
+    if (!this.seen){
+      this.seen = true;
+      // let the arrival paint before the travel transition is armed again
+      requestAnimationFrame(() => requestAnimationFrame(() => this.el && this.el.classList.remove('warp')));
+    }
+    window.__mb8Lone = key;              // the probe reads which one it chose
+  },
+};
+
 
 /* HAPTICS — feel the beat in the hand that holds the phone. Vibration API
    where it exists (Android/Chrome); the chip hides where it doesn't (iOS).
@@ -17195,7 +17791,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '93a6b9a239';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'f2d482b3f0';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -20448,8 +21044,14 @@ const openCatalogPrompt = async () => {
     body: T('Point the player at any catalog.json — your own library, or someone else\u2019s. That host needs CORS on the JSON.'),
     value: guess, placeholder: 'https://…/catalog.json', ok: T('Load'),
   });
-  if (!url || !url.trim()) return;
-  const okLoad = await catalog.load(url.trim());
+  /* POSTEL'S LAW — liberal in what we accept. A bare hostname, a directory,
+     a link that arrived with its quotes attached or wearing the full stop of
+     the sentence it was in: every one of those is unambiguous to a human and
+     used to be a failed fetch. What is still refused rather than guessed at
+     is anything that could not be a catalog at all. */
+  const clean = postelUrl(url, { base: location.href, secure: location.protocol === 'https:' });
+  if (!clean){ if (url && url.trim()) toast(T('That does not look like a catalog address')); return; }
+  const okLoad = await catalog.load(clean);
   if (okLoad) syncSortButtons();
 };
 el.btnCatalog.addEventListener('click', openCatalogPrompt);
@@ -39327,6 +39929,8 @@ function langGateShow(done, opts){
     document.addEventListener('keydown', onKey, true);
   }
   try { const first = wrap.querySelector('.lg-opt.lean') || wrap.querySelector('.lg-opt'); if (first) first.focus(); } catch (e){}
+  // the mark arrives WITH the dialog rather than on the ring's own slow clock
+  try { LONE.sync(); } catch (e){}
 }
 
 function firstRunOpen(){
@@ -39816,6 +40420,7 @@ const MACPROMO = {
   }
   UPDATE.paint();                // a deferral from a past session shows at once
   try { LOOK.apply(); } catch (e){}                // a kept look in the link walks the dials back
+  try { LONE.start(); } catch (e){}                // the ring goes to the one action worth pressing
   window.__mb8Booted = true;                       // acceptance probe reads this
   // an unmirrored dictionary (first visit in a new tongue, or a cleared
   // mirror) finishes fetching under the splash — capped, so a dead network

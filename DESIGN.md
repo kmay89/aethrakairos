@@ -1393,6 +1393,76 @@ scenes, booth and sliced screen alike.
   position the room *hears* (the loop's phase once the tape has it) rather than
   a deck that is, by design, running on muted underneath.
 
+### 1.2q The laws made measurable, and the one ring
+
+- **The ask:** a spinning conic glow "for extra coolness", and twenty named UX
+  laws applied to the site. Taken literally both are decoration; taken
+  seriously they are the same job, because the law that governs the glow
+  (Von Restorff) is the one that says there may only be one of it.
+- **The laws became arithmetic.** `@ux` holds the half of each law that is a
+  number — `fittsTime`/`fittsReach`/`fittsBudget`/`fittsSteals`, `hickTime`
+  and `hickGrouped`, `millerChunk`, `DOHERTY_MS`, `serialPosition` and
+  `serialOrder`, `peakEnd`, `paretoVital`, `vonRestorffLone`/`Pick`,
+  `zeigarnikProgress`, `proximityOk`, `parkinsonBudget`, `teslerShare`,
+  `occamPick`, `postelUrl` — and the Gestalt readings, which have no constant
+  of their own, are stated as the one structural claim a real layout can be
+  held to. `tools/ux_probe.mjs` (20 checks) then measures the shipped page,
+  because a 44-pixel constant in a tested function and a nineteen-pixel chip
+  on a phone are perfectly consistent with each other and the second is the
+  bug.
+- **Two of the functions corrected the design rather than the reverse.**
+  `hickGrouped` was written expecting grouping to win and it does not: under
+  Hick alone a split costs two constants against a log that was already
+  forgiving, which is the "flat beats deep" menu result. It was rewritten to
+  carry the linear finding cost as well, where the grouping genuinely pays,
+  and the suite pins the crossover. `serialPosition`'s trough turned out to
+  sit a little PAST the centre rather than on it, because recency is the
+  steeper curve — so the worst seat in a menu is not the middle but just
+  after it, and the test says that now instead of asserting the centre.
+- **Fitts, without touching the design.** The ink stays; a transparent hit
+  layer reaches each control out to the floor — 24 px under a mouse (WCAG
+  2.5.8), 44 under a thumb (HIG), switched on `pointer:coarse`, because
+  Fitts's constants are not the same for the two. It is budgeted to half the
+  gap, and where the gap could not pay (the top bar's 7 px buying 42 of a
+  wanted 44) the GAP changed. The seek strip and the volume slider grew for
+  real: a drag has to begin inside the thing being dragged, so a hit layer
+  cannot help them — the volume gradient still paints in its own 4 px strip
+  through `background-clip`.
+- **Three findings the probe made that review would not have.** It sampled
+  hit boxes at the CORNERS and reported a 129×34 button with a 12 px radius
+  as unreachable — true of the four points nobody aims at, false of the
+  button; a rounded rectangle's corner is not part of it, and it samples edge
+  midpoints now. The whole `pointer:coarse` block was written hundreds of
+  lines ABOVE the rules it had to override, so the scene dots and the top bar
+  quietly kept their old sizes and the probe said so; it is the last thing in
+  the sheet now. And the ring's first appearance lagged its dialog by up to a
+  quarter second on its own slow clock — `langGateShow` syncs it now, so the
+  mark arrives with the thing it marks.
+- **The ring is one element, and that is the design.** Not a class any button
+  may wear — a single `#loneRing` that TRAVELS between candidates by rank, so
+  Von Restorff's budget of one is structural rather than a rule somebody has
+  to remember to honour. The ladder is ordered by what the listener wants and
+  not by what the project is proud of: the language gate's leaning option, the
+  onboarding's last door, the invitation to press play — which leaves the
+  moment the music starts, because a mark that never goes away is decoration —
+  and only then a waiting update, which is worth pointing at but is not what
+  anybody came for. A candidate must be genuinely pressable, which includes
+  not being under a dialog; without that test the ring cheerfully marked the
+  play button through the card covering it.
+- **The turn.** `@property --mb8-turn { syntax:'<angle>' }` is what makes a
+  conic gradient rotatable at all — unregistered, the angle is a string the
+  animation engine cannot interpolate. Registered, the rotation goes to the
+  compositor and survives a saturated main thread. `var(--mb8-turn, 0deg)` is
+  the fallback that keeps the ring drawn (still, not broken) where @property
+  is unknown. Reduced motion stops it and keeps the mark.
+- **What was deliberately not bought.** Thirty-five scene dots cannot each be
+  44 px and remain one strip; they went to 32×32 and are REPORTED short rather
+  than exempted, with the look grid staying the considered path. That is why
+  the probe's standard is split at all (Pareto): the controls used while
+  listening are held to the floor without argument, everything else is
+  measured and named. A passing number bought with a worse interface is not a
+  pass.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature
