@@ -33,7 +33,8 @@ enum CoverArt {
         let S = 1024.0
         let side = max(size, 1)
         let first = album.tracks.first
-        let seed = (first?.sha256).flatMap { $0.isEmpty ? nil : $0 } ?? album.tag
+        let seed: String
+        if let sha = first?.sha256, !sha.isEmpty { seed = sha } else { seed = album.tag }
         let rng = JourneyEngine.mulberry32(hash31(seed))
 
         let key = first?.mix?.key

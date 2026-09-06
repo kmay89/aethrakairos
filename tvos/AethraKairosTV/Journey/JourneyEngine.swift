@@ -141,7 +141,7 @@ enum JourneyEngine {
         // rng sequence rides on iteration order.
         let pool: [(id: String, feat: FeaturePoint, dur: Double?)] = tracks.compactMap { t in
             guard let f = t.features else { return nil }   // features-less = journey-ineligible
-            return (t.id, FeaturePoint(f), positiveDuration(t.duration))
+            return (id: t.id, feat: FeaturePoint(f), dur: positiveDuration(t.duration))
         }
         guard !pool.isEmpty else { return ([], 0) }
 
@@ -224,7 +224,7 @@ enum JourneyEngine {
         let h = clamp01(heat)
         let pool: [(id: String, feat: FeaturePoint)] = tracks.compactMap { t in
             guard let f = t.features, !usedKeys.contains(t.id) else { return nil }
-            return (t.id, FeaturePoint(f))
+            return (id: t.id, feat: FeaturePoint(f))
         }
         guard !pool.isEmpty else { return (nil, true) }
 
