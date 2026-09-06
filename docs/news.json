@@ -14,7 +14,8 @@
         "twenty named laws became twenty pure functions with a unit suite, and a new probe (tools/ux_probe.mjs) measures the shipped page against them by hit-testing rather than by reading the stylesheet — it found the scene dots and the top bar quietly keeping their old sizes, and said so"
       ],
       "builds": [
-        "f2d482b3f0"
+        "f2d482b3f0",
+        "6e767ebe2b"
       ]
     },
     {
