@@ -43,9 +43,11 @@ struct Room: Identifiable, Equatable {
 
 enum Rooms {
     /// Build order is the index space the director and renderer share.
-    /// The first six are wave 1; the last eight are wave 2 (their fragment
-    /// functions live in Shaders2.metal / Shaders3.metal and are trusted to
-    /// exist at link time — one target, one default library).
+    /// The first six are wave 1; the next eight are wave 2 (Shaders2/Shaders3);
+    /// the last eight are wave 3 (Shaders4/Shaders5). Every fragment function is
+    /// trusted to exist at link time — one target, one default library, so a
+    /// room registered here whose function is missing simply parks the renderer
+    /// in the void (configure() bails), never a half-built roster.
     static let all: [Room] = [
         Room(key: "spiral", name: "MÖBIUS SPIRAL", fragmentFunction: "room_spiral",
              tasteEnergy: 0.9, tasteCalm: 0.2, tasteBeat: 0.7, tasteTreble: 0.3),
@@ -80,6 +82,28 @@ enum Rooms {
              tasteEnergy: 0, tasteCalm: 0, tasteBeat: 2.0, tasteTreble: 1.2),
         Room(key: "lava", name: "LAVA LAMP", fragmentFunction: "room_lava",
              tasteEnergy: -1.0, tasteCalm: 1.6, tasteBeat: 0, tasteTreble: 0, calm: true),
+
+        // ---- wave 3 ----
+        // Taste is the four canonical appetites only (WAVE3.md §A pins the
+        // vectors onto tasteEnergy/tasteCalm/tasteBeat/tasteTreble); the fragment
+        // bodies live in Shaders4.metal (eigen/aurea/mandel/rosette) and
+        // Shaders5.metal (parlor/disperse/creature/slinky).
+        Room(key: "eigen", name: "EIGENSTATE", fragmentFunction: "room_eigen",
+             tasteEnergy: 0.3, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0),
+        Room(key: "aurea", name: "AUREA", fragmentFunction: "room_aurea",
+             tasteEnergy: 0, tasteCalm: 1.0, tasteBeat: 0, tasteTreble: 0.6),
+        Room(key: "mandel", name: "FILIGREE", fragmentFunction: "room_mandel",
+             tasteEnergy: -0.4, tasteCalm: 1.2, tasteBeat: 0, tasteTreble: 0),
+        Room(key: "rosette", name: "ROSETTE", fragmentFunction: "room_rosette",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.7, tasteTreble: 1.0),
+        Room(key: "parlor", name: "PARLOR", fragmentFunction: "room_parlor",
+             tasteEnergy: 0, tasteCalm: 1.3, tasteBeat: -0.3, tasteTreble: 0),
+        Room(key: "disperse", name: "DISPERSION", fragmentFunction: "room_disperse",
+             tasteEnergy: 0.4, tasteCalm: 0, tasteBeat: 0, tasteTreble: 1.2),
+        Room(key: "creature", name: "CREATURE", fragmentFunction: "room_creature",
+             tasteEnergy: 0.8, tasteCalm: 0, tasteBeat: 0.8, tasteTreble: 0),
+        Room(key: "slinky", name: "SLINKY", fragmentFunction: "room_slinky",
+             tasteEnergy: -0.6, tasteCalm: 1.4, tasteBeat: 0, tasteTreble: 0),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
