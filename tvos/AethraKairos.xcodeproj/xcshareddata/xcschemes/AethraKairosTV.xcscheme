@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "AEC0FFEE0000000000000036"
+               BlueprintIdentifier = "AEC0FFEE000000000000003C"
                BuildableName = "AethraKairosTV.app"
                BlueprintName = "AethraKairosTV"
                ReferencedContainer = "container:AethraKairos.xcodeproj">
@@ -43,7 +43,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "AEC0FFEE0000000000000036"
+            BlueprintIdentifier = "AEC0FFEE000000000000003C"
             BuildableName = "AethraKairosTV.app"
             BlueprintName = "AethraKairosTV"
             ReferencedContainer = "container:AethraKairos.xcodeproj">
@@ -60,7 +60,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "AEC0FFEE0000000000000036"
+            BlueprintIdentifier = "AEC0FFEE000000000000003C"
             BuildableName = "AethraKairosTV.app"
             BlueprintName = "AethraKairosTV"
             ReferencedContainer = "container:AethraKairos.xcodeproj">
