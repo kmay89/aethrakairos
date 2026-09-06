@@ -7994,6 +7994,48 @@ const NATIVE = {
     });
     // the screen went away — by a close box, a person, or a yanked cable
     this.on('stage-closed', () => { if (STAGE.on) STAGE.stop(); });
+    /* THE MEDIA KEYS COME BACK THROUGH THE SHELL. WKWebView never routes the
+       system's transport controls into the page, so the shell registers with
+       macOS's command center and forwards each press here — where it gets the
+       SAME meaning the web Media Session handlers give it. The shell does not
+       know whether "play" means resume or begin; it must never learn, because
+       that answer changes with the player, and the player deploys in a minute
+       while the signed binary takes a day.
+
+       Only the BOOTH answers. Every stage screen is this same file in another
+       window of the same app, and shell events broadcast to all of them — a ⏯
+       heard by three windows would toggle playback three times. The screens
+       show the field; the booth owns the music. */
+    if (this.can('media_session') && !(typeof STAGE !== 'undefined' && STAGE.screen())){
+      this.on('media-key', ev => {
+        const k = ev && ev.payload;
+        if (k === 'play'){ if (player.cur !== -1) player.resume(); else player.toggle(); }
+        else if (k === 'pause' || k === 'stop'){
+          // forensics, same as the web path: a press is a hand, not a hiccup
+          if (typeof ACTIVITY !== 'undefined') ACTIVITY.log('system', T('Pause from the system controls (media key / headset / Control Center)'));
+          player.pause();
+        }
+        else if (k === 'toggle') player.toggle();
+        else if (k === 'next') player.next(false, false);
+        else if (k === 'previous') player.prev();
+      });
+      this.on('media-seek', ev => {
+        const s = Number(ev && ev.payload);
+        const a = activeDeck();
+        if (!a || !isFinite(s) || !isFinite(a.a.duration)) return;
+        if (a.a.fastSeek) a.a.fastSeek(s); else a.a.currentTime = s;
+        mediaSessionPosition();
+      });
+      // whatever is already playing when the shell answers gets its card now —
+      // boot lands after the player, and can land after the first track starts
+      updateMediaSession();
+    }
+    // a booth that BOOTS into SHOW asked to be held awake before the shell had
+    // answered caps — re-assert now that the answer is in (the booth only:
+    // sleep is the machine's, and the booth speaks for the machine)
+    if (this.can('keep_awake') && !(typeof STAGE !== 'undefined' && STAGE.screen())
+      && typeof POWER !== 'undefined' && POWER.mode === 'show' && !document.hidden)
+      NATIVE.call('keep_awake', { on: true });
     return this.info;
   },
   pending: '',
@@ -14458,7 +14500,10 @@ const WATCHDOG = {
 };
 let _nowPlayingBeat = null;
 function startNowPlayingHeartbeat(){
-  if (_nowPlayingBeat != null || !('mediaSession' in navigator)) return;
+  // the beat serves two surfaces: the web Media Session where the webview has
+  // one, and the shell's native card where the shell says it can
+  if (_nowPlayingBeat != null
+    || (!('mediaSession' in navigator) && !(NATIVE.ready() && NATIVE.can('media_session')))) return;
   _nowPlayingBeat = setInterval(() => {
     if (!player.playing){ stopNowPlayingHeartbeat(); return; }   // self-heals if a stop was missed
     mediaSessionPlaybackState();                     // keep iOS certain we're playing
@@ -14485,7 +14530,63 @@ const APP_ARTWORK = [
 // Preload the branded art so the Now Playing daemon's fetch is warm the instant
 // the first track starts — a cold miss is what leaves the pill a gray speaker.
 (() => { try { new Image().src = APP_ARTWORK[0].src; } catch (e){} })();
+/* THE SHELL'S NOW PLAYING — parity for the one place the Mac app was WORSE
+   than a browser tab. WKWebView implements the Media Session API as an object
+   wired to nothing: the metadata set below never reaches macOS, so inside the
+   app there was no Control Center card, and ⏯ on the keyboard, AirPods, a
+   Bluetooth wheel — all dead. Where the shell says it can (caps:
+   media_session), the player pushes playback truth through the bridge and
+   macOS draws the real card; the key presses come back as media-key events
+   (wired in NATIVE.boot) that route into the same meanings the web handlers
+   carry, so a headset button does the same thing in every skin of the app.
+
+   Pushes are decimated the way the Hue path decimates lamp frames: a push
+   that says nothing new is not sent. The 1 Hz heartbeat pins the scrubber
+   (the same pinning iOS needs, for the same reason — the system extrapolates
+   only from what it was last told), and metadata rides along only when the
+   track actually changed, because metadata carries the artwork URL and the
+   shell fetches art once per track, not once per second. */
+const NATIVENP = {
+  _sig: null, _playing: null, _pos: 0, _at: 0,
+  // a stage screen loads this same file, and it must never speak here: the
+  // card belongs to the booth, where the music actually is
+  ok(){
+    if (typeof STAGE !== 'undefined' && STAGE.screen()) return false;
+    return NATIVE.ready() && NATIVE.can('media_session');
+  },
+  push(metaChanged){
+    if (!this.ok()) return;
+    const t = player.tracks[player.cur];
+    const a = typeof activeDeck === 'function' ? activeDeck() : null;
+    const dur = a && isFinite(a.a.duration) && a.a.duration > 0 ? a.a.duration : null;
+    let pos = a && isFinite(a.a.currentTime) ? Math.max(0, a.a.currentTime) : null;
+    if (pos != null && dur != null) pos = Math.min(pos, dur);
+    const playing = !!player.playing;
+    const sig = t ? [t.title, t.artist, t.album, t.art].join('\u0000') : '';
+    const meta = !!metaChanged || sig !== this._sig;
+    const now = Date.now();
+    if (!meta && playing === this._playing && now - this._at < 900){
+      // …unless the position JUMPED off the path it was extrapolating — a seek
+      // must reach the scrubber now, not at the next heartbeat
+      const expect = this._pos + (playing ? ((now - this._at) / 1000) * ((a && a.a.playbackRate) || 1) : 0);
+      if (pos == null || Math.abs(pos - expect) < 1.5) return;
+    }
+    this._sig = sig; this._playing = playing; this._pos = pos || 0; this._at = now;
+    // same rules as the web artwork above: ABSOLUTE urls only, and the branded
+    // spiral when a track carries no cover — the card is never a gray note
+    let art = null;
+    try { art = new URL((t && t.art) || 'icons/icon-512.png', location.href).href; } catch (e){}
+    NATIVE.call('media_update', {
+      playing, meta,
+      title: t ? String(t.title || '') : null,
+      artist: t ? String(t.artist || '') : null,
+      album: t && t.album ? String(t.album) : null,
+      art, duration: dur, position: pos,
+    });
+  },
+};
 function updateMediaSession(){
+  NATIVENP.push(true);               // the shell's card, where there is one
   if (!('mediaSession' in navigator)) return;
   const t = player.tracks[player.cur];
   if (!t){ try { navigator.mediaSession.metadata = null; } catch (e){} return; }
@@ -14527,13 +14628,17 @@ function updateMediaSession(){
   }
 }
 function mediaSessionPlaybackState(){
+  NATIVENP.push(false);
+  // the heartbeat's lifecycle: on only while playing — this is the single
+  // chokepoint every play/pause path already routes through. It lives BEFORE
+  // the web guard because the native card needs the same 1 Hz pinning whether
+  // or not this webview also exposes the JS Media Session object.
+  if (player.playing) startNowPlayingHeartbeat(); else stopNowPlayingHeartbeat();
   if (!('mediaSession' in navigator)) return;
   navigator.mediaSession.playbackState = player.playing ? 'playing' : 'paused';
-  // the heartbeat's lifecycle: on only while playing — this is the single
-  // chokepoint every play/pause path already routes through
-  if (player.playing) startNowPlayingHeartbeat(); else stopNowPlayingHeartbeat();
 }
 function mediaSessionPosition(){
+  NATIVENP.push(false);
   if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
   const a = activeDeck();
   if (!a || !isFinite(a.a.duration) || a.a.duration <= 0) return;
@@ -35221,6 +35326,14 @@ const POWER = {
   // is a dead surface. Released the moment the mode changes; re-acquired when
   // the tab returns (the OS drops wake locks on hide, silently).
   wake(on){
+    // the shell can hold the MACHINE awake — display and idle sleep both,
+    // tied to the app's own process so a crash never leaves the Mac
+    // insomniac — which a page-level wake lock cannot promise inside
+    // WKWebView, and speaks only for the display even where it works.
+    // The booth alone asks: two windows toggling one machine-wide
+    // assertion would fight over it, last writer winning.
+    if (NATIVE.can('keep_awake') && !(typeof STAGE !== 'undefined' && STAGE.screen()))
+      NATIVE.call('keep_awake', { on: !!on });
     const self = this;
     try {
       if (on && !this._wl && navigator.wakeLock && navigator.wakeLock.request){

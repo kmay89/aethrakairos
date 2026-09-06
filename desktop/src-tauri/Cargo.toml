@@ -1,6 +1,6 @@
 [package]
 name = "aethra-kairos"
-version = "0.1.0"
+version = "0.3.0"
 description = "Aethra Kairos — the open-source label player"
 authors = ["Aethra Kairos"]
 license = "MIT"
@@ -28,11 +28,23 @@ serde_json = "1"
 # stack because the bridge's certificate is signed by Signify's own private CA
 # and has to be handled explicitly rather than trusted by accident.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# the twice-a-day update re-check needs one timer; tokio is already in the
+# tree under tauri and reqwest, so this adds a feature, not a dependency
+tokio = { version = "1", features = ["time"] }
 
-# a small, fast, predictable release binary — the point of going native
+# Now Playing + media keys. macOS-only on purpose: its Linux backend wants the
+# system dbus library, which a Linux checkout running `cargo test` on the pure
+# functions should not have to install for a surface only the Mac app has.
+[target.'cfg(target_os = "macos")'.dependencies]
+souvlaki = { version = "0.8.3", default-features = false }
+
+# a fast, predictable release binary — the point of going native. opt-level 3
+# rather than "s": the shell's hot paths are TLS and JSON at lamp-frame rate
+# today and audio DSP in the staged plan, work an M-series core should run at
+# full speed; the binary-size cost is noise next to the WebKit process.
 [profile.release]
 codegen-units = 1
 lto = true
-opt-level = "s"
+opt-level = 3
 panic = "abort"
 strip = true
