@@ -71,6 +71,16 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      # The Rust unit tests — above all lan_tests, the suite around the one
+      # security predicate (is_lan_host) standing between net_fetch and a
+      # confused deputy. The build below proves the shell compiles; it never
+      # ran these. --locked because Cargo.lock is committed on purpose: a test
+      # run that quietly resolved fresh dependencies would prove nothing about
+      # the build that ships.
+      - name: Rust unit tests
+        working-directory: desktop/src-tauri
+        run: cargo test --locked
+
       # Decide channel, config overlays, and release target. Updater artifacts are
       # SIGNED, so only overlay tauri.updater.json when the signing key is present —
       # otherwise unsigned builds would fail trying to sign with an empty key.

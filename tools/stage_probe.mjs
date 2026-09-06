@@ -16,7 +16,7 @@
  *   warm    the join, as something you DO: two questions, then every hand in
  *           the room drawn on every screen in the room.
  *
- *   node tools/stage_probe.mjs [--only ask,shell,stage,console,pip,slice,wall,native,wire,warm,crowd,pages,install] [--keep]
+ *   node tools/stage_probe.mjs [--only ask,shell,stage,console,pip,slice,wall,native,media,wire,warm,crowd,pages,install] [--keep]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -883,6 +883,114 @@ if (want('native')){
     both.wall ? 's1 ' + both.wall.s1.fw.toFixed(3) + ' s2 ' + both.wall.s2.fw.toFixed(3) : 'no wall');
   verdict('native: with the screens numbered left to right across the desk',
     !!both.wall && both.wall.s1.n === 1 && both.wall.s2.n === 2);
+  await ctx.close();
+}
+
+/* ----------------------------------------------------------------- media
+ * INSIDE THE MAC APP, THE MEDIA KEYS USED TO BE DEAD. WKWebView implements
+ * the Media Session API as an object wired to nothing, so the shell now owns
+ * the surface: the player pushes playback truth through media_update and the
+ * hardware comes back as media-key events. What is probed is the seam — that
+ * the player pushes when the shell says it can, that it decimates the pushes
+ * that say nothing new, that a key press routes to the same meaning the web
+ * handlers carry, and that SHOW mode asks the shell to hold the machine
+ * awake. The shell is stubbed: its side is Rust, compiled elsewhere. */
+if (want('media')){
+  console.log('\ninside the Mac app — the media keys reach the player, and the player reaches the card');
+  const ctx = await browser.newContext({ userAgent: NATIVE_UA });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    for (const k of ['prompt', 'confirm', 'alert'])
+      window[k] = () => { window.__rogueDialog = k; throw new Error('window.' + k); };
+    window.__calls = [];
+    window.__handlers = {};
+    window.__TAURI__ = {
+      core: {
+        invoke: async (cmd, args) => {
+          window.__calls.push({ cmd, args });
+          if (cmd === 'native_info')
+            return { version: '1.0.0', os: 'macos', caps: ['stage_pip', 'media_session', 'keep_awake'] };
+          if (cmd === 'keep_awake') return !!(args && args.on);
+          return null;
+        },
+      },
+      event: { listen: async (name, cb) => { window.__handlers[name] = cb; } },
+    };
+  });
+  await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 45000 });
+  await page.waitForFunction('!!(NATIVE.info && NATIVE.info.caps)', null, { timeout: 5000 });
+
+  const out = await page.evaluate(async () => {
+    const updates = () => window.__calls.filter(c => c.cmd === 'media_update');
+    const booted = updates().length;                    // boot pushes the card for whatever is playing
+    // the decimation: two heartbeats inside a second say the same thing once.
+    // (Let the boot push age past the throttle window first, so the first
+    // heartbeat below is the one that sends and the second is the one saved.)
+    await new Promise(r => setTimeout(r, 950));
+    window.__calls.length = 0;
+    mediaSessionPlaybackState(); mediaSessionPosition();
+    const burst = updates().length;
+    // a track change is metadata, and metadata rides exactly that push
+    updateMediaSession();
+    const metas = updates().filter(c => c.args && c.args.meta).length;
+    // a media key routes into the player's own meaning of it
+    const routed = {};
+    const spy = (obj, name) => { const real = obj[name]; obj[name] = (...a) => { routed[name] = (routed[name] || 0) + 1; obj[name] = real; }; };
+    spy(player, 'toggle'); spy(player, 'pause'); spy(player, 'next'); spy(player, 'prev');
+    window.__handlers['media-key']({ payload: 'toggle' });
+    window.__handlers['media-key']({ payload: 'pause' });
+    window.__handlers['media-key']({ payload: 'next' });
+    window.__handlers['media-key']({ payload: 'previous' });
+    // SHOW holds the machine awake through the shell, and lets go on the way out
+    window.__calls.length = 0;
+    POWER.set('show', false);
+    POWER.set('auto', false);
+    const awake = window.__calls.filter(c => c.cmd === 'keep_awake').map(c => c.args.on);
+    return { booted, burst, metas, routed, awake, rogue: window.__rogueDialog || '' };
+  });
+  verdict('media: the shell that says it can gets the card at boot', out.booted >= 1, out.booted + ' push(es)');
+  verdict('media: two heartbeats inside a second say the same thing once', out.burst === 1, out.burst + ' push(es)');
+  verdict('media: a track change carries metadata on exactly that push', out.metas === 1, out.metas + ' meta push(es)');
+  verdict('media: each key routes to its own meaning',
+    out.routed.toggle === 1 && out.routed.pause === 1 && out.routed.next === 1 && out.routed.prev === 1,
+    JSON.stringify(out.routed));
+  verdict('media: SHOW asks the shell to hold the machine awake, then lets go',
+    out.awake.length === 2 && out.awake[0] === true && out.awake[1] === false,
+    JSON.stringify(out.awake));
+  verdict('media: and no native dialog was reached for', !out.rogue, out.rogue || 'none');
+
+  /* AND THE STAGE SCREENS KEEP QUIET. Every stage window is this same file,
+   * and shell events broadcast to all of them — so a screen that also pushed
+   * the card would blank the booth's, and a screen that also answered ⏯
+   * would toggle playback once per window. The booth owns the music. */
+  const screen = await ctx.newPage();
+  await screen.addInitScript(() => {
+    window.__calls = [];
+    window.__handlers = {};
+    window.__TAURI__ = {
+      core: {
+        invoke: async (cmd, args) => {
+          window.__calls.push({ cmd, args });
+          if (cmd === 'native_info')
+            return { version: '1.0.0', os: 'macos', caps: ['stage_pip', 'media_session', 'keep_awake'] };
+          return null;
+        },
+      },
+      event: { listen: async (name, cb) => { window.__handlers[name] = cb; } },
+    };
+  });
+  await screen.goto(origin + '/?stage=screen&screen=1&of=1', { waitUntil: 'domcontentloaded' });
+  await screen.waitForFunction('!!(NATIVE.info && NATIVE.info.caps)', null, { timeout: 45000 });
+  await screen.waitForTimeout(400);
+  const quiet = await screen.evaluate(() => ({
+    role: STAGE.cfg.role,
+    pushes: window.__calls.filter(c => c.cmd === 'media_update' || c.cmd === 'keep_awake').length,
+    keyed: !!window.__handlers['media-key'],
+  }));
+  verdict('media: a stage screen never touches the card or the keys',
+    quiet.role === 'screen' && quiet.pushes === 0 && !quiet.keyed,
+    JSON.stringify(quiet));
   await ctx.close();
 }
 

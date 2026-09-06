@@ -17,10 +17,11 @@ elsewhere, and they're real:
   changes, via a signed GitHub Releases feed.
 - **Magic.** A real Dock app that installs from a `.dmg` and updates itself.
 
-**Staged plan** — a later phase moves the heavy audio DSP (decode / FFT / peak &
-feature extraction — the CPU/RAM-heavy work) into native Rust commands, plus
-native Now Playing + media keys. That's where "native performance" actually
-lands: as *compute*, not rendering.
+**Staged plan** — native Now Playing + media keys have landed (`media_update` /
+`media-key`, below); what remains staged is moving the heavy audio DSP (decode /
+FFT / peak & feature extraction — the CPU/RAM-heavy work) into native Rust
+commands. That's where the rest of "native performance" lands: as *compute*,
+not rendering.
 
 ## Parity — how the web app and the Mac app stay in sync
 
@@ -50,7 +51,8 @@ desktop/
     tauri.conf.json       # window, bundle (dmg), updater feed + public key
     Cargo.toml            # rust deps: tauri, updater, single-instance
     Cargo.lock            # COMMITTED on purpose — see below
-    src/lib.rs            # the shell's commands: info, update, mic, displays, stage, mini
+    src/lib.rs            # the shell's commands: info, update, mic, displays, stage, mini, net, awake
+    src/media.rs          # Now Playing + media keys — the surface WKWebView never wires up
     src/main.rs           # thin entry point
     capabilities/         # v2 permissions (core + updater) + the remote origin
     icons/                # generated from docs/icons/icon-512.png
@@ -73,9 +75,12 @@ with no version checks anywhere in the player.
 | `open_mic_settings` | once the mic is denied, only System Settings can undo it |
 | `list_displays` | a browser cannot name the screens attached to the machine |
 | `open_stage` / `close_stage` | a real window, fullscreen, on a chosen display |
+| `net_fetch` | one HTTP request to a machine on this network — the whole of what Hue needs, behind the LAN fence |
 | `stage_pip` | …or that same stage small, above every app, on the one screen there is |
 | `set_mini` | the booth folded into a corner, floating above everything |
 | `reload_shell` | the escape hatch past every cache |
+| `media_update` | WKWebView's Media Session reaches no lock screen and no ⏯ key — the shell carries macOS's real Now Playing card, and the presses come back as `media-key` events |
+| `keep_awake` | the machine held awake through a set (display **and** idle sleep) — a page wake lock is a moving target in WKWebView and speaks only for the display |
 
 **The native update is offered, not imposed.** It used to check on launch,
 download, install and `restart()` — which can take the app down in the middle of

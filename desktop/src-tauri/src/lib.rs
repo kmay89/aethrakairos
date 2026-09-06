@@ -18,6 +18,10 @@
 //   open_stage / close    the visualizer, fullscreen, on the screen the audience sees
 //   stage_pip             …or the same stage small, above every app, on one screen
 //   set_mini              the booth folded into a corner, above everything
+//   media_update          the Now Playing card + media keys WKWebView never wires up
+//   keep_awake            the machine held awake through a set — display AND idle
+
+mod media;
 
 use std::sync::Mutex;
 
@@ -43,6 +47,11 @@ const PIP_H: f64 = 270.0;
 /// puts the window back exactly where the listener had it.
 #[derive(Default)]
 struct MiniState(Mutex<Option<(f64, f64, f64, f64)>>);
+
+/// The running `caffeinate` holding the machine awake, when there is one —
+/// held so keep_awake(false) can end it, and reaped so it never zombies.
+#[derive(Default)]
+struct AwakeState(Mutex<Option<std::process::Child>>);
 
 #[derive(serde::Serialize)]
 struct NativeInfo {
@@ -85,6 +94,7 @@ pub fn run() {
         // Self-update from the signed GitHub Releases feed.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(MiniState::default())
+        .manage(AwakeState::default())
         .invoke_handler(tauri::generate_handler![
             native_info,
             native_update_check,
@@ -97,6 +107,8 @@ pub fn run() {
             set_mini,
             reload_shell,
             net_fetch,
+            media_update,
+            keep_awake,
         ])
         .menu(|handle| build_menu(handle))
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -136,6 +148,11 @@ pub fn run() {
             _ => {}
         })
         .setup(|app| {
+            // Now Playing + media keys, registered before any window exists.
+            // setup is the one place guaranteed to run on the main thread —
+            // where AppKit wants command-center handlers installed from.
+            #[cfg(target_os = "macos")]
+            media::native::init(app.handle());
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 /* THE UPDATE IS OFFERED, NOT IMPOSED. This used to download and
@@ -145,9 +162,20 @@ pub fn run() {
                 place is saved first, music resumes paused) could prevent,
                 because the player was never asked. Now the shell reports, the
                 player decides, and native_update_apply does the deed after the
-                page has saved its state. */
-                if let Ok(Some(v)) = check_native_update(handle.clone()).await {
-                    let _ = handle.emit("native-update", v);
+                page has saved its state.
+
+                AND OFFERED AGAIN. One check at launch was written for an app
+                that relaunches often — but never being tab-evicted means this
+                process can run for WEEKS, and a launch-only check leaves that
+                machine on a build nobody else has for as long as it stays up.
+                So the same quiet report repeats twice a day; the player's own
+                offer logic already remembers what was declined, so a version
+                someone said no to is not asked about again. */
+                loop {
+                    if let Ok(Some(v)) = check_native_update(handle.clone()).await {
+                        let _ = handle.emit("native-update", v);
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(12 * 60 * 60)).await;
                 }
             });
             Ok(())
@@ -240,6 +268,18 @@ fn build_menu<R: Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>
 
 #[tauri::command]
 fn native_info<R: Runtime>(app: tauri::AppHandle<R>) -> NativeInfo {
+    // caps names only what is actually listening on THIS build and platform —
+    // a capability advertised and then not delivered is worse than one never
+    // named, because the web fallback underneath was switched off for it.
+    #[allow(unused_mut)]
+    let mut caps = vec!["stage_pip", "net_fetch"];
+    #[cfg(target_os = "macos")]
+    {
+        caps.push("keep_awake");
+        if media::native::available(&app) {
+            caps.push("media_session");
+        }
+    }
     NativeInfo {
         version: app.package_info().version.to_string(),
         os: std::env::consts::OS.to_string(),
@@ -247,8 +287,94 @@ fn native_info<R: Runtime>(app: tauri::AppHandle<R>) -> NativeInfo {
             .webview_windows()
             .keys()
             .any(|l| l.starts_with("stage-")),
-        caps: vec!["stage_pip", "net_fetch"],
+        caps,
     }
+}
+
+// -------------------------------------------------- now playing / media keys
+
+/// One push of playback truth from the player to the system's Now Playing
+/// surface. Everything here is a passthrough — what to show and when to push
+/// is the player's judgement (it decimates its own calls the same way the Hue
+/// path does), and what a key press MEANS comes back to it as an event.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn media_update<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    playing: bool,
+    meta: Option<bool>,
+    title: Option<String>,
+    artist: Option<String>,
+    album: Option<String>,
+    art: Option<String>,
+    duration: Option<f64>,
+    position: Option<f64>,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        media::native::update(
+            &app,
+            playing,
+            meta.unwrap_or(false),
+            title,
+            artist,
+            album,
+            art,
+            duration,
+            position,
+        )
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (
+            app, playing, meta, title, artist, album, art, duration, position,
+        );
+        Ok(())
+    }
+}
+
+// ------------------------------------------------------------ staying awake
+
+/// Hold the machine awake — display and idle sleep both — while a set plays.
+///
+/// The page-level wake lock cannot promise this: WKWebView's support for it is
+/// a moving target, and even where it works it speaks only for the display.
+/// `caffeinate -d -i` is the assertion macOS itself uses, and `-w` ties it to
+/// this process — if the shell crashes mid-show, the assertion dies with it
+/// rather than leaving the laptop insomniac until someone notices the fans.
+#[tauri::command]
+fn keep_awake(state: tauri::State<'_, AwakeState>, on: bool) -> Result<bool, String> {
+    let mut child = state.0.lock().map_err(|_| "state")?;
+    if on {
+        // already held — and still alive; a caffeinate that died (killed from
+        // Activity Monitor, say) must not masquerade as a live assertion
+        if let Some(c) = child.as_mut() {
+            if matches!(c.try_wait(), Ok(None)) {
+                return Ok(true);
+            }
+        }
+        *child = spawn_caffeinate();
+        Ok(child.is_some())
+    } else {
+        if let Some(mut c) = child.take() {
+            let _ = c.kill();
+            let _ = c.wait(); // reap it — a zombie per SHOW toggle adds up
+        }
+        Ok(false)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn spawn_caffeinate() -> Option<std::process::Child> {
+    std::process::Command::new("/usr/bin/caffeinate")
+        .args(["-d", "-i", "-w", &std::process::id().to_string()])
+        .spawn()
+        .ok()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn spawn_caffeinate() -> Option<std::process::Child> {
+    None
 }
 
 // ------------------------------------------------------- the local network
@@ -312,6 +438,29 @@ pub struct NetReply {
     body: String,
 }
 
+/// One client per trust posture, built once and kept. This used to build a
+/// fresh `reqwest::Client` inside every call — which meant a fresh connection
+/// pool, which meant a full TCP + TLS handshake to the bridge for every lamp
+/// frame, ten times a second, against an embedded device that authenticates
+/// slowly and forgives never. A kept client reuses the connection, so a frame
+/// costs one request on an open socket instead of a whole courtship.
+fn net_client(insecure: bool) -> Result<&'static reqwest::Client, String> {
+    use std::sync::OnceLock;
+    static SECURE: OnceLock<reqwest::Client> = OnceLock::new();
+    static INSECURE: OnceLock<reqwest::Client> = OnceLock::new();
+    let cell = if insecure { &INSECURE } else { &SECURE };
+    if let Some(c) = cell.get() {
+        return Ok(c);
+    }
+    let built = reqwest::Client::builder()
+        .danger_accept_invalid_certs(insecure)
+        // a request that hangs must not hold a lamp frame open forever
+        .timeout(std::time::Duration::from_secs(6))
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(cell.get_or_init(|| built))
+}
+
 /// ONE HTTP REQUEST TO A MACHINE ON THIS NETWORK — the whole of what the shell
 /// does for Hue, and deliberately the whole of it.
 ///
@@ -343,12 +492,7 @@ async fn net_fetch(
     if !is_lan_host(host) {
         return Err(format!("{} is not on this network", host));
     }
-    // a request that hangs must not hold a lamp frame open forever
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(insecure.unwrap_or(false))
-        .timeout(std::time::Duration::from_secs(6))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = net_client(insecure.unwrap_or(false))?;
     let m = method.unwrap_or_else(|| "GET".into()).to_uppercase();
     let mut req = match m.as_str() {
         "GET" => client.get(parsed),

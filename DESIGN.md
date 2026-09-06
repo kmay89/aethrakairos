@@ -126,7 +126,9 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   who is hosting the player, offer the native update rather than impose it, open
   the macOS privacy pane, enumerate displays, put a stage window fullscreen on a
   chosen one — or small and above every other app where there is only one screen
-  — and fold the booth into a corner above everything. Each is a command that
+  — fold the booth into a corner above everything, carry the Now Playing card
+  and media keys WKWebView never wires up (§1.2r), and hold the machine awake
+  through a set. Each is a command that
   resolves `null` in a browser, so the player never branches on which shell it is
   in (§1.2n). The shell also *names* what it can do (`native_info.caps`), so a
   player that is always newer than the binary around it asks for a native trick
@@ -1462,6 +1464,47 @@ scenes, booth and sliced screen alike.
   listening are held to the floor without argument, everything else is
   measured and named. A passing number bought with a worse interface is not a
   pass.
+
+### 1.2r The shell learns the keys: Now Playing, the machine held awake, and the courtship tax
+
+- **The media keys were dead inside the Mac app.** WKWebView implements the
+  Media Session API as an object wired to nothing: the player's carefully
+  maintained metadata (§1.2n taught it to feed iOS at 1 Hz) reached macOS not
+  at all, so the app had no Control Center card and ⏯ on the keyboard did
+  nothing — the one place the native app was *worse* than a Safari tab. The
+  shell now owns the surface the webview cannot reach: `media_update` pushes
+  playback truth to `MPNowPlayingInfoCenter` (via souvlaki), and the command
+  center's presses come back as `media-key` / `media-seek` events. The
+  division is the standing one: what a key *means* mid-mix lives in the
+  player, which deploys in a minute; the shell carries bytes, which never
+  needs to change. Pushes are decimated the way Hue frames are — a push that
+  says nothing new is not sent, and metadata (which carries the artwork URL
+  the shell fetches) rides only the push where the track changed. The seam is
+  probed in `stage_probe --only media` against a stubbed shell.
+- **SHOW mode holds the machine awake through the shell.** The page-level wake
+  lock is a moving target inside WKWebView and speaks only for the display
+  even where it works. `keep_awake` runs `caffeinate -d -i -w <pid>` — the
+  assertion macOS itself uses, for display and idle sleep both, tied to the
+  shell's own process so a crash can never leave the laptop insomniac.
+- **The courtship tax on lamp frames.** `net_fetch` built a fresh HTTP client
+  inside every call, which meant a fresh connection pool, which meant a full
+  TCP + TLS handshake to the Hue bridge for every frame — ten a second,
+  against an embedded device that authenticates slowly. One kept client per
+  trust posture reuses the socket; a frame now costs a request, not a
+  courtship.
+- **An app that is never evicted must keep asking.** The launch-only update
+  check was written for a process that relaunches often; the whole point of
+  the shell is that it doesn't, so a Mac that stays up stayed on an old build
+  indefinitely. The same quiet report now repeats twice a day, and the
+  player's own offer memory keeps a declined version from being asked about
+  again.
+- **The Rust suite runs in CI now.** The build proved the shell compiles; it
+  never ran `lan_tests`, the suite around the one security predicate
+  (`is_lan_host`) standing between `net_fetch` and a confused deputy. And the
+  release profile buys speed rather than size (`opt-level = 3`): the shell's
+  hot paths are TLS and JSON at lamp-frame rate today and audio DSP in the
+  staged plan, work an M-series core should run at full speed — the size cost
+  is noise next to the WebKit process beside it.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
