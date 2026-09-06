@@ -52,7 +52,10 @@ enum MixPlanner {
     /// |fold - 1| > 0.08 -> fade "tempo gap"; compat > 2 -> fade "key clash";
     /// else beatmix. Eight beats is the default — a reliability decision before
     /// a taste one: short enough that phase error has no room to grow into a flam.
-    static func plan(a: Track, b: Track, albumSequential: Bool) -> TransitionPlan {
+    /// `forceBeats` lets a style ask for a longer blend (club runs 16); it is
+    /// still clamped by [4, min(out.beats, in.beats)] — the gates never move.
+    static func plan(a: Track, b: Track, albumSequential: Bool,
+                     forceBeats: Double? = nil) -> TransitionPlan {
         // Album order is the artist's sequencing; the player only removes the silence.
         if albumSequential { return .gapless }
         guard let mA = a.mix, let mB = b.mix, mA.bpm > 0, mB.bpm > 0 else {
@@ -70,7 +73,9 @@ enum MixPlanner {
             return .fade(seconds: 4, why: "key clash")
         }
 
-        var beats = 8.0
+        // The style's request (or the 8-beat default) is only a ceiling: the
+        // region lengths clamp it, and 4 beats is the floor.
+        var beats = forceBeats ?? 8.0
         let outBeats = mA.outRegion.beats > 0 ? mA.outRegion.beats : 8
         let inBeats = mB.inRegion.beats > 0 ? mB.inRegion.beats : 8
         beats = max(4, min(beats, outBeats, inBeats))
@@ -122,6 +127,34 @@ private func sleepSeconds(_ s: Double) async {
     try? await Task.sleep(nanoseconds: UInt64(s * 1_000_000_000))
 }
 
+// MARK: - Mix style
+
+/// The three auto-mix voicings, constants verbatim from the web MIX_STYLES
+/// table. A style tunes *taste* — beat count, fade length, whether beatmixes
+/// are allowed at all — but it NEVER touches the quality gates; a refusal
+/// stays a refusal in every style.
+enum MixStyle: String, CaseIterable {
+    case adaptive, musical, club
+
+    /// The beat count the style asks the planner for. Club runs long (16);
+    /// adaptive and musical keep the reliable 8. Still clamped to the regions.
+    var beats: Double { self == .club ? 16 : 8 }
+
+    /// Manual-skip crossfade length. Adaptive is the most generous (3.0 s),
+    /// club the tightest (2.2 s) — a club skip should feel decisive.
+    var quickFade: Double {
+        switch self {
+        case .adaptive: return 3.0
+        case .musical:  return 2.6
+        case .club:     return 2.2
+        }
+    }
+
+    /// Musical demotes every beatmix to a fade and lets the song play out;
+    /// adaptive and club will beatmix when the gates allow it.
+    var demotesBeatmix: Bool { self == .musical }
+}
+
 // MARK: - Player
 
 @MainActor final class Player: ObservableObject {
@@ -132,6 +165,13 @@ private func sleepSeconds(_ s: Double) async {
     @Published private(set) var statusLine: String = ""
     var current: Track? { queue.indices.contains(currentIndex) ? queue[currentIndex] : nil }
     var autoMix: Bool = true
+
+    /// Auto-mix voicing (adaptive default). A change lands on the NEXT armed
+    /// seam, never on one already planned or running — armSeam snapshots it.
+    @Published var mixStyle: MixStyle = .adaptive { didSet { persistSettings() } }
+    /// Key-lock preserves pitch under tempo glide (default). See applyDeckRate
+    /// for what key-lock-off can and cannot honestly do on the wave-1 engine.
+    @Published var keyLock: Bool = true { didSet { persistSettings() } }
 
     let analyzer = Analyzer()
 
@@ -169,6 +209,16 @@ private func sleepSeconds(_ s: Double) async {
 
     init(library: Library) {
         self.library = library
+        // Restore the listener's mixing preferences. These are tiny and non-
+        // secret, so UserDefaults is the right size of persistence. Assigning
+        // inside init does not fire didSet, so no redundant write-back here.
+        if let raw = UserDefaults.standard.string(forKey: Self.mixStyleKey),
+           let saved = MixStyle(rawValue: raw) {
+            mixStyle = saved
+        }
+        if UserDefaults.standard.object(forKey: Self.keyLockKey) != nil {
+            keyLock = UserDefaults.standard.bool(forKey: Self.keyLockKey)
+        }
         // One .playback declaration for the app's lifetime — the session is
         // configured here and nowhere else.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
@@ -257,17 +307,18 @@ private func sleepSeconds(_ s: Double) async {
         library.saveTransport(snapshot())
     }
 
-    /// A skip cancels any armed seam and hard-switches with a 0.25 s fade —
-    /// never a click, never a half-executed blend.
+    /// A skip cancels any armed seam and hard-switches under the style's quick-
+    /// fade (adaptive 3.0 / musical 2.6 / club 2.2 s) — never a click, never a
+    /// half-executed blend.
     func next() {
         guard hasNext() else { return }
-        hardSwitch(to: currentIndex + 1, startAt: 0, autoplay: true)
+        hardSwitch(to: currentIndex + 1, startAt: 0, autoplay: true, fade: mixStyle.quickFade)
     }
 
     func prev() {
         guard currentIndex >= 0 else { return }
         let target = currentIndex > 0 ? currentIndex - 1 : 0
-        hardSwitch(to: target, startAt: 0, autoplay: true)
+        hardSwitch(to: target, startAt: 0, autoplay: true, fade: mixStyle.quickFade)
     }
 
     func seek(to seconds: Double) {
@@ -353,6 +404,16 @@ private func sleepSeconds(_ s: Double) async {
                           shuffle: shuffle)
     }
 
+    private static let mixStyleKey = "aethra.mixStyle"
+    private static let keyLockKey = "aethra.keyLock"
+
+    /// Mixing preferences are small and non-secret — UserDefaults is the right
+    /// size. Written on every change via the properties' didSet.
+    private func persistSettings() {
+        UserDefaults.standard.set(mixStyle.rawValue, forKey: Self.mixStyleKey)
+        UserDefaults.standard.set(keyLock, forKey: Self.keyLockKey)
+    }
+
     /// The web verdict feeds from seconds actually played, not final position.
     private func recordHistoryForCurrent() {
         guard let t = current else { return }
@@ -429,24 +490,27 @@ private func sleepSeconds(_ s: Double) async {
         }
     }
 
-    private func hardSwitch(to index: Int, startAt: Double, autoplay: Bool) {
+    private func hardSwitch(to index: Int, startAt: Double, autoplay: Bool, fade: Double = 0.25) {
         recordHistoryForCurrent()
         cancelSeam()
-        stopActiveDeckDeferred()
+        stopActiveDeckDeferred(fade: fade)
         activeDeck = 1 - activeDeck
         activeRate = 1
         materialize(index: index, startAt: startAt, autoplay: autoplay)
     }
 
-    /// 0.25 s fade before the stop — a hard switch is still never a click.
-    /// The claim counter keeps a stale deferred stop from killing a re-used deck.
-    private func stopActiveDeckDeferred() {
+    /// A fade before the stop — a hard switch is still never a click. Manual
+    /// skips pass the style's quick-fade; automatic and failure advances keep
+    /// the tight 0.25 s default. The claim counter keeps a stale deferred stop
+    /// from killing a re-used deck.
+    private func stopActiveDeckDeferred(fade: Double = 0.25) {
         let old = activeDeck
         let claim = deckClaim[old]
         if engine.isPlaying(deck: old) {
-            engine.rampVolume(deck: old, to: 0, over: 0.25)
+            let f = max(0.05, fade)
+            engine.rampVolume(deck: old, to: 0, over: f)
             Task { [weak self] in
-                await sleepSeconds(0.3)
+                await sleepSeconds(f + 0.05)
                 guard let self, self.deckClaim[old] == claim else { return }
                 self.engine.stop(deck: old)
                 self.engine.resetDeckDSP(deck: old)
@@ -522,7 +586,20 @@ private func sleepSeconds(_ s: Double) async {
 
     private func armSeam(duration dur: Double) {
         guard let a = current, let b = peekNext() else { return }
-        var plan = MixPlanner.plan(a: a, b: b, albumSequential: isAlbumSequential(a, b))
+        // Snapshot the style HERE: a preference change takes effect on the next
+        // armed seam, never on one already planned or mid-flight.
+        let style = mixStyle
+        // Club forces a 16-beat plan; the planner still clamps it to the
+        // regions. Adaptive/musical leave the 8-beat default in place.
+        let forceBeats: Double? = style == .club ? style.beats : nil
+        var plan = MixPlanner.plan(a: a, b: b, albumSequential: isAlbumSequential(a, b),
+                                   forceBeats: forceBeats)
+        // Musical never beatmixes: it lets the song play out and slips into a
+        // gentle 2.6 s fade. The .fade trigger below lands at dur - 2.6, so the
+        // outgoing track reaches its natural end before the fade begins.
+        if style.demotesBeatmix, case .beatmix = plan {
+            plan = .fade(seconds: 2.6, why: "let the song play out")
+        }
         var trigger: Double
         switch plan {
         case .gapless:
@@ -607,7 +684,7 @@ private func sleepSeconds(_ s: Double) async {
         case .beatmix(let beats, _, let startB, let bpmA, let bpmB, let fold, let seconds):
             statusLine = "beatmix — \(Int(beats)) beats"
             // B enters tempo-matched to A and bass-ducked: one bassline at a time.
-            engine.setRate(deck: inDeck, rate: Float(fold))
+            applyDeckRate(deck: inDeck, rate: fold)
             engine.setLowShelfGain(deck: inDeck, dB: -14, over: 0.005)
             engine.rampVolume(deck: inDeck, to: 0, over: 0.005)
             // The start is scheduled on the render clock: when A's playhead
@@ -635,6 +712,20 @@ private func sleepSeconds(_ s: Double) async {
         }
     }
 
+    /// Apply a deck's tempo rate, honoring keyLock.
+    ///
+    /// keyLock == true (the default) is the pitch-preserving time-stretch that
+    /// DeckEngine.setRate already performs (AVAudioUnitTimePitch.rate). keyLock
+    /// == false would ride pitch like vinyl — pitch = 1200*log2(rate) cents —
+    /// but the wave-1 DeckEngine exposes only setRate, no lever on the time-
+    /// pitch unit's pitch. Reaching AVAudioUnitTimePitch.pitch means editing
+    /// AudioEngine.swift, which is not this file's to touch, so key-lock-off
+    /// honestly degrades to key-lock-on rather than faking a pitch ride.
+    private func applyDeckRate(deck: Int, rate: Double) {
+        _ = keyLock   // key-lock-off pitch ride is a no-op — no pitch lever here.
+        engine.setRate(deck: deck, rate: Float(rate))
+    }
+
     /// One master tempo line, stepped at 10 Hz across the overlap. The outgoing
     /// deck is "current" until the flip, so its rate is what the analyzer hears.
     private func runGlide(bpmA: Double, bpmB: Double, seconds: Double,
@@ -645,8 +736,8 @@ private func sleepSeconds(_ s: Double) async {
                 guard let self else { return }
                 let f = Date().timeIntervalSince(t0) / max(0.05, seconds)
                 let r = MixPlanner.glideRates(bpmA: bpmA, bpmB: bpmB, f: f)
-                self.engine.setRate(deck: outDeck, rate: Float(r.rateA))
-                self.engine.setRate(deck: inDeck, rate: Float(r.rateB))
+                self.applyDeckRate(deck: outDeck, rate: r.rateA)
+                self.applyDeckRate(deck: inDeck, rate: r.rateB)
                 self.activeRate = r.rateA
                 if f >= 1 { return }
                 await sleepSeconds(0.1)
