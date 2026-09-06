@@ -10,6 +10,10 @@ struct HomeView: View {
     @EnvironmentObject var library: Library
     @EnvironmentObject var player: Player
 
+    // The renderer's settings, observed so the SETTINGS toggles both write and
+    // reflect the live state — the shared instance the field reads each frame.
+    @ObservedObject private var viz = VizSettings.shared
+
     // Shelves open at boot: nothing plays until a ritual or album is chosen.
     @State private var shelvesShown = true
     @State private var roomStep = 0
@@ -26,7 +30,7 @@ struct HomeView: View {
             Color.akVoid.ignoresSafeArea()
             VisualizerView(player: player, roomStep: roomStep, roomName: $roomName)
                 .ignoresSafeArea()
-            NowPlayingHUD(player: player, roomName: roomName, visible: hudVisible && !shelvesShown)
+            NowPlayingHUD(player: player, library: library, roomName: roomName, visible: hudVisible && !shelvesShown)
             if shelvesShown {
                 shelvesOverlay
                     .transition(.opacity)
@@ -34,7 +38,7 @@ struct HomeView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: shelvesShown)
-        .remoteControls(player: player, roomStep: $roomStep, shelvesShown: $shelvesShown, activity: $activity)
+        .remoteControls(player: player, library: library, roomStep: $roomStep, shelvesShown: $shelvesShown, activity: $activity)
         .zenLadder(player: player, activity: activity, hudVisible: $hudVisible)
     }
 
@@ -44,12 +48,14 @@ struct HomeView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 52) {
                 wordmarkHeader
+                nowRow
                 if let catalog = catalogStore.catalog {
                     ritualsShelf(catalog)
                     albumsShelf(catalog)
                     heartsShelf(catalog)
                     recentShelf(catalog)
                 }
+                settingsShelf
             }
             .padding(.horizontal, 80)
             .padding(.vertical, 60)
@@ -94,6 +100,137 @@ struct HomeView: View {
                     .padding(.top, 14)
                     .focusable()
             }
+        }
+    }
+
+    // MARK: - now playing header
+
+    /// The whisper's big sibling: the live room and the act word in mono caps,
+    /// the playing title trailing in the editorial serif. Present only when
+    /// something is on the deck — the position and duration are observed, so
+    /// the act word turns over as the track runs.
+    @ViewBuilder private var nowRow: some View {
+        if let track = player.current {
+            HStack(alignment: .firstTextBaseline, spacing: 22) {
+                Text("NOW")
+                    .font(.system(size: 19, weight: .semibold, design: .monospaced))
+                    .tracking(5)
+                    .foregroundStyle(Color.akDim)
+                Text(roomName.isEmpty ? "THE FIELD" : roomName)
+                    .font(.system(size: 19, weight: .semibold, design: .monospaced))
+                    .tracking(5)
+                    .foregroundStyle(Color.akIce)
+                    .lineLimit(1)
+                Text(actWord)
+                    .font(.system(size: 19, weight: .semibold, design: .monospaced))
+                    .tracking(5)
+                    .foregroundStyle(Color.akAmber)
+                Spacer(minLength: 32)
+                Text(track.title)
+                    .font(.system(size: 24, design: .serif))
+                    .italic()
+                    .foregroundStyle(Color.akInk)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// The five-act arc, derived exactly as the director does: prog against an
+    /// apex pinned at 0.62. Without a duration the track is still in its
+    /// OVERTURE.
+    private var actWord: String {
+        let words = ["OVERTURE", "RISING", "APEX", "TURN", "RESOLVE"]
+        let duration = player.current?.duration ?? 0
+        guard duration > 0 else { return words[0] }
+        let prog = min(max(player.position / duration, 0), 1)
+        let apex = 0.62
+        let index: Int
+        if prog < apex - 0.28 { index = 0 }
+        else if prog < apex - 0.05 { index = 1 }
+        else if prog < apex + 0.12 { index = 2 }
+        else if prog < apex + 0.30 { index = 3 }
+        else { index = 4 }
+        return words[index]
+    }
+
+    // MARK: - settings
+
+    /// The four dials, always reachable from the shelves. The mix style writes
+    /// to the player; the two flags write to the shared visual settings the
+    /// renderer reads. Nothing here needs a catalog — a room can be tuned in
+    /// silence.
+    private var settingsShelf: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            shelfTitle("SETTINGS")
+            mixStyleSetting
+            VStack(alignment: .leading, spacing: 22) {
+                Toggle(isOn: $player.keyLock) {
+                    settingLabel("KEY LOCK", "Hold pitch steady when a seam bends the tempo to match.")
+                }
+                Toggle(isOn: $viz.calm) {
+                    settingLabel("REDUCE FLASHING", "Tighten the luminance governor and open every set in PULSE.")
+                }
+                Toggle(isOn: $viz.autoRooms) {
+                    settingLabel("AUTO ROOMS", "Let the director deal the field; off holds the room you last chose.")
+                }
+            }
+            .frame(maxWidth: 860)
+        }
+        .focusSection()
+    }
+
+    /// Auto-mix style as a row of three: name in mono, one plain line on how
+    /// each seam behaves, an amber underline on the chosen voice.
+    private var mixStyleSetting: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("AUTO-MIX STYLE")
+                .font(.system(size: 24, weight: .semibold))
+                .tracking(2)
+                .foregroundStyle(Color.akInk)
+            HStack(alignment: .top, spacing: 24) {
+                ForEach(MixStyle.allCases, id: \.self) { style in
+                    Button {
+                        player.mixStyle = style
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(style.rawValue.uppercased())
+                                .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                                .tracking(2)
+                                .foregroundStyle(player.mixStyle == style ? Color.akAmber : Color.akInk)
+                            Text(mixStyleDesc(style))
+                                .font(.system(size: 17))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Capsule()
+                                .fill(player.mixStyle == style ? Color.akAmber : Color.clear)
+                                .frame(width: 64, height: 3)
+                        }
+                        .frame(width: 320, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private func mixStyleDesc(_ style: MixStyle) -> String {
+        switch style {
+        case .adaptive: return "Reads each seam — 8-beat blends with 3.0 s fades."
+        case .musical:  return "Lets the song play out — no beatmix, 2.6 s fades."
+        case .club:     return "Tight and relentless — 16-beat blends, 2.2 s fades."
+        }
+    }
+
+    private func settingLabel(_ title: String, _ subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 24, weight: .semibold))
+                .tracking(2)
+                .foregroundStyle(Color.akInk)
+            Text(subtitle)
+                .font(.system(size: 17))
+                .foregroundStyle(.secondary)
         }
     }
 

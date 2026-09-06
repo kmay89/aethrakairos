@@ -14,12 +14,16 @@ enum ZenLaw {
 }
 
 /// The Siri Remote grammar, one law per key: play/pause toggles; select wakes
-/// the HUD first and only an already-lit HUD treats a press as transport;
-/// left/right nudge the playhead ∓/±10 s; up/down step rooms; Menu from the
-/// field raises the shelves. Every press feeds the activity counter the zen
-/// ladder counts from.
+/// the HUD first and only an already-lit HUD treats a press as transport; a
+/// select HELD toggles the heart on the playing track; left/right nudge the
+/// playhead ∓/±10 s; up/down step rooms; Menu from the field raises the
+/// shelves. Every command feeds the activity counter the zen ladder counts
+/// from — the heart hold included.
 struct RemoteCommandModifier: ViewModifier {
     @ObservedObject var player: Player
+    // Present only on the wave-2 path; the heart hold is a no-op without it.
+    // Not observed here — the modifier only writes hearts, it never renders one.
+    let library: Library?
     @Binding var roomStep: Int
     @Binding var shelvesShown: Bool
     @Binding var activity: Int
@@ -28,8 +32,9 @@ struct RemoteCommandModifier: ViewModifier {
     // "was the HUD lit?" with the same law the ladder applies.
     @State private var lastBump = Date()
 
-    init(player: Player, roomStep: Binding<Int>, shelvesShown: Binding<Bool>, activity: Binding<Int>) {
+    init(player: Player, library: Library?, roomStep: Binding<Int>, shelvesShown: Binding<Bool>, activity: Binding<Int>) {
         _player = ObservedObject(wrappedValue: player)
+        self.library = library
         _roomStep = roomStep
         _shelvesShown = shelvesShown
         _activity = activity
@@ -72,6 +77,14 @@ struct RemoteCommandModifier: ViewModifier {
                 if hudWasLit {
                     player.toggle()
                 }
+            }
+            // Select HELD is the heart: it favourites the playing track without
+            // ever opening the shelves. A hold is not a tap, so transport is
+            // left alone; only the activity counter is stirred.
+            .onLongPressGesture(minimumDuration: 0.6) {
+                guard !shelvesShown, let key = player.current?.id else { return }
+                bump()
+                library?.toggleHeart(key)
             }
     }
 
@@ -124,8 +137,16 @@ struct ZenLadderModifier: ViewModifier {
 }
 
 extension View {
+    /// Wave-1 grammar, preserved verbatim: no library, no heart hold. Any
+    /// caller binding to the original contract keeps compiling unchanged.
     func remoteControls(player: Player, roomStep: Binding<Int>, shelvesShown: Binding<Bool>, activity: Binding<Int>) -> some View {
-        modifier(RemoteCommandModifier(player: player, roomStep: roomStep, shelvesShown: shelvesShown, activity: activity))
+        modifier(RemoteCommandModifier(player: player, library: nil, roomStep: roomStep, shelvesShown: shelvesShown, activity: activity))
+    }
+
+    /// Wave-2 grammar: the same laws plus the select-hold heart, which needs a
+    /// Library to write to.
+    func remoteControls(player: Player, library: Library, roomStep: Binding<Int>, shelvesShown: Binding<Bool>, activity: Binding<Int>) -> some View {
+        modifier(RemoteCommandModifier(player: player, library: library, roomStep: roomStep, shelvesShown: shelvesShown, activity: activity))
     }
 
     /// The zen idle countdown; HomeView feeds it the counter the remote bumps

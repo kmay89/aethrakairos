@@ -52,15 +52,38 @@ complete, no-guessing runbook.
   scheduled against each track's analyzed grid (`mix.in`/`mix.out`), track
   `gain` applied so the night stays level.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds Metal rooms; beat phase comes from the analyzed grid (the truth), not
-  onset guessing. Swipe up/down on the remote to change rooms; the UI melts
-  away and the zen card whispers what's playing.
+  feeds fourteen Metal rooms; beat phase comes from the analyzed grid (the
+  truth), not onset guessing. Swipe up/down on the remote to change rooms; the
+  UI melts away and the zen card whispers what's playing. The full roster:
+
+  | | | |
+  |---|---|---|
+  | **MÖBIUS SPIRAL** — phi-folded 3-arm spiral | **PULSE** — the radial spectrum meter (the calm opener) | **NEBULA** — drifting value-noise clouds |
+  | **TUNNEL** — phi-folded rings, bass is the speed | **OP-ART** — interfering gratings | **SCOPE** — the waveform as an oscilloscope trace |
+  | **FRACTAL FIELD** — a live raymarched mandelbulb/box/tetra | **FIREWORKS** — closed-form ballistics, breaks land on the bar | **OIL FILM** — thin-film interference, bass thickens the film |
+  | **MANDALA** — hard-quantized kaleidoscope | **HALO** — the equalizer bent into a torus, a beat soliton orbiting it | **TERRAIN** — a ridged-multifractal heightfield |
+  | **STARBURST** — spectrum rays + onset shock rings | **LAVA LAMP** — metaball wax the music heats | | |
+
+- **It performs, not just reacts** — a five-act story arc
+  (OVERTURE · RISING · APEX · TURN · RESOLVE) read from each track's own
+  structure drives a mood-based auto-director and an INK "white budget" (a
+  drop may blow out; a verse may not). Rooms cross through an edge-free
+  transition vocabulary — luma · scatter · defocus · prism · ember, never the
+  same one twice — and every colour is the track's own key (a rainbow has to
+  be earned by the music's entropy, never wallpaper).
+- **Ghost mode** — a screen nobody is touching is exactly what a TV is, so
+  after ~22 s of stillness a phantom hand works the field itself in phrases,
+  softer than a real hand; the first press on the remote reclaims it.
+- **The booth on the shelf** — a settings shelf carries the mix styles
+  (adaptive / musical / club), key lock, calm mode (WCAG 2.3.1 flash
+  governor, tightened), and auto/manual rooms; the now-playing header shows
+  the live room and the current act.
 - **First-class TV citizenship** — Now Playing metadata + generative artwork
   on the TV and every iPhone remote; play/pause on the remote does what it
   says; the layered icon parallaxes; the top shelf carries the field.
-- **Remembers, locally, like everything else here** — hearts, history, and
-  where you were, in on-device storage sized for tvOS's small persistent
-  quota. No login. No server. Ever.
+- **Remembers, locally, like everything else here** — hearts (toggle with a
+  long-press on the remote), history, and where you were, in on-device
+  storage sized for tvOS's small persistent quota. No login. No server. Ever.
 
 ## Regenerating the brand assets
 

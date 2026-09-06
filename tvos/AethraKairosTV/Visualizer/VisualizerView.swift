@@ -4,16 +4,24 @@ import UIKit
 
 /* ================================================================
    THE FIELD — the SwiftUI face of the Metal renderer.
-   One pipeline, deliberately boring: the current room renders into
-   an offscreen texture every frame; during a handover the outgoing
-   room renders into a second texture and xform_luma composites the
-   pair into the drawable; at rest the same composite runs with
-   transition pinned at 1 (a fullscreen copy — one pipeline, no
-   format-juggling blit). The renderer polls the analyzer's frame,
-   asks the Palette for the track's chord, and ticks the Director.
-   Reduce Motion is honoured at three points: open in PULSE, plain
-   0.9 s crossfades, and nothing else changes — calm is a feature
-   tier, not a punishment.
+   The pipeline is a tail of composites: the current room renders
+   into an offscreen texture every frame; during a handover the
+   outgoing room renders into a second texture and one of five XFORM
+   composites (luma / scatter / defocus / prism / ember, chosen per
+   segue, never the same twice) blends the pair into a third; then
+   grade_pass — the INK GRADE — writes that to the drawable with the
+   hue-preserving rolloff, a vignette, and the starfield floor. At
+   rest the XFORM runs with transition pinned at 1 (it collapses to
+   the live image) and the GRADE still runs — one pipeline shape, no
+   special-casing.
+
+   Above the pixels sit three clocks the renderer drives each frame:
+   the STORY (five acts eased off the playhead → the `act` uniform
+   and the `white` INK budget), the DIRECTOR (which room, when), and
+   the GHOST (a phantom hand after 22 s of stillness). Reduce Motion
+   (or the calm setting) collapses the XFORM to luma, tightens the
+   white budget, and silences the ghost — calm is a feature tier, not
+   a punishment.
    ================================================================ */
 
 struct VisualizerView: View {
@@ -67,9 +75,12 @@ private struct MetalSurface: UIViewRepresentable {
 
 // MARK: - the uniforms mirror
 
-/// EXACT mirror of the Metal-side VizUniforms: 12 packed floats, then
-/// three SIMD4<Float> at offsets 48/64/80 — 96 bytes. Field order is
-/// contract; a drifted layout is a silently wrong picture.
+/// EXACT mirror of the Metal-side VizUniforms (wave 2). The first 96
+/// bytes are byte-for-byte what wave 1 shipped: 12 packed floats, then
+/// three SIMD4<Float> at offsets 48/64/80. Slot 11 was `_pad0`; it is
+/// now `xformMode`. Twelve floats follow colC, padded to a 144-byte,
+/// 16-aligned stride. Field order is contract; a drifted layout is a
+/// silently wrong picture.
 private struct VizUniforms {
     var time: Float = 0
     var beatPhase: Float = 0
@@ -82,10 +93,22 @@ private struct VizUniforms {
     var onsetEnv: Float = 0
     var aspect: Float = 1
     var transition: Float = 1
-    var pad0: Float = 0                       // xform mode: 1 = plain crossfade (Reduce Motion)
+    var xformMode: Float = 0                  // 0 luma · 1 scatter · 2 defocus · 3 prism · 4 ember
     var colA = SIMD4<Float>(0, 0, 0, 1)
     var colB = SIMD4<Float>(0, 0, 0, 1)
     var colC = SIMD4<Float>(0, 0, 0, 1)
+    var act: Float = 0                        // 0..4 eased story arc
+    var phrasePhase: Float = 0
+    var white: Float = 0.05                   // INK budget 0.05..0.92
+    var ghostX: Float = 0
+    var ghostY: Float = 0
+    var ghostStrength: Float = 0
+    var roll0: Float = 0                      // per-room dice, re-dealt on entry
+    var roll1: Float = 0
+    var roll2: Float = 0
+    var pad1: Float = 0
+    var pad2: Float = 0
+    var pad3: Float = 0
 }
 
 // MARK: - the renderer
@@ -100,11 +123,15 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var device: MTLDevice?
     private var queue: MTLCommandQueue?
     private var roomPipelines: [MTLRenderPipelineState] = []
-    private var xformPipeline: MTLRenderPipelineState?
+    // [luma, scatter, defocus, prism, ember] — indexed by xformMode
+    private var xformPipelines: [MTLRenderPipelineState] = []
+    private var gradePipeline: MTLRenderPipelineState?
 
-    // offscreen pair: A = the live room, B = the departing room mid-handover
+    // offscreen chain: A = the live room, B = the departing room mid-handover,
+    // C = the XFORM blend the GRADE reads on its way to the drawable
     private var texA: MTLTexture?
     private var texB: MTLTexture?
+    private var texC: MTLTexture?
     // the ears on the GPU: 256x1 r32Float each (first 64 texels = bands)
     private var spectrumTex: MTLTexture?
     private var waveformTex: MTLTexture?
@@ -116,10 +143,32 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// time-driven geometry.
     private var musicalTime: Double = 0
 
+    // the story arc, eased
+    private var actEased: Double = 0
+    private var whiteEased: Double = 0.05
+    private static let actHeatTable: [Double] = [0.15, 0.45, 1.0, 0.65, 0.25]
+
+    // the handover
     private var transitionProgress: Double = 1.0     // >= 1 means at rest
-    private var transitionDuration: Double = 1.2
+    private var transitionDuration: Double = 0.9
     private var outgoingIndex: Int = 0
     private var lastRoomStep: Int?
+    private var currentXformMode: Int = 0
+    private var lastXformMode: Int = -1
+    private static let xformMinDur: [Double] = [0.55, 0.9, 0.8, 0.7, 1.4]
+
+    // the per-entry dice — the live room's face and the room it is leaving
+    private var currentRolls = SIMD3<Float>(0.5, 0.5, 0.5)
+    private var outgoingRolls = SIMD3<Float>(0.5, 0.5, 0.5)
+
+    // the ghost — a phantom hand after 22 s of stillness
+    private var idleTime: Double = 0
+    private var ghostStrength: Double = 0
+    private var ghostTime: Double = 0
+    private var ghostCycle: Double = 0
+    private var ghostChoreo: Int = 0
+    private var ghostEngagedPrev: Bool = false
+    private var lastPosition: Double = 0
 
     private var specScratch = [Float](repeating: 0, count: 256)
     private var waveScratch = [Float](repeating: 0, count: 256)
@@ -134,6 +183,9 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             director = Director(startAt: Rooms.pulseIndex)
         }
         outgoingIndex = director.currentIndex
+        currentRolls = Self.freshRolls()
+        outgoingRolls = currentRolls
+        ghostChoreo = Int.random(in: 0...3)
     }
 
     // MARK: setup
@@ -161,18 +213,37 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
         roomPipelines = pipelines
 
-        // the compositor targets the drawable's own format
-        let xdesc = MTLRenderPipelineDescriptor()
-        xdesc.vertexFunction = vertexFn
-        xdesc.fragmentFunction = library.makeFunction(name: "xform_luma")
-        xdesc.colorAttachments[0].pixelFormat = view.colorPixelFormat
-        xformPipeline = try? device.makeRenderPipelineState(descriptor: xdesc)
+        // the five XFORM composites, blending the two rgba16Float rooms into
+        // texC (also rgba16Float, so the GRADE reads it filterable)
+        let xformNames = ["xform_luma", "xform_scatter", "xform_defocus", "xform_prism", "xform_ember"]
+        var xf: [MTLRenderPipelineState] = []
+        for name in xformNames {
+            guard let frag = library.makeFunction(name: name) else { return }
+            let desc = MTLRenderPipelineDescriptor()
+            desc.vertexFunction = vertexFn
+            desc.fragmentFunction = frag
+            desc.colorAttachments[0].pixelFormat = .rgba16Float
+            guard let state = try? device.makeRenderPipelineState(descriptor: desc) else { return }
+            xf.append(state)
+        }
+        xformPipelines = xf
+
+        // the GRADE — the final composite, into the drawable's own format
+        let gdesc = MTLRenderPipelineDescriptor()
+        gdesc.vertexFunction = vertexFn
+        gdesc.fragmentFunction = library.makeFunction(name: "grade_pass")
+        gdesc.colorAttachments[0].pixelFormat = view.colorPixelFormat
+        gradePipeline = try? device.makeRenderPipelineState(descriptor: gdesc)
 
         spectrumTex = makeDataTexture(device: device)
         waveformTex = makeDataTexture(device: device)
 
         rebuildTargets(size: view.drawableSize)
         publishRoomName()
+    }
+
+    private static func freshRolls() -> SIMD3<Float> {
+        SIMD3<Float>(Float.random(in: 0..<1), Float.random(in: 0..<1), Float.random(in: 0..<1))
     }
 
     private func makeDataTexture(device: MTLDevice) -> MTLTexture? {
@@ -194,12 +265,14 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         desc.storageMode = .private
         texA = device.makeTexture(descriptor: desc)
         texB = device.makeTexture(descriptor: desc)
+        texC = device.makeTexture(descriptor: desc)
     }
 
     // MARK: remote steps
 
     /// `roomStep` is a counter, not an index: the first sighting is the
-    /// baseline, every later change applies its delta as a manual step.
+    /// baseline, every later change applies its delta as a manual step —
+    /// and counts as remote activity, which reclaims the field from the ghost.
     func roomStepChanged(to value: Int) {
         guard let last = lastRoomStep else {
             lastRoomStep = value
@@ -208,6 +281,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         lastRoomStep = value
         let delta = value - last
         guard delta != 0 else { return }
+        // a hand is on the remote — the ghost yields at once
+        idleTime = 0
         let before = director.currentIndex
         director.step(delta)
         if director.currentIndex != before {
@@ -216,12 +291,29 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
     }
 
+    /// Open a handover: freeze the room being left, pick the composite form
+    /// (never the same twice; always luma under the calm tier), set its min
+    /// duration, and re-deal the arriving room's face plus a fresh ghost
+    /// choreography — a room never wears the same face on re-entry.
     private func beginTransition(from oldIndex: Int) {
         outgoingIndex = oldIndex
         transitionProgress = 0
-        // Reduce Motion: always a plain 0.9 s dissolve; otherwise the
-        // 1.2 s luma handover
-        transitionDuration = reduceMotion ? 0.9 : 1.2
+
+        let calmNow = reduceMotion || VizSettings.shared.calm
+        if calmNow {
+            currentXformMode = 0
+        } else {
+            var m = Int.random(in: 0...4)
+            if m == lastXformMode { m = (m + 1) % 5 }
+            currentXformMode = m
+        }
+        lastXformMode = currentXformMode
+        let mode = min(max(currentXformMode, 0), Self.xformMinDur.count - 1)
+        transitionDuration = calmNow ? 0.9 : Self.xformMinDur[mode]
+
+        outgoingRolls = currentRolls
+        currentRolls = Self.freshRolls()
+        ghostChoreo = Int.random(in: 0...3)
     }
 
     private func publishRoomName() {
@@ -235,6 +327,57 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
     }
 
+    // MARK: the story arc
+
+    /// Act boundaries centered on the apex (0.62 when there is no structure
+    /// to read). OVERTURE / RISING / APEX / TURN / RESOLVE.
+    private func actIndex(prog: Double) -> Int {
+        let apex = 0.62
+        if prog < apex - 0.28 { return 0 }
+        if prog < apex - 0.05 { return 1 }
+        if prog < apex + 0.12 { return 2 }
+        if prog < apex + 0.30 { return 3 }
+        return 4
+    }
+
+    /// The act-heat curve sampled at the eased (fractional) act.
+    private func actHeat(_ a: Double) -> Double {
+        let t = Self.actHeatTable
+        let x = min(max(a, 0), Double(t.count - 1))
+        let i0 = Int(floor(x))
+        let i1 = min(i0 + 1, t.count - 1)
+        let f = x - Double(i0)
+        return t[i0] + (t[i1] - t[i0]) * f
+    }
+
+    // MARK: the ghost
+
+    /// One of four choreographies, dealt per room entry, in the same centered
+    /// aspect-space the rooms shape in (roughly -1…1). The clock advances
+    /// every frame so the walk is continuous whether or not it is showing.
+    private func ghostPoint(choreo: Int, t: Double) -> (Float, Float) {
+        func tri(_ x: Double) -> Double { let f = x - floor(x); return 2 * abs(2 * f - 1) - 1 }
+        var x = 0.0
+        var y = 0.0
+        switch choreo {
+        case 1:  // bounce — box billiards
+            x = tri(t * 0.09)
+            y = tri(t * 0.07 + 0.3)
+        case 2:  // lissa — a slow lissajous figure
+            x = 0.72 * sin(t * 0.31)
+            y = 0.72 * sin(t * 0.19 + .pi / 2)
+        case 3:  // snake — a horizontal sweep stepping in height
+            x = tri(t * 0.11)
+            y = 0.6 * sin(floor(t * 0.11) * 1.7)
+        default: // drift — a wandering ramble
+            x = 0.55 * sin(t * 0.13) + 0.20 * sin(t * 0.07 + 1.0)
+            y = 0.50 * sin(t * 0.11 + 2.0) + 0.20 * cos(t * 0.05)
+        }
+        x = min(max(x, -0.92), 0.92)
+        y = min(max(y, -0.92), 0.92)
+        return (Float(x), Float(y))
+    }
+
     // MARK: MTKViewDelegate
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -243,7 +386,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         guard let queue,
-              let xformPipeline,
+              let gradePipeline,
+              xformPipelines.count == 5,
               roomPipelines.count == Rooms.all.count,
               !roomPipelines.isEmpty
         else { return }
@@ -253,13 +397,17 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         if texA == nil || texA?.width != Int(size.width) || texA?.height != Int(size.height) {
             rebuildTargets(size: size)
         }
-        guard let liveTex = texA else { return }
+        guard let liveTex = texA, let compTex = texC else { return }
 
         // -- the clock --
         let now = CACurrentMediaTime()
         var dt = lastDrawTime == 0 ? 1.0 / 60.0 : now - lastDrawTime
         lastDrawTime = now
         dt = min(max(dt, 0), 0.25)                     // a resumed app is not a time machine
+
+        // -- settings, read live on the main actor --
+        director.autoOn = VizSettings.shared.autoRooms
+        let calmNow = reduceMotion || VizSettings.shared.calm
 
         // -- the ears and the chord --
         let frame = player.analyzer.currentFrame()
@@ -269,9 +417,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let rate = min(max(0.45 + 1.05 * Double(frame.energy), 0.4), 1.9)
         musicalTime += dt * rate
 
+        // -- the story: acts eased (tau 3 s), white budget eased (tau 2.5 s) --
+        let dur = player.current?.duration ?? 0
+        let prog = dur > 1 ? min(max(player.position / dur, 0), 1) : 0
+        let actTarget = actIndex(prog: prog)
+        actEased += (Double(actTarget) - actEased) * (1 - exp(-dt / 3.0))
+        var whiteTarget = 0.05 + actHeat(actEased) * 0.87
+        if calmNow { whiteTarget = min(whiteTarget, 0.42) }     // the calm tier tightens the ceiling
+        whiteEased += (whiteTarget - whiteEased) * (1 - exp(-dt / 2.5))
+        whiteEased = min(max(whiteEased, 0.05), 0.92)
+
         // -- the director --
         let before = director.currentIndex
-        if director.tick(dt: dt, frame: frame) != nil {
+        if director.tick(dt: dt, frame: frame, act: actTarget) != nil {
             beginTransition(from: before)
             publishRoomName()
         }
@@ -279,9 +437,35 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             transitionProgress = min(1, transitionProgress + dt / max(transitionDuration, 0.05))
         }
 
+        // -- the ghost state machine --
+        // Remote activity also arrives as a playback jump (a seek or a ±10 s
+        // nudge): a hop larger than a frame's worth of playback reclaims the
+        // field. The ~4 Hz position stepping (~0.25 s hops) stays well under
+        // the gate, so ordinary playback never false-triggers.
+        let posNow = player.position
+        if player.isPlaying, abs(posNow - lastPosition - dt) > 1.5 { idleTime = 0 }
+        lastPosition = posNow
+
+        idleTime += dt
+        let ghostAllowed = !calmNow && player.isPlaying && idleTime >= 22.0
+        if ghostAllowed && !ghostEngagedPrev { ghostCycle = 0 }   // engage on a fresh on-window
+        ghostEngagedPrev = ghostAllowed
+        if ghostAllowed { ghostCycle += dt }
+        ghostTime += dt
+        // duty ~30%: 8 s on, 18 s off within a 26 s period (phrases on, longer off)
+        let onWindow = ghostAllowed && (ghostCycle.truncatingRemainder(dividingBy: 26.0) < 8.0)
+        let ghostTarget: Double = onWindow ? 0.5 : 0.0
+        if ghostTarget > ghostStrength {
+            ghostStrength = min(ghostTarget, ghostStrength + 0.25 * dt)   // 0 -> 0.5 over 2 s
+        } else {
+            let down = idleTime < 0.6 ? 1.0 : 0.25                        // reclaim: 0.5 -> 0 over 0.5 s
+            ghostStrength = max(ghostTarget, ghostStrength - down * dt)
+        }
+        let ghost = ghostPoint(choreo: ghostChoreo, t: ghostTime)
+
         uploadAudioTextures(frame: frame)
 
-        // -- uniforms --
+        // -- uniforms (the live room's block) --
         var u = VizUniforms()
         u.time = Float(musicalTime)
         u.beatPhase = frame.beatPhase
@@ -295,10 +479,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // height is guarded above — the aspect never divides by zero
         u.aspect = Float(size.width / size.height)
         u.transition = transitionProgress >= 1 ? 1 : Float(transitionProgress)
-        u.pad0 = reduceMotion ? 1 : 0
+        u.xformMode = Float(currentXformMode)
         u.colA = SIMD4<Float>(chord.a.x, chord.a.y, chord.a.z, 1)
         u.colB = SIMD4<Float>(chord.b.x, chord.b.y, chord.b.z, 1)
         u.colC = SIMD4<Float>(chord.c.x, chord.c.y, chord.c.z, 1)
+        u.act = Float(actEased)
+        u.phrasePhase = frame.phrasePhase
+        u.white = Float(whiteEased)
+        u.ghostX = ghost.0
+        u.ghostY = ghost.1
+        u.ghostStrength = Float(ghostStrength)
+        u.roll0 = currentRolls.x
+        u.roll1 = currentRolls.y
+        u.roll2 = currentRolls.z
 
         guard let commandBuffer = queue.makeCommandBuffer() else { return }
 
@@ -307,17 +500,28 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         guard roomPipelines.indices.contains(current) else { return }
         encodeRoom(index: current, into: liveTex, commandBuffer: commandBuffer, uniforms: &u)
 
-        // -- pass 2 (handover only): the departing room into texB --
+        // -- pass 2 (handover only): the departing room into texB, wearing
+        //    its OWN (outgoing) dice so it keeps the face it entered with --
         var ghostTex: MTLTexture = liveTex
         if transitionProgress < 1,
            let tb = texB,
            outgoingIndex != current,
            roomPipelines.indices.contains(outgoingIndex) {
-            encodeRoom(index: outgoingIndex, into: tb, commandBuffer: commandBuffer, uniforms: &u)
+            var ug = u
+            ug.roll0 = outgoingRolls.x
+            ug.roll1 = outgoingRolls.y
+            ug.roll2 = outgoingRolls.z
+            encodeRoom(index: outgoingIndex, into: tb, commandBuffer: commandBuffer, uniforms: &ug)
             ghostTex = tb
         }
 
-        // -- pass 3: composite to the drawable --
+        // -- pass 3: the XFORM composite (live + ghost) into texC --
+        let mode = min(max(currentXformMode, 0), xformPipelines.count - 1)
+        encodeComposite(pipeline: xformPipelines[mode], into: compTex,
+                        commandBuffer: commandBuffer, uniforms: &u,
+                        tex0: liveTex, tex1: ghostTex)
+
+        // -- pass 4: the GRADE — texC to the drawable --
         guard let passDesc = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDesc)
@@ -325,12 +529,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             commandBuffer.commit()
             return
         }
-        encoder.setRenderPipelineState(xformPipeline)
+        encoder.setRenderPipelineState(gradePipeline)
         encoder.setFragmentBytes(&u, length: MemoryLayout<VizUniforms>.stride, index: 0)
         var res = SIMD2<Float>(Float(size.width), Float(size.height))
         encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
-        encoder.setFragmentTexture(liveTex, index: 0)
-        encoder.setFragmentTexture(ghostTex, index: 1)
+        encoder.setFragmentTexture(compTex, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
 
@@ -358,6 +561,30 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
         encoder.setFragmentTexture(spectrumTex, index: 0)
         encoder.setFragmentTexture(waveformTex, index: 1)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+    }
+
+    /// A two-texture composite (an XFORM form) into an offscreen target.
+    private func encodeComposite(pipeline: MTLRenderPipelineState, into target: MTLTexture,
+                                 commandBuffer: MTLCommandBuffer,
+                                 uniforms: inout VizUniforms,
+                                 tex0: MTLTexture, tex1: MTLTexture) {
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = target
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].storeAction = .store
+        pass.colorAttachments[0].clearColor = MTLClearColor(red: 5.0 / 255.0,
+                                                            green: 6.0 / 255.0,
+                                                            blue: 14.0 / 255.0,
+                                                            alpha: 1.0)
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return }
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<VizUniforms>.stride, index: 0)
+        var res = SIMD2<Float>(Float(target.width), Float(target.height))
+        encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
+        encoder.setFragmentTexture(tex0, index: 0)
+        encoder.setFragmentTexture(tex1, index: 1)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
     }

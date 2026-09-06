@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 /* ================================================================
    CATALOG STORE — stale-while-revalidate, the native way.
