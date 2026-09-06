@@ -1,0 +1,138 @@
+# Build the native Apple TV app (SwiftUI, tvos/).
+#
+#   • PR / manual "none"      → unsigned compile check on a Mac runner. Proves
+#                               every Swift file and the asset catalog build,
+#                               costs no credentials.
+#   • Manual "testflight"     → archive, sign under the team's cloud-managed
+#                               distribution certificate, upload to App Store
+#                               Connect / TestFlight.
+#
+# Signing is OPT-IN on the `ENABLE_TVOS_SIGNING` repo VARIABLE (not a secret) —
+# set it to exactly `true` once the four secrets exist (APPLE_TEAM_ID,
+# ASC_ISSUER_ID, ASC_KEY_ID, ASC_API_KEY_P8_BASE64). Until then, testflight
+# runs refuse early with a pointer at the runbook. There is no certificate or
+# .p12 anywhere in this pipeline: the App Store Connect API key lets xcodebuild
+# mint and use a cloud-managed Apple Distribution certificate by itself
+# (-allowProvisioningUpdates + the -authenticationKey* trio).
+#
+# Runbook: tvos/TESTFLIGHT.md.
+
+name: tvos
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'none = compile check only · testflight = archive, sign, upload to TestFlight'
+        type: choice
+        options: [none, testflight]
+        default: none
+  pull_request:
+    paths:
+      - 'tvos/**'
+      - '.github/workflows/tvos.yml'
+
+concurrency:
+  group: tvos-${{ github.ref }}-${{ inputs.channel }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: compile check (unsigned)
+    if: inputs.channel != 'testflight'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest stable Xcode on the runner
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Build (generic tvOS device, signing off)
+        run: |
+          xcodebuild build \
+            -project tvos/AethraKairos.xcodeproj \
+            -scheme AethraKairosTV \
+            -destination 'generic/platform=tvOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            | tee build.log | grep -E '^(=== |\*\* |error|warning)' || true
+          grep -q '\*\* BUILD SUCCEEDED \*\*' build.log
+
+  testflight:
+    name: archive · sign · upload to TestFlight
+    if: inputs.channel == 'testflight'
+    runs-on: macos-15
+    steps:
+      - name: Refuse until the switch is on
+        if: vars.ENABLE_TVOS_SIGNING != 'true'
+        run: |
+          echo "::error::ENABLE_TVOS_SIGNING is not 'true'. Follow tvos/TESTFLIGHT.md" \
+                "parts 3–4 to create the App Store Connect API key and the secrets," \
+                "then set the repo variable. Refusing before spending a build."
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - name: Select newest stable Xcode on the runner
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Materialize the App Store Connect API key
+        env:
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: |
+          echo "$ASC_API_KEY_P8_BASE64" | base64 -d > "$RUNNER_TEMP/AuthKey.p8"
+          # a truncated paste produces a key openssl can't parse — fail here,
+          # with a named cause, not twenty minutes later inside xcodebuild
+          openssl pkey -in "$RUNNER_TEMP/AuthKey.p8" -noout \
+            || { echo "::error::ASC_API_KEY_P8_BASE64 does not decode to a valid .p8 (truncated paste?)"; exit 1; }
+
+      - name: Archive (cloud-managed signing via the API key)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild archive \
+            -project tvos/AethraKairos.xcodeproj \
+            -scheme AethraKairosTV \
+            -destination 'generic/platform=tvOS' \
+            -archivePath "$RUNNER_TEMP/AethraKairos.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Upload to App Store Connect
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/AethraKairos.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "Uploaded. Apple processes for 5–30 min, then the build appears" \
+               "under TestFlight in App Store Connect (tvos/TESTFLIGHT.md part 6)."

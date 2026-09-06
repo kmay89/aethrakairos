@@ -1,0 +1,384 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AEC0FFEE0000000000000002 /* AethraKairosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000001 /* AethraKairosApp.swift */; };
+		AEC0FFEE0000000000000004 /* Catalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000003 /* Catalog.swift */; };
+		AEC0FFEE0000000000000006 /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000005 /* CatalogStore.swift */; };
+		AEC0FFEE0000000000000008 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000007 /* Library.swift */; };
+		AEC0FFEE000000000000000A /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000009 /* AudioEngine.swift */; };
+		AEC0FFEE000000000000000C /* TrackLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000000B /* TrackLoader.swift */; };
+		AEC0FFEE000000000000000E /* Analyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000000D /* Analyzer.swift */; };
+		AEC0FFEE0000000000000010 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000000F /* Player.swift */; };
+		AEC0FFEE0000000000000012 /* NowPlayingCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000011 /* NowPlayingCenter.swift */; };
+		AEC0FFEE0000000000000014 /* JourneyEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000013 /* JourneyEngine.swift */; };
+		AEC0FFEE0000000000000016 /* CoverArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000015 /* CoverArt.swift */; };
+		AEC0FFEE0000000000000018 /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000017 /* Palette.swift */; };
+		AEC0FFEE000000000000001A /* VisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000019 /* VisualizerView.swift */; };
+		AEC0FFEE000000000000001C /* Rooms.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000001B /* Rooms.swift */; };
+		AEC0FFEE000000000000001E /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000001D /* Shaders.metal */; };
+		AEC0FFEE0000000000000020 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000001F /* HomeView.swift */; };
+		AEC0FFEE0000000000000022 /* NowPlayingHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000021 /* NowPlayingHUD.swift */; };
+		AEC0FFEE0000000000000024 /* RemoteControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000023 /* RemoteControls.swift */; };
+		AEC0FFEE0000000000000026 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000025 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AEC0FFEE0000000000000001 /* AethraKairosApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AethraKairosApp.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000003 /* Catalog.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Catalog.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000005 /* CatalogStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000007 /* Library.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000009 /* AudioEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
+		AEC0FFEE000000000000000B /* TrackLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TrackLoader.swift; sourceTree = "<group>"; };
+		AEC0FFEE000000000000000D /* Analyzer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Analyzer.swift; sourceTree = "<group>"; };
+		AEC0FFEE000000000000000F /* Player.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000011 /* NowPlayingCenter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowPlayingCenter.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000013 /* JourneyEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JourneyEngine.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000015 /* CoverArt.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoverArt.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000017 /* Palette.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000019 /* VisualizerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VisualizerView.swift; sourceTree = "<group>"; };
+		AEC0FFEE000000000000001B /* Rooms.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Rooms.swift; sourceTree = "<group>"; };
+		AEC0FFEE000000000000001D /* Shaders.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000001F /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000021 /* NowPlayingHUD.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowPlayingHUD.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000023 /* RemoteControls.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RemoteControls.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000027 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000028 /* AethraKairosTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AethraKairosTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AEC0FFEE0000000000000034 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AEC0FFEE0000000000000030 = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000032 /* AethraKairosTV */,
+				AEC0FFEE0000000000000031 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AEC0FFEE0000000000000031 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000028 /* AethraKairosTV.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE0000000000000032 /* AethraKairosTV */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000029 /* App */,
+				AEC0FFEE000000000000002A /* Model */,
+				AEC0FFEE000000000000002B /* Audio */,
+				AEC0FFEE000000000000002C /* Journey */,
+				AEC0FFEE000000000000002D /* Art */,
+				AEC0FFEE000000000000002E /* Visualizer */,
+				AEC0FFEE000000000000002F /* UI */,
+				AEC0FFEE0000000000000025 /* Assets.xcassets */,
+				AEC0FFEE0000000000000027 /* Info.plist */,
+			);
+			path = AethraKairosTV;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE0000000000000029 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000001 /* AethraKairosApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE000000000000002A /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000003 /* Catalog.swift */,
+				AEC0FFEE0000000000000005 /* CatalogStore.swift */,
+				AEC0FFEE0000000000000007 /* Library.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE000000000000002B /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000009 /* AudioEngine.swift */,
+				AEC0FFEE000000000000000B /* TrackLoader.swift */,
+				AEC0FFEE000000000000000D /* Analyzer.swift */,
+				AEC0FFEE000000000000000F /* Player.swift */,
+				AEC0FFEE0000000000000011 /* NowPlayingCenter.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE000000000000002C /* Journey */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000013 /* JourneyEngine.swift */,
+			);
+			path = Journey;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE000000000000002D /* Art */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000015 /* CoverArt.swift */,
+			);
+			path = Art;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE000000000000002E /* Visualizer */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE0000000000000017 /* Palette.swift */,
+				AEC0FFEE0000000000000019 /* VisualizerView.swift */,
+				AEC0FFEE000000000000001B /* Rooms.swift */,
+				AEC0FFEE000000000000001D /* Shaders.metal */,
+			);
+			path = Visualizer;
+			sourceTree = "<group>";
+		};
+		AEC0FFEE000000000000002F /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				AEC0FFEE000000000000001F /* HomeView.swift */,
+				AEC0FFEE0000000000000021 /* NowPlayingHUD.swift */,
+				AEC0FFEE0000000000000023 /* RemoteControls.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AEC0FFEE0000000000000036 /* AethraKairosTV */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AEC0FFEE0000000000000039 /* Build configuration list for PBXNativeTarget "AethraKairosTV" */;
+			buildPhases = (
+				AEC0FFEE0000000000000033 /* Sources */,
+				AEC0FFEE0000000000000034 /* Frameworks */,
+				AEC0FFEE0000000000000035 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AethraKairosTV;
+			productName = AethraKairosTV;
+			productReference = AEC0FFEE0000000000000028 /* AethraKairosTV.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AEC0FFEE0000000000000037 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					AEC0FFEE0000000000000036 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = AEC0FFEE0000000000000038 /* Build configuration list for PBXProject "AethraKairos" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AEC0FFEE0000000000000030;
+			productRefGroup = AEC0FFEE0000000000000031 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AEC0FFEE0000000000000036 /* AethraKairosTV */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AEC0FFEE0000000000000035 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AEC0FFEE0000000000000026 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AEC0FFEE0000000000000033 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AEC0FFEE0000000000000002 /* AethraKairosApp.swift in Sources */,
+				AEC0FFEE0000000000000004 /* Catalog.swift in Sources */,
+				AEC0FFEE0000000000000006 /* CatalogStore.swift in Sources */,
+				AEC0FFEE0000000000000008 /* Library.swift in Sources */,
+				AEC0FFEE000000000000000A /* AudioEngine.swift in Sources */,
+				AEC0FFEE000000000000000C /* TrackLoader.swift in Sources */,
+				AEC0FFEE000000000000000E /* Analyzer.swift in Sources */,
+				AEC0FFEE0000000000000010 /* Player.swift in Sources */,
+				AEC0FFEE0000000000000012 /* NowPlayingCenter.swift in Sources */,
+				AEC0FFEE0000000000000014 /* JourneyEngine.swift in Sources */,
+				AEC0FFEE0000000000000016 /* CoverArt.swift in Sources */,
+				AEC0FFEE0000000000000018 /* Palette.swift in Sources */,
+				AEC0FFEE000000000000001A /* VisualizerView.swift in Sources */,
+				AEC0FFEE000000000000001C /* Rooms.swift in Sources */,
+				AEC0FFEE000000000000001E /* Shaders.metal in Sources */,
+				AEC0FFEE0000000000000020 /* HomeView.swift in Sources */,
+				AEC0FFEE0000000000000022 /* NowPlayingHUD.swift in Sources */,
+				AEC0FFEE0000000000000024 /* RemoteControls.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AEC0FFEE000000000000003A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = appletvos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+			};
+			name = Debug;
+		};
+		AEC0FFEE000000000000003B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = appletvos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AEC0FFEE000000000000003C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AethraKairosTV/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aethrakairos.tv;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Debug;
+		};
+		AEC0FFEE000000000000003D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AethraKairosTV/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aethrakairos.tv;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AEC0FFEE0000000000000038 /* Build configuration list for PBXProject "AethraKairos" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AEC0FFEE000000000000003A /* Debug */,
+				AEC0FFEE000000000000003B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AEC0FFEE0000000000000039 /* Build configuration list for PBXNativeTarget "AethraKairosTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AEC0FFEE000000000000003C /* Debug */,
+				AEC0FFEE000000000000003D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AEC0FFEE0000000000000037 /* Project object */;
+}
