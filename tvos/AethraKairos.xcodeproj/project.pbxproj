@@ -25,10 +25,14 @@
 		AEC0FFEE0000000000000020 /* Shaders2.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000001F /* Shaders2.metal */; };
 		AEC0FFEE0000000000000022 /* Shaders3.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000021 /* Shaders3.metal */; };
 		AEC0FFEE0000000000000024 /* Xforms.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000023 /* Xforms.metal */; };
-		AEC0FFEE0000000000000026 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000025 /* HomeView.swift */; };
-		AEC0FFEE0000000000000028 /* NowPlayingHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000027 /* NowPlayingHUD.swift */; };
-		AEC0FFEE000000000000002A /* RemoteControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000029 /* RemoteControls.swift */; };
-		AEC0FFEE000000000000002C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002B /* Assets.xcassets */; };
+		AEC0FFEE0000000000000026 /* Shaders4.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000025 /* Shaders4.metal */; };
+		AEC0FFEE0000000000000028 /* Shaders5.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000027 /* Shaders5.metal */; };
+		AEC0FFEE000000000000002A /* Lens.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000029 /* Lens.metal */; };
+		AEC0FFEE000000000000002C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002B /* HomeView.swift */; };
+		AEC0FFEE000000000000002E /* NowPlayingHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002D /* NowPlayingHUD.swift */; };
+		AEC0FFEE0000000000000030 /* RemoteControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002F /* RemoteControls.swift */; };
+		AEC0FFEE0000000000000032 /* JourneyConsole.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000031 /* JourneyConsole.swift */; };
+		AEC0FFEE0000000000000034 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000033 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,16 +54,20 @@
 		AEC0FFEE000000000000001F /* Shaders2.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders2.metal; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000021 /* Shaders3.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders3.metal; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000023 /* Xforms.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Xforms.metal; sourceTree = "<group>"; };
-		AEC0FFEE0000000000000025 /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		AEC0FFEE0000000000000027 /* NowPlayingHUD.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowPlayingHUD.swift; sourceTree = "<group>"; };
-		AEC0FFEE0000000000000029 /* RemoteControls.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RemoteControls.swift; sourceTree = "<group>"; };
-		AEC0FFEE000000000000002B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		AEC0FFEE000000000000002D /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AEC0FFEE000000000000002E /* AethraKairosTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AethraKairosTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AEC0FFEE0000000000000025 /* Shaders4.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders4.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000027 /* Shaders5.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders5.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000029 /* Lens.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Lens.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000002B /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		AEC0FFEE000000000000002D /* NowPlayingHUD.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowPlayingHUD.swift; sourceTree = "<group>"; };
+		AEC0FFEE000000000000002F /* RemoteControls.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RemoteControls.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000031 /* JourneyConsole.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JourneyConsole.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000033 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000035 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000036 /* AethraKairosTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AethraKairosTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		AEC0FFEE000000000000003A /* Frameworks */ = {
+		AEC0FFEE0000000000000042 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -69,39 +77,39 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AEC0FFEE0000000000000036 = {
+		AEC0FFEE000000000000003E = {
 			isa = PBXGroup;
 			children = (
-				AEC0FFEE0000000000000038 /* AethraKairosTV */,
-				AEC0FFEE0000000000000037 /* Products */,
+				AEC0FFEE0000000000000040 /* AethraKairosTV */,
+				AEC0FFEE000000000000003F /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000037 /* Products */ = {
+		AEC0FFEE000000000000003F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AEC0FFEE000000000000002E /* AethraKairosTV.app */,
+				AEC0FFEE0000000000000036 /* AethraKairosTV.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000038 /* AethraKairosTV */ = {
+		AEC0FFEE0000000000000040 /* AethraKairosTV */ = {
 			isa = PBXGroup;
 			children = (
-				AEC0FFEE000000000000002F /* App */,
-				AEC0FFEE0000000000000030 /* Model */,
-				AEC0FFEE0000000000000031 /* Audio */,
-				AEC0FFEE0000000000000032 /* Journey */,
-				AEC0FFEE0000000000000033 /* Art */,
-				AEC0FFEE0000000000000034 /* Visualizer */,
-				AEC0FFEE0000000000000035 /* UI */,
-				AEC0FFEE000000000000002B /* Assets.xcassets */,
-				AEC0FFEE000000000000002D /* Info.plist */,
+				AEC0FFEE0000000000000037 /* App */,
+				AEC0FFEE0000000000000038 /* Model */,
+				AEC0FFEE0000000000000039 /* Audio */,
+				AEC0FFEE000000000000003A /* Journey */,
+				AEC0FFEE000000000000003B /* Art */,
+				AEC0FFEE000000000000003C /* Visualizer */,
+				AEC0FFEE000000000000003D /* UI */,
+				AEC0FFEE0000000000000033 /* Assets.xcassets */,
+				AEC0FFEE0000000000000035 /* Info.plist */,
 			);
 			path = AethraKairosTV;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE000000000000002F /* App */ = {
+		AEC0FFEE0000000000000037 /* App */ = {
 			isa = PBXGroup;
 			children = (
 				AEC0FFEE0000000000000001 /* AethraKairosApp.swift */,
@@ -109,7 +117,7 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000030 /* Model */ = {
+		AEC0FFEE0000000000000038 /* Model */ = {
 			isa = PBXGroup;
 			children = (
 				AEC0FFEE0000000000000003 /* Catalog.swift */,
@@ -119,7 +127,7 @@
 			path = Model;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000031 /* Audio */ = {
+		AEC0FFEE0000000000000039 /* Audio */ = {
 			isa = PBXGroup;
 			children = (
 				AEC0FFEE0000000000000009 /* AudioEngine.swift */,
@@ -131,7 +139,7 @@
 			path = Audio;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000032 /* Journey */ = {
+		AEC0FFEE000000000000003A /* Journey */ = {
 			isa = PBXGroup;
 			children = (
 				AEC0FFEE0000000000000013 /* JourneyEngine.swift */,
@@ -139,7 +147,7 @@
 			path = Journey;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000033 /* Art */ = {
+		AEC0FFEE000000000000003B /* Art */ = {
 			isa = PBXGroup;
 			children = (
 				AEC0FFEE0000000000000015 /* CoverArt.swift */,
@@ -147,7 +155,7 @@
 			path = Art;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000034 /* Visualizer */ = {
+		AEC0FFEE000000000000003C /* Visualizer */ = {
 			isa = PBXGroup;
 			children = (
 				AEC0FFEE0000000000000017 /* Palette.swift */,
@@ -157,16 +165,20 @@
 				AEC0FFEE000000000000001F /* Shaders2.metal */,
 				AEC0FFEE0000000000000021 /* Shaders3.metal */,
 				AEC0FFEE0000000000000023 /* Xforms.metal */,
+				AEC0FFEE0000000000000025 /* Shaders4.metal */,
+				AEC0FFEE0000000000000027 /* Shaders5.metal */,
+				AEC0FFEE0000000000000029 /* Lens.metal */,
 			);
 			path = Visualizer;
 			sourceTree = "<group>";
 		};
-		AEC0FFEE0000000000000035 /* UI */ = {
+		AEC0FFEE000000000000003D /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				AEC0FFEE0000000000000025 /* HomeView.swift */,
-				AEC0FFEE0000000000000027 /* NowPlayingHUD.swift */,
-				AEC0FFEE0000000000000029 /* RemoteControls.swift */,
+				AEC0FFEE000000000000002B /* HomeView.swift */,
+				AEC0FFEE000000000000002D /* NowPlayingHUD.swift */,
+				AEC0FFEE000000000000002F /* RemoteControls.swift */,
+				AEC0FFEE0000000000000031 /* JourneyConsole.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -174,13 +186,13 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AEC0FFEE000000000000003C /* AethraKairosTV */ = {
+		AEC0FFEE0000000000000044 /* AethraKairosTV */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AEC0FFEE000000000000003F /* Build configuration list for PBXNativeTarget "AethraKairosTV" */;
+			buildConfigurationList = AEC0FFEE0000000000000047 /* Build configuration list for PBXNativeTarget "AethraKairosTV" */;
 			buildPhases = (
-				AEC0FFEE0000000000000039 /* Sources */,
-				AEC0FFEE000000000000003A /* Frameworks */,
-				AEC0FFEE000000000000003B /* Resources */,
+				AEC0FFEE0000000000000041 /* Sources */,
+				AEC0FFEE0000000000000042 /* Frameworks */,
+				AEC0FFEE0000000000000043 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -188,25 +200,25 @@
 			);
 			name = AethraKairosTV;
 			productName = AethraKairosTV;
-			productReference = AEC0FFEE000000000000002E /* AethraKairosTV.app */;
+			productReference = AEC0FFEE0000000000000036 /* AethraKairosTV.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		AEC0FFEE000000000000003D /* Project object */ = {
+		AEC0FFEE0000000000000045 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
-					AEC0FFEE000000000000003C = {
+					AEC0FFEE0000000000000044 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
-			buildConfigurationList = AEC0FFEE000000000000003E /* Build configuration list for PBXProject "AethraKairos" */;
+			buildConfigurationList = AEC0FFEE0000000000000046 /* Build configuration list for PBXProject "AethraKairos" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -214,29 +226,29 @@
 				en,
 				Base,
 			);
-			mainGroup = AEC0FFEE0000000000000036;
-			productRefGroup = AEC0FFEE0000000000000037 /* Products */;
+			mainGroup = AEC0FFEE000000000000003E;
+			productRefGroup = AEC0FFEE000000000000003F /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AEC0FFEE000000000000003C /* AethraKairosTV */,
+				AEC0FFEE0000000000000044 /* AethraKairosTV */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		AEC0FFEE000000000000003B /* Resources */ = {
+		AEC0FFEE0000000000000043 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AEC0FFEE000000000000002C /* Assets.xcassets in Resources */,
+				AEC0FFEE0000000000000034 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		AEC0FFEE0000000000000039 /* Sources */ = {
+		AEC0FFEE0000000000000041 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -258,16 +270,20 @@
 				AEC0FFEE0000000000000020 /* Shaders2.metal in Sources */,
 				AEC0FFEE0000000000000022 /* Shaders3.metal in Sources */,
 				AEC0FFEE0000000000000024 /* Xforms.metal in Sources */,
-				AEC0FFEE0000000000000026 /* HomeView.swift in Sources */,
-				AEC0FFEE0000000000000028 /* NowPlayingHUD.swift in Sources */,
-				AEC0FFEE000000000000002A /* RemoteControls.swift in Sources */,
+				AEC0FFEE0000000000000026 /* Shaders4.metal in Sources */,
+				AEC0FFEE0000000000000028 /* Shaders5.metal in Sources */,
+				AEC0FFEE000000000000002A /* Lens.metal in Sources */,
+				AEC0FFEE000000000000002C /* HomeView.swift in Sources */,
+				AEC0FFEE000000000000002E /* NowPlayingHUD.swift in Sources */,
+				AEC0FFEE0000000000000030 /* RemoteControls.swift in Sources */,
+				AEC0FFEE0000000000000032 /* JourneyConsole.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		AEC0FFEE0000000000000040 /* Debug */ = {
+		AEC0FFEE0000000000000048 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -300,7 +316,7 @@
 			};
 			name = Debug;
 		};
-		AEC0FFEE0000000000000041 /* Release */ = {
+		AEC0FFEE0000000000000049 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -327,7 +343,7 @@
 			};
 			name = Release;
 		};
-		AEC0FFEE0000000000000042 /* Debug */ = {
+		AEC0FFEE000000000000004A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
@@ -347,7 +363,7 @@
 			};
 			name = Debug;
 		};
-		AEC0FFEE0000000000000043 /* Release */ = {
+		AEC0FFEE000000000000004B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
@@ -370,25 +386,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		AEC0FFEE000000000000003E /* Build configuration list for PBXProject "AethraKairos" */ = {
+		AEC0FFEE0000000000000046 /* Build configuration list for PBXProject "AethraKairos" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AEC0FFEE0000000000000040 /* Debug */,
-				AEC0FFEE0000000000000041 /* Release */,
+				AEC0FFEE0000000000000048 /* Debug */,
+				AEC0FFEE0000000000000049 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AEC0FFEE000000000000003F /* Build configuration list for PBXNativeTarget "AethraKairosTV" */ = {
+		AEC0FFEE0000000000000047 /* Build configuration list for PBXNativeTarget "AethraKairosTV" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AEC0FFEE0000000000000042 /* Debug */,
-				AEC0FFEE0000000000000043 /* Release */,
+				AEC0FFEE000000000000004A /* Debug */,
+				AEC0FFEE000000000000004B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = AEC0FFEE000000000000003D /* Project object */;
+	rootObject = AEC0FFEE0000000000000045 /* Project object */;
 }

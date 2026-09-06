@@ -52,7 +52,7 @@ complete, no-guessing runbook.
   scheduled against each track's analyzed grid (`mix.in`/`mix.out`), track
   `gain` applied so the night stays level.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds fourteen Metal rooms; beat phase comes from the analyzed grid (the
+  feeds twenty-two Metal rooms; beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
 
@@ -62,7 +62,19 @@ complete, no-guessing runbook.
   | **TUNNEL** — phi-folded rings, bass is the speed | **OP-ART** — interfering gratings | **SCOPE** — the waveform as an oscilloscope trace |
   | **FRACTAL FIELD** — a live raymarched mandelbulb/box/tetra | **FIREWORKS** — closed-form ballistics, breaks land on the bar | **OIL FILM** — thin-film interference, bass thickens the film |
   | **MANDALA** — hard-quantized kaleidoscope | **HALO** — the equalizer bent into a torus, a beat soliton orbiting it | **TERRAIN** — a ridged-multifractal heightfield |
-  | **STARBURST** — spectrum rays + onset shock rings | **LAVA LAMP** — metaball wax the music heats | | |
+  | **STARBURST** — spectrum rays + onset shock rings | **LAVA LAMP** — metaball wax the music heats | **EIGENSTATE** — an analytic quantum superposition |
+  | **AUREA** — golden-angle phyllotaxis | **FILIGREE** — escape-time Mandelbrot, orbit-trap gold lace | **ROSETTE** — a chromatic spirograph |
+  | **PARLOR** — the illusion machine, lying harder as it builds | **DISPERSION** — real CIE-spectral diffraction | **CREATURE** — a cosine organism whose genome is the track |
+  | **SLINKY** — stacked chalk rings, the room that rests the palette | | |
+
+- **A lens over every room** — an artistic post-process — mirrors, wave, prism,
+  iris, tile, moire — auto-picked by the act and the energy and held so it never
+  flickers. It bends the field without inventing colour, and it's off by default
+  on the calm rooms and under Reduce Motion.
+- **The Journey Console, on the ten-foot screen** — the brightness-by-energy
+  library map, the heat and length dials, and the three faces (Journey · Quantum
+  · Memories), all driving the same bit-exact solver, operable with nothing but
+  the Siri Remote.
 
 - **It performs, not just reacts** — a five-act story arc
   (OVERTURE · RISING · APEX · TURN · RESOLVE) read from each track's own
