@@ -52,13 +52,18 @@ jobs:
 
       - name: Build (generic tvOS device, signing off)
         run: |
+          set -o pipefail
           xcodebuild build \
             -project tvos/AethraKairos.xcodeproj \
             -scheme AethraKairosTV \
             -destination 'generic/platform=tvOS' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            | tee build.log | grep -E '^(=== |\*\* |error|warning)' || true
-          grep -q '\*\* BUILD SUCCEEDED \*\*' build.log
+            2>&1 | tee build.log | grep -E 'error|warning|BUILD' || true
+          if ! grep -q '\*\* BUILD SUCCEEDED \*\*' build.log; then
+            echo '===== last 200 lines of build.log (the failure in full) ====='
+            tail -200 build.log
+            exit 1
+          fi
 
   testflight:
     name: archive · sign · upload to TestFlight
