@@ -171,7 +171,7 @@ private func sleepSeconds(_ s: Double) async {
         self.library = library
         // One .playback declaration for the app's lifetime — the session is
         // configured here and nowhere else.
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
         // Exactly one tap consumer: the analyzer is the ears; nothing else listens.
         let analyzer = self.analyzer
         engine.installTap { buffer, when in

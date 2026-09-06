@@ -189,30 +189,6 @@ def main():
     write_flat_imageset(os.path.join(BRAND, "Top Shelf Image Wide.imageset"), (2320, 720), ["1x", "2x"], zoom=0.95, stem="shelf-wide")
     write_flat_imageset(os.path.join(BRAND, "Top Shelf Image.imageset"), (1920, 720), ["1x", "2x"], zoom=0.95, stem="shelf")
 
-    # ---- launch image -------------------------------------------------
-    launch = os.path.join(XCASSETS, "LaunchImage.launchimage")
-    if os.path.isdir(launch):
-        shutil.rmtree(launch)
-    os.makedirs(launch, exist_ok=True)
-    entries = []
-    for scale in ["1x", "2x"]:
-        n = int(scale[0])
-        w, h = 1920 * n, 1080 * n
-        img = compose_flat(w, h, zoom=0.8)
-        fname = f"launch{'' if n == 1 else '@' + scale}.png"
-        img.save(os.path.join(launch, fname), optimize=True)
-        entries.append(
-            {
-                "extent": "full-screen",
-                "filename": fname,
-                "idiom": "tv",
-                "minimum-system-version": "11.0",
-                "orientation": "landscape",
-                "scale": scale,
-            }
-        )
-    contents(launch, {"images": entries, "info": INFO})
-
     print("tvOS brand assets rebuilt under", XCASSETS)
 
 

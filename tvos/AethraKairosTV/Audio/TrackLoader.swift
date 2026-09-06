@@ -33,18 +33,27 @@ final class TrackLoader {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
+    /// Every critical section is synchronous and never spans an await; this
+    /// helper is the proof the compiler can read (NSLock.lock is refused
+    /// directly inside async contexts).
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+
     /// Returns the local file URL, downloading if needed. Safe to call
     /// concurrently for the same track (in-flight requests are coalesced).
     func localFile(for track: Track) async throws -> URL {
         let key = Self.cacheKey(for: track)
         let task = obtainTask(for: track, key: key, foreground: true)
         defer {
-            lock.lock()
-            if var e = inflight[key], e.foreground > 0 {
-                e.foreground -= 1
-                inflight[key] = e
+            withLock {
+                if var e = inflight[key], e.foreground > 0 {
+                    e.foreground -= 1
+                    inflight[key] = e
+                }
             }
-            lock.unlock()
         }
         do {
             return try await task.value
@@ -72,9 +81,7 @@ final class TrackLoader {
         let wrapper = Task { [weak self] in
             _ = try? await task.value
             guard let self else { return }
-            self.lock.lock()
-            self.prefetchTasks[key] = nil
-            self.lock.unlock()
+            self.withLock { self.prefetchTasks[key] = nil }
         }
         lock.lock()
         prefetchTasks[key] = wrapper
@@ -112,9 +119,7 @@ final class TrackLoader {
         let task = Task<URL, Error>(priority: foreground ? .userInitiated : .utility) { [weak self] in
             guard let self else { throw LoaderError.cancelled }
             defer {
-                self.lock.lock()
-                self.inflight[key] = nil
-                self.lock.unlock()
+                self.withLock { self.inflight[key] = nil }
             }
             return try await self.fetch(track: track, key: key)
         }
