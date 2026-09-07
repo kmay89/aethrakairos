@@ -16,6 +16,8 @@ struct HomeView: View {
 
     // Shelves open at boot: nothing plays until a ritual or album is chosen.
     @State private var shelvesShown = true
+    // The Journey Console, reached from the shelves' JOURNEY entry.
+    @State private var showConsole = false
     @State private var roomStep = 0
     @State private var roomName = ""
     @State private var activity = 0
@@ -40,6 +42,11 @@ struct HomeView: View {
         .animation(.easeInOut(duration: 0.35), value: shelvesShown)
         .remoteControls(player: player, library: library, roomStep: $roomStep, shelvesShown: $shelvesShown, activity: $activity)
         .zenLadder(player: player, activity: activity, hudVisible: $hudVisible)
+        .fullScreenCover(isPresented: $showConsole) {
+            if let catalog = catalogStore.catalog {
+                JourneyConsole(player: player, catalog: catalog, isPresented: $showConsole)
+            }
+        }
     }
 
     // MARK: - shelves
@@ -50,6 +57,7 @@ struct HomeView: View {
                 wordmarkHeader
                 nowRow
                 if let catalog = catalogStore.catalog {
+                    journeyShelf
                     ritualsShelf(catalog)
                     albumsShelf(catalog)
                     heartsShelf(catalog)
@@ -232,6 +240,39 @@ struct HomeView: View {
                 .font(.system(size: 17))
                 .foregroundStyle(.secondary)
         }
+    }
+
+    // MARK: - journey
+
+    /// The doorway to the Journey Console: one entry that opens the full-screen
+    /// cartographer where FROM/TO, heat, length, faces and rituals are all turned
+    /// against the same shipped solver. The button only raises the console; the
+    /// console owns the deal and its own dismissal.
+    private var journeyShelf: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            shelfTitle("JOURNEY")
+            Button {
+                showConsole = true
+            } label: {
+                HStack(spacing: 22) {
+                    Text("∞")
+                        .font(.system(size: 46, weight: .regular, design: .serif))
+                        .foregroundStyle(Color.akIce)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("OPEN THE CONSOLE")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(Color.akInk)
+                        Text("Chart a path across the library — Journey, Quantum, or Memories.")
+                            .font(.system(size: 19))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+                .frame(width: 560, alignment: .leading)
+                .padding(.vertical, 8)
+            }
+        }
+        .focusSection()
     }
 
     // MARK: - rituals

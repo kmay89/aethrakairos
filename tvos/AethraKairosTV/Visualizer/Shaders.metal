@@ -35,13 +35,18 @@ constant float TAU = 6.28318530718;
 // the void ground — #05060e in linear-ish working space
 constant float3 VOID_COL = float3(0.019608, 0.023529, 0.054902);
 
-// ---- THE FINAL VizUniforms (wave 2) ----------------------------
-// This EXTENDS the wave-1 block. The first 96 bytes (12 floats + 3
-// float4) are byte-for-byte what wave 1 shipped; the only rename is
-// _pad0 -> xformMode (same slot, index 11). Twelve floats are
-// appended after colC and padded to a clean 144-byte, 16-aligned
-// stride. Identical VERBATIM in Shaders2/Shaders3/Xforms.metal and
-// mirrored by the private Swift struct in VisualizerView.swift.
+// ---- THE FINAL VizUniforms (wave 3) ----------------------------
+// The byte layout is FIXED at 144 bytes and does NOT change across
+// waves. Wave 2 renamed _pad0 -> xformMode (slot 11). Wave 3 gives
+// two of the trailing pads meaning WITHOUT moving a byte: offset 128
+// _pad1 -> lens (-1 none / 0 mirrors / 1 wave / 2 prism / 3 iris /
+// 4 tile / 5 moire) and offset 132 _pad2 -> lensAmt (0..1). Offset
+// 140 stays a reserved pad. Only the NAMES change here; the rooms in
+// this unit never read lens, so the rename is cosmetic for them — the
+// CPU uploads the same 144 bytes and Lens.metal reads these two at
+// their fixed offsets. Mirrored by the private Swift struct in
+// VisualizerView.swift; Shaders2/3/4/5 and Xforms may keep the pad
+// names since layout, not naming, is the contract.
 struct VizUniforms {
     float time; float beatPhase; float barPhase; float energy;      // 0..3
     float bass; float mid; float treble; float calm;                // 4..7
@@ -49,7 +54,7 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float _pad1; float _pad2; float _pad3;             // 128..140  -> stride 144
+    float roll2; float lens; float lensAmt; float _pad3;            // 128..140  -> stride 144
 };
 
 // ---------------------------------------------------------------

@@ -8,20 +8,25 @@ import UIKit
    into an offscreen texture every frame; during a handover the
    outgoing room renders into a second texture and one of five XFORM
    composites (luma / scatter / defocus / prism / ember, chosen per
-   segue, never the same twice) blends the pair into a third; then
-   grade_pass — the INK GRADE — writes that to the drawable with the
-   hue-preserving rolloff, a vignette, and the starfield floor. At
-   rest the XFORM runs with transition pinned at 1 (it collapses to
-   the live image) and the GRADE still runs — one pipeline shape, no
-   special-casing.
+   segue, never the same twice) blends the pair into a third. Wave 3
+   splices ONE optional pass here: the artistic LENS. When autoLens()
+   picks a lens (act + energy driven) the composite is bent through
+   lens_pass into a fourth texture; otherwise the pass is skipped
+   entirely. Either way grade_pass — the INK GRADE — writes the result
+   to the drawable with the hue-preserving rolloff, a vignette, and the
+   starfield floor. At rest the XFORM runs with transition pinned at 1
+   (it collapses to the live image), the lens bypasses (lens < 0), and
+   the GRADE still runs — one pipeline shape, degrading to the exact
+   proven wave-2 picture whenever the lens is off.
 
-   Above the pixels sit three clocks the renderer drives each frame:
-   the STORY (five acts eased off the playhead → the `act` uniform
-   and the `white` INK budget), the DIRECTOR (which room, when), and
-   the GHOST (a phantom hand after 22 s of stillness). Reduce Motion
-   (or the calm setting) collapses the XFORM to luma, tightens the
-   white budget, and silences the ghost — calm is a feature tier, not
-   a punishment.
+   Above the pixels sit clocks the renderer drives each frame: the
+   STORY (five acts eased off the playhead → the `act` uniform and the
+   `white` INK budget), the DIRECTOR (which room, when), the GHOST (a
+   phantom hand after 22 s of stillness), and the LENS auto-picker
+   (holds a look ~9 s, none ~3 s). Reduce Motion (or the calm setting)
+   collapses the XFORM to luma, tightens the white budget, silences the
+   ghost, and returns the lens to clean glass — calm is a feature tier,
+   not a punishment.
    ================================================================ */
 
 struct VisualizerView: View {
@@ -75,12 +80,15 @@ private struct MetalSurface: UIViewRepresentable {
 
 // MARK: - the uniforms mirror
 
-/// EXACT mirror of the Metal-side VizUniforms (wave 2). The first 96
-/// bytes are byte-for-byte what wave 1 shipped: 12 packed floats, then
-/// three SIMD4<Float> at offsets 48/64/80. Slot 11 was `_pad0`; it is
-/// now `xformMode`. Twelve floats follow colC, padded to a 144-byte,
-/// 16-aligned stride. Field order is contract; a drifted layout is a
-/// silently wrong picture.
+/// EXACT mirror of the Metal-side VizUniforms. The layout is FIXED at
+/// 144 bytes and never moves a byte across waves: 12 packed floats,
+/// three SIMD4<Float> at offsets 48/64/80, then twelve floats to a
+/// 16-aligned 144-byte stride. Wave 2 named slot 11 `xformMode` (was
+/// `_pad0`). Wave 3 gives two trailing pads meaning WITHOUT resizing:
+/// offset 128 `lens` (-1 none / 0 mirrors / 1 wave / 2 prism / 3 iris /
+/// 4 tile / 5 moire) and offset 132 `lensAmt` (0..1). Offset 140 stays
+/// reserved. Field order is contract; a drifted layout is a silently
+/// wrong picture.
 private struct VizUniforms {
     var time: Float = 0
     var beatPhase: Float = 0
@@ -106,9 +114,9 @@ private struct VizUniforms {
     var roll0: Float = 0                      // per-room dice, re-dealt on entry
     var roll1: Float = 0
     var roll2: Float = 0
-    var pad1: Float = 0
-    var pad2: Float = 0
-    var pad3: Float = 0
+    var lens: Float = -1                      // offset 128 — -1 bypasses the lens pass
+    var lensAmt: Float = 0                    // offset 132 — 0..1 lens intensity
+    var pad3: Float = 0                       // offset 140 — reserved
 }
 
 // MARK: - the renderer
@@ -170,6 +178,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var ghostEngagedPrev: Bool = false
     private var lastPosition: Double = 0
 
+    // the LENS — the artistic post-lens over the whole scene, picked by
+    // autoLens() and held ~9 s (none ~3 s) so it never flickers. `lensChoice`
+    // is the current held pick (-1 = clean glass); `lensRenderMode` is the
+    // type actually uploaded — it sticks to the last real lens while `lensAmt`
+    // fades out, so dropping to none dissolves instead of popping. lensAmt
+    // eases the engage. Missing lens_pass ⇒ lensPipeline nil ⇒ never engages.
+    private var lensPipeline: MTLRenderPipelineState?
+    private var lensTex: MTLTexture?
+    private var lensChoice: Int = -1
+    private var lensRenderMode: Int = -1
+    private var lensHold: Double = 0
+    private var lensAmt: Double = 0
+
     private var specScratch = [Float](repeating: 0, count: 256)
     private var waveScratch = [Float](repeating: 0, count: 256)
 
@@ -228,6 +249,18 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
         xformPipelines = xf
 
+        // the LENS — one artistic pass between the XFORM composite and the
+        // GRADE, into an rgba16Float target (the GRADE reads it filterable).
+        // Guarded: a missing lens_pass just leaves lensPipeline nil, so the
+        // lens never engages and the pipeline is exactly the proven wave-2 tail.
+        if let lensFn = library.makeFunction(name: "lens_pass") {
+            let ldesc = MTLRenderPipelineDescriptor()
+            ldesc.vertexFunction = vertexFn
+            ldesc.fragmentFunction = lensFn
+            ldesc.colorAttachments[0].pixelFormat = .rgba16Float
+            lensPipeline = try? device.makeRenderPipelineState(descriptor: ldesc)
+        }
+
         // the GRADE — the final composite, into the drawable's own format
         let gdesc = MTLRenderPipelineDescriptor()
         gdesc.vertexFunction = vertexFn
@@ -266,6 +299,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         texA = device.makeTexture(descriptor: desc)
         texB = device.makeTexture(descriptor: desc)
         texC = device.makeTexture(descriptor: desc)
+        lensTex = device.makeTexture(descriptor: desc)   // the LENS output, same size
     }
 
     // MARK: remote steps
@@ -378,6 +412,44 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         return (Float(x), Float(y))
     }
 
+    // MARK: the lens
+
+    /// The pure lens rule (the web's pickLens, act + energy driven): clean
+    /// glass at the ends of the arc (OVERTURE / RESOLVE) or when there is too
+    /// little energy to bend meaningfully (the structure-ceiling stand-in). At
+    /// the APEX it is mirrors, or prism when the energy is at its loudest, or
+    /// moire on a tense minor peak; a driving RISING build gets wave, and the
+    /// TURN / comedown gets iris. Returns -1 (none), 0 mirrors, 1 wave, 2 prism,
+    /// 3 iris, 4 tile, 5 moire.
+    private func pickLens(act: Int, energy: Double, minor: Bool) -> Int {
+        if act == 0 || act == 4 { return -1 }        // OVERTURE / RESOLVE: clean glass
+        if energy < 0.30 { return -1 }               // too little to bend
+        if act == 2 {                                // APEX
+            if minor && energy > 0.66 { return 5 }   // moire — a tense minor peak
+            if energy > 0.93 { return 2 }            // prism — the loudest apex
+            return 0                                  // mirrors — the major apex
+        }
+        if act == 1 && energy > 0.72 { return 1 }    // wave — a driving RISING build
+        return 3                                      // iris — the TURN / comedown
+    }
+
+    /// The auto-picker over the pure rule: it holds a chosen lens ~9 s and
+    /// `none` ~3 s so the look never flickers, and returns -1 ALWAYS under
+    /// Reduce Motion (calm is clean glass). The engage ramp lives in draw().
+    private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool) -> Int {
+        if reduceMotion {
+            lensChoice = -1
+            lensHold = 0
+            return -1
+        }
+        lensHold -= max(dt, 0)
+        if lensHold <= 0 {
+            lensChoice = pickLens(act: act, energy: energy, minor: minor)
+            lensHold = lensChoice >= 0 ? 9.0 : 3.0
+        }
+        return lensChoice
+    }
+
     // MARK: MTKViewDelegate
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -463,6 +535,22 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
         let ghost = ghostPoint(choreo: ghostChoreo, t: ghostTime)
 
+        // -- the lens: auto-picked by act + energy, held so it never flickers.
+        // The chosen TYPE snaps at hold boundaries; the AMOUNT eases (tau 0.6 s)
+        // so engaging and disengaging dissolve. When the pick drops to none the
+        // last real type sticks (lensRenderMode) while the amount fades, so the
+        // pass runs until it truly reaches clean glass — no pop. Under Reduce
+        // Motion autoLens() returns -1, the amount decays to 0, and the lens is
+        // bypassed to the exact wave-2 tail. --
+        let minorNow = (player.current?.mix?.key?.uppercased().hasSuffix("A")) ?? false
+        let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(frame.energy), minor: minorNow)
+        let lensAmtTarget: Double = pickedLens >= 0 ? (0.45 + 0.50 * Double(frame.energy)) : 0.0
+        lensAmt += (lensAmtTarget - lensAmt) * (1 - exp(-dt / 0.6))
+        lensAmt = min(max(lensAmt, 0), 1)
+        if pickedLens >= 0 { lensRenderMode = pickedLens }
+        let lensEngage = lensPipeline != nil && lensTex != nil
+                       && lensRenderMode >= 0 && lensAmt > 0.01
+
         uploadAudioTextures(frame: frame)
 
         // -- uniforms (the live room's block) --
@@ -492,6 +580,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         u.roll0 = currentRolls.x
         u.roll1 = currentRolls.y
         u.roll2 = currentRolls.z
+        u.lens = lensEngage ? Float(lensRenderMode) : -1     // < 0 bypasses the lens pass
+        u.lensAmt = Float(lensAmt)
 
         guard let commandBuffer = queue.makeCommandBuffer() else { return }
 
@@ -521,7 +611,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                         commandBuffer: commandBuffer, uniforms: &u,
                         tex0: liveTex, tex1: ghostTex)
 
-        // -- pass 4: the GRADE — texC to the drawable --
+        // -- pass 3.5 (lens only): bend the composite through lens_pass into
+        //    lensTex. Skipped entirely when the lens is off, so the GRADE reads
+        //    the composite directly — the exact proven wave-2 flow. lens_pass
+        //    reads only texture(0); tex1 is bound to the same source, ignored. --
+        var sceneForGrade: MTLTexture = compTex
+        if lensEngage, let lensPipeline, let lt = lensTex {
+            encodeComposite(pipeline: lensPipeline, into: lt,
+                            commandBuffer: commandBuffer, uniforms: &u,
+                            tex0: compTex, tex1: compTex)
+            sceneForGrade = lt
+        }
+
+        // -- pass 4: the GRADE — the (optionally lensed) scene to the drawable --
         guard let passDesc = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDesc)
@@ -533,7 +635,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&u, length: MemoryLayout<VizUniforms>.stride, index: 0)
         var res = SIMD2<Float>(Float(size.width), Float(size.height))
         encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
-        encoder.setFragmentTexture(compTex, index: 0)
+        encoder.setFragmentTexture(sceneForGrade, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
 
