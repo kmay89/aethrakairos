@@ -143,6 +143,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     // the ears on the GPU: 256x1 r32Float each (first 64 texels = bands)
     private var spectrumTex: MTLTexture?
     private var waveformTex: MTLTexture?
+    // the VERSE text mask: a 256x64 r8Unorm strip of white glyphs on black,
+    // rasterised from the track's title on every track change. Bound at
+    // texture(2) on EVERY room pass; rooms that ignore it are unaffected, and
+    // a nil texture (device gone) simply leaves VERSE in its nebula fallback.
+    private var wordTex: MTLTexture?
+    private var lastWordKey: String?
 
     private var director = Director()
     private var lastDrawTime: CFTimeInterval = 0
@@ -270,6 +276,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
         spectrumTex = makeDataTexture(device: device)
         waveformTex = makeDataTexture(device: device)
+        wordTex = makeWordTexture(device: device)
 
         rebuildTargets(size: view.drawableSize)
         publishRoomName()
@@ -286,6 +293,26 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         desc.usage = .shaderRead
         desc.storageMode = .shared
         return device.makeTexture(descriptor: desc)
+    }
+
+    /// The VERSE mask: 256x64 single-channel, born black so an empty mask (no
+    /// track yet) reads as zero coverage in room_verse and the room keeps its
+    /// drifting nebula. Filled by rasterizeWord() on track change.
+    private func makeWordTexture(device: MTLDevice) -> MTLTexture? {
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r8Unorm,
+                                                            width: 256, height: 64,
+                                                            mipmapped: false)
+        desc.usage = .shaderRead
+        desc.storageMode = .shared
+        guard let tex = device.makeTexture(descriptor: desc) else { return nil }
+        let zeros = [UInt8](repeating: 0, count: 256 * 64)
+        zeros.withUnsafeBytes { buffer in
+            if let base = buffer.baseAddress {
+                tex.replace(region: MTLRegionMake2D(0, 0, 256, 64), mipmapLevel: 0,
+                            withBytes: base, bytesPerRow: 256)
+            }
+        }
+        return tex
     }
 
     private func rebuildTargets(size: CGSize) {
@@ -551,6 +578,15 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let lensEngage = lensPipeline != nil && lensTex != nil
                        && lensRenderMode >= 0 && lensAmt > 0.01
 
+        // -- the VERSE mask follows the track. Rasterise the title once when
+        //    the current track changes; VERSE reads it, every other room lets
+        //    it pass by. --
+        let wordKey = player.current?.id
+        if wordKey != lastWordKey {
+            lastWordKey = wordKey
+            rasterizeWord(for: player.current)
+        }
+
         uploadAudioTextures(frame: frame)
 
         // -- uniforms (the live room's block) --
@@ -663,6 +699,9 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
         encoder.setFragmentTexture(spectrumTex, index: 0)
         encoder.setFragmentTexture(waveformTex, index: 1)
+        // the VERSE text mask rides along on every room pass; only room_verse
+        // declares texture(2) and reads it, the rest ignore the extra binding.
+        encoder.setFragmentTexture(wordTex, index: 2)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
     }
@@ -717,5 +756,84 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                                      withBytes: base, bytesPerRow: rowBytes)
             }
         }
+    }
+
+    // MARK: the VERSE text mask
+
+    /// Rasterise the track's title (the album line as fallback — the Track
+    /// model carries no artist string) into the 256x64 mask: white glyphs,
+    /// centred, on black, clipped to fit. An empty or absent title leaves the
+    /// mask black, which room_verse reads as "no word" and answers with its
+    /// drifting nebula. All guards are soft — a failure just skips the upload
+    /// and the last mask (or black) stays, so the room always draws.
+    private func rasterizeWord(for track: Track?) {
+        guard let tex = wordTex else { return }
+        let W = 256, H = 64
+
+        var text = track?.title ?? ""
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            text = track?.albumTitle ?? ""
+        }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let space = CGColorSpaceCreateDeviceGray()
+        guard let ctx = CGContext(data: nil, width: W, height: H, bitsPerComponent: 8,
+                                  bytesPerRow: W, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return }
+        ctx.setFillColor(gray: 0, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))
+
+        if !text.isEmpty {
+            // flip to UIKit's top-left origin so the glyphs draw upright AND
+            // land row-0-at-top in memory, matching room_verse's texel reads.
+            ctx.translateBy(x: 0, y: CGFloat(H))
+            ctx.scaleBy(x: 1, y: -1)
+            UIGraphicsPushContext(ctx)
+            drawCenteredWhite(text, in: CGSize(width: W, height: H))
+            UIGraphicsPopContext()
+        }
+
+        if let data = ctx.data {
+            // CoreGraphics may pad rows; hand the texture the context's own
+            // stride so the upload never skews.
+            tex.replace(region: MTLRegionMake2D(0, 0, W, H), mipmapLevel: 0,
+                        withBytes: data, bytesPerRow: ctx.bytesPerRow)
+        }
+    }
+
+    /// Draw `text` centred and white, shrinking the font so a long title still
+    /// fits the strip. Heavy weight reads best once the glyphs are stippled
+    /// into dots.
+    private func drawCenteredWhite(_ text: String, in size: CGSize) {
+        let maxW = size.width - 12
+        func attributed(_ pt: CGFloat) -> NSAttributedString {
+            let font = UIFont.systemFont(ofSize: pt, weight: .heavy)
+            let para = NSMutableParagraphStyle()
+            para.alignment = .center
+            para.lineBreakMode = .byClipping
+            return NSAttributedString(string: text, attributes: [
+                .font: font,
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: para
+            ])
+        }
+
+        var pt: CGFloat = 40
+        var str = attributed(pt)
+        var bounds = str.size()
+        if bounds.width > maxW, bounds.width > 0 {
+            pt = max(9, pt * maxW / bounds.width)
+            str = attributed(pt)
+            bounds = str.size()
+        }
+        if bounds.height > size.height, bounds.height > 0 {
+            pt = max(8, pt * size.height / bounds.height)
+            str = attributed(pt)
+            bounds = str.size()
+        }
+
+        let x = (size.width - bounds.width) / 2
+        let y = (size.height - bounds.height) / 2
+        str.draw(in: CGRect(x: x, y: y, width: bounds.width + 2, height: bounds.height + 2))
     }
 }

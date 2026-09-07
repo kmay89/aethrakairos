@@ -52,7 +52,7 @@ complete, no-guessing runbook.
   scheduled against each track's analyzed grid (`mix.in`/`mix.out`), track
   `gain` applied so the night stays level.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds twenty-two Metal rooms; beat phase comes from the analyzed grid (the
+  feeds twenty-six Metal rooms; beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
 
@@ -65,7 +65,14 @@ complete, no-guessing runbook.
   | **STARBURST** — spectrum rays + onset shock rings | **LAVA LAMP** — metaball wax the music heats | **EIGENSTATE** — an analytic quantum superposition |
   | **AUREA** — golden-angle phyllotaxis | **FILIGREE** — escape-time Mandelbrot, orbit-trap gold lace | **ROSETTE** — a chromatic spirograph |
   | **PARLOR** — the illusion machine, lying harder as it builds | **DISPERSION** — real CIE-spectral diffraction | **CREATURE** — a cosine organism whose genome is the track |
-  | **SLINKY** — stacked chalk rings, the room that rests the palette | | |
+  | **SLINKY** — stacked chalk rings, the room that rests the palette | **ARCADE** — a television inside the screen, games played by the spectrum | **CONSTELLATIONS** — a real star sky, the lines drawn on the beat |
+  | **EXCITABLE** — spiral & target waves of an excitable medium | **VERSE** — dots that assemble the song's own words, then scatter | |
+
+- **The wire — a stage screen for a live set** — the Apple TV joins a DJ
+  booth's four-letter room code and renders the field locally from the booth's
+  live feature feed (a first-party WebSocket — never streamed pixels, never any
+  sound of its own). It holds the last good frame when the booth goes quiet
+  rather than freezing. The relay contract is in [STAGE.md](./STAGE.md).
 
 - **A lens over every room** — an artistic post-process — mirrors, wave, prism,
   iris, tile, moire — auto-picked by the act and the energy and held so it never

@@ -18,6 +18,9 @@ struct HomeView: View {
     @State private var shelvesShown = true
     // The Journey Console, reached from the shelves' JOURNEY entry.
     @State private var showConsole = false
+    // The Stage screen, reached from the shelves' STAGE entry — the TV joins a
+    // booth's wire and renders the field from its packet, playing no audio.
+    @State private var showStage = false
     @State private var roomStep = 0
     @State private var roomName = ""
     @State private var activity = 0
@@ -47,6 +50,9 @@ struct HomeView: View {
                 JourneyConsole(player: player, catalog: catalog, isPresented: $showConsole)
             }
         }
+        .fullScreenCover(isPresented: $showStage) {
+            StageView(isPresented: $showStage)
+        }
     }
 
     // MARK: - shelves
@@ -63,6 +69,7 @@ struct HomeView: View {
                     heartsShelf(catalog)
                     recentShelf(catalog)
                 }
+                stageShelf
                 settingsShelf
             }
             .padding(.horizontal, 80)
@@ -263,6 +270,39 @@ struct HomeView: View {
                             .font(.system(size: 28, weight: .semibold))
                             .foregroundStyle(Color.akInk)
                         Text("Chart a path across the library — Journey, Quantum, or Memories.")
+                            .font(.system(size: 19))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+                .frame(width: 560, alignment: .leading)
+                .padding(.vertical, 8)
+            }
+        }
+        .focusSection()
+    }
+
+    // MARK: - stage
+
+    /// The wire, made a doorway: the TV joins a booth's four-letter code and
+    /// becomes a screen for it — rendering the field locally from the booth's
+    /// feature packet, on this GPU, playing no sound. Independent of the
+    /// catalog, so it stands even before a library has loaded.
+    private var stageShelf: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            shelfTitle("STAGE")
+            Button {
+                showStage = true
+            } label: {
+                HStack(spacing: 22) {
+                    Text("▣")
+                        .font(.system(size: 42, weight: .regular))
+                        .foregroundStyle(Color.akIce)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("JOIN A BOOTH")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(Color.akInk)
+                        Text("Become a screen — enter a four-letter code and render the booth's field here.")
                             .font(.system(size: 19))
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
