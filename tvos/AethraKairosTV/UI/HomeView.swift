@@ -144,22 +144,15 @@ struct HomeView: View {
         }
     }
 
-    /// The five-act arc, derived exactly as the director does: prog against an
-    /// apex pinned at 0.62. Without a duration the track is still in its
-    /// OVERTURE.
+    /// The five-act arc, derived exactly as the director does: prog against
+    /// the song's real apex when its script shipped, the progress template
+    /// otherwise. Without a duration the track is still in its OVERTURE.
     private var actWord: String {
-        let words = ["OVERTURE", "RISING", "APEX", "TURN", "RESOLVE"]
         let duration = player.current?.duration ?? 0
-        guard duration > 0 else { return words[0] }
+        guard duration > 0 else { return Story.actNames[0] }
         let prog = min(max(player.position / duration, 0), 1)
-        let apex = 0.62
-        let index: Int
-        if prog < apex - 0.28 { index = 0 }
-        else if prog < apex - 0.05 { index = 1 }
-        else if prog < apex + 0.12 { index = 2 }
-        else if prog < apex + 0.30 { index = 3 }
-        else { index = 4 }
-        return words[index]
+        let index = Story.act(prog: prog, structure: player.current?.mix?.structure)
+        return Story.actNames[min(max(index, 0), Story.actNames.count - 1)]
     }
 
     // MARK: - settings

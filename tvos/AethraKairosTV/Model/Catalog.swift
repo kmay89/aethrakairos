@@ -14,12 +14,24 @@ import Foundation
    skipped silently, exactly like the web.
    ================================================================ */
 
+/* The timbral fingerprint: bass / percussive / tonal / air, each a 0–1
+   share of the track's own spectral energy (a median-filtering HPSS split,
+   no ML). Kept only when all four are finite. */
+struct Instr: Codable, Equatable {
+    var bass: Double
+    var perc: Double
+    var tonal: Double
+    var air: Double
+}
+
 struct Features: Codable, Equatable {
     var bpm: Double        // 0 = unpitched wildcard
     var energy: Double
     var brightness: Double
     var entropy: Double
     var onsets: Double
+    var instr: Instr? = nil          // the timbral fingerprint, when measured
+    var texture: String? = nil       // catalog-relative label: bass-driven / percussive / melodic / atmospheric / full-spectrum
 }
 
 struct MixRegion: Codable, Equatable { var start: Double; var beats: Double }
@@ -33,6 +45,8 @@ struct MixInfo: Codable, Equatable {
     var inRegion: MixRegion
     var outRegion: MixRegion
     var mixable: Double        // beatmix gate at >= 0.5
+    var structure: Structure? = nil   // the song's script (sections / apex / mix points), when shipped ok
+    var stems: Stems? = nil           // per-source envelopes (drums / bass / vocals / other), when separated
 }
 
 /* The precomputed SCORE: per-track band envelopes sampled at env.hz.
@@ -77,6 +91,7 @@ struct Track: Identifiable, Equatable {
     var mix: MixInfo?
     var artURL: URL?
     var year: Int?
+    var published: String?  // "YYYY-MM-DD" as the catalog stamps it — the front porch's "new" clock
     /* The BS.1770 loudness law: gain dB becomes a linear factor clamped
        to [0.06, 2] — normalization may never mute a track nor blow one
        out. No gain = unity; the track is taken at its word. */
@@ -232,8 +247,16 @@ enum CatalogParser {
                 if let f = t["features"] as? [String: Any],
                    let energy = num(f["energy"]), let brightness = num(f["brightness"]),
                    let entropy = num(f["entropy"]), let onsets = num(f["onsets"]) {
+                    // the timbral fingerprint lives or dies as a whole, like the axes
+                    var instr: Instr?
+                    if let ins = f["instr"] as? [String: Any],
+                       let ib = num(ins["bass"]), let ip = num(ins["perc"]),
+                       let it = num(ins["tonal"]), let ia = num(ins["air"]) {
+                        instr = Instr(bass: ib, perc: ip, tonal: it, air: ia)
+                    }
                     features = Features(bpm: num(f["bpm"]) ?? 0, energy: energy,
-                                        brightness: brightness, entropy: entropy, onsets: onsets)
+                                        brightness: brightness, entropy: entropy, onsets: onsets,
+                                        instr: instr, texture: str(f["texture"]))
                 }
 
                 // env kept only when the bass string exists — no bass, no score
@@ -259,7 +282,9 @@ enum CatalogParser {
                                   outRegion: region(m["out"]),
                                   // absent mixable never triggered the piano rule on
                                   // the web (undefined < 0.5 is false) — default open
-                                  mixable: num(m["mixable"]) ?? 1)
+                                  mixable: num(m["mixable"]) ?? 1,
+                                  structure: structure(m["structure"]),
+                                  stems: stems(m["stems"]))
                 }
 
                 let sha = str(t["sha256"])
@@ -280,7 +305,8 @@ enum CatalogParser {
                     env: env,
                     mix: mix,
                     artURL: artURL,                              // album art stamped on tracks
-                    year: positiveInt(num(t["year"])) ?? albumYear)
+                    year: positiveInt(num(t["year"])) ?? albumYear,
+                    published: str(t["published"]))
                 tracks.append(track)
                 flat.append(track)
             }
@@ -364,6 +390,48 @@ enum CatalogParser {
     private static func region(_ v: Any?) -> MixRegion {
         guard let d = v as? [String: Any] else { return MixRegion(start: 0, beats: 0) }
         return MixRegion(start: num(d["start"]) ?? 0, beats: num(d["beats"]) ?? 0)
+    }
+
+    /// JS truthiness for a flag the pipeline writes as a JSON boolean; a
+    /// numeric 1 is honoured too, a string is not.
+    private static func flag(_ v: Any?) -> Bool {
+        if let b = v as? Bool { return b }
+        if let n = v as? NSNumber { return n.doubleValue != 0 }
+        return false
+    }
+
+    /// The web's `pickStructure(pre)`: a shipped structure counts only when
+    /// `ok` is true and it carries at least one section. A missing apex or
+    /// mix point is derived by the web's own analyzeStructure laws, so a
+    /// hand-edited block still reads.
+    private static func structure(_ v: Any?) -> Structure? {
+        guard let d = v as? [String: Any], flag(d["ok"]),
+              let raw = d["sections"] as? [Any] else { return nil }
+        var sections: [StructureSection] = []
+        for anySec in raw {
+            guard let sec = anySec as? [String: Any],
+                  let s = num(sec["s"]), let e = num(sec["e"]), let energy = num(sec["energy"])
+            else { continue }
+            sections.append(StructureSection(s: s, e: e, energy: energy, loud: flag(sec["loud"])))
+        }
+        guard !sections.isEmpty else { return nil }
+        return Structure(sections: sections,
+                         apex: num(d["apex"]) ?? Structure.derivedApex(sections),
+                         mixIn: num(d["mixIn"]) ?? Structure.derivedMixIn(sections),
+                         mixOut: num(d["mixOut"]) ?? Structure.derivedMixOut(sections))
+    }
+
+    /// The web's `trackStems`: any versioned block (sv >= 1) with at least one
+    /// envelope is usable — the digit-string format is the stable contract, so
+    /// a newer sv is read, not discarded.
+    private static func stems(_ v: Any?) -> Stems? {
+        guard let d = v as? [String: Any], let sv = num(d["sv"]), sv >= 1 else { return nil }
+        let drums = digits(str(d["d"]) ?? "")
+        let bass = digits(str(d["b"]) ?? "")
+        let vocals = digits(str(d["v"]) ?? "")
+        let other = digits(str(d["o"]) ?? "")
+        guard !(drums.isEmpty && bass.isEmpty && vocals.isEmpty && other.isEmpty) else { return nil }
+        return Stems(hz: num(d["hz"]) ?? 0, d: drums, b: bass, v: vocals, o: other)
     }
 
     /// env digit strings: chars '0'-'9' map to value/9; anything else is 0.

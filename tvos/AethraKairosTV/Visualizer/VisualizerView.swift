@@ -363,15 +363,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
     // MARK: the story arc
 
-    /// Act boundaries centered on the apex (0.62 when there is no structure
-    /// to read). OVERTURE / RISING / APEX / TURN / RESOLVE.
-    private func actIndex(prog: Double) -> Int {
-        let apex = 0.62
-        if prog < apex - 0.28 { return 0 }
-        if prog < apex - 0.05 { return 1 }
-        if prog < apex + 0.12 { return 2 }
-        if prog < apex + 0.30 { return 3 }
-        return 4
+    /// The act at this playhead: centred on the song's REAL apex when the
+    /// catalog shipped its script (mix.structure), the web's progress template
+    /// otherwise. OVERTURE / RISING / APEX / TURN / RESOLVE.
+    private func actIndex(prog: Double, structure: Structure?) -> Int {
+        Story.act(prog: prog, structure: structure)
     }
 
     /// The act-heat curve sampled at the eased (fractional) act.
@@ -414,29 +410,37 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
     // MARK: the lens
 
-    /// The pure lens rule (the web's pickLens, act + energy driven): clean
-    /// glass at the ends of the arc (OVERTURE / RESOLVE) or when there is too
-    /// little energy to bend meaningfully (the structure-ceiling stand-in). At
-    /// the APEX it is mirrors, or prism when the energy is at its loudest, or
-    /// moire on a tense minor peak; a driving RISING build gets wave, and the
-    /// TURN / comedown gets iris. Returns -1 (none), 0 mirrors, 1 wave, 2 prism,
-    /// 3 iris, 4 tile, 5 moire.
-    private func pickLens(act: Int, energy: Double, minor: Bool) -> Int {
-        if act == 0 || act == 4 { return -1 }        // OVERTURE / RESOLVE: clean glass
-        if energy < 0.30 { return -1 }               // too little to bend
-        if act == 2 {                                // APEX
-            if minor && energy > 0.66 { return 5 }   // moire — a tense minor peak
-            if energy > 0.93 { return 2 }            // prism — the loudest apex
-            return 0                                  // mirrors — the major apex
+    /// The pure lens rule — the web's pickLens, verbatim. The structure CEILING
+    /// is the hard gate: below 0.55 (a quiet intro, a breakdown) and at the
+    /// arc's edges (OVERTURE / RESOLVE) the glass stays clean, so a lens can
+    /// never punch in where the music has not earned the intensity. At an APEX
+    /// with real headroom (ceil > 0.72): moire on a tense minor peak at real
+    /// energy, prism when the energy is at its loudest, mirrors otherwise; an
+    /// apex the section holds back gets tile (order without full blast). A
+    /// RISING or TURN with ceil > 0.60: wave for a driving build, iris for the
+    /// gentler build or the comedown. Returns -1 (none), 0 mirrors, 1 wave,
+    /// 2 prism, 3 iris, 4 tile, 5 moire.
+    private func pickLens(act: Int, energy: Double, minor: Bool, ceil: Double) -> Int {
+        if ceil < 0.55 || act == 0 || act == 4 { return -1 }   // the hard gate + the arc's edges
+        if act == 2 {                                          // APEX
+            if ceil > 0.72 {                                   // …with real headroom
+                if minor && energy > 0.66 { return 5 }         // moire — tense + truly intense
+                if energy > 0.93 { return 2 }                  // prism — the hottest bright peak
+                return 0                                        // mirrors — hypnotic symmetry
+            }
+            return 4                                            // tile — an apex the section holds back
         }
-        if act == 1 && energy > 0.72 { return 1 }    // wave — a driving RISING build
-        return 3                                      // iris — the TURN / comedown
+        if (act == 1 || act == 3) && ceil > 0.60 {
+            if act == 1 && energy > 0.72 { return 1 }          // wave — a driving build
+            return 3                                            // iris — a focusing aperture
+        }
+        return -1
     }
 
     /// The auto-picker over the pure rule: it holds a chosen lens ~9 s and
     /// `none` ~3 s so the look never flickers, and returns -1 ALWAYS under
     /// Reduce Motion (calm is clean glass). The engage ramp lives in draw().
-    private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool) -> Int {
+    private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool, ceil: Double) -> Int {
         if reduceMotion {
             lensChoice = -1
             lensHold = 0
@@ -444,7 +448,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
         lensHold -= max(dt, 0)
         if lensHold <= 0 {
-            lensChoice = pickLens(act: act, energy: energy, minor: minor)
+            lensChoice = pickLens(act: act, energy: energy, minor: minor, ceil: ceil)
             lensHold = lensChoice >= 0 ? 9.0 : 3.0
         }
         return lensChoice
@@ -489,19 +493,25 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let rate = min(max(0.45 + 1.05 * Double(frame.energy), 0.4), 1.9)
         musicalTime += dt * rate
 
-        // -- the story: acts eased (tau 3 s), white budget eased (tau 2.5 s) --
+        // -- the story: acts centred on the script's real apex, eased (tau 3 s);
+        //    the white budget eased (tau 2.5 s) and never taller than the
+        //    section's CEILING — the anti-mistimed-drop rule: a quiet intro or
+        //    a breakdown cannot reach full bloom because the clock says so --
         let dur = player.current?.duration ?? 0
         let prog = dur > 1 ? min(max(player.position / dur, 0), 1) : 0
-        let actTarget = actIndex(prog: prog)
+        let structure = player.current?.mix?.structure
+        let actTarget = actIndex(prog: prog, structure: structure)
+        let ceil = structure?.ceiling(at: prog) ?? 1.0
         actEased += (Double(actTarget) - actEased) * (1 - exp(-dt / 3.0))
-        var whiteTarget = 0.05 + actHeat(actEased) * 0.87
+        let heatGoal = min(actHeat(actEased), ceil + 0.05)
+        var whiteTarget = 0.05 + heatGoal * 0.87
         if calmNow { whiteTarget = min(whiteTarget, 0.42) }     // the calm tier tightens the ceiling
         whiteEased += (whiteTarget - whiteEased) * (1 - exp(-dt / 2.5))
         whiteEased = min(max(whiteEased, 0.05), 0.92)
 
         // -- the director --
         let before = director.currentIndex
-        if director.tick(dt: dt, frame: frame, act: actTarget) != nil {
+        if director.tick(dt: dt, frame: frame, act: actTarget, ceil: ceil) != nil {
             beginTransition(from: before)
             publishRoomName()
         }
@@ -543,7 +553,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // Motion autoLens() returns -1, the amount decays to 0, and the lens is
         // bypassed to the exact wave-2 tail. --
         let minorNow = (player.current?.mix?.key?.uppercased().hasSuffix("A")) ?? false
-        let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(frame.energy), minor: minorNow)
+        let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(frame.energy),
+                                  minor: minorNow, ceil: ceil)
         let lensAmtTarget: Double = pickedLens >= 0 ? (0.45 + 0.50 * Double(frame.energy)) : 0.0
         lensAmt += (lensAmtTarget - lensAmt) * (1 - exp(-dt / 0.6))
         lensAmt = min(max(lensAmt, 0), 1)

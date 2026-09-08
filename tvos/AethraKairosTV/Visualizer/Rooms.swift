@@ -146,6 +146,8 @@ struct Director {
     // the current room was entered
     private var moodNow: Mood = .drive
     private var moodAtEntry: Mood = .drive
+    // the structure's ceiling at the last tick — a held passage dwells longer
+    private var ceilNow: Double = 1
 
     // wrap detection: a phase that drops by most of a cycle just wrapped
     private var prevPhrasePhase: Float = 0
@@ -166,13 +168,14 @@ struct Director {
     }
 
     /// Advance the clock. `act` is the story act (0…4) the renderer read off
-    /// the playhead; the director uses it for the mood and the act dwell
-    /// multiplier. Returns the NEW index into Rooms.all when a switch fires
-    /// (this frame), nil otherwise.
+    /// the playhead; `ceil` is the structure's intensity ceiling there (1 when
+    /// the song shipped no script). The director uses them for the mood, the
+    /// act dwell multiplier, and the held-passage stretch. Returns the NEW
+    /// index into Rooms.all when a switch fires (this frame), nil otherwise.
     ///
-    /// The wave-1 two-argument form still resolves (act defaults to RISING),
-    /// so the public contract holds; the renderer always passes the real act.
-    mutating func tick(dt: Double, frame: Analyzer.Frame, act: Int = 1) -> Int? {
+    /// The wave-1 two-argument form still resolves (act defaults to RISING,
+    /// ceil to 1), so the public contract holds; the renderer passes both.
+    mutating func tick(dt: Double, frame: Analyzer.Frame, act: Int = 1, ceil: Double = 1) -> Int? {
         guard autoOn, Rooms.all.count > 1 else {
             prevPhrasePhase = frame.phrasePhase
             prevBarPhase = frame.barPhase
@@ -180,7 +183,8 @@ struct Director {
         }
 
         let entropy = Director.entropyProxy(frame)
-        moodNow = Director.mood(act: act, energy: frame.energy, entropy: entropy)
+        ceilNow = min(max(ceil, 0), 1)
+        moodNow = Director.mood(act: act, energy: frame.energy, entropy: entropy, ceil: ceilNow)
 
         // boundary detection before we overwrite the previous phase
         let phraseWrapped = frame.phrasePhase < prevPhrasePhase - 0.30
@@ -232,7 +236,11 @@ struct Director {
 
         let base = Director.dealDwell(calm: calm)
         let ai = min(max(act, 0), Director.actDwell.count - 1)
-        let dwell = base * Director.moodDwellMult(mood) * Director.actDwell[ai]
+        // the web's `held`: a section the structure has capped stretches the
+        // dwell (1.25 at a silent ceiling, 1.0 wide open) — a passage the
+        // music is holding back is the last thing a timer should cut up
+        let held = 1.25 - 0.25 * ceilNow
+        let dwell = base * Director.moodDwellMult(mood) * Director.actDwell[ai] * held
         dwellRemaining = min(max(dwell, 7.0), 90.0)
     }
 
@@ -264,11 +272,12 @@ struct Director {
         return min(max(0.55 * frame.treble + 0.60 * frame.onsetEnv, 0), 1)
     }
 
-    /// The moment collapsed into one word. Precedence is the law: apex,
+    /// The moment collapsed into one word — the web's roomMood. Precedence is
+    /// the law: apex (only when the structure's ceiling has EARNED it, > 0.55),
     /// dissolve, swarm, adrift, ascend, else drive.
-    private static func mood(act: Int, energy: Float, entropy: Float) -> Mood {
+    private static func mood(act: Int, energy: Float, entropy: Float, ceil: Double = 1) -> Mood {
         let e = Double(energy)
-        if act == 2 && e > 0.45 { return .apex }
+        if act == 2 && ceil > 0.55 && e > 0.45 { return .apex }
         if act == 4 || (act == 3 && e < 0.42) { return .dissolve }
         if Double(entropy) > 0.55 && e > 0.35 { return .swarm }
         if act == 0 || e < 0.30 { return .adrift }
