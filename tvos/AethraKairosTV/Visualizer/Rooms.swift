@@ -368,10 +368,28 @@ struct Director {
 /// `.shared` each frame on the main actor — no snapshot, no crash.
 @MainActor final class VizSettings: ObservableObject {
     static let shared = VizSettings()
-    @Published var autoRooms: Bool = true       // the director deals on its own
-    @Published var calm: Bool = false           // Reduce flashing — forces the calm tier
+    @Published var autoRooms: Bool = true {     // the director deals on its own
+        didSet { UserDefaults.standard.set(autoRooms, forKey: Self.autoRoomsKey) }
+    }
+    @Published var calm: Bool = false {         // Reduce flashing — forces the calm tier
+        didSet { UserDefaults.standard.set(calm, forKey: Self.calmKey) }
+    }
 
+    private static let autoRoomsKey = "aethra.viz.autoRooms"
+    private static let calmKey = "aethra.viz.calm"
+
+    /// Remembered like the mixing preferences: tiny and non-secret, so
+    /// UserDefaults is the right size. A first launch inherits the system's
+    /// Reduce Motion for calm; after that the listener's choice stands.
     private init() {
-        calm = UIAccessibility.isReduceMotionEnabled
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: Self.autoRoomsKey) != nil {
+            autoRooms = defaults.bool(forKey: Self.autoRoomsKey)
+        }
+        if defaults.object(forKey: Self.calmKey) != nil {
+            calm = defaults.bool(forKey: Self.calmKey)
+        } else {
+            calm = UIAccessibility.isReduceMotionEnabled
+        }
     }
 }

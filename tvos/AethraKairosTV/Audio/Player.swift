@@ -169,9 +169,37 @@ enum MixStyle: String, CaseIterable {
     /// Auto-mix voicing (adaptive default). A change lands on the NEXT armed
     /// seam, never on one already planned or running — armSeam snapshots it.
     @Published var mixStyle: MixStyle = .adaptive { didSet { persistSettings() } }
-    /// Key-lock preserves pitch under tempo glide (default). See applyDeckRate
-    /// for what key-lock-off can and cannot honestly do on the wave-1 engine.
-    @Published var keyLock: Bool = true { didSet { persistSettings() } }
+    /// Key-lock preserves pitch under tempo glide (default); off, the pitch
+    /// rides the tempo like vinyl. Applied live to whatever is bent right now.
+    @Published var keyLock: Bool = true {
+        didSet {
+            persistSettings()
+            reapplyRates()
+        }
+    }
+
+    /// The web SPEED dial: playback rate with pitch preserved, composed with
+    /// the beatmixer — its glide rates multiply by this, so a 1.25× listen
+    /// still beat-matches. The grid clock reads the real deck rate, so the
+    /// visuals stay honest at any speed. Steps cycle 1 → 1.25 → 1.5 → 0.75.
+    static let speedSteps: [Double] = [1, 1.25, 1.5, 0.75]
+    @Published private(set) var speedIndex: Int = 0 {
+        didSet {
+            persistSettings()
+            reapplyRates()
+        }
+    }
+    var speed: Double {
+        Self.speedSteps[min(max(speedIndex, 0), Self.speedSteps.count - 1)]
+    }
+
+    func cycleSpeed() {
+        speedIndex = (speedIndex + 1) % Self.speedSteps.count
+    }
+
+    func setSpeed(index: Int) {
+        speedIndex = min(max(index, 0), Self.speedSteps.count - 1)
+    }
 
     let analyzer = Analyzer()
 
@@ -184,7 +212,12 @@ enum MixStyle: String, CaseIterable {
     private let library: Library
 
     private var activeDeck = 0
+    /// The seam's glide rate on the audible deck (1 at rest). The rate the
+    /// analyzer and the transport actually see is this × `speed`.
     private var activeRate: Double = 1
+    /// The last glide rate applied per deck, so a key-lock or speed change can
+    /// re-apply the composed rate to a deck mid-flight.
+    private var deckGlide: [Double] = [1, 1]
     private var deckReady = false
     private var deckDuration: [Double] = [0, 0]
     private var deckClaim = [0, 0]          // stale deferred stops must not kill a re-used deck
@@ -218,6 +251,10 @@ enum MixStyle: String, CaseIterable {
         }
         if UserDefaults.standard.object(forKey: Self.keyLockKey) != nil {
             keyLock = UserDefaults.standard.bool(forKey: Self.keyLockKey)
+        }
+        let savedSpeed = UserDefaults.standard.integer(forKey: Self.speedKey)
+        if Self.speedSteps.indices.contains(savedSpeed) {
+            speedIndex = savedSpeed
         }
         // One .playback declaration for the app's lifetime — the session is
         // configured here and nowhere else.
@@ -294,7 +331,7 @@ enum MixStyle: String, CaseIterable {
         engine.play(deck: activeDeck, atOffset: offset, in: 0)
         isPlaying = true
         statusLine = ""
-        analyzer.setClock(playhead: offset, mix: current?.mix, rate: 1)
+        analyzer.setClock(playhead: offset, mix: current?.mix, rate: speed)
     }
 
     func pause() {
@@ -343,7 +380,7 @@ enum MixStyle: String, CaseIterable {
                 self.engine.rampVolume(deck: deck, to: 1, over: 0.04)
             }
         }
-        analyzer.setClock(playhead: s, mix: current?.mix, rate: isPlaying ? activeRate : 0)
+        analyzer.setClock(playhead: s, mix: current?.mix, rate: clockRate)
         library.saveTransport(snapshot())
     }
 
@@ -406,12 +443,37 @@ enum MixStyle: String, CaseIterable {
 
     private static let mixStyleKey = "aethra.mixStyle"
     private static let keyLockKey = "aethra.keyLock"
+    private static let speedKey = "aethra.speed"
 
     /// Mixing preferences are small and non-secret — UserDefaults is the right
     /// size. Written on every change via the properties' didSet.
     private func persistSettings() {
         UserDefaults.standard.set(mixStyle.rawValue, forKey: Self.mixStyleKey)
         UserDefaults.standard.set(keyLock, forKey: Self.keyLockKey)
+        UserDefaults.standard.set(speedIndex, forKey: Self.speedKey)
+    }
+
+    /// A seam hands back exactly what it borrowed — and the SPEED dial is
+    /// re-applied on top, because a deck at rest still runs at the listener's
+    /// chosen speed, not at 1.
+    private func restDeck(_ deck: Int) {
+        engine.resetDeckDSP(deck: deck)
+        applyDeckRate(deck: deck, rate: 1)
+    }
+
+    /// The rate the analyzer's clock runs at: the audible deck's glide × the
+    /// SPEED dial while playing, 0 when paused.
+    private var clockRate: Double {
+        isPlaying ? activeRate * speed : 0
+    }
+
+    /// A key-lock or speed change lands on both decks at once, composed with
+    /// whatever glide each is carrying, and the analyzer's clock follows.
+    private func reapplyRates() {
+        for deck in 0..<2 {
+            engine.setRate(deck: deck, rate: Float(deckGlide[deck] * speed), keyLock: keyLock)
+        }
+        analyzer.setClock(playhead: position, mix: current?.mix, rate: clockRate)
     }
 
     /// The web verdict feeds from seconds actually played, not final position.
@@ -457,7 +519,7 @@ enum MixStyle: String, CaseIterable {
                 let dur = try self.engine.load(deck: deck, fileURL: url)
                 guard gen == self.generation else { return }
                 self.deckDuration[deck] = dur
-                self.engine.resetDeckDSP(deck: deck)
+                self.restDeck(deck)
                 self.engine.setNorm(deck: deck, track.normLin)
                 self.deckReady = true
                 self.failureStreak = 0
@@ -473,7 +535,7 @@ enum MixStyle: String, CaseIterable {
                 }
                 self.activeRate = 1
                 self.analyzer.setClock(playhead: self.position, mix: track.mix,
-                                       rate: self.isPlaying ? 1 : 0)
+                                       rate: self.clockRate)
                 if let nxt = self.peekNext() { self.loader.prefetch(nxt) }
                 self.library.saveTransport(self.snapshot())
             } catch {
@@ -513,11 +575,11 @@ enum MixStyle: String, CaseIterable {
                 await sleepSeconds(f + 0.05)
                 guard let self, self.deckClaim[old] == claim else { return }
                 self.engine.stop(deck: old)
-                self.engine.resetDeckDSP(deck: old)
+                self.restDeck(old)
             }
         } else {
             engine.stop(deck: old)
-            engine.resetDeckDSP(deck: old)
+            restDeck(old)
         }
     }
 
@@ -543,9 +605,9 @@ enum MixStyle: String, CaseIterable {
         }
         // The clock truth flows one way: latency-compensated playhead into the
         // analyzer, every poll — the beat grid is authoritative when mix exists.
-        let compensated = position - engine.outputLatency * (isPlaying ? activeRate : 0)
+        let compensated = position - engine.outputLatency * clockRate
         analyzer.setClock(playhead: max(0, compensated), mix: current?.mix,
-                          rate: isPlaying ? activeRate : 0)
+                          rate: clockRate)
         library.saveTransport(snapshot())   // Library throttles internally (>= 1 s)
 
         guard isPlaying, let dur = currentDuration, dur > 0 else { return }
@@ -632,7 +694,7 @@ enum MixStyle: String, CaseIterable {
                 try self.engine.startEngineIfNeeded()
                 let durB = try self.engine.load(deck: other, fileURL: url)
                 self.deckDuration[other] = durB
-                self.engine.resetDeckDSP(deck: other)
+                self.restDeck(other)
                 self.engine.setNorm(deck: other, b.normLin)
                 self.engine.rampVolume(deck: other, to: 0, over: 0.005)
                 self.seamNextReady = true
@@ -648,7 +710,10 @@ enum MixStyle: String, CaseIterable {
         let outDeck = activeDeck
         let inDeck = 1 - activeDeck
         let nextIdx = currentIndex + 1
-        let delta = max(0, seamTriggerAt - position)
+        // The plan speaks in TRACK seconds; the render clock and the sleeps
+        // run in WALL seconds. At 1.25x a 4 s fade is 3.2 s of listening.
+        let spd = max(speed, 0.05)
+        let delta = max(0, seamTriggerAt - position) / spd
 
         switch plan {
         case .gapless:
@@ -663,8 +728,9 @@ enum MixStyle: String, CaseIterable {
             }
             seamTasks.append(t)
 
-        case .fade(let seconds, let why):
+        case .fade(let trackSeconds, let why):
             statusLine = "fade — \(why)"
+            let seconds = trackSeconds / spd
             engine.play(deck: inDeck, atOffset: 0, in: delta)
             let t = Task { [weak self] in
                 await sleepSeconds(delta)
@@ -681,8 +747,9 @@ enum MixStyle: String, CaseIterable {
             }
             seamTasks.append(t)
 
-        case .beatmix(let beats, _, let startB, let bpmA, let bpmB, let fold, let seconds):
+        case .beatmix(let beats, _, let startB, let bpmA, let bpmB, let fold, let trackSeconds):
             statusLine = "beatmix — \(Int(beats)) beats"
+            let seconds = trackSeconds / spd
             // B enters tempo-matched to A and bass-ducked: one bassline at a time.
             applyDeckRate(deck: inDeck, rate: fold)
             engine.setLowShelfGain(deck: inDeck, dB: -14, over: 0.005)
@@ -712,18 +779,13 @@ enum MixStyle: String, CaseIterable {
         }
     }
 
-    /// Apply a deck's tempo rate, honoring keyLock.
-    ///
-    /// keyLock == true (the default) is the pitch-preserving time-stretch that
-    /// DeckEngine.setRate already performs (AVAudioUnitTimePitch.rate). keyLock
-    /// == false would ride pitch like vinyl — pitch = 1200*log2(rate) cents —
-    /// but the wave-1 DeckEngine exposes only setRate, no lever on the time-
-    /// pitch unit's pitch. Reaching AVAudioUnitTimePitch.pitch means editing
-    /// AudioEngine.swift, which is not this file's to touch, so key-lock-off
-    /// honestly degrades to key-lock-on rather than faking a pitch ride.
+    /// Apply a deck's glide rate, composed with the SPEED dial and honouring
+    /// key lock: on, the time-stretcher holds the pitch; off, the pitch rides
+    /// the tempo like vinyl (DeckEngine turns the rate into cents).
     private func applyDeckRate(deck: Int, rate: Double) {
-        _ = keyLock   // key-lock-off pitch ride is a no-op — no pitch lever here.
-        engine.setRate(deck: deck, rate: Float(rate))
+        guard deckGlide.indices.contains(deck) else { return }
+        deckGlide[deck] = rate
+        engine.setRate(deck: deck, rate: Float(rate * speed), keyLock: keyLock)
     }
 
     /// One master tempo line, stepped at 10 Hz across the overlap. The outgoing
@@ -757,8 +819,8 @@ enum MixStyle: String, CaseIterable {
         playedSecondsThisTrack = 0
         engine.stop(deck: outDeck)
         // A seam hands back exactly what it borrowed: rate 1, shelf 0, filter open.
-        engine.resetDeckDSP(deck: outDeck)
-        engine.resetDeckDSP(deck: inDeck)
+        restDeck(outDeck)
+        restDeck(inDeck)
         glideTask?.cancel()
         glideTask = nil
         seamTasks.removeAll()
@@ -773,7 +835,7 @@ enum MixStyle: String, CaseIterable {
         deckReady = true
         statusLine = ""
         if let nxt = peekNext() { loader.prefetch(nxt) }
-        analyzer.setClock(playhead: position, mix: current?.mix, rate: 1)
+        analyzer.setClock(playhead: position, mix: current?.mix, rate: speed)
         library.saveTransport(snapshot())
     }
 
@@ -792,10 +854,10 @@ enum MixStyle: String, CaseIterable {
         seamRunning = false
         guard hadSeam else { return }
         engine.stop(deck: other)
-        engine.resetDeckDSP(deck: other)
+        restDeck(other)
         if wasRunning {
             // Torn down early, the seam still hands back what it borrowed.
-            engine.resetDeckDSP(deck: activeDeck)
+            restDeck(activeDeck)
             engine.rampVolume(deck: activeDeck, to: 1, over: 0.2)
             activeRate = 1
         }
