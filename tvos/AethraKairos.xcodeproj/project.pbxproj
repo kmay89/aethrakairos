@@ -33,6 +33,7 @@
 		AEC0FFEE0000000000000030 /* RemoteControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002F /* RemoteControls.swift */; };
 		AEC0FFEE0000000000000032 /* JourneyConsole.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000031 /* JourneyConsole.swift */; };
 		AEC0FFEE0000000000000034 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000033 /* Assets.xcassets */; };
+		AEC278FF1830E39E2355883C /* Structure.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC178FF1830E39E2355883C /* Structure.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,6 +65,7 @@
 		AEC0FFEE0000000000000033 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000035 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000036 /* AethraKairosTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AethraKairosTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AEC178FF1830E39E2355883C /* Structure.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Structure.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +125,7 @@
 				AEC0FFEE0000000000000003 /* Catalog.swift */,
 				AEC0FFEE0000000000000005 /* CatalogStore.swift */,
 				AEC0FFEE0000000000000007 /* Library.swift */,
+				AEC178FF1830E39E2355883C /* Structure.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -277,6 +280,7 @@
 				AEC0FFEE000000000000002E /* NowPlayingHUD.swift in Sources */,
 				AEC0FFEE0000000000000030 /* RemoteControls.swift in Sources */,
 				AEC0FFEE0000000000000032 /* JourneyConsole.swift in Sources */,
+				AEC278FF1830E39E2355883C /* Structure.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
