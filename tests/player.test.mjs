@@ -56,6 +56,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' dmxAutoAddress, dmxOverlaps, dmxDialPlan,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode, DMX_USB_PRO, dmxUsbProPacket, dmxUsbProFrame,' +
   ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents, dmxSegueTint,' +
+  ' DMX_BEAM_MOVES, dmxBeamState, dmxBeamColors, dmxBeamStep, dmxBeamPose,' +
   ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
@@ -3865,6 +3866,98 @@ test('dmxShowIntents: the rig is downstream of the same analysis as the picture'
   assert.equal(i.h1.spin, 0, 'a bulb has no motor');
   assert.ok(Math.abs(i.fl.spin) > 0, 'and the one that does, does');
   assert.equal(i.h1.rainbow, 0, 'nor a rainbow it cannot run');
+});
+test('dmxBeamColors: a ring the moonflower cannot collapse', () => {
+  /* the whole point of the ring: every stop lands on a DIFFERENT one of the
+     seven states the lamp can be, so a colour change asked for is a colour
+     change seen — the failure this replaces was a bluish chord whose stops
+     all quantised to BLUE */
+  const ring = S.dmxBeamColors([{ r: 0.2, g: 0.3, b: 0.9 }]);
+  assert.equal(ring.length, 6);
+  const lamp = ring.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v);
+  assert.equal(new Set(lamp).size, 6, 'six ring stops, six different lamp colours: ' + lamp.join(','));
+  // anchored: a blue accent starts the ring at blue — the picture's corner of the wheel
+  assert.deepEqual(ring[0], { r: 0, g: 0, b: 1 });
+  assert.deepEqual(S.dmxBeamColors([{ r: 1, g: 0.1, b: 0 }])[0], { r: 1, g: 0, b: 0 });
+  assert.doesNotThrow(() => S.dmxBeamColors(null));
+});
+test('dmxBeamStep: beats are edges, phrases deal moves, the kick decays like a limb', () => {
+  let st = S.dmxBeamState();
+  const show = { chord: [{ r: 1, g: 0, b: 0 }], energy: 0.7, preset: 'pulse' };
+  const at = (beat, phrase, dt) => S.dmxBeamStep(st, Object.assign({}, show, { beat, phrase }), dt);
+  // one hump is one beat, however long it hangs near the top
+  st = at(0.9, 0.10, 0.025);
+  assert.equal(st.beats, 1); assert.equal(st.kick, 1);
+  st = at(0.7, 0.11, 0.025);
+  assert.equal(st.beats, 1, 'still the same hump');
+  st = at(0.2, 0.12, 0.025);
+  st = at(0.9, 0.13, 0.025);
+  assert.equal(st.beats, 2, 'a new hump is a new beat');
+  st = at(0.9, 0.14, 0.1);
+  assert.ok(st.kick < 1 && st.kick > 0, 'the lunge decays, got ' + st.kick);
+  // the phrase runs out and wraps: a different move is dealt
+  const before = st.move;
+  st = at(0.3, 0.9, 0.025);
+  assert.equal(st.move, before, 'late in the phrase is not yet a new phrase');
+  st = at(0.2, 0.02, 0.025);
+  assert.notEqual(st.move, before, 'a fresh phrase, a fresh move');
+  assert.ok(S.DMX_BEAM_MOVES.indexOf(st.move) >= 0);
+  // a room with no rainbow budget is never dealt the bloom
+  let calm = S.dmxBeamState();
+  for (let p = 0; p < 12; p++)
+    calm = S.dmxBeamStep(calm,
+      { chord: [], energy: 0.2, preset: 'follow', beat: 0, phrase: (p % 2) ? 0.9 : 0.05 }, 0.025);
+  assert.notEqual(calm.move, 'bloom', 'follow has no rainbow to spend');
+  assert.doesNotThrow(() => S.dmxBeamStep(null, null, null));
+});
+test('dmxBeamPose: every move answers with a real colour, a bounded spin, and taste', () => {
+  const chord = [{ r: 0.2, g: 0.3, b: 0.9 }];
+  const mk = (move, kick, extra) => S.dmxBeamPose(
+    Object.assign(S.dmxBeamState(), { move, kick, beats: 3, phraseN: 1 }),
+    Object.assign({ chord, energy: 0.6, beat: 0.5, phrase: 0.2, preset: 'pulse' }, extra));
+  for (const move of S.DMX_BEAM_MOVES){
+    const p = mk(move, 0.5);
+    assert.ok([p.r, p.g, p.b].every(v => v === 0 || v === 1), move + ' colours are ring stops');
+    assert.ok(Math.abs(p.spin) <= 1 && p.rainbow >= 0 && p.rainbow <= 1, move + ' stays in range');
+  }
+  // the stab lunges on the kick and settles after
+  assert.ok(Math.abs(mk('stab', 1).spin) > Math.abs(mk('stab', 0).spin) * 2, 'the kick is the move');
+  /* bloom must CLEAR THE RENDERER'S GATE (rainbow > 0.5 is what switches
+     the fixture's rainbow on) every time it is dealt, else the move renders
+     as one static colour for a whole phrase; the preset budget sets speed */
+  assert.ok(mk('bloom', 0).rainbow > 0.5, 'bloom always engages the rainbow');
+  assert.equal(mk('bloom', 0, { preset: 'spin' }).rainbow, 1, 'and the spin preset opens it fully');
+  assert.ok(mk('bloom', 0, { preset: 'peak' }).rainbow > mk('bloom', 0).rainbow, 'budget buys speed');
+  // chase in a talking room steps on phrase quarters, not beats
+  const calmA = mk('chase', 0, { preset: 'calm', phrase: 0.05 });
+  const calmB = mk('chase', 0, { preset: 'calm', phrase: 0.30 });
+  assert.notDeepEqual([calmA.r, calmA.g, calmA.b], [calmB.r, calmB.g, calmB.b], 'quarter-phrase steps in calm');
+});
+test('dmxShowIntents: with the choreographer riding along, the beam takes its pose', () => {
+  const rig = S.dmxPatch([
+    { key: 'adj-mystic-led', role: 'beam', id: 'fl' },
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w' },
+  ]);
+  /* THE REGRESSION THIS ENGINE EXISTS FOR: a bluish chord whose stops all
+     quantise to the same lamp colour, so the old chord-walk was invisible
+     on the fixture however faithfully it walked */
+  const chord = [{ r: 0.2, g: 0.25, b: 0.8 }, { r: 0.25, g: 0.2, b: 0.85 }, { r: 0.2, g: 0.3, b: 0.9 }];
+  const collapsed = chord.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v);
+  assert.equal(new Set(collapsed).size, 1, 'this chord defeats the walk: ' + collapsed.join(','));
+  const show = { chord, energy: 0.7, beat: 0.6, pulse: 0.6, phrase: 0.2, preset: 'pulse' };
+  const beamA = Object.assign(S.dmxBeamState(), { move: 'chase', beats: 0 });
+  const beamB = Object.assign(S.dmxBeamState(), { move: 'chase', beats: 1 });
+  const a = S.dmxShowIntents(Object.assign({}, show, { beam: beamA }), rig).fl;
+  const b = S.dmxShowIntents(Object.assign({}, show, { beam: beamB }), rig).fl;
+  const va = S.dmxNearestColor(S.MYSTIC_COLORS, a.r, a.g, a.b).v;
+  const vb = S.dmxNearestColor(S.MYSTIC_COLORS, b.r, b.g, b.b).v;
+  assert.notEqual(va, vb, 'beat to beat, the lamp visibly changes: ' + va + ' vs ' + vb);
+  // the wash is untouched by the choreographer — the wall is not a dancer
+  const w = S.dmxShowIntents(Object.assign({}, show, { beam: beamA }), rig).w;
+  assert.deepEqual([w.r, w.g, w.b], [chord[0].r, chord[0].g, chord[0].b]);
+  // and the old walk still answers when no state rides in
+  const bare = S.dmxShowIntents(show, rig).fl;
+  assert.ok([bare.r, bare.g, bare.b].some(v => v > 0));
 });
 test('dmxShowIntents: the moonflower dances — spin surges on the kick, colour walks the chord', () => {
   const rig = S.dmxPatch([{ key: 'adj-mystic-led', role: 'beam', id: 'fl' }]);
