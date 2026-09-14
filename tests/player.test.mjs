@@ -3596,7 +3596,12 @@ test('dmxRender ThinTri 38: true RGB, a real dimmer, and the two interlocks that
      Anywhere else it is a program speed or the microphone's sensitivity. */
   assert.equal(f[5], 0, 'channel 6 stays in the band where the console is in charge');
   const st = S.dmxRender(p, { [p[0].id]: { r: 1, g: 1, b: 1, dim: 1, strobe: 1 } });
-  assert.ok(st[4] > 200, 'a full strobe intent is near the top of 016-255, got ' + st[4]);
+  /* a full strobe intent clears the no-function band but stays in the SLICE
+     the safety cap allows — the top of 016-255 is the physical lamp's
+     fastest strobe, which is inside the photosensitive band and must be
+     unreachable however hard the intent asks */
+  assert.ok(st[4] > 15, 'a full strobe intent registers, got ' + st[4]);
+  assert.ok(S.dmxDecode(p[0], st).strobeHz <= S.DMX_STROBE_MAX_HZ, 'and stays under the cap on the wire');
   assert.ok(st[5] <= 31, 'and channel 6 must stay put or channel 5 stops being a strobe');
   const none = S.dmxRender(p, { [p[0].id]: { r: 1, g: 1, b: 1, dim: 1, strobe: 0 } });
   assert.equal(none[4], 0, '000-015 is "no function", so no strobe means zero');
@@ -3646,6 +3651,37 @@ test('dmxRender Mystic LED: seven colours, no dimmer, and a clockwise channel th
   const ccwFast = at({ dim: 1, spin: -1 })[3], ccwSlow = at({ dim: 1, spin: -0.1 })[3];
   assert.ok(ccwFast > ccwSlow, 'counter-clockwise runs the other way: ' + ccwFast + ' vs ' + ccwSlow);
   assert.ok(ccwFast <= 170 && ccwSlow >= 86, 'and stays inside 086-170');
+});
+test('dmxRender: the strobe cap binds the WIRE, not just the picture', () => {
+  /* the peak preset's comment promises "even here the strobe goes through
+     the same cap as everywhere else" — with a real interface attached that
+     promise has to be true in the bytes, fixture by fixture. The decoded
+     rate is the same arithmetic the writer used, so this is the round trip:
+     full-throttle strobe intent in, a rate under the cap back out. */
+  const rig = S.dmxPatch([
+    { id: 'w', key: 'venue-thintri-38', mode: '8ch' },
+    { id: 'f', key: 'adj-mystic-led' },
+    { id: 'g', key: 'generic-par-7' },
+  ]);
+  for (const punch of [0, 1]){
+    const fr = S.dmxRender(rig, {
+      w: { dim: 1, strobe: 1, punch }, f: { dim: 1, strobe: 1, punch }, g: { dim: 1, strobe: 1, punch },
+    });
+    for (const f of rig){
+      const d = S.dmxDecode(f, fr);
+      assert.ok(d.strobeHz <= S.DMX_STROBE_MAX_HZ, f.key + ' punch ' + punch + ' at ' + d.strobeHz + ' Hz');
+      assert.ok(d.strobeHz > 0, f.key + ' still strobes at all');
+    }
+  }
+  // and the byte itself sits at the bottom of the band, not the top: the cap
+  // lives in what is WRITTEN, not in a reading that could drift from it
+  const fr = S.dmxRender(rig, { f: { dim: 1, strobe: 1 } });
+  const ch1 = fr[rig[1].at - 1];
+  assert.ok(ch1 >= 2 && ch1 <= 20, 'Mystic ch1 stays in the slow end, got ' + ch1);
+  // a small strobe still registers on a fixture whose band starts above zero
+  const soft = S.dmxRender(rig, { w: { dim: 1, strobe: 0.03 } });
+  const ch5 = soft[rig[0].at - 1 + 4];
+  assert.ok(ch5 > 15, 'ThinTri ch5 clears its no-function band, got ' + ch5);
 });
 test('dmxStrobeHz: the one number in this program that can hurt somebody', () => {
   /* 3-65 Hz is the photosensitive-seizure band. A rig driven from an
@@ -3952,7 +3988,7 @@ test('DMX_FIXTURES vars: the labels name the channel they are actually on', () =
   const f = S.dmxRender(rig, { w: { r: 0, g: 0, b: 0, dim: 1, strobe: 1 } });
   const v = S.DMX_FIXTURES['venue-thintri-38'].vars;
   assert.equal(f[v.indexOf('dimmer')], 255, 'the channel labelled dimmer is the one carrying the dimmer');
-  assert.ok(f[v.indexOf('strobe')] > 200, 'and the one labelled strobe carries the strobe');
+  assert.ok(f[v.indexOf('strobe')] > 15, 'and the one labelled strobe carries the strobe (inside the cap’s slice of the band)');
   assert.equal(f[v.indexOf('macro')], 0, 'and the macro is the one held at zero');
 });
 

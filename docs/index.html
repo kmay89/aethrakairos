@@ -6919,14 +6919,31 @@ function dmxIntent(o){
    whole program that can hurt somebody: flash rates between roughly 3 and
    65 Hz are the photosensitive-seizure band, and a rig driven from an
    audio-reactive render loop will happily sit in the middle of it all night.
-   So the intent's 0..1 is mapped to a range that STOPS at 3 Hz — fast enough
-   to read as a strobe on a drop, below the band by construction. There is no
-   parameter to raise it, because the one thing a "pro mode" must never unlock
-   is this. */
+   So a strobe stops at 3 Hz — fast enough to read as a strobe on a drop,
+   below the band by construction. There is no parameter to raise it, because
+   the one thing a "pro mode" must never unlock is this.
+
+   THE CAP HAS TWO HALVES, AND THE WIRE'S IS THE ONE THAT MATTERS. While the
+   rig was only a picture, capping the DRAWN rate was the whole job. With a
+   real interface attached, the bytes are the danger: a fixture's strobe
+   channel spans its entire hardware range, and the top of that range on
+   these lamps is well inside the band. No reachable datasheet names the
+   exact top rate, so it is ASSUMED to be 25 Hz — faster than any of these
+   club LEDs actually run, and assuming too fast only makes the wire slower,
+   which is the safe side of wrong. The writer (dmxStrobeBand) therefore
+   uses only the bottom 3/25ths of any strobe band, and the reader
+   (dmxStrobeHz) decodes a band fraction under the same assumption, capped
+   so the drawn flash can never exceed 3 Hz either — the monitor and the
+   room agreeing, at the cap, by sharing one piece of arithmetic. */
 const DMX_STROBE_MAX_HZ = 3;
+const DMX_STROBE_TOP_HZ = 25;              // assumed band top, absent a datasheet
 function dmxStrobeHz(strobe){
   const s = Math.max(0, Math.min(1, Number(strobe) || 0));
-  return s <= 0 ? 0 : 0.7 + s * (DMX_STROBE_MAX_HZ - 0.7);
+  return Math.min(DMX_STROBE_MAX_HZ, s * DMX_STROBE_TOP_HZ);
+}
+function dmxStrobeBand(lo, hi, strobe){
+  const s = Math.max(0, Math.min(1, Number(strobe) || 0));
+  return Math.round(lo + s * (DMX_STROBE_MAX_HZ / DMX_STROBE_TOP_HZ) * (hi - lo));
 }
 
 /* the nearest thing a seven-colour lamp can be to a colour it cannot make.
@@ -6965,12 +6982,12 @@ function dmxRenderFixture(f, intent, frame){
     const dark = i.dim < 0.06;
     if (dark) put(1, 0);
     else if (i.strobe > 0.02){
-      // 002-127 slow to fast. A punchy intent gets the RANDOM strobe band
-      // (136-253) instead, which on this fixture is markedly less regular
-      // and reads as an accent rather than as a machine.
-      if (i.punch > 0.6) put(4 - 3, 0);      // (no-op guard; ch1 set below)
-      if (i.punch > 0.6) put(1, 136 + i.strobe * (253 - 136));
-      else put(1, 2 + i.strobe * (127 - 2));
+      // 002-127 slow to fast, entered through dmxStrobeBand so the PHYSICAL
+      // rate stays under the cap. A punchy intent gets the RANDOM strobe
+      // band (136-253) instead, which on this fixture is markedly less
+      // regular and reads as an accent rather than as a machine.
+      if (i.punch > 0.6) put(1, dmxStrobeBand(136, 253, i.strobe));
+      else put(1, dmxStrobeBand(2, 127, i.strobe));
     } else put(1, 130);                      // 128-135 LED ON, mid-band
     /* Ch3/Ch2 — the interlock. With the rainbow up, channel 2 stops being a
        colour and becomes the rainbow's speed, so the colour selection below
@@ -7015,7 +7032,7 @@ function dmxRenderFixture(f, intent, frame){
     set('white', b255(white * k));
     set('amber', b255(Math.max(0, Math.min(i.r, i.g * 0.75) - i.b) * k));
     set('uv', 0);
-    set('strobe', i.strobe > 0.02 ? Math.round(16 + i.strobe * (255 - 16)) : 0);
+    set('strobe', i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     set('mode', 0); set('macro', 0); set('speed', 0);
     // a head that can aim is aimed across the room by the same signed spin
     if (has('pan')) put(idx('pan'), b255(0.5 + i.spin * 0.42));
@@ -7038,7 +7055,7 @@ function dmxRenderFixture(f, intent, frame){
        arrangement in which this fixture does what the console says and
        nothing of its own. */
     put(6, 0);                               // 000-031 no function
-    put(5, i.strobe > 0.02 ? 16 + i.strobe * (255 - 16) : 0);
+    put(5, i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     put(7, b255(i.dim));
     /* Ch8 — the dimmer curve. Off means the dimmer follows the wire exactly,
        which is what a lamp being driven at thirty frames a second wants; the
@@ -18035,7 +18052,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'ed0ca4f032';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '873f0735d2';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
