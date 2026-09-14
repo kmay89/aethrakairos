@@ -7262,7 +7262,7 @@ function dmxChordStop(chord, role, i){
 const DMX_BEAM_MOVES = ['chase', 'whirl', 'stab', 'bloom'];
 
 function dmxBeamState(){
-  return { beats: 0, phraseN: 0, prevBeat: 0, prevPhrase: 0, kick: 0, move: 'chase' };
+  return { beats: 0, phraseN: 0, prevBeat: 0, prevPhrase: 0, prevPhase: 'flow', kick: 0, hit: 0, move: 'chase' };
 }
 
 /* the six saturated hue-wheel stops, rotated so the ring begins at the one
@@ -7308,7 +7308,32 @@ function dmxBeamStep(st, show, dt){
     move = able[phraseN % able.length];
     if (move === s.move) move = able[(phraseN + 1) % able.length];
   }
-  return { beats, phraseN, prevBeat: beat, prevPhrase: phrase, kick, move };
+  /* THE DROP IS AN EVENT, NOT A STATE. A show caller hits the drop ONCE —
+     the crossing into it — and then the look settles; a rig that stayed
+     slammed for the whole chorus would have nowhere left to go. So the hit
+     fires on the phase EDGE into the climax family (drop and peak are one
+     climax, not two), burns down over about a bar, and cannot re-fire until
+     the music has actually left and come back. */
+  const CLIMAX = { drop: 1, peak: 1 };
+  const phase = String((show || {}).phase || 'flow');
+  let hit = Math.max(0, (s.hit || 0) - Math.max(0, Number(dt) || 0) * 1.1);
+  if (CLIMAX[phase] && !CLIMAX[s.prevPhase]) hit = 1;
+  return { beats, phraseN, prevBeat: beat, prevPhrase: phrase, prevPhase: phase, kick, hit, move };
+}
+
+/* THE RHYTHM SECTION. Two washes both riding the same beat is one big lamp;
+   a pro trades them — the on-beat wash carries the hit while its partner
+   dips and recovers with the kick — and lands EVERYBODY together on the
+   ONE, because the downbeat is the bar's spine and a chase that ignores it
+   reads as random. Four beats to a bar, counted off the same clock as the
+   dancer. A preset that barely follows the beat (a talking room) never
+   chases, and no clock means no chase: this multiplies a dimmer, so its
+   idle answer is exactly 1. */
+function dmxWashChase(st, preset, n){
+  if (!st || !preset || preset.beat < 0.5) return 1;
+  if (((st.beats % 4) + 4) % 4 === 0) return 1;      // the ONE: everybody
+  if ((st.beats % 2) === ((n || 0) % 2)) return 1;   // this wash carries the beat
+  return 1 - 0.55 * Math.max(0, Math.min(1, st.kick || 0));
 }
 
 /* the pose: one move, one moment, one honest answer for colour, spin and
@@ -7420,7 +7445,8 @@ function dmxShowIntents(show, patched){
        every bar is wallpaper flickering — but the beam steps to the next
        stop each quarter-phrase, so the moonflower changes colour ON the
        music's own boundaries rather than whenever the chord happens to. */
-    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : Math.floor(phrase * 4));
+    const wi = role === 'wash' ? washN++ : 0;
+    const c = dmxChordStop(chord, role, role === 'wash' ? wi : Math.floor(phrase * 4));
     if (preset.off || master <= 0){
       out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
       continue;
@@ -7435,6 +7461,8 @@ function dmxShowIntents(show, patched){
     /* the beam is the accent, so it is allowed to be the thing that goes dark
        between phrases where a wash may not — that contrast is the effect */
     if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
+    // the washes trade the beat between them and land together on the ONE
+    if (role === 'wash') dim = u(dim * dmxWashChase(s.beam, preset, wi));
     const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
     /* SPIN follows the phrase and reverses with it, because a moonflower that
        only ever turns one way stops being noticed after ninety seconds — and
@@ -7449,14 +7477,33 @@ function dmxShowIntents(show, patched){
        a move dealt per phrase, a kick that decays. Without the state — a
        bare test, an older caller — the walk above still dances. */
     const pose = role === 'beam' && s.beam ? dmxBeamPose(s.beam, s) : null;
+    let cr = u(pose ? pose.r : (c && c.r));
+    let cg = u(pose ? pose.g : (c && c.g));
+    let cb = u(pose ? pose.b : (c && c.b));
+    let str = strobe;
+    let punch = u(beat * energy);
+    /* THE DROP HIT — the one look every stage show shares: the crossing into
+       the chorus lands as a full-white slam on the walls and a burst from
+       the dancer, then burns down into the settled climax look. Gated by
+       the preset's own beat appetite so a hand-pinned calm room can never
+       be slammed; the beam's burst rides the strobe intent, which the
+       renderer still holds under the safety cap. */
+    const hit = s.beam && preset.beat >= 0.5 ? u(s.beam.hit) : 0;
+    if (hit > 0){
+      if (role === 'wash'){
+        cr = u(cr + (1 - cr) * hit); cg = u(cg + (1 - cg) * hit); cb = u(cb + (1 - cb) * hit);
+        dim = Math.max(dim, hit);
+      } else {
+        str = Math.max(str, u(preset.strobe * hit));
+        punch = Math.max(punch, hit);
+      }
+    }
     out[f.id] = {
-      r: u(pose ? pose.r : (c && c.r)),
-      g: u(pose ? pose.g : (c && c.g)),
-      b: u(pose ? pose.b : (c && c.b)),
-      dim, strobe,
+      r: cr, g: cg, b: cb,
+      dim, strobe: str,
       spin: prof.can.spin ? (pose ? pose.spin : spin) : 0,
       rainbow: prof.can.rainbow ? u(pose ? pose.rainbow : preset.rainbow) : 0,
-      punch: u(beat * energy),
+      punch,
     };
   }
   /* the lit transitions reach the lamps too — same light, same clock. Never
@@ -18195,7 +18242,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'fab79a0438';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'bd9eae0630';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
