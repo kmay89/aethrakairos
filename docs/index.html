@@ -1517,6 +1517,12 @@ body.crowd{background:#000}
 }
 .rig-sws button:hover{transform:scale(1.16)}
 .rig-foot{margin-top:10px;font-size:10px;color:var(--faint);line-height:1.6}
+.rig-wire{
+  flex:0 0 auto;align-self:center;padding:6px 12px;border-radius:9px;cursor:pointer;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+}
+.rig-wire.on{color:#04121a;background:var(--accent);border-color:var(--accent)}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -2677,6 +2683,7 @@ body.clipping::after{
       <span class="rig-title">The Rig</span>
       <span class="rig-sub" id="rigSub">drawn from the wire</span>
       <span class="spring"></span>
+      <button class="rig-wire" id="rigWire" aria-pressed="false">Put this on the wire</button>
       <button class="pl-x" id="rigClose" aria-label="Close the rig">&#10005;</button>
     </div>
     <canvas id="rigStage" width="1200" height="525"></canvas>
@@ -7388,6 +7395,56 @@ function hueLights(json){
   }
   out.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   return out;
+}
+
+/* ================================================================
+   THE LAST INCH OF WIRE — Enttec USB Pro framing
+
+   Everything above renders a frame; none of it ships one. The gap between
+   "the monitor shows the show" and "the room does the show" is a USB widget
+   speaking the Enttec USB DMX Pro protocol — the de-facto lingua franca that
+   DMXking, Enttec and half the interfaces on earth answer to — and the
+   protocol is the easy half of that widget. The HARD half, the reason a
+   browser can do this at all, lives in the widget's own firmware: the DMX
+   line's break timing and its 250 kbaud signalling are generated there, not
+   here. What crosses the USB is just a framed message, and a framed message
+   is a pure function of the 512 bytes the renderer already made.
+
+   The frame: SOM, a label saying what the message is, the payload length in
+   two bytes LITTLE-END FIRST (the widget is a microcontroller; it reads LSB
+   first and so does this), the payload, EOM. Label 6 is "send this DMX now",
+   and its payload leads with the DMX start code — 0, dimmer data, always —
+   ahead of the 512 channels. Send that at the rate the wire runs at and the
+   widget repeats the last frame on the line all by itself between messages,
+   which is why a browser that stops (a hidden tab loses its animation
+   frames) leaves the room holding its look rather than going dark. */
+const DMX_USB_PRO = {
+  SOM: 0x7e,               // start of message
+  EOM: 0xe7,               // end of message
+  SEND_DMX: 6,             // label: output-only send DMX packet request
+};
+function dmxUsbProPacket(label, data){
+  const n = data ? data.length : 0;
+  const out = new Uint8Array(n + 5);
+  out[0] = DMX_USB_PRO.SOM;
+  out[1] = label & 0xff;
+  out[2] = n & 0xff;                       // length, LSB first
+  out[3] = (n >> 8) & 0xff;
+  for (let i = 0; i < n; i++) out[4 + i] = data[i] & 0xff;
+  out[4 + n] = DMX_USB_PRO.EOM;
+  return out;
+}
+/* a whole universe, every send. The protocol allows short payloads; nothing
+   here uses them, because a fixed 518-byte message forty times a second is
+   nothing to USB and a variable one is a place for an off-by-one to live. */
+function dmxUsbProFrame(frame){
+  const data = new Uint8Array(513);
+  data[0] = 0;                             // DMX start code: dimmer data
+  if (frame) for (let i = 0; i < 512; i++){
+    const v = frame[i];
+    data[1 + i] = v > 0 ? (v < 255 ? v & 0xff : 255) : 0;
+  }
+  return dmxUsbProPacket(DMX_USB_PRO.SEND_DMX, data);
 }
 // @dmx-end
 
@@ -17896,7 +17953,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '6e767ebe2b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '2db2a71d55';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -39318,6 +39375,91 @@ const CROWD = {
    not do. It is also the only way to work on a rig with no rig plugged in,
    which is where most of this gets built.
    ================================================================ */
+
+/* THE WIRE ITSELF. A USB DMX widget speaking the Enttec Pro protocol (a
+   DMXking, an Enttec Pro, most of their kin) is, to the browser, a serial
+   port — and Chrome will hand a page a serial port if the person asks it to.
+   That is the entire trick. No driver, no helper app, no server: the picker
+   is the permission, the permission outlives the session, and the framing
+   (dmxUsbProFrame, tested with the rest of the DMX arithmetic) is all the
+   protocol there is. Where Web Serial does not exist — Safari, phones, the
+   TV — none of this appears, and the rig stays what it has always been
+   everywhere: a monitor.
+
+   BACKPRESSURE, THE ONE REAL SUBTLETY. The wire runs at 40 Hz because RIG
+   steps at 40 Hz; if the OS stalls a write, queueing more behind it would
+   build a growing backlog of stale frames that the lamps then replay late —
+   a light show in the past tense. So there is exactly one write in flight,
+   ever: a frame that arrives while one is being written is simply dropped,
+   because the next fresh frame is 25 ms away and fresher than anything a
+   queue could hold. */
+const DMXUSB = {
+  port: null, writer: null, on: false, fault: '',
+  _busy: false,
+  ok(){ return typeof navigator !== 'undefined' && !!navigator.serial; },
+  boot(){
+    const b = document.getElementById('rigWire');
+    if (b){
+      if (!this.ok()) b.hidden = true;
+      else b.addEventListener('click', () => this.on ? this.close() : this.connect());
+    }
+    /* the cable yanked mid-show is an event, not an error return */
+    if (this.ok()) navigator.serial.addEventListener('disconnect', e => {
+      if (e.target === this.port) this.close(T('The interface came unplugged'));
+    });
+  },
+  async connect(){
+    if (!this.ok() || this.on) return;
+    try {
+      /* the picker IS the user gesture and the permission. No vendor filter:
+         Pro-protocol widgets ship with whatever USB bridge was cheap the
+         year they were made, and the person pointing at their own interface
+         is a better filter than a vendor-ID list going stale. */
+      const port = await navigator.serial.requestPort();
+      /* the baud rate is ceremony — the widget's USB side ignores it and its
+         firmware drives the actual line at DMX's own 250 kbaud — but the API
+         insists on a number, so it may as well be the true one. */
+      await port.open({ baudRate: 250000 });
+      this.port = port;
+      this.writer = port.writable.getWriter();
+      this.on = true; this.fault = '';
+    } catch (e){
+      // the picker dismissed is a decision, not a fault; a port that would
+      // not open (claimed by another program, usually) is worth saying
+      this.fault = (e && e.name === 'NotFoundError') ? ''
+        : T('The port would not open — close anything else using the interface');
+    }
+    this.paint();
+  },
+  async close(fault){
+    this.on = false; this.fault = fault || '';
+    const w = this.writer, p = this.port;
+    this.writer = null; this.port = null; this._busy = false;
+    try { if (w) w.releaseLock(); } catch (e){}
+    try { if (p) await p.close(); } catch (e){}
+    this.paint();
+  },
+  send(frame){
+    if (!this.on || !this.writer || this._busy || !frame) return;
+    this._busy = true;
+    this.writer.write(dmxUsbProFrame(frame)).then(
+      () => { this._busy = false; },
+      /* a write can reject because the cable is gone — or because close()
+         released the lock under it on purpose. Only the first is news. */
+      () => { this._busy = false; if (this.on) this.close(T('The interface came unplugged')); },
+    );
+  },
+  paint(){
+    const b = document.getElementById('rigWire');
+    if (b){
+      b.classList.toggle('on', this.on);
+      b.textContent = this.on ? T('On the wire') : T('Put this on the wire');
+      b.setAttribute('aria-pressed', String(this.on));
+    }
+    if (typeof RIG !== 'undefined') RIG.paintFoot();
+  },
+};
+
 const RIG = {
   on: false,
   preset: 'auto',
@@ -39348,6 +39490,7 @@ const RIG = {
     on('rigClose', () => this.open(false));
     on('btnRig', () => this.open());
     this.buildPresets();
+    DMXUSB.boot(); DMXUSB.paint();
   },
   open(v){
     const box = document.getElementById('rig');
@@ -39442,6 +39585,7 @@ const RIG = {
     }
     this.frame = dmxRender(this.patched, intents);
     this.net = dmxRenderNet(this.patched, intents);
+    DMXUSB.send(this.frame);                 // the same bytes the monitor draws
     this.strobeT += dt;
     // the beams turn because a decoded spin says they are turning
     this.patched.forEach((f, i) => {
@@ -39670,7 +39814,16 @@ const RIG = {
     const n = document.getElementById('rigFoot');
     if (!n) return;
     const used = dmxUniverseUsed(this.patched);
-    n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.', { used });
+    /* the footer tells the truth about the wire, whichever truth it is: live,
+       faulted, connectable, or (no Web Serial here) a monitor and proud of it */
+    if (DMXUSB.on)
+      n.textContent = T('Every bar above is a byte on the wire, forty times a second. {used} of 512 channels in use — what you see is what the room is being told.', { used });
+    else if (DMXUSB.fault)
+      n.textContent = DMXUSB.fault + ' — ' + T('{used} of 512 channels in use.', { used });
+    else if (DMXUSB.ok())
+      n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is on the wire yet — a USB DMX interface (DMXking, Enttec Pro) plugs straight in above.', { used });
+    else
+      n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.', { used });
   },
 };
 

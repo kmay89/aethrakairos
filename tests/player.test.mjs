@@ -53,7 +53,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp, stageSpread,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
-  ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
+  ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode, DMX_USB_PRO, dmxUsbProPacket, dmxUsbProFrame,' +
   ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents, dmxSegueTint,' +
   ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
@@ -3714,6 +3714,41 @@ test('dmxIntent: what reaches a mains-powered lamp is laundered first', () => {
   const f = S.dmxRender(S.dmxPatch([{ key: 'adj-mystic-led' }]), {});
   assert.equal(f.length, 512);
   assert.ok(f.every(v => Number.isFinite(v) && v >= 0 && v <= 255));
+});
+
+test('dmxUsbProFrame: the message the USB widget reads, byte for byte', () => {
+  /* the framing is the whole protocol — the widget's own firmware generates
+     the DMX line timing — so every byte here is load-bearing, and a wrong
+     one is a rig that sits dark with all its numbers looking right */
+  const f = S.dmxRender(S.dmxPatch([{ key: 'adj-mystic-led' }]), {});
+  const m = S.dmxUsbProFrame(f);
+  assert.equal(m.length, 518, 'SOM + label + two length bytes + start code + 512 channels + EOM');
+  assert.equal(m[0], 0x7e, 'start of message');
+  assert.equal(m[1], S.DMX_USB_PRO.SEND_DMX, 'label 6: send this DMX now');
+  assert.equal(m[2] | (m[3] << 8), 513, 'payload length, LSB first');
+  assert.equal(m[4], 0, 'the DMX start code — 0, dimmer data — rides ahead of the channels');
+  for (let i = 0; i < 512; i++) assert.equal(m[5 + i], f[i], 'channel ' + (i + 1));
+  assert.equal(m[517], 0xe7, 'end of message');
+  // a frame nobody has rendered yet is a dark universe, not a throw
+  const dark = S.dmxUsbProFrame(null);
+  assert.equal(dark.length, 518);
+  assert.ok(Array.from(dark.slice(5, 517)).every(v => v === 0), 'all 512 channels at zero');
+  // and the wire never sees a value that is not a byte
+  const dirty = new Array(512).fill(0);
+  dirty[0] = 300; dirty[1] = -4; dirty[2] = NaN;
+  const clean = S.dmxUsbProFrame(dirty);
+  assert.equal(clean[5], 255); assert.equal(clean[6], 0); assert.equal(clean[7], 0);
+});
+test('dmxUsbProPacket: the length runs LSB first, whatever the payload', () => {
+  const p = S.dmxUsbProPacket(77, new Uint8Array(300));
+  assert.equal(p[1], 77, 'the label is whatever was asked for');
+  assert.equal(p[2], 300 & 0xff);
+  assert.equal(p[3], 1, 'the high byte is the SECOND length byte — the widget reads little-endian');
+  assert.equal(p.length, 305);
+  assert.equal(p[304], 0xe7);
+  const empty = S.dmxUsbProPacket(3, null);
+  assert.equal(empty.length, 5, 'no payload is still a whole message');
+  assert.equal(empty[2], 0); assert.equal(empty[3], 0);
 });
 
 test('dmxShowIntents: the rig is downstream of the same analysis as the picture', () => {
