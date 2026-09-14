@@ -7235,6 +7235,128 @@ function dmxChordStop(chord, role, i){
   return list[i % list.length];
 }
 
+/* ================================================================
+   THE BEAM'S OWN CHOREOGRAPHER
+
+   Walking the chord was the right instinct and the wrong palette. A chord's
+   three stops are the PICTURE's colours — close cousins by design — and a
+   moonflower quantises everything to seven hardware states, so a bluish
+   chord walks three stops that all land on BLUE and the walk disappears.
+   The fixture wasn't refusing to dance; it was being handed three copies of
+   the same colour and honestly showing all of them.
+
+   So the beam gets what the field already has (DANCE_MOVES): a repertoire.
+   A move is a pure pose — colour, spin, rainbow from (state, show) — and a
+   small state machine counts real beats, deals a fresh move every phrase,
+   and keeps a kick envelope so a lunge can decay the way a limb does. The
+   colours come from a RING of saturated hue-wheel stops, anchored to the
+   chord's accent so the dancer starts in the picture's own corner of the
+   wheel — and every ring stop lands on a DIFFERENT one of the seven states
+   a moonflower can be, which is the whole point: a colour change you
+   asked for is a colour change you see. Washes stay on the chord; a wall
+   that flashes primaries is a fire sale, but a beam that does is a dancer.
+
+   Everything here is (state in → state out) pure and lives with the rest of
+   the DMX arithmetic, so the choreography is tested the way the channel
+   charts are. */
+const DMX_BEAM_MOVES = ['chase', 'whirl', 'stab', 'bloom'];
+
+function dmxBeamState(){
+  return { beats: 0, phraseN: 0, prevBeat: 0, prevPhrase: 0, kick: 0, move: 'chase' };
+}
+
+/* the six saturated hue-wheel stops, rotated so the ring begins at the one
+   nearest the chord's accent — compared by direction, exactly the way the
+   Mystic's own nearest-colour pick works, so anchor and lamp agree. */
+function dmxBeamColors(chord){
+  const RING = [
+    { r: 1, g: 0, b: 0 }, { r: 1, g: 1, b: 0 }, { r: 0, g: 1, b: 0 },
+    { r: 0, g: 1, b: 1 }, { r: 0, g: 0, b: 1 }, { r: 1, g: 0, b: 1 },
+  ];
+  const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
+  const a = list[Math.min(2, list.length - 1)] || {};
+  const n = Math.hypot(a.r || 0, a.g || 0, a.b || 0) || 1;
+  let best = 0, bestD = -Infinity;
+  for (let i = 0; i < RING.length; i++){
+    const c = RING[i];
+    const d = ((a.r || 0) * c.r + (a.g || 0) * c.g + (a.b || 0) * c.b) / (n * Math.hypot(c.r, c.g, c.b));
+    if (d > bestD){ bestD = d; best = i; }
+  }
+  const out = [];
+  for (let i = 0; i < RING.length; i++) out.push(RING[(best + i) % RING.length]);
+  return out;
+}
+
+/* the clock: count beats off the beat envelope's RISING EDGE, with
+   hysteresis so one hump is one beat however long it hangs near the
+   threshold; notice the phrase wrapping and deal the next move; run the
+   kick envelope down at limb speed. The preset gates the deal — a room
+   with no rainbow budget is never dealt the bloom. */
+function dmxBeamStep(st, show, dt){
+  const s = st || dmxBeamState();
+  const sh = show || {};
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const beat = Math.max(u(sh.beat), u(sh.pulse)), phrase = u(sh.phrase);
+  const preset = DMX_PRESETS[sh.preset] || DMX_PRESETS[dmxAutoPreset(sh)] || DMX_PRESETS.follow;
+  let beats = s.beats, phraseN = s.phraseN, move = s.move;
+  let kick = Math.max(0, s.kick - Math.max(0, Number(dt) || 0) * 3.2);
+  if (beat > 0.6 && s.prevBeat <= 0.35){ beats++; kick = 1; }
+  if (phrase < s.prevPhrase - 0.5){
+    phraseN++;
+    const able = preset.rainbow > 0 ? DMX_BEAM_MOVES
+      : DMX_BEAM_MOVES.filter(m => m !== 'bloom');
+    move = able[phraseN % able.length];
+    if (move === s.move) move = able[(phraseN + 1) % able.length];
+  }
+  return { beats, phraseN, prevBeat: beat, prevPhrase: phrase, kick, move };
+}
+
+/* the pose: one move, one moment, one honest answer for colour, spin and
+   rainbow. Amplitude bows to the preset (a slow wash stays slow however
+   hard the dancer wants to go) on a soft curve, so even calm turns a
+   little. A talking room (a preset that barely follows the beat) steps
+   its colours on phrase quarters instead of beats — movement without
+   flicker. */
+function dmxBeamPose(st, show){
+  const s = st || dmxBeamState();
+  const sh = show || {};
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const energy = u(sh.energy), phrase = u(sh.phrase);
+  const preset = DMX_PRESETS[sh.preset] || DMX_PRESETS[dmxAutoPreset(sh)] || DMX_PRESETS.follow;
+  const ring = dmxBeamColors(sh.chord);
+  const q = s.phraseN * 4 + Math.floor(phrase * 4);
+  const base = preset.beat >= 0.3 ? s.beats : q;
+  const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
+  const amp = Math.pow(Math.max(0.05, preset.spin), 0.6);
+  let color, spin, rainbow = 0;
+  if (s.move === 'whirl'){
+    // the motor is the show: colour rests on slow quarters while the beams run
+    color = ring[q % ring.length];
+    spin = dir * amp * (0.8 + 0.2 * energy);
+  } else if (s.move === 'stab'){
+    // opposite sides of the wheel on every beat, and a lunge that decays
+    color = ring[(base * 2) % ring.length];
+    spin = dir * amp * (0.15 + 0.85 * s.kick);
+  } else if (s.move === 'bloom'){
+    /* the fixture's own rainbow engine. The renderer's interlock only
+       engages above 0.5 — below that a "bloom" would render as one static
+       colour for a whole phrase, the deadest possible move — so the pose
+       always clears the gate and the preset's budget sets the SPEED. */
+    color = ring[0];
+    rainbow = 0.55 + 0.45 * u(preset.rainbow);
+    spin = dir * amp * (0.2 + 0.3 * energy);
+  } else {
+    // chase: the next hue on every step, speed breathing with room and kick
+    color = ring[base % ring.length];
+    spin = dir * amp * (0.35 + 0.45 * energy + 0.2 * s.kick);
+  }
+  return {
+    r: color.r, g: color.g, b: color.b,
+    spin: Math.max(-1, Math.min(1, spin)),
+    rainbow: u(rainbow),
+  };
+}
+
 /* THE WHOLE RIG, ONE FRAME'S WORTH OF INTENT.
 
    `chord` arrives as plain rgb triples so this stays testable without a
@@ -7321,10 +7443,19 @@ function dmxShowIntents(show, patched){
     const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
     const spin = prof.can.spin
       ? dir * preset.spin * (0.2 + 0.5 * energy + 0.3 * Math.max(beat, pulse)) : 0;
+    /* WHEN THE CHOREOGRAPHER IS RUNNING (the caller advances a beam state
+       with dmxBeamStep and rides it in on show.beam), a beam-role fixture
+       takes its pose from the engine instead: quantisation-proof colours,
+       a move dealt per phrase, a kick that decays. Without the state — a
+       bare test, an older caller — the walk above still dances. */
+    const pose = role === 'beam' && s.beam ? dmxBeamPose(s.beam, s) : null;
     out[f.id] = {
-      r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
-      dim, strobe, spin,
-      rainbow: prof.can.rainbow ? u(preset.rainbow) : 0,
+      r: u(pose ? pose.r : (c && c.r)),
+      g: u(pose ? pose.g : (c && c.g)),
+      b: u(pose ? pose.b : (c && c.b)),
+      dim, strobe,
+      spin: prof.can.spin ? (pose ? pose.spin : spin) : 0,
+      rainbow: prof.can.rainbow ? u(pose ? pose.rainbow : preset.rainbow) : 0,
       punch: u(beat * energy),
     };
   }
@@ -18064,7 +18195,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '50b316dc8f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'fab79a0438';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -39764,8 +39895,14 @@ const RIG = {
   step(now, dt){
     if (!this.patched) return;
     if (now - this._acc < 25) return;
+    // the real gap between wire ticks, not the screen's frame dt — the
+    // choreographer's kick envelope decays on the wire's own clock
+    const gap = Math.min(0.25, Math.max(0, (now - this._acc) / 1000));
     this._acc = now;
-    const intents = dmxShowIntents(this.show(), this.patched);
+    const show = this.show();
+    this.beamState = dmxBeamStep(this.beamState, show, gap);
+    show.beam = this.beamState;
+    const intents = dmxShowIntents(show, this.patched);
     /* THE BOARD SITS ON TOP OF THE SHOW, not beside it. A fixture with no
        hand on it keeps following the music; a fixture the operator has taken
        holds exactly what they set and nothing else touches it. That is what a
