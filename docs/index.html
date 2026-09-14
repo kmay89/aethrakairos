@@ -7222,11 +7222,16 @@ function dmxAutoPreset(show){
 
 /* one lamp's share of the chord. Washes spread across the stops rather than
    all taking the first one — two washes on the identical colour is a wall,
-   three on the chord is a room — and the beam takes the stop the picture
-   uses for its accents, so the moonflower agrees with the thing on screen. */
+   three on the chord is a room. The beam's HOME is the stop the picture uses
+   for its accents, so the moonflower agrees with the thing on screen — but a
+   beam is the room's dancer, and a dancer stuck on one colour until the song
+   changes chord reads as a lamp somebody forgot. So the beam WALKS the chord
+   from its home stop: hand it a step count and it visits the other stops and
+   comes back, always in colours the picture is already made of. */
 function dmxChordStop(chord, role, i){
   const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
-  if (role === 'beam' || role === 'accent') return list[Math.min(2, list.length - 1)];
+  if (role === 'beam' || role === 'accent')
+    return list[(Math.min(2, list.length - 1) + (i || 0)) % list.length];
   return list[i % list.length];
 }
 
@@ -7289,7 +7294,11 @@ function dmxShowIntents(show, patched){
     if (!f) continue;
     const prof = dmxProfile(f.key) || { can: {} };
     const role = f.role || 'wash';
-    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : 0);
+    /* a wash keeps its stop for the whole song — a wall that changes colour
+       every bar is wallpaper flickering — but the beam steps to the next
+       stop each quarter-phrase, so the moonflower changes colour ON the
+       music's own boundaries rather than whenever the chord happens to. */
+    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : Math.floor(phrase * 4));
     if (preset.off || master <= 0){
       out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
       continue;
@@ -7306,9 +7315,12 @@ function dmxShowIntents(show, patched){
     if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
     const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
     /* SPIN follows the phrase and reverses with it, because a moonflower that
-       only ever turns one way stops being noticed after ninety seconds. */
+       only ever turns one way stops being noticed after ninety seconds — and
+       it SURGES on the kick, because a motor is the one voice this fixture
+       has for the beat: no dimmer to pulse, so the beams lunge instead. */
     const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
-    const spin = prof.can.spin ? dir * preset.spin * (0.25 + 0.75 * energy) : 0;
+    const spin = prof.can.spin
+      ? dir * preset.spin * (0.2 + 0.5 * energy + 0.3 * Math.max(beat, pulse)) : 0;
     out[f.id] = {
       r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
       dim, strobe, spin,
@@ -18052,7 +18064,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '873f0735d2';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '50b316dc8f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived

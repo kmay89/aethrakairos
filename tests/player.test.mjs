@@ -3866,6 +3866,29 @@ test('dmxShowIntents: the rig is downstream of the same analysis as the picture'
   assert.ok(Math.abs(i.fl.spin) > 0, 'and the one that does, does');
   assert.equal(i.h1.rainbow, 0, 'nor a rainbow it cannot run');
 });
+test('dmxShowIntents: the moonflower dances — spin surges on the kick, colour walks the chord', () => {
+  const rig = S.dmxPatch([{ key: 'adj-mystic-led', role: 'beam', id: 'fl' }]);
+  const chord = [{ r: 1, g: 0, b: 0 }, { r: 0, g: 1, b: 0 }, { r: 0, g: 0, b: 1 }];
+  const base = { chord, energy: 0.6, phrase: 0.1, preset: 'follow' };
+  /* the motor is the one voice this fixture has for the beat — no dimmer to
+     pulse — so the same energy with a harder kick must mean faster beams */
+  const still = S.dmxShowIntents(Object.assign({}, base, { beat: 0, pulse: 0 }), rig);
+  const kick = S.dmxShowIntents(Object.assign({}, base, { beat: 1, pulse: 1 }), rig);
+  assert.ok(Math.abs(kick.fl.spin) > Math.abs(still.fl.spin), 'the beat reaches the beams');
+  assert.ok(Math.abs(kick.fl.spin) <= 1, 'and never past full');
+  /* the colour walks the chord at quarter-phrase boundaries, starting from
+     the accent stop — movement on the music's own seams, in colours the
+     picture is already made of */
+  const stops = [0, 0.3, 0.55].map(phrase =>
+    S.dmxShowIntents(Object.assign({}, base, { beat: 0.5, pulse: 0.5, phrase }), rig).fl);
+  assert.deepEqual([stops[0].r, stops[0].g, stops[0].b], [0, 0, 1], 'home is still the accent stop');
+  const keys = stops.map(s => [s.r, s.g, s.b].join(','));
+  assert.equal(new Set(keys).size, 3, 'three quarter-phrases, three colours: ' + keys.join(' | '));
+  // and a one-note chord cannot be walked off the end of
+  const solo = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 0, b: 0 }], energy: 0.5, phrase: 0.9, preset: 'follow' }, rig);
+  assert.deepEqual([solo.fl.r, solo.fl.g, solo.fl.b], [1, 0, 0]);
+});
 test('dmxShowIntents: brightness has a floor, because a rig that blinks out reads as broken', () => {
   const rig = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch', id: 'w' }]);
   const chord = [{ r: 1, g: 1, b: 1 }];
