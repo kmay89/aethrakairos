@@ -53,6 +53,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp, stageSpread,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
+  ' dmxAutoAddress, dmxOverlaps, dmxDialPlan,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode, DMX_USB_PRO, dmxUsbProPacket, dmxUsbProFrame,' +
   ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents, dmxSegueTint,' +
   ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
@@ -3749,6 +3750,60 @@ test('dmxUsbProPacket: the length runs LSB first, whatever the payload', () => {
   const empty = S.dmxUsbProPacket(3, null);
   assert.equal(empty.length, 5, 'no payload is still a whole message');
   assert.equal(empty[2], 0); assert.equal(empty[3], 0);
+});
+
+test('dmxAutoAddress: one button answers "what do I dial into each lamp"', () => {
+  // the shipped rig IS this packing: 8ch wash at 1, the 4ch flower at 9, 8ch wash at 13
+  const rig = [
+    { id: 'a', key: 'venue-thintri-38', mode: '8ch', at: 200 },
+    { id: 'b', key: 'adj-mystic-led', at: 7 },
+    { id: 'c', key: 'venue-thintri-38', mode: '8ch' },
+  ];
+  const out = S.dmxAutoAddress(rig);
+  assert.deepEqual(out.map(r => r.at), [1, 9, 13], 'packed with no gaps, whatever was dialled before');
+  assert.equal(rig[0].at, 200, 'the input rig is left alone — a new array comes back');
+  // a networked light has no address and never advances the count
+  const mixed = S.dmxAutoAddress([
+    { id: 'a', key: 'venue-thintri-38', mode: '3ch' },
+    { id: 'h', key: 'philips-hue', net: 'b1' },
+    { id: 'b', key: 'adj-mystic-led' },
+  ]);
+  assert.equal(mixed[0].at, 1);
+  assert.equal(mixed[1].at, undefined, 'the Hue keeps having no address');
+  assert.equal(mixed[2].at, 4, '3ch mode spans three channels, so the flower lands at 4');
+  assert.doesNotThrow(() => S.dmxAutoAddress(null));
+});
+test('dmxOverlaps: two lamps on one channel are named before the room notices', () => {
+  /* a shared channel does not look like a fault — each lamp obeys bytes
+     meant for the other, and the rig reads as haunted */
+  const clash = S.dmxPatch([
+    { id: 'a', key: 'venue-thintri-38', mode: '8ch', at: 1 },
+    { id: 'b', key: 'adj-mystic-led', at: 8 },            // 8-11 collides with 1-8
+    { id: 'c', key: 'venue-thintri-38', mode: '8ch', at: 13 },
+  ]);
+  assert.deepEqual(S.dmxOverlaps(clash), ['a', 'b'], 'both sides of the collision are named, the bystander is not');
+  const clean = S.dmxPatch([
+    { id: 'a', key: 'venue-thintri-38', mode: '8ch', at: 1 },
+    { id: 'b', key: 'adj-mystic-led', at: 9 },
+  ]);
+  assert.deepEqual(S.dmxOverlaps(clean), [], 'edge-to-edge is not a collision');
+  assert.deepEqual(S.dmxOverlaps(null), []);
+});
+test('dmxDialPlan: the set-up guide is the patch read aloud, not prose beside it', () => {
+  const p = S.dmxPatch([
+    { id: 'w', key: 'venue-thintri-38', mode: '8ch', at: 1, name: 'Wash L' },
+    { id: 'f', key: 'adj-mystic-led', at: 9, name: 'Moonflower' },
+    { id: 'h', key: 'philips-hue', net: 'b1' },
+  ]);
+  const plan = S.dmxDialPlan(p);
+  assert.equal(plan.length, 2, 'a networked light needs no dial');
+  assert.equal(plan[0].dial, '001', 'the rear display shows padded digits, so the guide shows the same');
+  assert.equal(plan[0].chans, '1–8');
+  assert.ok(plan[0].modes > 1, 'the wash has a mode worth mentioning');
+  assert.equal(plan[1].dial, '009');
+  assert.equal(plan[1].modes, 1, 'the flower has one mode; the guide stays quiet about it');
+  assert.ok(plan.every(d => d.fits));
+  assert.deepEqual(S.dmxDialPlan(null), []);
 });
 
 test('dmxShowIntents: the rig is downstream of the same analysis as the picture', () => {
