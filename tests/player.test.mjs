@@ -56,7 +56,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' dmxAutoAddress, dmxOverlaps, dmxDialPlan,' +
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode, DMX_USB_PRO, dmxUsbProPacket, dmxUsbProFrame,' +
   ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents, dmxSegueTint,' +
-  ' DMX_BEAM_MOVES, dmxBeamState, dmxBeamColors, dmxBeamStep, dmxBeamPose,' +
+  ' DMX_BEAM_MOVES, dmxBeamState, dmxBeamColors, dmxBeamStep, dmxBeamPose, dmxWashChase,' +
   ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
@@ -3932,6 +3932,62 @@ test('dmxBeamPose: every move answers with a real colour, a bounded spin, and ta
   const calmA = mk('chase', 0, { preset: 'calm', phrase: 0.05 });
   const calmB = mk('chase', 0, { preset: 'calm', phrase: 0.30 });
   assert.notDeepEqual([calmA.r, calmA.g, calmA.b], [calmB.r, calmB.g, calmB.b], 'quarter-phrase steps in calm');
+});
+test('dmxBeamStep: the drop is an event — one hit on entry, decayed, never re-fired inside it', () => {
+  let st = S.dmxBeamState();
+  const at = (phase, dt) => S.dmxBeamStep(st,
+    { chord: [], energy: 0.8, beat: 0.2, phrase: 0.4, preset: 'peak', phase }, dt);
+  st = at('build', 0.025);
+  assert.equal(st.hit, 0, 'a build is tension, not the hit');
+  st = at('drop', 0.025);
+  assert.equal(st.hit, 1, 'entering the drop fires the hit');
+  st = at('drop', 0.2);
+  assert.ok(st.hit < 1 && st.hit > 0, 'and it decays instead of holding');
+  const mid = st.hit;
+  st = at('peak', 0.025);
+  assert.ok(st.hit <= mid, 'drop into peak is the same climax, not a second hit');
+  st = at('flow', 0.5);
+  st = at('drop', 0.025);
+  assert.equal(st.hit, 1, 'the next drop earns its own hit');
+});
+test('dmxWashChase: the rhythm section — trade on the off-beats, together on the ONE', () => {
+  const st = Object.assign(S.dmxBeamState(), { beats: 1, kick: 1 });
+  const pulse = S.DMX_PRESETS.pulse, calm = S.DMX_PRESETS.calm;
+  assert.equal(S.dmxWashChase(st, pulse, 1), 1, 'the on-beat wash carries it');
+  assert.ok(S.dmxWashChase(st, pulse, 0) < 0.6, 'its partner dips');
+  const bar = Object.assign(S.dmxBeamState(), { beats: 4, kick: 1 });
+  assert.equal(S.dmxWashChase(bar, pulse, 0), 1);
+  assert.equal(S.dmxWashChase(bar, pulse, 1), 1, 'the ONE lands on everybody');
+  assert.equal(S.dmxWashChase(st, calm, 0), 1, 'a talking room does not chase');
+  assert.equal(S.dmxWashChase(null, pulse, 0), 1, 'no clock, no chase');
+});
+test('dmxShowIntents: the show is called like a pro — trading washes, the ONE, the drop hit', () => {
+  const rig = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'wl' },
+    { key: 'adj-mystic-led', role: 'beam', id: 'fl' },
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'wr', at: 13 },
+  ]);
+  const chord = [{ r: 1, g: 0, b: 0 }, { r: 0, g: 1, b: 0 }, { r: 0, g: 0, b: 1 }];
+  const mkState = o => Object.assign(S.dmxBeamState(), o);
+  const show = { chord, energy: 0.8, beat: 0.9, pulse: 0.9, phrase: 0.3, preset: 'pulse' };
+  // off-beat: the washes trade — one carries the beat, the other dips
+  const off = S.dmxShowIntents(Object.assign({}, show, { beam: mkState({ beats: 1, kick: 1 }) }), rig);
+  assert.ok(Math.abs(off.wl.dim - off.wr.dim) > 0.15, 'ping-pong: ' + off.wl.dim + ' vs ' + off.wr.dim);
+  // the ONE: everybody hits together
+  const one = S.dmxShowIntents(Object.assign({}, show, { beam: mkState({ beats: 4, kick: 1 }) }), rig);
+  assert.ok(Math.abs(one.wl.dim - one.wr.dim) < 0.01, 'bar downbeat lands on both');
+  // the drop hit: washes slam white and full, the beam gets its capped accent
+  const drop = S.dmxShowIntents(
+    Object.assign({}, show, { preset: 'peak', beam: mkState({ hit: 1 }) }), rig);
+  assert.deepEqual([drop.wl.r, drop.wl.g, drop.wl.b], [1, 1, 1], 'white on the drop');
+  assert.equal(drop.wl.dim, 1, 'and at full');
+  assert.ok(drop.fl.strobe > 0.5, 'the beam bursts (the renderer still caps the rate)');
+  assert.equal(drop.fl.punch, 1, 'and takes the random band');
+  // a hand-pinned calm room is never slammed: the hit bows to the preset
+  const calm = S.dmxShowIntents(
+    Object.assign({}, show, { preset: 'calm', beam: mkState({ hit: 1 }) }), rig);
+  assert.ok(calm.wl.g < 0.5, 'calm stays on the chord, not slammed white');
+  assert.ok(calm.wl.dim < 1, 'and nothing forces its dimmer to full');
 });
 test('dmxShowIntents: with the choreographer riding along, the beam takes its pose', () => {
   const rig = S.dmxPatch([
