@@ -1486,11 +1486,28 @@ body.crowd{background:#000}
   border:1px solid var(--line-soft);background:#03040a;
 }
 .rig-presets{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}
-.rig-presets button{
+.rig-presets button,.rig-tools button{
   padding:6px 12px;border-radius:9px;cursor:pointer;font-size:10px;letter-spacing:.1em;
   text-transform:uppercase;border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
 }
-.rig-presets button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-presets button.on,.rig-tools button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-tools{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.rig-setup{
+  margin:0 0 12px;padding:12px 14px 12px 32px;border:1px solid var(--line-soft);
+  border-radius:12px;background:var(--card);font-size:11px;color:var(--dim);line-height:1.7;
+}
+.rig-setup li{margin:4px 0}
+.rig-setup li.bad{color:#ff9a7a}
+.rig-fx .addr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
+.rig-at{
+  width:52px;background:var(--glass);border:1px solid var(--line-soft);color:var(--ink);
+  border-radius:6px;padding:2px 4px;font-size:10px;font-variant-numeric:tabular-nums;
+}
+.rig-mode{
+  background:var(--glass);border:1px solid var(--line-soft);color:var(--ink);
+  border-radius:6px;padding:2px 4px;font-size:10px;text-transform:uppercase;
+}
+.rig-fx .addr .clash{color:#ff9a7a}
 .rig-chans{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .rig-fx{border:1px solid var(--line-soft);border-radius:12px;padding:9px 11px;background:var(--card)}
 .rig-fx h4{margin:0 0 2px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
@@ -2688,6 +2705,11 @@ body.clipping::after{
     </div>
     <canvas id="rigStage" width="1200" height="525"></canvas>
     <div class="rig-presets" id="rigPresets" role="group" aria-label="Lighting presets"></div>
+    <div class="rig-tools">
+      <button type="button" id="rigGuide" aria-expanded="false" aria-controls="rigSetup">Set-up guide</button>
+      <button type="button" id="rigAuto">Auto address</button>
+    </div>
+    <ol class="rig-setup" id="rigSetup" hidden></ol>
     <div class="rig-chans" id="rigChans"></div>
     <div class="rig-foot" id="rigFoot"></div>
   </div>
@@ -6814,6 +6836,66 @@ function dmxUniverseUsed(patched){
   return top;
 }
 
+/* AUTO-ADDRESSING. dmxPatch already knows the rule — every fixture takes the
+   first channel after the one before it — but it only applies it to fixtures
+   that arrive with no address. This applies it to ALL of them: the one-button
+   answer to "what do I dial into the back of each lamp", and the undo for any
+   collision a hand-typed address created. Same packing, same order, no gaps,
+   so the shipped default rig is exactly what this computes for it. */
+function dmxAutoAddress(rig){
+  let next = 1;
+  return (rig || []).map(r => {
+    if (!r || !r.key || dmxWire(r.key) === 'net') return r;
+    const span = dmxFootprint(r.key, dmxModeOf(r.key, r.mode));
+    if (!span) return r;
+    const at = next; next += span;
+    return Object.assign({}, r, { at });
+  });
+}
+
+/* THE COLLISION REPORT. Two fixtures sharing a channel is the nastiest fault
+   in DMX because it does not look like a fault: each lamp obeys the bytes it
+   hears, the bytes are meant for somebody else half the time, and the rig
+   reads as haunted. dmxPatch will happily record what two displays actually
+   dialled — its job is truth, not prevention — so this is the arithmetic
+   that names the fixtures whose spans intersect, for the console to say out
+   loud BEFORE the room does. */
+function dmxOverlaps(patched){
+  const rows = (patched || []).filter(f => f && f.fits && f.wire !== 'net');
+  const ids = [];
+  for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++){
+    const a = rows[i], b = rows[j];
+    if (a.at <= b.at + b.span - 1 && b.at <= a.at + a.span - 1){
+      if (ids.indexOf(a.id) < 0) ids.push(a.id);
+      if (ids.indexOf(b.id) < 0) ids.push(b.id);
+    }
+  }
+  return ids;
+}
+
+/* THE DIAL PLAN — the patch, rewritten as instructions for a person standing
+   behind a lamp. Every wired fixture becomes one row: the three digits to
+   dial into its rear display (fixtures of this era show addresses padded,
+   d001-style, so the guide shows what the display will show), the mode to
+   pick when the fixture has more than one, and the channels it will then
+   own. Pure, so the guide the panel renders is tested arithmetic rather
+   than prose that can drift from the patch it describes. */
+function dmxDialPlan(patched){
+  const out = [];
+  for (const f of (patched || [])){
+    if (!f || f.wire === 'net') continue;
+    const p = dmxProfile(f.key) || {};
+    out.push({
+      id: f.id, name: f.name, make: p.make || '', model: p.name || f.key,
+      at: f.at, dial: ('00' + f.at).slice(-3),
+      mode: f.mode, modes: Object.keys(p.modes || {}).length,
+      chans: f.at + '–' + (f.at + f.span - 1),
+      fits: !!f.fits,
+    });
+  }
+  return out;
+}
+
 /* ---------------------------------------------------------------- intent */
 /* WHAT THE ROOM SHOULD LOOK LIKE, before any lamp has an opinion. Everything
    is 0..1 except spin, which is signed because direction is a thing you can
@@ -6837,14 +6919,31 @@ function dmxIntent(o){
    whole program that can hurt somebody: flash rates between roughly 3 and
    65 Hz are the photosensitive-seizure band, and a rig driven from an
    audio-reactive render loop will happily sit in the middle of it all night.
-   So the intent's 0..1 is mapped to a range that STOPS at 3 Hz — fast enough
-   to read as a strobe on a drop, below the band by construction. There is no
-   parameter to raise it, because the one thing a "pro mode" must never unlock
-   is this. */
+   So a strobe stops at 3 Hz — fast enough to read as a strobe on a drop,
+   below the band by construction. There is no parameter to raise it, because
+   the one thing a "pro mode" must never unlock is this.
+
+   THE CAP HAS TWO HALVES, AND THE WIRE'S IS THE ONE THAT MATTERS. While the
+   rig was only a picture, capping the DRAWN rate was the whole job. With a
+   real interface attached, the bytes are the danger: a fixture's strobe
+   channel spans its entire hardware range, and the top of that range on
+   these lamps is well inside the band. No reachable datasheet names the
+   exact top rate, so it is ASSUMED to be 25 Hz — faster than any of these
+   club LEDs actually run, and assuming too fast only makes the wire slower,
+   which is the safe side of wrong. The writer (dmxStrobeBand) therefore
+   uses only the bottom 3/25ths of any strobe band, and the reader
+   (dmxStrobeHz) decodes a band fraction under the same assumption, capped
+   so the drawn flash can never exceed 3 Hz either — the monitor and the
+   room agreeing, at the cap, by sharing one piece of arithmetic. */
 const DMX_STROBE_MAX_HZ = 3;
+const DMX_STROBE_TOP_HZ = 25;              // assumed band top, absent a datasheet
 function dmxStrobeHz(strobe){
   const s = Math.max(0, Math.min(1, Number(strobe) || 0));
-  return s <= 0 ? 0 : 0.7 + s * (DMX_STROBE_MAX_HZ - 0.7);
+  return Math.min(DMX_STROBE_MAX_HZ, s * DMX_STROBE_TOP_HZ);
+}
+function dmxStrobeBand(lo, hi, strobe){
+  const s = Math.max(0, Math.min(1, Number(strobe) || 0));
+  return Math.round(lo + s * (DMX_STROBE_MAX_HZ / DMX_STROBE_TOP_HZ) * (hi - lo));
 }
 
 /* the nearest thing a seven-colour lamp can be to a colour it cannot make.
@@ -6883,12 +6982,12 @@ function dmxRenderFixture(f, intent, frame){
     const dark = i.dim < 0.06;
     if (dark) put(1, 0);
     else if (i.strobe > 0.02){
-      // 002-127 slow to fast. A punchy intent gets the RANDOM strobe band
-      // (136-253) instead, which on this fixture is markedly less regular
-      // and reads as an accent rather than as a machine.
-      if (i.punch > 0.6) put(4 - 3, 0);      // (no-op guard; ch1 set below)
-      if (i.punch > 0.6) put(1, 136 + i.strobe * (253 - 136));
-      else put(1, 2 + i.strobe * (127 - 2));
+      // 002-127 slow to fast, entered through dmxStrobeBand so the PHYSICAL
+      // rate stays under the cap. A punchy intent gets the RANDOM strobe
+      // band (136-253) instead, which on this fixture is markedly less
+      // regular and reads as an accent rather than as a machine.
+      if (i.punch > 0.6) put(1, dmxStrobeBand(136, 253, i.strobe));
+      else put(1, dmxStrobeBand(2, 127, i.strobe));
     } else put(1, 130);                      // 128-135 LED ON, mid-band
     /* Ch3/Ch2 — the interlock. With the rainbow up, channel 2 stops being a
        colour and becomes the rainbow's speed, so the colour selection below
@@ -6933,7 +7032,7 @@ function dmxRenderFixture(f, intent, frame){
     set('white', b255(white * k));
     set('amber', b255(Math.max(0, Math.min(i.r, i.g * 0.75) - i.b) * k));
     set('uv', 0);
-    set('strobe', i.strobe > 0.02 ? Math.round(16 + i.strobe * (255 - 16)) : 0);
+    set('strobe', i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     set('mode', 0); set('macro', 0); set('speed', 0);
     // a head that can aim is aimed across the room by the same signed spin
     if (has('pan')) put(idx('pan'), b255(0.5 + i.spin * 0.42));
@@ -6956,7 +7055,7 @@ function dmxRenderFixture(f, intent, frame){
        arrangement in which this fixture does what the console says and
        nothing of its own. */
     put(6, 0);                               // 000-031 no function
-    put(5, i.strobe > 0.02 ? 16 + i.strobe * (255 - 16) : 0);
+    put(5, i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     put(7, b255(i.dim));
     /* Ch8 — the dimmer curve. Off means the dimmer follows the wire exactly,
        which is what a lamp being driven at thirty frames a second wants; the
@@ -7123,11 +7222,16 @@ function dmxAutoPreset(show){
 
 /* one lamp's share of the chord. Washes spread across the stops rather than
    all taking the first one — two washes on the identical colour is a wall,
-   three on the chord is a room — and the beam takes the stop the picture
-   uses for its accents, so the moonflower agrees with the thing on screen. */
+   three on the chord is a room. The beam's HOME is the stop the picture uses
+   for its accents, so the moonflower agrees with the thing on screen — but a
+   beam is the room's dancer, and a dancer stuck on one colour until the song
+   changes chord reads as a lamp somebody forgot. So the beam WALKS the chord
+   from its home stop: hand it a step count and it visits the other stops and
+   comes back, always in colours the picture is already made of. */
 function dmxChordStop(chord, role, i){
   const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
-  if (role === 'beam' || role === 'accent') return list[Math.min(2, list.length - 1)];
+  if (role === 'beam' || role === 'accent')
+    return list[(Math.min(2, list.length - 1) + (i || 0)) % list.length];
   return list[i % list.length];
 }
 
@@ -7190,7 +7294,11 @@ function dmxShowIntents(show, patched){
     if (!f) continue;
     const prof = dmxProfile(f.key) || { can: {} };
     const role = f.role || 'wash';
-    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : 0);
+    /* a wash keeps its stop for the whole song — a wall that changes colour
+       every bar is wallpaper flickering — but the beam steps to the next
+       stop each quarter-phrase, so the moonflower changes colour ON the
+       music's own boundaries rather than whenever the chord happens to. */
+    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : Math.floor(phrase * 4));
     if (preset.off || master <= 0){
       out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
       continue;
@@ -7207,9 +7315,12 @@ function dmxShowIntents(show, patched){
     if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
     const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
     /* SPIN follows the phrase and reverses with it, because a moonflower that
-       only ever turns one way stops being noticed after ninety seconds. */
+       only ever turns one way stops being noticed after ninety seconds — and
+       it SURGES on the kick, because a motor is the one voice this fixture
+       has for the beat: no dimmer to pulse, so the beams lunge instead. */
     const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
-    const spin = prof.can.spin ? dir * preset.spin * (0.25 + 0.75 * energy) : 0;
+    const spin = prof.can.spin
+      ? dir * preset.spin * (0.2 + 0.5 * energy + 0.3 * Math.max(beat, pulse)) : 0;
     out[f.id] = {
       r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
       dim, strobe, spin,
@@ -17953,7 +18064,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '2db2a71d55';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '50b316dc8f';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -39483,14 +39594,96 @@ const RIG = {
     ];
   },
   boot(){
-    this.rig = this.defaults();
+    this.rig = this.loadRig(this.defaults());
     this.patched = dmxPatch(this.rig);
     this.spin = this.patched.map(() => 0);
     const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
     on('rigClose', () => this.open(false));
     on('btnRig', () => this.open());
+    on('rigGuide', () => this.toggleGuide());
+    on('rigAuto', () => { this.rig = dmxAutoAddress(this.rig); this.saveRig(); this.repatch(); });
     this.buildPresets();
     DMXUSB.boot(); DMXUSB.paint();
+  },
+
+  /* ------- the patch is the operator's: edited, remembered, re-fit ------- */
+  /* an address or a mode a hand changed outlives the tab the way every other
+     choice in this player does: locally, per fixture id, and laundered on
+     the way back in — dmxModeOf and the range clamp refuse nonsense, so a
+     stale or hand-edited store cannot wedge the rig. */
+  loadRig(rig){
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('mb8_rig') || 'null'); } catch (e){}
+    if (!saved || typeof saved !== 'object') return rig;
+    return rig.map(r => {
+      const s = r && saved[r.id];
+      if (!s || typeof s !== 'object') return r;
+      const out = Object.assign({}, r);
+      const at = Math.floor(Number(s.at));
+      if (Number.isFinite(at) && at >= 1 && at <= 512) out.at = at;
+      if (typeof s.mode === 'string') out.mode = dmxModeOf(r.key, s.mode);
+      return out;
+    });
+  },
+  saveRig(){
+    const store = {};
+    for (const r of this.rig || []) if (r && r.id) store[r.id] = { at: r.at, mode: r.mode };
+    try { localStorage.setItem('mb8_rig', JSON.stringify(store)); } catch (e){}
+  },
+  /* one edit, one truth: re-run the patch, keep the operator's faders (they
+     are keyed by id, which never changes), redraw everything that describes
+     the rig — and put the caret back where the hand was, because a rebuild
+     that steals focus mid-edit teaches people not to edit. */
+  repatch(focusId){
+    this.patched = dmxPatch(this.rig);
+    this.spin = this.patched.map(() => 0);
+    if (this.on){
+      this.buildChans(); this.paintFoot(); this.buildSetup();
+      if (focusId){
+        const f = this.patched.find(x => x.id === focusId);
+        if (f && f._ui && f._ui.at) f._ui.at.focus();
+      }
+    }
+  },
+
+  /* -------------- the guide: the patch, read aloud -------------- */
+  toggleGuide(){
+    const box = document.getElementById('rigSetup');
+    const b = document.getElementById('rigGuide');
+    if (!box) return;
+    box.hidden = !box.hidden;
+    if (b){ b.classList.toggle('on', !box.hidden); b.setAttribute('aria-expanded', String(!box.hidden)); }
+    if (!box.hidden) this.buildSetup();
+  },
+  /* Nothing in the guide is written by hand: every number comes from
+     dmxDialPlan reading the live patch, so editing an address rewrites the
+     instructions in place and the paper can never disagree with the wire. */
+  buildSetup(){
+    const box = document.getElementById('rigSetup');
+    if (!box || box.hidden) return;
+    box.textContent = '';
+    const li = (txt, bad) => {
+      const n = document.createElement('li');
+      n.textContent = txt;
+      if (bad) n.className = 'bad';
+      box.appendChild(n);
+    };
+    li(T('Chain the cable: computer → USB DMX interface, then interface → the first lamp’s DMX IN, that lamp’s OUT → the next lamp’s IN, and so on down the line. The order of the chain never matters — the address is what decides which lamp is which.'));
+    const over = dmxOverlaps(this.patched);
+    for (const d of dmxDialPlan(this.patched)){
+      if (!d.fits){
+        li(T('{name} does not fit — its channels run past 512. Give it a lower address, or press Auto address.', { name: d.name }), true);
+        continue;
+      }
+      let s = T('{name} ({model}): on its rear display, set the DMX address to {dial}.', { name: d.name, model: d.model, dial: d.dial });
+      if (d.modes > 1) s += ' ' + T('Put it in {mode} mode.', { mode: d.mode.toUpperCase() });
+      s += ' ' + T('It will listen on channels {chans}.', { chans: d.chans });
+      li(s, over.indexOf(d.id) >= 0);
+    }
+    if (over.length)
+      li(T('Two lamps are sharing channels — each obeys bytes meant for the other, which reads as a haunting rather than a fault. Change an address, or press Auto address to repack the whole rig.'), true);
+    li(T('Take every lamp out of sound-active mode — a lamp dancing to its own microphone is not listening to the wire.'));
+    li(T('Press “Put this on the wire” above and pick your USB DMX interface from the browser’s list (Chrome or Edge on a computer). If another lighting program is holding the port, quit it first.'));
   },
   open(v){
     const box = document.getElementById('rig');
@@ -39499,7 +39692,7 @@ const RIG = {
     box.classList.toggle('open', this.on);
     const chip = document.getElementById('btnRig');
     if (chip){ chip.classList.toggle('on', this.on); chip.setAttribute('aria-pressed', String(this.on)); }
-    if (this.on){ this.buildChans(); this.paintFoot(); }
+    if (this.on){ this.buildChans(); this.paintFoot(); this.buildSetup(); }
   },
   buildPresets(){
     const box = document.getElementById('rigPresets');
@@ -39727,6 +39920,7 @@ const RIG = {
     const box = document.getElementById('rigChans');
     if (!box) return;
     box.textContent = '';
+    const over = dmxOverlaps(this.patched);
     for (const f of this.patched){
       const prof = dmxProfile(f.key) || {};
       const card = document.createElement('div');
@@ -39736,8 +39930,56 @@ const RIG = {
       h.appendChild(sw); h.appendChild(document.createTextNode(f.name));
       const addr = document.createElement('div');
       addr.className = 'addr';
-      addr.textContent = f.wire === 'net' ? 'network · no address'
-        : ('ch ' + f.at + '–' + (f.at + f.span - 1) + ' · ' + f.mode);
+      let atInput = null;
+      if (f.wire === 'net'){
+        addr.textContent = 'network · no address';
+      } else {
+        /* the address is the operator's to type, because it has to MATCH a
+           number somebody dialled into the back of the lamp itself — and the
+           set-up guide re-reads whatever is typed here, so the two can only
+           ever be wrong together, which is the visible kind of wrong */
+        const lb = document.createElement('span');
+        lb.textContent = T('address');
+        atInput = document.createElement('input');
+        atInput.type = 'number'; atInput.min = '1'; atInput.max = '512';
+        atInput.value = f.at; atInput.className = 'rig-at';
+        atInput.setAttribute('aria-label', T('{name} DMX address', { name: f.name }));
+        atInput.addEventListener('change', () => {
+          const raw = this.rig.find(r => r && r.id === f.id);
+          if (!raw) return;
+          const v = Math.floor(Number(atInput.value));
+          raw.at = Number.isFinite(v) ? Math.max(1, Math.min(512, v)) : f.at;
+          this.saveRig(); this.repatch(f.id);
+        });
+        addr.appendChild(lb); addr.appendChild(atInput);
+        const modes = Object.keys(prof.modes || {});
+        if (modes.length > 1){
+          const md = document.createElement('select');
+          md.className = 'rig-mode';
+          md.setAttribute('aria-label', T('{name} channel mode', { name: f.name }));
+          for (const m of modes){
+            const o = document.createElement('option');
+            o.value = m; o.textContent = m; o.selected = m === f.mode;
+            md.appendChild(o);
+          }
+          md.addEventListener('change', () => {
+            const raw = this.rig.find(r => r && r.id === f.id);
+            if (!raw) return;
+            raw.mode = dmxModeOf(f.key, md.value);
+            this.saveRig(); this.repatch(f.id);
+          });
+          addr.appendChild(md);
+        }
+        const span = document.createElement('span');
+        span.textContent = 'ch ' + f.at + '–' + (f.at + f.span - 1)
+          + (modes.length > 1 ? '' : ' · ' + f.mode);
+        addr.appendChild(span);
+        if (!f.fits || over.indexOf(f.id) >= 0){
+          const w = document.createElement('span'); w.className = 'clash';
+          w.textContent = f.fits ? T('shares channels') : T('past 512');
+          addr.appendChild(w);
+        }
+      }
       card.appendChild(h); card.appendChild(addr);
       const rows = [];
       for (let c = 1; c <= f.span; c++){
@@ -39784,6 +40026,9 @@ const RIG = {
       }
       fader.addEventListener('input', () => setMan({ dim: Number(fader.value) / 100 }));
       take.textContent = T('Following the music');
+      // a rebuild (an address edit, a mode change) must not quietly relabel a
+      // fixture the operator is still holding
+      if (this.manual[f.id]){ take.classList.add('on'); take.textContent = T('On the fader'); }
       take.addEventListener('click', () => {
         if (this.manual[f.id]){
           delete this.manual[f.id];
@@ -39793,7 +40038,7 @@ const RIG = {
       board.appendChild(take); board.appendChild(fader); board.appendChild(sws);
       card.appendChild(board);
       box.appendChild(card);
-      f._ui = { sw, rows, take };
+      f._ui = { sw, rows, take, at: atInput };
     }
   },
   paintChans(){
