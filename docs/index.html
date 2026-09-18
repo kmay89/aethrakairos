@@ -1486,11 +1486,28 @@ body.crowd{background:#000}
   border:1px solid var(--line-soft);background:#03040a;
 }
 .rig-presets{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}
-.rig-presets button{
+.rig-presets button,.rig-tools button{
   padding:6px 12px;border-radius:9px;cursor:pointer;font-size:10px;letter-spacing:.1em;
   text-transform:uppercase;border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
 }
-.rig-presets button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-presets button.on,.rig-tools button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-tools{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.rig-setup{
+  margin:0 0 12px;padding:12px 14px 12px 32px;border:1px solid var(--line-soft);
+  border-radius:12px;background:var(--card);font-size:11px;color:var(--dim);line-height:1.7;
+}
+.rig-setup li{margin:4px 0}
+.rig-setup li.bad{color:#ff9a7a}
+.rig-fx .addr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
+.rig-at{
+  width:52px;background:var(--glass);border:1px solid var(--line-soft);color:var(--ink);
+  border-radius:6px;padding:2px 4px;font-size:10px;font-variant-numeric:tabular-nums;
+}
+.rig-mode{
+  background:var(--glass);border:1px solid var(--line-soft);color:var(--ink);
+  border-radius:6px;padding:2px 4px;font-size:10px;text-transform:uppercase;
+}
+.rig-fx .addr .clash{color:#ff9a7a}
 .rig-chans{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .rig-fx{border:1px solid var(--line-soft);border-radius:12px;padding:9px 11px;background:var(--card)}
 .rig-fx h4{margin:0 0 2px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
@@ -1517,6 +1534,12 @@ body.crowd{background:#000}
 }
 .rig-sws button:hover{transform:scale(1.16)}
 .rig-foot{margin-top:10px;font-size:10px;color:var(--faint);line-height:1.6}
+.rig-wire{
+  flex:0 0 auto;align-self:center;padding:6px 12px;border-radius:9px;cursor:pointer;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+}
+.rig-wire.on{color:#04121a;background:var(--accent);border-color:var(--accent)}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -2677,10 +2700,16 @@ body.clipping::after{
       <span class="rig-title">The Rig</span>
       <span class="rig-sub" id="rigSub">drawn from the wire</span>
       <span class="spring"></span>
+      <button class="rig-wire" id="rigWire" aria-pressed="false">Put this on the wire</button>
       <button class="pl-x" id="rigClose" aria-label="Close the rig">&#10005;</button>
     </div>
     <canvas id="rigStage" width="1200" height="525"></canvas>
     <div class="rig-presets" id="rigPresets" role="group" aria-label="Lighting presets"></div>
+    <div class="rig-tools">
+      <button type="button" id="rigGuide" aria-expanded="false" aria-controls="rigSetup">Set-up guide</button>
+      <button type="button" id="rigAuto">Auto address</button>
+    </div>
+    <ol class="rig-setup" id="rigSetup" hidden></ol>
     <div class="rig-chans" id="rigChans"></div>
     <div class="rig-foot" id="rigFoot"></div>
   </div>
@@ -6807,6 +6836,66 @@ function dmxUniverseUsed(patched){
   return top;
 }
 
+/* AUTO-ADDRESSING. dmxPatch already knows the rule — every fixture takes the
+   first channel after the one before it — but it only applies it to fixtures
+   that arrive with no address. This applies it to ALL of them: the one-button
+   answer to "what do I dial into the back of each lamp", and the undo for any
+   collision a hand-typed address created. Same packing, same order, no gaps,
+   so the shipped default rig is exactly what this computes for it. */
+function dmxAutoAddress(rig){
+  let next = 1;
+  return (rig || []).map(r => {
+    if (!r || !r.key || dmxWire(r.key) === 'net') return r;
+    const span = dmxFootprint(r.key, dmxModeOf(r.key, r.mode));
+    if (!span) return r;
+    const at = next; next += span;
+    return Object.assign({}, r, { at });
+  });
+}
+
+/* THE COLLISION REPORT. Two fixtures sharing a channel is the nastiest fault
+   in DMX because it does not look like a fault: each lamp obeys the bytes it
+   hears, the bytes are meant for somebody else half the time, and the rig
+   reads as haunted. dmxPatch will happily record what two displays actually
+   dialled — its job is truth, not prevention — so this is the arithmetic
+   that names the fixtures whose spans intersect, for the console to say out
+   loud BEFORE the room does. */
+function dmxOverlaps(patched){
+  const rows = (patched || []).filter(f => f && f.fits && f.wire !== 'net');
+  const ids = [];
+  for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++){
+    const a = rows[i], b = rows[j];
+    if (a.at <= b.at + b.span - 1 && b.at <= a.at + a.span - 1){
+      if (ids.indexOf(a.id) < 0) ids.push(a.id);
+      if (ids.indexOf(b.id) < 0) ids.push(b.id);
+    }
+  }
+  return ids;
+}
+
+/* THE DIAL PLAN — the patch, rewritten as instructions for a person standing
+   behind a lamp. Every wired fixture becomes one row: the three digits to
+   dial into its rear display (fixtures of this era show addresses padded,
+   d001-style, so the guide shows what the display will show), the mode to
+   pick when the fixture has more than one, and the channels it will then
+   own. Pure, so the guide the panel renders is tested arithmetic rather
+   than prose that can drift from the patch it describes. */
+function dmxDialPlan(patched){
+  const out = [];
+  for (const f of (patched || [])){
+    if (!f || f.wire === 'net') continue;
+    const p = dmxProfile(f.key) || {};
+    out.push({
+      id: f.id, name: f.name, make: p.make || '', model: p.name || f.key,
+      at: f.at, dial: ('00' + f.at).slice(-3),
+      mode: f.mode, modes: Object.keys(p.modes || {}).length,
+      chans: f.at + '–' + (f.at + f.span - 1),
+      fits: !!f.fits,
+    });
+  }
+  return out;
+}
+
 /* ---------------------------------------------------------------- intent */
 /* WHAT THE ROOM SHOULD LOOK LIKE, before any lamp has an opinion. Everything
    is 0..1 except spin, which is signed because direction is a thing you can
@@ -6830,14 +6919,31 @@ function dmxIntent(o){
    whole program that can hurt somebody: flash rates between roughly 3 and
    65 Hz are the photosensitive-seizure band, and a rig driven from an
    audio-reactive render loop will happily sit in the middle of it all night.
-   So the intent's 0..1 is mapped to a range that STOPS at 3 Hz — fast enough
-   to read as a strobe on a drop, below the band by construction. There is no
-   parameter to raise it, because the one thing a "pro mode" must never unlock
-   is this. */
+   So a strobe stops at 3 Hz — fast enough to read as a strobe on a drop,
+   below the band by construction. There is no parameter to raise it, because
+   the one thing a "pro mode" must never unlock is this.
+
+   THE CAP HAS TWO HALVES, AND THE WIRE'S IS THE ONE THAT MATTERS. While the
+   rig was only a picture, capping the DRAWN rate was the whole job. With a
+   real interface attached, the bytes are the danger: a fixture's strobe
+   channel spans its entire hardware range, and the top of that range on
+   these lamps is well inside the band. No reachable datasheet names the
+   exact top rate, so it is ASSUMED to be 25 Hz — faster than any of these
+   club LEDs actually run, and assuming too fast only makes the wire slower,
+   which is the safe side of wrong. The writer (dmxStrobeBand) therefore
+   uses only the bottom 3/25ths of any strobe band, and the reader
+   (dmxStrobeHz) decodes a band fraction under the same assumption, capped
+   so the drawn flash can never exceed 3 Hz either — the monitor and the
+   room agreeing, at the cap, by sharing one piece of arithmetic. */
 const DMX_STROBE_MAX_HZ = 3;
+const DMX_STROBE_TOP_HZ = 25;              // assumed band top, absent a datasheet
 function dmxStrobeHz(strobe){
   const s = Math.max(0, Math.min(1, Number(strobe) || 0));
-  return s <= 0 ? 0 : 0.7 + s * (DMX_STROBE_MAX_HZ - 0.7);
+  return Math.min(DMX_STROBE_MAX_HZ, s * DMX_STROBE_TOP_HZ);
+}
+function dmxStrobeBand(lo, hi, strobe){
+  const s = Math.max(0, Math.min(1, Number(strobe) || 0));
+  return Math.round(lo + s * (DMX_STROBE_MAX_HZ / DMX_STROBE_TOP_HZ) * (hi - lo));
 }
 
 /* the nearest thing a seven-colour lamp can be to a colour it cannot make.
@@ -6876,12 +6982,12 @@ function dmxRenderFixture(f, intent, frame){
     const dark = i.dim < 0.06;
     if (dark) put(1, 0);
     else if (i.strobe > 0.02){
-      // 002-127 slow to fast. A punchy intent gets the RANDOM strobe band
-      // (136-253) instead, which on this fixture is markedly less regular
-      // and reads as an accent rather than as a machine.
-      if (i.punch > 0.6) put(4 - 3, 0);      // (no-op guard; ch1 set below)
-      if (i.punch > 0.6) put(1, 136 + i.strobe * (253 - 136));
-      else put(1, 2 + i.strobe * (127 - 2));
+      // 002-127 slow to fast, entered through dmxStrobeBand so the PHYSICAL
+      // rate stays under the cap. A punchy intent gets the RANDOM strobe
+      // band (136-253) instead, which on this fixture is markedly less
+      // regular and reads as an accent rather than as a machine.
+      if (i.punch > 0.6) put(1, dmxStrobeBand(136, 253, i.strobe));
+      else put(1, dmxStrobeBand(2, 127, i.strobe));
     } else put(1, 130);                      // 128-135 LED ON, mid-band
     /* Ch3/Ch2 — the interlock. With the rainbow up, channel 2 stops being a
        colour and becomes the rainbow's speed, so the colour selection below
@@ -6926,7 +7032,7 @@ function dmxRenderFixture(f, intent, frame){
     set('white', b255(white * k));
     set('amber', b255(Math.max(0, Math.min(i.r, i.g * 0.75) - i.b) * k));
     set('uv', 0);
-    set('strobe', i.strobe > 0.02 ? Math.round(16 + i.strobe * (255 - 16)) : 0);
+    set('strobe', i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     set('mode', 0); set('macro', 0); set('speed', 0);
     // a head that can aim is aimed across the room by the same signed spin
     if (has('pan')) put(idx('pan'), b255(0.5 + i.spin * 0.42));
@@ -6949,7 +7055,7 @@ function dmxRenderFixture(f, intent, frame){
        arrangement in which this fixture does what the console says and
        nothing of its own. */
     put(6, 0);                               // 000-031 no function
-    put(5, i.strobe > 0.02 ? 16 + i.strobe * (255 - 16) : 0);
+    put(5, i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     put(7, b255(i.dim));
     /* Ch8 — the dimmer curve. Off means the dimmer follows the wire exactly,
        which is what a lamp being driven at thirty frames a second wants; the
@@ -7116,12 +7222,243 @@ function dmxAutoPreset(show){
 
 /* one lamp's share of the chord. Washes spread across the stops rather than
    all taking the first one — two washes on the identical colour is a wall,
-   three on the chord is a room — and the beam takes the stop the picture
-   uses for its accents, so the moonflower agrees with the thing on screen. */
+   three on the chord is a room. The beam's HOME is the stop the picture uses
+   for its accents, so the moonflower agrees with the thing on screen — but a
+   beam is the room's dancer, and a dancer stuck on one colour until the song
+   changes chord reads as a lamp somebody forgot. So the beam WALKS the chord
+   from its home stop: hand it a step count and it visits the other stops and
+   comes back, always in colours the picture is already made of. */
 function dmxChordStop(chord, role, i){
   const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
-  if (role === 'beam' || role === 'accent') return list[Math.min(2, list.length - 1)];
+  if (role === 'beam' || role === 'accent')
+    return list[(Math.min(2, list.length - 1) + (i || 0)) % list.length];
   return list[i % list.length];
+}
+
+/* ================================================================
+   THE BEAM'S OWN CHOREOGRAPHER
+
+   Walking the chord was the right instinct and the wrong palette. A chord's
+   three stops are the PICTURE's colours — close cousins by design — and a
+   moonflower quantises everything to seven hardware states, so a bluish
+   chord walks three stops that all land on BLUE and the walk disappears.
+   The fixture wasn't refusing to dance; it was being handed three copies of
+   the same colour and honestly showing all of them.
+
+   So the beam gets what the field already has (DANCE_MOVES): a repertoire.
+   A move is a pure pose — colour, spin, rainbow from (state, show) — and a
+   small state machine counts real beats, deals a fresh move every phrase,
+   and keeps a kick envelope so a lunge can decay the way a limb does. The
+   colours come from a RING of saturated hue-wheel stops, anchored to the
+   chord's accent so the dancer starts in the picture's own corner of the
+   wheel — and every ring stop lands on a DIFFERENT one of the seven states
+   a moonflower can be, which is the whole point: a colour change you
+   asked for is a colour change you see. Washes stay on the chord; a wall
+   that flashes primaries is a fire sale, but a beam that does is a dancer.
+
+   Everything here is (state in → state out) pure and lives with the rest of
+   the DMX arithmetic, so the choreography is tested the way the channel
+   charts are. */
+const DMX_BEAM_MOVES = ['chase', 'whirl', 'stab', 'bloom'];
+
+/* ================================================================
+   THE TRACK'S OWN SHOW — design, not reaction
+
+   The shows people fly to — a festival main stage, the Sphere — are not
+   reacting to the music; they were DESIGNED to it, one programmed show per
+   song, each with its own limited palette and its own motion character,
+   repeatable to the frame. This player cannot pre-program what it has not
+   heard, but it holds something those consoles do not: every track's own
+   analysis — its key, its tempo, its identity — measured by the same
+   pipeline that draws its cover. So the design is DERIVED, deterministically:
+   hash the track, seed the choices, and the same track wears the same show
+   every night while no two tracks wear the same one. A designed show that
+   composes itself.
+
+   The choices are the ones a lighting designer actually makes per song:
+     · a PALETTE — three to five colours, not the whole wheel. Colour
+       theory keyed to the music: minor keys wear ANALOGOUS palettes
+       (adjacent hues — cohesive, moody) with the COMPLEMENT for tension;
+       major keys carry TRIADS and complements — brighter, more contrast.
+       The seed picks within that taste, so two tracks in one key differ.
+     · a SYMMETRY — whether the washes trade the beat (mirror) or breathe
+       together (unison), and how deep the off-wash dips: the track's own,
+       inside the band that still reads as rhythm.
+     · a SET LIST — the order the dancer's moves are dealt in, shuffled
+       once per track, so each song's phrases unfold in their own order.
+     · a BULB POLICY — whether networked bulbs follow the wash or take its
+       complement (simultaneous contrast: the oldest trick for making a
+       stage colour pop is to surround it with its opposite). */
+function dmxTrackHash(s){
+  let h = 2166136261;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function dmxTrackDesign(track){
+  if (!track) return null;
+  const key = String(track.key || ''), bpm = Number(track.bpm) || 0;
+  const seed = dmxTrackHash(String(track.id || '') + '|' + key + '|' + Math.round(bpm));
+  const rnd = mulberry32(seed);
+  const cam = camelotParse(key);
+  const minor = cam ? cam.l === 'A' : rnd() < 0.5;
+  const fast = bpm >= 126;
+  const schemes = minor ? (fast ? ['complement', 'analogous', 'triad'] : ['analogous', 'complement'])
+                        : (fast ? ['triad', 'complement'] : ['analogous', 'triad']);
+  const scheme = schemes[Math.floor(rnd() * schemes.length) % schemes.length];
+  // ring-step offsets from the anchor; every subset stays distinct on a
+  // seven-state lamp, so the palette narrows without ever collapsing
+  const steps = scheme === 'complement' ? [0, 3] : scheme === 'triad' ? [0, 2, 4] : [5, 0, 1];
+  const symmetry = rnd() < (fast ? 0.72 : 0.45) ? 'mirror' : 'unison';
+  const depth = 0.4 + rnd() * 0.3;
+  const moves = DMX_BEAM_MOVES.slice();
+  for (let i = moves.length - 1; i > 0; i--){
+    const j = Math.floor(rnd() * (i + 1));
+    const t = moves[i]; moves[i] = moves[j]; moves[j] = t;
+  }
+  const huePolicy = rnd() < 0.5 ? 'counter' : 'follow';
+  return { seed, scheme, steps, symmetry, depth, moves, huePolicy };
+}
+
+function dmxBeamState(){
+  return { beats: 0, phraseN: 0, prevBeat: 0, prevPhrase: 0, prevPhase: 'flow', kick: 0, hit: 0, move: 'chase' };
+}
+
+/* the six saturated hue-wheel stops, rotated so the ring begins at the one
+   nearest the chord's accent — compared by direction, exactly the way the
+   Mystic's own nearest-colour pick works, so anchor and lamp agree. */
+function dmxBeamColors(chord, design){
+  const RING = [
+    { r: 1, g: 0, b: 0 }, { r: 1, g: 1, b: 0 }, { r: 0, g: 1, b: 0 },
+    { r: 0, g: 1, b: 1 }, { r: 0, g: 0, b: 1 }, { r: 1, g: 0, b: 1 },
+  ];
+  const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
+  const a = list[Math.min(2, list.length - 1)] || {};
+  const n = Math.hypot(a.r || 0, a.g || 0, a.b || 0) || 1;
+  let best = 0, bestD = -Infinity;
+  for (let i = 0; i < RING.length; i++){
+    const c = RING[i];
+    const d = ((a.r || 0) * c.r + (a.g || 0) * c.g + (a.b || 0) * c.b) / (n * Math.hypot(c.r, c.g, c.b));
+    if (d > bestD){ bestD = d; best = i; }
+  }
+  const out = [];
+  for (let i = 0; i < RING.length; i++) out.push(RING[(best + i) % RING.length]);
+  /* a track's design narrows the wheel to ITS palette — the designer's
+     three-to-five colours, not everything the lamp can be — still anchored
+     to the accent, still distinct after quantisation by construction */
+  if (design && Array.isArray(design.steps) && design.steps.length)
+    return design.steps.map(i => out[((i % out.length) + out.length) % out.length]);
+  return out;
+}
+
+/* the clock: count beats off the beat envelope's RISING EDGE, with
+   hysteresis so one hump is one beat however long it hangs near the
+   threshold; notice the phrase wrapping and deal the next move; run the
+   kick envelope down at limb speed. The preset gates the deal — a room
+   with no rainbow budget is never dealt the bloom. */
+function dmxBeamStep(st, show, dt){
+  const s = st || dmxBeamState();
+  const sh = show || {};
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const beat = Math.max(u(sh.beat), u(sh.pulse)), phrase = u(sh.phrase);
+  const preset = DMX_PRESETS[sh.preset] || DMX_PRESETS[dmxAutoPreset(sh)] || DMX_PRESETS.follow;
+  let beats = s.beats, phraseN = s.phraseN, move = s.move;
+  let kick = Math.max(0, s.kick - Math.max(0, Number(dt) || 0) * 3.2);
+  if (beat > 0.6 && s.prevBeat <= 0.35){ beats++; kick = 1; }
+  if (phrase < s.prevPhrase - 0.5){
+    phraseN++;
+    // the track's own set list, where a design rides in; the house order otherwise
+    const order = (sh.design && Array.isArray(sh.design.moves) && sh.design.moves.length)
+      ? sh.design.moves : DMX_BEAM_MOVES;
+    const able = preset.rainbow > 0 ? order : order.filter(m => m !== 'bloom');
+    move = able[phraseN % able.length];
+    if (move === s.move) move = able[(phraseN + 1) % able.length];
+  }
+  /* THE DROP IS AN EVENT, NOT A STATE. A show caller hits the drop ONCE —
+     the crossing into it — and then the look settles; a rig that stayed
+     slammed for the whole chorus would have nowhere left to go. So the hit
+     fires on the phase EDGE into the climax family (drop and peak are one
+     climax, not two), burns down over about a bar, and cannot re-fire until
+     the music has actually left and come back. */
+  const CLIMAX = { drop: 1, peak: 1 };
+  const phase = String((show || {}).phase || 'flow');
+  let hit = Math.max(0, (s.hit || 0) - Math.max(0, Number(dt) || 0) * 1.1);
+  if (CLIMAX[phase] && !CLIMAX[s.prevPhase]) hit = 1;
+  return { beats, phraseN, prevBeat: beat, prevPhrase: phrase, prevPhase: phase, kick, hit, move };
+}
+
+/* THE RHYTHM SECTION. Two washes both riding the same beat is one big lamp;
+   a pro trades them — the on-beat wash carries the hit while its partner
+   dips and recovers with the kick — and lands EVERYBODY together on the
+   ONE, because the downbeat is the bar's spine and a chase that ignores it
+   reads as random. Four beats to a bar, counted off the same clock as the
+   dancer. A preset that barely follows the beat (a talking room) never
+   chases, and no clock means no chase: this multiplies a dimmer, so its
+   idle answer is exactly 1. */
+function dmxWashChase(st, preset, n, design){
+  if (!st || !preset || preset.beat < 0.5) return 1;
+  if (((st.beats % 4) + 4) % 4 === 0) return 1;      // the ONE: everybody
+  /* the track's design decides the SYMMETRY: mirror trades the beat
+     between the washes; unison has them breathe as one wall. And the dip
+     is the track's own depth, inside the band that still reads as rhythm. */
+  const mine = (design && design.symmetry === 'unison')
+    ? (st.beats % 2) === 0
+    : (st.beats % 2) === ((n || 0) % 2);
+  if (mine) return 1;
+  const depth = design && Number.isFinite(design.depth) ? design.depth : 0.55;
+  return 1 - depth * Math.max(0, Math.min(1, st.kick || 0));
+}
+
+/* the pose: one move, one moment, one honest answer for colour, spin and
+   rainbow. Amplitude bows to the preset (a slow wash stays slow however
+   hard the dancer wants to go) on a soft curve, so even calm turns a
+   little. A talking room (a preset that barely follows the beat) steps
+   its colours on phrase quarters instead of beats — movement without
+   flicker. */
+function dmxBeamPose(st, show){
+  const s = st || dmxBeamState();
+  const sh = show || {};
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const energy = u(sh.energy), phrase = u(sh.phrase);
+  const preset = DMX_PRESETS[sh.preset] || DMX_PRESETS[dmxAutoPreset(sh)] || DMX_PRESETS.follow;
+  const ring = dmxBeamColors(sh.chord, sh.design);
+  const q = s.phraseN * 4 + Math.floor(phrase * 4);
+  const base = preset.beat >= 0.3 ? s.beats : q;
+  const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
+  const amp = Math.pow(Math.max(0.05, preset.spin), 0.6);
+  let color, spin, rainbow = 0;
+  if (s.move === 'whirl'){
+    // the motor is the show: colour rests on slow quarters while the beams run
+    color = ring[q % ring.length];
+    spin = dir * amp * (0.8 + 0.2 * energy);
+  } else if (s.move === 'stab'){
+    // opposite sides of the wheel on every beat, and a lunge that decays;
+    // a two-colour palette IS opposite sides, so it steps plainly there
+    color = ring[(base * (ring.length > 2 ? 2 : 1)) % ring.length];
+    spin = dir * amp * (0.15 + 0.85 * s.kick);
+  } else if (s.move === 'bloom'){
+    /* the fixture's own rainbow engine. The renderer's interlock only
+       engages above 0.5 — below that a "bloom" would render as one static
+       colour for a whole phrase, the deadest possible move — so the pose
+       always clears the gate and the preset's budget sets the SPEED. */
+    color = ring[0];
+    rainbow = 0.55 + 0.45 * u(preset.rainbow);
+    spin = dir * amp * (0.2 + 0.3 * energy);
+  } else {
+    // chase: the next hue on every step, speed breathing with room and kick
+    color = ring[base % ring.length];
+    spin = dir * amp * (0.35 + 0.45 * energy + 0.2 * s.kick);
+  }
+  /* ANTICIPATION. A build that arrives at the drop at cruising speed wasted
+     the build: through it, the motor winds UP while the walls (see the
+     matching pull-back in dmxShowIntents) lean DOWN — the room coiling, so
+     the hit lands as release rather than as one more loud bar. */
+  const tension = (String(sh.phase) === 'build' || String(sh.phase) === 'lift') ? phrase : 0;
+  return {
+    r: color.r, g: color.g, b: color.b,
+    spin: Math.max(-1, Math.min(1, spin * (1 + 0.5 * tension))),
+    rainbow: u(rainbow),
+  };
 }
 
 /* THE WHOLE RIG, ONE FRAME'S WORTH OF INTENT.
@@ -7183,7 +7520,12 @@ function dmxShowIntents(show, patched){
     if (!f) continue;
     const prof = dmxProfile(f.key) || { can: {} };
     const role = f.role || 'wash';
-    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : 0);
+    /* a wash keeps its stop for the whole song — a wall that changes colour
+       every bar is wallpaper flickering — but the beam steps to the next
+       stop each quarter-phrase, so the moonflower changes colour ON the
+       music's own boundaries rather than whenever the chord happens to. */
+    const wi = role === 'wash' ? washN++ : 0;
+    const c = dmxChordStop(chord, role, role === 'wash' ? wi : Math.floor(phrase * 4));
     if (preset.off || master <= 0){
       out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
       continue;
@@ -7198,16 +7540,64 @@ function dmxShowIntents(show, patched){
     /* the beam is the accent, so it is allowed to be the thing that goes dark
        between phrases where a wash may not — that contrast is the effect */
     if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
+    /* the washes trade the beat between them and land together on the ONE —
+       and through a build they PULL BACK as the phrase climbs (the beam
+       winds up in dmxBeamPose): anticipation, so the drop lands as release */
+    const tension = (String(s.phase) === 'build' || String(s.phase) === 'lift') ? phrase : 0;
+    if (role === 'wash')
+      dim = u(dim * dmxWashChase(s.beam, preset, wi, s.design) * (1 - 0.3 * tension * preset.beat));
     const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
     /* SPIN follows the phrase and reverses with it, because a moonflower that
-       only ever turns one way stops being noticed after ninety seconds. */
+       only ever turns one way stops being noticed after ninety seconds — and
+       it SURGES on the kick, because a motor is the one voice this fixture
+       has for the beat: no dimmer to pulse, so the beams lunge instead. */
     const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
-    const spin = prof.can.spin ? dir * preset.spin * (0.25 + 0.75 * energy) : 0;
+    const spin = prof.can.spin
+      ? dir * preset.spin * (0.2 + 0.5 * energy + 0.3 * Math.max(beat, pulse)) : 0;
+    /* WHEN THE CHOREOGRAPHER IS RUNNING (the caller advances a beam state
+       with dmxBeamStep and rides it in on show.beam), a beam-role fixture
+       takes its pose from the engine instead: quantisation-proof colours,
+       a move dealt per phrase, a kick that decays. Without the state — a
+       bare test, an older caller — the walk above still dances. */
+    const pose = role === 'beam' && s.beam ? dmxBeamPose(s.beam, s) : null;
+    let cr = u(pose ? pose.r : (c && c.r));
+    let cg = u(pose ? pose.g : (c && c.g));
+    let cb = u(pose ? pose.b : (c && c.b));
+    /* COLOUR THEORY'S SURROUND. A track whose design says 'counter' hands
+       its networked bulbs the COMPLEMENT of the wash — simultaneous
+       contrast, the oldest trick for making a stage colour pop is to
+       surround it with its opposite — lifted off the floor, because a
+       bulb whose complement came out black would read as simply broken. */
+    if (f.wire === 'net' && s.design && s.design.huePolicy === 'counter' && !pose){
+      cr = u(1 - cr); cg = u(1 - cg); cb = u(1 - cb);
+      const top = Math.max(cr, cg, cb);
+      if (top <= 0.001){ cr = 0.35; cg = 0.35; cb = 0.35; }
+      else if (top < 0.35){ const lift = 0.35 / top; cr = u(cr * lift); cg = u(cg * lift); cb = u(cb * lift); }
+    }
+    let str = strobe;
+    let punch = u(beat * energy);
+    /* THE DROP HIT — the one look every stage show shares: the crossing into
+       the chorus lands as a full-white slam on the walls and a burst from
+       the dancer, then burns down into the settled climax look. Gated by
+       the preset's own beat appetite so a hand-pinned calm room can never
+       be slammed; the beam's burst rides the strobe intent, which the
+       renderer still holds under the safety cap. */
+    const hit = s.beam && preset.beat >= 0.5 ? u(s.beam.hit) : 0;
+    if (hit > 0){
+      if (role === 'wash'){
+        cr = u(cr + (1 - cr) * hit); cg = u(cg + (1 - cg) * hit); cb = u(cb + (1 - cb) * hit);
+        dim = Math.max(dim, hit);
+      } else {
+        str = Math.max(str, u(preset.strobe * hit));
+        punch = Math.max(punch, hit);
+      }
+    }
     out[f.id] = {
-      r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
-      dim, strobe, spin,
-      rainbow: prof.can.rainbow ? u(preset.rainbow) : 0,
-      punch: u(beat * energy),
+      r: cr, g: cg, b: cb,
+      dim, strobe: str,
+      spin: prof.can.spin ? (pose ? pose.spin : spin) : 0,
+      rainbow: prof.can.rainbow ? u(pose ? pose.rainbow : preset.rainbow) : 0,
+      punch,
     };
   }
   /* the lit transitions reach the lamps too — same light, same clock. Never
@@ -7388,6 +7778,56 @@ function hueLights(json){
   }
   out.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   return out;
+}
+
+/* ================================================================
+   THE LAST INCH OF WIRE — Enttec USB Pro framing
+
+   Everything above renders a frame; none of it ships one. The gap between
+   "the monitor shows the show" and "the room does the show" is a USB widget
+   speaking the Enttec USB DMX Pro protocol — the de-facto lingua franca that
+   DMXking, Enttec and half the interfaces on earth answer to — and the
+   protocol is the easy half of that widget. The HARD half, the reason a
+   browser can do this at all, lives in the widget's own firmware: the DMX
+   line's break timing and its 250 kbaud signalling are generated there, not
+   here. What crosses the USB is just a framed message, and a framed message
+   is a pure function of the 512 bytes the renderer already made.
+
+   The frame: SOM, a label saying what the message is, the payload length in
+   two bytes LITTLE-END FIRST (the widget is a microcontroller; it reads LSB
+   first and so does this), the payload, EOM. Label 6 is "send this DMX now",
+   and its payload leads with the DMX start code — 0, dimmer data, always —
+   ahead of the 512 channels. Send that at the rate the wire runs at and the
+   widget repeats the last frame on the line all by itself between messages,
+   which is why a browser that stops (a hidden tab loses its animation
+   frames) leaves the room holding its look rather than going dark. */
+const DMX_USB_PRO = {
+  SOM: 0x7e,               // start of message
+  EOM: 0xe7,               // end of message
+  SEND_DMX: 6,             // label: output-only send DMX packet request
+};
+function dmxUsbProPacket(label, data){
+  const n = data ? data.length : 0;
+  const out = new Uint8Array(n + 5);
+  out[0] = DMX_USB_PRO.SOM;
+  out[1] = label & 0xff;
+  out[2] = n & 0xff;                       // length, LSB first
+  out[3] = (n >> 8) & 0xff;
+  for (let i = 0; i < n; i++) out[4 + i] = data[i] & 0xff;
+  out[4 + n] = DMX_USB_PRO.EOM;
+  return out;
+}
+/* a whole universe, every send. The protocol allows short payloads; nothing
+   here uses them, because a fixed 518-byte message forty times a second is
+   nothing to USB and a variable one is a place for an off-by-one to live. */
+function dmxUsbProFrame(frame){
+  const data = new Uint8Array(513);
+  data[0] = 0;                             // DMX start code: dimmer data
+  if (frame) for (let i = 0; i < 512; i++){
+    const v = frame[i];
+    data[1 + i] = v > 0 ? (v < 255 ? v & 0xff : 255) : 0;
+  }
+  return dmxUsbProPacket(DMX_USB_PRO.SEND_DMX, data);
 }
 // @dmx-end
 
@@ -17896,7 +18336,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '6e767ebe2b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '6640ecae7b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -39318,6 +39758,91 @@ const CROWD = {
    not do. It is also the only way to work on a rig with no rig plugged in,
    which is where most of this gets built.
    ================================================================ */
+
+/* THE WIRE ITSELF. A USB DMX widget speaking the Enttec Pro protocol (a
+   DMXking, an Enttec Pro, most of their kin) is, to the browser, a serial
+   port — and Chrome will hand a page a serial port if the person asks it to.
+   That is the entire trick. No driver, no helper app, no server: the picker
+   is the permission, the permission outlives the session, and the framing
+   (dmxUsbProFrame, tested with the rest of the DMX arithmetic) is all the
+   protocol there is. Where Web Serial does not exist — Safari, phones, the
+   TV — none of this appears, and the rig stays what it has always been
+   everywhere: a monitor.
+
+   BACKPRESSURE, THE ONE REAL SUBTLETY. The wire runs at 40 Hz because RIG
+   steps at 40 Hz; if the OS stalls a write, queueing more behind it would
+   build a growing backlog of stale frames that the lamps then replay late —
+   a light show in the past tense. So there is exactly one write in flight,
+   ever: a frame that arrives while one is being written is simply dropped,
+   because the next fresh frame is 25 ms away and fresher than anything a
+   queue could hold. */
+const DMXUSB = {
+  port: null, writer: null, on: false, fault: '',
+  _busy: false,
+  ok(){ return typeof navigator !== 'undefined' && !!navigator.serial; },
+  boot(){
+    const b = document.getElementById('rigWire');
+    if (b){
+      if (!this.ok()) b.hidden = true;
+      else b.addEventListener('click', () => this.on ? this.close() : this.connect());
+    }
+    /* the cable yanked mid-show is an event, not an error return */
+    if (this.ok()) navigator.serial.addEventListener('disconnect', e => {
+      if (e.target === this.port) this.close(T('The interface came unplugged'));
+    });
+  },
+  async connect(){
+    if (!this.ok() || this.on) return;
+    try {
+      /* the picker IS the user gesture and the permission. No vendor filter:
+         Pro-protocol widgets ship with whatever USB bridge was cheap the
+         year they were made, and the person pointing at their own interface
+         is a better filter than a vendor-ID list going stale. */
+      const port = await navigator.serial.requestPort();
+      /* the baud rate is ceremony — the widget's USB side ignores it and its
+         firmware drives the actual line at DMX's own 250 kbaud — but the API
+         insists on a number, so it may as well be the true one. */
+      await port.open({ baudRate: 250000 });
+      this.port = port;
+      this.writer = port.writable.getWriter();
+      this.on = true; this.fault = '';
+    } catch (e){
+      // the picker dismissed is a decision, not a fault; a port that would
+      // not open (claimed by another program, usually) is worth saying
+      this.fault = (e && e.name === 'NotFoundError') ? ''
+        : T('The port would not open — close anything else using the interface');
+    }
+    this.paint();
+  },
+  async close(fault){
+    this.on = false; this.fault = fault || '';
+    const w = this.writer, p = this.port;
+    this.writer = null; this.port = null; this._busy = false;
+    try { if (w) w.releaseLock(); } catch (e){}
+    try { if (p) await p.close(); } catch (e){}
+    this.paint();
+  },
+  send(frame){
+    if (!this.on || !this.writer || this._busy || !frame) return;
+    this._busy = true;
+    this.writer.write(dmxUsbProFrame(frame)).then(
+      () => { this._busy = false; },
+      /* a write can reject because the cable is gone — or because close()
+         released the lock under it on purpose. Only the first is news. */
+      () => { this._busy = false; if (this.on) this.close(T('The interface came unplugged')); },
+    );
+  },
+  paint(){
+    const b = document.getElementById('rigWire');
+    if (b){
+      b.classList.toggle('on', this.on);
+      b.textContent = this.on ? T('On the wire') : T('Put this on the wire');
+      b.setAttribute('aria-pressed', String(this.on));
+    }
+    if (typeof RIG !== 'undefined') RIG.paintFoot();
+  },
+};
+
 const RIG = {
   on: false,
   preset: 'auto',
@@ -39341,13 +39866,96 @@ const RIG = {
     ];
   },
   boot(){
-    this.rig = this.defaults();
+    this.rig = this.loadRig(this.defaults());
     this.patched = dmxPatch(this.rig);
     this.spin = this.patched.map(() => 0);
     const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
     on('rigClose', () => this.open(false));
     on('btnRig', () => this.open());
+    on('rigGuide', () => this.toggleGuide());
+    on('rigAuto', () => { this.rig = dmxAutoAddress(this.rig); this.saveRig(); this.repatch(); });
     this.buildPresets();
+    DMXUSB.boot(); DMXUSB.paint();
+  },
+
+  /* ------- the patch is the operator's: edited, remembered, re-fit ------- */
+  /* an address or a mode a hand changed outlives the tab the way every other
+     choice in this player does: locally, per fixture id, and laundered on
+     the way back in — dmxModeOf and the range clamp refuse nonsense, so a
+     stale or hand-edited store cannot wedge the rig. */
+  loadRig(rig){
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('mb8_rig') || 'null'); } catch (e){}
+    if (!saved || typeof saved !== 'object') return rig;
+    return rig.map(r => {
+      const s = r && saved[r.id];
+      if (!s || typeof s !== 'object') return r;
+      const out = Object.assign({}, r);
+      const at = Math.floor(Number(s.at));
+      if (Number.isFinite(at) && at >= 1 && at <= 512) out.at = at;
+      if (typeof s.mode === 'string') out.mode = dmxModeOf(r.key, s.mode);
+      return out;
+    });
+  },
+  saveRig(){
+    const store = {};
+    for (const r of this.rig || []) if (r && r.id) store[r.id] = { at: r.at, mode: r.mode };
+    try { localStorage.setItem('mb8_rig', JSON.stringify(store)); } catch (e){}
+  },
+  /* one edit, one truth: re-run the patch, keep the operator's faders (they
+     are keyed by id, which never changes), redraw everything that describes
+     the rig — and put the caret back where the hand was, because a rebuild
+     that steals focus mid-edit teaches people not to edit. */
+  repatch(focusId){
+    this.patched = dmxPatch(this.rig);
+    this.spin = this.patched.map(() => 0);
+    if (this.on){
+      this.buildChans(); this.paintFoot(); this.buildSetup();
+      if (focusId){
+        const f = this.patched.find(x => x.id === focusId);
+        if (f && f._ui && f._ui.at) f._ui.at.focus();
+      }
+    }
+  },
+
+  /* -------------- the guide: the patch, read aloud -------------- */
+  toggleGuide(){
+    const box = document.getElementById('rigSetup');
+    const b = document.getElementById('rigGuide');
+    if (!box) return;
+    box.hidden = !box.hidden;
+    if (b){ b.classList.toggle('on', !box.hidden); b.setAttribute('aria-expanded', String(!box.hidden)); }
+    if (!box.hidden) this.buildSetup();
+  },
+  /* Nothing in the guide is written by hand: every number comes from
+     dmxDialPlan reading the live patch, so editing an address rewrites the
+     instructions in place and the paper can never disagree with the wire. */
+  buildSetup(){
+    const box = document.getElementById('rigSetup');
+    if (!box || box.hidden) return;
+    box.textContent = '';
+    const li = (txt, bad) => {
+      const n = document.createElement('li');
+      n.textContent = txt;
+      if (bad) n.className = 'bad';
+      box.appendChild(n);
+    };
+    li(T('Chain the cable: computer → USB DMX interface, then interface → the first lamp’s DMX IN, that lamp’s OUT → the next lamp’s IN, and so on down the line. The order of the chain never matters — the address is what decides which lamp is which.'));
+    const over = dmxOverlaps(this.patched);
+    for (const d of dmxDialPlan(this.patched)){
+      if (!d.fits){
+        li(T('{name} does not fit — its channels run past 512. Give it a lower address, or press Auto address.', { name: d.name }), true);
+        continue;
+      }
+      let s = T('{name} ({model}): on its rear display, set the DMX address to {dial}.', { name: d.name, model: d.model, dial: d.dial });
+      if (d.modes > 1) s += ' ' + T('Put it in {mode} mode.', { mode: d.mode.toUpperCase() });
+      s += ' ' + T('It will listen on channels {chans}.', { chans: d.chans });
+      li(s, over.indexOf(d.id) >= 0);
+    }
+    if (over.length)
+      li(T('Two lamps are sharing channels — each obeys bytes meant for the other, which reads as a haunting rather than a fault. Change an address, or press Auto address to repack the whole rig.'), true);
+    li(T('Take every lamp out of sound-active mode — a lamp dancing to its own microphone is not listening to the wire.'));
+    li(T('Press “Put this on the wire” above and pick your USB DMX interface from the browser’s list (Chrome or Edge on a computer). If another lighting program is holding the port, quit it first.'));
   },
   open(v){
     const box = document.getElementById('rig');
@@ -39356,7 +39964,7 @@ const RIG = {
     box.classList.toggle('open', this.on);
     const chip = document.getElementById('btnRig');
     if (chip){ chip.classList.toggle('on', this.on); chip.setAttribute('aria-pressed', String(this.on)); }
-    if (this.on){ this.buildChans(); this.paintFoot(); }
+    if (this.on){ this.buildChans(); this.paintFoot(); this.buildSetup(); }
   },
   buildPresets(){
     const box = document.getElementById('rigPresets');
@@ -39420,6 +40028,18 @@ const RIG = {
       // a running lit segue rides out to the lamps on the director's own clock
       segue: (typeof XFORM !== 'undefined' && XFORM.on && typeof director !== 'undefined')
            ? { kind: XFORM.kind, t: director.transT } : null,
+      /* the track's identity — its id, its key, its tempo, measured by the
+         same pipeline that draws its cover — so the rig can wear the show
+         DESIGNED for this track rather than a generic reaction */
+      track: (() => {
+        try {
+          const tr = (typeof player !== 'undefined' && player.cur >= 0) ? player.tracks[player.cur] : null;
+          if (!tr) return null;
+          const m = (tr.mix && typeof tr.mix === 'object') ? tr.mix
+                  : (typeof mixOf === 'function' ? mixOf(tr) : null);
+          return { id: String(tr.id != null ? tr.id : ''), key: (m && m.key) || '', bpm: (m && m.bpm) || 0 };
+        } catch (e){ return null; }
+      })(),
     };
   },
   /* one turn of the whole chain — show → intents → 512 bytes → what each lamp
@@ -39428,8 +40048,15 @@ const RIG = {
   step(now, dt){
     if (!this.patched) return;
     if (now - this._acc < 25) return;
+    // the real gap between wire ticks, not the screen's frame dt — the
+    // choreographer's kick envelope decays on the wire's own clock
+    const gap = Math.min(0.25, Math.max(0, (now - this._acc) / 1000));
     this._acc = now;
-    const intents = dmxShowIntents(this.show(), this.patched);
+    const show = this.show();
+    show.design = dmxTrackDesign(show.track);   // the show this track wears
+    this.beamState = dmxBeamStep(this.beamState, show, gap);
+    show.beam = this.beamState;
+    const intents = dmxShowIntents(show, this.patched);
     /* THE BOARD SITS ON TOP OF THE SHOW, not beside it. A fixture with no
        hand on it keeps following the music; a fixture the operator has taken
        holds exactly what they set and nothing else touches it. That is what a
@@ -39442,6 +40069,7 @@ const RIG = {
     }
     this.frame = dmxRender(this.patched, intents);
     this.net = dmxRenderNet(this.patched, intents);
+    DMXUSB.send(this.frame);                 // the same bytes the monitor draws
     this.strobeT += dt;
     // the beams turn because a decoded spin says they are turning
     this.patched.forEach((f, i) => {
@@ -39583,6 +40211,7 @@ const RIG = {
     const box = document.getElementById('rigChans');
     if (!box) return;
     box.textContent = '';
+    const over = dmxOverlaps(this.patched);
     for (const f of this.patched){
       const prof = dmxProfile(f.key) || {};
       const card = document.createElement('div');
@@ -39592,8 +40221,56 @@ const RIG = {
       h.appendChild(sw); h.appendChild(document.createTextNode(f.name));
       const addr = document.createElement('div');
       addr.className = 'addr';
-      addr.textContent = f.wire === 'net' ? 'network · no address'
-        : ('ch ' + f.at + '–' + (f.at + f.span - 1) + ' · ' + f.mode);
+      let atInput = null;
+      if (f.wire === 'net'){
+        addr.textContent = 'network · no address';
+      } else {
+        /* the address is the operator's to type, because it has to MATCH a
+           number somebody dialled into the back of the lamp itself — and the
+           set-up guide re-reads whatever is typed here, so the two can only
+           ever be wrong together, which is the visible kind of wrong */
+        const lb = document.createElement('span');
+        lb.textContent = T('address');
+        atInput = document.createElement('input');
+        atInput.type = 'number'; atInput.min = '1'; atInput.max = '512';
+        atInput.value = f.at; atInput.className = 'rig-at';
+        atInput.setAttribute('aria-label', T('{name} DMX address', { name: f.name }));
+        atInput.addEventListener('change', () => {
+          const raw = this.rig.find(r => r && r.id === f.id);
+          if (!raw) return;
+          const v = Math.floor(Number(atInput.value));
+          raw.at = Number.isFinite(v) ? Math.max(1, Math.min(512, v)) : f.at;
+          this.saveRig(); this.repatch(f.id);
+        });
+        addr.appendChild(lb); addr.appendChild(atInput);
+        const modes = Object.keys(prof.modes || {});
+        if (modes.length > 1){
+          const md = document.createElement('select');
+          md.className = 'rig-mode';
+          md.setAttribute('aria-label', T('{name} channel mode', { name: f.name }));
+          for (const m of modes){
+            const o = document.createElement('option');
+            o.value = m; o.textContent = m; o.selected = m === f.mode;
+            md.appendChild(o);
+          }
+          md.addEventListener('change', () => {
+            const raw = this.rig.find(r => r && r.id === f.id);
+            if (!raw) return;
+            raw.mode = dmxModeOf(f.key, md.value);
+            this.saveRig(); this.repatch(f.id);
+          });
+          addr.appendChild(md);
+        }
+        const span = document.createElement('span');
+        span.textContent = 'ch ' + f.at + '–' + (f.at + f.span - 1)
+          + (modes.length > 1 ? '' : ' · ' + f.mode);
+        addr.appendChild(span);
+        if (!f.fits || over.indexOf(f.id) >= 0){
+          const w = document.createElement('span'); w.className = 'clash';
+          w.textContent = f.fits ? T('shares channels') : T('past 512');
+          addr.appendChild(w);
+        }
+      }
       card.appendChild(h); card.appendChild(addr);
       const rows = [];
       for (let c = 1; c <= f.span; c++){
@@ -39640,6 +40317,9 @@ const RIG = {
       }
       fader.addEventListener('input', () => setMan({ dim: Number(fader.value) / 100 }));
       take.textContent = T('Following the music');
+      // a rebuild (an address edit, a mode change) must not quietly relabel a
+      // fixture the operator is still holding
+      if (this.manual[f.id]){ take.classList.add('on'); take.textContent = T('On the fader'); }
       take.addEventListener('click', () => {
         if (this.manual[f.id]){
           delete this.manual[f.id];
@@ -39649,7 +40329,7 @@ const RIG = {
       board.appendChild(take); board.appendChild(fader); board.appendChild(sws);
       card.appendChild(board);
       box.appendChild(card);
-      f._ui = { sw, rows, take };
+      f._ui = { sw, rows, take, at: atInput };
     }
   },
   paintChans(){
@@ -39670,7 +40350,16 @@ const RIG = {
     const n = document.getElementById('rigFoot');
     if (!n) return;
     const used = dmxUniverseUsed(this.patched);
-    n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.', { used });
+    /* the footer tells the truth about the wire, whichever truth it is: live,
+       faulted, connectable, or (no Web Serial here) a monitor and proud of it */
+    if (DMXUSB.on)
+      n.textContent = T('Every bar above is a byte on the wire, forty times a second. {used} of 512 channels in use — what you see is what the room is being told.', { used });
+    else if (DMXUSB.fault)
+      n.textContent = DMXUSB.fault + ' — ' + T('{used} of 512 channels in use.', { used });
+    else if (DMXUSB.ok())
+      n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is on the wire yet — a USB DMX interface (DMXking, Enttec Pro) plugs straight in above.', { used });
+    else
+      n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.', { used });
   },
 };
 

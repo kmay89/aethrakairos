@@ -16,6 +16,8 @@ final class Analyzer {
     struct Frame {
         var bass: Float; var mid: Float; var treble: Float
         var energy: Float; var calm: Float
+        var eShort: Float            // energy smoothed tau 0.25 s — the moment
+        var eLong: Float             // energy smoothed tau 8 s — the passage; eShort/eLong is the web's phase ratio
         var onsetEnv: Float          // 1 at onset, exp decay ~0.25 s
         var beatPhase: Float         // 0..1 from the grid clock (authoritative when mix present)
         var barPhase: Float          // beatPhase/4 space
@@ -80,6 +82,8 @@ final class Analyzer {
     private var trebS: Float = 0
     private var energyS: Float = 0
     private var calmS: Float = 1
+    private var eShortS: Float = 0
+    private var eLongS: Float = 0.0001
     private var bpmEst: Float = 120
     private var lastOnsetT: Double = 0
     private var fluxBeatBase: Double = 0
@@ -93,6 +97,8 @@ final class Analyzer {
     private var pTreble: Float = 0
     private var pEnergy: Float = 0
     private var pCalm: Float = 1
+    private var pEShort: Float = 0
+    private var pELong: Float = 0.0001
     private var pBpm: Float = 120
     private var pLastOnsetT: Double = 0
     private var pFluxBeatBase: Double = 0
@@ -230,6 +236,10 @@ final class Analyzer {
         trebS += (treb - trebS) * kT
         energyS = min(max(bassS * 1.25 + midS + trebS * 0.8, 0), 2) / 2
         calmS += ((1 - energyS) - calmS) * Float(1 - exp(-dt / 2.5))
+        // the web's two energy clocks: the moment (0.25 s) against the passage
+        // (8 s) — their ratio is the peak/flow/break phase and the act's push
+        eShortS += (energyS - eShortS) * Float(1 - exp(-dt / 0.25))
+        eLongS += (energyS - eLongS) * Float(1 - exp(-dt / 8.0))
 
         // Spectral flux over its band, tapered toward the top, in byte units
         // so the absolute floor (flux > 60) means what it meant on the web.
@@ -290,6 +300,8 @@ final class Analyzer {
         pTreble = trebS
         pEnergy = energyS
         pCalm = calmS
+        pEShort = eShortS
+        pELong = eLongS
         pBpm = bpmEst
         pLastOnsetT = lastOnsetT
         pFluxBeatBase = fluxBeatBase
@@ -335,6 +347,7 @@ final class Analyzer {
         stateLock.lock()
         let bass = pBass, mid = pMid, treble = pTreble
         let energy = pEnergy, calm = pCalm
+        let eShort = pEShort, eLong = pELong
         let fluxBpm = pBpm
         let onsetAt = pLastOnsetT
         let beatBase = pFluxBeatBase
@@ -375,6 +388,7 @@ final class Analyzer {
 
         return Frame(bass: bass, mid: mid, treble: treble,
                      energy: energy, calm: calm,
+                     eShort: eShort, eLong: eLong,
                      onsetEnv: onsetEnv,
                      beatPhase: beatPhase, barPhase: barPhase, phrasePhase: phrasePhase,
                      bpm: bpmOut,

@@ -53,8 +53,11 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp, stageSpread,' +
   ' DMX_FIXTURES, DMX_ROLES, MYSTIC_COLORS, DMX_STROBE_MAX_HZ, dmxProfile, dmxWire, dmxFootprint,' +
   ' dmxModeOf, dmxPatch, dmxUniverseUsed, dmxIntent, dmxStrobeHz, dmxNearestColor,' +
-  ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode,' +
+  ' dmxAutoAddress, dmxOverlaps, dmxDialPlan,' +
+  ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode, DMX_USB_PRO, dmxUsbProPacket, dmxUsbProFrame,' +
   ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents, dmxSegueTint,' +
+  ' DMX_BEAM_MOVES, dmxBeamState, dmxBeamColors, dmxBeamStep, dmxBeamPose, dmxWashChase,' +
+  ' dmxTrackHash, dmxTrackDesign,' +
   ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
@@ -3595,7 +3598,12 @@ test('dmxRender ThinTri 38: true RGB, a real dimmer, and the two interlocks that
      Anywhere else it is a program speed or the microphone's sensitivity. */
   assert.equal(f[5], 0, 'channel 6 stays in the band where the console is in charge');
   const st = S.dmxRender(p, { [p[0].id]: { r: 1, g: 1, b: 1, dim: 1, strobe: 1 } });
-  assert.ok(st[4] > 200, 'a full strobe intent is near the top of 016-255, got ' + st[4]);
+  /* a full strobe intent clears the no-function band but stays in the SLICE
+     the safety cap allows — the top of 016-255 is the physical lamp's
+     fastest strobe, which is inside the photosensitive band and must be
+     unreachable however hard the intent asks */
+  assert.ok(st[4] > 15, 'a full strobe intent registers, got ' + st[4]);
+  assert.ok(S.dmxDecode(p[0], st).strobeHz <= S.DMX_STROBE_MAX_HZ, 'and stays under the cap on the wire');
   assert.ok(st[5] <= 31, 'and channel 6 must stay put or channel 5 stops being a strobe');
   const none = S.dmxRender(p, { [p[0].id]: { r: 1, g: 1, b: 1, dim: 1, strobe: 0 } });
   assert.equal(none[4], 0, '000-015 is "no function", so no strobe means zero');
@@ -3645,6 +3653,37 @@ test('dmxRender Mystic LED: seven colours, no dimmer, and a clockwise channel th
   const ccwFast = at({ dim: 1, spin: -1 })[3], ccwSlow = at({ dim: 1, spin: -0.1 })[3];
   assert.ok(ccwFast > ccwSlow, 'counter-clockwise runs the other way: ' + ccwFast + ' vs ' + ccwSlow);
   assert.ok(ccwFast <= 170 && ccwSlow >= 86, 'and stays inside 086-170');
+});
+test('dmxRender: the strobe cap binds the WIRE, not just the picture', () => {
+  /* the peak preset's comment promises "even here the strobe goes through
+     the same cap as everywhere else" — with a real interface attached that
+     promise has to be true in the bytes, fixture by fixture. The decoded
+     rate is the same arithmetic the writer used, so this is the round trip:
+     full-throttle strobe intent in, a rate under the cap back out. */
+  const rig = S.dmxPatch([
+    { id: 'w', key: 'venue-thintri-38', mode: '8ch' },
+    { id: 'f', key: 'adj-mystic-led' },
+    { id: 'g', key: 'generic-par-7' },
+  ]);
+  for (const punch of [0, 1]){
+    const fr = S.dmxRender(rig, {
+      w: { dim: 1, strobe: 1, punch }, f: { dim: 1, strobe: 1, punch }, g: { dim: 1, strobe: 1, punch },
+    });
+    for (const f of rig){
+      const d = S.dmxDecode(f, fr);
+      assert.ok(d.strobeHz <= S.DMX_STROBE_MAX_HZ, f.key + ' punch ' + punch + ' at ' + d.strobeHz + ' Hz');
+      assert.ok(d.strobeHz > 0, f.key + ' still strobes at all');
+    }
+  }
+  // and the byte itself sits at the bottom of the band, not the top: the cap
+  // lives in what is WRITTEN, not in a reading that could drift from it
+  const fr = S.dmxRender(rig, { f: { dim: 1, strobe: 1 } });
+  const ch1 = fr[rig[1].at - 1];
+  assert.ok(ch1 >= 2 && ch1 <= 20, 'Mystic ch1 stays in the slow end, got ' + ch1);
+  // a small strobe still registers on a fixture whose band starts above zero
+  const soft = S.dmxRender(rig, { w: { dim: 1, strobe: 0.03 } });
+  const ch5 = soft[rig[0].at - 1 + 4];
+  assert.ok(ch5 > 15, 'ThinTri ch5 clears its no-function band, got ' + ch5);
 });
 test('dmxStrobeHz: the one number in this program that can hurt somebody', () => {
   /* 3-65 Hz is the photosensitive-seizure band. A rig driven from an
@@ -3716,6 +3755,95 @@ test('dmxIntent: what reaches a mains-powered lamp is laundered first', () => {
   assert.ok(f.every(v => Number.isFinite(v) && v >= 0 && v <= 255));
 });
 
+test('dmxUsbProFrame: the message the USB widget reads, byte for byte', () => {
+  /* the framing is the whole protocol — the widget's own firmware generates
+     the DMX line timing — so every byte here is load-bearing, and a wrong
+     one is a rig that sits dark with all its numbers looking right */
+  const f = S.dmxRender(S.dmxPatch([{ key: 'adj-mystic-led' }]), {});
+  const m = S.dmxUsbProFrame(f);
+  assert.equal(m.length, 518, 'SOM + label + two length bytes + start code + 512 channels + EOM');
+  assert.equal(m[0], 0x7e, 'start of message');
+  assert.equal(m[1], S.DMX_USB_PRO.SEND_DMX, 'label 6: send this DMX now');
+  assert.equal(m[2] | (m[3] << 8), 513, 'payload length, LSB first');
+  assert.equal(m[4], 0, 'the DMX start code — 0, dimmer data — rides ahead of the channels');
+  for (let i = 0; i < 512; i++) assert.equal(m[5 + i], f[i], 'channel ' + (i + 1));
+  assert.equal(m[517], 0xe7, 'end of message');
+  // a frame nobody has rendered yet is a dark universe, not a throw
+  const dark = S.dmxUsbProFrame(null);
+  assert.equal(dark.length, 518);
+  assert.ok(Array.from(dark.slice(5, 517)).every(v => v === 0), 'all 512 channels at zero');
+  // and the wire never sees a value that is not a byte
+  const dirty = new Array(512).fill(0);
+  dirty[0] = 300; dirty[1] = -4; dirty[2] = NaN;
+  const clean = S.dmxUsbProFrame(dirty);
+  assert.equal(clean[5], 255); assert.equal(clean[6], 0); assert.equal(clean[7], 0);
+});
+test('dmxUsbProPacket: the length runs LSB first, whatever the payload', () => {
+  const p = S.dmxUsbProPacket(77, new Uint8Array(300));
+  assert.equal(p[1], 77, 'the label is whatever was asked for');
+  assert.equal(p[2], 300 & 0xff);
+  assert.equal(p[3], 1, 'the high byte is the SECOND length byte — the widget reads little-endian');
+  assert.equal(p.length, 305);
+  assert.equal(p[304], 0xe7);
+  const empty = S.dmxUsbProPacket(3, null);
+  assert.equal(empty.length, 5, 'no payload is still a whole message');
+  assert.equal(empty[2], 0); assert.equal(empty[3], 0);
+});
+
+test('dmxAutoAddress: one button answers "what do I dial into each lamp"', () => {
+  // the shipped rig IS this packing: 8ch wash at 1, the 4ch flower at 9, 8ch wash at 13
+  const rig = [
+    { id: 'a', key: 'venue-thintri-38', mode: '8ch', at: 200 },
+    { id: 'b', key: 'adj-mystic-led', at: 7 },
+    { id: 'c', key: 'venue-thintri-38', mode: '8ch' },
+  ];
+  const out = S.dmxAutoAddress(rig);
+  assert.deepEqual(out.map(r => r.at), [1, 9, 13], 'packed with no gaps, whatever was dialled before');
+  assert.equal(rig[0].at, 200, 'the input rig is left alone — a new array comes back');
+  // a networked light has no address and never advances the count
+  const mixed = S.dmxAutoAddress([
+    { id: 'a', key: 'venue-thintri-38', mode: '3ch' },
+    { id: 'h', key: 'philips-hue', net: 'b1' },
+    { id: 'b', key: 'adj-mystic-led' },
+  ]);
+  assert.equal(mixed[0].at, 1);
+  assert.equal(mixed[1].at, undefined, 'the Hue keeps having no address');
+  assert.equal(mixed[2].at, 4, '3ch mode spans three channels, so the flower lands at 4');
+  assert.doesNotThrow(() => S.dmxAutoAddress(null));
+});
+test('dmxOverlaps: two lamps on one channel are named before the room notices', () => {
+  /* a shared channel does not look like a fault — each lamp obeys bytes
+     meant for the other, and the rig reads as haunted */
+  const clash = S.dmxPatch([
+    { id: 'a', key: 'venue-thintri-38', mode: '8ch', at: 1 },
+    { id: 'b', key: 'adj-mystic-led', at: 8 },            // 8-11 collides with 1-8
+    { id: 'c', key: 'venue-thintri-38', mode: '8ch', at: 13 },
+  ]);
+  assert.deepEqual(S.dmxOverlaps(clash), ['a', 'b'], 'both sides of the collision are named, the bystander is not');
+  const clean = S.dmxPatch([
+    { id: 'a', key: 'venue-thintri-38', mode: '8ch', at: 1 },
+    { id: 'b', key: 'adj-mystic-led', at: 9 },
+  ]);
+  assert.deepEqual(S.dmxOverlaps(clean), [], 'edge-to-edge is not a collision');
+  assert.deepEqual(S.dmxOverlaps(null), []);
+});
+test('dmxDialPlan: the set-up guide is the patch read aloud, not prose beside it', () => {
+  const p = S.dmxPatch([
+    { id: 'w', key: 'venue-thintri-38', mode: '8ch', at: 1, name: 'Wash L' },
+    { id: 'f', key: 'adj-mystic-led', at: 9, name: 'Moonflower' },
+    { id: 'h', key: 'philips-hue', net: 'b1' },
+  ]);
+  const plan = S.dmxDialPlan(p);
+  assert.equal(plan.length, 2, 'a networked light needs no dial');
+  assert.equal(plan[0].dial, '001', 'the rear display shows padded digits, so the guide shows the same');
+  assert.equal(plan[0].chans, '1–8');
+  assert.ok(plan[0].modes > 1, 'the wash has a mode worth mentioning');
+  assert.equal(plan[1].dial, '009');
+  assert.equal(plan[1].modes, 1, 'the flower has one mode; the guide stays quiet about it');
+  assert.ok(plan.every(d => d.fits));
+  assert.deepEqual(S.dmxDialPlan(null), []);
+});
+
 test('dmxShowIntents: the rig is downstream of the same analysis as the picture', () => {
   const rig = S.dmxPatch([
     { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w1' },
@@ -3739,6 +3867,253 @@ test('dmxShowIntents: the rig is downstream of the same analysis as the picture'
   assert.equal(i.h1.spin, 0, 'a bulb has no motor');
   assert.ok(Math.abs(i.fl.spin) > 0, 'and the one that does, does');
   assert.equal(i.h1.rainbow, 0, 'nor a rainbow it cannot run');
+});
+test('dmxBeamColors: a ring the moonflower cannot collapse', () => {
+  /* the whole point of the ring: every stop lands on a DIFFERENT one of the
+     seven states the lamp can be, so a colour change asked for is a colour
+     change seen — the failure this replaces was a bluish chord whose stops
+     all quantised to BLUE */
+  const ring = S.dmxBeamColors([{ r: 0.2, g: 0.3, b: 0.9 }]);
+  assert.equal(ring.length, 6);
+  const lamp = ring.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v);
+  assert.equal(new Set(lamp).size, 6, 'six ring stops, six different lamp colours: ' + lamp.join(','));
+  // anchored: a blue accent starts the ring at blue — the picture's corner of the wheel
+  assert.deepEqual(ring[0], { r: 0, g: 0, b: 1 });
+  assert.deepEqual(S.dmxBeamColors([{ r: 1, g: 0.1, b: 0 }])[0], { r: 1, g: 0, b: 0 });
+  assert.doesNotThrow(() => S.dmxBeamColors(null));
+});
+test('dmxBeamStep: beats are edges, phrases deal moves, the kick decays like a limb', () => {
+  let st = S.dmxBeamState();
+  const show = { chord: [{ r: 1, g: 0, b: 0 }], energy: 0.7, preset: 'pulse' };
+  const at = (beat, phrase, dt) => S.dmxBeamStep(st, Object.assign({}, show, { beat, phrase }), dt);
+  // one hump is one beat, however long it hangs near the top
+  st = at(0.9, 0.10, 0.025);
+  assert.equal(st.beats, 1); assert.equal(st.kick, 1);
+  st = at(0.7, 0.11, 0.025);
+  assert.equal(st.beats, 1, 'still the same hump');
+  st = at(0.2, 0.12, 0.025);
+  st = at(0.9, 0.13, 0.025);
+  assert.equal(st.beats, 2, 'a new hump is a new beat');
+  st = at(0.9, 0.14, 0.1);
+  assert.ok(st.kick < 1 && st.kick > 0, 'the lunge decays, got ' + st.kick);
+  // the phrase runs out and wraps: a different move is dealt
+  const before = st.move;
+  st = at(0.3, 0.9, 0.025);
+  assert.equal(st.move, before, 'late in the phrase is not yet a new phrase');
+  st = at(0.2, 0.02, 0.025);
+  assert.notEqual(st.move, before, 'a fresh phrase, a fresh move');
+  assert.ok(S.DMX_BEAM_MOVES.indexOf(st.move) >= 0);
+  // a room with no rainbow budget is never dealt the bloom
+  let calm = S.dmxBeamState();
+  for (let p = 0; p < 12; p++)
+    calm = S.dmxBeamStep(calm,
+      { chord: [], energy: 0.2, preset: 'follow', beat: 0, phrase: (p % 2) ? 0.9 : 0.05 }, 0.025);
+  assert.notEqual(calm.move, 'bloom', 'follow has no rainbow to spend');
+  assert.doesNotThrow(() => S.dmxBeamStep(null, null, null));
+});
+test('dmxBeamPose: every move answers with a real colour, a bounded spin, and taste', () => {
+  const chord = [{ r: 0.2, g: 0.3, b: 0.9 }];
+  const mk = (move, kick, extra) => S.dmxBeamPose(
+    Object.assign(S.dmxBeamState(), { move, kick, beats: 3, phraseN: 1 }),
+    Object.assign({ chord, energy: 0.6, beat: 0.5, phrase: 0.2, preset: 'pulse' }, extra));
+  for (const move of S.DMX_BEAM_MOVES){
+    const p = mk(move, 0.5);
+    assert.ok([p.r, p.g, p.b].every(v => v === 0 || v === 1), move + ' colours are ring stops');
+    assert.ok(Math.abs(p.spin) <= 1 && p.rainbow >= 0 && p.rainbow <= 1, move + ' stays in range');
+  }
+  // the stab lunges on the kick and settles after
+  assert.ok(Math.abs(mk('stab', 1).spin) > Math.abs(mk('stab', 0).spin) * 2, 'the kick is the move');
+  /* bloom must CLEAR THE RENDERER'S GATE (rainbow > 0.5 is what switches
+     the fixture's rainbow on) every time it is dealt, else the move renders
+     as one static colour for a whole phrase; the preset budget sets speed */
+  assert.ok(mk('bloom', 0).rainbow > 0.5, 'bloom always engages the rainbow');
+  assert.equal(mk('bloom', 0, { preset: 'spin' }).rainbow, 1, 'and the spin preset opens it fully');
+  assert.ok(mk('bloom', 0, { preset: 'peak' }).rainbow > mk('bloom', 0).rainbow, 'budget buys speed');
+  // chase in a talking room steps on phrase quarters, not beats
+  const calmA = mk('chase', 0, { preset: 'calm', phrase: 0.05 });
+  const calmB = mk('chase', 0, { preset: 'calm', phrase: 0.30 });
+  assert.notDeepEqual([calmA.r, calmA.g, calmA.b], [calmB.r, calmB.g, calmB.b], 'quarter-phrase steps in calm');
+});
+test('dmxTrackDesign: every track wears its own show, and the same track always the same one', () => {
+  const a = S.dmxTrackDesign({ id: 'mobius-walking', key: '8A', bpm: 124 });
+  assert.deepEqual(S.dmxTrackDesign({ id: 'mobius-walking', key: '8A', bpm: 124 }), a,
+    'deterministic, the way a timecoded show is repeatable');
+  const b = S.dmxTrackDesign({ id: 'breathing', key: '9B', bpm: 128 });
+  assert.notDeepEqual(a, b, 'a different track designs a different show');
+  for (const d of [a, b]){
+    assert.ok(['analogous', 'complement', 'triad'].indexOf(d.scheme) >= 0);
+    assert.ok(d.steps.length >= 2 && d.steps.every(i => i >= 0 && i <= 5), 'a real palette of ring steps');
+    assert.deepEqual(d.moves.slice().sort(), S.DMX_BEAM_MOVES.slice().sort(),
+      'the set list is a permutation — nothing invented, nothing lost');
+    assert.ok(d.depth >= 0.4 && d.depth <= 0.7, 'the dip stays in the band that reads as rhythm');
+    assert.ok(['mirror', 'unison'].indexOf(d.symmetry) >= 0);
+    assert.ok(['counter', 'follow'].indexOf(d.huePolicy) >= 0);
+  }
+  // a slow minor track never wears the bright triad: mood is load-bearing
+  for (let i = 0; i < 24; i++)
+    assert.notEqual(S.dmxTrackDesign({ id: 'x' + i, key: '5A', bpm: 100 }).scheme, 'triad', 'seed ' + i);
+  assert.equal(S.dmxTrackDesign(null), null, 'no track, no design — the house show still runs');
+});
+test('dmxBeamColors: a design narrows the wheel to the track palette, still uncollapsible', () => {
+  const chord = [{ r: 0.2, g: 0.3, b: 0.9 }];
+  const comp = S.dmxBeamColors(chord, { steps: [0, 3] });
+  assert.equal(comp.length, 2, 'a complement palette is two colours');
+  assert.deepEqual(comp[0], { r: 0, g: 0, b: 1 }, 'still anchored to the accent');
+  const lamp = comp.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v);
+  assert.equal(new Set(lamp).size, 2, 'and still distinct on the seven-state lamp');
+  const tri = S.dmxBeamColors(chord, { steps: [0, 2, 4] });
+  assert.equal(new Set(tri.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v)).size, 3);
+  assert.equal(S.dmxBeamColors(chord).length, 6, 'no design: the whole wheel, exactly as before');
+});
+test('dmxWashChase: unison breathes together, and the dip is the track’s own depth', () => {
+  const st = Object.assign(S.dmxBeamState(), { beats: 1, kick: 1 });
+  const pulse = S.DMX_PRESETS.pulse;
+  const uni = { symmetry: 'unison', depth: 0.6 };
+  assert.equal(S.dmxWashChase(st, pulse, 0, uni), S.dmxWashChase(st, pulse, 1, uni), 'unison: one wall');
+  const mir = { symmetry: 'mirror', depth: 0.7 };
+  const hi = S.dmxWashChase(st, pulse, 1, mir), lo = S.dmxWashChase(st, pulse, 0, mir);
+  assert.equal(hi, 1);
+  assert.ok(Math.abs(1 - lo - 0.7) < 1e-9, 'the off-wash dips by the designed depth, got ' + lo);
+});
+test('dmxShowIntents: the build is anticipation — the walls lean back while the dancer winds up', () => {
+  const rig = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w' },
+    { key: 'adj-mystic-led', role: 'beam', id: 'fl' },
+  ]);
+  const beam = Object.assign(S.dmxBeamState(), { move: 'whirl' });
+  const base = { chord: [{ r: 1, g: 0, b: 0 }], energy: 0.7, beat: 0.6, pulse: 0.6,
+    phrase: 0.9, preset: 'pulse', beam };
+  const flow = S.dmxShowIntents(Object.assign({}, base, { phase: 'flow' }), rig);
+  const build = S.dmxShowIntents(Object.assign({}, base, { phase: 'build' }), rig);
+  assert.ok(build.w.dim < flow.w.dim, 'the walls pull back through the build');
+  assert.ok(build.w.dim > 0, 'pull back, never out');
+  assert.ok(Math.abs(build.fl.spin) > Math.abs(flow.fl.spin), 'while the dancer winds up');
+  assert.ok(Math.abs(build.fl.spin) <= 1, 'and never past full');
+});
+test('dmxShowIntents: a counter design hands the bulbs the complement — surround contrast', () => {
+  const rig = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w' },
+    { key: 'philips-hue', net: 'b1', role: 'wash', id: 'h' },
+  ]);
+  const design = { huePolicy: 'counter', symmetry: 'mirror', depth: 0.5 };
+  const out = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 0.1, b: 0.1 }], energy: 0.6, beat: 0.4, phrase: 0.2, preset: 'follow', design }, rig);
+  assert.ok(out.h.b > 0.8 && out.h.r < 0.1, 'a red room gets cyan bulbs');
+  assert.ok(Math.abs(out.w.r - 1) < 1e-9, 'while the walls keep the chord');
+  // a white wash must not turn the bulbs OFF: the complement is lifted off the floor
+  const white = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 1, b: 1 }], energy: 0.6, beat: 0.4, phrase: 0.2, preset: 'follow', design }, rig);
+  assert.ok(Math.max(white.h.r, white.h.g, white.h.b) >= 0.3, 'never simply dark');
+  // and a follow policy leaves the bulbs on the chord, exactly as before
+  const follow = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 0.1, b: 0.1 }], energy: 0.6, beat: 0.4, phrase: 0.2, preset: 'follow',
+      design: { huePolicy: 'follow' } }, rig);
+  assert.ok(Math.abs(follow.h.r - 1) < 1e-9);
+});
+test('dmxBeamStep: the drop is an event — one hit on entry, decayed, never re-fired inside it', () => {
+  let st = S.dmxBeamState();
+  const at = (phase, dt) => S.dmxBeamStep(st,
+    { chord: [], energy: 0.8, beat: 0.2, phrase: 0.4, preset: 'peak', phase }, dt);
+  st = at('build', 0.025);
+  assert.equal(st.hit, 0, 'a build is tension, not the hit');
+  st = at('drop', 0.025);
+  assert.equal(st.hit, 1, 'entering the drop fires the hit');
+  st = at('drop', 0.2);
+  assert.ok(st.hit < 1 && st.hit > 0, 'and it decays instead of holding');
+  const mid = st.hit;
+  st = at('peak', 0.025);
+  assert.ok(st.hit <= mid, 'drop into peak is the same climax, not a second hit');
+  st = at('flow', 0.5);
+  st = at('drop', 0.025);
+  assert.equal(st.hit, 1, 'the next drop earns its own hit');
+});
+test('dmxWashChase: the rhythm section — trade on the off-beats, together on the ONE', () => {
+  const st = Object.assign(S.dmxBeamState(), { beats: 1, kick: 1 });
+  const pulse = S.DMX_PRESETS.pulse, calm = S.DMX_PRESETS.calm;
+  assert.equal(S.dmxWashChase(st, pulse, 1), 1, 'the on-beat wash carries it');
+  assert.ok(S.dmxWashChase(st, pulse, 0) < 0.6, 'its partner dips');
+  const bar = Object.assign(S.dmxBeamState(), { beats: 4, kick: 1 });
+  assert.equal(S.dmxWashChase(bar, pulse, 0), 1);
+  assert.equal(S.dmxWashChase(bar, pulse, 1), 1, 'the ONE lands on everybody');
+  assert.equal(S.dmxWashChase(st, calm, 0), 1, 'a talking room does not chase');
+  assert.equal(S.dmxWashChase(null, pulse, 0), 1, 'no clock, no chase');
+});
+test('dmxShowIntents: the show is called like a pro — trading washes, the ONE, the drop hit', () => {
+  const rig = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'wl' },
+    { key: 'adj-mystic-led', role: 'beam', id: 'fl' },
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'wr', at: 13 },
+  ]);
+  const chord = [{ r: 1, g: 0, b: 0 }, { r: 0, g: 1, b: 0 }, { r: 0, g: 0, b: 1 }];
+  const mkState = o => Object.assign(S.dmxBeamState(), o);
+  const show = { chord, energy: 0.8, beat: 0.9, pulse: 0.9, phrase: 0.3, preset: 'pulse' };
+  // off-beat: the washes trade — one carries the beat, the other dips
+  const off = S.dmxShowIntents(Object.assign({}, show, { beam: mkState({ beats: 1, kick: 1 }) }), rig);
+  assert.ok(Math.abs(off.wl.dim - off.wr.dim) > 0.15, 'ping-pong: ' + off.wl.dim + ' vs ' + off.wr.dim);
+  // the ONE: everybody hits together
+  const one = S.dmxShowIntents(Object.assign({}, show, { beam: mkState({ beats: 4, kick: 1 }) }), rig);
+  assert.ok(Math.abs(one.wl.dim - one.wr.dim) < 0.01, 'bar downbeat lands on both');
+  // the drop hit: washes slam white and full, the beam gets its capped accent
+  const drop = S.dmxShowIntents(
+    Object.assign({}, show, { preset: 'peak', beam: mkState({ hit: 1 }) }), rig);
+  assert.deepEqual([drop.wl.r, drop.wl.g, drop.wl.b], [1, 1, 1], 'white on the drop');
+  assert.equal(drop.wl.dim, 1, 'and at full');
+  assert.ok(drop.fl.strobe > 0.5, 'the beam bursts (the renderer still caps the rate)');
+  assert.equal(drop.fl.punch, 1, 'and takes the random band');
+  // a hand-pinned calm room is never slammed: the hit bows to the preset
+  const calm = S.dmxShowIntents(
+    Object.assign({}, show, { preset: 'calm', beam: mkState({ hit: 1 }) }), rig);
+  assert.ok(calm.wl.g < 0.5, 'calm stays on the chord, not slammed white');
+  assert.ok(calm.wl.dim < 1, 'and nothing forces its dimmer to full');
+});
+test('dmxShowIntents: with the choreographer riding along, the beam takes its pose', () => {
+  const rig = S.dmxPatch([
+    { key: 'adj-mystic-led', role: 'beam', id: 'fl' },
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w' },
+  ]);
+  /* THE REGRESSION THIS ENGINE EXISTS FOR: a bluish chord whose stops all
+     quantise to the same lamp colour, so the old chord-walk was invisible
+     on the fixture however faithfully it walked */
+  const chord = [{ r: 0.2, g: 0.25, b: 0.8 }, { r: 0.25, g: 0.2, b: 0.85 }, { r: 0.2, g: 0.3, b: 0.9 }];
+  const collapsed = chord.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v);
+  assert.equal(new Set(collapsed).size, 1, 'this chord defeats the walk: ' + collapsed.join(','));
+  const show = { chord, energy: 0.7, beat: 0.6, pulse: 0.6, phrase: 0.2, preset: 'pulse' };
+  const beamA = Object.assign(S.dmxBeamState(), { move: 'chase', beats: 0 });
+  const beamB = Object.assign(S.dmxBeamState(), { move: 'chase', beats: 1 });
+  const a = S.dmxShowIntents(Object.assign({}, show, { beam: beamA }), rig).fl;
+  const b = S.dmxShowIntents(Object.assign({}, show, { beam: beamB }), rig).fl;
+  const va = S.dmxNearestColor(S.MYSTIC_COLORS, a.r, a.g, a.b).v;
+  const vb = S.dmxNearestColor(S.MYSTIC_COLORS, b.r, b.g, b.b).v;
+  assert.notEqual(va, vb, 'beat to beat, the lamp visibly changes: ' + va + ' vs ' + vb);
+  // the wash is untouched by the choreographer — the wall is not a dancer
+  const w = S.dmxShowIntents(Object.assign({}, show, { beam: beamA }), rig).w;
+  assert.deepEqual([w.r, w.g, w.b], [chord[0].r, chord[0].g, chord[0].b]);
+  // and the old walk still answers when no state rides in
+  const bare = S.dmxShowIntents(show, rig).fl;
+  assert.ok([bare.r, bare.g, bare.b].some(v => v > 0));
+});
+test('dmxShowIntents: the moonflower dances — spin surges on the kick, colour walks the chord', () => {
+  const rig = S.dmxPatch([{ key: 'adj-mystic-led', role: 'beam', id: 'fl' }]);
+  const chord = [{ r: 1, g: 0, b: 0 }, { r: 0, g: 1, b: 0 }, { r: 0, g: 0, b: 1 }];
+  const base = { chord, energy: 0.6, phrase: 0.1, preset: 'follow' };
+  /* the motor is the one voice this fixture has for the beat — no dimmer to
+     pulse — so the same energy with a harder kick must mean faster beams */
+  const still = S.dmxShowIntents(Object.assign({}, base, { beat: 0, pulse: 0 }), rig);
+  const kick = S.dmxShowIntents(Object.assign({}, base, { beat: 1, pulse: 1 }), rig);
+  assert.ok(Math.abs(kick.fl.spin) > Math.abs(still.fl.spin), 'the beat reaches the beams');
+  assert.ok(Math.abs(kick.fl.spin) <= 1, 'and never past full');
+  /* the colour walks the chord at quarter-phrase boundaries, starting from
+     the accent stop — movement on the music's own seams, in colours the
+     picture is already made of */
+  const stops = [0, 0.3, 0.55].map(phrase =>
+    S.dmxShowIntents(Object.assign({}, base, { beat: 0.5, pulse: 0.5, phrase }), rig).fl);
+  assert.deepEqual([stops[0].r, stops[0].g, stops[0].b], [0, 0, 1], 'home is still the accent stop');
+  const keys = stops.map(s => [s.r, s.g, s.b].join(','));
+  assert.equal(new Set(keys).size, 3, 'three quarter-phrases, three colours: ' + keys.join(' | '));
+  // and a one-note chord cannot be walked off the end of
+  const solo = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 0, b: 0 }], energy: 0.5, phrase: 0.9, preset: 'follow' }, rig);
+  assert.deepEqual([solo.fl.r, solo.fl.g, solo.fl.b], [1, 0, 0]);
 });
 test('dmxShowIntents: brightness has a floor, because a rig that blinks out reads as broken', () => {
   const rig = S.dmxPatch([{ key: 'venue-thintri-38', mode: '8ch', id: 'w' }]);
@@ -3862,7 +4237,7 @@ test('DMX_FIXTURES vars: the labels name the channel they are actually on', () =
   const f = S.dmxRender(rig, { w: { r: 0, g: 0, b: 0, dim: 1, strobe: 1 } });
   const v = S.DMX_FIXTURES['venue-thintri-38'].vars;
   assert.equal(f[v.indexOf('dimmer')], 255, 'the channel labelled dimmer is the one carrying the dimmer');
-  assert.ok(f[v.indexOf('strobe')] > 200, 'and the one labelled strobe carries the strobe');
+  assert.ok(f[v.indexOf('strobe')] > 15, 'and the one labelled strobe carries the strobe (inside the cap’s slice of the band)');
   assert.equal(f[v.indexOf('macro')], 0, 'and the macro is the one held at zero');
 });
 

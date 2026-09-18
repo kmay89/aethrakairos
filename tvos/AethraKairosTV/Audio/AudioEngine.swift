@@ -172,9 +172,16 @@ final class DeckEngine {
 
     // MARK: - DSP
 
-    func setRate(deck i: Int, rate: Float) {
+    /// Tempo, and the choice that rides with it. Key lock ON (the default) is
+    /// the time-stretcher: the tempo bends, the pitch holds. Key lock OFF is
+    /// vinyl — the pitch rides the tempo, 1200·log2(rate) cents, exactly what
+    /// a turntable does at +3% (a third of a semitone sharp) and free of the
+    /// stretcher's artefacts over a small trim. A DJ's call, so it is a setting.
+    func setRate(deck i: Int, rate: Float, keyLock: Bool = true) {
         guard let d = deck(i) else { return }
-        d.timePitch.rate = max(0.03125, min(32, rate))
+        let r = max(0.03125, min(32, rate))
+        d.timePitch.rate = r
+        d.timePitch.pitch = keyLock ? 0 : 1200 * log2(r)
     }
 
     /// Loudness factor toward -14 LUFS. It sits UNDER every ramp: the curve
@@ -232,6 +239,7 @@ final class DeckEngine {
     func resetDeckDSP(deck i: Int) {
         guard let d = deck(i) else { return }
         d.timePitch.rate = 1
+        d.timePitch.pitch = 0
         rampQueue.async {
             d.shelfRamp.ramp(to: 0, over: 0.05, curve: .linear) { [weak d] val in
                 d?.eq.bands[0].gain = val
