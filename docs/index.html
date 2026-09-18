@@ -35508,7 +35508,9 @@ function buildArabesque(){
       p = vec2(p.x * wc - p.y * ws, p.x * ws + p.y * wc);
 
       vec2 w; float depth;
-      float flowT = uTime * uFlow * uMotion;
+      // the beat SURGES the traveller — a soft lunge down the tunnel on the
+      // hit, sprung rather than stepped, so the lattice breathes with the kick
+      float flowT = uTime * uFlow * uMotion + uBeatSpring * 0.22 * uMotion;
       if (uMode < 0.5){
         // TWO PLANES: a floor and a ceiling of stars meeting at the horizon —
         // 1/|y| is the whole perspective divide
@@ -35544,7 +35546,14 @@ function buildArabesque(){
       float R = 0.20 + 0.03 * pulse + uBass * 0.04 + uBeatSpring * 0.025;
 
       float star = smoothstep(R + aa, R - aa, d);
-      float core = smoothstep(R * 0.45 + aa, R * 0.45 - aa, d);
+      /* THE NESTED STAR — the girih vocabulary is stars within stars, so each
+         one carries a smaller twin turned 22.5°, which is the other member of
+         the octagram's own symmetry group. That quarter-turn is what makes the
+         inside read as drawn rather than merely shrunk. */
+      float ca8 = 0.92388, sa8 = 0.38268;
+      float dIn = star8(vec2(f.x * ca8 - f.y * sa8, f.x * sa8 + f.y * ca8));
+      float inner = smoothstep(R * 0.52 + aa, R * 0.52 - aa, dIn);
+      float core = smoothstep(R * 0.24 + aa, R * 0.24 - aa, d);
       /* the glow HUGS the star and the space between stays BLACK — the dark
          is what makes the lattice read as lit rather than as printed */
       float halo = exp(-max(d - R, 0.0) * 13.0);
@@ -35554,9 +35563,10 @@ function buildArabesque(){
       vec3 cWeb  = ramp(0.88 + uVarA * 0.2);
       vec3 col = cHalo * halo * (0.50 + uMid * 0.35) * (1.0 - star * 0.4);
       col += cWeb * web * 0.40;
-      col += cStar * star * (0.55 + 0.40 * pulse + uBeat * 0.35 * step(0.6, hz));
+      col += cStar * star * (0.45 + 0.35 * pulse + uBeat * 0.35 * step(0.6, hz));
+      col += cHalo * inner * star * (0.35 + 0.45 * (1.0 - pulse));  // the twin breathes in antiphase
       col += mix(cStar, vec3(1.0), 0.55) * core
-           * (0.40 + uTreble * 0.7 * step(0.86, hash21(cell + floor(uTime * 6.0))));
+           * (0.45 + uTreble * 0.7 * step(0.86, hash21(cell + floor(uTime * 6.0))));
       col *= fade;
       // the pale seam of infinity, where the two planes meet
       if (uMode < 0.5) col += cWeb * exp(-abs(p.y) * 22.0) * 0.5;
@@ -35649,6 +35659,8 @@ function buildMaelstrom(){
     uGloom:  { value: 0.7 },
     uFlash:  { value: 0 },
     uFoamK:  { value: 0.55 },
+    uRain:   { value: 0.5 },     // how much of the air is water
+    uRain0:  { value: 1 },       // …and how fast it falls (reduced motion slows it)
     uSeaT:   { value: new THREE.Vector2(0, 0) },
     uAspect: { value: 1 },
     uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
@@ -35661,7 +35673,7 @@ function buildMaelstrom(){
   `;
   const frag = GLSL_MPHI + `
     uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
-    uniform float uAmp, uChoppy, uSpeedZ, uGloom, uFlash, uFoamK, uAspect, uVarA;
+    uniform float uAmp, uChoppy, uSpeedZ, uGloom, uFlash, uFoamK, uAspect, uVarA, uRain, uRain0;
     uniform vec2 uSeaT;
     uniform vec4 uHand;
     varying vec2 vUv;
@@ -35711,6 +35723,10 @@ function buildMaelstrom(){
       vec3 rd = normalize(vec3(p.x, p.y * 0.75 + pitch, 1.35));
       float cr = cos(roll), sr = sin(roll);
       rd.xy = vec2(rd.x * cr - rd.y * sr, rd.x * sr + rd.y * cr);
+      // the course wanders — a helm held loosely through weather, never a rail
+      float yaw = sin(t * 0.045) * 0.30 * uGloom;
+      float cy = cos(yaw), sy = sin(yaw);
+      rd.xz = vec2(rd.x * cy - rd.z * sy, rd.x * sy + rd.z * cy);
 
       vec3 col;
       float hx = 1.0;
@@ -35767,6 +35783,19 @@ function buildMaelstrom(){
         // aerial perspective into the storm's own gloom
         col = mix(water, skyCol(rd), 1.0 - exp(-dist * 0.045));
       }
+      /* RAIN — the storm's texture in the air, drawn in screen space where
+         rain actually lives (nobody has ever seen a raindrop in world space).
+         Slanted columns sheared by the wind, one hash per column; the flash
+         catches every drop at once, which is the single most storm-like pixel
+         this room owns. */
+      vec2 rp = vec2(p.x + p.y * (0.35 + uGloom * 0.45), p.y);
+      vec2 rq = vec2(rp.x * 42.0, rp.y * 2.4);
+      float rc = floor(rq.x);
+      float rh = hash21(vec2(rc, 5.0));
+      float ry = fract(rq.y * (0.7 + rh * 0.6) + uTime * (2.2 + rh * 2.0) * uRain0 + rh * 9.0);
+      float rain = smoothstep(0.30, 0.02, abs(fract(rq.x) - 0.5))
+                 * smoothstep(0.30, 0.0, ry) * step(0.35, rh) * uRain;
+      col += vec3(0.55, 0.62, 0.70) * rain * 0.20 * (1.0 + uFlash * 2.2);
       // THE HAND IS WIND ON WATER — rings of disturbance spreading from it
       float hr2 = length(p - uHand.xy);
       col += ramp(0.5 + uVarA * 0.1) * uHand.z * exp(-hr2 * 3.0)
@@ -35822,6 +35851,9 @@ function buildMaelstrom(){
       }
       st.flash *= Math.exp(-dt * 5);
       varU.uFlash.value = st.flash;
+      // the rain rides the weather: the gloom sets how much, the energy how hard
+      varU.uRain.value = st.sea.gloom * (0.45 + (f.energy || 0) * 0.7);
+      varU.uRain0.value = mot;
       const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
       const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
       const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
@@ -35874,7 +35906,8 @@ function buildMaelstrom(){
 function buildVoltage(){
   const group = new THREE.Group();
   const varU = {
-    uVarA: { value: Math.random() },
+    uVarA: { value: Math.random() },      // the ROOM's seed — clouds, ridge; stable across strikes
+    uSeed:  { value: Math.random() },     // the CHANNEL's seed — re-dealt per strike
     uMode:   { value: 0 },
     uStrike: { value: 0 },
     uIdle:   { value: 0.05 },
@@ -35883,6 +35916,12 @@ function buildVoltage(){
     uClimb:  { value: 0 },
     uFlashV: { value: 0 },
     uBoltA:  { value: new THREE.Vector4(0, 1.05, 0.1, -0.9) },
+    // THE AFTERIMAGE: the previous channel, frozen — its endpoints, its seed,
+    // and the flicker-clock reading it died on, so it cools without jittering
+    uBoltB:  { value: new THREE.Vector4(0, 1.05, 0.1, -0.9) },
+    uSeedB:  { value: 0 },
+    uJoltB:  { value: 0 },
+    uAfter:  { value: 0 },
     uAspect: { value: 1 },
     uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
     uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
@@ -35895,7 +35934,8 @@ function buildVoltage(){
   const frag = GLSL_MPHI + `
     uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
     uniform float uMode, uStrike, uIdle, uJolt, uWiggle, uClimb, uFlashV, uAspect, uVarA;
-    uniform vec4 uBoltA, uHand;
+    uniform float uSeed, uSeedB, uJoltB, uAfter;
+    uniform vec4 uBoltA, uBoltB, uHand;
     varying vec2 vUv;
     float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
     float vnoise(vec2 p){
@@ -35908,21 +35948,23 @@ function buildVoltage(){
       return vnoise(p) * 0.62 + vnoise(p * 2.13) * 0.38;
     }
     /* one point of the channel: wander pinned at both electrodes, coarse
-       jerks under fine crackle, both re-seeded by the flicker clock */
-    vec2 boltPoint(vec2 a, vec2 b, float s, float seed){
+       jerks under fine crackle, both re-seeded by the flicker clock. The
+       clock rides in as a parameter so the AFTERIMAGE can hold the reading
+       its channel died on — a cooling bolt does not jitter. */
+    vec2 boltPoint(vec2 a, vec2 b, float s, float seed, float jolt){
       vec2 ab = b - a;
       float L = max(length(ab), 1e-4);
       vec2 dir = ab / L, nrm = vec2(-dir.y, dir.x);
       float env = s * (1.0 - s) * 2.0 + 0.04;
-      float off = (fbm2(vec2(s * 5.0 + seed * 37.0, uJolt)) - 0.5) * 1.05
-                + (vnoise(vec2(s * 21.0 + seed * 91.0, uJolt * 1.7)) - 0.5) * 0.28;
+      float off = (fbm2(vec2(s * 5.0 + seed * 37.0, jolt)) - 0.5) * 1.05
+                + (vnoise(vec2(s * 21.0 + seed * 91.0, jolt * 1.7)) - 0.5) * 0.28;
       return a + dir * (s * L) + nrm * off * env * uWiggle * L;
     }
-    float boltDist(vec2 p, vec2 a, vec2 b, float seed){
+    float boltDist(vec2 p, vec2 a, vec2 b, float seed, float jolt){
       float d = 1e3;
-      vec2 q0 = boltPoint(a, b, 0.0, seed);
+      vec2 q0 = boltPoint(a, b, 0.0, seed, jolt);
       for (int i = 1; i <= 10; i++){
-        vec2 q1 = boltPoint(a, b, float(i) / 10.0, seed);
+        vec2 q1 = boltPoint(a, b, float(i) / 10.0, seed, jolt);
         vec2 e = q1 - q0, w = p - q0;
         float h = clamp(dot(w, e) / max(dot(e, e), 1e-6), 0.0, 1.0);
         d = min(d, length(w - e * h));
@@ -35948,14 +35990,27 @@ function buildVoltage(){
         // CLOUD TO GROUND — and a hand raised into the field is the better path
         vec2 a = uBoltA.xy, b = uBoltA.zw;
         if (uHand.z > 0.05) b = mix(b, uHand.xy, clamp(uHand.z * 1.4, 0.0, 1.0));
-        col += boltGlow(boltDist(p, a, b, uVarA), amp, tint);
+        col += boltGlow(boltDist(p, a, b, uSeed, uJolt), amp, tint);
         // two branches leave the trunk and die in the air, as branches do
-        vec2 j1 = boltPoint(a, b, 0.35, uVarA);
-        vec2 j2 = boltPoint(a, b, 0.62, uVarA);
-        col += boltGlow(boltDist(p, j1, j1 + vec2( 0.45, -0.50) * (0.4 + hash21(vec2(uJolt, 1.0)) * 0.5), uVarA + 3.0), amp * 0.40, tint);
-        col += boltGlow(boltDist(p, j2, j2 + vec2(-0.50, -0.42) * (0.35 + hash21(vec2(uJolt, 2.0)) * 0.5), uVarA + 7.0), amp * 0.34, tint);
+        vec2 j1 = boltPoint(a, b, 0.35, uSeed, uJolt);
+        vec2 j2 = boltPoint(a, b, 0.62, uSeed, uJolt);
+        col += boltGlow(boltDist(p, j1, j1 + vec2( 0.45, -0.50) * (0.4 + hash21(vec2(uJolt, 1.0)) * 0.5), uSeed + 3.0, uJolt), amp * 0.40, tint);
+        col += boltGlow(boltDist(p, j2, j2 + vec2(-0.50, -0.42) * (0.35 + hash21(vec2(uJolt, 2.0)) * 0.5), uSeed + 7.0, uJolt), amp * 0.34, tint);
+        /* THE AFTERIMAGE — a photograph of lightning is always a double
+           exposure: the previous channel cools where it stood, reddening the
+           way a cooling plasma actually does, on its own frozen geometry */
+        if (uAfter > 0.02)
+          col += boltGlow(boltDist(p, uBoltB.xy, uBoltB.zw, uSeedB, uJoltB),
+                          uAfter * 0.45, tint * vec3(1.0, 0.72, 0.62));
         // the ground answers where it lands
         col += tint * exp(-length(p - b) * 3.0) * uStrike * 0.8;
+        /* AND THERE IS A GROUND — a ridge in silhouette, because a strike
+           with no horizon has no scale. Rim-lit by the living channel and
+           faintly by the cooling one. */
+        float ridge = -0.62 + (fbm2(vec2(p.x * 0.9 + uVarA * 19.0, 3.7)) - 0.5) * 0.35;
+        float ground = smoothstep(ridge + 0.015, ridge - 0.015, p.y);
+        col = mix(col, vec3(0.004, 0.005, 0.010), ground * 0.92);
+        col += tint * exp(-abs(p.y - ridge) * 26.0) * (uStrike * 0.5 + uAfter * 0.15 + 0.03);
       } else if (uMode < 1.5){
         // PLASMA GLOBE — the same polyline, radial; a finger on the glass
         // captures the nearest streamer, exactly as the toy does
@@ -35964,13 +36019,15 @@ function buildVoltage(){
         col += ramp(0.84 + uVarA * 0.1) * exp(-length(p) * 2.4) * 0.35;
         for (int k = 0; k < 3; k++){
           float fk = float(k);
-          float ang = uVarA * 6.2831 + fk * 2.094 + sin(uTime * (0.23 + fk * 0.11) + fk) * 1.3;
+          float ang = uSeed * 6.2831 + fk * 2.094 + sin(uTime * (0.23 + fk * 0.11) + fk) * 1.3;
           vec2 b2 = vec2(cos(ang), sin(ang)) * rg;
           if (uHand.z > 0.05 && k == 0)
             b2 = (uHand.xy + vec2(1e-4)) * min(1.0, rg / max(length(uHand.xy), 1e-3));
-          col += boltGlow(boltDist(p, vec2(0.0), b2, uVarA + fk * 11.0),
+          col += boltGlow(boltDist(p, vec2(0.0), b2, uSeed + fk * 11.0, uJolt),
                           (0.30 + uStrike * 0.8) * (0.6 + 0.4 * sin(uTime * 3.0 + fk * 2.0)), tint);
         }
+        // the light the toy throws on the shelf it stands on
+        col += tint * exp(-length(vec2(p.x * 1.6, p.y + 1.04)) * 5.0) * 0.10;
       } else {
         // JACOB'S LADDER — the arc climbs the widening gap because hot air
         // rises, and re-strikes at the bottom when it gets too long to hold
@@ -35982,7 +36039,7 @@ function buildVoltage(){
         col += vec3(0.50, 0.55, 0.62) * exp(-dRail * 55.0) * rails * 0.45;
         vec2 a = vec2(-spread, y0), b = vec2(spread, y0);
         if (uHand.z > 0.05) b = mix(b, uHand.xy, clamp(uHand.z, 0.0, 0.8));
-        col += boltGlow(boltDist(p, a, b, uVarA + floor(uClimb) * 5.0),
+        col += boltGlow(boltDist(p, a, b, uSeed + floor(uClimb) * 5.0, uJolt),
                         0.35 + uStrike * 0.9 + climb * 0.25, tint);
         col += tint * exp(-length(p - a) * 14.0) * 0.5 + tint * exp(-length(p - b) * 14.0) * 0.5;
       }
@@ -36028,15 +36085,23 @@ function buildVoltage(){
         const gate = reducedMotion ? (f.beat > 0.7 && st.t - st.lastStrike > 1.2)
                                    : (f.beat > 0.4 && st.t - st.lastStrike > 0.25);
         if (gate){
+          // the channel that just lived becomes the AFTERIMAGE — its geometry,
+          // its seed, and the flicker reading it died on, all frozen together
+          varU.uBoltB.value.copy(varU.uBoltA.value);
+          varU.uSeedB.value = varU.uSeed.value;
+          varU.uJoltB.value = varU.uJolt.value;
+          st.after = Math.min(0.8, 0.30 + st.strike * 0.6);
           st.strike = Math.min(1, 0.5 + f.beat * 0.6);
           st.lastStrike = st.t;
           const ax = (Math.random() - 0.5) * 1.4;
           varU.uBoltA.value.set(ax, 1.05, ax * 0.3 + (Math.random() - 0.5) * 0.8, -0.9);
-          varU.uVarA.value = Math.random();
+          varU.uSeed.value = Math.random();     // a fresh path; the room's own seed holds
         }
       }
       st.strike *= Math.exp(-dt * 6.5);
+      st.after = (st.after || 0) * Math.exp(-dt * 2.1);   // the ember cools on a slower clock
       varU.uStrike.value = st.strike;
+      varU.uAfter.value = st.after || 0;
       varU.uFlashV.value = st.strike * (reducedMotion ? 0.3 : 0.8);
       // between strikes the channel idles at corona level, fed by the energy
       varU.uIdle.value = 0.06 + (f.energy || 0) * (varU.uMode.value === 1 ? 0.18 : 0.12);
@@ -36052,6 +36117,8 @@ function buildVoltage(){
       varU.uMode.value = M.m;
       varU.uWiggle.value = 0.5 + Math.random() * 0.5;
       varU.uVarA.value = Math.random();
+      varU.uSeed.value = Math.random();
+      varU.uAfter.value = 0; st.after = 0;      // a new room has no memory of old strikes
       api.name = 'VOLTAGE · ' + M.name;
       return api.name;
     },
@@ -36093,6 +36160,10 @@ function buildSilicon(){
     uScaleT: { value: 7.0 },
     uClock:  { value: 0 },
     uThink:  { value: 4.0 },
+    // THE EXPRESS — one whole net carrying a burst end to end: x = the row
+    // (in cell coordinates), y = where the packet is (in board coordinates),
+    // w = how much of it is left. Launched by the strong onsets.
+    uExpress: { value: new THREE.Vector4(0, -1e3, 0, 0) },
     uAspect: { value: 1 },
     uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
     uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
@@ -36105,7 +36176,7 @@ function buildSilicon(){
   const frag = GLSL_MPHI + `
     uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uBeatSpring, uEntropy, uOpacity;
     uniform float uMode, uScaleT, uClock, uThink, uAspect, uVarA, uVarB;
-    uniform vec4 uHand;
+    uniform vec4 uHand, uExpress;
     varying vec2 vUv;
     float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
     void main(){
@@ -36139,11 +36210,17 @@ function buildSilicon(){
       float pulse = exp(-ph * 8.0);
 
       vec3 sub = ramp(0.34 + uVarA * 0.30) * 0.045;
+      // the solder mask is never one green: each cell cured a little its own way
+      sub *= 0.80 + 0.40 * hash21(cell * 1.7 + floor(uVarB * 11.0));
       vec3 copper = ramp(0.34 + uVarA * 0.30) * 0.16 + vec3(0.02);
       vec3 sig = ramp(0.64 + uVarA * 0.30);
       vec3 col = sub;
       col = mix(col, copper * (0.8 + uEnergy * 0.4), trace);
       col += sig * trace * pulse * (0.45 + uBeat * 0.8);
+      // THE EXPRESS: a hard onset launches one packet down one whole net,
+      // board edge to board edge — the burst you can follow with your eye
+      col += sig * trace * (1.0 - min(1.0, abs(cell.y - uExpress.x)))
+           * exp(-abs(g.x - uExpress.y) * 0.9) * uExpress.w * 1.5;
       col += vec3(0.92, 0.78, 0.42) * via * (0.28 + uMid * 0.25);
 
       /* THE PACKAGE, and the die inside it thinking. On the DIE SHOT the
@@ -36189,6 +36266,7 @@ function buildSilicon(){
     { m: 1, name: 'BACKPLANE',   scale: [6.5, 10.0] },
     { m: 2, name: 'DIE SHOT',    scale: [3.0, 4.5] },
   ];
+  const st = { lastOnset: 0, exV: 0 };
   const api = {
     name: 'SILICON', key: 'circuit', group,
     update(dt){
@@ -36200,6 +36278,21 @@ function buildSilicon(){
       const mot = reducedMotion ? 0.35 : 1;
       varU.uClock.value += dt * (0.10 + (f.energy || 0) * 0.20 + (f.beat || 0) * 0.35) * mot;
       varU.uThink.value = (reducedMotion ? 1.5 : 3.0) + (f.treble || 0) * 6.0;
+      // the express packet: launched by a hard onset, run to the far edge
+      const ex = varU.uExpress.value;
+      ex.y += (st.exV || 0) * dt * mot;
+      ex.w *= Math.exp(-dt * 1.1);
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > (reducedMotion ? 0.75 : 0.5) && ex.w < 0.25){
+          const halfW = s.aspect * varU.uScaleT.value + 2;
+          const dir = Math.random() < 0.5 ? 1 : -1;
+          ex.x = Math.floor(varU.uVarB.value * 23) + Math.floor(Math.random() * 13) - 6;
+          ex.y = Math.floor(varU.uVarB.value * 37) - dir * halfW;
+          ex.w = 0.7 + f.beat * 0.3;
+          st.exV = dir * (10 + (f.energy || 0) * 14);
+        }
+      }
       const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
       const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
       const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
