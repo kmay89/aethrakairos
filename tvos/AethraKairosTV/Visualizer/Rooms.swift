@@ -44,7 +44,8 @@ struct Room: Identifiable, Equatable {
 enum Rooms {
     /// Build order is the index space the director and renderer share.
     /// The first six are wave 1; the next eight are wave 2 (Shaders2/Shaders3);
-    /// the last eight are wave 3 (Shaders4/Shaders5). Every fragment function is
+    /// then eight wave 3 (Shaders4/Shaders5); the last four are wave 4
+    /// (Shaders6) — the roster closes at twenty-six. Every fragment function is
     /// trusted to exist at link time — one target, one default library, so a
     /// room registered here whose function is missing simply parks the renderer
     /// in the void (configure() bails), never a half-built roster.
@@ -104,6 +105,20 @@ enum Rooms {
              tasteEnergy: 0.8, tasteCalm: 0, tasteBeat: 0.8, tasteTreble: 0),
         Room(key: "slinky", name: "SLINKY", fragmentFunction: "room_slinky",
              tasteEnergy: -0.6, tasteCalm: 1.4, tasteBeat: 0, tasteTreble: 0),
+
+        // ---- wave 4 ----
+        // The last four, closing the house at twenty-six. Taste is the four
+        // canonical appetites only (WAVE4.md §A pins the vectors); the fragment
+        // bodies live in Shaders6.metal (arcade/sky/barkley/verse). VERSE also
+        // reads the 256x64 text-mask texture the renderer binds at texture(2).
+        Room(key: "arcade", name: "ARCADE", fragmentFunction: "room_arcade",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.6, tasteTreble: 0.8),
+        Room(key: "sky", name: "CONSTELLATIONS", fragmentFunction: "room_sky",
+             tasteEnergy: -0.7, tasteCalm: 1.5, tasteBeat: 0, tasteTreble: 0),
+        Room(key: "barkley", name: "EXCITABLE", fragmentFunction: "room_barkley",
+             tasteEnergy: 0.7, tasteCalm: 0, tasteBeat: 0.6, tasteTreble: 0),
+        Room(key: "verse", name: "VERSE", fragmentFunction: "room_verse",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0, tasteTreble: 0.6),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
