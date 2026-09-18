@@ -57,6 +57,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' dmxRenderFixture, dmxRender, dmxRenderNet, dmxDecode, DMX_USB_PRO, dmxUsbProPacket, dmxUsbProFrame,' +
   ' DMX_PRESETS, DMX_PRESET_ORDER, dmxAutoPreset, dmxChordStop, dmxShowIntents, dmxSegueTint,' +
   ' DMX_BEAM_MOVES, dmxBeamState, dmxBeamColors, dmxBeamStep, dmxBeamPose, dmxWashChase,' +
+  ' dmxTrackHash, dmxTrackDesign,' +
   ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
   ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
@@ -3932,6 +3933,82 @@ test('dmxBeamPose: every move answers with a real colour, a bounded spin, and ta
   const calmA = mk('chase', 0, { preset: 'calm', phrase: 0.05 });
   const calmB = mk('chase', 0, { preset: 'calm', phrase: 0.30 });
   assert.notDeepEqual([calmA.r, calmA.g, calmA.b], [calmB.r, calmB.g, calmB.b], 'quarter-phrase steps in calm');
+});
+test('dmxTrackDesign: every track wears its own show, and the same track always the same one', () => {
+  const a = S.dmxTrackDesign({ id: 'mobius-walking', key: '8A', bpm: 124 });
+  assert.deepEqual(S.dmxTrackDesign({ id: 'mobius-walking', key: '8A', bpm: 124 }), a,
+    'deterministic, the way a timecoded show is repeatable');
+  const b = S.dmxTrackDesign({ id: 'breathing', key: '9B', bpm: 128 });
+  assert.notDeepEqual(a, b, 'a different track designs a different show');
+  for (const d of [a, b]){
+    assert.ok(['analogous', 'complement', 'triad'].indexOf(d.scheme) >= 0);
+    assert.ok(d.steps.length >= 2 && d.steps.every(i => i >= 0 && i <= 5), 'a real palette of ring steps');
+    assert.deepEqual(d.moves.slice().sort(), S.DMX_BEAM_MOVES.slice().sort(),
+      'the set list is a permutation — nothing invented, nothing lost');
+    assert.ok(d.depth >= 0.4 && d.depth <= 0.7, 'the dip stays in the band that reads as rhythm');
+    assert.ok(['mirror', 'unison'].indexOf(d.symmetry) >= 0);
+    assert.ok(['counter', 'follow'].indexOf(d.huePolicy) >= 0);
+  }
+  // a slow minor track never wears the bright triad: mood is load-bearing
+  for (let i = 0; i < 24; i++)
+    assert.notEqual(S.dmxTrackDesign({ id: 'x' + i, key: '5A', bpm: 100 }).scheme, 'triad', 'seed ' + i);
+  assert.equal(S.dmxTrackDesign(null), null, 'no track, no design — the house show still runs');
+});
+test('dmxBeamColors: a design narrows the wheel to the track palette, still uncollapsible', () => {
+  const chord = [{ r: 0.2, g: 0.3, b: 0.9 }];
+  const comp = S.dmxBeamColors(chord, { steps: [0, 3] });
+  assert.equal(comp.length, 2, 'a complement palette is two colours');
+  assert.deepEqual(comp[0], { r: 0, g: 0, b: 1 }, 'still anchored to the accent');
+  const lamp = comp.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v);
+  assert.equal(new Set(lamp).size, 2, 'and still distinct on the seven-state lamp');
+  const tri = S.dmxBeamColors(chord, { steps: [0, 2, 4] });
+  assert.equal(new Set(tri.map(c => S.dmxNearestColor(S.MYSTIC_COLORS, c.r, c.g, c.b).v)).size, 3);
+  assert.equal(S.dmxBeamColors(chord).length, 6, 'no design: the whole wheel, exactly as before');
+});
+test('dmxWashChase: unison breathes together, and the dip is the track’s own depth', () => {
+  const st = Object.assign(S.dmxBeamState(), { beats: 1, kick: 1 });
+  const pulse = S.DMX_PRESETS.pulse;
+  const uni = { symmetry: 'unison', depth: 0.6 };
+  assert.equal(S.dmxWashChase(st, pulse, 0, uni), S.dmxWashChase(st, pulse, 1, uni), 'unison: one wall');
+  const mir = { symmetry: 'mirror', depth: 0.7 };
+  const hi = S.dmxWashChase(st, pulse, 1, mir), lo = S.dmxWashChase(st, pulse, 0, mir);
+  assert.equal(hi, 1);
+  assert.ok(Math.abs(1 - lo - 0.7) < 1e-9, 'the off-wash dips by the designed depth, got ' + lo);
+});
+test('dmxShowIntents: the build is anticipation — the walls lean back while the dancer winds up', () => {
+  const rig = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w' },
+    { key: 'adj-mystic-led', role: 'beam', id: 'fl' },
+  ]);
+  const beam = Object.assign(S.dmxBeamState(), { move: 'whirl' });
+  const base = { chord: [{ r: 1, g: 0, b: 0 }], energy: 0.7, beat: 0.6, pulse: 0.6,
+    phrase: 0.9, preset: 'pulse', beam };
+  const flow = S.dmxShowIntents(Object.assign({}, base, { phase: 'flow' }), rig);
+  const build = S.dmxShowIntents(Object.assign({}, base, { phase: 'build' }), rig);
+  assert.ok(build.w.dim < flow.w.dim, 'the walls pull back through the build');
+  assert.ok(build.w.dim > 0, 'pull back, never out');
+  assert.ok(Math.abs(build.fl.spin) > Math.abs(flow.fl.spin), 'while the dancer winds up');
+  assert.ok(Math.abs(build.fl.spin) <= 1, 'and never past full');
+});
+test('dmxShowIntents: a counter design hands the bulbs the complement — surround contrast', () => {
+  const rig = S.dmxPatch([
+    { key: 'venue-thintri-38', mode: '8ch', role: 'wash', id: 'w' },
+    { key: 'philips-hue', net: 'b1', role: 'wash', id: 'h' },
+  ]);
+  const design = { huePolicy: 'counter', symmetry: 'mirror', depth: 0.5 };
+  const out = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 0.1, b: 0.1 }], energy: 0.6, beat: 0.4, phrase: 0.2, preset: 'follow', design }, rig);
+  assert.ok(out.h.b > 0.8 && out.h.r < 0.1, 'a red room gets cyan bulbs');
+  assert.ok(Math.abs(out.w.r - 1) < 1e-9, 'while the walls keep the chord');
+  // a white wash must not turn the bulbs OFF: the complement is lifted off the floor
+  const white = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 1, b: 1 }], energy: 0.6, beat: 0.4, phrase: 0.2, preset: 'follow', design }, rig);
+  assert.ok(Math.max(white.h.r, white.h.g, white.h.b) >= 0.3, 'never simply dark');
+  // and a follow policy leaves the bulbs on the chord, exactly as before
+  const follow = S.dmxShowIntents(
+    { chord: [{ r: 1, g: 0.1, b: 0.1 }], energy: 0.6, beat: 0.4, phrase: 0.2, preset: 'follow',
+      design: { huePolicy: 'follow' } }, rig);
+  assert.ok(Math.abs(follow.h.r - 1) < 1e-9);
 });
 test('dmxBeamStep: the drop is an event — one hit on entry, decayed, never re-fired inside it', () => {
   let st = S.dmxBeamState();

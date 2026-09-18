@@ -7261,6 +7261,65 @@ function dmxChordStop(chord, role, i){
    charts are. */
 const DMX_BEAM_MOVES = ['chase', 'whirl', 'stab', 'bloom'];
 
+/* ================================================================
+   THE TRACK'S OWN SHOW — design, not reaction
+
+   The shows people fly to — a festival main stage, the Sphere — are not
+   reacting to the music; they were DESIGNED to it, one programmed show per
+   song, each with its own limited palette and its own motion character,
+   repeatable to the frame. This player cannot pre-program what it has not
+   heard, but it holds something those consoles do not: every track's own
+   analysis — its key, its tempo, its identity — measured by the same
+   pipeline that draws its cover. So the design is DERIVED, deterministically:
+   hash the track, seed the choices, and the same track wears the same show
+   every night while no two tracks wear the same one. A designed show that
+   composes itself.
+
+   The choices are the ones a lighting designer actually makes per song:
+     · a PALETTE — three to five colours, not the whole wheel. Colour
+       theory keyed to the music: minor keys wear ANALOGOUS palettes
+       (adjacent hues — cohesive, moody) with the COMPLEMENT for tension;
+       major keys carry TRIADS and complements — brighter, more contrast.
+       The seed picks within that taste, so two tracks in one key differ.
+     · a SYMMETRY — whether the washes trade the beat (mirror) or breathe
+       together (unison), and how deep the off-wash dips: the track's own,
+       inside the band that still reads as rhythm.
+     · a SET LIST — the order the dancer's moves are dealt in, shuffled
+       once per track, so each song's phrases unfold in their own order.
+     · a BULB POLICY — whether networked bulbs follow the wash or take its
+       complement (simultaneous contrast: the oldest trick for making a
+       stage colour pop is to surround it with its opposite). */
+function dmxTrackHash(s){
+  let h = 2166136261;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function dmxTrackDesign(track){
+  if (!track) return null;
+  const key = String(track.key || ''), bpm = Number(track.bpm) || 0;
+  const seed = dmxTrackHash(String(track.id || '') + '|' + key + '|' + Math.round(bpm));
+  const rnd = mulberry32(seed);
+  const cam = camelotParse(key);
+  const minor = cam ? cam.l === 'A' : rnd() < 0.5;
+  const fast = bpm >= 126;
+  const schemes = minor ? (fast ? ['complement', 'analogous', 'triad'] : ['analogous', 'complement'])
+                        : (fast ? ['triad', 'complement'] : ['analogous', 'triad']);
+  const scheme = schemes[Math.floor(rnd() * schemes.length) % schemes.length];
+  // ring-step offsets from the anchor; every subset stays distinct on a
+  // seven-state lamp, so the palette narrows without ever collapsing
+  const steps = scheme === 'complement' ? [0, 3] : scheme === 'triad' ? [0, 2, 4] : [5, 0, 1];
+  const symmetry = rnd() < (fast ? 0.72 : 0.45) ? 'mirror' : 'unison';
+  const depth = 0.4 + rnd() * 0.3;
+  const moves = DMX_BEAM_MOVES.slice();
+  for (let i = moves.length - 1; i > 0; i--){
+    const j = Math.floor(rnd() * (i + 1));
+    const t = moves[i]; moves[i] = moves[j]; moves[j] = t;
+  }
+  const huePolicy = rnd() < 0.5 ? 'counter' : 'follow';
+  return { seed, scheme, steps, symmetry, depth, moves, huePolicy };
+}
+
 function dmxBeamState(){
   return { beats: 0, phraseN: 0, prevBeat: 0, prevPhrase: 0, prevPhase: 'flow', kick: 0, hit: 0, move: 'chase' };
 }
@@ -7268,7 +7327,7 @@ function dmxBeamState(){
 /* the six saturated hue-wheel stops, rotated so the ring begins at the one
    nearest the chord's accent — compared by direction, exactly the way the
    Mystic's own nearest-colour pick works, so anchor and lamp agree. */
-function dmxBeamColors(chord){
+function dmxBeamColors(chord, design){
   const RING = [
     { r: 1, g: 0, b: 0 }, { r: 1, g: 1, b: 0 }, { r: 0, g: 1, b: 0 },
     { r: 0, g: 1, b: 1 }, { r: 0, g: 0, b: 1 }, { r: 1, g: 0, b: 1 },
@@ -7284,6 +7343,11 @@ function dmxBeamColors(chord){
   }
   const out = [];
   for (let i = 0; i < RING.length; i++) out.push(RING[(best + i) % RING.length]);
+  /* a track's design narrows the wheel to ITS palette — the designer's
+     three-to-five colours, not everything the lamp can be — still anchored
+     to the accent, still distinct after quantisation by construction */
+  if (design && Array.isArray(design.steps) && design.steps.length)
+    return design.steps.map(i => out[((i % out.length) + out.length) % out.length]);
   return out;
 }
 
@@ -7303,8 +7367,10 @@ function dmxBeamStep(st, show, dt){
   if (beat > 0.6 && s.prevBeat <= 0.35){ beats++; kick = 1; }
   if (phrase < s.prevPhrase - 0.5){
     phraseN++;
-    const able = preset.rainbow > 0 ? DMX_BEAM_MOVES
-      : DMX_BEAM_MOVES.filter(m => m !== 'bloom');
+    // the track's own set list, where a design rides in; the house order otherwise
+    const order = (sh.design && Array.isArray(sh.design.moves) && sh.design.moves.length)
+      ? sh.design.moves : DMX_BEAM_MOVES;
+    const able = preset.rainbow > 0 ? order : order.filter(m => m !== 'bloom');
     move = able[phraseN % able.length];
     if (move === s.move) move = able[(phraseN + 1) % able.length];
   }
@@ -7329,11 +7395,18 @@ function dmxBeamStep(st, show, dt){
    dancer. A preset that barely follows the beat (a talking room) never
    chases, and no clock means no chase: this multiplies a dimmer, so its
    idle answer is exactly 1. */
-function dmxWashChase(st, preset, n){
+function dmxWashChase(st, preset, n, design){
   if (!st || !preset || preset.beat < 0.5) return 1;
   if (((st.beats % 4) + 4) % 4 === 0) return 1;      // the ONE: everybody
-  if ((st.beats % 2) === ((n || 0) % 2)) return 1;   // this wash carries the beat
-  return 1 - 0.55 * Math.max(0, Math.min(1, st.kick || 0));
+  /* the track's design decides the SYMMETRY: mirror trades the beat
+     between the washes; unison has them breathe as one wall. And the dip
+     is the track's own depth, inside the band that still reads as rhythm. */
+  const mine = (design && design.symmetry === 'unison')
+    ? (st.beats % 2) === 0
+    : (st.beats % 2) === ((n || 0) % 2);
+  if (mine) return 1;
+  const depth = design && Number.isFinite(design.depth) ? design.depth : 0.55;
+  return 1 - depth * Math.max(0, Math.min(1, st.kick || 0));
 }
 
 /* the pose: one move, one moment, one honest answer for colour, spin and
@@ -7348,7 +7421,7 @@ function dmxBeamPose(st, show){
   const u = v => Math.max(0, Math.min(1, Number(v) || 0));
   const energy = u(sh.energy), phrase = u(sh.phrase);
   const preset = DMX_PRESETS[sh.preset] || DMX_PRESETS[dmxAutoPreset(sh)] || DMX_PRESETS.follow;
-  const ring = dmxBeamColors(sh.chord);
+  const ring = dmxBeamColors(sh.chord, sh.design);
   const q = s.phraseN * 4 + Math.floor(phrase * 4);
   const base = preset.beat >= 0.3 ? s.beats : q;
   const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
@@ -7359,8 +7432,9 @@ function dmxBeamPose(st, show){
     color = ring[q % ring.length];
     spin = dir * amp * (0.8 + 0.2 * energy);
   } else if (s.move === 'stab'){
-    // opposite sides of the wheel on every beat, and a lunge that decays
-    color = ring[(base * 2) % ring.length];
+    // opposite sides of the wheel on every beat, and a lunge that decays;
+    // a two-colour palette IS opposite sides, so it steps plainly there
+    color = ring[(base * (ring.length > 2 ? 2 : 1)) % ring.length];
     spin = dir * amp * (0.15 + 0.85 * s.kick);
   } else if (s.move === 'bloom'){
     /* the fixture's own rainbow engine. The renderer's interlock only
@@ -7375,9 +7449,14 @@ function dmxBeamPose(st, show){
     color = ring[base % ring.length];
     spin = dir * amp * (0.35 + 0.45 * energy + 0.2 * s.kick);
   }
+  /* ANTICIPATION. A build that arrives at the drop at cruising speed wasted
+     the build: through it, the motor winds UP while the walls (see the
+     matching pull-back in dmxShowIntents) lean DOWN — the room coiling, so
+     the hit lands as release rather than as one more loud bar. */
+  const tension = (String(sh.phase) === 'build' || String(sh.phase) === 'lift') ? phrase : 0;
   return {
     r: color.r, g: color.g, b: color.b,
-    spin: Math.max(-1, Math.min(1, spin)),
+    spin: Math.max(-1, Math.min(1, spin * (1 + 0.5 * tension))),
     rainbow: u(rainbow),
   };
 }
@@ -7461,8 +7540,12 @@ function dmxShowIntents(show, patched){
     /* the beam is the accent, so it is allowed to be the thing that goes dark
        between phrases where a wash may not — that contrast is the effect */
     if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
-    // the washes trade the beat between them and land together on the ONE
-    if (role === 'wash') dim = u(dim * dmxWashChase(s.beam, preset, wi));
+    /* the washes trade the beat between them and land together on the ONE —
+       and through a build they PULL BACK as the phrase climbs (the beam
+       winds up in dmxBeamPose): anticipation, so the drop lands as release */
+    const tension = (String(s.phase) === 'build' || String(s.phase) === 'lift') ? phrase : 0;
+    if (role === 'wash')
+      dim = u(dim * dmxWashChase(s.beam, preset, wi, s.design) * (1 - 0.3 * tension * preset.beat));
     const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
     /* SPIN follows the phrase and reverses with it, because a moonflower that
        only ever turns one way stops being noticed after ninety seconds — and
@@ -7480,6 +7563,17 @@ function dmxShowIntents(show, patched){
     let cr = u(pose ? pose.r : (c && c.r));
     let cg = u(pose ? pose.g : (c && c.g));
     let cb = u(pose ? pose.b : (c && c.b));
+    /* COLOUR THEORY'S SURROUND. A track whose design says 'counter' hands
+       its networked bulbs the COMPLEMENT of the wash — simultaneous
+       contrast, the oldest trick for making a stage colour pop is to
+       surround it with its opposite — lifted off the floor, because a
+       bulb whose complement came out black would read as simply broken. */
+    if (f.wire === 'net' && s.design && s.design.huePolicy === 'counter' && !pose){
+      cr = u(1 - cr); cg = u(1 - cg); cb = u(1 - cb);
+      const top = Math.max(cr, cg, cb);
+      if (top <= 0.001){ cr = 0.35; cg = 0.35; cb = 0.35; }
+      else if (top < 0.35){ const lift = 0.35 / top; cr = u(cr * lift); cg = u(cg * lift); cb = u(cb * lift); }
+    }
     let str = strobe;
     let punch = u(beat * energy);
     /* THE DROP HIT — the one look every stage show shares: the crossing into
@@ -18242,7 +18336,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'bd9eae0630';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '6640ecae7b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -39934,6 +40028,18 @@ const RIG = {
       // a running lit segue rides out to the lamps on the director's own clock
       segue: (typeof XFORM !== 'undefined' && XFORM.on && typeof director !== 'undefined')
            ? { kind: XFORM.kind, t: director.transT } : null,
+      /* the track's identity — its id, its key, its tempo, measured by the
+         same pipeline that draws its cover — so the rig can wear the show
+         DESIGNED for this track rather than a generic reaction */
+      track: (() => {
+        try {
+          const tr = (typeof player !== 'undefined' && player.cur >= 0) ? player.tracks[player.cur] : null;
+          if (!tr) return null;
+          const m = (tr.mix && typeof tr.mix === 'object') ? tr.mix
+                  : (typeof mixOf === 'function' ? mixOf(tr) : null);
+          return { id: String(tr.id != null ? tr.id : ''), key: (m && m.key) || '', bpm: (m && m.bpm) || 0 };
+        } catch (e){ return null; }
+      })(),
     };
   },
   /* one turn of the whole chain — show → intents → 512 bytes → what each lamp
@@ -39947,6 +40053,7 @@ const RIG = {
     const gap = Math.min(0.25, Math.max(0, (now - this._acc) / 1000));
     this._acc = now;
     const show = this.show();
+    show.design = dmxTrackDesign(show.track);   // the show this track wears
     this.beamState = dmxBeamStep(this.beamState, show, gap);
     show.beam = this.beamState;
     const intents = dmxShowIntents(show, this.patched);
