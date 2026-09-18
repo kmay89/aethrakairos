@@ -92,6 +92,19 @@ jobs:
         run: |
           SIGN=""
           [ -n "$KEY" ] && SIGN=" --config src-tauri/tauri.updater.json"
+          # WHETHER APPLE SIGNING RUNS AT ALL. Dependabot's pull_request runs
+          # get NO repository secrets, by GitHub policy — so with the signing
+          # variable on, every dependency bump died at the certificate check
+          # without ever compiling the code the bump changed (#208 is the
+          # scar). On those runs signing stands down and the PR gets the
+          # unsigned compile check — which is all a validation build ever
+          # proves anyway. Dispatch, tag and nightly runs keep the hard gate.
+          APPLE_SIGN="${{ vars.ENABLE_MACOS_SIGNING }}"
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            APPLE_SIGN="false"
+            echo "dependabot PR: no secrets are delivered, Apple signing stands down for this run"
+          fi
+          echo "sign=$APPLE_SIGN" >> "$GITHUB_OUTPUT"
           if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
             # stable via a pushed desktop-vX.Y.Z tag
             echo "mode=stable" >> "$GITHUB_OUTPUT"
@@ -146,7 +159,7 @@ jobs:
       - name: Verify the macOS signing certificate before spending a build on it
         # Fail in seconds with the reason, rather than eight minutes into a
         # bundle with tauri's terse mismatch error.
-        if: vars.ENABLE_MACOS_SIGNING == 'true'
+        if: steps.plan.outputs.sign == 'true'
         env:
           CERT_B64: ${{ secrets.APPLE_DESKTOP_CERTIFICATE }}
           CERT_PW: ${{ secrets.APPLE_DESKTOP_CERTIFICATE_PASSWORD }}
@@ -259,7 +272,7 @@ jobs:
       # NOTARIZATION NEEDS MORE THAN A CERTIFICATE, and a half-finished setup is
       # the dangerous state: it ships an UNSIGNED app under a green checkmark.
       - name: Check the notarization credentials
-        if: vars.ENABLE_MACOS_SIGNING == 'true'
+        if: steps.plan.outputs.sign == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -276,7 +289,7 @@ jobs:
           echo "Notarization credentials present."
 
       - name: Build (and release for stable / dev) — unsigned
-        if: vars.ENABLE_MACOS_SIGNING != 'true'
+        if: steps.plan.outputs.sign != 'true'
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -293,7 +306,7 @@ jobs:
           prerelease: ${{ steps.plan.outputs.prerelease }}
 
       - name: Build (and release for stable / dev) — signed + notarized
-        if: vars.ENABLE_MACOS_SIGNING == 'true'
+        if: steps.plan.outputs.sign == 'true'
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -337,7 +350,7 @@ jobs:
       # portal — without it Gatekeeper has to phone home, and a venue's wifi is
       # the worst possible place to discover that.
       - name: Notarize and staple the .dmg itself
-        if: vars.ENABLE_MACOS_SIGNING == 'true'
+        if: steps.plan.outputs.sign == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -360,7 +373,7 @@ jobs:
       # checked nothing, which is the precise failure this step exists to catch,
       # committed by the step itself.
       - name: Verify the .dmg really is signed and notarized
-        if: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
+        if: ${{ steps.plan.outputs.sign == 'true' }}
         run: |
           set -euo pipefail
           DMG=$(ls desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)

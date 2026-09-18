@@ -43,9 +43,12 @@ struct NowPlayingHUD: View {
             .overlay { waveformLayer }
             .overlay(alignment: .bottomLeading) {
                 card.opacity(visible ? 1 : 0)
+                    // Don't let VoiceOver announce a card that has dissolved.
+                    .accessibilityHidden(!visible)
             }
             .overlay(alignment: .topTrailing) {
                 whisper.opacity(whisperShown ? 1 : 0)
+                    .accessibilityHidden(!whisperShown)
             }
             .animation(.easeInOut(duration: 0.64), value: visible)
             .animation(.easeInOut(duration: 0.64), value: deepWhisper)
@@ -139,6 +142,10 @@ struct NowPlayingHUD: View {
                     Image(systemName: library.isHearted(track.id) ? "heart.fill" : "heart")
                         .font(.system(size: 22, weight: .medium))
                         .foregroundStyle(library.isHearted(track.id) ? Color.akBeat : Color.akDim)
+                        // VoiceOver: the heart is status here (the toggle is a
+                        // remote long-press), so it reads as a labelled value.
+                        .accessibilityLabel(Text("Favorite"))
+                        .accessibilityValue(Text(library.isHearted(track.id) ? "Loved" : "Not loved"))
                 }
                 Text(track.albumTitle)
                     .font(.footnote)
@@ -165,6 +172,10 @@ struct NowPlayingHUD: View {
                 .frame(width: max(3, 132 * CGFloat(fraction)), height: 3)
         }
         .padding(.top, 6)
+        // The two capsules are one idea to VoiceOver: how far into the track.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Progress"))
+        .accessibilityValue(Text("\(Int((fraction * 100).rounded())) percent"))
     }
 
     // MARK: - the whisper
@@ -177,6 +188,18 @@ struct NowPlayingHUD: View {
             .lineLimit(1)
             .padding(.top, 24)
             .padding(.trailing, 40)
+            // In deep zen this is the only thing left on screen; give VoiceOver
+            // a natural sentence rather than the dot-joined glyph.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(whisperA11yLabel))
+    }
+
+    /// The whisper spoken in full: "Now playing in ROOM: Title".
+    private var whisperA11yLabel: String {
+        let title = player.current?.title ?? ""
+        if !roomName.isEmpty, !title.isEmpty { return "Now playing in \(roomName): \(title)" }
+        if !roomName.isEmpty { return "Room \(roomName)" }
+        return title
     }
 
     private var whisperShown: Bool {
