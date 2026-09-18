@@ -52,7 +52,7 @@ complete, no-guessing runbook.
   scheduled against each track's analyzed grid (`mix.in`/`mix.out`), track
   `gain` applied so the night stays level.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds twenty-six Metal rooms; beat phase comes from the analyzed grid (the
+  feeds thirty Metal rooms; beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
 
@@ -66,7 +66,8 @@ complete, no-guessing runbook.
   | **AUREA** — golden-angle phyllotaxis | **FILIGREE** — escape-time Mandelbrot, orbit-trap gold lace | **ROSETTE** — a chromatic spirograph |
   | **PARLOR** — the illusion machine, lying harder as it builds | **DISPERSION** — real CIE-spectral diffraction | **CREATURE** — a cosine organism whose genome is the track |
   | **SLINKY** — stacked chalk rings, the room that rests the palette | **ARCADE** — a television inside the screen, games played by the spectrum | **CONSTELLATIONS** — a real star sky, the lines drawn on the beat |
-  | **EXCITABLE** — spiral & target waves of an excitable medium | **VERSE** — dots that assemble the song's own words, then scatter | |
+  | **EXCITABLE** — spiral & target waves of an excitable medium | **VERSE** — dots that assemble the song's own words, then scatter | **ARABESQUE** — the girih star lattice, pulled through a horizon |
+  | **MAELSTROM** — a ray-marched storm sea, Stokes crests and honest foam | **VOLTAGE** — dielectric breakdown at glow width, struck by every onset | **SILICON** — a Truchet circuit board thinking on the music's clock |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's
