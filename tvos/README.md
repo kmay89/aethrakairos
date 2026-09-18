@@ -52,7 +52,7 @@ complete, no-guessing runbook.
   scheduled against each track's analyzed grid (`mix.in`/`mix.out`), track
   `gain` applied so the night stays level.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds thirty Metal rooms; beat phase comes from the analyzed grid (the
+  feeds forty-two Metal rooms; beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
 
@@ -68,6 +68,10 @@ complete, no-guessing runbook.
   | **SLINKY** — stacked chalk rings, the room that rests the palette | **ARCADE** — a television inside the screen, games played by the spectrum | **CONSTELLATIONS** — a real star sky, the lines drawn on the beat |
   | **EXCITABLE** — spiral & target waves of an excitable medium | **VERSE** — dots that assemble the song's own words, then scatter | **ARABESQUE** — the girih star lattice, pulled through a horizon |
   | **MAELSTROM** — a ray-marched storm sea, Stokes crests and honest foam | **VOLTAGE** — dielectric breakdown at glow width, struck by every onset | **SILICON** — a Truchet circuit board thinking on the music's clock |
+  | **FEIGENBAUM** — the bifurcation diagram, iterated per pixel, the music on the fader | **CHLADNI** — sand on a ringing plate, the spectrum picking the mode | **AUTOMATON** — Rule 90's rain as live binomial parity, stepping on the song |
+  | **EVENT HORIZON** — photon geodesics: the shadow, the ring, the beamed disk | **FERROFLUID** — the Rosensweig crown leaping on the kick, glossy black | **GALTON** — beads through pins, the bell curve earned by the count |
+  | **PENDULA** — three double pendulums integrated live, fraying apart | **ATTRACTOR** — Lorenz and Rössler as neon ribbons with flowing pulses | **FIREFLIES** — Kuramoto synchrony locking the meadow to the beat |
+  | **THREE BODY** — the figure-eight choreography, shaken by the onsets | **DENDRITE** — frost grown over the song's own five acts | **MURMURATION** — a flock as living density, shimmer as turn, a falcon on the drop |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's

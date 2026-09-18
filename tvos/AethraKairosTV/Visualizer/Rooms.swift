@@ -45,7 +45,8 @@ enum Rooms {
     /// Build order is the index space the director and renderer share.
     /// The first six are wave 1; the next eight are wave 2 (Shaders2/Shaders3);
     /// then eight wave 3 (Shaders4/Shaders5); four wave 4 (Shaders6); and the
-    /// last four are wave 5 (Shaders7) — the house stands at thirty. Every
+    /// next four wave 5 (Shaders7); the last twelve are wave 6, the chaos
+    /// wing (Shaders8/Shaders9) — the house stands at forty-two. Every
     /// fragment function is trusted to exist at link time — one target, one
     /// default library, so a room registered here whose function is missing
     /// simply parks the renderer in the void (configure() bails), never a
@@ -137,6 +138,41 @@ enum Rooms {
              tasteEnergy: 0.8, tasteCalm: -0.6, tasteBeat: 1.5, tasteTreble: 0.9),
         Room(key: "circuit", name: "SILICON", fragmentFunction: "room_circuit",
              tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.2, tasteTreble: 0.6),
+
+        // ---- wave 6: the chaos wing ----
+        // The web player's scenes 42–53, retold in Metal (Shaders8/Shaders9)
+        // under the ARCADE's closed-form licence. Tastes mirror the web
+        // roster's appetites; the two ray-marchers and the two live
+        // integrators carry the heavy flag the raymarchers before them do.
+        Room(key: "bifurc", name: "FEIGENBAUM", fragmentFunction: "room_bifurc",
+             tasteEnergy: 0.9, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0, tasteEntropy: 0.9),
+        Room(key: "cymatic", name: "CHLADNI", fragmentFunction: "room_cymatic",
+             tasteEnergy: 0, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0, tasteMid: 1.2),
+        Room(key: "rule", name: "AUTOMATON", fragmentFunction: "room_rule",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.3, tasteTreble: 0.7, tasteEntropy: 0.5),
+        Room(key: "hole", name: "EVENT HORIZON", fragmentFunction: "room_hole",
+             tasteEnergy: 0.5, tasteCalm: 0.8, tasteBeat: -0.3, tasteTreble: 0,
+             tasteBass: 1.2, heavy: true),
+        Room(key: "ferro", name: "FERROFLUID", fragmentFunction: "room_ferro",
+             tasteEnergy: 0, tasteCalm: -0.3, tasteBeat: 1.0, tasteTreble: 0,
+             tasteBass: 1.6, heavy: true),
+        Room(key: "plinko", name: "GALTON", fragmentFunction: "room_plinko",
+             tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 1.5, tasteTreble: 0.6),
+        Room(key: "pendula", name: "PENDULA", fragmentFunction: "room_pendula",
+             tasteEnergy: 0.7, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: 1.0, heavy: true),
+        Room(key: "lorenz", name: "ATTRACTOR", fragmentFunction: "room_lorenz",
+             tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: 1.1, heavy: true),
+        Room(key: "sync", name: "FIREFLIES", fragmentFunction: "room_sync",
+             tasteEnergy: 0, tasteCalm: 0.4, tasteBeat: 1.3, tasteTreble: 0, calm: true),
+        Room(key: "nbody", name: "THREE BODY", fragmentFunction: "room_nbody",
+             tasteEnergy: 0, tasteCalm: 1.1, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.6, calm: true),
+        Room(key: "dla", name: "DENDRITE", fragmentFunction: "room_dla",
+             tasteEnergy: 0, tasteCalm: 1.2, tasteBeat: -0.4, tasteTreble: 0.8, calm: true),
+        Room(key: "boids", name: "MURMURATION", fragmentFunction: "room_boids",
+             tasteEnergy: 0.7, tasteCalm: 0.9, tasteBeat: 0, tasteTreble: 0.5),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
