@@ -3296,6 +3296,31 @@ body.clipping::after{
     Truchet circuit board whose signal fronts propagate out of the package by Manhattan distance on the
     music's own clock, while the die inside thinks: gates flipping against a threshold the treble and the
     entropy set. A hand on the board is a probe to ground.</p>
+    <h3>The chaos wing</h3>
+    <p class="lede">Scenes 42–53 are a wing of real mathematics, each run live rather than replayed.
+    <b>FEIGENBAUM</b> iterates the logistic map at every pixel column — the doubling cascade, the ratio
+    4.669…, the period-3 window — and the music holds the playhead: quiet lives in the stable branches,
+    the drop lands in the chaotic sea (a hand takes the fader). <b>CHLADNI</b> is the sand-on-a-plate
+    experiment with the track as the bow: the live spectrum picks the eigenmode, every onset strikes the
+    plate, and a finger forces a node the figure rearranges around. The <b>AUTOMATON</b> steps an
+    elementary cellular automaton (Rule 30 / 110 / 90) on the song's own sixteenths; onsets seed it, and
+    on Rule 90 each seed grows a Sierpinski triangle that XORs into the others. The <b>EVENT HORIZON</b>
+    marches every pixel's light ray through the photon-geodesic bending — the shadow, the photon ring,
+    the disk drawn twice, Doppler beaming making one side burn — and a hand is a star coming apart into
+    a tidal stream. <b>FERROFLUID</b> ray-marches the Rosensweig instability: hexagonal spikes that leap
+    on the kick, glossy black with an oily fresnel; your hand is the magnet. <b>GALTON</b> really drops
+    beads through pins and lets the bell curve be EARNED by the sample count (tilt the board and the law
+    follows). <b>PENDULA</b> runs ninety-six double pendulums a ten-millionth of a radian apart — one
+    white arm fraying into a rainbow fan is e^{λt} live; your hand takes the pivot. The
+    <b>ATTRACTOR</b> pours nine thousand travellers through Lorenz, Rössler, Thomas, Aizawa or
+    Halvorsen, coloured by their own speed. <b>FIREFLIES</b> runs the true Kuramoto model with natural
+    frequencies centred on the track's tempo — as the song coheres, the meadow locks and flashes on the
+    beat (capped politely under CALM). <b>THREE BODY</b> opens on the figure-eight choreography and lets
+    the onsets kill it, the way Poincaré said they must; SLINGSHOT and PROTODISK trade the miracle for a
+    comet whip and a gap-carving shepherd. <b>DENDRITE</b> grows real diffusion-limited aggregation —
+    frost, coral, roots — coloured by its own growth rings, walkers visible as snow, and it grows toward
+    your finger. <b>MURMURATION</b> flies eight hundred honest boids whose shimmer is their turn rate;
+    every hard onset sends a falcon through, and the falcon can be you.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3904,7 +3929,9 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows',
                'grows', 'gathers',
                'gathers', 'flows',
-               'grows', 'flows', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
+               'grows', 'flows', 'gathers', 'blackhole',
+               'grows', 'flows', 'gathers', 'blackhole', 'gathers', 'flows',
+               'flows', 'gathers', 'gathers', 'blackhole', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -3915,7 +3942,14 @@ function touchAffinity(sceneIdx, act, r, mood){
                            // a hand in the WEAVE winds the whole tiling, a hand on the
                            // MAELSTROM is wind on water, a hand near the VOLTAGE is an
                            // ELECTRODE the arc reaches for, and a hand on the SILICON
-                           // is a short to ground — the current sinks into it
+                           // is a short to ground — the current sinks into it;
+                           // FEIGENBAUM's fader spins the field, CHLADNI's plate ripples,
+                           // the AUTOMATON's stylus gathers bits, the EVENT HORIZON is
+                           // the void itself, the FERROFLUID's magnet pulls, GALTON tilts
+                           // like water, PENDULA's pivot swings, the ATTRACTOR and the
+                           // FIREFLIES and the DENDRITE all draw toward a hand, the
+                           // THREE BODY hand is a mass (a well), and to the MURMURATION
+                           // a hand is the falcon — pure repulsion
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -4172,7 +4206,9 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa',
                'paint', 'drift',
                'bounce', 'lissa',
-               'lissa', 'drift', 'bounce', 'snake'];   // …SHEETS walks the lattice, MANDALA curves,
+               'lissa', 'drift', 'bounce', 'snake',
+               'drift', 'paint', 'paint', 'lissa', 'paint', 'bounce',
+               'lissa', 'drift', 'drift', 'lissa', 'paint', 'snake'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -4182,7 +4218,13 @@ function ghostPattern(sceneIdx, act, r, mood){
                            // on the SCOPE it draws the LISSAJOUS the tube is drawing;
                            // through the WEAVE it curves, over the MAELSTROM it drifts
                            // like spray, under the VOLTAGE it bounces — strike points,
-                           // not strokes — and on the SILICON it walks the traces
+                           // not strokes — and on the SILICON it walks the traces;
+                           // it drifts along FEIGENBAUM's road, paints on CHLADNI's
+                           // plate and the AUTOMATON's tape and the DENDRITE's glass,
+                           // orbits the EVENT HORIZON and the THREE BODY in curves,
+                           // paints the FERROFLUID's field, bounces beads on GALTON,
+                           // swings PENDULA in curves, drifts with the ATTRACTOR and
+                           // the FIREFLIES, and snakes among the MURMURATION
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -5367,7 +5409,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
                     'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade', 'scope',
-                    'weave', 'ocean', 'bolt', 'circuit'];
+                    'weave', 'ocean', 'bolt', 'circuit',
+                    'bifurc', 'cymatic', 'rule', 'hole', 'ferro', 'plinko', 'pendula', 'lorenz', 'sync', 'nbody', 'dla', 'boids'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5446,6 +5489,30 @@ const SCENE_TASTE = {
   circuit:   { beat: 1.2, coupling: 0.9, treble: 0.6, entropy: -0.3 },  // a clocked machine wants a PULSE and
                                                             // order — signals propagate on the beat, and
                                                             // the gates flicker on the detail up top
+  bifurc:    { energy: 0.9, entropy: 0.9, coupling: 0.5 },  // the road to chaos wants material that TRAVELS
+                                                            // it — builds that walk from order into noise
+  cymatic:   { mid: 1.2, coupling: 1.0, calm: 0.6, entropy: -0.5 },  // a plate rings MODES — tonal, coherent
+                                                            // material draws clean figures; noise is mud
+  rule:      { beat: 1.3, treble: 0.7, entropy: 0.5 },      // the machine steps on sixteenths — it wants a
+                                                            // clock to compute on, and detail to seed it
+  hole:      { bass: 1.2, calm: 0.8, energy: 0.5, beat: -0.3 },  // a hundred solar masses are PATIENT — the
+                                                            // disk wants low, held, heavy material
+  ferro:     { bass: 1.6, beat: 1.0, calm: -0.3 },          // the field IS the bass — this is the kick
+                                                            // drum's own room, and stillness starves it
+  plinko:    { beat: 1.5, treble: 0.6, energy: 0.6 },       // every onset pours beads — the theorem needs
+                                                            // a pulse to sample from
+  pendula:   { entropy: 1.0, energy: 0.7, calm: 0.4 },      // chaos fed by chaos — and a patient stretch
+                                                            // to watch the fan fray in
+  lorenz:    { entropy: 1.1, coupling: 0.7, energy: 0.6 },  // the butterfly lives on turbulent material
+                                                            // that still holds a shape
+  sync:      { beat: 1.3, coupling: 1.2, calm: 0.4 },       // synchrony needs a beat worth locking to —
+                                                            // the whole room is a metronome finding itself
+  nbody:     { calm: 1.1, coupling: 0.8, bass: 0.6, entropy: -0.4 },  // an orbit is a held chord; the
+                                                            // choreography wants a quiet sky to unravel in
+  dla:       { calm: 1.2, treble: 0.8, beat: -0.4, entropy: 0.4 },  // frost grows SLOWLY, and its tips
+                                                            // light on the detail up top
+  boids:     { calm: 0.9, entropy: 0.8, energy: 0.7, treble: 0.5 },  // a flock is airflow made visible —
+                                                            // flowing material, with gusts to answer
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6598,6 +6665,18 @@ const SCENE_SIGS = {
   ocean:     { kind: 'wave',   h: 205, arms: 4, dense: 1 },
   bolt:      { kind: 'burst',  h: 262, arms: 3, tail: 1 },
   circuit:   { kind: 'grid',   h: 130, dense: 0.8 },
+  bifurc:    { kind: 'wave',   h: 20,  arms: 2, twist: 1 },
+  cymatic:   { kind: 'grid',   h: 46,  dense: 0.7 },
+  rule:      { kind: 'grid',   h: 152, dense: 1 },
+  hole:      { kind: 'ring',   h: 28,  arms: 1, tail: 1 },
+  ferro:     { kind: 'blob',   h: 282, dense: 1 },
+  plinko:    { kind: 'grid',   h: 52,  dense: 0.6 },
+  pendula:   { kind: 'ribbon', h: 330, arms: 4, rainbow: 1 },
+  lorenz:    { kind: 'ribbon', h: 200, arms: 2, rainbow: 1 },
+  sync:      { kind: 'cloud',  h: 96,  dense: 0.5 },
+  nbody:     { kind: 'ring',   h: 56,  arms: 3, tail: 1 },
+  dla:       { kind: 'burst',  h: 190, arms: 6, dense: 0.8 },
+  boids:     { kind: 'cloud',  h: 232, dense: 0.7 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -36406,6 +36485,2352 @@ function buildSilicon(){
   return api;
 }
 
+/* =========================================================
+   SCENE 42 · FEIGENBAUM — the road to chaos, with the music driving
+
+   The logistic map x' = r·x·(1−x) is the simplest equation that
+   knows everything about chaos: sweep r and one steady state splits
+   into two, two into four, four into eight, the gaps between splits
+   shrinking by the SAME ratio every time — 4.6692…, Feigenbaum's
+   constant, and it is the same number for every map with a smooth
+   hump, which is why one diagram gets to speak for a whole class of
+   nature. Past r∞ ≈ 3.5700 lies the chaotic sea, veined with white
+   islands of order (the period-3 window at r ≈ 3.83 that proved
+   "period three implies chaos").
+
+   The diagram is not a texture — every pixel column ITERATES the
+   map at its own r, warm-up first, then samples, and lights up by
+   how often the orbit visits its y. The music holds the PLAYHEAD:
+   a quiet passage idles in the stable branches, the build walks
+   through the doubling cascade, and the drop lands in the sea. The
+   faint vertical ticks are the real bifurcation points; watching
+   their spacing shrink IS watching 4.669 happen. A hand on the
+   diagram takes the playhead — you play the route to chaos like a
+   fader.
+   ========================================================= */
+function buildFeigenbaum(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() },
+    uMode:   { value: 0 },                 // 0 logistic · 1 sine (universality) · 2 deep zoom
+    uWin:    { value: new THREE.Vector4(2.8, 4.0, 0.0, 1.0) },   // r-min, r-max, y-min, y-max
+    uPlay:   { value: 0.3 },               // playhead, 0..1 across the window
+    uPulse:  { value: 0 },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uMode, uPlay, uPulse, uAspect, uVarA;
+    uniform vec4 uWin, uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float mapStep(float x, float r){
+      // the two humps of universality: the parabola, and the sine that
+      // period-doubles at DIFFERENT r's but the SAME 4.669
+      if (uMode < 0.5 || uMode > 1.5) return r * x * (1.0 - x);
+      return r * 0.25 * PI * sin(PI * x) * 0.5;   // scaled so r shares the window
+    }
+    void main(){
+      float r = mix(uWin.x, uWin.y, vUv.x);
+      float y = mix(uWin.z, uWin.w, vUv.y);
+      float span = max(uWin.w - uWin.z, 1e-4);
+      // ITERATE. Warm-up burns off the transient; the samples light the pixel
+      // by proximity of the orbit — sharp in the branches, a veil in the sea.
+      float x = 0.51;
+      for (int i = 0; i < 60; i++) x = mapStep(x, r);
+      float w = 0.0, k = 900.0 / span;
+      for (int i = 0; i < 64; i++){
+        x = mapStep(x, r);
+        float d = (x - y) * k;
+        w += exp(-d * d);
+      }
+      w = 1.0 - exp(-w * 0.55);
+      vec3 cBranch = ramp(0.60 + uVarA * 0.25);
+      vec3 cSea    = ramp(0.28 + uVarA * 0.25);
+      vec3 col = mix(cSea, cBranch, w) * w * (0.75 + uEnergy * 0.35);
+      /* THE RULER — the real bifurcation points of the logistic map, and the
+         whole reason to draw them: each gap is the last one over 4.669… */
+      if (uMode < 0.5 || uMode > 1.5){
+        float ticks[5]; ticks[0] = 3.0; ticks[1] = 3.44949; ticks[2] = 3.54409; ticks[3] = 3.56441; ticks[4] = 3.56995;
+        float tk = 0.0;
+        for (int i = 0; i < 5; i++) tk = max(tk, exp(-abs(r - ticks[i]) / (uWin.y - uWin.x) * 700.0));
+        col += cBranch * tk * 0.14;
+      }
+      /* THE PLAYHEAD — where the music is standing on the road. The column
+         glows, and the orbit the song is living on right now is drawn LARGE:
+         the actual points, breathing with the beat. */
+      float dp = abs(vUv.x - uPlay);
+      col += cBranch * exp(-dp * 90.0) * (0.10 + uPulse * 0.20);
+      if (dp < 0.012){
+        float rp = mix(uWin.x, uWin.y, uPlay);
+        float xo = 0.51;
+        for (int i = 0; i < 60; i++) xo = mapStep(xo, rp);
+        float wo = 0.0;
+        for (int i = 0; i < 24; i++){
+          xo = mapStep(xo, rp);
+          float d2 = (xo - y) / span * 120.0;
+          wo += exp(-d2 * d2);
+        }
+        col += mix(cBranch, vec3(1.0), 0.5) * min(wo, 1.4)
+             * exp(-dp * 300.0) * (0.7 + uPulse * 0.8 + uTreble * 0.4);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.01;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { m: 0, name: 'LOGISTIC',    win: [2.80, 4.00] },
+    { m: 1, name: 'SINE MAP',    win: [2.60, 4.00] },
+    { m: 2, name: 'DEEP CASCADE', win: [3.43, 3.60] },   // the ratio, seen up close
+  ];
+  const st = { play: 0.3, t: 0, mode: MODES[0] };
+  const api = {
+    name: 'FEIGENBAUM', key: 'bifurc', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the music walks the road: quiet lives in the branches, loud in the sea
+      let target = 0.12 + Math.min(1, (f.energy || 0) * 1.15 + (f.entropy || 0) * 0.25) * 0.83;
+      // …and a hand takes the fader outright
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1){
+        const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+        target = Math.min(0.99, Math.max(0.01, ux));
+      }
+      st.play += (target - st.play) * Math.min(1, dt * (reducedMotion ? 0.5 : 1.6));
+      varU.uPlay.value = st.play;
+      varU.uPulse.value = Math.max(varU.uPulse.value * Math.exp(-dt * 5), (f.beat || 0));
+      // the deep cascade breathes — a slow zoom toward the accumulation point
+      if (st.mode.m === 2){
+        const zz = 0.5 + 0.5 * Math.sin(st.t * 0.045);
+        const lo = 3.43 + zz * 0.089, hi = 3.60 - zz * 0.028;
+        varU.uWin.value.set(lo, hi, 0.28, 0.92);
+      }
+    },
+    roll(){
+      const M = MODES[Math.floor(Math.random() * MODES.length)];
+      st.mode = M;
+      varU.uMode.value = M.m;
+      varU.uWin.value.set(M.win[0], M.win[1], M.m === 2 ? 0.28 : 0.0, M.m === 2 ? 0.92 : 1.0);
+      varU.uVarA.value = Math.random();
+      api.name = 'FEIGENBAUM · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 43 · CHLADNI — the sound, made of sand
+
+   Bow a metal plate and sand walks off the moving regions and
+   settles where the plate stands still — the NODAL LINES of the
+   standing wave. Chladni drew them in 1787; every pattern is a
+   picture of one frequency's shape on one plate. This room is the
+   experiment with the track as the bow: the LIVE SPECTRUM picks the
+   mode (a low note rings a low mode, a high note a filigree one),
+   the plate crossfades between eigenfunctions as the music moves,
+   and every onset STRIKES the plate — the sand leaps, hangs, and
+   settles into the new figure.
+
+   The square plate uses the classic free-plate combination
+   cos(mπx)cos(nπy) − cos(nπx)cos(mπy), which is where the diagonals
+   come from; the round plate rings polar modes cos(nθ)·radial. And
+   a finger on the plate is a finger on a REAL Chladni plate: it
+   forces a node, and the whole figure rearranges around your touch.
+   ========================================================= */
+function buildChladni(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() },
+    uModeA:  { value: new THREE.Vector4(3, 5, 1, 0) },   // m, n, weight, spare
+    uModeB:  { value: new THREE.Vector4(4, 7, 1, 0) },
+    uMix:    { value: 0 },
+    uShake:  { value: 0 },
+    uRound:  { value: 0 },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uMix, uShake, uRound, uAspect, uVarA;
+    uniform vec4 uModeA, uModeB, uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    float plate(vec2 q, vec4 M){
+      if (uRound < 0.5){
+        // the free square plate's classic antisymmetric combination
+        return cos(M.x * PI * q.x) * cos(M.y * PI * q.y)
+             - cos(M.y * PI * q.x) * cos(M.x * PI * q.y);
+      }
+      // the round plate: an angular order ringing against a radial one
+      float r = length(q) * 1.35, th = atan(q.y, q.x);
+      return cos(M.x * th) * cos(M.y * PI * r) * smoothstep(1.05, 0.95, r);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // the plate sits square in the frame
+      vec2 q = p / 0.92;
+      float inPlate = (uRound < 0.5)
+        ? (1.0 - smoothstep(0.98, 1.0, max(abs(q.x), abs(q.y))))
+        : (1.0 - smoothstep(0.98, 1.0, length(q) * 1.35 / 1.05));
+      // the two modes the music is between, crossfaded
+      float psi = mix(plate(q, uModeA), plate(q, uModeB), uMix);
+      /* A FINGER FORCES A NODE — damp the wave to zero at the touch and the
+         figure rearranges around it, exactly as the metal does */
+      float hd = length(p - uHand.xy);
+      psi *= mix(1.0, min(hd * 2.2, 1.0), clamp(uHand.z * 1.5, 0.0, 1.0));
+      /* THE SAND. It gathers where the plate is still. The strike lifts it:
+         grains scatter off the pattern and hang as dust for a beat. */
+      float grain = 0.55 + 0.45 * vnoise(q * 150.0 + floor(uShake * 23.0));
+      float sand = exp(-abs(psi) * (6.5 + uMid * 3.0)) * grain;
+      sand = mix(sand, vnoise(q * 60.0 + uTime * 9.0) * 0.55, uShake * 0.75);
+      // airborne dust while shaking — single grains catching the light
+      float dust = step(0.985, hash21(floor(q * 130.0) + floor(uTime * 20.0))) * uShake;
+      // the plate itself: near-black, faintly brushed, with the standing wave's
+      // sheen breathing on it (small on purpose — the governor's word is law)
+      vec3 plateCol = ramp(0.10 + uVarA * 0.1) * 0.05
+                    * (0.8 + 0.2 * vnoise(q * 9.0 + uVarA * 31.0));
+      plateCol += ramp(0.35 + uVarA * 0.2) * abs(psi) * 0.030 * (0.5 + uEnergy)
+                * (0.85 + 0.15 * sin(uTime * 34.0));
+      vec3 sandCol = mix(ramp(0.82 + uVarA * 0.12), vec3(1.0, 0.98, 0.92), 0.55);
+      vec3 col = plateCol;
+      col += sandCol * sand * (0.55 + uEnergy * 0.25 + uBeat * 0.15);
+      col += sandCol * dust * 0.8;
+      col *= inPlate;
+      // the rim the plate is clamped by
+      float rim = (uRound < 0.5)
+        ? smoothstep(0.985, 1.0, max(abs(q.x), abs(q.y))) * (1.0 - smoothstep(1.03, 1.06, max(abs(q.x), abs(q.y))))
+        : smoothstep(0.985, 1.0, length(q) * 1.35 / 1.05) * (1.0 - smoothstep(1.04, 1.08, length(q) * 1.35 / 1.05));
+      col += ramp(0.5) * rim * 0.22;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  /* the mode ladder, from bass to filigree — the spectrum's centre of mass
+     climbs it. Pairs chosen for beauty; physics does not rank its modes. */
+  const LADDER = [[1,2],[1,3],[2,3],[2,5],[3,4],[3,5],[4,5],[2,7],[4,7],[3,8],[5,6],[5,8],[6,9],[7,10]];
+  const st = { cur: 3, mixT: 1, lastOnset: 0, held: 0 };
+  const api = {
+    name: 'CHLADNI', key: 'cymatic', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the spectrum picks the mode: centroid climbs the ladder, held briefly
+      // so the sand has time to be a picture between moves
+      const want = Math.max(0, Math.min(LADDER.length - 1,
+        Math.round((f.centroid || 0.3) * (LADDER.length - 1) * 1.25)));
+      st.held += dt;
+      if (want !== st.cur && st.held > (reducedMotion ? 2.4 : 1.1) && st.mixT >= 1){
+        varU.uModeA.value.copy(varU.uModeB.value);
+        varU.uModeB.value.set(LADDER[want][0], LADDER[want][1], 1, 0);
+        st.cur = want; st.mixT = 0; st.held = 0;
+      }
+      st.mixT = Math.min(1, st.mixT + dt * 0.8);
+      varU.uMix.value = st.mixT < 1 ? st.mixT : 1;
+      // every onset is a strike — the sand leaps, hangs, settles
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.3) varU.uShake.value = Math.min(1, 0.35 + f.beat * 0.6) * (reducedMotion ? 0.4 : 1);
+      }
+      varU.uShake.value *= Math.exp(-dt * 3.2);
+      const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+      const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const h = varU.uHand.value;
+      h.set((ux - 0.5) * s.aspect * 2, (uy - 0.5) * 2, h.z + (force - h.z) * Math.min(1, dt * 8), 0);
+    },
+    roll(){
+      const r = Math.random();
+      varU.uRound.value = r < 0.6 ? 0 : 1;
+      const a = LADDER[Math.floor(Math.random() * 6) + 2];
+      varU.uModeA.value.set(a[0], a[1], 1, 0);
+      varU.uModeB.value.set(a[0], a[1], 1, 0);
+      st.mixT = 1; st.cur = 3;
+      varU.uVarA.value = Math.random();
+      api.name = 'CHLADNI · ' + (varU.uRound.value ? 'ROUND PLATE' : 'SQUARE PLATE');
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 44 · AUTOMATON — one rule, falling like rain
+
+   An elementary cellular automaton is the smallest machine that can
+   surprise you: one row of cells, each new cell decided by its three
+   parents above, eight parent patterns, so a rule is one byte. Rule
+   90 is XOR and grows Sierpinski triangles out of single seeds; Rule
+   30 is Wolfram's chaos (its centre column has been used as a random
+   number generator); Rule 110 is PROVABLY Turing-complete — this
+   room can, in principle, compute anything, one row per beat.
+
+   And that is the clock: the automaton STEPS ON THE MUSIC's grid —
+   sixteenth notes when the beat is locked — so the pattern is the
+   song computing itself downward. Onsets inject seeds; a hand held
+   on the field writes bits into the living row as it passes.
+   ========================================================= */
+function buildAutomaton(){
+  const group = new THREE.Group();
+  const W = 192, H = 256;
+  const cells = new Uint8Array(W);
+  const texData = new Uint8Array(W * H);
+  const caTex = new THREE.DataTexture(texData, W, H, THREE.LuminanceFormat, THREE.UnsignedByteType);
+  caTex.magFilter = THREE.NearestFilter; caTex.minFilter = THREE.NearestFilter;
+  caTex.needsUpdate = true;
+  const varU = {
+    uVarA: { value: Math.random() },
+    uCA:     { value: caTex },
+    uHead:   { value: 0 },                 // the writing row, 0..1 in texture space
+    uCells:  { value: W },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uBeatSpring, uOpacity;
+    uniform float uHead, uCells, uAspect, uVarA;
+    uniform sampler2D uCA;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // the tape scrolls: the living row rides near the top, history falls away
+      float v = fract(uHead - (0.88 - vUv.y));
+      vec2 tuv = vec2(vUv.x, v);
+      float cell = texture2D(uCA, tuv).r;
+      // AGE — how many rows ago this was the living edge
+      float age = fract(0.88 - vUv.y + 1.0);
+      age = clamp((0.88 - vUv.y), 0.0, 1.0);
+      // the cell as a soft square, not a smear
+      vec2 cf = fract(vec2(vUv.x * uCells, v * 256.0)) - 0.5;
+      float sq = (1.0 - smoothstep(0.34, 0.5, abs(cf.x))) * (1.0 - smoothstep(0.30, 0.5, abs(cf.y)));
+      vec3 cNew = ramp(0.62 + uVarA * 0.2);
+      vec3 cOld = ramp(0.22 + uVarA * 0.2);
+      vec3 col = mix(cNew, cOld, clamp(age * 1.6, 0.0, 1.0)) * cell * sq
+               * (0.9 - age * 0.62) * (0.8 + uEnergy * 0.35);
+      // the living row burns — the machine's clock made visible
+      float headBand = exp(-abs(vUv.y - 0.88) * 120.0);
+      col += mix(cNew, vec3(1.0), 0.5) * headBand * cell * sq * (0.5 + uBeatSpring * 0.8);
+      col += cNew * headBand * 0.05;
+      // the hand's stylus — where a held finger writes into the tape
+      float hd = abs(p.x - uHand.x);
+      col += cNew * exp(-hd * 30.0) * uHand.z * 0.20 * exp(-abs(vUv.y - 0.88) * 40.0);
+      col += (hash21(vUv * 900.0) - 0.5) * 0.008;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const RULES = [
+    { n: 30,  name: 'RULE 30 · CHAOS',   seed: 'one' },
+    { n: 110, name: 'RULE 110 · TURING', seed: 'soup' },
+    { n: 90,  name: 'RULE 90 · SEEDS',   seed: 'sparse' },
+  ];
+  const st = { rule: RULES[0], row: 0, clk: 0, lastOnset: 0, handCol: -1 };
+  const step = () => {
+    const r = st.rule.n, next = new Uint8Array(W);
+    for (let i = 0; i < W; i++){
+      const l = cells[(i + W - 1) % W], c = cells[i], rt = cells[(i + 1) % W];
+      next[i] = (r >> ((l << 2) | (c << 1) | rt)) & 1;
+    }
+    cells.set(next);
+    if (st.handCol >= 0) cells[st.handCol] = 1;         // the stylus writes
+    const off = st.row * W;
+    for (let i = 0; i < W; i++) texData[off + i] = cells[i] ? 255 : 0;
+    st.row = (st.row + 1) % H;
+    varU.uHead.value = st.row / H;
+    caTex.needsUpdate = true;
+  };
+  const seed = () => {
+    cells.fill(0); texData.fill(0); st.row = 0;
+    if (st.rule.seed === 'one') cells[W >> 1] = 1;
+    else if (st.rule.seed === 'soup'){ for (let i = 0; i < W; i++) cells[i] = Math.random() < 0.28 ? 1 : 0; }
+    else { for (let k = 0; k < 3; k++) cells[Math.floor(Math.random() * W)] = 1; }
+    caTex.needsUpdate = true;
+  };
+  const api = {
+    name: 'AUTOMATON', key: 'rule', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      /* THE CLOCK: sixteenths when the grid is live (the machine computes ON
+         the song), a free-run tempo otherwise. Reduced motion halves it. */
+      const bpm = (typeof player !== 'undefined' && f.bpm) ? f.bpm : 0;
+      const sps = (bpm > 40 ? bpm / 60 * 4 : 6 + (f.energy || 0) * 8) * (reducedMotion ? 0.5 : 1);
+      st.clk += dt * sps;
+      let n = Math.floor(st.clk);
+      st.clk -= n;
+      if (n > 6) n = 6;                          // a hitch never fast-forwards the tape
+      // the hand's column, latched before the steps so held touch writes a line
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1){
+        const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+        st.handCol = Math.max(0, Math.min(W - 1, Math.round(ux * W)));
+        const h = varU.uHand.value;
+        h.set((ux - 0.5) * s.aspect * 2, 0, force, 0);
+      } else { st.handCol = -1; varU.uHand.value.z *= Math.exp(-dt * 6); }
+      while (n-- > 0) step();
+      // onsets inject seeds — on RULE 90 each one grows a Sierpinski triangle
+      // that INTERFERES with the others, xor being xor
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.35){
+          const k = 1 + Math.round(f.beat * 2);
+          for (let i = 0; i < k; i++) cells[Math.floor(Math.random() * W)] ^= 1;
+        }
+      }
+    },
+    roll(){
+      st.rule = RULES[Math.floor(Math.random() * RULES.length)];
+      seed();
+      // the tape arrives mid-thought — a machine that has been running,
+      // not one waiting for permission
+      for (let i = 0; i < 200; i++){
+        if (st.rule.seed === 'sparse' && i % 60 === 0) cells[Math.floor(Math.random() * W)] ^= 1;
+        step();
+      }
+      varU.uVarA.value = Math.random();
+      api.name = 'AUTOMATON · ' + st.rule.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 45 · EVENT HORIZON — the light, bent until it orbits
+
+   A black hole is invisible; what you see is everything else, bent.
+   Each pixel's ray is MARCHED through the gravity: per step it
+   gains an acceleration ∝ 1/r⁵ toward the mass (the photon-geodesic
+   term, with the ray's own angular momentum in it), so light that
+   passes close whips around — some of it more than once, which is
+   the PHOTON RING: the bright thin circle that is the image of the
+   whole sky, wrapped. The accretion disk is drawn twice by physics,
+   not by art: the far side appears ABOVE and BELOW the shadow
+   because its light climbs over and under the hole.
+
+   The disk itself is honest plasma: brightness ∝ 1/r², Keplerian
+   shear in its turbulence (inner laps outer), and DOPPLER BEAMING —
+   the side spinning toward you is brighter and bluer, the receding
+   side dimmed and reddened, which is why every real image of an
+   accretion disk is lopsided. A hotspot orbits at the inner edge
+   and flares on the onsets. A hand near the field is a star coming
+   apart: a tidal stream stretching toward the horizon.
+   ========================================================= */
+function buildEventHorizon(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() },
+    uMode:   { value: 0 },                 // 0 edge-on · 1 face-on + jet · 2 pure lensing drift
+    uInc:    { value: 1.35 },              // camera inclination off the disk plane
+    uHot:    { value: 0 },                 // hotspot orbital phase
+    uFlare:  { value: 0 },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uMode, uInc, uHot, uFlare, uAspect, uVarA;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    vec3 stars(vec3 rd){
+      // the far sky, to be lensed: PINPOINT stars (a bright cell is a point
+      // inside it, not a lit tile) and a faint chord-tinted veil
+      vec3 a = abs(rd);
+      vec2 su = (a.z >= a.x && a.z >= a.y) ? rd.xy / a.z : (a.x >= a.y ? rd.yz / a.x : rd.xz / a.y);
+      su = su * 0.5 + 0.5;
+      vec2 cellId = floor(su * 220.0) + floor(rd.z * 3.0);
+      float lum = pow(hash21(cellId), 42.0) * 1.8;
+      vec2 sp = vec2(hash21(cellId + 3.1), hash21(cellId + 7.7));
+      float d = length(fract(su * 220.0) - sp);
+      vec3 c = vec3(lum) * exp(-d * d * 40.0) * (0.7 + 0.3 * hash21(cellId + 11.0));
+      c += ramp(0.45 + uVarA * 0.2) * vnoise(su * 5.0 + uVarA * 13.0) * 0.05;
+      return c;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // the camera: out at radius 16, tilted by the inclination
+      float ci = cos(uInc), si = sin(uInc);
+      vec3 ro = vec3(0.0, 16.0 * ci, -16.0 * si);
+      vec3 fw = normalize(-ro);
+      vec3 rt = normalize(cross(vec3(0.0, 0.0, 1.0), fw));
+      vec3 up = cross(fw, rt);
+      vec3 rd = normalize(fw * 1.7 + rt * p.x + up * p.y);
+      /* THE MARCH. h² = |r × v|² is conserved on the way in, and the bending
+         per step is the standard photon-geodesic pull, −1.5·h²·r/|r|⁵ in
+         units where the Schwarzschild radius is 1. 40 fixed steps: enough to
+         wrap a close ray right around the shadow. */
+      vec3 pos = ro, vel = rd;
+      vec3 hv = cross(pos, vel);
+      float h2 = dot(hv, hv);
+      vec3 col = vec3(0.0);
+      float through = 1.0;                       // how much of the ray is still flying
+      bool captured = false;
+      for (int i = 0; i < 40; i++){
+        float r2 = dot(pos, pos);
+        float r1 = sqrt(r2);
+        float dt2 = clamp(r1 * 0.11, 0.045, 0.42); // fine steps near the hole
+        vec3 acc = -1.5 * h2 * pos / (r2 * r2 * r1);
+        vel += acc * dt2;
+        vec3 npos = pos + vel * dt2;
+        // THE DISK: the ray pierced the equatorial plane inside the annulus
+        if (pos.z * npos.z < 0.0 && through > 0.01){
+          float tt = pos.z / (pos.z - npos.z);
+          vec3 hit = mix(pos, npos, tt);
+          float hr = length(hit.xy);
+          if (hr > 2.6 && hr < 9.0){
+            float ang = atan(hit.y, hit.x);
+            // Keplerian shear: inner laps outer, and the turbulence rides it
+            float om = 5.2 / (hr * sqrt(hr));
+            float tex = vnoise(vec2(ang * 3.0 - om * uTime * 2.0, hr * 2.2) + uVarA * 17.0)
+                      * 0.65 + vnoise(vec2(ang * 9.0 - om * uTime * 4.5, hr * 5.0)) * 0.35;
+            float bright = 5.5 / (hr * hr) * (0.35 + tex * 0.9) * (0.55 + uEnergy * 0.6);
+            // DOPPLER BEAMING: the approaching side burns brighter and bluer
+            float dop = sin(ang) * (1.1 / sqrt(hr));
+            bright *= pow(clamp(1.0 + dop, 0.35, 1.9), 3.0);
+            vec3 dc = ramp(clamp(0.62 + dop * 0.35, 0.0, 1.0) * 0.35 + 0.5 + uVarA * 0.1);
+            dc = mix(dc, vec3(1.0, 0.97, 0.9), clamp(bright * 0.22, 0.0, 0.55));
+            // the hotspot at the inner edge, flaring on the hits
+            float hs = exp(-abs(hr - 3.1) * 1.6)
+                     * exp(-(1.0 - cos(ang - uHot)) * 3.2) * uFlare * 3.0;
+            col += (dc * bright + vec3(1.0, 0.95, 0.85) * hs) * through
+                 * smoothstep(2.6, 3.1, hr) * smoothstep(9.0, 7.2, hr);
+            through *= 0.35;                     // the disk is not opaque; the far image survives
+          }
+        }
+        pos = npos;
+        if (r2 < 1.0){ captured = true; break; }
+        if (r2 > 900.0) break;
+      }
+      if (!captured) col += stars(normalize(vel)) * through;
+      // the jet, for the face-on quasar: matter that missed, leaving at the poles
+      if (uMode > 0.5 && uMode < 1.5){
+        float jr = length(p) + 0.001;
+        float jet = exp(-abs(p.x) * 9.0 / (0.2 + abs(p.y))) * smoothstep(0.15, 0.9, abs(p.y))
+                  * (0.5 + 0.5 * vnoise(vec2(p.y * 6.0 - uTime * 2.0, p.x * 20.0)));
+        col += ramp(0.55 + uVarA * 0.2) * jet * 0.35 * (0.5 + uEnergy * 0.6) * float(!captured || true);
+      }
+      /* THE TIDAL STREAM — a hand near the field is a star coming apart:
+         a bright head, and a tail stretched along the fall line. Spaghetti,
+         by the honest name. */
+      if (uHand.z > 0.02){
+        vec2 toC = -uHand.xy;
+        float tlen = length(toC);
+        vec2 dir = toC / max(tlen, 1e-3);
+        vec2 rel = p - uHand.xy;
+        float along = clamp(dot(rel, dir) / max(tlen, 0.2), 0.0, 1.0);
+        float perp = abs(dot(rel, vec2(-dir.y, dir.x)));
+        float streamW = mix(0.035, 0.006, along);
+        float stream = exp(-perp / streamW * 3.0) * smoothstep(1.0, 0.0, along) * uHand.z;
+        col += ramp(0.8 + uVarA * 0.1) * stream * 0.8;
+        col += vec3(1.0, 0.95, 0.85) * exp(-length(rel) * 30.0) * uHand.z * 0.9;
+      }
+      col += (hash21(vUv * 800.0 + uTime) - 0.5) * 0.008;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { m: 0, name: 'THE DISK',  inc: 1.38 },
+    { m: 1, name: 'QUASAR',    inc: 0.25 },
+    { m: 2, name: 'WANDERER',  inc: 0.9 },
+  ];
+  const st = { lastOnset: 0, t: 0, inc0: 1.38 };
+  const api = {
+    name: 'EVENT HORIZON', key: 'hole', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      const mot = reducedMotion ? 0.3 : 1;
+      // the camera breathes around its inclination; the hotspot keeps its orbit
+      varU.uInc.value = st.inc0 + Math.sin(st.t * 0.05) * 0.10 * mot;
+      varU.uHot.value += dt * (0.9 + (f.energy || 0) * 0.8) * mot;
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.4) varU.uFlare.value = Math.min(1.2, 0.4 + f.beat * 0.8);
+      }
+      varU.uFlare.value = Math.max(0.12 + (f.energy || 0) * 0.2, varU.uFlare.value * Math.exp(-dt * 3.5));
+      const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+      const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const h = varU.uHand.value;
+      h.set((ux - 0.5) * s.aspect * 2, (uy - 0.5) * 2, h.z + (force - h.z) * Math.min(1, dt * 8), 0);
+    },
+    roll(){
+      const M = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uMode.value = M.m;
+      st.inc0 = M.inc + (Math.random() - 0.5) * 0.15;
+      varU.uVarA.value = Math.random();
+      api.name = 'EVENT HORIZON · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 46 · FERROFLUID — the liquid that stands up
+
+   Put a magnet under a ferrofluid and the smooth black pool grows a
+   crown of spikes on a hexagonal lattice — the ROSENSWEIG
+   instability: surface tension wants the pool flat, the field wants
+   the fluid tall along its lines, and the compromise is a lattice
+   whose spacing is set by the capillary length and whose amplitude
+   is set by the field. Turn the field up and the spikes leap; turn
+   it off and the crown melts back to a mirror in under a second.
+
+   Here the FIELD IS THE BASS. The heightfield is ray-marched like
+   the sea (same regula falsi, seven refinements), but the material
+   could not be more different: near-black, twice-glossy (a tight
+   white spike of specular over a wide chord-tinted sheen), with a
+   whisper of thin-film iridescence in the fresnel — the oily edge
+   every photograph of the real fluid shows. A hand over the pool IS
+   the magnet: the crown gathers under your finger and follows it.
+   ========================================================= */
+function buildFerrofluid(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() },
+    uField:  { value: 0.4 },               // the magnet, 0..~1.4 — the bass, sprung
+    uMode:   { value: 0 },                 // 0 hex bloom · 1 sweep · 2 twin poles
+    uMag:    { value: new THREE.Vector4(0, 0, 0.4, 0) },   // xy = pole, z = strength (the hand)
+    uSweep:  { value: 0 },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uField, uMode, uSweep, uAspect, uVarA;
+    uniform vec4 uMag;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    /* the local field strength at a point of the pool — where the magnet is */
+    float fieldAt(vec2 q){
+      float A = uField;
+      if (uMode > 0.5 && uMode < 1.5){
+        vec2 c = vec2(cos(uSweep), sin(uSweep)) * 2.4;
+        A *= 0.25 + 1.3 * exp(-dot(q - c, q - c) * 0.10);
+      } else if (uMode > 1.5){
+        vec2 c1 = vec2(-2.2, 0.0), c2 = vec2(2.2, 0.0);
+        A *= 0.2 + 1.1 * exp(-dot(q - c1, q - c1) * 0.12) + 1.1 * exp(-dot(q - c2, q - c2) * 0.12);
+      } else {
+        A *= 0.45 + 0.9 * exp(-dot(q, q) * 0.035);
+      }
+      // and the HAND is a pole of its own, wherever it hovers
+      A += uMag.z * 1.5 * exp(-dot(q - uMag.xy, q - uMag.xy) * 0.16);
+      return A;
+    }
+    /* THE CROWN: spikes on a hexagonal lattice — fold into the hex cell, a
+       sharp cone at each centre, amplitude from the local field */
+    float spikes(vec2 q, float A){
+      const vec2 e1 = vec2(1.0, 0.0);
+      const vec2 e2 = vec2(0.5, 0.8660254);
+      float lam = 1.05;                          // the Rosensweig spacing
+      // nearest lattice point by rounding in lattice coordinates
+      vec2 lc = vec2(q.x - q.y * 0.57735, q.y * 1.1547) / lam;
+      vec2 base = floor(lc);
+      float d = 1e3;
+      for (int i = 0; i <= 1; i++)
+        for (int j = 0; j <= 1; j++){
+          vec2 n = base + vec2(float(i), float(j));
+          vec2 c = (e1 * n.x + e2 * n.y) * lam;
+          d = min(d, length(q - c));
+        }
+      float peak = pow(max(0.0, 1.0 - d / (0.62 * lam)), 1.6);
+      return peak * A;
+    }
+    float pool(vec2 q){
+      float A = fieldAt(q);
+      float h = -0.9;
+      h += spikes(q, A) * (0.5 + A * 0.9);
+      // the resting liquid's own low swell, and a treble shiver on the skin
+      h += (vnoise(q * 0.7 + uTime * 0.12) - 0.5) * 0.16;
+      h += (vnoise(q * 6.0 + uTime * 1.4) - 0.5) * 0.02 * uTreble;
+      return h;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // a close camera looking down the dish
+      vec3 ro = vec3(0.0, 5.4, 5.2);
+      vec3 fw = normalize(vec3(0.0, -0.95, -1.0));
+      vec3 rt = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
+      vec3 up = cross(rt, fw);
+      vec3 rd = normalize(fw * 1.5 + rt * p.x + up * p.y);
+      // regula falsi against the heightfield, the sea's own trace
+      float tm = 0.0, tx = 22.0;
+      float hm = ro.y - pool(ro.xz);
+      vec3 pm = ro + rd * 5.0;
+      float hp = pm.y - pool(pm.xz);
+      float hx = (ro + rd * tx).y - pool((ro + rd * tx).xz);
+      if (hp < 0.0){ tx = 5.0; hx = hp; } else { tm = 5.0; hm = hp; }
+      vec3 col;
+      if (hx > 0.0 && hm > 0.0){
+        col = ramp(0.14 + uVarA * 0.1) * 0.020;   // over the dish rim: near-dark
+      } else {
+        vec3 hit = ro;
+        for (int i = 0; i < 7; i++){
+          float tmid = mix(tm, tx, hm / (hm - hx));
+          hit = ro + rd * tmid;
+          float hmid = hit.y - pool(hit.xz);
+          if (hmid < 0.0){ tx = tmid; hx = hmid; } else { tm = tmid; hm = hmid; }
+        }
+        float eps = 0.02;
+        vec3 n = normalize(vec3(pool(hit.xz - vec2(eps, 0.0)) - pool(hit.xz + vec2(eps, 0.0)),
+                                2.0 * eps,
+                                pool(hit.xz - vec2(0.0, eps)) - pool(hit.xz + vec2(0.0, eps))));
+        vec3 V = -rd;
+        float fres = pow(1.0 - max(0.0, dot(n, V)), 4.0);
+        /* THE MATERIAL. Ferrofluid is oil full of magnetite: albedo almost
+           nothing, gloss almost everything. Two lobes and a softbox. */
+        vec3 col2 = vec3(0.008, 0.008, 0.011);            // the black
+        vec3 L1 = normalize(vec3(0.4, 0.9, 0.3));
+        vec3 L2 = normalize(vec3(-0.55, 0.5, -0.4));
+        float s1 = pow(max(0.0, dot(reflect(-L1, n), V)), 240.0);
+        float s2 = pow(max(0.0, dot(reflect(-L2, n), V)), 32.0);
+        col2 += vec3(1.0, 0.99, 0.97) * s1 * (1.6 + uBeat * 1.2);
+        col2 += ramp(0.55 + uVarA * 0.2) * s2 * 0.30;
+        // the softbox: a rectangle of sky in the reflection sells the gloss
+        vec3 R = reflect(-V, n);
+        float box = smoothstep(0.25, 0.6, R.y) * smoothstep(0.8, 0.3, abs(R.x));
+        col2 += ramp(0.72 + uVarA * 0.15) * box * 0.17;
+        // the oily edge: a thin-film whisper living in the fresnel
+        col2 += ramp(fract(fres * 2.2 + uVarA)) * fres * 0.16;
+        col2 *= 0.85 + uEnergy * 0.30;
+        col = col2;
+        // the dish floor darkens with depth
+        col *= smoothstep(14.0, 4.0, length(hit.xz)) * 0.9 + 0.1;
+      }
+      col += (hash21(vUv * 700.0) - 0.5) * 0.006;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { m: 0, name: 'HEX BLOOM' },
+    { m: 1, name: 'SWEEP' },
+    { m: 2, name: 'TWIN POLES' },
+  ];
+  const st = { field: 0.4, vel: 0, t: 0 };
+  const api = {
+    name: 'FERROFLUID', key: 'ferro', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      /* THE FIELD IS THE BASS, on an under-damped spring — the crown JUMPS
+         on the kick and overshoots, which is the whole show */
+      const want = 0.34 + (f.bass || 0) * 0.85 + (f.beat || 0) * 0.35;
+      const k = reducedMotion ? 14 : 60, c = reducedMotion ? 9 : 10;
+      st.vel += (want - st.field) * k * dt - st.vel * c * dt;
+      st.field += st.vel * dt;
+      varU.uField.value = Math.max(0.02, st.field);
+      varU.uSweep.value += dt * (0.5 + (f.energy || 0) * 0.7) * (reducedMotion ? 0.35 : 1);
+      /* the hand is the magnet: map the pointer down onto the pool plane */
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const m = varU.uMag.value;
+      if (force > 0.03){
+        const ux = (s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw - 0.5) * s.aspect * 2;
+        const uy = ((1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh - 0.5) * 2;
+        m.x = ux * 4.4;
+        m.z += (force - m.z) * Math.min(1, dt * 8);
+        m.y = -uy * 4.0 + 1.6;                    // screen-down maps to pool-near
+      } else m.z *= Math.exp(-dt * 4);
+    },
+    roll(){
+      const M = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uMode.value = M.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'FERROFLUID · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 47 · GALTON — order out of coin flips
+
+   Drop a bead through a lattice of pins and every pin is a fair
+   coin: left or right. One bead's path is pure noise; a thousand
+   beads pile into the binomial, and the binomial into the bell —
+   the CENTRAL LIMIT THEOREM, run live rather than asserted. The
+   beads here are REALLY simulated (gravity, restitution, a pin's
+   curve deciding the bounce), the bins really count, and the ideal
+   curve only fades in as the sample size EARNS it — a law emerging
+   from noise in front of you, at the tempo of the song, because
+   every onset pours beads.
+
+   A hand on the board tilts it — gravity leans, the distribution
+   skews, and the earned curve follows the new mean. The TWIN DROP
+   variant runs two spouts: a bimodal pile, until the spouts walk
+   together and the two hills agree to be one.
+   ========================================================= */
+function buildGalton(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uTilt: { value: 0 } };
+  // the board, in its own coordinates: x ±13, y ±16, billboarded to the camera
+  const ROWS = 11, PINR = 0.24, BEADR = 0.30, NB = 25;
+  const pins = [];
+  const pinPos = [];
+  const buildPins = (rows, sx, sy) => {
+    pins.length = 0; pinPos.length = 0;
+    for (let j = 0; j < rows; j++){
+      const y = 10.4 - j * sy;
+      const n = j + 3;
+      for (let i = 0; i < n; i++){
+        const x = (i - (n - 1) / 2) * sx;
+        pins.push({ x, y });
+        pinPos.push(x, y, 0);
+      }
+    }
+  };
+  buildPins(ROWS, 2.0, 1.42);
+  // pins as quiet points
+  const pinGeo = new THREE.BufferGeometry();
+  pinGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(360 * 3), 3));
+  const pinMat = new THREE.ShaderMaterial({
+    uniforms: matU({}),
+    vertexShader: GLSL_MPHI + `
+      void main(){
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = 0.55 * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        vec3 c = mix(ramp(0.5), vec3(0.75, 0.78, 0.85), 0.6) * 0.55;
+        gl_FragColor = vec4(inkRolloff(c), smoothstep(0.5, 0.25, r) * uOpacity);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.NormalBlending,
+  });
+  const pinPts = new THREE.Points(pinGeo, pinMat);
+  pinPts.frustumCulled = false;
+  group.add(pinPts);
+  // the beads
+  const NBEAD = 340;
+  const bPos = new Float32Array(NBEAD * 3), bHue = new Float32Array(NBEAD);
+  const beads = [];             // {x,y,vx,vy,live}
+  for (let i = 0; i < NBEAD; i++) beads.push({ live: false, x: 0, y: -99, vx: 0, vy: 0 });
+  const bGeo = new THREE.BufferGeometry();
+  bGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+  bGeo.setAttribute('aHue', new THREE.BufferAttribute(bHue, 1));
+  const bMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aHue;
+      varying float vH;
+      uniform float uBeat;
+      void main(){
+        vH = aHue;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (1.05 + uBeat * 0.25) * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uEnergy;
+      varying float vH;
+      void main(){
+        vec2 d = gl_PointCoord - 0.5;
+        float r = length(d);
+        if (r > 0.5) discard;
+        vec3 c = ramp(vH) * (0.85 + uEnergy * 0.3);
+        c += vec3(1.0) * smoothstep(0.22, 0.0, length(d + vec2(0.09, -0.09))) * 0.5;  // the glint
+        gl_FragColor = vec4(inkRolloff(c), smoothstep(0.5, 0.38, r) * uOpacity);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const bPts = new THREE.Points(bGeo, bMat);
+  bPts.frustumCulled = false;
+  group.add(bPts);
+  /* THE LEDGER: bins + the earned curve, one quad at the bottom of the board.
+     The histogram rides in as a 32×1 texture; the ideal bell is drawn over it
+     at an opacity the sample count has to earn. */
+  const histData = new Uint8Array(32);
+  const histTex = new THREE.DataTexture(histData, 32, 1, THREE.LuminanceFormat, THREE.UnsignedByteType);
+  histTex.magFilter = THREE.NearestFilter; histTex.minFilter = THREE.NearestFilter;
+  const hU = {
+    uHist: { value: histTex }, uEarn: { value: 0 }, uMean: { value: 0.5 }, uSig: { value: 0.16 },
+    uBins: { value: NB }, uVarA: varU.uVarA,
+  };
+  const hMat = new THREE.ShaderMaterial({
+    uniforms: matU(hU),
+    vertexShader: `varying vec2 vQ; void main(){ vQ = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform sampler2D uHist;
+      uniform float uOpacity, uEarn, uMean, uSig, uBins, uVarA, uEnergy, uBeat;
+      varying vec2 vQ;
+      void main(){
+        float bx = vQ.x * uBins;
+        float bi = (floor(bx) + 0.5) / uBins;
+        float h = texture2D(uHist, vec2(bi * (uBins / 32.0), 0.5)).r;
+        float inBar = step(vQ.y, h) * smoothstep(0.0, 0.06, abs(fract(bx) - 0.5) < 0.44 ? 1.0 : 0.0);
+        vec3 col = ramp(0.35 + bi * 0.30 + uVarA * 0.2) * inBar * (0.35 + vQ.y * 0.5 + uBeat * 0.15);
+        // the bar's lit crest
+        col += ramp(0.75 + uVarA * 0.2) * smoothstep(0.02, 0.0, abs(vQ.y - h)) * step(0.02, h) * 0.8;
+        /* THE LAW, EARNED: the Gaussian the pile is converging to, drawn at
+           the strength the sample size justifies and nowhere before */
+        float g = exp(-0.5 * pow((vQ.x - uMean) / max(uSig, 1e-3), 2.0));
+        float curve = smoothstep(0.014, 0.0, abs(vQ.y - g * 0.92));
+        col += vec3(1.0, 0.98, 0.94) * curve * uEarn * 0.85;
+        gl_FragColor = vec4(inkRolloff(col), max(inBar * 0.9, curve * uEarn) * uOpacity);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.NormalBlending,
+  });
+  const hQuad = new THREE.Mesh(new THREE.PlaneGeometry(24, 9.2), hMat);
+  hQuad.position.set(0, -11.2, 0);
+  group.add(hQuad);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { counts: new Float64Array(NB), total: 0, lastOnset: 0, drip: 0,
+               tilt: 0, spouts: [0], spoutT: 0, mode: 0, t: 0 };
+  const spawn = hue => {
+    for (const b of beads) if (!b.live){
+      const sx = st.spouts[Math.floor(Math.random() * st.spouts.length)];
+      b.live = true; b.x = sx + (Math.random() - 0.5) * 0.15; b.y = 15.4;
+      b.vx = (Math.random() - 0.5) * 0.4; b.vy = 0;
+      b.hue = hue;
+      return;
+    }
+  };
+  const api = {
+    name: 'GALTON', key: 'plinko', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      // the board faces you and holds its size, like the soap film's frame
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // the hand tilts the board; the ghost's presence tilts it gently
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const wantTilt = force > 0.05 ? U.uPtr.value.x * 9 : 0;
+      st.tilt += (wantTilt - st.tilt) * Math.min(1, dt * 3);
+      // TWIN DROP: the spouts walk together over the song — bimodal, then one
+      if (st.mode === 2){
+        st.spoutT = Math.min(1, st.spoutT + dt * 0.006);
+        const sep = 6.5 * (1 - st.spoutT);
+        st.spouts = [-sep, sep];
+      }
+      // every onset pours; the energy keeps a drip going between them
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.25){
+          const n = 1 + Math.round(f.beat * (reducedMotion ? 3 : 7));
+          for (let i = 0; i < n; i++) spawn(Math.random() * 0.12 + 0.55 + (varU.uVarA.value % 0.3));
+        }
+      }
+      st.drip += dt * (0.5 + (f.energy || 0) * 4) * (reducedMotion ? 0.5 : 1);
+      while (st.drip > 1){ st.drip -= 1; spawn(Math.random() * 0.12 + 0.30 + (varU.uVarA.value % 0.3)); }
+      // THE PHYSICS: gravity (leaning with the tilt), pins as real collisions
+      const g = 34, sub = 2, h = Math.min(dt, 0.04) / sub;
+      for (let s = 0; s < sub; s++){
+        for (const b of beads){
+          if (!b.live) continue;
+          b.vx += st.tilt * h * 4;
+          b.vy -= g * h;
+          b.x += b.vx * h; b.y += b.vy * h;
+          for (const pin of pins){
+            const dx = b.x - pin.x, dy = b.y - pin.y;
+            const rr = PINR + BEADR;
+            if (dx * dx + dy * dy < rr * rr){
+              const d = Math.sqrt(dx * dx + dy * dy) || 1e-4;
+              const nx = dx / d, ny = dy / d;
+              b.x = pin.x + nx * rr; b.y = pin.y + ny * rr;
+              const vn = b.vx * nx + b.vy * ny;
+              if (vn < 0){
+                const e = 0.42;
+                b.vx -= (1 + e) * vn * nx; b.vy -= (1 + e) * vn * ny;
+                b.vx += (Math.random() - 0.5) * 1.6;     // the pin's grain — the coin flip
+              }
+            }
+          }
+          if (b.x < -12.6){ b.x = -12.6; b.vx = Math.abs(b.vx) * 0.4; }
+          if (b.x >  12.6){ b.x =  12.6; b.vx = -Math.abs(b.vx) * 0.4; }
+          // the bin swallows it, the ledger counts it
+          if (b.y < -11.4){
+            b.live = false; b.y = -99;
+            const bi = Math.max(0, Math.min(NB - 1, Math.floor((b.x + 12) / 24 * NB)));
+            st.counts[bi]++; st.total++;
+          }
+        }
+      }
+      // publish beads
+      let k = 0;
+      for (const b of beads){
+        bPos[k * 3] = b.x; bPos[k * 3 + 1] = b.y; bPos[k * 3 + 2] = 0.2;
+        bHue[k] = b.hue || 0.5; k++;
+      }
+      bGeo.attributes.position.needsUpdate = true;
+      bGeo.attributes.aHue.needsUpdate = true;
+      // publish the ledger: bars normalized, the law's mean/σ measured — the
+      // curve follows the pile (a tilted board earns a shifted bell)
+      let mx = 1, sum = 0, sumx = 0, sumxx = 0;
+      for (let i = 0; i < NB; i++){ mx = Math.max(mx, st.counts[i]); sum += st.counts[i];
+        const xc = (i + 0.5) / NB; sumx += st.counts[i] * xc; sumxx += st.counts[i] * xc * xc; }
+      for (let i = 0; i < NB; i++) histData[i] = Math.min(255, Math.round(st.counts[i] / mx * 235));
+      histTex.needsUpdate = true;
+      if (sum > 8){
+        const mean = sumx / sum;
+        hU.uMean.value = mean;
+        hU.uSig.value = Math.max(0.02, Math.sqrt(Math.max(1e-6, sumxx / sum - mean * mean)));
+      }
+      hU.uEarn.value = Math.min(1, st.total / 700);
+    },
+    roll(){
+      st.counts.fill(0); st.total = 0; hU.uEarn.value = 0;
+      for (const b of beads){ b.live = false; b.y = -99; }
+      const r = Math.random();
+      st.mode = r < 0.55 ? 0 : (r < 0.8 ? 1 : 2);
+      st.spoutT = 0;
+      st.spouts = st.mode === 2 ? [-6.5, 6.5] : [0];
+      buildPins(st.mode === 1 ? 13 : ROWS, st.mode === 1 ? 1.8 : 2.0, st.mode === 1 ? 1.22 : 1.42);
+      const pp = pinGeo.attributes.position.array;
+      pp.fill(0);
+      for (let i = 0; i < Math.min(pins.length, 360); i++){
+        pp[i * 3] = pins[i].x; pp[i * 3 + 1] = pins[i].y; pp[i * 3 + 2] = 0;
+      }
+      for (let i = pins.length; i < 360; i++) pp[i * 3 + 1] = -99;
+      pinGeo.attributes.position.needsUpdate = true;
+      varU.uVarA.value = Math.random();
+      api.name = 'GALTON · ' + ['THE BELL', 'QUINCUNX XL', 'TWIN DROP'][st.mode];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 48 · PENDULA — sensitive dependence, as a fan of light
+
+   One double pendulum is chaos's house pet. NINETY-SIX of them,
+   started a ten-millionth of a radian apart, are the DEMONSTRATION:
+   for a few seconds they swing as one thick rainbow arm — then the
+   error doubles, and doubles, and the single arm frays into a fan,
+   and the fan into weather. The rate of that fraying is the
+   Lyapunov exponent; you are watching e^{λt} beat every decimal
+   place you could ever write down.
+
+   The integration is honest RK4 on the full equations (no small-
+   angle anywhere), every onset kicks all ninety-six with the SAME
+   impulse — coherence in, chaos out — and in a long calm the demon
+   quietly re-pinches the ensemble so the experiment runs again. A
+   hand takes the PIVOT: dragging it pumps all of them at once, and
+   the gravity they feel leans with your acceleration, exactly as it
+   would on a moving cart.
+   ========================================================= */
+function buildPendula(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uSpread: { value: 0 }, uGainT: { value: 1 } };
+  const MMAX = 96, TMAX = 60, L = 5.5;
+  const st = { M: MMAX, T: 26, th1: new Float64Array(MMAX), w1: new Float64Array(MMAX),
+               th2: new Float64Array(MMAX), w2: new Float64Array(MMAX),
+               trail: new Float32Array(MMAX * TMAX * 2), tHead: 0, tLen: 0,
+               px: 0, py: 6, pvx: 0, pvy: 0, lastOnset: 0, calmT: 0, mode: 0, t: 0 };
+  // trails as segments: (T-1) per pendulum
+  const SEGS = MMAX * (TMAX - 1);
+  const tPos = new Float32Array(SEGS * 2 * 3), tHue = new Float32Array(SEGS * 2), tFade = new Float32Array(SEGS * 2);
+  const tGeo = new THREE.BufferGeometry();
+  tGeo.setAttribute('position', new THREE.BufferAttribute(tPos, 3));
+  tGeo.setAttribute('aHue', new THREE.BufferAttribute(tHue, 1));
+  tGeo.setAttribute('aFade', new THREE.BufferAttribute(tFade, 1));
+  const tMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aHue, aFade;
+      varying float vH, vF;
+      void main(){
+        vH = aHue; vF = aFade;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uEnergy, uSpread, uVarA, uGainT;
+      varying float vH, vF;
+      void main(){
+        /* coherent: one white-hot arm. Frayed: a rainbow fan. The spread is
+           the physics; the palette only reports it. */
+        vec3 tight = mix(ramp(0.6 + uVarA * 0.2), vec3(1.0), 0.45);
+        vec3 loose = ramp(fract(vH + uVarA));
+        vec3 c = mix(tight, loose, clamp(uSpread * 3.5, 0.0, 1.0));
+        gl_FragColor = vec4(inkRolloff(c * (0.5 + uEnergy * 0.4)), vF * uOpacity * 0.75 * uGainT);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const tLines = new THREE.LineSegments(tGeo, tMat);
+  tLines.frustumCulled = false;
+  group.add(tLines);
+  // the bobs — tips only; joints would be clutter at 96
+  const bPos = new Float32Array(MMAX * 3), bHue2 = new Float32Array(MMAX);
+  const bGeo = new THREE.BufferGeometry();
+  bGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+  bGeo.setAttribute('aHue', new THREE.BufferAttribute(bHue2, 1));
+  const bMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aHue;
+      varying float vH;
+      uniform float uBeat;
+      void main(){
+        vH = aHue;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (0.55 + uBeat * 0.35) * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uSpread, uVarA, uTreble;
+      varying float vH;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        vec3 c = mix(vec3(1.0), ramp(fract(vH + uVarA)), clamp(uSpread * 3.5, 0.0, 1.0));
+        gl_FragColor = vec4(inkRolloff(c * (0.9 + uTreble * 0.5)), smoothstep(0.5, 0.15, r) * uOpacity);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const bobs = new THREE.Points(bGeo, bMat);
+  bobs.frustumCulled = false;
+  group.add(bobs);
+  group.visible = false;
+  scene.add(group);
+
+  const reseed = eps => {
+    const a = 1.9 + Math.random() * 0.9, b2 = 2.2 + Math.random() * 1.2;
+    for (let i = 0; i < st.M; i++){
+      st.th1[i] = a; st.w1[i] = 0;
+      st.th2[i] = b2 + i * eps; st.w2[i] = 0;
+    }
+    st.tLen = 0; st.tHead = 0;
+  };
+  // the full equations, m1=m2, l1=l2 — and gravity as a VECTOR, so a moving
+  // pivot leans the world exactly the way a moving cart does
+  const accel = (i, gx, gy, out) => {
+    const t1 = st.th1[i], t2 = st.th2[i], w1 = st.w1[i], w2 = st.w2[i];
+    const gm = Math.sqrt(gx * gx + gy * gy), gphi = Math.atan2(gx, gy);
+    const a1 = t1 - gphi, a2 = t2 - gphi;
+    const d = a1 - a2, cd = Math.cos(d), sd = Math.sin(d);
+    const den = 2 - Math.cos(2 * d);
+    out[0] = (-3 * gm / L * Math.sin(a1) - gm / L * Math.sin(a1 - 2 * a2)
+              - 2 * sd * (w2 * w2 + w1 * w1 * cd)) / den;
+    out[1] = (2 * sd * (2 * w1 * w1 + 2 * gm / L * Math.cos(a1) + w2 * w2 * cd)) / den;
+  };
+  const tmp = [0, 0];
+  const api = {
+    name: 'PENDULA', key: 'pendula', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // the hand takes the pivot on a spring; its acceleration is the forcing
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const wantX = force > 0.05 ? U.uPtr.value.x * 12 : 0;
+      const wantY = force > 0.05 ? 6 + U.uPtr.value.y * 6 : 6;
+      const opvx = st.pvx, opvy = st.pvy;
+      st.pvx += ((wantX - st.px) * 30 - st.pvx * 8) * dt;
+      st.pvy += ((wantY - st.py) * 30 - st.pvy * 8) * dt;
+      st.px += st.pvx * dt; st.py += st.pvy * dt;
+      const apx = (st.pvx - opvx) / Math.max(dt, 1e-4), apy = (st.pvy - opvy) / Math.max(dt, 1e-4);
+      const g = 22 * (0.8 + (f.energy || 0) * 0.5);
+      const gx = -apx * 0.05, gy = g + apy * 0.05;
+      // onsets kick every pendulum with the SAME impulse — coherence in
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.3){
+          const kck = f.beat * (reducedMotion ? 0.6 : 1.4);
+          for (let i = 0; i < st.M; i++) st.w1[i] += kck;
+        }
+      }
+      // RK4, substepped — no small-angle anywhere
+      const hstep = 1 / 240;
+      let steps = Math.min(10, Math.round(Math.min(dt, 0.05) / hstep));
+      const mot = reducedMotion ? 0.5 : 1;
+      while (steps-- > 0){
+        const h2 = hstep * mot;
+        for (let i = 0; i < st.M; i++){
+          // RK2 midpoint is plenty at this step size and half the cost of RK4
+          accel(i, gx, gy, tmp);
+          const k1a = tmp[0], k1b = tmp[1];
+          const t1o = st.th1[i], t2o = st.th2[i], w1o = st.w1[i], w2o = st.w2[i];
+          st.th1[i] += w1o * h2 * 0.5; st.th2[i] += w2o * h2 * 0.5;
+          st.w1[i] += k1a * h2 * 0.5;  st.w2[i] += k1b * h2 * 0.5;
+          accel(i, gx, gy, tmp);
+          st.th1[i] = t1o + st.w1[i] * h2; st.th2[i] = t2o + st.w2[i] * h2;
+          st.w1[i] = w1o + tmp[0] * h2;    st.w2[i] = w2o + tmp[1] * h2;
+        }
+      }
+      /* THE DEMON: in a long calm, re-pinch the ensemble toward its own mean
+         so the fraying can happen again. Never under a hand — your chaos is
+         your own. */
+      st.calmT = (f.calm || 0) > 0.6 && force < 0.05 ? st.calmT + dt : 0;
+      if (st.calmT > 9){
+        let mc = 0, ms = 0;
+        for (let i = 0; i < st.M; i++){ mc += Math.cos(st.th2[i]); ms += Math.sin(st.th2[i]); }
+        const mean = Math.atan2(ms, mc);
+        const lam = Math.min(1, dt * 0.5);
+        for (let i = 0; i < st.M; i++){
+          let dth = st.th2[i] - mean;
+          dth -= Math.round(dth / (2 * Math.PI)) * 2 * Math.PI;
+          st.th2[i] -= dth * lam;
+          st.w2[i] *= 1 - lam * 0.5; st.w1[i] *= 1 - lam * 0.3;
+        }
+      }
+      // the spread — the fan's width, circular variance of the lower arm
+      let mc = 0, ms = 0;
+      for (let i = 0; i < st.M; i++){ mc += Math.cos(st.th2[i]); ms += Math.sin(st.th2[i]); }
+      varU.uSpread.value = 1 - Math.sqrt(mc * mc + ms * ms) / st.M;
+      // tips into the trail rings, rings into segments
+      const th = st.tHead;
+      for (let i = 0; i < st.M; i++){
+        const x1 = st.px + L * Math.sin(st.th1[i]), y1 = st.py - L * Math.cos(st.th1[i]);
+        const x2 = x1 + L * Math.sin(st.th2[i]),    y2 = y1 - L * Math.cos(st.th2[i]);
+        st.trail[(i * TMAX + th) * 2] = x2; st.trail[(i * TMAX + th) * 2 + 1] = y2;
+        bPos[i * 3] = x2; bPos[i * 3 + 1] = y2; bPos[i * 3 + 2] = 0;
+        bHue2[i] = i / st.M;
+      }
+      st.tHead = (th + 1) % st.T;
+      st.tLen = Math.min(st.tLen + 1, st.T);
+      let k = 0;
+      for (let i = 0; i < st.M; i++){
+        for (let s = 0; s + 1 < st.tLen; s++){
+          const i0 = (st.tHead - 1 - s + st.T * 4) % st.T, i1 = (st.tHead - 2 - s + st.T * 4) % st.T;
+          const b0 = (i * TMAX + i0) * 2, b1 = (i * TMAX + i1) * 2;
+          tPos[k * 6]     = st.trail[b0]; tPos[k * 6 + 1] = st.trail[b0 + 1]; tPos[k * 6 + 2] = 0;
+          tPos[k * 6 + 3] = st.trail[b1]; tPos[k * 6 + 4] = st.trail[b1 + 1]; tPos[k * 6 + 5] = 0;
+          const fade = 1 - s / st.T;
+          tHue[k * 2] = tHue[k * 2 + 1] = i / st.M;
+          tFade[k * 2] = fade; tFade[k * 2 + 1] = fade * 0.92;
+          k++;
+        }
+      }
+      // park the unused segments
+      for (let z = k; z < SEGS; z++){ tPos[z * 6 + 1] = -999; tPos[z * 6 + 4] = -999; tFade[z * 2] = 0; tFade[z * 2 + 1] = 0; }
+      tGeo.attributes.position.needsUpdate = true;
+      tGeo.attributes.aHue.needsUpdate = true;
+      tGeo.attributes.aFade.needsUpdate = true;
+      bGeo.attributes.position.needsUpdate = true;
+      bGeo.attributes.aHue.needsUpdate = true;
+    },
+    roll(){
+      const r = Math.random();
+      if (r < 0.55){ st.mode = 0; st.M = 96; st.T = 26; reseed(1e-7); varU.uGainT.value = 1.0; api.name = 'PENDULA · ENSEMBLE 96'; }
+      else if (r < 0.8){ st.mode = 1; st.M = 12; st.T = 48; reseed(1e-3); varU.uGainT.value = 1.5; api.name = 'PENDULA · TWELVE FATES'; }
+      else { st.mode = 2; st.M = 2; st.T = 60; reseed(0.05); varU.uGainT.value = 2.3; api.name = 'PENDULA · INK'; }
+      varU.uVarA.value = Math.random();
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 49 · ATTRACTOR — nine thousand travellers on one road
+
+   Lorenz truncated the weather to three numbers in 1963 and the
+   three numbers refused to settle down: every trajectory falls onto
+   the same butterfly-shaped set, never repeats, never leaves, and
+   two travellers side by side end up on opposite wings. That set —
+   a STRANGE ATTRACTOR — is drawn here by nine thousand particles
+   actually integrating the equations, each coloured by its own
+   speed, so the fast commissures burn and the slow outer sweeps
+   glow soft.
+
+   Five roads on the roll: LORENZ, RÖSSLER's single spiral funnel,
+   THOMAS's dreamy cyclically-symmetric weave, AIZAWA's ringed
+   sphere, HALVORSEN's three-way claw. The music leans on the
+   parameter Lorenz leaned on (ρ, the heat), and every hard onset
+   pours a comet of fresh travellers in through the hand's point of
+   the sky — you can watch them find the road.
+   ========================================================= */
+function buildAttractor(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() } };
+  const N = 9000;
+  const pos = new Float32Array(N * 3), spd = new Float32Array(N);
+  const P = new Float64Array(N * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aSpd', new THREE.BufferAttribute(spd, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: VERT_POINT_HEAD + `
+      attribute float aSpd;
+      varying float vS;
+      void main(){
+        vS = aSpd;
+        vT = aSpd; vGlow = uBeat * 0.4;
+        vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (0.24 + aSpd * 0.34 + uTreble * 0.10) * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uEnergy, uVarA;
+      varying float vS;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        vec3 c = ramp(fract(vS * 0.55 + uVarA));
+        c = mix(c, vec3(1.0), vS * 0.25);
+        gl_FragColor = vec4(inkRolloff(c * (0.55 + uEnergy * 0.4)),
+                            smoothstep(0.5, 0.1, r) * uOpacity * (0.5 + vS * 0.55));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+  group.visible = false;
+  scene.add(group);
+
+  /* the roads. deriv writes into out[3]; scale/center map system space to the
+     room; vmax normalizes speed for the palette */
+  const SYS = [
+    { name: 'LORENZ', dt: 0.0055, scale: 0.42, cx: 0, cy: 0, cz: 25, vmax: 90,
+      f(x, y, z, o, m){ o[0] = 10 * (y - x); o[1] = x * (28 * m - z) - y; o[2] = x * y - 2.6667 * z; } },
+    { name: 'RÖSSLER', dt: 0.02, scale: 0.85, cx: 0, cy: 0, cz: 6, vmax: 24,
+      f(x, y, z, o, m){ o[0] = -y - z; o[1] = x + 0.2 * y; o[2] = 0.2 + z * (x - 5.7 * m); } },
+    { name: 'THOMAS', dt: 0.05, scale: 3.4, cx: 0, cy: 0, cz: 0, vmax: 2.2,
+      f(x, y, z, o, m){ const b = 0.19 / m; o[0] = Math.sin(y) - b * x; o[1] = Math.sin(z) - b * y; o[2] = Math.sin(x) - b * z; } },
+    { name: 'AIZAWA', dt: 0.01, scale: 7.5, cx: 0, cy: 0, cz: 0.6, vmax: 4.5,
+      f(x, y, z, o, m){
+        const a = 0.95, b = 0.7, c = 0.6 * m, d = 3.5, e = 0.25, ff = 0.1;
+        o[0] = (z - b) * x - d * y; o[1] = d * x + (z - b) * y;
+        o[2] = c + a * z - z * z * z / 3 - (x * x + y * y) * (1 + e * z) + ff * z * x * x * x;
+      } },
+    { name: 'HALVORSEN', dt: 0.005, scale: 1.05, cx: -1, cy: -1, cz: -1, vmax: 55,
+      f(x, y, z, o, m){ const a = 1.4 * m; o[0] = -a * x - 4 * y - 4 * z - y * y; o[1] = -a * y - 4 * z - 4 * x - z * z; o[2] = -a * z - 4 * x - 4 * y - x * x; } },
+  ];
+  const st = { sys: SYS[0], lastOnset: 0, m: 1 };
+  const o3 = [0, 0, 0];
+  const scatter = i => {
+    P[i * 3] = st.sys.cx + (Math.random() - 0.5) * 4;
+    P[i * 3 + 1] = st.sys.cy + (Math.random() - 0.5) * 4;
+    P[i * 3 + 2] = st.sys.cz + (Math.random() - 0.5) * 4;
+  };
+  const api = {
+    name: 'ATTRACTOR', key: 'lorenz', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const S = st.sys;
+      // the music leans on the system's own knob, gently — ρ for Lorenz,
+      // its analog for the others; ±8% moves the weather, not the road
+      st.m += ((1 + ((f.energy || 0) - 0.4) * 0.16) - st.m) * Math.min(1, dt);
+      const mot = reducedMotion ? 0.45 : 1;
+      const steps = 2;
+      for (let s = 0; s < steps; s++){
+        const h = S.dt * mot;
+        for (let i = 0; i < N; i++){
+          const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+          S.f(x, y, z, o3, st.m);
+          // midpoint
+          const mxx = x + o3[0] * h * 0.5, myy = y + o3[1] * h * 0.5, mzz = z + o3[2] * h * 0.5;
+          S.f(mxx, myy, mzz, o3, st.m);
+          P[i * 3] = x + o3[0] * h; P[i * 3 + 1] = y + o3[1] * h; P[i * 3 + 2] = z + o3[2] * h;
+          if (s === steps - 1){
+            const v = Math.sqrt(o3[0] * o3[0] + o3[1] * o3[1] + o3[2] * o3[2]) / S.vmax;
+            spd[i] = Math.min(1.4, v);
+            pos[i * 3]     = (P[i * 3] - S.cx) * S.scale;
+            pos[i * 3 + 1] = (P[i * 3 + 2] - S.cz) * S.scale;   // system z is the room's up
+            pos[i * 3 + 2] = (P[i * 3 + 1] - S.cy) * S.scale;
+            // a lost traveller is quietly reborn near the road
+            if (!isFinite(P[i * 3]) || Math.abs(P[i * 3]) + Math.abs(P[i * 3 + 1]) + Math.abs(P[i * 3 + 2]) > 500) scatter(i);
+          }
+        }
+      }
+      /* THE COMET: a hard onset pours 350 fresh travellers in at one bright
+         point — the hand's, if it is on the sky — and they find the road */
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.5 && !reducedMotion){
+          const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+          let sx = st.sys.cx, sy = st.sys.cy, sz = st.sys.cz + 8 / st.sys.scale * 0.3;
+          if (force > 0.1){ sx += U.uPtr.value.x * 10 / st.sys.scale * 0.4; sz += U.uPtr.value.y * 10 / st.sys.scale * 0.4; }
+          for (let k = 0; k < 350; k++){
+            const i = Math.floor(Math.random() * N);
+            P[i * 3] = sx + (Math.random() - 0.5) * 1.2;
+            P[i * 3 + 1] = sy + (Math.random() - 0.5) * 1.2;
+            P[i * 3 + 2] = sz + (Math.random() - 0.5) * 1.2;
+          }
+        }
+      }
+      group.rotation.y += dt * 0.05 * (reducedMotion ? 0.4 : 1);
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aSpd.needsUpdate = true;
+    },
+    roll(){
+      st.sys = SYS[Math.floor(Math.random() * SYS.length)];
+      for (let i = 0; i < N; i++) scatter(i);
+      // a head start so the road is visible on arrival, not a puff of dust
+      const S = st.sys;
+      for (let w = 0; w < 380; w++)
+        for (let i = 0; i < N; i++){
+          S.f(P[i * 3], P[i * 3 + 1], P[i * 3 + 2], o3, 1);
+          P[i * 3] += o3[0] * S.dt; P[i * 3 + 1] += o3[1] * S.dt; P[i * 3 + 2] += o3[2] * S.dt;
+        }
+      varU.uVarA.value = Math.random();
+      api.name = 'ATTRACTOR · ' + st.sys.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 50 · FIREFLIES — synchrony, caught in the act
+
+   In the mangroves of Thailand whole trees of fireflies flash as
+   one, and the mathematics of HOW is Kuramoto's: every oscillator
+   nudges toward the crowd's average phase, and when the coupling K
+   crosses a threshold, order appears out of nothing — not led, not
+   conducted, EMERGENT. This meadow runs the real mean-field model:
+   each firefly's natural rhythm is scattered around the TRACK'S OWN
+   TEMPO, and the coupling rides the music's coherence — so in a
+   loose passage they twinkle as individuals, and as the song pulls
+   itself together the meadow pulls itself together, until the
+   night is flashing ON THE BEAT. That moment of lock is the show.
+
+   A hand among them is a queen: fireflies near it entrain to the
+   bar's own phase and drift toward the light. Under CALM or reduced
+   motion the coupling is capped below full lock — the meadow leans
+   toward order and never strobes.
+   ========================================================= */
+function buildFireflies(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uSyncR: { value: 0 } };
+  const N = 650;
+  const pos = new Float32Array(N * 3), bri = new Float32Array(N), hue = new Float32Array(N);
+  const th = new Float64Array(N), om = new Float64Array(N);
+  const home = new Float32Array(N * 2), mir = new Uint8Array(N);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aB', new THREE.BufferAttribute(bri, 1));
+  geo.setAttribute('aHue', new THREE.BufferAttribute(hue, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aB, aHue;
+      varying float vB, vH;
+      void main(){
+        vB = aB; vH = aHue;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (0.34 + aB * 1.5) * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uSyncR, uVarA;
+      varying float vB, vH;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        /* the loner's cold spark against the crowd's warm one: the hue itself
+           reports the order parameter */
+        vec3 lone = ramp(0.42 + uVarA * 0.15);
+        vec3 sync = ramp(0.78 + uVarA * 0.15);
+        vec3 c = mix(lone, sync, uSyncR) * (0.14 + vB * 2.1);
+        c = mix(c, vec3(1.0, 0.98, 0.9), vB * 0.35);
+        float a = smoothstep(0.5, 0.0, r);
+        gl_FragColor = vec4(inkRolloff(c), a * a * uOpacity * (0.16 + vB * 1.2));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { mode: 0, K: 0, t: 0 };
+  const settle = () => {
+    for (let i = 0; i < N; i++){
+      let x, y;
+      mir[i] = 0;
+      if (st.mode === 1){
+        // THE TREE: a recursive skeleton, fireflies perched along it
+        let bx = 0, by = -12, ang = Math.PI / 2, len = 6.5;
+        const depth = 2 + Math.floor(Math.random() * 5);
+        for (let d = 0; d < depth; d++){
+          bx += Math.cos(ang) * len; by += Math.sin(ang) * len;
+          ang += (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.5);
+          len *= 0.72;
+        }
+        x = bx + (Math.random() - 0.5) * 2.2; y = by + (Math.random() - 0.5) * 2.2;
+      } else {
+        x = (Math.random() - 0.5) * 30;
+        y = -10 + Math.pow(Math.random(), 1.6) * 18;
+        if (st.mode === 2 && Math.random() < 0.42){ mir[i] = 1; }   // the river takes a copy
+      }
+      home[i * 2] = x; home[i * 2 + 1] = y;
+      th[i] = Math.random() * Math.PI * 2;
+      hue[i] = Math.random();
+    }
+  };
+  const api = {
+    name: 'FIREFLIES', key: 'sync', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      /* THE MODEL. ω centred on the song's own beat; K rides the music's
+         coherence. The threshold is real: under it, twinkle; over it, lock. */
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9) * 0.5;   // flash every 2 beats
+      for (let i = 0; i < N; i++) om[i] = 2 * Math.PI * bps * (1 + ((hue[i] - 0.5) * 0.22));
+      const cap = (reducedMotion || (typeof SAFE !== 'undefined' && SAFE.calm)) ? 1.1 : 3.4;
+      const wantK = Math.min(cap, ((f.coupling || 0) * 2.6 + (f.energy || 0) * 1.4 - 0.3) * 1.6);
+      st.K += (Math.max(0, wantK) - st.K) * Math.min(1, dt * 0.7);
+      // mean field
+      let mc = 0, ms = 0;
+      for (let i = 0; i < N; i++){ mc += Math.cos(th[i]); ms += Math.sin(th[i]); }
+      const R = Math.sqrt(mc * mc + ms * ms) / N, psi = Math.atan2(ms, mc);
+      varU.uSyncR.value += (R - varU.uSyncR.value) * Math.min(1, dt * 2);
+      // the queen: a hand entrains its neighbourhood to the bar's own phase
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const qx = U.uPtr.value.x * 15, qy = U.uPtr.value.y * 15;
+      const qphase = (U.uBarPhase.value || 0) * Math.PI * 2;
+      for (let i = 0; i < N; i++){
+        let dth = om[i] + st.K * R * Math.sin(psi - th[i]);
+        if (force > 0.1){
+          const dx = home[i * 2] - qx, dy = home[i * 2 + 1] - qy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 30){
+            dth += force * 6 * Math.sin(qphase - th[i]) * Math.exp(-d2 / 18);
+            home[i * 2] -= dx * dt * 0.25 * force;
+            home[i * 2 + 1] -= dy * dt * 0.25 * force;
+          }
+        }
+        th[i] += dth * dt;
+        // the flash: sharp igniter, exponential dark — a real firefly's shape
+        const ph = ((th[i] % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        bri[i] = Math.exp(-ph * 2.6);
+        // a slow wander around the perch, so the meadow breathes
+        const wob = st.t * 0.4 + i;
+        const wx = home[i * 2] + Math.sin(wob) * 0.5, wy = home[i * 2 + 1] + Math.cos(wob * 0.83) * 0.4;
+        if (mir[i]){
+          pos[i * 3] = wx + Math.sin(st.t * 2 + i) * 0.25;       // the river shivers its copy
+          pos[i * 3 + 1] = -8 - (wy + 8) * 0.55 - 3;
+          bri[i] *= 0.4;
+        } else {
+          pos[i * 3] = wx; pos[i * 3 + 1] = wy;
+        }
+        pos[i * 3 + 2] = Math.sin(i * 17.7) * 3;
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aB.needsUpdate = true;
+    },
+    roll(){
+      const r = Math.random();
+      st.mode = r < 0.45 ? 0 : (r < 0.75 ? 1 : 2);
+      settle();
+      varU.uVarA.value = Math.random();
+      api.name = 'FIREFLIES · ' + ['MEADOW', 'THE TREE', 'RIVERBANK'][st.mode];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 51 · THREE BODY — the problem that broke determinism
+
+   Two bodies orbit forever on clean ellipses; add a THIRD and the
+   solution stops existing — Poincaré proved there is no formula,
+   only fate, integrated one step at a time. This room opens on the
+   one miracle the problem ever conceded: the FIGURE EIGHT, three
+   equal masses chasing each other down a single looping track
+   (Chenciner & Montgomery, 2000, found numerically by Moore). It
+   is real gravity here — softened Newton, leapfrog-integrated —
+   so it is exactly as fragile as it is in nature: every hard onset
+   nudges one body, the nudges accumulate, and the choreography
+   unravels into the chaos that is the problem's true face. In a
+   long calm the room quietly re-stages the miracle.
+
+   SLINGSHOT swaps in a star, a planet and a stream of comets that
+   crack like whips around the well; PROTODISK pours four hundred
+   test grains around a young star and lets a shepherd body carve
+   the gap, the way every planetary system you have ever heard of
+   was carved. A hand on the sky is a rogue mass — feel free.
+   ========================================================= */
+function buildThreeBody(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() } };
+  const BMAX = 8, GMAX = 420, TRL = 80;
+  const st = {
+    mode: 0, t: 0, lastOnset: 0, calmT: 0,
+    nb: 3,
+    bm: new Float64Array(BMAX), bx: new Float64Array(BMAX), by: new Float64Array(BMAX),
+    bvx: new Float64Array(BMAX), bvy: new Float64Array(BMAX),
+    ng: 0,
+    gx: new Float64Array(GMAX), gy: new Float64Array(GMAX),
+    gvx: new Float64Array(GMAX), gvy: new Float64Array(GMAX),
+    trail: new Float32Array(BMAX * TRL * 2), tHead: 0, tLen: 0,
+  };
+  // the bodies: glow sprites sized by mass
+  const bPos = new Float32Array(BMAX * 3), bM = new Float32Array(BMAX);
+  const bGeo = new THREE.BufferGeometry();
+  bGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+  bGeo.setAttribute('aM', new THREE.BufferAttribute(bM, 1));
+  const bMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aM;
+      varying float vM;
+      uniform float uBass;
+      void main(){
+        vM = aM;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (0.55 + sqrt(max(aM, 0.0)) * 0.42) * (1.0 + uBass * 0.4) * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uVarA, uEnergy;
+      varying float vM;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        vec3 core = mix(ramp(fract(vM * 0.37 + uVarA)), vec3(1.0, 0.98, 0.92), 0.4);
+        float a = smoothstep(0.5, 0.0, r);
+        gl_FragColor = vec4(inkRolloff(core * (0.8 + uEnergy * 0.4) * (0.3 + a)), a * uOpacity);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const bodies = new THREE.Points(bGeo, bMat);
+  bodies.frustumCulled = false;
+  group.add(bodies);
+  // the grains of the disk
+  const gPos = new Float32Array(GMAX * 3), gR = new Float32Array(GMAX);
+  const gGeo = new THREE.BufferGeometry();
+  gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
+  gGeo.setAttribute('aR', new THREE.BufferAttribute(gR, 1));
+  const gMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aR;
+      varying float vR;
+      void main(){
+        vR = aR;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = 0.40 * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uVarA, uTreble;
+      varying float vR;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        vec3 c = ramp(fract(vR * 0.12 + 0.3 + uVarA));
+        gl_FragColor = vec4(inkRolloff(c * (0.7 + uTreble * 0.4)), smoothstep(0.5, 0.15, r) * uOpacity * 0.9);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const grains = new THREE.Points(gGeo, gMat);
+  grains.frustumCulled = false;
+  group.add(grains);
+  // the trails
+  const SEGT = BMAX * (TRL - 1);
+  const tPos = new Float32Array(SEGT * 6), tHue = new Float32Array(SEGT * 2), tFade = new Float32Array(SEGT * 2);
+  const tGeo = new THREE.BufferGeometry();
+  tGeo.setAttribute('position', new THREE.BufferAttribute(tPos, 3));
+  tGeo.setAttribute('aHue', new THREE.BufferAttribute(tHue, 1));
+  tGeo.setAttribute('aFade', new THREE.BufferAttribute(tFade, 1));
+  const tMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aHue, aFade;
+      varying float vH, vF;
+      void main(){ vH = aHue; vF = aFade; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uVarA;
+      varying float vH, vF;
+      void main(){
+        gl_FragColor = vec4(inkRolloff(ramp(fract(vH * 0.37 + uVarA)) * 0.85), vF * vF * uOpacity * 0.8);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const trails = new THREE.LineSegments(tGeo, tMat);
+  trails.frustumCulled = false;
+  group.add(trails);
+  group.visible = false;
+  scene.add(group);
+
+  const SOFT2 = 0.05;
+  const stage = () => {
+    st.tLen = 0; st.tHead = 0; st.ng = 0; st.t = 0;
+    if (st.mode === 0){
+      /* the figure eight — Moore's numbers, scaled ×7 onto the board */
+      st.nb = 3;
+      const s = 7;
+      st.bm[0] = st.bm[1] = st.bm[2] = 1;
+      st.bx[0] = 0.97000436 * s;  st.by[0] = -0.24308753 * s;
+      st.bx[1] = -st.bx[0];       st.by[1] = -st.by[0];
+      st.bx[2] = 0;               st.by[2] = 0;
+      // velocities scale by 1/√s when lengths scale by s (G fixed)
+      const vs = Math.sqrt(s);
+      st.bvx[2] = -0.93240737 * vs; st.bvy[2] = -0.86473146 * vs;
+      st.bvx[0] = st.bvx[1] = -st.bvx[2] / 2;
+      st.bvy[0] = st.bvy[1] = -st.bvy[2] / 2;
+    } else if (st.mode === 1){
+      // a star, a planet, five comets on dives
+      st.nb = 7;
+      st.bm[0] = 60; st.bx[0] = 0; st.by[0] = 0; st.bvx[0] = 0; st.bvy[0] = 0;
+      st.bm[1] = 1.2;
+      st.bx[1] = 8; st.by[1] = 0; st.bvx[1] = 0; st.bvy[1] = Math.sqrt(60 / 8);
+      for (let i = 2; i < 7; i++){
+        st.bm[i] = 0.02;
+        const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 3;
+        st.bx[i] = Math.cos(a) * r; st.by[i] = Math.sin(a) * r;
+        const vv = Math.sqrt(60 / r) * (0.35 + Math.random() * 0.25);
+        st.bvx[i] = -Math.sin(a) * vv * (Math.random() < 0.5 ? 1 : -1) - Math.cos(a) * 0.6;
+        st.bvy[i] =  Math.cos(a) * vv * (Math.random() < 0.5 ? 1 : -1) - Math.sin(a) * 0.6;
+      }
+    } else {
+      // a young star, a shepherd, four hundred grains
+      st.nb = 2;
+      st.bm[0] = 60; st.bx[0] = 0; st.by[0] = 0; st.bvx[0] = 0; st.bvy[0] = 0;
+      st.bm[1] = 2.4;
+      st.bx[1] = 7.5; st.by[1] = 0; st.bvx[1] = 0; st.bvy[1] = Math.sqrt(60 / 7.5);
+      st.ng = GMAX;
+      for (let i = 0; i < GMAX; i++){
+        const a = Math.random() * Math.PI * 2, r = 3.5 + Math.random() * 9.5;
+        st.gx[i] = Math.cos(a) * r; st.gy[i] = Math.sin(a) * r;
+        const vv = Math.sqrt(60 / r);
+        st.gvx[i] = -Math.sin(a) * vv; st.gvy[i] = Math.cos(a) * vv;
+      }
+    }
+  };
+  const api = {
+    name: 'THREE BODY', key: 'nbody', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // the hand is a rogue mass on the sky
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const hx = U.uPtr.value.x * 15, hy = U.uPtr.value.y * 15, hm = force * 8;
+      // leapfrog, substepped; the music runs the clock
+      const mot = (reducedMotion ? 0.4 : 1) * (0.55 + (f.energy || 0) * 0.7);
+      const h = 0.004, steps = Math.min(14, Math.round(Math.min(dt, 0.05) * mot / h * 2.2));
+      for (let s = 0; s < steps; s++){
+        for (let i = 0; i < st.nb; i++){
+          let ax = 0, ay = 0;
+          for (let j = 0; j < st.nb; j++){
+            if (i === j) continue;
+            const dx = st.bx[j] - st.bx[i], dy = st.by[j] - st.by[i];
+            const r2 = dx * dx + dy * dy + SOFT2;
+            const inv = st.bm[j] / (r2 * Math.sqrt(r2));
+            ax += dx * inv; ay += dy * inv;
+          }
+          if (hm > 0.05){
+            const dx = hx - st.bx[i], dy = hy - st.by[i];
+            const r2 = dx * dx + dy * dy + 1.2;
+            const inv = hm / (r2 * Math.sqrt(r2));
+            ax += dx * inv; ay += dy * inv;
+          }
+          st.bvx[i] += ax * h; st.bvy[i] += ay * h;
+        }
+        for (let i = 0; i < st.nb; i++){ st.bx[i] += st.bvx[i] * h; st.by[i] += st.bvy[i] * h; }
+        // the grains ride the massive bodies' field (test masses — free)
+        for (let i = 0; i < st.ng; i++){
+          let ax = 0, ay = 0;
+          for (let j = 0; j < st.nb; j++){
+            const dx = st.bx[j] - st.gx[i], dy = st.by[j] - st.gy[i];
+            const r2 = dx * dx + dy * dy + SOFT2;
+            const inv = st.bm[j] / (r2 * Math.sqrt(r2));
+            ax += dx * inv; ay += dy * inv;
+          }
+          if (hm > 0.05){
+            const dx = hx - st.gx[i], dy = hy - st.gy[i];
+            const r2 = dx * dx + dy * dy + 1.2;
+            const inv = hm / (r2 * Math.sqrt(r2));
+            ax += dx * inv; ay += dy * inv;
+          }
+          st.gvx[i] += ax * h; st.gvy[i] += ay * h;
+          st.gx[i] += st.gvx[i] * h; st.gy[i] += st.gvy[i] * h;
+        }
+      }
+      /* every hard onset nudges ONE body — determinism's death by a thousand
+         kicks. And when it has all flown apart in a calm, the miracle is
+         quietly staged again. */
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.55 && !reducedMotion){
+          const i = Math.floor(Math.random() * st.nb);
+          st.bvx[i] += (Math.random() - 0.5) * f.beat * 0.5;
+          st.bvy[i] += (Math.random() - 0.5) * f.beat * 0.5;
+        }
+      }
+      let far = 0;
+      for (let i = 0; i < st.nb; i++) far = Math.max(far, Math.abs(st.bx[i]) + Math.abs(st.by[i]));
+      st.calmT = (f.calm || 0) > 0.5 ? st.calmT + dt : 0;
+      if (far > 90 || (st.mode === 0 && far > 40 && st.calmT > 6)) stage();
+      // publish
+      for (let i = 0; i < BMAX; i++){
+        if (i < st.nb){ bPos[i * 3] = st.bx[i]; bPos[i * 3 + 1] = st.by[i]; bPos[i * 3 + 2] = 0; bM[i] = st.bm[i]; }
+        else { bPos[i * 3 + 1] = -999; bM[i] = 0; }
+      }
+      for (let i = 0; i < GMAX; i++){
+        if (i < st.ng){ gPos[i * 3] = st.gx[i]; gPos[i * 3 + 1] = st.gy[i]; gPos[i * 3 + 2] = 0;
+          gR[i] = Math.sqrt(st.gx[i] * st.gx[i] + st.gy[i] * st.gy[i]); }
+        else gPos[i * 3 + 1] = -999;
+      }
+      // trails
+      const thd = st.tHead;
+      for (let i = 0; i < st.nb; i++){
+        st.trail[(i * TRL + thd) * 2] = st.bx[i];
+        st.trail[(i * TRL + thd) * 2 + 1] = st.by[i];
+      }
+      st.tHead = (thd + 1) % TRL;
+      st.tLen = Math.min(st.tLen + 1, TRL);
+      let k = 0;
+      for (let i = 0; i < st.nb; i++)
+        for (let s2 = 0; s2 + 1 < st.tLen; s2++){
+          const i0 = (st.tHead - 1 - s2 + TRL * 4) % TRL, i1 = (st.tHead - 2 - s2 + TRL * 4) % TRL;
+          const b0 = (i * TRL + i0) * 2, b1 = (i * TRL + i1) * 2;
+          tPos[k * 6] = st.trail[b0]; tPos[k * 6 + 1] = st.trail[b0 + 1]; tPos[k * 6 + 2] = 0;
+          tPos[k * 6 + 3] = st.trail[b1]; tPos[k * 6 + 4] = st.trail[b1 + 1]; tPos[k * 6 + 5] = 0;
+          const fade = 1 - s2 / TRL;
+          tHue[k * 2] = tHue[k * 2 + 1] = st.bm[i];
+          tFade[k * 2] = fade; tFade[k * 2 + 1] = fade;
+          k++;
+        }
+      for (let z = k; z < SEGT; z++){ tPos[z * 6 + 1] = -999; tPos[z * 6 + 4] = -999; }
+      bGeo.attributes.position.needsUpdate = true; bGeo.attributes.aM.needsUpdate = true;
+      gGeo.attributes.position.needsUpdate = true; gGeo.attributes.aR.needsUpdate = true;
+      tGeo.attributes.position.needsUpdate = true; tGeo.attributes.aHue.needsUpdate = true;
+      tGeo.attributes.aFade.needsUpdate = true;
+    },
+    roll(){
+      const r = Math.random();
+      st.mode = r < 0.45 ? 0 : (r < 0.75 ? 1 : 2);
+      stage();
+      varU.uVarA.value = Math.random();
+      api.name = 'THREE BODY · ' + ['FIGURE EIGHT', 'SLINGSHOT', 'PROTODISK'][st.mode];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 52 · DENDRITE — growth by a million accidents
+
+   Frost on a window, silver in a photograph, zinc in a battery you
+   ruined: they all grow the same way. A particle wanders at random
+   until it TOUCHES the crystal, and sticks. That is the whole rule
+   — diffusion-limited aggregation — and out of it come branches,
+   unavoidably: a random walker is overwhelmingly likely to hit a
+   TIP before it ever finds its way into a fjord, so tips grow and
+   fjords starve. The fractal dimension ~1.71 is not designed, it
+   is the arithmetic of that unfairness.
+
+   The walkers here are real (hundreds aloft at once, still visible
+   as a faint snow around the crystal), every onset releases a
+   flurry, and the colour is the crystal's own AGE — growth rings,
+   the accretion's history readable from bone to tip, with the
+   living tips flaring on the treble. A hand near the glass warms
+   the diffusion field: the walkers drift your way, and the frost
+   grows toward your finger.
+   ========================================================= */
+function buildDendrite(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uHeadA: { value: 0 } };
+  const G = 220, HALF = 14;                       // the lattice, over board ±14
+  const occ = new Uint8Array(G * G);
+  const NMAX = 24000, WMAX = 1500;
+  const pos = new Float32Array(NMAX * 3), age = new Float32Array(NMAX);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aAge', new THREE.BufferAttribute(age, 1));
+  geo.setDrawRange(0, 0);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      attribute float aAge;
+      varying float vA;
+      uniform float uTime, uTreble;
+      void main(){
+        vA = aAge;
+        vec3 p = position;
+        p.x += sin(uTime * 0.8 + position.y * 0.4) * 0.05 * uTreble;   // the lattice shivers
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = 0.62 * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uHeadA, uTreble, uVarA, uEnergy;
+      varying float vA;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        /* growth rings: the crystal's own history as colour, bone to tip */
+        vec3 c = ramp(fract(vA * 0.55 + uVarA));
+        float tip = smoothstep(0.045, 0.0, uHeadA - vA);
+        c = mix(c, vec3(1.0, 0.98, 0.9), tip * (0.45 + uTreble * 0.5));
+        gl_FragColor = vec4(inkRolloff(c * (0.85 + uEnergy * 0.3 + tip * 0.6)),
+                            smoothstep(0.5, 0.2, r) * uOpacity * (0.78 + tip * 0.22));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+  // the snow — walkers aloft, barely there, so the mechanism is visible
+  const wPos = new Float32Array(WMAX * 3);
+  const wGeo = new THREE.BufferGeometry();
+  wGeo.setAttribute('position', new THREE.BufferAttribute(wPos, 3));
+  const wMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: GLSL_MPHI + `
+      void main(){
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = 0.26 * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        gl_FragColor = vec4(vec3(0.5, 0.55, 0.65), smoothstep(0.5, 0.2, r) * uOpacity * 0.16);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const wPts = new THREE.Points(wGeo, wMat);
+  wPts.frustumCulled = false;
+  group.add(wPts);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { count: 0, mode: 0, walkers: [], maxR: 3, lastOnset: 0, done: false };
+  const toBoard = (gx, gy) => [ (gx / G - 0.5) * 2 * HALF, (gy / G - 0.5) * 2 * HALF ];
+  const put = (gx, gy) => {
+    if (st.count >= NMAX){ st.done = true; return; }
+    occ[gy * G + gx] = 1;
+    const [bx, by] = toBoard(gx, gy);
+    pos[st.count * 3] = bx + (Math.random() - 0.5) * 0.09;
+    pos[st.count * 3 + 1] = by + (Math.random() - 0.5) * 0.09;
+    pos[st.count * 3 + 2] = 0;
+    age[st.count] = st.count / NMAX;
+    st.count++;
+    const cx = gx - G / 2, cy = gy - G / 2;
+    st.maxR = Math.max(st.maxR, Math.sqrt(cx * cx + cy * cy));
+  };
+  const spawnWalker = () => {
+    if (st.walkers.length >= WMAX || st.done) return;
+    let x, y;
+    if (st.mode === 1){ x = Math.random() * G; y = G - 2; }
+    else {
+      const a = Math.random() * Math.PI * 2, r = Math.min(G * 0.47, st.maxR + 10);
+      x = G / 2 + Math.cos(a) * r; y = G / 2 + Math.sin(a) * r;
+    }
+    st.walkers.push({ x, y });
+  };
+  const seed = () => {
+    occ.fill(0); st.count = 0; st.maxR = 3; st.walkers.length = 0; st.done = false;
+    geo.setDrawRange(0, 0);
+    if (st.mode === 0) put(G >> 1, G >> 1);
+    else if (st.mode === 1) for (let x = 0; x < G; x += 2) put(x, 1);
+    else put(G >> 1, G - 4);
+    for (let i = 0; i < 300; i++) spawnWalker();
+  };
+  /* the walk itself, shared by the live frame and the head start: random
+     steps, the variant's gravity, the hand's warmth, stick on contact */
+  const advance = (stepsPer, force, hgx, hgy) => {
+    const bias = st.mode === 1 ? [0, -0.22] : (st.mode === 2 ? [0, 0.18] : [0, 0]);
+    for (let w = st.walkers.length - 1; w >= 0; w--){
+      const wk = st.walkers[w];
+      for (let s2 = 0; s2 < stepsPer; s2++){
+        wk.x += (Math.random() - 0.5) * 2 + bias[0];
+        wk.y += (Math.random() - 0.5) * 2 + bias[1];
+        if (force > 0.1){
+          wk.x += (hgx - wk.x) * 0.004 * force;
+          wk.y += (hgy - wk.y) * 0.004 * force;
+        } else if (st.mode === 0){
+          // a faint inward pull keeps the coral fed without changing its law
+          wk.x += (G / 2 - wk.x) * 0.0016;
+          wk.y += (G / 2 - wk.y) * 0.0016;
+        }
+        if (wk.x < 2 || wk.x > G - 3 || wk.y < 2 || wk.y > G - 3){ st.walkers.splice(w, 1); break; }
+        const gx = Math.round(wk.x), gy = Math.round(wk.y);
+        if (occ[gy * G + gx - 1] || occ[gy * G + gx + 1] || occ[(gy - 1) * G + gx] || occ[(gy + 1) * G + gx]){
+          if (!occ[gy * G + gx]) put(gx, gy);
+          st.walkers.splice(w, 1);
+          break;
+        }
+      }
+    }
+  };
+  const api = {
+    name: 'DENDRITE', key: 'dla', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // the hand warms the field: walks drift toward the finger
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const hgx = (U.uPtr.value.x * 15 / (2 * HALF) + 0.5) * G;
+      const hgy = (U.uPtr.value.y * 15 / (2 * HALF) + 0.5) * G;
+      advance(reducedMotion ? 5 : 11, force, hgx, hgy);
+      // keep the air stocked; a flurry on every onset
+      const want = st.done ? 0 : 260 + Math.round((f.energy || 0) * 500);
+      while (st.walkers.length < Math.min(want, WMAX)) spawnWalker();
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.4 && !st.done) for (let i = 0; i < 220; i++) spawnWalker();
+      }
+      // publish the snow
+      for (let i = 0; i < WMAX; i++){
+        if (i < st.walkers.length){
+          const [bx, by] = toBoard(st.walkers[i].x, st.walkers[i].y);
+          wPos[i * 3] = bx; wPos[i * 3 + 1] = by; wPos[i * 3 + 2] = -0.1;
+        } else wPos[i * 3 + 1] = -999;
+      }
+      wGeo.attributes.position.needsUpdate = true;
+      geo.setDrawRange(0, st.count);
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aAge.needsUpdate = true;
+      varU.uHeadA.value = st.count / NMAX;
+    },
+    roll(){
+      const r = Math.random();
+      st.mode = r < 0.5 ? 0 : (r < 0.8 ? 1 : 2);
+      seed();
+      /* THE HEAD START — the crystal arrives a few thousand accidents old,
+         already branching, and the song grows it from there. Time-boxed:
+         a slow machine gets a younger crystal, never a hitch. */
+      const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
+      while (st.count < 4600 && !st.done
+             && ((typeof performance !== 'undefined' ? performance : Date).now() - t0) < 240){
+        while (st.walkers.length < 900 && !st.done) spawnWalker();
+        advance(24, 0, 0, 0);
+      }
+      varU.uVarA.value = Math.random();
+      api.name = 'DENDRITE · ' + ['CORAL', 'WINDOW FROST', 'ROOTS'][st.mode];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 53 · MURMURATION — one animal made of eight hundred
+
+   Three rules — don't crowd, match your neighbours, stay with the
+   group — and none of them says "make a god of smoke over a
+   reedbed", but that is what comes out. The starlings here are a
+   real flock: each bird sees only its neighbourhood (a spatial
+   hash keeps that honest at scale), and the great sheets and waists
+   the flock throws are nobody's decision. The famous SHIMMER — a
+   wave of light rolling through a turning flock — is drawn from
+   the physics: each bird brightens by its own TURN RATE, so the
+   wave of decision is literally a wave of light.
+
+   The music sets the mood of the flock: coherent passages tighten
+   alignment into sheets, noisy ones scatter it, and a hard onset
+   sends a FALCON through — the strike, and the flock's answering
+   bloom, are the whole theatre of a murmuration compressed to a
+   bar. Your hand is the falcon whenever you want to be.
+   ========================================================= */
+function buildMurmuration(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() } };
+  const N = 800;
+  const px = new Float32Array(N), py = new Float32Array(N), pz = new Float32Array(N);
+  const vx = new Float32Array(N), vy = new Float32Array(N), vz = new Float32Array(N);
+  const pos = new Float32Array(N * 3), trn = new Float32Array(N);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aTurn', new THREE.BufferAttribute(trn, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: VERT_POINT_HEAD + `
+      attribute float aTurn;
+      varying float vTn;
+      void main(){
+        vTn = aTurn;
+        vT = aTurn; vGlow = 0.0;
+        vec4 mv = ptrWarp(modelViewMatrix * vec4(position, 1.0));
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = 0.27 * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uVarA, uEnergy;
+      varying float vTn;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        /* the shimmer: a bird catches the light exactly as hard as it is
+           deciding — brightness IS turn rate */
+        vec3 body = ramp(0.30 + uVarA * 0.25) * 0.5;
+        vec3 flash = mix(ramp(0.78 + uVarA * 0.15), vec3(1.0, 0.99, 0.95), 0.4);
+        vec3 c = mix(body, flash, clamp(vTn, 0.0, 1.0));
+        gl_FragColor = vec4(inkRolloff(c * (0.8 + uEnergy * 0.35)),
+                            smoothstep(0.5, 0.34, r) * uOpacity * (0.5 + vTn * 0.5));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+  group.visible = false;
+  scene.add(group);
+
+  const st = { mode: 0, falcon: null, lastOnset: 0, lastFalcon: -9, t: 0, hand3: new THREE.Vector3() };
+  const cell = new Map();
+  const key = (x, y, z) => ((x + 64) << 14) | ((y + 64) << 7) | (z + 64);
+  const seed2 = () => {
+    for (let i = 0; i < N; i++){
+      const a = Math.random() * Math.PI * 2, b2 = Math.acos(2 * Math.random() - 1);
+      const r = 6 * Math.cbrt(Math.random());
+      px[i] = Math.sin(b2) * Math.cos(a) * r; py[i] = Math.cos(b2) * r * 0.6; pz[i] = Math.sin(b2) * Math.sin(a) * r;
+      vx[i] = (Math.random() - 0.5) * 6; vy[i] = (Math.random() - 0.5) * 3; vz[i] = (Math.random() - 0.5) * 6;
+    }
+  };
+  const api = {
+    name: 'MURMURATION', key: 'boids', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      const h = Math.min(dt, 0.04) * (reducedMotion ? 0.55 : 1);
+      /* the mood of the flock, read straight off the music */
+      const wAli = (st.mode === 1 ? 1.9 : 1.4) * (0.55 + (f.coupling || 0) * 0.9);
+      const wSep = 2.3 * (0.7 + (f.entropy || 0) * 1.1);
+      const wCoh = (st.mode === 1 ? 1.6 : 0.9) * (0.6 + (f.calm || 0) * 0.7);
+      const vmaxB = 8 + (f.energy || 0) * 5;
+      // the falcon: on the big onsets, or wherever the hand is
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.12 && typeof camera !== 'undefined'){
+        const ndc = new THREE.Vector3(U.uPtr.value.x, U.uPtr.value.y, 0.5).unproject(camera);
+        const dir = ndc.sub(camera.position).normalize();
+        const nrm = camera.getWorldDirection(new THREE.Vector3());
+        const tt = -camera.position.dot(nrm) / Math.max(1e-4, dir.dot(nrm));
+        st.hand3.copy(camera.position).addScaledVector(dir, tt);
+        st.falcon = { x: st.hand3.x, y: st.hand3.y, z: st.hand3.z, vx: 0, vy: 0, vz: 0, life: 0.2, hand: true };
+      } else if (st.falcon && st.falcon.hand && force <= 0.12) st.falcon = null;
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.6 && st.t - st.lastFalcon > 2.5 && !st.falcon && !reducedMotion){
+          st.lastFalcon = st.t;
+          const a = Math.random() * Math.PI * 2;
+          st.falcon = { x: Math.cos(a) * 16, y: 4, z: Math.sin(a) * 16,
+                        vx: -Math.cos(a) * 14, vy: -2, vz: -Math.sin(a) * 14, life: 2.6, hand: false };
+        }
+      }
+      if (st.falcon && !st.falcon.hand){
+        st.falcon.x += st.falcon.vx * h; st.falcon.y += st.falcon.vy * h; st.falcon.z += st.falcon.vz * h;
+        st.falcon.life -= dt;
+        if (st.falcon.life <= 0) st.falcon = null;
+      }
+      // the spatial hash: each bird sees a neighbourhood, not the world
+      cell.clear();
+      const CS = 2.4;
+      for (let i = 0; i < N; i++){
+        const k = key(Math.floor(px[i] / CS), Math.floor(py[i] / CS), Math.floor(pz[i] / CS));
+        let arr = cell.get(k);
+        if (!arr){ arr = []; cell.set(k, arr); }
+        arr.push(i);
+      }
+      for (let i = 0; i < N; i++){
+        let ax = 0, ay = 0, az = 0;
+        let cxx = 0, cyy = 0, czz = 0, avx = 0, avy = 0, avz = 0, nn = 0;
+        const gx2 = Math.floor(px[i] / CS), gy2 = Math.floor(py[i] / CS), gz2 = Math.floor(pz[i] / CS);
+        for (let dx2 = -1; dx2 <= 1 && nn < 14; dx2++)
+          for (let dy2 = -1; dy2 <= 1 && nn < 14; dy2++)
+            for (let dz2 = -1; dz2 <= 1 && nn < 14; dz2++){
+              const arr = cell.get(key(gx2 + dx2, gy2 + dy2, gz2 + dz2));
+              if (!arr) continue;
+              for (let q2 = 0; q2 < arr.length && nn < 14; q2++){
+                const j = arr[q2];
+                if (j === i) continue;
+                const ddx = px[j] - px[i], ddy = py[j] - py[i], ddz = pz[j] - pz[i];
+                const d2 = ddx * ddx + ddy * ddy + ddz * ddz;
+                if (d2 > CS * CS * 1.2) continue;
+                nn++;
+                cxx += px[j]; cyy += py[j]; czz += pz[j];
+                avx += vx[j]; avy += vy[j]; avz += vz[j];
+                if (d2 < 1.1){
+                  const inv = 1 / (d2 + 0.05);
+                  ax -= ddx * inv * wSep; ay -= ddy * inv * wSep; az -= ddz * inv * wSep;
+                }
+              }
+            }
+        if (nn > 0){
+          const invn = 1 / nn;
+          ax += (cxx * invn - px[i]) * wCoh;
+          ay += (cyy * invn - py[i]) * wCoh;
+          az += (czz * invn - pz[i]) * wCoh;
+          ax += (avx * invn - vx[i]) * wAli;
+          ay += (avy * invn - vy[i]) * wAli;
+          az += (avz * invn - vz[i]) * wAli;
+        }
+        // the roost: the flock stays in the sky we can see
+        const rr = px[i] * px[i] + py[i] * py[i] * 2.4 + pz[i] * pz[i];
+        ax -= px[i] * rr * 0.0011; ay -= py[i] * rr * 0.0016; az -= pz[i] * rr * 0.0011;
+        // THE FALCON
+        if (st.falcon){
+          const ddx = px[i] - st.falcon.x, ddy = py[i] - st.falcon.y, ddz = pz[i] - st.falcon.z;
+          const d2 = ddx * ddx + ddy * ddy + ddz * ddz;
+          if (d2 < 42){
+            const w = 46 / (d2 + 1.5);
+            ax += ddx * w; ay += ddy * w; az += ddz * w;
+          }
+        }
+        const ovx = vx[i], ovy = vy[i], ovz = vz[i];
+        vx[i] += ax * h; vy[i] += ay * h; vz[i] += az * h;
+        const sp = Math.sqrt(vx[i] * vx[i] + vy[i] * vy[i] + vz[i] * vz[i]) || 1e-4;
+        const cl = sp > vmaxB ? vmaxB / sp : (sp < 3.5 ? 3.5 / sp : 1);
+        vx[i] *= cl; vy[i] *= cl; vz[i] *= cl;
+        px[i] += vx[i] * h; py[i] += vy[i] * h; pz[i] += vz[i] * h;
+        // the shimmer: turn rate, smoothed just enough to read as a wave
+        const dvx = vx[i] - ovx, dvy = vy[i] - ovy, dvz = vz[i] - ovz;
+        const turn = Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz) / (sp * Math.max(h, 1e-3)) * 0.05;
+        trn[i] += (Math.min(1.4, turn) - trn[i]) * Math.min(1, dt * 7);
+        pos[i * 3] = px[i]; pos[i * 3 + 1] = py[i]; pos[i * 3 + 2] = pz[i];
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aTurn.needsUpdate = true;
+    },
+    roll(){
+      st.mode = Math.random() < 0.7 ? 0 : 1;
+      seed2();
+      varU.uVarA.value = Math.random();
+      api.name = 'MURMURATION · ' + ['STARLINGS', 'BAIT BALL'][st.mode];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -36436,7 +38861,10 @@ function initThree(){
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
               buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain(),
               buildEigenstate(), buildCreature(), buildBarkley(), buildVerse(), buildArcade(), buildScope(),
-              buildArabesque(), buildMaelstrom(), buildVoltage(), buildSilicon());
+              buildArabesque(), buildMaelstrom(), buildVoltage(), buildSilicon(),
+              buildFeigenbaum(), buildChladni(), buildAutomaton(), buildEventHorizon(), buildFerrofluid(),
+              buildGalton(), buildPendula(), buildAttractor(), buildFireflies(), buildThreeBody(),
+              buildDendrite(), buildMurmuration());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
