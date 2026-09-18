@@ -1486,11 +1486,28 @@ body.crowd{background:#000}
   border:1px solid var(--line-soft);background:#03040a;
 }
 .rig-presets{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}
-.rig-presets button{
+.rig-presets button,.rig-tools button{
   padding:6px 12px;border-radius:9px;cursor:pointer;font-size:10px;letter-spacing:.1em;
   text-transform:uppercase;border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
 }
-.rig-presets button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-presets button.on,.rig-tools button.on{color:var(--ink);border-color:var(--accent-line);background:var(--sheen)}
+.rig-tools{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.rig-setup{
+  margin:0 0 12px;padding:12px 14px 12px 32px;border:1px solid var(--line-soft);
+  border-radius:12px;background:var(--card);font-size:11px;color:var(--dim);line-height:1.7;
+}
+.rig-setup li{margin:4px 0}
+.rig-setup li.bad{color:#ff9a7a}
+.rig-fx .addr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
+.rig-at{
+  width:52px;background:var(--glass);border:1px solid var(--line-soft);color:var(--ink);
+  border-radius:6px;padding:2px 4px;font-size:10px;font-variant-numeric:tabular-nums;
+}
+.rig-mode{
+  background:var(--glass);border:1px solid var(--line-soft);color:var(--ink);
+  border-radius:6px;padding:2px 4px;font-size:10px;text-transform:uppercase;
+}
+.rig-fx .addr .clash{color:#ff9a7a}
 .rig-chans{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .rig-fx{border:1px solid var(--line-soft);border-radius:12px;padding:9px 11px;background:var(--card)}
 .rig-fx h4{margin:0 0 2px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
@@ -1517,6 +1534,12 @@ body.crowd{background:#000}
 }
 .rig-sws button:hover{transform:scale(1.16)}
 .rig-foot{margin-top:10px;font-size:10px;color:var(--faint);line-height:1.6}
+.rig-wire{
+  flex:0 0 auto;align-self:center;padding:6px 12px;border-radius:9px;cursor:pointer;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--line-soft);background:var(--glass);color:var(--dim);
+}
+.rig-wire.on{color:#04121a;background:var(--accent);border-color:var(--accent)}
 /* ============ skins: the room the music plays in ============ */
 .skin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skin-sw{
@@ -2677,10 +2700,16 @@ body.clipping::after{
       <span class="rig-title">The Rig</span>
       <span class="rig-sub" id="rigSub">drawn from the wire</span>
       <span class="spring"></span>
+      <button class="rig-wire" id="rigWire" aria-pressed="false">Put this on the wire</button>
       <button class="pl-x" id="rigClose" aria-label="Close the rig">&#10005;</button>
     </div>
     <canvas id="rigStage" width="1200" height="525"></canvas>
     <div class="rig-presets" id="rigPresets" role="group" aria-label="Lighting presets"></div>
+    <div class="rig-tools">
+      <button type="button" id="rigGuide" aria-expanded="false" aria-controls="rigSetup">Set-up guide</button>
+      <button type="button" id="rigAuto">Auto address</button>
+    </div>
+    <ol class="rig-setup" id="rigSetup" hidden></ol>
     <div class="rig-chans" id="rigChans"></div>
     <div class="rig-foot" id="rigFoot"></div>
   </div>
@@ -3251,6 +3280,22 @@ body.clipping::after{
     home, and the paddles' aim wanders with the energy so points fall on the drop. The games are drawn on a
     256×192 canvas; one shader makes it a television — barrel glass, scanlines, a slot mask, bloom, fringing on
     the hit, and the light the picture throws on the cabinet. Your hand on the glass is the paddle.</p>
+    <h3>Four elements</h3>
+    <p class="lede">Scene 38 is <b>ARABESQUE</b> — an infinite plane of eight-pointed girih stars (each one is
+    two squares, one turned 45°, as a single distance field) pulled through a projection: a star <b>tunnel</b>
+    whose floor and ceiling meet at a horizon, a log-polar <b>well</b> with the same count of stars on every
+    ring for ever down, or a plain <b>inversion</b>. The far field hazes the way distance does; a hand in the
+    lattice winds the whole tiling. Scene 39 is <b>MAELSTROM</b> — a ray-marched storm sea whose crests
+    sharpen the way real deep-water waves do (a Stokes exponent the music drives) and lean forward over their
+    own troughs (a trochoidal domain warp). Whitecaps appear where the surface is high <i>and</i> steep —
+    foam as a consequence, never a texture — the camera rides a boat on the same sea, and the big hits light
+    the cloud deck from inside. Scene 40 is <b>VOLTAGE</b> — dielectric breakdown drawn at glow width: a
+    channel of layered noise pinned at both electrodes, re-seeded on a flicker clock, struck by every onset.
+    Cloud-to-ground, a plasma globe, or a Jacob's ladder whose arc climbs the gap and re-strikes at the
+    bottom; a hand near any of them is an electrode the arc reaches for. Scene 41 is <b>SILICON</b> — a
+    Truchet circuit board whose signal fronts propagate out of the package by Manhattan distance on the
+    music's own clock, while the die inside thinks: gates flipping against a threshold the treble and the
+    entropy set. A hand on the board is a probe to ground.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3858,14 +3903,19 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers',
                'flows',
                'grows', 'gathers',
-               'gathers', 'flows'];   // …the lattice and the film ripple, the
+               'gathers', 'flows',
+               'grows', 'flows', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
                            // does, a hand near the CREATURE is a current in its water,
                            // and a hand on the EXCITABLE medium GROWS a wave from nothing;
                            // a hand on the ARCADE's glass PULLS — it is also the paddle,
-                           // and a hand on the SCOPE's glass RIPPLES the trace
+                           // and a hand on the SCOPE's glass RIPPLES the trace;
+                           // a hand in the WEAVE winds the whole tiling, a hand on the
+                           // MAELSTROM is wind on water, a hand near the VOLTAGE is an
+                           // ELECTRODE the arc reaches for, and a hand on the SILICON
+                           // is a short to ground — the current sinks into it
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -4121,14 +4171,18 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa',
                'lissa',
                'paint', 'drift',
-               'bounce', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
+               'bounce', 'lissa',
+               'lissa', 'drift', 'bounce', 'snake'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
                            // the CREATURE is swum alongside in slow figure-eights, and the
                            // ghost PAINTS on the EXCITABLE medium — strokes of live fire,
                            // and BOUNCES on the ARCADE like the ball it is watching;
-                           // on the SCOPE it draws the LISSAJOUS the tube is drawing
+                           // on the SCOPE it draws the LISSAJOUS the tube is drawing;
+                           // through the WEAVE it curves, over the MAELSTROM it drifts
+                           // like spray, under the VOLTAGE it bounces — strike points,
+                           // not strokes — and on the SILICON it walks the traces
   const i = (sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0;
   let k = MAP[i] || 'drift';
   // the quiet edges of the arc are where a hand actually reads, so they get the
@@ -5312,7 +5366,8 @@ function eigenTimeUnit(mode, e){
 const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 'ribbons', 'fractal',
                     'comets', 'fern', 'rosette', 'slinky', 'opart', 'pulse', 'parlor', 'aurea', 'halo',
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
-                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade', 'scope'];
+                    'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade', 'scope',
+                    'weave', 'ocean', 'bolt', 'circuit'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5379,6 +5434,18 @@ const SCENE_TASTE = {
   scope:     { coupling: 1.3, treble: 0.6, calm: 0.5, entropy: -0.6 },  // a Lissajous figure is two clean tones —
                                                             // the beam wants coherent, tonal material; noise
                                                             // on the plates is a smear, not a picture
+  weave:     { coupling: 1.1, mid: 0.8, calm: 0.5, entropy: -0.4 },  // a tiling is a held argument — the star
+                                                            // lattice wants tonal, coherent material to
+                                                            // breathe against, not a fight
+  ocean:     { energy: 1.4, bass: 1.2, entropy: 0.7, calm: -0.5 },  // a storm sea wants WEATHER — loud, low
+                                                            // and disordered; becalmed material leaves a
+                                                            // swell with nothing to break
+  bolt:      { beat: 1.5, treble: 0.9, energy: 0.8, calm: -0.6 },  // lightning is made of ONSETS — every
+                                                            // strike wants a hit to ride, and a quiet
+                                                            // passage is a sky with no charge in it
+  circuit:   { beat: 1.2, coupling: 0.9, treble: 0.6, entropy: -0.3 },  // a clocked machine wants a PULSE and
+                                                            // order — signals propagate on the beat, and
+                                                            // the gates flicker on the detail up top
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6527,6 +6594,10 @@ const SCENE_SIGS = {
   verse:     { kind: 'grid',   h: 46, dense: 0.6 },
   arcade:    { kind: 'grid',   h: 58, dense: 1, c: 0 },
   scope:     { kind: 'wave',   h: 140, arms: 3, twist: 1 },
+  weave:     { kind: 'ring',   h: 226, arms: 8, dense: 1 },
+  ocean:     { kind: 'wave',   h: 205, arms: 4, dense: 1 },
+  bolt:      { kind: 'burst',  h: 262, arms: 3, tail: 1 },
+  circuit:   { kind: 'grid',   h: 130, dense: 0.8 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -6807,6 +6878,66 @@ function dmxUniverseUsed(patched){
   return top;
 }
 
+/* AUTO-ADDRESSING. dmxPatch already knows the rule — every fixture takes the
+   first channel after the one before it — but it only applies it to fixtures
+   that arrive with no address. This applies it to ALL of them: the one-button
+   answer to "what do I dial into the back of each lamp", and the undo for any
+   collision a hand-typed address created. Same packing, same order, no gaps,
+   so the shipped default rig is exactly what this computes for it. */
+function dmxAutoAddress(rig){
+  let next = 1;
+  return (rig || []).map(r => {
+    if (!r || !r.key || dmxWire(r.key) === 'net') return r;
+    const span = dmxFootprint(r.key, dmxModeOf(r.key, r.mode));
+    if (!span) return r;
+    const at = next; next += span;
+    return Object.assign({}, r, { at });
+  });
+}
+
+/* THE COLLISION REPORT. Two fixtures sharing a channel is the nastiest fault
+   in DMX because it does not look like a fault: each lamp obeys the bytes it
+   hears, the bytes are meant for somebody else half the time, and the rig
+   reads as haunted. dmxPatch will happily record what two displays actually
+   dialled — its job is truth, not prevention — so this is the arithmetic
+   that names the fixtures whose spans intersect, for the console to say out
+   loud BEFORE the room does. */
+function dmxOverlaps(patched){
+  const rows = (patched || []).filter(f => f && f.fits && f.wire !== 'net');
+  const ids = [];
+  for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++){
+    const a = rows[i], b = rows[j];
+    if (a.at <= b.at + b.span - 1 && b.at <= a.at + a.span - 1){
+      if (ids.indexOf(a.id) < 0) ids.push(a.id);
+      if (ids.indexOf(b.id) < 0) ids.push(b.id);
+    }
+  }
+  return ids;
+}
+
+/* THE DIAL PLAN — the patch, rewritten as instructions for a person standing
+   behind a lamp. Every wired fixture becomes one row: the three digits to
+   dial into its rear display (fixtures of this era show addresses padded,
+   d001-style, so the guide shows what the display will show), the mode to
+   pick when the fixture has more than one, and the channels it will then
+   own. Pure, so the guide the panel renders is tested arithmetic rather
+   than prose that can drift from the patch it describes. */
+function dmxDialPlan(patched){
+  const out = [];
+  for (const f of (patched || [])){
+    if (!f || f.wire === 'net') continue;
+    const p = dmxProfile(f.key) || {};
+    out.push({
+      id: f.id, name: f.name, make: p.make || '', model: p.name || f.key,
+      at: f.at, dial: ('00' + f.at).slice(-3),
+      mode: f.mode, modes: Object.keys(p.modes || {}).length,
+      chans: f.at + '–' + (f.at + f.span - 1),
+      fits: !!f.fits,
+    });
+  }
+  return out;
+}
+
 /* ---------------------------------------------------------------- intent */
 /* WHAT THE ROOM SHOULD LOOK LIKE, before any lamp has an opinion. Everything
    is 0..1 except spin, which is signed because direction is a thing you can
@@ -6830,14 +6961,31 @@ function dmxIntent(o){
    whole program that can hurt somebody: flash rates between roughly 3 and
    65 Hz are the photosensitive-seizure band, and a rig driven from an
    audio-reactive render loop will happily sit in the middle of it all night.
-   So the intent's 0..1 is mapped to a range that STOPS at 3 Hz — fast enough
-   to read as a strobe on a drop, below the band by construction. There is no
-   parameter to raise it, because the one thing a "pro mode" must never unlock
-   is this. */
+   So a strobe stops at 3 Hz — fast enough to read as a strobe on a drop,
+   below the band by construction. There is no parameter to raise it, because
+   the one thing a "pro mode" must never unlock is this.
+
+   THE CAP HAS TWO HALVES, AND THE WIRE'S IS THE ONE THAT MATTERS. While the
+   rig was only a picture, capping the DRAWN rate was the whole job. With a
+   real interface attached, the bytes are the danger: a fixture's strobe
+   channel spans its entire hardware range, and the top of that range on
+   these lamps is well inside the band. No reachable datasheet names the
+   exact top rate, so it is ASSUMED to be 25 Hz — faster than any of these
+   club LEDs actually run, and assuming too fast only makes the wire slower,
+   which is the safe side of wrong. The writer (dmxStrobeBand) therefore
+   uses only the bottom 3/25ths of any strobe band, and the reader
+   (dmxStrobeHz) decodes a band fraction under the same assumption, capped
+   so the drawn flash can never exceed 3 Hz either — the monitor and the
+   room agreeing, at the cap, by sharing one piece of arithmetic. */
 const DMX_STROBE_MAX_HZ = 3;
+const DMX_STROBE_TOP_HZ = 25;              // assumed band top, absent a datasheet
 function dmxStrobeHz(strobe){
   const s = Math.max(0, Math.min(1, Number(strobe) || 0));
-  return s <= 0 ? 0 : 0.7 + s * (DMX_STROBE_MAX_HZ - 0.7);
+  return Math.min(DMX_STROBE_MAX_HZ, s * DMX_STROBE_TOP_HZ);
+}
+function dmxStrobeBand(lo, hi, strobe){
+  const s = Math.max(0, Math.min(1, Number(strobe) || 0));
+  return Math.round(lo + s * (DMX_STROBE_MAX_HZ / DMX_STROBE_TOP_HZ) * (hi - lo));
 }
 
 /* the nearest thing a seven-colour lamp can be to a colour it cannot make.
@@ -6876,12 +7024,12 @@ function dmxRenderFixture(f, intent, frame){
     const dark = i.dim < 0.06;
     if (dark) put(1, 0);
     else if (i.strobe > 0.02){
-      // 002-127 slow to fast. A punchy intent gets the RANDOM strobe band
-      // (136-253) instead, which on this fixture is markedly less regular
-      // and reads as an accent rather than as a machine.
-      if (i.punch > 0.6) put(4 - 3, 0);      // (no-op guard; ch1 set below)
-      if (i.punch > 0.6) put(1, 136 + i.strobe * (253 - 136));
-      else put(1, 2 + i.strobe * (127 - 2));
+      // 002-127 slow to fast, entered through dmxStrobeBand so the PHYSICAL
+      // rate stays under the cap. A punchy intent gets the RANDOM strobe
+      // band (136-253) instead, which on this fixture is markedly less
+      // regular and reads as an accent rather than as a machine.
+      if (i.punch > 0.6) put(1, dmxStrobeBand(136, 253, i.strobe));
+      else put(1, dmxStrobeBand(2, 127, i.strobe));
     } else put(1, 130);                      // 128-135 LED ON, mid-band
     /* Ch3/Ch2 — the interlock. With the rainbow up, channel 2 stops being a
        colour and becomes the rainbow's speed, so the colour selection below
@@ -6926,7 +7074,7 @@ function dmxRenderFixture(f, intent, frame){
     set('white', b255(white * k));
     set('amber', b255(Math.max(0, Math.min(i.r, i.g * 0.75) - i.b) * k));
     set('uv', 0);
-    set('strobe', i.strobe > 0.02 ? Math.round(16 + i.strobe * (255 - 16)) : 0);
+    set('strobe', i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     set('mode', 0); set('macro', 0); set('speed', 0);
     // a head that can aim is aimed across the room by the same signed spin
     if (has('pan')) put(idx('pan'), b255(0.5 + i.spin * 0.42));
@@ -6949,7 +7097,7 @@ function dmxRenderFixture(f, intent, frame){
        arrangement in which this fixture does what the console says and
        nothing of its own. */
     put(6, 0);                               // 000-031 no function
-    put(5, i.strobe > 0.02 ? 16 + i.strobe * (255 - 16) : 0);
+    put(5, i.strobe > 0.02 ? dmxStrobeBand(16, 255, i.strobe) : 0);
     put(7, b255(i.dim));
     /* Ch8 — the dimmer curve. Off means the dimmer follows the wire exactly,
        which is what a lamp being driven at thirty frames a second wants; the
@@ -7116,12 +7264,243 @@ function dmxAutoPreset(show){
 
 /* one lamp's share of the chord. Washes spread across the stops rather than
    all taking the first one — two washes on the identical colour is a wall,
-   three on the chord is a room — and the beam takes the stop the picture
-   uses for its accents, so the moonflower agrees with the thing on screen. */
+   three on the chord is a room. The beam's HOME is the stop the picture uses
+   for its accents, so the moonflower agrees with the thing on screen — but a
+   beam is the room's dancer, and a dancer stuck on one colour until the song
+   changes chord reads as a lamp somebody forgot. So the beam WALKS the chord
+   from its home stop: hand it a step count and it visits the other stops and
+   comes back, always in colours the picture is already made of. */
 function dmxChordStop(chord, role, i){
   const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
-  if (role === 'beam' || role === 'accent') return list[Math.min(2, list.length - 1)];
+  if (role === 'beam' || role === 'accent')
+    return list[(Math.min(2, list.length - 1) + (i || 0)) % list.length];
   return list[i % list.length];
+}
+
+/* ================================================================
+   THE BEAM'S OWN CHOREOGRAPHER
+
+   Walking the chord was the right instinct and the wrong palette. A chord's
+   three stops are the PICTURE's colours — close cousins by design — and a
+   moonflower quantises everything to seven hardware states, so a bluish
+   chord walks three stops that all land on BLUE and the walk disappears.
+   The fixture wasn't refusing to dance; it was being handed three copies of
+   the same colour and honestly showing all of them.
+
+   So the beam gets what the field already has (DANCE_MOVES): a repertoire.
+   A move is a pure pose — colour, spin, rainbow from (state, show) — and a
+   small state machine counts real beats, deals a fresh move every phrase,
+   and keeps a kick envelope so a lunge can decay the way a limb does. The
+   colours come from a RING of saturated hue-wheel stops, anchored to the
+   chord's accent so the dancer starts in the picture's own corner of the
+   wheel — and every ring stop lands on a DIFFERENT one of the seven states
+   a moonflower can be, which is the whole point: a colour change you
+   asked for is a colour change you see. Washes stay on the chord; a wall
+   that flashes primaries is a fire sale, but a beam that does is a dancer.
+
+   Everything here is (state in → state out) pure and lives with the rest of
+   the DMX arithmetic, so the choreography is tested the way the channel
+   charts are. */
+const DMX_BEAM_MOVES = ['chase', 'whirl', 'stab', 'bloom'];
+
+/* ================================================================
+   THE TRACK'S OWN SHOW — design, not reaction
+
+   The shows people fly to — a festival main stage, the Sphere — are not
+   reacting to the music; they were DESIGNED to it, one programmed show per
+   song, each with its own limited palette and its own motion character,
+   repeatable to the frame. This player cannot pre-program what it has not
+   heard, but it holds something those consoles do not: every track's own
+   analysis — its key, its tempo, its identity — measured by the same
+   pipeline that draws its cover. So the design is DERIVED, deterministically:
+   hash the track, seed the choices, and the same track wears the same show
+   every night while no two tracks wear the same one. A designed show that
+   composes itself.
+
+   The choices are the ones a lighting designer actually makes per song:
+     · a PALETTE — three to five colours, not the whole wheel. Colour
+       theory keyed to the music: minor keys wear ANALOGOUS palettes
+       (adjacent hues — cohesive, moody) with the COMPLEMENT for tension;
+       major keys carry TRIADS and complements — brighter, more contrast.
+       The seed picks within that taste, so two tracks in one key differ.
+     · a SYMMETRY — whether the washes trade the beat (mirror) or breathe
+       together (unison), and how deep the off-wash dips: the track's own,
+       inside the band that still reads as rhythm.
+     · a SET LIST — the order the dancer's moves are dealt in, shuffled
+       once per track, so each song's phrases unfold in their own order.
+     · a BULB POLICY — whether networked bulbs follow the wash or take its
+       complement (simultaneous contrast: the oldest trick for making a
+       stage colour pop is to surround it with its opposite). */
+function dmxTrackHash(s){
+  let h = 2166136261;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function dmxTrackDesign(track){
+  if (!track) return null;
+  const key = String(track.key || ''), bpm = Number(track.bpm) || 0;
+  const seed = dmxTrackHash(String(track.id || '') + '|' + key + '|' + Math.round(bpm));
+  const rnd = mulberry32(seed);
+  const cam = camelotParse(key);
+  const minor = cam ? cam.l === 'A' : rnd() < 0.5;
+  const fast = bpm >= 126;
+  const schemes = minor ? (fast ? ['complement', 'analogous', 'triad'] : ['analogous', 'complement'])
+                        : (fast ? ['triad', 'complement'] : ['analogous', 'triad']);
+  const scheme = schemes[Math.floor(rnd() * schemes.length) % schemes.length];
+  // ring-step offsets from the anchor; every subset stays distinct on a
+  // seven-state lamp, so the palette narrows without ever collapsing
+  const steps = scheme === 'complement' ? [0, 3] : scheme === 'triad' ? [0, 2, 4] : [5, 0, 1];
+  const symmetry = rnd() < (fast ? 0.72 : 0.45) ? 'mirror' : 'unison';
+  const depth = 0.4 + rnd() * 0.3;
+  const moves = DMX_BEAM_MOVES.slice();
+  for (let i = moves.length - 1; i > 0; i--){
+    const j = Math.floor(rnd() * (i + 1));
+    const t = moves[i]; moves[i] = moves[j]; moves[j] = t;
+  }
+  const huePolicy = rnd() < 0.5 ? 'counter' : 'follow';
+  return { seed, scheme, steps, symmetry, depth, moves, huePolicy };
+}
+
+function dmxBeamState(){
+  return { beats: 0, phraseN: 0, prevBeat: 0, prevPhrase: 0, prevPhase: 'flow', kick: 0, hit: 0, move: 'chase' };
+}
+
+/* the six saturated hue-wheel stops, rotated so the ring begins at the one
+   nearest the chord's accent — compared by direction, exactly the way the
+   Mystic's own nearest-colour pick works, so anchor and lamp agree. */
+function dmxBeamColors(chord, design){
+  const RING = [
+    { r: 1, g: 0, b: 0 }, { r: 1, g: 1, b: 0 }, { r: 0, g: 1, b: 0 },
+    { r: 0, g: 1, b: 1 }, { r: 0, g: 0, b: 1 }, { r: 1, g: 0, b: 1 },
+  ];
+  const list = (chord && chord.length) ? chord : [{ r: 1, g: 1, b: 1 }];
+  const a = list[Math.min(2, list.length - 1)] || {};
+  const n = Math.hypot(a.r || 0, a.g || 0, a.b || 0) || 1;
+  let best = 0, bestD = -Infinity;
+  for (let i = 0; i < RING.length; i++){
+    const c = RING[i];
+    const d = ((a.r || 0) * c.r + (a.g || 0) * c.g + (a.b || 0) * c.b) / (n * Math.hypot(c.r, c.g, c.b));
+    if (d > bestD){ bestD = d; best = i; }
+  }
+  const out = [];
+  for (let i = 0; i < RING.length; i++) out.push(RING[(best + i) % RING.length]);
+  /* a track's design narrows the wheel to ITS palette — the designer's
+     three-to-five colours, not everything the lamp can be — still anchored
+     to the accent, still distinct after quantisation by construction */
+  if (design && Array.isArray(design.steps) && design.steps.length)
+    return design.steps.map(i => out[((i % out.length) + out.length) % out.length]);
+  return out;
+}
+
+/* the clock: count beats off the beat envelope's RISING EDGE, with
+   hysteresis so one hump is one beat however long it hangs near the
+   threshold; notice the phrase wrapping and deal the next move; run the
+   kick envelope down at limb speed. The preset gates the deal — a room
+   with no rainbow budget is never dealt the bloom. */
+function dmxBeamStep(st, show, dt){
+  const s = st || dmxBeamState();
+  const sh = show || {};
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const beat = Math.max(u(sh.beat), u(sh.pulse)), phrase = u(sh.phrase);
+  const preset = DMX_PRESETS[sh.preset] || DMX_PRESETS[dmxAutoPreset(sh)] || DMX_PRESETS.follow;
+  let beats = s.beats, phraseN = s.phraseN, move = s.move;
+  let kick = Math.max(0, s.kick - Math.max(0, Number(dt) || 0) * 3.2);
+  if (beat > 0.6 && s.prevBeat <= 0.35){ beats++; kick = 1; }
+  if (phrase < s.prevPhrase - 0.5){
+    phraseN++;
+    // the track's own set list, where a design rides in; the house order otherwise
+    const order = (sh.design && Array.isArray(sh.design.moves) && sh.design.moves.length)
+      ? sh.design.moves : DMX_BEAM_MOVES;
+    const able = preset.rainbow > 0 ? order : order.filter(m => m !== 'bloom');
+    move = able[phraseN % able.length];
+    if (move === s.move) move = able[(phraseN + 1) % able.length];
+  }
+  /* THE DROP IS AN EVENT, NOT A STATE. A show caller hits the drop ONCE —
+     the crossing into it — and then the look settles; a rig that stayed
+     slammed for the whole chorus would have nowhere left to go. So the hit
+     fires on the phase EDGE into the climax family (drop and peak are one
+     climax, not two), burns down over about a bar, and cannot re-fire until
+     the music has actually left and come back. */
+  const CLIMAX = { drop: 1, peak: 1 };
+  const phase = String((show || {}).phase || 'flow');
+  let hit = Math.max(0, (s.hit || 0) - Math.max(0, Number(dt) || 0) * 1.1);
+  if (CLIMAX[phase] && !CLIMAX[s.prevPhase]) hit = 1;
+  return { beats, phraseN, prevBeat: beat, prevPhrase: phrase, prevPhase: phase, kick, hit, move };
+}
+
+/* THE RHYTHM SECTION. Two washes both riding the same beat is one big lamp;
+   a pro trades them — the on-beat wash carries the hit while its partner
+   dips and recovers with the kick — and lands EVERYBODY together on the
+   ONE, because the downbeat is the bar's spine and a chase that ignores it
+   reads as random. Four beats to a bar, counted off the same clock as the
+   dancer. A preset that barely follows the beat (a talking room) never
+   chases, and no clock means no chase: this multiplies a dimmer, so its
+   idle answer is exactly 1. */
+function dmxWashChase(st, preset, n, design){
+  if (!st || !preset || preset.beat < 0.5) return 1;
+  if (((st.beats % 4) + 4) % 4 === 0) return 1;      // the ONE: everybody
+  /* the track's design decides the SYMMETRY: mirror trades the beat
+     between the washes; unison has them breathe as one wall. And the dip
+     is the track's own depth, inside the band that still reads as rhythm. */
+  const mine = (design && design.symmetry === 'unison')
+    ? (st.beats % 2) === 0
+    : (st.beats % 2) === ((n || 0) % 2);
+  if (mine) return 1;
+  const depth = design && Number.isFinite(design.depth) ? design.depth : 0.55;
+  return 1 - depth * Math.max(0, Math.min(1, st.kick || 0));
+}
+
+/* the pose: one move, one moment, one honest answer for colour, spin and
+   rainbow. Amplitude bows to the preset (a slow wash stays slow however
+   hard the dancer wants to go) on a soft curve, so even calm turns a
+   little. A talking room (a preset that barely follows the beat) steps
+   its colours on phrase quarters instead of beats — movement without
+   flicker. */
+function dmxBeamPose(st, show){
+  const s = st || dmxBeamState();
+  const sh = show || {};
+  const u = v => Math.max(0, Math.min(1, Number(v) || 0));
+  const energy = u(sh.energy), phrase = u(sh.phrase);
+  const preset = DMX_PRESETS[sh.preset] || DMX_PRESETS[dmxAutoPreset(sh)] || DMX_PRESETS.follow;
+  const ring = dmxBeamColors(sh.chord, sh.design);
+  const q = s.phraseN * 4 + Math.floor(phrase * 4);
+  const base = preset.beat >= 0.3 ? s.beats : q;
+  const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
+  const amp = Math.pow(Math.max(0.05, preset.spin), 0.6);
+  let color, spin, rainbow = 0;
+  if (s.move === 'whirl'){
+    // the motor is the show: colour rests on slow quarters while the beams run
+    color = ring[q % ring.length];
+    spin = dir * amp * (0.8 + 0.2 * energy);
+  } else if (s.move === 'stab'){
+    // opposite sides of the wheel on every beat, and a lunge that decays;
+    // a two-colour palette IS opposite sides, so it steps plainly there
+    color = ring[(base * (ring.length > 2 ? 2 : 1)) % ring.length];
+    spin = dir * amp * (0.15 + 0.85 * s.kick);
+  } else if (s.move === 'bloom'){
+    /* the fixture's own rainbow engine. The renderer's interlock only
+       engages above 0.5 — below that a "bloom" would render as one static
+       colour for a whole phrase, the deadest possible move — so the pose
+       always clears the gate and the preset's budget sets the SPEED. */
+    color = ring[0];
+    rainbow = 0.55 + 0.45 * u(preset.rainbow);
+    spin = dir * amp * (0.2 + 0.3 * energy);
+  } else {
+    // chase: the next hue on every step, speed breathing with room and kick
+    color = ring[base % ring.length];
+    spin = dir * amp * (0.35 + 0.45 * energy + 0.2 * s.kick);
+  }
+  /* ANTICIPATION. A build that arrives at the drop at cruising speed wasted
+     the build: through it, the motor winds UP while the walls (see the
+     matching pull-back in dmxShowIntents) lean DOWN — the room coiling, so
+     the hit lands as release rather than as one more loud bar. */
+  const tension = (String(sh.phase) === 'build' || String(sh.phase) === 'lift') ? phrase : 0;
+  return {
+    r: color.r, g: color.g, b: color.b,
+    spin: Math.max(-1, Math.min(1, spin * (1 + 0.5 * tension))),
+    rainbow: u(rainbow),
+  };
 }
 
 /* THE WHOLE RIG, ONE FRAME'S WORTH OF INTENT.
@@ -7183,7 +7562,12 @@ function dmxShowIntents(show, patched){
     if (!f) continue;
     const prof = dmxProfile(f.key) || { can: {} };
     const role = f.role || 'wash';
-    const c = dmxChordStop(chord, role, role === 'wash' ? washN++ : 0);
+    /* a wash keeps its stop for the whole song — a wall that changes colour
+       every bar is wallpaper flickering — but the beam steps to the next
+       stop each quarter-phrase, so the moonflower changes colour ON the
+       music's own boundaries rather than whenever the chord happens to. */
+    const wi = role === 'wash' ? washN++ : 0;
+    const c = dmxChordStop(chord, role, role === 'wash' ? wi : Math.floor(phrase * 4));
     if (preset.off || master <= 0){
       out[f.id] = { r: 0, g: 0, b: 0, dim: 0, strobe: 0, spin: 0, rainbow: 0 };
       continue;
@@ -7198,16 +7582,64 @@ function dmxShowIntents(show, patched){
     /* the beam is the accent, so it is allowed to be the thing that goes dark
        between phrases where a wash may not — that contrast is the effect */
     if (role === 'beam') dim = u(dim * (0.55 + 0.45 * energy));
+    /* the washes trade the beat between them and land together on the ONE —
+       and through a build they PULL BACK as the phrase climbs (the beam
+       winds up in dmxBeamPose): anticipation, so the drop lands as release */
+    const tension = (String(s.phase) === 'build' || String(s.phase) === 'lift') ? phrase : 0;
+    if (role === 'wash')
+      dim = u(dim * dmxWashChase(s.beam, preset, wi, s.design) * (1 - 0.3 * tension * preset.beat));
     const strobe = u(preset.strobe * Math.max(0, energy - 0.55) / 0.45);
     /* SPIN follows the phrase and reverses with it, because a moonflower that
-       only ever turns one way stops being noticed after ninety seconds. */
+       only ever turns one way stops being noticed after ninety seconds — and
+       it SURGES on the kick, because a motor is the one voice this fixture
+       has for the beat: no dimmer to pulse, so the beams lunge instead. */
     const dir = (Math.floor(phrase * 2) % 2) ? -1 : 1;
-    const spin = prof.can.spin ? dir * preset.spin * (0.25 + 0.75 * energy) : 0;
+    const spin = prof.can.spin
+      ? dir * preset.spin * (0.2 + 0.5 * energy + 0.3 * Math.max(beat, pulse)) : 0;
+    /* WHEN THE CHOREOGRAPHER IS RUNNING (the caller advances a beam state
+       with dmxBeamStep and rides it in on show.beam), a beam-role fixture
+       takes its pose from the engine instead: quantisation-proof colours,
+       a move dealt per phrase, a kick that decays. Without the state — a
+       bare test, an older caller — the walk above still dances. */
+    const pose = role === 'beam' && s.beam ? dmxBeamPose(s.beam, s) : null;
+    let cr = u(pose ? pose.r : (c && c.r));
+    let cg = u(pose ? pose.g : (c && c.g));
+    let cb = u(pose ? pose.b : (c && c.b));
+    /* COLOUR THEORY'S SURROUND. A track whose design says 'counter' hands
+       its networked bulbs the COMPLEMENT of the wash — simultaneous
+       contrast, the oldest trick for making a stage colour pop is to
+       surround it with its opposite — lifted off the floor, because a
+       bulb whose complement came out black would read as simply broken. */
+    if (f.wire === 'net' && s.design && s.design.huePolicy === 'counter' && !pose){
+      cr = u(1 - cr); cg = u(1 - cg); cb = u(1 - cb);
+      const top = Math.max(cr, cg, cb);
+      if (top <= 0.001){ cr = 0.35; cg = 0.35; cb = 0.35; }
+      else if (top < 0.35){ const lift = 0.35 / top; cr = u(cr * lift); cg = u(cg * lift); cb = u(cb * lift); }
+    }
+    let str = strobe;
+    let punch = u(beat * energy);
+    /* THE DROP HIT — the one look every stage show shares: the crossing into
+       the chorus lands as a full-white slam on the walls and a burst from
+       the dancer, then burns down into the settled climax look. Gated by
+       the preset's own beat appetite so a hand-pinned calm room can never
+       be slammed; the beam's burst rides the strobe intent, which the
+       renderer still holds under the safety cap. */
+    const hit = s.beam && preset.beat >= 0.5 ? u(s.beam.hit) : 0;
+    if (hit > 0){
+      if (role === 'wash'){
+        cr = u(cr + (1 - cr) * hit); cg = u(cg + (1 - cg) * hit); cb = u(cb + (1 - cb) * hit);
+        dim = Math.max(dim, hit);
+      } else {
+        str = Math.max(str, u(preset.strobe * hit));
+        punch = Math.max(punch, hit);
+      }
+    }
     out[f.id] = {
-      r: u(c && c.r), g: u(c && c.g), b: u(c && c.b),
-      dim, strobe, spin,
-      rainbow: prof.can.rainbow ? u(preset.rainbow) : 0,
-      punch: u(beat * energy),
+      r: cr, g: cg, b: cb,
+      dim, strobe: str,
+      spin: prof.can.spin ? (pose ? pose.spin : spin) : 0,
+      rainbow: prof.can.rainbow ? u(pose ? pose.rainbow : preset.rainbow) : 0,
+      punch,
     };
   }
   /* the lit transitions reach the lamps too — same light, same clock. Never
@@ -7388,6 +7820,56 @@ function hueLights(json){
   }
   out.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   return out;
+}
+
+/* ================================================================
+   THE LAST INCH OF WIRE — Enttec USB Pro framing
+
+   Everything above renders a frame; none of it ships one. The gap between
+   "the monitor shows the show" and "the room does the show" is a USB widget
+   speaking the Enttec USB DMX Pro protocol — the de-facto lingua franca that
+   DMXking, Enttec and half the interfaces on earth answer to — and the
+   protocol is the easy half of that widget. The HARD half, the reason a
+   browser can do this at all, lives in the widget's own firmware: the DMX
+   line's break timing and its 250 kbaud signalling are generated there, not
+   here. What crosses the USB is just a framed message, and a framed message
+   is a pure function of the 512 bytes the renderer already made.
+
+   The frame: SOM, a label saying what the message is, the payload length in
+   two bytes LITTLE-END FIRST (the widget is a microcontroller; it reads LSB
+   first and so does this), the payload, EOM. Label 6 is "send this DMX now",
+   and its payload leads with the DMX start code — 0, dimmer data, always —
+   ahead of the 512 channels. Send that at the rate the wire runs at and the
+   widget repeats the last frame on the line all by itself between messages,
+   which is why a browser that stops (a hidden tab loses its animation
+   frames) leaves the room holding its look rather than going dark. */
+const DMX_USB_PRO = {
+  SOM: 0x7e,               // start of message
+  EOM: 0xe7,               // end of message
+  SEND_DMX: 6,             // label: output-only send DMX packet request
+};
+function dmxUsbProPacket(label, data){
+  const n = data ? data.length : 0;
+  const out = new Uint8Array(n + 5);
+  out[0] = DMX_USB_PRO.SOM;
+  out[1] = label & 0xff;
+  out[2] = n & 0xff;                       // length, LSB first
+  out[3] = (n >> 8) & 0xff;
+  for (let i = 0; i < n; i++) out[4 + i] = data[i] & 0xff;
+  out[4 + n] = DMX_USB_PRO.EOM;
+  return out;
+}
+/* a whole universe, every send. The protocol allows short payloads; nothing
+   here uses them, because a fixed 518-byte message forty times a second is
+   nothing to USB and a variable one is a place for an off-by-one to live. */
+function dmxUsbProFrame(frame){
+  const data = new Uint8Array(513);
+  data[0] = 0;                             // DMX start code: dimmer data
+  if (frame) for (let i = 0; i < 512; i++){
+    const v = frame[i];
+    data[1 + i] = v > 0 ? (v < 255 ? v & 0xff : 255) : 0;
+  }
+  return dmxUsbProPacket(DMX_USB_PRO.SEND_DMX, data);
 }
 // @dmx-end
 
@@ -17896,7 +18378,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '6e767ebe2b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '6640ecae7b';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -35050,6 +35532,880 @@ function buildScope(){
   return api;
 }
 
+/* =========================================================
+   SCENE 38 · ARABESQUE — the girih lattice, pulled through a horizon
+
+   An eight-pointed star is two squares, one turned forty-five
+   degrees — the octagram every Islamic tiling tradition reaches
+   first, because it is the simplest star that tiles. As a distance
+   field that is one line: the UNION of the two squares' distances.
+   The room draws an infinite plane of them and then does the only
+   authored thing in here, which is the PROJECTION: a floor and a
+   ceiling of stars meeting at a horizon (1/|y| is the entire
+   perspective divide), a log-polar well where every ring holds the
+   same count of stars for ever down, and a plain inversion where
+   the lattice folds through itself. A barrel term bends the edges
+   the way a wide lens would, which is most of why the tiling reads
+   as a PLACE rather than as wallpaper.
+
+   The far field is not anti-aliased into submission — it is HAZED,
+   the same concession aerial perspective makes: detail the eye
+   could not resolve is detail the room does not claim to have.
+   A hand in the lattice winds the whole tiling about itself.
+   ========================================================= */
+function buildArabesque(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() },
+    uMode:   { value: 0 },
+    uScaleT: { value: 4.0 },      // cells per unit of projected plane
+    uRingN:  { value: 8 },        // stars around the well — an integer, or the seam shows
+    uFlow:   { value: 0.6 },      // travel speed down the tunnel
+    uFish:   { value: 0.3 },      // the barrel term
+    uSpin:   { value: 0.02 },     // the slow wind of the whole lattice
+    uMotion: { value: 1 },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uBeatSpring, uOpacity;
+    uniform float uMode, uScaleT, uRingN, uFlow, uFish, uSpin, uMotion, uAspect, uVarA, uVarB;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    /* the octagram, as one distance: the union of a square and its 45° twin */
+    float star8(vec2 f){
+      float s1 = max(abs(f.x), abs(f.y));
+      vec2 r = abs(vec2(f.x + f.y, f.x - f.y)) * 0.7071;
+      return min(s1, max(r.x, r.y));
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      /* THE HAND WINDS THE LATTICE — a rotation whose angle decays with the
+         distance from the finger, so near the hand the tiling turns with it
+         and the far field only leans */
+      vec2 hd = p - uHand.xy;
+      float hr = length(hd);
+      float ha = uHand.z * 1.1 * exp(-hr * 1.5);
+      float hc = cos(ha), hs = sin(ha);
+      p = uHand.xy + vec2(hd.x * hc - hd.y * hs, hd.x * hs + hd.y * hc);
+      // the lens: barrel the edges, and the slow wind of the whole picture
+      p *= 1.0 + uFish * dot(p, p);
+      float wa = uTime * uSpin * uMotion;
+      float wc = cos(wa), ws = sin(wa);
+      p = vec2(p.x * wc - p.y * ws, p.x * ws + p.y * wc);
+
+      vec2 w; float depth;
+      // the beat SURGES the traveller — a soft lunge down the tunnel on the
+      // hit, sprung rather than stepped, so the lattice breathes with the kick
+      float flowT = uTime * uFlow * uMotion + uBeatSpring * 0.22 * uMotion;
+      if (uMode < 0.5){
+        // TWO PLANES: a floor and a ceiling of stars meeting at the horizon —
+        // 1/|y| is the whole perspective divide
+        float h = abs(p.y) + 0.035;
+        depth = 1.0 / h;
+        w = vec2(p.x * depth * uScaleT * 0.55, depth * uScaleT * 0.45 + flowT);
+      } else if (uMode < 1.5){
+        // THE WELL: log-polar — the same count of stars on every ring, for
+        // ever down, because log(r) makes scale into translation. The radial
+        // step is uRingN/2π, which is the one value that keeps log-polar
+        // CONFORMAL: square cells at every depth, never smeared around
+        float r = max(length(p), 1e-4);
+        depth = 0.9 / r;
+        w = vec2((atan(p.y, p.x) / 6.2831853 + 0.5) * uRingN, log(r) * uRingN * 0.159155 - flowT);
+      } else {
+        // INVERSION: the lattice folded through the unit circle — near the
+        // centre the plane runs away to infinity on its own
+        vec2 q = p / max(dot(p, p), 1e-4);
+        depth = length(q);
+        w = q * uScaleT * 0.4 + vec2(flowT * 0.4, flowT * 0.3);
+      }
+      // brick-pack: every other row slides half a cell, which is what makes
+      // the packing read as woven rather than as graph paper
+      w.x += 0.5 * mod(floor(w.y), 2.0);
+
+      vec2 cell = floor(w), f = fract(w) - 0.5;
+      float hz = hash21(cell + floor(uVarA * 61.0));
+      float d = star8(f);
+      // the far field is HAZED, not resolved — aerial perspective's concession
+      float aa = 0.03 + depth * 0.012;
+      float fade = 1.0 / (1.0 + depth * depth * 0.020);
+      float pulse = 0.5 + 0.5 * sin(uTime * (0.9 + hz * 0.9) * uMotion + hz * 6.2831);
+      float R = 0.20 + 0.03 * pulse + uBass * 0.04 + uBeatSpring * 0.025;
+
+      float star = smoothstep(R + aa, R - aa, d);
+      /* THE NESTED STAR — the girih vocabulary is stars within stars, so each
+         one carries a smaller twin turned 22.5°, which is the other member of
+         the octagram's own symmetry group. That quarter-turn is what makes the
+         inside read as drawn rather than merely shrunk. */
+      float ca8 = 0.92388, sa8 = 0.38268;
+      float dIn = star8(vec2(f.x * ca8 - f.y * sa8, f.x * sa8 + f.y * ca8));
+      float inner = smoothstep(R * 0.52 + aa, R * 0.52 - aa, dIn);
+      float core = smoothstep(R * 0.24 + aa, R * 0.24 - aa, d);
+      /* the glow HUGS the star and the space between stays BLACK — the dark
+         is what makes the lattice read as lit rather than as printed */
+      float halo = exp(-max(d - R, 0.0) * 13.0);
+      float web = 1.0 - smoothstep(0.02 + aa, 0.05 + aa, abs(d - (R + 0.11)));
+      vec3 cStar = ramp(0.62 + uVarA * 0.2 + hz * 0.05);
+      vec3 cHalo = ramp(0.30 + uVarA * 0.2);
+      vec3 cWeb  = ramp(0.88 + uVarA * 0.2);
+      vec3 col = cHalo * halo * (0.50 + uMid * 0.35) * (1.0 - star * 0.4);
+      col += cWeb * web * 0.40;
+      col += cStar * star * (0.45 + 0.35 * pulse + uBeat * 0.35 * step(0.6, hz));
+      col += cHalo * inner * star * (0.35 + 0.45 * (1.0 - pulse));  // the twin breathes in antiphase
+      col += mix(cStar, vec3(1.0), 0.55) * core
+           * (0.45 + uTreble * 0.7 * step(0.86, hash21(cell + floor(uTime * 6.0))));
+      col *= fade;
+      // the pale seam of infinity, where the two planes meet
+      if (uMode < 0.5) col += cWeb * exp(-abs(p.y) * 22.0) * 0.5;
+      col *= 0.85 + uEnergy * 0.30;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const MODES = [
+    { m: 0, name: 'STAR TUNNEL' },
+    { m: 1, name: 'THE WELL' },
+    { m: 2, name: 'INVERSION' },
+  ];
+  const api = {
+    name: 'ARABESQUE', key: 'weave', group,
+    update(dt){
+      if (!group.visible) return;
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      varU.uMotion.value = reducedMotion ? 0.3 : 1;
+      // the hand, in the quad's own coordinates (wall space, aspect-true)
+      const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+      const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const h = varU.uHand.value;
+      h.set((ux - 0.5) * s.aspect * 2, (uy - 0.5) * 2, h.z + (force - h.z) * Math.min(1, dt * 8), 0);
+    },
+    roll(){
+      const M = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uMode.value = M.m;
+      varU.uScaleT.value = 3.2 + Math.random() * 1.8;
+      varU.uRingN.value = [6, 8, 10][Math.floor(Math.random() * 3)];
+      varU.uFlow.value = 0.35 + Math.random() * 0.5;
+      varU.uFish.value = 0.15 + Math.random() * 0.35;
+      varU.uSpin.value = (Math.random() - 0.5) * 0.08;
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random();
+      api.name = 'ARABESQUE · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 39 · MAELSTROM — the sea in weather, marched honestly
+
+   A heightfield ocean, ray-marched. The wave is a sum of five
+   directional components, and two pieces of real water physics do
+   all the work of making it read as a STORM rather than as noise:
+
+   THE STOKES CREST. A deep-water wave is not a sine — the crest is
+     sharper than the trough is deep, and the asymmetry grows with
+     steepness. Raising (1+sin)/2 to a power IS that asymmetry:
+     the peaks pinch, the troughs flatten, and the exponent is the
+     sea state. The music drives the exponent, so a loud passage
+     literally steepens the water.
+
+   THE TROCHOIDAL LEAN. Water particles under a wave move in
+     circles, which drags the crest forward over its own trough.
+     One line of domain warp — each octave shifts the sampling
+     point by its own slope — buys exactly that lean, and it is
+     the difference between waves and corrugations.
+
+   The whitecaps are not painted on: foam appears where the surface
+   is high AND steep (1 − n·ŷ is the steepness the normal already
+   knows), streaked by noise the wind advects. The camera is on a
+   boat, and the boat is on the same sea it is watching. Distance
+   is aerial perspective into the storm's own gloom; on the big
+   hits the cloud deck flashes from inside — sheet lightning, held
+   politely below the strobe gate like everything else.
+   ========================================================= */
+function buildMaelstrom(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() },
+    uAmp:    { value: 0.8 },
+    uChoppy: { value: 2.6 },     // the Stokes exponent — the sea state itself
+    uSpeedZ: { value: 1.6 },
+    uGloom:  { value: 0.7 },
+    uFlash:  { value: 0 },
+    uFoamK:  { value: 0.55 },
+    uRain:   { value: 0.5 },     // how much of the air is water
+    uRain0:  { value: 1 },       // …and how fast it falls (reduced motion slows it)
+    uSeaT:   { value: new THREE.Vector2(0, 0) },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uAmp, uChoppy, uSpeedZ, uGloom, uFlash, uFoamK, uAspect, uVarA, uRain, uRain0;
+    uniform vec2 uSeaT;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    /* five directional Stokes components, each leaning on its own slope */
+    float waveH(vec2 q){
+      float h = 0.0, amp = uAmp, freq = 0.24, sp = 1.0;
+      vec2 d = normalize(vec2(0.78, 0.62));
+      const mat2 R = mat2(0.545, -0.838, 0.838, 0.545);
+      for (int i = 0; i < 4; i++){
+        float ph = dot(d, q) * freq + uSeaT.x * sp;
+        float c = 0.5 + 0.5 * sin(ph);
+        h += (pow(c, uChoppy) - 0.30) * amp;
+        q += d * cos(ph) * amp * 0.55;          // the trochoidal lean
+        d = R * d;
+        freq *= 1.83; amp *= 0.46; sp *= 1.13;
+      }
+      return h;
+    }
+    float waveFine(vec2 q){
+      return waveH(q) + (vnoise(q * 2.8 + uSeaT * 0.7) - 0.5) * uAmp * 0.14
+                      + (vnoise(q * 6.1 - uSeaT * 0.4) - 0.5) * uAmp * 0.05;
+    }
+    vec3 skyCol(vec3 rd){
+      float t = clamp(rd.y, 0.0, 1.0);
+      vec3 c = mix(vec3(0.16, 0.18, 0.20), vec3(0.045, 0.058, 0.095), pow(t, 0.55));
+      c = mix(c, ramp(0.58 + uVarA * 0.12) * 0.30, 0.25);
+      float cl = vnoise(rd.xz / (abs(rd.y) + 0.18) * 1.3 + uSeaT * 0.06);
+      c *= (0.70 + cl * 0.50) * (1.0 - uGloom * 0.25);
+      // sheet lightning: the deck lit from inside, brightest at the horizon
+      c += vec3(0.85, 0.90, 1.05) * uFlash * (0.30 + 0.70 * pow(1.0 - t, 2.0)) * (0.5 + cl * 0.8);
+      return c;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float t = uTime;
+      // THE BOAT — the camera rides the sea it is watching
+      float roll = sin(t * 0.40) * 0.055 * uGloom + sin(t * 0.23) * 0.03;
+      float pitch = -0.13 + sin(t * 0.31) * 0.03 * uGloom;
+      vec3 ro = vec3(0.0, 3.3 + uAmp * 1.2 + sin(t * 0.5) * 0.25 * uGloom, t * uSpeedZ);
+      vec3 rd = normalize(vec3(p.x, p.y * 0.75 + pitch, 1.35));
+      float cr = cos(roll), sr = sin(roll);
+      rd.xy = vec2(rd.x * cr - rd.y * sr, rd.x * sr + rd.y * cr);
+      // the course wanders — a helm held loosely through weather, never a rail
+      float yaw = sin(t * 0.045) * 0.30 * uGloom;
+      float cy = cos(yaw), sy = sin(yaw);
+      rd.xz = vec2(rd.x * cy - rd.z * sy, rd.x * sy + rd.z * cy);
+
+      vec3 col;
+      float hx = 1.0;
+      if (rd.y < 0.05) hx = (ro + rd * 60.0).y - waveH((ro + rd * 60.0).xz);
+      if (hx > 0.0){
+        col = skyCol(rd);
+      } else {
+        /* HEIGHTMAP TRACING by regula falsi: bracket the crossing, then let
+           the secant walk it in — seven refinements resolve a crest at any
+           distance this haze still shows */
+        float tm = 0.0, tx = 60.0;
+        float hm = ro.y - waveH(ro.xz);
+        float tmidP = 8.0;
+        vec3 pp = ro + rd * tmidP;
+        float hp = pp.y - waveH(pp.xz);
+        if (hp < 0.0){ tx = tmidP; hx = hp; } else { tm = tmidP; hm = hp; }
+        vec3 hit = ro;
+        for (int i = 0; i < 7; i++){
+          float tmid = mix(tm, tx, hm / (hm - hx));
+          hit = ro + rd * tmid;
+          float hmid = hit.y - waveH(hit.xz);
+          if (hmid < 0.0){ tx = tmid; hx = hmid; } else { tm = tmid; hm = hmid; }
+        }
+        float dist = mix(tm, tx, hm / (hm - hx));
+        hit = ro + rd * dist;
+        float eps = 0.06 + dist * 0.012;
+        float hc = waveFine(hit.xz);
+        vec3 n = normalize(vec3(waveFine(hit.xz - vec2(eps, 0.0)) - waveFine(hit.xz + vec2(eps, 0.0)),
+                                2.0 * eps,
+                                waveFine(hit.xz - vec2(0.0, eps)) - waveFine(hit.xz + vec2(0.0, eps))));
+        vec3 l = normalize(vec3(0.25, 0.50, 0.65));
+        float fres = pow(1.0 - max(0.0, dot(-rd, n)), 3.0) * 0.62 + 0.06;
+        vec3 deep = mix(vec3(0.030, 0.105, 0.135), ramp(0.46 + uVarA * 0.12) * 0.30, 0.45)
+                  * (0.65 + uEnergy * 0.35);
+        float diff = max(0.0, dot(n, l));
+        vec3 water = deep * (0.40 + diff * 0.65) + skyCol(reflect(rd, n)) * fres;
+        // light through the crest — the green heart a storm wave shows
+        float crest = clamp(hc / max(uAmp * 1.5, 0.3), 0.0, 1.5);
+        water += ramp(0.40 + uVarA * 0.1) * crest * crest * 0.40 * (0.55 + uEnergy * 0.5);
+        float spec = pow(max(0.0, dot(reflect(-l, n), -rd)), 60.0) * (1.0 + uFlash * 7.0);
+        water += vec3(0.90, 0.95, 1.00) * spec;
+        /* WHITECAPS: high AND steep, streaked by wind-blown noise — foam is a
+           consequence here, never a texture */
+        float steep = (1.0 - n.y) * 2.4;
+        float f1 = vnoise(hit.xz * 1.4 + uSeaT * 0.5);
+        float f2 = vnoise(hit.xz * 3.7 - uSeaT * 0.8);
+        float foam = smoothstep(uFoamK, uFoamK + 0.35, crest + steep)
+                   * smoothstep(0.30, 0.75, f1 * 0.6 + f2 * 0.5);
+        water = mix(water, vec3(0.72, 0.78, 0.82) * (0.45 + diff * 0.5 + uFlash * 0.7),
+                    clamp(foam, 0.0, 1.0));
+        // spray: the treble whips single sparks off the caps
+        water += vec3(1.0) * step(0.988, hash21(floor(hit.xz * 12.0) + floor(uTime * 9.0)))
+               * foam * uTreble * 0.7;
+        // aerial perspective into the storm's own gloom
+        col = mix(water, skyCol(rd), 1.0 - exp(-dist * 0.045));
+      }
+      /* RAIN — the storm's texture in the air, drawn in screen space where
+         rain actually lives (nobody has ever seen a raindrop in world space).
+         Slanted columns sheared by the wind, one hash per column; the flash
+         catches every drop at once, which is the single most storm-like pixel
+         this room owns. */
+      vec2 rp = vec2(p.x + p.y * (0.35 + uGloom * 0.45), p.y);
+      vec2 rq = vec2(rp.x * 42.0, rp.y * 2.4);
+      float rc = floor(rq.x);
+      float rh = hash21(vec2(rc, 5.0));
+      float ry = fract(rq.y * (0.7 + rh * 0.6) + uTime * (2.2 + rh * 2.0) * uRain0 + rh * 9.0);
+      float rain = smoothstep(0.30, 0.02, abs(fract(rq.x) - 0.5))
+                 * smoothstep(0.30, 0.0, ry) * step(0.35, rh) * uRain;
+      col += vec3(0.55, 0.62, 0.70) * rain * 0.20 * (1.0 + uFlash * 2.2);
+      // THE HAND IS WIND ON WATER — rings of disturbance spreading from it
+      float hr2 = length(p - uHand.xy);
+      col += ramp(0.5 + uVarA * 0.1) * uHand.z * exp(-hr2 * 3.0)
+           * (0.5 + 0.5 * sin(hr2 * 22.0 - uTime * 8.0)) * 0.30;
+      col *= 0.85 + uEnergy * 0.30;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const SEAS = [
+    { name: 'ROLLING SWELL', amp: 0.55, ch: 1.7, sp: 1.1, gloom: 0.40, foam: 0.80 },
+    { name: 'SQUALL',        amp: 0.80, ch: 2.6, sp: 1.6, gloom: 0.70, foam: 0.60 },
+    { name: 'GALE',          amp: 1.05, ch: 3.4, sp: 2.1, gloom: 0.85, foam: 0.48 },
+    { name: 'HURRICANE',     amp: 1.30, ch: 4.2, sp: 2.7, gloom: 1.00, foam: 0.38 },
+  ];
+  const st = { sea: SEAS[1], lastOnset: 0, lastFlash: 0, flash: 0, t: 0 };
+  const api = {
+    /* a ray-marched sea is real work per pixel — measured against the same
+       bar SOAP FILM and TERRAIN already sit under */
+    name: 'MAELSTROM', key: 'ocean', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the sea's clock: the music sets how fast the weather runs
+      const mot = reducedMotion ? 0.3 : 1;
+      varU.uSeaT.value.x += dt * (0.8 + (f.energy || 0) * 1.3) * mot;
+      varU.uSeaT.value.y += dt * 0.11 * mot;
+      // the swell is a slow follower of the bass; the beat steepens the water
+      const wantAmp = st.sea.amp * (0.75 + (f.bass || 0) * 0.55);
+      varU.uAmp.value += (wantAmp - varU.uAmp.value) * Math.min(1, dt * 0.8);
+      varU.uChoppy.value = st.sea.ch * (0.85 + (f.energy || 0) * 0.45 + (f.beat || 0) * 0.25);
+      // SHEET LIGHTNING on the big hits — rate-limited, and the global
+      // luminance governor holds the ceiling over even this
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > 0.55 && (f.energy || 0) > 0.45 && st.t - st.lastFlash > 1.4 && !reducedMotion){
+          st.flash = 0.65 + f.beat * 0.3;
+          st.lastFlash = st.t;
+        }
+      }
+      st.flash *= Math.exp(-dt * 5);
+      varU.uFlash.value = st.flash;
+      // the rain rides the weather: the gloom sets how much, the energy how hard
+      varU.uRain.value = st.sea.gloom * (0.45 + (f.energy || 0) * 0.7);
+      varU.uRain0.value = mot;
+      const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+      const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const h = varU.uHand.value;
+      h.set((ux - 0.5) * s.aspect * 2, (uy - 0.5) * 2, h.z + (force - h.z) * Math.min(1, dt * 8), 0);
+    },
+    roll(){
+      // DRAMA IS DEALT UNEVENLY: the middle states carry the room
+      const r = Math.random();
+      st.sea = SEAS[r < 0.2 ? 0 : r < 0.55 ? 1 : r < 0.85 ? 2 : 3];
+      varU.uAmp.value = st.sea.amp;
+      varU.uChoppy.value = st.sea.ch;
+      varU.uSpeedZ.value = st.sea.sp * (0.8 + Math.random() * 0.4);
+      varU.uGloom.value = st.sea.gloom;
+      varU.uFoamK.value = st.sea.foam;
+      varU.uVarA.value = Math.random();
+      api.name = 'MAELSTROM · ' + st.sea.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 40 · VOLTAGE — dielectric breakdown, drawn at glow width
+
+   A lightning channel is a path the air lost an argument over: a
+   stepped leader feels its way down in jerks, re-randomising every
+   few tens of milliseconds, and the return stroke lights the whole
+   crooked history of it at once. That is exactly what is drawn: a
+   polyline whose perpendicular wander is layered noise pinned at
+   both electrodes, re-seeded on a FLICKER CLOCK (the jitter you
+   remember from real arcs is the re-seeding, not the glow), lit by
+   a strike envelope with a sharp attack and an exponential tail.
+
+   The glow is two falloffs added: a tight exponential core that
+   reads as the channel itself, and a wide 1/d skirt that reads as
+   the air around it fluorescing. Every onset above the threshold
+   is a return stroke; between strikes the channel idles at corona
+   level when the music carries enough energy to keep it fed.
+
+   Three electrode geometries: cloud-to-ground, a plasma globe
+   (the same polyline in radial coordinates), and a Jacob's ladder,
+   where the arc climbs the widening gap and re-strikes at the
+   bottom — buoyancy is the only reason a real one climbs, and the
+   restart at the bottom is the arc getting too long to sustain.
+   A hand near any of them is an electrode: the arc reaches for it.
+   ========================================================= */
+function buildVoltage(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() },      // the ROOM's seed — clouds, ridge; stable across strikes
+    uSeed:  { value: Math.random() },     // the CHANNEL's seed — re-dealt per strike
+    uMode:   { value: 0 },
+    uStrike: { value: 0 },
+    uIdle:   { value: 0.05 },
+    uJolt:   { value: 0 },
+    uWiggle: { value: 0.7 },
+    uClimb:  { value: 0 },
+    uFlashV: { value: 0 },
+    uBoltA:  { value: new THREE.Vector4(0, 1.05, 0.1, -0.9) },
+    // THE AFTERIMAGE: the previous channel, frozen — its endpoints, its seed,
+    // and the flicker-clock reading it died on, so it cools without jittering
+    uBoltB:  { value: new THREE.Vector4(0, 1.05, 0.1, -0.9) },
+    uSeedB:  { value: 0 },
+    uJoltB:  { value: 0 },
+    uAfter:  { value: 0 },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uMode, uStrike, uIdle, uJolt, uWiggle, uClimb, uFlashV, uAspect, uVarA;
+    uniform float uSeed, uSeedB, uJoltB, uAfter;
+    uniform vec4 uBoltA, uBoltB, uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    float fbm2(vec2 p){
+      return vnoise(p) * 0.62 + vnoise(p * 2.13) * 0.38;
+    }
+    /* one point of the channel: wander pinned at both electrodes, coarse
+       jerks under fine crackle, both re-seeded by the flicker clock. The
+       clock rides in as a parameter so the AFTERIMAGE can hold the reading
+       its channel died on — a cooling bolt does not jitter. */
+    vec2 boltPoint(vec2 a, vec2 b, float s, float seed, float jolt){
+      vec2 ab = b - a;
+      float L = max(length(ab), 1e-4);
+      vec2 dir = ab / L, nrm = vec2(-dir.y, dir.x);
+      float env = s * (1.0 - s) * 2.0 + 0.04;
+      float off = (fbm2(vec2(s * 5.0 + seed * 37.0, jolt)) - 0.5) * 1.05
+                + (vnoise(vec2(s * 21.0 + seed * 91.0, jolt * 1.7)) - 0.5) * 0.28;
+      return a + dir * (s * L) + nrm * off * env * uWiggle * L;
+    }
+    float boltDist(vec2 p, vec2 a, vec2 b, float seed, float jolt){
+      float d = 1e3;
+      vec2 q0 = boltPoint(a, b, 0.0, seed, jolt);
+      for (int i = 1; i <= 10; i++){
+        vec2 q1 = boltPoint(a, b, float(i) / 10.0, seed, jolt);
+        vec2 e = q1 - q0, w = p - q0;
+        float h = clamp(dot(w, e) / max(dot(e, e), 1e-6), 0.0, 1.0);
+        d = min(d, length(w - e * h));
+        q0 = q1;
+      }
+      return d;
+    }
+    /* the channel and the air: a tight core plus a wide fluorescing skirt */
+    vec3 boltGlow(float d, float amp, vec3 tint){
+      return (vec3(1.0) * exp(-d * 85.0) * 1.5 + tint * (0.013 / (d + 0.011))) * amp;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      vec3 tint = mix(vec3(0.45, 0.50, 1.00), ramp(0.62 + uVarA * 0.25), 0.55);
+      // the charged sky: cloud fbm lit from inside on the strike
+      float cl = fbm2(p * vec2(1.2, 2.1) + vec2(uTime * 0.03, 0.0) + uVarA * 7.0);
+      col += mix(vec3(0.020, 0.020, 0.042), ramp(0.72 + uVarA * 0.2) * 0.14, cl)
+           * (0.75 + uFlashV * 2.0 * (0.4 + 0.6 * smoothstep(-0.4, 1.0, p.y)));
+      float amp = uStrike + uIdle * (0.6 + 0.4 * sin(uTime * 17.0));
+
+      if (uMode < 0.5){
+        // CLOUD TO GROUND — and a hand raised into the field is the better path
+        vec2 a = uBoltA.xy, b = uBoltA.zw;
+        if (uHand.z > 0.05) b = mix(b, uHand.xy, clamp(uHand.z * 1.4, 0.0, 1.0));
+        col += boltGlow(boltDist(p, a, b, uSeed, uJolt), amp, tint);
+        // two branches leave the trunk and die in the air, as branches do
+        vec2 j1 = boltPoint(a, b, 0.35, uSeed, uJolt);
+        vec2 j2 = boltPoint(a, b, 0.62, uSeed, uJolt);
+        col += boltGlow(boltDist(p, j1, j1 + vec2( 0.45, -0.50) * (0.4 + hash21(vec2(uJolt, 1.0)) * 0.5), uSeed + 3.0, uJolt), amp * 0.40, tint);
+        col += boltGlow(boltDist(p, j2, j2 + vec2(-0.50, -0.42) * (0.35 + hash21(vec2(uJolt, 2.0)) * 0.5), uSeed + 7.0, uJolt), amp * 0.34, tint);
+        /* THE AFTERIMAGE — a photograph of lightning is always a double
+           exposure: the previous channel cools where it stood, reddening the
+           way a cooling plasma actually does, on its own frozen geometry */
+        if (uAfter > 0.02)
+          col += boltGlow(boltDist(p, uBoltB.xy, uBoltB.zw, uSeedB, uJoltB),
+                          uAfter * 0.45, tint * vec3(1.0, 0.72, 0.62));
+        // the ground answers where it lands
+        col += tint * exp(-length(p - b) * 3.0) * uStrike * 0.8;
+        /* AND THERE IS A GROUND — a ridge in silhouette, because a strike
+           with no horizon has no scale. Rim-lit by the living channel and
+           faintly by the cooling one. */
+        float ridge = -0.62 + (fbm2(vec2(p.x * 0.9 + uVarA * 19.0, 3.7)) - 0.5) * 0.35;
+        float ground = smoothstep(ridge + 0.015, ridge - 0.015, p.y);
+        col = mix(col, vec3(0.004, 0.005, 0.010), ground * 0.92);
+        col += tint * exp(-abs(p.y - ridge) * 26.0) * (uStrike * 0.5 + uAfter * 0.15 + 0.03);
+      } else if (uMode < 1.5){
+        // PLASMA GLOBE — the same polyline, radial; a finger on the glass
+        // captures the nearest streamer, exactly as the toy does
+        float rg = 0.86;
+        col += tint * exp(-abs(length(p) - rg) * 26.0) * 0.45;
+        col += ramp(0.84 + uVarA * 0.1) * exp(-length(p) * 2.4) * 0.35;
+        for (int k = 0; k < 3; k++){
+          float fk = float(k);
+          float ang = uSeed * 6.2831 + fk * 2.094 + sin(uTime * (0.23 + fk * 0.11) + fk) * 1.3;
+          vec2 b2 = vec2(cos(ang), sin(ang)) * rg;
+          if (uHand.z > 0.05 && k == 0)
+            b2 = (uHand.xy + vec2(1e-4)) * min(1.0, rg / max(length(uHand.xy), 1e-3));
+          col += boltGlow(boltDist(p, vec2(0.0), b2, uSeed + fk * 11.0, uJolt),
+                          (0.30 + uStrike * 0.8) * (0.6 + 0.4 * sin(uTime * 3.0 + fk * 2.0)), tint);
+        }
+        // the light the toy throws on the shelf it stands on
+        col += tint * exp(-length(vec2(p.x * 1.6, p.y + 1.04)) * 5.0) * 0.10;
+      } else {
+        // JACOB'S LADDER — the arc climbs the widening gap because hot air
+        // rises, and re-strikes at the bottom when it gets too long to hold
+        float climb = fract(uClimb);
+        float y0 = -0.72 + climb * 1.45;
+        float spread = 0.16 + climb * 0.52;
+        float dRail = abs(abs(p.x) - (0.16 + (p.y + 0.72) * 0.36));
+        float rails = smoothstep(-0.80, -0.72, p.y) * (1.0 - smoothstep(0.72, 0.80, p.y));
+        col += vec3(0.50, 0.55, 0.62) * exp(-dRail * 55.0) * rails * 0.45;
+        vec2 a = vec2(-spread, y0), b = vec2(spread, y0);
+        if (uHand.z > 0.05) b = mix(b, uHand.xy, clamp(uHand.z, 0.0, 0.8));
+        col += boltGlow(boltDist(p, a, b, uSeed + floor(uClimb) * 5.0, uJolt),
+                        0.35 + uStrike * 0.9 + climb * 0.25, tint);
+        col += tint * exp(-length(p - a) * 14.0) * 0.5 + tint * exp(-length(p - b) * 14.0) * 0.5;
+      }
+      // static: the treble crackles off every surface
+      col += tint * step(0.9965, hash21(floor(p * 90.0) + floor(uTime * 24.0))) * uTreble * 0.45;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const MODES = [
+    { m: 0, name: 'SKYFIRE' },
+    { m: 1, name: 'PLASMA GLOBE' },
+    { m: 2, name: "JACOB'S LADDER" },
+  ];
+  const st = { strike: 0, lastOnset: 0, lastStrike: -9, flick: 0, t: 0 };
+  const api = {
+    name: 'VOLTAGE', key: 'bolt', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // THE FLICKER CLOCK — the channel re-randomises in steps, never smoothly
+      st.flick -= dt;
+      if (st.flick <= 0){
+        st.flick = (reducedMotion ? 0.16 : 0.045) + Math.random() * 0.05;
+        varU.uJolt.value = Math.random() * 100;
+      }
+      // every onset above threshold is a return stroke, on a polite rate limit
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        const gate = reducedMotion ? (f.beat > 0.7 && st.t - st.lastStrike > 1.2)
+                                   : (f.beat > 0.4 && st.t - st.lastStrike > 0.25);
+        if (gate){
+          // the channel that just lived becomes the AFTERIMAGE — its geometry,
+          // its seed, and the flicker reading it died on, all frozen together
+          varU.uBoltB.value.copy(varU.uBoltA.value);
+          varU.uSeedB.value = varU.uSeed.value;
+          varU.uJoltB.value = varU.uJolt.value;
+          st.after = Math.min(0.8, 0.30 + st.strike * 0.6);
+          st.strike = Math.min(1, 0.5 + f.beat * 0.6);
+          st.lastStrike = st.t;
+          const ax = (Math.random() - 0.5) * 1.4;
+          varU.uBoltA.value.set(ax, 1.05, ax * 0.3 + (Math.random() - 0.5) * 0.8, -0.9);
+          varU.uSeed.value = Math.random();     // a fresh path; the room's own seed holds
+        }
+      }
+      st.strike *= Math.exp(-dt * 6.5);
+      st.after = (st.after || 0) * Math.exp(-dt * 2.1);   // the ember cools on a slower clock
+      varU.uStrike.value = st.strike;
+      varU.uAfter.value = st.after || 0;
+      varU.uFlashV.value = st.strike * (reducedMotion ? 0.3 : 0.8);
+      // between strikes the channel idles at corona level, fed by the energy
+      varU.uIdle.value = 0.06 + (f.energy || 0) * (varU.uMode.value === 1 ? 0.18 : 0.12);
+      varU.uClimb.value += dt * (0.22 + (f.energy || 0) * 0.5) * (reducedMotion ? 0.4 : 1);
+      const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+      const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const h = varU.uHand.value;
+      h.set((ux - 0.5) * s.aspect * 2, (uy - 0.5) * 2, h.z + (force - h.z) * Math.min(1, dt * 8), 0);
+    },
+    roll(){
+      const M = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uMode.value = M.m;
+      varU.uWiggle.value = 0.5 + Math.random() * 0.5;
+      varU.uVarA.value = Math.random();
+      varU.uSeed.value = Math.random();
+      varU.uAfter.value = 0; st.after = 0;      // a new room has no memory of old strikes
+      api.name = 'VOLTAGE · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 41 · SILICON — a machine caught thinking
+
+   A circuit board is a Truchet tiling with a job: every cell holds
+   one of a few strokes — a 45° chamfer, a straight run, a junction,
+   a via — chosen by hash, and the strokes agree at the cell edges
+   often enough that the eye completes the netlist. That is the
+   copper. The LIFE is two clocks laid over it:
+
+   THE SIGNAL FRONT. Every trace carries a brightness that decays
+     behind a wavefront ordered by Manhattan distance from the
+     package — the honest metric on a grid where the wires only run
+     straight and diagonal. The front advances on the music's own
+     clock, hard on the beat, so a hit visibly PROPAGATES out of
+     the chip and down every bus at once.
+
+   THE GATES. Inside the package the die is a finer grid whose
+     cells flip by hash against a threshold the treble and the
+     music's entropy set — sparse idle computation in a quiet
+     passage, a full-width cascade when the material gets busy.
+     Nothing is scripted; the thinking is the noise, thresholded.
+
+   A hand on the board is a probe to ground: the copper lights
+   around it and the current visibly prefers it.
+   ========================================================= */
+function buildSilicon(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA: { value: Math.random() }, uVarB: { value: Math.random() },
+    uMode:   { value: 0 },
+    uScaleT: { value: 7.0 },
+    uClock:  { value: 0 },
+    uThink:  { value: 4.0 },
+    // THE EXPRESS — one whole net carrying a burst end to end: x = the row
+    // (in cell coordinates), y = where the packet is (in board coordinates),
+    // w = how much of it is left. Launched by the strong onsets.
+    uExpress: { value: new THREE.Vector4(0, -1e3, 0, 0) },
+    uAspect: { value: 1 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uBeatSpring, uEntropy, uOpacity;
+    uniform float uMode, uScaleT, uClock, uThink, uAspect, uVarA, uVarB;
+    uniform vec4 uHand, uExpress;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 P = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec2 g = P * uScaleT + vec2(floor(uVarB * 37.0), floor(uVarB * 23.0));
+      vec2 cell = floor(g), f = fract(g) - 0.5;
+      float h = hash21(cell + floor(uVarA * 53.0));
+      // BACKPLANE boards run their copper in disciplined verticals
+      if (uMode > 0.5 && uMode < 1.5) h = h * 0.4 + 0.42;
+
+      /* the stroke this cell holds — PCB vocabulary: chamfers, runs, a
+         junction, a via. Adjacent strokes meet at edge midpoints and corners
+         often enough that the eye routes the rest. */
+      float dtr;
+      if (h < 0.20)      dtr = abs(f.x + f.y) * 0.7071;
+      else if (h < 0.40) dtr = abs(f.x - f.y) * 0.7071;
+      else if (h < 0.58) dtr = abs(f.y);
+      else if (h < 0.80) dtr = abs(f.x);
+      else if (h < 0.93) dtr = min(abs(f.x), abs(f.y));
+      else               dtr = length(f);
+      float trace = smoothstep(0.085, 0.050, dtr);
+      float viaR = length(f);
+      float via = (h >= 0.93)
+        ? (smoothstep(0.30, 0.25, viaR) - smoothstep(0.13, 0.09, viaR)) : 0.0;
+
+      /* THE SIGNAL FRONT — Manhattan distance from the package (or along the
+         backplane), a per-net delay from the cell's own hash, the front on
+         the music's clock */
+      float rad = (uMode > 0.5 && uMode < 1.5) ? abs(cell.x) : (abs(cell.x) + abs(cell.y));
+      float ph = fract(rad * 0.045 - uClock + h * 0.05);
+      float pulse = exp(-ph * 8.0);
+
+      vec3 sub = ramp(0.34 + uVarA * 0.30) * 0.045;
+      // the solder mask is never one green: each cell cured a little its own way
+      sub *= 0.80 + 0.40 * hash21(cell * 1.7 + floor(uVarB * 11.0));
+      vec3 copper = ramp(0.34 + uVarA * 0.30) * 0.16 + vec3(0.02);
+      vec3 sig = ramp(0.64 + uVarA * 0.30);
+      vec3 col = sub;
+      col = mix(col, copper * (0.8 + uEnergy * 0.4), trace);
+      col += sig * trace * pulse * (0.45 + uBeat * 0.8);
+      // THE EXPRESS: a hard onset launches one packet down one whole net,
+      // board edge to board edge — the burst you can follow with your eye
+      col += sig * trace * (1.0 - min(1.0, abs(cell.y - uExpress.x)))
+           * exp(-abs(g.x - uExpress.y) * 0.9) * uExpress.w * 1.5;
+      col += vec3(0.92, 0.78, 0.42) * via * (0.28 + uMid * 0.25);
+
+      /* THE PACKAGE, and the die inside it thinking. On the DIE SHOT the
+         package is the whole field. */
+      float dChip = (uMode < 0.5) ? max(abs(g.x) - 3.2, abs(g.y) - 2.3)
+                  : (uMode < 1.5) ? 1.0 : -1.0;
+      if (dChip < 0.0){
+        vec2 dg = floor(g * 4.0);
+        float block = hash21(floor(dg / 8.0) + floor(uVarA * 17.0));
+        float gate = hash21(dg + floor(uClock * uThink + block * 7.0) * 0.31 + uVarA);
+        float busy = 0.05 + uEntropy * 0.22 + uTreble * 0.20;
+        vec3 die = vec3(0.018, 0.022, 0.030)
+                 + sig * step(1.0 - busy, gate) * (0.55 + uBeat * 0.35)
+                 + copper * step(0.93, fract(dg.y * 0.125)) * 0.8;   // the row buses
+        col = die;
+        if (uMode < 0.5) col += sig * exp(dChip * 8.0) * 0.20;       // the die's edge glow
+      }
+      // the clock pin flashes the package rim on the beat
+      if (uMode < 0.5) col += sig * exp(-abs(dChip) * 5.0) * uBeatSpring * 0.22;
+
+      // THE PROBE — copper prefers the hand, and says so in light
+      float hd = length(P - uHand.xy);
+      col += sig * trace * exp(-hd * 3.5) * uHand.z
+           * (0.6 + 0.4 * sin(hd * 18.0 - uTime * 7.0));
+      col += vec3(1.0) * exp(-hd * 28.0) * uHand.z * 0.22;
+      col *= 0.85 + uEnergy * 0.30;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  group.add(mesh);
+  group.visible = false;
+  scene.add(group);
+
+  const MODES = [
+    { m: 0, name: 'MOTHERBOARD', scale: [5.5, 8.5] },
+    { m: 1, name: 'BACKPLANE',   scale: [6.5, 10.0] },
+    { m: 2, name: 'DIE SHOT',    scale: [3.0, 4.5] },
+  ];
+  const st = { lastOnset: 0, exV: 0 };
+  const api = {
+    name: 'SILICON', key: 'circuit', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the machine's clock: it always idles, and the beat steps it hard
+      const mot = reducedMotion ? 0.35 : 1;
+      varU.uClock.value += dt * (0.10 + (f.energy || 0) * 0.20 + (f.beat || 0) * 0.35) * mot;
+      varU.uThink.value = (reducedMotion ? 1.5 : 3.0) + (f.treble || 0) * 6.0;
+      // the express packet: launched by a hard onset, run to the far edge
+      const ex = varU.uExpress.value;
+      ex.y += (st.exV || 0) * dt * mot;
+      ex.w *= Math.exp(-dt * 1.1);
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (f.beat > (reducedMotion ? 0.75 : 0.5) && ex.w < 0.25){
+          const halfW = s.aspect * varU.uScaleT.value + 2;
+          const dir = Math.random() < 0.5 ? 1 : -1;
+          ex.x = Math.floor(varU.uVarB.value * 23) + Math.floor(Math.random() * 13) - 6;
+          ex.y = Math.floor(varU.uVarB.value * 37) - dir * halfW;
+          ex.w = 0.7 + f.beat * 0.3;
+          st.exV = dir * (10 + (f.energy || 0) * 14);
+        }
+      }
+      const ux = s.fx + (U.uPtr.value.x * 0.5 + 0.5) * s.fw;
+      const uy = (1 - s.fy - s.fh) + (U.uPtr.value.y * 0.5 + 0.5) * s.fh;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const h = varU.uHand.value;
+      h.set((ux - 0.5) * s.aspect * 2, (uy - 0.5) * 2, h.z + (force - h.z) * Math.min(1, dt * 8), 0);
+    },
+    roll(){
+      const M = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uMode.value = M.m;
+      varU.uScaleT.value = M.scale[0] + Math.random() * (M.scale[1] - M.scale[0]);
+      varU.uVarA.value = Math.random(); varU.uVarB.value = Math.random();
+      api.name = 'SILICON · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -35079,7 +36435,8 @@ function initThree(){
               buildComets(), buildFern(), buildRosette(), buildSlinky(), buildOpArt(), buildPulse(), buildParlor(), buildAurea(), buildHalo(),
               buildLava(), buildFlame(), buildSheets(), buildMandala(), buildOilslick(), buildBubbles(), buildSky(),
               buildPyroShow(), buildFiligree(), buildDrift(), buildDispersion(), buildFilament(), buildSoapFilm(), buildTerrain(),
-              buildEigenstate(), buildCreature(), buildBarkley(), buildVerse(), buildArcade(), buildScope());
+              buildEigenstate(), buildCreature(), buildBarkley(), buildVerse(), buildArcade(), buildScope(),
+              buildArabesque(), buildMaelstrom(), buildVoltage(), buildSilicon());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -39318,6 +40675,91 @@ const CROWD = {
    not do. It is also the only way to work on a rig with no rig plugged in,
    which is where most of this gets built.
    ================================================================ */
+
+/* THE WIRE ITSELF. A USB DMX widget speaking the Enttec Pro protocol (a
+   DMXking, an Enttec Pro, most of their kin) is, to the browser, a serial
+   port — and Chrome will hand a page a serial port if the person asks it to.
+   That is the entire trick. No driver, no helper app, no server: the picker
+   is the permission, the permission outlives the session, and the framing
+   (dmxUsbProFrame, tested with the rest of the DMX arithmetic) is all the
+   protocol there is. Where Web Serial does not exist — Safari, phones, the
+   TV — none of this appears, and the rig stays what it has always been
+   everywhere: a monitor.
+
+   BACKPRESSURE, THE ONE REAL SUBTLETY. The wire runs at 40 Hz because RIG
+   steps at 40 Hz; if the OS stalls a write, queueing more behind it would
+   build a growing backlog of stale frames that the lamps then replay late —
+   a light show in the past tense. So there is exactly one write in flight,
+   ever: a frame that arrives while one is being written is simply dropped,
+   because the next fresh frame is 25 ms away and fresher than anything a
+   queue could hold. */
+const DMXUSB = {
+  port: null, writer: null, on: false, fault: '',
+  _busy: false,
+  ok(){ return typeof navigator !== 'undefined' && !!navigator.serial; },
+  boot(){
+    const b = document.getElementById('rigWire');
+    if (b){
+      if (!this.ok()) b.hidden = true;
+      else b.addEventListener('click', () => this.on ? this.close() : this.connect());
+    }
+    /* the cable yanked mid-show is an event, not an error return */
+    if (this.ok()) navigator.serial.addEventListener('disconnect', e => {
+      if (e.target === this.port) this.close(T('The interface came unplugged'));
+    });
+  },
+  async connect(){
+    if (!this.ok() || this.on) return;
+    try {
+      /* the picker IS the user gesture and the permission. No vendor filter:
+         Pro-protocol widgets ship with whatever USB bridge was cheap the
+         year they were made, and the person pointing at their own interface
+         is a better filter than a vendor-ID list going stale. */
+      const port = await navigator.serial.requestPort();
+      /* the baud rate is ceremony — the widget's USB side ignores it and its
+         firmware drives the actual line at DMX's own 250 kbaud — but the API
+         insists on a number, so it may as well be the true one. */
+      await port.open({ baudRate: 250000 });
+      this.port = port;
+      this.writer = port.writable.getWriter();
+      this.on = true; this.fault = '';
+    } catch (e){
+      // the picker dismissed is a decision, not a fault; a port that would
+      // not open (claimed by another program, usually) is worth saying
+      this.fault = (e && e.name === 'NotFoundError') ? ''
+        : T('The port would not open — close anything else using the interface');
+    }
+    this.paint();
+  },
+  async close(fault){
+    this.on = false; this.fault = fault || '';
+    const w = this.writer, p = this.port;
+    this.writer = null; this.port = null; this._busy = false;
+    try { if (w) w.releaseLock(); } catch (e){}
+    try { if (p) await p.close(); } catch (e){}
+    this.paint();
+  },
+  send(frame){
+    if (!this.on || !this.writer || this._busy || !frame) return;
+    this._busy = true;
+    this.writer.write(dmxUsbProFrame(frame)).then(
+      () => { this._busy = false; },
+      /* a write can reject because the cable is gone — or because close()
+         released the lock under it on purpose. Only the first is news. */
+      () => { this._busy = false; if (this.on) this.close(T('The interface came unplugged')); },
+    );
+  },
+  paint(){
+    const b = document.getElementById('rigWire');
+    if (b){
+      b.classList.toggle('on', this.on);
+      b.textContent = this.on ? T('On the wire') : T('Put this on the wire');
+      b.setAttribute('aria-pressed', String(this.on));
+    }
+    if (typeof RIG !== 'undefined') RIG.paintFoot();
+  },
+};
+
 const RIG = {
   on: false,
   preset: 'auto',
@@ -39341,13 +40783,96 @@ const RIG = {
     ];
   },
   boot(){
-    this.rig = this.defaults();
+    this.rig = this.loadRig(this.defaults());
     this.patched = dmxPatch(this.rig);
     this.spin = this.patched.map(() => 0);
     const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
     on('rigClose', () => this.open(false));
     on('btnRig', () => this.open());
+    on('rigGuide', () => this.toggleGuide());
+    on('rigAuto', () => { this.rig = dmxAutoAddress(this.rig); this.saveRig(); this.repatch(); });
     this.buildPresets();
+    DMXUSB.boot(); DMXUSB.paint();
+  },
+
+  /* ------- the patch is the operator's: edited, remembered, re-fit ------- */
+  /* an address or a mode a hand changed outlives the tab the way every other
+     choice in this player does: locally, per fixture id, and laundered on
+     the way back in — dmxModeOf and the range clamp refuse nonsense, so a
+     stale or hand-edited store cannot wedge the rig. */
+  loadRig(rig){
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('mb8_rig') || 'null'); } catch (e){}
+    if (!saved || typeof saved !== 'object') return rig;
+    return rig.map(r => {
+      const s = r && saved[r.id];
+      if (!s || typeof s !== 'object') return r;
+      const out = Object.assign({}, r);
+      const at = Math.floor(Number(s.at));
+      if (Number.isFinite(at) && at >= 1 && at <= 512) out.at = at;
+      if (typeof s.mode === 'string') out.mode = dmxModeOf(r.key, s.mode);
+      return out;
+    });
+  },
+  saveRig(){
+    const store = {};
+    for (const r of this.rig || []) if (r && r.id) store[r.id] = { at: r.at, mode: r.mode };
+    try { localStorage.setItem('mb8_rig', JSON.stringify(store)); } catch (e){}
+  },
+  /* one edit, one truth: re-run the patch, keep the operator's faders (they
+     are keyed by id, which never changes), redraw everything that describes
+     the rig — and put the caret back where the hand was, because a rebuild
+     that steals focus mid-edit teaches people not to edit. */
+  repatch(focusId){
+    this.patched = dmxPatch(this.rig);
+    this.spin = this.patched.map(() => 0);
+    if (this.on){
+      this.buildChans(); this.paintFoot(); this.buildSetup();
+      if (focusId){
+        const f = this.patched.find(x => x.id === focusId);
+        if (f && f._ui && f._ui.at) f._ui.at.focus();
+      }
+    }
+  },
+
+  /* -------------- the guide: the patch, read aloud -------------- */
+  toggleGuide(){
+    const box = document.getElementById('rigSetup');
+    const b = document.getElementById('rigGuide');
+    if (!box) return;
+    box.hidden = !box.hidden;
+    if (b){ b.classList.toggle('on', !box.hidden); b.setAttribute('aria-expanded', String(!box.hidden)); }
+    if (!box.hidden) this.buildSetup();
+  },
+  /* Nothing in the guide is written by hand: every number comes from
+     dmxDialPlan reading the live patch, so editing an address rewrites the
+     instructions in place and the paper can never disagree with the wire. */
+  buildSetup(){
+    const box = document.getElementById('rigSetup');
+    if (!box || box.hidden) return;
+    box.textContent = '';
+    const li = (txt, bad) => {
+      const n = document.createElement('li');
+      n.textContent = txt;
+      if (bad) n.className = 'bad';
+      box.appendChild(n);
+    };
+    li(T('Chain the cable: computer → USB DMX interface, then interface → the first lamp’s DMX IN, that lamp’s OUT → the next lamp’s IN, and so on down the line. The order of the chain never matters — the address is what decides which lamp is which.'));
+    const over = dmxOverlaps(this.patched);
+    for (const d of dmxDialPlan(this.patched)){
+      if (!d.fits){
+        li(T('{name} does not fit — its channels run past 512. Give it a lower address, or press Auto address.', { name: d.name }), true);
+        continue;
+      }
+      let s = T('{name} ({model}): on its rear display, set the DMX address to {dial}.', { name: d.name, model: d.model, dial: d.dial });
+      if (d.modes > 1) s += ' ' + T('Put it in {mode} mode.', { mode: d.mode.toUpperCase() });
+      s += ' ' + T('It will listen on channels {chans}.', { chans: d.chans });
+      li(s, over.indexOf(d.id) >= 0);
+    }
+    if (over.length)
+      li(T('Two lamps are sharing channels — each obeys bytes meant for the other, which reads as a haunting rather than a fault. Change an address, or press Auto address to repack the whole rig.'), true);
+    li(T('Take every lamp out of sound-active mode — a lamp dancing to its own microphone is not listening to the wire.'));
+    li(T('Press “Put this on the wire” above and pick your USB DMX interface from the browser’s list (Chrome or Edge on a computer). If another lighting program is holding the port, quit it first.'));
   },
   open(v){
     const box = document.getElementById('rig');
@@ -39356,7 +40881,7 @@ const RIG = {
     box.classList.toggle('open', this.on);
     const chip = document.getElementById('btnRig');
     if (chip){ chip.classList.toggle('on', this.on); chip.setAttribute('aria-pressed', String(this.on)); }
-    if (this.on){ this.buildChans(); this.paintFoot(); }
+    if (this.on){ this.buildChans(); this.paintFoot(); this.buildSetup(); }
   },
   buildPresets(){
     const box = document.getElementById('rigPresets');
@@ -39420,6 +40945,18 @@ const RIG = {
       // a running lit segue rides out to the lamps on the director's own clock
       segue: (typeof XFORM !== 'undefined' && XFORM.on && typeof director !== 'undefined')
            ? { kind: XFORM.kind, t: director.transT } : null,
+      /* the track's identity — its id, its key, its tempo, measured by the
+         same pipeline that draws its cover — so the rig can wear the show
+         DESIGNED for this track rather than a generic reaction */
+      track: (() => {
+        try {
+          const tr = (typeof player !== 'undefined' && player.cur >= 0) ? player.tracks[player.cur] : null;
+          if (!tr) return null;
+          const m = (tr.mix && typeof tr.mix === 'object') ? tr.mix
+                  : (typeof mixOf === 'function' ? mixOf(tr) : null);
+          return { id: String(tr.id != null ? tr.id : ''), key: (m && m.key) || '', bpm: (m && m.bpm) || 0 };
+        } catch (e){ return null; }
+      })(),
     };
   },
   /* one turn of the whole chain — show → intents → 512 bytes → what each lamp
@@ -39428,8 +40965,15 @@ const RIG = {
   step(now, dt){
     if (!this.patched) return;
     if (now - this._acc < 25) return;
+    // the real gap between wire ticks, not the screen's frame dt — the
+    // choreographer's kick envelope decays on the wire's own clock
+    const gap = Math.min(0.25, Math.max(0, (now - this._acc) / 1000));
     this._acc = now;
-    const intents = dmxShowIntents(this.show(), this.patched);
+    const show = this.show();
+    show.design = dmxTrackDesign(show.track);   // the show this track wears
+    this.beamState = dmxBeamStep(this.beamState, show, gap);
+    show.beam = this.beamState;
+    const intents = dmxShowIntents(show, this.patched);
     /* THE BOARD SITS ON TOP OF THE SHOW, not beside it. A fixture with no
        hand on it keeps following the music; a fixture the operator has taken
        holds exactly what they set and nothing else touches it. That is what a
@@ -39442,6 +40986,7 @@ const RIG = {
     }
     this.frame = dmxRender(this.patched, intents);
     this.net = dmxRenderNet(this.patched, intents);
+    DMXUSB.send(this.frame);                 // the same bytes the monitor draws
     this.strobeT += dt;
     // the beams turn because a decoded spin says they are turning
     this.patched.forEach((f, i) => {
@@ -39583,6 +41128,7 @@ const RIG = {
     const box = document.getElementById('rigChans');
     if (!box) return;
     box.textContent = '';
+    const over = dmxOverlaps(this.patched);
     for (const f of this.patched){
       const prof = dmxProfile(f.key) || {};
       const card = document.createElement('div');
@@ -39592,8 +41138,56 @@ const RIG = {
       h.appendChild(sw); h.appendChild(document.createTextNode(f.name));
       const addr = document.createElement('div');
       addr.className = 'addr';
-      addr.textContent = f.wire === 'net' ? 'network · no address'
-        : ('ch ' + f.at + '–' + (f.at + f.span - 1) + ' · ' + f.mode);
+      let atInput = null;
+      if (f.wire === 'net'){
+        addr.textContent = 'network · no address';
+      } else {
+        /* the address is the operator's to type, because it has to MATCH a
+           number somebody dialled into the back of the lamp itself — and the
+           set-up guide re-reads whatever is typed here, so the two can only
+           ever be wrong together, which is the visible kind of wrong */
+        const lb = document.createElement('span');
+        lb.textContent = T('address');
+        atInput = document.createElement('input');
+        atInput.type = 'number'; atInput.min = '1'; atInput.max = '512';
+        atInput.value = f.at; atInput.className = 'rig-at';
+        atInput.setAttribute('aria-label', T('{name} DMX address', { name: f.name }));
+        atInput.addEventListener('change', () => {
+          const raw = this.rig.find(r => r && r.id === f.id);
+          if (!raw) return;
+          const v = Math.floor(Number(atInput.value));
+          raw.at = Number.isFinite(v) ? Math.max(1, Math.min(512, v)) : f.at;
+          this.saveRig(); this.repatch(f.id);
+        });
+        addr.appendChild(lb); addr.appendChild(atInput);
+        const modes = Object.keys(prof.modes || {});
+        if (modes.length > 1){
+          const md = document.createElement('select');
+          md.className = 'rig-mode';
+          md.setAttribute('aria-label', T('{name} channel mode', { name: f.name }));
+          for (const m of modes){
+            const o = document.createElement('option');
+            o.value = m; o.textContent = m; o.selected = m === f.mode;
+            md.appendChild(o);
+          }
+          md.addEventListener('change', () => {
+            const raw = this.rig.find(r => r && r.id === f.id);
+            if (!raw) return;
+            raw.mode = dmxModeOf(f.key, md.value);
+            this.saveRig(); this.repatch(f.id);
+          });
+          addr.appendChild(md);
+        }
+        const span = document.createElement('span');
+        span.textContent = 'ch ' + f.at + '–' + (f.at + f.span - 1)
+          + (modes.length > 1 ? '' : ' · ' + f.mode);
+        addr.appendChild(span);
+        if (!f.fits || over.indexOf(f.id) >= 0){
+          const w = document.createElement('span'); w.className = 'clash';
+          w.textContent = f.fits ? T('shares channels') : T('past 512');
+          addr.appendChild(w);
+        }
+      }
       card.appendChild(h); card.appendChild(addr);
       const rows = [];
       for (let c = 1; c <= f.span; c++){
@@ -39640,6 +41234,9 @@ const RIG = {
       }
       fader.addEventListener('input', () => setMan({ dim: Number(fader.value) / 100 }));
       take.textContent = T('Following the music');
+      // a rebuild (an address edit, a mode change) must not quietly relabel a
+      // fixture the operator is still holding
+      if (this.manual[f.id]){ take.classList.add('on'); take.textContent = T('On the fader'); }
       take.addEventListener('click', () => {
         if (this.manual[f.id]){
           delete this.manual[f.id];
@@ -39649,7 +41246,7 @@ const RIG = {
       board.appendChild(take); board.appendChild(fader); board.appendChild(sws);
       card.appendChild(board);
       box.appendChild(card);
-      f._ui = { sw, rows, take };
+      f._ui = { sw, rows, take, at: atInput };
     }
   },
   paintChans(){
@@ -39670,7 +41267,16 @@ const RIG = {
     const n = document.getElementById('rigFoot');
     if (!n) return;
     const used = dmxUniverseUsed(this.patched);
-    n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.', { used });
+    /* the footer tells the truth about the wire, whichever truth it is: live,
+       faulted, connectable, or (no Web Serial here) a monitor and proud of it */
+    if (DMXUSB.on)
+      n.textContent = T('Every bar above is a byte on the wire, forty times a second. {used} of 512 channels in use — what you see is what the room is being told.', { used });
+    else if (DMXUSB.fault)
+      n.textContent = DMXUSB.fault + ' — ' + T('{used} of 512 channels in use.', { used });
+    else if (DMXUSB.ok())
+      n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is on the wire yet — a USB DMX interface (DMXking, Enttec Pro) plugs straight in above.', { used });
+    else
+      n.textContent = T('Every bar above is a byte this frame would send. {used} of 512 channels in use. Nothing is transmitted yet — connect an interface to put this on the wire.', { used });
   },
 };
 

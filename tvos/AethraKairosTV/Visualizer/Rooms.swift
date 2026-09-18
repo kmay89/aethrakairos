@@ -44,10 +44,12 @@ struct Room: Identifiable, Equatable {
 enum Rooms {
     /// Build order is the index space the director and renderer share.
     /// The first six are wave 1; the next eight are wave 2 (Shaders2/Shaders3);
-    /// the last eight are wave 3 (Shaders4/Shaders5). Every fragment function is
-    /// trusted to exist at link time — one target, one default library, so a
-    /// room registered here whose function is missing simply parks the renderer
-    /// in the void (configure() bails), never a half-built roster.
+    /// then eight wave 3 (Shaders4/Shaders5); four wave 4 (Shaders6); and the
+    /// last four are wave 5 (Shaders7) — the house stands at thirty. Every
+    /// fragment function is trusted to exist at link time — one target, one
+    /// default library, so a room registered here whose function is missing
+    /// simply parks the renderer in the void (configure() bails), never a
+    /// half-built roster.
     static let all: [Room] = [
         Room(key: "spiral", name: "MÖBIUS SPIRAL", fragmentFunction: "room_spiral",
              tasteEnergy: 0.9, tasteCalm: 0.2, tasteBeat: 0.7, tasteTreble: 0.3),
@@ -104,6 +106,37 @@ enum Rooms {
              tasteEnergy: 0.8, tasteCalm: 0, tasteBeat: 0.8, tasteTreble: 0),
         Room(key: "slinky", name: "SLINKY", fragmentFunction: "room_slinky",
              tasteEnergy: -0.6, tasteCalm: 1.4, tasteBeat: 0, tasteTreble: 0),
+
+        // ---- wave 4 ----
+        // The last four, closing the house at twenty-six. Taste is the four
+        // canonical appetites only (WAVE4.md §A pins the vectors); the fragment
+        // bodies live in Shaders6.metal (arcade/sky/barkley/verse). VERSE also
+        // reads the 256x64 text-mask texture the renderer binds at texture(2).
+        Room(key: "arcade", name: "ARCADE", fragmentFunction: "room_arcade",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.6, tasteTreble: 0.8),
+        Room(key: "sky", name: "CONSTELLATIONS", fragmentFunction: "room_sky",
+             tasteEnergy: -0.7, tasteCalm: 1.5, tasteBeat: 0, tasteTreble: 0),
+        Room(key: "barkley", name: "EXCITABLE", fragmentFunction: "room_barkley",
+             tasteEnergy: 0.7, tasteCalm: 0, tasteBeat: 0.6, tasteTreble: 0),
+        Room(key: "verse", name: "VERSE", fragmentFunction: "room_verse",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0, tasteTreble: 0.6),
+
+        // ---- wave 5 ----
+        // The web player's scenes 38–41, told in Metal (Shaders7.metal):
+        // the girih star lattice, the ray-marched storm sea (heavy — one
+        // regula-falsi trace and three fine normals per pixel), the arc,
+        // and the thinking circuit board. Tastes mirror the web roster's:
+        // the lattice wants held tonal material, the sea wants weather,
+        // the arc wants onsets, the machine wants a pulse and order.
+        Room(key: "weave", name: "ARABESQUE", fragmentFunction: "room_weave",
+             tasteEnergy: 0, tasteCalm: 0.9, tasteBeat: 0, tasteTreble: 0, tasteMid: 0.8),
+        Room(key: "ocean", name: "MAELSTROM", fragmentFunction: "room_ocean",
+             tasteEnergy: 1.4, tasteCalm: -0.5, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 1.2, heavy: true),
+        Room(key: "bolt", name: "VOLTAGE", fragmentFunction: "room_bolt",
+             tasteEnergy: 0.8, tasteCalm: -0.6, tasteBeat: 1.5, tasteTreble: 0.9),
+        Room(key: "circuit", name: "SILICON", fragmentFunction: "room_circuit",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.2, tasteTreble: 0.6),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

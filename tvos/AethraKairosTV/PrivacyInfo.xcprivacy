@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Aethra Kairos for Apple TV — privacy manifest.
+
+	  The app has no accounts, no analytics, and no SDKs. Nothing about the
+	  listener leaves the device: hearts, history, resume state and mixing
+	  preferences all live in on-device storage (Application Support JSON +
+	  UserDefaults). The only network traffic is fetching the published
+	  catalog and streaming its audio over HTTPS, and — only when the listener
+	  opens the STAGE screen — a read-only WebSocket to a booth relay. So this
+	  manifest declares NO tracking and NO collected data types, and lists only
+	  the required-reason APIs the binary actually calls.
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<!--
+		  UserDefaults — Player.swift persists the two mixing preferences
+		  (auto-mix style, key lock). Read and written only by this app; never
+		  shared with, nor read from, other apps or the system.
+		-->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<!--
+		  File timestamps — TrackLoader.swift runs an LRU over the audio cache
+		  inside the app container: it reads each cached file's
+		  contentModificationDate to find the oldest and writes .modificationDate
+		  to mark a file just used. Container-local metadata only.
+		-->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+		<!--
+		  System boot time — AudioEngine.swift reads ProcessInfo.systemUptime to
+		  measure elapsed time while ramping gain fades and crossfades, and the
+		  audio graph uses mach_absolute_time() (via AVAudioTime host time) to
+		  schedule sample-accurate playback. On-device timing only; no derived
+		  value is ever sent off-device.
+		-->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

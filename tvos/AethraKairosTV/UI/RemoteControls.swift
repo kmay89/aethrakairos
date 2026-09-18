@@ -86,6 +86,35 @@ struct RemoteCommandModifier: ViewModifier {
                 bump()
                 library?.toggleHeart(key)
             }
+            // VoiceOver on the field. `.contain` names this transport surface
+            // and its state while keeping every child — the HUD's now-playing
+            // card and, when the shelves are up, each shelf row — individually
+            // navigable. It never collapses or hides children, so it can't
+            // regress focus for a sighted listener either.
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(fieldLabel)
+            .accessibilityValue(fieldValue)
+            .accessibilityHint(fieldHint)
+    }
+
+    // MARK: - VoiceOver labels for the field
+
+    private var fieldLabel: Text {
+        if shelvesShown { return Text("Aethra Kairos") }
+        if let title = player.current?.title, !title.isEmpty {
+            return Text("Now playing, \(title)")
+        }
+        return Text("Aethra Kairos player")
+    }
+
+    private var fieldValue: Text {
+        guard !shelvesShown else { return Text("") }
+        return Text(player.isPlaying ? "Playing" : "Paused")
+    }
+
+    private var fieldHint: Text {
+        guard !shelvesShown else { return Text("Press Menu to open the shelves.") }
+        return Text("Play or pause with the play button. Swipe left or right to move ten seconds. Swipe up or down to change rooms. Press and hold to save the track to hearts. Press Menu for the shelves.")
     }
 
     private func bump() {
