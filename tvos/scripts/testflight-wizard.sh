@@ -22,6 +22,9 @@
 #             not sign the CLI in.
 #   --ship    after setup, dispatch the tvos workflow with channel=testflight
 #             and watch the run to the end.
+#   --rotate-key  ask for the .p8 again even though the ASC_* secrets already
+#             exist — for swapping in a regenerated API key (wrong role,
+#             revoked key, lost file).
 #
 # FUTURE APPS: nothing in here is Aethra-specific but three defaults.
 # REPO, BUNDLE_ID and APP_NAME are environment overrides, so the next app is
@@ -35,11 +38,13 @@ BUNDLE_ID="${BUNDLE_ID:-com.aethrakairos.tv}"
 APP_NAME="${APP_NAME:-Aethra Kairos}"
 PASTE=0
 SHIP=0
+ROTATE=0
 for a in "$@"; do
   case "$a" in
     --paste) PASTE=1 ;;
     --ship)  SHIP=1 ;;
-    -h|--help) sed -n '2,30p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --rotate-key) ROTATE=1 ;;
+    -h|--help) sed -n '2,33p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) printf 'Unknown option: %s\n' "$a" >&2; exit 2 ;;
   esac
 done
@@ -104,8 +109,8 @@ pause
 
 # ────────────────────────────────────────────────── 3. the token (.p8)
 step "3/6  The token — App Store Connect API key"
-if have_secret ASC_API_KEY_P8_BASE64 && have_secret ASC_KEY_ID && have_secret ASC_ISSUER_ID; then
-  skip "ASC_API_KEY_P8_BASE64 / ASC_KEY_ID / ASC_ISSUER_ID"
+if [ "$ROTATE" = 0 ] && have_secret ASC_API_KEY_P8_BASE64 && have_secret ASC_KEY_ID && have_secret ASC_ISSUER_ID; then
+  skip "ASC_API_KEY_P8_BASE64 / ASC_KEY_ID / ASC_ISSUER_ID  (re-run with --rotate-key to replace)"
   P8="" KEYID="" ISSUER=""
 else
   printf '%s  Part 3 of tvos/TESTFLIGHT.md. Generate it once, download once:%s\n' "$DIM" "$OFF"
@@ -113,7 +118,9 @@ else
   App Store Connect → Users and Access → Integrations → App Store Connect
   API → Team Keys → ＋ Generate API Key
     Name:   %s tvos ci
-    Access: App Manager   (⚠ not Developer — too weak for cloud signing)
+    Access: Admin   (⚠ cloud-managed distribution certificates are gated:
+            App Manager keys are refused with "Cloud signing permission
+            error" the moment xcodebuild asks for the certificate)
   then Download API Key — the download works EXACTLY ONCE; keep the file.
        https://appstoreconnect.apple.com/access/integrations/api
 ' "$APP_NAME"

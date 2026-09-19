@@ -111,8 +111,13 @@ whole developer account.
   (First time here: click **Request Access** and confirm — it's instant.)
 - **＋ Generate API Key**.
 - **Name**: `aethra tvos ci`.
-- **Access**: **App Manager** ⚠️ — not Developer (too weak to manage cloud
-  signing), not Admin (more power than CI should hold).
+- **Access**: **Admin** ⚠️ — Apple gates *cloud-managed distribution
+  certificates* hard: Developer can't touch cloud signing at all, and a
+  plain App Manager key is refused with `Cloud signing permission error —
+  You haven't been given access to cloud-managed distribution certificates`
+  (a 403, resultCode 7495) the moment `xcodebuild` asks for the certificate.
+  Learned the hard way on this repo's first live run; Admin is the role
+  that reliably works for headless cloud signing.
 - **Generate**, then on the key's row:
   - **Issuer ID** (top of the page, a UUID like
     `57246542-96fe-1a63-e053-0824d011072a`) → this is `ASC_ISSUER_ID`.
@@ -182,8 +187,11 @@ What happens, so nothing in the log is a surprise:
 
 First-run failure modes, so you don't debug blind:
 
-- `Cloud signing permission error` / `unable to create certificate` → the API
-  key's role is Developer; regenerate it as **App Manager** (Part 3).
+- `Cloud signing permission error` ("You haven't been given access to
+  cloud-managed distribution certificates") → the key's role is too weak for
+  cloud-managed certs; regenerate it as **Admin** (Part 3), then re-run the
+  wizard with `--rotate-key` (or `gh secret set ASC_KEY_ID` +
+  `ASC_API_KEY_P8_BASE64` by hand).
 - `Your team has no devices from which to generate a provisioning profile` →
   the archive step is trying to sign (an old copy of the workflow); pull
   `main` — the current workflow archives unsigned exactly so no device ever
