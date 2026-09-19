@@ -66,26 +66,40 @@ struct RemoteCommandModifier: ViewModifier {
                 bump()
                 shelvesShown = true
             }
-            .onTapGesture {
-                guard !shelvesShown else { return }
-                // Wake shows info first; the second press is the command.
-                let hudWasLit = ZenLaw.hudVisible(
-                    idle: Date().timeIntervalSince(lastBump),
-                    playing: player.isPlaying
-                )
-                bump()
-                if hudWasLit {
-                    player.toggle()
-                }
-            }
+            // Both field gestures are attached with a mask, not a guard: while
+            // the shelves are up the mask is .subviews, so the recognizers
+            // UIKit installs for them never claim the remote's touches or the
+            // select press. A guarded no-op handler is NOT enough on tvOS —
+            // the recognizer still recognizes, and in doing so it starves the
+            // focus engine (no highlight moves) and cancels the press before
+            // a shelf Button can fire (nothing selectable). The mask keeps
+            // the view identity stable AND keeps the shelves' focus alive.
+            .gesture(
+                TapGesture().onEnded {
+                    guard !shelvesShown else { return }
+                    // Wake shows info first; the second press is the command.
+                    let hudWasLit = ZenLaw.hudVisible(
+                        idle: Date().timeIntervalSince(lastBump),
+                        playing: player.isPlaying
+                    )
+                    bump()
+                    if hudWasLit {
+                        player.toggle()
+                    }
+                },
+                including: shelvesShown ? .subviews : .all
+            )
             // Select HELD is the heart: it favourites the playing track without
             // ever opening the shelves. A hold is not a tap, so transport is
             // left alone; only the activity counter is stirred.
-            .onLongPressGesture(minimumDuration: 0.6) {
-                guard !shelvesShown, let key = player.current?.id else { return }
-                bump()
-                library?.toggleHeart(key)
-            }
+            .gesture(
+                LongPressGesture(minimumDuration: 0.6).onEnded { _ in
+                    guard !shelvesShown, let key = player.current?.id else { return }
+                    bump()
+                    library?.toggleHeart(key)
+                },
+                including: shelvesShown ? .subviews : .all
+            )
             // VoiceOver on the field. `.contain` names this transport surface
             // and its state while keeping every child — the HUD's now-playing
             // card and, when the shelves are up, each shelf row — individually
