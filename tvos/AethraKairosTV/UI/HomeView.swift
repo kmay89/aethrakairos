@@ -16,6 +16,9 @@ struct HomeView: View {
 
     // Shelves open at boot: nothing plays until a ritual or album is chosen.
     @State private var shelvesShown = true
+    // The welcome speaks exactly once — four lines on why this exists — and
+    // then never again, unless SETTINGS asks it to. It survives relaunches.
+    @AppStorage("introSeen") private var introSeen = false
     // The Journey Console, reached from the shelves' JOURNEY entry.
     @State private var showConsole = false
     // The Stage screen, reached from the shelves' STAGE entry — the TV joins a
@@ -36,13 +39,21 @@ struct HomeView: View {
             VisualizerView(player: player, roomStep: roomStep, roomName: $roomName)
                 .ignoresSafeArea()
             NowPlayingHUD(player: player, library: library, roomName: roomName, visible: hudVisible && !shelvesShown)
-            if shelvesShown {
+            if !introSeen {
+                // First light: the welcome owns the screen alone, so its one
+                // button is the only focusable and the field's gestures stay
+                // masked (shelvesShown is still true underneath).
+                introOverlay
+                    .transition(.opacity)
+                    .zIndex(2)
+            } else if shelvesShown {
                 shelvesOverlay
                     .transition(.opacity)
                     .zIndex(1)
             }
         }
         .animation(.easeInOut(duration: 0.35), value: shelvesShown)
+        .animation(.easeInOut(duration: 0.35), value: introSeen)
         .remoteControls(player: player, library: library, roomStep: $roomStep, shelvesShown: $shelvesShown, activity: $activity)
         .zenLadder(player: player, activity: activity, hudVisible: $hudVisible)
         .fullScreenCover(isPresented: $showConsole) {
@@ -86,6 +97,89 @@ struct HomeView: View {
     private func dismissShelves() {
         shelvesShown = false
         activity += 1
+    }
+
+    // MARK: - the welcome
+
+    /// The thirty-second introduction, in the house voice: what this is, what
+    /// it's for, and the two facts that make it unlike anything else on the
+    /// shelf. Four rows, one button, no scroll — Menu skips it, SETTINGS can
+    /// replay it, and it never interrupts twice.
+    private var introOverlay: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer()
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                Text("Aethra Kairos")
+                    .font(.system(size: 72, weight: .medium, design: .serif))
+                    .italic()
+                    .foregroundStyle(Color.akInk)
+                Text("∞")
+                    .font(.system(size: 58, weight: .regular, design: .serif))
+                    .foregroundStyle(Color.akIce)
+            }
+            Text("An artist that never stops composing. A screen that listens.")
+                .font(.system(size: 29, design: .serif))
+                .italic()
+                .foregroundStyle(Color.akDim)
+                .padding(.top, 10)
+
+            VStack(alignment: .leading, spacing: 30) {
+                introRow("∞", "MUSIC WITHOUT END",
+                         "An original catalog, deejayed seam to seam by the Möbius⁸ engine — no two hours alike.")
+                introRow("✦", "FORTY-TWO ROOMS OF LIGHT",
+                         "Storm oceans, lightning, black holes, murmurations — every room moves to what's playing.")
+                introRow("◈", "MADE FOR YOUR MOMENTS",
+                         "Run to it, dance to it, dine or drift to sleep — one press on a ritual sets the whole arc.")
+                introRow("♥", "FREE. PRIVATE. YOURS.",
+                         "No accounts, no ads, no tracking — everything happens on this Apple TV.")
+            }
+            .padding(.top, 56)
+
+            Button {
+                withAnimation { introSeen = true }
+            } label: {
+                Text("BEGIN")
+                    .font(.system(size: 27, weight: .semibold))
+                    .tracking(5)
+                    .foregroundStyle(Color.akInk)
+                    .padding(.horizontal, 26)
+                    .padding(.vertical, 2)
+            }
+            .buttonStyle(ShelfChipStyle())
+            .padding(.top, 56)
+
+            Text("MENU · SHELVES      CLICK · PLAY / PAUSE      SWIPE ↑ ↓ · CHANGE ROOMS")
+                .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                .tracking(3)
+                .foregroundStyle(Color.akDim)
+                .padding(.top, 44)
+            Spacer()
+        }
+        .padding(.horizontal, 120)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial)
+        .background(Color.akVoid.opacity(0.55).ignoresSafeArea())
+        .onExitCommand { withAnimation { introSeen = true } }
+    }
+
+    private func introRow(_ glyph: String, _ title: String, _ line: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 26) {
+            Text(glyph)
+                .font(.system(size: 34, weight: .regular))
+                .foregroundStyle(Color.akIce)
+                .frame(width: 54, alignment: .center)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.system(size: 25, weight: .semibold))
+                    .tracking(3)
+                    .foregroundStyle(Color.akInk)
+                Text(line)
+                    .font(.system(size: 21))
+                    .foregroundStyle(Color.akDim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: 1100, alignment: .leading)
     }
 
     // MARK: - wordmark
@@ -184,6 +278,13 @@ struct HomeView: View {
                 }
             }
             .frame(maxWidth: 860)
+            Button {
+                withAnimation { introSeen = false }
+            } label: {
+                settingLabel("THE WELCOME", "Replay the thirty-second introduction.")
+                    .frame(width: 500, alignment: .leading)
+            }
+            .buttonStyle(ShelfChipStyle())
         }
         .focusSection()
     }
