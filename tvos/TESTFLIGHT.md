@@ -19,7 +19,22 @@ variable so nothing is attempted before the secrets exist.
 
 ---
 
-## TL;DR
+## TL;DR — the wizard does 4–6 for you
+
+```sh
+git clone https://github.com/kmay89/aethrakairos.git ~/aethrakairos 2>/dev/null; cd ~/aethrakairos && git pull
+bash tvos/scripts/testflight-wizard.sh --ship
+```
+
+The wizard is idempotent (re-run it any time; done steps skip themselves),
+walks you through the three browser steps Apple reserves for a human
+(Parts 0–3 below), validates the `.p8` before anything is stored, writes the
+four secrets + the switch with `gh` (or `--paste` if you'd rather not sign
+the CLI in), and with `--ship` dispatches the TestFlight run and watches it
+land. For a future app it is the same script with three overrides:
+`REPO=you/nextapp BUNDLE_ID=com.next.tv APP_NAME="Next" bash tvos/scripts/testflight-wizard.sh`.
+
+The long form, if you'd rather drive by hand:
 
 1. Join the **Apple Developer Program** ($99/yr) — [Part 0](#0-prerequisites).
 2. Register the bundle ID **`com.aethrakairos.tv`** — [Part 1](#1-register-the-app-id).
