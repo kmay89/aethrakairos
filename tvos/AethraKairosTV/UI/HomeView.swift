@@ -117,21 +117,21 @@ struct HomeView: View {
                     .font(.system(size: 58, weight: .regular, design: .serif))
                     .foregroundStyle(Color.akIce)
             }
-            Text("An artist that never stops composing. A screen that listens.")
+            Text("Music and moving art for your TV.")
                 .font(.system(size: 29, design: .serif))
                 .italic()
                 .foregroundStyle(Color.akDim)
                 .padding(.top, 10)
 
             VStack(alignment: .leading, spacing: 30) {
-                introRow("∞", "MUSIC WITHOUT END",
-                         "An original catalog, deejayed seam to seam by the Möbius⁸ engine — no two hours alike.")
-                introRow("✦", "FORTY-TWO ROOMS OF LIGHT",
-                         "Storm oceans, lightning, black holes, murmurations — every room moves to what's playing.")
-                introRow("◈", "MADE FOR YOUR MOMENTS",
-                         "Run to it, dance to it, dine or drift to sleep — one press on a ritual sets the whole arc.")
-                introRow("♥", "FREE. PRIVATE. YOURS.",
-                         "No accounts, no ads, no tracking — everything happens on this Apple TV.")
+                introRow("∞", "NONSTOP MUSIC",
+                         "Original songs that blend into each other — like a DJ who never takes a break.")
+                introRow("✦", "42 LIGHT SHOWS",
+                         "Oceans, lightning, fireflies, and more — the picture dances along with the music.")
+                introRow("◈", "PICK A MOOD",
+                         "Working out, dinner, focus, or bedtime — one click plays music that fits.")
+                introRow("♥", "FREE FOR EVERYONE",
+                         "No account, no ads, no cost — and nothing you do is tracked or shared.")
             }
             .padding(.top, 56)
 
@@ -148,7 +148,7 @@ struct HomeView: View {
             .buttonStyle(ShelfChipStyle())
             .padding(.top, 56)
 
-            Text("MENU · SHELVES      CLICK · PLAY / PAUSE      SWIPE ↑ ↓ · CHANGE ROOMS")
+            Text("MENU = BROWSE      CLICK = PLAY / PAUSE      SWIPE ↑ ↓ = CHANGE THE PICTURE")
                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
                 .tracking(3)
                 .foregroundStyle(Color.akDim)
@@ -281,7 +281,7 @@ struct HomeView: View {
             Button {
                 withAnimation { introSeen = false }
             } label: {
-                settingLabel("THE WELCOME", "Replay the thirty-second introduction.")
+                settingLabel("WELCOME", "See the intro again.")
                     .frame(width: 500, alignment: .leading)
             }
             .buttonStyle(ShelfChipStyle())
