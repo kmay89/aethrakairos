@@ -217,6 +217,7 @@ struct HomeView: View {
                         }
                         .frame(width: 320, alignment: .leading)
                     }
+                    .buttonStyle(ShelfChipStyle())
                 }
             }
         }
@@ -271,6 +272,7 @@ struct HomeView: View {
                 .frame(width: 560, alignment: .leading)
                 .padding(.vertical, 8)
             }
+            .buttonStyle(ShelfChipStyle())
         }
         .focusSection()
     }
@@ -304,6 +306,7 @@ struct HomeView: View {
                 .frame(width: 560, alignment: .leading)
                 .padding(.vertical, 8)
             }
+            .buttonStyle(ShelfChipStyle())
         }
         .focusSection()
     }
@@ -350,6 +353,7 @@ struct HomeView: View {
             }
             .frame(width: 330, alignment: .leading)
         }
+        .buttonStyle(ShelfChipStyle())
     }
 
     /// A ritual is dials, pre-turned: same solver, one tap. Journey-ineligible
@@ -467,6 +471,7 @@ struct HomeView: View {
             }
             .frame(width: 330, alignment: .leading)
         }
+        .buttonStyle(ShelfChipStyle())
     }
 
     /// Newest first, one entry per track, resolved against the living catalog —
@@ -492,6 +497,40 @@ struct HomeView: View {
             .font(.system(size: 21, weight: .semibold))
             .tracking(5)
             .foregroundStyle(Color.akDim)
+    }
+}
+
+/// The shelves' one focus voice: a glass chip that answers focus the way the
+/// rooms answer a beat — it lifts, an ice ring lights, and the platter warms.
+/// Custom because the default tvOS platter is a near-invisible grey shift on
+/// a projector wall; here focus is legible from the sofa across the room.
+/// (The albums keep `.card` — a lifted sleeve is already unmistakable.)
+struct ShelfChipStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        ChipBody(configuration: configuration)
+    }
+
+    private struct ChipBody: View {
+        let configuration: Configuration
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 30)
+                .padding(.vertical, 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(focused ? Color.white.opacity(0.22) : Color.white.opacity(0.07))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(focused ? Color.akIce.opacity(0.9) : Color.white.opacity(0.10), lineWidth: focused ? 3 : 1)
+                )
+                .shadow(color: .black.opacity(focused ? 0.45 : 0), radius: 22, y: 12)
+                .scaleEffect(configuration.isPressed ? 0.97 : (focused ? 1.05 : 1.0))
+                .animation(.spring(response: 0.32, dampingFraction: 0.82), value: focused)
+                .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+        }
     }
 }
 
