@@ -164,12 +164,16 @@ What happens, so nothing in the log is a surprise:
 
 1. The runner writes the `.p8` back out of the secret and hands it to
    `xcodebuild` (`-authenticationKeyPath/-authenticationKeyID/-authenticationKeyIssuerID`).
-2. `xcodebuild archive … -allowProvisioningUpdates` signs with a
+2. `xcodebuild archive` builds **unsigned** — on purpose. A signed archive
+   would ask Apple for a *development* profile, and development profiles
+   require a registered device, which a fresh team has none of. The App
+   Store profile needs no devices, so all signing waits for the export step.
+3. `xcodebuild -exportArchive … -allowProvisioningUpdates` signs with a
    **cloud-managed Apple Distribution certificate** — created automatically on
-   the first run, managed by Apple, nothing to export, renew, or store.
-3. `xcodebuild -exportArchive` with `destination: upload` sends the build
-   straight to App Store Connect. The build number is the workflow run
-   number, so every upload is unique and monotonic without touching the repo.
+   the first run, managed by Apple, nothing to export, renew, or store — and
+   with `destination: upload` sends the build straight to App Store Connect.
+   The build number is the workflow run number, so every upload is unique
+   and monotonic without touching the repo.
 4. Apple **processes** the build (5–30 min). It then appears in App Store
    Connect → your app → **TestFlight** tab.
 5. There is **no export-compliance interrogation**: the app declares
@@ -180,6 +184,10 @@ First-run failure modes, so you don't debug blind:
 
 - `Cloud signing permission error` / `unable to create certificate` → the API
   key's role is Developer; regenerate it as **App Manager** (Part 3).
+- `Your team has no devices from which to generate a provisioning profile` →
+  the archive step is trying to sign (an old copy of the workflow); pull
+  `main` — the current workflow archives unsigned exactly so no device ever
+  needs to be registered.
 - `No App Store Connect record found` → Part 2 wasn't done, or the bundle ID
   doesn't match `com.aethrakairos.tv` exactly.
 - `Authentication credentials are missing or invalid` → the base64 secret got

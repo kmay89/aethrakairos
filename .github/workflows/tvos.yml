@@ -15,6 +15,15 @@
 # mint and use a cloud-managed Apple Distribution certificate by itself
 # (-allowProvisioningUpdates + the -authenticationKey* trio).
 #
+# The ARCHIVE is deliberately UNSIGNED and all signing happens at EXPORT.
+# `xcodebuild archive` under automatic signing asks Apple for a *development*
+# profile, and development profiles require at least one registered device —
+# which a fresh team (and every CI runner) does not have ("Your team has no
+# devices from which to generate a provisioning profile"). The App Store
+# profile the export step creates needs no devices at all, so archiving with
+# signing off and letting -exportArchive sign is both sufficient and the only
+# device-free path.
+#
 # Runbook: tvos/TESTFLIGHT.md.
 
 name: tvos
@@ -96,12 +105,14 @@ jobs:
           openssl pkey -in "$RUNNER_TEMP/AuthKey.p8" -noout \
             || { echo "::error::ASC_API_KEY_P8_BASE64 does not decode to a valid .p8 (truncated paste?)"; exit 1; }
 
-      - name: Archive (cloud-managed signing via the API key)
+      - name: Archive (unsigned — the export step does all the signing)
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
+          # Signing OFF on purpose: a signed archive would need a *development*
+          # profile, and those require a registered device the team may not
+          # have. -exportArchive signs the whole app for App Store distribution
+          # (no devices needed) — see the header comment.
           xcodebuild archive \
             -project tvos/AethraKairos.xcodeproj \
             -scheme AethraKairosTV \
@@ -109,10 +120,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/AethraKairos.xcarchive" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
       - name: Upload to App Store Connect
         env:
