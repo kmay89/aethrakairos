@@ -140,12 +140,35 @@ jobs:
           </dict>
           </plist>
           EOF
+          set -o pipefail
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/AethraKairos.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee "$RUNNER_TEMP/export.log"
           echo "Uploaded. Apple processes for 5–30 min, then the build appears" \
                "under TestFlight in App Store Connect (tvos/TESTFLIGHT.md part 6)."
+
+      # xcodebuild's one-line "Cloud signing permission error" hides the real
+      # cause (license agreement not accepted, key role too weak, missing app
+      # record, …) inside an xcdistributionlogs bundle it only names in the
+      # output. On failure, dig it out so the run log itself says why.
+      - name: Surface the real signing error on failure
+        if: failure()
+        run: |
+          BUNDLE="$(sed -n 's/.*Created bundle at path "\([^"]*xcdistributionlogs\)".*/\1/p' \
+                    "$RUNNER_TEMP/export.log" 2>/dev/null | head -1)"
+          if [ -d "$BUNDLE" ]; then
+            echo "===== IDEDistribution.standard.log (last 150 lines) ====="
+            tail -150 "$BUNDLE/IDEDistribution.standard.log" 2>/dev/null || true
+            for f in "$BUNDLE"/*.log; do
+              [ "$f" = "$BUNDLE/IDEDistribution.standard.log" ] && continue
+              echo "===== $(basename "$f") (last 60 lines) ====="
+              tail -60 "$f" 2>/dev/null || true
+            done
+          else
+            echo "No xcdistributionlogs bundle referenced in export.log (the failure was before export)."
+          fi
