@@ -234,6 +234,25 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     // without playing any. Never on for a listener.
     private static let driveDemo = ProcessInfo.processInfo.arguments.contains("--drive-demo")
 
+    /// The drive demo's KEYED track: the sim shots should photograph the
+    /// colour engine's work (an 8B plan, vivid and keyed), not the boot ice.
+    /// Never non-nil for a listener.
+    private static let demoTrack: Track? = {
+        guard driveDemo else { return nil }
+        return Track(
+            id: "drive-demo", title: "DRIVE DEMO", albumTag: "demo",
+            albumTitle: "demo", url: URL(string: "https://demo.invalid/d.mp3")!,
+            duration: 240, sha256: "drive-demo", gainDB: nil,
+            features: Features(bpm: 126, energy: 0.72, brightness: 0.55,
+                               entropy: 0.48, onsets: 0.6),
+            env: nil,
+            mix: MixInfo(bpm: 126, grid: 0, key: "8B", keyConf: 1, phrases: 32,
+                         inRegion: MixRegion(start: 0, beats: 32),
+                         outRegion: MixRegion(start: 200, beats: 32),
+                         mixable: 1),
+            artURL: nil, year: nil, published: nil)
+    }()
+
     init(player: Player, roomName: Binding<String>) {
         self.player = player
         self.roomName = roomName
@@ -709,18 +728,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
            phrase, the arc's temperature turns the WHOLE chord by one angle
            (so the intervals — the entire design — survive), and the flash
            governor is the last hand on the light. */
-        let palId = player.current?.id ?? "none"
+        let palTrack = Self.demoTrack ?? player.current
+        let palId = palTrack?.id ?? "none"
         if palId != lastPalId {
             lastPalId = palId
             palSeedBump = 0
             palReplanT = 0
-            retargetPalette(player.current)
+            retargetPalette(palTrack)
         }
         palReplanT += dt
         if let p = palPlan, !p.keyed, palReplanT > 24 {
             palReplanT = 0
             palSeedBump += 1
-            retargetPalette(player.current)
+            retargetPalette(palTrack)
         }
         if palGlideT < 1 {
             palGlideT = min(1, palGlideT + dt / max(0.5, palGlideDur))

@@ -550,21 +550,23 @@ fragment float4 room_sheets(float4 pos [[position]],
     float t = 0.0, clap = 0.0;
     bool hit = false;
     float3 w = ro;
-    for (int i = 0; i < 64; i++) {
+    float dHit = 0.0;
+    for (int i = 0; i < 46; i++) {
         w = ro + rd * t;
         float d = sheetsMap_n(w, U, reach, clap);
-        if (d < 0.012) { hit = true; break; }
-        t += d * 0.9;
-        if (t > 46.0) break;
+        if (d < 0.014) { hit = true; dHit = d; break; }
+        t += d;
+        if (t > 40.0) break;
     }
     if (hit) {
-        // face normal from the local box: cheapest honest lambert
+        // face normal by forward difference off the hit distance — three
+        // map calls, not six; boxes only need the face, not the curvature
         const float e = 0.02;
         float c0;
         float3 n = normalize(float3(
-            sheetsMap_n(w + float3(e, 0, 0), U, reach, c0) - sheetsMap_n(w - float3(e, 0, 0), U, reach, c0),
-            sheetsMap_n(w + float3(0, e, 0), U, reach, c0) - sheetsMap_n(w - float3(0, e, 0), U, reach, c0),
-            sheetsMap_n(w + float3(0, 0, e), U, reach, c0) - sheetsMap_n(w - float3(0, 0, e), U, reach, c0)));
+            sheetsMap_n(w + float3(e, 0, 0), U, reach, c0) - dHit,
+            sheetsMap_n(w + float3(0, e, 0), U, reach, c0) - dHit,
+            sheetsMap_n(w + float3(0, 0, e), U, reach, c0) - dHit));
         float lam = 0.40 + 0.60 * max(0.0, dot(n, normalize(float3(0.35, 0.9, 0.2))));
         float2 cell = round(w.xz / 2.05);
         float hue = fract((cell.x + cell.y) / 24.0 + U.time * 0.012);

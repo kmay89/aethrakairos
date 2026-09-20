@@ -139,8 +139,10 @@ fragment float4 room_fourier(float4 pos [[position]],
     float span = arms == 5 ? 4.2 : 2.4;                 // INK remembers longer
     float2 prev = pen;
     float dmin = 1e3, dAt = 0.0;
-    for (int i = 1; i <= 44; i++) {
-        float tb = base - float(i) / 44.0 * span * 0.55;
+    // 30 samples, not 44: the trail's inner loop multiplies by the arm
+    // count, and this room's whole per-pixel budget lives right here
+    for (int i = 1; i <= 30; i++) {
+        float tb = base - float(i) / 30.0 * span * 0.55;
         float2 q = hub;
         for (int k = 0; k < 8; k++) {
             if (k >= arms) break;
@@ -149,7 +151,7 @@ fragment float4 room_fourier(float4 pos [[position]],
             q += float2(cos(th), sin(th)) * R[k];
         }
         float d = segd_k(p, prev, q);
-        if (d < dmin) { dmin = d; dAt = float(i) / 44.0; }
+        if (d < dmin) { dmin = d; dAt = float(i) / 30.0; }
         prev = q;
     }
     float fade = 1.0 - dAt * 0.75;
@@ -266,8 +268,15 @@ fragment float4 room_julia(float4 pos [[position]],
         col = ink * (0.05 + pow(w, 1.3) * 1.9) * (0.75 + U.energy * 0.45);
         col += U.colC.rgb * pow(w, 4.5) * (1.0 + U.onsetEnv * 0.9);
     } else {
-        // the interior: near-void, the orbit trap's filigree glowing
-        col = U.colC.rgb * exp(-trap * 5.0) * (0.20 + U.bass * 0.25);
+        /* the interior: near-void — the keyed accent is bright now, and a
+           broad exp(-trap*5) under it reads as a flat slab when c dips
+           inside the Mandelbrot set. Only the orbit trap's own filigree
+           gets to glow: a tight line where the orbit kisses the trap
+           circle, and faint contour bands rippling away from it. */
+        float fil = exp(-trap * 26.0);
+        float bands = exp(-abs(fract(trap * 9.0) - 0.5) * 6.0) * exp(-trap * 3.0);
+        col = U.colC.rgb * fil * (0.30 + U.bass * 0.30)
+            + U.colB.rgb * bands * 0.10;
     }
     col += (hash21_k(pos.xy) - 0.5) * 0.006;
     return float4(govern_k(VOID_K + max(col, float3(0.0)), U.white), 1.0);
