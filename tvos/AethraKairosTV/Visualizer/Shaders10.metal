@@ -139,8 +139,10 @@ fragment float4 room_fourier(float4 pos [[position]],
     float span = arms == 5 ? 4.2 : 2.4;                 // INK remembers longer
     float2 prev = pen;
     float dmin = 1e3, dAt = 0.0;
-    for (int i = 1; i <= 44; i++) {
-        float tb = base - float(i) / 44.0 * span * 0.55;
+    // 30 samples, not 44: the trail's inner loop multiplies by the arm
+    // count, and this room's whole per-pixel budget lives right here
+    for (int i = 1; i <= 30; i++) {
+        float tb = base - float(i) / 30.0 * span * 0.55;
         float2 q = hub;
         for (int k = 0; k < 8; k++) {
             if (k >= arms) break;
@@ -149,7 +151,7 @@ fragment float4 room_fourier(float4 pos [[position]],
             q += float2(cos(th), sin(th)) * R[k];
         }
         float d = segd_k(p, prev, q);
-        if (d < dmin) { dmin = d; dAt = float(i) / 44.0; }
+        if (d < dmin) { dmin = d; dAt = float(i) / 30.0; }
         prev = q;
     }
     float fade = 1.0 - dAt * 0.75;
