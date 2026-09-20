@@ -200,6 +200,20 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var specScratch = [Float](repeating: 0, count: 256)
     private var waveScratch = [Float](repeating: 0, count: 256)
 
+    // The 60 fps display ease: the analyzer publishes at the tap's cadence
+    // (~10 Hz callbacks carrying ~43 Hz hops); these carry each level between
+    // publishes so nothing on screen ever steps. Attack 30 ms — a kick lands
+    // the same frame; release 120 ms — the fall is grace, not a cliff.
+    private var dispBass: Float = 0
+    private var dispMid: Float = 0
+    private var dispTreble: Float = 0
+    private var dispEnergy: Float = 0
+
+    // CI's synthetic drive: `--drive-demo` replaces the ears with a pumping
+    // 126 BPM signal so the simulator can photograph rooms UNDER music
+    // without playing any. Never on for a listener.
+    private static let driveDemo = ProcessInfo.processInfo.arguments.contains("--drive-demo")
+
     init(player: Player, roomName: Binding<String>) {
         self.player = player
         self.roomName = roomName
@@ -293,6 +307,44 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
     private static func freshRolls() -> SIMD3<Float> {
         SIMD3<Float>(Float.random(in: 0..<1), Float.random(in: 0..<1), Float.random(in: 0..<1))
+    }
+
+    /// Punch up (30 ms), grace down (120 ms).
+    private static func ease(_ level: inout Float, toward target: Float, dt: Double) {
+        let tau = target > level ? 0.03 : 0.12
+        level += (target - level) * Float(1 - exp(-dt / tau))
+    }
+
+    /// The synthetic drive behind `--drive-demo`: a four-on-the-floor pump at
+    /// 126 BPM with breathing mids, glittering highs, a decaying spectrum and
+    /// a living waveform — enough music-shaped signal for a photograph.
+    private static func synthesizeDrive(_ f: inout Analyzer.Frame, t: Double) {
+        let beat = t * (126.0 / 60.0)
+        let ph = Float(beat - floor(beat))
+        let onset = exp(-ph * 3.2)
+        f.onsetEnv = onset
+        f.beatPhase = ph
+        f.barPhase = Float((beat / 4).truncatingRemainder(dividingBy: 1))
+        f.phrasePhase = Float((beat / 32).truncatingRemainder(dividingBy: 1))
+        f.bpm = 126
+        f.bass = min(1, 0.35 + 0.55 * onset)
+        f.mid = 0.38 + 0.20 * Float(0.5 + 0.5 * sin(t * 2.1))
+        f.treble = 0.30 + 0.22 * Float(0.5 + 0.5 * sin(t * 3.7 + 1.3))
+        f.energy = min(1, f.bass * 0.625 + f.mid * 0.5 + f.treble * 0.4)
+        f.eShort = f.energy
+        f.eLong = 0.55
+        f.calm = 1 - f.energy
+        for b in 0..<f.spectrum.count {
+            let fall = exp(-Float(b) * 0.045)
+            let shimmer = Float(0.5 + 0.5 * sin(t * 3.0 + Double(b) * 0.37))
+            f.spectrum[b] = min(1, fall * (0.30 + 0.55 * onset) + 0.10 * shimmer * (1 - fall))
+        }
+        for i in 0..<f.waveform.count {
+            let x = Double(i) / Double(f.waveform.count)
+            let w = sin(x * 6.28318 * 3 + t * 4.0) * (0.30 + 0.35 * Double(onset))
+                  + sin(x * 6.28318 * 11 + t * 9.0) * 0.10
+            f.waveform[i] = Float(max(-1.0, min(1.0, w)))
+        }
     }
 
     private func makeDataTexture(device: MTLDevice) -> MTLTexture? {
@@ -522,11 +574,18 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let calmNow = reduceMotion || VizSettings.shared.calm
 
         // -- the ears and the chord --
-        let frame = player.analyzer.currentFrame()
+        var frame = player.analyzer.currentFrame()
+        if Self.driveDemo { Self.synthesizeDrive(&frame, t: now) }
         let chord = Palette.chord(for: player.current)
 
+        // -- the 60 fps ease (see the disp* fields): punch up, grace down --
+        Self.ease(&dispBass, toward: frame.bass, dt: dt)
+        Self.ease(&dispMid, toward: frame.mid, dt: dt)
+        Self.ease(&dispTreble, toward: frame.treble, dt: dt)
+        Self.ease(&dispEnergy, toward: frame.energy, dt: dt)
+
         // the rubato: rooms run in musical time, clamped to the dance floor
-        let rate = min(max(0.45 + 1.05 * Double(frame.energy), 0.4), 1.9)
+        let rate = min(max(0.45 + 1.05 * Double(dispEnergy), 0.4), 1.9)
         musicalTime += dt * rate
 
         // -- the story: acts centred on the script's real apex, eased (tau 3 s);
@@ -589,9 +648,9 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // Motion autoLens() returns -1, the amount decays to 0, and the lens is
         // bypassed to the exact wave-2 tail. --
         let minorNow = (player.current?.mix?.key?.uppercased().hasSuffix("A")) ?? false
-        let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(frame.energy),
+        let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(dispEnergy),
                                   minor: minorNow, ceil: ceil)
-        let lensAmtTarget: Double = pickedLens >= 0 ? (0.45 + 0.50 * Double(frame.energy)) : 0.0
+        let lensAmtTarget: Double = pickedLens >= 0 ? (0.45 + 0.50 * Double(dispEnergy)) : 0.0
         lensAmt += (lensAmtTarget - lensAmt) * (1 - exp(-dt / 0.6))
         lensAmt = min(max(lensAmt, 0), 1)
         if pickedLens >= 0 { lensRenderMode = pickedLens }
@@ -607,17 +666,17 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             rasterizeWord(for: player.current)
         }
 
-        uploadAudioTextures(frame: frame)
+        uploadAudioTextures(frame: frame, dt: dt)
 
         // -- uniforms (the live room's block) --
         var u = VizUniforms()
         u.time = Float(musicalTime)
         u.beatPhase = frame.beatPhase
         u.barPhase = frame.barPhase
-        u.energy = frame.energy
-        u.bass = frame.bass
-        u.mid = frame.mid
-        u.treble = frame.treble
+        u.energy = dispEnergy
+        u.bass = dispBass
+        u.mid = dispMid
+        u.treble = dispTreble
         u.calm = frame.calm
         u.onsetEnv = frame.onsetEnv
         // height is guarded above — the aspect never divides by zero
@@ -753,10 +812,16 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// The bands ride in the first 64 texels of a 256-wide r32Float strip;
     /// the waveform fills its own strip end to end. Counts are guarded —
     /// a short frame uploads zeros, never stale garbage or a crash.
-    private func uploadAudioTextures(frame: Analyzer.Frame) {
-        for i in 0..<256 { specScratch[i] = 0 }
+    private func uploadAudioTextures(frame: Analyzer.Frame, dt: Double) {
+        // The bands ride the same punch-up / grace-down ease as the levels,
+        // so bars and buses move continuously between analyzer publishes.
         let bandCount = min(64, frame.spectrum.count)
-        for i in 0..<bandCount { specScratch[i] = frame.spectrum[i] }
+        let kUp = Float(1 - exp(-dt / 0.03))
+        let kDn = Float(1 - exp(-dt / 0.15))
+        for i in 0..<bandCount {
+            let target = frame.spectrum[i]
+            specScratch[i] += (target - specScratch[i]) * (target > specScratch[i] ? kUp : kDn)
+        }
 
         for i in 0..<256 { waveScratch[i] = 0 }
         let waveCount = min(256, frame.waveform.count)

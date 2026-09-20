@@ -72,6 +72,7 @@ final class Analyzer {
 
     // Ingest-thread state (never touched off the audio thread).
     private var monoIdx = 0
+    private var nextFFTAt = Analyzer.fftN   // absolute sample index of the next hop's end
     private var waveIdx = 0
     private var fluxIdx = 0
     private var fluxCount = 0
@@ -166,7 +167,6 @@ final class Analyzer {
         let t = when.isHostTimeValid
             ? AVAudioTime.seconds(forHostTime: when.hostTime)
             : AVAudioTime.seconds(forHostTime: mach_absolute_time())
-        let dt = lastIngestT > 0 ? min(max(t - lastIngestT, 0.001), 0.5) : Double(n) / sr
         lastIngestT = t
 
         // Mono fold into the FFT ring; decimated copies feed the SCOPE ring.
@@ -186,10 +186,47 @@ final class Analyzer {
         }
         monoIdx = mi
         waveIdx = wi
-        guard monoIdx >= Self.fftN else { return }
 
+        /* The web recomputes every feature at 60 fps; this tap wakes ~10
+           times a second with ~4096 samples. One FFT per wake made every
+           level a 10 Hz staircase and stretched the 0.72 smoothing into a
+           ~300 ms blur — the whole field moved less than the web. So the
+           pipeline HOPS: an FFT every 1024 fresh samples (~43 Hz at 44.1k),
+           each hop with its own honest dt and timestamp, so smoothing,
+           flux and onsets run at web cadence inside the coarse tap. */
+        let hop = 1024
+        let dtHop = Double(hop) / sr
+        while nextFFTAt <= monoIdx {
+            let tHop = t - Double(monoIdx - nextFFTAt) / sr
+            processHop(setup: setup, endIdx: nextFFTAt, t: tHop, dt: dtHop)
+            nextFFTAt += hop
+        }
+
+        stateLock.lock()
+        pBass = bassS
+        pMid = midS
+        pTreble = trebS
+        pEnergy = energyS
+        pCalm = calmS
+        pEShort = eShortS
+        pELong = eLongS
+        pBpm = bpmEst
+        pLastOnsetT = lastOnsetT
+        pFluxBeatBase = fluxBeatBase
+        for b in 0..<Self.specBands { pubSpec[b] = workSpec[b] }
+        for i in 0..<Self.waveN {
+            // Unrolled oldest-to-newest so readers get a plain array.
+            pubWave[i] = workWave[(waveIdx + i) & (Self.waveN - 1)]
+        }
+        stateLock.unlock()
+    }
+
+    /// One hop of the feature pipeline: FFT over the 2048 samples ending at
+    /// endIdx, band levels, flux, onset, spectrum — with the hop's own dt and
+    /// timestamp, so every time constant behaves as the web's 60 fps loop.
+    private func processHop(setup: FFTSetup, endIdx: Int, t: Double, dt: Double) {
         // Latest 2048 samples out of the ring, Hann-windowed, real FFT.
-        let start = monoIdx - Self.fftN
+        let start = endIdx - Self.fftN
         for i in 0..<Self.fftN {
             fftIn[i] = monoRing[(start + i) & (Self.monoRingN - 1)]
         }
@@ -206,10 +243,12 @@ final class Analyzer {
         var scale = Float(1.0 / 4096.0)
         vDSP_vsmul(mag, 1, &scale, mag, 1, vDSP_Length(Self.halfN))
 
-        // The 0.72 smoothing lives on LINEAR magnitudes, exactly like the
-        // AnalyserNode it impersonates.
-        var kOld: Float = 0.72
-        var kNew: Float = 0.28
+        // The 0.72 smoothing lives on LINEAR magnitudes, like the
+        // AnalyserNode it impersonates — but normalized to THIS hop's dt:
+        // the web applies 0.72 per 16.7 ms frame (tau ~51 ms), so the
+        // impersonation must keep the tau, not the constant.
+        var kOld: Float = Float(exp(-dt / 0.051))
+        var kNew: Float = 1 - kOld
         vDSP_vsmul(smooth, 1, &kOld, smooth, 1, vDSP_Length(Self.halfN))
         vDSP_vsma(mag, 1, &kNew, smooth, 1, smooth, 1, vDSP_Length(Self.halfN))
 
@@ -293,24 +332,6 @@ final class Analyzer {
         for b in 0..<Self.specBands {
             workSpec[b] = bandMean(specLo[b], specHi[b])
         }
-
-        stateLock.lock()
-        pBass = bassS
-        pMid = midS
-        pTreble = trebS
-        pEnergy = energyS
-        pCalm = calmS
-        pEShort = eShortS
-        pELong = eLongS
-        pBpm = bpmEst
-        pLastOnsetT = lastOnsetT
-        pFluxBeatBase = fluxBeatBase
-        for b in 0..<Self.specBands { pubSpec[b] = workSpec[b] }
-        for i in 0..<Self.waveN {
-            // Unrolled oldest-to-newest so readers get a plain array.
-            pubWave[i] = workWave[(waveIdx + i) & (Self.waveN - 1)]
-        }
-        stateLock.unlock()
     }
 
     // MARK: - Clock
