@@ -870,13 +870,13 @@ fragment float4 room_soapfilm(float4 pos [[position]],
        three channels resolve and the film reads PEARL, not acid — the web
        gets this for free from its 26-sample CIE integral; the 3-λ port
        earns it by letting the spectral contrast decay with thickness. */
-    float coh = exp(-h / 850.0);
+    float coh = exp(-h / 1300.0);
     float3 s1 = mix(float3(0.5), filmSpectrum_n(h, ci), coh);
     float3 s2 = mix(float3(0.5), filmSpectrum_n(h * 1.18 + 40.0, max(ci * 0.72, 0.05)), coh * 0.8);
     // the black film: below ~60 nm every wavelength cancels at once
     float dark = smoothstep(90.0, 25.0, h);
     float3 film = (s1 * F * 4.0 + s2 * F * 1.6) * (1.0 - dark);
-    film *= (17.0 + U.roll2 * 9.0) * (0.85 + U.energy * 0.35) * 0.085;
+    film *= (17.0 + U.roll2 * 9.0) * (0.85 + U.energy * 0.35) * 0.19;
     // a wandering highlight along the crown
     float spec = pow(max(1.0 - abs(uv.y - 0.18 - wob * 2.0) * 6.0, 0.0), 3.0) * F * 3.0;
     float3 col = film + float3(1.0, 0.98, 0.95) * spec;
@@ -885,8 +885,10 @@ fragment float4 room_soapfilm(float4 pos [[position]],
     float ed = abs(uv.y - 0.5) * 2.0;
     float inside = 1.0 - smoothstep(0.962, 0.999, ed);
     float rim = smoothstep(0.936, 0.966, ed) * (1.0 - smoothstep(0.984, 1.0, ed));
-    float aa = clamp(max(col.r, max(col.g, col.b)) * 2.2, 0.0, 1.0) * inside;
-    col = col * inside * aa + float3(0.78, 0.83, 0.92) * rim * 0.7;
+    // the film's reflectance shades toward the void, but softly — squaring
+    // the light away is how round 2 lost the pearl
+    float aa = clamp(max(col.r, max(col.g, col.b)) * 3.2, 0.0, 1.0);
+    col = col * inside * (0.35 + 0.65 * aa) + float3(0.78, 0.83, 0.92) * rim * 0.7;
     col += (hash21_n(pos.xy) - 0.5) * 0.006;
     return float4(govern_n(VOID_N + max(col, float3(0.0)), U.white), 1.0);
 }
