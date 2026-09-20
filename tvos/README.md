@@ -58,7 +58,8 @@ complete, no-guessing runbook.
   through mud, the story arc warms and cools the whole chord as one rotation,
   and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds forty-nine Metal rooms; beat phase comes from the analyzed grid (the
+  feeds sixty Metal rooms — one for every scene the web player has, 1:1 by
+  key (the parity law in `CONTRIBUTING.md`); beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
 
@@ -80,7 +81,10 @@ complete, no-guessing runbook.
   | **THREE BODY** — the figure-eight choreography, shaken by the onsets | **DENDRITE** — frost grown over the song's own five acts | **MURMURATION** — a flock as living density, shimmer as turn, a falcon on the drop |
   | **FOURIER** — an epicycle chain, arm lengths straight off the spectrum | **INTERFERENCE** — two-source fringes crawling at the beat frequency | **JULIA** — z²+c iterated live, c dancing along the Mandelbrot boundary |
   | **POINCARÉ** — the hyperbolic disc tiled by fold and inversion | **QUASICRYSTAL** — five-to-sevenfold plane waves blooming as rosettes | **PHYLLOTAXIS** — the golden-angle flower, found by inverting the spiral |
-  | **SANDPILE** — the four-ink pile, avalanche fronts running on the onsets | | |
+  | **SANDPILE** — the four-ink pile, avalanche fronts running on the onsets | **π–e HELIX** — the two constants as intertwined strands, bass and treble each wearing one | **MÖBIUS BAND** — one-sided surface, the mids riding its twist |
+  | **RIBBONS** — airy silk sheets flowing on entropy | **COMETS** — velocity made visible, heads on the beat | **FERN** — the Barnsley fern, grown patient and organic |
+  | **FLAME** — the vigil: a warm flame held steady | **CUBE SHEETS** — the collider's percussive lattice of planes | **BUBBLES** — glass and air, treble caught in thin films |
+  | **DRIFT** — motion illusions in a still room | **FILAMENT** — a current looking for something to carry | **SOAP FILM** — a draining film's interference colours |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's
