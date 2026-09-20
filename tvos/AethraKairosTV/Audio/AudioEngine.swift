@@ -259,7 +259,10 @@ final class DeckEngine {
         if tapInstalled {
             main.removeTap(onBus: 0)
         }
-        main.installTap(onBus: 0, bufferSize: 4096, format: nil, block: handler)
+        // Ask small: the OS may still deliver ~100 ms buffers, but when it
+        // honours the request the analyzer's publishes get 4x fresher. The
+        // hop pipeline inside the analyzer handles either granularity.
+        main.installTap(onBus: 0, bufferSize: 1024, format: nil, block: handler)
         tapInstalled = true
     }
 
