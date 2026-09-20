@@ -125,6 +125,25 @@ inline float wave256(texture2d<float, access::read> t, float u) {
     return mix(t.read(uint2(i0, 0)).r, t.read(uint2(i1, 0)).r, f);
 }
 
+// waveform, Catmull-Rom: a CURVE through four neighbouring samples, not a
+// chain of chords. The last of the staircase dies here — SCOPE draws with
+// this so the trace bends the way a beam would.
+inline float waveCR(texture2d<float, access::read> t, float u) {
+    float fx = clamp(u, 0.0, 1.0) * 255.0;
+    int i1 = int(fx);
+    float f = fx - float(i1);
+    int i0 = max(i1 - 1, 0);
+    int i2 = min(i1 + 1, 255);
+    int i3 = min(i1 + 2, 255);
+    float p0 = t.read(uint2(uint(i0), 0)).r;
+    float p1 = t.read(uint2(uint(i1), 0)).r;
+    float p2 = t.read(uint2(uint(i2), 0)).r;
+    float p3 = t.read(uint2(uint(i3), 0)).r;
+    return p1 + 0.5 * f * (p2 - p0
+         + f * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3
+         + f * (3.0 * (p1 - p2) + p3 - p0)));
+}
+
 // pixel position -> centered, aspect-true coordinates (y in -1..1).
 // res and aspect are both guarded — division by zero is refused here
 // even though the renderer refuses it first.
@@ -495,16 +514,24 @@ fragment float4 room_scope(float4 pos [[position]],
     float axisY = 1.0 - smoothstep(0.002, 0.006, abs(suv.y - 0.5));
     float grat = max(max(gx, gy) * 0.5, max(axisX, axisY));
 
-    // --- the trace ---
-    float w0 = wave256(waveform, suv.x);
-    float w1 = wave256(waveform, min(suv.x + 1.0 / 256.0, 1.0));
+    // --- the trace, drawn as a curve (Catmull-Rom), lit as a phosphor ---
+    float w0 = waveCR(waveform, suv.x);
+    float w1 = waveCR(waveform, min(suv.x + 0.5 / 256.0, 1.0));
     float y = 0.5 - 0.5 * (w0 + w1) * yscale;
     // dwell law: perpendicular distance to the sloped segment, and a
     // dimming term for beam speed — slow curves burn, retraces vanish
-    float slope = (w1 - w0) * yscale * 256.0;
+    float slope = (w1 - w0) * yscale * 512.0;
     float dPerp = abs(suv.y - y) * rsqrt(1.0 + slope * slope);
     float dwell = 1.0 / (1.0 + 0.06 * abs(slope));
-    float beam = exp(-dPerp * dPerp * 45000.0) + 0.30 * exp(-dPerp * dPerp * 2500.0);
+    // three shells of light: the beam core, the phosphor bed, and a wide
+    // breath into the glass — and the whole trace flares on the onset.
+    float beam = exp(-dPerp * dPerp * 45000.0)
+               + 0.34 * exp(-dPerp * dPerp * 2500.0)
+               + 0.12 * exp(-dPerp * dPerp * 260.0);
+    beam *= 1.0 + 0.7 * U.onsetEnv;
+    // sparks: where the beam carves a steep stroke, the phosphor overshoots
+    // — glints in the chord's third colour riding the transients.
+    float spark = smoothstep(2.5, 7.0, fabs(slope)) * exp(-dPerp * dPerp * 16000.0);
 
     // --- the trigger lamp, blinking on the onset ---
     float2 lampP = suv - float2(0.93, 0.08);
@@ -516,7 +543,7 @@ fragment float4 room_scope(float4 pos [[position]],
 
     float3 col = (U.colA.rgb * grat * gratBright
                 + U.colB.rgb * beam * dwell * (0.75 + 0.35 * U.mid) * coreScale
-                + U.colC.rgb * lamp)
+                + U.colC.rgb * (lamp + spark * 0.55 * coreScale))
                * scan * vig * inGlass;
 
     col += (hash21(pos.xy) - 0.5) * 0.004;

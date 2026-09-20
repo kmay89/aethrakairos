@@ -33,6 +33,14 @@ struct HomeView: View {
     // the grid scrolls without redrawing 5200 grain dots per tile.
     @State private var covers: [String: UIImage] = [:]
 
+    // CI's camera: `--field` boots straight onto the field (no shelves), so
+    // the simulator smoke job can photograph a live room. Combined with
+    // `-introSeen YES` (read natively by @AppStorage) and `--start-room` in
+    // the renderer. Never set by the app itself.
+    init() {
+        _shelvesShown = State(initialValue: !ProcessInfo.processInfo.arguments.contains("--field"))
+    }
+
     var body: some View {
         ZStack {
             Color.akVoid.ignoresSafeArea()

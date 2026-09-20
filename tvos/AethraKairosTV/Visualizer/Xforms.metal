@@ -244,11 +244,22 @@ fragment float4 xform_ember(float4 pos [[position]],
     return float4(base + ember * band * 0.6, 1.0);
 }
 
+// The bloom threshold: only what already shines may breathe. The soft
+// knee starts above the working luminance of a mid-tone wash, so the
+// void and the fields stay ink-black — highlights alone grow halos.
+inline float3 hi_x(float3 s) {
+    float L = lumaOf_x(s);
+    return s * smoothstep(0.50, 1.05, L);
+}
+
 // ---------------------------------------------------------------
-// GRADE — the INK pass, last before the drawable. Star floor into the
-// void, then the hue-preserving soft-knee rolloff (knee 0.68) under
-// the white budget, then a gentle vignette. No colour is invented
-// here; overdrive is only ever turned into saturation.
+// GRADE — the INK pass, last before the drawable. The BLOOM first (a
+// 12-tap, two-ring breath of light around anything bright — radius in
+// 1080p-relative units so 4K and the simulator glow alike; calm halves
+// it), then the star floor into the void, then the hue-preserving
+// soft-knee rolloff (knee 0.68) under the white budget — the knee runs
+// AFTER the bloom, so added light saturates and never strobes — then a
+// gentle vignette. Bloom only amplifies light a room already made.
 // ---------------------------------------------------------------
 fragment float4 grade_pass(float4 pos [[position]],
                            constant VizUniforms& U [[buffer(0)]],
@@ -260,6 +271,23 @@ fragment float4 grade_pass(float4 pos [[position]],
     float2 uv = pos.xy / r;
 
     float3 c = src.sample(smp, uv).rgb;
+
+    // --- the bloom: two hexagonal rings, 6 taps each ---
+    float ax = r.x / max(r.y, 1.0);
+    float2 ring1 = float2(1.0 / max(ax, 1e-4), 1.0) * (6.5 / 1080.0);
+    float2 ring2 = float2(1.0 / max(ax, 1e-4), 1.0) * (17.0 / 1080.0);
+    float2 dirs[6] = {
+        float2( 1.0,  0.0), float2( 0.5,  0.866), float2(-0.5,  0.866),
+        float2(-1.0,  0.0), float2(-0.5, -0.866), float2( 0.5, -0.866)
+    };
+    float3 bloom = float3(0.0);
+    for (int i = 0; i < 6; i++) {
+        bloom += hi_x(src.sample(smp, uv + dirs[i] * ring1).rgb);
+        bloom += hi_x(src.sample(smp, uv + dirs[i] * ring2).rgb) * 0.55;
+    }
+    bloom /= 9.3;                                    // 6·1.0 + 6·0.55
+    float bloomAmt = 0.40 * (1.0 - 0.5 * clamp(U.calm, 0.0, 1.0));
+    c += bloom * bloomAmt;
 
     // starfield floor — only where the room left the void dark
     float L = lumaOf_x(c);
