@@ -3321,6 +3321,25 @@ body.clipping::after{
     frost, coral, roots — coloured by its own growth rings, walkers visible as snow, and it grows toward
     your finger. <b>MURMURATION</b> flies eight hundred honest boids whose shimmer is their turn rate;
     every hard onset sends a falcon through, and the falcon can be you.</p>
+    <h3>The counting wing</h3>
+    <p class="lede">Scenes 54–60 are for Leibniz — counting with the eyes, without knowing it.
+    <b>FOURIER</b> is the player's own hearing shown as gears: one rotating arm per band of the live
+    spectrum, the big slow wheel carrying the bass, and the pen at the end of the chain drawing the
+    music's timbre — the drawing closes once per bar and reshapes as the mix moves (a hand takes the
+    hub). <b>INTERFERENCE</b> runs the one equation behind beating and moiré: sources loud as their own
+    registers, detuned by the material's colour, so consonance locks the fringes into crystal and every
+    onset drops a stone in the pond — press a finger and your wave argues with the music's.
+    <b>JULIA</b> walks the fundamental dichotomy: c orbits the Mandelbrot boundary on the bar, loud
+    passages push it out and the set shatters to dust, quiet heals it whole — or a fingertip steers c
+    outright. <b>POINCARÉ</b> is the engine's own name made visible: a Circle-Limit tiling of the
+    hyperbolic disk, the whole universe Möbius-sliding one tile per bar toward a rim it never reaches.
+    <b>QUASICRYSTAL</b> builds the forbidden fivefold order from five plane waves, one per register —
+    and its sixfold face is a true crystal, so the eye can taste repetition against never-repetition.
+    <b>PHYLLOTAXIS</b> grows a sunflower one floret per eighth-note at the golden angle, Fibonacci
+    spirals lighting up family by family — drag the angle wrong and watch the packing die into spokes,
+    release and the golden angle heals it. And the <b>SANDPILE</b> feeds Bak–Tang–Wiesenfeld's model on
+    the song's sixteenths: most grains do nothing, then one lets go an avalanche that burns across the
+    pile exactly on the drop — self-organized criticality with the kick drum as the hourglass.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3931,7 +3950,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'flows',
                'grows', 'flows', 'gathers', 'blackhole',
                'grows', 'flows', 'gathers', 'blackhole', 'gathers', 'flows',
-               'flows', 'gathers', 'gathers', 'blackhole', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
+               'flows', 'gathers', 'gathers', 'blackhole', 'gathers', 'blackhole',
+               'gathers', 'blackhole', 'blackhole', 'gathers', 'flows', 'grows', 'grows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4208,7 +4228,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'bounce', 'lissa',
                'lissa', 'drift', 'bounce', 'snake',
                'drift', 'paint', 'paint', 'lissa', 'paint', 'bounce',
-               'lissa', 'drift', 'drift', 'lissa', 'paint', 'snake'];   // …SHEETS walks the lattice, MANDALA curves,
+               'lissa', 'drift', 'drift', 'lissa', 'paint', 'snake',
+               'lissa', 'drift', 'drift', 'snake', 'paint', 'lissa', 'paint'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5410,7 +5431,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'lava', 'flame', 'sheets', 'mandala', 'oilslick', 'bubbles', 'sky', 'pyro', 'mandel',
                     'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade', 'scope',
                     'weave', 'ocean', 'bolt', 'circuit',
-                    'bifurc', 'cymatic', 'rule', 'hole', 'ferro', 'plinko', 'pendula', 'lorenz', 'sync', 'nbody', 'dla', 'boids'];
+                    'bifurc', 'cymatic', 'rule', 'hole', 'ferro', 'plinko', 'pendula', 'lorenz', 'sync', 'nbody', 'dla', 'boids',
+                    'fourier', 'fringe', 'julia', 'escher', 'penrose', 'sunflower', 'sandpile'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5513,6 +5535,20 @@ const SCENE_TASTE = {
                                                             // light on the detail up top
   boids:     { calm: 0.9, entropy: 0.8, energy: 0.7, treble: 0.5 },  // a flock is airflow made visible —
                                                             // flowing material, with gusts to answer
+  fourier:   { centroid: 1.0, energy: 0.7, treble: 0.6 },   // the gears ARE the spectrum — rich, bright
+                                                            // material gives the chain its arms
+  fringe:    { coupling: 1.1, mid: 0.8, beat: 0.6 },        // interference wants tonal material — held
+                                                            // voices whose beating the fringes can show
+  julia:     { energy: 0.9, entropy: 0.7, beat: 0.6 },      // the dichotomy needs drama: loud shatters
+                                                            // the set, quiet heals it — give it both
+  escher:    { calm: 0.8, bass: 0.7, entropy: -0.5 },       // the infinite walk is a procession — steady,
+                                                            // low, ceremonial material carries it
+  penrose:   { treble: 0.9, coupling: 0.7, calm: 0.5 },     // the impossible crystal shimmers on detail
+                                                            // and holds still enough to be read
+  sunflower: { calm: 1.2, beat: 0.7, energy: -0.2 },        // a flower grows one floret per pulse — it
+                                                            // wants patience with a heartbeat in it
+  sandpile:  { beat: 1.4, bass: 0.8, entropy: 0.5 },        // every grain is a tick and every drop an
+                                                            // avalanche — percussive material feeds it
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6677,6 +6713,13 @@ const SCENE_SIGS = {
   nbody:     { kind: 'ring',   h: 56,  arms: 3, tail: 1 },
   dla:       { kind: 'burst',  h: 190, arms: 6, dense: 0.8 },
   boids:     { kind: 'cloud',  h: 232, dense: 0.7 },
+  fourier:   { kind: 'ring',   h: 178, arms: 5, tail: 1 },
+  fringe:    { kind: 'wave',   h: 210, arms: 2, dense: 0.9 },
+  julia:     { kind: 'blob',   h: 300, dense: 1, twist: 1 },
+  escher:    { kind: 'ring',   h: 40,  arms: 7, dense: 1 },
+  penrose:   { kind: 'grid',   h: 165, arms: 5, dense: 0.9 },
+  sunflower: { kind: 'spiral', h: 62,  arms: 8, dense: 0.8 },
+  sandpile:  { kind: 'grid',   h: 18,  dense: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -38831,6 +38874,1091 @@ function buildMurmuration(){
   return api;
 }
 
+/* =========================================================
+   SCENE 54 · FOURIER — the ears, drawn as gears
+
+   Fourier's theorem says any curve is circles riding on circles.
+   The analyzer already runs this theorem forty-three times a
+   second — so this room simply SHOWS it: a chain of rotating arms,
+   one per band of the live spectrum, the big slow circle carrying
+   the bass and the small fast ones the treble, each arm's length
+   the loudness of its own band RIGHT NOW. The pen at the end of
+   the chain draws — and what it draws is the music's own timbre,
+   an epitrochoid that reshapes as the mix moves, closing on
+   itself once per bar because the base wheel turns on the bar.
+   Ptolemy's epicycles, Fourier's sum, the player's FFT: the same
+   picture, and this is the one honest room — the app's inner life
+   with nothing invented.
+   ========================================================= */
+function buildFourier(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() } };
+  const AMAX = 24;                      // the deepest chain the room ever runs
+  const CSEG = 26;                      // segments per drawn circle
+  // one LineSegments holds every wheel rim + every radius arm
+  const gearVerts = AMAX * (CSEG + 1) * 2 * 3;
+  const gpos = new Float32Array(gearVerts);
+  const gdim = new Float32Array(AMAX * (CSEG + 1) * 2);
+  const ggeo = new THREE.BufferGeometry();
+  ggeo.setAttribute('position', new THREE.BufferAttribute(gpos, 3));
+  ggeo.setAttribute('aDim', new THREE.BufferAttribute(gdim, 1));
+  const gmat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aDim;
+      varying float vD;
+      void main(){ vD = aDim; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uVarA, uTreble;
+      varying float vD;
+      void main(){
+        vec3 rim = ramp(0.30 + uVarA * 0.2);
+        gl_FragColor = vec4(inkRolloff(rim * (0.34 + uTreble * 0.22)), uOpacity * vD * 0.9);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const gears = new THREE.LineSegments(ggeo, gmat);
+  gears.frustumCulled = false;
+  // the pen's trail — a ring of TMAX points drawn as a strip, age-faded
+  const TMAX = 900;
+  const tpos = new Float32Array(TMAX * 3);
+  const tage = new Float32Array(TMAX);
+  const tgeo = new THREE.BufferGeometry();
+  tgeo.setAttribute('position', new THREE.BufferAttribute(tpos, 3));
+  tgeo.setAttribute('aAge', new THREE.BufferAttribute(tage, 1));
+  const tmat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aAge;
+      varying float vA;
+      void main(){ vA = aAge; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uVarA, uEnergy, uBeat;
+      varying float vA;
+      void main(){
+        vec3 ink = ramp(0.62 + uVarA * 0.25 - vA * 0.18);
+        float a = (1.0 - vA);
+        gl_FragColor = vec4(inkRolloff(ink * (0.9 + uEnergy * 0.9 + uBeat * 0.6)), uOpacity * (0.25 + 0.75 * a * a));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const trail = new THREE.Line(tgeo, tmat);
+  trail.frustumCulled = false;
+  // the pen itself: one hot point
+  const ppos = new Float32Array(3);
+  const pgeo = new THREE.BufferGeometry();
+  pgeo.setAttribute('position', new THREE.BufferAttribute(ppos, 3));
+  const pmat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      void main(){
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = 2.4 * (300.0 / -mv.z);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uBeat, uVarA;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        vec3 c = mix(ramp(0.8 + uVarA * 0.15), vec3(1.0), 0.5 + uBeat * 0.4);
+        float a = smoothstep(0.5, 0.0, r);
+        gl_FragColor = vec4(inkRolloff(c * (0.8 + uBeat * 1.4)), a * a * uOpacity);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pen = new THREE.Points(pgeo, pmat);
+  pen.frustumCulled = false;
+  group.add(gears, trail, pen);
+  group.visible = false;
+  scene.add(group);
+
+  const phase = new Float64Array(AMAX);   // each wheel's own angle, integrated
+  const len = new Float32Array(AMAX);     // eased arm lengths, from the bands
+  for (let k = 0; k < AMAX; k++) phase[k] = Math.random() * Math.PI * 2;
+  const st = { mode: 0, arms: 24, t: 0, head: 0, count: 0, ox: 0, oy: 0, fade: 3.5 };
+  const MODES = [
+    { name: 'SPIROGRAPH', arms: 3,  gain: 15.0, fade: 5.0 },  // three giant wheels — bass, mid, treble
+    { name: 'THE CHAIN',  arms: 24, gain: 6.5,  fade: 3.0 },  // the whole spectrum, arm by arm
+    { name: 'INK',        arms: 8,  gain: 9.0,  fade: 9.0 },  // few wheels, a long remembering pen
+  ];
+  const api = {
+    name: 'FOURIER', key: 'fourier', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      const M = MODES[st.mode];
+      const A = M.arms;
+      /* THE THEOREM, live: arm k turns at (k+1) times the base rate — the
+         base wheel closes once per bar, so the whole drawing repeats on the
+         bar and MORPHS as the spectrum moves. Arm length IS band loudness. */
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 2);
+      const base = 2 * Math.PI * bps / 4;                  // one revolution per bar
+      const spec = f.spectrum || null;
+      for (let k = 0; k < A; k++){
+        const bi = Math.floor((k / A) * 56);
+        // silence draws the textbook: a square wave's harmonics, 1/(k+1)
+        const target = (spec ? Math.max(spec[bi] || 0, spec[bi + 1] || 0) : 0.75 / (k + 1));
+        len[k] += (target - len[k]) * Math.min(1, dt * (target > len[k] ? 14 : 4));
+        phase[k] += base * (k + 1) * dt * (st.mode === 2 ? 0.5 : 1);
+      }
+      // the hand takes the hub: the whole machine leans to the finger
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const tx = force > 0.1 ? U.uPtr.value.x * 9 : 0;
+      const ty = force > 0.1 ? U.uPtr.value.y * 9 : 0;
+      st.ox += (tx - st.ox) * Math.min(1, dt * 3);
+      st.oy += (ty - st.oy) * Math.min(1, dt * 3);
+      // walk the chain: joints, wheels, radii — all rebuilt each frame
+      let x = st.ox, y = st.oy, gi = 0, di = 0;
+      const gain = M.gain * (0.8 + (f.energy || 0) * 0.5);
+      for (let k = 0; k < A; k++){
+        const R = Math.max(0.05, len[k] * gain / (1 + k * 0.35));
+        const dim = Math.min(1, R * 1.6) * (k === 0 ? 1 : 0.75);
+        // the rim
+        for (let s2 = 0; s2 < CSEG; s2++){
+          const a0 = (s2 / CSEG) * Math.PI * 2, a1 = ((s2 + 1) / CSEG) * Math.PI * 2;
+          gpos[gi] = x + Math.cos(a0) * R; gpos[gi + 1] = y + Math.sin(a0) * R; gpos[gi + 2] = 0;
+          gpos[gi + 3] = x + Math.cos(a1) * R; gpos[gi + 4] = y + Math.sin(a1) * R; gpos[gi + 5] = 0;
+          gdim[di] = dim; gdim[di + 1] = dim;
+          gi += 6; di += 2;
+        }
+        // the radius arm, and the step to the next hub
+        const nx = x + Math.cos(phase[k]) * R, ny = y + Math.sin(phase[k]) * R;
+        gpos[gi] = x; gpos[gi + 1] = y; gpos[gi + 2] = 0;
+        gpos[gi + 3] = nx; gpos[gi + 4] = ny; gpos[gi + 5] = 0;
+        gdim[di] = dim * 1.6; gdim[di + 1] = dim * 1.6;
+        gi += 6; di += 2;
+        x = nx; y = ny;
+      }
+      for (; gi < gearVerts; gi++) gpos[gi] = 0;
+      for (; di < gdim.length; di++) gdim[di] = 0;
+      ggeo.attributes.position.needsUpdate = true;
+      ggeo.attributes.aDim.needsUpdate = true;
+      // the pen writes
+      ppos[0] = x; ppos[1] = y; ppos[2] = 0;
+      pgeo.attributes.position.needsUpdate = true;
+      st.head = (st.head + 1) % TMAX;
+      tpos[st.head * 3] = x; tpos[st.head * 3 + 1] = y; tpos[st.head * 3 + 2] = 0;
+      st.count = Math.min(TMAX, st.count + 1);
+      const fadeT = st.fade * (reducedMotion ? 1.6 : 1);
+      for (let i = 0; i < TMAX; i++){
+        const back = ((st.head - i + TMAX) % TMAX);
+        tage[i] = Math.min(1, (back / TMAX) * (TMAX / 60 / fadeT));
+        if (back > st.count) tage[i] = 1;
+      }
+      tgeo.attributes.position.needsUpdate = true;
+      tgeo.attributes.aAge.needsUpdate = true;
+    },
+    roll(){
+      st.mode = Math.floor(Math.random() * MODES.length);
+      const M = MODES[st.mode];
+      st.arms = M.arms; st.fade = M.fade;
+      st.count = 0;
+      for (let i = 0; i < TMAX; i++) tage[i] = 1;
+      for (let k = 0; k < AMAX; k++) phase[k] = Math.random() * Math.PI * 2;
+      varU.uVarA.value = Math.random();
+      api.name = 'FOURIER · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 55 · INTERFERENCE — consonance, as geometry
+
+   Two wave sources make fringes; detune them and the fringes
+   CRAWL — at exactly the beat frequency. That isn't a metaphor:
+   acoustic beating and moiré are one equation, and this room runs
+   it with the track's hands on the dials. The sources' loudness
+   comes from the live bands, their detuning from the material's
+   spectral colour, so consonant passages lock the pattern into
+   crystal and busy ones set it writhing. Every onset drops a
+   stone in the pond — a real transient wave packet that rides out
+   and interferes with everything standing. A finger is a source
+   of your own: press, and your wave argues with the music's.
+   ========================================================= */
+function buildInterference(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uMode:  { value: 0 },
+    uSrc0:  { value: new THREE.Vector4(-0.5, 0, 26, 0.8) },   // x, y, wavenumber, amp
+    uSrc1:  { value: new THREE.Vector4(0.5, 0, 27, 0.8) },
+    uSrc2:  { value: new THREE.Vector4(0, 0.5, 25, 0) },
+    uSrc3:  { value: new THREE.Vector4(0, -0.5, 28, 0) },
+    uHandS: { value: new THREE.Vector4(0, 0, 26.5, 0) },
+    uRing:  { value: new THREE.Vector4(0, 0, -9, 0) },        // x, y, birth-time, amp
+    uPulse: { value: 0 },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uMode, uPulse, uAspect, uVarA;
+    uniform vec4 uSrc0, uSrc1, uSrc2, uSrc3, uHandS, uRing;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float srcWave(vec2 p, vec4 s, float t){
+      if (s.w <= 0.001) return 0.0;
+      float d = length(p - s.xy);
+      /* each source rings at its own wavenumber — and the TIME term rides the
+         same number, so mismatched sources drift phase: the crawl IS the beat */
+      return s.w * cos(d * s.z - t * s.z * 0.14) / (1.0 + d * 0.9);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float t = uTime;
+      float amp = 0.0, psi = 0.0;
+      if (uMode > 1.5){
+        /* MOIRÉ — three plane gratings, rotated a music's-breath apart */
+        float f0 = uSrc0.z, da = 0.06 + uTreble * 0.10;
+        float g0 = cos(dot(p, vec2(cos(0.0), sin(0.0))) * f0 + t * 0.4);
+        float g1 = cos(dot(p, vec2(cos(da), sin(da))) * f0 - t * 0.31);
+        float g2 = cos(dot(p, vec2(cos(-da * 0.7), sin(-da * 0.7))) * (f0 * 1.01));
+        psi = (g0 + g1 * uSrc1.w + g2 * uSrc2.w);
+        amp = 1.0 + uSrc1.w + uSrc2.w;
+      } else {
+        psi += srcWave(p, uSrc0, t); amp += uSrc0.w;
+        psi += srcWave(p, uSrc1, t); amp += uSrc1.w;
+        psi += srcWave(p, uSrc2, t); amp += uSrc2.w;
+        psi += srcWave(p, uSrc3, t); amp += uSrc3.w;
+        psi += srcWave(p, uHandS, t); amp += uHandS.w;
+      }
+      /* the stone in the pond: a travelling packet from the last onset */
+      if (uRing.w > 0.001){
+        float age = t - uRing.z;
+        float d = length(p - uRing.xy);
+        float sh = d - age * 1.35;
+        psi += uRing.w * cos(d * 30.0 - age * 9.0) * exp(-sh * sh * 6.0) * exp(-age * 0.8);
+      }
+      float v = psi / max(amp, 0.4);
+      float I = v * v;                                        // intensity — what light does
+      /* the fringe ink: antinodes glow, nodal lines stay night */
+      vec3 bright = ramp(0.66 + uVarA * 0.2);
+      vec3 midc   = ramp(0.40 + uVarA * 0.2);
+      vec3 col = midc * I * 0.85 + bright * pow(I, 3.0) * (0.55 + uBeat * 0.5);
+      /* crest lines — the standing wave's skeleton, etched thin */
+      float edge = abs(fract(psi * 1.2 + 0.5) - 0.5);
+      col += bright * (1.0 - smoothstep(0.0, 0.10, edge)) * I * 0.30;
+      col *= 0.72 + uEnergy * 0.5;
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { m: 0, name: 'TWO SOURCES', n: 2 },
+    { m: 1, name: 'THE POND',    n: 4 },
+    { m: 2, name: 'MOIRÉ',       n: 3 },
+  ];
+  const st = { mode: MODES[0], t: 0, lastBeat: 0 };
+  const SRC = [varU.uSrc0, varU.uSrc1, varU.uSrc2, varU.uSrc3];
+  const api = {
+    name: 'INTERFERENCE', key: 'fringe', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      const M = st.mode;
+      /* the dials: loudness of each source from its own register; detune —
+         the crawl speed — from how bright/busy the material is */
+      const amps = [0.55 + (f.bass || 0) * 0.8, 0.55 + (f.mid || 0) * 0.8,
+                    0.35 + (f.treble || 0) * 0.9, 0.35 + (f.energy || 0) * 0.7];
+      const det = 0.5 + (f.centroid || 0.4) * 2.2;
+      for (let i = 0; i < 4; i++){
+        const u = SRC[i].value;
+        const on = (M.m === 2) ? (i < 3) : (i < M.n);
+        u.w += (((on ? amps[i] : 0)) - u.w) * Math.min(1, dt * 3);
+        if (M.m < 2 && on){
+          // sources orbit, slowly, each on its own ellipse
+          const w = 0.05 + i * 0.021, ph = i * 1.9 + varU.uVarA.value * 6;
+          const R = M.m === 0 ? 0.55 : 0.62;
+          u.x = Math.cos(st.t * w + ph) * R * (i % 2 ? 0.8 : 1.1);
+          u.y = Math.sin(st.t * w * 1.31 + ph) * R * 0.7;
+          u.z = 22 + i * det;                         // the detuning ladder
+        }
+        if (M.m === 2) u.z = 24 + (f.bass || 0) * 6;
+      }
+      // a finger is a source
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const h = varU.uHandS.value;
+      h.w += (((M.m < 2 && force > 0.08) ? force * 1.1 : 0) - h.w) * Math.min(1, dt * 5);
+      if (force > 0.08){
+        h.x = U.uPtr.value.x * s.aspect;
+        h.y = U.uPtr.value.y;
+        h.z = 22 + det * 2.5;
+      }
+      // the stone: each onset drops one where the energy is
+      if ((f.beat || 0) > 0.6 && st.t - st.lastBeat > 0.28){
+        st.lastBeat = st.t;
+        const r = varU.uRing.value;
+        r.x = (Math.random() - 0.5) * 1.2; r.y = (Math.random() - 0.5) * 0.9;
+        r.z = st.t; r.w = 0.9 + (f.energy || 0) * 0.6;
+      }
+      varU.uRing.value.w *= Math.exp(-dt * 0.5);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uMode.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'INTERFERENCE · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 56 · JULIA — the fundamental dichotomy, danced
+
+   Every complex number c owns a Julia set, and there are only two
+   kinds: CONNECTED — one unbroken creature — when c sits inside
+   the Mandelbrot set, and DUST — infinitely many disconnected
+   points — the instant c steps outside. That knife-edge is the
+   deepest theorem in the catalog's own namesake, and this room
+   walks it to the music: c orbits a point on the Mandelbrot
+   boundary with the bar, the loud passages push it OUT (the
+   creature shatters), the quiet pulls it home (the dust heals
+   into one body). A hand takes c outright — you steer the set
+   with a fingertip, holding the whole dichotomy on a leash.
+   ========================================================= */
+function buildJulia(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uC:     { value: new THREE.Vector2(-0.4, 0.6) },
+    uZoom:  { value: 1.4 },
+    uHue:   { value: 0 },
+    uPulse: { value: 0 },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uZoom, uHue, uPulse, uAspect, uVarA;
+    uniform vec2 uC;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec2 z = p * uZoom;
+      /* ITERATE z <- z^2 + c. The smooth escape count paints the outside;
+         a distance-style trap paints the inside's bones. */
+      float m2 = 0.0, trap = 1e9, nu = 0.0;
+      bool out2 = false;
+      for (int i = 0; i < 96; i++){
+        z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + uC;
+        m2 = dot(z, z);
+        trap = min(trap, abs(m2 - 0.24));
+        if (m2 > 40.0){ nu = float(i) - log2(log2(m2)) + 4.0; out2 = true; break; }
+      }
+      vec3 col;
+      if (out2){
+        float h = fract(nu * 0.032 + uHue + uVarA * 0.4);
+        // slow escape = near the boundary = bright; fast escape = deep space = dark
+        float w = clamp(nu / 96.0, 0.0, 1.0);
+        col = ramp(h) * (0.05 + pow(w, 1.3) * 1.9) * (0.75 + uEnergy * 0.45);
+        col += ramp(fract(h + 0.35)) * pow(w, 4.5) * (1.0 + uBeat * 0.9);
+      } else {
+        // the interior: near-void, with the orbit trap's filigree glowing
+        vec3 bone = ramp(0.80 + uVarA * 0.15);
+        col = bone * exp(-trap * 5.0) * (0.20 + uPulse * 0.30 + uBass * 0.18);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  /* each face anchors c to a different landmark on the Mandelbrot boundary */
+  const MODES = [
+    { name: 'THE DANCE', ax: -0.16, ay: 0.78, r: 0.16, push: 0.16, zoom: 1.45 },  // near the seam — in and out
+    { name: 'SEAHORSE',  ax: -0.745, ay: 0.113, r: 0.012, push: 0.02, zoom: 1.05 },
+    { name: 'DENDRITE',  ax: -0.10, ay: 1.003, r: 0.02, push: 0.035, zoom: 1.35 },
+  ];
+  const st = { mode: MODES[0], t: 0, hue: Math.random() };
+  const api = {
+    name: 'JULIA', key: 'julia', group,
+    heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      const M = st.mode;
+      /* c walks a small circle around its boundary anchor with the BAR; the
+         music's energy widens the walk — a drop steps outside, and the set
+         shatters into dust exactly on the theorem's schedule */
+      const bar = (U.uBarPhase && U.uBarPhase.value || (st.t * 0.1 % 1)) * Math.PI * 2;
+      const R = M.r + (f.energy || 0) * M.push + (f.beat || 0) * M.push * 0.4;
+      let cx = M.ax + Math.cos(bar + st.t * 0.03) * R;
+      let cy = M.ay + Math.sin(bar * 0.5 + st.t * 0.041) * R;
+      // the leash: a finger drags c across the plane
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1){
+        cx = M.ax + U.uPtr.value.x * (M.r * 8 + 0.12);
+        cy = M.ay + U.uPtr.value.y * (M.r * 8 + 0.12);
+      }
+      const k = Math.min(1, dt * (reducedMotion ? 1.2 : 4));
+      varU.uC.value.x += (cx - varU.uC.value.x) * k;
+      varU.uC.value.y += (cy - varU.uC.value.y) * k;
+      varU.uZoom.value = M.zoom * (1 + Math.sin(st.t * 0.05) * 0.08 - (f.bass || 0) * 0.05);
+      st.hue += dt * 0.004 + (f.beat || 0) * dt * 0.05;
+      varU.uHue.value = st.hue;
+      varU.uPulse.value = Math.max(varU.uPulse.value * Math.exp(-dt * 4), (f.beat || 0));
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uVarA.value = Math.random();
+      st.hue = Math.random();
+      api.name = 'JULIA · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 57 · POINCARÉ — infinity in a circle, moved by the kick
+
+   The engine is named Möbius⁸, and Möbius transformations are
+   precisely the motions of hyperbolic space — so this room is the
+   name made visible: an Escher Circle-Limit tiling of the Poincaré
+   disk, infinitely many cells crowding an edge they never reach,
+   and every bar a Möbius translation slides the WHOLE universe one
+   step — fish flowing forever toward a rim that recedes forever.
+   The tiling is a (p,q) triangle group folded live by circle
+   inversion; the treble shimmers the crowded rim, the bass
+   breathes the disk, and a finger pinches space itself — a local
+   Möbius warp that the geometry absorbs without ever tearing.
+   ========================================================= */
+function buildPoincare(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uPQ:    { value: new THREE.Vector2(7, 3) },
+    uMob:   { value: new THREE.Vector2(0, 0) },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uPulse: { value: 0 },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uPulse, uAspect, uVarA;
+    uniform vec2 uPQ, uMob;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    vec2 cmul(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+    vec2 mobius(vec2 z, vec2 a){
+      // z -> (z - a) / (1 - conj(a) z): the disk's own translation
+      vec2 num = z - a;
+      vec2 den = vec2(1.0, 0.0) - cmul(vec2(a.x, -a.y), z);
+      float d2 = max(dot(den, den), 1e-6);
+      return vec2(num.x * den.x + num.y * den.y, num.y * den.x - num.x * den.y) / d2;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.15;
+      float rr = length(p);
+      // the pan: the whole hyperbolic plane slides under a Möbius map
+      vec2 z = mobius(p, uMob);
+      // the pinch: a finger applies its own local translation
+      if (uHand.z > 0.02) z = mobius(z, uHand.xy * uHand.z * 0.55);
+      /* FOLD into the fundamental triangle of the (p,q,2) group: a wedge
+         fold about the origin, then inversion in the polygon-edge geodesic —
+         a circle orthogonal to the rim whose centre and radius follow from
+         the angle conditions alone:
+             d = cos(π/q) / √(cos²(π/p) − sin²(π/q))
+             R = sin(π/p) / √(cos²(π/p) − sin²(π/q))
+         Count the folds — that's hyperbolic distance in tiles, the room's
+         own depth gauge. */
+      float A = PI / uPQ.x, B = PI / uPQ.y;
+      float den = max(cos(A) * cos(A) - sin(B) * sin(B), 1e-4);
+      float icd = cos(B) / sqrt(den);
+      float icr = sin(A) / sqrt(den);
+      float folds = 0.0;
+      float ang = 0.0;
+      for (int i = 0; i < 42; i++){
+        ang = atan(z.y, z.x);
+        ang = abs(mod(ang + A, 2.0 * A) - A);
+        z = length(z) * vec2(cos(ang), sin(ang));
+        vec2 dz = z - vec2(icd, 0.0);
+        float d2 = dot(dz, dz);
+        if (d2 < icr * icr){
+          z = vec2(icd, 0.0) + dz * (icr * icr / max(d2, 1e-7));
+          folds += 1.0;
+        } else {
+          break;
+        }
+      }
+      /* the ink: cells checker by fold parity, every mirror etched — the
+         polygon edges are the geodesic arcs, the spokes the wedge walls */
+      float edgeArc = abs(length(z - vec2(icd, 0.0)) - icr);
+      float edgeSp  = min(abs(z.y), abs(z.x * sin(A) - z.y * cos(A)));
+      float edge = min(edgeArc, edgeSp);
+      float ck = mod(folds, 2.0);
+      vec3 cA = ramp(0.34 + uVarA * 0.2);
+      vec3 cB = ramp(0.58 + uVarA * 0.2);
+      vec3 cE = ramp(0.82 + uVarA * 0.12);
+      vec3 col = mix(cA, cB, ck) * (0.15 + uEnergy * 0.13 + 0.05 * mod(folds, 3.0));
+      col += cE * (1.0 - smoothstep(0.0, 0.030, edge)) * (0.45 + uBeat * 0.6 + uTreble * 0.25);
+      // the disk itself: hard rim into the void, breathing with the bass
+      float rim = smoothstep(1.0, 0.985 - uBass * 0.01, rr);
+      col *= rim;
+      col += cE * smoothstep(0.94, 1.0, rr) * rim * (uTreble * 0.7 + uPulse * 0.4);
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'CIRCLE LIMIT', p: 7, q: 3 },
+    { name: 'PENTAGONS',    p: 5, q: 4 },
+    { name: 'OCTAGONS',     p: 8, q: 3 },
+  ];
+  const st = { mode: MODES[0], t: 0, dir: 0 };
+  const api = {
+    name: 'POINCARÉ', key: 'escher', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      /* the endless walk: the pan direction turns slowly; each beat leans
+         the translation harder, so the universe slides tile-to-tile in time */
+      st.dir += dt * 0.05;
+      const lean = 0.13 + (f.beat || 0) * 0.05 + (f.energy || 0) * 0.04;
+      const k = Math.min(1, dt * 1.5);
+      varU.uMob.value.x += (Math.cos(st.dir) * lean - varU.uMob.value.x) * k;
+      varU.uMob.value.y += (Math.sin(st.dir * 0.83) * lean - varU.uMob.value.y) * k;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+      varU.uPulse.value = Math.max(varU.uPulse.value * Math.exp(-dt * 4), (f.beat || 0));
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uPQ.value.set(st.mode.p, st.mode.q);
+      varU.uVarA.value = Math.random();
+      api.name = 'POINCARÉ · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 58 · QUASICRYSTAL — order without repetition
+
+   A Penrose tiling never repeats and is never random — which is
+   the promise on this player's own welcome screen. De Bruijn
+   showed the trick: a quasicrystal is the interference of five
+   plane waves at 72°, a symmetry ordinary matter is forbidden to
+   hold. Here each wave belongs to one register of the live mix —
+   its loudness is the band's, its phase creeps with the music —
+   so the impossible crystal shimmers and reorganizes with the
+   song, onsets kick one wave a quarter-turn and the whole tiling
+   re-decides itself. The sixfold face is the counter-example: a
+   TRUE crystal, periodic and repeating, so the eye can taste the
+   difference between order-that-repeats and order-that-never-does.
+   ========================================================= */
+function buildQuasicrystal(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uWaves: { value: 5 },
+    uPh0:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uPh1:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAmp0:  { value: new THREE.Vector4(1, 1, 1, 1) },
+    uAmp1:  { value: new THREE.Vector4(1, 1, 1, 0) },
+    uK:     { value: 16 },
+    uRot:   { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uWaves, uK, uRot, uAspect, uVarA;
+    uniform vec4 uPh0, uPh1, uAmp0, uAmp1, uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      // a finger bends the phase field around itself, edge-free
+      if (uHand.z > 0.02){
+        vec2 d = p - uHand.xy;
+        p += d * (uHand.z * 0.35 / (dot(d, d) + 0.35));
+      }
+      float ca = cos(uRot), sa = sin(uRot);
+      p = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
+      float W = uWaves;
+      float psi = 0.0, asum = 0.0;
+      for (int j = 0; j < 7; j++){
+        if (float(j) >= W) break;
+        float ang = float(j) * (2.0 * PI / W);
+        float amp = j < 4 ? uAmp0[j] : uAmp1[j - 4];
+        float ph  = j < 4 ? uPh0[j]  : uPh1[j - 4];
+        psi += amp * cos(dot(p, vec2(cos(ang), sin(ang))) * uK + ph);
+        asum += amp;
+      }
+      // normalize by the field's RMS, not its ceiling — so constructive
+      // peaks genuinely saturate and the ground genuinely goes dark
+      float v = psi / max(asum * 0.8 / sqrt(2.0 * W), 0.3);
+      /* the lattice: constructive peaks bloom as rosettes on near-void
+         ground — quasiperiodic order as a sky of aligned flowers, etched
+         with thin contour rings so the tiling's bones show */
+      float u = clamp(v * 0.27 + 0.5, 0.0, 1.0);
+      float lv = v * 2.5;
+      float ring = 1.0 - smoothstep(0.05, 0.14, abs(fract(lv + 0.5) - 0.5) * 0.4);
+      vec3 cA = ramp(0.30 + uVarA * 0.2 + u * 0.22);
+      vec3 cE = ramp(0.74 + uVarA * 0.18);
+      vec3 col = cA * (0.012 + pow(u, 4.2) * (0.9 + uEnergy * 0.5));
+      col += cE * pow(u, 9.0) * (0.6 + uBeat * 0.7);
+      col += cE * ring * u * u * (0.12 + uTreble * 0.2);
+      // the bright vertices where many waves agree at once
+      col += cE * smoothstep(2.1, 2.9, abs(v)) * (0.5 + uBeat * 0.6);
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'PENROSE',    w: 5 },
+    { name: 'THE CRYSTAL', w: 6 },     // the periodic counter-example
+    { name: 'SEVENFOLD',  w: 7 },
+  ];
+  const st = { mode: MODES[0], t: 0, ph: new Float64Array(7), lastBeat: 0 };
+  const api = {
+    name: 'QUASICRYSTAL', key: 'penrose', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      const spec = f.spectrum || null;
+      const W = st.mode.w;
+      /* each wave is one register: amplitude from its band, phase creeping
+         at the band's own pace — a five-voice choir singing one lattice */
+      for (let j = 0; j < 7; j++){
+        const bi = 4 + j * 8;
+        const a = 0.55 + (spec ? (spec[bi] || 0) : 0.3) * 0.9;
+        st.ph[j] += dt * (0.10 + j * 0.037) * (1 + (f.energy || 0) * 1.6);
+        if (j < 4){ varU.uAmp0.value.setComponent(j, a); varU.uPh0.value.setComponent(j, st.ph[j]); }
+        else      { varU.uAmp1.value.setComponent(j - 4, a); varU.uPh1.value.setComponent(j - 4, st.ph[j]); }
+      }
+      // the onset kick: one wave jumps a quarter turn, the tiling re-decides
+      if ((f.beat || 0) > 0.6 && st.t - st.lastBeat > 0.3){
+        st.lastBeat = st.t;
+        st.ph[Math.floor(Math.random() * W)] += Math.PI / 2;
+      }
+      varU.uK.value = 40 + Math.sin(st.t * 0.05) * 5 - (f.bass || 0) * 4;
+      varU.uRot.value += dt * 0.02 * (reducedMotion ? 0.4 : 1);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uWaves.value = st.mode.w;
+      varU.uVarA.value = Math.random();
+      for (let j = 0; j < 7; j++) st.ph[j] = Math.random() * Math.PI * 2;
+      api.name = 'QUASICRYSTAL · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 59 · PHYLLOTAXIS — the flower that does number theory
+
+   A sunflower places each new floret 137.507° from the last — the
+   golden angle, the "most irrational" turn there is — and gets
+   perfect packing with no counting at all. This room grows that
+   flower to the music: a new floret is born AT THE CENTRE on the
+   song's eighth-notes and pushes the others outward, exactly as
+   the plant does it; the famous Fibonacci spirals light up family
+   by family (8, 13, 21, 34) as the bars turn, counting made
+   visible. And the hand holds the botanical truth: drag, and the
+   divergence angle detunes — the packing degenerates into spokes
+   in seconds — release, and the golden angle heals it. WHY 137.5°
+   is special, shown, not said.
+   ========================================================= */
+function buildPhyllotaxis(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() } };
+  const N = 1500;
+  const pos = new Float32Array(N * 3);
+  const asz = new Float32Array(N), aage = new Float32Array(N), afam = new Float32Array(N);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aS', new THREE.BufferAttribute(asz, 1));
+  geo.setAttribute('aA', new THREE.BufferAttribute(aage, 1));
+  geo.setAttribute('aF', new THREE.BufferAttribute(afam, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aS, aA, aF;
+      varying float vA, vF;
+      void main(){
+        vA = aA; vF = aF;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        // clamped: a floret the camera brushes past must not flood the frame
+        gl_PointSize = min(aS * (300.0 / -mv.z), 24.0);
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uVarA, uBeat, uEnergy;
+      varying float vA, vF;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        if (r > 0.5) discard;
+        /* young at the heart, old at the rim — the ramp is the flower's age
+           ring; the counted family flares white over its own spiral */
+        vec3 c = ramp(0.28 + uVarA * 0.2 + vA * 0.42);
+        c = mix(c, ramp(0.85), exp(-vA * 14.0) * 0.9);          // the newborn flare
+        c = mix(c, vec3(1.0, 0.98, 0.92), vF * 0.75);           // the counting light
+        float a = smoothstep(0.5, 0.05, r);
+        gl_FragColor = vec4(inkRolloff(c * (0.62 + uEnergy * 0.55 + vF * 0.8 + uBeat * 0.18)),
+                            a * uOpacity * (0.7 + vA * 0.2 + vF * 0.4));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  group.add(pts);
+  group.visible = false;
+  scene.add(group);
+
+  const GOLD = Math.PI * (3 - Math.sqrt(5));   // 137.50776…° in radians
+  const FAMS = [8, 13, 21, 34];
+  const born = new Float64Array(N);            // absolute index of the floret in each slot
+  const st = { mode: 0, t: 0, next: 0, total: 0, ang: GOLD, angT: GOLD, clock: 0, famI: 0, famT: 0 };
+  const MODES = [
+    { name: 'SUNFLOWER',       wrong: 0, cone: 0 },
+    { name: 'THE WRONG ANGLE', wrong: 1, cone: 0 },   // the angle itself breathes off golden
+    { name: 'ROMANESCO',       wrong: 0, cone: 1 },
+  ];
+  const api = {
+    name: 'PHYLLOTAXIS', key: 'sunflower', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      const M = MODES[st.mode];
+      /* the birth clock: one floret per eighth-note, two on the loud bars —
+         the flower literally grows at the music's tempo */
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 2);
+      st.clock += dt * bps * (2 + Math.min(2, (f.energy || 0) * 2));
+      while (st.clock >= 1){
+        st.clock -= 1;
+        born[st.next] = st.total++;
+        st.next = (st.next + 1) % N;
+      }
+      /* the divergence angle: golden by right; a hand bends it and the
+         WRONG-ANGLE face sweeps it — either way the spokes appear at once
+         and the golden packing heals when it returns */
+      let target = GOLD;
+      if (M.wrong) target = GOLD + Math.sin(st.t * 0.11) * 0.0035;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1) target = GOLD + U.uPtr.value.x * 0.02 * force;
+      st.ang += (target - st.ang) * Math.min(1, dt * (force > 0.1 ? 6 : 0.8));
+      // the counting light walks the Fibonacci families, one per bar
+      st.famT += dt;
+      if (st.famT > 2.2){ st.famT = 0; st.famI = (st.famI + 1) % FAMS.length; }
+      const F = FAMS[st.famI];
+      const breathe = 1 + (f.bass || 0) * 0.10 + (f.beat || 0) * 0.04;
+      const cGrow = 0.38;
+      for (let i = 0; i < N; i++){
+        const n = born[i];
+        const age = st.total - n;                       // 0 = just born at the heart
+        if (n === 0 && st.total > N){ asz[i] = 0; continue; }
+        const aN = Math.min(1, age / N);
+        const r = cGrow * Math.sqrt(age) * breathe * (M.cone ? Math.pow(age / N + 0.02, -0.12) : 1);
+        const th = n * st.ang;
+        pos[i * 3] = Math.cos(th) * r;
+        pos[i * 3 + 1] = Math.sin(th) * r * (M.cone ? 0.82 : 1) - (M.cone ? r * 0.16 : 0);
+        pos[i * 3 + 2] = 0;
+        aage[i] = aN;
+        asz[i] = (0.62 + aN * 0.95) * (M.cone ? 1.15 : 1);
+        // is this floret on the counted family's spiral?
+        const fam = (n % F) === (Math.floor(st.t / 2.2) * 5) % F ? 1 : 0;
+        afam[i] += ((fam ? 1 : 0) - afam[i]) * Math.min(1, dt * 5);
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aS.needsUpdate = true;
+      geo.attributes.aA.needsUpdate = true;
+      geo.attributes.aF.needsUpdate = true;
+    },
+    roll(){
+      st.mode = Math.floor(Math.random() * MODES.length);
+      varU.uVarA.value = Math.random();
+      st.total = Math.floor(N * 0.7);                  // arrive mid-bloom, then keep growing
+      for (let i = 0; i < N; i++) born[i] = i * 0.7;
+      st.next = 0;
+      api.name = 'PHYLLOTAXIS · ' + MODES[st.mode].name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 60 · SANDPILE — the avalanche that can't be predicted
+
+   Drop grains of sand on a grid; any cell holding four topples,
+   one grain to each neighbour — and that single rule produces
+   self-organized criticality: most drops do nothing, then one
+   grain, indistinguishable from the rest, lets go an avalanche
+   across the whole pile. Bak, Tang and Wiesenfeld's model, run
+   LIVE: the song's sixteenths feed the pile grain by grain, every
+   onset pours a handful — so the drops of the music become
+   literal avalanches of the mathematics, glowing as they run. A
+   finger is a second spout. The four sand heights wear the
+   track's own chord, and the pile's four-fold flower — one of the
+   strangest beautiful objects in mathematics — assembles itself
+   out of nothing but counting to four.
+   ========================================================= */
+function buildSandpile(){
+  const group = new THREE.Group();
+  const G = 128;
+  const h = new Uint8Array(G * G);
+  const heat = new Float32Array(G * G);
+  const texData = new Uint8Array(G * G * 4);
+  const tex = new THREE.DataTexture(texData, G, G, THREE.RGBAFormat);
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uTex:   { value: tex },
+    uPulse: { value: 0 },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uPulse, uAspect, uVarA;
+    uniform sampler2D uTex;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0);
+      vec2 tuv = p * 0.92 + 0.5;
+      vec3 col = vec3(0.0);
+      if (tuv.x > 0.0 && tuv.x < 1.0 && tuv.y > 0.0 && tuv.y < 1.0){
+        vec4 s = texture2D(uTex, tuv);
+        float hv = s.r * 255.0;
+        /* the four heights, four inks — 0 stays void, and the chord climbs;
+           the linear-filtered read anti-aliases the cell walls for free */
+        vec3 c1 = ramp(0.30 + uVarA * 0.18);
+        vec3 c2 = ramp(0.55 + uVarA * 0.18);
+        vec3 c3 = ramp(0.80 + uVarA * 0.18);
+        col = mix(vec3(0.0), c1 * 0.16, smoothstep(0.15, 0.85, hv));
+        col = mix(col, c2 * 0.55, smoothstep(1.15, 1.85, hv));
+        col = mix(col, c3 * 1.15, smoothstep(2.15, 2.85, hv));
+        col *= 0.75 + uEnergy * 0.35;
+        // the avalanche's own light: cells that toppled still burn
+        col += mix(c3, vec3(1.0, 0.97, 0.9), 0.5) * s.g * (1.2 + uBeat * 0.8);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const st = { mode: 0, t: 0, clock: 0, feedA: [G >> 1, G >> 1], feedB: [G >> 1, G >> 1] };
+  const MODES = [
+    // pour = the arrival pile; rate = grains per beat. RAIN stays sparse on
+    // purpose — the void between drops is where the avalanches read.
+    { name: 'THE PILE',   feed: 'center', pour: 26000, rate: 4 },
+    { name: 'RAIN',       feed: 'rain',   pour: 5000,  rate: 2 },
+    { name: 'TWIN PEAKS', feed: 'twin',   pour: 12000, rate: 4 },
+  ];
+  const drop = (x, y, n) => {
+    x = Math.max(1, Math.min(G - 2, x | 0));
+    y = Math.max(1, Math.min(G - 2, y | 0));
+    h[y * G + x] += n;
+  };
+  /* the rule, and nothing else: >= 4 topples, one to each neighbour. The
+     budget keeps a monster avalanche from eating the frame — it simply
+     carries into the next one, which reads as the slide continuing. */
+  const topple = (budget) => {
+    let done = 0, changed = true;
+    while (changed && done < budget){
+      changed = false;
+      for (let y = 1; y < G - 1; y++){
+        for (let x = 1; x < G - 1; x++){
+          const i = y * G + x;
+          if (h[i] >= 4){
+            h[i] -= 4;
+            h[i - 1]++; h[i + 1]++; h[i - G]++; h[i + G]++;
+            heat[i] = 1;
+            changed = true;
+            if (++done >= budget) return;
+          }
+        }
+      }
+    }
+  };
+  const api = {
+    name: 'SANDPILE', key: 'sandpile', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      const M = MODES[st.mode];
+      /* the spouts: a grain per sixteenth; every onset pours a handful — the
+         drop of the SONG becomes the avalanche of the PILE */
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 2);
+      st.clock += dt * bps * M.rate;
+      while (st.clock >= 1){
+        st.clock -= 1;
+        if (M.feed === 'rain'){
+          drop(4 + Math.random() * (G - 8), 4 + Math.random() * (G - 8), 1);
+        } else if (M.feed === 'twin'){
+          drop(st.feedA[0], st.feedA[1], 1);
+          drop(st.feedB[0], st.feedB[1], 1);
+        } else {
+          drop(G >> 1, G >> 1, 1);
+        }
+      }
+      if ((f.beat || 0) > 0.6){
+        const n = 6 + Math.floor((f.energy || 0) * 20);
+        if (M.feed === 'twin') drop(Math.random() < 0.5 ? st.feedA[0] : st.feedB[0], st.feedA[1], n);
+        else if (M.feed === 'rain') drop(G * (0.3 + Math.random() * 0.4), G * (0.3 + Math.random() * 0.4), n);
+        else drop(G >> 1, G >> 1, n);
+      }
+      // the second spout: sand pours from a fingertip
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1){
+        const hx = (U.uPtr.value.x * s.aspect / Math.max(s.aspect, 1) * 0.5 / 0.92 + 0.5) * G;
+        const hy = (U.uPtr.value.y * 0.5 / 0.92 + 0.5) * G;
+        drop(hx, hy, 2);
+      }
+      topple(reducedMotion ? 9000 : 26000);
+      // the pile into pixels; the avalanche light decays like an ember
+      const cool = Math.exp(-dt * 3.2);
+      for (let i = 0; i < G * G; i++){
+        heat[i] *= cool;
+        texData[i * 4] = h[i];
+        texData[i * 4 + 1] = Math.min(255, heat[i] * 255) | 0;
+        texData[i * 4 + 2] = 0;
+        texData[i * 4 + 3] = 255;
+      }
+      tex.needsUpdate = true;
+    },
+    roll(){
+      st.mode = Math.floor(Math.random() * MODES.length);
+      varU.uVarA.value = Math.random();
+      h.fill(0); heat.fill(0);
+      st.feedA = [(G * 0.36) | 0, (G * 0.5) | 0];
+      st.feedB = [(G * 0.64) | 0, (G * 0.5) | 0];
+      /* arrive with a pile already living: pre-pour, time-boxed */
+      const t0 = Date.now();
+      const M = MODES[st.mode];
+      let poured = 0;
+      while (Date.now() - t0 < 160 && poured < M.pour){
+        for (let k = 0; k < 200; k++, poured++){
+          if (M.feed === 'rain') drop(4 + Math.random() * (G - 8), 4 + Math.random() * (G - 8), 1);
+          else if (M.feed === 'twin') drop(poured % 2 ? st.feedA[0] : st.feedB[0], st.feedA[1], 1);
+          else drop(G >> 1, G >> 1, 1);
+        }
+        topple(60000);
+      }
+      heat.fill(0);
+      api.name = 'SANDPILE · ' + M.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -38864,7 +39992,9 @@ function initThree(){
               buildArabesque(), buildMaelstrom(), buildVoltage(), buildSilicon(),
               buildFeigenbaum(), buildChladni(), buildAutomaton(), buildEventHorizon(), buildFerrofluid(),
               buildGalton(), buildPendula(), buildAttractor(), buildFireflies(), buildThreeBody(),
-              buildDendrite(), buildMurmuration());
+              buildDendrite(), buildMurmuration(),
+              buildFourier(), buildInterference(), buildJulia(), buildPoincare(),
+              buildQuasicrystal(), buildPhyllotaxis(), buildSandpile());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
