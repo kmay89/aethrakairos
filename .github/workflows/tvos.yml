@@ -134,6 +134,33 @@ jobs:
           xcrun simctl io "$UDID" screenshot shots/01-launch-welcome.png
           echo "The welcome should show BEGIN carrying its focus ring (ice outline, lifted)."
 
+      # The artifact store is unreachable from some review environments, so
+      # the frame also travels inside the log: an ice-ring pixel count (the
+      # focus ring's color is nowhere else on the welcome) and a base64 JPEG
+      # any reader of this log can decode back into the picture.
+      - name: Report the frame into the log
+        run: |
+          sips -Z 720 shots/01-launch-welcome.png --out shots/small.jpg \
+            -s format jpeg -s formatOptions 55 >/dev/null
+          pip3 install --quiet pillow 2>/dev/null || pip3 install --quiet --break-system-packages pillow 2>/dev/null || true
+          python3 - << 'EOF' || echo "pixel scan unavailable"
+          from PIL import Image
+          im = Image.open('shots/01-launch-welcome.png').convert('RGB')
+          w, h = im.size
+          px = im.load()
+          ice = 0
+          for y in range(0, h, 2):
+              for x in range(0, w, 2):
+                  r, g, b = px[x, y]
+                  if abs(r-110) < 50 and abs(g-231) < 45 and abs(b-255) < 45:
+                      ice += 1
+          print(f"ICE-RING PIXELS (1/4 sampled): {ice}  ({w}x{h})")
+          print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
+          EOF
+          echo "== BEGIN BASE64 JPEG (welcome frame) =="
+          base64 -i shots/small.jpg | fold -w 300
+          echo "== END BASE64 JPEG =="
+
       - uses: actions/upload-artifact@v4
         with:
           name: sim-shots
