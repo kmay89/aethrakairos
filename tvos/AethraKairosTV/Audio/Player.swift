@@ -605,7 +605,11 @@ enum MixStyle: String, CaseIterable {
         }
         // The clock truth flows one way: latency-compensated playhead into the
         // analyzer, every poll — the beat grid is authoritative when mix exists.
-        let compensated = position - engine.outputLatency * clockRate
+        // The same latency is handed over for onset visuals: a detected hit is
+        // shown when it is HEARD, not when it was rendered.
+        let outLat = engine.outputLatency
+        let compensated = position - outLat * clockRate
+        analyzer.setOutputLatency(outLat)
         analyzer.setClock(playhead: max(0, compensated), mix: current?.mix,
                           rate: clockRate)
         library.saveTransport(snapshot())   // Library throttles internally (>= 1 s)
