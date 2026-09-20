@@ -268,8 +268,15 @@ fragment float4 room_julia(float4 pos [[position]],
         col = ink * (0.05 + pow(w, 1.3) * 1.9) * (0.75 + U.energy * 0.45);
         col += U.colC.rgb * pow(w, 4.5) * (1.0 + U.onsetEnv * 0.9);
     } else {
-        // the interior: near-void, the orbit trap's filigree glowing
-        col = U.colC.rgb * exp(-trap * 5.0) * (0.20 + U.bass * 0.25);
+        /* the interior: near-void — the keyed accent is bright now, and a
+           broad exp(-trap*5) under it reads as a flat slab when c dips
+           inside the Mandelbrot set. Only the orbit trap's own filigree
+           gets to glow: a tight line where the orbit kisses the trap
+           circle, and faint contour bands rippling away from it. */
+        float fil = exp(-trap * 26.0);
+        float bands = exp(-abs(fract(trap * 9.0) - 0.5) * 6.0) * exp(-trap * 3.0);
+        col = U.colC.rgb * fil * (0.30 + U.bass * 0.30)
+            + U.colB.rgb * bands * 0.10;
     }
     col += (hash21_k(pos.xy) - 0.5) * 0.006;
     return float4(govern_k(VOID_K + max(col, float3(0.0)), U.white), 1.0);
