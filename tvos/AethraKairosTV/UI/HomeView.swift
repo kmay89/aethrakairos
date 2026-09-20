@@ -38,11 +38,22 @@ struct HomeView: View {
             Color.akVoid.ignoresSafeArea()
             VisualizerView(player: player, roomStep: roomStep, roomName: $roomName)
                 .ignoresSafeArea()
+            // The field's remote grammar is a LAYER, not a wrapper: it is in
+            // the hierarchy only while the field owns the screen. While the
+            // welcome or the shelves are up there are no gesture recognizers
+            // and no focusable wrappers anywhere — the buttons get every
+            // press and the focus engine gets every swipe. (Wrapping the
+            // whole ZStack, even with guards or gesture masks, provably
+            // killed all focus on hardware — see FieldRemoteLayer's header.)
+            if introSeen && !shelvesShown {
+                FieldRemoteLayer(player: player, library: library,
+                                 roomStep: $roomStep, shelvesShown: $shelvesShown,
+                                 activity: $activity)
+            }
             NowPlayingHUD(player: player, library: library, roomName: roomName, visible: hudVisible && !shelvesShown)
             if !introSeen {
-                // First light: the welcome owns the screen alone, so its one
-                // button is the only focusable and the field's gestures stay
-                // masked (shelvesShown is still true underneath).
+                // First light: the welcome owns the screen alone; its one
+                // button is the only focusable in the app.
                 introOverlay
                     .transition(.opacity)
                     .zIndex(2)
@@ -54,7 +65,6 @@ struct HomeView: View {
         }
         .animation(.easeInOut(duration: 0.35), value: shelvesShown)
         .animation(.easeInOut(duration: 0.35), value: introSeen)
-        .remoteControls(player: player, library: library, roomStep: $roomStep, shelvesShown: $shelvesShown, activity: $activity)
         .zenLadder(player: player, activity: activity, hudVisible: $hudVisible)
         .fullScreenCover(isPresented: $showConsole) {
             if let catalog = catalogStore.catalog {
@@ -92,6 +102,12 @@ struct HomeView: View {
         .background(.ultraThinMaterial)
         .background(Color.akVoid.opacity(0.55).ignoresSafeArea())
         .onExitCommand { dismissShelves() }
+        // The transport key works everywhere: with the field's layer out of
+        // the hierarchy while browsing, play/pause is answered here instead.
+        .onPlayPauseCommand {
+            activity += 1
+            player.toggle()
+        }
     }
 
     private func dismissShelves() {

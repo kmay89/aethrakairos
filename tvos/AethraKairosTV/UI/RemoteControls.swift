@@ -13,45 +13,46 @@ enum ZenLaw {
     }
 }
 
-/// The Siri Remote grammar, one law per key: play/pause toggles; select wakes
-/// the HUD first and only an already-lit HUD treats a press as transport; a
-/// select HELD toggles the heart on the playing track; left/right nudge the
-/// playhead ∓/±10 s; up/down step rooms; Menu from the field raises the
-/// shelves. Every command feeds the activity counter the zen ladder counts
-/// from — the heart hold included.
-struct RemoteCommandModifier: ViewModifier {
+/// The Siri Remote grammar, one law per key — and one law above all the
+/// others: this layer EXISTS only while the field owns the screen. Every
+/// gesture here becomes a UIKit recognizer on the hosting view, and a
+/// recognizer observes the remote's touch stream BEFORE SwiftUI consults
+/// guards or gesture masks — its mere presence starves the focus engine and
+/// cancels presses to any Button beneath. Builds 23–29 proved it on
+/// hardware: with these attached at the root, the shelves and even a lone
+/// BEGIN button never received focus. So HomeView mounts this layer only
+/// when no shelves and no welcome are up, and removes it — recognizers and
+/// all — the moment browsing begins.
+///
+/// The keys, in field mode: play/pause toggles; select wakes the HUD first
+/// and only an already-lit HUD treats a press as transport; select HELD
+/// toggles the heart on the playing track; left/right nudge the playhead
+/// ∓/±10 s; up/down step rooms; Menu raises the shelves.
+struct FieldRemoteLayer: View {
     @ObservedObject var player: Player
-    // Present only on the wave-2 path; the heart hold is a no-op without it.
-    // Not observed here — the modifier only writes hearts, it never renders one.
+    // The heart hold is a no-op without a library; the layer only writes
+    // hearts, it never renders one.
     let library: Library?
     @Binding var roomStep: Int
     @Binding var shelvesShown: Bool
     @Binding var activity: Int
 
-    // The modifier's own clock of the last press, so the select rule can ask
+    // The layer's own clock of the last press, so the select rule can ask
     // "was the HUD lit?" with the same law the ladder applies.
     @State private var lastBump = Date()
 
-    init(player: Player, library: Library?, roomStep: Binding<Int>, shelvesShown: Binding<Bool>, activity: Binding<Int>) {
-        _player = ObservedObject(wrappedValue: player)
-        self.library = library
-        _roomStep = roomStep
-        _shelvesShown = shelvesShown
-        _activity = activity
-    }
-
-    func body(content: Content) -> some View {
-        content
-            // The field must hold focus itself or move commands never arrive;
-            // it yields focus entirely while the shelves are up.
-            .focusable(!shelvesShown)
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            // The field holds focus itself or move commands never arrive.
+            .focusable()
             .onPlayPauseCommand {
                 bump()
                 player.toggle()
             }
             .onMoveCommand { direction in
-                // With shelves up, arrows belong to the focus engine.
-                guard !shelvesShown else { return }
                 bump()
                 switch direction {
                 case .left: player.nudge(-10)
@@ -62,73 +63,42 @@ struct RemoteCommandModifier: ViewModifier {
                 }
             }
             .onExitCommand {
-                guard !shelvesShown else { return }
                 bump()
                 shelvesShown = true
             }
-            // Both field gestures are attached with a mask, not a guard: while
-            // the shelves are up the mask is .subviews, so the recognizers
-            // UIKit installs for them never claim the remote's touches or the
-            // select press. A guarded no-op handler is NOT enough on tvOS —
-            // the recognizer still recognizes, and in doing so it starves the
-            // focus engine (no highlight moves) and cancels the press before
-            // a shelf Button can fire (nothing selectable). The mask keeps
-            // the view identity stable AND keeps the shelves' focus alive.
-            .gesture(
-                TapGesture().onEnded {
-                    guard !shelvesShown else { return }
-                    // Wake shows info first; the second press is the command.
-                    let hudWasLit = ZenLaw.hudVisible(
-                        idle: Date().timeIntervalSince(lastBump),
-                        playing: player.isPlaying
-                    )
-                    bump()
-                    if hudWasLit {
-                        player.toggle()
-                    }
-                },
-                including: shelvesShown ? .subviews : .all
-            )
+            .onTapGesture {
+                // Wake shows info first; the second press is the command.
+                let hudWasLit = ZenLaw.hudVisible(
+                    idle: Date().timeIntervalSince(lastBump),
+                    playing: player.isPlaying
+                )
+                bump()
+                if hudWasLit {
+                    player.toggle()
+                }
+            }
             // Select HELD is the heart: it favourites the playing track without
             // ever opening the shelves. A hold is not a tap, so transport is
             // left alone; only the activity counter is stirred.
-            .gesture(
-                LongPressGesture(minimumDuration: 0.6).onEnded { _ in
-                    guard !shelvesShown, let key = player.current?.id else { return }
-                    bump()
-                    library?.toggleHeart(key)
-                },
-                including: shelvesShown ? .subviews : .all
-            )
-            // VoiceOver on the field. `.contain` names this transport surface
-            // and its state while keeping every child — the HUD's now-playing
-            // card and, when the shelves are up, each shelf row — individually
-            // navigable. It never collapses or hides children, so it can't
-            // regress focus for a sighted listener either.
+            .onLongPressGesture(minimumDuration: 0.6) {
+                guard let key = player.current?.id else { return }
+                bump()
+                library?.toggleHeart(key)
+            }
+            // VoiceOver on the field: this transport surface names itself and
+            // its state. It only exists in field mode, so it can never mask a
+            // shelf row.
             .accessibilityElement(children: .contain)
             .accessibilityLabel(fieldLabel)
-            .accessibilityValue(fieldValue)
-            .accessibilityHint(fieldHint)
+            .accessibilityValue(Text(player.isPlaying ? "Playing" : "Paused"))
+            .accessibilityHint(Text("Play or pause with the play button. Swipe left or right to move ten seconds. Swipe up or down to change rooms. Press and hold to save the track to hearts. Press Menu for the shelves."))
     }
 
-    // MARK: - VoiceOver labels for the field
-
     private var fieldLabel: Text {
-        if shelvesShown { return Text("Aethra Kairos") }
         if let title = player.current?.title, !title.isEmpty {
             return Text("Now playing, \(title)")
         }
         return Text("Aethra Kairos player")
-    }
-
-    private var fieldValue: Text {
-        guard !shelvesShown else { return Text("") }
-        return Text(player.isPlaying ? "Playing" : "Paused")
-    }
-
-    private var fieldHint: Text {
-        guard !shelvesShown else { return Text("Press Menu to open the shelves.") }
-        return Text("Play or pause with the play button. Swipe left or right to move ten seconds. Swipe up or down to change rooms. Press and hold to save the track to hearts. Press Menu for the shelves.")
     }
 
     private func bump() {
@@ -180,18 +150,6 @@ struct ZenLadderModifier: ViewModifier {
 }
 
 extension View {
-    /// Wave-1 grammar, preserved verbatim: no library, no heart hold. Any
-    /// caller binding to the original contract keeps compiling unchanged.
-    func remoteControls(player: Player, roomStep: Binding<Int>, shelvesShown: Binding<Bool>, activity: Binding<Int>) -> some View {
-        modifier(RemoteCommandModifier(player: player, library: nil, roomStep: roomStep, shelvesShown: shelvesShown, activity: activity))
-    }
-
-    /// Wave-2 grammar: the same laws plus the select-hold heart, which needs a
-    /// Library to write to.
-    func remoteControls(player: Player, library: Library, roomStep: Binding<Int>, shelvesShown: Binding<Bool>, activity: Binding<Int>) -> some View {
-        modifier(RemoteCommandModifier(player: player, library: library, roomStep: roomStep, shelvesShown: shelvesShown, activity: activity))
-    }
-
     /// The zen idle countdown; HomeView feeds it the counter the remote bumps
     /// and receives the HUD's visibility verdict.
     func zenLadder(player: Player, activity: Int, hudVisible: Binding<Bool>) -> some View {

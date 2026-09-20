@@ -74,6 +74,99 @@ jobs:
             exit 1
           fi
 
+  # Eyes before shipping: boot a tvOS Simulator, install the app, launch it,
+  # and photograph what a viewer actually sees. The launch frame proves the
+  # focus engine is alive (the welcome's BEGIN chip renders its focus ring
+  # only when focused) — the exact regression that reached hardware three
+  # times while every compile check stayed green.
+  sim-shots:
+    name: simulator screenshots (focus smoke)
+    if: inputs.channel != 'testflight'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest stable Xcode on the runner
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Build for the tvOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project tvos/AethraKairos.xcodeproj \
+            -scheme AethraKairosTV \
+            -destination 'generic/platform=tvOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tail -5
+
+      - name: Boot, install, launch, photograph
+        run: |
+          UDID="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime, devs in devices.items():
+              if "tvOS" in runtime:
+                  for d in devs:
+                      print(d["udid"]); raise SystemExit
+          ')"
+          if [ -z "$UDID" ]; then
+            RUNTIME="$(xcrun simctl list runtimes --json | python3 -c '
+          import json, sys
+          rts = [r for r in json.load(sys.stdin)["runtimes"] if r.get("platform") == "tvOS" and r.get("isAvailable")]
+          print(rts[-1]["identifier"] if rts else "")
+          ')"
+            [ -n "$RUNTIME" ] || { echo "::error::No tvOS simulator runtime on this runner."; exit 1; }
+            UDID="$(xcrun simctl create smoke-atv 'Apple TV 4K (3rd generation)' "$RUNTIME")"
+          fi
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name '*.app' -type d | head -1)"
+          [ -n "$APP" ] || { echo "::error::Built .app not found."; exit 1; }
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" com.aethrakairos.tv
+          sleep 14
+          mkdir -p shots
+          xcrun simctl io "$UDID" screenshot shots/01-launch-welcome.png
+          echo "The welcome should show BEGIN carrying its focus ring (ice outline, lifted)."
+
+      # The artifact store is unreachable from some review environments, so
+      # the frame also travels inside the log: an ice-ring pixel count (the
+      # focus ring's color is nowhere else on the welcome) and a base64 JPEG
+      # any reader of this log can decode back into the picture.
+      - name: Report the frame into the log
+        run: |
+          sips -Z 720 shots/01-launch-welcome.png --out shots/small.jpg \
+            -s format jpeg -s formatOptions 55 >/dev/null
+          pip3 install --quiet pillow 2>/dev/null || pip3 install --quiet --break-system-packages pillow 2>/dev/null || true
+          python3 - << 'EOF' || echo "pixel scan unavailable"
+          from PIL import Image
+          im = Image.open('shots/01-launch-welcome.png').convert('RGB')
+          w, h = im.size
+          px = im.load()
+          ice = 0
+          for y in range(0, h, 2):
+              for x in range(0, w, 2):
+                  r, g, b = px[x, y]
+                  if abs(r-110) < 50 and abs(g-231) < 45 and abs(b-255) < 45:
+                      ice += 1
+          print(f"ICE-RING PIXELS (1/4 sampled): {ice}  ({w}x{h})")
+          print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
+          EOF
+          echo "== BEGIN BASE64 JPEG (welcome frame) =="
+          base64 -i shots/small.jpg | fold -w 300
+          echo "== END BASE64 JPEG =="
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sim-shots
+          path: shots/
+          retention-days: 7
+
   testflight:
     name: archive · sign · upload to TestFlight
     if: inputs.channel == 'testflight'
