@@ -74,6 +74,72 @@ jobs:
             exit 1
           fi
 
+  # Eyes before shipping: boot a tvOS Simulator, install the app, launch it,
+  # and photograph what a viewer actually sees. The launch frame proves the
+  # focus engine is alive (the welcome's BEGIN chip renders its focus ring
+  # only when focused) — the exact regression that reached hardware three
+  # times while every compile check stayed green.
+  sim-shots:
+    name: simulator screenshots (focus smoke)
+    if: inputs.channel != 'testflight'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest stable Xcode on the runner
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Build for the tvOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project tvos/AethraKairos.xcodeproj \
+            -scheme AethraKairosTV \
+            -destination 'generic/platform=tvOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tail -5
+
+      - name: Boot, install, launch, photograph
+        run: |
+          UDID="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime, devs in devices.items():
+              if "tvOS" in runtime:
+                  for d in devs:
+                      print(d["udid"]); raise SystemExit
+          ')"
+          if [ -z "$UDID" ]; then
+            RUNTIME="$(xcrun simctl list runtimes --json | python3 -c '
+          import json, sys
+          rts = [r for r in json.load(sys.stdin)["runtimes"] if r.get("platform") == "tvOS" and r.get("isAvailable")]
+          print(rts[-1]["identifier"] if rts else "")
+          ')"
+            [ -n "$RUNTIME" ] || { echo "::error::No tvOS simulator runtime on this runner."; exit 1; }
+            UDID="$(xcrun simctl create smoke-atv 'Apple TV 4K (3rd generation)' "$RUNTIME")"
+          fi
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name '*.app' -type d | head -1)"
+          [ -n "$APP" ] || { echo "::error::Built .app not found."; exit 1; }
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" com.aethrakairos.tv
+          sleep 14
+          mkdir -p shots
+          xcrun simctl io "$UDID" screenshot shots/01-launch-welcome.png
+          echo "The welcome should show BEGIN carrying its focus ring (ice outline, lifted)."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sim-shots
+          path: shots/
+          retention-days: 7
+
   testflight:
     name: archive · sign · upload to TestFlight
     if: inputs.channel == 'testflight'
