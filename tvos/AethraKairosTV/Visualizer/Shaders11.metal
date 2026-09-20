@@ -101,6 +101,12 @@ inline float2 proj3_n(float3 w, float t) {
     float z = -w.x * sa + w.z * ca;
     return float2(x, w.y + z * 0.12);        // a whisper of tilt: depth reads without a camera
 }
+// the same stage, leaned back — a ring lying in the plane needs a real
+// tilt before its geometry can be seen at all
+inline float2 proj3t_n(float3 w, float t, float tilt) {
+    float ct = cos(tilt), st = sin(tilt);
+    return proj3_n(float3(w.x, w.y * ct - w.z * st, w.y * st + w.z * ct), t);
+}
 // the web's thin film, verbatim: δ = 2Nd·cosT, the +π flip so a vanishing
 // film goes BLACK, and Schlick's Fresnel with water-soap R0
 inline float3 filmSpectrum_n(float d, float ci) {
@@ -137,20 +143,20 @@ fragment float4 room_helix(float4 pos [[position]],
         float2 d = p - ghostUp_n(U);
         p += d * (U.ghostStrength * 0.30 / (dot(d, d) + 0.35));
     }
-    float turns = 4.0 + floor(U.roll1 * 5.0);
+    float turns = 3.0 + floor(U.roll1 * 3.0);       // 3-5: smooth at this sample budget
     float span = 1.55 + U.roll0 * 0.5;
     float3 col = float3(0.0);
     float2 prevQ[2];
     float prevAmp[2];
-    for (int i = 0; i <= 44; i++) {
-        float t = float(i) / 44.0;
+    for (int i = 0; i <= 64; i++) {
+        float t = float(i) / 64.0;
         for (int s = 0; s < 2; s++) {
             float fs = float(s);
             float amp = band_n(spectrum, int(fs * 32.0 + t * 30.0));
             float phase = U.time * (0.11 + fs * 0.06) + U.roll2 * TAU_N;
             float coil = t * TAU_N * turns + phase + fs * PI_N + U.time * 0.4;
-            float rad = 0.16 + U.roll0 * 0.10 + amp * 0.30
-                      + (s == 0 ? U.bass : U.treble) * 0.22;
+            float rad = 0.28 + U.roll0 * 0.12 + amp * 0.26
+                      + (s == 0 ? U.bass : U.treble) * 0.20;
             float3 w = float3(cos(coil) * rad, (t - 0.5) * span, sin(coil) * rad);
             float2 q = proj3_n(w, U.time);
             if (i > 0) {
@@ -160,7 +166,7 @@ fragment float4 room_helix(float4 pos [[position]],
                 col += ink * exp(-d * d * 26000.0) * (0.5 + glow * 1.3 + U.onsetEnv * 0.4);
                 col += ink * exp(-d * d * 900.0) * (0.05 + glow * 0.10);
                 // the rungs: only where the music holds itself together
-                if (s == 1 && (i % 6) == 0) {
+                if (s == 1 && (i % 8) == 0) {
                     float dr = segd_n(p, prevQ[0], q);
                     float hold = clamp(U.mid * 0.9 + U.onsetEnv * 0.6, 0.0, 1.0);
                     col += U.colC.rgb * exp(-dr * dr * 14000.0) * hold * 0.6;
@@ -196,19 +202,20 @@ fragment float4 room_band(float4 pos [[position]],
         float ang = t * TAU_N;
         float amp = band_n(spectrum, int(t * 63.0));
         float tw = ang * half_twists + U.time * 0.13 + U.roll2 * PI_N;
-        float w = 0.10 + amp * 0.10 + U.mid * 0.05;
-        float R = 0.55 + U.roll0 * 0.18 + sin(ang * 3.0 + U.time * 0.3) * 0.035
-                + amp * 0.14 * sin(U.time * 0.5 + ang * (6.0 + U.roll2 * 8.0));
-        float3 c3 = float3(R * cos(ang), w * 0.0 + sin(ang * 2.0 + U.time * 0.4) * U.mid * 0.10, R * sin(ang));
+        float w = 0.13 + amp * 0.10 + U.mid * 0.05;
+        float R = 0.60 + U.roll0 * 0.16 + sin(ang * 3.0 + U.time * 0.3) * 0.035
+                + amp * 0.12 * sin(U.time * 0.5 + ang * (6.0 + U.roll2 * 8.0));
+        float3 c3 = float3(R * cos(ang), sin(ang * 2.0 + U.time * 0.4) * U.mid * 0.10, R * sin(ang));
         float3 e0 = c3 + float3(cos(ang) * cos(tw), sin(tw), sin(ang) * cos(tw)) * w;
         float3 e1 = c3 - float3(cos(ang) * cos(tw), sin(tw), sin(ang) * cos(tw)) * w;
-        float2 q0 = proj3_n(e0, U.time);
-        float2 q1 = proj3_n(e1, U.time);
+        // leaned back 0.9 rad: the ring shows as a ring, the twist as a twist
+        float2 q0 = proj3t_n(e0, U.time, 0.9);
+        float2 q1 = proj3t_n(e1, U.time, 0.9);
         // the surface: soft light between the edges, fresnel-ish off the twist
         float ds = segd_n(p, q0, q1);
         float fres = pow(abs(sin(tw)), 2.0);
-        col += chordRamp_n(U, t + U.roll2) * exp(-ds * ds * 3200.0)
-             * (0.030 + amp * 0.05 + fres * 0.045 + U.onsetEnv * 0.02);
+        col += chordRamp_n(U, t + U.roll2) * exp(-ds * ds * 2600.0)
+             * (0.055 + amp * 0.08 + fres * 0.085 + U.onsetEnv * 0.03);
         if (i > 0) {
             // the single edge, twice around — the wire that proves one side
             float d0 = segd_n(p, pe0, q0);
@@ -269,11 +276,15 @@ fragment float4 room_ribbons(float4 pos [[position]],
             if (i > 0) {
                 float d = segd_n(p, prev, q);
                 float taper = pow(max(sin(t * PI_N), 0.001), 0.65);
-                float wdt = (0.006 + amp * 0.030 + U.onsetEnv * 0.012) * taper;
+                float wdt = (0.016 + amp * 0.065 + U.onsetEnv * 0.020) * taper;
                 float body = exp(-d * d / max(wdt * wdt, 1e-8));
+                // silk, not wire: a soft edge glow widens the sheet and a
+                // bright spine keeps it from going flat
+                float spine = exp(-d * d / max(wdt * wdt * 0.12, 1e-8));
                 float3 ink = chordRamp_n(U, t + fr * 0.25);
-                col += ink * body * (0.16 + amp * 0.5 + U.onsetEnv * 0.15) * (1.0 - morph * 0.55);
-                col += ink * exp(-d * d * 700.0) * 0.020;
+                col += ink * body * (0.22 + amp * 0.6 + U.onsetEnv * 0.18) * (1.0 - morph * 0.55);
+                col += ink * spine * 0.16 * (1.0 - morph * 0.4);
+                col += ink * exp(-d * d * 500.0) * 0.028;
             }
             prev = q;
         }
@@ -307,20 +318,23 @@ fragment float4 room_comets(float4 pos [[position]],
         float h1 = fract(fs * 127.1), h2 = fract(fs * 311.7);
         float h3 = fract(fs * 74.7),  h4 = fract(fs * 91.3);
         float speed = (0.35 + h3 * 0.9) * (0.5 + U.energy * 1.2 + U.act * 0.2) * (0.6 + U.roll2 * 0.9);
-        float travel = fmod(h3 * 200.0 + U.time * speed, 8.0) - 4.0;
-        float3 base = float3((h1 - 0.5) * 3.4, (h2 - 0.5) * 2.2, (h4 - 0.5) * 3.4);
+        float travel = fmod(h3 * 200.0 + U.time * speed, 5.0) - 2.5;
+        float3 base = float3((h1 - 0.5) * 2.6, (h2 - 0.5) * 1.9, (h4 - 0.5) * 2.6);
         float hue = fract(h1 + U.treble * 0.3);
         float3 ink = chordRamp_n(U, hue);
-        for (int k = 0; k < 5; k++) {
-            float tr = float(k) / 4.0;
-            float tail = tr * (0.10 + speed * 0.11 * (0.6 + U.onsetEnv * 0.8));
-            float3 w3 = base + rain * (travel - tail);
-            float2 q = proj3_n(w3, U.time * 0.3);
-            float2 d2 = p - q;
-            float sz = (0.006 + h3 * 0.005) * (1.0 - tr * 0.72) * (1.0 + U.onsetEnv * 0.8);
-            float g = exp(-dot(d2, d2) / max(sz * sz, 1e-8));
-            col += ink * g * (0.9 + U.onsetEnv * 0.5 + U.energy * 0.4) * (1.0 - tr * 0.85) * 0.30;
-        }
+        // the streak: one drawn tail from head to wake, plus a hot head
+        float tailLen = 0.16 + speed * 0.16 * (0.6 + U.onsetEnv * 0.9);
+        float3 head3 = base + rain * travel;
+        float2 hq = proj3_n(head3, U.time * 0.3);
+        float2 wq = proj3_n(head3 - rain * tailLen, U.time * 0.3);
+        float dTail = segd_n(p, hq, wq);
+        float wS = (0.005 + h3 * 0.004) * (1.0 + U.onsetEnv * 0.6);
+        col += ink * exp(-dTail * dTail / max(wS * wS, 1e-8))
+             * (0.55 + U.onsetEnv * 0.4 + U.energy * 0.3);
+        float2 dh = p - hq;
+        float hs = wS * 2.2;
+        float hg = exp(-dot(dh, dh) / max(hs * hs, 1e-8));
+        col += mix(ink, float3(1.0, 0.98, 0.94), 0.45) * hg * (0.9 + U.onsetEnv * 0.8);
     }
     col += (hash21_n(pos.xy) - 0.5) * 0.006;
     return float4(govern_n(VOID_N + max(col, float3(0.0)), U.white), 1.0);
@@ -755,17 +769,15 @@ fragment float4 room_drift(float4 pos [[position]],
 // ===============================================================
 inline float3 filPoint_n(float u, float s, float face, constant VizUniforms& U) {
     if (face < 0.5) {
-        // COILED COIL: a helix wound on a helix, on the primary's own frame
+        // COILED COIL: a helix wound on a ring. The web's second winding
+        // (k2 ≈ 200/turn) is far below any polyline's resolving power here —
+        // it comes back as a glow shimmer in the fragment, not as geometry.
         float R = 0.62 + U.roll1 * 0.15 + s * 0.04;
-        float r1 = 0.14 + U.roll2 * 0.05;
-        float r2 = r1 * 0.22;
-        float k1 = 22.0 + floor(U.roll1 * 12.0);
-        float k2 = k1 * 9.0;
-        float3 p0 = float3((R + r1 * cos(k1 * u)) * cos(u), (R + r1 * cos(k1 * u)) * sin(u), r1 * sin(k1 * u));
-        float3 n = float3(cos(k1 * u) * cos(u), cos(k1 * u) * sin(u), sin(k1 * u));
-        float3 t = normalize(float3(-sin(u), cos(u), r1 * k1 * cos(k1 * u) * 0.02) + 1e-4);
-        float3 b = cross(t, n);
-        return p0 + r2 * (n * cos(k2 * u) + b * sin(k2 * u));
+        float r1 = 0.15 + U.roll2 * 0.05;
+        float k1 = 6.0 + floor(U.roll1 * 4.0);          // 6-9 wraps: smooth at 72 samples
+        return float3((R + r1 * cos(k1 * u)) * cos(u),
+                      (R + r1 * cos(k1 * u)) * sin(u),
+                      r1 * sin(k1 * u));
     }
     // TORUS KNOT (p,q) — coprime pairs by the roll
     float P = U.roll2 < 0.5 ? 2.0 : 3.0;
@@ -793,9 +805,9 @@ fragment float4 room_filament(float4 pos [[position]],
     for (int s = 0; s < 3; s++) {
         float fs = float(s);
         float2 prev = float2(0.0);
-        for (int i = 0; i <= 60; i++) {
-            float aT = float(i) / 60.0;
-            float u = aT * TAU_N * (face < 0.5 ? 1.0 : 1.0);
+        for (int i = 0; i <= 72; i++) {
+            float aT = float(i) / 72.0;
+            float u = aT * TAU_N;
             float3 w3 = filPoint_n(u, fs, face, U);
             float2 q = proj3_n(w3, U.time * 1.2);
             if (i > 0) {
@@ -803,13 +815,15 @@ fragment float4 room_filament(float4 pos [[position]],
                 float amp = band_n(spectrum, int(aT * 63.0));
                 float head = fract(aT - flow - fs * 0.31);
                 float pulse = exp(-head * head * 260.0) + exp(-(1.0 - head) * (1.0 - head) * 260.0);
-                float glow = 0.20 + amp * 1.1 + pulse * (0.7 + U.onsetEnv * 0.9) + U.energy * 0.25;
+                // the second winding, as light: the microcoil's shimmer
+                float micro = face < 0.5 ? 0.75 + 0.25 * sin(u * 52.0 + U.time * 2.0) : 1.0;
+                float glow = (0.24 + amp * 1.1 + pulse * (0.7 + U.onsetEnv * 0.9) + U.energy * 0.25) * micro;
                 float3 ink = chordRamp_n(U, fract(aT * 1.6 + fs * 0.37 + U.treble * 0.5));
                 // the bad lens: red's disc runs long, blue's runs out sooner
-                float sR = exp(-d * d * 22000.0 * (1.0 - k) * (1.0 - k));
-                float sG = exp(-d * d * 22000.0);
-                float sB = exp(-d * d * 22000.0 * (1.0 + k) * (1.0 + k));
-                col += float3(ink.r * sR, ink.g * sG, ink.b * sB) * glow * 0.5;
+                float sR = exp(-d * d * 15000.0 * (1.0 - k) * (1.0 - k));
+                float sG = exp(-d * d * 15000.0);
+                float sB = exp(-d * d * 15000.0 * (1.0 + k) * (1.0 + k));
+                col += float3(ink.r * sR, ink.g * sG, ink.b * sB) * glow * 0.55;
                 col += float3(1.0) * sG * sG * clamp(glow - 0.9, 0.0, 1.2) * 0.35;
             }
             prev = q;
