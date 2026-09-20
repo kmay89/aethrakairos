@@ -46,8 +46,9 @@ enum Rooms {
     /// The first six are wave 1; the next eight are wave 2 (Shaders2/Shaders3);
     /// then eight wave 3 (Shaders4/Shaders5); four wave 4 (Shaders6); and the
     /// next four wave 5 (Shaders7); then twelve wave 6, the chaos wing
-    /// (Shaders8/Shaders9); the last seven are wave 7, the counting wing
-    /// (Shaders10) — the house stands at forty-nine. Every
+    /// (Shaders8/Shaders9); seven wave 7, the counting wing (Shaders10);
+    /// and the last eleven are wave 8, the founding wing (Shaders11) —
+    /// the house stands at sixty, 1:1 with the web roster. Every
     /// fragment function is trusted to exist at link time — one target, one
     /// default library, so a room registered here whose function is missing
     /// simply parks the renderer in the void (configure() bails), never a
@@ -72,7 +73,8 @@ enum Rooms {
              tasteEntropy: 1.0, heavy: true),
         Room(key: "pyro", name: "FIREWORKS", fragmentFunction: "room_pyro",
              tasteEnergy: 1.5, tasteCalm: 0, tasteBeat: 2.0, tasteTreble: 0),
-        Room(key: "oilfilm", name: "OIL FILM", fragmentFunction: "room_oilfilm",
+        // key matches the web roster ("oilslick") — the parity law's 1:1 contract
+        Room(key: "oilslick", name: "OIL FILM", fragmentFunction: "room_oilfilm",
              tasteEnergy: 0, tasteCalm: 1.2, tasteBeat: 0, tasteTreble: 0,
              tasteEntropy: 0.8, calm: true),
         Room(key: "mandala", name: "MANDALA", fragmentFunction: "room_mandala",
@@ -197,6 +199,40 @@ enum Rooms {
         Room(key: "sandpile", name: "SANDPILE", fragmentFunction: "room_sandpile",
              tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.4, tasteTreble: 0,
              tasteBass: 0.8, tasteEntropy: 0.5),
+
+        // ---- wave 8: the founding wing ----
+        // The web player's eleven earliest scenes, retold in Metal
+        // (Shaders11) — the parity law's debt paid: from here the two
+        // rosters are 1:1 by key, sixty rooms on both stages, and every
+        // future wave ships web and Metal together (CONTRIBUTING.md).
+        Room(key: "helix", name: "π–e HELIX", fragmentFunction: "room_helix",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0, tasteTreble: 1.5, tasteBass: 1.5),
+        Room(key: "band", name: "MÖBIUS BAND", fragmentFunction: "room_band",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 1.5, tasteEntropy: -1.0),
+        Room(key: "ribbons", name: "RIBBONS", fragmentFunction: "room_ribbons",
+             tasteEnergy: 0, tasteCalm: 1.2, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: 1.5, calm: true),
+        Room(key: "comets", name: "COMETS", fragmentFunction: "room_comets",
+             tasteEnergy: 1.5, tasteCalm: 0, tasteBeat: 1.2, tasteTreble: 0),
+        Room(key: "fern", name: "FERN", fragmentFunction: "room_fern",
+             tasteEnergy: 0, tasteCalm: 1.6, tasteBeat: -0.8, tasteTreble: 0, calm: true),
+        Room(key: "flame", name: "FLAME", fragmentFunction: "room_flame",
+             tasteEnergy: 0, tasteCalm: 1.3, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: -0.4, calm: true),
+        Room(key: "sheets", name: "CUBE SHEETS", fragmentFunction: "room_sheets",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.4, tasteTreble: 0,
+             tasteBass: 1.0, tasteEntropy: -0.5),
+        Room(key: "bubbles", name: "BUBBLES", fragmentFunction: "room_bubbles",
+             tasteEnergy: -0.6, tasteCalm: 1.1, tasteBeat: 0, tasteTreble: 0.7, calm: true),
+        Room(key: "drift", name: "DRIFT", fragmentFunction: "room_drift",
+             tasteEnergy: -0.8, tasteCalm: 1.4, tasteBeat: -0.5, tasteTreble: 0, calm: true),
+        Room(key: "filament", name: "FILAMENT", fragmentFunction: "room_filament",
+             tasteEnergy: 1.1, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.6,
+             tasteMid: 0.5, heavy: true),
+        Room(key: "soapfilm", name: "SOAP FILM", fragmentFunction: "room_soapfilm",
+             tasteEnergy: 0, tasteCalm: 1.2, tasteBeat: -0.4, tasteTreble: 0,
+             tasteEntropy: 0.8, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

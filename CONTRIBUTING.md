@@ -51,6 +51,41 @@ With this on, `main` can only change through a PR you have reviewed and approved
 `.github/CODEOWNERS` assigns the whole repository to **@kmay89**, so every pull
 request automatically requests your review.
 
+## The parity law — every room ships twice
+
+The house has two stages: the web player (`docs/index.html`, THREE.js scenes)
+and the Apple TV app (`tvos/`, Metal fragment rooms). They are one product,
+and their rosters stay **1 : 1 by key** — same rooms, same keys, same count,
+always.
+
+- **A new scene is not done until both stages have it.** A wave that adds
+  rooms lands as two PRs — web first (screenshot-iterated), then the Metal
+  retelling in the same wave — and the second PR is not optional follow-up
+  work; the wave is open until it merges. Never grow one roster without
+  growing the other.
+- **Keys are the contract.** `SCENE_KEYS` in `docs/index.html` and
+  `Rooms.all[*].key` in `tvos/AethraKairosTV/Visualizer/Rooms.swift` must be
+  the same set (order may differ; the director deals by taste, not index).
+  A room's key never differs between stages.
+- **The counts that face people follow the roster**: the web manual, the
+  tvOS welcome card ("N LIGHT SHOWS"), `tvos/README.md`'s roster table, and
+  the scene-count assertions in `tests/player.test.mjs` all move together in
+  the same wave.
+- **Where the platforms differ, the mathematics does not.** The web room may
+  keep CPU state (particles, piles, growing flowers); the Metal twin retells
+  it closed-form from the clock, the uniforms and the spectrum — but it is
+  the same idea, the same faces, the same appetite (taste vector), and it
+  answers the same features of the music.
+
+Checking parity is one line per side:
+
+```bash
+# web: the roster the tests pin
+node -e "const m=require('fs').readFileSync('docs/index.html','utf8').match(/SCENE_KEYS = \[[^\]]+\]/)[0]; console.log(m)"
+# tvos: the roster the renderer builds
+grep -o 'key: "[a-z]*"' tvos/AethraKairosTV/Visualizer/Rooms.swift
+```
+
 ## Languages — one file per tongue
 
 The player speaks many languages, and every one of them is a single JSON
