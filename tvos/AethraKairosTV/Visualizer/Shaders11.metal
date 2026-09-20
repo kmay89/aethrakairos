@@ -346,9 +346,10 @@ fragment float4 room_fern(float4 pos [[position]],
     p.y += 0.78;                                    // root the plant near the floor
     // the sway: bass leans the whole plant, more the higher you look
     float swayA = sin(U.time * 0.6 + U.roll2 * TAU_N) * (0.02 + U.bass * 0.06);
-    float grow = clamp(0.25 + U.act * 0.22 + U.time * 0.004, 0.0, 1.0);
+    float grow = clamp(0.55 + U.act * 0.12 + U.time * 0.003, 0.0, 1.0);
     float3 col = float3(0.0);
-    // the stem: a gentle exponential lean, drawn as connected segments
+    // the stem: a gentle exponential lean, growing WITH its pinnae — a
+    // bare mast above the fronds is a flagpole, not a plant
     float lean = (U.roll0 - 0.5) * 0.5;
     float2 prevS = float2(0.0);
     float2 stemAt[19];
@@ -356,7 +357,7 @@ fragment float4 room_fern(float4 pos [[position]],
         float v = float(i) / 18.0;
         float2 s2 = float2(lean * v * v * 0.9 + swayA * v * v * 1.4, v * 1.5);
         stemAt[i] = s2;
-        if (i > 0) {
+        if (i > 0 && v <= grow + 0.04) {
             float d = segd_n(p, prevS, s2);
             float wdt = 0.006 * (1.0 - v * 0.75);
             col += chordRamp_n(U, 0.05 + v * 0.25) * exp(-d * d / max(wdt * wdt, 1e-8)) * 0.55;
@@ -371,12 +372,11 @@ fragment float4 room_fern(float4 pos [[position]],
         if (v > grow) break;                        // the plant is still arriving
         int si = int(v * 18.0);
         float2 base2 = mix(stemAt[si], stemAt[min(si + 1, 18)], fract(v * 18.0));
-        // pinna direction: outward, drooping more near the base, swaying
-        float droop = 0.55 - v * 0.75;
-        float pang = side * (1.25 - v * 0.35) + droop * 0.3
+        // pinna direction: up and OUT — steeper near the crown, flatter at
+        // the base, the way a real frond opens — swaying with the stem
+        float pang = (0.62 + v * 0.55)                       // angle up from horizontal
                    + swayA * (1.5 + v * 2.0) + sin(U.time * 0.8 + fk) * 0.02 * (1.0 + U.bass);
-        float2 dir = float2(sin(pang), cos(pang) * 0.35 + 0.10);
-        dir = normalize(float2(dir.x, dir.y * 0.6 + droop * -0.2 + 0.25));
+        float2 dir = normalize(float2(cos(pang) * side, sin(pang) * 0.55));
         float plen = 0.42 * pow(max(sin((1.0 - v) * PI_N * 0.62 + 0.35), 0.05), 0.9) * (0.8 + 0.2 * hash11_n(fk));
         // local frame along the pinna
         float2 rel = p - base2;
@@ -850,7 +850,9 @@ fragment float4 room_soapfilm(float4 pos [[position]],
     float hTop = max(6.0, top0 * (1.0 - drainT * 0.8));
     float hBot = max(240.0, bot0 * (1.0 - drainT * 0.35));
     float depth = uv.y;                                        // 0 at the top of the frame
-    float base = mix(hTop, hBot, pow(depth, 1.45));
+    // the crown PLUNGES to the black film — a hole in the light, not a
+    // smudge: the top of a draining film really has almost nothing left
+    float base = mix(hTop * smoothstep(-0.02, 0.24, depth), hBot, pow(depth, 1.45));
     // plumes: stretched sideways, advected upward — thin patches rise
     float rise = (0.05 + U.roll1 * 0.09) * (0.6 + U.energy * 0.9 + U.onsetEnv * 0.3);
     float churn = 0.55 + (0.55 * U.treble + 0.60 * U.onsetEnv) * 0.7 + U.mid * 0.3;
@@ -864,9 +866,17 @@ fragment float4 room_soapfilm(float4 pos [[position]],
               + sin(uv.y * 14.0 - U.time * 0.71) * (0.45 + U.mid * 0.5) * 0.02;
     float ci = clamp(0.92 - abs(wob) * 3.0 - length(p) * 0.10, 0.35, 1.0);
     float F = filmFresnel_n(ci);
-    float3 film = filmSpectrum_n(h, ci) * F * 4.0
-                + filmSpectrum_n(h * 1.18 + 40.0, max(ci * 0.72, 0.05)) * F * 1.6;
-    film *= (17.0 + U.roll2 * 9.0) * (0.85 + U.energy * 0.35) * 0.28;
+    /* coherence: past ~a micron the fringes pack tighter than the eye's
+       three channels resolve and the film reads PEARL, not acid — the web
+       gets this for free from its 26-sample CIE integral; the 3-λ port
+       earns it by letting the spectral contrast decay with thickness. */
+    float coh = exp(-h / 850.0);
+    float3 s1 = mix(float3(0.5), filmSpectrum_n(h, ci), coh);
+    float3 s2 = mix(float3(0.5), filmSpectrum_n(h * 1.18 + 40.0, max(ci * 0.72, 0.05)), coh * 0.8);
+    // the black film: below ~60 nm every wavelength cancels at once
+    float dark = smoothstep(90.0, 25.0, h);
+    float3 film = (s1 * F * 4.0 + s2 * F * 1.6) * (1.0 - dark);
+    film *= (17.0 + U.roll2 * 9.0) * (0.85 + U.energy * 0.35) * 0.085;
     // a wandering highlight along the crown
     float spec = pow(max(1.0 - abs(uv.y - 0.18 - wob * 2.0) * 6.0, 0.0), 3.0) * F * 3.0;
     float3 col = film + float3(1.0, 0.98, 0.95) * spec;
