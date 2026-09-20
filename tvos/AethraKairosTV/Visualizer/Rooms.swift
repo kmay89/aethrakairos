@@ -45,8 +45,9 @@ enum Rooms {
     /// Build order is the index space the director and renderer share.
     /// The first six are wave 1; the next eight are wave 2 (Shaders2/Shaders3);
     /// then eight wave 3 (Shaders4/Shaders5); four wave 4 (Shaders6); and the
-    /// next four wave 5 (Shaders7); the last twelve are wave 6, the chaos
-    /// wing (Shaders8/Shaders9) — the house stands at forty-two. Every
+    /// next four wave 5 (Shaders7); then twelve wave 6, the chaos wing
+    /// (Shaders8/Shaders9); the last seven are wave 7, the counting wing
+    /// (Shaders10) — the house stands at forty-nine. Every
     /// fragment function is trusted to exist at link time — one target, one
     /// default library, so a room registered here whose function is missing
     /// simply parks the renderer in the void (configure() bails), never a
@@ -173,6 +174,29 @@ enum Rooms {
              tasteEnergy: 0, tasteCalm: 1.2, tasteBeat: -0.4, tasteTreble: 0.8, calm: true),
         Room(key: "boids", name: "MURMURATION", fragmentFunction: "room_boids",
              tasteEnergy: 0.7, tasteCalm: 0.9, tasteBeat: 0, tasteTreble: 0.5),
+
+        // ---- wave 7: the counting wing ----
+        // The web player's scenes 54–60, retold in Metal (Shaders10) under
+        // the closed-form licence — the house stands at forty-nine. Tastes
+        // mirror the web roster's; JULIA iterates 96 deep and carries the
+        // heavy flag, PHYLLOTAXIS is a room to be lived in.
+        Room(key: "fourier", name: "FOURIER", fragmentFunction: "room_fourier",
+             tasteEnergy: 0.7, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.9, tasteMid: 0.5),
+        Room(key: "fringe", name: "INTERFERENCE", fragmentFunction: "room_fringe",
+             tasteEnergy: 0, tasteCalm: 0.4, tasteBeat: 0.6, tasteTreble: 0, tasteMid: 0.8),
+        Room(key: "julia", name: "JULIA", fragmentFunction: "room_julia",
+             tasteEnergy: 0.9, tasteCalm: 0, tasteBeat: 0.6, tasteTreble: 0,
+             tasteEntropy: 0.7, heavy: true),
+        Room(key: "escher", name: "POINCARÉ", fragmentFunction: "room_escher",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.7, tasteEntropy: -0.5),
+        Room(key: "penrose", name: "QUASICRYSTAL", fragmentFunction: "room_penrose",
+             tasteEnergy: 0, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0.9, tasteMid: 0.4),
+        Room(key: "sunflower", name: "PHYLLOTAXIS", fragmentFunction: "room_sunflower",
+             tasteEnergy: -0.2, tasteCalm: 1.2, tasteBeat: 0.7, tasteTreble: 0, calm: true),
+        Room(key: "sandpile", name: "SANDPILE", fragmentFunction: "room_sandpile",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.4, tasteTreble: 0,
+             tasteBass: 0.8, tasteEntropy: 0.5),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

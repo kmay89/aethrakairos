@@ -52,7 +52,7 @@ complete, no-guessing runbook.
   scheduled against each track's analyzed grid (`mix.in`/`mix.out`), track
   `gain` applied so the night stays level.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds forty-two Metal rooms; beat phase comes from the analyzed grid (the
+  feeds forty-nine Metal rooms; beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
 
@@ -72,6 +72,9 @@ complete, no-guessing runbook.
   | **EVENT HORIZON** — photon geodesics: the shadow, the ring, the beamed disk | **FERROFLUID** — the Rosensweig crown leaping on the kick, glossy black | **GALTON** — beads through pins, the bell curve earned by the count |
   | **PENDULA** — three double pendulums integrated live, fraying apart | **ATTRACTOR** — Lorenz and Rössler as neon ribbons with flowing pulses | **FIREFLIES** — Kuramoto synchrony locking the meadow to the beat |
   | **THREE BODY** — the figure-eight choreography, shaken by the onsets | **DENDRITE** — frost grown over the song's own five acts | **MURMURATION** — a flock as living density, shimmer as turn, a falcon on the drop |
+  | **FOURIER** — an epicycle chain, arm lengths straight off the spectrum | **INTERFERENCE** — two-source fringes crawling at the beat frequency | **JULIA** — z²+c iterated live, c dancing along the Mandelbrot boundary |
+  | **POINCARÉ** — the hyperbolic disc tiled by fold and inversion | **QUASICRYSTAL** — five-to-sevenfold plane waves blooming as rosettes | **PHYLLOTAXIS** — the golden-angle flower, found by inverting the spiral |
+  | **SANDPILE** — the four-ink pile, avalanche fronts running on the onsets | | |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's
