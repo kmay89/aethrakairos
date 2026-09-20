@@ -376,7 +376,24 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         return tex
     }
 
-    private func rebuildTargets(size: CGSize) {
+    /// The ART resolution. Native 4K is 8.3M fragments per pass and the
+    /// heavy raymarchers (ocean, ferrofluid, the black hole) cannot hold
+    /// 60 fps there on the TV's chip — late frames read as tearing. The
+    /// rooms are procedural fields watched from a couch: rendered at 1440p
+    /// (1080p while a heavy room is on stage) and upscaled by the GRADE's
+    /// linear sampler under bloom and grain, the difference is invisible
+    /// and the frame time drops 2-4x. A 1080p TV renders native.
+    private func internalSize(for drawable: CGSize) -> CGSize {
+        let cap: CGFloat = heavyOnStage ? 1080 : 1440
+        guard drawable.height > cap, drawable.height > 0 else { return drawable }
+        let sc = cap / drawable.height
+        return CGSize(width: (drawable.width * sc).rounded(), height: cap)
+    }
+
+    private var heavyOnStage = false
+
+    private func rebuildTargets(size drawable: CGSize) {
+        let size = internalSize(for: drawable)
         guard let device, size.width >= 1, size.height >= 1 else { return }
         let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
                                                             width: Int(size.width),
@@ -558,7 +575,16 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
         let size = view.drawableSize
         guard size.width >= 1, size.height >= 1 else { return }
-        if texA == nil || texA?.width != Int(size.width) || texA?.height != Int(size.height) {
+        // Heavy rooms drop the art resolution a step; the switch happens on
+        // room entry (rare), so the reallocation never runs per-frame.
+        let liveHeavy = Rooms.all.indices.contains(director.currentIndex)
+            && Rooms.all[director.currentIndex].heavy
+        let ghostHeavy = transitionProgress < 1
+            && Rooms.all.indices.contains(outgoingIndex)
+            && Rooms.all[outgoingIndex].heavy
+        heavyOnStage = liveHeavy || ghostHeavy
+        let want = internalSize(for: size)
+        if texA == nil || texA?.width != Int(want.width) || texA?.height != Int(want.height) {
             rebuildTargets(size: size)
         }
         guard let liveTex = texA, let compTex = texC else { return }
@@ -705,9 +731,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         guard roomPipelines.indices.contains(current) else { return }
         encodeRoom(index: current, into: liveTex, commandBuffer: commandBuffer, uniforms: &u)
 
-        // -- pass 2 (handover only): the departing room into texB, wearing
-        //    its OWN (outgoing) dice so it keeps the face it entered with --
-        var ghostTex: MTLTexture = liveTex
+        // -- pass 2 + 3 (handover only): the departing room into texB, then
+        //    the XFORM composite (live + ghost) into texC. At rest both are
+        //    SKIPPED — every composite form is the live frame at t = 1, so
+        //    the GRADE reads the room directly and a full-screen pass per
+        //    frame is simply not spent. --
+        var sceneForGrade: MTLTexture = liveTex
         if transitionProgress < 1,
            let tb = texB,
            outgoingIndex != current,
@@ -717,24 +746,21 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             ug.roll1 = outgoingRolls.y
             ug.roll2 = outgoingRolls.z
             encodeRoom(index: outgoingIndex, into: tb, commandBuffer: commandBuffer, uniforms: &ug)
-            ghostTex = tb
+            let mode = min(max(currentXformMode, 0), xformPipelines.count - 1)
+            encodeComposite(pipeline: xformPipelines[mode], into: compTex,
+                            commandBuffer: commandBuffer, uniforms: &u,
+                            tex0: liveTex, tex1: tb)
+            sceneForGrade = compTex
         }
 
-        // -- pass 3: the XFORM composite (live + ghost) into texC --
-        let mode = min(max(currentXformMode, 0), xformPipelines.count - 1)
-        encodeComposite(pipeline: xformPipelines[mode], into: compTex,
-                        commandBuffer: commandBuffer, uniforms: &u,
-                        tex0: liveTex, tex1: ghostTex)
-
-        // -- pass 3.5 (lens only): bend the composite through lens_pass into
+        // -- pass 3.5 (lens only): bend the scene through lens_pass into
         //    lensTex. Skipped entirely when the lens is off, so the GRADE reads
-        //    the composite directly — the exact proven wave-2 flow. lens_pass
+        //    the scene directly — the exact proven wave-2 flow. lens_pass
         //    reads only texture(0); tex1 is bound to the same source, ignored. --
-        var sceneForGrade: MTLTexture = compTex
         if lensEngage, let lensPipeline, let lt = lensTex {
             encodeComposite(pipeline: lensPipeline, into: lt,
                             commandBuffer: commandBuffer, uniforms: &u,
-                            tex0: compTex, tex1: compTex)
+                            tex0: sceneForGrade, tex1: sceneForGrade)
             sceneForGrade = lt
         }
 
