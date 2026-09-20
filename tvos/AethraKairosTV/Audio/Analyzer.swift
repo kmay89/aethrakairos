@@ -111,6 +111,9 @@ final class Analyzer {
     private var clockPlayhead: Double = 0
     private var clockRate: Double = 1
     private var clockSetAt: Double = 0
+    // The audio output path's delay (HDMI, speakers): an onset detected at
+    // render time t is HEARD at t + this. Written by the Player's poll.
+    private var clockOutLat: Double = 0
 
     init() {
         window = Self.alloc(Self.fftN)
@@ -196,8 +199,13 @@ final class Analyzer {
            flux and onsets run at web cadence inside the coarse tap. */
         let hop = 1024
         let dtHop = Double(hop) / sr
+        // The tap's timestamp marks the FIRST frame of the buffer; the hops
+        // analyse content up to their own end, so each hop's moment is the
+        // buffer END minus how far the hop sits before it. Stamping from the
+        // start had every onset ~a buffer early — a flash before the kick.
+        let tEnd = t + Double(n) / sr
         while nextFFTAt <= monoIdx {
-            let tHop = t - Double(monoIdx - nextFFTAt) / sr
+            let tHop = tEnd - Double(monoIdx - nextFFTAt) / sr
             processHop(setup: setup, endIdx: nextFFTAt, t: tHop, dt: dtHop)
             nextFFTAt += hop
         }
@@ -355,6 +363,15 @@ final class Analyzer {
         stateLock.unlock()
     }
 
+    /// The output path's latency, for aligning onset VISUALS to the audible
+    /// moment. The beat clock needs no such call — the Player already feeds
+    /// setClock a latency-compensated playhead.
+    func setOutputLatency(_ seconds: Double) {
+        stateLock.lock()
+        clockOutLat = min(max(seconds, 0), 1)
+        stateLock.unlock()
+    }
+
     // MARK: - Snapshot (render thread)
 
     /// Thread-safe snapshot for the render loop. Phases and the onset envelope
@@ -375,13 +392,17 @@ final class Analyzer {
         let cValid = clockValid
         let cBpm = clockBpm, cGrid = clockGrid, cPhrases = clockPhrases
         let cPlayhead = clockPlayhead, cRate = clockRate, cSetAt = clockSetAt
+        let outLat = clockOutLat
         for b in 0..<Self.specBands { spectrum[b] = pubSpec[b] }
         for i in 0..<Self.waveN { waveform[i] = pubWave[i] }
         stateLock.unlock()
 
-        // Snap-and-decay: 1 at the onset instant, e-fold 0.25 s.
-        let onsetEnv: Float = onsetAt > 0
-            ? Float(exp(-max(0, now - onsetAt) / 0.25))
+        // Snap-and-decay: 1 at the AUDIBLE instant (render time + output
+        // latency), e-fold 0.25 s. Before the sound reaches the ear the
+        // envelope is 0 — the flash lands ON the kick, never ahead of it.
+        let hearAt = onsetAt + outLat
+        let onsetEnv: Float = (onsetAt > 0 && now >= hearAt)
+            ? Float(exp(-(now - hearAt) / 0.25))
             : 0
 
         var beats = 0.0
@@ -399,7 +420,7 @@ final class Analyzer {
             bpmOut = Float(cBpm * cRate)
         } else if onsetAt > 0 {
             let spb = 60.0 / Double(max(fluxBpm, 30))
-            beats = beatBase + (now - onsetAt) / spb
+            beats = beatBase + (now - hearAt) / spb
             haveBeats = true
         }
 
