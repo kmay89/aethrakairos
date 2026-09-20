@@ -133,15 +133,24 @@ jobs:
           mkdir -p shots
           xcrun simctl io "$UDID" screenshot shots/01-launch-welcome.png
           echo "The welcome should show BEGIN carrying its focus ring (ice outline, lifted)."
+          # Live rooms, via the CI camera hooks: -introSeen YES skips the
+          # welcome (read natively by @AppStorage), --field starts with the
+          # shelves down, --start-room opens on a named room. Two frames:
+          # the signature spiral and the SCOPE trace.
+          for ROOM in spiral scope; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room "$ROOM"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-$ROOM.png"
+          done
 
       # The artifact store is unreachable from some review environments, so
       # the frame also travels inside the log: an ice-ring pixel count (the
       # focus ring's color is nowhere else on the welcome) and a base64 JPEG
       # any reader of this log can decode back into the picture.
-      - name: Report the frame into the log
+      - name: Report the frames into the log
         run: |
-          sips -Z 720 shots/01-launch-welcome.png --out shots/small.jpg \
-            -s format jpeg -s formatOptions 55 >/dev/null
           pip3 install --quiet pillow 2>/dev/null || pip3 install --quiet --break-system-packages pillow 2>/dev/null || true
           python3 - << 'EOF' || echo "pixel scan unavailable"
           from PIL import Image
@@ -157,9 +166,14 @@ jobs:
           print(f"ICE-RING PIXELS (1/4 sampled): {ice}  ({w}x{h})")
           print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
           EOF
-          echo "== BEGIN BASE64 JPEG (welcome frame) =="
-          base64 -i shots/small.jpg | fold -w 300
-          echo "== END BASE64 JPEG =="
+          for PNG in shots/*.png; do
+            NAME="$(basename "$PNG" .png)"
+            sips -Z 640 "$PNG" --out "shots/$NAME.jpg" \
+              -s format jpeg -s formatOptions 50 >/dev/null
+            echo "== BEGIN BASE64 JPEG ($NAME) =="
+            base64 -i "shots/$NAME.jpg" | fold -w 300
+            echo "== END BASE64 JPEG ($NAME) =="
+          done
 
       - uses: actions/upload-artifact@v4
         with:

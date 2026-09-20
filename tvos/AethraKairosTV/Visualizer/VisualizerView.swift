@@ -209,6 +209,15 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             // Reduce Motion opens in PULSE — the calm meter, found by key
             director = Director(startAt: Rooms.pulseIndex)
         }
+        // CI's camera: `--start-room <key>` opens on a named room, so the
+        // simulator smoke job can photograph any of the 42 without a remote
+        // in hand. It wins over every other opening choice, on purpose —
+        // the camera must see the room it asked for.
+        let args = ProcessInfo.processInfo.arguments
+        if let flag = args.firstIndex(of: "--start-room"), flag + 1 < args.count,
+           let idx = Rooms.all.firstIndex(where: { $0.key == args[flag + 1] }) {
+            director = Director(startAt: idx)
+        }
         outgoingIndex = director.currentIndex
         currentRolls = Self.freshRolls()
         outgoingRolls = currentRolls
@@ -751,7 +760,22 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
         for i in 0..<256 { waveScratch[i] = 0 }
         let waveCount = min(256, frame.waveform.count)
-        for i in 0..<waveCount { waveScratch[i] = frame.waveform[i] }
+        if waveCount > 4 {
+            // A real scope smooths for DISPLAY: 6 ms of raw samples is full of
+            // audio-rate staircase no phosphor would ever show. A 5-tap Hann
+            // window takes the jaggies out of every room's trace at zero GPU
+            // cost while a true transient still lands as a spike.
+            for i in 0..<waveCount {
+                let a = frame.waveform[max(i - 2, 0)]
+                let b = frame.waveform[max(i - 1, 0)]
+                let c = frame.waveform[i]
+                let d = frame.waveform[min(i + 1, waveCount - 1)]
+                let e = frame.waveform[min(i + 2, waveCount - 1)]
+                waveScratch[i] = a * 0.10 + b * 0.24 + c * 0.32 + d * 0.24 + e * 0.10
+            }
+        } else {
+            for i in 0..<waveCount { waveScratch[i] = frame.waveform[i] }
+        }
 
         let region = MTLRegionMake2D(0, 0, 256, 1)
         let rowBytes = 256 * MemoryLayout<Float>.stride
