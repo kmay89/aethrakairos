@@ -74,9 +74,22 @@ inline float lumaOf(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 // intact, never a hard white clip. Additive enthusiasm becomes
 // colour, not a strobe.
 inline float3 govern(float3 c, float white) {
-    float L = lumaOf(c);
-    float cap = 0.70 + 1.6 * clamp(white, 0.0, 1.0);   // 0.78 (verse) .. 2.17 (drop)
-    return (L > cap && L > 1e-4) ? c * (cap / L) : c;
+    /* INK, the web's law: the MAX CHANNEL rolls off on a soft knee and the
+       whole triple is rescaled by that one factor, so hue and saturation
+       survive any drive level. Light alone can no longer reach white —
+       white must be SPENT, and `white` is the budget it is spent from
+       (an 18x core at the floor, 2.2x at an earned apex). */
+    float m = max(c.x, max(c.y, c.z));
+    const float K = 0.68;
+    if (m <= K) return c;
+    float m2 = 1.0 - (1.0 - K) * (1.0 - K) / (m - 2.0 * K + 1.0);
+    float3 o = c * (m2 / m);
+    float w = clamp(white, 0.0, 1.0);
+    if (w <= 0.0) return o;
+    float wp = 18.0 + (2.2 - 18.0) * w;
+    float t = clamp((m - 1.0) / max(wp - 1.0, 1e-4), 0.0, 1.0);
+    t = t * t * (3.0 - 2.0 * t) * w;
+    return mix(o, float3(m2), t);
 }
 
 // value-noise ladder: sin-dot hash -> bilinear value noise -> 4-octave fbm
