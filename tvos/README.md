@@ -51,6 +51,12 @@ complete, no-guessing runbook.
 - **Beat-aware transitions** — two decks on one `AVAudioEngine`, crossfades
   scheduled against each track's analyzed grid (`mix.in`/`mix.out`), track
   `gain` applied so the night stays level.
+- **Lit by the music, not themed** — the web player's colour engine, whole:
+  the track's key maps around the Camelot wheel to a root hue, its character
+  picks one of six chords spelled in just-intonation intervals (spectrum only
+  when it's earned), every blend glides through OKLCH so nothing passes
+  through mud, the story arc warms and cools the whole chord as one rotation,
+  and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
   feeds forty-nine Metal rooms; beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the

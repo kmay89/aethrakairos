@@ -54,46 +54,195 @@ enum Palette {
         }
     }
 
-    // MARK: - the chord
+    // MARK: - the plan (the web's colorPlan, ported whole)
 
-    /// The three-stop colour chord for a track. Root hue from its key — the
-    /// ice axis (~197°) when keyless, so the room boots in brand colour, not
-    /// gray. The scheme follows the music's character: SPECTRUM only when
-    /// entropy > 0.80 AND energy > 0.62 — rainbows must be earned; a rainbow
-    /// over a calm track says nothing about the track. Driving energy earns
-    /// the complement — the TRITONE at 177.1°, not 180: diabolus in musica,
-    /// and the eye cannot say why it is uneasy. Everything else reads as
-    /// analogous neighbours ±26°. Minor keys sit darker (L 0.55) than major
-    /// (0.63); arousal buys chroma, 0.11–0.14.
-    static func chord(for track: Track?) -> (a: SIMD3<Float>, b: SIMD3<Float>, c: SIMD3<Float>) {
-        let key = track?.mix?.key
-        let root: Double
-        let minor: Bool
-        if let h = camelotHue(key) {
-            root = h
-            minor = camelotParse(key)?.major == false
-        } else {
-            root = 197                                   // the ice axis — #6ee7ff's neighbourhood
-            minor = false
+    /// One OKLCH stop — the space every blend happens in.
+    struct Stop: Equatable {
+        var l: Double
+        var c: Double
+        var h: Double
+    }
+
+    /// The designer's decision for a track, pure: scheme, keyed-ness and the
+    /// three stops (identity / harmony / accent), still in OKLCH so the
+    /// renderer can GLIDE between plans through colour instead of mud.
+    struct Plan: Equatable {
+        var scheme: String
+        var keyed: Bool
+        var minor: Bool
+        var stops: [Stop]      // [a, b, c]
+    }
+
+    static func lClamp(_ l: Double) -> Double { return min(0.95, max(0.22, l)) }
+
+    /// MOZART's angles: a pitch ratio lands on the wheel at 360·frac(log2 r) —
+    /// the log-map that makes octaves identities makes intervals ANGLES.
+    static func intervalHue(_ num: Double, _ den: Double) -> Double {
+        let f = log2(num / den)
+        return norm360((f - floor(f)) * 360)
+    }
+
+    /// The golden gate: a swell peaking at φ of the phrase, so the light's
+    /// biggest breath lands on the golden section.
+    static func goldenGate(_ frac: Double) -> Double {
+        let d = (frac.truncatingRemainder(dividingBy: 1) + 1)
+            .truncatingRemainder(dividingBy: 1) - 0.618033988749895
+        return exp(-(d * d) / (2 * 0.055 * 0.055))
+    }
+
+    /// CHARACTER → CHORD, six readings ordered from the rarest inward.
+    /// SPECTRUM stays deliberately the rarest — it takes material that has
+    /// genuinely come apart, high entropy AND high energy together.
+    static func colorScheme(e: Double, ent: Double) -> String {
+        if ent > 0.80 && e > 0.62 { return "spectrum" }   // come apart: the whole wheel
+        if ent > 0.62 { return "triad" }                  // dense: three points of order
+        if ent > 0.45 && e > 0.75 { return "seventh" }    // hot AND arguing with itself
+        if e > 0.55 { return ent <= 0.20 ? "sixth" : "complement" }
+        if ent > 0.35 { return "suspended" }              // quiet, but not settled
+        return "analogous"                                // calm and tonal: neighbours
+    }
+
+    /// The chord a scheme spells, as hue offsets from the root — every one an
+    /// interval the ear already knows. Unkeyed material keeps the classic
+    /// art-school spreads: the intervals have to be earned by knowing the key.
+    /// `lift` marks the accent as the pale bright stop rather than a chromatic
+    /// one; the two-note chords need somewhere to rise to, the wide ones don't.
+    static func schemeChord(scheme: String, minor: Bool, keyed: Bool, r: Double)
+        -> (b: Double, c: Double, lift: Bool) {
+        let third = keyed ? intervalHue(minor ? 6 : 5, minor ? 5 : 4) : 120
+        let fifth = keyed ? intervalHue(3, 2) : 240
+        switch scheme {
+        case "suspended":      // the perfect fourth — hanging, refusing to resolve
+            let s = keyed ? intervalHue(4, 3) : 150
+            return (s, s / 2, true)
+        case "complement":     // the TRITONE, 177.1° and not 180
+            let s = keyed ? intervalHue(45, 32) : 180
+            return (s, s, true)
+        case "sixth":          // open and warm: the sixth, resting on the fifth
+            return (keyed ? intervalHue(minor ? 8 : 5, minor ? 5 : 3) : 210, fifth, false)
+        case "triad", "spectrum":
+            return (third, fifth, false)
+        case "seventh":        // third and minor seventh (the fifth is the web
+                               // gradient's fourth note; three swatches carry three)
+            return (third, keyed ? intervalHue(9, 5) : 300, false)
+        default:               // analogous — the semitone leans
+            let s = keyed ? intervalHue(16, 15) : 24 + r * 12
+            return (s, -s, true)
         }
+    }
+
+    /// THE ARC'S TEMPERATURE — an overture is cold light, an apex hot, a
+    /// resolve cools again — as a pull toward a pole, scaled by the ceiling.
+    static let actWarmthTable: [Double] = [-0.22, 0.0, 0.30, 0.14, -0.30]
+    static func actWarmth(act: Double, heat: Double) -> Double {
+        let i = min(max(Int(act.rounded(.down)), 0), actWarmthTable.count - 1)
+        return actWarmthTable[i] * clamp01(heat)
+    }
+
+    /// How a pull becomes a hue: a partial walk along the SHORTER arc toward
+    /// the amber pole or the cold blue one, capped in DEGREES too — past a
+    /// quarter-turn it stops being a temperature and starts being a key
+    /// change, and the key is not the light's to change.
+    static let warmMaxDeg: Double = 26
+    static func warmTilt(h: Double, pull: Double) -> Double {
+        let w = min(max(pull, -1), 1)
+        let H = norm360(h)
+        if w == 0 { return H }
+        let pole: Double = w > 0 ? 45 : 225
+        let d = ((pole - H + 540).truncatingRemainder(dividingBy: 360)) - 180
+        let move = d * min(0.45, abs(w))
+        return norm360(H + max(-warmMaxDeg, min(warmMaxDeg, move)))
+    }
+
+    /// Shortest signed arc between two hues, for chord rotation and glides.
+    static func shortestArc(from a: Double, to b: Double) -> Double {
+        return ((b - a + 540).truncatingRemainder(dividingBy: 360)) - 180
+    }
+
+    /// Hue-aware lerp: the shortest arc around the wheel, so a glide from
+    /// 350° to 10° passes through red, not the entire rainbow.
+    static func lerp(_ a: Stop, _ b: Stop, _ t: Double) -> Stop {
+        return Stop(l: a.l + (b.l - a.l) * t,
+                    c: a.c + (b.c - a.c) * t,
+                    h: norm360(a.h + shortestArc(from: a.h, to: b.h) * t))
+    }
+
+    /// mulberry32, exactly the web's — the plan's dice must roll the same.
+    static func mulberry(_ seed: UInt32) -> () -> Double {
+        var a = seed
+        return {
+            a = a &+ 0x6D2B79F5
+            var t = (a ^ (a >> 15)) &* (1 | a)
+            t = t &+ ((t ^ (t >> 7)) &* (61 | t)) ^ t
+            return Double((t ^ (t >> 14))) / 4294967296.0
+        }
+    }
+
+    /// A track-stable seed, so the same song always deals the same room.
+    static func seed(for track: Track?, bump: Int) -> UInt32 {
+        let s = track.map { $0.sha256 ?? $0.url.absoluteString } ?? "live"
+        var h: UInt32 = 2166136261
+        for b in s.utf8 { h = (h ^ UInt32(b)) &* 16777619 }
+        return h &+ UInt32(truncatingIfNeeded: bump)
+    }
+
+    /// colorPlan, the web's designer's decision, pure. Root hue from the key;
+    /// unkeyed material derives one from its own brightness and entropy (and
+    /// the seed) instead of being handed gray; timbre tilts the root a little
+    /// (bright material leans warm); arousal buys chroma in OKLCH's vivid
+    /// range 0.14–0.46 — RADIANT, not pastel, the gamut mapper walks it down
+    /// safely where sRGB can't follow. A track with no features at all still
+    /// boots in the ice axis, brand colour and not gray.
+    static func plan(for track: Track?, seedBump: Int = 0) -> Plan {
+        let rng = mulberry(seed(for: track, bump: seedBump))
+        let key = track?.mix?.key
         let e = clamp01(track?.features?.energy ?? 0)
         let ent = clamp01(track?.features?.entropy ?? 0)
-        let l0 = minor ? 0.55 : 0.63
-        let c0 = 0.11 + 0.03 * e
-
-        let hues: (Double, Double, Double)
-        if ent > 0.80 && e > 0.62 {
-            hues = (root, root + 120, root + 240)        // spectrum — earned, the whole wheel
-        } else if e > 0.62 {
-            hues = (root, root + 177.1, root + 26)       // complement — the tritone drives
+        let br = clamp01(track?.features?.brightness ?? 0.4)
+        let act = 0.5                                    // the live arc breathes later
+        var rootH: Double
+        let keyed: Bool
+        var minor = false
+        if let h = camelotHue(key) {
+            rootH = h
+            keyed = true
+            minor = camelotParse(key)?.major == false
+        } else if track?.features != nil {
+            rootH = (br * 320 + ent * 160 + rng() * 40).truncatingRemainder(dividingBy: 360)
+            keyed = false
         } else {
-            hues = (root - 26, root, root + 26)          // analogous — calm and tonal
+            rootH = 197                                  // the ice axis — boot in brand colour
+            keyed = false
         }
-        // the harmony sits a touch higher and the accent higher still, so the
-        // chord reads as depth on screen instead of three flat swatches
-        let a = oklchToRGB(l: l0, c: c0, h: norm360(hues.0))
-        let b = oklchToRGB(l: min(0.95, l0 + 0.04), c: c0 * 0.9, h: norm360(hues.1))
-        let c = oklchToRGB(l: min(0.95, l0 + 0.12), c: c0 * 0.85, h: norm360(hues.2))
+        // timbre tilts the root a little: bright material leans warm
+        rootH = norm360(rootH + (br - 0.35) * 26)
+        let scheme = colorScheme(e: e, ent: ent)
+        let base = scheme == "spectrum" ? "triad" : scheme
+        // arousal → chroma; mode → lightness + temperature
+        let c0 = 0.14 + e * 0.20 + act * 0.12
+        let l0 = lClamp((minor ? 0.50 : 0.56) + e * 0.08 + act * 0.05 - ent * 0.05)
+        let H = norm360(rootH + (minor ? 14 : -6))
+        let ch = schemeChord(scheme: base, minor: minor, keyed: keyed, r: rng())
+        let a = Stop(l: l0, c: c0, h: H)
+        let b = Stop(l: lClamp(l0 + (base == "analogous" ? 0.06 : 0.04)),
+                     c: c0 * 0.9, h: norm360(H + ch.b))
+        // even the bright accent carries real hue — a near-white accent is
+        // what reads as "washed out" the moment particles stack additively
+        let c = ch.lift
+            ? Stop(l: 0.85, c: 0.08 + e * 0.06, h: norm360(H + ch.c))
+            : Stop(l: lClamp(l0 + 0.16), c: c0 * 0.85, h: norm360(H + ch.c))
+        return Plan(scheme: scheme, keyed: keyed, minor: minor, stops: [a, b, c])
+    }
+
+    // MARK: - the chord (compatibility: the plan, converted once)
+
+    /// The three-swatch RGB chord — the HUD and the stage packet read this;
+    /// the renderer glides the plan's OKLCH stops itself.
+    static func chord(for track: Track?) -> (a: SIMD3<Float>, b: SIMD3<Float>, c: SIMD3<Float>) {
+        let p = plan(for: track)
+        let a = oklchToRGB(l: p.stops[0].l, c: p.stops[0].c, h: p.stops[0].h)
+        let b = oklchToRGB(l: p.stops[1].l, c: p.stops[1].c, h: p.stops[1].h)
+        let c = oklchToRGB(l: p.stops[2].l, c: p.stops[2].c, h: p.stops[2].h)
         return (a, b, c)
     }
 

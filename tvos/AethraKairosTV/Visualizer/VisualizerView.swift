@@ -162,6 +162,26 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var whiteEased: Double = 0.05
     private static let actHeatTable: [Double] = [0.15, 0.45, 1.0, 0.65, 0.25]
 
+    // THE COLOUR ENGINE's live state — the web's COLOR object, retold.
+    // The plan is dealt per track; the glide walks the OLD stops to the new
+    // ones through OKLCH over eight beats (a lighting cue, not a fade); the
+    // arc's warmth rotates the whole chord as ONE angle so the intervals
+    // survive; and the flash governor rate-limits each swatch's luminance
+    // at the very end (WCAG 2.3.1, enforced not reviewed).
+    private var palPlan: Palette.Plan?
+    private var palFrom: [Palette.Stop] = []
+    private var palTarget: [Palette.Stop] = []
+    private var palNow: [Palette.Stop] = []
+    private var palGlideT: Double = 1
+    private var palGlideDur: Double = 6
+    private var lastPalId: String = "\u{0}unset"
+    private var palReplanT: Double = 0
+    private var palSeedBump: Int = 0
+    private var warmEased: Double = 0
+    private var safeLuma: [Double?] = [nil, nil, nil]
+    private static let safeRate = 0.9, safeRedRate = 0.5           // rel-luma per second
+    private static let safeCalmRate = 0.45, safeCalmRedRate = 0.3
+
     // the handover
     private var transitionProgress: Double = 1.0     // >= 1 means at rest
     private var transitionDuration: Double = 0.9
@@ -485,6 +505,48 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         return t[i0] + (t[i1] - t[i0]) * f
     }
 
+    // MARK: the colour engine's moving parts
+
+    /// Deal the plan for a track and aim the glide at it: eight beats on the
+    /// measured grid reads as a lighting cue, not a fade. The first plan of a
+    /// session snaps — there is nothing on stage yet to glide from.
+    private func retargetPalette(_ track: Track?) {
+        let plan = Palette.plan(for: track, seedBump: palSeedBump)
+        palPlan = plan
+        palTarget = plan.stops
+        if palNow.count == plan.stops.count {
+            palFrom = palNow
+            palGlideT = 0
+            let bpm = track?.mix?.bpm ?? 0
+            palGlideDur = bpm > 0 ? (60 / bpm) * 8 : 6
+        } else {
+            palFrom = plan.stops
+            palNow = plan.stops
+            palGlideT = 1
+        }
+    }
+
+    /// The flash governor's last hand: each swatch's LUMINANCE may move no
+    /// faster than the rate (saturated red at nearly half speed — the worst
+    /// hazard); the hue always arrives instantly. WCAG 2.3.1 enforced at the
+    /// one choke point every room's colour passes through.
+    private func safeColorStep(_ rgbs: [SIMD3<Float>], dt: Double, calm: Bool) -> [SIMD3<Float>] {
+        let rate = calm ? Self.safeCalmRate : Self.safeRate
+        let redRate = calm ? Self.safeCalmRedRate : Self.safeRedRate
+        return rgbs.enumerated().map { (i, rgb) in
+            let target = Double(0.2126 * rgb.x + 0.7152 * rgb.y + 0.0722 * rgb.z)
+            let prev = (i < safeLuma.count ? safeLuma[i] : nil) ?? target
+            let gb = Double(max(rgb.y, rgb.z))
+            let redFrac = min(max((Double(rgb.x) - gb) / max(Double(rgb.x), 1e-4), 0), 1)
+            let r = rate + (redRate - rate) * redFrac
+            let d = target - prev
+            let allowed = abs(d) <= r * dt ? target : prev + (d < 0 ? -r * dt : r * dt)
+            if i < safeLuma.count { safeLuma[i] = allowed }
+            if target < 1e-5 { return SIMD3<Float>(0, 0, 0) }
+            return rgb * Float(allowed / target)
+        }
+    }
+
     // MARK: the ghost
 
     /// One of four choreographies, dealt per room entry, in the same centered
@@ -599,10 +661,9 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         director.autoOn = VizSettings.shared.autoRooms
         let calmNow = reduceMotion || VizSettings.shared.calm
 
-        // -- the ears and the chord --
+        // -- the ears --
         var frame = player.analyzer.currentFrame()
         if Self.driveDemo { Self.synthesizeDrive(&frame, t: now) }
-        let chord = Palette.chord(for: player.current)
 
         // -- the 60 fps ease (see the disp* fields): punch up, grace down --
         Self.ease(&dispBass, toward: frame.bass, dt: dt)
@@ -625,10 +686,64 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let ceil = structure?.ceiling(at: prog) ?? 1.0
         actEased += (Double(actTarget) - actEased) * (1 - exp(-dt / 3.0))
         let heatGoal = min(actHeat(actEased), ceil + 0.05)
-        var whiteTarget = 0.05 + heatGoal * 0.87
-        if calmNow { whiteTarget = min(whiteTarget, 0.42) }     // the calm tier tightens the ceiling
-        whiteEased += (whiteTarget - whiteEased) * (1 - exp(-dt / 2.5))
+
+        /* THE WHITE BUDGET, the web's law verbatim: it takes BOTH a hot
+           section and a hot moment (heat times energy, then squared, so the
+           top of the range stays narrow — full white stays rare enough that
+           it still means something), CALM never bleaches the field, it opens
+           slowly and closes slower, and the beat channel rides the result. */
+        let wHeat = min(max(heatGoal, 0), 1) * min(max(ceil, 0), 1)
+        var wWant = min(max(wHeat * (0.30 + 0.70 * Double(frame.energy)), 0), 1)
+        wWant *= wWant
+        if calmNow { wWant *= 0.45 }
+        let whiteTarget = 0.05 + (0.92 - 0.05) * wWant
+        let wTau = whiteTarget > whiteEased ? 0.9 : 1.8
+        whiteEased += (whiteTarget - whiteEased) * (1 - exp(-dt / wTau))
         whiteEased = min(max(whiteEased, 0.05), 0.92)
+        let whiteLive = min(max(whiteEased * (0.8 + 0.35 * Double(frame.onsetEnv)), 0.05), 0.92)
+
+        /* THE COLOUR ENGINE, live. Deal a plan per track and GLIDE to it
+           through OKLCH over eight beats on the measured grid; unkeyed
+           material drifts to a fresh plan every 24 s. Then the breath: the
+           act's heat buys chroma, the golden gate swells it at φ of every
+           phrase, the arc's temperature turns the WHOLE chord by one angle
+           (so the intervals — the entire design — survive), and the flash
+           governor is the last hand on the light. */
+        let palId = player.current?.id ?? "none"
+        if palId != lastPalId {
+            lastPalId = palId
+            palSeedBump = 0
+            palReplanT = 0
+            retargetPalette(player.current)
+        }
+        palReplanT += dt
+        if let p = palPlan, !p.keyed, palReplanT > 24 {
+            palReplanT = 0
+            palSeedBump += 1
+            retargetPalette(player.current)
+        }
+        if palGlideT < 1 {
+            palGlideT = min(1, palGlideT + dt / max(0.5, palGlideDur))
+            let k = palGlideT * palGlideT * (3 - 2 * palGlideT)
+            palNow = zip(palFrom, palTarget).map { Palette.lerp($0, $1, k) }
+        }
+        let golden = player.isPlaying ? Palette.goldenGate(Double(frame.phrasePhase)) : 0
+        let mulC = 0.88 + heatGoal * 0.45 + golden * 0.22
+        let mulL = 0.97 + heatGoal * 0.05
+        let goalWarm = Palette.actWarmth(act: actEased, heat: ceil)
+        warmEased += (goalWarm - warmEased) * (1 - exp(-dt / 3.0))
+        var lit = palNow
+        if abs(warmEased) > 0.005, let root = lit.first {
+            let d = Palette.shortestArc(from: root.h, to: Palette.warmTilt(h: root.h, pull: warmEased))
+            if abs(d) > 0.05 {
+                lit = lit.map { Palette.Stop(l: $0.l, c: $0.c, h: ($0.h + d + 360).truncatingRemainder(dividingBy: 360)) }
+            }
+        }
+        var chordRGB = lit.map {
+            Palette.oklchToRGB(l: Palette.lClamp($0.l * mulL), c: max(0, $0.c * mulC), h: $0.h)
+        }
+        while chordRGB.count < 3 { chordRGB.append(Palette.ice) }
+        chordRGB = safeColorStep(chordRGB, dt: dt, calm: calmNow)
 
         // -- the director --
         let before = director.currentIndex
@@ -709,12 +824,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         u.aspect = Float(size.width / size.height)
         u.transition = transitionProgress >= 1 ? 1 : Float(transitionProgress)
         u.xformMode = Float(currentXformMode)
-        u.colA = SIMD4<Float>(chord.a.x, chord.a.y, chord.a.z, 1)
-        u.colB = SIMD4<Float>(chord.b.x, chord.b.y, chord.b.z, 1)
-        u.colC = SIMD4<Float>(chord.c.x, chord.c.y, chord.c.z, 1)
+        u.colA = SIMD4<Float>(chordRGB[0].x, chordRGB[0].y, chordRGB[0].z, 1)
+        u.colB = SIMD4<Float>(chordRGB[1].x, chordRGB[1].y, chordRGB[1].z, 1)
+        u.colC = SIMD4<Float>(chordRGB[2].x, chordRGB[2].y, chordRGB[2].z, 1)
         u.act = Float(actEased)
         u.phrasePhase = frame.phrasePhase
-        u.white = Float(whiteEased)
+        u.white = Float(whiteLive)
         u.ghostX = ghost.0
         u.ghostY = ghost.1
         u.ghostStrength = Float(ghostStrength)
