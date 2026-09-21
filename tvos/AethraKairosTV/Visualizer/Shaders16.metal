@@ -138,8 +138,8 @@ fragment float4 room_orrery(float4 pos [[position]],
             float2 q = float2((p.x + a * e) / a, p.y / b);
             float ring = abs(length(q) - 1.0);
             float band = spectrum.read(uint2(uint(2 + i * 7), 0)).r;
-            col += chordRamp_t(U, 0.30 + fi * 0.055) * exp(-ring * (90.0 - 30.0 * min(fi, 1.0)))
-                 * (0.05 + band * (mode == 2 ? 0.55 : 0.25));
+            col += chordRamp_t(U, 0.30 + fi * 0.055) * exp(-ring * (70.0 - 25.0 * min(fi, 1.0)))
+                 * (0.12 + band * (mode == 2 ? 0.70 : 0.45));
         }
         // the trail hugs the path, fading with angular lag; then the planet
         {
@@ -149,7 +149,7 @@ fragment float4 room_orrery(float4 pos [[position]],
             float Enow = atan2(q.y, q.x);
             float Epl = atan2(posP.y, posP.x + a * e);
             float lag = fmod(Epl - Enow + TAU_T, TAU_T);
-            col += chordRamp_t(U, 0.16 + fi * 0.075) * onPath * exp(-lag * 1.35) * (0.35 + U.energy * 0.3);
+            col += chordRamp_t(U, 0.16 + fi * 0.075) * onPath * exp(-lag * 1.35) * (0.45 + U.energy * 0.3);
             float d = length(p - posP);
             float sz = 0.016 + 0.006 * fmod(fi, 3.0);
             col += chordRamp_t(U, 0.14 + fi * 0.075) * exp(-d * d / (sz * sz)) * (0.85 + U.onsetEnv * 0.3);
@@ -516,7 +516,7 @@ fragment float4 room_eclipse(float4 pos [[position]],
     // the shaped transit: compressed near the middle, so totality lingers
     float u01 = fract(U.time * 0.011 + varA);
     float sgn = u01 < 0.5 ? -1.0 : 1.0;
-    float t = sgn * pow(abs(2.0 * u01 - 1.0), 1.7) * 1.5;
+    float t = sgn * pow(abs(2.0 * u01 - 1.0), 2.3) * 1.5;
     float2 mpos = float2(t, t * 0.18);
     if (U.ghostStrength > 0.05) mpos += (ghostUp_t(U) - mpos) * min(U.ghostStrength * 0.5, 0.55);
     float sep = length(mpos);
@@ -536,7 +536,7 @@ fragment float4 room_eclipse(float4 pos [[position]],
             float dm = length(q - mpos / rs);              // the same sky, in leaf-gap units
             float sun = smoothstep(1.05, 0.9, ds);
             float bite = smoothstep(0.9, 1.05, dm / (rm / rs));
-            col += chordRamp_t(U, 0.10) * sun * bite * (0.34 + U.energy * 0.18) * skyLight;
+            col += chordRamp_t(U, 0.04) * sun * bite * (0.34 + U.energy * 0.18) * skyLight;
         }
         float bands = smoothstep(0.7, 0.97, frac) * (1.0 - total);
         col *= 1.0 + bands * 0.20 * sin(p.x * 26.0 + p.y * 8.0 + U.time * 2.2) * (0.3 + U.mid * 0.7);
