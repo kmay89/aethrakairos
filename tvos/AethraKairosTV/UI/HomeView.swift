@@ -187,7 +187,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 30) {
                 introRow("∞", "NONSTOP MUSIC",
                          "Original songs that blend into each other — like a DJ who never takes a break.")
-                introRow("✦", "90 LIGHT SHOWS",
+                introRow("✦", "95 LIGHT SHOWS",
                          "Oceans, lightning, fireflies, and more — the picture dances along with the music.")
                 introRow("◈", "PICK A MOOD",
                          "Working out, dinner, focus, or bedtime — one click plays music that fits.")

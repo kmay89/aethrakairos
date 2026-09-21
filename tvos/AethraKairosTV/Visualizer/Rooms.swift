@@ -350,6 +350,27 @@ enum Rooms {
         Room(key: "babel", name: "BABEL", fragmentFunction: "room_babel",
              tasteEnergy: 0, tasteCalm: 0.9, tasteBeat: 0, tasteTreble: 0,
              tasteBass: 0.5, tasteEntropy: 0.5, calm: true),
+
+        // ---- wave 15: the icons ----
+        // The images everyone half-knows, done honestly (Shaders18): glyph
+        // rain hiding a raymarched form, the real continents bit by bit,
+        // Navier-Stokes only where it surrenders exactly, hydrogen's true
+        // wavefunctions, and B-DNA to the letter — ninety-five, both stages.
+        Room(key: "rain", name: "RAIN", fragmentFunction: "room_rain",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.7, tasteTreble: 0.8,
+             tasteEntropy: 0.4, heavy: true),
+        Room(key: "terra", name: "TERRA", fragmentFunction: "room_terra",
+             tasteEnergy: 0, tasteCalm: 0.9, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.6, heavy: true, calm: true),
+        Room(key: "stokes", name: "NAVIER–STOKES", fragmentFunction: "room_stokes",
+             tasteEnergy: 0.8, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.6, tasteEntropy: 0.5),
+        Room(key: "orbitals", name: "ORBITALS", fragmentFunction: "room_orbitals",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.6, tasteEntropy: -0.3, heavy: true, calm: true),
+        Room(key: "dna", name: "DNA", fragmentFunction: "room_dna",
+             tasteEnergy: 0, tasteCalm: 0.7, tasteBeat: 0.4, tasteTreble: 0,
+             tasteMid: 0.5, heavy: true, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

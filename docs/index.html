@@ -3431,6 +3431,23 @@ body.clipping::after{
     family's zigzag. And <b>BABEL</b> falls forever down Borges' hexagonal air shaft, gallery
     under gallery, shelf-light breathing with the spectrum, one glowing book falling past —
     THE INDEX flips a wall of pages, still looking for the catalogue of catalogues.</p>
+    <h3>The icons</h3>
+    <p class="lede">Scenes 91–95 are the images everyone half-knows, done honestly. <b>RAIN</b> is
+    the falling-character weather with a secret: behind the glyphs a form — a tumbling cube, a
+    torus — is raymarched for real and shown only as which drops glow; the sculpture is made of
+    rain, and every column falls at the speed of its own band. <b>TERRA</b> is the blue marble
+    with REAL continents — a 64×32 landmask packed bit by bit into the shader — and the music's
+    weather: cloud decks on their own wind, the terminator swinging with the story arc, city
+    lights on the dark land, lightning cells flashing on the onsets, aurora on the treble.
+    <b>NAVIER–STOKES</b> shows the million-dollar equation only where it surrenders exactly:
+    Taylor–Green's lattice dying its honest viscous death (e<sup>−2νt</sup>, re-stirred by a
+    heavy beat), Lamb–Oseen's vortex spreading as √t, Kelvin–Helmholtz growing on the linear
+    theory's schedule — the dye is back-advected along the exact fields. <b>ORBITALS</b> marches
+    hydrogen's true wavefunctions as glowing volumes — the lobes wear the chord's two colours by
+    the honest sign of ψ, the nodes cannot be faked, and every onset is a photon at the Balmer
+    lines' true wavelengths. And <b>DNA</b> winds B-DNA honestly — 10.5 pairs to the turn, the
+    grooves at their true unequal angles — with a transcription bubble walking the bars and a
+    codon wheel spelled in the house's own letters.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4064,7 +4081,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'grows', 'flows', 'gathers', 'blackhole',
                'flows', 'flows', 'gathers', 'grows', 'flows',
                'gathers', 'blackhole', 'grows', 'flows', 'blackhole',
-               'gathers', 'flows', 'flows', 'grows', 'blackhole'];   // …the lattice and the film ripple, the
+               'gathers', 'flows', 'flows', 'grows', 'blackhole',
+               'flows', 'grows', 'grows', 'gathers', 'grows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4088,7 +4106,9 @@ function touchAffinity(sceneIdx, act, r, mood){
                            // plate, and at the ECLIPSE it is the moon — the void that fits;
                            // the TELEGRAPH's key pulls, wind takes the SEMAPHORE's flags
                            // and the SCRIBE's page, a hand SPINS the cipher wheel, and
-                           // BABEL's air shaft is a void with a banister
+                           // BABEL's air shaft is a void with a banister; the RAIN
+                           // ripples, a hand SPINS the TERRA and STIRS the STOKES and
+                           // TWISTS the DNA, and near the ORBITALS probability gathers
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -4354,7 +4374,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'snake', 'lissa', 'drift', 'paint', 'lissa',
                'drift', 'paint', 'lissa', 'lissa', 'drift',
                'lissa', 'drift', 'snake', 'paint', 'drift',
-               'bounce', 'snake', 'paint', 'lissa', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
+               'bounce', 'snake', 'paint', 'lissa', 'drift',
+               'snake', 'drift', 'lissa', 'paint', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5563,7 +5584,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'ulam', 'cardioid', 'collatz', 'mediant', 'zeta',
                     'karman', 'caustics', 'hopf', 'knots', 'benard',
                     'orrery', 'lensing', 'pulsar', 'analemma', 'eclipse',
-                    'telegraph', 'semaphore', 'scribe', 'cipher', 'babel'];
+                    'telegraph', 'semaphore', 'scribe', 'cipher', 'babel',
+                    'rain', 'terra', 'stokes', 'orbitals', 'dna'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5710,6 +5732,11 @@ const SCENE_TASTE = {
   scribe:    { calm: 1.1, mid: 0.5, beat: -0.2 },           // a steady hand
   cipher:    { entropy: 0.8, mid: 0.6, beat: 0.5 },         // secrecy loves entropy
   babel:     { calm: 0.9, entropy: 0.5, bass: 0.5 },        // endless, low, patient
+  rain:      { treble: 0.8, beat: 0.7, entropy: 0.4 },      // weather made of characters
+  terra:     { calm: 0.9, bass: 0.6, coupling: 0.5 },       // the planet turns patiently
+  stokes:    { energy: 0.8, bass: 0.6, entropy: 0.5 },      // turbulence wants turbulence
+  orbitals:  { calm: 0.8, mid: 0.6, coupling: 0.7, entropy: -0.3 },  // a held chord is a bound state
+  dna:       { calm: 0.7, mid: 0.5, beat: 0.4 },            // the code reads at its own pace
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6911,6 +6938,11 @@ const SCENE_SIGS = {
   scribe:    { kind: 'wave',   h: 35,  twist: 1 },
   cipher:    { kind: 'ring',   h: 280, arms: 6 },
   babel:     { kind: 'grid',   h: 230, dense: 0.9 },
+  rain:      { kind: 'grid',   h: 120, dense: 1 },
+  terra:     { kind: 'blob',   h: 205, dense: 0.8 },
+  stokes:    { kind: 'wave',   h: 190, twist: 1 },
+  orbitals:  { kind: 'blob',   h: 270, arms: 2 },
+  dna:       { kind: 'spiral', h: 150, twist: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -44948,6 +44980,905 @@ function buildBabel(){
   return api;
 }
 
+/* =========================================================
+   SCENE 91 · RAIN — the characters that dream in shapes
+
+   Falling glyphs are computing's folk art: the screen as
+   weather. Here every column falls at the speed of its own
+   band of the live spectrum, every character is the house's
+   real 5×7 alphabet — and behind the rain a FORM exists only
+   as brightness: a slowly tumbling cube or torus, raymarched
+   honestly and shown to you purely as which raindrops glow.
+   The sculpture is made of weather.
+   ========================================================= */
+function buildRain(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeRn:{ value: 0 },
+    uFall2: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeRn, uVarA, uAspect, uFall2;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    vec2 glyphBits(float li){
+      if (li < 0.5) return vec2(1033774.0, 17969.0);
+      else if (li < 1.5) return vec2(1001022.0, 31281.0);
+      else if (li < 2.5) return vec2(541230.0, 14896.0);
+      else if (li < 3.5) return vec2(575068.0, 29265.0);
+      else if (li < 4.5) return vec2(999967.0, 32272.0);
+      else if (li < 5.5) return vec2(999967.0, 16912.0);
+      else if (li < 6.5) return vec2(770606.0, 15921.0);
+      else if (li < 7.5) return vec2(1033777.0, 17969.0);
+      else if (li < 8.5) return vec2(135310.0, 14468.0);
+      else if (li < 9.5) return vec2(67655.0, 12866.0);
+      else if (li < 10.5) return vec2(807505.0, 18004.0);
+      else if (li < 11.5) return vec2(541200.0, 32272.0);
+      else if (li < 12.5) return vec2(710513.0, 17969.0);
+      else if (li < 13.5) return vec2(644913.0, 17969.0);
+      else if (li < 14.5) return vec2(575022.0, 14897.0);
+      else if (li < 15.5) return vec2(1001022.0, 16912.0);
+      else if (li < 16.5) return vec2(575022.0, 13909.0);
+      else if (li < 17.5) return vec2(1001022.0, 18004.0);
+      else if (li < 18.5) return vec2(475663.0, 30753.0);
+      else if (li < 19.5) return vec2(135327.0, 4228.0);
+      else if (li < 20.5) return vec2(575025.0, 14897.0);
+      else if (li < 21.5) return vec2(575025.0, 4433.0);
+      else if (li < 22.5) return vec2(706097.0, 10933.0);
+      else if (li < 23.5) return vec2(141873.0, 17962.0);
+      else if (li < 24.5) return vec2(141873.0, 4228.0);
+      else return vec2(133183.0, 32264.0);
+    }
+    float glyphPx(float li, vec2 uv){
+      if (uv.x < 0.0 || uv.x >= 1.0 || uv.y < 0.0 || uv.y >= 1.0) return 0.0;
+      float u = floor(uv.x * 5.0);
+      float v = floor(uv.y * 7.0);
+      vec2 ab = glyphBits(li);
+      float rowBits = v < 3.5 ? mod(floor(ab.x / pow(32.0, v)), 32.0)
+                              : mod(floor(ab.y / pow(32.0, v - 4.0)), 32.0);
+      return mod(floor(rowBits / pow(2.0, 4.0 - u)), 2.0);
+    }
+    // the hidden form, honestly raymarched — a rounded cube or a torus
+    float sdf(vec3 q, float kind){
+      if (kind < 0.5){
+        vec3 d = abs(q) - vec3(0.52);
+        return length(max(d, 0.0)) + min(max(d.x, max(d.y, d.z)), 0.0) - 0.10;
+      }
+      vec2 t = vec2(length(q.xz) - 0.55, q.y);
+      return length(t) - 0.24;
+    }
+    float shade(vec2 sp, float kind){
+      // tumble slowly; a beat kicks the spin a hair
+      float a = uTime * 0.21 + uVarA * 6.28, b = uTime * 0.13;
+      float ca = cos(a), sa = sin(a), cb = cos(b), sb = sin(b);
+      vec3 ro = vec3(sp * 1.35, -2.4);
+      vec3 rd = normalize(vec3(sp * 0.22, 1.0));
+      float t = 0.8;
+      for (int i = 0; i < 22; i++){
+        vec3 q = ro + rd * t;
+        q.xz = mat2(ca, -sa, sa, ca) * q.xz;
+        q.yz = mat2(cb, -sb, sb, cb) * q.yz;
+        float d = sdf(q, kind);
+        if (d < 0.004 || t > 4.0) break;
+        t += d * 0.9;
+      }
+      if (t > 4.0) return 0.0;
+      // a cheap honest normal by central differences in the rotated frame
+      vec3 q = ro + rd * t;
+      q.xz = mat2(ca, -sa, sa, ca) * q.xz;
+      q.yz = mat2(cb, -sb, sb, cb) * q.yz;
+      vec2 e = vec2(0.012, 0.0);
+      vec3 n = normalize(vec3(
+        sdf(q + e.xyy, kind) - sdf(q - e.xyy, kind),
+        sdf(q + e.yxy, kind) - sdf(q - e.yxy, kind),
+        sdf(q + e.yyx, kind) - sdf(q - e.yyx, kind)));
+      float lam = max(dot(n, normalize(vec3(-0.5, 0.8, -0.45))), 0.0);
+      return 0.18 + lam * 0.9;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += vec2(0.0, sin(dh.x * 8.0)) * (uHand.z * 0.05 / (dot(dh, dh) + 0.3)); // the rain ripples
+      }
+      float cols = 46.0, rows = 26.0;
+      vec2 cell = vec2(floor(vUv.x * cols), floor(vUv.y * rows));
+      vec2 cuv = vec2(fract(vUv.x * cols), 1.0 - fract(vUv.y * rows));
+      float band = texture2D(uAudio, vec2(cell.x / cols * 0.55 + 0.02, 0.5)).r;
+      // the column's fall: its own band sets the speed, its own seed the phase
+      float sp = 0.25 + band * 1.9 + hash21(vec2(cell.x, uVarA * 9.0)) * 0.35;
+      float head = fract(hash21(vec2(cell.x, 3.3)) * 7.0 - uFall2 * sp * 0.16);
+      float lag = mod(head - (1.0 - vUv.y), 1.0);
+      float trail = exp(-lag * (7.0 - uEnergy * 2.5));
+      float isHead = step(lag, 1.2 / rows);
+      // the letter flickers on its own clock
+      float li = floor(hash21(cell + floor(uFall2 * (2.0 + hash21(cell) * 4.0))) * 26.0);
+      float px = glyphPx(li, cuv * vec2(1.0, 1.0) / vec2(0.78, 0.86) - vec2(0.11, 0.06));
+      float o = uModeRn > 1.5 ? 0.0 : shade(p * (1.0 + uBass * 0.04), uModeRn);
+      vec3 col = vec3(0.0);
+      // the rain itself, in the chord's cool half…
+      col += ramp(0.52 + hash21(cell + 7.0) * 0.14) * px * trail * (uModeRn > 1.5 ? 0.55 : 0.30);
+      // …the head, hot…
+      col += ramp(0.85) * px * isHead * (0.7 + uBeat * 0.5);
+      // …and the FORM, spoken only through which drops glow
+      col += ramp(0.10) * px * o * (0.85 + uBeat * 0.25);
+      col += ramp(0.16) * px * o * o * 0.5;
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE CUBE',  m: 0 },
+    { name: 'THE TORUS', m: 1 },
+    { name: 'PURE RAIN', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'RAIN', key: 'rain', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      varU.uFall2.value += dt * (0.8 + (f.energy || 0) * 0.8);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeRn.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'RAIN · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 92 · TERRA — the blue marble
+
+   The one photograph everyone owns. The continents here are
+   REAL — a 64×32 landmask packed bit by bit into the shader,
+   the same trick the cipher's alphabet uses — and the weather
+   is the music's: cloud decks drifting on their own wind, the
+   day-night terminator swinging with the story arc (dawn at
+   the overture, noon at the apex), city lights dusting the
+   dark land, lightning cells flashing on the onsets, aurora
+   on the treble. Accurate geography, musical meteorology.
+   ========================================================= */
+function buildTerra(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeTe:{ value: 0 },
+    uSpin:  { value: 0 },
+    uStorm: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity, uAct, uCalm;
+    uniform float uModeTe, uVarA, uAspect, uSpin, uStorm;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vnoise(vec2 q){
+      vec2 i = floor(q), f = fract(q);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    /* THE EARTH, 2048 bits of it: each row of a 64x32 landmask packed as
+       four 16-bit floats — the actual continents, not a noise blob */
+    vec4 landRow(float r){
+      if (r < 0.5) return vec4(0.0, 0.0, 0.0, 0.0);
+      else if (r < 1.5) return vec4(0.0, 480.0, 0.0, 0.0);
+      else if (r < 2.5) return vec4(0.0, 2032.0, 0.0, 28672.0);
+      else if (r < 3.5) return vec4(2047.0, 59376.0, 3103.0, 65520.0);
+      else if (r < 4.5) return vec4(16383.0, 62400.0, 8191.0, 65535.0);
+      else if (r < 5.5) return vec4(4095.0, 63488.0, 16383.0, 65520.0);
+      else if (r < 6.5) return vec4(255.0, 64513.0, 32767.0, 65520.0);
+      else if (r < 7.5) return vec4(63.0, 64512.0, 65535.0, 65472.0);
+      else if (r < 8.5) return vec4(63.0, 61443.0, 8191.0, 65280.0);
+      else if (r < 9.5) return vec4(63.0, 57345.0, 49919.0, 65152.0);
+      else if (r < 10.5) return vec4(31.0, 49155.0, 64767.0, 64512.0);
+      else if (r < 11.5) return vec4(6.0, 16387.0, 64575.0, 63488.0);
+      else if (r < 12.5) return vec4(0.0, 7.0, 65030.0, 61440.0);
+      else if (r < 13.5) return vec4(0.0, 7.0, 65026.0, 24576.0);
+      else if (r < 14.5) return vec4(0.0, 30727.0, 65408.0, 16384.0);
+      else if (r < 15.5) return vec4(0.0, 15872.0, 65280.0, 8192.0);
+      else if (r < 16.5) return vec4(0.0, 16256.0, 15872.0, 3968.0);
+      else if (r < 17.5) return vec4(0.0, 8128.0, 15872.0, 1536.0);
+      else if (r < 18.5) return vec4(0.0, 8064.0, 15872.0, 1984.0);
+      else if (r < 19.5) return vec4(0.0, 8064.0, 15488.0, 4032.0);
+      else if (r < 20.5) return vec4(0.0, 7936.0, 15360.0, 4064.0);
+      else if (r < 21.5) return vec4(0.0, 7680.0, 6144.0, 4064.0);
+      else if (r < 22.5) return vec4(0.0, 6144.0, 0.0, 64.0);
+      else if (r < 23.5) return vec4(0.0, 6144.0, 0.0, 0.0);
+      else if (r < 24.5) return vec4(0.0, 4096.0, 0.0, 0.0);
+      else if (r < 25.5) return vec4(0.0, 0.0, 0.0, 0.0);
+      else if (r < 26.5) return vec4(0.0, 0.0, 0.0, 0.0);
+      else if (r < 27.5) return vec4(0.0, 3072.0, 0.0, 0.0);
+      else if (r < 28.5) return vec4(65535.0, 65535.0, 65535.0, 65535.0);
+      else if (r < 29.5) return vec4(65535.0, 65535.0, 65535.0, 65535.0);
+      else if (r < 30.5) return vec4(65535.0, 65535.0, 65535.0, 65535.0);
+      else return vec4(65535.0, 65535.0, 65535.0, 65535.0);
+    }
+    float landBit(float c, float r){
+      if (r < 0.0 || r > 31.0) return r > 31.0 ? 1.0 : 0.0;
+      vec4 R = landRow(floor(r));
+      float cc = mod(c + 64.0, 64.0);
+      float g = floor(cc / 16.0);
+      float v = g < 0.5 ? R.x : (g < 1.5 ? R.y : (g < 2.5 ? R.z : R.w));
+      return mod(floor(v / pow(2.0, 15.0 - mod(cc, 16.0))), 2.0);
+    }
+    // the coastline, softened: a bilinear read of the four nearest cells
+    float landAt(float lon01, float lat01){
+      float c = lon01 * 64.0 - 0.5, r = lat01 * 32.0 - 0.5;
+      vec2 f = vec2(fract(c), fract(r));
+      float a = landBit(floor(c), floor(r)),      b = landBit(floor(c) + 1.0, floor(r));
+      float d = landBit(floor(c), floor(r) + 1.0), e = landBit(floor(c) + 1.0, floor(r) + 1.0);
+      return mix(mix(a, b, f.x), mix(d, e, f.x), f.y);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      bool night = uModeTe > 0.5 && uModeTe < 1.5;
+      bool storm = uModeTe > 1.5;
+      float R = storm ? 0.86 : 0.62;
+      vec2 c0 = vec2(0.0, storm ? -0.25 : 0.02);
+      if (uHand.z > 0.02){
+        // the spin itself answers the hand through uSpin (see update);
+        // here the eye only leans a little toward the touch
+        p -= (uHand.xy - c0) * uHand.z * 0.03;
+      }
+      vec2 q = p - c0;
+      float rr = length(q);
+      vec3 col = vec3(0.0);
+      // the stars keep their distance
+      vec2 cellS = floor((p + 7.0) * 16.0);
+      if (hash21(cellS) > 0.94 && rr > R){
+        vec2 fr = fract((p + 7.0) * 16.0) - 0.5;
+        col += ramp(0.66) * exp(-dot(fr, fr) * 800.0) * 0.45;
+      }
+      if (rr < R + 0.055){
+        float inside = smoothstep(R + 0.004, R - 0.004, rr);
+        vec3 n = vec3(q / R, 0.0);
+        n.z = sqrt(max(1.0 - dot(n.xy, n.xy), 0.0));
+        // the sun follows the story: dawn at the overture, noon at the apex
+        float sunA = night ? 2.6 : (uAct - 0.45) * 1.9 + 0.15 * sin(uTime * 0.05);
+        vec3 sunDir = normalize(vec3(sin(sunA), 0.20, cos(sunA)));
+        float day = clamp(dot(n, sunDir), 0.0, 1.0);
+        float lat = asin(clamp(n.y, -1.0, 1.0));
+        float lon = atan(n.x, n.z) + uSpin;
+        float lon01 = fract(lon / 6.2831853 + 0.5);
+        float lat01 = 0.5 - lat / 3.14159265;
+        float land = landAt(lon01, lat01);
+        float ice = smoothstep(0.78, 0.86, abs(lat) / 1.5707963);
+        // the sea, the shore, the shine of the sun on the water
+        vec3 sea = ramp(0.60) * (0.035 + day * 0.30) + ramp(0.55) * pow(day, 6.0) * 0.30 * (1.0 - land);
+        vec3 dirt = mix(ramp(0.30), ramp(0.22), vnoise(vec2(lon01 * 22.0, lat01 * 11.0)));
+        vec3 ground = dirt * (0.07 + day * 0.68);
+        vec3 surf = mix(sea, ground, smoothstep(0.35, 0.65, land));
+        // the coastline: a breath of light where the mask crosses its middle
+        float coast = exp(-pow((land - 0.5) * 6.0, 2.0));
+        surf += ramp(0.45) * coast * (0.05 + day * 0.22);
+        surf = mix(surf, ramp(0.88) * (0.12 + day * 0.75), ice);
+        // the weather: two decks of cloud on their own wind
+        float cl = vnoise(vec2(lon01 * 9.0 + uTime * 0.010, lat01 * 5.0)) * 0.65
+                 + vnoise(vec2(lon01 * 21.0 - uTime * 0.016, lat01 * 12.0)) * 0.35;
+        if (storm){
+          // the hurricane: a logarithmic spiral deck, wound by the bass
+          vec2 sc = vec2(fract(lon01 - uStorm * 0.001 + 0.3) - 0.5, lat01 - 0.58) * vec2(2.2, 1.4);
+          float sr = length(sc) + 1e-4;
+          float sa2 = atan(sc.y, sc.x) + log(sr) * (3.2 + uBass * 1.8) - uTime * 0.10;
+          cl = max(cl, smoothstep(0.1, 0.9, sin(sa2 * 2.0) * 0.5 + 0.5) * exp(-sr * 5.5) * 1.4);
+          cl *= 1.0 - exp(-sr * 40.0) * 0.9;               // the honest eye
+        }
+        float cloud = smoothstep(0.52, 0.78, cl);
+        surf *= 1.0 - cloud * 0.35 * day;                   // clouds shade the ground
+        vec3 deck = ramp(0.90) * cloud * (0.06 + day * 0.80);
+        // the dark side: city dust on land, lightning in the storm cells
+        float dark = 1.0 - smoothstep(0.0, 0.12, day);
+        float city = step(0.955, hash21(floor(vec2(lon01 * 190.0, lat01 * 95.0)))) * step(0.5, land);
+        col += ramp(0.12) * city * dark * (1.0 - cloud) * 0.7 * inside;
+        vec2 stormCell = floor(vec2(lon01 * 14.0, lat01 * 7.0));
+        float bolt = step(0.90, hash21(stormCell + floor(uTime * 2.0))) * step(0.55, cloud) * dark;
+        col += ramp(0.95) * bolt * uBeat * inside * 1.4;
+        // aurora over the poles, on the highs
+        float aur = smoothstep(0.68, 0.80, abs(lat) / 1.5707963) * (1.0 - smoothstep(0.80, 0.9, abs(lat) / 1.5707963));
+        col += ramp(0.45) * aur * dark * uTreble * (0.5 + 0.5 * sin(lon * 5.0 + uTime * 1.5)) * 0.5 * inside;
+        col += (surf + deck) * inside;
+        // the atmosphere, a held breath of light at the limb
+        col += ramp(0.55) * exp(-abs(rr - R) * 40.0) * (0.10 + day * 0.25);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE DAY',   m: 0 },
+    { name: 'NIGHTFALL', m: 1 },
+    { name: 'THE STORM', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'TERRA', key: 'terra', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // one rotation in ninety patient seconds; a hand spins it faster
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const swirl = (typeof INTERACT !== 'undefined' ? INTERACT.swirl : 0) || 0;
+      varU.uSpin.value += dt * (0.07 + (f.energy || 0) * 0.03 + force * swirl * 0.25);
+      varU.uStorm.value += dt;
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeTe.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'TERRA · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 93 · NAVIER–STOKES — where the equation surrenders
+
+   Nobody can solve it in general; a million dollars waits on
+   whether its answers even stay smooth. But in a handful of
+   flows the unsolvable equation gives EXACT answers, and this
+   room shows only those: Taylor–Green's vortex lattice dying
+   its honest viscous death (e^{-2νt}, re-stirred by the bass),
+   Lamb–Oseen's single vortex winding dye while its core
+   spreads as √t, and Kelvin–Helmholtz's billows growing on
+   the linear theory's own schedule. The dye is back-advected
+   along the exact fields — streaklines, not sprites.
+   ========================================================= */
+function buildStokes(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeNs:{ value: 0 },
+    uDecay: { value: 0.2 },
+    uWind:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeNs, uVarA, uAspect, uDecay, uWind;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // Taylor–Green: an EXACT solution — this velocity, decayed by e^{-2vt},
+    // satisfies the full nonlinear equations identically
+    vec2 velTG(vec2 q, float A){
+      return vec2(cos(q.x) * sin(q.y), -sin(q.x) * cos(q.y)) * A;
+    }
+    // Lamb–Oseen: the exact single vortex, its core spreading as sqrt(t)
+    vec2 velLO(vec2 q, float core, float G){
+      float r2 = dot(q, q) + 1e-5;
+      float vth = G / r2 * (1.0 - exp(-r2 / max(core, 1e-4)));
+      return vec2(-q.y, q.x) * vth;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        float sw = uHand.z * 0.35 / (dot(dh, dh) + 0.22);
+        p = vec2(p.x - dh.y * sw, p.y + dh.x * sw);          // the hand stirs — of course it stirs
+      }
+      vec3 col = vec3(0.0);
+      float A = exp(-2.0 * uDecay);                          // the honest viscous death
+      if (uModeNs < 0.5){
+        /* TAYLOR–GREEN */
+        vec2 q = p * 2.4 + vec2(uVarA * 6.28);
+        vec2 x = q;
+        for (int s = 0; s < 10; s++) x -= velTG(x, A) * 0.16;   // streaklines: dye walked back
+        // the dye is FILAMENTS on the void — bands of the advected stripes,
+        // never a filled field
+        float dye = sin(x.x) * sin(x.y);
+        float f1 = exp(-pow((dye - 0.55) * 5.0, 2.0));
+        float f2 = exp(-pow((dye + 0.55) * 5.0, 2.0));
+        float f3 = exp(-pow(sin(x.x * 3.0 + 1.3) - 0.8, 2.0) * 30.0);
+        col += ramp(0.30) * f1 * (0.28 + uMid * 0.2);
+        col += ramp(0.48) * f2 * (0.24 + uMid * 0.15);
+        col += ramp(0.62) * f3 * 0.16;
+        // the vortex CORES, glowing softly where the lattice still turns
+        float w = cos(q.x) * cos(q.y) * A;
+        col += ramp(0.12) * pow(max(w, 0.0), 3.0) * (0.5 + uBass * 0.5);
+        col += ramp(0.75) * pow(max(-w, 0.0), 3.0) * (0.5 + uBass * 0.5);
+      } else if (uModeNs < 1.5){
+        /* LAMB–OSEEN */
+        float core = 0.02 + uDecay * 0.22;                   // the core spreads as sqrt(t)
+        float G = 0.16 * (0.6 + uEnergy * 0.7);
+        vec2 x = p;
+        for (int s = 0; s < 12; s++) x -= velLO(x, core, G) * 3.5;   // streaklines wound off radial dye
+        float ang0 = atan(x.y, x.x);
+        float rr = length(p);
+        // four spiral ARMS of dye, wound tighter every second the vortex turns
+        float dye = sin(ang0 * 4.0 + uVarA * 6.28);
+        float arm = exp(-pow((dye - 0.75) * 4.5, 2.0));
+        float arm2 = exp(-pow((dye + 0.75) * 4.5, 2.0));
+        float reach = smoothstep(1.5, 0.25, rr) * smoothstep(0.02, 0.14, rr);
+        col += ramp(0.30) * arm * reach * (0.42 + uMid * 0.2);
+        col += ramp(0.52) * arm2 * reach * 0.30;
+        // the core: the one place the swirl gives way, softly
+        col += ramp(0.08) * exp(-dot(p, p) / max(core, 1e-3)) * (0.30 + uBeat * 0.35);
+        col += ramp(0.60) * exp(-abs(rr - sqrt(core) * 2.2) * 9.0) * 0.14;
+      } else {
+        /* KELVIN–HELMHOLTZ — the linear stage, on its own clock */
+        float k = 4.4;
+        float g = 0.05 + 0.85 * (1.0 - exp(-uDecay * 1.6));  // the mode grows, then saturates
+        float xi = p.x * k - uWind * 1.2;
+        // the interface, displaced by the growing wave…
+        float eta = g * 0.22 * cos(xi);
+        // …and rolled: near the crest the sheet curls into the billow
+        vec2 lp = vec2(p.x, p.y - eta);
+        float roll2 = g * 1.6 * exp(-pow((p.y) * 2.6, 2.0));
+        float ca = cos(roll2 * sin(xi)), sa = sin(roll2 * sin(xi));
+        lp = vec2(lp.x * ca - lp.y * sa, lp.x * sa + lp.y * ca);
+        float side = smoothstep(-0.05, 0.05, lp.y);
+        // the two streams: barely-there veils that thin away from the shear
+        col += mix(ramp(0.18), ramp(0.62), side) * 0.09 * exp(-abs(p.y) * 1.4);
+        col += ramp(0.85) * exp(-abs(lp.y) * (26.0 - g * 14.0)) * (0.35 + uMid * 0.25);
+        // streamwise streaks, sliding opposite ways — the shear made visible
+        float streak = exp(-pow(sin(p.x * 15.0 + (p.y > eta ? uWind * 3.0 : -uWind * 3.0)) - 0.85, 2.0) * 20.0);
+        col += ramp(0.40) * streak * exp(-abs(p.y) * 2.2) * 0.14;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'TAYLOR–GREEN',     m: 0 },
+    { name: 'LAMB–OSEEN',       m: 1 },
+    { name: 'KELVIN–HELMHOLTZ', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'NAVIER–STOKES', key: 'stokes', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // viscosity does its honest work; a heavy beat re-stirs the flow
+      varU.uDecay.value += dt * 0.055;
+      if ((f.beat || 0) > 0.75 && varU.uDecay.value > 0.5) varU.uDecay.value *= 0.45;
+      if (varU.uDecay.value > 2.2) varU.uDecay.value = 0.15;   // a fresh stir when all is still
+      varU.uWind.value += dt * (0.4 + (f.energy || 0) * 0.5);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeNs.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      varU.uDecay.value = 0.15 + Math.random() * 0.6;
+      api.name = 'NAVIER–STOKES · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 94 · ORBITALS — the shapes atoms are made of
+
+   The most reproduced diagrams in science, almost never seen
+   breathing: hydrogen's true wavefunctions, closed form to
+   the last node — Laguerre radials times spherical harmonics,
+   marched as a glowing volume. The story arc climbs the
+   ladder (1s at the overture, d at the apex, f at the turn),
+   the two LOBES wear the chord's two colours by the honest
+   sign of psi, and every onset is a photon: the Balmer lines
+   flare at their true wavelengths through the same CIE eye
+   the dispersion room trusts.
+   ========================================================= */
+function buildOrbitals(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeOb:{ value: 0 },
+    uPick:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + GLSL_CIE + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity, uAct;
+    uniform float uModeOb, uVarA, uAspect, uPick;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    /* one wavefunction, signed: the real hydrogen shapes, unnormalised —
+       the eye normalises, the NODES cannot be faked */
+    float psi(vec3 q, float pick){
+      float r = length(q) + 1e-4;
+      float ct = q.y / r;                                   // cos theta, the y axis up
+      float st2 = sqrt(max(1.0 - ct * ct, 0.0));
+      float ph = atan(q.z, q.x);
+      if (pick < 0.5)      return exp(-r * 2.2);                                        // 1s
+      else if (pick < 1.5) return r * exp(-r * 1.15) * ct;                              // 2pz
+      else if (pick < 2.5) return r * r * exp(-r * 0.85) * (3.0 * ct * ct - 1.0);       // 3dz2
+      else if (pick < 3.5) return r * r * exp(-r * 0.85) * st2 * st2 * sin(2.0 * ph);   // 3dxy
+      else if (pick < 4.5) return r * r * r * exp(-r * 0.66) * st2 * st2 * st2 * cos(3.0 * ph); // 4f
+      return (1.0 - r * 1.1) * exp(-r * 1.1);                                           // 2s
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p -= dh * (uHand.z * 0.18 / (dot(dh, dh) + 0.28));   // probability gathers to a hand
+      }
+      float a = uTime * 0.16 + uVarA * 6.28;
+      float ca = cos(a), sa = sin(a);
+      /* each orbital is a different SIZE, so the eye travels to fit it:
+         the view spans just past where |psi|^2 falls to a hundredth of its
+         peak, and the peak itself (known in closed form) normalises the
+         march — the same cloud density whatever rung the ladder is on */
+      float ext = uPick < 0.5 ? 1.4 : (uPick < 1.5 ? 5.2 : (uPick < 2.5 ? 9.0
+                : (uPick < 3.5 ? 9.0 : (uPick < 4.5 ? 14.5 : 4.8))));
+      float pk = uPick < 0.5 ? 1.0 : (uPick < 1.5 ? 0.104 : (uPick < 2.5 ? 2.26
+               : (uPick < 3.5 ? 0.565 : (uPick < 4.5 ? 22.1 : 1.0))));
+      float accP = 0.0, accM = 0.0, shell = 0.0;
+      for (int i = 0; i < 18; i++){
+        float z = ((float(i) + 0.5) / 18.0 * 2.0 - 1.0) * ext * 0.75;
+        vec3 q = vec3(p * ext * 0.55, z);
+        q.xz = mat2(ca, -sa, sa, ca) * q.xz;
+        float ps = psi(q, uPick);
+        float d = ps * ps / pk;                              // 0..~1 at the true peak
+        if (ps > 0.0) accP += d; else accM += d;
+        shell = max(shell, exp(-abs(ps) / sqrt(pk) * 60.0) * min(d * 40.0, 1.0)); // the nodes, honest
+      }
+      accP *= 0.55; accM *= 0.55;
+      vec3 col = vec3(0.0);
+      /* the textbook look, earned: a luminous SKIN where the integrated
+         density crosses its half, over a quiet inner glow — so the lobes
+         read as SHAPES on the void, not as fog. The two lobes wear the
+         chord's two colours by the honest sign of psi. */
+      float dP = 1.0 - exp(-accP * 1.3);
+      float dM = 1.0 - exp(-accM * 1.3);
+      float skinP = exp(-pow((dP - 0.60) * 5.5, 2.0));
+      float skinM = exp(-pow((dM - 0.60) * 5.5, 2.0));
+      col += ramp(0.12) * (skinP * 0.62 + dP * dP * 0.16) * (0.8 + uMid * 0.2);
+      col += ramp(0.62) * (skinM * 0.62 + dM * dM * 0.16) * (0.8 + uMid * 0.2);
+      col *= 1.0 - shell * 0.35;
+      // the nucleus, a point of certainty
+      col += ramp(0.85) * exp(-dot(p, p) / 0.0004) * 0.9;
+      if (uModeOb > 1.5){
+        /* THE SERIES: on the beat, a photon leaves — the Balmer lines at
+           their true wavelengths, through the CIE eye */
+        for (int L = 0; L < 4; L++){
+          float nm = L == 0 ? 656.3 : (L == 1 ? 486.1 : (L == 2 ? 434.0 : 410.2));
+          float x0 = -uAspect * 0.72 + float(L) * 0.17;
+          float d = abs(p.x - x0);
+          vec3 lc = wavelengthLinearRGB(nm);
+          col += lc * exp(-d * 240.0) * smoothstep(-0.75, -0.2, p.y) * smoothstep(0.9, 0.0, p.y)
+               * (0.12 + uBeat * (L == 0 ? 0.9 : 0.5 - float(L) * 0.09));
+        }
+        // and the escaping photon itself, riding the wavefront out
+        float ring = exp(-abs(length(p) - uBeat * 0.0 - fract(uTime * 0.9) * 1.5) * 10.0);
+        col += wavelengthLinearRGB(656.3) * ring * uBeat * 0.30;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE LADDER',  m: 0 },
+    { name: 'ONE ORBITAL', m: 1 },
+    { name: 'THE SERIES',  m: 2 },
+  ];
+  const st = { mode: MODES[0], held: 0 };
+  const api = {
+    name: 'ORBITALS', key: 'orbitals', group,
+    calm: true, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // THE LADDER climbs with the story: s at the overture, d at the apex,
+      // f through the turn, home to 2s for the resolve
+      if (varU.uModeOb.value === 0){
+        const act = typeof director !== 'undefined' ? director.act : 1;
+        const LADDER = [0, 1, act === 2 && Math.sin(varU.uVarA.value * 9) > 0 ? 3 : 2, 4, 5];
+        varU.uPick.value = LADDER[Math.max(0, Math.min(4, act))];
+      } else {
+        varU.uPick.value = st.held;
+      }
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeOb.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      st.held = Math.floor(Math.random() * 6);
+      api.name = 'ORBITALS · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 95 · DNA — the code that writes its reader
+
+   B-DNA, honestly drawn: 10.5 base pairs to the turn, the
+   major and the minor groove at their true unequal angles
+   (the strands sit 2.27 radians apart, not opposite — that
+   asymmetry is why proteins can read the code from outside).
+   A-T and G-C rungs wear two colours of the chord, the GC
+   share breathes with the music's entropy, and on the
+   TRANSCRIPTION face a bubble walks the helix on the bars,
+   peeling a bright new strand as it goes. THE CODON WHEEL
+   spells the code out in the house's own letters.
+   ========================================================= */
+function buildDna(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeDn:{ value: 0 },
+    uScroll:{ value: 0 },
+    uFork:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity, uEntropy;
+    uniform float uModeDn, uVarA, uAspect, uScroll, uFork;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    vec2 glyphBits(float li){
+      if (li < 0.5) return vec2(1033774.0, 17969.0);        // A
+      else if (li < 1.5) return vec2(541230.0, 14896.0);    // C
+      else if (li < 2.5) return vec2(770606.0, 15921.0);    // G
+      else return vec2(575025.0, 14897.0);                  // U
+    }
+    float glyphPx(float li, vec2 uv){
+      if (uv.x < 0.0 || uv.x >= 1.0 || uv.y < 0.0 || uv.y >= 1.0) return 0.0;
+      float u = floor(uv.x * 5.0);
+      float v = floor(uv.y * 7.0);
+      vec2 ab = glyphBits(li);
+      float rowBits = v < 3.5 ? mod(floor(ab.x / pow(32.0, v)), 32.0)
+                              : mod(floor(ab.y / pow(32.0, v - 4.0)), 32.0);
+      return mod(floor(rowBits / pow(2.0, 4.0 - u)), 2.0);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        float sw = uHand.z * 0.30 / (dot(dh, dh) + 0.22);
+        p = vec2(p.x - dh.y * sw, p.y + dh.x * sw);          // a hand twists the helix
+      }
+      vec3 col = vec3(0.0);
+      bool wheel = uModeDn > 1.5;
+      bool script = uModeDn > 0.5 && uModeDn < 1.5;
+      if (!wheel){
+        /* THE HELIX (and TRANSCRIPTION): 56 base pairs, honestly wound */
+        float RR = 0.30, rise = 0.075, dphi = 6.2831853 / 10.5, off = 2.27;
+        float a = uTime * 0.30;
+        float ca = cos(a), sa = sin(a);
+        float gc = 0.35 + uEntropy * 0.4;                    // the GC share follows the material
+        for (int k = 0; k < 56; k++){
+          float fk = float(k) - 28.0;
+          float bp = floor(uScroll) + fk;
+          float y = fk * rise + fract(uScroll) * -rise;
+          if (abs(y) > 1.25) continue;
+          float ph = bp * dphi;
+          // the bubble: near the fork the strands part company
+          float open2 = script ? exp(-pow((bp - uFork) / 4.5, 2.0)) : 0.0;
+          float R1 = RR * (1.0 + open2 * 0.8), R2 = RR * (1.0 + open2 * 0.8);
+          // strand one and strand two, 2.27 radians apart — the true grooves
+          vec3 s1 = vec3(cos(ph) * R1, y, sin(ph) * R1);
+          vec3 s2 = vec3(cos(ph + off) * R2, y, sin(ph + off) * R2);
+          s1.xz = mat2(ca, -sa, sa, ca) * s1.xz;
+          s2.xz = mat2(ca, -sa, sa, ca) * s2.xz;
+          vec2 P1 = vec2(s1.x, s1.y + s1.z * 0.10);
+          vec2 P2 = vec2(s2.x, s2.y + s2.z * 0.10);
+          float z1 = 0.6 + 0.4 * (s1.z * 0.5 + 0.5);         // nearer is brighter
+          float z2 = 0.6 + 0.4 * (s2.z * 0.5 + 0.5);
+          float d1 = length(p - P1), d2 = length(p - P2);
+          col += ramp(0.34) * exp(-d1 * d1 / 0.00045) * z1 * 0.55;
+          col += ramp(0.40) * exp(-d2 * d2 / 0.00045) * z2 * 0.55;
+          // the rung: A-T in one colour, G-C in the other, split at the middle
+          float isGC = step(hash21(vec2(bp, uVarA * 30.0)), gc);
+          if (open2 < 0.5){
+            vec2 mid = (P1 + P2) * 0.5;
+            float dr1 = segd(p, P1, mid), dr2 = segd(p, mid, P2);
+            vec3 c1 = isGC > 0.5 ? ramp(0.14) : ramp(0.58);
+            vec3 c2 = isGC > 0.5 ? ramp(0.20) : ramp(0.64);
+            float w = (1.0 - open2) * min(z1, z2);
+            float pulse = 1.0 + uBeat * exp(-pow((bp - uFork) / 8.0, 2.0)) * 0.8;
+            col += c1 * exp(-dr1 * dr1 / 0.00012) * 0.5 * w * pulse;
+            col += c2 * exp(-dr2 * dr2 / 0.00012) * 0.5 * w * pulse;
+          } else if (script){
+            // inside the bubble the new strand peels away, bright and young
+            vec2 Pm = vec2(P1.x * 0.4 - 0.22, P1.y + 0.16 + open2 * 0.12);
+            float dm = length(p - Pm);
+            col += ramp(0.85) * exp(-dm * dm / 0.0003) * open2 * 0.8;
+          }
+        }
+        if (script){
+          // the polymerase: the machine at the fork, felt as one bright body
+          float phF = uFork * dphi;
+          vec3 sF = vec3(cos(phF) * RR, (uFork - uScroll) * -rise, sin(phF) * RR);
+          sF.xz = mat2(ca, -sa, sa, ca) * sF.xz;
+          vec2 PF = vec2(sF.x, sF.y + sF.z * 0.10);
+          float dF = length(p - PF);
+          col += ramp(0.08) * exp(-dF * dF / 0.003) * (0.5 + uBeat * 0.4);
+        }
+      } else {
+        /* THE CODON WHEEL: the code spelled in the house's own letters */
+        float r = length(p);
+        float th = atan(p.y, p.x);
+        float codon = floor(mod(uScroll * 0.33, 64.0));
+        float b1 = mod(floor(codon / 16.0), 4.0);
+        float b2 = mod(floor(codon / 4.0), 4.0);
+        float b3 = mod(codon, 4.0);
+        for (int ring = 0; ring < 3; ring++){
+          float fr = float(ring);
+          float N = fr < 0.5 ? 4.0 : (fr < 1.5 ? 16.0 : 64.0);
+          float rad = 0.22 + fr * 0.20;
+          float size = 0.10 - fr * 0.028;
+          float sec = 6.2831853 / N;
+          float k0 = floor(th / sec);
+          for (int dk = -1; dk <= 1; dk++){
+            float k = mod(k0 + float(dk) + N * 2.0, N);
+            float ang = (k + 0.5) * sec;
+            float li = mod(k, 4.0);                     // each ring spells its own base
+            vec2 c = vec2(cos(ang), sin(ang)) * rad;
+            vec2 q = p - c;
+            float rca = cos(-(ang - 1.5707963)), rsa = sin(-(ang - 1.5707963));
+            q = vec2(q.x * rca - q.y * rsa, q.x * rsa + q.y * rca);
+            float g = glyphPx(li, q / size * vec2(1.0, -1.0) / vec2(0.72, 1.0) + vec2(0.5, 0.5));
+            float sel = fr < 0.5 ? step(abs(k - b1), 0.25) : (fr < 1.5 ? step(abs(k - (b1 * 4.0 + b2)), 0.25) : step(abs(k - codon), 0.25));
+            col += (sel > 0.5 ? ramp(0.85) : ramp(0.25 + fr * 0.15)) * g * (sel > 0.5 ? 0.9 + uBeat * 0.4 : 0.30);
+          }
+          col += ramp(0.55) * exp(-abs(r - rad - size * 0.8) * 240.0) * 0.08;
+        }
+        // the spoke of the current codon, and the amino acid it buys
+        float angC = (codon + 0.5) * 6.2831853 / 64.0;
+        float beamd = abs(mod(th - angC + 3.14159, 6.2831853) - 3.14159);
+        col += ramp(0.85) * exp(-beamd * 14.0) * exp(-abs(r - 0.45) * 3.0) * (0.10 + uBeat * 0.4);
+        col += ramp(0.10 + hash21(vec2(codon, 4.4)) * 0.6) * exp(-r * r / 0.005) * 0.7;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE HELIX',     m: 0 },
+    { name: 'TRANSCRIPTION', m: 1 },
+    { name: 'CODON WHEEL',   m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'DNA', key: 'dna', group,
+    calm: true, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the strand scrolls in musical time; the fork walks the bars
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uScroll.value += dt * bps * 0.5;
+      varU.uFork.value = varU.uScroll.value + 6.0 * Math.sin(varU.uScroll.value * 0.05);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeDn.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'DNA · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -44989,7 +45920,8 @@ function initThree(){
               buildUlam(), buildCardioid(), buildCollatz(), buildMediant(), buildZeta(),
               buildKarman(), buildCaustics(), buildHopf(), buildKnots(), buildBenard(),
               buildOrrery(), buildLensing(), buildPulsar(), buildAnalemma(), buildEclipse(),
-              buildTelegraph(), buildSemaphore(), buildScribe(), buildCipher(), buildBabel());
+              buildTelegraph(), buildSemaphore(), buildScribe(), buildCipher(), buildBabel(),
+              buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
