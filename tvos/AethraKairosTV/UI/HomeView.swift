@@ -337,6 +337,9 @@ struct HomeView: View {
                 Toggle(isOn: $viz.autoRooms) {
                     settingLabel("AUTO ROOMS", "Let the director deal the field; off holds the room you last chose.")
                 }
+                Toggle(isOn: $viz.lensAuto) {
+                    settingLabel("LENS", "Let the song put glass over the field at its peaks; off keeps the glass always clean.")
+                }
             }
             .frame(maxWidth: 860)
             Button {

@@ -626,8 +626,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// The auto-picker over the pure rule: it holds a chosen lens ~9 s and
     /// `none` ~3 s so the look never flickers, and returns -1 ALWAYS under
     /// Reduce Motion (calm is clean glass). The engage ramp lives in draw().
-    private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool, ceil: Double) -> Int {
-        if reduceMotion {
+    private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool, ceil: Double, enabled: Bool) -> Int {
+        if reduceMotion || !enabled {
             lensChoice = -1
             lensHold = 0
             return -1
@@ -810,7 +810,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // bypassed to the exact wave-2 tail. --
         let minorNow = (player.current?.mix?.key?.uppercased().hasSuffix("A")) ?? false
         let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(dispEnergy),
-                                  minor: minorNow, ceil: ceil)
+                                  minor: minorNow, ceil: ceil,
+                                  enabled: VizSettings.shared.lensAuto)
         let lensAmtTarget: Double = pickedLens >= 0 ? (0.45 + 0.50 * Double(dispEnergy)) : 0.0
         lensAmt += (lensAmtTarget - lensAmt) * (1 - exp(-dt / 0.6))
         lensAmt = min(max(lensAmt, 0), 1)
