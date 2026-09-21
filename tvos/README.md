@@ -58,7 +58,7 @@ complete, no-guessing runbook.
   through mud, the story arc warms and cools the whole chord as one rotation,
   and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds seventy Metal rooms — one for every scene the web player has, 1:1 by
+  feeds seventy-five Metal rooms — one for every scene the web player has, 1:1 by
   key (the parity law in `CONTRIBUTING.md`); beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
@@ -88,7 +88,8 @@ complete, no-guessing runbook.
   | **LINDENMAYER** — the branching fold, wind in the deepest twigs | **HILBERT** — the plane-filling curve as pipework, music commuting along it | **KOCH** — the coastline paradox: shore, snowflake, antiflake |
   | **DRAGON** — the paper that remembers every fold, evaluated not stored | **CANTOR** — the middle third removed forever: bars, staircase, dust | **TONNETZ** — Euler's map of harmony, lit by real chroma |
   | **HARMONOGRAPH** — two pendulums drawing the just intervals | **OVERTONES** — the monochord: one string, sixteen partials, read at the series' own addresses | **EUCLID** — the world's rhythms as maximally even necklaces |
-  | **PHASE** — Reich's phasing: two clocks, 3% apart, locking on schedule | | |
+  | **PHASE** — Reich's phasing: two clocks, 3% apart, locking on schedule | **ULAM** — the prime spiral, trial division live per pixel | **CARDIOID** — the times table's chords enveloping a heart |
+  | **COLLATZ** — hailstone journeys as curling turtles, falling to 1 | **MEDIANT** — the Stern–Brocot descent, Ford's circles kissing | **ZETA** — the walk along the critical line, holding its breath at zero |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's
