@@ -244,7 +244,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         "lsystem": 1, "hilbert": 3, "koch": 2, "dragon": 3, "cantor": 0, "tonnetz": 2,
         "harmonograph": 3, "overtones": 3, "euclid": 1, "phase": 3, "ulam": 2, "cardioid": 1,
         "collatz": 3, "mediant": 2, "zeta": 0, "karman": 3, "caustics": 3, "hopf": 2,
-        "knots": 1, "benard": 3,
+        "knots": 1, "benard": 3, "orrery": 2, "lensing": 0, "pulsar": 1,
+        "analemma": 3, "eclipse": 0,
     ]
 
     private var specScratch = [Float](repeating: 0, count: 256)
