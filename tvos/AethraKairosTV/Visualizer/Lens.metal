@@ -117,7 +117,7 @@ fragment float4 lens_pass(float4 pos [[position]],
         p.x *= aspect;
         float rad = length(p);
         float ang = atan2(p.y, p.x) + t * 0.12;          // the slow turn
-        float k = 6.0;
+        float k = U.roll2 < 0.5 ? 6.0 : 8.0;             // the dice deal the fold
         float sector = TAU_L / k;
         float a = ang - sector * floor(ang / sector);    // wrap into one sector
         a = fabs(a - sector * 0.5);                       // mirror within it
@@ -166,7 +166,7 @@ fragment float4 lens_pass(float4 pos [[position]],
         float rad = length(pc);
         float aperture = 0.40 + 0.05 * sin(1.4 * t) + 0.30 * energy;
         float v = 1.0 - smoothstep(aperture, aperture + 0.35, rad);  // 1 in, 0 out
-        col = scene.sample(smp, uv).rgb * mix(1.0, v, amt);          // darken only
+        col = scene.sample(smp, uv).rgb * mix(1.0, mix(0.10, 1.0, v), amt);  // darken, never to black
         break;
     }
 
@@ -186,9 +186,12 @@ fragment float4 lens_pass(float4 pos [[position]],
     case 5: {
         float2 pc = uv - 0.5; pc.x *= aspect;
         float f = 46.0 + 8.0 * energy;
-        float da = 0.05 + 0.05 * energy;
-        float g1 = sin(dot(pc, float2(cos(da),  sin(da)))  * f);
-        float g2 = sin(dot(pc, float2(cos(-da), sin(-da))) * f);
+        // both gratings turn together and the second leads by a hair — the
+        // web's crawl, verbatim: a tiny angle delta is a huge moire drift
+        float a1 = t * 0.06;
+        float a2 = a1 + 0.05 + 0.05 * energy;
+        float g1 = sin(dot(pc, float2(cos(a1), sin(a1))) * f);
+        float g2 = sin(dot(pc, float2(cos(a2), sin(a2))) * (f + 4.0));
         float grat = 0.5 + 0.5 * g1 * g2;                            // interference 0..1
         float shade = mix(1.0, 0.55 + 0.45 * grat, amt);            // darken only (<= 1)
         col = scene.sample(smp, uv).rgb * shade;

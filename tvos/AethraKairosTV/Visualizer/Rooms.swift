@@ -580,9 +580,13 @@ struct Director {
     @Published var calm: Bool = false {         // Reduce flashing — forces the calm tier
         didSet { UserDefaults.standard.set(calm, forKey: Self.calmKey) }
     }
+    @Published var lensAuto: Bool = true {      // the artistic glass at the peaks
+        didSet { UserDefaults.standard.set(lensAuto, forKey: Self.lensKey) }
+    }
 
     private static let autoRoomsKey = "aethra.viz.autoRooms"
     private static let calmKey = "aethra.viz.calm"
+    private static let lensKey = "aethra.viz.lensAuto"
 
     /// Remembered like the mixing preferences: tiny and non-secret, so
     /// UserDefaults is the right size. A first launch inherits the system's
@@ -596,6 +600,9 @@ struct Director {
             calm = defaults.bool(forKey: Self.calmKey)
         } else {
             calm = UIAccessibility.isReduceMotionEnabled
+        }
+        if defaults.object(forKey: Self.lensKey) != nil {
+            lensAuto = defaults.bool(forKey: Self.lensKey)
         }
     }
 }

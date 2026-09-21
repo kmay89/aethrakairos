@@ -44111,6 +44111,7 @@ const LENS = {
        scene input. It shares the live uniform objects by reference exactly the
        way the others do, so the seam's palette and the room's palette are the
        same object and cannot drift apart mid-cut. */
+    if (String(this.active === 'auto' ? this._resolved : this.active).indexOf('mirrors') >= 0) this._dealSectors();
     this._mats.xform = new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, tGhost: { value: null },
         uResolution: { value: new THREE.Vector2(1, 1) },
@@ -44147,17 +44148,33 @@ const LENS = {
       major: cam ? cam.l === 'B' : true,                      // B = major/brighter; unknown → treat as bright
     });
   },
+  // the kaleido's fold count is a musical judgement too: a major key opens
+  // the glass to eight sectors, a minor key holds the tighter six — decided
+  // when a look is dealt, never mid-look, so the symmetry cannot flicker
+  _dealSectors(){
+    if (!this._mats) return;
+    const t = player.tracks[player.cur];
+    const m = t ? mixOf(t) : null;
+    const cam = m && m.key ? camelotParse(m.key) : null;
+    const major = cam ? cam.l === 'B' : true;
+    this._mats.mirrors.uniforms.uSectors.value = major ? 8 : 6;
+  },
   autoTick(dt){
     if (this.active !== 'auto') return;
     this._holdT -= dt;
     if (this._holdT > 0) return;                              // hold the current look; don't flicker
     const want = this.autoPick();
     this._holdT = want === 'none' ? 3.0 : 9.0;               // linger on a look; re-check clean state sooner
-    if (want !== this._resolved){ this._resolved = want; this.paint(); }
+    if (want !== this._resolved){
+      this._resolved = want;
+      if (String(want).indexOf('mirrors') >= 0) this._dealSectors();
+      this.paint();
+    }
   },
   set(key, save){
     if (!(key in this.labels)) key = 'none';
     this.active = key;
+    if (String(key).indexOf('mirrors') >= 0) this._dealSectors();
     if (save !== false){ try { localStorage.setItem('mb8_lens', key); } catch (e){} }
     this.paint();
   },
