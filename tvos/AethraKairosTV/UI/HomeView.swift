@@ -28,6 +28,13 @@ struct HomeView: View {
     @State private var roomName = ""
     @State private var activity = 0
     @State private var hudVisible = true
+    // The boot grace: while the catalog is still arriving the shelves show a
+    // quiet loading line instead of the catalog-less STAGE/SETTINGS pair —
+    // otherwise those two flash for a beat, the library shelves insert above
+    // them, and the focus engine strands the viewer on the first button it
+    // can find. After the grace, a genuinely catalog-less session (offline
+    // first launch) still gets its shelves: a room can be tuned in silence.
+    @State private var bootGraceOver = false
 
     // Generative sleeves drawn once per album tag, kept for the app's life so
     // the grid scrolls without redrawing 5200 grain dots per tile.
@@ -97,14 +104,24 @@ struct HomeView: View {
                     albumsShelf(catalog)
                     heartsShelf(catalog)
                     recentShelf(catalog)
+                    stageShelf
+                    settingsShelf
+                } else if bootGraceOver {
+                    // the library never came — the room can still be tuned
+                    stageShelf
+                    settingsShelf
+                } else {
+                    loadingRow
                 }
-                stageShelf
-                settingsShelf
             }
             .padding(.horizontal, 80)
             .padding(.vertical, 60)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // One clean rebuild when the library lands: the shelf set changes
+        // exactly once, and the focus engine starts fresh at the top instead
+        // of stranding on whatever survived the layout shift.
+        .id(catalogStore.catalog == nil)
         // Frosted glass over the dimmed field — the field never stops, it only
         // steps back while a choice is made.
         .background(.ultraThinMaterial)
@@ -116,6 +133,26 @@ struct HomeView: View {
             activity += 1
             player.toggle()
         }
+        .task {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            bootGraceOver = true
+        }
+    }
+
+    /// The boot beat: the catalog is usually here within a blink (cached
+    /// copies boot instantly), so this line is rarely seen — but it is what
+    /// keeps SETTINGS from flashing and fleeing on a cold start.
+    private var loadingRow: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("TUNING THE LIBRARY…")
+                .font(.system(size: 24, weight: .semibold))
+                .tracking(2)
+                .foregroundStyle(Color.akDim)
+            Text(catalogStore.statusLine)
+                .font(.system(size: 17, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 8)
     }
 
     private func dismissShelves() {
