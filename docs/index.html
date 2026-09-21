@@ -3340,6 +3340,19 @@ body.clipping::after{
     release and the golden angle heals it. And the <b>SANDPILE</b> feeds Bak–Tang–Wiesenfeld's model on
     the song's sixteenths: most grains do nothing, then one lets go an avalanche that burns across the
     pile exactly on the drop — self-organized criticality with the kick drum as the hourglass.</p>
+    <h3>The infinite wing</h3>
+    <p class="lede">Scenes 61–65 hold infinite lengths in finite rooms. <b>LINDENMAYER</b> grows a
+    plant from four grammar rules the way Aristid Lindenmayer wrote them — the sentence rewrites
+    itself, the turtle walks the result, and the crown answers the bass as wind, each level bending
+    more than the one below (a hand is a sun the plant leans toward). <b>HILBERT</b> lays one
+    unbroken line through every cell of the square and sends the music down it as bright traffic —
+    when the energy earns it, the pipes quarter themselves and the same square holds four times the
+    line. <b>KOCH</b> runs the coastline paradox: a shore whose length grows by a third at every fold
+    and never stops, with an infinite zoom that glides down one scale per phrase and lands exactly
+    where it began. <b>DRAGON</b> folds the paper in front of you — one crease per phrase, each
+    easing open to its right angle — until the strip draws the curve that tiles the plane with
+    itself. And <b>CANTOR</b> deletes forever in rhythm: middle thirds burning away on the count,
+    the devil's staircase beneath climbing only on the dust — with the song itself as the walker.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3951,7 +3964,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'grows', 'flows', 'gathers', 'blackhole',
                'grows', 'flows', 'gathers', 'blackhole', 'gathers', 'flows',
                'flows', 'gathers', 'gathers', 'blackhole', 'gathers', 'blackhole',
-               'gathers', 'blackhole', 'blackhole', 'gathers', 'flows', 'grows', 'grows'];   // …the lattice and the film ripple, the
+               'gathers', 'blackhole', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
+               'grows', 'flows', 'gathers', 'flows', 'blackhole'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4229,7 +4243,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa', 'drift', 'bounce', 'snake',
                'drift', 'paint', 'paint', 'lissa', 'paint', 'bounce',
                'lissa', 'drift', 'drift', 'lissa', 'paint', 'snake',
-               'lissa', 'drift', 'drift', 'snake', 'paint', 'lissa', 'paint'];   // …SHEETS walks the lattice, MANDALA curves,
+               'lissa', 'drift', 'drift', 'snake', 'paint', 'lissa', 'paint',
+               'drift', 'snake', 'lissa', 'snake', 'paint'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5432,7 +5447,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'drift', 'disperse', 'filament', 'soapfilm', 'terrain', 'eigen', 'creature', 'barkley', 'verse', 'arcade', 'scope',
                     'weave', 'ocean', 'bolt', 'circuit',
                     'bifurc', 'cymatic', 'rule', 'hole', 'ferro', 'plinko', 'pendula', 'lorenz', 'sync', 'nbody', 'dla', 'boids',
-                    'fourier', 'fringe', 'julia', 'escher', 'penrose', 'sunflower', 'sandpile'];
+                    'fourier', 'fringe', 'julia', 'escher', 'penrose', 'sunflower', 'sandpile',
+                    'lsystem', 'hilbert', 'koch', 'dragon', 'cantor'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5549,6 +5565,11 @@ const SCENE_TASTE = {
                                                             // wants patience with a heartbeat in it
   sandpile:  { beat: 1.4, bass: 0.8, entropy: 0.5 },        // every grain is a tick and every drop an
                                                             // avalanche — percussive material feeds it
+  lsystem:   { calm: 1.3, bass: 0.6, beat: -0.3 },          // a plant grows patiently, swaying on wind
+  hilbert:   { beat: 0.9, mid: 0.7, entropy: -0.4 },        // ordered traffic wants ordered material
+  koch:      { treble: 0.9, calm: 0.6, entropy: 0.4 },      // crystalline detail feeds on the high end
+  dragon:    { beat: 1.2, energy: 0.8 },                    // a fold lands like a downbeat
+  cantor:    { beat: 1.0, treble: 0.5, entropy: 0.6 },      // deletion in rhythm — the count made dust
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6720,6 +6741,11 @@ const SCENE_SIGS = {
   penrose:   { kind: 'grid',   h: 165, arms: 5, dense: 0.9 },
   sunflower: { kind: 'spiral', h: 62,  arms: 8, dense: 0.8 },
   sandpile:  { kind: 'grid',   h: 18,  dense: 1 },
+  lsystem:   { kind: 'spiral', h: 118, arms: 3, dense: 0.6 },
+  hilbert:   { kind: 'grid',   h: 205, dense: 0.8 },
+  koch:      { kind: 'ring',   h: 188, arms: 6 },
+  dragon:    { kind: 'wave',   h: 24,  arms: 1, twist: 1 },
+  cantor:    { kind: 'grid',   h: 46,  dense: 0.5 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -39962,6 +39988,795 @@ function buildSandpile(){
   return api;
 }
 
+/* =========================================================
+   SCENE 61 · LINDENMAYER — nature's code, run live
+
+   Aristid Lindenmayer wrote plants as grammar: a sentence that
+   rewrites itself, a turtle that walks the result, brackets that
+   remember where the stem was. Infinite detail from four rules.
+   This room grows the sentence in front of you — the plant
+   assembles branch by branch through the song, the bass is wind
+   the whole crown answers (each level bending more than the one
+   below, exactly as stiffness says), onsets flare the newest
+   tips, and every roll deals a new species from the book. A hand
+   is a sun: the plant leans toward it, slowly, the way plants do.
+   ========================================================= */
+function buildLindenmayer(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uGrow: { value: 0 }, uLean: { value: 0 } };
+  const MAXSEG = 9000;
+  const pos = new Float32Array(MAXSEG * 2 * 3);
+  const aT = new Float32Array(MAXSEG * 2);      // draw order 0..1 — the growth clock reads it
+  const aD = new Float32Array(MAXSEG * 2);      // bracket depth 0..1 — stiffness and colour
+  const aH = new Float32Array(MAXSEG * 2);      // height 0..1 — the wind's lever arm
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  geo.setAttribute('aD', new THREE.BufferAttribute(aD, 1));
+  geo.setAttribute('aH', new THREE.BufferAttribute(aH, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aT, aD, aH;
+      uniform float uTime, uBass, uGrow, uLean, uVarA;
+      varying float vT, vD, vEdge;
+      void main(){
+        vT = aT; vD = aD;
+        /* growth climbs by height, draw order only staggering the limbs —
+           string order alone reveals one skinny branch at a time */
+        float key = mix(aT, aH, 0.72);
+        float grown = step(key, uGrow);
+        vEdge = smoothstep(uGrow, uGrow - 0.06, key);
+        vec3 p = position;
+        /* the wind: sways more the higher and the deeper — a twig writes
+           what a trunk only whispers */
+        float wind = sin(uTime * 0.7 + p.y * 0.14 + uVarA * 6.2831853)
+                   + 0.4 * sin(uTime * 1.7 + p.y * 0.31);
+        p.x += wind * (0.04 + uBass * 0.30) * aH * aH * (0.5 + aD * 0.8);
+        p.x += uLean * aH * aH * 3.0;                  // the sun a hand holds
+        p *= grown;                                     // the unborn wait at the root
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uBeat, uEnergy, uVarA;
+      varying float vT, vD, vEdge;
+      void main(){
+        // trunk wears the root of the chord, twigs walk out along it
+        vec3 col = ramp(0.10 + vD * 0.34 + uVarA * 0.12);
+        // the growing frontier burns — life is at the tips
+        col = mix(col, ramp(0.78 + uVarA * 0.1), (1.0 - vEdge) * 0.9);
+        col = inkRolloff(col * (0.55 + vD * 0.35 + (1.0 - vEdge) * 1.3 + uBeat * 0.30 + uEnergy * 0.2));
+        gl_FragColor = vec4(col, uOpacity * (0.55 + vD * 0.25 + (1.0 - vEdge) * 0.4));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const lines = new THREE.LineSegments(geo, mat);
+  lines.frustumCulled = false;
+  group.add(lines);
+  group.visible = false;
+  scene.add(group);
+
+  /* the book of species: axiom, rules, branch angle, generations. Each is a
+     real grammar from the literature — the plants people recognise without
+     knowing why. */
+  const SPECIES = [
+    { name: 'THE TREE',  axiom: 'X', angle: 25.7, gens: 5,
+      rules: { X: 'F+[[X]-X]-F[-FX]+X', F: 'FF' } },
+    { name: 'SEAWEED',   axiom: 'F', angle: 22.5, gens: 4,
+      rules: { F: 'FF-[-F+F+F]+[+F-F-F]' } },
+    { name: 'THE BUSH',  axiom: 'F', angle: 20.0, gens: 4,
+      rules: { F: 'F[+F]F[-F][F]' } },
+  ];
+  const st = { mode: 0, segs: 0, t: 0, lean: 0 };
+
+  function generate(){
+    const sp = SPECIES[st.mode];
+    // expand the sentence, budgeted — a grammar that outgrows the room is
+    // simply pruned mid-sentence, which a plant would understand
+    let s = sp.axiom;
+    for (let g = 0; g < sp.gens; g++){
+      let out = '';
+      for (let i = 0; i < s.length && out.length < 60000; i++){
+        out += sp.rules[s[i]] || s[i];
+      }
+      s = out;
+    }
+    // the turtle walks
+    const ang = sp.angle * Math.PI / 180 * (0.94 + Math.random() * 0.12);
+    const stepLen = 1.0;
+    let x = 0, y = 0, th = Math.PI / 2, depth = 0;
+    const stack = [];
+    let si = 0, maxDepth = 1, maxY = 1;
+    // first pass: count segments + extents (cheap string walk)
+    let cx = 0, cy = 0, cth = Math.PI / 2, nseg = 0;
+    const cst = [];
+    for (let i = 0; i < s.length && nseg < MAXSEG; i++){
+      const c = s[i];
+      if (c === 'F'){ cx += Math.cos(cth); cy += Math.sin(cth); nseg++; if (cy > maxY) maxY = cy; }
+      else if (c === '+') cth += ang;
+      else if (c === '-') cth -= ang;
+      else if (c === '['){ cst.push([cx, cy, cth]); if (cst.length > maxDepth) maxDepth = cst.length; }
+      else if (c === ']' && cst.length){ const q = cst.pop(); cx = q[0]; cy = q[1]; cth = q[2]; }
+    }
+    const H = 21;                                   // the room's ceiling
+    const sc = H / Math.max(maxY, 1);
+    st.segs = nseg;
+    let k = 0;
+    for (let i = 0; i < s.length && k < nseg; i++){
+      const c = s[i];
+      if (c === 'F'){
+        const nx = x + Math.cos(th), ny = y + Math.sin(th);
+        const j = k * 6;
+        pos[j] = x * sc; pos[j + 1] = y * sc - H * 0.52; pos[j + 2] = 0;
+        pos[j + 3] = nx * sc; pos[j + 4] = ny * sc - H * 0.52; pos[j + 5] = 0;
+        const tt = k / nseg;
+        const dd = Math.min(1, stack.length / maxDepth);
+        const hh = Math.min(1, ny / maxY);
+        aT[k * 2] = tt; aT[k * 2 + 1] = tt;
+        aD[k * 2] = dd; aD[k * 2 + 1] = dd;
+        aH[k * 2] = hh; aH[k * 2 + 1] = hh;
+        x = nx; y = ny; k++;
+      }
+      else if (c === '+') th += ang;
+      else if (c === '-') th -= ang;
+      else if (c === '['){ stack.push([x, y, th]); }
+      else if (c === ']' && stack.length){ const q = stack.pop(); x = q[0]; y = q[1]; th = q[2]; }
+    }
+    for (let z = k * 6; z < pos.length; z++) pos[z] = 0;
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.aT.needsUpdate = true;
+    geo.attributes.aD.needsUpdate = true;
+    geo.attributes.aH.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'LINDENMAYER', key: 'lsystem', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // the plant grows through the song — patient in the overture, full at
+      // the apex — and never un-grows short of a roll. A silent stage still
+      // deserves a plant, so time alone raises most of one.
+      const prog = (typeof director !== 'undefined' && director.trackProg != null) ? director.trackProg : 0.5;
+      const idle = Math.min(0.62, 0.15 + st.t * 0.06);
+      const gGoal = Math.min(1, Math.max(idle, 0.15 + prog * 1.05));
+      if (gGoal > varU.uGrow.value)
+        varU.uGrow.value += (gGoal - varU.uGrow.value) * Math.min(1, dt / 2.2);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      const leanGoal = force > 0.1 ? U.uPtr.value.x * 0.5 * force : 0;
+      varU.uLean.value += (leanGoal - varU.uLean.value) * Math.min(1, dt / 1.6);
+    },
+    roll(){
+      st.mode = Math.floor(Math.random() * SPECIES.length);
+      varU.uVarA.value = Math.random();
+      varU.uGrow.value = 0.12;
+      generate();
+      api.name = 'LINDENMAYER · ' + SPECIES[st.mode].name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 62 · HILBERT — the line that fills the plane
+
+   One curve, no crossings, visiting every cell of the square:
+   the cleanest proof that a line's length has no ceiling inside
+   a finite room. The room draws the curve as glowing pipework
+   and sends the music down it — bright packets that enter at the
+   start and travel the ENTIRE plane in order, so the eye learns
+   the path by watching light commute along it. Energy deepens
+   the order (the pipes quarter themselves and the line gets four
+   times longer, same square); onsets launch fresh packets. A
+   hand bulges the lattice toward itself, the pipes flexing but
+   never breaking — continuity is the whole theorem.
+   ========================================================= */
+function buildHilbert(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uOrder: { value: 5 },
+    uFlow:  { value: 0 },
+    uPulse: { value: 0 },
+    uMode:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uOrder, uFlow, uPulse, uMode, uAspect, uVarA;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the classic xy2d walk, eight bit-planes deep — d/n^2 is the cell's
+    // place along the one line
+    float hilbertT(vec2 cell, float n){
+      float d = 0.0;
+      vec2 xy = cell;
+      for (int i = 0; i < 8; i++){
+        float s = n / exp2(float(i + 1));
+        if (s < 0.5) break;
+        float rx = mod(floor(xy.x / s), 2.0);
+        float ry = mod(floor(xy.y / s), 2.0);
+        d += s * s * (ry + rx * (3.0 - 2.0 * ry));
+        if (ry < 0.5){
+          if (rx > 0.5){ xy = (s * 2.0 - 1.0) - xy; }
+          xy = xy.yx;
+        }
+      }
+      return d / (n * n);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0);
+      // the hand's bulge: continuous, so the pipes flex and never break
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p -= dh * (uHand.z * 0.22 / (dot(dh, dh) + 0.30));
+      }
+      float n = exp2(uOrder);
+      vec2 q = (p * 0.92 + 0.5) * n;              // grid space
+      vec2 cell = floor(q);
+      vec2 fc = fract(q) - 0.5;
+      vec3 col = vec3(0.0);
+      if (cell.x >= 0.0 && cell.x < n && cell.y >= 0.0 && cell.y < n){
+        float t0 = hilbertT(cell, n);
+        float tE = hilbertT(min(cell + vec2(1.0, 0.0), vec2(n - 1.0)), n);
+        float tW = hilbertT(max(cell - vec2(1.0, 0.0), vec2(0.0)), n);
+        float tN = hilbertT(min(cell + vec2(0.0, 1.0), vec2(n - 1.0)), n);
+        float tS = hilbertT(max(cell - vec2(0.0, 1.0), vec2(0.0)), n);
+        float step1 = 1.0 / (n * n);
+        // the pipes: a corridor opens toward any neighbour one step away
+        float w = 0.16;
+        float pipe = 0.0;
+        if (abs(tE - t0) < step1 * 1.5 && cell.x < n - 1.0) pipe = max(pipe, smoothstep(w, w * 0.5, abs(fc.y)) * step(0.0, fc.x));
+        if (abs(tW - t0) < step1 * 1.5 && cell.x > 0.0)     pipe = max(pipe, smoothstep(w, w * 0.5, abs(fc.y)) * step(fc.x, 0.0));
+        if (abs(tN - t0) < step1 * 1.5 && cell.y < n - 1.0) pipe = max(pipe, smoothstep(w, w * 0.5, abs(fc.x)) * step(0.0, fc.y));
+        if (abs(tS - t0) < step1 * 1.5 && cell.y > 0.0)     pipe = max(pipe, smoothstep(w, w * 0.5, abs(fc.x)) * step(fc.y, 0.0));
+        float hub = smoothstep(w * 1.5, w * 0.6, length(fc));
+        pipe = max(pipe, hub);
+        /* the traffic: packets entering at t=0 and riding the whole line —
+           three of them, spaced, plus the onset's fresh dispatch */
+        float traffic = 0.0;
+        for (int k = 0; k < 3; k++){
+          float ph = fract(t0 - uFlow - float(k) * 0.33);
+          traffic += exp(-ph * ph * 900.0);
+        }
+        traffic += exp(-fract(t0 - uPulse) * fract(t0 - uPulse) * 2600.0) * 1.4;
+        vec3 pipeInk = uMode < 1.5
+          ? ramp(0.28 + uVarA * 0.2 + t0 * 0.12)
+          : ramp(fract(t0 + uVarA));                       // THE THREAD: the whole chord laid along the line
+        float base = uMode < 0.5 ? 0.20 : (uMode < 1.5 ? 0.045 : 0.22);   // NIGHT TRAIN keeps the pipes dark
+        col = pipeInk * pipe * (base + uMid * 0.10);
+        col += ramp(0.72 + uVarA * 0.15) * pipe * traffic * (0.8 + uEnergy * 0.6);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE CURRENT', mode: 0 },
+    { name: 'NIGHT TRAIN', mode: 1 },     // only the traffic is lit
+    { name: 'THE THREAD',  mode: 2 },     // the chord laid end to end along the line
+  ];
+  const st = { mode: MODES[0], t: 0, lastBeat: -9, orderT: 5 };
+  const api = {
+    name: 'HILBERT', key: 'hilbert', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the traffic keeps the music's pace
+      varU.uFlow.value = (varU.uFlow.value + dt * (0.016 + (f.energy || 0) * 0.05)) % 1;
+      // the order deepens when the music earns it — and only ever ON a beat,
+      // so the re-laying of the whole line reads as a downbeat event
+      const wantOrder = (f.energy || 0) > 0.6 ? 6 : 5;
+      if ((f.beat || 0) > 0.6 && st.t - st.lastBeat > 0.3){
+        st.lastBeat = st.t;
+        varU.uPulse.value = varU.uFlow.value;               // a fresh dispatch from the gate
+        if (wantOrder !== varU.uOrder.value) varU.uOrder.value = wantOrder;
+      }
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uMode.value = st.mode.mode;
+      varU.uVarA.value = Math.random();
+      varU.uOrder.value = 5;
+      api.name = 'HILBERT · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 63 · KOCH — the coastline paradox
+
+   Fold a line, then fold the folds: the Koch curve's length
+   grows by a third at every step and never stops, while the
+   space it lives in never grows at all. The room runs the folds
+   as light — a shore whose detail deepens as the music
+   brightens, and an INFINITE ZOOM that glides down one scale per
+   phrase and arrives exactly where it began: self-similarity you
+   can fall into. The roll deals the open coast, the closed
+   snowflake, or the flake folded inward.
+   ========================================================= */
+function buildKoch(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uIter:  { value: 5 },
+    uZoom:  { value: 0 },
+    uModeK: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uIter, uZoom, uModeK, uAspect, uVarA;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    /* the fold, straight from the generator: halve by mirror, lay the bump
+       flat, rescale — each pass eats one level of detail. The curve spans
+       x in [-1,1] with its bumps reaching toward -y; flip the y you feed
+       it to flip the flake. */
+    float kochLine(vec2 p, float iters){
+      float scale = 1.0;
+      p.x = abs(p.x);                     // the curve is mirror-symmetric about its middle
+      for (int i = 0; i < 7; i++){
+        if (float(i) >= iters) break;
+        p *= 3.0; scale *= 3.0;
+        p.x = 1.5 - abs(p.x - 1.5);       // fold the far half onto the near
+        // lay the rising side of the bump down: reflect across the 60-degree
+        // line through (1,0)
+        vec2 nrm = vec2(0.8660254, -0.5);
+        vec2 q = p - vec2(1.0, 0.0);
+        float dd = dot(q, nrm);
+        if (dd > 0.0) q -= 2.0 * dd * nrm;
+        p = q + vec2(1.0, 0.0);
+      }
+      vec2 e = vec2(clamp(p.x, 0.0, 1.0), 0.0);
+      return length(p - e) / scale;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.30 / (dot(dh, dh) + 0.30));
+      }
+      float d;
+      float land = 0.0;
+      float zoomS = exp(uZoom * 1.0986123);              // one scale of 3 per cycle
+      if (uModeK < 0.5){
+        // THE COAST: the folded line as a shore, breathing in and out.
+        // The curve spans [-1,1], so the tile is 2 wide — endpoints meet
+        // endpoints and the shore runs on without a seam.
+        vec2 q = p * zoomS;
+        q.x = mod(q.x + 1.0, 2.0) - 1.0;
+        d = kochLine(vec2(q.x, -0.05 - q.y), uIter) / zoomS;
+        land = smoothstep(0.05, -0.7, p.y);              // the landmass under the shore
+      } else {
+        // SNOWFLAKE / ANTIFLAKE: fold the plane six ways, run the curve on a
+        // ring — each 60-degree sector carries one full edge, curve middle on
+        // the sector midline, ends meeting at the corners
+        float ang = atan(p.y, p.x);
+        float r = length(p);
+        float sector = 3.14159265 / 3.0;
+        ang = abs(mod(ang + sector * 0.5, sector) - sector * 0.5);
+        float flip = uModeK < 1.5 ? 1.0 : -1.0;          // bumps out, or bitten in
+        vec2 q = vec2(ang / (sector * 0.5), (0.62 - r) * 4.0 * flip);
+        d = kochLine(q, uIter) * 0.25;
+      }
+      // the shore: a bright line with surf, the finite area faintly filled
+      vec3 ink = ramp(0.30 + uVarA * 0.2);
+      vec3 hot = ramp(0.72 + uVarA * 0.15);
+      vec3 col = hot * exp(-d * (300.0 - uBass * 80.0)) * (0.8 + uBeat * 0.6 + uEnergy * 0.3);
+      col += ink * exp(-d * 40.0) * 0.18;
+      col += ink * exp(-d * 8.0) * 0.05;
+      col += ink * land * 0.10;
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE COAST', k: 0 },
+    { name: 'SNOWFLAKE', k: 1 },
+    { name: 'ANTIFLAKE', k: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0 };
+  const api = {
+    name: 'KOCH', key: 'koch', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // detail deepens with the material's brightness; the zoom glides one
+      // scale per ~10 s on the coast (self-similarity closes the loop)
+      varU.uIter.value = 4 + Math.min(3, Math.floor((f.treble || 0) * 2 + (f.energy || 0) * 2));
+      if (st.mode.k === 0){
+        // breathe in and out rather than wrap — the tile has no seamless x3
+        st.zp = ((st.zp || 0) + dt * (0.05 + (f.energy || 0) * 0.03)) % 1;
+        varU.uZoom.value = 1 - Math.abs(1 - 2 * st.zp);
+      }
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeK.value = st.mode.k;
+      varU.uVarA.value = Math.random();
+      varU.uZoom.value = 0;
+      api.name = 'KOCH · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 64 · DRAGON — the paper that remembers every fold
+
+   Fold a strip of paper in half, again, again; open every crease
+   to a right angle and the strip draws the Heighway dragon — a
+   curve that tiles the plane with copies of itself and never
+   crosses its own path. The room performs the UNFOLDING live:
+   one new fold per phrase, the newest crease easing open from
+   flat to square while you watch, the whole history refitting to
+   stay in frame. The current runs the strip end to end; the roll
+   deals the dragon, its twin, or slow motion.
+   ========================================================= */
+function buildDragon(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uFlow: { value: 0 } };
+  const MAXPTS = 2049;                                  // 2^11 segments at full depth
+  const pos = new Float32Array(MAXPTS * 3);
+  const aT = new Float32Array(MAXPTS);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  geo.setDrawRange(0, 2);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aT;
+      varying float vT;
+      void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uBeat, uEnergy, uFlow, uVarA;
+      varying float vT;
+      void main(){
+        vec3 col = ramp(0.24 + uVarA * 0.2 + vT * 0.30);
+        // the current: three bright charges running the whole strip
+        float pulse = 0.0;
+        for (int k = 0; k < 3; k++){
+          float head = fract(vT - uFlow - float(k) * 0.33);
+          pulse += exp(-head * head * 700.0);
+        }
+        col = mix(col, ramp(0.75 + uVarA * 0.15), min(pulse, 1.0) * 0.9);
+        col = inkRolloff(col * (1.3 + pulse * 1.6 + uBeat * 0.4 + uEnergy * 0.3));
+        gl_FragColor = vec4(col, uOpacity * (0.95 + pulse * 0.05));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const strip = new THREE.Line(geo, mat);
+  strip.frustumCulled = false;
+  group.add(strip);
+  // the twin: the same buffer, turned half a revolution — two dragons tile
+  const twin = new THREE.Line(geo, mat);
+  twin.rotation.z = Math.PI;
+  twin.frustumCulled = false;
+  group.add(twin);
+  group.visible = false;
+  scene.add(group);
+
+  const px = new Float64Array(MAXPTS), py = new Float64Array(MAXPTS);
+  const st = { mode: 0, t: 0, folds: 8, theta: Math.PI / 2, opening: 0, lastWrap: 0, prevPhrase: 0 };
+  const MODES = [
+    { name: 'HEIGHWAY',      twin: false, slow: 1.0 },
+    { name: 'TWIN DRAGON',   twin: true,  slow: 1.0 },
+    { name: 'THE UNFOLDING', twin: false, slow: 0.35 },
+  ];
+
+  function rebuild(){
+    // fold by fold: P' = P followed by P reversed, rotated about the last
+    // point by the fold's angle — the newest fold still opening
+    px[0] = 0; py[0] = 0; px[1] = 1; py[1] = 0;
+    let nPts = 2;
+    for (let g = 0; g < st.folds && nPts < MAXPTS; g++){
+      const th = (g === st.folds - 1)
+        ? Math.PI - (Math.PI / 2) * st.opening       // the crease mid-open
+        : Math.PI / 2;
+      const cx = px[nPts - 1], cy = py[nPts - 1];
+      const ca = Math.cos(-th), sa = Math.sin(-th);
+      let w = nPts;
+      for (let i = nPts - 2; i >= 0 && w < MAXPTS; i--, w++){
+        const dx = px[i] - cx, dy = py[i] - cy;
+        px[w] = cx + dx * ca - dy * sa;
+        py[w] = cy + dx * sa + dy * ca;
+      }
+      nPts = w;
+    }
+    // refit: the dragon keeps its whole history in frame
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+    for (let i = 0; i < nPts; i++){
+      if (px[i] < minX) minX = px[i]; if (px[i] > maxX) maxX = px[i];
+      if (py[i] < minY) minY = py[i]; if (py[i] > maxY) maxY = py[i];
+    }
+    const sc = 26 / Math.max(maxX - minX, maxY - minY, 1e-6);
+    const ox = (minX + maxX) / 2, oy = (minY + maxY) / 2;
+    for (let i = 0; i < nPts; i++){
+      pos[i * 3] = (px[i] - ox) * sc;
+      pos[i * 3 + 1] = (py[i] - oy) * sc;
+      pos[i * 3 + 2] = 0;
+      aT[i] = i / (nPts - 1);
+    }
+    geo.setDrawRange(0, nPts);
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.aT.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'DRAGON', key: 'dragon', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      const M = MODES[st.mode];
+      // a new fold on every phrase wrap (patience is the slow face's whole point)
+      const ph = (typeof DANCE !== 'undefined' && DANCE.haveGrid)
+        ? Number(DANCE.phraseFrac) || 0 : (st.t * 0.06) % 1;
+      if (ph < st.prevPhrase - 0.3 && st.opening >= 1 && st.folds < 11){
+        st.folds++;
+        st.opening = 0;
+      }
+      st.prevPhrase = ph;
+      if (st.opening < 1){
+        st.opening = Math.min(1, st.opening + dt * 0.7 * M.slow * (0.7 + (f.energy || 0) * 0.6));
+        rebuild();
+      }
+      varU.uFlow.value = (varU.uFlow.value + dt * (0.05 + (f.energy || 0) * 0.10)) % 1;
+      twin.visible = M.twin;
+      // the ghost turns the whole sheet of paper
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1) group.rotation.z += U.uPtr.value.x * dt * 0.8 * force;
+    },
+    roll(){
+      st.mode = Math.floor(Math.random() * MODES.length);
+      varU.uVarA.value = Math.random();
+      st.folds = 8; st.opening = 0;
+      rebuild();
+      api.name = 'DRAGON · ' + MODES[st.mode].name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 65 · CANTOR — what remains when you remove forever
+
+   Take a bar, delete its middle third, then each survivor's
+   middle third, forever: what's left has no length at all and
+   yet as many points as the line you started from. The room
+   performs the deletion in rhythm — a new depth per bars, the
+   removed thirds burning away as embers — and beneath it climbs
+   the devil's staircase: a path that rises only on the dust and
+   is flat almost everywhere, with the song itself as the walker
+   (the playhead climbs it in real time). The roll deals the
+   bars, the staircase whole, or the two-dimensional dust.
+   ========================================================= */
+function buildCantor(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uDepth: { value: 2 },
+    uBurn:  { value: 0 },
+    uWalk:  { value: 0 },
+    uModeC: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uDepth, uBurn, uWalk, uModeC, uAspect, uVarA;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // is x (0..1) still standing at this depth — and if not, at which depth
+    // was it removed? Returns depth+fraction kept flag in y.
+    vec2 cantorKeep(float x, float depth){
+      for (int d = 0; d < 9; d++){
+        if (float(d) >= depth) break;
+        x *= 3.0;
+        if (x > 1.0 && x < 2.0) return vec2(float(d), 0.0);
+        if (x >= 2.0) x -= 2.0;
+      }
+      return vec2(depth, 1.0);
+    }
+    // the devil's staircase: constant on every removed interval, and yet
+    // it climbs from 0 to 1 — all the rise happens on the dust
+    float staircase(float x){
+      float y = 0.0, f = 0.5;
+      for (int d = 0; d < 12; d++){
+        x *= 3.0;
+        if (x >= 2.0){ y += f; x -= 2.0; }
+        else if (x >= 1.0){ return y + f; }
+        f *= 0.5;
+      }
+      return y;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      vec3 col = vec3(0.0);
+      float x01 = clamp(p.x / (uAspect * 1.7) + 0.5, 0.0, 1.0);
+      if (uModeC < 0.5){
+        /* THE BARS: rows of the construction descending, one depth per row,
+           the freshest deletions still burning */
+        float rows = 7.0;
+        float ry = (0.72 - p.y) / 1.30 * rows;
+        float row = floor(ry);
+        float fy = fract(ry);
+        if (row >= 0.0 && row < rows && fy > 0.18 && fy < 0.82){
+          // the bars live on [0,1] only — past the margins the clamp would
+          // hold the endpoint, which is always kept, and smear to the edge
+          float alive = step(row, uDepth) * step(abs(p.x), uAspect * 0.85);
+          vec2 kc = cantorKeep(x01, row + 1.0);
+          vec3 ink = ramp(0.26 + uVarA * 0.2 + row * 0.05);
+          // soft caps, and each surviving cell breathes on its own clock —
+          // flat fills read as mud, embers read as light
+          float band = smoothstep(0.18, 0.27, fy) * smoothstep(0.82, 0.73, fy);
+          float cell = hash21(vec2(floor(x01 * pow(3.0, row + 1.0)), row));
+          float glim = 0.78 + 0.22 * sin(uTime * 2.2 + cell * 6.2831853);
+          col += ink * kc.y * alive * band * glim * (0.75 + uBass * 0.35);
+          col += ramp(0.60 + uVarA * 0.15) * kc.y * alive * (1.0 - band) * 0.18;
+          // the removed third burns as it goes — brightest at the depth the
+          // music has just reached
+          float fresh = exp(-abs(kc.x - uDepth) * 1.6);
+          col += ramp(0.74 + uVarA * 0.15) * (1.0 - kc.y) * alive * band * fresh * (uBurn * 0.9 + uBeat * 0.3);
+        }
+      } else if (uModeC < 1.5){
+        /* THE STAIRCASE: the function drawn whole, the song climbing it */
+        float y01 = clamp(p.y / 1.5 + 0.5, 0.0, 1.0);
+        float sv = staircase(x01);
+        float d = abs(y01 - sv);
+        vec3 ink = ramp(0.30 + uVarA * 0.2 + sv * 0.25);
+        col += ink * exp(-d * d * 2600.0) * (0.8 + uMid * 0.4);
+        col += ink * exp(-d * 14.0) * 0.07;
+        // the walker: the playhead, climbing only where the dust allows
+        float wd = length(vec2(x01 - uWalk, (y01 - staircase(uWalk)) * 0.7));
+        col += ramp(0.78 + uVarA * 0.12) * exp(-wd * wd * 1800.0) * (1.0 + uBeat * 0.8);
+      } else {
+        /* THE DUST: the product set — remove forever in both directions and
+           the survivors still glitter */
+        float y01 = clamp(p.y / 1.5 + 0.5, 0.0, 1.0);
+        // the dust lives on [0,1]^2 only — past it the clamp holds a kept
+        // endpoint and pours dust off every margin
+        float inr = step(abs(p.x), uAspect * 0.84) * step(abs(p.y), 0.74);
+        vec2 kx = cantorKeep(x01, uDepth + 1.0);
+        vec2 ky = cantorKeep(y01, uDepth + 1.0);
+        float kept = kx.y * ky.y * inr;
+        vec3 ink = ramp(0.30 + uVarA * 0.25 + (x01 + y01) * 0.10);
+        float glim = 0.65 + 0.35 * sin(uTime * 3.0 + hash21(floor(vec2(x01, y01) * 243.0)) * 6.2831853);
+        col += ink * kept * glim * (0.8 + uTreble * 0.5 + uBeat * 0.25);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE BARS',      c: 0 },
+    { name: 'THE STAIRCASE', c: 1 },
+    { name: 'THE DUST',      c: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0, lastBeat: -9, beatCount: 0 };
+  const api = {
+    name: 'CANTOR', key: 'cantor', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the deletion advances on the count — every eight beats, one depth
+      if ((f.beat || 0) > 0.6 && st.t - st.lastBeat > 0.3){
+        st.lastBeat = st.t;
+        st.beatCount++;
+        varU.uBurn.value = 1;
+        if (st.beatCount % 8 === 0)
+          varU.uDepth.value = 1 + (varU.uDepth.value % 6);
+      }
+      varU.uBurn.value *= Math.exp(-dt / 0.5);
+      // the walker is the song itself
+      const prog = (typeof director !== 'undefined' && director.trackProg != null) ? director.trackProg : (st.t * 0.02) % 1;
+      varU.uWalk.value = prog;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeC.value = st.mode.c;
+      varU.uVarA.value = Math.random();
+      varU.uDepth.value = 2;
+      st.beatCount = 0;
+      api.name = 'CANTOR · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -39997,7 +40812,8 @@ function initThree(){
               buildGalton(), buildPendula(), buildAttractor(), buildFireflies(), buildThreeBody(),
               buildDendrite(), buildMurmuration(),
               buildFourier(), buildInterference(), buildJulia(), buildPoincare(),
-              buildQuasicrystal(), buildPhyllotaxis(), buildSandpile());
+              buildQuasicrystal(), buildPhyllotaxis(), buildSandpile(),
+              buildLindenmayer(), buildHilbert(), buildKoch(), buildDragon(), buildCantor());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
