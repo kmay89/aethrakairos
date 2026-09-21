@@ -58,7 +58,7 @@ complete, no-guessing runbook.
   through mud, the story arc warms and cools the whole chord as one rotation,
   and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds eighty-five Metal rooms — one for every scene the web player has, 1:1 by
+  feeds ninety Metal rooms — one for every scene the web player has, 1:1 by
   key (the parity law in `CONTRIBUTING.md`); beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
@@ -93,7 +93,8 @@ complete, no-guessing runbook.
   | **KÁRMÁN** — the vortex street's honest streamfunction | **CAUSTICS** — pool light as the water's true curvature | **HOPF** — the 3-sphere combed into linked circles |
   | **KNOTS** — the (p,q) windings that can never be untied | **BÉNARD** — Rayleigh's rolls, plumes riding the rising sheets | **ORRERY** — Kepler's clockwork, honest to the areal law |
   | **LENSING** — Einstein's ring and cross from the one thin-lens equation | **PULSAR** — the lighthouse keeping the song's own time, ridge plot and all | **ANALEMMA** — the song as the year, the sun writing its figure-eight |
-  | **ECLIPSE** — the appointment: totality lingers while the music burns | | |
+  | **ECLIPSE** — the appointment: totality lingers while the music burns | **TELEGRAPH** — the song's own rhythm as morse on a punched tape | **SEMAPHORE** — the alphabet spelled as arm pairs, flags snapping on the beat |
+  | **SCRIBE** — asemic calligraphy laid down in musical time | **CIPHER** — a real dot-matrix alphabet on rings, one detent a bar | **BABEL** — the hexagonal library, fallen past forever |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's

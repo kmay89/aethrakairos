@@ -330,6 +330,26 @@ enum Rooms {
         Room(key: "eclipse", name: "ECLIPSE", fragmentFunction: "room_eclipse",
              tasteEnergy: 0.9, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0,
              tasteBass: 0.7),
+
+        // ---- wave 14: the word ----
+        // The language wing (Shaders17): the song speaking morse, the navy's
+        // alphabet of arm pairs, an asemic hand writing in musical time, a
+        // real dot-matrix alphabet on cipher rings, and Borges' library
+        // falling past forever — ninety, both stages.
+        Room(key: "telegraph", name: "TELEGRAPH", fragmentFunction: "room_telegraph",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.3, tasteTreble: 0.5,
+             tasteEntropy: -0.3),
+        Room(key: "semaphore", name: "SEMAPHORE", fragmentFunction: "room_semaphore",
+             tasteEnergy: 0, tasteCalm: 0.5, tasteBeat: 1.0, tasteTreble: 0),
+        Room(key: "scribe", name: "SCRIBE", fragmentFunction: "room_scribe",
+             tasteEnergy: 0, tasteCalm: 1.1, tasteBeat: -0.2, tasteTreble: 0,
+             tasteMid: 0.5, calm: true),
+        Room(key: "cipher", name: "CIPHER", fragmentFunction: "room_cipher",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
+             tasteMid: 0.6, tasteEntropy: 0.8, heavy: true),
+        Room(key: "babel", name: "BABEL", fragmentFunction: "room_babel",
+             tasteEnergy: 0, tasteCalm: 0.9, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.5, tasteEntropy: 0.5, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
