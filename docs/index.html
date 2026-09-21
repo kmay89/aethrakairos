@@ -3397,6 +3397,40 @@ body.clipping::after{
     bass, pulses running the loop to prove it is one. And <b>BÉNARD</b> heats the pan past
     Rayleigh's number: convection rolls — miso soup, the sun's granules, cloud streets — with
     plumes riding the rising sheets and the bass turning the burner up until the cells multiply.</p>
+    <h3>The sky</h3>
+    <p class="lede">Scenes 81–85 look up. <b>ORRERY</b> is the brass machine that predicted planets
+    before anyone could photograph one: eight orbits with Kepler's equation solved honestly every
+    frame — the planets truly rush their perihelia — conjunctions ringing like chimes, and a
+    PTOLEMY face that watches the same sky from the earth, where the difference of two orbits
+    draws the retrograde loops that vexed astronomy for centuries. <b>LENSING</b> is gravity's own
+    glass: β&nbsp;=&nbsp;θ&nbsp;−&nbsp;θ<sub>E</sub>²/θ applied to every pixel, so the arcs, the
+    doubling, Einstein's ring and the four-leaved cross are never painted — they fall out of the
+    one equation, with the bass for mass and a MICROLENS face writing Paczyński's light curve.
+    <b>PULSAR</b> locks the lighthouse to the song's grid — one turn every two beats — dipole
+    field lines petaling around the star; THE STACK face is the mountain range from the famous
+    record sleeve, each rotation one ridge, the front row live off the song's own waveform, and
+    DISPERSION shows the lows arriving late, ν⁻². <b>ANALEMMA</b> makes the song the year: the
+    story clock walks the sun's figure-eight from January to December, solstices ring as they
+    pass, and THE PLATE face is the finished photograph, every exposure at once. <b>ECLIPSE</b>
+    keeps the appointment: the transit clock listens — hot music makes totality linger — the
+    obscuration is the honest circle-circle overlap, the diamond ring fires exactly at contact,
+    and PINHOLES watches the ground under a tree, every leaf-gap a camera.</p>
+    <h3>The word</h3>
+    <p class="lede">Scenes 86–90 are the language wing — writing before and beside meaning.
+    <b>TELEGRAPH</b> lets the song work the key: its bars quantized into dits and dahs punched on
+    a scrolling paper tape, the reading lamp blooming as each mark passes the head; THE BEACON
+    takes the same message to sea. <b>SEMAPHORE</b> deals letters spelled by the real system's
+    logic — the alphabet as the ordered enumeration of arm pairs — flags snapping to their
+    stations on the beat, cloth in the wind of the mids; THE FLEET answers down the coast, a
+    beat behind. <b>SCRIBE</b> is asemic calligraphy: the dance of writing kept, the meaning let
+    go — a nib laying stroke clusters in musical time, pressure by energy, a page that scrolls;
+    PALIMPSEST writes over the ghost of the last page. <b>CIPHER</b> turns a real dot-matrix
+    alphabet on two rings — twenty-six 5×7 glyphs packed bit by bit into the shader — the shift
+    dealt by the song's own Camelot key and clicking one detent per bar; ROTORS gears three
+    rings like an odometer, THE RAIL FENCE marches the letters down the other great cipher
+    family's zigzag. And <b>BABEL</b> falls forever down Borges' hexagonal air shaft, gallery
+    under gallery, shelf-light breathing with the spectrum, one glowing book falling past —
+    THE INDEX flips a wall of pages, still looking for the catalogue of catalogues.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4028,7 +4062,9 @@ function touchAffinity(sceneIdx, act, r, mood){
                'grows', 'flows', 'gathers', 'flows', 'blackhole',
                'gathers', 'flows', 'flows', 'grows', 'flows',
                'gathers', 'grows', 'flows', 'gathers', 'blackhole',
-               'flows', 'flows', 'gathers', 'grows', 'flows'];   // …the lattice and the film ripple, the
+               'flows', 'flows', 'gathers', 'grows', 'flows',
+               'gathers', 'blackhole', 'grows', 'flows', 'blackhole',
+               'gathers', 'flows', 'flows', 'grows', 'blackhole'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4046,7 +4082,13 @@ function touchAffinity(sceneIdx, act, r, mood){
                            // like water, PENDULA's pivot swings, the ATTRACTOR and the
                            // FIREFLIES and the DENDRITE all draw toward a hand, the
                            // THREE BODY hand is a mass (a well), and to the MURMURATION
-                           // a hand is the falcon — pure repulsion
+                           // a hand is the falcon — pure repulsion; on the ORRERY it is
+                           // a mass among the spheres, to the LENSING it is the lens
+                           // itself, it SPINS the pulsar, breezes over the ANALEMMA's
+                           // plate, and at the ECLIPSE it is the moon — the void that fits;
+                           // the TELEGRAPH's key pulls, wind takes the SEMAPHORE's flags
+                           // and the SCRIBE's page, a hand SPINS the cipher wheel, and
+                           // BABEL's air shaft is a void with a banister
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -4310,7 +4352,9 @@ function ghostPattern(sceneIdx, act, r, mood){
                'drift', 'snake', 'lissa', 'snake', 'paint',
                'paint', 'lissa', 'drift', 'bounce', 'snake',
                'snake', 'lissa', 'drift', 'paint', 'lissa',
-               'drift', 'paint', 'lissa', 'lissa', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
+               'drift', 'paint', 'lissa', 'lissa', 'drift',
+               'lissa', 'drift', 'snake', 'paint', 'drift',
+               'bounce', 'snake', 'paint', 'lissa', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5517,7 +5561,9 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'lsystem', 'hilbert', 'koch', 'dragon', 'cantor',
                     'tonnetz', 'harmonograph', 'overtones', 'euclid', 'phase',
                     'ulam', 'cardioid', 'collatz', 'mediant', 'zeta',
-                    'karman', 'caustics', 'hopf', 'knots', 'benard'];
+                    'karman', 'caustics', 'hopf', 'knots', 'benard',
+                    'orrery', 'lensing', 'pulsar', 'analemma', 'eclipse',
+                    'telegraph', 'semaphore', 'scribe', 'cipher', 'babel'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5654,6 +5700,16 @@ const SCENE_TASTE = {
   hopf:      { calm: 0.8, bass: 0.5, entropy: -0.3 },       // linked circles want coherence
   knots:     { mid: 0.7, bass: 0.6, calm: 0.3 },            // one loop, held and turned
   benard:    { bass: 0.9, calm: 0.4, energy: 0.4 },         // the burner answers the low end
+  orrery:    { calm: 0.8, coupling: 0.9, entropy: -0.4 },   // clockwork wants coherent material
+  lensing:   { bass: 0.9, calm: 0.6, coupling: 0.5 },       // the mass IS the low end
+  pulsar:    { beat: 1.4, treble: 0.6, energy: 0.5 },       // a clock among clocks
+  analemma:  { calm: 1.0, entropy: -0.5, mid: 0.4 },        // the year is patient
+  eclipse:   { energy: 0.9, bass: 0.7, coupling: 0.6 },     // totality is the drop
+  telegraph: { beat: 1.3, treble: 0.5, entropy: -0.3 },     // every message is percussion
+  semaphore: { beat: 1.0, calm: 0.5, coupling: 0.6 },       // spelling at parade pace
+  scribe:    { calm: 1.1, mid: 0.5, beat: -0.2 },           // a steady hand
+  cipher:    { entropy: 0.8, mid: 0.6, beat: 0.5 },         // secrecy loves entropy
+  babel:     { calm: 0.9, entropy: 0.5, bass: 0.5 },        // endless, low, patient
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6845,6 +6901,16 @@ const SCENE_SIGS = {
   hopf:      { kind: 'ring',   h: 300, twist: 1 },
   knots:     { kind: 'ring',   h: 20,  twist: 1 },
   benard:    { kind: 'wave',   h: 40,  arms: 3 },
+  orrery:    { kind: 'ring',   h: 45,  arms: 8 },
+  lensing:   { kind: 'blob',   h: 250, twist: 1 },
+  pulsar:    { kind: 'ring',   h: 210, arms: 2, tail: 1 },
+  analemma:  { kind: 'wave',   h: 52,  twist: 1 },
+  eclipse:   { kind: 'ring',   h: 15,  dense: 0.9 },
+  telegraph: { kind: 'wave',   h: 95,  arms: 1 },
+  semaphore: { kind: 'ring',   h: 200, arms: 2 },
+  scribe:    { kind: 'wave',   h: 35,  twist: 1 },
+  cipher:    { kind: 'ring',   h: 280, arms: 6 },
+  babel:     { kind: 'grid',   h: 230, dense: 0.9 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -43117,6 +43183,1771 @@ function buildBenard(){
   return api;
 }
 
+/* =========================================================
+   SCENE 81 · ORRERY — the clockwork sky
+
+   Before anyone could photograph a planet, a brass machine on
+   a library table could already predict one. This room is that
+   machine with the music for a mainspring: eight orbits with
+   Kepler's equation solved honestly per frame (equal areas,
+   truly — the planets rush their perihelia), a belt of dust,
+   conjunctions that ring like chimes. And because the machine
+   was argued over for two thousand years, it has a second
+   face: PTOLEMY, the same sky watched from the earth, where
+   the honest difference of two orbits draws the retrograde
+   loops that kept astronomy up at night for centuries.
+   ========================================================= */
+function buildOrrery(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeOy:{ value: 0 },
+    uClock: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeOy, uVarA, uAspect, uClock;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float wraps(float a){ return mod(a + 3.14159265, 6.2831853) - 3.14159265; }
+    // one planet's honest place: Kepler's equation, four Newton steps —
+    // enough to hold the areal law to the pixel at these eccentricities
+    vec2 kepler(float a, float e, float M){
+      float E = M;
+      for (int k = 0; k < 4; k++) E -= (E - e * sin(E) - M) / (1.0 - e * cos(E));
+      return vec2(a * (cos(E) - e), a * sqrt(1.0 - e * e) * sin(E));
+    }
+    float orbA(float i){ return 0.145 + i * 0.152; }
+    float orbE(float i){ return i < 0.5 ? 0.21 : 0.04 + 0.035 * fract(sin(i * 37.7) * 43758.5); }
+    float meanM(float i, float t){
+      float a = orbA(i);
+      return i * 2.39996 + uVarA * 6.2831853 + t / pow(a, 1.5) * 0.42;  // Kepler III sets the gears
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.22 / (dot(dh, dh) + 0.28));  // a hand is a mass among masses
+      }
+      float zoom = uModeOy > 1.5 ? 0.52 : 1.18;             // CONJUNCTION leans into the inner system
+      p *= zoom;
+      vec3 col = vec3(0.0);
+      // the still point: sun for Copernicus, earth for Ptolemy
+      bool geo = uModeOy > 0.5 && uModeOy < 1.5;
+      vec2 earth = kepler(orbA(2.0), orbE(2.0), meanM(2.0, uClock));
+      // planets, their orbits, their trails — one bounded pass over the eight
+      for (int i = 0; i < 8; i++){
+        float fi = float(i);
+        float a = orbA(fi), e = orbE(fi);
+        vec2 pos = kepler(a, e, meanM(fi, uClock));
+        if (geo){
+          /* PTOLEMY watched five wanderers and the sun. Each trail is the
+             honest geocentric path — planet minus earth, SAMPLED back through
+             time — so the retrograde loops draw themselves, exactly the knots
+             that kept astronomy arguing for fourteen centuries. */
+          if (i == 2 || i > 5) continue;
+          vec2 tp = pos - earth;
+          // each wanderer's trail steps by half a radian of ITS OWN anomaly,
+          // so the fast ones stay smooth and the slow ones reach back far
+          // enough for their loops to close
+          float dtb = 1.19 * pow(a, 1.5);
+          for (int s2 = 1; s2 < 15; s2++){
+            float tb = uClock - float(s2) * dtb;
+            vec2 pp = kepler(a, e, meanM(fi, tb)) - kepler(orbA(2.0), orbE(2.0), meanM(2.0, tb));
+            float d2 = length(p - pp);
+            col += ramp(0.16 + fi * 0.075) * exp(-d2 * d2 / 0.00010) * exp(-float(s2) * 0.14) * 0.42;
+          }
+          float d = length(p - tp);
+          float sz = 0.015 + 0.005 * mod(fi, 3.0);
+          col += ramp(0.14 + fi * 0.075) * exp(-d * d / (sz * sz)) * (0.85 + uBeat * 0.3);
+          col += ramp(0.14 + fi * 0.075) * exp(-d * 26.0) * 0.06;
+          continue;
+        }
+        // the orbit path: the true ellipse about the focus, each sphere lit
+        // by its own band of the live spectrum — the music of the spheres
+        {
+          float b = a * sqrt(1.0 - e * e);
+          vec2 q = vec2((p.x + a * e) / a, p.y / b);
+          float ring = abs(length(q) - 1.0);
+          float band = texture2D(uAudio, vec2(0.03 + fi * 0.115, 0.5)).r;
+          col += ramp(0.30 + fi * 0.055) * exp(-ring * (90.0 - 30.0 * min(fi, 1.0)))
+               * (0.05 + band * (uModeOy > 1.5 ? 0.55 : 0.25));
+        }
+        // the trail: the ellipse lit behind the planet, fading with angular lag
+        {
+          float b2 = a * sqrt(1.0 - e * e);
+          vec2 q = vec2((p.x + a * e) / a, p.y / b2);
+          float onPath = exp(-abs(length(q) - 1.0) * 120.0);
+          float Enow = atan(q.y, q.x);
+          float Epl = atan(pos.y, pos.x + a * e);
+          // compare in the ECCENTRIC frame so the trail hugs the path
+          float lag = mod(Epl - Enow, 6.2831853);
+          col += ramp(0.16 + fi * 0.075) * onPath * exp(-lag * 1.35) * (0.35 + uEnergy * 0.3);
+          // the planet itself
+          float d = length(p - pos);
+          float sz = 0.016 + 0.006 * mod(fi, 3.0);
+          col += ramp(0.14 + fi * 0.075) * exp(-d * d / (sz * sz)) * (0.85 + uBeat * 0.3);
+          col += ramp(0.14 + fi * 0.075) * exp(-d * 26.0) * 0.10;
+        }
+      }
+      // Ptolemy's sun: the sixth wanderer, circling home with its own trail
+      if (geo){
+        for (int s3 = 0; s3 < 15; s3++){
+          float tb = uClock - float(s3) * 0.36;
+          vec2 sp = -kepler(orbA(2.0), orbE(2.0), meanM(2.0, tb));
+          float d2 = length(p - sp);
+          float lead = s3 == 0 ? 1.0 : 0.0;
+          col += ramp(0.06) * exp(-d2 * d2 / (0.0004 + lead * 0.0006)) * (exp(-float(s3) * 0.16) * 0.5 + lead * 0.9);
+        }
+      }
+      // conjunctions ring like chimes: adjacent pairs near one longitude
+      for (int i = 0; i < 7; i++){
+        float fi = float(i);
+        if (geo && (i == 1 || i == 2 || i > 4)) continue;   // no pairing with home
+        vec2 pa = kepler(orbA(fi), orbE(fi), meanM(fi, uClock));
+        vec2 pb = kepler(orbA(fi + 1.0), orbE(fi + 1.0), meanM(fi + 1.0, uClock));
+        if (geo){ pa -= earth; pb -= earth; }
+        float dl = abs(wraps(atan(pa.y, pa.x) - atan(pb.y, pb.x)));
+        if (dl < 0.10){
+          vec2 ab = pb - pa; float L = length(ab); vec2 dir = ab / max(L, 1e-4);
+          float along = clamp(dot(p - pa, dir), 0.0, L);
+          float dc = length(p - (pa + dir * along));
+          col += ramp(0.82) * exp(-dc * 90.0) * (1.0 - dl / 0.10) * (0.25 + uBeat * 0.55);
+        }
+      }
+      // the belt: dust between the fourth and fifth spheres, lit by the highs
+      float r = length(p);
+      if (!geo){
+        float belt = smoothstep(0.62, 0.68, r) * smoothstep(0.80, 0.74, r);
+        float grain = step(0.986, hash21(floor(p * 240.0) + floor(uClock * 0.5)));
+        col += ramp(0.5) * belt * grain * (0.25 + uTreble * 0.8);
+      }
+      // the still point itself
+      float dc0 = length(p);
+      if (geo){
+        col += ramp(0.62) * exp(-dc0 * dc0 / 0.0004) * 1.1;             // home, a cool jewel
+        col += ramp(0.55) * exp(-abs(dc0 - 0.05) * 120.0) * 0.4;
+      } else {
+        col += ramp(0.06) * exp(-dc0 * dc0 / 0.0016) * (1.2 + uBass * 0.8);
+        col += ramp(0.10) * exp(-dc0 * 9.0) * (0.16 + uBass * 0.22);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'COPERNICUS',  m: 0 },
+    { name: 'PTOLEMY',     m: 1 },
+    { name: 'CONJUNCTION', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'ORRERY', key: 'orrery', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the mainspring: years roll faster when the music leans in
+      varU.uClock.value += dt * (0.55 + (f.energy || 0) * 0.75);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeOy.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'ORRERY · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 82 · LENSING — gravity's own glass
+
+   Mass bends light; enough of it, well enough aligned, and a
+   background galaxy is smeared into arcs, doubled, or drawn
+   into Einstein's complete ring. The deflection here is the
+   thin lens itself — beta = theta - thetaE^2/theta, applied
+   to every pixel, so the arcs, the doubling and the ring are
+   not painted: they fall out of the one equation, the way
+   they do in the sky. The bass is the mass.
+   ========================================================= */
+function buildLensing(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeLn:{ value: 0 },
+    uClock: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeLn, uVarA, uAspect, uClock;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the deep field: a hash starfield in two depths, plus one spiral galaxy
+    vec3 deepField(vec2 s, vec2 gal){
+      vec3 col = vec3(0.0);
+      for (int oct = 0; oct < 2; oct++){
+        float sc = oct == 0 ? 16.0 : 34.0;
+        vec2 cell = floor(s * sc);
+        vec2 fr = fract(s * sc) - 0.5;
+        float h = hash21(cell + float(oct) * 71.0);
+        if (h > 0.90){
+          vec2 off = vec2(hash21(cell + 3.1), hash21(cell + 7.7)) - 0.5;
+          float d = length(fr - off * 0.8);
+          float tw = 0.75 + 0.25 * sin(uTime * (1.0 + h * 5.0) + h * 40.0);
+          col += ramp(0.62 + h * 0.2) * exp(-d * d * (900.0 + h * 900.0)) * tw * (oct == 0 ? 0.9 : 0.45);
+        }
+      }
+      // the galaxy: an inclined disc with two logarithmic arms
+      vec2 g = s - gal;
+      g = mat2(0.86, -0.5, 0.5, 0.86) * g;   // its own tilt on the sky
+      g.y *= 2.2;                             // inclination
+      float r = length(g);
+      float th = atan(g.y, g.x);
+      float arm = cos(2.0 * (th - log(max(r, 1e-4)) * 3.4));
+      float disc = exp(-r * 6.0);
+      col += ramp(0.24) * exp(-r * 16.0) * 1.3;                            // the old gold core
+      col += ramp(0.55) * disc * smoothstep(0.15, 1.0, arm) * 0.55;        // young arms
+      col += ramp(0.42) * disc * 0.18;
+      return col;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      bool micro = uModeLn > 1.5;
+      // the lens wanders; twice a passage it lines up with the field behind
+      vec2 c = micro ? vec2(mod(uClock * 0.12, 2.4) - 1.2, 0.12 * sin(uClock * 0.1))
+                     : vec2(0.42 * sin(uClock * 0.11 + uVarA * 6.28), 0.30 * sin(uClock * 0.073));
+      if (uHand.z > 0.03) c = mix(c, uHand.xy, min(uHand.z * 1.4, 1.0));  // the hand IS a mass
+      float thetaE = micro ? 0.055 : 0.15 + uBass * 0.11;
+      vec2 gal = vec2(0.34 * sin(uClock * 0.05 + 2.1), 0.24 * cos(uClock * 0.043));
+      vec2 tv = p - c;
+      float t2 = max(dot(tv, tv), 1e-6);
+      // THE ONE EQUATION. CROSS adds an external shear, which is all it takes
+      // to pull the ring apart into Einstein's four-leaved cross.
+      vec2 beta = tv - thetaE * thetaE * tv / t2;
+      if (uModeLn > 0.5 && uModeLn < 1.5) beta -= 0.22 * vec2(tv.x, -tv.y);
+      vec3 col = deepField(c + beta, gal);
+      // the critical curve breathes into sight as the alignment closes
+      float align = exp(-dot(c - gal, c - gal) * (micro ? 0.0 : 6.0));
+      float ring = exp(-pow((length(tv) - thetaE) * 26.0, 2.0));
+      col += ramp(0.8) * ring * align * (0.12 + uMid * 0.2 + uBeat * 0.15);
+      if (micro){
+        // MICROLENS: the survey strip — Paczynski's curve written by the
+        // sweep itself, brightening exactly as the impact parameter closes
+        float y0 = -0.78;
+        if (p.y < y0 + 0.30){
+          float xx = (p.x / uAspect * 0.5 + 0.5);
+          float tPast = uClock - (1.0 - xx) * 24.0;                        // 24 s of survey on the strip
+          vec2 cPast = vec2(mod(tPast * 0.12, 2.4) - 1.2, 0.12 * sin(tPast * 0.1));
+          float u = length(cPast - vec2(0.31, 0.05)) / 0.16;               // one bright star on the path
+          float A = (u * u + 2.0) / max(u * sqrt(u * u + 4.0), 1e-3);
+          float trace = y0 + 0.03 + clamp((A - 1.0) * 0.09, 0.0, 0.22);
+          col *= 0.25;                                                     // the strip dims the field
+          col += ramp(0.7) * exp(-abs(p.y - trace) * 160.0) * 0.9;
+          col += ramp(0.3) * exp(-abs(p.y - y0) * 300.0) * 0.3;            // the baseline
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE RING',  m: 0 },
+    { name: 'THE CROSS', m: 1 },
+    { name: 'MICROLENS', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'LENSING', key: 'lensing', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      varU.uClock.value += dt * (0.7 + (f.energy || 0) * 0.5);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeLn.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'LENSING · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 83 · PULSAR — the lighthouse that keeps time
+
+   A city's worth of mass spun to a blur, its beams sweeping
+   the galaxy on a clock so steady we check ours against it.
+   The rotation here is locked to the song's own grid — one
+   turn every two beats — the dipole's field lines petal
+   around the star, and every sweep past the line of sight
+   lands a pulse. THE STACK face is the mountain range every
+   record-shop wall knows: each rotation one ridge, the front
+   row live off the song's own waveform. DISPERSION shows why
+   radio astronomers wait: the low bands arrive late, nu^-2,
+   and the song's own spectrum lights the chirp.
+   ========================================================= */
+function buildPulsar(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModePu:{ value: 0 },
+    uSpin:  { value: 0 },
+    uRot:   { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModePu, uVarA, uAspect, uSpin, uRot;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float wraps(float a){ return mod(a + 3.14159265, 6.2831853) - 3.14159265; }
+    // one past rotation's pulse profile, deterministic from its index — the
+    // "history" scrolls because the index does, and no state is kept anywhere
+    float profile(float x, float rotIdx){
+      float h1 = hash21(vec2(rotIdx, 3.7));
+      float h2 = hash21(vec2(rotIdx, 9.1));
+      float c = 0.5 + (h1 - 0.5) * 0.10;
+      float w = 0.018 + h2 * 0.03;
+      float a = 0.35 + h1 * 0.6;
+      float main1 = a * exp(-pow((x - c) / w, 2.0));
+      float inter = 0.22 * h2 * exp(-pow((x - c + 0.09) / 0.05, 2.0));   // the interpulse
+      float noise = 0.045 * (hash21(vec2(floor(x * 90.0), rotIdx)) - 0.5);
+      return main1 + inter + noise;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        float sw = uHand.z * 0.35 / (dot(dh, dh) + 0.2);
+        p = vec2(p.x - dh.y * sw, p.y + dh.x * sw);        // a hand torques the magnetosphere
+      }
+      vec3 col = vec3(0.0);
+      if (uModePu < 0.5){
+        /* THE LIGHTHOUSE */
+        float r = length(p);
+        float th = atan(p.y, p.x);
+        float axis = uSpin;                                 // the magnetic axis, carried by the grid
+        float wob = 0.35 * sin(uSpin * 0.23 + uVarA * 6.28);
+        // the dipole's petals: r = L sin^2(lambda) shells in the magnetic frame
+        float lam = th - axis;
+        for (int i = 0; i < 4; i++){
+          float L = 0.30 + float(i) * 0.26;
+          float d = abs(r - L * pow(sin(lam), 2.0));
+          float d2 = abs(r - L * pow(sin(lam + 3.14159265), 2.0));
+          col += ramp(0.35 + float(i) * 0.06) * (exp(-d * 60.0) + exp(-d2 * 60.0))
+               * (0.05 + uMid * 0.10) * exp(-r * 0.8);
+        }
+        // the two beams, and the moment one crosses the line of sight
+        float bw = 0.16 + uBass * 0.10;
+        float beam = exp(-pow(wraps(th - axis - wob) / bw, 2.0)) + exp(-pow(wraps(th - axis - wob + 3.14159265) / bw, 2.0));
+        col += ramp(0.72) * beam * exp(-r * 1.9) * (0.5 + uEnergy * 0.45);
+        float sweep = exp(-pow(wraps(axis + wob) / 0.13, 2.0));
+        col += ramp(0.85) * sweep * exp(-r * 2.6) * 0.5;                  // the room feels the pulse
+        col += ramp(0.9) * exp(-r * r / 0.0006) * (1.4 + sweep * 1.2);    // the star, a fierce point
+        col += ramp(0.5) * exp(-abs(r - 0.05 - uBeat * 0.012) * 150.0) * 0.5;
+        // sparse sky behind
+        vec2 cell = floor((p + 9.0) * 15.0);
+        if (hash21(cell) > 0.94){
+          vec2 fr = fract((p + 9.0) * 15.0) - 0.5;
+          col += ramp(0.63) * exp(-dot(fr, fr) * 700.0) * 0.4;
+        }
+      } else if (uModePu < 1.5){
+        /* THE STACK — eighteen rotations as a ridge line, front row live */
+        float x = vUv.x;
+        bool occ = false;
+        for (int k = 0; k < 18; k++){
+          float fk = float(k);
+          float base = 0.10 + fk * 0.042;
+          float rotIdx = uRot - fk;
+          float prof = profile(x, floor(rotIdx));
+          if (k == 0){
+            float w = texture2D(uAudio, vec2(0.30 + 0.4 * abs(x - 0.5), 0.5)).r;
+            prof = prof * 0.55 + w * 0.5 * exp(-pow((x - 0.5) / 0.16, 2.0));
+          }
+          float line = base + prof * 0.14;
+          float d = vUv.y - line;
+          if (!occ){
+            col += ramp(0.28 + fk * 0.012) * exp(-abs(d) * (300.0 - fk * 9.0)) * (1.0 - fk * 0.045);
+            if (d < -0.002) occ = true;                     // the nearer ridge hides the farther
+          }
+        }
+      } else {
+        /* DISPERSION — frequency against time, the chirps the sky sends */
+        float x = vUv.x, y = vUv.y;
+        float band = y;                                      // low at the floor, as a spectrum reads
+        float live = texture2D(uAudio, vec2(band * 0.62 + 0.02, 0.5)).r;
+        // each rotation launches one pulse; the lows of it arrive late, nu^-2
+        for (int k = 0; k < 6; k++){
+          float rotIdx = floor(uRot) - float(k);
+          float age = uRot - rotIdx;                         // rotations since this pulse left
+          float nu = 0.55 + band * 0.45;                     // the receiver's band, kept on screen
+          float delay = 0.16 * (1.0 / (nu * nu) - 1.0) * (0.75 + 0.25 * hash21(vec2(rotIdx, 1.3)));
+          float d = abs(x - (1.0 - (age + delay) * 0.24));
+          col += ramp(0.30 + band * 0.45) * exp(-d * d * 2600.0) * (0.55 + live * 0.9)
+               * (0.95 - float(k) * 0.12);
+        }
+        // the receiver's rulings, and each band's floor breathing with its music
+        col += ramp(0.55) * (0.03 + live * 0.14) * (0.6 + 0.4 * sin(band * 200.0));
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'LIGHTHOUSE', m: 0 },
+    { name: 'THE STACK',  m: 1 },
+    { name: 'DISPERSION', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'PULSAR', key: 'pulsar', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the clock the sky would envy: one rotation per two beats of the grid
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uSpin.value += dt * bps * 3.14159265;
+      varU.uRot.value += dt * bps * 0.5;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModePu.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'PULSAR · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 84 · ANALEMMA — the year, photographed
+
+   Stand in one place. Photograph the sun at the same hour,
+   every week, for a year, on one plate: it writes a figure
+   eight in the sky — the equation of time against the sun's
+   declination, eccentricity beating against obliquity. Here
+   THE SONG IS THE YEAR: the story clock walks the eight from
+   January to December, the solstices and equinoxes ring as
+   they pass, and the sky warms and cools with the season the
+   music is in. THE PLATE face is the finished photograph —
+   every exposure at once, day-arcs streaked behind. THE MOON
+   walks its own, wilder eight through a night sky.
+   ========================================================= */
+function buildAnalemma(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeAn:{ value: 0 },
+    uYear:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity, uCalm;
+    uniform float uModeAn, uVarA, uAspect, uYear;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // where the sun stands on day N: the equation of time against declination
+    vec2 sunAt(float N, float moon){
+      float B = 6.2831853 * (N - 81.0) / 365.0;
+      float eot = 9.87 * sin(2.0 * B) - 7.53 * cos(B) - 1.5 * sin(B);   // minutes, the honest fit
+      float dec = 23.44 * sin(6.2831853 * (N + 284.0) / 365.0);
+      if (moon > 0.5){
+        // the moon's month: wider, faster, its own inclination riding along
+        float M = 6.2831853 * N / 27.3;
+        eot = 22.0 * sin(2.0 * M + 0.6) - 9.0 * cos(M);
+        dec = 25.0 * sin(M + 2.1);
+      }
+      return vec2(eot * 0.022, dec * 0.021 + 0.22);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += vec2(dh.y, -dh.x) * (uHand.z * 0.10 / (dot(dh, dh) + 0.25));  // a breeze over the plate
+      }
+      bool plate = uModeAn > 0.5 && uModeAn < 1.5;
+      bool moon = uModeAn > 1.5;
+      float Y = uYear;                                   // 0..1: the song's own year
+      vec2 sunNow = sunAt(Y * 365.0, moon ? 1.0 : 0.0);
+      vec3 col = vec3(0.0);
+      // the sky: season on the plate, night for the moon
+      float season = 0.5 - 0.5 * cos(6.2831853 * (Y + 0.03));     // 0 midwinter, 1 midsummer
+      float skyH = smoothstep(-1.0, 1.0, p.y);
+      if (moon){
+        col += ramp(0.62) * (0.04 + 0.03 * (1.0 - skyH));
+        vec2 cell = floor((p + 7.0) * 18.0);
+        if (hash21(cell) > 0.93){
+          vec2 fr = fract((p + 7.0) * 18.0) - 0.5;
+          float tw = 0.7 + 0.3 * sin(uTime * (1.0 + hash21(cell + 1.0) * 4.0));
+          col += ramp(0.68) * exp(-dot(fr, fr) * 800.0) * tw * 0.6;
+        }
+      } else {
+        col += mix(ramp(0.60), ramp(0.10), season * 0.35) * (0.05 + 0.09 * (1.0 - skyH)) * (0.5 + season * 0.5);
+      }
+      // the ground: a ridge line and the gnomon that keeps the appointment
+      float ridge = -0.48 + 0.05 * sin(p.x * 2.1 + uVarA * 6.28) + 0.03 * sin(p.x * 5.3 + 1.3);
+      float ground = smoothstep(0.015, -0.015, p.y - ridge);
+      col *= 1.0 - ground * 0.92;
+      col += ramp(0.30) * exp(-abs(p.y - ridge) * 120.0) * 0.22;          // the ridge, kissed by light
+      float gx = 0.62; // the stone
+      if (abs(p.x - gx) < 0.028 && p.y > ridge - 0.02 && p.y < ridge + 0.34){
+        col *= 0.06;
+        col += ramp(0.25) * exp(-abs(p.x - gx - 0.03) * 90.0) * (0.2 + season * 0.2);
+      }
+      // the exposures: 52 weeks on one plate, each its own little sun
+      for (int w = 0; w < 52; w++){
+        float N = float(w) * 7.02;
+        float frac = N / 365.0;
+        vec2 sp = sunAt(N, moon ? 1.0 : 0.0);
+        float d = length(p - sp);
+        bool taken = plate || frac <= Y;
+        float g = exp(-d * d / 0.00022);
+        if (taken){
+          col += (moon ? ramp(0.64) : ramp(0.12 + frac * 0.06)) * g * (plate ? 0.55 : 0.5);
+        } else {
+          col += ramp(0.55) * exp(-d * d / 0.00006) * 0.10;               // the appointments not yet kept
+        }
+        if (plate){
+          // the day arc: the long-exposure streak each sun dragged that day
+          col += ramp(0.2) * exp(-abs(p.y - sp.y) * 200.0) * smoothstep(0.35, 0.0, abs(p.x - sp.x)) * 0.03;
+        }
+      }
+      // the sun of THIS week, burning at the head of the eight
+      float dNow = length(p - sunNow);
+      vec3 sunCol = moon ? ramp(0.66) : ramp(0.08);
+      col += sunCol * exp(-dNow * dNow / 0.0011) * (1.3 + uEnergy * 0.6);
+      col += sunCol * exp(-dNow * 3.4) * (0.20 + uBass * 0.18);
+      if (moon){
+        // the phase: the shadow disc slides across with the month, and the
+        // crescent is what the two circles leave — the same trick the sky uses
+        float ph = fract(Y * 13.4);
+        float dSh = length(p - sunNow - vec2((ph - 0.5) * 0.14, 0.0));
+        float shadow = smoothstep(0.040, 0.030, dSh);
+        col -= sunCol * exp(-dNow * dNow / 0.0011) * shadow * 1.1;
+      }
+      // the stations of the year ring as the song passes them
+      for (int s = 0; s < 4; s++){
+        float NS = float(s) * 91.3 + 79.0;
+        vec2 sp = sunAt(NS, moon ? 1.0 : 0.0);
+        float near = exp(-pow((Y * 365.0 - NS) / 5.0, 2.0));
+        col += ramp(0.85) * exp(-abs(length(p - sp) - 0.045 - near * 0.02) * 90.0) * (0.06 + near * (0.4 + uBeat * 0.3));
+      }
+      // the atmosphere shivers on the highs, low over the ridge
+      col += ramp(0.5) * exp(-abs(p.y - ridge - 0.05) * 30.0) * uTreble * 0.06
+           * (0.5 + 0.5 * sin(p.x * 30.0 + uTime * 3.0));
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE YEAR',  m: 0 },
+    { name: 'THE PLATE', m: 1 },
+    { name: 'THE MOON',  m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'ANALEMMA', key: 'analemma', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // THE SONG IS THE YEAR: the story clock walks January to December
+      varU.uYear.value = U.uAct.value;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeAn.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'ANALEMMA · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 85 · ECLIPSE — the appointment
+
+   The one event the sky keeps to the minute. The moon takes
+   the sun in a slow transit whose clock LISTENS: when the
+   music burns, the transit lingers at totality — corona out,
+   horizon a 360-degree sunset, stars where the afternoon was.
+   The obscuration is the honest circle-circle overlap, the
+   diamond ring fires exactly at second and third contact,
+   Baily's beads sparkle through the limb's valleys, and the
+   white the flash spends is the INK budget's to grant.
+   ANNULAR swaps the geometry for the ring of fire; PINHOLES
+   watches the ground under a tree, every leaf-gap a camera.
+   ========================================================= */
+function buildEclipse(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeEc:{ value: 0 },
+    uTransit:{ value: -1.4 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity, uCalm;
+    uniform float uModeEc, uVarA, uAspect, uTransit;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the honest obscuration: the lens-shaped overlap of two discs
+    float overlapFrac(float d, float rs, float rm){
+      if (d >= rs + rm) return 0.0;
+      if (d <= abs(rm - rs)) return min(1.0, (rm * rm) / (rs * rs));
+      float d2 = d * d, rs2 = rs * rs, rm2 = rm * rm;
+      float a1 = rs2 * acos((d2 + rs2 - rm2) / (2.0 * d * rs));
+      float a2 = rm2 * acos((d2 + rm2 - rs2) / (2.0 * d * rm));
+      float a3 = 0.5 * sqrt(max((-d + rs + rm) * (d + rs - rm) * (d - rs + rm) * (d + rs + rm), 0.0));
+      return (a1 + a2 - a3) / (3.14159265 * rs2);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float rs = 0.30;
+      bool annular = uModeEc > 0.5 && uModeEc < 1.5;
+      bool pinhole = uModeEc > 1.5;
+      float rm = annular ? 0.26 : 0.315;
+      vec2 mpos = vec2(uTransit, uTransit * 0.18);            // the transit line, slightly inclined
+      if (uHand.z > 0.04) mpos += (uHand.xy - mpos) * min(uHand.z * 0.5, 0.55);  // the hand nudges the moon
+      float sep = length(mpos);
+      float frac = overlapFrac(sep, rs, rm);
+      float total = smoothstep(0.965, 0.998, frac);
+      // the crescent: sun minus moon, drawn in light
+      vec3 col = vec3(0.0);
+      float skyLight = 1.0 - 0.93 * pow(frac, 1.5);
+      if (pinhole){
+        /* PINHOLES — the ground under the tree: every gap in the leaves
+           projects the same crescent, and the whole road is covered in suns */
+        col += mix(ramp(0.32), ramp(0.18), 0.5) * 0.05 * skyLight;         // the dappled ground
+        for (int i = 0; i < 28; i++){
+          float fi = float(i);
+          vec2 c = vec2(hash21(vec2(fi, 1.0)) - 0.5, hash21(vec2(fi, 2.0)) - 0.5)
+                 * vec2(2.0 * uAspect, 2.0) * 0.92;
+          float sc = 0.05 + hash21(vec2(fi, 3.0)) * 0.05;
+          vec2 q = (p - c) / sc;
+          float ds = length(q);
+          float dm = length(q - mpos / rs);                 // the same sky, in leaf-gap units
+          float sun = smoothstep(1.05, 0.9, ds);
+          float bite = smoothstep(0.9, 1.05, dm / (rm / rs));
+          col += ramp(0.10) * sun * bite * (0.34 + uEnergy * 0.18) * skyLight;
+        }
+        // shadow bands crawl in the last light
+        float bands = smoothstep(0.7, 0.97, frac) * (1.0 - total);
+        col *= 1.0 + bands * 0.20 * sin(p.x * 26.0 + p.y * 8.0 + uTime * 2.2) * (0.3 + uMid * 0.7);
+        col *= 1.0 - total * 0.85;                                         // totality takes the road too
+      } else {
+        // the sky, dying honestly as the light is taken
+        col += ramp(0.58) * (0.10 + 0.06 * (1.0 - smoothstep(-1.0, 1.0, p.y))) * skyLight;
+        // stars come out in the day
+        vec2 cell = floor((p + 7.0) * 16.0);
+        if (hash21(cell) > 0.93){
+          vec2 fr = fract((p + 7.0) * 16.0) - 0.5;
+          col += ramp(0.66) * exp(-dot(fr, fr) * 800.0) * (1.0 - skyLight) * 0.8;
+        }
+        // the 360-degree sunset on every horizon
+        col += ramp(0.10) * exp(-pow((p.y + 0.86) * 4.5, 2.0)) * (1.0 - skyLight) * 0.5;
+        // the photosphere, limb-darkened, with the moon's bite taken out
+        float ds = length(p);
+        float dm = length(p - mpos);
+        float sun = smoothstep(rs + 0.004, rs - 0.004, ds);
+        float limb = sqrt(max(1.0 - ds * ds / (rs * rs), 0.0));
+        float bite = smoothstep(rm - 0.004, rm + 0.004, dm);
+        float gran = 0.5 + 0.5 * sin(p.x * 60.0 + sin(p.y * 47.0 + uTime * 0.3) * 2.0) * sin(p.y * 53.0 - uTime * 0.2);
+        col += ramp(0.08) * sun * bite * (0.5 + 0.6 * limb) * (0.88 + gran * 0.14) * (1.0 - total * 0.9);
+        col += ramp(0.10) * exp(-max(ds - rs, 0.0) * 9.0) * bite * 0.16 * (1.0 - frac);   // the day's own glare
+        if (annular){
+          col += ramp(0.05) * exp(-abs(ds - rs + 0.02) * 60.0) * bite * frac * 0.8;  // the ring of fire
+        }
+        // the chromosphere: the red second the moon can't quite cover
+        float rim = exp(-abs(dm - rm) * 200.0);
+        col += vec3(0.8, 0.15, 0.08) * rim * smoothstep(0.93, 0.99, frac) * (1.0 - total) * 0.55;
+        // Baily's beads: the last photosphere through the limb's valleys
+        float limbAng = atan(p.y - mpos.y, p.x - mpos.x);
+        float valley = step(0.72, hash21(vec2(floor(limbAng * 14.0), uVarA * 40.0)));
+        float bead = exp(-abs(dm - rm) * 300.0) * valley * smoothstep(0.985, 0.955, frac) * smoothstep(0.90, 0.955, frac);
+        col += ramp(0.9) * bead * 1.4;
+        // THE DIAMOND RING: second and third contact, and only then
+        float contact = exp(-pow((frac - 0.985) / 0.008, 2.0));
+        vec2 tip = mpos * (rs / max(sep, 1e-4));
+        float dt2 = length(p - tip);
+        col += ramp(0.95) * contact * (exp(-dt2 * dt2 / 0.0009) * 2.2 + exp(-abs(p.y - tip.y) * 200.0) * exp(-abs(p.x - tip.x) * 8.0) * 0.5);
+        // the corona: only totality is allowed to show it
+        if (total > 0.0){
+          float th = atan(p.y - mpos.y, p.x - mpos.x);
+          float rr = max(dm / rm, 1.0);
+          float streamer = 0.62 + 0.38 * (0.5 * cos(2.0 * th + uVarA * 6.28) + 0.3 * cos(3.0 * th - 1.1) + 0.2 * cos(7.0 * th + uTime * 0.10));
+          float equator = 1.0 + 0.8 * pow(abs(cos(th)), 2.0);
+          float cor = pow(1.0 / rr, 2.6) * streamer * equator;
+          // the moon itself stays VOID — the corona lives outside the limb
+          cor *= smoothstep(rm - 0.004, rm + 0.012, dm);
+          col += ramp(0.62) * cor * total * (0.9 + uCalm * 0.3);
+          col += ramp(0.75) * exp(-abs(dm - rm) * 90.0) * total * 0.5;      // the pearl rim
+        }
+        // shadow bands on the low sky before and after
+        float bands = smoothstep(0.75, 0.97, frac) * (1.0 - total);
+        col += ramp(0.4) * bands * 0.05 * sin(p.x * 30.0 - uTime * 2.6) * exp(-pow(p.y + 0.6, 2.0) * 3.0) * (0.3 + uMid * 0.7);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'TOTALITY', m: 0 },
+    { name: 'ANNULAR',  m: 1 },
+    { name: 'PINHOLES', m: 2 },
+  ];
+  const st = { mode: MODES[0], t: -1.4 };
+  const api = {
+    name: 'ECLIPSE', key: 'eclipse', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the transit clock LISTENS: near totality, hot music makes it linger
+      const near = Math.exp(-Math.pow(st.t / 0.22, 2));
+      const rate = 0.055 * (1 - 0.78 * near * (0.35 + (f.energy || 0) * 0.65));
+      st.t += dt * rate * (1 + (f.energy || 0) * 0.4);
+      if (st.t > 1.5) st.t = -1.5;                          // the next appointment
+      varU.uTransit.value = st.t;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeEc.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      // a fresh deal lands anywhere in the transit — sometimes mid-crescent,
+      // sometimes a breath from totality — never a fixed minute of waiting
+      st.t = -1.45 + Math.random() * 2.4;
+      api.name = 'ECLIPSE · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 86 · TELEGRAPH — the song speaking morse
+
+   Before the voice went down the wire, the RHYTHM did: every
+   message the nineteenth century sent was percussion. This room
+   lets the song work the key — its bars quantized into dits and
+   dahs punched on a paper tape, the reading lamp blooming as
+   each mark passes the head. THE BEACON face takes the same
+   pattern to sea; THE RECORDER stacks the bars like the chart
+   roll of a nervous seismograph.
+   ========================================================= */
+function buildTelegraph(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeTg:{ value: 0 },
+    uTape:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeTg, uVarA, uAspect, uTape;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // one slot of the message: is there a mark, and is it a dah?
+    // Deterministic in the slot index, denser when the song leans in.
+    float markAt(float slot, float density){
+      float h = hash21(vec2(slot, uVarA * 60.0));
+      if (h > density) return 0.0;
+      return hash21(vec2(slot, 9.7)) > 0.62 ? 2.0 : 1.0;   // 2 = dah, 1 = dit
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.20 / (dot(dh, dh) + 0.30));   // the key pulls the room toward it
+      }
+      float density = 0.42 + uEnergy * 0.3;
+      vec3 col = vec3(0.0);
+      float head = uTape;                                     // slots that have passed the head
+      if (uModeTg < 0.5){
+        /* THE TAPE — tilted a hair, the way it comes off a real reel */
+        vec2 tp2 = vec2(p.x * 0.9982 - p.y * 0.06, p.x * 0.06 + p.y * 0.9982);
+        float y = tp2.y + 0.06;
+        float slotW = 0.15;
+        float slot = floor(head - (tp2.x - 0.30) / slotW);    // the head sits at x = 0.30
+        float sx = fract(head - (tp2.x - 0.30) / slotW);
+        float m = markAt(slot, density);
+        // the paper: a slim dark band with sprocket holes and bright edges
+        float band = smoothstep(0.165, 0.150, abs(y));
+        col += ramp(0.55) * band * 0.045;
+        col += ramp(0.60) * (exp(-abs(abs(y) - 0.165) * 260.0)) * 0.28;
+        float spro = exp(-pow((fract((tp2.x + head * slotW) / 0.075) - 0.5) * 7.0, 2.0));
+        col += ramp(0.62) * spro * (exp(-pow((abs(y) - 0.115) * 110.0, 2.0))) * 0.30;
+        // the marks: dits and dahs riding the centre line as light
+        if (m > 0.5){
+          float len = m > 1.5 ? 0.82 : 0.30;
+          float inMark = smoothstep(0.04, 0.10, sx) * smoothstep(len + 0.06, len, sx);
+          col += ramp(0.16 + m * 0.06) * inMark * exp(-pow(y * 24.0, 2.0)) * (0.75 + uMid * 0.35);
+        }
+        // the reading head and its lamp: bright while a mark is under it,
+        // and the light RADIATES — the room hears the message too
+        float now = markAt(floor(head), density);
+        float on = now > 0.5 ? (now > 1.5 ? 1.0 : step(fract(head), 0.42)) : 0.0;
+        col += ramp(0.7) * exp(-abs(tp2.x - 0.30) * 70.0) * band * 0.20;
+        vec2 lampP = vec2(0.30, 0.52);
+        float dl = length(p - lampP);
+        col += ramp(0.12) * exp(-dl * dl / 0.0035) * (0.18 + on * (0.9 + uBeat * 0.4));
+        col += ramp(0.10) * exp(-dl * 2.6) * on * 0.30;
+        col += ramp(0.14) * exp(-abs(dl - fract(head) * 0.9) * 14.0) * on * 0.10;
+        // the galvanometer, whole and on stage, kicked by the moment
+        vec2 gp = p - vec2(-1.05, 0.42);
+        float na = -0.55 + uBeat * 1.1;
+        vec2 nd = vec2(sin(na), cos(na));
+        float t2 = clamp(dot(gp, nd), 0.0, 0.20);
+        col += ramp(0.5) * exp(-length(gp - nd * t2) * 180.0) * 0.55;
+        col += ramp(0.55) * exp(-abs(length(gp) - 0.22) * 110.0) * smoothstep(-0.02, 0.20, gp.y) * 0.28;
+      } else if (uModeTg < 1.5){
+        /* THE BEACON — the same message, taken to sea */
+        float now = markAt(floor(head), density);
+        float on = now > 0.5 ? (now > 1.5 ? 1.0 : step(fract(head), 0.42)) : 0.0;
+        float horizon = -0.05;
+        col += ramp(0.60) * (0.035 + 0.05 * smoothstep(horizon, 1.0, p.y));  // night sky
+        vec2 cell = floor((p + 6.0) * 14.0);
+        if (hash21(cell) > 0.95 && p.y > horizon){
+          vec2 fr = fract((p + 6.0) * 14.0) - 0.5;
+          col += ramp(0.66) * exp(-dot(fr, fr) * 900.0) * 0.35;
+        }
+        // the tower on its rock, stage left — a silhouette rimmed by its own lamp
+        vec2 lp = vec2(-0.85, horizon + 0.62);
+        float tw = 0.055 * (1.0 - (p.y - horizon) * 0.35);
+        float tower = step(abs(p.x - lp.x), tw) * step(horizon - 0.04, p.y) * step(p.y, lp.y);
+        col *= 1.0 - tower * 0.92;
+        col += ramp(0.30) * exp(-abs(abs(p.x - lp.x) - tw) * 120.0)
+             * step(horizon - 0.04, p.y) * step(p.y, lp.y) * 0.16;
+        // the lamp house glows even between marks; the BEAM is the message
+        float dl = length(p - lp);
+        col += ramp(0.10) * exp(-dl * dl / 0.0025) * (0.35 + on * 1.3);
+        float ang = atan(p.y - lp.y, p.x - lp.x);
+        float beam = exp(-pow(ang / 0.10, 2.0)) * exp(-max(p.x - lp.x, 0.0) * 0.8);
+        col += ramp(0.14) * beam * on * step(lp.x, p.x) * 0.5;
+        // the sea answers: the reflection breaks on the swell
+        if (p.y < horizon){
+          float sw = sin(p.x * 14.0 + uTime * 1.2) * 0.5 + sin(p.x * 31.0 - uTime * 0.8) * 0.3;
+          float lane = exp(-pow((p.x - lp.x - (horizon - p.y) * 0.15 * sw) * 6.0, 2.0));
+          col += ramp(0.12) * lane * on * exp((p.y - horizon) * 2.5) * 0.45;
+          col += ramp(0.58) * exp((p.y - horizon) * 4.0) * 0.05;
+        }
+        col += ramp(0.62) * exp(-abs(p.y - horizon) * 120.0) * 0.18;
+      } else {
+        /* THE RECORDER — every bar a line of the roll, newest at the pen */
+        float rows = 12.0;
+        float row = floor((0.75 - p.y) / 1.1 * rows);
+        float ry = fract((0.75 - p.y) / 1.1 * rows);
+        if (row >= 0.0 && row < rows && abs(p.x) < uAspect * 0.92){
+          float bar = floor(head / 8.0) - row;
+          float slot = floor((p.x / (uAspect * 0.92) * 0.5 + 0.5) * 8.0);
+          float m = markAt(bar * 8.0 + slot, density);
+          float sx = fract((p.x / (uAspect * 0.92) * 0.5 + 0.5) * 8.0);
+          float len = m > 1.5 ? 0.8 : 0.3;
+          float inMark = m > 0.5 ? smoothstep(0.05, 0.12, sx) * smoothstep(len + 0.05, len, sx) : 0.0;
+          float pen = exp(-pow((ry - 0.5) * 5.0, 2.0));
+          col += ramp(0.2 + row * 0.02) * inMark * pen * (0.6 - row * 0.035) * (1.0 + (row < 0.5 ? uBeat * 0.5 : 0.0));
+          col += ramp(0.55) * exp(-pow((ry - 0.5) * 12.0, 2.0)) * 0.03;   // the ruled line
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE TAPE',     m: 0 },
+    { name: 'THE BEACON',   m: 1 },
+    { name: 'THE RECORDER', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'TELEGRAPH', key: 'telegraph', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the tape advances two slots a beat — the message keeps the tempo
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uTape.value += dt * bps * 2.0;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeTg.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'TELEGRAPH · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 87 · SEMAPHORE — the signalman at dusk
+
+   Two flags, eight positions, and the whole alphabet standing
+   in the angles between them — the navy's answer to distance
+   before the wire. The letters here are dealt by the song and
+   spelled by the REAL system's logic (the alphabet is the
+   ordered enumeration of arm pairs), the arms snapping to
+   their stations on the beat, the cloth answering the wind of
+   the mids. THE FLEET face raises answering stations down the
+   coast; NIGHT WANDS trades the flags for lit wands.
+   ========================================================= */
+function buildSemaphore(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeSm:{ value: 0 },
+    uSpell: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeSm, uVarA, uAspect, uSpell;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    /* the alphabet IS the enumeration: letter n resolves to the n-th pair of
+       arm stations (i < j) in order — the actual system's plan, with history's
+       one out-of-order letter smoothed back into line */
+    vec2 semPair(float n){
+      if (n < 7.0)  return vec2(0.0, n + 1.0);
+      if (n < 13.0) return vec2(1.0, n - 5.0);
+      if (n < 18.0) return vec2(2.0, n - 10.0);
+      if (n < 22.0) return vec2(3.0, n - 14.0);
+      if (n < 25.0) return vec2(4.0, n - 17.0);
+      return vec2(5.0, 6.0);
+    }
+    float armAng(float k){ return -1.5707963 + k * 0.7853982; }   // station 0 hangs down
+    // one signalman: mast, arms easing between letters, cloth in the wind
+    vec3 signalman(vec2 p, vec2 base, float scale, float spell, float seed, float lit){
+      vec3 col = vec3(0.0);
+      vec2 q = (p - base) / scale;
+      float n0 = floor(hash21(vec2(floor(spell), seed)) * 26.0);
+      float n1 = floor(hash21(vec2(floor(spell) + 1.0, seed)) * 26.0);
+      float tt = smoothstep(0.0, 0.30, fract(spell));            // the snap between stations
+      vec2 pr0 = semPair(n0), pr1 = semPair(n1);
+      // the mast and the figure
+      col += ramp(0.30) * exp(-segd(q, vec2(0.0, -0.60), vec2(0.0, 0.15)) * 150.0) * 0.8;
+      col += ramp(0.30) * exp(-segd(q, vec2(-0.16, -0.60), vec2(0.16, -0.60)) * 150.0) * 0.5;  // the platform
+      col += ramp(0.32) * exp(-length(q - vec2(0.0, 0.24)) * 42.0) * 0.6;   // the head
+      for (int arm = 0; arm < 2; arm++){
+        float k0 = arm == 0 ? pr0.x : pr0.y;
+        float k1 = arm == 0 ? pr1.x : pr1.y;
+        // arms swing the short way between stations
+        float a0 = armAng(k0), a1 = armAng(k1);
+        float da = a1 - a0;
+        if (da > 3.14159265) da -= 6.2831853;
+        if (da < -3.14159265) da += 6.2831853;
+        float a = a0 + da * tt + sin(uTime * 3.0 + seed * 9.0) * 0.015;
+        float mirror = arm == 0 ? -1.0 : 1.0;
+        vec2 dir = vec2(cos(a) * mirror, sin(a));
+        vec2 sh = vec2(mirror * 0.06, 0.10);       // shoulders, so a hung arm still shows
+        vec2 tip = sh + dir * 0.62;
+        col += ramp(0.34) * exp(-segd(q, sh, tip) * 150.0) * 0.8;
+        // the flag: a bright panel at the tip, cloth rippling on the mids
+        vec2 fx = tip + dir * 0.18;
+        float cloth = segd(q, tip, fx + vec2(-dir.y, dir.x) * (0.13 + 0.04 * sin(uTime * 6.0 + q.y * 18.0 + seed * 5.0) * (0.4 + uMid)));
+        col += ramp(arm == 0 ? 0.12 : 0.72) * exp(-cloth * 60.0) * (0.7 + lit * 0.5 + uBeat * 0.25);
+      }
+      return col;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += vec2(dh.y, -dh.x) * (uHand.z * 0.14 / (dot(dh, dh) + 0.25));  // wind through the yard
+      }
+      vec3 col = vec3(0.0);
+      bool night = uModeSm > 1.5;
+      float horizon = -0.25;
+      // dusk, or night for the wands
+      col += ramp(night ? 0.62 : 0.14) * (night ? 0.03 : 0.05) * (1.0 - smoothstep(horizon, 1.0, p.y)) * 1.6;
+      col += ramp(0.58) * 0.03;
+      if (night){
+        vec2 cell = floor((p + 6.0) * 14.0);
+        if (hash21(cell) > 0.94 && p.y > horizon){
+          vec2 fr = fract((p + 6.0) * 14.0) - 0.5;
+          col += ramp(0.68) * exp(-dot(fr, fr) * 900.0) * 0.5;
+        }
+      }
+      float ground = smoothstep(0.012, -0.012, p.y - horizon);
+      col *= 1.0 - ground * 0.90;
+      col += ramp(0.30) * exp(-abs(p.y - horizon) * 130.0) * 0.2;
+      if (uModeSm > 0.5 && uModeSm < 1.5){
+        /* THE FLEET: stations answering down the coast, each a beat behind */
+        col += signalman(p, vec2(-0.72, 0.06), 0.85, uSpell, uVarA * 7.0, 1.0);
+        col += signalman(p, vec2(0.28, 0.14), 0.5, uSpell - 1.0, uVarA * 7.0, 0.7);
+        col += signalman(p, vec2(0.98, 0.20), 0.3, uSpell - 2.0, uVarA * 7.0, 0.45);
+      } else {
+        col += signalman(p, vec2(0.0, 0.08), 1.1, uSpell, uVarA * 7.0, night ? 1.2 : 1.0);
+        if (night){
+          // the wands leave their arcs hanging in the air a moment
+          float trail = exp(-fract(uSpell) * 3.0);
+          col += ramp(0.5) * exp(-abs(length(p - vec2(0.0, 0.19)) - 0.71) * 30.0)
+               * trail * 0.10 * smoothstep(horizon, horizon + 1.2, p.y);
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE SIGNALMAN', m: 0 },
+    { name: 'THE FLEET',     m: 1 },
+    { name: 'NIGHT WANDS',   m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'SEMAPHORE', key: 'semaphore', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // one letter every two beats — a message at parade pace
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uSpell.value += dt * bps * 0.5;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeSm.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'SEMAPHORE · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 88 · SCRIBE — the hand that writes
+
+   Writing, before it means anything, is a dance the hand
+   knows — asemic calligraphy is that dance kept and the
+   meaning let go. A nib lays strokes in musical time: a
+   word-cluster to the beat, the line advancing, the page
+   scrolling when a verse of it is full. Pen pressure is the
+   music's energy; an onset earns a flourish. THE LETTER face
+   practises one great glyph per bar; PALIMPSEST writes over
+   the ghost of what came before.
+   ========================================================= */
+function buildScribe(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeSc:{ value: 0 },
+    uWrite: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeSc, uVarA, uAspect, uWrite;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    // one stroke of the hand: a bent curve inside its own small box,
+    // deterministic in the stroke's index — the dance replayable forever
+    vec3 stroke(vec2 p, float idx, float reveal, float big, float seed, float inkT){
+      vec3 col = vec3(0.0);
+      float perLine = big > 0.5 ? 1.0 : 10.0;
+      float lines = big > 0.5 ? 1.0 : 3.0;
+      float li = floor(idx / perLine);
+      float ci = mod(idx, perLine);
+      vec2 base = big > 0.5 ? vec2(0.0, -0.05)
+                : vec2((-0.80 + (ci + 0.5) * (1.60 / perLine)) * uAspect, 0.50 - mod(li, lines) * 0.36);
+      float sc = big > 0.5 ? 0.55 : 0.085;
+      // three joints of the letterform, from the stroke's own seed
+      vec2 a = (vec2(hash21(vec2(idx, seed)), hash21(vec2(idx, seed + 1.0))) - 0.5) * 2.0;
+      vec2 b = (vec2(hash21(vec2(idx, seed + 2.0)), hash21(vec2(idx, seed + 3.0))) - 0.5) * 2.0;
+      vec2 c = (vec2(hash21(vec2(idx, seed + 4.0)), hash21(vec2(idx, seed + 5.0))) - 0.5) * 2.0;
+      c += (b - a) * 0.6;                                    // the exit follows the gesture through
+      vec2 prev = base + a * sc;
+      float width = 90.0 / (0.6 + uEnergy * 0.8);            // pressure: louder is broader
+      for (int s = 1; s < 9; s++){
+        float t = float(s) / 8.0;
+        if (t > reveal) break;                               // the nib has not got there yet
+        // a quadratic pull through the joints — the hand, not a ruler
+        vec2 q = mix(mix(a, b, t), mix(b, c, t), t);
+        vec2 pt = base + q * sc;
+        float d = segd(p, prev, pt);
+        float taper = 0.55 + 0.45 * sin(t * 3.14159);        // thin at entry and exit
+        col += ramp(inkT) * exp(-d * width / taper) * (big > 0.5 ? 0.62 : 0.42);
+        prev = pt;
+      }
+      return col;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += vec2(dh.y, -dh.x) * (uHand.z * 0.12 / (dot(dh, dh) + 0.25));  // a draught riffles the page
+      }
+      bool big = uModeSc > 0.5 && uModeSc < 1.5;
+      bool pal = uModeSc > 1.5;
+      vec3 col = vec3(0.0);
+      // the page: barely there — ink on slate, never paper-white
+      col += ramp(0.58) * 0.035;
+      float perPage = big ? 1.0 : 30.0;
+      float idxNow = uWrite;
+      float pageNow = floor(idxNow / perPage);
+      // the ruled lines the hand honours
+      if (!big){
+        float lineY = fract((0.50 - p.y) / 0.36);
+        col += ramp(0.55) * exp(-pow((lineY - 0.72) * 60.0, 2.0)) * 0.05
+             * step(abs(p.x), uAspect * 0.86) * step(-0.35, p.y) * step(p.y, 0.60);
+      }
+      // the strokes of this page, and the ghost of the last on the palimpsest
+      for (int w = 0; w < 34; w++){
+        float idx;
+        if (big){
+          // THE LETTER is a COMPOUND glyph: its last six strokes layered in
+          // one great box, the newest still wet, the oldest fading out
+          if (w > 5) break;
+          idx = floor(idxNow) - float(w);
+          if (idx < 0.0) break;
+        } else {
+          idx = pageNow * perPage + float(w);
+          if (idx > idxNow) break;
+        }
+        float reveal = idx >= floor(idxNow) ? fract(idxNow) : 1.0;
+        float fade = big ? 1.0 - float(w) * 0.13 : 1.0;
+        col += stroke(p, idx, reveal, big ? 1.0 : 0.0, uVarA * 40.0, 0.16 + mod(idx, 7.0) * 0.02) * fade;
+        if (pal){
+          col += stroke(p + vec2(0.012, -0.008), idx - perPage, 1.0, 0.0, uVarA * 40.0 + 13.0, 0.60) * 0.35;
+        }
+      }
+      // the nib itself: a bright point riding the newest stroke
+      {
+        float idx = floor(idxNow);
+        float t = fract(idxNow);
+        float perLine = big ? 1.0 : 10.0;
+        float li = floor(idx / perLine);
+        float ci = mod(idx, perLine);
+        vec2 base = big ? vec2(0.0, -0.05)
+                  : vec2((-0.80 + (ci + 0.5) * (1.60 / perLine)) * uAspect, 0.50 - mod(li, 3.0) * 0.36);
+        float sc = big ? 0.55 : 0.085;
+        float seed = uVarA * 40.0;
+        vec2 a = (vec2(hash21(vec2(idx, seed)), hash21(vec2(idx, seed + 1.0))) - 0.5) * 2.0;
+        vec2 b = (vec2(hash21(vec2(idx, seed + 2.0)), hash21(vec2(idx, seed + 3.0))) - 0.5) * 2.0;
+        vec2 c = (vec2(hash21(vec2(idx, seed + 4.0)), hash21(vec2(idx, seed + 5.0))) - 0.5) * 2.0;
+        c += (b - a) * 0.6;
+        vec2 q = mix(mix(a, b, t), mix(b, c, t), t);
+        vec2 nib = base + q * sc;
+        float dn = length(p - nib);
+        col += ramp(0.08) * exp(-dn * dn / 0.00012) * (0.8 + uBeat * 0.6);
+        col += ramp(0.12) * exp(-dn * 30.0) * uBeat * 0.25;   // the onset's little pool of ink
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'MANUSCRIPT', m: 0 },
+    { name: 'THE LETTER', m: 1 },
+    { name: 'PALIMPSEST', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'SCRIBE', key: 'scribe', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the hand writes to the music: a stroke per beat, roughly
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uWrite.value += dt * bps * (varU.uModeSc.value === 1 ? 0.25 : 1.0);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeSc.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      // the room opens mid-manuscript — a scribe is never at word one
+      varU.uWrite.value = 12 + Math.random() * 16;
+      api.name = 'SCRIBE · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 89 · CIPHER — the wheel that keeps the secret
+
+   Substitution is the oldest lock ever picked: two alphabets
+   on two rings, one turned against the other. The rings here
+   carry a REAL dot-matrix alphabet — twenty-six 5×7 glyphs,
+   packed bit by bit into the shader — the shift dealt by the
+   song's own key and clicking one detent per bar, a beam
+   lighting each plain/cipher pair as the beat interrogates
+   the wheel. ROTORS stacks three rings gearing like an
+   odometer; THE RAIL FENCE marches the letters down the
+   zigzag of the other great cipher family.
+   ========================================================= */
+function buildCipher(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeCf:{ value: 0 },
+    uClick: { value: 0 },
+    uShift: { value: 3 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeCf, uVarA, uAspect, uClick, uShift;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    /* THE ALPHABET, bit by bit: each letter's 5x7 raster packed into two
+       floats (four rows and three rows, five bits a row, base 32) — small
+       enough for mediump, honest enough to read */
+    vec2 glyphBits(float li){
+      if (li < 0.5) return vec2(1033774.0, 17969.0);
+      else if (li < 1.5) return vec2(1001022.0, 31281.0);
+      else if (li < 2.5) return vec2(541230.0, 14896.0);
+      else if (li < 3.5) return vec2(575068.0, 29265.0);
+      else if (li < 4.5) return vec2(999967.0, 32272.0);
+      else if (li < 5.5) return vec2(999967.0, 16912.0);
+      else if (li < 6.5) return vec2(770606.0, 15921.0);
+      else if (li < 7.5) return vec2(1033777.0, 17969.0);
+      else if (li < 8.5) return vec2(135310.0, 14468.0);
+      else if (li < 9.5) return vec2(67655.0, 12866.0);
+      else if (li < 10.5) return vec2(807505.0, 18004.0);
+      else if (li < 11.5) return vec2(541200.0, 32272.0);
+      else if (li < 12.5) return vec2(710513.0, 17969.0);
+      else if (li < 13.5) return vec2(644913.0, 17969.0);
+      else if (li < 14.5) return vec2(575022.0, 14897.0);
+      else if (li < 15.5) return vec2(1001022.0, 16912.0);
+      else if (li < 16.5) return vec2(575022.0, 13909.0);
+      else if (li < 17.5) return vec2(1001022.0, 18004.0);
+      else if (li < 18.5) return vec2(475663.0, 30753.0);
+      else if (li < 19.5) return vec2(135327.0, 4228.0);
+      else if (li < 20.5) return vec2(575025.0, 14897.0);
+      else if (li < 21.5) return vec2(575025.0, 4433.0);
+      else if (li < 22.5) return vec2(706097.0, 10933.0);
+      else if (li < 23.5) return vec2(141873.0, 17962.0);
+      else if (li < 24.5) return vec2(141873.0, 4228.0);
+      else return vec2(133183.0, 32264.0);
+    }
+    // is the pixel inside letter li at cell coordinate uv (y down)? 0 or 1.
+    float glyphPx(float li, vec2 uv){
+      if (uv.x < 0.0 || uv.x >= 1.0 || uv.y < 0.0 || uv.y >= 1.0) return 0.0;
+      float u = floor(uv.x * 5.0);
+      float v = floor(uv.y * 7.0);
+      vec2 ab = glyphBits(li);
+      float rowBits = v < 3.5 ? mod(floor(ab.x / pow(32.0, v)), 32.0)
+                              : mod(floor(ab.y / pow(32.0, v - 4.0)), 32.0);
+      return mod(floor(rowBits / pow(2.0, 4.0 - u)), 2.0);
+    }
+    // a letter standing upright at a ring station
+    float ringGlyph(vec2 p, float li, float radius, float ang, float size){
+      vec2 c = vec2(cos(ang), sin(ang)) * radius;
+      vec2 q = p - c;
+      float ca = cos(-(ang - 1.5707963)), sa = sin(-(ang - 1.5707963));
+      q = vec2(q.x * ca - q.y * sa, q.x * sa + q.y * ca);    // feet toward the hub
+      return glyphPx(li, q / size * vec2(1.0, -1.0) / vec2(0.72, 1.0) + vec2(0.5, 0.5));
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        float sw = uHand.z * 0.30 / (dot(dh, dh) + 0.22);
+        p = vec2(p.x - dh.y * sw, p.y + dh.x * sw);          // the hand turns the wheel
+      }
+      vec3 col = vec3(0.0);
+      float step26 = 6.2831853 / 26.0;
+      // the click: the inner ring eases onto its next detent each bar
+      float click = floor(uClick) + smoothstep(0.0, 0.22, fract(uClick));
+      float shift = uShift + click;
+      if (uModeCf < 0.5 || uModeCf > 1.5){
+        /* THE WHEEL (and ROTORS: three of them, geared like an odometer) */
+        bool rotors = uModeCf > 1.5;
+        float r = length(p);
+        float th = atan(p.y, p.x);
+        int N = rotors ? 3 : 2;
+        for (int ring = 0; ring < 3; ring++){
+          if (ring >= N) break;
+          float rad = rotors ? 0.24 + float(ring) * 0.18 : (ring == 0 ? 0.40 : 0.62);
+          float size = rotors ? 0.070 : 0.095;
+          float turn = ring == 0 ? shift * step26
+                     : (rotors ? floor(click / pow(26.0, float(ring))) * step26 : 0.0);
+          if (!rotors && ring == 1) turn = 0.0;
+          float bright = 0.0;
+          // the nearest three stations are the only ones that can hold the pixel
+          float k0 = floor((th - turn) / step26);
+          for (int dk = -1; dk <= 1; dk++){
+            float k = mod(k0 + float(dk) + 52.0, 26.0);
+            float ang = (k + 0.5) * step26 + turn;
+            float li = ring == 0 ? mod(k + (rotors ? 0.0 : 26.0 - 0.0), 26.0) : k;
+            bright += ringGlyph(p, mod(li, 26.0), rad, ang, size);
+          }
+          col += ramp(0.22 + float(ring) * 0.18) * bright * (0.40 + uMid * 0.25);
+          // the ring's own rails
+          col += ramp(0.55) * exp(-abs(r - rad - size * 0.75) * 240.0) * 0.10;
+          col += ramp(0.55) * exp(-abs(r - rad + size * 0.75) * 240.0) * 0.10;
+        }
+        // the beam: each beat asks the wheel one letter, and the answer lights
+        float ask = floor(hash21(vec2(floor(uClick * 4.0), uVarA * 30.0)) * 26.0);
+        float angOut = (ask + 0.5) * step26;
+        float angIn = (mod(ask - shift + 52.0, 26.0) + 0.5) * step26 + shift * step26;
+        float beamd = min(abs(mod(th - angOut + 3.14159, 6.2831853) - 3.14159),
+                          abs(mod(th - angIn + 3.14159, 6.2831853) - 3.14159));
+        col += ramp(0.85) * exp(-beamd * 18.0) * exp(-abs(r - 0.51) * 4.0) * (0.14 + uBeat * 0.6);
+        // the hub keeps the count
+        col += ramp(0.10) * exp(-r * r / 0.002) * (0.5 + uBeat * 0.5);
+      } else {
+        /* THE RAIL FENCE: the other family — nothing substituted, everything
+           out of ORDER: letters marching down and up the rails */
+        float rails = 3.0 + floor(uVarA * 2.0 + 0.5);
+        float speed = uClick * 1.2;
+        for (int i = 0; i < 40; i++){
+          float fi = float(i);
+          float x = uAspect * 0.94 - mod(fi * 0.19 + speed * 0.10, uAspect * 1.9);
+          float phase = mod(fi, 2.0 * (rails - 1.0));
+          float railIdx = phase < rails ? phase : 2.0 * (rails - 1.0) - phase;
+          float y = 0.55 - railIdx * (0.75 / (rails - 1.0)) + 0.02 * sin(uTime + fi);
+          float li = floor(hash21(vec2(fi, uVarA * 20.0)) * 26.0);
+          vec2 q = (p - vec2(x, y)) / 0.10 * vec2(1.0, -1.0) / vec2(0.72, 1.0) + vec2(0.5, 0.5);
+          col += ramp(0.2 + railIdx * 0.12) * glyphPx(li, q) * (0.5 + uTreble * 0.3);
+        }
+        // the rails themselves
+        for (int rr = 0; rr < 5; rr++){
+          if (float(rr) >= rails) break;
+          float y = 0.55 - float(rr) * (0.75 / (rails - 1.0));
+          col += ramp(0.55) * exp(-abs(p.y - y) * 200.0) * 0.06;
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE WHEEL',      m: 0 },
+    { name: 'THE RAIL FENCE', m: 1 },
+    { name: 'ROTORS',         m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'CIPHER', key: 'cipher', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // one detent per bar; the base shift is the song's own Camelot number
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uClick.value += dt * bps * 0.25;
+      const t = player.tracks[player.cur];
+      const m = t ? mixOf(t) : null;
+      const cam = m && m.key ? camelotParse(m.key) : null;
+      varU.uShift.value = cam ? cam.n : 3;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeCf.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'CIPHER · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 90 · BABEL — the library that contains everything
+
+   Borges' library holds every book that could exist, which is
+   why nothing in it can be found. The camera falls forever
+   down the hexagonal air shaft — gallery under gallery under
+   gallery — shelf-light breathing with the spectrum, the
+   corner lamps burning insufficiently and continuously, and
+   now and then one glowing book falls past, dropped from some
+   argument above. THE GALLERY walks one floor's shelves;
+   THE INDEX is a wall of pages flipping on the beat, looking
+   for the one true catalogue.
+   ========================================================= */
+function buildBabel(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeBb:{ value: 0 },
+    uFall:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeBb, uVarA, uAspect, uFall;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the hexagon the whole world is built from
+    float hexd(vec2 q){
+      q = abs(q);
+      return max(q.x * 0.866025 + q.y * 0.5, q.y);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * -0.18 / (dot(dh, dh) + 0.30));   // the shaft pulls; a hand resists
+      }
+      vec3 col = vec3(0.0);
+      if (uModeBb < 0.5){
+        /* THE SHAFT — falling past gallery after gallery */
+        float fall = fract(uFall);
+        for (int k = 0; k < 8; k++){
+          float fk = float(k);
+          float depth = fk - fall + 1.0;
+          float s = pow(0.74, depth);
+          float rot = (mod(fk - floor(uFall), 2.0) < 0.5 ? 1.0 : -1.0) * 0.10 + uTime * 0.008;
+          float ca = cos(rot), sa = sin(rot);
+          vec2 q = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca) / s;
+          float hd = hexd(q);
+          float floorIdx = floor(uFall) + fk;
+          // the gallery ring: shelves live between the rail and the wall
+          float ring = smoothstep(0.62, 0.66, hd) * smoothstep(1.02, 0.98, hd);
+          if (ring > 0.0){
+            float ang = atan(q.y, q.x);
+            // spines: narrow slots of book-light, each its own colour and
+            // its own band of the spectrum to breathe with
+            float slot = floor(ang * 34.0 / 6.2831853 + floorIdx * 7.0);
+            float su = fract(ang * 34.0 / 6.2831853 + floorIdx * 7.0);
+            float h = hash21(vec2(slot, floorIdx));
+            float bandE = texture2D(uAudio, vec2(fract(h * 0.61), 0.5)).r;
+            float spine = smoothstep(0.12, 0.3, su) * smoothstep(0.88, 0.7, su);
+            float shelf = smoothstep(0.3, 0.5, fract(hd * 9.0));
+            col += ramp(0.15 + h * 0.5) * ring * spine * shelf
+                 * (0.05 + h * 0.10 + bandE * 0.5) * pow(0.72, depth) * 2.0;
+          }
+          // the rail catches the lamp light
+          col += ramp(0.30) * exp(-abs(hd - 0.62) * 120.0) * pow(0.70, depth) * 0.5;
+          // the lamps: two per gallery, insufficient, continuous
+          for (int L = 0; L < 2; L++){
+            float la = (float(L) * 3.14159265) + floorIdx * 1.1;
+            vec2 lp = vec2(cos(la), sin(la)) * 0.64;
+            float dl = length(q - lp);
+            col += ramp(0.10) * exp(-dl * dl / 0.003) * pow(0.72, depth) * (0.5 + uBass * 0.25);
+          }
+        }
+        // the one falling book this bar earned
+        float bookT = fract(uFall * 0.5 + 0.31);
+        vec2 bp = vec2(sin(floor(uFall * 0.5) * 5.7) * 0.3, 0.0);
+        float bs = pow(0.74, bookT * 6.0);
+        float db = length(p - bp * bs) - 0.012 * bs;
+        col += ramp(0.85) * exp(-max(db, 0.0) * 300.0 / bs) * bs * (0.4 + uBeat * 0.5);
+        // the void at the bottom of everything
+        col *= smoothstep(0.0, 0.15, hexd(p));
+      } else if (uModeBb < 1.5){
+        /* THE GALLERY — one floor, walked past */
+        float px = p.x + uFall * 0.35;
+        // three depths of shelf wall, parallax like a slow pan
+        for (int layer = 0; layer < 3; layer++){
+          float fl = float(layer);
+          float depth = 1.0 + fl * 0.8;
+          float x = px / depth;
+          float rowH = 0.30 / (0.8 + fl * 0.4);
+          float row = floor((p.y + 0.75) / rowH);
+          float ry = fract((p.y + 0.75) / rowH);
+          float slot = floor(x * (17.0 + fl * 8.0));
+          float su = fract(x * (17.0 + fl * 8.0));
+          float h = hash21(vec2(slot, row + fl * 31.0));
+          float bandE = texture2D(uAudio, vec2(fract(h * 0.61), 0.5)).r;
+          float spine = smoothstep(0.10, 0.24, su) * smoothstep(0.92, 0.78, su);
+          float books = smoothstep(0.06, 0.16, ry) * smoothstep(0.98, 0.88, ry);
+          float lean = 0.9 + 0.1 * sin(slot * 3.0 + row);
+          col += ramp(0.12 + h * 0.55) * spine * books * lean
+               * (0.06 + h * 0.10 + bandE * 0.45) / (depth * depth) * step(p.y, 0.55 - fl * 0.1);
+          // each shelf's lip
+          col += ramp(0.32) * exp(-pow((ry - 0.03) * 30.0, 2.0)) / (depth * depth) * 0.20 * step(p.y, 0.55 - fl * 0.1);
+        }
+        // the lamp swinging gently overhead
+        vec2 lp = vec2(0.25 * sin(uTime * 0.4), 0.72);
+        float dl = length(p - lp);
+        col += ramp(0.10) * exp(-dl * dl / 0.004) * (0.8 + uBass * 0.3);
+        col += ramp(0.12) * exp(-dl * 2.2) * 0.18;
+      } else {
+        /* THE INDEX — the wall of every page, flipping on the beat */
+        float gx = floor((p.x / uAspect * 0.5 + 0.5) * 22.0);
+        float gy = floor((p.y * 0.5 + 0.5) * 13.0);
+        vec2 cu = vec2(fract((p.x / uAspect * 0.5 + 0.5) * 22.0), fract((p.y * 0.5 + 0.5) * 13.0));
+        float flip = floor(uFall * 2.0 + hash21(vec2(gx, gy)) * 4.0);
+        float h = hash21(vec2(gx * 7.0 + gy, flip));
+        // a page is a lattice of glyph-dust: pseudo-letters, meaning withheld
+        float u = floor(cu.x * 5.0), v = floor(cu.y * 7.0);
+        float bit = step(0.5, hash21(vec2(u + gx * 5.0, v + gy * 7.0 + flip * 13.0)));
+        float margin = step(0.08, cu.x) * step(cu.x, 0.92) * step(0.10, cu.y) * step(cu.y, 0.90);
+        col += ramp(0.2 + h * 0.35) * bit * margin * (0.10 + h * 0.14 + uTreble * 0.18);
+        // the searcher's lamp crosses the wall, looking for the catalogue
+        vec2 lampP = vec2(sin(uFall * 0.7) * 0.8 * uAspect, sin(uFall * 0.43 + 1.0) * 0.6);
+        float dl = length(p - lampP);
+        col *= 0.45 + 0.55 * exp(-dl * dl * 1.2);
+        col += ramp(0.10) * exp(-dl * dl / 0.01) * 0.30;
+        // one cell burns brighter than it should — is that it?
+        if (gx == floor((lampP.x / uAspect * 0.5 + 0.5) * 22.0) && gy == floor((lampP.y * 0.5 + 0.5) * 13.0)){
+          col += ramp(0.85) * bit * margin * (0.4 + uBeat * 0.5);
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE SHAFT',   m: 0 },
+    { name: 'THE GALLERY', m: 1 },
+    { name: 'THE INDEX',   m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'BABEL', key: 'babel', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the fall is patient, and the music leans on the banister
+      varU.uFall.value += dt * (0.16 + (f.energy || 0) * 0.14 + (f.bass || 0) * 0.06);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeBb.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'BABEL · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -43156,7 +44987,9 @@ function initThree(){
               buildLindenmayer(), buildHilbert(), buildKoch(), buildDragon(), buildCantor(),
               buildTonnetz(), buildHarmonograph(), buildOvertones(), buildEuclid(), buildPhase(),
               buildUlam(), buildCardioid(), buildCollatz(), buildMediant(), buildZeta(),
-              buildKarman(), buildCaustics(), buildHopf(), buildKnots(), buildBenard());
+              buildKarman(), buildCaustics(), buildHopf(), buildKnots(), buildBenard(),
+              buildOrrery(), buildLensing(), buildPulsar(), buildAnalemma(), buildEclipse(),
+              buildTelegraph(), buildSemaphore(), buildScribe(), buildCipher(), buildBabel());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

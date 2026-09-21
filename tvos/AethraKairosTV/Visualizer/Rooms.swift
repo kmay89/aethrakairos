@@ -310,6 +310,46 @@ enum Rooms {
         Room(key: "benard", name: "BÉNARD", fragmentFunction: "room_benard",
              tasteEnergy: 0.4, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
              tasteBass: 0.9, calm: true),
+
+        // ---- wave 13: the sky ----
+        // The astronomy wing (Shaders16): Kepler's clockwork solved honestly,
+        // the thin-lens equation bending a deep field, the lighthouse that
+        // keeps time, the year photographed, and the appointment the sky
+        // keeps to the minute — eighty-five, both stages.
+        Room(key: "orrery", name: "ORRERY", fragmentFunction: "room_orrery",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: -0.4, heavy: true, calm: true),
+        Room(key: "lensing", name: "LENSING", fragmentFunction: "room_lensing",
+             tasteEnergy: 0, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.9),
+        Room(key: "pulsar", name: "PULSAR", fragmentFunction: "room_pulsar",
+             tasteEnergy: 0.5, tasteCalm: 0, tasteBeat: 1.4, tasteTreble: 0.6),
+        Room(key: "analemma", name: "ANALEMMA", fragmentFunction: "room_analemma",
+             tasteEnergy: 0, tasteCalm: 1.0, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.4, tasteEntropy: -0.5, calm: true),
+        Room(key: "eclipse", name: "ECLIPSE", fragmentFunction: "room_eclipse",
+             tasteEnergy: 0.9, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.7),
+
+        // ---- wave 14: the word ----
+        // The language wing (Shaders17): the song speaking morse, the navy's
+        // alphabet of arm pairs, an asemic hand writing in musical time, a
+        // real dot-matrix alphabet on cipher rings, and Borges' library
+        // falling past forever — ninety, both stages.
+        Room(key: "telegraph", name: "TELEGRAPH", fragmentFunction: "room_telegraph",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.3, tasteTreble: 0.5,
+             tasteEntropy: -0.3),
+        Room(key: "semaphore", name: "SEMAPHORE", fragmentFunction: "room_semaphore",
+             tasteEnergy: 0, tasteCalm: 0.5, tasteBeat: 1.0, tasteTreble: 0),
+        Room(key: "scribe", name: "SCRIBE", fragmentFunction: "room_scribe",
+             tasteEnergy: 0, tasteCalm: 1.1, tasteBeat: -0.2, tasteTreble: 0,
+             tasteMid: 0.5, calm: true),
+        Room(key: "cipher", name: "CIPHER", fragmentFunction: "room_cipher",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
+             tasteMid: 0.6, tasteEntropy: 0.8, heavy: true),
+        Room(key: "babel", name: "BABEL", fragmentFunction: "room_babel",
+             tasteEnergy: 0, tasteCalm: 0.9, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.5, tasteEntropy: 0.5, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
