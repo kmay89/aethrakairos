@@ -139,7 +139,7 @@ jobs:
           # the signature spiral and the SCOPE trace.
           # --drive-demo pumps a synthetic 126 BPM signal through the ears, so
           # the frames show each room UNDER music — reactivity in a still.
-          for ROOM in spiral scope julia helix band ribbons comets fern flame sheets bubbles drift filament soapfilm lsystem hilbert koch dragon cantor tonnetz harmonograph overtones euclid phase ulam cardioid collatz mediant zeta; do
+          for ROOM in spiral scope julia helix band ribbons comets fern flame sheets bubbles drift filament soapfilm lsystem hilbert koch dragon cantor tonnetz harmonograph overtones euclid phase ulam cardioid collatz mediant zeta karman caustics hopf knots benard; do
             xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
             sleep 2
             xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room "$ROOM" --drive-demo

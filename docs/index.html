@@ -3383,6 +3383,20 @@ body.clipping::after{
     that never ends. And <b>ZETA</b> walks the critical line: partial sums of ζ(½+it) as a spiral
     staircase that circles, hesitates, and — when it comes home to zero — makes the room hold its
     breath, exactly where the million-dollar conjecture says every zero must stand.</p>
+    <h3>Flow &amp; knots</h3>
+    <p class="lede">Scenes 76–80 are the wing of motion and entanglement. <b>KÁRMÁN</b> puts a
+    cylinder in a stream and lets the wake organise into von Kármán's staggered vortex street —
+    the honest streamfunction of the rows, its contours the streamlines, the shedding clock set by
+    the song's tempo. <b>CAUSTICS</b> is the light at the bottom of the pool: the surface is a sum
+    of travelling waves the music drives, and the dancing net is its true curvature — bright
+    exactly where the water's lens focuses; a heavy beat drops a stone. <b>HOPF</b> combs the
+    3-sphere into circles, one per point of an ordinary sphere, every pair linked exactly once —
+    stereographic projection lays them into nested tori while the 4D phase turns the whole bundle.
+    <b>KNOTS</b> winds one string p times around a torus and q times through it: coprime, it can
+    never be untied — the trefoil and its kin dealt by the phrase, the torus breathing on the
+    bass, pulses running the loop to prove it is one. And <b>BÉNARD</b> heats the pan past
+    Rayleigh's number: convection rolls — miso soup, the sun's granules, cloud streets — with
+    plumes riding the rising sheets and the bass turning the burner up until the cells multiply.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3997,7 +4011,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'blackhole', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
                'grows', 'flows', 'gathers', 'flows', 'blackhole',
                'gathers', 'flows', 'flows', 'grows', 'flows',
-               'gathers', 'grows', 'flows', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
+               'gathers', 'grows', 'flows', 'gathers', 'blackhole',
+               'flows', 'flows', 'gathers', 'grows', 'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4278,7 +4293,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa', 'drift', 'drift', 'snake', 'paint', 'lissa', 'paint',
                'drift', 'snake', 'lissa', 'snake', 'paint',
                'paint', 'lissa', 'drift', 'bounce', 'snake',
-               'snake', 'lissa', 'drift', 'paint', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
+               'snake', 'lissa', 'drift', 'paint', 'lissa',
+               'drift', 'paint', 'lissa', 'lissa', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5484,7 +5500,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'fourier', 'fringe', 'julia', 'escher', 'penrose', 'sunflower', 'sandpile',
                     'lsystem', 'hilbert', 'koch', 'dragon', 'cantor',
                     'tonnetz', 'harmonograph', 'overtones', 'euclid', 'phase',
-                    'ulam', 'cardioid', 'collatz', 'mediant', 'zeta'];
+                    'ulam', 'cardioid', 'collatz', 'mediant', 'zeta',
+                    'karman', 'caustics', 'hopf', 'knots', 'benard'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5616,6 +5633,11 @@ const SCENE_TASTE = {
   collatz:   { calm: 1.1, bass: 0.6, beat: -0.2 },          // a reef grows best in patience
   mediant:   { treble: 0.9, calm: 0.6, entropy: 0.3 },      // foam wants the highs
   zeta:      { calm: 0.7, mid: 0.6, energy: 0.4 },          // the walk keeps the song's pace
+  karman:    { energy: 0.7, bass: 0.7, beat: 0.4 },         // the street sheds on the tempo
+  caustics:  { calm: 0.9, treble: 0.6, beat: -0.2 },        // pool light asks for shimmer
+  hopf:      { calm: 0.8, bass: 0.5, entropy: -0.3 },       // linked circles want coherence
+  knots:     { mid: 0.7, bass: 0.6, calm: 0.3 },            // one loop, held and turned
+  benard:    { bass: 0.9, calm: 0.4, energy: 0.4 },         // the burner answers the low end
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6802,6 +6824,11 @@ const SCENE_SIGS = {
   collatz:   { kind: 'spiral', h: 130, arms: 4 },
   mediant:   { kind: 'wave',   h: 195, dense: 0.7 },
   zeta:      { kind: 'spiral', h: 258, twist: 1 },
+  karman:    { kind: 'wave',   h: 210, arms: 2 },
+  caustics:  { kind: 'grid',   h: 185, dense: 0.8 },
+  hopf:      { kind: 'ring',   h: 300, twist: 1 },
+  knots:     { kind: 'ring',   h: 20,  twist: 1 },
+  benard:    { kind: 'wave',   h: 40,  arms: 3 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -42430,6 +42457,619 @@ function buildZeta(){
   return api;
 }
 
+/* =========================================================
+   SCENE 76 · KÁRMÁN — the street the wake builds
+
+   Put a cylinder in a stream and the wake does not trail off —
+   it organises: two staggered rows of vortices marching
+   downstream, the pattern von Kármán proved and every flag,
+   chimney and bridge cable knows by heart. The street here is
+   the honest streamfunction of the staggered rows, its
+   contours the streamlines, the shedding clock set by the
+   music's own tempo — Strouhal would approve.
+   ========================================================= */
+function buildKarman(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeK2:{ value: 0 },
+    uPhase: { value: 0 },
+    uGamma: { value: 1 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeK2, uVarA, uAspect, uPhase, uGamma;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    /* the staggered rows' streamfunction, in closed form: an infinite row
+       of point vortices at spacing a sums to ln(cosh - cos) — two rows,
+       opposite signs, offset half a wavelength, plus the free stream */
+    float street(vec2 q, float ph){
+      float k = 6.2831853 / 1.15;                        // wavenumber of the street
+      float h = 0.28;                                    // half the row separation
+      float upper = log(max(cosh(k * (q.y - h)) - cos(k * (q.x - ph)), 1e-4));
+      float lower = log(max(cosh(k * (q.y + h)) - cos(k * (q.x - ph) + 3.14159265), 1e-4));
+      return q.y * 1.05 - uGamma * 0.16 * (upper - lower);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));  // the hand stirs the stream
+      }
+      // the cylinder that sheds it all, anchored stage left
+      vec2 cyl = vec2(-uAspect * 0.88, 0.0);
+      float dc = length(p - cyl) - 0.17;
+      vec3 col = vec3(0.0);
+      float psi = street(p, uPhase);
+      if (uModeK2 < 0.5 || uModeK2 > 1.5){
+        /* THE STREET and TWIN WAKE: the streamlines themselves — contour
+           bands of psi, tighter where the flow runs faster */
+        float lines = uModeK2 > 1.5 ? 22.0 : 14.0;
+        float band = abs(fract(psi * lines * 0.5) - 0.5) * 2.0;
+        float g = exp(-pow(band, 2.0) * 40.0);
+        // flow speed brightens the line: |grad psi| by cheap differencing
+        float e2 = 0.012;
+        float gx = street(p + vec2(e2, 0.0), uPhase) - psi;
+        float gy = street(p + vec2(0.0, e2), uPhase) - psi;
+        float speed = clamp(length(vec2(gx, gy)) / e2 * 0.5 - 0.35, 0.0, 1.6);
+        vec3 ink = ramp(0.26 + uVarA * 0.2 + clamp(psi * 0.22 + 0.5, 0.0, 1.0) * 0.25);
+        col += ink * g * (0.10 + speed * (0.55 + uMid * 0.3));
+        col += ramp(0.74 + uVarA * 0.15) * g * exp(-abs(psi) * 2.4) * (0.25 + uBeat * 0.35);
+      } else {
+        /* DYE: ribbons of dye riding the same field — the streakline look,
+           the vortex cores curling it into spirals */
+        float dye = sin(psi * 9.0 + uVarA * 6.2831853);
+        float dye2 = sin(psi * 23.0 + 2.1);
+        float v = smoothstep(0.2, 0.95, dye * 0.5 + 0.5);
+        vec3 ink = ramp(0.22 + uVarA * 0.2 + v * 0.35);
+        col += ink * v * (0.30 + uMid * 0.25);
+        col += ramp(0.70 + uVarA * 0.18) * smoothstep(0.5, 0.98, dye2 * 0.5 + 0.5) * exp(-abs(psi) * 1.8) * 0.22;
+      }
+      // the cylinder: a dark moon with a bright rim, the author of the street
+      col *= smoothstep(-0.02, 0.06, dc);
+      col += ramp(0.76 + uVarA * 0.14) * exp(-abs(dc) * 60.0) * (0.5 + uBeat * 0.4);
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE STREET', m: 0 },
+    { name: 'DYE',        m: 1 },
+    { name: 'TWIN WAKE',  m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0 };
+  const api = {
+    name: 'KÁRMÁN', key: 'karman', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the shedding clock keeps the song's tempo — one vortex per bar
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uPhase.value += dt * (0.24 + bps * 0.12 + (f.energy || 0) * 0.2);
+      // the bass is the Reynolds number's mood: stronger vortices
+      varU.uGamma.value += ((0.8 + (f.bass || 0) * 0.7 + (f.energy || 0) * 0.3) - varU.uGamma.value) * Math.min(1, dt * 2);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeK2.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'KÁRMÁN · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 77 · CAUSTICS — the light at the bottom of the pool
+
+   Sunlight through a rippling surface focuses into the dancing
+   net every swimmer knows: caustics, the envelope of refracted
+   rays. The surface here is a sum of travelling waves the
+   music drives, and the net is its honest curvature — bright
+   exactly where the lens of the water focuses. A beat drops a
+   stone; the ring spreads through the net and bends it.
+   ========================================================= */
+function buildCaustics(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeCa:{ value: 0 },
+    uStone: { value: new THREE.Vector3(0, 0, 9) },     // x, y, age
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeCa, uVarA, uAspect;
+    uniform vec3 uStone;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the surface: travelling waves + the stone's ring; returns height
+    float surf(vec2 q, float t){
+      float h = 0.0;
+      h += sin(dot(q, vec2(1.7, 1.1)) * 2.3 + t * 1.10) * 0.50;
+      h += sin(dot(q, vec2(-1.2, 1.9)) * 3.1 + t * 1.45) * 0.34;
+      h += sin(dot(q, vec2(0.6, -2.3)) * 4.3 + t * 0.85) * 0.24;
+      h += sin(dot(q, vec2(2.9, 0.4)) * 5.9 + t * 1.9) * 0.14 * (1.0 + uTreble);
+      // the stone: a ring wave spreading and fading
+      float rd = length(q - uStone.xy);
+      float age = uStone.z;
+      h += sin((rd - age * 1.4) * 16.0) * exp(-abs(rd - age * 1.4) * 5.0) * exp(-age * 0.8) * 0.8;
+      return h;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));  // a finger in the water
+      }
+      float zoom = uModeCa > 0.5 && uModeCa < 1.5 ? 1.9 : 1.1;   // THE SHALLOWS looks closer
+      vec2 q = p * zoom;
+      float t = uTime * (0.55 + uEnergy * 0.5);
+      /* the focusing, honestly: the caustic brightness is the inverse of
+         the refracted map's Jacobian — approximated by the surface's
+         curvature (the Laplacian), which is what bends rays together */
+      float e = 0.045;
+      float h0 = surf(q, t);
+      float hx = surf(q + vec2(e, 0.0), t), hX = surf(q - vec2(e, 0.0), t);
+      float hy = surf(q + vec2(0.0, e), t), hY = surf(q - vec2(0.0, e), t);
+      float lap = (hx + hX + hy + hY - 4.0 * h0) / (e * e);
+      lap /= zoom * zoom;                                        // curvature scales with the look
+      float focus = clamp(-lap * 0.045 - 0.24, 0.0, 1.8);        // converging = bright
+      focus = pow(focus, 1.9);
+      vec3 water = ramp(0.30 + uVarA * 0.2);
+      vec3 lightC = ramp(0.72 + uVarA * 0.15);
+      vec3 col = water * (uModeCa > 1.5 ? 0.035 : 0.075);        // NIGHT DIVE keeps it dark
+      col += lightC * focus * (uModeCa > 1.5 ? 0.45 : 0.62);
+      // the net's second story: soft glow pooled around the bright lines
+      col += lightC * clamp(-lap * 0.02, 0.0, 0.5) * 0.10;
+      if (uModeCa > 1.5){
+        // god rays: the surface slope tilts shafts of light down-frame
+        float shaft = smoothstep(0.4, 1.0, sin(p.x * 3.0 + h0 * 1.4 + uVarA * 6.28) * 0.5 + 0.5);
+        col += lightC * shaft * smoothstep(0.9, -0.6, p.y) * 0.10;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE POOL',     m: 0 },
+    { name: 'THE SHALLOWS', m: 1 },
+    { name: 'NIGHT DIVE',   m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0, lastBeat: -9 };
+  const api = {
+    name: 'CAUSTICS', key: 'caustics', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      varU.uStone.value.z += dt;                          // the ring keeps spreading
+      if ((f.beat || 0) > 0.6 && st.t - st.lastBeat > 1.2 && (f.bass || 0) > 0.5){
+        st.lastBeat = st.t;                               // a heavy beat drops a stone
+        varU.uStone.value.set((Math.random() - 0.5) * 2.4, (Math.random() - 0.5) * 1.4, 0);
+      }
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeCa.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      varU.uStone.value.set(0, 0, 9);
+      api.name = 'CAUSTICS · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 78 · HOPF — every circle through every other
+
+   The Hopf fibration: the 3-sphere combed into circles, one
+   for every point of an ordinary sphere, every pair of them
+   linked exactly once. Stereographic projection lays the
+   circles into space as nested tori — the picture topologists
+   keep above the desk. The room walks a ring of base points
+   around the sphere; the music breathes the latitude, and the
+   whole bundle turns with the 4D phase.
+   ========================================================= */
+function buildHopf(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uFlow: { value: 0 } };
+  const FIBERS = 26, SEGS = 72;
+  const pos = new Float32Array(FIBERS * (SEGS + 1) * 2 * 3);   // as line segments
+  const aT = new Float32Array(FIBERS * (SEGS + 1) * 2);
+  const aF = new Float32Array(FIBERS * (SEGS + 1) * 2);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  geo.setAttribute('aF', new THREE.BufferAttribute(aF, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aT, aF;
+      varying float vT, vF;
+      void main(){ vT = aT; vF = aF; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uBeat, uEnergy, uFlow, uVarA;
+      varying float vT, vF;
+      void main(){
+        // each fiber wears its base point's place on the chord
+        vec3 col = ramp(fract(vF + uVarA));
+        float head = fract(vT - uFlow - vF * 0.31);
+        float pulse = exp(-head * head * 200.0);
+        col = mix(col, ramp(0.78 + uVarA * 0.1), pulse * 0.8);
+        col = inkRolloff(col * (0.68 + pulse * 1.2 + uBeat * 0.3 + uEnergy * 0.2));
+        gl_FragColor = vec4(col, uOpacity * (0.44 + pulse * 0.34));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const lines = new THREE.LineSegments(geo, mat);
+  lines.frustumCulled = false;
+  group.add(lines); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE BUNDLE',  lat0: 0.9, breathe: 0.65 },   // a tour of latitudes
+    { name: 'ONE TORUS',   lat0: 1.05, breathe: 0.10 },  // dwell on a single shell
+    { name: 'POLAR LIGHT', lat0: 0.45, breathe: 0.35 },  // near the pole: tight cores
+  ];
+  const st = { mode: MODES[0], t: 0, phase: 0 };
+
+  function rebuild(){
+    const M = st.mode;
+    // the base ring: FIBERS points at breathing latitude, marching in longitude
+    const lat = M.lat0 + Math.sin(st.t * 0.21) * M.breathe;
+    let k = 0;
+    for (let fi = 0; fi < FIBERS; fi++){
+      const lon = fi / FIBERS * Math.PI * 2 + st.t * 0.05;
+      // base point on S2 -> its fiber on S3: standard parametrization
+      const a = Math.cos(lat / 2), b = Math.sin(lat / 2);
+      let px0 = 0, py0 = 0, pz0 = 0, first = true;
+      for (let siN = 0; siN <= SEGS; siN++){
+        const tf = siN / SEGS * Math.PI * 2;
+        // the fiber: (a e^{i(t+phase)}, b e^{i(t+lon)}) in C^2, then
+        // stereographic from S3 to R3
+        const x1 = a * Math.cos(tf + st.phase), x2 = a * Math.sin(tf + st.phase);
+        const x3 = b * Math.cos(tf + lon),      x4 = b * Math.sin(tf + lon);
+        const w = 1.0000001 - x4;
+        const X = x1 / w, Y = x2 / w, Z = x3 / w;
+        const sc = 5.4;
+        const cx = X * sc, cy = Y * sc, cz = Z * sc;
+        if (!first){
+          const j = k * 6;
+          pos[j] = px0; pos[j + 1] = py0; pos[j + 2] = pz0;
+          pos[j + 3] = cx; pos[j + 4] = cy; pos[j + 5] = cz;
+          const tt = siN / SEGS;
+          aT[k * 2] = tt; aT[k * 2 + 1] = tt;
+          aF[k * 2] = fi / FIBERS; aF[k * 2 + 1] = fi / FIBERS;
+          k++;
+        }
+        px0 = cx; py0 = cy; pz0 = cz; first = false;
+      }
+    }
+    geo.setDrawRange(0, k * 2);
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.aT.needsUpdate = true;
+    geo.attributes.aF.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'HOPF', key: 'hopf', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // the 4D phase is the room's slow heartbeat; bass leans on it
+      st.phase += dt * (0.16 + (f.bass || 0) * 0.35);
+      rebuild();
+      varU.uFlow.value = (varU.uFlow.value + dt * (0.08 + (f.energy || 0) * 0.15)) % 1;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1) group.rotation.z += U.uPtr.value.x * dt * 0.5 * force;
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uVarA.value = Math.random();
+      st.phase = Math.random() * Math.PI * 2;
+      rebuild();
+      api.name = 'HOPF · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 79 · KNOTS — the string that cannot let go
+
+   Wind a string p times around a torus one way and q times
+   the other: if p and q share no factor, the string closes
+   into a knot that no amount of pulling will ever undo — the
+   trefoil, the cinquefoil, Solomon's seal. The phrase deals a
+   new (p, q); the bass breathes the torus; the pulses run the
+   string to prove it truly is one loop.
+   ========================================================= */
+function buildKnots(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uFlow: { value: 0 } };
+  const NPTS = 720;
+  const pos = new Float32Array(NPTS * 3);
+  const aT = new Float32Array(NPTS);
+  for (let i = 0; i < NPTS; i++) aT[i] = i / (NPTS - 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aT;
+      varying float vT;
+      void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uBeat, uEnergy, uFlow, uVarA;
+      varying float vT;
+      void main(){
+        vec3 col = ramp(0.20 + uVarA * 0.25 + vT * 0.40);
+        float pulse = 0.0;
+        for (int k = 0; k < 2; k++){
+          float head = fract(vT - uFlow - float(k) * 0.5);
+          pulse += exp(-head * head * 500.0);
+        }
+        col = mix(col, ramp(0.76 + uVarA * 0.14), min(pulse, 1.0) * 0.9);
+        col = inkRolloff(col * (1.1 + pulse * 1.6 + uBeat * 0.4 + uEnergy * 0.3));
+        gl_FragColor = vec4(col, uOpacity * (0.9 + pulse * 0.1));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const line = new THREE.Line(geo, mat);
+  line.frustumCulled = false;
+  group.add(line); group.visible = false; scene.add(group);
+
+  const KNOTS = [[2, 3], [2, 5], [3, 4], [2, 7], [3, 5], [4, 5]];
+  const MODES = [
+    { name: 'TREFOIL & KIN', pick: 0 },     // the classics, dealt by phrase
+    { name: 'SOLOMON',       pick: 1 },     // dwell on (2, 5)
+    { name: 'THE WEAVE',     pick: 2 },     // high (p, q): a woven crown
+  ];
+  const st = { mode: MODES[0], t: 0, p: 2, q: 3, R: 8.2, r: 3.6, prevPhrase: 0 };
+
+  function rebuild(){
+    const breathe = st.r;
+    for (let i = 0; i < NPTS; i++){
+      const u = i / (NPTS - 1) * Math.PI * 2;
+      const rr = st.R + breathe * Math.cos(st.q * u);
+      pos[i * 3]     = rr * Math.cos(st.p * u);
+      pos[i * 3 + 1] = breathe * Math.sin(st.q * u);
+      pos[i * 3 + 2] = rr * Math.sin(st.p * u);
+    }
+    geo.attributes.position.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'KNOTS', key: 'knots', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // a new knot on the phrase (the classics face only)
+      const ph = (typeof DANCE !== 'undefined' && DANCE.haveGrid)
+        ? Number(DANCE.phraseFrac) || 0 : (st.t * 0.05) % 1;
+      if (st.mode.pick === 0 && ph < st.prevPhrase - 0.3){
+        const kn = KNOTS[Math.floor(Math.random() * 4)];
+        st.p = kn[0]; st.q = kn[1];
+      }
+      st.prevPhrase = ph;
+      // the torus breathes on the bass
+      st.r += ((3.2 + (f.bass || 0) * 1.6) - st.r) * Math.min(1, dt * 3);
+      rebuild();
+      group.rotation.y += dt * 0.24;
+      group.rotation.x = Math.sin(st.t * 0.17) * 0.5;
+      varU.uFlow.value = (varU.uFlow.value + dt * (0.10 + (f.energy || 0) * 0.25)) % 1;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1) group.rotation.z += U.uPtr.value.x * dt * 0.6 * force;
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uVarA.value = Math.random();
+      if (st.mode.pick === 1){ st.p = 2; st.q = 5; }
+      else if (st.mode.pick === 2){ const kn = KNOTS[4 + Math.floor(Math.random() * 2)]; st.p = kn[0]; st.q = kn[1]; }
+      else { const kn = KNOTS[Math.floor(Math.random() * 4)]; st.p = kn[0]; st.q = kn[1]; }
+      rebuild();
+      api.name = 'KNOTS · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 80 · BÉNARD — the sky's engine, in a pan
+
+   Heat a fluid from below past Rayleigh's number and it stops
+   conducting and starts to ROLL: convection cells, the pattern
+   in miso soup, in the sun's granules, in every summer cloud
+   street. The rolls here are the honest linear modes; plumes
+   ride the hot rising sheets on the music's schedule, and the
+   bass turns the burner up until the cells multiply.
+   ========================================================= */
+function buildBenard(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeB2:{ value: 0 },
+    uCells: { value: 3 },
+    uHeat:  { value: 0.5 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeB2, uVarA, uAspect, uCells, uHeat;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));  // a cold finger dims the roll
+      }
+      // the cell: x wraps, y is the pan from floor (hot) to lid (cool)
+      float y01 = clamp(p.y / 1.6 + 0.5, 0.0, 1.0);
+      float k = 3.14159265 * uCells / uAspect;
+      /* the honest linear mode: psi = sin(kx) sin(pi y) — its contours are
+         the rolls; the temperature field is conduction plus the mode's
+         advection, plumes riding the rising sheets */
+      float psi = sin(p.x * k + uVarA * 6.2831853) * sin(3.14159265 * y01);
+      float theta = cos(p.x * k + uVarA * 6.2831853) * sin(3.14159265 * y01);
+      float T = (1.0 - y01) + theta * uHeat * 0.55;
+      // plumes: blobs launched from the floor wherever the flow rises,
+      // on a hash schedule the music hurries
+      float rise = -cos(p.x * k + uVarA * 6.2831853);     // +1 where the sheet rises
+      for (int j = 0; j < 5; j++){
+        float fj = float(j);
+        float cellx = (fj + 0.5) / 5.0 * 2.0 - 1.0;
+        float ph = fract(uTime * (0.10 + uHeat * 0.14) + hash21(vec2(fj, floor(uVarA * 90.0))));
+        float px2 = cellx * uAspect + sin(uTime * 0.4 + fj) * 0.1;
+        float py2 = -0.8 + ph * 1.6;
+        float dpl = length((p - vec2(px2, py2)) * vec2(1.0, 0.75));
+        float upHere = smoothstep(-0.2, 0.6, -cos(px2 * k / uAspect * uAspect + uVarA * 6.2831853));
+        T += exp(-dpl * dpl * 30.0) * (1.0 - ph) * upHere * uHeat * 0.8;
+      }
+      vec3 cold = ramp(0.26 + uVarA * 0.18);
+      vec3 hot = ramp(0.72 + uVarA * 0.16);
+      vec3 col = cold * 0.10 + hot * pow(clamp(T, 0.0, 1.2) * 0.62, 1.5);
+      if (uModeB2 < 1.5){
+        // THE ROLLS and CLOUD STREETS: the streamlines drawn over the heat
+        float lines = uModeB2 < 0.5 ? 9.0 : 5.0;
+        float band = abs(fract(psi * lines * 0.5) - 0.5) * 2.0;
+        col += ramp(0.46 + uVarA * 0.2) * exp(-pow(band, 2.0) * 50.0) * (0.14 + abs(psi) * 0.30 + uMid * 0.15);
+      } else {
+        // GRANULES: look straight down instead — the cell tops as a
+        // honeycomb of bright centres and dark sinking lanes
+        vec2 g = p * 4.6;
+        float gr = sin(g.x * 2.1 + uVarA * 6.28) * sin(g.y * 2.3 + uTime * 0.3)
+                 + 0.6 * sin((g.x + g.y) * 1.7 + uTime * 0.22)
+                 + 0.35 * sin((g.x - g.y) * 3.1 + uTime * 0.4);
+        float v = smoothstep(0.1, 1.2, gr + uHeat * 0.5);
+        col = cold * 0.06 + hot * pow(v, 2.0) * 0.8;             // bright centres, dark sinking lanes
+        col += hot * pow(v, 6.0) * 0.5;                          // the granule's hot heart
+      }
+      // the pan: floor burner and cool lid
+      col += hot * exp(-pow(p.y + 0.82, 2.0) * 90.0) * (0.25 + uBass * 0.35);
+      col *= smoothstep(1.02, 0.86, abs(p.y / 0.86));
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE ROLLS',     m: 0 },
+    { name: 'CLOUD STREETS', m: 1 },
+    { name: 'GRANULES',      m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0 };
+  const api = {
+    name: 'BÉNARD', key: 'benard', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the burner: bass and energy raise the Rayleigh mood; past the
+      // threshold the cells multiply, and they never snap
+      varU.uHeat.value += ((0.35 + (f.bass || 0) * 0.55 + (f.energy || 0) * 0.35) - varU.uHeat.value) * Math.min(1, dt * 1.5);
+      const want = varU.uHeat.value > 0.85 ? 5 : (varU.uHeat.value > 0.55 ? 4 : 3);
+      varU.uCells.value += (want - varU.uCells.value) * Math.min(1, dt * 0.8);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeB2.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'BÉNARD · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -42468,7 +43108,8 @@ function initThree(){
               buildQuasicrystal(), buildPhyllotaxis(), buildSandpile(),
               buildLindenmayer(), buildHilbert(), buildKoch(), buildDragon(), buildCantor(),
               buildTonnetz(), buildHarmonograph(), buildOvertones(), buildEuclid(), buildPhase(),
-              buildUlam(), buildCardioid(), buildCollatz(), buildMediant(), buildZeta());
+              buildUlam(), buildCardioid(), buildCollatz(), buildMediant(), buildZeta(),
+              buildKarman(), buildCaustics(), buildHopf(), buildKnots(), buildBenard());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

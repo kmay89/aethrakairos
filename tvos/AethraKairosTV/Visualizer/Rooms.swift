@@ -290,6 +290,26 @@ enum Rooms {
         Room(key: "zeta", name: "ZETA", fragmentFunction: "room_zeta",
              tasteEnergy: 0.4, tasteCalm: 0.7, tasteBeat: 0, tasteTreble: 0,
              tasteMid: 0.6, heavy: true),
+
+        // ---- wave 12: flow & knots ----
+        // Motion and entanglement (Shaders15): the vortex street's honest
+        // streamfunction, the pool's true curvature, the Hopf fibration,
+        // the (p,q) windings, Rayleigh's rolls — eighty, both stages.
+        Room(key: "karman", name: "KÁRMÁN", fragmentFunction: "room_karman",
+             tasteEnergy: 0.7, tasteCalm: 0, tasteBeat: 0.4, tasteTreble: 0,
+             tasteBass: 0.7),
+        Room(key: "caustics", name: "CAUSTICS", fragmentFunction: "room_caustics",
+             tasteEnergy: 0, tasteCalm: 0.9, tasteBeat: -0.2, tasteTreble: 0.6,
+             calm: true),
+        Room(key: "hopf", name: "HOPF", fragmentFunction: "room_hopf",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.5, tasteEntropy: -0.3, heavy: true, calm: true),
+        Room(key: "knots", name: "KNOTS", fragmentFunction: "room_knots",
+             tasteEnergy: 0, tasteCalm: 0.3, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.7, tasteBass: 0.6, heavy: true),
+        Room(key: "benard", name: "BÉNARD", fragmentFunction: "room_benard",
+             tasteEnergy: 0.4, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.9, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
