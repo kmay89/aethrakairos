@@ -117,7 +117,11 @@ complete, no-guessing runbook.
   be earned by the music's entropy, never wallpaper).
 - **Ghost mode** — a screen nobody is touching is exactly what a TV is, so
   after ~22 s of stillness a phantom hand works the field itself in phrases,
-  softer than a real hand; the first press on the remote reclaims it.
+  softer than a real hand; the first press on the remote reclaims it. And it
+  bends the LIGHT, not just the rooms that listen: a full-screen field pass
+  (the web player's touch metric, constants verbatim) curves the whole frame
+  around the ghost with each room's own touch personality — the black hole's
+  room falls inward, the scope's glass ripples, the spirals swirl.
 - **The booth on the shelf** — a settings shelf carries the mix styles
   (adaptive / musical / club), key lock, calm mode (WCAG 2.3.1 flash
   governor, tightened), and auto/manual rooms; the now-playing header shows
