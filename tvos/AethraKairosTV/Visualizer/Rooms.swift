@@ -371,6 +371,19 @@ enum Rooms {
         Room(key: "dna", name: "DNA", fragmentFunction: "room_dna",
              tasteEnergy: 0, tasteCalm: 0.7, tasteBeat: 0.4, tasteTreble: 0,
              tasteMid: 0.5, heavy: true, calm: true),
+
+        // The bench (Shaders19): Maxwell's pinching dipole loops and the
+        // spectrum's honest sliver, Fedorov's complete census of the plane,
+        // and the soap films' least-area answers — ninety-eight, both stages.
+        Room(key: "maxwell", name: "MAXWELL", fragmentFunction: "room_maxwell",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.6,
+             tasteMid: 0.8),
+        Room(key: "seventeen", name: "THE SEVENTEEN", fragmentFunction: "room_seventeen",
+             tasteEnergy: 0, tasteCalm: 0.9, tasteBeat: 0.4, tasteTreble: 0,
+             tasteEntropy: -0.5, calm: true),
+        Room(key: "minimal", name: "MINIMAL", fragmentFunction: "room_minimal",
+             tasteEnergy: 0, tasteCalm: 1.0, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: -0.3, heavy: true, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
