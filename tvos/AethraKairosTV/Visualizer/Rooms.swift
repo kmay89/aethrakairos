@@ -310,6 +310,26 @@ enum Rooms {
         Room(key: "benard", name: "BÉNARD", fragmentFunction: "room_benard",
              tasteEnergy: 0.4, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
              tasteBass: 0.9, calm: true),
+
+        // ---- wave 13: the sky ----
+        // The astronomy wing (Shaders16): Kepler's clockwork solved honestly,
+        // the thin-lens equation bending a deep field, the lighthouse that
+        // keeps time, the year photographed, and the appointment the sky
+        // keeps to the minute — eighty-five, both stages.
+        Room(key: "orrery", name: "ORRERY", fragmentFunction: "room_orrery",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: -0.4, heavy: true, calm: true),
+        Room(key: "lensing", name: "LENSING", fragmentFunction: "room_lensing",
+             tasteEnergy: 0, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.9),
+        Room(key: "pulsar", name: "PULSAR", fragmentFunction: "room_pulsar",
+             tasteEnergy: 0.5, tasteCalm: 0, tasteBeat: 1.4, tasteTreble: 0.6),
+        Room(key: "analemma", name: "ANALEMMA", fragmentFunction: "room_analemma",
+             tasteEnergy: 0, tasteCalm: 1.0, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.4, tasteEntropy: -0.5, calm: true),
+        Room(key: "eclipse", name: "ECLIPSE", fragmentFunction: "room_eclipse",
+             tasteEnergy: 0.9, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.7),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
