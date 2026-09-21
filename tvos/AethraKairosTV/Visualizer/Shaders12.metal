@@ -113,7 +113,7 @@ fragment float4 room_lsystem(float4 pos [[position]],
     float lean = 0.0;
     if (U.ghostStrength > 0.05) lean = clamp(ghostUp_p(U).x, -1.0, 1.0) * U.ghostStrength * 0.35;
 
-    float sc = 1.35;
+    float sc = 0.95;
     float2 q = (p - float2(0.0, -0.92)) * sc;
     float d = 1e9;
     float lvl = 0.0;
@@ -130,7 +130,10 @@ fragment float4 room_lsystem(float4 pos [[position]],
         float bend = wind * (0.012 + U.bass * 0.10) * (0.25 + fi * 0.09) + lean * 0.35;
         q = rot_p(q, bend);
         q.x = abs(q.x);
-        q = rot_p(q, -ang * (1.0 + U.roll1 * 0.12));
+        // the folded branch leans ang from vertical (angle 90° - ang), so
+        // aligning it with +y is a rotation by +ang — CW only ever matches
+        // the trunk and the plant renders as a stub
+        q = rot_p(q, ang * (1.0 + U.roll1 * 0.12));
         q /= ratio; sc /= ratio;
     }
     float g = lvl / 11.0;
