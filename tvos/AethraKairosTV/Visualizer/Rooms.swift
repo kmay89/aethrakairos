@@ -233,6 +233,24 @@ enum Rooms {
         Room(key: "soapfilm", name: "SOAP FILM", fragmentFunction: "room_soapfilm",
              tasteEnergy: 0, tasteCalm: 1.2, tasteBeat: -0.4, tasteTreble: 0,
              tasteEntropy: 0.8, heavy: true),
+
+        // ---- wave 9: the infinite wing ----
+        // Prusinkiewicz & Lindenmayer's algorithmic garden (Shaders12):
+        // infinite lengths in finite spaces, sixty-five on both stages.
+        Room(key: "lsystem", name: "LINDENMAYER", fragmentFunction: "room_lsystem",
+             tasteEnergy: 0, tasteCalm: 1.3, tasteBeat: -0.3, tasteTreble: 0,
+             tasteBass: 0.6, calm: true),
+        Room(key: "hilbert", name: "HILBERT", fragmentFunction: "room_hilbert",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.9, tasteTreble: 0,
+             tasteMid: 0.7, tasteEntropy: -0.4),
+        Room(key: "koch", name: "KOCH", fragmentFunction: "room_koch",
+             tasteEnergy: 0, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0.9,
+             tasteEntropy: 0.4),
+        Room(key: "dragon", name: "DRAGON", fragmentFunction: "room_dragon",
+             tasteEnergy: 0.8, tasteCalm: 0, tasteBeat: 1.2, tasteTreble: 0, heavy: true),
+        Room(key: "cantor", name: "CANTOR", fragmentFunction: "room_cantor",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.0, tasteTreble: 0.5,
+             tasteEntropy: 0.6),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
