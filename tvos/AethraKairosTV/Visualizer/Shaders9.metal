@@ -36,6 +36,8 @@ struct VizUniforms {
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
     float roll2; float _pad1; float _pad2; float _pad3;             // 128..140  -> stride 144
+    // _pad1/_pad2 (132/136) carry the LENS pass's live fields and _pad3
+    // (140) the song's Camelot number — no pad here is free to claim
 };
 
 inline float lumaOf_j(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }

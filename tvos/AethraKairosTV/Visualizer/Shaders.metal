@@ -38,10 +38,10 @@ constant float3 VOID_COL = float3(0.019608, 0.023529, 0.054902);
 // ---- THE FINAL VizUniforms (wave 3) ----------------------------
 // The byte layout is FIXED at 144 bytes and does NOT change across
 // waves. Wave 2 renamed _pad0 -> xformMode (slot 11). Wave 3 gives
-// two of the trailing pads meaning WITHOUT moving a byte: offset 128
+// two of the trailing pads meaning WITHOUT moving a byte: offset 132
 // _pad1 -> lens (-1 none / 0 mirrors / 1 wave / 2 prism / 3 iris /
-// 4 tile / 5 moire) and offset 132 _pad2 -> lensAmt (0..1). Offset
-// 140 stays a reserved pad. Only the NAMES change here; the rooms in
+// 4 tile / 5 moire) and offset 136 _pad2 -> lensAmt (0..1). Offset
+// 140 now carries the song's Camelot number for the CIPHER. Only the NAMES change here; the rooms in
 // this unit never read lens, so the rename is cosmetic for them — the
 // CPU uploads the same 144 bytes and Lens.metal reads these two at
 // their fixed offsets. Mirrored by the private Swift struct in

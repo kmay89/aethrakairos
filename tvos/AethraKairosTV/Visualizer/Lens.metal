@@ -30,14 +30,14 @@ using namespace metal;
    Helper names carry the _L suffix so this translation unit never
    collides with Shaders.metal / Xforms.metal at metallib link. The
    VizUniforms block is re-declared VERBATIM (144-byte layout, fixed);
-   this unit reads U.lens (offset 128) and U.lensAmt (offset 132).
+   this unit reads U.lens (offset 132) and U.lensAmt (offset 136).
    ================================================================ */
 
 constant float TAU_L = 6.28318530718;
 
 // ---- THE FINAL VizUniforms — VERBATIM, 144-byte fixed layout.
-// Wave 3 names offset 128 `lens` and offset 132 `lensAmt`; offset 140
-// stays reserved. Only names differ from the sibling units — the bytes
+// Wave 3 names offset 132 `lens` and offset 136 `lensAmt`; offset 140
+// carries the song's Camelot number for the CIPHER. Only names differ from the sibling units — the bytes
 // the CPU uploads are identical, and this unit is the one that reads the
 // two lens fields at their fixed offsets.
 struct VizUniforms {

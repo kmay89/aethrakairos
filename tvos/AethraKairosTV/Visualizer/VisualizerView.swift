@@ -114,9 +114,10 @@ private struct VizUniforms {
     var roll0: Float = 0                      // per-room dice, re-dealt on entry
     var roll1: Float = 0
     var roll2: Float = 0
-    var lens: Float = -1                      // offset 128 — -1 bypasses the lens pass
-    var lensAmt: Float = 0                    // offset 132 — 0..1 lens intensity
-    var pad3: Float = 0                       // offset 140 — reserved
+    var lens: Float = -1                      // offset 132 — -1 bypasses the lens pass
+    var lensAmt: Float = 0                    // offset 136 — 0..1 lens intensity
+    var keyNum: Float = 0                     // offset 140 — the song's Camelot number (1-12),
+                                              // 0 when unkeyed; CIPHER turns its wheel by it
 }
 
 // MARK: - the renderer
@@ -386,8 +387,14 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         publishRoomName()
     }
 
+    /// CI's camera passes `--fixed-rolls` so every room is photographed on
+    /// its first face with mid dice — frame review stays comparable run to
+    /// run instead of chasing whichever face the boot happened to deal.
+    private static let fixedRolls = ProcessInfo.processInfo.arguments.contains("--fixed-rolls")
+
     private static func freshRolls() -> SIMD3<Float> {
-        SIMD3<Float>(Float.random(in: 0..<1), Float.random(in: 0..<1), Float.random(in: 0..<1))
+        if fixedRolls { return SIMD3<Float>(0.05, 0.5, 0.5) }
+        return SIMD3<Float>(Float.random(in: 0..<1), Float.random(in: 0..<1), Float.random(in: 0..<1))
     }
 
     /// Punch up (30 ms), grace down (120 ms).
@@ -868,6 +875,13 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // Motion autoLens() returns -1, the amount decays to 0, and the lens is
         // bypassed to the exact wave-2 tail. --
         let minorNow = (player.current?.mix?.key?.uppercased().hasSuffix("A")) ?? false
+        // the song's Camelot number rides the block's one spare float — the
+        // CIPHER's wheel takes its base shift from the actual key on both stages
+        var camNum = 0
+        if let k = player.current?.mix?.key?.uppercased(), k.count >= 2,
+           k.hasSuffix("A") || k.hasSuffix("B"), let n = Int(k.dropLast()), (1...12).contains(n) {
+            camNum = n
+        }
         let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(dispEnergy),
                                   minor: minorNow, ceil: ceil,
                                   enabled: VizSettings.shared.lensAuto)
@@ -918,6 +932,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         u.roll2 = currentRolls.z
         u.lens = lensEngage ? Float(lensRenderMode) : -1     // < 0 bypasses the lens pass
         u.lensAmt = Float(lensAmt)
+        u.keyNum = Float(camNum)
 
         guard let commandBuffer = queue.makeCommandBuffer() else { return }
 

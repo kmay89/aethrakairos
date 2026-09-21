@@ -32,7 +32,8 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float _pad1; float _pad2; float _pad3;             // 128..140  -> stride 144
+    float roll2; float _pad1; float _pad2; float keyNum;            // 128..140  -> stride 144
+                                    // keyNum: the song's Camelot number (1-12), 0 unkeyed
 };
 
 inline float3 govern_u(float3 c, float white) {
@@ -440,9 +441,9 @@ fragment float4 room_cipher(float4 pos [[position]],
     }
     int mode = int(clamp(U.roll0 * 3.0, 0.0, 2.999));
     float varA = U.roll1;
-    // the base shift stands in for the song's key; the dice deal it here,
-    // the way the TV's rooms take their key-coloured judgements from rolls
-    float baseShift = floor(U.roll2 * 12.0) + 1.0;
+    // the base shift IS the song's key — the Camelot number rides the
+    // block's spare float; only unkeyed material falls back to the dice
+    float baseShift = U.keyNum > 0.5 ? floor(U.keyNum) : floor(U.roll2 * 12.0) + 1.0;
     float3 col = float3(0.0);
     float step26 = TAU_U / 26.0;
     float clickClock = U.time * 0.45;
