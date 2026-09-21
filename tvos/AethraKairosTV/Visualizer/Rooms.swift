@@ -270,6 +270,26 @@ enum Rooms {
         Room(key: "phase", name: "PHASE", fragmentFunction: "room_phase",
              tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0.4, tasteTreble: 0,
              tasteEntropy: 0.5, calm: true),
+
+        // ---- wave 11: the number wing ----
+        // Arithmetic on stage (Shaders14): live primality, the times
+        // table's envelope, hailstone journeys, Ford's kissing circles,
+        // the walk along the critical line — seventy-five, both stages.
+        Room(key: "ulam", name: "ULAM", fragmentFunction: "room_ulam",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.7, tasteTreble: 0.8,
+             tasteEntropy: 0.4),
+        Room(key: "cardioid", name: "CARDIOID", fragmentFunction: "room_cardioid",
+             tasteEnergy: 0, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.8, tasteEntropy: -0.3, heavy: true),
+        Room(key: "collatz", name: "COLLATZ", fragmentFunction: "room_collatz",
+             tasteEnergy: 0, tasteCalm: 1.1, tasteBeat: -0.2, tasteTreble: 0,
+             tasteBass: 0.6, heavy: true, calm: true),
+        Room(key: "mediant", name: "MEDIANT", fragmentFunction: "room_mediant",
+             tasteEnergy: 0, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0.9,
+             tasteEntropy: 0.3),
+        Room(key: "zeta", name: "ZETA", fragmentFunction: "room_zeta",
+             tasteEnergy: 0.4, tasteCalm: 0.7, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.6, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

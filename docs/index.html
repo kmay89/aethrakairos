@@ -3369,6 +3369,20 @@ body.clipping::after{
     And <b>PHASE</b> performs Steve Reich's phasing live: two copies of the 1967 Piano Phase figure,
     one three percent faster, shimmering with near-misses until — on a schedule you can feel
     coming — the clocks lock and the room exhales.</p>
+    <h3>The number wing</h3>
+    <p class="lede">Scenes 71–75 put arithmetic itself on stage. <b>ULAM</b> writes the integers in
+    a square spiral and lights only the primes — every cell's number closed-form from its
+    coordinates, every primality test run live, per pixel, per frame — and the unexplained
+    diagonals appear; the beat sends a census wave outward from 1. <b>CARDIOID</b> joins every n to
+    k·n around a circle: the times table envelopes a heart at two, a kidney at three, a rose
+    beyond — the multiplier glides with the music and snaps hard onto the integers. <b>COLLATZ</b>
+    grows the hailstone coral: every path traced backwards from 1, Edmund Harriss's way, so the
+    shared endings become a trunk and the unproved conjecture becomes a reef. <b>MEDIANT</b>
+    descends the Stern–Brocot tree beneath every pixel and draws Ford's kissing circles — every
+    fraction exactly once, in lowest terms — with the golden ratio's road burning as the descent
+    that never ends. And <b>ZETA</b> walks the critical line: partial sums of ζ(½+it) as a spiral
+    staircase that circles, hesitates, and — when it comes home to zero — makes the room hold its
+    breath, exactly where the million-dollar conjecture says every zero must stand.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3982,7 +3996,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'gathers', 'gathers', 'blackhole', 'gathers', 'blackhole',
                'gathers', 'blackhole', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
                'grows', 'flows', 'gathers', 'flows', 'blackhole',
-               'gathers', 'flows', 'flows', 'grows', 'flows'];   // …the lattice and the film ripple, the
+               'gathers', 'flows', 'flows', 'grows', 'flows',
+               'gathers', 'grows', 'flows', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4262,7 +4277,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa', 'drift', 'drift', 'lissa', 'paint', 'snake',
                'lissa', 'drift', 'drift', 'snake', 'paint', 'lissa', 'paint',
                'drift', 'snake', 'lissa', 'snake', 'paint',
-               'paint', 'lissa', 'drift', 'bounce', 'snake'];   // …SHEETS walks the lattice, MANDALA curves,
+               'paint', 'lissa', 'drift', 'bounce', 'snake',
+               'snake', 'lissa', 'drift', 'paint', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5467,7 +5483,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'bifurc', 'cymatic', 'rule', 'hole', 'ferro', 'plinko', 'pendula', 'lorenz', 'sync', 'nbody', 'dla', 'boids',
                     'fourier', 'fringe', 'julia', 'escher', 'penrose', 'sunflower', 'sandpile',
                     'lsystem', 'hilbert', 'koch', 'dragon', 'cantor',
-                    'tonnetz', 'harmonograph', 'overtones', 'euclid', 'phase'];
+                    'tonnetz', 'harmonograph', 'overtones', 'euclid', 'phase',
+                    'ulam', 'cardioid', 'collatz', 'mediant', 'zeta'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5594,6 +5611,11 @@ const SCENE_TASTE = {
   overtones:    { mid: 0.7, bass: 0.6, calm: 0.4 },         // pitched, sustained — a string to read
   euclid:       { beat: 1.5, energy: 0.6 },                 // rhythm about rhythm
   phase:        { calm: 0.8, entropy: 0.5, beat: 0.4 },     // patience rewarded on a schedule
+  ulam:      { treble: 0.8, beat: 0.7, entropy: 0.4 },      // a census with percussion
+  cardioid:  { mid: 0.8, calm: 0.5, entropy: -0.3 },        // one clean theorem resolving
+  collatz:   { calm: 1.1, bass: 0.6, beat: -0.2 },          // a reef grows best in patience
+  mediant:   { treble: 0.9, calm: 0.6, entropy: 0.3 },      // foam wants the highs
+  zeta:      { calm: 0.7, mid: 0.6, energy: 0.4 },          // the walk keeps the song's pace
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6775,6 +6797,11 @@ const SCENE_SIGS = {
   overtones:    { kind: 'wave',   h: 62,  arms: 8 },
   euclid:       { kind: 'ring',   h: 285, arms: 5 },
   phase:        { kind: 'ring',   h: 330, twist: 1 },
+  ulam:      { kind: 'grid',   h: 38,  dense: 0.6 },
+  cardioid:  { kind: 'ring',   h: 12,  arms: 2 },
+  collatz:   { kind: 'spiral', h: 130, arms: 4 },
+  mediant:   { kind: 'wave',   h: 195, dense: 0.7 },
+  zeta:      { kind: 'spiral', h: 258, twist: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -41678,6 +41705,731 @@ function buildPhase(){
   return api;
 }
 
+/* =========================================================
+   SCENE 71 · ULAM — the primes have a shape
+
+   Write the integers in a square spiral and light only the
+   primes: diagonals appear that no one ordered — the quadratic
+   families Euler noticed and nobody has explained to the
+   bottom. Every cell's number is closed form from its
+   coordinates and every primality test runs live, per pixel,
+   per frame. The beat sends a census wave from 1 outward;
+   the energy leans the whole survey deeper.
+   ========================================================= */
+function buildUlam(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeU: { value: 0 },
+    uZoomU: { value: 0.055 },
+    uPulseR:{ value: 9 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeU, uVarA, uAspect, uZoomU, uPulseR;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the spiral's address book: which integer lives at cell (x, y)?
+    // Ring r ends at (r, -r) carrying (2r+1)^2; walk backwards along
+    // the ring's four edges. 1 lives at the origin.
+    float ulamN(vec2 c){
+      float r = max(abs(c.x), abs(c.y));
+      if (r < 0.5) return 1.0;
+      float s = (2.0 * r + 1.0); s = s * s;              // the ring's last number
+      if (c.y <= -r + 0.5 && c.x > -r - 0.5)             // bottom edge, rightward to the corner
+        return s - (r - c.x);
+      if (c.x <= -r + 0.5)                               // left edge, downward
+        return s - 2.0 * r - (c.y + r);
+      if (c.y >= r - 0.5)                                // top edge, leftward
+        return s - 4.0 * r - (r - c.x);
+      return s - 6.0 * r - (r - c.y);                    // right edge, upward
+    }
+    // live primality: trial division to the root, bounded by the survey's
+    // own depth (the visible spiral never exceeds ~4000)
+    float isPrime(float n){
+      if (n < 1.5) return 0.0;
+      if (n < 3.5) return 1.0;
+      if (mod(n, 2.0) < 0.5) return 0.0;
+      for (int d = 3; d <= 89; d += 2){
+        float fd = float(d);
+        if (fd * fd > n) break;
+        if (mod(n, fd) < 0.5) return 0.0;
+      }
+      return 1.0;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      vec3 col = vec3(0.0);
+      float S = uZoomU;
+      if (uModeU < 1.5){
+        // THE SPIRAL and THE TWINS: the square survey
+        vec2 cell = floor(p / S + 0.5);
+        vec2 fc = p / S - cell;
+        float n = ulamN(cell);
+        float pr = isPrime(n);
+        float d2 = dot(fc, fc);
+        float R = length(cell) * S;
+        // the census wave: a ring of attention sweeping outward on the beat
+        float wave = exp(-pow(R - fract(uPulseR) * 1.9, 2.0) * 60.0);
+        vec3 ink = ramp(0.30 + uVarA * 0.2 + fract(n * 0.618034) * 0.12);
+        // a prime is a star; a composite is the faint dust between
+        col += ink * pr * exp(-d2 * 26.0) * (0.70 + wave * 1.2 + uTreble * 0.4);
+        col += ramp(0.20 + uVarA * 0.2) * (1.0 - pr) * exp(-d2 * 60.0) * (0.016 + wave * 0.05);
+        if (uModeU > 0.5 && pr > 0.5){
+          // THE TWINS: primes two apart hold hands — a bright bond
+          float twin = max(isPrime(n - 2.0), isPrime(n + 2.0));
+          col += ramp(0.76 + uVarA * 0.14) * twin * exp(-d2 * 20.0) * (0.5 + uBeat * 0.5);
+        }
+        // 1, the unit, is a quiet ember at the centre of everything
+        col += ramp(0.78) * exp(-dot(p, p) * 800.0) * 0.5;
+      } else {
+        /* SACKS: one number per turn of an Archimedean spiral — the
+           perfect squares line up at theta = 0 and the prime families
+           bend into parabolas. Per pixel: the nearest few candidates
+           whose sqrt matches this angle, tested live. */
+        float th01 = fract(atan(p.y, p.x) / 6.2831853);
+        float R = length(p) / (S * 1.9);
+        for (int j = -1; j <= 1; j++){
+          float rt = floor(R - th01 + 0.5 + float(j)) + th01;
+          if (rt < 0.5) continue;
+          float n = floor(rt * rt + 0.5);
+          float pr = isPrime(n);
+          vec2 P = vec2(cos(th01 * 6.2831853), sin(th01 * 6.2831853)) * rt * S * 1.9;
+          float dd = dot(p - P, p - P);
+          float wave = exp(-pow(rt * S * 1.9 - fract(uPulseR) * 1.9, 2.0) * 60.0);
+          col += ramp(0.30 + uVarA * 0.2 + fract(n * 0.618034) * 0.12) * pr
+               * exp(-dd / (S * S) * 30.0) * (0.55 + wave * 1.2 + uTreble * 0.4);
+          col += ramp(0.20 + uVarA * 0.2) * (1.0 - pr) * exp(-dd / (S * S) * 55.0) * 0.028;
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE SPIRAL', m: 0 },
+    { name: 'THE TWINS',  m: 1 },
+    { name: 'SACKS',      m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0, lastBeat: -9 };
+  const api = {
+    name: 'ULAM', key: 'ulam', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the survey deepens with the energy: louder music, smaller cells
+      const goal = 0.036 - Math.min(0.009, (f.energy || 0) * 0.012);
+      varU.uZoomU.value += (goal - varU.uZoomU.value) * Math.min(1, dt / 1.8);
+      // the census wave rides out on each beat
+      varU.uPulseR.value += dt * (0.35 + (f.energy || 0) * 0.4);
+      if ((f.beat || 0) > 0.6 && st.t - st.lastBeat > 0.3){
+        st.lastBeat = st.t;
+        varU.uPulseR.value = Math.ceil(varU.uPulseR.value);   // a fresh wave from the centre
+      }
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeU.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'ULAM · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 72 · CARDIOID — multiplication, drawn
+
+   Put N points on a circle and join every n to k·n mod N:
+   the chords envelope a heart at k=2, a kidney at 3, a
+   k-petalled rose beyond — multiplication has a SHAPE, and
+   the times table was hiding it all along. The multiplier
+   glides with the music and snaps to integers on the phrase,
+   where the shape suddenly resolves and rings true.
+   ========================================================= */
+function buildCardioid(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeC2:{ value: 0 },
+    uK:     { value: 2 },
+    uSnap:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeC2, uVarA, uAspect, uK, uSnap;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      float R = 0.82;
+      vec3 col = vec3(0.0);
+      // the wheel itself
+      float r = length(p);
+      col += ramp(0.30 + uVarA * 0.2) * exp(-pow(abs(r - R), 2.0) * 5000.0) * 0.14;
+      /* the table: N chords, each from n to k*n mod N. The glow is kept
+         low per chord — the heart appears where chords AGREE, which is
+         the envelope, which is the theorem. */
+      const float N = 96.0;
+      for (int i = 0; i < 96; i++){
+        float n = float(i);
+        float a0 = n / N * 6.2831853 - 1.5707963;
+        float a1 = fract(n * uK / N) * 6.2831853 - 1.5707963;
+        vec2 A = vec2(cos(a0), sin(a0)) * R;
+        vec2 B = vec2(cos(a1), sin(a1)) * R;
+        float dd = segd(p, A, B);
+        float g = exp(-dd * dd * 60000.0);
+        col += ramp(0.24 + uVarA * 0.2 + n / N * 0.28) * g * (0.075 + uMid * 0.04 + uSnap * 0.06);
+      }
+      // the resolved shape sings: on a snap the whole envelope flashes hot
+      col += ramp(0.76 + uVarA * 0.14) * uSnap * exp(-pow(abs(r - R * 0.6), 2.0) * 8.0) * 0.15;
+      // the wheel's points, faintly — the integers standing in their circle
+      float th01 = fract((atan(p.y, p.x) + 1.5707963) / 6.2831853);
+      float fc = fract(th01 * N) - 0.5;
+      float arc = fc * (6.2831853 * R / N);
+      float db = arc * arc + pow(abs(r - R), 2.0);
+      col += ramp(0.42 + uVarA * 0.2) * exp(-db * 30000.0) * 0.30;
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE TIMES TABLE', m: 0, lo: 2, hi: 7,  rate: 0.030 },  // the classic tour: heart to rose
+    { name: 'THE SLOW HEART',  m: 1, lo: 2, hi: 3,  rate: 0.008 },  // dwelling where the cardioid lives
+    { name: 'RESONANCE',       m: 2, lo: 2, hi: 13, rate: 0.055 },  // far tables, snapping hard
+  ];
+  const st = { mode: MODES[0], t: 0, k: 2, prevPhrase: 0 };
+  const api = {
+    name: 'CARDIOID', key: 'cardioid', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      const M = st.mode;
+      // the multiplier glides; near an integer it feels the detent
+      st.k += dt * (M.rate + (f.energy || 0) * M.rate * 1.6);
+      if (st.k > M.hi) st.k = M.lo;
+      const near = Math.abs(st.k - Math.round(st.k));
+      const snap = Math.exp(-near * near * 300);
+      varU.uK.value = st.k;
+      varU.uSnap.value += (snap * (0.5 + (f.beat || 0) * 0.5) - varU.uSnap.value) * Math.min(1, dt * 5);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeC2.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      st.k = st.mode.lo + Math.random() * 0.5;
+      api.name = 'CARDIOID · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 73 · COLLATZ — the hailstone coral
+
+   Take any number: halve the evens, triple-and-add-one the
+   odds. Every number ever tried has fallen to 1 — and no one
+   can prove they all must. Drawn Edmund Harriss's way — every
+   path traced BACKWARDS from 1, turning one way for even
+   steps and the other for odd — the shared endings become a
+   trunk and the conjecture becomes a coral. Onsets plant new
+   seeds; the paths that agree are the wood, the ones that
+   wander are the fronds.
+   ========================================================= */
+function buildCollatz(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uGrow: { value: 0 }, uFlow: { value: 0 } };
+  const MAXSEG = 7000;
+  const pos = new Float32Array(MAXSEG * 2 * 3);
+  const aT = new Float32Array(MAXSEG * 2);      // along-path 0..1 — growth and the pulses
+  const aS = new Float32Array(MAXSEG * 2);      // which seed — colour walks the chord
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  geo.setAttribute('aS', new THREE.BufferAttribute(aS, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aT, aS;
+      uniform float uGrow;
+      varying float vT, vS, vOn;
+      void main(){
+        vT = aT; vS = aS;
+        vOn = step(aT, uGrow);                       // the coral accretes from the trunk out
+        vec3 pp = position * vOn;
+        vec4 mv = modelViewMatrix * vec4(pp, 1.0);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uBeat, uEnergy, uFlow, uVarA;
+      varying float vT, vS, vOn;
+      void main(){
+        if (vOn < 0.5) discard;
+        vec3 col = ramp(0.16 + uVarA * 0.2 + vS * 0.4 + vT * 0.10);
+        // sap: pulses running root-to-tip along every branch at once
+        float head = fract(vT - uFlow);
+        float pulse = exp(-head * head * 300.0);
+        col = mix(col, ramp(0.76 + uVarA * 0.14), pulse * 0.85);
+        col = inkRolloff(col * (0.55 + pulse * 1.5 + uBeat * 0.3 + uEnergy * 0.2));
+        gl_FragColor = vec4(col, uOpacity * (0.42 + pulse * 0.42));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const lines = new THREE.LineSegments(geo, mat);
+  lines.frustumCulled = false;
+  group.add(lines); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE CORAL',  even: 0.225, odd: -0.45, seeds: 60, organic: true },
+    { name: 'THE REEF',   even: 0.13,  odd: -0.26, seeds: 72, organic: true },
+    { name: 'HAILSTONES', even: 0,     odd: 0,     seeds: 24, organic: false },
+  ];
+  const st = { mode: MODES[0], t: 0 };
+
+  function pathOf(seed){
+    const steps = [];
+    const vals = [];
+    let n = seed;
+    while (n > 1 && steps.length < 220){
+      const odd = n % 2 === 1;
+      steps.push(odd);
+      vals.push(n);
+      n = odd ? 3 * n + 1 : n / 2;
+    }
+    vals.push(1);
+    steps.reverse(); vals.reverse();               // walked FROM 1, Harriss's way
+    return { steps, vals };
+  }
+
+  function generate(){
+    const M = st.mode;
+    let k = 0;
+    let maxX = 1, maxY = 1, minX = -1, minY = 0;
+    const pts = [];
+    for (let si = 0; si < M.seeds && k < MAXSEG; si++){
+      const seed = 5 + Math.floor(Math.random() * 9000);
+      const { steps, vals } = pathOf(seed);
+      let x = 0, y = 0, th = Math.PI / 2;
+      const path = [[0, 0]];
+      for (let i = 0; i < steps.length; i++){
+        if (M.organic){
+          th += steps[i] ? M.odd : M.even;
+          x += Math.cos(th); y += Math.sin(th);
+          path.push([x, y]);
+        } else {
+          // HAILSTONES: the classic chart, honestly — the altitude IS
+          // log2(n), so a spike is a real excursion and 1 is the floor
+          x += 0.9;
+          y = Math.log2(vals[i + 1]) * 1.6;
+          path.push([x, y]);
+        }
+        if (x > maxX) maxX = x; if (x < minX) minX = x;
+        if (y > maxY) maxY = y; if (y < minY) minY = y;
+      }
+      pts.push(path);
+    }
+    // fit the grove
+    const sc = (M.organic ? 27 : 30) / Math.max(maxX - minX, maxY - minY, 1);
+    const ox = (minX + maxX) / 2, oy = (minY + maxY) / 2;
+    k = 0;
+    for (let si = 0; si < pts.length && k < MAXSEG; si++){
+      const path = pts[si];
+      for (let i = 0; i + 1 < path.length && k < MAXSEG; i++, k++){
+        const j = k * 6;
+        pos[j]     = (path[i][0] - ox) * sc;     pos[j + 1] = (path[i][1] - oy) * sc;     pos[j + 2] = 0;
+        pos[j + 3] = (path[i + 1][0] - ox) * sc; pos[j + 4] = (path[i + 1][1] - oy) * sc; pos[j + 5] = 0;
+        const tt = i / Math.max(path.length - 1, 1);
+        aT[k * 2] = tt; aT[k * 2 + 1] = tt;
+        aS[k * 2] = si / Math.max(pts.length - 1, 1); aS[k * 2 + 1] = aS[k * 2];
+      }
+    }
+    for (let z = k * 6; z < pos.length; z++) pos[z] = 0;
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.aT.needsUpdate = true;
+    geo.attributes.aS.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'COLLATZ', key: 'collatz', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      // accrete: the trunk is ancient, the fronds are tonight's work
+      const idle = Math.min(1, 0.20 + st.t * 0.09);
+      const prog = (typeof director !== 'undefined' && director.trackProg != null) ? director.trackProg : 0.5;
+      const gGoal = Math.min(1, Math.max(idle, 0.2 + prog * 1.0));
+      if (gGoal > varU.uGrow.value)
+        varU.uGrow.value += (gGoal - varU.uGrow.value) * Math.min(1, dt / 2.0);
+      varU.uFlow.value = (varU.uFlow.value + dt * (0.06 + (f.energy || 0) * 0.14)) % 1;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1) group.rotation.z += U.uPtr.value.x * dt * 0.5 * force;
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uVarA.value = Math.random();
+      varU.uGrow.value = 0.15;
+      group.rotation.z = 0;
+      generate();
+      api.name = 'COLLATZ · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 74 · MEDIANT — every fraction, exactly once
+
+   Between any two fractions sits their mediant, and the
+   Stern–Brocot tree born of that one move visits every
+   rational exactly once, in lowest terms, in order. Ford's
+   circles make it visible: a circle at p/q with radius
+   1/(2q²), and no two ever overlap — they only kiss. The
+   room descends the tree beneath every pixel live; the
+   golden ratio's road — always the mediant, never arriving —
+   burns as the path that cannot end.
+   ========================================================= */
+function buildMediant(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeM: { value: 0 },
+    uDepth: { value: 9 },
+    uWalk:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeM, uVarA, uAspect, uDepth, uWalk;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      // the number line runs along the floor; the circles stand on it.
+      // One scale for both axes — Ford's circles only KISS when they are
+      // actually circles, and a squashed ellipse lies about the theorem.
+      float SPAN = uAspect * 3.1;                        // a 2x zoom into the middle of the line —
+      float x01 = p.x / SPAN + 0.5;                      // the foam is dense EVERYWHERE, so the
+      float yy = (p.y + 0.66) / SPAN;                    // window loses nothing and the circles get big
+      vec3 col = vec3(0.0);
+      // the line itself
+      col += ramp(0.30 + uVarA * 0.2) * exp(-pow(p.y + 0.66, 2.0) * 9000.0) * 0.18;
+      if (x01 > 0.0 && x01 < 1.0 && yy > -0.02){
+        // descend the Stern–Brocot tree under this pixel, glowing every
+        // Ford circle passed: centre (m, 1/(2q^2)), radius the same
+        float a = 0.0, b = 1.0, c = 1.0, d = 1.0;        // 0/1 and 1/1
+        // the golden road: phi-1 descends L R L R L R ... forever
+        float goldT = fract(uWalk);
+        for (int lvl = 0; lvl < 12; lvl++){
+          if (float(lvl) >= uDepth) break;
+          float mq = b + d;
+          float mp = a + c;
+          float m = mp / mq;
+          float rad = 0.5 / (mq * mq);
+          vec2 C = vec2(m, rad);
+          float dd = abs(length(vec2(x01, yy) - C) - rad);
+          float lw = 0.0026 + rad * 0.06;
+          float glow = exp(-dd * dd / (lw * lw));
+          float lvl01 = float(lvl) / 11.0;
+          vec3 ink = ramp(0.18 + uVarA * 0.2 + lvl01 * 0.5);
+          // the beat breathes down the levels: shallow circles on the
+          // downbeat, deep foam on the highs
+          float breathe = 0.5 + 0.5 * cos(uTime * 0.7 + lvl01 * 5.0);
+          col += ink * glow * (0.26 + breathe * 0.14 + uMid * 0.18 * (1.0 - lvl01) + uTreble * 0.35 * lvl01);
+          col += ink * exp(-dd * dd / (lw * lw * 36.0)) * 0.035;   // the foam's own haze
+          // the golden road: its own descent alternates L R forever —
+          // mark the mediants near phi-1 = 0.618...
+          if (uModeM > 1.5){
+            float dphi = abs(m - 0.6180339887);
+            col += ramp(0.76 + uVarA * 0.14) * glow * exp(-dphi * dphi * 300.0 * mq) * (0.5 + goldT * 0.4);
+          }
+          // walk toward the pixel: the tree knows which way you live
+          if (x01 < m){ c = mp; d = mq; } else { a = mp; b = mq; }
+        }
+        // THE TREE face: the kissing points — tangencies as tiny suns
+        if (uModeM > 0.5 && uModeM < 1.5){
+          float aa = 0.0, bb = 1.0, cc = 1.0, ddn = 1.0;
+          for (int lvl = 0; lvl < 10; lvl++){
+            float mq = bb + ddn, mp = aa + cc;
+            float m = mp / mq;
+            // the mediant circle kisses both parents; the kiss with the
+            // left parent sits between them, weighted by their sizes
+            vec2 CL = vec2(aa / bb, 0.5 / (bb * bb));
+            vec2 CM = vec2(m, 0.5 / (mq * mq));
+            vec2 kiss = mix(CL, CM, bb * bb / (bb * bb + mq * mq));
+            float dk = length(vec2(x01, yy) - kiss);
+            col += ramp(0.72 + uVarA * 0.15) * exp(-dk * dk * 90000.0) * (0.5 + uBeat * 0.5);
+            if (x01 < m){ cc = mp; ddn = mq; } else { aa = mp; bb = mq; }
+          }
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'FORD FOAM',       m: 0 },
+    { name: 'THE KISSES',      m: 1 },
+    { name: 'THE GOLDEN ROAD', m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0 };
+  const api = {
+    name: 'MEDIANT', key: 'mediant', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the foam deepens as the music earns it
+      const want = 7 + Math.min(5, Math.floor((f.treble || 0) * 4 + (f.energy || 0) * 3));
+      varU.uDepth.value += (want - varU.uDepth.value) * Math.min(1, dt / 1.2);
+      varU.uWalk.value += dt * 0.2;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeM.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'MEDIANT · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 75 · ZETA — the walk along the critical line
+
+   Sum n^(-1/2 - it) term by term and connect the partial
+   sums: a spiral staircase in the complex plane that circles,
+   hesitates, and closes. When the walk comes home the zeta
+   function has a zero — and every zero found so far stands
+   exactly on this line, which is the million-dollar sentence.
+   The song drives t down the line; PRIME MUSIC keeps only
+   the prime terms, Euler's other spelling of the same walk.
+   ========================================================= */
+function buildZeta(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeZ: { value: 0 },
+    uT:     { value: 40 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeZ, uVarA, uAspect, uT;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    // for PRIME MUSIC: n <= 72 needs only the witnesses 2, 3, 5, 7
+    float isPrimeSmall(float n){
+      if (n < 1.5) return 0.0;
+      if (n < 3.5) return 1.0;
+      if (mod(n, 2.0) < 0.5 || mod(n, 3.0) < 0.5) return 0.0;
+      if (n > 24.5 && (mod(n, 5.0) < 0.5)) return 0.0;
+      if (n > 48.5 && (mod(n, 7.0) < 0.5)) return 0.0;
+      return 1.0;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      bool primesOnly = uModeZ > 1.5;
+      /* first pass: where does the walk end? The drawing is centred on
+         half the journey, so the staircase turns in place instead of
+         wandering off the screen. */
+      vec2 zEnd = vec2(0.0);
+      for (int n = 1; n <= 72; n++){
+        float fn = float(n);
+        if (primesOnly && isPrimeSmall(fn) < 0.5) continue;
+        float amp = inversesqrt(fn);
+        float ph = -uT * log(fn);
+        zEnd += amp * vec2(cos(ph), sin(ph));
+      }
+      vec2 centre = zEnd * 0.5;
+      float SC = 0.48;
+      vec3 col = vec3(0.0);
+      // second pass: draw the staircase
+      vec2 z = vec2(0.0);
+      vec2 prev = (z - centre) * SC;
+      for (int n = 1; n <= 72; n++){
+        float fn = float(n);
+        if (primesOnly && isPrimeSmall(fn) < 0.5) continue;
+        float amp = inversesqrt(fn);
+        float ph = -uT * log(fn);
+        z += amp * vec2(cos(ph), sin(ph));
+        vec2 q = (z - centre) * SC;
+        float dd = segd(p, prev, q);
+        float u = fn / 72.0;
+        vec3 ink = ramp(0.18 + uVarA * 0.2 + u * 0.45);
+        col += ink * exp(-dd * dd * 30000.0) * (0.80 - u * 0.30 + uMid * 0.25);
+        col += ink * exp(-dd * dd * 1600.0) * 0.035;
+        prev = q;
+      }
+      // the walk's HOME: where zeta itself stands. When the walk closes
+      // toward zero the line has a zero and the room holds its breath.
+      float endD = length(zEnd);
+      float zero = exp(-endD * endD * 3.0);
+      vec2 zq = (zEnd - centre) * SC;
+      float dHome = length(p - zq);
+      col += ramp(0.76 + uVarA * 0.14) * exp(-dHome * dHome * 3000.0) * (0.7 + uBeat * 0.5 + zero * 1.6);
+      float dOrigin = length(p + centre * SC);
+      col += ramp(0.72 + uVarA * 0.15) * exp(-dOrigin * dOrigin * 4000.0) * (0.25 + zero * 1.4);
+      // the zero's halo: the whole room exhales when the walk comes home
+      col += ramp(0.78) * zero * exp(-dot(p, p) * 2.2) * 0.30;
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE WALK',    m: 0, rate: 0.16 },
+    { name: 'ZERO HUNT',   m: 1, rate: 0.9 },
+    { name: 'PRIME MUSIC', m: 2, rate: 0.16 },
+  ];
+  const st = { mode: MODES[0], t: 0 };
+  const api = {
+    name: 'ZETA', key: 'zeta', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // the song drives t down the critical line; the hunt hurries
+      varU.uT.value += dt * st.mode.rate * (1 + (f.energy || 0) * 1.5);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeZ.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      varU.uT.value = 20 + Math.random() * 60;
+      api.name = 'ZETA · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -41715,7 +42467,8 @@ function initThree(){
               buildFourier(), buildInterference(), buildJulia(), buildPoincare(),
               buildQuasicrystal(), buildPhyllotaxis(), buildSandpile(),
               buildLindenmayer(), buildHilbert(), buildKoch(), buildDragon(), buildCantor(),
-              buildTonnetz(), buildHarmonograph(), buildOvertones(), buildEuclid(), buildPhase());
+              buildTonnetz(), buildHarmonograph(), buildOvertones(), buildEuclid(), buildPhase(),
+              buildUlam(), buildCardioid(), buildCollatz(), buildMediant(), buildZeta());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
