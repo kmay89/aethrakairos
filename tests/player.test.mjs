@@ -59,7 +59,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' DMX_BEAM_MOVES, dmxBeamState, dmxBeamColors, dmxBeamStep, dmxBeamPose, dmxWashChase,' +
   ' dmxTrackHash, dmxTrackDesign,' +
   ' HUE_APP, HUE_MIN_MS, hueIsLan, hueXY, hueUpdate, huePairResult, hueLights,' +
-  ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush,' +
+  ' WARP, warpSoft, warpReach, warpDeflect, warpRho, warpHorizon, warpBudget, warpPush, warpLobe,' +
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
@@ -1569,6 +1569,13 @@ test('touch-FX: each effect maps to its force; the black hole is the default fie
   assert.equal(S.touchFxMode('blackhole', 2), 0);
   assert.equal(S.touchFxMode('gathers', 0), 2);   // gravity well — attract
   assert.equal(S.touchFxMode('flows', 0), 3);     // ripples
+  assert.equal(S.touchFxMode('tidal', 0), 4);     // the two-lobed stretch
+  assert.equal(S.touchPairMode(4), 4);            // two tide-raisers make a strait
+  // the lobe: full stretch along the axis, full squeeze across it, round for
+  // every older force — the tide is the only one that knows a direction
+  assert.ok(Math.abs(S.warpLobe(4, 0.7, 0.7) - 1) < 1e-9);
+  assert.ok(Math.abs(S.warpLobe(4, 0.7 + Math.PI / 2, 0.7) + 1) < 1e-9);
+  assert.equal(S.warpLobe(2, 1.3, 0), 1);
   assert.equal(S.touchFxMode('', 0), 0);          // unknown falls back to the repelling field
   assert.equal(S.touchFxMode('nope', 3), 0);
 });
@@ -1678,6 +1685,13 @@ test('lens: a strained device is always spared (clean glass)', () => {
 });
 test('lens: an unknown key is treated as bright (mirrors, never moiré)', () => {
   assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.9 }), 'mirrors');
+});
+test('lens: the summit — near-no ceiling at real heat — deals a STACK at last', () => {
+  assert.equal(S.pickLens({ ceil: 0.95, act: 2, energy: 0.9, major: true }), 'wave+mirrors');
+  assert.equal(S.pickLens({ ceil: 0.95, act: 2, energy: 0.9, major: false }), 'mirrors+moire');
+  // one notch below the summit, the old ladder is untouched
+  assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.9, major: true }), 'mirrors');
+  assert.equal(S.pickLens({ ceil: 0.95, act: 2, energy: 0.7, major: true }), 'mirrors');
 });
 test('lens: only the hottest bright apex splits the light (prism)', () => {
   assert.equal(S.pickLens({ ceil: 0.90, act: 2, energy: 0.95, major: true }), 'prism');
@@ -4874,7 +4888,7 @@ test('warpDeflect: each force is a different deformation, and every one is bound
   assert.ok(at(1, 0.2).ang > 0 && at(-1, 0.2).ang < 0, 'and the two wind opposite ways');
   assert.ok(Math.abs(at(1, 0.2).ang + at(-1, 0.2).ang) < 1e-9, 'by exactly the same amount');
   // every branch respects the ceilings, at every radius, at every commitment
-  for (const mode of [-1, 0, 1, 2, 3]){
+  for (const mode of [-1, 0, 1, 2, 3, 4]){
     for (const charge of [0, 0.5, 1]){
       for (let r = 0; r < 1.6; r += 0.02){
         const d = S.warpDeflect(mode, r, { charge, spin: 1, beat: 1, phase: 0.7 });
@@ -4886,7 +4900,7 @@ test('warpDeflect: each force is a different deformation, and every one is bound
   }
   // beyond the reach the fabric is flat, for every force — the whole screen must
   // not be dragged around by a finger in one corner
-  for (const mode of [-1, 0, 1, 2, 3]){
+  for (const mode of [-1, 0, 1, 2, 3, 4]){
     const far = S.warpDeflect(mode, 4, { charge: 1, spin: 1, beat: 1 });
     assert.ok(Math.abs(far.rad) < 1e-9 && Math.abs(far.ang) < 1e-9, 'flat far away: mode ' + mode);
   }

@@ -3773,6 +3773,7 @@ function touchFxMode(activeKey, swirl){
     case 'grows':   return (swirl < -0.05) ? -1 : 1;   // spiral vortex, chirality from the drag
     case 'gathers': return 2;                          // gravity well — everything falls in
     case 'flows':   return 3;                          // ripples roll outward
+    case 'tidal':   return 4;                          // the two-lobed stretch
     case 'blackhole':
     default:        return 0;                          // black-hole repulsion (the original field)
   }
@@ -3790,7 +3791,8 @@ function touchPairMode(mode){
   if (mode < 0.5)  return 2;      // void ↔ accretion
   if (mode < 1.5)  return -1;
   if (mode < 2.5)  return 0;
-  return 3;                       // ripples pair with ripples: interference
+  if (mode < 3.5)  return 3;      // ripples pair with ripples: interference
+  return 4;                       // two tide-raisers make a strait between them
 }
 /* TOUCH FEEL — the pure physics of an addictive hand. A held touch CHARGES
    (the force deepens the longer you commit); letting go SPENDS the charge as
@@ -3929,10 +3931,23 @@ function warpDeflect(mode, r, o){
   } else if (mode < 2.5){                 // accretion: in, and around
     rad = -WARP.lens * inv * (0.85 + charge * 0.6) * w;
     ang = WARP.twist * (0.45 + charge * 0.55) * inv * w;
-  } else {                                // ripples
+  } else if (mode < 3.5){                 // ripples
     rad = WARP.lens * 1.8 * Math.sin(r * WARP.wave - phase) * (0.55 + beat * 0.75 + charge * 0.5) * w;
+  } else {                                // tidal: the two-lobed stretch
+    rad = WARP.lens * inv * (0.9 + charge * 0.6) * w;
+    ang = WARP.twist * 0.15 * inv * spin * w;
   }
   return { rad: warpSoft(rad, WARP.radMax), ang: warpSoft(ang, WARP.angMax) };
+}
+
+/* THE TIDE'S TWO LOBES. Every other force is round; the tide is the one that
+   knows a direction — stretch along the axis, squeeze across it, exactly the
+   spaghettification a real gradient of gravity performs. Everything the
+   deflection promises stays bounded because the lobe only ever scales it
+   by [-1, 1]. The GLSL twin reads the axis from uPtrX.w. */
+function warpLobe(mode, theta, axis){
+  if (mode < 3.5) return 1;
+  return Math.cos(2 * (theta - (axis || 0)));
 }
 
 /* WHERE A SAMPLE READS FROM — the radial map ρ(r). Clamped at zero because a
@@ -3961,7 +3976,8 @@ function warpPush(px, py, cx, cy, mode, force, o){
   const eL = Math.max(1e-12, Math.hypot(ex, ey));
   const ux = ex / eL, uy = ey / eL;
   const d = warpDeflect(mode, r, o);
-  const a = d.ang * force, rad = d.rad * force;
+  const lobe = warpLobe(mode, Math.atan2(dy, dx), o && o.axis);
+  const a = d.ang * force, rad = d.rad * lobe * force;
   const ca = Math.cos(a), sa = Math.sin(a);
   const rx = ux * ca - uy * sa, ry = ux * sa + uy * ca;
   return { x: rx * (r + rad) - dx, y: ry * (r + rad) - dy, rad };
@@ -13030,6 +13046,11 @@ function pickLens(ctx){
   const major = ctx.major !== false;                        // unknown key → treat as bright/major
   if (ceil < 0.55 || act === 0 || act === 4) return 'none';  // the hard gate + the arc's edges
   if (act === 2){                                           // APEX
+    // THE SUMMIT: a section with almost no ceiling at real heat is the one
+    // moment two lenses are earned at once — the stacks stop being a manual
+    // toy and the director can finally reach them
+    if (ceil > 0.92 && energy > 0.85)
+      return major ? 'wave+mirrors' : 'mirrors+moire';
     if (ceil > 0.72){                                       // …with real headroom
       if (!major && energy > 0.66) return 'moire';          // tense + truly intense → interference
       if (energy > 0.93) return 'prism';                    // the hottest bright peak splits the light
@@ -22613,7 +22634,7 @@ const GLSL_INK = `
    uPtr2  xy = the SECOND hand's centre (NDC), z = its presence, w = its mode */
 const GLSL_WARP = `
   uniform vec3 uPtr;
-  uniform vec3 uPtrX;
+  uniform vec4 uPtrX;
   uniform vec4 uPtrF;
   uniform vec4 uPtr2;
 
@@ -22640,11 +22661,19 @@ const GLSL_WARP = `
     } else if (mode < 2.5){
       rad = -${WARP.lens.toFixed(4)} * inv * (0.85 + charge * 0.6) * w;
       ang = ${WARP.twist.toFixed(4)} * (0.45 + charge * 0.55) * inv * w;
-    } else {
+    } else if (mode < 3.5){
       rad = ${WARP.lens.toFixed(4)} * 1.8 * sin(r * ${WARP.wave.toFixed(4)} - phase)
           * (0.55 + beat * 0.75 + charge * 0.5) * w;
+    } else {
+      rad = ${WARP.lens.toFixed(4)} * inv * (0.9 + charge * 0.6) * w;
+      ang = ${WARP.twist.toFixed(4)} * 0.15 * inv * spin * w;
     }
     return vec2(warpSoft(rad, ${WARP.radMax.toFixed(4)}), warpSoft(ang, ${WARP.angMax.toFixed(4)}));
+  }
+  // the tide's two lobes — see warpLobe() in the pure block; the axis rides uPtrX.w
+  float warpLobe(float mode, float theta){
+    if (mode < 3.5) return 1.0;
+    return cos(2.0 * (theta - uPtrX.w));
   }
   float warpHorizon(float mode, float force){
     if (!(mode > -0.5 && mode < 0.5)) return 0.0;
@@ -22667,7 +22696,7 @@ const GLSL_WARP = `
     float r = length(d);
     vec2 dir = normalize(d + 1e-5);
     vec2 w = warpDeflect(mode, r);
-    float a = w.y * force, rad = w.x * force;
+    float a = w.y * force, rad = w.x * warpLobe(mode, atan(d.y, d.x)) * force;
     float ca = cos(a), sa = sin(a);
     vec2 rot = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);
     return vec3(rot * (r + rad) - d, rad);
@@ -25370,6 +25399,7 @@ const INTERACT = {
   charge: 0,           // 0..1 hold commitment — the force deepens as you stay (touchCharge)
   burst: 0,            // release shockwave, 1 → 0 as the wavefront expands (touchBurst)
   spinE: 0,            // spin momentum the drags banked — the slung-record memory
+  axis: 0,             // the tide's axis — steered by the drag, adrift when the hand rests
   ripplePhase: 0,      // the WAVE metric's clock — advanced here, frozen for reduced motion
   dragging: false, holdOff: 0,
   /* THE SECOND HAND — a real second finger, or the ghost's mirror of itself.
@@ -25417,6 +25447,22 @@ const INTERACT = {
     this.charge = touchCharge(this.charge, dt, this.dragging || this.synth);
     this.burst *= Math.exp(-dt / 0.6);
     this.spinE += (Math.min(1, Math.abs(this.swirl) / 2.2) - this.spinE) * (1 - Math.exp(-dt / 0.5));
+    // the tide turns on its own when nobody is steering — a still axis reads
+    // as a stuck picture; a wandering one reads as the moon doing its rounds.
+    // A DRAG steers it: the axis swings to lie along the stroke (the lobes are
+    // a LINE, symmetric under half a turn, so the arc is shortest mod pi and
+    // dragging back the other way never spins the tide a full circle).
+    if (this.dragging){
+      const sp = Math.hypot(this.vx, this.vy);
+      if (sp > 0.25){
+        const want = Math.atan2(this.vy, this.vx);
+        const d = Math.atan2(Math.sin(2 * (want - this.axis)), Math.cos(2 * (want - this.axis))) * 0.5;
+        this.axis += d * (1 - Math.exp(-dt / 0.35));
+      }
+    } else {
+      this.axis += dt * 0.12;
+      if (this.axis > 62.831853) this.axis -= 62.831853;   // 10 turns — precision kept, pattern unbroken
+    }
     // felt milestones: the hold whispers at half charge, knocks when it's full —
     // the hand learns the rhythm of the mechanic without a single word of UI
     if (this.dragging && HAPTICS.on){
@@ -25724,7 +25770,7 @@ const TOUCHFX = {
      door the room is standing at when you arrive.
      The cycle order starts there too, so the first tap after PULL is AUTO. */
   active: 'gathers',
-  order: ['gathers', 'auto', 'blackhole', 'grows', 'flows'],
+  order: ['gathers', 'auto', 'blackhole', 'grows', 'flows', 'tidal'],
   // Each effect is a motif from the "Everything That…" covers, mapped to a
   // deformation of space (see touchFxMode → warpDeflect). The old `dark` /
   // `ring` / `pure` flags described which overlay each one wore; the overlays
@@ -25737,6 +25783,7 @@ const TOUCHFX = {
     grows:     { chip: 'SPIN', label: 'Vortex',     hint: 'space itself turns around your touch — sling it and it keeps turning' },
     gathers:   { chip: 'PULL', label: 'Accretion',  hint: 'the room falls inward and shears into orbit — let go to detonate' },
     flows:     { chip: 'WAVE', label: 'Ripples',    hint: 'the fabric oscillates outward, cresting on the beat' },
+    tidal:     { chip: 'TIDE', label: 'Tidal',      hint: 'the room stretches toward your hand and thins beside it — drag to swing the axis, rest and it does its rounds' },
   },
   // AUTO's live resolution — the personality the scenes manager last dealt
   // …and AUTO opens on the same door, so switching to it is not a lottery either
@@ -43089,7 +43136,7 @@ function initThree(){
   camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 400);
 
   U.uPtr.value = new THREE.Vector3(0, 0, 0);
-  U.uPtrX.value = new THREE.Vector3(0, 0, 0);
+  U.uPtrX.value = new THREE.Vector4(0, 0, 0, 0);
   U.uPtrF.value = new THREE.Vector4(0, 1, 0, 0);
   U.uPtr2.value = new THREE.Vector4(0, 0, 0, 0);
   initAudioTexture();
@@ -43912,7 +43959,7 @@ const LENS_FIELD = `
     float mode = uPtrF.x;
     vec2 warp = warpDeflect(mode, dist);
     float ang = warp.y * force;
-    float rad = warp.x * force;
+    float rad = warp.x * warpLobe(mode, atan(d.y, d.x)) * force;
 
     /* THE SECOND HAND. One more deflection, about a second centre, with its own
        mode — added to wherever this ray was already going to read from. Two
@@ -44008,7 +44055,7 @@ const LENS_FIELD_LEAN = `
     vec2 dir = normalize(d + 1e-5);
     float mode = uPtrF.x;
     vec2 warp = warpDeflect(mode, dist);
-    float ang = warp.y * force, rad = warp.x * force;
+    float ang = warp.y * force, rad = warp.x * warpLobe(mode, atan(d.y, d.x)) * force;
     if (burst > 0.01){
       float front = exp(-abs(dist - (1.0 - burst) * ${WARP.front.toFixed(3)}) * 5.5);
       rad += front * burst * ${(WARP.lens * 4.2).toFixed(4)};
@@ -48116,7 +48163,7 @@ function frame(now){
      them, the particles move through it, and the light-bending pass refracts
      the frame through the same numbers. */
   U.uPtr.value.set(INTERACT.wx, INTERACT.wy, INTERACT.strength);
-  U.uPtrX.value.set(INTERACT.charge, INTERACT.burst, INTERACT.spinE);
+  U.uPtrX.value.set(INTERACT.charge, INTERACT.burst, INTERACT.spinE, INTERACT.axis);
   // the second hand — a real second finger, or the ghost mirrored. Presence 0
   // nearly always, and 0 is the branch every consumer takes before doing work.
   U.uPtr2.value.set(INTERACT.sx, INTERACT.sy, INTERACT.s2, INTERACT.mode2);

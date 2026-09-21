@@ -217,6 +217,36 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var lensHold: Double = 0
     private var lensAmt: Double = 0
 
+    // the FIELD — the ghost's hand on the light itself (field_pass in
+    // Field.metal, the web's LENS_FIELD_LEAN for one hand). Runs only
+    // while the ghost is present; a missing field_pass just leaves the
+    // pipeline nil and the frame flows exactly as before.
+    private var fieldPipeline: MTLRenderPipelineState?
+    private var fieldPhase: Double = 0
+
+    /// Each room's native answer to a hand — the web's touchAffinity MAP,
+    /// keyed (the two stages order their rosters differently): 0 blackhole,
+    /// 1 grows, 2 gathers, 3 flows. The ghost drives the field pass with the
+    /// room's own personality, so the SET pulls light in on both stages and
+    /// the SCOPE's glass ripples on both. An unmapped room falls back to the
+    /// accretion well, the web's own default.
+    private static let ghostTouchMode: [String: Float] = [
+        "spiral": 1, "helix": 1, "band": 2, "starburst": 0, "nebula": 3, "tunnel": 0,
+        "ribbons": 3, "fractal": 0, "comets": 2, "fern": 3, "rosette": 1, "slinky": 1,
+        "opart": 0, "pulse": 2, "parlor": 3, "aurea": 1, "halo": 1, "lava": 1,
+        "flame": 3, "sheets": 3, "mandala": 1, "oilslick": 3, "bubbles": 2, "sky": 1,
+        "pyro": 2, "mandel": 0, "drift": 0, "disperse": 2, "filament": 1, "soapfilm": 3,
+        "terrain": 1, "eigen": 2, "creature": 3, "barkley": 1, "verse": 2, "arcade": 2,
+        "scope": 3, "weave": 1, "ocean": 3, "bolt": 2, "circuit": 0, "bifurc": 1,
+        "cymatic": 3, "rule": 2, "hole": 0, "ferro": 2, "plinko": 3, "pendula": 3,
+        "lorenz": 2, "sync": 2, "nbody": 0, "dla": 2, "boids": 0, "fourier": 2,
+        "fringe": 0, "julia": 0, "escher": 2, "penrose": 3, "sunflower": 1, "sandpile": 1,
+        "lsystem": 1, "hilbert": 3, "koch": 2, "dragon": 3, "cantor": 0, "tonnetz": 2,
+        "harmonograph": 3, "overtones": 3, "euclid": 1, "phase": 3, "ulam": 2, "cardioid": 1,
+        "collatz": 3, "mediant": 2, "zeta": 0, "karman": 3, "caustics": 3, "hopf": 2,
+        "knots": 1, "benard": 3,
+    ]
+
     private var specScratch = [Float](repeating: 0, count: 256)
     private var waveScratch = [Float](repeating: 0, count: 256)
 
@@ -327,6 +357,16 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             ldesc.fragmentFunction = lensFn
             ldesc.colorAttachments[0].pixelFormat = .rgba16Float
             lensPipeline = try? device.makeRenderPipelineState(descriptor: ldesc)
+        }
+
+        // the FIELD — the ghost's light-bending pass, guarded the same way:
+        // a missing field_pass leaves fieldPipeline nil and the pass never runs.
+        if let fieldFn = library.makeFunction(name: "field_pass") {
+            let fdesc = MTLRenderPipelineDescriptor()
+            fdesc.vertexFunction = vertexFn
+            fdesc.fragmentFunction = fieldFn
+            fdesc.colorAttachments[0].pixelFormat = .rgba16Float
+            fieldPipeline = try? device.makeRenderPipelineState(descriptor: fdesc)
         }
 
         // the GRADE — the final composite, into the drawable's own format
@@ -609,6 +649,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private func pickLens(act: Int, energy: Double, minor: Bool, ceil: Double) -> Int {
         if ceil < 0.55 || act == 0 || act == 4 { return -1 }   // the hard gate + the arc's edges
         if act == 2 {                                          // APEX
+            // THE SUMMIT: near-no ceiling at real heat deals a STACK — two
+            // lenses run in sequence (6 = wave then mirrors, 7 = mirrors
+            // then moire), the web's taste verbatim
+            if ceil > 0.92 && energy > 0.85 { return minor ? 7 : 6 }
             if ceil > 0.72 {                                   // …with real headroom
                 if minor && energy > 0.66 { return 5 }         // moire — tense + truly intense
                 if energy > 0.93 { return 2 }                  // prism — the hottest bright peak
@@ -626,6 +670,15 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// The auto-picker over the pure rule: it holds a chosen lens ~9 s and
     /// `none` ~3 s so the look never flickers, and returns -1 ALWAYS under
     /// Reduce Motion (calm is clean glass). The engage ramp lives in draw().
+    /// A stack code names its members in playing order; a single names itself.
+    private func lensStackKinds(_ code: Int) -> [Int] {
+        switch code {
+        case 6: return [1, 0]          // wave, folded into mirrors
+        case 7: return [0, 5]          // mirrors, strained by moire
+        default: return [code]
+        }
+    }
+
     private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool, ceil: Double, enabled: Bool) -> Int {
         if reduceMotion || !enabled {
             lensChoice = -1
@@ -800,6 +853,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             ghostStrength = max(ghostTarget, ghostStrength - down * dt)
         }
         let ghost = ghostPoint(choreo: ghostChoreo, t: ghostTime)
+        // the FIELD's ripple clock (the flows personality travels on it) —
+        // wrapped by whole turns so a long night never loses sin() precision
+        fieldPhase += dt * (2.2 + 1.4 * Double(dispEnergy))
+        if fieldPhase > 512.0 * .pi { fieldPhase -= 512.0 * .pi }
 
         // -- the lens: auto-picked by act + energy, held so it never flickers.
         // The chosen TYPE snaps at hold boundaries; the AMOUNT eases (tau 0.6 s)
@@ -889,15 +946,44 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             sceneForGrade = compTex
         }
 
+        // -- pass 3.25 (ghost only): the phantom hand bends the LIGHT — the
+        //    web's field pass for one hand. The whole frame curves around the
+        //    ghost with the room's own touch personality, not only the rooms
+        //    that individually lean toward it. texB is free here in both
+        //    flows (at rest it is untouched; in a handover the composite has
+        //    already been cut from it), and a still room skips the pass. --
+        if ghostStrength > 0.05, let fieldPipeline, let fb = texB {
+            let key = Rooms.all.indices.contains(current) ? Rooms.all[current].key : ""
+            var fp = SIMD4<Float>(Self.ghostTouchMode[key] ?? 2,
+                                  min(max(frame.onsetEnv, 0), 1),
+                                  0.35 + 0.55 * dispEnergy,
+                                  Float(fieldPhase))
+            encodeField(pipeline: fieldPipeline, into: fb,
+                        commandBuffer: commandBuffer, uniforms: &u,
+                        params: &fp, scene: sceneForGrade)
+            sceneForGrade = fb
+        }
+
         // -- pass 3.5 (lens only): bend the scene through lens_pass into
         //    lensTex. Skipped entirely when the lens is off, so the GRADE reads
         //    the scene directly — the exact proven wave-2 flow. lens_pass
         //    reads only texture(0); tex1 is bound to the same source, ignored. --
         if lensEngage, let lensPipeline, let lt = lensTex {
-            encodeComposite(pipeline: lensPipeline, into: lt,
-                            commandBuffer: commandBuffer, uniforms: &u,
-                            tex0: sceneForGrade, tex1: sceneForGrade)
-            sceneForGrade = lt
+            // a stack runs the same pass twice, each leg with its own kind;
+            // texB is free here (the composite has already been cut from it)
+            let kinds = lensStackKinds(lensRenderMode)
+            var src = sceneForGrade
+            for (leg, kind) in kinds.enumerated() {
+                // never alias src and dst — if texB is somehow gone, the
+                // first leg alone is the whole look
+                guard let dst: MTLTexture = (leg % 2 == 0) ? lt : texB else { break }
+                u.lens = Float(kind)
+                encodeComposite(pipeline: lensPipeline, into: dst,
+                                commandBuffer: commandBuffer, uniforms: &u,
+                                tex0: src, tex1: src)
+                src = dst
+                sceneForGrade = dst
+            }
         }
 
         // -- pass 4: the GRADE — the (optionally lensed) scene to the drawable --
@@ -967,6 +1053,32 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
         encoder.setFragmentTexture(tex0, index: 0)
         encoder.setFragmentTexture(tex1, index: 1)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+    }
+
+    /// The ghost's light-bending pass (field_pass): one texture in, the
+    /// deflected frame out, the hand's parameters riding buffer(2) —
+    /// float4(mode, charge, spin, phase).
+    private func encodeField(pipeline: MTLRenderPipelineState, into target: MTLTexture,
+                             commandBuffer: MTLCommandBuffer,
+                             uniforms: inout VizUniforms,
+                             params: inout SIMD4<Float>, scene: MTLTexture) {
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = target
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].storeAction = .store
+        pass.colorAttachments[0].clearColor = MTLClearColor(red: 5.0 / 255.0,
+                                                            green: 6.0 / 255.0,
+                                                            blue: 14.0 / 255.0,
+                                                            alpha: 1.0)
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return }
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<VizUniforms>.stride, index: 0)
+        var res = SIMD2<Float>(Float(target.width), Float(target.height))
+        encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
+        encoder.setFragmentBytes(&params, length: MemoryLayout<SIMD4<Float>>.stride, index: 2)
+        encoder.setFragmentTexture(scene, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
     }
