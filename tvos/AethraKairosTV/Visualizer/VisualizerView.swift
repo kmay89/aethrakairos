@@ -250,6 +250,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         "scribe": 3, "cipher": 1, "babel": 0, "rain": 3, "terra": 1,
         "stokes": 1, "orbitals": 2, "dna": 1,
         "maxwell": 3, "seventeen": 1, "minimal": 3,
+        "minkowski": 3, "boltzmann": 2,
     ]
 
     private var specScratch = [Float](repeating: 0, count: 256)
