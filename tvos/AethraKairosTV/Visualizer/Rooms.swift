@@ -384,6 +384,16 @@ enum Rooms {
         Room(key: "minimal", name: "MINIMAL", fragmentFunction: "room_minimal",
              tasteEnergy: 0, tasteCalm: 1.0, tasteBeat: 0, tasteTreble: 0,
              tasteEntropy: -0.3, heavy: true, calm: true),
+
+        // Spacetime and the gas (Shaders20): the light cone and the honest
+        // twins, and the only law with a direction — entropy measured from
+        // the real occupancy, in the shader itself — one hundred, both stages.
+        Room(key: "minkowski", name: "MINKOWSKI", fragmentFunction: "room_minkowski",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.6, tasteTreble: 0,
+             tasteMid: 0.6, tasteEntropy: -0.2),
+        Room(key: "boltzmann", name: "BOLTZMANN", fragmentFunction: "room_boltzmann",
+             tasteEnergy: 0.7, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.4,
+             tasteEntropy: 0.6, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

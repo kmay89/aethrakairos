@@ -58,7 +58,7 @@ complete, no-guessing runbook.
   through mud, the story arc warms and cools the whole chord as one rotation,
   and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds ninety-eight Metal rooms — one for every scene the web player has, 1:1 by
+  feeds one hundred Metal rooms — one for every scene the web player has, 1:1 by
   key (the parity law in `CONTRIBUTING.md`); beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
@@ -98,6 +98,7 @@ complete, no-guessing runbook.
   | **RAIN** — glyph weather hiding a raymarched form | **TERRA** — the blue marble, real continents bit by bit | **NAVIER–STOKES** — the equation, only where it surrenders exactly |
   | **ORBITALS** — hydrogen's true wavefunctions, nodes and all | **DNA** — B-form to the letter, 10.5 pairs a turn | |
   | **MAXWELL** — the dipole's pinching loops, E×B, the honest spectrum | **THE SEVENTEEN** — Fedorov's complete census of the plane | **MINIMAL** — the soap films: the turn, Scherk, Goldschmidt's snap |
+  | **MINKOWSKI** — the light cone, the boost, the honest twins | **BOLTZMANN** — the box, the demon's ledger, the heat | |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's
