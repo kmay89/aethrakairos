@@ -3448,6 +3448,19 @@ body.clipping::after{
     lines' true wavelengths. And <b>DNA</b> winds B-DNA honestly — 10.5 pairs to the turn, the
     grooves at their true unequal angles — with a transcription bubble walking the bars and a
     codon wheel spelled in the house's own letters.</p>
+    <h3>Light, pattern, soap</h3>
+    <p class="lede">Scenes 96–98 finish the fundamentals bench. <b>MAXWELL</b> plays the equations
+    that gave us radio: an antenna driven by the song's own bass, its field lines pinching into
+    the detaching loops of the true oscillating-dipole solution; E×B rides the wave itself, and
+    THE SPECTRUM admits the humbling truth — the visible rainbow, drawn through the CIE eye, is a
+    sliver in an ocean of octaves. <b>THE SEVENTEEN</b> walks Fedorov's complete census: exactly
+    seventeen ways for a pattern to repeat in the plane, ever — a deliberately lopsided motif
+    dealt from the music and folded through every group, one per phrase, the symmetry dissolving
+    between corners so it never snaps. <b>MINIMAL</b> knows what soap knows: the catenoid and the
+    helicoid are the same surface, and THE TURN plays that oldest magic in differential geometry
+    as a wire net turning through itself without stretching; SCHERK raises the saddle towers from
+    z&nbsp;=&nbsp;ln(cos&nbsp;x/cos&nbsp;y), and THE FILM stretches a catenoid between two rings
+    until Goldschmidt's limit — where the mathematics itself says snap, and it honestly does.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4082,7 +4095,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'flows', 'gathers', 'grows', 'flows',
                'gathers', 'blackhole', 'grows', 'flows', 'blackhole',
                'gathers', 'flows', 'flows', 'grows', 'blackhole',
-               'flows', 'grows', 'grows', 'gathers', 'grows'];   // …the lattice and the film ripple, the
+               'flows', 'grows', 'grows', 'gathers', 'grows',
+               'flows', 'grows', 'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4108,7 +4122,9 @@ function touchAffinity(sceneIdx, act, r, mood){
                            // and the SCRIBE's page, a hand SPINS the cipher wheel, and
                            // BABEL's air shaft is a void with a banister; the RAIN
                            // ripples, a hand SPINS the TERRA and STIRS the STOKES and
-                           // TWISTS the DNA, and near the ORBITALS probability gathers
+                           // TWISTS the DNA, and near the ORBITALS probability gathers;
+                           // MAXWELL's field ripples, a hand TURNS the seventeen's
+                           // pattern, and a breeze plays on the MINIMAL film
   // PULL is what an unmapped room falls back to — see TOUCHFX for why the
   // accretion well is the personality the field defaults to
   let key = MAP[(sceneIdx | 0) >= 0 && (sceneIdx | 0) < MAP.length ? sceneIdx | 0 : 0] || 'gathers';
@@ -4375,7 +4391,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'drift', 'paint', 'lissa', 'lissa', 'drift',
                'lissa', 'drift', 'snake', 'paint', 'drift',
                'bounce', 'snake', 'paint', 'lissa', 'drift',
-               'snake', 'drift', 'lissa', 'paint', 'lissa'];   // …SHEETS walks the lattice, MANDALA curves,
+               'snake', 'drift', 'lissa', 'paint', 'lissa',
+               'lissa', 'snake', 'drift'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5585,7 +5602,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'karman', 'caustics', 'hopf', 'knots', 'benard',
                     'orrery', 'lensing', 'pulsar', 'analemma', 'eclipse',
                     'telegraph', 'semaphore', 'scribe', 'cipher', 'babel',
-                    'rain', 'terra', 'stokes', 'orbitals', 'dna'];
+                    'rain', 'terra', 'stokes', 'orbitals', 'dna',
+                    'maxwell', 'seventeen', 'minimal'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5737,6 +5755,9 @@ const SCENE_TASTE = {
   stokes:    { energy: 0.8, bass: 0.6, entropy: 0.5 },      // turbulence wants turbulence
   orbitals:  { calm: 0.8, mid: 0.6, coupling: 0.7, entropy: -0.3 },  // a held chord is a bound state
   dna:       { calm: 0.7, mid: 0.5, beat: 0.4 },            // the code reads at its own pace
+  maxwell:   { mid: 0.8, treble: 0.6, coupling: 0.6 },      // light is tonal material
+  seventeen: { calm: 0.9, entropy: -0.5, beat: 0.4 },       // pattern wants order with a pulse
+  minimal:   { calm: 1.0, coupling: 0.6, entropy: -0.3 },   // soap has all the patience there is
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6943,6 +6964,9 @@ const SCENE_SIGS = {
   stokes:    { kind: 'wave',   h: 190, twist: 1 },
   orbitals:  { kind: 'blob',   h: 270, arms: 2 },
   dna:       { kind: 'spiral', h: 150, twist: 1 },
+  maxwell:   { kind: 'wave',   h: 210, arms: 2, tail: 1 },
+  seventeen: { kind: 'grid',   h: 165, dense: 0.9 },
+  minimal:   { kind: 'ring',   h: 195, twist: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -45879,6 +45903,520 @@ function buildDna(){
   return api;
 }
 
+/* =========================================================
+   SCENE 96 · MAXWELL — the equations that gave us radio
+
+   Four lines of vector calculus, and suddenly light was
+   electricity waving. THE DIPOLE face is the textbook's
+   crown: an antenna driven by the song's own bass, its field
+   lines pinching off into the detaching loops of the true
+   oscillating-dipole solution. E×B rides the wave itself —
+   two ribbons at right angles, advancing at one speed only.
+   THE SPECTRUM tells the humbling truth: the visible rainbow
+   (drawn through the CIE eye) is a sliver in an ocean of
+   octaves, radio at one shore, gamma at the other, each band
+   of the song lighting its analogue.
+   ========================================================= */
+function buildMaxwell(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeMx:{ value: 0 },
+    uDrive: { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + GLSL_CIE + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeMx, uVarA, uAspect, uDrive;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        float sw = uHand.z * 0.30 / (dot(dh, dh) + 0.22);
+        p = vec2(p.x - dh.y * sw, p.y + dh.x * sw);          // a hand bends the field
+      }
+      vec3 col = vec3(0.0);
+      if (uModeMx < 0.5){
+        /* THE DIPOLE — the true oscillating-dipole field lines: contours of
+           C = sin^2(theta) * (cos(kr - wt) - sin(kr - wt)/(kr)), the loops
+           pinching off the antenna exactly as the solution says they must */
+        float r = length(p) + 1e-4;
+        float st = abs(p.x) / r;                             // the antenna stands vertical
+        float k = 9.0;
+        float phase = k * r - uDrive;
+        float C = st * st * (cos(phase) - sin(phase) / (k * r));
+        float band = abs(fract(C * 3.0) - 0.5) * 2.0;
+        float lines = exp(-pow(band, 2.0) * 60.0);
+        float fade = exp(-r * 0.9);
+        col += ramp(0.30 + 0.25 * smoothstep(-0.5, 0.5, C)) * lines * fade * (0.30 + uBass * 0.35);
+        col += ramp(0.75) * lines * exp(-pow(abs(C) * 8.0, 2.0)) * fade * 0.25;  // the pinch-off seam
+        // the antenna itself, fed by the song's low end
+        float rod = segd(p, vec2(0.0, -0.16), vec2(0.0, 0.16));
+        col += ramp(0.10) * exp(-rod * 90.0) * (0.5 + uBass * 0.8);
+        col += ramp(0.85) * exp(-r * r / 0.0008) * (0.4 + uBeat * 0.6);
+      } else if (uModeMx < 1.5){
+        /* E x B — the wave itself: the electric ribbon and the magnetic one,
+           perpendicular, in phase, advancing at the one speed there is */
+        float ph0 = uDrive * 0.5;
+        vec3 colE = ramp(0.14), colB = ramp(0.62);
+        for (int i = 0; i < 48; i++){
+          float x = -1.6 + float(i) / 47.0 * 3.2;
+          float w = sin(x * 6.0 - ph0) * (0.34 + uMid * 0.18);
+          // E stands upright; B lies flat, drawn in a shallow perspective
+          vec2 E = vec2(x * uAspect * 0.6, w);
+          vec2 B = vec2(x * uAspect * 0.6 + w * 0.36, w * 0.14);
+          float dE = length(p - E), dB = length(p - B);
+          col += colE * exp(-dE * dE / 0.00030) * 0.5;
+          col += colB * exp(-dB * dB / 0.00030) * 0.42;
+          // the field VECTORS, sampled sparsely — the comb of the wave
+          if (mod(float(i), 6.0) < 0.5){
+            float ax = x * uAspect * 0.6;
+            col += colE * exp(-segd(p, vec2(ax, 0.0), vec2(ax, w)) * 160.0) * 0.30;
+            col += colB * exp(-segd(p, vec2(ax, 0.0), vec2(ax + w * 0.36, w * 0.14)) * 160.0) * 0.26;
+          }
+        }
+        // the axis the wave rides
+        col += ramp(0.45) * exp(-abs(p.y) * 200.0) * exp(-abs(p.x) * 0.4) * 0.12;
+      } else {
+        /* THE SPECTRUM — thirteen octaves of light, and the sliver we see.
+           x runs log-frequency: radio to gamma; the visible band is drawn
+           through the CIE eye, honestly narrow. */
+        float x01 = vUv.x;
+        // the visible sliver sits proportionally tiny; we grant it a
+        // readable window in the middle and say so with hard edges
+        float vis0 = 0.46, vis1 = 0.58;
+        if (x01 > vis0 && x01 < vis1){
+          float nm = mix(700.0, 400.0, (x01 - vis0) / (vis1 - vis0));
+          col += wavelengthLinearRGB(nm) * 0.55 * smoothstep(0.85, 0.35, abs(p.y * 2.0));
+        }
+        // the long-wave shore: radio ripples on the bass
+        float radio = smoothstep(0.30, 0.0, x01);
+        col += ramp(0.30) * radio * exp(-pow((p.y - 0.3 * sin(p.x * 4.0 - uDrive * 0.4)) * 5.0, 2.0)) * (0.22 + uBass * 0.5);
+        // microwave and IR: heat shimmer
+        float ir = smoothstep(0.30, 0.42, x01) * smoothstep(0.50, 0.42, x01);
+        col += ramp(0.20) * ir * (0.14 + 0.12 * sin(p.y * 30.0 + uTime * 3.0 + x01 * 40.0)) * (0.5 + uMid * 0.5);
+        // the short shore: UV, X, gamma — spikes on the onsets
+        float uvx = smoothstep(0.58, 0.75, x01);
+        float spikes = step(0.97, hash21(vec2(floor(vUv.x * 90.0), floor(uTime * (2.0 + uTreble * 8.0)))));
+        col += ramp(0.70) * uvx * spikes * abs(p.y) * (0.4 + uBeat * 0.8);
+        col += ramp(0.62) * uvx * 0.05;
+        // the axis, and the honest label of scale: tick marks every octave
+        col += ramp(0.5) * exp(-abs(p.y) * 300.0) * 0.16;
+        float tick = exp(-pow((fract(x01 * 13.0) - 0.5) * 14.0, 2.0));
+        col += ramp(0.55) * tick * exp(-abs(p.y + 0.55) * 60.0) * 0.26;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE DIPOLE',   m: 0 },
+    { name: 'E × B',        m: 1 },
+    { name: 'THE SPECTRUM', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'MAXWELL', key: 'maxwell', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the antenna is driven at the song's tempo — radio, literally played
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      varU.uDrive.value += dt * bps * 3.14159265;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeMx.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'MAXWELL · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 97 · THE SEVENTEEN — every pattern there will ever be
+
+   In 1891 Fedorov proved the count: seventeen ways, no more,
+   for a pattern to repeat in the plane. Every tile, every
+   textile, every mosque ceiling and quilt is one of them.
+   This room deals a motif from the music and walks it through
+   the whole census — rotations, mirrors, glides — one group
+   per phrase, the fold changing exactly when the song turns a
+   corner. THE CENSUS tours all seventeen; ONE PATTERN holds a
+   dealt group still; THE CELL bares the machinery, generators
+   over the tiling.
+   ========================================================= */
+function buildSeventeen(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeSv:{ value: 0 },
+    uGroup: { value: 0 },
+    uMorph: { value: 1 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeSv, uVarA, uAspect, uGroup, uMorph;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the MOTIF: deliberately asymmetric, so every symmetry the group adds
+    // is the group's own doing and none is smuggled in
+    vec3 motif(vec2 q){
+      vec3 m = vec3(0.0);
+      float d1 = length(q - vec2(0.30, 0.22));
+      float d2 = length(q - vec2(0.62, 0.55) * vec2(1.0, 0.8));
+      float d3 = length(q - vec2(0.25, 0.68));
+      m += ramp(0.12) * exp(-d1 * d1 * (110.0 - uBass * 35.0));
+      m += ramp(0.45) * exp(-d2 * d2 * 150.0) * 0.8;
+      m += ramp(0.70) * exp(-d3 * d3 * 200.0) * 0.7;
+      // one comma of a curve, so chirality is visible
+      float ang = atan(q.y - 0.42, q.x - 0.42);
+      float rr = length(q - vec2(0.42));
+      m += ramp(0.30) * exp(-abs(rr - 0.16 - ang * 0.03) * 55.0) * smoothstep(2.4, 0.6, abs(ang)) * 0.75;
+      return m * uMorph;
+    }
+    vec2 rot2(vec2 q, vec2 c, float a){
+      float ca = cos(a), sa = sin(a);
+      q -= c; return vec2(q.x * ca - q.y * sa, q.x * sa + q.y * ca) + c;
+    }
+    /* one cell coordinate, folded by group g (0..16 in the standard order
+       p1 p2 pm pg cm pmm pmg pgg cmm p4 p4m p4g p3 p3m1 p31m p6 p6m).
+       Square cells for the first twelve, hex-ish folds for the last five. */
+    vec2 foldCell(vec2 q, float g){
+      vec2 c = fract(q);
+      if (g < 0.5){ return c; }                                            // p1
+      if (g < 1.5){ if (c.y > 0.5) c = vec2(1.0) - c; return c; }          // p2
+      if (g < 2.5){ c.x = abs(c.x - 0.5) + 0.0; return c; }                // pm
+      if (g < 3.5){ if (c.x > 0.5){ c.x = c.x - 0.5; c.y = 1.0 - c.y; } return c; } // pg
+      if (g < 4.5){ c = abs(c - 0.5); if (c.x + c.y > 0.5) c = vec2(0.5) - c.yx; return c; } // cm
+      if (g < 5.5){ return abs(c - 0.5); }                                 // pmm
+      if (g < 6.5){ c.x = abs(c.x - 0.5); if (c.y > 0.5){ c.y = c.y - 0.5; c.x = 0.5 - c.x; } return c; } // pmg
+      if (g < 7.5){ if (c.x > 0.5){ c.x -= 0.5; c.y = 1.0 - c.y; } if (c.y > 0.5){ c.y -= 0.5; c.x = 0.5 - c.x; } return c; } // pgg
+      if (g < 8.5){ c = abs(c - 0.5); if (c.y > c.x) c = c.yx; return c; } // cmm
+      if (g < 9.5){ c -= 0.5; for (int i = 0; i < 3; i++){ if (abs(c.y) > abs(c.x)) c = vec2(c.y, -c.x); } return c + 0.5; } // p4
+      if (g < 10.5){ c = abs(c - 0.5); if (c.y > c.x) c = c.yx; return c; }               // p4m (kaleido wedge)
+      if (g < 11.5){ c -= 0.5; for (int i = 0; i < 3; i++){ if (abs(c.y) > abs(c.x)) c = vec2(c.y, -c.x); } c += 0.5; c.y = abs(c.y - 0.5) + 0.0; return c; } // p4g
+      // the hexagonal five: fold the angle around the cell centre —
+      // threefold for the p3 kinds, sixfold for the p6 kinds, and a
+      // mirror inside the wedge for the -m- kinds
+      vec2 d = fract(q) - 0.5;
+      float ang = atan(d.y, d.x);
+      float rr = length(d);
+      float n = g < 14.5 ? 3.0 : 6.0;
+      float sector = 6.2831853 / n;
+      float a2 = ang - sector * floor(ang / sector);
+      bool mirrored = (g > 12.5 && g < 14.6) || g > 15.5;   // p3m1, p31m, p6m
+      if (mirrored) a2 = abs(a2 - sector * 0.5);
+      if (g > 13.5 && g < 14.6) a2 = sector * 0.5 - a2 + sector * 0.5;     // p31m: the other seam
+      return vec2(cos(a2), sin(a2)) * rr + 0.5;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.18 / (dot(dh, dh) + 0.28));
+      }
+      float g = uGroup;
+      vec2 q = p * (1.9 + 0.3 * sin(uVarA * 6.28)) + vec2(uVarA * 4.0, uTime * 0.03);
+      vec2 c = foldCell(q, g);
+      vec3 col = motif(c);
+      // a second, quieter voice half a cell away — depth without violence
+      col += motif(fract(c + vec2(0.5))) * 0.22;
+      if (uModeSv > 1.5){
+        // THE CELL: the machinery bared — cell edges and the fold's seams
+        vec2 cf = fract(q);
+        float edge = min(min(cf.x, 1.0 - cf.x), min(cf.y, 1.0 - cf.y));
+        col += ramp(0.55) * exp(-edge * 60.0) * 0.14;
+        col += ramp(0.85) * exp(-length(cf - 0.5) * 30.0) * 0.10;          // the cell's heart
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE CENSUS', m: 0 },
+    { name: 'ONE PATTERN', m: 1 },
+    { name: 'THE CELL',   m: 2 },
+  ];
+  const st = { mode: MODES[0], held: 9, lastPhrase: -1 };
+  const api = {
+    name: 'THE SEVENTEEN', key: 'seventeen', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the census walks one group per phrase — the fold changes exactly
+      // when the song turns a corner, and the change DISSOLVES (the motif
+      // dips while the group swaps, so symmetry never snaps mid-stare)
+      if (st.mode.m === 0){
+        // one group per phrase-length breath: on a measured grid the phrase
+        // fraction's wrap is the tick; unkeyed material breathes on twelve
+        // patient seconds
+        const pf = (typeof DANCE !== 'undefined' && DANCE.haveGrid) ? DANCE.phraseFrac : ((st.acc || 0) % 12) / 12;
+        st.acc = (st.acc || 0) + dt;
+        if (pf < (st.lastPf === undefined ? 1 : st.lastPf) - 0.5){
+          st.held = (st.held + 1) % 17;
+        }
+        st.lastPf = pf;
+      }
+      const want = st.held;
+      if (varU.uGroup.value !== want){
+        varU.uMorph.value = Math.max(0, varU.uMorph.value - dt * 3);
+        if (varU.uMorph.value <= 0.02) varU.uGroup.value = want;
+      } else {
+        varU.uMorph.value = Math.min(1, varU.uMorph.value + dt * 2);
+      }
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeSv.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      st.held = Math.floor(Math.random() * 17);
+      varU.uGroup.value = st.held;
+      varU.uMorph.value = 1;
+      api.name = 'THE SEVENTEEN · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 98 · MINIMAL — the shapes soap already knows
+
+   A soap film solves a variational problem faster than any
+   computer: least area, always. THE TURN plays the oldest
+   magic in differential geometry — the catenoid and the
+   helicoid are the SAME surface, and the film turns through
+   itself without stretching, swinging with the phrase.
+   SCHERK raises the saddle towers, per pixel, from
+   z = ln(cos x / cos y). THE FILM holds a catenoid between
+   two rings and lets the bass pull them apart until
+   Goldschmidt's limit — where the mathematics itself says
+   SNAP, and the film honestly does.
+   ========================================================= */
+function buildMinimal(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeMn:{ value: 0 },
+    uTurn:  { value: 0 },
+    uSep:   { value: 0.8 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeMn, uVarA, uAspect, uTurn, uSep;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += vec2(dh.y, -dh.x) * (uHand.z * 0.12 / (dot(dh, dh) + 0.25));
+      }
+      vec3 col = vec3(0.0);
+      if (uModeMn < 0.5){
+        /* THE TURN — the associate family: X = cos(t)*catenoid + sin(t)*helicoid,
+           an exact isometry all the way around. Drawn as a woven wire net. */
+        float t = uTurn;
+        float ct = cos(t), st2 = sin(t);
+        float va = uTime * 0.12 + uVarA * 6.28;
+        float cva = cos(va), sva = sin(va);
+        for (int iu = 0; iu < 26; iu++){
+          for (int iv = 0; iv < 9; iv++){
+            float u = float(iu) / 25.0 * 6.2831853;
+            float u2 = float(iu + 1) / 25.0 * 6.2831853;
+            float v = (float(iv) / 8.0 - 0.5) * 2.4;
+            // catenoid: (cosh v cos u, cosh v sin u, v) · helicoid: (sinh v sin u, -sinh v cos u, u)
+            float chv = (exp(v) + exp(-v)) * 0.5, shv = (exp(v) - exp(-v)) * 0.5;
+            vec3 P = ct * vec3(chv * cos(u), v, chv * sin(u))
+                   + st2 * vec3(shv * sin(u), u * 0.38 - 1.2, -shv * cos(u));
+            vec3 Q = ct * vec3(chv * cos(u2), v, chv * sin(u2))
+                   + st2 * vec3(shv * sin(u2), u2 * 0.38 - 1.2, -shv * cos(u2));
+            P *= 0.40; Q *= 0.40;
+            // the turntable
+            float x = P.x * cva + P.z * sva;
+            float z = -P.x * sva + P.z * cva;
+            vec2 S = vec2(x, P.y + z * 0.14);
+            float x2 = Q.x * cva + Q.z * sva;
+            float z2 = -Q.x * sva + Q.z * cva;
+            vec2 S2 = vec2(x2, Q.y + z2 * 0.14);
+            float depth = 0.55 + 0.45 * (z * 0.4 + 0.5);
+            // the WIRE, not just its knots: the net woven along u
+            float dw = length(p - S);
+            vec2 pa = p - S, ba = S2 - S;
+            float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+            float dseg = length(pa - ba * h);
+            col += ramp(0.30 + 0.30 * (float(iv) / 8.0)) * exp(-dseg * 150.0) * depth * 0.14;
+            col += ramp(0.30 + 0.30 * (float(iv) / 8.0)) * exp(-dw * dw / 0.00035) * depth * 0.22;
+          }
+        }
+      } else if (uModeMn < 1.5){
+        /* SCHERK — the saddle towers, per pixel: z = ln(cos x / cos y) exists
+           only on the checkerboard, and the level bands say how steeply */
+        vec2 q = p * 3.4 + vec2(uVarA * 3.0);
+        float cx = cos(q.x), cy = cos(q.y);
+        float sgn = cx * cy;
+        if (sgn > 0.0){
+          float z = log(abs(cx) + 1e-4) - log(abs(cy) + 1e-4) + uTime * 0.15;
+          float band = abs(fract(z * 2.2) - 0.5) * 2.0;
+          float line = exp(-pow(band, 2.0) * 50.0);
+          col += ramp(0.28 + 0.22 * smoothstep(-2.0, 2.0, z)) * line * (0.35 + uMid * 0.2);
+          // the towers' walls glow where the surface goes vertical
+          float wall = exp(-abs(cx * cy) * 9.0);
+          col += ramp(0.62) * wall * 0.28;
+        } else {
+          // off the checkerboard there is no surface — the void, honestly
+          float wall = exp(-abs(cx * cy) * 9.0);
+          col += ramp(0.70) * wall * 0.16;
+        }
+      } else {
+        /* THE FILM — a catenoid between two rings; past Goldschmidt's limit
+           the least area is two flat discs, and the film says so */
+        float sep = uSep;                                    // half-separation over ring radius
+        bool snapped = sep > 0.6627;                         // the honest critical ratio
+        float ringY = sep;
+        // the two rings
+        for (int s = 0; s < 2; s++){
+          float y0 = s == 0 ? ringY : -ringY;
+          float d = abs(length(vec2(p.x / 0.62, (p.y - y0) * 4.0)) - 1.0);
+          col += ramp(0.55) * exp(-d * 14.0) * 0.35;
+        }
+        if (!snapped){
+          // the neck: r(y) = c cosh(y/c), c solved well enough by two loops
+          float c = 0.8 - sep * 0.75;
+          for (int it = 0; it < 6; it++){
+            float f = c * (exp(sep / c) + exp(-sep / c)) * 0.5;
+            c += (0.62 - f) * 0.4;
+            c = clamp(c, 0.05, 0.62);
+          }
+          float r = c * (exp(abs(p.y) / c) + exp(-abs(p.y) / c)) * 0.5;
+          float d = abs(abs(p.x) - r * 0.62);
+          float inFilm = step(abs(p.y), ringY);
+          col += ramp(0.34) * exp(-d * 30.0) * inFilm * (0.4 + uMid * 0.2);
+          col += ramp(0.62) * exp(-d * 90.0) * inFilm * 0.30;
+          // the waist, breathing thinner as the rings part
+          col += ramp(0.85) * exp(-length(vec2(abs(p.x) - c * 0.62, p.y)) * 20.0) * 0.18;
+        } else {
+          // SNAP: the two discs, and the memory of the neck as a falling drop
+          for (int s = 0; s < 2; s++){
+            float y0 = s == 0 ? ringY : -ringY;
+            float disc = smoothstep(0.63, 0.58, length(vec2(p.x / 0.62, (p.y - y0) * 4.0)));
+            col += ramp(0.40) * disc * 0.20;
+          }
+          float drop = length(p - vec2(0.0, -fract(uTime * 0.5) * 0.8));
+          col += ramp(0.85) * exp(-drop * drop / 0.0008) * 0.5;
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE TURN', m: 0 },
+    { name: 'SCHERK',   m: 1 },
+    { name: 'THE FILM', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'MINIMAL', key: 'minimal', group,
+    calm: true, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the turn swings with the phrase; the film's rings ride the bass
+      varU.uTurn.value += dt * (0.35 + (f.energy || 0) * 0.3);
+      const wantSep = 0.35 + (f.bass || 0) * 0.45;
+      varU.uSep.value += (wantSep - varU.uSep.value) * Math.min(1, dt * 1.2);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeMn.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'MINIMAL · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -45921,7 +46459,8 @@ function initThree(){
               buildKarman(), buildCaustics(), buildHopf(), buildKnots(), buildBenard(),
               buildOrrery(), buildLensing(), buildPulsar(), buildAnalemma(), buildEclipse(),
               buildTelegraph(), buildSemaphore(), buildScribe(), buildCipher(), buildBabel(),
-              buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna());
+              buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
+              buildMaxwell(), buildSeventeen(), buildMinimal());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
