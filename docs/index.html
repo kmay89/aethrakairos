@@ -3353,6 +3353,22 @@ body.clipping::after{
     easing open to its right angle — until the strip draws the curve that tiles the plane with
     itself. And <b>CANTOR</b> deletes forever in rhythm: middle thirds burning away on the count,
     the devil's staircase beneath climbing only on the dust — with the song itself as the walker.</p>
+    <h3>The harmony wing</h3>
+    <p class="lede">Scenes 66–70 turn the mathematics <i>of music</i> into rooms. <b>TONNETZ</b> is
+    Euler's 1739 map of harmony — fifths along one axis, thirds along the other, every triangle a
+    triad — lit honestly by the live spectrum folded octave by octave into twelve chroma lights: a
+    chord is three burning corners and a stained-glass pane between them, and a key change is
+    weather crossing the map. <b>HARMONOGRAPH</b> is the Victorian two-pendulum drawing machine:
+    the room listens for the two loudest partials, snaps their ratio to the nearest just interval,
+    and lets the pendulums draw it — a perfect fifth is a clean knot, a rough interval scribbles.
+    <b>OVERTONES</b> plays Pythagoras' monochord: one string carrying all sixteen partials at once,
+    each read at its true loudness off the spectrum at k×the fundamental — with a ladder face that
+    folds the series by octave, so consonance appears as literal alignment. <b>EUCLID</b> spreads k
+    beats as evenly as n slots allow — Bjorklund's algorithm, which is Euclid's, which is son clave
+    and tresillo — as necklaces turning once per bar, every bead that crosses the top playing.
+    And <b>PHASE</b> performs Steve Reich's phasing live: two copies of the 1967 Piano Phase figure,
+    one three percent faster, shimmering with near-misses until — on a schedule you can feel
+    coming — the clocks lock and the room exhales.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -3965,7 +3981,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'grows', 'flows', 'gathers', 'blackhole', 'gathers', 'flows',
                'flows', 'gathers', 'gathers', 'blackhole', 'gathers', 'blackhole',
                'gathers', 'blackhole', 'blackhole', 'gathers', 'flows', 'grows', 'grows',
-               'grows', 'flows', 'gathers', 'flows', 'blackhole'];   // …the lattice and the film ripple, the
+               'grows', 'flows', 'gathers', 'flows', 'blackhole',
+               'gathers', 'flows', 'flows', 'grows', 'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -4244,7 +4261,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'drift', 'paint', 'paint', 'lissa', 'paint', 'bounce',
                'lissa', 'drift', 'drift', 'lissa', 'paint', 'snake',
                'lissa', 'drift', 'drift', 'snake', 'paint', 'lissa', 'paint',
-               'drift', 'snake', 'lissa', 'snake', 'paint'];   // …SHEETS walks the lattice, MANDALA curves,
+               'drift', 'snake', 'lissa', 'snake', 'paint',
+               'paint', 'lissa', 'drift', 'bounce', 'snake'];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -5448,7 +5466,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'weave', 'ocean', 'bolt', 'circuit',
                     'bifurc', 'cymatic', 'rule', 'hole', 'ferro', 'plinko', 'pendula', 'lorenz', 'sync', 'nbody', 'dla', 'boids',
                     'fourier', 'fringe', 'julia', 'escher', 'penrose', 'sunflower', 'sandpile',
-                    'lsystem', 'hilbert', 'koch', 'dragon', 'cantor'];
+                    'lsystem', 'hilbert', 'koch', 'dragon', 'cantor',
+                    'tonnetz', 'harmonograph', 'overtones', 'euclid', 'phase'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5570,6 +5589,11 @@ const SCENE_TASTE = {
   koch:      { treble: 0.9, calm: 0.6, entropy: 0.4 },      // crystalline detail feeds on the high end
   dragon:    { beat: 1.2, energy: 0.8 },                    // a fold lands like a downbeat
   cantor:    { beat: 1.0, treble: 0.5, entropy: 0.6 },      // deletion in rhythm — the count made dust
+  tonnetz:      { mid: 0.9, calm: 0.4, entropy: -0.3 },     // tonal material lights the map of keys
+  harmonograph: { calm: 1.2, treble: 0.4, beat: -0.3 },     // a drawing needs a steady hand
+  overtones:    { mid: 0.7, bass: 0.6, calm: 0.4 },         // pitched, sustained — a string to read
+  euclid:       { beat: 1.5, energy: 0.6 },                 // rhythm about rhythm
+  phase:        { calm: 0.8, entropy: 0.5, beat: 0.4 },     // patience rewarded on a schedule
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -6746,6 +6770,11 @@ const SCENE_SIGS = {
   koch:      { kind: 'ring',   h: 188, arms: 6 },
   dragon:    { kind: 'wave',   h: 24,  arms: 1, twist: 1 },
   cantor:    { kind: 'grid',   h: 46,  dense: 0.5 },
+  tonnetz:      { kind: 'grid',   h: 150, dense: 0.7 },
+  harmonograph: { kind: 'wave',   h: 205, twist: 1 },
+  overtones:    { kind: 'wave',   h: 62,  arms: 8 },
+  euclid:       { kind: 'ring',   h: 285, arms: 5 },
+  phase:        { kind: 'ring',   h: 330, twist: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -40777,6 +40806,878 @@ function buildCantor(){
   return api;
 }
 
+/* =========================================================
+   SCENE 66 · TONNETZ — the map of harmony itself
+
+   Euler drew it in 1739: lay the twelve pitch classes on a
+   triangular lattice — fifths along one axis, major thirds
+   along the other — and every triangle IS a triad, every
+   step a voice leading. The room listens honestly: the live
+   spectrum is folded octave by octave into twelve chroma
+   lights, and the lattice glows where the music actually is.
+   A chord is three lit corners and a burning pane between
+   them; a key change is weather moving across the map.
+   ========================================================= */
+function buildTonnetz(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uModeT:  { value: 0 },
+    uSpin:   { value: 0 },
+    uRootPC: { value: 0 },
+    uChroma: { value: new Float32Array(12) },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeT, uVarA, uAspect, uSpin, uRootPC;
+    uniform float uChroma[12];
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // constant-index walk — GLSL ES 1.0 fragment shaders may not index an
+    // array by a computed value, so the twelve lights are read by loop
+    float chromaAt(float pc){
+      float v = 0.0;
+      for (int i = 0; i < 12; i++) if (abs(float(i) - pc) < 0.5) v = uChroma[i];
+      return v;
+    }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p -= dh * (uHand.z * 0.22 / (dot(dh, dh) + 0.30));   // the hand gathers the map
+      }
+      // THE DRIFT: the whole lattice wheels slowly, weather over a landscape
+      if (uModeT > 0.5 && uModeT < 1.5){
+        float ca = cos(uSpin), sa = sin(uSpin);
+        p = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
+        p.x += uTime * 0.02;
+      }
+      float S = 0.44;                                        // lattice pitch on screen
+      vec2 q = p / S;
+      float b = q.y / 0.8660254;
+      float a = q.x - 0.5 * b;
+      float ia = floor(a), ib = floor(b);
+      float fa = a - ia, fb = b - ib;
+      vec3 col = vec3(0.0);
+      // the four corners of this rhombus, and the two triads they spell
+      float c00 = 0.0, c10 = 0.0, c01 = 0.0, c11 = 0.0;
+      vec2 P00 = vec2(0.0), P10 = vec2(0.0), P01 = vec2(0.0), P11 = vec2(0.0);
+      for (int di = 0; di < 2; di++)
+      for (int dj = 0; dj < 2; dj++){
+        float i = ia + float(di), j = ib + float(dj);
+        float pc = mod(7.0 * i + 4.0 * j + 120.0, 12.0);
+        vec2 P = vec2(i + 0.5 * j, 0.8660254 * j) * S;
+        float ch = chromaAt(pc);
+        float d = length(p - P);
+        // the node: a small sun when its note is sounding, an ember when not
+        vec3 ink = ramp(pc / 12.0 * 0.75 + uVarA * 0.25);
+        float root = 1.0 - min(abs(pc - uRootPC), 1.0);
+        col += ink * exp(-d * d * 2000.0) * (0.16 + ch * (1.2 + uBeat * 0.5) + root * uBeat * 0.6);
+        col += ink * exp(-d * d * 220.0) * ch * 0.26;
+        if (di == 0 && dj == 0){ c00 = ch; P00 = P; }
+        if (di == 1 && dj == 0){ c10 = ch; P10 = P; }
+        if (di == 0 && dj == 1){ c01 = ch; P01 = P; }
+        if (di == 1 && dj == 1){ c11 = ch; P11 = P; }
+      }
+      // the roads: fifths run flat, thirds climb, the diagonal is the minor
+      // third — an interval lights its road when both of its notes sound
+      float w = 90000.0;
+      float e;
+      e = exp(-pow(segd(p, P00, P10), 2.0) * w); col += ramp(0.30 + uVarA * 0.2) * e * (0.09 + min(c00, c10) * 0.60);
+      e = exp(-pow(segd(p, P00, P01), 2.0) * w); col += ramp(0.42 + uVarA * 0.2) * e * (0.09 + min(c00, c01) * 0.60);
+      e = exp(-pow(segd(p, P10, P01), 2.0) * w); col += ramp(0.54 + uVarA * 0.2) * e * (0.09 + min(c10, c01) * 0.60);
+      e = exp(-pow(segd(p, P10, P11), 2.0) * w); col += ramp(0.42 + uVarA * 0.2) * e * (0.09 + min(c10, c11) * 0.60);
+      e = exp(-pow(segd(p, P01, P11), 2.0) * w); col += ramp(0.30 + uVarA * 0.2) * e * (0.09 + min(c01, c11) * 0.60);
+      // the panes: a triangle is a triad; when all three corners sound,
+      // the chord itself burns as stained glass
+      float triA = min(c00, min(c10, c01));                  // lower pane
+      float triB = min(c11, min(c10, c01));                  // upper pane
+      float inA = (fa + fb < 1.0) ? 1.0 : 0.0;
+      float paneGain = uModeT > 1.5 ? 0.85 : 0.30;           // TRIAD PANES leans in
+      vec3 hot = ramp(0.78 + uVarA * 0.12);
+      col += hot * inA * triA * triA * paneGain * (0.8 + uBeat * 0.5);
+      col += hot * (1.0 - inA) * triB * triB * paneGain * (0.8 + uBeat * 0.5);
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE LATTICE', m: 0 },
+    { name: 'THE DRIFT',   m: 1 },
+    { name: 'TRIAD PANES', m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0, ch: new Float32Array(12) };
+  const api = {
+    name: 'TONNETZ', key: 'tonnetz', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      varU.uSpin.value += dt * 0.018;
+      /* the honest ear: fold the analyser's bins octave by octave into
+         twelve chroma lights. Bytes to weights, frequency to pitch class,
+         a decay so a note rings a moment after it stops. */
+      const fr = (AE.analyser && (AE.graphLive || AE.mic.on)) ? AE.freq : null;
+      const sr = (AE.ctx && AE.ctx.sampleRate) || 44100;
+      const ch = st.ch;
+      for (let i = 0; i < 12; i++) ch[i] *= Math.exp(-dt / 0.35);
+      if (fr){
+        for (let bnd = 6; bnd < 480; bnd++){
+          const v = fr[bnd] / 255; if (v < 0.24) continue;
+          const hz = bnd * sr / 2048;
+          const pc = ((Math.round(12 * Math.log2(hz / 440)) % 12) + 21) % 12;   // +9: A sits at 9 when C is 0
+          const w = v * v * Math.max(0.25, 1.15 - bnd / 520);
+          if (w > ch[pc]) ch[pc] = w;
+        }
+      } else {
+        // silence practises a cadence: I – IV – V – I around the rolled
+        // root, and every sixteen seconds the key itself walks one fifth —
+        // weather crossing the map even before any music arrives
+        const root = (Math.floor(varU.uVarA.value * 12) + Math.floor(st.t / 16) * 7) % 12;
+        const off = [0, 5, 7, 0][Math.floor(st.t / 4) % 4];
+        const T = [0, 4, 7];
+        for (let ix = 0; ix < 3; ix++){
+          const pc = (root + off + T[ix]) % 12;
+          ch[pc] = Math.max(ch[pc], 0.72 - ix * 0.16 + 0.08 * Math.sin(st.t * 2 + ix * 2.1));
+          const rel = (pc + 9) % 12;                           // the relative minor, remembered faintly
+          ch[rel] = Math.max(ch[rel], 0.26 + 0.05 * Math.sin(st.t * 1.3 + ix));
+        }
+      }
+      let mx = 0.18, mi = 0;
+      for (let i = 0; i < 12; i++) if (ch[i] > mx){ mx = ch[i]; mi = i; }
+      for (let i = 0; i < 12; i++) varU.uChroma.value[i] = Math.min(1, ch[i] / mx);
+      varU.uRootPC.value = mi;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeT.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'TONNETZ · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 67 · HARMONOGRAPH — the drawing an interval makes
+
+   Two pendulums, one pen: the Victorian machine that turned
+   consonance into curves. A perfect fifth draws a clean
+   three-lobed knot; a wolf interval scribbles. The room
+   listens for the two loudest partials, snaps their ratio to
+   the nearest just interval, and lets the pendulums draw it —
+   the pen riding the beat, the figure precessing as the
+   phase drifts, damping pulling every drawing home to rest.
+   ========================================================= */
+function buildHarmonograph(){
+  const group = new THREE.Group();
+  const varU = { uVarA: { value: Math.random() }, uFlow: { value: 0 } };
+  const NPTS = 2048;
+  const pos = new Float32Array(NPTS * 3);
+  const aT = new Float32Array(NPTS);
+  for (let i = 0; i < NPTS; i++) aT[i] = i / (NPTS - 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU),
+    vertexShader: `
+      attribute float aT;
+      varying float vT;
+      void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: GLSL_MPHI + `
+      uniform float uOpacity, uBeat, uEnergy, uFlow, uVarA;
+      varying float vT;
+      void main(){
+        vec3 col = ramp(0.22 + uVarA * 0.25 + vT * 0.30);
+        // the pen: one bright point riding the curve, ink pooling behind it
+        float head = fract(vT - uFlow);
+        float pen = exp(-head * head * 90.0);
+        col = mix(col, ramp(0.76 + uVarA * 0.14), pen * 0.9);
+        col = inkRolloff(col * (0.80 + pen * 2.0 + uBeat * 0.35 + uEnergy * 0.25));
+        gl_FragColor = vec4(col, uOpacity * (0.72 + pen * 0.28));
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const line = new THREE.Line(geo, mat);
+  line.frustumCulled = false;
+  group.add(line); group.visible = false; scene.add(group);
+
+  /* the book of just intervals the ratio snaps to — the pendulums only
+     ever draw music theory, never an arbitrary wobble */
+  const JUST = [[1, 1], [2, 1], [3, 2], [4, 3], [5, 4], [6, 5], [5, 3], [8, 5], [9, 8], [7, 4], [15, 8]];
+  const MODES = [
+    { name: 'LISSAJOUS',    damp: 0.0,  turns: 1,  rotary: false, det: 0 },
+    { name: 'THE PENDULUM', damp: 0.16, turns: 7,  rotary: false, det: 0.013 },
+    { name: 'TWO HEARTS',   damp: 0.05, turns: 5,  rotary: true,  det: 0.006 },
+  ];
+  const st = { mode: MODES[0], t: 0, na: 3, nb: 2, tna: 3, tnb: 2, hold: 0, ph: 0, drift: 0 };
+
+  function redraw(){
+    const M = st.mode;
+    const na = st.na, nb = st.nb;
+    const TAU = Math.PI * 2;
+    const L = TAU * M.turns;
+    const SC = 12.5;
+    for (let i = 0; i < NPTS; i++){
+      const u = i / (NPTS - 1);
+      const th = u * L;
+      const env = Math.exp(-M.damp * th);
+      // the classic detune: two pendulums never quite agree, and the
+      // disagreement is what turns an ellipse into a bloom
+      const naD = na + M.det, nbD = nb - M.det * 0.7;
+      let x, y;
+      if (M.rotary){
+        x = (Math.sin(naD * th) + 0.72 * Math.sin(nbD * th + st.ph)) * env;
+        y = (Math.cos(naD * th) + 0.72 * Math.cos(nbD * th + st.ph)) * env;
+        x *= 0.58; y *= 0.58;
+      } else {
+        x = Math.sin(naD * th + st.ph) * env;
+        y = Math.sin(nbD * th) * env * 0.78;
+      }
+      pos[i * 3] = x * SC; pos[i * 3 + 1] = y * SC; pos[i * 3 + 2] = 0;
+    }
+    geo.attributes.position.needsUpdate = true;
+  }
+
+  const api = {
+    name: 'HARMONOGRAPH', key: 'harmonograph', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      st.t += dt;
+      if (typeof camera !== 'undefined' && camera){
+        group.quaternion.copy(camera.quaternion);
+        group.scale.setScalar(Math.max(0.5, camera.position.length() / 27));
+      }
+      /* the listening: the two loudest peaks below 1.2 kHz, their ratio
+         snapped in log space to the nearest just interval — held with
+         hysteresis so the figure changes when the music means it */
+      const fr = (AE.analyser && (AE.graphLive || AE.mic.on)) ? AE.freq : null;
+      const sr = (AE.ctx && AE.ctx.sampleRate) || 44100;
+      if (fr){
+        let b1 = 0, v1 = 0, b2 = 0, v2 = 0;
+        for (let b = 3, e = Math.min(512, Math.floor(1200 * 2048 / sr)); b < e; b++){
+          const v = fr[b];
+          if (v <= fr[b - 1] || v < fr[b + 1]) continue;      // local maxima only
+          if (v > v1){
+            if (b1 && Math.abs(b - b1) > 2){ v2 = v1; b2 = b1; }
+            v1 = v; b1 = b;
+          } else if (v > v2 && Math.abs(b - b1) > 2){ v2 = v; b2 = b; }
+        }
+        if (b1 && b2 && v2 > 60){
+          const r = Math.max(b1, b2) / Math.min(b1, b2);
+          let best = 0, err = 9;
+          for (let j = 0; j < JUST.length; j++){
+            const e2 = Math.abs(Math.log2(r) - Math.log2(JUST[j][0] / JUST[j][1]));
+            if (e2 < err){ err = e2; best = j; }
+          }
+          if (err < 0.06 && (JUST[best][0] !== st.tna || JUST[best][1] !== st.tnb)){
+            st.tna = JUST[best][0]; st.tnb = JUST[best][1]; st.hold = 0;
+          }
+        }
+      }
+      st.hold += dt;
+      if ((st.tna !== st.na || st.tnb !== st.nb) && st.hold > 1.6){
+        st.na = st.tna; st.nb = st.tnb; st.hold = 0;   // a new interval, a new drawing
+      }
+      // the figure precesses; entropy hurries the drift, calm stills it
+      st.ph += dt * (0.05 + (f.energy || 0) * 0.12) * (st.mode.rotary ? 0.6 : 1);
+      redraw();
+      varU.uFlow.value = (varU.uFlow.value + dt * (0.10 + (f.energy || 0) * 0.22)) % 1;
+      // the hand turns the whole machine's bed
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.1) group.rotation.z += U.uPtr.value.x * dt * 0.6 * force;
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uVarA.value = Math.random();
+      const seed = JUST[2 + Math.floor(Math.random() * 7)];   // roll in on a real interval, never unison
+      st.na = st.tna = seed[0]; st.nb = st.tnb = seed[1];
+      st.ph = Math.random() * Math.PI;
+      redraw();
+      api.name = 'HARMONOGRAPH · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 68 · OVERTONES — one string, every note inside it
+
+   Pythagoras' monochord, played by the song: a string carries
+   all its partials at once, each a standing wave with k
+   bellies, and the room reads each partial's true loudness
+   off the live spectrum at k times the fundamental. THE
+   STRING shows the sum and its ghosts; THE LADDER folds the
+   series by octave so unisons line up — the picture of WHY
+   fifths agree; THE BELL bends the series around a ring.
+   ========================================================= */
+function buildOvertones(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeO: { value: 0 },
+    uF0:    { value: 5.0 / 1024.0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeO, uVarA, uAspect, uF0;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float partial(float k){
+      // the k-th harmonic's loudness, read straight off the live spectrum
+      float u = uF0 * k;
+      if (u > 0.5) return 0.0;
+      float a = texture2D(uAudio, vec2(u, 0.5)).r;
+      return a * (0.35 + 0.65 * a) * (0.5 + 0.8 / sqrt(k));
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      vec3 col = vec3(0.0);
+      if (uModeO < 0.5){
+        /* THE STRING: sixteen standing waves and their sum. Audio-rate
+           motion is invisible, so each partial beats at k x a heartbeat —
+           slow-motion physics, honest amplitudes. */
+        float x01 = clamp(p.x / (uAspect * 1.7) + 0.5, 0.0, 1.0);
+        float inx = step(abs(p.x), uAspect * 0.85);
+        float Y = 0.0;
+        float bigK = 1.0, bigA = 0.0;
+        for (int k = 1; k <= 16; k++){
+          float fk = float(k);
+          float A = partial(fk);
+          float yk = A * 0.62 * sin(fk * 3.14159265 * x01) * cos(uTime * (0.9 + fk * 0.55) + uVarA * 6.283);
+          Y += yk;
+          // the ghost: each partial faintly drawn in its own colour
+          float dg = abs(p.y - yk * 1.4);
+          col += ramp(0.15 + fk / 16.0 * 0.55 + uVarA * 0.15) * exp(-dg * dg * 2400.0) * A * 0.30 * inx;
+          if (A > bigA){ bigA = A; bigK = fk; }
+        }
+        float ds = abs(p.y - Y * 1.4);
+        col += ramp(0.76 + uVarA * 0.14) * exp(-ds * ds * 1400.0) * (0.9 + uBeat * 0.5 + uEnergy * 0.3) * inx;
+        col += ramp(0.76 + uVarA * 0.14) * exp(-ds * ds * 90.0) * 0.10 * inx;
+        // the nodes of the loudest partial: the still points that make it
+        for (int m = 1; m <= 15; m++){
+          if (float(m) >= bigK) break;
+          float nx = (float(m) / bigK - 0.5) * uAspect * 1.7;
+          float dn = length(vec2(p.x - nx, p.y));
+          col += ramp(0.30 + uVarA * 0.2) * exp(-dn * dn * 2600.0) * bigA * 0.9;
+        }
+      } else if (uModeO < 1.5){
+        /* THE LADDER: the series folded by octave — fract(log2 k) is the
+           note inside the octave, so every partial that agrees stacks in
+           one column. Consonance is literally alignment. */
+        float inx = step(abs(p.x), uAspect * 0.86);
+        // the storeys: one faint rail per octave, so the house reads even in silence
+        for (int oc = 0; oc < 5; oc++){
+          float ry = 0.78 - float(oc) * 0.375;
+          float dy = abs(p.y - ry);
+          col += ramp(0.30 + uVarA * 0.2) * exp(-dy * dy * 30000.0) * 0.05 * inx;
+        }
+        for (int k = 1; k <= 16; k++){
+          float fk = float(k);
+          float A = partial(fk);
+          float ry = 0.78 - log2(fk) / 4.0 * 1.5;            // octaves as storeys
+          float rx = (fract(log2(fk)) - 0.5) * uAspect * 1.6; // the note in the octave
+          float len = 0.14 + A * 0.55;
+          float dx = max(abs(p.x - rx) - len * 0.5, 0.0);
+          float dy = abs(p.y - ry);
+          float bar = exp(-(dx * dx * 3000.0 + dy * dy * 2600.0));
+          col += ramp(0.15 + fract(log2(fk)) * 0.7 + uVarA * 0.12) * bar * (0.28 + A * (1.3 + uBeat * 0.5)) * inx;
+          // the plumb line: partials in agreement hang on one thread
+          float dl = abs(p.x - rx);
+          col += ramp(0.30 + uVarA * 0.2) * exp(-dl * dl * 5000.0) * (0.05 + A * 0.20) * inx * step(abs(p.y - 0.02), 0.80);
+        }
+      } else {
+        /* THE BELL: the same series bent around a ring — mode k ripples
+           the rim with k lobes, and the bell's voice is their sum */
+        float r = length(p), th = atan(p.y, p.x);
+        float R = 0.58;
+        for (int k = 1; k <= 12; k++){
+          float fk = float(k);
+          float A = partial(fk);
+          R += A * 0.13 * cos(fk * th + uTime * (0.3 + fk * 0.11) + uVarA * 6.283);
+        }
+        float dr = abs(r - R);
+        col += ramp(0.72 + uVarA * 0.15) * exp(-dr * dr * 2600.0) * (0.9 + uBeat * 0.5);
+        col += ramp(0.30 + uVarA * 0.2) * exp(-dr * dr * 240.0) * 0.30;
+        col += ramp(0.42 + uVarA * 0.2) * exp(-abs(r - 0.58) * 30.0) * 0.05;   // the rim at rest, remembered
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE STRING', m: 0 },
+    { name: 'THE LADDER', m: 1 },
+    { name: 'THE BELL',   m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0, f0bin: 5 };
+  const api = {
+    name: 'OVERTONES', key: 'overtones', group,
+    update(dt){
+      if (!group.visible) return;
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      /* the fundamental: the strongest bin between 55 and 440 Hz, retuned
+         gently so the string does not jump octaves on every kick drum */
+      const fr = (AE.analyser && (AE.graphLive || AE.mic.on)) ? AE.freq : null;
+      const sr = (AE.ctx && AE.ctx.sampleRate) || 44100;
+      if (fr){
+        const lo = Math.max(2, Math.round(55 * 2048 / sr));
+        const hi = Math.round(440 * 2048 / sr);
+        let bb = lo, bv = 0;
+        for (let b = lo; b <= hi; b++) if (fr[b] > bv){ bv = fr[b]; bb = b; }
+        if (bv > 70) st.f0bin += (bb - st.f0bin) * Math.min(1, dt / 0.7);
+      } else {
+        st.f0bin = 5 + Math.sin(st.t * 0.1) * 1.5;           // a slow practice drone
+      }
+      varU.uF0.value = st.f0bin / 1024;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeO.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'OVERTONES · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 69 · EUCLID — rhythm is a theorem
+
+   Spread k beats as evenly as n slots allow and you get
+   E(k,n): Bjorklund's algorithm, which is Euclid's, and which
+   is also son clave, tresillo, the Venda, the Aka — the
+   world's rhythms are maximally even necklaces. The rings
+   turn once per bar; every bead that crosses the top plays.
+   Three necklaces make a polyrhythm you can watch resolve.
+   ========================================================= */
+function buildEuclid(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeE: { value: 0 },
+    uRot:   { value: new THREE.Vector3(0, 0, 0) },
+    uKN0:   { value: new THREE.Vector2(3, 8) },
+    uKN1:   { value: new THREE.Vector2(5, 8) },
+    uKN2:   { value: new THREE.Vector2(7, 16) },
+    uStarK: { value: 5 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeE, uVarA, uAspect, uStarK;
+    uniform vec3 uRot;
+    uniform vec2 uKN0, uKN1, uKN2;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // Euclid, closed form: slot b carries a beat iff the k/n staircase
+    // steps inside it — no algorithm at runtime, just the theorem
+    float ehit(float b, float k, float n){
+      return step(0.5, floor(((b + 1.0) * k) / n) - floor((b * k) / n));
+    }
+    vec2 beadPos(float b, float n, float rot){
+      float ang = (b + 0.5) / n * 6.2831853 + rot * 6.2831853 + 1.5707963;
+      return vec2(cos(ang), sin(ang));
+    }
+    vec3 ringInk(float m, float va){ return ramp(0.18 + m * 0.24 + va * 0.2); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      float r = length(p);
+      float th01 = fract((atan(p.y, p.x) - 1.5707963) / 6.2831853);
+      vec3 col = vec3(0.0);
+      if (uModeE < 1.5){
+        // THE NECKLACE and CLOCKWORK: three rings, one bar each — or geared
+        for (int m = 0; m < 3; m++){
+          float fm = float(m);
+          vec2 kn = m == 0 ? uKN0 : (m == 1 ? uKN1 : uKN2);
+          float rot = m == 0 ? uRot.x : (m == 1 ? uRot.y : uRot.z);
+          float R = 0.30 + fm * 0.245;
+          vec3 ink = ringInk(fm, uVarA);
+          // the rail, faint — the necklace's string
+          col += ink * exp(-pow(abs(r - R), 2.0) * 4000.0) * 0.14;
+          // the slots and the beads
+          float slot = th01 * kn.y - rot * kn.y;
+          float b = floor(mod(slot, kn.y));
+          float fc = fract(slot) - 0.5;
+          float arc = fc * (6.2831853 * R / kn.y);           // arc distance to slot centre
+          float dd = arc * arc + pow(abs(r - R), 2.0);
+          float hit = ehit(b, kn.x, kn.y);
+          col += ink * exp(-dd * 2600.0) * (0.10 + hit * (0.60 + uMid * 0.3));
+          col += ramp(0.62 + uVarA * 0.18) * exp(-dd * 9000.0) * hit * 0.5;   // the bead's bright heart
+          // the playhead at the top: a bead crossing it PLAYS
+          float dtop = min(th01, 1.0 - th01);
+          float strike = exp(-dtop * dtop * 900.0) * hit * exp(-dd * 1800.0);
+          col += ramp(0.76 + uVarA * 0.14) * strike * (2.2 + uBeat * 1.4);
+        }
+        // the playhead itself: the meridian every bead must cross to sound
+        float dme = abs(p.x) * step(0.20, p.y) * step(p.y, 0.92);
+        col += ramp(0.76 + uVarA * 0.14) * exp(-dme * dme * 9000.0) * 0.12;
+      } else {
+        /* THE STAR: one necklace, its beads joined — maximal evenness IS
+           a near-regular star, and the music redraws its arms */
+        float n = 16.0;
+        float k = uStarK;
+        float R = 0.62;
+        vec3 ink = ramp(0.30 + uVarA * 0.2);
+        col += ink * exp(-pow(abs(r - R), 2.0) * 3000.0) * 0.10;
+        // beads
+        float slot = th01 * n - uRot.x * n;
+        float b = floor(mod(slot, n));
+        float fc = fract(slot) - 0.5;
+        float arc = fc * (6.2831853 * R / n);
+        float dd = arc * arc + pow(abs(r - R), 2.0);
+        float hit = ehit(b, k, n);
+        col += ink * exp(-dd * 2400.0) * (0.10 + hit * 0.65);
+        // the chords: walk the beads that exist and join neighbours
+        vec2 prev = vec2(0.0);
+        bool have = false;
+        vec2 first = vec2(0.0);
+        for (int i = 0; i < 16; i++){
+          float fb = float(i);
+          if (ehit(fb, k, n) > 0.5){
+            vec2 P = beadPos(fb, n, uRot.x) * R;
+            if (have){
+              vec2 pa = p - prev, ba = P - prev;
+              float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+              float ds = length(pa - ba * h);
+              col += ramp(0.55 + uVarA * 0.2) * exp(-ds * ds * 30000.0) * (0.35 + uBeat * 0.3);
+            } else first = P;
+            prev = P; have = true;
+          }
+        }
+        vec2 pa = p - prev, ba = first - prev;
+        float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+        float ds = length(pa - ba * h);
+        col += ramp(0.55 + uVarA * 0.2) * exp(-ds * ds * 30000.0) * (0.35 + uBeat * 0.3);
+        float dtop = min(th01, 1.0 - th01);
+        col += ramp(0.76 + uVarA * 0.14) * exp(-dtop * dtop * 3200.0) * hit * exp(-dd * 1800.0) * (2.2 + uBeat * 1.4);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const SETS = [
+    [[3, 8], [5, 8], [7, 16]],       // tresillo · cinquillo · the long clave
+    [[2, 5], [3, 7], [5, 12]],       // the crooked meters
+    [[4, 8], [5, 16], [9, 16]],      // four on the floor with commentary
+  ];
+  const MODES = [
+    { name: 'THE NECKLACE', m: 0 },
+    { name: 'CLOCKWORK',    m: 1 },
+    { name: 'THE STAR',     m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0, bar: 0 };
+  const api = {
+    name: 'EUCLID', key: 'euclid', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // one revolution per bar, phase-locked to the analyzed grid when there
+      // is one — but accumulated continuously, so the geared wheels never
+      // snap when the bar wraps
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      st.bar += dt * bps / 4;
+      if (typeof DANCE !== 'undefined' && DANCE.haveGrid){
+        const want = DANCE.barFrac || 0;
+        let d = ((want - (st.bar % 1)) + 1.5) % 1 - 0.5;
+        st.bar += d * Math.min(1, dt * 3);
+      }
+      const B = st.bar;
+      if (st.mode.m === 1){
+        // CLOCKWORK: the outer wheels are geared down — wheels within wheels
+        varU.uRot.value.set(B % 1, (B / 2) % 1, (B / 4) % 1);
+      } else {
+        varU.uRot.value.set(B % 1, 1 - (B % 1), B % 1);
+      }
+      varU.uStarK.value = 3 + Math.min(6, Math.floor((f.energy || 0) * 5 + (f.bass || 0) * 2));
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeE.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      const set = SETS[Math.floor(Math.random() * SETS.length)];
+      varU.uKN0.value.set(set[0][0], set[0][1]);
+      varU.uKN1.value.set(set[1][0], set[1][1]);
+      varU.uKN2.value.set(set[2][0], set[2][1]);
+      api.name = 'EUCLID · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* =========================================================
+   SCENE 70 · PHASE — Reich's clock, drifting into wonder
+
+   Two identical loops, one a hair faster: Steve Reich's
+   phasing. For most of the cycle the copies disagree and the
+   room shimmers with near-misses; then, on a schedule you can
+   feel coming, they lock — every note lands twice at once and
+   the room exhales light. PIANO PHASE plays the actual 1967
+   figure; DRUMMING stacks four drifting tapes; THE RAIN
+   phases the live spectrum against its own echo.
+   ========================================================= */
+function buildPhase(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeP: { value: 0 },
+    uPhA:   { value: 0 },
+    uPhB:   { value: 0 },
+    uLock:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeP, uVarA, uAspect, uPhA, uPhB, uLock;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the 1967 figure: E F#4 B C#5 D F#4 E C#5 B F#4 D C#5, as heights
+    float pp(float c){
+      float h = 0.0;
+      if (c < 0.5) h = 4.0; else if (c < 1.5) h = 6.0; else if (c < 2.5) h = 11.0;
+      else if (c < 3.5) h = 1.0; else if (c < 4.5) h = 2.0; else if (c < 5.5) h = 6.0;
+      else if (c < 6.5) h = 4.0; else if (c < 7.5) h = 1.0; else if (c < 8.5) h = 11.0;
+      else if (c < 9.5) h = 6.0; else if (c < 10.5) h = 2.0; else h = 1.0;
+      return h / 11.0;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        p += dh * (uHand.z * 0.25 / (dot(dh, dh) + 0.30));
+      }
+      vec3 col = vec3(0.0);
+      vec3 inkA = ramp(0.20 + uVarA * 0.2);
+      vec3 inkB = ramp(0.52 + uVarA * 0.2);
+      vec3 hot  = ramp(0.78 + uVarA * 0.12);
+      if (uModeP < 0.5){
+        /* PIANO PHASE: two wheels of twelve, notes as spokes — A reaches
+           out, B reaches in, and where they agree the spoke runs through */
+        float r = length(p);
+        float th01 = fract((atan(p.y, p.x) - 1.5707963) / 6.2831853);
+        float R = 0.52;
+        col += inkA * exp(-pow(abs(r - R), 2.0) * 5000.0) * 0.10;
+        float sA = th01 * 12.0 - uPhA * 12.0;
+        float cA = floor(mod(sA, 12.0));
+        float fA = fract(sA) - 0.5;
+        float hA = pp(cA);
+        float kA = exp(-fA * fA * 260.0) * step(R - 0.015, r) * step(r, R + 0.06 + hA * 0.30);
+        col += inkA * kA * (0.35 + uMid * 0.3);
+        float sB = th01 * 12.0 - uPhB * 12.0;
+        float cB = floor(mod(sB, 12.0));
+        float fB = fract(sB) - 0.5;
+        float hB = pp(cB);
+        float kB = exp(-fB * fB * 260.0) * step(r, R + 0.015) * step(R - 0.06 - hB * 0.30, r);
+        col += inkB * kB * (0.35 + uMid * 0.3);
+        // agreement: same note, same angle — the spoke fuses and flares
+        float agree = kA * kB * (1.0 - min(abs(hA - hB) * 8.0, 1.0));
+        col += hot * agree * (1.6 + uBeat * 0.8);
+        // the lock: the whole wheel breathes white when the clocks meet
+        col += hot * exp(-pow(abs(r - R), 2.0) * 800.0) * uLock * 0.9;
+      } else if (uModeP < 1.5){
+        /* DRUMMING: four tapes of the same pattern, each a hair faster —
+           columns of agreement drift, collide, and bloom */
+        float rows = 4.0;
+        float ry = (0.62 - p.y) / 1.24 * rows;
+        float row = floor(ry);
+        float fy = fract(ry);
+        float x01 = clamp(p.x / (uAspect * 1.7) + 0.5, 0.0, 1.0);
+        float inx = step(abs(p.x), uAspect * 0.85);
+        if (row >= 0.0 && row < rows && fy > 0.10 && fy < 0.90){
+          float ph = row == 0.0 ? uPhA : (row == 1.0 ? uPhB : (row == 2.0 ? fract(uPhA * 2.0) : fract(uPhB * 2.0)));
+          float slot = x01 * 12.0 - ph * 12.0;
+          float c = floor(mod(slot, 12.0));
+          float fc = fract(slot) - 0.5;
+          float h = pp(c);
+          // each mark is its NOTE: taller marks are higher notes, so the
+          // melody is readable on every drifting tape ("half" is reserved)
+          float hw = 0.10 + h * 0.30;
+          float band = smoothstep(hw + 0.06, hw - 0.02, abs(fy - 0.5));
+          float k = exp(-fc * fc * 240.0);
+          col += mix(inkA, inkB, row / 3.0) * k * band * (0.40 + h * 0.55 + uMid * 0.3) * inx;
+          col += mix(inkA, inkB, row / 3.0) * exp(-fc * fc * 900.0) * band * 0.35 * inx;
+        }
+        // the vertical seams where the tapes agree glow through every row —
+        // the coincidences Reich builds a piece from
+        float slotA = x01 * 12.0 - uPhA * 12.0;
+        float slotB = x01 * 12.0 - uPhB * 12.0;
+        float gA = exp(-pow(fract(slotA) - 0.5, 2.0) * 240.0);
+        float gB = exp(-pow(fract(slotB) - 0.5, 2.0) * 240.0);
+        float hAg = 1.0 - min(abs(pp(floor(mod(slotA, 12.0))) - pp(floor(mod(slotB, 12.0)))) * 6.0, 1.0);
+        col += hot * gA * gB * hAg * (1.1 + uLock * 0.8) * inx * step(abs(p.y), 0.66);
+      } else {
+        /* THE RAIN: the live spectrum as a ring, phased against its own
+           echo — brightness only where the now and the echo agree */
+        float r = length(p);
+        float th01 = fract((atan(p.y, p.x) - 1.5707963) / 6.2831853);
+        float uA = fract(th01 - uPhA) * 0.45;
+        float uB = fract(th01 - uPhB) * 0.45;
+        float ampA = texture2D(uAudio, vec2(uA, 0.5)).r;
+        float ampB = texture2D(uAudio, vec2(uB, 0.5)).r;
+        float RA = 0.44 + ampA * 0.34;
+        float RB = 0.44 + ampB * 0.34;
+        col += inkA * exp(-pow(abs(r - RA), 2.0) * 3000.0) * (0.25 + ampA * 0.5);
+        col += inkB * exp(-pow(abs(r - RB), 2.0) * 3000.0) * (0.25 + ampB * 0.5);
+        float agree = exp(-pow(RA - RB, 2.0) * 500.0);
+        col += hot * exp(-pow(abs(r - (RA + RB) * 0.5), 2.0) * 2400.0) * agree * min(ampA, ampB) * 1.6;
+        col += hot * exp(-pow(abs(r - 0.44), 2.0) * 900.0) * uLock * 0.8;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'PIANO PHASE', m: 0 },
+    { name: 'DRUMMING',    m: 1 },
+    { name: 'THE RAIN',    m: 2 },
+  ];
+  const st = { mode: MODES[0], t: 0, phA: 0, phB: 0 };
+  const api = {
+    name: 'PHASE', key: 'phase', group,
+    calm: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      st.t += dt;
+      // loop A holds the grid; loop B walks 3% fast — Reich's whole trick
+      const bps = (f.bpm && f.bpm > 40 ? f.bpm / 60 : 1.9);
+      const dph = dt * bps / 8;                              // one loop per two bars
+      const eps = 0.03 + Math.min(0.05, (typeof director !== 'undefined' && director.entropy || 0) * 0.04);
+      st.phA = (st.phA + dph) % 1;
+      st.phB = (st.phB + dph * (1 + eps)) % 1;
+      varU.uPhA.value = st.phA;
+      varU.uPhB.value = st.phB;
+      // the lock: how close the clocks are to agreement, eased for the flare
+      let d = Math.abs(st.phA - st.phB); d = Math.min(d, 1 - d);
+      const lock = Math.exp(-d * d * 900);
+      varU.uLock.value += (lock - varU.uLock.value) * Math.min(1, dt * 4);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeP.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      st.phA = Math.random(); st.phB = st.phA + 0.07;
+      api.name = 'PHASE · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -40813,7 +41714,8 @@ function initThree(){
               buildDendrite(), buildMurmuration(),
               buildFourier(), buildInterference(), buildJulia(), buildPoincare(),
               buildQuasicrystal(), buildPhyllotaxis(), buildSandpile(),
-              buildLindenmayer(), buildHilbert(), buildKoch(), buildDragon(), buildCantor());
+              buildLindenmayer(), buildHilbert(), buildKoch(), buildDragon(), buildCantor(),
+              buildTonnetz(), buildHarmonograph(), buildOvertones(), buildEuclid(), buildPhase());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

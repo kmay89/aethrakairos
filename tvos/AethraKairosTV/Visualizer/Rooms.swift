@@ -251,6 +251,25 @@ enum Rooms {
         Room(key: "cantor", name: "CANTOR", fragmentFunction: "room_cantor",
              tasteEnergy: 0, tasteCalm: 0, tasteBeat: 1.0, tasteTreble: 0.5,
              tasteEntropy: 0.6),
+
+        // ---- wave 10: the harmony wing ----
+        // The mathematics OF music (Shaders13): real chroma from the log
+        // bands, just intervals, the harmonic series, Euclid's rhythms,
+        // Reich's phasing — seventy rooms, 1:1 both stages.
+        Room(key: "tonnetz", name: "TONNETZ", fragmentFunction: "room_tonnetz",
+             tasteEnergy: 0, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.9, tasteEntropy: -0.3, heavy: true),
+        Room(key: "harmonograph", name: "HARMONOGRAPH", fragmentFunction: "room_harmonograph",
+             tasteEnergy: 0, tasteCalm: 1.2, tasteBeat: -0.3, tasteTreble: 0.4,
+             heavy: true, calm: true),
+        Room(key: "overtones", name: "OVERTONES", fragmentFunction: "room_overtones",
+             tasteEnergy: 0, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.7, tasteBass: 0.6),
+        Room(key: "euclid", name: "EUCLID", fragmentFunction: "room_euclid",
+             tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 1.5, tasteTreble: 0),
+        Room(key: "phase", name: "PHASE", fragmentFunction: "room_phase",
+             tasteEnergy: 0, tasteCalm: 0.8, tasteBeat: 0.4, tasteTreble: 0,
+             tasteEntropy: 0.5, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
