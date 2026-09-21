@@ -243,12 +243,13 @@ fragment float4 room_boltzmann(float4 pos [[position]],
             float2 q = float2(foldR_x(p0.x + vel.x * tc, Rx), foldR_x(p0.y + vel.y * tc, Ry));
             if (q.x < 0.0) left += 1.0;
             float2 d = p - q;
-            col += chordRamp_x(U, 0.20 + h3 * 0.45) * exp(-dot(d, d) * 1400.0) * 0.65;
+            // gentle enough that the gathered start does not bloom the void
+            col += chordRamp_x(U, 0.20 + h3 * 0.45) * exp(-dot(d, d) * 1800.0) * 0.42;
         }
-        // the box itself
-        float wall = min(min(abs(p.x - Rx), abs(p.x + Rx)) * step(abs(p.y), Ry + 0.01),
-                         min(abs(p.y - Ry), abs(p.y + Ry)) * step(abs(p.x), Rx + 0.01));
-        col += chordRamp_x(U, 0.55) * exp(-wall * 90.0) * 0.25;
+        // the box itself — a clean frame, the void outside left honest
+        float2 aw = abs(p) - float2(Rx, Ry);
+        float wallD = length(max(aw, float2(0.0))) + min(max(aw.x, aw.y), 0.0);
+        col += chordRamp_x(U, 0.55) * exp(-abs(wallD) * 90.0) * 0.25;
         // the entropy meter, measured from the REAL occupancy just counted,
         // drawn inside the lid where nothing can hide it
         float fr = clamp(left / 64.0, 1e-4, 1.0 - 1e-4);
@@ -274,8 +275,11 @@ fragment float4 room_boltzmann(float4 pos [[position]],
             // hot burns big and bright; cold sits small and dim — the sort made visible
             col += chordRamp_x(U, hot ? 0.10 : 0.65) * exp(-dot(d, d) * (hot ? 1100.0 : 2400.0)) * (hot ? 0.85 : 0.38);
         }
-        // the wall, the demon at its gate, and the ledger along the lid —
-        // one bit per decision, k ln 2 apiece
+        // the box, the wall, the demon at its gate, and the ledger along
+        // the lid — one bit per decision, k ln 2 apiece
+        float2 aw = abs(p) - float2(Rx, Ry);
+        float wallD = length(max(aw, float2(0.0))) + min(max(aw.x, aw.y), 0.0);
+        col += chordRamp_x(U, 0.55) * exp(-abs(wallD) * 90.0) * 0.22;
         col += chordRamp_x(U, 0.55) * exp(-abs(p.x) * 60.0) * step(abs(p.y), Ry) * 0.30;
         col += chordRamp_x(U, 0.85) * exp(-dot(p, p) * 300.0) * (0.4 + U.onsetEnv * 0.8);
         for (int b = 0; b < 16; b++) {
