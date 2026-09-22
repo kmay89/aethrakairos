@@ -5946,6 +5946,39 @@ function updateGate(o){
   return (Number(o.quietFor) >= UP_QUIET_MS) ? 'apply' : 'wait';
 }
 const UP_QUIET_MS = 2 * 60 * 1000;         // what "the quiet" means: two minutes, not a blink
+
+/* THE LESSONS RIDE TRACKS THAT ACTUALLY SOUNDED. The heart lesson fires "when
+   track two begins" and the share lesson on the third — but `starts` used to
+   be counted the moment a track was CUED, so a first track that never
+   buffered (a weak pipe, a stall skip) still counted as one heard, and the
+   heart lesson arrived over a room that had not played a note. The count is
+   moved to the deck's own report of audio flowing (a timeupdate past zero);
+   this map only reads the count. Returns 'fav' | 'share' | null. */
+function lessonDue(o){
+  const s = o || {};
+  const starts = Number(s.starts) || 0;
+  if (!s.tutored) return null;                       // the tour comes first, always
+  if (starts >= 2 && !s.favSeen) return 'fav';
+  if (starts >= 3 && s.favSeen && !s.shareSeen && s.firstListen) return 'share';
+  return null;
+}
+/* A RESTART THE APP DID NOT ASK FOR. The page writes a small "alive" mark into
+   sessionStorage while it runs and clears it in pagehide — the one event every
+   reload this app performs (an update swap, a language change) fires on its
+   way out. A boot that finds the mark still there was preceded by an instance
+   that vanished without one: the browser reloaded the tab on its own, which on
+   a phone almost always means it ran out of memory. Named at boot so the
+   activity log can say what happened instead of leaving "it just refreshed"
+   as the only account. Returns null, or what is known about the lost run. */
+function restartVerdict(o){
+  const s = o || {};
+  if (s.updatedFrom) return null;                    // our own swap coming back — not a restart
+  const a = s.alive;
+  if (!a || typeof a !== 'object') return null;
+  const at = Number(a.t), now = Number(s.now);
+  const ageMs = (Number.isFinite(at) && Number.isFinite(now)) ? Math.max(0, now - at) : NaN;
+  return { reason: 'browser', ageMs, build: String(a.b || ''), cur: String(a.cur || ''), playing: !!a.playing };
+}
 /* SHOULD THIS OFFER STAND? The rule that was missing, and the reason a card could
    reappear forever: A DIFFERENCE IS NOT A NEWER BUILD. But the converse trap is
    just as real, and the first version of this walked straight into it — rejecting
@@ -9584,6 +9617,7 @@ function ensureCtx(){
         player._clearStall();                     // real audio flowed — the backstop stands down
         player._stallSkips = 0;                   // a clean start clears the weak-signal streak
         player._netSkips = 0;                     // …and the unreachable-host streak with it
+        if (!d.priming) player._trackFlowed();    // …and the lessons count a track that sounded
         /* THE MARK ONLY MOVES BACKWARD WHEN THE LISTENER MOVES IT.
            While a heal is landing, the element can report positions from the
            head of the file before the seek takes hold. Letting those overwrite
@@ -10863,19 +10897,28 @@ const player = {
   _clearStall(){ clearTimeout(this._stallT); clearTimeout(this._stallT2); },
 
   /* first-run lessons ride real track changes: the tour teaches over track one,
-     and when track TWO begins the lighter heart→playlist lesson fires once */
+     and when track TWO begins the lighter heart→playlist lesson fires once.
+     A start is only a CLAIM here — the count moves in _trackFlowed, when the
+     deck reports audio actually running (a timeupdate past zero), so a track
+     that never buffered is never counted as one the listener heard. */
   _trackStarted(){
+    this._startPending = true;
+  },
+  _trackFlowed(){
+    if (!this._startPending) return;
+    this._startPending = false;
     this._starts = (this._starts || 0) + 1;
-    if (this._starts >= 2 && typeof TUTOR !== 'undefined' && TUTOR.seen() && !TUTOR.favSeen())
-      TUTOR.favLesson();
+    if (typeof TUTOR === 'undefined') return;
     // the third lesson — Share — waits for a first song to have actually been
     // heard (the first_listen milestone: they already know play/pause) and
     // for the heart lesson to be out of the way, so lessons land one at a
     // time instead of piling up. TUTOR's own `active` guard keeps this from
     // colliding with favLesson if both conditions are somehow met at once.
-    if (this._starts >= 3 && typeof TUTOR !== 'undefined' && typeof ACHIEVE !== 'undefined'
-      && TUTOR.seen() && TUTOR.favSeen() && !TUTOR.shareSeen() && ACHIEVE.has('first_listen'))
-      TUTOR.shareLesson();
+    const due = lessonDue({ starts: this._starts, tutored: TUTOR.seen(), favSeen: TUTOR.favSeen(),
+      shareSeen: TUTOR.shareSeen(),
+      firstListen: typeof ACHIEVE !== 'undefined' && ACHIEVE.has('first_listen') });
+    if (due === 'fav') TUTOR.favLesson();
+    else if (due === 'share') TUTOR.shareLesson();
   },
 
   seekToFrac(frac){
@@ -14453,6 +14496,43 @@ function envSample(env, t){
   const lin = str => at(str, i) + (at(str, i + 1) - at(str, i)) * fr;
   return { bass: lin(env.b), mid: lin(env.m), treble: lin(env.t),
            punch: env.o ? at(env.o, i) : 0, step: i };
+}
+/* THE WAVEFORM FROM THE SCORE. The seek overview, the booth ring and the
+   iPhone's spectral drive all read ~480 columns of {peak, low, mid, high} per
+   track — and for years those came from fetching the whole file and running
+   decodeAudioData on it: a whole song of PCM (a hundred megabytes for a few
+   minutes of stereo) allocated on EVERY track change, for a strip of bars a
+   few pixels tall. On a phone that is the allocation that walks a long session
+   into the browser's memory ceiling, where the tab is quietly reloaded and the
+   set comes back paused. The pipeline already measured every catalog track at
+   12 Hz (envSample's score); this folds that score into the exact shape the
+   decode produced, so a track that ships a score never touches the decoder.
+   Same normalisation as the decode path: peaks to 1.0, bands as per-column
+   means with their maxima alongside for the drive to scale against. */
+function peaksFromEnv(env, N){
+  if (!env || !(env.hz > 0) || !env.b || !env.m || !env.t) return null;
+  const n = Math.min(env.b.length, env.m.length, env.t.length);
+  if (!(n > 0)) return null;
+  N = Math.max(8, Math.floor(Number(N) || 480));
+  const at = (str, j) => { const c = str.charCodeAt(j) - 48; return c >= 0 && c <= 9 ? c / 9 : 0; };
+  const pk = new Float32Array(N), bL = new Float32Array(N), bM = new Float32Array(N), bH = new Float32Array(N);
+  let mp = 0, mL = 1e-4, mM = 1e-4, mH = 1e-4;
+  for (let i = 0; i < N; i++){
+    const st = Math.floor(i * n / N), en = Math.max(st + 1, Math.floor((i + 1) * n / N));
+    let mx = 0, sl = 0, sm = 0, sh = 0, cnt = 0;
+    for (let j = st; j < en && j < n; j++){
+      const b = at(env.b, j), m = at(env.m, j), t = at(env.t, j);
+      const a = Math.sqrt(b * b + m * m + t * t);   // the bands' power sum stands in for the peak
+      if (a > mx) mx = a;
+      sl += b; sm += m; sh += t; cnt++;
+    }
+    pk[i] = mx;
+    bL[i] = cnt ? sl / cnt : 0; bM[i] = cnt ? sm / cnt : 0; bH[i] = cnt ? sh / cnt : 0;
+    if (mx > mp) mp = mx;
+    if (bL[i] > mL) mL = bL[i]; if (bM[i] > mM) mM = bM[i]; if (bH[i] > mH) mH = bH[i];
+  }
+  if (mp > 1e-4) for (let i = 0; i < N; i++) pk[i] = Math.min(1, pk[i] / mp);
+  return { pk, bands: { l: bL, m: bM, h: bH }, bmax: { l: mL, m: mM, h: mH } };
 }
 // @clock-end
 
@@ -19390,6 +19470,39 @@ try {
     }
   }
 } catch (e){}
+/* WAS THIS BOOT A RESTART NOBODY ASKED FOR? See restartVerdict: the mark lives
+   while the page does, pagehide takes it away, and a boot that still finds it
+   was preceded by an instance the browser killed — memory, nearly always. It
+   is said once, in the log and on screen, so the listener has the true account
+   ("the browser restarted the page") instead of "it just refreshed", and the
+   count in localStorage makes a pattern visible in the activity panel. */
+const ALIVE_KEY = 'mb8_alive';
+function aliveMark(){
+  try {
+    const cur = (typeof player !== 'undefined' && player.tracks) ? player.tracks[player.cur] : null;
+    sessionStorage.setItem(ALIVE_KEY, JSON.stringify({ t: Date.now(), b: MB8_BUILD,
+      cur: cur ? String(cur.title || '') : '', playing: !!(typeof player !== 'undefined' && player.playing) }));
+  } catch (e){}
+}
+(function(){
+  let prior = null;
+  try { prior = JSON.parse(sessionStorage.getItem(ALIVE_KEY) || 'null'); } catch (e){}
+  const v = restartVerdict({ alive: prior, updatedFrom: !!window.__mb8SwapReturn, now: Date.now() });
+  if (v){
+    let n = 0;
+    try { n = (Number(localStorage.getItem('mb8_restarts')) || 0) + 1; localStorage.setItem('mb8_restarts', String(n)); } catch (e){}
+    const ago = Number.isFinite(v.ageMs) ? activityAgo(v.ageMs) : '?';
+    ACTIVITY.log('system', T('The browser restarted this page on its own (not an update) — last seen alive {ago}{playing}{cur} · {n} such restarts on this device', {
+      ago, n, playing: v.playing ? T(', playing') : '', cur: v.cur ? T(' “{title}”', { title: v.cur }) : '' }));
+    toast(v.playing
+      ? T('The browser restarted this page on its own — your place was kept. Tap <b>play</b> to pick the set back up.')
+      : T('The browser restarted this page on its own — your place was kept.'));
+  }
+  aliveMark();
+  setInterval(aliveMark, 5000);
+  window.addEventListener('pagehide', () => { try { sessionStorage.removeItem(ALIVE_KEY); } catch (e){} });
+  window.addEventListener('pageshow', aliveMark);   // back out of the page cache: alive again
+})();
 setInterval(maybeAutoApply, 5000);
 el.btnUpdate.addEventListener('click', () => updateCardOpen(!document.getElementById('updateCard').classList.contains('in')));
 window.addEventListener('offline', () => {
@@ -19545,16 +19658,12 @@ const WAVE = {
     // track (the pro-deck look — scrub the song, the played part lit in its
     // key); the live frequency SCOPE otherwise (mic, or before peaks land).
     const tr = player.tracks[player.cur], d = activeDeck();
-    // MEMORY on iOS/CarPlay: the visual drive reads the catalog's precomputed
-    // envelope (tr.env), so the ONLY thing the full-file decode feeds is this
-    // seek waveform — which is scaled to a speck (opacity 0) in immersive mode.
-    // Decoding a whole song per track for an invisible waveform is exactly the
-    // allocation churn that makes a long CarPlay session hit the WKWebView memory
-    // ceiling and reload. While immersive with a catalog envelope in hand, defer
-    // it — _peekUrl stays unset, so it decodes the instant the deck is on screen.
-    const zenSkip = IS_IOS && tr && tr.env && document.body.classList.contains('zen');
+    // MEMORY on iOS/CarPlay: a catalog track's waveform is folded from its
+    // shipped score (computePeaks → peaksFromEnv), which costs nothing — the
+    // whole-song decode that used to walk a long session into the WKWebView
+    // memory ceiling now runs only for a track that carries no score.
     if (tr && tr.url && !AE.mic.on && tr.url !== this._peekUrl
-        && !tr._peaks && !tr._peaksPending && !tr._peaksErr && !zenSkip){
+        && !tr._peaks && !tr._peaksPending && !tr._peaksErr){
       this._peekUrl = tr.url; computePeaks(tr);
     }
     if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr), trackStructure(tr));
@@ -19803,9 +19912,13 @@ const EQ = {
   },
 };
 
-/* Decode the current track once and reduce it to a peak envelope, so the
-   seek can show the whole song like a DJ deck. Fetches the (cached) file,
-   decodes off the playback clock, stores ~500 normalised peaks on the track.
+/* Reduce the current track to a peak envelope, so the seek can show the whole
+   song like a DJ deck: ~480 normalised peaks and their band split, stored on
+   the track. A catalog track carries its score (env) and is folded from that
+   in a few hundred microseconds with no network and no decoder — see
+   peaksFromEnv. Only a track WITHOUT a score (a local file, an older catalog)
+   is fetched and decoded, and that decode runs through a low-rate offline
+   context so the PCM it allocates is a fraction of the song's true size.
    Any failure (CORS, exotic codec, mic) silently leaves the live scope up.
 
    SERIALIZED: decodes run one at a time through a single chain, so a long
@@ -19813,8 +19926,36 @@ const EQ = {
    each decodeAudioData allocates a whole song's PCM, and a pile of them is
    what makes an extended session go sluggish then stop. */
 let _peaksChain = Promise.resolve();
+/* THE DECODER'S OWN CONTEXT. decodeAudioData resamples to the rate of the
+   context it is called on, so a 12 kHz offline context hands back a song at
+   under a third of the PCM a 44.1 kHz decode does — and the band split below
+   already read every fourth sample of that, so nothing the waveform shows is
+   lost. Falls back to a full-rate context on an engine that refuses the low
+   rate, and to the live context if there is no offline one at all. */
+const PEAKS_SR = 12000;
+let _peaksCtx = null;
+function peaksContext(){
+  if (_peaksCtx) return _peaksCtx;
+  const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (Off){
+    try { _peaksCtx = new Off(1, 1, PEAKS_SR); }
+    catch (e){ try { _peaksCtx = new Off(1, 1, 44100); } catch (e2){ _peaksCtx = null; } }
+  }
+  return _peaksCtx || AE.ctx;
+}
 function computePeaks(track){
   if (!track || track._peaks || track._peaksPending || track._peaksErr) return;
+  // THE SCORE IS ALREADY IN HAND: fold it, and never fetch or decode this track
+  if (track.env){
+    const got = peaksFromEnv(track.env, 480);
+    if (got){
+      track._peaks = got.pk;
+      track._bands = got.bands;
+      track._bmax = got.bmax;
+      try { track._structure = analyzeStructure(got.pk); } catch (e){}
+      return;
+    }
+  }
   // NEVER ACROSS A LIVE SEAM. Drawing a track's waveform costs a whole-song
   // fetch — racing the incoming deck for the very bandwidth it is buffering
   // with — and a decodeAudioData that allocates a song of PCM on the main
@@ -19835,7 +19976,8 @@ async function _peaksDecode(track){
     const res = await fetch(track.url);
     if (!res.ok) throw new Error('fetch ' + res.status);
     let buf = await res.arrayBuffer();
-    const ac = AE.ctx || new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
+    const ac = peaksContext();
+    if (!ac) throw new Error('no audio context to decode with');
     let audio = await ac.decodeAudioData(buf);
     buf = null;                                     // the compressed bytes are done — let them go
     const ch = audio.getChannelData(0), sr = audio.sampleRate || 44100, N = 480;
@@ -19846,7 +19988,9 @@ async function _peaksDecode(track){
     // Decimated by DEC (a 480-column colour doesn't need every sample) and the
     // column loop yields to the main thread periodically, so even a 10-minute
     // mix never blocks a frame — the live scope covers the gap until it lands.
-    const DEC = 4, sre = sr / DEC;
+    // a full-rate decode is thinned by four as it always was; the low-rate
+    // context already delivered the thinned signal, properly filtered
+    const DEC = sr > 24000 ? 4 : 1, sre = sr / DEC;
     const a1 = Math.exp(-2 * Math.PI * 250 / sre), a2 = Math.exp(-2 * Math.PI * 2500 / sre);
     let lp1 = 0, lp2 = 0;
     for (let i = 0; i < N; i++){
