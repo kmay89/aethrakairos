@@ -45998,12 +45998,19 @@ function buildMaxwell(){
         for (int i = 0; i < 48; i++){
           float x = -1.6 + float(i) / 47.0 * 3.2;
           float w = sin(x * 6.0 - ph0) * (0.34 + uMid * 0.18);
-          // E stands upright; B lies flat, drawn in a shallow perspective
+          float x2 = -1.6 + float(i + 1) / 47.0 * 3.2;
+          float w2 = sin(x2 * 6.0 - ph0) * (0.34 + uMid * 0.18);
+          // E stands upright; B lies flat, drawn in a shallow perspective —
+          // both as CONTINUOUS ribbons, wire by wire, not beads on a string
           vec2 E = vec2(x * uAspect * 0.6, w);
           vec2 B = vec2(x * uAspect * 0.6 + w * 0.36, w * 0.14);
+          vec2 E2 = vec2(x2 * uAspect * 0.6, w2);
+          vec2 B2 = vec2(x2 * uAspect * 0.6 + w2 * 0.36, w2 * 0.14);
+          col += colE * exp(-segd(p, E, E2) * 160.0) * 0.34;
+          col += colB * exp(-segd(p, B, B2) * 160.0) * 0.28;
           float dE = length(p - E), dB = length(p - B);
-          col += colE * exp(-dE * dE / 0.00030) * 0.5;
-          col += colB * exp(-dB * dB / 0.00030) * 0.42;
+          col += colE * exp(-dE * dE / 0.00030) * 0.22;
+          col += colB * exp(-dB * dB / 0.00030) * 0.18;
           // the field VECTORS, sampled sparsely — the comb of the wave
           if (mod(float(i), 6.0) < 0.5){
             float ax = x * uAspect * 0.6;
