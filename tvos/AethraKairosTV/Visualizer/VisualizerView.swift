@@ -131,7 +131,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
     private var device: MTLDevice?
     private var queue: MTLCommandQueue?
-    private var roomPipelines: [MTLRenderPipelineState] = []
+    private var roomPipelines: [MTLRenderPipelineState?] = []
     // [luma, scatter, defocus, prism, ember] — indexed by xformMode
     private var xformPipelines: [MTLRenderPipelineState] = []
     private var gradePipeline: MTLRenderPipelineState?
@@ -325,31 +325,54 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         self.device = device
         self.queue = queue
 
-        // one pipeline per room, all rendering into the rgba16Float offscreen
-        var pipelines: [MTLRenderPipelineState] = []
-        for room in Rooms.all {
-            guard let frag = library.makeFunction(name: room.fragmentFunction) else { return }
+        // one pipeline per room, all rendering into the rgba16Float offscreen.
+        // A room whose pipeline this GPU refuses gets nil — it renders as the
+        // void and the director walks past it. One broken room must cost the
+        // house one room, never the whole house (a blank screen taught us).
+        var pipelines: [MTLRenderPipelineState?] = []
+        var dead: Set<Int> = []
+        for (i, room) in Rooms.all.enumerated() {
+            guard let frag = library.makeFunction(name: room.fragmentFunction) else {
+                NSLog("AethraKairos: no fragment function for room %@", room.key)
+                pipelines.append(nil); dead.insert(i); continue
+            }
             let desc = MTLRenderPipelineDescriptor()
             desc.vertexFunction = vertexFn
             desc.fragmentFunction = frag
             desc.colorAttachments[0].pixelFormat = .rgba16Float
-            guard let state = try? device.makeRenderPipelineState(descriptor: desc) else { return }
-            pipelines.append(state)
+            do {
+                pipelines.append(try device.makeRenderPipelineState(descriptor: desc))
+            } catch {
+                NSLog("AethraKairos: pipeline FAILED for room %@: %@",
+                      room.key, String(describing: error))
+                pipelines.append(nil); dead.insert(i)
+            }
         }
         roomPipelines = pipelines
+        director.banned = dead
+        if dead.contains(director.currentIndex),
+           let firstLiving = Rooms.all.indices.first(where: { !dead.contains($0) }) {
+            director = Director(startAt: firstLiving)
+            director.banned = dead
+        }
 
         // the five XFORM composites, blending the two rgba16Float rooms into
         // texC (also rgba16Float, so the GRADE reads it filterable)
         let xformNames = ["xform_luma", "xform_scatter", "xform_defocus", "xform_prism", "xform_ember"]
         var xf: [MTLRenderPipelineState] = []
         for name in xformNames {
-            guard let frag = library.makeFunction(name: name) else { return }
+            guard let frag = library.makeFunction(name: name) else {
+                NSLog("AethraKairos: no fragment function for xform %@", name); continue
+            }
             let desc = MTLRenderPipelineDescriptor()
             desc.vertexFunction = vertexFn
             desc.fragmentFunction = frag
             desc.colorAttachments[0].pixelFormat = .rgba16Float
-            guard let state = try? device.makeRenderPipelineState(descriptor: desc) else { return }
-            xf.append(state)
+            if let state = try? device.makeRenderPipelineState(descriptor: desc) {
+                xf.append(state)
+            } else {
+                NSLog("AethraKairos: pipeline FAILED for xform %@", name)
+            }
         }
         xformPipelines = xf
 
@@ -714,9 +737,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         guard let queue,
               let gradePipeline,
-              xformPipelines.count == 5,
-              roomPipelines.count == Rooms.all.count,
-              !roomPipelines.isEmpty
+              roomPipelines.count == Rooms.all.count
         else { return }
 
         let size = view.drawableSize
@@ -953,7 +974,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         if transitionProgress < 1,
            let tb = texB,
            outgoingIndex != current,
-           roomPipelines.indices.contains(outgoingIndex) {
+           roomPipelines.indices.contains(outgoingIndex),
+           !xformPipelines.isEmpty {
             var ug = u
             ug.roll0 = outgoingRolls.x
             ug.roll1 = outgoingRolls.y
@@ -1040,7 +1062,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                                                             blue: 14.0 / 255.0,
                                                             alpha: 1.0)
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return }
-        encoder.setRenderPipelineState(roomPipelines[index])
+        // a room this GPU refused still clears its target to the void, so
+        // every pass downstream reads an honest frame
+        guard let pipeline = roomPipelines[index] else { encoder.endEncoding(); return }
+        encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<VizUniforms>.stride, index: 0)
         var res = SIMD2<Float>(Float(target.width), Float(target.height))
         encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)

@@ -439,6 +439,12 @@ struct Director {
     // the structure's ceiling at the last tick — a held passage dwells longer
     private var ceilNow: Double = 1
 
+    /// Rooms whose Metal pipeline failed to build on THIS device's GPU.
+    /// The renderer fills this once at setup; the director never deals a
+    /// banned room, and a swipe walks straight past one. One broken room
+    /// must cost the house one room, never the whole house.
+    var banned: Set<Int> = []
+
     // wrap detection: a phase that drops by most of a cycle just wrapped
     private var prevPhrasePhase: Float = 0
     private var prevBarPhase: Float = 0
@@ -508,8 +514,16 @@ struct Director {
     mutating func step(_ delta: Int) {
         let n = Rooms.all.count
         guard n > 0, delta != 0 else { return }
-        var next = (currentIndex + delta) % n
-        if next < 0 { next += n }
+        // walk one door at a time in the swipe's direction, passing straight
+        // by any room this device cannot draw
+        let dir = delta > 0 ? 1 : -1
+        var next = currentIndex
+        for _ in 0..<abs(delta) {
+            for _ in 0..<n {
+                next = (next + dir + n) % n
+                if !banned.contains(next) { break }
+            }
+        }
         pending = nil
         move(to: next, calm: 0.5, mood: moodNow, act: 1)
     }
@@ -605,20 +619,33 @@ struct Director {
             weights[i] = w
             total += w
         }
-        guard total > 0 else { return (currentIndex + 1) % rooms.count }
+        guard total > 0 else { return nextLiving(after: currentIndex) }
         var draw = Double.random(in: 0..<total)
         for (i, w) in weights.enumerated() {
             draw -= w
             if draw < 0 { return i }
         }
         // floating-point residue: hand back the last room that held weight
-        return weights.lastIndex(where: { $0 > 0 }) ?? ((currentIndex + 1) % rooms.count)
+        return weights.lastIndex(where: { $0 > 0 }) ?? nextLiving(after: currentIndex)
+    }
+
+    /// The nearest room past `i` this device can actually draw.
+    private func nextLiving(after i: Int) -> Int {
+        let n = Rooms.all.count
+        guard n > 0 else { return 0 }
+        for step in 1...n {
+            let j = (i + step) % n
+            if !banned.contains(j) { return j }
+        }
+        return (i + 1) % n
     }
 
     private func score(room: Room, index: Int, frame: Analyzer.Frame,
                        mood: Mood, entropy: Float) -> Double {
-        // the current room never re-deals itself
+        // the current room never re-deals itself, and a room this device's
+        // GPU refused is never dealt at all
         if index == currentIndex { return 0 }
+        if banned.contains(index) { return 0 }
 
         // a negative weight is an appetite for ABSENCE — it earns its full
         // points when the feature is silent
