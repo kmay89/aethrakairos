@@ -144,11 +144,18 @@ fragment float4 room_maxwell(float4 pos [[position]],
         for (int i = 0; i < 48; i++) {
             float x = -1.6 + float(i) / 47.0 * 3.2;
             float w = sin(x * 6.0 - ph0) * (0.34 + U.mid * 0.18);
+            float x2 = -1.6 + float(i + 1) / 47.0 * 3.2;
+            float w2 = sin(x2 * 6.0 - ph0) * (0.34 + U.mid * 0.18);
+            // both ribbons CONTINUOUS, wire by wire, not beads on a string
             float2 E = float2(x * U.aspect * 0.6, w);
             float2 B = float2(x * U.aspect * 0.6 + w * 0.36, w * 0.14);
+            float2 E2 = float2(x2 * U.aspect * 0.6, w2);
+            float2 B2 = float2(x2 * U.aspect * 0.6 + w2 * 0.36, w2 * 0.14);
+            col += colE * exp(-segd_w(p, E, E2) * 160.0) * 0.34;
+            col += colB * exp(-segd_w(p, B, B2) * 160.0) * 0.28;
             float dE = length(p - E), dB = length(p - B);
-            col += colE * exp(-dE * dE / 0.00030) * 0.5;
-            col += colB * exp(-dB * dB / 0.00030) * 0.42;
+            col += colE * exp(-dE * dE / 0.00030) * 0.22;
+            col += colB * exp(-dB * dB / 0.00030) * 0.18;
             // the field VECTORS, sampled sparsely — the comb of the wave
             if (fmod(float(i), 6.0) < 0.5) {
                 float ax = x * U.aspect * 0.6;

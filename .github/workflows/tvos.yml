@@ -250,16 +250,37 @@ jobs:
           </plist>
           EOF
           set -o pipefail
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/AethraKairos.xcarchive" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            2>&1 | tee "$RUNNER_TEMP/export.log"
-          echo "Uploaded. Apple processes for 5–30 min, then the build appears" \
-               "under TestFlight in App Store Connect (tvos/TESTFLIGHT.md part 6)."
+          # App Store Connect's upload endpoint intermittently answers 502 /
+          # "The server returned unexpected content" (-19237); four of five
+          # uploads one evening needed a manual re-run for exactly this. The
+          # archive is already built, so retry ONLY that transient signature —
+          # a real signing or configuration error still fails on the spot.
+          for attempt in 1 2 3 4; do
+            if xcodebuild -exportArchive \
+              -archivePath "$RUNNER_TEMP/AethraKairos.xcarchive" \
+              -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+              -authenticationKeyID "$ASC_KEY_ID" \
+              -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+              2>&1 | tee "$RUNNER_TEMP/export.log"; then
+              echo "Uploaded. Apple processes for 5–30 min, then the build appears" \
+                   "under TestFlight in App Store Connect (tvos/TESTFLIGHT.md part 6)."
+              exit 0
+            fi
+            if ! grep -qE 'Code=-19237|returned unexpected content|status code 50[0-9]' \
+                 "$RUNNER_TEMP/export.log"; then
+              echo "Upload failed for a non-transient reason — not retrying."
+              exit 1
+            fi
+            if [ "$attempt" = 4 ]; then
+              echo "App Store Connect still failing after 4 attempts — giving up."
+              exit 1
+            fi
+            wait=$((attempt * 120))
+            echo "App Store Connect hiccuped (attempt $attempt of 4) — retrying in ${wait}s…"
+            sleep "$wait"
+          done
 
       # xcodebuild's one-line "Cloud signing permission error" hides the real
       # cause (license agreement not accepted, key role too weak, missing app
