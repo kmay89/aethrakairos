@@ -45,9 +45,9 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GESTALT, proximityOk, parkinsonBudget, teslerShare, occamPick, postelUrl,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
-  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample,' +
+  ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
-  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince,' +
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince, lessonDue, restartVerdict,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal, stagePlan,' +
   ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp, stageSpread,' +
@@ -6679,6 +6679,54 @@ test('Postel: every unambiguous paste is accepted, and nothing dangerous is gues
   assert.equal(P('catalog.json'), null, 'with nothing to resolve against, it is refused rather than invented');
   for (const bad of ['javascript:alert(1)', 'data:text/json,{}', 'blob:https://x/1', 'file:///etc/passwd', '', '   ', null, undefined])
     assert.equal(P(bad), null, 'refused rather than guessed at: ' + bad);
+});
+
+// ------------------------------------------------- continuous play, on a phone
+
+test('the waveform folds from the shipped score — no fetch, no decoder', () => {
+  // a 4 Hz score, one second long: bass on the first two steps, treble on the last
+  const env = { hz: 4, b: '9900', m: '0090', t: '0009', o: '9000' };
+  const got = S.peaksFromEnv(env, 8);
+  assert.ok(got && got.pk.length === 8 && got.bands.l.length === 8, 'N columns of peak + bands');
+  assert.ok(Math.abs(got.pk[0] - 1) < 1e-9, 'peaks normalise to 1.0 like the decode path');
+  assert.ok(got.pk[7] > 0.99, 'a single full band is as loud as any other single full band');
+  assert.ok(got.bands.l[0] > 0.99 && got.bands.l[7] === 0, 'the low band follows the score\'s bass');
+  assert.ok(got.bands.h[7] > 0.99 && got.bands.h[0] === 0, 'and the high band its treble');
+  assert.ok(got.bmax.l > 0.99 && got.bmax.m > 0.99 && got.bmax.h > 0.99, 'per-band maxima for the drive to scale against');
+  const wide = S.peaksFromEnv(env, 480);
+  assert.equal(wide.pk.length, 480, 'more columns than steps is fine — steps are held');
+  assert.ok(wide.pk[479] > 0.99 && wide.bands.h[479] > 0.99, 'the last column reads the last step');
+  const quiet = S.peaksFromEnv({ hz: 4, b: '0000', m: '0000', t: '0000' }, 8);
+  assert.ok(quiet && quiet.pk[0] === 0, 'silence is silence, not NaN');
+  assert.equal(S.peaksFromEnv(null, 8), null);
+  assert.equal(S.peaksFromEnv({ hz: 4, b: '99' }, 8), null, 'a partial score is refused, so the decoder runs instead');
+  assert.equal(S.peaksFromEnv({ hz: 4, b: '', m: '', t: '' }, 8), null, 'an empty one too');
+});
+
+test('the heart lesson waits for a track that actually sounded', () => {
+  const L = S.lessonDue;
+  const base = { tutored: true, favSeen: false, shareSeen: false, firstListen: true };
+  assert.equal(L({ ...base, starts: 1 }), null, 'one track heard: nothing yet');
+  assert.equal(L({ ...base, starts: 2 }), 'fav', 'the second track that sounds brings the heart');
+  assert.equal(L({ ...base, starts: 2, tutored: false }), null, 'never before the tour');
+  assert.equal(L({ ...base, starts: 3, favSeen: true }), 'share', 'then share, on the third');
+  assert.equal(L({ ...base, starts: 3, favSeen: true, firstListen: false }), null, 'share waits for a first listen');
+  assert.equal(L({ ...base, starts: 3, favSeen: true, shareSeen: true }), null, 'each lesson once');
+  assert.equal(L({ ...base, starts: 5 }), 'fav', 'the heart is never skipped past — it is still owed');
+  assert.equal(L({ starts: 'x' }), null, 'garbage counts as zero');
+});
+
+test('a boot that finds the alive mark names a restart the browser made', () => {
+  const R = S.restartVerdict;
+  const now = 1_000_000;
+  assert.equal(R({ alive: null, now }), null, 'a clean boot: the mark was taken away in pagehide');
+  assert.equal(R({ alive: { t: now - 4000 }, updatedFrom: true, now }), null, 'our own update swap is not a restart');
+  const v = R({ alive: { t: now - 4000, b: 'b1', cur: 'Möbius Walking', playing: true }, now });
+  assert.ok(v && v.reason === 'browser', 'the mark survived: the browser reloaded us');
+  assert.equal(v.ageMs, 4000, 'and how long ago it was last seen alive');
+  assert.equal(v.cur, 'Möbius Walking'); assert.equal(v.playing, true); assert.equal(v.build, 'b1');
+  assert.ok(Number.isNaN(R({ alive: { t: 'no' }, now }).ageMs), 'an unreadable mark still names the restart, just not its age');
+  assert.equal(R({ alive: 'junk', now }), null, 'a mark that is not a record is ignored');
 });
 
 await Promise.all(pending);
