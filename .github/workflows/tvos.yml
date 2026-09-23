@@ -177,7 +177,7 @@ jobs:
             echo "== END BASE64 JPEG ($NAME) =="
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sim-shots
           path: shots/
