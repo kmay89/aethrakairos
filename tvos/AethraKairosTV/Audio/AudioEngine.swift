@@ -21,6 +21,11 @@ final class DeckEngine {
 
     private enum DeckError: Error { case badIndex, badFile }
 
+    /// Called on the main queue when the engine stopped itself because the
+    /// output hardware changed under it (see init).
+    var onConfigurationChange: (() -> Void)?
+    private var configObserver: NSObjectProtocol?
+
     init() {
         engine = AVAudioEngine()
         decks = [AKDeck(rampQueue: rampQueue), AKDeck(rampQueue: rampQueue)]
@@ -53,6 +58,32 @@ final class DeckEngine {
             d.mixer.outputVolume = 1
         }
         engine.prepare()
+
+        // THE OUTPUT CHANGED, SO THE ENGINE STOPPED. When the hardware under
+        // AVAudioEngine renegotiates — the TV or soundbar re-handshaking HDMI,
+        // an eARC/CEC wake, AirPods or an AirPlay speaker taking the route,
+        // a sample-rate or channel-count change — the engine stops itself and
+        // every player node with it. Nothing errors and nothing else says so:
+        // the transport still reads "playing", the clock freezes, the room
+        // goes quiet. That is the Apple TV's "it pauses at random". The nodes
+        // stay attached and connected, so the cure is to start the engine and
+        // reschedule from where the music was — which the Player owns.
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            self?.onConfigurationChange?()
+        }
+    }
+
+    deinit {
+        if let o = configObserver { NotificationCenter.default.removeObserver(o) }
+    }
+
+    /// True while the engine runs AND the deck's player node is playing (a
+    /// delayed start counts: it is committed to the render clock).
+    func isLive(deck i: Int) -> Bool {
+        guard let d = deck(i) else { return false }
+        return engine.isRunning && d.player.isPlaying
     }
 
     func startEngineIfNeeded() throws {
@@ -153,7 +184,13 @@ final class DeckEngine {
     /// so the scheduled segment offset is ours to carry.
     func position(deck i: Int) -> Double? {
         guard let d = deck(i) else { return nil }
-        if let pos = livePosition(of: d) { return pos }
+        if let pos = livePosition(of: d) {
+            // Remembered on every read: when the engine is stopped out from
+            // under a deck (see init) the player time is gone, and this is the
+            // last honest word on where the music was — a poll old at most.
+            d.lastKnownPosition = pos
+            return pos
+        }
         return d.lastKnownPosition
     }
 

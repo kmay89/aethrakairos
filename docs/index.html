@@ -8833,6 +8833,49 @@ function loadAndLandAt(el, url, at, done){
   // an empty url means "reload what is already loaded" — the watchdog's case
   try { if (url && el.src !== url) el.src = url; el.load(); } catch (e){ finish(false); }
 }
+
+/* THE WATCHDOG'S VERDICT, one 1 Hz look at the active deck. Two ways a track
+   goes quiet while the player still says "playing":
+   · FROZEN — plenty buffered (readyState >= 3) but the clock will not move:
+     the catatonic iOS element. Nudge at 3 s, reload at the spot at 7 s.
+   · STARVED — mid-track, the buffer ran dry (readyState < 3) and has stopped
+     GROWING: the connection under the stream died without an error, or the
+     bytes it was reading were taken away. The old watchdog waved every
+     readyState < 3 through as "still loading", which is right before a track
+     has started (the start backstop owns that) and wrong after — a stream
+     that starves at minute three sat there, spinner up, forever. That was
+     the "it just pauses at random" report. Twelve seconds with no motion and
+     no new bytes earns a reload at the spot; a buffer that is still growing
+     is a slow pipe, never a dead one, and is left alone.
+   A track that keeps starving after four reloads with no motion in between
+   is given up on — skipped, so the set keeps going. `s` is the watchdog's own
+   memory and is mutated; the return is what to do now. */
+const STARVE_RELOAD_S = 12, STARVE_GIVE_UP = 4;
+function watchdogStep(s, o){
+  const moved = s.lastT >= 0 && Math.abs(o.t - s.lastT) > 0.04;
+  const grew = o.buf > s.lastBuf + 0.05;
+  const first = s.lastT < 0;
+  s.lastT = o.t; s.lastBuf = o.buf;
+  if (moved){ s.heals = 0; }
+  if (o.rs < 3){
+    s.stall = 0;
+    // not under way yet → the start backstop's; filling → just slow
+    if (first || !o.played || moved || grew){ s.starve = 0; return 'ok'; }
+    // offline, nothing can refill it: wait without spending the give-up budget
+    if (o.online === false){ s.starve = 0; return 'wait'; }
+    s.starve = (s.starve || 0) + 1;
+    if (s.starve < STARVE_RELOAD_S) return 'wait';
+    s.starve = 0;
+    s.heals = (s.heals || 0) + 1;
+    return s.heals > STARVE_GIVE_UP ? 'skip' : 'reload';
+  }
+  s.starve = 0;
+  if (first || moved || grew){ s.stall = 0; return 'ok'; }
+  s.stall = (s.stall || 0) + 1;
+  if (s.stall === 3) return 'nudge';
+  if (s.stall >= 7){ s.stall = 0; return 'reload'; }
+  return 'wait';
+}
 // @media-end
 
 /* The native Mac shell (Tauri) tags its webview's user-agent, so the web app can
@@ -11301,7 +11344,7 @@ const PREFETCH = {
      every tick two seconds later decided nothing was in flight, aborted the
      download that was halfway there, and started it again. Measured, before the
      split: 61 requests and 120 MB served for a warm that never once landed. */
-  id: null, url: '', _want: null, _ac: null, _busy: false, _fail: 0, _spent: '',
+  id: null, url: '', _want: null, _ac: null, _busy: false, _fail: 0, _spent: [],
 
   // is a warmed copy of THIS track ready? Anything else gets the network URL,
   // so a stale or missing prefetch can never send playback somewhere wrong.
@@ -11321,23 +11364,40 @@ const PREFETCH = {
   },
   drop(){
     if (this._ac){ try { this._ac.abort(); } catch (e){} this._ac = null; }
-    if (this.url) this._retire(this.url);
+    // a held copy was never handed to an element, so it can go now (guarded
+    // all the same — revoking what a deck reads is the one unforgivable move)
+    if (this.url && !this._inUse(this.url)){ try { URL.revokeObjectURL(this.url); } catch (e){} }
     this.url = ''; this.id = null; this._want = null; this._busy = false;
   },
-  /* HANDED OVER, NOT THROWN AWAY. Once an element is loading from an object URL,
-     revoking it can pull the bytes out from under the load — so the URL we just
-     gave away is released one hand-off later, by which time the element that had
-     it has been re-pointed at something else. One deferred release, never a
-     growing list. */
-  _retire(u){
-    if (this._spent && this._spent !== u){ try { URL.revokeObjectURL(this._spent); } catch (e){} }
-    this._spent = u;
+  /* HANDED OVER, NOT THROWN AWAY — AND NEVER PULLED OUT FROM UNDER A DECK.
+     iOS reads an object URL the way it reads the network: in ranged pieces,
+     for as long as the track plays. Revoke it mid-track and the next piece
+     never comes — the element starves, no error fires, and the music simply
+     stops, somewhere random in the song. The first version released the
+     spent URL "one hand-off later", but drop() — called at the top of EVERY
+     warm, twelve seconds into the track that was PLAYING that very URL —
+     counted as a hand-off. So every warmed track was cut off the moment the
+     next one started to warm, and where the silence landed depended only on
+     how far ahead iOS had happened to read. Now a spent URL is released only
+     once no deck holds it, checked against the decks themselves. The list
+     never outgrows the two decks. */
+  _inUse(u){
+    if (!u || typeof AE === 'undefined' || !AE.decks) return false;
+    return AE.decks.some(d => d && d.a && (d.a.src === u || d.a.currentSrc === u));
+  },
+  _sweep(){
+    this._spent = this._spent.filter(u => {
+      if (this._inUse(u)) return true;
+      try { URL.revokeObjectURL(u); } catch (e){}
+      return false;
+    });
   },
   spend(){
-    // the element owns this URL now: forget it without revoking, and let the
-    // NEXT hand-off release it
-    this._retire(this.url);
+    // the element owns this URL now: forget it without revoking, and release
+    // it once no deck is reading it any more
+    if (this.url && this._spent.indexOf(this.url) < 0) this._spent.push(this.url);
     this.url = ''; this.id = null;
+    this._sweep();
   },
   async want(track){
     if (!this.allowed(track)) return;
@@ -11390,6 +11450,7 @@ const PREFETCH = {
      fetch of the same bytes would be pure waste. */
   tick(){
     if (typeof AE === 'undefined' || AE.graphLive) return;
+    if (this._spent.length) this._sweep();          // a finished track's copy goes once its deck moves on
     if (typeof player === 'undefined' || !player.playing) return;
     const d = typeof activeDeck === 'function' ? activeDeck() : null;
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
@@ -15416,29 +15477,36 @@ function initMediaSession(){
    a gentle re-nudge, then — if it's still frozen — reload the source at the very
    spot it stalled and resume. The listener hears a blink, never a dead stop. */
 const WATCHDOG = {
-  lastT: -1, lastBuf: -1, stall: 0,
-  reset(){ this.lastT = -1; this.lastBuf = -1; this.stall = 0; },
+  s: { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0 },
+  reset(){ this.s = { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0 }; },
   bufEnd(a){ try { return (a.buffered && a.buffered.length) ? a.buffered.end(a.buffered.length - 1) : 0; } catch (e){ return 0; } },
   check(){
     if (!player.playing){ this.reset(); return; }
     const d = activeDeck();
     if (!d || d.a.paused || AE.xfading){ this.reset(); return; }
-    // A track is only "wedged" once it has ENOUGH buffered to actually play
-    // (readyState >= 3, HAVE_FUTURE_DATA). Anything still filling its buffer is
-    // just loading — the LOADER covers it, and we must NEVER reload it: that
-    // restarts the download and, on a weak pipe, loops forever ("tuning the
-    // first track…" that never plays). This gate is the whole fix.
-    if (d.a.readyState < 3){ this.lastT = d.a.currentTime; this.lastBuf = this.bufEnd(d.a); this.stall = 0; return; }
-    const t = d.a.currentTime, buf = this.bufEnd(d.a);
-    // healthy if the clock advances OR the buffer is still growing (progress)
-    if (Math.abs(t - this.lastT) > 0.04 || buf > this.lastBuf + 0.05){
-      this.lastT = t; this.lastBuf = buf; this.stall = 0; return;
-    }
-    this.stall++;
-    if (this.stall === 3){
+    if (d._healing) return;                          // a reload of ours is landing — judge what it lands on
+    const t = d.a.currentTime;
+    /* The verdict is watchdogStep's (tested). A track is only STARVED once it
+       has been under way — before that the start backstop owns it, and a
+       reload there restarts the download and, on a weak pipe, loops forever
+       ("tuning the first track…" that never plays). */
+    const played = t > 0.5 || (isFinite(AE._lastGoodT) && AE._lastGoodT > 0.5);
+    const v = watchdogStep(this.s, { t, buf: this.bufEnd(d.a), rs: d.a.readyState, played, online: navigator.onLine });
+    if (v === 'nudge'){
       d.a.play().catch(() => {});                    // ~3 s truly frozen (has data, not playing): a gentle re-nudge
-    } else if (this.stall >= 7){
-      const at = t;                                  // ~7 s: last resort — reload at the spot, quietly
+    } else if (v === 'reload'){
+      const tr = player.tracks[player.cur];
+      const starved = d.a.readyState < 3;
+      /* A starved deck reading a WARMED COPY (a blob the prefetcher handed
+         over) comes back from the network URL: the copy is what failed it.
+         Otherwise it reloads what it had — a fresh connection to the same file. */
+      const src = d.a.currentSrc || d.a.src || '';
+      const url = (starved && tr && !tr.local && tr.url && /^blob:/i.test(src) && src !== tr.url) ? tr.url : '';
+      const at = isFinite(AE._lastGoodT) && AE._lastGoodT > t ? AE._lastGoodT : t;
+      if (typeof ACTIVITY !== 'undefined')
+        ACTIVITY.log('system', starved
+          ? T('The stream ran dry mid-track — reconnecting at the same spot')
+          : T('The audio froze — reloading at the same spot'));
       d._healing = true;                             // the pause this triggers is ours, not the user's
       /* "at the spot" is the entire point of this branch, and it was the one
          thing it did not do on iOS: load() empties the element, and the seek
@@ -15446,11 +15514,18 @@ const WATCHDOG = {
          the track came back at zero. On a phone that drops its media
          connection every few minutes, that is the reported loop — playback
          stops, the reload restarts the song, and the spot arrives late. */
-      AE._loadAt(d.a, '', at, () => {
+      AE._loadAt(d.a, url, at, () => {
         d.a.play().catch(() => {});
         setTimeout(() => { d._healing = false; }, 900);
       });
-      this.stall = 0;
+    } else if (v === 'skip'){
+      // the same track starved five times running with no motion between —
+      // the file or its pipe is not coming back; the set must not end here
+      this.reset();
+      if (typeof ACTIVITY !== 'undefined')
+        ACTIVITY.log('system', T('A track kept starving — skipped so the set keeps going'));
+      toast(T('That track kept dropping out — skipping ahead'));
+      player.next(true);
     }
   },
 };
@@ -19512,6 +19587,9 @@ window.addEventListener('offline', () => {
 window.addEventListener('online', () => {
   ACTIVITY.log('system', T('Back online'));
   toast(T('Back online'));
+  // a stream that starved while the pipe was down reconnects on the next beat,
+  // not twelve seconds from now
+  if (typeof WATCHDOG !== 'undefined' && player.playing) WATCHDOG.s.starve = STARVE_RELOAD_S - 1;
   checkForUpdate();                // a reconnect is the best moment to look
 });
 
