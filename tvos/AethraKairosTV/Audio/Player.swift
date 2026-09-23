@@ -227,6 +227,14 @@ enum MixStyle: String, CaseIterable {
     private var failureStreak = 0
     private var suppressPositionUntil = Date.distantPast
 
+    /// Polls in a row the transport has believed "playing" while the active
+    /// deck was not actually rendering — the liveness guard's evidence.
+    private var deadPolls = 0
+    /// A system interruption (Siri, another app) took the audio while we were
+    /// playing; if the system says so when it ends, the music comes back.
+    private var resumeAfterInterruption = false
+    private var interruptionObserver: NSObjectProtocol?
+
     private var pollTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var pendingOpTask: Task<Void, Never>?
@@ -263,6 +271,20 @@ enum MixStyle: String, CaseIterable {
         let analyzer = self.analyzer
         engine.installTap { buffer, when in
             analyzer.ingest(buffer: buffer, when: when)
+        }
+        engine.onConfigurationChange = { [weak self] in
+            Task { @MainActor in self?.recoverAudio() }
+        }
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(), queue: .main
+        ) { [weak self] note in
+            let info = note.userInfo ?? [:]
+            let type = (info[AVAudioSessionInterruptionTypeKey] as? UInt)
+                .flatMap(AVAudioSession.InterruptionType.init(rawValue:))
+            let opts = AVAudioSession.InterruptionOptions(
+                rawValue: (info[AVAudioSessionInterruptionOptionKey] as? UInt) ?? 0)
+            Task { @MainActor in self?.handleInterruption(type, shouldResume: opts.contains(.shouldResume)) }
         }
         startPollLoop()
     }
@@ -583,6 +605,55 @@ enum MixStyle: String, CaseIterable {
         }
     }
 
+    // MARK: keeping the music going
+
+    /// An interruption is the system's pause, so it is honoured as one — the
+    /// transport says "paused", the position is kept — and undone the moment
+    /// the system says the audio is ours again. Without this the engine was
+    /// stopped under a transport that still read "playing", and stayed silent.
+    private func handleInterruption(_ type: AVAudioSession.InterruptionType?, shouldResume: Bool) {
+        switch type {
+        case .began?:
+            resumeAfterInterruption = isPlaying
+            if isPlaying { pause() }
+        case .ended?:
+            let resume = resumeAfterInterruption && shouldResume
+            resumeAfterInterruption = false
+            if resume, !isPlaying { play() }
+        default:
+            break
+        }
+    }
+
+    /// The engine or the active deck stopped without anybody asking — the
+    /// output renegotiated under it (DeckEngine's configuration-change note)
+    /// or the liveness guard caught a deck that went quiet. Start the engine
+    /// and reschedule the deck at the spot it was playing. A seam caught in
+    /// the middle is abandoned for a plain continuation of the audible track;
+    /// the end-of-track logic then advances as it always does.
+    private func recoverAudio() {
+        deadPolls = 0
+        guard isPlaying, deckReady, currentIndex >= 0 else { return }
+        let deck = activeDeck
+        let at = engine.position(deck: deck) ?? position
+        // At the very end, the next poll's end-of-track advance is the cure.
+        if let dur = currentDuration, at >= dur - 0.30 { return }
+        cancelSeam()
+        try? AVAudioSession.sharedInstance().setActive(true)
+        do {
+            try engine.startEngineIfNeeded()
+        } catch {
+            statusLine = "audio output unavailable — retrying"
+            return   // the liveness guard asks again on the next polls
+        }
+        engine.stop(deck: deck)
+        engine.rampVolume(deck: deck, to: 1, over: 0.06)
+        engine.play(deck: deck, atOffset: at, in: 0)
+        position = at
+        statusLine = ""
+        analyzer.setClock(playhead: at, mix: current?.mix, rate: clockRate)
+    }
+
     // MARK: the 4 Hz poll — position, clock truth, transport save, seam lifecycle
 
     private func startPollLoop() {
@@ -597,6 +668,16 @@ enum MixStyle: String, CaseIterable {
 
     private func pollTick() {
         guard currentIndex >= 0, deckReady else { return }
+        // THE LIVENESS GUARD: "playing" must mean the active deck is rendering.
+        // Every transport path starts the deck in the same step it sets
+        // isPlaying, so two polls (~0.5 s) of disagreement is a deck the
+        // system stopped — whatever stopped it, notification or not.
+        if isPlaying, !engine.isLive(deck: activeDeck) {
+            deadPolls += 1
+            if deadPolls >= 2 { recoverAudio() }
+        } else {
+            deadPolls = 0
+        }
         if isPlaying {
             if Date() >= suppressPositionUntil, let p = engine.position(deck: activeDeck) {
                 position = p

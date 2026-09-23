@@ -19,7 +19,7 @@ function block(name){
   return m[1];
 }
 const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') +
-  '\nreturn { loadAndLandAt, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
+  '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_GIVE_UP, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' SIGNATURE_RE, isSignature, signatureFirst,' +
@@ -6139,6 +6139,59 @@ test('loadAndLandAt: done fires exactly once, whatever the element does', async 
   await new Promise(res => S.loadAndLandAt(el, 'x.mp3', 30, () => { n++; res(); }));
   el.emit('loadedmetadata'); el.emit('error'); el.emit('loadedmetadata');
   assert.equal(n, 1, 'a caller holding playback back must be released once and only once');
+});
+
+// ---- watchdogStep: a track that goes quiet mid-play is always brought back ----
+const wdState = () => ({ lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0 });
+const wdRun = (s, frames) => frames.map(f => S.watchdogStep(s, Object.assign({ played: true, online: true }, f)));
+test('watchdogStep: a clock that moves is healthy', () => {
+  const s = wdState();
+  const v = wdRun(s, [{ t: 10, buf: 30, rs: 4 }, { t: 11, buf: 30, rs: 4 }, { t: 12, buf: 30, rs: 4 }]);
+  assert.deepEqual(v, ['ok', 'ok', 'ok']);
+});
+test('watchdogStep: frozen with data — nudge at 3 s, reload at 7 s', () => {
+  const s = wdState();
+  const v = wdRun(s, Array.from({ length: 8 }, () => ({ t: 50, buf: 80, rs: 4 })));
+  assert.equal(v[0], 'ok');
+  assert.equal(v[3], 'nudge');
+  assert.equal(v[7], 'reload');
+});
+test('watchdogStep: a stream starved mid-track is reloaded, not left spinning', () => {
+  const s = wdState();
+  wdRun(s, [{ t: 91, buf: 91, rs: 4 }]);            // playing, then the bytes stop
+  const v = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.equal(v[v.length - 1], 'reload', 'the old watchdog waved readyState < 3 through forever');
+  assert.ok(v.slice(0, -1).every(x => x === 'wait'));
+});
+test('watchdogStep: a starved buffer that is still GROWING is a slow pipe, never reloaded', () => {
+  const s = wdState();
+  const v = wdRun(s, Array.from({ length: 40 }, (_, k) => ({ t: 91, buf: 91 + k * 0.2, rs: 2 })));
+  assert.ok(v.every(x => x === 'ok'));
+});
+test('watchdogStep: before the track is under way the start backstop owns the wait', () => {
+  const s = wdState();
+  const v = wdRun(s, Array.from({ length: 40 }, () => ({ t: 0, buf: 0, rs: 1, played: false })));
+  assert.ok(v.every(x => x === 'ok'), 'a reload before the first sound restarts the download forever');
+});
+test('watchdogStep: offline, a starved deck waits without spending its budget', () => {
+  const s = wdState();
+  const v = wdRun(s, Array.from({ length: 100 }, () => ({ t: 91, buf: 91, rs: 2, online: false })));
+  assert.ok(v.every(x => x === 'ok' || x === 'wait'));
+  assert.equal(s.heals, 0);
+});
+test('watchdogStep: a track that keeps starving with no motion is skipped so the set goes on', () => {
+  const s = wdState();
+  const n = S.STARVE_RELOAD_S * (S.STARVE_GIVE_UP + 1);
+  const v = wdRun(s, Array.from({ length: n + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.equal(v.filter(x => x === 'reload').length, S.STARVE_GIVE_UP);
+  assert.equal(v.filter(x => x === 'skip').length, 1);
+});
+test('watchdogStep: motion after a reload refills the give-up budget', () => {
+  const s = wdState();
+  wdRun(s, Array.from({ length: S.STARVE_RELOAD_S + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.equal(s.heals, 1);
+  wdRun(s, [{ t: 92, buf: 100, rs: 4 }]);
+  assert.equal(s.heals, 0);
 });
 
 // ---------------------------------------------------------------- language packs
