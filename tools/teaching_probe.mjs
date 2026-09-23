@@ -61,6 +61,9 @@ const PORT = server.address().port;
 
 const browser = await chromium.launch({ args: ['--no-sandbox'] });
 const page = await browser.newPage();
+// a first run now opens on the language picker; this probe is about what
+// comes after it, so the language is already chosen
+await page.addInitScript(() => { try { localStorage.setItem('mb8_lang', 'en'); } catch (e){} });
 const visibleToasts = () => page.evaluate(() =>
   [...document.getElementById('toasts').children].map(t => t.textContent));
 
