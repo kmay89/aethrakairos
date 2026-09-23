@@ -6235,8 +6235,20 @@ function updateOffer(o){
      cross-build id stands (ids are falsifiable), and a claim with neither — or
      one naming the very build we run, which cannot be told from an echo — is
      checked against the origin like any other rumour. */
+  /* AND A PRINT IS NO LONGER A LICENCE TO OFFER THE RUNNING BUILD. It was, so
+     that an UN-STAMPED deploy (new bytes, old id) could still be offered — and
+     that same rule is what offered listeners "an update" to the very build they
+     were on, over and over: production used to ship every release twice, the
+     merge un-stamped and the stamp commit minutes later, and any byte-compare
+     that disagreed with a cache (a cold one, a sibling tab's, an edge still
+     turning over) became a card naming the running build. Every deploy is now
+     stamped at build time (netlify.toml), so the id is a real name: a different
+     id stands on sight, and anything that names this build — print or not — is
+     asked of the origin, which answers with the build it is actually serving.
+     An un-stamped deploy, should one ever happen, is not lost either: the worker
+     has already recached the new shell, so it simply arrives on the next launch
+     instead of as a card that cannot say what it is. */
   if (s.source === 'shell'){
-    if (s.print) return 'show';                     // a MEASURED content difference, named by its print
     if (s.build && s.build !== s.running) return 'show';
     return 'verify';
   }
@@ -19427,6 +19439,19 @@ function raiseOffer(source, build, print){
   if (source) UPDATE.source = UPDATE.source === 'worker' ? 'worker' : source;
   if (build) UPDATE.newBuild = build;
   UPDATE.key = updateOfferKey(MB8_BUILD, print || build || source);
+  /* A SWAP THAT IS ABOUT TO HAPPEN ANYWAY IS NOT ANNOUNCED. An idle page — the
+     usual case at launch, nothing played yet — applies a ready update at once,
+     so the card, the pulse and "a new version is ready" were a notice for a
+     reload already on its way: the listener saw an offer flash up and vanish on
+     every launch after a deploy, which reads as the app never knowing where it
+     stands. It just refreshes itself, quietly, like a page that loaded a
+     moment later would have. */
+  if (autoApplyVerdict() === 'apply'){
+    ACTIVITY.log('update', T('A new version was ready while nothing was playing - applied it quietly')
+      + (UPDATE.newBuild ? T(' - build ') + UPDATE.newBuild : ''));
+    applyUpdate();
+    return;
+  }
   if (el.btnUpdate.hidden){
     el.btnUpdate.hidden = false;
     el.btnUpdate.classList.add('pulse');
@@ -19436,17 +19461,20 @@ function raiseOffer(source, build, print){
     if (!UPDATE.deferrals) toast(T('A new version is ready — tap <b>Update</b> to see what changed'));
   }
   UPDATE.paint();
-  maybeAutoApply();
 }
 function maybeAutoApply(){
+  if (autoApplyVerdict() === 'apply') applyUpdate();
+}
+/* the gate's inputs, gathered once — asked by the timer AND by an arriving offer */
+function autoApplyVerdict(){
   /* A STAGE SCREEN NEVER APPLIES ANYTHING BY ITSELF. Nothing is playing on it —
      the music is a room away in the booth — so every gate that protects a
      listener reads "idle, go ahead" and a screen facing an audience would
      reload itself mid-set. It updates when it is next opened. */
-  if (typeof STAGE !== 'undefined' && STAGE.screen()) return;
+  if (typeof STAGE !== 'undefined' && STAGE.screen()) return 'wait';
   // the quiet clock: five-second granularity is plenty against a two-minute bar
   if (player.playing) UPDATE._lastPlayingAt = Date.now();
-  const verdict = updateGate({
+  return updateGate({
     ready: UPDATE.ready(), requested: updateRequested,
     armed: UPDATE.armed,
     trackChanged: UPDATE.armed === 'afterTrack' && player.cur !== UPDATE._armCur,
@@ -19457,7 +19485,6 @@ function maybeAutoApply(){
     snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),
     applies: UPDATE.applies(),
   });
-  if (verdict === 'apply') applyUpdate();
 }
 /* the swap itself, hardened end to end: every step is fenced so no single
    failure — a throwing save, a vanished worker, a refused reload — can strand

@@ -17,6 +17,7 @@
  *              only the worker's byte-compare can notice it
  *   current    no deploy at all — a correct app is silent, and a card raised in
  *              error can leave
+ *   quiet      an idle page with a fresh deploy refreshes itself — no card, no toast
  *   again      the reported loop: the origin probe must reach the origin, and a
  *              swap already applied must never be offered a second time
  *   idle       a worker installed from a changed sw.js while the shell stayed
@@ -149,6 +150,44 @@ for (const [tag, stampSw, label] of [['stamped', true, 'stamped'], ['unstamped',
   });
 }
 
+/* ------------------------------------------------- AN IDLE PAGE JUST UPDATES
+ * Nothing playing (the usual state at launch) means a ready update applies at
+ * once — so the card, the pulse and the toast were an announcement for a reload
+ * already on its way, and every launch after a deploy flashed an offer and then
+ * vanished. An idle page should simply come back on the new build, having never
+ * shown a card at all. */
+if (want('quiet')){
+  console.log('\nidle page, fresh deploy — it refreshes itself, no card, no toast');
+  await run('quiet', true, async ({ origin, ctx, dir }) => {
+    const page = await ctx.newPage();
+    await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+    await prep(page);
+    await page.evaluate(() => { if (typeof POWER !== 'undefined') POWER.set('auto', false); });
+    await page.waitForFunction('navigator.serviceWorker.controller !== null', null, { timeout: 25000 }).catch(() => {});
+    // watch for any card or toast the moment one appears, across the reload
+    await page.addInitScript(() => { window.__sawCard = false; });
+    await page.evaluate(() => {
+      window.__sawCard = false;
+      new MutationObserver(() => {
+        const b = document.getElementById('btnUpdate');
+        if (b && !b.hidden && !b.disabled) window.__sawCard = true;
+      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
+    });
+    const toastsBefore = await page.evaluate(() => [...document.getElementById('toasts').children].map(t => t.textContent));
+    deploy(dir, true);
+    const nav = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => null);
+    await page.evaluate(() => checkForUpdate());
+    const sawCard = await page.evaluate(() => new Promise(r => setTimeout(() => r(window.__sawCard), 400))).catch(() => false);
+    const toastsAfter = await page.evaluate(() => [...document.getElementById('toasts').children].map(t => t.textContent)).catch(() => []);
+    await nav;
+    await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 25000 }).catch(() => {});
+    verdict('quiet: an idle page lands the new build by itself', (await build(page)) === NEW);
+    verdict('quiet: and never showed an offer on the way',
+      !sawCard && !toastsAfter.some(t => /new version/i.test(t) && !toastsBefore.includes(t)),
+      sawCard ? 'the card flashed up' : 'no card, no toast');
+  });
+}
+
 /* ------------------------------------------------- NO DEPLOY, NO OFFER
  * The failure a listener actually reported, and the one nothing here was
  * watching for: a card reading "05d9b7a1af → new" for the build they were
@@ -204,18 +243,18 @@ if (want('current')){
     verdict('current: an unmeasured claim is checked and withdrawn, not shown', withdrawn,
       withdrawn ? 'verified against the deployed shell and dropped' : 'the card stayed up');
 
-    /* THE OTHER DIRECTION, and the reason this is judged by provenance at all: a
-     * 'shell' offer is the worker's byte-compare reporting that the deployed shell
-     * differs from the one this page was served. That is a measurement, it travels
-     * as the fingerprint of the bytes measured, and it has to stand even when the
-     * stamp did not move — an un-stamped deploy is the same build id with different
-     * bytes, and rejecting it on id equality is how the first version of this fix
-     * broke the badge entirely. */
-    await page.evaluate(() => offerUpdate('shell', '', 'probe0print0'));
-    await page.waitForTimeout(500);
-    const stands = await page.evaluate(() => !document.getElementById('btnUpdate').hidden);
-    verdict('current: a fingerprinted shell difference still stands, stamp or no stamp', stands,
-      stands ? 'the worker measured content — the offer is kept' : 'the offer was dropped');
+    /* AND A FINGERPRINT NAMING NOTHING NEW IS ASKED, NOT BELIEVED. This used to
+     * stand on sight — so that an un-stamped deploy (new bytes, old id) could be
+     * offered — and that rule was the reported loop: every release reached
+     * production twice (merge un-stamped, stamp commit minutes later), and any
+     * byte-compare that disagreed with a cache became a card offering the build
+     * already running. Every deploy is now stamped at build time, so the origin
+     * is asked; with no deploy behind the claim, the card never stays. */
+    await page.evaluate(() => { withdrawOffer('probe reset', true); offerUpdate('shell', '', 'probe0print0'); });
+    const printGone = await page.waitForFunction('document.getElementById("btnUpdate").hidden === true',
+      null, { timeout: 15000 }).then(() => true).catch(() => false);
+    verdict('current: a fingerprint that names nothing new is checked and dropped', printGone,
+      printGone ? 'asked the origin, found this very build' : 'offered the running build');
 
     /* AND A CLAIM WITH NEITHER FINGERPRINT NOR BUILD IS A GHOST. Retired worker
      * generations announce SHELL_FRESH with no print — before the print existed —
@@ -265,38 +304,29 @@ if (want('again')){
     verdict('again: the origin probe reaches the origin, not our own cache', probed.length > 0,
       probed.length + ' request(s) past the service worker');
 
-    /* 2 · AN UN-STAMPED DEPLOY, APPLIED, IS DONE. Same build id, different bytes
-     * — so applying it can never move MB8_BUILD, and nothing about the running
-     * page can prove the swap landed. What proves it is the memory of having
-     * applied that exact offer, which is why the memory has to outlive the
-     * reload the apply causes. */
+    /* 2 · AN UN-STAMPED DEPLOY IS NOT DANGLED AS AN UPDATE TO THE RUNNING BUILD.
+     * Same build id, different bytes: it cannot say what it is, and offering it
+     * is the card that "never knew you were on the latest". Production stamps
+     * every deploy at build time now, so this only happens to a host that skips
+     * the stamp — and even there nothing is lost: the worker has recached the
+     * new shell, so the NEXT launch simply runs it, without a card. */
     writeFileSync(join(dir, 'index.html'), readFileSync(join(dir, 'index.html'), 'utf8')
       .replace('</html>', '<!-- probe-unstamped --></html>'));
-    await page.evaluate(() => checkForUpdate());
-    const offered = await page.waitForFunction('!document.getElementById("btnUpdate").hidden', null,
-      { timeout: 30000 }).then(() => true).catch(() => false);
-    verdict('again: an un-stamped deploy is still offered', offered);
-    if (!offered) return;
-    const announced = await page.evaluate(() => UPDATE.key);
-    await page.evaluate(() => applyUpdate()).catch(() => {});
-    await page.waitForTimeout(4000);
-    await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 25000 }).catch(() => {});
+    for (let i = 0; i < 3; i++){ await page.evaluate(() => checkForUpdate()); await page.waitForTimeout(1500); }
+    verdict('again: an un-stamped deploy is not offered as an update to the running build',
+      await page.evaluate(() => document.getElementById('btnUpdate').hidden === true),
+      'source "' + await page.evaluate(() => UPDATE.source) + '"');
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await prep(page);
-    const landed = await page.evaluate(() => document.documentElement.outerHTML.includes('probe-unstamped'));
-    verdict('again: the swap landed — the new bytes are what is running', landed);
-    verdict('again: and the app remembers applying it',
-      (await page.evaluate(() => UPDATE.tried)) === announced,
-      'remembered "' + await page.evaluate(() => UPDATE.tried) + '"');
+    const arrived = await page.evaluate(() => document.documentElement.outerHTML.includes('probe-unstamped'));
+    verdict('again: it still arrives — the next launch runs the new bytes', arrived);
 
-    // now replay the exact announcement the worker would make. A correct app has
-    // nothing to say: it already did this one, and doing it again cannot help.
-    await page.evaluate(k => {
-      const t = String(k).split('>').pop();
-      offerUpdate('shell', MB8_BUILD, t);
-    }, announced);
+    // now replay the announcement the worker would make about those bytes. A
+    // correct app has nothing to say: the origin serves this very build.
+    await page.evaluate(() => offerUpdate('shell', MB8_BUILD, 'probe0print1'));
     await page.waitForTimeout(800);
     for (let i = 0; i < 3; i++){ await page.evaluate(() => checkForUpdate()); await page.waitForTimeout(1200); }
-    verdict('again: the same offer, replayed, is not a card',
+    verdict('again: the same claim, replayed, is not a card',
       await page.evaluate(() => document.getElementById('btnUpdate').hidden === true),
       'source "' + await page.evaluate(() => UPDATE.source) + '"');
   });

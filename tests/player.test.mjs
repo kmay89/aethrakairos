@@ -5057,20 +5057,22 @@ test('updateOffer: judged by provenance, because a difference is not a newer bui
   // once checked, it is settled here by id
   assert.equal(S.updateOffer({ source: 'claim', build: run, running: run }), 'ignore');
   assert.equal(S.updateOffer({ source: 'claim', build: 'bbbb222222', running: run }), 'show');
-  /* AND THE TRAP ON THE OTHER SIDE, which the first version of this walked into:
-     rejecting every claim whose id matches the running build kills the UN-STAMPED
-     deploy — same id, different content — which is the whole reason the worker's
-     byte-compare exists. A 'shell' claim is that compare's verdict about CONTENT,
-     and the verdict travels WITH the claim as the fingerprint of the bytes it
-     measured: carrying one, it stands whether or not the stamp moved.
-     (echoes_power_smoke's "a fresh deploy raises the update badge by itself" is
-     the check that caught the first version.) */
-  assert.equal(S.updateOffer({ source: 'shell', build: run, print: '9:abc', running: run }), 'show',
-    'an unstamped deploy still reaches the listener — the fingerprint IS the measurement');
-  assert.equal(S.updateOffer({ source: 'shell', build: '', print: '9:abc', running: run }), 'show',
-    'a fingerprinted shell stands even un-named');
+  /* A CROSS-BUILD SHELL CLAIM STANDS ON ITS ID — an id is falsifiable, and every
+     deploy is now stamped at build time (netlify.toml), so the id is a real name. */
   assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run }), 'show',
-    'a cross-build claim stands on its id — an id is falsifiable');
+    'a cross-build claim stands on its id');
+  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', print: '9:abc', running: run }), 'show');
+  /* AND A PRINT IS NOT A LICENCE TO OFFER THE RUNNING BUILD. It used to be — so an
+     un-stamped deploy could still be offered — and that rule is the loop the
+     listener reported: "it never knows you are on the latest and always offers
+     an update". Production shipped every release twice (the merge un-stamped,
+     the stamp commit minutes later), and any byte difference against a cache
+     became a card naming the build already running. Now the origin is asked;
+     it answers with the build it actually serves. */
+  assert.equal(S.updateOffer({ source: 'shell', build: run, print: '9:abc', running: run }), 'verify',
+    'a claim naming the running build is checked against the origin, print or not');
+  assert.equal(S.updateOffer({ source: 'shell', build: '', print: '9:abc', running: run }), 'verify',
+    'an unnamed print is named by the origin before it is shown');
   /* BUT A CLAIM CARRYING NEITHER IS A VOICE, NOT A MEASUREMENT. Today's worker
      always sends the print; an announcement without one is a retired worker
      generation (installed before the guards existed, kept active because a
@@ -5103,7 +5105,7 @@ test('updateOffer: judged by provenance, because a difference is not a newer bui
     'the memory outranks provenance — it is evidence about THIS device');
   assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: run, key,
     tried: S.updateOfferKey(run, 'cccc333333') }), 'show', 'a different swap is a different offer');
-  assert.equal(S.updateOffer({ source: 'shell', build: 'bbbb222222', running: 'bbbb222222',
+  assert.equal(S.updateOffer({ source: 'shell', build: 'cccc333333', running: 'bbbb222222',
     print: '9:def', key: S.updateOfferKey('bbbb222222', '9:def'), tried: key }), 'show',
     'the swap landed and the build moved — the memory no longer matches');
   // nothing is offered while an apply is already under way
