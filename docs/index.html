@@ -785,6 +785,159 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
   transform:translateY(-2px);outline:none;box-shadow:0 0 50px rgba(110,231,255,.2),0 0 50px rgba(255,180,84,.15);
 }
 
+/* ---- the intro, animated: each breath shows its own mechanism ----
+   A small drawing above every panel shows HOW the sentence under it works:
+   the beat driving the field, one hand drawing the catalog, a drag turning
+   the camera, one field cut across three screens, the analysis reading a
+   track, play blooming into the room. Pure CSS on inline SVG, so the drawings
+   only run while their panel is on screen (a hidden panel animates nothing),
+   and colour comes from the page's own tokens — the live key accent included.
+   Reduced motion gets every drawing in its finished, still state. */
+#onboard::before{
+  content:'';position:absolute;inset:-25%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(circle at 32% 36%,var(--pi-dim),transparent 34%),
+    radial-gradient(circle at 68% 62%,var(--e-dim),transparent 36%),
+    radial-gradient(circle at 55% 22%,var(--accent-dim),transparent 26%);
+  animation:obDrift 18s ease-in-out infinite alternate;
+}
+#onboard::after{
+  content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%,rgba(255,255,255,.7),transparent 60%),
+    radial-gradient(1px 1px at 78% 12%,rgba(255,255,255,.55),transparent 60%),
+    radial-gradient(1.4px 1.4px at 46% 8%,rgba(110,231,255,.7),transparent 60%),
+    radial-gradient(1px 1px at 88% 44%,rgba(255,255,255,.5),transparent 60%),
+    radial-gradient(1.4px 1.4px at 6% 62%,rgba(255,180,84,.6),transparent 60%),
+    radial-gradient(1px 1px at 30% 84%,rgba(255,255,255,.45),transparent 60%),
+    radial-gradient(1px 1px at 64% 90%,rgba(255,255,255,.5),transparent 60%),
+    radial-gradient(1.2px 1.2px at 94% 78%,rgba(110,231,255,.55),transparent 60%);
+  background-size:340px 340px;
+  animation:obTwinkle 7s ease-in-out infinite alternate;
+}
+@keyframes obDrift{from{transform:translate(-3%,-2%) rotate(0deg)}to{transform:translate(3%,2%) rotate(8deg)}}
+@keyframes obTwinkle{from{opacity:.45}to{opacity:1}}
+/* direction-aware slides + a staggered rise: the drawing, then the words */
+#onboard.back .ob-panel.on{animation-name:obInBack}
+@keyframes obInBack{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+#onboard.fwd .ob-panel.on{animation-name:obInFwd}
+@keyframes obInFwd{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+.ob-panel.on > *{animation:obRise .7s cubic-bezier(.2,.7,.2,1) both}
+.ob-panel.on > .ob-kicker{animation-delay:.1s}
+.ob-panel.on > .ob-title{animation-delay:.18s}
+.ob-panel.on > .ob-body{animation-delay:.3s}
+.ob-panel.on > .ob-soon{animation-delay:.42s}
+@keyframes obRise{from{opacity:0;transform:translateY(12px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+.ob-dot{transition:background .2s,transform .2s,width .3s cubic-bezier(.2,.7,.2,1),border-radius .3s}
+.ob-dot.on{width:22px;border-radius:4px;background:var(--axis);transform:none}
+
+.ob-art{display:block;width:min(360px,82vw);height:auto;max-height:21vh;overflow:visible;margin-bottom:2px}
+@media (max-height:620px){ .ob-art{max-height:15vh} }
+.ob-art *{vector-effect:non-scaling-stroke}
+/* 1 · the beat drives the field — the playhead crosses a beat, the field rings */
+.oa-wave{fill:none;stroke:var(--dim);stroke-width:1.2;opacity:.75;stroke-linejoin:round}
+.oa-ticks rect{fill:var(--beat);opacity:.25;animation:obTick 2.4s linear infinite}
+.oa-ticks rect:nth-child(2){animation-delay:.6s}.oa-ticks rect:nth-child(3){animation-delay:1.2s}.oa-ticks rect:nth-child(4){animation-delay:1.8s}
+@keyframes obTick{0%{opacity:1}14%,100%{opacity:.25}}
+.oa-head{stroke:var(--e);stroke-width:1.5;animation:obHead 2.4s linear infinite}
+@keyframes obHead{from{transform:translateX(0)}to{transform:translateX(120px)}}
+.oa-flow{stroke:var(--faint);stroke-width:1.4;stroke-dasharray:3 4;animation:obFlow 1.2s linear infinite}
+.oa-tip{fill:var(--faint)}
+@keyframes obFlow{to{stroke-dashoffset:-14}}
+.oa-ring,.oa-core,.oa-halo,.oa-sparks path{transform-box:fill-box;transform-origin:center}
+.oa-ring{fill:none;stroke:var(--accent);stroke-width:1.5;opacity:0;animation:obRing 2.4s cubic-bezier(.1,.6,.3,1) infinite}
+.oa-ring:nth-child(2){animation-delay:.6s}.oa-ring:nth-child(3){animation-delay:1.2s}.oa-ring:nth-child(4){animation-delay:1.8s}
+@keyframes obRing{0%{opacity:.95;transform:scale(1)}100%{opacity:0;transform:scale(4.6)}}
+.oa-core{fill:var(--accent-dim);stroke:var(--accent);stroke-width:1.5;animation:obCore .6s ease-out infinite}
+@keyframes obCore{0%{transform:scale(1.35)}100%{transform:scale(1)}}
+/* 2 · one hand — the line draws, and the songs arrive along it */
+.oa-stroke{fill:none;stroke:var(--pi);stroke-width:1.8;stroke-linecap:round;
+  stroke-dasharray:1;stroke-dashoffset:0;animation:obDraw 6.5s cubic-bezier(.45,.1,.4,1) infinite}
+@keyframes obDraw{0%{stroke-dashoffset:1;opacity:1}55%{stroke-dashoffset:0}86%{opacity:1}96%,100%{stroke-dashoffset:0;opacity:0}}
+.oa-songs circle{fill:var(--e);transform-box:fill-box;transform-origin:center}
+.oa-songs circle:last-child{fill:var(--accent)}
+.oa-nib{display:none}
+@supports (offset-path:path('M0 0')){
+  .oa-nib{display:block;fill:var(--ink);offset-path:path('M20 82 C60 18 100 104 140 52 S220 20 280 60');
+    offset-rotate:0deg;animation:obNib 6.5s cubic-bezier(.45,.1,.4,1) infinite}
+}
+@keyframes obNib{0%{offset-distance:0%;opacity:1}55%{offset-distance:100%;opacity:1}62%,100%{offset-distance:100%;opacity:0}}
+/* 3 · a drag turns the camera — the hand and the orbit share one clock */
+.oa-lat{fill:none;stroke:var(--e);stroke-width:1.2;opacity:.7}
+.oa-lat2{stroke:var(--pi);opacity:.55}
+.oa-cam{fill:var(--accent)}
+.oa-globe{fill:var(--e-dim);stroke:var(--e);stroke-width:1.2}
+.oa-orbit{transform-box:fill-box;transform-origin:74px 20px;animation:obOrbit 4.8s ease-in-out infinite alternate}
+@keyframes obOrbit{from{transform:rotate(-24deg) scaleY(.8)}to{transform:rotate(24deg) scaleY(1.25)}}
+.oa-rail{stroke:var(--line);stroke-width:1.4;stroke-linecap:round}
+.oa-hand-drag{animation:obDrag 4.8s ease-in-out infinite alternate}
+@keyframes obDrag{from{transform:translateX(-56px)}to{transform:translateX(56px)}}
+.oa-cursor{fill:var(--ink);stroke:var(--void);stroke-width:.8}
+.oa-tap{fill:none;stroke:var(--beat);stroke-width:1.4;transform-box:fill-box;transform-origin:center;animation:obTap 1.2s ease-out infinite}
+@keyframes obTap{0%{opacity:.9;transform:scale(.6)}100%{opacity:0;transform:scale(2.6)}}
+/* 4 · one field, cut between screens — the comet vanishes in the bezels and
+   arrives on the next screen at the same height, the same instant */
+.oa-glass{fill:rgba(110,231,255,.05)}
+.oa-sine{fill:none;stroke:var(--e);stroke-width:1.4;opacity:.6;animation:obSine 2s linear infinite}
+@keyframes obSine{from{transform:translateX(0)}to{transform:translateX(50px)}}
+.oa-comet{animation:obComet 4.2s linear infinite}
+@keyframes obComet{from{transform:translate(-20px,51px)}to{transform:translate(322px,51px)}}
+.oa-star{fill:var(--pi)}
+.oa-trail{fill:var(--pi);opacity:.35}
+.oa-frames{fill:none;stroke:var(--dim);stroke-width:1.3;opacity:.8}
+/* 5 · measured, not guessed — the scan reads energy, sections and grid */
+.oa-energy{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;
+  animation:obEnergy 5.5s linear infinite}
+@keyframes obEnergy{0%{stroke-dashoffset:1;opacity:1}60%{stroke-dashoffset:0}90%{opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+.oa-sections rect{fill:var(--e);opacity:.85}
+.oa-sections rect:nth-child(2){fill:var(--pi)}.oa-sections rect:nth-child(3){fill:var(--beat)}.oa-sections rect:nth-child(4){fill:var(--pi)}
+.oa-grid{stroke:var(--faint);stroke-width:1}
+.oa-scan{stroke:var(--ink);stroke-width:1.2;opacity:0;animation:obScan 5.5s linear infinite}
+@keyframes obScan{0%{opacity:.9;transform:translateX(0)}60%{opacity:.9;transform:translateX(260px)}64%,100%{opacity:0;transform:translateX(260px)}}
+.oa-badges text{font-family:var(--mono);font-size:11px;letter-spacing:.08em;fill:var(--ink)}
+.oa-badges .oa-key{fill:var(--accent)}
+.oa-badges{animation:obBadge 5.5s linear infinite}
+@keyframes obBadge{0%,58%{opacity:0}66%,90%{opacity:1}100%{opacity:0}}
+/* 6 · press play — it blooms */
+.oa-halo{fill:var(--accent-dim);animation:obHalo 3s ease-in-out infinite}
+@keyframes obHalo{0%,100%{transform:scale(.8);opacity:.5}50%{transform:scale(1.08);opacity:1}}
+.oa-disc{fill:var(--glass-hard);stroke:var(--accent);stroke-width:1.6}
+.oa-play{fill:var(--ink)}
+.oa-sparks path{fill:var(--pi);opacity:0;animation:obSpark 2.4s cubic-bezier(.2,.7,.3,1) infinite}
+.oa-sparks path:nth-child(even){fill:var(--e)}
+.oa-sparks path:nth-child(1){--a:0deg}.oa-sparks path:nth-child(2){--a:45deg;animation-delay:.3s}
+.oa-sparks path:nth-child(3){--a:90deg;animation-delay:.6s}.oa-sparks path:nth-child(4){--a:135deg;animation-delay:.9s}
+.oa-sparks path:nth-child(5){--a:180deg;animation-delay:1.2s}.oa-sparks path:nth-child(6){--a:225deg;animation-delay:1.5s}
+.oa-sparks path:nth-child(7){--a:270deg;animation-delay:1.8s}.oa-sparks path:nth-child(8){--a:315deg;animation-delay:2.1s}
+@keyframes obSpark{0%{opacity:0;transform:rotate(var(--a)) translateY(-22px) scale(.3)}
+  20%{opacity:1}100%{opacity:0;transform:rotate(var(--a)) translateY(-54px) scale(1.1)}}
+@keyframes obSong0{0%,0%{opacity:0;transform:scale(0)}3%{opacity:1;transform:scale(1.7)}6%,86%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+.oa-songs circle:nth-child(1){animation:obSong0 6.5s linear infinite}
+@keyframes obSong1{0%,8.8%{opacity:0;transform:scale(0)}11.8%{opacity:1;transform:scale(1.7)}14.8%,86%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+.oa-songs circle:nth-child(2){animation:obSong1 6.5s linear infinite}
+@keyframes obSong2{0%,18.2%{opacity:0;transform:scale(0)}21.2%{opacity:1;transform:scale(1.7)}24.2%,86%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+.oa-songs circle:nth-child(3){animation:obSong2 6.5s linear infinite}
+@keyframes obSong3{0%,27.5%{opacity:0;transform:scale(0)}30.5%{opacity:1;transform:scale(1.7)}33.5%,86%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+.oa-songs circle:nth-child(4){animation:obSong3 6.5s linear infinite}
+@keyframes obSong4{0%,36.3%{opacity:0;transform:scale(0)}39.3%{opacity:1;transform:scale(1.7)}42.3%,86%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+.oa-songs circle:nth-child(5){animation:obSong4 6.5s linear infinite}
+@keyframes obSong5{0%,45.6%{opacity:0;transform:scale(0)}48.6%{opacity:1;transform:scale(1.7)}51.6%,86%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+.oa-songs circle:nth-child(6){animation:obSong5 6.5s linear infinite}
+@keyframes obSong6{0%,55%{opacity:0;transform:scale(0)}58%{opacity:1;transform:scale(1.7)}61%,86%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+.oa-songs circle:nth-child(7){animation:obSong6 6.5s linear infinite}
+@keyframes obSec0{0%,0.0%{opacity:.12}11.1%,90%{opacity:.85}100%{opacity:.12}}
+.oa-sections rect:nth-child(1){animation:obSec0 5.5s linear infinite}
+@keyframes obSec1{0%,11.5%{opacity:.12}27.2%,90%{opacity:.85}100%{opacity:.12}}
+.oa-sections rect:nth-child(2){animation:obSec1 5.5s linear infinite}
+@keyframes obSec2{0%,27.7%{opacity:.12}45.7%,90%{opacity:.85}100%{opacity:.12}}
+.oa-sections rect:nth-child(3){animation:obSec2 5.5s linear infinite}
+@keyframes obSec3{0%,46.2%{opacity:.12}60.0%,90%{opacity:.85}100%{opacity:.12}}
+.oa-sections rect:nth-child(4){animation:obSec3 5.5s linear infinite}
+@media (prefers-reduced-motion:reduce){
+  #onboard::before,#onboard::after,#onboard .ob-panel,#onboard .ob-panel *{animation:none !important}
+  .oa-nib,.oa-scan{display:none}
+}
+
 /* ============ drop overlay ============ */
 #dropOverlay{
   position:fixed;inset:12px;z-index:90;border-radius:22px;
@@ -2652,32 +2805,85 @@ body.clipping::after{
   <button class="ob-skip" id="obSkip" type="button">Skip</button>
   <div class="ob-stage" id="obStage">
     <div class="ob-panel on">
+      <svg class="ob-art oa-hear" viewBox="0 0 300 110" aria-hidden="true" focusable="false">
+        <defs><marker id="obArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="oa-tip"/></marker></defs>
+        <path class="oa-wave" d="M10 39.7 L12 66.8 L14 40.8 L16 63.8 L18 44.3 L20 63.9 L22 48.4 L24 63.3 L26 49.3 L28 62.2 L30 49.6 L32 60.3 L34 48.6 L36 62.8 L38 50.0 L40 69.3 L42 39.1 L44 71.5 L46 42.8 L48 64.9 L50 42.7 L52 61.5 L54 45.0 L56 61.9 L58 49.1 L60 60.6 L62 48.8 L64 63.0 L66 49.6 L68 61.8 L70 36.6 L72 68.7 L74 41.6 L76 63.7 L78 47.2 L80 63.0 L82 45.2 L84 63.0 L86 48.0 L88 62.8 L90 48.0 L92 61.1 L94 47.1 L96 62.3 L98 49.5 L100 72.8 L102 39.9 L104 70.9 L106 41.8 L108 64.2 L110 42.7 L112 61.9 L114 47.1 L116 64.0 L118 49.0 L120 62.1 L122 49.9 L124 62.4 L126 47.4 L128 61.7 L130 34.2"/>
+        <g class="oa-ticks"><rect x="9" y="86" width="2" height="9"/><rect x="39" y="86" width="2" height="9"/><rect x="69" y="86" width="2" height="9"/><rect x="99" y="86" width="2" height="9"/></g>
+        <line class="oa-head" x1="10" y1="22" x2="10" y2="98"/>
+        <line class="oa-flow" x1="146" y1="55" x2="186" y2="55" marker-end="url(#obArrow)"/>
+        <g class="oa-field" transform="translate(240 55)">
+          <circle class="oa-ring" r="9"/><circle class="oa-ring" r="9"/><circle class="oa-ring" r="9"/><circle class="oa-ring" r="9"/>
+          <circle class="oa-core" r="9"/>
+        </g>
+      </svg>
       <span class="ob-kicker">What it is</span>
       <h1 class="ob-title">A free jukebox that <em>shows you the music.</em></h1>
       <p class="ob-body">Aethra Kairos arrives already loaded — <b>hundreds of original songs, free</b> — and renders each one as live visuals driven by its <b>real beat, key, and energy</b>. Press play to start.</p>
     </div>
     <div class="ob-panel">
+      <svg class="ob-art oa-hand" viewBox="0 0 300 110" aria-hidden="true" focusable="false">
+        <path class="oa-stroke" pathLength="1" d="M20 82 C60 18 100 104 140 52 S220 20 280 60"/>
+        <g class="oa-songs"><circle cx="20" cy="82" r="3.5"/><circle cx="56" cy="57" r="3.5"/><circle cx="104" cy="69" r="3.5"/><circle cx="140" cy="52" r="3.5"/><circle cx="177" cy="23" r="3.5"/><circle cx="231" cy="31" r="3.5"/><circle cx="280" cy="60" r="4.5"/></g>
+        <circle class="oa-nib" r="3" cx="0" cy="0"/>
+      </svg>
       <span class="ob-kicker">One artist</span>
       <h1 class="ob-title">Every track is <em>made by hand.</em></h1>
       <p class="ob-body">The whole catalog is the work of a <b>single artist</b>, and it keeps growing. Let the player build a set for you, or browse the library yourself.</p>
     </div>
     <div class="ob-panel">
+      <svg class="ob-art oa-steer" viewBox="0 0 300 110" aria-hidden="true" focusable="false">
+        <g transform="translate(150 48)">
+          <g class="oa-orbit">
+            <ellipse class="oa-lat" rx="74" ry="20"/>
+            <ellipse class="oa-lat oa-lat2" rx="46" ry="12"/>
+            <circle class="oa-cam" cx="74" cy="0" r="4"/>
+          </g>
+          <circle class="oa-globe" r="17"/>
+        </g>
+        <line class="oa-rail" x1="90" y1="98" x2="210" y2="98"/>
+        <g class="oa-hand-drag"><circle class="oa-tap" cx="150" cy="98" r="5"/><path class="oa-cursor" d="M150 92 l0 13 l3.4 -3.2 l2.6 5.4 l2.2 -1 l-2.6 -5.2 l4.6 -0.4z"/></g>
+      </svg>
       <span class="ob-kicker">It responds</span>
       <h1 class="ob-title">You can <em>steer it.</em></h1>
       <p class="ob-body">Drag to move the camera, pick a scene or a mood, tap the beat to lock the grid. The visuals, the mix, and the colour follow the song — <b>and your input</b>.</p>
     </div>
     <div class="ob-panel">
+      <svg class="ob-art oa-room" viewBox="0 0 300 110" aria-hidden="true" focusable="false">
+        <defs><clipPath id="obScreens"><rect x="12" y="22" width="76" height="58" rx="3"/><rect x="112" y="22" width="76" height="58" rx="3"/><rect x="212" y="22" width="76" height="58" rx="3"/></clipPath></defs>
+        <g clip-path="url(#obScreens)">
+          <rect class="oa-glass" x="0" y="0" width="300" height="110"/>
+          <path class="oa-sine" d="M-60 51 q12.5 -16 25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0 t25 0"/>
+          <g class="oa-comet"><circle class="oa-trail" cx="-18" cy="0" r="4"/><circle class="oa-trail" cx="-9" cy="0" r="5.5"/><circle class="oa-star" cx="0" cy="0" r="8"/></g>
+        </g>
+        <g class="oa-frames"><rect x="12" y="22" width="76" height="58" rx="3"/><rect x="112" y="22" width="76" height="58" rx="3"/><rect x="212" y="22" width="76" height="58" rx="3"/>
+          <path d="M44 88h12M50 80v8M144 88h12M150 80v8M244 88h12M250 80v8"/></g>
+      </svg>
       <span class="ob-kicker">It fills the room</span>
       <h1 class="ob-title">Every screen you own is <em>one screen.</em></h1>
       <p class="ob-body">Say how many screens the room has and that many open — televisions, a projector, or <b>little windows on this one laptop</b> to rehearse with. They don't each play their own copy: they hold <b>one field, cut between them</b>, so a shape leaving one arrives on the next at the same height, the same size, the same instant. <b>Move a window and the picture follows it</b> — drag one onto the TV and its slice goes with it, live.</p>
     </div>
     <div class="ob-panel">
+      <svg class="ob-art oa-read" viewBox="0 0 300 110" aria-hidden="true" focusable="false">
+        <path class="oa-energy" pathLength="1" d="M20 72 C45 70 60 68 70 64 C100 56 120 44 140 30 L150 22 C180 18 200 20 220 24 C245 36 265 58 280 70"/>
+        <g class="oa-sections"><rect x="20" y="82" width="48" height="6" rx="2"/><rect x="70" y="82" width="68" height="6" rx="2"/><rect x="140" y="82" width="78" height="6" rx="2"/><rect x="220" y="82" width="60" height="6" rx="2"/></g>
+        <path class="oa-grid" d="M20 94v5M30 94v5M40 94v5M50 94v5M60 94v5M70 94v5M80 94v5M90 94v5M100 94v5M110 94v5M120 94v5M130 94v5M140 94v5M150 94v5M160 94v5M170 94v5M180 94v5M190 94v5M200 94v5M210 94v5M220 94v5M230 94v5M240 94v5M250 94v5M260 94v5M270 94v5M280 94v5"/>
+        <line class="oa-scan" x1="20" y1="10" x2="20" y2="100"/>
+        <g class="oa-badges"><text class="oa-bpm" x="22" y="18">&#9833; 124</text><text class="oa-key" x="278" y="18" text-anchor="end">8A</text></g>
+      </svg>
       <span class="ob-kicker">Measured, not guessed</span>
       <h1 class="ob-title">It reads each track's <em>real features.</em></h1>
       <p class="ob-body">Every song is analysed up front — its <b>tempo, key, structure, and energy</b>. That data drives the visuals and the DJ-style mixing between tracks. Opening it up for people to build on is on the roadmap.</p>
       <span class="ob-soon">Open track data · coming soon</span>
     </div>
     <div class="ob-panel">
+      <svg class="ob-art oa-bloom" viewBox="0 0 300 110" aria-hidden="true" focusable="false">
+        <g transform="translate(150 55)">
+          <circle class="oa-halo" r="40"/>
+          <g class="oa-sparks"><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/><path d="M0 -6L1.6 -1.6L6 0L1.6 1.6L0 6L-1.6 1.6L-6 0L-1.6 -1.6z"/></g>
+          <circle class="oa-disc" r="26"/>
+          <path class="oa-play" d="M-7 -11L12 0L-7 11z"/>
+        </g>
+      </svg>
       <span class="ob-kicker">No catch</span>
       <h1 class="ob-title">It's free, and <em>it's yours.</em></h1>
       <p class="ob-body">No ads, no accounts, nothing to buy. It works <b>offline</b> once loaded, remembers where you left off, and dresses in any <b>skin</b> you like. <b>Press play.</b></p>
@@ -52661,6 +52867,10 @@ const ONBOARD = {
     const last = this.panels.length - 1;
     if (n < 0) n = 0;
     if (n > last){ this.finish(); return; }        // "Next" past the end = enter
+    // the slide comes from the side the listener is heading to
+    const root = document.getElementById('onboard');
+    root.classList.toggle('back', n < this.i);
+    root.classList.toggle('fwd', n > this.i);
     this.i = n;
     this.panels.forEach((p, k) => p.classList.toggle('on', k === n));
     this.dots.forEach((d, k) => { const active = k === n; d.classList.toggle('on', active); d.setAttribute('aria-selected', String(active)); });
