@@ -132,6 +132,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var device: MTLDevice?
     private var queue: MTLCommandQueue?
     private var roomPipelines: [MTLRenderPipelineState?] = []
+    /// Rooms this device's GPU refused outright — never dealt, ever.
+    private var roomsDead: Set<Int> = []
+    /// Where the rooms compile, behind the first frame (see configure).
+    private static let buildQueue = DispatchQueue(label: "aethra.pipelines", qos: .utility)
     // [luma, scatter, defocus, prism, ember] — indexed by xformMode
     private var xformPipelines: [MTLRenderPipelineState] = []
     private var gradePipeline: MTLRenderPipelineState?
@@ -325,77 +329,69 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         self.device = device
         self.queue = queue
 
-        // one pipeline per room, all rendering into the rgba16Float offscreen.
-        // A room whose pipeline this GPU refuses gets nil — it renders as the
-        // void and the director walks past it. One broken room must cost the
-        // house one room, never the whole house (a blank screen taught us).
-        var pipelines: [MTLRenderPipelineState?] = []
+        /* THE ROOMS ARE BUILT BEHIND THE FIRST FRAME, NOT IN FRONT OF IT.
+           Every room is its own Metal pipeline, and a pipeline is compiled for
+           THIS device's GPU when it is made. This used to build all hundred of
+           them — plus the composites, the lens and the field — synchronously,
+           here, inside makeUIView, before the app had drawn anything. The
+           simulator compiles on a Mac's GPU and shrugs; an Apple TV compiles
+           each one itself, and as the house grew past a hundred rooms the
+           total ran past what tvOS allows a launch: a blank screen, then the
+           watchdog killing the app. Every launch, on the device, never in CI.
+
+           Now only what the first frame needs is built here — the opening room
+           and the GRADE — and everything else compiles on a background queue,
+           arriving room by room. A room still compiling is simply one the
+           director may not deal yet (the same `banned` set a room this GPU
+           refuses outright lives in), so the show starts at once and the house
+           fills in behind it. One broken room still costs one room. */
+        let n = Rooms.all.count
+        roomPipelines = Array(repeating: nil, count: n)
+        let builder = PipelineBuilder(device: device, library: library, vertexFn: vertexFn)
+        let rooms = Rooms.all.map { (key: $0.key, fn: $0.fragmentFunction) }
+
+        // the opening room, now — and if this GPU refuses it, the next one
+        // that builds (bounded: a device that refuses every room rests in void)
         var dead: Set<Int> = []
-        for (i, room) in Rooms.all.enumerated() {
-            guard let frag = library.makeFunction(name: room.fragmentFunction) else {
-                NSLog("AethraKairos: no fragment function for room %@", room.key)
-                pipelines.append(nil); dead.insert(i); continue
+        var boot = min(max(director.currentIndex, 0), max(n - 1, 0))
+        var opened = false
+        for step in 0..<n {
+            let i = (boot + step) % n
+            if let state = builder.room(key: rooms[i].key, function: rooms[i].fn) {
+                roomPipelines[i] = state
+                boot = i
+                opened = true
+                break
             }
-            let desc = MTLRenderPipelineDescriptor()
-            desc.vertexFunction = vertexFn
-            desc.fragmentFunction = frag
-            desc.colorAttachments[0].pixelFormat = .rgba16Float
-            do {
-                pipelines.append(try device.makeRenderPipelineState(descriptor: desc))
-            } catch {
-                NSLog("AethraKairos: pipeline FAILED for room %@: %@",
-                      room.key, String(describing: error))
-                pipelines.append(nil); dead.insert(i)
-            }
+            dead.insert(i)
         }
-        roomPipelines = pipelines
-        director.banned = dead
-        if dead.contains(director.currentIndex),
-           let firstLiving = Rooms.all.indices.first(where: { !dead.contains($0) }) {
-            director = Director(startAt: firstLiving)
-            director.banned = dead
-        }
+        if opened, boot != director.currentIndex { director = Director(startAt: boot) }
+        // until the rest arrive, the opening room is the only door
+        director.banned = Set((0..<n).filter { roomPipelines[$0] == nil })
+        roomsDead = dead
 
-        // the five XFORM composites, blending the two rgba16Float rooms into
-        // texC (also rgba16Float, so the GRADE reads it filterable)
+        // …and the rest, behind the first frame. Serial and utility-priority,
+        // so compiling never competes with the frames already on screen.
+        let order = (0..<n).filter { roomPipelines[$0] == nil && !dead.contains($0) }
         let xformNames = ["xform_luma", "xform_scatter", "xform_defocus", "xform_prism", "xform_ember"]
-        var xf: [MTLRenderPipelineState] = []
-        for name in xformNames {
-            guard let frag = library.makeFunction(name: name) else {
-                NSLog("AethraKairos: no fragment function for xform %@", name); continue
+        Self.buildQueue.async { [weak self] in
+            /* the XFORM composites first — every handover needs one, and they
+               land together so xformMode indexes the same five in order.
+               Then the LENS and the FIELD, each guarded: nil means the pass
+               never runs, exactly as a missing function always meant. */
+            let xf = xformNames.compactMap { builder.pass($0) }
+            let lens = builder.pass("lens_pass")
+            let field = builder.pass("field_pass")
+            Task { @MainActor in
+                guard let self else { return }
+                self.xformPipelines = xf
+                self.lensPipeline = lens
+                self.fieldPipeline = field
             }
-            let desc = MTLRenderPipelineDescriptor()
-            desc.vertexFunction = vertexFn
-            desc.fragmentFunction = frag
-            desc.colorAttachments[0].pixelFormat = .rgba16Float
-            if let state = try? device.makeRenderPipelineState(descriptor: desc) {
-                xf.append(state)
-            } else {
-                NSLog("AethraKairos: pipeline FAILED for xform %@", name)
+            for i in order {
+                let state = builder.room(key: rooms[i].key, function: rooms[i].fn)
+                Task { @MainActor in self?.installRoom(i, state) }
             }
-        }
-        xformPipelines = xf
-
-        // the LENS — one artistic pass between the XFORM composite and the
-        // GRADE, into an rgba16Float target (the GRADE reads it filterable).
-        // Guarded: a missing lens_pass just leaves lensPipeline nil, so the
-        // lens never engages and the pipeline is exactly the proven wave-2 tail.
-        if let lensFn = library.makeFunction(name: "lens_pass") {
-            let ldesc = MTLRenderPipelineDescriptor()
-            ldesc.vertexFunction = vertexFn
-            ldesc.fragmentFunction = lensFn
-            ldesc.colorAttachments[0].pixelFormat = .rgba16Float
-            lensPipeline = try? device.makeRenderPipelineState(descriptor: ldesc)
-        }
-
-        // the FIELD — the ghost's light-bending pass, guarded the same way:
-        // a missing field_pass leaves fieldPipeline nil and the pass never runs.
-        if let fieldFn = library.makeFunction(name: "field_pass") {
-            let fdesc = MTLRenderPipelineDescriptor()
-            fdesc.vertexFunction = vertexFn
-            fdesc.fragmentFunction = fieldFn
-            fdesc.colorAttachments[0].pixelFormat = .rgba16Float
-            fieldPipeline = try? device.makeRenderPipelineState(descriptor: fdesc)
         }
 
         // the GRADE — the final composite, into the drawable's own format
@@ -411,6 +407,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
         rebuildTargets(size: view.drawableSize)
         publishRoomName()
+    }
+
+    /// A room finished compiling behind the first frame: it becomes a door the
+    /// director may deal — or, refused by this GPU, one it never will.
+    private func installRoom(_ i: Int, _ state: MTLRenderPipelineState?) {
+        guard roomPipelines.indices.contains(i) else { return }
+        if let state {
+            roomPipelines[i] = state
+            director.banned.remove(i)
+        } else {
+            roomsDead.insert(i)
+            director.banned.insert(i)
+        }
     }
 
     /// CI's camera passes `--fixed-rolls` so every room is photographed on
@@ -853,7 +862,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
         // -- the director --
         let before = director.currentIndex
-        if director.tick(dt: dt, frame: frame, act: actTarget, ceil: ceil) != nil {
+        // (a deal that lands on the room already showing — possible while the
+        // house is still compiling and the opening room is the only door — is
+        // no handover at all, exactly as a swipe that goes nowhere is not)
+        if director.tick(dt: dt, frame: frame, act: actTarget, ceil: ceil) != nil,
+           director.currentIndex != before {
             beginTransition(from: before)
             publishRoomName()
         }
@@ -1254,5 +1267,47 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let x = (size.width - bounds.width) / 2
         let y = (size.height - bounds.height) / 2
         str.draw(in: CGRect(x: x, y: y, width: bounds.width + 2, height: bounds.height + 2))
+    }
+}
+
+/// Compiles pipelines for the renderer — off the main actor on purpose, so the
+/// build can run behind the first frame (see VizRenderer.configure). Holds only
+/// Metal objects, which Metal documents as safe to use from any thread.
+private struct PipelineBuilder {
+    let device: MTLDevice
+    let library: MTLLibrary
+    let vertexFn: MTLFunction
+
+    /// One room's pipeline, or nil (logged) if this GPU refuses it.
+    func room(key: String, function: String) -> MTLRenderPipelineState? {
+        guard let frag = library.makeFunction(name: function) else {
+            NSLog("AethraKairos: no fragment function for room %@", key)
+            return nil
+        }
+        do {
+            return try device.makeRenderPipelineState(descriptor: descriptor(frag))
+        } catch {
+            NSLog("AethraKairos: pipeline FAILED for room %@: %@", key, String(describing: error))
+            return nil
+        }
+    }
+
+    /// A composite / lens / field pass into the rgba16Float chain, or nil.
+    func pass(_ name: String) -> MTLRenderPipelineState? {
+        guard let frag = library.makeFunction(name: name) else {
+            NSLog("AethraKairos: no fragment function %@", name)
+            return nil
+        }
+        if let state = try? device.makeRenderPipelineState(descriptor: descriptor(frag)) { return state }
+        NSLog("AethraKairos: pipeline FAILED for %@", name)
+        return nil
+    }
+
+    private func descriptor(_ frag: MTLFunction) -> MTLRenderPipelineDescriptor {
+        let desc = MTLRenderPipelineDescriptor()
+        desc.vertexFunction = vertexFn
+        desc.fragmentFunction = frag
+        desc.colorAttachments[0].pixelFormat = .rgba16Float
+        return desc
     }
 }
