@@ -182,7 +182,10 @@ await pageU.evaluate(() => POWER.set('show', false));
 const idxPath = join(DIR, 'index.html');
 const orig = readFileSync(idxPath, 'utf8');
 const { writeFileSync } = await import('fs');
-writeFileSync(idxPath, orig.replace('</html>', '<!-- deploy-marker-xyz --></html>'));
+// a real deploy carries a new stamp (netlify.toml stamps at build time); the
+// marker proves the new BYTES are what lands, the id proves it is named
+writeFileSync(idxPath, orig.replace('</html>', '<!-- deploy-marker-xyz --></html>')
+  .replace(/const MB8_BUILD = '[^']*';/, "const MB8_BUILD = 'smoke0new0';"));
 await pageU.evaluate(() => checkForUpdate());
 const badged = await pageU.waitForFunction(
   '!document.getElementById("btnUpdate").hidden', null, { timeout: 15000 }).then(() => true).catch(() => false);

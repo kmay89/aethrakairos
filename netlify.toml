@@ -30,7 +30,18 @@
   # 'audio' tree — before the new one lands. This rule is what keeps that
   # session playing. The ! keeps it answering even though the directory is
   # absent.
-  command = "rm -rf docs/audio && echo '/audio/* https://media.aethrakairos.com/audio/:splat 302!' > docs/_redirects"
+  #
+  # AND STAMP EVERY DEPLOY HERE, AT BUILD TIME. The stamp used to arrive only
+  # as a follow-up commit from the stamp workflow, so every release reached
+  # production TWICE: first the merge commit, un-stamped (new bytes wearing the
+  # old build id), then the stamp commit a few minutes later. Every listener
+  # caught between the two was offered an "update" to the build number they
+  # were already on, and then offered a second one. Stamping here makes the
+  # merge deploy complete on its own; the stamp is content-derived and
+  # idempotent, so the stamp commit's deploy is byte-identical and nobody's
+  # worker sees it at all. Fail-safe: if Python is missing the deploy carries
+  # on exactly as before.
+  command = "(python3 tools/stamp_version.py || echo 'stamp skipped - deploying as committed') && rm -rf docs/audio && echo '/audio/* https://media.aethrakairos.com/audio/:splat 302!' > docs/_redirects"
 
 # the service worker must never be served stale, or updates stall
 [[headers]]
