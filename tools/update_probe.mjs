@@ -17,6 +17,7 @@
  *              only the worker's byte-compare can notice it
  *   current    no deploy at all — a correct app is silent, and a card raised in
  *              error can leave
+ *   finger     a pending update never reloads under a tap (the ✕ report)
  *   quiet      an idle page with a fresh deploy refreshes itself — no card, no toast
  *   again      the reported loop: the origin probe must reach the origin, and a
  *              swap already applied must never be offered a second time
@@ -116,6 +117,9 @@ async function run(tag, stampSw, fn){
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const ctx = await browser.newContext();
+  // a first run opens on the language picker, and a pending update rightly
+  // waits while a person is choosing — these scenarios are about what comes after
+  await ctx.addInitScript(() => { try { localStorage.setItem('mb8_lang', 'en'); } catch (e){} });
   try { await fn({ origin, ctx, dir: s.dir, stampSw, hits: s.hits }); }
   finally { await browser.close(); s.close(); }
 }
@@ -185,6 +189,51 @@ if (want('quiet')){
     verdict('quiet: and never showed an offer on the way',
       !sawCard && !toastsAfter.some(t => /new version/i.test(t) && !toastsBefore.includes(t)),
       sawCard ? 'the card flashed up' : 'no card, no toast');
+  });
+}
+
+/* ------------------------------------------------- NEVER UNDER A FINGER
+ * The report: "right after I play the first track it pops up the [queue] and
+ * when I hit the x it refreshes". A lesson opened a panel, an update was
+ * pending, nothing had been playing long, and the gate's only question was
+ * "is music playing?" — so the tap on the close box was followed by a reload.
+ * A person touching the app, or anything open on screen, holds the swap; put
+ * the app down and it lands by itself. */
+if (want('finger')){
+  console.log('\na pending update and a finger on a close box — no reload under the hand');
+  await run('finger', true, async ({ origin, ctx, dir }) => {
+    const page = await ctx.newPage();
+    await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+    await prep(page);
+    await page.evaluate(() => { if (typeof POWER !== 'undefined') POWER.set('auto', false); });
+    await page.waitForFunction('navigator.serviceWorker.controller !== null', null, { timeout: 25000 }).catch(() => {});
+    const running = await build(page);
+    let navs = 0;
+    page.on('framenavigated', f => { if (f === page.mainFrame()) navs++; });
+    await page.evaluate(() => openPlaylist(true));          // what the heart lesson does
+    await page.waitForTimeout(900);                          // let the panel finish sliding in
+    deploy(dir, true);
+    await page.evaluate(() => checkForUpdate());
+    await page.waitForFunction('UPDATE.ready()', null, { timeout: 30000 }).catch(() => {});
+    // the page reloading out from under the panel IS the failure — report it,
+    // don't crash on the destroyed context
+    const x = await page.evaluate(() => { const r = document.getElementById('plClose').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }).catch(() => null);
+    if (x) await page.mouse.click(x.x, x.y);                 // a real pointer, as a finger would
+    await page.waitForTimeout(7000);                         // longer than the 5 s auto-apply tick
+    verdict('finger: the tap on ✕ is not followed by a reload', !!x && navs === 0 && (await build(page)) === running,
+      navs + ' navigation(s), on ' + await build(page));
+    if (!x || navs) return;
+    verdict('finger: the ✕ closed the panel', await page.evaluate(() => !el.playlist.classList.contains('open')));
+    verdict('finger: the update waits on the button instead',
+      await page.evaluate(() => !document.getElementById('btnUpdate').hidden && UPDATE.ready()));
+    // put the app down: a minute with no touch and nothing open → it lands by itself
+    const nav = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
+    await page.evaluate(() => { UPDATE._lastTouchAt = Date.now() - 61000; maybeAutoApply(); });
+    await nav;
+    const landed = await page.waitForFunction(n => typeof MB8_BUILD === 'string' && MB8_BUILD === n && window.__mb8Booted === true,
+      NEW, { timeout: 25000 }).then(() => true).catch(() => false);
+    verdict('finger: once the app is put down, the update lands by itself', landed, 'on ' + await build(page));
   });
 }
 

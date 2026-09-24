@@ -47,7 +47,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
-  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, updateOffer, updateOfferKey, newsSince, lessonDue, restartVerdict,' +
+  ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, UP_TOUCH_MS, updateOffer, updateOfferKey, newsSince, lessonDue, restartVerdict,' +
   ' stageGrid, stageSlice, stageRole, stageApplyFeat, stageOffset, STAGE_FIELDS,' +
   ' stageRect, stageBounds, stageOrder, stageLayout, stageMoved, stageResolveRects, stageHandLocal, stagePlan,' +
   ' stageCodeTidy, stageCodeIs, stageNetWall, crowdPack, crowdClamp, stageSpread,' +
@@ -3093,6 +3093,23 @@ test('updateGate: sustained quiet applies, playing waits — and a BLINK is not 
     assert.equal(S.updateGate({ ready: true, playing: false, quietFor: bad, now: 0 }), 'wait', 'unknown quiet is not quiet: ' + bad);
   // the wish a listener expressed still fires at its boundary, whatever the clock says
   assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: true, trackChanged: true, quietFor: 0, now: 0 }), 'apply');
+});
+test('updateGate: a person using the app is not a quiet room — no reload under a finger', () => {
+  const idle = { ready: true, playing: false, quietFor: 9e9, now: 0 };
+  assert.equal(S.updateGate(idle), 'apply', 'the baseline: an idle, silent room updates');
+  /* the report: "right after I play the first track it pops up the [queue] and
+     when I hit the x it refreshes" — a lesson open, a finger on a close box, and
+     "nothing playing" was the only question the gate asked */
+  assert.equal(S.updateGate(Object.assign({}, idle, { busy: true })), 'wait',
+    'a lesson, a panel or a card on screen holds the swap');
+  assert.equal(S.updateGate(Object.assign({}, idle, { touchedAgo: 800 })), 'wait',
+    'a touch a moment ago holds the swap');
+  assert.equal(S.updateGate(Object.assign({}, idle, { touchedAgo: S.UP_TOUCH_MS - 1 })), 'wait');
+  assert.equal(S.updateGate(Object.assign({}, idle, { touchedAgo: S.UP_TOUCH_MS })), 'apply',
+    'put the app down for a minute and it may refresh');
+  assert.equal(S.updateGate(Object.assign({}, idle, { touchedAgo: 9e12 })), 'apply', 'never touched (launch) is not a touch');
+  // the listener's own wish still fires at its boundary, busy or not
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, busy: true, touchedAgo: 0, now: 0 }), 'apply');
 });
 test('updateGate: SHOW mode is never yanked, even paused', () => {
   assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, show: true, now: 0 }), 'wait');
