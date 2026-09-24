@@ -6136,6 +6136,15 @@ function updateGate(o){
   if (o.now < (o.snoozedUntil || 0)) return 'wait';
   if (o.show) return 'wait';
   if (o.playing) return 'wait';
+  /* SOMEBODY IS USING THE APP. "Nothing playing" was the whole test of an idle
+     room, so a listener in the middle of the first run — a lesson open, a panel
+     up, a finger on a ✕ — was an idle room, and a pending update reloaded the
+     page under their hand: "I hit the x and it refreshes". A surface on screen
+     (the intro, the welcome, a lesson, a panel, a card) or a touch in the last
+     minute is a person, not a quiet room. The update waits for them to put the
+     app down; the Update button is there the whole time if they want it now. */
+  if (o.busy) return 'wait';
+  if (Number(o.touchedAgo) < UP_TOUCH_MS) return 'wait';
   /* THE QUIET IS A DURATION, NOT AN INSTANT. "Not playing right now" is true in
      the two-second gap while the next track's element loads, true during a phone
      call, true the moment a listener pauses to answer the door — and the gate
@@ -6152,6 +6161,7 @@ function updateGate(o){
   return (Number(o.quietFor) >= UP_QUIET_MS) ? 'apply' : 'wait';
 }
 const UP_QUIET_MS = 2 * 60 * 1000;         // what "the quiet" means: two minutes, not a blink
+const UP_TOUCH_MS = 60 * 1000;             // a touch this recent means a person is here
 
 /* THE LESSONS RIDE TRACKS THAT ACTUALLY SOUNDED. The heart lesson fires "when
    track two begins" and the share lesson on the third — but `starts` used to
@@ -19157,6 +19167,7 @@ const UPDATE = {
   deferrals: 0,          // how many times this listener has said "later"
   lastRemindAt: 0,       // the snooze a reminder has already answered
   _armCur: -1,           // player.cur when "after this track" was armed
+  _lastTouchAt: 0,       // when a person last touched the app (see appInUse)
   _lastPlayingAt: 0,     // when playback was last OBSERVED playing — what "the
                          // quiet" is measured from. Zero (never played) reads as
                          // quiet-forever, so an idle page still updates itself.
@@ -19484,8 +19495,21 @@ function autoApplyVerdict(){
     show: typeof POWER !== 'undefined' && POWER.mode === 'show',
     snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),
     applies: UPDATE.applies(),
+    busy: appInUse(),
+    touchedAgo: Date.now() - UPDATE._lastTouchAt,
   });
 }
+/* anything on screen that a person is reading or working in */
+function appInUse(){
+  try {
+    if (typeof uiTeaching === 'function' && uiTeaching()) return true;
+    const open = id => { const n = document.getElementById(id); return !!(n && (n.classList.contains('open') || n.classList.contains('in'))); };
+    return open('library') || open('playlist') || open('updateCard') || open('askCard') || open('skinCard');
+  } catch (e){ return false; }
+}
+// the last time a person touched the app — what "put the app down" is measured from
+['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev =>
+  window.addEventListener(ev, () => { UPDATE._lastTouchAt = Date.now(); }, { passive: true, capture: true }));
 /* the swap itself, hardened end to end: every step is fenced so no single
    failure — a throwing save, a vanished worker, a refused reload — can strand
    the listener on a dead "Updating…". The bar runs on the learned estimate
