@@ -3680,6 +3680,18 @@ body.clipping::after{
     arrow — closing each cycle with Poincaré's wink; THE DEMON sorts hot from cold and pays the one
     price physics accepts, a ledger of bits at k&nbsp;ln&nbsp;2 apiece; and THE HEAT breathes the
     Maxwell–Boltzmann distribution with the song's energy as its temperature.</p>
+    <h3>The perfect deck</h3>
+    <p class="lede">Scene 101 is <b>SHUFFLE</b>, and it is not random at all. A perfect shuffle cuts
+    the deck exactly in half and interleaves one card from each, so the card at position j lands at
+    2j&nbsp;mod&nbsp;(N&nbsp;−&nbsp;1) — and THE WEAVE draws that permutation as it happens, every
+    card a coloured thread, one shuffle a band, on the beat. After exactly eight out-shuffles a
+    52-card deck is back in its starting order (32 cards take five, 64 take six), because
+    2<sup>8</sup>&nbsp;=&nbsp;256&nbsp;≡&nbsp;1&nbsp;(mod&nbsp;51); the bottom row flares, and it is
+    the top row again. THE TRICK is Elmsley's: to send the top card to position k, write k in
+    binary and shuffle IN for every 1 and OUT for every 0 — the gold thread arrives exactly at k.
+    THE ORBIT lays the deck on a circle with chords i&nbsp;→&nbsp;2<sup>t</sup>·i&nbsp;mod&nbsp;51
+    and walks the powers of two, until at t&nbsp;=&nbsp;8 every chord collapses to a point: every
+    card is home.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4316,7 +4328,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'gathers', 'flows', 'flows', 'grows', 'blackhole',
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
-               'flows', 'gathers'];   // …the lattice and the film ripple, the
+               'flows', 'gathers',
+               'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -5825,7 +5838,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'telegraph', 'semaphore', 'scribe', 'cipher', 'babel',
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
-                    'minkowski', 'boltzmann'];
+                    'minkowski', 'boltzmann',
+                    'shuffle'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -5982,6 +5996,7 @@ const SCENE_TASTE = {
   minimal:   { calm: 1.0, coupling: 0.6, entropy: -0.3 },   // soap has all the patience there is
   minkowski: { mid: 0.6, beat: 0.6, entropy: -0.2 },        // events land on the onsets
   boltzmann: { energy: 0.7, treble: 0.4, entropy: 0.6 },    // the gas LIKES disorder
+  shuffle:   { beat: 0.8, mid: 0.5, entropy: -0.4 },        // order dressed as chaos, on the beat
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7248,6 +7263,7 @@ const SCENE_SIGS = {
   minimal:   { kind: 'ring',   h: 195, twist: 1 },
   minkowski: { kind: 'grid',   h: 220, dense: 0.6 },
   boltzmann: { kind: 'blob',   h: 30,  arms: 0 },
+  shuffle:   { kind: 'grid',   h: 300, dense: 0.9 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -47319,6 +47335,266 @@ function buildBoltzmann(){
   return api;
 }
 
+/* =========================================================
+   SCENE 101 · SHUFFLE — the perfect deck, and the way home
+
+   A perfect shuffle is not random at all: cut the deck exactly
+   in half and interleave one card from each, and the card at
+   position j lands at 2j mod (N − 1). THE WEAVE draws that
+   permutation as it happens — every card a coloured thread,
+   stage by stage on the beat — and after exactly eight
+   out-shuffles a 52-card deck is back in its starting order
+   (32 cards take five, 64 take six), because 2⁸ = 256 ≡ 1
+   (mod 51). THE TRICK is Elmsley's: to send the top card to
+   position k, write k in binary and shuffle IN for every 1 and
+   OUT for every 0 — the gold thread arrives exactly at k.
+   THE ORBIT puts the deck on a circle, chords i → 2ᵗ·i mod 51,
+   and steps through the powers of two until t = 8, where
+   every chord collapses to a point: every card is home.
+   ========================================================= */
+function buildShuffle(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeSh:{ value: 0 },
+    uN:     { value: 52 },
+    uOrd:   { value: 8 },
+    uK:     { value: 37 },
+    uBits:  { value: 6 },
+    uProg:  { value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeSh, uVarA, uAspect, uN, uOrd, uK, uBits, uProg;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    // 2^s mod M, by doubling — exact in floats for every deck drawn here
+    float pow2mod(float s, float M){
+      float m = 1.0;
+      for (int k = 0; k < 12; k++){
+        if (float(k) >= s) break;
+        m = mod(m * 2.0, M);
+      }
+      return m;
+    }
+    // one perfect OUT-shuffle: position j -> 2j mod (N - 1), the bottom card stays
+    float outShuffle(float j, float N){ return j > N - 1.5 ? N - 1.0 : mod(2.0 * j, N - 1.0); }
+    // one perfect IN-shuffle: position j -> 2j + 1 mod (N + 1) — the top card goes in
+    float inShuffle(float j, float N){ return mod(2.0 * j + 1.0, N + 1.0); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      if (uHand.z > 0.02){
+        vec2 dh = p - uHand.xy;
+        // a hand riffles the deck: the threads bow away from the thumb
+        p.x += dh.x * uHand.z * 0.12 / (dot(dh, dh) + 0.20);
+      }
+      vec3 col = vec3(0.0);
+      float W = 0.80 * uAspect;
+      float Y0 = 0.68, Y1 = -0.60;
+      if (uModeSh < 0.5){
+        /* THE WEAVE — eight out-shuffles and the deck comes home */
+        float N = uN, M = uN - 1.0, ord = uOrd;
+        float bh = (Y0 - Y1) / ord;
+        float sf = (Y0 - p.y) / bh;
+        float sb = floor(sf), f = sf - sb;
+        float prog = uProg;
+        float home = smoothstep(ord, ord + 0.35, prog);
+        if (sb >= 0.0 && sb < ord && abs(p.x) < W + 0.08){
+          float shown = sb < floor(prog) ? 1.0 : (sb < floor(prog) + 0.5 ? step(f, fract(prog)) : 0.0);
+          float front = (sb > floor(prog) - 0.5 && sb < floor(prog) + 0.5) ? 1.0 : 0.0;
+          float m = pow2mod(sb, M);
+          float slopeK = 2.0 * W / M / bh;
+          for (int i = 0; i < 64; i++){
+            float c = float(i);
+            if (c > N - 0.5) break;
+            float a = c > N - 1.5 ? M : mod(c * m, M);
+            float b = outShuffle(a, N);
+            float xa = -W + 2.0 * W * a / M, xb = -W + 2.0 * W * b / M;
+            float x = mix(xa, xb, f);
+            float sl = (b - a) * slopeK;
+            float d = abs(p.x - x) / sqrt(1.0 + sl * sl);
+            vec3 hue = ramp(c / N);
+            col += hue * exp(-d * 520.0) * 0.40 * shown;
+            // the shuttle: every card's thread lit where the weave is being woven now
+            float ff = fract(prog);
+            vec2 q = vec2(mix(xa, xb, ff), Y0 - (sb + ff) * bh);
+            col += hue * exp(-dot(p - q, p - q) * 9000.0) * front * (0.55 + uBeat * 0.6) * (1.0 - home);
+            // the cards themselves at the top and bottom of the band
+            vec2 ta = vec2(xa, Y0 - sb * bh), tb = vec2(xb, Y0 - (sb + 1.0) * bh);
+            col += hue * exp(-dot(p - ta, p - ta) * 14000.0) * 0.55 * shown;
+            col += hue * exp(-dot(p - tb, p - tb) * 14000.0) * 0.55 * shown * step(f, fract(prog) + step(sb + 0.5, floor(prog)));
+          }
+        }
+        // the stage ticks down the right edge — S1 … S8, lit as each shuffle lands
+        for (int k = 0; k <= 12; k++){
+          float fk = float(k);
+          if (fk > ord + 0.5) break;
+          vec2 t = vec2(W + 0.07, Y0 - fk * bh);
+          float lit = step(fk, prog + 0.001);
+          col += ramp(0.85) * exp(-dot(p - t, p - t) * 6000.0) * (0.12 + lit * 0.5);
+        }
+        // HOME: the bottom row is the top row again — the whole deck flares at once
+        if (home > 0.0){
+          float dy = abs(p.y - Y1);
+          for (int i = 0; i < 64; i++){
+            float c = float(i);
+            if (c > N - 0.5) break;
+            float x = -W + 2.0 * W * c / M;
+            vec2 d = vec2(p.x - x, dy);
+            col += ramp(c / N) * exp(-dot(d, d) * 5000.0) * home * (0.8 + uBeat * 0.6);
+          }
+          col += ramp(0.85) * exp(-abs(p.y - Y1) * 60.0) * step(abs(p.x), W) * home * 0.10;
+        }
+      } else if (uModeSh < 1.5){
+        /* THE TRICK — Elmsley's binary: IN for 1, OUT for 0, and the top card lands at k */
+        float N = 52.0, M = 51.0, L = uBits, k = uK;
+        // the trick sits lower than the weave: its digits need the headroom
+        Y0 = 0.52; Y1 = -0.58;
+        float cw = 2.0 * W / L;
+        float sf = (p.x + W) / cw;
+        float sb = floor(sf), f = sf - sb;
+        float prog = uProg;
+        if (sb >= 0.0 && sb < L && p.y < Y0 + 0.02 && p.y > Y1 - 0.02){
+          float bit = mod(floor(k / pow(2.0, L - 1.0 - sb)), 2.0);
+          float shown = sb < floor(prog) ? 1.0 : (sb < floor(prog) + 0.5 ? step(f, fract(prog)) : 0.0);
+          float slopeK = (Y0 - Y1) / M / cw;
+          for (int i = 0; i < 52; i++){
+            float j = float(i);
+            float nx = bit > 0.5 ? inShuffle(j, N) : outShuffle(j, N);
+            float ya = Y0 - (Y0 - Y1) * j / M, yb = Y0 - (Y0 - Y1) * nx / M;
+            float y = mix(ya, yb, f);
+            float sl = (nx - j) * slopeK;
+            float d = abs(p.y - y) / sqrt(1.0 + sl * sl);
+            col += ramp(0.30 + 0.35 * bit) * exp(-d * 460.0) * 0.16 * shown;
+          }
+          // the traced card: after s shuffles it sits at the first s binary digits of k
+          float ts = floor(k / pow(2.0, L - sb));
+          float tn = floor(k / pow(2.0, L - 1.0 - sb));
+          vec2 A = vec2(-W + sb * cw, Y0 - (Y0 - Y1) * ts / M);
+          vec2 B = vec2(-W + (sb + 1.0) * cw, Y0 - (Y0 - Y1) * tn / M);
+          col += ramp(0.85) * exp(-segd(p, A, B) * 260.0) * 0.85 * shown;
+        }
+        // the digits of k along the top: a full bead is IN (1), a ring is OUT (0)
+        for (int b = 0; b < 6; b++){
+          float fb = float(b);
+          if (fb > L - 0.5) break;
+          float bit = mod(floor(k / pow(2.0, L - 1.0 - fb)), 2.0);
+          vec2 c = vec2(-W + (fb + 0.5) * cw, Y0 + 0.11);
+          float r = length(p - c);
+          float lit = step(fb, prog);
+          col += ramp(0.85) * (bit > 0.5 ? exp(-r * r * 3000.0) : exp(-abs(r - 0.028) * 300.0)) * (0.2 + lit * 0.6);
+        }
+        // the traveller, riding its thread — and the ring waiting at k
+        float pc = min(prog, L);
+        float sc = min(floor(pc), L - 1.0), fc = pc - sc;
+        float ts = floor(k / pow(2.0, L - sc)), tn = floor(k / pow(2.0, L - 1.0 - sc));
+        vec2 bead = vec2(-W + (sc + fc) * cw, Y0 - (Y0 - Y1) * mix(ts, tn, fc) / M);
+        col += ramp(0.85) * exp(-dot(p - bead, p - bead) * 2500.0) * (0.9 + uBeat * 0.5);
+        vec2 goal = vec2(W, Y0 - (Y0 - Y1) * k / M);
+        float arrive = smoothstep(L - 0.05, L + 0.3, prog);
+        col += ramp(0.85) * exp(-abs(length(p - goal) - 0.045) * 220.0) * (0.25 + arrive * 0.8);
+      } else {
+        /* THE ORBIT — chords i -> 2^t i mod 51, walking the powers of two home */
+        float M = 51.0;
+        float t = floor(uProg), u = smoothstep(0.15, 0.85, fract(uProg));
+        float m0 = pow2mod(mod(t, 8.0), M), m1 = pow2mod(mod(t + 1.0, 8.0), M);
+        vec2 ctr = vec2(0.0, 0.04);
+        float R = 0.60;
+        for (int i = 0; i < 51; i++){
+          float fi = float(i);
+          float a = fi / M * 6.2831853 + 1.5707963;
+          vec2 P = ctr + vec2(cos(a), sin(a)) * R;
+          float a0 = mod(fi * m0, M) / M * 6.2831853 + 1.5707963;
+          float a1 = mod(fi * m1, M) / M * 6.2831853 + 1.5707963;
+          vec2 Q0 = ctr + vec2(cos(a0), sin(a0)) * R;
+          vec2 Q1 = ctr + vec2(cos(a1), sin(a1)) * R;
+          vec3 hue = ramp(fi / M);
+          col += hue * exp(-segd(p, P, Q0) * 260.0) * 0.46 * (1.0 - u);
+          col += hue * exp(-segd(p, P, Q1) * 260.0) * 0.46 * u;
+          col += hue * exp(-dot(p - P, p - P) * 5000.0) * 0.6;
+        }
+        // home: when the power wraps to 2^8 = 256 = 1 (mod 51), the circle itself flares
+        float homeNow = (mod(t + 1.0, 8.0) < 0.5 ? u : 0.0) + (mod(t, 8.0) < 0.5 ? 1.0 - u : 0.0);
+        col += ramp(0.85) * exp(-abs(length(p - ctr) - R) * 90.0) * homeNow * (0.35 + uBeat * 0.5);
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE WEAVE', m: 0 },
+    { name: 'THE TRICK', m: 1 },
+    { name: 'THE ORBIT', m: 2 },
+  ];
+  // decks whose out-shuffle order is short enough to watch come home:
+  // the order of 2 modulo N − 1 — 52 → 8, 32 → 5, 64 → 6
+  const DECKS = [{ n: 52, ord: 8 }, { n: 52, ord: 8 }, { n: 32, ord: 5 }, { n: 64, ord: 6 }];
+  const st = { mode: MODES[0], hold: 0 };
+  const dealTrick = () => {
+    const k = 1 + Math.floor(Math.random() * 51);         // any position but the top
+    varU.uK.value = k;
+    varU.uBits.value = Math.floor(Math.log2(k)) + 1;
+  };
+  const dealDeck = () => {
+    const d = DECKS[Math.floor(Math.random() * DECKS.length)];
+    varU.uN.value = d.n; varU.uOrd.value = d.ord;
+  };
+  const api = {
+    name: 'SHUFFLE', key: 'shuffle', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the weave advances with the music: a band every couple of seconds,
+      // quicker when the song is up, and a held breath at home before the next deal
+      const span = st.mode.m === 0 ? varU.uOrd.value : st.mode.m === 1 ? varU.uBits.value : 1e9;
+      const rate = st.mode.m === 2 ? 0.16 + (f.energy || 0) * 0.14 : 0.40 + (f.energy || 0) * 0.35;
+      varU.uProg.value += dt * rate;
+      if (st.mode.m !== 2 && varU.uProg.value > span + 2.2){
+        varU.uProg.value = 0;
+        if (st.mode.m === 0) dealDeck(); else dealTrick();
+      }
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeSh.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      varU.uProg.value = 0;
+      dealDeck(); dealTrick();
+      api.name = 'SHUFFLE · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -47363,7 +47639,8 @@ function initThree(){
               buildTelegraph(), buildSemaphore(), buildScribe(), buildCipher(), buildBabel(),
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
-              buildMinkowski(), buildBoltzmann());
+              buildMinkowski(), buildBoltzmann(),
+              buildShuffle());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
