@@ -394,6 +394,13 @@ enum Rooms {
         Room(key: "boltzmann", name: "BOLTZMANN", fragmentFunction: "room_boltzmann",
              tasteEnergy: 0.7, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.4,
              tasteEntropy: 0.6, heavy: true),
+
+        // The perfect deck (Shaders21): a perfect shuffle is no chance at all —
+        // j -> 2j mod (N - 1) — so eight of them bring 52 cards home. The weave,
+        // Elmsley's binary trick, and the powers of two walking the orbit.
+        Room(key: "shuffle", name: "SHUFFLE", fragmentFunction: "room_shuffle",
+             tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.8, tasteTreble: 0,
+             tasteMid: 0.5, tasteEntropy: -0.4, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
