@@ -229,7 +229,11 @@ fragment float4 room_spiral(float4 pos [[position]],
     float coreScale = 0.35 + 0.75 * clamp(U.white, 0.0, 1.0);
 
     float t = U.time * 0.5 * dir;                       // musical time upstream
-    float armAmp = band64(spectrum, fract(ang / TAU + 0.5));
+    // the spectrum wraps the circle MIRRORED (bass at the right horizon,
+    // treble at the left, the same on both sides): a straight fract(ang)
+    // put band 0 beside band 63 on the negative x axis, and every arm tore
+    // along that half-line — a hard seam from the left edge to the hub
+    float armAmp = band64(spectrum, abs(ang) / PI);
 
     float s = ang * armN + folded * 2.8 - t;            // log-spiral phase
     float lobe = 0.5 + 0.5 * cos(s);
@@ -417,7 +421,8 @@ fragment float4 room_tunnel(float4 pos [[position]],
     // ring index -> band, golden-stepped so neighbours never match
     float amp = band64(spectrum, fract(fi * 0.618034));
     // angular grain from the spectrum sampled by angle
-    float ampA = band64(spectrum, fract(ang / TAU + 0.5));
+    // mirrored round the circle, so the negative x axis is not a seam
+    float ampA = band64(spectrum, abs(ang) / PI);
 
     float spokes = 0.75 + 0.25 * cos(ang * spokeN + fi * 1.7);
     float haze = smoothstep(0.015, 0.28, r);            // the far end sleeps in the void

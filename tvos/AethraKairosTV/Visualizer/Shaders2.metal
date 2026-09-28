@@ -603,7 +603,8 @@ fragment float4 room_mandala(float4 pos [[position]],
     else               cellCol = pal4;
 
     // the sector wears its spectrum band
-    float amp = band64_a(spectrum, fract(ang / TAU_A + 0.5));
+    // mirrored round the circle, so the negative x axis is not a seam
+    float amp = band64_a(spectrum, abs(ang) / PI_A);
     cellCol *= (0.6 + 0.7 * amp);
 
     // dark seams: between rings and along the mirror fold — bands read as bands

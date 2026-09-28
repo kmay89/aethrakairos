@@ -41,14 +41,15 @@ final class DeckEngine {
             shelf.filterType = .lowShelf
             shelf.frequency = 200
             shelf.gain = 0
-            shelf.bypass = false
+            shelf.bypass = true          // flat is bypassed, not processed (see setRate)
             // Band 1 is the fade filter: wide open until a seam borrows it.
             let lp = d.eq.bands[1]
             lp.filterType = .resonantLowPass
             lp.frequency = Self.filterOpenHz
             lp.bandwidth = 1.9 // ~Q 0.7, the web player's fade-filter slope
-            lp.bypass = false
+            lp.bypass = true             // wide open is bypassed, not processed
             d.eq.globalGain = 0
+            d.timePitch.bypass = true    // unity speed is bypassed, not processed
 
             engine.connect(d.player, to: d.timePitch, format: defaultFormat)
             engine.connect(d.timePitch, to: d.eq, format: defaultFormat)
@@ -129,6 +130,18 @@ final class DeckEngine {
     func play(deck i: Int, atOffset offset: Double, in when: Double) {
         guard let d = deck(i), let file = d.file else { return }
         try? startEngineIfNeeded()
+        /* A PLAYER NEVER STARTS ON A STOPPED ENGINE. AVAudioPlayerNode.play()
+           on an engine that is not running raises an Objective-C exception — a
+           hard crash no Swift code can catch — and the engine can be stopped
+           out from under us at any moment (an output renegotiating, Siri, a
+           route change). This used to try the start, ignore the failure and
+           call play() anyway. Now it declines: nothing plays for a beat, and
+           the Player's liveness guard asks again twice a second until the
+           engine is back, then resumes at the spot. */
+        guard engine.isRunning else {
+            NSLog("AethraKairos: engine not running — deferring play on deck %d", i)
+            return
+        }
         let sr = file.processingFormat.sampleRate
         guard sr > 0 else { return }
         let startFrame = AVAudioFramePosition(max(0, offset) * sr)
@@ -219,6 +232,15 @@ final class DeckEngine {
         let r = max(0.03125, min(32, rate))
         d.timePitch.rate = r
         d.timePitch.pitch = keyLock ? 0 : 1200 * log2(r)
+        /* AT UNITY THE STRETCHER IS BYPASSED. AVAudioUnitTimePitch is a phase
+           vocoder, and it does NOT pass audio through untouched at rate 1: it
+           still chops the signal into overlapping frames and resynthesises it,
+           which smears transients and hollows the mids — "like hearing it
+           through a shoebox". It sat in every deck's path permanently, so
+           every track was played through it. Now it engages only while a
+           blend is actually bending the tempo (or the SPEED dial is off 1×),
+           and the rest of the time the deck plays the file untouched. */
+        d.timePitch.bypass = abs(r - 1) < 1e-4
     }
 
     /// Loudness factor toward -14 LUFS. It sits UNDER every ramp: the curve
@@ -255,6 +277,7 @@ final class DeckEngine {
         rampQueue.async {
             d.shelfRamp.ramp(to: target, over: max(seconds, Self.minRampSeconds), curve: .linear) { [weak d] val in
                 d?.eq.bands[0].gain = val
+                d?.eq.bands[0].bypass = abs(val) < 0.05     // flat shelf: out of the path
             }
         }
     }
@@ -267,6 +290,7 @@ final class DeckEngine {
         rampQueue.async {
             d.filterRamp.ramp(to: target, over: max(seconds, Self.minRampSeconds), curve: .exponential) { [weak d] val in
                 d?.eq.bands[1].frequency = val
+                d?.eq.bands[1].bypass = val >= Self.filterOpenHz - 1  // wide open: out of the path
             }
         }
     }
@@ -277,12 +301,15 @@ final class DeckEngine {
         guard let d = deck(i) else { return }
         d.timePitch.rate = 1
         d.timePitch.pitch = 0
+        d.timePitch.bypass = true
         rampQueue.async {
             d.shelfRamp.ramp(to: 0, over: 0.05, curve: .linear) { [weak d] val in
                 d?.eq.bands[0].gain = val
+                d?.eq.bands[0].bypass = abs(val) < 0.05
             }
             d.filterRamp.ramp(to: Self.filterOpenHz, over: 0.05, curve: .exponential) { [weak d] val in
                 d?.eq.bands[1].frequency = val
+                d?.eq.bands[1].bypass = val >= Self.filterOpenHz - 1
             }
         }
     }
