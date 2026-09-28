@@ -1484,6 +1484,44 @@ body.mini.deck .mini-mons{
 .mon-tile.add .mon-n{left:auto;right:8px}
 @media (prefers-reduced-motion:reduce){.mini-pad-dot{transition:none}}
 
+/* ============ THE BOOTH DESK — the visuals on the big screen, the booth on this one ============
+   Stage mode used to fold this window to a strip in the corner (the mini
+   booth) or, with "Full booth", hand back the whole player — which meant the
+   field drawn a second time right here, behind the booth, on the laptop. On a
+   rig with a television that is exactly backwards: the audience watches the
+   TV, the DJ watches the decks. So the desk is this window given to the booth
+   alone — both decks, the waveforms, the pads, the rack, the transport — full
+   size, on a quiet ground, and the field not drawn here at all (the TV draws
+   it; this GPU's frames go to the booth). */
+body.boothdesk > *:not(#booth):not(#transport):not(#toasts):not(#askCard):not(#askScrim):not(.invite-card):not(#plChooser){display:none!important}
+body.boothdesk{background:radial-gradient(ellipse at 50% 0%,rgba(40,48,70,.55),transparent 60%),var(--void,#05060c)}
+body.boothdesk #booth{
+  display:flex!important;left:18px;right:18px;top:18px;bottom:var(--desk-foot,160px);
+  max-width:none;margin:0;overflow:auto;gap:10px;padding:16px 20px 16px;
+  animation:none!important;opacity:1!important;transform:none!important;pointer-events:auto!important;
+}
+body.boothdesk #transport{opacity:1!important;transform:translateX(-50%)!important;pointer-events:auto!important;
+  width:calc(100vw - 36px)}
+/* the transport keeps play, seek, volume and the mix chips; the room's own
+   controls (scenes, lens, touch, comfort) belong to the screen the room is on */
+body.boothdesk #transport .hud > :not(.chipgroup[aria-label="The mix"]){display:none!important}
+body.boothdesk #boothCv{height:clamp(190px,calc(100vh - var(--desk-foot,160px) - 420px),480px)}
+body.boothdesk .booth-title{font-size:19px}
+body.boothdesk #boothPlan{font-size:10px}
+body.boothdesk .booth-deck .nm{font-size:14px}
+body.boothdesk .booth-deck .meta{font-size:11px}
+body.boothdesk .bpad{min-height:58px}
+body.boothdesk .bpad .bt{font-size:11.5px}
+body.boothdesk .bpad .bk{font-size:9px}
+/* the head's own door: visuals to the other screen, and back */
+#boothPop{
+  flex:none;height:26px;padding:0 11px;border-radius:13px;cursor:pointer;
+  border:1px solid var(--accent-line);background:var(--glass);color:var(--ink);
+  font-size:9px;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap;align-self:center;
+}
+#boothPop:hover{border-color:var(--accent,#6ee7ff)}
+#boothPop.on{background:var(--accent-dim);color:var(--accent,#6ee7ff)}
+
 /* ============ the stage, the size of a postcard ============
    ONE SCREEN IS THE COMMON CASE. Almost nobody has a television plugged into
    the laptop while they are learning what this does — and a stage that can only
@@ -3014,6 +3052,8 @@ body.clipping::after{
     <span class="booth-title">The Booth</span>
     <span id="boothPlan">—</span>
     <span id="boothLock"></span>
+    <button type="button" id="boothPop" aria-pressed="false"
+      title="Put the visuals on the other screen and keep this one for the booth">⧉ Visuals → screen</button>
     <button class="pl-x" id="boothClose" aria-label="Close the booth">✕</button>
   </div>
   <div class="booth-deck">
@@ -19442,7 +19482,14 @@ if (el.chipStyle) el.chipStyle.addEventListener('click', () => {
     : T('beatmix where the grids agree, fade where they don\'t') }));
 });
 el.chipBooth.addEventListener('click', () => BOOTH.toggle());
-el.boothClose.addEventListener('click', () => BOOTH.toggle(false));
+el.boothClose.addEventListener('click', () => {
+  // closing the booth on the desk leaves the desk: an empty window is no booth
+  if (STAGE.desk){ STAGE.setDesk(false); return; }
+  BOOTH.toggle(false);
+});
+{ const bp = document.getElementById('boothPop');
+  if (bp) bp.addEventListener('click', () => STAGE.boothPop());
+  window.addEventListener('resize', () => { if (STAGE.desk) STAGE.deskFit(); }); }
 
 /* the tuner reads the pair the mixer has armed (or the next in order) */
 const MIXTUNE = { offsetBeats: 0 };
@@ -22141,6 +22188,8 @@ const BOOTH = {
   open: false, _txt: {},
   toggle(on){
     const next = on == null ? !this.open : !!on;
+    // the desk is nothing but the booth: closing it means leaving the desk
+    if (!next && typeof STAGE !== 'undefined' && STAGE.desk){ STAGE.setDesk(false); }
     if (next === this.open) return;
     clearTimeout(this._closeT);
     this.open = next;
@@ -49472,6 +49521,7 @@ const STAGE = {
   chan: null,
   on: false,                 // booth: a stage is running
   mini: false,               // booth: folded into the corner
+  desk: false,               // booth: this window IS the booth, the field is on the stage
   pip: false,                // booth: the stage is a small window, not a room
   pipNative: false,          // booth: …and the shell owns that window, not us
   pipEl: null,               // booth: the first in-page one (compat)
@@ -50293,6 +50343,7 @@ const STAGE = {
       add(T('Crowd'), T('Four letters that tune every phone on the floor'), () => { if (typeof CROWD !== 'undefined') CROWD.invite(); });
       add(T('Which?'), T('Every screen holds up its own number'), () => this.identify(3000));
       add(T('Seams'), T('The field passes behind the televisions’ frames'), () => this.seams());
+      add(T('Booth desk'), T('This window becomes the booth — decks, pads, rack — and the visuals stay on the stage'), () => this.setDesk(true));
       add(T('Full booth'), T('Bring the whole console back'), () => this.setMini(false));
     }
     this.expandPaint();
@@ -50495,7 +50546,8 @@ const STAGE = {
     this.on = true;
     this.pip = false;
     this.wake(true);                   // a booth driving a stage must not dim
-    this.setMini(true);
+    if (opts.desk) this.setDesk(true); // the booth's own door: this window becomes the desk
+    else this.setMini(true);
     // the monitors are known, so the wall is right before a screen has spoken
     this._wallKey = '';
     this.pushWall(true);
@@ -51074,6 +51126,7 @@ const STAGE = {
     this._wallKey = '';
     this.shots.clear();                  // the postcards go with the screens
     this.setMini(false);
+    this.setDesk(false);                 // no stage, no desk: the field comes home
     ACTIVITY.log('system', T('Stage mode off'));
     toast(T('Stage mode off'));
   },
@@ -51108,7 +51161,52 @@ const STAGE = {
       ? T('Seams · <b>{pct}%</b> — the field passes behind the frames. Watch the ball cross.', { pct: String(this.bezel * 100).replace(/(\.\d)0+$/, '$1') })
       : T('Seams · <b>off</b> — the glasses are treated as touching.'));
   },
+  /* THE BOOTH DESK (see the CSS above): the stage keeps the field, this window
+     keeps the booth. Leaves the strip if it was folded to one — the desk is the
+     opposite of a strip — and never survives the stage it belongs to. */
+  setDesk(on){
+    const want = !!on && this.on && !this.screen();
+    if (want && this.mini) this.setMini(false);
+    this.desk = want;
+    document.body.classList.toggle('boothdesk', want);
+    if (want && typeof BOOTH !== 'undefined') BOOTH.toggle(true);
+    if (want) requestAnimationFrame(() => this.deskFit());
+    const b = document.getElementById('boothPop');
+    if (b){
+      b.classList.toggle('on', want);
+      b.setAttribute('aria-pressed', String(want));
+      b.textContent = want ? T('⧉ Visuals here too') : T('⧉ Visuals → screen');
+      b.title = want ? T('Bring the visuals back behind the booth on this screen (the stage keeps playing)')
+        : T('Put the visuals on the other screen and keep this one for the booth');
+    }
+    if (typeof onResize === 'function') onResize();
+  },
+  /* the booth ends where the transport begins, whatever height the transport
+     wraps to at this window's width */
+  deskFit(){
+    if (!this.desk) return;
+    const tp = document.getElementById('transport');
+    const h = tp ? tp.getBoundingClientRect().height : 120;
+    document.body.style.setProperty('--desk-foot', Math.round(h + 14 + 12) + 'px');
+  },
+  /* the booth head's one button: no stage yet → open one on the other monitor
+     and become the desk; a stage already up → swap between the desk and the
+     whole player here */
+  async boothPop(){
+    if (this.screen()) return;
+    if (!this.on){
+      const ds = NATIVE.ready() ? await this.displayList(true) : (await this.webScreens(true) || []);
+      if (NATIVE.ready() && ds.length < 2){
+        toast(T('Plug in the second screen first — the visuals go there, the booth stays here'));
+        return;
+      }
+      await this.open(1, { desk: true });
+      return;
+    }
+    this.setDesk(!this.desk);
+  },
   setMini(on){
+    if (on && this.desk){ this.desk = false; document.body.classList.remove('boothdesk'); }
     this.mini = !!on;
     document.body.classList.toggle('mini', this.mini);
     const chip = document.getElementById('btnStage');
@@ -53028,6 +53126,8 @@ function frame(now){
   // runs in full (clock, mixer, transport, persistence) — only the draws and
   // the GPU uploads sit out, and the glass simply holds its last frame
   const drawing = !STAGE.mini && (typeof POWER === 'undefined' || POWER.frameGate());
+  // the desk draws the booth, not the field: the stage screen is drawing that
+  const drawField = drawing && !STAGE.desk;
   const t = now / 1000;
   /* MUSICAL TIME. The clock the shaders breathe by is no longer the wall's:
      it integrates dt · rate, and the choreographer bends the rate (rubato —
@@ -53039,7 +53139,7 @@ function frame(now){
   U.uTime.value = DANCE.time + DANCE.warp;
 
   analyse(dt, t);
-  if (drawing) uploadAudioTexture();
+  if (drawField) uploadAudioTexture();
   if (typeof MIXSET !== 'undefined') MIXSET.visualTick();
 
   // THE beat clock: one authoritative read per frame (regression-filtered,
@@ -53184,7 +53284,7 @@ function frame(now){
   COLOR.update(dt);
   LENS.autoTick(dt);   // the director may set a lens — sparse, gated by the song's ceiling
 
-  if (drawing){
+  if (drawField){
     // Backdrop first, with a camera that inherits ORIENTATION ONLY — no dolly,
     // no bass FOV-breathing. That is what keeps the sky still while the scenes punch.
     bgCam.quaternion.copy(camera.quaternion);
