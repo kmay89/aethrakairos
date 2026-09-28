@@ -126,7 +126,13 @@ struct HomeView: View {
         // steps back while a choice is made.
         .background(.ultraThinMaterial)
         .background(Color.akVoid.opacity(0.55).ignoresSafeArea())
-        .onExitCommand { dismissShelves() }
+        /* NO MENU HANDLER HERE, ON PURPOSE. The shelves are the app's root, and
+           Menu at an app's root belongs to tvOS: it goes to the Home Screen
+           (App Review requires exactly that). It used to return to the field
+           instead, and the field's Menu raised the shelves — a loop with no
+           exit, so the only way out of the app was the TV button. The way back
+           to the field is now a real control: BACK TO THE FIELD, in the NOW
+           row, and choosing anything to play retreats the shelves as before. */
         // The transport key works everywhere: with the field's layer out of
         // the hierarchy while browsing, play/pause is answered here instead.
         .onPlayPauseCommand {
@@ -209,7 +215,7 @@ struct HomeView: View {
             .buttonStyle(ShelfChipStyle())
             .padding(.top, 56)
 
-            Text("MENU = BROWSE      CLICK = PLAY / PAUSE      SWIPE ↑ ↓ = CHANGE THE PICTURE")
+            Text("MENU = BROWSE · MENU AGAIN = HOME      CLICK = PLAY / PAUSE      SWIPE ↑ ↓ = CHANGE THE PICTURE")
                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
                 .tracking(3)
                 .foregroundStyle(Color.akDim)
@@ -295,6 +301,17 @@ struct HomeView: View {
                     .font(.system(size: 19, weight: .semibold, design: .monospaced))
                     .tracking(5)
                     .foregroundStyle(Color.akAmber)
+                // the way back to the picture — Menu on the shelves now leaves
+                // the app, so returning to the field is a button you can see
+                Button {
+                    dismissShelves()
+                } label: {
+                    Text("BACK TO THE FIELD")
+                        .font(.system(size: 19, weight: .semibold))
+                        .tracking(4)
+                        .foregroundStyle(Color.akInk)
+                }
+                .buttonStyle(ShelfChipStyle())
                 Spacer(minLength: 32)
                 Text(track.title)
                     .font(.system(size: 24, design: .serif))

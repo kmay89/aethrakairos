@@ -266,7 +266,19 @@ enum MixStyle: String, CaseIterable {
         }
         // One .playback declaration for the app's lifetime — the session is
         // configured here and nowhere else.
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+        /* PLAYBACK ONLY, LONG-FORM, AND NOTHING ELSE. The app never records and
+           never asks for the microphone — no record category, no input node —
+           so the Siri Remote's mic stays Siri's. `.longFormAudio` is Apple's
+           declaration for a music app: playback follows the Apple TV's own
+           default audio output (the TV, a HomePod, the AirPlay speakers the
+           system is set to) instead of claiming a route for itself, and Siri
+           interrupts it cleanly (handled below) and hands it back. */
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default,
+                                                            policy: .longFormAudio, options: [])
+        } catch {
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+        }
         // Exactly one tap consumer: the analyzer is the ears; nothing else listens.
         let analyzer = self.analyzer
         engine.installTap { buffer, when in
