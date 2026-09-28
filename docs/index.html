@@ -2296,6 +2296,11 @@ body.clipping::after{
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bpad i{position:absolute;left:7px;right:7px;bottom:4px;height:2.5px;border-radius:2px;
   background:var(--pad-c,#6ee7ff);opacity:var(--pad-glow,.75)}
+/* ON DECK — the pad whose track is loaded on the idle deck and planned in.
+   It burns in its own key and says so; a second tap mixes it in now. */
+.bpad.ondeck{border-color:var(--pad-c,#6ee7ff);box-shadow:0 0 0 1px var(--pad-c,#6ee7ff) inset,0 0 14px -4px var(--pad-c,#6ee7ff)}
+.bpad.ondeck i{height:100%;top:0;bottom:0;left:0;right:0;border-radius:0;opacity:.14}
+.bpad.ondeck .bk{color:var(--pad-c,#6ee7ff)}
 @media(max-width:600px){
   #booth{left:6px;right:6px;padding:10px 12px 11px}
   /* tall enough for the compact layout: platters + a live monitor between
@@ -10972,6 +10977,8 @@ const player = {
   },
 
   hasNext(){
+    // a track put ON DECK (a pad, the crate) is a next, wherever it sits in the list
+    if (this._committedNext != null && this.tracks[this._committedNext]) return true;
     if (this.shuffle) return this.tracks.length > 1;
     return this.cur < this.tracks.length - 1 || this.repeat === 'all';
   },
@@ -12644,6 +12651,14 @@ const SLEEP = {
    (its computed glide rates multiply by this, so a 1.25× listen still
    beat-matches). The grid clock already reads the real element rate, so
    the visuals stay honest at any speed. */
+/* one place that knows the two spellings of "hold the pitch" */
+function setPitchLock(a, on){
+  try {
+    if (!a) return;
+    if ('preservesPitch' in a){ if (a.preservesPitch !== !!on) a.preservesPitch = !!on; }
+    else if ('webkitPreservesPitch' in a){ if (a.webkitPreservesPitch !== !!on) a.webkitPreservesPitch = !!on; }
+  } catch (e){}
+}
 const SPEED = {
   STEPS: [1, 1.25, 1.5, 0.75], idx: 0,
   /* KEY LOCK, and the choice it is. With it on, a deck bent to match a tempo
@@ -12667,11 +12682,14 @@ const SPEED = {
     toast(T('Speed <b>{rate}×</b>', { rate: this.rate }) + (this.rate !== 1 ? T(' — pitch preserved') : ''));
   },
   apply(){
-    if (AE.decks) for (const d of AE.decks){
+    // a running beatmix owns both decks' rates and pitch mode (it multiplies
+    // SPEED.rate in on its next retune, and restores the lock when it ends) —
+    // writing them here mid-blend would snap the glide and re-engage the stretcher
+    const seam = typeof MIXER !== 'undefined' && MIXER.phase === 'running';
+    if (AE.decks && !seam) for (const d of AE.decks){
       try {
         d.a.playbackRate = this.rate;
-        if ('preservesPitch' in d.a) d.a.preservesPitch = this.keyLock;
-        else if ('webkitPreservesPitch' in d.a) d.a.webkitPreservesPitch = this.keyLock;
+        setPitchLock(d.a, this.keyLock);
       } catch (e){}
     }
     const b = document.getElementById('btnSpeed');
@@ -16656,13 +16674,52 @@ function openCrate(open){
   el.btnCrate.classList.toggle('on', open);
   if (open) CRATE.render();
 }
-function crateMixNext(t){
+/* PUT IT ON DECK — the pads' and the crate's "next". What a DJ does with the
+   next record: it goes on the idle deck NOW, cued at its mix-in, the seam
+   planned and painted in the booth, and it comes in at the planned mix-out.
+   Pressing the same one again means "now": it blends in from the next bar.
+     · a blend already RUNNING is never cut — the pick waits its turn and
+       follows this blend (it used to cancel the seam mid-fade)
+     · an armed plan for a different track is simply re-planned for this one
+     · when nothing is playing, the pick is remembered for the next start */
+function crateMixNext(t, opts){
+  const o = opts || {};
   let i = player.tracks.indexOf(t);
   if (i === -1){ player.tracks.push(t); i = player.tracks.length - 1; player.renderList(); }
-  MIXER.cancel('replan');
+  const title = escapeHTML(t.title);
+  const onDeck = (MIXER.phase === 'armed' && MIXER.next === i);
+  if (o.again && onDeck){
+    // the second press: now, from the next bar — or, where the pair can't be
+    // beatmixed, the plain transition straight away
+    if (MIXER.tryMixNow()) { deckPadsPaint(); return; }
+    player._committedNext = i;
+    MIXER.cancel('now');
+    player.playIndex(i, { xfade: true });
+    return;
+  }
+  if (MIXER.phase === 'running'){
+    player._committedNext = i;
+    toast(T('<b>{title}</b> is on deck — it follows this blend', { title }));
+    PERSIST.poke(); deckPadsPaint();
+    return;
+  }
+  if (MIXER.phase === 'armed') MIXER.cancel('replan');
   player._committedNext = i;
-  toast(T('<b>{title}</b> is next — the mixer will plan the seam', { title: escapeHTML(t.title) }));
-  PERSIST.poke();
+  if (MIXER.on && player.playing && AE.graphLive) MIXER.arm();
+  if (MIXER.phase === 'armed' && MIXER.next === i && MIXER.plan){
+    const d = activeDeck(), p = MIXER.plan;
+    const at = MIXER.exitTime(d && d.a.duration, p, player.tracks[player.cur]);
+    const how = p.type === 'beatmix' ? T('beatmix {n}', { n: p.beats }) : p.type === 'gapless' ? T('gapless') : T('fade');
+    toast(T('<b>{title}</b> on deck · {how} at {time} · tap again to mix now',
+      { title, how, time: fmtTime(Math.max(0, at)) }));
+  } else {
+    toast(T('<b>{title}</b> is next', { title }));
+  }
+  PERSIST.poke(); deckPadsPaint();
+}
+/* which pad is on deck — repainted whenever the pick or the plan moves */
+function deckPadsPaint(){
+  if (typeof BOOTH !== 'undefined' && BOOTH.paintOnDeck) BOOTH.paintOnDeck(true);
 }
 function crateChart(){
   const cur = player.tracks[player.cur];
@@ -17412,11 +17469,30 @@ function xfadeCurve(norm, side, n){
 // proportional trim plus a bounded integrator that learns residual tempo error.
 // Returns { seek, trim, trimI }. driftTrim (the proportional term) lives in the
 // solver block.
+// The beat-phase error of a running beatmix, in seconds, from ONE pair of
+// playhead reads: where A sits in its beat minus where B sits in its own,
+// wrapped to the nearest beat and scaled to B's beat length. Positive means B
+// is behind A. null when either read or the plan's grid is unusable.
+function seamPhaseErr(tA, tB, plan){
+  const p = plan || {};
+  if (!isFinite(tA) || !isFinite(tB) || !(p.bpmA > 0) || !(p.bpmB > 0)) return null;
+  const spbA = 60 / p.bpmA, spbB = 60 / p.bpmB;
+  const phA = (((tA - (p.startA || 0)) / spbA) % 1 + 1) % 1;
+  const phB = (((tB - (p.startB || 0)) / spbB) % 1 + 1) % 1;
+  let err = phA - phB;
+  if (err > 0.5) err -= 1;
+  if (err < -0.5) err += 1;
+  return err * spbB;
+}
 function seamPhaseTrim(errSec, trimI, f, opts){
   const o = opts || {};
   const audibleAt = o.audibleAt == null ? 0.06 : o.audibleAt;
   const dead = o.deadband == null ? 0.003 : o.deadband;
-  const hard = o.hardErr == null ? 0.030 : o.hardErr;
+  // a hard align is a seek, and a seek is only ever taken while B cannot be
+  // heard — so there is no reason to tolerate more than a few milliseconds of
+  // error going INTO the blend: whatever is left here is what the trim then has
+  // to walk out, audibly, across the whole seam
+  const hard = o.hardErr == null ? 0.006 : o.hardErr;
   const cap = o.cap == null ? 0.002 : o.cap;
   const inaudible = equalPowerXfade(f).b < audibleAt;
   const e = Math.abs(errSec);
@@ -17424,6 +17500,46 @@ function seamPhaseTrim(errSec, trimI, f, opts){
   if (e < dead) return { seek: false, trim: trimI, trimI: trimI };
   const ni = Math.max(-cap, Math.min(cap, trimI + errSec * 0.08));
   return { seek: false, trim: driftTrim(errSec) + ni, trimI: ni };
+}
+
+// TAKING THE LOCK, decided. While B is still inaudible the error can be
+// removed outright; how depends on its size. A far miss (a start that landed a
+// chunk of a beat away) is a seek — the one tool that closes 100 ms at once,
+// at the cost of the element's rebuffer. Anything closer is a PULL: B's tempo
+// leaned on hard enough to close the gap in about a tenth of a second, which
+// is inaudible at the gain B has there and — unlike a seek — never stalls the
+// deck. Within a couple of milliseconds, or once B can be heard, it latches and
+// the tempo servo (seamPhaseTrim) holds it from there.
+// Returns { act: 'seek' | 'pull' | 'latch', pull } — pull is the fractional
+// rate offset to lean B by (positive = faster).
+function seamTake(errSec, f, aligns, opts){
+  const o = opts || {};
+  const audibleAt = o.audibleAt == null ? 0.06 : o.audibleAt;
+  const done = o.done == null ? 0.0015 : o.done;
+  const seekAbove = o.seekAbove == null ? 0.040 : o.seekAbove;
+  const tau = o.tau == null ? 0.10 : o.tau;          // seconds to close the gap
+  const maxPull = o.maxPull == null ? 0.15 : o.maxPull;
+  if (!isFinite(errSec) || equalPowerXfade(f).b >= audibleAt) return { act: 'latch', pull: 0 };
+  const e = Math.abs(errSec);
+  if (e <= done) return { act: 'latch', pull: 0 };
+  if (e > seekAbove && (aligns | 0) < 3) return { act: 'seek', pull: 0 };
+  const pull = Math.max(-maxPull, Math.min(maxPull, errSec / tau));
+  return { act: 'pull', pull };
+}
+
+// THE NUDGE — what a DJ's hand does to a platter that has slipped. Below a
+// few milliseconds it is nothing (the fine servo owns that); above, B's tempo
+// is leaned on by enough to take out half the error per beat, capped at 3 % so
+// it reads as a push, not a pitch bend. Half per beat because the servo only
+// looks once a beat: a correction sized to finish in one check would overshoot
+// whenever the check came late.
+function seamNudge(errSec, bpmB, opts){
+  const o = opts || {};
+  const from = o.from == null ? 0.008 : o.from;
+  const cap = o.cap == null ? 0.03 : o.cap;
+  if (!isFinite(errSec) || Math.abs(errSec) <= from || !(bpmB > 0)) return 0;
+  const spb = 60 / bpmB;
+  return Math.max(-cap, Math.min(cap, errSec / (2 * spb)));
 }
 
 // ---- READY MEANS READY -------------------------------------------------
@@ -17490,12 +17606,20 @@ function seamDeferBar(plan, durA, maxTries){
 // blend on top of it, so a seam has roughly lead + 150 ms before a late deck
 // could actually be HEARD as a soft entry.
 const SEAM_LEAD = 0.45;
+// A BEATMIX TAKES A LONGER RUN-UP. The lead-in is where B rolls unheard and the
+// lock is TAKEN (seamTake) — measured, then pulled into phase — and under a busy
+// renderer the only reads come once a frame: at ten frames a second a 0.45 s
+// lead is four reads, not enough to measure, pull and confirm before B can be
+// heard. A second is ten, which is. It costs nothing audible (B is silent for
+// it) and nothing in the plan (seamLeadFor still never rolls B from before the
+// top of its own file).
+const BEATMIX_LEAD = 1.0;
 // How much lead-in THIS seam can actually take. A beatmix may not roll B from
 // before the start of its own file, so a track cued to enter at 0.1 s gets a
 // 0.1 s lead and an honest degradation rather than a silently wrong grid. A
 // gapless pair takes none: the artist sequenced those two to touch.
 function seamLeadFor(plan, want){
-  const p = plan || {}, w = want == null ? SEAM_LEAD : want;
+  const p = plan || {}, w = want == null ? (p.type === 'beatmix' ? BEATMIX_LEAD : SEAM_LEAD) : want;
   if (!(w > 0) || p.type === 'gapless') return 0;
   if (p.type !== 'beatmix') return w;
   return Math.max(0, Math.min(w, p.startB || 0));
@@ -18012,6 +18136,107 @@ function loopHandbackAt(at, now, lead, ready, waited, maxWait){
   if (!ready && !(waited >= (maxWait > 0 ? maxWait : 0))) return null;
   return Math.max(at, now + ld);
 }
+/* AUTO CUES — the song's own turning points, found on the waveform and put
+   on the pads before a hand has touched them. Not "verse" and "chorus" by
+   name (the wave cannot hear lyrics) but the thing a DJ actually cues: the
+   bar lines where the music CHANGES — the drop landing, the breakdown
+   pulling out, the build starting, the outro thinning — which in dance
+   music, and in most songs, sit on 8- and 16-bar phrase lines.
+
+   How it reads:
+     · the band energies (low weighted highest: a kick and a bassline
+       arriving is the change a floor feels) are averaged per BAR on the
+       track's own beat grid, and normalised to the loudest bar;
+     · at every bar line, NOVELTY = the four bars after minus the four
+       before — a step up is a drop or a build, a step down a break;
+     · phrase lines are favoured (×1.4 on 16 bars, ×1.25 on 8, ×1.1 on 4),
+       because a change that lands a bar off a phrase is usually the fill
+       before the real one;
+     · the strongest are kept, never two within `gapBars` of each other,
+       and the first bar with music in it is always cue 1 (the top).
+   Returns [{ t, label, rise }] in time order, at most `max`, each t exactly
+   on a bar line. Pure: arrays in, numbers out. Without a grid it falls back
+   to the coarse sections (still honest, just not bar-exact). */
+const AUTOCUE = { max: 8, gapBars: 8, minRise: 0.10, dropAt: 0.70, breakAt: 0.40, outroFrac: 0.80 };
+function autoCuePoints(o){
+  const opt = Object.assign({}, AUTOCUE, o && o.opts);
+  const b = o && o.bands, dur = o && o.dur;
+  if (!b || !b.l || !(dur > 0)) return [];
+  const N = b.l.length, colT = dur / N;
+  const mx = o.bmax || {};
+  const mL = mx.l > 0 ? mx.l : 1, mM = mx.m > 0 ? mx.m : 1, mH = mx.h > 0 ? mx.h : 1;
+  const e = new Float32Array(N);
+  for (let i = 0; i < N; i++) e[i] = 0.5 * b.l[i] / mL + 0.3 * b.m[i] / mM + 0.2 * (b.h ? b.h[i] / mH : 0);
+  const bpm = o.bpm, haveGrid = bpm > 0 && isFinite(o.grid);
+  const label = (after, rise, t) => {
+    if (rise >= 0){
+      // a DROP is a real arrival; a small step up inside what is already loud
+      // is a LIFT (a new layer, a second hook), not the moment of the song
+      if (after >= opt.dropAt) return rise >= 0.2 ? 'DROP' : 'LIFT';
+      return 'BUILD';
+    }
+    if (t >= dur * opt.outroFrac) return 'OUTRO';
+    return after <= opt.breakAt ? 'BREAK' : 'DOWN';
+  };
+  if (!haveGrid){
+    const secs = (o.sections || []).slice(1);
+    const out = [];
+    const first = (o.sections && o.sections[0]) ? o.sections[0].s * dur : 0;
+    out.push({ t: first, label: 'INTRO', rise: 0 });
+    for (let k = 0; k < secs.length && out.length < opt.max; k++){
+      const prev = o.sections[k], cur = secs[k];
+      const rise = (cur.energy || 0) - (prev.energy || 0);
+      if (Math.abs(rise) < opt.minRise) continue;
+      out.push({ t: cur.s * dur, label: label(cur.energy || 0, rise, cur.s * dur), rise });
+    }
+    return out;
+  }
+  const bar = 4 * 60 / bpm;
+  const first = o.grid - Math.floor(o.grid / bar) * bar;       // the first bar line at or after 0
+  const lines = [];
+  for (let t = first; t < dur - bar * 0.5; t += bar) lines.push(t);
+  const K = lines.length;
+  if (K < 4) return [];
+  const E = new Float32Array(K);
+  let top = 1e-9;
+  for (let k = 0; k < K; k++){
+    const i0 = Math.max(0, Math.floor(lines[k] / colT)), i1 = Math.min(N, Math.max(i0 + 1, Math.floor((lines[k] + bar) / colT)));
+    let sum = 0; for (let i = i0; i < i1; i++) sum += e[i];
+    E[k] = sum / (i1 - i0);
+    if (E[k] > top) top = E[k];
+  }
+  for (let k = 0; k < K; k++) E[k] /= top;
+  const mean = (a, z) => { let s = 0, n = 0; for (let k = Math.max(0, a); k < Math.min(K, z); k++){ s += E[k]; n++; } return n ? s / n : 0; };
+  // cue 1: the top — the first bar with music actually in it
+  let k0 = 0;
+  while (k0 < K - 1 && E[k0] < 0.08) k0++;
+  const cands = [];
+  // and the last: the final bar with music in it. A candidate needs a phrase
+  // of music after it — the file running out is not a turn of the song
+  let kEnd = K - 1;
+  while (kEnd > k0 && E[kEnd] < 0.08) kEnd--;
+  for (let k = Math.max(1, k0 + 1); k <= Math.min(K - 4, kEnd - Math.min(7, opt.gapBars - 1)); k++){
+    const before = mean(k - 4, k), after = mean(k, k + 4), rise = after - before;
+    if (Math.abs(rise) < opt.minRise) continue;
+    const idx = Math.round((lines[k] - o.grid) / bar);
+    const w = idx % 16 === 0 ? 1.4 : idx % 8 === 0 ? 1.25 : idx % 4 === 0 ? 1.1 : 1;
+    cands.push({ k, rise, after, score: Math.abs(rise) * w });
+  }
+  // a change smeared across two bar lines scores on both: keep the local peak only
+  cands.sort((a, b2) => b2.score - a.score);
+  const kept = [{ k: k0, rise: 0, after: E[k0] }];
+  for (const c of cands){
+    if (kept.length >= opt.max) break;
+    if (kept.some(q => Math.abs(q.k - c.k) < opt.gapBars)) continue;
+    kept.push(c);
+  }
+  kept.sort((a, b2) => a.k - b2.k);
+  return kept.map((c, n) => ({
+    t: Math.round(lines[c.k] * 1000) / 1000,
+    label: n === 0 ? 'INTRO' : label(c.after, c.rise, lines[c.k]),
+    rise: Math.round(c.rise * 100) / 100,
+  }));
+}
 // @fx-end
 
 
@@ -18299,16 +18524,20 @@ const MIXER = {
   },
 
   cancel(){
+    this._stopSampler();
+    if (this._fireT){ clearInterval(this._fireT); this._fireT = null; }
+    this._fireAt = null;
     if (this.phase === 'idle'){ syncMixHud(); return; }
     if (typeof SEGUE !== 'undefined') SEGUE.cueSeam(null);
     this.plan = null; this.next = -1; this.phase = 'idle';
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     this.audioT0 = null; this._shelfScheduled = false;
-    this._latched = false; this._aligns = 0; this._bT = -1;
+    this._latched = false; this._aligns = 0; this._bT = -1; this._errs = []; this._pull = 0;
     clockReset(this._clkA); clockReset(this._clkB);
     const tc = AE.ctx ? AE.ctx.currentTime : 0;
     if (AE.decks) AE.decks.forEach((d, i) => {
       try { d.a.playbackRate = SPEED.rate; } catch (e){}
+      setPitchLock(d.a, SPEED.keyLock);
       if (d.shelf) d.shelf.gain.value = 0;
       // kill any scheduled crossfade ramp and settle each deck: the surviving
       // (active) deck back to full, the other silent — else a cancel mid-blend
@@ -18347,7 +18576,21 @@ const MIXER = {
       return;
     }
     if (this.phase === 'armed'){
-      if (t >= this.exitTime(d.a.duration, this.plan, player.tracks[player.cur])) this.fire(now);
+      const exitAt = this.exitTime(d.a.duration, this.plan, player.tracks[player.cur]);
+      /* THE SEAM FIRES FROM A FRESH READ. Here, inside the animation frame, A's
+         currentTime was cached at the top of the frame (the beat clock read it
+         first) — up to a frame's work stale, and fire() places B from it, so
+         every seam used to start 25-35 ms off its own grid and spend its
+         inaudible lead-in walking that back. So a visible beatmix hands the
+         last stretch to a poller that runs as its own task: it reads A first,
+         fresh, and fires within a few ms of the exact point. The frame check
+         below stays as the fallback (a hidden tab, a fade, a stalled timer). */
+      if (this.plan && this.plan.type === 'beatmix' && !document.hidden && exitAt - t < 1.5){
+        this._fireAt = exitAt;
+        this._armFirePoll(exitAt);
+        if (t < exitAt + 0.25) return;           // preFrame / the poller own it unless both plainly missed
+      }
+      if (t >= exitAt) this.fire(now);
       return;
     }
     if (this.phase === 'running') this.run(now);
@@ -18385,6 +18628,19 @@ const MIXER = {
       Object.assign({}, B, { mix: mixOf(B) }),
       stylePlanOpts(seamStyle, { override: MIXFIX.pairOverride(A, B), albumSequential: isAlbumSequential(A, B) }));
     plan = styleAdjustPlan(seamStyle, plan);            // musical lets the song play out
+    /* A PLAN THAT IS ALREADY LATE. The planner places the seam in A's mix-out
+       region; if the playhead is already past that (a seek, or a track put on
+       deck late in the song) firing it would drop B a whole region off its
+       grid. Plan from HERE instead — the next playable bar, the same arithmetic
+       as MIX NOW — and only when even that can't be done, the honest fade. */
+    {
+      const d0 = activeDeck();
+      const t0 = d0 ? d0.a.currentTime : 0;
+      if (plan.type === 'beatmix' && isFinite(t0) && t0 > plan.startA - seamLeadFor(plan) - 0.05){
+        const late = planMixNow(mixOf(A), mixOf(B), t0, { durA: d0.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD });
+        plan = late.type === 'beatmix' ? late : { type: 'fade', seconds: 4, why: 'mix-out passed' };
+      }
+    }
     // beatmixing needs steady timers — hidden/locked, blend on a fade instead
     if (plan.type === 'beatmix' && document.hidden)
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
@@ -18446,7 +18702,7 @@ const MIXER = {
     const plan = planMixNow(mixOf(A), mixOf(B), d.a.currentTime,
       // the bar it picks must be at least a lead-in away, or the seam is already
       // late the moment it is planned and the fader opens past the bar line
-      { durA: d.a.duration, quickFade: 0.8, lead: SEAM_LEAD });
+      { durA: d.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD });
     if (plan.type !== 'beatmix'){
       player._committedNext = i;                        // same draw, plain path
       return false;
@@ -18468,6 +18724,8 @@ const MIXER = {
        this timing-sensitive the invariant belongs where it cannot be refactored
        away, not in the caller that happens to hold it. */
     if (this.phase === 'running') return;
+    if (this._fireT){ clearInterval(this._fireT); this._fireT = null; }
+    this._fireAt = null;
     let p = this.plan;
     const od = AE.decks[AE.active];
     const nd = AE.decks[1 - AE.active];
@@ -18490,6 +18748,7 @@ const MIXER = {
       const later = seamDeferBar(p, od.a.duration);
       if (later){
         this.plan = later;                 // still armed; update() re-fires a bar on
+        this._fireAt = null;               // …at the NEW bar line: update() re-aims preFrame
         syncMixHud();
         return;
       }
@@ -18507,18 +18766,39 @@ const MIXER = {
     this.startedAt = now + lead;
     this.audioT0 = null; this._shelfScheduled = false;
     this.lastF = 0; this.trim = 0; this.trimI = 0; this.lastBeatCheck = now;
-    this._latched = false; this._aligns = 0; this._bT = -1;
+    this._latched = false; this._aligns = 0; this._bT = -1; this._errs = [];
+    this._bRead = -1; this._rolling = false; this._pull = 0; this._lastSampleAt = 0; this._dtEst = 0;
+    this._rescued = false;
     window.__mixPhaseErrMs = null;    // each seam is measured on its own merits
     clockReset(this._clkA); clockReset(this._clkB);
     // GRIDS, NOT CLOCKS: B enters at the point that makes its beat grid agree
     // with where A ACTUALLY is, so a late call places a correct seam instead of
     // a punctual wrong one (see seamEntry).
+    /* …PLUS THE TIME B TAKES TO START. play() on a media element is not
+       instant: B begins moving some milliseconds after it is asked to, while A
+       keeps going, so a deck placed exactly on the grid arrives exactly that
+       late. The sampler measures that first error on every seam (_startLat), so
+       B is placed that much further in and the lock usually has nothing to take. */
     try {
-      nd.a.currentTime = p.type === 'beatmix' ? seamEntry(p, od.a.currentTime) : 0;
+      nd.a.currentTime = p.type === 'beatmix'
+        ? seamEntry(p, od.a.currentTime) + (this._startLat || 0) * (glideRates(p.bpmA, p.bpmB, 0).rateB || 1)
+        : 0;
     } catch (e){}
+    this._firstErr = true;
     this._bT = nd.a.currentTime;      // the latch watches for this to move
     if (p.type === 'beatmix'){
-      try { od.a.preservesPitch = SPEED.keyLock; nd.a.preservesPitch = SPEED.keyLock; } catch (e){}
+      /* THE BLEND RIDES VINYL. Measured, not assumed (tools/sync_trace.mjs):
+         with preservesPitch on, the browser's time-stretcher places each
+         transient up to ±15 ms away from the media time the element reports
+         the moment the rate leaves 1.0 — a 24-29 ms spread, beat to beat, that
+         no phase lock can steer out because the clock it steers by is the one
+         that is wrong. Resampled (pitch riding the tempo) the same deck lands
+         every beat within 1-2 ms of its reported time. So for the length of a
+         beatmix both decks resample — a +2 % blend is a third of a semitone,
+         which is what every turntable blend has ever sounded like — and the
+         listener's key lock comes back the instant the seam lets go (finish /
+         cancel), when both decks are at their own tempo again. */
+      setPitchLock(od.a, false); setPitchLock(nd.a, false);
       const g = glideRates(p.bpmA, p.bpmB, 0);
       od.a.playbackRate = this._lastRateA = g.rateA * SPEED.rate;
       nd.a.playbackRate = this._lastRateB = g.rateB * SPEED.rate;
@@ -18673,14 +18953,11 @@ const MIXER = {
     // graph scheduling threw. Here we just track f for the HUD.
     if (AE.graphLive) this.lastF = f; else this.setVolumes(f);
     if (p.type === 'beatmix'){
-      const g = glideRates(p.bpmA, p.bpmB, f);
-      const rA = g.rateA, rB = g.rateB * (1 + this.trim);
-      // Retune at most ~10x/sec: a multi-second tempo glide stays smooth while
-      // the browser's pitch-preserving time-stretcher isn't churned every frame.
+      // Retune at most ~10x/sec: a multi-second tempo glide stays smooth
+      // without the element's resampler being re-set every frame.
       if (now - (this._lastRateAt || 0) >= 0.10){
         this._lastRateAt = now;
-        if (Math.abs(rA * SPEED.rate - this._lastRateA) > 0.0004){ od.a.playbackRate = rA * SPEED.rate; this._lastRateA = rA * SPEED.rate; }
-        if (Math.abs(rB * SPEED.rate - this._lastRateB) > 0.0004){ nd.a.playbackRate = rB * SPEED.rate; this._lastRateB = rB * SPEED.rate; }
+        this._applyRates(f);
       }
       // the bass swap normally rides sample-accurate ramps scheduled at
       // fire(); this per-frame path is only the fallback for when that
@@ -18698,8 +18975,28 @@ const MIXER = {
       // HARD with a micro-seek; after that a proportional trim plus a tiny
       // integrator (residual-tempo learner) holds the lock, with a 3 ms
       // deadband so an already-locked seam is never touched at all.
-      clockSample(this._clkA, now, od.a.currentTime);
-      clockSample(this._clkB, now, nd.a.currentTime);
+      /* THE MEASUREMENT IS TWO READS, NOT TWO MODELS. This used to project two
+         regression clocks onto the frame's start time and difference them — and
+         every correcting seek resets B's clock, so the very readings the latch
+         acts on came from a four-sample fit whose slope was noise: measured at
+         38-47 ms of "error" against ~5 ms of real, audible flam, with the trim
+         pinned at its limit steering B the wrong way for the whole blend. With
+         the blend riding vinyl (above) each element's reported time IS what is
+         heard, to within a millisecond, so the honest error is simply both
+         playheads read back to back in one task — no model, no reference clock
+         to condition — median-filtered over the last few frames against the odd
+         read that lands on a render-quantum edge. */
+      /* …AND THE TWO READS HAVE TO BE FRESH. A media element's currentTime is
+         cached for the rest of the task after its first read (the spec's
+         "official playback position"), and this runs deep inside the animation
+         frame — after the beat clock has already read the ACTIVE deck at the top
+         of it, and after the render. So B's value here is from the start of the
+         frame and A's from now: a 20-40 ms skew that read as phase error and was
+         steered on, faithfully, in the wrong direction. The reads are therefore
+         taken by the seam's own sampler (_sample), a task of its own every few
+         milliseconds in which these two elements are the first thing touched. */
+      this._armSampler();
+      const bNow = this._bRead, rollingNow = this._rolling;
       // THE LATCH. The periodic once-a-beat check is the right cadence for
       // HOLDING a lock and the wrong one for TAKING it: the first frame after
       // fire() can land a hundred milliseconds in, and waiting a further beat to
@@ -18710,34 +19007,23 @@ const MIXER = {
       // moved; a stalled deck is not evidence of anything), takes the align
       // inside the lead-in, and latches. Bounded to a few attempts so a deck
       // that keeps re-stalling is trimmed rather than seek-thrashed.
-      const bT = nd.a.currentTime;
-      const rolling = !nd.a.paused && bT !== this._bT;
-      this._bT = bT;
-      const taking = !this._latched && rolling && this._aligns < 3;
-      if (taking || now - this.lastBeatCheck >= 60 / p.bpmB){
+      const rolling = rollingNow;
+      this._bT = bNow;
+      const errs = this._errs || [];
+      // taking the lock is the sampler's job (_sample); holding it is this
+      // loop's, once a beat, and only after the take is done
+      if (errs.length >= 3 && (this._latched || this._aligns >= 3) && now - this.lastBeatCheck >= 60 / p.bpmB){
         this.lastBeatCheck = now;
-        const tA = this._clkA.ok ? clockRead(this._clkA, now) : od.a.currentTime;
-        const tB = this._clkB.ok ? clockRead(this._clkB, now) : nd.a.currentTime;
-        if (isFinite(tA) && isFinite(tB)){
-          const phA = (((tA - p.startA) / (60 / p.bpmA)) % 1 + 1) % 1;
-          const phB = (((tB - p.startB) / (60 / p.bpmB)) % 1 + 1) % 1;
-          let err = phA - phB;
-          if (err > 0.5) err -= 1;
-          if (err < -0.5) err += 1;
-          const errSec = err * (60 / p.bpmB);
-          // Correct the lock WITHOUT ever seeking an audible deck: a hard align
-          // is allowed only while the incoming is still inaudible; once it can
-          // be heard, tempo trim alone holds it, so a blend never clicks.
-          const r = seamPhaseTrim(errSec, this.trimI, f);
-          if (r.seek){
-            this._aligns++;
-            try { nd.a.currentTime = nd.a.currentTime + errSec; } catch (e){}
-            this._bT = nd.a.currentTime;                // don't read the seek as motion
-            clockReset(this._clkB);                     // the window died with the seek
-          } else {
-            this._latched = true;                       // in lock (or past the align window)
-          }
-          this.trim = r.trim; this.trimI = r.trimI;
+        {
+          const errSec = median(errs);
+          // HOLDING the lock is tempo only — never a seek, audible or not: the
+          // take (and its seeks) belongs to the sampler, which reads B fresh
+          const r = seamPhaseTrim(errSec, this.trimI, f, { hardErr: Infinity });
+          this._latched = true;
+          // the fine servo (±0.6 %) holds a lock; a KNOCKED lock — a stall that
+          // left B a chunk of a beat out — gets a DJ's nudge on top, a few
+          // percent for a beat or two, rather than being carried the whole blend
+          this.trim = r.trim + seamNudge(errSec, p.bpmB); this.trimI = r.trimI;
           window.__mixPhaseErrMs = Math.abs(errSec) * 1000;  // acceptance probe
         }
       }
@@ -18745,17 +19031,150 @@ const MIXER = {
     if (f >= 1) this.finish();
   },
 
+  /* THE SEAM'S SAMPLER — see run(). One timer per running beatmix, each tick
+     its own task, the two playheads read back to back before anything else
+     can cache them. It feeds the error ring, records whether B is really
+     moving, and TAKES the lock (the pre-roll align); run() holds it. */
+  /* THE TOP OF THE FRAME. Called first thing in the animation frame, before
+     the beat clock or anything else has read a deck — so the reads here are
+     fresh (see run()). It is where a visible beatmix FIRES, and where a running
+     one takes its once-a-frame sample. The timers (_armFirePoll, _armSampler)
+     add finer reads whenever the main thread has room between frames; this is
+     the floor that still holds when it has none. */
+  preFrame(now){
+    if (!this.on || !AE.graphLive || document.hidden) return;
+    if (this.phase === 'armed' && this._fireAt != null && this.plan && this.plan.type === 'beatmix'){
+      const d = activeDeck();
+      if (d && player.playing && d.a.currentTime >= this._fireAt) this.fire(now);
+      return;
+    }
+    if (this.phase === 'running') this._sample();
+  },
+  _armFirePoll(exitAt){
+    this._fireAt = exitAt;
+    if (this._fireT) return;
+    this._fireT = setInterval(() => {
+      const d = activeDeck();
+      if (this.phase !== 'armed' || !d || !player.playing){ clearInterval(this._fireT); this._fireT = null; return; }
+      if (d.a.currentTime >= this._fireAt){
+        clearInterval(this._fireT); this._fireT = null;
+        this.fire(performance.now() / 1000);
+      }
+    }, 3);
+  },
+  _armSampler(){
+    if (this._sampleT) return;
+    this._sampleT = setInterval(() => this._sample(), 8);
+  },
+  _stopSampler(){
+    if (this._sampleT){ clearInterval(this._sampleT); this._sampleT = null; }
+  },
+  _sample(){
+    const p = this.plan, od = this.outDeck, nd = AE.decks && AE.decks[AE.active];
+    if (this.phase !== 'running' || !p || p.type !== 'beatmix' || !od || !nd){ this._stopSampler(); return; }
+    const bNow = nd.a.currentTime, aNow = od.a.currentTime;   // first reads of this task: fresh
+    const moving = !nd.a.paused && !od.a.paused && bNow !== this._bRead;
+    this._bRead = bNow;
+    this._rolling = moving;
+    if (!moving) return;
+    const e = seamPhaseErr(aNow, bNow, p);
+    if (e == null) return;
+    const tNow = performance.now() / 1000;
+    if (this._lastSampleAt){
+      const dt = Math.min(0.5, tNow - this._lastSampleAt);
+      this._dtEst = this._dtEst ? this._dtEst * 0.7 + dt * 0.3 : dt;
+    }
+    this._lastSampleAt = tNow;
+    (this._errs || (this._errs = [])).push(e);
+    if (this._errs.length > 9) this._errs.shift();
+    // the seam's first honest reading is B's start latency (nothing has
+    // corrected it yet): learned, slowly, for the next seam's placement
+    if (this._firstErr && this._errs.length >= 2){
+      this._firstErr = false;
+      const first = median(this._errs);
+      if (Math.abs(first) < 0.08) this._startLat = clamp((this._startLat || 0) + first * 0.5, 0, 0.08);
+    }
+    /* TAKING THE LOCK happens here, not in run(): the align is a seek RELATIVE
+       to where B is, and only this task knows where B is to the millisecond. A
+       few agreeing reads, B still inaudible, a bounded number of tries — then
+       latch, and run() holds the lock with tempo alone from there. */
+    /* THE RESCUE. A lock that was only ever measured once B could already be
+       heard (a stall ate the whole run-up) may latch a chunk of a beat out, and
+       the nudge walks that back at 3 % a beat — several beats of a flam you can
+       hear. A gross miss is worse than a tick, so ONCE per seam, while B is still
+       the quieter deck, it is simply moved: the same fresh-read seek the take
+       uses, now a tiny one under A's full level. */
+    if (this._latched && !this._rescued && this._errs.length >= 3){
+      const live = AE.graphLive && AE.ctx && this.audioT0 != null;
+      const f = live ? clamp01((AE.ctx.currentTime - this.audioT0) / Math.max(this.overlap, 0.05)) : 1;
+      const big = median(this._errs);
+      if (Math.abs(big) > 0.05 && f < 0.35){
+        this._rescued = true;
+        try { nd.a.currentTime = bNow + big; } catch (err){}
+        this._bRead = nd.a.currentTime;
+        this._errs = [];
+        this.trim = 0; this.trimI = 0;
+        this._applyRates(f);
+        return;
+      }
+    }
+    if (!this._latched && this._errs.length >= 2){
+      const live = AE.graphLive && AE.ctx && this.audioT0 != null;
+      const f = live ? clamp01((AE.ctx.currentTime - this.audioT0) / Math.max(this.overlap, 0.05)) : 1;
+      // the NEWEST read steers the take (fresh reads are good to ~1 ms; a
+      // median would be steering by where B was a few frames ago, mid-pull)
+      const errSec = this._errs[this._errs.length - 1];
+      window.__mixPhaseErrMs = Math.abs(errSec) * 1000;
+      // the pull closes the gap over a couple of sampling intervals, never one:
+      // it is re-decided on every read, so it cannot overshoot however far
+      // apart the reads arrive
+      // …and it is gentle enough that a stall mid-pull (a frame that takes a
+      // second: a room compiling at the seam) overshoots by less than it fixed
+      const take = seamTake(errSec, f, this._aligns, { tau: Math.max(0.25, 3 * (this._dtEst || 0.03)) });
+      if (take.act === 'seek'){
+        // far out and still unheard: one jump gets it close (a seek costs the
+        // element a rebuffer, so it is kept for errors a pull would be slow on)
+        this._aligns++;
+        try { nd.a.currentTime = bNow + errSec; } catch (err){}
+        this._bRead = nd.a.currentTime;
+        this._errs = [];
+      } else if (take.act === 'pull'){
+        // close, and still unheard: lean on B's tempo, hard — nobody can hear
+        // the pitch of a deck at -30 dB — and let the next reads say when it lands
+        this._pull = take.pull;
+        this._applyRates(f);
+      } else {
+        this._pull = 0;
+        this._latched = true;
+        this._applyRates(f);
+      }
+    }
+  },
+  /* both decks' rates for seam position f: the master glide, B's servo trim,
+     and — only while the lock is being TAKEN — the pull */
+  _applyRates(f){
+    const p = this.plan, od = this.outDeck, nd = AE.decks && AE.decks[AE.active];
+    if (!p || !od || !nd) return;
+    const g = glideRates(p.bpmA, p.bpmB, f);
+    const rA = g.rateA * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * SPEED.rate;
+    if (Math.abs(rA - this._lastRateA) > 0.0004){ try { od.a.playbackRate = rA; } catch (e){} this._lastRateA = rA; }
+    if (Math.abs(rB - this._lastRateB) > 0.0002){ try { nd.a.playbackRate = rB; } catch (e){} this._lastRateB = rB; }
+  },
+
   finish(){
+    this._stopSampler();
     const od = this.outDeck, nd = AE.decks[AE.active];
     const tc = AE.ctx ? AE.ctx.currentTime : 0;
     if (od){
       od.a.pause();
       try { od.a.playbackRate = SPEED.rate; } catch (e){}
+      setPitchLock(od.a, SPEED.keyLock);
       if (od.shelf) od.shelf.gain.value = 0;
       if (AE.graphLive && od.gain){ od.gain.gain.cancelScheduledValues(tc); od.gain.gain.setValueAtTime(0, tc); }
     }
     if (nd){
       try { nd.a.playbackRate = SPEED.rate; } catch (e){}
+      setPitchLock(nd.a, SPEED.keyLock);                // the blend rode vinyl; the listener's lock returns
       if (nd.shelf) nd.shelf.gain.value = 0;
       if (AE.graphLive && nd.gain){ nd.gain.gain.cancelScheduledValues(tc); nd.gain.gain.setValueAtTime(nd.norm || 1, tc); }
     }
@@ -18768,7 +19187,7 @@ const MIXER = {
     // learned offset was the next seam's starting bias. The latch is the same
     // hazard in a new form: left set, the next seam would skip the align it needs.
     // Mix-engine rot is cumulative; a seam must hand back exactly what it borrowed.
-    this.trimI = 0; this._latched = false; this._aligns = 0; this._bT = -1;
+    this.trimI = 0; this._latched = false; this._aligns = 0; this._bT = -1; this._errs = []; this._pull = 0;
     this.phase = 'idle';
     applyVolume();
     syncMixHud();
@@ -21146,8 +21565,8 @@ const FX = {
     } else if (this.live()){
       this._gateAt = AE.ctx.currentTime;
     }
-    this.loopTick();
-    this.jumpTick();
+    // loopTick and jumpTick run from preFrame() — the top of the frame, where
+    // a deck's playhead reads fresh (see MIXER.preFrame)
     this.brakeTick(dt);
     this.autoTick(dt);
     /* THE TAPE IS NOT FREE TO LEAVE RUNNING. It is nine megabytes of ring and a
@@ -21160,6 +21579,18 @@ const FX = {
       if (!busy && LOOPER._recal){ LOOPER._recal = false; LOOPER.routeChanged(); }
       if (LOOPER.idle > LOOP_IDLE_SEC) LOOPER.close();
     }
+  },
+
+  /* THE TRANSPORT READS FRESH. A loop's wrap and a cue's landing are both
+     arithmetic on where the playhead IS — and a media element's currentTime
+     is cached for the rest of a task after its first read, which inside the
+     animation frame means "where it was when the beat clock looked, a frame's
+     work ago". A wrap or a landing computed from that is off the beat by
+     exactly the time the frame spent rendering (measured: a hot cue landing
+     48-67 ms off its beat). So both run here, first thing in the frame. */
+  preFrame(){
+    this.loopTick();
+    this.jumpTick();
   },
 
   /* ---- loops and rolls ------------------------------------------------ */
@@ -21274,13 +21705,17 @@ const FX = {
     const d = activeDeck();
     if (!d || !player.playing) return;
     this.brakeT = 0; this._brakeSec = seconds || 1.1; this._brakeFrom = d.a.playbackRate || 1;
+    this._brakeT0 = performance.now();
     this.hand();
   },
   brakeTick(dt){
     if (this.brakeT < 0) return;
     const d = activeDeck();
     if (!d){ this.brakeT = -1; return; }
-    this.brakeT += dt;
+    // on the wall clock, not the sum of frame dts: those are clamped at 0.1 s,
+    // so a renderer running under ten frames a second stretched a 1.1 s brake
+    // into a stall that never quite came back
+    this.brakeT = (performance.now() - (this._brakeT0 || performance.now())) / 1000;
     const r = brakeRate(this.brakeT, this._brakeSec, this._brakeFrom);
     try { d.a.playbackRate = r; } catch (e){}
     // a lowpass follows the speed down, which is what a room full of air does
@@ -21350,29 +21785,76 @@ const FX = {
    its cues, and nothing ever leaves the device. */
 const CUES = {
   key: null, slots: new Array(CUE_SLOTS).fill(null), _cache: new Map(),
+  /* what an AUTO cue says it is (INTRO, DROP, BREAK…) — null for a cue a hand
+     set. Kept beside the slots, never inside them, so the stored cue format
+     every older build reads is unchanged. */
+  labels: new Array(CUE_SLOTS).fill(null), _lblCache: new Map(),
+  _autoFor: null,                              // the track whose auto cues are still to be found
   keyOf(t){ return t ? (trackKey(t) || (t.local ? 'local:' + t.title : null)) : null; },
   async follow(track){
     const k = this.keyOf(track);
     if (k === this.key) return;
     this.key = k;
     this.slots = new Array(CUE_SLOTS).fill(null);
+    this.labels = new Array(CUE_SLOTS).fill(null);
+    this._autoFor = null;
     if (!k){ FXPADS.paint(); return; }
-    let got = this._cache.get(k);
+    let got = this._cache.get(k), lbl = this._lblCache.get(k);
     if (!got){
       try { got = await DB.kvGet('cues:' + k); } catch (e){ got = null; }
+    }
+    if (!lbl){
+      try { lbl = await DB.kvGet('cuelbl:' + k); } catch (e){ lbl = null; }
     }
     if (this.key !== k) return;                 // the track moved on while we read
     // MERGE, never replace: a cue set while the store was being read is newer
     // than anything the store holds, and a read must not be what loses it
     if (Array.isArray(got)) for (let i = 0; i < CUE_SLOTS; i++)
-      if (this.slots[i] == null && typeof got[i] === 'number' && got[i] >= 0) this.slots[i] = got[i];
+      if (this.slots[i] == null && typeof got[i] === 'number' && got[i] >= 0){
+        this.slots[i] = got[i];
+        if (Array.isArray(lbl) && typeof lbl[i] === 'string') this.labels[i] = lbl[i];
+      }
+    // a track that has NEVER had cues gets the song's own: found by autoTick
+    // as soon as its waveform is in hand. One that has (even all cleared) is
+    // the hand's, and is left exactly as the hand left it.
+    if (!Array.isArray(got) && this.slots.every(v => v == null)) this._autoFor = track;
     FXPADS.paint();
   },
   _save(){
     if (!this.key) return;
-    const arr = this.slots.slice();
+    const arr = this.slots.slice(), lbl = this.labels.slice();
     this._cache.set(this.key, arr);
+    this._lblCache.set(this.key, lbl);
     DB.kvSet('cues:' + this.key, arr).catch(() => {});
+    DB.kvSet('cuelbl:' + this.key, lbl).catch(() => {});
+  },
+  /* THE SONG'S OWN CUES (autoCuePoints) — put on the pads the first time a
+     track is played, from the band energies the waveform decode already
+     produced, on the track's own beat grid. Runs off a slow timer, so the
+     booth needn't be open: by the time a hand reaches for the pads, the
+     drop is already on one. */
+  autoTick(){
+    const cur = typeof player !== 'undefined' ? player.tracks[player.cur] : null;
+    if (cur) this.follow(cur);
+    const t = this._autoFor;
+    if (!t || t !== cur) return;
+    if (t._peaksErr){ this._autoFor = null; return; }
+    if (!t._bands){ if (!t._peaksPending && t.url) computePeaks(t); return; }
+    const d = activeDeck();
+    const dur = d && isFinite(d.a.duration) && d.a.duration > 0 ? d.a.duration : (t.duration || 0);
+    if (!(dur > 0)) return;
+    this._autoFor = null;
+    const m = mixOf(t) || {};
+    const st = trackStructure(t);
+    const pts = autoCuePoints({ bands: t._bands, bmax: t._bmax, dur,
+      bpm: m.bpm, grid: m.grid, sections: st && st.sections });
+    if (!pts.length || this.slots.some(v => v != null)) return;   // a hand got there first
+    pts.slice(0, CUE_SLOTS).forEach((c, i) => { this.slots[i] = c.t; this.labels[i] = c.label; });
+    this._save();
+    FXPADS.paint();
+    window.__autoCues = pts;                    // the probe reads what was found
+    if (pts.length > 1)
+      toast(T('Cues found · {list}', { list: pts.map(c => T(c.label)).join(' · ') }));
   },
   // the cues belong to the playing track, booth open or not — a keyboard cue
   // with the booth closed must still land in the right track's store
@@ -21384,6 +21866,8 @@ const CUES = {
     const at = pos != null ? pos : (d ? d.a.currentTime : 0);
     const snapped = cueSnap(at, FX.grid(), FX.bpm(), CLOCK.haveGrid);
     this.slots[i] = snapped;                  // full precision: a beat line is not a millisecond
+    this.labels[i] = null;                    // a hand's cue has no name but its time
+    this._autoFor = null;                     // …and the hand owns this track's pads from here
     this._save();
     return this.slots[i];
   },
@@ -21391,6 +21875,7 @@ const CUES = {
     this._here();
     if (i < 0 || i >= CUE_SLOTS || this.slots[i] == null) return;
     this.slots[i] = null;
+    this.labels[i] = null;
     this._save();
   },
   /* THE PAD'S ONE RULE: empty takes the playhead, set jumps to it. */
@@ -21408,9 +21893,12 @@ const CUES = {
   },
   label(i){
     const v = this.slots[i];
-    return v == null ? String(i + 1) : cueFmt(v);
+    if (v == null) return String(i + 1);
+    const s = Math.max(0, v);
+    return this.labels[i] ? T(this.labels[i]) + ' ' + Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') : cueFmt(v);
   },
 };
+setInterval(() => { try { CUES.autoTick(); } catch (e){} }, 1000);
 function cueFmt(sec){
   const s = Math.max(0, sec || 0);
   return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') + '.' + Math.floor((s % 1) * 10);
@@ -22049,16 +22537,36 @@ const BOOTH = {
       const bk = document.createElement('div'); bk.className = 'bk';
       bk.textContent = (m.key || '—') + ' · '
         + (r.plan.type === 'beatmix' ? (r.plan.beats || 16) + ' beats' : r.plan.type);
-      b.title = T('Mix in “{title}” — blends on the bar, then the auto-mix continues', { title: t.title });
+      b.title = T('Put “{title}” on deck — it mixes in at the planned point; tap again to mix it in now', { title: t.title });
+      b._track = t; b._label = bk.textContent;
       const glow = document.createElement('i');
       b.append(bt, bk, glow);
       b.addEventListener('click', () => this._padPlay(t));
       el.boothPads.appendChild(b);
     }
+    this.paintOnDeck(true);
   },
   _padPlay(t){
-    crateMixNext(t);                     // pin the draw (adds to the queue if needed)
-    if (MIXER.on && player.playing && MIXER.phase !== 'running') MIXER.tryMixNow();
+    crateMixNext(t, { again: true });    // on deck; the same pad again = mix it in now
+  },
+  /* the pad whose track is ON DECK — the armed next, or the pick queued to
+     follow a running blend — lit, and saying what the next tap will do */
+  paintOnDeck(force){
+    if (!el.boothPads) return;
+    const i = MIXER.phase === 'armed' ? MIXER.next : (player._committedNext != null ? player._committedNext : -1);
+    const t = i >= 0 ? player.tracks[i] : null;
+    const key = (t ? (trackKey(t) || t.url) : '') + '|' + MIXER.phase;
+    if (!force && key === this._deckKey) return;
+    this._deckKey = key;
+    for (const b of el.boothPads.children){
+      const on = !!t && b._track === t;
+      b.classList.toggle('ondeck', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      const bk = b.querySelector('.bk');
+      if (bk) bk.textContent = on
+        ? (MIXER.phase === 'armed' ? T('ON DECK · tap = now') : T('ON DECK · after this blend'))
+        : (b._label || bk.textContent);
+    }
   },
   draw(){
     if (!this.open || !el.boothCv) return;
@@ -22080,6 +22588,7 @@ const BOOTH = {
     const pcur = player.tracks[player.cur];
     const pkey = pcur ? (trackKey(pcur) || pcur.url || String(pcur.id)) : null;
     if (pkey !== this._padKey){ this._padKey = pkey; this.refreshPads(); }
+    else this.paintOnDeck(false);
     if (typeof CUES !== 'undefined') CUES.follow(pcur);
 
     const cv = el.boothCv, ctx = this._ctx || (this._ctx = cv.getContext('2d'));
@@ -22209,6 +22718,11 @@ const BOOTH = {
         ctx.beginPath(); ctx.moveTo(x, yA); ctx.lineTo(x + 9, yA); ctx.lineTo(x + 9, yA + 9); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#0a0d12'; ctx.font = 'bold 7px monospace';
         ctx.fillText(String(i + 1), x + 3.5, yA + 6.5);
+        // an auto cue says what it found there
+        if (CUES.labels[i]){
+          ctx.fillStyle = col; ctx.globalAlpha = 0.8; ctx.font = 'bold 7px monospace';
+          ctx.fillText(T(CUES.labels[i]), Math.min(x + 11, laneX + laneW - 30), yA + 7);
+        }
         ctx.globalAlpha = 1;
       }
     }
@@ -52503,6 +53017,9 @@ const RIG = {
 
 function frame(now){
   requestAnimationFrame(frame);
+  // before ANYTHING reads a deck this frame: the mixer's fresh reads (see MIXER.preFrame)
+  try { if (typeof MIXER !== 'undefined') MIXER.preFrame(now / 1000); } catch (e){}
+  try { if (typeof FX !== 'undefined') FX.preFrame(); } catch (e){}
   if (!three_ok) return;
   let dt = (now - lastT) / 1000; lastT = now;
   if (dt > 0.1) dt = 0.1;                 // clamp after tab-away

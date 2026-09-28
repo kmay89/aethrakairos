@@ -227,7 +227,10 @@ const mixNow = await page.evaluate(() => {
     barA: mA ? 4 * 60 / mA.bpm : 0, grid: mA ? mA.grid : 0,
     // the lead-in the seam is scheduled with, read from the engine rather than
     // duplicated here — the contract belongs to SEAM_LEAD, not to this file
-    lead: typeof seamLeadFor === 'function' && p ? seamLeadFor(p) : 0 };
+    lead: typeof seamLeadFor === 'function' && p ? seamLeadFor(p) : 0,
+    // the distance MIX NOW keeps from the playhead when it picks the bar — the
+    // beatmix run-up, which may be longer than the lead this B can take
+    planLead: typeof BEATMIX_LEAD === 'number' ? BEATMIX_LEAD : 0 };
 });
 const barRel = (mixNow.plan.startA - mixNow.grid) / mixNow.barA;
 const latticeOffMs = Math.abs(barRel - Math.round(barRel)) * mixNow.barA * 1000;
@@ -253,7 +256,7 @@ const leadTol = 0.05;                      // one frame of grace on either side
 R('mix now seam sits on the next playable bar line',
   latticeOffMs < 3
   && mixNow.plan.startA >= mixNow.pos + mixNow.lead - leadTol
-  && mixNow.plan.startA <= mixNow.pos + mixNow.lead + mixNow.barA + leadTol,
+  && mixNow.plan.startA <= mixNow.pos + Math.max(mixNow.lead, mixNow.planLead) + mixNow.barA + leadTol,
   'startA ' + mixNow.plan.startA.toFixed(3) + ' (pos ' + mixNow.pos.toFixed(3)
   + ', bar ' + mixNow.barA.toFixed(3) + ', lead ' + mixNow.lead.toFixed(3)
   + ', off-lattice ' + latticeOffMs.toFixed(2) + ' ms)');
@@ -292,7 +295,9 @@ const nowErr = await page.evaluate(() => new Promise(res => {
 R('mix now beat-phase lock < 40 ms', nowErr < 40, nowErr && nowErr.toFixed(1) + ' ms');
 // the beatmix runs 16 beats (~8 s at 124 BPM) then hands over; under heavy
 // machine load that can drift, so give the handover generous headroom
-await page.waitForFunction('MIXER.phase === "idle" && player.tracks[player.cur] '
+// (the fixture's tracks are 30 s long, so the NEXT seam can arm the very frame
+// this one hands over — wait on the completed-mix counter, not on "idle")
+await page.waitForFunction('window.__mixCompleted >= 2 && player.tracks[player.cur] '
   + '&& player.tracks[player.cur].title === "alpha"', null, { timeout: 30000 });
 R('mix now hands over — alpha playing', await page.evaluate(() =>
   player.playing && player.tracks[player.cur].title === 'alpha'));
