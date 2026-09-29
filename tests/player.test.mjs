@@ -27,13 +27,13 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
-  ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD,' +
+  ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
   ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
   ' TEAR_HOLD, TEAR_MIN, makeTearWatch, tapeTearStep, tapeTearSilent, ringTornIn, loopDeckReady, loopHandbackAt,' +
-  ' CUE_SLOTS, CUE_COLORS, cueSnap, cueJumpAt, cueJumpLand, beatJumpTarget, EQ_KILL_DB, EQ_BANDS, fxEqToggle, fxEqIsFlat,' +
+  ' CUE_SLOTS, CUE_COLORS, cueSnap, autoCuePoints, AUTOCUE, cueJumpAt, cueJumpLand, beatJumpTarget, EQ_KILL_DB, EQ_BANDS, fxEqToggle, fxEqIsFlat,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
   ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
@@ -4726,6 +4726,43 @@ test('seamPhaseTrim: never seeks an audible deck; tempo-only once heard', () => 
   assert.ok(Math.abs(ti) <= 0.002 + 1e-9, 'integrator stays capped at ±0.2%');
 });
 
+test('seamPhaseErr: one pair of reads → the wrapped beat-phase error, B-behind positive', () => {
+  const plan = { bpmA: 120, bpmB: 120, startA: 100, startB: 8 };
+  assert.ok(Math.abs(S.seamPhaseErr(101, 9, plan)) < 1e-9, 'in phase');
+  assert.ok(Math.abs(S.seamPhaseErr(101, 8.99, plan) - 0.01) < 1e-9, 'B 10 ms behind → +10 ms');
+  assert.ok(Math.abs(S.seamPhaseErr(101, 9.02, plan) + 0.02) < 1e-9, 'B 20 ms ahead → −20 ms');
+  // wrapped to the nearest beat: 0.49 s behind at 120 bpm is 10 ms AHEAD of the next beat
+  assert.ok(Math.abs(S.seamPhaseErr(101, 8.51, plan) + 0.01) < 1e-9, 'wraps to the nearest beat');
+  // different tempos: each deck is phased against its OWN grid
+  const p2 = { bpmA: 124, bpmB: 126, startA: 50, startB: 4 };
+  assert.ok(Math.abs(S.seamPhaseErr(50 + 3 * 60 / 124, 4 + 3 * 60 / 126, p2)) < 1e-9, 'beat 3 on both grids');
+  assert.equal(S.seamPhaseErr(NaN, 1, plan), null);
+  assert.equal(S.seamPhaseErr(1, 1, { bpmA: 0, bpmB: 120 }), null);
+});
+
+test('seamTake: seek far misses, pull near ones, latch when done or once B can be heard', () => {
+  assert.equal(S.seamTake(0.1, 0, 0).act, 'seek', 'a 100 ms miss while unheard → one seek');
+  assert.equal(S.seamTake(0.1, 0, 3).act, 'pull', 'out of seeks → it still pulls, never gives up');
+  const near = S.seamTake(0.02, 0, 0, { tau: 0.25 });
+  assert.equal(near.act, 'pull');
+  assert.ok(Math.abs(near.pull - 0.08) < 1e-9, '20 ms over a quarter second → +8 % (B behind → faster)');
+  assert.ok(S.seamTake(-0.02, 0, 0, { tau: 0.25 }).pull < 0, 'B ahead → slower');
+  assert.ok(Math.abs(S.seamTake(0.035, 0, 0, { tau: 0.1 }).pull) <= 0.15 + 1e-12, 'the pull is capped');
+  assert.equal(S.seamTake(0.001, 0, 0).act, 'latch', 'inside a millisecond and a half → done');
+  assert.equal(S.seamTake(0.03, 0.5, 0).act, 'latch', 'B audible → never seek or pull; the servo takes over');
+  assert.equal(S.seamTake(NaN, 0, 0).act, 'latch');
+});
+
+test('seamNudge: nothing for a held lock, a bounded push for a knocked one', () => {
+  assert.equal(S.seamNudge(0.004, 124), 0, 'a few ms is the fine servo\'s');
+  const spb = 60 / 124;
+  assert.ok(Math.abs(S.seamNudge(0.02, 124) - 0.02 / (2 * spb)) < 1e-12, 'half the error per beat');
+  assert.ok(S.seamNudge(-0.02, 124) < 0, 'B ahead → slower');
+  assert.equal(S.seamNudge(0.2, 124), 0.03, 'capped at 3 % — a push, not a pitch bend');
+  assert.equal(S.seamNudge(-0.2, 124), -0.03);
+  assert.equal(S.seamNudge(0.02, 0), 0, 'no tempo, no nudge');
+});
+
 // ---- ready means ready: no seam starts on a stream that can't carry it ----
 const ranges = list => ({ length: list.length, start: i => list[i][0], end: i => list[i][1] });
 
@@ -4793,14 +4830,15 @@ test('seamEntry: a late call places a CORRECT seam, not a punctual wrong one', (
   // early on purpose, so B is placed a lead-in before its entry and arrives on
   // it exactly as the fader opens. Bounded by the lead — an absurdly early call
   // still only backs B up by the lead it was given.
-  assert.ok(Math.abs(S.seamEntry(plan, 100 - S.SEAM_LEAD) - (8 - S.SEAM_LEAD)) < 1e-9);
-  assert.ok(Math.abs(S.seamEntry(plan, 99) - (8 - S.SEAM_LEAD)) < 1e-9);
+  assert.ok(Math.abs(S.seamEntry(plan, 100 - S.BEATMIX_LEAD) - (8 - S.BEATMIX_LEAD)) < 1e-9);
+  assert.ok(Math.abs(S.seamEntry(plan, 98) - (8 - S.BEATMIX_LEAD)) < 1e-9);
   // B can never be rolled from before the start of its own file
   assert.equal(S.seamEntry({ type: 'beatmix', startA: 100, startB: 0, seconds: 4 }, 99), 0);
   assert.equal(S.seamEntry(null, 10), 0, 'garbage in → the top of the file');
 });
 test('seamLeadFor: every seam gets the lead-in it can honestly afford', () => {
-  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 8 }), S.SEAM_LEAD, 'plenty of runway');
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 8 }), S.BEATMIX_LEAD, 'plenty of runway — a beatmix takes the longer run-up');
+  assert.ok(S.BEATMIX_LEAD > S.SEAM_LEAD, 'the lock is taken inside the lead: a beatmix needs more of it than a fade');
   assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 0.1 }), 0.1, 'cued near the top → a short lead');
   assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 0 }), 0, 'no runway → no lead, honestly');
   assert.equal(S.seamLeadFor({ type: 'gapless' }), 0, 'the artist sequenced those two to touch');
@@ -6505,6 +6543,64 @@ test('loopHandbackAt: waits for the deck, never past the cap, never inside the l
 });
 
 // ---------------------------------------------------------------- hot cues, beat jumps, the EQ
+/* a synthetic song on a 128 bpm grid: intro 16 bars (quiet), build 8 (mid),
+   drop 16 (loud), break 8 (quiet), drop 16 (loud), outro 8 (thin) — the
+   band energies are drawn per column exactly as the booth decodes them */
+function songBands(grid, bpm, plan, N){
+  const bar = 4 * 60 / bpm;
+  const totalBars = plan.reduce((a, p) => a + p[0], 0);
+  const dur = grid + totalBars * bar + 2;
+  const l = new Float32Array(N), m = new Float32Array(N), h = new Float32Array(N);
+  for (let i = 0; i < N; i++){
+    const t = (i + 0.5) * dur / N;
+    let v = 0.02, acc = grid;
+    for (const [bars, lvl] of plan){ if (t >= acc && t < acc + bars * bar){ v = lvl; break; } acc += bars * bar; }
+    l[i] = v; m[i] = v * 0.8; h[i] = v * 0.6;
+  }
+  return { bands: { l, m, h }, bmax: { l: 1, m: 1, h: 1 }, dur, bar };
+}
+test('autoCuePoints: a cue at every real turn of the song, on the bar line, named for what it does', () => {
+  const grid = 0.5, bpm = 128;
+  const S0 = songBands(grid, bpm, [[16, 0.25], [8, 0.55], [16, 1.0], [8, 0.2], [16, 1.0], [8, 0.3]], 1200);
+  const cues = S.autoCuePoints({ bands: S0.bands, bmax: S0.bmax, dur: S0.dur, bpm, grid });
+  const barsAt = cues.map(c => Math.round((c.t - grid) / S0.bar));
+  assert.deepEqual(barsAt, [0, 16, 24, 40, 48, 64], 'the six turns, bar-exact: ' + JSON.stringify(cues));
+  assert.deepEqual(cues.map(c => c.label), ['INTRO', 'BUILD', 'DROP', 'BREAK', 'DROP', 'OUTRO']);
+  for (const c of cues){
+    const off = ((c.t - grid) / S0.bar) - Math.round((c.t - grid) / S0.bar);
+    assert.ok(Math.abs(off) < 1e-6, 'every cue sits ON a bar line');
+  }
+});
+test('autoCuePoints: a change that lands a bar off the phrase is still found, never doubled', () => {
+  const grid = 0.2, bpm = 124;
+  // the drop arrives at bar 17 (a bar late) — one cue for it, near it
+  const S0 = songBands(grid, bpm, [[17, 0.2], [15, 1.0], [16, 0.3]], 900);
+  const cues = S.autoCuePoints({ bands: S0.bands, bmax: S0.bmax, dur: S0.dur, bpm, grid });
+  const drops = cues.filter(c => c.label === 'DROP');
+  assert.equal(drops.length, 1, JSON.stringify(cues));
+  assert.ok(Math.abs(Math.round((drops[0].t - grid) / S0.bar) - 17) <= 1);
+});
+test('autoCuePoints: a flat track gets its top and nothing invented; never more than eight', () => {
+  const grid = 0, bpm = 120;
+  const flat = songBands(grid, bpm, [[64, 0.7]], 800);
+  const c1 = S.autoCuePoints({ bands: flat.bands, bmax: flat.bmax, dur: flat.dur, bpm, grid });
+  assert.equal(c1.length, 1, 'no change, no cue — only the top');
+  // a restless track: a change every 8 bars for 128 bars
+  const plan = []; for (let i = 0; i < 16; i++) plan.push([8, i % 2 ? 1.0 : 0.2]);
+  const busy = songBands(grid, bpm, plan, 2400);
+  const c2 = S.autoCuePoints({ bands: busy.bands, bmax: busy.bmax, dur: busy.dur, bpm, grid });
+  assert.ok(c2.length <= S.AUTOCUE.max, 'capped at the pad count');
+  for (let i = 1; i < c2.length; i++) assert.ok(c2[i].t > c2[i - 1].t, 'in time order');
+  assert.deepEqual(S.autoCuePoints({ bands: null, dur: 10 }), [], 'no wave, no cues');
+});
+test('autoCuePoints: without a grid it reads the coarse sections instead', () => {
+  const sections = [{ s: 0, e: 0.2, energy: 0.2 }, { s: 0.2, e: 0.6, energy: 0.9 }, { s: 0.6, e: 1, energy: 0.15 }];
+  const flat = songBands(0, 120, [[8, 0.5]], 100);
+  const c = S.autoCuePoints({ bands: flat.bands, bmax: flat.bmax, dur: 200, bpm: 0, grid: NaN, sections });
+  assert.deepEqual(c.map(x => x.label), ['INTRO', 'DROP', 'BREAK']);
+  assert.deepEqual(c.map(x => x.t), [0, 40, 120]);
+});
+
 test('cueSnap: a cue set with a grid lands on the nearest beat; without one, where the hand was', () => {
   const bpm = 120, grid = 0.25;               // beats at 0.25, 0.75, 1.25 …
   assert.equal(S.cueSnap(0.80, grid, bpm, true), 0.75);
