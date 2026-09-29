@@ -65,7 +65,7 @@ inline float3 govern_z(float3 c, float white) {
     t = t * t * (3.0 - 2.0 * t) * w;
     return mix(o, float3(m2), t);
 }
-// x², as a multiply: under fast math sq_z(x) is NaN for x < 0, and one NaN voids the pixel
+// x², as a multiply: under fast math pow(x, 2.0) is NaN for x < 0, and one NaN voids the pixel
 inline float sq_z(float x) { return x * x; }
 inline float hash21_z(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123); }
 inline float2 centeredUp_z(float2 pix, float2 res, float aspect) {
