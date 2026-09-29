@@ -401,6 +401,13 @@ enum Rooms {
         Room(key: "shuffle", name: "SHUFFLE", fragmentFunction: "room_shuffle",
              tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.8, tasteTreble: 0,
              tasteMid: 0.5, tasteEntropy: -0.4, heavy: true),
+
+        // The twisted bottle (Shaders22): a stellarator twists its field with the
+        // shape of its coils alone. The flux surface and its closed field lines,
+        // the Poincaré section with its island chains, and the l = 2 heliotron.
+        Room(key: "stellarator", name: "STELLARATOR", fragmentFunction: "room_stellarator",
+             tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.3, tasteBass: 0.4, tasteEntropy: -0.3, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

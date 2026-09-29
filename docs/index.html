@@ -3737,6 +3737,24 @@ body.clipping::after{
     THE ORBIT lays the deck on a circle with chords i&nbsp;→&nbsp;2<sup>t</sup>·i&nbsp;mod&nbsp;51
     and walks the powers of two, until at t&nbsp;=&nbsp;8 every chord collapses to a point: every
     card is home.</p>
+    <h3>The twisted bottle</h3>
+    <p class="lede">Scene 102 is <b>STELLARATOR</b>. A tokamak twists its magnetic field with a
+    current in the plasma; a stellarator twists it with the shape of its coils alone, so nothing
+    inside can ever quench — and the price is that nothing is round. THE SURFACE is the last closed
+    flux surface of a five-period machine shaped the way Wendelstein&nbsp;7-X is, its boundary
+    carrying the (2,1) and (3,1) helical harmonics so the bean at φ&nbsp;=&nbsp;0 turns into a
+    triangle half a period on; the field lines on it are straight in magnetic coordinates,
+    θ&nbsp;−&nbsp;ιφ&nbsp;=&nbsp;const, at a rotational transform ι&nbsp;=&nbsp;p/q the dice deal,
+    so every line closes on itself after q turns, and one of them is followed as a comet. THE
+    SECTION is the Poincaré plot — a plane at one toroidal angle, the nested surfaces the field
+    lines pierce, and at every rational ι&nbsp;=&nbsp;n/m the pendulum's islands,
+    K&nbsp;=&nbsp;(s&nbsp;−&nbsp;s<sub>r</sub>)²&nbsp;−&nbsp;w²&nbsp;cos(mθ&nbsp;−&nbsp;nφ), with their
+    O-points and X-points and the chaotic sea past the last one; the tracer hops 2πι a beat, and on
+    the island chain it hops island to island. The song's energy is the plasma's β, and it pushes
+    the inner surfaces outboard: the Shafranov shift. THE HELIOTRON is the classical machine — two
+    helical windings, l&nbsp;=&nbsp;2, m&nbsp;=&nbsp;10, one current the same way in both, and
+    between them the plasma they hold, an ellipse pointed at the coils that turns ten times round the
+    ring, its pressure p&nbsp;∝&nbsp;(1&nbsp;−&nbsp;s²)² glowing from the axis out.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4374,7 +4392,7 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
                'flows', 'gathers',
-               'flows'];   // …the lattice and the film ripple, the
+               'flows', 'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -5884,7 +5902,7 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
-                    'shuffle'];
+                    'shuffle', 'stellarator'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6042,6 +6060,7 @@ const SCENE_TASTE = {
   minkowski: { mid: 0.6, beat: 0.6, entropy: -0.2 },        // events land on the onsets
   boltzmann: { energy: 0.7, treble: 0.4, entropy: 0.6 },    // the gas LIKES disorder
   shuffle:   { beat: 0.8, mid: 0.5, entropy: -0.4 },        // order dressed as chaos, on the beat
+  stellarator: { energy: 0.6, bass: 0.4, mid: 0.3, entropy: -0.3 },  // a hot plasma on nested, orderly surfaces
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7309,6 +7328,7 @@ const SCENE_SIGS = {
   minkowski: { kind: 'grid',   h: 220, dense: 0.6 },
   boltzmann: { kind: 'blob',   h: 30,  arms: 0 },
   shuffle:   { kind: 'grid',   h: 300, dense: 0.9 },
+  stellarator: { kind: 'ring', h: 275, arms: 5 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -48158,6 +48178,377 @@ function buildShuffle(){
   return api;
 }
 
+/* =========================================================
+   SCENE 102 · STELLARATOR — the twisted bottle
+
+   A tokamak twists its field with a current in the plasma; a
+   stellarator twists it with the shape of the coils alone, so
+   nothing inside can ever quench. The price is that nothing is
+   round: the cross-section carries the (2,1) and (3,1) helical
+   harmonics, r_b(θ,φ) = a (1 − e₂ cos(2θ − Nφ) + e₃ cos(3θ − Nφ)),
+   a bean at φ = 0 that turns into a triangle half a period on,
+   N = 5 times round the ring, the way Wendelstein 7-X is shaped.
+   THE SURFACE draws the last closed flux surface with its field
+   lines — straight in magnetic coordinates, θ − ιφ = const, at
+   a rotational transform ι = p/q the dice deal, so every line
+   closes on itself after q turns — and one line followed as a
+   comet. THE SECTION is the Poincaré plot: a plane at toroidal
+   angle φ, the nested surfaces the field lines pierce, and at
+   every rational ι = n/m the pendulum's islands,
+   K = (s − sᵣ)² − w² cos(mθ − nφ), O-points and X-points and
+   the chaotic sea past the last one; the tracer hops 2πι a
+   beat, and on the island chain it hops island to island while
+   librating slowly about the O-point. Pressure pushes the inner
+   surfaces outboard — the Shafranov shift, Δ ∝ β(1 − s²), the
+   song's energy as β. THE HELIOTRON is the classical machine:
+   two helical windings, l = 2, m = 10, carrying one current the
+   same way, and between them the plasma they hold, an ellipse
+   pointed at the coils that turns ten times round, its pressure
+   p ∝ (1 − s²)² glowing from the axis out.
+   ========================================================= */
+function buildStellarator(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uModeSt: { value: 0 },
+    uCfg:    { value: 0 },      // which configuration the dice dealt: the ι profile and its island chains
+    uIota:   { value: 1 },      // the surface's rotational transform, a rational p/q
+    uLines:  { value: 8 },      // field lines drawn on it — n·ι an integer, so every line closes
+    uCam:    { value: 0 },      // the orbit, accumulated with the music
+    uPhi:    { value: 0 },      // the section's toroidal angle
+    uHop:    { value: 0 },      // the tracer's puncture clock — one toroidal transit per hop
+    uTrace:  { value: 0 },      // the comet's toroidal angle along its field line
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeSt, uVarA, uAspect, uCfg, uIota, uLines, uCam, uPhi, uHop, uTrace;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    const float TAU = 6.2831853;
+    const float NFP = 5.0;         // five field periods, as W7-X
+    const float R0 = 1.0;          // the major radius — every length here is in units of it
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    /* THE SHAPE. The boundary's (2,1) and (3,1) harmonics: a bean at φ = 0, a
+       triangle half a period on, and back — five times round the ring. */
+    float rbnd(float th, float ph, float a, float e2, float e3){
+      float h = NFP * ph;
+      return a * (1.0 - e2 * cos(2.0 * th - h) + e3 * cos(3.0 * th - h));
+    }
+    /* the flux label of a point in space — 0 on the magnetic axis (itself a
+       helix, the (1,1) harmonic), 1 on the boundary — and its two angles */
+    float fluxLabel(vec3 q, float a, float e2, float e3, float hx, out float th, out float ph, out float rb){
+      float R = length(q.xz); ph = atan(q.z, q.x);
+      float ax = hx * a;
+      vec2 v = vec2(R - R0 - ax * cos(NFP * ph), q.y - ax * sin(NFP * ph));
+      th = atan(v.y, v.x);
+      rb = rbnd(th, ph, a, e2, e3);
+      return length(v) / rb;
+    }
+    vec3 surfPt(float th, float ph, float s, float a, float e2, float e3, float hx){
+      float ax = hx * a;
+      float r = s * rbnd(th, ph, a, e2, e3);
+      float Rr = R0 + ax * cos(NFP * ph) + r * cos(th);
+      float Zz = ax * sin(NFP * ph) + r * sin(th);
+      return vec3(Rr * cos(ph), Zz, Rr * sin(ph));
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      float beat = uBeat;
+      if (uModeSt < 0.5 || uModeSt > 1.5){
+        /* THE SURFACE and THE HELIOTRON share one slow orbit round the ring */
+        float ca = uCam + uHand.x * uHand.z * 0.9;
+        float ch = 1.20 + 0.22 * sin(uCam * 0.7) + uHand.y * uHand.z * 0.9;
+        float cd = uModeSt < 0.5 ? 2.55 : 2.40;
+        vec3 ro = vec3(cos(ca) * cd, ch, sin(ca) * cd);
+        vec3 fw = normalize(-ro);
+        vec3 rt = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
+        vec3 up = cross(rt, fw);
+        vec3 rd = normalize(fw * 1.75 + rt * p.x + up * p.y);
+        float Rb = uModeSt < 0.5 ? R0 + 0.52 : R0 + 0.42;
+        float b = dot(ro, rd), c = dot(ro, ro) - Rb * Rb;
+        float disc = b * b - c;
+        if (disc > 0.0){
+          float sq = sqrt(disc);
+          float t0 = max(-b - sq, 0.0), t1 = -b + sq;
+          if (uModeSt < 0.5){
+            /* THE SURFACE — the last closed flux surface, and the lines that live on it */
+            float a = 0.30, e2 = 0.22, e3 = 0.09, hx = 0.10;
+            float t = t0, th = 0.0, ph = 0.0, rb = 1.0, hit = 0.0;
+            for (int i = 0; i < 96; i++){
+              vec3 q = ro + rd * t;
+              float s = fluxLabel(q, a, e2, e3, hx, th, ph, rb);
+              // the poloidal-plane distance, scaled for the shape's slope — a safe step
+              float d = (s - 1.0) * rb * 0.55;
+              if (d < 0.0012){ hit = 1.0; break; }
+              t += d;
+              if (t > t1) break;
+            }
+            float tHit = hit > 0.5 ? t : 1e9;
+            if (hit > 0.5){
+              vec3 q = ro + rd * t;
+              float e = 0.004, t_, p_, r_;
+              vec3 g = vec3(
+                fluxLabel(q + vec3(e, 0.0, 0.0), a, e2, e3, hx, t_, p_, r_) - fluxLabel(q - vec3(e, 0.0, 0.0), a, e2, e3, hx, t_, p_, r_),
+                fluxLabel(q + vec3(0.0, e, 0.0), a, e2, e3, hx, t_, p_, r_) - fluxLabel(q - vec3(0.0, e, 0.0), a, e2, e3, hx, t_, p_, r_),
+                fluxLabel(q + vec3(0.0, 0.0, e), a, e2, e3, hx, t_, p_, r_) - fluxLabel(q - vec3(0.0, 0.0, e), a, e2, e3, hx, t_, p_, r_));
+              vec3 nrm = normalize(g);
+              float ndv = max(0.0, -dot(nrm, rd));
+              vec3 L = normalize(vec3(0.6, 1.0, -0.4));
+              float dif = max(0.0, dot(nrm, L));
+              float rim = pow(1.0 - ndv, 3.0);
+              // the surface: dark glass over the plasma, its colour from the chord by poloidal angle
+              col += ramp(0.55 + 0.10 * cos(th)) * (0.02 + 0.06 * dif) + ramp(0.85) * rim * 0.34;
+              // the plasma seen through it — the pressure lives on the axis, so the glow is
+              // deepest where the eye looks through the most of it
+              col += ramp(0.15) * (0.06 + uBass * 0.10) * (1.0 - rim);
+              // the field lines: θ − ιφ = const, one colour per closed line, and a pulse
+              // of light running along B
+              float w = (th - uIota * ph) * uLines / TAU;
+              float u = fract(w), j = floor(w);
+              float ln = exp(-pow(u - 0.5, 2.0) * 420.0);
+              float run = 0.55 + 0.45 * cos(ph * 9.0 - uTime * (2.2 + uMid * 3.0));
+              col += ramp(fract(j / uLines + 0.07)) * ln * (0.75 + 0.55 * run + beat * 0.35) * (0.35 + 0.65 * ndv + rim * 0.5);
+            }
+            // the comet: one field line followed, a bead of light with its trail behind it
+            float th0 = (floor(uVarA * uLines) + 0.5) * TAU / uLines;
+            for (int k = 0; k < 16; k++){
+              float fk = float(k);
+              float phk = uTrace - fk * 0.028;
+              vec3 P = surfPt(th0 + uIota * phk, phk, 1.004, a, e2, e3, hx);
+              float tp = dot(P - ro, rd);
+              vec3 dP = P - (ro + rd * tp);
+              float vis = tp < tHit + 0.02 ? 1.0 : 0.15;     // round the back it only smoulders
+              float g2 = exp(-dot(dP, dP) * (1100.0 + fk * 200.0)) * (1.0 - fk / 16.0);
+              col += ramp(0.85) * g2 * vis * (1.4 + beat * 1.0) * (k == 0 ? 1.8 : 1.0);
+            }
+          } else {
+            /* THE HELIOTRON — two helical windings, and the plasma between them */
+            const float MC = 10.0;            // l = 2, m = 10: LHD's numbers
+            float ac = 0.31, rc = 0.040, ap = 0.175, e2 = 0.34;
+            float t = t0, hitc = 0.0, thc = 0.0;
+            vec3 q = ro, glow = vec3(0.0);
+            for (int i = 0; i < 120; i++){
+              q = ro + rd * t;
+              float R = length(q.xz), ph = atan(q.z, q.x);
+              vec2 v = vec2(R - R0, q.y);
+              float r = length(v), th = atan(v.y, v.x);
+              float thc0 = MC * 0.5 * ph;     // the pair: at θ = (m/l) φ, and π on
+              // the winding leans at its pitch angle — dθ/dφ = m/l — so the distance is
+              // taken to its tangent, not to where it crosses this poloidal plane
+              vec2 C0 = ac * vec2(cos(thc0), sin(thc0)), D0 = v - C0, D1 = v + C0;
+              float tl0 = sqrt(pow(R0 + C0.x, 2.0) + 25.0 * ac * ac), tl1 = sqrt(pow(R0 - C0.x, 2.0) + 25.0 * ac * ac);
+              vec2 tp0 = 5.0 * ac * vec2(-C0.y, C0.x) / (ac * tl0), tp1 = -tp0 * tl0 / tl1;
+              float d0 = sqrt(max(dot(D0, D0) - pow(dot(D0, tp0), 2.0), 0.0)) - rc;
+              float d1 = sqrt(max(dot(D1, D1) - pow(dot(D1, tp1), 2.0), 0.0)) - rc;
+              float dc = min(d0, d1) * 0.7;
+              if (dc < 0.0015){ hitc = 1.0; thc = d0 < d1 ? thc0 : thc0 + PI; break; }
+              // the plasma the windings hold: elliptical, pointed at the coils, turning ten times round
+              float rb = ap * (1.0 + e2 * cos(2.0 * (th - thc0)));
+              float s = r / rb;
+              float stp = clamp(dc, 0.005, 0.035);
+              if (s < 1.0){
+                float dens = 1.0 - s * s; dens *= dens;    // the pressure profile, p ∝ (1 − s²)²
+                glow += ramp(0.12 + 0.30 * s) * dens * stp * (0.9 + uEnergy * 2.4 + uBass * 1.0);
+                // field lines on the edge, ι = 1 there: eight that close in a single turn
+                float shell = exp(-pow((s - 0.96) * 30.0, 2.0));
+                float w = (th - ph) * 8.0 / TAU;
+                float ln = exp(-pow(fract(w) - 0.5, 2.0) * 700.0);
+                float run = 0.5 + 0.5 * cos(ph * 12.0 - uTime * (2.0 + uMid * 3.0));
+                glow += ramp(fract(floor(w) / 8.0 + 0.07)) * ln * shell * stp * (30.0 + 18.0 * run + beat * 12.0);
+              }
+              t += stp;
+              if (t > t1) break;
+            }
+            col += glow;
+            if (hitc > 0.5){
+              // the winding, lit — and its current, one pulse running the same way along both
+              float ph = atan(q.z, q.x);
+              vec2 v = vec2(length(q.xz) - R0, q.y);
+              vec2 C = ac * vec2(cos(thc), sin(thc)), D = v - C;
+              float tl = sqrt(pow(R0 + C.x, 2.0) + 25.0 * ac * ac);
+              vec2 tp = 5.0 * vec2(-C.y, C.x) / tl;
+              float along = dot(D, tp);
+              vec2 np = D - along * tp;               // the perpendicular, in the plane…
+              float nt = -along * (R0 + C.x) / tl;    // …and its share along the ring
+              vec3 nrm = normalize(vec3(np.x * cos(ph) - nt * sin(ph), np.y, np.x * sin(ph) + nt * cos(ph)));
+              vec3 L = normalize(vec3(0.6, 1.0, -0.4));
+              float dif = max(0.0, dot(nrm, L));
+              float ndv = max(0.0, -dot(nrm, rd));
+              float spec = pow(max(0.0, dot(reflect(rd, nrm), L)), 24.0);
+              float cur = pow(0.5 + 0.5 * cos(ph * 20.0 - uTime * (3.0 + uBass * 4.0)), 3.0);
+              col += ramp(0.85) * (0.08 + 0.30 * dif) + ramp(0.70) * cur * (0.35 + uBass * 0.5 + beat * 0.3)
+                   + ramp(0.85) * pow(1.0 - ndv, 3.0) * 0.22 + spec * 0.35;
+            }
+          }
+        }
+      } else {
+        /* THE SECTION — the Poincaré plot at toroidal angle φ */
+        float a = 0.74, e2 = 0.22, e3 = 0.09;
+        float ph = uPhi;
+        vec2 c = vec2(-0.02, 0.0);
+        vec2 v = p - c;
+        if (uHand.z > 0.02){
+          // a hand bends the surfaces — flows
+          vec2 dh = v - uHand.xy;
+          v -= dh * uHand.z * 0.10 / (dot(dh, dh) + 0.15);
+        }
+        float r = length(v), th = atan(v.y, v.x);
+        float rb = rbnd(th, ph, a, e2, e3);
+        float s = r / rb;
+        // the Shafranov shift: pressure pushes the inner surfaces outboard, Δ ∝ β(1 − s²)
+        float shift = 0.16 * a * uEnergy;
+        for (int it = 0; it < 2; it++){
+          float sc = clamp(s, 0.0, 1.0);
+          vec2 v2 = v - vec2(shift * (1.0 - sc * sc), 0.0);
+          r = length(v2); th = atan(v2.y, v2.x); rb = rbnd(th, ph, a, e2, e3); s = r / rb;
+        }
+        // the dealt configuration: ι(s) = i0 + i1·s, and where it crosses n/m, an island chain
+        // (m, sᵣ, w) — every sᵣ on the 0.05 contour grid so the chains join seamlessly
+        float i0, i1, m0, m1, m2, n0, n1, n2, sr0, sr1, sr2, w0, w1, w2;
+        if (uCfg < 0.5){          // STANDARD: ι 0.85 → 1.0, the 5/5 islands at the edge — the divertor
+          i0 = 0.85; i1 = 0.165;
+          m0 = 11.0; n0 = 10.0; sr0 = 0.35; w0 = 0.018;
+          m1 = 16.0; n1 = 15.0; sr1 = 0.55; w1 = 0.011;
+          m2 = 5.0;  n2 = 5.0;  sr2 = 0.90; w2 = 0.060;
+        } else if (uCfg < 1.5){   // HIGH ι: 1.0 → 1.25, four islands at the edge
+          i0 = 1.02; i1 = 0.24;
+          m0 = 9.0;  n0 = 10.0; sr0 = 0.40; w0 = 0.024;
+          m1 = 13.0; n1 = 15.0; sr1 = 0.55; w1 = 0.011;
+          m2 = 4.0;  n2 = 5.0;  sr2 = 0.95; w2 = 0.060;
+        } else {                  // LOW ι: 0.70 → 0.85, six at the edge and seven near the axis
+          i0 = 0.70; i1 = 0.15;
+          m0 = 7.0;  n0 = 5.0;  sr0 = 0.10; w0 = 0.030;
+          m1 = 13.0; n1 = 10.0; sr1 = 0.45; w1 = 0.011;
+          m2 = 6.0;  n2 = 5.0;  sr2 = 0.90; w2 = 0.050;
+        }
+        // the nearest chain owns this pixel; between chains every K is just (s − sᵣ)²,
+        // so the surfaces are the same surfaces whichever side draws them
+        float d0 = abs(s - sr0), d1 = abs(s - sr1), d2 = abs(s - sr2);
+        float sr = sr0, m = m0, w = w0, n = n0;
+        if (d1 < d0 && d1 <= d2){ sr = sr1; m = m1; w = w1; n = n1; }
+        else if (d2 < d0){ sr = sr2; m = m2; w = w2; n = n2; }
+        // the pendulum: K = (s − sᵣ)² − w² cos(mθ − nφ); separatrix at K = w², O-points at −w²
+        float alpha = m * th - n * ph;
+        float K = (s - sr) * (s - sr) - w * w * cos(alpha);
+        float Q = max(K + w * w, 1e-7), sQ = sqrt(Q);
+        float se = sr + sign(s - sr) * sQ;
+        // |∇se| in world units, so every line is drawn one width whatever its slope —
+        // the level sets thicken at the X-points otherwise, where ∇Q vanishes
+        float gQ = sqrt(pow(2.0 * (s - sr) / rb, 2.0) + pow(w * w * m * sin(alpha) / max(r, 1e-3), 2.0));
+        float gse = max(gQ / (2.0 * sQ), 0.05);
+        float inside = 1.0 - smoothstep(1.0, 1.04, s);
+        // the nested surfaces, one every 0.05 in flux — beaded the way a Poincaré plot is
+        float ds = abs(fract(se / 0.05 + 0.5) - 0.5) * 0.05 / gse;
+        float bead = 0.74 + 0.26 * cos(th * 41.0 + se * 251.0);
+        float ln = exp(-ds * ds * 90000.0) * bead;
+        col += ramp(0.08 + 0.55 * clamp(se, 0.0, 1.0)) * ln * 0.70 * inside;
+        // the separatrix of every chain, brighter: the eyes, and the X-points between them
+        float dsep = abs(sQ - 1.41421 * w) / gse;
+        col += ramp(0.85) * exp(-dsep * dsep * 90000.0) * 0.6 * inside * smoothstep(0.3, 0.6, 1.0 - abs(s - sr) / (2.5 * w + 0.02));
+        // past the last closed surface, the chaotic sea: islands overlap and the line wanders
+        float sea = smoothstep(0.99, 1.02, s) * (1.0 - smoothstep(1.08, 1.30, s));
+        if (sea > 0.0){
+          vec2 cell = vec2(th / TAU * 160.0 + 80.0, s * 90.0);
+          vec2 ci = floor(cell), cf = cell - ci;
+          float hsh = hash21(ci + 0.37);
+          vec2 jit = vec2(hash21(ci + 7.1), hash21(ci + 3.7));
+          vec2 dd = (cf - jit) * vec2(rb * TAU / 160.0, rb / 90.0);
+          float on = step(0.45 + (s - 1.0) * 1.6, hsh);
+          float tw = 0.6 + 0.4 * sin(uTime * 3.0 + hsh * 40.0);
+          col += ramp(0.85) * exp(-dot(dd, dd) * 250000.0) * on * sea * (0.35 + uTreble * 0.6) * tw;
+        }
+        // THE TRACER: one field line, followed. Each hop is a toroidal transit — a beat —
+        // and the puncture lands 2πι further round; on a surface it walks the curve…
+        float kk = floor(uHop);
+        float st = 0.60, it = i0 + i1 * st;
+        for (int k = 0; k < 24; k++){
+          float fk = float(k);
+          float idx = kk - fk;
+          float thk = uVarA * TAU + TAU * it * idx;
+          vec2 P = c + vec2(shift * (1.0 - st * st), 0.0) + st * rbnd(thk, ph, a, e2, e3) * vec2(cos(thk), sin(thk));
+          float g2 = exp(-dot(p - P, p - P) * 14000.0) * (1.0 - fk / 24.0) * (k == 0 ? 1.8 + beat : 1.0);
+          col += ramp(0.30) * g2;
+        }
+        // …and on the edge chain it hops island to island, librating slowly about the O-point
+        for (int k = 0; k < 24; k++){
+          float fk = float(k);
+          float idx = kk - fk;
+          float j = mod(idx * n2, m2);
+          float chi = idx * 0.23 + uVarA * 6.0;
+          float al = 0.74 * cos(chi);
+          float ss = sr2 + 0.52 * w2 * sin(chi);
+          float thk = (al + n2 * ph + TAU * j) / m2;
+          vec2 P = c + vec2(shift * (1.0 - ss * ss), 0.0) + ss * rbnd(thk, ph, a, e2, e3) * vec2(cos(thk), sin(thk));
+          float g2 = exp(-dot(p - P, p - P) * 14000.0) * (1.0 - fk / 24.0) * (k == 0 ? 1.8 + beat : 1.0);
+          col += ramp(0.85) * g2;
+        }
+        col *= 1.0 + beat * 0.12;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE SURFACE',   m: 0 },
+    { name: 'THE SECTION',   m: 1 },
+    { name: 'THE HELIOTRON', m: 2 },
+  ];
+  // the transforms the surface may wear: rationals, so the drawn lines close —
+  // q·k of them, k chosen to land near ten
+  const IOTAS = [{ p: 5, q: 5 }, { p: 5, q: 6 }, { p: 5, q: 4 }, { p: 2, q: 3 }, { p: 3, q: 4 }, { p: 5, q: 7 }];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'STELLARATOR', key: 'stellarator', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      const en = f.energy || 0, mid = f.mid || 0, calm = f.calm || 0;
+      // the orbit: slow, quicker when the song is up, slower when it is calm
+      varU.uCam.value += dt * (0.09 + en * 0.10) * (1 - calm * 0.4);
+      // the section's toroidal angle — bean to triangle and back in a period
+      varU.uPhi.value += dt * (0.05 + mid * 0.06);
+      // the tracer: one toroidal transit per hop, the hops on the pulse
+      varU.uHop.value += dt * (1.1 + en * 1.8);
+      varU.uTrace.value += dt * (0.55 + en * 0.9 + mid * 0.4);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeSt.value = st.mode.m;
+      varU.uCfg.value = Math.floor(Math.random() * 3);
+      const io = IOTAS[Math.floor(Math.random() * IOTAS.length)];
+      varU.uIota.value = io.p / io.q;
+      varU.uLines.value = io.q * Math.max(1, Math.round(10 / io.q));
+      varU.uVarA.value = Math.random();
+      api.name = 'STELLARATOR · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -48203,7 +48594,7 @@ function initThree(){
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
-              buildShuffle());
+              buildShuffle(), buildStellarator());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
