@@ -9679,7 +9679,12 @@ function ensureCtx(){
     const curve = new Float32Array(1024);
     for (let i = 0; i < 1024; i++){
       const x = (i / 1023) * 2 - 1;
-      curve[i] = Math.tanh(x * 2.2) * 0.86;      // soft knee, output kept under unity
+      // driven hard enough to be heard as drive (tanh ×5 — the harmonics a 900 Hz
+      // tone grows above 4 kHz go up ~24×, where ×2.2 barely doubled them) and
+      // scaled so that at full knob, with the dry pulled right back, the room is
+      // the same loudness driven as clean (measured 1.03×; ×2.2 over a 56 % dry
+      // made full drive a 42 % volume jump instead of a colour)
+      curve[i] = Math.tanh(x * 5) * 0.72;
     }
     drive.curve = curve; drive.oversample = '2x';
     const driveWet = AE.ctx.createGain(); driveWet.gain.value = 0;
@@ -18075,9 +18080,15 @@ function cueJumpAt(pos, cue, grid, bpm, haveGrid){
   const fireAt = g + k * spb;
   return { fireAt: fireAt < pos ? pos : fireAt, to: c };
 }
-function cueJumpLand(pos, fireAt, to){
+function cueJumpLand(pos, fireAt, to, early){
+  // late is carried onto the landing (the beat is kept); EARLY is carried too,
+  // but only when the caller chose to go early (`early`, the most it may be):
+  // a jump taken half a frame before its line and landing half a frame before
+  // its cue is as exactly on the grid as one taken on the line — and on a slow
+  // frame clock it is the difference between ±half a frame and up to a whole one
   const late = pos - fireAt;
-  return Math.max(0, to + (late > 0 ? late : 0));
+  const lead = early > 0 ? Math.max(-early, late) : Math.max(0, late);
+  return Math.max(0, to + lead);
 }
 /* A BEAT JUMP keeps the phase by construction: whole beats forward or back,
    from wherever the playhead is, clamped to the track. */
@@ -21539,9 +21550,19 @@ const FX = {
     // the deck changed hands, or the wait went stale (a pause, a seek away): drop it
     if (!d || d !== j.deck || !player.playing || performance.now() - j.armedAt > 4000){ this.jump = null; clearTimeout(this._jumpT); return; }
     const pos = d.a.currentTime;
-    if (pos >= j.fireAt - 0.012){
+    /* THE NEXT LOOK MAY BE A WHOLE FRAME AWAY. This runs at the top of each
+       frame (a fresh read — see preFrame); when the frame clock is slow, waiting
+       for the line means landing up to a frame late. If the next frame is due
+       more than half a frame past the line, go now, half a frame early at most,
+       and carry the lead onto the landing — the grid is kept exactly either way,
+       and the worst miss halves. */
+    const nowMs = performance.now();
+    if (this._jtLast) this._jtDt = Math.min(0.25, this._jtDt ? this._jtDt * 0.7 + (nowMs - this._jtLast) / 1000 * 0.3 : (nowMs - this._jtLast) / 1000);
+    this._jtLast = nowMs;
+    const half = ((this._jtDt || 0.016) * (d.a.playbackRate || 1)) / 2;
+    if (pos >= j.fireAt - Math.max(0.012, half)){
       this.jump = null; clearTimeout(this._jumpT);
-      this._seek(d, cueJumpLand(pos, j.fireAt, j.to));
+      this._seek(d, cueJumpLand(pos, j.fireAt, j.to, half));
     }
   },
 
@@ -21567,7 +21588,7 @@ const FX = {
     ramp(f.fb.gain, 0.30 + on('echo') * 0.32, R);        // more knob, longer tail — never >1
     // DRIVE — a wet/dry pair, so bypass is exact rather than nearly
     const dw = fxWet(on('drive'), 0.8);
-    ramp(f.driveWet.gain, dw, R); ramp(f.driveDry.gain, 1 - dw * 0.55, R);
+    ramp(f.driveWet.gain, dw, R); ramp(f.driveDry.gain, 1 - dw, R);
     /* GATE is scheduled on the beat, not held here — see tick(). The queue it
        fills reaches a second into the future, so a knob moved while the gate is
        running drops its new setting in at the NEXT slice rather than the next

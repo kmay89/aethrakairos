@@ -6626,6 +6626,11 @@ test('cueJumpLand: a tick that noticed late carries the lateness onto the landin
   assert.equal(S.cueJumpLand(10.5, 10.5, 4.0), 4.0, 'on time: the cue itself');
   assert.ok(Math.abs(S.cueJumpLand(10.58, 10.5, 4.0) - 4.08) < 1e-9, '80 ms late lands 80 ms in — the beat is kept');
   assert.equal(S.cueJumpLand(10.4, 10.5, 4.0), 4.0, 'early never lands before the cue');
+  // …unless the caller CHOSE to go early (a slow frame clock): then the lead is
+  // carried, bounded by what it allowed — phase kept either side of the line
+  assert.ok(Math.abs(S.cueJumpLand(10.47, 10.5, 4.0, 0.05) - 3.97) < 1e-9, '30 ms early lands 30 ms before the cue');
+  assert.ok(Math.abs(S.cueJumpLand(10.3, 10.5, 4.0, 0.05) - 3.95) < 1e-9, 'never more early than allowed');
+  assert.equal(S.cueJumpLand(10.47, 10.5, 0.01, 0.05), 0, 'never before the top of the track');
 });
 test('beatJumpTarget: whole beats either way, clamped inside the track', () => {
   assert.ok(Math.abs(S.beatJumpTarget(10, 4, 120, 200) - 12) < 1e-9);
