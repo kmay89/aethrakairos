@@ -150,7 +150,9 @@ fragment float4 room_flux(float4 pos [[position]],
             float fi = float(i);
             float2 c = latt_m(fi) * R;
             float ring = fi < 0.5 ? 0.0 : (fi < 6.5 ? 1.0 : 2.0);
-            float th = atan2(c.y, c.x);
+            // the centre magnet has no angle: atan2(0, 0) is NaN under fast math,
+            // and one NaN moment voids every pixel on the screen
+            float th = fi < 0.5 ? 0.0 : atan2(c.y, c.x);
             float w = ring < 0.5 ? 1.0 : (ring < 1.5 ? -1.0 : 0.6);
             float al = pat * th + spin * w + varA * TAU_M;
             float2 d = p - c;

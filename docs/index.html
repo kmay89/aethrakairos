@@ -48667,7 +48667,7 @@ function buildFlux(){
           float fi = float(i);
           vec2 c = latt(fi) * R;
           float ring = fi < 0.5 ? 0.0 : (fi < 6.5 ? 1.0 : 2.0);
-          float th = atan(c.y, c.x);
+          float th = fi < 0.5 ? 0.0 : atan(c.y, c.x);   // the centre has no angle: atan(0, 0) is undefined
           float w = ring < 0.5 ? 1.0 : (ring < 1.5 ? -1.0 : 0.6);
           float al = uPat * th + uSpin * w + uVarA * TAU;
           vec2 d = p - c;
