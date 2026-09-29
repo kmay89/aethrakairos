@@ -60,6 +60,8 @@ inline float3 govern_m(float3 c, float white) {
     t = t * t * (3.0 - 2.0 * t) * w;
     return mix(o, float3(m2), t);
 }
+// x², as a multiply: under fast math sq_m(x) is NaN for x < 0, and one NaN voids the pixel
+inline float sq_m(float x) { return x * x; }
 inline float hash21_m(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123); }
 inline float2 centeredUp_m(float2 pix, float2 res, float aspect) {
     float2 r = max(res, float2(1.0));
@@ -154,7 +156,7 @@ fragment float4 room_flux(float4 pos [[position]],
             float2 d = p - c;
             dipole_m(d, mmag, al, A, Ph, B);
             float rr = length(d);
-            guide += exp(-pow((rr - R) * 90.0, 2.0));
+            guide += exp(-sq_m((rr - R) * 90.0));
             float pole = dot(d, float2(cos(al), sin(al)));
             float dt = exp(-rr * rr * 2600.0) * smoothstep(0.0, 0.008, abs(pole));
             glyphC += (pole > 0.0 ? chordRamp_m(U, 0.85) : chordRamp_m(U, 0.30)) * dt; glyph += dt;
@@ -172,12 +174,12 @@ fragment float4 room_flux(float4 pos [[position]],
             float2 d = p - c;
             dipole_m(d, mmag, al, A, Ph, B);
             float rr = length(d);
-            guide += exp(-pow((rr - R * 0.2588) * 90.0, 2.0));   // twelve touching circles, the rosette
+            guide += exp(-sq_m((rr - R * 0.2588) * 90.0));   // twelve touching circles, the rosette
             float pole = dot(d, float2(cos(al), sin(al)));
             float dt = exp(-rr * rr * 2000.0) * smoothstep(0.0, 0.01, abs(pole));
             glyphC += (pole > 0.0 ? chordRamp_m(U, 0.85) : chordRamp_m(U, 0.30)) * dt; glyph += dt;
         }
-        guide += exp(-pow((length(p) - R) * 90.0, 2.0)) * 0.6;
+        guide += exp(-sq_m((length(p) - R) * 90.0)) * 0.6;
         dA = 1.10;
         gate = smoothstep(0.95 * R, 0.85 * R, length(p));    // the outside is dark because the field IS
     } else {
@@ -194,7 +196,7 @@ fragment float4 room_flux(float4 pos [[position]],
             float2 d = p - c;
             wire_m(d, I, A, B);
             float rr = length(d);
-            guide += exp(-pow((rr - R) * 90.0, 2.0)) * 0.7;
+            guide += exp(-sq_m((rr - R) * 90.0)) * 0.7;
             float dt = exp(-rr * rr * 3000.0) * (0.3 + 0.7 * abs(I));
             glyphC += (I > 0.0 ? chordRamp_m(U, 0.85) : chordRamp_m(U, 0.30)) * dt; glyph += dt;
         }
