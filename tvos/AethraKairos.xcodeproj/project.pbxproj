@@ -46,6 +46,7 @@
 		AEC0FFEE0000000000000076 /* Shaders20.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000075 /* Shaders20.metal */; };
 		AEC0FFEE0000000000000078 /* Shaders21.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000077 /* Shaders21.metal */; };
 		AEC0FFEE000000000000007A /* Shaders22.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000079 /* Shaders22.metal */; };
+		AEC0FFEE000000000000007C /* Shaders23.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000007B /* Shaders23.metal */; };
 		AEC0FFEE000000000000002E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002D /* HomeView.swift */; };
 		AEC0FFEE0000000000000030 /* NowPlayingHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002F /* NowPlayingHUD.swift */; };
 		AEC0FFEE0000000000000032 /* RemoteControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000031 /* RemoteControls.swift */; };
@@ -99,6 +100,7 @@
 		AEC0FFEE0000000000000075 /* Shaders20.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders20.metal; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000077 /* Shaders21.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders21.metal; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000079 /* Shaders22.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders22.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000007B /* Shaders23.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders23.metal; sourceTree = "<group>"; };
 		AEC0FFEE000000000000002D /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		AEC0FFEE000000000000002F /* NowPlayingHUD.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowPlayingHUD.swift; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000031 /* RemoteControls.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RemoteControls.swift; sourceTree = "<group>"; };
@@ -237,6 +239,7 @@
 				AEC0FFEE0000000000000075 /* Shaders20.metal */,
 				AEC0FFEE0000000000000077 /* Shaders21.metal */,
 				AEC0FFEE0000000000000079 /* Shaders22.metal */,
+				AEC0FFEE000000000000007B /* Shaders23.metal */,
 			);
 			path = Visualizer;
 			sourceTree = "<group>";
@@ -372,6 +375,7 @@
 				AEC0FFEE0000000000000076 /* Shaders20.metal in Sources */,
 				AEC0FFEE0000000000000078 /* Shaders21.metal in Sources */,
 				AEC0FFEE000000000000007A /* Shaders22.metal in Sources */,
+				AEC0FFEE000000000000007C /* Shaders23.metal in Sources */,
 				AEC0FFEE000000000000002E /* HomeView.swift in Sources */,
 				AEC0FFEE0000000000000030 /* NowPlayingHUD.swift in Sources */,
 				AEC0FFEE0000000000000032 /* RemoteControls.swift in Sources */,
