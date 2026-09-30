@@ -3755,6 +3755,22 @@ body.clipping::after{
     helical windings, l&nbsp;=&nbsp;2, m&nbsp;=&nbsp;10, one current the same way in both, and
     between them the plasma they hold, an ellipse pointed at the coils that turns ten times round the
     ring, its pressure p&nbsp;∝&nbsp;(1&nbsp;−&nbsp;s²)² glowing from the axis out.</p>
+    <h3>Sacred geometry, magnetised</h3>
+    <p class="lede">Scene 103 is <b>FLUX</b>. Every figure in it is one lattice — a centre, six
+    circles at R (the Seed of Life), six at 2R and six at √3R between them (the Flower of Life),
+    and the first thirteen are Metatron's cube — with a magnet at every centre, so the drawing
+    becomes a field. In two dimensions the field is exact: a line dipole has
+    A<sub>z</sub>&nbsp;=&nbsp;m&nbsp;(dy&nbsp;cos&nbsp;α&nbsp;−&nbsp;dx&nbsp;sin&nbsp;α)/r², a line
+    current has A<sub>z</sub>&nbsp;=&nbsp;−I&nbsp;ln&nbsp;r, and the field lines are the level sets
+    of the sum, drawn one width everywhere by dividing by |B|. Where B vanishes the lines cross —
+    X-points and O-points, the seats of reconnection — and those are lit. THE FLOWER turns its
+    nineteen magnets ring against ring, so the geometries interact and the nulls walk. THE HALBACH
+    is twelve magnets on a ring at α&nbsp;=&nbsp;(1&nbsp;+&nbsp;k)θ: inside, a pure 2k-pole —
+    uniform, quadrupole, sextupole as k sweeps — and outside, nothing, the flux all gathered
+    within. THE METATRON runs three-phase currents through the cube's thirteen wires, the inner
+    ring turning one way and the outer the other: the induction motor's rotating field, twice,
+    meeting. The flux runs along the lines as dashes of the conjugate potential, and a hand is a
+    magnet too.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4392,7 +4408,7 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
                'flows', 'gathers',
-               'flows', 'flows'];   // …the lattice and the film ripple, the
+               'flows', 'flows', 'gathers'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -5902,7 +5918,7 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
-                    'shuffle', 'stellarator'];
+                    'shuffle', 'stellarator', 'flux'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6061,6 +6077,7 @@ const SCENE_TASTE = {
   boltzmann: { energy: 0.7, treble: 0.4, entropy: 0.6 },    // the gas LIKES disorder
   shuffle:   { beat: 0.8, mid: 0.5, entropy: -0.4 },        // order dressed as chaos, on the beat
   stellarator: { energy: 0.6, bass: 0.4, mid: 0.3, entropy: -0.3 },  // a hot plasma on nested, orderly surfaces
+  flux:      { beat: 0.5, bass: 0.4, coupling: 0.5, entropy: -0.3 },  // magnets on a lattice: the fields couple
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7329,6 +7346,7 @@ const SCENE_SIGS = {
   boltzmann: { kind: 'blob',   h: 30,  arms: 0 },
   shuffle:   { kind: 'grid',   h: 300, dense: 0.9 },
   stellarator: { kind: 'ring', h: 275, arms: 5 },
+  flux:      { kind: 'ring',   h: 205, arms: 6, rainbow: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -48549,6 +48567,241 @@ function buildStellarator(){
   return api;
 }
 
+/* =========================================================
+   SCENE 103 · FLUX — sacred geometry, magnetised
+
+   Every figure here is the same lattice: a centre, six circles
+   at R (the Seed of Life), six more at 2R and six at √3R between
+   them (the Flower of Life); the first thirteen are Metatron's
+   cube. Put a magnet at every centre and the picture is no longer
+   a drawing — it is a field, and in two dimensions the field is
+   exact: a line dipole of moment m at angle α has
+   A_z = m (dy cos α − dx sin α)/r², a line current I has
+   A_z = −I ln r, and the field lines are the level sets of the
+   sum, B = ∇A × ẑ, drawn one width everywhere by dividing by
+   |B|. Where B vanishes the lines cross — X-points and O-points,
+   the seats of reconnection — and those are lit. THE FLOWER
+   turns its nineteen magnets ring against ring, so the
+   geometries interact and the nulls walk. THE HALBACH is twelve
+   magnets on a ring at α = (1 + k)θ: inside, a pure 2k-pole —
+   uniform, quadrupole, sextupole as k sweeps — and outside,
+   nothing, the flux all gathered within. THE METATRON runs
+   three-phase currents through the cube's thirteen wires, the
+   inner ring turning one way and the outer the other — the
+   induction motor's rotating field, twice, meeting. The flux
+   itself runs along the lines as dashes of the conjugate
+   potential Φ = m (dx cos α + dy sin α)/r², the harmonic twin of
+   A. A hand is a magnet too.
+   ========================================================= */
+function buildFlux(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uModeFx: { value: 0 },
+    uPat:    { value: 1 },      // the flower's pattern: moment angle α = pat·θ (+ the turning)
+    uSpin:   { value: 0 },      // the moments' turning, accumulated with the music
+    uMorph:  { value: 0 },      // the Halbach order, sweeping k = 1 → 3 → 1
+    uFlow:   { value: 0 },      // the flux clock: dashes running along B
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeFx, uVarA, uAspect, uPat, uSpin, uMorph, uFlow;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    const float TAU = 6.2831853;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    /* the lattice every figure is drawn on: the centre; six at R; six at 2R;
+       six at √3R between them. Metatron's cube is the first thirteen. */
+    vec2 latt(float i){
+      if (i < 0.5) return vec2(0.0);
+      if (i < 6.5){ float a = (i - 1.0) * 1.0471976; return vec2(cos(a), sin(a)); }
+      if (i < 12.5){ float a = (i - 7.0) * 1.0471976; return 2.0 * vec2(cos(a), sin(a)); }
+      float a = 0.5235988 + (i - 13.0) * 1.0471976; return 1.7320508 * vec2(cos(a), sin(a));
+    }
+    /* a line dipole, moment m at angle α: A_z = m (dy cos α − dx sin α)/r², its harmonic
+       twin Φ = m (dx cos α + dy sin α)/r², and B = ∇A × ẑ — exact and closed */
+    void dipole(vec2 d, float m, float al, inout float A, inout float Ph, inout vec2 B){
+      float r2 = max(dot(d, d), 1e-5);
+      float ca = cos(al), sa = sin(al);
+      float u = d.y * ca - d.x * sa;
+      float v = d.x * ca + d.y * sa;
+      A += m * u / r2;
+      Ph += m * v / r2;
+      float Ax = m * (-sa * r2 - 2.0 * u * d.x) / (r2 * r2);
+      float Ay = m * ( ca * r2 - 2.0 * u * d.y) / (r2 * r2);
+      B += vec2(Ay, -Ax);
+    }
+    /* a line current I: A_z = −I ln r, B = I (−dy, dx)/r² — Ampère's law, exact */
+    void wire(vec2 d, float I, inout float A, inout vec2 B){
+      float r2 = max(dot(d, d), 1e-5);
+      A += -I * 0.5 * log(r2);
+      B += I * vec2(-d.y, d.x) / r2;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      float beat = uBeat;
+      float A = 0.0, Ph = 0.0;
+      vec2 B = vec2(0.0);
+      float guide = 0.0, glyph = 0.0;
+      vec3 glyphC = vec3(0.0);
+      float R = 0.30, dA = 0.30, dashes = 1.0, gate = 1.0, nk = 0.12;
+      float mmag = 1.0 + 0.25 * beat;
+      if (uModeFx < 0.5){
+        /* THE FLOWER — nineteen magnets on the Flower of Life, turning ring against ring */
+        R = 0.30;
+        for (int i = 0; i < 19; i++){
+          float fi = float(i);
+          vec2 c = latt(fi) * R;
+          float ring = fi < 0.5 ? 0.0 : (fi < 6.5 ? 1.0 : 2.0);
+          float th = fi < 0.5 ? 0.0 : atan(c.y, c.x);   // the centre has no angle: atan(0, 0) is undefined
+          float w = ring < 0.5 ? 1.0 : (ring < 1.5 ? -1.0 : 0.6);
+          float al = uPat * th + uSpin * w + uVarA * TAU;
+          vec2 d = p - c;
+          dipole(d, mmag, al, A, Ph, B);
+          float rr = length(d);
+          guide += exp(-pow((rr - R) * 90.0, 2.0));
+          float pole = dot(d, vec2(cos(al), sin(al)));
+          float dt = exp(-rr * rr * 2600.0) * smoothstep(0.0, 0.008, abs(pole));
+          glyphC += (pole > 0.0 ? ramp(0.85) : ramp(0.30)) * dt; glyph += dt;
+        }
+        dA = 0.85;
+        gate = smoothstep(2.6 * R, 2.2 * R, length(p));
+      } else if (uModeFx < 1.5){
+        /* THE HALBACH — twelve on a ring, α = (1 + k)θ: a pure 2k-pole inside, nothing outside */
+        R = 0.62;
+        float k = 2.0 - cos(3.14159265 * uMorph);
+        for (int i = 0; i < 12; i++){
+          float th = float(i) * TAU / 12.0;
+          vec2 c = R * vec2(cos(th), sin(th));
+          float al = (1.0 + k) * th + uSpin * 0.35 + uVarA * TAU;
+          vec2 d = p - c;
+          dipole(d, mmag, al, A, Ph, B);
+          float rr = length(d);
+          guide += exp(-pow((rr - R * 0.2588) * 90.0, 2.0));   // twelve touching circles, the rosette
+          float pole = dot(d, vec2(cos(al), sin(al)));
+          float dt = exp(-rr * rr * 2000.0) * smoothstep(0.0, 0.01, abs(pole));
+          glyphC += (pole > 0.0 ? ramp(0.85) : ramp(0.30)) * dt; glyph += dt;
+        }
+        guide += exp(-pow((length(p) - R) * 90.0, 2.0)) * 0.6;
+        dA = 1.10;
+        gate = smoothstep(0.95 * R, 0.85 * R, length(p));    // the outside is dark because the field IS
+      } else {
+        /* THE METATRON — thirteen wires on the cube, three-phase, ring against ring */
+        R = 0.42;
+        dashes = 0.0;
+        for (int i = 0; i < 13; i++){
+          float fi = float(i);
+          vec2 c = latt(fi) * R;
+          float I;
+          if (fi < 0.5) I = 0.6 * cos(uSpin * 0.5 + uVarA * TAU);
+          else if (fi < 6.5){ float ph = mod(fi - 1.0, 3.0) * TAU / 3.0; I = cos(uSpin - ph) * (fi < 3.5 ? 1.0 : -1.0); }
+          else { float ph = mod(fi - 7.0, 3.0) * TAU / 3.0; I = -cos(uSpin * 0.7 + ph + uVarA * TAU) * (fi < 9.5 ? 1.0 : -1.0); }
+          vec2 d = p - c;
+          wire(d, I, A, B);
+          float rr = length(d);
+          guide += exp(-pow((rr - R) * 90.0, 2.0)) * 0.7;
+          float dt = exp(-rr * rr * 3000.0) * (0.3 + 0.7 * abs(I));
+          glyphC += (I > 0.0 ? ramp(0.85) : ramp(0.30)) * dt; glyph += dt;
+        }
+        // the cube: every centre joined to every other, seventy-eight lines
+        for (int i = 0; i < 13; i++){
+          vec2 a = latt(float(i)) * R;
+          for (int j = 0; j < 13; j++){
+            if (j <= i) continue;
+            float d = segd(p, a, latt(float(j)) * R);
+            guide += exp(-d * d * 40000.0) * 0.55;
+          }
+        }
+        dA = 0.20;
+        nk = 1.5;                 // the wires' field is gentler, so a null is a smaller thing
+        gate = smoothstep(2.5 * R, 2.1 * R, length(p));
+      }
+      // a hand is a magnet too — a spinning one, pulling the lines to it
+      if (uHand.z > 0.02) dipole(p - uHand.xy, 2.0 * uHand.z, uTime * 1.5, A, Ph, B);
+      // louder, more flux: the lines come closer together
+      dA /= 1.0 + 0.6 * uEnergy;
+      float Bm = length(B);
+      // the field lines: level sets of A, one every dA, one width by |∇A| = |B|;
+      // where they crowd past what a pixel can hold, at the poles, they are let go
+      float dl = abs(fract(A / dA + 0.5) - 0.5) * dA / max(Bm, 1e-4);
+      float spacing = dA / max(Bm, 1e-4);
+      float fade = smoothstep(0.0035, 0.009, spacing);
+      float ln = exp(-dl * dl * 120000.0) * fade;
+      // the flux runs along them: dashes of Φ, the harmonic twin, with the current
+      float flow = dashes > 0.5 ? 0.62 + 0.38 * cos(Ph * 2.0 - uFlow) : 1.0;
+      float lb = clamp((log(Bm + 1e-4) + 1.0) / 5.0, 0.0, 1.0);
+      col += ramp(0.10 + 0.55 * lb) * ln * (0.55 + 0.35 * flow) * (0.9 + beat * 0.2);
+      // the nulls: where B vanishes the lines cross — X-points, O-points, reconnection
+      float nul = exp(-Bm * Bm * nk) * gate;
+      col += ramp(0.85) * nul * (0.45 + beat * 0.6);
+      // the figure itself, faint beneath — and the magnets, north lit, south in the chord
+      col += ramp(0.55) * guide * (0.10 + uBass * 0.08);
+      col += glyphC * 0.9;
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE FLOWER',   m: 0 },
+    { name: 'THE HALBACH',  m: 1 },
+    { name: 'THE METATRON', m: 2 },
+  ];
+  // the flower's patterns: all one way (a magnetised sheet), radial (petals),
+  // α = 2θ (a Halbach flower), and azimuthal-against (the rings fight)
+  const PATS = [0, 1, 2, -1];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'FLUX', key: 'flux', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      const en = f.energy || 0, mid = f.mid || 0, tre = f.treble || 0;
+      // the magnets turn with the music; the Halbach order sweeps on the mids;
+      // the flux runs on the treble
+      varU.uSpin.value += dt * (0.18 + en * 0.45);
+      varU.uMorph.value += dt * (0.035 + mid * 0.05);
+      varU.uFlow.value += dt * (1.2 + tre * 3.0);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeFx.value = st.mode.m;
+      varU.uPat.value = PATS[Math.floor(Math.random() * PATS.length)];
+      varU.uVarA.value = Math.random();
+      api.name = 'FLUX · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -48594,7 +48847,7 @@ function initThree(){
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
-              buildShuffle(), buildStellarator());
+              buildShuffle(), buildStellarator(), buildFlux());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

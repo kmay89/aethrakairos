@@ -65,6 +65,8 @@ inline float3 govern_z(float3 c, float white) {
     t = t * t * (3.0 - 2.0 * t) * w;
     return mix(o, float3(m2), t);
 }
+// x², as a multiply: under fast math pow(x, 2.0) is NaN for x < 0, and one NaN voids the pixel
+inline float sq_z(float x) { return x * x; }
 inline float hash21_z(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123); }
 inline float2 centeredUp_z(float2 pix, float2 res, float aspect) {
     float2 r = max(res, float2(1.0));
@@ -192,7 +194,7 @@ fragment float4 room_stellarator(float4 pos [[position]],
                     // of light running along B
                     float w = (th - iota * ph) * nl / TAU_Z;
                     float u = fract(w), j = floor(w);
-                    float ln = exp(-pow(u - 0.5, 2.0) * 420.0);
+                    float ln = exp(-sq_z(u - 0.5) * 420.0);
                     float run = 0.55 + 0.45 * cos(ph * 9.0 - U.time * (2.2 + U.mid * 3.0));
                     col += chordRamp_z(U, fract(j / nl + 0.07)) * ln * (0.75 + 0.55 * run + beat * 0.35) * (0.35 + 0.65 * ndv + rim * 0.5);
                 }
@@ -223,10 +225,10 @@ fragment float4 room_stellarator(float4 pos [[position]],
                     // the winding leans at its pitch angle — dθ/dφ = m/l — so the distance is
                     // taken to its tangent, not to where it crosses this poloidal plane
                     float2 C0 = ac * float2(cos(thc0), sin(thc0)), D0 = v - C0, D1 = v + C0;
-                    float tl0 = sqrt(pow(R0_Z + C0.x, 2.0) + 25.0 * ac * ac), tl1 = sqrt(pow(R0_Z - C0.x, 2.0) + 25.0 * ac * ac);
+                    float tl0 = sqrt(sq_z(R0_Z + C0.x) + 25.0 * ac * ac), tl1 = sqrt(sq_z(R0_Z - C0.x) + 25.0 * ac * ac);
                     float2 tp0 = 5.0 * ac * float2(-C0.y, C0.x) / (ac * tl0), tp1 = -tp0 * tl0 / tl1;
-                    float d0 = sqrt(max(dot(D0, D0) - pow(dot(D0, tp0), 2.0), 0.0)) - rc;
-                    float d1 = sqrt(max(dot(D1, D1) - pow(dot(D1, tp1), 2.0), 0.0)) - rc;
+                    float d0 = sqrt(max(dot(D0, D0) - sq_z(dot(D0, tp0)), 0.0)) - rc;
+                    float d1 = sqrt(max(dot(D1, D1) - sq_z(dot(D1, tp1)), 0.0)) - rc;
                     float dc = min(d0, d1) * 0.7;
                     if (dc < 0.0015) { hitc = 1.0; thc = d0 < d1 ? thc0 : thc0 + PI_Z; break; }
                     // the plasma the windings hold: elliptical, pointed at the coils, turning ten times round
@@ -237,9 +239,9 @@ fragment float4 room_stellarator(float4 pos [[position]],
                         float dens = 1.0 - s * s; dens *= dens;    // the pressure profile, p ∝ (1 − s²)²
                         glow += chordRamp_z(U, 0.12 + 0.30 * s) * dens * stp * (0.9 + U.energy * 2.4 + U.bass * 1.0);
                         // field lines on the edge, ι = 1 there: eight that close in a single turn
-                        float shell = exp(-pow((s - 0.96) * 30.0, 2.0));
+                        float shell = exp(-sq_z((s - 0.96) * 30.0));
                         float w = (th - ph) * 8.0 / TAU_Z;
-                        float ln = exp(-pow(fract(w) - 0.5, 2.0) * 700.0);
+                        float ln = exp(-sq_z(fract(w) - 0.5) * 700.0);
                         float run = 0.5 + 0.5 * cos(ph * 12.0 - U.time * (2.0 + U.mid * 3.0));
                         glow += chordRamp_z(U, fract(floor(w) / 8.0 + 0.07)) * ln * shell * stp * (30.0 + 18.0 * run + beat * 12.0);
                     }
@@ -252,7 +254,7 @@ fragment float4 room_stellarator(float4 pos [[position]],
                     float ph = atan2(q.z, q.x);
                     float2 v = float2(length(q.xz) - R0_Z, q.y);
                     float2 C = ac * float2(cos(thc), sin(thc)), D = v - C;
-                    float tl = sqrt(pow(R0_Z + C.x, 2.0) + 25.0 * ac * ac);
+                    float tl = sqrt(sq_z(R0_Z + C.x) + 25.0 * ac * ac);
                     float2 tp = 5.0 * float2(-C.y, C.x) / tl;
                     float along = dot(D, tp);
                     float2 np = D - along * tp;               // the perpendicular, in the plane…
@@ -321,7 +323,7 @@ fragment float4 room_stellarator(float4 pos [[position]],
         float se = sr + sign(s - sr) * sQ;
         // |∇se| in world units, so every line is drawn one width whatever its slope —
         // the level sets thicken at the X-points otherwise, where ∇Q vanishes
-        float gQ = sqrt(pow(2.0 * (s - sr) / rb, 2.0) + pow(w * w * m * sin(alpha) / max(r, 1e-3), 2.0));
+        float gQ = sqrt(sq_z(2.0 * (s - sr) / rb) + sq_z(w * w * m * sin(alpha) / max(r, 1e-3)));
         float gse = max(gQ / (2.0 * sQ), 0.05);
         float inside = 1.0 - smoothstep(1.0, 1.04, s);
         // the nested surfaces, one every 0.05 in flux — beaded the way a Poincaré plot is
