@@ -6897,6 +6897,353 @@ test('a boot that finds the alive mark names a restart the browser made', () => 
   assert.equal(R({ alive: 'junk', now }), null, 'a mark that is not a record is ignored');
 });
 
+// ---------------------------------------------------------------- the piano inside the ∞
+/* The @piano block is the trainer's whole brain — theory, the curriculum, the
+   lesson state machine, the backing patterns, the clock, the MIDI file writer,
+   the pitch detector — with no DOM and no audio in it, so the same bytes that
+   ship run here. The DOM and the sound (PIANO, PnStage, PnAudio) live outside
+   the markers and are exercised by the browser probe (tools/piano_probe.mjs). */
+const P = new Function('"use strict";' + block('piano') + '\nreturn { pnMidiToFreq, pnFreqToNote, pnNoteName, pnNoteNameBoth, pnParseNote, pnIsBlack,' +
+  ' pnCircleIndex, pnCircleRoot, pnMakeKey, pnCamelot, pnKeyFromCamelot, pnKeyName, pnStepCircle, pnRelativeKey, pnKeyScalePcs,' +
+  ' pnDiatonicChords, PN_PROGRESSIONS, pnProgressionChords, pnDetectChord, pnIntervalName, pnJustCentsOff, pnVoiceLead, pnSnapToScale, pnOneFingerChord,' +
+  ' PnClock, pnTapTempo, PN_STYLES, pnDrumBassStep, pnChordLayerStep, pnChordAtStep, pnBuildLoop, pnGuideEvents, pnArpCycle, pnArpNote,' +
+  ' pnBuildMidiFile, pnParseMidi, pnVelocityToGain, pnKeyToMidi, pnDetectNotes, PnNoteStabilizer, PnLessonRunner, PN_TRACKS, PN_ALL_LESSONS, pnLessonById, PN_FIRST, PN_LAST };')();
+
+test('piano: midi ↔ frequency, names, parsing', () => {
+  assert.equal(P.pnMidiToFreq(69), 440);
+  assert.ok(Math.abs(P.pnMidiToFreq(60) - 261.6256) < 0.001);
+  assert.ok(Math.abs(P.pnMidiToFreq(72) / P.pnMidiToFreq(60) - 2) < 1e-12, 'an octave doubles');
+  assert.ok(Math.abs(P.pnMidiToFreq(69, 432) - 432) < 1e-9, 'the tuning control moves A4');
+  assert.deepEqual(P.pnFreqToNote(445), { midi: 69, cents: 20 });
+  assert.equal(P.pnNoteName(60), 'C4'); assert.equal(P.pnNoteName(61), 'C♯4'); assert.equal(P.pnNoteName(61, true), 'D♭4');
+  assert.equal(P.pnNoteNameBoth(61), 'C♯4 / D♭4');
+  assert.equal(P.pnParseNote('C4'), 60); assert.equal(P.pnParseNote('Bb2'), 46); assert.equal(P.pnParseNote('F#3'), 54); assert.equal(P.pnParseNote('nope'), null);
+  assert.equal(P.pnIsBlack(61), true); assert.equal(P.pnIsBlack(60), false);
+});
+test('piano: the circle of fifths and the Camelot wheel agree with the DJ software', () => {
+  assert.equal(P.pnCircleIndex(0), 0); assert.equal(P.pnCircleIndex(7), 1); assert.equal(P.pnCircleIndex(5), 11);
+  for (let i = 0; i < 12; i++) assert.equal(P.pnCircleIndex(P.pnCircleRoot(i)), i);
+  assert.equal(P.pnCamelot(P.pnMakeKey(0, 'major')), '8B'); assert.equal(P.pnCamelot(P.pnMakeKey(9, 'minor')), '8A');
+  assert.equal(P.pnCamelot(P.pnMakeKey(7, 'major')), '9B'); assert.equal(P.pnCamelot(P.pnMakeKey(5, 'major')), '7B'); assert.equal(P.pnCamelot(P.pnMakeKey(4, 'minor')), '9A');
+  for (let n = 1; n <= 12; n++) for (const L of ['A', 'B']) assert.equal(P.pnCamelot(P.pnKeyFromCamelot(n + L)), n + L, 'round trip ' + n + L);
+  assert.equal(P.pnKeyFromCamelot('13A'), null);
+  assert.equal(P.pnKeyName(P.pnMakeKey(10, 'major')), 'B♭ major', 'flat-side keys spell with flats');
+  assert.deepEqual(P.pnStepCircle(P.pnMakeKey(0, 'major'), 1), P.pnMakeKey(7, 'major'));
+  assert.deepEqual(P.pnStepCircle(P.pnMakeKey(0, 'major'), -1), P.pnMakeKey(5, 'major'));
+  assert.deepEqual(P.pnRelativeKey(P.pnMakeKey(0, 'major')), P.pnMakeKey(9, 'minor'));
+  /* the same Camelot grammar the player's own colour engine parses, so a
+     C-major key here lands on the hue the booth paints for a track in 8B */
+  assert.equal(S.camelotHue(P.pnCamelot(P.pnMakeKey(0, 'major'))), S.camelotHue('8B'));
+});
+test('piano: diatonic chords and the progressions resolve to the right names', () => {
+  assert.deepEqual(P.pnDiatonicChords(P.pnMakeKey(0, 'major')).map(x => x.name), ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim']);
+  assert.deepEqual(P.pnDiatonicChords(P.pnMakeKey(0, 'major')).map(x => x.roman), ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°']);
+  assert.deepEqual(P.pnDiatonicChords(P.pnMakeKey(9, 'minor')).map(x => x.name), ['Am', 'Bdim', 'C', 'Dm', 'Em', 'F', 'G']);
+  assert.equal(P.pnDiatonicChords(P.pnMakeKey(5, 'major'))[3].name, 'B♭');
+  const names = (root, mode, id) => P.pnProgressionChords(P.pnMakeKey(root, mode), P.PN_PROGRESSIONS.find(p => p.id === id)).map(c => c.name);
+  assert.deepEqual(names(0, 'major', 'anthem'), ['C', 'G', 'Am', 'F']);
+  assert.deepEqual(names(7, 'major', 'anthem'), ['G', 'D', 'Em', 'C']);
+  assert.deepEqual(names(9, 'minor', 'trance'), ['Am', 'F', 'C', 'G']);
+  assert.deepEqual(names(9, 'minor', 'dark'), ['Am', 'G', 'F', 'E']);
+  assert.deepEqual(names(0, 'major', 'house'), ['Dm', 'G', 'C', 'Am']);
+  assert.deepEqual(names(0, 'major', 'lofi'), ['Cmaj7', 'Am7', 'Dm7', 'G7']);
+  assert.deepEqual(names(0, 'major', 'canon'), ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G']);
+  assert.deepEqual(names(0, 'major', 'twochord'), ['C', 'F']);
+  const ids = P.PN_PROGRESSIONS.map(p => p.id);
+  assert.equal(new Set(ids).size, ids.length, 'progression ids are unique');
+});
+test('piano: chord detection names what the hands hold, inversions included', () => {
+  const d = (n, f) => P.pnDetectChord(n, f);
+  assert.equal(d([60, 64, 67]).name, 'C'); assert.equal(d([60, 63, 67]).name, 'Cm'); assert.equal(d([64, 67, 72]).name, 'C/E');
+  assert.equal(d([64, 67, 72]).inversion, 1); assert.equal(d([67, 72, 76]).inversion, 2);
+  assert.equal(d([60, 64, 67, 70]).name, 'C7'); assert.equal(d([60, 64, 67, 71]).name, 'Cmaj7'); assert.equal(d([60, 63, 67, 70]).name, 'Cm7');
+  assert.equal(d([60, 65, 67]).name, 'Csus4', 'the bass wins the root when two readings tie'); assert.equal(d([60, 62, 67]).name, 'Csus2');
+  assert.equal(d([60, 64, 67, 74]).name, 'Cadd9'); assert.equal(d([60, 67]).name, 'C5'); assert.equal(d([60, 63, 66]).name, 'Cdim');
+  assert.equal(d([61, 65, 68], true).name, 'D♭'); assert.equal(d([61, 65, 68]).name, 'C♯');
+  assert.equal(d([60]), null, 'one note is not a chord'); assert.equal(d([]), null);
+  assert.equal(d([60, 61]).name, null, 'a cluster has a bass and pitch classes but no name');
+  assert.equal(P.pnIntervalName(7), 'Perfect 5th'); assert.equal(P.pnIntervalName(6), 'Tritone'); assert.equal(P.pnIntervalName(19), 'Perfect 5th + 1 oct');
+  assert.ok(Math.abs(P.pnJustCentsOff(7) + 1.955) < 0.01, 'the equal-tempered fifth is two cents flat of 3:2');
+});
+test('piano: voice leading keeps the hand still, key lock and one-finger chords stay in the key', () => {
+  const C = [0, 4, 7], G = [7, 11, 2];
+  const v1 = P.pnVoiceLead(null, C), v2 = P.pnVoiceLead(v1, G);
+  assert.equal(v1.length, 3); assert.ok(v2[2] - v2[0] <= 12, 'inside a hand');
+  const moved = v2.reduce((a, m, i) => a + Math.abs(m - v1[i]), 0);
+  assert.ok(moved <= 6, 'C → G moves the hand by ' + moved + ' semitones in all');
+  const set = new Set(P.pnKeyScalePcs(P.pnMakeKey(0, 'major')));
+  assert.equal(P.pnSnapToScale(61, set), 60, 'C♯ snaps down to C'); assert.equal(P.pnSnapToScale(64, set), 64);
+  assert.deepEqual(P.pnOneFingerChord(62, set), [62, 65, 69], 'D under one finger is D minor');
+  assert.deepEqual(P.pnOneFingerChord(61, set), [60, 64, 67], 'off-key input snaps first');
+});
+test('piano: the beat clock keeps its place across tempo changes and fires each 16th once', () => {
+  let now = 0;
+  const c = new P.PnClock(() => now);
+  c.bpm = 120; c.start(0, 0);
+  now = 1; assert.ok(Math.abs(c.beat - 2) < 1e-9, 'two beats after a second at 120');
+  c.setBpm(60); assert.ok(Math.abs(c.beat - 2) < 1e-9, 'the beat does not jump when the tempo does');
+  now = 2; assert.ok(Math.abs(c.beat - 3) < 1e-9);
+  const fired = [];
+  c.setBpm(120); now = 0; c.start(0, 0);
+  c.pump(0.5, (step, t) => fired.push(step));
+  assert.deepEqual(fired, [0, 1, 2, 3], 'four 16ths inside half a second at 120');
+  c.pump(0.5, (step) => fired.push(step));
+  assert.equal(fired.length, 4, 'nothing fires twice');
+  assert.ok(Math.abs(c.offFromBeat(1.0)) < 1e-9); assert.ok(Math.abs(c.offFromOffbeat(1.25)) < 1e-9);
+  assert.equal(P.pnTapTempo([0, 500, 1000, 1500]), 120); assert.equal(P.pnTapTempo([0, 500, 1000]), 120); assert.equal(P.pnTapTempo([0, 500]), null, 'two taps is one interval: not yet a tempo');
+  assert.equal(P.pnTapTempo([0, 5000, 5500, 6000]), 120, 'a long gap starts a fresh count');
+});
+test('piano: backing patterns are pure, per style, and every style has a name', () => {
+  for (const id of Object.keys(P.PN_STYLES)){
+    assert.ok(P.PN_STYLES[id].name && P.PN_STYLES[id].blurb, id);
+    for (let step = 0; step < 32; step++){
+      for (const a of P.pnDrumBassStep(id, step, { rootPc: 0 })) assert.ok(['drum', 'bass', 'click'].includes(a.kind), id + ' ' + a.kind);
+      for (const n of P.pnChordLayerStep(id, step, [60, 64, 67])) assert.ok(n.midi > 0 && n.dur > 0 && n.inst, id);
+    }
+  }
+  const house = P.pnDrumBassStep('house', 0, { rootPc: 0 });
+  assert.ok(house.some(a => a.kind === 'drum' && a.name === 'kick' && a.duck), 'house kicks on the one and ducks the pads');
+  assert.ok(P.pnDrumBassStep('house', 4, { rootPc: 0 }).some(a => a.name === 'clap'), 'clap on two');
+  assert.equal(P.pnDrumBassStep('house', 0, null).filter(a => a.kind === 'bass').length, 0, 'no chord, no bass');
+  assert.equal(P.pnDrumBassStep('house', 2, { rootPc: 7 }).find(a => a.kind === 'bass').midi, 43, 'the bass plays the root, low');
+  assert.equal(P.pnDrumBassStep('ballad', 4, { rootPc: 0 }).length, 0, 'a ballad has no drums');
+  assert.equal(P.pnDrumBassStep('drone', 0, { rootPc: 0 }).length, 0);
+  assert.equal(P.pnDrumBassStep('metronome', 0, null)[0].accent, true, 'the click accents the one');
+  assert.equal(P.pnChordLayerStep('ballad', 0, [60, 64, 67])[0].midi, 60, 'the broken chord starts on the root');
+  assert.equal(P.pnChordLayerStep('ballad', 1, [60, 64, 67]).length, 0, 'one note per eighth');
+  assert.equal(P.pnChordLayerStep('house', 2, [60, 64, 67]).length, 3, 'house stabs the chord on the "&"');
+});
+test('piano: the loop, its chord clock and the falling guide', () => {
+  const loop = P.pnBuildLoop(P.pnMakeKey(0, 'major'), 'anthem');
+  assert.deepEqual(loop.chords.map(c => c.name), ['C', 'G', 'Am', 'F']);
+  assert.equal(loop.voicings.length, 4);
+  assert.deepEqual(P.pnChordAtStep(loop.chords, 0), { chord: loop.chords[0], index: 0, first: true });
+  assert.equal(P.pnChordAtStep(loop.chords, 17).index, 1); assert.equal(P.pnChordAtStep(loop.chords, 17).first, false);
+  assert.equal(P.pnChordAtStep(loop.chords, 64).index, 0, 'the loop wraps');
+  assert.equal(P.pnChordAtStep([], 0), null);
+  const ev = P.pnGuideEvents(loop, 0, 9, 4);
+  assert.equal(ev.length, 3 * 3, 'three chords in view, three notes each');
+  assert.ok(ev.every(e => e.dur > 0 && e.start >= 0));
+  assert.equal(P.pnGuideEvents(loop, 0, 1e9, 4).length <= 16 * 3, true, 'bounded however far the horizon');
+  assert.equal(P.pnBuildLoop(P.pnMakeKey(0, 'major'), 'nope').prog.id, 'anthem', 'an unknown loop falls back to the anthem');
+});
+test('piano: the arpeggiator orders the held notes', () => {
+  assert.deepEqual(P.pnArpCycle([67, 60, 64], 'up'), [60, 64, 67]);
+  assert.deepEqual(P.pnArpCycle([67, 60, 64], 'down'), [67, 64, 60]);
+  assert.deepEqual(P.pnArpCycle([60, 64, 67], 'updown'), [60, 64, 67, 64]);
+  assert.deepEqual(P.pnArpCycle([60, 64, 67], 'up', 2), [60, 64, 67, 72, 76, 79]);
+  assert.deepEqual(P.pnArpCycle([67, 60], 'played'), [67, 60]);
+  assert.deepEqual([...P.pnArpCycle([60, 64, 67], 'random', 1, 3)].sort(), [60, 64, 67], 'random is a permutation');
+  assert.deepEqual(P.pnArpCycle([60, 64, 67], 'random', 1, 3), P.pnArpCycle([60, 64, 67], 'random', 1, 3), 'and a seeded one');
+  assert.equal(P.pnArpCycle([], 'up').length, 0);
+  assert.equal(P.pnArpNote([60, 64, 67], 4), 64); assert.equal(P.pnArpNote([], 4), null);
+});
+test('piano: the MIDI file writer emits a valid format-0 SMF a DAW will open', () => {
+  const bytes = P.pnBuildMidiFile([{ beat: 0, type: 'on', note: 60, vel: 100 }, { beat: 1, type: 'off', note: 60 }], 120, 480);
+  assert.equal(String.fromCharCode(...bytes.slice(0, 4)), 'MThd');
+  assert.deepEqual([...bytes.slice(4, 14)], [0, 0, 0, 6, 0, 0, 0, 1, 1, 224], 'header: length 6, format 0, one track, 480 ppq');
+  assert.equal(String.fromCharCode(...bytes.slice(14, 18)), 'MTrk');
+  const track = [...bytes.slice(22)];
+  const tempo = track.indexOf(0x51);
+  assert.equal((track[tempo + 2] << 16) | (track[tempo + 3] << 8) | track[tempo + 4], 500000, '120 BPM is 500 000 µs per quarter');
+  const on = track.indexOf(0x90);
+  assert.deepEqual(track.slice(on, on + 3), [0x90, 60, 100]);
+  const off = track.indexOf(0x80);
+  assert.deepEqual(track.slice(off - 2, off + 3), [0x83, 0x60, 0x80, 60, 0], 'a 480-tick delta as a two-byte VLQ, then the note-off');
+  assert.deepEqual(track.slice(-4), [0, 0xff, 0x2f, 0], 'end of track');
+});
+test('piano: MIDI bytes become events, velocities become gain, the computer keyboard becomes keys', () => {
+  assert.deepEqual(P.pnParseMidi([0x90, 60, 100]), { type: 'noteOn', ch: 0, note: 60, vel: 100 });
+  assert.equal(P.pnParseMidi([0x90, 60, 0]).type, 'noteOff', 'velocity zero is a note-off');
+  assert.deepEqual(P.pnParseMidi([0x81, 60, 0]), { type: 'noteOff', ch: 1, note: 60, vel: 0 });
+  assert.deepEqual(P.pnParseMidi([0xb0, 64, 127]), { type: 'sustain', ch: 0, down: true, value: 127 });
+  assert.equal(P.pnParseMidi([0xb0, 64, 10]).down, false);
+  assert.equal(P.pnParseMidi([0xb0, 123, 0]).type, 'allNotesOff');
+  assert.deepEqual(P.pnParseMidi([0xb0, 74, 64]), { type: 'cc', ch: 0, cc: 74, value: 64 });
+  assert.equal(P.pnParseMidi([0xe0, 0, 64]).value, 0, 'centre bend'); assert.equal(P.pnParseMidi([0xe0, 127, 127]).value, 8191);
+  assert.equal(P.pnParseMidi([0xf8]).type, 'other');
+  assert.equal(P.pnVelocityToGain(127), 1); assert.ok(P.pnVelocityToGain(64) < 0.5, 'a gentle curve for weighted keys'); assert.ok(P.pnVelocityToGain(1) > 0);
+  assert.equal(P.pnKeyToMidi('z'), 48); assert.equal(P.pnKeyToMidi('s'), 49); assert.equal(P.pnKeyToMidi('m'), 59); assert.equal(P.pnKeyToMidi(','), 60);
+  assert.equal(P.pnKeyToMidi('q'), 60); assert.equal(P.pnKeyToMidi('2'), 61); assert.equal(P.pnKeyToMidi('i'), 72, 'the upper row runs an octave and a third'); assert.equal(P.pnKeyToMidi('p'), 76); assert.equal(P.pnKeyToMidi(']'), 79);
+  assert.equal(P.pnKeyToMidi('Q', 36), 48, 'case-insensitive, base shifts the octave'); assert.equal(P.pnKeyToMidi('Shift'), null); assert.equal(P.pnKeyToMidi('x!'), null);
+});
+test('piano: the pitch detector hears a chord in a synthetic spectrum and the stabiliser holds it', () => {
+  const sr = 48000, fft = 16384, bins = fft / 2, binHz = sr / fft;
+  const mag = new Float32Array(bins).fill(1e-4);
+  for (const m of [60, 64, 67]){
+    const f0 = P.pnMidiToFreq(m);
+    for (let h = 1; h <= 5; h++){ const k = Math.round((f0 * h) / binHz); mag[k] += 1 / h; mag[k - 1] += 0.4 / h; mag[k + 1] += 0.4 / h; }
+  }
+  const found = P.pnDetectNotes(mag, sr, fft).map(n => n.midi);
+  assert.deepEqual(found, [60, 64, 67], 'C E G out of their harmonics');
+  const silent = P.pnDetectNotes(new Float32Array(bins).fill(1e-4), sr, fft);
+  assert.equal(silent.length, 0, 'a flat floor is not a note');
+  const st = new P.PnNoteStabilizer(2, 2);
+  assert.deepEqual(st.update([60]), { on: [], off: [] }, 'one frame is a flicker');
+  assert.deepEqual(st.update([60]), { on: [60], off: [] }, 'two frames is a note');
+  assert.deepEqual(st.update([]), { on: [], off: [] });
+  assert.deepEqual(st.update([]), { on: [], off: [60] }, 'and it lets go after two silent frames');
+});
+const PN_STEP_TYPES = new Set(['info', 'checklist', 'timer', 'find', 'press', 'sequence', 'count', 'groove', 'quiz', 'ear', 'pedal']);
+test('piano: the curriculum is well formed — ids unique, notes on the keyboard, fingers 1..5, chords spelt right', () => {
+  assert.ok(P.PN_TRACKS.length >= 7, 'seven tracks'); assert.ok(P.PN_ALL_LESSONS.length >= 40, 'forty-odd lessons');
+  const ids = new Set();
+  for (const l of P.PN_ALL_LESSONS){
+    assert.ok(!ids.has(l.id), 'duplicate lesson id ' + l.id); ids.add(l.id);
+    assert.ok(l.title && l.blurb && l.minutes > 0 && l.steps.length >= 2, l.id);
+    for (const [i, s] of l.steps.entries()){
+      const where = l.id + '[' + i + '] ' + s.title;
+      assert.ok(PN_STEP_TYPES.has(s.type), where + ': unknown type ' + s.type);
+      assert.ok(s.title, where + ': title');
+      assert.ok(s.text || s.type === 'checklist' || s.type === 'quiz', where + ': text');
+      for (const n of [...(s.notes || []), ...Object.keys(s.fingers || {}).map(Number), ...(s.show || []), ...((s.demo && s.demo.notes) || [])])
+        assert.ok(n >= P.PN_FIRST && n <= P.PN_LAST, where + ': note ' + n + ' off the keyboard');
+      for (const f of [...Object.values(s.fingers || {}), ...(s.fingerSeq || [])]) assert.ok(f >= 1 && f <= 5, where + ': finger ' + f);
+      if (s.type === 'sequence' || s.type === 'press') assert.ok(s.notes && s.notes.length, where + ': needs notes');
+      if (s.type === 'sequence' && s.fingers) assert.equal(Object.keys(s.fingers).length, new Set(s.notes).size, where + ': one finger per distinct note');
+      if (s.fingerSeq) assert.equal(s.fingerSeq.length, s.notes.length, where + ': one finger per note played');
+      if (s.type === 'quiz') assert.ok(s.choices.length >= 2 && s.answer >= 0 && s.answer < s.choices.length, where);
+      if (s.type === 'ear'){
+        assert.ok(s.choices.length >= 2 && s.rounds >= 2, where);
+        for (const c of s.choices) assert.ok(c.label && c.notes && c.notes.length, where + ': ear choice');
+        assert.equal(new Set(s.choices.map(c => c.label)).size, s.choices.length, where + ': labels unique');
+      }
+      if (s.type === 'find') assert.ok(s.pcs.length && s.count > 0, where);
+      if (s.type === 'groove') assert.ok(['on', 'off', 'grid'].includes(s.expect) && s.needed > 0, where);
+      if (s.type === 'checklist') assert.ok(s.items.length >= 3, where);
+      if (s.type === 'count') assert.ok(s.count > 0, where);
+      if (s.chord) assert.equal(P.pnDetectChord(s.notes).name, s.chord, where + ': ' + s.notes + ' is not ' + s.chord);
+      if (s.focus) assert.ok(s.focus[0] < s.focus[1], where + ': focus');
+      if (s.demo) assert.ok(['chord', 'seq', 'chords'].includes(s.demo.mode), where + ': demo mode');
+    }
+  }
+  assert.ok(P.pnLessonById('fourchords'), 'the fast track opens with the four chords');
+  assert.equal(P.pnLessonById('nope'), undefined);
+});
+test('piano: fingerings follow standard piano technique', () => {
+  const find = (id, title) => P.pnLessonById(id).steps.find(s => s.title === title);
+  const rh = find('scale', 'Right hand, up'); assert.deepEqual(rh.notes.map(n => rh.fingers[n]), [1, 2, 3, 1, 2, 3, 4, 5]);
+  const lh = find('scale', 'Left hand, up'); assert.deepEqual(lh.notes.map(n => lh.fingers[n]), [5, 4, 3, 2, 1, 3, 2, 1]);
+  const ode = find('odetojoy', 'Phrase 1'); assert.ok(ode.fingerSeq.every((f, i) => f === ode.notes[i] - 60 - Math.floor((ode.notes[i] - 60) / 2) + Math.floor((ode.notes[i] - 60) / 2) - 0 || true));
+  assert.deepEqual(ode.notes.map(n => ({ 60: 1, 62: 2, 64: 3, 65: 4, 67: 5 })[n]), ode.fingerSeq, 'Ode to Joy sits in C position: one finger per key');
+  const voicing = P.pnLessonById('voicing').steps.filter(s => s.type === 'press').map(s => s.notes);
+  for (let i = 1; i < voicing.length; i++){
+    const moved = voicing[i].reduce((a, m, k) => a + Math.abs(m - voicing[i - 1][k]), 0);
+    assert.ok(moved <= 5, 'smooth voicing ' + i + ' moves ' + moved + ' semitones');
+  }
+  const four = P.pnLessonById('fourchords').steps.filter(s => s.type === 'press').map(s => s.notes);
+  assert.deepEqual(four.map(n => P.pnDetectChord(n).name), ['C/E', 'G/D', 'Am/E', 'F'], 'the four chords, voice-led');
+});
+const pnMake = (lesson, env) => new P.PnLessonRunner(lesson, env);
+test('piano: lesson steps complete the way a teacher would tick them', () => {
+  const r = pnMake({ steps: [{ type: 'info', title: 'a', text: 'x' }, { type: 'info', title: 'b', text: 'y' }] });
+  assert.equal(r.done, true); assert.ok(r.next()); assert.equal(r.index, 1); assert.equal(r.next(), false); r.prev(); assert.equal(r.index, 0);
+  const f = pnMake({ steps: [{ type: 'find', title: 'C', text: '', pcs: [0], count: 3 }] });
+  f.noteOn(60); f.noteOn(60); f.noteOn(61);
+  assert.equal(f.found.size, 1); assert.equal(f.mistakes, 1);
+  f.noteOn(48); f.noteOn(72); assert.equal(f.done, true);
+  const p = pnMake({ steps: [{ type: 'press', title: 'C', text: '', notes: [60, 64, 67] }] });
+  p.noteOn(60); p.noteOff(60); p.noteOn(64); p.noteOn(67); assert.equal(p.done, false); p.noteOn(60); assert.equal(p.done, true);
+  const mic = pnMake({ steps: [{ type: 'press', title: 'C', text: '', notes: [60, 64, 67] }] });
+  mic.noteOn(48, 'mic'); mic.noteOn(52, 'mic'); mic.noteOn(79, 'mic'); assert.equal(mic.done, true, 'the microphone matches by pitch class');
+  const s = pnMake({ steps: [{ type: 'sequence', title: 's', text: '', notes: [60, 62, 64], fingerSeq: [1, 2, 3] }] });
+  s.noteOn(60); s.noteOn(64); assert.equal(s.pos, 0); assert.equal(s.mistakes, 1);
+  s.noteOn(60); assert.deepEqual(s.guide().badges, [{ midi: 62, text: '2', hand: 'right' }], 'the finger for the next note rides on its key');
+  assert.equal(s.guide().keys.find(k => k.midi === 62).role, 'next');
+  s.noteOn(62); s.noteOn(64); assert.equal(s.done, true); assert.equal(s.progress, 1); assert.equal(s.guide().badges.length, 0);
+  const c = pnMake({ steps: [{ type: 'count', title: 'c', text: '', count: 3, allowedPcs: [1, 3, 6, 8, 10] }] });
+  c.noteOn(60); c.noteOn(61); c.noteOn(63); c.noteOn(66); assert.equal(c.done, true);
+  const soft = pnMake({ steps: [{ type: 'count', title: 'c', text: '', count: 2, maxVelocity: 60 }] });
+  soft.noteOn(60, 'midi', 100); soft.noteOn(60, 'midi', 100); assert.equal(soft.done, false, 'too loud does not count');
+  soft.noteOn(60, 'midi', 40); soft.noteOn(60, 'midi', 40); assert.equal(soft.done, true);
+  const kb = pnMake({ steps: [{ type: 'count', title: 'c', text: '', count: 1, maxVelocity: 60 }] });
+  kb.noteOn(60, 'key'); assert.equal(kb.done, true, 'no velocity (computer keys) is never penalised');
+  const ck = pnMake({ steps: [{ type: 'checklist', title: 'c', items: ['a', 'b'] }] });
+  ck.toggleCheck(0); assert.equal(ck.done, false); ck.toggleCheck(1); assert.equal(ck.done, true); ck.toggleCheck(1); assert.equal(ck.checked.size, 1);
+  const q = pnMake({ steps: [{ type: 'quiz', title: 'q', choices: ['a', 'b'], answer: 1 }] });
+  assert.equal(q.answerQuiz(0), false); assert.equal(q.mistakes, 1); assert.equal(q.answerQuiz(1), true); assert.equal(q.done, true);
+  const pd = pnMake({ steps: [{ type: 'pedal', title: 'p', count: 2 }] });
+  pd.pedal(true); pd.pedal(false); assert.equal(pd.done, false); pd.pedal(true); pd.pedal(false); assert.equal(pd.done, true);
+  let now = 0;
+  const t = pnMake({ steps: [{ type: 'timer', title: 't', seconds: 10 }] }, { now: () => now });
+  now = 5000; t.tick(); assert.equal(t.done, false); assert.ok(Math.abs(t.progress - 0.5) < 1e-9); now = 10001; t.tick(); assert.equal(t.done, true);
+});
+test('piano: groove steps judge timing against the clock', () => {
+  let now = 0;
+  const clock = new P.PnClock(() => now); clock.bpm = 120; clock.start(0, 0);
+  const timing = { running: () => clock.running, offBeat: t => clock.offFromBeat(t), offOffbeat: t => clock.offFromOffbeat(t) };
+  const on = pnMake({ steps: [{ type: 'groove', title: 'g', text: '', expect: 'on', needed: 3, pcs: [0] }] }, { now: () => now, timing });
+  now = 1.0; on.noteOn(48); assert.equal(on.streak, 1, 'on the beat');
+  now = 1.25; on.noteOn(48); assert.equal(on.streak, 0, 'the "&" resets an on-beat streak');
+  now = 2.0; on.noteOn(48); now = 2.5; on.noteOn(48); now = 3.02; on.noteOn(48); assert.equal(on.done, true, 'forty milliseconds late is inside the pocket');
+  const off = pnMake({ steps: [{ type: 'groove', title: 'g', text: '', expect: 'off', needed: 2 }] }, { now: () => now, timing });
+  now = 4.25; off.noteOn(60); now = 4.75; off.noteOn(60); assert.equal(off.done, true);
+  const grid = pnMake({ steps: [{ type: 'groove', title: 'g', text: '', expect: 'grid', needed: 2 }] }, { now: () => now, timing });
+  now = 5.0; grid.noteOn(60); now = 5.25; grid.noteOn(60); assert.equal(grid.done, true);
+  const stopped = pnMake({ steps: [{ type: 'groove', title: 'g', text: '', expect: 'on', needed: 1 }] }, { now: () => now, timing: { ...timing, running: () => false } });
+  stopped.noteOn(60); assert.match(stopped.lastMessage, /Play/, 'no beat running: asks for it rather than failing the learner');
+});
+test('piano: ear-training rounds draw a target, judge the answer, and streak to completion', () => {
+  const step = { type: 'ear', title: 'e', text: '', rounds: 3, seed: 4, choices: [{ label: 'A', notes: [60, 64] }, { label: 'B', notes: [60, 67] }, { label: 'C', notes: [60, 72] }] };
+  const r = pnMake({ steps: [step] });
+  const t0 = r.earTarget();
+  assert.ok(step.choices.includes(t0)); assert.equal(r.earTarget(), t0, 'the target holds still until answered');
+  const wrong = step.choices.findIndex(c => c !== t0);
+  assert.equal(r.answerEar(wrong), false); assert.equal(r.mistakes, 1); assert.equal(r.streak, 0); assert.equal(r.lastRight, false); assert.match(r.lastMessage, new RegExp(t0.label));
+  let guard = 0;
+  while (!r.done && guard++ < 10) assert.equal(r.answerEar(step.choices.indexOf(r.earTarget())), true);
+  assert.equal(r.done, true); assert.equal(r.streak, 3); assert.equal(r.lastRight, true, 'the verdict of the last answer survives the target moving on');
+  assert.equal(r.answerEar(0), false, 'a finished step ignores further answers');
+  const seen = new Set(); const r2 = pnMake({ steps: [step] });
+  for (let k = 0; k < 12; k++){ seen.add(r2.earTarget().label); r2.answerEar(-1); }
+  assert.equal(seen.size, 3, 'the draw covers every choice');
+  const a = pnMake({ steps: [step] }), b = pnMake({ steps: [step] });
+  assert.equal(a.earTarget(), b.earTarget(), 'deterministic per seed, so a lesson replays the same');
+});
+test('piano: every lesson can be completed by a scripted player', () => {
+  let now = 0;
+  const clock = new P.PnClock(() => now); clock.bpm = 120; clock.start(0, 0);
+  const timing = { running: () => true, offBeat: t => clock.offFromBeat(t), offOffbeat: t => clock.offFromOffbeat(t) };
+  for (const lesson of P.PN_ALL_LESSONS){
+    const r = new P.PnLessonRunner(lesson, { now: () => now, timing });
+    for (let i = 0; i < r.total; i++){
+      r.goto(i);
+      const s = r.step;
+      switch (s.type){
+        case 'find': { let m = 30, n = 0; while (n < s.count && m < 100){ if (s.pcs.includes(m % 12)){ r.noteOn(m); n++; } m++; } break; }
+        case 'press': s.notes.forEach(n => r.noteOn(n)); break;
+        case 'sequence': s.notes.forEach(n => r.noteOn(n)); break;
+        case 'count': for (let k = 0; k < s.count; k++) r.noteOn(s.allowedPcs ? s.allowedPcs[0] + 60 : 60, 'midi', 40); break;
+        case 'groove': for (let k = 0; k < s.needed; k++){ now = 10 + k * 0.5 + (s.expect === 'off' ? 0.25 : 0); r.noteOn(s.pcs ? s.pcs[0] + 60 : 60); } break;
+        case 'checklist': s.items.forEach((_, k) => r.toggleCheck(k)); break;
+        case 'quiz': r.answerQuiz(s.answer); break;
+        case 'ear': { let g = 0; while (!r.done && g++ < 40) r.answerEar(s.choices.indexOf(r.earTarget())); break; }
+        case 'pedal': for (let k = 0; k < s.count; k++){ r.pedal(true); r.pedal(false); } break;
+        case 'timer': now += s.seconds * 1000 + 1; r.tick(); break;
+        default:
+      }
+      assert.ok(r.done, lesson.id + '[' + i + '] "' + s.title + '" did not complete');
+      const g = r.guide();
+      assert.ok(Array.isArray(g.keys) && Array.isArray(g.badges), 'guide shape');
+      for (const k of g.keys) assert.ok(k.midi >= P.PN_FIRST && k.midi <= P.PN_LAST && k.role, 'guide key');
+    }
+    assert.ok(r.finished, lesson.id);
+  }
+});
+test('piano: the trainer is wired into the shipped page — the dialog, the boot, the hidden way in', () => {
+  assert.ok(html.includes('<div id="piano" role="dialog"'), 'the dialog is in the markup');
+  assert.ok(html.includes('id="pnCanvas"') && html.includes('id="pnPanel"') && html.includes('id="pnClose"'), 'stage, panel and close');
+  assert.ok(/try \{ PIANO\.boot\(\); \} catch \(e\)\{\}/.test(html), 'booted alongside the rig, and a broken piano cannot stop the player booting');
+  assert.ok(html.includes("document.querySelector('.wordmark .loop8')"), 'the ∞ in the wordmark is the way in');
+  assert.ok(/taps\.length >= 5/.test(html), 'five taps');
+  assert.ok(html.includes("q.has('piano')"), 'and ?piano for a direct link');
+  assert.ok(!/<kbd>[^<]*<\/kbd>[^\n]*piano/i.test(html.slice(html.indexOf('<h3>Keyboard</h3>'), html.indexOf('<h3>Milestones</h3>'))), 'the manual keeps the secret');
+  assert.equal((html.match(/^const MB8_BUILD = '[0-9a-f@]*';/gm) || []).length, 1, 'the build stamp is still the only one');
+  assert.ok(html.includes("document.addEventListener('keydown', this._kd, true)"), 'the piano takes the keyboard in the capture phase while open');
+  assert.ok(html.includes('e.stopPropagation();                              // the piano owns the keyboard while it is open'), 'and stops the player shortcuts firing under the keys');
+  assert.ok(html.includes('this.engine.init(AE.ctx, dest, AE.analyser || null)'), 'the sound rides the player context, into the master and the analyser');
+});
+
 await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
