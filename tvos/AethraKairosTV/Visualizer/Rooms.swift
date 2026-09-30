@@ -415,6 +415,14 @@ enum Rooms {
         Room(key: "flux", name: "FLUX", fragmentFunction: "room_flux",
              tasteEnergy: 0, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
              tasteBass: 0.4, tasteEntropy: -0.3),
+
+        // The elastic collision, in slow motion (Shaders24): the table, the
+        // lanes (equal masses exchange velocities — triangle waves, sorted) and
+        // Newton's cradle. The web's table is a live simulation; the TV's is
+        // retold closed-form: exact off the walls, lit where balls meet.
+        Room(key: "carom", name: "CAROM", fragmentFunction: "room_carom",
+             tasteEnergy: 0.3, tasteCalm: 0.4, tasteBeat: 0.6, tasteTreble: 0,
+             tasteEntropy: -0.2),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
