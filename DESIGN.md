@@ -1506,6 +1506,48 @@ scenes, booth and sliced screen alike.
   staged plan, work an M-series core should run at full speed — the size cost
   is noise next to the WebKit process beside it.
 
+### 1.2s The piano inside the ∞: a trainer, hidden in the wordmark
+
+- **What it is.** Tap the ∞ in the wordmark five times (or open `/?piano`)
+  and a piano unfolds over the field: 88 keys on a note highway, seven
+  tracks of lessons that *listen* to what is played, a beat with backing
+  loops, and the three safety nets that let a beginner sound like a record
+  on the first evening — key lock (every key snaps into the key), one-finger
+  chords (one key plays the diatonic triad), and the pentatonic. It is an
+  Easter egg because the player is a listening room first; it is a *full*
+  trainer because a half one teaches nothing. The manual keeps the secret;
+  the wordmark's title hints at it; the first discovery is toasted once.
+- **The curriculum listens.** Forty-four lessons in plain data (`PN_TRACKS`):
+  a fast track ("Sound good tonight": the four chords, the left hand, the
+  safety nets, a first melody, rhythm patterns, arp/filter/drop, moods),
+  body & hands, theory you can see, songs (Ode to Joy, Twinkle, Frère
+  Jacques, Happy Birthday, Amazing Grace, Für Elise, Greensleeves — public
+  domain, with the finger for the *next* note riding on its key), ear
+  training (direction, intervals, chord colours, I–IV–V–vi by ear), groove &
+  sets, and play for fun. Every step type — find, press, sequence, count,
+  groove (judged against the beat clock), ear (seeded rounds), quiz,
+  checklist, pedal, timer — is a state machine (`PnLessonRunner`) fed by
+  whatever plays: the on-screen keys, the computer keyboard (two DAW rows),
+  Web MIDI, or the microphone (harmonic-summation pitch detection, so a real
+  piano in the room lights the keys and completes the step, any octave).
+- **The sound rides the player's own context.** The synth (a hammer-struck
+  additive piano, tine e-piano, pad, supersaw, pluck, organ, sub bass), the
+  kit and the beat clock are built on `AE.ctx` and land in `AE.master` — so
+  the volume, mute and the limiter apply — and in `AE.analyser`, so the field
+  dances to what the learner plays. Backing is pure data per style (house,
+  trance, lo-fi, half-time, ballad, drone, metronome) and per 16th step;
+  chords are voice-led so the hand parks near middle C; the guide falls
+  down the highway in the pitch-class colour the colour engine gives the
+  key (`camelotHue`), so C here is the C the booth paints for a track in 8B.
+- **What is tested is what ships.** The whole brain — theory, chords,
+  progressions, voicing, the clock, tap tempo, the backing, the arp, the SMF
+  writer, MIDI parsing, the pitch detector, the runner and the curriculum —
+  is the `@piano` marker block; `tests/player.test.mjs` extracts it and runs
+  a scripted player through every step of every lesson. The DOM and the
+  sound are walked by `tools/piano_probe.mjs` (booth and phone widths,
+  screenshots of each face). The piano is not a scene: `SCENE_KEYS` and the
+  tvOS roster are untouched, and the parity law does not apply to it.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature
