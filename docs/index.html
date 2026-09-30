@@ -3974,6 +3974,26 @@ body.clipping::after{
     its aim, and its balls ricochet the whole box before they settle. The music pours — the rate is the
     energy and the beat, the pile jumps on the beat, the bass warms the glow — and a hand is a cushion
     the falling balls come off.</p>
+    <h3>Architecture against gravity</h3>
+    <p class="lede">Scene 106 is <b>MASONRY</b>: the arch, the corbel, the dome. Stone can only push, so
+    every structure is a way of turning weight into a path of compression that reaches the ground
+    inside the stone, and every collapse is that path stepping outside it. THE ARCH lays its
+    voussoirs on a timber centering from both springings to the keystone, strikes the centering, and
+    draws the line of thrust — the funicular of the loads, the curve the weight would hang in as a
+    chain, turned upside down; a load at the crown sharpens it, and where it touches the intrados or
+    the extrados the ring cracks into a hinge, until at the fourth hinge the arch is a mechanism and
+    the crown drops. The dice deal the semicircle, the pointed two-centred arch (lower thrust) and the
+    catenary, the perfect arch whose axis is its own thrust line. THE CORBEL stacks bricks by the
+    harmonic law: the k-th brick from the top overhangs by 1/(2k) of its length, every sub-stack's
+    centre of mass exactly on the edge that carries it, the reach H<sub>n</sub>/2 without bound; two
+    stacks meet and a capstone closes the corbelled arch of Mycenae, and every plumb line is drawn.
+    THE DOME is a spherical cap on a drum, buttressed, under membrane theory: the meridians always
+    push, but the hoops change sign at 51.8° (cos&nbsp;φ&nbsp;=&nbsp;1/φ, the golden ratio) — rings
+    of compression above, rings of tension below, which stone cannot carry, so it cracks along its
+    meridians and its base wants a chain. The hemisphere has no thrust and needs the chain; the bulb
+    pulls inward at its base; the saucer thrusts outward and its thrust line is drawn down through
+    the buttresses. The bass is the load, the beat a tremor, the treble the glint on a crack, and a
+    hand is a load where it presses.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4611,7 +4631,7 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
                'flows', 'gathers',
-               'flows', 'flows', 'gathers', 'blackhole', 'blackhole'];   // …the lattice and the film ripple, the
+               'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -6121,7 +6141,7 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
-                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit'];
+                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6283,6 +6303,7 @@ const SCENE_TASTE = {
   flux:      { beat: 0.5, bass: 0.4, coupling: 0.5, entropy: -0.3 },  // magnets on a lattice: the fields couple
   carom:     { beat: 0.6, calm: 0.4, energy: 0.3, entropy: -0.2 },    // slow motion wants a beat to punch it on
   ballpit:   { energy: 0.6, beat: 0.5, bass: 0.3, entropy: 0.2 },      // the music pours: energy and the beat fill the pit
+  masonry:   { bass: 0.5, calm: 0.3, beat: 0.3, entropy: -0.4 },      // stone wants order; the bass is the load it carries
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7554,6 +7575,7 @@ const SCENE_SIGS = {
   flux:      { kind: 'ring',   h: 205, arms: 6, rainbow: 1 },
   carom:     { kind: 'blob',   h: 40,  dense: 0.8 },
   ballpit:   { kind: 'blob',   h: 320, dense: 1.0, rainbow: 1 },
+  masonry:   { kind: 'ring',   h: 35,  arms: 4 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -49707,6 +49729,655 @@ function buildBallpit(){
 }
 
 /* ================================================================
+   MASONRY — architecture against gravity: the arch, the corbel,
+   the dome. Stone can only push. Every structure here is a way of
+   turning weight into a path of compression that reaches the
+   ground inside the stone — and every collapse is that path
+   stepping outside it.
+
+   THE ARCH: voussoirs laid on a timber centering from both
+   springings to the keystone, the centering struck, and then the
+   line of thrust — the funicular of the loads, the exact curve the
+   weight would hang in if it were a chain, turned upside down —
+   drawn inside the ring. A point load at the crown (the music's
+   bass, or a hand) sharpens the curve; where it touches the
+   intrados or the extrados the arch cracks into a hinge, and at
+   the fourth hinge the ring is a mechanism: the crown drops, the
+   haunches bulge, the stones fall. The dice deal the semicircle
+   (Rome), the pointed two-centred arch (the Gothic, lower thrust)
+   and the catenary (the perfect arch: its axis IS the thrust line,
+   so only a load can bring it down).
+
+   THE CORBEL: brick stacking by the harmonic law. A stack of n
+   bricks reaches furthest over the edge when the k-th brick from
+   the top overhangs the one below by 1/(2k) of its length — every
+   sub-stack's centre of mass then sits exactly on the edge that
+   carries it, and the total reach is H_n/2 lengths, without bound.
+   Two such stacks from either cliff meet at the crown and a
+   capstone closes them: the corbelled arch of Mycenae. Every plumb
+   line is drawn. Lift the capstone and the balance is marginal
+   again; the stacks tip inward about the joints and the bricks
+   fly.
+
+   THE DOME: a spherical cap on a drum, buttressed. Membrane theory
+   under self-weight: the meridians always push (N_φ = −qR/(1+cos φ))
+   but the hoops change sign at 51.8° (cos φ = 1/golden ratio):
+   above, rings of compression; below, rings of tension — which
+   stone cannot carry, so the dome cracks along its meridians and
+   the base wants a chain. A lantern load adds hoop tension
+   everywhere. The dice deal the hemisphere (the Pantheon: no
+   thrust, a chain), the bulb (past the equator: the base pulls
+   inward) and the saucer (a shallow cap: little tension, a great
+   outward thrust the buttresses must carry — its thrust line is
+   drawn down through them). At the end the segments burst outward
+   like a peeled orange.
+
+   Every phase is a function of one clock, so the TV's stateless
+   fragment retells it exactly; here the clock runs at the music's
+   pace, the bass is the load, the beat a tremor, the treble the
+   glint on a crack, and a hand is a load where it presses.
+   ================================================================ */
+function buildMasonry(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:    { value: Math.random() },
+    uModeMa:  { value: 0 },
+    uShapeMa: { value: 0 },
+    uSimT:    { value: 0 },
+    uHand:    { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:  { value: 1 },
+    uSlice:   { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeMa, uShapeMa, uVarA, uSimT, uAspect;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    const float GY = -0.78;          // the ground
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float coshf(float x){ return (exp(x) + exp(-x)) * 0.5; }
+    float sinhf(float x){ return (exp(x) - exp(-x)) * 0.5; }
+    float asinhf(float x){ return log(x + sqrt(x * x + 1.0)); }
+    vec2 rot(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+    float sdBox(vec2 p, vec2 b){ vec2 d = abs(p) - b; return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0); }
+    float easeOut(float u){ u = clamp(u, 0.0, 1.0); return 1.0 - (1.0 - u) * (1.0 - u); }
+    /* a stone: the masonry tint with its own hash, bevelled dark at the joint */
+    vec3 stone(vec3 base, float id, float edge){
+      float h = hash21(vec2(id * 1.7 + 0.3, uVarA * 5.0 + 1.0));
+      return base * (0.72 + 0.56 * h) * (0.25 + 0.75 * smoothstep(0.0, 0.014, edge));
+    }
+    /* ---------- THE ARCH: the ring's own frame ----------
+       s along the ring, 0 at the left springing, 1 at the right; n outward from the centreline */
+    vec3 ringUV(vec2 p, float R, float shape){
+      if (shape < 0.5){
+        float r = length(p);
+        float th = r < 1e-4 ? 0.0 : atan(p.y, p.x);
+        return vec3(1.0 - th / PI, r - R, th >= 0.0 ? 1.0 : 0.0);
+      } else if (shape < 1.5){
+        float c = 0.35 * R, Rp = R + c;
+        vec2 q = vec2(abs(p.x) + c, p.y);
+        float r = length(q);
+        float th = r < 1e-4 ? 0.0 : atan(q.y, q.x);
+        float thA = atan(sqrt(Rp * Rp - c * c), c);
+        float u = th / thA;
+        float s = p.x >= 0.0 ? 1.0 - 0.5 * u : 0.5 * u;
+        return vec3(s, r - Rp, (th >= 0.0 && u <= 1.0) ? 1.0 : 0.0);
+      } else {
+        float a = 0.51;
+        float f = a * (coshf(R / a) - coshf(p.x / a));
+        float fp = -sinhf(p.x / a);
+        float q = inversesqrt(1.0 + fp * fp);
+        float n = (p.y - f) * q;
+        float x0 = p.x + n * fp * q;
+        float s = 0.5 + 0.5 * sinhf(x0 / a) / sinhf(R / a);
+        return vec3(s, n, p.y >= -0.02 ? 1.0 : 0.0);
+      }
+    }
+    vec2 ringXY(float s, float n, float R, float shape){
+      if (shape < 0.5){ float th = PI * (1.0 - s); return (R + n) * vec2(cos(th), sin(th)); }
+      else if (shape < 1.5){
+        float c = 0.35 * R, Rp = R + c;
+        float thA = atan(sqrt(Rp * Rp - c * c), c);
+        float u = s >= 0.5 ? (1.0 - s) * 2.0 : s * 2.0;
+        vec2 q = (Rp + n) * vec2(cos(u * thA), sin(u * thA)) - vec2(c, 0.0);
+        return vec2(s >= 0.5 ? q.x : -q.x, q.y);
+      } else {
+        float a = 0.51;
+        float x0 = a * asinhf((2.0 * s - 1.0) * sinhf(R / a));
+        float f = a * (coshf(R / a) - coshf(x0 / a));
+        float fp = -sinhf(x0 / a);
+        return vec2(x0, f) + n * vec2(-fp, 1.0) * inversesqrt(1.0 + fp * fp);
+      }
+    }
+    float ringRise(float R, float shape){
+      if (shape < 0.5) return R;
+      if (shape < 1.5){ float c = 0.35 * R; return sqrt((R + c) * (R + c) - c * c); }
+      return 0.51 * (coshf(R / 0.51) - 1.0);
+    }
+    /* the mechanism: the left half's inverse motion. Piece A (springing → haunch) tips
+       outward by phi about the springing extrados; piece B (haunch → keystone joint) folds
+       by psi about the haunch intrados as it rides on A, the keystone joint hinged at the
+       extrados — the joint under the load opens from below and the keystone drops as a
+       wedge. The right half is the mirror. */
+    /* the crown hinge rides the axis: the fold psi that keeps it there, for a given phi */
+    float psiOf(float phi, float R, float t, float shape){
+      vec2 SL = ringXY(0.0, 0.5 * t, R, shape), HL = ringXY(0.28, -0.5 * t, R, shape), C = ringXY(7.0 / 15.0, 0.5 * t, R, shape);
+      vec2 HLp = SL + rot(HL - SL, phi);
+      vec2 v = C - HL;
+      float r = length(v), gam = atan(v.y, v.x);
+      return gam - acos(clamp((C.x - HLp.x) / r, -1.0, 1.0));
+    }
+    /* the keystone slides down between the crown pieces: its drop is their corner's */
+    float keyDrop(float phi, float psi, float R, float t, float shape){
+      vec2 SL = ringXY(0.0, 0.5 * t, R, shape), HL = ringXY(0.28, -0.5 * t, R, shape), C = ringXY(7.0 / 15.0, 0.5 * t, R, shape);
+      vec2 HLp = SL + rot(HL - SL, phi);
+      vec2 Cp = HLp + rot(C - HL, -psi);
+      return C.y - Cp.y;
+    }
+    vec2 mechInv(vec2 p, float onB, float phi, float psi, float R, float t, float shape){
+      vec2 SL = ringXY(0.0, 0.5 * t, R, shape);
+      vec2 HL = ringXY(0.28, -0.5 * t, R, shape);
+      if (onB > 0.5){
+        vec2 HLp = SL + rot(HL - SL, phi);
+        p = HLp + rot(p - HLp, psi);
+      }
+      return SL + rot(p - SL, -phi);
+    }
+    vec2 mechFwd(vec2 q, float onB, float phi, float psi, float R, float t, float shape){
+      vec2 SL = ringXY(0.0, 0.5 * t, R, shape);
+      vec2 HL = ringXY(0.28, -0.5 * t, R, shape);
+      vec2 qa = SL + rot(q - SL, phi);
+      if (onB < 0.5) return qa;
+      vec2 HLp = SL + rot(HL - SL, phi);
+      return HLp + rot(qa - HLp, -psi);
+    }
+    /* the harmonic numbers, exactly */
+    float harm(float m){ float h = 0.0; for (int i = 1; i <= 12; i++){ if (float(i) <= m + 0.5) h += 1.0 / float(i); } return h; }
+    /* a rotation about a horizontal unit axis (a.y = 0), Rodrigues */
+    vec3 rotAxis(vec3 v, vec3 a, float b){ return v * cos(b) + cross(a, v) * sin(b) + a * dot(a, v) * (1.0 - cos(b)); }
+
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float sc = clamp(uAspect / 1.3, 0.55, 1.0);     // a narrow screen sees the whole structure, smaller
+      p /= sc;
+      float tremor = uBeat * 0.004 * sin(uTime * 37.0);
+      p.x += tremor;
+      vec3 col = vec3(0.0);
+      vec3 base = ramp(0.45 + uVarA * 0.2);
+      vec3 hot = ramp(0.85), cool = ramp(0.15);
+      float T = uSimT;
+      vec2 hand = uHand.xy / sc;
+      float hs = uHand.z;
+      // the ground
+      col += ramp(0.55) * exp(-(p.y - GY) * (p.y - GY) * 30000.0) * 0.12;
+      col += base * smoothstep(GY, GY - 0.25, p.y) * 0.03;
+
+      if (uModeMa < 0.5){
+        /* ===================== THE ARCH ===================== */
+        float R = 0.9, t = 0.16, ys = -0.42;
+        const float N = 15.0;
+        float shape = uShapeMa;
+        float TB = 7.05, TS = 7.4, TF = 17.0, TM = 0.9, TD = 1.7, P = 20.3;
+        float ph = mod(T, P);
+        vec2 q = p - vec2(0.0, ys);           // the ring's frame: the springing line is y = 0
+        // the piers: the abutments that take the thrust to the ground
+        for (int side = 0; side < 2; side++){
+          float sx = side == 0 ? -R : R;
+          float d = sdBox(q - vec2(sx, (GY - ys) * 0.5), vec2(0.19, (0.0 - (GY - ys)) * 0.5));
+          if (d < 0.0){
+            float course = floor((q.y - (GY - ys)) / 0.09);
+            float ce = abs(fract((q.y - (GY - ys)) / 0.09) - 0.5) * 0.09;
+            col = stone(base, course * 3.0 + float(side) * 7.0, min(-d, ce)) * 0.85;
+          }
+        }
+        // the centering: the timber the ring is laid on, struck once the keystone is in
+        if (ph < TS + 0.8){
+          float drop = ph > TS ? 1.4 * (ph - TS) * (ph - TS) : 0.0;
+          float fade = 1.0 - smoothstep(TS, TS + 0.8, ph);
+          vec3 c = ringUV(q + vec2(0.0, drop), R, shape);
+          vec3 wood = ramp(0.35) * 0.5;
+          if (c.z > 0.5 && c.x > 0.0 && c.x < 1.0 && c.y < -0.5 * t - 0.015 && c.y > -0.5 * t - 0.05) col = wood * fade;
+          if (c.z > 0.5 && c.y < -0.5 * t - 0.05 && q.y + drop > GY - ys){
+            for (int j = 0; j < 5; j++){
+              float xj = (float(j) - 2.0) * 0.3 * R / 0.9;
+              if (abs(q.x - xj) < 0.012) col = wood * 0.8 * fade;
+            }
+          }
+        }
+        vec3 c0 = ringUV(q, R, shape);
+        // THE RING: fifteen voussoirs, laid from the springings to the keystone
+        float tau = ph - TF;
+        if (ph < TF){
+          vec3 c = c0;
+          if (c.z > 0.5 && c.x > 0.0 && c.x < 1.0){
+            float k = floor(c.x * N);
+            float key = (k == 7.0) ? 0.03 : 0.0;
+            if (abs(c.y) < 0.5 * t + key){
+              float o = min(k, N - 1.0 - k) * 2.0 + (k > 7.0 ? 1.0 : 0.0);
+              float tk = 0.3 + o * 0.45;
+              if (ph >= tk){
+                float arc = 3.0 * R / N;
+                float e = min(min(fract(c.x * N), 1.0 - fract(c.x * N)) * arc, 0.5 * t + key - abs(c.y));
+                col = stone(base, k + 20.0, e) * (1.0 + exp(-(ph - tk) * 5.0) * 0.8);
+                // the hinge cracks: the stone glows where the line has stepped to its edge
+                col += hot * exp(-(ph - tk) * 5.0) * 0.15;
+              }
+            }
+          }
+        } else if (tau < TM + TD){
+          float phi = 0.55 * min(tau, TM) * min(tau, TM), psi = psiOf(phi, R, t, shape);
+          float tau2 = max(tau - TM, 0.0);
+          float dropK = keyDrop(phi, psi, R, t, shape);
+          if (tau < TM){
+            // the mechanism: four pieces, five hinges, and the keystone sliding between
+            for (int side = 0; side < 2; side++){
+              vec2 pm = side == 0 ? q : vec2(-q.x, q.y);
+              for (int piece = 0; piece < 2; piece++){
+                vec2 qq = mechInv(pm, float(piece), phi, psi, R, t, shape);
+                vec3 c = ringUV(qq, R, shape);
+                float lo = piece == 0 ? 0.0 : 0.28, hi = piece == 0 ? 0.28 : 7.0 / 15.0;
+                if (c.z > 0.5 && c.x >= lo && c.x < hi && abs(c.y) < 0.5 * t){
+                  float k = floor(c.x * N);
+                  float arc = 3.0 * R / N;
+                  float e = min(min(fract(c.x * N), 1.0 - fract(c.x * N)) * arc, 0.5 * t - abs(c.y));
+                  col = stone(base, k + 20.0, e);
+                  float hg = exp(-abs(c.x - lo) * 40.0) + exp(-abs(c.x - hi) * 40.0);
+                  col += hot * hg * 0.5;
+                }
+              }
+            }
+            vec3 ck = ringUV(q + vec2(0.0, dropK), R, shape);
+            if (ck.z > 0.5 && floor(ck.x * N) == 7.0 && abs(ck.y) < 0.5 * t + 0.03){
+              float arc = 3.0 * R / N;
+              float e = min(min(fract(ck.x * N), 1.0 - fract(ck.x * N)) * arc, 0.5 * t + 0.03 - abs(ck.y));
+              col = stone(base, 27.0, e) + hot * 0.2;
+            }
+          } else {
+            // the fall: every voussoir on its own, from where the mechanism left it
+            float fade = 1.0 - smoothstep(TD - 0.4, TD, tau2);
+            for (int k = 0; k < 15; k++){
+              float fk = float(k);
+              float sk = (fk + 0.5) / N;
+              float onB = (sk > 0.28 && sk < 0.72) ? 1.0 : 0.0;
+              float right = sk > 0.5 ? 1.0 : 0.0;
+              vec2 ck = ringXY(sk, 0.0, R, shape);
+              vec2 ckm = right > 0.5 ? vec2(-ck.x, ck.y) : ck;
+              vec2 ckp = mechFwd(ckm, onB, phi, psi, R, t, shape);
+              float alpha = onB > 0.5 ? phi - psi : phi;
+              if (right > 0.5){ ckp.x = -ckp.x; alpha = -alpha; }
+              if (k == 7){ ckp = ck - vec2(0.0, dropK); alpha = 0.0; }
+              float h1 = hash21(vec2(fk * 3.1 + 0.7, uVarA * 9.0)), h2 = hash21(vec2(uVarA * 4.0 + 1.0, fk * 1.9));
+              float dir = sk < 0.5 ? -1.0 : 1.0;
+              vec2 off = vec2(((h1 - 0.5) * 0.5 + dir * 0.15) * tau2, (h2 * 0.3 - 0.2) * tau2 - 1.4 * tau2 * tau2);
+              float spin = (h1 - 0.5) * 5.0 * tau2;
+              vec2 qm = ckp + rot(q - ckp - off, -alpha - spin);
+              vec2 qq = ck + (qm - ckp);
+              vec3 c = ringUV(qq, R, shape);
+              if (c.z > 0.5 && floor(c.x * N) == fk && abs(c.y) < 0.5 * t + (k == 7 ? 0.03 : 0.0) && ckp.y + off.y > GY - ys - 0.15){
+                float arc = 3.0 * R / N;
+                float e = min(min(fract(c.x * N), 1.0 - fract(c.x * N)) * arc, 0.5 * t - abs(c.y));
+                col = mix(col, stone(base, fk + 20.0, e), fade);
+              }
+            }
+          }
+        }
+        // THE THRUST LINE: the funicular of the loads. The ring's own weight hangs as a
+        // catenary (its own thrust a); a point load P at xh adds the triangle it would hang
+        // a chain into; the thrust H is whatever makes the sum pass through the crown point.
+        // Unloaded, the line rides the crown's extrados and the haunches' intrados — the
+        // semicircle's known weakness, and why Rome built thick; the catenary arch's line is
+        // its own axis, so only the load can bring it down.
+        float progress = smoothstep(TS + 0.5, TF - 0.5, ph);
+        float Pl = 0.05 + 0.75 * progress + uBass * 0.25;
+        float xh = 0.0;
+        bool handOn = hs > 0.08 && abs(hand.x) < R + 0.3 && hand.y > ys;
+        if (handOn){ Pl += hs * 0.7; xh = clamp(hand.x, -R * 0.85, R * 0.85); }
+        float rise = ringRise(R, shape);
+        float ac = shape < 0.5 ? 0.55 : (shape < 1.5 ? 0.465 : 0.51);
+        float yc = rise + 0.5 * t - 0.012;
+        float cat0 = ac * (coshf(R / ac) - 1.0);
+        float tri0 = (R * R - xh * xh) / (2.0 * R);
+        float H = (cat0 + Pl * tri0) / yc;
+        float built = smoothstep(TS, TS + 0.6, ph) * (1.0 - step(TF, ph));
+        if (built > 0.0){
+          float yl = (ac * (coshf(R / ac) - coshf(q.x / ac)) + Pl * ((R - xh) * (q.x + R) / (2.0 * R) - max(0.0, q.x - xh))) / H;
+          float sl = (-sinhf(q.x / ac) + Pl * ((R - xh) / (2.0 * R) - step(xh, q.x))) / H;
+          float d = abs(q.y - yl) * inversesqrt(1.0 + sl * sl);
+          float edgeness = clamp(abs(c0.y) / (0.5 * t), 0.0, 1.0);
+          vec3 lc = mix(cool, hot, edgeness * edgeness);
+          float inSpan = step(abs(q.x), R) * step(0.0, q.y);
+          col += lc * (exp(-d * d * 25000.0) * 0.55 + exp(-d * d * 700.0) * 0.10) * inSpan * built;
+          // and on down through the abutments, straight, at the springing's slope
+          float ss = (-sinhf(R / ac) + Pl * ((R - xh) / (2.0 * R) - 1.0)) / H;
+          for (int side = 0; side < 2; side++){
+            float sg = side == 0 ? -1.0 : 1.0;
+            float xl = R + q.y / ss;                    // the line's x below the springing, right side
+            float dp = abs(q.x * sg - xl) * abs(ss) * inversesqrt(1.0 + ss * ss);
+            float xg = R + (GY - ys) / ss;              // where it meets the ground
+            float outside = clamp((xg - (R + 0.19)) / 0.04, 0.0, 1.0);
+            vec3 pc = mix(cool, hot, clamp((xg - (R + 0.10)) / 0.09, 0.0, 1.0));
+            float inPier = step(q.y, 0.0) * step(GY - ys, q.y);
+            col += pc * (exp(-dp * dp * 25000.0) * 0.5 + exp(-dp * dp * 700.0) * 0.08) * inPier * built;
+            vec2 toe = vec2((R + 0.19) * sg, GY - ys);
+            col += hot * exp(-dot(q - toe, q - toe) * 600.0) * outside * (0.8 + uTreble * 0.5) * built;
+          }
+          // the middle third, faint: where the thrust must stay for the stone to feel no tension
+          if (c0.z > 0.5 && abs(c0.y) < t / 6.0 && c0.x > 0.0 && c0.x < 1.0) col += cool * 0.03 * built;
+          // the hinges: where the line meets the edge of the stone
+          for (int j = 0; j < 9; j++){
+            float xj = -0.72 * R + 1.44 * R * (float(j) + 0.5) / 9.0;
+            float yj = (ac * (coshf(R / ac) - coshf(xj / ac)) + Pl * ((R - xh) * (xj + R) / (2.0 * R) - max(0.0, xj - xh))) / H;
+            vec3 cj = ringUV(vec2(xj, yj), R, shape);
+            float ex = abs(cj.y) - (0.5 * t - 0.012);
+            if (ex > 0.0){
+              float g = clamp(ex / 0.03, 0.0, 1.0);
+              float dd = length(q - vec2(xj, yj));
+              col += hot * exp(-dd * dd * 900.0) * g * (0.9 + uTreble * 0.6) * built;
+            }
+          }
+        }
+        // the hand: a load where it presses
+        if (handOn){
+          float dh = length(q - vec2(xh, rise + 0.5 * t + 0.06));
+          col += hot * exp(-dh * dh * 400.0) * hs * 0.6;
+        }
+      } else if (uModeMa < 1.5){
+        /* ===================== THE CORBEL ===================== */
+        float n = uShapeMa < 0.5 ? 7.0 : (uShapeMa < 1.5 ? 9.0 : 11.0);
+        float hb = 0.085, Lb = 0.42, yb = -0.52;
+        float Hn = harm(n);
+        float g = 0.5 * Lb * Hn;
+        float TB = 0.3 + 2.0 * n * 0.4 + 0.8, TF = TB + 7.0, P = TF + 4.4;
+        float ph = mod(T, P);
+        // the cliffs
+        for (int side = 0; side < 2; side++){
+          float sg = side == 0 ? -1.0 : 1.0;
+          vec2 pc = vec2(p.x * sg, p.y);
+          if (pc.x < -g && p.y > GY && p.y < yb){
+            float course = floor((p.y - GY) / 0.13);
+            float ce = min(abs(fract((p.y - GY) / 0.13) - 0.5) * 0.13, min(-g - pc.x, yb - p.y));
+            col = stone(base, course * 5.0 + float(side), ce) * 0.7;
+          }
+        }
+        float capT = 0.3 + 2.0 * n * 0.4 + 0.3;
+        float tau = ph - TF;
+        // the bricks
+        float fallFade = 1.0 - smoothstep(3.2, 3.8, tau);
+        for (int side = 0; side < 2; side++){
+          float sg = side == 0 ? -1.0 : 1.0;
+          float delay = side == 0 ? 0.0 : 0.4;
+          float tt = tau - 0.5 - delay;              // this stack's own topple clock
+          for (int j = 1; j <= 12; j++){
+            float fj = float(j);
+            if (fj > n) break;
+            float E = -g + 0.5 * Lb * (Hn - harm(n - fj));
+            vec2 bc = vec2(E - 0.5 * Lb, yb + (fj - 0.5) * hb);
+            float tk = 0.3 + (2.0 * (fj - 1.0) + float(side)) * 0.4;
+            if (ph < tk) continue;
+            vec2 pp = vec2(p.x * sg, p.y);
+            // sliding in from the cliff
+            float slide = 0.6 * (1.0 - easeOut((ph - tk) / 0.35));
+            pp.x += slide;
+            if (tau > 0.0 && fj >= 2.0){
+              // the topple: the sub-stack from course 2 up tips inward about the joint's inner edge
+              vec2 piv = vec2(-g + 0.5 * Lb * (Hn - harm(n - 1.0)), yb + hb);
+              float th = -0.9 * clamp(tt, 0.0, 1.0) * clamp(tt, 0.0, 1.0);
+              float t2 = max(tt - 1.0, 0.0);
+              vec2 bcp = piv + rot(bc - piv, th);
+              float h1 = hash21(vec2(fj * 2.3 + float(side), uVarA * 7.0)), h2 = hash21(vec2(uVarA * 3.0, fj * 1.3 + float(side) * 2.0));
+              vec2 off = vec2(((h1 - 0.5) * 0.4 + 0.25) * t2, (h2 * 0.3 - 0.1) * t2 - 1.4 * t2 * t2);
+              float spin = (h1 - 0.5) * 6.0 * t2;
+              if (tt > 0.0) pp = bc + rot(pp - bcp - off, -th - spin);
+              if (bcp.y + off.y < GY - 0.1) continue;
+            }
+            float d = sdBox(pp - bc, vec2(0.5 * Lb, 0.5 * hb));
+            if (d < 0.0){
+              vec3 s = stone(base, fj * 3.0 + float(side) * 11.0, -d) * (1.0 + exp(-(ph - tk) * 5.0) * 0.6);
+              col = (tau > 0.0 && fj >= 2.0) ? mix(col, s, fallFade) : s;
+            }
+          }
+        }
+        // the plumb lines: every sub-stack's centre of mass, exactly on the edge that carries it
+        if (ph > TB - 0.5 && ph < TF + 0.5){
+          for (int side = 0; side < 2; side++){
+            float sg = side == 0 ? -1.0 : 1.0;
+            float px = p.x * sg;
+            for (int j = 1; j <= 12; j++){
+              float fj = float(j);
+              if (fj > n) break;
+              float E = -g + 0.5 * Lb * (Hn - harm(n - fj + 1.0));   // the edge below course j
+              float m = n - fj + 1.0;
+              float xc = E;
+              // a hand on the stack is a load: the centre of mass moves toward it
+              float mh = 0.0;
+              if (hs > 0.08 && hand.x * sg > -g - Lb && hand.y > yb + (fj - 1.0) * hb && hand.y < yb + n * hb + 0.1){ mh = hs * 2.0; xc = (m * E + mh * hand.x * sg) / (m + mh); }
+              float y0 = yb + (fj - 1.0) * hb, y1 = yb + hb * ((fj - 1.0) + m * 0.5);
+              float over = clamp((xc - E) / 0.05, 0.0, 1.0);
+              vec3 lc = mix(cool, hot, over);
+              float dx = px - xc;
+              if (p.y > y0 - 0.01 && p.y < y1) col += lc * exp(-dx * dx * 60000.0) * (fj == 1.0 ? 0.6 : 0.32) * (1.0 + over);
+              if (fj == 1.0) col += lc * exp(-dx * dx * 60000.0) * step(GY, p.y) * step(p.y, y0) * 0.15;
+            }
+          }
+        }
+        // the capstone: the corbel arch closed — and opened again
+        if (ph > capT){
+          float lift = tau > 0.0 ? 0.35 * easeOut(tau / 0.5) : 0.0;
+          float fade = 1.0 - smoothstep(0.2, 0.6, tau);
+          float slide = 0.5 * (1.0 - easeOut((ph - capT) / 0.4));
+          vec2 pp = p - vec2(0.0, yb + (n + 0.5) * hb + slide + lift);
+          float d = sdBox(pp, vec2(0.5 * Lb, 0.5 * hb));
+          if (d < 0.0) col = mix(col, stone(base, 99.0, -d) * 1.1, fade);
+        }
+        if (hs > 0.08){ float dh = length(p - hand); col += hot * exp(-dh * dh * 400.0) * hs * 0.4; }
+      } else {
+        /* ===================== THE DOME ===================== */
+        float Rd = 0.6, ys = -0.12, tl = 0.30;
+        float ct = cos(tl), st = sin(tl);
+        float phiM = uShapeMa < 0.5 ? PI * 0.5 : (uShapeMa < 1.5 ? 1.955 : PI * 0.25);
+        float R = Rd / sin(phiM);
+        float yc = ys - R * cos(phiM);
+        float TB = 7.0, TF = 16.5, TX = 2.4, P = 19.7;
+        float ph = mod(T, P);
+        float tau = ph - TF;
+        // the load: the lantern's weight, the bass, a hand on the crown
+        float pl = 0.10 * smoothstep(TB + 0.5, TF - 0.5, ph) + uBass * 0.04;
+        bool handOn = hs > 0.08 && abs(hand.x) < Rd && hand.y > ys;
+        if (handOn) pl += hs * 0.06;
+        // membrane theory, self-weight q: N_phi = -qR/(1+cos), N_theta = qR(1/(1+cos) - cos) + P/(2 pi R sin^2)
+        float Nphi = 1.0 / (1.0 + cos(phiM)) + pl / max(sin(phiM) * sin(phiM), 0.05);
+        float Hth = Nphi * cos(phiM);                // the outward thrust per unit ring, at the springing
+        float Vth = Nphi * sin(phiM);
+        // the drum
+        float ytop = ys * ct;
+        if (abs(p.x) < Rd && p.y > GY && p.y < ytop + Rd * st * sqrt(max(1.0 - p.x * p.x / (Rd * Rd), 0.0))){
+          float course = floor((p.y - GY) / 0.11);
+          float pil = abs(fract(p.x / 0.15 + 0.5) - 0.5) * 0.15;
+          float ce = min(abs(fract((p.y - GY) / 0.11) - 0.5) * 0.11, min(Rd - abs(p.x), pil + 0.01));
+          col = stone(base, course * 4.0 + floor(p.x / 0.15), ce) * 0.75;
+          float top = ytop - Rd * st * sqrt(max(1.0 - p.x * p.x / (Rd * Rd), 0.0));
+          if (p.y > top) col = base * 0.28;            // the drum's top face, in shadow
+        }
+        // the buttresses: piers and their flyers, on either side
+        for (int side = 0; side < 2; side++){
+          float sg = side == 0 ? -1.0 : 1.0;
+          vec2 pp = vec2(p.x * sg, p.y);
+          float toeX = Rd + 0.42, topY = (ys - 0.28) * ct;
+          float lean = 0.0;
+          if (tau > 0.0 && Hth > 0.02) lean = 0.7 * min(tau, 1.6) * min(tau, 1.6);
+          vec2 toe = vec2(toeX, GY);
+          vec2 pq = toe + rot(pp - toe, lean);             // the pier rotates outward about its toe when it fails
+          float d = sdBox(pq - vec2(Rd + 0.29, (topY + GY) * 0.5), vec2(0.13, (topY - GY) * 0.5));
+          if (d < 0.0){
+            float course = floor((pq.y - GY) / 0.1);
+            col = stone(base, course * 2.0 + 40.0 + float(side), min(-d, abs(fract((pq.y - GY) / 0.1) - 0.5) * 0.1)) * 0.8;
+          }
+          // the flyer: the half-arch that hands the thrust to the pier
+          vec2 a = vec2(Rd + 0.02, ytop - 0.03), b = vec2(Rd + 0.29, topY);
+          vec2 ab = b - a; float h = clamp(dot(pq - a, ab) / dot(ab, ab), 0.0, 1.0);
+          float df = length(pq - a - ab * h) - 0.032 - 0.02 * (1.0 - h);
+          if (df < 0.0 && tau < TX) col = stone(base, 60.0 + float(side), -df) * 0.85;
+          // THE THRUST LINE through the buttress: the resultant of the dome's push and the
+          // pier's own weight — it must reach the ground inside the pier's base
+          if (Hth > 0.02 && ph > TB && tau < TX){
+            // along the flyer the push travels as a strut
+            float dl = length(pq - a - ab * h);
+            col += cool * exp(-dl * dl * 25000.0) * 0.4 * step(0.0, h) * step(h, 1.0);
+            float depth = topY - pp.y;
+            if (depth > 0.0 && pp.y > GY){
+              // the flyer hands the pier the horizontal thrust and a little of its own slope;
+              // the pier's weight (wb per height) is what steers the line back inside
+              float wb = 3.0, xb = Rd + 0.29, xa = Rd + 0.24;
+              float V0 = Hth * 1.0;
+              float xr = (V0 * xa + Hth * depth + wb * depth * xb) / (V0 + wb * depth);
+              float dx = pp.x - xr;
+              float outside = clamp((xr - toeX) / 0.03, 0.0, 1.0);
+              vec3 lc = mix(cool, hot, clamp((xr - (Rd + 0.31)) / 0.11, 0.0, 1.0));
+              col += lc * (exp(-dx * dx * 25000.0) * 0.5 + exp(-dx * dx * 700.0) * 0.1);
+              col += hot * exp(-length(pp - toe) * length(pp - toe) * 600.0) * outside * (0.8 + uTreble * 0.5);
+            }
+          }
+        }
+        // THE DOME: a sphere seen a little from above; the pixel's own point on it
+        vec2 sxy = vec2(p.x, p.y - yc * ct);
+        float built = phiM - (phiM + 0.05) * clamp(ph / TB, 0.0, 1.0);
+        vec3 Ld = normalize(vec3(-0.45, 0.62, -0.64));
+        bool hit = false; vec3 nrm = vec3(0.0); float phi = 0.0, lam = 0.0; float segOpen = 0.0;
+        if (tau < 0.0 || tau > TX){
+          float s2 = R * R - dot(sxy, sxy);
+          if (s2 > 0.0){
+            float s = sqrt(s2);
+            vec3 Pp = vec3(sxy.x, sxy.y * ct + s * st, sxy.y * st - s * ct);
+            if (Pp.y >= R * cos(phiM)){
+              hit = true; nrm = Pp / R;
+              phi = acos(clamp(Pp.y / R, -1.0, 1.0));
+              lam = (abs(Pp.x) + abs(Pp.z) < 1e-5) ? 0.0 : atan(Pp.x, Pp.z);
+            }
+          }
+        } else {
+          // THE BURST: twelve segments, each hinged outward about its own base — the orange peel
+          vec3 o = vec3(sxy.x, sxy.y * ct, sxy.y * st);
+          vec3 dv = vec3(0.0, -st, ct);
+          float best = 1e9;
+          for (int i = 0; i < 12; i++){
+            float li = (float(i) + 0.5) * PI / 6.0;
+            vec3 ax = vec3(cos(li), 0.0, -sin(li));
+            vec3 B = vec3(R * sin(phiM) * sin(li), R * cos(phiM), R * sin(phiM) * cos(li));
+            float h1 = hash21(vec2(float(i) * 1.3, uVarA * 6.0));
+            float tt = max(tau - h1 * 0.4, 0.0);
+            float beta = 1.1 * tt * tt;
+            vec3 drop = vec3(0.0, -1.2 * max(tt - 0.8, 0.0) * max(tt - 0.8, 0.0), 0.0);
+            vec3 oo = B + rotAxis(o - drop - B, ax, -beta);
+            vec3 dd = rotAxis(dv, ax, -beta);
+            float bq = dot(oo, dd), cq = dot(oo, oo) - R * R;
+            float disc = bq * bq - cq;
+            if (disc < 0.0) continue;
+            float w = -bq - sqrt(disc);
+            vec3 Pp = oo + dd * w;
+            float lp = (abs(Pp.x) + abs(Pp.z) < 1e-5) ? 0.0 : atan(Pp.x, Pp.z);
+            float dl = lp - li; dl -= floor(dl / (2.0 * PI) + 0.5) * 2.0 * PI;
+            if (abs(dl) > PI / 12.0 || Pp.y < R * cos(phiM)) continue;
+            if (w < best){
+              best = w; hit = true; phi = acos(clamp(Pp.y / R, -1.0, 1.0)); lam = lp;
+              nrm = rotAxis(Pp / R, ax, beta); segOpen = beta;
+            }
+          }
+        }
+        float fadeX = tau > 0.0 ? 1.0 - smoothstep(TX - 0.5, TX, tau) : 1.0;
+        if (hit && phi >= built && tau < TX){
+          float cphi = cos(phi), sphi = max(sin(phi), 0.02);
+          // the hoop force: compression above 51.8°, tension below — and the lantern's share
+          float nth = 1.0 / (1.0 + cphi) - cphi + pl / (sphi * sphi);
+          float dif = max(0.0, dot(nrm, Ld));
+          float dphi = PI / 22.0;
+          float seamP = abs(fract(phi / dphi) - 0.5) * dphi * R;
+          float seamM = abs(fract(lam / (PI / 6.0) + 0.5) - 0.5) * (PI / 6.0) * R * sphi;
+          float id = floor(phi / dphi) * 13.0 + floor(lam / (PI / 6.0) + 0.5);
+          vec3 sc3 = stone(base, id, min(seamP, seamM)) * (0.3 + 0.8 * dif);
+          float ten = clamp(nth * 1.4, 0.0, 1.0), cmp = clamp(-nth * 1.2, 0.0, 1.0);
+          sc3 = mix(sc3, sc3 * hot * 2.2, ten * 0.55 * smoothstep(TB, TB + 3.0, ph));
+          sc3 = mix(sc3, sc3 * cool * 2.0, cmp * 0.35 * smoothstep(TB, TB + 3.0, ph));
+          // the ring where the hoops change sign — 51.8° under self-weight alone
+          sc3 += hot * exp(-nth * nth * 400.0) * 0.35 * smoothstep(TB, TB + 3.0, ph);
+          // the meridional cracks: the tension the stone cannot carry, opening with the load
+          float cw = ten * 0.022 * smoothstep(TB + 2.0, TF - 1.0, ph);
+          if (seamM < cw){ sc3 = vec3(0.0); sc3 += hot * exp(-(cw - seamM) * 200.0) * (0.5 + uTreble * 0.5); }
+          if (segOpen > 0.0) sc3 += hot * 0.25 * min(segOpen, 1.0);
+          col = mix(col, sc3, fadeX);
+        }
+        // the base ring: the chain that holds the hoop tension (the hemisphere), or the
+        // compression ring the bulb leans on
+        {
+          vec2 e = vec2(p.x / Rd, (p.y - ytop) / (Rd * st));
+          float de = abs(length(e) - 1.0) * Rd * st;
+          float nb = 1.0 / (1.0 + cos(phiM)) - cos(phiM) + pl / max(sin(phiM) * sin(phiM), 0.05);
+          vec3 lc = nb > 0.0 ? hot : cool;
+          float front = step(p.y, ytop) * 0.7 + 0.3;
+          float snap = (tau > 0.0 && tau < 0.5) ? exp(-tau * 6.0) * 2.0 : 0.0;
+          col += lc * exp(-de * de * 40000.0) * (0.25 + abs(nb) * 0.3 + snap) * front * smoothstep(0.5, 1.5, ph) * (tau < TX ? 1.0 : 0.0);
+        }
+        // the lantern, last
+        if (ph > TB + 0.2 && tau < 0.0){
+          float crown = (yc + R) * ct;
+          float d1 = sdBox(p - vec2(0.0, crown + 0.05), vec2(0.06, 0.06));
+          float d2 = length(p - vec2(0.0, crown + 0.11)) - 0.06;
+          float d = min(d1, d2);
+          if (d < 0.0) col = stone(base, 77.0, -d) * (1.0 + exp(-(ph - TB - 0.2) * 4.0));
+        }
+        if (handOn){ float dh = length(p - hand); col += hot * exp(-dh * dh * 400.0) * hs * 0.5; }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const FACES = [
+    { name: 'THE ARCH',   m: 0, shapes: ['ROMAN', 'GOTHIC', 'CATENARY'] },
+    { name: 'THE CORBEL', m: 1, shapes: ['SEVEN', 'NINE', 'ELEVEN'] },
+    { name: 'THE DOME',   m: 2, shapes: ['PANTHEON', 'BULB', 'SAUCER'] },
+  ];
+  const st = { face: FACES[0], shape: 0 };
+  const api = {
+    name: 'MASONRY', key: 'masonry', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the clock runs at the music's pace: a quiet passage builds slowly, energy hurries the mason
+      varU.uSimT.value += Math.min(dt, 0.05) * (0.7 + (f.energy || 0) * 0.5);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.face = FACES[Math.floor(Math.random() * FACES.length)];
+      st.shape = Math.floor(Math.random() * 3);
+      varU.uModeMa.value = st.face.m;
+      varU.uShapeMa.value = st.shape;
+      varU.uVarA.value = Math.random();
+      varU.uSimT.value = 0;
+      api.name = 'MASONRY · ' + st.face.name + ' · ' + st.face.shapes[st.shape];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -49751,7 +50422,7 @@ function initThree(){
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
-              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit());
+              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
