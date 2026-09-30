@@ -423,6 +423,15 @@ enum Rooms {
         Room(key: "carom", name: "CAROM", fragmentFunction: "room_carom",
              tasteEnergy: 0.3, tasteCalm: 0.4, tasteBeat: 0.6, tasteTreble: 0,
              tasteEntropy: -0.2),
+
+        // The ball pit (Shaders25): balls poured in, bounced off the walls and
+        // off nothing else, until the box is full — the hopper, the fountain,
+        // the cannon. Every ball an exact projectile (the geometric ladder of
+        // bounces, closed form), the pile a hex lattice, the floor opening at
+        // the brim. Forty projectiles a pixel: heavy, so 1080p.
+        Room(key: "ballpit", name: "BALLPIT", fragmentFunction: "room_ballpit",
+             tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
+             tasteBass: 0.3, tasteEntropy: 0.2, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

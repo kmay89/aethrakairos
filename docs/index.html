@@ -3959,6 +3959,21 @@ body.clipping::after{
     five hanging balls, one or two or three swung out, the momentum crossing the row in an instant
     and leaving as the same number of balls, each swing a pendulum at θ&nbsp;=&nbsp;θ₀&nbsp;sin&nbsp;ωt.
     A hand on the table is a cushion the balls come off.</p>
+    <h3>The ball pit</h3>
+    <p class="lede">Scene 105 is <b>BALLPIT</b>: balls poured into a box, bouncing off the walls and
+    off nothing else, until it is full. A ball pit is what happens when balls collide with the walls
+    and never with each other — each one an honest projectile: a parabola under gravity, a fold off
+    the side walls, a geometric ladder of ever-smaller bounces off the floor (restitution e, each
+    rebound e times the last, so the whole descent to rest takes the finite time
+    2ue/g(1&nbsp;−&nbsp;e)), and a slide into the nearest hollow of the pile. The pile <i>is</i> the
+    floor: every ball that comes to rest raises the level the next one lands on, and the settled balls
+    pack into the hex lattice a real pit settles into. At the brim it holds, the floor opens, the pile
+    drops out, and the pouring begins again. THE HOPPER pours from a slit at the top; THE FOUNTAIN is a
+    spring in the floor of the pit itself, its balls flung up through the pile and back down onto it,
+    higher as it fills, until they ring off the ceiling; THE CANNON fires from the top corner, sweeping
+    its aim, and its balls ricochet the whole box before they settle. The music pours — the rate is the
+    energy and the beat, the pile jumps on the beat, the bass warms the glow — and a hand is a cushion
+    the falling balls come off.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4596,7 +4611,7 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
                'flows', 'gathers',
-               'flows', 'flows', 'gathers', 'blackhole'];   // …the lattice and the film ripple, the
+               'flows', 'flows', 'gathers', 'blackhole', 'blackhole'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -6106,7 +6121,7 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
-                    'shuffle', 'stellarator', 'flux', 'carom'];
+                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6267,6 +6282,7 @@ const SCENE_TASTE = {
   stellarator: { energy: 0.6, bass: 0.4, mid: 0.3, entropy: -0.3 },  // a hot plasma on nested, orderly surfaces
   flux:      { beat: 0.5, bass: 0.4, coupling: 0.5, entropy: -0.3 },  // magnets on a lattice: the fields couple
   carom:     { beat: 0.6, calm: 0.4, energy: 0.3, entropy: -0.2 },    // slow motion wants a beat to punch it on
+  ballpit:   { energy: 0.6, beat: 0.5, bass: 0.3, entropy: 0.2 },      // the music pours: energy and the beat fill the pit
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7537,6 +7553,7 @@ const SCENE_SIGS = {
   stellarator: { kind: 'ring', h: 275, arms: 5 },
   flux:      { kind: 'ring',   h: 205, arms: 6, rainbow: 1 },
   carom:     { kind: 'blob',   h: 40,  dense: 0.8 },
+  ballpit:   { kind: 'blob',   h: 320, dense: 1.0, rainbow: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -49331,6 +49348,365 @@ function buildCarom(){
 }
 
 /* ================================================================
+   BALLPIT — the ball pit: balls poured in, bounced off the walls
+   and off nothing else, until the box is full.
+
+   A ball pit is what happens when balls collide with the walls and
+   never with each other — each one an honest projectile: a parabola
+   under gravity, a fold off the side walls, a geometric ladder of
+   ever-smaller bounces off the floor (restitution e: each rebound e
+   times the last, so the whole descent to rest takes a finite time,
+   2ue/g(1−e)), and a slide into the nearest hollow of the pile. The
+   pile IS the floor: every ball that comes to rest raises the level
+   the next one lands on, and the settled balls pack into the hex
+   lattice a real pit settles into. When the pit reaches the brim it
+   holds, then the floor opens and the whole pile drops out, and the
+   pouring starts again. Three faces: THE HOPPER pours from a slit at
+   the top; THE FOUNTAIN is a spring in the floor of the pit itself,
+   the balls flung up through the pile and back down onto it, higher
+   as it fills, until they ring off the ceiling; THE CANNON fires from
+   the top corner, sweeping its aim, and its balls ricochet the whole
+   box before they settle. The music pours: the rate is the energy and
+   the beat, the pile jumps on the beat, the bass warms the glow. A
+   hand is a cushion the falling balls come off. Thousands of balls
+   on one draw: instanced sprites, each a lit sphere.
+   ================================================================ */
+function buildBallpit(){
+  const group = new THREE.Group();
+  const MAXN = 4096;
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uModeBp: { value: 0 },
+    uRad:    { value: 0.042 },
+    uBox:    { value: new THREE.Vector2(1.6, 0.92) },
+    uNozzle: { value: new THREE.Vector4(0, 0.86, -1.5708, 1) },   // x, y, aim, lit
+    uFloor:  { value: -0.92 },          // where the next falling ball's centre comes to rest
+    uPhase:  { value: 0 },              // 0 pouring · 1 full, held · 2 draining
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  /* THE GROUND: the box, the pit's surface, the nozzle, the hand — everything
+     the balls are not. A fullscreen quad under the sprites. */
+  const vertBg = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const fragBg = GLSL_MPHI + `
+    uniform float uTime, uBass, uBeat, uOpacity, uAspect, uModeBp, uRad, uFloor, uPhase;
+    uniform vec2 uBox;
+    uniform vec4 uNozzle, uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float segd(vec2 p, vec2 a, vec2 b){
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+      return length(pa - ba * h);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      float W = uBox.x, H = uBox.y;
+      // the box: the walls that give every bounce back
+      float edge = abs(max(abs(p.x) - W, abs(p.y) - H));
+      col += ramp(0.55) * exp(-edge * edge * 30000.0) * 0.10;
+      // the pit's surface, faint: the level the next ball comes to rest at
+      float sf = p.y - (uFloor - uRad);
+      col += ramp(0.35) * exp(-sf * sf * 60000.0) * step(abs(p.x), W) * 0.05 * (1.0 - uPhase * 0.5);
+      // the nozzle: the slit of light the balls are born from
+      vec2 nz = uNozzle.xy;
+      vec2 dir = vec2(cos(uNozzle.z), sin(uNozzle.z));
+      float dn = uModeBp > 1.5 ? segd(p, nz - dir * 0.10, nz + dir * 0.05) : length(p - nz);
+      col += ramp(0.85) * exp(-dn * dn * 900.0) * (0.25 + uBeat * 0.35) * uNozzle.w;
+      col += ramp(0.85) * exp(-dn * dn * 60.0) * 0.06 * uNozzle.w;
+      // the hand: a cushion the falling balls come off
+      if (uHand.z > 0.05){
+        float dh = abs(length(p - uHand.xy) - 0.16);
+        col += ramp(0.85) * exp(-dh * dh * 3000.0) * uHand.z * 0.5;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vertBg, fragmentShader: fragBg,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMat);
+  bg.frustumCulled = false; bg.renderOrder = 5;
+  group.add(bg);
+
+  /* THE BALLS: one instanced quad per ball, placed in the wall's own frame
+     (the same uv → field mapping the ground uses, inverted), so the pit is
+     one pit across a sliced screen. Each is a lit sphere with a rim glow. */
+  const quad = new THREE.InstancedBufferGeometry();
+  quad.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]), 3));
+  quad.setIndex([0, 1, 2, 0, 2, 3]);
+  const aBall = new THREE.InstancedBufferAttribute(new Float32Array(MAXN * 4), 4);   // x, y, r, hue
+  const aFx = new THREE.InstancedBufferAttribute(new Float32Array(MAXN * 4), 4);     // hit, lift, bright, pale
+  aBall.setUsage(THREE.DynamicDrawUsage); aFx.setUsage(THREE.DynamicDrawUsage);
+  quad.setAttribute('aBall', aBall); quad.setAttribute('aFx', aFx);
+  quad.instanceCount = 0;
+  const vertBall = `
+    attribute vec4 aBall;
+    attribute vec4 aFx;
+    uniform vec4 uSlice;
+    uniform float uAspect;
+    varying vec2 vQ;
+    varying vec3 vTint;
+    varying float vHue, vHit;
+    void main(){
+      vQ = position.xy * 1.35;                       // the quad reaches past the disc for its halo
+      vHue = aBall.w; vHit = aFx.x; vTint = vec3(aFx.z, aFx.w, 0.0);
+      vec2 c = aBall.xy + vec2(0.0, aFx.y);
+      vec2 w = c + position.xy * 1.35 * aBall.z;     // the ball's corner, in the field
+      vec2 uvw = w / (2.0 * vec2(uAspect, 1.0)) + 0.5;   // the wall's uv…
+      vec2 uv = (uvw - uSlice.xy) / uSlice.zw;           // …and this screen's slice of it
+      gl_Position = vec4(uv * 2.0 - 1.0, 0.999, 1.0);
+    }
+  `;
+  const fragBall = GLSL_MPHI + `
+    uniform float uBass, uTreble, uOpacity;
+    varying vec2 vQ;
+    varying vec3 vTint;
+    varying float vHue, vHit;
+    void main(){
+      float q = length(vQ);
+      if (q > 1.35) discard;
+      // its own colour: a point on the chord, some balls paler, some deeper — no two alike
+      vec3 hue = mix(ramp(vHue), vec3(1.0), vTint.y) * vTint.x;
+      vec3 n = vec3(vQ, sqrt(max(1.0 - q * q, 0.0)));
+      vec3 L = normalize(vec3(-0.45, 0.62, 0.64));
+      float dif = max(0.0, dot(n, L));
+      float spec = pow(max(0.0, dot(reflect(-L, n), vec3(0.0, 0.0, 1.0))), 40.0);
+      vec3 body = hue * (0.20 + 0.80 * dif) + spec * (0.45 + uTreble * 0.3) + hue * vHit * 0.6;
+      float edge = smoothstep(1.0, 0.94, q);
+      // the halo: the bass warms it, an impact flashes it
+      float halo = exp(-(q - 1.0) * (q - 1.0) * 14.0) * (0.10 + uBass * 0.18 + vHit * 0.9) * step(1.0, q);
+      float a = max(edge, min(1.0, halo));
+      vec3 col = mix(hue, body, edge);
+      gl_FragColor = vec4(inkRolloff(col), a * uOpacity);
+    }
+  `;
+  const ballMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vertBall, fragmentShader: fragBall,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const balls = new THREE.Mesh(quad, ballMat);
+  balls.frustumCulled = false; balls.renderOrder = 6;
+  group.add(balls); group.visible = false; scene.add(group);
+
+  /* THE FACES. g the gravity, ef the floor's restitution (each rebound ef
+     times the last — the geometric ladder), ew the ceiling's, f the friction a
+     floor bounce takes off the roll, D the time a ball is a projectile before
+     it is a member of the pile. The side walls are elastic. */
+  const FACES = [
+    { name: 'THE HOPPER',   m: 0, g: 2.4, ef: 0.50, ew: 0.72, f: 0.85, D: 1.8 },
+    { name: 'THE FOUNTAIN', m: 1, g: 3.0, ef: 0.45, ew: 0.75, f: 0.80, D: 2.0 },
+    { name: 'THE CANNON',   m: 2, g: 1.5, ef: 0.60, ew: 0.88, f: 0.90, D: 2.4 },
+  ];
+  const S = {
+    n: 0, born: 0,
+    x: new Float32Array(MAXN), y: new Float32Array(MAXN), vx: new Float32Array(MAXN), vy: new Float32Array(MAXN),
+    hue: new Float32Array(MAXN), hit: new Float32Array(MAXN), age: new Float32Array(MAXN),
+    bright: new Float32Array(MAXN), pale: new Float32Array(MAXN),
+    ex: new Float32Array(MAXN), ey: new Float32Array(MAXN), sx: new Float32Array(MAXN), sy: new Float32Array(MAXN),
+    st: new Uint8Array(MAXN),           // 0 in flight · 1 sliding into its hollow · 2 in the pile · 3 draining
+    row: new Int16Array(MAXN),
+  };
+  /* THE PIT: a hex lattice, pitch 2r, rows 2r·√3/2 apart, alternate rows a
+     ball narrower and offset by r — the packing a pit settles into. */
+  const pit = { r: 0.042, C: 2, rowH: 0.07, full: 2, cap: 0, occ: null, free: null, R: 0, phase: 0, hold: 0, acc: 0, t: 0 };
+  const st = { face: FACES[0] };
+  const rowCount = rw => (rw & 1) ? pit.C - 1 : pit.C;
+  const cellX = (rw, k) => (k - (rowCount(rw) - 1) * 0.5) * 2 * pit.r;
+  const cellY = rw => -varU.uBox.value.y + pit.r + rw * pit.rowH;
+  const floorC = () => cellY(Math.min(pit.R, pit.full));
+  const cellsIn = n => Math.floor(n / 2) * (2 * pit.C - 1) + (n % 2) * pit.C;
+  const layout = () => {
+    const W = varU.uBox.value.x, H = varU.uBox.value.y, r = pit.r;
+    pit.rowH = r * 1.7320508;
+    pit.C = Math.max(2, Math.floor(W / r));
+    let full = Math.max(2, Math.floor((2 * H - 3.2 * r) / pit.rowH) + 1);
+    while (full > 2 && cellsIn(full) > MAXN - 64) full--;      // the sprite budget bounds a very wide wall
+    pit.full = full; pit.cap = cellsIn(full);
+    pit.occ = new Uint8Array(full * pit.C);
+    pit.free = new Int16Array(full);
+    for (let rw = 0; rw < full; rw++) pit.free[rw] = rowCount(rw);
+    pit.R = 0;
+  };
+  const reset = () => {
+    layout();
+    S.n = 0; S.born = 0; pit.phase = 0; pit.hold = 0; pit.acc = 0;
+    varU.uNozzle.value.w = 1;
+  };
+  const emit = beat => {
+    if (S.n >= MAXN) return;
+    const i = S.n++, W = varU.uBox.value.x, H = varU.uBox.value.y, r = pit.r, face = st.face, rnd = Math.random;
+    let x, y, vx, vy;
+    if (face.m === 0){
+      x = (rnd() - 0.5) * 0.06; y = H - 0.06;
+      vx = (rnd() - 0.5) * (0.8 + beat * 0.6); vy = -(0.2 + rnd() * 0.5);
+    } else if (face.m === 1){
+      x = (rnd() - 0.5) * 0.05; y = floorC() + r * 0.5;
+      const a = Math.PI / 2 + (rnd() - 0.5) * 1.1, sp = 2.0 + rnd() * 0.7 + beat * 0.5;
+      vx = Math.cos(a) * sp; vy = Math.sin(a) * sp;
+    } else {
+      x = -W + 0.10; y = H - 0.10;
+      const a = varU.uNozzle.value.z + (rnd() - 0.5) * 0.06, sp = 2.3 + rnd() * 0.4 + beat * 0.5;
+      vx = Math.cos(a) * sp; vy = Math.sin(a) * sp;
+    }
+    S.x[i] = x; S.y[i] = y; S.vx[i] = vx; S.vy[i] = vy;
+    S.hue[i] = (S.born * 0.381966 + varU.uVarA.value) % 1;    // the golden angle: no two neighbours alike
+    S.bright[i] = 0.75 + 0.5 * rnd(); S.pale[i] = 0.30 * rnd() * rnd();
+    S.hit[i] = 0.6; S.age[i] = 0; S.st[i] = 0; S.row[i] = -1; S.born++;
+  };
+  /* a ball that has stopped bouncing slides into the nearest hollow of the
+     row being filled — the row of the pile is the floor it landed on */
+  const settle = i => {
+    while (pit.R < pit.full && pit.free[pit.R] === 0) pit.R++;
+    S.st[i] = 1; S.ex[i] = S.x[i]; S.ey[i] = S.y[i];
+    if (pit.R >= pit.full){ S.sx[i] = S.x[i]; S.sy[i] = floorC(); S.row[i] = pit.full; return; }
+    const rw = pit.R, cnt = rowCount(rw);
+    const k0 = Math.max(0, Math.min(cnt - 1, Math.round(S.x[i] / (2 * pit.r) + (cnt - 1) * 0.5)));
+    let k = -1;
+    for (let d = 0; d < cnt && k < 0; d++){
+      if (k0 - d >= 0 && !pit.occ[rw * pit.C + k0 - d]) k = k0 - d;
+      else if (k0 + d < cnt && !pit.occ[rw * pit.C + k0 + d]) k = k0 + d;
+    }
+    pit.occ[rw * pit.C + k] = 1; pit.free[rw]--;
+    S.row[i] = rw; S.sx[i] = cellX(rw, k); S.sy[i] = cellY(rw);
+    if (pit.free[rw] === 0){
+      pit.R++;
+      if (pit.R >= pit.full){ pit.phase = 1; pit.hold = 0; varU.uNozzle.value.w = 0; }
+    }
+  };
+  // the floor opens: the whole pile drops out, the bottom rows first
+  const drain = () => {
+    pit.phase = 2;
+    for (let i = 0; i < S.n; i++){
+      if (S.st[i] === 1 || S.st[i] === 2){ S.x[i] = S.sx[i]; S.y[i] = S.sy[i]; }
+      S.st[i] = 3; S.age[i] = -(Math.max(0, S.row[i]) * 0.05 + Math.random() * 0.06);
+      S.vy[i] = 0; S.vx[i] = (Math.random() - 0.5) * 0.3;
+    }
+  };
+  const step = (dt, beat) => {
+    const W = varU.uBox.value.x, H = varU.uBox.value.y, r = pit.r, face = st.face, hand = varU.uHand.value;
+    const g = pit.phase === 2 ? 3.0 : face.g;
+    const sub = Math.max(1, Math.ceil(dt / (1 / 120))), h = dt / sub;
+    for (let s = 0; s < sub; s++){
+      const fl = floorC();
+      for (let i = 0; i < S.n; i++){
+        const stt = S.st[i];
+        if (stt === 1 || stt === 2 || (stt === 3 && S.age[i] < 0)) continue;
+        S.vy[i] -= g * h; S.x[i] += S.vx[i] * h; S.y[i] += S.vy[i] * h;
+        if (S.x[i] < -W + r){ S.x[i] = -W + r; S.vx[i] = Math.abs(S.vx[i]); S.hit[i] = 1; }
+        if (S.x[i] >  W - r){ S.x[i] =  W - r; S.vx[i] = -Math.abs(S.vx[i]); S.hit[i] = 1; }
+        if (stt !== 0) continue;
+        if (S.y[i] > H - r){ S.y[i] = H - r; S.vy[i] = -Math.abs(S.vy[i]) * face.ew; S.hit[i] = 1; }
+        // the pile is the floor: the geometric ladder of bounces, friction on the roll
+        if (S.y[i] < fl && S.vy[i] < 0){
+          S.y[i] = fl; S.vy[i] = -S.vy[i] * face.ef; S.vx[i] *= face.f; S.hit[i] = 1;
+          if (S.vy[i] < 0.12) S.vy[i] = 0;
+        }
+        // the hand is a cushion: immovable, and the ball comes off it elastically
+        if (hand.z > 0.08){
+          const dx = S.x[i] - hand.x, dy = S.y[i] - hand.y, d = Math.hypot(dx, dy), md = r + 0.16;
+          if (d < md && d > 1e-6){
+            const nx = dx / d, ny = dy / d, vn = S.vx[i] * nx + S.vy[i] * ny;
+            if (vn < 0){ S.vx[i] -= 2 * vn * nx; S.vy[i] -= 2 * vn * ny; S.hit[i] = 1; }
+            S.x[i] = hand.x + nx * md; S.y[i] = hand.y + ny * md;
+          }
+        }
+      }
+    }
+    const fade = Math.exp(-dt * 5);
+    for (let i = 0; i < S.n; i++){
+      S.age[i] += dt; S.hit[i] *= fade;
+      if (S.st[i] === 0 && S.age[i] >= face.D - 0.35) settle(i);
+      else if (S.st[i] === 1 && S.age[i] >= face.D) S.st[i] = 2;
+    }
+    if (pit.phase === 1){ pit.hold += dt; if (pit.hold > 3.0) drain(); }
+    if (pit.phase === 2){
+      for (let i = S.n - 1; i >= 0; i--) if (S.y[i] < -H - 0.3){
+        const j = --S.n;
+        S.x[i] = S.x[j]; S.y[i] = S.y[j]; S.vx[i] = S.vx[j]; S.vy[i] = S.vy[j]; S.hue[i] = S.hue[j];
+        S.hit[i] = S.hit[j]; S.age[i] = S.age[j]; S.st[i] = S.st[j]; S.row[i] = S.row[j];
+        S.bright[i] = S.bright[j]; S.pale[i] = S.pale[j];
+        S.sx[i] = S.sx[j]; S.sy[i] = S.sy[j]; S.ex[i] = S.ex[j]; S.ey[i] = S.ey[j];
+      }
+      if (S.n === 0) reset();
+    }
+  };
+  const upload = beat => {
+    const B = aBall.array, F = aFx.array, r = pit.r, D = st.face.D;
+    const jump = beat * 0.012 * (pit.phase === 1 ? 2 : 1);
+    for (let i = 0; i < S.n; i++){
+      let x = S.x[i], y = S.y[i], lift = 0;
+      const s = S.st[i];
+      if (s === 1){
+        let u = Math.max(0, Math.min(1, (S.age[i] - (D - 0.35)) / 0.35)); u = u * u * (3 - 2 * u);
+        x = S.ex[i] + (S.sx[i] - S.ex[i]) * u; y = S.ey[i] + (S.sy[i] - S.ey[i]) * u;
+      } else if (s === 2){
+        x = S.sx[i]; y = S.sy[i];
+        const hh = S.row[i] * 0.37 + S.hue[i] * 3.1;
+        lift = jump * (0.4 + 0.6 * (hh - Math.floor(hh)));
+      }
+      B[i * 4] = x; B[i * 4 + 1] = y; B[i * 4 + 2] = r; B[i * 4 + 3] = S.hue[i];
+      F[i * 4] = S.hit[i]; F[i * 4 + 1] = lift; F[i * 4 + 2] = S.bright[i]; F[i * 4 + 3] = S.pale[i];
+    }
+    aBall.needsUpdate = true; aFx.needsUpdate = true;
+    quad.instanceCount = S.n;
+  };
+  const api = {
+    name: 'BALLPIT', key: 'ballpit', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      const W = Math.max(0.6, s.aspect - 0.08), H = varU.uBox.value.y;
+      if (Math.abs(varU.uBox.value.x - W) > 1e-3){ varU.uBox.value.x = W; reset(); }
+      const energy = f.energy || 0, beat = f.beat || 0;
+      const sdt = Math.min(dt, 0.05) * (0.55 + energy * 0.6);
+      pit.t += sdt;
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+      // the nozzle, per face: the slit, the spring in the pile, the sweeping cannon
+      const nz = varU.uNozzle.value;
+      if (st.face.m === 0) nz.set(0, H - 0.06, -Math.PI / 2, nz.w);
+      else if (st.face.m === 1) nz.set(0, floorC(), Math.PI / 2, nz.w);
+      else nz.set(-W + 0.10, H - 0.10, -0.25 - 0.55 * (0.5 + 0.5 * Math.sin(pit.t * 0.7)), nz.w);
+      // THE MUSIC POURS: the rate is the energy and the beat; small balls pour faster
+      if (pit.phase === 0){
+        const base = 12 * (0.042 / pit.r) * (0.042 / pit.r) * (W / 1.7);
+        pit.acc = Math.min(8, pit.acc + base * (0.45 + energy * 0.9 + beat * 1.2) * sdt);
+        while (pit.acc >= 1 && S.n < pit.cap){ pit.acc -= 1; emit(beat); }
+      }
+      step(sdt, beat);
+      varU.uFloor.value = floorC();
+      varU.uPhase.value = pit.phase;
+      upload(beat);
+    },
+    roll(){
+      st.face = FACES[Math.floor(Math.random() * FACES.length)];
+      varU.uModeBp.value = st.face.m;
+      varU.uVarA.value = Math.random();
+      pit.r = [0.034, 0.042, 0.052][Math.floor(Math.random() * 3)];
+      varU.uRad.value = pit.r;
+      pit.t = 0;
+      reset(); upload(0);
+      api.name = 'BALLPIT · ' + st.face.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -49375,7 +49751,7 @@ function initThree(){
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
-              buildShuffle(), buildStellarator(), buildFlux(), buildCarom());
+              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
