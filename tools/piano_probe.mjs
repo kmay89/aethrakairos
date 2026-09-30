@@ -80,6 +80,22 @@ for (const [label, vp] of [['booth', { width: 1280, height: 800 }], ['phone', { 
   await page.waitForTimeout(150);
   if ((await page.evaluate(() => PIANO.runner.streak)) !== 1) fail(label + ': a right ear answer should start the streak');
   await page.screenshot({ path: join(out, label + '-ear.png') });
+  // the record: the library chart becomes a lesson; the play-along step is judged on the record's beat (stubbed here — no audio host in the sandbox)
+  await page.evaluate(() => PIANO.setLesson('chart:highway'));
+  await page.waitForFunction(() => PIANO.runner && PIANO.runner.lesson.id === 'chart:highway', null, { timeout: 8000 }).catch(() => fail(label + ': the Highway chart lesson did not load'));
+  const chartSteps = await page.evaluate(() => PIANO.runner.lesson.steps.map(s => s.type));
+  if (!chartSteps.includes('playalong') || !chartSteps.includes('press')) fail(label + ': the chart lesson lacks shapes or play-along, got ' + chartSteps.join(','));
+  const keyNow = await page.evaluate(() => pnKeyName(PIANO.state.key));
+  if (keyNow !== 'D♭ major') fail(label + ': opening the chart should set the key to D♭ major, got ' + keyNow);
+  await page.evaluate(() => { const i = PIANO.runner.lesson.steps.findIndex(s => s.type === 'playalong'); PIANO.runner.goto(i); PIANO._applyGuide(); PIANO.renderLessonBody(); });
+  await page.evaluate(() => { PIANO.record = { chart: PIANO.charts.highway, bar: 14 }; PIANO._stubBeat = 56.0; PIANO._realRecordBeat = PIANO.recordBeat; PIANO.recordBeat = () => PIANO._stubBeat; });
+  await page.waitForTimeout(400);
+  const falling = await page.evaluate(() => PIANO.stage.guideEvents.length);
+  if (falling < 4) fail(label + ': the record\'s notes should fall down the highway, got ' + falling);
+  const hit = await page.evaluate(() => { const st = PIANO.runner.step; const n = st.notes.find(x => x.b >= 56); PIANO._stubBeat = n.b + 0.05; PIANO.playNote(n.m, 0.8, true, 'probe'); PIANO.playNote(n.m, 0, false, 'probe'); return PIANO.runner.hits; });
+  if (hit !== 1) fail(label + ': playing the falling note on the beat should count a hit, got ' + hit);
+  await page.screenshot({ path: join(out, label + '-record.png') });
+  await page.evaluate(() => { PIANO.recordBeat = PIANO._realRecordBeat; PIANO.record = null; PIANO.setLesson('fourchords'); });
   // explore
   await page.evaluate(() => PIANO.setMode('explore'));
   await page.waitForTimeout(400);

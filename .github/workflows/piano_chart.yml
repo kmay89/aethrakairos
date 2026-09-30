@@ -1,0 +1,65 @@
+# Transcribe a library track's PIANO PART for the trainer hidden inside the ∞.
+#
+# tools/piano_chart.py separates the record with Demucs (htdemucs_6s — the
+# six-source model with a dedicated piano stem), transcribes the piano stem
+# with basic-pitch, quantises the notes to the catalog's beat grid, reads the
+# chords, the riff and the sections, and writes docs/charts/<tag>.json. The
+# player fetches a chart on demand when its track is opened in the trainer.
+#
+# Source separation is a neural model the sandboxes that write code cannot
+# download, so — like the stems job — the professional pass runs HERE, on a
+# runner, and commits the chart. Dispatch it with the album tag (the folder
+# under docs/audio/). CPU is fine: one track is a couple of minutes.
+name: Piano chart
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Album tag (docs/audio/<tag>/) of the track to chart'
+        required: true
+        default: 'highway'
+      model:
+        description: 'Demucs model (htdemucs_6s has a piano stem; htdemucs falls back to "other")'
+        required: false
+        default: 'htdemucs_6s'
+
+concurrency:
+  group: piano-chart-${{ github.event.inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Install numpy, Demucs (CPU torch) and basic-pitch
+        run: |
+          pip install --quiet numpy torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet demucs basic-pitch
+      - name: Cache the Demucs models
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/torch
+          key: demucs-${{ github.event.inputs.model }}-v1
+      - name: Verify the transcriber
+        run: python3 tools/piano_chart.py --selftest
+      - name: Separate and transcribe
+        run: python3 tools/piano_chart.py "${{ github.event.inputs.tag }}" --model "${{ github.event.inputs.model }}"
+      - name: Commit the chart
+        run: |
+          if [[ -z "$(git status --porcelain docs/charts)" ]]; then echo "chart unchanged"; exit 0; fi
+          git config user.name  "aethra-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/charts
+          git commit -m "chore: chart the piano part of ${{ github.event.inputs.tag }} (auto) [skip ci]"
+          git push

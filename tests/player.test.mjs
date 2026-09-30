@@ -7244,6 +7244,121 @@ test('piano: the trainer is wired into the shipped page — the dialog, the boot
   assert.ok(html.includes('this.engine.init(AE.ctx, dest, AE.analyser || null)'), 'the sound rides the player context, into the master and the analyser');
 });
 
+// ---------------------------------------------------------------- the record: charts from the library
+/* tools/piano_chart.py transcribes a library track's piano part into
+   docs/charts/<tag>.json; pnChartLesson turns a chart into a lesson and the
+   play-along step judges the learner against the record's own beat. The
+   shipped charts are held to the shape the trainer reads. */
+const PC = new Function('"use strict";' + block('piano') + '\nreturn { pnChartLesson, pnChartWindow, pnChartChordAt, PnLessonRunner, pnDetectChord, PN_FIRST, PN_LAST, pnKeyUsesFlats, pnMakeKey };')();
+const CHART_ROSTER = (() => {
+  const m = html.match(/const PN_CHARTS = \[([\s\S]*?)\];/);
+  assert.ok(m, 'PN_CHARTS roster is in the page');
+  return [...m[1].matchAll(/tag: '([a-z0-9-]+)'[^}]*sha256: '([0-9a-f]{64})'/g)].map(x => ({ tag: x[1], sha256: x[2] }));
+})();
+test('record: every chart in the roster ships, matches its catalog track, and is shaped for the highway', () => {
+  assert.ok(CHART_ROSTER.length >= 1, 'at least one charted track');
+  const catalog = JSON.parse(readFileSync(join(root, 'docs/catalog.json'), 'utf8'));
+  const bySha = {};
+  for (const a of catalog.albums) for (const t of a.tracks || []) bySha[t.sha256] = { album: a, track: t };
+  for (const row of CHART_ROSTER){
+    const chart = JSON.parse(readFileSync(join(root, 'docs/charts/' + row.tag + '.json'), 'utf8'));
+    assert.equal(chart.v, 1); assert.equal(chart.tag, row.tag); assert.equal(chart.sha256, row.sha256, row.tag + ': the roster sha256 is the chart\'s');
+    const hit = bySha[chart.sha256];
+    assert.ok(hit, row.tag + ': the chart\'s track is in the catalog');
+    assert.equal(hit.album.tag, row.tag, 'and under the album tag the chart is named for');
+    assert.equal(chart.bpm, hit.track.mix.bpm, 'the chart rides the catalog\'s grid'); assert.equal(chart.grid, hit.track.mix.grid);
+    assert.ok(chart.bars > 8 && chart.chords.length === chart.bars, 'one chord entry per bar');
+    assert.ok(chart.key && chart.key.root >= 0 && chart.key.root < 12 && /^\d{1,2}[AB]$/.test(chart.key.camelot));
+    let last = -1;
+    for (const n of chart.notes){
+      assert.ok(n.m >= PC.PN_FIRST && n.m <= PC.PN_LAST, 'note on the keyboard'); assert.ok(n.b >= 0 && n.d >= 0.25 && n.v > 0 && n.v <= 1, 'quantised, audible');
+      assert.ok(Math.abs(n.b * 4 - Math.round(n.b * 4)) < 1e-9, 'starts sit on 16ths'); assert.ok(n.b >= last, 'sorted by start'); last = n.b;
+    }
+    for (const c of chart.chords) if (c.name) assert.ok(Array.isArray(c.pcs) && c.pcs.length >= 2 && c.pcs.every(p => p >= 0 && p < 12), 'a named chord has pitch classes');
+    assert.ok(chart.loop.length >= 2 && chart.loop.every(n => chart.chords.some(c => c.name === n)), 'the loop is made of the chart\'s own chords');
+    assert.ok(chart.sections.length >= 1 && chart.sections.every(s => s.name && s.bar >= 0 && s.bars > 0));
+    assert.ok(chart.riff.length >= 16 && chart.phrases.length >= 1, 'a riff to learn');
+    for (const p of chart.phrases) assert.ok(p.notes.length >= 1 && p.notes.length <= 24 && p.bar >= 0);
+    assert.ok(chart.riff.every(n => n.m >= 60), 'the riff is the right hand');
+  }
+});
+test('record: Highway is charted in D♭ major with the vi–IV–I–V loop the ear expects', () => {
+  const chart = JSON.parse(readFileSync(join(root, 'docs/charts/highway.json'), 'utf8'));
+  assert.equal(chart.key.camelot, '3B'); assert.equal(chart.key.mode, 'major'); assert.equal(chart.key.root, 1);
+  assert.ok(chart.key.confidence > 0.6, 'the key is not a guess');
+  const loop = chart.loop.map(n => n.replace('maj7', '').replace('add9', ''));
+  const cyc = [...loop, ...loop].join(' ');
+  assert.ok(cyc.indexOf('B♭m G♭ D♭ A♭') >= 0, 'B♭m – G♭ – D♭ – A♭ in some rotation, got ' + chart.loop.join(' '));
+  assert.ok(chart.sections.some(s => /drop/i.test(s.name)), 'the structure names a drop');
+});
+const fakeChart = () => ({
+  v: 1, tag: 'fake', title: 'Fake', sha256: 'x'.repeat(64), bpm: 120, grid: 0.5, duration: 40, bars: 8,
+  key: { root: 0, mode: 'major', camelot: '8B', confidence: 0.9 },
+  loop: ['C', 'G', 'Am', 'F'],
+  sections: [{ name: 'Intro', bar: 0, bars: 4, energy: 0.3 }, { name: 'Drop', bar: 4, bars: 4, energy: 0.9 }],
+  chords: ['C', 'G', 'Am', 'F', 'C', 'G', 'Am', 'F'].map((name, bar) => ({ bar, name, root: { C: 0, G: 7, Am: 9, F: 5 }[name], pcs: { C: [0, 4, 7], G: [7, 11, 2], Am: [9, 0, 4], F: [5, 9, 0] }[name] })),
+  notes: Array.from({ length: 32 }, (_, i) => ({ m: 64 + (i % 4) * 2, b: i, d: 0.5, v: 0.8 })),
+  riff: Array.from({ length: 32 }, (_, i) => ({ m: 64 + (i % 4) * 2, b: i, d: 0.5, v: 0.8 })),
+  left: [], phrases: [{ bar: 0, notes: Array.from({ length: 8 }, (_, i) => ({ m: 64 + (i % 4) * 2, b: i, d: 0.5, v: 0.8 })) }, { bar: 2, notes: Array.from({ length: 8 }, (_, i) => ({ m: 64 + (i % 4) * 2, b: 8 + i, d: 0.5, v: 0.8 })) }],
+});
+test('record: a chart becomes a lesson — chords of the loop, the roots, the riff, then playing along', () => {
+  const l = PC.pnChartLesson(fakeChart());
+  assert.equal(l.id, 'chart:fake'); assert.ok(l.chart);
+  const types = l.steps.map(s => s.type);
+  assert.equal(types[0], 'info'); assert.ok(l.steps[0].action === 'cue:0' && l.steps[0].key, 'the opener cues the record and sets the key');
+  assert.deepEqual(types.filter(t => t === 'press').length, 4, 'one hand shape per chord of the loop');
+  const shapes = l.steps.filter(s => s.type === 'press');
+  assert.deepEqual(shapes.map(s => PC.pnDetectChord(s.notes).name.replace(/\/.*$/, '')), ['C', 'G', 'Am', 'F'], 'the shapes are the chords');
+  for (let i = 1; i < shapes.length; i++){
+    const moved = shapes[i].notes.reduce((a, m, k) => a + Math.abs(m - shapes[i - 1].notes[k]), 0);
+    assert.ok(moved <= 6, 'voice-led: shape ' + i + ' moves ' + moved);
+    assert.equal(Object.keys(shapes[i].fingers).length, 3);
+  }
+  const roots = l.steps.find(s => s.title === 'The bass roots');
+  assert.deepEqual(roots.notes.map(m => m % 12), [0, 7, 9, 5]); assert.equal(roots.hand, 'left');
+  assert.ok(l.steps.some(s => s.type === 'count' && s.record && /^cue:/.test(s.action)), 'the loop is played with the record');
+  const riffs = l.steps.filter(s => s.type === 'sequence' && /^Riff/.test(s.title));
+  assert.equal(riffs.length, 2); assert.ok(riffs[0].demo && riffs[0].demo.mode === 'seq' && riffs[0].action === 'cue:0');
+  const pa = l.steps.filter(s => s.type === 'playalong');
+  assert.equal(pa.length, 2, 'a section, then the whole record');
+  assert.ok(pa[0].notes.every(n => n.b >= 16 && n.b < 32), 'the section play-along uses the drop\'s notes');
+  assert.equal(pa[1].notes.length, 32); assert.ok(pa[1].needed <= 40);
+  assert.equal(types[types.length - 1], 'info');
+  const empty = PC.pnChartLesson({ tag: 'e', title: 'E', bpm: 100, grid: 0, bars: 4, key: { root: 9, mode: 'minor', camelot: '8A' }, chords: [], notes: [], riff: [], phrases: [], sections: [], loop: [] });
+  assert.ok(empty.steps.length >= 2, 'a thin chart still yields a lesson');
+});
+test('record: the play-along step is judged against the record\'s beat, one hit per chart note', () => {
+  const chart = fakeChart();
+  const step = PC.pnChartLesson(chart).steps.find(s => s.type === 'playalong');
+  let beat = null;
+  const r = new PC.PnLessonRunner({ steps: [step] }, { timing: { running: () => false, offBeat: () => 0, offOffbeat: () => 0, recordBeat: () => beat } });
+  r.noteOn(64); assert.equal(r.hits, 0); assert.match(r.lastMessage, /Cue the record/, 'nothing is judged before the record plays');
+  beat = 16.1; r.noteOn(64); assert.equal(r.hits, 1); assert.equal(r.streak, 1);
+  r.noteOn(64); assert.equal(r.hits, 1, 'the same chart note cannot be hit twice'); assert.equal(r.streak, 0);
+  beat = 17.0; r.noteOn(66 + 12); assert.equal(r.hits, 2, 'any octave counts here');
+  beat = 18.6; r.noteOn(68); assert.equal(r.hits, 2, 'too late for the note at 18, too early for 22'); assert.equal(r.mistakes, 2);
+  beat = 19.0; r.noteOn(60); assert.equal(r.hits, 2); assert.match(r.lastMessage, /wants A♯4|wants B♭4|wants/, 'names the note the record wanted');
+  let b = 18; for (let k = 0; k < 40 && !r.done; k++){ beat = b; r.noteOn(64 + (b % 4) * 2); b++; }   // 18 and 19 are still unhit, so sixteen land
+  assert.equal(r.done, true); assert.equal(r.progress, 1);
+  assert.deepEqual(r.guide().keys, [], 'the keys stay clear: the highway carries the record');
+});
+test('record: the highway window and the bar\'s chord follow the beat', () => {
+  const chart = fakeChart();
+  const w = PC.pnChartWindow(chart, 10, 9);
+  assert.ok(w.length > 0 && w.every(e => e.start >= 9 && e.start <= 19) && w[0].midi === chart.notes.find(n => n.b >= 9).m);
+  assert.deepEqual(PC.pnChartChordAt(chart, 5.5), { bar: 1, name: 'G', pcs: [7, 11, 2] });
+  assert.equal(PC.pnChartChordAt(chart, 99).name, null, 'past the end there is no chord');
+  assert.equal(PC.pnChartWindow({ notes: [] }, 0).length, 0);
+});
+test('record: the page fetches charts on demand and cues the player, never a second audio path', () => {
+  assert.ok(html.includes("fetch('charts/' + tag + '.json'"), 'charts load lazily');
+  assert.ok(html.includes('player.playIndex(i)') && html.includes('d.a.currentTime = Math.min(t, d.a.duration - 0.5)'), 'the record is the player\'s own deck, seeked to the bar');
+  assert.ok(html.includes('return CLOCK.beats;'), 'the play-along beat is the player\'s healed clock');
+  assert.ok(html.includes("SPEED.STEPS.indexOf(0.75)"), 'the slow practice speed is the player\'s own SPEED');
+  const wf = readFileSync(join(root, '.github/workflows/piano_chart.yml'), 'utf8');
+  assert.ok(/htdemucs_6s/.test(wf) && /basic-pitch/.test(wf) && /tools\/piano_chart\.py/.test(wf), 'the professional pass runs on a runner');
+});
+
 await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
