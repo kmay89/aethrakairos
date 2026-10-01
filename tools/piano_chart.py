@@ -28,6 +28,7 @@ Requires numpy; Demucs (+ ffmpeg) only to separate; basic-pitch optional.
 """
 import argparse
 import json
+import re
 import math
 import os
 import subprocess
@@ -398,6 +399,175 @@ def build_chart(tag, track, piano_notes, bass_seq, bpm, grid, duration):
     }
 
 
+# ------------------------------------------------------------------ verification against the record
+class Verifier:
+    """Checks a chart against the audio it came from. A note is EVIDENCED when
+    its own pitch (fundamental + 2 harmonics) rises at its charted time; the
+    same test run on the notes moved an 8th, or a semitone, is the control.
+    A part whose real score does not beat its semitone-shifted control is
+    hearing the drums and the sub, not a piano — it is flagged untrusted."""
+    def __init__(self, x, sr, grid, bpm, n=8192, hop=256):
+        self.sr, self.grid, self.spb, self.n, self.hop = sr, grid, 60.0 / bpm, n, hop
+        win = np.hanning(n).astype(np.float32)
+        frames = 1 + (len(x) - n) // hop
+        x = x.astype(np.float32)
+        self.M = np.empty((frames, n // 2 + 1), dtype=np.float32)
+        for i in range(frames):
+            self.M[i] = np.abs(np.fft.rfft(x[i * hop:i * hop + n] * win))
+        self.frames, self._e = frames, {}
+
+    def _energy(self, m):
+        if m not in self._e:
+            f0 = midi_to_hz(m); idx = []
+            for h in (1, 2, 3):
+                k = int(round(f0 * h / (self.sr / self.n)))
+                if 1 <= k < self.M.shape[1] - 1:
+                    idx.append(k)
+            self._e[m] = np.log1p(self.M[:, idx].sum(1)) if idx else np.zeros(self.frames)
+        return self._e[m]
+
+    def rise(self, m, beat):
+        t = self.grid + beat * self.spb
+        i = int(round((t - self.n / 2 / self.sr) * self.sr / self.hop)); d = max(2, int(0.07 * self.sr / self.hop))
+        if i - d < 0 or i + d >= self.frames:
+            return None
+        e = self._energy(m)
+        return float(e[i:i + d].max() - e[i - d:i].mean())
+
+    def evidenced(self, m, beat, thr=0.15):
+        """this pitch attacks here, and more than either semitone neighbour
+        (a neighbour that rises as much is leakage, or a different note)"""
+        r = self.rise(m, beat)
+        if r is None:
+            return None
+        lo, hi = self.rise(m - 1, beat) or 0.0, self.rise(m + 1, beat) or 0.0
+        return r > thr and r > 1.15 * max(lo, hi, 0.0)
+
+    def rate(self, notes, toff=0.0, shift=0, thr=0.15):
+        v = [self.evidenced(n["m"] + shift, n["b"] + toff, thr) for n in notes]
+        v = [a for a in v if a is not None]
+        return float(np.mean(v)) if v else 0.0
+
+
+def chord_share(chart, x, sr, rng_seed=1):
+    """Share of each bar's pitch-class energy (130 Hz–2.1 kHz) held by the
+    named chord, and the same for a random chord of the same shape."""
+    n, hop = 4096, 1024
+    win = np.hanning(n)
+    freqs = np.fft.rfftfreq(n, 1 / sr)
+    band = (freqs > 120) & (freqs < 2100)
+    pcs = np.round(12 * np.log2(freqs[band] / 440) + 69).astype(int) % 12
+    spb = 60.0 / chart["bpm"]
+    E = np.zeros((chart["bars"], 12))
+    for i in range(1 + (len(x) - n) // hop):
+        t = (i * hop + n / 2) / sr
+        bar = int((t - chart["grid"]) / spb // 4)
+        if 0 <= bar < chart["bars"]:
+            np.add.at(E[bar], pcs, np.abs(np.fft.rfft(x[i * hop:i * hop + n] * win))[band] ** 2)
+    rng = np.random.default_rng(rng_seed)
+    real, rand = [], []
+    for c in chart["chords"]:
+        if not c.get("pcs") or c.get("carried"):
+            continue
+        e = E[c["bar"]]; tot = e.sum()
+        if tot <= 0:
+            continue
+        real.append(e[c["pcs"]].sum() / tot)
+        rand.append(e[[(p + int(rng.integers(1, 12))) % 12 for p in c["pcs"]]].sum() / tot)
+    return (float(np.mean(real)) if real else 0.0), (float(np.mean(rand)) if rand else 0.0)
+
+
+def verify_chart(chart, x, sr, thr=0.15):
+    """Score the chart against the record, keep only evidenced riff notes, and
+    mark the left hand trusted or not. Mutates and returns the chart."""
+    V = Verifier(x, sr, chart["grid"], chart["bpm"])
+    rep = {}
+    for part in ("riff", "left"):
+        notes = chart[part]
+        rep[part] = {
+            "attack": round(V.rate(notes), 3),
+            "eighthLate": round(V.rate(notes, 0.5), 3),
+            "eighthEarly": round(V.rate(notes, -0.5), 3),
+            "semitoneUp": round(V.rate(notes, 0, 1), 3),
+            "notes": len(notes),
+        }
+    kept = [n for n in chart["riff"] if V.evidenced(n["m"], n["b"], thr)]
+    rep["riff"]["kept"] = len(kept)
+    per_bar = []
+    for bar in range(chart["bars"]):
+        ns = [n for n in chart["riff"] if bar * 4 <= n["b"] < bar * 4 + 4]
+        per_bar.append(round(V.rate(ns), 2) if ns else None)
+    rep["riffPerBar"] = per_bar
+    real, rand = chord_share(chart, x, sr)
+    rep["chords"] = {"share": round(real, 3), "randomShare": round(rand, 3)}
+    left_ok = rep["left"]["attack"] - max(rep["left"]["semitoneUp"], rep["left"]["eighthLate"], rep["left"]["eighthEarly"]) > 0.15
+    chart["riff"] = kept
+    chart["phrases"] = [{"bar": int(p[0]["b"] // 4), "notes": p} for p in phrase(kept)]
+    chart["leftVerified"] = bool(left_ok)
+    chart["verify"] = rep
+    return chart
+
+
+def compare_charts(a, b, tol=0.25):
+    """How far two charts of one record agree: the riff note for note
+    (same pitch, start within a 16th), its pitch classes, the key, the chords."""
+    def match(x, y, pc=False):
+        ys = {}
+        for n in y:
+            ys.setdefault(n["m"] % 12 if pc else n["m"], []).append(n["b"])
+        hit = 0
+        for n in x:
+            k = n["m"] % 12 if pc else n["m"]
+            if any(abs(b - n["b"]) <= tol for b in ys.get(k, ())):
+                hit += 1
+        return hit / max(1, len(x))
+    ra, rb = a.get("riff", []), b.get("riff", [])
+    same_ch = sum(1 for x, y in zip(a.get("chords", []), b.get("chords", [])) if x.get("root") is not None and x.get("root") == y.get("root"))
+    n_ch = sum(1 for x in a.get("chords", []) if x.get("root") is not None)
+    lines = ["compare: earlier chart vs this one",
+             f"  riff notes of the earlier chart found in this one: {match(ra, rb)*100:.0f}% exact pitch, {match(ra, rb, True)*100:.0f}% pitch class (of {len(ra)})",
+             f"  riff notes of this chart found in the earlier one: {match(rb, ra)*100:.0f}% exact pitch, {match(rb, ra, True)*100:.0f}% pitch class (of {len(rb)})",
+             f"  key {a.get('key', {}).get('camelot')} vs {b.get('key', {}).get('camelot')} · chord roots agree on {same_ch}/{n_ch} bars",
+             f"  loop {' '.join(a.get('loop', []))} vs {' '.join(b.get('loop', []))}"]
+    return "\n".join(lines)
+
+
+def section_loop(chart, b0, b1):
+    """The chord cycle a section plays, in its own order: bars by root and
+    quality, the shortest period (1, 2, 4, 8) that repeats on ≥70% of bars,
+    the distinct chords of one period. Mirrors the player's pnSectionLoop."""
+    names = FLATS if uses_flats(chart["key"]["root"], chart["key"]["mode"] == "minor") else NAMES
+    bars = []
+    for c in chart["chords"][b0:b1]:
+        if not c or c.get("root") is None:
+            bars.append(None); continue
+        pcs = c.get("pcs") or []
+        minor = (c["root"] + 3) % 12 in pcs and (c["root"] + 4) % 12 not in pcs
+        bars.append((c["root"], minor))
+    period = len(bars)
+    for p in (1, 2, 4, 8):
+        if p >= len(bars):
+            break
+        n = len(bars) - p
+        if n and sum(1 for i in range(p, len(bars)) if bars[i] == bars[i - p]) / n >= 0.7:
+            period = p
+            break
+    out = []
+    for b in bars[:period]:
+        if b and b not in out:
+            out.append(b)
+    return [names[r] + ("m" if m else "") for r, m in out]
+
+
+def main_loop(chart):
+    """The record's loop: the cycle of its longest loud section."""
+    loud = [s for s in chart.get("sections", []) if re.search(r"drop|chorus", s["name"], re.I)]
+    if not loud:
+        return chart.get("loop", [])
+    sec = max(loud, key=lambda s: s["bars"])
+    return section_loop(chart, sec["bar"], sec["bar"] + sec["bars"]) or chart.get("loop", [])
+
+
 def lead_sheet(chart):
     k = chart['key']
     names = FLATS if uses_flats(k['root'], k['mode'] == 'minor') else NAMES
@@ -413,6 +583,12 @@ def lead_sheet(chart):
     if row:
         lines.append("  " + " | ".join(f"{x:<6}" for x in row))
     lines.append(f"notes {len(chart['notes'])} · riff {len(chart['riff'])} in {len(chart['phrases'])} phrases · left hand {len(chart['left'])}")
+    v = chart.get("verify")
+    if v:
+        r, l, c = v["riff"], v["left"], v["chords"]
+        lines.append(f"verified against the record: riff {r['attack']*100:.0f}% of notes attack on time (8th late {r['eighthLate']*100:.0f}%, semitone up {r['semitoneUp']*100:.0f}%), kept {r['kept']}/{r['notes']}")
+        lines.append(f"  left hand {l['attack']*100:.0f}% (semitone up {l['semitoneUp']*100:.0f}%) → {'trusted' if chart.get('leftVerified') else 'NOT trusted: the trainer derives the left hand from the chords'}")
+        lines.append(f"  chords hold {c['share']*100:.0f}% of each bar's pitch energy (random chord {c['randomShare']*100:.0f}%)")
     return "\n".join(lines)
 
 
@@ -438,6 +614,19 @@ def selftest():
     assert second == [67, 71, 74], second
     root, minor, conf = key_of(notes)
     assert root in (0, 7) and not minor, (root, minor)   # C E G + G B D: C or G major, both honest
+    # the verifier hears the notes that are there, and not the ones a semitone off:
+    # a G chord with a 10 ms hammer ramp at one second, over a quiet noise floor
+    rng = np.random.default_rng(3)
+    y = 0.002 * rng.standard_normal(len(t))
+    ramp = np.clip((t - 1.0) / 0.01, 0, 1) * np.exp(-np.maximum(t - 1.0, 0) * 1.5)
+    for m in (67, 71, 74):
+        for h in range(1, 5):
+            y += ramp * np.sin(2 * np.pi * midi_to_hz(m) * h * t) / h
+    V = Verifier(y / np.abs(y).max(), sr, 0.0, 60.0)      # one beat per second
+    real = [{"m": m, "b": 1.0} for m in (67, 71, 74)]
+    assert V.rate(real) == 1.0, V.rate(real)
+    assert V.rate(real, 0, 1) < 0.5, V.rate(real, 0, 1)
+    assert V.rate(real, 0.5) == 0.0, V.rate(real, 0.5)    # half a second late: nothing new arrives
     w = np.zeros(12); w[[0, 4, 7]] = 1
     assert chord_for(w, 0, False)["name"] == "C"
     w = np.zeros(12); w[[9, 0, 4]] = 1
@@ -454,11 +643,20 @@ def main():
     ap.add_argument("--keep", help="copy the separated stems here")
     ap.add_argument("--mix", action="store_true", help="no separation: transcribe the whole mix (basic-pitch), bass from its low end")
     ap.add_argument("--wav", help="an already-decoded WAV of the track (else the mp3 is decoded)")
+    ap.add_argument("--compare", help="an earlier chart to compare against (precision/recall of the riff, key, loop)")
+    ap.add_argument("--relabel", action="store_true", help="re-derive the loop of an existing chart from its chords (no audio)")
     args = ap.parse_args()
     if args.selftest:
         selftest(); return
     if not args.tag:
         ap.error("an album tag is required")
+    if args.relabel:
+        path = CHARTS / f"{args.tag}.json"
+        chart = json.loads(path.read_text())
+        chart["loop"] = main_loop(chart)
+        path.write_text(json.dumps(chart, separators=(",", ":"), ensure_ascii=False))
+        print("loop:", " | ".join(chart["loop"]))
+        return
     from fingerprint import decode_mono
     cat = json.load(open(CATALOG))
     album = next((a for a in cat["albums"] if a.get("tag") == args.tag), None)
@@ -507,7 +705,13 @@ def main():
             bass = bass_line(bx, sr)
     duration = float(track.get("duration") or len(x) / sr)
     chart = build_chart(args.tag, track, notes, bass, float(bpm), float(grid), duration)
+    print("verifying against the record …", flush=True)
+    verify_chart(chart, x, sr)
+    chart["loop"] = main_loop(chart)
     chart["transcriber"] = used + (" on the whole mix" if args.mix else " on the " + piano_wav.stem + " stem")
+    if args.compare and Path(args.compare).exists():
+        old = json.loads(Path(args.compare).read_text())
+        print(compare_charts(old, chart))
     CHARTS.mkdir(parents=True, exist_ok=True)
     out = CHARTS / f"{args.tag}.json"
     out.write_text(json.dumps(chart, separators=(",", ":"), ensure_ascii=False))

@@ -7288,7 +7288,7 @@ test('record: Highway is charted in D♭ major with the vi–IV–I–V loop the
   assert.ok(chart.key.confidence > 0.6, 'the key is not a guess');
   const loop = chart.loop.map(n => n.replace('maj7', '').replace('add9', ''));
   const cyc = [...loop, ...loop].join(' ');
-  assert.ok(cyc.indexOf('B♭m G♭ D♭ A♭') >= 0, 'B♭m – G♭ – D♭ – A♭ in some rotation, got ' + chart.loop.join(' '));
+  assert.ok(cyc.indexOf('B♭m G♭ D♭ A♭') >= 0, 'the loop is the final drop\'s cycle, B♭m – G♭ – D♭ – A♭ in some rotation, got ' + chart.loop.join(' '));
   assert.ok(chart.sections.some(s => /drop/i.test(s.name)), 'the structure names a drop');
 });
 const fakeChart = () => ({
@@ -7318,7 +7318,10 @@ test('record: a chart becomes a lesson — chords of the loop, the roots, the ri
   assert.deepEqual(roots.notes.map(m => m % 12), [0, 7, 9, 5]); assert.equal(roots.hand, 'left');
   assert.ok(l.steps.some(s => s.type === 'count' && s.record && /^cue:/.test(s.action)), 'the loop is played with the record');
   const riffs = l.steps.filter(s => s.type === 'sequence' && /^Riff/.test(s.title));
-  assert.equal(riffs.length, 2); assert.ok(riffs[0].demo && riffs[0].demo.mode === 'seq' && riffs[0].action === 'cue:0');
+  assert.equal(riffs.length, 2); assert.ok(riffs[0].demo && riffs[0].demo.mode === 'seq' && riffs[0].action === 'cue:4', 'riff phrases come from the focus section, cued at its bar');
+  assert.ok(riffs.every(r => r.fingerSeq && r.fingerSeq.length === r.notes.length && r.fingerSeq.every(f => f >= 1 && f <= 5)), 'every phrase is fingered');
+  assert.match(shapes[0].text, /I–V–vi–IV/); assert.match(shapes[0].text, /four chords/, 'the four chords are named as such');
+  assert.match(shapes[0].title, /\(I\)$/); assert.match(shapes[2].title, /\(vi\)$/, 'shapes carry their Roman numerals');
   const pa = l.steps.filter(s => s.type === 'playalong');
   assert.equal(pa.length, 2, 'a section, then the whole record');
   assert.ok(pa[0].notes.every(n => n.b >= 16 && n.b < 32), 'the section play-along uses the drop\'s notes');
@@ -7357,6 +7360,161 @@ test('record: the page fetches charts on demand and cues the player, never a sec
   assert.ok(html.includes("SPEED.STEPS.indexOf(0.75)"), 'the slow practice speed is the player\'s own SPEED');
   const wf = readFileSync(join(root, '.github/workflows/piano_chart.yml'), 'utf8');
   assert.ok(/htdemucs_6s/.test(wf) && /basic-pitch/.test(wf) && /tools\/piano_chart\.py/.test(wf), 'the professional pass runs on a runner');
+});
+
+// ---------------------------------------------------------------- practice: wait mode, arrangements, stars
+const PR = new Function('"use strict";' + block('piano') + '\nreturn { pnChartLesson, pnChartArrange, pnPracticeStep, pnStars, PnLessonRunner };')();
+test('practice: arrangements — Full is the transcription, Easy is one note per beat and a root per bar', () => {
+  const chart = fakeChart();
+  const full = PR.pnChartArrange(chart, 'full');
+  assert.equal(full.right.length, chart.riff.length);
+  assert.equal(full.left.length, chart.chords.length * 2, 'an untrusted left hand is rebuilt from the chords: root on 1, fifth on 3');
+  assert.deepEqual(full.left.slice(0, 2).map(n => [n.m % 12, n.b]), [[0, 0], [7, 2]]);
+  const trusted = Object.assign({}, chart, { leftVerified: true, left: [{ m: 48, b: 0, d: 1, v: 1 }] });
+  assert.deepEqual(PR.pnChartArrange(trusted, 'full').left, trusted.left, 'a verified left hand is the transcription');
+  const easy = PR.pnChartArrange(chart, 'easy');
+  assert.ok(easy.right.length <= 32 && easy.right.every((n, i, a) => !i || Math.floor(a[i - 1].b) < Math.floor(n.b)), 'at most one right-hand note per beat');
+  assert.ok(easy.right.every(n => n.d >= 1), 'held at least a beat');
+  assert.equal(easy.left.length, chart.chords.length, 'one root per bar');
+  assert.deepEqual(easy.left.slice(0, 4).map(n => n.m % 12), [0, 7, 9, 5]);
+  assert.ok(easy.left.every(n => n.m >= 36 && n.m < 48), 'roots in the low octave');
+  const busy = Object.assign({}, chart, { riff: [{ m: 64, b: 0.25, d: 0.25, v: 1 }, { m: 65, b: 0.5, d: 0.25, v: 1 }, { m: 67, b: 1, d: 0.25, v: 1 }, { m: 69, b: 1.5, d: 0.25, v: 1 }] });
+  assert.deepEqual(PR.pnChartArrange(busy, 'easy').right.map(n => n.m), [64, 67], 'the note on the beat wins, else the first in the beat');
+});
+test('practice: a practice step picks the hand, groups notes by 16th, and keeps the other hand as accompaniment', () => {
+  const chart = fakeChart();
+  const st = PR.pnPracticeStep(chart, { from: 4, to: 8, hands: 'right', level: 'full', tempo: 0.6, name: 'drop' });
+  assert.equal(st.type, 'practice'); assert.equal(st.from, 16); assert.equal(st.to, 32); assert.equal(st.hands, 'right');
+  assert.ok(st.notes.every(n => n.b >= 16 && n.b < 32), 'only the section');
+  assert.equal(st.groups.length, 16); assert.ok(st.groups.every((g, i, a) => !i || g.b > a[i - 1].b), 'groups in order');
+  assert.equal(st.accomp.length, 8, 'the left hand (from the chords) is the accompaniment: root and fifth for four bars');
+  const easyBoth = PR.pnPracticeStep(chart, { from: 0, to: 2, hands: 'both', level: 'easy' });
+  const g0 = easyBoth.groups[0];
+  assert.deepEqual(g0.m.sort((a, b) => a - b), [36, 64], 'beat one is the root and the melody note together');
+  const left = PR.pnPracticeStep(chart, { from: 0, to: 2, hands: 'left', level: 'easy' });
+  assert.equal(left.groups.length, 2); assert.ok(left.accomp.length > 0, 'the right hand is played for you');
+  assert.match(st.title, /Practice: right hand, drop/);
+  const chord = Object.assign({}, chart, { riff: [{ m: 60, b: 0, d: 1, v: 1 }, { m: 64, b: 0, d: 1, v: 1 }, { m: 67, b: 0, d: 1, v: 1 }, { m: 62, b: 1, d: 1, v: 1 }] });
+  const cs = PR.pnPracticeStep(chord, { from: 0, to: 1, hands: 'right' });
+  assert.deepEqual(cs.groups.map(g => g.m), [[60, 64, 67], [62]], 'a chord is one group');
+});
+test('practice: wait mode holds at each group, takes chord notes in any order, names slips, loops passes', () => {
+  const chart = fakeChart();
+  const chord = Object.assign({}, chart, { riff: [{ m: 60, b: 0, d: 1, v: 1 }, { m: 64, b: 0, d: 1, v: 1 }, { m: 67, b: 0, d: 1, v: 1 }, { m: 62, b: 1, d: 1, v: 1 }, { m: 64, b: 2, d: 1, v: 1 }] });
+  const st = PR.pnPracticeStep(chord, { from: 0, to: 1, hands: 'right', passes: 2 });
+  const r = new PR.PnLessonRunner({ steps: [st] });
+  assert.equal(r.pos, 0); assert.equal(r.progress, 0);
+  assert.deepEqual(r.guide().keys.filter(k => k.role === 'next').map(k => k.midi).sort((a, b) => a - b), [60, 64, 67], 'the current group lights as next');
+  assert.ok(r.guide().keys.some(k => k.role === 'hint' && k.midi === 62), 'the following group is hinted');
+  r.noteOn(67); assert.equal(r.pos, 0); assert.match(r.lastMessage, /and C4 \+ E4|and C4/);
+  assert.ok(r.guide().keys.some(k => k.midi === 67 && k.role === 'done'), 'a pressed note of the group reads as done');
+  r.noteOn(61); assert.equal(r.mistakes, 1); assert.match(r.lastMessage, /wants C4 \+ E4 \+ G4/);
+  r.noteOn(67); assert.match(r.lastMessage, /Already there/); assert.equal(r.mistakes, 1);
+  r.noteOn(60); r.noteOn(64); assert.equal(r.pos, 1); assert.equal(r.hits, 1); assert.equal(r.cleanGroups, 0, 'a slip in the group means it was not clean');
+  r.noteOn(62); assert.equal(r.pos, 2); assert.equal(r.cleanGroups, 1);
+  r.noteOn(64); assert.equal(r.passes, 1); assert.equal(r.pos, 0, 'pass one done: back to the top'); assert.equal(r.done, false);
+  assert.ok(Math.abs(r.progress - 0.5) < 1e-9);
+  for (const m of [60, 64, 67, 62, 64]) r.noteOn(m);
+  assert.equal(r.done, true); assert.equal(r.passes, 2); assert.equal(r.progress, 1);
+  assert.ok(Math.abs(r.accuracy - 6 / 7) < 1e-9, 'six hits, one slip');
+  assert.equal(PR.pnStars(r.accuracy), 2);
+  assert.equal(PR.pnStars(1), 3); assert.equal(PR.pnStars(0.8), 2); assert.equal(PR.pnStars(0.6), 1); assert.equal(PR.pnStars(0.2), 0);
+  const any = new PR.PnLessonRunner({ steps: [Object.assign({}, st, { anyOctave: true })] });
+  any.noteOn(72); any.noteOn(52); any.noteOn(79); assert.equal(any.pos, 1, 'any octave when the step allows it');
+});
+test('practice: the chart lesson teaches a section hands apart then together, easy or full, before the record', () => {
+  const l = PR.pnChartLesson(fakeChart(), 'easy');
+  const types = l.steps.map(s => s.type);
+  const prac = l.steps.filter(s => s.type === 'practice');
+  assert.deepEqual(prac.map(s => s.hands), ['right', 'left', 'both']);
+  assert.ok(prac.every(s => s.level === 'easy' && s.from === 16 && s.to === 32), 'the drop, at the easy level');
+  assert.ok(types.indexOf('practice') < types.indexOf('playalong'), 'practice comes before the record');
+  const firstRiff = l.steps.findIndex(s => /^Riff/.test(s.title));
+  assert.ok(firstRiff >= 0 && firstRiff < types.indexOf('practice'), 'the phrases are learned before the section is put together');
+  assert.equal(l.level, 'easy');
+  const full = PR.pnChartLesson(fakeChart(), 'full');
+  assert.deepEqual(full.steps.filter(s => s.type === 'practice').map(s => s.hands), ['right', 'left', 'both'], 'full teaches both hands too, with the chord-built left hand');
+  assert.ok(full.steps.find(s => s.type === 'playalong').notes.length >= l.steps.find(s => s.type === 'playalong').notes.length, 'full plays more notes along than easy');
+  assert.ok(l.steps.filter(s => /^Riff/.test(s.title)).length <= 4, 'the riff phrases are capped');
+});
+test('practice: the page drives wait mode on its own clock, with hands, tempo and stars', () => {
+  assert.ok(html.includes("startPractice(){") && html.includes("_practiceTick(now){") && html.includes("p.beat = g.b; p.waiting = true;"), 'the clock holds at the next group');
+  assert.ok(html.includes("this.engine.playTimed(n.m, 0.42 * (0.5 + n.v)"), 'the other hand is played for you');
+  assert.ok(html.includes('data-hands="') && html.includes('id="pnPracTempo"') && html.includes('data-level="'), 'hands, tempo and level controls');
+  assert.ok(html.includes("sc[idx] = { stars, acc:"), 'best scores are kept per step');
+  assert.ok(html.includes("ev.dim ? (active ? 0.4 : 0.18)"), 'accompaniment falls dimmer than your notes');
+});
+
+// ---------------------------------------------------------------- teaching quality: folding, fingering, sections, streaks
+const PT = new Function('"use strict";' + block('piano') + '\nreturn { pnFoldLine, pnFingerLine, pnSectionLoop, pnFocusSection, pnRomanIn, pnStreak, pnMakeKey, pnChartLesson, pnPracticeStep, PnLessonRunner };')();
+test('teaching: folding brings a line under one hand without changing its pitch classes', () => {
+  const line = [72, 74, 76, 88, 71, 55].map((m, i) => ({ m, b: i, d: 1, v: 1 }));
+  const f = PT.pnFoldLine(line);
+  assert.ok(Math.max(...f.map(n => n.m)) - Math.min(...f.map(n => n.m)) <= 11, 'within one hand span');
+  assert.deepEqual(f.map(n => n.m % 12), line.map(n => n.m % 12), 'the same notes, octaves moved');
+  assert.deepEqual(f.map(n => n.b), line.map(n => n.b), 'the same rhythm');
+  assert.equal(PT.pnFoldLine([]).length, 0);
+});
+test('teaching: beginner fingering — a five-finger position by distance, thumb low in the right hand, pinky low in the left', () => {
+  assert.deepEqual(PT.pnFingerLine([60, 62, 64, 65, 67]), [1, 2, 3, 4, 5], 'C position');
+  assert.deepEqual(PT.pnFingerLine([67, 65, 64, 62, 60]), [5, 4, 3, 2, 1]);
+  assert.deepEqual(PT.pnFingerLine([48, 50, 52, 53, 55], 'left'), [5, 4, 3, 2, 1], 'left hand mirrors');
+  assert.deepEqual(PT.pnFingerLine([72, 73, 75]), [1, 2, 3], 'Highway\'s hook, C–D♭–E♭: 1-2-3');
+  assert.deepEqual(PT.pnFingerLine([60, 67]), [1, 5], 'a fifth spans the hand');
+  const jump = PT.pnFingerLine([60, 62, 72, 74]);
+  assert.deepEqual(jump, [1, 2, 1, 2], 'a leap beyond the hand starts a new position');
+  for (const f of PT.pnFingerLine([60, 61, 63, 66, 67, 70, 72])) assert.ok(f >= 1 && f <= 5);
+});
+test('teaching: a section\'s chord cycle is found in its own order, with Roman numerals', () => {
+  const mk = names => ({ chords: names.map((n, bar) => { const minor = /m$/.test(n); const root = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9 }[n[0]]; return { bar, name: n, root, pcs: minor ? [root, (root + 3) % 12, (root + 7) % 12] : [root, (root + 4) % 12, (root + 7) % 12] }; }) });
+  const four = PT.pnSectionLoop(mk(['C', 'G', 'Am', 'F', 'C', 'G', 'Am', 'F']), 0, 8);
+  assert.deepEqual(four.map(c => c.root + (c.minor ? 'm' : '')), ['0', '7', '9m', '5']);
+  const k = PT.pnMakeKey(0, 'major');
+  assert.deepEqual(four.map(c => PT.pnRomanIn(k, c.root, c.minor)), ['I', 'V', 'vi', 'IV']);
+  const held = PT.pnSectionLoop(mk(['C', 'Am', 'F', 'F', 'C', 'Am', 'F', 'F']), 0, 8);
+  assert.deepEqual(held.map(c => c.root), [0, 9, 5], 'a chord held two bars appears once');
+  assert.equal(PT.pnRomanIn(k, 1, false), '?', 'a chromatic chord has no diatonic numeral');
+});
+test('teaching: the focus section is the loud one the record confirms best', () => {
+  const chart = { bars: 40, sections: [{ name: 'Intro', bar: 0, bars: 8 }, { name: 'Drop', bar: 8, bars: 8 }, { name: 'Final drop', bar: 24, bars: 16 }],
+    verify: { riffPerBar: Array.from({ length: 40 }, (_, i) => (i >= 24 ? 0.95 : i >= 8 ? 0.5 : 0.2)) } };
+  assert.equal(PT.pnFocusSection(chart).name, 'Final drop');
+  delete chart.verify;
+  assert.equal(PT.pnFocusSection(chart).name, 'Drop', 'without verification: the first drop');
+  assert.equal(PT.pnFocusSection({ bars: 4, sections: [] }).bar, 0);
+});
+test('teaching: a looping practice step scores on the first clean pass and keeps looping', () => {
+  const chart = { riff: [{ m: 60, b: 0, d: 1, v: 1 }, { m: 62, b: 1, d: 1, v: 1 }], chords: [], left: [] };
+  const st = PT.pnPracticeStep(chart, { from: 0, to: 1, hands: 'right' });
+  st.loop = true; st.passes = 999;
+  const r = new PT.PnLessonRunner({ steps: [st] });
+  r.noteOn(60); r.noteOn(62);
+  assert.equal(r.done, true, 'one pass completes the step'); assert.equal(r.pos, 0, 'and the loop goes again');
+  r.noteOn(60); assert.equal(r.pos, 1, 'still listening while it loops');
+});
+test('teaching: the streak counts consecutive days, and survives until today is over', () => {
+  const now = new Date(2026, 9, 10, 12);
+  assert.equal(PT.pnStreak(['2026-10-08', '2026-10-09', '2026-10-10'], now), 3);
+  assert.equal(PT.pnStreak(['2026-10-08', '2026-10-09'], now), 2, 'not played yet today: yesterday still counts');
+  assert.equal(PT.pnStreak(['2026-10-07', '2026-10-09', '2026-10-10'], now), 2, 'a gap breaks it');
+  assert.equal(PT.pnStreak([], now), 0);
+});
+test('teaching: Highway — the lesson teaches the drop\'s own cycle, the hook under three fingers, and the four chords', () => {
+  const chart = JSON.parse(readFileSync(join(root, 'docs/charts/highway.json'), 'utf8'));
+  assert.ok(chart.verify && chart.verify.riff.attack > chart.verify.riff.semitoneUp + 0.25 && chart.verify.riff.attack > chart.verify.riff.eighthLate + 0.3, 'the shipped riff beats its semitone and time-shifted controls against the record');
+  assert.ok(chart.verify.chords.share > chart.verify.chords.randomShare * 2, 'the named chords own their bars');
+  assert.equal(chart.leftVerified, false, 'the mix\'s left hand is not trusted; the lesson builds it from the chords');
+  const l = PT.pnChartLesson(chart, 'easy');
+  const shapes = l.steps.filter(s => s.type === 'press');
+  assert.match(shapes[0].title, /D♭ \(I\)/, 'the drop starts on the one');
+  assert.ok(shapes.some(s => /^Final drop adds A♭ \(V\)/.test(s.title) && /four chords/.test(s.text)), 'the final drop\'s V completes the four chords');
+  assert.match(chart.transcriber, /piano stem/, 'the shipped chart was transcribed from the isolated piano stem');
+  const riffs = l.steps.filter(s => /^Riff/.test(s.title));
+  assert.ok(riffs.length >= 3);
+  for (const r of riffs) assert.ok(Math.max(...r.notes) - Math.min(...r.notes) <= 11, 'easy phrases sit under one hand');
+  const pos = [68, 70, 72, 73, 75];   // A♭4 B♭4 C5 D♭5 E♭5: one five-finger position
+  assert.ok(riffs.every(r => r.notes.every(m => pos.includes(m))), 'at Easy the whole hook sits in the A♭ five-finger position');
+  assert.ok(riffs.every(r => r.fingerSeq.every((f, k) => f === { 68: 1, 70: 2, 72: 3, 73: 4, 75: 5 }[r.notes[k]])), 'and is fingered as that position: A♭=1 … E♭=5');
 });
 
 await Promise.all(pending);

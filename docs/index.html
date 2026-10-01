@@ -1866,6 +1866,15 @@ button.pn-cc:hover{border-color:var(--accent-line)}
 #pnCircle{width:220px;height:220px;cursor:pointer}
 .pn-explore-side{flex:1;min-width:0}
 .pn-level{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em;min-width:80px}
+.pn-seg{display:inline-flex;border-radius:9px;overflow:hidden;border:1px solid var(--line-soft)}
+.pn-seg button{font:inherit;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:5px 10px;border:0;background:var(--glass);color:var(--dim);cursor:pointer}
+.pn-seg button+button{border-left:1px solid var(--line-soft)}
+.pn-seg button.on{color:var(--accent-ink);background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+.pn-stars{color:var(--pi);letter-spacing:.08em;margin-right:8px;font-size:12px}
+.pn-stars i{font-style:normal;color:var(--line)}
+.pn-lhead{gap:10px;flex-wrap:wrap}
+.pn-lbl input[type=range]{accent-color:var(--accent);width:90px}
+#pnPracTempoV{font-family:var(--mono);min-width:36px}
 .pn-keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 14px;font-size:11px;color:var(--dim)}
 .pn-keys kbd{font-family:var(--mono);font-size:10px;color:var(--ink);border-bottom:2px solid var(--line);padding:0 3px;margin-right:4px}
 @media (max-width:760px){
@@ -19904,7 +19913,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'de066d556a';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'b45bacb2d4';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -56683,7 +56692,7 @@ class PnLessonRunner {
   get finished(){ return this.completed.size >= this.total; }
   _enter(){
     this.held = new Set(); this.found = new Set(); this.pos = 0; this.streak = 0; this.notesPlayed = 0; this.mistakes = 0;
-    this.checked = new Set(); this.pedalCycles = 0; this.pedalDown = false; this.answer = null; this.earRound = 0; this.lastRight = null; this.hits = 0; this.hitSet = new Set();
+    this.checked = new Set(); this.pedalCycles = 0; this.pedalDown = false; this.answer = null; this.earRound = 0; this.lastRight = null; this.hits = 0; this.hitSet = new Set(); this.passes = 0; this.groupHit = new Set(); this.lastGroupClean = true; this.cleanGroups = 0;
     this.timerStart = this.step.type === 'timer' ? this.now() : null;
     this.lastMessage = '';
     if (this.step.type === 'info') this._complete(true);
@@ -56705,6 +56714,7 @@ class PnLessonRunner {
       case 'count': return Math.min(1, this.notesPlayed / s.count);
       case 'groove': return Math.min(1, this.streak / s.needed);
       case 'playalong': return Math.min(1, this.hits / s.needed);
+      case 'practice': return s.groups.length ? Math.min(1, (this.passes * s.groups.length + this.pos) / (s.groups.length * (s.passes || 1))) : 0;
       case 'checklist': return this.checked.size / s.items.length;
       case 'pedal': return Math.min(1, this.pedalCycles / (s.count || 2));
       case 'ear': return Math.min(1, this.streak / (s.rounds || 4));
@@ -56719,7 +56729,7 @@ class PnLessonRunner {
   noteOn(midi, source = 'key', velocity = null){
     const s = this.step;
     this.held.add(midi);
-    if (this.done && s.type !== 'count') return;
+    if (this.done && s.type !== 'count' && !(s.type === 'practice' && s.loop)) return;
     const loose = source === 'mic' || s.anyOctave;
     const same = (a, b) => (loose ? pnPcMatch(a, b) : a === b);
     switch (s.type){
@@ -56748,6 +56758,36 @@ class PnLessonRunner {
         if (s.maxVelocity && velocity != null && velocity > s.maxVelocity){ this.lastMessage = s.softHint || 'Softer: let the weight of your arm do the work.'; break; }
         if (allowed){ this.notesPlayed++; if (this.notesPlayed >= s.count) this._complete(); }
         else this.lastMessage = s.wrongHint || 'Stay on the glowing keys for this one.';
+        break;
+      }
+      case 'practice': {
+        /* WAIT MODE, the way the song-teaching apps do it: the song holds at
+           the next note (or chord) until it is played, then moves on. A group
+           is every note that starts on the same 16th; its notes may land in
+           any order. A wrong note is counted and named, never punished with a
+           restart. The runtime drives the clock; this only moves the cursor. */
+        const g = s.groups[this.pos];
+        if (!g) break;
+        const want = s.anyOctave ? g.m.find(x => pnPcMatch(x, midi) && ![...this.groupHit].some(h => pnPcMatch(h, x))) : (g.m.includes(midi) && !this.groupHit.has(midi) ? midi : null);
+        if (want != null){
+          this.groupHit.add(want);
+          if (g.m.every(x => this.groupHit.has(x))){
+            this.pos++; this.hits++;
+            if (this.lastGroupClean) this.cleanGroups++;
+            this.lastGroupClean = true; this.groupHit = new Set();
+            this.lastMessage = '';
+            if (this.pos >= s.groups.length){
+              this.passes++;
+              if (!this.done && (this.passes >= (s.passes || 1) || (s.loop && this.passes >= 1))) this._complete();
+              if (s.loop || this.passes < (s.passes || 1)){ this.pos = 0; this.lastMessage = 'Pass ' + this.passes + ' done: again, from the top.'; }
+            }
+          } else this.lastMessage = 'and ' + g.m.filter(x => !this.groupHit.has(x)).map(x => pnNoteName(x)).join(' + ');
+        } else if (g.m.includes(midi) || (s.anyOctave && g.m.some(x => pnPcMatch(x, midi)))){
+          this.lastMessage = 'Already there: ' + g.m.filter(x => !this.groupHit.has(x)).map(x => pnNoteName(x)).join(' + ');
+        } else {
+          this.mistakes++; this.lastGroupClean = false;
+          this.lastMessage = 'The song wants ' + g.m.map(x => pnNoteName(x)).join(' + ') + ' here.';
+        }
         break;
       }
       case 'playalong': {
@@ -56850,6 +56890,14 @@ class PnLessonRunner {
     this.onUpdate(this);
     return right;
   }
+  /* 0..1: how clean the step was; stars from it the way the apps grade a song */
+  get accuracy(){
+    const s = this.step;
+    if (s.type === 'practice') return this.hits + this.mistakes ? this.hits / (this.hits + this.mistakes) : 0;
+    if (s.type === 'playalong') return this.hits + this.mistakes ? this.hits / (this.hits + this.mistakes) : 0;
+    if (s.type === 'sequence' || s.type === 'find' || s.type === 'groove' || s.type === 'ear') return this.mistakes ? Math.max(0, 1 - this.mistakes / Math.max(4, s.notes ? s.notes.length : 8)) : 1;
+    return this.done ? 1 : 0;
+  }
   tick(){
     const s = this.step;
     if (s.type === 'timer' && !this.done && this.timerStart != null && this.now() - this.timerStart >= s.seconds * 1000) this._complete();
@@ -56875,6 +56923,17 @@ class PnLessonRunner {
         break;
       case 'count': case 'groove': (s.notes || []).forEach(n => add(n)); break;
       case 'playalong': break;   // the highway carries the record's notes; the keys stay clear
+      case 'practice': {
+        const grp = s.groups[this.pos];
+        if (grp && !this.done) for (const m of grp.m){
+          const hit = this.groupHit.has(m);
+          add(m, hit ? 'done' : 'next');
+          if (!hit && grp.f && grp.f[m]) g.badges.push({ midi: m, text: String(grp.f[m]), hand: m < 60 ? 'left' : 'right' });
+        }
+        const nx = s.groups[this.pos + 1];
+        if (nx && !this.done) for (const m of nx.m) add(m, 'hint');
+        break;
+      }
       default:
     }
     if (s.fingerSeq && !this.done && this.pos < s.notes.length){
@@ -57484,7 +57543,7 @@ const pnLessonById = id => PN_ALL_LESSONS.find(l => l.id === id);
    into a lesson: the chords of the loop as hand shapes, the riff phrase by
    phrase, then playing along with the record itself. Pure, so a chart's
    lesson is tested the same way the built-in ones are. */
-const PN_CHART_MAX_PHRASES = 8;
+const PN_CHART_MAX_PHRASES = 4;
 function pnChartVoicing(pcs, prev, lo = 57, hi = 76){
   const v = pnVoiceLead(prev, pcs, lo, hi);
   return v;
@@ -57495,7 +57554,42 @@ function pnChartFingers(v){
   else v.forEach((m, i) => { f[m] = [1, 2, 3, 5][Math.min(i, 3)]; });
   return f;
 }
-function pnChartLesson(chart){
+/* the section to learn: the loud one whose transcription the record
+   confirms best (chart.verify.riffPerBar), else the first drop */
+function pnFocusSection(chart){
+  const secs = (chart.sections || []).filter(s => /drop|chorus/i.test(s.name || '') && s.bars >= 4);
+  const per = chart.verify && chart.verify.riffPerBar;
+  if (!secs.length) return (chart.sections || [])[0] || { name: 'the record', bar: 0, bars: Math.min(8, chart.bars || 8) };
+  if (!per) return secs[0];
+  const score = s => { const v = per.slice(s.bar, s.bar + Math.min(8, s.bars)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length + 0.01 * Math.min(s.bars, 16) : 0; };
+  return secs.slice().sort((a, b) => score(b) - score(a))[0];
+}
+/* the chord cycle a section plays, in its own order: bars by root and
+   quality, the shortest period (1, 2, 4 or 8 bars) that repeats, then the
+   distinct chords of one period. Extensions (maj7, add9) fold into the triad. */
+function pnSectionLoop(chart, from, to){
+  const bars = (chart.chords || []).slice(from, to).map(c => c && c.root != null ? { root: c.root, minor: (c.pcs || []).indexOf((c.root + 3) % 12) >= 0 && (c.pcs || []).indexOf((c.root + 4) % 12) < 0 } : null);
+  const key = b => b ? b.root + (b.minor ? 'm' : '') : '-';
+  const ks = bars.map(key);
+  let period = ks.length;
+  for (const p of [1, 2, 4, 8]){
+    if (p >= ks.length) break;
+    let same = 0, n = 0;
+    for (let i = p; i < ks.length; i++){ n++; if (ks[i] === ks[i - p]) same++; }
+    if (n && same / n >= 0.7){ period = p; break; }
+  }
+  const out = [];
+  for (const b of bars.slice(0, period)) if (b && !out.some(o => o.root === b.root && o.minor === b.minor)) out.push(b);
+  return out;
+}
+function pnRomanIn(keyObj, root, minor){
+  const scale = pnKeyScalePcs(keyObj);
+  const d = scale.indexOf(pnPc(root));
+  if (d < 0) return '?';
+  const base = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'][d];
+  return minor ? base.toLowerCase() : base;
+}
+function pnChartLesson(chart, level = 'full'){
   const key = chart.key || { root: 0, mode: 'major', camelot: '8B' };
   const keyObj = pnMakeKey(key.root, key.mode === 'minor' ? 'minor' : 'major');
   const keyNm = pnKeyName(keyObj);
@@ -57507,10 +57601,19 @@ function pnChartLesson(chart){
   steps.push({ type: 'info', title: chart.title + ': the record, in your hands',
     text: 'The piano part of "' + chart.title + '", transcribed from the record itself: ' + keyNm + ' (' + (key.camelot || '') + '), ' + bpm + ' BPM, ' + bars + ' bars' + (sect ? ' — ' + sect : '') + '. Press Play the record to hear it; the notes fall down the highway in time with what you hear. Learn the chords first, then the riff, then play with the band.',
     action: 'cue:0', scalePcs: pnKeyScalePcs(keyObj), key: keyObj });
-  // the loop's chords as hand shapes, voice-led so the hand parks
-  const loopNames = chart.loop && chart.loop.length ? chart.loop : [];
+  // the loop's chords as hand shapes, voice-led so the hand parks — in the
+  // order the drop plays them, so "chord 1" is the chord you hear on the one
+  const focus = pnFocusSection(chart);
+  const fFrom = focus.bar || 0, fTo = Math.min(bars, fFrom + (focus.bars || 8));
+  const cyc = pnSectionLoop(chart, fFrom, fTo);
+  const flats = pnKeyUsesFlats(keyObj);
+  const romans = cyc.map(c => pnRomanIn(keyObj, c.root, c.minor));
+  const loopNames = cyc.map(c => pnPcName(c.root, flats) + (c.minor ? 'm' : ''));
   const chordByName = {};
-  for (const c of chart.chords || []) if (c && c.name && !chordByName[c.name]) chordByName[c.name] = c;
+  cyc.forEach((c, i) => { chordByName[loopNames[i]] = { root: c.root, pcs: c.minor ? [c.root, (c.root + 3) % 12, (c.root + 7) % 12] : [c.root, (c.root + 4) % 12, (c.root + 7) % 12] }; });
+  const famous = { 'I V vi IV': 'the four chords of a thousand songs — the same loop as the trainer\'s first lesson, here in ' + keyNm, 'vi IV I V': 'the "sensitive" rotation of the four chords', 'I vi IV V': 'the doo-wop cycle', 'I vi IV': 'I–vi–IV, the four chords without the V' };
+  const rn = romans.join(' ');
+  const fame = famous[rn] ? ' That is ' + famous[rn] + '.' : '';
   let prev = null;
   const loopVoicings = [];
   loopNames.forEach((name, i) => {
@@ -57518,26 +57621,73 @@ function pnChartLesson(chart){
     if (!c || !c.pcs) return;
     const v = pnChartVoicing(c.pcs, prev); prev = v;
     loopVoicings.push(v);
-    steps.push({ type: 'press', title: 'Chord ' + (i + 1) + ' of the loop: ' + name, text: 'Hold ' + v.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + ' together. ' + (i === 0 ? 'The loop of this record is ' + loopNames.join(' – ') + '; land each chord as one shape.' : 'Move as little as you can from the last shape.'),
+    steps.push({ type: 'press', title: 'Chord ' + (i + 1) + ' of the loop: ' + name + ' (' + romans[i] + ')', text: 'Hold ' + v.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + ' together. ' + (i === 0 ? 'The ' + (focus.name || 'drop').toLowerCase() + ' cycles ' + loopNames.join(' – ') + ' (' + romans.join('–') + ').' + fame + ' Land each chord as one shape.' : 'Move as little as you can from the last shape.'),
       notes: v, fingers: pnChartFingers(v), hand: 'right', chord: null, focus: [Math.min(...v) - 5, Math.max(...v) + 5], anyOctave: true });
   });
+  // the rest of the song's chords: what the other loud sections add to the
+  // cycle, longest section first (the climax usually carries the full loop)
+  const extra = [];
+  const others = (chart.sections || []).filter(s => s !== focus && /drop|chorus/i.test(s.name || '') && s.bars >= 4).sort((a, b) => b.bars - a.bars);
+  for (const sec of others){
+    for (const x of pnSectionLoop(chart, sec.bar, Math.min(bars, sec.bar + sec.bars))){
+      if (cyc.some(y => y.root === x.root) || extra.some(y => y.root === x.root)) continue;
+      extra.push(Object.assign({ where: sec.name }, x));
+    }
+  }
+  for (const x of extra){
+    const pcs = x.minor ? [x.root, (x.root + 3) % 12, (x.root + 7) % 12] : [x.root, (x.root + 4) % 12, (x.root + 7) % 12];
+    const v = pnChartVoicing(pcs, prev); prev = v;
+    const nm = pnPcName(x.root, flats) + (x.minor ? 'm' : ''), r = pnRomanIn(keyObj, x.root, x.minor);
+    const all = romans.concat([r]);
+    const four = ['I', 'V', 'vi', 'IV'].every(q => all.includes(q));
+    steps.push({ type: 'press', title: (x.where || 'Later sections') + ' adds ' + nm + ' (' + r + ')', text: 'Hold ' + v.map(m => pnNoteName(m, flats)).join(' ') + '. In ' + (x.where || 'later sections') + ' the cycle grows to include ' + nm + (four ? ': I–V–vi–IV, the four chords of a thousand songs — the trainer\'s very first lesson, here in ' + keyNm + '.' : '.'),
+      notes: v, fingers: pnChartFingers(v), hand: 'right', chord: null, focus: [Math.min(...v) - 5, Math.max(...v) + 5], anyOctave: true });
+  }
   if (loopVoicings.length){
-    const first = (chart.chords || []).findIndex(c => c && c.name === loopNames[0]);
+    const first = fFrom;
     const roots = loopNames.map(n => chordByName[n]).filter(Boolean).map(c => 36 + ((c.root - 36) % 12 + 12) % 12);
     steps.push({ type: 'sequence', title: 'The bass roots', text: 'Left hand: the root of each chord, low, in order: ' + roots.map(m => pnNoteName(m)).join(' ') + '.', notes: roots, hand: 'left', anyOctave: true, focus: [Math.min(...roots) - 4, Math.max(...roots) + 6], demo: { notes: roots, mode: 'seq', tempo: 70 } });
     steps.push({ type: 'count', title: 'Loop with the record', text: 'Cue the record where the loop starts and play the chords with it, one shape per bar. Twelve chord landings.', count: 12, notes: loopVoicings[0], focus: [50, 80], action: 'cue:' + Math.max(0, first), record: true });
   }
-  // the riff, phrase by phrase
-  const phrases = (chart.phrases || []).filter(p => p.notes && p.notes.length >= 3).slice(0, PN_CHART_MAX_PHRASES);
+  // practice, the way the apps teach a song: the first loud section, hands apart then together, the song waiting for you
+  const riffAll = chart.riff || [];
+  const pract = [];
+  const dropSec = focus;
+  const pFrom = dropSec.bar || 0, pTo = Math.min(bars, pFrom + Math.min(8, dropSec.bars || 8));
+  if (riffAll.some(n => n.b >= pFrom * 4 && n.b < pTo * 4)){
+    const secName = (dropSec.name || 'the record').toLowerCase();
+    pract.push(pnPracticeStep(chart, { from: pFrom, to: pTo, hands: 'right', level, tempo: 0.6, passes: 1, name: secName }));
+    if (pnChartArrange(chart, level).left.some(n => n.b >= pFrom * 4 && n.b < pTo * 4)){
+      pract.push(pnPracticeStep(chart, { from: pFrom, to: pTo, hands: 'left', level, tempo: 0.6, passes: 1, name: secName }));
+      pract.push(pnPracticeStep(chart, { from: pFrom, to: pTo, hands: 'both', level, tempo: 0.5, passes: 1, name: secName }));
+    }
+  }
+  // the riff, phrase by phrase: two-bar pieces of the drop (where the hook
+  // lives and the transcription is best), folded under one hand at Easy
+  const right = pnChartArrange(chart, level).right;
+  const phrases = [];
+  for (let b = pFrom; b + 2 <= pTo && phrases.length < PN_CHART_MAX_PHRASES; b += 2){
+    let ns = right.filter(n => n.b >= b * 4 && n.b < (b + 2) * 4);
+    if (level === 'easy') ns = pnFoldLine(ns);
+    if (ns.length >= 3) phrases.push({ bar: b, notes: ns });
+  }
+  if (!phrases.length) for (const p of (chart.phrases || []).filter(p => p.notes && p.notes.length >= 3).slice(0, PN_CHART_MAX_PHRASES)) phrases.push(p);
+  // finger the section's line as ONE piece, then slice it: the hand keeps its
+  // position from phrase to phrase, the way a teacher would mark the part
+  const allLine = phrases.flatMap(p => p.notes.map(n => n.m));
+  const allFingers = pnFingerLine(allLine, 'right');
+  let fAt = 0;
   phrases.forEach((p, i) => {
     const notes = p.notes.map(n => n.m);
-    steps.push({ type: 'sequence', title: 'Riff, phrase ' + (i + 1) + ' (bar ' + (p.bar + 1) + ')', text: 'Play the record\'s line note by note: ' + notes.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + '. Listen plays it at half speed; the record button plays the real thing from that bar.',
-      notes, hand: 'right', focus: [Math.min(...notes) - 3, Math.max(...notes) + 3], demo: { notes, mode: 'seq', tempo: Math.max(50, Math.round(bpm * 0.5)) }, action: 'cue:' + p.bar, anyOctave: false });
+    const fingerSeq = allFingers.slice(fAt, fAt + notes.length); fAt += notes.length;
+    steps.push({ type: 'sequence', title: 'Riff, phrase ' + (i + 1) + ' (bars ' + (p.bar + 1) + '–' + (p.bar + 2) + ')', text: 'Play the record\'s line note by note: ' + notes.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + '. Listen plays it at half speed; the record button plays the real thing from that bar.',
+      notes, fingerSeq, hand: 'right', focus: [Math.min(...notes) - 3, Math.max(...notes) + 3], demo: { notes, mode: 'seq', tempo: Math.max(50, Math.round(bpm * 0.5)) }, action: 'cue:' + p.bar, anyOctave: false });
   });
-  // play along with the record: the first loud section, then everything
-  const riff = chart.riff || [];
+  steps.push(...pract);   // learn the phrases first, then put the section together in wait mode
+  // play along with the record: the first loud section, then everything (scored)
+  const riff = pnChartArrange(chart, level).right;
   if (riff.length){
-    const drop = (chart.sections || []).find(s => /drop|chorus/i.test(s.name || '')) || (chart.sections || [])[0] || { bar: 0, bars: bars };
+    const drop = focus;
     const from = drop.bar || 0, to = from + (drop.bars || 8);
     const slice = riff.filter(n => n.b >= from * 4 && n.b < to * 4);
     const win = slice.length >= 8 ? slice : riff.slice(0, 32);
@@ -57547,7 +57697,111 @@ function pnChartLesson(chart){
       notes: riff, needed: Math.min(riff.length, 40), tolerance: 0.35, anyOctave: true, action: 'cue:0', record: true, focus: [Math.min(...riff.map(n => n.m)) - 4, Math.max(...riff.map(n => n.m)) + 4] });
   }
   steps.push({ type: 'info', title: 'Make it yours', text: 'Perform tab: pick "' + chart.title + '" under Record and the chart falls while the track plays; add your own right hand over the loop, or transpose the loop with the circle and play it with the built-in band.' });
-  return { id: 'chart:' + chart.tag, title: chart.title, minutes: 12 + phrases.length, blurb: 'The piano part of the record, learned from the record.', chart: true, steps };
+  return { id: 'chart:' + chart.tag, title: chart.title, minutes: 14 + phrases.length, blurb: 'The piano part of the record, learned from the record.', chart: true, level, steps };
+}
+function pnStars(acc){ return acc >= 0.95 ? 3 : acc >= 0.8 ? 2 : acc >= 0.55 ? 1 : 0; }
+/* consecutive practice days ending today (or yesterday: a streak survives until the day is over) */
+function pnStreak(days, now){
+  const key = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const set = new Set(days || []);
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (!set.has(key(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (set.has(key(d)) && n < 1000){ n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+/* ARRANGEMENTS. "Full" is the transcription; "Easy" is what a first-week
+   player can hold: the right hand thinned to one note per beat (the note on
+   the beat, else the first in it), the left hand to the chord root once a
+   bar. The apps call these levels; here they are two readings of one chart. */
+/* the left hand from the chords: Easy holds the root for the bar; Full plays
+   root on 1 and the fifth on 3, low, the way a pianist covers a bass line */
+function pnChordLeft(chart, level){
+  const out = [];
+  for (const c of chart.chords || []){
+    if (!c || c.root == null) continue;
+    const root = 36 + ((c.root - 36) % 12 + 12) % 12;
+    if (level === 'easy') out.push({ m: root, b: c.bar * 4, d: 4, v: 0.7 });
+    else { out.push({ m: root, b: c.bar * 4, d: 2, v: 0.75 }); out.push({ m: root + 7, b: c.bar * 4 + 2, d: 2, v: 0.6 }); }
+  }
+  return out;
+}
+/* fold a line into one hand position: each note moved by octaves to sit
+   within `span` semitones of the line's median — leaps an arranger would
+   never hand a beginner become steps, and the melody's shape survives */
+function pnFoldLine(notes, span = 11){
+  if (!notes.length) return notes;
+  const sorted = notes.map(n => n.m).sort((a, b) => a - b);
+  const mid = sorted[Math.floor(sorted.length / 2)];
+  const lo = mid - Math.floor(span / 2), hi = lo + span;
+  return notes.map(n => {
+    let m = n.m;
+    while (m < lo) m += 12;
+    while (m > hi) m -= 12;
+    if (m < lo) m = n.m;                 // nothing fits: leave the note where it was
+    return m === n.m ? n : Object.assign({}, n, { m });
+  });
+}
+/* a beginner's fingering for a single line: a hand position is the run of
+   notes that fits under five fingers (≤ 7 semitones); in each, the lowest
+   note takes the thumb (right hand) or the pinky (left), the rest by rank */
+function pnFingerLine(midis, hand = 'right'){
+  const f = new Array(midis.length);
+  let i = 0;
+  while (i < midis.length){
+    let lo = midis[i], hi = midis[i], j = i;
+    while (j + 1 < midis.length && Math.max(hi, midis[j + 1]) - Math.min(lo, midis[j + 1]) <= 7){ j++; lo = Math.min(lo, midis[j]); hi = Math.max(hi, midis[j]); }
+    // a five-finger position covers about a whole step per finger: the
+    // distance from the bottom of the position picks the finger
+    const STEP = [0, 1, 1, 2, 2, 3, 4, 4];          // semitones above the bottom → finger offset
+    for (let k = i; k <= j; k++){ const r = STEP[midis[k] - lo]; f[k] = hand === 'left' ? 5 - r : 1 + r; }
+    i = j + 1;
+  }
+  return f;
+}
+function pnChartArrange(chart, level = 'full'){
+  const riff = chart.riff || [];
+  const left = chart.leftVerified ? (chart.left || []) : pnChordLeft(chart, level);
+  if (level !== 'easy') return { right: riff, left };
+  const byBeat = new Map();
+  for (const n of riff){
+    const k = Math.floor(n.b);
+    const cur = byBeat.get(k);
+    if (!cur || (n.b === k && cur.b !== k) || (cur.b !== k && n.b < cur.b)) byBeat.set(k, n);
+  }
+  const right = pnFoldLine([...byBeat.values()].sort((a, b) => a.b - b.b).map(n => Object.assign({}, n, { d: Math.max(n.d, 1) })));
+  return { right, left: pnChordLeft(chart, 'easy') };
+}
+/* a practice (wait-mode) step over a section: `hands` picks what is yours, the
+   rest is the accompaniment the trainer plays for you; groups are the 16ths */
+function pnPracticeStep(chart, opts){
+  const o = Object.assign({ from: 0, to: 8, hands: 'right', level: 'full', tempo: 0.6, passes: 1, title: '' }, opts || {});
+  const arr = pnChartArrange(chart, o.level);
+  const inRange = n => n.b >= o.from * 4 && n.b < o.to * 4;
+  const mine = (o.hands === 'both' ? [...arr.right, ...arr.left] : o.hands === 'left' ? arr.left : arr.right).filter(inRange).sort((a, b) => a.b - b.b || a.m - b.m);
+  const accomp = (o.hands === 'both' ? [] : o.hands === 'left' ? arr.right : arr.left).filter(inRange).sort((a, b) => a.b - b.b || a.m - b.m);
+  const groups = [];
+  for (const n of mine){
+    const g = groups[groups.length - 1];
+    if (g && Math.abs(g.b - n.b) < 1e-9){ if (!g.m.includes(n.m)) g.m.push(n.m); }
+    else groups.push({ b: n.b, m: [n.m] });
+  }
+  const fingerHand = (hand, pick) => {
+    const idx = [], line = [];
+    groups.forEach((g, i) => { const ms = g.m.filter(m => hand === 'left' ? m < 60 : m >= 60); if (ms.length){ idx.push(i); line.push(pick(ms)); } });
+    const fl = pnFingerLine(line, hand);
+    idx.forEach((gi, k) => { const g = groups[gi]; g.f = g.f || {}; g.f[line[k]] = fl[k]; });
+  };
+  if (o.hands !== 'left') fingerHand('right', ms => Math.max(...ms));
+  if (o.hands !== 'right') fingerHand('left', ms => Math.min(...ms));
+  const handNm = { right: 'Right hand', left: 'Left hand', both: 'Both hands' }[o.hands];
+  const lo = mine.length ? Math.min(...mine.map(n => n.m)) : 55, hi = mine.length ? Math.max(...mine.map(n => n.m)) : 79;
+  return {
+    type: 'practice', title: o.title || ('Practice: ' + handNm.toLowerCase() + (o.name ? ', ' + o.name : '')),
+    text: 'Wait mode: the song holds at each note until you play it, then moves on' + (accomp.length ? ', and the other hand is played for you' : '') + '. Slow it down with the tempo slider; it will not run away. ' + (o.passes > 1 ? o.passes + ' passes' : 'One clean pass') + ' through bars ' + (o.from + 1) + '–' + o.to + '.',
+    notes: mine, accomp, groups, from: o.from * 4, to: o.to * 4, hands: o.hands, level: o.level, tempo: o.tempo, passes: o.passes, name: o.name || '',
+    hand: o.hands === 'both' ? null : o.hands, anyOctave: false, focus: [lo - 4, hi + 4], practice: true,
+  };
 }
 /* the chart notes in a window of beats, shaped for the highway */
 function pnChartWindow(chart, beat, span = 9){
@@ -58052,7 +58306,7 @@ class PnStage {
       const yBottom = kbTop - (ev.start - beat) * pxPerBeat, hh = ev.dur * pxPerBeat;
       if (yBottom < -hh || yBottom - hh > kbTop) continue;
       const active = beat >= ev.start && beat < ev.start + ev.dur;
-      const col = this.pcCss(pnPc(ev.midi), 0.72, 0.15, active ? 0.85 : 0.42);
+      const col = this.pcCss(pnPc(ev.midi), 0.72, 0.15, ev.dim ? (active ? 0.4 : 0.18) : (active ? 0.85 : 0.42));
       g.fillStyle = col;
       const x = r.x + r.w * 0.16, w = r.w * 0.68;
       this._rr(x, Math.max(-4, yBottom - hh), w, Math.min(hh, yBottom + 4) - Math.max(-4, yBottom - hh), 3 * dpr); g.fill();
@@ -58336,6 +58590,7 @@ const PIANO = {
       this.allOff();
       if (this.mic.on) this.toggleMic();
       this.record = null; this._recBar = null;
+      this.stopPractice();
       this.persist();
     }
   },
@@ -58349,9 +58604,9 @@ const PIANO = {
     this.state = Object.assign({
       mode: 'learn', key: pnMakeKey(0, 'major'), style: 'house', progId: 'anthem', instrument: 'piano',
       keyLock: false, chordMode: false, arp: 'off', arpRate: 2, autoLeft: true, labels: 'c', showScale: true,
-      guideChords: true, volume: 0.8, filter: 1, reverb: 0.25, a4: 440, bpm: 110,
+      guideChords: true, volume: 0.8, filter: 1, reverb: 0.25, a4: 440, bpm: 110, chartLevel: 'easy',
       lessonId: 'fourchords', done: {}, recording: false,
-    }, saved.prefs || {}, { lessonId: saved.lessonId || 'fourchords', done: saved.done || {} });
+    }, saved.prefs || {}, { lessonId: saved.lessonId || 'fourchords', done: saved.done || {}, scores: saved.scores || {} });
     if (!pnLessonById(this.state.lessonId)) this.state.lessonId = 'fourchords';
     this.engine = new PnAudio();
     this.clock = new PnClock(() => (this.engine.ctx ? this.engine.ctx.currentTime : performance.now() / 1000));
@@ -58378,9 +58633,9 @@ const PIANO = {
     if (!this.state) return;
     const s = this.state;
     const prefs = {};
-    for (const k of ['mode', 'key', 'style', 'progId', 'instrument', 'keyLock', 'chordMode', 'arp', 'arpRate', 'autoLeft', 'labels', 'showScale', 'guideChords', 'volume', 'filter', 'reverb', 'a4']) prefs[k] = s[k];
+    for (const k of ['mode', 'key', 'style', 'progId', 'instrument', 'keyLock', 'chordMode', 'arp', 'arpRate', 'autoLeft', 'labels', 'showScale', 'guideChords', 'volume', 'filter', 'reverb', 'a4', 'chartLevel', 'practiceClick', 'days']) prefs[k] = s[k];
     prefs.bpm = this.clock ? this.clock.bpm : s.bpm;
-    try { localStorage.setItem('mb8_piano', JSON.stringify({ lessonId: s.lessonId, done: s.done, prefs, midi: !!(this.midi.access) })); } catch (e){}
+    try { localStorage.setItem('mb8_piano', JSON.stringify({ lessonId: s.lessonId, done: s.done, scores: s.scores, prefs, midi: !!(this.midi.access) })); } catch (e){}
   },
 
   /* ------------------------------------------------ audio */
@@ -58416,9 +58671,25 @@ const PIANO = {
       this.noteInfo(null);
     }
   },
+  _score(){
+    const r = this.runner;
+    if (!r || !r.done) return;
+    const st = r.step;
+    if (!['practice', 'playalong', 'sequence', 'groove', 'ear', 'find'].includes(st.type)) return;
+    const acc = r.accuracy, stars = pnStars(acc);
+    const key = this.state.lessonId, idx = r.index;
+    this.markPracticeDay();
+    const sc = this.state.scores[key] || (this.state.scores[key] = {});
+    const prev = sc[idx];
+    if (!prev || prev.stars < stars || (prev.stars === stars && prev.acc < acc)) sc[idx] = { stars, acc: Math.round(acc * 100) / 100 };
+    this.persist();
+    if (st.type === 'practice' || st.type === 'playalong') this.say('★'.repeat(stars) + '☆'.repeat(3 - stars) + '  ' + Math.round(acc * 100) + '% clean' + (prev && prev.stars < stars ? ' — a new best' : ''), 5000);
+  },
   _afterInput(wasDone){
     const r = this.runner;
     if (!r) return;
+    if (r.step.type === 'practice' && this.practice){ this._practiceAdvance(); }
+    if (r.done && !wasDone) this._score();
     if (r.done !== wasDone || r.step.type !== 'info'){
       if (this.state.mode === 'learn'){ this._applyGuide(); this.renderLessonBody(); }
       if (r.finished) this.state.done[this.state.lessonId] = true;
@@ -58485,7 +58756,7 @@ const PIANO = {
     const s = this.state;
     const free = !(s.mode === 'learn' && this.runner && this.runner.step.scalePcs);
     if (free){ this.stage.scalePcs = s.showScale ? new Set(pnKeyScalePcs(s.key)) : null; this.stage.rootPc = s.key.root; }
-    if (this.el.key) this.el.key.textContent = pnKeyName(s.key) + ' · ' + pnCamelot(s.key);
+    if (this.el.key){ const st = this.streak ? this.streak() : 0; this.el.key.textContent = pnKeyName(s.key) + ' · ' + pnCamelot(s.key) + (st >= 2 ? ' · ' + st + '-day streak' : ''); }
   },
   setProgression(id){
     const s = this.state;
@@ -58510,8 +58781,13 @@ const PIANO = {
     }
     this.persist();
   },
+  setChartLevel(level){
+    this.state.chartLevel = level; this.persist();
+    if (this.runner && this.runner.lesson.chart) this.setLesson(this.runner.lesson.id, true, true);
+  },
   setMode(mode){
     this.state.mode = mode;
+    this.stopPractice();
     if (mode === 'learn') this._applyGuide();
     else { this.stage.guide = { keys: [], badges: [] }; this.stage.focus(null); }
     this.applyKey();
@@ -58519,12 +58795,20 @@ const PIANO = {
   },
 
   /* ------------------------------------------------ lessons */
-  setLesson(id, resume = true){
+  setLesson(id, resume = true, keepIndex = false){
+    if (!/^chart:/.test(id) || this.charts[id.slice(6)]) this._wantLesson = id;
+    const prevIndex = keepIndex && this.runner && this.runner.lesson.id === id ? this.runner.index : 0;
+    this.stopPractice();
     let lesson = null;
     if (/^chart:/.test(id)){
       const tag = id.slice(6), chart = this.charts[tag];
-      if (!chart){ this.loadChart(tag).then(c => { if (c) this.setLesson(id, true); }); return; }
-      lesson = pnChartLesson(chart);
+      if (!chart){
+        // a chart arrives later; it applies only if the learner still wants it
+        this._wantLesson = id;
+        this.loadChart(tag).then(c => { if (c && this._wantLesson === id) this.setLesson(id, true); });
+        return;
+      }
+      lesson = pnChartLesson(chart, this.state.chartLevel || 'easy');
     }
     if (!lesson) lesson = pnLessonById(id) || PN_ALL_LESSONS[0];
     this.state.lessonId = lesson.id;
@@ -58534,6 +58818,7 @@ const PIANO = {
         recordBeat: () => this.recordBeat(),
       },
     });
+    if (prevIndex) this.runner.goto(Math.min(prevIndex, this.runner.total - 1));
     if (lesson.chart && lesson.steps[0] && lesson.steps[0].key) this.setKey(lesson.steps[0].key);
     if (this.state.mode === 'learn') this._applyGuide();
     this.persist();
@@ -58550,6 +58835,7 @@ const PIANO = {
   },
   lessonNext(){
     const r = this.runner;
+    this.stopPractice();
     if (!r.next()){
       this.state.done[this.state.lessonId] = true;
       if (r.lesson.chart){ this.persist(); this.stopRecord(); this.say('That is the record, learned. Pick another lesson.'); this.renderAll(); return; }
@@ -58651,6 +58937,88 @@ const PIANO = {
     if (typeof SPEED === 'undefined') return;
     const want = slow ? SPEED.STEPS.indexOf(0.75) : 0;
     if (want >= 0 && SPEED.idx !== want){ SPEED.idx = want; SPEED.apply(); try { DB.kvSet('speed', String(SPEED.idx)).catch(() => {}); } catch (e){} }
+  },
+
+  /* ------------------------------------------------ practice: wait mode on the trainer's own clock */
+  startPractice(){
+    const r = this.runner;
+    if (!r || r.step.type !== 'practice') return;
+    this.ensureAudio();
+    this.stopBeat();
+    if (this.recordPlaying()) this.stopRecord();
+    const st = r.step;
+    r.restartStep();
+    const g0 = st.groups[0];
+    this.practice = { step: st, beat: Math.max(st.from, (g0 ? g0.b : st.from) - 2), lastT: performance.now(), waiting: false, accIdx: 0, bpm: (this.charts[r.lesson.id.slice(6)] || { bpm: 120 }).bpm };
+    const acc = st.accomp;
+    while (this.practice.accIdx < acc.length && acc[this.practice.accIdx].b < this.practice.beat) this.practice.accIdx++;
+    this._applyGuide();
+    this.renderLessonBody();
+  },
+  stopPractice(){
+    if (!this.practice) return;
+    this.practice = null;
+    if (this.ctxReady) this.engine.allOff();
+    if (this.stage) this.stage.guideEvents = [];
+    if (this.on) this.renderLessonBody();
+  },
+  /* the cursor moved (a group was played): let the clock run again */
+  _practiceAdvance(){
+    const p = this.practice, r = this.runner;
+    if (!p || !r) return;
+    const st = p.step;
+    if (r.done){ this.practice = null; if (this.stage) this.stage.guideEvents = []; return; }
+    const g = st.groups[r.pos];
+    if (r.pos === 0 && p.waiting && g && p.beat > g.b){ p.beat = Math.max(st.from, g.b - 2); p.accIdx = 0; }   // a new pass: back to the top
+    p.waiting = false; p.lastT = performance.now();
+  },
+  _practiceTick(now){
+    const p = this.practice, r = this.runner;
+    if (!p || !r || r.step !== p.step) return null;
+    const st = p.step, dt = Math.min(0.1, (now - p.lastT) / 1000);
+    p.lastT = now;
+    const bpm = p.bpm * (st.tempo || 0.6), spb = 60 / bpm;
+    const g = st.groups[r.pos];
+    if (!p.waiting){
+      const before = p.beat;
+      p.beat += dt / spb;
+      // the metronome, on each beat the clock crosses while it runs
+      if (this.state.practiceClick && this.ctxReady && Math.floor(p.beat) > Math.floor(before)) this.engine.drum('click', this.engine.ctx.currentTime, 1, { accent: Math.floor(p.beat) % 4 === 0 });
+      if (g && p.beat >= g.b){ p.beat = g.b; p.waiting = true; }
+      if (!g && p.beat > st.to + 1) p.beat = st.to + 1;
+      // the accompaniment, on time
+      const acc = st.accomp;
+      while (p.accIdx < acc.length && acc[p.accIdx].b <= p.beat){
+        const n = acc[p.accIdx++];
+        if (this.ctxReady) this.engine.playTimed(n.m, 0.42 * (0.5 + n.v), this.engine.ctx.currentTime, Math.max(0.12, n.d * spb * 0.95), 'piano');
+        this.stage.flash.set(n.m, now / 1000);
+      }
+      while (p.accIdx > 0 && acc[p.accIdx - 1].b > p.beat) p.accIdx--;
+    }
+    return p.beat;
+  },
+  togglePracticeLoop(){
+    const r = this.runner;
+    if (!r || r.step.type !== 'practice') return;
+    r.step.loop = !r.step.loop;
+    r.step.passes = r.step.loop ? 999 : 1;
+    this.renderLessonBody();
+  },
+  togglePracticeClick(){ this.state.practiceClick = !this.state.practiceClick; this.persist(); this.renderLessonBody(); },
+  setPracticeTempo(t){
+    if (!this.runner || this.runner.step.type !== 'practice') return;
+    this.runner.step.tempo = Math.max(0.3, Math.min(1, t));
+  },
+  setPracticeHands(hands){
+    const r = this.runner;
+    if (!r || r.step.type !== 'practice') return;
+    const chart = this.charts[r.lesson.id.slice(6)];
+    if (!chart) return;
+    const old = r.step;
+    const st = pnPracticeStep(chart, { from: old.from / 4, to: old.to / 4, hands, level: old.level, tempo: old.tempo, passes: old.passes, name: old.name });
+    r.lesson.steps[r.index] = st;
+    r.restartStep();
+    if (this.practice) this.startPractice(); else { this._applyGuide(); this.renderLessonBody(); }
   },
 
   /* ------------------------------------------------ transport & backing */
@@ -58863,14 +59231,21 @@ const PIANO = {
   _frame(){
     const s = this.state;
     let beat = this.clock.beat, running = this.clock.running;
-    const rb = this.recordBeat();
-    if (rb != null){
+    const pb = this._practiceTick(performance.now());
+    const rb = pb == null ? this.recordBeat() : null;
+    if (pb != null){
+      beat = pb; running = true;
+      const st = this.practice.step, ev = [];
+      for (const n of st.accomp) if (n.b + n.d >= pb - 1 && n.b <= pb + 9) ev.push({ midi: n.m, start: n.b, dur: n.d, chord: -1, dim: true });
+      for (const n of st.notes) if (n.b + n.d >= pb - 1 && n.b <= pb + 9) ev.push({ midi: n.m, start: n.b, dur: n.d, chord: -1 });
+      this.stage.guideEvents = ev;
+    } else if (rb != null){
       beat = rb; running = true;
       this.stage.guideEvents = pnChartWindow(this.record.chart, rb, 9);
       const c = pnChartChordAt(this.record.chart, rb);
       if (c.bar !== this._recBar){ this._recBar = c.bar; this._paintRecordBar(c); }
     } else if (this.record && this._recBar != null){ this._recBar = null; this._paintRecordBar(null); }
-    if (rb != null){}
+    if (pb != null || rb != null){}
     else if (running && s.guideChords && s.mode !== 'learn') this.stage.guideEvents = pnGuideEvents(this.loop, beat, beat + 9, 4);
     else if (running && s.guideChords && s.mode === 'learn' && this.runner && this.runner.step.type === 'count') this.stage.guideEvents = pnGuideEvents(this.loop, beat, beat + 9, 4);
     else this.stage.guideEvents = [];
@@ -58930,12 +59305,12 @@ const PIANO = {
         const open = t === trackOf;
         return '<details' + (open ? ' open' : '') + '><summary><span>' + this.esc(t.title) + '</span><small>' + doneN + '/' + t.lessons.length + '</small></summary>' +
           '<p class="pn-blurb">' + this.esc(t.blurb) + '</p>' +
-          t.lessons.map(l => '<button type="button" data-id="' + l.id + '" class="pn-lesson ' + (l.id === cur.id ? 'on' : '') + '"><span class="tick">' + (s.done[l.id] ? '✓' : '○') + '</span><span class="nm">' + this.esc(l.title) + '</span><small>' + l.minutes + ' min</small></button>').join('') +
+          t.lessons.map(l => '<button type="button" data-id="' + l.id + '" class="pn-lesson ' + (l.id === cur.id ? 'on' : '') + '"><span class="tick">' + (s.done[l.id] ? '✓' : '○') + '</span><span class="nm">' + this.esc(l.title) + '</span><small>' + (this.lessonStars(l.id) || (l.minutes + ' min')) + '</small></button>').join('') +
           '</details>';
       }).join('') +
       '<details' + (/^chart:/.test(cur.id) ? ' open' : '') + '><summary><span>' + this.esc(T('From the record')) + '</span><small>' + PN_CHARTS.filter(c => s.done['chart:' + c.tag]).length + '/' + PN_CHARTS.length + '</small></summary>' +
       '<p class="pn-blurb">' + this.esc(T('Library tracks whose piano part was transcribed from the record: chords, riff, then play along with the band.')) + '</p>' +
-      PN_CHARTS.map(c => '<button type="button" data-id="chart:' + c.tag + '" class="pn-lesson ' + ('chart:' + c.tag === cur.id ? 'on' : '') + '"><span class="tick">' + (s.done['chart:' + c.tag] ? '✓' : '♪') + '</span><span class="nm">' + this.esc(c.title) + '</span><small>' + this.esc(T('record')) + '</small></button>').join('') +
+      PN_CHARTS.map(c => '<button type="button" data-id="chart:' + c.tag + '" class="pn-lesson ' + ('chart:' + c.tag === cur.id ? 'on' : '') + '"><span class="tick">' + (s.done['chart:' + c.tag] ? '✓' : '♪') + '</span><span class="nm">' + this.esc(c.title) + '</span><small>' + (this.lessonStars('chart:' + c.tag) || this.esc(T('record'))) + '</small></button>').join('') +
       '</details></aside><div class="pn-body"><select class="pn-pick" id="pnPick" aria-label="Lesson">' +
       PN_TRACKS.map(t => '<optgroup label="' + this.esc(t.title) + '">' + t.lessons.map(l => '<option value="' + l.id + '" ' + (l.id === cur.id ? 'selected' : '') + '>' + (s.done[l.id] ? '✓ ' : '') + this.esc(l.title) + ' · ' + l.minutes + ' min</option>').join('') + '</optgroup>').join('') +
       '<optgroup label="' + this.esc(T('From the record')) + '">' + PN_CHARTS.map(c => '<option value="chart:' + c.tag + '" ' + ('chart:' + c.tag === cur.id ? 'selected' : '') + '>♪ ' + this.esc(c.title) + '</option>').join('') + '</optgroup>' +
@@ -58943,6 +59318,20 @@ const PIANO = {
     p.querySelectorAll('.pn-lesson').forEach(b => b.addEventListener('click', () => { this.setLesson(b.dataset.id); }));
     p.querySelector('#pnPick').addEventListener('change', ev => this.setLesson(ev.target.value));
     this.renderLessonBody();
+  },
+  markPracticeDay(){
+    const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const days = this.state.days || (this.state.days = []);
+    if (days[days.length - 1] !== day){ days.push(day); if (days.length > 400) days.splice(0, days.length - 400); this.persist(); this.renderTop(); }
+  },
+  streak(){ return pnStreak(this.state.days || [], new Date()); },
+  lessonStars(id){
+    const sc = this.state.scores[id];
+    if (!sc) return '';
+    const vals = Object.values(sc);
+    if (!vals.length) return '';
+    const avg = vals.reduce((a, v) => a + v.stars, 0) / vals.length;
+    return '<span class="pn-stars">' + '★'.repeat(Math.round(avg)) + '<i>' + '★'.repeat(3 - Math.round(avg)) + '</i></span>';
   },
   _paintProgress(){
     const bar = document.querySelector('#pnLessonBody .pn-bar i');
@@ -58967,6 +59356,17 @@ const PIANO = {
           '<div class="pn-opts wrap">' + st.choices.map((c, i) => '<button type="button" data-e="' + i + '" class="pn-opt ' + (r.answer === i ? (r.lastRight ? 'right' : 'wrong') : '') + '">' + e(c.label) + '</button>').join('') + '</div>' + bar;
         break;
       }
+      case 'practice': {
+        const on = !!this.practice;
+        const tempoPct = Math.round((st.tempo || 0.6) * 100);
+        body = bar + '<div class="pn-row"><button type="button" id="pnPracGo" class="' + (on ? 'pn-ghost on' : 'pn-primary') + '">' + (on ? '■ ' + e(T('Stop')) : '▶ ' + e(T('Start'))) + '</button>' +
+          '<span class="pn-seg" role="group" aria-label="Hands">' + [['right', 'Right'], ['left', 'Left'], ['both', 'Both']].map(([h, l]) => '<button type="button" data-hands="' + h + '" class="' + (st.hands === h ? 'on' : '') + '">' + e(T(l)) + '</button>').join('') + '</span>' +
+          '<label class="pn-lbl">' + e(T('Tempo')) + ' <input type="range" id="pnPracTempo" min="30" max="100" step="5" value="' + tempoPct + '"><span id="pnPracTempoV">' + tempoPct + '%</span></label>' +
+          '<button type="button" id="pnPracLoop" class="pn-ghost ' + (st.loop ? 'on' : '') + '" aria-pressed="' + !!st.loop + '">⟲ ' + e(T('Loop')) + '</button>' +
+          '<button type="button" id="pnPracClick" class="pn-ghost ' + (this.state.practiceClick ? 'on' : '') + '" aria-pressed="' + !!this.state.practiceClick + '">' + e(T('Click')) + '</button>' +
+          '<span class="pn-dim">' + e((r.pos) + ' / ' + st.groups.length + (r.mistakes ? ' · ' + r.mistakes + ' slips' : '')) + '</span></div>';
+        break;
+      }
       case 'playalong': {
         const slow = typeof SPEED !== 'undefined' && SPEED.rate < 1;
         body = bar + '<div class="pn-row"><button type="button" id="pnRecStop" class="pn-primary">' + (this.recordPlaying() ? '■ ' + e(T('Stop the record')) : '▶ ' + e(T('Play the record'))) + '</button>' +
@@ -58979,8 +59379,11 @@ const PIANO = {
       case 'info': body = ''; break;
       default: body = bar;
     }
+    const score = (this.state.scores[this.state.lessonId] || {})[r.index];
+    const starsHtml = score ? '<span class="pn-stars" title="' + Math.round(score.acc * 100) + '% clean">' + '★'.repeat(score.stars) + '<i>' + '★'.repeat(3 - score.stars) + '</i></span>' : '';
+    const levelHtml = lesson.chart ? '<span class="pn-seg" role="group" aria-label="Arrangement">' + [['easy', 'Easy'], ['full', 'Full']].map(([l, n]) => '<button type="button" data-level="' + l + '" class="' + (lesson.level === l ? 'on' : '') + '">' + e(T(n)) + '</button>').join('') + '</span>' : '';
     const action = st.action && st.type !== 'groove' && st.type !== 'playalong' ? '<button type="button" id="pnAction" class="pn-ghost ' + (/^cue:/.test(st.action) && this.recordPlaying() ? 'on' : '') + '">' + e(this.actionLabel(st.action)) + '</button>' : '';
-    el.innerHTML = '<div class="pn-lhead"><h3>' + e(lesson.title) + '</h3><span>' + e('Step ' + (r.index + 1) + ' / ' + r.total) + '</span></div>' +
+    el.innerHTML = '<div class="pn-lhead"><h3>' + e(lesson.title) + '</h3>' + levelHtml + '<span>' + starsHtml + e('Step ' + (r.index + 1) + ' / ' + r.total) + '</span></div>' +
       '<div class="pn-dots">' + lesson.steps.map((_, i) => '<i class="' + (r.completed.has(i) ? 'd' : '') + (i === r.index ? ' c' : '') + '" data-g="' + i + '" title="' + e(lesson.steps[i].title || '') + '"></i>').join('') + '</div>' +
       '<h2>' + e(st.title || '') + '</h2><p>' + e(st.text || '') + '</p>' +
       '<div class="pn-row">' + (st.demo ? '<button type="button" id="pnListen" class="pn-ghost">🔊 ' + e(T('Listen')) + '</button>' : '') + action + '</div>' +
@@ -58994,7 +59397,7 @@ const PIANO = {
       this.renderLessonBody();
       if (!ok || !r.done) setTimeout(() => { if (this.runner === r && r.step === st) this._playEar(r, st); }, ok ? 500 : 900);
     }));
-    el.querySelectorAll('[data-g]').forEach(d => d.addEventListener('click', () => { r.goto(+d.dataset.g); this._applyGuide(); this.renderLessonBody(); }));
+    el.querySelectorAll('[data-g]').forEach(d => d.addEventListener('click', () => { this.stopPractice(); r.goto(+d.dataset.g); this._applyGuide(); this.renderLessonBody(); }));
     const on = (id, fn) => { const n = el.querySelector('#' + id); if (n) n.addEventListener('click', fn); };
     on('pnListen', () => this.demo(st.demo.notes, st.demo.mode, st.demo.tempo));
     on('pnEarPlay', () => this._playEar(r, st));
@@ -59002,7 +59405,14 @@ const PIANO = {
     on('pnAction', () => this.runAction(st.action));
     on('pnRecStop', () => this.runAction(st.action || 'cue:0'));
     on('pnRecSlow', () => { this.setRecordSpeed(!(typeof SPEED !== 'undefined' && SPEED.rate < 1)); this.renderLessonBody(); });
-    on('pnPrev', () => { r.prev(); this._applyGuide(); this.renderLessonBody(); });
+    on('pnPracGo', () => { if (this.practice) this.stopPractice(); else this.startPractice(); });
+    on('pnPracLoop', () => this.togglePracticeLoop());
+    on('pnPracClick', () => this.togglePracticeClick());
+    el.querySelectorAll('[data-hands]').forEach(b => b.addEventListener('click', () => this.setPracticeHands(b.dataset.hands)));
+    el.querySelectorAll('[data-level]').forEach(b => b.addEventListener('click', () => this.setChartLevel(b.dataset.level)));
+    const tempo = el.querySelector('#pnPracTempo');
+    if (tempo) tempo.addEventListener('input', ev => { this.setPracticeTempo(+ev.target.value / 100); const v = el.querySelector('#pnPracTempoV'); if (v) v.textContent = ev.target.value + '%'; });
+    on('pnPrev', () => { this.stopPractice(); r.prev(); this._applyGuide(); this.renderLessonBody(); });
     on('pnNext', () => { this.lessonNext(); });
   },
   _playEar(r, st){
@@ -59118,7 +59528,7 @@ const PIANO = {
       '<p class="pn-hint">' + e(T('Web MIDI works in Chrome and Edge on a computer. Everything else — the keys, the mouse, the microphone, the lessons — works everywhere.')) + '</p></div>';
     p.querySelector('#pnMidi2').addEventListener('click', () => this.connectMidi(true));
     p.querySelector('#pnMout').addEventListener('change', ev => { this.midi.outputId = ev.target.value || null; });
-    p.querySelector('#pnReset').addEventListener('click', () => { this.state.done = {}; this.persist(); this.say('Progress reset'); this.renderTop(); });
+    p.querySelector('#pnReset').addEventListener('click', () => { this.state.done = {}; this.state.scores = {}; this.persist(); this.say('Progress reset'); this.renderTop(); });
     this._bindCommon(p);
   },
   _select(name, options, value){
