@@ -23,6 +23,10 @@ on:
         description: 'Demucs model (htdemucs_6s has a piano stem; htdemucs falls back to "other")'
         required: false
         default: 'htdemucs_6s'
+      commit:
+        description: 'Commit the chart to this branch (false = only upload the stems and the chart as a run artifact, for inspection)'
+        required: false
+        default: 'true'
 
 concurrency:
   group: piano-chart-${{ github.event.inputs.tag }}
@@ -54,8 +58,22 @@ jobs:
       - name: Verify the transcriber
         run: python3 tools/piano_chart.py --selftest
       - name: Separate and transcribe
-        run: python3 tools/piano_chart.py "${{ github.event.inputs.tag }}" --model "${{ github.event.inputs.model }}"
+        run: python3 tools/piano_chart.py "${{ github.event.inputs.tag }}" --model "${{ github.event.inputs.model }}" --keep "$RUNNER_TEMP/stems"
+      - name: Pack the stems for inspection (FLAC, mono)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          for f in "$RUNNER_TEMP"/stems/*.wav; do
+            ffmpeg -loglevel error -y -i "$f" -ac 1 -ar 44100 "$RUNNER_TEMP/pack/$(basename "${f%.wav}").flac"
+          done
+          cp "docs/charts/${{ github.event.inputs.tag }}.json" "$RUNNER_TEMP/pack/"
+      - name: Upload the stems and the chart
+        uses: actions/upload-artifact@v4
+        with:
+          name: piano-chart-${{ github.event.inputs.tag }}
+          path: ${{ runner.temp }}/pack
+          retention-days: 7
       - name: Commit the chart
+        if: ${{ github.event.inputs.commit != 'false' }}
         run: |
           if [[ -z "$(git status --porcelain docs/charts)" ]]; then echo "chart unchanged"; exit 0; fi
           git config user.name  "aethra-bot"
