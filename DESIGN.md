@@ -1547,6 +1547,31 @@ scenes, booth and sliced screen alike.
   sound are walked by `tools/piano_probe.mjs` (booth and phone widths,
   screenshots of each face). The piano is not a scene: `SCENE_KEYS` and the
   tvOS roster are untouched, and the parity law does not apply to it.
+- **The record, in your hands.** A library track can be *charted*:
+  `tools/piano_chart.py` separates it with Demucs (`htdemucs_6s`, the model
+  with a dedicated piano stem — run by the "Piano chart" workflow on a
+  runner, the way the stems job runs, because the sandboxes that write code
+  cannot fetch the model), transcribes the piano stem with basic-pitch
+  (falling back to a numpy harmonic-summation transcriber with octave and
+  fifth suppression and re-attack tracking), quantises every note to the
+  catalog's own beat grid (`mix.bpm` / `mix.grid`, the lattice CLOCK dances
+  to), reads the chords per bar (template match anchored on the bass line),
+  the key (Krumhansl profiles), the riff (top voice, phrased at rests), the
+  sections (from the catalog's structure) and the loop, and writes
+  `docs/charts/<tag>.json`. `PN_CHARTS` in the page names the charted
+  tracks by sha256; the chart is fetched the first time its track is opened.
+  `pnChartLesson` turns it into a lesson — the loop's chords as voice-led
+  hand shapes, the bass roots, the riff phrase by phrase (Listen at half
+  speed, or the record itself from that bar), then **play-along**: the
+  player plays the record, `CLOCK.beats` is the judge, the chart falls down
+  the highway, and a hit is a chart note of that pitch within a third of a
+  beat; `SPEED` slows the record to ¾ with the pitch held. Highway came out
+  as D♭ major (3B) at 0.95 confidence with the vi–IV–I–V cycle B♭m G♭ D♭
+  A♭ — where the pipeline's own key read was 8B at 0.03, so the chart
+  corrects the record's key badge inside the trainer. Charted from the whole
+  mix until the runner has separated it; a transcription of a mix hears
+  every layer, so the riff is the top voice of the arrangement, not yet the
+  piano alone.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;

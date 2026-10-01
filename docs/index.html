@@ -19882,7 +19882,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '7ebb94bcca';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'ad6fdd8083';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -56012,7 +56012,7 @@ class PnLessonRunner {
   get finished(){ return this.completed.size >= this.total; }
   _enter(){
     this.held = new Set(); this.found = new Set(); this.pos = 0; this.streak = 0; this.notesPlayed = 0; this.mistakes = 0;
-    this.checked = new Set(); this.pedalCycles = 0; this.pedalDown = false; this.answer = null; this.earRound = 0; this.lastRight = null;
+    this.checked = new Set(); this.pedalCycles = 0; this.pedalDown = false; this.answer = null; this.earRound = 0; this.lastRight = null; this.hits = 0; this.hitSet = new Set();
     this.timerStart = this.step.type === 'timer' ? this.now() : null;
     this.lastMessage = '';
     if (this.step.type === 'info') this._complete(true);
@@ -56033,6 +56033,7 @@ class PnLessonRunner {
       case 'press': return s.notes.length ? s.notes.filter(n => this._isHeld(n)).length / s.notes.length : 0;
       case 'count': return Math.min(1, this.notesPlayed / s.count);
       case 'groove': return Math.min(1, this.streak / s.needed);
+      case 'playalong': return Math.min(1, this.hits / s.needed);
       case 'checklist': return this.checked.size / s.items.length;
       case 'pedal': return Math.min(1, this.pedalCycles / (s.count || 2));
       case 'ear': return Math.min(1, this.streak / (s.rounds || 4));
@@ -56076,6 +56077,33 @@ class PnLessonRunner {
         if (s.maxVelocity && velocity != null && velocity > s.maxVelocity){ this.lastMessage = s.softHint || 'Softer: let the weight of your arm do the work.'; break; }
         if (allowed){ this.notesPlayed++; if (this.notesPlayed >= s.count) this._complete(); }
         else this.lastMessage = s.wrongHint || 'Stay on the glowing keys for this one.';
+        break;
+      }
+      case 'playalong': {
+        /* the record is the clock: a chart note of this pitch (any octave when
+           the step allows it) whose start sits within `tolerance` beats of the
+           record's beat is a hit; each chart note counts once. Nothing is
+           penalised while the record is not playing — cue it first. */
+        const beat = this.timing && this.timing.recordBeat ? this.timing.recordBeat() : null;
+        if (beat == null){ this.lastMessage = 'Cue the record, then play with it.'; break; }
+        const tol = s.tolerance == null ? 0.35 : s.tolerance;
+        let best = null, bestD = Infinity;
+        for (let i = 0; i < s.notes.length; i++){
+          const n = s.notes[i];
+          if (n.b < beat - 2 || n.b > beat + 2) continue;
+          if (!(s.anyOctave ? pnPcMatch(n.m, midi) : n.m === midi)) continue;
+          const d = Math.abs(n.b - beat);
+          if (d <= tol && d < bestD && !this.hitSet.has(i)){ best = i; bestD = d; }
+        }
+        if (best != null){
+          this.hitSet.add(best); this.hits++; this.streak++;
+          this.lastMessage = (bestD < 0.12 ? 'Dead on' : bestD < 0.22 ? 'Close' : 'In') + ' ×' + this.streak;
+          if (this.hits >= s.needed) this._complete();
+        } else {
+          this.streak = 0; this.mistakes++;
+          const near = s.notes.find(n => Math.abs(n.b - beat) <= tol);
+          this.lastMessage = near ? (near.m === midi || pnPcMatch(near.m, midi) ? 'Right note, already counted: keep going.' : 'The record wants ' + pnNoteName(near.m) + ' there.') : 'Nothing to play just there: wait for the falling note.';
+        }
         break;
       }
       case 'groove': {
@@ -56175,6 +56203,7 @@ class PnLessonRunner {
         this.found.forEach(m => add(m, 'done'));
         break;
       case 'count': case 'groove': (s.notes || []).forEach(n => add(n)); break;
+      case 'playalong': break;   // the highway carries the record's notes; the keys stay clear
       default:
     }
     if (s.fingerSeq && !this.done && this.pos < s.notes.length){
@@ -56777,6 +56806,95 @@ const PN_TRACKS = [
 ];
 const PN_ALL_LESSONS = PN_TRACKS.flatMap(t => t.lessons.map(l => Object.assign({}, l, { track: t.id })));
 const pnLessonById = id => PN_ALL_LESSONS.find(l => l.id === id);
+
+/* A CHART is a library track's piano part, transcribed offline by
+   tools/piano_chart.py: notes quantised to the record's own beat grid, chords
+   per bar, the riff phrased at rests, the sections, the loop. This turns one
+   into a lesson: the chords of the loop as hand shapes, the riff phrase by
+   phrase, then playing along with the record itself. Pure, so a chart's
+   lesson is tested the same way the built-in ones are. */
+const PN_CHART_MAX_PHRASES = 8;
+function pnChartVoicing(pcs, prev, lo = 57, hi = 76){
+  const v = pnVoiceLead(prev, pcs, lo, hi);
+  return v;
+}
+function pnChartFingers(v){
+  const f = {};
+  if (v.length === 3){ const gap = v[2] - v[0]; v.forEach((m, i) => { f[m] = gap <= 7 ? [1, 2, 5][i] : [1, 3, 5][i]; }); }
+  else v.forEach((m, i) => { f[m] = [1, 2, 3, 5][Math.min(i, 3)]; });
+  return f;
+}
+function pnChartLesson(chart){
+  const key = chart.key || { root: 0, mode: 'major', camelot: '8B' };
+  const keyObj = pnMakeKey(key.root, key.mode === 'minor' ? 'minor' : 'major');
+  const keyNm = pnKeyName(keyObj);
+  const steps = [];
+  const bars = chart.bars || 0;
+  const bpm = Math.round(chart.bpm || 120);
+  const sect = (chart.sections || []).map(s => s.name + ' (' + (s.bars || 0) + ' bars)').join(', ');
+  const cueBarOf = name => { const s = (chart.sections || []).find(x => x.name === name); return s ? s.bar : 0; };
+  steps.push({ type: 'info', title: chart.title + ': the record, in your hands',
+    text: 'The piano part of "' + chart.title + '", transcribed from the record itself: ' + keyNm + ' (' + (key.camelot || '') + '), ' + bpm + ' BPM, ' + bars + ' bars' + (sect ? ' — ' + sect : '') + '. Press Play the record to hear it; the notes fall down the highway in time with what you hear. Learn the chords first, then the riff, then play with the band.',
+    action: 'cue:0', scalePcs: pnKeyScalePcs(keyObj), key: keyObj });
+  // the loop's chords as hand shapes, voice-led so the hand parks
+  const loopNames = chart.loop && chart.loop.length ? chart.loop : [];
+  const chordByName = {};
+  for (const c of chart.chords || []) if (c && c.name && !chordByName[c.name]) chordByName[c.name] = c;
+  let prev = null;
+  const loopVoicings = [];
+  loopNames.forEach((name, i) => {
+    const c = chordByName[name];
+    if (!c || !c.pcs) return;
+    const v = pnChartVoicing(c.pcs, prev); prev = v;
+    loopVoicings.push(v);
+    steps.push({ type: 'press', title: 'Chord ' + (i + 1) + ' of the loop: ' + name, text: 'Hold ' + v.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + ' together. ' + (i === 0 ? 'The loop of this record is ' + loopNames.join(' – ') + '; land each chord as one shape.' : 'Move as little as you can from the last shape.'),
+      notes: v, fingers: pnChartFingers(v), hand: 'right', chord: null, focus: [Math.min(...v) - 5, Math.max(...v) + 5], anyOctave: true });
+  });
+  if (loopVoicings.length){
+    const first = (chart.chords || []).findIndex(c => c && c.name === loopNames[0]);
+    const roots = loopNames.map(n => chordByName[n]).filter(Boolean).map(c => 36 + ((c.root - 36) % 12 + 12) % 12);
+    steps.push({ type: 'sequence', title: 'The bass roots', text: 'Left hand: the root of each chord, low, in order: ' + roots.map(m => pnNoteName(m)).join(' ') + '.', notes: roots, hand: 'left', anyOctave: true, focus: [Math.min(...roots) - 4, Math.max(...roots) + 6], demo: { notes: roots, mode: 'seq', tempo: 70 } });
+    steps.push({ type: 'count', title: 'Loop with the record', text: 'Cue the record where the loop starts and play the chords with it, one shape per bar. Twelve chord landings.', count: 12, notes: loopVoicings[0], focus: [50, 80], action: 'cue:' + Math.max(0, first), record: true });
+  }
+  // the riff, phrase by phrase
+  const phrases = (chart.phrases || []).filter(p => p.notes && p.notes.length >= 3).slice(0, PN_CHART_MAX_PHRASES);
+  phrases.forEach((p, i) => {
+    const notes = p.notes.map(n => n.m);
+    steps.push({ type: 'sequence', title: 'Riff, phrase ' + (i + 1) + ' (bar ' + (p.bar + 1) + ')', text: 'Play the record\'s line note by note: ' + notes.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + '. Listen plays it at half speed; the record button plays the real thing from that bar.',
+      notes, hand: 'right', focus: [Math.min(...notes) - 3, Math.max(...notes) + 3], demo: { notes, mode: 'seq', tempo: Math.max(50, Math.round(bpm * 0.5)) }, action: 'cue:' + p.bar, anyOctave: false });
+  });
+  // play along with the record: the first loud section, then everything
+  const riff = chart.riff || [];
+  if (riff.length){
+    const drop = (chart.sections || []).find(s => /drop|chorus/i.test(s.name || '')) || (chart.sections || [])[0] || { bar: 0, bars: bars };
+    const from = drop.bar || 0, to = from + (drop.bars || 8);
+    const slice = riff.filter(n => n.b >= from * 4 && n.b < to * 4);
+    const win = slice.length >= 8 ? slice : riff.slice(0, 32);
+    steps.push({ type: 'playalong', title: 'Play along: ' + (drop.name || 'the record'), text: 'The record plays and its notes fall down the highway. Play them as they land: ' + Math.min(win.length, 24) + ' hits. Slow it to ¾ speed if it runs away from you.',
+      notes: win, needed: Math.min(win.length, 24), tolerance: 0.35, anyOctave: true, action: 'cue:' + from, record: true, focus: [Math.min(...win.map(n => n.m)) - 4, Math.max(...win.map(n => n.m)) + 4] });
+    steps.push({ type: 'playalong', title: 'Play along: the whole record', text: 'From the top. Every note of the piano part, at speed. Forty hits and you own it.',
+      notes: riff, needed: Math.min(riff.length, 40), tolerance: 0.35, anyOctave: true, action: 'cue:0', record: true, focus: [Math.min(...riff.map(n => n.m)) - 4, Math.max(...riff.map(n => n.m)) + 4] });
+  }
+  steps.push({ type: 'info', title: 'Make it yours', text: 'Perform tab: pick "' + chart.title + '" under Record and the chart falls while the track plays; add your own right hand over the loop, or transpose the loop with the circle and play it with the built-in band.' });
+  return { id: 'chart:' + chart.tag, title: chart.title, minutes: 12 + phrases.length, blurb: 'The piano part of the record, learned from the record.', chart: true, steps };
+}
+/* the chart notes in a window of beats, shaped for the highway */
+function pnChartWindow(chart, beat, span = 9){
+  const out = [];
+  const notes = chart.notes || [];
+  for (let i = 0; i < notes.length; i++){
+    const n = notes[i];
+    if (n.b + n.d < beat - 1) continue;
+    if (n.b > beat + span) break;
+    out.push({ midi: n.m, start: n.b, dur: n.d, chord: -1 });
+  }
+  return out;
+}
+function pnChartChordAt(chart, beat){
+  const bar = Math.floor(beat / 4);
+  const c = (chart.chords || [])[bar];
+  return c && c.name ? { bar, name: c.name, pcs: c.pcs || [] } : { bar, name: null, pcs: [] };
+}
 // @piano-end
 
 /* ======================= the piano trainer: runtime ======================= */
@@ -57469,8 +57587,16 @@ function pnCircleHit(cv, e){
 }
 
 /* the app: state, inputs, lessons, transport, and the panels */
+/* LIBRARY CHARTS: tracks whose piano part has been transcribed offline
+   (tools/piano_chart.py, or the "Piano chart" workflow with Demucs on a
+   runner). Keyed by the catalog's sha256 so a re-encoded file still finds its
+   chart; fetched from charts/<tag>.json the first time the track is opened. */
+const PN_CHARTS = [
+  { tag: 'highway', title: 'Highway', sha256: 'b64e662c44bfbd2a5c4d0c5333ccf894c1badeec3f4c3884d4ce28d01920df1f' },
+];
 const PIANO = {
   on: false, built: false, ctxReady: false, found: false,
+  charts: {}, chart: null, record: null,   // loaded charts by tag; the chart the record is playing; the record's state
   engine: null, clock: null, stage: null, runner: null, raf: 0, timer: 0, tickTimer: 0,
   el: {},
   state: null, loop: null, mapped: new Map(), arpHeld: [], rec: [], recStart: 0, taps: [], demoTimers: [],
@@ -57538,6 +57664,7 @@ const PIANO = {
       this.stopBeat();
       this.allOff();
       if (this.mic.on) this.toggleMic();
+      this.record = null; this._recBar = null;
       this.persist();
     }
   },
@@ -57571,6 +57698,7 @@ const PIANO = {
     this.el.midi.addEventListener('click', () => this.connectMidi(true));
     this.el.tabs.addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) this.setMode(b.dataset.mode); });
     this.loop = pnBuildLoop(this.state.key, this.state.progId);
+    if (/^chart:/.test(this.state.lessonId) && !this.charts[this.state.lessonId.slice(6)]) this.state.lessonId = 'fourchords';
     this.setLesson(this.state.lessonId, false);
     this.applyKey();
     if (this.midiWanted || saved.midi) this.connectMidi(false);
@@ -57721,11 +57849,21 @@ const PIANO = {
 
   /* ------------------------------------------------ lessons */
   setLesson(id, resume = true){
-    const lesson = pnLessonById(id) || PN_ALL_LESSONS[0];
+    let lesson = null;
+    if (/^chart:/.test(id)){
+      const tag = id.slice(6), chart = this.charts[tag];
+      if (!chart){ this.loadChart(tag).then(c => { if (c) this.setLesson(id, true); }); return; }
+      lesson = pnChartLesson(chart);
+    }
+    if (!lesson) lesson = pnLessonById(id) || PN_ALL_LESSONS[0];
     this.state.lessonId = lesson.id;
     this.runner = new PnLessonRunner(lesson, {
-      timing: { offBeat: () => this.clock.offFromBeat(), offOffbeat: () => this.clock.offFromOffbeat(), running: () => this.clock.running },
+      timing: {
+        offBeat: () => this.clock.offFromBeat(), offOffbeat: () => this.clock.offFromOffbeat(), running: () => this.clock.running,
+        recordBeat: () => this.recordBeat(),
+      },
     });
+    if (lesson.chart && lesson.steps[0] && lesson.steps[0].key) this.setKey(lesson.steps[0].key);
     if (this.state.mode === 'learn') this._applyGuide();
     this.persist();
     if (resume) this.renderAll();
@@ -57743,6 +57881,7 @@ const PIANO = {
     const r = this.runner;
     if (!r.next()){
       this.state.done[this.state.lessonId] = true;
+      if (r.lesson.chart){ this.persist(); this.stopRecord(); this.say('That is the record, learned. Pick another lesson.'); this.renderAll(); return; }
       const i = PN_ALL_LESSONS.findIndex(l => l.id === this.state.lessonId);
       const nxt = PN_ALL_LESSONS[(i + 1) % PN_ALL_LESSONS.length];
       this.setLesson(nxt.id);
@@ -57752,6 +57891,13 @@ const PIANO = {
     this._applyGuide(); this.renderLessonBody();
   },
   runAction(a){
+    if (/^cue:/.test(a)){
+      const lesson = this.runner && this.runner.lesson;
+      const chart = lesson && lesson.chart ? this.charts[lesson.id.slice(6)] : null;
+      if (chart){ if (this.recordPlaying()) this.stopRecord(); else this.cue(chart, +a.slice(4) || 0); }
+      this.renderLessonBody();
+      return;
+    }
     switch (a){
       case 'startBeat': this.toggleBeat(); break;
       case 'keyLock': this.set('keyLock', true); this.say('Key lock on: every key lands in ' + pnKeyName(this.state.key)); break;
@@ -57765,7 +57911,75 @@ const PIANO = {
     this.renderLessonBody();
   },
   actionLabel(a){
+    if (/^cue:/.test(a)) return this.recordPlaying() ? '■ Stop the record' : '▶ Play the record' + (+a.slice(4) > 0 ? ' from bar ' + (+a.slice(4) + 1) : '');
     return { startBeat: this.clock && this.clock.running ? '■ Stop the beat' : '▶ Start the beat', keyLock: 'Turn on Key lock', chordMode: 'Turn on One-finger chords', arpUp: 'Arp: Up + beat', progEmotional: 'Play the Emotional loop', progLofi: 'Lo-fi loop + beat', styleDrone: 'Drone backing' }[a] || a;
+  },
+
+  /* ------------------------------------------------ the record: a library track with a chart */
+  async loadChart(tag){
+    if (this.charts[tag]) return this.charts[tag];
+    try {
+      const res = await fetch('charts/' + tag + '.json', { cache: 'no-cache' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const c = await res.json();
+      if (!c || !Array.isArray(c.notes)) throw new Error('not a chart');
+      this.charts[tag] = c;
+      return c;
+    } catch (e){ this.say('The chart for ' + tag + ' did not load: ' + (e.message || e)); return null; }
+  },
+  chartFor(track){
+    if (!track) return null;
+    const row = PN_CHARTS.find(c => c.sha256 && c.sha256 === track.sha256) || PN_CHARTS.find(c => track.url && track.url.indexOf('/' + c.tag + '/') >= 0);
+    return row ? (this.charts[row.tag] || null) : null;
+  },
+  trackIndexFor(chart){
+    if (typeof player === 'undefined') return -1;
+    return player.tracks.findIndex(t => (t.sha256 && t.sha256 === chart.sha256) || (t.url && t.url.indexOf('/' + chart.tag + '/') >= 0));
+  },
+  /* the record's beat, on the chart's lattice: the player's own healed CLOCK
+     (grid + trim, latency-compensated) when this track is playing, else null */
+  recordBeat(){
+    const r = this.record;
+    if (!r || typeof player === 'undefined' || !player.playing || typeof CLOCK === 'undefined' || !CLOCK.haveGrid) return null;
+    const tr = player.tracks[player.cur];
+    if (!tr || this.chartFor(tr) !== r.chart) return null;
+    return CLOCK.beats;
+  },
+  /* cue the record at a bar: load it into the player if it is not the current
+     track, seek to the bar (a beat of lead-in), and play. The trainer's own
+     beat stops — the record is the band now. */
+  async cue(chart, bar = 0){
+    if (!chart || typeof player === 'undefined') return false;
+    const i = this.trackIndexFor(chart);
+    if (i < 0){ this.say('"' + chart.title + '" is not in the library right now.'); return false; }
+    this.stopBeat();
+    this.ensureAudio();
+    this.record = { chart, bar, cuedAt: performance.now() };
+    if (player.cur !== i || !activeDeck()) player.playIndex(i);
+    const t = Math.max(0, chart.grid + bar * 4 * (60 / chart.bpm) - (60 / chart.bpm));
+    const seek = (tries) => {
+      const d = activeDeck();
+      if (d && isFinite(d.a.duration) && d.a.duration > 0){ try { d.a.currentTime = Math.min(t, d.a.duration - 0.5); } catch (e){} if (!player.playing) player.resume(); return; }
+      if (tries > 0) setTimeout(() => seek(tries - 1), 250);
+    };
+    seek(40);
+    this.renderPanel();
+    return true;
+  },
+  stopRecord(){
+    if (typeof player !== 'undefined' && this.record && player.playing){
+      const tr = player.tracks[player.cur];
+      if (tr && this.chartFor(tr) === this.record.chart) player.pause();
+    }
+    this.record = null;
+    this.stage.guideEvents = [];
+    this.renderPanel();
+  },
+  recordPlaying(){ return this.recordBeat() != null; },
+  setRecordSpeed(slow){
+    if (typeof SPEED === 'undefined') return;
+    const want = slow ? SPEED.STEPS.indexOf(0.75) : 0;
+    if (want >= 0 && SPEED.idx !== want){ SPEED.idx = want; SPEED.apply(); try { DB.kvSet('speed', String(SPEED.idx)).catch(() => {}); } catch (e){} }
   },
 
   /* ------------------------------------------------ transport & backing */
@@ -57773,6 +57987,7 @@ const PIANO = {
   startBeat(){
     this.ensureAudio();
     if (this.clock.running) return;
+    if (this.recordPlaying()) this.stopRecord();
     this.clock.start(0);
     this.currentChordIndex = 0;
     this.renderPanel();
@@ -57976,8 +58191,16 @@ const PIANO = {
   _resize(){ if (this.stage) this.stage.resize(); },
   _frame(){
     const s = this.state;
-    const beat = this.clock.beat, running = this.clock.running;
-    if (running && s.guideChords && s.mode !== 'learn') this.stage.guideEvents = pnGuideEvents(this.loop, beat, beat + 9, 4);
+    let beat = this.clock.beat, running = this.clock.running;
+    const rb = this.recordBeat();
+    if (rb != null){
+      beat = rb; running = true;
+      this.stage.guideEvents = pnChartWindow(this.record.chart, rb, 9);
+      const c = pnChartChordAt(this.record.chart, rb);
+      if (c.bar !== this._recBar){ this._recBar = c.bar; this._paintRecordBar(c); }
+    } else if (this.record && this._recBar != null){ this._recBar = null; this._paintRecordBar(null); }
+    if (rb != null){}
+    else if (running && s.guideChords && s.mode !== 'learn') this.stage.guideEvents = pnGuideEvents(this.loop, beat, beat + 9, 4);
     else if (running && s.guideChords && s.mode === 'learn' && this.runner && this.runner.step.type === 'count') this.stage.guideEvents = pnGuideEvents(this.loop, beat, beat + 9, 4);
     else this.stage.guideEvents = [];
     if (this.showChord && performance.now() > this.showChord.until){ this.showChord = null; this._applyGuide(); if (s.mode !== 'learn') this.stage.guide = { keys: [], badges: [] }; }
@@ -58028,7 +58251,7 @@ const PIANO = {
     }
   },
   renderLearn(p){
-    const s = this.state, cur = pnLessonById(s.lessonId);
+    const s = this.state, cur = (this.runner && this.runner.lesson && this.runner.lesson.id === s.lessonId) ? this.runner.lesson : (pnLessonById(s.lessonId) || PN_ALL_LESSONS[0]);
     const trackOf = PN_TRACKS.find(t => t.lessons.some(l => l.id === cur.id));
     p.innerHTML = '<div class="pn-learn"><aside class="pn-lessons" id="pnLessons">' +
       PN_TRACKS.map(t => {
@@ -58038,8 +58261,13 @@ const PIANO = {
           '<p class="pn-blurb">' + this.esc(t.blurb) + '</p>' +
           t.lessons.map(l => '<button type="button" data-id="' + l.id + '" class="pn-lesson ' + (l.id === cur.id ? 'on' : '') + '"><span class="tick">' + (s.done[l.id] ? '✓' : '○') + '</span><span class="nm">' + this.esc(l.title) + '</span><small>' + l.minutes + ' min</small></button>').join('') +
           '</details>';
-      }).join('') + '</aside><div class="pn-body"><select class="pn-pick" id="pnPick" aria-label="Lesson">' +
+      }).join('') +
+      '<details' + (/^chart:/.test(cur.id) ? ' open' : '') + '><summary><span>' + this.esc(T('From the record')) + '</span><small>' + PN_CHARTS.filter(c => s.done['chart:' + c.tag]).length + '/' + PN_CHARTS.length + '</small></summary>' +
+      '<p class="pn-blurb">' + this.esc(T('Library tracks whose piano part was transcribed from the record: chords, riff, then play along with the band.')) + '</p>' +
+      PN_CHARTS.map(c => '<button type="button" data-id="chart:' + c.tag + '" class="pn-lesson ' + ('chart:' + c.tag === cur.id ? 'on' : '') + '"><span class="tick">' + (s.done['chart:' + c.tag] ? '✓' : '♪') + '</span><span class="nm">' + this.esc(c.title) + '</span><small>' + this.esc(T('record')) + '</small></button>').join('') +
+      '</details></aside><div class="pn-body"><select class="pn-pick" id="pnPick" aria-label="Lesson">' +
       PN_TRACKS.map(t => '<optgroup label="' + this.esc(t.title) + '">' + t.lessons.map(l => '<option value="' + l.id + '" ' + (l.id === cur.id ? 'selected' : '') + '>' + (s.done[l.id] ? '✓ ' : '') + this.esc(l.title) + ' · ' + l.minutes + ' min</option>').join('') + '</optgroup>').join('') +
+      '<optgroup label="' + this.esc(T('From the record')) + '">' + PN_CHARTS.map(c => '<option value="chart:' + c.tag + '" ' + ('chart:' + c.tag === cur.id ? 'selected' : '') + '>♪ ' + this.esc(c.title) + '</option>').join('') + '</optgroup>' +
       '</select><div id="pnLessonBody"></div></div></div>';
     p.querySelectorAll('.pn-lesson').forEach(b => b.addEventListener('click', () => { this.setLesson(b.dataset.id); }));
     p.querySelector('#pnPick').addEventListener('change', ev => this.setLesson(ev.target.value));
@@ -58068,12 +58296,19 @@ const PIANO = {
           '<div class="pn-opts wrap">' + st.choices.map((c, i) => '<button type="button" data-e="' + i + '" class="pn-opt ' + (r.answer === i ? (r.lastRight ? 'right' : 'wrong') : '') + '">' + e(c.label) + '</button>').join('') + '</div>' + bar;
         break;
       }
+      case 'playalong': {
+        const slow = typeof SPEED !== 'undefined' && SPEED.rate < 1;
+        body = bar + '<div class="pn-row"><button type="button" id="pnRecStop" class="pn-primary">' + (this.recordPlaying() ? '■ ' + e(T('Stop the record')) : '▶ ' + e(T('Play the record'))) + '</button>' +
+          '<button type="button" id="pnRecSlow" class="pn-ghost ' + (slow ? 'on' : '') + '" aria-pressed="' + slow + '">' + e(T('¾ speed')) + '</button>' +
+          '<span class="pn-dim" id="pnRecBar">' + (() => { const rb = this.recordBeat(); if (rb == null) return ''; const c = pnChartChordAt(this.record.chart, rb); return e('bar ' + (c.bar + 1) + (c.name ? ' · ' + c.name : '')); })() + '</span><span class="pn-dim">' + e(r.hits + ' of ' + st.needed + ' · streak ' + r.streak) + '</span></div>';
+        break;
+      }
       case 'timer': body = bar; break;
       case 'groove': body = bar + '<div class="pn-row"><button type="button" id="pnBeatBtn" class="pn-primary">' + (this.clock.running ? '■ ' + e(T('Stop the beat')) : '▶ ' + e(T('Start the beat'))) + '</button><span class="pn-dim">' + Math.round(this.clock.bpm) + ' BPM</span></div>'; break;
       case 'info': body = ''; break;
       default: body = bar;
     }
-    const action = st.action && st.type !== 'groove' ? '<button type="button" id="pnAction" class="pn-ghost">' + e(this.actionLabel(st.action)) + '</button>' : '';
+    const action = st.action && st.type !== 'groove' && st.type !== 'playalong' ? '<button type="button" id="pnAction" class="pn-ghost ' + (/^cue:/.test(st.action) && this.recordPlaying() ? 'on' : '') + '">' + e(this.actionLabel(st.action)) + '</button>' : '';
     el.innerHTML = '<div class="pn-lhead"><h3>' + e(lesson.title) + '</h3><span>' + e('Step ' + (r.index + 1) + ' / ' + r.total) + '</span></div>' +
       '<div class="pn-dots">' + lesson.steps.map((_, i) => '<i class="' + (r.completed.has(i) ? 'd' : '') + (i === r.index ? ' c' : '') + '" data-g="' + i + '" title="' + e(lesson.steps[i].title || '') + '"></i>').join('') + '</div>' +
       '<h2>' + e(st.title || '') + '</h2><p>' + e(st.text || '') + '</p>' +
@@ -58094,6 +58329,8 @@ const PIANO = {
     on('pnEarPlay', () => this._playEar(r, st));
     on('pnBeatBtn', () => { this.toggleBeat(); this.renderLessonBody(); });
     on('pnAction', () => this.runAction(st.action));
+    on('pnRecStop', () => this.runAction(st.action || 'cue:0'));
+    on('pnRecSlow', () => { this.setRecordSpeed(!(typeof SPEED !== 'undefined' && SPEED.rate < 1)); this.renderLessonBody(); });
     on('pnPrev', () => { r.prev(); this._applyGuide(); this.renderLessonBody(); });
     on('pnNext', () => { this.lessonNext(); });
   },
@@ -58156,6 +58393,7 @@ const PIANO = {
       '<div class="pn-row pn-sliders"><label>' + e(T('Filter')) + ' <input type="range" id="pnFil" min="0" max="1" step="0.01" value="' + s.filter + '"></label>' +
       '<label>' + e(T('Reverb')) + ' <input type="range" id="pnRev" min="0" max="1" step="0.01" value="' + s.reverb + '"></label>' +
       '<label>' + e(T('Volume')) + ' <input type="range" id="pnVol" min="0" max="1" step="0.01" value="' + s.volume + '"></label></div>' +
+      (PN_CHARTS.length ? '<div class="pn-row"><span class="pn-lbl">' + e(T('Record')) + '</span>' + PN_CHARTS.map(c => '<button type="button" class="pn-ghost pn-rec ' + (this.record && this.record.chart && this.record.chart.tag === c.tag && this.recordPlaying() ? 'on' : '') + '" data-rec="' + c.tag + '">♪ ' + e(c.title) + '</button>').join('') + '<span class="pn-dim" id="pnRecBar"></span><span class="pn-hint">' + e(T('The track plays in the player and its piano part falls down the highway. Play with it.')) + '</span></div>' : '') +
       '<p class="pn-hint">' + e(PN_STYLES[s.style].blurb) + ' ' + e(loop.prog.blurb) + '</p></div>';
     const q = sel => p.querySelector(sel);
     q('#pnPlay').addEventListener('click', () => this.toggleBeat());
@@ -58165,12 +58403,23 @@ const PIANO = {
     q('#pnRec').addEventListener('click', () => this.toggleRecord());
     q('#pnSave').addEventListener('click', () => this.exportMidi());
     q('#pnProg').addEventListener('change', ev => this.setProgression(ev.target.value));
+    p.querySelectorAll('.pn-rec').forEach(b => b.addEventListener('click', async () => {
+      if (this.recordPlaying() && this.record.chart.tag === b.dataset.rec){ this.stopRecord(); return; }
+      const c = await this.loadChart(b.dataset.rec);
+      if (c){ if (c.key) this.setKey(pnMakeKey(c.key.root, c.key.mode)); this.cue(c, 0); }
+    }));
     q('#pnChkAuto').addEventListener('change', ev => this.set('autoLeft', ev.target.checked));
     q('#pnChkGuide').addEventListener('change', ev => this.set('guideChords', ev.target.checked));
     q('#pnFil').addEventListener('input', ev => this.set('filter', +ev.target.value));
     q('#pnRev').addEventListener('input', ev => this.set('reverb', +ev.target.value));
     q('#pnVol').addEventListener('input', ev => this.set('volume', +ev.target.value));
     this._bindCommon(p);
+  },
+  _paintRecordBar(c){
+    const n = document.getElementById('pnRecBar');
+    if (n) n.textContent = c ? 'bar ' + (c.bar + 1) + (c.name ? ' · ' + c.name : '') : '';
+    const btn = document.getElementById('pnRecStop');
+    if (btn) btn.textContent = c ? '■ ' + this.esc(T('Stop the record')) : '▶ ' + this.esc(T('Play the record'));
   },
   _paintChordRow(){
     const row = document.getElementById('pnChords');
