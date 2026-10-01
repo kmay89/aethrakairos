@@ -470,6 +470,14 @@ enum Rooms {
         Room(key: "kutta", name: "KUTTA", fragmentFunction: "room_kutta",
              tasteEnergy: 0.4, tasteCalm: 0.3, tasteBeat: 0, tasteTreble: 0,
              tasteMid: 0.4, tasteEntropy: -0.3, heavy: true),
+
+        // The northern lights (Shaders31): auroral sheets ray-marched through
+        // the upper atmosphere with true O 557.7 / O 630.0 / N2+ 427.8 colours, the
+        // oval from space, and the dipole mirror with its gyrophase integrated per
+        // pixel. Heavy: a 41-sample march with three sheets.
+        Room(key: "aurora", name: "AURORA", fragmentFunction: "room_aurora",
+             tasteEnergy: 0.3, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0.3,
+             tasteEntropy: 0.1, heavy: true, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
