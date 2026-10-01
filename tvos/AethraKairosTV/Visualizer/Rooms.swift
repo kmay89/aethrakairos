@@ -518,6 +518,14 @@ enum Rooms {
         Room(key: "vortex", name: "VORTEX", fragmentFunction: "room_vortex",
              tasteEnergy: 0.4, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0,
              tasteMid: 0.3, tasteEntropy: 0.2, heavy: true),
+
+        // Why water falls in drops (Shaders37): Rayleigh's instability — a falling
+        // jet solved in closed form to its drops and satellites, the growth curve and
+        // the selection of 9.02 radii, dew on a spider's thread, beading fibres and
+        // a dripping tap. Moderately heavy.
+        Room(key: "plateau", name: "PLATEAU", fragmentFunction: "room_plateau",
+             tasteEnergy: 0.2, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0.3,
+             heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
