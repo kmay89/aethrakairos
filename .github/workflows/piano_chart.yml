@@ -41,15 +41,19 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
+      # 3.11, not 3.12: basic-pitch pins numpy/tensorflow versions that only
+      # ship wheels up to 3.11 — on 3.12 pip tries to build numpy from source
+      # and dies on pkgutil.ImpImporter (removed in 3.12).
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.11'
       - name: Install ffmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Install numpy, Demucs (CPU torch) and basic-pitch
         run: |
-          pip install --quiet numpy torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install --quiet demucs basic-pitch
+          pip install --quiet "setuptools<70" "numpy==1.26.4"
+          pip install --quiet torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet demucs soundfile "basic-pitch[tf]==0.4.0" "tensorflow-cpu==2.15.1" "numpy==1.26.4"
       - name: Cache the Demucs models
         uses: actions/cache@v6
         with:
