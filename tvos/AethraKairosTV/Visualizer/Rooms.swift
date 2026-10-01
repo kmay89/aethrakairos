@@ -440,6 +440,108 @@ enum Rooms {
         Room(key: "masonry", name: "MASONRY", fragmentFunction: "room_masonry",
              tasteEnergy: 0, tasteCalm: 0.3, tasteBeat: 0.3, tasteTreble: 0,
              tasteBass: 0.5, tasteEntropy: -0.4, heavy: true),
+
+        // The three cones (the wake room): the Mach cone from circles emitted along the
+        // source's real path, the Kelvin wake's 19.47° in closed form (two stationary
+        // phases), and the Cherenkov horn of a slowing particle with its lit wall.
+        Room(key: "wake", name: "WAKE", fragmentFunction: "room_wake",
+             tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 0.4, tasteTreble: 0.2,
+             tasteEntropy: -0.1, heavy: true),
+
+        // The race of curves (Shaders28): the brachistochrone beating the ramp, the
+        // circle and a dive (the cycloid exact, the others marched), the tautochrone's
+        // seven heights arriving together, and Huygens' cycloidal-cheek pendulum.
+        Room(key: "brachisto", name: "BRACHISTOCHRONE", fragmentFunction: "room_brachisto",
+             tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0.4, tasteTreble: 0,
+             tasteEntropy: -0.4),
+
+        // The sky's optics (Shaders29): Descartes' and Airy's rainbow with its
+        // supernumeraries, the ice halos with sundogs and the circumzenithal arc in a
+        // stereographic sky, and the diffraction corona — all in spectral colour from the
+        // same CIE observer the web uses. Sixteen wavelengths a pixel: heavy.
+        Room(key: "iris", name: "IRIS", fragmentFunction: "room_iris",
+             tasteEnergy: 0.1, tasteCalm: 0.7, tasteBeat: 0, tasteTreble: 0.4,
+             tasteEntropy: -0.3, heavy: true, calm: true),
+
+        // Lift, made visible (Shaders30): the Joukowski airfoil with Kutta's
+        // circulation, pressure and true time-of-flight smoke pulses; the Magnus
+        // cylinder; and the conformal map morphing circle into wing. The pulses
+        // integrate each pixel's streamline backward: heavy.
+        Room(key: "kutta", name: "KUTTA", fragmentFunction: "room_kutta",
+             tasteEnergy: 0.4, tasteCalm: 0.3, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.4, tasteEntropy: -0.3, heavy: true),
+
+        // The northern lights (Shaders31): auroral sheets ray-marched through
+        // the upper atmosphere with true O 557.7 / O 630.0 / N2+ 427.8 colours, the
+        // oval from space, and the dipole mirror with its gyrophase integrated per
+        // pixel. Heavy: a 41-sample march with three sheets.
+        Room(key: "aurora", name: "AURORA", fragmentFunction: "room_aurora",
+             tasteEnergy: 0.3, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0.3,
+             tasteEntropy: 0.1, heavy: true, calm: true),
+
+        // The ear, listening (Shaders32): the music's spectrum as travelling
+        // waves on the basilar membrane by Greenwood's place map — the spiral, the
+        // unrolled membrane with its click chirp, the hair cells, the piano on the
+        // membrane and the critical bands. Heavy: 24 bands per sample.
+        Room(key: "cochlea", name: "COCHLEA", fragmentFunction: "room_cochlea",
+             tasteEnergy: 0.3, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0.3,
+             tasteMid: 0.3, tasteEntropy: 0.2, heavy: true),
+
+        // The turning frame (Shaders33): a throw on a spinning table in both
+        // frames, Foucault's pendulum and its pegs at three latitudes, and the
+        // Coriolis force at weather scale — the hurricane, inertial circles, the
+        // wind belts. Moderately heavy: polylines and two-phase flow noise.
+        Room(key: "coriolis", name: "CORIOLIS", fragmentFunction: "room_coriolis",
+             tasteEnergy: 0.2, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.4, heavy: true),
+
+        // How we know the inside of the Earth (Shaders34): rays through a
+        // nine-shell Earth by spherical Snell's law (P and S shadow zones emerge on
+        // their own), the four wave motions as deformed lattices, and the
+        // seismologist's desk. Heavy: twenty rays solved per pixel.
+        Room(key: "seismic", name: "SEISMIC", fragmentFunction: "room_seismic",
+             tasteEnergy: 0.4, tasteCalm: -0.1, tasteBeat: 0.3, tasteTreble: 0,
+             tasteEntropy: 0.1, heavy: true),
+
+        // The pull of the Moon (Shaders35): the equilibrium bulges with spring
+        // and neap, the lag and the tidal field; Taylor's Kelvin-wave amphidromes
+        // with cotidal and co-range lines; a beach and its four-constituent tide
+        // gauge. Light.
+        Room(key: "tides", name: "TIDES", fragmentFunction: "room_tides",
+             tasteEnergy: 0.1, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: -0.2, calm: true),
+
+        // The life of vortices (Shaders36): leapfrogging vortex pairs, Thomson
+        // polygons, four-vortex chaos and colliding dipoles — Helmholtz's law
+        // integrated per pixel — and the drain, its dye carried back along the
+        // inflowing spiral. Heavy: up to 128 RK2 steps per pixel.
+        Room(key: "vortex", name: "VORTEX", fragmentFunction: "room_vortex",
+             tasteEnergy: 0.4, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.3, tasteEntropy: 0.2, heavy: true),
+
+        // Why water falls in drops (Shaders37): Rayleigh's instability — a falling
+        // jet solved in closed form to its drops and satellites, the growth curve and
+        // the selection of 9.02 radii, dew on a spider's thread, beading fibres and
+        // a dripping tap. Moderately heavy.
+        Room(key: "plateau", name: "PLATEAU", fragmentFunction: "room_plateau",
+             tasteEnergy: 0.2, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0.3,
+             heavy: true),
+
+        // The tick (Shaders38): the anchor and deadbeat escapements with their
+        // pendulum, a long-case clock, a skeleton clock's going train, planetary
+        // gears and a Geneva drive, a watch balance with a breathing hairspring,
+        // the Swiss lever and a tourbillon. Moderate.
+        Room(key: "escapement", name: "ESCAPEMENT", fragmentFunction: "room_escapement",
+             tasteEnergy: 0, tasteCalm: 0.2, tasteBeat: 0.5, tasteTreble: 0,
+             tasteMid: 0.3, tasteEntropy: -0.4),
+
+        // The expanding universe (Shaders39): Friedmann's equation integrated per
+        // pixel — galaxies receding by Hubble's law and reddened by their true
+        // redshift, the scale factor of three universes, and our past light cone's
+        // teardrop with the Hubble sphere and the last scattering. Heavy.
+        Room(key: "hubble", name: "HUBBLE", fragmentFunction: "room_hubble",
+             tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
+             heavy: true, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
