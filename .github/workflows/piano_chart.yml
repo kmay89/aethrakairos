@@ -64,7 +64,9 @@ jobs:
       - name: Verify the transcriber
         run: python3 tools/piano_chart.py --selftest
       - name: Separate and transcribe
-        run: python3 tools/piano_chart.py "${{ github.event.inputs.tag }}" --model "${{ github.event.inputs.model }}" --keep "$RUNNER_TEMP/stems"
+        run: |
+          cp "docs/charts/${{ github.event.inputs.tag }}.json" "$RUNNER_TEMP/previous.json" 2>/dev/null || true
+          python3 tools/piano_chart.py "${{ github.event.inputs.tag }}" --model "${{ github.event.inputs.model }}" --keep "$RUNNER_TEMP/stems" --compare "$RUNNER_TEMP/previous.json"
       - name: Pack the stems for inspection (FLAC, mono)
         run: |
           mkdir -p "$RUNNER_TEMP/pack"

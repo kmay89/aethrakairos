@@ -81,8 +81,15 @@ for (const [label, vp] of [['booth', { width: 1280, height: 800 }], ['phone', { 
   if ((await page.evaluate(() => PIANO.runner.streak)) !== 1) fail(label + ': a right ear answer should start the streak');
   await page.screenshot({ path: join(out, label + '-ear.png') });
   // the record: the library chart becomes a lesson; the play-along step is judged on the record's beat (stubbed here — no audio host in the sandbox)
+  // a late chart must not hijack a lesson picked in the meantime
+  await page.evaluate(() => { PIANO.charts = {}; PIANO.setLesson('chart:highway'); PIANO.setLesson('odetojoy'); });
+  await page.waitForFunction(() => PIANO.charts.highway, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(100);
+  if ((await page.evaluate(() => PIANO.runner.lesson.id)) !== 'odetojoy') fail(label + ': a chart that lands late replaced the lesson picked after it');
+  const t0 = Date.now();
   await page.evaluate(() => PIANO.setLesson('chart:highway'));
-  await page.waitForFunction(() => PIANO.runner && PIANO.runner.lesson.id === 'chart:highway', null, { timeout: 8000 }).catch(() => fail(label + ': the Highway chart lesson did not load'));
+  await page.waitForFunction(() => PIANO.runner && PIANO.runner.lesson.id === 'chart:highway', null, { timeout: 30000 }).catch(() => fail(label + ': the Highway chart lesson did not load'));
+  console.log('   ', label, 'chart lesson ready in', Date.now() - t0, 'ms');
   const chartSteps = await page.evaluate(() => PIANO.runner.lesson.steps.map(s => s.type));
   if (!chartSteps.includes('playalong') || !chartSteps.includes('press')) fail(label + ': the chart lesson lacks shapes or play-along, got ' + chartSteps.join(','));
   const keyNow = await page.evaluate(() => pnKeyName(PIANO.state.key));
@@ -95,7 +102,29 @@ for (const [label, vp] of [['booth', { width: 1280, height: 800 }], ['phone', { 
   const hit = await page.evaluate(() => { const st = PIANO.runner.step; const n = st.notes.find(x => x.b >= 56); PIANO._stubBeat = n.b + 0.05; PIANO.playNote(n.m, 0.8, true, 'probe'); PIANO.playNote(n.m, 0, false, 'probe'); return PIANO.runner.hits; });
   if (hit !== 1) fail(label + ': playing the falling note on the beat should count a hit, got ' + hit);
   await page.screenshot({ path: join(out, label + '-record.png') });
-  await page.evaluate(() => { PIANO.recordBeat = PIANO._realRecordBeat; PIANO.record = null; PIANO.setLesson('fourchords'); });
+  await page.evaluate(() => { PIANO.recordBeat = PIANO._realRecordBeat; PIANO.record = null; });
+  // wait-mode practice on the trainer's own clock: the song holds at the first group until it is played
+  await page.evaluate(() => { const i = PIANO.runner.lesson.steps.findIndex(s => s.type === 'practice'); PIANO.runner.goto(i); PIANO._applyGuide(); PIANO.renderLessonBody(); });
+  await page.click('#pnPracGo');
+  const first = await page.waitForFunction(() => PIANO.practice && PIANO.practice.waiting && { beat: PIANO.practice.beat, g: PIANO.runner.step.groups[0].b, pos: PIANO.runner.pos, starts: PIANO._starts || 0 }, null, { timeout: 8000 })
+    .then(h => h.jsonValue()).catch(() => { fail(label + ': practice should reach the first group and wait'); return null; });
+  if (first && (Math.abs(first.beat - first.g) > 1e-6 || first.pos !== 0)) fail(label + ': the clock should hold exactly at the first group, got ' + JSON.stringify(first));
+  await page.waitForTimeout(500);
+  const still = await page.evaluate(() => ({ beat: PIANO.practice && PIANO.practice.beat, waiting: PIANO.practice && PIANO.practice.waiting, g: PIANO.runner.step.groups[0].b }));
+  if (!still.waiting || Math.abs(still.beat - still.g) > 1e-6) fail(label + ': the song must keep holding until the note is played, got ' + JSON.stringify(still));
+  await page.screenshot({ path: join(out, label + '-practice.png') });
+  const moved = await page.evaluate(() => { const g = PIANO.runner.step.groups[0]; for (const m of g.m){ PIANO.playNote(m, 0.8, true, 'probe'); PIANO.playNote(m, 0, false, 'probe'); } return { pos: PIANO.runner.pos, waiting: PIANO.practice.waiting }; });
+  if (moved.pos !== 1 || moved.waiting) fail(label + ': playing the group should advance the cursor and release the clock, got ' + JSON.stringify(moved));
+  await page.click('[data-hands="both"]');
+  await page.waitForTimeout(200);
+  const hands = await page.evaluate(() => PIANO.runner.step.hands);
+  if (hands !== 'both') fail(label + ': the hands switch should rebuild the step, got ' + hands);
+  await page.evaluate(() => PIANO.stopPractice());
+  await page.click('[data-level="full"]');
+  await page.waitForTimeout(300);
+  const lvl = await page.evaluate(() => PIANO.runner.lesson.level + ':' + PIANO.runner.step.type);
+  if (!/^full:practice$/.test(lvl)) fail(label + ': the level switch should rebuild the lesson on the same step, got ' + lvl);
+  await page.evaluate(() => { PIANO.setChartLevel('easy'); PIANO.setLesson('fourchords'); });
   // explore
   await page.evaluate(() => PIANO.setMode('explore'));
   await page.waitForTimeout(400);
