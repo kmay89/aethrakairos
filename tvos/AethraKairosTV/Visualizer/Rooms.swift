@@ -534,6 +534,14 @@ enum Rooms {
         Room(key: "escapement", name: "ESCAPEMENT", fragmentFunction: "room_escapement",
              tasteEnergy: 0, tasteCalm: 0.2, tasteBeat: 0.5, tasteTreble: 0,
              tasteMid: 0.3, tasteEntropy: -0.4),
+
+        // The expanding universe (Shaders39): Friedmann's equation integrated per
+        // pixel — galaxies receding by Hubble's law and reddened by their true
+        // redshift, the scale factor of three universes, and our past light cone's
+        // teardrop with the Hubble sphere and the last scattering. Heavy.
+        Room(key: "hubble", name: "HUBBLE", fragmentFunction: "room_hubble",
+             tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
+             heavy: true, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
