@@ -1,0 +1,91 @@
+# Transcribe a library track's PIANO PART for the trainer hidden inside the ∞.
+#
+# tools/piano_chart.py separates the record with Demucs (htdemucs_6s — the
+# six-source model with a dedicated piano stem), transcribes the piano stem
+# with basic-pitch, quantises the notes to the catalog's beat grid, reads the
+# chords, the riff and the sections, and writes docs/charts/<tag>.json. The
+# player fetches a chart on demand when its track is opened in the trainer.
+#
+# Source separation is a neural model the sandboxes that write code cannot
+# download, so — like the stems job — the professional pass runs HERE, on a
+# runner, and commits the chart. Dispatch it with the album tag (the folder
+# under docs/audio/). CPU is fine: one track is a couple of minutes.
+name: Piano chart
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Album tag (docs/audio/<tag>/) of the track to chart'
+        required: true
+        default: 'highway'
+      model:
+        description: 'Demucs model (htdemucs_6s has a piano stem; htdemucs falls back to "other")'
+        required: false
+        default: 'htdemucs_6s'
+      commit:
+        description: 'Commit the chart to this branch (false = only upload the stems and the chart as a run artifact, for inspection)'
+        required: false
+        default: 'true'
+
+concurrency:
+  group: piano-chart-${{ github.event.inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      # 3.11, not 3.12: basic-pitch pins numpy/tensorflow versions that only
+      # ship wheels up to 3.11 — on 3.12 pip tries to build numpy from source
+      # and dies on pkgutil.ImpImporter (removed in 3.12).
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Install numpy, Demucs (CPU torch) and basic-pitch
+        run: |
+          pip install --quiet "setuptools<70" "numpy==1.26.4"
+          pip install --quiet torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          # exactly the set the transcriber was proven on: basic-pitch picks its
+          # own tensorflow; an older setuptools still ships pkg_resources (resampy needs it)
+          pip install --quiet demucs soundfile "basic-pitch==0.4.0" "numpy==1.26.4" "setuptools<80"
+      - name: Cache the Demucs models
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/torch
+          key: demucs-${{ github.event.inputs.model }}-v1
+      - name: Verify the transcriber
+        run: python3 tools/piano_chart.py --selftest
+      - name: Separate and transcribe
+        run: |
+          cp "docs/charts/${{ github.event.inputs.tag }}.json" "$RUNNER_TEMP/previous.json" 2>/dev/null || true
+          python3 tools/piano_chart.py "${{ github.event.inputs.tag }}" --model "${{ github.event.inputs.model }}" --keep "$RUNNER_TEMP/stems" --compare "$RUNNER_TEMP/previous.json"
+      - name: Pack the stems for inspection (FLAC, mono)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          for f in "$RUNNER_TEMP"/stems/*.wav; do
+            ffmpeg -loglevel error -y -i "$f" -ac 1 -ar 44100 "$RUNNER_TEMP/pack/$(basename "${f%.wav}").flac"
+          done
+          cp "docs/charts/${{ github.event.inputs.tag }}.json" "$RUNNER_TEMP/pack/"
+      - name: Upload the stems and the chart
+        uses: actions/upload-artifact@v7
+        with:
+          name: piano-chart-${{ github.event.inputs.tag }}
+          path: ${{ runner.temp }}/pack
+          retention-days: 7
+      - name: Commit the chart
+        if: ${{ github.event.inputs.commit != 'false' }}
+        run: |
+          if [[ -z "$(git status --porcelain docs/charts)" ]]; then echo "chart unchanged"; exit 0; fi
+          git config user.name  "aethra-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/charts
+          git commit -m "chore: chart the piano part of ${{ github.event.inputs.tag }} (auto) [skip ci]"
+          git push

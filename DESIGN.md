@@ -1506,6 +1506,102 @@ scenes, booth and sliced screen alike.
   staged plan, work an M-series core should run at full speed — the size cost
   is noise next to the WebKit process beside it.
 
+### 1.2s The piano inside the ∞: a trainer, hidden in the wordmark
+
+- **What it is.** Tap the ∞ in the wordmark five times (or open `/?piano`)
+  and a piano unfolds over the field: 88 keys on a note highway, seven
+  tracks of lessons that *listen* to what is played, a beat with backing
+  loops, and the three safety nets that let a beginner sound like a record
+  on the first evening — key lock (every key snaps into the key), one-finger
+  chords (one key plays the diatonic triad), and the pentatonic. It is an
+  Easter egg because the player is a listening room first; it is a *full*
+  trainer because a half one teaches nothing. The manual keeps the secret;
+  the wordmark's title hints at it; the first discovery is toasted once.
+- **The curriculum listens.** Forty-four lessons in plain data (`PN_TRACKS`):
+  a fast track ("Sound good tonight": the four chords, the left hand, the
+  safety nets, a first melody, rhythm patterns, arp/filter/drop, moods),
+  body & hands, theory you can see, songs (Ode to Joy, Twinkle, Frère
+  Jacques, Happy Birthday, Amazing Grace, Für Elise, Greensleeves — public
+  domain, with the finger for the *next* note riding on its key), ear
+  training (direction, intervals, chord colours, I–IV–V–vi by ear), groove &
+  sets, and play for fun. Every step type — find, press, sequence, count,
+  groove (judged against the beat clock), ear (seeded rounds), quiz,
+  checklist, pedal, timer — is a state machine (`PnLessonRunner`) fed by
+  whatever plays: the on-screen keys, the computer keyboard (two DAW rows),
+  Web MIDI, or the microphone (harmonic-summation pitch detection, so a real
+  piano in the room lights the keys and completes the step, any octave).
+- **The sound rides the player's own context.** The synth (a hammer-struck
+  additive piano, tine e-piano, pad, supersaw, pluck, organ, sub bass), the
+  kit and the beat clock are built on `AE.ctx` and land in `AE.master` — so
+  the volume, mute and the limiter apply — and in `AE.analyser`, so the field
+  dances to what the learner plays. Backing is pure data per style (house,
+  trance, lo-fi, half-time, ballad, drone, metronome) and per 16th step;
+  chords are voice-led so the hand parks near middle C; the guide falls
+  down the highway in the pitch-class colour the colour engine gives the
+  key (`camelotHue`), so C here is the C the booth paints for a track in 8B.
+- **What is tested is what ships.** The whole brain — theory, chords,
+  progressions, voicing, the clock, tap tempo, the backing, the arp, the SMF
+  writer, MIDI parsing, the pitch detector, the runner and the curriculum —
+  is the `@piano` marker block; `tests/player.test.mjs` extracts it and runs
+  a scripted player through every step of every lesson. The DOM and the
+  sound are walked by `tools/piano_probe.mjs` (booth and phone widths,
+  screenshots of each face). The piano is not a scene: `SCENE_KEYS` and the
+  tvOS roster are untouched, and the parity law does not apply to it.
+- **The record, in your hands.** A library track can be *charted*:
+  `tools/piano_chart.py` separates it with Demucs (`htdemucs_6s`, the model
+  with a dedicated piano stem — run by the "Piano chart" workflow on a
+  runner, the way the stems job runs, because the sandboxes that write code
+  cannot fetch the model), transcribes the piano stem with basic-pitch
+  (falling back to a numpy harmonic-summation transcriber with octave and
+  fifth suppression and re-attack tracking), quantises every note to the
+  catalog's own beat grid (`mix.bpm` / `mix.grid`, the lattice CLOCK dances
+  to), reads the chords per bar (template match anchored on the bass line),
+  the key (Krumhansl profiles), the riff (top voice, phrased at rests), the
+  sections (from the catalog's structure) and the loop, and writes
+  `docs/charts/<tag>.json`. `PN_CHARTS` in the page names the charted
+  tracks by sha256; the chart is fetched the first time its track is opened.
+  `pnChartLesson` turns it into a lesson — the loop's chords as voice-led
+  hand shapes, the bass roots, the riff phrase by phrase (Listen at half
+  speed, or the record itself from that bar), then **play-along**: the
+  player plays the record, `CLOCK.beats` is the judge, the chart falls down
+  the highway, and a hit is a chart note of that pitch within a third of a
+  beat; `SPEED` slows the record to ¾ with the pitch held. Highway came out
+  as D♭ major (3B) at 0.95 confidence with the vi–IV–I–V cycle B♭m G♭ D♭
+  A♭ — where the pipeline's own key read was 8B at 0.03, so the chart
+  corrects the record's key badge inside the trainer. Charted from the whole
+  mix until the runner has separated it; a transcription of a mix hears
+  every layer, so the riff is the top voice of the arrangement, not yet the
+  piano alone.
+- **A chart has to prove itself against the record.** `piano_chart.py`
+  now verifies what it transcribes: a note counts only if its own pitch
+  (fundamental and two harmonics, an 8192-point window so semitones from C4
+  up are resolved) attacks at its charted time *and* harder than its
+  semitone neighbours. The controls are the same notes an 8th late, an 8th
+  early and a semitone up. Notes without evidence are dropped from the riff;
+  a part that does not beat its controls (Highway's left hand: 34% vs 21%
+  for the semitone control) is marked `leftVerified: false`, and the trainer
+  builds the left hand from the chords instead — which the same pass scores
+  by the share of each bar's pitch energy they hold (72% vs 29% for a random
+  chord). Highway ships charted from its isolated piano stem (the "Piano
+  chart" workflow, `htdemucs_6s`): 62% of riff notes evidenced on time
+  against 7% an 8th late and 14% a semitone up, and 70% of them identical
+  to the earlier mix-derived chart. The verification is written into the chart (`verify`), and the
+  unit suite holds the shipped chart to beating its controls.
+- **The lesson teaches the song the way it is played.** The focus is the
+  loud section the record confirms best (`pnFocusSection`); its own chord
+  cycle in playing order with Roman numerals (`pnSectionLoop`) — for
+  Highway's first drop D♭–B♭m–G♭, I–vi–IV — then what the other sections'
+  own cycles add (the final drop's A♭: I–V–vi–IV, the four chords, linked
+  to the trainer's first lesson). The chart's `loop` is the cycle of its
+  longest loud section, not a statistical window. Riff
+  phrases are two-bar pieces of that section, fingered by a five-finger
+  position rule (`pnFingerLine`), and at Easy folded under one hand
+  (`pnFoldLine`). Then **wait mode** (`practice` steps, the feature every
+  song app leads with): the song's own clock runs at a slider tempo, holds at
+  each note or chord until it is played, plays the other hand for you, and
+  loops the section on request, with a click. Easy / Full arrangements,
+  stars per step (best kept), and a daily streak complete the loop.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

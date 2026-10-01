@@ -237,13 +237,19 @@ await page.evaluate(() => {
   };
 });
 // average a few reads: one frame of a spectrum is noise, several are a measurement
+/* averaged over AUDIO time, not over a count of timer ticks: on a starved
+   renderer a 40 ms interval stretches to 150, so "fifty reads" covered three
+   times the stretch of signal it meant to and two windows over the same looped
+   noise no longer saw the same noise — the detent read 0.1 % off bypass one run
+   and 3.6 % the next with identical filter parameters on both sides */
 const spec = async ms => page.evaluate(t => new Promise(res => {
   const acc = { lo: 0, mid: 0, hi: 0, all: 0 }; let n = 0;
+  const t0 = AE.ctx.currentTime;
   const iv = setInterval(() => {
     const s = window.__spec();
     for (const k of ['lo', 'mid', 'hi', 'all']) acc[k] += s[k];
     n++;
-    if (n * 40 >= t){
+    if (n * 40 >= t && (AE.ctx.currentTime - t0) * 1000 >= t){
       clearInterval(iv);
       const o = { n }; for (const k of ['lo', 'mid', 'hi', 'all']) o[k] = acc[k] / n;
       res(o);
@@ -664,8 +670,17 @@ if (cue.bad) console.log('     (the cue check could not run: ' + JSON.stringify(
 R('hot cue: set mid-beat, it snaps to the nearest beat line', !cue.bad && cue.onGrid && cue.near, cue.bad ? 'no cue' : 'cue at ' + cue.at.toFixed(3) + ' s');
 R('hot cue: pressed mid-beat, the jump waits for the line', !cue.bad && (!cue.grid || cue.waited || cue.phaseAtPress < 0.05),
   cue.bad ? 'no cue' : 'phase at press ' + cue.phaseAtPress.toFixed(2) + ' beat · waited=' + cue.waited);
-R('…and aims at the cue with the beat phase intact — lateness carried, never lost', !cue.bad && isFinite(cue.aimed) && cue.aimed >= -0.001 && cue.aimErr < 0.03,
-  cue.bad ? 'no cue' : 'aimed ' + (cue.aimed * 1000).toFixed(0) + ' ms past the cue, ' + (cue.aimErr * 1000).toFixed(0) + ' ms off the beat');
+// a jump may now go up to half a frame EARLY on a slow frame clock (carrying
+// the lead, exactly as it carries lateness), so "aimed" may be a little negative
+/* …measured against the clock the jump can actually fire on, the same way the
+   loop checks are: a jump taken at the top of a frame is within half a frame of
+   its line at best (it goes early rather than a whole frame late — see
+   FX.jumpTick), so the promise is "within 30 ms, or within a frame's half on a
+   renderer too slow to offer 30". On a real GPU the frame is 16 ms and this is
+   the 30 ms it always was; the phase is carried exactly either way. */
+const cueSlack = Math.max(0.03, looped.tick * 0.6);
+R('…and aims at the cue with the beat phase intact — lateness carried, never lost', !cue.bad && isFinite(cue.aimed) && cue.aimed >= -looped.tick && cue.aimErr < cueSlack,
+  cue.bad ? 'no cue' : 'aimed ' + (cue.aimed * 1000).toFixed(0) + ' ms past the cue, ' + (cue.aimErr * 1000).toFixed(0) + ' ms off the beat, against a ' + (cueSlack * 1000).toFixed(0) + ' ms allowance');
 // the element's landing carries its own seek latency — reported, and held only
 // to a bound a software decoder on a software rasteriser can meet
 R('…and the element lands within a seek of it', !cue.bad && isFinite(cue.landErr) && Math.abs(cue.landErr) < 0.5 && cue.phaseErr < 0.2,
