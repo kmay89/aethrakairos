@@ -4042,6 +4042,21 @@ body.clipping::after{
     (2J₁(x)/x)² with x&nbsp;=&nbsp;πdθ/λ, its rings shrinking as the drops grow and the cloud's
     edges iridescent where the drop size changes; pollen grains, not being round, stretch it. The
     bass swells the drops, the treble glitters the ice.</p>
+    <h3>Lift, made visible</h3>
+    <p class="lede">Scene 110 is <b>KUTTA</b>: the flow round a wing, solved exactly. THE WING is Joukowski's: the flow
+    round a circle carried onto an airfoil by the conformal map z&nbsp;=&nbsp;ζ&nbsp;+&nbsp;1/ζ,
+    the circulation fixed by Kutta's condition — the flow must leave the sharp trailing edge
+    smoothly, Γ&nbsp;=&nbsp;4πaU&nbsp;sin(α&nbsp;+&nbsp;β) — so the lift is
+    ρUΓ, drawn as the arrow. The streamlines are the level sets of the stream function, the
+    colour is Bernoulli's pressure (suction over the top), and the bright bands are smoke pulses
+    released upstream at equal intervals and carried by the true time of flight along each
+    streamline: watch the upper half of each pulse reach the trailing edge long before the lower
+    half — the "equal transit time" story is false, and the circulation is why. THE CURVEBALL is
+    Magnus: a spinning cylinder in a stream, its two stagnation points sliding together as the
+    spin grows until, past Γ&nbsp;=&nbsp;4πaU, they merge and leave the surface — backspin lifts,
+    topspin dives, a rotor sweeps through it all. THE MAP shows the trick itself: the flow round a
+    circle and its polar grid, morphing into the wing as the map's constant grows, every small
+    square staying square. The angle of attack drifts with the music; a hand tilts it.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4679,7 +4694,7 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
                'flows', 'gathers',
-               'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'gathers', 'flows', 'flows'];   // …the lattice and the film ripple, the
+               'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'gathers', 'flows', 'flows', 'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -6189,7 +6204,7 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
-                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris'];
+                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6355,6 +6370,7 @@ const SCENE_TASTE = {
   wake: { energy: 0.6, beat: 0.4, treble: 0.2, entropy: -0.1 },   // a source outrunning its own waves wants drive
   brachisto: { calm: 0.5, beat: 0.4, energy: 0.2, entropy: -0.4 },   // a race decided by geometry wants order and a steady pulse
   iris: { calm: 0.7, treble: 0.4, energy: 0.1, entropy: -0.3 },   // light in the sky wants a long breath and a bright top end
+  kutta: { energy: 0.4, mid: 0.4, calm: 0.3, entropy: -0.3 },   // steady flow wants a steady groove
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7630,6 +7646,7 @@ const SCENE_SIGS = {
   wake: { kind: 'wave',   h: 200, arms: 3 },
   brachisto: { kind: 'wave',   h: 45,  arms: 4 },
   iris: { kind: 'ring',   h: 130, arms: 7, rainbow: 1 },
+  kutta: { kind: 'ribbon', h: 190, arms: 4 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -51479,6 +51496,280 @@ function buildIris(){
 }
 
 /* ================================================================
+   KUTTA — lift, made visible: potential flow round a Joukowski airfoil.
+
+   The flow round a circle (W = U[(ζ−μ)e^{−iα} + a²e^{iα}/(ζ−μ)] + iΓ/2π log(ζ−μ))
+   carried onto the airfoil by z = ζ + s/ζ (inverted per pixel, the root
+   outside the circle kept), Γ fixed by Kutta's condition at the sharp
+   trailing edge, Γ = 4πaU sin(α + β). Streamlines are the stream function's
+   level sets, the colour Bernoulli's pressure, and the smoke pulses carry
+   each point's true time of flight, integrated backward along its streamline
+   (RK2 in the z-plane): the upper half of a pulse beats the lower half to
+   the trailing edge — no equal transit, only circulation. THE CURVEBALL is
+   the Magnus cylinder, its stagnation points merging and leaving the
+   surface past Γ = 4πaU. THE MAP morphs the circle and its log-polar grid
+   into the wing as s runs from 0 to 1 — conformal, every small square
+   staying square.
+   ================================================================ */
+function buildKutta(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uMode:   { value: 0 },
+    uShape:  { value: 0 },
+    uSimT:   { value: 0 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  /* the room is written once, in the house dialect, and spoken on both stages:
+     the TV's Shaders30.metal carries the same words */
+  const frag = GLSL_MPHI + `
+    #define atan2(y, x) atan(y, x)
+    #define INOUT(T, n) inout T n
+    #define SPEC(f) texture2D(uAudio, vec2(clamp((f) / 22050.0, 0.0, 1.0), 0.5)).r
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCalm, uOpacity;
+    uniform float uMode, uShape, uVarA, uSimT, uAspect;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float sq(float x){ return x * x; }
+    float glow(float d, float k){ return exp(-d * d * k); }
+    vec2 rot(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+    float sdBox(vec2 p, vec2 b){ vec2 d = abs(p) - b; return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0); }
+    float segd(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-8), 0.0, 1.0); return length(pa - ba * h); }
+    float ppow(float x, float y){ return exp2(y * log2(max(x, 1e-20))); }
+    float atan2s(float y, float x){ return atan2(y, (abs(x) + abs(y) < 1e-12) ? 1e-12 : x); }
+    float sinhx(float x){ return 0.5 * (exp(x) - exp(-x)); }
+    float coshx(float x){ return 0.5 * (exp(x) + exp(-x)); }
+    float tanhx(float x){ float e = exp(-2.0 * abs(x)); float t = (1.0 - e) / (1.0 + e); return x < 0.0 ? -t : t; }
+    float asinhx(float x){ float a = abs(x); float r = log(a + sqrt(a * a + 1.0)); return x < 0.0 ? -r : r; }
+    float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+    float vnoise(vec2 x){ vec2 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y); }
+    float fbm4(vec2 x){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++){ s += a * vnoise(x); x = rot(x, 0.6) * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }
+    vec2 cmul(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+    vec2 cdiv(vec2 a, vec2 b){ float d = max(dot(b, b), 1e-12); return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / d; }
+    vec2 csqrt(vec2 z){ float r = length(z); float a = sqrt(max(0.5 * (r + z.x), 0.0)); float b = sqrt(max(0.5 * (r - z.x), 0.0)); return vec2(a, z.y < 0.0 ? -b : b); }
+    vec2 clog(vec2 z){ return vec2(log(max(length(z), 1e-12)), atan2s(z.y, z.x)); }
+    /* a lit sphere's colour at q (unit disc coords), or the background passed in */
+    vec3 sphereShade(vec2 q, vec3 hue, vec3 bg, float spec){
+      float r2 = dot(q, q);
+      if (r2 > 1.0) return bg;
+      vec3 n = vec3(q, sqrt(max(1.0 - r2, 0.0)));
+      vec3 L = normalize(vec3(-0.45, 0.62, 0.64));
+      float dif = max(0.0, dot(n, L));
+      float sp = ppow(max(0.0, dot(reflect(-L, n), vec3(0.0, 0.0, 1.0))), 40.0);
+      float edge = smoothstep(1.0, 0.90, sqrt(r2));
+      return mix(bg, hue * (0.20 + 0.80 * dif) + vec3(sp * spec), edge);
+    }
+    /* the flow round a circle (centre mu, radius a), free stream U = 1 at angle al, circulation G:
+       dW/dzeta, and the stream function psi = Im W (its log term has no cut) */
+    vec2 cylV(vec2 zt, vec2 mu, float a, float al, float G){
+      vec2 w = zt - mu;
+      vec2 em = vec2(cos(al), -sin(al)), ep = vec2(cos(al), sin(al));
+      return em - a * a * cdiv(ep, cmul(w, w)) + G / (2.0 * PI) * cdiv(vec2(0.0, 1.0), w);
+    }
+    float cylPsi(vec2 zt, vec2 mu, float a, float al, float G){
+      vec2 w = zt - mu;
+      vec2 em = vec2(cos(al), -sin(al)), ep = vec2(cos(al), sin(al));
+      vec2 W = cmul(w, em) + a * a * cdiv(ep, w);
+      return W.y + G / (2.0 * PI) * log(max(length(w), 1e-6));
+    }
+    /* z -> zeta outside the circle, for z = zeta + s/zeta: of the two roots, the one farther from mu */
+    vec2 zetaOf(vec2 z, float s, vec2 mu){
+      vec2 r = csqrt(cmul(z, z) - vec2(4.0 * s, 0.0));
+      vec2 z1 = 0.5 * (z + r), z2 = 0.5 * (z - r);
+      return length(z1 - mu) >= length(z2 - mu) ? z1 : z2;
+    }
+    /* the velocity (u, v) in the z-plane */
+    vec2 flowZ(vec2 z, float s, vec2 mu, float a, float al, float G){
+      vec2 zt = zetaOf(z, s, mu);
+      vec2 dz = vec2(1.0, 0.0) - s * cdiv(vec2(1.0, 0.0), cmul(zt, zt));
+      vec2 c = cdiv(cylV(zt, mu, a, al, G), dz);
+      return vec2(c.x, -c.y);
+    }
+    /* the time of flight from far upstream (x = xUp) to z along its streamline, RK2 backwards */
+    float tof(vec2 z, float s, vec2 mu, float a, float al, float G, float xUp){
+      float tau = 0.0;
+      vec2 q = z;
+      for (int i = 0; i < 20; i++){
+        if (q.x < xUp) break;
+        float h = 0.26;
+        vec2 v0 = flowZ(q, s, mu, a, al, G);
+        vec2 qm = q - 0.5 * h * v0 / max(length(v0), 0.04);
+        vec2 vm = flowZ(qm, s, mu, a, al, G);
+        float spm = max(length(vm), 0.04);
+        q -= h * vm / spm;
+        tau += h / spm;
+      }
+      return tau + (q.x - xUp) / max(cos(al), 0.3);           // signed: undo the overshoot, so tau stays continuous
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      {
+        float T = uSimT;
+        vec3 hot = ramp(0.85 + uVarA * 0.1), cool = ramp(0.15 + uVarA * 0.1), lineC = ramp(0.5 + uVarA * 0.1);
+        // the stage: the body's frame, z-units (the airfoil runs about -2..2)
+        float kz = 4.2 / min(1.15 * uAspect, 2.1);
+        vec2 z = p * kz + vec2(0.25, 0.0);
+        float s = 1.0;
+        vec2 mu = vec2(0.0);
+        float a = 1.0;
+        float al = 0.0;
+        float G = 0.0;
+        float gridOnly = 0.0;
+        float spin = 0.0;
+        if (uMode < 0.5){
+          float eps = uShape < 0.5 ? 0.10 : (uShape < 1.5 ? 0.08 : 0.18);
+          float del = uShape < 0.5 ? 0.0 : (uShape < 1.5 ? 0.10 : 0.15);
+          mu = vec2(-eps, del);
+          a = length(vec2(1.0, 0.0) - mu);
+          al = 0.13 + 0.08 * sin(T * 0.21) + 0.04 * uEnergy + (uHand.z > 0.05 ? uHand.y * 0.25 * uHand.z : 0.0);
+          float be = atan2s(del, 1.0 + eps);
+          G = 4.0 * PI * a * sin(al + be);
+        } else if (uMode < 1.5){
+          s = 0.0; mu = vec2(0.0); a = 1.0;
+          z = p * kz * 0.95;
+          float sw = uShape < 0.5 ? 0.55 + 0.35 * sin(T * 0.25) : (uShape < 1.5 ? -(0.55 + 0.35 * sin(T * 0.25)) : 1.05 + 1.0 * sin(T * 0.18));
+          spin = sw + 0.25 * uBass;
+          G = 4.0 * PI * a * spin;                               // Gamma = 4 pi a U s: s = 1 is where the stagnation points meet
+          al = 0.0;
+        } else {
+          float m = 0.5 - 0.5 * cos(T * 2.0 * PI / 16.0);
+          s = uShape < 0.5 || uShape > 1.5 ? m : 1.0;
+          float q0 = sqrt(s);
+          float bp = uShape < 0.5 || uShape > 1.5 ? 0.09 : 0.0;
+          a = uShape < 0.5 || uShape > 1.5 ? 1.1 : 1.0;
+          mu = vec2(q0 - a * cos(bp), a * sin(bp));
+          if (uShape > 0.5 && uShape < 1.5) mu = vec2(0.0);       // a circle round the origin maps to the flat plate
+          al = uShape > 0.5 && uShape < 1.5 ? 0.08 + 0.12 * m : 0.10;
+          G = 4.0 * PI * a * sin(al + bp);
+          // keep the body centred while the map changes
+          vec2 c0 = mu + s * cdiv(vec2(1.0, 0.0), mu + vec2(1e-4, 0.0));
+          z = p * kz + (uShape > 0.5 && uShape < 1.5 ? vec2(0.0) : c0 * 0.9);
+          gridOnly = step(1.5, uShape);
+        }
+        vec2 zt = zetaOf(z, s, mu);
+        float rr = length(zt - mu);
+        bool body = rr < a;
+        if (!body){
+          vec2 dz = vec2(1.0, 0.0) - s * cdiv(vec2(1.0, 0.0), cmul(zt, zt));
+          vec2 cV = cdiv(cylV(zt, mu, a, al, G), dz);
+          float sp = length(cV);
+          float Cp = 1.0 - sp * sp;
+          // Bernoulli: suction warm, pressure cool
+          col += hot * clamp(-Cp, 0.0, 3.0) * 0.07 * (0.8 + uMid * 0.4) + cool * clamp(Cp, 0.0, 1.0) * 0.09;
+          // the streamlines: level sets of psi, drawn at constant width
+          float psi = cylPsi(zt, mu, a, al, G);
+          float dpsi = 0.24;
+          float wr = abs(fract(psi / dpsi + 0.5) - 0.5) * dpsi;
+          float dl = wr / max(sp, 0.02) / kz;
+          float near = glow(dl, 160000.0);
+          col += lineC * near * (gridOnly > 0.5 ? 0.0 : 0.55) * smoothstep(0.02, 0.15, sp);
+          // the conformal grid of the circle's plane, carried through the map
+          if (uMode > 1.5){
+            float u = log(max(rr / a, 1e-4));
+            float v = atan2s(zt.y - mu.y, zt.x - mu.x);
+            float J = 1.0 / (max(rr, 1e-4) * max(length(dz), 1e-3) * kz);   // |grad u| in screen units
+            float du = abs(fract(u / 0.12 + 0.5) - 0.5) * 0.12 / J;
+            float dv = abs(fract(v / (PI / 16.0) + 0.5) - 0.5) * (PI / 16.0) / J;
+            col += cool * (glow(du, 90000.0) + glow(dv, 90000.0)) * (gridOnly > 0.5 ? 0.6 : 0.22) * smoothstep(4.0, 2.0, u);
+          }
+          // the smoke pulses: true time of flight, released upstream every 0.9 s
+          if (gridOnly < 0.5 && abs(z.y) < 3.2){
+            float tau = tof(z, s, mu, a, al, G, -3.4);
+            float ph = fract((T * 1.1 - tau) / 0.9);
+            float band = smoothstep(0.0, 0.02, ph) * smoothstep(0.07, 0.025, ph);
+            col += mix(vec3(0.85), lineC, 0.35) * band * (0.2 + uBeat * 0.2 + near * 0.35) * smoothstep(0.03, 0.12, sp);
+          }
+        } else {
+          // the body
+          float rim = glow((a - rr) * 0.5, 4000.0);
+          col = ramp(0.6) * 0.03 + lineC * rim * 0.8;
+          if (uMode > 0.5 && uMode < 1.5){
+            float th = atan2s(zt.y, zt.x);
+            float stripe = smoothstep(0.75, 0.95, cos(6.0 * (th + spin * T * 1.4)));
+            col += hot * stripe * 0.25 * smoothstep(0.2, 0.9, rr);
+          }
+        }
+        // the stagnation points on the circle, carried through the map
+        float k = -G / (4.0 * PI * a);
+        if (abs(k) <= 1.0){
+          for (int j = 0; j < 2; j++){
+            float th = al + (j == 0 ? asin(clamp(k, -1.0, 1.0)) : PI - asin(clamp(k, -1.0, 1.0)));
+            vec2 zs = mu + a * vec2(cos(th), sin(th));
+            vec2 Z = zs + s * cdiv(vec2(1.0, 0.0), zs);
+            col += hot * glow(length(z - Z) / kz, 9000.0) * 0.9;
+          }
+        } else {
+          // past 4 pi a U they merge and leave the body: one stagnation point, out in the flow
+          float rs = a * (abs(k) + sqrt(k * k - 1.0));
+          vec2 Z = mu + rs * vec2(0.0, k < 0.0 ? -1.0 : 1.0);
+          col += hot * glow(length(z - Z) / kz, 9000.0) * 1.2;
+        }
+        // the lift: rho U Gamma, straight up the screen
+        if (gridOnly < 0.5){
+          vec2 Lc = (vec2(0.0, 0.0) - vec2(0.25, 0.0)) / kz;
+          if (uMode > 0.5 && uMode < 1.5) Lc = vec2(0.0);
+          float Lm = clamp(G * 0.055, -0.65, 0.65);
+          vec2 L0 = Lc + vec2(0.0, sign(Lm) * 0.12), L1 = Lc + vec2(0.0, sign(Lm) * 0.12 + Lm);
+          float da = segd(p, L0, L1);
+          vec2 dir = normalize(L1 - L0 + vec2(0.0, 1e-5));
+          float hd = min(segd(p, L1, L1 - dir * 0.05 + vec2(-dir.y, dir.x) * 0.03), segd(p, L1, L1 - dir * 0.05 - vec2(-dir.y, dir.x) * 0.03));
+          col += hot * (glow(da, 60000.0) + glow(hd, 60000.0)) * 0.9 * step(0.02, abs(Lm));
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(max(col, vec3(0.0))), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const FACES = [{"name":"THE WING","shapes":["SYMMETRIC","CAMBERED","THICK"]},{"name":"THE CURVEBALL","shapes":["BACKSPIN","TOPSPIN","THE ROTOR"]},{"name":"THE MAP","shapes":["CIRCLE TO WING","THE FLAT PLATE","THE GRID ALONE"]}];
+  const st = { face: 0, shape: 0 };
+  const api = {
+    name: 'KUTTA', key: 'kutta', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the clock runs at the music's pace: the smoke pulses ride the music's clock; the flow itself is steady
+      varU.uSimT.value += Math.min(dt, 0.05) * (0.75 + (f.energy || 0) * 0.35 + (f.beat || 0) * 0.15);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.face = Math.floor(Math.random() * FACES.length);
+      st.shape = Math.floor(Math.random() * 3);
+      varU.uMode.value = st.face;
+      varU.uShape.value = st.shape;
+      varU.uVarA.value = Math.random();
+      varU.uSimT.value = 0;
+      api.name = 'KUTTA · ' + FACES[st.face].name + ' · ' + FACES[st.face].shapes[st.shape];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -51523,7 +51814,7 @@ function initThree(){
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
-              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris());
+              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

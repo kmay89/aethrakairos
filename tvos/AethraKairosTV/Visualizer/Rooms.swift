@@ -462,6 +462,14 @@ enum Rooms {
         Room(key: "iris", name: "IRIS", fragmentFunction: "room_iris",
              tasteEnergy: 0.1, tasteCalm: 0.7, tasteBeat: 0, tasteTreble: 0.4,
              tasteEntropy: -0.3, heavy: true, calm: true),
+
+        // Lift, made visible (Shaders30): the Joukowski airfoil with Kutta's
+        // circulation, pressure and true time-of-flight smoke pulses; the Magnus
+        // cylinder; and the conformal map morphing circle into wing. The pulses
+        // integrate each pixel's streamline backward: heavy.
+        Room(key: "kutta", name: "KUTTA", fragmentFunction: "room_kutta",
+             tasteEnergy: 0.4, tasteCalm: 0.3, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.4, tasteEntropy: -0.3, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
