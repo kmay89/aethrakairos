@@ -58,7 +58,7 @@ complete, no-guessing runbook.
   through mud, the story arc warms and cools the whole chord as one rotation,
   and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds one hundred and thirteen Metal rooms — one for every scene the web player has, 1:1 by
+  feeds one hundred and fourteen Metal rooms — one for every scene the web player has, 1:1 by
   key (the parity law in `CONTRIBUTING.md`); beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
@@ -103,6 +103,7 @@ complete, no-guessing runbook.
   | **BALLPIT** — the ball pit: the hopper, the fountain, the cannon, filled to the brim | **MASONRY** — architecture against gravity: the arch's line of thrust, the corbel's harmonic reach, the dome's 51.8° | **WAKE** — the three cones: the boom, the Kelvin wake, the Cherenkov glow |
   | **BRACHISTOCHRONE** — the race of curves: the cycloid wins, the tautochrone keeps time, Huygens' cheeks | **IRIS** — the sky's optics: Airy's rainbow, the ice halos and sundogs, the moon's corona | **KUTTA** — lift, made visible: Joukowski's wing, the Magnus curveball, the conformal map |
   | **AURORA** — the northern lights: the curtain, the oval from space, the magnetic mirror | **COCHLEA** — the ear, listening: travelling waves on the basilar membrane, the hair cells, the ear's keyboard | **CORIOLIS** — the turning frame: the carousel throw, Foucault's pendulum, the hurricane and the wind belts |
+  | **SEISMIC** — how we know the inside of the Earth: P and S rays and their shadows, the four wave motions, the drum | | |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's

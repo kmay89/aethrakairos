@@ -494,6 +494,14 @@ enum Rooms {
         Room(key: "coriolis", name: "CORIOLIS", fragmentFunction: "room_coriolis",
              tasteEnergy: 0.2, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
              tasteMid: 0.4, heavy: true),
+
+        // How we know the inside of the Earth (Shaders34): rays through a
+        // nine-shell Earth by spherical Snell's law (P and S shadow zones emerge on
+        // their own), the four wave motions as deformed lattices, and the
+        // seismologist's desk. Heavy: twenty rays solved per pixel.
+        Room(key: "seismic", name: "SEISMIC", fragmentFunction: "room_seismic",
+             tasteEnergy: 0.4, tasteCalm: -0.1, tasteBeat: 0.3, tasteTreble: 0,
+             tasteEntropy: 0.1, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
