@@ -526,6 +526,14 @@ enum Rooms {
         Room(key: "plateau", name: "PLATEAU", fragmentFunction: "room_plateau",
              tasteEnergy: 0.2, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0.3,
              heavy: true),
+
+        // The tick (Shaders38): the anchor and deadbeat escapements with their
+        // pendulum, a long-case clock, a skeleton clock's going train, planetary
+        // gears and a Geneva drive, a watch balance with a breathing hairspring,
+        // the Swiss lever and a tourbillon. Moderate.
+        Room(key: "escapement", name: "ESCAPEMENT", fragmentFunction: "room_escapement",
+             tasteEnergy: 0, tasteCalm: 0.2, tasteBeat: 0.5, tasteTreble: 0,
+             tasteMid: 0.3, tasteEntropy: -0.4),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
