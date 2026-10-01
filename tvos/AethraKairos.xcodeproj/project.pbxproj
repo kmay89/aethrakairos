@@ -47,6 +47,22 @@
 		AEC0FFEE0000000000000078 /* Shaders21.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000077 /* Shaders21.metal */; };
 		AEC0FFEE000000000000007A /* Shaders22.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000079 /* Shaders22.metal */; };
 		AEC0FFEE000000000000007C /* Shaders23.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000007B /* Shaders23.metal */; };
+		AEC0FFEE000000000000007E /* Shaders24.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000007D /* Shaders24.metal */; };
+		AEC0FFEE0000000000000080 /* Shaders25.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000007F /* Shaders25.metal */; };
+		AEC0FFEE0000000000000082 /* Shaders26.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000081 /* Shaders26.metal */; };
+		AEC0FFEE0000000000000084 /* Shaders27.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000083 /* Shaders27.metal */; };
+		AEC0FFEE0000000000000086 /* Shaders28.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000085 /* Shaders28.metal */; };
+		AEC0FFEE0000000000000088 /* Shaders29.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000087 /* Shaders29.metal */; };
+		AEC0FFEE000000000000008A /* Shaders30.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000089 /* Shaders30.metal */; };
+		AEC0FFEE000000000000008C /* Shaders31.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000008B /* Shaders31.metal */; };
+		AEC0FFEE000000000000008E /* Shaders32.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000008D /* Shaders32.metal */; };
+		AEC0FFEE0000000000000090 /* Shaders33.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000008F /* Shaders33.metal */; };
+		AEC0FFEE0000000000000092 /* Shaders34.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000091 /* Shaders34.metal */; };
+		AEC0FFEE0000000000000094 /* Shaders35.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000093 /* Shaders35.metal */; };
+		AEC0FFEE0000000000000096 /* Shaders36.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000095 /* Shaders36.metal */; };
+		AEC0FFEE0000000000000098 /* Shaders37.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000097 /* Shaders37.metal */; };
+		AEC0FFEE000000000000009A /* Shaders38.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000099 /* Shaders38.metal */; };
+		AEC0FFEE000000000000009C /* Shaders39.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000009B /* Shaders39.metal */; };
 		AEC0FFEE000000000000002E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002D /* HomeView.swift */; };
 		AEC0FFEE0000000000000030 /* NowPlayingHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000002F /* NowPlayingHUD.swift */; };
 		AEC0FFEE0000000000000032 /* RemoteControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000031 /* RemoteControls.swift */; };
@@ -101,6 +117,22 @@
 		AEC0FFEE0000000000000077 /* Shaders21.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders21.metal; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000079 /* Shaders22.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders22.metal; sourceTree = "<group>"; };
 		AEC0FFEE000000000000007B /* Shaders23.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders23.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000007D /* Shaders24.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders24.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000007F /* Shaders25.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders25.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000081 /* Shaders26.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders26.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000083 /* Shaders27.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders27.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000085 /* Shaders28.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders28.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000087 /* Shaders29.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders29.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000089 /* Shaders30.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders30.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000008B /* Shaders31.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders31.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000008D /* Shaders32.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders32.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000008F /* Shaders33.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders33.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000091 /* Shaders34.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders34.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000093 /* Shaders35.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders35.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000095 /* Shaders36.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders36.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000097 /* Shaders37.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders37.metal; sourceTree = "<group>"; };
+		AEC0FFEE0000000000000099 /* Shaders38.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders38.metal; sourceTree = "<group>"; };
+		AEC0FFEE000000000000009B /* Shaders39.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders39.metal; sourceTree = "<group>"; };
 		AEC0FFEE000000000000002D /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		AEC0FFEE000000000000002F /* NowPlayingHUD.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowPlayingHUD.swift; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000031 /* RemoteControls.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RemoteControls.swift; sourceTree = "<group>"; };
@@ -240,6 +272,22 @@
 				AEC0FFEE0000000000000077 /* Shaders21.metal */,
 				AEC0FFEE0000000000000079 /* Shaders22.metal */,
 				AEC0FFEE000000000000007B /* Shaders23.metal */,
+				AEC0FFEE000000000000007D /* Shaders24.metal */,
+				AEC0FFEE000000000000007F /* Shaders25.metal */,
+				AEC0FFEE0000000000000081 /* Shaders26.metal */,
+				AEC0FFEE0000000000000083 /* Shaders27.metal */,
+				AEC0FFEE0000000000000085 /* Shaders28.metal */,
+				AEC0FFEE0000000000000087 /* Shaders29.metal */,
+				AEC0FFEE0000000000000089 /* Shaders30.metal */,
+				AEC0FFEE000000000000008B /* Shaders31.metal */,
+				AEC0FFEE000000000000008D /* Shaders32.metal */,
+				AEC0FFEE000000000000008F /* Shaders33.metal */,
+				AEC0FFEE0000000000000091 /* Shaders34.metal */,
+				AEC0FFEE0000000000000093 /* Shaders35.metal */,
+				AEC0FFEE0000000000000095 /* Shaders36.metal */,
+				AEC0FFEE0000000000000097 /* Shaders37.metal */,
+				AEC0FFEE0000000000000099 /* Shaders38.metal */,
+				AEC0FFEE000000000000009B /* Shaders39.metal */,
 			);
 			path = Visualizer;
 			sourceTree = "<group>";
@@ -376,6 +424,22 @@
 				AEC0FFEE0000000000000078 /* Shaders21.metal in Sources */,
 				AEC0FFEE000000000000007A /* Shaders22.metal in Sources */,
 				AEC0FFEE000000000000007C /* Shaders23.metal in Sources */,
+				AEC0FFEE000000000000007E /* Shaders24.metal in Sources */,
+				AEC0FFEE0000000000000080 /* Shaders25.metal in Sources */,
+				AEC0FFEE0000000000000082 /* Shaders26.metal in Sources */,
+				AEC0FFEE0000000000000084 /* Shaders27.metal in Sources */,
+				AEC0FFEE0000000000000086 /* Shaders28.metal in Sources */,
+				AEC0FFEE0000000000000088 /* Shaders29.metal in Sources */,
+				AEC0FFEE000000000000008A /* Shaders30.metal in Sources */,
+				AEC0FFEE000000000000008C /* Shaders31.metal in Sources */,
+				AEC0FFEE000000000000008E /* Shaders32.metal in Sources */,
+				AEC0FFEE0000000000000090 /* Shaders33.metal in Sources */,
+				AEC0FFEE0000000000000092 /* Shaders34.metal in Sources */,
+				AEC0FFEE0000000000000094 /* Shaders35.metal in Sources */,
+				AEC0FFEE0000000000000096 /* Shaders36.metal in Sources */,
+				AEC0FFEE0000000000000098 /* Shaders37.metal in Sources */,
+				AEC0FFEE000000000000009A /* Shaders38.metal in Sources */,
+				AEC0FFEE000000000000009C /* Shaders39.metal in Sources */,
 				AEC0FFEE000000000000002E /* HomeView.swift in Sources */,
 				AEC0FFEE0000000000000030 /* NowPlayingHUD.swift in Sources */,
 				AEC0FFEE0000000000000032 /* RemoteControls.swift in Sources */,
