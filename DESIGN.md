@@ -1572,6 +1572,35 @@ scenes, booth and sliced screen alike.
   mix until the runner has separated it; a transcription of a mix hears
   every layer, so the riff is the top voice of the arrangement, not yet the
   piano alone.
+- **A chart has to prove itself against the record.** `piano_chart.py`
+  now verifies what it transcribes: a note counts only if its own pitch
+  (fundamental and two harmonics, an 8192-point window so semitones from C4
+  up are resolved) attacks at its charted time *and* harder than its
+  semitone neighbours. The controls are the same notes an 8th late, an 8th
+  early and a semitone up. Notes without evidence are dropped from the riff;
+  a part that does not beat its controls (Highway's left hand: 34% vs 21%
+  for the semitone control) is marked `leftVerified: false`, and the trainer
+  builds the left hand from the chords instead — which the same pass scores
+  by the share of each bar's pitch energy they hold (72% vs 29% for a random
+  chord). Highway ships charted from its isolated piano stem (the "Piano
+  chart" workflow, `htdemucs_6s`): 62% of riff notes evidenced on time
+  against 7% an 8th late and 14% a semitone up, and 70% of them identical
+  to the earlier mix-derived chart. The verification is written into the chart (`verify`), and the
+  unit suite holds the shipped chart to beating its controls.
+- **The lesson teaches the song the way it is played.** The focus is the
+  loud section the record confirms best (`pnFocusSection`); its own chord
+  cycle in playing order with Roman numerals (`pnSectionLoop`) — for
+  Highway's first drop D♭–B♭m–G♭, I–vi–IV — then what the other sections'
+  own cycles add (the final drop's A♭: I–V–vi–IV, the four chords, linked
+  to the trainer's first lesson). The chart's `loop` is the cycle of its
+  longest loud section, not a statistical window. Riff
+  phrases are two-bar pieces of that section, fingered by a five-finger
+  position rule (`pnFingerLine`), and at Easy folded under one hand
+  (`pnFoldLine`). Then **wait mode** (`practice` steps, the feature every
+  song app leads with): the song's own clock runs at a slider tempo, holds at
+  each note or chord until it is played, plays the other hand for you, and
+  loops the section on request, with a click. Easy / Full arrangements,
+  stars per step (best kept), and a daily streak complete the loop.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
