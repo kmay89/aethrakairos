@@ -502,6 +502,14 @@ enum Rooms {
         Room(key: "seismic", name: "SEISMIC", fragmentFunction: "room_seismic",
              tasteEnergy: 0.4, tasteCalm: -0.1, tasteBeat: 0.3, tasteTreble: 0,
              tasteEntropy: 0.1, heavy: true),
+
+        // The pull of the Moon (Shaders35): the equilibrium bulges with spring
+        // and neap, the lag and the tidal field; Taylor's Kelvin-wave amphidromes
+        // with cotidal and co-range lines; a beach and its four-constituent tide
+        // gauge. Light.
+        Room(key: "tides", name: "TIDES", fragmentFunction: "room_tides",
+             tasteEnergy: 0.1, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0,
+             tasteEntropy: -0.2, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
