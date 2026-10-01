@@ -3994,6 +3994,54 @@ body.clipping::after{
     pulls inward at its base; the saucer thrusts outward and its thrust line is drawn down through
     the buttresses. The bass is the load, the beat a tremor, the treble the glint on a crack, and a
     hand is a load where it presses.</p>
+    <h3>The three cones</h3>
+    <p class="lede">Scene 107 is <b>WAKE</b>: what happens when a source outruns its own waves. Every point it passes
+    sends out a circle, and the circles pile into a cone. THE BOOM is sound: the source's Mach
+    number climbs from a hum to a shout, the circles bunching ahead of it (Doppler) until at
+    Mach 1 they stack into a wall and past it open into the Mach cone, sin&nbsp;θ&nbsp;=&nbsp;1/M,
+    the observers on the ground hearing the boom as the cone sweeps them; the dice fly it level, round
+    an orbit (spiral shocks) or in a dive that accelerates through the barrier. THE KELVIN WAKE is
+    water, where the waves are dispersive: the crests come from the stationary phase of
+    k&nbsp;=&nbsp;g/(U²cos²θ), whose two roots are real only inside |y/x|&nbsp;≤&nbsp;1/√8 — a wedge
+    of 19.47° behind every hull at every speed, transverse and divergent crests meeting in a bright
+    cusp; two hulls at different speeds draw different wavelengths and the same angle. THE GLOW is
+    light: a charged particle faster than light in water (n&nbsp;=&nbsp;1.33) leaves a
+    Cherenkov front at cos&nbsp;θ&nbsp;=&nbsp;1/(nβ), the horn closing as the particle slows and
+    going dark at threshold, the photomultipliers on the wall lighting where it lands — a muon, a
+    shower, a neutrino's vertex. The bass is the loudness, the beat the flash on the wall, and a hand
+    is a listener the circles pass through.</p>
+    <h3>The race of curves</h3>
+    <p class="lede">Scene 108 is <b>BRACHISTOCHRONE</b>: the curve of fastest descent, found by the Bernoullis in 1697. THE RACE
+    lets four beads go together from one point to another lower down — a straight ramp, Galileo's
+    circle, the cycloid and a deeper dive — and the cycloid wins every time, even when it has to
+    sink below the finish and climb back up to it. The straight line and the cycloid are solved
+    exactly; the circle and the dive are timed by marching their own energy equation,
+    dt&nbsp;=&nbsp;ds/√(2g&nbsp;h), and a strobe leaves the beads' past positions behind them so the
+    speed shows as spacing. THE TAUTOCHRONE turns the cycloid over into a bowl, where the
+    motion is simple harmonic in arc length, s&nbsp;=&nbsp;s₀&nbsp;cos&nbsp;ωt with
+    ω&nbsp;=&nbsp;√(g/4r): beads let go from seven heights reach the bottom in the same instant and
+    line up there, again and again; the circle-shaped bowl beside them cannot do it. HUYGENS' CLOCK
+    hangs a pendulum between two cycloidal cheeks so its bob swings along a cycloid and keeps the
+    same time at any amplitude, beside a plain pendulum swung as wide (Jacobi's sn, exact) that
+    falls behind, and a plain one swung small that keeps the same tick as Huygens. The beat brightens
+    the strobe and the lamps; a hand is a finger that steadies the field.</p>
+    <h3>The sky's optics</h3>
+    <p class="lede">Scene 109 is <b>IRIS</b>: the colours the sky makes from sunlight and a little water or ice, every one
+    of them computed from the true dispersion of the medium and painted in spectral colour. THE BOW
+    is Descartes' rainbow: a ray turned once inside a raindrop has a minimum deviation, and the light
+    piles up there — 42° from the point opposite the sun for red, a little less for violet; turned
+    twice, 51°, its colours reversed; and between them Alexander's dark band. The bright edge is
+    drawn with Airy's theory, Ai²(−z), so the pale supernumerary bands appear inside the bow when
+    the drops are small, and with fog the colours wash into a white bow. THE HALO looks toward the
+    sun through ice: the 22° halo from the 60° prisms of hexagonal crystals (red inside, a sharp
+    inner edge), the faint 46°, the sundogs from flat plates pushed outward as the sun climbs
+    (n′&nbsp;=&nbsp;√(n²−sin²e)/cos&nbsp;e), the white parhelic circle through the sun, and the
+    circumzenithal arc — the most vivid colour in the sky — present only while the sun is below
+    32.2°. The sky is drawn in a stereographic projection, so every circle on the sky stays a
+    circle. THE CORONA is the moon through thin cloud: diffraction by droplets,
+    (2J₁(x)/x)² with x&nbsp;=&nbsp;πdθ/λ, its rings shrinking as the drops grow and the cloud's
+    edges iridescent where the drop size changes; pollen grains, not being round, stretch it. The
+    bass swells the drops, the treble glitters the ice.</p>
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4631,7 +4679,7 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
                'flows', 'gathers',
-               'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers'];   // …the lattice and the film ripple, the
+               'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'gathers', 'flows', 'flows'];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -6141,7 +6189,7 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
-                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry'];
+                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6304,6 +6352,9 @@ const SCENE_TASTE = {
   carom:     { beat: 0.6, calm: 0.4, energy: 0.3, entropy: -0.2 },    // slow motion wants a beat to punch it on
   ballpit:   { energy: 0.6, beat: 0.5, bass: 0.3, entropy: 0.2 },      // the music pours: energy and the beat fill the pit
   masonry:   { bass: 0.5, calm: 0.3, beat: 0.3, entropy: -0.4 },      // stone wants order; the bass is the load it carries
+  wake: { energy: 0.6, beat: 0.4, treble: 0.2, entropy: -0.1 },   // a source outrunning its own waves wants drive
+  brachisto: { calm: 0.5, beat: 0.4, energy: 0.2, entropy: -0.4 },   // a race decided by geometry wants order and a steady pulse
+  iris: { calm: 0.7, treble: 0.4, energy: 0.1, entropy: -0.3 },   // light in the sky wants a long breath and a bright top end
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7576,6 +7627,9 @@ const SCENE_SIGS = {
   carom:     { kind: 'blob',   h: 40,  dense: 0.8 },
   ballpit:   { kind: 'blob',   h: 320, dense: 1.0, rainbow: 1 },
   masonry:   { kind: 'ring',   h: 35,  arms: 4 },
+  wake: { kind: 'wave',   h: 200, arms: 3 },
+  brachisto: { kind: 'wave',   h: 45,  arms: 4 },
+  iris: { kind: 'ring',   h: 130, arms: 7, rainbow: 1 },
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -50378,6 +50432,1053 @@ function buildMasonry(){
 }
 
 /* ================================================================
+   WAKE — the three cones: a source outrunning its own waves.
+
+   Every point a moving source passes sends out a circle; when the source is
+   faster than its waves the circles pile into a cone. THE BOOM is sound: the
+   Mach number swept from a hum through the barrier to a shout (the wavefronts
+   are emitted along the true integrated path, so the bunching, the wall at
+   M = 1 and the cone sin θ = 1/M all emerge on their own), level, orbiting or
+   diving. THE KELVIN WAKE is deep water: the crests are the stationary phase
+   of k = g/(U² cos²θ), solved in closed form — 2y t² + x t + y = 0 — whose
+   roots are real only inside |y/x| ≤ 1/√8: 19.47° at every speed. THE GLOW is
+   Cherenkov light: a particle faster than c/n in water, its front at
+   cos θ = 1/(nβ) closing as it slows, dark at threshold, the wall lit where
+   the light lands.
+   ================================================================ */
+function buildWake(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uMode:   { value: 0 },
+    uShape:  { value: 0 },
+    uSimT:   { value: 0 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  /* the room is written once, in the house dialect, and spoken on both stages:
+     the TV's Shaders27.metal carries the same words */
+  const frag = GLSL_MPHI + `
+    #define atan2(y, x) atan(y, x)
+    #define INOUT(T, n) inout T n
+    #define SPEC(f) texture2D(uAudio, vec2(clamp((f) / 22050.0, 0.0, 1.0), 0.5)).r
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCalm, uOpacity;
+    uniform float uMode, uShape, uVarA, uSimT, uAspect;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float sq(float x){ return x * x; }
+    float glow(float d, float k){ return exp(-d * d * k); }
+    vec2 rot(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+    float sdBox(vec2 p, vec2 b){ vec2 d = abs(p) - b; return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0); }
+    float segd(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-8), 0.0, 1.0); return length(pa - ba * h); }
+    float ppow(float x, float y){ return exp2(y * log2(max(x, 1e-20))); }
+    float atan2s(float y, float x){ return atan2(y, (abs(x) + abs(y) < 1e-12) ? 1e-12 : x); }
+    float sinhx(float x){ return 0.5 * (exp(x) - exp(-x)); }
+    float coshx(float x){ return 0.5 * (exp(x) + exp(-x)); }
+    float tanhx(float x){ float e = exp(-2.0 * abs(x)); float t = (1.0 - e) / (1.0 + e); return x < 0.0 ? -t : t; }
+    float asinhx(float x){ float a = abs(x); float r = log(a + sqrt(a * a + 1.0)); return x < 0.0 ? -r : r; }
+    float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+    vec2 cmul(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+    vec2 cdiv(vec2 a, vec2 b){ float d = max(dot(b, b), 1e-12); return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / d; }
+    vec2 csqrt(vec2 z){ float r = length(z); float a = sqrt(max(0.5 * (r + z.x), 0.0)); float b = sqrt(max(0.5 * (r - z.x), 0.0)); return vec2(a, z.y < 0.0 ? -b : b); }
+    vec2 clog(vec2 z){ return vec2(log(max(length(z), 1e-12)), atan2s(z.y, z.x)); }
+    /* a lit sphere's colour at q (unit disc coords), or the background passed in */
+    vec3 sphereShade(vec2 q, vec3 hue, vec3 bg, float spec){
+      float r2 = dot(q, q);
+      if (r2 > 1.0) return bg;
+      vec3 n = vec3(q, sqrt(max(1.0 - r2, 0.0)));
+      vec3 L = normalize(vec3(-0.45, 0.62, 0.64));
+      float dif = max(0.0, dot(n, L));
+      float sp = ppow(max(0.0, dot(reflect(-L, n), vec3(0.0, 0.0, 1.0))), 40.0);
+      float edge = smoothstep(1.0, 0.90, sqrt(r2));
+      return mix(bg, hue * (0.20 + 0.80 * dif) + vec3(sp * spec), edge);
+    }
+    /* the light of one charged track, t seconds into the event: x the Cherenkov front,
+       y its rays, z the track and the particle. The particle slows linearly with path
+       (beta = b0 - kk s), so s(t) = (b0/kk)(1 - exp(-kk c t)) and the time it stood at s
+       is -ln(1 - kk s/b0)/(kk c): every emission is placed where and when it truly left. */
+    vec3 cherenkov(vec2 p, float t, vec2 P0, vec2 dir, float t0, float b0, float kk, float L, float fuzz, float seed){
+      float c = 0.9, n = 1.33, cL = 0.9 / 1.33;
+      float te = t - t0;
+      if (te <= 0.0) return vec3(0.0);
+      float sNow = min((b0 / kk) * (1.0 - exp(-kk * c * te)), L);
+      float sTh = clamp((b0 - 1.0 / n) / kk, 0.0, sNow);
+      vec2 nrm = vec2(-dir.y, dir.x);
+      float front = 0.0, rays = 0.0;
+      vec2 Fp0 = P0, Fm0 = P0;
+      for (int i = 0; i <= 24; i++){
+        float s = sTh * float(i) / 24.0;
+        float b = b0 - kk * s;
+        float ts = -log(max(1.0 - kk * s / b0, 1e-6)) / (kk * c);
+        float th = acos(clamp(1.0 / (n * b), -1.0, 1.0)) + fuzz * (hash21(vec2(float(i) * 1.7, seed)) - 0.5);
+        float ct = cos(th);
+        float R = cL * max(te - ts, 0.0);
+        vec2 E = P0 + dir * s;
+        vec2 Fp = E + R * (ct * dir + sin(th) * nrm);
+        vec2 Fm = E + R * (ct * dir - sin(th) * nrm);
+        float wgt = max(1.0 - 1.0 / sq(n * b), 0.0) / 0.4348;  // Frank–Tamm: the light goes as sin²θ (1 at beta = 1)
+        if (i > 0){
+          float a1 = segd(p, Fp0, Fp), a2 = segd(p, Fm0, Fm);
+          front += wgt * (glow(a1, 22000.0) + glow(a2, 22000.0) + 0.18 * (glow(a1, 700.0) + glow(a2, 700.0)));
+        }
+        rays += wgt * (glow(segd(p, E, Fp), 60000.0) + glow(segd(p, E, Fm), 60000.0));
+        Fp0 = Fp; Fm0 = Fm;
+      }
+      vec2 Pn = P0 + dir * sNow;
+      float trk = glow(segd(p, P0, Pn), 90000.0);
+      float head = (sNow < L - 1e-3) ? glow(length(p - Pn), 2500.0) : 0.0;
+      return vec3(front, rays, trk + head * 2.5);
+    }
+    /* where the same track's light lands on the wall x = Xw, near height yj, and how freshly */
+    float pmt(float yj, float Xw, float t, vec2 P0, vec2 dir, float t0, float b0, float kk, float L){
+      float c = 0.9, n = 1.33, cL = 0.9 / 1.33;
+      float te = t - t0;
+      if (te <= 0.0) return 0.0;
+      float sNow = min((b0 / kk) * (1.0 - exp(-kk * c * te)), L);
+      float sTh = clamp((b0 - 1.0 / n) / kk, 0.0, sNow);
+      vec2 nrm = vec2(-dir.y, dir.x);
+      float hit = 0.0;
+      for (int i = 0; i <= 16; i++){
+        float s = sTh * float(i) / 16.0;
+        float b = b0 - kk * s;
+        float ts = -log(max(1.0 - kk * s / b0, 1e-6)) / (kk * c);
+        float th = acos(clamp(1.0 / (n * b), -1.0, 1.0));
+        float wgt = max(1.0 - 1.0 / sq(n * b), 0.0) / 0.4348;
+        vec2 E = P0 + dir * s;
+        for (int k = 0; k < 2; k++){
+          vec2 u = cos(th) * dir + (k == 0 ? 1.0 : -1.0) * sin(th) * nrm;
+          if (u.x > 1e-3){
+            float lam = (Xw - E.x) / u.x;
+            float yh = E.y + lam * u.y;
+            float ta = ts + lam / cL;
+            if (ta <= te) hit += wgt * glow(yh - yj, 900.0) * exp(-(te - ta) * 1.1);
+          }
+        }
+      }
+      return hit;
+    }
+    /* the Kelvin wake of one hull at s heading h, kappa = g/U²: two stationary phases */
+    vec2 kelvin(vec2 p, vec2 s, vec2 h, float kappa, float reach){
+      vec2 q = p - s;
+      float xi = -dot(q, h);
+      float y = dot(q, vec2(-h.y, h.x));
+      if (xi <= 0.0 || xi > reach) return vec2(0.0);
+      float D = xi * xi - 8.0 * y * y;
+      if (D <= 0.0) return vec2(0.0);
+      float ys = abs(y) < 1e-5 ? (y < 0.0 ? -1e-5 : 1e-5) : y;
+      float rD = sqrt(D);
+      float cusp = clamp(ppow(xi * xi / max(D, 1e-7), 0.25), 1.0, 3.5);
+      float fade = inversesqrt(0.35 + 2.0 * xi) * smoothstep(reach, reach * 0.7, xi) * smoothstep(0.0, 0.05, xi);
+      vec2 o = vec2(0.0);
+      for (int k = 0; k < 2; k++){
+        float t = (-xi + (k == 0 ? rD : -rD)) / (4.0 * ys);
+        float psi = kappa * (xi + y * t) * sqrt(1.0 + t * t) - 0.25 * PI;
+        float grad = kappa * (1.0 + t * t);
+        float wr = abs(mod(psi + PI, 2.0 * PI) - PI);
+        float d = wr / grad;
+        float spacing = 2.0 * PI / grad;
+        float a = cusp * fade * smoothstep(0.006, 0.025, spacing);
+        if (k == 0) o.x += glow(d, 16000.0) * a; else o.y += glow(d, 16000.0) * a;
+      }
+      return o;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      {
+        float T = uSimT;
+        vec3 cA = ramp(0.08 + uVarA * 0.15), cB = ramp(0.42 + uVarA * 0.15), cC = ramp(0.75 + uVarA * 0.15);
+        if (uMode < 0.5){
+          /* ===== THE BOOM: circles from the true path, the cone as their caustic ===== */
+          float c = 0.36;
+          float amp = 0.55 + uBass * 0.55;
+          float om = 2.0 * PI / 40.0;
+          float gy = -0.74;
+          vec2 S = vec2(0.0);
+          float Sx = 0.30 * uAspect;
+          // the source now
+          if (uShape < 0.5) S = vec2(Sx, 0.18);
+          else if (uShape < 1.5){ float th = (c / 0.42) * (1.5 * T - (0.95 / om) * sin(om * T)); S = 0.42 * vec2(cos(th), sin(th)); }
+          else S = vec2(Sx, 0.10);
+          float tc = mod(T, 12.0);
+          float ear = 0.0;
+          bool nearGround = abs(p.y - gy) < 0.07 && uShape != 1.0;
+          float ox = floor(p.x / 0.36 + 0.5) * 0.36;
+          vec2 O = vec2(ox, gy);
+          bool listen = uHand.z > 0.05;
+          float handHear = 0.0;
+          for (int k = 0; k < 44; k++){
+            float tau = (float(k) + fract(T * 8.0)) / 8.0;
+            vec2 E;
+            float w = amp * smoothstep(5.5, 4.2, tau);
+            if (uShape < 0.5){
+              float dx = c * (1.5 * tau - (0.95 / om) * (sin(om * T) - sin(om * (T - tau))));
+              E = vec2(Sx - dx, 0.18);
+            } else if (uShape < 1.5){
+              float th = (c / 0.42) * (1.5 * (T - tau) - (0.95 / om) * sin(om * (T - tau)));
+              E = 0.42 * vec2(cos(th), sin(th));
+            } else {
+              float te = tc - tau;
+              w *= step(0.0, te);
+              float dx = c * (0.3 * tau + 0.12 * (tc * tc - te * te));
+              E = vec2(Sx - dx, 0.10);
+            }
+            float r = 0.36 * tau;
+            float d = abs(length(p - E) - r);
+            float spread = inversesqrt(1.0 + 5.0 * r);
+            col += mix(cB, cA, tau / 5.5) * glow(d, 26000.0) * w * spread * 0.6;
+            col += cB * glow(d, 2500.0) * w * spread * 0.04;
+            if (nearGround) ear += glow(abs(length(O - E) - r), 900.0) * w * spread;
+            if (listen) handHear += glow(abs(length(uHand.xy - E) - r), 900.0) * w * spread;
+          }
+          // the source
+          float d0 = length(p - S);
+          col += cC * (glow(d0, 5000.0) * 1.4 + glow(d0, 120.0) * 0.12);
+          // the ground and its listeners: a ping for each front, the boom when the cone sweeps them
+          if (uShape != 1.0){
+            col += ramp(0.55) * glow(p.y - gy, 30000.0) * 0.10;
+            if (nearGround){
+              float dl = length(p - O);
+              col += cC * glow(dl, 9000.0) * (0.35 + 0.8 * min(ear, 3.0) + uBeat * 0.3);
+              col += cC * glow(dl, 500.0) * min(ear, 3.0) * 0.14;
+            }
+          }
+          if (listen){
+            float dh = abs(length(p - uHand.xy) - 0.05);
+            col += cC * glow(dh, 6000.0) * uHand.z * (0.3 + 0.4 * min(handHear, 3.0));
+          }
+        } else if (uMode < 1.5){
+          /* ===== THE KELVIN WAKE: the stationary phase, in closed form ===== */
+          float g = 0.822;                                  // V = 0.12 draws lambda = 2 pi V²/g = 0.11
+          vec2 tr = vec2(0.0), dv = vec2(0.0);
+          float hulls = 0.0;
+          for (int i = 0; i < 5; i++){
+            float fi = float(i);
+            vec2 h; float V; vec2 s; float reach;
+            if (uShape < 0.5){
+              if (i > 0) continue;
+              h = normalize(vec2(1.0, 0.16)); V = 0.12;
+            } else if (uShape < 1.5){
+              if (i > 1) continue;
+              h = i == 0 ? normalize(vec2(1.0, 0.18)) : normalize(vec2(-1.0, 0.10));
+              V = i == 0 ? 0.12 : 0.18;
+            } else {
+              h = normalize(vec2(1.0, 0.08)); V = 0.07;
+            }
+            float Lp = 2.0 * uAspect + 1.6;
+            float trav = mod(V * T + 0.45 * Lp + fi * 0.37 * Lp * step(0.5, uShape) * step(uShape, 1.5), Lp);
+            s = -h * (0.5 * Lp) + h * trav + vec2(-h.y, h.x) * (uShape < 0.5 ? -0.05 : (uShape < 1.5 ? (i == 0 ? -0.25 : 0.30) : 0.0));
+            if (uShape > 1.5 && i > 0){
+              // the ducklings: a V behind the mother
+              float side = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
+              float rank = floor((fi + 1.0) * 0.5);
+              s += -h * 0.09 * rank + vec2(-h.y, h.x) * side * 0.055 * rank;
+            }
+            reach = min(trav, uShape > 1.5 ? 1.5 : 2.6);
+            float kappa = g / (V * V);
+            vec2 w = kelvin(p, s, h, kappa, reach) * (uShape > 1.5 ? (i == 0 ? 0.55 : 0.30) : 1.0);
+            tr += w.x; dv += w.y;
+            // the hull, and the 19.47° the sea always draws behind it
+            vec2 q = p - s;
+            float xa = dot(q, h), ya = dot(q, vec2(-h.y, h.x));
+            float hullL = V * 0.45;
+            float hull = length(vec2(xa / max(hullL, 0.008), ya / max(hullL * 0.28, 0.004)));
+            hulls += smoothstep(1.2, 0.8, hull) + glow(hull - 1.0, 6.0) * 0.15;
+            float xi = -xa;
+            if (xi > 0.0 && xi < reach && uShape < 1.5){
+              float dl = abs(abs(ya) - 0.353553 * xi) * 0.942809;
+              col += cA * glow(dl, 40000.0) * 0.10 * step(0.5, fract(xi * 9.0));
+            }
+          }
+          col += cB * min(tr.x, 2.0) * (0.55 + uBass * 0.4);
+          col += cA * min(dv.x, 2.0) * (0.55 + uBass * 0.4);
+          col += cC * hulls * (0.9 + uBeat * 0.4);
+          col += ramp(0.6) * 0.012 * (0.5 + 0.5 * sin(p.y * 60.0 + T * 0.7));
+        } else {
+          /* ===== THE GLOW: Cherenkov light in water ===== */
+          float W = uAspect - 0.12, Hh = 0.80;
+          float edge = abs(max(abs(p.x) - W, abs(p.y) - Hh));
+          col += cA * glow(edge, 40000.0) * 0.10;
+          float inside = step(abs(p.x), W) * step(abs(p.y), Hh);
+          float te = mod(T, 9.0) - 0.4;
+          vec3 L = vec3(0.0);
+          float wall = 0.0;
+          float yj = clamp(floor(p.y / 0.07 + 0.5) * 0.07, -Hh + 0.04, Hh - 0.04);
+          bool nearWall = abs(p.x - W) < 0.045;
+          float jit = (uVarA - 0.5) * 0.3;
+          if (uShape < 0.5){
+            vec2 P0 = vec2(-W, 0.22 + jit); vec2 d = normalize(vec2(1.0, -0.10));
+            float Lt = 1.9 * W, kk = (0.995 - 0.70) / Lt;
+            L += cherenkov(p, te, P0, d, 0.0, 0.995, kk, Lt, 0.0, 1.0);
+            if (nearWall) wall += pmt(yj, W, te, P0, d, 0.0, 0.995, kk, Lt);
+          } else if (uShape < 1.5){
+            // an electron showers: the primary, then an invisible photon converting to a pair
+            vec2 P0 = vec2(-W, 0.10 + jit); vec2 d0 = normalize(vec2(1.0, 0.05));
+            L += cherenkov(p, te, P0, d0, 0.0, 0.99, 0.40, 0.65, 0.10, 2.0);
+            vec2 P1 = P0 + d0 * 1.05;
+            float t1 = 1.05 / 0.9;
+            vec2 da = normalize(vec2(1.0, 0.20)), db = normalize(vec2(1.0, -0.16));
+            L += cherenkov(p, te, P1, da, t1, 0.985, 0.42, 0.70, 0.12, 3.0);
+            L += cherenkov(p, te, P1, db, t1, 0.98, 0.46, 0.60, 0.12, 4.0);
+            if (nearWall){
+              wall += pmt(yj, W, te, P0, d0, 0.0, 0.99, 0.40, 0.65);
+              wall += pmt(yj, W, te, P1, da, t1, 0.985, 0.42, 0.70);
+              wall += pmt(yj, W, te, P1, db, t1, 0.98, 0.46, 0.60);
+            }
+            float gam = glow(segd(p, P0 + d0 * 0.3, P1), 90000.0) * step(0.5, fract(length(p - P0) * 14.0));
+            col += cC * gam * 0.12 * step(0.3 / 0.9, te);
+          } else {
+            // a neutrino arrives unseen; at the vertex a muon and an electron leave
+            vec2 V = vec2(-0.25 * W, -0.12 + jit);
+            float tv = (V.x + W) / 0.9;
+            float dn = segd(p, vec2(-W, V.y - 0.25), V);
+            col += cC * glow(dn, 120000.0) * 0.18 * step(0.5, fract(p.x * 18.0)) * step(p.x, V.x) * step(-W, p.x);
+            vec2 dm = normalize(vec2(1.0, 0.28)), de = normalize(vec2(1.0, -0.55));
+            float Lm = 1.6 * W, km = (0.99 - 0.72) / Lm;
+            L += cherenkov(p, te, V, dm, tv, 0.99, km, Lm, 0.0, 5.0);
+            L += cherenkov(p, te, V, de, tv, 0.97, 0.55, 0.45, 0.22, 6.0);
+            if (nearWall){
+              wall += pmt(yj, W, te, V, dm, tv, 0.99, km, Lm);
+              wall += pmt(yj, W, te, V, de, tv, 0.97, 0.55, 0.45);
+            }
+            col += cC * glow(length(p - V), 3000.0) * smoothstep(tv, tv + 0.1, te) * exp(-max(te - tv, 0.0) * 2.0) * 3.0;
+          }
+          col += (cB * 0.85 + vec3(0.15)) * min(L.x, 3.0) * inside * (0.65 + uBass * 0.5);
+          col += cB * min(L.y, 4.0) * inside * 0.16;
+          col += cC * min(L.z, 3.0) * 0.9;
+          // the wall of photomultipliers: dim eyes, opening where the light lands
+          if (nearWall){
+            float dp = length(p - vec2(W, yj));
+            float lit = min(wall, 2.0);
+            col += cA * glow(dp, 9000.0) * 0.22;
+            col += (cB + vec3(0.15)) * (glow(dp, 3500.0) * 1.4 + glow(dp, 300.0) * 0.15) * lit * (0.8 + uBeat * 0.6);
+          }
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(max(col, vec3(0.0))), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const FACES = [{"name":"THE BOOM","shapes":["LEVEL FLIGHT","THE ORBIT","THE DIVE"]},{"name":"THE KELVIN WAKE","shapes":["ONE HULL","TWO HULLS","THE FLOTILLA"]},{"name":"THE GLOW","shapes":["THE MUON","THE SHOWER","THE VERTEX"]}];
+  const st = { face: 0, shape: 0 };
+  const api = {
+    name: 'WAKE', key: 'wake', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the clock runs at the music's pace: a quiet passage lets the fronts drift, energy hurries the source
+      varU.uSimT.value += Math.min(dt, 0.05) * (0.8 + (f.energy || 0) * 0.45 + (f.beat || 0) * 0.25);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.face = Math.floor(Math.random() * FACES.length);
+      st.shape = Math.floor(Math.random() * 3);
+      varU.uMode.value = st.face;
+      varU.uShape.value = st.shape;
+      varU.uVarA.value = Math.random();
+      varU.uSimT.value = 3;
+      api.name = 'WAKE · ' + FACES[st.face].name + ' · ' + FACES[st.face].shapes[st.shape];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
+   BRACHISTOCHRONE — the race of curves: fastest descent and equal time.
+
+   THE RACE: four beads from A to B under gravity — the straight ramp
+   (s = ½ g sinα t², exact), Galileo's circle and a deeper dive (timed by
+   marching dt = ds/√(2gh) along each rail, the start's 1/√h singularity
+   removed by a squared parameter), and the cycloid (θ = t√(g/r), exact),
+   which wins every time, dipping below B when the course is long. A strobe
+   leaves the past behind each bead. THE TAUTOCHRONE: the cycloid as a bowl,
+   where s = s₀ cos ωt, ω = √(g/4r): seven heights, one arrival; a circular
+   bowl beside it (a pendulum of the same small-swing period, solved with
+   Jacobi's sn) cannot keep the appointment. HUYGENS' CLOCK: the bob hung
+   between cycloidal cheeks — the evolute of the cycloid is itself a
+   cycloid, so the string wraps and the bob runs isochronous — beside a
+   plain pendulum swung as wide, which lags, and one swung small, which
+   does not.
+   ================================================================ */
+function buildBrachisto(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uMode:   { value: 0 },
+    uShape:  { value: 0 },
+    uSimT:   { value: 0 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  /* the room is written once, in the house dialect, and spoken on both stages:
+     the TV's Shaders28.metal carries the same words */
+  const frag = GLSL_MPHI + `
+    #define atan2(y, x) atan(y, x)
+    #define INOUT(T, n) inout T n
+    #define SPEC(f) texture2D(uAudio, vec2(clamp((f) / 22050.0, 0.0, 1.0), 0.5)).r
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCalm, uOpacity;
+    uniform float uMode, uShape, uVarA, uSimT, uAspect;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float sq(float x){ return x * x; }
+    float glow(float d, float k){ return exp(-d * d * k); }
+    vec2 rot(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+    float sdBox(vec2 p, vec2 b){ vec2 d = abs(p) - b; return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0); }
+    float segd(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-8), 0.0, 1.0); return length(pa - ba * h); }
+    float ppow(float x, float y){ return exp2(y * log2(max(x, 1e-20))); }
+    float atan2s(float y, float x){ return atan2(y, (abs(x) + abs(y) < 1e-12) ? 1e-12 : x); }
+    float sinhx(float x){ return 0.5 * (exp(x) - exp(-x)); }
+    float coshx(float x){ return 0.5 * (exp(x) + exp(-x)); }
+    float tanhx(float x){ float e = exp(-2.0 * abs(x)); float t = (1.0 - e) / (1.0 + e); return x < 0.0 ? -t : t; }
+    float asinhx(float x){ float a = abs(x); float r = log(a + sqrt(a * a + 1.0)); return x < 0.0 ? -r : r; }
+    float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+    vec2 cmul(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+    vec2 cdiv(vec2 a, vec2 b){ float d = max(dot(b, b), 1e-12); return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / d; }
+    vec2 csqrt(vec2 z){ float r = length(z); float a = sqrt(max(0.5 * (r + z.x), 0.0)); float b = sqrt(max(0.5 * (r - z.x), 0.0)); return vec2(a, z.y < 0.0 ? -b : b); }
+    vec2 clog(vec2 z){ return vec2(log(max(length(z), 1e-12)), atan2s(z.y, z.x)); }
+    /* a lit sphere's colour at q (unit disc coords), or the background passed in */
+    vec3 sphereShade(vec2 q, vec3 hue, vec3 bg, float spec){
+      float r2 = dot(q, q);
+      if (r2 > 1.0) return bg;
+      vec3 n = vec3(q, sqrt(max(1.0 - r2, 0.0)));
+      vec3 L = normalize(vec3(-0.45, 0.62, 0.64));
+      float dif = max(0.0, dot(n, L));
+      float sp = ppow(max(0.0, dot(reflect(-L, n), vec3(0.0, 0.0, 1.0))), 40.0);
+      float edge = smoothstep(1.0, 0.90, sqrt(r2));
+      return mix(bg, hue * (0.20 + 0.80 * dif) + vec3(sp * spec), edge);
+    }
+    /* Jacobi's sn(u, k) by the descending AGM: the exact large-swing pendulum */
+    float jsn(float u, float k){
+      float a[6]; float c[6];
+      a[0] = 1.0; c[0] = k;
+      float b = sqrt(max(1.0 - k * k, 0.0));
+      for (int n = 1; n < 6; n++){
+        a[n] = 0.5 * (a[n - 1] + b);
+        c[n] = 0.5 * (a[n - 1] - b);
+        b = sqrt(a[n - 1] * b);
+      }
+      float ph = 32.0 * a[5] * u;
+      for (int n = 5; n >= 1; n--) ph = 0.5 * (ph + asin(clamp(c[n] / a[n] * sin(ph), -1.0, 1.0)));
+      return sin(ph);
+    }
+    /* the complete elliptic integral K(k) by the same AGM */
+    float ellK(float k){
+      float a = 1.0, b = sqrt(max(1.0 - k * k, 0.0));
+      for (int n = 0; n < 6; n++){ float an = 0.5 * (a + b); b = sqrt(a * b); a = an; }
+      return 1.5707963 / a;
+    }
+    /* the simple pendulum released from rest at th0: angle at time t (omega0 = sqrt(g/L)) */
+    float pend(float th0, float w0, float t){
+      float k = sin(0.5 * abs(th0));
+      float s = jsn(ellK(k) + w0 * t, k);
+      return 2.0 * asin(clamp(k * s, -1.0, 1.0)) * (th0 < 0.0 ? -1.0 : 1.0);
+    }
+    /* the cycloid bowl (bottom at the origin, radius r) at arc length s from the bottom */
+    vec2 bowl(float s, float r){
+      float ph = 2.0 * asin(clamp(s / (4.0 * r), -1.0, 1.0));
+      return r * vec2(ph + sin(ph), 1.0 - cos(ph));
+    }
+    vec3 beadAt(vec2 p, vec2 c, float rad, vec3 hue, vec3 bg){
+      vec3 o = sphereShade((p - c) / rad, hue, bg, 0.7);
+      return o + hue * glow(length(p - c) - rad, 3000.0) * 0.35;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      {
+        float T = uSimT;
+        float g = 2.2;
+        vec3 rail = ramp(0.55) * 0.55;
+        if (uMode < 0.5){
+          /* ===== THE RACE ===== */
+          float span = min(1.30, uAspect * 0.74);
+          float ratio = uShape < 0.5 ? 1.35 : (uShape < 1.5 ? 2.6 : 0.85);
+          // the cycloid through A and B: (th - sin th)/(1 - cos th) = X/Y, solved by bisection
+          float lo = 0.01, hi = 6.27;
+          for (int i = 0; i < 26; i++){ float m = 0.5 * (lo + hi); if ((m - sin(m)) / (1.0 - cos(m)) < ratio) lo = m; else hi = m; }
+          float thB = 0.5 * (lo + hi);
+          float Y0 = 1.0, X0 = ratio;
+          float r0 = Y0 / (1.0 - cos(thB));
+          float Hc = max(Y0, 2.0 * r0);
+          float sc = min(2.0 * span / X0, 1.36 / Hc);
+          float X = X0 * sc, Y = Y0 * sc, r = r0 * sc;
+          vec2 A = vec2(-0.5 * X, 0.5 * max(Y, 2.0 * r) * 1.0 - 0.02 + 0.08);
+          vec2 B = A + vec2(X, -Y);
+          float Tc = thB * sqrt(r / g);
+          float cyc = 2.3 * Tc + 1.6;
+          float t = mod(T, cyc) - 0.6;
+          vec3 hue0 = ramp(0.15 + uVarA * 0.2), hue1 = ramp(0.35 + uVarA * 0.2), hue2 = ramp(0.60 + uVarA * 0.2), hue3 = ramp(0.85 + uVarA * 0.2);
+          // --- the straight ramp, exact
+          float Ls = length(B - A), as = g * Y / Ls, Ts = sqrt(2.0 * Ls / as);
+          vec2 ds = (B - A) / Ls;
+          float dRail = segd(p, A, B);
+          // --- the cycloid, exact: sampled for its rail
+          float dCyc = 1e3;
+          vec2 q0 = A;
+          for (int i = 1; i <= 40; i++){
+            float th = thB * float(i) / 40.0;
+            vec2 q1 = A + r * vec2(th - sin(th), -(1.0 - cos(th)));
+            dCyc = min(dCyc, segd(p, q0, q1));
+            q0 = q1;
+          }
+          // --- Galileo's circle (vertical at A) and the dive: marched in time
+          float Rc = (X * X + Y * Y) / (2.0 * X);
+          vec2 Cc = A + vec2(Rc, 0.0);
+          float psB = atan2s(Y, Rc - X);
+          vec2 P1 = A + vec2(0.0, -2.0 * r), P2 = B + vec2(-0.40 * X, -1.3 * r);
+          float dCir = 1e3, dDiv = 1e3;
+          float tCir = 0.0, tDiv = 0.0;
+          vec2 cPrev = A, vPrev = A;
+          vec2 bc[7]; vec2 bd[7];
+          for (int j = 0; j < 7; j++){ bc[j] = A; bd[j] = A; }
+          for (int i = 1; i <= 48; i++){
+            float w0 = float(i - 1) / 48.0, w1 = float(i) / 48.0, wm = 0.5 * (w0 + w1);
+            // the circle: psi = psB w², v = sqrt(2 g Rc sin psi)
+            float ps1 = psB * w1 * w1, psm = psB * wm * wm;
+            vec2 c1 = Cc + Rc * vec2(-cos(ps1), -sin(ps1));
+            float vm = sqrt(max(2.0 * g * Rc * sin(psm), 1e-6));
+            float dtc = Rc * psB * (w1 * w1 - w0 * w0) / vm;
+            // the dive: a cubic from A to B, parameter u = w²
+            float u0 = w0 * w0, u1 = w1 * w1, um = wm * wm;
+            vec2 d1 = A * (1.0 - u1) * (1.0 - u1) * (1.0 - u1) + 3.0 * P1 * u1 * (1.0 - u1) * (1.0 - u1) + 3.0 * P2 * u1 * u1 * (1.0 - u1) + B * u1 * u1 * u1;
+            vec2 dm = A * (1.0 - um) * (1.0 - um) * (1.0 - um) + 3.0 * P1 * um * (1.0 - um) * (1.0 - um) + 3.0 * P2 * um * um * (1.0 - um) + B * um * um * um;
+            float vd = sqrt(max(2.0 * g * (A.y - dm.y), 1e-6));
+            float dtd = length(d1 - vPrev) / vd;
+            for (int j = 0; j < 7; j++){
+              float tq = t - float(j) * 0.11;
+              if (tq > tCir && tq <= tCir + dtc) bc[j] = mix(cPrev, c1, (tq - tCir) / dtc);
+              if (tq > tCir + dtc && i == 48) bc[j] = B;
+              if (tq > tDiv && tq <= tDiv + dtd) bd[j] = mix(vPrev, d1, (tq - tDiv) / dtd);
+              if (tq > tDiv + dtd && i == 48) bd[j] = B;
+            }
+            dCir = min(dCir, segd(p, cPrev, c1));
+            dDiv = min(dDiv, segd(p, vPrev, d1));
+            tCir += dtc; tDiv += dtd;
+            cPrev = c1; vPrev = d1;
+          }
+          // the rails: each lights in its own colour once its bead is home
+          col += mix(rail, hue0, step(Ts, t) * 0.6) * glow(dRail, 30000.0);
+          col += mix(rail, hue1, step(tCir, t) * 0.6) * glow(dCir, 30000.0);
+          col += mix(rail, hue2, step(Tc, t) * 0.8) * (glow(dCyc, 30000.0) * 1.2 + glow(dCyc, 900.0) * 0.06 * step(Tc, t));
+          col += mix(rail, hue3, step(tDiv, t) * 0.6) * glow(dDiv, 30000.0);
+          // start and finish
+          col += ramp(0.5) * glow(length(p - A), 2500.0) * 0.6;
+          float fin = exp(-max(t - Tc, 0.0) * 2.5) * step(Tc, t);
+          col += hue2 * (glow(length(p - B), 2500.0) * 0.8 + glow(abs(length(p - B) - 0.05 - 0.25 * (1.0 - fin)), 5000.0) * fin * 1.5);
+          // the strobe: each bead's past, fading
+          float rad = 0.032;
+          for (int j = 6; j >= 0; j--){
+            float tq = t - float(j) * 0.11;
+            float fade = j == 0 ? 1.0 : (0.40 - 0.05 * float(j)) * (1.0 + uBeat * 0.6);
+            if (tq < 0.0) continue;
+            vec2 ps = A + ds * 0.5 * as * min(tq, Ts) * min(tq, Ts);
+            float thq = min(tq * sqrt(g / r), thB);
+            vec2 pc = A + r * vec2(thq - sin(thq), -(1.0 - cos(thq)));
+            if (j == 0){
+              col = beadAt(p, ps, rad, hue0, col);
+              col = beadAt(p, bc[j], rad, hue1, col);
+              col = beadAt(p, pc, rad, hue2, col);
+              col = beadAt(p, bd[j], rad, hue3, col);
+            } else {
+              col += hue0 * glow(length(p - ps), 4000.0) * fade;
+              col += hue1 * glow(length(p - bc[j]), 4000.0) * fade;
+              col += hue2 * glow(length(p - pc), 4000.0) * fade;
+              col += hue3 * glow(length(p - bd[j]), 4000.0) * fade;
+            }
+          }
+        } else if (uMode < 1.5){
+          /* ===== THE TAUTOCHRONE: seven heights, one arrival ===== */
+          float span = min(1.30, uAspect * 0.78);
+          float Rb = min(0.36, span / PI);
+          float w = sqrt(g / (4.0 * Rb));
+          float yb = -0.42;
+          float meet = exp(-sq(cos(w * T)) * 40.0);
+          for (int k = 0; k < 7; k++){
+            float fk = float(k);
+            float dy = (fk - 3.0) * 0.105;
+            vec2 base = vec2(0.0, yb + dy);
+            vec3 hue = ramp(fk / 7.0 + uVarA);
+            bool circ = uShape > 1.5 && mod(fk, 2.0) > 0.5;
+            float side = (uShape > 0.5 && uShape < 1.5 && mod(fk, 2.0) > 0.5) ? 1.0 : -1.0;
+            float ph0 = (0.22 + 0.68 * fk / 6.0) * PI;
+            // the rail
+            // the rail: the cycloid bowl, or the circle of the bottom's own curvature (radius 4r)
+            float dr = 1e3;
+            vec2 q0 = circ ? base + vec2(0.0, 4.0 * Rb) + 4.0 * Rb * vec2(-0.866025, -0.5) : base + Rb * vec2(-PI, 2.0);
+            for (int i = 1; i <= 36; i++){
+              float ph = -PI + 2.0 * PI * float(i) / 36.0;
+              vec2 q1 = base + Rb * vec2(ph + sin(ph), 1.0 - cos(ph));
+              if (circ){ float a = ph / 3.0; q1 = base + vec2(0.0, 4.0 * Rb) + 4.0 * Rb * vec2(sin(a), -cos(a)); }
+              dr = min(dr, segd(p, q0, q1));
+              q0 = q1;
+            }
+            col += (circ ? ramp(0.3) * 0.45 : rail) * glow(dr, 30000.0) * (0.8 + 0.2 * fk / 6.0);
+            // the bead and its strobe
+            for (int j = 5; j >= 0; j--){
+              float tq = T - float(j) * 0.09;
+              vec2 c;
+              if (circ){
+                // same release height as its cycloid neighbour, on the circle: a large-swing pendulum
+                float h = Rb * (1.0 - cos(ph0));
+                float th0 = acos(clamp(1.0 - h / (4.0 * Rb), -1.0, 1.0)) * side;
+                float th = pend(th0, w, tq);
+                c = base + vec2(0.0, 4.0 * Rb) + 4.0 * Rb * vec2(sin(th), -cos(th));
+              } else {
+                float s = side * 4.0 * Rb * sin(0.5 * ph0) * cos(w * tq);
+                c = base + bowl(s, Rb);
+              }
+              if (j == 0) col = beadAt(p, c, 0.030, hue, col);
+              else col += hue * glow(length(p - c), 5000.0) * (0.30 - 0.04 * float(j)) * (1.0 + uBeat * 0.5);
+            }
+          }
+          // the appointment: every cycloid bead at the bottom at once
+          float col0 = glow(p.x, 2000.0) * step(abs(p.y - yb), 0.40);
+          col += ramp(0.85) * col0 * meet * (0.35 + uBeat * 0.4);
+        } else {
+          /* ===== HUYGENS' CLOCK: the cycloidal cheeks against the plain pendulum ===== */
+          float th0 = uShape < 0.5 ? 0.44 : (uShape < 1.5 ? 0.80 : 1.01);
+          float sp = min(1.05, uAspect * 0.58);
+          float r = 0.29;
+          float L = 4.0 * r;
+          float w = sqrt(g / L);
+          float yTop = 0.56;
+          vec3 hH = ramp(0.62 + uVarA * 0.2), hS = ramp(0.12 + uVarA * 0.2), hR = ramp(0.36 + uVarA * 0.2);
+          // --- Huygens, centre: pivot, cheeks, string, bob on the cycloid
+          vec2 Pv = vec2(0.0, yTop);
+          vec2 Bb = Pv - vec2(0.0, L);                 // the bowl's bottom
+          float hgt = L * (1.0 - cos(th0));            // released from the same height as the plain one
+          float phi0 = acos(clamp(1.0 - hgt / r, -1.0, 1.0));
+          float s0 = 4.0 * r * sin(0.5 * phi0);
+          float dch = 1e3, dpath = 1e3;
+          vec2 e0 = Pv, f0 = Pv, b0 = Bb + r * vec2(-PI, 2.0);
+          for (int i = 1; i <= 28; i++){
+            float ph = PI * float(i) / 28.0;
+            vec2 e1 = Bb + r * vec2(ph - sin(ph), 3.0 + cos(ph));      // the right cheek: the evolute
+            vec2 f1 = Bb + r * vec2(-(ph - sin(ph)), 3.0 + cos(ph));   // the left cheek
+            dch = min(dch, min(segd(p, e0, e1), segd(p, f0, f1)));
+            e0 = e1; f0 = f1;
+            float pb = -PI + 2.0 * PI * float(i) / 28.0;
+            vec2 b1 = Bb + r * vec2(pb + sin(pb), 1.0 - cos(pb));
+            dpath = min(dpath, segd(p, b0, b1));
+            b0 = b1;
+          }
+          col += hH * glow(dch, 25000.0) * 0.9;
+          col += rail * glow(dpath, 40000.0) * 0.5;
+          float sH = s0 * cos(w * T);
+          float phB = 2.0 * asin(clamp(sH / (4.0 * r), -1.0, 1.0));
+          vec2 bob = Bb + r * vec2(phB + sin(phB), 1.0 - cos(phB));
+          // the string: wrapped on the cheek down to the tangent point, then straight to the bob
+          vec2 tp = Bb + r * vec2(phB - sin(phB), 3.0 + cos(phB));
+          float dstr = segd(p, tp, bob);
+          float sg = phB < 0.0 ? -1.0 : 1.0;
+          float aph = abs(phB);
+          vec2 w0 = Pv;
+          for (int i = 1; i <= 12; i++){
+            float ph = aph * float(i) / 12.0;
+            vec2 w1 = Bb + r * vec2(sg * (ph - sin(ph)), 3.0 + cos(ph));
+            dstr = min(dstr, segd(p, w0, w1));
+            w0 = w1;
+          }
+          col += vec3(0.85) * glow(dstr, 90000.0) * 0.8;
+          col = beadAt(p, bob, 0.05, hH, col);
+          // --- the plain pendulum swung as wide, left; swung small, right
+          // the plain pendulums: the same length and the same angles, drawn at 0.62 so all three fit
+          float Lv = 0.62 * L;
+          vec2 Pl = vec2(-sp - 0.12, yTop), Pr = vec2(sp + 0.12, yTop);
+          float thL = pend(th0, w, T);
+          float thR = pend(0.10, w, T);
+          vec2 bl = Pl + Lv * vec2(sin(thL), -cos(thL)), br = Pr + Lv * vec2(sin(thR), -cos(thR));
+          col += vec3(0.8) * (glow(segd(p, Pl, bl), 90000.0) + glow(segd(p, Pr, br), 90000.0)) * 0.7;
+          float darc = min(abs(length(p - Pl) - Lv), abs(length(p - Pr) - Lv));
+          col += rail * glow(darc, 40000.0) * 0.25 * step(p.y, yTop - 0.4);
+          col = beadAt(p, bl, 0.036, hS, col);
+          col = beadAt(p, br, 0.036, hR, col);
+          // the pivots, and a lamp over each that ticks when its bob crosses the bottom
+          for (int k = 0; k < 3; k++){
+            vec2 P = k == 0 ? Pl : (k == 1 ? Pv : Pr);
+            float cr = k == 0 ? abs(thL) / max(th0, 1e-3) : (k == 1 ? abs(phB) / max(phi0, 1e-3) : abs(thR) / 0.10);
+            float tick = exp(-cr * cr * 60.0);
+            vec3 hc = k == 0 ? hS : (k == 1 ? hH : hR);
+            col += vec3(0.7) * glow(length(p - P), 9000.0);
+            col += hc * (glow(length(p - P - vec2(0.0, 0.14)), 2500.0) * (0.25 + tick * (1.2 + uBeat * 0.6)) + glow(length(p - P - vec2(0.0, 0.14)), 200.0) * tick * 0.12);
+          }
+          // a beam: the support all three hang from
+          col += ramp(0.5) * glow(p.y - yTop - 0.02, 40000.0) * step(abs(p.x), sp + 0.25) * 0.35;
+        }
+        // a hand is a finger that steadies the field: a soft ring where it rests
+        if (uHand.z > 0.05) col += ramp(0.85) * glow(length(p - uHand.xy) - 0.06, 4000.0) * uHand.z * 0.4;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(max(col, vec3(0.0))), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const FACES = [{"name":"THE RACE","shapes":["SHALLOW","LONG","STEEP"]},{"name":"THE TAUTOCHRONE","shapes":["SEVEN HEIGHTS","FACE TO FACE","THE CIRCLE"]},{"name":"HUYGENS' CLOCK","shapes":["GENTLE","WIDE","WILD"]}];
+  const st = { face: 0, shape: 0 };
+  const api = {
+    name: 'BRACHISTOCHRONE', key: 'brachisto', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the clock runs at the music's pace: gravity is fixed; the music only decides how fast we watch it
+      varU.uSimT.value += Math.min(dt, 0.05) * (0.85 + (f.energy || 0) * 0.35 + (f.beat || 0) * 0.15);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.face = Math.floor(Math.random() * FACES.length);
+      st.shape = Math.floor(Math.random() * 3);
+      varU.uMode.value = st.face;
+      varU.uShape.value = st.shape;
+      varU.uVarA.value = Math.random();
+      varU.uSimT.value = 0;
+      api.name = 'BRACHISTOCHRONE · ' + FACES[st.face].name + ' · ' + FACES[st.face].shapes[st.shape];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
+   IRIS — the sky's optics, in spectral colour.
+
+   THE BOW: Descartes' minimum deviation in a raindrop (cos²i = (n²−1)/3 for
+   the primary at ~42°, (n²−1)/8 for the secondary at ~51°, reversed), with
+   water's own dispersion, and the bright edge drawn by Airy's theory, Ai²(−z),
+   so supernumerary bands appear for small drops and fog washes it white;
+   Alexander's dark band between. THE HALO: ice prisms — the 22° and 46° halos
+   by minimum deviation through 60° and 90° prisms, the sundogs from plates
+   (n′ = √(n² − sin²e)/cos e), the parhelic circle, and the circumzenithal arc
+   at asin √(n² − cos²e), alive only below 32.2° — in a stereographic sky, so
+   circles stay circles. THE CORONA: the moon through thin cloud, diffraction
+   by droplets, (2J₁(x)/x)² with x = πdθ/λ (Abramowitz & Stegun's
+   polynomials), iridescent where the drop size changes, stretched by pollen.
+   Sixteen wavelengths a pixel, each through the CIE observer the web uses.
+   ================================================================ */
+function buildIris(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:   { value: Math.random() },
+    uMode:   { value: 0 },
+    uShape:  { value: 0 },
+    uSimT:   { value: 0 },
+    uHand:   { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect: { value: 1 },
+    uSlice:  { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  /* the room is written once, in the house dialect, and spoken on both stages:
+     the TV's Shaders29.metal carries the same words */
+  const frag = GLSL_MPHI + GLSL_CIE + `
+    #define atan2(y, x) atan(y, x)
+    #define INOUT(T, n) inout T n
+    #define SPEC(f) texture2D(uAudio, vec2(clamp((f) / 22050.0, 0.0, 1.0), 0.5)).r
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCalm, uOpacity;
+    uniform float uMode, uShape, uVarA, uSimT, uAspect;
+    uniform vec4 uHand;
+    uniform sampler2D uAudio;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float sq(float x){ return x * x; }
+    float glow(float d, float k){ return exp(-d * d * k); }
+    vec2 rot(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+    float sdBox(vec2 p, vec2 b){ vec2 d = abs(p) - b; return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0); }
+    float segd(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-8), 0.0, 1.0); return length(pa - ba * h); }
+    float ppow(float x, float y){ return exp2(y * log2(max(x, 1e-20))); }
+    float atan2s(float y, float x){ return atan2(y, (abs(x) + abs(y) < 1e-12) ? 1e-12 : x); }
+    float sinhx(float x){ return 0.5 * (exp(x) - exp(-x)); }
+    float coshx(float x){ return 0.5 * (exp(x) + exp(-x)); }
+    float tanhx(float x){ float e = exp(-2.0 * abs(x)); float t = (1.0 - e) / (1.0 + e); return x < 0.0 ? -t : t; }
+    float asinhx(float x){ float a = abs(x); float r = log(a + sqrt(a * a + 1.0)); return x < 0.0 ? -r : r; }
+    float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+    float vnoise(vec2 x){ vec2 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y); }
+    float fbm4(vec2 x){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++){ s += a * vnoise(x); x = rot(x, 0.6) * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }
+    vec2 cmul(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+    vec2 cdiv(vec2 a, vec2 b){ float d = max(dot(b, b), 1e-12); return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / d; }
+    vec2 csqrt(vec2 z){ float r = length(z); float a = sqrt(max(0.5 * (r + z.x), 0.0)); float b = sqrt(max(0.5 * (r - z.x), 0.0)); return vec2(a, z.y < 0.0 ? -b : b); }
+    vec2 clog(vec2 z){ return vec2(log(max(length(z), 1e-12)), atan2s(z.y, z.x)); }
+    /* a lit sphere's colour at q (unit disc coords), or the background passed in */
+    vec3 sphereShade(vec2 q, vec3 hue, vec3 bg, float spec){
+      float r2 = dot(q, q);
+      if (r2 > 1.0) return bg;
+      vec3 n = vec3(q, sqrt(max(1.0 - r2, 0.0)));
+      vec3 L = normalize(vec3(-0.45, 0.62, 0.64));
+      float dif = max(0.0, dot(n, L));
+      float sp = ppow(max(0.0, dot(reflect(-L, n), vec3(0.0, 0.0, 1.0))), 40.0);
+      float edge = smoothstep(1.0, 0.90, sqrt(r2));
+      return mix(bg, hue * (0.20 + 0.80 * dif) + vec3(sp * spec), edge);
+    }
+    float nWater(float l){ return 1.3249 + 2970.0 / (l * l); }
+    float nIce(float l){ return 1.2995 + 3184.0 / (l * l); }
+    /* Ai(-z), the rainbow's profile: Taylor at the caustic, the asymptotes either side */
+    float airyAi(float z){
+      float a0 = 0.35503 + 0.25882 * z;
+      float zz = max(abs(z), 1e-3);
+      float tt = smoothstep(0.6, 1.6, abs(z));
+      if (z > 0.0) return mix(a0, 0.56419 * ppow(zz, -0.25) * sin(0.666667 * zz * sqrt(zz) + 0.785398), tt);
+      return mix(max(a0, 0.0), 0.28209 * ppow(zz, -0.25) * exp(-0.666667 * zz * sqrt(zz)), tt);
+    }
+    /* Descartes: the primary and secondary rainbow angles from the antisolar point */
+    vec2 bowAngles(float n){
+      float i1 = acos(clamp(sqrt((n * n - 1.0) / 3.0), 0.0, 1.0));
+      float r1 = asin(clamp(sin(i1) / n, -1.0, 1.0));
+      float i2 = acos(clamp(sqrt((n * n - 1.0) / 8.0), 0.0, 1.0));
+      float r2 = asin(clamp(sin(i2) / n, -1.0, 1.0));
+      return vec2(4.0 * r1 - 2.0 * i1, PI + 2.0 * i2 - 6.0 * r2);
+    }
+    /* 2 J1(x)/x — the Airy pattern of a droplet (Abramowitz & Stegun 9.4.4 and 9.4.6) */
+    float jinc(float x){
+      float ax = abs(x);
+      if (ax < 3.0){
+        float y = sq(x / 3.0);
+        return 2.0 * (0.5 + y * (-0.56249985 + y * (0.21093573 + y * (-0.03954289 + y * (0.00443319 + y * (-0.00031761 + y * 0.00001109))))));
+      }
+      float y = 3.0 / ax;
+      float f1 = 0.79788456 + y * (0.00000156 + y * (0.01659667 + y * (0.00017105 + y * (-0.00249511 + y * (0.00113653 - y * 0.00020033)))));
+      float t1 = ax - 2.35619449 + y * (0.12499612 + y * (0.00005650 + y * (-0.00637879 + y * (0.00074348 + y * (0.00079824 - y * 0.00029166)))));
+      return 2.0 * f1 * cos(t1) / (sqrt(ax) * ax);
+    }
+    /* the inverse stereographic projection: screen (u, v) to a direction, camera pitched up by pitch */
+    vec3 stereoDir(vec2 uv, float pitch){
+      float r2 = dot(uv, uv);
+      vec3 l = vec3(4.0 * uv.x, 4.0 * uv.y, 4.0 - r2) / (4.0 + r2);
+      float cp = cos(pitch), sp = sin(pitch);
+      // camera: right = +x, up and forward tilted by pitch about x
+      return vec3(l.x, l.y * cp + l.z * sp, -l.y * sp + l.z * cp);
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      vec3 col = vec3(0.0);
+      {
+        float T = uSimT;
+
+        if (uMode < 0.5){
+          /* ===== THE BOW ===== */
+          float yh = -0.62;
+          float land = yh + 0.07 * fbm4(vec2(p.x * 1.6 + 3.0, 1.0)) - 0.035;
+          float e = (0.21 + 0.06 * sin(T * 0.05));                 // the sun's elevation, radians
+          float k = 0.56;                                          // radians of sky per unit of screen
+          vec2 As = vec2(0.10 * sin(T * 0.03), yh - e / k);
+          float psi = length(p - As) * k;
+          float w = (uShape < 0.5 ? 0.0045 : (uShape < 1.5 ? 0.012 : 0.026)) * (1.0 - 0.2 * uBass);
+          float fog = step(1.5, uShape);
+          vec3 acc = vec3(0.0), wsum = vec3(0.0);
+          for (int i = 0; i < 16; i++){
+            float l = 405.0 + 290.0 * (float(i) + 0.5) / 16.0;
+            vec3 wl = wavelengthLinearRGB(l);
+            wsum += wl;
+            vec2 ang = bowAngles(nWater(l));
+            float ws = w * ppow(l / 550.0, 0.6667);
+            // the sun is half a degree wide: each colour's caustic is smeared across its disk
+            float I1 = 0.0, I2 = 0.0;
+            for (int j = 0; j < 3; j++){
+              float o = (float(j) - 1.0) * 0.0036;
+              float z1 = (ang.x - psi + o) / ws;
+              float a1 = airyAi(z1) / 0.5357 * (1.0 - fog * (1.0 - exp(-max(z1 - 1.5, 0.0) * 0.8)));
+              float a2 = airyAi((psi - ang.y + o) / (ws * 1.5)) / 0.5357;
+              I1 += a1 * a1 / 3.0; I2 += a2 * a2 / 3.0;
+            }
+            float inside = smoothstep(ang.x + 2.0 * ws, ang.x - 2.0 * ws, psi);
+            float outside = smoothstep(ang.y - 2.0 * ws, ang.y + 2.0 * ws, psi);
+            float I = 1.3 * I1 + 0.55 * I2 + 0.20 * inside * (0.55 + 0.45 * psi / ang.x) + 0.08 * outside + 0.02;
+            acc += wl * I;
+          }
+          vec3 bow = acc / max(wsum, vec3(1e-4));
+          bow = mix(bow, vec3(dot(bow, vec3(0.3333))), fog * 0.72);    // the fogbow: every colour's broad lobe overlapping into white
+          // the rain curtain the light is shining into: brighter where it rains harder
+          float rain = 0.35 + 0.65 * smoothstep(0.25, 0.75, fbm4(vec2(p.x * 0.7 + T * 0.02, p.y * 0.35 - T * 0.01)));
+          float streak = vnoise(vec2(p.x * 90.0 + p.y * 25.0, p.y * 3.0 + T * 4.0));
+          rain *= 0.9 + 0.2 * streak + uBeat * 0.08 * step(0.85, streak);
+          vec3 sky = ramp(0.58) * 0.05 * (1.2 - p.y) + ramp(0.15) * 0.03;
+          col = sky + bow * rain * 0.85;
+          // the land in front, catching a little of the low sun
+          if (p.y < land){
+            col = ramp(0.40) * 0.035 + ramp(0.05) * 0.04 * smoothstep(land - 0.3, land, p.y);
+            col += vec3(0.05) * glow(p.y - land, 20000.0);
+          }
+        } else if (uMode < 1.5){
+          /* ===== THE HALO: ice, toward the sun, in a stereographic sky ===== */
+          float e = (uShape < 0.5 ? 0.14 : (uShape < 1.5 ? 0.38 : 0.70)) + 0.03 * sin(T * 0.05);
+          float pitch = e + 0.36;
+          vec3 d = stereoDir(p / 1.25, pitch);
+          vec3 S = vec3(0.0, sin(e), cos(e));
+          float alt = asin(clamp(d.y, -1.0, 1.0));
+          float az = atan2s(d.x, d.z);
+          float psi = acos(clamp(dot(d, S), -1.0, 1.0));
+          vec3 acc = vec3(0.0), wsum = vec3(0.0);
+          float gh = hash21(floor((p + vec2(T * 0.01, 0.0)) * 260.0));
+          float glitter = step(0.9993 - 0.0012 * uTreble, gh) * (0.5 + 0.5 * sin(T * 9.0 + gh * 60.0));
+          for (int i = 0; i < 16; i++){
+            float l = 405.0 + 290.0 * (float(i) + 0.5) / 16.0;
+            vec3 wl = wavelengthLinearRGB(l);
+            wsum += wl;
+            float n = nIce(l);
+            // 22° and 46°: minimum deviation through the 60° and 90° prisms of randomly turned crystals
+            float D22 = 2.0 * asin(clamp(n * 0.5, -1.0, 1.0)) - PI / 3.0;
+            float D46 = 2.0 * asin(clamp(n * 0.707107, -1.0, 1.0)) - PI * 0.5;
+            float h22 = smoothstep(D22 - 0.006, D22 + 0.002, psi) * exp(-max(psi - D22, 0.0) / 0.045) * 0.8;
+            float h46 = smoothstep(D46 - 0.008, D46 + 0.003, psi) * exp(-max(psi - D46, 0.0) / 0.07) * 0.28;
+            // the sundogs: plates, horizontal, the index made effective by the sun's height
+            float np = sqrt(max(n * n - sin(e) * sin(e), 0.0)) / cos(e);
+            float Dp = 2.0 * asin(clamp(np * 0.5, -1.0, 1.0)) - PI / 3.0;
+            float band = exp(-sq((alt - e) / 0.014));
+            float dog = band * smoothstep(Dp - 0.006, Dp + 0.002, abs(az)) * exp(-max(abs(az) - Dp, 0.0) / 0.045) * 2.2;
+            // the circumzenithal arc: in at the top face, out at a side; only below 32.2°
+            float s2 = n * n - cos(e) * cos(e);
+            float cza = 0.0;
+            if (s2 < 1.0){
+              float a = asin(clamp(sqrt(max(s2, 0.0)), 0.0, 1.0));
+              cza = exp(-sq((alt - a) / 0.006)) * exp(-sq(az / 0.75)) * 2.4 * smoothstep(0.0, 0.08, 1.0 - s2);
+            }
+            acc += wl * (h22 + h46 + dog + cza);
+          }
+          vec3 halo = acc / max(wsum, vec3(1e-4));
+          // the sky: darker inside the 22° ring, the sun's glare, the parhelic circle
+          float skyB = 0.05 + 0.05 * smoothstep(0.32, 0.42, psi) * exp(-psi * 1.2);
+          vec3 sky = ramp(0.6) * skyB + ramp(0.15) * 0.02;
+          float sun = exp(-psi * psi * 4000.0) * 3.0 + exp(-psi * 30.0) * 0.25 + exp(-psi * 6.0) * 0.06;
+          float parhelic = exp(-sq((alt - e) / 0.004)) * 0.12;
+          col = sky + vec3(1.0, 0.97, 0.9) * sun * (1.0 + uBeat * 0.15) + halo * (0.75 + uBass * 0.4) + vec3(parhelic);
+          col += vec3(0.8) * glitter * smoothstep(0.5, 0.15, psi) * (0.2 + 0.8 * uTreble);
+          if (alt < 0.0){
+            col = ramp(0.6) * 0.04 + vec3(0.03) * smoothstep(-0.25, 0.0, alt);
+            col += vec3(1.0, 0.97, 0.9) * glow(alt, 4000.0) * 0.08;
+          }
+        } else {
+          /* ===== THE CORONA: the moon through thin cloud ===== */
+          vec2 M = vec2(0.15 * sin(T * 0.02), 0.08);
+          vec2 q = p - M;
+          if (uShape > 1.5) q.x *= 1.32;                      // pollen grains are not round
+          float th = length(q) * 0.085;                       // radians of sky per unit
+          float cl = fbm4(p * 1.6 + vec2(T * 0.06, T * 0.015));
+          float cl2 = fbm4(p * 3.1 - vec2(T * 0.03, 0.0) + 7.0);
+          float dBase = (uShape < 0.5 ? 13.0 : (uShape < 1.5 ? 18.0 : 24.0)) * (1.0 + 0.15 * uBass);
+          float dLoc = dBase * (0.75 + 0.5 * cl2);            // the drops grow where the cloud is older
+          float spread = uShape > 0.5 ? 0.16 : 0.08;
+          vec3 acc = vec3(0.0), wsum = vec3(0.0);
+          for (int i = 0; i < 16; i++){
+            float l = 405.0 + 290.0 * (float(i) + 0.5) / 16.0;
+            vec3 wl = wavelengthLinearRGB(l);
+            wsum += wl;
+            float I = 0.0;
+            for (int j = 0; j < 3; j++){
+              float dj = dLoc * (1.0 + spread * (float(j) - 1.0));
+              float x = PI * dj * 1000.0 / l * th;
+              float jj = jinc(x);
+              I += (j == 1 ? 0.5 : 0.25) * jj * jj;
+            }
+            acc += wl * I;
+          }
+          // the eye sees the rings at a few per cent of the aureole: a compressive response
+          vec3 cor = vec3(1.0) - exp(-acc / max(wsum, vec3(1e-4)) * 45.0);
+          if (uShape > 1.5){
+            float ang = atan2s(q.y, q.x);
+            cor *= 0.75 + 0.5 * sq(cos(2.0 * ang));            // the pollen corona's brighter knots
+          }
+          // thin cloud: the corona lives where it is thin enough to see through
+          float thick = smoothstep(0.30, 0.80, cl);
+          float veil = 0.35 + 0.65 * smoothstep(0.15, 0.55, cl);       // the corona needs cloud to be made in
+          float transmit = 1.0 - 0.6 * thick;
+          vec3 cloud = ramp(0.6) * 0.05 * thick + vec3(0.03) * thick * exp(-th * 25.0);
+          float moon = smoothstep(0.065, 0.055, length(p - M));
+          float glare = exp(-length(p - M) * 9.0) * 0.25;
+          col = ramp(0.58) * 0.025 + cloud + cor * 0.55 * veil * transmit * smoothstep(0.004, 0.01, th);
+          col += vec3(0.95, 0.95, 0.9) * (moon * 1.6 + glare) * transmit;
+          // the stars, where the sky is clear
+          float st = step(0.9988, hash21(floor(p * 160.0)));
+          col += vec3(0.7) * st * (1.0 - veil) * 0.6;
+        }
+        if (uHand.z > 0.05) col += ramp(0.85) * glow(length(p - uHand.xy) - 0.06, 4000.0) * uHand.z * 0.35;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(max(col, vec3(0.0))), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const FACES = [{"name":"THE BOW","shapes":["LARGE DROPS","SMALL DROPS","THE FOGBOW"]},{"name":"THE HALO","shapes":["LOW SUN","MID SUN","HIGH SUN"]},{"name":"THE CORONA","shapes":["FINE DROPS","MIXED DROPS","POLLEN"]}];
+  const st = { face: 0, shape: 0 };
+  const api = {
+    name: 'IRIS', key: 'iris', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the clock runs at the music's pace: the weather drifts at the music's pace
+      varU.uSimT.value += Math.min(dt, 0.05) * (0.7 + (f.energy || 0) * 0.3 + (f.beat || 0) * 0.1);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x * s.aspect, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 6), 0);
+    },
+    roll(){
+      st.face = Math.floor(Math.random() * FACES.length);
+      st.shape = Math.floor(Math.random() * 3);
+      varU.uMode.value = st.face;
+      varU.uShape.value = st.shape;
+      varU.uVarA.value = Math.random();
+      varU.uSimT.value = 0;
+      api.name = 'IRIS · ' + FACES[st.face].name + ' · ' + FACES[st.face].shapes[st.shape];
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+
+/* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
 function initThree(){
@@ -50422,7 +51523,7 @@ function initThree(){
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
-              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry());
+              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

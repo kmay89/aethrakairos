@@ -440,6 +440,28 @@ enum Rooms {
         Room(key: "masonry", name: "MASONRY", fragmentFunction: "room_masonry",
              tasteEnergy: 0, tasteCalm: 0.3, tasteBeat: 0.3, tasteTreble: 0,
              tasteBass: 0.5, tasteEntropy: -0.4, heavy: true),
+
+        // The three cones (the wake room): the Mach cone from circles emitted along the
+        // source's real path, the Kelvin wake's 19.47° in closed form (two stationary
+        // phases), and the Cherenkov horn of a slowing particle with its lit wall.
+        Room(key: "wake", name: "WAKE", fragmentFunction: "room_wake",
+             tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 0.4, tasteTreble: 0.2,
+             tasteEntropy: -0.1, heavy: true),
+
+        // The race of curves (Shaders28): the brachistochrone beating the ramp, the
+        // circle and a dive (the cycloid exact, the others marched), the tautochrone's
+        // seven heights arriving together, and Huygens' cycloidal-cheek pendulum.
+        Room(key: "brachisto", name: "BRACHISTOCHRONE", fragmentFunction: "room_brachisto",
+             tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0.4, tasteTreble: 0,
+             tasteEntropy: -0.4),
+
+        // The sky's optics (Shaders29): Descartes' and Airy's rainbow with its
+        // supernumeraries, the ice halos with sundogs and the circumzenithal arc in a
+        // stereographic sky, and the diffraction corona — all in spectral colour from the
+        // same CIE observer the web uses. Sixteen wavelengths a pixel: heavy.
+        Room(key: "iris", name: "IRIS", fragmentFunction: "room_iris",
+             tasteEnergy: 0.1, tasteCalm: 0.7, tasteBeat: 0, tasteTreble: 0.4,
+             tasteEntropy: -0.3, heavy: true, calm: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
