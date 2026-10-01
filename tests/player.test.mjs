@@ -7288,7 +7288,7 @@ test('record: Highway is charted in D♭ major with the vi–IV–I–V loop the
   assert.ok(chart.key.confidence > 0.6, 'the key is not a guess');
   const loop = chart.loop.map(n => n.replace('maj7', '').replace('add9', ''));
   const cyc = [...loop, ...loop].join(' ');
-  assert.ok(cyc.indexOf('B♭m G♭ D♭ A♭') >= 0, 'B♭m – G♭ – D♭ – A♭ in some rotation, got ' + chart.loop.join(' '));
+  assert.ok(cyc.indexOf('B♭m G♭ D♭ A♭') >= 0, 'the loop is the final drop\'s cycle, B♭m – G♭ – D♭ – A♭ in some rotation, got ' + chart.loop.join(' '));
   assert.ok(chart.sections.some(s => /drop/i.test(s.name)), 'the structure names a drop');
 });
 const fakeChart = () => ({
@@ -7507,11 +7507,14 @@ test('teaching: Highway — the lesson teaches the drop\'s own cycle, the hook u
   const l = PT.pnChartLesson(chart, 'easy');
   const shapes = l.steps.filter(s => s.type === 'press');
   assert.match(shapes[0].title, /D♭ \(I\)/, 'the drop starts on the one');
-  assert.ok(shapes.some(s => /A♭ \(V\)/.test(s.title) && /four chords/.test(s.text)), 'the final drop\'s V completes the four chords');
+  assert.ok(shapes.some(s => /^Final drop adds A♭ \(V\)/.test(s.title) && /four chords/.test(s.text)), 'the final drop\'s V completes the four chords');
+  assert.match(chart.transcriber, /piano stem/, 'the shipped chart was transcribed from the isolated piano stem');
   const riffs = l.steps.filter(s => /^Riff/.test(s.title));
   assert.ok(riffs.length >= 3);
   for (const r of riffs) assert.ok(Math.max(...r.notes) - Math.min(...r.notes) <= 11, 'easy phrases sit under one hand');
-  assert.ok(riffs[0].notes.every(m => [72, 73, 75].includes(m)), 'the first phrase is the C–D♭–E♭ hook');
+  const pos = [68, 70, 72, 73, 75];   // A♭4 B♭4 C5 D♭5 E♭5: one five-finger position
+  assert.ok(riffs.every(r => r.notes.every(m => pos.includes(m))), 'at Easy the whole hook sits in the A♭ five-finger position');
+  assert.ok(riffs.every(r => r.fingerSeq.every((f, k) => f === { 68: 1, 70: 2, 72: 3, 73: 4, 75: 5 }[r.notes[k]])), 'and is fingered as that position: A♭=1 … E♭=5');
 });
 
 await Promise.all(pending);

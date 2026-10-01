@@ -28,6 +28,7 @@ Requires numpy; Demucs (+ ffmpeg) only to separate; basic-pitch optional.
 """
 import argparse
 import json
+import re
 import math
 import os
 import subprocess
@@ -531,6 +532,42 @@ def compare_charts(a, b, tol=0.25):
     return "\n".join(lines)
 
 
+def section_loop(chart, b0, b1):
+    """The chord cycle a section plays, in its own order: bars by root and
+    quality, the shortest period (1, 2, 4, 8) that repeats on ≥70% of bars,
+    the distinct chords of one period. Mirrors the player's pnSectionLoop."""
+    names = FLATS if uses_flats(chart["key"]["root"], chart["key"]["mode"] == "minor") else NAMES
+    bars = []
+    for c in chart["chords"][b0:b1]:
+        if not c or c.get("root") is None:
+            bars.append(None); continue
+        pcs = c.get("pcs") or []
+        minor = (c["root"] + 3) % 12 in pcs and (c["root"] + 4) % 12 not in pcs
+        bars.append((c["root"], minor))
+    period = len(bars)
+    for p in (1, 2, 4, 8):
+        if p >= len(bars):
+            break
+        n = len(bars) - p
+        if n and sum(1 for i in range(p, len(bars)) if bars[i] == bars[i - p]) / n >= 0.7:
+            period = p
+            break
+    out = []
+    for b in bars[:period]:
+        if b and b not in out:
+            out.append(b)
+    return [names[r] + ("m" if m else "") for r, m in out]
+
+
+def main_loop(chart):
+    """The record's loop: the cycle of its longest loud section."""
+    loud = [s for s in chart.get("sections", []) if re.search(r"drop|chorus", s["name"], re.I)]
+    if not loud:
+        return chart.get("loop", [])
+    sec = max(loud, key=lambda s: s["bars"])
+    return section_loop(chart, sec["bar"], sec["bar"] + sec["bars"]) or chart.get("loop", [])
+
+
 def lead_sheet(chart):
     k = chart['key']
     names = FLATS if uses_flats(k['root'], k['mode'] == 'minor') else NAMES
@@ -607,11 +644,19 @@ def main():
     ap.add_argument("--mix", action="store_true", help="no separation: transcribe the whole mix (basic-pitch), bass from its low end")
     ap.add_argument("--wav", help="an already-decoded WAV of the track (else the mp3 is decoded)")
     ap.add_argument("--compare", help="an earlier chart to compare against (precision/recall of the riff, key, loop)")
+    ap.add_argument("--relabel", action="store_true", help="re-derive the loop of an existing chart from its chords (no audio)")
     args = ap.parse_args()
     if args.selftest:
         selftest(); return
     if not args.tag:
         ap.error("an album tag is required")
+    if args.relabel:
+        path = CHARTS / f"{args.tag}.json"
+        chart = json.loads(path.read_text())
+        chart["loop"] = main_loop(chart)
+        path.write_text(json.dumps(chart, separators=(",", ":"), ensure_ascii=False))
+        print("loop:", " | ".join(chart["loop"]))
+        return
     from fingerprint import decode_mono
     cat = json.load(open(CATALOG))
     album = next((a for a in cat["albums"] if a.get("tag") == args.tag), None)
@@ -662,6 +707,7 @@ def main():
     chart = build_chart(args.tag, track, notes, bass, float(bpm), float(grid), duration)
     print("verifying against the record …", flush=True)
     verify_chart(chart, x, sr)
+    chart["loop"] = main_loop(chart)
     chart["transcriber"] = used + (" on the whole mix" if args.mix else " on the " + piano_wav.stem + " stem")
     if args.compare and Path(args.compare).exists():
         old = json.loads(Path(args.compare).read_text())

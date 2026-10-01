@@ -19913,7 +19913,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '233f0bc8d7';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'b45bacb2d4';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -57624,14 +57624,15 @@ function pnChartLesson(chart, level = 'full'){
     steps.push({ type: 'press', title: 'Chord ' + (i + 1) + ' of the loop: ' + name + ' (' + romans[i] + ')', text: 'Hold ' + v.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + ' together. ' + (i === 0 ? 'The ' + (focus.name || 'drop').toLowerCase() + ' cycles ' + loopNames.join(' – ') + ' (' + romans.join('–') + ').' + fame + ' Land each chord as one shape.' : 'Move as little as you can from the last shape.'),
       notes: v, fingers: pnChartFingers(v), hand: 'right', chord: null, focus: [Math.min(...v) - 5, Math.max(...v) + 5], anyOctave: true });
   });
-  // the rest of the song's chords: what the other sections add to the cycle
+  // the rest of the song's chords: what the other loud sections add to the
+  // cycle, longest section first (the climax usually carries the full loop)
   const extra = [];
-  for (const n of chart.loop || []){
-    const c = (chart.chords || []).find(x => x && x.name === n);
-    if (!c || c.root == null) continue;
-    const minor = (c.pcs || []).indexOf((c.root + 3) % 12) >= 0 && (c.pcs || []).indexOf((c.root + 4) % 12) < 0;
-    if (cyc.some(x => x.root === c.root) || extra.some(x => x.root === c.root)) continue;
-    extra.push({ root: c.root, minor });
+  const others = (chart.sections || []).filter(s => s !== focus && /drop|chorus/i.test(s.name || '') && s.bars >= 4).sort((a, b) => b.bars - a.bars);
+  for (const sec of others){
+    for (const x of pnSectionLoop(chart, sec.bar, Math.min(bars, sec.bar + sec.bars))){
+      if (cyc.some(y => y.root === x.root) || extra.some(y => y.root === x.root)) continue;
+      extra.push(Object.assign({ where: sec.name }, x));
+    }
   }
   for (const x of extra){
     const pcs = x.minor ? [x.root, (x.root + 3) % 12, (x.root + 7) % 12] : [x.root, (x.root + 4) % 12, (x.root + 7) % 12];
@@ -57639,7 +57640,7 @@ function pnChartLesson(chart, level = 'full'){
     const nm = pnPcName(x.root, flats) + (x.minor ? 'm' : ''), r = pnRomanIn(keyObj, x.root, x.minor);
     const all = romans.concat([r]);
     const four = ['I', 'V', 'vi', 'IV'].every(q => all.includes(q));
-    steps.push({ type: 'press', title: 'The other sections add ' + nm + ' (' + r + ')', text: 'Hold ' + v.map(m => pnNoteName(m, flats)).join(' ') + '. Later in the record the cycle grows to include ' + nm + (four ? ': I–V–vi–IV, the four chords of a thousand songs — the trainer\'s very first lesson, here in ' + keyNm + '.' : '.'),
+    steps.push({ type: 'press', title: (x.where || 'Later sections') + ' adds ' + nm + ' (' + r + ')', text: 'Hold ' + v.map(m => pnNoteName(m, flats)).join(' ') + '. In ' + (x.where || 'later sections') + ' the cycle grows to include ' + nm + (four ? ': I–V–vi–IV, the four chords of a thousand songs — the trainer\'s very first lesson, here in ' + keyNm + '.' : '.'),
       notes: v, fingers: pnChartFingers(v), hand: 'right', chord: null, focus: [Math.min(...v) - 5, Math.max(...v) + 5], anyOctave: true });
   }
   if (loopVoicings.length){
@@ -57671,10 +57672,16 @@ function pnChartLesson(chart, level = 'full'){
     if (ns.length >= 3) phrases.push({ bar: b, notes: ns });
   }
   if (!phrases.length) for (const p of (chart.phrases || []).filter(p => p.notes && p.notes.length >= 3).slice(0, PN_CHART_MAX_PHRASES)) phrases.push(p);
+  // finger the section's line as ONE piece, then slice it: the hand keeps its
+  // position from phrase to phrase, the way a teacher would mark the part
+  const allLine = phrases.flatMap(p => p.notes.map(n => n.m));
+  const allFingers = pnFingerLine(allLine, 'right');
+  let fAt = 0;
   phrases.forEach((p, i) => {
     const notes = p.notes.map(n => n.m);
+    const fingerSeq = allFingers.slice(fAt, fAt + notes.length); fAt += notes.length;
     steps.push({ type: 'sequence', title: 'Riff, phrase ' + (i + 1) + ' (bars ' + (p.bar + 1) + '–' + (p.bar + 2) + ')', text: 'Play the record\'s line note by note: ' + notes.map(m => pnNoteName(m, pnKeyUsesFlats(keyObj))).join(' ') + '. Listen plays it at half speed; the record button plays the real thing from that bar.',
-      notes, fingerSeq: pnFingerLine(notes, 'right'), hand: 'right', focus: [Math.min(...notes) - 3, Math.max(...notes) + 3], demo: { notes, mode: 'seq', tempo: Math.max(50, Math.round(bpm * 0.5)) }, action: 'cue:' + p.bar, anyOctave: false });
+      notes, fingerSeq, hand: 'right', focus: [Math.min(...notes) - 3, Math.max(...notes) + 3], demo: { notes, mode: 'seq', tempo: Math.max(50, Math.round(bpm * 0.5)) }, action: 'cue:' + p.bar, anyOctave: false });
   });
   steps.push(...pract);   // learn the phrases first, then put the section together in wait mode
   // play along with the record: the first loud section, then everything (scored)
