@@ -486,6 +486,14 @@ enum Rooms {
         Room(key: "cochlea", name: "COCHLEA", fragmentFunction: "room_cochlea",
              tasteEnergy: 0.3, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0.3,
              tasteMid: 0.3, tasteEntropy: 0.2, heavy: true),
+
+        // The turning frame (Shaders33): a throw on a spinning table in both
+        // frames, Foucault's pendulum and its pegs at three latitudes, and the
+        // Coriolis force at weather scale — the hurricane, inertial circles, the
+        // wind belts. Moderately heavy: polylines and two-phase flow noise.
+        Room(key: "coriolis", name: "CORIOLIS", fragmentFunction: "room_coriolis",
+             tasteEnergy: 0.2, tasteCalm: 0.4, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.4, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
