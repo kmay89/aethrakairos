@@ -53,7 +53,9 @@ jobs:
         run: |
           pip install --quiet "setuptools<70" "numpy==1.26.4"
           pip install --quiet torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install --quiet demucs soundfile "basic-pitch[tf]==0.4.0" "tensorflow-cpu==2.15.1" "numpy==1.26.4"
+          # exactly the set the transcriber was proven on: basic-pitch picks its
+          # own tensorflow; an older setuptools still ships pkg_resources (resampy needs it)
+          pip install --quiet demucs soundfile "basic-pitch==0.4.0" "numpy==1.26.4" "setuptools<80"
       - name: Cache the Demucs models
         uses: actions/cache@v6
         with:
