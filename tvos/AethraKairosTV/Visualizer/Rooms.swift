@@ -478,6 +478,14 @@ enum Rooms {
         Room(key: "aurora", name: "AURORA", fragmentFunction: "room_aurora",
              tasteEnergy: 0.3, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0.3,
              tasteEntropy: 0.1, heavy: true, calm: true),
+
+        // The ear, listening (Shaders32): the music's spectrum as travelling
+        // waves on the basilar membrane by Greenwood's place map — the spiral, the
+        // unrolled membrane with its click chirp, the hair cells, the piano on the
+        // membrane and the critical bands. Heavy: 24 bands per sample.
+        Room(key: "cochlea", name: "COCHLEA", fragmentFunction: "room_cochlea",
+             tasteEnergy: 0.3, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0.3,
+             tasteMid: 0.3, tasteEntropy: 0.2, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
