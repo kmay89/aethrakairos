@@ -432,6 +432,14 @@ enum Rooms {
         Room(key: "ballpit", name: "BALLPIT", fragmentFunction: "room_ballpit",
              tasteEnergy: 0.6, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
              tasteBass: 0.3, tasteEntropy: 0.2, heavy: true),
+
+        // Architecture against gravity (Shaders26): the arch with its line of
+        // thrust and its hinges, the corbel by the harmonic law, the dome under
+        // membrane theory with its 51.8° ring, its cracks and its buttresses.
+        // Every phase a function of one clock: built, loaded, failed, rebuilt.
+        Room(key: "masonry", name: "MASONRY", fragmentFunction: "room_masonry",
+             tasteEnergy: 0, tasteCalm: 0.3, tasteBeat: 0.3, tasteTreble: 0,
+             tasteBass: 0.5, tasteEntropy: -0.4, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

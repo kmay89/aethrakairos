@@ -58,7 +58,7 @@ complete, no-guessing runbook.
   through mud, the story arc warms and cools the whole chord as one rotation,
   and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds one hundred and five Metal rooms — one for every scene the web player has, 1:1 by
+  feeds one hundred and six Metal rooms — one for every scene the web player has, 1:1 by
   key (the parity law in `CONTRIBUTING.md`); beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
@@ -100,7 +100,7 @@ complete, no-guessing runbook.
   | **MAXWELL** — the dipole's pinching loops, E×B, the honest spectrum | **THE SEVENTEEN** — Fedorov's complete census of the plane | **MINIMAL** — the soap films: the turn, Scherk, Goldschmidt's snap |
   | **MINKOWSKI** — the light cone, the boost, the honest twins | **BOLTZMANN** — the box, the demon's ledger, the heat | **SHUFFLE** — the perfect deck: eight shuffles home, Elmsley's trick, the orbit |
   | **STELLARATOR** — the twisted bottle: the flux surface, the Poincaré islands, the heliotron | **FLUX** — sacred geometry, magnetised: the flower, the Halbach, the Metatron | **CAROM** — the elastic collision in slow motion: the table, the lanes, the cradle |
-  | **BALLPIT** — the ball pit: the hopper, the fountain, the cannon, filled to the brim | | |
+  | **BALLPIT** — the ball pit: the hopper, the fountain, the cannon, filled to the brim | **MASONRY** — architecture against gravity: the arch's line of thrust, the corbel's harmonic reach, the dome's 51.8° | |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's
