@@ -510,6 +510,14 @@ enum Rooms {
         Room(key: "tides", name: "TIDES", fragmentFunction: "room_tides",
              tasteEnergy: 0.1, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0,
              tasteEntropy: -0.2, calm: true),
+
+        // The life of vortices (Shaders36): leapfrogging vortex pairs, Thomson
+        // polygons, four-vortex chaos and colliding dipoles — Helmholtz's law
+        // integrated per pixel — and the drain, its dye carried back along the
+        // inflowing spiral. Heavy: up to 128 RK2 steps per pixel.
+        Room(key: "vortex", name: "VORTEX", fragmentFunction: "room_vortex",
+             tasteEnergy: 0.4, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0,
+             tasteMid: 0.3, tasteEntropy: 0.2, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
