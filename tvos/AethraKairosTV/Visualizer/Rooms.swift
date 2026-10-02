@@ -543,8 +543,7 @@ enum Rooms {
              tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
              heavy: true, calm: true),
 
-        // ---- fractal wave 2: scaffold placeholders; each entry (and the comment
-        // above it) is owned by that room's builder, who tunes the taste ----
+        // ---- fractal wave 2: NAVE, PLOTTER, SPECTRAL (Shaders40-42) ----
 
         // NAVE (Shaders40): a slow flight down the inside of a pseudo-Kleinian
         // limit set (Knighty after Theli-at) — pierced shells or hanging filigree,

@@ -4905,11 +4905,11 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'gathers',
                'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'gathers', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows',
                // scenes 120–122, one line each, each line owned by its room's builder:
-               'flows',   // NAVE (placeholder)
+               'flows',   // NAVE
                // ↑ nave · plotter ↓
-               'flows',   // PLOTTER (placeholder)
+               'flows',   // PLOTTER
                // ↑ plotter · spectral ↓
-               'flows',   // SPECTRAL (placeholder)
+               'flows',   // SPECTRAL
                ];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
@@ -5214,11 +5214,11 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa',
                'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa',
                // scenes 120–122, one line each, each line owned by its room's builder:
-               'lissa',   // NAVE (placeholder)
+               'lissa',   // NAVE
                // ↑ nave · plotter ↓
-               'lissa',   // PLOTTER (placeholder)
+               'lissa',   // PLOTTER
                // ↑ plotter · spectral ↓
-               'lissa',   // SPECTRAL (placeholder)
+               'lissa',   // SPECTRAL
                ];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
@@ -20252,7 +20252,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'dc8c7e96e1';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'ad3ba10999';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -55719,9 +55719,23 @@ function buildNave(){
       x = x - 3.0 * floor(x / 3.0);
       vec3 a = x < 1.0 ? q0 : (x < 2.0 ? q1 : q2);
       vec3 b = x < 1.0 ? q1 : (x < 2.0 ? q2 : q0);
+      vec3 c = x < 1.0 ? q2 : (x < 2.0 ? q0 : q1);   // the third voice, not on this leg
       float f = x - floor(x);
       float dh = b.z - a.z;
       dh = dh - 6.2831853 * floor((dh + 3.1415927) / 6.2831853);
+      // NEAR-COMPLEMENTS: when the two voices sit more than ~170 deg apart the
+      // "shorter" arc is a coin flip decided by float noise, so a pier could swing
+      // through yellow on one frame and cyan the next, or differ between stages.
+      // Decide it instead: take the arc whose midpoint stays farther from the third
+      // voice, so the walk goes round the wheel the same way every time.
+      if (abs(dh) > 2.967) {
+        float dp = dh >= 0.0 ? dh : dh + 6.2831853;   // counter-clockwise length
+        float dn = dp - 6.2831853;                     // clockwise length (negative)
+        float ep = c.z - (a.z + 0.5 * dp), en = c.z - (a.z + 0.5 * dn);
+        ep = abs(ep - 6.2831853 * floor((ep + 3.1415927) / 6.2831853));
+        en = abs(en - 6.2831853 * floor((en + 3.1415927) / 6.2831853));
+        dh = ep > en ? dp : dn;
+      }
       return nvRGB(vec3(mix(a.x, b.x, f), mix(a.y, b.y, f), a.z + dh * f));
     }
 

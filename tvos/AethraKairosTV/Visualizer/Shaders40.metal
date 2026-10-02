@@ -175,9 +175,23 @@ vec3 nvWalk(vec3 q0, vec3 q1, vec3 q2, float x){
   x = x - 3.0 * floor(x / 3.0);
   vec3 a = x < 1.0 ? q0 : (x < 2.0 ? q1 : q2);
   vec3 b = x < 1.0 ? q1 : (x < 2.0 ? q2 : q0);
+  vec3 c = x < 1.0 ? q2 : (x < 2.0 ? q0 : q1);   // the third voice, not on this leg
   float f = x - floor(x);
   float dh = b.z - a.z;
   dh = dh - 6.2831853 * floor((dh + 3.1415927) / 6.2831853);
+  // NEAR-COMPLEMENTS: when the two voices sit more than ~170 deg apart the
+  // "shorter" arc is a coin flip decided by float noise, so a pier could swing
+  // through yellow on one frame and cyan the next, or differ between stages.
+  // Decide it instead: take the arc whose midpoint stays farther from the third
+  // voice, so the walk goes round the wheel the same way every time.
+  if (abs(dh) > 2.967) {
+    float dp = dh >= 0.0 ? dh : dh + 6.2831853;   // counter-clockwise length
+    float dn = dp - 6.2831853;                     // clockwise length (negative)
+    float ep = c.z - (a.z + 0.5 * dp), en = c.z - (a.z + 0.5 * dn);
+    ep = abs(ep - 6.2831853 * floor((ep + 3.1415927) / 6.2831853));
+    en = abs(en - 6.2831853 * floor((en + 3.1415927) / 6.2831853));
+    dh = ep > en ? dp : dn;
+  }
   return nvRGB(vec3(mix(a.x, b.x, f), mix(a.y, b.y, f), a.z + dh * f));
 }
 
