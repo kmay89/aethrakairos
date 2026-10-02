@@ -554,11 +554,12 @@ enum Rooms {
         // PLOTTER (Shaders41): a sphereflake drawn as a pen plotter would draw it,
         // thin chord-coloured lines on the void with every hidden line removed —
         // section planes, a light-swollen hatch, isolines about each bead's
-        // sockets, or the outline pen alone. Not heavy: a 96-step march over a
-        // 7-level IFS that stops descending once a subtree cannot come nearer.
+        // sockets, or the outline pen alone. Heavy, as NAVE and FRACTAL are: a
+        // 96-step march over a 7-level IFS, drawn at the 1080-line cap its pens
+        // are tuned at.
         Room(key: "plotter", name: "PLOTTER", fragmentFunction: "room_plotter",
              tasteEnergy: 0.2, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0.5,
-             tasteMid: 0.3, tasteEntropy: -0.3),
+             tasteMid: 0.3, tasteEntropy: -0.3, heavy: true),
 
         // SPECTRAL (Shaders42): rings of rings, one band of the music per scale.
         Room(key: "spectral", name: "SPECTRAL", fragmentFunction: "room_spectral",
