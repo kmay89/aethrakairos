@@ -65,7 +65,9 @@ struct StagePacket: Codable, Equatable {
     var colors: [OKLCH]
 
     // -- the lens the booth chose (-1 none / 0 mirrors / 1 wave / 2 prism /
-    //    3 iris / 4 tile / 5 moire) and its amount. The stage renderer draws
+    //    3 iris / 4 tile / 5 moire / 6–7 the first stacks / 8–17 the second
+    //    wave's singles / 18–22 its stacks — the codes Lens.metal and
+    //    VisualizerView.pickLens use) and its amount. The stage renderer draws
     //    rooms only (no lens pass), so these ride for completeness and for a
     //    later pass, harmless in the room uniforms. --
     var lens: Float
@@ -219,7 +221,7 @@ struct StagePacket: Codable, Equatable {
             pulse: f("pulse", base.pulse, 0, 2),
             brace: f("brace", base.brace, 0, 1),
             colors: colors,
-            lens: f("lens", base.lens, -1, 5),
+            lens: f("lens", base.lens, -1, 22),
             lensAmt: f("lensAmt", base.lensAmt, 0, 1),
             hand: hand,
             camera: camera
