@@ -4200,6 +4200,24 @@ body.clipping::after{
     was stretching faster than it could travel, so it first moved away. THE HORIZON adds the Hubble
     sphere and the particle horizon; THE LAST SCATTERING is the edge of the visible universe, the
     afterglow of the Big Bang, its faint ripples the seeds of every galaxy.</p>
+    <!-- ==== ROOM MANUAL: NAVE ==== -->
+    <h3>The nave</h3>
+    <p class="lede">Scene 120 is <b>NAVE</b>: a cathedral grown from a pseudo-Kleinian limit set, a box fold and a sphere
+    inversion repeated until arches, piers and pierced shells stand along an endless aisle. This
+    room is still being built; its full description arrives with it.</p>
+    <!-- ==== END ROOM MANUAL: NAVE ==== -->
+    <!-- ==== ROOM MANUAL: PLOTTER ==== -->
+    <h3>The plotter</h3>
+    <p class="lede">Scene 121 is <b>PLOTTER</b>: a fractal drawn the way a pen plotter would draw it, in thin lines on the dark
+    — slices, outlines and hatching, with every hidden line already gone. This room is still being
+    built; its full description arrives with it.</p>
+    <!-- ==== END ROOM MANUAL: PLOTTER ==== -->
+    <!-- ==== ROOM MANUAL: SPECTRAL ==== -->
+    <h3>The spectral rings</h3>
+    <p class="lede">Scene 122 is <b>SPECTRAL</b>: rings threaded on rings threaded on rings, each scale of the fractal listening to
+    its own band of the music, from the bass in the largest ring to the treble in the finest. This
+    room is still being built; its full description arrives with it.</p>
+    <!-- ==== END ROOM MANUAL: SPECTRAL ==== -->
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4843,7 +4861,14 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows', 'grows', 'grows', 'gathers', 'grows',
                'flows', 'grows', 'flows',
                'flows', 'gathers',
-               'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'gathers', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows'];   // …the lattice and the film ripple, the
+               'flows', 'flows', 'gathers', 'blackhole', 'blackhole', 'gathers', 'gathers', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows', 'flows',
+               // scenes 120–122, one line each, each line owned by its room's builder:
+               'flows',   // NAVE (placeholder)
+               // ↑ nave · plotter ↓
+               'flows',   // PLOTTER (placeholder)
+               // ↑ plotter · spectral ↓
+               'flows',   // SPECTRAL (placeholder)
+               ];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
                            // hand on the WAVEFUNCTION gathers probability the way a well
@@ -5140,7 +5165,19 @@ function ghostPattern(sceneIdx, act, r, mood){
                'bounce', 'snake', 'paint', 'lissa', 'drift',
                'snake', 'drift', 'lissa', 'paint', 'lissa',
                'lissa', 'snake', 'drift',
-               'lissa', 'paint'];   // …SHEETS walks the lattice, MANDALA curves,
+               'lissa', 'paint',
+               // SHUFFLE through HUBBLE (scenes 101–119) always read MAP[0]'s 'lissa' through the
+               // out-of-range fallback below; written out unchanged so the next rooms land on
+               // their own indices
+               'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa',
+               'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa', 'lissa',
+               // scenes 120–122, one line each, each line owned by its room's builder:
+               'lissa',   // NAVE (placeholder)
+               // ↑ nave · plotter ↓
+               'lissa',   // PLOTTER (placeholder)
+               // ↑ plotter · spectral ↓
+               'lissa',   // SPECTRAL (placeholder)
+               ];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
                            // the EIGENSTATE is orbited the way a superposition beats,
@@ -6353,7 +6390,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'rain', 'terra', 'stokes', 'orbitals', 'dna',
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
-                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta', 'aurora', 'cochlea', 'coriolis', 'seismic', 'tides', 'vortex', 'plateau', 'escapement', 'hubble'];
+                    'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta', 'aurora', 'cochlea', 'coriolis', 'seismic', 'tides', 'vortex', 'plateau', 'escapement', 'hubble',
+                    'nave', 'plotter', 'spectral'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6529,6 +6567,12 @@ const SCENE_TASTE = {
   plateau: { calm: 0.4, treble: 0.3, energy: 0.2, entropy: 0 },   // falling water wants a clear, bright line
   escapement: { beat: 0.5, mid: 0.3, calm: 0.2, entropy: -0.4 },   // clockwork wants a steady pulse
   hubble: { calm: 0.5, energy: 0.2, bass: 0.2, entropy: 0 },   // the universe wants a long, deep breath
+  // fractal wave 2: one line per room, each line owned by its room's builder
+  nave: { calm: 0.5, bass: 0.3, energy: 0.2, entropy: -0.2 },   // placeholder: the builder tunes it
+  // ↑ nave · plotter ↓
+  plotter: { treble: 0.4, mid: 0.3, energy: 0.2, entropy: -0.3 },   // placeholder: the builder tunes it
+  // ↑ plotter · spectral ↓
+  spectral: { bass: 0.3, mid: 0.3, treble: 0.3, energy: 0.2 },   // placeholder: the builder tunes it
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7814,6 +7858,12 @@ const SCENE_SIGS = {
   plateau: { kind: 'ring', h: 185, arms: 6 },
   escapement: { kind: 'ring', h: 42, arms: 12 },
   hubble: { kind: 'ring', h: 235, arms: 8 },
+  // fractal wave 2: one line per room, each line owned by its room's builder
+  nave: { kind: 'tunnel', h: 250, dense: 0.8 },   // placeholder: the builder tunes it
+  // ↑ nave · plotter ↓
+  plotter: { kind: 'wave', h: 40, arms: 5 },   // placeholder: the builder tunes it
+  // ↑ plotter · spectral ↓
+  spectral: { kind: 'ring', h: 300, arms: 7, rainbow: 1 },   // placeholder: the builder tunes it
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -55459,6 +55509,106 @@ function buildHubble(){
   return api;
 }
 
+/* ==== ROOM REGION: NAVE — builder owns everything between these fences ==== */
+/* ================================================================
+   NAVE — the cathedral of a pseudo-Kleinian limit set.
+
+   WAVE 2 SCAFFOLD: a placeholder that draws only the void, already
+   wired through every registry on both stages. The room's builder
+   replaces everything between the fences.
+
+   PROVENANCE: the pseudo-Kleinian limit set, after Knighty ("pseudo-Kleinian"
+   thread, fractalforums.com, 2011), who built it from Theli-at's "scale-1 Julia
+   box plus something": an unscaled box fold followed by a conditional sphere
+   inversion. Clean-room prototype: research/fractal-study/shaders/kleinian.frag.
+
+   The TV's twin is Shaders40.metal (room_nave, namespace rm_nv).
+   ================================================================ */
+function buildNave(){
+  const group = new THREE.Group();
+  group.visible = false; scene.add(group);
+  const api = {
+    name: 'NAVE', key: 'nave', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+    },
+    roll(){
+      api.name = 'NAVE';
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: NAVE ==== */
+
+/* ==== ROOM REGION: PLOTTER — builder owns everything between these fences ==== */
+/* ================================================================
+   PLOTTER — pen-plotter line art on a fractal.
+
+   WAVE 2 SCAFFOLD: a placeholder that draws only the void, already
+   wired through every registry on both stages. The room's builder
+   replaces everything between the fences.
+
+   PROVENANCE: the line vocabulary after Michael Fogleman's "ln"
+   (github.com/fogleman/ln, MIT) — planar slices, outlines, hidden-line removal;
+   the idea only, no code. The fractal a kaleidoscopic IFS after Knighty
+   ("Kaleidoscopic (escape time) IFS", fractalforums.com, 2010). Clean-room
+   prototype: research/fractal-study/shaders/plotter.frag.
+
+   The TV's twin is Shaders41.metal (room_plotter, namespace rm_pt).
+   ================================================================ */
+function buildPlotter(){
+  const group = new THREE.Group();
+  group.visible = false; scene.add(group);
+  const api = {
+    name: 'PLOTTER', key: 'plotter', group,
+    update(dt){
+      if (!group.visible) return;
+    },
+    roll(){
+      api.name = 'PLOTTER';
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: PLOTTER ==== */
+
+/* ==== ROOM REGION: SPECTRAL — builder owns everything between these fences ==== */
+/* ================================================================
+   SPECTRAL — rings of rings, one band of the music per scale.
+
+   WAVE 2 SCAFFOLD: a placeholder that draws only the void, already
+   wired through every registry on both stages. The room's builder
+   replaces everything between the fences.
+
+   PROVENANCE: the distance-estimated IFS built from primitives ("mdifs"),
+   Knighty, fractalforums.com, 2012; the ring (torus) distance after Inigo
+   Quilez, "distance functions" (iquilezles.org). One spectrum band per scale is
+   our own. Clean-room prototype: research/fractal-study/shaders/spectral.frag.
+
+   The TV's twin is Shaders42.metal (room_spectral, namespace rm_sp).
+   ================================================================ */
+function buildSpectral(){
+  const group = new THREE.Group();
+  group.visible = false; scene.add(group);
+  const api = {
+    name: 'SPECTRAL', key: 'spectral', group,
+    update(dt){
+      if (!group.visible) return;
+    },
+    roll(){
+      api.name = 'SPECTRAL';
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: SPECTRAL ==== */
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -55504,7 +55654,8 @@ function initThree(){
               buildRain(), buildTerra(), buildStokes(), buildOrbitals(), buildDna(),
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
-              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta(), buildAurora(), buildCochlea(), buildCoriolis(), buildSeismic(), buildTides(), buildVortex(), buildPlateau(), buildEscapement(), buildHubble());
+              buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta(), buildAurora(), buildCochlea(), buildCoriolis(), buildSeismic(), buildTides(), buildVortex(), buildPlateau(), buildEscapement(), buildHubble(),
+              buildNave(), buildPlotter(), buildSpectral());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

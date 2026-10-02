@@ -542,6 +542,24 @@ enum Rooms {
         Room(key: "hubble", name: "HUBBLE", fragmentFunction: "room_hubble",
              tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
              heavy: true, calm: true),
+
+        // ---- fractal wave 2: scaffold placeholders; each entry (and the comment
+        // above it) is owned by that room's builder, who tunes the taste ----
+
+        // NAVE (Shaders40): the cathedral of a pseudo-Kleinian limit set. Heavy.
+        Room(key: "nave", name: "NAVE", fragmentFunction: "room_nave",
+             tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
+             tasteBass: 0.3, tasteEntropy: -0.2, heavy: true),
+
+        // PLOTTER (Shaders41): pen-plotter line art on a fractal.
+        Room(key: "plotter", name: "PLOTTER", fragmentFunction: "room_plotter",
+             tasteEnergy: 0.2, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.4,
+             tasteMid: 0.3, tasteEntropy: -0.3),
+
+        // SPECTRAL (Shaders42): rings of rings, one band of the music per scale.
+        Room(key: "spectral", name: "SPECTRAL", fragmentFunction: "room_spectral",
+             tasteEnergy: 0.2, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.3,
+             tasteMid: 0.3, tasteBass: 0.3),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
