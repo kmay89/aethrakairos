@@ -546,10 +546,13 @@ enum Rooms {
         // ---- fractal wave 2: scaffold placeholders; each entry (and the comment
         // above it) is owned by that room's builder, who tunes the taste ----
 
-        // NAVE (Shaders40): the cathedral of a pseudo-Kleinian limit set. Heavy.
+        // NAVE (Shaders40): a lantern carried down the inside of a pseudo-Kleinian
+        // limit set (Knighty after Theli-at) — pierced shells or hanging filigree,
+        // the straight aisle or the turning crossings, the lantern one voice of the
+        // chord; the beat flares it, the bass carries it. Heavy.
         Room(key: "nave", name: "NAVE", fragmentFunction: "room_nave",
-             tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
-             tasteBass: 0.3, tasteEntropy: -0.2, heavy: true),
+             tasteEnergy: 0.1, tasteCalm: 0.6, tasteBeat: 0.2, tasteTreble: 0,
+             tasteBass: 0.4, tasteEntropy: -0.3, heavy: true),
 
         // PLOTTER (Shaders41): pen-plotter line art on a fractal.
         Room(key: "plotter", name: "PLOTTER", fragmentFunction: "room_plotter",
