@@ -161,6 +161,53 @@ jobs:
             echo "room-fractal-$N: rolls $ROLLS"
             N=$((N + 1))
           done
+          # NAVE, every face: r0 < 0.5 deals PIERCED SHELLS (else HANGING
+          # FILIGREE), r1 < 0.5 THE AISLE (else THE CROSSINGS), r2 in thirds
+          # the light: LANTERN IN HAND, LANTERN AHEAD, VOTIVE LIGHTS. Twelve
+          # frames, shells first, in that order.
+          N=0
+          for ROLLS in 0.25,0.25,0.15 0.25,0.25,0.5 0.25,0.25,0.85 0.25,0.75,0.15 0.25,0.75,0.5 0.25,0.75,0.85 \
+                       0.75,0.25,0.15 0.75,0.25,0.5 0.75,0.25,0.85 0.75,0.75,0.15 0.75,0.75,0.5 0.75,0.75,0.85; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room nave --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-nave-$N.png"
+            echo "room-nave-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
+          # PLOTTER, every face: r0 in quarters deals the pen (SECTIONS
+          # ENGRAVING ISOLINES INK), r1 in thirds the flake (WHORL FLAKE
+          # CORAL); r2 is the orbit phase, varied so the frames show the
+          # orbit too. Twelve frames, pen by pen.
+          N=0
+          for ROLLS in 0.125,0.167,0.11 0.125,0.5,0.30 0.125,0.833,0.62 0.375,0.167,0.30 0.375,0.5,0.62 0.375,0.833,0.85 \
+                       0.625,0.167,0.62 0.625,0.5,0.85 0.625,0.833,0.11 0.875,0.167,0.85 0.875,0.5,0.11 0.875,0.833,0.30; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room plotter --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-plotter-$N.png"
+            echo "room-plotter-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
+          # SPECTRAL, every face: r0 in thirds deals the fold (THREEFOLD
+          # FOURFOLD FIVEFOLD), r1 in halves the primitive (TORUS BEADS), r2
+          # in thirds the framing (THE MANDALA, THE CROWN, THE PENDANT).
+          # Eighteen frames, fold by fold. --drive-demo runs a beat grid, so
+          # look for the lamp lighting the great ring just after each beat.
+          N=0
+          for ROLLS in 0.1667,0.25,0.1667 0.1667,0.25,0.5 0.1667,0.25,0.8333 0.1667,0.75,0.1667 0.1667,0.75,0.5 0.1667,0.75,0.8333 \
+                       0.5,0.25,0.1667 0.5,0.25,0.5 0.5,0.25,0.8333 0.5,0.75,0.1667 0.5,0.75,0.5 0.5,0.75,0.8333 \
+                       0.8333,0.25,0.1667 0.8333,0.25,0.5 0.8333,0.25,0.8333 0.8333,0.75,0.1667 0.8333,0.75,0.5 0.8333,0.75,0.8333; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room spectral --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-spectral-$N.png"
+            echo "room-spectral-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
 
       # The artifact store is unreachable from some review environments, so
       # the frame also travels inside the log: an ice-ring pixel count (the
