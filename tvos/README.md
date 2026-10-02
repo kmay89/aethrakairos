@@ -113,9 +113,12 @@ complete, no-guessing runbook.
   rather than freezing. The relay contract is in [STAGE.md](./STAGE.md).
 
 - **A lens over every room** — an artistic post-process — mirrors, wave, prism,
-  iris, tile, moire — auto-picked by the act and the energy and held so it never
-  flickers. It bends the field without inventing colour, and it's off by default
-  on the calm rooms and under Reduce Motion.
+  iris, tile, moire, and the second wave written once with the web's:
+  transpose, echo, droste, hyperbolic, stained glass, halftone, rain, grating,
+  bokeh and contour, plus seven stacks — dealt by the act and the energy from
+  shelves of looks that read alike, and held so it never flickers. It bends the
+  field without inventing light; where it colours, it re-voices the room in the
+  key's chord at the room's own lightness. Off under Reduce Motion.
 - **The Journey Console, on the ten-foot screen** — the brightness-by-energy
   library map, the heat and length dials, and the three faces (Journey · Quantum
   · Memories), all driving the same bit-exact solver, operable with nothing but

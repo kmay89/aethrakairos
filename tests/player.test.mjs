@@ -1708,6 +1708,84 @@ test('lens: a truly driving build rolls a wave; a comedown at the same energy st
   assert.equal(S.pickLens({ ceil: 0.70, act: 3, energy: 0.8, major: true }), 'iris');
 });
 
+// ---- the second lens wave: shelves the director deals in turn, on both stages ----
+const LENS2_META = new Function(html.match(/\/\/ @lens2-start\n[\s\S]*?(const LENS2_META = [\s\S]*?\};)/)[1] + '\nreturn LENS2_META;')();
+test('lens2: no salt reproduces the original taste, look for look', () => {
+  // every assertion above runs saltless; these pin the new comedown and build
+  // branches' first looks, which equal the old ones
+  assert.equal(S.pickLens({ ceil: 0.70, act: 3, energy: 0.5, major: true }), 'iris');
+  assert.equal(S.pickLens({ ceil: 0.70, act: 1, energy: 0.5, major: true }), 'iris');
+  assert.equal(S.pickLens({ ceil: 0.70, act: 1, energy: 0.8, major: true }), 'wave');
+});
+test('lens2: the salt deals every look on a shelf, then wraps', () => {
+  const deal = (ctx, n) => Array.from({ length: n }, (_, i) => S.pickLens({ ...ctx, salt: i }));
+  assert.deepEqual(deal({ ceil: 0.90, act: 2, energy: 0.85, major: true }, 4), ['mirrors', 'echo', 'hyperbolic', 'mirrors']);
+  assert.deepEqual(deal({ ceil: 0.90, act: 2, energy: 0.7, major: true }, 3), ['mirrors', 'hyperbolic', 'mirrors']);
+  assert.deepEqual(deal({ ceil: 0.90, act: 2, energy: 0.8, major: false }, 2), ['moire', 'contour']);
+  assert.deepEqual(deal({ ceil: 0.90, act: 2, energy: 0.95, major: true }, 2), ['prism', 'grating']);
+  assert.deepEqual(deal({ ceil: 0.65, act: 2, energy: 0.9, major: true }, 2), ['tile', 'stained']);
+  assert.deepEqual(deal({ ceil: 0.70, act: 1, energy: 0.8, major: true }, 4), ['wave', 'droste', 'halftone', 'halftone+prism']);
+  assert.deepEqual(deal({ ceil: 0.70, act: 1, energy: 0.5, major: true }, 2), ['iris', 'bokeh']);
+  assert.deepEqual(deal({ ceil: 0.70, act: 3, energy: 0.5, major: true }, 4), ['iris', 'rain', 'transpose', 'stained+rain']);
+  assert.deepEqual(deal({ ceil: 0.95, act: 2, energy: 0.9, major: true }, 3), ['wave+mirrors', 'mirrors+echo', 'droste+transpose']);
+  assert.deepEqual(deal({ ceil: 0.95, act: 2, energy: 0.9, major: false }, 2), ['mirrors+moire', 'hyperbolic+contour']);
+});
+test('lens2: ECHO, the loudest look, is never dealt below real heat', () => {
+  for (let salt = 0; salt < 12; salt++){
+    assert.notEqual(S.pickLens({ ceil: 0.90, act: 2, energy: 0.75, major: true, salt }), 'echo');
+    assert.notEqual(S.pickLens({ ceil: 0.70, act: 1, energy: 0.6, major: true, salt }), 'echo');
+  }
+});
+test('lens2: the gates hold whatever the salt — quiet sections, arc edges and strain stay clean', () => {
+  for (let salt = 0; salt < 12; salt++){
+    assert.equal(S.pickLens({ ceil: 0.40, act: 2, energy: 0.9, salt }), 'none');
+    assert.equal(S.pickLens({ ceil: 0.95, act: 0, energy: 0.9, salt }), 'none');
+    assert.equal(S.pickLens({ ceil: 0.95, act: 4, energy: 0.9, salt }), 'none');
+    assert.equal(S.pickLens({ struggling: true, ceil: 0.95, act: 2, energy: 0.9, salt }), 'none');
+    assert.equal(S.pickLens({ ceil: 0.58, act: 3, energy: 0.9, salt }), 'none');
+  }
+});
+test('lens2: every look the director can deal is a lens the engine owns', () => {
+  const owned = new Set(['none', 'mirrors', 'wave', 'prism', 'tile', 'moire', 'iris',
+    'mirrors+moire', 'mirrors+iris', 'wave+mirrors', 'tile+prism']
+    .concat(LENS2_META.singles.map(l => l.key), LENS2_META.stacks.map(l => l.key)));
+  for (const act of [0, 1, 2, 3, 4]) for (const ceil of [0.5, 0.65, 0.8, 0.95])
+    for (const energy of [0.3, 0.7, 0.82, 0.9, 0.96]) for (const major of [true, false])
+      for (let salt = 0; salt < 6; salt++)
+        assert.ok(owned.has(S.pickLens({ act, ceil, energy, major, salt })), `${act}/${ceil}/${energy}/${major}/${salt}`);
+  // and every stack is built only from singles that exist
+  const singles = new Set(['mirrors', 'wave', 'prism', 'tile', 'moire', 'iris'].concat(LENS2_META.singles.map(l => l.key)));
+  for (const st of LENS2_META.stacks) for (const m of st.members) assert.ok(singles.has(m), st.key + ' → ' + m);
+});
+test('lens2: the TV deals the same shelves, code for key (VisualizerView.pickLens)', () => {
+  const swift = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8');
+  const code = Object.assign({}, LENS2_META.codes,
+    Object.fromEntries(LENS2_META.singles.map(l => [l.key, l.code])),
+    Object.fromEntries(LENS2_META.stacks.map(l => [l.key, l.code])),
+    { 'wave+mirrors': 6, 'mirrors+moire': 7 });
+  const fn = swift.slice(swift.indexOf('private func pickLens('), swift.indexOf('private func lensStackKinds('));
+  const tvShelves = [...fn.matchAll(/deal\(\[([\d, ]+)\]\)/g)].map(m => m[1].split(',').map(x => +x.trim()));
+  const web = html.slice(html.indexOf('function pickLens(ctx){'), html.indexOf('/* THE SEGUE'));
+  const webShelves = [...web.matchAll(/deal\(\[([^\]]+)\]\)/g)]
+    .map(m => m[1].split(',').map(x => code[x.trim().replace(/'/g, '')]));
+  // the web lists the summit major-first, the TV minor-first: compare as sets of shelves
+  const key = a => a.join(',');
+  assert.deepEqual(tvShelves.map(key).sort(), webShelves.map(key).sort());
+  // the stack table's legs match the web's members
+  const kinds = swift.slice(swift.indexOf('private func lensStackKinds('), swift.indexOf('private func autoLens('));
+  for (const st of LENS2_META.stacks){
+    const m = kinds.match(new RegExp('case ' + st.code + ': return \\[([\\d, ]+)\\]'));
+    assert.ok(m, 'stack ' + st.key + ' missing on the TV');
+    assert.deepEqual(m[1].split(',').map(x => +x.trim()), st.members.map(k => code[k]));
+  }
+});
+test('lens2: Lens.metal carries a case for every second-wave code', () => {
+  const metal = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Lens.metal'), 'utf8');
+  for (const l of LENS2_META.singles) assert.ok(metal.includes('    case ' + l.code + ': {'), l.key);
+  const hi = Math.max(...LENS2_META.singles.map(l => l.code));
+  assert.ok(metal.includes('clamp(U.lens, -1.0, ' + hi.toFixed(1) + ')'), 'the mode clamp reaches ' + hi);
+});
+
 // ---- the beat spring: it overshoots the hit and settles (the elastic bounce) ----
 test('beat spring: a sharp hit overshoots past the drive, then rings back', () => {
   let x = 0, v = 0, peak = 0;
