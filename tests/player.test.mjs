@@ -7522,6 +7522,50 @@ test('teaching: Highway — the lesson teaches the drop\'s own cycle, the hook u
   assert.ok(riffs.every(r => r.fingerSeq.every((f, k) => f === { 68: 1, 70: 2, 72: 3, 73: 4, 75: 5 }[r.notes[k]])), 'and is fingered as that position: A♭=1 … E♭=5');
 });
 
+// ---------------------------------------------------------------- licensing
+
+/* THE MATHS IS FREE; THE CODE IS NOT. The fractal rooms are built from
+   published mathematics: the mandelbulb, the mandelbox, Knighty's sponge
+   and kaleidoscopic IFS, Pickover's orbit traps. The best-known desktop
+   renderer of those forms is GPLv3. The web player is MIT, and the tvOS app
+   ships on the App Store, whose terms are widely held to be incompatible
+   with GPLv3, so not one line of that program may land in either stage. The tokens below are its
+   house identifiers (its own types, its aux/DE plumbing, its formula-
+   function signature) plus its name. The name is the last alternative,
+   assembled from halves so this file never spells it out. If this test
+   fails, something was transcribed rather than derived: delete it and
+   re-derive the formula from the published maths. Credits for the
+   mathematics, and notices for the third-party code we do ship, are in
+   THIRD-PARTY-NOTICES at the repository root. Each identifier is anchored
+   at a word start, so our own names that merely contain one (isFractalClipped,
+   modeFunctionType, Bordeaux.de) never trip it. */
+const GPL_RENDERER_TOKENS = new RegExp([
+  '\\bsExtendedAux', '\\bsFractalCl', '\\bREAL4\\b', '\\bCVector4', '\\baux(\\.|->)DE\\b',
+  '\\bfractal->', '\\bcAbstractFractal', '\\bDEFunctionType', 'mandel' + 'bulber',
+].join('|'), 'i');
+test('licensing: no GPL fractal-renderer identifiers in the web player or the tvOS sources', async () => {
+  const { readdirSync } = await import('fs');
+  const files = ['docs/index.html'];
+  const walk = dir => {
+    for (const e of readdirSync(join(root, dir), { withFileTypes: true })){
+      const rel = dir + '/' + e.name;
+      if (e.isDirectory()) walk(rel);
+      else if (/\.(metal|swift)$/.test(e.name)) files.push(rel);
+    }
+  };
+  walk('tvos');
+  assert.ok(files.some(f => f.endsWith('.metal')) && files.some(f => f.endsWith('.swift')), 'the scan actually reached the tvOS Metal and Swift sources');
+  const hits = [];
+  for (const f of files){
+    const lines = readFileSync(join(root, f), 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i++){
+      const m = lines[i].match(GPL_RENDERER_TOKENS);
+      if (m) hits.push(f + ':' + (i + 1) + ' "' + m[0] + '"');
+    }
+  }
+  assert.deepEqual(hits, [], 'GPL renderer identifiers found (see THIRD-PARTY-NOTICES): ' + hits.slice(0, 12).join(', '));
+});
+
 await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures

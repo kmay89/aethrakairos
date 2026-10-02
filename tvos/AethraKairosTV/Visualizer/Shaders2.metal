@@ -13,11 +13,12 @@ using namespace metal;
      one licensed exception is FIREWORKS, whose stars are real flame
      chemistry — and even those are pulled 25% back toward the chord.
    - phi(x) = 2·atan(x) is the engine's signature fold: an unbounded
-     axis brought home to a finite arc. MANDALA and the fractal camera
-     wear it.
+     axis brought home to a finite arc. MANDALA wears it.
    - WCAG 2.3.1 is a law: govern_a() caps luminance at every exit so
      additive enthusiasm becomes saturation, never a white strobe;
-     the beat is answered as a breath of geometry, not a flash.
+     the beat is answered as a breath of geometry, not a flash. The
+     FRACTAL FIELD exits through rm_fr::govern, the modern governor
+     that spends the INK white budget (Shaders.metal's govern()).
    - r32Float is not filterable on the living-room GPUs, so spectrum
      and waveform are read by INTEGER TEXEL and lerped by hand.
    - white is the INK budget: a room's brightest cores scale by it,
@@ -29,7 +30,8 @@ using namespace metal;
 
    This file is a SELF-CONTAINED translation unit. Every helper wears
    an _a suffix so its symbol never collides with the identically
-   shaped helpers in Shaders.metal / Shaders3.metal.
+   shaped helpers in Shaders.metal / Shaders3.metal — except the
+   FRACTAL FIELD's, which live in namespace rm_fr, the newer dialect.
    ================================================================ */
 
 constant float PI_A  = 3.14159265359;
@@ -165,178 +167,759 @@ inline float3 pickChord_a(constant VizUniforms& U, float h) {
 // ---------------------------------------------------------------
 
 // ---------------------------------------------------------------
-// The distance estimator, three fractals in one switch. Returns
-// float2(distance, orbitTrap): the trap is the closest the orbit
-// came to the origin, and it is what tints the surface. All three
-// loops are bounded by compile-time literals.
-//   mode 0: mandelbulb   (power walked by the phrase)
-//   mode 1: mandelbox    (scale sign dealt by roll1)
-//   mode 2: tetra fold    (kaleidoscopic Sierpinski)
+// FRACTAL FIELD — three ten-sided dice: the web room, retold.
+//
+//   FORM d10 x SURFACE d10 x SPACE d10 = 1000 faces, dealt from the
+//   room's own dice: face = floor(roll * 10) for roll0 / roll1 / roll2.
+//   Every table, distance estimator, glow and constant below is the
+//   web's buildFractalField (docs/index.html: FORMS, SURFACES, SPACES,
+//   GLSL_FRACTAL, MARCH_FRAG) said in Metal — the parity law holds the
+//   two stages to the same thousand faces.
+//
+//   ONE DE PER FORM. The web compiles one program per form (#define
+//   FORM n) so no program carries ten estimators' registers. Here that
+//   is a template: formDE<F> and fieldColor<F> are instantiated once
+//   per form and ONE switch on the dealt form picks the instance. The
+//   die is the same for every pixel of a frame, so the switch never
+//   diverges, and each instance holds exactly one estimator.
+//
+//   SEAM-FREE. The bulb family iterates in spherical coordinates through
+//   atan2, whose branch cut on the -x axis is invisible only at INTEGER
+//   powers (sin(p·π) = sin(−p·π) only then). The power walk therefore
+//   never slides the exponent: it blends two integer-power distance
+//   fields — a mix of two 1-Lipschitz bounds is a 1-Lipschitz bound, so
+//   the march stays safe — on a ping-pong ladder 9,8,…,3,4,…,9 whose
+//   neighbouring rungs differ by exactly one. The box, IFS and Menger
+//   forms use no trig, so their scale and twist breathe continuously.
+//
+//   STATELESS. Everything the web's update() integrates on the CPU is a
+//   closed form here, in U.time (the monotone rubato clock), the bands,
+//   the onset envelope and the dice: the walk, the c offsets, the box
+//   breathing, the julia drift, the vein phase, the orbs, the camera.
+//
+//   THE PIXEL FOOTPRINT. foot = t × (the angle one pixel spans). The hit
+//   test, the normal's tap radius and every level-of-detail cut are
+//   measured in it, so relief finer than a pixel merges into its face
+//   instead of shimmering as moiré. The footprint counts at most 720
+//   lines — the web's 0.6-scale target on a 1080p wall — so the TV
+//   resolves the structure the web resolves, in the steps the web takes.
+//
+//   THE GLOW IS FREE. Three emissions ride inside the one sphere trace,
+//   from numbers the march already has: the NEAR-MISS corona (closest
+//   approach in px + how hard the ray worked), the HALO (a Lorentzian of
+//   the distance integrated in closed form across each step) and the
+//   BANDS (the shallow orbit trap wrapped into self-lit veins). A miss
+//   lays its glow over the starfield with the alpha the web composites
+//   with; a ray that passes nowhere near the set stays sky.
+//
+//   SOURCES — the mathematics, cited:
+//     Mandelbulb — Daniel White and Paul Nylander, 2009
+//       (fractalforums.com, "true 3D mandelbrot type fractal").
+//     Mandelbox — Tom Lowe ("Tglad"), 2010
+//       (fractalforums.com, "amazing fractal").
+//     Menger sponge distance and kaleidoscopic IFS — Knighty, 2010
+//       (fractalforums.com, "Kaleidoscopic (escape time) IFS").
+//     Sierpinski tetrahedron — classical.
+//     Orbit traps — Clifford Pickover.
+//
+//   Every helper of this room lives in namespace rm_fr (the _a ladder
+//   above serves the other rooms). The exit is the modern white-budget
+//   governor, rm_fr::govern — the web's inkRolloff, knee and bleach.
 // ---------------------------------------------------------------
-inline float2 fractalDE_a(float3 pos, int mode, float power, float boxScale) {
-    if (mode == 0) {
-        // MANDELBULB — the classic triplex power map.
-        float3 z = pos;
-        float dr = 1.0;
-        float r = 0.0;
-        float trap = 1e10;
-        for (int i = 0; i < 8; i++) {
-            r = length(z);
-            if (r > 2.0) break;
-            trap = min(trap, r);
-            float theta = acos(clamp(z.z / max(r, 1e-6), -1.0, 1.0));
-            float phi = atan2(z.y, z.x);
-            float rp = pow(max(r, 1e-6), power - 1.0);
-            dr = rp * power * dr + 1.0;
-            float zr = rp * r;                       // r^power
-            float st = sin(theta * power);
-            z = zr * float3(st * cos(phi * power),
-                            st * sin(phi * power),
-                            cos(theta * power));
-            z += pos;
-        }
-        float d = 0.5 * log(max(r, 1e-6)) * r / max(dr, 1e-6);
-        return float2(d, trap);
-    } else if (mode == 1) {
-        // MANDELBOX — box fold, sphere fold, affine. The scale sign is
-        // the room's roll: a positive scale unfolds, a negative one
-        // turns the lattice inside out.
-        float3 z = pos;
-        float dr = 1.0;
-        float trap = 1e10;
-        for (int i = 0; i < 10; i++) {
-            z = clamp(z, -1.0, 1.0) * 2.0 - z;       // box fold
-            float r2 = dot(z, z);
-            if (r2 < 0.25) { float t = 4.0;      z *= t; dr *= t; }   // sphere fold (inner)
-            else if (r2 < 1.0) { float t = 1.0 / r2; z *= t; dr *= t; }
-            z = z * boxScale + pos;
-            dr = dr * abs(boxScale) + 1.0;
-            trap = min(trap, length(z));
-        }
-        return float2(length(z) / max(abs(dr), 1e-6), trap);
-    } else {
-        // TETRA FOLD — kaleidoscopic Sierpinski, three mirror planes
-        // per iteration then a scale-2 pull toward one corner.
-        float3 z = pos;
-        float trap = 1e10;
-        const float scale = 2.0;
-        for (int i = 0; i < 12; i++) {
-            if (z.x + z.y < 0.0) { float t = -z.y; z.y = -z.x; z.x = t; }
-            if (z.x + z.z < 0.0) { float t = -z.z; z.z = -z.x; z.x = t; }
-            if (z.y + z.z < 0.0) { float t = -z.z; z.z = -z.y; z.y = t; }
-            z = z * scale - float3(1.0) * (scale - 1.0);
-            trap = min(trap, length(z));
-        }
-        return float2(length(z) * pow(scale, -12.0), trap);
-    }
+namespace rm_fr {
+
+// ---- die 1: FORM. bound = marching sphere, dist = framing distance,
+//      eps = hit radius in pixels. 0 BULB 1 QUARTZ 2 SPIRE 3 CUBE 4 VOID
+//      5 SPONGE 6 TETRA 7 JULIA 8 OCTA 9 WEAVE ----
+constant float FORM_BOUND[10] = { 1.70, 1.60, 1.85, 8.70, 5.00, 1.95, 2.00, 1.70, 1.60, 2.40 };
+constant float FORM_DIST[10]  = { 2.55, 2.45, 2.50, 15.5, 7.60, 3.50, 3.90, 2.60, 3.10, 4.40 };
+constant float FORM_EPS[10]   = { 0.5,  0.5,  0.5,  2.0,  0.8,  0.5,  0.6,  0.5,  0.6,  0.6  };
+
+// ---- die 2: SURFACE. 0 EMBER 1 FROST 2 SLATE 3 PEARL 4 CHROME 5 INK
+//      6 NEON 7 DUSK 8 BONE 9 PRISM. trap: 0 ORB, 1 PLANE, 2 CROSS.
+//      route: 0 A->B, 1 B->C, 2 C->A, 3 A->C. hue is a small bias in
+//      radians, never a spin out of the chord ----
+constant int   SURF_TRAP[10]  = { 0, 0, 1, 1, 1, 2, 2, 2, 0, 1 };
+constant float SURF_SHINE[10] = { 1.0, 0.5, 0.0, 0.5, 1.0, 0.0, 1.0, 0.5, 0.0, 1.0 };
+constant int   SURF_LIGHT[10] = { 0, 1, 0, 1, 1, 0, 0, 1, 1, 0 };
+constant int   SURF_ROUTE[10] = { 0, 1, 3, 2, 1, 0, 2, 3, 3, 2 };
+constant int   SURF_INV[10]   = { 0, 0, 1, 0, 1, 1, 0, 0, 1, 1 };
+constant float SURF_HUE[10]   = { 0.00, 0.10, -0.10, 0.05, 0.00, -0.20, 0.20, -0.05, 0.08, 0.25 };
+constant float SURF_GLOW[10]  = { 0.55, 0.70, 0.20, 0.45, 0.40, 0.75, 1.00, 0.60, 0.18, 0.85 };
+constant float SURF_HALO[10]  = { 0.50, 0.65, 0.12, 0.40, 0.30, 0.85, 1.00, 0.60, 0.12, 0.90 };
+constant float SURF_BAND[10]  = { 0.35, 0.25, 0.00, 0.15, 0.20, 0.90, 1.00, 0.40, 0.05, 0.80 };
+constant float SURF_BANDK[10] = { 2.0,  1.6,  1.5,  1.2,  2.4,  2.8,  2.4,  1.6,  1.2,  3.6  };
+constant float SURF_BODY[10]  = { 1.00, 0.95, 1.00, 1.00, 1.00, 0.40, 0.45, 0.90, 1.00, 0.60 };
+
+// ---- die 3: SPACE. 0 OPEN 1 KALEIDO 2 ORBIT 3 CATHEDRAL 4 LONG 5 CLOSE
+//      6 HALL 7 RUSH 8 CHAPEL 9 SWARM. lens is a PERSPECTIVE change, not
+//      a zoom: distance is divided by the factor that scales the FOV ----
+constant int   SPACE_MIRROR[10] = { 0, 1, 0, 1, 0, 0, 1, 0, 1, 0 };
+constant int   SPACE_ORBS[10]   = { 0, 0, 1, 1, 0, 0, 0, 1, 1, 1 };
+constant int   SPACE_LENS[10]   = { 1, 1, 1, 1, 0, 2, 0, 2, 0, 2 };
+constant float SPACE_ORBMUL[10] = { 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.65, 1.0, 1.9 };
+constant float LENS_MUL[3]      = { 0.80, 1.0, 1.25 };
+
+constant float FOOT_LINES = 720.0;   // the footprint's line count ceiling (see THE PIXEL FOOTPRINT)
+constant float RUNG_SEC   = 5.0;     // one rung of the power walk, in rubato seconds (the web: 10 beats)
+constant float COUPLING   = 0.5;     // the web's pi/e coherence; the TV has no such band — held neutral
+
+// Everything the web feeds its march as uniforms, built once per pixel
+// from the closed-form drivers and passed down by reference — nothing at
+// program scope is ever written.
+struct Params {
+    float3 off;                  // uOff: the c offset that keeps every form moving
+    float3 juliaC;               // uJuliaC
+    float3 orb0, orb1, orb2;     // the three orbiting lamps
+    float  orbR;
+    float  powA, powB, powT;     // the power walk: two integer powers + their blend
+    float  boxScale, boxNorm;    // mandelbox scale; CUBE's size lock
+    float  fold;                 // OCTA's twist (radians)
+    float  bound, epsPx;
+    int    trap, mirror, orbs;
+};
+
+// the surface's light, resolved from the chord
+struct Look {
+    float3 c0, c1, glowCol;
+    float  shine, hueAll, glow, halo, band, bandK, body, bandPhase;
+    float  energy, beat;
+    int    light, inv;
+};
+
+// the modern flash governor — Shaders.metal's govern(), the web's inkRolloff:
+// the max channel rolls off on a soft knee and the triple rescales by that
+// one factor, so hue survives; white must be SPENT from the budget.
+inline float3 govern(float3 c, float white) {
+    float m = max(c.x, max(c.y, c.z));
+    const float K = 0.68;
+    if (m <= K) return c;
+    float m2 = 1.0 - (1.0 - K) * (1.0 - K) / (m - 2.0 * K + 1.0);
+    float3 o = c * (m2 / m);
+    float w = clamp(white, 0.0, 1.0);
+    if (w <= 0.0) return o;
+    float wp = 18.0 + (2.2 - 18.0) * w;
+    float t = clamp((m - 1.0) / max(wp - 1.0, 1e-4), 0.0, 1.0);
+    t = t * t * (3.0 - 2.0 * t) * w;
+    return mix(o, float3(m2), t);
 }
 
-// ---------------------------------------------------------------
-// FRACTAL FIELD — a raymarched fractal, the heaviest room. An 80-step
-// march down a slow orbit camera; the distance estimator is dealt by
-// roll0 (<0.4 mandelbulb, <0.7 mandelbox, else tetra fold). The
-// mandelbulb's power walks 3→9, holding eight beats on an integer rung
-// and morphing across the last two, driven by phrasePhase. Orbit-trap
-// tints route through colA/colB; ambient occlusion reads the step
-// count; the fresnel rim answers the onset; the whole picture breathes
-// out with energy. The dolly breathes with the bar.
-// ---------------------------------------------------------------
+// ---- GLSL_FRACTAL, said in Metal ----
+inline float trapVal(float3 z, int mode) {
+    if (mode == 0) return length(z);                                  // ORB
+    if (mode == 1) return min(min(abs(z.x), abs(z.y)), abs(z.z));     // PLANE
+    return length(z.xy);                                              // CROSS
+}
+inline float3 boxFold(float3 z) { return clamp(z, float3(-1.0), float3(1.0)) * 2.0 - z; }
+inline void sphereFold(thread float3& z, thread float& dz) {
+    float r2 = dot(z, z);
+    if (r2 < 0.25) { z *= 4.0; dz *= 4.0; }
+    else if (r2 < 1.0) { float t = 1.0 / r2; z *= t; dz *= t; }
+}
+inline float sdBox(float3 p, float3 b) {
+    float3 d = abs(p) - b;
+    return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, float3(0.0)));
+}
+// Rodrigues rotation about the grey axis — the web's hueShift
+inline float3 hueShift(float3 c, float a) {
+    const float3 k = float3(0.57735);
+    float ca = cos(a);
+    return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
+inline bool hitSphere(float3 ro, float3 rd, float rad, thread float& t0, thread float& t1) {
+    float b = dot(ro, rd);
+    float c = dot(ro, ro) - rad * rad;
+    float h = b * b - c;
+    if (h < 0.0) return false;
+    h = sqrt(h);
+    t0 = -b - h; t1 = -b + h;
+    return t1 > 0.0;
+}
+inline float hash12(float2 q) {
+    float3 r = fract(float3(q.x, q.y, q.x) * 0.1031);
+    r += dot(r, r.yzx + 33.33);
+    return fract((r.x + r.y) * r.z);
+}
+// atan2 refuses (0, 0) under fast math; the origin is a single point of no consequence
+inline float atan2s(float y, float x) {
+    float xs = x;
+    if (abs(x) + abs(y) < 1e-12) xs = 1e-12;
+    return atan2(y, xs);
+}
+// GLSL's mod, floor-based (never fmod, which truncates toward zero)
+inline float3 modFloor(float3 x, float y) { return x - y * floor(x / y); }
+// the size lock: a scale-s mandelbox (s > 1) fills the cube of half-width H(s)
+inline float boxHalf(float s) { return 2.0 * (s + 1.0) / max(s - 1.0, 1e-3); }
+// the walk's ladder: rung n -> power, ping-pong 9,8,...,3,4,...,9 (period 12)
+inline float rungPower(float n) {
+    float m = n - 12.0 * floor((n + 0.5) / 12.0);     // 0..11, robust at the multiples of 12
+    return 9.0 - min(m, 12.0 - m);
+}
+// KIFS level of detail: log2(size / 2 px) folds are resolvable at this footprint
+inline float kifsLod(float size, float foot) {
+    return clamp(log2(size / max(foot * 2.0, 1e-7)), 0.0, 9.0);
+}
+
+// ---- the distance estimators. Each returns the distance and leaves the
+//      full orbit trap in `trap` and the SHALLOW trap (first two levels)
+//      in `trapE`; both are reset by formDE ----
+
+// One bulb iteration chain at an INTEGER power bp (BULB, QUARTZ, SPIRE, JULIA).
+inline float bulbDE(float3 p, float3 cAdd, float bp, int mode,
+                    thread float& trap, thread float& trapE) {
+    float3 z = p;
+    float dr = 1.0;
+    float r = 0.0;
+    for (int i = 0; i < 8; i++) {
+        r = length(z);
+        if (r > 2.0) break;
+        float rs = max(r, 1e-6);
+        float theta = acos(clamp(z.z / rs, -1.0, 1.0)) * bp;
+        float phi = atan2s(z.y, z.x) * bp;
+        float rp = pow(rs, bp - 1.0);                // r^(bp-1)
+        dr = rp * bp * dr + 1.0;
+        float zr = rp * rs;                          // r^bp
+        float st = sin(theta);
+        z = zr * float3(st * cos(phi), st * sin(phi), cos(theta)) + cAdd;
+        float tv = trapVal(z, mode);
+        trap = min(trap, tv);
+        if (i < 2) trapE = min(trapE, tv);
+    }
+    return 0.5 * log(max(r, 1e-6)) * r / dr;
+}
+
+// THE DIMENSIONAL WALK: two integer-power fields, blended. The second is
+// evaluated only while the blend is open, so a held rung costs one field.
+// The distance, the trap AND the shallow trap are each mixed across the
+// walk, never min'd: a min would make the veins and the body tone jump the
+// instant a morph opens and closes (the web's formDE, same fix).
+inline float deBulbWalk(float3 p, float3 cAdd, thread const Params& P,
+                        thread float& trap, thread float& trapE) {
+    float d = bulbDE(p, cAdd, P.powA, P.trap, trap, trapE);
+    if (P.powT > 0.001) {
+        float eA = trapE;
+        float eB = 1e10;
+        float trapB = 1e10;
+        float dB = bulbDE(p, cAdd, P.powB, P.trap, trapB, eB);
+        d = mix(d, dB, P.powT);
+        trap = mix(trap, trapB, P.powT);
+        trapE = mix(eA, eB, P.powT);
+    }
+    return d;
+}
+
+// CUBE / VOID — the mandelbox. q = p·boxNorm is CUBE's size lock (1 for
+// VOID); the LOD break stops once |z|/dr, the detail still to resolve, is
+// under the hit radius, so sub-pixel crumbs merge into their face.
+inline float deBox(float3 p, thread const Params& P, float foot,
+                   thread float& trap, thread float& trapE) {
+    float3 q = p * P.boxNorm;
+    float lim = foot * P.boxNorm * P.epsPx * 0.9;
+    float3 z = q;
+    float dr = 1.0;
+    for (int i = 0; i < 12; i++) {
+        z = boxFold(z);
+        sphereFold(z, dr);
+        z = P.boxScale * z + q + P.off;
+        dr = dr * abs(P.boxScale) + 1.0;
+        float tv = trapVal(z, P.trap);
+        trap = min(trap, tv);
+        if (i < 2) trapE = min(trapE, tv);
+        float r2 = dot(z, z);
+        if (r2 > 400.0 || r2 < lim * lim * dr * dr) break;
+    }
+    return length(z) / abs(dr) / max(P.boxNorm, 1e-3);
+}
+
+// SPONGE — the Menger sponge, four levels
+inline float deSponge(float3 p, int mode, thread float& trap, thread float& trapE) {
+    float d = sdBox(p, float3(1.0));
+    float s = 1.0;
+    for (int m = 0; m < 4; m++) {
+        float3 a = modFloor(p * s, 2.0) - 1.0;
+        s *= 3.0;
+        float3 rr = abs(1.0 - 3.0 * abs(a));
+        float da = max(rr.x, rr.y), db = max(rr.y, rr.z), dc = max(rr.z, rr.x);
+        float c = (min(da, min(db, dc)) - 1.0) / s;
+        d = max(d, c);
+        float tv = trapVal(a, mode);
+        trap = min(trap, tv);
+        if (m < 2) trapE = min(trapE, tv);
+    }
+    return d;
+}
+
+// the tetrahedron itself — TETRA's leaf solid
+inline float tetLeaf(float3 z) {
+    return (max(max(-z.x - z.y - z.z, z.x + z.y - z.z),
+                max(-z.x + z.y + z.z, z.x - z.y + z.z)) - 1.0) * 0.57735;
+}
+
+// TETRA — the Sierpinski tetrahedron: fold toward the nearest vertex,
+// scale 2. A level cut by the LOD reads as a solid tetrahedron, and the
+// field fades from level floor(lod) to the next by fract(lod).
+inline float deTetra(float3 p, int mode, float foot, thread float& trap, thread float& trapE) {
+    float3 z = p;
+    const float3 a1 = float3(1.0, 1.0, 1.0);
+    const float3 a2 = float3(-1.0, -1.0, 1.0);
+    const float3 a3 = float3(1.0, -1.0, -1.0);
+    const float3 a4 = float3(-1.0, 1.0, -1.0);
+    float lod = kifsLod(2.0, foot);
+    float k = 1.0;
+    float dPrev = tetLeaf(z);
+    float d = dPrev;
+    for (int n = 0; n < 9; n++) {
+        if (float(n) >= lod) break;
+        float3 c = a1;
+        float best = dot(z - a1, z - a1);
+        float d2 = dot(z - a2, z - a2); if (d2 < best) { c = a2; best = d2; }
+        d2 = dot(z - a3, z - a3);       if (d2 < best) { c = a3; best = d2; }
+        d2 = dot(z - a4, z - a4);       if (d2 < best) { c = a4; best = d2; }
+        z = 2.0 * z - c;
+        k *= 0.5;
+        float tv = trapVal(z, mode);
+        trap = min(trap, tv);
+        if (n < 2) trapE = min(trapE, tv);
+        float dc = tetLeaf(z) * k;
+        d = mix(dPrev, dc, clamp(lod - float(n), 0.0, 1.0));
+        dPrev = dc;
+    }
+    return d;
+}
+
+// OCTA — the octahedral kaleidoscopic IFS: abs + sort is the octahedral
+// reflection group; a twist of P.fold radians about x (which keeps the
+// vertex (1,0,0) fixed), then scale 2 about that vertex — six half-size
+// copies per level, each turned further, so the faces spiral.
+inline float deOcta(float3 p, thread const Params& P, float foot,
+                    thread float& trap, thread float& trapE) {
+    const float SZ = 1.25;
+    float ca = cos(P.fold), sa = sin(P.fold);
+    float3 z = p / SZ;
+    float lod = kifsLod(SZ, foot);
+    float k = SZ;
+    float dPrev = (abs(z.x) + abs(z.y) + abs(z.z) - 1.0) * 0.57735 * k;
+    float d = dPrev;
+    for (int i = 0; i < 8; i++) {
+        if (float(i) >= lod) break;
+        z = abs(z);
+        float sw;
+        if (z.x < z.y) { sw = z.x; z.x = z.y; z.y = sw; }
+        if (z.x < z.z) { sw = z.x; z.x = z.z; z.z = sw; }
+        if (z.y < z.z) { sw = z.y; z.y = z.z; z.z = sw; }
+        float ty = ca * z.y - sa * z.z;
+        float tz = sa * z.y + ca * z.z;
+        z.y = ty;
+        z.z = tz;
+        z = z * 2.0 - float3(1.0, 0.0, 0.0);
+        k *= 0.5;
+        float tv = trapVal(z, P.trap);
+        trap = min(trap, tv);
+        if (i < 2) trapE = min(trapE, tv);
+        float dc = (abs(z.x) + abs(z.y) + abs(z.z) - 1.0) * 0.57735 * k;
+        d = mix(dPrev, dc, clamp(lod - float(i), 0.0, 1.0));
+        dPrev = dc;
+    }
+    return d;
+}
+
+// WEAVE — a power-3 bulb step and a mandelbox step (box fold, sphere fold,
+// scale ~ -1.5) alternate, five of each: the bulb's shells and the box's
+// folds interlace into a cage of woven rings around a rose-window core.
+inline float deWeave(float3 p, thread const Params& P, thread float& trap, thread float& trapE) {
+    float3 z = p;
+    float dr = 1.0;
+    float r = length(z);
+    for (int i = 0; i < 5; i++) {
+        float rs = max(r, 1e-6);
+        float theta = acos(clamp(z.z / rs, -1.0, 1.0)) * 3.0;
+        float phi = atan2s(z.y, z.x) * 3.0;
+        dr = 3.0 * r * r * dr + 1.0;
+        float st = sin(theta);
+        z = (r * r * r) * float3(st * cos(phi), st * sin(phi), cos(theta)) + p + P.off;
+        float tv = trapVal(z, P.trap);
+        trap = min(trap, tv);
+        if (i < 1) trapE = min(trapE, tv);
+        r = length(z);
+        if (r > 64.0) break;
+        z = boxFold(z);
+        sphereFold(z, dr);
+        z = P.boxScale * z + p + P.off;
+        dr = dr * abs(P.boxScale) + 1.0;
+        tv = trapVal(z, P.trap);
+        trap = min(trap, tv);
+        if (i < 1) trapE = min(trapE, tv);
+        r = length(z);
+        if (r > 64.0) break;
+    }
+    return 0.5 * log(max(r, 1e-6)) * r / dr;
+}
+
+// formDE<F>: F is a compile-time constant, so every test below folds and
+// each instance keeps exactly one estimator — the web's #define FORM n.
+template <int F>
+inline float formDE(float3 p, thread const Params& P, float foot,
+                    thread float& trap, thread float& trapE) {
+    trap = 1e10;
+    trapE = 1e10;
+    if (F == 0 || F == 1 || F == 2) return deBulbWalk(p, p + P.off, P, trap, trapE);
+    if (F == 7) return deBulbWalk(p, P.juliaC, P, trap, trapE);
+    if (F == 3 || F == 4) return deBox(p, P, foot, trap, trapE);
+    if (F == 5) return deSponge(p, P.trap, trap, trapE);
+    if (F == 6) return deTetra(p, P.trap, foot, trap, trapE);
+    if (F == 8) return deOcta(p, P, foot, trap, trapE);
+    return deWeave(p, P, trap, trapE);
+}
+
+inline float deOrbs(float3 p, thread const Params& P) {
+    float d = length(p - P.orb0);
+    d = min(d, length(p - P.orb1));
+    d = min(d, length(p - P.orb2));
+    return d - P.orbR;
+}
+
+// the scene: MIRROR folds the sample point (abs() is a reflection — an
+// isometry — so the bound stays exact); the orbs are unioned unmirrored.
+// .y is the material: 0 the form, 1 an orb.
+template <int F>
+inline float2 mapScene(float3 p, thread const Params& P, float foot,
+                       thread float& trap, thread float& trapE) {
+    float3 q = (P.mirror != 0) ? abs(p) : p;
+    float df = formDE<F>(q, P, foot, trap, trapE);
+    if (P.orbs != 0) {
+        float d2 = deOrbs(p, P);
+        if (d2 < df) return float2(d2, 1.0);
+    }
+    return float2(df, 0.0);
+}
+
+// the mirror spaces' reflection: a chord sky with a sparse glint lattice
+inline float3 envCol(float3 d, constant VizUniforms& U) {
+    float y = d.y * 0.5 + 0.5;
+    float3 c = mix(U.colB.rgb * 0.10, U.colA.rgb * 0.35, y);
+    float s = max(0.0, sin(d.x * 30.0) * sin(d.z * 30.0) * sin(d.y * 30.0));
+    float s2 = s * s, s4 = s2 * s2, s8 = s4 * s4, s16 = s8 * s8, s32 = s16 * s16;
+    return c + U.colC.rgb * (s32 * s8 * 0.5);            // s^40, by squaring
+}
+
+// fieldColor<F>: the web's MARCH_FRAG main() for one form — the sphere
+// trace with its three glows, then the hit's shading. Returns the light
+// this pixel adds over the void (the sky passed in already includes the
+// stars); the caller grains and governs it.
+template <int F>
+inline float3 fieldColor(float3 ro, float3 rd, float pixAng, float2 fragXY,
+                         thread const Params& P, thread const Look& L,
+                         constant VizUniforms& U, float3 sky) {
+    float t0 = 0.0, t1 = 0.0;
+    if (!hitSphere(ro, rd, P.bound, t0, t1)) return sky;
+
+    float t = max(t0, 0.0);
+    float tc = length(ro);                      // the camera's distance to the subject's centre
+    // HALO — the Lorentzian L(x) = F/(x^2 + F^2) of the distance, integrated
+    // over each step in closed form: s·(atan(dB/F) − atan(dA/F))/(dB − dA).
+    // L at 5F is taken off so the halo ends there instead of fogging the sphere.
+    float HF = P.bound * 0.012;
+    float Lcut = 1.0 / (26.0 * HF);
+    // the first step is shortened by a per-pixel hash (stepping short is
+    // always safe), so neighbouring rays never step in lockstep
+    float jit = 0.55 + 0.45 * hash12(fragXY);
+    float hitTrap = 1.0, matId = 0.0, minPx = 1e4;
+    float dA = 0.0, aA = 0.0, sA = 0.0;
+    float3 halo = float3(0.0);
+    int steps = 0;
+    bool hit = false;
+    for (int i = 0; i < 96; i++) {              // literal bound — the web's 96-step budget
+        float3 p = ro + rd * t;
+        float foot = max(t, 0.001) * pixAng;
+        float tr = 1e10, te = 1e10;
+        float2 m = mapScene<F>(p, P, foot, tr, te);
+        float d = m.x;
+        hitTrap = tr;
+        steps = i;
+        minPx = min(minPx, d / foot);
+        float dB = max(d, 0.0);
+        float aB = atan(dB / HF);
+        if (i > 0) {
+            float dd = dB - dA;
+            float seg = ((abs(dd) > 1e-4 * HF) ? sA * (aB - aA) / dd
+                                               : sA * HF / (dB * dB + HF * HF)) - sA * Lcut;
+            if (seg > 0.0) {
+                // faded past the subject's middle, so the far side never veils
+                // the near, and to nothing at the marching sphere's edge
+                float fade = exp(-max(t - tc + 0.3 * P.bound, 0.0) / (0.7 * P.bound))
+                           * (1.0 - smoothstep(0.8 * P.bound, P.bound, length(p)));
+                halo += L.glowCol * ((0.75 + 0.5 * clamp(tr, 0.0, 1.0)) * seg * fade);
+            }
+        }
+        if (d < P.epsPx * foot) { hit = true; matId = m.y; break; }
+        sA = (i == 0) ? d * jit : d;
+        dA = dB;
+        aA = aB;
+        t += sA;
+        if (t > t1) break;
+    }
+
+    // NEAR-MISS corona: closest approach in pixels + how hard the ray worked
+    float sg = float(steps) / 96.0;
+    float corona = L.glow * (0.6 * exp(-minPx * 0.2) + 0.45 * sg * sg);
+    // the halo is gathered linear and compressed once, softly, here
+    float3 hg = halo * (L.halo * 0.10);
+    hg /= 1.0 + max(max(hg.r, hg.g), hg.b);
+
+    if (!hit) {
+        // the web writes (g/a, a) and composites it over the stars:
+        // g + stars·(1 − a). The alpha is the governed glow's, as there; the
+        // light itself goes out raw so the exit governs it exactly once.
+        float3 g = hg + L.glowCol * (corona * 0.2);
+        g *= 0.8 + L.energy * 0.3 + L.beat * 0.15;
+        float3 gg = govern(g, U.white);
+        float a = clamp(max(max(gg.r, gg.g), gg.b) * 1.5, 0.0, 1.0);
+        if (a < 0.004) return sky;
+        return g + sky * (1.0 - a);
+    }
+
+    float3 p = ro + rd * t;
+    float foot = max(t, 0.001) * pixAng;
+    // the four tetrahedral taps, at about a pixel's footprint so relief finer
+    // than a pixel cannot alias the normal; the same taps read the shallow
+    // trap — their mean is its box filter, sum(k·trap)/(4e) its gradient,
+    // which is what the veins anti-alias with (no screen-space derivatives)
+    float e = foot * (0.5 + P.epsPx);
+    float3 nn = float3(0.0);
+    float3 tg = float3(0.0);
+    float tn = 0.0;
+    for (int j = 0; j < 4; j++) {
+        float3 k = (j == 0) ? float3(1.0, -1.0, -1.0)
+                 : ((j == 1) ? float3(-1.0, -1.0, 1.0)
+                 : ((j == 2) ? float3(-1.0, 1.0, -1.0)
+                 :             float3(1.0, 1.0, 1.0)));
+        float trj = 1e10, tej = 1e10;
+        float dj = mapScene<F>(p + k * e, P, foot, trj, tej).x;
+        tej = min(tej, 1e4);                    // an escaped tap's 1e10 stays finite in the gradient
+        nn += k * dj;
+        tn += tej;
+        tg += k * tej;
+    }
+    float trapN = 0.25 * tn;
+    float3 trapG = tg / (4.0 * e);
+    float nl = dot(nn, nn);
+    float3 n = (nl > 1e-24) ? nn * rsqrt(nl) : -rd;
+    float ndv = clamp(dot(n, -rd), 0.0, 1.0);
+    float omn = 1.0 - ndv;
+
+    if (matId > 0.5) {
+        // the orbs are lamps: a dim core and a bright limb, like a lit bubble
+        float3 oc = mix(U.colC.rgb, U.colB.rgb, 0.35) * (1.0 + L.beat * 0.6);
+        return oc * (0.22 + ndv * 0.28 + omn * omn * 1.25) + hg * 0.5;
+    }
+
+    // the body ramps on two traps — the full one (fine texture) and the
+    // shallow one (broad regions) — so the pair reads as two tones
+    float trv = mix(1.0 - exp(-2.0 * hitTrap), 1.0 - exp(-1.5 * trapN), 0.5);
+    if (L.inv != 0) trv = 1.0 - trv;
+    float3 col = mix(L.c0, L.c1, trv);
+    float omt = 1.0 - trv;
+    col = mix(col, U.colC.rgb, omt * omt * omt * 0.5);
+    col = hueShift(col, L.hueAll);
+
+    float3 L1 = normalize(float3(0.6, 0.8, 0.4));
+    float d1 = clamp(dot(n, L1), 0.0, 1.0);
+    float3 lit;
+    if (L.light == 0) {
+        lit = col * (0.18 + d1 * 0.9);
+    } else {
+        float3 L2 = normalize(float3(-0.7, 0.25, -0.55));
+        float d2 = clamp(dot(n, L2), 0.0, 1.0);
+        lit = col * (0.12 + d1 * 0.62) + U.colB.rgb * (d2 * 0.30 * (0.5 + COUPLING));
+    }
+
+    float specPow = mix(10.0, 110.0, L.shine);
+    float specAmt = mix(0.10, 1.05, L.shine);
+    float spec = pow(clamp(dot(reflect(-L1, n), -rd), 1e-6, 1.0), specPow);
+    float ao = 1.0 - sg;
+    float fres = omn * omn * omn;
+
+    float3 outc = lit * ((0.35 + ao * 0.75) * L.body);
+    outc += U.colC.rgb * (spec * specAmt);
+    outc += col * (fres * (0.45 + L.beat * 0.8));
+    if (P.mirror != 0) outc = mix(outc, envCol(reflect(rd, n), U), 0.18 + L.shine * 0.32);
+    outc *= 0.85 + L.energy * 0.5;
+
+    // BANDS — the shallow trap at the hit (filtered over the taps), wrapped
+    // into narrow self-lit veins; fw = how far the vein coordinate moves per
+    // pixel, which widens a vein that would fall under a pixel and fades the
+    // veins where even that would alias
+    float bx = clamp(trapN, 0.0, 4.0) * L.bandK + L.bandPhase;
+    float fw = length(trapG) * foot * L.bandK;
+    float bs = abs(fract(bx) - 0.5);
+    float bw = 0.09;
+    float bwe = sqrt(bw * bw + 0.25 * fw * fw);
+    float vein = exp(-bs * bs / (bwe * bwe)) * (bw / bwe) * (1.0 - smoothstep(0.2, 0.5, fw));
+    // self-lit, in the pair's saturated member (the glow colour), so they read
+    float3 veinCol = hueShift(L.glowCol, L.hueAll);
+    outc += veinCol * (vein * L.band * (1.0 + L.energy * 0.35 + L.beat * 0.25) * (0.6 + 0.4 * ao));
+    // the light the ray gathered on its way in, and a corona on the limb
+    outc += hg * (omn * omn * 0.7);
+    outc += L.glowCol * (corona * fres * 0.5);
+
+    float fog = 1.0 - clamp((t - t0) / (P.bound * 2.0), 0.0, 1.0);
+    return outc * (0.35 + fog * 0.65);
+}
+
+}  // namespace rm_fr
+
 fragment float4 room_fractal(float4 pos [[position]],
                              constant VizUniforms& U [[buffer(0)]],
                              constant float2& res [[buffer(1)]],
                              texture2d<float, access::read> spectrum [[texture(0)]],
                              texture2d<float, access::read> waveform [[texture(1)]])
 {
+    using namespace rm_fr;
     float2 uv = pos.xy / max(res, float2(1.0));
     float2 p = centered_a(pos.xy, res, U.aspect);
     p = ghostWarp_a(p, U);                          // the phantom leans the camera
+    float2 sp = float2(p.x, -p.y);                  // y up, as the web's vUv
 
-    // --- deal the estimator + its parameter ---
-    int mode;
-    float power = 6.0;
-    float boxScale = 2.3;
-    if (U.roll0 < 0.4) {
-        mode = 0;
-        // the power walk: six rungs across a phrase, hold 80% / morph 20%
-        float seg = U.phrasePhase * 6.0;
-        float rung = floor(seg);
-        float fr = seg - rung;
-        float morph = smoothstep(0.8, 1.0, fr);
-        float p0 = 3.0 + fmod(rung, 7.0);           // 3..9
-        float p1 = 3.0 + fmod(rung + 1.0, 7.0);
-        power = mix(p0, p1, morph);
-    } else if (U.roll0 < 0.7) {
-        mode = 1;
-        boxScale = (U.roll1 < 0.5) ? -2.3 : 2.3;    // roll1 picks the scale sign
-    } else {
-        mode = 2;
+    // ---- the three dice ----
+    int form  = clamp(int(U.roll0 * 10.0), 0, 9);
+    int surf  = clamp(int(U.roll1 * 10.0), 0, 9);
+    int space = clamp(int(U.roll2 * 10.0), 0, 9);
+
+    float T = U.time;
+    float bass = U.bass, mid = U.mid, treble = U.treble;
+    float energy = U.energy, beat = U.onsetEnv;
+
+    // ---- apply(): the faces' constants ----
+    Params P;
+    P.bound = FORM_BOUND[form];
+    P.epsPx = FORM_EPS[form];
+    P.trap = SURF_TRAP[surf];
+    P.mirror = SPACE_MIRROR[space];
+    P.orbs = SPACE_ORBS[space];
+    P.boxScale = 2.5;
+    P.boxNorm = 1.0;
+    P.fold = 0.22;
+
+    // ---- update(), in closed form ----
+    // THE DIMENSIONAL WALK: a rung every RUNG_SEC rubato seconds, held for
+    // 80% of it, the last 20% a smoothstep blend into the next rung. Each
+    // bulb form's ladder is phased so its clock's zero sits on its home rung
+    // (BULB / JULIA 8 going down, QUARTZ 4 and SPIRE 3 going up).
+    P.powA = 8.0;
+    P.powB = 8.0;
+    P.powT = 0.0;
+    if (form <= 2 || form == 7) {
+        float home = (form == 1) ? 7.0 : ((form == 2) ? 6.0 : 1.0);
+        float wc = T / RUNG_SEC + home;
+        float rung = floor(wc);
+        P.powA = rungPower(rung);
+        P.powB = rungPower(rung + 1.0);
+        P.powT = smoothstep(0.8, 1.0, wc - rung);
     }
 
-    // --- the slow orbit camera; the dolly breathes with the bar ---
-    float camA = U.time * 0.05;
-    float dolly = 3.1 + 0.30 * sin(U.barPhase * TAU_A);
-    float3 ro = float3(sin(camA) * dolly, 0.30 * sin(U.time * 0.05), cos(camA) * dolly);
-    float3 fwd = normalize(-ro);
-    float3 right = normalize(cross(float3(0.0, 1.0, 0.0), fwd));
-    float3 up = cross(fwd, right);
-    float3 rd = normalize(fwd * 1.6 + right * p.x + up * p.y);
-
-    // --- the march ---
-    float tHit = 0.0;
-    float d = 0.0;
-    float trapHit = 1e10;
-    float closest = 1e9;                            // for the miss-halo
-    int steps = 0;
-    bool hit = false;
-    for (int i = 0; i < 80; i++) {                  // literal bound — the heavy room
-        float3 sp = ro + rd * tHit;
-        float2 de = fractalDE_a(sp, mode, power, boxScale);
-        d = de.x;
-        trapHit = de.y;
-        closest = min(closest, d);
-        steps = i;
-        if (d < 0.0008) { hit = true; break; }
-        tHit += d * 0.7;                            // understep for DE overshoot safety
-        if (tHit > 12.0) break;
+    float3 off = float3(sin(T * 0.11) * 0.055 + bass * 0.05,
+                        cos(T * 0.09) * 0.055 + mid * 0.04,
+                        sin(T * 0.07 + 1.7) * 0.055 + treble * 0.03);
+    if (form == 3 || form == 4) {
+        // box forms: no branch cut, so the scale can breathe; CUBE keeps its
+        // outline by sampling at q = p·H(s)/H(2.5)
+        off *= 0.6;
+        float b = (form == 4) ? -2.2 : 2.5;
+        float sgn = (b < 0.0) ? -1.0 : 1.0;
+        float s = b + sgn * (sin(T * 0.06) * 0.22 + bass * 0.14 + COUPLING * 0.10);
+        P.boxScale = s;
+        P.boxNorm = (form == 3) ? boxHalf(s) / boxHalf(2.5) : 1.0;
+    } else if (form == 9) {
+        off *= 0.5;                                 // WEAVE: the hybrid's box half breathes a little
+        P.boxScale = -1.5 - (sin(T * 0.05) * 0.05 + bass * 0.04);
+    } else if (form == 8) {
+        P.fold = 0.22 + sin(T * 0.07) * 0.06 + mid * 0.05;   // OCTA: the twist breathes with the mids
     }
+    P.off = off;
+    // JULIA: |c| ~ 0.95 keeps it an open cage of branches
+    P.juliaC = float3(0.62 + sin(T * 0.08) * 0.07 + bass * 0.03,
+                      0.62 + cos(T * 0.06) * 0.07 + mid * 0.03,
+                      -0.28 + sin(T * 0.05 + 2.2) * 0.07 + treble * 0.03);
 
+    // the orbs (only read when the space has them)
+    float R = P.bound * 0.78;
+    float osc = 1.0 + beat * 0.12;
+    P.orb0 = float3(cos(T * 0.50) * R, sin(T * 0.37) * R * 0.5, sin(T * 0.50) * R) * osc;
+    P.orb1 = float3(cos(T * 0.31 + 2.1) * R * 0.8, cos(T * 0.43) * R * 0.6, sin(T * 0.31 + 2.1) * R * 0.8) * osc;
+    P.orb2 = float3(sin(T * 0.23 + 4.2) * R * 0.9, sin(T * 0.29 + 1.0) * R * 0.45, cos(T * 0.23 + 4.2) * R * 0.9) * osc;
+    P.orbR = P.bound * 0.062 * SPACE_ORBMUL[space] * (1.0 + beat * 0.35);
+
+    // ---- the camera. LENS as perspective, not zoom: distance divided by the
+    //      factor that scales the FOV, so framing holds and only the
+    //      compression changes. The web's camera dollies in on the bass and
+    //      breathes its FOV with it. Its wandering orbit is retold as a slow
+    //      closed-form pendulum, phased by the dice so a re-entry is a new
+    //      angle, that swings ±72° about the key light's azimuth (L1 lies at
+    //      atan2(0.4, 0.6) = 0.588 rad in xz) and rides a little above the
+    //      equator, so the camera never parks on the form's unlit side ----
+    float lensMul = LENS_MUL[SPACE_LENS[space]];
+    float base = FORM_DIST[form] / lensMul;
+    float D = base - bass * (base * 0.07) - beat * (base * 0.024) + sin(T * 0.05) * (base * 0.05);
+    float camR = max(P.bound * 1.14, D);
+    float az0 = fract(U.roll0 * 31.7 + U.roll1 * 17.3 + U.roll2 * 7.1) * TAU_A;
+    float theta = 0.588 + 1.25 * sin(T * 0.035 + az0);
+    float polar = 1.30 + 0.45 * sin(T * 0.021 + 1.3 * az0);          // from +y, as the web's camPhi
+    float3 dir = normalize(float3(sin(polar) * cos(theta), cos(polar) * 0.6, sin(polar) * sin(theta)));
+    float3 ro = dir * camR;
+    float3 fwd = -dir;
+    float3 right = normalize(cross(fwd, float3(0.0, 1.0, 0.0)));
+    float3 up = cross(right, fwd);
+    float tanFov = tan((31.0 + 4.0 * bass) * (PI_A / 180.0)) * lensMul;   // 62° + 8°·bass, full angle
+    float3 rd = normalize(fwd + (right * sp.x + up * sp.y) * tanFov);
+    float pixAng = 2.0 * tanFov / min(max(res.y, 1.0), FOOT_LINES);   // the angle one pixel spans
+
+    // ---- the surface's light, routed through a pair of chord colours ----
+    int route = SURF_ROUTE[surf];
+    float3 cA = U.colA.rgb, cB = U.colB.rgb, cC = U.colC.rgb;
+    Look L;
+    L.c0 = (route == 1) ? cB : ((route == 2) ? cC : cA);
+    L.c1 = (route == 0) ? cB : ((route == 2) ? cA : cC);
+    // the light the structure gives off is the pair's saturated member —
+    // never the chord's pale third (colC), which would read as fog
+    L.glowCol = (route == 1 || route == 3) ? L.c0 : L.c1;
+    L.shine = SURF_SHINE[surf];
+    L.light = SURF_LIGHT[surf];
+    L.inv = SURF_INV[surf];
+    // the web's uHue (spectral centroid + coupling) has no TV band; the
+    // treble-over-bass tilt stands in for the centroid, coupling held neutral
+    float hueDrift = 0.125 + 0.20 * (treble - bass);
+    L.hueAll = hueDrift * 0.7 + SURF_HUE[surf];
+    L.glow = SURF_GLOW[surf];
+    L.halo = SURF_HALO[surf];
+    L.band = SURF_BAND[surf];
+    L.bandK = SURF_BANDK[surf];
+    L.body = SURF_BODY[surf];
+    // the veins' phase flows with the music: the web advances it at
+    // (0.035 + 0.11·energy)/s, which is ~0.09 per rubato second at any energy
+    L.bandPhase = fract(T * 0.09);
+    L.energy = energy;
+    L.beat = beat;
+
+    // the void sky: the static starfield, tinted by the chord
+    float3 sky = starLayer_a(uv) * mix(float3(0.75), cC, 0.55);
+
+    // ---- ONE switch: the dealt form's instance, and only it, runs ----
     float3 col;
-    if (hit) {
-        float3 hitP = ro + rd * tHit;
-
-        // tetrahedral normal — four more DE evals (still literal-bounded)
-        float h = 0.0009;
-        float2 kk = float2(1.0, -1.0);
-        float3 n = normalize(
-            kk.xyy * fractalDE_a(hitP + kk.xyy * h, mode, power, boxScale).x +
-            kk.yyx * fractalDE_a(hitP + kk.yyx * h, mode, power, boxScale).x +
-            kk.yxy * fractalDE_a(hitP + kk.yxy * h, mode, power, boxScale).x +
-            kk.xxx * fractalDE_a(hitP + kk.xxx * h, mode, power, boxScale).x);
-
-        float3 lightDir = normalize(float3(0.6, 0.8, -0.35));
-        float diff = max(dot(n, lightDir), 0.0);
-        float fres = pow(1.0 - max(dot(n, -rd), 0.0), 3.0) * (0.45 + U.onsetEnv * 0.8);
-        float ao = clamp(1.0 - float(steps) / 80.0, 0.0, 1.0);   // step count -> occlusion
-
-        // orbit-trap tint routed through the colA/colB pair
-        float tt = clamp(trapHit * 1.3, 0.0, 1.0);
-        float3 tint = mix(U.colA.rgb, U.colB.rgb, tt);
-
-        col = tint * (0.12 + 0.70 * diff) * ao;
-        // the fresnel rim is the bright core — the INK budget rides it
-        col += mix(U.colB.rgb, U.colC.rgb, 0.5) * fres * ao * (0.40 + 0.90 * U.white);
-        col *= (0.85 + U.energy * 0.5);             // the whole picture breathes with energy
-    } else {
-        // miss: the void sky, its starfield, a faint chord gradient, and a
-        // soft halo where the ray grazed the form.
-        col = starLayer_a(uv) * mix(float3(0.75), U.colC.rgb, 0.55);
-        col += mix(U.colA.rgb, U.colB.rgb, uv.y) * 0.03;
-        float halo = exp(-closest * 7.0);
-        col += mix(U.colB.rgb, U.colC.rgb, 0.5) * halo * (0.10 + 0.30 * U.onsetEnv) * (0.4 + 0.9 * U.white);
+    switch (form) {
+        case 0:  col = fieldColor<0>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 1:  col = fieldColor<1>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 2:  col = fieldColor<2>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 3:  col = fieldColor<3>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 4:  col = fieldColor<4>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 5:  col = fieldColor<5>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 6:  col = fieldColor<6>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 7:  col = fieldColor<7>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 8:  col = fieldColor<8>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        default: col = fieldColor<9>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
     }
 
     col += (hash21_a(pos.xy) - 0.5) * 0.004;         // grain against banding
-    return float4(govern_a(VOID_A + max(col, float3(0.0))), 1.0);
+    return float4(rm_fr::govern(VOID_A + max(col, float3(0.0)), U.white), 1.0);
 }
 
 // ---------------------------------------------------------------

@@ -4208,10 +4208,11 @@ body.clipping::after{
     dimensionality</i> — eight beats standing on an integer rung, two beats morphing to the next, 3 through 9
     and back, seam-free by construction), CUBE and VOID (mandelbox,
     positive and negative scale), SPONGE, TETRA, JULIA, OCTA, WEAVE.
-    <b>Surface</b> (d10): orbit trap, shine and lighting — including <i>DUO</i>, which puts an amber π
-    key against an ice e fill. Each surface routes the trap through a different pair of palette
+    <b>Surface</b> (d10): orbit trap, shine, lighting and glow, EMBER through PRISM — <i>INK</i> and
+    <i>NEON</i> burn with self-lit veins and a halo wherever a ray skims the structure; SLATE and BONE stay matte.
+    Each surface routes the trap through a different pair of palette
     colours rather than spinning the hue, so the π/e identity survives every roll.
-    <b>Space</b> (d10): kaleidoscopic MIRROR, orbiting ORBS, and TELE/WIDE lenses that compress or
+    <b>Space</b> (d10): kaleidoscopic mirrors (KALEIDO, HALL), orbiting ORBS (ORBIT, SWARM), and LONG/CLOSE lenses that compress or
     exaggerate perspective without changing how big the subject sits in frame.
     That's <b>1000 combinations</b>, and the palette keeps rotating underneath them.</p>
     <h3>The lamp</h3>
@@ -4339,6 +4340,11 @@ body.clipping::after{
     <p class="lede">The <b>Activity log</b>, at the bottom of the Console, is the app's account of itself —
     updates offered and applied, what played, what the system decided, kept on this device and sent nowhere.
     If something ever feels off, that is the first place to look.</p>
+    <p class="lede"><b>Credits &amp; notices.</b> The player's 3-D engine is <b>three.js</b> (MIT License).
+    The fractals are drawn from published mathematics, credited with thanks: the Mandelbulb (Daniel White
+    and Paul Nylander), the Mandelbox (Tom Lowe), the Menger sponge distance estimate and kaleidoscopic IFS
+    (Knighty), the Sierpinski tetrahedron, and orbit traps (Clifford Pickover). The full notices are in
+    <span class="mono-inline">THIRD-PARTY-NOTICES</span> in the repository.</p>
     <p class="lede" style="opacity:.65">build <span id="buildLine">dev</span></p>
     <button class="btn big help-close" id="helpClose">Close</button>
   </div>
@@ -20147,7 +20153,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '34f58949e5';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'b000adee71';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -25286,10 +25292,10 @@ function buildRibbons(){
    atan(z.y, z.x). atan2's branch cut sits on the -x axis: phi is +pi on
    one side, -pi on the other. Raising to power p gives sin(p*pi) vs
    sin(-p*pi) = -sin(p*pi) — equal ONLY when p is an integer. So every
-   bulb power here (8, 4, 3) is an integer, and the motion comes from an
-   offset added to c rather than from sliding the exponent. The box, IFS
-   and Menger forms use no trig at all, so they have no branch cut and
-   their scale parameters CAN be animated continuously.
+   bulb power here (8, 4, 3, and WEAVE's 3) is an integer, and the motion
+   comes from an offset added to c rather than from sliding the exponent.
+   The box, IFS and Menger forms use no trig at all, so they have no branch
+   cut and their scale / twist parameters CAN be animated continuously.
 
    WHY ONE PROGRAM PER FORM
    Ten distance estimators behind uniform branches would compile into a
@@ -25298,39 +25304,76 @@ function buildRibbons(){
    program via #define FORM n, so a program only ever contains one DE and
    costs what a single-form shader costs. They are compiled lazily and
    pre-warmed in the background so no roll ever stalls mid-set.
+
+   THE PIXEL FOOTPRINT
+   gFoot is the world size of one pixel at the sample being evaluated
+   (t x the angle a pixel spans). The hit test, the normal's sampling radius
+   and every level-of-detail cut are measured in it, so relief finer than a
+   pixel merges into the surface instead of shimmering as moire or crumbs:
+   OCTA and TETRA stop folding at the level whose copies fall under ~2 px,
+   the boxes stop iterating once what is left to resolve is sub-pixel.
+
+   THE GLOW IS FREE
+   Three emissions ride inside the one sphere trace, built from numbers the
+   march already has — no form evaluates its distance field an extra time:
+     NEAR-MISS  a ray that skims the set takes many steps and passes close;
+                its closest approach (in pixels) and its step count become
+                a corona. A miss writes that corona as colour WITH a matching
+                alpha, so the composite lays it over the starfield; rays that
+                pass nowhere near the set stay fully transparent.
+     HALO       every step adds chord x step x F/(d^2 + F^2) — a Lorentzian
+                of the distance, integrated in closed form across the step —
+                faded with depth. Emission only, never fog.
+     BANDS      the shallow orbit trap (its first two levels) at the hit,
+                wrapped by fract(trap*k + phase) into narrow self-lit veins
+                of the surface's chord pair; the phase flows with the music.
+   The SURFACE die scales all three, so NEON / PRISM / INK burn while
+   SLATE / BONE keep their restraint.
+
+   SOURCES — the mathematics, cited:
+     Mandelbulb — Daniel White and Paul Nylander, 2009 (fractalforums.com,
+       "true 3D mandelbrot type fractal").
+     Mandelbox — Tom Lowe ("Tglad"), 2010 (fractalforums.com, "amazing fractal").
+     Menger sponge distance and kaleidoscopic IFS — Knighty, 2010
+       (fractalforums.com, "Kaleidoscopic (escape time) IFS").
+     Sierpinski tetrahedron — classical.
+     Orbit traps — Clifford Pickover.
    ========================================================= */
 let rtBulb, bulbScene, bulbCam, bulbMats, bulbQuad, bulbScale = 0.6;
 
-// die 1 — the distance field. bound = marching sphere, dist = framing distance.
+// die 1 — the distance field. bound = marching sphere, dist = framing distance,
+// eps = hit radius in pixels (the footprint the surface is resolved to).
 const FORMS = [
-  { key: 'BULB',   bound: 1.70, dist: 2.55 },   // mandelbulb, power 8
-  { key: 'QUARTZ', bound: 1.60, dist: 2.45 },   // mandelbulb, power 4
-  { key: 'SPIRE',  bound: 1.85, dist: 2.50 },   // mandelbulb, power 3
-  { key: 'CUBE',   bound: 6.20, dist: 12.0 },   // mandelbox, scale +2.5
-  { key: 'VOID',   bound: 4.00, dist: 7.00 },   // mandelbox, scale -1.6
-  { key: 'SPONGE', bound: 1.85, dist: 3.20 },   // Menger sponge
-  { key: 'TETRA',  bound: 2.00, dist: 2.50 },   // Sierpinski tetrahedron
-  { key: 'JULIA',  bound: 1.70, dist: 2.60 },   // julia bulb, power 8, drifting c
-  { key: 'OCTA',   bound: 2.00, dist: 3.40 },   // octahedral kaleidoscopic IFS
-  { key: 'WEAVE',  bound: 2.20, dist: 5.20 },   // box-fold x bulb hybrid
+  { key: 'BULB',   bound: 1.70, dist: 2.55, eps: 0.5 },   // mandelbulb, power 8
+  { key: 'QUARTZ', bound: 1.60, dist: 2.45, eps: 0.5 },   // mandelbulb, power 4
+  { key: 'SPIRE',  bound: 1.85, dist: 2.50, eps: 0.5 },   // mandelbulb, power 3
+  { key: 'CUBE',   bound: 8.70, dist: 15.5, eps: 2.0 },   // mandelbox, scale +2.5 (outline size-locked)
+  { key: 'VOID',   bound: 5.00, dist: 7.60, eps: 0.8 },   // mandelbox, scale -2.2
+  { key: 'SPONGE', bound: 1.95, dist: 3.50, eps: 0.5 },   // Menger sponge
+  { key: 'TETRA',  bound: 2.00, dist: 3.90, eps: 0.6 },   // Sierpinski tetrahedron
+  { key: 'JULIA',  bound: 1.70, dist: 2.60, eps: 0.5 },   // julia bulb, power 8, drifting c
+  { key: 'OCTA',   bound: 1.60, dist: 3.10, eps: 0.6 },   // octahedral kaleidoscopic IFS, twisting
+  { key: 'WEAVE',  bound: 2.40, dist: 4.40, eps: 0.6 },   // bulb (power 3) x mandelbox (scale -1.5), alternating
 ];
 
-// die 2 — surface treatment: orbit trap x shine x lighting x hue bias
+// die 2 — surface treatment: orbit trap x shine x lighting x hue bias x glow
 const SURFACES = [
   // Variety comes from WHICH palette colours the orbit trap ramps between, and
   // whether that ramp is inverted — not from rotating the hue out of the
   // pi-amber / e-ice identity. hue here is a small bias (radians), not a spin.
   // route: 0 = A->B, 1 = B->C, 2 = C->A, 3 = A->C
-  { key: 'EMBER',  trap: 0, shine: 1.0, light: 0, route: 0, inv: 0, hue:  0.00 },
-  { key: 'FROST',  trap: 0, shine: 0.5, light: 1, route: 1, inv: 0, hue:  0.10 },
-  { key: 'SLATE',  trap: 1, shine: 0.0, light: 0, route: 3, inv: 1, hue: -0.10 },
-  { key: 'PEARL',  trap: 1, shine: 0.5, light: 1, route: 2, inv: 0, hue:  0.05 },
-  { key: 'CHROME', trap: 1, shine: 1.0, light: 1, route: 1, inv: 1, hue:  0.00 },
-  { key: 'INK',    trap: 2, shine: 0.0, light: 0, route: 0, inv: 1, hue: -0.20 },
-  { key: 'NEON',   trap: 2, shine: 1.0, light: 0, route: 2, inv: 0, hue:  0.20 },
-  { key: 'DUSK',   trap: 2, shine: 0.5, light: 1, route: 3, inv: 0, hue: -0.05 },
-  { key: 'BONE',   trap: 0, shine: 0.0, light: 1, route: 3, inv: 1, hue:  0.08 },
-  { key: 'PRISM',  trap: 1, shine: 1.0, light: 0, route: 2, inv: 1, hue:  0.25 },
+  // glow = near-miss corona, halo = Lorentzian halo, band = emissive veins,
+  // bandK = veins per unit of trap, body = how much the lit body itself shows
+  { key: 'EMBER',  trap: 0, shine: 1.0, light: 0, route: 0, inv: 0, hue:  0.00, glow: 0.55, halo: 0.50, band: 0.35, bandK: 2.0, body: 1.00 },
+  { key: 'FROST',  trap: 0, shine: 0.5, light: 1, route: 1, inv: 0, hue:  0.10, glow: 0.70, halo: 0.65, band: 0.25, bandK: 1.6, body: 0.95 },
+  { key: 'SLATE',  trap: 1, shine: 0.0, light: 0, route: 3, inv: 1, hue: -0.10, glow: 0.20, halo: 0.12, band: 0.00, bandK: 1.5, body: 1.00 },
+  { key: 'PEARL',  trap: 1, shine: 0.5, light: 1, route: 2, inv: 0, hue:  0.05, glow: 0.45, halo: 0.40, band: 0.15, bandK: 1.2, body: 1.00 },
+  { key: 'CHROME', trap: 1, shine: 1.0, light: 1, route: 1, inv: 1, hue:  0.00, glow: 0.40, halo: 0.30, band: 0.20, bandK: 2.4, body: 1.00 },
+  { key: 'INK',    trap: 2, shine: 0.0, light: 0, route: 0, inv: 1, hue: -0.20, glow: 0.75, halo: 0.85, band: 0.90, bandK: 2.8, body: 0.40 },
+  { key: 'NEON',   trap: 2, shine: 1.0, light: 0, route: 2, inv: 0, hue:  0.20, glow: 1.00, halo: 1.00, band: 1.00, bandK: 2.4, body: 0.45 },
+  { key: 'DUSK',   trap: 2, shine: 0.5, light: 1, route: 3, inv: 0, hue: -0.05, glow: 0.60, halo: 0.60, band: 0.40, bandK: 1.6, body: 0.90 },
+  { key: 'BONE',   trap: 0, shine: 0.0, light: 1, route: 3, inv: 1, hue:  0.08, glow: 0.18, halo: 0.12, band: 0.05, bandK: 1.2, body: 1.00 },
+  { key: 'PRISM',  trap: 1, shine: 1.0, light: 0, route: 2, inv: 1, hue:  0.25, glow: 0.85, halo: 0.90, band: 0.80, bandK: 3.6, body: 0.60 },
 ];
 
 // die 3 — the space: mirror fold x orbs x lens. lens is a PERSPECTIVE change,
@@ -25348,6 +25391,11 @@ const SPACES = [
   { key: 'CHAPEL',    mirror: 1, orbs: 1, lens: 0, orbMul: 1.0 },
   { key: 'SWARM',     mirror: 0, orbs: 1, lens: 2, orbMul: 1.9 },
 ];
+
+/* the size-lock for CUBE: a scale-s mandelbox (s > 1) fills the cube of
+   half-width H(s) = 2(s+1)/(s-1). Sampling at q = p·H(s)/H(2.5) keeps the
+   outline still while the scale breathes — only the interior morphs. */
+const boxHalf = s => 2 * (s + 1) / (s - 1);
 
 const GLSL_FRACTAL = `
   float trapVal(vec3 z, float mode){
@@ -25376,6 +25424,11 @@ const GLSL_FRACTAL = `
     t0 = -b - h; t1 = -b + h;
     return t1 > 0.0;
   }
+  float hash12(vec2 q){
+    vec3 r = fract(vec3(q.xyx) * 0.1031);
+    r += dot(r, r.yzx + 33.33);
+    return fract((r.x + r.y) * r.z);
+  }
 `;
 
 /* the raymarch quad carries the wall's slice: on a stage screen vUv spans
@@ -25397,12 +25450,18 @@ const MARCH_FRAG = GLSL_FRACTAL + `
   uniform float uTrap, uShine, uLight, uMirror, uOrbs, uSurfHue, uRoute, uInv;
   uniform float uPowA, uPowB, uPowT;   // the dimensional walk: two integer powers + blend
   uniform float uBound, uBoxScale, uOrbR;
+  uniform float uBoxNorm, uFold, uEpsPx;   // CUBE size-lock, OCTA twist, hit radius (px)
+  uniform float uGlow, uHaloAmt, uBand, uBandK, uBandPhase, uBody;   // the surface's light
   uniform vec3  uOrb0, uOrb1, uOrb2;
   uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCoupling, uEntropy, uCentroid, uHue;
   uniform vec3  uColA, uColB, uColC;
   uniform float uWhite;             // the march builds its own prelude, so ink comes in by hand
   varying vec2 vUv;
   ` + GLSL_INK + `
+
+  float gFoot;   // world size of one pixel at the sample being evaluated
+  float gTrapE;  // the SHALLOW trap: the orbit trap over the first two levels only —
+                 // smooth across the surface, so its contours can be drawn as veins
 
   #if FORM == 0 || FORM == 1 || FORM == 2 || FORM == 7
   /* One bulb iteration at an INTEGER power bp (uniform-fed). Integer powers
@@ -25422,47 +25481,67 @@ const MARCH_FRAG = GLSL_FRACTAL + `
       dr = pow(r, bp - 1.0) * bp * dr + 1.0;
       theta *= bp; phi *= bp;
       z = zr * vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)) + cAdd;
-      trap = min(trap, trapVal(z, uTrap));
+      float tv = trapVal(z, uTrap); trap = min(trap, tv); if (i < 2) gTrapE = min(gTrapE, tv);
     }
     return 0.5 * log(max(r, 1e-6)) * r / dr;
   }
   #endif
 
+  #if FORM == 6 || FORM == 8
+  /* KIFS level of detail: n = log2(size / (2 px)) folds are resolvable at
+     this footprint. Each level's leaf solid is a lower bound of the level
+     before, so the field fades from level floor(n) to the next by fract(n) —
+     continuous as the camera breathes, and nothing finer than ~2 px exists. */
+  float kifsLod(float size){ return clamp(log2(size / (gFoot * 2.0)), 0.0, 9.0); }
+  #endif
+
   float formDE(vec3 p, out float trap){
-    trap = 1e10;
+    trap = 1e10; gTrapE = 1e10;
 
   #if FORM == 0 || FORM == 1 || FORM == 2
     vec3 cAdd = p + uOff;
     float d = bulbDE(p, cAdd, uPowA, trap);
     if (uPowT > 0.001){
+      // the shallow trap is MIXED across the walk like the trap, never min'd:
+      // a min would make the veins jump the instant a morph starts and ends
+      float eA = gTrapE; gTrapE = 1e10;
       float trapB = 1e10;
       float dB = bulbDE(p, cAdd, uPowB, trapB);
       d = mix(d, dB, uPowT);
       trap = mix(trap, trapB, uPowT);
+      gTrapE = mix(eA, gTrapE, uPowT);
     }
     return d;
 
   #elif FORM == 7
     float d = bulbDE(p, uJuliaC, uPowA, trap);
     if (uPowT > 0.001){
+      float eA = gTrapE; gTrapE = 1e10;   // shallow trap mixed, as above
       float trapB = 1e10;
       float dB = bulbDE(p, uJuliaC, uPowB, trapB);
       d = mix(d, dB, uPowT);
       trap = mix(trap, trapB, uPowT);
+      gTrapE = mix(eA, gTrapE, uPowT);
     }
     return d;
 
   #elif FORM == 3 || FORM == 4
-    vec3 z = p; float dr = 1.0;
+    // q = p·uBoxNorm is CUBE's size-lock (1.0 for VOID). The LOD break stops
+    // iterating once |z|/dr — the detail still to resolve — is under the hit
+    // radius, so sub-pixel crumbs merge into the face they sit on.
+    vec3 q = p * uBoxNorm;
+    float lim = gFoot * uBoxNorm * uEpsPx * 0.9;
+    vec3 z = q; float dr = 1.0;
     for (int i = 0; i < 12; i++){
       boxFold(z);
       sphereFold(z, dr);
-      z = uBoxScale * z + p + uOff;
+      z = uBoxScale * z + q + uOff;
       dr = dr * abs(uBoxScale) + 1.0;
-      trap = min(trap, trapVal(z, uTrap));
-      if (dot(z, z) > 400.0) break;
+      float tv = trapVal(z, uTrap); trap = min(trap, tv); if (i < 2) gTrapE = min(gTrapE, tv);
+      float r2 = dot(z, z);
+      if (r2 > 400.0 || r2 < lim * lim * dr * dr) break;
     }
-    return length(z) / abs(dr);
+    return length(z) / abs(dr) / uBoxNorm;
 
   #elif FORM == 5
     float d = sdBox(p, vec3(1.0));
@@ -25474,52 +25553,83 @@ const MARCH_FRAG = GLSL_FRACTAL + `
       float da = max(rr.x, rr.y), db = max(rr.y, rr.z), dc = max(rr.z, rr.x);
       float c = (min(da, min(db, dc)) - 1.0) / s;
       d = max(d, c);
-      trap = min(trap, trapVal(a, uTrap));
+      float tv = trapVal(a, uTrap); trap = min(trap, tv); if (m < 2) gTrapE = min(gTrapE, tv);
     }
     return d;
 
   #elif FORM == 6
+    // Sierpinski tetrahedron: fold toward the nearest vertex, scale 2. The leaf
+    // is the tetrahedron itself, so a level cut by the LOD reads as solid.
     vec3 z = p;
     vec3 a1 = vec3(1.0, 1.0, 1.0), a2 = vec3(-1.0, -1.0, 1.0);
     vec3 a3 = vec3(1.0, -1.0, -1.0), a4 = vec3(-1.0, 1.0, -1.0);
-    float sc = 2.0;
-    for (int n = 0; n < 10; n++){
+    float lod = kifsLod(2.0);
+    float k = 1.0;
+    float dPrev = (max(max(-z.x - z.y - z.z, z.x + z.y - z.z), max(-z.x + z.y + z.z, z.x - z.y + z.z)) - 1.0) * 0.57735;
+    float d = dPrev;
+    for (int n = 0; n < 9; n++){
+      if (float(n) >= lod) break;
       vec3 c = a1; float dist = length(z - a1); float d2;
       d2 = length(z - a2); if (d2 < dist){ c = a2; dist = d2; }
       d2 = length(z - a3); if (d2 < dist){ c = a3; dist = d2; }
       d2 = length(z - a4); if (d2 < dist){ c = a4; dist = d2; }
-      z = sc * z - c * (sc - 1.0);
-      trap = min(trap, trapVal(z, uTrap));
+      z = 2.0 * z - c;
+      k *= 0.5;
+      float tv = trapVal(z, uTrap); trap = min(trap, tv); if (n < 2) gTrapE = min(gTrapE, tv);
+      float dc = (max(max(-z.x - z.y - z.z, z.x + z.y - z.z), max(-z.x + z.y + z.z, z.x - z.y + z.z)) - 1.0) * 0.57735 * k;
+      d = mix(dPrev, dc, clamp(lod - float(n), 0.0, 1.0));
+      dPrev = dc;
     }
-    return length(z) * pow(sc, -10.0);
+    return d;
 
   #elif FORM == 8
-    vec3 z = p;
-    float sc = 2.0;
+    // octahedral KIFS: abs + sort is the octahedral reflection group; a twist
+    // of uFold radians about the x axis (which keeps the vertex (1,0,0) fixed),
+    // then scale 2 about that vertex — six half-size copies per level, each
+    // turned a little further, so the faces spiral instead of lying flat.
+    const float SZ = 1.25;
+    float ca = cos(uFold), sa = sin(uFold);
+    vec3 z = p / SZ;
+    float lod = kifsLod(SZ);
+    float k = SZ;
+    float dPrev = (abs(z.x) + abs(z.y) + abs(z.z) - 1.0) * 0.57735 * k;
+    float d = dPrev;
     for (int i = 0; i < 8; i++){
+      if (float(i) >= lod) break;
       z = abs(z);
       if (z.x < z.y) z.xy = z.yx;
       if (z.x < z.z) z.xz = z.zx;
       if (z.y < z.z) z.yz = z.zy;
-      z = z * sc - vec3(sc - 1.0);
-      if (z.z < -0.5 * (sc - 1.0)) z.z += (sc - 1.0);
-      trap = min(trap, trapVal(z, uTrap));
+      z.yz = vec2(ca * z.y - sa * z.z, sa * z.y + ca * z.z);
+      z = z * 2.0 - vec3(1.0, 0.0, 0.0);
+      k *= 0.5;
+      float tv = trapVal(z, uTrap); trap = min(trap, tv); if (i < 2) gTrapE = min(gTrapE, tv);
+      float dc = (abs(z.x) + abs(z.y) + abs(z.z) - 1.0) * 0.57735 * k;
+      d = mix(dPrev, dc, clamp(lod - float(i), 0.0, 1.0));
+      dPrev = dc;
     }
-    return length(z) * pow(sc, -8.0);
+    return d;
 
   #else
-    vec3 z = p; float dr = 1.0; float r = 0.0;
-    for (int i = 0; i < 7; i++){
-      boxFold(z);
+    // WEAVE — box-fold x bulb: a power-3 bulb step and a mandelbox step (box
+    // fold, sphere fold, scale uBoxScale ~ -1.5) alternate, five of each. The
+    // bulb's shells and the box's folds interlace into a cage of woven rings.
+    vec3 z = p; float dr = 1.0; float r = length(z);
+    for (int i = 0; i < 5; i++){
+      float theta = acos(clamp(z.z / max(r, 1e-6), -1.0, 1.0)) * 3.0;
+      float phi   = atan(z.y, z.x) * 3.0;
+      dr = 3.0 * r * r * dr + 1.0;
+      z = (r * r * r) * vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)) + p + uOff;
+      float tv = trapVal(z, uTrap); trap = min(trap, tv); if (i < 1) gTrapE = min(gTrapE, tv);
       r = length(z);
-      if (r > 2.5) break;
-      float theta = acos(clamp(z.z / r, -1.0, 1.0));
-      float phi   = atan(z.y, z.x);
-      float zr    = pow(r, 4.0);
-      dr = pow(r, 3.0) * 4.0 * dr + 1.0;
-      theta *= 4.0; phi *= 4.0;
-      z = zr * vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)) + p + uOff;
-      trap = min(trap, trapVal(z, uTrap));
+      if (r > 64.0) break;
+      boxFold(z);
+      sphereFold(z, dr);
+      z = uBoxScale * z + p + uOff;
+      dr = dr * abs(uBoxScale) + 1.0;
+      tv = trapVal(z, uTrap); trap = min(trap, tv); if (i < 1) gTrapE = min(gTrapE, tv);
+      r = length(z);
+      if (r > 64.0) break;
     }
     return 0.5 * log(max(r, 1e-6)) * r / dr;
   #endif
@@ -25544,14 +25654,23 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     return vec2(df, 0.0);
   }
 
-  vec3 calcNormal(vec3 p){
+  // e = the sampling radius: about a pixel's footprint, so relief finer than a
+  // pixel cannot alias the normal into noise
+  // The same four taps also read the shallow trap: their mean is the trap
+  // box-filtered over that radius (gTrapN), and sum(k_i * trap_i) / (4e) is its
+  // gradient (gTrapG) — what the veins need to anti-alias themselves without
+  // screen-space derivatives.
+  float gTrapN; vec3 gTrapG;
+  vec3 calcNormal(vec3 p, float e){
     const vec2 k = vec2(1.0, -1.0);
     float t;
-    return normalize(
-      k.xyy * mapScene(p + k.xyy * 0.0016, t).x +
-      k.yyx * mapScene(p + k.yyx * 0.0016, t).x +
-      k.yxy * mapScene(p + k.yxy * 0.0016, t).x +
-      k.xxx * mapScene(p + k.xxx * 0.0016, t).x);
+    float d0 = mapScene(p + k.xyy * e, t).x; float e0 = gTrapE;
+    float d1 = mapScene(p + k.yyx * e, t).x; float e1 = gTrapE;
+    float d2 = mapScene(p + k.yxy * e, t).x; float e2 = gTrapE;
+    float d3 = mapScene(p + k.xxx * e, t).x; float e3 = gTrapE;
+    gTrapN = 0.25 * (e0 + e1 + e2 + e3);
+    gTrapG = (k.xyy * e0 + k.yyx * e1 + k.yxy * e2 + k.xxx * e3) / (4.0 * e);
+    return normalize(k.xyy * d0 + k.yyx * d1 + k.yxy * d2 + k.xxx * d3);
   }
 
   vec3 envCol(vec3 d){
@@ -25566,38 +25685,12 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     uv.x *= uRes.x / uRes.y;
     vec3 rd = normalize(uCamMat * vec3(uv * uTanFov, -1.0));
     vec3 ro = uCamPos;
+    float pixAng = 2.0 * uTanFov / uRes.y;      // the angle one pixel spans
+    gFoot = 0.001;
 
     float t0, t1;
     if (!hitSphere(ro, rd, uBound, t0, t1)){ gl_FragColor = vec4(0.0); return; }
 
-    float t = max(t0, 0.0);
-    float minTrap = 1e10; float matId = 0.0;
-    int steps = 0;
-    bool hit = false;
-    for (int i = 0; i < 96; i++){
-      vec3 p = ro + rd * t;
-      float tr;
-      vec2 m = mapScene(p, tr);
-      minTrap = min(minTrap, tr);
-      steps = i;
-      if (m.x < 0.0009 * t){ hit = true; matId = m.y; break; }
-      t += m.x;
-      if (t > t1) break;
-    }
-    if (!hit){ gl_FragColor = vec4(0.0); return; }
-
-    vec3 p = ro + rd * t;
-    vec3 n = calcNormal(p);
-
-    if (matId > 0.5){
-      float fr = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 2.0);
-      vec3 oc = mix(uColC, uColB, 0.35) * (1.1 + uBeat * 0.9);
-      gl_FragColor = vec4(inkRolloff(oc * (0.55 + fr * 1.1)), 1.0);
-      return;
-    }
-
-    float tr = clamp(minTrap * 1.3, 0.0, 1.0);
-    if (uInv > 0.5) tr = 1.0 - tr;
     // ROUTE the trap through a pair of palette colours, so every surface stays
     // inside the pi-amber / e-ice identity instead of hue-spinning out of it.
     vec3 c0, c1;
@@ -25605,6 +25698,92 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     else if (uRoute < 1.5) { c0 = uColB; c1 = uColC; }
     else if (uRoute < 2.5) { c0 = uColC; c1 = uColA; }
     else                   { c0 = uColA; c1 = uColC; }
+    // the light the structure gives off is the pair's saturated member — never
+    // the chord's pale third (uColC), which would read as fog, not glow
+    vec3 glowCol = (uRoute > 0.5 && uRoute < 1.5) || uRoute > 2.5 ? c0 : c1;
+
+    float t = max(t0, 0.0);
+    float tc = length(ro);                        // the camera's distance to the subject's centre
+    /* HALO — the Lorentzian L(x) = F/(x^2 + F^2) of the distance, integrated
+       over each step. Between two samples the distance runs (near enough)
+       linearly from dA to dB over the step's length s, so the step's share is
+       exactly  s * (atan(dB/F) - atan(dA/F)) / (dB - dA)  — the closed form
+       of the integral, which no sampling lattice can band. L(cut) is taken
+       off so the halo ends at ~5 F instead of fogging the whole sphere. */
+    float HF = uBound * 0.012;
+    float Lcut = HF / (25.0 * HF * HF + HF * HF);
+    // the first step is shortened by a per-pixel hash (stepping short is always
+    // safe), so neighbouring rays never take their steps in lockstep
+    float jit = 0.55 + 0.45 * hash12(gl_FragCoord.xy);
+    float hitTrap = 1.0, matId = 0.0, minPx = 1e4;
+    float dA = 0.0, aA = 0.0, sA = 0.0;
+    vec3 halo = vec3(0.0);
+    int steps = 0;
+    bool hit = false;
+    for (int i = 0; i < 96; i++){
+      vec3 p = ro + rd * t;
+      gFoot = max(t, 0.001) * pixAng;
+      float tr;
+      vec2 m = mapScene(p, tr);
+      float d = m.x;
+      hitTrap = tr;
+      steps = i;
+      minPx = min(minPx, d / gFoot);
+      float dB = max(d, 0.0), aB = atan(dB / HF);
+      if (i > 0){
+        float dd = dB - dA;
+        float seg = (abs(dd) > 1e-4 * HF ? sA * (aB - aA) / dd : sA * HF / (dB * dB + HF * HF)) - sA * Lcut;
+        if (seg > 0.0){
+          // faded past the subject's middle, so the far side never veils the near,
+          // and to nothing at the marching sphere, so its edge can never show
+          float fade = exp(-max(t - tc + 0.3 * uBound, 0.0) / (0.7 * uBound))
+                     * (1.0 - smoothstep(0.8 * uBound, uBound, length(p)));
+          halo += glowCol * ((0.75 + 0.5 * clamp(tr, 0.0, 1.0)) * seg * fade);
+        }
+      }
+      if (d < uEpsPx * gFoot){ hit = true; matId = m.y; break; }
+      sA = (i == 0) ? d * jit : d;
+      dA = dB; aA = aB;
+      t += sA;
+      if (t > t1) break;
+    }
+
+    // NEAR-MISS corona: closest approach in pixels + how hard the ray worked
+    float sg = float(steps) / 96.0;
+    float corona = uGlow * (0.6 * exp(-minPx * 0.2) + 0.45 * sg * sg);
+    // a grazing ray gathers ~sqrt(R/F) times the halo a head-on one does, so
+    // the halo is gathered linear and compressed once, softly, here
+    vec3 hg = halo * (uHaloAmt * 0.10);
+    hg /= 1.0 + max(max(hg.r, hg.g), hg.b);
+
+    if (!hit){
+      vec3 g = hg + glowCol * (corona * 0.2);
+      g *= 0.8 + uEnergy * 0.3 + uBeat * 0.15;
+      g = inkRolloff(g);
+      float a = clamp(max(max(g.r, g.g), g.b) * 1.5, 0.0, 1.0);
+      if (a < 0.004){ gl_FragColor = vec4(0.0); return; }
+      float dz = (hash12(gl_FragCoord.yx + 17.0) - 0.5) / 255.0;   // dither the 8-bit target
+      gl_FragColor = vec4(g / a + dz, a + dz);
+      return;
+    }
+
+    vec3 p = ro + rd * t;
+    gFoot = t * pixAng;
+    vec3 n = calcNormal(p, gFoot * (0.5 + uEpsPx));
+    float ndv = clamp(dot(n, -rd), 0.0, 1.0);
+
+    if (matId > 0.5){
+      // the orbs are lamps: a dim core and a bright limb, like a lit bubble
+      float fr = pow(1.0 - ndv, 2.0);
+      vec3 oc = mix(uColC, uColB, 0.35) * (1.0 + uBeat * 0.6);
+      gl_FragColor = vec4(inkRolloff(oc * (0.22 + ndv * 0.28 + fr * 1.25) + hg * 0.5), 1.0);
+      return;
+    }
+
+    // the body ramps on two traps: the full one (fine texture) and the shallow
+    // one (broad regions), so the pair reads as two tones, not a single tint
+    float tr = mix(1.0 - exp(-2.0 * hitTrap), 1.0 - exp(-1.5 * gTrapN), 0.5);
+    if (uInv > 0.5) tr = 1.0 - tr;
     vec3 col = mix(c0, c1, tr);
     col = mix(col, uColC, pow(1.0 - tr, 3.0) * 0.5);
     col = hueShift(col, uHue * 0.7 + uSurfHue);
@@ -25623,14 +25802,31 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     float specPow = mix(10.0, 110.0, uShine);
     float specAmt = mix(0.10, 1.05, uShine);
     float spec = pow(clamp(dot(reflect(-L1, n), -rd), 0.0, 1.0), specPow);
-    float ao   = 1.0 - float(steps) / 96.0;
-    float fres = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
+    float ao   = 1.0 - sg;
+    float fres = pow(1.0 - ndv, 3.0);
 
-    vec3 outc = lit * (0.35 + ao * 0.75);
+    vec3 outc = lit * (0.35 + ao * 0.75) * uBody;
     outc += uColC * spec * specAmt;
     outc += col * fres * (0.45 + uBeat * 0.8);
     if (uMirror > 0.5) outc = mix(outc, envCol(reflect(rd, n)), 0.18 + uShine * 0.32);
     outc *= 0.85 + uEnergy * 0.5;
+
+    // BANDS — the SHALLOW trap at the hit (filtered over the normal's taps),
+    // wrapped into narrow self-lit veins. The full trap changes faster than
+    // the pixels across fine relief; its first two levels draw smooth contours.
+    // fw = how far the vein coordinate moves per pixel: it widens a vein that
+    // would fall under a pixel and fades veins where even that would alias.
+    float bx = clamp(gTrapN, 0.0, 4.0) * uBandK + uBandPhase;
+    float fw = length(gTrapG) * gFoot * uBandK;
+    float bs = abs(fract(bx) - 0.5);
+    float bw = 0.09, bwe = sqrt(bw * bw + 0.25 * fw * fw);
+    float vein = exp(-bs * bs / (bwe * bwe)) * (bw / bwe) * smoothstep(0.5, 0.2, fw);
+    // self-lit, in the pair's saturated member (the glow colour), so they read
+    vec3 veinCol = hueShift(glowCol, uHue * 0.7 + uSurfHue);
+    outc += veinCol * vein * uBand * (1.0 + uEnergy * 0.35 + uBeat * 0.25) * (0.6 + 0.4 * ao);
+    // the light the ray gathered on its way in, and a corona on the limb
+    outc += hg * (1.0 - ndv) * (1.0 - ndv) * 0.7;
+    outc += glowCol * corona * fres * 0.5;
 
     float fog = 1.0 - clamp((t - t0) / (uBound * 2.0), 0.0, 1.0);
     gl_FragColor = vec4(inkRolloff(outc * (0.35 + fog * 0.65)), 1.0);
@@ -25656,11 +25852,14 @@ function buildFractalField(){
     uCamMat: { value: new THREE.Matrix3() },
     uTanFov: { value: Math.tan(31 * PI / 180) },
     uOff:    { value: new THREE.Vector3() },
-    uJuliaC: { value: new THREE.Vector3(0.36, 0.16, 0.28) },
+    uJuliaC: { value: new THREE.Vector3(0.62, 0.62, -0.28) },
     uTrap:   { value: 0 }, uShine: { value: 0.5 }, uLight: { value: 0 },
     uMirror: { value: 0 }, uOrbs: { value: 0 }, uSurfHue: { value: 0 },
     uRoute:  { value: 0 }, uInv: { value: 0 },
     uBound:  { value: 1.7 }, uBoxScale: { value: 2.5 }, uOrbR: { value: 0.12 },
+    uBoxNorm: { value: 1 }, uFold: { value: 0.22 }, uEpsPx: { value: 0.5 },
+    uGlow:   { value: 0.5 }, uHaloAmt: { value: 0.5 }, uBand: { value: 0.3 },
+    uBandK:  { value: 2 }, uBandPhase: { value: 0 }, uBody: { value: 1 },
     uOrb0:   { value: new THREE.Vector3() },
     uOrb1:   { value: new THREE.Vector3() },
     uOrb2:   { value: new THREE.Vector3() },
@@ -25712,6 +25911,7 @@ function buildFractalField(){
 
   const off = new THREE.Vector3();
   let D = [0, 0, 0];
+  let bandPhase = 0;
 
   const api = {
     name: 'FRACTAL FIELD', key: 'fractal', group, heavy: true,
@@ -25724,9 +25924,12 @@ function buildFractalField(){
       bulbU.uTrap.value = S.trap; bulbU.uShine.value = S.shine;
       bulbU.uLight.value = S.light; bulbU.uSurfHue.value = S.hue;
       bulbU.uRoute.value = S.route; bulbU.uInv.value = S.inv;
+      bulbU.uGlow.value = S.glow; bulbU.uHaloAmt.value = S.halo;
+      bulbU.uBand.value = S.band; bulbU.uBandK.value = S.bandK; bulbU.uBody.value = S.body;
       bulbU.uMirror.value = P.mirror; bulbU.uOrbs.value = P.orbs;
-      bulbU.uBound.value = F.bound;
-      bulbU.uBoxScale.value = D[0] === 4 ? -1.6 : 2.5;
+      bulbU.uBound.value = F.bound; bulbU.uEpsPx.value = F.eps;
+      bulbU.uBoxScale.value = D[0] === 4 ? -2.2 : D[0] === 9 ? -1.5 : 2.5;
+      bulbU.uBoxNorm.value = 1; bulbU.uFold.value = 0.22;
       // each bulb form starts the walk at its home rung
       dim.a = dim.b = [8, 4, 3, 0, 0, 0, 0, 8][D[0]] || 8;
       dim.t = null; dim.wait = 0; dim.dir = dim.a >= 8 ? -1 : 1;
@@ -25783,17 +25986,30 @@ function buildFractalField(){
       );
       if (D[0] === 3 || D[0] === 4){              // box forms: no branch cut, so scale can breathe
         off.multiplyScalar(0.6);
-        const b = D[0] === 4 ? -1.6 : 2.5;
+        const b = D[0] === 4 ? -2.2 : 2.5;
         const sgn = b < 0 ? -1 : 1;
-        u.uBoxScale.value = b + sgn * (Math.sin(t * 0.06) * 0.22 + f.bass * 0.14 + f.coupling * 0.1);
+        const s = b + sgn * (Math.sin(t * 0.06) * 0.22 + f.bass * 0.14 + f.coupling * 0.1);
+        u.uBoxScale.value = s;
+        // CUBE keeps its outline: sample at q = p·H(s)/H(2.5)
+        u.uBoxNorm.value = D[0] === 3 ? boxHalf(s) / boxHalf(2.5) : 1;
+      } else if (D[0] === 9){                     // WEAVE: the hybrid's box half breathes a little
+        off.multiplyScalar(0.5);
+        u.uBoxScale.value = -1.5 - (Math.sin(t * 0.05) * 0.05 + f.bass * 0.04);
+      } else if (D[0] === 8){                     // OCTA: the twist breathes with the mids
+        u.uFold.value = 0.22 + Math.sin(t * 0.07) * 0.06 + f.mid * 0.05;
       }
       u.uOff.value.copy(off);
       if (D[0] === 7){                            // julia c drift = whole-form morph
+        // |c| ~ 0.95 keeps the julia an open cage of branches; nearer the
+        // origin it closes into a ball, on an axis it turns into a lathe-spool
         u.uJuliaC.value.set(
-          0.34 + Math.sin(t * 0.08) * 0.10 + f.bass * 0.04,
-          0.16 + Math.cos(t * 0.06) * 0.09 + f.mid * 0.03,
-          0.28 + Math.sin(t * 0.05 + 2.2) * 0.09 + f.treble * 0.03);
+          0.62 + Math.sin(t * 0.08) * 0.07 + f.bass * 0.03,
+          0.62 + Math.cos(t * 0.06) * 0.07 + f.mid * 0.03,
+          -0.28 + Math.sin(t * 0.05 + 2.2) * 0.07 + f.treble * 0.03);
       }
+      // the veins' phase flows with the music: slow at rest, quicker when loud
+      bandPhase = (bandPhase + dt * (0.035 + 0.11 * f.energy) * (reducedMotion ? 0.35 : 1)) % 1;
+      u.uBandPhase.value = bandPhase;
 
       if (P.orbs){
         const R = F.bound * 0.78, s = 1 + f.beat * 0.12;
@@ -58337,9 +58553,9 @@ const STAGE = {
    unreachable mailbox, a refused knock — the booth simply says so, and
    the local stage never notices the wire exists.
    ================================================================ */
-/* a tiny QR encoder (byte mode, ECC L) — the public-domain qrcodegen
-   algorithm (Project Nayuki), the same port every game in the family
-   carries, so an invite can be scanned instead of read aloud. */
+/* a tiny QR encoder (byte mode, ECC L) — a port of Project Nayuki's
+   qrcodegen (MIT; notice in THIRD-PARTY-NOTICES), the same port every game
+   in the family carries, so an invite can be scanned instead of read aloud. */
 const QR_ECC_L = [-1,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30];
 const QR_NB_L = [-1,1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25];
 const QR_EXP = new Uint8Array(512), QR_LOG = new Uint8Array(256);
