@@ -146,6 +146,21 @@ jobs:
             sleep 10
             xcrun simctl io "$UDID" screenshot "shots/room-$ROOM.png"
           done
+          # FRACTAL FIELD, every form: --rolls pins the three dice. r0 = (n+0.5)/10
+          # deals form n (BULB QUARTZ SPIRE CUBE VOID SPONGE TETRA JULIA OCTA
+          # WEAVE); r1 / r2 walk the surface and space dice so the ten frames
+          # also show each of the ten surfaces and ten spaces once.
+          N=0
+          for ROLLS in 0.05,0.65,0.35 0.15,0.95,0.45 0.25,0.05,0.05 0.35,0.55,0.25 0.45,0.25,0.65 \
+                       0.55,0.15,0.75 0.65,0.75,0.55 0.75,0.35,0.95 0.85,0.45,0.15 0.95,0.85,0.85; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room fractal --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-fractal-$N.png"
+            echo "room-fractal-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
 
       # The artifact store is unreachable from some review environments, so
       # the frame also travels inside the log: an ice-ring pixel count (the

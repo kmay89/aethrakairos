@@ -435,7 +435,24 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// run instead of chasing whichever face the boot happened to deal.
     private static let fixedRolls = ProcessInfo.processInfo.arguments.contains("--fixed-rolls")
 
+    /// CI's camera can also pin ANY face: `--rolls a,b,c` deals exactly those
+    /// three dice (each clamped into 0..<1), so the sim-shots job can walk a
+    /// dice room through faces of its choosing — the FRACTAL FIELD's ten
+    /// forms, one launch each. It wins over `--fixed-rolls`; a malformed
+    /// value is ignored and the usual deal stands. Never on for a listener.
+    private static let pinnedRolls: SIMD3<Float>? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "--rolls"), flag + 1 < args.count else { return nil }
+        let parts = args[flag + 1].split(separator: ",").compactMap {
+            Float(String($0).trimmingCharacters(in: .whitespaces))
+        }
+        guard parts.count == 3, parts.allSatisfy({ $0.isFinite }) else { return nil }
+        let c = parts.map { min(max($0, 0), 0.9999) }
+        return SIMD3<Float>(c[0], c[1], c[2])
+    }()
+
     private static func freshRolls() -> SIMD3<Float> {
+        if let pinned = pinnedRolls { return pinned }
         if fixedRolls { return SIMD3<Float>(0.05, 0.5, 0.5) }
         return SIMD3<Float>(Float.random(in: 0..<1), Float.random(in: 0..<1), Float.random(in: 0..<1))
     }

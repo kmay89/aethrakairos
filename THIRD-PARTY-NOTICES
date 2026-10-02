@@ -1,0 +1,144 @@
+THIRD-PARTY NOTICES — Aethra Kairos
+
+This file lists the third-party code shipped in this repository, the
+third-party resources the web player fetches at run time, and the published
+mathematics the visualizer is built on. Everything else in the repository
+is covered by its own licence files (LICENSE-CODE, LICENSE-AUDIO,
+LICENSE-DNA and LICENSE). This file does not change any of them.
+
+Where it ships:
+
+  Web player (docs/)    contains the code in section 1.
+  Apple TV app (tvos/)  contains no third-party code. It uses only Apple's
+                        platform SDKs (Foundation, SwiftUI, UIKit,
+                        Metal/MetalKit, QuartzCore, AVFoundation,
+                        Accelerate, MediaPlayer, Combine, CryptoKit, simd,
+                        os). It has no Swift packages, CocoaPods or
+                        vendored sources.
+  Mac app (desktop/)    a Tauri shell that opens the live web player, so
+                        section 1 applies to what it shows. Its Rust and
+                        npm build dependencies are fetched by Cargo and npm
+                        (see desktop/src-tauri/Cargo.lock and
+                        desktop/package-lock.json). They are not vendored
+                        here.
+
+
+==========================================================================
+1. THIRD-PARTY CODE IN THIS REPOSITORY
+==========================================================================
+
+1.1  three.js, release r128 (docs/three.min.js)
+--------------------------------------------------------------------------
+
+The web player's 3-D engine, vendored unmodified and served from the same
+origin. If that copy cannot be reached, docs/index.html loads the same
+release from cdnjs
+(https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js), and
+the same notice applies to it.
+
+The file's own header, reproduced verbatim:
+
+    /**
+     * @license
+     * Copyright 2010-2021 Three.js Authors
+     * SPDX-License-Identifier: MIT
+     */
+
+The MIT License
+
+Copyright 2010-2021 Three.js Authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+1.2  QR Code generator, Project Nayuki (ported, inside docs/index.html)
+--------------------------------------------------------------------------
+
+A compact port of the QR encoding routines (byte mode, error-correction
+level L) used to draw the booth's invite codes: QR_ECC_L, QR_NB_L,
+qrMul, qrRawModules, qrDataCW, qrDivisor, qrRemainder and qrEncode in
+docs/index.html. Project Nayuki publishes the QR Code generator library
+under the MIT License, so its notice is reproduced here.
+
+Copyright (c) Project Nayuki. (MIT License)
+https://www.nayuki.io/page/qr-code-generator-library
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+- The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+- The Software is provided "as is", without warranty of any kind, express or
+  implied, including but not limited to the warranties of merchantability,
+  fitness for a particular purpose and noninfringement. In no event shall the
+  authors or copyright holders be liable for any claim, damages or other
+  liability, whether in an action of contract, tort or otherwise, arising
+  from, out of or in connection with the Software or the use or other
+  dealings in the Software.
+
+
+==========================================================================
+2. FETCHED AT RUN TIME (NOT IN THIS REPOSITORY)
+==========================================================================
+
+  Fonts   docs/index.html requests Spectral and IBM Plex Mono from Google
+          Fonts (fonts.googleapis.com / fonts.gstatic.com), and the service
+          worker caches them in the browser. The font files are not stored
+          in this repository. Both are licensed under the SIL Open Font
+          License 1.1: Spectral by The Spectral Project Authors (Production
+          Type), IBM Plex Mono by IBM Corp.
+
+
+==========================================================================
+3. MATHEMATICS CREDITED
+==========================================================================
+
+The fractal room draws these forms. These are credits for published
+mathematics, NOT licences for code. Mathematics is free to use;
+implementations of it carry their authors' licences. The house rule is that
+every formula is derived here from the published maths, in GLSL for the web
+and in Metal for the TV, and no implementation is copied in.
+
+  Mandelbulb                       Daniel White and Paul Nylander, 2009
+  Mandelbox                        Tom Lowe ("Tglad"), 2010
+  Menger sponge distance estimate  Knighty, 2010
+  Kaleidoscopic IFS                Knighty, 2010
+  Sierpinski tetrahedron           classical
+  Orbit traps                      Clifford Pickover
+
+The best-known desktop renderer of these forms is GPLv3. GPLv3 code must
+not go into the MIT-licensed web player, and it must not ship in the App
+Store tvOS app, whose terms are widely held to be incompatible with GPLv3.
+The unit suite has a tripwire for this (tests/player.test.mjs, the
+"licensing:" test). It fails if that program's identifiers ever show up in
+docs/index.html or in any .metal or .swift file under tvos/. If it fires,
+delete the transcribed code and derive it again from the mathematics.
+
+
+==========================================================================
+4. PUBLIC-DOMAIN ALGORITHMS (NO NOTICE REQUIRED)
+==========================================================================
+
+Written in-house from public-domain designs and listed only for
+completeness: the FNV-1a hash (Fowler, Noll and Vo) and the mulberry32
+pseudo-random generator (Tommy Ettinger).

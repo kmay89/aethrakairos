@@ -67,7 +67,7 @@ complete, no-guessing runbook.
   |---|---|---|
   | **MÖBIUS SPIRAL** — phi-folded 3-arm spiral | **PULSE** — the radial spectrum meter (the calm opener) | **NEBULA** — drifting value-noise clouds |
   | **TUNNEL** — phi-folded rings, bass is the speed | **OP-ART** — interfering gratings | **SCOPE** — the waveform as an oscilloscope trace |
-  | **FRACTAL FIELD** — a live raymarched mandelbulb/box/tetra | **FIREWORKS** — closed-form ballistics, breaks land on the bar | **OIL FILM** — thin-film interference, bass thickens the film |
+  | **FRACTAL FIELD** — three ten-sided dice: ten raymarched fractals × ten surfaces × ten spaces | **FIREWORKS** — closed-form ballistics, breaks land on the bar | **OIL FILM** — thin-film interference, bass thickens the film |
   | **MANDALA** — hard-quantized kaleidoscope | **HALO** — the equalizer bent into a torus, a beat soliton orbiting it | **TERRAIN** — a ridged-multifractal heightfield |
   | **STARBURST** — spectrum rays + onset shock rings | **LAVA LAMP** — metaball wax the music heats | **EIGENSTATE** — an analytic quantum superposition |
   | **AUREA** — golden-angle phyllotaxis | **FILIGREE** — escape-time Mandelbrot, orbit-trap gold lace | **ROSETTE** — a chromatic spirograph |
@@ -158,3 +158,29 @@ after the mark changes:
 python3 -m pip install Pillow
 python3 tvos/scripts/make_icons.py
 ```
+
+## Credits
+
+The app contains **no third-party code** beyond Apple's platform SDKs
+(Foundation, SwiftUI, UIKit, Metal/MetalKit, QuartzCore, AVFoundation,
+Accelerate, MediaPlayer, Combine, CryptoKit, simd, os). It has no Swift
+packages, no CocoaPods and no vendored sources. Every Metal room is written
+here.
+
+The fractal room draws on published mathematics. These are credits for the
+maths, not licences for anyone's code. Each formula is derived here from the
+published work, never transcribed from an implementation:
+
+| Form | Credit |
+|---|---|
+| Mandelbulb | Daniel White and Paul Nylander, 2009 |
+| Mandelbox | Tom Lowe ("Tglad"), 2010 |
+| Menger sponge distance estimate | Knighty, 2010 |
+| Kaleidoscopic IFS | Knighty, 2010 |
+| Sierpinski tetrahedron | classical |
+| Orbit traps | Clifford Pickover |
+
+GPLv3 code must not ship in an App Store build. The unit suite's `licensing:`
+test fails if a GPL fractal renderer's identifiers ever appear in a `.metal`
+or `.swift` file here. The repository-wide notices are in
+[`THIRD-PARTY-NOTICES`](../THIRD-PARTY-NOTICES).
