@@ -770,8 +770,14 @@ and **TERRAIN** — see [A country with the colour turned up](#a-country-with-th
 Keys `1`–`9` and
 `0` reach the first ten; the scene dots reach them all. Over any scene, the **lens engine** can reshape the whole
 frame — kaleidoscope MIRRORS, a rolling WAVE, a chromatic PRISM, a mirrored
-TILE relay, MOIRÉ interference, a breathing IRIS, and stacks of them — with
-AUTO putting a lens on only where the song's structure earns it. Three things keep it feeling like a storytelling machine
+TILE relay, MOIRÉ interference, a breathing IRIS, and a second wave that hears
+the colour engine: TRANSPOSE walking the hue round the circle of fifths, ECHO
+feedback, a DROSTE spiral, Escher's HYPERBOLIC disk, STAINED GLASS, a HALFTONE
+printed in the chord's three inks, RAIN on the glass, a diffraction GRATING
+filtered through the chord, BOKEH with as many blades as the key says, and the
+light drawn as a CONTOUR map. Where these colour the light they hold the room's
+lightness exactly and lend it only the key's hue and chroma. There are stacks of them too, with AUTO dealing a
+look only where the song's structure earns it. Three things keep it feeling like a storytelling machine
 rather than a screensaver:
 
 - **Acts.** Every track runs a five-act arc — OVERTURE · RISING · APEX ·

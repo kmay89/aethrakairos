@@ -1602,6 +1602,52 @@ scenes, booth and sliced screen alike.
   loops the section on request, with a click. Easy / Full arrangements,
   stars per step (best kept), and a daily streak complete the loop.
 
+### 1.2t The glass learns the key — the second lens wave
+
+Six lenses bent or darkened the room's light and never touched its colour.
+The colour engine, meanwhile, spent its whole intelligence on the rooms: the
+key's hue on the Camelot wheel, a scheme read from energy × entropy, three
+OKLCH stops spelling the chord. The lenses never heard any of it. The second
+wave puts the two engines together without breaking the lens law.
+
+- **One new verb: RE-VOICE.** Convert the pixel to OKLab, hold its lightness
+  exactly, and swing only hue and chroma toward a chord colour, lending chroma
+  in proportion to how lit the pixel already is. The void stays void, the
+  governor and the grade see exactly the energy the room made, and the key
+  colours the light. Every lens that colours does it this way; the law "no lens
+  adds light the room did not make" stands, now in a perceptual space.
+- **Ten lenses, written once.** TRANSPOSE (the hue walks the circle of fifths,
+  25° a step, arriving from the centre out), ECHO (feedback: the last frame,
+  zoomed and turned, combined by `max()` so it can never climb past the room),
+  DROSTE (the picture spirals into itself, a chord step per turn), HYPERBOLIC
+  (the {7,3} tiling of the Poincaré disk, its tiles two chord voices, drifting
+  by a Möbius isometry), STAINED GLASS (leaded Voronoi cells, one voice each,
+  their size on the bass), HALFTONE (three chord inks at the old screen angles,
+  15°, 75°, 45°), RAIN (drops as ball lenses, the view through each upside
+  down), GRATING (eight wavelengths displaced in proportion to λ, rebuilt per
+  channel so white stays white, the spectrum filtered through the chord),
+  BOKEH (an aperture with five to eight blades — the key decides), CONTOUR
+  (the light as a map, contour lines only where they mean a slope, each level
+  a chord voice). Five new stacks, among them HYPERBOLIC×CONTOUR, which is
+  Escher's *Circle Limit* drawn as a map.
+- **One source, both stages.** The lenses live in one dialect file in the
+  forge that writes the web's `LENS2` fragments and `Lens.metal`'s cases 8–17
+  together; the web reads the chord off the live ramp, the TV off `colA/B/C`,
+  the same three stops. ECHO is the one lens with memory: on the web a private
+  render-target pair the chain cannot overwrite, on the TV a texture written by
+  a blit after its leg; both forget the history the moment the glass goes
+  clean, so a stale frame from a minute ago can never surface.
+- **The director deals shelves.** `pickLens` used to map a moment to one look.
+  Now every moment has a shelf of looks that read the same way — hypnotic
+  order, electricity, agitation, ornament, a swell, focus, the comedown — and a
+  dealing counter takes them in turn, so a long night is not one lens on
+  repeat. With no salt every shelf returns its first look, which is the old
+  taste exactly, so every earlier test still pins it. ECHO, the loudest look,
+  sits only on the high-heat shelf. The gates are untouched: below the
+  ceiling, at the arc's edges and on a strained device the glass stays clean
+  whatever the dealer holds. A test reads the Swift picker and holds its
+  shelves to the web's, code for key.
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

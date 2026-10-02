@@ -221,6 +221,13 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var lensRenderMode: Int = -1
     private var lensHold: Double = 0
     private var lensAmt: Double = 0
+    // ECHO keeps its own last frame: echoTex holds it between frames, written
+    // by a blit after the echo leg, read back as the lens pass's texture(1).
+    // echoLive says last frame ran the echo — a stale history must never surface.
+    private var echoTex: MTLTexture?
+    private var echoLive = false
+    // AUTO's dealing counter: the looks on one shelf take turns, deal by deal
+    private var lensDeals = 0
 
     // the FIELD — the ghost's hand on the light itself (field_pass in
     // Field.metal, the web's LENS_FIELD_LEAN for one hand). Runs only
@@ -546,6 +553,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         texB = device.makeTexture(descriptor: desc)
         texC = device.makeTexture(descriptor: desc)
         lensTex = device.makeTexture(descriptor: desc)   // the LENS output, same size
+        echoTex = device.makeTexture(descriptor: desc)   // ECHO's memory, same size
+        echoLive = false
     }
 
     // MARK: remote steps
@@ -701,31 +710,34 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// The pure lens rule — the web's pickLens, verbatim. The structure CEILING
     /// is the hard gate: below 0.55 (a quiet intro, a breakdown) and at the
     /// arc's edges (OVERTURE / RESOLVE) the glass stays clean, so a lens can
-    /// never punch in where the music has not earned the intensity. At an APEX
-    /// with real headroom (ceil > 0.72): moire on a tense minor peak at real
-    /// energy, prism when the energy is at its loudest, mirrors otherwise; an
-    /// apex the section holds back gets tile (order without full blast). A
-    /// RISING or TURN with ceil > 0.60: wave for a driving build, iris for the
-    /// gentler build or the comedown. Returns -1 (none), 0 mirrors, 1 wave,
-    /// 2 prism, 3 iris, 4 tile, 5 moire.
-    private func pickLens(act: Int, energy: Double, minor: Bool, ceil: Double) -> Int {
+    /// never punch in where the music has not earned the intensity. Above it
+    /// every moment has a SHELF of looks that read the same way, and `salt`
+    /// deals them in turn (salt 0 is the shelf's first look, the original
+    /// taste). Codes: -1 none, 0 mirrors, 1 wave, 2 prism, 3 iris, 4 tile,
+    /// 5 moire, 8 transpose, 9 echo, 10 droste, 11 hyperbolic, 12 stained
+    /// glass, 13 halftone, 14 rain, 15 grating, 16 bokeh, 17 contour; stacks
+    /// 6 wave+mirrors, 7 mirrors+moire, 18 mirrors+echo, 19 droste+transpose,
+    /// 20 stained+rain, 21 halftone+prism, 22 hyperbolic+contour.
+    /// tests/player.test.mjs holds these shelves to the web's, code for key.
+    private func pickLens(act: Int, energy: Double, minor: Bool, ceil: Double, salt: Int) -> Int {
+        func deal(_ shelf: [Int]) -> Int { return shelf[max(salt, 0) % shelf.count] }
         if ceil < 0.55 || act == 0 || act == 4 { return -1 }   // the hard gate + the arc's edges
         if act == 2 {                                          // APEX
-            // THE SUMMIT: near-no ceiling at real heat deals a STACK — two
-            // lenses run in sequence (6 = wave then mirrors, 7 = mirrors
-            // then moire), the web's taste verbatim
-            if ceil > 0.92 && energy > 0.85 { return minor ? 7 : 6 }
-            if ceil > 0.72 {                                   // …with real headroom
-                if minor && energy > 0.66 { return 5 }         // moire — tense + truly intense
-                if energy > 0.93 { return 2 }                  // prism — the hottest bright peak
-                return 0                                        // mirrors — hypnotic symmetry
+            if ceil > 0.92 && energy > 0.85 {                  // THE SUMMIT: two lenses at once
+                return minor ? deal([7, 22]) : deal([6, 18, 19])
             }
-            return 4                                            // tile — an apex the section holds back
+            if ceil > 0.72 {                                   // …with real headroom
+                if minor && energy > 0.66 { return deal([5, 17]) }   // tense + truly intense
+                if energy > 0.93 { return deal([2, 15]) }             // the hottest bright peak
+                return energy > 0.8 ? deal([0, 9, 11]) : deal([0, 11])   // hypnotic order
+            }
+            return deal([4, 12])                               // an apex the section holds back
         }
-        if (act == 1 || act == 3) && ceil > 0.60 {
-            if act == 1 && energy > 0.72 { return 1 }          // wave — a driving build
-            return 3                                            // iris — a focusing aperture
+        if act == 1 && ceil > 0.60 {                           // RISING
+            if energy > 0.72 { return deal([1, 10, 13, 21]) }  // a driving build
+            return deal([3, 16])                               // a gentler build
         }
+        if act == 3 && ceil > 0.60 { return deal([3, 14, 8, 20]) }   // the comedown
         return -1
     }
 
@@ -737,6 +749,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         switch code {
         case 6: return [1, 0]          // wave, folded into mirrors
         case 7: return [0, 5]          // mirrors, strained by moire
+        case 18: return [0, 9]         // a kaleidoscope falling into itself
+        case 19: return [10, 8]        // the spiral turning through the key change
+        case 20: return [12, 14]       // a cathedral window in the rain
+        case 21: return [13, 2]        // misregistered print
+        case 22: return [11, 17]       // Escher's Circle Limit drawn as a map
         default: return [code]
         }
     }
@@ -749,7 +766,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
         lensHold -= max(dt, 0)
         if lensHold <= 0 {
-            lensChoice = pickLens(act: act, energy: energy, minor: minor, ceil: ceil)
+            lensChoice = pickLens(act: act, energy: energy, minor: minor, ceil: ceil, salt: lensDeals)
+            lensDeals += 1
             lensHold = lensChoice >= 0 ? 9.0 : 3.0
         }
         return lensChoice
@@ -1040,23 +1058,35 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // -- pass 3.5 (lens only): bend the scene through lens_pass into
         //    lensTex. Skipped entirely when the lens is off, so the GRADE reads
         //    the scene directly — the exact proven wave-2 flow. lens_pass
-        //    reads only texture(0); tex1 is bound to the same source, ignored. --
+        //    reads texture(0); only ECHO reads tex1, its own last frame. --
         if lensEngage, let lensPipeline, let lt = lensTex {
             // a stack runs the same pass twice, each leg with its own kind;
             // texB is free here (the composite has already been cut from it)
             let kinds = lensStackKinds(lensRenderMode)
             var src = sceneForGrade
+            var echoRan = false
             for (leg, kind) in kinds.enumerated() {
                 // never alias src and dst — if texB is somehow gone, the
                 // first leg alone is the whole look
                 guard let dst: MTLTexture = (leg % 2 == 0) ? lt : texB else { break }
                 u.lens = Float(kind)
+                // ECHO reads its own last frame as texture(1); every other
+                // lens is handed the scene again and ignores it
+                let memory: MTLTexture = (kind == 9 && echoLive) ? (echoTex ?? src) : src
                 encodeComposite(pipeline: lensPipeline, into: dst,
                                 commandBuffer: commandBuffer, uniforms: &u,
-                                tex0: src, tex1: src)
+                                tex0: src, tex1: memory)
+                if kind == 9, let et = echoTex, let blit = commandBuffer.makeBlitCommandEncoder() {
+                    blit.copy(from: dst, to: et)               // the frame the next frame falls back into
+                    blit.endEncoding()
+                    echoRan = true
+                }
                 src = dst
                 sceneForGrade = dst
             }
+            echoLive = echoRan
+        } else {
+            echoLive = false                                   // clean glass forgets the echo
         }
 
         // -- pass 4: the GRADE — the (optionally lensed) scene to the drawable --

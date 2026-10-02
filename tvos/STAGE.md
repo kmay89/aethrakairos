@@ -128,7 +128,7 @@ white budget) so the screen does **no arithmetic it can avoid**.
 | `pulse`       | number                  | dancer anticipation pulse (informational; clamped `0..2`).   |
 | `brace`       | number `0..1`           | precognition brace before a drop (informational).            |
 | `colors`      | array of stop           | the colour chord as **three OKLCH stops** (see below).       |
-| `lens`        | number `-1..5`          | the booth's lens (-1 none / 0 mirrors / 1 wave / 2 prism / 3 iris / 4 tile / 5 moire). Rides in the uniforms; the stage renderer draws rooms only, so it is currently unread by them. |
+| `lens`        | number `-1..22`         | the booth's lens (-1 none / 0 mirrors / 1 wave / 2 prism / 3 iris / 4 tile / 5 moire / 6–7 the first stacks / 8–17 transpose, echo, droste, hyperbolic, stained glass, halftone, rain, grating, bokeh, contour / 18–22 their stacks — the codes `Lens.metal` uses). Rides in the uniforms; the stage renderer draws rooms only, so it is currently unread by them. |
 | `lensAmt`     | number `0..1`           | lens intensity.                                              |
 | `hand`        | object                  | the hand on the booth's glass (see below).                   |
 | `camera`      | object                  | the camera pose, carried whole (see below).                  |

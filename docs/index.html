@@ -3452,7 +3452,7 @@ body.clipping::after{
     <span class="chipgroup" role="group" aria-label="The room">
       <button class="chip on" id="chipAuto" title="Auto director — the room arranges itself: which scene, how long it holds, how it answers your hand and how hot the colour runs, all from one reading of the music">AUTO</button>
       <button class="chip" id="chipTouch" title="Touch — the force your finger applies to the field. Tap to cycle (W); in play mode, flick the orb.">PULL</button>
-      <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris. Tap to cycle (⇧L).">◈ NONE</button>
+      <button class="chip" id="chipLens" title="Lens — a composable post-effect over the whole scene: mirrors, wave, prism, tile, moiré, iris, transpose, echo, droste, hyperbolic, stained glass, halftone, rain, grating, bokeh, contour. Tap to cycle (⇧L).">◈ NONE</button>
       <button class="chip" id="chipEcho" title="Echoes — passing thoughts drift by like clouds: physicists, mathematicians, stoics. MUSE adds a question now and then you can answer. Tap to cycle.">✧ DRIFT</button>
     </span>
     <span class="chipgroup" role="group" aria-label="Comfort and power">
@@ -14089,37 +14089,44 @@ function structureCeiling(struct, p, floor){
 // hoped-for. The RULE the whole feature rests on: the structure ceiling is a
 // hard gate — below it (a quiet intro, a breakdown, the arc's calm edges) the
 // glass stays clean, so a lens can never punch in where the music hasn't
-// earned the intensity. Above it: mirrors = hypnotic order (an uplifting/major
-// apex), prism = electricity (only the hottest major apex splits the light),
-// moiré = agitation/interference (a tense minor peak at real energy only),
-// tile = ornamental repetition (an apex the section doesn't fully open —
-// order without full blast), wave = a swell rolling in (a truly driving
-// build), iris = focus (a gentler build or a comedown). A strained device:
-// always clean.
+// earned the intensity. Above it every moment has a SHELF of looks that read
+// the same way, and ctx.salt deals them in turn so a long night is not one
+// lens on repeat (no salt → the shelf's first look, the original taste):
+//   mirrors · echo · hyperbolic = hypnotic order (an uplifting/major apex);
+//     ECHO only once the heat is real, since feedback is the loudest look
+//   prism · grating = electricity (only the hottest major apex splits light)
+//   moiré · contour = agitation, interference, tension (a tense minor peak)
+//   tile · stained glass = ornamental order (an apex the section holds back)
+//   wave · droste · halftone (and misregistered print) = a swell rolling in
+//   iris · bokeh = focus (a gentler build)
+//   iris · rain · transpose = the comedown — focus, weather, a modulation
+// The summit (no ceiling, real heat) deals a STACK. A strained device: always clean.
 function pickLens(ctx){
   ctx = ctx || {};
   if (ctx.struggling) return 'none';                        // never tax a strained device
   const ceil = ctx.ceil == null ? 1 : ctx.ceil;
   const act = ctx.act, energy = ctx.energy == null ? 0 : ctx.energy;
   const major = ctx.major !== false;                        // unknown key → treat as bright/major
+  const salt = Math.max(0, Math.floor(ctx.salt || 0));
+  const deal = shelf => shelf[salt % shelf.length];
   if (ceil < 0.55 || act === 0 || act === 4) return 'none';  // the hard gate + the arc's edges
   if (act === 2){                                           // APEX
-    // THE SUMMIT: a section with almost no ceiling at real heat is the one
-    // moment two lenses are earned at once — the stacks stop being a manual
-    // toy and the director can finally reach them
-    if (ceil > 0.92 && energy > 0.85)
-      return major ? 'wave+mirrors' : 'mirrors+moire';
+    if (ceil > 0.92 && energy > 0.85)                       // THE SUMMIT: two lenses at once
+      return major ? deal(['wave+mirrors', 'mirrors+echo', 'droste+transpose'])
+                   : deal(['mirrors+moire', 'hyperbolic+contour']);
     if (ceil > 0.72){                                       // …with real headroom
-      if (!major && energy > 0.66) return 'moire';          // tense + truly intense → interference
-      if (energy > 0.93) return 'prism';                    // the hottest bright peak splits the light
-      return 'mirrors';                                     // otherwise hypnotic symmetry
+      if (!major && energy > 0.66) return deal(['moire', 'contour']);   // tense + truly intense
+      if (energy > 0.93) return deal(['prism', 'grating']);             // the hottest bright peak
+      return energy > 0.8 ? deal(['mirrors', 'echo', 'hyperbolic'])     // hypnotic order
+                          : deal(['mirrors', 'hyperbolic']);
     }
-    return 'tile';                                          // an apex the section holds back: relayed order
+    return deal(['tile', 'stained']);                       // an apex the section holds back
   }
-  if ((act === 1 || act === 3) && ceil > 0.60){
-    if (act === 1 && energy > 0.72) return 'wave';          // a driving build → the swell rolls in
-    return 'iris';                                          // otherwise → a focusing aperture
+  if (act === 1 && ceil > 0.60){                            // RISING
+    if (energy > 0.72) return deal(['wave', 'droste', 'halftone', 'halftone+prism']);   // a driving build
+    return deal(['iris', 'bokeh']);                                     // a gentler build
   }
+  if (act === 3 && ceil > 0.60) return deal(['iris', 'rain', 'transpose', 'stained+rain']);  // the comedown
   return 'none';
 }
 
@@ -20153,7 +20160,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'b000adee71';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '3a57d2a8bf';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -55890,6 +55897,477 @@ const LENS_TILE = `
     float z = 0.90 + 0.05 * sin(uTime * 0.4 + id.x * 1.7 + id.y * 2.9) + 0.05 * uEnergy;
     gl_FragColor = texture2D(tScene, clamp(0.5 + (m - 0.5) * z, 0.0, 1.0));
   }`;
+/* COPY — the one pass that only carries a frame to the glass: ECHO writes into
+   its own history, so when it is the last lens in an ungraded chain something
+   still has to put that history on screen. */
+const LENS_COPY = `
+  precision highp float;
+  uniform sampler2D tScene; uniform vec2 uResolution;
+  void main(){ gl_FragColor = vec4(texture2D(tScene, gl_FragCoord.xy / uResolution).rgb, 1.0); }`;
+// @lens2-start
+
+/* THE SECOND LENS WAVE — generated from one source with the TV's Lens.metal.
+   Ten lenses that bend or darken the room's own light, and where they colour
+   it they RE-VOICE it: OKLab lightness held exactly, hue and chroma lent by the
+   chord (the live ramp, the same three stops the TV reads as colA/B/C). */
+const LENS2_LIB = `
+float cbrtL(float x){ return sign(x) * exp2(log2(max(abs(x), 1e-12)) / 3.0); }
+/* OKLab, Ottosson's matrices: the space the colour engine already thinks in */
+vec3 toLab(vec3 c){
+  float l = cbrtL(0.4122214708 * c.x + 0.5363325363 * c.y + 0.0514459929 * c.z);
+  float m = cbrtL(0.2119034982 * c.x + 0.6806995451 * c.y + 0.1073969566 * c.z);
+  float s = cbrtL(0.0883024619 * c.x + 0.2817188376 * c.y + 0.6299787005 * c.z);
+  return vec3(0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+              1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+              0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s);
+}
+vec3 fromLab(vec3 q){
+  float l = q.x + 0.3963377774 * q.y + 0.2158037573 * q.z;
+  float m = q.x - 0.1055613458 * q.y - 0.0638541728 * q.z;
+  float s = q.x - 0.0894841775 * q.y - 1.2914855480 * q.z;
+  l = l * l * l; m = m * m * m; s = s * s * s;
+  return vec3(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+             -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+             -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+}
+/* RE-VOICE: the room keeps its light, the key lends its colour. OKLab L is
+   held exactly; only hue and chroma swing toward the chord colour, and the
+   chroma it lends scales with how lit the pixel already is — so the void stays
+   void and no lens ever makes light the room did not. */
+vec3 revoice(vec3 c, vec3 target, float w){
+  vec3 a = toLab(max(c, vec3(0.0)));
+  vec3 t = toLab(max(target, vec3(0.0)));
+  float tc = length(t.yz);
+  vec2 dir = tc > 1e-5 ? t.yz / tc : vec2(0.0);
+  float cc = max(length(a.yz), tc * clamp(a.x / max(t.x, 0.05), 0.0, 1.2));
+  vec2 ab = mix(a.yz, dir * cc, w);
+  return max(fromLab(vec3(a.x, ab)), vec3(0.0));
+}
+/* turn the light's hue about the OKLab axis, lightness untouched */
+vec3 hueTurn(vec3 c, float ang){
+  vec3 a = toLab(max(c, vec3(0.0)));
+  float cs = cos(ang), sn = sin(ang);
+  return max(fromLab(vec3(a.x, cs * a.y - sn * a.z, sn * a.y + cs * a.z)), vec3(0.0));
+}
+float lumaL(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+float hashL(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec2 rotL(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+vec2 cmulL(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+vec2 cdivL(vec2 a, vec2 b){ float d = max(dot(b, b), 1e-12); return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / d; }
+float atan2L(float y, float x){ return atan2(y, (abs(x) + abs(y) < 1e-12) ? 1e-12 : x); }
+`;
+const LENS2_HEAD = `
+  precision highp float;
+  uniform sampler2D tScene, tPrev, uRamp;
+  uniform vec2 uResolution;
+  uniform float uTime, uEnergy, uBeat, uBass, uKeyN;
+  #define atan2(y, x) atan(y, x)
+  #define SCENE(q) texture2D(tScene, clamp((q), 0.0, 1.0)).rgb
+  #define PREV(q) texture2D(tPrev, clamp((q), 0.0, 1.0)).rgb
+  #define RAMP(t) texture2D(uRamp, vec2(fract(t), 0.5)).rgb
+  #define CHORDF(k) RAMP((k) / 3.0)
+` + LENS2_LIB;
+const LENS_TRANSPOSE = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+      float r = length(p);
+      // one Camelot step — a perfect fifth, 25 degrees of hue — every six seconds,
+      // gliding in over the first second; the new key arrives from the centre out
+      float tt = T - r * 2.4;
+      float k = mod(floor(tt / 6.0), 72.0);
+      float g = smoothstep(0.0, 1.0, clamp(fract(tt / 6.0) / 0.18, 0.0, 1.0));
+      col = hueTurn(SCENE(uv), (k + g) * 0.436332313);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_ECHO = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 q = (uv - 0.5) * vec2(asp, 1.0);
+      float zoom = 1.016 + 0.018 * E + 0.014 * B;
+      vec2 qp = rotL(q, 0.005 + 0.008 * sin(T * 0.13)) / zoom;
+      vec2 puv = qp / vec2(asp, 1.0) + 0.5;
+      float inside = smoothstep(0.0, 0.03, min(min(puv.x, 1.0 - puv.x), min(puv.y, 1.0 - puv.y)));
+      // each older generation a step further round the colour wheel, a little dimmer
+      vec3 back = hueTurn(PREV(puv), 0.03) * (0.86 + 0.07 * E) * inside;
+      col = max(SCENE(uv), back);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_DROSTE = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+      float r = max(length(p), 1e-4);
+      vec2 w = vec2(log(r), atan2L(p.y, p.x));
+      float L = 1.3862944;                                  // ln 4: each turn, the picture a quarter the size
+      vec2 s = cmulL(w, vec2(1.0, -L / 6.2831853));         // one turn of the spiral is one step of scale
+      s.x -= T * (0.16 + 0.10 * E);                         // and it falls inward forever
+      float lev = floor(s.x / L);
+      float u = s.x - lev * L - L;                          // [-L, 0): radius 1/4 .. 1
+      vec2 d0 = exp(u) * vec2(cos(s.y), sin(s.y));
+      vec2 d1 = exp(u - L) * vec2(cos(s.y), sin(s.y));
+      vec3 a0 = SCENE(d0 * 0.48 / vec2(asp, 1.0) + 0.5);
+      vec3 a1 = SCENE(d1 * 0.48 / vec2(asp, 1.0) + 0.5);
+      vec3 sc = mix(a0, a1, smoothstep(-0.3, 0.0, u));      // the seam crossfades into the next ring down
+      float f = fract(s.x / L);
+      float k = mod(lev, 3.0);
+      vec3 vA = revoice(sc, CHORDF(k), 0.5);
+      vec3 vB = revoice(sc, CHORDF(mod(k + 1.0, 3.0)), 0.5);
+      col = mix(vA, vB, smoothstep(0.8, 1.0, f));
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_HYPERBOLIC = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+      vec2 z = p / 0.47;
+      float rz = length(z);
+      // the whole tiling drifts by a Mobius translation, an isometry of the disk
+      vec2 a = 0.34 * vec2(cos(T * 0.07), sin(T * 0.053));
+      z = cdivL(z + a, vec2(1.0, 0.0) + cmulL(vec2(a.x, -a.y), z));
+      vec2 nA = vec2(-0.4338837, 0.9009689);
+      vec2 cC = vec2(2.0121922, 0.0);
+      float rr = 3.0489173;
+      float n = 0.0;
+      for (int i = 0; i < 28; i++){
+        if (z.y < 0.0){ z.y = -z.y; n += 1.0; }
+        float dA = dot(z, nA);
+        if (dA > 0.0){ z -= 2.0 * dA * nA; n += 1.0; }
+        vec2 dc = z - cC;
+        float l2 = dot(dc, dc);
+        if (l2 < rr){ z = cC + dc * (rr / max(l2, 1e-9)); n += 1.0; }
+      }
+      float edge = min(min(z.y, -dot(z, nA)), length(z - cC) - 1.7461149);
+      // every fundamental triangle is a stretched, mirrored copy of the WHOLE frame,
+      // so each tile carries the room's light wherever the room happens to be lit —
+      // the way each of Escher's fish is the same fish, only nearer the edge
+      vec2 tq = vec2(z.x / 0.2660772, z.y / 0.1281360);
+      vec2 suv = vec2(fract(tq.x * 0.5 + 0.25 + 0.02 * T), clamp(tq.y, 0.0, 1.0));
+      vec2 tuv = vec2(0.08 + 0.84 * suv.x, 0.08 + 0.84 * suv.y);
+      vec3 sc = SCENE(tuv);
+      // near the rim a tile is a few pixels wide and the room's thin lines alias
+      // away: there the tile fills with the room's broad light instead (a coarse
+      // five-tap average), so the disk stays lit to its edge
+      vec3 broad = (SCENE(tuv + vec2(0.06, 0.0)) + SCENE(tuv - vec2(0.06, 0.0))
+                  + SCENE(tuv + vec2(0.0, 0.06)) + SCENE(tuv - vec2(0.0, 0.06)) + sc) * 0.2;
+      float shrink = (1.0 - rz * rz) * 0.47 * RES.y;      // pixels per unit length here
+      vec3 tile = mix(broad * 2.4, max(sc, broad * 1.5), smoothstep(40.0, 140.0, shrink));
+      vec3 v = revoice(tile, CHORDF(mod(n, 2.0)), 0.55);
+      float lead = 0.55 + 0.45 * smoothstep(0.0, 1.5 / max(shrink, 1.0), edge);
+      col = v * lead * smoothstep(1.0, 0.97, rz);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_STAINED = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    float cell = 0.075 + 0.05 * clamp(BASS, 0.0, 1.0);
+      vec2 p = (uv - 0.5) * vec2(asp, 1.0) / cell;
+      vec2 ip = floor(p), fp = fract(p);
+      float d1 = 8.0, d2 = 8.0;
+      vec2 bid = vec2(0.0), bseed = vec2(0.0);
+      for (int j = -1; j <= 1; j++){
+        for (int i = -1; i <= 1; i++){
+          vec2 g = vec2(float(i), float(j));
+          vec2 id = ip + g;
+          vec2 o = vec2(hashL(id), hashL(id + 17.3));
+          o = 0.5 + 0.38 * sin(T * 0.15 + 6.2831853 * o);
+          vec2 rv = g + o - fp;
+          float d = dot(rv, rv);
+          if (d < d1){ d2 = d1; d1 = d; bid = id; bseed = id + o; }
+          else if (d < d2){ d2 = d; }
+        }
+      }
+      float edge = (sqrt(d2) - sqrt(d1)) * cell;
+      vec3 sc = mix(SCENE(bseed * cell / vec2(asp, 1.0) + 0.5), SCENE(uv), 0.25);
+      vec3 v = revoice(sc, CHORDF(floor(hashL(bid + 5.1) * 3.0)), 0.6);
+      col = v * (0.82 + 0.18 * hashL(bid + 9.7)) * smoothstep(0.003, 0.009, edge);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_HALFTONE = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 px = uv * RES;
+      float cellPx = max(6.0, RES.y / 72.0);
+      vec3 acc = vec3(0.0);
+      float cov = 0.0;
+      for (int k = 0; k < 3; k++){
+        float ang = k == 0 ? 0.2617994 : (k == 1 ? 1.3089969 : 0.7853982);   // 15, 75, 45 degrees
+        vec2 q = rotL(px, ang) / cellPx;
+        vec2 f = fract(q) - 0.5;
+        vec2 cuv = rotL((floor(q) + 0.5) * cellPx, -ang) / RES;
+        vec3 cs = SCENE(cuv);
+        float lum = clamp(toLab(max(cs, vec3(0.0))).x, 0.0, 1.0);
+        float rad = 0.62 * sqrt(lum);
+        float e = 1.0 / cellPx;
+        float dotm = smoothstep(rad + e, rad - e, length(f));
+        acc += revoice(cs, CHORDF(float(k)), 0.75) * dotm;
+        cov += dotm;
+      }
+      col = acc / max(cov, 1.0);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_RAIN = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 p = uv * vec2(asp, 1.0);
+      vec2 off = vec2(0.0);
+      float shade = 1.0;
+      for (int l = 0; l < 2; l++){
+        float cs = l == 0 ? 0.17 : 0.1;
+        float speed = l == 0 ? 0.11 : 0.0;                    // the near drops slide, the far ones cling
+        vec2 a = vec2(p.x / cs, p.y / (cs * 1.4));
+        float colH = hashL(vec2(floor(a.x), float(l) * 7.1));
+        a.y += T * speed * (0.6 + 0.8 * colH) * (1.0 + 0.6 * E) / (cs * 1.4);
+        vec2 id = floor(a);
+        vec2 f = fract(a) - 0.5;
+        float h1 = hashL(id + float(l) * 3.3), h2 = hashL(id + 11.7), h3 = hashL(id + 29.1);
+        float life = fract(T * 0.07 + h3);                    // drops come and go; the beat brings more
+        float on = step(0.3 - 0.2 * B, h2) * smoothstep(0.0, 0.08, life) * smoothstep(1.0, 0.85, life);
+        vec2 c = vec2(0.3 * (h1 - 0.5), 0.3 * (h3 - 0.5));
+        float rd = (0.14 + 0.14 * h1) * on;
+        vec2 dq = (f - c) * vec2(1.0, 1.4);
+        float d = length(dq) / max(rd, 1e-4);
+        if (d < 1.0){
+          // a ball lens: the view through the drop is turned upside down and pulled in
+          off += -dq / vec2(1.0, 1.4) * cs * vec2(1.0 / asp, 1.0 / 1.4) * 0.9;
+          shade *= mix(1.0, 0.5, pow(d, 6.0));          // only the very rim darkens, where the glass bends hardest
+        }
+      }
+      col = SCENE(uv + off) * shade;
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_GRATING = LENS2_HEAD + GLSL_CIE + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 c = uv - 0.5;
+      float k = (0.016 + 0.03 * E) * (1.0 + 0.15 * sin(T * 0.6));
+      vec2 ch0 = toLab(max(CHORDF(0.0), vec3(0.0))).yz;
+      vec2 ch1 = toLab(max(CHORDF(1.0), vec3(0.0))).yz;
+      vec2 ch2 = toLab(max(CHORDF(2.0), vec3(0.0))).yz;
+      vec3 acc = vec3(0.0), wsum = vec3(0.0);
+      for (int i = 0; i < 8; i++){
+        float lam = 405.0 + 36.0 * float(i);
+        vec3 w = wavelengthLinearRGB(lam);
+        vec2 wl = toLab(max(w, vec3(0.0))).yz;
+        vec2 wn = wl / max(length(wl), 1e-5);
+        float pass = max(max(dot(wn, ch0 / max(length(ch0), 1e-5)), dot(wn, ch1 / max(length(ch1), 1e-5))),
+                         dot(wn, ch2 / max(length(ch2), 1e-5)));
+        w *= 0.3 + 0.7 * clamp(pass, 0.0, 1.0);             // the chord as a filter on the spectrum
+        vec3 s = SCENE(uv + c * k * (lam - 530.0) / 125.0);
+        acc += s * w;
+        wsum += w;
+      }
+      col = acc / max(wsum, vec3(1e-4));                    // per channel: a flat white field stays white
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_BOKEH = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec2 p = (uv - 0.5) * vec2(asp, 1.0);
+      float band = 0.08 + 0.05 * sin(T * 0.21);
+      float blur = clamp((abs(p.y + 0.06 * sin(T * 0.13)) - band) * 0.10, 0.0, 0.035) * (0.7 + 0.6 * E);
+      float nB = KEYN > 0.5 ? 5.0 + mod(KEYN, 4.0) : 6.0;   // 5 to 8 blades
+      float seg = 6.2831853 / nB;
+      vec3 acc = vec3(0.0);
+      float ws = 0.0;
+      for (int i = 0; i < 24; i++){
+        float fi = float(i);
+        float a = fi * 2.3999632 + T * 0.05;                // the golden angle fills the aperture evenly
+        float am = mod(a, seg) - 0.5 * seg;
+        float poly = cos(0.5 * seg) / cos(am);              // the polygon's radius at this angle
+        vec2 o = sqrt((fi + 0.5) / 24.0) * poly * vec2(cos(a), sin(a)) * blur;
+        vec3 s = SCENE(uv + o / vec2(asp, 1.0));
+        float l = lumaL(s);
+        float w = 1.0 + 6.0 * l * l;                        // highlights open into discs
+        acc += s * w;
+        ws += w;
+      }
+      col = acc / ws;
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS_CONTOUR = LENS2_HEAD + `
+  void main(){
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float asp = uResolution.x / max(1.0, uResolution.y);
+    float T = uTime, E = uEnergy, B = uBeat, BASS = uBass, KEYN = uKeyN;
+    vec2 RES = uResolution;
+    vec3 col;
+    vec3 s = SCENE(uv);
+      vec2 px = 1.5 / RES;
+      float L0 = toLab(max(s, vec3(0.0))).x;
+      float Lx = toLab(max(SCENE(uv + vec2(px.x, 0.0)), vec3(0.0))).x;
+      float Ly = toLab(max(SCENE(uv + vec2(0.0, px.y)), vec3(0.0))).x;
+      float gL = length(vec2(Lx - L0, Ly - L0)) / 1.5;      // lightness change per pixel
+      float t = L0 / 0.07;
+      float dl = abs(fract(t + 0.5) - 0.5) * 0.07 / max(gL, 1e-4);
+      // where the contours crowd closer than ~2 px the line is a thin bright feature, not a slope: leave it lit
+      float line = (1.0 - smoothstep(0.6, 1.6, dl)) * smoothstep(0.5, 0.2, gL / 0.07);
+      vec3 v = revoice(s, CHORDF(mod(floor(t), 3.0)), 0.6);
+      col = v * (1.0 - 0.85 * line);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const LENS2_FRAGS = { transpose: LENS_TRANSPOSE, echo: LENS_ECHO, droste: LENS_DROSTE, hyperbolic: LENS_HYPERBOLIC, stained: LENS_STAINED, halftone: LENS_HALFTONE, rain: LENS_RAIN, grating: LENS_GRATING, bokeh: LENS_BOKEH, contour: LENS_CONTOUR };
+const LENS2_META = {
+  singles: [
+    {
+      key: "transpose",
+      code: 8,
+      label: "TRANSPOSE",
+      concept: "the key walks the circle of fifths through the light"
+    },
+    {
+      key: "echo",
+      code: 9,
+      label: "ECHO",
+      concept: "every frame falls back into the next, turning round the wheel"
+    },
+    {
+      key: "droste",
+      code: 10,
+      label: "DROSTE",
+      concept: "the picture spirals into itself, a chord step each turn"
+    },
+    {
+      key: "hyperbolic",
+      code: 11,
+      label: "HYPERBOLIC",
+      concept: "Escher's disk: seven triangles round every corner"
+    },
+    {
+      key: "stained",
+      code: 12,
+      label: "STAINED GLASS",
+      concept: "leaded cells, each one voice of the chord"
+    },
+    {
+      key: "halftone",
+      code: 13,
+      label: "HALFTONE",
+      concept: "printed in the chord: three inks at the old screen angles"
+    },
+    {
+      key: "rain",
+      code: 14,
+      label: "RAIN",
+      concept: "drops on the glass, each one a little lens"
+    },
+    {
+      key: "grating",
+      code: 15,
+      label: "GRATING",
+      concept: "a diffraction grating, its rainbow filtered through the chord"
+    },
+    {
+      key: "bokeh",
+      code: 16,
+      label: "BOKEH",
+      concept: "out of focus through an aperture with as many blades as the key says"
+    },
+    {
+      key: "contour",
+      code: 17,
+      label: "CONTOUR",
+      concept: "the light drawn as a map, each level a voice of the chord"
+    }
+  ],
+  codes: {
+    mirrors: 0,
+    wave: 1,
+    prism: 2,
+    iris: 3,
+    tile: 4,
+    moire: 5
+  },
+  stacks: [
+    {
+      key: "mirrors+echo",
+      code: 18,
+      members: [
+        "mirrors",
+        "echo"
+      ],
+      label: "MIRRORS×ECHO",
+      concept: "a kaleidoscope falling into itself"
+    },
+    {
+      key: "droste+transpose",
+      code: 19,
+      members: [
+        "droste",
+        "transpose"
+      ],
+      label: "DROSTE×TRANSPOSE",
+      concept: "the spiral turning through the key change"
+    },
+    {
+      key: "stained+rain",
+      code: 20,
+      members: [
+        "stained",
+        "rain"
+      ],
+      label: "STAINED×RAIN",
+      concept: "a cathedral window in the rain"
+    },
+    {
+      key: "halftone+prism",
+      code: 21,
+      members: [
+        "halftone",
+        "prism"
+      ],
+      label: "HALFTONE×PRISM",
+      concept: "misregistered print"
+    },
+    {
+      key: "hyperbolic+contour",
+      code: 22,
+      members: [
+        "hyperbolic",
+        "contour"
+      ],
+      label: "HYPERBOLIC×CONTOUR",
+      concept: "Escher's Circle Limit drawn as a map"
+    }
+  ]
+};
+// @lens2-end
 /* GRADE — the last pass, and the one that actually ends the washout.
 
    Per-layer ink stops a single sprite from bleaching itself, but it cannot
@@ -56424,24 +56902,36 @@ const LENS = {
   // build) — clean glass the rest of the time. The singles + two STACKS below
   // stay hand-cyclable for anyone who wants to drive it themselves.
   active: 'auto',
-  order: ['auto', 'none', 'mirrors', 'wave', 'prism', 'tile', 'moire', 'iris',
-    'mirrors+moire', 'mirrors+iris', 'wave+mirrors', 'tile+prism'],
+  order: ['auto', 'none', 'mirrors', 'wave', 'prism', 'tile', 'moire', 'iris']
+    .concat(LENS2_META.singles.map(l => l.key))
+    .concat(['mirrors+moire', 'mirrors+iris', 'wave+mirrors', 'tile+prism'])
+    .concat(LENS2_META.stacks.map(l => l.key)),
   labels: { auto: 'AUTO', none: 'NONE', mirrors: 'MIRRORS', wave: 'WAVE', prism: 'PRISM',
     tile: 'TILE', moire: 'MOIRÉ', iris: 'IRIS',
     'mirrors+moire': 'MIRRORS×MOIRÉ', 'mirrors+iris': 'MIRRORS×IRIS',
-    'wave+mirrors': 'WAVE×MIRRORS', 'tile+prism': 'TILE×PRISM' },
+    'wave+mirrors': 'WAVE×MIRRORS', 'tile+prism': 'TILE×PRISM',
+    ...Object.fromEntries(LENS2_META.singles.concat(LENS2_META.stacks).map(l => [l.key, l.label])) },
   concepts: { auto: 'the director reads the song and picks the look', mirrors: 'N-fold symmetry',
     wave: 'a ripple rolling through the light', prism: 'the colour channels refract apart',
     tile: 'the scene relays itself across a mirrored grid',
     moire: 'wave interference', iris: 'a breathing aperture',
     'mirrors+moire': 'symmetry × interference', 'mirrors+iris': 'symmetry, seen through an aperture',
-    'wave+mirrors': 'a ripple, folded into symmetry', 'tile+prism': 'a relayed grid, refracted' },
+    'wave+mirrors': 'a ripple, folded into symmetry', 'tile+prism': 'a relayed grid, refracted',
+    ...Object.fromEntries(LENS2_META.singles.concat(LENS2_META.stacks).map(l => [l.key, l.concept])) },
   // a stack is just an ordered list of single lenses the chain runs in sequence
   stacks: { 'mirrors+moire': ['mirrors', 'moire'], 'mirrors+iris': ['mirrors', 'iris'],
-    'wave+mirrors': ['wave', 'mirrors'], 'tile+prism': ['tile', 'prism'] },
+    'wave+mirrors': ['wave', 'mirrors'], 'tile+prism': ['tile', 'prism'],
+    ...Object.fromEntries(LENS2_META.stacks.map(l => [l.key, l.members])) },
   scale: 0.7,
   _resolved: 'none', _holdT: 0,      // AUTO: the lens the director has settled on, and how long to hold it
   _ready: false, _hdr: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
+  /* ECHO keeps its own last frame: two targets it ping-pongs between, never
+     touched by the chain's ordinary ping-pong, so the history cannot be
+     overwritten by the lens that follows it. _echoLive says whether last frame
+     ran the echo at all — a stale history from a minute ago must never surface. */
+  _rtE: null, _eI: 0, _echoLive: false, _opt: null,
+  _keyN: { value: 0 },                 // the song's Camelot number: BOKEH's blade count reads it
+  _deals: 0,                           // AUTO's dealing counter: equal choices take turns
 
   /* Can this device accumulate above 1.0? Asked, never assumed: WebGL1 without
      the extension, and some WebGL2 drivers that advertise half-float textures
@@ -56476,6 +56966,7 @@ const LENS = {
     // HDR where the driver allows it — the sum has to survive above 1.0 long
     // enough for GRADE to compress it. Otherwise LDR exactly as before.
     if (this._hdr) opt.type = THREE.HalfFloatType;
+    this._opt = opt;
     this._rtA = new THREE.WebGLRenderTarget(2, 2, opt);
     this._rtB = new THREE.WebGLRenderTarget(2, 2, opt);
     const g = new THREE.BufferGeometry();
@@ -56486,6 +56977,9 @@ const LENS = {
     const mk = frag => new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, uResolution: { value: new THREE.Vector2(1, 1) },
         uTime: U.uTime, uEnergy: U.uEnergy, uBeat: U.uBeat, uWhite: U.uWhite, uSectors: { value: 6 },
+        // the second wave reads the colour engine's live ramp — the chord's
+        // three stops — and the key; ECHO also reads its own last frame
+        uRamp: U.uRamp, uBass: U.uBass, uKeyN: this._keyN, tPrev: { value: null },
         // the FIELD pass shares the hand's uniform objects with every point
         // shader by reference, so the light and the matter cannot disagree
         uPtr: U.uPtr, uPtrX: U.uPtrX, uPtrF: U.uPtrF, uPtr2: U.uPtr2 },
@@ -56493,13 +56987,14 @@ const LENS = {
     });
     this._mats = { mirrors: mk(LENS_KALEIDO), moire: mk(LENS_MOIRE), iris: mk(LENS_IRIS),
       wave: mk(LENS_WAVE), prism: mk(LENS_PRISM), tile: mk(LENS_TILE), grade: mk(LENS_GRADE),
-      field: mk(LENS_FIELD), fieldLean: mk(LENS_FIELD_LEAN) };
+      field: mk(LENS_FIELD), fieldLean: mk(LENS_FIELD_LEAN), copy: mk(LENS_COPY) };
+    for (const k in LENS2_FRAGS) this._mats[k] = mk(LENS2_FRAGS[k]);
     /* The transition needs a SECOND texture — the frozen room — so it cannot
        come out of mk(), which exists to make every lens interchangeable on one
        scene input. It shares the live uniform objects by reference exactly the
        way the others do, so the seam's palette and the room's palette are the
        same object and cannot drift apart mid-cut. */
-    if (String(this.active === 'auto' ? this._resolved : this.active).indexOf('mirrors') >= 0) this._dealSectors();
+    this._dealSectors();
     this._mats.xform = new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, tGhost: { value: null },
         uResolution: { value: new THREE.Vector2(1, 1) },
@@ -56534,6 +57029,7 @@ const LENS = {
         || (typeof POWER !== 'undefined' && !POWER.lensOK),
       ceil: director.ceil, act: director.act, energy: AE.f.energy,
       major: cam ? cam.l === 'B' : true,                      // B = major/brighter; unknown → treat as bright
+      salt: this._deals++,                                    // equal choices take turns, look after look
     });
   },
   // the kaleido's fold count is a musical judgement too: a major key opens
@@ -56546,6 +57042,7 @@ const LENS = {
     const cam = m && m.key ? camelotParse(m.key) : null;
     const major = cam ? cam.l === 'B' : true;
     this._mats.mirrors.uniforms.uSectors.value = major ? 8 : 6;
+    this._keyN.value = cam ? cam.n : 0;
   },
   autoTick(dt){
     if (this.active !== 'auto') return;
@@ -56555,14 +57052,14 @@ const LENS = {
     this._holdT = want === 'none' ? 3.0 : 9.0;               // linger on a look; re-check clean state sooner
     if (want !== this._resolved){
       this._resolved = want;
-      if (String(want).indexOf('mirrors') >= 0) this._dealSectors();
+      this._dealSectors();                                    // the fold and the blades, dealt with the look
       this.paint();
     }
   },
   set(key, save){
     if (!(key in this.labels)) key = 'none';
     this.active = key;
-    if (String(key).indexOf('mirrors') >= 0) this._dealSectors();
+    this._dealSectors();
     if (save !== false){ try { localStorage.setItem('mb8_lens', key); } catch (e){} }
     this.paint();
   },
@@ -56651,16 +57148,46 @@ const LENS = {
     renderer.autoClear = true; renderer.render(bgScene, bgCam);
     renderer.autoClear = false; renderer.render(scene, camera);
     renderer.autoClear = true;
-    let src = this._rtA, dst = this._rtB;
+    /* ECHO is the one lens with a memory. It never writes into the ping-pong
+       pair: it reads the scene plus its OWN last frame and writes the next one
+       into its private pair, so whatever lens runs after it can only read the
+       history, never overwrite it. Every other pass simply takes whichever of
+       rtA/rtB is not its source. */
+    const echoMat = this._mats.echo;
+    let echoRan = false;
+    if (passes.indexOf(echoMat) >= 0){
+      if (!this._rtE) this._rtE = [new THREE.WebGLRenderTarget(2, 2, this._opt), new THREE.WebGLRenderTarget(2, 2, this._opt)];
+      for (const rt of this._rtE) if (rt.width !== w || rt.height !== h){ rt.setSize(w, h); this._echoLive = false; }
+      if (this._rtB.width !== w || this._rtB.height !== h) this._rtB.setSize(w, h);
+    }
+    let src = this._rtA;
     for (let i = 0; i < passes.length; i++){
       const last = i === passes.length - 1, m = passes[i];
       m.uniforms.tScene.value = src.texture;
+      if (m === echoMat){
+        const into = this._rtE[this._eI];
+        // a history from a frame that never ran the echo is no history: start from now
+        m.uniforms.tPrev.value = this._echoLive ? this._rtE[this._eI ^ 1].texture : src.texture;
+        m.uniforms.uResolution.value.set(w, h);
+        this._tri.material = m;
+        renderer.setRenderTarget(into);
+        renderer.render(this._fs, this._cam);
+        this._eI ^= 1; echoRan = true; src = into;
+        if (last){                                       // the history still has to reach the glass
+          const c = this._mats.copy;
+          c.uniforms.tScene.value = into.texture; c.uniforms.uResolution.value.set(dw, dh);
+          this._tri.material = c; renderer.setRenderTarget(null); renderer.render(this._fs, this._cam);
+        }
+        continue;
+      }
+      const dst = src === this._rtA ? this._rtB : this._rtA;
       m.uniforms.uResolution.value.set(last ? dw : w, last ? dh : h);
       this._tri.material = m;
       renderer.setRenderTarget(last ? null : dst);       // last pass → the glass
       renderer.render(this._fs, this._cam);
-      const t = src; src = dst; dst = t;
+      src = dst;
     }
+    this._echoLive = echoRan;
     renderer.setRenderTarget(null);
   },
 };
