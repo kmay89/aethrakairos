@@ -565,10 +565,13 @@ enum Rooms {
              tasteEnergy: 0.2, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0.5,
              tasteMid: 0.3, tasteEntropy: -0.3, heavy: true),
 
-        // SPECTRAL (Shaders42): rings of rings, one band of the music per scale.
+        // SPECTRAL (Shaders42): rings threaded on rings, Knighty's distance-estimated
+        // IFS from a torus, seven scales deep — each scale's thickness one slice of
+        // the 64 log bands (sub-bass the great ring, the air the finest wire), the
+        // beat a lamp falling down the scales. Raymarched: heavy.
         Room(key: "spectral", name: "SPECTRAL", fragmentFunction: "room_spectral",
-             tasteEnergy: 0.2, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.3,
-             tasteMid: 0.3, tasteBass: 0.3),
+             tasteEnergy: 0.3, tasteCalm: 0, tasteBeat: 0.2, tasteTreble: 0.5,
+             tasteMid: 0.3, tasteBass: 0.4, tasteEntropy: -0.1, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
