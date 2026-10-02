@@ -551,9 +551,13 @@ enum Rooms {
              tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
              tasteBass: 0.3, tasteEntropy: -0.2, heavy: true),
 
-        // PLOTTER (Shaders41): pen-plotter line art on a fractal.
+        // PLOTTER (Shaders41): a sphereflake drawn as a pen plotter would draw it,
+        // thin chord-coloured lines on the void with every hidden line removed —
+        // section planes, a light-swollen hatch, isolines about each bead's
+        // sockets, or the outline pen alone. Not heavy: a 96-step march over a
+        // 7-level IFS that stops descending once a subtree cannot come nearer.
         Room(key: "plotter", name: "PLOTTER", fragmentFunction: "room_plotter",
-             tasteEnergy: 0.2, tasteCalm: 0, tasteBeat: 0, tasteTreble: 0.4,
+             tasteEnergy: 0.2, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0.5,
              tasteMid: 0.3, tasteEntropy: -0.3),
 
         // SPECTRAL (Shaders42): rings of rings, one band of the music per scale.
