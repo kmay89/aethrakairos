@@ -25,7 +25,9 @@ using namespace metal;
    FACES (roll0..2, the same three dice the web's roll() deals): the fold
    THREEFOLD / FOURFOLD / FIVEFOLD; the primitive TORUS / BEADS; the framing
    THE MANDALA (near the axis) / THE CROWN (a low orbit) / THE PENDANT
-   (swinging on its vertical axis, never edge-on).
+   (hung in three-quarter view, swinging slowly on its vertical axis 37..71
+   degrees from face-on: never face-on, never edge-on). The whole jewel
+   drifts slowly off the centre line and back.
 
    Level of detail is pixel-footprint against a FIXED 1080-line reference
    (this room renders at 1080 lines on the TV, heavy), so both stages
@@ -33,9 +35,14 @@ using namespace metal;
    scales retract into a line-integrated haze. Tubes keep a one-pixel floor
    with brightness scaled by true width over drawn width, near misses are
    painted as analytic rim coverage (closest approach where two empty
-   spheres meet), AO is two DE taps along the normal, the beat is a lamp
-   travelling down the scales plus a small key swell. Misses and spent
-   marches go to the void.
+   spheres meet), a tube thinner than a pixel is a front layer the march
+   goes on through (coverage, not a wall), AO is two DE taps along the
+   normal, and shading walks the chord ramp to the rim tone instead of
+   blending two chord tones. The beat is a lamp falling down the scales from
+   the great ring into the dust before the next beat, positioned by the
+   grid's beat phase (the clock both stages share; the onset envelope when
+   there is no grid), plus a small key swell. Misses and spent marches go to
+   the void.
 
    PROVENANCE: the distance-estimated IFS built from primitives ("mdifs"),
    Knighty, fractalforums.com, 2012 — fold by a symmetry group, scale toward
@@ -68,7 +75,6 @@ struct VizUniforms {
 
 namespace rm_sp {
 
-constant float PI = 3.14159265359;
 constant float3 VOID = float3(0.019608, 0.023529, 0.054902);
 constant float TH = 0.36;            // tan of the half vertical field of view
 constant float REFH = 1080.0;        // the level of detail is measured against 1080 lines
@@ -97,10 +103,9 @@ inline float3 chordRamp(constant VizUniforms& U, float t) {
 #define vec2 float2
 #define vec3 float3
 #define vec4 float4
-#define mod(a, b) ((a) - (b) * floor((a) / (b)))
-#define inversesqrt rsqrt
 #define INOUT(T, n) thread T& n
-float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+
+inline float spHash(vec2 p){ p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
 
 struct SpCtx {
     vec2 u1; vec2 u2; vec2 u3; vec2 u4;   // the cyclic group's sector axes (k = 1..4; k = 0 is +x)
@@ -108,7 +113,7 @@ struct SpCtx {
     vec2 w0; vec2 wd;                     // level-0 roll, and the roll added per level
     vec4 thA; vec4 thB;                   // per-scale tube (or bead) radius, in that scale's units
     vec4 bnA; vec4 bnB;                   // per-scale shaped band 0..1
-    float sc; float prim; float bmax; float lod; float rb;
+    float sc; float lsc; float prim; float bmax; float lod; float rb;
     float pr; float pa;                   // world size of one reference / one real pixel, per unit distance
     float lv; float cov; float hz; float hzW; float hzL;   // outputs of the last DE
 };
@@ -208,7 +213,9 @@ fragment float4 room_spectral(float4 pos [[position]],
 {
     using namespace rm_sp;
 #define ramp(t) chordRamp(U, (t))
-    float uTime = U.time, uEnergy = U.energy, uBeat = U.onsetEnv, uCalm = U.calm;
+    // calm: the TV's analyser counts it DOWN from 1 as the music gets loud (1 - energy over 2.5 s);
+    // the web's f.calm counts UP (energy over 2.5 s). This room reads the web's sense on both stages.
+    float uTime = U.time, uEnergy = U.energy, uBeat = U.onsetEnv, uCalm = 1.0 - U.calm;
     vec2 uRes = max(res, float2(1.0));
 
     // the faces: roll0 the fold, roll1 the primitive, roll2 the framing
@@ -249,6 +256,7 @@ fragment float4 room_spectral(float4 pos [[position]],
     c.lod = nF < 3.5 ? 0.85 : (nF < 4.5 ? 1.0 : 1.45);  // a denser fold retracts sooner, so it never clots
     c.prim = prim;
     c.rb = c.sc / (c.sc - 1.0) + 0.3;                 // a subtree's bounding radius, in its own scale
+    c.lsc = log2(c.sc);
 
     float tc = uTime + seed * 977.0;
     // structural life: the great ring turns once in 283 s; each finer scale rolls a little faster,
@@ -289,8 +297,10 @@ fragment float4 room_spectral(float4 pos [[position]],
         ro = ta + D * vec3(cos(e) * cos(ph), cos(e) * sin(ph), sin(e));
         upH = vec3(0.0, 0.0, 1.0);
     } else {
-        // THE PENDANT: the jewel swings on its vertical axis, up to 60 degrees either way, never edge-on
-        float be = 0.80 * sin(spPh(tc, 211.0)) + 0.24 * sin(spPh(tc, 83.0) + 0.7);
+        // THE PENDANT: the jewel hangs in three-quarter view and swings slowly on its vertical axis,
+        // 37..71 degrees from face-on (the seed picks the side): never face-on, never edge-on
+        float sd = seed < 0.5 ? -1.0 : 1.0;
+        float be = sd * (0.94 + 0.24 * sin(spPh(tc, 211.0)) + 0.06 * sin(spPh(tc, 83.0) + 0.7));
         float e = 0.16 * sin(spPh(tc, 167.0)) + 0.06 * sin(spPh(tc, 71.0));
         float D = R / (0.82 * TH) * (1.0 + 0.04 * sin(spPh(tc, 127.0)));
         ro = D * vec3(sin(be) * cos(e), sin(e), cos(be) * cos(e));
@@ -301,8 +311,12 @@ fragment float4 room_spectral(float4 pos [[position]],
     vec3 rt = normalize(cross(fw, upH));
     vec3 up = cross(rt, fw);
     float aspect = uRes.x / uRes.y;
+    // the jewel drifts slowly off the centre line and back (a lens shift: the picture slides,
+    // the perspective holds), as far as the screen is wider than it is tall allows
+    float drift = 0.11 * clamp(aspect - 1.0, 0.0, 1.0) * (frame > 0.5 && frame < 1.5 ? 0.6 : 1.0)
+                * (0.8 * sin(spPh(tc, 193.0)) + 0.2 * sin(spPh(tc, 79.0) + 2.0));
     // Metal's pixel origin is top-left; the web's vUv runs bottom-up
-    vec2 uv = (pos.xy / uRes - 0.5) * vec2(aspect, -1.0);
+    vec2 uv = (pos.xy / uRes - 0.5) * vec2(aspect, -1.0) - vec2(drift, 0.0);
     vec3 rd = normalize(fw + 2.0 * TH * (uv.x * rt + uv.y * up));
     // the level of detail is measured against 1080 lines; only a starved render (below 675 real
     // lines) coarsens it, so scales finer than its pixels go to haze, not grain
@@ -311,9 +325,14 @@ fragment float4 room_spectral(float4 pos [[position]],
 
     vec3 ldK = normalize(-0.55 * fw + 0.65 * up - 0.35 * rt);     // key: upper left, in front
     vec3 ldF = normalize(-0.30 * fw - 0.35 * up + 0.80 * rt);     // chord fill: lower right
+    // THE BEAT: a lamp struck on the great ring that falls down the scales into the dust before
+    // the next beat. With a grid it rides the beat phase, the clock both stages share; without
+    // one, the onset envelope. The hit lights it and a beating passage holds it up; silence never does.
+    // (The analyser holds barPhase and beatPhase at exactly 0 while it has no beats: that is "no grid".)
     float bt = clamp(uBeat, 0.0, 1.0);
-    float pulsePos = (1.0 - bt) * 7.0 - 0.5;                      // the struck lamp falls down the scales
-    float pulseAmp = sqrt(bt);
+    float bph = (U.barPhase + U.beatPhase > 0.0) ? fract(U.barPhase * 4.0) : 1.0 - bt;
+    float pulseAmp = (1.0 - bph) * mix(0.35 * smoothstep(0.12, 0.40, uEnergy), 1.0, bt);
+    float pulsePos = bph * 8.5 - 0.5;
     float colPh = 0.06 * sin(spPh(tc, 241.0)) + 0.04 * uCalm;
 
     vec3 col = vec3(0.0);
@@ -326,11 +345,24 @@ fragment float4 room_spectral(float4 pos [[position]],
         float dPrev = 0.0, tPrev = -1.0;
         float rMin = 1e9, lvMin = 0.0, cvMin = 1.0, tMin = 0.0;
         float eA = 0.0, eL = 0.0, eC = 1.0, eT = 0.0;
+        float fT = -1.0, fL = 0.0, fC = 1.0;            // the front thread: a sub-pixel tube the ray went through
         float hzA = 0.0, hzS = 0.0;                     // the haze's weight, and its weighted scale
+        float gA = 0.0, gS = 0.0;                       // the lamp's glow, and its weighted scale
         for (int i = 0; i < 100; i++){
             float prT = c.pr * t, paT = max(c.pa * t, 1e-7);
             float d = spDE(ro + rd * t, prT, paT, c);
-            if (d < 0.5 * paT){ hit = true; break; }
+            if (d < 0.5 * paT){
+                if (c.cov < 0.98 && fT < 0.0){
+                    // a tube finer than a pixel is coverage, not a wall: keep it as the front layer
+                    // and march on through it, so what lies behind still shows round it
+                    fT = t; fL = c.lv; fC = c.cov;
+                    t += 2.5 * paT;
+                    tPrev = -1.0; rMin = 1e9;
+                    if (t > t1){ out_ = true; break; }
+                    continue;
+                }
+                hit = true; break;
+            }
             // the closest approach since the last sample: where the two empty spheres
             // meet (after Aaltonen), as a fraction of a pixel
             float hs = t - tPrev;
@@ -350,9 +382,16 @@ fragment float4 room_spectral(float4 pos [[position]],
             float stp = min(d, max(c.hz, hw));
             if (c.hzW > 0.0){
                 float hl = c.hzL;
-                float hp = pulseAmp * exp(-(hl - pulsePos) * (hl - pulsePos) * 0.9);
-                float wv = c.hzW * (1.0 + 2.0 * hp) * exp(-c.hz / hw) * (stp / hw);
+                float hp = pulseAmp * exp(-(hl - pulsePos) * (hl - pulsePos) * 0.45);
+                float wv = c.hzW * (1.0 + 5.0 * hp) * exp(-c.hz / hw) * (stp / hw);
                 hzA += wv; hzS += wv * hl;
+            }
+            // the lamp's glow: light scattered round the scale it is passing, where the void has the headroom
+            float gx = c.lv - pulsePos;
+            if (pulseAmp > 0.01 && abs(gx) < 3.0){
+                float gw = max(0.10 * exp2(-c.lsc * c.lv), 2.0 * paT);
+                float gv = pulseAmp * exp(-gx * gx * 0.45 - d / gw) * (stp / gw);
+                gA += gv; gS += gv * c.lv;
             }
             t += stp * 0.92;
             if (t > t1){ out_ = true; break; }
@@ -363,10 +402,16 @@ fragment float4 room_spectral(float4 pos [[position]],
         }
         // the dust takes its scale's chord tone, resolved once (no texture fetch inside the march)
         col += ramp(0.12 * hzS / max(hzA, 1e-6) + colPh + 0.04) * hzA * 0.026 * (0.6 + 0.7 * uEnergy);
-        float pulseE = pulseAmp * exp(-(eL - pulsePos) * (eL - pulsePos) * 0.9);
-        // a near miss is a silhouette: the rim colour, at the coverage the thread earned
-        vec3 eCol = ramp(0.12 * eL + colPh + 0.33) * (0.55 + 0.45 * uEnergy + 1.6 * pulseE) * mix(1.0, 0.75, eL / 6.0)
+        col += ramp(0.12 * gS / max(gA, 1e-6) + colPh + 0.33) * gA * 0.12;
+        float pulseE = pulseAmp * exp(-(eL - pulsePos) * (eL - pulsePos) * 0.45);
+        // a near miss is a silhouette: the thread's colour, at the coverage the thread earned
+        vec3 eCol = ramp(0.12 * eL + colPh + 0.33) * (0.95 + 0.35 * uEnergy + 4.0 * pulseE) * mix(1.0, 0.92, eL / 6.0)
                   * eC * exp(-0.35 * max(eT - dist + 0.6 * R, 0.0));
+        // the front thread is a line finer than a pixel, lit as a thread the way a near miss is,
+        // laid over what lies behind it at the share of the pixel it covers
+        float pulseF = pulseAmp * exp(-(fL - pulsePos) * (fL - pulsePos) * 0.45);
+        vec3 fCol = ramp(0.12 * fL + colPh + 0.33) * (0.95 + 0.35 * uEnergy + 4.0 * pulseF) * mix(1.0, 0.92, fL / 6.0)
+                  * exp(-0.35 * max(fT - dist + 0.6 * R, 0.0));
         if (hit){
             vec3 p = ro + rd * t;
             float prT = c.pr * t, paT = max(c.pa * t, 1e-7);
@@ -383,37 +428,41 @@ fragment float4 room_spectral(float4 pos [[position]],
             float ao = clamp(1.0 - 0.55 * max(h1 - o1, 0.0) / h1 - 0.45 * max(h2 - o2, 0.0) / h2, 0.3, 1.0);
             float bl = spPick(bA, bB, int(lv + 0.5));
             float lt = lv / 6.0;
-            float pulse = pulseAmp * exp(-(lv - pulsePos) * (lv - pulsePos) * 0.9);
+            float pulse = pulseAmp * exp(-(lv - pulsePos) * (lv - pulsePos) * 0.45);
             vec3 base = ramp(0.12 * lv + colPh);
             vec3 rim = ramp(0.12 * lv + colPh + 0.33);
             vec3 sky = ramp(0.12 * lv + colPh + 0.62);
             float dif = max(dot(n, ldK), 0.0);
             float dif2 = max(dot(n, ldF), 0.0);
-            // fast math: clamp every pow base into [0,1] first
+            // fast math: clamp every pow base into (0,1] first
             float fr = pow(clamp(1.0 - dot(n, -rd), 1e-6, 1.0), 3.0);
             vec3 rf = reflect(rd, n);
             float rl = clamp(dot(rf, ldK), 1e-6, 1.0);
             float spc = pow(rl, 60.0), sheen = pow(rl, 10.0);
             // polished metal mirrors a chord sky: its third tone above, the void below
             float skyU = smoothstep(0.1, 0.9, 0.5 + 0.5 * dot(rf, up));
-            float key = 1.0 + 0.15 * bt;
-            // the shadow side leans to the rim tone instead of going brown
-            vec3 body = mix(rim * 0.65, base, 0.35 + 0.65 * dif);
-            float gain = mix(1.0, 0.76, lt) * (1.0 + 0.35 * bl);
-            vec3 lit = body * (0.40 + 0.78 * dif * key) * (0.95 + 0.3 * uEnergy)
-                     + base * 0.6 * sheen + sky * 0.30 * skyU
-                     + rim * (0.24 * dif2 + 0.90 * fr)
-                     + (base * 0.45 + rim * (0.35 + 1.3 * fr)) * 1.25 * pulse;
-            lit = lit * gain * ao + mix(base, vec3(1.0), 0.5) * spc * 0.5 * ao;
+            float key = 1.0 + 0.25 * pulseAmp;
+            // the shadow side walks the ramp toward the rim tone: never a grey blend of two chord tones
+            float kd = 0.35 + 0.65 * dif;
+            vec3 body = ramp(0.12 * lv + colPh + 0.33 * (1.0 - kd)) * mix(0.65, 1.0, kd);
+            float gain = mix(1.0, 0.92, lt) * (1.0 + 0.35 * bl);
+            vec3 lit = body * (0.58 + 0.80 * dif * key) * (1.25 + 0.15 * uEnergy)
+                     + base * 0.6 * sheen + sky * 0.45 * skyU
+                     + rim * (0.36 * dif2 + 0.90 * fr + 0.30 * lt)      // the finer the scale, the surer its lit edge
+                     + (base * 0.5 + rim * (0.35 + 1.3 * fr)) * 3.2 * pulse;
+            lit = lit * gain * ao + sky * spc * 0.6 * ao;
             float fade = exp(-0.35 * max(t - dist + 0.6 * R, 0.0));
             col += lit * fade * cvH;
-            if (eA > 0.0 && eT < t) col = mix(col, eCol, eA);
-        } else {
-            col += eCol * eA;
         }
+        // back to front: the hit, a near miss in front of it, the front thread, a near miss in front of that
+        bool eFr = fT >= 0.0 && eT < fT;
+        if (eA > 0.0 && !eFr && (!hit || eT < t)) col = hit ? mix(col, eCol, eA) : col + eCol * eA;
+        if (fT >= 0.0) col = mix(col, fCol, fC);
+        if (eA > 0.0 && eFr) col = mix(col, eCol, eA);
     }
 #undef ramp
-    col += (hash21(pos.xy) - 0.5) * 0.006;
+    // a static dither, as the web's: the pixel's own hash
+    col += (spHash(pos.xy) - 0.5) * 0.006;
     return float4(govern(max(VOID + col, float3(0.0)), U.white), 1.0);
 }
 /* ==== END ROOM REGION: SPECTRAL ==== */

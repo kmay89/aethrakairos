@@ -4223,13 +4223,15 @@ body.clipping::after{
     quarter wide, and each slice sets the thickness of one scale: the sub-bass swells the great
     ring, the air above 6&nbsp;kHz the finest wire, every band between its own generation — so a
     heavy bass line is a fat ring wearing hair-fine filigree, a bright mix a thin ring under
-    bristling lace, and the silhouette is the spectrum. Each beat strikes the great ring and its
-    light falls down the scales into the dust within half a second; a long loud passage slowly
-    winds the scales round on one another, and the whole jewel turns once every few minutes. Three
+    bristling lace, and the silhouette is the spectrum. Each beat strikes the great ring with a
+    glow, and the light falls down the scales into the dust before the next beat comes; a long loud
+    passage slowly winds the scales round on one another, and the whole jewel turns once every few
+    minutes, drifting a little off the centre and back. Three
     dice choose it: the symmetry — THREEFOLD, FOURFOLD, FIVEFOLD; the ring — a polished TORUS, or
     BEADS, a necklace whose pearls melt back into wire as they grow too small to see; and the
     view — THE MANDALA, near the axis like a rose window; THE CROWN, a low orbit with the rings
-    standing up like a crown's points; THE PENDANT, the jewel swinging on its chain.</p>
+    standing up like a crown's points; THE PENDANT, the jewel hung in three-quarter view, swinging
+    slowly on its vertical axis.</p>
     <!-- ==== END ROOM MANUAL: SPECTRAL ==== -->
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
@@ -55618,8 +55620,10 @@ function buildPlotter(){
    TORUS (a polished tube) or BEADS (a necklace whose beads melt back into
    wire as they fall below the reference pixel); the framing — THE MANDALA
    (near the axis, a rose window), THE CROWN (a low orbit, the children
-   standing up like a crown's points), THE PENDANT (the jewel turning on its
-   vertical axis, through every profile to edge-on and back).
+   standing up like a crown's points), THE PENDANT (the jewel hung in
+   three-quarter view, swinging slowly on its vertical axis between 37 and
+   71 degrees from face-on: never face-on, which is the mandala's, and never
+   edge-on). The whole jewel drifts slowly off the centre line and back.
 
    THE LAWS IT KEEPS. The level of detail is pixel-footprint, measured
    against a FIXED 1080-line reference, so the web and the TV resolve the
@@ -55628,10 +55632,16 @@ function buildPlotter(){
    (at the real resolution), with brightness scaled by true width over drawn
    width, and every near miss is painted as analytic rim coverage — so the
    finest rings are continuous lines, never dotted, and silhouettes are
-   antialiased. Ambient occlusion is two DE taps along the normal. The beat
-   is a lamp travelling DOWN the scales (struck on the great ring, gone into
-   the dust half a second later) and a small key-light swell; never a flash,
-   never a re-tiling. Misses and spent marches go to the void.
+   antialiased. A tube thinner than a pixel is coverage, not a wall: the
+   march keeps it as a front layer and goes on through it, so what lies
+   behind shows round it. Ambient occlusion is two DE taps along the normal.
+   Shading walks the colour ramp from the chord tone to its rim tone, never
+   a straight blend of two chord tones (which goes grey). The beat is a lamp
+   travelling DOWN the scales: struck on the great ring on the beat and gone
+   into the dust before the next, positioned by the grid's beat phase (the
+   clock both stages share) and by the onset envelope when there is no grid,
+   held up by a beating passage and never by silence. It is a lamp, never a
+   flash, and never a re-tiling. Misses and spent marches go to the void.
 
    PROVENANCE: the distance-estimated IFS built from primitives ("mdifs"),
    Knighty, fractalforums.com, 2012 — fold by a symmetry group, scale toward
@@ -55653,7 +55663,7 @@ const SPECTRAL_SLICE = [0, 1, 2, 3, 4, 5, 6, 7].map(i => Math.floor((i * 64 + 3)
 
 const SPECTRAL_FRAG = GLSL_MPHI + `
   uniform vec2 uRes;
-  uniform float uTime, uEnergy, uBeat, uCalm;
+  uniform float uTime, uEnergy, uBeat, uCalm, uBarPhase, uBeatIdx;
   uniform vec3 uRoll;
   uniform vec4 uLvA, uLvB;
   varying vec2 vUv;
@@ -55667,7 +55677,7 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
     vec2 w0; vec2 wd;                     // level-0 roll, and the roll added per level
     vec4 thA; vec4 thB;                   // per-scale tube (or bead) radius, in that scale's units
     vec4 bnA; vec4 bnB;                   // per-scale shaped band 0..1
-    float sc; float prim; float bmax; float lod; float rb;
+    float sc; float lsc; float prim; float bmax; float lod; float rb;
     float pr; float pa;                   // world size of one reference / one real pixel, per unit distance
     float lv; float cov; float hz; float hzW; float hzL;   // outputs of the last DE
   };
@@ -55778,6 +55788,7 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
     c.lod = nF < 3.5 ? 0.85 : (nF < 4.5 ? 1.0 : 1.45);  // a denser fold retracts sooner, so it never clots
     c.prim = prim;
     c.rb = c.sc / (c.sc - 1.0) + 0.3;                 // a subtree's bounding radius, in its own scale
+    c.lsc = log2(c.sc);
 
     float tc = uTime + seed * 977.0;
     // structural life: the great ring turns once in 283 s; each finer scale rolls a little faster,
@@ -55818,8 +55829,10 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
       ro = ta + D * vec3(cos(e) * cos(ph), cos(e) * sin(ph), sin(e));
       upH = vec3(0.0, 0.0, 1.0);
     } else {
-      // THE PENDANT: the jewel swings on its vertical axis, up to 60 degrees either way, never edge-on
-      float be = 0.80 * sin(spPh(tc, 211.0)) + 0.24 * sin(spPh(tc, 83.0) + 0.7);
+      // THE PENDANT: the jewel hangs in three-quarter view and swings slowly on its vertical axis,
+      // 37..71 degrees from face-on (the seed picks the side): never face-on, never edge-on
+      float sd = seed < 0.5 ? -1.0 : 1.0;
+      float be = sd * (0.94 + 0.24 * sin(spPh(tc, 211.0)) + 0.06 * sin(spPh(tc, 83.0) + 0.7));
       float e = 0.16 * sin(spPh(tc, 167.0)) + 0.06 * sin(spPh(tc, 71.0));
       float D = R / (0.82 * TH) * (1.0 + 0.04 * sin(spPh(tc, 127.0)));
       ro = D * vec3(sin(be) * cos(e), sin(e), cos(be) * cos(e));
@@ -55830,7 +55843,11 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
     vec3 rt = normalize(cross(fw, upH));
     vec3 up = cross(rt, fw);
     float aspect = uRes.x / max(uRes.y, 1.0);
-    vec2 uv = (vUv - 0.5) * vec2(aspect, 1.0);
+    // the jewel drifts slowly off the centre line and back (a lens shift: the picture slides,
+    // the perspective holds), as far as the screen is wider than it is tall allows
+    float drift = 0.11 * clamp(aspect - 1.0, 0.0, 1.0) * (frame > 0.5 && frame < 1.5 ? 0.6 : 1.0)
+                * (0.8 * sin(spPh(tc, 193.0)) + 0.2 * sin(spPh(tc, 79.0) + 2.0));
+    vec2 uv = (vUv - 0.5) * vec2(aspect, 1.0) - vec2(drift, 0.0);
     vec3 rd = normalize(fw + 2.0 * TH * (uv.x * rt + uv.y * up));
     // the level of detail is measured against 1080 lines; only a starved render (below 675 real
     // lines, the governor's floor) coarsens it, so scales finer than its pixels go to haze, not grain
@@ -55839,9 +55856,13 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
 
     vec3 ldK = normalize(-0.55 * fw + 0.65 * up - 0.35 * rt);     // key: upper left, in front
     vec3 ldF = normalize(-0.30 * fw - 0.35 * up + 0.80 * rt);     // chord fill: lower right
+    // THE BEAT: a lamp struck on the great ring that falls down the scales into the dust before
+    // the next beat. With a grid it rides the beat phase, the clock both stages share; without
+    // one, the onset envelope. The hit lights it and a beating passage holds it up; silence never does.
     float bt = clamp(uBeat, 0.0, 1.0);
-    float pulsePos = (1.0 - bt) * 7.0 - 0.5;                      // the struck lamp falls down the scales
-    float pulseAmp = sqrt(bt);
+    float bph = uBeatIdx > -0.5 ? fract(uBarPhase * 4.0) : 1.0 - bt;
+    float pulseAmp = (1.0 - bph) * mix(0.35 * smoothstep(0.12, 0.40, uEnergy), 1.0, bt);
+    float pulsePos = bph * 8.5 - 0.5;
     float colPh = 0.06 * sin(spPh(tc, 241.0)) + 0.04 * uCalm;
 
     vec3 col = vec3(0.0);
@@ -55854,11 +55875,24 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
       float dPrev = 0.0, tPrev = -1.0;
       float rMin = 1e9, lvMin = 0.0, cvMin = 1.0, tMin = 0.0;
       float eA = 0.0, eL = 0.0, eC = 1.0, eT = 0.0;
+      float fT = -1.0, fL = 0.0, fC = 1.0;            // the front thread: a sub-pixel tube the ray went through
       float hzA = 0.0, hzS = 0.0;                     // the haze's weight, and its weighted scale
+      float gA = 0.0, gS = 0.0;                       // the lamp's glow, and its weighted scale
       for (int i = 0; i < 100; i++){
         float prT = c.pr * t, paT = c.pa * t;
         float d = spDE(ro + rd * t, prT, paT, c);
-        if (d < 0.5 * paT){ hit = true; break; }
+        if (d < 0.5 * paT){
+          if (c.cov < 0.98 && fT < 0.0){
+            // a tube finer than a pixel is coverage, not a wall: keep it as the front layer
+            // and march on through it, so what lies behind still shows round it
+            fT = t; fL = c.lv; fC = c.cov;
+            t += 2.5 * paT;
+            tPrev = -1.0; rMin = 1e9;
+            if (t > t1){ out_ = true; break; }
+            continue;
+          }
+          hit = true; break;
+        }
         // the closest approach since the last sample: where the two empty spheres
         // meet (after Aaltonen), as a fraction of a pixel
         float hs = t - tPrev;
@@ -55878,9 +55912,16 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
         float stp = min(d, max(c.hz, hw));
         if (c.hzW > 0.0){
           float hl = c.hzL;
-          float hp = pulseAmp * exp(-(hl - pulsePos) * (hl - pulsePos) * 0.9);
-          float wv = c.hzW * (1.0 + 2.0 * hp) * exp(-c.hz / hw) * (stp / hw);
+          float hp = pulseAmp * exp(-(hl - pulsePos) * (hl - pulsePos) * 0.45);
+          float wv = c.hzW * (1.0 + 5.0 * hp) * exp(-c.hz / hw) * (stp / hw);
           hzA += wv; hzS += wv * hl;
+        }
+        // the lamp's glow: light scattered round the scale it is passing, where the void has the headroom
+        float gx = c.lv - pulsePos;
+        if (pulseAmp > 0.01 && abs(gx) < 3.0){
+          float gw = max(0.10 * exp2(-c.lsc * c.lv), 2.0 * paT);
+          float gv = pulseAmp * exp(-gx * gx * 0.45 - d / gw) * (stp / gw);
+          gA += gv; gS += gv * c.lv;
         }
         t += stp * 0.92;
         if (t > t1){ out_ = true; break; }
@@ -55891,18 +55932,25 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
       }
       // the dust takes its scale's chord tone, resolved once (no texture fetch inside the march)
       col += ramp(0.12 * hzS / max(hzA, 1e-6) + colPh + 0.04) * hzA * 0.026 * (0.6 + 0.7 * uEnergy);
-      float pulseE = pulseAmp * exp(-(eL - pulsePos) * (eL - pulsePos) * 0.9);
-      // a near miss is a silhouette: the rim colour, at the coverage the thread earned
-      vec3 eCol = ramp(0.12 * eL + colPh + 0.33) * (0.55 + 0.45 * uEnergy + 1.6 * pulseE) * mix(1.0, 0.75, eL / 6.0)
+      col += ramp(0.12 * gS / max(gA, 1e-6) + colPh + 0.33) * gA * 0.12;
+      float pulseE = pulseAmp * exp(-(eL - pulsePos) * (eL - pulsePos) * 0.45);
+      // a near miss is a silhouette: the thread's colour, at the coverage the thread earned
+      vec3 eCol = ramp(0.12 * eL + colPh + 0.33) * (0.95 + 0.35 * uEnergy + 4.0 * pulseE) * mix(1.0, 0.92, eL / 6.0)
                 * eC * exp(-0.35 * max(eT - dist + 0.6 * R, 0.0));
+      // the front thread is a line finer than a pixel, lit as a thread the way a near miss is,
+      // laid over what lies behind it at the share of the pixel it covers
+      float pulseF = pulseAmp * exp(-(fL - pulsePos) * (fL - pulsePos) * 0.45);
+      vec3 fCol = ramp(0.12 * fL + colPh + 0.33) * (0.95 + 0.35 * uEnergy + 4.0 * pulseF) * mix(1.0, 0.92, fL / 6.0)
+                * exp(-0.35 * max(fT - dist + 0.6 * R, 0.0));
       if (hit){
         vec3 p = ro + rd * t;
         float prT = c.pr * t, paT = c.pa * t;
         float lv = c.lv, cvH = c.cov;
         float e = 0.7 * paT;
         vec2 k = vec2(1.0, -1.0);
-        vec3 n = normalize(k.xyy * spDE(p + k.xyy * e, prT, paT, c) + k.yyx * spDE(p + k.yyx * e, prT, paT, c)
-                         + k.yxy * spDE(p + k.yxy * e, prT, paT, c) + k.xxx * spDE(p + k.xxx * e, prT, paT, c));
+        vec3 nn = k.xyy * spDE(p + k.xyy * e, prT, paT, c) + k.yyx * spDE(p + k.yyx * e, prT, paT, c)
+                + k.yxy * spDE(p + k.yxy * e, prT, paT, c) + k.xxx * spDE(p + k.xxx * e, prT, paT, c);
+        vec3 n = nn / max(length(nn), 1e-12);
         // ambient occlusion from two DE taps along the normal, sized to the scale that was hit
         float sl = pow(c.sc, lv);
         float h1 = 0.30 / sl, h2 = 0.80 / sl;
@@ -55910,7 +55958,7 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
         float ao = clamp(1.0 - 0.55 * max(h1 - o1, 0.0) / h1 - 0.45 * max(h2 - o2, 0.0) / h2, 0.3, 1.0);
         float bl = spPick(bA, bB, int(lv + 0.5));
         float lt = lv / 6.0;
-        float pulse = pulseAmp * exp(-(lv - pulsePos) * (lv - pulsePos) * 0.9);
+        float pulse = pulseAmp * exp(-(lv - pulsePos) * (lv - pulsePos) * 0.45);
         vec3 base = ramp(0.12 * lv + colPh);
         vec3 rim = ramp(0.12 * lv + colPh + 0.33);
         vec3 sky = ramp(0.12 * lv + colPh + 0.62);
@@ -55922,23 +55970,27 @@ const SPECTRAL_FRAG = GLSL_MPHI + `
         float spc = pow(rl, 60.0), sheen = pow(rl, 10.0);
         // polished metal mirrors a chord sky: its third tone above, the void below
         float skyU = smoothstep(0.1, 0.9, 0.5 + 0.5 * dot(rf, up));
-        float key = 1.0 + 0.15 * bt;
-        // the shadow side leans to the rim tone instead of going brown
-        vec3 body = mix(rim * 0.65, base, 0.35 + 0.65 * dif);
-        float gain = mix(1.0, 0.76, lt) * (1.0 + 0.35 * bl);
-        vec3 lit = body * (0.40 + 0.78 * dif * key) * (0.95 + 0.3 * uEnergy)
-                 + base * 0.6 * sheen + sky * 0.30 * skyU
-                 + rim * (0.24 * dif2 + 0.90 * fr)
-                 + (base * 0.45 + rim * (0.35 + 1.3 * fr)) * 1.25 * pulse;
-        lit = lit * gain * ao + mix(base, vec3(1.0), 0.5) * spc * 0.5 * ao;
+        float key = 1.0 + 0.25 * pulseAmp;
+        // the shadow side walks the ramp toward the rim tone: never a grey blend of two chord tones
+        float kd = 0.35 + 0.65 * dif;
+        vec3 body = ramp(0.12 * lv + colPh + 0.33 * (1.0 - kd)) * mix(0.65, 1.0, kd);
+        float gain = mix(1.0, 0.92, lt) * (1.0 + 0.35 * bl);
+        vec3 lit = body * (0.58 + 0.80 * dif * key) * (1.25 + 0.15 * uEnergy)
+                 + base * 0.6 * sheen + sky * 0.45 * skyU
+                 + rim * (0.36 * dif2 + 0.90 * fr + 0.30 * lt)      // the finer the scale, the surer its lit edge
+                 + (base * 0.5 + rim * (0.35 + 1.3 * fr)) * 3.2 * pulse;
+        lit = lit * gain * ao + sky * spc * 0.6 * ao;
         float fade = exp(-0.35 * max(t - dist + 0.6 * R, 0.0));
         col += lit * fade * cvH;
-        if (eA > 0.0 && eT < t) col = mix(col, eCol, eA);
-      } else {
-        col += eCol * eA;
       }
+      // back to front: the hit, a near miss in front of it, the front thread, a near miss in front of that
+      bool eFr = fT >= 0.0 && eT < fT;
+      if (eA > 0.0 && !eFr && (!hit || eT < t)) col = hit ? mix(col, eCol, eA) : col + eCol * eA;
+      if (fT >= 0.0) col = mix(col, fCol, fC);
+      if (eA > 0.0 && eFr) col = mix(col, eCol, eA);
     }
-    col += (spHash(vUv * 811.0 + fract(uTime)) - 0.5) * 0.006;
+    // a static dither, as the TV's: the pixel's own hash, never the clock
+    col += (spHash(gl_FragCoord.xy) - 0.5) * 0.006;
     gl_FragColor = vec4(inkRolloff(max(vec3(0.0196, 0.0235, 0.0549) + col, vec3(0.0))), 1.0);
   }
 `;
@@ -55987,7 +56039,7 @@ function buildSpectral(){
      each the mean of the analyser bytes whose bins it spans, eased up in
      30 ms and down in 150 ms — Analyzer.swift and VisualizerView's
      uploadAudioTextures, said again over uAudio's own bytes. */
-  const sp = { sr: 0, lo: new Int16Array(64), hi: new Int16Array(64), band: new Float32Array(64), lv: new Float32Array(7) };
+  const sp = { sr: 0, wall: 0, lo: new Int16Array(64), hi: new Int16Array(64), band: new Float32Array(64), lv: new Float32Array(7) };
   function bandEdges(sr){
     sp.sr = sr;
     const fHi = Math.max(60, Math.min(14000, sr * 0.45)), perBin = sr / FFT, half = FFT / 2;
@@ -56022,9 +56074,14 @@ function buildSpectral(){
 
   const api = {
     name: 'SPECTRAL', key: 'spectral', group, heavy: true,
-    update(dt){
+    update(){
       if (!group.visible) return;
-      readBands(Math.max(0, Math.min(dt, 0.1)));
+      // the ease runs on the wall clock, as the TV's does: the director's dt is musical
+      // time, which a whip or a held breath would speed up or slow down
+      const now = performance.now();
+      const wdt = sp.wall ? (now - sp.wall) / 1000 : 0.016;
+      sp.wall = now;
+      readBands(Math.max(0, Math.min(wdt, 0.1)));
       const scale = (typeof bulbScale === 'number') ? bulbScale : 0.6;
       const w = Math.max(64, Math.floor(renderer.domElement.width * scale));
       const h = Math.max(64, Math.floor(renderer.domElement.height * scale));
@@ -56051,6 +56108,12 @@ function buildSpectral(){
     },
   };
   api.roll();
+  // compile the march in the background, so the first entry never stalls the set
+  // (a device spared the heavy rooms is spared the compile too)
+  setTimeout(() => {
+    if (!renderer || (typeof POWER !== 'undefined' && !POWER.heavyOK)) return;
+    try { renderer.compile(rtScene, rtCam); } catch (e){}
+  }, 7000);
   return api;
 }
 /* ==== END ROOM REGION: SPECTRAL ==== */
