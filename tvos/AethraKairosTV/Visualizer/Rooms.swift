@@ -542,6 +542,35 @@ enum Rooms {
         Room(key: "hubble", name: "HUBBLE", fragmentFunction: "room_hubble",
              tasteEnergy: 0.2, tasteCalm: 0.5, tasteBeat: 0, tasteTreble: 0,
              heavy: true, calm: true),
+
+        // ---- fractal wave 2: NAVE, PLOTTER, SPECTRAL (Shaders40-42) ----
+
+        // NAVE (Shaders40): a slow flight down the inside of a pseudo-Kleinian
+        // limit set (Knighty after Theli-at) — pierced shells or hanging filigree,
+        // the straight aisle or the turning crossings, lit by a lantern in hand, a
+        // lantern carried ahead, or votive light in every hollow; the beat flares
+        // the light, the bass carries it. Heavy.
+        Room(key: "nave", name: "NAVE", fragmentFunction: "room_nave",
+             tasteEnergy: 0.1, tasteCalm: 0.6, tasteBeat: 0.2, tasteTreble: 0,
+             tasteBass: 0.4, tasteEntropy: -0.3, heavy: true),
+
+        // PLOTTER (Shaders41): a sphereflake drawn as a pen plotter would draw it,
+        // thin chord-coloured lines on the void with every hidden line removed —
+        // section planes, a light-swollen hatch, isolines about each bead's
+        // sockets, or the outline pen alone. Heavy, as NAVE and FRACTAL are: a
+        // 96-step march over a 7-level IFS, drawn at the 1080-line cap its pens
+        // are tuned at.
+        Room(key: "plotter", name: "PLOTTER", fragmentFunction: "room_plotter",
+             tasteEnergy: 0.2, tasteCalm: 0.2, tasteBeat: 0, tasteTreble: 0.5,
+             tasteMid: 0.3, tasteEntropy: -0.3, heavy: true),
+
+        // SPECTRAL (Shaders42): rings threaded on rings, Knighty's distance-estimated
+        // IFS from a torus, seven scales deep — each scale's thickness one slice of
+        // the 64 log bands (sub-bass the great ring, the air the finest wire), the
+        // beat a lamp falling down the scales. Raymarched: heavy.
+        Room(key: "spectral", name: "SPECTRAL", fragmentFunction: "room_spectral",
+             tasteEnergy: 0.3, tasteCalm: 0, tasteBeat: 0.2, tasteTreble: 0.5,
+             tasteMid: 0.3, tasteBass: 0.4, tasteEntropy: -0.1, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

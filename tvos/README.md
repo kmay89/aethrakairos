@@ -58,7 +58,7 @@ complete, no-guessing runbook.
   through mud, the story arc warms and cools the whole chord as one rotation,
   and a WCAG flash governor is the last hand on the light.
 - **A visualizer with real ears** — an FFT tap on the engine's own mix bus
-  feeds one hundred and nineteen Metal rooms — one for every scene the web player has, 1:1 by
+  feeds one hundred and twenty-two Metal rooms — one for every scene the web player has, 1:1 by
   key (the parity law in `CONTRIBUTING.md`); beat phase comes from the analyzed grid (the
   truth), not onset guessing. Swipe up/down on the remote to change rooms; the
   UI melts away and the zen card whispers what's playing. The full roster:
@@ -105,6 +105,7 @@ complete, no-guessing runbook.
   | **AURORA** — the northern lights: the curtain, the oval from space, the magnetic mirror | **COCHLEA** — the ear, listening: travelling waves on the basilar membrane, the hair cells, the ear's keyboard | **CORIOLIS** — the turning frame: the carousel throw, Foucault's pendulum, the hurricane and the wind belts |
   | **SEISMIC** — how we know the inside of the Earth: P and S rays and their shadows, the four wave motions, the drum | **TIDES** — the pull of the Moon: the two bulges, the amphidromes, a beach and its tide gauge | **VORTEX** — the life of vortices: leapfrogging pairs, point-vortex dances, the plughole's spiral |
   | **PLATEAU** — why water falls in drops: the Rayleigh–Plateau jet, the growth curve, dew on a spider's web | **ESCAPEMENT** — the tick: anchor and deadbeat escapements, gear trains, a watch balance and tourbillon | **HUBBLE** — the expanding universe: Hubble's law, the fates of three universes, the light-cone teardrop |
+  | **NAVE** — a lantern walk down the inside of a pseudo-Kleinian limit set: pierced shells or hanging filigree, the aisle or the crossings, three kinds of light | **PLOTTER** — a sphereflake drawn as a pen plotter would draw it, hidden lines removed: sections, engraving, isolines, the outline pen alone | **SPECTRAL** — rings threaded on rings, one band of the music per scale: three symmetries, torus or beads, the mandala, the crown, the pendant |
 
 - **The wire — a stage screen for a live set** — the Apple TV joins a DJ
   booth's four-letter room code and renders the field locally from the booth's
