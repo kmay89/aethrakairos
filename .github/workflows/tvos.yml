@@ -208,6 +208,21 @@ jobs:
             echo "room-spectral-$N: rolls $ROLLS"
             N=$((N + 1))
           done
+          # FLUID, every face: r0 in thirds deals the face (THE DANCE, THE
+          # STORM, THE VEIL); r1 and r2 seed the dancers' figures and phases
+          # and r1's half picks the whirl's direction. Six frames, two seeds a
+          # face. --drive-demo runs a beat grid, so look for the splash — a
+          # heavier blob of ink riding each trail from the moment of the hit.
+          N=0
+          for ROLLS in 0.1667,0.25,0.3 0.1667,0.75,0.8 0.5,0.25,0.3 0.5,0.75,0.8 0.8333,0.25,0.3 0.8333,0.75,0.8; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room fluid --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-fluid-$N.png"
+            echo "room-fluid-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
 
       # The artifact store is unreachable from some review environments, so
       # the frame also travels inside the log: an ice-ring pixel count (the
