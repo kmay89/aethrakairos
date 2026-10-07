@@ -42,11 +42,12 @@ using namespace metal;
 
    Helper names carry the _f suffix so this translation unit never
    collides with its siblings at metallib link. VizUniforms is
-   re-declared VERBATIM (144-byte fixed layout); this unit reads the
-   ghost block (offsets 108..120) and white (104).
+   re-declared VERBATIM (192 bytes: the fixed 144-byte block, then the
+   dance bus at 144..191); this unit reads the ghost block (offsets
+   108..120) and white (104).
    ================================================================ */
 
-// ---- THE FINAL VizUniforms — VERBATIM, 144-byte fixed layout.
+// ---- THE FINAL VizUniforms — VERBATIM, 192 bytes (the fixed 144 + the dance bus).
 struct VizUniforms {
     float time; float beatPhase; float barPhase; float energy;      // 0..3
     float bass; float mid; float treble; float calm;                // 4..7
@@ -54,8 +55,12 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float lens; float lensAmt; float _pad3;            // 128..140  -> stride 144
+    float roll2; float lens; float lensAmt; float _pad3;            // 128..140
+    float dHit; float dAge; float dKick; float dMass;               // 144..156  the dance bus (see tools/dance_prelude.mjs)
+    float dArtic; float dSpark; float dSway; float dLift;           // 160..172
+    float dBrace; float dImpact; float dStill; float dPeriod;       // 176..188  -> stride 192
 };
+static_assert(sizeof(VizUniforms) == 192, "VizUniforms drifted: the CPU mirror uploads 192 bytes");
 
 // ---------------------------------------------------------------
 // the metric — the web's WARP constants, baked verbatim

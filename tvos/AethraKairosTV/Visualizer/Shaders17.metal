@@ -32,9 +32,13 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float _pad1; float _pad2; float keyNum;            // 128..140  -> stride 144
+    float roll2; float _pad1; float _pad2; float keyNum;            // 128..140
                                     // keyNum: the song's Camelot number (1-12), 0 unkeyed
+    float dHit; float dAge; float dKick; float dMass;               // 144..156  the dance bus (see tools/dance_prelude.mjs)
+    float dArtic; float dSpark; float dSway; float dLift;           // 160..172
+    float dBrace; float dImpact; float dStill; float dPeriod;       // 176..188  -> stride 192
 };
+static_assert(sizeof(VizUniforms) == 192, "VizUniforms drifted: the CPU mirror uploads 192 bytes");
 
 inline float3 govern_u(float3 c, float white) {
     float m = max(c.x, max(c.y, c.z));

@@ -35,18 +35,24 @@ constant float TAU = 6.28318530718;
 // the void ground — #05060e in linear-ish working space
 constant float3 VOID_COL = float3(0.019608, 0.023529, 0.054902);
 
-// ---- THE FINAL VizUniforms (wave 3) ----------------------------
-// The byte layout is FIXED at 144 bytes and does NOT change across
-// waves. Wave 2 renamed _pad0 -> xformMode (slot 11). Wave 3 gives
-// two of the trailing pads meaning WITHOUT moving a byte: offset 132
-// _pad1 -> lens (-1 none / 0 mirrors / 1 wave / 2 prism / 3 iris /
-// 4 tile / 5 moire) and offset 136 _pad2 -> lensAmt (0..1). Offset
-// 140 now carries the song's Camelot number for the CIPHER. Only the NAMES change here; the rooms in
-// this unit never read lens, so the rename is cosmetic for them — the
-// CPU uploads the same 144 bytes and Lens.metal reads these two at
-// their fixed offsets. Mirrored by the private Swift struct in
-// VisualizerView.swift; Shaders2/3/4/5 and Xforms may keep the pad
-// names since layout, not naming, is the contract.
+// ---- THE FINAL VizUniforms (wave 3 + the dance bus) --------------
+// Bytes 0..143 are FIXED and do NOT move across waves. Wave 2 renamed
+// _pad0 -> xformMode (slot 11). Wave 3 gave two of the trailing pads
+// meaning WITHOUT moving a byte: offset 132 _pad1 -> lens (-1 none /
+// 0 mirrors / 1 wave / 2 prism / 3 iris / 4 tile / 5 moire) and offset
+// 136 _pad2 -> lensAmt (0..1); offset 140 carries the song's Camelot
+// number for the CIPHER. Only the NAMES changed there; the rooms in
+// this unit never read lens, so the rename is cosmetic for them and
+// Lens.metal reads these two at their fixed offsets. Stage 2 of the
+// dance layer APPENDS twelve floats at 144..191 — the dance bus, one
+// body stepped on the CPU (hit, age, kick, mass, artic, spark, sway,
+// lift, brace, impact, still, period; tools/dance_prelude.mjs has the
+// shape helpers) — so the stride is 192, asserted under the struct in
+// every translation unit and by the CPU mirrors (the private Swift
+// structs in VisualizerView.swift and StageRenderer.swift), which
+// upload exactly 192 bytes. No room reads the twelve yet. Shaders2..N
+// and Xforms may keep the pad names since layout, not naming, is the
+// contract.
 struct VizUniforms {
     float time; float beatPhase; float barPhase; float energy;      // 0..3
     float bass; float mid; float treble; float calm;                // 4..7
@@ -54,8 +60,12 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float lens; float lensAmt; float _pad3;            // 128..140  -> stride 144
+    float roll2; float lens; float lensAmt; float _pad3;            // 128..140
+    float dHit; float dAge; float dKick; float dMass;               // 144..156  the dance bus (see tools/dance_prelude.mjs)
+    float dArtic; float dSpark; float dSway; float dLift;           // 160..172
+    float dBrace; float dImpact; float dStill; float dPeriod;       // 176..188  -> stride 192
 };
+static_assert(sizeof(VizUniforms) == 192, "VizUniforms drifted: the CPU mirror uploads 192 bytes");
 
 // ---------------------------------------------------------------
 // helpers

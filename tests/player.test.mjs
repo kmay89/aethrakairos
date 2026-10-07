@@ -45,6 +45,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GESTALT, proximityOk, parkinsonBudget, teslerShare, occamPick, postelUrl,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
+  ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
+  ' danceLeanJS, danceStrideJS, danceFrontJS, danceLampJS, danceLandJS, danceRingJS, danceBreathJS, danceBeatWeightJS,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
   ' touchCharge, touchBurst, beatTapBonus, touchAffinity, touchAutoShould, touchPairMode, updateGate, UP_TOUCH_MS, updateOffer, updateOfferKey, newsSince, lessonDue, restartVerdict,' +
@@ -1790,6 +1792,98 @@ test('lens2: Lens.metal carries a case for every second-wave code', () => {
   for (const l of LENS2_META.singles) assert.ok(metal.includes('    case ' + l.code + ': {'), l.key);
   const hi = Math.max(...LENS2_META.singles.map(l => l.code));
   assert.ok(metal.includes('clamp(U.lens, -1.0, ' + hi.toFixed(1) + ')'), 'the mode clamp reaches ' + hi);
+});
+
+/* THE 192-BYTE CONTRACT (stage 2 of the dance layer). Every Metal translation
+   unit re-declares VizUniforms verbatim; the two Swift mirrors upload it; the
+   web reads the same twelve through #defines onto uDance0..2. A TU whose struct
+   drifts reads garbage silently on a device, so the parity is asserted here:
+   one struct text across every tvos/**\/*.metal (modulo the three pad
+   spellings), a static_assert(sizeof == 192) under each, the twelve at bytes
+   144..188 in bus order on all three stages, and no prose left saying 144. */
+test('dance bus: every Metal TU declares one 192-byte VizUniforms, static_asserted; the Swift mirrors and the web #defines name the twelve in bus order', async () => {
+  const { readdirSync } = await import('fs');
+  const metalFiles = [];
+  const walk = dir => {
+    for (const e of readdirSync(join(root, dir), { withFileTypes: true })){
+      if (e.isDirectory()) walk(dir + '/' + e.name);
+      else if (e.name.endsWith('.metal')) metalFiles.push(dir + '/' + e.name);
+    }
+  };
+  walk('tvos');
+  metalFiles.sort();
+  const pbx = readFileSync(join(root, 'tvos/AethraKairos.xcodeproj/project.pbxproj'), 'utf8');
+  const inProject = [...pbx.matchAll(/path = (\w+\.metal);/g)].map(m => m[1]).sort();
+  assert.deepEqual(metalFiles.map(f => f.split('/').pop()).sort(), inProject, 'every .metal on disk is in the project and vice versa');
+  assert.ok(metalFiles.length >= 45, metalFiles.length + ' translation units');
+  // one struct text — comments and whitespace stripped, the pad spellings normalised
+  const normalise = s => s.replace(/\/\/[^\n]*/g, '').replace(/\s+/g, ' ').trim()
+    .replace(/\b_pad1\b/g, 'lens').replace(/\b_pad2\b/g, 'lensAmt').replace(/\bkeyNum\b/g, '_pad3');
+  const layoutOf = fields => {                      // Metal/Swift layout: float 4/4, float4 16/16
+    let off = 0; const out = [];
+    for (const f of fields){
+      const size = f.type === 'float4' ? 16 : 4;
+      off = Math.ceil(off / size) * size;
+      out.push({ name: f.name, type: f.type, off });
+      off += size;
+    }
+    return { fields: out, size: Math.ceil(off / 16) * 16 };
+  };
+  let first = null, firstFile = null;
+  for (const f of metalFiles){
+    const src = readFileSync(join(root, f), 'utf8');
+    const heads = src.match(/^struct VizUniforms \{/gm) || [];
+    assert.equal(heads.length, 1, f + ': exactly one struct VizUniforms');
+    const a = src.indexOf('struct VizUniforms {'), b = src.indexOf('};', a);
+    assert.ok(a >= 0 && b > a, f + ': struct body');
+    const body = normalise(src.slice(a + 'struct VizUniforms {'.length, b));
+    if (first === null){ first = body; firstFile = f; }
+    assert.equal(body, first, f + ' declares a different VizUniforms than ' + firstFile);
+    const after = src.slice(b, b + 400);
+    assert.ok(/^\};\s*\nstatic_assert\(sizeof\(VizUniforms\) == 192,/.test(after), f + ': static_assert(sizeof(VizUniforms) == 192) directly under the struct');
+    assert.ok(src.slice(a, b).includes('-> stride 192'), f + ': the struct says stride 192');
+    assert.ok(!/FIXED at 144|-> stride 144|144-byte fixed|stride is 144/.test(src), f + ': no prose still says the struct is 144 bytes');
+  }
+  // the layout the one text describes: bytes 0..143 untouched, the twelve at 144..188, 192 in all
+  const metalFields = [...first.matchAll(/\b(float4|float)\s+(\w+)\s*;/g)].map(m => ({ type: m[1], name: m[2] }));
+  const ml = layoutOf(metalFields);
+  assert.equal(ml.size, 192, 'sizeof(VizUniforms) is 192');
+  assert.equal(ml.fields.length, 39, '27 wave-3 fields + the twelve');
+  assert.deepEqual(ml.fields.slice(0, 4).map(f => f.name), ['time', 'beatPhase', 'barPhase', 'energy']);
+  assert.deepEqual(ml.fields.filter(f => f.type === 'float4').map(f => f.off), [48, 64, 80], 'the three colour float4s stay at 48/64/80');
+  assert.equal(ml.fields.find(f => f.name === 'roll2').off, 128, 'roll2 stays at 128: bytes 0..143 never moved');
+  const twelve = ml.fields.slice(27);
+  assert.deepEqual(twelve.map(f => f.name), S.DANCE_BUS.NAMES, 'the twelve, in bus order, close the struct');
+  assert.deepEqual(twelve.map(f => f.off), S.DANCE_BUS.NAMES.map((_, i) => 144 + 4 * i), 'dHit at 144 … dPeriod at 188');
+  // the two Swift mirrors: the same type sequence, the same twelve names and offsets, the stride asserted
+  for (const sf of ['tvos/AethraKairosTV/Visualizer/VisualizerView.swift', 'tvos/AethraKairosTV/Stage/StageRenderer.swift']){
+    const sw = readFileSync(join(root, sf), 'utf8');
+    const a = sw.indexOf('private struct VizUniforms {'), b = sw.indexOf('\n}', a);
+    assert.ok(a >= 0 && b > a, sf + ': the mirror');
+    const fields = [...sw.slice(a, b).replace(/\/\/[^\n]*/g, '').matchAll(/var (\w+)(?:: (SIMD4<Float>|Float)\b| = (SIMD4<Float>)\()/g)]
+      .map(m => ({ name: m[1], type: (m[2] || m[3]) === 'Float' ? 'float' : 'float4' }));
+    const sl = layoutOf(fields);
+    assert.equal(sl.size, 192, sf + ': MemoryLayout<VizUniforms>.stride == 192');
+    assert.deepEqual(sl.fields.map(f => f.type), ml.fields.map(f => f.type), sf + ': the same 39 slots, in the same types, as the Metal struct');
+    assert.deepEqual(sl.fields.slice(27).map(f => [f.name, f.off]), twelve.map(f => [f.name, f.off]), sf + ': the twelve at 144..188 in bus order');
+    assert.ok(sw.includes('assert(MemoryLayout<VizUniforms>.stride == 192'), sf + ': configure(view:) asserts the stride');
+    assert.ok(!/FIXED at 144|-> stride 144|144-byte fixed|stride is 144/.test(sw), sf + ': no prose still says 144');
+    for (const n of S.DANCE_BUS.NAMES) assert.ok(new RegExp('u\\.' + n + ' = ').test(sw), sf + ' fills u.' + n);
+  }
+  // the web: the embedded GLSL_DANCE #defines (not the emitter) — the same twelve onto uDance0..2 in order
+  const g0 = html.indexOf('const GLSL_DANCE = `'), g1 = html.indexOf('`;', g0);
+  assert.ok(g0 >= 0 && g1 > g0, 'GLSL_DANCE is embedded in the player');
+  const defines = [...html.slice(g0, g1).matchAll(/#define (d\w+) (uDance[012])\.([xyzw])/g)].map(m => [m[1], m[2], m[3]]);
+  assert.deepEqual(defines.map(d => d[0]), S.DANCE_BUS.NAMES, 'the web #defines name the twelve in bus order');
+  assert.deepEqual(defines.map(d => d[1] + '.' + d[2]), S.DANCE_BUS.NAMES.map((_, i) => 'uDance' + (i >> 2) + '.' + 'xyzw'[i & 3]), 'each rides its vec4 lane');
+  // the stage wire carries the same twelve, clamped
+  const packet = readFileSync(join(root, 'tvos/AethraKairosTV/Stage/StagePacket.swift'), 'utf8');
+  assert.ok(packet.includes('static let danceCount = 12') && packet.includes('var dance: [Float]'), 'StagePacket carries twelve');
+  const ranges = [...packet.slice(packet.indexOf('static let danceRanges')).matchAll(/\(\s*(-?[\d.]+),\s*(-?[\d.]+)\)\s*,?\s*\/\/\s*(\d+) (d\w+)/g)].map(m => [+m[3], m[4], +m[1], +m[2]]);
+  assert.deepEqual(ranges.map(r => r[1]), S.DANCE_BUS.NAMES, 'the wire clamps the twelve in bus order');
+  assert.deepEqual(ranges.map(r => r[0]), S.DANCE_BUS.NAMES.map((_, i) => i));
+  const want = { dHit: [0, 1.5], dAge: [0, 4], dKick: [-0.35, 1.25], dSway: [-1, 1], dImpact: [0, 8], dPeriod: [0, 1] };
+  for (const r of ranges){ const w = want[r[1]] || [0, 1]; assert.deepEqual([r[2], r[3]], w, r[1] + ' clamps to ' + w); }
 });
 
 // ---- the beat spring: it overshoots the hit and settles (the elastic bounce) ----
@@ -7604,6 +7698,538 @@ test('teaching: Highway — the lesson teaches the drop\'s own cycle, the hook u
   const pos = [68, 70, 72, 73, 75];   // A♭4 B♭4 C5 D♭5 E♭5: one five-finger position
   assert.ok(riffs.every(r => r.notes.every(m => pos.includes(m))), 'at Easy the whole hook sits in the A♭ five-finger position');
   assert.ok(riffs.every(r => r.fingerSeq.every((f, k) => f === { 68: 1, 70: 2, 72: 3, 73: 4, 75: 5 }[r.notes[k]])), 'and is fingered as that position: A♭=1 … E♭=5');
+});
+
+// ---------------------------------------------------------------- the dance bus
+
+/* THE BUS IS A BODY, AND A BODY HAS A SHAPE THAT CAN BE MEASURED. These tests
+   pin the twelve floats to numbers: the kick spring's peak, rebound and
+   settle in BEATS at three tempi; the voices (a hat may light, never move);
+   stillness that arrives; the landing that fires from silence; the prelude's
+   shapes; and a frozen trace of the whole bus on a fixed synthetic drive —
+   the table the Swift port (Dance.swift) is checked against. */
+
+const BUS_FPS = 60, BUS_DT = 1 / BUS_FPS;
+// one frame of inputs with every field the stepper reads, defaulting to a quiet, playing room
+function busInp(over){
+  return Object.assign({
+    bass: 0, mid: 0, treble: 0, energy: 0, centroid: 0.4,
+    rb: 0, rm: 0, rt: 0, punch: 0,
+    period: 0.5, haveGrid: true, beatIdx: 1, barPhase: 0.3, phrasePhase: 0.1,
+    ear: 0.85, playing: true, breath: 0, calm: false,
+  }, over || {});
+}
+
+test('dance bus: the kick spring — a unit strike peaks at 1.0, rebounds once, is home by 0.8 beat, the same at any tempo', () => {
+  const film = (P, calm) => {
+    const ks = S.makeDanceKick();
+    S.danceKickStrike(ks, 1);
+    const xs = [];
+    for (let i = 1; i <= Math.round(2 * P * BUS_FPS); i++){
+      const x = S.danceKickStep(ks, BUS_DT, P, calm);
+      xs.push({ b: i * BUS_DT / P, x });
+    }
+    return xs;
+  };
+  const shape = xs => {
+    let peak = xs[0];
+    for (const o of xs) if (o.x > peak.x) peak = o;
+    const mins = [];
+    for (let i = 1; i < xs.length - 1; i++)
+      if (xs[i].b > peak.b && xs[i].b <= 1.0 && xs[i].x < xs[i - 1].x && xs[i].x <= xs[i + 1].x && xs[i].x < 0) mins.push(xs[i]);
+    const tail = xs.filter(o => o.b >= 0.8);
+    return { peak, mins, tailMax: Math.max(...tail.map(o => Math.abs(o.x))) };
+  };
+  const ref = film(0.5, false);
+  for (const bpm of [90, 120, 174]){
+    const P = 60 / bpm, xs = film(P, false), s = shape(xs);
+    assert.ok(Math.abs(s.peak.x - 1) <= 0.1, bpm + ' BPM: a unit strike peaks at ' + s.peak.x.toFixed(3));
+    assert.ok(s.peak.b > 0.1 && s.peak.b < 0.35, bpm + ' BPM: the body arrives after the foot, at ' + s.peak.b.toFixed(2) + ' beat');
+    assert.equal(s.mins.length, 1, bpm + ' BPM: exactly one rebound below rest inside the beat, got ' + s.mins.length);
+    const reb = s.mins[0].x / s.peak.x;
+    assert.ok(reb <= -0.15 && reb >= -0.30, bpm + ' BPM: the rebound is ' + (100 * reb).toFixed(0) + '% of the peak');
+    assert.ok(s.mins[0].b > 0.5 && s.mins[0].b < 0.75, bpm + ' BPM: the rebound sits at ' + s.mins[0].b.toFixed(2) + ' beat');
+    assert.ok(s.tailMax < 0.1 * s.peak.x, bpm + ' BPM: within 10% of rest from 0.8 beat (worst ' + s.tailMax.toFixed(3) + ')');
+    // the SAME shape in beats: resample against 120 BPM
+    const at = (arr, b) => { for (let i = 1; i < arr.length; i++) if (arr[i].b >= b){ const a = arr[i - 1], c = arr[i]; return a.x + (c.x - a.x) * (b - a.b) / (c.b - a.b); } return arr[arr.length - 1].x; };
+    let se = 0, n = 0;
+    for (let b = 0.05; b < 1.9; b += 0.01){ const d = at(xs, b) - at(ref, b); se += d * d; n++; }
+    const rms = Math.sqrt(se / n);
+    assert.ok(rms <= 0.03, bpm + ' BPM: rms vs 120 BPM in beats = ' + rms.toFixed(4));
+  }
+  // the calm body (iOS / CALM, ζ 0.55) still peaks at 1 — its own gain
+  const calm = shape(film(0.5, true));
+  assert.ok(Math.abs(calm.peak.x - 1) <= 0.1, 'calm: a unit strike peaks at ' + calm.peak.x.toFixed(3));
+  // the rails: a 100 ms frame gap and an absurd strike cannot blow it up
+  const ks = S.makeDanceKick(); S.danceKickStrike(ks, 5);
+  for (let i = 0; i < 40; i++){ const x = S.danceKickStep(ks, 0.1, 0.3, false); assert.ok(isFinite(x) && Math.abs(x) <= 2, 'railed: ' + x); }
+});
+
+test('dance bus: the classifier — kick, snare and hat are different voices; a sustained bassline is weight, not a strike', () => {
+  const kick = S.danceClassify({ rb: 0.6, punch: 0.9, bass: 0.9, mid: 0.3 }, 0.3);
+  assert.ok(kick.kick > 0.9 && kick.snare < 0.2 && kick.hat === 0, 'a kick: ' + JSON.stringify(kick));
+  const hat = S.danceClassify({ rt: 0.5, punch: 0, bass: 0.25, mid: 0.3 }, 0.25);
+  assert.ok(hat.kick === 0 && hat.snare === 0 && Math.abs(hat.hat - 0.65) < 1e-9, 'a bare hat: ' + JSON.stringify(hat));
+  const snare = S.danceClassify({ rm: 0.5, punch: 0.7, bass: 0.3, mid: 0.8 }, 0.3);
+  assert.ok(snare.snare > 0.9 && snare.kick === 0, 'a snare over flat bass: ' + JSON.stringify(snare));
+  // the bass floor: the same hit reads as a kick only when the bass RISES above its own recent floor
+  const held = S.danceClassify({ punch: 0.9, bass: 0.9, mid: 0.2 }, 0.9);
+  const fresh = S.danceClassify({ punch: 0.9, bass: 0.9, mid: 0.2 }, 0.3);
+  const ungated = S.danceClassify({ punch: 0.9, bass: 0.9, mid: 0.2 }, null);
+  assert.ok(held.kick === 0 && fresh.kick > 0.5 && ungated.kick > 0.5, 'floor: held ' + held.kick + ' fresh ' + fresh.kick + ' ungated ' + ungated.kick);
+  // a hat on top of a kick is mostly the kick's
+  const both = S.danceClassify({ rb: 0.6, rt: 0.5, punch: 0.9, bass: 0.9, mid: 0.3 }, 0.3);
+  assert.ok(both.hat < hat.hat * 0.4, 'the hat yields to the kick: ' + both.hat.toFixed(3));
+  // garbage in: finite out
+  const junk = S.danceClassify({ rb: NaN, punch: Infinity, bass: undefined }, NaN);
+  for (const k of ['kick', 'snare', 'hat']) assert.ok(isFinite(junk[k]) && junk[k] >= 0 && junk[k] <= 1, k + ' finite');
+});
+
+test('dance bus: a hat train lights dHit no more than 0.25, never resets dAge, never strikes the body', () => {
+  // bare hats on every eighth over flat bass: the treble flicks, the body does not move
+  let st = S.makeDanceBusState();
+  for (let i = 0; i < 240; i++){
+    const onHat = i % 15 === 0;
+    const { bus } = S.danceBusStep(st, busInp({
+      bass: 0.25, mid: 0.3, treble: 0.2 + 0.4 * Math.exp(-((i % 15) * BUS_DT) / 0.05), energy: 0.3,
+      rt: onHat ? 0.5 : 0, beatIdx: Math.floor(i / 30) % 4, barPhase: (i / 120) % 1,
+    }), BUS_DT);
+    assert.ok(bus[0] <= 0.25 + 1e-6, 'frame ' + i + ': a hat lit dHit to ' + bus[0].toFixed(3));
+    assert.ok(Math.abs(bus[2]) <= 0.02, 'frame ' + i + ': a hat moved dKick to ' + bus[2].toFixed(3));
+    assert.equal(bus[1], 4, 'frame ' + i + ': dAge stays saturated — no strike happened');
+    if (onHat && i > 0) assert.ok(bus[5] > 0.5, 'frame ' + i + ': the hat reaches dSpark (' + bus[5].toFixed(2) + ')');
+  }
+  // a kick, then hats: dAge counts up from the kick and is never reset by a hat
+  st = S.makeDanceBusState();
+  let prevAge = -1;
+  for (let i = 0; i < 120; i++){
+    const onKick = i === 30, onHat = i > 30 && i % 15 === 0;
+    const { bus, state } = S.danceBusStep(st, busInp({
+      bass: i < 30 ? 0.25 : 0.25 + 0.65 * Math.exp(-((i - 30) * BUS_DT) / 0.12), mid: 0.3,
+      treble: 0.2 + (i > 30 ? 0.4 * Math.exp(-((i % 15) * BUS_DT) / 0.05) : 0), energy: 0.3,
+      rb: onKick ? 0.6 : 0, punch: onKick ? 0.9 : 0, rt: onHat ? 0.5 : 0, beatIdx: 0,
+    }), BUS_DT);
+    if (i === 30){ assert.equal(bus[1], 0, 'the kick resets dAge'); assert.ok(state.w >= 1.0, 'a downbeat kick strikes at ' + state.w.toFixed(2)); }
+    else if (i > 30) assert.ok(bus[1] > prevAge, 'frame ' + i + ': dAge keeps counting through the hats (' + bus[1].toFixed(3) + ' after ' + prevAge.toFixed(3) + ')');
+    prevAge = bus[1];
+    if (i === 36) assert.ok(bus[2] > 0.5, 'the body arrives after the kick: dKick ' + bus[2].toFixed(2));
+  }
+  assert.ok(Math.abs(prevAge - 89 / 30) < 1e-3, 'dAge in beats: ' + prevAge.toFixed(4));
+});
+
+test('dance bus: stillness arrives — down in 1.5 beats, half a beat in true silence, up in an eighth', () => {
+  const st = S.makeDanceBusState();
+  const step = over => S.danceBusStep(st, busInp(over), BUS_DT).bus[10];
+  // up: within 10% of the target in P/8 (4 frames at 120 BPM / 60 Hz)
+  let v = 0;
+  for (let i = 0; i < Math.ceil((0.5 / 8) / BUS_DT); i++) v = step({ ear: 0.85, energy: 0.3, bass: 0.3 });
+  assert.ok(v >= 0.9, 'up in an eighth: ' + v.toFixed(3));
+  for (let i = 0; i < 30; i++) v = step({ ear: 0.85, energy: 0.3, bass: 0.3 });
+  assert.ok(v > 0.999, 'fully open: ' + v);
+  // down, music still playing softly: 1.5 beats to zero — a gate, not a snap
+  let n = 0;
+  while (v > 1e-6 && n < 200){ v = step({ ear: 0.3, energy: 0.3, bass: 0.3 }); n++; }
+  assert.ok(n <= 45 && n > 30, 'reached 0 in ' + n + ' frames (1.5 beats = 45)');
+  assert.ok(v >= 0, 'never negative');
+  // down in TRUE silence: half a beat
+  for (let i = 0; i < 30; i++) v = step({ ear: 0.85, energy: 0.3, bass: 0.3 });
+  n = 0;
+  while (v > 1e-6 && n < 200){ v = step({ ear: 0.3, energy: 0.0, bass: 0 }); n++; }
+  assert.ok(n <= 15 && n > 10, 'silence: reached 0 in ' + n + ' frames (0.5 beat = 15)');
+  // not playing: the target is 0 whatever the ear says
+  for (let i = 0; i < 30; i++) v = step({ ear: 1, energy: 0.8, bass: 0.8 });
+  for (let i = 0; i < 46; i++) v = step({ ear: 1, energy: 0.8, bass: 0.8, playing: false });
+  assert.ok(v <= 1e-6, 'paused: still ' + v);
+  // the graded gate: a half-open ear holds a half-open gate
+  for (let i = 0; i < 60; i++) v = step({ ear: 0.425, energy: 0.3, bass: 0.3 });
+  assert.ok(Math.abs(v - 0.5) < 1e-6, 'ear 0.425 → still ' + v.toFixed(3));
+});
+
+test('dance bus: dMass follows the bass with a third of a beat up and two beats down', () => {
+  const st = S.makeDanceBusState();
+  let m = 0;
+  for (let i = 0; i < 10; i++) m = S.danceBusStep(st, busInp({ bass: 1, energy: 0.5 }), BUS_DT).bus[3];   // P/3 = 10 frames
+  assert.ok(Math.abs(m - (1 - Math.exp(-1))) < 0.01, 'after P/3 the follower sits at 1 − e⁻¹: ' + m.toFixed(4));
+  for (let i = 0; i < 120; i++) m = S.danceBusStep(st, busInp({ bass: 1, energy: 0.5 }), BUS_DT).bus[3];
+  assert.ok(m > 0.99, 'full weight: ' + m.toFixed(4));
+  const top = m;
+  for (let i = 0; i < 60; i++) m = S.danceBusStep(st, busInp({ bass: 0, energy: 0.1 }), BUS_DT).bus[3];       // 2P = 60 frames
+  assert.ok(Math.abs(m - top * Math.exp(-1)) < 0.01, 'after 2P the release sits at e⁻¹: ' + m.toFixed(4));
+  // dArtic: up in P/8, down in P/2 — and the melody's motion counts (the centroid moving)
+  const st2 = S.makeDanceBusState();
+  let a = 0;
+  for (let i = 0; i < 4; i++) a = S.danceBusStep(st2, busInp({ mid: 1, treble: 0.5, energy: 0.5 }), BUS_DT).bus[4];   // P/8 ≈ 3.75 frames
+  assert.ok(a > 0.6, 'articulation answers in an eighth: ' + a.toFixed(3));
+  for (let i = 0; i < 60; i++) a = S.danceBusStep(st2, busInp({ mid: 1, treble: 0.5, energy: 0.5 }), BUS_DT).bus[4];
+  const topA = a;
+  for (let i = 0; i < 15; i++) a = S.danceBusStep(st2, busInp({ mid: 0, treble: 0, energy: 0.1 }), BUS_DT).bus[4];     // P/2 = 15 frames
+  assert.ok(Math.abs(a - topA * Math.exp(-1)) < 0.02, 'after P/2 the articulation sits at e⁻¹: ' + a.toFixed(4));
+  const st3 = S.makeDanceBusState();
+  let moved = 0;
+  for (let i = 0; i < 20; i++) moved = S.danceBusStep(st3, busInp({ mid: 0.2, treble: 0, energy: 0.3, centroid: 0.4 + 0.3 * (i % 2) }), BUS_DT).bus[4];
+  assert.ok(moved > 0.5, 'a run sweeping the centroid reads as articulation: ' + moved.toFixed(3));
+});
+
+test('dance bus: the landing fires from a silent bar on the first loud frame, or at landAt + P/2 regardless', () => {
+  const P = 0.5, la = S.danceLookahead(P);
+  assert.ok(Math.abs(la - 1.2) < 1e-9, 'precognition reads 2P + 0.2 s ahead');
+  // A. the score: a silent bar, then the drop at 2.0 s. here = env(pos + 0.08), soon = env(pos + lookahead)
+  const env = t => ({ bass: t < 2 ? 0.05 : 0.9, punch: (t >= 2 && t < 2.1) ? 0.9 : 0 });
+  let st = S.makeDanceBusState(), landedAt = -1, braceBefore = 0, hitAfter = 0, kickAfter = 0;
+  for (let i = 0; i < 240; i++){
+    const pos = i * BUS_DT;
+    const quiet = pos + 0.08 < 2;
+    const { bus, state } = S.danceBusStep(st, busInp({
+      bass: quiet ? 0.05 : 0.9, mid: quiet ? 0.05 : 0.5, treble: 0.05, energy: quiet ? 0.04 : 0.8,
+      rb: (!quiet && pos + 0.08 < 2.02) ? 0.8 : 0, punch: (!quiet && pos + 0.08 < 2.02) ? 0.9 : 0,
+      ear: quiet ? 0.3 : 0.9, beatIdx: Math.floor(pos / P) % 4,
+      pos, here: env(pos + 0.08), soon: env(pos + la),
+    }), BUS_DT);
+    if (state.landed){
+      assert.equal(landedAt, -1, 'the landing fires once');
+      landedAt = i;
+      assert.equal(bus[9], 0, 'dImpact is 0 on the landing frame');
+      assert.equal(bus[1], 0, 'the landing is a strike: dAge 0');
+      assert.equal(bus[8], 0, 'the coil lets go: dBrace 0');
+      assert.ok(quiet || pos + 0.08 < 2.05, 'it landed on the first loud frame (pos ' + pos.toFixed(3) + ')');
+    }
+    if (landedAt < 0 && pos > 1.8) braceBefore = Math.max(braceBefore, bus[8]);
+    if (landedAt >= 0 && i <= landedAt + 8){ hitAfter = Math.max(hitAfter, bus[0]); kickAfter = Math.max(kickAfter, bus[2]); }
+  }
+  assert.ok(landedAt > 0, 'it landed');
+  const landPos = landedAt * BUS_DT;
+  assert.ok(landPos >= 2.0 - 0.08 - 1e-9 && landPos < 2.0 - 0.08 + 2 * BUS_DT, 'the landing is on the first frame that reads the drop (pos ' + landPos.toFixed(4) + ', read 80 ms ahead)');
+  assert.ok(braceBefore > 0.9, 'the room braced through the silent bar: ' + braceBefore.toFixed(3));
+  assert.ok(hitAfter >= 1.0, 'the landing lights dHit to ' + hitAfter.toFixed(2));
+  assert.ok(kickAfter > 1.0, 'the landing strikes the body at 1.25: dKick peaked ' + kickAfter.toFixed(2));
+  // B. a promise the music breaks: soon says a drop, here never gets loud → landAt + P/2 regardless
+  st = S.makeDanceBusState(); landedAt = -1;
+  for (let i = 0; i < 240; i++){
+    const pos = i * BUS_DT;
+    const promise = pos >= 0.8 && pos < 0.9;
+    const { state } = S.danceBusStep(st, busInp({
+      bass: 0.05, energy: 0.04, ear: 0.3, pos,
+      here: { bass: 0.05, punch: 0 }, soon: { bass: promise ? 0.9 : 0.05, punch: promise ? 0.8 : 0 },
+    }), BUS_DT);
+    if (state.landed){ assert.equal(landedAt, -1); landedAt = i; }
+  }
+  assert.ok(landedAt > 0, 'the latch cannot hang');
+  assert.ok(Math.abs(landedAt * BUS_DT - (0.8 + la + P / 2)) <= BUS_DT + 1e-9, 'timed out at landAt + P/2: pos ' + (landedAt * BUS_DT).toFixed(3) + ' vs ' + (0.8 + la + P / 2).toFixed(3));
+  // C. no score at all: nothing braces, nothing lands, the bus is still defined
+  st = S.makeDanceBusState();
+  for (let i = 0; i < 120; i++){
+    const { bus, state } = S.danceBusStep(st, busInp({ bass: 0.6, energy: 0.5 }), BUS_DT);
+    assert.ok(!state.landed && bus[8] === 0 && bus[9] === 8, 'frame ' + i + ': no score, no landing');
+  }
+  // D. the pure latch by itself: a seek backwards disarms it
+  const L = { armed: false, landAt: 0, landLevel: 0 };
+  assert.equal(S.danceLandingStep(L, { pos: 10, coming: 0.9, here: 0.1, soon: 1.5, P, lookahead: la }), false);
+  assert.ok(L.armed && Math.abs(L.landAt - 11.2) < 1e-9 && L.landLevel === 1.5, 'armed at pos + lookahead');
+  assert.equal(S.danceLandingStep(L, { pos: 11.0, coming: 0, here: 1.0, soon: 0, P, lookahead: la }), false, 'loud, but not yet within P/4 of the promised moment');
+  assert.equal(S.danceLandingStep(L, { pos: 11.1, coming: 0, here: 1.0, soon: 0, P, lookahead: la }), true, 'within P/4 and at 60% of the promise: land');
+  S.danceLandingStep(L, { pos: 10, coming: 0.9, here: 0.1, soon: 1.5, P, lookahead: la });
+  S.danceLandingStep(L, { pos: 2, coming: 0, here: 0, soon: 0, P, lookahead: la });
+  assert.equal(L.armed, false, 'a seek backwards disarms the latch');
+  assert.equal(S.danceLandingStep(L, { pos: NaN, coming: 0.9, here: 0, soon: 1, P, lookahead: la }), false, 'no playhead, no landing');
+});
+
+test('dance bus: the prelude shapes — stride monotone to A 0.75, the landing one rebound, the ring its series, the lamp held then let go', () => {
+  // stride: strictly increasing in ph, slope ≥ 0.25 at A = 0.75, zero-mean wobble (1 at the wrap)
+  for (const A of [0, 0.25, 0.5, 0.75]){
+    let prev = -1, minSlope = Infinity;
+    for (let i = 0; i <= 1000; i++){
+      const v = S.danceStrideJS(i / 1000, A);
+      if (i) minSlope = Math.min(minSlope, (v - prev) * 1000);
+      assert.ok(v > prev, 'A ' + A + ': monotone at ' + i / 1000);
+      prev = v;
+    }
+    assert.ok(minSlope >= 0.25 - 0.01, 'A ' + A + ': the slowest step keeps moving (' + minSlope.toFixed(3) + ')');
+    assert.ok(Math.abs(S.danceStrideJS(1, A) - 1) < 1e-12 && Math.abs(S.danceStrideJS(0, A)) < 1e-12, 'zero-mean: the wrap is exact');
+    assert.ok(S.danceStrideJS(0.25, A) >= 0.25 - 1e-12 && S.danceStrideJS(0.75, A) <= 0.75 + 1e-12, 'ahead in the first half, behind in the second');
+  }
+  // the landing: peak 1 near 0.42 beat, exactly one rebound below rest, quiet from a bar
+  let peak = 0, peakAt = 0, mins = 0, prev = 0, prev2 = 0;
+  for (let i = 0; i <= 8000; i++){
+    const t = i / 1000, v = S.danceLandJS(t);
+    if (v > peak){ peak = v; peakAt = t; }
+    if (i >= 2 && prev < prev2 && prev <= v && prev < -0.05) mins++;
+    if (t >= 4) assert.ok(Math.abs(v) < 0.05, 'settled by a bar: ' + v.toFixed(4) + ' at ' + t);
+    prev2 = prev; prev = v;
+  }
+  assert.ok(Math.abs(peak - 1) < 2e-3, 'peaks at 1: ' + peak.toFixed(4));
+  assert.ok(Math.abs(peakAt - 0.418) < 0.01, 'the body arrives at 0.42 beat: ' + peakAt.toFixed(3));
+  assert.equal(mins, 1, 'one rebound below rest');
+  assert.ok(S.danceLandJS(1.47) < -0.3, 'the exhale: ' + S.danceLandJS(1.47).toFixed(3));
+  assert.equal(S.danceLandJS(8), 0); assert.equal(S.danceLandJS(0), 0); assert.equal(S.danceLandJS(-1), 0);
+  // the ring equals the series Σ e^{-a(ph+k)} sin(b(ph+k)) and is continuous at the wrap
+  for (const [a, b] of [[2.5, Math.PI * 3], [1.5, Math.PI * 2], [4, Math.PI * 5]]){
+    for (let i = 0; i <= 20; i++){
+      const ph = i / 20;
+      let sum = 0;
+      for (let k = 0; k < 80; k++) sum += Math.exp(-a * (ph + k)) * Math.sin(b * (ph + k));
+      assert.ok(Math.abs(S.danceRingJS(ph, a, b) - sum) < 1e-9, 'ring(' + ph + ', ' + a + ', ' + b.toFixed(2) + ') = ' + sum.toFixed(6));
+    }
+    assert.ok(Math.abs(S.danceRingJS(1, a, b) - S.danceRingJS(0, a, b)) < 1e-9, 'continuous at the wrap');
+  }
+  // the lamp: dark at the strike, lit by 0.12 beat, held, released in the last third, out after the beat
+  assert.equal(S.danceLampJS(1, 0), 0);
+  assert.ok(Math.abs(S.danceLampJS(1, 0.12) - 1) < 1e-9 && Math.abs(S.danceLampJS(0, 0.3) - 0.5) < 1e-9, 'lit to 0.5 + 0.5·hit');
+  assert.ok(Math.abs(S.danceLampJS(1, 0.5) - 1) < 1e-9, 'held through the fall');
+  assert.ok(S.danceLampJS(1, 0.8) < 0.6 && S.danceLampJS(1, 0.8) > 0.1, 'letting go: ' + S.danceLampJS(1, 0.8).toFixed(3));
+  assert.equal(S.danceLampJS(1, 1.01), 0, 'out after the beat');
+  // the front: the head is where the age says
+  assert.ok(Math.abs(S.danceFrontJS(0, 0, 0.2) - 1) < 1e-12 && Math.abs(S.danceFrontJS(1, 1, 0.2) - 1) < 1e-12 && Math.abs(S.danceFrontJS(1, 3, 0.2) - 1) < 1e-12);
+  assert.ok(S.danceFrontJS(0.5, 0, 0.2) < 0.01 && Math.abs(S.danceFrontJS(0.5, 0.5, 0.2) - 1) < 1e-12);
+  // the lean: nothing before 0.6, loaded near 0.92, gone at the hit; stillness and the grid scale it
+  assert.equal(S.danceLeanJS(0.5, 1, true), 0);
+  assert.ok(S.danceLeanJS(0.92, 1, true) > 0.95 && S.danceLeanJS(0.92, 1, true) <= 1);
+  assert.ok(S.danceLeanJS(0.999, 1, true) < 0.02 && S.danceLeanJS(1, 1, true) === 0, 'unloaded as the hit lands');
+  assert.equal(S.danceLeanJS(0.92, 0, true), 0, 'still → no lean');
+  assert.ok(Math.abs(S.danceLeanJS(0.92, 1, false) - 0.4 * S.danceLeanJS(0.92, 1, true)) < 1e-12, 'freewheel at 0.4');
+  assert.ok(S.danceLeanJS(0.92, 0.5, true) < 0.5 * S.danceLeanJS(0.92, 1, true), 'a half-open gate leans less than half');
+  // the count's weight and the breath
+  assert.equal(S.danceBeatWeightJS(0.0, 0.5), 1); assert.equal(S.danceBeatWeightJS(0.5, 0.5), 0.8);
+  assert.equal(S.danceBeatWeightJS(0.25, 0.5), 0.6); assert.equal(S.danceBeatWeightJS(0.75, 0.5), 0.6);
+  assert.equal(S.danceBeatWeightJS(0.3, 0), 0.8, 'no bar → neutral');
+  assert.ok(Math.abs(S.danceBreathJS(0.02, 0) - 1.02) < 1e-12 && Math.abs(S.danceBreathJS(0.02, 0.5) - 0.98) < 1e-12);
+});
+
+test('dance bus: the prelude is generated — the embedded GLSL and every marked Metal copy match tools/dance_prelude.mjs', async () => {
+  const { pathToFileURL } = await import('url');
+  const P = await import(pathToFileURL(join(root, 'tools/dance_prelude.mjs')).href);
+  assert.deepEqual(P.check(root), [], 'node tools/dance_prelude.mjs --check');
+  assert.deepEqual(P.BUS, S.DANCE_BUS.NAMES, 'the emitter and the stepper name the twelve in the same order');
+  const glsl = P.emitGLSL();
+  S.DANCE_BUS.NAMES.forEach((n, i) => assert.ok(glsl.includes('#define ' + n + ' uDance' + (i >> 2) + '.' + 'xyzw'[i & 3]), n + ' rides vec4 ' + (i >> 2)));
+  assert.ok(html.includes('const GLSL_DANCE = `\n' + glsl + '`;'), 'GLSL_DANCE is the emitter\'s text');
+  for (const ch of glsl) assert.ok(ch.charCodeAt(0) < 128, 'GLSL ES 1.0 source stays ASCII (' + JSON.stringify(ch) + ')');
+  for (const l of glsl.split('\n')){                        // every numeric literal in code is a FLOAT literal
+    const code = l.trim();
+    if (!code || code.startsWith('//') || code.startsWith('#') || code.startsWith('uniform')) continue;
+    const m = code.replace(/\/\/.*$/, '').match(/(?<![\w.])\d+(?![\w.])/);
+    assert.ok(!m, 'a bare integer in GLSL ES 1.0 float math: ' + (m && m[0]) + ' in ' + code.slice(0, 60));
+  }
+  // the landing's constants are the stepper's
+  const lit = x => x.toFixed(5);
+  for (const k of ['LAND_NORM', 'LAND_DECAY', 'LAND_OMEGA']) assert.ok(glsl.includes(lit(S.DANCE_BUS[k])), k + ' = ' + lit(S.DANCE_BUS[k]) + ' is in the GLSL');
+  // the two Metal modes
+  const a = P.emitMSL({ mode: 'suffix', sfx: '_a' }), ns = P.emitMSL({ mode: 'namespace' });
+  assert.ok(a.includes('inline float danceLean_a(constant VizUniforms& U, float ph)') && a.includes('danceBeatPhase_a(U)'), 'suffix mode: every helper carries _a and reads U');
+  assert.ok(ns.includes('inline float danceLean(constant VizUniforms& U, float ph)') && !ns.includes('_a('), 'namespace mode: plain names');
+  assert.ok(a.includes('inline float danceStride_a(float ph, float A)'), 'a pure helper takes no U');
+  assert.ok(!a.includes('${') && !glsl.includes('${') && !glsl.includes('`'), 'nothing unexpanded');
+  // the same body in both languages, modulo the accessor spelling
+  const strip = s => s.split('\n').filter(l => l.startsWith('float ') || l.startsWith('inline float ') || l.startsWith('  float ')).map(l => l.trim().replace(/^inline /, '').replace(/constant VizUniforms& U, |constant VizUniforms& U/g, '').replace(/_a\(U\)/g, '()').replace(/_a\(/g, '(').replace(/U\.(\w+)/g, (_, f) => f === 'barPhase' ? 'uBarPhase' : f)).join('\n');
+  assert.equal(strip(a), strip(glsl), 'GLSL and MSL helpers are one text');
+  assert.throws(() => P.emitMSL({ mode: 'suffix', sfx: 'a' }), /suffix/, 'a suffix starts with _');
+});
+
+/* THE FROZEN TRACE. A fixed synthetic drive at 120 BPM and 60 Hz: one bar of
+   count-in at rest (beats 0..3), eight beats of groove (kick on 1 and 3,
+   snare on 2 and 4, hats on every eighth; the levels decay from each hit),
+   then four beats of silence. No score, so the coil and the landing stay
+   quiet (they have their own test above). The table below is the bus at 22
+   frames, frozen from this implementation; the Swift port steps the same
+   drive (DANCE_TRACE_OUT=path node tests/player.test.mjs writes every frame's
+   inputs and outputs as JSON) and must land on the same numbers. */
+function busTraceDrive(i){
+  const P = 0.5, t = i * BUS_DT, beat = t / P, bi = Math.floor(beat), fr = i % 30;
+  const groove = bi >= 4 && bi < 12, silent = bi >= 12;
+  const g = bi - 4;                                     // beat inside the groove
+  const kickBeat = groove && g % 2 === 0, snareBeat = groove && g % 2 === 1;
+  const onKick = kickBeat && fr === 0, onSnare = snareBeat && fr === 0, onHat = groove && i % 15 === 0;
+  const sinceKick = !groove ? Infinity : (kickBeat ? fr * BUS_DT : fr * BUS_DT + P);
+  const sinceSnare = !groove || g === 0 ? Infinity : (snareBeat ? fr * BUS_DT : fr * BUS_DT + P);
+  const sinceHat = groove ? (i % 15) * BUS_DT : Infinity;
+  const bass = silent ? 0 : 0.25 + 0.65 * Math.exp(-sinceKick / 0.12);
+  const mid = silent ? 0 : 0.30 + 0.50 * Math.exp(-sinceSnare / 0.10);
+  const treble = silent ? 0 : 0.20 + 0.40 * Math.exp(-sinceHat / 0.05);
+  return {
+    bass, mid, treble, energy: silent ? 0 : S.clamp01(0.4 * bass + 0.35 * mid + 0.25 * treble),
+    centroid: 0.4 + 0.05 * Math.sin(t * 2.1),
+    rb: onKick ? 0.6 : 0, rm: onSnare ? 0.5 : 0, rt: onHat ? 0.5 : 0, punch: onKick ? 0.9 : (onSnare ? 0.7 : 0),
+    period: P, haveGrid: true, beatIdx: bi % 4, barPhase: (beat / 4) % 1, phrasePhase: (beat / 32) % 1,
+    ear: silent ? 0.3 : 0.85, playing: true, breath: Math.sin(t * 0.88 + Math.sin(t * 0.213) * 1.7) * 0.5, calm: false,
+  };
+}
+const BUS_TRACE_FRAMES = 480;
+const BUS_TRACE_SAMPLES = [60, 120, 121, 123, 126, 132, 138, 144, 150, 151, 156, 165, 180, 186, 240, 330, 359, 360, 375, 390, 420, 479];
+// frame → the twelve [dHit dAge dKick dMass dArtic dSpark dSway dLift dBrace dImpact dStill dPeriod], frozen
+const BUS_TRACE_TABLE = {
+  60: [0, 4, 0, 0.249439, 0.426736, 0.2, 0.679699, 0.009629, 0, 8, 1, 0.5],
+  120: [1.25, 0, 0.039395, 0.311854, 0.576306, 0.6, -0.013622, 0.05033, 0, 8, 1, 0.5],
+  121: [1.118549, 0.033333, 0.248494, 0.359803, 0.615207, 0.525104, 0.013606, 0.052112, 0, 8, 1, 0.5],
+  123: [0.895664, 0.1, 0.908857, 0.423071, 0.628411, 0.402192, 0.071673, 0.055328, 0, 8, 1, 0.5],
+  126: [0.641771, 0.2, 1.12502, 0.462102, 0.616399, 0.269597, 0.164794, 0.059493, 0, 8, 1, 0.5],
+  132: [0.329496, 0.4, 0.136041, 0.461248, 0.579877, 0.207326, 0.359302, 0.066524, 0, 8, 1, 0.5],
+  138: [0.169169, 0.6, -0.2591, 0.448485, 0.644652, 0.402192, 0.555776, 0.073995, 0, 8, 1, 0.5],
+  144: [0.086854, 0.8, -0.038704, 0.432787, 0.596599, 0.219915, 0.714316, 0.08077, 0, 8, 1, 0.5],
+  150: [0.89875, 0, 0.073658, 0.416779, 0.657115, 0.6, 0.816825, 0.088261, 0, 8, 1, 0.5],
+  151: [0.804237, 0.033333, 0.144999, 0.414167, 0.712163, 0.525104, 0.829903, 0.090346, 0, 8, 1, 0.5],
+  156: [0.461434, 0.2, 0.415637, 0.40151, 0.700254, 0.269597, 0.882552, 0.0988, 0, 8, 1, 0.5],
+  165: [0.169752, 0.5, -0.079297, 0.380726, 0.614138, 0.6, 0.904613, 0.110277, 0, 8, 1, 0.5],
+  180: [1, 0, 0.053675, 0.405618, 0.558786, 0.6, 0.616939, 0.129288, 0, 8, 1, 0.5],
+  186: [0.513417, 0.2, 0.903139, 0.513561, 0.566781, 0.269597, 0.420966, 0.14202, 0, 8, 1, 0.5],
+  240: [1.25, 0, 0.061391, 0.423858, 0.619502, 0.6, -0.221129, 0.230601, 0, 8, 1, 0.5],
+  330: [0.89875, 0, 0.061996, 0.457551, 0.655965, 0.6, -0.597712, 0.383021, 0, 8, 1, 0.5],
+  359: [0.03583, 0.966667, 0.022251, 0.378769, 0.501607, 0.203761, -0.507319, 0.416827, 0, 8, 1, 0.5],
+  360: [0.032062, 1, 0.021996, 0.372508, 0.474256, 0.178327, -0.480075, 0.412609, 0, 8, 0.933333, 0.5],
+  375: [0.006056, 1.5, -0.003348, 0.29011, 0.247321, 0.024134, -0.102656, 0.303542, 0, 8, 0, 0.5],
+  390: [0.001144, 2, 0.00024, 0.225938, 0.186568, 0.003266, 0.05164, 0.21204, 0, 8, 0, 0.5],
+  420: [0.000041, 3, -0.000014, 0.137038, 0.123888, 0.00006, 0.137053, 0.140393, 0, 8, 0, 0.5],
+  479: [0, 4, 0, 0.051261, 0.153277, 0, 0.114833, 0.108203, 0, 8, 0, 0.5],
+};
+
+test('dance bus: the frozen trace — kick on 1 and 3, snare on 2 and 4, hats on the eighths, then a silent bar', async () => {
+  const st = S.makeDanceBusState();
+  const frames = [], drive = [];
+  for (let i = 0; i < BUS_TRACE_FRAMES; i++){
+    const inp = busTraceDrive(i);
+    const { bus, state } = S.danceBusStep(st, inp, BUS_DT);
+    for (let k = 0; k < 12; k++) assert.ok(isFinite(bus[k]), 'frame ' + i + ' slot ' + k + ' finite');
+    frames.push(Array.from(bus)); drive.push(inp);
+    if (i === 480 - 1) assert.ok(state.bus === bus, 'one Float32Array, reused');
+  }
+  // the full trace, for the Swift port
+  if (process.env.DANCE_TRACE_OUT){
+    const { writeFileSync } = await import('fs');
+    const r6 = v => Math.round(v * 1e6) / 1e6;
+    writeFileSync(process.env.DANCE_TRACE_OUT, JSON.stringify({
+      about: 'the dance bus stepped on a fixed synthetic drive: 120 BPM, 60 Hz, one bar of count-in, eight beats of groove (kick 1 & 3, snare 2 & 4, hats on the eighths), four beats of silence; no score. Produced by tests/player.test.mjs from docs/index.html\'s danceBusStep. A port steps `drive` with dt = 1/60 from makeDanceBusState() and must reproduce `bus` to 2e-4.',
+      fps: BUS_FPS, frames: BUS_TRACE_FRAMES, names: S.DANCE_BUS.NAMES, constants: S.DANCE_BUS,
+      inputs: Object.keys(drive[0]),
+      drive: drive.map(d => Object.keys(d).map(k => typeof d[k] === 'number' ? r6(d[k]) : d[k])),
+      bus: frames.map(r => r.map(r6)),
+      samples: Object.fromEntries(BUS_TRACE_SAMPLES.map(f => [f, frames[f].map(r6)])),
+    }, null, 0));
+  }
+  // the table
+  for (const f of BUS_TRACE_SAMPLES){
+    const want = BUS_TRACE_TABLE[f];
+    assert.ok(want, 'frame ' + f + ' is in the table');
+    for (let k = 0; k < 12; k++)
+      assert.ok(Math.abs(frames[f][k] - want[k]) <= 2e-4, 'frame ' + f + ' ' + S.DANCE_BUS.NAMES[k] + ': ' + frames[f][k].toFixed(5) + ' vs frozen ' + want[k]);
+  }
+  // and the shape the table is a sample of
+  const col = k => frames.map(r => r[k]);
+  const kick = col(2), age = col(1), hit = col(0), still = col(10), spark = col(5);
+  for (let i = 0; i < 120; i++) assert.ok(kick[i] === 0 && hit[i] === 0 && age[i] === 4, 'count-in frame ' + i + ': no strike yet');
+  assert.ok(still[119] > 0.999, 'the gate is open by the end of the count-in');
+  for (const k0 of [120, 180, 240, 300]){                         // each kick: one rebound below rest before the snare's half beat is over
+    let peak = 0, pk = k0, mins = 0;
+    for (let i = k0 + 1; i < k0 + 30; i++){ if (kick[i] > peak){ peak = kick[i]; pk = i; } }
+    for (let i = pk + 1; i < k0 + 30 - 1; i++) if (kick[i] < kick[i - 1] && kick[i] <= kick[i + 1] && kick[i] < 0) mins++;
+    const down = (k0 / 30) % 4 === 0;                                   // the one: ×1.25; the three: ×1 — both × (0.5 + 0.5·ear)
+    assert.ok(Math.abs(pk - (k0 + 6)) <= 1, 'kick at ' + k0 + ': the body arrives at +' + (pk - k0) + ' frames (0.2 beat)');
+    assert.ok(down ? (peak > 1.0 && peak <= 1.25) : (peak > 0.85 && peak < 1.0), 'kick at ' + k0 + (down ? ' (downbeat)' : '') + ': the body peaks ' + peak.toFixed(3));
+    assert.equal(mins, 1, 'kick at ' + k0 + ': one rebound');
+    assert.equal(age[k0], 0, 'kick at ' + k0 + ' resets dAge');
+    assert.ok(hit[k0] > 0.9 || hit[k0 + 1] > 0.9, 'kick at ' + k0 + ' lights dHit within a frame');
+  }
+  assert.ok(hit[120] > hit[180] - 1e-6 && hit[240] > hit[300] - 1e-6, 'downbeats land hotter than the three');
+  for (const s0 of [150, 210, 270, 330]){                          // snares: a strike for the light and the age, half a strike for the body
+    assert.equal(age[s0], 0, 'the snare at ' + s0 + ' resets dAge');
+    const peak = Math.max(...kick.slice(s0, s0 + 12));
+    assert.ok(peak > 0.1 && peak < 0.75, 'the snare moves the body at half weight: ' + peak.toFixed(3));
+  }
+  for (const h0 of [135, 165, 195, 225]){                          // bare hats: light only
+    assert.ok(age[h0] > 0.4, 'the hat at ' + h0 + ' does not reset dAge (' + age[h0].toFixed(3) + ')');
+    assert.ok(spark[h0] > 0.5, 'the hat at ' + h0 + ' sparks (' + spark[h0].toFixed(3) + ')');
+  }
+  assert.ok(still[359] > 0.999 && still[375] < 1e-6, 'the gate closes within half a beat of true silence');
+  assert.ok(age[479] === 4 && hit[479] < 1e-4 && Math.abs(kick[479]) < 1e-3 && spark[479] < 1e-4, 'four beats of silence: the body is still (' + [age[479], hit[479], kick[479], spark[479]].map(v => v.toExponential(1)).join(' ') + ')');
+  assert.ok(Math.abs(frames[479][6]) <= 0.3 && frames[479][7] <= 0.15 + 1e-6, 'at rest only the breath remains in sway and lift');
+  for (let i = 0; i < BUS_TRACE_FRAMES; i++) assert.equal(frames[i][11], 0.5, 'dPeriod carries the grid');
+});
+
+test('dance bus: defined in silence — every slot finite on empty, zero, NaN and dt-0 inputs; at rest only the breath remains', () => {
+  const st = S.makeDanceBusState();
+  const zero = busInp({ ear: 0, playing: false, period: 0, haveGrid: false, beatIdx: -1 });
+  for (let i = 0; i < 300; i++){
+    const { bus } = S.danceBusStep(st, zero, i % 3 === 0 ? 0 : BUS_DT);     // a dt of exactly 0 every third frame
+    for (let k = 0; k < 12; k++) assert.ok(Number.isFinite(bus[k]), 'frame ' + i + ' ' + S.DANCE_BUS.NAMES[k] + ' = ' + bus[k]);
+  }
+  const b = st.bus;
+  assert.deepEqual(Array.from(b).map((v, k) => k === 7 ? +v.toFixed(3) : v), [0, 4, 0, 0, 0, 0, 0, 0.075, 0, 8, 0, 0], 'silence: the rest values, lift at (1 − still)·0.15·(0.5 + 0.5·breath)');
+  const { bus: e } = S.danceBusStep(S.makeDanceBusState(), {}, NaN);
+  for (let k = 0; k < 12; k++) assert.ok(Number.isFinite(e[k]), 'empty inputs and a NaN dt: ' + S.DANCE_BUS.NAMES[k] + ' = ' + e[k]);
+  const { bus: n } = S.danceBusStep(S.makeDanceBusState(), { bass: NaN, mid: Infinity, period: Infinity, here: { bass: NaN }, soon: { punch: Infinity },
+    pos: 3, ear: -5, beatIdx: 0, breath: NaN, structure: NaN, barPhase: NaN, rb: NaN, punch: Infinity, haveGrid: true }, 0);
+  for (let k = 0; k < 12; k++) assert.ok(Number.isFinite(n[k]), 'NaN everywhere, dt 0: ' + S.DANCE_BUS.NAMES[k] + ' = ' + n[k]);
+  assert.equal(n[11], 0.5, 'a non-finite period reads as 120 BPM (P 0.5) once the grid is claimed');
+  // the rails hold under a 100 ms frame gap, an absurd strike and a hostile period
+  const r = S.makeDanceBusState();
+  for (let i = 0; i < 60; i++){
+    const { bus } = S.danceBusStep(r, busInp({ rb: 9, punch: 9, bass: 1, mid: 1, treble: 1, energy: 1, period: i % 2 ? 1e-9 : 1e9, beatIdx: 0 }), 0.1);
+    for (let k = 0; k < 12; k++) assert.ok(bus[k] >= S.DANCE_BUS.LO[k] - 1e-6 && bus[k] <= S.DANCE_BUS.HI[k] + 1e-6, 'frame ' + i + ' ' + S.DANCE_BUS.NAMES[k] + ' inside its rail: ' + bus[k]);
+  }
+});
+
+test('dance bus: the stage wire — twelve floats clamped to their rails, rest for a missing or NaN slot, nothing for a short packet', () => {
+  const bus = new Float32Array(12);
+  assert.equal(S.danceBusApply(bus, [1, 2, 3]), false, 'a short packet is refused');
+  assert.equal(S.danceBusApply(bus, null), false, 'no packet is refused');
+  assert.ok(bus.every(v => v === 0), 'and nothing was written');
+  assert.equal(S.danceBusApply(bus, [9, -1, -9, 2, 'x', NaN, -5, 0.5, 1.5, 99, 0.7, 0.4]), true, 'twelve values are taken');
+  assert.deepEqual(Array.from(bus).map(v => +v.toFixed(4)), [1.5, 0, -0.35, 1, 0, 0, -1, 0.5, 1, 8, 0.7, 0.4],
+    'every slot on its rail (DANCE_BUS.LO/HI); a non-numeric or NaN slot reads rest');
+  const b2 = new Float32Array(12);
+  S.danceBusApply(b2, [0, NaN, 0, 0, 0, 0, 0, 0, 0, NaN, 0, 0]);
+  assert.ok(b2[1] === 4 && b2[9] === 8, 'a NaN dAge rests at 4 and a NaN dImpact at 8 — never a fresh strike or a landing');
+  assert.deepEqual(S.DANCE_BUS.REST, [0, 4, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0], 'the rest bus');
+  S.DANCE_BUS.NAMES.forEach((nm, k) => assert.ok(S.DANCE_BUS.LO[k] <= S.DANCE_BUS.REST[k] && S.DANCE_BUS.REST[k] <= S.DANCE_BUS.HI[k], nm + ': rest inside its rail'));
+  // the booth's packet survives its four-decimal rounding inside the rails
+  const st = S.makeDanceBusState();
+  for (let i = 0; i < 130; i++) S.danceBusStep(st, busTraceDrive(i), BUS_DT);
+  const wire = Array.from(st.bus, x => Math.round(x * 1e4) / 1e4), got = new Float32Array(12);
+  assert.equal(S.danceBusApply(got, wire), true);
+  for (let k = 0; k < 12; k++) assert.ok(Math.abs(got[k] - st.bus[k]) <= 5e-5 + 1e-7, S.DANCE_BUS.NAMES[k] + ' through the wire: ' + got[k] + ' vs ' + st.bus[k]);
+});
+
+test('dance bus: the score path — a strike is read once per env step from the digits, never smeared over the interpolated frames', () => {
+  // a 12 Hz env: kick (bass 3→8, punch 0→9) at digit 6, hat (treble 1→4) at 9, snare (mid 2→7, punch 0→6) at 12
+  const env = { hz: 12, b: '333333876654333333', m: '222222222222722222', t: '111111111411111111', o: '000000900000600000' };
+  const mem = { step: -1, env: null }, out = {}, seen = [];
+  for (let f = 0; f < 90; f++){                               // 60 fps over 1.5 s = 18 steps
+    const sc = S.envSample(env, f / 60);
+    S.danceScoreRises(env, sc.step, mem, out);
+    if (out.rb || out.rm || out.rt || out.punch) seen.push({ f, step: sc.step, rb: out.rb, rm: out.rm, rt: out.rt, punch: out.punch });
+  }
+  assert.equal(seen.length, 3, 'exactly three strike frames in 90: ' + JSON.stringify(seen));
+  assert.ok(seen[0].step === 6 && Math.abs(seen[0].rb - 5 / 9) < 1e-9 && seen[0].punch === 1 && seen[0].rm === 0 && seen[0].rt === 0, 'the kick: bass +5/9 and punch 1 on the frame digit 6 begins');
+  assert.ok(seen[1].step === 9 && Math.abs(seen[1].rt - 3 / 9) < 1e-9 && seen[1].punch === 0 && seen[1].rb === 0, 'the hat: treble +3/9, no punch');
+  assert.ok(seen[2].step === 12 && Math.abs(seen[2].rm - 5 / 9) < 1e-9 && Math.abs(seen[2].punch - 6 / 9) < 1e-9, 'the snare: mid +5/9, punch 6/9');
+  // a 48 Hz env under a 24 fps frame spans two steps: a one-step punch is still caught, once
+  const env48 = { hz: 48, b: '3333333383333333', m: '2222222222222222', t: '1111111111111111', o: '0000000090000000' };
+  const m48 = { step: -1, env: null }, got = [];
+  for (let f = 0; f < 8; f++){ const sc = S.envSample(env48, f / 24); S.danceScoreRises(env48, sc.step, m48, out); if (out.punch) got.push({ f, step: sc.step, punch: out.punch, rb: out.rb }); }
+  assert.ok(got.length === 1 && got[0].punch === 1 && Math.abs(got[0].rb - 5 / 9) < 1e-9, 'two steps per frame: the punch at digit 8 lands on one frame: ' + JSON.stringify(got));
+  // a seek (a jump of more than 8 steps), a step backwards and a new env re-anchor without a rise
+  const mS = { step: -1, env: null };
+  S.danceScoreRises(env, 2, mS, out); S.danceScoreRises(env, 14, mS, out);
+  assert.ok(out.rb === 0 && out.punch === 0 && mS.step === 14, 'a 12-step jump re-anchors silently');
+  S.danceScoreRises(env, 13, mS, out);
+  assert.ok(out.rb === 0 && out.rm === 0 && mS.step === 13, 'a step backwards re-anchors silently');
+  S.danceScoreRises(env48, 14, mS, out);
+  assert.ok(out.rb === 0 && out.punch === 0 && mS.env === env48, 'a new env (track change) re-anchors');
+  S.danceScoreRises(null, 3, mS, out);
+  assert.ok(out.rb === 0 && out.punch === 0 && mS.step === -1, 'no env: nothing, and the memory is dropped');
+  // fed through the stepper with the analyser's own 18 ms bass follower: a downbeat kick lights dHit on the punch
+  // frame and the body peaks ~1.16 (1.25 × (0.5 + 0.5·ear)) four to seven frames later — the frozen trace's numbers
+  const st = S.makeDanceBusState(), m2 = { step: -1, env: null }, inp = {};
+  const kickEnv = { hz: 12, b: '3338766543333333333333333', m: '2222222222222222222222222', t: '1111111111111111111111111', o: '0009000000000000000000000' };
+  let fb = 0.3, peak = 0, peakF = -1, hitAt = -1;
+  for (let f = 0; f < 60; f++){
+    const sc = S.envSample(kickEnv, f / 60);
+    S.danceScoreRises(kickEnv, sc.step, m2, inp);
+    fb = S.envFollow(fb, sc.bass, BUS_DT, 0.018, 0.11);
+    Object.assign(inp, busInp({ bass: fb, mid: 0.22, treble: 0.11, energy: 0.4, beatIdx: 0, barPhase: (f / 120) % 1, rb: inp.rb, rm: inp.rm, rt: inp.rt, punch: inp.punch }));
+    const { bus } = S.danceBusStep(st, inp, BUS_DT);
+    if (bus[2] > peak){ peak = bus[2]; peakF = f; }
+    if (hitAt < 0 && bus[0] > 0.5) hitAt = f;
+  }
+  assert.equal(hitAt, 15, 'dHit lights on the frame the punch digit begins (frame 15)');
+  assert.ok(peak > 1.1 && peak < 1.2 && peakF - 15 >= 4 && peakF - 15 <= 7, 'dKick peaks ' + peak.toFixed(3) + ' at +' + (peakF - 15) + ' frames');
 });
 
 // ---------------------------------------------------------------- licensing

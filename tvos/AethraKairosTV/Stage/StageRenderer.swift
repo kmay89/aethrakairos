@@ -13,8 +13,10 @@ import simd
    fragment function in Rooms.all, and `grade_pass` (the hue-preserving
    INK grade + starfield floor + vignette) — so the roster and the look
    never drift from the standalone player. The uniform block is the same
-   FIXED 144-byte VizUniforms, re-declared here privately by contract
-   (a stage screen owns its own mirror, identical to the byte).
+   192-byte VizUniforms (the fixed 144-byte wave-3 block plus the twelve
+   floats of the dance bus appended in stage 2), re-declared here
+   privately by contract (a stage screen owns its own mirror, identical
+   to the byte).
 
    Two rules the design pins on a screen:
    • The booth deals the room. `packet.scene` chooses which room; the
@@ -29,10 +31,13 @@ import simd
 
 // MARK: - the uniforms mirror
 
-/// EXACT mirror of the Metal-side VizUniforms — the same FIXED 144-byte
-/// layout the standalone renderer uses (VisualizerView.swift), re-declared
-/// privately so the stage screen depends on no other file's private struct.
-/// A drifted layout is a silently wrong picture, so every field stays.
+/// EXACT mirror of the Metal-side VizUniforms — the same 192-byte layout the
+/// standalone renderer uses (VisualizerView.swift): bytes 0..143 the FIXED
+/// wave-3 block, bytes 144..191 the twelve floats of the dance bus appended
+/// in stage 2. Re-declared privately so the stage screen depends on no other
+/// file's private struct; configure(view:) asserts the stride against the
+/// 192 every .metal TU static_asserts. A drifted layout is a silently wrong
+/// picture, so every field stays, in this order.
 private struct VizUniforms {
     var time: Float = 0
     var beatPhase: Float = 0
@@ -61,6 +66,23 @@ private struct VizUniforms {
     var lens: Float = -1
     var lensAmt: Float = 0
     var pad3: Float = 0
+    // -- the dance bus, bytes 144..191 (stage 2): twelve floats stepped once per
+    //    frame on the CPU by the shared stepper (see tools/dance_prelude.mjs for
+    //    the shape helpers the rooms read them through). Zero until the Swift bus
+    //    lands; no room reads them yet, so every room renders what it rendered
+    //    at 144. Order is contract with the Metal struct and the web's #defines. --
+    var dHit: Float = 0                       // 144  the strike, as light
+    var dAge: Float = 0                       // 148  beats since the last strike (0..4)
+    var dKick: Float = 0                      // 152  the heavy body, kick-class spring (signed)
+    var dMass: Float = 0                      // 156  the passage's weight
+    var dArtic: Float = 0                     // 160  mids, articulation
+    var dSpark: Float = 0                     // 164  treble, the flick (light only)
+    var dSway: Float = 0                      // 168  the bar (-1..1)
+    var dLift: Float = 0                      // 172  the phrase
+    var dBrace: Float = 0                     // 176  the coil before the drop
+    var dImpact: Float = 0                    // 180  beats since the landing, 8 when none
+    var dStill: Float = 0                     // 184  the stillness gate
+    var dPeriod: Float = 0                    // 188  seconds per beat with a grid, 0 freewheeling
 }
 
 // MARK: - the renderer
@@ -115,6 +137,11 @@ final class StageRenderer: NSObject, MTKViewDelegate {
 
         self.device = device
         self.queue = queue
+
+        // the uniform contract, checked once: this mirror uploads exactly the
+        // 192 bytes every TU's static_assert(sizeof(VizUniforms) == 192) reads
+        assert(MemoryLayout<VizUniforms>.stride == 192,
+               "VizUniforms drifted: the Metal TUs read 192 bytes, the mirror uploads \(MemoryLayout<VizUniforms>.stride)")
 
         // one pipeline per room — the whole shipped roster, rendered into the
         // rgba16Float offscreen. A missing function parks the screen in the void
@@ -284,6 +311,16 @@ final class StageRenderer: NSObject, MTKViewDelegate {
         u.roll2 = rolls.z
         u.lens = packet.lens                                // rooms ignore it; rides for a later pass
         u.lensAmt = packet.lensAmt
+        // the dance bus, bytes 144..191, straight from the wire: the booth
+        // stepped it, the screen only carries it (zeros until the booth ships
+        // the block; no room reads it yet). The decoder already clamped each
+        // slot; reading by index guards a short array all the same. The held
+        // fade (dStill toward 0 while held) belongs to the bus port, not here.
+        let dv = packet.dance
+        func dn(_ i: Int) -> Float { i < dv.count ? dv[i] : 0 }
+        u.dHit = dn(0);   u.dAge = dn(1);    u.dKick = dn(2);   u.dMass = dn(3)
+        u.dArtic = dn(4); u.dSpark = dn(5);  u.dSway = dn(6);   u.dLift = dn(7)
+        u.dBrace = dn(8); u.dImpact = dn(9); u.dStill = dn(10); u.dPeriod = dn(11)
 
         guard let commandBuffer = queue.makeCommandBuffer() else { return }
 

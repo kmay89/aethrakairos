@@ -47,7 +47,8 @@ constant float3 VOID_G = float3(0.019608, 0.023529, 0.054902);
 // ---------------------------------------------------------------
 // THE FINAL VizUniforms — verbatim, byte-for-byte identical across
 // Shaders.metal, Shaders2..7.metal, Xforms.metal, Lens.metal and the
-// mirror Swift struct. The layout is FIXED at 144 bytes; these rooms
+// mirror Swift struct. Bytes 0..143 are FIXED and the dance bus rides
+// at 144..191 (stride 192, asserted under the struct); these rooms
 // never read the lens, so the last three floats keep the neutral pad
 // names here — what matters is three floats there, at the right bytes.
 // ---------------------------------------------------------------
@@ -58,10 +59,14 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float _pad1; float _pad2; float _pad3;             // 128..140  -> stride 144
+    float roll2; float _pad1; float _pad2; float _pad3;             // 128..140
     // _pad1/_pad2 (132/136) carry the LENS pass's live fields and _pad3
     // (140) the song's Camelot number — no pad here is free to claim
+    float dHit; float dAge; float dKick; float dMass;               // 144..156  the dance bus (see tools/dance_prelude.mjs)
+    float dArtic; float dSpark; float dSway; float dLift;           // 160..172
+    float dBrace; float dImpact; float dStill; float dPeriod;       // 176..188  -> stride 192
 };
+static_assert(sizeof(VizUniforms) == 192, "VizUniforms drifted: the CPU mirror uploads 192 bytes");
 
 // ---------------------------------------------------------------
 // helpers (all _g — this file's private ladder)

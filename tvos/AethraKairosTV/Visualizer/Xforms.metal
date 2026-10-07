@@ -34,9 +34,12 @@ using namespace metal;
 
 constant float PI_X = 3.14159265359;
 
-// ---- THE FINAL VizUniforms (wave 2) — VERBATIM across every .metal.
+// ---- THE FINAL VizUniforms — VERBATIM across every .metal.
 // First 96 bytes byte-for-byte from wave 1; slot 11 renamed
-// _pad0 -> xformMode; twelve floats appended to a 144-byte stride.
+// _pad0 -> xformMode; twelve floats appended to a 144-byte block
+// (wave 2); twelve more — the dance bus, bytes 144..191 — appended in
+// stage 2 of the dance layer, stride 192, asserted under the struct.
+// This pass reads none of the twelve.
 struct VizUniforms {
     float time; float beatPhase; float barPhase; float energy;      // 0..3
     float bass; float mid; float treble; float calm;                // 4..7
@@ -44,10 +47,14 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float _pad1; float _pad2; float _pad3;             // 128..140  -> stride 144
+    float roll2; float _pad1; float _pad2; float _pad3;             // 128..140
     // _pad1/_pad2 (132/136) carry the LENS pass's live fields and _pad3
     // (140) the song's Camelot number — no pad here is free to claim
+    float dHit; float dAge; float dKick; float dMass;               // 144..156  the dance bus (see tools/dance_prelude.mjs)
+    float dArtic; float dSpark; float dSway; float dLift;           // 160..172
+    float dBrace; float dImpact; float dStill; float dPeriod;       // 176..188  -> stride 192
 };
+static_assert(sizeof(VizUniforms) == 192, "VizUniforms drifted: the CPU mirror uploads 192 bytes");
 
 // ---------------------------------------------------------------
 // helpers (this translation unit owns its own — a Metal helper
