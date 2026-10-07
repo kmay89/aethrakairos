@@ -3,6 +3,24 @@
   "entries": [
     {
       "build": "unreleased",
+      "date": "2026-10-07",
+      "title": "The platter, and the conductor",
+      "notes": [
+        "VINYL: the booth has a real platter. Drag deck A's record and the music follows your hand — backwards included — through a four-point Hermite read of the last twenty-four seconds of the room, recorded and played inside the audio thread; a brake coasts to a true stop and spins back up, a backspin flicks to −3.5× and dies, REVERSE and the half and quarter speeds are held like pads. SLIP snaps the room back to where the track would have been; HOLD fetches the deck to where the record is, with the seek's latency learned from every landing",
+        "the field scratches with the record: the platter sits before the analyser, so a backspin runs the room backwards too",
+        "THE CONDUCTOR: the director reads the song's script ahead. A drop is arrived with, not reacted to — a cut lands on the one, a gentler rise morphs to complete as the page turns — and the room is dealt by what the coming section promises rather than the bar before it; a song reaches for the same rooms at the same places, night after night",
+        "the light crosses with the blend: a mix re-reads the colour plan for the incoming track the moment the seam fires and glides over the whole blend, so the hue arrives with the new key",
+        "the journey and quantum solvers hear the key: a hop into a clashing key costs what a hop away from the destination does",
+        "the key detector was rebuilt — the old chroma read 187 of 267 tracks as C major; a tuning-corrected 2.7 Hz chroma, log compression and a three-profile Pearson vote read the catalog honestly, and every track's key was re-read without touching its grid. The colour wheel is now the whole wheel: 12 and 1 are neighbours in light as they are in harmony",
+        "smoother everywhere: every room's shaders are built ahead of their first cut, one per frame with headroom; the seek bar and beat dot write to the page only when they change; the beat clock leads the glass by one frame so the eye and the ear agree; a struggling device's dissolve is kept short; rooms that render to their own textures skip the work on frames nobody sees; VORTEX and STELLARATOR are known to be heavy"
+      ],
+      "builds": [
+        "2e7e0b0ca4",
+        "89bd062593"
+      ]
+    },
+    {
+      "build": "unreleased",
       "date": "2026-09-03",
       "title": "The laws, and the one ring",
       "notes": [

@@ -55,7 +55,7 @@ for (const job of jobs){
     };
     // key → hue, the colour engine's wheel
     const m = /^(\d{1,2})(A|B)$/.exec(spec.key || '');
-    const H = m ? ((+m[1] - 1) / 12 * 300 + 40) % 360 : rng() * 360;
+    const H = m ? ((+m[1] - 1) / 12 * 360 + 40) % 360 : rng() * 360;   // the whole wheel, as camelotHue
     const minor = m && m[2] === 'A';
     const L = minor ? 0.55 : 0.63;
     const col = (l, c, h, alpha) => `oklch(${l} ${c} ${h} / ${alpha == null ? 1 : alpha})`;

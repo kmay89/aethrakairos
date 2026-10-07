@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') +
   '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_GIVE_UP, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -80,7 +80,10 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' LAVA, lavaVisc, lavaRadius, lavaAmbient, lavaFlow, lavaK6, lavaKS, lavaW, lavaGradW,' +
   ' lavaCohesion, lavaRestDensity, lavaRestGrad, lavaCohesionScale, lavaBudget,' +
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError,' +
-  ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins };';
+  ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
+  ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
+  ' makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -700,12 +703,15 @@ test('camelot wheel maps to the colour wheel — the crate chip mapping', () => 
   const hues = [];
   for (let n = 1; n <= 12; n++){
     const h = S.camelotHue(n + 'A');
-    assert.equal(h, ((n - 1) / 12 * 300 + 40) % 360);
+    assert.equal(h, ((n - 1) / 12 * 360 + 40) % 360);
     hues.push(h);
   }
   assert.equal(new Set(hues.map(h => h.toFixed(2))).size, 12);        // all distinct
-  // harmonic neighbours are chromatic neighbours: one wheel step = 25 degrees
-  assert.equal(Math.abs(S.camelotHue('9A') - S.camelotHue('8A')), 25);
+  // harmonic neighbours are chromatic neighbours: one wheel step = 30 degrees —
+  // all the way round, so 12 and 1 are neighbours too (the old 300° span broke there)
+  assert.equal(Math.abs(S.camelotHue('9A') - S.camelotHue('8A')), 30);
+  const d121 = Math.abs(S.camelotHue('12A') - S.camelotHue('1A'));
+  assert.equal(Math.min(d121, 360 - d121), 30);
   // relative major/minor share the wheel position
   assert.equal(S.camelotHue('8A'), S.camelotHue('8B'));
   assert.equal(S.camelotHue('nope'), null);
@@ -7645,6 +7651,242 @@ test('licensing: no GPL fractal-renderer identifiers in the web player or the tv
 });
 
 await Promise.all(pending);
+// ---------------------------------------------------------------- vinyl: the platter
+{
+  const sr = 48000;
+  // run the tape block by block, the way the audio thread does, with a hand/command script
+  const run = (S, inL, inR, blk, at) => {
+    const n = inL.length, outL = new Float32Array(n), outR = new Float32Array(n);
+    for (let i = 0; i < n; i += blk){
+      if (at) at(i, S);
+      const m = Math.min(blk, n - i);
+      const oL = new Float32Array(m), oR = new Float32Array(m);
+      S.vinylProcess(S.S, inL.subarray(i, i + m), inR ? inR.subarray(i, i + m) : null, oL, oR, m);
+      outL.set(oL, i); outR.set(oR, i);
+    }
+    return { outL, outR };
+  };
+  const ramp = n => { const x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = i; return x; };
+  test('platter: a direct drive — the motor reaches speed, a finger owns it, the mat gives it back', () => {
+    const P = S.makePlatter(); P.rate = 0; P.mode = 'motor';
+    let t = 0; while (P.rate < 0.98 && t < 5){ S.platterStep(P, 1 / 200, null); t += 1 / 200; }
+    assert.ok(t > 0.5 && t < 2.0, 'a third-of-a-second time constant reaches speed in ' + t.toFixed(2) + ' s');
+    // a finger drags it backwards: the record follows the finger, fast
+    for (let i = 0; i < 20; i++) S.platterStep(P, 1 / 200, -1.5);
+    assert.ok(P.rate < -1.4 && P.mode === 'hand', 'followed the hand to ' + P.rate.toFixed(2));
+    // the finger lifts: the motor takes it back through the mat, quickly, and settles
+    let back = 0; while (P.mode !== 'motor' && back < 2){ S.platterStep(P, 1 / 200, null); back += 1 / 200; }
+    assert.ok(back < 0.6 && Math.abs(P.rate - 1) < 0.03, 'back on the motor in ' + back.toFixed(2) + ' s at ' + P.rate.toFixed(3));
+    assert.ok(Math.abs(S.platterStep(P, 1, 99).rate) <= S.PLATTER.maxRate, 'a wild hand is clamped');
+  });
+  test('platter: a brake coasts to a real stop and stays there until the power returns; a backspin flicks and dies', () => {
+    const P = S.makePlatter(); P.mode = 'brake';
+    let t = 0; while (P.mode !== 'stopped' && t < 5){ S.platterStep(P, 1 / 200, null); t += 1 / 200; }
+    assert.equal(P.mode, 'stopped'); assert.equal(P.rate, 0);
+    assert.ok(t > 0.8 && t < 3, 'coasted down in ' + t.toFixed(2) + ' s — weight, not a fade');
+    for (let i = 0; i < 100; i++) S.platterStep(P, 1 / 200, null);
+    assert.equal(P.rate, 0, 'stopped means stopped');
+    S.vinylCommand({ platter: P, engaged: true, written: 100, pos: 50 }, { op: 'motor', v: 1 });
+    for (let i = 0; i < 400; i++) S.platterStep(P, 1 / 200, null);
+    assert.ok(Math.abs(P.rate - 1) < 0.03, 'the power came back on: ' + P.rate.toFixed(3));
+    const B = S.makePlatter(); S.vinylCommand({ platter: B, engaged: true, written: 100, pos: 50 }, { op: 'backspin' });
+    assert.ok(B.rate < -3, 'flicked backwards');
+    let neg = 0; t = 0;
+    while (!(B.mode === 'motor' && Math.abs(B.rate - 1) < 0.03) && t < 5){ S.platterStep(B, 1 / 200, null); if (B.rate < 0) neg += 1 / 200; t += 1 / 200; }
+    assert.ok(neg > 0.5 && neg < 1.6 && t < 2.5, 'ran backwards for ' + neg.toFixed(2) + ' s and was back on the motor by ' + t.toFixed(2) + ' s');
+  });
+  test('platter: the hand is an angle — a turn is 1.8 s of music, and the shortest way round is taken', () => {
+    assert.ok(Math.abs(S.platterHandRate(2 * Math.PI, 1.8) - 1) < 1e-9, 'one turn in 1.8 s is the motor speed');
+    assert.ok(Math.abs(S.platterHandRate(-Math.PI, 0.45) + 2) < 1e-9, 'half a turn back in 0.45 s is −2×');
+    assert.equal(S.platterHandRate(1, 0), 0);
+    assert.ok(Math.abs(S.platterDelta(0.1, 2 * Math.PI - 0.1) - 0.2) < 1e-9, 'across the wrap');
+    assert.ok(Math.abs(S.platterDelta(-3, 3) - (2 * Math.PI - 6)) < 1e-9);
+  });
+  test('hermite4: lands on the samples and reproduces a line exactly', () => {
+    assert.equal(S.hermite4(0, 1, 2, 3, 0), 1);
+    assert.ok(Math.abs(S.hermite4(0, 1, 2, 3, 1) - 2) < 1e-12);
+    for (const t of [0.1, 0.25, 0.5, 0.9]) assert.ok(Math.abs(S.hermite4(3, 5, 7, 9, t) - (5 + 2 * t)) < 1e-12, 'linear at ' + t);
+    assert.ok(S.hermite4(0, 0, 1, 1, 0.5) > 0.45 && S.hermite4(0, 0, 1, 1, 0.5) < 0.55, 'a smooth step through the middle');
+  });
+  test('vinyl: disengaged, the room passes through untouched — and the tape records it regardless', () => {
+    const V = { S: S.makeVinyl(sr, 1), vinylProcess: S.vinylProcess };
+    const x = ramp(4000);
+    const { outL } = run(V, x, null, 128);
+    for (let i = 0; i < 4000; i++) assert.equal(outL[i], x[i]);
+    assert.equal(V.S.written, 4000);
+    assert.equal(V.S.ring[0][3999], 3999, 'the tape has the last sample');
+  });
+  test('vinyl: engaged at 1× it rides the live edge a couple of samples behind, under a short crossfade', () => {
+    const V = { S: S.makeVinyl(sr, 1), vinylProcess: S.vinylProcess };
+    const x = ramp(9600);
+    const { outL } = run(V, x, null, 128, (i, st) => { if (i === 2048) S.vinylCommand(st.S, { op: 'engage' }); });
+    assert.ok(V.S.engaged);
+    const rampN = Math.round(S.VINYL_RAMP_SEC * sr);
+    for (let i = 2048 + rampN + 8; i < 9600; i++) assert.ok(x[i] - outL[i] >= 0 && x[i] - outL[i] <= 4, 'sample ' + i + ' lags by ' + (x[i] - outL[i]));
+    // the crossfade itself is a crossfade: no step larger than the ramp's own slope
+    let worst = 0;
+    for (let i = 2049; i < 2048 + rampN + 8; i++) worst = Math.max(worst, Math.abs((outL[i] - outL[i - 1]) - 1));
+    assert.ok(worst < 1.5, 'worst step across the take ' + worst.toFixed(3));
+  });
+  test('vinyl: a hand pulled backwards reads the tape backwards; a brake reads it to a stop', () => {
+    const V = { S: S.makeVinyl(sr, 1), vinylProcess: S.vinylProcess };
+    const x = ramp(sr);
+    const { outL } = run(V, x, null, 128, (i, st) => {
+      if (i === 8192) S.vinylCommand(st.S, { op: 'engage' });
+      if (i === 12288) S.vinylCommand(st.S, { op: 'hand', v: -1 });
+    });
+    // by 0.1 s after the pull the record is going backwards: the output falls as the input rises
+    const a = 12288 + 4800, b = a + 2400;
+    assert.ok(outL[b] < outL[a] - 2000, 'backwards: ' + outL[a].toFixed(0) + ' → ' + outL[b].toFixed(0));
+    assert.ok(V.S.platter.rate < -0.95, 'the rate followed the hand: ' + V.S.platter.rate.toFixed(3));
+    const W = { S: S.makeVinyl(sr, 3), vinylProcess: S.vinylProcess };   // a tape longer than the test, so the stopped place survives
+    const y = ramp(sr * 2);
+    const r = run(W, y, null, 128, (i, st) => { if (i === 8192) S.vinylCommand(st.S, { op: 'engage' }); if (i === 9216) S.vinylCommand(st.S, { op: 'brake' }); });
+    assert.equal(W.S.platter.mode, 'stopped');
+    assert.ok(Math.abs(r.outL[sr * 2 - 1] - r.outL[sr * 2 - 400]) < 1, 'a stopped record reads one place');
+  });
+  test('vinyl: the read head can never pass the live edge, nor fall off the back of the tape', () => {
+    const V = { S: S.makeVinyl(sr, 0.1), vinylProcess: S.vinylProcess };   // a short tape: 4800 frames
+    const x = ramp(sr);
+    run(V, x, null, 128, (i, st) => {
+      if (i === 1024) S.vinylCommand(st.S, { op: 'engage' });
+      if (i === 2048) S.vinylCommand(st.S, { op: 'hand', v: 6 });     // flung forward
+      if (i === 24000) S.vinylCommand(st.S, { op: 'hand', v: -6 });   // and back, past the tape's reach
+    });
+    assert.ok(V.S.pos <= V.S.written, 'never ahead of what was written');
+    assert.ok(V.S.pos >= V.S.written - V.S.cap, 'never behind the tape');
+    for (let i = 0; i < 4; i++) assert.ok(isFinite(V.S.ring[0][i]));
+  });
+  test('vinyl: a snap takes the head home to the live edge at the motor speed, under a crossfade', () => {
+    const V = { S: S.makeVinyl(sr, 1), vinylProcess: S.vinylProcess };
+    const x = ramp(sr);
+    const { outL } = run(V, x, null, 128, (i, st) => {
+      if (i === 4096) S.vinylCommand(st.S, { op: 'engage' });
+      if (i === 8192) S.vinylCommand(st.S, { op: 'hand', v: 0 });     // held still: the lag grows
+      if (i === 24576) S.vinylCommand(st.S, { op: 'snap' });
+    });
+    assert.ok(V.S.written - V.S.pos < 8, 'home: ' + (V.S.written - V.S.pos).toFixed(1) + ' frames behind');
+    assert.equal(V.S.platter.mode, 'motor'); assert.equal(V.S.platter.rate, 1);
+    assert.ok(x[sr - 1] - outL[sr - 1] <= 4, 'reading the live edge again');
+  });
+  test('vinyl: letting go fades the room back in without a step', () => {
+    const V = { S: S.makeVinyl(sr, 1), vinylProcess: S.vinylProcess };
+    const x = ramp(sr);
+    const { outL } = run(V, x, null, 128, (i, st) => {
+      if (i === 4096) S.vinylCommand(st.S, { op: 'engage' });
+      if (i === 24576) S.vinylCommand(st.S, { op: 'release' });
+    });
+    assert.ok(!V.S.engaged && V.S.gain === 0);
+    assert.equal(outL[sr - 1], x[sr - 1], 'passed through again');
+    let worst = 0; for (let i = 24577; i < 24576 + 600; i++) worst = Math.max(worst, Math.abs((outL[i] - outL[i - 1]) - 1));
+    assert.ok(worst < 1.5, 'the handback is a fade, worst step ' + worst.toFixed(3));
+  });
+  test('vinyl: the worklet module is the tested arithmetic, serialised', () => {
+    const src = S.vinylWorkletSource();
+    for (const f of ['function platterStep(', 'function hermite4(', 'function vinylProcess(', 'function vinylCommand('])
+      assert.ok(src.includes(f), f + ' is in the module');
+    assert.ok(src.includes("registerProcessor('mb8-vinyl'"), 'it registers the processor');
+    assert.ok(src.includes('"backspin":' + S.PLATTER.backspin), 'with the same tuning');
+    new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src);
+  });
+}
+
+// ---------------------------------------------------------------- syn: the conductor reads ahead
+{
+  // a four-page script: a quiet intro, a build, a drop (the peak), an outro
+  const ST = { ok: true, sections: [
+    { s: 0.00, e: 0.20, energy: 0.20, loud: false },
+    { s: 0.20, e: 0.45, energy: 0.55, loud: true },
+    { s: 0.45, e: 0.80, energy: 0.98, loud: true },
+    { s: 0.80, e: 1.00, energy: 0.15, loud: false } ], apex: 0.62, mixIn: 0.2, mixOut: 0.8 };
+  const DUR = 200;   // seconds
+  test('synSectionAt names the page under the playhead', () => {
+    assert.equal(S.synSectionAt(ST, 0.1).label, 'intro');
+    assert.equal(S.synSectionAt(ST, 0.3).label, 'build');
+    assert.equal(S.synSectionAt(ST, 0.6).label, 'peak');
+    assert.equal(S.synSectionAt(ST, 0.9).label, 'outro');
+    assert.equal(S.synSectionAt(ST, 0.3).i, 1);
+    assert.equal(S.synSectionAt(null, 0.3), null);
+    assert.equal(S.synSectionAt({ ok: false }, 0.3), null);
+  });
+  test('synAhead sees the next page only inside the window, with how soon and how hard', () => {
+    // 0.44 → the drop at 0.45 is 2 s away: in the 2.4 s window
+    const a = S.synAhead(ST, 0.44, DUR);
+    assert.ok(a && a.i === 2 && a.loud && a.drop, 'the drop is coming');
+    assert.ok(Math.abs(a.inSec - 2) < 1e-9, 'in two seconds');
+    assert.ok(Math.abs(a.rise - 0.43) < 1e-9);
+    assert.equal(a.label, 'peak');
+    assert.equal(S.synAhead(ST, 0.40, DUR), null, 'ten seconds out is not yet in view');
+    assert.equal(S.synAhead(ST, 0.90, DUR), null, 'past the last page there is nothing ahead');
+    assert.equal(S.synAhead(ST, 0.44, 0), null, 'no duration, no clock');
+    const fall = S.synAhead(ST, 0.795, DUR);
+    assert.ok(fall && !fall.loud && fall.rise < 0 && !fall.drop, 'a fall is seen, and is not a drop');
+  });
+  test('synFeatAhead leans the live read toward the page ahead, one way only', () => {
+    const live = { energy: 0.3, beat: 0.2, bass: 0.3, calm: 0.8, entropy: 0.4 };
+    const up = S.synFeatAhead(live, { energy: 0.98, loud: true });
+    assert.ok(up.energy >= 0.98 && up.beat > 0.9 && up.calm <= 0.021 && up.bass > 0.8, 'a drop coming reads as a drop: ' + JSON.stringify(up));
+    assert.equal(up.entropy, 0.4, 'what the page says nothing about is left alone');
+    assert.equal(live.energy, 0.3, 'the live read itself is untouched');
+    const hot = S.synFeatAhead({ energy: 0.95, beat: 0.9, calm: 0.1 }, { energy: 0.6, loud: true });
+    assert.equal(hot.energy, 0.95, 'a loud page never lowers a hotter live read');
+    const down = S.synFeatAhead({ energy: 0.9, beat: 0.9, calm: 0.1 }, { energy: 0.15, loud: false });
+    assert.ok(down.energy <= 0.25 && down.calm >= 0.85 && down.beat <= 0.4, 'a break coming reads as a break');
+    assert.deepEqual(S.synFeatAhead(live, null), live);
+  });
+  test('synCue fires so the change LANDS on the drop: a cut on a strong rise, a morph on a gentle one, nothing on a fall', () => {
+    const drop = { i: 2, inSec: 2.0, rise: 0.43, loud: true };
+    let c = S.synCue({ ahead: drop });
+    assert.ok(!c.fire && c.kind === 'cut' && Math.abs(c.wait - (2 - S.SYN_TUNING.cutDur)) < 1e-9, 'too early: waits');
+    c = S.synCue({ ahead: { ...drop, inSec: S.SYN_TUNING.cutDur } });
+    assert.ok(c.fire && c.big && c.kind === 'cut' && c.dur <= S.SYN_TUNING.cutDur + 0.001, 'fires with the cut sized to land on the one');
+    c = S.synCue({ ahead: { ...drop, inSec: 0.3 } });
+    assert.ok(c.fire && c.dur >= 0.2 && c.dur <= 0.33, 'late: a shorter cut still lands');
+    c = S.synCue({ ahead: { i: 1, inSec: 1.3, rise: 0.35, loud: true } });
+    assert.ok(c.fire && c.kind === 'morph' && c.dur <= S.SYN_TUNING.morphDur, 'a gentle rise morphs');
+    assert.ok(!S.synCue({ ahead: { i: 3, inSec: 0.5, rise: -0.8, loud: false } }).fire, 'a fall is the boundary\'s own');
+    assert.ok(!S.synCue({ ahead: { ...drop, inSec: 0.3 }, reduced: true }).fire, 'reduced motion: the conductor stands down');
+    assert.ok(!S.synCue({}).fire && !S.synCue(null).fire);
+    // a slow renderer's frame is landing early, never late — and it is bounded
+    const slow = S.synCue({ ahead: { ...drop, inSec: S.SYN_TUNING.cutDur + 0.08 }, frame: 0.1 });
+    assert.ok(slow.fire, 'a frame of slack is allowed');
+    assert.ok(!S.synCue({ ahead: { ...drop, inSec: S.SYN_TUNING.cutDur + 0.2 }, frame: 5 }).fire, 'but no more than a tenth of a second');
+  });
+  test('synSeamGlide sizes the light\'s glide to the blend', () => {
+    assert.equal(S.synSeamGlide({ type: 'beatmix' }, 7.7), 7.7);
+    assert.equal(S.synSeamGlide({ type: 'beatmix' }, 1), 2, 'never shorter than a lighting cue');
+    assert.ok(Math.abs(S.synSeamGlide({ type: 'fade' }, 5) - 4) < 1e-9);
+    assert.equal(S.synSeamGlide({ type: 'gapless' }, 0.06), 2);
+    assert.equal(S.synSeamGlide(null, 9), 2);
+  });
+  test('synKeyTerm: the harmony as a distance — nothing for an unknown key, little for a neighbour, a lot for a clash', () => {
+    assert.equal(S.synKeyTerm('8A', '8A'), 0);
+    assert.equal(S.synKeyTerm('8A', '8B'), 0.04);
+    assert.equal(S.synKeyTerm('8A', '9A'), 0.08);
+    assert.equal(S.synKeyTerm('8A', '9B'), 0.18);
+    assert.equal(S.synKeyTerm('8A', '2A'), 0.3);
+    assert.equal(S.synKeyTerm(null, '8A'), 0);
+    assert.equal(S.synKeyTerm('8A', undefined), 0);
+    // …and the journey hears it: between two otherwise identical tracks the harmonic one is dealt
+    const F = { energy: 0.5, brightness: 0.5, entropy: 0.5, onsets: 0.5, bpm: 120 };
+    const tracks = [
+      { id: 'from', duration: 200, features: { ...F, key: '8A' } },
+      { id: 'clash', duration: 200, features: { ...F, key: '2A' } },
+      { id: 'near', duration: 200, features: { ...F, key: '9A' } },
+    ];
+    const r = S.dealJourney({ tracks, fromId: 'from', heat: 0, targetCount: 2, rng: () => 0.5 });
+    assert.deepEqual(r.order, ['from', 'near'], 'the neighbouring key follows');
+    const q = S.quantumStep({ tracks: tracks.slice(1), currentFeat: tracks[0].features, heat: 0.1, rng: () => 0.5, usedIds: new Set() });
+    assert.ok(q.probs[0].id === 'near' && q.probs[0].p > q.probs[1].p * 2, 'quantum leans the same way: ' + JSON.stringify(q.probs));
+  });
+  test('synDealSeed: the same song at the same place throws the same die; another place, another die', () => {
+    const a = S.synDealSeed('abc123', 2), b = S.synDealSeed('abc123', 2), c = S.synDealSeed('abc123', 3), d = S.synDealSeed('zzz', 2);
+    assert.equal(a, b);
+    assert.ok(a !== c && a !== d);
+    for (const v of [a, c, d, S.synDealSeed(null, 0), S.synDealSeed('', 99)]) assert.ok(v >= 0 && v < 1);
+  });
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
    and exited 0, so `node tests/player.test.mjs` — the whole of the `unit`

@@ -238,6 +238,9 @@ def raw_features_for(sha, path, cache, wizard_features=None):
         mix = hit.get("mix")
         if not isinstance(mix, dict) or mix.get("v") != ftmod.MIX_VERSION:
             hit["mix"] = ftmod.extract_mix_file(path)
+        elif mix.get("kv") != ftmod.KEY_VERSION:
+            # the grid is current and the key detector is not: refresh the key alone
+            hit["mix"] = ftmod.refresh_key(path, mix)
         return hit, True
     if wizard_features and all(k in wizard_features for k in
                                ("lufs", "centroid", "entropy", "onset_rate", "bpm")):
