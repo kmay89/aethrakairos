@@ -252,8 +252,18 @@ jobs:
           print(f"ICE-RING PIXELS (1/4 sampled): {ice}  ({w}x{h})")
           print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
           EOF
+          for PNG in shots/*.png; do
+            NAME="$(basename "$PNG" .png)"
+            case "$NAME" in burst-*) continue ;; esac   # the bursts travel as montages below
+            sips -Z 640 "$PNG" --out "shots/$NAME.jpg" \
+              -s format jpeg -s formatOptions 50 >/dev/null
+            echo "== BEGIN BASE64 JPEG ($NAME) =="
+            base64 -i "shots/$NAME.jpg" | fold -w 300
+            echo "== END BASE64 JPEG ($NAME) =="
+          done
           # THE MOTION REPORT (stage 2 of the dance layer; not gated until stage
-          # 6). For each burst: the frames greyscaled and downscaled to 160 px
+          # 6). It is printed LAST so the newest readout sits in the tail of the
+          # log that a reader with only the last few thousand lines can reach. For each burst: the frames greyscaled and downscaled to 160 px
           # wide, mean |delta| between consecutive frames in 0..1, the wall-clock
           # dt between shots, and peak/median of the deltas (a comb — one spike
           # over a still — reads high; a body — a delta that rises over frames
@@ -294,15 +304,6 @@ jobs:
                   print(b64[i:i + 300])
               print(f"== END BASE64 JPEG (burst-{room}-montage) ==")
           EOF
-          for PNG in shots/*.png; do
-            NAME="$(basename "$PNG" .png)"
-            case "$NAME" in burst-*) continue ;; esac   # the bursts travel as montages above
-            sips -Z 640 "$PNG" --out "shots/$NAME.jpg" \
-              -s format jpeg -s formatOptions 50 >/dev/null
-            echo "== BEGIN BASE64 JPEG ($NAME) =="
-            base64 -i "shots/$NAME.jpg" | fold -w 300
-            echo "== END BASE64 JPEG ($NAME) =="
-          done
 
       - uses: actions/upload-artifact@v7
         with:
