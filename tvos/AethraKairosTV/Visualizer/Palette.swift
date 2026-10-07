@@ -14,13 +14,14 @@ enum Palette {
 
     // MARK: - key → hue
 
-    /// H = ((n−1)/12·300 + 40) mod 360 — 25° per Camelot step, the same
+    /// H = ((n−1)/12·360 + 40) mod 360 — 30° per Camelot step, the whole
+    /// wheel (so 12 and 1, harmonic neighbours, are neighbours in light), the same
     /// mapping the Crate's key chips and the generated cover art use, so any
     /// track list and the light always agree. Strict parse: /^\d{1,2}(A|B)$/,
     /// n in 1…12, uppercase only — an invented key would be a lie told in light.
     static func camelotHue(_ key: String?) -> Double? {
         guard let parsed = camelotParse(key) else { return nil }
-        return (Double(parsed.n - 1) / 12 * 300 + 40).truncatingRemainder(dividingBy: 360)
+        return (Double(parsed.n - 1) / 12 * 360 + 40).truncatingRemainder(dividingBy: 360)
     }
 
     // MARK: - OKLCH → sRGB

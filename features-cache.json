@@ -21,8 +21,8 @@
 "v": 2,
 "bpm": 126.003,
 "grid": 1.9111,
-"key": "7B",
-"keyConf": 0.17,
+"key": "10A",
+"keyConf": 0.25,
 "phrases": 32,
 "in": {
 "start": 1.911,
@@ -35,7 +35,8 @@
 "mixable": 0.64,
 "gridRms": 16.0,
 "gridDrift": 2.6,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "173be9a61532d7809ca4f8d1bb1d2119b60b90ba04f0d83aada03970adc90901": {
@@ -58,8 +59,8 @@
 "v": 2,
 "bpm": 127.996,
 "grid": 0.9727,
-"key": "8B",
-"keyConf": 0.37,
+"key": "9B",
+"keyConf": 0.12,
 "phrases": 32,
 "in": {
 "start": 0.973,
@@ -72,7 +73,8 @@
 "mixable": 0.79,
 "gridRms": 9.2,
 "gridDrift": 0.5,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "6c12a166a51eee7fb4d90b40d5f016d1ae85ef35a447bf2579f03e5fbf8c53f9": {
@@ -95,8 +97,8 @@
 "v": 2,
 "bpm": 150.005,
 "grid": 1.6088,
-"key": "8B",
-"keyConf": 0.38,
+"key": "9B",
+"keyConf": 0.01,
 "phrases": 32,
 "in": {
 "start": 1.609,
@@ -109,7 +111,8 @@
 "mixable": 0.63,
 "gridRms": 16.2,
 "gridDrift": 1.0,
-"downConf": 0.41
+"downConf": 0.41,
+"kv": 2
 }
 },
 "f8b0b5de80ee55b6fe7100b1add982a7cd89dfb728130167614e72d2263a3650": {
@@ -132,8 +135,8 @@
 "v": 2,
 "bpm": 128.005,
 "grid": 1.5175,
-"key": "8B",
-"keyConf": 0.36,
+"key": "10B",
+"keyConf": 0.02,
 "phrases": 32,
 "in": {
 "start": 1.517,
@@ -146,7 +149,8 @@
 "mixable": 0.76,
 "gridRms": 9.4,
 "gridDrift": 1.0,
-"downConf": 0.01
+"downConf": 0.01,
+"kv": 2
 }
 },
 "518dc38f17088f7f1a0bbb0ea4bcaeac12dc3b4bf8574ff10e7e3cfd90c569af": {
@@ -169,8 +173,8 @@
 "v": 2,
 "bpm": 130.0,
 "grid": 0.16,
-"key": "8B",
-"keyConf": 0.31,
+"key": "9B",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 0.16,
@@ -183,7 +187,8 @@
 "mixable": 0.69,
 "gridRms": 12.9,
 "gridDrift": 1.8,
-"downConf": 0.06
+"downConf": 0.06,
+"kv": 2
 }
 },
 "2f7766b01420ea78b51f922058c074d638aabc69ca43b89aa90803e5d19b6d3b": {
@@ -206,8 +211,8 @@
 "v": 2,
 "bpm": 62.393,
 "grid": 0.9035,
-"key": "8B",
-"keyConf": 0.4,
+"key": "9B",
+"keyConf": 0.45,
 "phrases": 32,
 "in": {
 "start": 0.903,
@@ -220,7 +225,8 @@
 "mixable": 0.11,
 "gridRms": 200.6,
 "gridDrift": 57.3,
-"downConf": 0.38
+"downConf": 0.38,
+"kv": 2
 }
 },
 "6acf0fe386c24d172e96e7c70dee66e47aaace255bf12d42428e3d0cd41294fb": {
@@ -243,8 +249,8 @@
 "v": 2,
 "bpm": 74.966,
 "grid": 3.2058,
-"key": "8B",
-"keyConf": 0.55,
+"key": "9B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 3.206,
@@ -257,7 +263,8 @@
 "mixable": 0.67,
 "gridRms": 50.6,
 "gridDrift": 6.1,
-"downConf": 0.21
+"downConf": 0.21,
+"kv": 2
 }
 },
 "b28ad0d3e233cb5fa1e626df2db89233d06f5855f26d1a27043374e74fc4f628": {
@@ -280,8 +287,8 @@
 "v": 2,
 "bpm": 160.44,
 "grid": 0.3236,
-"key": "8B",
-"keyConf": 0.01,
+"key": "5A",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.324,
@@ -294,7 +301,8 @@
 "mixable": 0.41,
 "gridRms": 90.8,
 "gridDrift": 17.3,
-"downConf": 0.25
+"downConf": 0.25,
+"kv": 2
 }
 },
 "2c0156ae68043e653e7dc5123e16463c0aeb847d3f2587f7c022d8e9a998a79e": {
@@ -317,8 +325,8 @@
 "v": 2,
 "bpm": 67.539,
 "grid": 2.3812,
-"key": "7B",
-"keyConf": 0.24,
+"key": "6A",
+"keyConf": 0.25,
 "phrases": 32,
 "in": {
 "start": 2.381,
@@ -331,7 +339,8 @@
 "mixable": 0.13,
 "gridRms": 99.2,
 "gridDrift": 54.2,
-"downConf": 0.29
+"downConf": 0.29,
+"kv": 2
 }
 },
 "e4e44781f5ed30da11612c44e982f8326bf8d051c70c0a5dcb3b3eecf06c0f91": {
@@ -354,8 +363,8 @@
 "v": 2,
 "bpm": 63.779,
 "grid": 1.157,
-"key": "8B",
-"keyConf": 0.31,
+"key": "9B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.157,
@@ -368,7 +377,8 @@
 "mixable": 0.21,
 "gridRms": 166.9,
 "gridDrift": 39.5,
-"downConf": 0.55
+"downConf": 0.55,
+"kv": 2
 }
 },
 "731babbe97d42bcef96ea7248459356768fa6e523463d2012057b5aeab0f3f27": {
@@ -391,8 +401,8 @@
 "v": 2,
 "bpm": 87.007,
 "grid": 0.5536,
-"key": "8B",
-"keyConf": 0.31,
+"key": "6A",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 0.554,
@@ -405,7 +415,8 @@
 "mixable": 0.78,
 "gridRms": 16.0,
 "gridDrift": 3.3,
-"downConf": 0.44
+"downConf": 0.44,
+"kv": 2
 }
 },
 "ca7a1f9989403e37947d388cf11765d59de2e1629d800296a47f35e9a419ba7a": {
@@ -428,8 +439,8 @@
 "v": 2,
 "bpm": 103.483,
 "grid": -0.0641,
-"key": "8B",
-"keyConf": 0.53,
+"key": "10A",
+"keyConf": 0.36,
 "phrases": 32,
 "in": {
 "start": -0.064,
@@ -442,7 +453,8 @@
 "mixable": 0.56,
 "gridRms": 113.9,
 "gridDrift": 10.5,
-"downConf": 0.18
+"downConf": 0.18,
+"kv": 2
 }
 },
 "3943444b6596975bfd6b7b29a583d85aba061cfe80136e44730f154bd0c38e05": {
@@ -465,8 +477,8 @@
 "v": 2,
 "bpm": 128.443,
 "grid": 1.2636,
-"key": "8B",
-"keyConf": 0.33,
+"key": "6A",
+"keyConf": 0.19,
 "phrases": 32,
 "in": {
 "start": 1.264,
@@ -479,7 +491,8 @@
 "mixable": 0.11,
 "gridRms": 99.9,
 "gridDrift": 57.4,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "f2e5aab9f00a2fe9f61ba6df66bd1ebf25620572d41e65feb69b495589ade4f6": {
@@ -502,8 +515,8 @@
 "v": 2,
 "bpm": 126.355,
 "grid": 0.2888,
-"key": "8B",
-"keyConf": 0.34,
+"key": "9B",
+"keyConf": 0.23,
 "phrases": 32,
 "in": {
 "start": 0.289,
@@ -516,7 +529,8 @@
 "mixable": 0.32,
 "gridRms": 67.9,
 "gridDrift": 23.5,
-"downConf": 0.34
+"downConf": 0.34,
+"kv": 2
 }
 },
 "3822e3d085f9ddc05b4914ec4b8fe3c7e5b8ddc8ef9927a7631ac75540c3b1ad": {
@@ -539,8 +553,8 @@
 "v": 2,
 "bpm": 128.11,
 "grid": 1.9515,
-"key": "8B",
-"keyConf": 0.15,
+"key": "9B",
+"keyConf": 0.21,
 "phrases": 32,
 "in": {
 "start": 1.951,
@@ -553,7 +567,8 @@
 "mixable": 0.44,
 "gridRms": 60.9,
 "gridDrift": 17.0,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "7efb90ede04bd71ea89491bd17f8632ae0c5e69128bba7e9e2937e1cbf662d48": {
@@ -576,8 +591,8 @@
 "v": 2,
 "bpm": 128.48,
 "grid": 2.0438,
-"key": "7B",
-"keyConf": 0.09,
+"key": "2A",
+"keyConf": 0.12,
 "phrases": 32,
 "in": {
 "start": 2.044,
@@ -590,7 +605,8 @@
 "mixable": 0.05,
 "gridRms": 94.3,
 "gridDrift": 76.8,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "ef25e088be3a0b164f778d2ee2cc1b9971dd51ced9c9e243b58965c8797163d0": {
@@ -613,8 +629,8 @@
 "v": 2,
 "bpm": 125.001,
 "grid": 1.9225,
-"key": "8B",
-"keyConf": 0.23,
+"key": "10A",
+"keyConf": 0.34,
 "phrases": 32,
 "in": {
 "start": 1.923,
@@ -627,7 +643,8 @@
 "mixable": 0.74,
 "gridRms": 12.6,
 "gridDrift": 1.4,
-"downConf": 0.24
+"downConf": 0.24,
+"kv": 2
 }
 },
 "20e93cfb4c72f763080882bc47c764c74d005e92786d66e9dd0b91b99215e923": {
@@ -650,8 +667,8 @@
 "v": 2,
 "bpm": 130.17,
 "grid": 1.7838,
-"key": "8B",
-"keyConf": 0.06,
+"key": "10B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 1.784,
@@ -664,7 +681,8 @@
 "mixable": 0.41,
 "gridRms": 65.7,
 "gridDrift": 15.7,
-"downConf": 0.22
+"downConf": 0.22,
+"kv": 2
 }
 },
 "2e7d0357b5e95af001781f29a779b9af3e2feb2bed67922cc50b656342c82469": {
@@ -687,8 +705,8 @@
 "v": 2,
 "bpm": 128.021,
 "grid": 0.9909,
-"key": "8B",
-"keyConf": 0.41,
+"key": "9B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 0.991,
@@ -701,7 +719,8 @@
 "mixable": 0.68,
 "gridRms": 16.9,
 "gridDrift": 4.3,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "52f6e444d1d4aab1ef435488ac7e8a98f80864602978b7438978662793b10c20": {
@@ -724,8 +743,8 @@
 "v": 2,
 "bpm": 83.121,
 "grid": 0.8599,
-"key": "8B",
-"keyConf": 0.2,
+"key": "9B",
+"keyConf": 0.41,
 "phrases": 32,
 "in": {
 "start": 0.86,
@@ -738,7 +757,8 @@
 "mixable": 0.51,
 "gridRms": 61.4,
 "gridDrift": 9.4,
-"downConf": 0.35
+"downConf": 0.35,
+"kv": 2
 }
 },
 "a6a6fdf38f041531f5677409d1807302383d34255a13106ca0dad06a09ffde5a": {
@@ -761,8 +781,8 @@
 "v": 2,
 "bpm": 139.645,
 "grid": 1.4718,
-"key": "8B",
-"keyConf": 0.0,
+"key": "5A",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.472,
@@ -775,7 +795,8 @@
 "mixable": 0.39,
 "gridRms": 53.1,
 "gridDrift": 20.1,
-"downConf": 0.13
+"downConf": 0.13,
+"kv": 2
 }
 },
 "12d907891bee71f76435a243084396d64f2766d04c3639a926549e3b7fc3422e": {
@@ -799,7 +820,7 @@
 "bpm": 99.867,
 "grid": 1.3694,
 "key": "8B",
-"keyConf": 0.15,
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 1.369,
@@ -812,7 +833,8 @@
 "mixable": 0.78,
 "gridRms": 12.2,
 "gridDrift": 0.7,
-"downConf": 0.36
+"downConf": 0.36,
+"kv": 2
 }
 },
 "54ae56c4b312ccf16e61804ec59bd8092850f42610285e7f0980186188b87740": {
@@ -835,8 +857,8 @@
 "v": 2,
 "bpm": 120.0,
 "grid": 0.2012,
-"key": "8B",
-"keyConf": 0.07,
+"key": "10B",
+"keyConf": 0.32,
 "phrases": 32,
 "in": {
 "start": 0.201,
@@ -849,7 +871,8 @@
 "mixable": 0.66,
 "gridRms": 16.4,
 "gridDrift": 0.8,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "1dae28e7ba7fb76fb80265a669ffd67885a6ae8b6600db7f9c669de425fe6807": {
@@ -872,8 +895,8 @@
 "v": 2,
 "bpm": 117.481,
 "grid": 1.6379,
-"key": "7B",
-"keyConf": 0.3,
+"key": "5A",
+"keyConf": 0.43,
 "phrases": 32,
 "in": {
 "start": 1.638,
@@ -886,7 +909,8 @@
 "mixable": 0.23,
 "gridRms": 162.0,
 "gridDrift": 28.7,
-"downConf": 0.05
+"downConf": 0.05,
+"kv": 2
 }
 },
 "b66c92841a94c81ea385a7c50dd9ce5cab550bea32c53b23640cd8f6c424d287": {
@@ -909,8 +933,8 @@
 "v": 2,
 "bpm": 124.953,
 "grid": 0.7458,
-"key": "7B",
-"keyConf": 0.53,
+"key": "5A",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 0.746,
@@ -923,7 +947,8 @@
 "mixable": 0.33,
 "gridRms": 183.5,
 "gridDrift": 16.8,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "c323e69aef1956b1ced7fed79d28b42bf82bc2ea5cfacfa6d4e2c0f8783445fd": {
@@ -946,8 +971,8 @@
 "v": 2,
 "bpm": 105.294,
 "grid": 1.2302,
-"key": "8A",
-"keyConf": 0.38,
+"key": "12A",
+"keyConf": 0.47,
 "phrases": 32,
 "in": {
 "start": 1.23,
@@ -960,7 +985,8 @@
 "mixable": 0.44,
 "gridRms": 54.1,
 "gridDrift": 11.6,
-"downConf": 0.53
+"downConf": 0.53,
+"kv": 2
 }
 },
 "865c183d77273dceb91a19a744cf97aae84b0fcfe10ad9280e6dbd63f19eaa78": {
@@ -983,8 +1009,8 @@
 "v": 2,
 "bpm": 184.716,
 "grid": 0.6143,
-"key": "7B",
-"keyConf": 0.1,
+"key": "8A",
+"keyConf": 0.75,
 "phrases": 32,
 "in": {
 "start": 0.614,
@@ -997,7 +1023,8 @@
 "mixable": 0.32,
 "gridRms": 77.7,
 "gridDrift": 8.8,
-"downConf": 0.22
+"downConf": 0.22,
+"kv": 2
 }
 },
 "3c5e5727382583ff1f6ad43f1c3650f65341ab73918d7b6f2bfaed9f56f4c9ce": {
@@ -1020,8 +1047,8 @@
 "v": 2,
 "bpm": 128.0,
 "grid": 0.0792,
-"key": "8B",
-"keyConf": 0.26,
+"key": "10A",
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 0.079,
@@ -1034,7 +1061,8 @@
 "mixable": 0.73,
 "gridRms": 12.5,
 "gridDrift": 0.6,
-"downConf": 0.25
+"downConf": 0.25,
+"kv": 2
 }
 },
 "0a0eb4757bf07e5e056deebadf327b276b8f4e2f11149229252bbfa65ae5e657": {
@@ -1057,8 +1085,8 @@
 "v": 2,
 "bpm": 128.007,
 "grid": 0.0924,
-"key": "8B",
-"keyConf": 0.22,
+"key": "9B",
+"keyConf": 0.14,
 "phrases": 32,
 "in": {
 "start": 0.092,
@@ -1071,7 +1099,8 @@
 "mixable": 0.74,
 "gridRms": 15.5,
 "gridDrift": 1.1,
-"downConf": 0.56
+"downConf": 0.56,
+"kv": 2
 }
 },
 "0579fefd7d147528c354ded756343699c288824cf77bf338e00b90384ab0d107": {
@@ -1094,8 +1123,8 @@
 "v": 2,
 "bpm": 128.349,
 "grid": 0.4465,
-"key": "7B",
-"keyConf": 0.03,
+"key": "10B",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": 0.446,
@@ -1108,7 +1137,8 @@
 "mixable": 0.43,
 "gridRms": 65.4,
 "gridDrift": 16.3,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "4d81bc0b385c9fcd99c321905de4c0460f73818059e422aec075fab722a6928c": {
@@ -1131,8 +1161,8 @@
 "v": 2,
 "bpm": 139.994,
 "grid": 1.4145,
-"key": "7B",
-"keyConf": 0.24,
+"key": "10B",
+"keyConf": 0.02,
 "phrases": 32,
 "in": {
 "start": 1.414,
@@ -1145,7 +1175,8 @@
 "mixable": 0.66,
 "gridRms": 14.9,
 "gridDrift": 0.1,
-"downConf": 0.21
+"downConf": 0.21,
+"kv": 2
 }
 },
 "1e5324ab8b30be53ec30b1951ebd78097021063519f7ef46e545de644fceef9e": {
@@ -1168,8 +1199,8 @@
 "v": 2,
 "bpm": 128.398,
 "grid": 1.3515,
-"key": "8B",
-"keyConf": 0.27,
+"key": "10B",
+"keyConf": 0.14,
 "phrases": 32,
 "in": {
 "start": 1.351,
@@ -1182,7 +1213,8 @@
 "mixable": 0.36,
 "gridRms": 65.1,
 "gridDrift": 17.9,
-"downConf": 0.27
+"downConf": 0.27,
+"kv": 2
 }
 },
 "6ecd54035669077fc365200d123dd91e111f9ef1734b03e645d6e3306eb325c2": {
@@ -1205,8 +1237,8 @@
 "v": 2,
 "bpm": 128.011,
 "grid": 1.8387,
-"key": "8B",
-"keyConf": 0.39,
+"key": "9B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 1.839,
@@ -1219,7 +1251,8 @@
 "mixable": 0.7,
 "gridRms": 13.9,
 "gridDrift": 1.7,
-"downConf": 0.26
+"downConf": 0.26,
+"kv": 2
 }
 },
 "8dff6b670fcdb1c6f02f74ed9462459895dcbb045d1bf769221f2ff68df8b7fe": {
@@ -1242,8 +1275,8 @@
 "v": 2,
 "bpm": 130.002,
 "grid": 0.5066,
-"key": "8B",
-"keyConf": 0.37,
+"key": "5A",
+"keyConf": 0.03,
 "phrases": 32,
 "in": {
 "start": 0.507,
@@ -1256,7 +1289,8 @@
 "mixable": 0.82,
 "gridRms": 7.6,
 "gridDrift": 0.5,
-"downConf": 0.05
+"downConf": 0.05,
+"kv": 2
 }
 },
 "1499bb20a80f838bcf137fd196df3877a9969d492afd84e6bd42635ee76f8b66": {
@@ -1279,8 +1313,8 @@
 "v": 2,
 "bpm": 126.17,
 "grid": 1.5324,
-"key": "8B",
-"keyConf": 0.3,
+"key": "1A",
+"keyConf": 0.02,
 "phrases": 32,
 "in": {
 "start": 1.532,
@@ -1293,7 +1327,8 @@
 "mixable": 0.41,
 "gridRms": 67.5,
 "gridDrift": 19.1,
-"downConf": 0.0
+"downConf": 0.0,
+"kv": 2
 }
 },
 "6f5054528d6f149a5473119ac885c32aa1f447d0ea57f1604187fbe908f1ffb4": {
@@ -1316,8 +1351,8 @@
 "v": 2,
 "bpm": 128.132,
 "grid": 1.9877,
-"key": "8B",
-"keyConf": 0.29,
+"key": "5A",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 1.988,
@@ -1330,7 +1365,8 @@
 "mixable": 0.42,
 "gridRms": 67.6,
 "gridDrift": 18.9,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "eedb6deaf0bb506dd6f5b471abba851d8806bc1eebf4cca3c4278d25cd6c1004": {
@@ -1353,8 +1389,8 @@
 "v": 2,
 "bpm": 128.253,
 "grid": 0.363,
-"key": "7B",
-"keyConf": 0.36,
+"key": "10B",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.363,
@@ -1367,7 +1403,8 @@
 "mixable": 0.16,
 "gridRms": 85.5,
 "gridDrift": 43.8,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "f8681d2f78cce3f239fad7c74da2b2a2e746435510c02e6cc8a580f06cbd9907": {
@@ -1390,8 +1427,8 @@
 "v": 2,
 "bpm": 150.144,
 "grid": 0.9596,
-"key": "8B",
-"keyConf": 0.21,
+"key": "9B",
+"keyConf": 0.08,
 "phrases": 32,
 "in": {
 "start": 0.96,
@@ -1404,7 +1441,8 @@
 "mixable": 0.27,
 "gridRms": 61.4,
 "gridDrift": 24.3,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "2b7ad37b7591a5f01b9f71dcdaab798698106ac39a867f8c56ffe4a01d3e3d43": {
@@ -1427,8 +1465,8 @@
 "v": 2,
 "bpm": 140.004,
 "grid": 1.7484,
-"key": "8B",
-"keyConf": 0.39,
+"key": "9B",
+"keyConf": 0.43,
 "phrases": 32,
 "in": {
 "start": 1.748,
@@ -1441,7 +1479,8 @@
 "mixable": 0.78,
 "gridRms": 9.7,
 "gridDrift": 1.0,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "6d0a05679664a43efc2cdf97bda8851280979e7b517980d4df8cca4ed1cd3c7b": {
@@ -1464,8 +1503,8 @@
 "v": 2,
 "bpm": 160.005,
 "grid": 1.5532,
-"key": "8B",
-"keyConf": 0.47,
+"key": "10B",
+"keyConf": 0.51,
 "phrases": 32,
 "in": {
 "start": 1.553,
@@ -1478,7 +1517,8 @@
 "mixable": 0.56,
 "gridRms": 20.7,
 "gridDrift": 0.3,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "11eb35644057a8ba9d80129e55ba1f4e7785f2fda6a07646bee18a05921ac86b": {
@@ -1501,8 +1541,8 @@
 "v": 2,
 "bpm": 159.995,
 "grid": 0.4092,
-"key": "8B",
-"keyConf": 0.15,
+"key": "7A",
+"keyConf": 0.33,
 "phrases": 32,
 "in": {
 "start": 0.409,
@@ -1515,7 +1555,8 @@
 "mixable": 0.52,
 "gridRms": 21.3,
 "gridDrift": 1.3,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "5cb2f8a2cd376fbd63f86b653f4b53e2fd657d5f4fb9249f5ed90b03970c7efb": {
@@ -1538,8 +1579,8 @@
 "v": 2,
 "bpm": 135.145,
 "grid": 1.6808,
-"key": "7B",
-"keyConf": 0.4,
+"key": "7A",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 1.681,
@@ -1552,7 +1593,8 @@
 "mixable": 0.26,
 "gridRms": 92.1,
 "gridDrift": 27.7,
-"downConf": 0.77
+"downConf": 0.77,
+"kv": 2
 }
 },
 "aeceaa7491e784f154149298accc77981f5c1d7abd86cba1c7ff23380d162909": {
@@ -1575,8 +1617,8 @@
 "v": 2,
 "bpm": 131.219,
 "grid": 0.332,
-"key": "8B",
-"keyConf": 0.38,
+"key": "7A",
+"keyConf": 0.23,
 "phrases": 32,
 "in": {
 "start": 0.332,
@@ -1589,7 +1631,8 @@
 "mixable": 0.03,
 "gridRms": 290.1,
 "gridDrift": 92.8,
-"downConf": 0.74
+"downConf": 0.74,
+"kv": 2
 }
 },
 "481d83320e4d4574f904c0153b57badd71f60dcc316616b3d562db1e1be01b3b": {
@@ -1612,8 +1655,8 @@
 "v": 2,
 "bpm": 128.001,
 "grid": 0.2443,
-"key": "8B",
-"keyConf": 0.01,
+"key": "5A",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": 0.244,
@@ -1626,7 +1669,8 @@
 "mixable": 0.74,
 "gridRms": 10.6,
 "gridDrift": 2.3,
-"downConf": 0.31
+"downConf": 0.31,
+"kv": 2
 }
 },
 "94673c925a6c77a1a779a63de2d992d969cac7817704d209d8e7ddb0a0389027": {
@@ -1649,8 +1693,8 @@
 "v": 2,
 "bpm": 63.801,
 "grid": 0.5014,
-"key": "8B",
-"keyConf": 0.37,
+"key": "9B",
+"keyConf": 0.08,
 "phrases": 32,
 "in": {
 "start": 0.501,
@@ -1663,7 +1707,8 @@
 "mixable": 0.35,
 "gridRms": 69.0,
 "gridDrift": 26.4,
-"downConf": 0.3
+"downConf": 0.3,
+"kv": 2
 }
 },
 "be960528227df7113a3bd79e55bd81671df89ff9b5a42f048b87ed486c770fb3": {
@@ -1686,8 +1731,8 @@
 "v": 2,
 "bpm": 128.004,
 "grid": 0.9458,
-"key": "8B",
-"keyConf": 0.02,
+"key": "9B",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.946,
@@ -1700,7 +1745,8 @@
 "mixable": 0.68,
 "gridRms": 13.5,
 "gridDrift": 1.9,
-"downConf": 0.43
+"downConf": 0.43,
+"kv": 2
 }
 },
 "e078cec701c3f2319cf38bbd5623156013adb23f01ca4abcc41104d2aae05ab3": {
@@ -1723,8 +1769,8 @@
 "v": 2,
 "bpm": 110.002,
 "grid": 0.1292,
-"key": "8B",
-"keyConf": 0.21,
+"key": "9B",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 0.129,
@@ -1737,7 +1783,8 @@
 "mixable": 0.68,
 "gridRms": 16.3,
 "gridDrift": 0.5,
-"downConf": 0.45
+"downConf": 0.45,
+"kv": 2
 }
 },
 "1ac62f706f7910590a27712213779b4060f6ada7e6d8a4e7bf3dcc26a6649430": {
@@ -1760,8 +1807,8 @@
 "v": 2,
 "bpm": 128.197,
 "grid": 1.9562,
-"key": "8B",
-"keyConf": 0.23,
+"key": "10B",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 1.956,
@@ -1774,7 +1821,8 @@
 "mixable": 0.69,
 "gridRms": 64.1,
 "gridDrift": 4.7,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "e495a602a43188f90da122470eba9e272adb999d745f2df8024d6e88dce42dec": {
@@ -1797,8 +1845,8 @@
 "v": 2,
 "bpm": 128.707,
 "grid": 0.2914,
-"key": "8B",
-"keyConf": 0.21,
+"key": "7A",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 0.291,
@@ -1811,7 +1859,8 @@
 "mixable": 0.14,
 "gridRms": 106.0,
 "gridDrift": 47.5,
-"downConf": 0.22
+"downConf": 0.22,
+"kv": 2
 }
 },
 "bd039ab90c8c3af6375c364b1c94a8310f3f6597f63181565ddf6a3dc3af2749": {
@@ -1834,8 +1883,8 @@
 "v": 2,
 "bpm": 147.999,
 "grid": 1.6307,
-"key": "8B",
-"keyConf": 0.16,
+"key": "7A",
+"keyConf": 0.15,
 "phrases": 32,
 "in": {
 "start": 1.631,
@@ -1848,7 +1897,8 @@
 "mixable": 0.74,
 "gridRms": 10.2,
 "gridDrift": 0.6,
-"downConf": 0.33
+"downConf": 0.33,
+"kv": 2
 }
 },
 "6b5ba57aebd7fad91d8a303531dd46d8ef280e3a345ded2a474e7c30c6296314": {
@@ -1871,8 +1921,8 @@
 "v": 2,
 "bpm": 99.746,
 "grid": 0.7721,
-"key": "8B",
-"keyConf": 0.38,
+"key": "9B",
+"keyConf": 0.24,
 "phrases": 32,
 "in": {
 "start": 0.772,
@@ -1885,7 +1935,8 @@
 "mixable": 0.23,
 "gridRms": 50.6,
 "gridDrift": 38.5,
-"downConf": 0.4
+"downConf": 0.4,
+"kv": 2
 }
 },
 "abd34af37ff32167a5d2f70816039bc29501fed0666c9d52d12a4f7dd76ddd53": {
@@ -1908,8 +1959,8 @@
 "v": 2,
 "bpm": 128.879,
 "grid": 0.9566,
-"key": "8B",
-"keyConf": 0.27,
+"key": "9B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 0.957,
@@ -1922,7 +1973,8 @@
 "mixable": 0.55,
 "gridRms": 104.6,
 "gridDrift": 7.4,
-"downConf": 0.21
+"downConf": 0.21,
+"kv": 2
 }
 },
 "1b55239f1853aa26a0740b742bd9aad32bf9ec625d1b98cfebc5b02cadc69425": {
@@ -1945,8 +1997,8 @@
 "v": 2,
 "bpm": 64.001,
 "grid": 1.2016,
-"key": "8B",
-"keyConf": 0.12,
+"key": "5A",
+"keyConf": 0.21,
 "phrases": 32,
 "in": {
 "start": 1.202,
@@ -1959,7 +2011,8 @@
 "mixable": 0.82,
 "gridRms": 12.4,
 "gridDrift": 1.9,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "9ff37360c7f8db0764759850855167f2486cf2cf99d58298ae2f97b8e7fe5847": {
@@ -1982,8 +2035,8 @@
 "v": 2,
 "bpm": 127.998,
 "grid": 1.9253,
-"key": "7B",
-"keyConf": 0.21,
+"key": "6A",
+"keyConf": 0.33,
 "phrases": 32,
 "in": {
 "start": 1.925,
@@ -1996,7 +2049,8 @@
 "mixable": 0.76,
 "gridRms": 10.6,
 "gridDrift": 0.4,
-"downConf": 0.06
+"downConf": 0.06,
+"kv": 2
 }
 },
 "7a7d70b6a1bdafae12a43619316969c570c0ff24639b96105eade9661824be3e": {
@@ -2019,8 +2073,8 @@
 "v": 2,
 "bpm": 128.001,
 "grid": 1.8889,
-"key": "8B",
-"keyConf": 0.13,
+"key": "6B",
+"keyConf": 0.15,
 "phrases": 32,
 "in": {
 "start": 1.889,
@@ -2033,7 +2087,8 @@
 "mixable": 0.75,
 "gridRms": 9.7,
 "gridDrift": 2.1,
-"downConf": 0.17
+"downConf": 0.17,
+"kv": 2
 }
 },
 "6f1f5e4da74c09fdb2d684a2ff24ea9285c6e2299971362952c073bd312cbcc3": {
@@ -2056,8 +2111,8 @@
 "v": 2,
 "bpm": 128.002,
 "grid": 0.5122,
-"key": "7B",
-"keyConf": 0.14,
+"key": "5A",
+"keyConf": 0.22,
 "phrases": 32,
 "in": {
 "start": 0.512,
@@ -2070,7 +2125,8 @@
 "mixable": 0.73,
 "gridRms": 11.1,
 "gridDrift": 2.1,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "531238b78d7b2846ffb3f28e6999d1ff27cd4e5853fdcd536f6efc5ed893b4a1": {
@@ -2093,8 +2149,8 @@
 "v": 2,
 "bpm": 128.844,
 "grid": 1.4755,
-"key": "8B",
-"keyConf": 0.08,
+"key": "5A",
+"keyConf": 0.23,
 "phrases": 32,
 "in": {
 "start": 1.475,
@@ -2107,7 +2163,8 @@
 "mixable": 0.12,
 "gridRms": 100.6,
 "gridDrift": 52.2,
-"downConf": 0.25
+"downConf": 0.25,
+"kv": 2
 }
 },
 "a224db4f6244b4a496ec5ba9c44c96a8ead21364a81cc07af1af5323d2350106": {
@@ -2130,8 +2187,8 @@
 "v": 2,
 "bpm": 128.595,
 "grid": 1.0284,
-"key": "8B",
-"keyConf": 0.31,
+"key": "10B",
+"keyConf": 0.08,
 "phrases": 32,
 "in": {
 "start": 1.028,
@@ -2144,7 +2201,8 @@
 "mixable": 0.53,
 "gridRms": 68.6,
 "gridDrift": 7.9,
-"downConf": 0.18
+"downConf": 0.18,
+"kv": 2
 }
 },
 "b113507a7425061b2768527e27073990d454f6f51a74e0a801e96bc449212077": {
@@ -2167,7 +2225,7 @@
 "v": 2,
 "bpm": 128.336,
 "grid": 0.5154,
-"key": "8B",
+"key": "2A",
 "keyConf": 0.03,
 "phrases": 32,
 "in": {
@@ -2181,7 +2239,8 @@
 "mixable": 0.05,
 "gridRms": 133.9,
 "gridDrift": 78.3,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "fef83d2935c8144ca40c386548f8a61ecd86ed4b6e2d0fa44adb5cc0343bfd4a": {
@@ -2204,8 +2263,8 @@
 "v": 2,
 "bpm": 128.931,
 "grid": 0.5894,
-"key": "8B",
-"keyConf": 0.21,
+"key": "10A",
+"keyConf": 0.35,
 "phrases": 32,
 "in": {
 "start": 0.589,
@@ -2218,7 +2277,8 @@
 "mixable": 0.21,
 "gridRms": 71.5,
 "gridDrift": 34.3,
-"downConf": 0.49
+"downConf": 0.49,
+"kv": 2
 }
 },
 "cd3d4e587f5fd7ed679e8d74d4ad227b35bd414470bbba8ea903b67aaf07a65d": {
@@ -2241,8 +2301,8 @@
 "v": 2,
 "bpm": 152.481,
 "grid": 1.3501,
-"key": "8B",
-"keyConf": 0.35,
+"key": "6A",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 1.35,
@@ -2255,7 +2315,8 @@
 "mixable": 0.06,
 "gridRms": 86.8,
 "gridDrift": 76.1,
-"downConf": 0.66
+"downConf": 0.66,
+"kv": 2
 }
 },
 "62665e97f817e8db5384c8245565a929164d4357c4db2515fe2ff7026542e50a": {
@@ -2278,8 +2339,8 @@
 "v": 2,
 "bpm": 128.03,
 "grid": 1.8822,
-"key": "8B",
-"keyConf": 0.22,
+"key": "10A",
+"keyConf": 0.36,
 "phrases": 32,
 "in": {
 "start": 1.882,
@@ -2292,7 +2353,8 @@
 "mixable": 0.38,
 "gridRms": 60.7,
 "gridDrift": 17.9,
-"downConf": 0.47
+"downConf": 0.47,
+"kv": 2
 }
 },
 "5de55bc9c3218081ce421df7cfc18c9bf572aa03d8af7e7c6507cc1c6c321468": {
@@ -2315,8 +2377,8 @@
 "v": 2,
 "bpm": 128.932,
 "grid": 0.5738,
-"key": "7B",
-"keyConf": 0.44,
+"key": "6A",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 0.574,
@@ -2329,7 +2391,8 @@
 "mixable": 0.56,
 "gridRms": 113.2,
 "gridDrift": 4.2,
-"downConf": 0.42
+"downConf": 0.42,
+"kv": 2
 }
 },
 "31fe8c30f354b9664844f492241e8aa75b8efe1f839ac8cbad23b05ba29bea36": {
@@ -2352,8 +2415,8 @@
 "v": 2,
 "bpm": 128.753,
 "grid": 0.6468,
-"key": "8B",
-"keyConf": 0.2,
+"key": "5A",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 0.647,
@@ -2366,7 +2429,8 @@
 "mixable": 0.35,
 "gridRms": 113.8,
 "gridDrift": 22.2,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "920d011b16e7bb72bb5c595c2618064161154c05e08261a48677d53a8b342ea9": {
@@ -2389,8 +2453,8 @@
 "v": 2,
 "bpm": 143.002,
 "grid": 1.686,
-"key": "8B",
-"keyConf": 0.28,
+"key": "10B",
+"keyConf": 0.01,
 "phrases": 32,
 "in": {
 "start": 1.686,
@@ -2403,7 +2467,8 @@
 "mixable": 0.81,
 "gridRms": 7.1,
 "gridDrift": 0.7,
-"downConf": 0.05
+"downConf": 0.05,
+"kv": 2
 }
 },
 "7d0c251210cf0a03b6f8acdec6f79cb4ff7a74ad8de68d2c5edb1e02001b3df7": {
@@ -2426,8 +2491,8 @@
 "v": 2,
 "bpm": 74.999,
 "grid": 0.4566,
-"key": "8B",
-"keyConf": 0.1,
+"key": "7A",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 0.457,
@@ -2440,7 +2505,8 @@
 "mixable": 0.79,
 "gridRms": 12.4,
 "gridDrift": 0.3,
-"downConf": 0.45
+"downConf": 0.45,
+"kv": 2
 }
 },
 "ec31da9ef839977cc2305c30a9d814f5362dc0a4442767d2fede0a724a500b33": {
@@ -2463,8 +2529,8 @@
 "v": 2,
 "bpm": 139.999,
 "grid": 1.7636,
-"key": "8B",
-"keyConf": 0.25,
+"key": "7A",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 1.764,
@@ -2477,7 +2543,8 @@
 "mixable": 0.72,
 "gridRms": 11.8,
 "gridDrift": 1.0,
-"downConf": 0.54
+"downConf": 0.54,
+"kv": 2
 }
 },
 "77feb1aec57cd95e02865aea324ac5f8e9a8782d9a30c5ecfb4832ffb56e00b0": {
@@ -2500,8 +2567,8 @@
 "v": 2,
 "bpm": 119.998,
 "grid": 2.0086,
-"key": "8B",
-"keyConf": 0.29,
+"key": "9B",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 2.009,
@@ -2514,7 +2581,8 @@
 "mixable": 0.74,
 "gridRms": 13.6,
 "gridDrift": 0.3,
-"downConf": 0.44
+"downConf": 0.44,
+"kv": 2
 }
 },
 "51bc6ce48ae8a1f48ab1798f6b0a936b3323b0e5ca15f7c4013a956194bd9d92": {
@@ -2537,8 +2605,8 @@
 "v": 2,
 "bpm": 117.337,
 "grid": 0.5256,
-"key": "8B",
-"keyConf": 0.05,
+"key": "4B",
+"keyConf": 0.27,
 "phrases": 32,
 "in": {
 "start": 0.526,
@@ -2551,7 +2619,8 @@
 "mixable": 0.53,
 "gridRms": 19.5,
 "gridDrift": 2.8,
-"downConf": 0.32
+"downConf": 0.32,
+"kv": 2
 }
 },
 "292bd417c708faf8aac57257b947e586dd5e8ef1463a28074a60caac6b35de5b": {
@@ -2574,8 +2643,8 @@
 "v": 2,
 "bpm": 151.004,
 "grid": 0.626,
-"key": "8B",
-"keyConf": 0.36,
+"key": "7A",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 0.626,
@@ -2588,7 +2657,8 @@
 "mixable": 0.7,
 "gridRms": 11.8,
 "gridDrift": 1.5,
-"downConf": 0.13
+"downConf": 0.13,
+"kv": 2
 }
 },
 "7e24e9e5ae701ae7c745b640471d12c96e8c2a9b381a06d2a53efe1711be024d": {
@@ -2611,8 +2681,8 @@
 "v": 2,
 "bpm": 150.012,
 "grid": 0.485,
-"key": "8B",
-"keyConf": 0.47,
+"key": "10B",
+"keyConf": 0.29,
 "phrases": 32,
 "in": {
 "start": 0.485,
@@ -2625,7 +2695,8 @@
 "mixable": 0.56,
 "gridRms": 21.0,
 "gridDrift": 3.5,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "cc3b88f8b35ba89ce316967fdec5f684e419e781617532c1b54bfbd1c4006895": {
@@ -2648,8 +2719,8 @@
 "v": 2,
 "bpm": 97.683,
 "grid": 0.0944,
-"key": "7B",
-"keyConf": 0.19,
+"key": "3B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 0.094,
@@ -2662,7 +2733,8 @@
 "mixable": 0.14,
 "gridRms": 86.6,
 "gridDrift": 44.1,
-"downConf": 0.11
+"downConf": 0.11,
+"kv": 2
 }
 },
 "b64e662c44bfbd2a5c4d0c5333ccf894c1badeec3f4c3884d4ce28d01920df1f": {
@@ -2685,8 +2757,8 @@
 "v": 2,
 "bpm": 120.947,
 "grid": 1.102,
-"key": "8B",
-"keyConf": 0.03,
+"key": "3B",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 1.102,
@@ -2699,7 +2771,8 @@
 "mixable": 0.57,
 "gridRms": 70.3,
 "gridDrift": 3.9,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "e5db4c6b9cdf2e8a0a1d35acd660f4239f3beb0674c3cc7719ab040dab36ce27": {
@@ -2722,8 +2795,8 @@
 "v": 2,
 "bpm": 107.375,
 "grid": 0.7768,
-"key": "7B",
-"keyConf": 0.07,
+"key": "10B",
+"keyConf": 0.45,
 "phrases": 32,
 "in": {
 "start": 0.777,
@@ -2736,7 +2809,8 @@
 "mixable": 0.21,
 "gridRms": 73.2,
 "gridDrift": 32.2,
-"downConf": 0.05
+"downConf": 0.05,
+"kv": 2
 }
 },
 "67133904a12e7d846b157049dc5a3cc01ff8338746e46042becf96eb467cc6bf": {
@@ -2759,8 +2833,8 @@
 "v": 2,
 "bpm": 172.011,
 "grid": 0.446,
-"key": "7B",
-"keyConf": 0.07,
+"key": "2A",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 0.446,
@@ -2773,7 +2847,8 @@
 "mixable": 0.24,
 "gridRms": 102.8,
 "gridDrift": 21.7,
-"downConf": 0.63
+"downConf": 0.63,
+"kv": 2
 }
 },
 "475fc5e75cf15e64ddca49bcaae4368f02b04401bfb46e71c7a1b88249edd09b": {
@@ -2796,8 +2871,8 @@
 "v": 2,
 "bpm": 128.207,
 "grid": 1.0293,
-"key": "8B",
-"keyConf": 0.25,
+"key": "7A",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.029,
@@ -2810,7 +2885,8 @@
 "mixable": 0.41,
 "gridRms": 68.9,
 "gridDrift": 19.1,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "6130afad4da97a40577bfb6ab83593f16630102b091460eaefbaf3adffd743d8": {
@@ -2833,8 +2909,8 @@
 "v": 2,
 "bpm": 114.668,
 "grid": 1.7807,
-"key": "8B",
-"keyConf": 0.25,
+"key": "9B",
+"keyConf": 0.23,
 "phrases": 32,
 "in": {
 "start": 1.781,
@@ -2847,7 +2923,8 @@
 "mixable": 0.83,
 "gridRms": 7.8,
 "gridDrift": 0.6,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "9bd2e963f8ee43c9ab41be1f4175507a903cfeeb0fd1e75968f376d25af62a93": {
@@ -2870,8 +2947,8 @@
 "v": 2,
 "bpm": 128.106,
 "grid": 0.4734,
-"key": "8B",
-"keyConf": 0.27,
+"key": "6B",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 0.473,
@@ -2884,7 +2961,8 @@
 "mixable": 0.33,
 "gridRms": 68.4,
 "gridDrift": 22.8,
-"downConf": 0.22
+"downConf": 0.22,
+"kv": 2
 }
 },
 "837eac69153b265317d2a577bb014fdcae2bbd8ae68e4e41329e7cdf4c8a579b": {
@@ -2907,8 +2985,8 @@
 "v": 2,
 "bpm": 131.222,
 "grid": 0.3323,
-"key": "8B",
-"keyConf": 0.38,
+"key": "7A",
+"keyConf": 0.23,
 "phrases": 32,
 "in": {
 "start": 0.332,
@@ -2921,7 +2999,8 @@
 "mixable": 0.03,
 "gridRms": 291.6,
 "gridDrift": 93.5,
-"downConf": 0.74
+"downConf": 0.74,
+"kv": 2
 }
 },
 "72e07afa35092f60a7edebef99f3c714a62fd3373a13cd18c3658f2a67c0c70c": {
@@ -2944,8 +3023,8 @@
 "v": 2,
 "bpm": 128.285,
 "grid": 0.41,
-"key": "8B",
-"keyConf": 0.05,
+"key": "3B",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 0.41,
@@ -2958,7 +3037,8 @@
 "mixable": 0.33,
 "gridRms": 59.8,
 "gridDrift": 23.9,
-"downConf": 0.15
+"downConf": 0.15,
+"kv": 2
 }
 },
 "06088d9a08daf67be5bedf230dc1fc0e950f4a4ae1c5f6ee9b0b56c47a2fd9d6": {
@@ -2981,8 +3061,8 @@
 "v": 2,
 "bpm": 128.019,
 "grid": 0.1245,
-"key": "8B",
-"keyConf": 0.52,
+"key": "9B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 0.124,
@@ -2995,7 +3075,8 @@
 "mixable": 0.68,
 "gridRms": 15.4,
 "gridDrift": 4.5,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "a77067a883a8cb01903681c7a360532f7e52de8f398f2b1d3f35f81a829f8cf6": {
@@ -3018,8 +3099,8 @@
 "v": 2,
 "bpm": 128.171,
 "grid": 1.018,
-"key": "8B",
-"keyConf": 0.24,
+"key": "9B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.018,
@@ -3032,7 +3113,8 @@
 "mixable": 0.47,
 "gridRms": 73.8,
 "gridDrift": 11.3,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "9844a735d011f894141e43f26ddcefb88a7da09cf4bd9b5729a95bdfbdf621aa": {
@@ -3055,8 +3137,8 @@
 "v": 2,
 "bpm": 130.006,
 "grid": 0.9572,
-"key": "8B",
-"keyConf": 0.39,
+"key": "10B",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 0.957,
@@ -3069,7 +3151,8 @@
 "mixable": 0.79,
 "gridRms": 8.4,
 "gridDrift": 0.7,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "033f7218bf470479e0aa8cb9d43bed37289918726e682077cf7a3f329e6a2d28": {
@@ -3092,8 +3175,8 @@
 "v": 2,
 "bpm": 70.001,
 "grid": 3.4524,
-"key": "8B",
-"keyConf": 0.48,
+"key": "9B",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 3.452,
@@ -3106,7 +3189,8 @@
 "mixable": 0.83,
 "gridRms": 10.1,
 "gridDrift": 1.1,
-"downConf": 0.37
+"downConf": 0.37,
+"kv": 2
 }
 },
 "5298ffb91cfea9a643c609fc9ae6a5dcc0a5cdb5647daea3b419ca5e05659e5e": {
@@ -3129,8 +3213,8 @@
 "v": 2,
 "bpm": 128.002,
 "grid": 1.2394,
-"key": "8B",
-"keyConf": 0.3,
+"key": "10B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.239,
@@ -3143,7 +3227,8 @@
 "mixable": 0.87,
 "gridRms": 5.1,
 "gridDrift": 0.4,
-"downConf": 0.23
+"downConf": 0.23,
+"kv": 2
 }
 },
 "d01edc9bd71e5458cf58bb69c6148b37a6d5ce0342d47f7da393bbf5ea7aa7f2": {
@@ -3166,8 +3251,8 @@
 "v": 2,
 "bpm": 164.38,
 "grid": 0.9303,
-"key": "7B",
-"keyConf": 0.06,
+"key": "10B",
+"keyConf": 0.49,
 "phrases": 32,
 "in": {
 "start": 0.93,
@@ -3180,7 +3265,8 @@
 "mixable": 0.29,
 "gridRms": 76.8,
 "gridDrift": 24.7,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "44fe6dcdb7144f511a976cd0dd0ebce51b7bed55e748054bb15f619901ec1e6b": {
@@ -3203,8 +3289,8 @@
 "v": 2,
 "bpm": 101.944,
 "grid": 1.5766,
-"key": "7B",
-"keyConf": 0.03,
+"key": "9B",
+"keyConf": 0.5,
 "phrases": 32,
 "in": {
 "start": 1.577,
@@ -3217,7 +3303,8 @@
 "mixable": 0.41,
 "gridRms": 45.6,
 "gridDrift": 16.3,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "807d57ef65338d2f41f995dd124efa3f4a6d042dd945c6b01a47d4e8d2e07b13": {
@@ -3240,8 +3327,8 @@
 "v": 2,
 "bpm": 74.998,
 "grid": 1.8394,
-"key": "8B",
-"keyConf": 0.49,
+"key": "10B",
+"keyConf": 0.61,
 "phrases": 32,
 "in": {
 "start": 1.839,
@@ -3254,7 +3341,8 @@
 "mixable": 0.81,
 "gridRms": 72.0,
 "gridDrift": 0.4,
-"downConf": 0.11
+"downConf": 0.11,
+"kv": 2
 }
 },
 "5b80e2e89eab378cf937044984a48067ac4f324ab57505aafeafe90cd0894bba": {
@@ -3277,8 +3365,8 @@
 "v": 2,
 "bpm": 123.318,
 "grid": 1.5359,
-"key": "8B",
-"keyConf": 0.31,
+"key": "4B",
+"keyConf": 0.37,
 "phrases": 32,
 "in": {
 "start": 1.536,
@@ -3291,7 +3379,8 @@
 "mixable": 0.29,
 "gridRms": 101.1,
 "gridDrift": 26.4,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "52b42179881234e6f0ad7b8f729ff2a44007c92eca559032efa759eeb4768427": {
@@ -3314,8 +3403,8 @@
 "v": 2,
 "bpm": 151.498,
 "grid": 0.581,
-"key": "7B",
-"keyConf": 0.14,
+"key": "4B",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 0.581,
@@ -3328,7 +3417,8 @@
 "mixable": 0.38,
 "gridRms": 463.4,
 "gridDrift": 5.7,
-"downConf": 0.39
+"downConf": 0.39,
+"kv": 2
 }
 },
 "665cea76dc303befb47b3b3df414571081ceef390873d0277f73645c3652057d": {
@@ -3351,8 +3441,8 @@
 "v": 2,
 "bpm": 102.117,
 "grid": 0.9412,
-"key": "8B",
-"keyConf": 0.43,
+"key": "6B",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 0.941,
@@ -3365,7 +3455,8 @@
 "mixable": 0.08,
 "gridRms": 170.5,
 "gridDrift": 67.5,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "a3055353a862868562d7404d4128c74675d8b0d10f64febd83335d22e08cb120": {
@@ -3388,8 +3479,8 @@
 "v": 2,
 "bpm": 128.232,
 "grid": 1.1706,
-"key": "7B",
-"keyConf": 0.04,
+"key": "6B",
+"keyConf": 0.0,
 "phrases": 32,
 "in": {
 "start": 1.171,
@@ -3402,7 +3493,8 @@
 "mixable": 0.21,
 "gridRms": 78.4,
 "gridDrift": 37.6,
-"downConf": 0.0
+"downConf": 0.0,
+"kv": 2
 }
 },
 "21fe8787e6ade6ecf8b3c1d94799ce7f145167bbba1e99f6fbad0d7920fd5027": {
@@ -3425,8 +3517,8 @@
 "v": 2,
 "bpm": 141.998,
 "grid": 1.736,
-"key": "8B",
-"keyConf": 0.4,
+"key": "6A",
+"keyConf": 0.14,
 "phrases": 32,
 "in": {
 "start": 1.736,
@@ -3439,7 +3531,8 @@
 "mixable": 0.78,
 "gridRms": 7.6,
 "gridDrift": 1.1,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "6b767585219eb780da6ddef547d3ed5ee41ea20963f4a105de1badb62ab32ff0": {
@@ -3462,8 +3555,8 @@
 "v": 2,
 "bpm": 160.003,
 "grid": 0.4375,
-"key": "8B",
-"keyConf": 0.29,
+"key": "5A",
+"keyConf": 0.62,
 "phrases": 32,
 "in": {
 "start": 0.437,
@@ -3476,7 +3569,8 @@
 "mixable": 0.72,
 "gridRms": 10.6,
 "gridDrift": 0.6,
-"downConf": 0.84
+"downConf": 0.84,
+"kv": 2
 }
 },
 "23219f960e951a439980799de45f4ed3343458ad8b5e9b74d85b296e8563759d": {
@@ -3499,8 +3593,8 @@
 "v": 2,
 "bpm": 115.669,
 "grid": 1.1317,
-"key": "8B",
-"keyConf": 0.15,
+"key": "10A",
+"keyConf": 0.44,
 "phrases": 32,
 "in": {
 "start": 1.132,
@@ -3513,7 +3607,8 @@
 "mixable": 0.42,
 "gridRms": 87.4,
 "gridDrift": 16.4,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "3dafd20ebdbfe95cc28b8eb66f85b899d8d79c11181fa626dadfb91d5ac51ec0": {
@@ -3536,8 +3631,8 @@
 "v": 2,
 "bpm": 91.006,
 "grid": 2.6711,
-"key": "7B",
-"keyConf": 0.15,
+"key": "6B",
+"keyConf": 0.34,
 "phrases": 32,
 "in": {
 "start": 2.671,
@@ -3550,7 +3645,8 @@
 "mixable": 0.64,
 "gridRms": 18.9,
 "gridDrift": 2.8,
-"downConf": 0.96
+"downConf": 0.96,
+"kv": 2
 }
 },
 "688ad3e38e9fc093466a3b485c2bd01e6f48e56832017d5c51c9d9d9880829cf": {
@@ -3573,8 +3669,8 @@
 "v": 2,
 "bpm": 128.344,
 "grid": 0.4849,
-"key": "8B",
-"keyConf": 0.02,
+"key": "10A",
+"keyConf": 0.33,
 "phrases": 32,
 "in": {
 "start": 0.485,
@@ -3587,7 +3683,8 @@
 "mixable": 0.61,
 "gridRms": 64.6,
 "gridDrift": 4.6,
-"downConf": 0.37
+"downConf": 0.37,
+"kv": 2
 }
 },
 "5550af627953150f8dff19a256a982635c6b2553d828356f2967e1487a3ddfa4": {
@@ -3610,8 +3707,8 @@
 "v": 2,
 "bpm": 126.415,
 "grid": 2.1548,
-"key": "7B",
-"keyConf": 0.2,
+"key": "4B",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 2.155,
@@ -3624,7 +3721,8 @@
 "mixable": 0.08,
 "gridRms": 129.8,
 "gridDrift": 61.4,
-"downConf": 0.19
+"downConf": 0.19,
+"kv": 2
 }
 },
 "5cda60eba2294b5374365be936bdf61bc5bf29ab5646952d485ebaf4ba8be5f6": {
@@ -3647,8 +3745,8 @@
 "v": 2,
 "bpm": 128.529,
 "grid": 0.5851,
-"key": "8B",
-"keyConf": 0.1,
+"key": "4B",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.585,
@@ -3661,7 +3759,8 @@
 "mixable": 0.29,
 "gridRms": 71.6,
 "gridDrift": 23.0,
-"downConf": 0.68
+"downConf": 0.68,
+"kv": 2
 }
 },
 "09c78ef649ccce60d7204835a1702bf6223d83e9f00b6c5a1433b573c00ea223": {
@@ -3684,8 +3783,8 @@
 "v": 2,
 "bpm": 150.029,
 "grid": 0.6077,
-"key": "8B",
-"keyConf": 0.14,
+"key": "10B",
+"keyConf": 0.22,
 "phrases": 32,
 "in": {
 "start": 0.608,
@@ -3698,7 +3797,8 @@
 "mixable": 0.72,
 "gridRms": 16.1,
 "gridDrift": 3.4,
-"downConf": 0.63
+"downConf": 0.63,
+"kv": 2
 }
 },
 "ab1d30ed3b40ecfcb240d2b4605bb6212d590636ee459b1f92fa59f3ed4e2b35": {
@@ -3721,8 +3821,8 @@
 "v": 2,
 "bpm": 140.003,
 "grid": 0.8644,
-"key": "8B",
-"keyConf": 0.37,
+"key": "9B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 0.864,
@@ -3735,7 +3835,8 @@
 "mixable": 0.78,
 "gridRms": 9.8,
 "gridDrift": 0.0,
-"downConf": 0.2
+"downConf": 0.2,
+"kv": 2
 }
 },
 "d12ec6b32b05f3975074f9ad9a8ad12618f9b8312e14fabba746e91bd3d874da": {
@@ -3758,8 +3859,8 @@
 "v": 2,
 "bpm": 128.007,
 "grid": 1.9187,
-"key": "8B",
-"keyConf": 0.33,
+"key": "9B",
+"keyConf": 0.04,
 "phrases": 32,
 "in": {
 "start": 1.919,
@@ -3772,7 +3873,8 @@
 "mixable": 0.71,
 "gridRms": 13.2,
 "gridDrift": 1.7,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "97e151debe41b6e13e4e58038dd2541de92da437f1391d3e14e3bd0bc58e7bf6": {
@@ -3795,8 +3897,8 @@
 "v": 2,
 "bpm": 126.97,
 "grid": 0.8027,
-"key": "7B",
-"keyConf": 0.44,
+"key": "5A",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 0.803,
@@ -3809,7 +3911,8 @@
 "mixable": 0.52,
 "gridRms": 35.3,
 "gridDrift": 6.7,
-"downConf": 0.15
+"downConf": 0.15,
+"kv": 2
 }
 },
 "5eb96bbe9d9db7b5b4fcfc5f90cc56f12562510817f66aba7036c4acb396bcb5": {
@@ -3832,8 +3935,8 @@
 "v": 2,
 "bpm": 100.11,
 "grid": 0.6812,
-"key": "8B",
-"keyConf": 0.19,
+"key": "1A",
+"keyConf": 0.02,
 "phrases": 32,
 "in": {
 "start": 0.681,
@@ -3846,7 +3949,8 @@
 "mixable": 0.48,
 "gridRms": 57.9,
 "gridDrift": 17.1,
-"downConf": 0.18
+"downConf": 0.18,
+"kv": 2
 }
 },
 "2ca7673c35dfef306d02ce244a1c3b47b917020282a9c6184faa71f86010df55": {
@@ -3869,8 +3973,8 @@
 "v": 2,
 "bpm": 74.836,
 "grid": 1.2923,
-"key": "8B",
-"keyConf": 0.28,
+"key": "10A",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 1.292,
@@ -3883,7 +3987,8 @@
 "mixable": 0.45,
 "gridRms": 116.3,
 "gridDrift": 19.3,
-"downConf": 0.16
+"downConf": 0.16,
+"kv": 2
 }
 },
 "5d94b4b5df39b40e468aab25a948bcf108d86028068adf2272cf2d3ddacd2516": {
@@ -3906,8 +4011,8 @@
 "v": 2,
 "bpm": 170.003,
 "grid": 0.1327,
-"key": "8B",
-"keyConf": 0.19,
+"key": "10B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 0.133,
@@ -3920,7 +4025,8 @@
 "mixable": 0.7,
 "gridRms": 10.6,
 "gridDrift": 1.0,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "e7c947c2096f227d7a572858f165fbaff16ec227ed98804545f9fd4165c538a9": {
@@ -3943,8 +4049,8 @@
 "v": 2,
 "bpm": 170.964,
 "grid": 0.469,
-"key": "7B",
-"keyConf": 0.07,
+"key": "7A",
+"keyConf": 0.35,
 "phrases": 32,
 "in": {
 "start": 0.469,
@@ -3957,7 +4063,8 @@
 "mixable": 0.31,
 "gridRms": 54.5,
 "gridDrift": 16.7,
-"downConf": 0.53
+"downConf": 0.53,
+"kv": 2
 }
 },
 "537a13840441e0e10448768ad4c2279e9c028a5b00458307c0a16ba8ac73896a": {
@@ -3980,8 +4087,8 @@
 "v": 2,
 "bpm": 128.003,
 "grid": 0.4813,
-"key": "8B",
-"keyConf": 0.13,
+"key": "10B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 0.481,
@@ -3994,7 +4101,8 @@
 "mixable": 0.73,
 "gridRms": 10.9,
 "gridDrift": 2.3,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "0123e54c03cef4c05c3ab114d0de15dfef24fd528ee6812116b0cb629922b99e": {
@@ -4017,8 +4125,8 @@
 "v": 2,
 "bpm": 128.599,
 "grid": 0.6022,
-"key": "8B",
-"keyConf": 0.28,
+"key": "9B",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 0.602,
@@ -4031,7 +4139,8 @@
 "mixable": 0.11,
 "gridRms": 88.8,
 "gridDrift": 55.1,
-"downConf": 0.06
+"downConf": 0.06,
+"kv": 2
 }
 },
 "1d409b5148eea5932d59e99a02a5a9af64bf8c4e933a30b6cf70d1c61f062dcc": {
@@ -4054,8 +4163,8 @@
 "v": 2,
 "bpm": 128.006,
 "grid": 0.2585,
-"key": "8B",
-"keyConf": 0.37,
+"key": "10A",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 0.258,
@@ -4068,7 +4177,8 @@
 "mixable": 0.71,
 "gridRms": 13.3,
 "gridDrift": 0.8,
-"downConf": 0.26
+"downConf": 0.26,
+"kv": 2
 }
 },
 "6399b21044e74dc6e3a092123b038f98381412e8f93e0fb57c226fa86d0bb035": {
@@ -4091,8 +4201,8 @@
 "v": 2,
 "bpm": 128.468,
 "grid": 0.9173,
-"key": "7B",
-"keyConf": 0.1,
+"key": "6A",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.917,
@@ -4105,7 +4215,8 @@
 "mixable": 0.24,
 "gridRms": 82.4,
 "gridDrift": 33.7,
-"downConf": 0.31
+"downConf": 0.31,
+"kv": 2
 }
 },
 "a8f5f39b70eb6c6ec6cb524d5d11224e9e7f42116061a71f05a808afedb4d9cf": {
@@ -4128,8 +4239,8 @@
 "v": 2,
 "bpm": 64.191,
 "grid": 0.8092,
-"key": "7B",
-"keyConf": 0.09,
+"key": "6A",
+"keyConf": 0.25,
 "phrases": 32,
 "in": {
 "start": 0.809,
@@ -4142,7 +4253,8 @@
 "mixable": 0.06,
 "gridRms": 176.6,
 "gridDrift": 74.3,
-"downConf": 0.14
+"downConf": 0.14,
+"kv": 2
 }
 },
 "4c154db4c9ce64aa156bcacdc6c4c602bf6cc4248710fa902c303434d98d8e1c": {
@@ -4165,8 +4277,8 @@
 "v": 2,
 "bpm": 135.278,
 "grid": 1.7329,
-"key": "7B",
-"keyConf": 0.02,
+"key": "9B",
+"keyConf": 0.22,
 "phrases": 32,
 "in": {
 "start": 1.733,
@@ -4179,7 +4291,8 @@
 "mixable": 0.59,
 "gridRms": 58.6,
 "gridDrift": 7.4,
-"downConf": 0.44
+"downConf": 0.44,
+"kv": 2
 }
 },
 "762de35bfbebd9abe96145164db0af5b76a1dc8df2fcef57886d07ae0c2bb722": {
@@ -4202,8 +4315,8 @@
 "v": 2,
 "bpm": 150.001,
 "grid": 0.4385,
-"key": "8B",
-"keyConf": 0.26,
+"key": "9B",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 0.438,
@@ -4216,7 +4329,8 @@
 "mixable": 0.79,
 "gridRms": 8.0,
 "gridDrift": 0.2,
-"downConf": 0.41
+"downConf": 0.41,
+"kv": 2
 }
 },
 "2505636685aa994effc981beea2775c20abdfecb263721310ee62834900ae715": {
@@ -4239,8 +4353,8 @@
 "v": 2,
 "bpm": 119.999,
 "grid": 1.0737,
-"key": "8B",
-"keyConf": 0.46,
+"key": "9B",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 1.074,
@@ -4253,7 +4367,8 @@
 "mixable": 0.86,
 "gridRms": 7.7,
 "gridDrift": 0.3,
-"downConf": 0.01
+"downConf": 0.01,
+"kv": 2
 }
 },
 "07c470b7203dd6b162ad110ee72157f3964a13ea7ff53e6410755215fc63f0b4": {
@@ -4276,8 +4391,8 @@
 "v": 2,
 "bpm": 128.099,
 "grid": 0.6044,
-"key": "8B",
-"keyConf": 0.24,
+"key": "10B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 0.604,
@@ -4290,7 +4405,8 @@
 "mixable": 0.41,
 "gridRms": 58.8,
 "gridDrift": 17.4,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "a1e7cc8cb32a0aebd30df9d9e2923a2fef36a3da5ea7096ee9ba18441d1511cb": {
@@ -4313,8 +4429,8 @@
 "v": 2,
 "bpm": 119.999,
 "grid": 2.032,
-"key": "8B",
-"keyConf": 0.44,
+"key": "9B",
+"keyConf": 0.29,
 "phrases": 32,
 "in": {
 "start": 2.032,
@@ -4327,7 +4443,8 @@
 "mixable": 0.7,
 "gridRms": 14.4,
 "gridDrift": 0.6,
-"downConf": 0.49
+"downConf": 0.49,
+"kv": 2
 }
 },
 "410ddab77167374c06211e587a840b20c94d25f33f827b2256c77e5965862957": {
@@ -4350,8 +4467,8 @@
 "v": 2,
 "bpm": 75.0,
 "grid": 0.2416,
-"key": "8B",
-"keyConf": 0.22,
+"key": "5A",
+"keyConf": 0.5,
 "phrases": 32,
 "in": {
 "start": 0.242,
@@ -4364,7 +4481,8 @@
 "mixable": 0.83,
 "gridRms": 8.4,
 "gridDrift": 2.2,
-"downConf": 0.01
+"downConf": 0.01,
+"kv": 2
 }
 },
 "3dd3e3c3b2896c6352d8c8e129a0e66cbde2ca16c4557d2cf3fdecf71a1a03ad": {
@@ -4387,8 +4505,8 @@
 "v": 2,
 "bpm": 128.39,
 "grid": 0.836,
-"key": "8B",
-"keyConf": 0.08,
+"key": "6B",
+"keyConf": 0.19,
 "phrases": 32,
 "in": {
 "start": 0.836,
@@ -4401,7 +4519,8 @@
 "mixable": 0.1,
 "gridRms": 97.9,
 "gridDrift": 59.4,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "13cdefa0f7dd501ef8926c7c4758e834b518f4977f12d03fe7457032fe99584d": {
@@ -4424,8 +4543,8 @@
 "v": 2,
 "bpm": 128.003,
 "grid": 1.4479,
-"key": "8B",
-"keyConf": 0.04,
+"key": "12A",
+"keyConf": 0.14,
 "phrases": 32,
 "in": {
 "start": 1.448,
@@ -4438,7 +4557,8 @@
 "mixable": 0.79,
 "gridRms": 11.1,
 "gridDrift": 1.0,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "7930c30fb25250bb3c0d608254c2c1dbec050857004f22cfce80e459211d6b92": {
@@ -4461,8 +4581,8 @@
 "v": 2,
 "bpm": 129.038,
 "grid": 1.7059,
-"key": "7B",
-"keyConf": 0.39,
+"key": "6B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 1.706,
@@ -4475,7 +4595,8 @@
 "mixable": 0.07,
 "gridRms": 94.1,
 "gridDrift": 63.0,
-"downConf": 0.01
+"downConf": 0.01,
+"kv": 2
 }
 },
 "c0260b087eba4b2602d6588234eaf4a092323b7eff7a2e8e78ae1e10edc9172e": {
@@ -4498,8 +4619,8 @@
 "v": 2,
 "bpm": 124.899,
 "grid": 1.894,
-"key": "7B",
-"keyConf": 0.22,
+"key": "10B",
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 1.894,
@@ -4512,7 +4633,8 @@
 "mixable": 0.29,
 "gridRms": 79.4,
 "gridDrift": 26.8,
-"downConf": 0.19
+"downConf": 0.19,
+"kv": 2
 }
 },
 "b7415b4e129875818bb887c811635790ffd90afc9c24e6ee8189309289ca5e63": {
@@ -4535,8 +4657,8 @@
 "v": 2,
 "bpm": 95.353,
 "grid": 2.3765,
-"key": "7B",
-"keyConf": 0.01,
+"key": "7A",
+"keyConf": 0.35,
 "phrases": 32,
 "in": {
 "start": 2.376,
@@ -4549,7 +4671,8 @@
 "mixable": 0.33,
 "gridRms": 134.7,
 "gridDrift": 24.4,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "583836ba03c074c51c457c645649c0f1a62ff400f11045b06e8f905b0bfe7ac8": {
@@ -4572,8 +4695,8 @@
 "v": 2,
 "bpm": 115.985,
 "grid": 2.1109,
-"key": "7B",
-"keyConf": 0.15,
+"key": "9B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 2.111,
@@ -4586,7 +4709,8 @@
 "mixable": 0.71,
 "gridRms": 24.0,
 "gridDrift": 2.9,
-"downConf": 0.54
+"downConf": 0.54,
+"kv": 2
 }
 },
 "60da47c66f71fc5911c86222c9cb8b979ac5af5589d7e31e25b8b3a753367209": {
@@ -4609,8 +4733,8 @@
 "v": 2,
 "bpm": 128.609,
 "grid": 0.2922,
-"key": "8B",
-"keyConf": 0.12,
+"key": "6A",
+"keyConf": 0.32,
 "phrases": 32,
 "in": {
 "start": 0.292,
@@ -4623,7 +4747,8 @@
 "mixable": 0.51,
 "gridRms": 78.3,
 "gridDrift": 11.2,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "4db1fb26372b2635e5c1860ef14cdfd1bacb12cb64dbac844e08ca8b879b151f": {
@@ -4646,8 +4771,8 @@
 "v": 2,
 "bpm": 126.385,
 "grid": 0.9161,
-"key": "8B",
-"keyConf": 0.06,
+"key": "9B",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 0.916,
@@ -4660,7 +4785,8 @@
 "mixable": 0.66,
 "gridRms": 113.3,
 "gridDrift": 4.3,
-"downConf": 0.01
+"downConf": 0.01,
+"kv": 2
 }
 },
 "39276995dc6c7425905d36d74b48efc5a837c664d6dc95730e0f6948f3ac7e9e": {
@@ -4683,8 +4809,8 @@
 "v": 2,
 "bpm": 128.004,
 "grid": 1.9355,
-"key": "8B",
-"keyConf": 0.22,
+"key": "10B",
+"keyConf": 0.0,
 "phrases": 32,
 "in": {
 "start": 1.935,
@@ -4697,7 +4823,8 @@
 "mixable": 0.84,
 "gridRms": 8.7,
 "gridDrift": 0.2,
-"downConf": 0.06
+"downConf": 0.06,
+"kv": 2
 }
 },
 "d224a4b4958434ed4b91a62ac6ae7b6a02691ebc1ec1db79caf8cc2da8cfd685": {
@@ -4720,8 +4847,8 @@
 "v": 2,
 "bpm": 152.083,
 "grid": 0.5601,
-"key": "8B",
-"keyConf": 0.4,
+"key": "7A",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 0.56,
@@ -4734,7 +4861,8 @@
 "mixable": 0.6,
 "gridRms": 59.5,
 "gridDrift": 4.7,
-"downConf": 0.23
+"downConf": 0.23,
+"kv": 2
 }
 },
 "b48b83e40eae5577882ab7133e9fe87fdc692f3540e12bc4122cfd5095946b9e": {
@@ -4757,8 +4885,8 @@
 "v": 2,
 "bpm": 156.114,
 "grid": 0.7622,
-"key": "7A",
-"keyConf": 0.01,
+"key": "6A",
+"keyConf": 0.24,
 "phrases": 32,
 "in": {
 "start": 0.762,
@@ -4771,7 +4899,8 @@
 "mixable": 0.29,
 "gridRms": 92.5,
 "gridDrift": 23.9,
-"downConf": 0.62
+"downConf": 0.62,
+"kv": 2
 }
 },
 "cd216661260b7f7e4170c1cdba038e4f1c39e16a4fed6459dd6ad7ca4017974e": {
@@ -4794,8 +4923,8 @@
 "v": 2,
 "bpm": 139.998,
 "grid": 1.7274,
-"key": "8A",
-"keyConf": 0.06,
+"key": "11B",
+"keyConf": 0.03,
 "phrases": 32,
 "in": {
 "start": 1.727,
@@ -4808,7 +4937,8 @@
 "mixable": 0.67,
 "gridRms": 12.0,
 "gridDrift": 1.9,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "9bbfa367b7877e5d075d8961d656b4905c0211400899ef464073030631005e1d": {
@@ -4831,8 +4961,8 @@
 "v": 2,
 "bpm": 172.05,
 "grid": 1.1911,
-"key": "8B",
-"keyConf": 0.08,
+"key": "10A",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 1.191,
@@ -4845,7 +4975,8 @@
 "mixable": 0.09,
 "gridRms": 115.7,
 "gridDrift": 51.0,
-"downConf": 0.19
+"downConf": 0.19,
+"kv": 2
 }
 },
 "756257a82b61df5cdd35610a1d4d4414dbb86a955327c50a87e0413bef65ab9b": {
@@ -4868,8 +4999,8 @@
 "v": 2,
 "bpm": 128.4,
 "grid": 2.0149,
-"key": "7B",
-"keyConf": 0.15,
+"key": "4B",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 2.015,
@@ -4882,7 +5013,8 @@
 "mixable": 0.13,
 "gridRms": 83.9,
 "gridDrift": 54.8,
-"downConf": 0.04
+"downConf": 0.04,
+"kv": 2
 }
 },
 "9365cf11014e34d235d43efc6ae005ef848b6b3382e78342779a543a5e1f2101": {
@@ -4905,8 +5037,8 @@
 "v": 2,
 "bpm": 128.605,
 "grid": 0.7722,
-"key": "8B",
-"keyConf": 0.32,
+"key": "9B",
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 0.772,
@@ -4919,7 +5051,8 @@
 "mixable": 0.18,
 "gridRms": 94.8,
 "gridDrift": 41.8,
-"downConf": 0.04
+"downConf": 0.04,
+"kv": 2
 }
 },
 "1579190710955c5803f6cf00de2a8982bbfe4c22c28297a9126c14cbbc08d7a1": {
@@ -4942,8 +5075,8 @@
 "v": 2,
 "bpm": 150.004,
 "grid": 1.6417,
-"key": "8B",
-"keyConf": 0.31,
+"key": "9B",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 1.642,
@@ -4956,7 +5089,8 @@
 "mixable": 0.73,
 "gridRms": 12.0,
 "gridDrift": 1.0,
-"downConf": 0.25
+"downConf": 0.25,
+"kv": 2
 }
 },
 "e3759e8e1b9fbf51e50e1b5c9356aa982e0a034787b890d7bca86c7cdccb4cd7": {
@@ -4979,8 +5113,8 @@
 "v": 2,
 "bpm": 128.281,
 "grid": 1.3504,
-"key": "8B",
-"keyConf": 0.21,
+"key": "10B",
+"keyConf": 0.33,
 "phrases": 32,
 "in": {
 "start": 1.35,
@@ -4993,7 +5127,8 @@
 "mixable": 0.3,
 "gridRms": 70.9,
 "gridDrift": 27.7,
-"downConf": 0.11
+"downConf": 0.11,
+"kv": 2
 }
 },
 "03924ea0f4cf52e1f5c4c24290195679938cad5f69be8bc12c4f47d972f4064e": {
@@ -5016,8 +5151,8 @@
 "v": 2,
 "bpm": 117.614,
 "grid": 1.5963,
-"key": "8B",
-"keyConf": 0.43,
+"key": "10B",
+"keyConf": 0.44,
 "phrases": 32,
 "in": {
 "start": 1.596,
@@ -5030,7 +5165,8 @@
 "mixable": 0.17,
 "gridRms": 47.1,
 "gridDrift": 42.9,
-"downConf": 0.98
+"downConf": 0.98,
+"kv": 2
 }
 },
 "ec44c6380562be1d7775cc492787c07e666976adc81809663af6b4e31937bbd9": {
@@ -5053,8 +5189,8 @@
 "v": 2,
 "bpm": 123.768,
 "grid": 0.0518,
-"key": "8B",
-"keyConf": 0.52,
+"key": "9B",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 0.052,
@@ -5067,7 +5203,8 @@
 "mixable": 0.46,
 "gridRms": 69.1,
 "gridDrift": 16.2,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "a7f54e31d8801978cb03c8fe35f858dd294d1f783139678ba9629ae963912237": {
@@ -5090,8 +5227,8 @@
 "v": 2,
 "bpm": 128.017,
 "grid": 0.0376,
-"key": "8B",
-"keyConf": 0.17,
+"key": "10B",
+"keyConf": 0.06,
 "phrases": 32,
 "in": {
 "start": 0.038,
@@ -5104,7 +5241,8 @@
 "mixable": 0.56,
 "gridRms": 22.0,
 "gridDrift": 0.0,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "d4d01cb8f42d5e4b82ff993a527298cb2eea3991c4565967de378161789417c7": {
@@ -5127,8 +5265,8 @@
 "v": 2,
 "bpm": 128.733,
 "grid": 1.0741,
-"key": "7B",
-"keyConf": 0.16,
+"key": "4B",
+"keyConf": 0.05,
 "phrases": 32,
 "in": {
 "start": 1.074,
@@ -5141,7 +5279,8 @@
 "mixable": 0.34,
 "gridRms": 64.1,
 "gridDrift": 19.2,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "873a4956896817bb185d943a72c8785ee19a7da7643a530462c2f1db1d94892d": {
@@ -5164,8 +5303,8 @@
 "v": 2,
 "bpm": 163.006,
 "grid": 0.403,
-"key": "7B",
-"keyConf": 0.08,
+"key": "4B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 0.403,
@@ -5178,7 +5317,8 @@
 "mixable": 0.69,
 "gridRms": 11.6,
 "gridDrift": 0.2,
-"downConf": 0.14
+"downConf": 0.14,
+"kv": 2
 }
 },
 "bfebf9c776cae84da72f3ac46999df61c32026bc89b1245da8b6ddfdb92c8c9d": {
@@ -5201,8 +5341,8 @@
 "v": 2,
 "bpm": 128.001,
 "grid": 0.4811,
-"key": "8B",
-"keyConf": 0.06,
+"key": "5A",
+"keyConf": 0.3,
 "phrases": 32,
 "in": {
 "start": 0.481,
@@ -5215,7 +5355,8 @@
 "mixable": 0.68,
 "gridRms": 16.2,
 "gridDrift": 0.6,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "84dee9ec394b0e8edaa581f697013494a0ab3488acc678e0111202856662a220": {
@@ -5238,8 +5379,8 @@
 "v": 2,
 "bpm": 128.003,
 "grid": 0.513,
-"key": "8B",
-"keyConf": 0.02,
+"key": "3B",
+"keyConf": 0.05,
 "phrases": 32,
 "in": {
 "start": 0.513,
@@ -5252,7 +5393,8 @@
 "mixable": 0.74,
 "gridRms": 12.8,
 "gridDrift": 0.2,
-"downConf": 0.01
+"downConf": 0.01,
+"kv": 2
 }
 },
 "e7b569a64a23ee9af1fa281d429f4407e315ab1d3a6a60963148fb50db3631b0": {
@@ -5275,8 +5417,8 @@
 "v": 2,
 "bpm": 70.169,
 "grid": 2.9413,
-"key": "8B",
-"keyConf": 0.22,
+"key": "9B",
+"keyConf": 0.15,
 "phrases": 32,
 "in": {
 "start": 2.941,
@@ -5289,7 +5431,8 @@
 "mixable": 0.43,
 "gridRms": 67.2,
 "gridDrift": 19.8,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "4dee410bb58a19b082a861b97b58027509c02db8465c94146161a5f95529144f": {
@@ -5312,8 +5455,8 @@
 "v": 2,
 "bpm": 128.285,
 "grid": 1.5769,
-"key": "8B",
-"keyConf": 0.18,
+"key": "5A",
+"keyConf": 0.0,
 "phrases": 32,
 "in": {
 "start": 1.577,
@@ -5326,7 +5469,8 @@
 "mixable": 0.18,
 "gridRms": 103.3,
 "gridDrift": 40.9,
-"downConf": 0.14
+"downConf": 0.14,
+"kv": 2
 }
 },
 "d62567053457e0a98aa473c025990c92d34a4927d02b017901cbc961b4d38a4e": {
@@ -5349,8 +5493,8 @@
 "v": 2,
 "bpm": 150.008,
 "grid": 0.2945,
-"key": "7B",
-"keyConf": 0.09,
+"key": "4B",
+"keyConf": 0.19,
 "phrases": 32,
 "in": {
 "start": 0.295,
@@ -5363,7 +5507,8 @@
 "mixable": 0.65,
 "gridRms": 13.6,
 "gridDrift": 2.1,
-"downConf": 0.2
+"downConf": 0.2,
+"kv": 2
 }
 },
 "cc88fe9d322b71579b711933a54018250d76e239ae42ac9ff6325bcd55baecbe": {
@@ -5386,8 +5531,8 @@
 "v": 2,
 "bpm": 120.494,
 "grid": 1.0108,
-"key": "8B",
-"keyConf": 0.38,
+"key": "9B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 1.011,
@@ -5400,7 +5545,8 @@
 "mixable": 0.38,
 "gridRms": 122.1,
 "gridDrift": 19.3,
-"downConf": 0.44
+"downConf": 0.44,
+"kv": 2
 }
 },
 "05eb84603a6e22c1b7873004521f91bdf4a6f304a535ec4b0cf5da94a8836ac2": {
@@ -5423,8 +5569,8 @@
 "v": 2,
 "bpm": 130.034,
 "grid": 0.7198,
-"key": "7B",
-"keyConf": 0.17,
+"key": "5A",
+"keyConf": 0.27,
 "phrases": 32,
 "in": {
 "start": 0.72,
@@ -5437,7 +5583,8 @@
 "mixable": 0.0,
 "gridRms": 371.3,
 "gridDrift": 190.5,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "dc974468ae6a82e55cc422da2b7e67c8f13fca3ffa25efed4d23db9bae22ec34": {
@@ -5460,8 +5607,8 @@
 "v": 2,
 "bpm": 128.0,
 "grid": 1.8466,
-"key": "8B",
-"keyConf": 0.26,
+"key": "7A",
+"keyConf": 0.01,
 "phrases": 32,
 "in": {
 "start": 1.847,
@@ -5474,7 +5621,8 @@
 "mixable": 0.79,
 "gridRms": 9.0,
 "gridDrift": 0.9,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "21c1ec5ed3c62b21681af05412e096889951fdbe13c4459989583804ba76931d": {
@@ -5497,8 +5645,8 @@
 "v": 2,
 "bpm": 128.177,
 "grid": 1.9664,
-"key": "8B",
-"keyConf": 0.01,
+"key": "10A",
+"keyConf": 0.32,
 "phrases": 32,
 "in": {
 "start": 1.966,
@@ -5511,7 +5659,8 @@
 "mixable": 0.61,
 "gridRms": 63.4,
 "gridDrift": 8.4,
-"downConf": 0.0
+"downConf": 0.0,
+"kv": 2
 }
 },
 "16b1719c4d0732bef4336fa0eaef00fb5e8bf270aefba8213d9dedbe2d851d93": {
@@ -5534,8 +5683,8 @@
 "v": 2,
 "bpm": 128.004,
 "grid": 0.5262,
-"key": "8B",
-"keyConf": 0.32,
+"key": "9B",
+"keyConf": 0.5,
 "phrases": 32,
 "in": {
 "start": 0.526,
@@ -5548,7 +5697,8 @@
 "mixable": 0.75,
 "gridRms": 9.3,
 "gridDrift": 1.8,
-"downConf": 0.28
+"downConf": 0.28,
+"kv": 2
 }
 },
 "5f6d1507ffa9354df895143012d7f99792695d6c2a24b15d5ecb82793d5ecb29": {
@@ -5571,8 +5721,8 @@
 "v": 2,
 "bpm": 147.315,
 "grid": 1.2001,
-"key": "8B",
-"keyConf": 0.02,
+"key": "10B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.2,
@@ -5585,7 +5735,8 @@
 "mixable": 0.55,
 "gridRms": 72.1,
 "gridDrift": 0.0,
-"downConf": 0.45
+"downConf": 0.45,
+"kv": 2
 }
 },
 "f40048b1f822896fdfea607f2dd5f33c6b555798ccda73a2f81a8dcfcba339d3": {
@@ -5608,8 +5759,8 @@
 "v": 2,
 "bpm": 179.762,
 "grid": 0.2816,
-"key": "8B",
-"keyConf": 0.03,
+"key": "5A",
+"keyConf": 0.46,
 "phrases": 32,
 "in": {
 "start": 0.282,
@@ -5622,7 +5773,8 @@
 "mixable": 0.35,
 "gridRms": 42.3,
 "gridDrift": 12.4,
-"downConf": 0.6
+"downConf": 0.6,
+"kv": 2
 }
 },
 "12e7764c72cd4c36920265a2b1f3e8f29c8b168895359cc2dddd99b3ef26af15": {
@@ -5645,8 +5797,8 @@
 "v": 2,
 "bpm": 128.259,
 "grid": 1.2784,
-"key": "8B",
-"keyConf": 0.18,
+"key": "10B",
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 1.278,
@@ -5659,7 +5811,8 @@
 "mixable": 0.7,
 "gridRms": 64.7,
 "gridDrift": 2.2,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "4f5ecb94f47201dcdc2c74d2060e278c1eda13cf8d3a909e89ca4e9bf246554a": {
@@ -5682,8 +5835,8 @@
 "v": 2,
 "bpm": 170.724,
 "grid": 0.0771,
-"key": "8B",
-"keyConf": 0.32,
+"key": "10A",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 0.077,
@@ -5696,7 +5849,8 @@
 "mixable": 0.54,
 "gridRms": 57.0,
 "gridDrift": 2.3,
-"downConf": 0.16
+"downConf": 0.16,
+"kv": 2
 }
 },
 "87cd3c573be531a59c59a44d38f47f352cf62c535826256d7560c6ec7c674812": {
@@ -5719,8 +5873,8 @@
 "v": 2,
 "bpm": 128.518,
 "grid": 0.842,
-"key": "7B",
-"keyConf": 0.0,
+"key": "10B",
+"keyConf": 0.21,
 "phrases": 32,
 "in": {
 "start": 0.842,
@@ -5733,7 +5887,8 @@
 "mixable": 0.14,
 "gridRms": 95.5,
 "gridDrift": 49.3,
-"downConf": 0.36
+"downConf": 0.36,
+"kv": 2
 }
 },
 "d5d311038a0099293505e00cf3aba9dc62becd1d2c83c0f4d46e5be343a02388": {
@@ -5756,8 +5911,8 @@
 "v": 2,
 "bpm": 128.681,
 "grid": 1.3852,
-"key": "8B",
-"keyConf": 0.33,
+"key": "10A",
+"keyConf": 0.43,
 "phrases": 32,
 "in": {
 "start": 1.385,
@@ -5770,7 +5925,8 @@
 "mixable": 0.28,
 "gridRms": 66.2,
 "gridDrift": 26.1,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "34dd2f563788e50064dd695dafb4b7107a581783c37c60ac5d548281bff7dfbe": {
@@ -5793,8 +5949,8 @@
 "v": 2,
 "bpm": 128.004,
 "grid": 1.8829,
-"key": "8B",
-"keyConf": 0.28,
+"key": "10B",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 1.883,
@@ -5807,7 +5963,8 @@
 "mixable": 0.74,
 "gridRms": 10.4,
 "gridDrift": 1.3,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "03df30d3b5908bdfaebd897a82794765dcc84d6d9c26bd428187adce4424d90b": {
@@ -5830,8 +5987,8 @@
 "v": 2,
 "bpm": 128.684,
 "grid": 1.0553,
-"key": "8B",
-"keyConf": 0.36,
+"key": "5A",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 1.055,
@@ -5844,7 +6001,8 @@
 "mixable": 0.63,
 "gridRms": 84.7,
 "gridDrift": 4.7,
-"downConf": 0.3
+"downConf": 0.3,
+"kv": 2
 }
 },
 "dea63f5c5b5238676d45fdb65cb599e4ec99596c6c8b711a41f5cbe73095e70b": {
@@ -5867,8 +6025,8 @@
 "v": 2,
 "bpm": 128.344,
 "grid": 0.1554,
-"key": "7B",
-"keyConf": 0.01,
+"key": "10B",
+"keyConf": 0.03,
 "phrases": 32,
 "in": {
 "start": 0.155,
@@ -5881,7 +6039,8 @@
 "mixable": 0.22,
 "gridRms": 65.5,
 "gridDrift": 39.2,
-"downConf": 0.28
+"downConf": 0.28,
+"kv": 2
 }
 },
 "af616d9b30c8458ce1d5c84cf91e0f7f30a9e142ef16c6830174e511dc5b647d": {
@@ -5904,8 +6063,8 @@
 "v": 2,
 "bpm": 128.623,
 "grid": 0.5467,
-"key": "8B",
-"keyConf": 0.18,
+"key": "10A",
+"keyConf": 0.41,
 "phrases": 32,
 "in": {
 "start": 0.547,
@@ -5918,7 +6077,8 @@
 "mixable": 0.27,
 "gridRms": 62.4,
 "gridDrift": 26.1,
-"downConf": 0.63
+"downConf": 0.63,
+"kv": 2
 }
 },
 "3c3223f4fdfaba81f30db5f877e0ba38250b5ba9f2139e91ee6382dc7f4de6fc": {
@@ -5941,8 +6101,8 @@
 "v": 2,
 "bpm": 85.503,
 "grid": 2.1075,
-"key": "7B",
-"keyConf": 0.1,
+"key": "3A",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 2.108,
@@ -5955,7 +6115,8 @@
 "mixable": 0.07,
 "gridRms": 152.8,
 "gridDrift": 69.3,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "7cb0d832190ef52afe1f135be531cbc6678d6526c0710051046c60952609eff8": {
@@ -5978,8 +6139,8 @@
 "v": 2,
 "bpm": 99.987,
 "grid": 0.9085,
-"key": "8B",
-"keyConf": 0.4,
+"key": "10B",
+"keyConf": 0.32,
 "phrases": 32,
 "in": {
 "start": 0.909,
@@ -5992,7 +6153,8 @@
 "mixable": 0.69,
 "gridRms": 27.3,
 "gridDrift": 4.5,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "2969a4a84ae5351f3b36a152dc90ceb5a650b0813614ed3b0598c94d392bdb79": {
@@ -6015,8 +6177,8 @@
 "v": 2,
 "bpm": 168.616,
 "grid": 0.3191,
-"key": "8B",
-"keyConf": 0.09,
+"key": "4B",
+"keyConf": 0.11,
 "phrases": 32,
 "in": {
 "start": 0.319,
@@ -6029,7 +6191,8 @@
 "mixable": 0.01,
 "gridRms": 232.6,
 "gridDrift": 122.0,
-"downConf": 0.0
+"downConf": 0.0,
+"kv": 2
 }
 },
 "338605221024002e03c264a43294100bc6982ca0892532a58d37f744bbf27114": {
@@ -6052,8 +6215,8 @@
 "v": 2,
 "bpm": 135.001,
 "grid": 0.2374,
-"key": "8B",
-"keyConf": 0.34,
+"key": "10A",
+"keyConf": 0.25,
 "phrases": 32,
 "in": {
 "start": 0.237,
@@ -6066,7 +6229,8 @@
 "mixable": 0.67,
 "gridRms": 13.2,
 "gridDrift": 1.4,
-"downConf": 0.61
+"downConf": 0.61,
+"kv": 2
 }
 },
 "562a3bbbe0b945c9d30a447e0e25e1e78304e7ae7b67b6505657db5200c38be5": {
@@ -6089,8 +6253,8 @@
 "v": 2,
 "bpm": 129.812,
 "grid": 0.5408,
-"key": "8B",
-"keyConf": 0.2,
+"key": "4B",
+"keyConf": 0.12,
 "phrases": 32,
 "in": {
 "start": 0.541,
@@ -6103,7 +6267,8 @@
 "mixable": 0.16,
 "gridRms": 82.2,
 "gridDrift": 44.7,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "8abb4804e2e28aec9ebec2de1232f952bfc53a7a716bc00d374310aa3b9b3c15": {
@@ -6126,8 +6291,8 @@
 "v": 2,
 "bpm": 150.478,
 "grid": 0.4839,
-"key": "8B",
-"keyConf": 0.05,
+"key": "5A",
+"keyConf": 0.11,
 "phrases": 32,
 "in": {
 "start": 0.484,
@@ -6140,7 +6305,8 @@
 "mixable": 0.3,
 "gridRms": 63.9,
 "gridDrift": 24.7,
-"downConf": 0.18
+"downConf": 0.18,
+"kv": 2
 }
 },
 "c55bde13ccc651f211b536f2678e004a0810cd3d5b039862b5dafbc39d0ae73c": {
@@ -6163,8 +6329,8 @@
 "v": 2,
 "bpm": 128.179,
 "grid": 1.9937,
-"key": "8B",
-"keyConf": 0.05,
+"key": "9B",
+"keyConf": 0.04,
 "phrases": 32,
 "in": {
 "start": 1.994,
@@ -6177,7 +6343,8 @@
 "mixable": 0.44,
 "gridRms": 67.4,
 "gridDrift": 18.4,
-"downConf": 0.42
+"downConf": 0.42,
+"kv": 2
 }
 },
 "e26788a5245989499b1a51d5af8f8c4830c26439ea91fbed91ded2cebabeb9f8": {
@@ -6200,8 +6367,8 @@
 "v": 2,
 "bpm": 128.002,
 "grid": 0.9783,
-"key": "7B",
-"keyConf": 0.12,
+"key": "4B",
+"keyConf": 0.02,
 "phrases": 32,
 "in": {
 "start": 0.978,
@@ -6214,7 +6381,8 @@
 "mixable": 0.79,
 "gridRms": 9.2,
 "gridDrift": 0.4,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "a8e327399e2d34c3506e2a854860217662c545b2e6d91a4840125a876c8d9849": {
@@ -6237,8 +6405,8 @@
 "v": 2,
 "bpm": 63.013,
 "grid": 1.5064,
-"key": "8B",
-"keyConf": 0.05,
+"key": "10A",
+"keyConf": 0.25,
 "phrases": 32,
 "in": {
 "start": 1.506,
@@ -6251,7 +6419,8 @@
 "mixable": 0.17,
 "gridRms": 80.8,
 "gridDrift": 46.6,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "88b66d9b68573cf93484eadee9a1f4a3cbacc154444db64642ca8cbdd4c69207": {
@@ -6274,8 +6443,8 @@
 "v": 2,
 "bpm": 100.001,
 "grid": 2.4116,
-"key": "8B",
-"keyConf": 0.34,
+"key": "9B",
+"keyConf": 0.19,
 "phrases": 32,
 "in": {
 "start": 2.412,
@@ -6288,7 +6457,8 @@
 "mixable": 0.87,
 "gridRms": 8.1,
 "gridDrift": 0.1,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "8c2430dc0fe0ff1a2a3614b67c096b2013ff6cfe7f4d0cbd6970384b53c0552b": {
@@ -6311,8 +6481,8 @@
 "v": 2,
 "bpm": 117.321,
 "grid": 0.7258,
-"key": "7B",
-"keyConf": 0.04,
+"key": "3A",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.726,
@@ -6325,7 +6495,8 @@
 "mixable": 0.63,
 "gridRms": 18.9,
 "gridDrift": 0.7,
-"downConf": 0.46
+"downConf": 0.46,
+"kv": 2
 }
 },
 "738b55f6fde29cc35e8dc9ee29c0002dd639b273687fd899fee1e67c04b2b4e5": {
@@ -6348,8 +6519,8 @@
 "v": 2,
 "bpm": 128.384,
 "grid": 1.1344,
-"key": "7B",
-"keyConf": 0.06,
+"key": "6B",
+"keyConf": 0.14,
 "phrases": 32,
 "in": {
 "start": 1.134,
@@ -6362,7 +6533,8 @@
 "mixable": 0.46,
 "gridRms": 61.9,
 "gridDrift": 15.2,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "52216d4ec69c1a763d4a0e65b8c9f9a382ce898ed7760410d0ea160edf145683": {
@@ -6385,8 +6557,8 @@
 "v": 2,
 "bpm": 133.27,
 "grid": 1.3652,
-"key": "7B",
-"keyConf": 0.42,
+"key": "6B",
+"keyConf": 0.01,
 "phrases": 32,
 "in": {
 "start": 1.365,
@@ -6399,7 +6571,8 @@
 "mixable": 0.35,
 "gridRms": 73.1,
 "gridDrift": 16.7,
-"downConf": 0.35
+"downConf": 0.35,
+"kv": 2
 }
 },
 "9d5e60c5fbfc05c8170a243df87d49c113cfb8cb89ef32b3d3e91000ec0ea55a": {
@@ -6422,8 +6595,8 @@
 "v": 2,
 "bpm": 84.526,
 "grid": 2.7757,
-"key": "7B",
-"keyConf": 0.35,
+"key": "4B",
+"keyConf": 0.03,
 "phrases": 32,
 "in": {
 "start": 2.776,
@@ -6436,7 +6609,8 @@
 "mixable": 0.47,
 "gridRms": 208.5,
 "gridDrift": 13.2,
-"downConf": 0.53
+"downConf": 0.53,
+"kv": 2
 }
 },
 "fefa10dafd41f131d1634ff9547c97bbc6fa0c4849826a31437059a50f290e17": {
@@ -6459,8 +6633,8 @@
 "v": 2,
 "bpm": 107.934,
 "grid": 0.7447,
-"key": "7B",
-"keyConf": 0.02,
+"key": "4B",
+"keyConf": 0.39,
 "phrases": 32,
 "in": {
 "start": 0.745,
@@ -6473,7 +6647,8 @@
 "mixable": 0.41,
 "gridRms": 51.5,
 "gridDrift": 15.4,
-"downConf": 0.37
+"downConf": 0.37,
+"kv": 2
 }
 },
 "11eb30ce1f8e1d3587e776d3371b464efd32e5bab9953d15500d963cfb0c0753": {
@@ -6496,8 +6671,8 @@
 "v": 2,
 "bpm": 173.989,
 "grid": 1.3929,
-"key": "7B",
-"keyConf": 0.24,
+"key": "4B",
+"keyConf": 0.12,
 "phrases": 32,
 "in": {
 "start": 1.393,
@@ -6510,7 +6685,8 @@
 "mixable": 0.48,
 "gridRms": 20.0,
 "gridDrift": 0.6,
-"downConf": 0.56
+"downConf": 0.56,
+"kv": 2
 }
 },
 "c665b7fb66ecc62dc5beb09a6d4bc0e739fb2189e5df53592ec009f73ea61578": {
@@ -6533,8 +6709,8 @@
 "v": 2,
 "bpm": 63.875,
 "grid": 2.9259,
-"key": "8B",
-"keyConf": 0.3,
+"key": "5A",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 2.926,
@@ -6547,7 +6723,8 @@
 "mixable": 0.1,
 "gridRms": 102.1,
 "gridDrift": 60.5,
-"downConf": 0.51
+"downConf": 0.51,
+"kv": 2
 }
 },
 "53e7750bfa88fa828b2befd00bac662e01e7c1ef5f175e5c373a46ce8871c3ed": {
@@ -6570,8 +6747,8 @@
 "v": 2,
 "bpm": 74.999,
 "grid": 0.3703,
-"key": "8B",
-"keyConf": 0.18,
+"key": "9B",
+"keyConf": 0.22,
 "phrases": 32,
 "in": {
 "start": 0.37,
@@ -6584,7 +6761,8 @@
 "mixable": 0.85,
 "gridRms": 11.0,
 "gridDrift": 0.5,
-"downConf": 0.16
+"downConf": 0.16,
+"kv": 2
 }
 },
 "573870dbda8251ce16bb3dd4e4db38b70de97b5cb0a06fcae0d0b9cc004cb1a7": {
@@ -6607,8 +6785,8 @@
 "v": 2,
 "bpm": 135.14,
 "grid": 1.6771,
-"key": "7B",
-"keyConf": 0.4,
+"key": "7A",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 1.677,
@@ -6621,7 +6799,8 @@
 "mixable": 0.28,
 "gridRms": 89.3,
 "gridDrift": 26.9,
-"downConf": 0.79
+"downConf": 0.79,
+"kv": 2
 }
 },
 "18163413973770da5274912ab9797d2df7b519c3005419d19f41f80390706eb7": {
@@ -6644,8 +6823,8 @@
 "v": 2,
 "bpm": 132.11,
 "grid": 1.9047,
-"key": "8B",
-"keyConf": 0.2,
+"key": "10B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.905,
@@ -6658,7 +6837,8 @@
 "mixable": 0.35,
 "gridRms": 63.0,
 "gridDrift": 18.8,
-"downConf": 0.25
+"downConf": 0.25,
+"kv": 2
 }
 },
 "93315403c948400f0e5d7b14b704e3ced8c04618a59d827200683a3043384fc0": {
@@ -6681,8 +6861,8 @@
 "v": 2,
 "bpm": 129.269,
 "grid": 0.1136,
-"key": "8B",
-"keyConf": 0.32,
+"key": "9B",
+"keyConf": 0.24,
 "phrases": 32,
 "in": {
 "start": 0.114,
@@ -6695,7 +6875,8 @@
 "mixable": 0.11,
 "gridRms": 101.7,
 "gridDrift": 55.7,
-"downConf": 0.43
+"downConf": 0.43,
+"kv": 2
 }
 },
 "6989680c1f35d0ddd8c755f3957934bb9fc6404c92c3faca8be62151da1502a0": {
@@ -6718,8 +6899,8 @@
 "v": 2,
 "bpm": 128.572,
 "grid": 1.0854,
-"key": "8B",
-"keyConf": 0.28,
+"key": "10B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.085,
@@ -6732,7 +6913,8 @@
 "mixable": 0.35,
 "gridRms": 66.4,
 "gridDrift": 19.4,
-"downConf": 0.16
+"downConf": 0.16,
+"kv": 2
 }
 },
 "8de2976032031a00f09c09e10599cb751558387de19f6c40758237516e5ecf8e": {
@@ -6755,8 +6937,8 @@
 "v": 2,
 "bpm": 101.943,
 "grid": 1.5728,
-"key": "7B",
-"keyConf": 0.03,
+"key": "9B",
+"keyConf": 0.5,
 "phrases": 32,
 "in": {
 "start": 1.573,
@@ -6769,7 +6951,8 @@
 "mixable": 0.4,
 "gridRms": 48.5,
 "gridDrift": 16.8,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "102865a77c5bba3c3d26a24e153c537bc462a26bfcd82cc554a09284bfa9e98f": {
@@ -6792,8 +6975,8 @@
 "v": 2,
 "bpm": 75.001,
 "grid": 1.6398,
-"key": "7B",
-"keyConf": 0.03,
+"key": "7A",
+"keyConf": 0.29,
 "phrases": 32,
 "in": {
 "start": 1.64,
@@ -6806,7 +6989,8 @@
 "mixable": 0.83,
 "gridRms": 9.8,
 "gridDrift": 1.2,
-"downConf": 0.94
+"downConf": 0.94,
+"kv": 2
 }
 },
 "ac460fb4d32c39752bfe27062bdbb9005b64b005ab05887e7dcdef0ea3f1d9ba": {
@@ -6829,8 +7013,8 @@
 "v": 2,
 "bpm": 150.001,
 "grid": 0.4109,
-"key": "8B",
-"keyConf": 0.25,
+"key": "5A",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.411,
@@ -6843,7 +7027,8 @@
 "mixable": 0.67,
 "gridRms": 14.0,
 "gridDrift": 0.8,
-"downConf": 0.04
+"downConf": 0.04,
+"kv": 2
 }
 },
 "009a1f73eed3e94862740e03d61fc6e101c76ebd090a256a38c836121a2ffbc2": {
@@ -6866,8 +7051,8 @@
 "v": 2,
 "bpm": 64.004,
 "grid": 0.5866,
-"key": "8B",
-"keyConf": 0.19,
+"key": "9B",
+"keyConf": 0.04,
 "phrases": 32,
 "in": {
 "start": 0.587,
@@ -6880,7 +7065,8 @@
 "mixable": 0.36,
 "gridRms": 63.1,
 "gridDrift": 26.3,
-"downConf": 0.2
+"downConf": 0.2,
+"kv": 2
 }
 },
 "dfba979583327f328c142dbae4d6aa00ea33c07ce81729caf194a1e8bef0b606": {
@@ -6903,8 +7089,8 @@
 "v": 2,
 "bpm": 137.998,
 "grid": 0.0608,
-"key": "8B",
-"keyConf": 0.37,
+"key": "9B",
+"keyConf": 0.43,
 "phrases": 32,
 "in": {
 "start": 0.061,
@@ -6917,7 +7103,8 @@
 "mixable": 0.69,
 "gridRms": 12.5,
 "gridDrift": 1.3,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "32c8d86f34459c08a0390dc5845c149ea08599ebe08f3a9c5324778c687c932e": {
@@ -6940,8 +7127,8 @@
 "v": 2,
 "bpm": 160.011,
 "grid": 0.4229,
-"key": "8B",
-"keyConf": 0.25,
+"key": "6B",
+"keyConf": 0.22,
 "phrases": 32,
 "in": {
 "start": 0.423,
@@ -6954,7 +7141,8 @@
 "mixable": 0.87,
 "gridRms": 5.1,
 "gridDrift": 0.6,
-"downConf": 0.11
+"downConf": 0.11,
+"kv": 2
 }
 },
 "3779ddaaabc2f9530b5975fca7a0dcbf4c2988eb186e60a8fb303c8b1d7ad44f": {
@@ -6977,8 +7165,8 @@
 "v": 2,
 "bpm": 147.215,
 "grid": 0.1137,
-"key": "7B",
-"keyConf": 0.15,
+"key": "4B",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": 0.114,
@@ -6991,7 +7179,8 @@
 "mixable": 0.31,
 "gridRms": 59.9,
 "gridDrift": 18.6,
-"downConf": 0.37
+"downConf": 0.37,
+"kv": 2
 }
 },
 "89b118044c93096ee195326db7c6106e55ce876bd56c0a589e49171d5058fd62": {
@@ -7014,8 +7203,8 @@
 "v": 2,
 "bpm": 139.929,
 "grid": 0.4193,
-"key": "8B",
-"keyConf": 0.41,
+"key": "9B",
+"keyConf": 0.42,
 "phrases": 32,
 "in": {
 "start": 0.419,
@@ -7028,7 +7217,8 @@
 "mixable": 0.43,
 "gridRms": 53.7,
 "gridDrift": 13.9,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "4e48f93983cd7b448c98adfc84f4c7dcb59c56ccb811ed00bd76c0399f9437c3": {
@@ -7051,8 +7241,8 @@
 "v": 2,
 "bpm": 160.01,
 "grid": 0.3087,
-"key": "8B",
-"keyConf": 0.71,
+"key": "9B",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 0.309,
@@ -7065,7 +7255,8 @@
 "mixable": 0.63,
 "gridRms": 14.3,
 "gridDrift": 3.0,
-"downConf": 0.21
+"downConf": 0.21,
+"kv": 2
 }
 },
 "e4e7cb6d63b9a5ec3960ecd3bff99ec1ab3980edd1583e62a31a057e07b3d6b4": {
@@ -7088,8 +7279,8 @@
 "v": 2,
 "bpm": 129.397,
 "grid": 1.5764,
-"key": "8B",
-"keyConf": 0.02,
+"key": "4B",
+"keyConf": 0.03,
 "phrases": 32,
 "in": {
 "start": 1.576,
@@ -7102,7 +7293,8 @@
 "mixable": 0.26,
 "gridRms": 70.5,
 "gridDrift": 32.9,
-"downConf": 0.26
+"downConf": 0.26,
+"kv": 2
 }
 },
 "fd05e557ac2c93ead610b497d8042230d5045ee820fecc2cb7375fd1ec818ba1": {
@@ -7125,8 +7317,8 @@
 "v": 2,
 "bpm": 126.207,
 "grid": 0.7341,
-"key": "7B",
-"keyConf": 0.51,
+"key": "5A",
+"keyConf": 0.24,
 "phrases": 32,
 "in": {
 "start": 0.734,
@@ -7139,7 +7331,8 @@
 "mixable": 0.39,
 "gridRms": 127.3,
 "gridDrift": 19.0,
-"downConf": 0.16
+"downConf": 0.16,
+"kv": 2
 }
 },
 "f5035905351e31b060cebcbf2eb86f5c642b196a592b0ea6b130f9752fccee81": {
@@ -7162,8 +7355,8 @@
 "v": 2,
 "bpm": 125.935,
 "grid": 0.4307,
-"key": "7B",
-"keyConf": 0.29,
+"key": "5A",
+"keyConf": 0.21,
 "phrases": 32,
 "in": {
 "start": 0.431,
@@ -7176,7 +7369,8 @@
 "mixable": 0.48,
 "gridRms": 59.3,
 "gridDrift": 11.6,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "695ed0164b59e819dd301846a73a6e37a6a23174f2d045032f1973756484a026": {
@@ -7199,8 +7393,8 @@
 "v": 2,
 "bpm": 150.295,
 "grid": 1.3526,
-"key": "8B",
-"keyConf": 0.35,
+"key": "9B",
+"keyConf": 0.21,
 "phrases": 32,
 "in": {
 "start": 1.353,
@@ -7213,7 +7407,8 @@
 "mixable": 0.3,
 "gridRms": 86.8,
 "gridDrift": 26.2,
-"downConf": 0.0
+"downConf": 0.0,
+"kv": 2
 }
 },
 "db0ad04a8ce11b44f2f7e10c484dbb7f2df7453c29b5bfe53fc868cf0906d440": {
@@ -7236,8 +7431,8 @@
 "v": 2,
 "bpm": 120.001,
 "grid": 1.0744,
-"key": "8B",
-"keyConf": 0.46,
+"key": "9B",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 1.074,
@@ -7250,7 +7445,8 @@
 "mixable": 0.86,
 "gridRms": 8.2,
 "gridDrift": 0.2,
-"downConf": 0.01
+"downConf": 0.01,
+"kv": 2
 }
 },
 "151638c6cd961445e6093038ad138bf5efee59ceb9c5e8d87f74bbccc7738ba9": {
@@ -7273,8 +7469,8 @@
 "v": 2,
 "bpm": 144.885,
 "grid": 0.8062,
-"key": "7B",
-"keyConf": 0.01,
+"key": "9B",
+"keyConf": 0.16,
 "phrases": 32,
 "in": {
 "start": 0.806,
@@ -7287,7 +7483,8 @@
 "mixable": 0.44,
 "gridRms": 56.4,
 "gridDrift": 15.2,
-"downConf": 0.83
+"downConf": 0.83,
+"kv": 2
 }
 },
 "280af52d8431c2227f5a23fe48be42b70554f64719d4bd17ff1703edb2d85c68": {
@@ -7310,8 +7507,8 @@
 "v": 2,
 "bpm": 126.001,
 "grid": 1.9436,
-"key": "8B",
-"keyConf": 0.19,
+"key": "5A",
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 1.944,
@@ -7324,7 +7521,8 @@
 "mixable": 0.81,
 "gridRms": 7.1,
 "gridDrift": 1.3,
-"downConf": 0.03
+"downConf": 0.03,
+"kv": 2
 }
 },
 "59eeea846552118b557d5e870ac1a5c2bbd9cd2f4b754067c6fc02ff74f6fb73": {
@@ -7347,8 +7545,8 @@
 "v": 2,
 "bpm": 83.332,
 "grid": 1.8593,
-"key": "8B",
-"keyConf": 0.33,
+"key": "10A",
+"keyConf": 0.19,
 "phrases": 32,
 "in": {
 "start": 1.859,
@@ -7361,7 +7559,8 @@
 "mixable": 0.89,
 "gridRms": 5.9,
 "gridDrift": 0.8,
-"downConf": 0.21
+"downConf": 0.21,
+"kv": 2
 }
 },
 "79d4b84c41467f67a0d3207ae9958daff984c8ec5bd55e28c2e02cf195ece5b3": {
@@ -7384,8 +7583,8 @@
 "v": 2,
 "bpm": 149.999,
 "grid": 0.4083,
-"key": "8B",
-"keyConf": 0.12,
+"key": "10B",
+"keyConf": 0.57,
 "phrases": 32,
 "in": {
 "start": 0.408,
@@ -7398,7 +7597,8 @@
 "mixable": 0.79,
 "gridRms": 8.5,
 "gridDrift": 0.2,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "27199e97e2b6a63557495f6d3e761e97b2a5e77b1f57def27d7efe94c544978d": {
@@ -7421,8 +7621,8 @@
 "v": 2,
 "bpm": 125.425,
 "grid": 0.6234,
-"key": "8B",
-"keyConf": 0.68,
+"key": "9B",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 0.623,
@@ -7435,7 +7635,8 @@
 "mixable": 0.2,
 "gridRms": 76.8,
 "gridDrift": 39.7,
-"downConf": 0.24
+"downConf": 0.24,
+"kv": 2
 }
 },
 "a9d8d3b8c0eb7486e2cb4af251a6a591ce53aaa51fc77efef44c75db26583eaf": {
@@ -7458,8 +7659,8 @@
 "v": 2,
 "bpm": 100.018,
 "grid": 0.8235,
-"key": "8B",
-"keyConf": 0.44,
+"key": "9B",
+"keyConf": 0.33,
 "phrases": 32,
 "in": {
 "start": 0.823,
@@ -7472,7 +7673,8 @@
 "mixable": 0.41,
 "gridRms": 88.3,
 "gridDrift": 14.6,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "c4eb3507a49e389fd21c39522eca939f9bee3a81d394d3af388982edf174464a": {
@@ -7495,8 +7697,8 @@
 "v": 2,
 "bpm": 99.762,
 "grid": 0.3895,
-"key": "8B",
-"keyConf": 0.44,
+"key": "9B",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 0.389,
@@ -7509,7 +7711,8 @@
 "mixable": 0.41,
 "gridRms": 82.2,
 "gridDrift": 17.8,
-"downConf": 0.72
+"downConf": 0.72,
+"kv": 2
 }
 },
 "292192ccd35424b862021ab160ae81423e435e8ed7d53497f983a4673861fb41": {
@@ -7532,8 +7735,8 @@
 "v": 2,
 "bpm": 139.999,
 "grid": 1.7544,
-"key": "8B",
-"keyConf": 0.39,
+"key": "9B",
+"keyConf": 0.24,
 "phrases": 32,
 "in": {
 "start": 1.754,
@@ -7546,7 +7749,8 @@
 "mixable": 0.71,
 "gridRms": 11.3,
 "gridDrift": 0.9,
-"downConf": 0.27
+"downConf": 0.27,
+"kv": 2
 }
 },
 "58e1f11d87ab047cb5f7a15b053a0138370b877417f865253c60b907428b693f": {
@@ -7569,8 +7773,8 @@
 "v": 2,
 "bpm": 128.001,
 "grid": 1.8852,
-"key": "8B",
-"keyConf": 0.17,
+"key": "6B",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": 1.885,
@@ -7583,7 +7787,8 @@
 "mixable": 0.68,
 "gridRms": 12.7,
 "gridDrift": 1.5,
-"downConf": 0.36
+"downConf": 0.36,
+"kv": 2
 }
 },
 "3e7da0b3bb5dd0f868f44508a2f60925dbf84adc29452db26ed9128fc3de5c80": {
@@ -7606,8 +7811,8 @@
 "v": 2,
 "bpm": 128.001,
 "grid": 0.0865,
-"key": "8B",
-"keyConf": 0.25,
+"key": "9B",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 0.086,
@@ -7620,7 +7825,8 @@
 "mixable": 0.8,
 "gridRms": 9.5,
 "gridDrift": 0.6,
-"downConf": 0.11
+"downConf": 0.11,
+"kv": 2
 }
 },
 "749f208490e078920b4c0808bcaf29743aaa136e924689998b94a9c51e298f1f": {
@@ -7643,8 +7849,8 @@
 "v": 2,
 "bpm": 129.338,
 "grid": 0.5753,
-"key": "8B",
-"keyConf": 0.42,
+"key": "9B",
+"keyConf": 0.32,
 "phrases": 32,
 "in": {
 "start": 0.575,
@@ -7657,7 +7863,8 @@
 "mixable": 0.14,
 "gridRms": 76.8,
 "gridDrift": 48.1,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "67713f1cef647ceec80ec9e823e5185c4e43d2e44761e31418cddeffb9eba622": {
@@ -7680,8 +7887,8 @@
 "v": 2,
 "bpm": 173.979,
 "grid": 0.3103,
-"key": "7B",
-"keyConf": 0.13,
+"key": "7A",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 0.31,
@@ -7694,7 +7901,8 @@
 "mixable": 0.56,
 "gridRms": 19.4,
 "gridDrift": 3.7,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "6b9dfb88dfd9b7d39b1c240378bb6b6d27010d46fc81846aef0f3f64ab2e4987": {
@@ -7717,8 +7925,8 @@
 "v": 2,
 "bpm": 150.042,
 "grid": 1.6202,
-"key": "8B",
-"keyConf": 0.36,
+"key": "7A",
+"keyConf": 0.23,
 "phrases": 32,
 "in": {
 "start": 1.62,
@@ -7731,7 +7939,8 @@
 "mixable": 0.7,
 "gridRms": 15.0,
 "gridDrift": 4.4,
-"downConf": 0.17
+"downConf": 0.17,
+"kv": 2
 }
 },
 "6397a01e7974899e97f30cc409e0c6c572ecf492cbd1bc3d3bc0f0bdfa6693f5": {
@@ -7754,8 +7963,8 @@
 "v": 2,
 "bpm": 99.999,
 "grid": 1.7423,
-"key": "7B",
-"keyConf": 0.16,
+"key": "7A",
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 1.742,
@@ -7768,7 +7977,8 @@
 "mixable": 0.77,
 "gridRms": 14.1,
 "gridDrift": 0.3,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "d52c0ce6be786d4687767b39adc0bee921adb5de82962ad4e308479f59ae1779": {
@@ -7791,8 +8001,8 @@
 "v": 2,
 "bpm": 120.0,
 "grid": 0.5503,
-"key": "7B",
-"keyConf": 0.12,
+"key": "7A",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 0.55,
@@ -7805,7 +8015,8 @@
 "mixable": 0.78,
 "gridRms": 10.4,
 "gridDrift": 0.8,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "246e244ee17b603a9e600aaf7cc292353f7673e57d8d1595b1c2637b337518fa": {
@@ -7828,8 +8039,8 @@
 "v": 2,
 "bpm": 64.0,
 "grid": 3.7639,
-"key": "7B",
-"keyConf": 0.12,
+"key": "10A",
+"keyConf": 0.36,
 "phrases": 32,
 "in": {
 "start": 3.764,
@@ -7842,7 +8053,8 @@
 "mixable": 0.75,
 "gridRms": 14.9,
 "gridDrift": 2.9,
-"downConf": 0.7
+"downConf": 0.7,
+"kv": 2
 }
 },
 "e1c5b3168b52e976fd60c739e944edec7cd7aadb87f51431b06afb037cd2f71e": {
@@ -7865,8 +8077,8 @@
 "v": 2,
 "bpm": 132.175,
 "grid": 1.1862,
-"key": "8B",
-"keyConf": 0.34,
+"key": "10B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 1.186,
@@ -7879,7 +8091,8 @@
 "mixable": 0.65,
 "gridRms": 102.6,
 "gridDrift": 3.1,
-"downConf": 0.1
+"downConf": 0.1,
+"kv": 2
 }
 },
 "2305f5288edfdc0bbbd681603a566cf177c79e811021ee88989b8bd7e578204e": {
@@ -7902,8 +8115,8 @@
 "v": 2,
 "bpm": 147.307,
 "grid": 1.1968,
-"key": "8B",
-"keyConf": 0.02,
+"key": "10B",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.197,
@@ -7916,7 +8129,8 @@
 "mixable": 0.51,
 "gridRms": 71.6,
 "gridDrift": 0.8,
-"downConf": 0.47
+"downConf": 0.47,
+"kv": 2
 }
 },
 "439f775fe86fa7b2815a94b092f2f8cd5d63b62774a93773833832e57e3d8e6d": {
@@ -7939,8 +8153,8 @@
 "v": 2,
 "bpm": 63.909,
 "grid": 3.3758,
-"key": "8B",
-"keyConf": 0.28,
+"key": "10B",
+"keyConf": 0.02,
 "phrases": 32,
 "in": {
 "start": 3.376,
@@ -7953,7 +8167,8 @@
 "mixable": 0.45,
 "gridRms": 67.0,
 "gridDrift": 20.6,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "d046230b53d080b1f1d9739ce96a37f30495045e27868d5c80bd90475a7e72b9": {
@@ -7976,8 +8191,8 @@
 "v": 2,
 "bpm": 145.0,
 "grid": 1.2548,
-"key": "8B",
-"keyConf": 0.25,
+"key": "10A",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": 1.255,
@@ -7990,7 +8205,8 @@
 "mixable": 0.71,
 "gridRms": 11.2,
 "gridDrift": 0.9,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "2bf90a6a6a4dbb75120bdf76039c7cab509491a0af7f6d5c760aca3108c10282": {
@@ -8013,7 +8229,7 @@
 "v": 2,
 "bpm": 97.193,
 "grid": 1.548,
-"key": "7B",
+"key": "2A",
 "keyConf": 0.05,
 "phrases": 32,
 "in": {
@@ -8027,7 +8243,8 @@
 "mixable": 0.72,
 "gridRms": 16.8,
 "gridDrift": 1.8,
-"downConf": 0.45
+"downConf": 0.45,
+"kv": 2
 }
 },
 "48336df98202cf4dfe7b4e6c2a4068871270990404e75dde7f877e6004d7eafc": {
@@ -8050,8 +8267,8 @@
 "v": 2,
 "bpm": 130.001,
 "grid": 0.968,
-"key": "8B",
-"keyConf": 0.24,
+"key": "9B",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 0.968,
@@ -8064,7 +8281,8 @@
 "mixable": 0.8,
 "gridRms": 8.0,
 "gridDrift": 1.0,
-"downConf": 0.27
+"downConf": 0.27,
+"kv": 2
 }
 },
 "ba031acc8f9f3d4ed9c65621485e71088d8684c3f7f3aba74a404ea27d7bf381": {
@@ -8087,8 +8305,8 @@
 "v": 2,
 "bpm": 128.726,
 "grid": 1.0928,
-"key": "8B",
-"keyConf": 0.35,
+"key": "10B",
+"keyConf": 0.08,
 "phrases": 32,
 "in": {
 "start": 1.093,
@@ -8101,7 +8319,8 @@
 "mixable": 0.31,
 "gridRms": 66.4,
 "gridDrift": 26.3,
-"downConf": 0.31
+"downConf": 0.31,
+"kv": 2
 }
 },
 "f367f03c6d132dff79319ab862b68c58e408bc5c355b066dbe4e908bf083eeaf": {
@@ -8124,8 +8343,8 @@
 "v": 2,
 "bpm": 120.0,
 "grid": 0.2887,
-"key": "8B",
-"keyConf": 0.06,
+"key": "6A",
+"keyConf": 0.35,
 "phrases": 32,
 "in": {
 "start": 0.289,
@@ -8138,7 +8357,8 @@
 "mixable": 0.89,
 "gridRms": 5.6,
 "gridDrift": 0.3,
-"downConf": 0.16
+"downConf": 0.16,
+"kv": 2
 }
 },
 "4cbc8fa97a84ff796e78a59b4686461c5705446090c813534d1b718c08a36526": {
@@ -8161,8 +8381,8 @@
 "v": 2,
 "bpm": 119.825,
 "grid": 1.0307,
-"key": "8B",
-"keyConf": 0.34,
+"key": "10B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 1.031,
@@ -8175,7 +8395,8 @@
 "mixable": 0.51,
 "gridRms": 61.8,
 "gridDrift": 8.8,
-"downConf": 0.33
+"downConf": 0.33,
+"kv": 2
 }
 },
 "3c9b6307765542ece56c8a0f29c8aa5d8f91b0437d18f882fd66b769706db974": {
@@ -8198,8 +8419,8 @@
 "v": 2,
 "bpm": 143.002,
 "grid": 0.0607,
-"key": "7B",
-"keyConf": 0.17,
+"key": "10B",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": 0.061,
@@ -8212,7 +8433,8 @@
 "mixable": 0.64,
 "gridRms": 14.2,
 "gridDrift": 0.9,
-"downConf": 0.98
+"downConf": 0.98,
+"kv": 2
 }
 },
 "ba2c1f8b30f1bfe0a476ac3d2170e38466753597e886a8935b54100819c6fcbf": {
@@ -8235,8 +8457,8 @@
 "v": 2,
 "bpm": 84.734,
 "grid": 0.3802,
-"key": "7B",
-"keyConf": 0.54,
+"key": "2A",
+"keyConf": 0.05,
 "phrases": 32,
 "in": {
 "start": 0.38,
@@ -8249,7 +8471,8 @@
 "mixable": 0.49,
 "gridRms": 106.9,
 "gridDrift": 10.1,
-"downConf": 0.51
+"downConf": 0.51,
+"kv": 2
 }
 },
 "0d952a6260ba4ad1ae3d711095cb595595292024b7d8e1f7f5272de8d101e8af": {
@@ -8272,8 +8495,8 @@
 "v": 2,
 "bpm": 122.027,
 "grid": 1.5595,
-"key": "7B",
-"keyConf": 0.11,
+"key": "6B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 1.56,
@@ -8286,7 +8509,8 @@
 "mixable": 0.61,
 "gridRms": 35.8,
 "gridDrift": 5.5,
-"downConf": 0.23
+"downConf": 0.23,
+"kv": 2
 }
 },
 "15bd61d572c8ce25f75133a5d03e8805428e7bda322e10cab89441c612265665": {
@@ -8309,8 +8533,8 @@
 "v": 2,
 "bpm": 129.348,
 "grid": 0.5551,
-"key": "7B",
-"keyConf": 0.3,
+"key": "4B",
+"keyConf": 0.19,
 "phrases": 32,
 "in": {
 "start": 0.555,
@@ -8323,7 +8547,8 @@
 "mixable": 0.1,
 "gridRms": 94.4,
 "gridDrift": 52.3,
-"downConf": 0.28
+"downConf": 0.28,
+"kv": 2
 }
 },
 "9324635ea5db53e88419668ed33dfb9d9f3db30d8545c5fb530bc383fb10c121": {
@@ -8346,8 +8571,8 @@
 "v": 2,
 "bpm": 100.001,
 "grid": 2.4113,
-"key": "8B",
-"keyConf": 0.34,
+"key": "9B",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 2.411,
@@ -8360,7 +8585,8 @@
 "mixable": 0.88,
 "gridRms": 7.7,
 "gridDrift": 0.1,
-"downConf": 0.09
+"downConf": 0.09,
+"kv": 2
 }
 },
 "826cd01c92bed6c145bfe248ede5980860acd86e7c0225fca7dcb7a9400c24bc": {
@@ -8383,8 +8609,8 @@
 "v": 2,
 "bpm": 120.005,
 "grid": 2.0094,
-"key": "8B",
-"keyConf": 0.47,
+"key": "9B",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 2.009,
@@ -8397,7 +8623,8 @@
 "mixable": 0.74,
 "gridRms": 11.9,
 "gridDrift": 1.8,
-"downConf": 0.89
+"downConf": 0.89,
+"kv": 2
 }
 },
 "178e567c6d44d2eff502fb55e039adba99c1c6c0214d5b32a2a56fb6432b4a8b": {
@@ -8420,8 +8647,8 @@
 "v": 2,
 "bpm": 105.69,
 "grid": 2.5453,
-"key": "8B",
-"keyConf": 0.51,
+"key": "10B",
+"keyConf": 0.31,
 "phrases": 32,
 "in": {
 "start": 2.545,
@@ -8434,7 +8661,8 @@
 "mixable": 0.09,
 "gridRms": 121.2,
 "gridDrift": 62.8,
-"downConf": 0.18
+"downConf": 0.18,
+"kv": 2
 }
 },
 "419760771373e8b573808c8d5cbb4c137e319615b1c07d94b3e62c311dd0a16b": {
@@ -8457,8 +8685,8 @@
 "v": 2,
 "bpm": 122.722,
 "grid": 1.6273,
-"key": "8B",
-"keyConf": 0.35,
+"key": "6B",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 1.627,
@@ -8471,7 +8699,8 @@
 "mixable": 0.09,
 "gridRms": 81.1,
 "gridDrift": 55.0,
-"downConf": 0.54
+"downConf": 0.54,
+"kv": 2
 }
 },
 "2a60d4fad550a3dd1a26002b8053370ae3a62eeda51060917a2fc58af7212416": {
@@ -8494,8 +8723,8 @@
 "v": 2,
 "bpm": 123.32,
 "grid": 1.5428,
-"key": "8B",
-"keyConf": 0.31,
+"key": "4B",
+"keyConf": 0.37,
 "phrases": 32,
 "in": {
 "start": 1.543,
@@ -8508,7 +8737,8 @@
 "mixable": 0.34,
 "gridRms": 103.9,
 "gridDrift": 22.0,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "ef734d94cd23483eb030ae57f11a8b13a5b4902a2dbea1456430c962e5e243f3": {
@@ -8531,8 +8761,8 @@
 "v": 2,
 "bpm": 87.499,
 "grid": 0.3863,
-"key": "8B",
-"keyConf": 0.39,
+"key": "5A",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 0.386,
@@ -8545,7 +8775,8 @@
 "mixable": 0.92,
 "gridRms": 6.0,
 "gridDrift": 0.3,
-"downConf": 0.23
+"downConf": 0.23,
+"kv": 2
 }
 },
 "22a95943c09fe908586b987e299a2b813e5b17a800af425130049285392b110c": {
@@ -8568,8 +8799,8 @@
 "v": 2,
 "bpm": 129.347,
 "grid": 1.7162,
-"key": "7B",
-"keyConf": 0.1,
+"key": "4B",
+"keyConf": 0.12,
 "phrases": 32,
 "in": {
 "start": 1.716,
@@ -8582,7 +8813,8 @@
 "mixable": 0.64,
 "gridRms": 87.7,
 "gridDrift": 1.6,
-"downConf": 0.4
+"downConf": 0.4,
+"kv": 2
 }
 },
 "ed1bf7111d91eb405fcc858cc304bf2cebd97edee613132440a957e905b61b18": {
@@ -8605,8 +8837,8 @@
 "v": 2,
 "bpm": 84.936,
 "grid": 0.9621,
-"key": "7B",
-"keyConf": 0.0,
+"key": "10A",
+"keyConf": 0.38,
 "phrases": 32,
 "in": {
 "start": 0.962,
@@ -8619,7 +8851,8 @@
 "mixable": 0.2,
 "gridRms": 86.0,
 "gridDrift": 38.8,
-"downConf": 0.32
+"downConf": 0.32,
+"kv": 2
 }
 },
 "8d8339a6a36cb5a4163ff8be8010f400e582b0d8e9b5b4e1fa9fb9a978cb2448": {
@@ -8642,8 +8875,8 @@
 "v": 2,
 "bpm": 160.01,
 "grid": 0.309,
-"key": "8B",
-"keyConf": 0.71,
+"key": "9B",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 0.309,
@@ -8656,7 +8889,8 @@
 "mixable": 0.62,
 "gridRms": 14.8,
 "gridDrift": 3.2,
-"downConf": 0.2
+"downConf": 0.2,
+"kv": 2
 }
 },
 "bd437692c0e1d0c444c8ce188b70e4cb3e809d06968691147677e175b9c180bb": {
@@ -8679,8 +8913,8 @@
 "v": 2,
 "bpm": 73.241,
 "grid": 2.7645,
-"key": "7B",
-"keyConf": 0.19,
+"key": "4B",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 2.764,
@@ -8693,7 +8927,8 @@
 "mixable": 0.19,
 "gridRms": 100.6,
 "gridDrift": 36.5,
-"downConf": 0.31
+"downConf": 0.31,
+"kv": 2
 }
 },
 "2d53ca4b0ef3e921842d025478b43c28d8a458601d48f67334c615bbab40c7f5": {
@@ -8716,8 +8951,8 @@
 "v": 2,
 "bpm": 122.523,
 "grid": 1.4419,
-"key": "8B",
-"keyConf": 0.19,
+"key": "10B",
+"keyConf": 0.49,
 "phrases": 32,
 "in": {
 "start": 1.442,
@@ -8730,7 +8965,8 @@
 "mixable": 0.47,
 "gridRms": 126.2,
 "gridDrift": 9.1,
-"downConf": 0.56
+"downConf": 0.56,
+"kv": 2
 }
 },
 "221235d8e8550bc15f4457cb23df2ab83fce7321a9de1dd9b769896c820103ba": {
@@ -8753,8 +8989,8 @@
 "v": 2,
 "bpm": 128.201,
 "grid": 1.1032,
-"key": "8B",
-"keyConf": 0.65,
+"key": "9B",
+"keyConf": 0.4,
 "phrases": 32,
 "in": {
 "start": 1.103,
@@ -8767,7 +9003,8 @@
 "mixable": 0.22,
 "gridRms": 106.0,
 "gridDrift": 33.6,
-"downConf": 0.07
+"downConf": 0.07,
+"kv": 2
 }
 },
 "5df1a89de45bd0784f192a4eac04717e04bb837b5af7599cb5c578a188d1df49": {
@@ -8790,8 +9027,8 @@
 "v": 2,
 "bpm": 120.006,
 "grid": 2.0391,
-"key": "8A",
-"keyConf": 0.62,
+"key": "9B",
+"keyConf": 0.69,
 "phrases": 32,
 "in": {
 "start": 2.039,
@@ -8804,7 +9041,8 @@
 "mixable": 0.66,
 "gridRms": 18.3,
 "gridDrift": 0.8,
-"downConf": 0.85
+"downConf": 0.85,
+"kv": 2
 }
 },
 "74a4f4553b948a17906d860417238226c4d71649c7e444f23aa1b9e836c2bc75": {
@@ -8827,8 +9065,8 @@
 "v": 2,
 "bpm": 128.007,
 "grid": 0.514,
-"key": "8B",
-"keyConf": 0.42,
+"key": "10B",
+"keyConf": 0.39,
 "phrases": 32,
 "in": {
 "start": 0.514,
@@ -8841,7 +9079,8 @@
 "mixable": 0.67,
 "gridRms": 14.6,
 "gridDrift": 1.1,
-"downConf": 0.24
+"downConf": 0.24,
+"kv": 2
 }
 },
 "20700c5db80b2ca4a2156d826d6fc6211a2f2be8fbf9716f592123f50d8f5984": {
@@ -8864,8 +9103,8 @@
 "v": 2,
 "bpm": 127.0,
 "grid": 0.0922,
-"key": "7B",
-"keyConf": 0.04,
+"key": "6A",
+"keyConf": 0.27,
 "phrases": 32,
 "in": {
 "start": 0.092,
@@ -8878,7 +9117,8 @@
 "mixable": 0.36,
 "gridRms": 59.2,
 "gridDrift": 21.0,
-"downConf": 0.14
+"downConf": 0.14,
+"kv": 2
 }
 },
 "1ba4677f7136540ce962bc75706d5dbe1bf0bf5f28db6f780aa518262d6e0bbf": {
@@ -8901,8 +9141,8 @@
 "v": 2,
 "bpm": 128.198,
 "grid": -0.0055,
-"key": "8B",
-"keyConf": 0.04,
+"key": "7A",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": -0.006,
@@ -8915,7 +9155,8 @@
 "mixable": 0.31,
 "gridRms": 51.6,
 "gridDrift": 23.7,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "c28f8f42ec729062cf7c58154310b2ed8cfdcec588bcc52bf54fbb690066316a": {
@@ -8938,8 +9179,8 @@
 "v": 2,
 "bpm": 142.005,
 "grid": 0.4838,
-"key": "8B",
-"keyConf": 0.48,
+"key": "9B",
+"keyConf": 0.43,
 "phrases": 32,
 "in": {
 "start": 0.484,
@@ -8952,7 +9193,8 @@
 "mixable": 0.66,
 "gridRms": 14.9,
 "gridDrift": 1.4,
-"downConf": 0.59
+"downConf": 0.59,
+"kv": 2
 }
 },
 "8bedabf031a7f1e3e4fca068e231135852b69211098f6d91b21f18eb86dbb23c": {
@@ -8975,8 +9217,8 @@
 "v": 2,
 "bpm": 129.315,
 "grid": 1.9323,
-"key": "8B",
-"keyConf": 0.0,
+"key": "1A",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 1.932,
@@ -8989,7 +9231,8 @@
 "mixable": 0.1,
 "gridRms": 100.7,
 "gridDrift": 57.3,
-"downConf": 0.05
+"downConf": 0.05,
+"kv": 2
 }
 },
 "2e62c880ca678a5640cef301348b1170123b2824dc760d155ea263260b87c3b6": {
@@ -9012,8 +9255,8 @@
 "v": 2,
 "bpm": 62.915,
 "grid": 3.9798,
-"key": "7B",
-"keyConf": 0.1,
+"key": "6B",
+"keyConf": 0.01,
 "phrases": 32,
 "in": {
 "start": 3.98,
@@ -9026,7 +9269,8 @@
 "mixable": 0.68,
 "gridRms": 89.5,
 "gridDrift": 3.7,
-"downConf": 0.36
+"downConf": 0.36,
+"kv": 2
 }
 },
 "8a9864785253dde77969435c39b1f382e505a37a3ef1fa6327acb126f3fcec83": {
@@ -9049,8 +9293,8 @@
 "v": 2,
 "bpm": 97.058,
 "grid": 1.2506,
-"key": "8A",
-"keyConf": 0.06,
+"key": "7A",
+"keyConf": 0.15,
 "phrases": 32,
 "in": {
 "start": 1.251,
@@ -9063,7 +9307,8 @@
 "mixable": 0.51,
 "gridRms": 82.9,
 "gridDrift": 6.9,
-"downConf": 0.88
+"downConf": 0.88,
+"kv": 2
 }
 },
 "8eee848a006d72997a27d1702cb4a3b49e62391a55c3a44cc7b74923cfe0dc0b": {
@@ -9086,8 +9331,8 @@
 "v": 2,
 "bpm": 103.58,
 "grid": 1.5648,
-"key": "8B",
-"keyConf": 0.38,
+"key": "9B",
+"keyConf": 0.29,
 "phrases": 32,
 "in": {
 "start": 1.565,
@@ -9100,7 +9345,8 @@
 "mixable": 0.1,
 "gridRms": 163.4,
 "gridDrift": 52.2,
-"downConf": 0.73
+"downConf": 0.73,
+"kv": 2
 }
 },
 "f72616770185f0ee6303e7ed9acd776430844ca7402cc45d2dfcee452e541f01": {
@@ -9123,8 +9369,8 @@
 "v": 2,
 "bpm": 128.003,
 "grid": 0.9584,
-"key": "7B",
-"keyConf": 0.39,
+"key": "6A",
+"keyConf": 0.42,
 "phrases": 32,
 "in": {
 "start": 0.958,
@@ -9137,7 +9383,8 @@
 "mixable": 0.7,
 "gridRms": 13.7,
 "gridDrift": 0.6,
-"downConf": 0.39
+"downConf": 0.39,
+"kv": 2
 }
 },
 "fe5e63d582888f11f59ec853581aaecec489905904896f663d1565d47547923e": {
@@ -9160,8 +9407,8 @@
 "v": 2,
 "bpm": 136.106,
 "grid": -0.0778,
-"key": "7B",
-"keyConf": 0.06,
+"key": "6A",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": -0.078,
@@ -9174,7 +9421,8 @@
 "mixable": 0.49,
 "gridRms": 126.2,
 "gridDrift": 3.7,
-"downConf": 0.13
+"downConf": 0.13,
+"kv": 2
 }
 },
 "4e3a22bcf49e4d1e96741cf6ca0207544df3388904f93ae48c2efa5489b689f7": {
@@ -9197,8 +9445,8 @@
 "v": 2,
 "bpm": 155.204,
 "grid": 0.0957,
-"key": "8B",
-"keyConf": 0.22,
+"key": "9B",
+"keyConf": 0.31,
 "phrases": 32,
 "in": {
 "start": 0.096,
@@ -9211,7 +9459,8 @@
 "mixable": 0.43,
 "gridRms": 56.3,
 "gridDrift": 13.9,
-"downConf": 0.51
+"downConf": 0.51,
+"kv": 2
 }
 },
 "e177976f6526a9733cae1c8018032c6c64b28f7e7bff95e4302f48a5e511f73d": {
@@ -9234,8 +9483,8 @@
 "v": 2,
 "bpm": 128.092,
 "grid": 1.0397,
-"key": "8B",
-"keyConf": 0.33,
+"key": "10B",
+"keyConf": 0.18,
 "phrases": 32,
 "in": {
 "start": 1.04,
@@ -9248,7 +9497,8 @@
 "mixable": 0.45,
 "gridRms": 59.1,
 "gridDrift": 17.0,
-"downConf": 0.02
+"downConf": 0.02,
+"kv": 2
 }
 },
 "87bd87559a35aa3c5795af0bfc859ca2b4f8e02c39ac8a748d60d8de3efd5581": {
@@ -9271,8 +9521,8 @@
 "v": 2,
 "bpm": 85.873,
 "grid": 2.2927,
-"key": "7B",
-"keyConf": 0.18,
+"key": "4B",
+"keyConf": 0.1,
 "phrases": 32,
 "in": {
 "start": 2.293,
@@ -9285,7 +9535,8 @@
 "mixable": 0.38,
 "gridRms": 126.1,
 "gridDrift": 14.9,
-"downConf": 0.28
+"downConf": 0.28,
+"kv": 2
 }
 },
 "00d3e3697eee6013be91fc7e6d21e43aec6c49bdb7f3abde73c5f56836bee44b": {
@@ -9308,8 +9559,8 @@
 "v": 2,
 "bpm": 136.034,
 "grid": 1.7339,
-"key": "8B",
-"keyConf": 0.13,
+"key": "10A",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 1.734,
@@ -9322,7 +9573,8 @@
 "mixable": 0.52,
 "gridRms": 22.5,
 "gridDrift": 4.5,
-"downConf": 0.25
+"downConf": 0.25,
+"kv": 2
 }
 },
 "edf54a1b9026951429dd0a047e875c13c1e28be6f8aa83d765e141dfb978838a": {
@@ -9345,8 +9597,8 @@
 "v": 2,
 "bpm": 142.0,
 "grid": 0.2042,
-"key": "8B",
-"keyConf": 0.08,
+"key": "9B",
+"keyConf": 0.17,
 "phrases": 32,
 "in": {
 "start": 0.204,
@@ -9359,7 +9611,8 @@
 "mixable": 0.82,
 "gridRms": 6.6,
 "gridDrift": 1.1,
-"downConf": 0.18
+"downConf": 0.18,
+"kv": 2
 }
 },
 "94f336c5f9a6bf8a6141dc0f8ff6c33bf83eccfd7e68c1fcdec37cc141a8d8d4": {
@@ -9382,8 +9635,8 @@
 "v": 2,
 "bpm": 110.939,
 "grid": 0.3384,
-"key": "7B",
-"keyConf": 0.81,
+"key": "3A",
+"keyConf": 0.27,
 "phrases": 32,
 "in": {
 "start": 0.338,
@@ -9396,7 +9649,8 @@
 "mixable": 0.07,
 "gridRms": 131.8,
 "gridDrift": 60.8,
-"downConf": 0.14
+"downConf": 0.14,
+"kv": 2
 }
 },
 "6b2f4114d28b29d23872c4b1dfdb9efd4962ee4cbf53e104cfad7bcb620c7b19": {
@@ -9419,8 +9673,8 @@
 "v": 2,
 "bpm": 128.0,
 "grid": 0.2544,
-"key": "8B",
-"keyConf": 0.3,
+"key": "10B",
+"keyConf": 0.28,
 "phrases": 32,
 "in": {
 "start": 0.254,
@@ -9433,7 +9687,8 @@
 "mixable": 0.73,
 "gridRms": 11.4,
 "gridDrift": 1.0,
-"downConf": 0.08
+"downConf": 0.08,
+"kv": 2
 }
 },
 "435c9df97dd338233797b76b150e1f726f9f51a01d35e64c6c55c54f9a5e54d3": {
@@ -9456,8 +9711,8 @@
 "v": 2,
 "bpm": 128.012,
 "grid": 1.9353,
-"key": "8B",
-"keyConf": 0.16,
+"key": "6A",
+"keyConf": 0.04,
 "phrases": 32,
 "in": {
 "start": 1.935,
@@ -9470,7 +9725,8 @@
 "mixable": 0.64,
 "gridRms": 18.4,
 "gridDrift": 4.3,
-"downConf": 0.13
+"downConf": 0.13,
+"kv": 2
 }
 },
 "219d43a87f5c1cf3014df379a4d9754aae1f99207cf1509ef1a0d0fa39828c0d": {
@@ -9493,8 +9749,8 @@
 "v": 2,
 "bpm": 128.002,
 "grid": 1.1736,
-"key": "8B",
-"keyConf": 0.07,
+"key": "10B",
+"keyConf": 0.24,
 "phrases": 32,
 "in": {
 "start": 1.174,
@@ -9507,7 +9763,8 @@
 "mixable": 0.78,
 "gridRms": 11.7,
 "gridDrift": 0.5,
-"downConf": 0.06
+"downConf": 0.06,
+"kv": 2
 }
 },
 "70c09b2b9dc7cdb2b24d384bcb5c06c41fbbdc104e4a05031b294c58887e6782": {
@@ -9530,8 +9787,8 @@
 "v": 2,
 "bpm": 144.918,
 "grid": 1.6064,
-"key": "8B",
-"keyConf": 0.16,
+"key": "10A",
+"keyConf": 0.3,
 "phrases": 32,
 "in": {
 "start": 1.606,
@@ -9544,7 +9801,8 @@
 "mixable": 0.49,
 "gridRms": 50.2,
 "gridDrift": 13.5,
-"downConf": 1.0
+"downConf": 1.0,
+"kv": 2
 }
 },
 "0f1f2f091c5e56a77a342f53324397bba98c3e673baa1ba45ebcf5d8b087df80": {
@@ -9567,8 +9825,8 @@
 "v": 2,
 "bpm": 129.465,
 "grid": 0.0934,
-"key": "8B",
-"keyConf": 0.45,
+"key": "6A",
+"keyConf": 0.04,
 "phrases": 32,
 "in": {
 "start": 0.093,
@@ -9581,7 +9839,8 @@
 "mixable": 0.3,
 "gridRms": 107.7,
 "gridDrift": 28.3,
-"downConf": 0.13
+"downConf": 0.13,
+"kv": 2
 }
 },
 "af4711988c2e9d0f0fc5cd8fd8df15c95f39a286134b9f58f885779e31cbf2b5": {
@@ -9604,8 +9863,8 @@
 "v": 2,
 "bpm": 140.0,
 "grid": 0.289,
-"key": "8B",
-"keyConf": 0.45,
+"key": "9B",
+"keyConf": 0.19,
 "phrases": 32,
 "in": {
 "start": 0.289,
@@ -9618,7 +9877,8 @@
 "mixable": 0.82,
 "gridRms": 7.5,
 "gridDrift": 0.5,
-"downConf": 0.27
+"downConf": 0.27,
+"kv": 2
 }
 },
 "b32832c9758eb554f55bc9c39cdd97923fe18c931e201942ca53ef236888ed83": {
@@ -9641,8 +9901,8 @@
 "v": 2,
 "bpm": 129.605,
 "grid": 1.7583,
-"key": "8B",
-"keyConf": 0.27,
+"key": "4B",
+"keyConf": 0.11,
 "phrases": 32,
 "in": {
 "start": 1.758,
@@ -9655,7 +9915,8 @@
 "mixable": 0.29,
 "gridRms": 91.5,
 "gridDrift": 28.8,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "169824240170710b9d8fa1a9f35f6147100ff3a0c25e14ef3ba41459d381025e": {
@@ -9678,8 +9939,8 @@
 "v": 2,
 "bpm": 130.008,
 "grid": 0.0824,
-"key": "8B",
-"keyConf": 0.28,
+"key": "9B",
+"keyConf": 0.07,
 "phrases": 32,
 "in": {
 "start": 0.082,
@@ -9692,7 +9953,8 @@
 "mixable": 0.79,
 "gridRms": 9.5,
 "gridDrift": 1.0,
-"downConf": 0.12
+"downConf": 0.12,
+"kv": 2
 }
 },
 "25b74b5902e40f328a9d550e1413e2c5694b6354da44b556cd073049196f8b2b": {
@@ -9715,8 +9977,8 @@
 "v": 2,
 "bpm": 128.152,
 "grid": 1.3062,
-"key": "7B",
-"keyConf": 0.11,
+"key": "6A",
+"keyConf": 0.09,
 "phrases": 32,
 "in": {
 "start": 1.306,
@@ -9729,7 +9991,8 @@
 "mixable": 0.36,
 "gridRms": 65.7,
 "gridDrift": 20.8,
-"downConf": 0.16
+"downConf": 0.16,
+"kv": 2
 }
 },
 "86507e9eaa8f23f3a1992abebc5f014a3d992f6c5d42cdb46d00442a7c99a060": {
@@ -9752,8 +10015,8 @@
 "v": 2,
 "bpm": 129.315,
 "grid": 1.9323,
-"key": "8B",
-"keyConf": 0.0,
+"key": "1A",
+"keyConf": 0.2,
 "phrases": 32,
 "in": {
 "start": 1.932,
@@ -9766,7 +10029,8 @@
 "mixable": 0.1,
 "gridRms": 100.7,
 "gridDrift": 57.3,
-"downConf": 0.05
+"downConf": 0.05,
+"kv": 2
 }
 },
 "2bf6d670923f47d0a206450e55f92893b5e53bdf579ea5fee88c93db6b82af0d": {
@@ -9795,8 +10059,8 @@
 "v": 3,
 "bpm": 125.954,
 "grid": 1.0915,
-"key": "7B",
-"keyConf": 0.41,
+"key": "5A",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 1.091,
@@ -9829,7 +10093,8 @@
 "apex": 0.5484,
 "mixIn": 0.0967,
 "mixOut": 0.97
-}
+},
+"kv": 2
 }
 },
 "cba45529395a63983243571dddc45dbe8f0dc07881264890f9af4258f25dad3a": {
@@ -9858,8 +10123,8 @@
 "v": 3,
 "bpm": 122.829,
 "grid": 0.3798,
-"key": "7B",
-"keyConf": 0.09,
+"key": "6A",
+"keyConf": 0.26,
 "phrases": 32,
 "in": {
 "start": 0.38,
@@ -9892,7 +10157,8 @@
 "apex": 0.5333,
 "mixIn": 0.0667,
 "mixOut": 0.97
-}
+},
+"kv": 2
 }
 },
 "d243a46fd1962ee026bb68a3099dc0babf6290e2b0a73c6dd04791daf9b077ff": {
@@ -9921,8 +10187,8 @@
 "v": 3,
 "bpm": 125.586,
 "grid": 0.6481,
-"key": "7B",
-"keyConf": 0.27,
+"key": "5A",
+"keyConf": 0.13,
 "phrases": 32,
 "in": {
 "start": 0.648,
@@ -9955,7 +10221,8 @@
 "apex": 0.5117,
 "mixIn": 0.0233,
 "mixOut": 0.97
-}
+},
+"kv": 2
 }
 }
 }

@@ -13,7 +13,9 @@ the lock screen, and remembering everything — locally, never on a server.
 The repo ships a real starter catalog — three Aethra Kairos singles (Möbius
 Walking, Breathing, Finished Master), each analysed by the same pipeline as
 any master and given a cover drawn from its own key. Hosting setup lives in
-`HOSTING.md`; the researched roadmap in `DESIGN.md`. This repo is the
+`HOSTING.md`; the researched roadmap in `DESIGN.md`; the October 2026 audit —
+what drops frames, what stands between the mixer and a DJ's, and the plan — in
+`AUDIT.md`. This repo is the
 MASTER: the Möbius⁸ engine is developed here. Its original home,
 [kmay89/quantum_jukebox-](https://github.com/kmay89/quantum_jukebox-), is
 dormant and holds the history.
@@ -447,6 +449,26 @@ the way hardware lays them out because that layout is the argument:
   a semitone sharp at +3%, and free of the stretcher's artefacts, which on some
   engines is the more transparent sound over a small trim. A DJ's call, so it
   is a pad, and it is remembered.
+- **VINYL** — deck A's jog wheel is a **record you can drag**. A scratch is not
+  an effect: an AudioWorklet seated between the bus gate and the rack records
+  the last twenty-four seconds of the room and plays them back at any rate from
+  −8× to 8× through a four-point Hermite read, with a low-pass that follows the
+  speed — so the record goes backwards, stops with weight and spins back up,
+  which a media element can never do (its slowest speed is a crawl and it has no
+  negative). The physics is a direct drive in one table: a motor that reaches
+  speed in a third of a second, a slipmat that lets a finger take the record in
+  ten milliseconds and gives it back in ninety, a brake that coasts to a true
+  stop, a backspin that flicks to −3.5× and dies. The pads: **SCRATCH** keeps
+  the record in your hand between touches; **SLIP** (the default) snaps the room
+  back to where the track would have been when you let go — no seek, ever — and
+  off it, **HOLD** fetches the deck to where the record is, under cover of the
+  platter still playing, learning the seek's latency from each landing;
+  **BACKSPIN**, **BRAKE** (a real stop, then the power comes back on), a held
+  **REVERSE**, **½** and **¼ SPEED**, and **RESUME**. The deck never moves while
+  a hand is on the platter; the analyser sits after it, so the field scratches
+  with the record. iOS plays element-direct and the bank says so. The whole
+  layer is pure arithmetic in the `@vinyl` block, serialised into the worklet,
+  unit-tested in the suite and driven at the speaker by `tools/vinyl_probe.mjs`.
 
 The waveform on lane A is a **scrub strip**: a finger or a mouse on it seeks the
 deck that owns the room, a drag follows it, and the seek keeps a held loop the
