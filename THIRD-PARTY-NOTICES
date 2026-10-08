@@ -126,6 +126,23 @@ and in Metal for the TV, and no implementation is copied in.
   Sierpinski tetrahedron           classical
   Orbit traps                      Clifford Pickover
 
+The FLUID room solves the incompressible Navier–Stokes equations on the
+GPU (web) and retells the result closed-form (TV). The methods:
+
+  Stable fluids (semi-Lagrangian    Jos Stam, SIGGRAPH 1999
+    advection, pressure projection)
+  GPU fluid passes (Jacobi pressure  Mark Harris, "Fast Fluid Dynamics
+    solve, boundaries)                 Simulation on the GPU", GPU Gems
+                                       ch. 38, 2004
+  Vorticity confinement             Fedkiw, Stam and Jensen, "Visual
+                                       Simulation of Smoke", SIGGRAPH 2001
+
+Pavel Dobryakov's WebGL-Fluid-Simulation (MIT) is the showcase that
+proved these methods belong on a web page. It was studied as a reference
+for what the result should feel like; none of its code is in this
+repository. The passes in docs/index.html and the Metal retelling in
+tvos/ are written here from the papers above.
+
 The best-known desktop renderer of these forms is GPLv3. GPLv3 code must
 not go into the MIT-licensed web player, and it must not ship in the App
 Store tvOS app, whose terms are widely held to be incompatible with GPLv3.

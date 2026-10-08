@@ -4264,6 +4264,23 @@ body.clipping::after{
     standing up like a crown's points; THE PENDANT, the jewel hung in three-quarter view, swinging
     slowly on its vertical axis.</p>
     <!-- ==== END ROOM MANUAL: SPECTRAL ==== -->
+    <!-- ==== ROOM MANUAL: FLUID ==== -->
+    <h3>The fluid</h3>
+    <p class="lede">Scene 123 is <b>FLUID</b>: the Navier–Stokes equations solved live, every frame, on the GPU — not the
+    handful of exact flows the NAVIER–STOKES room shows, but the real thing for whatever the music does
+    to the water. Jos Stam's stable scheme does it: each cell walks back along the velocity to fetch
+    what was there (so a frame of any length is safe), a pressure solve keeps the water incompressible,
+    and vorticity confinement hands the eddies back what the grid took. Three dancers trace
+    harmonograph figures across the tank at the song's pace, each dragging its ink behind it — the bass
+    in one ink, the mids in another, the treble in the third — and each ink is a place on the live chord
+    ramp rather than a colour, so a chord change recolours every drop already in the water. Every onset
+    is a splash: the dancers burst outward and the bass winds a whirl into the middle. The ink has a
+    surface lit from the upper left, what is bright blooms, and the light in the middle of the tank
+    throws rays through it. A hand in the water stirs it; a spun hand winds a whirl. Three faces: THE
+    DANCE, two dancers and a lively vorticity; THE STORM, three dancers, the vorticity high, the whirl
+    hard and the ink burned off fast; THE VEIL, one slow dancer laying wide sheets of all three inks
+    that last.</p>
+    <!-- ==== END ROOM MANUAL: FLUID ==== -->
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4914,6 +4931,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows',   // PLOTTER
                // ↑ plotter · spectral ↓
                'flows',   // SPECTRAL
+               // ↑ spectral · fluid ↓
+               'flows',   // FLUID — a hand in the water stirs it
                ];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
@@ -5223,6 +5242,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa',   // PLOTTER
                // ↑ plotter · spectral ↓
                'lissa',   // SPECTRAL
+               // ↑ spectral · fluid ↓
+               'paint',   // FLUID — the ghost paints in the water
                ];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
@@ -6437,7 +6458,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
                     'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta', 'aurora', 'cochlea', 'coriolis', 'seismic', 'tides', 'vortex', 'plateau', 'escapement', 'hubble',
-                    'nave', 'plotter', 'spectral'];
+                    'nave', 'plotter', 'spectral',
+                    'fluid'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6619,6 +6641,8 @@ const SCENE_TASTE = {
   plotter: { treble: 0.5, mid: 0.3, energy: 0.2, calm: 0.2, entropy: -0.3 },   // a pen drawing wants a bright, patterned line and room to read it
   // ↑ plotter · spectral ↓
   spectral: { treble: 0.5, bass: 0.4, mid: 0.3, energy: 0.3, beat: 0.2, entropy: -0.1 },   // a full spectrum wants to be sculpted: bright tops, a deep floor, a pulse to fall down the scales
+  // ↑ spectral · fluid ↓
+  fluid: { energy: 0.6, beat: 0.5, bass: 0.4, entropy: 0.3, calm: -0.2 },   // water wants to be stirred: energy to dance to, onsets to splash on, bass to whirl
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7910,6 +7934,8 @@ const SCENE_SIGS = {
   plotter: { kind: 'ring', h: 38, arms: 3 },   // three beads of the flake, drawn in outline
   // ↑ plotter · spectral ↓
   spectral: { kind: 'ring', h: 280, arms: 4, rainbow: 1 },   // a great ring carrying four, each scale its own band
+  // ↑ spectral · fluid ↓
+  fluid: { kind: 'ribbon', h: 200, arms: 3 },   // three ribbons of ink, curling
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -57815,6 +57841,532 @@ function buildSpectral(){
 }
 /* ==== END ROOM REGION: SPECTRAL ==== */
 
+/* ==== ROOM REGION: FLUID — builder owns everything between these fences ==== */
+/* ================================================================
+   SCENE 123 · FLUID — the Navier–Stokes equations, solved live
+
+   The room next door (NAVIER–STOKES) shows the handful of flows the
+   equation yields exactly. This one SOLVES it — every frame, on the
+   GPU, for whatever the music does to the water. Stam's stable scheme:
+   a semi-Lagrangian advection step that walks each cell back along the
+   velocity to fetch what was there (unconditionally stable, which is
+   how a frame of any length can be taken), a Jacobi relaxation of the
+   pressure Poisson equation whose gradient is subtracted so the field
+   stays divergence-free, and vorticity confinement to hand the eddies
+   back what the coarse grid and the numerical viscosity took. The ink
+   rides the field on its own finer grid.
+
+   The music is the hand on the water. Three DANCERS trace harmonograph
+   figures across the tank at the song's pace and drag their ink behind
+   them — bass, mid and treble each in its own ink — and each ink is a
+   POSITION ON THE LIVE CHORD RAMP rather than a colour, so the water
+   never leaves the palette and a chord change recolours every drop
+   already in the tank. Every onset is a splash: the dancers burst
+   outward and the bass winds a whirl into the middle. The ink has a
+   surface, lit from the upper left; the light in the middle of the tank
+   throws rays through it; what is bright blooms. A hand in the water
+   stirs it, as a hand would, and a spun hand winds a whirl.
+
+   Three faces: THE DANCE (two dancers, a lively vorticity), THE STORM
+   (three, the vorticity high, the bass's whirl strong, the ink burned
+   off fast), THE VEIL (one slow dancer laying wide sheets of all three
+   inks that last, lit mostly by the rays).
+
+   PROVENANCE: Jos Stam, "Stable Fluids" (SIGGRAPH 1999); Mark Harris,
+   "Fast Fluid Dynamics Simulation on the GPU" (GPU Gems ch. 38, 2004);
+   vorticity confinement after Fedkiw, Stam and Jensen, "Visual
+   Simulation of Smoke" (SIGGRAPH 2001). Pavel Dobryakov's
+   WebGL-Fluid-Simulation (MIT) is the showcase that set the bar; it was
+   the idea's proof, not its source — the passes below are written here
+   from the papers, and the music drive, the three inks on the chord
+   ramp, the dancers and the faces are our own.
+
+   The TV's twin is Shaders43.metal (room_fluid, namespace rm_fl): a
+   stateless retelling — a divergence-free flow in closed form, the
+   same dancers' ink walked back along it.
+   ================================================================ */
+function buildFluid(){
+  const group = new THREE.Group();
+  group.visible = false; scene.add(group);
+
+  /* ---- the tank: two grids, half-float where the driver allows ---- */
+  const SIM_SHORT = IS_IOS ? 96 : 144;      // velocity, pressure, divergence, curl: cells on the short side
+  const DYE_SHORT = IS_IOS ? 360 : 576;     // the ink, finer
+  const NSPLAT = 8;                         // the most splats one pass carries
+  const PITER = IS_IOS ? 12 : 16;           // Jacobi sweeps of the pressure solve
+  const probeHalf = () => {
+    try {
+      const gl = renderer.getContext();
+      if (!(gl.getExtension('EXT_color_buffer_half_float') || gl.getExtension('EXT_color_buffer_float')
+            || gl.getExtension('OES_texture_half_float'))) return false;
+      const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType,
+        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false });
+      renderer.setRenderTarget(rt);
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      renderer.setRenderTarget(null);
+      rt.dispose();
+      return ok;
+    } catch (e){ return false; }
+  };
+  const half = probeHalf();
+  // byte-texture fallback: the signed fields ride packed around 0.5 with a
+  // fixed range, so a driver without float targets still has a tank
+  const PRE = half ? '' : '#define PACKED\n';
+  const rtOpt = () => {
+    const o = {
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping,
+      format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false,
+    };
+    if (half) o.type = THREE.HalfFloatType;
+    return o;
+  };
+  const T = { w: 1, h: 1, dw: 1, dh: 1, bw: 1, bh: 1, aspect: 0 };
+  let velA, velB, prsA, prsB, divT, curlT, dyeA, dyeB, bloomA, bloomB, raysT;
+  const mk = (w, h) => new THREE.WebGLRenderTarget(Math.max(2, w), Math.max(2, h), rtOpt());
+  const disposeAll = () => {
+    for (const r of [velA, velB, prsA, prsB, divT, curlT, dyeA, dyeB, bloomA, bloomB, raysT]) if (r) r.dispose();
+  };
+
+  /* ---- the compute stage: one big triangle, a bare camera, one material per pass ---- */
+  const simScene = new THREE.Scene();
+  const simCam = new THREE.Camera();
+  const triGeo = new THREE.BufferGeometry();
+  triGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
+  triGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 2, 0, 0, 2]), 2));
+  const SIM_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+  const v4s = n => { const a = []; for (let i = 0; i < n; i++) a.push(new THREE.Vector4()); return a; };
+  const simU = {
+    tVel: { value: null }, tSrc: { value: null }, tCurl: { value: null }, tDiv: { value: null }, tPrs: { value: null },
+    uTexel: { value: new THREE.Vector2(1, 1) },      // one cell of the velocity grid
+    uTexelD: { value: new THREE.Vector2(1, 1) },     // one cell of the ink
+    uTexelB: { value: new THREE.Vector2(1, 1) },     // one cell of the bloom
+    uAspect: { value: 1 }, uDt: { value: 1 / 60 },
+    uCurl: { value: 30 }, uDiss: { value: 0.2 }, uPKeep: { value: 0.8 },
+    uSwirl: { value: new THREE.Vector4(0.5, 0.5, 0, 6) },    // the bass's whirl: centre, strength, 1/radius²
+    uSwirlH: { value: new THREE.Vector4(0.5, 0.5, 0, 30) },  // the hand's
+    uSplatMode: { value: 0 }, uN: { value: 0 },
+    uSplatP: { value: v4s(NSPLAT) },                 // x, y, radius²
+    uSplatVel: { value: v4s(NSPLAT) },               // the push, in cells per second
+    uSplatInk: { value: v4s(NSPLAT) },               // the three inks
+    uDir: { value: new THREE.Vector2(0, 0) },
+    uLight: { value: new THREE.Vector2(0.5, 0.5) },
+  };
+  const HEAD = PRE + `
+    uniform vec2 uTexel;
+    varying vec2 vUv;
+    const float VR = 1024.0;
+    #ifdef PACKED
+      vec4 RD(sampler2D t, vec2 uv){ return (texture2D(t, uv) - 0.5) * (2.0 * VR); }
+      vec4 WR(vec4 v){ return clamp(v / (2.0 * VR) + 0.5, 0.0, 1.0); }
+    #else
+      vec4 RD(sampler2D t, vec2 uv){ return texture2D(t, uv); }
+      vec4 WR(vec4 v){ return v; }
+    #endif
+  `;
+  const pass = frag => new THREE.ShaderMaterial({
+    uniforms: simU, vertexShader: SIM_VERT, fragmentShader: HEAD + frag, depthTest: false, depthWrite: false,
+  });
+  /* THE SPLATS — the dancers' ink and push, the splashes, the hand: up to
+     eight gaussians in one pass, once into the velocity, once into the ink */
+  const splatMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec4 uSplatP[${NSPLAT}];
+    uniform vec4 uSplatVel[${NSPLAT}];
+    uniform vec4 uSplatInk[${NSPLAT}];
+    uniform float uAspect, uN, uSplatMode;
+    void main(){
+      vec4 base = uSplatMode < 0.5 ? RD(tSrc, vUv) : texture2D(tSrc, vUv);
+      vec3 add = vec3(0.0);
+      for (int i = 0; i < ${NSPLAT}; i++){
+        if (float(i) >= uN) break;
+        vec2 d = (vUv - uSplatP[i].xy) * vec2(uAspect, 1.0);
+        float g = exp(-dot(d, d) / uSplatP[i].z);
+        add += g * (uSplatMode < 0.5 ? uSplatVel[i].xyz : uSplatInk[i].xyz);
+      }
+      vec4 o = base + vec4(add, 0.0);
+      gl_FragColor = uSplatMode < 0.5 ? WR(vec4(o.xy, 0.0, 0.0)) : vec4(clamp(o.rgb, 0.0, 4.0), 1.0);
+    }`);
+  /* THE CURL — the vorticity, one central difference */
+  const curlMat = pass(`
+    uniform sampler2D tVel;
+    void main(){
+      float L = RD(tVel, vUv - vec2(uTexel.x, 0.0)).y;
+      float R = RD(tVel, vUv + vec2(uTexel.x, 0.0)).y;
+      float T = RD(tVel, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tVel, vUv - vec2(0.0, uTexel.y)).x;
+      gl_FragColor = WR(vec4(0.5 * (R - L - T + B), 0.0, 0.0, 0.0));
+    }`);
+  /* VORTICITY CONFINEMENT (Fedkiw, Stam, Jensen 2001): push along N × ω,
+     where N points up the gradient of |ω| — the eddies get back what the
+     grid dissipated. Plus the two whirls: the bass's, and the hand's. */
+  const vortMat = pass(`
+    uniform sampler2D tVel, tCurl;
+    uniform float uCurl, uDt, uAspect;
+    uniform vec4 uSwirl, uSwirlH;
+    void main(){
+      float L = RD(tCurl, vUv - vec2(uTexel.x, 0.0)).x;
+      float R = RD(tCurl, vUv + vec2(uTexel.x, 0.0)).x;
+      float T = RD(tCurl, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tCurl, vUv - vec2(0.0, uTexel.y)).x;
+      float C = RD(tCurl, vUv).x;
+      vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+      force /= length(force) + 0.0001;
+      force *= uCurl * C;
+      force.y *= -1.0;
+      vec2 vel = RD(tVel, vUv).xy + force * uDt;
+      // the whirls: a tangential push of one strength across the whirl's reach
+      // (not growing with the radius, which spun the whole tank into a ring)
+      vec2 d = (vUv - uSwirl.xy) * vec2(uAspect, 1.0);
+      vel += vec2(-d.y, d.x) / (length(d) + 0.02) * (uSwirl.z * exp(-dot(d, d) * uSwirl.w) * uDt);
+      vec2 e = (vUv - uSwirlH.xy) * vec2(uAspect, 1.0);
+      vel += vec2(-e.y, e.x) / (length(e) + 0.02) * (uSwirlH.z * exp(-dot(e, e) * uSwirlH.w) * uDt);
+      vel = clamp(vel, vec2(-1000.0), vec2(1000.0));
+      gl_FragColor = WR(vec4(vel, 0.0, 0.0));
+    }`);
+  /* THE DIVERGENCE — with the walls of the tank: the normal velocity
+     reflects at the edge, so nothing leaves and nothing arrives */
+  const divMat = pass(`
+    uniform sampler2D tVel;
+    void main(){
+      vec2 xl = vUv - vec2(uTexel.x, 0.0), xr = vUv + vec2(uTexel.x, 0.0);
+      vec2 yt = vUv + vec2(0.0, uTexel.y), yb = vUv - vec2(0.0, uTexel.y);
+      float L = RD(tVel, xl).x, R = RD(tVel, xr).x, T = RD(tVel, yt).y, B = RD(tVel, yb).y;
+      vec2 C = RD(tVel, vUv).xy;
+      if (xl.x < 0.0) L = -C.x;
+      if (xr.x > 1.0) R = -C.x;
+      if (yt.y > 1.0) T = -C.y;
+      if (yb.y < 0.0) B = -C.y;
+      gl_FragColor = WR(vec4(0.5 * (R - L + T - B), 0.0, 0.0, 0.0));
+    }`);
+  /* THE PRESSURE — one Jacobi sweep of ∇²p = ∇·v. The first sweep of a
+     frame keeps most of last frame's answer (a warm start), the rest keep all */
+  const prsMat = pass(`
+    uniform sampler2D tPrs, tDiv;
+    uniform float uPKeep;
+    void main(){
+      float L = RD(tPrs, vUv - vec2(uTexel.x, 0.0)).x;
+      float R = RD(tPrs, vUv + vec2(uTexel.x, 0.0)).x;
+      float T = RD(tPrs, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tPrs, vUv - vec2(0.0, uTexel.y)).x;
+      float div = RD(tDiv, vUv).x;
+      gl_FragColor = WR(vec4((uPKeep * (L + R + B + T) - div) * 0.25, 0.0, 0.0, 0.0));
+    }`);
+  /* THE PROJECTION — subtract the pressure gradient: what is left is divergence-free */
+  const gradMat = pass(`
+    uniform sampler2D tPrs, tVel;
+    void main(){
+      float L = RD(tPrs, vUv - vec2(uTexel.x, 0.0)).x;
+      float R = RD(tPrs, vUv + vec2(uTexel.x, 0.0)).x;
+      float T = RD(tPrs, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tPrs, vUv - vec2(0.0, uTexel.y)).x;
+      vec2 vel = RD(tVel, vUv).xy - vec2(R - L, T - B);
+      gl_FragColor = WR(vec4(vel, 0.0, 0.0));
+    }`);
+  /* THE ADVECTION (Stam 1999): walk back along the velocity, fetch what was
+     there. Once for the velocity itself, once for the ink. */
+  const ADV = src => `
+    uniform sampler2D tVel, tSrc;
+    uniform float uDt, uDiss, uAspect;
+    void main(){
+      vec2 coord = vUv - uDt * RD(tVel, vUv).xy * uTexel;
+      float keep = 1.0 / (1.0 + uDiss * uDt);
+      ${src === 'vel' ? '' :
+        // the rim of the tank drinks the ink: clamped sampling would otherwise
+        // pile it against the walls, and a wall of ink is not structure on void
+        'float rim = min(min(vUv.x, 1.0 - vUv.x) * uAspect, min(vUv.y, 1.0 - vUv.y)); keep *= 1.0 - (1.0 - smoothstep(0.0, 0.05, rim)) * 0.08;'}
+      ${src === 'vel'
+        ? 'vec4 r = RD(tSrc, coord); gl_FragColor = WR(vec4(r.xy * keep, 0.0, 0.0));'
+        : 'vec4 r = texture2D(tSrc, coord); vec3 o = r.rgb * keep;\n'
+        // byte-texture fallback: a 2% fade rounds back to the same byte, so dim
+        // ink would be immortal — a whisper of dither makes the rounding honest
+        + '#ifdef PACKED\n o -= (fract(sin(dot(gl_FragCoord.xy + uDt * 977.0, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * (1.0 / 255.0);\n#endif\n'
+        + 'gl_FragColor = vec4(max(o, 0.0), 1.0);'}
+    }`;
+  const advVelMat = pass(ADV('vel'));
+  const advDyeMat = pass(ADV('dye'));
+  /* THE LIGHT: what is bright blooms (a soft-knee prefilter, two blurs at a
+     quarter of the ink), and the light in the middle of the tank throws rays
+     through the ink (an occlusion walked toward the light) */
+  const bloomPreMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec2 uTexelD;
+    void main(){
+      vec3 c = texture2D(tSrc, vUv).rgb * 0.4
+             + (texture2D(tSrc, vUv + uTexelD * vec2(1.5, 1.5)).rgb + texture2D(tSrc, vUv + uTexelD * vec2(-1.5, 1.5)).rgb
+              + texture2D(tSrc, vUv + uTexelD * vec2(1.5, -1.5)).rgb + texture2D(tSrc, vUv + uTexelD * vec2(-1.5, -1.5)).rgb) * 0.15;
+      float br = max(c.r, max(c.g, c.b));
+      const float TH = 0.45, KNEE = 0.35;
+      float soft = clamp(br - TH + KNEE, 0.0, 2.0 * KNEE);
+      soft = soft * soft / (4.0 * KNEE + 0.0001);
+      float contrib = max(soft, br - TH) / max(br, 0.0001);
+      gl_FragColor = vec4(c * contrib, 1.0);
+    }`);
+  const blurMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec2 uDir;
+    void main(){
+      vec3 s = texture2D(tSrc, vUv).rgb * 0.227;
+      s += (texture2D(tSrc, vUv + uDir * 1.385).rgb + texture2D(tSrc, vUv - uDir * 1.385).rgb) * 0.316;
+      s += (texture2D(tSrc, vUv + uDir * 3.231).rgb + texture2D(tSrc, vUv - uDir * 3.231).rgb) * 0.070;
+      gl_FragColor = vec4(s, 1.0);
+    }`);
+  const raysMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec2 uLight;
+    float occl(vec2 uv){
+      vec3 c = texture2D(tSrc, uv).rgb;
+      float br = max(c.r, max(c.g, c.b));
+      return 1.0 - min(max(br * 5.0, 0.0), 0.8);
+    }
+    void main(){
+      vec2 dir = (vUv - uLight) * (0.5 / 16.0);
+      vec2 c = vUv; float w = 1.0, acc = 0.0;
+      for (int i = 0; i < 16; i++){ c -= dir; acc += occl(c) * w; w *= 0.94; }
+      gl_FragColor = vec4(acc / 10.48, 0.0, 0.0, 1.0);
+    }`);
+  const tri = new THREE.Mesh(triGeo, splatMat);
+  tri.frustumCulled = false;
+  simScene.add(tri);
+
+  /* ---- the display: three inks, each a place on the chord ramp ---- */
+  const varU = {
+    tDye: { value: null }, tBloom: { value: null }, tRays: { value: null },
+    uTexelD: { value: new THREE.Vector2(1, 1) },
+    uVoice: { value: new THREE.Vector3(0.08, 0.40, 0.72) },
+    uLook: { value: new THREE.Vector4(1, 0.7, 0.6, 0) },    // relief, bloom, rays
+    uDancer: { value: v4s(3) },                             // x, y, glow, on — the lights that carry the ink
+    uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const dispVert = `
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const dispFrag = GLSL_MPHI + `
+    uniform sampler2D tDye, tBloom, tRays;
+    uniform float uOpacity, uTime, uEnergy, uBeat;
+    uniform vec2 uTexelD;
+    uniform vec3 uVoice;
+    uniform vec4 uLook;
+    uniform vec4 uDancer[3];
+    uniform float uAspect;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the inks are not colours but places on the live ramp: the palette moves, the water follows
+    vec3 inkOf(vec3 d){ return ramp(uVoice.x) * d.r + ramp(uVoice.y) * d.g + ramp(uVoice.z) * d.b; }
+    /* the haze below a few percent is gated to the void (after gamma a 4%
+       wash reads as a quarter-bright wall), and dense ink saturates in COLOUR,
+       never bleaches: a knee on the density */
+    vec3 knee(vec3 d){ d = max(d - 0.035, 0.0) * 1.08; return 1.0 - exp(-d * 1.3); }
+    void main(){
+      vec3 d = texture2D(tDye, vUv).rgb;
+      vec3 col = inkOf(knee(d)) * 1.4;
+      // the ink has a surface: a normal from the density's slope, lit from the upper left
+      float dl = length(texture2D(tDye, vUv - vec2(uTexelD.x, 0.0)).rgb);
+      float dr = length(texture2D(tDye, vUv + vec2(uTexelD.x, 0.0)).rgb);
+      float db = length(texture2D(tDye, vUv - vec2(0.0, uTexelD.y)).rgb);
+      float dtp = length(texture2D(tDye, vUv + vec2(0.0, uTexelD.y)).rgb);
+      vec3 n = normalize(vec3(dr - dl, dtp - db, length(uTexelD) * 2.0));
+      float diff = clamp(dot(n, normalize(vec3(-0.4, 0.5, 0.75))) + 0.7, 0.7, 1.0);
+      col *= mix(1.0, diff, uLook.x);
+      vec3 b = texture2D(tBloom, vUv).rgb;
+      col += inkOf(b) * uLook.y * (0.8 + uBeat * 0.4);
+      float rays = texture2D(tRays, vUv).r;
+      col *= mix(1.0, 0.55 + 0.6 * rays, uLook.z);
+      // the dancers: three small lights, each wearing its own ink's colour
+      for (int k = 0; k < 3; k++){
+        if (uDancer[k].w < 0.5) continue;
+        vec2 dd = (vUv - uDancer[k].xy) * vec2(uAspect, 1.0);
+        float q = dot(dd, dd);
+        vec3 lc = k == 0 ? ramp(uVoice.x) : (k == 1 ? ramp(uVoice.y) : ramp(uVoice.z));
+        col += lc * (exp(-q * 9000.0) * 1.6 + exp(-q * 600.0) * 0.35) * uDancer[k].z;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const dispMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: dispVert, fragmentShader: dispFrag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), dispMat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh);
+
+  const alloc = (aspect) => {
+    disposeAll();
+    const a = Math.max(0.3, Math.min(3.5, aspect));
+    T.aspect = a;
+    T.w = Math.round(a >= 1 ? SIM_SHORT * a : SIM_SHORT); T.h = Math.round(a >= 1 ? SIM_SHORT : SIM_SHORT / a);
+    T.dw = Math.round(a >= 1 ? DYE_SHORT * a : DYE_SHORT); T.dh = Math.round(a >= 1 ? DYE_SHORT : DYE_SHORT / a);
+    T.bw = Math.round(T.dw / 4); T.bh = Math.round(T.dh / 4);
+    velA = mk(T.w, T.h); velB = mk(T.w, T.h); prsA = mk(T.w, T.h); prsB = mk(T.w, T.h);
+    divT = mk(T.w, T.h); curlT = mk(T.w, T.h);
+    dyeA = mk(T.dw, T.dh); dyeB = mk(T.dw, T.dh);
+    bloomA = mk(T.bw, T.bh); bloomB = mk(T.bw, T.bh); raysT = mk(T.bw, T.bh);
+    simU.uTexel.value.set(1 / T.w, 1 / T.h);
+    simU.uTexelD.value.set(1 / T.dw, 1 / T.dh);
+    simU.uTexelB.value.set(1 / T.bw, 1 / T.bh);
+    varU.uTexelD.value.set(1 / T.dw, 1 / T.dh);
+    varU.uAspect.value = a; simU.uAspect.value = a;
+    for (const d of st.dancers) d.has = false;
+    st.hon = false;
+  };
+  const run = (mat, target) => { tri.material = mat; renderer.setRenderTarget(target); renderer.render(simScene, simCam); };
+  const swapVel = () => { const t = velA; velA = velB; velB = t; };
+  const swapPrs = () => { const t = prsA; prsA = prsB; prsB = t; };
+  const swapDye = () => { const t = dyeA; dyeA = dyeB; dyeB = t; };
+  /* ONE STEP OF THE SOLVE: splat, confine, project, advect */
+  const solve = (F) => {
+    if (S.n > 0){
+      simU.uSplatMode.value = 0; simU.tSrc.value = velA.texture; run(splatMat, velB); swapVel();
+      simU.uSplatMode.value = 1; simU.tSrc.value = dyeA.texture; run(splatMat, dyeB); swapDye();
+    }
+    simU.tVel.value = velA.texture; run(curlMat, curlT);
+    simU.tCurl.value = curlT.texture; run(vortMat, velB); swapVel();
+    simU.tVel.value = velA.texture; run(divMat, divT);
+    simU.tDiv.value = divT.texture;
+    for (let i = 0; i < PITER; i++){
+      simU.uPKeep.value = i === 0 ? 0.8 : 1.0;
+      simU.tPrs.value = prsA.texture; run(prsMat, prsB); swapPrs();
+    }
+    simU.tPrs.value = prsA.texture; simU.tVel.value = velA.texture; run(gradMat, velB); swapVel();
+    simU.tVel.value = velA.texture; simU.tSrc.value = velA.texture; simU.uDiss.value = F.dissV; run(advVelMat, velB); swapVel();
+    simU.tVel.value = velA.texture; simU.tSrc.value = dyeA.texture; simU.uDiss.value = F.dissD; run(advDyeMat, dyeB); swapDye();
+  };
+  const light = () => {
+    simU.tSrc.value = dyeA.texture; run(bloomPreMat, bloomA);
+    simU.tSrc.value = bloomA.texture; simU.uDir.value.set(simU.uTexelB.value.x * 1.6, 0); run(blurMat, bloomB);
+    simU.tSrc.value = bloomB.texture; simU.uDir.value.set(0, simU.uTexelB.value.y * 1.6); run(blurMat, bloomA);
+    simU.tSrc.value = dyeA.texture; run(raysMat, raysT);
+  };
+
+  /* THE FACES: the dancers, the vorticity, how long the ink lasts */
+  const FACES = [
+    { name: 'THE DANCE', dancers: 2, blend: false, tempo: 1.0, reach: 0.34, radius: 0.0010, ink: 0.13, push: 0.55, splash: 260,
+      curl: 22, dissV: 0.35, dissD: 1.2, swirl: 0.5, relief: 1.0, bloom: 0.9, rays: 0.6 },
+    { name: 'THE STORM', dancers: 3, blend: false, tempo: 1.4, reach: 0.38, radius: 0.0012, ink: 0.15, push: 0.75, splash: 420,
+      curl: 36, dissV: 0.18, dissD: 1.8, swirl: 1.0, relief: 1.0, bloom: 1.0, rays: 0.5 },
+    { name: 'THE VEIL',  dancers: 1, blend: true,  tempo: 0.45, reach: 0.36, radius: 0.0040, ink: 0.055, push: 0.35, splash: 160,
+      curl: 10, dissV: 0.45, dissD: 0.55, swirl: 0.25, relief: 0.8, bloom: 0.7, rays: 1.0 },
+  ];
+  const st = { face: FACES[0], clock: 0, vdrift: Math.random(), lastOnset: 0, kick: 0, whirlDir: 1,
+               ready: false, hx: 0, hy: 0, hon: false, dancers: [] };
+  const S = { n: 0 };
+  const push = (x, y, r2, vx, vy, a, b, c) => {
+    if (S.n >= NSPLAT) return;
+    simU.uSplatP.value[S.n].set(x, y, r2, 0);
+    simU.uSplatVel.value[S.n].set(vx, vy, 0, 0);
+    simU.uSplatInk.value[S.n].set(a, b, c, 0);
+    S.n++;
+  };
+  const tmp = { x: 0, y: 0 };
+  // a harmonograph figure in the tank's own uv, round whatever the screen's shape
+  const dancerPos = (d, th, aspect, out) => {
+    const rx = st.face.reach / Math.max(aspect, 1), ry = st.face.reach * Math.min(1, aspect * 1.6);
+    out.x = 0.5 + rx * (0.8 * Math.sin(th * d.a + d.pa) + 0.2 * Math.sin(th * d.c + d.pc));
+    out.y = 0.5 + ry * (0.8 * Math.sin(th * d.b + d.pb) + 0.2 * Math.cos(th * d.c * 0.7 + d.pa));
+  };
+  const frac = x => x - Math.floor(x);
+
+  const api = {
+    name: 'FLUID', key: 'fluid', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      const aspect = (s && s.aspect) || 1;
+      if (!st.ready || Math.abs(aspect - T.aspect) > T.aspect * 0.08){ alloc(aspect); st.ready = true; }
+      dt = Math.min(Math.max(dt || 0, 1 / 240), 1 / 24);
+      const F = st.face;
+      const energy = Math.min(1, f.energy || 0), bass = f.bass || 0, mid = f.mid || 0, treble = f.treble || 0, beat = f.beat || 0;
+      // the song's pace: the dancers move to the energy; reduced motion slows them
+      st.clock += dt * F.tempo * (reducedMotion ? 0.35 : 0.55 + energy * 0.9);
+      st.vdrift += dt * 0.011;
+      varU.uVoice.value.set(frac(0.08 + st.vdrift), frac(0.40 + st.vdrift), frac(0.72 + st.vdrift));
+      // the onset is a splash
+      let burst = 0;
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (beat > 0.25) burst = beat;
+      }
+      S.n = 0;
+      const bands = [bass, mid, treble];
+      for (let k = 0; k < F.dancers; k++){
+        const d = st.dancers[k];
+        dancerPos(d, st.clock, aspect, tmp);
+        let vx = 0, vy = 0;
+        if (d.has){ vx = (tmp.x - d.x) / dt * T.w * F.push; vy = (tmp.y - d.y) / dt * T.h * F.push; }
+        const vl = Math.hypot(vx, vy);
+        if (vl > 700){ vx *= 700 / vl; vy *= 700 / vl; }
+        d.x = tmp.x; d.y = tmp.y; d.has = true;
+        const band = bands[k % 3];
+        const amt = F.ink * (0.25 + band * 0.9 + energy * 0.3);
+        // each dancer carries one ink; the veil's single dancer carries all three, by the bands
+        const a = F.blend ? F.ink * (0.5 + bass) : (k % 3 === 0 ? amt : 0);
+        const b = F.blend ? F.ink * (0.3 + mid)  : (k % 3 === 1 ? amt : 0);
+        const c = F.blend ? F.ink * (0.3 + treble) : (k % 3 === 2 ? amt : 0);
+        push(tmp.x, tmp.y, F.radius, vx, vy, a, b, c);
+        varU.uDancer.value[k].set(tmp.x, tmp.y, (0.5 + band * 0.6 + beat * 0.5) * (F.blend ? 0.7 : 1.0), 1);
+        if (burst > 0){
+          // the splash: outward from the middle, and a kick along the path
+          const ox = (tmp.x - 0.5) * aspect, oy = tmp.y - 0.5;
+          const ol = Math.hypot(ox, oy) + 1e-3;
+          const sp = F.splash * burst;
+          push(tmp.x, tmp.y, F.radius * 3.0, ox / ol * sp + vx * 0.5, oy / ol * sp + vy * 0.5, a * 1.5, b * 1.5, c * 1.5);
+        }
+      }
+      for (let k = F.dancers; k < 3; k++) varU.uDancer.value[k].w = 0;
+      // the bass's whirl, wound into the middle: a body force, kicked by the onset
+      if (burst > 0 && bass > 0.3) st.kick = Math.min(1.5, st.kick + burst * bass);
+      st.kick *= Math.exp(-dt / 0.5);
+      const whirl = F.swirl * (bass * 0.45 + st.kick) * st.whirlDir;
+      simU.uSwirl.value.set(0.5, 0.5, whirl * 90, 1.0 / 0.12);
+      // the hand stirs; a spun hand winds a whirl
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.05){
+        const px = U.uPtr.value.x * 0.5 + 0.5, py = U.uPtr.value.y * 0.5 + 0.5;
+        if (st.hon){
+          let hvx = (px - st.hx) / dt * T.w * 0.9, hvy = (py - st.hy) / dt * T.h * 0.9;
+          const hl = Math.hypot(hvx, hvy);
+          if (hl > 900){ hvx *= 900 / hl; hvy *= 900 / hl; }
+          push(px, py, 0.0025, hvx, hvy, 0.12 * force, 0.12 * force, 0.35 * force);
+        }
+        st.hx = px; st.hy = py; st.hon = true;
+        const spin = (U.uPtrX.value && U.uPtrX.value.z) || 0;
+        simU.uSwirlH.value.set(px, py, spin * force * 300, 1.0 / 0.03);
+      } else { st.hon = false; simU.uSwirlH.value.z = 0; }
+      simU.uDt.value = dt;
+      simU.uCurl.value = F.curl * (0.7 + energy * 0.5);
+      simU.uN.value = S.n;
+      const prev = renderer.getRenderTarget();
+      solve(F);
+      light();
+      renderer.setRenderTarget(prev);
+      varU.tDye.value = dyeA.texture; varU.tBloom.value = bloomA.texture; varU.tRays.value = raysT.texture;
+      varU.uLook.value.set(F.relief, F.bloom * (0.8 + treble * 0.4), F.rays, 0);
+    },
+    roll(){
+      st.face = FACES[Math.floor(Math.random() * FACES.length)];
+      st.whirlDir = Math.random() < 0.5 ? -1 : 1;
+      st.dancers = [];
+      const figs = [[1, 2], [3, 2], [2, 3], [3, 4], [1, 3]];
+      for (let k = 0; k < 3; k++){
+        const fg = figs[Math.floor(Math.random() * figs.length)];
+        st.dancers.push({ a: fg[0], b: fg[1], c: 0.23 + Math.random() * 0.3,
+                          pa: Math.random() * 6.283, pb: Math.random() * 6.283, pc: Math.random() * 6.283,
+                          x: 0, y: 0, has: false });
+      }
+      api.name = 'FLUID · ' + st.face.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: FLUID ==== */
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -57861,7 +58413,8 @@ function initThree(){
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
               buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta(), buildAurora(), buildCochlea(), buildCoriolis(), buildSeismic(), buildTides(), buildVortex(), buildPlateau(), buildEscapement(), buildHubble(),
-              buildNave(), buildPlotter(), buildSpectral());
+              buildNave(), buildPlotter(), buildSpectral(),
+              buildFluid());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

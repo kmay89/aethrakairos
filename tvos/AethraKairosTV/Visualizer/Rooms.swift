@@ -571,6 +571,15 @@ enum Rooms {
         Room(key: "spectral", name: "SPECTRAL", fragmentFunction: "room_spectral",
              tasteEnergy: 0.3, tasteCalm: 0, tasteBeat: 0.2, tasteTreble: 0.5,
              tasteMid: 0.3, tasteBass: 0.4, tasteEntropy: -0.1, heavy: true),
+
+        // ---- the fluid wave ----
+
+        // FLUID (Shaders43): the Navier–Stokes equations, retold without a grid —
+        // a divergence-free flow in closed form, three dancers' ink walked back
+        // along it. Heavy: twenty-four steps of history per pixel.
+        Room(key: "fluid", name: "FLUID", fragmentFunction: "room_fluid",
+             tasteEnergy: 0.6, tasteCalm: -0.2, tasteBeat: 0.5, tasteTreble: 0,
+             tasteBass: 0.4, tasteEntropy: 0.3, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
