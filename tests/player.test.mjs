@@ -82,7 +82,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError,' +
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
   ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
-  ' makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
   ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed };';
 const S = new Function(code)();
 
@@ -7788,6 +7789,146 @@ await Promise.all(pending);
     assert.ok(src.includes("registerProcessor('mb8-vinyl'"), 'it registers the processor');
     assert.ok(src.includes('"backspin":' + S.PLATTER.backspin), 'with the same tuning');
     new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src);
+  });
+
+  /* THE SONG TAPE — the platter on a deck that plays element-direct (iOS). The
+     tape is the song, int16; the element's playhead is the live edge. */
+  const tsr = 24000;
+  // a tape whose every sample says where it is: frame f holds f (scaled into int16)
+  const tape = n => { const t = new Int16Array(n); for (let i = 0; i < n; i++) t[i] = i % 32000; return t; };
+  const runSong = (S, n, blk, at) => {
+    const outL = new Float32Array(n), outR = new Float32Array(n);
+    for (let i = 0; i < n; i += blk){
+      if (at) at(i, S);
+      const m = Math.min(blk, n - i);
+      const oL = new Float32Array(m), oR = new Float32Array(m);
+      S.vinylSongProcess(S.S, oL, oR, m);
+      outL.set(oL, i); outR.set(oR, i);
+    }
+    return { outL, outR };
+  };
+  // the tape frame an output sample was read from (k = 1/32768 undone)
+  const frameOf = v => Math.round(v * 32768);
+  test('vinyl: the hand is a place — the record lands where the finger took it, however late the events come', () => {
+    const run2 = (late) => {
+      const V = { S: S.makeVinyl(sr, 4), vinylProcess: S.vinylProcess };
+      const x = ramp(sr * 2);
+      let grabPos = 0;
+      run(V, x, null, 128, (i, st) => {
+        if (i === 48000) S.vinylCommand(st.S, { op: 'engage' });
+        if (i === 60032){ S.vinylCommand(st.S, { op: 'grab' }); grabPos = st.S.pos; }
+        // the finger pulls the record back half a second of music over 100 ms: as eight
+        // timely events, or as ONE event 90 ms late carrying the whole way
+        if (!late){ for (let k = 1; k <= 8; k++) if (i === 60032 + k * 640) S.vinylCommand(st.S, { op: 'handAt', x: -0.5 * k / 8 }); }
+        else if (i === 60032 + 4352) S.vinylCommand(st.S, { op: 'handAt', x: -0.5 });
+      });
+      return { S: V.S, grabPos };
+    };
+    for (const late of [false, true]){
+      const { S: st, grabPos } = run2(late);
+      const want = grabPos - 0.5 * sr;
+      assert.ok(Math.abs(st.pos - want) < 0.002 * sr, (late ? 'late' : 'timely') + ': the head sits where the finger left it, ' + ((st.pos - want) / sr * 1000).toFixed(2) + ' ms off');
+      assert.ok(Math.abs(st.platter.rate) < 0.02 && st.platter.mode === 'hand', 'and the record is still under a still finger: ' + st.platter.rate.toFixed(4));
+    }
+    const P = { pos: 0, hand: null, handTo: 1e9 };
+    S.platterHandFollow(P, sr);
+    assert.equal(P.hand, S.PLATTER.maxRate, 'a wild place is chased no faster than the platter can turn');
+    const Q = S.makeVinyl(sr, 1); S.vinylCommand(Q, { op: 'engage' }); S.vinylCommand(Q, { op: 'grab' });
+    S.vinylCommand(Q, { op: 'lift' });
+    S.vinylCommand(Q, { op: 'handAt', x: 3 });
+    assert.equal(Q.handTo, null, 'an event after the lift takes nothing back');
+  });
+  test('song tape: the budget picks the finest rate a song can be held at, and refuses what cannot be', () => {
+    assert.equal(S.vinylSongRate(180), 32000, 'a three-minute song is held at the full 32 kHz');
+    const r = S.vinylSongRate(420);
+    assert.ok(r < 32000 && r * 420 <= S.VINYL_SONG_FRAMES, 'a seven-minute one at ' + r + ' Hz, inside the budget');
+    assert.equal(S.vinylSongRate(3600), 0, 'an hour is too long to hold');
+    assert.equal(S.vinylSongRate(0), 0); assert.equal(S.vinylSongRate(NaN), 0); assert.equal(S.vinylSongRate(Infinity), 0);
+    const t = S.vinylToTape(new Float32Array([0, 0.5, -0.5, 2, -2]));
+    assert.deepEqual(Array.from(t), [0, 16383, -16383, 32767, -32768], 'float to int16, clipped, never wrapped');
+  });
+  test('song tape: silent until engaged (the element is what is heard), and the edge rides the deck', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 1, rate: 1, hard: true });
+    const { outL, outR } = runSong(V, sr, 128);
+    assert.ok(outL.every(v => v === 0) && outR.every(v => v === 0), 'nothing from the tape while the hand is off');
+    assert.ok(Math.abs(V.S.written - 2 * tsr) < 2, 'one second later the edge is at 2 s: ' + (V.S.written / tsr).toFixed(4));
+    // a soft clock leans, a hard one (or a big jump) lands
+    S.vinylSongCommand(V.S, { op: 'clock', at: 2.01 });
+    assert.ok(V.S.written > 2 * tsr && V.S.written < 2.01 * tsr, 'a 10 ms drift is leaned into, not jumped');
+    S.vinylSongCommand(V.S, { op: 'clock', at: 3 });
+    assert.equal(V.S.written, 3 * tsr, 'a second away is a seek: the edge lands');
+    S.vinylSongCommand(V.S, { op: 'clock', at: 99, hard: true });
+    assert.ok(V.S.written <= V.S.cap - 3, 'never off the end of the tape');
+  });
+  test('song tape: engaged at 1x it plays the song from the playhead, resampled, under a short fade', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 1, rate: 1, hard: true });
+    const { outL } = runSong(V, sr / 2, 128, (i, st) => { if (i === 1024) S.vinylSongCommand(st.S, { op: 'engage' }); });
+    const j = 1024 + 1024;                                // well past the 6 ms fade
+    const f0 = frameOf(outL[j]), f1 = frameOf(outL[j + 2000]);
+    const edge = tsr + j * tsr / sr;
+    assert.ok(Math.abs(f0 - edge) < 8, 'it reads where the element is: frame ' + f0 + ' vs edge ' + edge.toFixed(0));
+    assert.ok(Math.abs((f1 - f0) - 2000 * tsr / sr) < 1.5, 'at the tape\'s rate, not the output\'s: ' + (f1 - f0));
+    assert.ok(Math.abs(outL[1025]) < Math.abs(outL[j]) * 0.2, 'faded in, not stepped');
+  });
+  test('song tape: a hand pulled backwards reads the song backwards; the head never passes the playhead', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 2, rate: 1, hard: true });
+    const { outL } = runSong(V, sr, 128, (i, st) => {
+      if (i === 1024) S.vinylSongCommand(st.S, { op: 'engage' });
+      if (i === 4096) S.vinylSongCommand(st.S, { op: 'hand', v: -1 });
+      if (i === 24576) S.vinylSongCommand(st.S, { op: 'hand', v: 6 });     // flung forward, at the edge
+    });
+    const a = frameOf(outL[12000]), b = frameOf(outL[16000]);
+    assert.ok(b < a && Math.abs((a - b) - 4000 * tsr / sr) < 40, 'backwards at about 1x: ' + a + ' -> ' + b);
+    const edgeAt = i => 2 * tsr + i * tsr / sr;
+    let over = 0;
+    for (let i = 24576; i < sr; i += 64) if (frameOf(outL[i]) > edgeAt(i) + 1) over++;
+    assert.equal(over, 0, 'a forward flick lands on the playhead, never past it');
+  });
+  test('song tape: letting go fades the tape out to silence, the element takes the room back', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 1, rate: 1, hard: true });
+    const { outL } = runSong(V, sr / 2, 128, (i, st) => {
+      if (i === 1024) S.vinylSongCommand(st.S, { op: 'engage' });
+      if (i === 8192) S.vinylSongCommand(st.S, { op: 'release' });
+    });
+    let worst = 0; for (let i = 8193; i < 8192 + 400; i++) worst = Math.max(worst, Math.abs(outL[i] - outL[i - 1]));
+    assert.ok(worst < 0.05, 'no step on the way out: ' + worst.toFixed(4));
+    assert.ok(outL.subarray(8192 + 512).every(v => v === 0), 'silent once the fade is done');
+    assert.equal(V.S.engaged, false);
+  });
+  test('song tape: a slower deck moves the edge slower, and no tape is silence, not a crash', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 0, rate: 0.5, hard: true });
+    runSong(V, sr, 128);
+    assert.ok(Math.abs(V.S.written - 0.5 * tsr) < 2, 'half speed: half a second of song in a second');
+    S.vinylSongCommand(V.S, { op: 'clock', at: 0, rate: -3 });
+    assert.equal(V.S.deckRate, 0.5, 'a nonsense rate is ignored');
+    assert.equal(S.vinylSongCommand(null, { op: 'engage' }), null);
+  });
+  test('song tape: the worklet module carries the song processor, and it plays the tape it is sent', () => {
+    const src = S.vinylWorkletSource();
+    for (const f of ['function makeVinylSong(', 'function vinylSongCommand(', 'function vinylSongProcess('])
+      assert.ok(src.includes(f), f + ' is in the module');
+    const reg = {};
+    class AWP { constructor(){ this.port = { postMessage(){}, onmessage: null }; } }
+    new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src)(AWP, (n, c) => { reg[n] = c; }, sr, 0);
+    assert.ok(reg['mb8-vinyl'] && reg['mb8-vinyl-song'], 'both processors register: ' + Object.keys(reg).join(', '));
+    const p = new reg['mb8-vinyl-song']();
+    const out = [new Float32Array(128), new Float32Array(128)];
+    assert.equal(p.process([], [out]), true, 'no tape yet: silence, and alive');
+    assert.ok(out[0].every(v => v === 0));
+    const L = tape(tsr * 2);
+    p.port.onmessage({ data: { op: 'tape', L, R: null, sr: tsr } });
+    p.port.onmessage({ data: { op: 'clock', at: 1, rate: 1, hard: true } });
+    p.port.onmessage({ data: { op: 'engage' } });
+    for (let i = 0; i < 8; i++) p.process([], [out]);
+    assert.ok(Math.abs(frameOf(out[0][127]) - (tsr + 8 * 128 * tsr / sr)) < 8, 'it plays the song at the playhead');
+    p.port.onmessage({ data: { op: 'eject' } });
+    p.process([], [out]);
+    assert.ok(out[0].every(v => v === 0), 'ejected: silence');
   });
 }
 
