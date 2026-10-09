@@ -23,6 +23,21 @@ final class Analyzer {
         var barPhase: Float          // beatPhase/4 space
         var phrasePhase: Float
         var bpm: Float
+        // -- the dance bus's ears (stage 2). Read by the CPU stepper that fills
+        //    VizUniforms bytes 144..191; never by a room directly. --
+        var playhead: Double         // track seconds NOW: the clock's playhead extrapolated by
+                                     // (now - setAt) * rate, because player.position publishes at
+                                     // ~4 Hz and the brace samples the env two beats ahead of it;
+                                     // 0 before any clock was set
+        var beats: Double            // the running beat count (grid when the mix is present, else
+                                     // the flux onsets') — the number whose fract is beatPhase;
+                                     // floor(beats) % 4 is the count, 0 the downbeat; 0 without beats
+        var riseBass: Float          // the per-band RISES, the classifier's input (kick / snare / hat):
+        var riseMid: Float           // max(0, band - prev) * 4 at the ~43 Hz hop on the smoothed bands,
+        var riseTreble: Float        // held through a snap-and-decay (tau 80 ms) so a hop that fell
+                                     // inside a coarse tap window still reaches the next 60 fps read.
+                                     // A reader therefore sees one rise on 2-5 consecutive frames (as
+                                     // the web does through its 51 ms smoothing): strikes are EDGES
         var spectrum: [Float]        // 64 log-spaced bands, 0..1
         var waveform: [Float]        // 256 recent mono samples, -1..1 (for SCOPE)
     }
@@ -81,6 +96,9 @@ final class Analyzer {
     private var bassS: Float = 0
     private var midS: Float = 0
     private var trebS: Float = 0
+    private var riseBassS: Float = 0            // the rises' snap-and-decay envelopes (see Frame)
+    private var riseMidS: Float = 0
+    private var riseTrebS: Float = 0
     private var energyS: Float = 0
     private var calmS: Float = 1
     private var eShortS: Float = 0
@@ -96,6 +114,9 @@ final class Analyzer {
     private var pBass: Float = 0
     private var pMid: Float = 0
     private var pTreble: Float = 0
+    private var pRiseBass: Float = 0
+    private var pRiseMid: Float = 0
+    private var pRiseTreble: Float = 0
     private var pEnergy: Float = 0
     private var pCalm: Float = 1
     private var pEShort: Float = 0
@@ -214,6 +235,9 @@ final class Analyzer {
         pBass = bassS
         pMid = midS
         pTreble = trebS
+        pRiseBass = riseBassS
+        pRiseMid = riseMidS
+        pRiseTreble = riseTrebS
         pEnergy = energyS
         pCalm = calmS
         pEShort = eShortS
@@ -278,9 +302,19 @@ final class Analyzer {
         let treb = bandMean(trebLo, trebHi)
         let kBM = Float(1 - exp(-dt / 0.06))
         let kT = Float(1 - exp(-dt / 0.08))
+        let bassPrev = bassS, midPrev = midS, trebPrev = trebS
         bassS += (bass - bassS) * kBM
         midS += (mid - midS) * kBM
         trebS += (treb - trebS) * kT
+        // The RISES the dance bus classifies (the web's live path: max(0, band -
+        // prev) * 4 per frame on its smoothed bands). The tap wakes ~10 times a
+        // second and runs several hops per wake but publishes once, so a hop's
+        // rise is kept in a snap-and-decay envelope (tau 80 ms) rather than
+        // overwritten by the next hop's — a kick in hop 1 of 4 still arrives.
+        let kR = Float(exp(-dt / 0.08))
+        riseBassS = max(max(0, bassS - bassPrev) * 4, riseBassS * kR)
+        riseMidS = max(max(0, midS - midPrev) * 4, riseMidS * kR)
+        riseTrebS = max(max(0, trebS - trebPrev) * 4, riseTrebS * kR)
         energyS = min(max(bassS * 1.25 + midS + trebS * 0.8, 0), 2) / 2
         calmS += ((1 - energyS) - calmS) * Float(1 - exp(-dt / 2.5))
         // the web's two energy clocks: the moment (0.25 s) against the passage
@@ -384,6 +418,7 @@ final class Analyzer {
 
         stateLock.lock()
         let bass = pBass, mid = pMid, treble = pTreble
+        let riseBass = pRiseBass, riseMid = pRiseMid, riseTreble = pRiseTreble
         let energy = pEnergy, calm = pCalm
         let eShort = pEShort, eLong = pELong
         let fluxBpm = pBpm
@@ -405,6 +440,13 @@ final class Analyzer {
             ? Float(exp(-(now - hearAt) / 0.25))
             : 0
 
+        // The playhead NOW: the Player's position publishes at ~4 Hz, so both
+        // the grid clock below and the dance bus (Frame.playhead, for the
+        // brace's look-ahead into the env) read the clock's own extrapolation.
+        // Paused sets rate 0, so it stands still; before any clock it is 0.
+        let playheadNow = cPlayhead + (now - cSetAt) * cRate
+        let playheadOut = cSetAt > 0 ? max(0, playheadNow) : 0
+
         var beats = 0.0
         var haveBeats = false
         var phrases = 32.0
@@ -412,7 +454,6 @@ final class Analyzer {
         if cValid && cBpm > 0 {
             // Grid clock is authoritative: playhead is track time, so the
             // rate cancels out of spb and only extrapolation needs it.
-            let playheadNow = cPlayhead + (now - cSetAt) * cRate
             let spb = 60.0 / cBpm
             beats = (playheadNow - cGrid) / spb
             phrases = cPhrases
@@ -434,6 +475,9 @@ final class Analyzer {
                      onsetEnv: onsetEnv,
                      beatPhase: beatPhase, barPhase: barPhase, phrasePhase: phrasePhase,
                      bpm: bpmOut,
+                     playhead: playheadOut,
+                     beats: haveBeats ? beats : 0,
+                     riseBass: riseBass, riseMid: riseMid, riseTreble: riseTreble,
                      spectrum: spectrum, waveform: waveform)
     }
 
@@ -494,6 +538,9 @@ final class Analyzer {
         }
         fluxCount = 0
         fluxIdx = 0
+        riseBassS = 0
+        riseMidS = 0
+        riseTrebS = 0
     }
 
     private static func binRange(_ lo: Double, _ hi: Double, sr: Double) -> (Int, Int) {

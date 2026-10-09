@@ -21,6 +21,7 @@
 		AEC0FFEE0000000000000018 /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000017 /* Palette.swift */; };
 		AEC0FFEE000000000000001A /* VisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000019 /* VisualizerView.swift */; };
 		AEC0FFEE000000000000001C /* Rooms.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000001B /* Rooms.swift */; };
+		AEC0FFEE00000000000000A6 /* Dance.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE00000000000000A5 /* Dance.swift */; };
 		AEC0FFEE000000000000001E /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000001D /* Shaders.metal */; };
 		AEC0FFEE0000000000000020 /* Shaders2.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000001F /* Shaders2.metal */; };
 		AEC0FFEE0000000000000022 /* Shaders3.metal in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000021 /* Shaders3.metal */; };
@@ -95,6 +96,7 @@
 		AEC0FFEE0000000000000017 /* Palette.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000019 /* VisualizerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VisualizerView.swift; sourceTree = "<group>"; };
 		AEC0FFEE000000000000001B /* Rooms.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Rooms.swift; sourceTree = "<group>"; };
+		AEC0FFEE00000000000000A5 /* Dance.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Dance.swift; sourceTree = "<group>"; };
 		AEC0FFEE000000000000001D /* Shaders.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		AEC0FFEE000000000000001F /* Shaders2.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders2.metal; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000021 /* Shaders3.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders3.metal; sourceTree = "<group>"; };
@@ -254,6 +256,7 @@
 				AEC0FFEE0000000000000017 /* Palette.swift */,
 				AEC0FFEE0000000000000019 /* VisualizerView.swift */,
 				AEC0FFEE000000000000001B /* Rooms.swift */,
+				AEC0FFEE00000000000000A5 /* Dance.swift */,
 				AEC0FFEE000000000000001D /* Shaders.metal */,
 				AEC0FFEE000000000000001F /* Shaders2.metal */,
 				AEC0FFEE0000000000000021 /* Shaders3.metal */,
@@ -410,6 +413,7 @@
 				AEC0FFEE0000000000000018 /* Palette.swift in Sources */,
 				AEC0FFEE000000000000001A /* VisualizerView.swift in Sources */,
 				AEC0FFEE000000000000001C /* Rooms.swift in Sources */,
+				AEC0FFEE00000000000000A6 /* Dance.swift in Sources */,
 				AEC0FFEE000000000000001E /* Shaders.metal in Sources */,
 				AEC0FFEE0000000000000020 /* Shaders2.metal in Sources */,
 				AEC0FFEE0000000000000022 /* Shaders3.metal in Sources */,

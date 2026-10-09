@@ -80,15 +80,22 @@ private struct MetalSurface: UIViewRepresentable {
 
 // MARK: - the uniforms mirror
 
-/// EXACT mirror of the Metal-side VizUniforms. The layout is FIXED at
-/// 144 bytes and never moves a byte across waves: 12 packed floats,
-/// three SIMD4<Float> at offsets 48/64/80, then twelve floats to a
-/// 16-aligned 144-byte stride. Wave 2 named slot 11 `xformMode` (was
-/// `_pad0`). Wave 3 gives two trailing pads meaning WITHOUT resizing:
-/// offset 128 `lens` (-1 none / 0 mirrors / 1 wave / 2 prism / 3 iris /
-/// 4 tile / 5 moire) and offset 132 `lensAmt` (0..1). Offset 140 stays
-/// reserved. Field order is contract; a drifted layout is a silently
-/// wrong picture.
+/// EXACT mirror of the Metal-side VizUniforms. The layout is 192 bytes:
+/// bytes 0..143 are the FIXED wave-3 block that never moves a byte (12
+/// packed floats, three SIMD4<Float> at offsets 48/64/80, then twelve
+/// floats to a 16-aligned 144-byte boundary — wave 2 named slot 11
+/// `xformMode` (was `_pad0`); wave 3 gave two trailing pads meaning
+/// WITHOUT resizing: offset 132 `lens` (-1 none / 0 mirrors / 1 wave /
+/// 2 prism / 3 iris / 4 tile / 5 moire), offset 136 `lensAmt` (0..1),
+/// offset 140 the Camelot number), and bytes 144..191 are the twelve
+/// floats of the DANCE BUS appended in stage 2 (dHit … dPeriod), so the
+/// stride is 192. Every .metal TU carries the same struct under a
+/// static_assert(sizeof == 192) and configure(view:) asserts the stride
+/// here: the CPU uploads 192 bytes, the GPU reads 192 bytes, and a TU
+/// at 144 under a 192 upload would still read its unchanged prefix (the
+/// inverse — a 192 TU under a 144 upload — reads garbage, which is why
+/// structs and uploaders land in one commit). Field order is contract;
+/// a drifted layout is a silently wrong picture.
 private struct VizUniforms {
     var time: Float = 0
     var beatPhase: Float = 0
@@ -118,6 +125,24 @@ private struct VizUniforms {
     var lensAmt: Float = 0                    // offset 136 — 0..1 lens intensity
     var keyNum: Float = 0                     // offset 140 — the song's Camelot number (1-12),
                                               // 0 when unkeyed; CIPHER turns its wheel by it
+    // -- the dance bus, bytes 144..191 (stage 2): twelve floats stepped once per
+    //    frame on the CPU by the shared stepper (see tools/dance_prelude.mjs for
+    //    the shape helpers the rooms read them through). Filled from DanceBus
+    //    (Dance.swift) every frame; no room reads them yet, so every room renders
+    //    what it rendered at 144. Order is contract with the Metal struct and the
+    //    web's #defines. --
+    var dHit: Float = 0                       // 144  the strike, as light
+    var dAge: Float = 0                       // 148  beats since the last strike (0..4)
+    var dKick: Float = 0                      // 152  the heavy body, kick-class spring (signed)
+    var dMass: Float = 0                      // 156  the passage's weight
+    var dArtic: Float = 0                     // 160  mids, articulation
+    var dSpark: Float = 0                     // 164  treble, the flick (light only)
+    var dSway: Float = 0                      // 168  the bar (-1..1)
+    var dLift: Float = 0                      // 172  the phrase
+    var dBrace: Float = 0                     // 176  the coil before the drop
+    var dImpact: Float = 0                    // 180  beats since the landing, 8 when none
+    var dStill: Float = 0                     // 184  the stillness gate
+    var dPeriod: Float = 0                    // 188  seconds per beat with a grid, 0 freewheeling
 }
 
 // MARK: - the renderer
@@ -285,6 +310,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var dispTreble: Float = 0
     private var dispEnergy: Float = 0
 
+    // THE DANCE BUS — the body between the music and the drawing (Dance.swift,
+    // the web's danceBusStep line for line). Stepped once per draw() from the
+    // ears, written into VizUniforms bytes 144..191. Live but invisible until a
+    // room reads it: every room renders today what it rendered at stride 144.
+    private var dance = DanceBus()
+
     // CI's synthetic drive: `--drive-demo` replaces the ears with a pumping
     // 126 BPM signal so the simulator can photograph rooms UNDER music
     // without playing any. Never on for a listener.
@@ -344,6 +375,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
         self.device = device
         self.queue = queue
+
+        // the uniform contract, checked once where the pipelines are born: the
+        // mirror above must upload exactly the 192 bytes every TU's
+        // static_assert(sizeof(VizUniforms) == 192) promises to read
+        assert(MemoryLayout<VizUniforms>.stride == 192,
+               "VizUniforms drifted: the Metal TUs read 192 bytes, the mirror uploads \(MemoryLayout<VizUniforms>.stride)")
 
         /* THE ROOMS ARE BUILT BEHIND THE FIRST FRAME, NOT IN FRONT OF IT.
            Every room is its own Metal pipeline, and a pipeline is compiled for
@@ -490,6 +527,25 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         f.eShort = f.energy
         f.eLong = 0.55
         f.calm = 1 - f.energy
+        // -- the dance bus's ears: the pump is KICK-CLASS. The rises are the
+        //    60 Hz frame-to-frame deltas of the bands above, closed-form from t
+        //    (the previous frame's value is the same formula at t - 1/60), so
+        //    the demo stays stateless and deterministic: the bass leaps ~0.5
+        //    on the count (a rise near 2, saturating the classifier's kick)
+        //    while the mids and highs are slow sines (rises ~0.01, never a
+        //    hat). beats is the metronome's count; playhead walks the demo
+        //    track's 240 s so the brace has something to look ahead into. --
+        let tPrev = t - 1.0 / 60.0
+        let beatPrev = tPrev * (126.0 / 60.0)
+        let onsetPrev = exp(-Float(beatPrev - floor(beatPrev)) * 3.2)
+        let bassPrev = min(1, 0.35 + 0.55 * onsetPrev)
+        let midPrev = 0.38 + 0.20 * Float(0.5 + 0.5 * sin(tPrev * 2.1))
+        let treblePrev = 0.30 + 0.22 * Float(0.5 + 0.5 * sin(tPrev * 3.7 + 1.3))
+        f.riseBass = max(0, f.bass - bassPrev) * 4
+        f.riseMid = max(0, f.mid - midPrev) * 4
+        f.riseTreble = max(0, f.treble - treblePrev) * 4
+        f.beats = beat
+        f.playhead = t.truncatingRemainder(dividingBy: 240)
         for b in 0..<f.spectrum.count {
             let fall = exp(-Float(b) * 0.045)
             let shimmer = Float(0.5 + 0.5 * sin(t * 3.0 + Double(b) * 0.37))
@@ -829,6 +885,33 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         Self.ease(&dispTreble, toward: frame.treble, dt: dt)
         Self.ease(&dispEnergy, toward: frame.energy, dt: dt)
 
+        // -- the dance bus: ONE body, stepped once per frame from the RAW ears
+        //    (not the display ease — the classifier wants the rises as they
+        //    land). The demo drive runs THROUGH it, so CI photographs a live
+        //    bus: the metronome's bass pump is kick-class. The period is the
+        //    frame's bpm (grid or flux; the bus clamps 0.3..1.0 s and defaults
+        //    to 120 BPM when unknown); dPeriod carries it only under a
+        //    measured grid, the same condition that makes the Analyzer's clock
+        //    authoritative (mix.bpm > 0). The downbeat is the count (floor of
+        //    the running beats, mod 4) — 0 beats means no count at all. The
+        //    brace reads the track's score at playhead + 0.08 and + 2P + 0.2;
+        //    the demo track carries no score, so its coil decays. --
+        let busTrack = Self.demoTrack ?? player.current
+        let busPeriod: Float = frame.bpm > 0 ? 60 / frame.bpm : 0
+        let busGrid = (busTrack?.mix?.bpm ?? 0) > 0
+        let busBeats = frame.beats
+        var busDownbeat = false
+        if busBeats != 0, busBeats.isFinite, abs(busBeats) < 1.0e9 {
+            let count = Int(floor(busBeats)) % 4
+            busDownbeat = ((count + 4) % 4) == 0
+        }
+        let danceOut = dance.step(frame: frame, dt: Float(dt),
+                                  playhead: frame.playhead, env: busTrack?.env,
+                                  period: busPeriod, haveGrid: busGrid,
+                                  downbeat: busDownbeat,
+                                  playing: player.isPlaying || Self.driveDemo,
+                                  calm: calmNow)
+
         // the rubato: rooms run in musical time, clamped to the dance floor
         let rate = min(max(0.45 + 1.05 * Double(dispEnergy), 0.4), 1.9)
         musicalTime += dt * rate
@@ -1014,6 +1097,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         u.lens = lensEngage ? Float(lensRenderMode) : -1     // < 0 bypasses the lens pass
         u.lensAmt = Float(lensAmt)
         u.keyNum = Float(camNum)
+        // the dance bus, bytes 144..191 — the twelve in DANCE_BUS.NAMES order,
+        // the same floats the web puts in uDance0/1/2. The departing room's
+        // copy (ug, below) inherits them: one body on both sides of a handover.
+        u.dHit = danceOut.d0.x;   u.dAge = danceOut.d0.y;    u.dKick = danceOut.d0.z;  u.dMass = danceOut.d0.w
+        u.dArtic = danceOut.d1.x; u.dSpark = danceOut.d1.y;  u.dSway = danceOut.d1.z;  u.dLift = danceOut.d1.w
+        u.dBrace = danceOut.d2.x; u.dImpact = danceOut.d2.y; u.dStill = danceOut.d2.z; u.dPeriod = danceOut.d2.w
 
         guard let commandBuffer = queue.makeCommandBuffer() else { return }
 

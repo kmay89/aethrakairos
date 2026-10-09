@@ -59,6 +59,16 @@ struct StagePacket: Codable, Equatable {
     var pulse: Float
     var brace: Float
 
+    // -- THE DANCE BUS (stage 2): the booth's twelve floats, stepped once per
+    //    frame on its CPU and shipped at ~30 Hz, so a wall of screens dances
+    //    as ONE body instead of each re-deriving a pulse from the bands. The
+    //    order is the contract shared with VizUniforms bytes 144..191 and the
+    //    web's uDance0..2: hit, age, kick, mass, artic, spark, sway, lift,
+    //    brace, impact, still, period. Always exactly twelve here, each
+    //    clamped to its slot's range and finite; zeros until the booth speaks
+    //    the block (and today, when no room reads it yet). --
+    var dance: [Float]
+
     // -- the light: three finished OKLCH stops. The booth already resolved
     //    the chord (key → hue, scheme by energy × entropy); the screen only
     //    converts to RGB, so the palette agrees everywhere by construction. --
@@ -119,6 +129,7 @@ struct StagePacket: Codable, Equatable {
         energy: 0.06, bass: 0.04, mid: 0.04, treble: 0.03, calm: 1.0,
         act: 0, white: 0.10,
         pulse: 0, brace: 0,
+        dance: [Float](repeating: 0, count: StagePacket.danceCount),
         colors: [
             OKLCH(l: 0.72, c: 0.11, h: 225),   // ice, the keyless default
             OKLCH(l: 0.63, c: 0.13, h: 45),    // amber
@@ -193,6 +204,9 @@ struct StagePacket: Codable, Equatable {
 
         let hand = parseHand(dict["hand"], base: base.hand)
         let camera = parseCamera(dict["camera"], base: base.camera)
+        // the dance bus: `dance` as twelve numbers, or {v: [...]} as the web's
+        // p.dance.v spells it; absent holds last good (the law of arrival)
+        let dance = parseDance(dict["dance"], base: base.dance)
 
         // scene: a non-negative room index; absent holds last good
         let scene: Int
@@ -220,12 +234,61 @@ struct StagePacket: Codable, Equatable {
             white: f("white", base.white, 0.05, 0.92),
             pulse: f("pulse", base.pulse, 0, 2),
             brace: f("brace", base.brace, 0, 1),
+            dance: dance,
             colors: colors,
             lens: f("lens", base.lens, -1, 22),
             lensAmt: f("lensAmt", base.lensAmt, 0, 1),
             hand: hand,
             camera: camera
         )
+    }
+
+    // MARK: - the dance bus, clamped
+
+    /// Twelve slots, always. Their ranges, in bus order — the contract in
+    /// tools/dance_prelude.mjs (dPeriod is 0 freewheeling or 0.3..1.0 s).
+    static let danceCount = 12
+    static let danceRanges: [(lo: Float, hi: Float)] = [
+        (0, 1.5),       // 0 dHit     the strike, as light
+        (0, 4),         // 1 dAge     beats since the last strike
+        (-0.35, 1.25),  // 2 dKick    the heavy body, signed (below rest is the squash)
+        (0, 1),         // 3 dMass    the passage's weight
+        (0, 1),         // 4 dArtic   mids
+        (0, 1),         // 5 dSpark   treble
+        (-1, 1),        // 6 dSway    the bar
+        (0, 1),         // 7 dLift    the phrase
+        (0, 1),         // 8 dBrace   the coil
+        (0, 8),         // 9 dImpact  beats since the landing, 8 when none
+        (0, 1),         // 10 dStill  the stillness gate
+        (0, 1)          // 11 dPeriod seconds per beat, 0 freewheeling
+    ]
+
+    /// Exactly twelve finite floats, each inside its slot's range: a short
+    /// array is padded with zeros, a long one truncated, NaN and infinities
+    /// read as 0 — a screen must never upload a number a room cannot survive.
+    static func clampDance(_ a: [Float]) -> [Float] {
+        var out = [Float](repeating: 0, count: danceCount)
+        for i in 0..<danceCount {
+            let x: Float = i < a.count ? a[i] : 0
+            guard x.isFinite else { continue }
+            let r = danceRanges[i]
+            out[i] = min(max(x, r.lo), r.hi)
+        }
+        return out
+    }
+
+    /// `dance` on the wire: an array of numbers, or an object carrying the
+    /// array under `v` (the web booth's `p.dance.v`). Anything else holds the
+    /// screen's last good twelve.
+    private static func parseDance(_ v: Any?, base: [Float]) -> [Float] {
+        var raw = v as? [Any]
+        if raw == nil, let o = v as? [String: Any] { raw = o["v"] as? [Any] }
+        guard let arr = raw else { return clampDance(base) }
+        var out = [Float](repeating: 0, count: danceCount)
+        for i in 0..<min(arr.count, danceCount) {
+            if let d = number(arr[i]), d.isFinite { out[i] = Float(d) }
+        }
+        return clampDance(out)
     }
 
     // MARK: - parse helpers (JSONSerialization is NSNumber-shaped)

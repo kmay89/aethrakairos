@@ -223,6 +223,28 @@ jobs:
             echo "room-fluid-$N: rolls $ROLLS"
             N=$((N + 1))
           done
+          # MOTION BURST — the TV's "before" for the dance layer (stage 2): six
+          # rooms under the --drive-demo metronome (126 BPM, kick-class bass
+          # pump), eight frames each as fast as simctl can take them, every shot
+          # stamped with its wall time just before the capture. The report step
+          # turns the pairs into per-frame mean |delta| (MOTION room=... lines)
+          # and one base64 JPEG montage per room. Reported, not gated — stage 6
+          # makes it law (max delta > 0.002, peakToMedian < 8, a body after the
+          # hit). BSD date has no %N, so the stamp comes from gdate (coreutils,
+          # present on the GitHub macOS runners) or, failing that, perl.
+          now() { gdate +%s.%N 2>/dev/null || perl -MTime::HiRes=time -e 'printf "%.6f\n", time'; }
+          for ROOM in fractal nave plotter spectral spiral pulse; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room "$ROOM" --drive-demo
+            sleep 8
+            : > "shots/burst-$ROOM.times"
+            for N in 1 2 3 4 5 6 7 8; do
+              now >> "shots/burst-$ROOM.times"
+              xcrun simctl io "$UDID" screenshot "shots/burst-$ROOM-$N.png"
+            done
+            echo "burst-$ROOM: 8 frames at $(tr '\n' ' ' < "shots/burst-$ROOM.times")"
+          done
 
       # The artifact store is unreachable from some review environments, so
       # the frame also travels inside the log: an ice-ring pixel count (the
@@ -247,12 +269,56 @@ jobs:
           EOF
           for PNG in shots/*.png; do
             NAME="$(basename "$PNG" .png)"
+            case "$NAME" in burst-*) continue ;; esac   # the bursts travel as montages below
             sips -Z 640 "$PNG" --out "shots/$NAME.jpg" \
               -s format jpeg -s formatOptions 50 >/dev/null
             echo "== BEGIN BASE64 JPEG ($NAME) =="
             base64 -i "shots/$NAME.jpg" | fold -w 300
             echo "== END BASE64 JPEG ($NAME) =="
           done
+          # THE MOTION REPORT (stage 2 of the dance layer; not gated until stage
+          # 6). It is printed LAST so the newest readout sits in the tail of the
+          # log that a reader with only the last few thousand lines can reach. For each burst: the frames greyscaled and downscaled to 160 px
+          # wide, mean |delta| between consecutive frames in 0..1, the wall-clock
+          # dt between shots, and peak/median of the deltas (a comb — one spike
+          # over a still — reads high; a body — a delta that rises over frames
+          # and falls — reads low). Then ONE montage per room: the eight frames
+          # in a row, 160 px wide each, as a base64 JPEG any reader can decode.
+          python3 - << 'EOF' || echo "motion report unavailable"
+          import base64, io, os, statistics
+          from PIL import Image, ImageChops, ImageStat
+          ROOMS = ["fractal", "nave", "plotter", "spectral", "spiral", "pulse"]
+          W = 160
+          for room in ROOMS:
+              paths = [f"shots/burst-{room}-{n}.png" for n in range(1, 9)]
+              if not all(os.path.exists(p) for p in paths):
+                  print(f"MOTION room={room} missing frames ({sum(os.path.exists(p) for p in paths)} of 8)")
+                  continue
+              frames = [Image.open(p).convert("RGB") for p in paths]
+              w, h = frames[0].size
+              hh = max(1, round(h * W / w))
+              small = [f.convert("L").resize((W, hh), Image.BILINEAR) for f in frames]
+              deltas = [ImageStat.Stat(ImageChops.difference(a, b)).mean[0] / 255.0
+                        for a, b in zip(small, small[1:])]
+              try:
+                  times = [float(x) for x in open(f"shots/burst-{room}.times").read().split()]
+              except Exception:
+                  times = []
+              dts = [round(b - a, 3) for a, b in zip(times, times[1:])] if len(times) == 8 else []
+              med = statistics.median(deltas)
+              p2m = (max(deltas) / med) if med > 1e-9 else float("inf")
+              print(f"MOTION room={room} dt={dts} delta={[round(x, 5) for x in deltas]} peakToMedian={p2m:.2f}")
+              strip = Image.new("RGB", (W * 8, hh))
+              for i, f in enumerate(frames):
+                  strip.paste(f.resize((W, hh), Image.BILINEAR), (i * W, 0))
+              buf = io.BytesIO()
+              strip.save(buf, format="JPEG", quality=60)
+              b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+              print(f"== BEGIN BASE64 JPEG (burst-{room}-montage) ==")
+              for i in range(0, len(b64), 300):
+                  print(b64[i:i + 300])
+              print(f"== END BASE64 JPEG (burst-{room}-montage) ==")
+          EOF
 
       - uses: actions/upload-artifact@v7
         with:

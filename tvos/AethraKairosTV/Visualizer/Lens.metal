@@ -36,13 +36,14 @@ using namespace metal;
 
    Helper names carry the _L suffix so this translation unit never
    collides with Shaders.metal / Xforms.metal at metallib link. The
-   VizUniforms block is re-declared VERBATIM (144-byte layout, fixed);
-   this unit reads U.lens (offset 132) and U.lensAmt (offset 136).
+   VizUniforms block is re-declared VERBATIM (192 bytes: the fixed
+   144-byte block, then the dance bus at 144..191); this unit reads
+   U.lens (offset 132) and U.lensAmt (offset 136).
    ================================================================ */
 
 constant float TAU_L = 6.28318530718;
 
-// ---- THE FINAL VizUniforms — VERBATIM, 144-byte fixed layout.
+// ---- THE FINAL VizUniforms — VERBATIM, 192 bytes (the fixed 144 + the dance bus).
 // Wave 3 names offset 132 `lens` and offset 136 `lensAmt`; offset 140
 // carries the song's Camelot number for the CIPHER. Only names differ from the sibling units — the bytes
 // the CPU uploads are identical, and this unit is the one that reads the
@@ -54,8 +55,12 @@ struct VizUniforms {
     float4 colA; float4 colB; float4 colC;                          // 48 / 64 / 80
     float act; float phrasePhase; float white; float ghostX;        // 96..108
     float ghostY; float ghostStrength; float roll0; float roll1;    // 112..124
-    float roll2; float lens; float lensAmt; float _pad3;            // 128..140  -> stride 144
+    float roll2; float lens; float lensAmt; float _pad3;            // 128..140
+    float dHit; float dAge; float dKick; float dMass;               // 144..156  the dance bus (see tools/dance_prelude.mjs)
+    float dArtic; float dSpark; float dSway; float dLift;           // 160..172
+    float dBrace; float dImpact; float dStill; float dPeriod;       // 176..188  -> stride 192
 };
+static_assert(sizeof(VizUniforms) == 192, "VizUniforms drifted: the CPU mirror uploads 192 bytes");
 
 // ---------------------------------------------------------------
 // helpers (this translation unit owns its own — a Metal helper cannot

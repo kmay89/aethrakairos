@@ -16150,6 +16150,355 @@ function danceMovePose(name, u, o){
   }
   return p;
 }
+/* ================================================================
+   THE DANCE BUS — twelve floats, one pure stepper, both stages.
+   Everything above feels the music frame by frame, and the rooms were
+   copying those feelings straight into exposure, size and position: the
+   picture JITTERED. The bus is the body between the music and the
+   drawing — each voice of the music moves a different part of it, with
+   weight and inertia, anticipation and follow-through, phrasing, and
+   stillness when the music is still. Stepped ONCE per frame on the CPU
+   (here, and line for line in the TV's Dance.swift), delivered to the
+   rooms as three vec4s on the web (uDance0/1/2) and twelve floats
+   appended to VizUniforms on Metal — the same numbers on both stages,
+   pinned by the frozen trace in tests/player.test.mjs. Every time
+   constant is in BEATS (P = seconds per beat, clamped 0.3..1.0) so the
+   body moves the same way at 90 and at 174 BPM. Every value is finite,
+   clamped, and defined in silence. All pure; nothing here reads a global.
+     0 dHit     0..1.5      the strike as LIGHT: kick/snare; a bare hat ≤ 0.25
+     1 dAge     0..4        beats since the last real strike — a travel axis
+     2 dKick   -0.35..1.25  the heavy body: a force-driven, signed spring
+     3 dMass    0..1        the passage's weight (bass, slow)
+     4 dArtic   0..1        articulation (the moving mid/treble contour)
+     5 dSpark   0..1        the treble flick — light only
+     6 dSway   -1..1        the bar (breath folded in at rest)
+     7 dLift    0..1        the phrase
+     8 dBrace   0..1        the coil before a drop (precognition)
+     9 dImpact  0..8        beats since the landing; 8 when none
+    10 dStill   0..1        the stillness gate
+    11 dPeriod  0 | 0.3..1  seconds per beat; 0 when freewheeling
+   Nothing an existing room reads changes meaning: uBeat, uBeatSpring,
+   the bands, uBarPhase, uBeatIdx and the first 144 bytes of VizUniforms
+   keep their values. DANCE.v2 (below) gates the engine edits that will
+   read the bus; while it is false the bus is live but invisible.
+   ================================================================ */
+const DANCE_BUS = {
+  N: 12,
+  NAMES: ['dHit', 'dAge', 'dKick', 'dMass', 'dArtic', 'dSpark', 'dSway', 'dLift', 'dBrace', 'dImpact', 'dStill', 'dPeriod'],
+  P_MIN: 0.30, P_MAX: 1.00,            // s per beat — ω_n stays in 8.4..28 rad/s
+  OMEGA: 8.4,                          // ω_n·P = 2π/0.75: the body's own period is ¾ of a beat
+  ZETA: 0.42, ZETA_CALM: 0.55,         // one rebound of ~23 %; calmer on iOS / CALM
+  DRIVE_W: 0.12,                       // the force pulse's width in beats (60 ms at 120 BPM)
+  GAIN: 3.41, GAIN_CALM: 3.86,         // G: a unit strike peaks at 1.0 ± 0.1 (pinned by the test)
+  STRIKE_MIN: 0.35,                    // a strike at least this strong resets dAge
+  COMING: 0.42,                        // precognition: "a louder passage is coming"
+  LAND_NORM: 1.60729, LAND_DECAY: 1.00531, LAND_OMEGA: 2.97640,   // danceLand: ζ 0.32, ω = π per beat
+  // the twelve's rails, in NAMES order — what the stage wire clamps a received bus into
+  LO: [0, 0, -0.35, 0, 0, 0, -1, 0, 0, 0, 0, 0],
+  HI: [1.5, 4, 1.25, 1, 1, 1, 1, 1, 1, 8, 1, 1],
+  REST: [0, 4, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0],   // the bus at rest: no strike for four beats, no landing
+};
+// a finite number or its default — the bus never lets a NaN in
+function danceFin(v, d){ return (typeof v === 'number' && isFinite(v)) ? v : d; }
+// P: the beat period the bus thinks in, clamped; 120 BPM when nothing is known
+function dancePeriod(period){
+  const p = danceFin(period, 0);
+  return p > 0 ? Math.min(DANCE_BUS.P_MAX, Math.max(DANCE_BUS.P_MIN, p)) : 0.5;
+}
+
+/* danceClassify — onsets become VOICES. rb/rm/rt are this step's positive
+   band rises (score path: onsetEnergy's components; live path: the frame
+   differences ×4, gated by f.onset), punch the onset strength, bass/mid the
+   levels. A kick additionally needs the bass ABOVE ITS OWN FLOOR (DANCE's
+   τ 2.5 s detector) so a sustained bassline is weight, not a strike; pass
+   bassFloor null to skip the gate. Hats are treble-class only when alone.
+   Writes into `out` when given (the bus reuses its own state object). */
+function danceClassify(inp, bassFloor, out){
+  const o = out || { kick: 0, snare: 0, hat: 0, gate: 1 };
+  const rb = danceFin(inp.rb, 0), rm = danceFin(inp.rm, 0), rt = danceFin(inp.rt, 0);
+  const punch = danceFin(inp.punch, 0), bass = danceFin(inp.bass, 0), mid = danceFin(inp.mid, 0);
+  const gate = (bassFloor == null || !isFinite(bassFloor)) ? 1 : clamp01((bass - bassFloor) * 6);
+  const kick = clamp01(punch * 0.6 * clamp01(bass * 1.4 + 0.1) + rb * 1.6) * gate;
+  const snare = clamp01(rm * 1.4 + punch * 0.5 * clamp01(mid * 1.2));
+  const hat = clamp01(rt * 1.3) * (1 - 0.7 * clamp01(kick + snare));
+  o.kick = kick; o.snare = snare; o.hat = hat; o.gate = gate;
+  return o;
+}
+
+/* THE HEAVY BODY — a spring at rest 0 struck by a FORCE PULSE, not a
+   velocity step: a raised cosine of width 0.12·P, so displacement rises
+   over 4–5 frames at 60 Hz and the eye infers a struck mass. ω_n = 8.4/P,
+   ζ 0.42 (k 282, c 14.1 at 120 BPM ≈ today's praised uBeatSpring), gain G
+   so a unit strike peaks at 1.0. Signed: below rest is the squash. Shape
+   at any tempo: peak at 0.20 beat, one rebound of −23 % at 0.60, within
+   10 % of rest by 0.80 — the body is home before the next count. The
+   drive is integrated EXACTLY over the frame (its mean force), so the
+   impulse does not depend on the frame rate. ks: {x, v, u, amp} — u is the
+   drive's progress (0..1 live, 9 idle). */
+function makeDanceKick(){ return { x: 0, v: 0, u: 9, amp: 0 }; }
+function danceKickStrike(ks, s){
+  // a strike on an idle body restarts the drive; one landing on a drive
+  // still in flight only raises it (a gradual rise counts once)
+  if (ks.u >= 1){ ks.u = 0; ks.amp = s; }
+  else ks.amp = Math.max(ks.amp, s);
+}
+function danceKickStep(ks, dt, P, calm){
+  const wn = DANCE_BUS.OMEGA / P;
+  const zeta = calm ? DANCE_BUS.ZETA_CALM : DANCE_BUS.ZETA;
+  const G = calm ? DANCE_BUS.GAIN_CALM : DANCE_BUS.GAIN;
+  const du = dt / (DANCE_BUS.DRIVE_W * P);
+  let drive = 0;
+  if (du > 0 && ks.u < 1){
+    const lo = Math.max(0, ks.u), hi = Math.min(1, ks.u + du);
+    if (hi > lo){
+      // ∫ ½(1 − cos 2πu) du over the frame, as a mean force
+      const I = 0.5 * ((hi - lo) - (Math.sin(6.283185307179586 * hi) - Math.sin(6.283185307179586 * lo)) / 6.283185307179586);
+      drive = G * ks.amp * I / du;
+    }
+  }
+  ks.u = Math.min(9, ks.u + du);
+  const s = beatSpringStep(ks.x, ks.v, drive, dt, wn * wn, 2 * zeta * wn);
+  const vMax = 4 * wn;                               // the rails: nothing here can run away
+  ks.x = s.x < -2 ? -2 : (s.x > 2 ? 2 : s.x);
+  ks.v = s.v < -vMax ? -vMax : (s.v > vMax ? vMax : s.v);
+  return ks.x;
+}
+
+/* danceLandingStep — THE LANDING, as a latch with a timeout. The old rule
+   compared the present with "what was coming" and could not fire from a
+   silent bar (nothing was here to compare). Now: the moment precognition
+   first says a louder passage is coming (coming > 0.42) we record WHEN
+   (landAt = pos + lookahead) and HOW LOUD (landLevel = soon's level); we
+   land when the playhead is within a quarter beat of that moment and the
+   present has reached 60 % of the promised level — or at landAt + P/2
+   regardless, so the latch can never hang. A seek backwards disarms it.
+   inp: {pos, coming, here, soon, P, lookahead}; levels are
+   bass + 0.8·punch. Returns true on the frame the landing fires. */
+function danceLandingStep(st, inp){
+  const pos = danceFin(inp.pos, NaN);
+  if (!isFinite(pos)){ st.armed = false; return false; }
+  const P = inp.P, la = inp.lookahead;
+  if (st.armed && pos < st.landAt - la - 0.5) st.armed = false;
+  if (!st.armed && inp.coming > DANCE_BUS.COMING){
+    st.armed = true;
+    st.landAt = pos + la;
+    st.landLevel = Math.max(danceFin(inp.soon, 0), danceFin(inp.coming, 0));
+  }
+  if (!st.armed) return false;
+  const arrived = pos >= st.landAt - P / 4 && danceFin(inp.here, 0) >= 0.6 * st.landLevel;
+  if (arrived || pos >= st.landAt + P / 2){ st.armed = false; return true; }
+  return false;
+}
+
+/* makeDanceBusState — everything the stepper remembers between frames,
+   plus the bus itself (one Float32Array, reused) and the frame's voices
+   as telemetry for the HUD and the harness. */
+function makeDanceBusState(){
+  const st = {
+    bus: new Float32Array(DANCE_BUS.N),
+    P: 0.5,
+    kick: 0, snare: 0, hat: 0, gate: 1, w: 0, s: 0, coming: 0, landed: false,
+    hit: makeSafeBeatState(), strikeEnv: 0,          // 0 dHit
+    age: 4,                                          // 1 dAge
+    ks: makeDanceKick(), sPrev: 0,                   // 2 dKick
+    mass: 0, artic: 0, spark: 0,                     // 3 4 5
+    sway: 0, lift: 0,                                // 6 7
+    brace: 0,                                        // 8
+    impactAge: 8, armed: false, landAt: 0, landLevel: 0,   // 9 — the landing latch
+    still: 0,                                        // 10
+    bassFloor: null, cenSlow: null,                  // the detectors' memories
+    _ret: null,
+  };
+  st._ret = { state: st, bus: st.bus };
+  return st;
+}
+
+/* danceBusStep — ONE frame of the bus. Pure: reads inp, advances st,
+   returns {state, bus} (the same objects every frame). inp:
+     bass mid treble energy   levels 0..1          centroid  0..1 (optional)
+     rb rm rt punch           the onset's per-band rises and strength (0 between hits)
+     period haveGrid beatIdx  s/beat; grid flag; beat in the bar 0..3 (-1 none)
+     barPhase phrasePhase     0..1 through the bar / the phrase
+     ear playing breath       DANCE.ear; the deck or the mic is live; DANCE.breath −1..1
+     calm                     IS_IOS or SAFE.calm → ζ 0.55
+     pos here soon structure  precognition: the playhead (s); envSample at pos + 0.08 and at
+                              pos + danceLookahead(P) (null without a score); a section-turn
+                              strength 0..1 from the structure map (optional)
+     tuning                   the governor's tuning for dHit (SAFE.tuning(); default SAFE_TUNING)
+   The landing's engine side effects (INTERACT.impulse, f.beat, the ear's
+   hits) are the caller's: read state.landed after the step. */
+function danceLookahead(P){ return 2 * P + 0.2; }
+function danceBusStep(st, inp, dt){
+  dt = Math.min(0.25, Math.max(0, danceFin(dt, 0)));   // time never runs backward, a hop is bounded
+  const P = dancePeriod(inp.period);
+  st.P = P;
+  const bass = clamp01(danceFin(inp.bass, 0)), mid = clamp01(danceFin(inp.mid, 0));
+  const treble = clamp01(danceFin(inp.treble, 0)), energy = clamp01(danceFin(inp.energy, 0));
+  const ear = clamp01(danceFin(inp.ear, 1));
+  const playing = !!inp.playing;
+  const downbeat = inp.beatIdx === 0;
+  const calm = !!inp.calm;
+
+  // the bass's own floor (τ 2.5 s) — a sustained bassline is weight, not a strike
+  st.bassFloor = st.bassFloor == null ? bass
+    : st.bassFloor + (bass - st.bassFloor) * (1 - Math.exp(-dt / 2.5));
+  danceClassify(inp, st.bassFloor, st);
+
+  // the strike as light (w) and the body's strike (s). A bare hat can
+  // never lift w above 0.25 — the downbeat weight belongs to the voices.
+  const voice = Math.max(st.kick, 0.85 * st.snare) * (downbeat ? 1.25 : 1);
+  let w = Math.min(voice + 0.25 * st.hat, downbeat ? 1.25 : 1);
+  let s = clamp01(st.kick + 0.45 * st.snare) * (downbeat ? 1.25 : 1) * (0.5 + 0.5 * ear);
+
+  // precognition — the coil, and the landing
+  const la = danceLookahead(P);
+  const here = inp.here, soon = inp.soon;
+  const hereL = here ? danceFin(here.bass, 0) + 0.8 * danceFin(here.punch, 0) : 0;
+  const soonL = soon ? danceFin(soon.bass, 0) + 0.8 * danceFin(soon.punch, 0) : 0;
+  let coming = (here && soon) ? clamp01(soonL - hereL) : 0;
+  const structure = clamp01(danceFin(inp.structure, 0));
+  if (structure > coming) coming = structure;
+  st.coming = coming;
+  const landed = danceLandingStep(st, { pos: inp.pos, coming, here: hereL, soon: soonL, P, lookahead: la });
+  st.landed = landed;
+  if (landed){ w = Math.max(w, 1.25); s = Math.max(s, 1.25); st.brace = 0; }
+  else st.brace = envFollow(st.brace, coming > DANCE_BUS.COMING ? 1 : 0, dt, 0.7 * P, 1.2 * P);
+  st.w = w; st.s = s;
+
+  // 0 dHit — latch the strike, release over 0.3 beat, the governor last
+  st.strikeEnv = Math.max(st.strikeEnv * Math.exp(-dt / (0.30 * P)), w);
+  const hit = safeBeatStep(st.hit, st.strikeEnv, dt, inp.tuning || SAFE_TUNING);
+  // 1 dAge — beats since the last real strike (a hat never resets it)
+  st.age = w >= DANCE_BUS.STRIKE_MIN ? 0 : Math.min(4, st.age + dt / P);
+  // 2 dKick — the rising edge of the body's strike drives the spring
+  if (s > 0.05 && s > st.sPrev + 0.02) danceKickStrike(st.ks, s);
+  st.sPrev = s;
+  const kx = danceKickStep(st.ks, dt, P, calm);
+  // 3 dMass — the passage's weight: up a third of a beat, down two
+  st.mass = envFollow(st.mass, bass, dt, P / 3, 2 * P);
+  // 4 dArtic — the melody's motion (DANCE.flow's law), up P/8, down P/2
+  const cen = clamp01(danceFin(inp.centroid, 0));
+  const cenSlow = st.cenSlow == null ? cen : st.cenSlow;
+  const melodic = clamp01(mid * 0.55 + treble * 0.85 + Math.abs(cen - cenSlow) * 3.5);
+  st.cenSlow = cenSlow + (cen - cenSlow) * (1 - Math.exp(-dt / 0.9));
+  st.artic = envFollow(st.artic, melodic, dt, P / 8, P / 2);
+  // 5 dSpark — attack one frame (a flick has no mass), release a quarter beat
+  st.spark = Math.max(st.spark * Math.exp(-dt / (P / 4)), clamp01(Math.max(treble, 0.8 * st.hat)));
+  // 10 dStill — a SLEW, not a time constant: it arrives. Up in P/8; down in
+  // 1.5 beats, or in half a beat when the music has truly stopped
+  const stillT = playing ? danceSmooth(0.30, 0.55, ear) : 0;
+  const rate = stillT > st.still ? 8 / P : (energy < 0.05 ? 2 / P : 1 / (1.5 * P));
+  const dStill = stillT - st.still;
+  st.still += dStill < -rate * dt ? -rate * dt : (dStill > rate * dt ? rate * dt : dStill);
+  // 6 dSway, 7 dLift — the bar and the phrase, breath folded in at rest
+  const sw = danceSway(danceFin(inp.barPhase, 0), danceFin(inp.phrasePhase, 0),
+    { energy: clamp01(energy + st.artic * 0.45), amp: 1 });
+  const breath = Math.max(-1, Math.min(1, danceFin(inp.breath, 0)));
+  const swayT = Math.max(-1, Math.min(1, st.still * sw.sway + (1 - st.still) * 0.3 * breath));
+  st.sway += (swayT - st.sway) * (1 - Math.exp(-dt / (0.45 * P)));
+  const liftT = clamp01(st.still * sw.lift + (1 - st.still) * 0.15 * (0.5 + 0.5 * breath));
+  st.lift += (liftT - st.lift) * (1 - Math.exp(-dt / (0.8 * P)));
+  // 9 dImpact — beats since the landing
+  st.impactAge = landed ? 0 : Math.min(8, st.impactAge + dt / P);
+
+  const b = st.bus;
+  b[0] = hit < 0 ? 0 : (hit > 1.5 ? 1.5 : hit);
+  b[1] = st.age;
+  b[2] = kx < -0.35 ? -0.35 : (kx > 1.25 ? 1.25 : kx);
+  b[3] = st.mass;
+  b[4] = st.artic;
+  b[5] = st.spark;
+  b[6] = st.sway;
+  b[7] = st.lift;
+  b[8] = st.brace;
+  b[9] = st.impactAge;
+  b[10] = st.still;
+  b[11] = inp.haveGrid ? P : 0;
+  return st._ret;
+}
+
+/* THE PRELUDE'S SHAPES, in JS — the same formulas tools/dance_prelude.mjs
+   emits as GLSL and MSL, so the three can be tested against one set of
+   numbers. S = smoothstep. */
+// the coil before the beat: loads over the last 40 % of the beat, unloads in the last 35 ms
+function danceLeanJS(ph, still, haveGrid){
+  return still * (0.6 + 0.4 * still) * danceSmooth(0.60, 0.92, ph) * (1 - danceSmooth(0.93, 1.0, ph)) * (haveGrid ? 1 : 0.4);
+}
+// the step: a C¹ reshaping of the beat's progress, slope 1 + A·cos ≥ 0.25 for A ≤ 0.75 — never backwards
+function danceStrideJS(ph, A){ return ph + (A / 6.283185307179586) * Math.sin(6.283185307179586 * ph); }
+// a head that leaves x = 0 at age 0 and arrives at x = 1 at age 1
+function danceFrontJS(x, age, w){ const d = (x - Math.min(age, 1)) / w; return Math.exp(-d * d); }
+// struck on the hit, held through the fall, released in the last third of the beat
+function danceLampJS(hit, age){
+  return (0.5 + 0.5 * hit) * danceSmooth(0.0, 0.12, age) * (1 - danceSmooth(0.62, 1.0, age)) * (age <= 1 ? 1 : 0);
+}
+// the heavy landing: ζ 0.32, period two beats, peak 1 at 0.42 beat, one rebound below rest, a bar to settle
+function danceLandJS(age){
+  if (!(age > 0) || age >= 8) return 0;
+  return DANCE_BUS.LAND_NORM * Math.exp(-DANCE_BUS.LAND_DECAY * age) * Math.sin(DANCE_BUS.LAND_OMEGA * age);
+}
+// a struck damped oscillator's PERIODIC steady state from the phase alone: Σ e^{−a(ph+k)} sin(b(ph+k))
+function danceRingJS(ph, a, b){
+  const ea = Math.exp(-a);
+  return Math.exp(-a * ph) * (Math.sin(b * ph) - ea * Math.sin(b * ph - b)) / (1 - 2 * ea * Math.cos(b) + ea * ea);
+}
+// Shaders.metal's breathing law — a swell with the beat clock, never a flash
+function danceBreathJS(amt, beatPhase){ return 1 + amt * Math.cos(beatPhase * 6.283185307179586); }
+// the count's weight: 1 on the one, 0.8 on the three, 0.6 on two and four, 0.8 without a bar
+function danceBeatWeightJS(barPhase, period){
+  if (!(period > 0)) return 0.8;
+  const i = Math.floor(barPhase * 4);
+  return i < 0.5 ? 1 : (Math.abs(i - 2) < 0.5 ? 0.8 : 0.6);
+}
+
+/* danceBusApply — a bus that arrived over the STAGE WIRE (the booth's twelve,
+   thirty a second) written into a screen's own bus: every slot clamped to its
+   rail, a missing or non-finite value set to rest, so a stale or hostile
+   packet can never put a NaN or a 40-beat landing in front of a room. Returns
+   false — and writes nothing — unless v carries all twelve. */
+function danceBusApply(bus, v){
+  if (!bus || !v || !(v.length >= DANCE_BUS.N)) return false;
+  for (let i = 0; i < DANCE_BUS.N; i++){
+    const x = danceFin(Number(v[i]), DANCE_BUS.REST[i]);
+    bus[i] = x < DANCE_BUS.LO[i] ? DANCE_BUS.LO[i] : (x > DANCE_BUS.HI[i] ? DANCE_BUS.HI[i] : x);
+  }
+  return true;
+}
+
+/* danceScoreRises — the strikes on the SCORE path, read from the env's own
+   digits. envSample interpolates the tonal bands linearly between the 12 Hz
+   samples, so a frame-to-frame delta spreads one kick's rise over ~5 frames
+   at 60 Hz (a fifth of a hit each); the classifier wants the rise of the HIT.
+   So the rise is taken per env STEP: on the frame the step index advances,
+   each band's net rise from the last step seen to this one, and the punch
+   channel's largest step-to-step rise over the same steps (a 48 Hz env under
+   a 24 fps harness frame spans two steps; a one-step punch inside either is
+   still caught). Between step changes all four read 0, so a strike lands on
+   exactly one frame — the frame the punch digit steps, which is the frame
+   f.beat snaps on. A jump of more than 8 steps (a seek, a track change, a
+   tab-away) re-anchors without a rise. `mem` is {step, env}, mutated;
+   writes rb/rm/rt/punch into `out`. Pure apart from the memory it is given. */
+function danceScoreRises(env, step, mem, out){
+  out.rb = 0; out.rm = 0; out.rt = 0; out.punch = 0;
+  if (!env || !env.b || !env.m || !env.t || !(step >= 0)) { mem.step = -1; mem.env = null; return out; }
+  step = step | 0;
+  const prev = mem.env === env ? mem.step : -1;
+  if (prev >= 0 && step > prev && step - prev <= 8){
+    out.rb = Math.max(0, envAt(env.b, step) - envAt(env.b, prev));
+    out.rm = Math.max(0, envAt(env.m, step) - envAt(env.m, prev));
+    out.rt = Math.max(0, envAt(env.t, step) - envAt(env.t, prev));
+    if (env.o){
+      let p = 0;
+      for (let j = prev + 1; j <= step; j++){
+        const r = envAt(env.o, j) - envAt(env.o, j - 1);
+        if (r > p) p = r;
+      }
+      out.punch = p;
+    }
+  }
+  if (step !== prev){ mem.step = step; mem.env = env; }
+  return out;
+}
 // @dance-end
 
 /* ================================================================
@@ -25128,6 +25477,13 @@ const U = {
   uHue:      { value: 0 },      // spectral centroid -> hue rotation, for spectrum-driven colour
   uBeatIdx:  { value: -1 },     // grid clock: beat index in the bar (0..3), -1 = no grid
   uBarPhase: { value: 0 },      // grid clock: continuous 0..1 through the bar
+  uPhrasePhase: { value: 0 },   // grid clock: continuous 0..1 through the phrase (DANCE's 32-beat count freewheeling)
+  // THE DANCE BUS — DANCE.bus as three vec4s, read through GLSL_DANCE's accessors
+  // (dHit … dPeriod). three.js uploads only what a shader declares, so a room
+  // that has not adopted the prelude pays nothing and renders as before.
+  uDance0:   { value: new THREE.Vector4() },   // hit, age, kick, mass
+  uDance1:   { value: new THREE.Vector4() },   // artic, spark, sway, lift
+  uDance2:   { value: new THREE.Vector4() },   // brace, impact, still, period
   uAct:      { value: 0 },      // 0..1 through the current track — the story clock
   uPtr:      { value: null },   // xy = the sprung warp centre (ndc), z = presence (set at init)
   uPtrX:     { value: null },   // the touch's DEPTH: x = hold charge, y = release burst, z = spin momentum (set at init)
@@ -25254,6 +25610,53 @@ const GLSL_MPHI = `
      not, and every scene that sweeps a strand through t lives there. */
   vec3 ramp(float t){ return texture2D(uRamp, vec2(fract(t), 0.5)).rgb; }
 ` + GLSL_INK;
+
+/* THE DANCE PRELUDE — the bus's twelve accessors and its shape helpers (lean,
+   stride, front, lamp, land, held, ring, breath) for a room that opts in by
+   concatenating it the way every room concatenates GLSL_MPHI. GENERATED:
+   tools/dance_prelude.mjs emits this GLSL and its MSL twin from one source so
+   the two stages cannot drift — `node tools/dance_prelude.mjs --check` refuses
+   a hand edit, `--write` refreshes it. Declared, read by no room yet. */
+/* @dance-prelude-begin */
+const GLSL_DANCE = `
+  // THE DANCE BUS - generated by tools/dance_prelude.mjs (node tools/dance_prelude.mjs --write); never edit by hand.
+  // Twelve floats stepped once per frame by danceBusStep; the MSL twin of every helper below is emitted from the same source.
+  uniform vec4 uDance0, uDance1, uDance2;
+  uniform float uBarPhase;
+  #define dHit uDance0.x
+  #define dAge uDance0.y
+  #define dKick uDance0.z
+  #define dMass uDance0.w
+  #define dArtic uDance1.x
+  #define dSpark uDance1.y
+  #define dSway uDance1.z
+  #define dLift uDance1.w
+  #define dBrace uDance2.x
+  #define dImpact uDance2.y
+  #define dStill uDance2.z
+  #define dPeriod uDance2.w
+  // 0 at the hit, 1 at the next count - the bar phase, four to the bar
+  float danceBeatPhase(){ return fract(uBarPhase * 4.0); }
+  // the count's weight: 1 on the one, 0.8 on the three, 0.6 on the two and the four; 0.8 without a bar (freewheel)
+  float danceBeatWeight(){ if (dPeriod <= 0.0) return 0.8; float i = floor(uBarPhase * 4.0); return i < 0.5 ? 1.0 : (abs(i - 2.0) < 0.5 ? 0.8 : 0.6); }
+  // the coil before the beat: loads over the last 40 % of the beat, unloads in the last 35 ms as dKick begins to rise; gated by stillness, 0.4 when freewheeling. Rooms subtract ~20 % of the hit's gain x lean: the form draws back before it moves
+  float danceLean(float ph){ return dStill * (0.6 + 0.4 * dStill) * smoothstep(0.60, 0.92, ph) * (1.0 - smoothstep(0.93, 1.0, ph)) * (dPeriod > 0.0 ? 1.0 : 0.4); }
+  // the step: a C1 reshaping of the beat's progress - fastest on the count, dwelling at the half; slope 1 + A*cos >= 0.25 for A <= 0.75, so a walk on it never runs backwards (T += dPeriod * (danceStride(ph, A) - ph))
+  float danceStride(float ph, float A){ return ph + (A / 6.2831853) * sin(6.2831853 * ph); }
+  // a travelling head along x (0 near ... 1 far) that leaves at age 0 and arrives at age 1 - the beat as an event with a place
+  float danceFront(float x, float age, float w){ float d = (x - min(age, 1.0)) / w; return exp(-d * d); }
+  // struck on the hit (the 0.12-beat attack is the body arriving, not a snap), HELD through the fall, released in the last third of the beat; 0 once the beat is over
+  float danceLamp(float hit, float age){ return (0.5 + 0.5 * hit) * smoothstep(0.0, 0.12, age) * (1.0 - smoothstep(0.62, 1.0, age)) * step(age, 1.0); }
+  // the heavy landing (age = dImpact, in beats): a struck mass with period two beats and zeta 0.32 - peak 1 at 0.42 beat, one rebound below rest (-35 %), within 5 % by a bar; 0 for age >= 8 (none)
+  float danceLand(float age){ return 1.60729 * exp(-1.00531 * age) * sin(2.97640 * age) * step(0.0, age) * (1.0 - step(8.0, age)); }
+  // articulation held per bar: a re-sculpt in the first fifth of the bar, then hold - a fold turns once per bar, never 0.04 rad on every snare
+  float danceHeld(float barIdx, float barPh, float seed){ float a = fract(sin((barIdx - 1.0) * 12.9898 + seed) * 43758.5453); float b = fract(sin(barIdx * 12.9898 + seed) * 43758.5453); return mix(a, b, smoothstep(0.0, 0.2, barPh)); }
+  // a struck damped oscillator's PERIODIC steady state from the phase alone (= sum e^{-a(ph+k)} sin(b(ph+k))): a sprung rebound at a fixed place in the beat with no CPU state. a = settle (2.5 ~ 92 % by the next count), b = 2*pi x rebounds
+  float danceRing(float ph, float a, float b){ float ea = exp(-a); return exp(-a * ph) * (sin(b * ph) - ea * sin(b * ph - b)) / (1.0 - 2.0 * ea * cos(b) + ea * ea); }
+  // the breathing law (Shaders.metal's pulse room): a swell with the beat clock, never a flash with it
+  float danceBreath(float amt){ return 1.0 + amt * cos(danceBeatPhase() * 6.2831853); }
+`;
+/* @dance-prelude-end */
 
 /* THE EYE, ON THE GPU — the same observer the flame bench integrates a black
    body against, generated from CIE_LOBES and XYZ_TO_SRGB so the two can never
@@ -28826,6 +29229,14 @@ const CLOCK = {
 
 const DANCE = {
   on: true,
+  /* v2 — the dance BUS (danceBusStep, below the moves) drives the ENGINE:
+     the grid floor gated by stillness, the landing latch, one spring in the
+     rig with the kick out of the FOV, the colour wash released through the
+     landing, the warp on dMass. Off: the bus is stepped and delivered to the
+     rooms that ask for it, and nothing the existing rooms read changes — every
+     frame byte-identical to before. Flipped on in stage 3, with before/after
+     films on spiral, pulse, fractal and two control rooms. */
+  v2: false,
   phase: 0, barFrac: 0, phraseFrac: 0, haveGrid: false, period: 0.5,
   pulse: 0, sway: 0, lift: 0, breath: 0, warp: 0, ear: 1, brace: 0, flow: 0,
   /* MUSICAL TIME. `rate` is the choreographer's rubato (CHOREO sets it,
@@ -28836,6 +29247,101 @@ const DANCE = {
      and carried on. */
   rate: 1, time: 0, beats: 0,
   _freePhase: 0, _out: 0, _wasComing: 0,
+
+  /* THE BUS — the twelve floats of DANCE_BUS.NAMES, stepped once per frame by
+     the pure danceBusStep at the end of update() from the same readings the
+     rest of update() used. `bus` is the Float32Array the frame loop copies
+     into uDance0..2 and the booth puts on the stage wire; `busState` is the
+     stepper's memory. On a stage screen the booth's twelve arrive through
+     STAGE.pull() (danceBusApply) and the local stepper stands down for that
+     frame (_busWire), so a three-panel wall is ONE body, never three. */
+  bus: null, busState: null, _busWire: false,
+  _busPrev: null, _busSc: null, _busDrops: null, _busInp: null,
+  resetBus(){
+    this.busState = makeDanceBusState();
+    this.bus = this.busState.bus;
+    this._busWire = false;
+    this._busPrev = null; this._busSc = null; this._busDrops = null;
+  },
+  /* the bus's inputs, then one pure step. Strikes: on the score path the
+     per-band rises and the punch come per env STEP from the digits
+     (danceScoreRises); on the live path (mic, local envelope) the frame
+     rises ×4 gated by the onset flag, with the flag as the punch — the live
+     analyser has no onset strength. Precognition reads the same playhead and
+     the same `here` the brace block above used, with `soon` 2P + 0.2 s ahead;
+     the structure map (when a track ships one) braces for a louder section
+     inside that same lookahead, once per section turn. The landing's engine
+     side effects stay behind v2 — stage 3 flips them. */
+  _stepBus(dt, f, tr, playing, beats, pos, here, dur){
+    if (!this.busState) this.resetBus();
+    const st = this.busState;
+    const inp = this._busInp || (this._busInp = {});
+    const P = dancePeriod(this.period);
+    const env = tr && tr.env;
+    const sc = AE.score;
+    if (sc && env){
+      this._busSc = this._busSc || { step: -1, env: null };
+      danceScoreRises(env, sc.step, this._busSc, inp);
+    } else {
+      const pv = this._busPrev;
+      // the flag's RISING EDGE, not its level: every live detector raises
+      // f.onset for one frame, but the score branch of analyse() returns
+      // before touching it while the deck is paused, so a hit on the frame
+      // of a pause would otherwise read as a strike on every paused frame
+      const on = !!(pv && f.onset && !pv.onset);
+      inp.rb = on ? Math.max(0, f.bass - pv.bass) * 4 : 0;
+      inp.rm = on ? Math.max(0, f.mid - pv.mid) * 4 : 0;
+      inp.rt = on ? Math.max(0, f.treble - pv.treble) * 4 : 0;
+      inp.punch = on ? 1 : 0;
+      if (this._busSc) this._busSc.step = -1;
+    }
+    const pv = this._busPrev || (this._busPrev = { bass: 0, mid: 0, treble: 0, onset: false });
+    pv.bass = f.bass; pv.mid = f.mid; pv.treble = f.treble; pv.onset = !!f.onset;
+    // precognition: the playhead and `here` as the brace read them; `soon` at the bus's own lookahead
+    const la = danceLookahead(P);
+    const soon = (pos != null && env) ? envSample(env, pos + la) : null;
+    // the structure map: a louder section turning inside the lookahead is a
+    // promise too — each turn braces once (spent on the landing it brought).
+    // The PIPELINE's map only (mix.structure): the browser's own
+    // analyzeStructure reads 480 columns of peaks and put the harness piece's
+    // groove 2.4 s late (6.38 s for a groove that starts at 4.0), which braced
+    // and landed the bus in the middle of a bar — a landing must be exact.
+    let structure = 0;
+    const mixS = (pos != null && tr && dur > 0 && typeof mixOf === 'function') ? mixOf(tr) : null;
+    if (mixS && mixS.structure && mixS.structure.ok){
+      const struct = mixS.structure;
+      let D = this._busDrops;
+      if (!D || D.tr !== tr || D.struct !== struct)
+        D = this._busDrops = { tr, struct, pts: dropPoints(struct), spent: -1, feeding: -1 };
+      D.feeding = -1;
+      for (let i = 0; i < D.pts.length; i++){
+        if (i === D.spent) continue;
+        const turnIn = D.pts[i].at * dur - pos;
+        if (turnIn > -P / 4 && turnIn <= la && D.pts[i].strength > structure){ structure = D.pts[i].strength; D.feeding = i; }
+      }
+    }
+    inp.bass = f.bass; inp.mid = f.mid; inp.treble = f.treble; inp.energy = f.energy; inp.centroid = f.centroid;
+    inp.period = this.period; inp.haveGrid = this.haveGrid;
+    inp.beatIdx = this.haveGrid ? CLOCK.idx % 4 : Math.floor(beats % 4);
+    inp.barPhase = this.barFrac; inp.phrasePhase = this.phraseFrac;
+    inp.ear = this.ear; inp.playing = playing; inp.breath = this.breath;
+    inp.calm = IS_IOS || SAFE.calm;
+    inp.pos = pos; inp.here = here; inp.soon = soon; inp.structure = structure;
+    inp.tuning = SAFE.tuning();
+    const r = danceBusStep(st, inp, Math.max(0, dt));
+    this.bus = r.bus;
+    if (r.state.landed){
+      if (this._busDrops && this._busDrops.feeding >= 0) this._busDrops.spent = this._busDrops.feeding;
+      if (this.v2){
+        // STAGE 3 — the landing as the engine's own: the shockwave, the beat
+        // channel, the ear flung open, the coil released (replaces _wasComing)
+        if (typeof INTERACT !== 'undefined') INTERACT.impulse = Math.max(INTERACT.impulse, 1);
+        f.beat = Math.max(f.beat, 1.2);
+        this._hits += 2;
+        this.brace = 0;
+      }
+    }
+  },
 
   update(dt, t){
     dt = Math.max(0, dt);              // decay math must never see time run backward
@@ -28891,11 +29397,14 @@ const DANCE = {
     // and the instant it lands the field takes a shockwave on the exact
     // moment — anticipation, impact, release: acting the song out, not
     // following it around.
+    let busPos, busHere, busDur;          // the bus reads the SAME playhead and `here` (below)
     {
       const dk = activeDeck();
       if (tr && tr.env && dk && isFinite(dk.a.currentTime) && player.playing){
         const pos = dk.a.currentTime + 0.08;
         const here = envSample(tr.env, pos);
+        busPos = pos; busHere = here;
+        busDur = tr.duration > 0 ? tr.duration : (dk.a.duration > 0 ? dk.a.duration : 0);
         const soon = envSample(tr.env, pos + 1.2);
         const coming = here && soon
           ? clamp01((soon.bass + soon.punch * 0.8) - (here.bass + here.punch * 0.8)) : 0;
@@ -28961,8 +29470,17 @@ const DANCE = {
     this.breath = Math.sin(t * 0.88 + Math.sin(t * 0.213) * 1.7) * (0.35 + f.calm * 0.65);
     // the melody also bends musical time a touch — a subtle rubato on the riff
     this.warp = playing ? danceTimeWarp(phi, this.period, clamp01(f.energy + this.flow * 0.3)) : 0;
+
+    // THE BUS, last — every reading above is final for this frame. A stage
+    // screen whose booth just delivered the twelve (STAGE.pull) keeps those.
+    if (this._busWire) this._busWire = false;
+    else this._stepBus(dt, f, tr, playing, beats, busPos, busHere, busDur);
   },
 };
+DANCE.resetBus();
+// a top-level const is not a window property: the console and the motion
+// harness's telemetry reach the bus through window.DANCE.bus
+try { window.DANCE = DANCE; } catch (e){}
 
 /* ================================================================
    CHOREO — the choreographer. DANCE feels the beat; CHOREO decides the
@@ -60583,6 +61101,7 @@ const STAGE = {
       CLOCK.haveGrid = !!p.clock.g;
       CLOCK.idx = p.clock.i | 0;
       CLOCK.barPhase = Number(p.clock.b) || 0;
+      if (p.clock.p != null) CLOCK.phrasePhase = Number(p.clock.p) || 0;   // uPhrasePhase on a screen
       CLOCK.bpm = Number(p.clock.t) || 0;
     }
     if (p.dance){
@@ -60597,6 +61116,9 @@ const STAGE = {
       // so a three-panel body breathes as one dancer (CHOREO stands down on
       // screens — this line is what it stands down FOR)
       DANCE.rate = Math.min(1.9, Math.max(0.4, Number(p.dance.r) || 1));
+      // the booth's bus, clamped to its rails: this screen's twelve are the
+      // booth's for the frame, and its own stepper stands down (DANCE.update)
+      if (DANCE.bus && danceBusApply(DANCE.bus, p.dance.v)) DANCE._busWire = true;
     }
     if (p.dir){
       director.act = p.dir.a | 0; director.actT = Number(p.dir.t) || 0;
@@ -60730,8 +61252,11 @@ const STAGE = {
     this._acc = now;
     const f = AE.f, p = { t: 'f', at: now, f: {} };
     for (const k of STAGE_FIELDS) p.f[k] = f[k];
-    p.clock = { g: !!CLOCK.haveGrid, i: CLOCK.idx | 0, b: CLOCK.barPhase, t: CLOCK.bpm };
+    p.clock = { g: !!CLOCK.haveGrid, i: CLOCK.idx | 0, b: CLOCK.barPhase, t: CLOCK.bpm, p: CLOCK.phrasePhase };
     p.dance = { p: DANCE.pulse, w: DANCE.warp, e: DANCE.ear, b: DANCE.brace, f: DANCE.phraseFrac, g: !!DANCE.haveGrid, r: DANCE.rate };
+    // the dance bus: the booth's twelve (DANCE_BUS.NAMES order, four decimals),
+    // so every screen of a wall strikes, braces and rests as ONE body
+    if (DANCE.bus) p.dance.v = Array.from(DANCE.bus, x => Math.round(x * 1e4) / 1e4);
     /* THE CUT GOES ON THE WIRE TOO. A follower screen gets the scene index and
        calls setScene itself, which would otherwise roll its OWN transition form
        and its own seed — so a three-panel wall would shatter, ripple and fold
@@ -63994,6 +64519,17 @@ function frame(now){
   // on the hit and rebounds — the elastic "boing" a plain decay envelope can't give.
   // Symplectic Euler, sub-stepped so a long frame gap can never make it blow up.
   U.uBeatSpring.value = stepBeatSpring(U.uBeat.value, dt);
+  // THE DANCE BUS — the twelve DANCE stepped this frame, as the three vec4s the
+  // prelude reads (uDance0 = hit, age, kick, mass; uDance1 = artic, spark, sway,
+  // lift; uDance2 = brace, impact, still, period), and the phrase clock beside
+  // the bar clock. Rooms that declare none of these are untouched.
+  if (DANCE.bus){
+    const db = DANCE.bus;
+    U.uDance0.value.set(db[0], db[1], db[2], db[3]);
+    U.uDance1.value.set(db[4], db[5], db[6], db[7]);
+    U.uDance2.value.set(db[8], db[9], db[10], db[11]);
+  }
+  U.uPhrasePhase.value = CLOCK.haveGrid ? CLOCK.phrasePhase : DANCE.phraseFrac;
   U.uPiPhase.value = f.piPhase; U.uEPhase.value = f.ePhase;
   U.uCoupling.value = f.coupling; U.uEntropy.value = f.entropy; U.uCentroid.value = f.centroid;
   U.uCalm.value = f.calm;
