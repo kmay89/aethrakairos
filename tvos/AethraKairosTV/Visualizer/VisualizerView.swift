@@ -294,6 +294,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         "plotter": 3,
         // ↑ plotter · spectral ↓
         "spectral": 3,
+        // ↑ spectral · fluid ↓
+        "fluid": 3,
     ]
 
     private var specScratch = [Float](repeating: 0, count: 256)
