@@ -1816,6 +1816,17 @@ test('dance bus: every Metal TU declares one 192-byte VizUniforms, static_assert
   const inProject = [...pbx.matchAll(/path = (\w+\.metal);/g)].map(m => m[1]).sort();
   assert.deepEqual(metalFiles.map(f => f.split('/').pop()).sort(), inProject, 'every .metal on disk is in the project and vice versa');
   assert.ok(metalFiles.length >= 45, metalFiles.length + ' translation units');
+  // two waves that each pick "the next free id" by hand merge into one id naming two files:
+  // Xcode then compiles one of them twice and the other not at all. Every object is defined
+  // once, and every reference to it carries the same file name.
+  const defs = [...pbx.matchAll(/^\t\t([0-9A-F]{24}) \/\* ([^*]+?) \*\/ = \{/gm)];
+  const named = new Map();
+  for (const [, id, name] of defs){
+    assert.ok(!named.has(id), 'pbxproj id ' + id + ' is defined twice: ' + named.get(id) + ' and ' + name);
+    named.set(id, name);
+  }
+  for (const [, id, name] of pbx.matchAll(/\b([0-9A-F]{24}) \/\* ([^*]+?) \*\//g))
+    if (named.has(id)) assert.equal(name, named.get(id), 'pbxproj id ' + id + ' is referenced as ' + name + ' but defined as ' + named.get(id));
   // one struct text — comments and whitespace stripped, the pad spellings normalised
   const normalise = s => s.replace(/\/\/[^\n]*/g, '').replace(/\s+/g, ' ').trim()
     .replace(/\b_pad1\b/g, 'lens').replace(/\b_pad2\b/g, 'lensAmt').replace(/\bkeyNum\b/g, '_pad3');
