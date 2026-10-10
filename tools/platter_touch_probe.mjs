@@ -109,6 +109,25 @@ async function bench(label, ua){
   const loud = lv.filter(v => v > 0.005).length;
   R('…with the scratch at the speaker', loud >= 3, loud + ' of ' + lv.length + ' blocks sounding');
   if (direct) R('the element is silent under the hand', muted);
+  {
+    // the scrolling wave is the same record: a finger dragged right across deck A pulls the music back
+    await page.waitForTimeout(400);
+    const wv = await page.evaluate(() => { const r = el.boothWave.getBoundingClientRect(), g = DECKWAVE._geom; return g && { x: r.left + r.width / 2, y: r.top + g.sh / 2 }; });
+    let wMin = 9, wEng = false;
+    if (wv){
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: wv.x, y: wv.y }] });
+      for (let i = 1; i <= 20; i++){
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: wv.x + i * 6, y: wv.y }] });
+        await page.waitForTimeout(16);
+        const s = await page.evaluate(() => ({ r: VINYL.rate, e: VINYL.engaged }));
+        wMin = Math.min(wMin, s.r); wEng ||= s.e;
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await page.waitForTimeout(300);
+    }
+    R('the scrolling wave is drawn to be touched', !!wv);
+    R('dragging deck A\'s wave takes the record, and pulls it backwards', wEng && wMin < -0.3, 'min rate ' + wMin.toFixed(2) + '×');
+  }
   const after = await page.evaluate(() => ({ e: VINYL.engaged, m: activeDeck().a.muted, p: player.playing }));
   R('lifted, the room is given back' + (direct ? ' and the element sounds again' : ''), !after.e && !after.m && after.p);
   R('no page errors', errs.length === 0, errs.join(' | '));

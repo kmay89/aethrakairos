@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
   '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_GIVE_UP, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -85,6 +85,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
   ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
   ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' WAVE_HZ, WAVE_SR, WAVE_TILT, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
   ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed };';
 const S = new Function(code)();
@@ -8289,6 +8290,77 @@ test('licensing: no GPL fractal-renderer identifiers in the web player or the tv
 });
 
 await Promise.all(pending);
+// ---------------------------------------------------------------- the detail waveform (the scrolling deck)
+{
+  const sr = 16000;
+  const tone = (f, sec, amp) => { const x = new Float32Array(Math.round(sr * sec)); for (let i = 0; i < x.length; i++) x[i] = amp * Math.sin(2 * Math.PI * f * i / sr); return x; };
+  const cat = (...a) => { const n = a.reduce((s, x) => s + x.length, 0), o = new Float32Array(n); let k = 0; for (const x of a){ o.set(x, k); k += x.length; } return o; };
+  test('wave detail: a kick reads low, a hat reads high, silence reads nothing — at 150 columns a second', () => {
+    // one second of 60 Hz (a kick's body), one of silence, one of 6 kHz (a hat's air)
+    const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
+    const d = S.waveDetail([x], sr, 150);
+    assert.equal(d.n, 450, '150 columns a second: ' + d.n);
+    assert.ok(Math.abs(d.dur - 3) < 1e-9);
+    const at = (t) => { const r = S.waveRange(d, t, t + 0.2); return r; };
+    const k = at(0.4), q = at(1.4), h = at(2.4);
+    assert.ok(k.lo > 0.8 && k.hi < 0.02 && k.mi < 0.1, 'the kick is in the lows, and only there: ' + JSON.stringify(k));
+    assert.ok(h.hi > 0.8 && h.lo < 0.02 && h.mi < 0.1, 'the hat is in the highs, and only there: ' + JSON.stringify(h));
+    // a song with no highs shows none: the bands share one reference
+    const dull = S.waveDetail([tone(60, 2, 0.8)], sr, 150);
+    assert.ok(S.waveRange(dull, 0.5, 1.5).hi < 0.02, 'no hiss blown up to full scale: hi ' + S.waveRange(dull, 0.5, 1.5).hi);
+    assert.ok(q.pk === 0 && q.lo === 0 && q.hi === 0, 'silence is silence');
+    assert.ok(k.pk > 0.9, 'the loudest thing in the song reads full scale: ' + k.pk);
+    assert.ok(h.pk > 0.3 && h.pk < 0.45, 'the peak is linear: a 0.3 hat beside a 0.8 kick reads ' + h.pk.toFixed(2));
+  });
+  test('wave detail: stereo is folded to mono, one stray spike does not flatten the song, and nothing is NaN', () => {
+    const L = tone(60, 2, 0.5), R = tone(60, 2, 0.5);
+    L[1000] = 1; R[1000] = 1;                                // one sample's click
+    const d = S.waveDetail([L, R], sr, 150);
+    assert.ok(S.waveRange(d, 1, 1.5).lo > 0.9, 'the body of the song still reads near full scale under the click');
+    for (const v of ['pk', 'lo', 'mi', 'hi']) assert.ok(d[v] instanceof Uint8Array && d[v].length === d.n, v + ' is bytes');
+    assert.equal(S.waveDetail([new Float32Array(0)], sr), null, 'no samples, no detail');
+    assert.equal(S.waveDetail([L], 0), null, 'no rate, no detail');
+    const z = S.waveDetail([new Float32Array(sr)], sr, 150);
+    assert.ok(z.pk.every(v => v === 0) && z.lo.every(v => v === 0), 'a silent song is flat, not NaN');
+  });
+  test('wave detail: the shipped 12 Hz score stands in until the decode lands, in the same shape', () => {
+    const env = { hz: 12, b: '9900', m: '0990', t: '0009' };
+    const d = S.waveFromEnv(env);
+    assert.equal(d.n, 4); assert.equal(d.hz, 12); assert.ok(d.coarse);
+    assert.equal(d.lo[0], 255); assert.equal(d.hi[3], 255); assert.equal(d.mi[0], 0);
+    assert.equal(S.waveFromEnv(null), null); assert.equal(S.waveFromEnv({ hz: 12, b: '', m: '', t: '' }), null);
+    const r = S.waveRange(d, 0.1, 0.12);
+    assert.ok(r.lo === 1 && r.hi === 0, 'a column narrower than the detail reads the one it falls in');
+    assert.deepEqual(S.waveRange(d, 5, 6), { pk: 0, lo: 0, mi: 0, hi: 0 }, 'past the end is silence');
+    assert.deepEqual(S.waveRange(null, 0, 1), { pk: 0, lo: 0, mi: 0, hi: 0 });
+  });
+  test('wave grid: beats from the anchor, bar lines every fourth, phrase lines every eight bars, bar numbers from 1', () => {
+    const g = S.waveGrid(120, 2, 1, 20);           // a beat every half second from 2 s
+    assert.equal(g[0].t, 1, 'it reaches back before the anchor, from the first beat in range');
+    const a = g.find(x => x.t === 2);
+    assert.ok(a.bar && a.phrase && a.barNo === 1, 'the anchor is bar 1 and a phrase');
+    const b2 = g.find(x => x.t === 4);
+    assert.ok(b2.bar && !b2.phrase && b2.barNo === 2, 'four beats on is bar 2');
+    assert.ok(!g.find(x => x.t === 2.5).bar, 'the two is not a bar line');
+    const p2 = S.waveGrid(120, 2, 17.9, 18.1).find(x => x.bar);
+    assert.ok(p2 && p2.phrase && p2.barNo === 9, 'eight bars on is the next phrase: bar ' + (p2 && p2.barNo));
+    assert.equal(S.waveGrid(1e9, 0, 0, 100).length, 512, 'bounded');
+    assert.deepEqual(S.waveGrid(0, 0, 0, 10), []); assert.deepEqual(S.waveGrid(120, NaN, 0, 10), []);
+    assert.equal(S.waveBeatPos(120, 2, 2.75), 1.5);
+    assert.equal(S.waveBeatPos(120, 2, 1.5), 3, 'before the anchor wraps into the bar before');
+    assert.equal(S.waveBeatPos(0, 2, 3), null);
+  });
+  test('wave worker: the module is the tested arithmetic and answers a job with the detail, transferred', () => {
+    const src = S.waveWorkerSource();
+    assert.ok(src.includes('function waveDetail(') && src.includes('function waveQuant('));
+    let posted = null;
+    const scope = {};
+    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 7, chans: [tone(60, 1, 0.5)], sr, hz: 150 } });
+    assert.ok(posted && posted.m.id === 7 && posted.m.det.n === 150, 'the job comes back with its id');
+    assert.equal(posted.tr.length, 4, 'the four voices are transferred, not copied');
+  });
+}
+
 // ---------------------------------------------------------------- vinyl: the platter
 {
   const sr = 48000;

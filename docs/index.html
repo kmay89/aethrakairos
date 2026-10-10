@@ -1509,7 +1509,8 @@ body.boothdesk #transport{opacity:1!important;transform:translateX(-50%)!importa
 /* the transport keeps play, seek, volume and the mix chips; the room's own
    controls (scenes, lens, touch, comfort) belong to the screen the room is on */
 body.boothdesk #transport .hud > :not(.chipgroup[aria-label="The mix"]){display:none!important}
-body.boothdesk #boothCv{height:clamp(190px,calc(100vh - var(--desk-foot,160px) - 420px),480px)}
+body.boothdesk #boothCv{height:clamp(190px,calc(100vh - var(--desk-foot,160px) - 600px),480px)}
+body.boothdesk #boothWave{height:clamp(150px,22vh,260px)}
 body.boothdesk .booth-title{font-size:19px}
 body.boothdesk #boothPlan{font-size:10px}
 body.boothdesk .booth-deck .nm{font-size:14px}
@@ -2488,6 +2489,8 @@ body.clipping::after{
    a finger on it is never the page scrolling, or the browser cancels the
    gesture a few moves in and the record slips out of the hand */
 #boothCv{width:100%;height:216px;display:block;border-radius:10px;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* the two decks scrolling past the needle: an instrument too (drag to scratch, pinch to zoom) */
+#boothWave{width:100%;height:150px;display:block;border-radius:10px;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:grab}
 /* the pad row — the next-up crate, RGB performance pads */
 #boothPads{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .bpad{
@@ -2513,6 +2516,7 @@ body.clipping::after{
      them, above the two waveform lanes — the phone gets the real booth,
      not a stripped-down waveform strip */
   #boothCv{height:224px}
+  #boothWave{height:128px}
   #boothPads{grid-template-columns:repeat(4,1fr)}
   .bpad:nth-child(n+5){display:none}
 }
@@ -3250,6 +3254,7 @@ body.clipping::after{
     <span class="nm" id="boothNmA">—</span><span class="meta" id="boothMetaA"></span>
     <span class="st" id="boothStA"></span>
   </div>
+  <canvas id="boothWave" aria-label="The two decks scrolling past the needle — drag deck A to scratch, pinch or scroll to zoom" role="img"></canvas>
   <canvas id="boothCv" aria-hidden="true"></canvas>
   <div class="booth-deck">
     <span class="dk">B</span><span class="keychip" id="boothKeyB">—</span>
@@ -9506,7 +9511,7 @@ const el = {
   seek: $('seek'), seekFill: document.querySelector('#seek .fill'),
   seekBuf: document.querySelector('#seek .buf'), seekKnob: document.querySelector('#seek .knob'),
   seekTip: $('seekTip'), waveCv: $('waveCv'),
-  booth: $('booth'), boothCv: $('boothCv'), boothClose: $('boothClose'), boothPads: $('boothPads'),
+  booth: $('booth'), boothCv: $('boothCv'), boothWave: $('boothWave'), boothClose: $('boothClose'), boothPads: $('boothPads'),
   boothPlan: $('boothPlan'), boothLock: $('boothLock'), chipBooth: $('chipBooth'),
   boothKeyA: $('boothKeyA'), boothNmA: $('boothNmA'), boothMetaA: $('boothMetaA'), boothStA: $('boothStA'),
   boothKeyB: $('boothKeyB'), boothNmB: $('boothNmB'), boothMetaB: $('boothMetaB'), boothStB: $('boothStB'),
@@ -21940,6 +21945,37 @@ function skinCardOpen(open){
 /* ================================================================
    §7 · TRANSPORT UI — seek, volume, modes, chrome behaviour
    ================================================================ */
+/* OVERVIEW_CACHE — a whole-track strip painted once, as two layers (the
+   played part lit, the rest dimmed), and drawn each frame as two blits split
+   at the playhead. Keyed by everything the picture shows, so a change of
+   track, size, colour or structure repaints and nothing else does. */
+const OVERVIEW_CACHE = {
+  m: new Map(),
+  get(key, w, h, dpr, paint){
+    let e = this.m.get(key);
+    if (e){ this.m.delete(key); this.m.set(key, e); return e; }      // most recently used goes last
+    const layer = on => {
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(w * dpr)); cv.height = Math.max(1, Math.round(h * dpr));
+      const c = cv.getContext('2d');
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      paint(c, w, h, on);
+      return cv;
+    };
+    e = { lit: layer(true), dim: layer(false) };
+    this.m.set(key, e);
+    while (this.m.size > 8) this.m.delete(this.m.keys().next().value);
+    return e;
+  },
+  // the lit layer up to the playhead, the dimmed one after it, at (x, y) in the caller's units
+  blit(ctx, e, x, y, w, h, frac, dpr){
+    const W = e.lit.width, H = e.lit.height;
+    const sx = Math.max(0, Math.min(W, Math.round(clamp01(frac) * W)));
+    if (sx > 0) ctx.drawImage(e.lit, 0, 0, sx, H, x, y, sx / dpr, h);
+    if (sx < W) ctx.drawImage(e.dim, sx, 0, W - sx, H, x + sx / dpr, y, (W - sx) / dpr, h);
+  },
+};
+
 /* THE WAVEFORM — a live, frequency-coloured scope of the signal, the way a
    DJ deck shows it: newest at the right, low frequencies warm, mids in the
    track's key, highs bright. It is the instrument's pulse made visible; the
@@ -21978,16 +22014,52 @@ const WAVE = {
     if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr), trackStructure(tr));
     else this._scope(ctx, w, h);
   },
+  /* THE OVERVIEW, PAINTED ONCE. This strip is on screen every frame of the
+     player's life, and it used to rebuild every bar with a fresh colour string
+     each frame. Now the bars, the drops and the section bands are painted once
+     per track, size and (quantised) accent into two layers, lit and dimmed,
+     and a frame is two blits split at the playhead plus the label and the
+     needle. Repainted only when something it shows has actually changed. */
   _overview(ctx, w, h, pk, bands, d, stems, struct){
-    const n = pk.length, mid = h * 0.5;
     const frac = (d && isFinite(d.a.duration) && d.a.duration > 0)
       ? clamp01(d.a.currentTime / d.a.duration) : 0;
+    const tr = player.tracks[player.cur];
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const aq = this.accent.map(v => (v & 0xF8) | 4);   // the accent drifts at 12 Hz: repaint on a visible step only
+    const key = 'seek|' + (tr ? (tr.url || tr.id) : '') + '|' + w + 'x' + h + '@' + dpr + '|' + aq.join(',') + '|' + pk.length
+      + '|' + (stems ? 's' : '') + '|' + (struct && struct.ok && struct.sections ? struct.sections.length : 0);
+    const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, lit) => this._overviewPaint(c, W, H, pk, bands, stems, struct, lit, aq));
+    OVERVIEW_CACHE.blit(ctx, e, 0, 0, w, h, frac, dpr);
+    const a = this.accent;
+    // (the label and the needle are the only per-frame strokes)
+    // SECTION LABEL: name where the playhead is — intro · build · peak · break ·
+    // drive · outro — a small honest tag, top-left. From the same structure.
+    const label = sectionLabel(struct, frac);
+    if (label){
+      ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.82)`;
+      ctx.fillText(label.toUpperCase(), 6, 5);
+    }
+    // the playhead: a bright line with a soft key-coloured bloom
+    const px = frac * w;
+    const grd = ctx.createLinearGradient(px - 14, 0, px + 14, 0);
+    grd.addColorStop(0, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    grd.addColorStop(0.5, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.35)`);
+    grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    ctx.fillStyle = grd; ctx.fillRect(px - 14, 0, 28, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.75, 0, 1.5, h);
+  },
+
+  // the static half of the overview, as one layer: every bar lit (on) or dimmed
+  _overviewPaint(ctx, w, h, pk, bands, stems, struct, on, acc){
     // the true DJ-deck read: every bar coloured by its content, lit ahead of
     // the playhead and dimmed behind. When the offline pipeline has separated
     // this track we colour by SOURCE — drums red, bass amber, vocals cyan,
     // other violet, so you see the actual arrangement; otherwise we fall back
     // to the spectral band split (warm lows · key on the mids · bright highs).
-    const warm = [255, 120, 58], acc = this.accent, bright = [140, 214, 255];
+    const n = pk.length, mid = h * 0.5;
+    const warm = [255, 120, 58], bright = [140, 214, 255];
     const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
     const cw = w / cols, bw = Math.max(1, cw * 0.72);
     for (let c = 0; c < cols; c++){
@@ -21997,7 +22069,7 @@ const WAVE = {
         if (pk[i] > mx) mx = pk[i];
         sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
       }
-      const played = (c + 0.5) / cols <= frac, dim = played ? 1 : 0.4;
+      const played = on, dim = played ? 1 : 0.4;
       let rgb = stems && stemRGB(stemsAt(stems, (c + 0.5) / cols));
       if (!rgb){
         const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
@@ -22010,7 +22082,7 @@ const WAVE = {
       ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.96 : 0.6})`;
       ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
     }
-    const a = this.accent;
+    const a = acc;
     // DROP MARKERS: where the track builds into a louder block — a thin lit tick
     // with a small wedge, brighter for a bigger drop, so you can see it coming as
     // you scrub. From the precomputed structure; nothing drawn when it's absent.
@@ -22036,23 +22108,6 @@ const WAVE = {
         ctx.fillRect(x0, by, Math.max(1, x1 - x0 - 0.5), 3);
       }
     }
-    // SECTION LABEL: name where the playhead is — intro · build · peak · break ·
-    // drive · outro — a small honest tag, top-left. From the same structure.
-    const label = sectionLabel(struct, frac);
-    if (label){
-      ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.82)`;
-      ctx.fillText(label.toUpperCase(), 6, 5);
-    }
-    // the playhead: a bright line with a soft key-coloured bloom
-    const px = frac * w;
-    const grd = ctx.createLinearGradient(px - 14, 0, px + 14, 0);
-    grd.addColorStop(0, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
-    grd.addColorStop(0.5, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.35)`);
-    grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
-    ctx.fillStyle = grd; ctx.fillRect(px - 14, 0, 28, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.75, 0, 1.5, h);
   },
   /* the cinematic waveform behind zen: a ZOOMED, scrolling window around the
      playhead — the DJ-deck look, blown up to fill the room. Only drawn while
@@ -22382,6 +22437,167 @@ function driveFromEnvelope(dt, now){
 }
 
 /* ================================================================
+   THE DETAIL WAVEFORM — the song at DJ-deck resolution.
+
+   The overview and the score both read the song at 12 Hz, which draws a
+   whole track on a strip honestly and cannot draw a kick. A scrolling deck
+   needs the song at a hundred-odd columns a second, split the way an ear
+   splits it: the true peak, and three bands (below 200 Hz the kick and the
+   bass, 200 Hz to 2 kHz the body, above 2 kHz the hats and the air), each a
+   per-column RMS through Linkwitz-Riley crossovers (24 dB an octave), sharp
+   enough that a kick and a hat never bleed into each other's colour, and
+   cheap enough to run over a whole song in a worker in well under a second.
+
+   The peak is normalised against its own 99.5th percentile (one stray spike
+   must not flatten the song), the bands against one shared reference with a
+   pink-ish display tilt, so they stay comparable; each voice is stored as a
+   byte: a three-minute track is 108 KB of detail. Pure: the worker runs these
+   very functions.
+   ================================================================ */
+// @wave-start
+const WAVE_HZ = 150;              // detail columns per second of music
+const WAVE_SR = 16000;            // the rate the detail is decoded at: highs up to 8 kHz
+const WAVE_XO_LO = 200, WAVE_XO_HI = 2000;   // the crossovers, Hz
+// how much each band is lifted for display: music falls off with frequency, and a hat
+// that is a tenth of the kick's power must still read as a hat (a pink-ish tilt)
+const WAVE_TILT = [1, 1.6, 3];
+// a second-order Butterworth section (RBJ), as five numbers: [b0, b1, b2, a1, a2]
+function waveBiquad(type, f, sr){
+  const w = 2 * Math.PI * f / sr, c = Math.cos(w), al = Math.sin(w) / Math.SQRT2, a0 = 1 + al;
+  const lp = type === 'lp';
+  const b0 = (lp ? (1 - c) / 2 : (1 + c) / 2) / a0, b1 = (lp ? 1 - c : -(1 + c)) / a0;
+  return [b0, b1, b0, -2 * c / a0, (1 - al) / a0];
+}
+function waveDetail(chans, sr, hz){
+  hz = hz > 0 ? hz : WAVE_HZ;
+  const L = chans && chans[0], R = chans && chans[1] ? chans[1] : null;
+  const len = L ? L.length : 0;
+  if (!(sr > 0) || !len) return null;
+  const n = Math.max(1, Math.ceil(len * hz / sr));
+  const pk = new Float32Array(n), lo = new Float32Array(n), mi = new Float32Array(n), hi = new Float32Array(n);
+  /* Linkwitz-Riley crossovers: each band through two Butterworth sections
+     (24 dB an octave), so a 60 Hz kick leaves almost nothing in the mids and
+     a hat nothing in the lows. Eight sections a sample, state in plain locals. */
+  const F = [waveBiquad('lp', WAVE_XO_LO, sr), waveBiquad('hp', WAVE_XO_LO, sr),
+             waveBiquad('lp', WAVE_XO_HI, sr), waveBiquad('hp', WAVE_XO_HI, sr)];
+  const ch = [[0, 0], [1, 1, 2, 2], [3, 3]];      // low: LP·LP · mid: HP·HP·LP·LP · high: HP·HP
+  const st = ch.map(c => c.map(() => [0, 0, 0, 0]));   // x1 x2 y1 y2 per section
+  const run = (b, x) => {
+    let y = x;
+    for (let k = 0; k < ch[b].length; k++){
+      const f = F[ch[b][k]], z = st[b][k];
+      const o = f[0] * y + f[1] * z[0] + f[2] * z[1] - f[3] * z[2] - f[4] * z[3];
+      z[1] = z[0]; z[0] = y; z[3] = z[2]; z[2] = o; y = o;
+    }
+    return y;
+  };
+  let col = 0, end = Math.min(len, Math.round(sr / hz)), cnt = 0, mx = 0, sl = 0, sm = 0, sh = 0;
+  for (let i = 0; i < len; i++){
+    const x = R ? (L[i] + R[i]) * 0.5 : L[i];
+    const l = run(0, x), m = run(1, x), h = run(2, x);
+    const ax = x < 0 ? -x : x; if (ax > mx) mx = ax;
+    sl += l * l; sm += m * m; sh += h * h; cnt++;
+    if (i + 1 >= end){
+      if (col < n){ pk[col] = mx; lo[col] = Math.sqrt(sl / cnt); mi[col] = Math.sqrt(sm / cnt); hi[col] = Math.sqrt(sh / cnt); }
+      col++; end = Math.min(len, Math.round((col + 1) * sr / hz));
+      cnt = 0; mx = 0; sl = 0; sm = 0; sh = 0;
+    }
+  }
+  /* one reference for the three bands, so they stay comparable: a song with no
+     highs shows none, rather than its hiss blown up to full scale */
+  const ref = Math.max(wavePct(lo) * WAVE_TILT[0], wavePct(mi) * WAVE_TILT[1], wavePct(hi) * WAVE_TILT[2], 1e-6);
+  return { hz, n, dur: len / sr, pk: waveQuant(pk, wavePct(pk), 1),
+           lo: waveQuant(lo, ref / WAVE_TILT[0], 0.8), mi: waveQuant(mi, ref / WAVE_TILT[1], 0.8), hi: waveQuant(hi, ref / WAVE_TILT[2], 0.8) };
+}
+// a voice's 99.5th percentile: one stray spike must not flatten the song
+function wavePct(v){
+  const n = v.length;
+  if (!n) return 0;
+  const s = Float32Array.from(v).sort();
+  return s[Math.min(n - 1, Math.floor(n * 0.995))];
+}
+// a voice to bytes against a reference level, through a gentle display curve
+function waveQuant(v, ref, gamma){
+  const n = v.length, o = new Uint8Array(n);
+  ref = Math.max(1e-6, ref || 0);
+  for (let i = 0; i < n; i++){
+    const x = v[i] / ref;
+    o[i] = Math.round(255 * Math.pow(x > 1 ? 1 : x, gamma));
+  }
+  return o;
+}
+/* the detail a track that has not been decoded yet can already show: its
+   shipped 12 Hz score, in the same shape (the peak stands in as the bands'
+   power sum, as the overview has always read it) */
+function waveFromEnv(env){
+  if (!env || !(env.hz > 0) || !env.b || !env.m || !env.t) return null;
+  const n = Math.min(env.b.length, env.m.length, env.t.length);
+  if (!(n > 0)) return null;
+  const at = (s, j) => { const c = s.charCodeAt(j) - 48; return c >= 0 && c <= 9 ? c / 9 : 0; };
+  const pk = new Uint8Array(n), lo = new Uint8Array(n), mi = new Uint8Array(n), hi = new Uint8Array(n);
+  for (let j = 0; j < n; j++){
+    const b = at(env.b, j), m = at(env.m, j), t = at(env.t, j);
+    lo[j] = Math.round(b * 255); mi[j] = Math.round(m * 255); hi[j] = Math.round(t * 255);
+    pk[j] = Math.round(Math.min(1, Math.sqrt(b * b + m * m + t * t) / 1.2) * 255);
+  }
+  return { hz: env.hz, n, dur: n / env.hz, pk, lo, mi, hi, coarse: true };
+}
+// the loudest of each voice over [t0, t1) seconds, 0..1 (a column narrower than the detail reads the one it falls in)
+function waveRange(d, t0, t1, out){
+  out = out || { pk: 0, lo: 0, mi: 0, hi: 0 };
+  out.pk = out.lo = out.mi = out.hi = 0;
+  if (!d || !(t1 > 0) || t0 >= d.dur) return out;
+  let i0 = Math.floor(t0 * d.hz), i1 = Math.ceil(t1 * d.hz);
+  if (i0 < 0) i0 = 0;
+  if (i1 > d.n) i1 = d.n;
+  if (i1 <= i0) i1 = Math.min(d.n, i0 + 1);
+  let p = 0, l = 0, m = 0, h = 0;
+  for (let i = i0; i < i1; i++){
+    if (d.pk[i] > p) p = d.pk[i]; if (d.lo[i] > l) l = d.lo[i];
+    if (d.mi[i] > m) m = d.mi[i]; if (d.hi[i] > h) h = d.hi[i];
+  }
+  out.pk = p / 255; out.lo = l / 255; out.mi = m / 255; out.hi = h / 255;
+  return out;
+}
+/* THE GRID over [t0, t1]: every beat from the track's anchor at its tempo,
+   each knowing whether it is a bar line (every fourth from the anchor, which
+   the analysis places on a downbeat) or a phrase line, and which bar it
+   starts (1 at the anchor). Bounded: a pathological tempo cannot flood a frame. */
+function waveGrid(bpm, grid, t0, t1, phraseBars){
+  const out = [];
+  if (!(bpm > 0) || !isFinite(grid) || !(t1 > t0)) return out;
+  const spb = 60 / bpm, pb = phraseBars > 0 ? phraseBars : 8;
+  let k = Math.ceil((t0 - grid) / spb - 1e-9);
+  for (let n = 0; n < 512; n++, k++){
+    const t = grid + k * spb;
+    if (t > t1) break;
+    const b4 = ((k % 4) + 4) % 4;
+    const bar = Math.floor(k / 4);
+    out.push({ t, k, bar: b4 === 0, phrase: b4 === 0 && ((bar % pb) + pb) % pb === 0, barNo: bar + 1 });
+  }
+  return out;
+}
+// where a beat lands in its bar, 0 at the downbeat, 4 at the next: the phase meter's reading
+function waveBeatPos(bpm, grid, t){
+  if (!(bpm > 0) || !isFinite(grid) || !isFinite(t)) return null;
+  const b = (t - grid) * bpm / 60;
+  return ((b % 4) + 4) % 4;
+}
+// the worker that runs the detail off the main thread: these very functions, serialised
+function waveWorkerSource(){
+  return [
+    'const WAVE_HZ = ' + WAVE_HZ + ', WAVE_XO_LO = ' + WAVE_XO_LO + ', WAVE_XO_HI = ' + WAVE_XO_HI + ';',
+    'const WAVE_TILT = ' + JSON.stringify(WAVE_TILT) + ';',
+    waveBiquad.toString(), wavePct.toString(), waveQuant.toString(), waveDetail.toString(),
+    'onmessage = e => { const m = e.data || {}; let det = null;',
+    '  try { det = waveDetail(m.chans, m.sr, m.hz); } catch (err){ det = null; }',
+    '  const tr = det ? [det.pk.buffer, det.lo.buffer, det.mi.buffer, det.hi.buffer] : [];',
+    '  postMessage({ id: m.id, det }, tr); };',
+  ].join('\n');
+}
+// @wave-end
+
+/* ================================================================
    THE BOOTH (key D) — the engine's work, made watchable. The mixer
    has always run two decks, planned the seam on the bar line and
    phase-locked the blend; the booth just turns the lights on: both
@@ -22398,12 +22614,23 @@ function paintLane(ctx, x, y, w, h, tr, frac, accent){
     ctx.fillRect(x, mid - 0.5, w, 1);
     return false;
   }
+  // painted once per track, size and colour (OVERVIEW_CACHE); a frame is two blits
+  const dpr = (ctx.getTransform && ctx.getTransform().a) || 1;
+  const key = 'lane|' + (tr.url || tr.id) + '|' + w.toFixed(1) + 'x' + h.toFixed(1) + '@' + dpr + '|' + accent.join(',') + '|' + pk.length;
+  const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, on) => paintLaneBars(c, W, H, pk, bands, accent, on));
+  OVERVIEW_CACHE.blit(ctx, e, x, y, w, h, frac, dpr);
+  return true;
+}
+// one layer of a lane: every column lit (on, the played part) or dimmed
+function paintLaneBars(ctx, w, h, pk, bands, accent, on){
+  const mid = h / 2;
   // the Serato read, same as the seek: every column coloured by its
   // frequency makeup — warm lows, the key on the mids, bright highs
   const warm = [255, 120, 58], acc = accent, bright = [140, 214, 255];
   const n = pk.length;
   const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
   const cw = w / cols, bw = Math.max(1, cw * 0.72);
+  const dim = on ? 1 : 0.42;
   for (let c = 0; c < cols; c++){
     const s = Math.floor(c * n / cols), e = Math.max(s + 1, Math.floor((c + 1) * n / cols));
     let mx = 0, sl = 0, sm = 0, sh = 0;
@@ -22412,15 +22639,13 @@ function paintLane(ctx, x, y, w, h, tr, frac, accent){
       sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
     }
     const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
-    const played = (c + 0.5) / cols <= frac, dim = played ? 1 : 0.42;
     const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
     const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
     const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
     const bh = Math.max(0.6, Math.pow(mx, 0.9) * (h * 0.48));
-    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.95 : 0.55})`;
-    ctx.fillRect(x + c * cw, mid - bh, bw, bh * 2);
+    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${on ? 0.95 : 0.55})`;
+    ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
   }
-  return true;
 }
 
 /* ================================================================
@@ -23785,6 +24010,24 @@ const VINYL = {
     p.a = a; p.t = now; this._handAt = now;
     this.post({ op: 'handAt', x: p.x });
   },
+  // ---- the hand on the scrolling wave (DECKWAVE): the same record, dragged in a straight line
+  grabLine(t){
+    if (!this.armed && !this.engage(true)){ toast(this.why()); return false; }
+    this._ptr = { a: 0, t: t > 0 ? t : performance.now(), v: 0, x: 0 };
+    this._handAt = performance.now();
+    this.post({ op: 'grab' });
+    HAPTICS.pulse(false);
+    return true;
+  },
+  // x: seconds of music the hand has moved the record since the grab (forward positive)
+  moveLine(x, t){
+    const p = this._ptr;
+    if (!p || !isFinite(x)) return;
+    const now = t > 0 ? t : performance.now(), dt = (now - p.t) / 1000;
+    if (dt > 0) p.v += ((x - p.x) / dt - p.v) * 0.6;   // the speed, only for the probes and the HUD
+    p.x = x; p.t = now; this._handAt = now;
+    this.post({ op: 'handAt', x });
+  },
   lift(){
     if (!this._ptr) return;
     this._ptr = null;
@@ -24147,6 +24390,377 @@ function ramp(param, to, secs){
   } catch (e){ try { param.value = to; } catch (e2){} }
 }
 
+/* ================================================================
+   DECKWAVE — the two decks, scrolling past a fixed needle.
+
+   The read every DJ already has: deck A above deck B, each its song at
+   deck resolution moving right to left under a playhead fixed in the
+   middle, three bands layered (the lows warm and wide, the body in the
+   track's key, the highs bright on top) so a kick, a snare and a hat are
+   three different shapes. Over it, live: the beat grid with bar numbers
+   and phrase lines, the hot cues, the loop, the planned seam and the drops
+   coming in from the right. Both decks are drawn in wall-clock time, so
+   when the mixer has matched them their grids line up on screen, and a
+   phase meter between them reads how far apart their beats are.
+
+   COST. The song is painted ONCE, into tiles of 256 device pixels at the
+   current zoom, and a frame is a few image blits plus a handful of lines.
+   Tiles are kept per deck, at most 48 in all; a zoom change paints the
+   handful the screen shows. The detail is decoded once per track, on the
+   waveform decoder's chain (never two songs of PCM in hand, never across a
+   seam) and analysed in a worker, so the main thread never runs the filters.
+
+   HANDS. Drag deck A's wave and the record goes with it (the VINYL hand, by
+   place: the music under the needle is the music under the finger). Wheel,
+   pinch or double-tap to zoom.
+   ================================================================ */
+const DECKWAVE_TILE = 256;                   // device pixels per cached tile
+const DECKWAVE = {
+  ZOOMS: [2, 4, 8, 16, 32],                  // seconds across the strip
+  zoom: 2,
+  _det: new Map(),                           // track key -> detail | { state }
+  _tiles: new Map(), _worker: null, _jobs: new Map(), _seq: 0, _broken: false,
+  _r: { pk: 0, lo: 0, mi: 0, hi: 0 },
+  key(tr){ return tr ? (tr.url || String(tr.id || '')) : ''; },
+  load(){ try { const z = +localStorage.getItem('mb8_wavezoom'); if (z >= 0 && z < this.ZOOMS.length) this.zoom = z; } catch (e){} },
+  setZoom(z){
+    z = Math.max(0, Math.min(this.ZOOMS.length - 1, z | 0));
+    if (z === this.zoom) return;
+    this.zoom = z; this._tiles.clear();
+    try { localStorage.setItem('mb8_wavezoom', String(z)); } catch (e){}
+  },
+  // what the strip can draw for this track right now: the detail, or the score until it lands
+  src(tr){
+    const d = this._det.get(this.key(tr));
+    if (d && d.pk) return d;
+    if (tr && tr.env){
+      if (!tr._waveEnv) tr._waveEnv = waveFromEnv(tr.env) || 0;
+      if (tr._waveEnv) return tr._waveEnv;
+    }
+    return null;
+  },
+  // ask for a track's detail (idempotent: the booth asks every frame)
+  need(tr){
+    const k = this.key(tr);
+    if (!k || !tr.url || this._det.has(k) || (AE.mic && AE.mic.on)) return;
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return;   // never across a live seam
+    const job = { state: 'pending' };
+    this._det.set(k, job);
+    _peaksChain = _peaksChain.then(() => this._build(tr, k, job)).catch(() => {});
+  },
+  // keep the detail for the songs on the decks and two more, no further back
+  _trim(keep){
+    for (const k of [...this._det.keys()]){
+      if (this._det.size <= 4) break;
+      if (!keep.includes(k)) { this._det.delete(k); this._dropTiles(k); }
+    }
+  },
+  _dropTiles(k){ for (const tk of [...this._tiles.keys()]) if (tk.startsWith(k + '|')) this._tiles.delete(tk); },
+  async _build(tr, k, job){
+    if (this._det.get(k) !== job) return;
+    try {
+      const res = await fetch(tr.url);
+      if (!res.ok) throw new Error('fetch ' + res.status);
+      let buf = await res.arrayBuffer();
+      const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      let ac = null; try { ac = Off ? new Off(1, 1, WAVE_SR) : null; } catch (e){ ac = null; }
+      if (!ac && !AE.ctx) throw new Error('no decoder');
+      let audio = await (ac || AE.ctx).decodeAudioData(buf);
+      buf = null;
+      const chans = [audio.getChannelData(0).slice()];
+      if (audio.numberOfChannels > 1) chans.push(audio.getChannelData(1).slice());
+      const sr = audio.sampleRate;
+      audio = null;                                   // the PCM goes to the worker; the decode is let go
+      const det = await this._analyse(chans, sr);
+      if (this._det.get(k) !== job) return;
+      if (!det) throw new Error('analysis');
+      this._det.set(k, det); this._dropTiles(k);
+      window.__mb8WaveDetail = { key: k, n: det.n, hz: det.hz };   // the probes read the landing
+    } catch (e){ if (this._det.get(k) === job) this._det.set(k, { state: 'err' }); }
+  },
+  _analyse(chans, sr){
+    if (!this._broken && typeof Worker === 'function'){
+      try {
+        if (!this._worker){
+          const url = URL.createObjectURL(new Blob([waveWorkerSource()], { type: 'text/javascript' }));
+          const wk = new Worker(url);
+          wk.onmessage = e => { const m = e.data || {}, f = this._jobs.get(m.id); if (f){ this._jobs.delete(m.id); f(m.det || null); } };
+          // a worker that cannot run is a worker never asked again: the jobs in flight come back empty
+          wk.onerror = () => { this._broken = true; this._worker = null; for (const f of this._jobs.values()) f(null); this._jobs.clear(); };
+          this._worker = wk;
+        }
+        const id = ++this._seq;
+        return new Promise(res => { this._jobs.set(id, res); this._worker.postMessage({ id, chans, sr, hz: WAVE_HZ }, chans.map(c => c.buffer)); });
+      } catch (e){ this._broken = true; this._worker = null; }
+    }
+    return Promise.resolve(waveDetail(chans, sr, WAVE_HZ));
+  },
+  /* ONE TILE: the song from tile i's first device pixel for TILE pixels, at pps
+     device pixels per second of music, painted as four constant-colour fills
+     (the faint true peak, then the body, the lows and the highs layered on it),
+     so a tile costs four fills however dense the song is. */
+  _tile(tr, src, i, pps, hd, acc){
+    const k = this.key(tr) + '|' + pps.toFixed(3) + '|' + hd + '|' + acc.join(',') + '|' + (src.coarse ? 'c' : 'd') + '|' + i;
+    let cv = this._tiles.get(k);
+    if (cv){ this._tiles.delete(k); this._tiles.set(k, cv); return cv; }   // most recently used goes last
+    cv = document.createElement('canvas');
+    cv.width = DECKWAVE_TILE; cv.height = hd;
+    const c = cv.getContext('2d');
+    const mid = hd / 2, amp = hd * 0.48, r = this._r;
+    const P = new Path2D(), Lo = new Path2D(), Mi = new Path2D(), Hi = new Path2D();
+    const t0 = i * DECKWAVE_TILE / pps, dt = 1 / pps;
+    for (let x = 0; x < DECKWAVE_TILE; x++){
+      const t = t0 + x * dt;
+      if (t < 0 || t >= src.dur) continue;
+      waveRange(src, t, t + dt, r);
+      const hp = r.pk * amp, hl = r.lo * amp, hm = r.mi * amp * 0.82, hh = r.hi * amp * 0.62;
+      if (hp > 0.4) P.rect(x, mid - hp, 1, hp * 2);
+      if (hl > 0.4) Lo.rect(x, mid - hl, 1, hl * 2);
+      if (hm > 0.4) Mi.rect(x, mid - hm, 1, hm * 2);
+      if (hh > 0.4) Hi.rect(x, mid - hh, 1, hh * 2);
+    }
+    // the body behind, the kick in front of it, the hats brightest on top: dense
+    // music keeps its kicks readable instead of burying them under the mids
+    c.fillStyle = 'rgba(233,237,246,0.14)'; c.fill(P);
+    c.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.62)`; c.fill(Mi);
+    c.fillStyle = 'rgba(255,112,52,0.94)'; c.fill(Lo);
+    c.fillStyle = 'rgba(232,248,255,0.95)'; c.fill(Hi);
+    this._tiles.set(k, cv);
+    while (this._tiles.size > 48) this._tiles.delete(this._tiles.keys().next().value);
+    return cv;
+  },
+  /* ONE STRIP. t = the song time under the needle; rate = the deck's playback
+     rate, so the strip is drawn in wall-clock time and matched grids line up */
+  _strip(ctx, x, y, w, h, dpr, tr, t, rate, acc, o){
+    const src = this.src(tr);
+    const cx = x + w / 2;
+    ctx.fillStyle = 'rgba(4,5,10,0.5)'; ctx.fillRect(x, y, w, h);
+    if (!src || !isFinite(t)){
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x, y + h / 2 - 0.5, w, 1);
+      return;
+    }
+    const secs = this.ZOOMS[this.zoom];
+    const ppsWall = w / secs;                         // css px per wall second
+    const r = rate > 0.05 ? rate : 1;
+    const pps = ppsWall / r;                          // css px per second of music
+    const ppsD = Math.round(ppsWall * dpr * 4) / 4;   // tiles are painted at the wall rate, quantised so they are reused
+    const hd = Math.max(8, Math.round(h * dpr));
+    const tLeft = t - (w / 2) / pps, tRight = t + (w / 2) / pps;
+    const tileSec = DECKWAVE_TILE / ppsD * 1;         // music seconds per tile at the painted rate
+    const scale = pps / (ppsD / dpr);                 // stretch from the painted rate to this deck's
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    for (let i = Math.floor(tLeft / tileSec); i <= Math.floor(tRight / tileSec); i++){
+      if ((i + 1) * tileSec < 0 || i * tileSec > src.dur) continue;
+      const tile = this._tile(tr, src, i, ppsD, hd, acc);
+      // snapped to the device pixel: crisp columns, never a smeared resample
+      const dx = Math.round((cx + (i * tileSec - t) * pps) * dpr) / dpr;
+      ctx.drawImage(tile, dx, y, DECKWAVE_TILE / dpr * scale, h);
+    }
+    // the played half sits back a little, the way the deck shows where it has been
+    ctx.fillStyle = 'rgba(3,4,9,0.30)'; ctx.fillRect(x, y, w / 2, h);
+    const X = tt => cx + (tt - t) * pps;
+    // the planned seam (and its beat ticks), shaded under everything else
+    if (o.seam){
+      const a = X(o.seam[0]), b = X(o.seam[1]);
+      if (b > x && a < x + w){
+        ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.10)`; ctx.fillRect(a, y, b - a, h);
+        ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.65)`; ctx.fillRect(a - 0.75, y, 1.5, h); ctx.fillRect(b - 0.75, y, 1.5, h);
+      }
+    }
+    // the loop the room is holding
+    if (o.loop){
+      const a = X(o.loop.start), b = X(o.loop.start + o.loop.len);
+      ctx.fillStyle = 'rgba(124,224,122,0.16)'; ctx.fillRect(a, y, b - a, h);
+      ctx.fillStyle = 'rgba(124,224,122,0.9)'; ctx.fillRect(a - 0.75, y, 1.5, h); ctx.fillRect(b - 0.75, y, 1.5, h);
+    }
+    // the grid: beats faint, bars clear and numbered, phrases in the key
+    const m = mixOf(tr);
+    if (m && m.bpm > 0 && isFinite(m.grid)){
+      ctx.font = '600 8px ui-monospace, monospace'; ctx.textBaseline = 'top';
+      for (const g of waveGrid(m.bpm, m.grid, tLeft, tRight, m.phrases > 0 ? m.phrases / 4 : 8)){
+        const gx = Math.round(X(g.t) * dpr) / dpr;
+        // every beat a tick at both edges (readable over any density), the bars a line
+        // through the wave, the phrases a line in the key
+        const tk = g.bar ? 9 : 5;
+        ctx.fillStyle = g.phrase ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.95)` : g.bar ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.55)';
+        ctx.fillRect(gx - 0.75, y, 1.5, tk); ctx.fillRect(gx - 0.75, y + h - tk, 1.5, tk);
+        if (g.phrase){ ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.7)`; ctx.fillRect(gx - 0.75, y, 1.5, h); }
+        else if (g.bar){ ctx.fillStyle = 'rgba(255,255,255,0.32)'; ctx.fillRect(gx - 0.5, y, 1, h); }
+        if (g.bar && g.barNo > 0 && pps * 240 / m.bpm > 18){
+          ctx.fillStyle = g.phrase ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.95)` : 'rgba(255,255,255,0.5)';
+          ctx.fillText(String(g.barNo), gx + 3, y + 1);
+        }
+      }
+    }
+    // the drops, riding in toward the needle
+    if (o.struct && src.dur > 0){
+      for (const dp of dropPoints(o.struct)){
+        const dx = X(dp.at * src.dur);
+        if (dx < x - 6 || dx > x + w + 6) continue;
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath(); ctx.moveTo(dx - 4, y + h); ctx.lineTo(dx + 4, y + h); ctx.lineTo(dx, y + h - 6); ctx.closePath(); ctx.fill();
+      }
+    }
+    // the hot cues, each in its pad's colour
+    if (o.cues){
+      for (let i = 0; i < o.cues.length; i++){
+        const v = o.cues[i];
+        if (v == null) continue;
+        const cxp = X(v);
+        if (cxp < x - 12 || cxp > x + w) continue;
+        ctx.fillStyle = CUE_COLORS[i]; ctx.fillRect(cxp - 0.75, y, 1.5, h);
+        ctx.beginPath(); ctx.moveTo(cxp, y + h); ctx.lineTo(cxp + 10, y + h); ctx.lineTo(cxp + 10, y + h - 10); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0a0d12'; ctx.font = 'bold 7px ui-monospace, monospace'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText(String(i + 1), cxp + 5, y + h - 2);
+      }
+    }
+    ctx.restore();
+    // the needle
+    ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.28)`; ctx.fillRect(cx - 4, y, 8, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(cx - 0.75, y, 1.5, h);
+    // the deck's read-out: letter, tempo as heard, time left
+    ctx.font = '600 9px ui-monospace, monospace'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(4,5,10,0.6)'; ctx.fillRect(x + 2, y + h - 13, 104, 12);
+    ctx.fillStyle = `rgb(${acc[0]},${acc[1]},${acc[2]})`;
+    const left = src.dur - t;
+    const bpm = m && m.bpm > 0 ? (m.bpm * r).toFixed(1) : '---.-';
+    ctx.fillText(o.label + '  ' + bpm + '  -' + Math.floor(Math.max(0, left) / 60) + ':' + String(Math.floor(Math.max(0, left) % 60)).padStart(2, '0'), x + 5, y + h - 12);
+    if (src.coarse){ ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillText('score', x + w - 34, y + h - 12); }
+  },
+  /* THE PHASE METER: each deck's place in its bar as four cells, and between
+     them the distance of B's beat from A's, centred when they agree */
+  _phase(ctx, x, y, w, h, pa, pb, accA, accB){
+    const cells = (p, yy, acc) => {
+      if (p == null) return;
+      const cw = w / 4;
+      for (let i = 0; i < 4; i++){
+        const on = Math.floor(p) === i;
+        ctx.fillStyle = on ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.9)` : 'rgba(255,255,255,0.08)';
+        ctx.fillRect(x + i * cw + 1, yy, cw - 2, h / 2 - 1);
+      }
+    };
+    cells(pa, y, accA);
+    if (pb != null){
+      cells(pb, y + h / 2, accB);
+      if (pa != null){
+        let d = (pb - pa) % 1; if (d > 0.5) d -= 1; if (d < -0.5) d += 1;   // within a beat: who is ahead, and by how much
+        const cx = x + w / 2, len = d * w;
+        ctx.fillStyle = Math.abs(d) < 0.03 ? 'rgba(124,224,122,0.95)' : 'rgba(255,190,74,0.95)';
+        ctx.fillRect(Math.min(cx, cx + len), y + h / 2 - 1.5, Math.max(1.5, Math.abs(len)), 3);
+      }
+    }
+  },
+  // the deck's song time as heard: deck A through the platter's hand when the vinyl layer has it
+  _timeOf(d, isA){
+    if (!d || !isFinite(d.a.currentTime)) return NaN;
+    let t = d.a.currentTime;
+    if (isA && typeof VINYL !== 'undefined' && VINYL.engaged) t -= VINYL.lagNow();
+    return t;
+  },
+  draw(dA, tA, dB, tB, accA, accB, plan, running){
+    const cv = el.boothWave;
+    if (!cv) return;
+    const ctx = this._ctx || (this._ctx = cv.getContext('2d'));
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h || !ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)){
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); this._tiles.clear();
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (tA) this.need(tA);
+    if (tB) this.need(tB);
+    this._trim([this.key(tA), this.key(tB)]);
+    const meterH = 10, gap = 4;
+    const sh = (h - meterH - gap * 2) / 2;
+    const tAt = this._timeOf(dA, true);
+    const durA = dA && isFinite(dA.a.duration) ? dA.a.duration : 0;
+    let seamA = null, seamB = null;
+    if (plan && plan.type === 'beatmix'){
+      seamA = [plan.startA, plan.startA + (plan.beats || 16) * 60 / plan.bpmA];
+      seamB = [plan.startB, plan.startB + (plan.beats || 16) * 60 / plan.bpmB];
+    } else if (plan && plan.type === 'fade' && durA > 0) seamA = [Math.max(0, durA - plan.seconds), durA];
+    const loop = !running && typeof FX !== 'undefined' && FX.loop ? FX.loop : null;
+    const cues = !running && typeof CUES !== 'undefined' ? CUES.slots : null;
+    const rA = dA ? (dA.a.playbackRate || 1) : 1;
+    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, accA, { label: 'A', seam: seamA, loop, cues, struct: trackStructure(tA) });
+    // deck B: playing through a seam, or cued where the plan will start it
+    let tBt = NaN;
+    if (tB && dB){
+      tBt = dB.a.currentTime;
+      if (!(tBt > 0.01) && plan && plan.type === 'beatmix') tBt = plan.startB;
+    }
+    const rB = dB ? (dB.a.playbackRate || 1) : 1;
+    this._strip(ctx, 0, sh + meterH + gap * 2, w, sh, dpr, tB, tBt, rB, accB, { label: 'B', seam: tB ? seamB : null, struct: tB ? trackStructure(tB) : null });
+    const mA = mixOf(tA), mB = mixOf(tB);
+    const pa = mA ? waveBeatPos(mA.bpm, mA.grid, tAt) : null;
+    const pb = tB && mB && isFinite(tBt) ? waveBeatPos(mB.bpm, mB.grid, tBt) : null;
+    this._phase(ctx, w / 2 - 60, sh + gap, 120, meterH, pa, pb, accA, accB);
+    this._geom = { w, sh, pps: w / this.ZOOMS[this.zoom] / (rA > 0.05 ? rA : 1) };
+  },
+};
+DECKWAVE.load();
+
+/* the strip's hands: deck A's wave is the record (drag it to scratch); wheel,
+   pinch and double-tap zoom. Deck B's says which record is on air. */
+function wireDeckWave(){
+  const cv = el.boothWave;
+  if (!cv || cv._wired) return;
+  cv._wired = true;
+  const ptrs = new Map();
+  let drag = null, pinch = null, lastTap = 0;
+  const rel = ev => { const r = cv.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+  cv.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    DECKWAVE.setZoom(DECKWAVE.zoom + (ev.deltaY > 0 ? 1 : -1));
+  }, { passive: false });
+  cv.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.preventDefault();
+    ptrs.set(ev.pointerId, rel(ev));
+    try { cv.setPointerCapture(ev.pointerId); } catch (e){}
+    if (ptrs.size === 2){
+      // a second finger is a pinch: whatever the first was doing, it gives the record back
+      if (drag){ VINYL.lift(); drag = null; }
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: DECKWAVE.zoom };
+      return;
+    }
+    const p = rel(ev), g = DECKWAVE._geom;
+    if (!g) return;
+    const now = performance.now();
+    if (now - lastTap < 300){ lastTap = 0; DECKWAVE.setZoom((DECKWAVE.zoom + 1) % DECKWAVE.ZOOMS.length); return; }
+    lastTap = now;
+    if (p.y > g.sh + 8){ toast(T('Scratch deck A — that is the record on air')); return; }
+    if (VINYL.grabLine(ev.timeStamp)) drag = { id: ev.pointerId, x0: p.x, pps: g.pps };
+  });
+  cv.addEventListener('pointermove', ev => {
+    if (!ptrs.has(ev.pointerId)) return;
+    ptrs.set(ev.pointerId, rel(ev));
+    if (pinch && ptrs.size === 2){
+      const [a, b] = [...ptrs.values()];
+      const ratio = (Math.hypot(a.x - b.x, a.y - b.y) || 1) / pinch.d;
+      // spreading the fingers zooms in (fewer seconds across); each doubling is one step
+      DECKWAVE.setZoom(pinch.z - Math.round(Math.log2(ratio)));
+      return;
+    }
+    if (drag && ev.pointerId === drag.id){
+      const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
+      const r = cv.getBoundingClientRect();
+      // dragging the wave left pulls the music forward under the needle, as on any deck
+      for (const e of (evs.length ? evs : [ev])) VINYL.moveLine(-(e.clientX - r.left - drag.x0) / drag.pps, e.timeStamp);
+    }
+  });
+  const up = ev => {
+    ptrs.delete(ev.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    if (drag && ev.pointerId === drag.id){ drag = null; VINYL.lift(); }
+  };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+
 const BOOTH = {
   open: false, _txt: {},
   toggle(on){
@@ -24160,7 +24774,7 @@ const BOOTH = {
     if (next){
       el.booth.classList.remove('closing');
       el.booth.classList.add('open');
-      if (!this._fxWired){ this._fxWired = true; wireFxRack(); }
+      if (!this._fxWired){ this._fxWired = true; wireFxRack(); wireDeckWave(); }
       FXPADS.render(); syncFxHud();
       this.draw();
     } else {
@@ -24169,6 +24783,7 @@ const BOOTH = {
       el.booth.classList.remove('open');
       el.booth.classList.add('closing');
       VINYL.ejectSong();                       // the pressed record is let go with the booth
+      DECKWAVE._tiles.clear();                 // and the painted tiles: the detail stays, the pixels go
       this._closeT = setTimeout(() => el.booth.classList.remove('closing'), 320);
     }
   },
@@ -24661,6 +25276,9 @@ const BOOTH = {
         ctx.fillStyle = gB; ctx.fillRect(w * 0.45, 0, w * 0.55, h);
       }
     }
+
+    // ---- the scrolling decks above: their own canvas, their own cost (a few blits a frame)
+    DECKWAVE.draw(dA, tA, dB, tB, accA, accB, p, running);
 
     // ---- top strip: the red voice + the step row
     const master = running && f > 0.5 ? { d: dB, t: tB } : { d: dA, t: tA };
