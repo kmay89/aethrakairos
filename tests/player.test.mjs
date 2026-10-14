@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
   '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_GIVE_UP, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -45,6 +45,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GESTALT, proximityOk, parkinsonBudget, teslerShare, occamPick, postelUrl,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
+  ' STEM_LIGHT, STEM_CUT_DWELL, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
   ' danceLeanJS, danceStrideJS, danceFrontJS, danceLampJS, danceLandJS, danceRingJS, danceBreathJS, danceBeatWeightJS,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
@@ -2185,6 +2186,122 @@ test('vocalClashBias: inert until both tracks are separated', () => {
   assert.equal(S.vocalClashBias(sep, raw), 0, 'no stems on B → 0');
   assert.equal(S.vocalClashBias(raw, sep), 0, 'no stems on A → 0');
   assert.equal(S.vocalClashBias(null, sep), 0, 'null track → 0');
+});
+
+// ---- STEM LIGHT: the room hears the band, not the mix (@stem) ----
+// a 12 Hz score: `kit` is a kick every half second (one '9' then five '1's),
+// `none` is silence; the envelopes are composed per test.
+const STEM_HZ = 12;
+const kitBars = s => '911111'.repeat(Math.round(s * 2));
+const flat = (ch, s) => ch.repeat(Math.round(s * STEM_HZ));
+function runStems(stems, from, to, opts = {}){
+  const st = S.makeStemLightState(), dt = 1 / 60, frames = [];
+  for (let t = from; t < to; t += dt){
+    S.stemLightStep(st, { stems, pos: t, playing: opts.playing !== false }, dt);
+    frames.push({ t, st: { ...st }, out: S.stemLightOut(st) });
+  }
+  return frames;
+}
+test('stem light: no stems (or the mic) is exactly neutral — the show is unchanged', () => {
+  for (const stems of [null, undefined, { sv: 1 }, { sv: 1, hz: 0, d: '999' }]){
+    const fr = runStems(stems, 0, 3);
+    for (const { out } of fr){
+      assert.equal(out.beatGate, 1); assert.equal(out.bassMul, 1); assert.equal(out.midMul, 1);
+      assert.equal(out.chromaAdd, 0); assert.equal(out.lightMul, 1); assert.equal(out.whiteMul, 1);
+      assert.equal(out.coil, 0); assert.equal(out.landed, false);
+    }
+  }
+});
+test('stem light: paused stems fade out of authority, never pop', () => {
+  const stems = { sv: 1, hz: STEM_HZ, d: kitBars(20), b: flat('9', 20), v: flat('0', 20), o: flat('0', 20) };
+  const st = S.makeStemLightState();
+  for (let t = 0; t < 6; t += 1 / 60) S.stemLightStep(st, { stems, pos: t, playing: true }, 1 / 60);
+  assert.ok(st.conf > 0.95, 'six seconds in, the stems have authority');
+  let prev = st.conf;
+  for (let k = 0; k < 120; k++){
+    S.stemLightStep(st, { stems, pos: 6, playing: false }, 1 / 60);
+    assert.ok(st.conf <= prev && prev - st.conf < 0.02, 'conf decays smoothly');
+    prev = st.conf;
+  }
+});
+test('stem light: the strike belongs to the kit — no drums, the beat falls to a breath', () => {
+  const stems = { sv: 1, hz: STEM_HZ, d: kitBars(8) + flat('0', 8), b: flat('5', 16), v: flat('0', 16), o: flat('6', 16) };
+  const fr = runStems(stems, 0, 16);
+  const at = t => fr.find(f => f.t >= t).out;
+  assert.ok(at(7).beatGate > 0.9, 'kit playing: the beat channel is open');
+  assert.ok(at(15.5).beatGate < S.STEM_LIGHT.gateFloor + 0.05, 'kit gone: the beat is a breath');
+  assert.ok(at(15.5).whiteMul < 0.6, 'and no kit buys no bleach');
+  assert.ok(fr.every(f => f.out.beatGate >= S.STEM_LIGHT.gateFloor - 1e-9 && f.out.beatGate <= 1 + 1e-9));
+});
+test('stem light: the kit\'s return is seen coming — the coil rises, then lands exactly once', () => {
+  // 6 s groove, 6 s breakdown (voice + pad, no kit), the drums come back at 12 s
+  const d = kitBars(6) + flat('0', 6) + kitBars(6);
+  const stems = { sv: 1, hz: STEM_HZ, d, b: flat('4', 18), v: flat('0', 6) + flat('7', 6) + flat('2', 6), o: flat('5', 18) };
+  const fr = runStems(stems, 0, 18);
+  const landings = fr.filter(f => f.out.landed);
+  assert.equal(landings.length, 1, 'one return, one landing');
+  assert.ok(Math.abs(landings[0].t - 12) < 0.12, `it lands on the return (${landings[0].t.toFixed(3)} s)`);
+  const pre = fr.filter(f => f.t > 10.6 && f.t < 11.95);
+  assert.ok(Math.max(...pre.map(f => f.out.coil)) > 0.8, 'the room inhales before the drums arrive');
+  assert.ok(fr.filter(f => f.t > 7 && f.t < 9.4).every(f => f.out.coil < 0.05), 'no coil while the return is out of sight');
+  assert.ok(fr.filter(f => f.t > 12.2).every(f => f.out.coil < 0.05), 'the landing releases the coil');
+  // and the band is named
+  const sect = t => fr.find(f => f.t >= t).st.section;
+  assert.equal(sect(10), 'break'); assert.ok(['groove', 'drop', 'song'].includes(sect(15)));
+});
+test('stem light: a seek is a cut, not a drop — no landing across a jump', () => {
+  const stems = { sv: 1, hz: STEM_HZ, d: flat('0', 10) + kitBars(10), b: flat('4', 20), v: flat('0', 20), o: flat('4', 20) };
+  const st = S.makeStemLightState();
+  for (let t = 0; t < 6; t += 1 / 60) S.stemLightStep(st, { stems, pos: t, playing: true }, 1 / 60);
+  let landed = 0;
+  for (let t = 15; t < 17; t += 1 / 60){ S.stemLightStep(st, { stems, pos: t, playing: true }, 1 / 60); if (st.landed) landed++; }
+  assert.equal(landed, 0);
+  assert.equal(st.kit, true, 'the kit is re-read where the needle landed');
+});
+test('stem light: the voice saturates, a hush cools, a bassline weighs', () => {
+  const sing = runStems({ sv: 1, hz: STEM_HZ, d: kitBars(8), b: flat('2', 8), v: flat('9', 8), o: flat('3', 8) }, 0, 8).pop().out;
+  const hush = runStems({ sv: 1, hz: STEM_HZ, d: flat('0', 8), b: flat('0', 8), v: flat('0', 8), o: flat('3', 8) }, 0, 8).pop().out;
+  const heavy = runStems({ sv: 1, hz: STEM_HZ, d: kitBars(8), b: flat('9', 8), v: flat('0', 8), o: flat('3', 8) }, 0, 8).pop().out;
+  assert.ok(sing.chromaAdd > 0.15 && sing.midMul > 1.1 && sing.lightMul > 1.03);
+  assert.ok(hush.chromaAdd < -0.1);
+  assert.ok(heavy.bassMul > 1.15 && sing.bassMul < 1);
+});
+test('stem light: every output is finite whatever the input', () => {
+  const st = S.makeStemLightState();
+  const stems = { sv: 1, hz: STEM_HZ, d: 'x9a0', b: '', v: null, o: '5' };
+  for (const [pos, dt] of [[NaN, 1 / 60], [-4, 1 / 60], [1e9, 1 / 60], [1, -1], [1, NaN], [1, 99], [2, 1 / 60]]){
+    S.stemLightStep(st, { stems, pos, playing: true }, dt);
+    const o = S.stemLightOut(st);
+    for (const k of ['beatGate', 'bassMul', 'midMul', 'chromaAdd', 'lightMul', 'whiteMul', 'coil'])
+      assert.ok(Number.isFinite(o[k]), `${k} finite at pos ${pos}, dt ${dt}`);
+  }
+  assert.equal(S.stemSection(false, 0, 0), 'hush'); assert.equal(S.stemSection(false, 0.5, 0.6), 'break');
+  assert.equal(S.stemSection(true, 0.2, 0.5), 'song'); assert.equal(S.stemSection(true, 0.7, 0.1), 'drop');
+  assert.equal(S.stemSection(true, 0.2, 0.1), 'groove');
+});
+
+test('stem light: the TV\'s StemLight carries the web\'s constants and formulas (parity)', () => {
+  const swift = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
+  const body = swift.slice(swift.indexOf('struct StemLight'));
+  assert.ok(body.length > 100, 'StemLight is in Dance.swift');
+  const num = name => {
+    const m = body.match(new RegExp(`\\b${name} = ([0-9.]+)`));
+    assert.ok(m, `StemLight.${name} declared`);
+    return Number(m[1]);
+  };
+  for (const k of Object.keys(S.STEM_LIGHT)) assert.equal(num(k), S.STEM_LIGHT[k], `STEM_LIGHT.${k}`);
+  for (const f of ['0.70 + 0.55 * bb', '0.85 + 0.30 * vv', '0.20 * vv - 0.14 * (1 - dd) * (1 - vv)',
+                   '1 + c * 0.05 * vv', '0.55 + 0.45 * dd', '* 1.15', 'coil = ease(coil, coming ? 1 : 0, 0.35, 0.25)'])
+    assert.ok(body.includes(f), `the Swift port carries "${f}"`);
+  for (const k of ['hush', 'break', 'groove', 'song', 'drop']) assert.ok(body.includes(`"${k}"`) || body.includes(` ${k}`), k);
+  const rooms = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Rooms.swift'), 'utf8');
+  const cut = rooms.match(/static let stemCutDwell: Double = ([0-9.]+)/);
+  assert.ok(cut && Number(cut[1]) === S.STEM_CUT_DWELL, 'the kit\'s-return cut waits the same dwell on both stages');
+  assert.ok(html.includes('STEMS.out.landed && director.dwell >= STEM_CUT_DWELL'), 'the web SEGUE cuts on the landing');
+  const view = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8');
+  for (const f of ['stemLight.step(', 'kitReturn: stemOut.landed', 'stemOut.beatGate', 'stemOut.bassMul', 'stemOut.midMul',
+                   'stemOut.chromaAdd', 'stemOut.lightMul', 'stemOut.whiteMul', 'stemOut.coil'])
+    assert.ok(view.includes(f), `the TV renderer reads ${f}`);
 });
 
 // ---- energy-arc scoring: hold or lift the floor, never crash it ----

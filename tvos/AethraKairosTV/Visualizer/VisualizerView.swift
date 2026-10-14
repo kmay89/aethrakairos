@@ -315,6 +315,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     // ears, written into VizUniforms bytes 144..191. Live but invisible until a
     // room reads it: every room renders today what it rendered at stride 144.
     private var dance = DanceBus()
+    // STEM LIGHT (Dance.swift): the separated band, read from the score, and
+    // the colour engine's answer to it — the web COLOR's wash and bloom
+    private var stemLight = StemLight()
+    private var palWash: Double = 0
+    private var palBloom: Double = 0
+    private var palLastBrace: Double = 0
 
     // CI's synthetic drive: `--drive-demo` replaces the ears with a pumping
     // 126 BPM signal so the simulator can photograph rooms UNDER music
@@ -912,6 +918,16 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                                   playing: player.isPlaying || Self.driveDemo,
                                   calm: calmNow)
 
+        // -- STEM LIGHT: the band, not the mix. The kit owns the strike, the
+        //    bass stem the body, the voice the mids and the saturation; the
+        //    kit's return after an absence is seen 0.5–2 s early (the coil)
+        //    and lands on the frame the drums come back. Neutral without
+        //    stems (the demo drive carries none, so CI's frames are unmoved). --
+        stemLight.step(stems: busTrack?.mix?.stems, pos: frame.playhead + 0.08,
+                       playing: player.isPlaying || Self.driveDemo, dt: dt)
+        let stemOut = stemLight.out
+        let gatedOnset = frame.onsetEnv * Float(stemOut.beatGate)
+
         // the rubato: rooms run in musical time, clamped to the dance floor
         let rate = min(max(0.45 + 1.05 * Double(dispEnergy), 0.4), 1.9)
         musicalTime += dt * rate
@@ -937,11 +953,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         var wWant = min(max(wHeat * (0.30 + 0.70 * Double(frame.energy)), 0), 1)
         wWant *= wWant
         if calmNow { wWant *= 0.45 }
-        let whiteTarget = 0.05 + (0.92 - 0.05) * wWant
+        // no kit, no bleach: a breakdown stays dark however loud it is
+        let whiteTarget = max(0.05, (0.05 + (0.92 - 0.05) * wWant) * stemOut.whiteMul)
         let wTau = whiteTarget > whiteEased ? 0.9 : 1.8
         whiteEased += (whiteTarget - whiteEased) * (1 - exp(-dt / wTau))
         whiteEased = min(max(whiteEased, 0.05), 0.92)
-        let whiteLive = min(max(whiteEased * (0.8 + 0.35 * Double(frame.onsetEnv)), 0.05), 0.92)
+        let whiteLive = min(max(whiteEased * (0.8 + 0.35 * Double(gatedOnset)), 0.05), 0.92)
 
         /* THE COLOUR ENGINE, live. Deal a plan per track and GLIDE to it
            through OKLCH over eight beats on the measured grid; unkeyed
@@ -970,11 +987,30 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             palNow = zip(palFrom, palTarget).map { Palette.lerp($0, $1, k) }
         }
         let golden = player.isPlaying ? Palette.goldenGate(Double(frame.phrasePhase)) : 0
-        let mulC = 0.88 + heatGoal * 0.45 + golden * 0.22
-        let mulL = 0.97 + heatGoal * 0.05
+        /* the conjuror's wash, the web COLOR's law: precognition sees a landing
+           coming (the bus's brace on the score, or the kit's return on the
+           stems) and the room INHALES toward the complement of its own chord;
+           when the landing cuts the brace the true hues snap back and BLOOM.
+           Luminance barely moves, and the flash governor still has the last
+           hand. CALM keeps a gentler inhale. */
+        let braceNow = stemOut.landed ? 0 : max(Double(danceOut.brace), stemOut.coil)
+        let washGoal = min(max(braceNow, 0), 1) * (calmNow ? 0.35 : 0.85)
+        palWash += (washGoal - palWash) * (1 - exp(-dt / (washGoal > palWash ? 0.45 : 0.06)))
+        palBloom *= exp(-dt / 1.4)
+        if palLastBrace > 0.5 && braceNow < 0.15 { palBloom = max(palBloom, 1.25) }
+        palLastBrace = braceNow
+        // …and the BAND's lean: a singer saturates the light, a hush cools it,
+        // a held note brightens the chord a breath
+        let mulC = 0.88 + heatGoal * 0.45 + golden * 0.22 + palBloom * 0.35 + stemOut.chromaAdd
+        let mulL = (0.97 + heatGoal * 0.05) * stemOut.lightMul
         let goalWarm = Palette.actWarmth(act: actEased, heat: ceil)
         warmEased += (goalWarm - warmEased) * (1 - exp(-dt / 3.0))
         var lit = palNow
+        if palWash > 0.01 {
+            let w = palWash
+            lit = lit.map { Palette.lerp($0, Palette.Stop(l: $0.l * 0.94, c: $0.c * 0.6,
+                                                          h: ($0.h + 180).truncatingRemainder(dividingBy: 360)), w) }
+        }
         if abs(warmEased) > 0.005, let root = lit.first {
             let d = Palette.shortestArc(from: root.h, to: Palette.warmTilt(h: root.h, pull: warmEased))
             if abs(d) > 0.05 {
@@ -992,7 +1028,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // (a deal that lands on the room already showing — possible while the
         // house is still compiling and the opening room is the only door — is
         // no handover at all, exactly as a swipe that goes nowhere is not)
-        if director.tick(dt: dt, frame: frame, act: actTarget, ceil: ceil) != nil,
+        if director.tick(dt: dt, frame: frame, act: actTarget, ceil: ceil,
+                         kitReturn: stemOut.landed) != nil,
            director.currentIndex != before {
             beginTransition(from: before)
             publishRoomName()
@@ -1073,11 +1110,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         u.beatPhase = frame.beatPhase
         u.barPhase = frame.barPhase
         u.energy = dispEnergy
-        u.bass = dispBass
-        u.mid = dispMid
+        u.bass = min(max(dispBass * Float(stemOut.bassMul), 0), 1)
+        u.mid = min(max(dispMid * Float(stemOut.midMul), 0), 1)
         u.treble = dispTreble
         u.calm = frame.calm
-        u.onsetEnv = frame.onsetEnv
+        u.onsetEnv = gatedOnset                // the strike belongs to the kit
         // height is guarded above — the aspect never divides by zero
         u.aspect = Float(size.width / size.height)
         u.transition = transitionProgress >= 1 ? 1 : Float(transitionProgress)
@@ -1143,7 +1180,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         if ghostStrength > 0.05, let fieldPipeline, let fb = texB {
             let key = Rooms.all.indices.contains(current) ? Rooms.all[current].key : ""
             var fp = SIMD4<Float>(Self.ghostTouchMode[key] ?? 2,
-                                  min(max(frame.onsetEnv, 0), 1),
+                                  min(max(gatedOnset, 0), 1),
                                   0.35 + 0.55 * dispEnergy,
                                   Float(fieldPhase))
             encodeField(pipeline: fieldPipeline, into: fb,

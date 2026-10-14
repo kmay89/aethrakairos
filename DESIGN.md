@@ -1648,6 +1648,54 @@ wave puts the two engines together without breaking the lens law.
   whatever the dealer holds. A test reads the Swift picker and holds its
   shelves to the web's, code for key.
 
+### 1.2u The light hears the band — Demucs in the room
+
+Every track in the catalog has been through Demucs (htdemucs, offline, in
+`stems.yml`) and carries its four players as 12 Hz envelopes — drums, bass,
+voice, everything else (`mix.stems`). Until this wave only the booth's
+waveform and the mixer's vocal-clash rule read them. The light heard a
+bass/mid/treble split of the whole mix, which cannot tell a kick from a
+bassline or a hi-hat from a breath: a pad swelled and the room struck as if a
+drum had landed.
+
+**STEM LIGHT** (`@stem` in `docs/index.html`, `StemLight` in
+`tvos/.../Dance.swift`, one set of constants, a parity test that reads the
+Swift) is one pure stepper both stages run every frame:
+
+- **The strike belongs to the kit.** With no drums playing, the beat channel
+  falls to a breath (×0.35) before the flash governor sees it. Breakdowns go
+  still instead of twitching at every synth onset. About half of every
+  catalog track is kit-less, so this is most of the show.
+- **The body belongs to the bass, the mids to the voice.** `uBass` leans on
+  the bass stem (×0.70–1.25), `uMid` on the voice (×0.85–1.15). A singer
+  saturates the chord and brightens it a breath. A hush (no kit, no voice)
+  cools it. No kit buys no white: a loud breakdown still stays dark.
+- **Precognition by instrument.** When the kit has been away ≥ 2 s and the
+  score says it returns 0.5–2.0 s ahead, the coil rises. It feeds the
+  dancer's brace, and through it the colour wash, which inhales toward the
+  palette's complement, and CHOREO's suspend. On the frame the drums come back
+  it **lands**: shockwave, beat, the bloom as the true hues snap back, and the
+  director **changes room on the one** if the room has had 10 s
+  (`STEM_CUT_DWELL` / `Director.stemCutDwell`). Across the catalog that is a
+  median of 4 earned landings a track, every track has at least one, and the
+  room is inhaling only ~4 % of the time.
+- **Neutral without stems.** On the mic, an unseparated file, or the TV's
+  demo drive, `conf` eases to 0 and every output is exactly 1 or 0. The show
+  is byte-for-byte what it was.
+
+The TV had no colour wash or bloom; it gains the web's, driven by
+`max(dBrace, coil)`. `tools/stem_probe.mjs` plays a real track
+(`01-audio-4927.mp3`, the kit returning at 88.7 s after 30 s away). It logs
+the stepper, brace, wash, bloom and the scene cut, and photographs the
+breakdown, the coil and the landing.
+
+Next, deliberately not in this wave: a **drum-hit chart**. Onsets per
+kick/snare/hat, detected on the separated drum stem while CI still holds it,
+would give both stages frame-exact strikes known in advance. Then **stem
+section names** feeding the deal's taste vector, and a room that draws the
+quartet. That room needs four floats in `VizUniforms` (every translation unit
+moves together).
+
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;
   Haitsma–Kalker perceptual-clone gate; features cache; catalog-wide feature

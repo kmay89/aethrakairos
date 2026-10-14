@@ -16510,6 +16510,144 @@ function danceScoreRises(env, step, mem, out){
 // @dance-end
 
 /* ================================================================
+   §6c-ter · STEM LIGHT — the room hears the band, not the mix.
+   Demucs (tools/stems.py, offline, every track) separates each song into
+   its four players — drums, bass, voice, everything else — and the catalog
+   ships each one as a 12 Hz digit envelope (mix.stems). Until now only the
+   booth and the mixer read them; the light heard a bass/mid/treble split of
+   the WHOLE mix, which cannot tell a kick from a bassline or a hi-hat from a
+   breath. A pad swelled and the room struck as if a drum had landed.
+   The stepper turns the four into what a lighting designer would want:
+     beatGate   the strike belongs to the KIT — with no drums playing the
+                beat channel falls to a breath (0.35), and comes back the
+                moment sticks touch skins
+     bassMul    the body belongs to the BASS — a kick with no bassline under
+                it is a strike, not weight
+     midMul     the VOICE carries the mids: a singer lifts them
+     chromaAdd  the voice saturates the light; a hush (no kit, no voice)
+                cools it
+     lightMul   a held note brightens the chord a breath
+     whiteMul   no kit, no bleach: a breakdown stays dark however loud
+     coil       PRECOGNITION, by the instrument: the kit has been away at
+                least STEM_LIGHT.awayMin seconds and the score says it
+                returns inside the window — the room inhales (the colour
+                wash, the dancer's brace) and…
+     landed     …on the frame the drums come back, it lands. Every return
+                of the kit in the catalog is a real drop the eye can feel
+                coming, because the light read it two seconds early.
+     section    hush | break | groove | song | drop — what the band is
+                doing, named
+   Pure, deterministic, allocation-free past the state object, every value
+   finite and defined in silence. With no stems (or the mic) conf eases to
+   0 and every output reads neutral (gates 1, adds 0): the show is exactly
+   what it was before. Ported line for line to the TV as StemLight
+   (tvos/AethraKairosTV/Visualizer/Dance.swift) — one set of constants.
+   ================================================================ */
+// @stem-start
+const STEM_LIGHT = {
+  win: 0.7,          // s — presence reads the trailing window (a hit, not its gap)
+  aheadA: 0.5,       // s — the "soon" window opens…
+  aheadB: 2.0,       //     …and closes: the coil reads 0.5–2.0 s ahead
+  kitOn: 0.45,       // the kit is PLAYING once its peak clears this…
+  kitOff: 0.30,      // …and stops once it falls under this (hysteresis)
+  awayMin: 2.0,      // s — the kit must be gone this long before its return is a drop
+  tauUp: 0.12,       // s — levels rise fast…
+  tauDown: 0.6,      // …and let go slowly (a 12 Hz score never steps on screen)
+  tauConf: 1.2,      // s — stems fade in and out of authority, never pop
+  gateFloor: 0.35,   // the beat channel with no kit at all
+};
+// s — the kit's return may change the room only once the room has had its say
+const STEM_CUT_DWELL = 10;
+function makeStemLightState(){
+  return { conf: 0, d: 0, b: 0, v: 0, o: 0, kit: false, away: 0, coil: 0,
+           landed: false, section: 'none', pos: NaN };
+}
+function stemDigit(str, j){
+  const c = str.charCodeAt(j < 0 ? 0 : (j < str.length ? j : str.length - 1)) - 48;
+  return c >= 0 && c <= 9 ? c / 9 : 0;
+}
+// the PEAK of one envelope over samples [i0, i1] — a drum is its hits
+function stemPeak(str, i0, i1){
+  if (!str || !str.length) return 0;
+  let p = 0;
+  for (let j = i0; j <= i1; j++){ const x = stemDigit(str, j); if (x > p) p = x; }
+  return p;
+}
+// the MEAN over [i0, i1] — a voice, a bassline, a pad is its sustain
+function stemMean(str, i0, i1){
+  if (!str || !str.length || i1 < i0) return 0;
+  let s = 0;
+  for (let j = i0; j <= i1; j++) s += stemDigit(str, j);
+  return s / (i1 - i0 + 1);
+}
+function stemSection(kit, b, v){
+  if (!kit) return (v < 0.25 && b < 0.30) ? 'hush' : 'break';
+  if (v >= 0.30) return 'song';
+  return b >= 0.50 ? 'drop' : 'groove';
+}
+/* one step. inp = { stems, pos (s, audible-aligned playhead), playing }.
+   Returns the state, updated in place. */
+function stemLightStep(st, inp, dt){
+  const K = STEM_LIGHT;
+  dt = dt > 0 && dt < 0.25 ? dt : (dt >= 0.25 ? 0.25 : 0);
+  const s = inp && inp.stems;
+  const hz = s && s.hz > 0 ? s.hz : 0;
+  const pos = inp && isFinite(inp.pos) ? inp.pos : NaN;
+  const live = !!(inp && inp.playing && hz && isFinite(pos) && pos >= 0 && (s.d || s.b || s.v || s.o));
+  const ease = (x, goal, up, down) => x + (goal - x) * (1 - Math.exp(-dt / (goal > x ? up : down)));
+  st.landed = false;
+  st.conf = ease(st.conf, live ? 1 : 0, K.tauConf, K.tauConf);
+  if (!live){
+    st.d = ease(st.d, 0, K.tauUp, K.tauDown); st.b = ease(st.b, 0, K.tauUp, K.tauDown);
+    st.v = ease(st.v, 0, K.tauUp, K.tauDown); st.o = ease(st.o, 0, K.tauUp, K.tauDown);
+    st.coil = ease(st.coil, 0, 0.35, 0.25);
+    st.kit = false; st.away = 0; st.section = 'none'; st.pos = NaN;
+    return st;
+  }
+  const i = Math.floor(pos * hz), w = Math.max(1, Math.round(K.win * hz));
+  const dNow = stemPeak(s.d, i - w, i);
+  // a seek or a new track is a cut, not a performance: the kit is re-read
+  // where the needle landed and no landing can fire across the jump
+  const jumped = !(Math.abs(pos - st.pos - dt) < 1.5);
+  st.pos = pos;
+  if (jumped){ st.kit = dNow > K.kitOn; st.away = 0; st.coil = 0; }
+  const bNow = Math.min(1, stemMean(s.b, i - w, i) * 1.15);
+  const vNow = stemMean(s.v, i - w, i);
+  const oNow = stemMean(s.o, i - w, i);
+  st.d = ease(st.d, dNow, K.tauUp, K.tauDown); st.b = ease(st.b, bNow, K.tauUp, K.tauDown);
+  st.v = ease(st.v, vNow, K.tauUp, K.tauDown); st.o = ease(st.o, oNow, K.tauUp, K.tauDown);
+  // the kit, with hysteresis; a return after a real absence is the landing
+  const wasKit = st.kit;
+  if (st.kit && dNow < K.kitOff) st.kit = false;
+  else if (!st.kit && dNow > K.kitOn) st.kit = true;
+  if (st.kit && !wasKit && st.away >= K.awayMin){ st.landed = true; st.coil = 0; }
+  st.away = st.kit ? 0 : st.away + dt;
+  // the coil: the kit is away and the score says it is coming back
+  const soon = stemPeak(s.d, i + Math.round(K.aheadA * hz), i + Math.round(K.aheadB * hz));
+  const coming = !st.kit && st.away >= K.awayMin && soon > K.kitOn;
+  if (!st.landed) st.coil = ease(st.coil, coming ? 1 : 0, 0.35, 0.25);
+  st.section = stemSection(st.kit, st.b, st.v);
+  return st;
+}
+/* what the light reads: the derived multipliers, each lerped by conf so an
+   unseparated track (or the mic) reads exactly neutral. */
+function stemLightOut(st){
+  const c = clamp01(st.conf), d = clamp01(st.d), b = clamp01(st.b), v = clamp01(st.v);
+  const mix = (n, x) => n + (x - n) * c;
+  return {
+    beatGate: mix(1, STEM_LIGHT.gateFloor + (1 - STEM_LIGHT.gateFloor) * d),
+    bassMul: mix(1, 0.70 + 0.55 * b),
+    midMul: mix(1, 0.85 + 0.30 * v),
+    chromaAdd: c * (0.20 * v - 0.14 * (1 - d) * (1 - v)),
+    lightMul: 1 + c * 0.05 * v,
+    whiteMul: mix(1, 0.55 + 0.45 * d),
+    coil: c * clamp01(st.coil),
+    landed: !!st.landed && c > 0.5,
+  };
+}
+// @stem-end
+
+/* ================================================================
    §6c-bis · ECHOES — passing thoughts. Hand-curated quotes from physicists,
    mathematicians, stoics and musicians drift through the field like clouds:
    spread out, timed to the calm passages, never over the drop. In MUSE mode
@@ -21134,7 +21272,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'f96c4d87f0';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'eb8fd5274d';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -30135,6 +30273,11 @@ const CLOCK = {
   },
 };
 
+/* the STEM LIGHT conductor — one stepper (the @stem block), one reading a
+   frame, shared by the beat channel, the bands, the colour engine and the
+   dancer's brace. */
+const STEMS = { state: makeStemLightState(), out: stemLightOut(makeStemLightState()) };
+
 const DANCE = {
   on: true,
   /* v2 — the dance BUS (danceBusStep, below the moves) drives the ENGINE:
@@ -30602,9 +30745,12 @@ const COLOR = {
     // reading (roomMood), eased by the director, so an apex runs richer and a
     // drift runs cooler without anything else in the engine having to know why
     const moodC = (typeof director !== 'undefined') ? (director.moodC || 0) : 0;
+    // …and the BAND's: a singer saturates the light, a hush (no kit, no
+    // voice) cools it, a held note brightens the chord a breath (@stem)
+    const so = (typeof STEMS !== 'undefined') ? STEMS.out : null;
     const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35 + golden * 0.22 + moodC
-      + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0));
-    const mulL = 0.97 + heat * 0.05;
+      + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0)) + (so ? so.chromaAdd : 0);
+    const mulL = (0.97 + heat * 0.05) * (so ? so.lightMul : 1);
     const w = this._wash;
     let lit = w > 0.01
       ? this.now.map(c => lerpOklch(c, { l: c.l * 0.94, c: c.c * 0.6, h: (c.h + 180) % 360 }, w))
@@ -30640,8 +30786,10 @@ const COLOR = {
        Eased over roughly a second — an order of magnitude slower than the
        governor's own rate limit, so the budget can never itself be a flash —
        and then ridden by the beat channel, which is already WCAG-gated. */
-    const wantW = whiteBudget({ act: heat, ceil: (typeof director !== 'undefined') ? director.ceil : 1,
+    // no kit, no bleach: a breakdown stays dark however loud it is (@stem)
+    const wantW0 = whiteBudget({ act: heat, ceil: (typeof director !== 'undefined') ? director.ceil : 1,
       energy: AE.f.energy, phase, calm: SAFE.calm });
+    const wantW = so ? Math.max(INK.whiteFloor, wantW0 * so.whiteMul) : wantW0;
     const wTau = wantW > this.white ? 0.9 : 1.8;     // opens slowly, closes slower
     this.white += (wantW - this.white) * (1 - Math.exp(-dt / wTau));
     U.uWhite.value = clamp01(this.white * (0.8 + 0.35 * U.uBeat.value));
@@ -31066,6 +31214,22 @@ const SEGUE = {
         window.__mb8SeamScene = this.seams;
       }
     } else if (this.seam && !director.auto) this.seam = null;
+    /* THE KIT'S RETURN (@stem). The drums came back after an absence the
+       light saw coming two seconds early — the dancer braced, the colour
+       inhaled — and the room changes ON the landing, a cut on the one when
+       the song is hot, the segue's own form otherwise. Only a room that has
+       had its say (STEM_CUT_DWELL); a seam cue outranks it. */
+    if (director.auto && director.transT >= 1 && !this.seam && player.playing
+        && typeof STEMS !== 'undefined' && STEMS.out.landed && director.dwell >= STEM_CUT_DWELL){
+      const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: true });
+      director.transDur = reducedMotion ? Math.max(style.dur, 1.6) : style.dur;
+      director.transKind = reducedMotion ? 'dissolve' : style.kind;
+      director.setScene(director.pickScene(), false);
+      director.dwell = 0;
+      this.lastKind = director.transKind;
+      this.pending = false; this.big = false; this.waited = 0;
+      window.__mb8StemCue = (window.__mb8StemCue || 0) + 1;      // the probes count the landings
+    }
     const grid = typeof CLOCK !== 'undefined' && CLOCK.haveGrid;
     // has the song's STRUCTURE turned a page since last frame?
     let sectionBoundary = false;
@@ -65408,6 +65572,28 @@ function frame(now){
   }
 
   DANCE.update(dt, t);
+  /* STEM LIGHT — the band, read from the separated score (see @stem). The
+     kit's return is precognition the envelope split cannot see: the coil
+     feeds the dancer's brace (and through it the colour wash and CHOREO's
+     suspend), and the frame the drums come back is a landing — the same
+     shockwave, beat and bloom the bass-precognition already fires. */
+  {
+    const dk = activeDeck(), stTr = player.tracks[player.cur];
+    stemLightStep(STEMS.state, {
+      stems: AE.mic.on ? null : trackStems(stTr),
+      pos: dk && dk.a && isFinite(dk.a.currentTime) ? dk.a.currentTime + 0.08 : NaN,
+      playing: player.playing,
+    }, dt);
+    const so = STEMS.out = stemLightOut(STEMS.state);
+    if (DANCE.on){
+      if (so.landed){
+        if (typeof INTERACT !== 'undefined') INTERACT.impulse = Math.max(INTERACT.impulse, 1);
+        AE.f.beat = Math.max(AE.f.beat, 1.2);
+        DANCE._hits = (DANCE._hits || 0) + 2;
+        DANCE.brace = 0;
+      } else if (so.coil > DANCE.brace) DANCE.brace = so.coil;
+    }
+  }
   if (typeof CHOREO !== 'undefined') CHOREO.update(dt);
 
   // feed uniforms — the beat channel carries the DANCED pulse (anticipation,
@@ -65417,11 +65603,16 @@ function frame(now){
   // safety disposes — the governor is always the last hand on the light.
   const f = AE.f;
   U.uTime.value = DANCE.time + DANCE.warp;
-  U.uBass.value = f.bass; U.uMid.value = f.mid; U.uTreble.value = f.treble; U.uEnergy.value = f.energy;
+  // the separated band leans on the bands: the bass stem owns the body, the
+  // voice the mids, and the strike belongs to the kit — gated BEFORE the
+  // governor, so safety is still the last hand on the light
+  const so = STEMS.out;
+  U.uBass.value = clamp01(f.bass * so.bassMul); U.uMid.value = clamp01(f.mid * so.midMul);
+  U.uTreble.value = f.treble; U.uEnergy.value = f.energy;
   U.uBeat.value = safeBeatStep(SAFE.beatState,
     // the live onset detector IS the music's own hit — it always punches
     // through; the danced grid pulse rides beneath it
-    DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat,
+    (DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat) * so.beatGate,
     dt, SAFE.tuning());
   // the beat SPRING: an under-damped mass chasing the governed beat. It overshoots
   // on the hit and rebounds — the elastic "boing" a plain decay envelope can't give.
