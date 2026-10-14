@@ -617,6 +617,10 @@ struct Director {
     private var pending: Int? = nil
     private var pendingBig: Bool = false
     private var waited: Double = 0
+    // seconds in the current room — the kit's return may cut only a room
+    // that has had its say (the web SEGUE's STEM_CUT_DWELL)
+    private var sinceEntry: Double = 0
+    static let stemCutDwell: Double = 10
 
     // mood bookkeeping — a switch is "big" when the mood has turned since
     // the current room was entered
@@ -657,7 +661,9 @@ struct Director {
     ///
     /// The wave-1 two-argument form still resolves (act defaults to RISING,
     /// ceil to 1), so the public contract holds; the renderer passes both.
-    mutating func tick(dt: Double, frame: Analyzer.Frame, act: Int = 1, ceil: Double = 1) -> Int? {
+    mutating func tick(dt: Double, frame: Analyzer.Frame, act: Int = 1, ceil: Double = 1,
+                       kitReturn: Bool = false) -> Int? {
+        sinceEntry += max(dt, 0)
         guard autoOn, Rooms.all.count > 1 else {
             prevPhrasePhase = frame.phrasePhase
             prevBarPhase = frame.barPhase
@@ -673,6 +679,17 @@ struct Director {
         let barWrapped = frame.barPhase < prevBarPhase - 0.30
         prevPhrasePhase = frame.phrasePhase
         prevBarPhase = frame.barPhase
+
+        // THE KIT'S RETURN (StemLight): the drums came back after an absence
+        // the light saw coming two seconds early — the room changes ON the
+        // landing, not a bar after it. Only a room that has had its say.
+        if kitReturn && sinceEntry >= Director.stemCutDwell {
+            let next = pending ?? deal(frame: frame, mood: moodNow, entropy: entropy)
+            pending = nil
+            guard next != currentIndex else { return nil }
+            move(to: next, calm: Double(frame.calm), mood: moodNow, act: act)
+            return next
+        }
 
         // no switch queued yet — count the dwell down
         if pending == nil {
@@ -723,6 +740,7 @@ struct Director {
         seen.insert(next)
         currentIndex = next
         moodAtEntry = mood
+        sinceEntry = 0
 
         let base = Director.dealDwell(calm: calm)
         let ai = min(max(act, 0), Director.actDwell.count - 1)
