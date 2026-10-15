@@ -662,7 +662,8 @@ struct Director {
     /// The wave-1 two-argument form still resolves (act defaults to RISING,
     /// ceil to 1), so the public contract holds; the renderer passes both.
     mutating func tick(dt: Double, frame: Analyzer.Frame, act: Int = 1, ceil: Double = 1,
-                       kitReturn: Bool = false) -> Int? {
+                       kitReturn: Bool = false,
+                       band: StemLight.Band = .none, bandConf: Double = 0) -> Int? {
         sinceEntry += max(dt, 0)
         guard autoOn, Rooms.all.count > 1 else {
             prevPhrasePhase = frame.phrasePhase
@@ -672,7 +673,8 @@ struct Director {
 
         let entropy = Director.entropyProxy(frame)
         ceilNow = min(max(ceil, 0), 1)
-        moodNow = Director.mood(act: act, energy: frame.energy, entropy: entropy, ceil: ceilNow)
+        moodNow = Director.stemMood(Director.mood(act: act, energy: frame.energy, entropy: entropy, ceil: ceilNow),
+                                    band: band, conf: bandConf, ceil: ceilNow)
 
         // boundary detection before we overwrite the previous phase
         let phraseWrapped = frame.phrasePhase < prevPhrasePhase - 0.30
@@ -791,6 +793,21 @@ struct Director {
         if act == 0 || e < 0.30 { return .adrift }
         if act == 1 && e > 0.48 { return .ascend }
         return .drive
+    }
+
+    /// THE BAND NAMES THE MOMENT — the web's stemMood, rule for rule. Once
+    /// the stems have authority (conf > 0.5) the section refines the mood,
+    /// never inventing a peak the structure did not earn.
+    private static func stemMood(_ m: Mood, band: StemLight.Band, conf: Double, ceil: Double) -> Mood {
+        guard conf > 0.5 else { return m }
+        switch band {
+        case .hush:   return m == .dissolve ? .dissolve : .adrift
+        case .brk:    return m == .apex ? .dissolve : (m == .drive ? .adrift : m)
+        case .drop:   return (m == .drive || m == .ascend) && ceil > 0.4 ? .apex : (m == .adrift ? .drive : m)
+        case .song:   return m == .adrift ? .drive : m
+        case .groove: return m == .adrift ? .drive : m
+        case .none:   return m
+        }
     }
 
     /// The mood's appetite over a room — heavy rooms rise at the apex, calm

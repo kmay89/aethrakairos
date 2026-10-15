@@ -208,6 +208,16 @@ struct Stems: Codable, Equatable {
     var b: [Double]
     var v: [Double]
     var o: [Double]
+    /// The DRUM CHART (`hits`, sv >= 2): kick / snare / hat onsets in seconds,
+    /// detected offline on the separated drum stem. nil before the pipeline
+    /// has charted this track (StemLight.hitPulse then reads 0).
+    var hits: HitChart? = nil
+
+    struct HitChart: Codable, Equatable {
+        var k: [Double]
+        var s: [Double]
+        var h: [Double]
+    }
 
     struct Weights: Equatable {
         var drums: Double

@@ -431,7 +431,15 @@ enum CatalogParser {
         let vocals = digits(str(d["v"]) ?? "")
         let other = digits(str(d["o"]) ?? "")
         guard !(drums.isEmpty && bass.isEmpty && vocals.isEmpty && other.isEmpty) else { return nil }
-        return Stems(hz: num(d["hz"]) ?? 0, d: drums, b: bass, v: vocals, o: other)
+        var out = Stems(hz: num(d["hz"]) ?? 0, d: drums, b: bass, v: vocals, o: other)
+        // the drum chart (sv >= 2) — the web's hitsChart: decoded once, here
+        if let h = d["hits"] as? [String: Any] {
+            let chart = Stems.HitChart(k: StemLight.hitsDecode(str(h["k"]) ?? ""),
+                                       s: StemLight.hitsDecode(str(h["s"]) ?? ""),
+                                       h: StemLight.hitsDecode(str(h["h"]) ?? ""))
+            if !(chart.k.isEmpty && chart.s.isEmpty && chart.h.isEmpty) { out.hits = chart }
+        }
+        return out
     }
 
     /// env digit strings: chars '0'-'9' map to value/9; anything else is 0.

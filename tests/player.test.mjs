@@ -46,6 +46,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' STEM_LIGHT, STEM_CUT_DWELL, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
+  ' HIT_VOICES, HIT_SKIP, hitsDecode, hitsChart, hitsLast, hitPulse, hitBlend, stemMood,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
   ' danceLeanJS, danceStrideJS, danceFrontJS, danceLampJS, danceLandJS, danceRingJS, danceBreathJS, danceBeatWeightJS,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
@@ -2280,6 +2281,73 @@ test('stem light: every output is finite whatever the input', () => {
   assert.equal(S.stemSection(true, 0.2, 0.1), 'groove');
 });
 
+// ---- THE DRUM CHART: the strike is the drummer's own hit (@stem) ----
+// the pipeline's encoder, retold in the test so the format is pinned from
+// both ends (tools/stems.py hits_encode is the writer; selftest checks it)
+const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+function hitsEncodeT(times){
+  let out = '', prev = 0;
+  for (const t of times){
+    const cs = Math.round(t * 100); let d = Math.max(0, cs - prev);
+    while (d >= S.HIT_SKIP){ out += 'zz'; d -= S.HIT_SKIP; }
+    out += B36[Math.floor(d / 36)] + B36[d % 36]; prev = cs;
+  }
+  return out;
+}
+test('drum chart: the code round-trips, long gaps and garbage included', () => {
+  const times = [0, 0.01, 0.5, 13, 40.27, 40.28, 200];
+  assert.deepEqual(S.hitsDecode(hitsEncodeT(times)), times);
+  assert.deepEqual(S.hitsDecode(''), []);
+  assert.deepEqual(S.hitsDecode(null), []);
+  assert.deepEqual(S.hitsDecode('0a0A'), [0.1], 'stops at the first character outside the alphabet');
+  assert.deepEqual(S.hitsDecode('0'), [], 'a dangling half-pair is ignored');
+  assert.equal(S.hitsChart(null), null);
+  assert.equal(S.hitsChart({ sv: 1, d: '9' }), null, 'a v1 block has no chart');
+  assert.equal(S.hitsChart({ sv: 2, hits: { k: '', s: '', h: '' } }), null, 'an empty chart is no chart');
+  const c = S.hitsChart({ sv: 2, hits: { k: hitsEncodeT([1, 2]), s: hitsEncodeT([2]), h: '' } });
+  assert.deepEqual(c, { k: [1, 2], s: [2], h: [] });
+});
+test('drum chart: hitsLast is the last hit at or before the playhead', () => {
+  const a = [1, 2, 3.5];
+  assert.equal(S.hitsLast(a, 0.99), -1); assert.equal(S.hitsLast(a, 1), 0);
+  assert.equal(S.hitsLast(a, 3.49), 1); assert.equal(S.hitsLast(a, 99), 2); assert.equal(S.hitsLast([], 1), -1);
+});
+test('drum chart: the pulse strikes ON the hit, by voice, and decays', () => {
+  const c = { k: [1], s: [2], h: [3] };
+  assert.equal(S.hitPulse(c, 0.999), 0, 'nothing before the hit — the light never lands ahead of the drum');
+  assert.ok(Math.abs(S.hitPulse(c, 1) - 1) < 1e-9, 'the kick is the full strike');
+  assert.ok(Math.abs(S.hitPulse(c, 2) - 0.8) < 1e-9, 'the snare a step under');
+  assert.ok(Math.abs(S.hitPulse(c, 3) - 0.25) < 1e-9, 'the hat a glint');
+  assert.ok(S.hitPulse(c, 1.1) < S.hitPulse(c, 1.05) && S.hitPulse(c, 1.05) < 1, 'it decays');
+  assert.equal(S.hitPulse(c, 1 + 4 * S.HIT_VOICES.k.tau + 0.01), 0, 'and is gone after four taus');
+  assert.equal(S.hitPulse(null, 1), 0); assert.equal(S.hitPulse(c, NaN), 0);
+  // a kick and a snare together: the louder voice wins
+  assert.ok(Math.abs(S.hitPulse({ k: [5], s: [5], h: [5] }, 5) - 1) < 1e-9);
+});
+test('drum chart: with a chart the hit is the truth; without, the channel is untouched', () => {
+  assert.equal(S.hitBlend(0.7, 0.2, false), 0.7, 'no chart: exactly the gated channel');
+  assert.equal(S.hitBlend(0.5, 1, true), 1, 'the hit lands');
+  assert.ok(Math.abs(S.hitBlend(0.5, 0, true) - 0.3) < 1e-9, 'a fill the chart lacks still whispers');
+});
+test('stem mood: the band names the moment, never inventing an unearned peak', () => {
+  const M = ['adrift', 'ascend', 'drive', 'apex', 'swarm', 'dissolve'];
+  for (const m of M){
+    assert.equal(S.stemMood(m, 'drop', 0.3, 1), m, 'no authority, no change');
+    assert.equal(S.stemMood(m, 'none', 1, 1), m);
+  }
+  assert.equal(S.stemMood('drive', 'drop', 1, 1), 'apex');
+  assert.equal(S.stemMood('ascend', 'drop', 1, 0.3), 'ascend', 'a capped ceiling keeps the drop below apex');
+  assert.equal(S.stemMood('adrift', 'drop', 1, 1), 'drive');
+  assert.equal(S.stemMood('apex', 'break', 1, 1), 'dissolve');
+  assert.equal(S.stemMood('drive', 'break', 1, 1), 'adrift');
+  assert.equal(S.stemMood('ascend', 'break', 1, 1), 'ascend', 'a breakdown is often the build');
+  assert.equal(S.stemMood('drive', 'hush', 1, 1), 'adrift');
+  assert.equal(S.stemMood('dissolve', 'hush', 1, 1), 'dissolve');
+  assert.equal(S.stemMood('adrift', 'song', 1, 1), 'drive');
+  assert.equal(S.stemMood('adrift', 'groove', 1, 1), 'drive');
+  for (const sec of ['hush', 'break', 'groove', 'song', 'drop', 'none'])
+    for (const m of M) assert.ok(M.includes(S.stemMood(m, sec, 1, 1)), `${m}/${sec} stays a mood`);
+});
 test('stem light: the TV\'s StemLight carries the web\'s constants and formulas (parity)', () => {
   const swift = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
   const body = swift.slice(swift.indexOf('struct StemLight'));
@@ -2298,6 +2366,18 @@ test('stem light: the TV\'s StemLight carries the web\'s constants and formulas 
   const cut = rooms.match(/static let stemCutDwell: Double = ([0-9.]+)/);
   assert.ok(cut && Number(cut[1]) === S.STEM_CUT_DWELL, 'the kit\'s-return cut waits the same dwell on both stages');
   assert.ok(html.includes('STEMS.out.landed && director.dwell >= STEM_CUT_DWELL'), 'the web SEGUE cuts on the landing');
+  // the drum chart's voices and the band's mood rules, on the TV
+  const f2 = x => x.toFixed(2);
+  for (const [name, v] of [['hitKick', 'k'], ['hitSnare', 's'], ['hitHat', 'h']])
+    assert.ok(body.includes(`${name} = (amp: ${f2(S.HIT_VOICES[v].amp)}, tau: ${f2(S.HIT_VOICES[v].tau)})`), `${name} matches HIT_VOICES.${v}`);
+  assert.ok(body.includes('haveChart ? max(gated * 0.6, pulse) : gated'), 'hitBlend matches');
+  for (const rule of ["case .hush:   return m == .dissolve ? .dissolve : .adrift",
+                      "case .brk:    return m == .apex ? .dissolve : (m == .drive ? .adrift : m)",
+                      "case .drop:   return (m == .drive || m == .ascend) && ceil > 0.4 ? .apex : (m == .adrift ? .drive : m)",
+                      "case .song:   return m == .adrift ? .drive : m",
+                      "case .groove: return m == .adrift ? .drive : m",
+                      "guard conf > 0.5 else { return m }"])
+    assert.ok(rooms.includes(rule), `Director.stemMood carries: ${rule}`);
   const view = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8');
   for (const f of ['stemLight.step(', 'kitReturn: stemOut.landed', 'stemOut.beatGate', 'stemOut.bassMul', 'stemOut.midMul',
                    'stemOut.chromaAdd', 'stemOut.lightMul', 'stemOut.whiteMul', 'stemOut.coil'])
