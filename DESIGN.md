@@ -1712,8 +1712,21 @@ unearned apex.
 The chart fills in as the stems job re-separates the catalog. Until a track
 is charted it reads exactly as before.
 
-Still next: a room that draws the quartet. It needs four floats in
-`VizUniforms`, so every translation unit moves together.
+**QUARTET (wave 3): the band, seen.** Scene 124 on both stages. Four
+strands, one per separated player, flow through one now. Each is as broad
+and as bright as its player is loud, and a node lights where it crosses now.
+The coming three seconds are drawn ahead as a dotted ghost from the score,
+and the drum strand is beaded with the chart's hits.
+
+It needed no new floats in `VizUniforms`: the 192-byte contract stands.
+Instead the CPU samples a 64-texel lane texture each frame (`quartetLane`
+on the web, `StemLight.quartetLane` on the TV, both reading 3 s back to 3 s
+ahead). The web reads it as a sampler; the TV binds it at `texture(3)`
+beside VERSE's mask, and every other room ignores the binding. Texel 64
+carries the LIVE flag: on the mic or an unseparated file the strands are the
+live bands' recent past and the future is honestly dark.
+
+Faces: THE SCORE and THE RINGS.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;

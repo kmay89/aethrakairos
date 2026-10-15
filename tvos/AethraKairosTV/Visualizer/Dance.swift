@@ -714,6 +714,31 @@ struct StemLight {
         haveChart ? max(gated * 0.6, pulse) : gated
     }
 
+    // MARK: QUARTET's window (the web's QUARTET_N / QUARTET_WIN / quartetLane)
+
+    static let quartetN = 64          // samples across the window
+    static let quartetWin = 6.0       // s — three behind now, three ahead
+
+    /// Sample i of the window: time pos + ((i + ½)/N − ½)·WIN — each player's
+    /// envelope there, linear on the 12 Hz score, the drums beaded with the
+    /// chart's hits; silence outside the track. (drums, bass, voice, other).
+    static func quartetLane(_ i: Int, stems: Stems, chart: Stems.HitChart?,
+                            pos: Double, dur: Double) -> SIMD4<Double> {
+        let t = pos + ((Double(i) + 0.5) / Double(quartetN) - 0.5) * quartetWin
+        guard stems.hz > 0, t >= 0, !(dur > 0 && t > dur) else { return SIMD4<Double>(0, 0, 0, 0) }
+        let x = t * stems.hz
+        let j = Int(floor(min(x, 1.0e9)))
+        let fr = x - Double(j)
+        func at(_ a: [Double]) -> Double {
+            guard !a.isEmpty else { return 0 }
+            let p = digit(a, j), q = digit(a, j + 1)
+            return p + (q - p) * fr
+        }
+        let d = at(stems.d)
+        let drums = chart != nil ? max(d * 0.55, hitPulse(chart, t)) : d
+        return SIMD4<Double>(drums, at(stems.b), at(stems.v), at(stems.o))
+    }
+
     /// stemLightOut — neutral (gates 1, adds 0) while conf is 0.
     var out: Out {
         func c01(_ x: Double) -> Double { x < 0 ? 0 : (x > 1 ? 1 : x) }

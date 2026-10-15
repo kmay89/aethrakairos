@@ -223,6 +223,19 @@ jobs:
             echo "room-fluid-$N: rolls $ROLLS"
             N=$((N + 1))
           done
+          # QUARTET, both faces: r0 in halves deals THE SCORE or THE RINGS.
+          # The drive demo has no stems, so the room shows the live past only
+          # (the future is honestly dark) — look for four strands through now.
+          N=0
+          for ROLLS in 0.25,0.3,0.3 0.75,0.6,0.6; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room quartet --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-quartet-$N.png"
+            echo "room-quartet-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
           # MOTION BURST — the TV's "before" for the dance layer (stage 2): six
           # rooms under the --drive-demo metronome (126 BPM, kick-class bass
           # pump), eight frames each as fast as simctl can take them, every shot
