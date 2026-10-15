@@ -926,7 +926,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         stemLight.step(stems: busTrack?.mix?.stems, pos: frame.playhead + 0.08,
                        playing: player.isPlaying || Self.driveDemo, dt: dt)
         let stemOut = stemLight.out
-        let gatedOnset = frame.onsetEnv * Float(stemOut.beatGate)
+        // …and with a DRUM CHART the strike is the drummer's own hit, read on
+        // the same playhead as the grid clock
+        let chart = busTrack?.mix?.stems?.hits
+        let hitNow = (player.isPlaying && chart != nil) ? StemLight.hitPulse(chart, frame.playhead) : 0
+        let gatedOnset = Float(StemLight.hitBlend(Double(frame.onsetEnv) * stemOut.beatGate, hitNow, chart != nil))
 
         // the rubato: rooms run in musical time, clamped to the dance floor
         let rate = min(max(0.45 + 1.05 * Double(dispEnergy), 0.4), 1.9)
@@ -1029,7 +1033,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // house is still compiling and the opening room is the only door — is
         // no handover at all, exactly as a swipe that goes nowhere is not)
         if director.tick(dt: dt, frame: frame, act: actTarget, ceil: ceil,
-                         kitReturn: stemOut.landed) != nil,
+                         kitReturn: stemOut.landed,
+                         band: stemLight.section, bandConf: stemLight.conf) != nil,
            director.currentIndex != before {
             beginTransition(from: before)
             publishRoomName()

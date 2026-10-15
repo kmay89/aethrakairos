@@ -1689,12 +1689,31 @@ The TV had no colour wash or bloom; it gains the web's, driven by
 the stepper, brace, wash, bloom and the scene cut, and photographs the
 breakdown, the coil and the landing.
 
-Next, deliberately not in this wave: a **drum-hit chart**. Onsets per
-kick/snare/hat, detected on the separated drum stem while CI still holds it,
-would give both stages frame-exact strikes known in advance. Then **stem
-section names** feeding the deal's taste vector, and a room that draws the
-quartet. That room needs four floats in `VizUniforms` (every translation unit
-moves together).
+**The drum chart and the band's names (wave 2).** `tools/stems.py`
+(`STEMS_VERSION` 2) now reads every kick, snare and hat onset off the
+separated drum stem while CI still holds it. It uses band-split log-power
+rises, local-median thresholds and refractory gaps. A coincident candidate is
+kept only when its own band is loud there, because bleed rises as steeply as
+a hit on a log scale but never reaches the band's level. Each voice ships as
+a string of two-base-36-digit centisecond gaps (`mix.stems.hits`, about 2 KB a
+track).
+
+On both stages `hitPulse` turns the chart into the strike: kick 1.0, snare
+0.8, hat 0.25, each decaying. With a chart, the beat channel is the hit itself
+and the live onset detector stays underneath at ×0.6. The self-test's
+synthetic kit is charted exactly. On a real track, read as a stand-in for its
+drum stem, kicks land on the catalog grid to 10 ms, and in the page every
+struck frame sits within 200 ms after a charted hit.
+
+The stems' section names (hush / break / groove / song / drop) also refine the
+director's mood (`stemMood` / `Director.stemMood`). They never invent an
+unearned apex.
+
+The chart fills in as the stems job re-separates the catalog. Until a track
+is charted it reads exactly as before.
+
+Still next: a room that draws the quartet. It needs four floats in
+`VizUniforms`, so every translation unit moves together.
 
 ### 1.3 The pipeline (Python, repo root)
 - `make_catalog.py` — masters → `docs/catalog.json`; move-vs-add by SHA-256;

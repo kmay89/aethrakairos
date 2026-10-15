@@ -14,6 +14,13 @@ the right place: separate once in CI, ship the tiny envelopes, and let the
 player read them precompute-first (client `trackStems()`), falling back to the
 spectral band split when a track hasn't been separated yet.
 
+v2 adds the DRUM CHART (`mix.stems.hits`): every kick, snare and hat onset,
+detected on the separated drum stem while this job still holds it — the one
+moment true per-hit timing exists, since a 12 Hz envelope cannot place a hit
+inside its own 83 ms step. Three delta-coded strings (see hits_encode), about
+a kilobyte a track, and both stages strike the light on the real hit, known
+in advance (docs/index.html @stem, tvOS StemLight).
+
 What the envelopes unlock, without shipping any stem AUDIO (which would be
 multiple GB across the library and is deliberately out of scope):
   • per-stem COLOURED waveforms in the booth — drums/bass/vocals/other, not a
@@ -55,7 +62,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 CATALOG_PATH = Path("docs/catalog.json")
 AUDIO_ROOT = Path("docs/audio")
-STEMS_VERSION = 1
+STEMS_VERSION = 2            # v2: + hits (the drum chart: kick / snare / hat onsets)
 ENV_HZ = 12.0                 # match the band-energy score's rate
 DEMUCS_MODEL = "htdemucs"     # 4-stem: drums / bass / other / vocals
 # catalog key ↔ Demucs stem filename
@@ -78,6 +85,156 @@ def stem_env(mono, sr, hz=ENV_HZ):
     return "".join(str(v) for v in np.clip(steps / ref * 9.49, 0, 9).astype(int))
 
 
+# ---------------------------------------------------------------- the drum chart
+#
+# Onsets on the SEPARATED drum stem, one band per voice. A band's onset curve
+# is its log-power rise over the previous two frames (half-wave rectified, so
+# a ringing tail never re-triggers), picked where it clears a local median by
+# a fixed margin, is a local maximum, respects the voice's refractory gap,
+# and lands loud enough against the band's own loud hits (so a breakdown's
+# bleed is never charted). Then the classic confusions are resolved: a kick's
+# beater click rises in the snare band, and a snare's wires rise in the hat
+# band — a coincident candidate is kept only when its OWN band rose harder.
+
+HIT_FPS = 100                 # 10 ms frames: the chart's resolution
+HIT_NFFT = 2048
+HIT_BANDS = {                 # Hz, per voice
+    "k": (30.0, 150.0),       # kick: the body
+    "s": (180.0, 4000.0),     # snare: shell and crack
+    "h": (6000.0, 16000.0),   # hats and cymbals: the sizzle
+}
+HIT_GAP = {"k": 0.09, "s": 0.09, "h": 0.05}        # s — refractory
+HIT_RISE = 0.30               # log10 power over the local median (~3 dB)
+HIT_FLOOR = 2.5               # log10 below the band's loud hits (~25 dB) is bleed
+HIT_MEDIAN = 51               # frames — the local median's window (~0.5 s)
+
+
+def _band_curves(mono, sr):
+    """Per-voice log-power curves at HIT_FPS from a centred, Hann STFT."""
+    x = np.asarray(mono, dtype=np.float64)
+    hop = max(1, int(round(sr / HIT_FPS)))
+    pad = HIT_NFFT // 2
+    x = np.pad(x, (pad, pad))
+    n = 1 + max(0, (len(x) - HIT_NFFT) // hop)
+    if n < 8:
+        return None
+    win = np.hanning(HIT_NFFT)
+    freqs = np.fft.rfftfreq(HIT_NFFT, 1.0 / sr)
+    masks = {k: (freqs >= lo) & (freqs < hi) for k, (lo, hi) in HIT_BANDS.items()}
+    curves = {k: np.empty(n) for k in HIT_BANDS}
+    step = 2048                                    # frames per FFT batch — memory stays flat
+    for a in range(0, n, step):
+        b = min(n, a + step)
+        idx = (np.arange(a, b) * hop)[:, None] + np.arange(HIT_NFFT)[None, :]
+        spec = np.abs(np.fft.rfft(x[idx] * win, axis=1)) ** 2
+        for k, m in masks.items():
+            curves[k][a:b] = np.log10(spec[:, m].sum(axis=1) + 1e-10)
+    return curves
+
+
+def _onsets(e, gap_frames):
+    """Pick one band's onsets: (frame indices, strengths)."""
+    n = len(e)
+    prev = np.maximum(np.concatenate(([e[0]], e[:-1])), np.concatenate(([e[0], e[0]], e[:-2])))
+    flux = np.maximum(0.0, e - prev)
+    w = HIT_MEDIAN
+    padded = np.pad(flux, (w // 2, w // 2), mode="edge")
+    med = np.median(np.lib.stride_tricks.sliding_window_view(padded, w), axis=1)[:n]
+    loud = np.percentile(e, 97)
+    peak_lvl = np.maximum.reduce([e, np.roll(e, -1), np.roll(e, -2)])
+    ok = (flux > med + HIT_RISE) & (peak_lvl > loud - HIT_FLOOR)
+    ok[max(0, n - 4):] = False                     # the file's own end is a cut, not a hit
+    picks, strengths = [], []
+    last = -10 ** 9
+    for t in np.flatnonzero(ok):
+        lo, hi = max(0, t - 2), min(n, t + 3)
+        if flux[t] < flux[lo:hi].max():
+            continue                               # not the local maximum
+        if t - last < gap_frames:
+            if picks and flux[t] > strengths[-1]:  # a stronger re-strike inside the gap wins
+                picks[-1], strengths[-1], last = t, flux[t], t
+            continue
+        picks.append(t); strengths.append(flux[t]); last = t
+    return np.asarray(picks, dtype=int), np.asarray(strengths)
+
+
+HIT_BLEED = 0.7              # log10: a coincident candidate within ~7 dB of its band's loud hits is its own
+
+
+def _level_at(e, t):
+    return e[t:t + 3].max()
+
+
+def drum_hits(mono, sr):
+    """{k, s, h: sorted onset times in seconds} from the separated drum stem,
+    or None when the stem is too short to read."""
+    if mono is None:
+        return None
+    curves = _band_curves(mono, sr)
+    if curves is None:
+        return None
+    raw = {k: _onsets(curves[k], max(1, int(round(HIT_GAP[k] * HIT_FPS)))) for k in HIT_BANDS}
+
+    def near(frames, t, w=3):
+        if len(frames) == 0:
+            return False
+        i = np.searchsorted(frames, t)
+        return any(0 <= j < len(frames) and abs(frames[j] - t) <= w for j in (i - 1, i))
+
+    out = {}
+    # the beater's click is not a snare, a snare's body is not a kick, and the
+    # wires' sizzle is not a hat: a candidate that coincides with another
+    # voice's onset is kept only when its own band is LOUD there — a log rise
+    # from a quiet floor is scale-free, so bleed rises as steeply as a hit;
+    # what it never reaches is the band's own level when that voice plays
+    # "loud" is the band's own LOUD HITS (p90 of its candidates' peaks), not
+    # its whole curve — a curve is mostly decay, and would set the bar at bleed
+    loud = {k: (np.percentile([_level_at(curves[k], t) for t in raw[k][0]], 90)
+                if len(raw[k][0]) else np.inf) for k in HIT_BANDS}
+    def own(k, t):
+        return _level_at(curves[k], t) > loud[k] - HIT_BLEED
+    keep = {}
+    for k in HIT_BANDS:
+        others = [raw[o][0] for o in HIT_BANDS if o != k]
+        keep[k] = [t for t in raw[k][0] if not any(near(f, t) for f in others) or own(k, t)]
+    for k, frames in keep.items():
+        out[k] = [round(int(f) / HIT_FPS, 2) for f in frames]
+    return out
+
+
+B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
+HIT_SKIP = 36 * 36 - 1        # "zz": advance 12.95 s with no hit
+
+
+def hits_encode(times):
+    """Seconds → the chart string: each hit is its gap from the previous one
+    in centiseconds, two base-36 digits; a gap past 12.94 s spends "zz"s
+    (each advancing 12.95 s, no hit) before its remainder. ~2 bytes a hit."""
+    out, prev = [], 0
+    for t in times:
+        cs = int(round(t * 100))
+        d = max(0, cs - prev)
+        while d >= HIT_SKIP:
+            out.append("zz"); d -= HIT_SKIP
+        out.append(B36[d // 36] + B36[d % 36])
+        prev = cs
+    return "".join(out)
+
+
+def hits_decode(code):
+    """The inverse: chart string → seconds (the clients' hitsDecode)."""
+    times, cs = [], 0
+    for i in range(0, len(code) - 1, 2):
+        a, b = B36.find(code[i]), B36.find(code[i + 1])
+        if a < 0 or b < 0:
+            break
+        d = a * 36 + b
+        cs += d
+        if d != HIT_SKIP:
+            times.append(cs / 100.0)
+    return times
+
+
 def reduce_stems(stem_monos, sr):
     """stem_monos: {catalog_key: mono ndarray}. Returns the `mix.stems` block, or
     None if nothing reduced cleanly."""
@@ -88,6 +245,9 @@ def reduce_stems(stem_monos, sr):
         if env is not None:
             out[key] = env
             any_ok = True
+    hits = drum_hits(stem_monos.get("d"), sr) if stem_monos.get("d") is not None else None
+    if hits is not None:
+        out["hits"] = {k: hits_encode(v) for k, v in hits.items()}
     return out if any_ok else None
 
 
@@ -266,7 +426,53 @@ def selftest():
     assert tracks[0]["mix"]["stems"] is upstream, "the winning run's stems are kept"
     assert tracks[1]["mix"]["stems"] == block, "our missing track gets banked"
     assert "mix" not in tracks[2], "a track without mix is never fabricated"
-    print("selftest OK — stem envelopes match the catalog's digit shape")
+    # THE DRUM CHART, on a synthetic kit: four-on-the-floor kicks (a falling
+    # sine), snares on 2 and 4 (a tone plus noise), hats on the eighths
+    # (high-passed noise), 8 s of groove then 4 s of silence then 4 more.
+    rng = np.random.default_rng(7)
+    dur, bpm = 16.0, 120.0
+    kit = np.zeros(int(sr * dur))
+    def put(sig, at):
+        i = int(at * sr); kit[i:i + len(sig)] += sig[:len(kit) - i]
+    tk = np.arange(int(0.25 * sr)) / sr
+    kick = 0.9 * np.sin(2 * np.pi * (50 * tk + 70 * (1 - np.exp(-tk * 30)) / 30 * 1)) * np.exp(-tk * 18)
+    ts = np.arange(int(0.18 * sr)) / sr
+    snare = (0.35 * np.sin(2 * np.pi * 190 * ts) + 0.45 * rng.standard_normal(len(ts))) * np.exp(-ts * 25)
+    th = np.arange(int(0.05 * sr)) / sr
+    hn = rng.standard_normal(len(th) + 4)
+    hat = 0.12 * np.diff(hn, 4) * np.exp(-th * 90)        # 4th difference: a steep high-pass
+    beat = 60.0 / bpm
+    want = {"k": [], "s": [], "h": []}
+    for seg0, seg1 in ((0.5, 8.5), (12.5, 16.0)):
+        b = seg0
+        n_beat = 0
+        while b < seg1 - 0.3:
+            put(kick, b); want["k"].append(b)
+            if n_beat % 2 == 1:
+                put(snare, b); want["s"].append(b)
+            for half in (0.0, beat / 2):
+                put(hat, b + half); want["h"].append(b + half)
+            b += beat; n_beat += 1
+    kit += 1e-4 * rng.standard_normal(len(kit))          # the floor every real stem has
+    got = drum_hits(kit, sr)
+    assert got is not None
+    for k in "ksh":
+        w, g = np.asarray(want[k]), np.asarray(got[k])
+        hit = sum(1 for x in w if len(g) and np.min(np.abs(g - x)) <= 0.03)
+        prec = sum(1 for x in g if len(w) and np.min(np.abs(w - x)) <= 0.03) / max(1, len(g))
+        rec = hit / max(1, len(w))
+        assert rec >= 0.9 and prec >= 0.9, f"{k}: recall {rec:.2f}, precision {prec:.2f} ({len(g)} vs {len(w)})"
+    assert not any(8.8 < t < 12.4 for k in "ksh" for t in got[k]), "silence charts nothing"
+    pad = 0.5 * np.sin(2 * np.pi * 220 * np.arange(sr * 4) / sr) + 1e-4 * rng.standard_normal(sr * 4)
+    assert sum(len(v) for v in drum_hits(pad, sr).values()) <= 1, "a held pad is not a drum"
+    # the chart string round-trips, long gaps included
+    times = [0.0, 0.01, 0.5, 13.0, 40.27, 40.28, 200.0]
+    assert hits_decode(hits_encode(times)) == times, hits_decode(hits_encode(times))
+    assert hits_decode("") == [] and hits_encode([]) == ""
+    block2 = reduce_stems({"d": kit, "b": loud[:len(kit)], "v": None, "o": None}, sr)
+    assert "hits" in block2 and set(block2["hits"]) == {"k", "s", "h"}
+    print(f"selftest OK — stem envelopes match the catalog's digit shape; the drum chart reads "
+          f"{len(got['k'])} kicks, {len(got['s'])} snares, {len(got['h'])} hats on the synthetic kit")
     return 0
 
 

@@ -16645,6 +16645,95 @@ function stemLightOut(st){
     landed: !!st.landed && c > 0.5,
   };
 }
+
+/* THE DRUM CHART (mix.stems.hits, sv >= 2): every kick, snare and hat onset,
+   detected offline on the SEPARATED drum stem (tools/stems.py drum_hits) —
+   the one moment true per-hit timing exists; a 12 Hz envelope cannot place
+   a hit inside its own 83 ms step. Each voice is a string of two-base-36-digit
+   gaps in centiseconds; "zz" advances 12.95 s with no hit. With a chart the
+   strike is no longer GUESSED from the mix's rises: it is the hit itself,
+   landing on the frame the drummer played it. */
+const HIT_VOICES = {
+  k: { amp: 1.00, tau: 0.16 },     // the kick: the full strike
+  s: { amp: 0.80, tau: 0.14 },     // the snare: the backbeat, a step under
+  h: { amp: 0.25, tau: 0.06 },     // the hat: a glint, light only (the classifier's hat cap)
+};
+const HIT_SKIP = 36 * 36 - 1;
+function hitsDecode(code){
+  const out = [];
+  if (typeof code !== 'string') return out;
+  const d36 = c => (c >= 48 && c <= 57) ? c - 48 : ((c >= 97 && c <= 122) ? c - 87 : -1);
+  let cs = 0;
+  for (let i = 0; i + 1 < code.length; i += 2){
+    const a = d36(code.charCodeAt(i)), b = d36(code.charCodeAt(i + 1));
+    if (a < 0 || b < 0) break;
+    const d = a * 36 + b;
+    cs += d;
+    if (d !== HIT_SKIP) out.push(cs / 100);
+  }
+  return out;
+}
+/* the chart, decoded once: { k, s, h } sorted second arrays, or null */
+function hitsChart(stems){
+  const h = stems && stems.hits;
+  if (!h || typeof h !== 'object') return null;
+  const c = { k: hitsDecode(h.k), s: hitsDecode(h.s), h: hitsDecode(h.h) };
+  return (c.k.length + c.s.length + c.h.length) ? c : null;
+}
+// the last hit at or before `pos` in a sorted array: its index, -1 for none
+function hitsLast(arr, pos){
+  let lo = 0, hi = arr.length - 1, at = -1;
+  while (lo <= hi){
+    const m = (lo + hi) >> 1;
+    if (arr[m] <= pos){ at = m; lo = m + 1; } else hi = m - 1;
+  }
+  return at;
+}
+/* the strike at `pos`: the loudest voice's amp × e^(−since/tau), each voice
+   reading its own last hit; 0 before the first hit and past four taus */
+function hitPulse(chart, pos){
+  if (!chart || !isFinite(pos)) return 0;
+  let p = 0;
+  for (const v of ['k', 's', 'h']){
+    const arr = chart[v], V = HIT_VOICES[v];
+    const i = hitsLast(arr, pos);
+    if (i < 0) continue;
+    const since = pos - arr[i];
+    if (since < 4 * V.tau){ const x = V.amp * Math.exp(-since / V.tau); if (x > p) p = x; }
+  }
+  return p;
+}
+/* the beat channel with a chart: the hit is the truth, the live detector a
+   whisper under it (×0.6, so a fill the chart lacks still reads); without
+   one, exactly the gated channel it was */
+function hitBlend(gated, pulse, haveChart){
+  return haveChart ? Math.max(gated * 0.6, pulse) : gated;
+}
+/* THE BAND NAMES THE MOMENT. roomMood reads the arc and the energy; the
+   stems say what the band is actually DOING, which the energy alone cannot
+   (a loud breakdown, a quiet drop). Once the stems have authority (conf >
+   0.5) the section refines the mood — never invents a peak the structure
+   did not earn (a drop over a capped ceiling stays where it was):
+     hush   nothing but air → adrift (the long way down stays dissolve)
+     break  no kit → an apex cools to dissolve, a drive drifts; a rise
+            keeps rising (a breakdown is often the build)
+     drop   kit and bass, no voice → a drive or rise becomes the apex
+            where the ceiling allows it; adrift wakes to drive
+     song   kit and voice → nothing is adrift while someone sings over drums
+     groove kit without much else → adrift wakes to drive
+   Mirrored by Director.stemMood on the TV. */
+function stemMood(mood, section, conf, ceil){
+  if (!(conf > 0.5)) return mood;
+  const c = ceil == null ? 1 : ceil;
+  switch (section){
+    case 'hush':   return mood === 'dissolve' ? 'dissolve' : 'adrift';
+    case 'break':  return mood === 'apex' ? 'dissolve' : (mood === 'drive' ? 'adrift' : mood);
+    case 'drop':   return (mood === 'drive' || mood === 'ascend') && c > 0.4 ? 'apex' : (mood === 'adrift' ? 'drive' : mood);
+    case 'song':   return mood === 'adrift' ? 'drive' : mood;
+    case 'groove': return mood === 'adrift' ? 'drive' : mood;
+    default:       return mood;
+  }
+}
 // @stem-end
 
 /* ================================================================
@@ -21272,7 +21361,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'eb8fd5274d';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '40c07c6189';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -30276,7 +30365,8 @@ const CLOCK = {
 /* the STEM LIGHT conductor — one stepper (the @stem block), one reading a
    frame, shared by the beat channel, the bands, the colour engine and the
    dancer's brace. */
-const STEMS = { state: makeStemLightState(), out: stemLightOut(makeStemLightState()) };
+const STEMS = { state: makeStemLightState(), out: stemLightOut(makeStemLightState()),
+  chart: null, _chartOf: null, hit: 0 };
 
 const DANCE = {
   on: true,
@@ -31008,6 +31098,8 @@ const director = {
        dwell, a touch re-tune, a ghost re-deal, the colour's chroma. The mood
        changing is not itself an event — nothing cuts because a word changed. */
     this.mood = roomMood({ act: this.act, energy: f.energy, entropy: f.entropy, ceil: this.ceil });
+    if (typeof STEMS !== 'undefined')                        // …refined by what the band is doing
+      this.mood = stemMood(this.mood, STEMS.state.section, STEMS.state.conf, this.ceil);
     // the mood's chroma lean, eased — the colour engine reads this rather than
     // the word, so a mood flicking between two neighbours cannot flicker the light
     {
@@ -65585,6 +65677,12 @@ function frame(now){
       playing: player.playing,
     }, dt);
     const so = STEMS.out = stemLightOut(STEMS.state);
+    // the drum chart: decoded once per track, read at the AUDIBLE instant
+    // (the media clock less the output path, the CLOCK's own compensation)
+    const sx = AE.mic.on ? null : trackStems(stTr);
+    if (sx !== STEMS._chartOf){ STEMS._chartOf = sx; STEMS.chart = hitsChart(sx); }
+    STEMS.hit = STEMS.chart && player.playing && dk && dk.a && isFinite(dk.a.currentTime)
+      ? hitPulse(STEMS.chart, dk.a.currentTime - CLOCK.latency()) : 0;
     if (DANCE.on){
       if (so.landed){
         if (typeof INTERACT !== 'undefined') INTERACT.impulse = Math.max(INTERACT.impulse, 1);
@@ -65612,7 +65710,9 @@ function frame(now){
   U.uBeat.value = safeBeatStep(SAFE.beatState,
     // the live onset detector IS the music's own hit — it always punches
     // through; the danced grid pulse rides beneath it
-    (DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat) * so.beatGate,
+    // …and with a DRUM CHART the strike is the drummer's own hit (@stem)
+    hitBlend((DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat) * so.beatGate,
+      STEMS.hit, !!STEMS.chart),
     dt, SAFE.tuning());
   // the beat SPRING: an under-damped mass chasing the governed beat. It overshoots
   // on the hit and rebounds — the elastic "boing" a plain decay envelope can't give.

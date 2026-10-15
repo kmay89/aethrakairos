@@ -651,6 +651,69 @@ struct StemLight {
         section = K.band(kit: kit, b: b, v: v)
     }
 
+    // MARK: the drum chart (the web's HIT_VOICES / hitsDecode / hitPulse / hitBlend)
+
+    static let hitKick = (amp: 1.00, tau: 0.16)     // the full strike
+    static let hitSnare = (amp: 0.80, tau: 0.14)    // the backbeat, a step under
+    static let hitHat = (amp: 0.25, tau: 0.06)      // a glint, light only
+    static let hitSkip = 36 * 36 - 1                // "zz": 12.95 s, no hit
+
+    /// Two base-36 digits per hit, the gap from the last in centiseconds;
+    /// stops at the first character outside [0-9a-z].
+    static func hitsDecode(_ code: String) -> [Double] {
+        var out: [Double] = []
+        var cs = 0
+        let u = Array(code.utf8)
+        func d36(_ c: UInt8) -> Int {
+            if c >= 48 && c <= 57 { return Int(c) - 48 }
+            if c >= 97 && c <= 122 { return Int(c) - 87 }
+            return -1
+        }
+        var i = 0
+        while i + 1 < u.count {
+            let a = d36(u[i]), b = d36(u[i + 1])
+            if a < 0 || b < 0 { break }
+            let d = a * 36 + b
+            cs += d
+            if d != hitSkip { out.append(Double(cs) / 100) }
+            i += 2
+        }
+        return out
+    }
+
+    /// The last hit at or before `pos` in a sorted array; -1 for none.
+    static func hitsLast(_ arr: [Double], _ pos: Double) -> Int {
+        var lo = 0, hi = arr.count - 1, at = -1
+        while lo <= hi {
+            let m = (lo + hi) >> 1
+            if arr[m] <= pos { at = m; lo = m + 1 } else { hi = m - 1 }
+        }
+        return at
+    }
+
+    /// The strike at `pos`: the loudest voice's amp × e^(−since/tau), each
+    /// voice reading its own last hit; 0 before the first and past four taus.
+    static func hitPulse(_ chart: Stems.HitChart?, _ pos: Double) -> Double {
+        guard let chart, pos.isFinite else { return 0 }
+        var p = 0.0
+        for (arr, v) in [(chart.k, hitKick), (chart.s, hitSnare), (chart.h, hitHat)] {
+            let i = hitsLast(arr, pos)
+            if i < 0 { continue }
+            let since = pos - arr[i]
+            if since < 4 * v.tau {
+                let x = v.amp * exp(-since / v.tau)
+                if x > p { p = x }
+            }
+        }
+        return p
+    }
+
+    /// With a chart the hit is the truth, the live detector a whisper (×0.6);
+    /// without one, exactly the gated channel.
+    static func hitBlend(_ gated: Double, _ pulse: Double, _ haveChart: Bool) -> Double {
+        haveChart ? max(gated * 0.6, pulse) : gated
+    }
+
     /// stemLightOut — neutral (gates 1, adds 0) while conf is 0.
     var out: Out {
         func c01(_ x: Double) -> Double { x < 0 ? 0 : (x > 1 ? 1 : x) }
