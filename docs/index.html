@@ -4289,6 +4289,19 @@ body.clipping::after{
     hard and the ink burned off fast; THE VEIL, one slow dancer laying wide sheets of all three inks
     that last.</p>
     <!-- ==== END ROOM MANUAL: FLUID ==== -->
+    <!-- ==== ROOM MANUAL: QUARTET ==== -->
+    <h3>The quartet</h3>
+    <p class="lede">Scene 124 is <b>QUARTET</b>: the band, seen. Every song here has been taken apart into its four
+    players — drums, bass, voice and everything else — by a source-separation network (Demucs), and the
+    drums charted hit by hit. Every other room hears the band through its light; this one shows it. Four
+    strands, one per player, each as broad and as bright as that player is loud, flow through a single
+    now, and a node lights where each crosses it. Because the score is known in advance, the strands do not
+    stop at now: the next three seconds are drawn ahead as a dotted ghost, so you see the drums coming back,
+    the voice coming in, the bass dropping out a moment before you hear it. The drum strand is beaded with
+    the drummer's real hits. Two faces: THE SCORE, the four strands running left to right; THE RINGS, four
+    concentric rings with now at the top and the future running clockwise. On the microphone or a file
+    nobody has separated, the strands are the live sound's own recent past, and the future is honestly dark.</p>
+    <!-- ==== END ROOM MANUAL: QUARTET ==== -->
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4941,6 +4954,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows',   // SPECTRAL
                // ↑ spectral · fluid ↓
                'flows',   // FLUID — a hand in the water stirs it
+               // ↑ fluid · quartet ↓
+               'gathers', // QUARTET — a hand gathers the band
                ];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
@@ -5252,6 +5267,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa',   // SPECTRAL
                // ↑ spectral · fluid ↓
                'paint',   // FLUID — the ghost paints in the water
+               // ↑ fluid · quartet ↓
+               'lissa',   // QUARTET — the ghost conducts in figures
                ];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
@@ -6467,7 +6484,7 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'minkowski', 'boltzmann',
                     'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta', 'aurora', 'cochlea', 'coriolis', 'seismic', 'tides', 'vortex', 'plateau', 'escapement', 'hubble',
                     'nave', 'plotter', 'spectral',
-                    'fluid'];
+                    'fluid', 'quartet'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6651,6 +6668,8 @@ const SCENE_TASTE = {
   spectral: { treble: 0.5, bass: 0.4, mid: 0.3, energy: 0.3, beat: 0.2, entropy: -0.1 },   // a full spectrum wants to be sculpted: bright tops, a deep floor, a pulse to fall down the scales
   // ↑ spectral · fluid ↓
   fluid: { energy: 0.6, beat: 0.5, bass: 0.4, entropy: 0.3, calm: -0.2 },   // water wants to be stirred: energy to dance to, onsets to splash on, bass to whirl
+  // ↑ fluid · quartet ↓
+  quartet: { beat: 0.5, bass: 0.4, mid: 0.4, energy: 0.2, entropy: -0.2 },   // the band, seen: a kit to bead, a bassline and a voice to draw, an arrangement clear enough to read
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7944,6 +7963,8 @@ const SCENE_SIGS = {
   spectral: { kind: 'ring', h: 280, arms: 4, rainbow: 1 },   // a great ring carrying four, each scale its own band
   // ↑ spectral · fluid ↓
   fluid: { kind: 'ribbon', h: 200, arms: 3 },   // three ribbons of ink, curling
+  // ↑ fluid · quartet ↓
+  quartet: { kind: 'ribbon', h: 170, arms: 4 },   // four strands, one per player
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -16734,6 +16755,31 @@ function stemMood(mood, section, conf, ceil){
     default:       return mood;
   }
 }
+/* QUARTET's window (the room lives in its ROOM REGION; its sampler lives
+   here, where the tests can read it) */
+const QUARTET_N = 64;          // samples across the window
+const QUARTET_WIN = 6.0;       // s — three behind now, three ahead
+/* the lane at window sample i: time pos + ((i + ½)/N − ½)·WIN. With stems,
+   each player's envelope at that time (linear on the 12 Hz score), the
+   drums beaded with the chart's hits; outside the track, silence. Returns
+   [drums, bass, voice, other] 0..1 into `out` at offset 4i. Pure. */
+function quartetLane(out, i, stems, chart, pos, dur){
+  const t = pos + ((i + 0.5) / QUARTET_N - 0.5) * QUARTET_WIN;
+  const o = i * 4;
+  if (!stems || !(stems.hz > 0) || !(t >= 0) || (dur > 0 && t > dur)){
+    out[o] = out[o + 1] = out[o + 2] = out[o + 3] = 0; return out;
+  }
+  const x = t * stems.hz, j = Math.floor(x), fr = x - j;
+  const at = (str) => {
+    if (!str || !str.length) return 0;
+    const a = stemDigit(str, j), b = stemDigit(str, j + 1);
+    return a + (b - a) * fr;
+  };
+  const d = at(stems.d);
+  out[o] = chart ? Math.max(d * 0.55, hitPulse(chart, t)) : d;
+  out[o + 1] = at(stems.b); out[o + 2] = at(stems.v); out[o + 3] = at(stems.o);
+  return out;
+}
 // @stem-end
 
 /* ================================================================
@@ -21361,7 +21407,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '40c07c6189';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'c9e1d5e149';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -60049,6 +60095,194 @@ function buildFluid(){
 }
 /* ==== END ROOM REGION: FLUID ==== */
 
+/* ==== ROOM REGION: QUARTET — builder owns everything between these fences ==== */
+/* ================================================================
+   QUARTET — the band, seen.
+
+   Every song in the catalog has been taken apart by Demucs into its
+   four players — drums, bass, voice and everything else — and the
+   drums have been charted hit by hit (tools/stems.py). Every other room
+   hears the band through the light; this one SHOWS it. Four strands,
+   one per player, each as broad and as bright as that player is loud,
+   flowing through a single NOW. And because the score is known in
+   advance, the strands do not stop at now: the coming three seconds are
+   drawn ahead of it as a dotted ghost, so the eye sees the drums
+   returning, the voice coming in, the bass dropping out BEFORE the ear
+   does. The drum strand is beaded with the chart's real hits; every
+   strand lights a node where it crosses now.
+
+   Two faces: THE SCORE (four strands left to right, the past fading
+   behind, the future ghosted ahead) and THE RINGS (four concentric
+   rings, now at the top, the future running clockwise).
+
+   Without stems (the mic, a local file) the strands are the live
+   bands' own recent past — drums from the onset, bass, voice from the
+   mids, the rest from the highs — and the future is honestly dark.
+
+   Each strand is a place on the live chord ramp, never a colour. The
+   TV's twin is Shaders44.metal (room_quartet, namespace rm_qt), which
+   reads the same 64-sample lane texture.
+   ================================================================ */
+function buildQuartet(){
+  const group = new THREE.Group();
+  const N = QUARTET_N;
+  const data = new Uint8Array(N * 4);
+  const tex = new THREE.DataTexture(data, N, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter;
+  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.needsUpdate = true;
+  const varU = {
+    uLanes: { value: tex },
+    uFaceQt: { value: 0 },
+    uLive: { value: 1 },
+    uPhaseQt: { value: 0 },
+    uNowQt: { value: new THREE.Vector4(0, 0, 0, 0) },   // the four players' levels at now
+    uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBeat, uOpacity;
+    uniform sampler2D uLanes;
+    uniform float uFaceQt, uLive, uPhaseQt, uAspect;
+    uniform vec4 uNowQt;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the lane texture: r drums, g bass, b voice, a everything else
+    vec4 lanes(float u){ return texture2D(uLanes, vec2(clamp(u, 0.0, 1.0), 0.5)); }
+    // bottom to top (or inner to outer): bass, drums, the rest, the voice
+    float laneOf(vec4 L, int k){ return k == 0 ? L.g : (k == 1 ? L.r : (k == 2 ? L.a : L.b)); }
+    // the four at now, in strand order (bass, drums, the rest, voice)
+    float nowOf(int k){ return k == 0 ? uNowQt.x : (k == 1 ? uNowQt.y : (k == 2 ? uNowQt.z : uNowQt.w)); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      bool rings = uFaceQt > 0.5;
+      float th = atan(p.x, p.y);                       // 0 at the top, clockwise positive
+      float r = length(p);
+      // u: where in the window this pixel sits (½ is now)
+      float u = rings ? 0.5 + th / 6.2831853 : 0.5 + p.x / (2.0 * uAspect);
+      // how far from now, along the strand, in screen units
+      float nowd = rings ? abs(th) * r : abs(p.x);
+      vec4 L = lanes(u);
+      float fut = step(0.5, u);
+      float dist = abs(u - 0.5);
+      // the past fades behind; the future is a ghost (and dark live) whose
+      // CORE is dotted — the coming score, not yet played
+      float past = exp(-dist * 2.4);
+      float ghost = 0.50 * exp(-dist * 2.4) * (1.0 - uLive);
+      float dots = 0.25 + 0.75 * smoothstep(0.30, 0.42, fract(u * 110.0)) * (1.0 - smoothstep(0.80, 0.92, fract(u * 110.0)));
+      float fadeSoft = mix(past, ghost, fut);
+      float fadeCore = mix(past, ghost * dots, fut);
+      vec3 col = vec3(0.0);
+      float s = rings ? min(uAspect, 1.0) : 1.0;
+      for (int k = 0; k < 4; k++){
+        float fk = float(k);
+        float v = laneOf(L, k);
+        float vn = nowOf(k);
+        float base = rings ? (0.24 + 0.215 * fk) * s : -0.66 + 0.44 * fk;
+        float along = rings ? th * 2.2 : p.x * 2.6;
+        float wob = (rings ? 0.018 : 0.034) * sin(along + uPhaseQt * (0.55 + 0.12 * fk) + fk * 1.7) * (0.35 + v);
+        float d = (rings ? r : p.y) - (base + wob);
+        float w = 0.0035 + 0.046 * v;                  // the player's breadth
+        vec3 c = ramp(0.06 + 0.25 * fk);
+        float core = exp(-(d * d) / (w * w));
+        float glow = exp(-abs(d) / (w * 1.8 + 0.006)) * 0.20;   // a halo, held close: the void stays void
+        float staff = exp(-abs(d) * 420.0) * 0.07;     // the staff line, even in silence
+        float soft = glow * v + staff;
+        if (k == 3) soft += (1.0 - smoothstep(0.0, w * 1.9, abs(d))) * 0.16 * v;          // the voice: a ribbon
+        if (k == 2) soft += (exp(-abs(abs(d) - w * 1.25) * 380.0)) * 0.35 * v;    // the rest: fine threads
+        col += c * (core * (0.25 + 0.95 * v) * fadeCore + soft * fadeSoft);
+        // the node where the strand crosses now — the player, sounding
+        float nd = length(vec2(nowd, d));
+        float hit = k == 1 ? uBeat : 0.0;
+        col += c * exp(-nd * nd / (0.00025 + 0.0035 * vn)) * (0.20 + 1.1 * vn) * (1.0 + 0.7 * hit);
+      }
+      // now: a hairline of light, brighter on the strike
+      float nowLine = rings ? exp(-nowd * 260.0) * step(0.0, p.y) * (1.0 - smoothstep(0.15 * s, 1.05 * s, r))
+                            : exp(-nowd * 260.0);
+      col += ramp(0.5) * nowLine * (0.07 + 0.22 * uBeat);
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.010;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const FACES = [
+    { name: 'THE SCORE', m: 0 },
+    { name: 'THE RINGS', m: 1 },
+  ];
+  // the live fallback: the bands' own recent past, one sample per window step
+  const RING = N / 2, ring = new Float32Array(RING * 4);
+  const lanesF = new Float32Array(N * 4);
+  const st = { face: FACES[0], acc: 0, head: 0 };
+  const api = {
+    name: 'QUARTET', key: 'quartet', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      varU.uPhaseQt.value += dt * (reducedMotion ? 0.2 : 0.45 + (f.energy || 0) * 0.8);
+      const tr = player.tracks[player.cur], dk = activeDeck();
+      const stems = AE.mic.on ? null : trackStems(tr);
+      const pos = dk && dk.a && isFinite(dk.a.currentTime) ? dk.a.currentTime - CLOCK.latency() : NaN;
+      const dur = tr && tr.duration > 0 ? tr.duration : (dk && dk.a && dk.a.duration > 0 ? dk.a.duration : 0);
+      if (stems && isFinite(pos)){
+        const chart = (typeof STEMS !== 'undefined' && STEMS._chartOf === stems) ? STEMS.chart : hitsChart(stems);
+        for (let i = 0; i < N; i++) quartetLane(lanesF, i, stems, chart, pos, dur);
+        varU.uLive.value = 0;
+      } else {
+        // live: push the bands into the ring each window step; the past half reads it
+        st.acc += dt;
+        const step = QUARTET_WIN / N;
+        while (st.acc >= step){
+          st.acc -= step;
+          const o = st.head * 4;
+          ring[o] = Math.min(1, f.beat || 0); ring[o + 1] = f.bass || 0; ring[o + 2] = f.mid || 0; ring[o + 3] = f.treble || 0;
+          st.head = (st.head + 1) % RING;
+        }
+        for (let i = 0; i < N; i++){
+          const o = i * 4;
+          if (i < RING){
+            const k = ((st.head - RING + i) % RING + RING) % RING * 4;
+            lanesF[o] = ring[k]; lanesF[o + 1] = ring[k + 1]; lanesF[o + 2] = ring[k + 2]; lanesF[o + 3] = ring[k + 3];
+          } else lanesF[o] = lanesF[o + 1] = lanesF[o + 2] = lanesF[o + 3] = 0;
+        }
+        varU.uLive.value = 1;
+      }
+      for (let i = 0; i < N * 4; i++) data[i] = Math.round(clamp01(lanesF[i]) * 255);
+      tex.needsUpdate = true;
+      // the four at now (the centre of the window), for the nodes
+      const a = N / 2 - 1, b = N / 2;
+      varU.uNowQt.value.set(
+        (lanesF[a * 4 + 1] + lanesF[b * 4 + 1]) / 2,     // x: bass
+        (lanesF[a * 4] + lanesF[b * 4]) / 2,             // y: drums
+        (lanesF[a * 4 + 3] + lanesF[b * 4 + 3]) / 2,     // z: the rest
+        (lanesF[a * 4 + 2] + lanesF[b * 4 + 2]) / 2);    // w: voice
+    },
+    roll(){
+      st.face = FACES[Math.floor(Math.random() * FACES.length)];
+      varU.uFaceQt.value = st.face.m;
+      varU.uPhaseQt.value = Math.random() * 20;
+      api.name = 'QUARTET · ' + st.face.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: QUARTET ==== */
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -60096,7 +60330,7 @@ function initThree(){
               buildMinkowski(), buildBoltzmann(),
               buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta(), buildAurora(), buildCochlea(), buildCoriolis(), buildSeismic(), buildTides(), buildVortex(), buildPlateau(), buildEscapement(), buildHubble(),
               buildNave(), buildPlotter(), buildSpectral(),
-              buildFluid());
+              buildFluid(), buildQuartet());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

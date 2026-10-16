@@ -178,6 +178,15 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     // texture(2) on EVERY room pass; rooms that ignore it are unaffected, and
     // a nil texture (device gone) simply leaves VERSE in its nebula fallback.
     private var wordTex: MTLTexture?
+    // QUARTET's lanes (texture(3)): 64 window samples, r drums · g bass ·
+    // b voice · a the rest, and texel 64's r the LIVE flag. Only room_quartet
+    // declares it; every other room ignores the binding, as VERSE's mask.
+    private var laneTex: MTLTexture?
+    private var qtLanes = [Float](repeating: 0, count: 64 * 4)
+    private var qtBytes = [UInt8](repeating: 0, count: 65 * 4)
+    private var qtRing = [Float](repeating: 0, count: 32 * 4)    // the live past
+    private var qtHead = 0
+    private var qtAcc: Double = 0
     private var lastWordKey: String?
 
     private var director = Director()
@@ -296,6 +305,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         "spectral": 3,
         // ↑ spectral · fluid ↓
         "fluid": 3,
+        // ↑ fluid · quartet ↓
+        "quartet": 2,     // gathers, the web's QUARTET touch
     ]
 
     private var specScratch = [Float](repeating: 0, count: 256)
@@ -463,6 +474,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         spectrumTex = makeDataTexture(device: device)
         waveformTex = makeDataTexture(device: device)
         wordTex = makeWordTexture(device: device)
+        let laneDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm,
+                                                                width: 65, height: 1, mipmapped: false)
+        laneDesc.usage = .shaderRead
+        laneDesc.storageMode = .shared
+        laneTex = device.makeTexture(descriptor: laneDesc)
 
         rebuildTargets(size: view.drawableSize)
         publishRoomName()
@@ -1108,6 +1124,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
 
         uploadAudioTextures(frame: frame, dt: dt)
+        uploadLanes(frame: frame, track: busTrack, dt: dt)
 
         // -- uniforms (the live room's block) --
         var u = VizUniforms()
@@ -1274,6 +1291,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // the VERSE text mask rides along on every room pass; only room_verse
         // declares texture(2) and reads it, the rest ignore the extra binding.
         encoder.setFragmentTexture(wordTex, index: 2)
+        // QUARTET's lanes ride along the same way; only room_quartet reads them
+        encoder.setFragmentTexture(laneTex, index: 3)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
     }
@@ -1331,6 +1350,55 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// The bands ride in the first 64 texels of a 256-wide r32Float strip;
     /// the waveform fills its own strip end to end. Counts are guarded —
     /// a short frame uploads zeros, never stale garbage or a crash.
+    /// QUARTET's window: three seconds behind now to three ahead, the web's
+    /// quartetLane sample for sample. With stems each player's score (the
+    /// drums beaded with the chart's hits); without, the live bands' own
+    /// recent past, one sample per window step, and a dark future.
+    private func uploadLanes(frame: Analyzer.Frame, track: Track?, dt: Double) {
+        let n = StemLight.quartetN
+        if let stems = track?.mix?.stems, stems.hz > 0, player.isPlaying || Self.driveDemo {
+            let dur = track?.duration ?? 0
+            for i in 0..<n {
+                let v = StemLight.quartetLane(i, stems: stems, chart: stems.hits,
+                                              pos: frame.playhead, dur: dur)
+                qtLanes[i * 4] = Float(v.x); qtLanes[i * 4 + 1] = Float(v.y)
+                qtLanes[i * 4 + 2] = Float(v.z); qtLanes[i * 4 + 3] = Float(v.w)
+            }
+            qtBytes[64 * 4] = 0
+        } else {
+            qtAcc += dt
+            let step = StemLight.quartetWin / Double(n)
+            var guardN = 0
+            while qtAcc >= step && guardN < 64 {
+                qtAcc -= step; guardN += 1
+                let o = qtHead * 4
+                qtRing[o] = min(1, max(0, frame.onsetEnv)); qtRing[o + 1] = frame.bass
+                qtRing[o + 2] = frame.mid; qtRing[o + 3] = frame.treble
+                qtHead = (qtHead + 1) % 32
+            }
+            for i in 0..<n {
+                let o = i * 4
+                if i < 32 {
+                    let k = ((qtHead - 32 + i) % 32 + 32) % 32 * 4
+                    qtLanes[o] = qtRing[k]; qtLanes[o + 1] = qtRing[k + 1]
+                    qtLanes[o + 2] = qtRing[k + 2]; qtLanes[o + 3] = qtRing[k + 3]
+                } else {
+                    qtLanes[o] = 0; qtLanes[o + 1] = 0; qtLanes[o + 2] = 0; qtLanes[o + 3] = 0
+                }
+            }
+            qtBytes[64 * 4] = 255
+        }
+        for i in 0..<(n * 4) {
+            qtBytes[i] = UInt8(min(max(qtLanes[i], 0), 1) * 255 + 0.5)
+        }
+        qtBytes.withUnsafeBytes { buffer in
+            if let base = buffer.baseAddress {
+                laneTex?.replace(region: MTLRegionMake2D(0, 0, 65, 1), mipmapLevel: 0,
+                                 withBytes: base, bytesPerRow: 65 * 4)
+            }
+        }
+    }
+
     private func uploadAudioTextures(frame: Analyzer.Frame, dt: Double) {
         // The bands ride the same punch-up / grace-down ease as the levels,
         // so bars and buses move continuously between analyzer publishes.

@@ -580,6 +580,16 @@ enum Rooms {
         Room(key: "fluid", name: "FLUID", fragmentFunction: "room_fluid",
              tasteEnergy: 0.6, tasteCalm: -0.2, tasteBeat: 0.5, tasteTreble: 0,
              tasteBass: 0.4, tasteEntropy: 0.3, heavy: true),
+
+        // ---- the stems wave ----
+
+        // QUARTET (Shaders44): the band, seen — four strands, one per Demucs
+        // player, flowing through now, the coming three seconds ghosted ahead
+        // from the score. Reads the lane texture (texture(3)) the renderer
+        // samples from the stems and the drum chart every frame.
+        Room(key: "quartet", name: "QUARTET", fragmentFunction: "room_quartet",
+             tasteEnergy: 0.2, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
+             tasteMid: 0.4, tasteBass: 0.4, tasteEntropy: -0.2, heavy: false),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

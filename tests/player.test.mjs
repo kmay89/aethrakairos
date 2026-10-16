@@ -46,7 +46,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' STEM_LIGHT, STEM_CUT_DWELL, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
-  ' HIT_VOICES, HIT_SKIP, hitsDecode, hitsChart, hitsLast, hitPulse, hitBlend, stemMood,' +
+  ' HIT_VOICES, HIT_SKIP, hitsDecode, hitsChart, hitsLast, hitPulse, hitBlend, stemMood, QUARTET_N, QUARTET_WIN, quartetLane,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
   ' danceLeanJS, danceStrideJS, danceFrontJS, danceLampJS, danceLandJS, danceRingJS, danceBreathJS, danceBeatWeightJS,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
@@ -2348,6 +2348,23 @@ test('stem mood: the band names the moment, never inventing an unearned peak', (
   for (const sec of ['hush', 'break', 'groove', 'song', 'drop', 'none'])
     for (const m of M) assert.ok(M.includes(S.stemMood(m, sec, 1, 1)), `${m}/${sec} stays a mood`);
 });
+test('QUARTET: the window samples each player\'s score, the drums beaded with the chart', () => {
+  const N = S.QUARTET_N, W = S.QUARTET_WIN;
+  const stems = { sv: 2, hz: 12, d: '0'.repeat(120) + '5'.repeat(120), b: '9'.repeat(240), v: '0'.repeat(240), o: '3'.repeat(240) };
+  const out = new Float32Array(N * 4);
+  // centred on 10 s: the window runs 7..13 s; the drums' envelope steps up at 10 s
+  for (let i = 0; i < N; i++) S.quartetLane(out, i, stems, null, 10, 20);
+  assert.ok(out[0] === 0 && out[(N - 1) * 4] > 0.5, 'the past is drumless, the future has the kit');
+  assert.ok(Math.abs(out[1] - 1) < 1e-6 && Math.abs(out[3] - 3 / 9) < 1e-6, 'bass and the rest read their score');
+  // a chart beads the drums: a hit inside the window strikes its sample
+  const hitAt = 10 + ((5 + 0.5) / N - 0.5) * W;
+  S.quartetLane(out, 5, stems, { k: [hitAt], s: [], h: [] }, 10, 20);
+  assert.ok(Math.abs(out[20] - 1) < 1e-6, 'the hit is the full strike in its sample');
+  // outside the track: silence, both ends
+  S.quartetLane(out, 0, stems, null, 1, 20); assert.equal(out[1], 0, 'before the start');
+  S.quartetLane(out, N - 1, stems, null, 19, 20); assert.equal(out[(N - 1) * 4 + 1], 0, 'past the end');
+  S.quartetLane(out, 3, null, null, 10, 20); assert.equal(out[12] + out[13] + out[14] + out[15], 0, 'no stems: silence');
+});
 test('stem light: the TV\'s StemLight carries the web\'s constants and formulas (parity)', () => {
   const swift = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
   const body = swift.slice(swift.indexOf('struct StemLight'));
@@ -2378,6 +2395,8 @@ test('stem light: the TV\'s StemLight carries the web\'s constants and formulas 
                       "case .groove: return m == .adrift ? .drive : m",
                       "guard conf > 0.5 else { return m }"])
     assert.ok(rooms.includes(rule), `Director.stemMood carries: ${rule}`);
+  assert.ok(body.includes(`quartetN = ${S.QUARTET_N}`) && body.includes(`quartetWin = ${S.QUARTET_WIN.toFixed(1)}`), 'QUARTET window matches');
+  assert.ok(body.includes('chart != nil ? max(d * 0.55, hitPulse(chart, t)) : d'), 'QUARTET beads the drums the same way');
   const view = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8');
   for (const f of ['stemLight.step(', 'kitReturn: stemOut.landed', 'stemOut.beatGate', 'stemOut.bassMul', 'stemOut.midMul',
                    'stemOut.chromaAdd', 'stemOut.lightMul', 'stemOut.whiteMul', 'stemOut.coil'])
@@ -2514,7 +2533,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 123);
+  assert.equal(S.SCENE_KEYS.length, 124);
 });
 
 test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
@@ -2817,7 +2836,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 123; sc++)
+  for (let sc = 0; sc < 124; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2864,7 +2883,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 123; sc++)
+  for (let sc = 0; sc < 124; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -3419,7 +3438,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 123; sc++)
+  for (let sc = 0; sc < 124; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);
