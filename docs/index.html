@@ -5782,6 +5782,15 @@ function pyroFire(acc, dt, rate, onset){
   while (a >= 1 && n < PYRO_TUNING.maxPerFrame){ n++; a -= 1; }
   return { acc: Math.min(Math.max(0, a), 2), fire: n };
 }
+/* v2 — the sky's own stillness: how bright what is already in the air may
+   burn. Up at once (the music's return must read on its frame), down over
+   ~0.3 s of the room's time (a held breath dims the volley out rather than
+   watching it break over silence). Pure; clamped; finite on junk. */
+function pyroStillGain(prev, still, dt){
+  const g = Math.max(0, Math.min(1, +prev || 0)), s = Math.max(0, Math.min(1, +still || 0));
+  if (s >= g) return s;
+  return s + (g - s) * Math.exp(-Math.max(0, +dt || 0) / 0.3);
+}
 /* WHICH PIECE THE MOMENT HAS EARNED. The ground pieces carry the quiet — a
    gerb is a flame doing a little more — and the sky opens as the music does.
    Billows ride under everything: the smoke a fire makes is not an event. */
@@ -14775,6 +14784,46 @@ function oklchToRgb(L, C, h){
     }
   }
 }
+/* v2 — the same mapping, CONTINUOUS in its chroma. The walk above steps the
+   chroma down 0.008 at a time, so a colour whose chroma drifts slowly across
+   the gamut boundary (the chord cooling through a held breath: moodC falls
+   0.003 a frame; the golden swell breathing the chroma through a tail) lands
+   one whole step down every few frames — a ±1 % luminance stair on every
+   swatch the boundary holds, which the chord-only rooms paint over the whole
+   frame: 42–58 % of a still bar's motion, read as a shiver. Here the step
+   that crossed the boundary is bisected to 1/1024 of itself (ten halvings),
+   so the colour is a continuous function of its chroma; inside the gamut
+   the first evaluation is the old function's first evaluation and the two
+   agree exactly. Hue and lightness are never touched — chroma alone gives. */
+function oklchToRgbFine(L, C, h){
+  const hr = h * Math.PI / 180;
+  const lin = c => {
+    const a = c * Math.cos(hr), bb = c * Math.sin(hr);
+    const l_ = L + 0.3963377774 * a + 0.2158037573 * bb;
+    const m_ = L - 0.1055613458 * a - 0.0638541728 * bb;
+    const s_ = L - 0.0894841775 * a - 1.2914855480 * bb;
+    const l = l_ ** 3, m = m_ ** 3, s = s_ ** 3;
+    return [
+      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+    ];
+  };
+  const ok = rgb => rgb.every(v => v >= -0.0005 && v <= 1.0005);
+  let hi = Math.max(0, C), rgb = lin(hi);
+  if (hi > 0 && !ok(rgb)){
+    let lo = hi;
+    for (;;){ hi = lo; lo = Math.max(0, lo - 0.008); rgb = lin(lo); if (lo <= 0 || ok(rgb)) break; }
+    if (ok(rgb)) for (let i = 0; i < 10; i++){
+      const mid = (lo + hi) * 0.5, m = lin(mid);
+      if (ok(m)){ lo = mid; rgb = m; } else hi = mid;
+    }
+  }
+  return rgb.map(v => {
+    v = clamp01(v);
+    return v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+  });
+}
 
 // hue-aware lerp: shortest arc around the wheel, so a glide from 350°
 // to 10° passes through red, not the entire rainbow
@@ -15143,12 +15192,22 @@ function gateLuma(prevL, targetL, dt, rate){
   const d = targetL - prevL;
   return Math.abs(d) <= maxStep ? targetL : prevL + Math.sign(d) * maxStep;
 }
-function makeSafeColorState(n){ return { l: new Array(n || 3).fill(null) }; }
+function makeSafeColorState(n){ return { l: new Array(n || 3).fill(null), rgb: new Array(n || 3).fill(null) }; }
 /* Gate a set of rgb triples: each slot's luminance may move no faster than
    the rate (red-heavy targets use the stricter red rate). The hue always
    arrives instantly — only the brightness excursion is throttled, so the
-   palette stays expressive while the strobe becomes a swell. */
-function safeColorStep(state, rgbs, dt, tuning){
+   palette stays expressive while the strobe becomes a swell.
+   `blend` (v2): where the gate holds the luminance back, the colour is the
+   CROSSFADE of last frame's governed colour toward the target, at the
+   fraction of the way the gate allows — its luminance is exactly the allowed
+   one (luminance is linear in the mix) and it can never leave the gamut. The
+   old path scales the target by k = allowed/target instead, and k > 1
+   (a luminance falling faster than the rate — the conjuror's inhale walking
+   a swatch through the reds, whose relative luminance at equal OKLab L is
+   lower) pushed a channel past 1.0 for frames at a time: a hue the chord
+   never meant, clipped on the GPU. Without `blend` the old path, byte for
+   byte; the gate itself (state.l, the rate, the red rate) is the same. */
+function safeColorStep(state, rgbs, dt, tuning, blend){
   const T = tuning || SAFE_TUNING;
   return rgbs.map((rgb, i) => {
     const target = relLuma(rgb);
@@ -15156,6 +15215,18 @@ function safeColorStep(state, rgbs, dt, tuning){
     const rate = T.rate + (T.redRate - T.rate) * redFraction(rgb);
     const allowed = gateLuma(prev, target, dt, rate);
     state.l[i] = allowed;
+    if (blend){
+      const last = state.rgb ? state.rgb[i] : null;
+      let out;
+      if (target < 1e-5) out = [0, 0, 0];
+      else if (allowed === target || !last || !(Math.abs(target - prev) > 1e-12)) out = rgb;
+      else {
+        const f = (allowed - prev) / (target - prev);
+        out = [last[0] + (rgb[0] - last[0]) * f, last[1] + (rgb[1] - last[1]) * f, last[2] + (rgb[2] - last[2]) * f];
+      }
+      if (state.rgb) state.rgb[i] = out;
+      return out;
+    }
     if (target < 1e-5) return [0, 0, 0];
     const k = allowed / target;
     return [rgb[0] * k, rgb[1] * k, rgb[2] * k];
@@ -16386,6 +16457,13 @@ function makeDanceBusState(){
                               pos + danceLookahead(P) (null without a score); a section-turn
                               strength 0..1 from the structure map (optional)
      tuning                   the governor's tuning for dHit (SAFE.tuning(); default SAFE_TUNING)
+     chartVoices              v2, a DRUM CHART (I1): {kick, snare, hat} one-frame edges at the
+                              audible instant (hitVoices) — the classifier stands down; null = none
+     stemCoil stemLanded      v2, the STEM LIGHT at authority (I2): its coil (so.coil, into dBrace
+     stemAuthority            by max), its landing (so.landed: THE landing, once) and the authority
+                              itself (STEMS conf >= 0.5: the env-lookahead latch is held disarmed).
+                              Defaults (null / 0 / false / false) walk the old path byte for byte;
+                              danceStemFeed builds the four, the TV's DanceInputs carries the same.
    The landing's engine side effects (INTERACT.impulse, f.beat, the ear's
    hits) are the caller's: read state.landed after the step. */
 function danceLookahead(P){ return 2 * P + 0.2; }
@@ -16403,7 +16481,19 @@ function danceBusStep(st, inp, dt){
   // the bass's own floor (τ 2.5 s) — a sustained bassline is weight, not a strike
   st.bassFloor = st.bassFloor == null ? bass
     : st.bassFloor + (bass - st.bassFloor) * (1 - Math.exp(-dt / 2.5));
-  danceClassify(inp, st.bassFloor, st);
+  const cv = inp.chartVoices;
+  if (cv){
+    // I1 (v2, a drum chart): the drummer's own hits are the voices — one-frame
+    // edges at the audible instant (hitVoices), no bass-floor gate (the hit is
+    // the truth the floor exists to guess at), the classifier's hat law kept:
+    // a hat under a kick or a snare is treble-class, not a strike. The floor
+    // above still follows the bass (the same state with the flag off); it has
+    // no say. Mirrored line for line in Dance.swift's step.
+    const k = clamp01(danceFin(cv.kick, 0)), sn = clamp01(danceFin(cv.snare, 0));
+    st.kick = k; st.snare = sn;
+    st.hat = clamp01(danceFin(cv.hat, 0)) * (1 - 0.7 * clamp01(k + sn));
+    st.gate = 1;
+  } else danceClassify(inp, st.bassFloor, st);
 
   // the strike as light (w) and the body's strike (s). A bare hat can
   // never lift w above 0.25 — the downbeat weight belongs to the voices.
@@ -16426,10 +16516,26 @@ function danceBusStep(st, inp, dt){
   const structure = clamp01(danceFin(inp.structure, 0));
   if (structure > coming) coming = structure;
   st.coming = coming;
-  const landed = danceLandingStep(st, { pos: inp.pos, coming, here: hereL, soon: windowed ? soonW : soonL, P, lookahead: la });
+  let landed;
+  if (inp.stemAuthority){
+    // I2 (v2, the stems at authority): the kit's return IS the landing —
+    // stemLightStep raises `landed` for exactly one frame, so the strike,
+    // dImpact's reset and the brace's release happen once, never twice — and
+    // the env-lookahead latch is HELD DISARMED meanwhile (its promise clock
+    // too: it runs again, from rest, the moment authority lapses).
+    st.armed = false; st.comingSince = NaN;
+    landed = !!inp.stemLanded;
+  } else landed = danceLandingStep(st, { pos: inp.pos, coming, here: hereL, soon: windowed ? soonW : soonL, P, lookahead: la });
   st.landed = landed;
   if (landed){ w = Math.max(w, 1.25); s = Math.max(s, 1.25); st.brace = 0; }
-  else st.brace = envFollow(st.brace, coming > DANCE_BUS.COMING ? 1 : 0, dt, 0.7 * P, 1.2 * P);
+  else {
+    st.brace = envFollow(st.brace, coming > DANCE_BUS.COMING ? 1 : 0, dt, 0.7 * P, 1.2 * P);
+    // I2 (v2): the kit's return, seen 0.5–2 s early, coils the body — by MAX,
+    // so the score's own coil is never lowered (0 with the flag off: 0 > brace
+    // is never true, the follower's value stands untouched)
+    const coil = clamp01(danceFin(inp.stemCoil, 0));
+    if (coil > st.brace) st.brace = coil;
+  }
   st.w = w; st.s = s;
 
   // 0 dHit — latch the strike, release over 0.3 beat, the governor last
@@ -16549,20 +16655,38 @@ function danceSectionTurn(prevLevel, curLevel, energy, beatsSinceTurn){
    groove's followers touch 0.05 between hits too, so a beat of quiet is the
    least that is a section and not a gap) — which left the rush whipping
    through the first 0.7 s of the silent bar. The score path has the next
-   beat in hand: when every step of the beat about to play [t, t + P] reads
-   nothing in any band (bass + mid + treble + punch under 0.05) and the beat
-   just played [t − P, t] was sound (over 0.3), the silence starts NOW. Every
-   env step is read, so a beat with any hit in it — a lone hat, a snare, a
-   kick — reads well above the floor and never passes; a silence after a
-   silence (a count-in, a fade) is no turn. Pure; no env, no turn. */
+   beat in hand: when the beat about to play [t, t + P] reads nothing in any
+   band (bass + mid + treble + punch: a MEAN under 0.05 over its n = P·hz
+   steps, so a lone 21 ms hat in an otherwise empty beat is a gap while a
+   beat with a kick, a snare or a pad in it never passes) and the beat just
+   played [t − P, t] was sound (over 0.3), the silence starts NOW. A silence
+   after a silence (a count-in, a fade) is no turn.
+   WHERE THE FIRST TRUE FRAME LANDS — the reasoning the unit test holds this
+   to. envSample interpolates the tonal bands linearly between digits, so the
+   last sounding digit (level L) bleeds into the first silent step as
+   L·(1 − fr). The mean alone admits a residue of 0.05·n tap-levels — about
+   two steps of a 0.62 groove — so on its own it fired up to 2/hz BEFORE the
+   first silent digit, by an amount that depended on how loud the sound had
+   been. So the FIRST step of the beat ahead must itself be under the floor:
+   the tap at t + P/(2n) reads < 0.05, which puts it within (0.05/L)/hz
+   ≤ 1/hz of the first silent digit (L ≥ 0.05, or there was no sound to end).
+   The first true frame therefore lands in [onset − 1/hz − P/(2n), onset + one
+   frame): never more than one env step and half a tap before the first
+   silent digit, and on the first frame at or after it at the latest (every
+   tap then reads silence while the behind window still holds the sound).
+   CHOREO reads it at currentTime + 0.08 — the analyser's own read-ahead — so
+   the held breath is dealt on the frame the silence is heard. Pure; no env,
+   no turn. */
 function danceSilenceAhead(env, t, P){
   if (!env || !(env.hz > 0) || !(P > 0) || !isFinite(t)) return false;
   const n = Math.max(4, Math.min(64, Math.ceil(P * env.hz)));
+  const lvl = e => e ? danceFin(e.bass, 0) + danceFin(e.mid, 0) + danceFin(e.treble, 0) + danceFin(e.punch, 0) : 0;
+  // the step about to play is already silent: the interpolation's tail is under the floor
+  if (!(lvl(envSample(env, t + 0.5 * P / n)) < 0.05)) return false;
   let ahead = 0, behind = 0;
   for (let k = 0; k < n; k++){
-    const a = envSample(env, t + (k + 0.5) * P / n), b = envSample(env, t - P + (k + 0.5) * P / n);
-    if (a) ahead += danceFin(a.bass, 0) + danceFin(a.mid, 0) + danceFin(a.treble, 0) + danceFin(a.punch, 0);
-    if (b) behind += danceFin(b.bass, 0) + danceFin(b.mid, 0) + danceFin(b.treble, 0) + danceFin(b.punch, 0);
+    ahead += lvl(envSample(env, t + (k + 0.5) * P / n));
+    behind += lvl(envSample(env, t - P + (k + 0.5) * P / n));
   }
   return ahead / n < 0.05 && behind / n > 0.3;
 }
@@ -16614,6 +16738,36 @@ function danceScoreRises(env, step, mem, out){
   }
   if (step !== prev){ mem.step = step; mem.env = env; }
   return out;
+}
+
+/* danceStemFeed — the stems' say in the bus's inputs (I1, I2), behind v2.
+   c: { v2, playing, heard (the AUDIBLE instant: the media clock less the
+   output path — hitPulse's clock), heardPrev (last frame's, NaN for none),
+   dt, chart (hitsChart), conf (STEMS.state.conf), coil, landed (STEMS.out),
+   voices (a {kick, snare, hat} object reused frame to frame) }. Writes
+   inp.chartVoices / stemCoil / stemLanded / stemAuthority and returns the
+   heardPrev for next frame. The chart's edges are read between the clock's
+   previous read and this one; a seek or a new track is a cut, not a
+   performance (the stem light's own 1.5 s rule), so no hit is struck across
+   a jump, and a paused deck reads nothing. With v2 off every field is its
+   default — null / 0 / false / false — and danceBusStep walks the old path
+   byte for byte. The TV's DanceBus.step(frame:) builds the same four. */
+function danceStemFeed(inp, c){
+  inp.chartVoices = null; inp.stemCoil = 0; inp.stemLanded = false; inp.stemAuthority = false;
+  const heard = danceFin(c && c.heard, NaN);
+  const live = !!(c && c.playing && isFinite(heard));
+  if (c && c.v2){
+    if (live && c.chart){
+      const jumped = !(Math.abs(heard - danceFin(c.heardPrev, NaN) - danceFin(c.dt, 0)) < 1.5);
+      inp.chartVoices = hitVoices(c.chart, heard, jumped ? NaN : c.heardPrev, c.voices);
+    }
+    if (danceFin(c.conf, 0) >= 0.5){
+      inp.stemAuthority = true;
+      inp.stemCoil = clamp01(danceFin(c.coil, 0));
+      inp.stemLanded = !!c.landed;
+    }
+  }
+  return live ? heard : NaN;
 }
 // @dance-end
 
@@ -16816,6 +16970,22 @@ function hitPulse(chart, pos){
    one, exactly the gated channel it was */
 function hitBlend(gated, pulse, haveChart){
   return haveChart ? Math.max(gated * 0.6, pulse) : gated;
+}
+/* the chart's VOICES for the dance bus (I1): kick, snare and hat each read 1
+   on the ONE frame a hit of that voice crosses the clock — a hit at h is an
+   edge when prev < h <= pos — and 0 otherwise. Nothing without a chart, with
+   a non-finite clock, or when the clock did not advance (a pause, a seek
+   backwards; the caller hands NaN for prev across a jump). The edge says
+   WHICH drum; the bus says what it weighs (0.85 snare, 0.25 hat, the
+   downbeat's 1.25) — hitPulse's amplitudes are the beat channel's, not
+   these. Writes into `out` when given. Twin: StemLight.hitVoices. */
+function hitVoices(chart, pos, prev, out){
+  const v = out || { kick: 0, snare: 0, hat: 0 };
+  v.kick = 0; v.snare = 0; v.hat = 0;
+  if (!chart || !isFinite(pos) || !isFinite(prev) || !(prev < pos)) return v;
+  const edge = arr => { const i = hitsLast(arr, pos); return (i >= 0 && arr[i] > prev) ? 1 : 0; };
+  v.kick = edge(chart.k); v.snare = edge(chart.s); v.hat = edge(chart.h);
+  return v;
 }
 /* THE BAND NAMES THE MOMENT. roomMood reads the arc and the energy; the
    stems say what the band is actually DOING, which the energy alone cannot
@@ -21494,7 +21664,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'c9e1d5e149';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'eb2ad8bf97';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -30533,7 +30703,8 @@ const CLOCK = {
    frame, shared by the beat channel, the bands, the colour engine and the
    dancer's brace. */
 const STEMS = { state: makeStemLightState(), out: stemLightOut(makeStemLightState()),
-  chart: null, _chartOf: null, hit: 0 };
+  chart: null, _chartOf: null, hit: 0,
+  heard: NaN };   // the AUDIBLE instant this frame (the media clock less the output path), NaN when not playing
 
 const DANCE = {
   on: true,
@@ -30543,10 +30714,12 @@ const DANCE = {
      landing, the warp on dMass. Off: the bus is stepped and delivered to the
      rooms that ask for it, and nothing the existing rooms read changes — every
      frame byte-identical to before. Flipped on in stage 3, with before/after
-     films on spiral, pulse, fractal and two control rooms. A listener turns
-     it with ?v2=1 / ?v2=0 (read right after this object is built); the
-     motion harness writes window.DANCE.v2 before its first frame. */
-  v2: false,
+     films on spiral, pulse, fractal and two control rooms. ON by default
+     since that gate passed (DanceBus.v2Default is its TV twin, flipped with
+     it); a listener turns it with ?v2=1 / ?v2=0 (read right after this
+     object is built), the motion harness writes window.DANCE.v2 before its
+     first frame, and a stage screen takes it off the wire from its booth. */
+  v2: true,
   /* the bus's landing, for the harness and the HUD: engine time (DANCE.time)
      and the playhead (s) of the last landing; −1 before any */
   landedAt: -1, landedPos: -1,
@@ -30559,6 +30732,10 @@ const DANCE = {
      is the raw running count (grid or freewheel) the figures are dealt
      and carried on. */
   rate: 1, time: 0, beats: 0,
+  /* v2 — the stillness gate as update() computed it this frame (last frame's
+     dStill × a true-silence gate on the energy; 1 with the flag off), for
+     CHOREO's rubato; and the chart clock's previous read (danceStemFeed) */
+  stillGate: 1, _heardPrev: NaN,
   _freePhase: 0, _out: 0, _wasComing: 0,
 
   /* THE BUS — the twelve floats of DANCE_BUS.NAMES, stepped once per frame by
@@ -30580,6 +30757,7 @@ const DANCE = {
     // rise tracker, the onset edge, the slow uAudio row
     this.landedAt = -1; this.landedPos = -1;
     this._beatRiseAt = -Infinity; this._beatPost = 0; this._onsetPrev = false;
+    this._heardPrev = NaN; this.stillGate = 1;
     if (typeof audioSlowReset === 'function') audioSlowReset();
   },
   /* the bus's inputs, then one pure step. Strikes: on the score path the
@@ -30647,6 +30825,16 @@ const DANCE = {
         if (turnIn > -P / 4 && turnIn <= la && D.pts[i].strength > structure){ structure = D.pts[i].strength; D.feeding = i; }
       }
     }
+    // v2 — the stems' say (I1, I2): the chart's edges at the audible instant
+    // (STEMS.heard — hitPulse's clock; the stem light is stepped BEFORE
+    // update() in frame(), so this frame's reading is in hand), the stem
+    // light's coil and landing once its stems have authority. Off: the four
+    // fields at their defaults and the stepper's old path, byte for byte.
+    this._heardPrev = danceStemFeed(inp, {
+      v2: this.v2, playing, heard: STEMS.heard, heardPrev: this._heardPrev, dt,
+      chart: STEMS.chart, conf: STEMS.state.conf, coil: STEMS.out.coil, landed: STEMS.out.landed,
+      voices: this._busVoices || (this._busVoices = { kick: 0, snare: 0, hat: 0 }),
+    });
     inp.bass = f.bass; inp.mid = f.mid; inp.treble = f.treble; inp.energy = f.energy; inp.centroid = f.centroid;
     inp.period = this.period; inp.haveGrid = this.haveGrid;
     inp.beatIdx = this.haveGrid ? CLOCK.idx % 4 : Math.floor(beats % 4);
@@ -30777,6 +30965,7 @@ const DANCE = {
     // on its floor. Anticipation is for a beat somebody is about to hear.
     const stillGate = this.v2
       ? (this.bus ? this.bus[10] : 0) * danceSmooth(0.02, 0.06, f.energy) : 1;
+    this.stillGate = stillGate;
     const gridPulse = playing && stillGate > 0
       ? dancePulse(phi, { art: clamp01(art + this.brace * 0.4),
                           bounce: (0.35 + f.energy * 0.5) * (1 - this.brace * 0.6),
@@ -30931,14 +31120,31 @@ const CHOREO = {
       this._deal({ name: 'suspend', beats: 4, dir: this.move.dir, va: rnd(), vb: rnd() });
     // hand over on the count — and re-deal if the clock itself rewound
     // (a track change re-derives the grid; the freewheel never goes back)
-    else if (!this.move || beats - this.start >= this.move.beats || beats < this.start - 1)
+    // v2: a held breath that runs out while the music is still away is HELD —
+    // the pose rests at its end, nothing is re-dealt mid-silence (the first
+    // tune films dealt an orbit for one frame at 29.46 s inside the silent
+    // bar, the turn's suspend having started a beat early); the music's
+    // return (the landing, or the stillness gate lifting) hands over as before
+    else if (!this.move || beats < this.start - 1
+        || (beats - this.start >= this.move.beats
+            && !(DANCE.v2 && this.move.name === 'suspend' && DANCE.stillGate < 0.5)))
       this._deal(null);
     this.u = clamp01((beats - this.start) / this.move.beats);
     this.pose = danceMovePose(this.move.name, this.u, this.move);
     // the rubato: eased so it reads as breath, bounded so no sim can break
     this._rate += (this.pose.flow - this._rate) * (1 - Math.exp(-dt / 0.28));
-    DANCE.rate = Math.min(1.9, Math.max(0.4, this._rate));
+    // v2: the rubato reads STILLNESS — the same gate the grid floor reads
+    // (DANCE.stillGate), and the score's own word that the beat ahead is
+    // empty (_silAhead, 80 ms ahead like every other read) — applied AFTER
+    // the ease, so a figure slows in the frame the sound stops, to the rate's
+    // floor, and comes back up as the gate arrives with the music (dStill
+    // slews up in P/8). uTime stays monotone: the floor is 0.4, never 0.
+    const still = DANCE.v2 ? Math.min(this.stillGate(), this._silAhead ? 0 : 1) : 1;
+    DANCE.rate = Math.min(1.9, Math.max(0.4, this._rate * still));
   },
+
+  // v2 — the stillness the rubato reads: DANCE.stillGate as update() left it (1 with the flag off)
+  stillGate(){ const g = DANCE.stillGate; return typeof g === 'number' && isFinite(g) ? g : 1; },
 
   /* v2 — "a quieter section began within the last beat" (danceSectionTurn,
      pure). Two readers of one predicate: the track's structure map
@@ -30989,6 +31195,11 @@ const CHOREO = {
     return true;
   },
 };
+
+// top-level consts again: the motion harness's telemetry (CHOREO.move.name)
+// and the probes (STEMS.*) reach them through the global scope; these make
+// them window properties too, so a reader that goes through window finds them
+try { window.CHOREO = CHOREO; window.STEMS = STEMS; } catch (e){}
 
 /* ================================================================
    COLOR — the colour engine's conductor. Watches what's playing,
@@ -31181,9 +31392,19 @@ const COLOR = {
     // luminance excursions are rate-limited (WCAG 2.3.1, enforced not reviewed).
     // Three swatches is what it governs and what the shaders read; a fourth
     // note, where the chord has one, exists only for the gradient below.
+    // v2: the swatches are mapped into the gamut CONTINUOUSLY (oklchToRgbFine:
+    // the 0.008 chroma walk landed one step down every few frames as the
+    // chord cooled through a held breath — a ±1 % luminance stair on every
+    // swatch the boundary holds, 42–58 % of a still bar's motion in the
+    // chord-only rooms), and the governor holds a luminance that falls
+    // faster than its rate by crossfading toward the target instead of
+    // scaling the colour up into clipping (the inhale walks a swatch through
+    // the reds: four frames of a channel over 1.0 on the drop's approach).
+    // With the flag off both are the old path, byte for byte.
+    const v2c = typeof DANCE !== 'undefined' && DANCE.v2;
     const rgb = safeColorStep(SAFE.colorState,
-      lit.slice(0, 3).map(c => oklchToRgb(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),
-      dt, SAFE.tuning());
+      lit.slice(0, 3).map(c => (v2c ? oklchToRgbFine : oklchToRgb)(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),
+      dt, SAFE.tuning(), v2c);
     U.uColA.value.setRGB(rgb[0][0], rgb[0][1], rgb[0][2]);
     U.uColB.value.setRGB(rgb[1][0], rgb[1][1], rgb[1][2]);
     U.uColC.value.setRGB(rgb[2][0], rgb[2][1], rgb[2][2]);
@@ -33891,7 +34112,7 @@ function buildFlame(){
      spends the budget (preferring the hit), `pyroPick` and `pyroSalt` choose
      the piece and its chemistry — all of them pure, all of them tested. This
      is only the part that has to touch a GPU buffer. */
-  const pyro = { acc: 0, cold: 0 };
+  const pyro = { acc: 0, cold: 0, gain: 1 };
   const SKY_N = EV - PYRO_TUNING.smoke;
   function pyroLaunch(kindKey, saltKey, srcIdx, power){
     const smoke = kindKey === 'billow';
@@ -33922,8 +34143,22 @@ function buildFlame(){
     // a device that is already shedding pixels does not also get a full sky:
     // the show thins out rather than the music stuttering
     const lean = typeof PERF !== 'undefined' && PERF.struggling ? 0.4 : 1;
-    const rate = pyroRate({ energy: f.energy, mood, calm }) * lean;
-    const shot = pyroFire(pyro.acc, dt, rate, !!f.onset);
+    /* v2 — THE SKY GOES QUIET WITH THE MUSIC. The rate below has a floor
+       (base 0.22 a second at zero energy) and the shells of a build break
+       seconds after they leave the rack, so a held breath after a build was
+       a volley blooming over silence (the silent bar ×5.7 of OFF's, the lit
+       area 46 → 67 %). Under v2 the launches, the billows and the onset
+       shell run × the engine's stillness gate (DANCE.stillGate: dStill × the
+       true-silence gate on the energy — 1 with the flag off), and what is
+       already in the air dims out with the gate (pyroStillGain: down over
+       ~0.3 s of the room's time, back on the frame the music returns); once
+       dark the slots are cleared, so the music's return starts from an
+       empty sky. */
+    const v2sky = typeof DANCE !== 'undefined' && DANCE.v2;
+    const still = v2sky && typeof DANCE.stillGate === 'number' && isFinite(DANCE.stillGate) ? DANCE.stillGate : 1;
+    pyro.gain = v2sky ? pyroStillGain(pyro.gain, still, dt) : 1;
+    const rate = pyroRate({ energy: f.energy, mood, calm }) * lean * still;
+    const shot = pyroFire(pyro.acc, dt, rate, !!f.onset && (!v2sky || still >= 0.5));
     pyro.acc = shot.acc;
     for (let i = 0; i < shot.fire; i++){
       const r = Math.random();
@@ -33935,12 +34170,14 @@ function buildFlame(){
                                         : Math.min(NS - 1, Math.floor(Math.random() * NS));
       pyroLaunch(kind, salt, src, 0.55 + f.energy * 0.45);
     }
-    pyro.smoke = (pyro.smoke || 0) + dt * (PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean;
+    pyro.smoke = (pyro.smoke || 0) + dt * (PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean * still;
     while (pyro.smoke >= 1){
       pyro.smoke -= 1;
       const src = varU.uSolo.value >= 0 ? varU.uSolo.value : Math.floor(Math.random() * NS);
       pyroLaunch('billow', 'charcoal', src, 0.5 + f.energy * 0.4);
     }
+    // v2: a sky that has dimmed out is cleared — nothing comes back mid-break
+    if (v2sky && pyro.gain < 0.05) for (let i = 0; i < EV; i++) slots[i].t = -1;
     // age every slot and write the table the shader reads
     for (let i = 0; i < EV; i++){
       const s = slots[i], o = i * 4;
@@ -33948,7 +34185,7 @@ function buildFlame(){
       const age = s.t < 0 ? 0 : clamp01(s.t / s.life);
       const q = (v, sc) => Math.max(0, Math.min(255, Math.round((v / sc) * 255)));
       evData[o] = s.t < 0 ? 0 : Math.max(1, Math.round(age * 255));
-      evData[o + 1] = q(s.kind, 16); evData[o + 2] = q(s.src, 16); evData[o + 3] = q(s.power, 1);
+      evData[o + 1] = q(s.kind, 16); evData[o + 2] = q(s.src, 16); evData[o + 3] = q(v2sky ? s.power * pyro.gain : s.power, 1);
       const r1 = (EV + i) * 4;
       evData[r1] = q(s.col[0], 1); evData[r1 + 1] = q(s.col[1], 1);
       evData[r1 + 2] = q(s.col[2], 1); evData[r1 + 3] = q(s.trail, 1);
@@ -34032,7 +34269,9 @@ function buildFlame(){
         tour.t += dt;
         const beat = (typeof DANCE !== 'undefined' && DANCE.period > 0.2) ? DANCE.period : 0.55;
         const hold = Math.max(4.5, beat * 8);
-        if (tour.t >= hold && (!DANCE.haveGrid || DANCE.barFrac < 0.12)){
+        // v2: a light is not swapped in a stillness — the step clears the
+        // sky and re-homes the bench, a cut, and cuts land on the music
+        if (tour.t >= hold && (!DANCE.haveGrid || DANCE.barFrac < 0.12) && !(DANCE.v2 && DANCE.stillGate < 0.5)){
           tour.t = 0;
           tour.i = (tour.i + 1) % NS;
           varU.uSolo.value = tour.i;
@@ -62803,6 +63042,9 @@ const STAGE = {
       // so a three-panel body breathes as one dancer (CHOREO stands down on
       // screens — this line is what it stands down FOR)
       DANCE.rate = Math.min(1.9, Math.max(0.4, Number(p.dance.r) || 1));
+      // the booth's engine flag: a screen follows its booth (both default on;
+      // a booth opened with ?v2=0 takes its wall with it)
+      if (p.dance.v2 != null) DANCE.v2 = !!p.dance.v2;
       // the booth's bus, clamped to its rails: this screen's twelve are the
       // booth's for the frame, and its own stepper stands down (DANCE.update)
       if (DANCE.bus && danceBusApply(DANCE.bus, p.dance.v)) DANCE._busWire = true;
@@ -62940,7 +63182,8 @@ const STAGE = {
     const f = AE.f, p = { t: 'f', at: now, f: {} };
     for (const k of STAGE_FIELDS) p.f[k] = f[k];
     p.clock = { g: !!CLOCK.haveGrid, i: CLOCK.idx | 0, b: CLOCK.barPhase, t: CLOCK.bpm, p: CLOCK.phrasePhase };
-    p.dance = { p: DANCE.pulse, w: DANCE.warp, e: DANCE.ear, b: DANCE.brace, f: DANCE.phraseFrac, g: !!DANCE.haveGrid, r: DANCE.rate };
+    // (the engine flag rides along, so a screen follows its booth — a wall is one story)
+    p.dance = { p: DANCE.pulse, w: DANCE.warp, e: DANCE.ear, b: DANCE.brace, f: DANCE.phraseFrac, g: !!DANCE.haveGrid, r: DANCE.rate, v2: !!DANCE.v2 };
     // the dance bus: the booth's twelve (DANCE_BUS.NAMES order, four decimals),
     // so every screen of a wall strikes, braces and rests as ONE body
     if (DANCE.bus) p.dance.v = Array.from(DANCE.bus, x => Math.round(x * 1e4) / 1e4);
@@ -66207,9 +66450,14 @@ function frame(now){
     // it (hash11(slot·7.31 + uSeedP + uBeatIdx·13.7)), every grid beat, in
     // silence: phantom r 0.90 in a still quad's tail with every beat channel
     // at 0. While the room is still the index HOLDS (a grid it has is kept,
-    // never re-rolled); it runs again with the music. The bar phase runs on.
-    if (!(v2grid && stillGate < 0.5 && U.uBeatIdx.value >= 0)) U.uBeatIdx.value = idx % 4;
-    U.uBarPhase.value = CLOCK.barPhase;
+    // never re-rolled); it runs again with the music. The bar PHASE holds
+    // with it: fract(uBarPhase·4) is a per-beat sawtooth (PULSE's ring, the
+    // prelude's danceBeatPhase) that wrapped on every beat of a held tail —
+    // phantom r 0.65 on the read-ahead frame of each beat with the index
+    // held and every beat channel at 0. Both resume on the frame the gate
+    // lifts; the clock itself (CLOCK, DANCE.barFrac) never stops.
+    const holdGrid = v2grid && stillGate < 0.5 && U.uBeatIdx.value >= 0;
+    if (!holdGrid){ U.uBeatIdx.value = idx % 4; U.uBarPhase.value = CLOCK.barPhase; }
   } else {
     if (gridBeatIdx !== -1) METER.clear();
     gridBeatIdx = -1;
@@ -66217,12 +66465,17 @@ function frame(now){
   }
   if (v2grid) DANCE._beatPost = AE.f.beat;   // the channel as the lattice left it: next frame's rise is read against this
 
-  DANCE.update(dt, t);
   /* STEM LIGHT — the band, read from the separated score (see @stem). The
      kit's return is precognition the envelope split cannot see: the coil
      feeds the dancer's brace (and through it the colour wash and CHOREO's
      suspend), and the frame the drums come back is a landing — the same
-     shockwave, beat and bloom the bass-precognition already fires. */
+     shockwave, beat and bloom the bass-precognition already fires.
+     Stepped BEFORE the dance engine (tune 1): under v2 the bus hears the
+     chart and takes the kit's landing from this frame's reading (I1, I2 —
+     DANCE._stepBus); its inputs (the track's stems, the media clock, the
+     transport) are nothing DANCE.update writes, and with v2 off the engine
+     reads nothing of it, so the order moves no byte. Its side effects on the
+     engine stay where they were, after DANCE.update (below). */
   {
     const dk = activeDeck(), stTr = player.tracks[player.cur];
     stemLightStep(STEMS.state, {
@@ -66230,21 +66483,31 @@ function frame(now){
       pos: dk && dk.a && isFinite(dk.a.currentTime) ? dk.a.currentTime + 0.08 : NaN,
       playing: player.playing,
     }, dt);
-    const so = STEMS.out = stemLightOut(STEMS.state);
+    STEMS.out = stemLightOut(STEMS.state);
     // the drum chart: decoded once per track, read at the AUDIBLE instant
     // (the media clock less the output path, the CLOCK's own compensation)
     const sx = AE.mic.on ? null : trackStems(stTr);
     if (sx !== STEMS._chartOf){ STEMS._chartOf = sx; STEMS.chart = hitsChart(sx); }
-    STEMS.hit = STEMS.chart && player.playing && dk && dk.a && isFinite(dk.a.currentTime)
-      ? hitPulse(STEMS.chart, dk.a.currentTime - CLOCK.latency()) : 0;
-    if (DANCE.on){
-      if (so.landed){
+    STEMS.heard = player.playing && dk && dk.a && isFinite(dk.a.currentTime)
+      ? dk.a.currentTime - CLOCK.latency() : NaN;
+    STEMS.hit = STEMS.chart && isFinite(STEMS.heard) ? hitPulse(STEMS.chart, STEMS.heard) : 0;
+  }
+  DANCE.update(dt, t);
+  // the stem light's say on the engine: the kit's landing and its coil.
+  // v2 + the stems at authority (I2): the BUS took this landing in _stepBus —
+  // the shockwave, the beat, the ear flung open, the brace released, once —
+  // so nothing is fired twice here; the coil still lifts DANCE.brace by max
+  if (DANCE.on){
+    const so = STEMS.out;
+    const busTook = DANCE.v2 && STEMS.state.conf >= 0.5;
+    if (so.landed){
+      if (!busTook){
         if (typeof INTERACT !== 'undefined') INTERACT.impulse = Math.max(INTERACT.impulse, 1);
         AE.f.beat = Math.max(AE.f.beat, 1.2);
         DANCE._hits = (DANCE._hits || 0) + 2;
         DANCE.brace = 0;
-      } else if (so.coil > DANCE.brace) DANCE.brace = so.coil;
-    }
+      }
+    } else if (so.coil > DANCE.brace) DANCE.brace = so.coil;
   }
   if (typeof CHOREO !== 'undefined') CHOREO.update(dt);
 

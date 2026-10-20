@@ -35,6 +35,10 @@ import simd
    of VizUniforms, onsetEnv, the bands and the phases keep their values.
    No room reads the twelve yet — the bus is live but invisible until
    the engine edits behind the web's DANCE.v2 land on both stages.
+   DanceBus.v2 (below) is that flag's twin: off, the feed hands the pure
+   core exactly the inputs it always had; on, the drum chart's edges are
+   the voices (I1) and the stem light's coil and landing own precognition
+   (I2) — the same story the web tells behind DANCE.v2, same defaults.
    ================================================================ */
 
 /// The flash governor's tuning for dHit — the web's SAFE_TUNING and its
@@ -191,6 +195,11 @@ struct DanceInputs {
     var soon: DanceLevel? = nil                  // env at pos + lookahead(P)
     var structure: Float = 0                     // a section turn's strength (stage 3; 0 today)
     var tuning: DanceTuning = .standard
+    // v2 — the stems' say (nil / 0 / false with the flag off: the core's old path, byte for byte)
+    var chartVoices: DanceVoices? = nil          // I1: the drum chart's edges this frame replace the classifier
+    var stemCoil: Float = 0                      // I2: the stem light's coil (so.coil) — dBrace by max
+    var stemLanded: Bool = false                 // I2: the kit's return this frame IS the landing, once
+    var stemAuthority: Bool = false              // I2: STEMS conf >= 0.5 — the env latch is held disarmed
 }
 
 /// The twelve, as three float4s — exactly the web's uDance0/1/2 — so the copy
@@ -256,6 +265,24 @@ struct DanceBus {
     static let comingThreshold: Float = 0.42                  // precognition: "a louder passage is coming"
     static let twoPi: Float = 6.283185307179586
 
+    // MARK: DANCE.v2 — the engine edits behind the flag, on this stage
+
+    /// The web's `DANCE.v2` default (docs/index.html, `v2:` in the DANCE
+    /// object): the two are flipped TOGETHER, so both stages tell one story.
+    static let v2Default = true
+    /// The flag as this launch reads it: `--dance-v2 on|off` (CI's camera,
+    /// the web's `?v2=1|0`) wins; otherwise the default. Read by the FEED
+    /// only — the pure core never sees a flag, it sees inputs that stay at
+    /// their defaults while the flag is off.
+    static let v2: Bool = {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "--dance-v2"), i + 1 < args.count {
+            let v = args[i + 1].lowercased()
+            return !(v == "0" || v == "false" || v == "off" || v == "no")
+        }
+        return DanceBus.v2Default
+    }()
+
     // MARK: the state (makeDanceBusState)
 
     var beatPeriod: Float = 0.5                  // P, the clamped period this frame
@@ -288,6 +315,7 @@ struct DanceBus {
     private var earHits: Float = 0               // onset heat: real hits charge it, ~1.2 s of quiet drains it
     private var prevOnsetEnv: Float = 0          // onsetEnv's rising edge is the TV's onset flag
     private var wallT: Double = 0                // the breath's clock
+    private var chartPos: Double = .nan          // v2: the chart clock's previous read (hitVoices' prev); NaN = none
 
     // MARK: the pure helpers (the web's, verbatim)
 
@@ -382,8 +410,21 @@ struct DanceBus {
         } else {
             bassFloor = bass
         }
-        voices = Self.classify(rb: inp.rb, rm: inp.rm, rt: inp.rt, punch: inp.punch,
-                               bass: inp.bass, mid: inp.mid, bassFloor: bassFloor)
+        if let cv = inp.chartVoices {
+            // I1 (v2, a drum chart): the drummer's own hits are the voices —
+            // one-frame edges at the audible instant (StemLight.hitVoices), no
+            // bass-floor gate (the hit is the truth the floor exists to guess
+            // at), the classifier's hat law kept: a hat under a kick or a
+            // snare is treble-class, not a strike. The floor above still
+            // follows the bass (the same state with the flag off); it has no say.
+            let k = Self.clamp01(Self.fin(cv.kick, 0))
+            let sn = Self.clamp01(Self.fin(cv.snare, 0))
+            let h = Self.clamp01(Self.fin(cv.hat, 0)) * (1 - 0.7 * Self.clamp01(k + sn))
+            voices = DanceVoices(kick: k, snare: sn, hat: h, gate: 1)
+        } else {
+            voices = Self.classify(rb: inp.rb, rm: inp.rm, rt: inp.rt, punch: inp.punch,
+                                   bass: inp.bass, mid: inp.mid, bassFloor: bassFloor)
+        }
 
         // the strike as light (w) and the body's strike (s). A bare hat can
         // never lift w above 0.25 — the downbeat weight belongs to the voices.
@@ -400,14 +441,30 @@ struct DanceBus {
         let structure = Self.clamp01(Self.fin(inp.structure, 0))
         if structure > coming { coming = structure }
         self.coming = coming
-        let landedNow = landing.step(pos: inp.pos, coming: coming, here: hereL, soon: soonL,
+        let landedNow: Bool
+        if inp.stemAuthority {
+            // I2 (v2, the stems at authority): the kit's return IS the landing —
+            // StemLight raises `landed` for exactly one frame, so the strike,
+            // dImpact's reset and the brace's release happen once, never twice —
+            // and the env-lookahead latch is HELD DISARMED meanwhile (it runs
+            // again, from rest, the moment authority lapses).
+            landing.armed = false
+            landedNow = inp.stemLanded
+        } else {
+            landedNow = landing.step(pos: inp.pos, coming: coming, here: hereL, soon: soonL,
                                      P: P, lookahead: la)
+        }
         landed = landedNow
         if landedNow {
             w = max(w, 1.25); s = max(s, 1.25); brace = 0
         } else {
             brace = Self.follow(brace, coming > Self.comingThreshold ? 1 : 0, dt: dt,
                                 tauUp: 0.7 * P, tauDown: 1.2 * P)
+            // I2 (v2): the kit's return, seen 0.5-2 s early, coils the body — by
+            // MAX, so the score's own coil is never lowered (0 with the flag off:
+            // 0 > brace is never true)
+            let coil = Self.clamp01(Self.fin(inp.stemCoil, 0))
+            if coil > brace { brace = coil }
         }
         self.w = w
         self.s = s
@@ -477,10 +534,19 @@ struct DanceBus {
     /// path (max(0, band - prev) * 4 gated by f.onset's rising edge), so a
     /// strike is one frame on both stages and dAge, the kick spring's
     /// rising-edge strike and the hat's spark never see a held level.
+    /// Under DanceBus.v2 the STEMS have their say (the web's I1 / I2): `chart`
+    /// is the track's drum chart (mix.stems.hits), read at `playhead` — the
+    /// clock StemLight.hitPulse reads, the audible instant — for the voices;
+    /// `stem` is the stem light's reading THIS frame (it steps before the bus
+    /// in draw()) and `stemConf` its confidence: at >= 0.5 the coil feeds
+    /// dBrace by max, the kit's return is the landing and the env latch is
+    /// held disarmed. With the flag off all three are ignored.
     @discardableResult
     mutating func step(frame f: Analyzer.Frame, dt dtIn: Float, playhead: Double, env: Env?,
                        period: Float, haveGrid: Bool, downbeat: Bool,
-                       playing: Bool, calm: Bool) -> DanceBusOutput {
+                       playing: Bool, calm: Bool,
+                       chart: Stems.HitChart? = nil, stem: StemLight.Out? = nil,
+                       stemConf: Double = 0) -> DanceBusOutput {
         let dt = min(0.25, max(0, Self.fin(dtIn, 0)))
         // THE EAR (v2): the grid says where the beat IS; the music says how hard
         // it lands. Onset heat charges on real hits and drains over ~1.2 s;
@@ -516,6 +582,28 @@ struct DanceBus {
                 soon = DanceLevel(bass: Float(sn.bass), punch: Float(sn.punch))
             }
         }
+        // v2 — the stems' say. The chart's edges are read between the clock's
+        // previous read and this one, at the audible instant (frame.playhead,
+        // hitPulse's clock); a seek or a new track is a cut, not a performance
+        // (the stem light's own 1.5 s rule), so no hit is struck across a jump,
+        // and a paused deck reads nothing. Off: every input below keeps its
+        // default and the pure core walks the old path byte for byte.
+        var chartVoices: DanceVoices? = nil
+        var stemCoil: Float = 0
+        var stemLanded = false
+        var stemAuthority = false
+        if Self.v2 {
+            if playing && playhead.isFinite, let chart {
+                let jumped = !(abs(playhead - chartPos - Double(dt)) < 1.5)
+                chartVoices = StemLight.hitVoices(chart, pos: playhead, prev: jumped ? .nan : chartPos)
+            }
+            if let so = stem, stemConf >= 0.5 {
+                stemAuthority = true
+                stemCoil = Float(so.coil)
+                stemLanded = so.landed
+            }
+        }
+        chartPos = (playing && playhead.isFinite) ? playhead : .nan
         var inp = DanceInputs()
         inp.bass = f.bass
         inp.mid = f.mid
@@ -540,6 +628,10 @@ struct DanceBus {
         inp.soon = soon
         inp.structure = 0                            // the structure map's section turns: stage 3
         inp.tuning = calm ? .calm : .standard
+        inp.chartVoices = chartVoices
+        inp.stemCoil = stemCoil
+        inp.stemLanded = stemLanded
+        inp.stemAuthority = stemAuthority
         return step(inp, dt: dt)
     }
 }
@@ -715,6 +807,28 @@ struct StemLight {
     /// without one, exactly the gated channel.
     static func hitBlend(_ gated: Double, _ pulse: Double, _ haveChart: Bool) -> Double {
         haveChart ? max(gated * 0.6, pulse) : gated
+    }
+
+    /// The chart's VOICES for the dance bus (the web's hitVoices — I1): kick,
+    /// snare and hat each read 1 on the ONE frame a hit of that voice crosses
+    /// the clock — a hit at h is an edge when prev < h <= pos — and 0
+    /// otherwise. Nothing without a chart, with a non-finite clock, or when
+    /// the clock did not advance (a pause, a seek backwards; the caller hands
+    /// NaN for prev across a jump). The edge says WHICH drum; the bus says
+    /// what it weighs (0.85 snare, 0.25 hat, the downbeat's 1.25) — hitPulse's
+    /// amplitudes are the beat channel's, not these. No bass-floor gate: the
+    /// drummer's hit is the truth the floor exists to guess at (gate reads 1).
+    static func hitVoices(_ chart: Stems.HitChart?, pos: Double, prev: Double) -> DanceVoices {
+        var v = DanceVoices()
+        guard let chart, pos.isFinite, prev.isFinite, prev < pos else { return v }
+        func edge(_ arr: [Double]) -> Float {
+            let i = hitsLast(arr, pos)
+            return (i >= 0 && arr[i] > prev) ? 1 : 0
+        }
+        v.kick = edge(chart.k)
+        v.snare = edge(chart.s)
+        v.hat = edge(chart.h)
+        return v
     }
 
     // MARK: QUARTET's window (the web's QUARTET_N / QUARTET_WIN / quartetLane)
