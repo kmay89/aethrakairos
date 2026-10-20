@@ -33,11 +33,13 @@ final class Analyzer {
                                      // the flux onsets') — the number whose fract is beatPhase;
                                      // floor(beats) % 4 is the count, 0 the downbeat; 0 without beats
         var riseBass: Float          // the per-band RISES, the classifier's input (kick / snare / hat):
-        var riseMid: Float           // max(0, band - prev) * 4 at the ~43 Hz hop on the smoothed bands,
-        var riseTreble: Float        // held through a snap-and-decay (tau 80 ms) so a hop that fell
-                                     // inside a coarse tap window still reaches the next 60 fps read.
-                                     // A reader therefore sees one rise on 2-5 consecutive frames (as
-                                     // the web does through its 51 ms smoothing): strikes are EDGES
+        var riseMid: Float           // max(0, band - prev) * 4 on the smoothed bands, taken on the ~43 Hz
+        var riseTreble: Float        // HOP THAT RAISED THE ONSET and held until the next onset (the
+                                     // web's live path reads the same delta on f.onset's frame). They
+                                     // are published with lastOnsetT, so the frame on which onsetEnv
+                                     // rises (onsetAt + outLat) carries the rises OF THAT ONSET; the
+                                     // dance feed passes them to the classifier on that edge frame
+                                     // only and zero otherwise — strikes are EDGES, never a level
         var spectrum: [Float]        // 64 log-spaced bands, 0..1
         var waveform: [Float]        // 256 recent mono samples, -1..1 (for SCOPE)
     }
@@ -96,7 +98,7 @@ final class Analyzer {
     private var bassS: Float = 0
     private var midS: Float = 0
     private var trebS: Float = 0
-    private var riseBassS: Float = 0            // the rises' snap-and-decay envelopes (see Frame)
+    private var riseBassS: Float = 0            // the rises captured on the latest onset hop (see Frame)
     private var riseMidS: Float = 0
     private var riseTrebS: Float = 0
     private var energyS: Float = 0
@@ -306,15 +308,6 @@ final class Analyzer {
         bassS += (bass - bassS) * kBM
         midS += (mid - midS) * kBM
         trebS += (treb - trebS) * kT
-        // The RISES the dance bus classifies (the web's live path: max(0, band -
-        // prev) * 4 per frame on its smoothed bands). The tap wakes ~10 times a
-        // second and runs several hops per wake but publishes once, so a hop's
-        // rise is kept in a snap-and-decay envelope (tau 80 ms) rather than
-        // overwritten by the next hop's — a kick in hop 1 of 4 still arrives.
-        let kR = Float(exp(-dt / 0.08))
-        riseBassS = max(max(0, bassS - bassPrev) * 4, riseBassS * kR)
-        riseMidS = max(max(0, midS - midPrev) * 4, riseMidS * kR)
-        riseTrebS = max(max(0, trebS - trebPrev) * 4, riseTrebS * kR)
         energyS = min(max(bassS * 1.25 + midS + trebS * 0.8, 0), 2) / 2
         calmS += ((1 - energyS) - calmS) * Float(1 - exp(-dt / 2.5))
         // the web's two energy clocks: the moment (0.25 s) against the passage
@@ -354,6 +347,16 @@ final class Analyzer {
         fluxCount = min(Self.fluxRingN, fluxCount + 1)
 
         if onset {
+            // The RISES the dance bus classifies: the web's live path reads
+            // max(0, band - prev) * 4 on its smoothed bands on the ONE frame
+            // f.onset rises, so this hop's deltas are taken here and held until
+            // the next onset (the 160 ms refractory outlasts a ~93 ms tap wake,
+            // so a wake never holds two). Published with lastOnsetT below, they
+            // reach the render thread on the frame onsetEnv rises — one onset,
+            // one set of rises, the output latency applied to both at once.
+            riseBassS = max(0, bassS - bassPrev) * 4
+            riseMidS = max(0, midS - midPrev) * 4
+            riseTrebS = max(0, trebS - trebPrev) * 4
             if lastOnsetT > 0 {
                 let ioi = t - lastOnsetT
                 if ioi >= 0.25 && ioi <= 2.0 {

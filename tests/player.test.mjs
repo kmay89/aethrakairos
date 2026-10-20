@@ -46,6 +46,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
+  ' danceWindowLevel, danceWarpSlew, danceSectionTurn, danceSilenceAhead,' +
   ' danceLeanJS, danceStrideJS, danceFrontJS, danceLampJS, danceLandJS, danceRingJS, danceBreathJS, danceBeatWeightJS,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
@@ -7906,7 +7907,7 @@ test('dance bus: the landing fires from a silent bar on the first loud frame, or
   st = S.makeDanceBusState(); landedAt = -1;
   for (let i = 0; i < 240; i++){
     const pos = i * BUS_DT;
-    const promise = pos >= 0.8 && pos < 0.9;
+    const promise = pos >= 0.8 && pos < 1.1;           // ≥ P/2 of promise: a passage, so the latch arms (landAt = 0.8 + la)
     const { state } = S.danceBusStep(st, busInp({
       bass: 0.05, energy: 0.04, ear: 0.3, pos,
       here: { bass: 0.05, punch: 0 }, soon: { bass: promise ? 0.9 : 0.05, punch: promise ? 0.8 : 0 },
@@ -7921,16 +7922,156 @@ test('dance bus: the landing fires from a silent bar on the first loud frame, or
     const { bus, state } = S.danceBusStep(st, busInp({ bass: 0.6, energy: 0.5 }), BUS_DT);
     assert.ok(!state.landed && bus[8] === 0 && bus[9] === 8, 'frame ' + i + ': no score, no landing');
   }
-  // D. the pure latch by itself: a seek backwards disarms it
-  const L = { armed: false, landAt: 0, landLevel: 0 };
-  assert.equal(S.danceLandingStep(L, { pos: 10, coming: 0.9, here: 0.1, soon: 1.5, P, lookahead: la }), false);
-  assert.ok(L.armed && Math.abs(L.landAt - 11.2) < 1e-9 && L.landLevel === 1.5, 'armed at pos + lookahead');
-  assert.equal(S.danceLandingStep(L, { pos: 11.0, coming: 0, here: 1.0, soon: 0, P, lookahead: la }), false, 'loud, but not yet within P/4 of the promised moment');
-  assert.equal(S.danceLandingStep(L, { pos: 11.1, coming: 0, here: 1.0, soon: 0, P, lookahead: la }), true, 'within P/4 and at 60% of the promise: land');
-  S.danceLandingStep(L, { pos: 10, coming: 0.9, here: 0.1, soon: 1.5, P, lookahead: la });
-  S.danceLandingStep(L, { pos: 2, coming: 0, here: 0, soon: 0, P, lookahead: la });
+  // D. the pure latch by itself: a promise must hold for P/2 (an instant is a kick,
+  // half a beat is a passage); landAt is the promise's FIRST moment + lookahead;
+  // a promise that lapses restarts its clock; a seek backwards disarms it
+  const L = { armed: false, landAt: 0, landLevel: 0, comingSince: NaN };
+  const say = (pos, coming, here, soon) => S.danceLandingStep(L, { pos, coming, here, soon, P, lookahead: la });
+  assert.equal(say(10, 0.9, 0.1, 1.5), false);
+  assert.ok(!L.armed, 'one frame of promise does not arm');
+  say(10.1, 0.9, 0.1, 1.5);
+  assert.ok(!L.armed, 'nor a fifth of a beat');
+  say(10.25, 0.9, 0.1, 1.5);
+  assert.ok(L.armed && Math.abs(L.landAt - 11.2) < 1e-9 && L.landLevel === 1.5, 'armed after P/2 of promise, landAt = its first moment + lookahead: ' + L.landAt);
+  assert.equal(say(11.0, 0, 1.0, 0), false, 'loud, but not yet within P/4 of the promised moment');
+  assert.equal(say(11.1, 0, 1.0, 0), true, 'within P/4 and at 60% of the promise: land');
+  say(20, 0.9, 0.1, 1.5); say(20.15, 0, 0.1, 0.1); say(20.2, 0.9, 0.1, 1.5); say(20.4, 0.9, 0.1, 1.5);
+  assert.ok(!L.armed, 'a promise that lapsed restarts its clock: 0.2 s since 20.2 is not P/2');
+  say(20.45, 0.9, 0.1, 1.5);
+  assert.ok(L.armed && Math.abs(L.landAt - 21.4) < 1e-9, 'armed from the renewed promise: landAt ' + L.landAt);
+  say(2, 0, 0, 0);
   assert.equal(L.armed, false, 'a seek backwards disarms the latch');
-  assert.equal(S.danceLandingStep(L, { pos: NaN, coming: 0.9, here: 0, soon: 1, P, lookahead: la }), false, 'no playhead, no landing');
+  assert.equal(say(NaN, 0.9, 0, 1), false, 'no playhead, no landing');
+});
+
+// a 48 Hz env of 0..9 digit strings (the pipeline's score format) from a function of time
+function digitEnv(hz, dur, fn){
+  const n = Math.ceil(dur * hz) + 1;
+  let b = '', m = '', t = '', o = '';
+  const dig = v => String.fromCharCode(48 + Math.max(0, Math.min(9, Math.round(v * 9))));
+  for (let i = 0; i < n; i++){ const s = fn(i / hz); b += dig(s.bass); m += dig(s.mid); t += dig(s.treble); o += dig(s.punch); }
+  return { hz, b, m, t, o };
+}
+// a four-on-the-floor groove: kicks on 1 and 3 (bass bump 0.6·e^(−d/0.1) on the floor, punch 0.9 in the kick's step),
+// `floor` the sustained bass; silent before t0
+function grooveFn(t0, floor, hz){
+  return t => {
+    if (t < t0) return { bass: 0, mid: 0, treble: 0, punch: 0 };
+    const d = (t - t0) % 1.0;                    // kicks every two beats at 120 BPM
+    return { bass: Math.min(1, floor + 0.6 * Math.exp(-d / 0.1)), mid: 0.22, treble: 0.12, punch: d < 1 / hz ? 0.9 : 0 };
+  };
+}
+
+test('dance bus: a steady 8-bar groove with kicks on 1 and 3 never arms the latch; the same kicks after two silent bars land on the first loud frame', () => {
+  const P = 0.5, la = S.danceLookahead(P), hz = 48;
+  // the engine's feed: pos = the playhead (read 80 ms ahead), here/soon the instants, hereW/soonW the beat means (danceWindowLevel)
+  const run = (env, secs, onFrame) => {
+    const st = S.makeDanceBusState();
+    let f = { bass: 0, mid: 0, treble: 0 };
+    for (let i = 0; i < Math.round(secs * BUS_FPS); i++){
+      const pos = i * BUS_DT + 0.08;
+      const here = S.envSample(env, pos), soon = S.envSample(env, pos + la);
+      f.bass = S.envFollow(f.bass, here.bass, BUS_DT, 0.018, 0.11);
+      f.mid = S.envFollow(f.mid, here.mid, BUS_DT, 0.018, 0.11);
+      f.treble = S.envFollow(f.treble, here.treble, BUS_DT, 0.016, 0.13);
+      const { state } = S.danceBusStep(st, busInp({
+        bass: f.bass, mid: f.mid, treble: f.treble, energy: Math.min(1, (f.bass * 1.25 + f.mid + f.treble * 0.8) / 2),
+        beatIdx: Math.floor(pos / P) % 4, barPhase: (pos / (4 * P)) % 1,
+        pos, here, soon, hereW: S.danceWindowLevel(env, pos, P), soonW: S.danceWindowLevel(env, pos + la, P),
+      }), BUS_DT);
+      onFrame(pos, state);
+    }
+  };
+  // A. the groove, from the first frame: 8 bars, no silence before it
+  const groove = digitEnv(hz, 20, grooveFn(0, 0.28, hz));
+  let armedFrames = 0, landings = 0, comingMax = 0;
+  run(groove, 16, (pos, st) => { if (st.armed) armedFrames++; if (st.landed) landings++; if (pos > 2) comingMax = Math.max(comingMax, st.coming); });
+  assert.equal(armedFrames, 0, 'the latch never armed through the groove');
+  assert.equal(landings, 0, 'and never landed (stage 1 saw a landing every other bar)');
+  assert.ok(comingMax < 0.42 * 0.75, 'the beat-mean `coming` of a steady groove stays well under the threshold: ' + comingMax.toFixed(3));
+  // B. the control: the SAME kicks arriving after two silent bars (a drop from silence) land on the first loud frame
+  const drop = digitEnv(hz, 12, grooveFn(4.0, 0.5, hz));
+  let landedPos = -1, count = 0;
+  run(drop, 10, (pos, st) => { if (st.landed){ count++; if (landedPos < 0) landedPos = pos; } });
+  assert.equal(count, 1, 'one landing');
+  // envSample interpolates the tonal bands between digits, so the drop's bass is read up to one env step (1/hz) early
+  assert.ok(landedPos >= 4.0 - 1 / hz - 1e-9 && landedPos < 4.0 + 2 * BUS_DT + 1e-9, 'on the first frame that reads the drop: pos ' + landedPos.toFixed(4));
+  // C. danceWindowLevel: a beat's mean of a steady groove is the same wherever the window sits; a drop lifts it; no env reads 0
+  const levels = [];
+  for (let t = 2; t < 10; t += 0.05) levels.push(S.danceWindowLevel(groove, t, P));
+  const spread = Math.max(...levels) - Math.min(...levels);
+  // kicks every two beats under a one-beat window: the mean does move as a kick enters and leaves the window,
+  // but by less than three quarters of the threshold — that spread IS the largest `coming` a groove can show
+  assert.ok(spread < 0.42 * 0.75, 'the groove\'s beat mean moves less than ¾ of the threshold with the window\'s position: spread ' + spread.toFixed(3));
+  assert.ok(S.danceWindowLevel(drop, 3.0, P) < 0.01 && S.danceWindowLevel(drop, 5.0, P) > 0.5, 'silence reads ~0, the drop reads its weight');
+  assert.equal(S.danceWindowLevel(null, 1, P), 0, 'no env, no level');
+});
+
+test('dance v2: the warp is slew-limited — uTime never runs backwards through a mass that fills in a frame or a phase that jumps', () => {
+  const P = 0.5, dt = 1 / 60;
+  let time = 0, warp = 0, prevU = null, prevRaw = null, minStep = Infinity, minRaw = Infinity;
+  for (let i = 0; i < 600; i++){
+    const rate = i < 300 ? 1 : 0.4;                       // the rubato at its floor for the second half
+    time += dt * rate;
+    let phi = ((i * dt) / P) % 1;
+    if (i >= 200) phi = (phi + 0.5) % 1;                  // the grid re-derived: a half-beat phase jump at frame 200
+    const mass = i < 90 ? 0 : 1;                          // the drop fills dMass in one frame, at phi = 0 (the surge's deepest point)
+    const target = S.danceTimeWarp(phi, P, mass);
+    warp = S.danceWarpSlew(warp, target, dt, rate);
+    const u = time + warp, raw = time + target;
+    if (prevU != null){ minStep = Math.min(minStep, u - prevU); minRaw = Math.min(minRaw, raw - prevRaw); }
+    prevU = u; prevRaw = raw;
+    assert.ok(Math.abs(warp) <= 0.045 + 1e-9, 'the warp stays within its 45 ms bound: ' + warp);
+  }
+  assert.ok(minRaw < 0, 'the unslewed warp DID run uTime backwards on this sequence (' + (minRaw * 1000).toFixed(1) + ' ms) — the test bites');
+  assert.ok(minStep > 0, 'slewed, uTime strictly increases: min step ' + (minStep * 1000).toFixed(3) + ' ms');
+  assert.ok(minStep >= 0.1 * dt * 0.4 - 1e-12, 'at least a tenth of the frame\'s musical time always survives');
+  // the pure limiter: ±0.9·dt·rate a frame, finite on junk
+  assert.ok(Math.abs(S.danceWarpSlew(0, -1, 1 / 60, 1) - (-0.9 / 60)) < 1e-12, 'a fall is held to 0.9·dt·rate');
+  assert.ok(Math.abs(S.danceWarpSlew(0, 1, 1 / 60, 0.5) - 0.45 / 60) < 1e-12, 'and scales with the rate');
+  assert.ok(Math.abs(S.danceWarpSlew(0.01, 0.012, 1 / 60, 1) - 0.012) < 1e-12, 'a small move passes through');
+  assert.ok(isFinite(S.danceWarpSlew(NaN, NaN, NaN, NaN)), 'finite on junk');
+});
+
+test('dance v2: danceSectionTurn — a quieter section within the last beat, or true silence; never a louder one, never an old turn', () => {
+  assert.equal(S.danceSectionTurn(0.7, 0.3, 0.4, 0.2), true, 'the new section at 0.43× within the beat');
+  assert.equal(S.danceSectionTurn(0.7, 0.42, 0.4, 0.99), true, 'exactly 0.6× still counts, right up to one beat');
+  assert.equal(S.danceSectionTurn(0.7, 0.5, 0.4, 0.2), false, 'not quiet enough (0.71×)');
+  assert.equal(S.danceSectionTurn(0.3, 0.7, 0.4, 0.2), false, 'a LOUDER section is not a held breath');
+  assert.equal(S.danceSectionTurn(0.7, 0.3, 0.4, 1.0), false, 'a turn a whole beat old has passed');
+  assert.equal(S.danceSectionTurn(0.7, 0.3, 0.4, -0.1), false, 'a turn still ahead is not yet');
+  assert.equal(S.danceSectionTurn(0.7, 0.7, 0.02, 0.5), true, 'true silence (energy < 0.05) is a quiet turn whatever the map says');
+  assert.equal(S.danceSectionTurn(0, 0, 0.02, 0.5), true, 'the silence path needs no levels');
+  assert.equal(S.danceSectionTurn(0, 0, 0.5, 0.5), false, 'no levels and no silence: nothing');
+  assert.equal(S.danceSectionTurn(NaN, NaN, NaN, NaN), false, 'junk: false');
+});
+
+test('dance v2: danceSilenceAhead — the score sees the silence start: fires on its first frame, never inside a groove, never on a sparse beat, never from silence', () => {
+  const P = 0.5, hz = 48;
+  // a groove that STOPS at 8.0 s (the harness piece's silent bar): kicks on 1 and 3 on a bass floor, mids and treble as a pad
+  const stop = digitEnv(hz, 12, t => { if (t >= 8) return { bass: 0, mid: 0, treble: 0, punch: 0 }; return grooveFn(0, 0.28, hz)(t); });
+  let first = -1, count = 0, inGroove = 0;
+  for (let t = 0.5; t < 11; t += 1 / 60){
+    const on = S.danceSilenceAhead(stop, t, P);
+    if (on){ count++; if (first < 0) first = t; if (t < 7.9) inGroove++; }
+  }
+  assert.equal(inGroove, 0, 'never through the groove');
+  // envSample interpolates the bands between digits, so the beat ahead is empty from one env step before the stop
+  assert.ok(first >= 8 - 1 / hz - 1e-9 && first <= 8 + 1 / 60 + 1e-9, 'true on the silence\'s first frame: ' + first.toFixed(4));
+  assert.ok(count >= 6 && count <= 40, 'and for the beat the behind window still holds the groove (' + count + ' frames), then no more');
+  for (let t = 9.5; t < 11; t += 0.1) assert.equal(S.danceSilenceAhead(stop, t, P), false, 'a silence after a silence is no turn (' + t.toFixed(1) + ')');
+  // a SPARSE track: one bare kick every beat on no floor, nothing else — a beat with a hit in it is never "empty"
+  const sparse = digitEnv(hz, 10, t => { const d = t % P; return { bass: 0.6 * Math.exp(-d / 0.1), mid: 0, treble: 0, punch: d < 1 / hz ? 0.9 : 0 }; });
+  for (let t = 1; t < 9; t += 1 / 60) assert.equal(S.danceSilenceAhead(sparse, t, P), false, 'a kick every beat: never (' + t.toFixed(3) + ')');
+  // a snare-only beat after a loud beat: the mids are sound
+  const snareBeat = digitEnv(hz, 6, t => t < 2 ? { bass: 0.7, mid: 0.4, treble: 0.2, punch: t % P < 1 / hz ? 0.9 : 0 } : t < 2.5 ? { bass: 0, mid: 0.35, treble: 0.1, punch: 0 } : { bass: 0.7, mid: 0.4, treble: 0.2, punch: 0 });
+  for (let t = 1.5; t < 2.6; t += 1 / 60) assert.equal(S.danceSilenceAhead(snareBeat, t, P), false, 'the bass drops out for a beat but the snare plays: no turn (' + t.toFixed(3) + ')');
+  // the beat ahead with one lone hat in it: a hit is a hit
+  const hatBeat = digitEnv(hz, 6, t => t < 2 ? { bass: 0.7, mid: 0.4, treble: 0.2, punch: 0 } : t < 2.5 ? { bass: 0, mid: 0, treble: Math.abs(t - 2.25) < 1 / hz ? 0.6 : 0, punch: Math.abs(t - 2.25) < 1 / hz ? 0.25 : 0 } : { bass: 0.7, mid: 0.4, treble: 0.2, punch: 0 });
+  assert.equal(S.danceSilenceAhead(hatBeat, 2.0, P), true, 'a single hat 21 ms wide in an otherwise empty beat reads under the floor: it IS a gap (one hit in 24 steps = 0.03)');
+  assert.equal(S.danceSilenceAhead(null, 1, P), false, 'no env, no turn');
+  assert.equal(S.danceSilenceAhead(stop, NaN, P), false, 'no playhead, no turn');
+  assert.equal(S.danceSilenceAhead(stop, 8.0, 0), false, 'no period, no turn');
 });
 
 test('dance bus: the prelude shapes — stride monotone to A 0.75, the landing one rebound, the ring its series, the lamp held then let go', () => {

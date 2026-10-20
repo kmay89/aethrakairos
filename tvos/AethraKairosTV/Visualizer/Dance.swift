@@ -472,8 +472,11 @@ struct DanceBus {
     /// the bass rising above its own floor), the breath is the slow
     /// two-sine swell scaled by calm. The onset's strength (punch) is
     /// onsetEnv's rising edge (the web's f.onsetStr / f.onset); the rises are
-    /// the Analyzer's snap-and-decay envelopes, which the stepper treats as
-    /// EDGES for the body and a latched level for the light.
+    /// the Analyzer's deltas on the hop that raised that onset, handed to the
+    /// classifier on the edge frame ONLY and zero otherwise — the web's live
+    /// path (max(0, band - prev) * 4 gated by f.onset's rising edge), so a
+    /// strike is one frame on both stages and dAge, the kick spring's
+    /// rising-edge strike and the hat's spark never see a held level.
     @discardableResult
     mutating func step(frame f: Analyzer.Frame, dt dtIn: Float, playhead: Double, env: Env?,
                        period: Float, haveGrid: Bool, downbeat: Bool,
@@ -519,9 +522,9 @@ struct DanceBus {
         inp.treble = f.treble
         inp.energy = f.energy
         inp.centroid = 0                             // the Analyzer has no centroid: the contour alone
-        inp.rb = f.riseBass
-        inp.rm = f.riseMid
-        inp.rt = f.riseTreble
+        inp.rb = onsetEdge ? f.riseBass : 0          // the onset hop's rises, on the edge frame only
+        inp.rm = onsetEdge ? f.riseMid : 0
+        inp.rt = onsetEdge ? f.riseTreble : 0
         inp.punch = punch
         inp.period = period
         inp.haveGrid = haveGrid

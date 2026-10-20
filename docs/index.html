@@ -16238,25 +16238,57 @@ function danceKickStep(ks, dt, P, calm){
   return ks.x;
 }
 
+/* danceWindowLevel — the level of a PASSAGE, not of an instant: the mean of
+   bass + 0.8·punch over one beat [t − P/2, t + P/2], read from n env taps
+   (5 by default — every fifth of the beat). The latch used to compare two
+   instantaneous reads, so whenever pos + lookahead fell inside an ordinary
+   kick's bass bump it saw a "drop" that was one kick and landed on it — a
+   shockwave every other bar through any steady groove (stage 1's finding).
+   A beat's mean of a steady groove is the same wherever the window sits;
+   only a louder passage lifts it. Pure; null env reads 0. */
+function danceWindowLevel(env, t, P, n){
+  n = n > 0 ? n | 0 : 5;
+  if (!env) return 0;
+  let s = 0;
+  for (let k = 0; k < n; k++){
+    const e = envSample(env, t - P / 2 + (k + 0.5) * P / n);
+    if (e) s += danceFin(e.bass, 0) + 0.8 * danceFin(e.punch, 0);
+  }
+  return s / n;
+}
+
 /* danceLandingStep — THE LANDING, as a latch with a timeout. The old rule
    compared the present with "what was coming" and could not fire from a
-   silent bar (nothing was here to compare). Now: the moment precognition
-   first says a louder passage is coming (coming > 0.42) we record WHEN
-   (landAt = pos + lookahead) and HOW LOUD (landLevel = soon's level); we
-   land when the playhead is within a quarter beat of that moment and the
-   present has reached 60 % of the promised level — or at landAt + P/2
-   regardless, so the latch can never hang. A seek backwards disarms it.
-   inp: {pos, coming, here, soon, P, lookahead}; levels are
-   bass + 0.8·punch. Returns true on the frame the landing fires. */
+   silent bar (nothing was here to compare). Now: when precognition says a
+   louder passage is coming (coming > 0.42) and KEEPS saying so for half a
+   beat (an instant is a kick; half a beat is a passage), we arm, recording
+   WHEN (landAt = the moment the promise first appeared + lookahead) and
+   HOW LOUD (landLevel = soon's level); we land when the playhead is within
+   a quarter beat of that moment and the present has reached 60 % of the
+   promised level — or at landAt + P/2 regardless, so the latch can never
+   hang. A seek backwards disarms it; a promise that lapses before half a
+   beat re-starts its clock. inp: {pos, coming, here, soon, P, lookahead};
+   levels are bass + 0.8·punch (`here` the instant at the playhead, so the
+   landing is on the first loud frame; `soon` a beat's mean when the caller
+   has one). Returns true on the frame the landing fires. */
 function danceLandingStep(st, inp){
   const pos = danceFin(inp.pos, NaN);
-  if (!isFinite(pos)){ st.armed = false; return false; }
+  if (!isFinite(pos)){ st.armed = false; st.comingSince = NaN; return false; }
   const P = inp.P, la = inp.lookahead;
   if (st.armed && pos < st.landAt - la - 0.5) st.armed = false;
-  if (!st.armed && inp.coming > DANCE_BUS.COMING){
-    st.armed = true;
-    st.landAt = pos + la;
-    st.landLevel = Math.max(danceFin(inp.soon, 0), danceFin(inp.coming, 0));
+  if (!st.armed){
+    if (!(inp.coming > DANCE_BUS.COMING)) st.comingSince = NaN;
+    else {
+      // the promise's own clock: it must hold for P/2 before the latch arms,
+      // and a playhead that jumped back restarts it
+      if (!(st.comingSince <= pos)) st.comingSince = pos;
+      if (pos - st.comingSince >= P / 2 - 1e-9){
+        st.armed = true;
+        st.landAt = st.comingSince + la;
+        st.landLevel = Math.max(danceFin(inp.soon, 0), danceFin(inp.coming, 0));
+        st.comingSince = NaN;
+      }
+    }
   }
   if (!st.armed) return false;
   const arrived = pos >= st.landAt - P / 4 && danceFin(inp.here, 0) >= 0.6 * st.landLevel;
@@ -16278,7 +16310,7 @@ function makeDanceBusState(){
     mass: 0, artic: 0, spark: 0,                     // 3 4 5
     sway: 0, lift: 0,                                // 6 7
     brace: 0,                                        // 8
-    impactAge: 8, armed: false, landAt: 0, landLevel: 0,   // 9 — the landing latch
+    impactAge: 8, armed: false, landAt: 0, landLevel: 0, comingSince: NaN,   // 9 — the landing latch
     still: 0,                                        // 10
     bassFloor: null, cenSlow: null,                  // the detectors' memories
     _ret: null,
@@ -16324,16 +16356,22 @@ function danceBusStep(st, inp, dt){
   let w = Math.min(voice + 0.25 * st.hat, downbeat ? 1.25 : 1);
   let s = clamp01(st.kick + 0.45 * st.snare) * (downbeat ? 1.25 : 1) * (0.5 + 0.5 * ear);
 
-  // precognition — the coil, and the landing
+  // precognition — the coil, and the landing. `coming` compares the beat
+  // around the lookahead with the beat around the playhead when the caller
+  // feeds those means (hereW/soonW, danceWindowLevel) — a louder PASSAGE,
+  // never one kick caught by an instantaneous read; the instants still
+  // decide the arrival (the landing is on the first loud frame).
   const la = danceLookahead(P);
   const here = inp.here, soon = inp.soon;
   const hereL = here ? danceFin(here.bass, 0) + 0.8 * danceFin(here.punch, 0) : 0;
   const soonL = soon ? danceFin(soon.bass, 0) + 0.8 * danceFin(soon.punch, 0) : 0;
-  let coming = (here && soon) ? clamp01(soonL - hereL) : 0;
+  const hereW = danceFin(inp.hereW, NaN), soonW = danceFin(inp.soonW, NaN);
+  const windowed = isFinite(hereW) && isFinite(soonW);
+  let coming = (here && soon) ? clamp01(windowed ? soonW - hereW : soonL - hereL) : 0;
   const structure = clamp01(danceFin(inp.structure, 0));
   if (structure > coming) coming = structure;
   st.coming = coming;
-  const landed = danceLandingStep(st, { pos: inp.pos, coming, here: hereL, soon: soonL, P, lookahead: la });
+  const landed = danceLandingStep(st, { pos: inp.pos, coming, here: hereL, soon: windowed ? soonW : soonL, P, lookahead: la });
   st.landed = landed;
   if (landed){ w = Math.max(w, 1.25); s = Math.max(s, 1.25); st.brace = 0; }
   else st.brace = envFollow(st.brace, coming > DANCE_BUS.COMING ? 1 : 0, dt, 0.7 * P, 1.2 * P);
@@ -16423,6 +16461,55 @@ function danceBeatWeightJS(barPhase, period){
   if (!(period > 0)) return 0.8;
   const i = Math.floor(barPhase * 4);
   return i < 0.5 ? 1 : (Math.abs(i - 2) < 0.5 ? 0.8 : 0.6);
+}
+
+/* THE ENGINE'S STAGE-3 LAWS, pure — what DANCE.v2 switches on (see DANCE). */
+/* danceWarpSlew — musical time is DANCE.time + warp, and DANCE.time grows by
+   dt·rate a frame. The warp may therefore move at most 0.9·dt·rate a frame,
+   whatever its target does (a phase jump when the grid is re-derived, a drop
+   that fills dMass in a beat): uTime never runs backwards — the −21 ms step
+   the verdicts saw on the drop frame cannot happen. prev/target seconds. */
+function danceWarpSlew(prev, target, dt, rate){
+  const p = danceFin(prev, 0);
+  const lim = 0.9 * Math.max(0, danceFin(dt, 0)) * Math.max(0, danceFin(rate, 1));
+  const d = danceFin(target, p) - p;
+  return p + (d < -lim ? -lim : (d > lim ? lim : d));
+}
+/* danceSectionTurn — "a quieter section began within the last beat": the
+   held breath (suspend) belongs at the section's TURN, not 1.2 s before the
+   boom that follows it. beatsSinceTurn is how long ago the turn was, in
+   beats (the structure map's boundary, or the beat the energy has already
+   spent under 0.05); prevLevel/curLevel the two sections' levels. True when
+   the turn is 0..1 beat old and the music is quieter: the new section at
+   most 0.6 of the old one's level, or the room in true silence. */
+function danceSectionTurn(prevLevel, curLevel, energy, beatsSinceTurn){
+  const b = danceFin(beatsSinceTurn, NaN);
+  if (!(b >= 0 && b < 1)) return false;
+  if (danceFin(energy, 1) < 0.05) return true;
+  const prev = danceFin(prevLevel, 0), cur = danceFin(curLevel, 0);
+  return prev > 0 && cur <= 0.6 * prev;
+}
+/* danceSilenceAhead — the SCORE knows the silence is coming. The analyser's
+   rule above can only date a silence a beat after the energy fell (a sparse
+   groove's followers touch 0.05 between hits too, so a beat of quiet is the
+   least that is a section and not a gap) — which left the rush whipping
+   through the first 0.7 s of the silent bar. The score path has the next
+   beat in hand: when every step of the beat about to play [t, t + P] reads
+   nothing in any band (bass + mid + treble + punch under 0.05) and the beat
+   just played [t − P, t] was sound (over 0.3), the silence starts NOW. Every
+   env step is read, so a beat with any hit in it — a lone hat, a snare, a
+   kick — reads well above the floor and never passes; a silence after a
+   silence (a count-in, a fade) is no turn. Pure; no env, no turn. */
+function danceSilenceAhead(env, t, P){
+  if (!env || !(env.hz > 0) || !(P > 0) || !isFinite(t)) return false;
+  const n = Math.max(4, Math.min(64, Math.ceil(P * env.hz)));
+  let ahead = 0, behind = 0;
+  for (let k = 0; k < n; k++){
+    const a = envSample(env, t + (k + 0.5) * P / n), b = envSample(env, t - P + (k + 0.5) * P / n);
+    if (a) ahead += danceFin(a.bass, 0) + danceFin(a.mid, 0) + danceFin(a.treble, 0) + danceFin(a.punch, 0);
+    if (b) behind += danceFin(b.bass, 0) + danceFin(b.mid, 0) + danceFin(b.treble, 0) + danceFin(b.punch, 0);
+  }
+  return ahead / n < 0.05 && behind / n > 0.3;
 }
 
 /* danceBusApply — a bus that arrived over the STAGE WIRE (the booth's twelve,
@@ -25696,19 +25783,40 @@ function uploadRamp(bytes){
 }
 
 let audioTex;
+/* uAudio — THE SPECTRUM THE ROOMS READ: 1024 bins wide, THREE rows tall
+   (luminance bytes, linear filter, clamp to edge, no mips, flipY off):
+     row 1  (v = 3/6 = 0.5, the texel centre)  the LIVE row — this frame's
+            spectrum, byte for byte what the old 1024×1 texture carried
+     rows 0 and 2  (v = 1/6 and v = 5/6)        the SLOW row — a per-bin
+            asymmetric follower of the live row, up in P/8, down in 0.4·P,
+            P = DANCE.bus[11] (dPeriod) or 0.5 s
+   With LINEAR filtering a read at exactly v = 0.5 sits on row 1's centre
+   with weight 1 and 0 on its neighbours, so every existing
+   texture2D(uAudio, vec2(x, 0.5)) is unchanged; the slow row sits on BOTH
+   sides so a sub-texel wobble in v could only blend the live row with the
+   slow one, never with a stranger (and clamp-to-edge means v outside 0..1
+   also reads a slow row). Rooms that want inertia (PULSE's ribbon, SPIRAL's
+   amp — stage 5) read v = 1.0/6.0. With DANCE.v2 off rows 0 and 2 are COPIES
+   of the live row: the texture is then three identical rows, so a frame is
+   byte-identical to the one-row texture whatever a GPU's filter does. The
+   CPU readers (two oscilloscope rooms, the plotter's band reader) index the
+   live row through AUDIO_LIVE. */
+const AUDIO_W = 1024, AUDIO_ROWS = 3, AUDIO_LIVE = 1024;   // the live row's byte offset in image.data
+let audioSlow = null;                                       // the slow row's follower, one float per bin
+function audioSlowReset(){ if (audioSlow) audioSlow.fill(0); }
 function initAudioTexture(){
-  const data = new Uint8Array(1024);
-  audioTex = new THREE.DataTexture(data, 1024, 1, THREE.LuminanceFormat, THREE.UnsignedByteType);
+  const data = new Uint8Array(AUDIO_W * AUDIO_ROWS);
+  audioTex = new THREE.DataTexture(data, AUDIO_W, AUDIO_ROWS, THREE.LuminanceFormat, THREE.UnsignedByteType);
   audioTex.magFilter = THREE.LinearFilter;
   audioTex.minFilter = THREE.LinearFilter;
   audioTex.needsUpdate = true;
   U.uAudio.value = audioTex;
 }
-function uploadAudioTexture(){
+function uploadAudioTexture(dt){
   if (!audioTex) return;
-  const d = audioTex.image.data;
+  const d = audioTex.image.data, L = AUDIO_LIVE;
   const src = (AE.analyser && (AE.graphLive || AE.mic.on)) ? AE.freq : null;
-  if (src){ for (let i = 0; i < 1024; i++) d[i] = src[i]; }
+  if (src){ for (let i = 0; i < 1024; i++) d[L + i] = src[i]; }
   else if (AE.score){
     // the score shapes a plausible spectrum: bass floor, mid body, treble
     // tail, a punch shimmer — so every uAudio consumer (the PULSE ribbon,
@@ -25720,13 +25828,26 @@ function uploadAudioTexture(){
               + sc.mid * Math.exp(-Math.pow((u - 0.18) / 0.14, 2))
               + sc.treble * Math.exp(-Math.pow((u - 0.55) / 0.3, 2)) * 0.8
               + sc.punch * 0.15 * (0.5 + 0.5 * Math.sin(t * 7 + i * 0.6));
-      d[i] = Math.min(255, v * 235);
+      d[L + i] = Math.min(255, v * 235);
     }
   }
   else {
     const t = U.uTime.value;
-    for (let i = 0; i < 1024; i++) d[i] = (Math.sin(t * 0.6 + i * 0.03) * 0.4 + 0.4) * 90 * (1 - i / 1400);
+    for (let i = 0; i < 1024; i++) d[L + i] = (Math.sin(t * 0.6 + i * 0.03) * 0.4 + 0.4) * 90 * (1 - i / 1400);
   }
+  // the slow row (v2), or the live row again (off — three identical rows)
+  if (typeof DANCE !== 'undefined' && DANCE.v2){
+    if (!audioSlow) audioSlow = new Float32Array(AUDIO_W);
+    const P = (DANCE.bus && DANCE.bus[11] > 0) ? DANCE.bus[11] : 0.5;
+    const h = dt > 0 ? dt : 1 / 60;
+    const kUp = 1 - Math.exp(-h / (P / 8)), kDn = 1 - Math.exp(-h / (0.4 * P));
+    for (let i = 0; i < AUDIO_W; i++){
+      const live = d[L + i], s = audioSlow[i];
+      const v = s + (live - s) * (live > s ? kUp : kDn);
+      audioSlow[i] = v;
+      d[i] = v; d[2 * AUDIO_W + i] = v;                // the same byte truncation the live row gets
+    }
+  } else { d.copyWithin(0, L, L + AUDIO_W); d.copyWithin(2 * AUDIO_W, L, L + AUDIO_W); }
   audioTex.needsUpdate = true;
 }
 
@@ -29209,8 +29330,13 @@ const DANCE = {
      landing, the warp on dMass. Off: the bus is stepped and delivered to the
      rooms that ask for it, and nothing the existing rooms read changes — every
      frame byte-identical to before. Flipped on in stage 3, with before/after
-     films on spiral, pulse, fractal and two control rooms. */
+     films on spiral, pulse, fractal and two control rooms. A listener turns
+     it with ?v2=1 / ?v2=0 (read right after this object is built); the
+     motion harness writes window.DANCE.v2 before its first frame. */
   v2: false,
+  /* the bus's landing, for the harness and the HUD: engine time (DANCE.time)
+     and the playhead (s) of the last landing; −1 before any */
+  landedAt: -1, landedPos: -1,
   phase: 0, barFrac: 0, phraseFrac: 0, haveGrid: false, period: 0.5,
   pulse: 0, sway: 0, lift: 0, breath: 0, warp: 0, ear: 1, brace: 0, flow: 0,
   /* MUSICAL TIME. `rate` is the choreographer's rubato (CHOREO sets it,
@@ -29236,6 +29362,12 @@ const DANCE = {
     this.bus = this.busState.bus;
     this._busWire = false;
     this._busPrev = null; this._busSc = null; this._busDrops = null;
+    // …and the stage-3 engine memories that must start at rest with it (the
+    // harness calls this once at takeover): the landing, the grid floor's
+    // rise tracker, the onset edge, the slow uAudio row
+    this.landedAt = -1; this.landedPos = -1;
+    this._beatRiseAt = -Infinity; this._beatPost = 0; this._onsetPrev = false;
+    if (typeof audioSlowReset === 'function') audioSlowReset();
   },
   /* the bus's inputs, then one pure step. Strikes: on the score path the
      per-band rises and the punch come per env STEP from the digits
@@ -29271,9 +29403,17 @@ const DANCE = {
     }
     const pv = this._busPrev || (this._busPrev = { bass: 0, mid: 0, treble: 0, onset: false });
     pv.bass = f.bass; pv.mid = f.mid; pv.treble = f.treble; pv.onset = !!f.onset;
-    // precognition: the playhead and `here` as the brace read them; `soon` at the bus's own lookahead
+    // precognition: the playhead and `here` as the brace read them; `soon` at
+    // the bus's own lookahead — and, for `coming`, the BEAT around each (the
+    // means danceWindowLevel reads), so a louder passage arms the latch and
+    // one kick caught by the lookahead never does (stage 1's every-other-bar
+    // false landing). The instants still decide the arrival.
     const la = danceLookahead(P);
     const soon = (pos != null && env) ? envSample(env, pos + la) : null;
+    if (pos != null && env){
+      inp.hereW = danceWindowLevel(env, pos, P);
+      inp.soonW = danceWindowLevel(env, pos + la, P);
+    } else { inp.hereW = NaN; inp.soonW = NaN; }
     // the structure map: a louder section turning inside the lookahead is a
     // promise too — each turn braces once (spent on the landing it brought).
     // The PIPELINE's map only (mix.structure): the browser's own
@@ -29306,9 +29446,13 @@ const DANCE = {
     this.bus = r.bus;
     if (r.state.landed){
       if (this._busDrops && this._busDrops.feeding >= 0) this._busDrops.spent = this._busDrops.feeding;
+      this.landedAt = this.time; this.landedPos = pos != null ? pos : -1;   // telemetry, flag or not
       if (this.v2){
         // STAGE 3 — the landing as the engine's own: the shockwave, the beat
-        // channel, the ear flung open, the coil released (replaces _wasComing)
+        // channel, the ear flung open, the coil released (replaces _wasComing,
+        // which update() skips under v2). DANCE.brace = 0 on THIS frame is
+        // what CHOREO reads as the landing (_wasBrace > 0.5 && brace < 0.15),
+        // so the crash cut is dealt on the frame the bus lands.
         if (typeof INTERACT !== 'undefined') INTERACT.impulse = Math.max(INTERACT.impulse, 1);
         f.beat = Math.max(f.beat, 1.2);
         this._hits += 2;
@@ -29357,7 +29501,14 @@ const DANCE = {
     // ear now hears TRANSIENTS only: onset heat (real hits charge it, ~1.2 s
     // of quiet drains it) and kick presence (bass RISING above its own
     // recent floor). A pad holds the room to a breath; a drop slams it.
-    this._hits = (this._hits || 0) * Math.exp(-dt / 1.2) + (f.onset ? 1 : 0);
+    // v2: the flag's RISING EDGE. analyse()'s score branch returns before
+    // touching f.onset while the deck is paused, so a hit on the frame of a
+    // pause left the flag stuck at true and pumped the heat every paused
+    // frame; every live detector raises it for exactly one frame, so the
+    // edge loses no onset
+    const onsetHit = this.v2 ? (f.onset && !this._onsetPrev) : f.onset;
+    this._onsetPrev = !!f.onset;
+    this._hits = (this._hits || 0) * Math.exp(-dt / 1.2) + (onsetHit ? 1 : 0);
     this._bassFloor = this._bassFloor == null ? f.bass
       : this._bassFloor + (f.bass - this._bassFloor) * (1 - Math.exp(-dt / 2.5));
     const kick = clamp01((f.bass - this._bassFloor) * 6);
@@ -29384,8 +29535,10 @@ const DANCE = {
           ? clamp01((soon.bass + soon.punch * 0.8) - (here.bass + here.punch * 0.8)) : 0;
         const target = coming > 0.42 ? 1 : 0;
         this.brace += (target - this.brace) * (1 - Math.exp(-dt / (target > this.brace ? 0.35 : 0.6)));
-        // the landing: the jump we were bracing for has arrived under our feet
-        if (this._wasComing > 0.42 && here
+        // the landing: the jump we were bracing for has arrived under our feet.
+        // v2: the BUS's latch is the landing (it fires from silence, this rule
+        // cannot — nothing was here to compare); _stepBus deals its effects
+        if (!this.v2 && this._wasComing > 0.42 && here
             && (here.bass + here.punch * 0.8) >= this._wasComing + 0.3){
           if (typeof INTERACT !== 'undefined')
             INTERACT.impulse = Math.max(INTERACT.impulse, 1);
@@ -29403,11 +29556,19 @@ const DANCE = {
     // so the field SNAPS to the kick, the hat, the syncopation — the moment
     // they land, even off the grid. Louder layer wins the frame: structure
     // underneath, the song on top.
-    const gridPulse = playing
+    // v2: × the stillness gate — the same gate the grid's injected floor
+    // takes in frame() (dStill × a true-silence gate on the energy). This
+    // layer is "metronomic by nature" and was the OTHER phantom: with the
+    // floor gated, the rests still marched at pulse 0.26 a beat (r 0.96 to
+    // the grid in silence), because amp bottoms at 0.42 × 0.65 with the ear
+    // on its floor. Anticipation is for a beat somebody is about to hear.
+    const stillGate = this.v2
+      ? (this.bus ? this.bus[10] : 0) * danceSmooth(0.02, 0.06, f.energy) : 1;
+    const gridPulse = playing && stillGate > 0
       ? dancePulse(phi, { art: clamp01(art + this.brace * 0.4),
                           bounce: (0.35 + f.energy * 0.5) * (1 - this.brace * 0.6),
                           down: Math.floor(beats % 4) === 0,
-                          amp: (0.42 + f.energy * 0.34) * (0.5 + ear * 0.5) * (1 - this.brace * 0.45) })
+                          amp: (0.42 + f.energy * 0.34) * (0.5 + ear * 0.5) * (1 - this.brace * 0.45) }) * stillGate
       : 0;
     // the music's transient, DANCE-local: catch the RISING edge of the beat
     // channel (a grid beat AND every music onset between them raise it) and
@@ -29442,8 +29603,15 @@ const DANCE = {
     this.sway += (sw.sway - this.sway) * (1 - Math.exp(-dt / 0.22));
     this.lift += (sw.lift - this.lift) * (1 - Math.exp(-dt / 0.4));
     this.breath = Math.sin(t * 0.88 + Math.sin(t * 0.213) * 1.7) * (0.35 + f.calm * 0.65);
-    // the melody also bends musical time a touch — a subtle rubato on the riff
-    this.warp = playing ? danceTimeWarp(phi, this.period, clamp01(f.energy + this.flow * 0.3)) : 0;
+    // the melody also bends musical time a touch — a subtle rubato on the riff.
+    // v2: the surge's amplitude is the passage's WEIGHT (dMass, a P/3 follower,
+    // last frame's bus), not this frame's energy — on the drop frame the old
+    // amplitude jumped 0 → 1 and uTime stepped back 21 ms — and the warp is
+    // slew-limited (danceWarpSlew) so DANCE.time + warp never decreases
+    if (this.v2){
+      const mass = this.bus ? this.bus[3] : 0;
+      this.warp = danceWarpSlew(this.warp, playing ? danceTimeWarp(phi, this.period, mass) : 0, dt, this.rate || 1);
+    } else this.warp = playing ? danceTimeWarp(phi, this.period, clamp01(f.energy + this.flow * 0.3)) : 0;
 
     // THE BUS, last — every reading above is final for this frame. A stage
     // screen whose booth just delivered the twelve (STAGE.pull) keeps those.
@@ -29452,8 +29620,16 @@ const DANCE = {
   },
 };
 DANCE.resetBus();
+// ?v2=1 / ?v2=0 — the listener's switch for the stage-3 engine edits, read
+// before the first frame (the rest of the URL is read in boot(); this one
+// must be in hand when frame() first runs)
+try {
+  const v2q = new URLSearchParams(location.search).get('v2');
+  if (v2q != null) DANCE.v2 = !(v2q === '0' || v2q === 'false' || v2q === 'off' || v2q === 'no');
+} catch (e){}
 // a top-level const is not a window property: the console and the motion
-// harness's telemetry reach the bus through window.DANCE.bus
+// harness's telemetry reach the bus through window.DANCE.bus (and set
+// window.DANCE.v2 before the first frame — a plain, writable property)
 try { window.DANCE = DANCE; } catch (e){}
 
 /* ================================================================
@@ -29518,14 +29694,27 @@ const CHOREO = {
     }
     const beats = DANCE.beats || 0;
     const rnd = Math.random;
-    // the landing interrupts everything: the crash cut on the exact hit
-    const landed = this._wasBrace > 0.5 && DANCE.brace < 0.15;
+    // the landing interrupts everything: the crash cut on the exact hit.
+    // v2: the bus's landing zeroes DANCE.brace on its frame, so this reads
+    // it — and a landing the 1.2 s brace never saw coming (a mapped section
+    // turn) is read from DANCE.landedAt directly, once
+    let landed = this._wasBrace > 0.5 && DANCE.brace < 0.15;
     this._wasBrace = DANCE.brace;
+    if (DANCE.v2 && DANCE.landedAt >= 0 && DANCE.landedAt !== this._landSeen){
+      this._landSeen = DANCE.landedAt; landed = true;
+    }
+    // v2: the section's turn — run every frame (its silence clock must keep counting)
+    const turn = DANCE.v2 ? this._sectionTurn(dt) : false;
     if (landed)
       this._deal({ name: 'drop', beats: 4, dir: rnd() < 0.5 ? -1 : 1, va: rnd(), vb: rnd() });
     // a drop is coming: coil NOW, whatever figure was running
     else if (DANCE.brace > 0.5 && this.move
         && this.move.name !== 'suspend' && this.move.name !== 'drop')
+      this._deal({ name: 'suspend', beats: 4, dir: this.move.dir, va: rnd(), vb: rnd() });
+    // v2: a quieter section began within the last beat — the held breath
+    // belongs at the TURN, not 1.2 s before the boom (the rush used to whip
+    // through the first 0.9 s of a silent bar)
+    else if (turn && this.move && this.move.name !== 'suspend' && this.move.name !== 'drop')
       this._deal({ name: 'suspend', beats: 4, dir: this.move.dir, va: rnd(), vb: rnd() });
     // hand over on the count — and re-deal if the clock itself rewound
     // (a track change re-derives the grid; the freewheel never goes back)
@@ -29536,6 +29725,55 @@ const CHOREO = {
     // the rubato: eased so it reads as breath, bounded so no sim can break
     this._rate += (this.pose.flow - this._rate) * (1 - Math.exp(-dt / 0.28));
     DANCE.rate = Math.min(1.9, Math.max(0.4, this._rate));
+  },
+
+  /* v2 — "a quieter section began within the last beat" (danceSectionTurn,
+     pure). Two readers of one predicate: the track's structure map
+     (trackStructure — the pipeline's, or the browser's own), where the
+     boundary is the turn and the two sections' energies the levels; and,
+     under a grid, TRUE SILENCE — the analyser's energy under 0.05 for a whole
+     beat dates a turn one beat back (a beat, so a breath between notes is not
+     a section). Each turn is dealt once (_turnDealt). And a third reader on
+     the score path, AHEAD of both: danceSilenceAhead — the beat about to play
+     is empty and the beat just played was sound — deals the held breath on
+     the silence's first frame (tune 1: the first films still had the rush
+     whipping 0.7 s into the silent bar, the analyser's rule being a beat
+     late by design). Edge-triggered (_silAhead), so a silence is one turn. */
+  _sectionTurn(dt){
+    const f = AE.f, P = DANCE.period > 0 ? DANCE.period : 0.5;
+    {
+      const tr = player.tracks[player.cur], dk = activeDeck();
+      const ahead = !!(tr && tr.env && dk && isFinite(dk.a.currentTime) && player.playing && DANCE.haveGrid
+        && danceSilenceAhead(tr.env, dk.a.currentTime + 0.08, P));
+      const rose = ahead && !this._silAhead;
+      this._silAhead = ahead;
+      if (rose) return true;
+    }
+    // a silence is a TURN only when sound came before it (a count-in is not one)
+    if (f.energy >= 0.05) this._hadSound = true;
+    this._quiet = (f.energy < 0.05 && DANCE.haveGrid && this._hadSound) ? (this._quiet || 0) + dt / P : 0;
+    let key = null, hit = false;
+    if (this._quiet >= 1){
+      key = 'q';
+      hit = danceSectionTurn(0, 0, f.energy, this._quiet - 1);
+      if (hit) this._hadSound = false;
+    } else {
+      if (this._turnDealt === 'q') this._turnDealt = null;        // the silence ended: the next one is a new turn
+      const tr = player.tracks[player.cur], dk = activeDeck();
+      const dur = tr ? (tr.duration > 0 ? tr.duration : (dk && dk.a.duration > 0 ? dk.a.duration : 0)) : 0;
+      if (tr && dk && dur > 0 && isFinite(dk.a.currentTime)){
+        const st = trackStructure(tr);
+        const pos = dk.a.currentTime + 0.08;
+        const sec = st ? synSectionAt(st, pos / dur) : null;
+        if (sec && sec.i > 0){
+          key = 's' + sec.i;
+          hit = danceSectionTurn(st.sections[sec.i - 1].energy, sec.energy, f.energy, (pos - sec.s * dur) / P);
+        }
+      }
+    }
+    if (!hit || key === this._turnDealt) return false;
+    this._turnDealt = key;
+    return true;
   },
 };
 
@@ -29648,7 +29886,24 @@ const COLOR = {
     const washGoal = brace * washMax;
     // inhale over ~half a second (the eye needs time to adapt); the snap
     // back on the landing is nearly instant — that snap IS the magic
-    this._wash += (washGoal - this._wash) * (1 - Math.exp(-dt / (washGoal > this._wash ? 0.45 : 0.06)));
+    if (typeof DANCE !== 'undefined' && DANCE.v2 && DANCE.bus){
+      /* v2 — THE WASH THROUGH THE LANDING. The 60 ms snap back was the
+         full-frame hue cut every chord-only room showed on the drop frame.
+         The true colour now ARRIVES through the landing's own release: the
+         wash as it stood on the landing frame unwinds along 1 − S(0, 4,
+         dImpact) — one bar, finished on the count, never a frame; a brace
+         that merely lapses (no landing) lets go over half a beat. WHERE the
+         colour arrives is unchanged — only how it gets there. */
+      const age = DANCE.bus[9], P = DANCE.period > 0 ? DANCE.period : 0.5;
+      if (age < (this._washAge == null ? 9 : this._washAge)) this._washHold = this._wash;   // dImpact fell: the landing
+      this._washAge = age;
+      if (washGoal > this._wash) this._wash += (washGoal - this._wash) * (1 - Math.exp(-dt / 0.45));
+      else {
+        const held = (age < 4 && this._washHold > 0) ? this._washHold * (1 - danceSmooth(0, 4, age)) : 0;
+        const eased = this._wash + (washGoal - this._wash) * (1 - Math.exp(-dt / (0.5 * P)));
+        this._wash = Math.max(washGoal, Math.min(this._wash, Math.max(held, eased)));
+      }
+    } else this._wash += (washGoal - this._wash) * (1 - Math.exp(-dt / (washGoal > this._wash ? 0.45 : 0.06)));
     if ((this._lastBrace || 0) > 0.5 && brace < 0.15){   // the landing cut the brace
       this.bloom = Math.max(this.bloom, 1.25);           // the true colour arrives blazing
       // 3 · dreimal: every third arrival answers three times, one echo per
@@ -29668,7 +29923,18 @@ const COLOR = {
     // reading (roomMood), eased by the director, so an apex runs richer and a
     // drift runs cooler without anything else in the engine having to know why
     const moodC = (typeof director !== 'undefined') ? (director.moodC || 0) : 0;
-    const mulC = 0.88 + heat * 0.45 + this.bloom * 0.35 + golden * 0.22 + moodC
+    // v2: the landing's bloom SWELLS through the landing's first beat instead
+    // of stepping — a +44 % chroma step on a chord still washed toward its
+    // complement collapsed one swatch's green channel (luminance −37 % in a
+    // frame), the flash governor rate-limited the fall by scaling the colour
+    // up into clipping, and the swatch spent three frames red: an 80° hue
+    // step on the very frame fix 5 was meant to make a glide. Ramped over a
+    // beat (S(0, 1, dImpact)) the governor never has to clip; after the
+    // first beat (and for the dreimal echoes at beats one and two) the
+    // bloom is as it was.
+    const bloomV = (typeof DANCE !== 'undefined' && DANCE.v2 && DANCE.bus && DANCE.bus[9] < 1)
+      ? this.bloom * danceSmooth(0, 1, DANCE.bus[9]) : this.bloom;
+    const mulC = 0.88 + heat * 0.45 + bloomV * 0.35 + golden * 0.22 + moodC
       + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0));
     const mulL = 0.97 + heat * 0.05;
     const w = this._wash;
@@ -29684,7 +29950,15 @@ const COLOR = {
        measured once and every stop is turned by that same angle. */
     const warm = (typeof director !== 'undefined') ? (director.warmT || 0) : 0;
     if (Math.abs(warm) > 0.005 && lit.length){
-      const d = ((warmTilt(lit[0].h, warm) - lit[0].h + 540) % 360) - 180;
+      // v2: the tilt is measured on the ROOT'S OWN hue, not the washed one.
+      // warmTilt walks the shorter arc to the pole, so its angle flips sign
+      // when the hue it measures crosses the anti-pole (225°) — and the
+      // wash, released over a bar, walks the washed root straight through
+      // it: the whole chord turned 52° in one frame at landing + 2.5 beats.
+      // The root's own hue only moves with the glide; where the colour
+      // arrives (w = 0) is the same angle either way.
+      const hRoot = (typeof DANCE !== 'undefined' && DANCE.v2 && this.now && this.now.length) ? this.now[0].h : lit[0].h;
+      const d = ((warmTilt(hRoot, warm) - hRoot + 540) % 360) - 180;
       if (Math.abs(d) > 0.05) lit = lit.map(c => ({ l: c.l, c: c.c, h: (c.h + d + 360) % 360 }));
     }
     // the flash governor is the last hand on the light: hue passes freely,
@@ -30042,7 +30316,17 @@ const director = {
       * Math.min(1, dt * (0.4 + (chor ? chor.snap * 1.5 : 0)));
     if (f.onset) this.dolly = Math.min(this.dolly + 0.4, 1.2);
     this.dolly *= Math.exp(-dt / 0.3);
-    const R = this.camRadius - this.dolly * 3 - f.bass * 4 - DANCE.pulse * 1.4;
+    /* v2 — ONE SPRING IN THE RIG. Three zooms on one voice at three time
+       constants (the onset dolly, the bass follower, the pulse) argued with
+       each other — 0.88 overshoots and 6.2 reversals/s on spiral. Now the
+       body's own spring (dKick) brings the form TOWARD the viewer on the
+       kick and rebounds once, the passage's weight (dMass) sets the resting
+       distance, the phrase (dLift) alone breathes the FOV — the dolly
+       carries the kick and the FOV never argues with it — and the bar
+       (dSway) leans the head and the room. reducedMotion scales as before. */
+    const v2 = DANCE.v2 && DANCE.bus, db = v2 ? DANCE.bus : null;
+    const R = v2 ? this.camRadius - 3.0 * db[2] - 1.0 * db[3]
+                 : this.camRadius - this.dolly * 3 - f.bass * 4 - DANCE.pulse * 1.4;
     camera.position.set(
       Math.sin(this.camPhi) * Math.cos(this.camTheta) * R,
       Math.cos(this.camPhi) * R * 0.6,
@@ -30051,9 +30335,11 @@ const director = {
     camera.lookAt(0, 0, 0);
     // head-tilt: the camera leans with the bar, after lookAt so it composes —
     // and the figure adds its own committed lean (pendulum, whip, crash)
-    camera.rotation.z += DANCE.sway * 0.035 * (reducedMotion ? 0.3 : 1)
+    const sway = v2 ? db[6] : DANCE.sway;
+    camera.rotation.z += sway * 0.035 * (reducedMotion ? 0.3 : 1)
       + (chor ? chor.roll : 0);
-    const goalFov = 62 + f.bass * 10 + DANCE.pulse * 4 + DANCE.lift * 3
+    const goalFov = (v2 ? 62 + 3 * db[7]
+                        : 62 + f.bass * 10 + DANCE.pulse * 4 + DANCE.lift * 3)
       + (chor ? chor.dfov : 0);
     this.fov += (goalFov - this.fov) * dt * 3;
     camera.fov = this.fov; camera.updateProjectionMatrix();
@@ -30067,10 +30353,13 @@ const director = {
     // ---- the dance: the whole room leans into the bar, rises with the
     // phrase, dips into the hit (plié), and never quite sits still ----
     const dm = reducedMotion ? 0.3 : 1;
-    scene.rotation.z = DANCE.sway * 0.045 * dm;
-    scene.rotation.x = DANCE.sway * -0.022 * dm + DANCE.breath * 0.012 * dm;
-    scene.position.y = (DANCE.breath * 0.35 + DANCE.lift * 0.9 - DANCE.pulse * 0.3) * dm;
-    const dScale = 1 + (DANCE.pulse * 0.02 + DANCE.breath * 0.006) * dm;
+    scene.rotation.z = sway * 0.045 * dm;
+    scene.rotation.x = sway * -0.022 * dm + DANCE.breath * 0.012 * dm;
+    // v2: the plié is the body's spring, the rise the phrase (one voice each)
+    scene.position.y = (v2 ? DANCE.breath * 0.35 + 0.9 * db[7] - 0.3 * db[2]
+                           : DANCE.breath * 0.35 + DANCE.lift * 0.9 - DANCE.pulse * 0.3) * dm;
+    const dScale = 1 + (v2 ? 0.015 * db[2] + 0.006 * DANCE.breath
+                           : DANCE.pulse * 0.02 + DANCE.breath * 0.006) * dm;
     scene.scale.setScalar(dScale);
   },
 };
@@ -38422,7 +38711,7 @@ function buildArcade(){
       const spec = audioTex ? audioTex.image.data : null;
       for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++){
         if (!this.br[r * this.cols + c]) continue;
-        const bin = spec ? spec[Math.min(1023, Math.floor(Math.pow((c + 0.5) / this.cols, 2) * 600))] / 255 : 0.4;
+        const bin = spec ? spec[AUDIO_LIVE + Math.min(1023, Math.floor(Math.pow((c + 0.5) / this.cols, 2) * 600))] / 255 : 0.4;   // the live row
         g.globalAlpha = 0.4 + bin * 0.6; g.fillStyle = rampCss(r / (this.rows - 1));
         g.fillRect(this.x0 + c * this.bw, this.y0 + r * this.bh, this.bw - 1, this.bh - 1);
         g.globalAlpha = 0.2 + bin * 0.3; g.fillStyle = pal.hi; g.fillRect(this.x0 + c * this.bw, this.y0 + r * this.bh, this.bw - 1, 1);
@@ -38997,7 +39286,7 @@ function buildScope(){
     const M2 = 600;
     for (let i = 0; i < M2; i++){
       const s = i / M2, bin = Math.min(1023, Math.floor(Math.pow(s, 2.2) * 520));
-      const v = spec ? spec[bin] / 255 : 0;
+      const v = spec ? spec[AUDIO_LIVE + bin] / 255 : 0;                       // the live row
       bx[n] = -0.95 + s * 1.9; by[n] = -0.92 + v * 0.8; n++;
     }
     used = n;
@@ -58273,7 +58562,7 @@ function buildSpectral(){
     const kUp = 1 - Math.exp(-dt / 0.03), kDn = 1 - Math.exp(-dt / 0.15);
     for (let b = 0; b < 64; b++){
       let s = 0;
-      for (let i = sp.lo[b]; i <= sp.hi[b]; i++) s += data[i];
+      for (let i = sp.lo[b]; i <= sp.hi[b]; i++) s += data[AUDIO_LIVE + i];   // the live row of the 1024×3 texture
       const target = s / ((sp.hi[b] - sp.lo[b] + 1) * 255);
       sp.band[b] += (target - sp.band[b]) * (target > sp.band[b] ? kUp : kDn);
     }
@@ -63869,6 +64158,7 @@ function frame(now){
   try { if (typeof FX !== 'undefined') FX.preFrame(); } catch (e){}
   if (!three_ok) return;
   let dt = (now - lastT) / 1000; lastT = now;
+  if (dt < 0) dt = 0;                     // a timestamp that ran backwards is not negative time: nothing integrates it (exp(+97/0.9) once did)
   if (dt > 0.1) dt = 0.1;                 // clamp after tab-away
   PERF.tick(dt);
   // ECO's frame divider: on a skipped frame the music-side logic below still
@@ -63889,7 +64179,7 @@ function frame(now){
   U.uTime.value = DANCE.time + DANCE.warp;
 
   analyse(dt, t);
-  if (drawField) uploadAudioTexture();
+  if (drawField) uploadAudioTexture(dt);
   if (typeof MIXSET !== 'undefined') MIXSET.visualTick();
 
   // THE beat clock: one authoritative read per frame (regression-filtered,
@@ -63909,6 +64199,20 @@ function frame(now){
     STAGE.watch(now);
     STAGE.pull();
   }
+  /* v2 — THE PHANTOM METRONOME, ended. The grid's injected floor below used
+     to fire on every grid beat with the ear's 0.30 floor under it, so a room
+     twitched to a lattice nobody heard (phantom lock r 0.21–0.94 in the rests
+     of all six measured rooms) and re-struck a beat the music had just hit
+     (the double strike). Two gates now: the analyser's OWN rise — a beat the
+     music struck within the last quarter beat is not struck again — and
+     STILLNESS. The rise is read every frame, here, BEFORE the injection,
+     against the channel as the injection left it last frame (_beatPost), so
+     the injection can never count as a rise. */
+  const v2grid = typeof DANCE !== 'undefined' && DANCE.v2;
+  if (v2grid && AE.f.beat - DANCE._beatPost > 0.04) DANCE._beatRiseAt = DANCE.time;
+  // the stillness gate (v2): the bus's dStill × a true-silence gate on the
+  // analyser's energy — 1 with the flag off, so nothing below changes
+  const stillGate = v2grid ? (DANCE.bus ? DANCE.bus[10] : 0) * danceSmooth(0.02, 0.06, AE.f.energy) : 1;
   if (CLOCK.haveGrid){
     const idx = CLOCK.idx;
     // The grid keeps time even through an ambient bar — but the VISIBLE counter
@@ -63923,8 +64227,18 @@ function frame(now){
       // gentle FLOOR (so a real beat never disappears), scaled by the ear so a
       // silent bar stays a silent bar. The music's own transient rides ABOVE
       // it — the grid guarantees the beat, the song supplies the dynamics.
-      AE.f.beat = Math.max(AE.f.beat,
-        (idx % 4 === 0 ? 0.6 : 0.32)
+      // v2: × the bus's stillness gate (dStill: 0 through a rest), × a
+      // true-silence gate on the analyser's energy (dStill's target reads the
+      // ear, whose heat drains for seconds after a roll — a silent bar after a
+      // build would otherwise still be struck), and nothing at all within a
+      // quarter beat of a rise the music itself made.
+      let floorGain = 1;
+      if (v2grid){
+        const P = DANCE.period > 0 ? DANCE.period : 0.5;
+        floorGain = DANCE.time - DANCE._beatRiseAt < P / 4 ? 0 : stillGate;
+      }
+      if (floorGain > 0) AE.f.beat = Math.max(AE.f.beat,
+        (idx % 4 === 0 ? 0.6 : 0.32) * floorGain
         * (typeof DANCE !== 'undefined' && DANCE.ear >= 0 ? DANCE.ear : 1));
       // the visible meter + the felt beat: the same clock the shaders read
       // drives the HUD meter dots and the vibration pattern — but ONLY when the
@@ -63938,13 +64252,19 @@ function frame(now){
       }
     }
     AE.f.bpm = CLOCK.bpm;                // steady; glides honestly during a mix
-    U.uBeatIdx.value = idx % 4;
+    // v2: the beat INDEX is a metronome too — PULSE re-rolls its lit slots on
+    // it (hash11(slot·7.31 + uSeedP + uBeatIdx·13.7)), every grid beat, in
+    // silence: phantom r 0.90 in a still quad's tail with every beat channel
+    // at 0. While the room is still the index HOLDS (a grid it has is kept,
+    // never re-rolled); it runs again with the music. The bar phase runs on.
+    if (!(v2grid && stillGate < 0.5 && U.uBeatIdx.value >= 0)) U.uBeatIdx.value = idx % 4;
     U.uBarPhase.value = CLOCK.barPhase;
   } else {
     if (gridBeatIdx !== -1) METER.clear();
     gridBeatIdx = -1;
     U.uBeatIdx.value = -1;
   }
+  if (v2grid) DANCE._beatPost = AE.f.beat;   // the channel as the lattice left it: next frame's rise is read against this
 
   DANCE.update(dt, t);
   if (typeof CHOREO !== 'undefined') CHOREO.update(dt);
