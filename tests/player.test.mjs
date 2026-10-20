@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
   '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_GIVE_UP, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -45,6 +45,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GESTALT, proximityOk, parkinsonBudget, teslerShare, occamPick, postelUrl,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
+  ' STEM_LIGHT, STEM_CUT_DWELL, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
+  ' HIT_VOICES, HIT_SKIP, hitsDecode, hitsChart, hitsLast, hitPulse, hitBlend, stemMood, QUARTET_N, QUARTET_WIN, quartetLane,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
   ' danceWindowLevel, danceWarpSlew, danceSectionTurn, danceSilenceAhead,' +
   ' danceLeanJS, danceStrideJS, danceFrontJS, danceLampJS, danceLandJS, danceRingJS, danceBreathJS, danceBeatWeightJS,' +
@@ -85,7 +87,9 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError,' +
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
   ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
-  ' makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' WAVE_HZ, WAVE_SR, WAVE_TILT, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
+  ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
   ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed };';
 const S = new Function(code)();
 
@@ -1817,6 +1821,17 @@ test('dance bus: every Metal TU declares one 192-byte VizUniforms, static_assert
   const inProject = [...pbx.matchAll(/path = (\w+\.metal);/g)].map(m => m[1]).sort();
   assert.deepEqual(metalFiles.map(f => f.split('/').pop()).sort(), inProject, 'every .metal on disk is in the project and vice versa');
   assert.ok(metalFiles.length >= 45, metalFiles.length + ' translation units');
+  // two waves that each pick "the next free id" by hand merge into one id naming two files:
+  // Xcode then compiles one of them twice and the other not at all. Every object is defined
+  // once, and every reference to it carries the same file name.
+  const defs = [...pbx.matchAll(/^\t\t([0-9A-F]{24}) \/\* ([^*]+?) \*\/ = \{/gm)];
+  const named = new Map();
+  for (const [, id, name] of defs){
+    assert.ok(!named.has(id), 'pbxproj id ' + id + ' is defined twice: ' + named.get(id) + ' and ' + name);
+    named.set(id, name);
+  }
+  for (const [, id, name] of pbx.matchAll(/\b([0-9A-F]{24}) \/\* ([^*]+?) \*\//g))
+    if (named.has(id)) assert.equal(name, named.get(id), 'pbxproj id ' + id + ' is referenced as ' + name + ' but defined as ' + named.get(id));
   // one struct text — comments and whitespace stripped, the pad spellings normalised
   const normalise = s => s.replace(/\/\/[^\n]*/g, '').replace(/\s+/g, ' ').trim()
     .replace(/\b_pad1\b/g, 'lens').replace(/\b_pad2\b/g, 'lensAmt').replace(/\bkeyNum\b/g, '_pad3');
@@ -2175,6 +2190,220 @@ test('vocalClashBias: inert until both tracks are separated', () => {
   assert.equal(S.vocalClashBias(null, sep), 0, 'null track → 0');
 });
 
+// ---- STEM LIGHT: the room hears the band, not the mix (@stem) ----
+// a 12 Hz score: `kit` is a kick every half second (one '9' then five '1's),
+// `none` is silence; the envelopes are composed per test.
+const STEM_HZ = 12;
+const kitBars = s => '911111'.repeat(Math.round(s * 2));
+const flat = (ch, s) => ch.repeat(Math.round(s * STEM_HZ));
+function runStems(stems, from, to, opts = {}){
+  const st = S.makeStemLightState(), dt = 1 / 60, frames = [];
+  for (let t = from; t < to; t += dt){
+    S.stemLightStep(st, { stems, pos: t, playing: opts.playing !== false }, dt);
+    frames.push({ t, st: { ...st }, out: S.stemLightOut(st) });
+  }
+  return frames;
+}
+test('stem light: no stems (or the mic) is exactly neutral — the show is unchanged', () => {
+  for (const stems of [null, undefined, { sv: 1 }, { sv: 1, hz: 0, d: '999' }]){
+    const fr = runStems(stems, 0, 3);
+    for (const { out } of fr){
+      assert.equal(out.beatGate, 1); assert.equal(out.bassMul, 1); assert.equal(out.midMul, 1);
+      assert.equal(out.chromaAdd, 0); assert.equal(out.lightMul, 1); assert.equal(out.whiteMul, 1);
+      assert.equal(out.coil, 0); assert.equal(out.landed, false);
+    }
+  }
+});
+test('stem light: paused stems fade out of authority, never pop', () => {
+  const stems = { sv: 1, hz: STEM_HZ, d: kitBars(20), b: flat('9', 20), v: flat('0', 20), o: flat('0', 20) };
+  const st = S.makeStemLightState();
+  for (let t = 0; t < 6; t += 1 / 60) S.stemLightStep(st, { stems, pos: t, playing: true }, 1 / 60);
+  assert.ok(st.conf > 0.95, 'six seconds in, the stems have authority');
+  let prev = st.conf;
+  for (let k = 0; k < 120; k++){
+    S.stemLightStep(st, { stems, pos: 6, playing: false }, 1 / 60);
+    assert.ok(st.conf <= prev && prev - st.conf < 0.02, 'conf decays smoothly');
+    prev = st.conf;
+  }
+});
+test('stem light: the strike belongs to the kit — no drums, the beat falls to a breath', () => {
+  const stems = { sv: 1, hz: STEM_HZ, d: kitBars(8) + flat('0', 8), b: flat('5', 16), v: flat('0', 16), o: flat('6', 16) };
+  const fr = runStems(stems, 0, 16);
+  const at = t => fr.find(f => f.t >= t).out;
+  assert.ok(at(7).beatGate > 0.9, 'kit playing: the beat channel is open');
+  assert.ok(at(15.5).beatGate < S.STEM_LIGHT.gateFloor + 0.05, 'kit gone: the beat is a breath');
+  assert.ok(at(15.5).whiteMul < 0.6, 'and no kit buys no bleach');
+  assert.ok(fr.every(f => f.out.beatGate >= S.STEM_LIGHT.gateFloor - 1e-9 && f.out.beatGate <= 1 + 1e-9));
+});
+test('stem light: the kit\'s return is seen coming — the coil rises, then lands exactly once', () => {
+  // 6 s groove, 6 s breakdown (voice + pad, no kit), the drums come back at 12 s
+  const d = kitBars(6) + flat('0', 6) + kitBars(6);
+  const stems = { sv: 1, hz: STEM_HZ, d, b: flat('4', 18), v: flat('0', 6) + flat('7', 6) + flat('2', 6), o: flat('5', 18) };
+  const fr = runStems(stems, 0, 18);
+  const landings = fr.filter(f => f.out.landed);
+  assert.equal(landings.length, 1, 'one return, one landing');
+  assert.ok(Math.abs(landings[0].t - 12) < 0.12, `it lands on the return (${landings[0].t.toFixed(3)} s)`);
+  const pre = fr.filter(f => f.t > 10.6 && f.t < 11.95);
+  assert.ok(Math.max(...pre.map(f => f.out.coil)) > 0.8, 'the room inhales before the drums arrive');
+  assert.ok(fr.filter(f => f.t > 7 && f.t < 9.4).every(f => f.out.coil < 0.05), 'no coil while the return is out of sight');
+  assert.ok(fr.filter(f => f.t > 12.2).every(f => f.out.coil < 0.05), 'the landing releases the coil');
+  // and the band is named
+  const sect = t => fr.find(f => f.t >= t).st.section;
+  assert.equal(sect(10), 'break'); assert.ok(['groove', 'drop', 'song'].includes(sect(15)));
+});
+test('stem light: a seek is a cut, not a drop — no landing across a jump', () => {
+  const stems = { sv: 1, hz: STEM_HZ, d: flat('0', 10) + kitBars(10), b: flat('4', 20), v: flat('0', 20), o: flat('4', 20) };
+  const st = S.makeStemLightState();
+  for (let t = 0; t < 6; t += 1 / 60) S.stemLightStep(st, { stems, pos: t, playing: true }, 1 / 60);
+  let landed = 0;
+  for (let t = 15; t < 17; t += 1 / 60){ S.stemLightStep(st, { stems, pos: t, playing: true }, 1 / 60); if (st.landed) landed++; }
+  assert.equal(landed, 0);
+  assert.equal(st.kit, true, 'the kit is re-read where the needle landed');
+});
+test('stem light: the voice saturates, a hush cools, a bassline weighs', () => {
+  const sing = runStems({ sv: 1, hz: STEM_HZ, d: kitBars(8), b: flat('2', 8), v: flat('9', 8), o: flat('3', 8) }, 0, 8).pop().out;
+  const hush = runStems({ sv: 1, hz: STEM_HZ, d: flat('0', 8), b: flat('0', 8), v: flat('0', 8), o: flat('3', 8) }, 0, 8).pop().out;
+  const heavy = runStems({ sv: 1, hz: STEM_HZ, d: kitBars(8), b: flat('9', 8), v: flat('0', 8), o: flat('3', 8) }, 0, 8).pop().out;
+  assert.ok(sing.chromaAdd > 0.15 && sing.midMul > 1.1 && sing.lightMul > 1.03);
+  assert.ok(hush.chromaAdd < -0.1);
+  assert.ok(heavy.bassMul > 1.15 && sing.bassMul < 1);
+});
+test('stem light: every output is finite whatever the input', () => {
+  const st = S.makeStemLightState();
+  const stems = { sv: 1, hz: STEM_HZ, d: 'x9a0', b: '', v: null, o: '5' };
+  for (const [pos, dt] of [[NaN, 1 / 60], [-4, 1 / 60], [1e9, 1 / 60], [1, -1], [1, NaN], [1, 99], [2, 1 / 60]]){
+    S.stemLightStep(st, { stems, pos, playing: true }, dt);
+    const o = S.stemLightOut(st);
+    for (const k of ['beatGate', 'bassMul', 'midMul', 'chromaAdd', 'lightMul', 'whiteMul', 'coil'])
+      assert.ok(Number.isFinite(o[k]), `${k} finite at pos ${pos}, dt ${dt}`);
+  }
+  assert.equal(S.stemSection(false, 0, 0), 'hush'); assert.equal(S.stemSection(false, 0.5, 0.6), 'break');
+  assert.equal(S.stemSection(true, 0.2, 0.5), 'song'); assert.equal(S.stemSection(true, 0.7, 0.1), 'drop');
+  assert.equal(S.stemSection(true, 0.2, 0.1), 'groove');
+});
+
+// ---- THE DRUM CHART: the strike is the drummer's own hit (@stem) ----
+// the pipeline's encoder, retold in the test so the format is pinned from
+// both ends (tools/stems.py hits_encode is the writer; selftest checks it)
+const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+function hitsEncodeT(times){
+  let out = '', prev = 0;
+  for (const t of times){
+    const cs = Math.round(t * 100); let d = Math.max(0, cs - prev);
+    while (d >= S.HIT_SKIP){ out += 'zz'; d -= S.HIT_SKIP; }
+    out += B36[Math.floor(d / 36)] + B36[d % 36]; prev = cs;
+  }
+  return out;
+}
+test('drum chart: the code round-trips, long gaps and garbage included', () => {
+  const times = [0, 0.01, 0.5, 13, 40.27, 40.28, 200];
+  assert.deepEqual(S.hitsDecode(hitsEncodeT(times)), times);
+  assert.deepEqual(S.hitsDecode(''), []);
+  assert.deepEqual(S.hitsDecode(null), []);
+  assert.deepEqual(S.hitsDecode('0a0A'), [0.1], 'stops at the first character outside the alphabet');
+  assert.deepEqual(S.hitsDecode('0'), [], 'a dangling half-pair is ignored');
+  assert.equal(S.hitsChart(null), null);
+  assert.equal(S.hitsChart({ sv: 1, d: '9' }), null, 'a v1 block has no chart');
+  assert.equal(S.hitsChart({ sv: 2, hits: { k: '', s: '', h: '' } }), null, 'an empty chart is no chart');
+  const c = S.hitsChart({ sv: 2, hits: { k: hitsEncodeT([1, 2]), s: hitsEncodeT([2]), h: '' } });
+  assert.deepEqual(c, { k: [1, 2], s: [2], h: [] });
+});
+test('drum chart: hitsLast is the last hit at or before the playhead', () => {
+  const a = [1, 2, 3.5];
+  assert.equal(S.hitsLast(a, 0.99), -1); assert.equal(S.hitsLast(a, 1), 0);
+  assert.equal(S.hitsLast(a, 3.49), 1); assert.equal(S.hitsLast(a, 99), 2); assert.equal(S.hitsLast([], 1), -1);
+});
+test('drum chart: the pulse strikes ON the hit, by voice, and decays', () => {
+  const c = { k: [1], s: [2], h: [3] };
+  assert.equal(S.hitPulse(c, 0.999), 0, 'nothing before the hit — the light never lands ahead of the drum');
+  assert.ok(Math.abs(S.hitPulse(c, 1) - 1) < 1e-9, 'the kick is the full strike');
+  assert.ok(Math.abs(S.hitPulse(c, 2) - 0.8) < 1e-9, 'the snare a step under');
+  assert.ok(Math.abs(S.hitPulse(c, 3) - 0.25) < 1e-9, 'the hat a glint');
+  assert.ok(S.hitPulse(c, 1.1) < S.hitPulse(c, 1.05) && S.hitPulse(c, 1.05) < 1, 'it decays');
+  assert.equal(S.hitPulse(c, 1 + 4 * S.HIT_VOICES.k.tau + 0.01), 0, 'and is gone after four taus');
+  assert.equal(S.hitPulse(null, 1), 0); assert.equal(S.hitPulse(c, NaN), 0);
+  // a kick and a snare together: the louder voice wins
+  assert.ok(Math.abs(S.hitPulse({ k: [5], s: [5], h: [5] }, 5) - 1) < 1e-9);
+});
+test('drum chart: with a chart the hit is the truth; without, the channel is untouched', () => {
+  assert.equal(S.hitBlend(0.7, 0.2, false), 0.7, 'no chart: exactly the gated channel');
+  assert.equal(S.hitBlend(0.5, 1, true), 1, 'the hit lands');
+  assert.ok(Math.abs(S.hitBlend(0.5, 0, true) - 0.3) < 1e-9, 'a fill the chart lacks still whispers');
+});
+test('stem mood: the band names the moment, never inventing an unearned peak', () => {
+  const M = ['adrift', 'ascend', 'drive', 'apex', 'swarm', 'dissolve'];
+  for (const m of M){
+    assert.equal(S.stemMood(m, 'drop', 0.3, 1), m, 'no authority, no change');
+    assert.equal(S.stemMood(m, 'none', 1, 1), m);
+  }
+  assert.equal(S.stemMood('drive', 'drop', 1, 1), 'apex');
+  assert.equal(S.stemMood('ascend', 'drop', 1, 0.3), 'ascend', 'a capped ceiling keeps the drop below apex');
+  assert.equal(S.stemMood('adrift', 'drop', 1, 1), 'drive');
+  assert.equal(S.stemMood('apex', 'break', 1, 1), 'dissolve');
+  assert.equal(S.stemMood('drive', 'break', 1, 1), 'adrift');
+  assert.equal(S.stemMood('ascend', 'break', 1, 1), 'ascend', 'a breakdown is often the build');
+  assert.equal(S.stemMood('drive', 'hush', 1, 1), 'adrift');
+  assert.equal(S.stemMood('dissolve', 'hush', 1, 1), 'dissolve');
+  assert.equal(S.stemMood('adrift', 'song', 1, 1), 'drive');
+  assert.equal(S.stemMood('adrift', 'groove', 1, 1), 'drive');
+  for (const sec of ['hush', 'break', 'groove', 'song', 'drop', 'none'])
+    for (const m of M) assert.ok(M.includes(S.stemMood(m, sec, 1, 1)), `${m}/${sec} stays a mood`);
+});
+test('QUARTET: the window samples each player\'s score, the drums beaded with the chart', () => {
+  const N = S.QUARTET_N, W = S.QUARTET_WIN;
+  const stems = { sv: 2, hz: 12, d: '0'.repeat(120) + '5'.repeat(120), b: '9'.repeat(240), v: '0'.repeat(240), o: '3'.repeat(240) };
+  const out = new Float32Array(N * 4);
+  // centred on 10 s: the window runs 7..13 s; the drums' envelope steps up at 10 s
+  for (let i = 0; i < N; i++) S.quartetLane(out, i, stems, null, 10, 20);
+  assert.ok(out[0] === 0 && out[(N - 1) * 4] > 0.5, 'the past is drumless, the future has the kit');
+  assert.ok(Math.abs(out[1] - 1) < 1e-6 && Math.abs(out[3] - 3 / 9) < 1e-6, 'bass and the rest read their score');
+  // a chart beads the drums: a hit inside the window strikes its sample
+  const hitAt = 10 + ((5 + 0.5) / N - 0.5) * W;
+  S.quartetLane(out, 5, stems, { k: [hitAt], s: [], h: [] }, 10, 20);
+  assert.ok(Math.abs(out[20] - 1) < 1e-6, 'the hit is the full strike in its sample');
+  // outside the track: silence, both ends
+  S.quartetLane(out, 0, stems, null, 1, 20); assert.equal(out[1], 0, 'before the start');
+  S.quartetLane(out, N - 1, stems, null, 19, 20); assert.equal(out[(N - 1) * 4 + 1], 0, 'past the end');
+  S.quartetLane(out, 3, null, null, 10, 20); assert.equal(out[12] + out[13] + out[14] + out[15], 0, 'no stems: silence');
+});
+test('stem light: the TV\'s StemLight carries the web\'s constants and formulas (parity)', () => {
+  const swift = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
+  const body = swift.slice(swift.indexOf('struct StemLight'));
+  assert.ok(body.length > 100, 'StemLight is in Dance.swift');
+  const num = name => {
+    const m = body.match(new RegExp(`\\b${name} = ([0-9.]+)`));
+    assert.ok(m, `StemLight.${name} declared`);
+    return Number(m[1]);
+  };
+  for (const k of Object.keys(S.STEM_LIGHT)) assert.equal(num(k), S.STEM_LIGHT[k], `STEM_LIGHT.${k}`);
+  for (const f of ['0.70 + 0.55 * bb', '0.85 + 0.30 * vv', '0.20 * vv - 0.14 * (1 - dd) * (1 - vv)',
+                   '1 + c * 0.05 * vv', '0.55 + 0.45 * dd', '* 1.15', 'coil = ease(coil, coming ? 1 : 0, 0.35, 0.25)'])
+    assert.ok(body.includes(f), `the Swift port carries "${f}"`);
+  for (const k of ['hush', 'break', 'groove', 'song', 'drop']) assert.ok(body.includes(`"${k}"`) || body.includes(` ${k}`), k);
+  const rooms = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Rooms.swift'), 'utf8');
+  const cut = rooms.match(/static let stemCutDwell: Double = ([0-9.]+)/);
+  assert.ok(cut && Number(cut[1]) === S.STEM_CUT_DWELL, 'the kit\'s-return cut waits the same dwell on both stages');
+  assert.ok(html.includes('STEMS.out.landed && director.dwell >= STEM_CUT_DWELL'), 'the web SEGUE cuts on the landing');
+  // the drum chart's voices and the band's mood rules, on the TV
+  const f2 = x => x.toFixed(2);
+  for (const [name, v] of [['hitKick', 'k'], ['hitSnare', 's'], ['hitHat', 'h']])
+    assert.ok(body.includes(`${name} = (amp: ${f2(S.HIT_VOICES[v].amp)}, tau: ${f2(S.HIT_VOICES[v].tau)})`), `${name} matches HIT_VOICES.${v}`);
+  assert.ok(body.includes('haveChart ? max(gated * 0.6, pulse) : gated'), 'hitBlend matches');
+  for (const rule of ["case .hush:   return m == .dissolve ? .dissolve : .adrift",
+                      "case .brk:    return m == .apex ? .dissolve : (m == .drive ? .adrift : m)",
+                      "case .drop:   return (m == .drive || m == .ascend) && ceil > 0.4 ? .apex : (m == .adrift ? .drive : m)",
+                      "case .song:   return m == .adrift ? .drive : m",
+                      "case .groove: return m == .adrift ? .drive : m",
+                      "guard conf > 0.5 else { return m }"])
+    assert.ok(rooms.includes(rule), `Director.stemMood carries: ${rule}`);
+  assert.ok(body.includes(`quartetN = ${S.QUARTET_N}`) && body.includes(`quartetWin = ${S.QUARTET_WIN.toFixed(1)}`), 'QUARTET window matches');
+  assert.ok(body.includes('chart != nil ? max(d * 0.55, hitPulse(chart, t)) : d'), 'QUARTET beads the drums the same way');
+  const view = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8');
+  for (const f of ['stemLight.step(', 'kitReturn: stemOut.landed', 'stemOut.beatGate', 'stemOut.bassMul', 'stemOut.midMul',
+                   'stemOut.chromaAdd', 'stemOut.lightMul', 'stemOut.whiteMul', 'stemOut.coil'])
+    assert.ok(view.includes(f), `the TV renderer reads ${f}`);
+});
+
 // ---- energy-arc scoring: hold or lift the floor, never crash it ----
 test('energy arc: a gentle lift beats an energy crash', () => {
   const lift = S.energyArcBias(0.5, 0.6, 'up');
@@ -2305,7 +2534,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 122);
+  assert.equal(S.SCENE_KEYS.length, 124);
 });
 
 test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
@@ -2608,7 +2837,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 122; sc++)
+  for (let sc = 0; sc < 124; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2655,7 +2884,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 122; sc++)
+  for (let sc = 0; sc < 124; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -3210,7 +3439,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 122; sc++)
+  for (let sc = 0; sc < 124; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);
@@ -8418,6 +8647,77 @@ test('licensing: no GPL fractal-renderer identifiers in the web player or the tv
 });
 
 await Promise.all(pending);
+// ---------------------------------------------------------------- the detail waveform (the scrolling deck)
+{
+  const sr = 16000;
+  const tone = (f, sec, amp) => { const x = new Float32Array(Math.round(sr * sec)); for (let i = 0; i < x.length; i++) x[i] = amp * Math.sin(2 * Math.PI * f * i / sr); return x; };
+  const cat = (...a) => { const n = a.reduce((s, x) => s + x.length, 0), o = new Float32Array(n); let k = 0; for (const x of a){ o.set(x, k); k += x.length; } return o; };
+  test('wave detail: a kick reads low, a hat reads high, silence reads nothing — at 150 columns a second', () => {
+    // one second of 60 Hz (a kick's body), one of silence, one of 6 kHz (a hat's air)
+    const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
+    const d = S.waveDetail([x], sr, 150);
+    assert.equal(d.n, 450, '150 columns a second: ' + d.n);
+    assert.ok(Math.abs(d.dur - 3) < 1e-9);
+    const at = (t) => { const r = S.waveRange(d, t, t + 0.2); return r; };
+    const k = at(0.4), q = at(1.4), h = at(2.4);
+    assert.ok(k.lo > 0.8 && k.hi < 0.02 && k.mi < 0.1, 'the kick is in the lows, and only there: ' + JSON.stringify(k));
+    assert.ok(h.hi > 0.8 && h.lo < 0.02 && h.mi < 0.1, 'the hat is in the highs, and only there: ' + JSON.stringify(h));
+    // a song with no highs shows none: the bands share one reference
+    const dull = S.waveDetail([tone(60, 2, 0.8)], sr, 150);
+    assert.ok(S.waveRange(dull, 0.5, 1.5).hi < 0.02, 'no hiss blown up to full scale: hi ' + S.waveRange(dull, 0.5, 1.5).hi);
+    assert.ok(q.pk === 0 && q.lo === 0 && q.hi === 0, 'silence is silence');
+    assert.ok(k.pk > 0.9, 'the loudest thing in the song reads full scale: ' + k.pk);
+    assert.ok(h.pk > 0.3 && h.pk < 0.45, 'the peak is linear: a 0.3 hat beside a 0.8 kick reads ' + h.pk.toFixed(2));
+  });
+  test('wave detail: stereo is folded to mono, one stray spike does not flatten the song, and nothing is NaN', () => {
+    const L = tone(60, 2, 0.5), R = tone(60, 2, 0.5);
+    L[1000] = 1; R[1000] = 1;                                // one sample's click
+    const d = S.waveDetail([L, R], sr, 150);
+    assert.ok(S.waveRange(d, 1, 1.5).lo > 0.9, 'the body of the song still reads near full scale under the click');
+    for (const v of ['pk', 'lo', 'mi', 'hi']) assert.ok(d[v] instanceof Uint8Array && d[v].length === d.n, v + ' is bytes');
+    assert.equal(S.waveDetail([new Float32Array(0)], sr), null, 'no samples, no detail');
+    assert.equal(S.waveDetail([L], 0), null, 'no rate, no detail');
+    const z = S.waveDetail([new Float32Array(sr)], sr, 150);
+    assert.ok(z.pk.every(v => v === 0) && z.lo.every(v => v === 0), 'a silent song is flat, not NaN');
+  });
+  test('wave detail: the shipped 12 Hz score stands in until the decode lands, in the same shape', () => {
+    const env = { hz: 12, b: '9900', m: '0990', t: '0009' };
+    const d = S.waveFromEnv(env);
+    assert.equal(d.n, 4); assert.equal(d.hz, 12); assert.ok(d.coarse);
+    assert.equal(d.lo[0], 255); assert.equal(d.hi[3], 255); assert.equal(d.mi[0], 0);
+    assert.equal(S.waveFromEnv(null), null); assert.equal(S.waveFromEnv({ hz: 12, b: '', m: '', t: '' }), null);
+    const r = S.waveRange(d, 0.1, 0.12);
+    assert.ok(r.lo === 1 && r.hi === 0, 'a column narrower than the detail reads the one it falls in');
+    assert.deepEqual(S.waveRange(d, 5, 6), { pk: 0, lo: 0, mi: 0, hi: 0 }, 'past the end is silence');
+    assert.deepEqual(S.waveRange(null, 0, 1), { pk: 0, lo: 0, mi: 0, hi: 0 });
+  });
+  test('wave grid: beats from the anchor, bar lines every fourth, phrase lines every eight bars, bar numbers from 1', () => {
+    const g = S.waveGrid(120, 2, 1, 20);           // a beat every half second from 2 s
+    assert.equal(g[0].t, 1, 'it reaches back before the anchor, from the first beat in range');
+    const a = g.find(x => x.t === 2);
+    assert.ok(a.bar && a.phrase && a.barNo === 1, 'the anchor is bar 1 and a phrase');
+    const b2 = g.find(x => x.t === 4);
+    assert.ok(b2.bar && !b2.phrase && b2.barNo === 2, 'four beats on is bar 2');
+    assert.ok(!g.find(x => x.t === 2.5).bar, 'the two is not a bar line');
+    const p2 = S.waveGrid(120, 2, 17.9, 18.1).find(x => x.bar);
+    assert.ok(p2 && p2.phrase && p2.barNo === 9, 'eight bars on is the next phrase: bar ' + (p2 && p2.barNo));
+    assert.equal(S.waveGrid(1e9, 0, 0, 100).length, 512, 'bounded');
+    assert.deepEqual(S.waveGrid(0, 0, 0, 10), []); assert.deepEqual(S.waveGrid(120, NaN, 0, 10), []);
+    assert.equal(S.waveBeatPos(120, 2, 2.75), 1.5);
+    assert.equal(S.waveBeatPos(120, 2, 1.5), 3, 'before the anchor wraps into the bar before');
+    assert.equal(S.waveBeatPos(0, 2, 3), null);
+  });
+  test('wave worker: the module is the tested arithmetic and answers a job with the detail, transferred', () => {
+    const src = S.waveWorkerSource();
+    assert.ok(src.includes('function waveDetail(') && src.includes('function waveQuant('));
+    let posted = null;
+    const scope = {};
+    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 7, chans: [tone(60, 1, 0.5)], sr, hz: 150 } });
+    assert.ok(posted && posted.m.id === 7 && posted.m.det.n === 150, 'the job comes back with its id');
+    assert.equal(posted.tr.length, 4, 'the four voices are transferred, not copied');
+  });
+}
+
 // ---------------------------------------------------------------- vinyl: the platter
 {
   const sr = 48000;
@@ -8555,6 +8855,146 @@ await Promise.all(pending);
     assert.ok(src.includes("registerProcessor('mb8-vinyl'"), 'it registers the processor');
     assert.ok(src.includes('"backspin":' + S.PLATTER.backspin), 'with the same tuning');
     new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src);
+  });
+
+  /* THE SONG TAPE — the platter on a deck that plays element-direct (iOS). The
+     tape is the song, int16; the element's playhead is the live edge. */
+  const tsr = 24000;
+  // a tape whose every sample says where it is: frame f holds f (scaled into int16)
+  const tape = n => { const t = new Int16Array(n); for (let i = 0; i < n; i++) t[i] = i % 32000; return t; };
+  const runSong = (S, n, blk, at) => {
+    const outL = new Float32Array(n), outR = new Float32Array(n);
+    for (let i = 0; i < n; i += blk){
+      if (at) at(i, S);
+      const m = Math.min(blk, n - i);
+      const oL = new Float32Array(m), oR = new Float32Array(m);
+      S.vinylSongProcess(S.S, oL, oR, m);
+      outL.set(oL, i); outR.set(oR, i);
+    }
+    return { outL, outR };
+  };
+  // the tape frame an output sample was read from (k = 1/32768 undone)
+  const frameOf = v => Math.round(v * 32768);
+  test('vinyl: the hand is a place — the record lands where the finger took it, however late the events come', () => {
+    const run2 = (late) => {
+      const V = { S: S.makeVinyl(sr, 4), vinylProcess: S.vinylProcess };
+      const x = ramp(sr * 2);
+      let grabPos = 0;
+      run(V, x, null, 128, (i, st) => {
+        if (i === 48000) S.vinylCommand(st.S, { op: 'engage' });
+        if (i === 60032){ S.vinylCommand(st.S, { op: 'grab' }); grabPos = st.S.pos; }
+        // the finger pulls the record back half a second of music over 100 ms: as eight
+        // timely events, or as ONE event 90 ms late carrying the whole way
+        if (!late){ for (let k = 1; k <= 8; k++) if (i === 60032 + k * 640) S.vinylCommand(st.S, { op: 'handAt', x: -0.5 * k / 8 }); }
+        else if (i === 60032 + 4352) S.vinylCommand(st.S, { op: 'handAt', x: -0.5 });
+      });
+      return { S: V.S, grabPos };
+    };
+    for (const late of [false, true]){
+      const { S: st, grabPos } = run2(late);
+      const want = grabPos - 0.5 * sr;
+      assert.ok(Math.abs(st.pos - want) < 0.002 * sr, (late ? 'late' : 'timely') + ': the head sits where the finger left it, ' + ((st.pos - want) / sr * 1000).toFixed(2) + ' ms off');
+      assert.ok(Math.abs(st.platter.rate) < 0.02 && st.platter.mode === 'hand', 'and the record is still under a still finger: ' + st.platter.rate.toFixed(4));
+    }
+    const P = { pos: 0, hand: null, handTo: 1e9 };
+    S.platterHandFollow(P, sr);
+    assert.equal(P.hand, S.PLATTER.maxRate, 'a wild place is chased no faster than the platter can turn');
+    const Q = S.makeVinyl(sr, 1); S.vinylCommand(Q, { op: 'engage' }); S.vinylCommand(Q, { op: 'grab' });
+    S.vinylCommand(Q, { op: 'lift' });
+    S.vinylCommand(Q, { op: 'handAt', x: 3 });
+    assert.equal(Q.handTo, null, 'an event after the lift takes nothing back');
+  });
+  test('song tape: the budget picks the finest rate a song can be held at, and refuses what cannot be', () => {
+    assert.equal(S.vinylSongRate(180), 32000, 'a three-minute song is held at the full 32 kHz');
+    const r = S.vinylSongRate(420);
+    assert.ok(r < 32000 && r * 420 <= S.VINYL_SONG_FRAMES, 'a seven-minute one at ' + r + ' Hz, inside the budget');
+    assert.equal(S.vinylSongRate(3600), 0, 'an hour is too long to hold');
+    assert.equal(S.vinylSongRate(0), 0); assert.equal(S.vinylSongRate(NaN), 0); assert.equal(S.vinylSongRate(Infinity), 0);
+    const t = S.vinylToTape(new Float32Array([0, 0.5, -0.5, 2, -2]));
+    assert.deepEqual(Array.from(t), [0, 16383, -16383, 32767, -32768], 'float to int16, clipped, never wrapped');
+  });
+  test('song tape: silent until engaged (the element is what is heard), and the edge rides the deck', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 1, rate: 1, hard: true });
+    const { outL, outR } = runSong(V, sr, 128);
+    assert.ok(outL.every(v => v === 0) && outR.every(v => v === 0), 'nothing from the tape while the hand is off');
+    assert.ok(Math.abs(V.S.written - 2 * tsr) < 2, 'one second later the edge is at 2 s: ' + (V.S.written / tsr).toFixed(4));
+    // a soft clock leans, a hard one (or a big jump) lands
+    S.vinylSongCommand(V.S, { op: 'clock', at: 2.01 });
+    assert.ok(V.S.written > 2 * tsr && V.S.written < 2.01 * tsr, 'a 10 ms drift is leaned into, not jumped');
+    S.vinylSongCommand(V.S, { op: 'clock', at: 3 });
+    assert.equal(V.S.written, 3 * tsr, 'a second away is a seek: the edge lands');
+    S.vinylSongCommand(V.S, { op: 'clock', at: 99, hard: true });
+    assert.ok(V.S.written <= V.S.cap - 3, 'never off the end of the tape');
+  });
+  test('song tape: engaged at 1x it plays the song from the playhead, resampled, under a short fade', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 1, rate: 1, hard: true });
+    const { outL } = runSong(V, sr / 2, 128, (i, st) => { if (i === 1024) S.vinylSongCommand(st.S, { op: 'engage' }); });
+    const j = 1024 + 1024;                                // well past the 6 ms fade
+    const f0 = frameOf(outL[j]), f1 = frameOf(outL[j + 2000]);
+    const edge = tsr + j * tsr / sr;
+    assert.ok(Math.abs(f0 - edge) < 8, 'it reads where the element is: frame ' + f0 + ' vs edge ' + edge.toFixed(0));
+    assert.ok(Math.abs((f1 - f0) - 2000 * tsr / sr) < 1.5, 'at the tape\'s rate, not the output\'s: ' + (f1 - f0));
+    assert.ok(Math.abs(outL[1025]) < Math.abs(outL[j]) * 0.2, 'faded in, not stepped');
+  });
+  test('song tape: a hand pulled backwards reads the song backwards; the head never passes the playhead', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 2, rate: 1, hard: true });
+    const { outL } = runSong(V, sr, 128, (i, st) => {
+      if (i === 1024) S.vinylSongCommand(st.S, { op: 'engage' });
+      if (i === 4096) S.vinylSongCommand(st.S, { op: 'hand', v: -1 });
+      if (i === 24576) S.vinylSongCommand(st.S, { op: 'hand', v: 6 });     // flung forward, at the edge
+    });
+    const a = frameOf(outL[12000]), b = frameOf(outL[16000]);
+    assert.ok(b < a && Math.abs((a - b) - 4000 * tsr / sr) < 40, 'backwards at about 1x: ' + a + ' -> ' + b);
+    const edgeAt = i => 2 * tsr + i * tsr / sr;
+    let over = 0;
+    for (let i = 24576; i < sr; i += 64) if (frameOf(outL[i]) > edgeAt(i) + 1) over++;
+    assert.equal(over, 0, 'a forward flick lands on the playhead, never past it');
+  });
+  test('song tape: letting go fades the tape out to silence, the element takes the room back', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 1, rate: 1, hard: true });
+    const { outL } = runSong(V, sr / 2, 128, (i, st) => {
+      if (i === 1024) S.vinylSongCommand(st.S, { op: 'engage' });
+      if (i === 8192) S.vinylSongCommand(st.S, { op: 'release' });
+    });
+    let worst = 0; for (let i = 8193; i < 8192 + 400; i++) worst = Math.max(worst, Math.abs(outL[i] - outL[i - 1]));
+    assert.ok(worst < 0.05, 'no step on the way out: ' + worst.toFixed(4));
+    assert.ok(outL.subarray(8192 + 512).every(v => v === 0), 'silent once the fade is done');
+    assert.equal(V.S.engaged, false);
+  });
+  test('song tape: a slower deck moves the edge slower, and no tape is silence, not a crash', () => {
+    const V = { S: S.makeVinylSong(sr, tape(tsr * 4), null, tsr), vinylSongProcess: S.vinylSongProcess };
+    S.vinylSongCommand(V.S, { op: 'clock', at: 0, rate: 0.5, hard: true });
+    runSong(V, sr, 128);
+    assert.ok(Math.abs(V.S.written - 0.5 * tsr) < 2, 'half speed: half a second of song in a second');
+    S.vinylSongCommand(V.S, { op: 'clock', at: 0, rate: -3 });
+    assert.equal(V.S.deckRate, 0.5, 'a nonsense rate is ignored');
+    assert.equal(S.vinylSongCommand(null, { op: 'engage' }), null);
+  });
+  test('song tape: the worklet module carries the song processor, and it plays the tape it is sent', () => {
+    const src = S.vinylWorkletSource();
+    for (const f of ['function makeVinylSong(', 'function vinylSongCommand(', 'function vinylSongProcess('])
+      assert.ok(src.includes(f), f + ' is in the module');
+    const reg = {};
+    class AWP { constructor(){ this.port = { postMessage(){}, onmessage: null }; } }
+    new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src)(AWP, (n, c) => { reg[n] = c; }, sr, 0);
+    assert.ok(reg['mb8-vinyl'] && reg['mb8-vinyl-song'], 'both processors register: ' + Object.keys(reg).join(', '));
+    const p = new reg['mb8-vinyl-song']();
+    const out = [new Float32Array(128), new Float32Array(128)];
+    assert.equal(p.process([], [out]), true, 'no tape yet: silence, and alive');
+    assert.ok(out[0].every(v => v === 0));
+    const L = tape(tsr * 2);
+    p.port.onmessage({ data: { op: 'tape', L, R: null, sr: tsr } });
+    p.port.onmessage({ data: { op: 'clock', at: 1, rate: 1, hard: true } });
+    p.port.onmessage({ data: { op: 'engage' } });
+    for (let i = 0; i < 8; i++) p.process([], [out]);
+    assert.ok(Math.abs(frameOf(out[0][127]) - (tsr + 8 * 128 * tsr / sr)) < 8, 'it plays the song at the playhead');
+    p.port.onmessage({ data: { op: 'eject' } });
+    p.process([], [out]);
+    assert.ok(out[0].every(v => v === 0), 'ejected: silence');
   });
 }
 

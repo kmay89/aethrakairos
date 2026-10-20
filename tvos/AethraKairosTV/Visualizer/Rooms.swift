@@ -571,6 +571,25 @@ enum Rooms {
         Room(key: "spectral", name: "SPECTRAL", fragmentFunction: "room_spectral",
              tasteEnergy: 0.3, tasteCalm: 0, tasteBeat: 0.2, tasteTreble: 0.5,
              tasteMid: 0.3, tasteBass: 0.4, tasteEntropy: -0.1, heavy: true),
+
+        // ---- the fluid wave ----
+
+        // FLUID (Shaders43): the Navier–Stokes equations, retold without a grid —
+        // a divergence-free flow in closed form, three dancers' ink walked back
+        // along it. Heavy: twenty-four steps of history per pixel.
+        Room(key: "fluid", name: "FLUID", fragmentFunction: "room_fluid",
+             tasteEnergy: 0.6, tasteCalm: -0.2, tasteBeat: 0.5, tasteTreble: 0,
+             tasteBass: 0.4, tasteEntropy: 0.3, heavy: true),
+
+        // ---- the stems wave ----
+
+        // QUARTET (Shaders44): the band, seen — four strands, one per Demucs
+        // player, flowing through now, the coming three seconds ghosted ahead
+        // from the score. Reads the lane texture (texture(3)) the renderer
+        // samples from the stems and the drum chart every frame.
+        Room(key: "quartet", name: "QUARTET", fragmentFunction: "room_quartet",
+             tasteEnergy: 0.2, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
+             tasteMid: 0.4, tasteBass: 0.4, tasteEntropy: -0.2, heavy: false),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,
@@ -608,6 +627,10 @@ struct Director {
     private var pending: Int? = nil
     private var pendingBig: Bool = false
     private var waited: Double = 0
+    // seconds in the current room — the kit's return may cut only a room
+    // that has had its say (the web SEGUE's STEM_CUT_DWELL)
+    private var sinceEntry: Double = 0
+    static let stemCutDwell: Double = 10
 
     // mood bookkeeping — a switch is "big" when the mood has turned since
     // the current room was entered
@@ -648,7 +671,10 @@ struct Director {
     ///
     /// The wave-1 two-argument form still resolves (act defaults to RISING,
     /// ceil to 1), so the public contract holds; the renderer passes both.
-    mutating func tick(dt: Double, frame: Analyzer.Frame, act: Int = 1, ceil: Double = 1) -> Int? {
+    mutating func tick(dt: Double, frame: Analyzer.Frame, act: Int = 1, ceil: Double = 1,
+                       kitReturn: Bool = false,
+                       band: StemLight.Band = .none, bandConf: Double = 0) -> Int? {
+        sinceEntry += max(dt, 0)
         guard autoOn, Rooms.all.count > 1 else {
             prevPhrasePhase = frame.phrasePhase
             prevBarPhase = frame.barPhase
@@ -657,13 +683,25 @@ struct Director {
 
         let entropy = Director.entropyProxy(frame)
         ceilNow = min(max(ceil, 0), 1)
-        moodNow = Director.mood(act: act, energy: frame.energy, entropy: entropy, ceil: ceilNow)
+        moodNow = Director.stemMood(Director.mood(act: act, energy: frame.energy, entropy: entropy, ceil: ceilNow),
+                                    band: band, conf: bandConf, ceil: ceilNow)
 
         // boundary detection before we overwrite the previous phase
         let phraseWrapped = frame.phrasePhase < prevPhrasePhase - 0.30
         let barWrapped = frame.barPhase < prevBarPhase - 0.30
         prevPhrasePhase = frame.phrasePhase
         prevBarPhase = frame.barPhase
+
+        // THE KIT'S RETURN (StemLight): the drums came back after an absence
+        // the light saw coming two seconds early — the room changes ON the
+        // landing, not a bar after it. Only a room that has had its say.
+        if kitReturn && sinceEntry >= Director.stemCutDwell {
+            let next = pending ?? deal(frame: frame, mood: moodNow, entropy: entropy)
+            pending = nil
+            guard next != currentIndex else { return nil }
+            move(to: next, calm: Double(frame.calm), mood: moodNow, act: act)
+            return next
+        }
 
         // no switch queued yet — count the dwell down
         if pending == nil {
@@ -714,6 +752,7 @@ struct Director {
         seen.insert(next)
         currentIndex = next
         moodAtEntry = mood
+        sinceEntry = 0
 
         let base = Director.dealDwell(calm: calm)
         let ai = min(max(act, 0), Director.actDwell.count - 1)
@@ -764,6 +803,21 @@ struct Director {
         if act == 0 || e < 0.30 { return .adrift }
         if act == 1 && e > 0.48 { return .ascend }
         return .drive
+    }
+
+    /// THE BAND NAMES THE MOMENT — the web's stemMood, rule for rule. Once
+    /// the stems have authority (conf > 0.5) the section refines the mood,
+    /// never inventing a peak the structure did not earn.
+    private static func stemMood(_ m: Mood, band: StemLight.Band, conf: Double, ceil: Double) -> Mood {
+        guard conf > 0.5 else { return m }
+        switch band {
+        case .hush:   return m == .dissolve ? .dissolve : .adrift
+        case .brk:    return m == .apex ? .dissolve : (m == .drive ? .adrift : m)
+        case .drop:   return (m == .drive || m == .ascend) && ceil > 0.4 ? .apex : (m == .adrift ? .drive : m)
+        case .song:   return m == .adrift ? .drive : m
+        case .groove: return m == .adrift ? .drive : m
+        case .none:   return m
+        }
     }
 
     /// The mood's appetite over a room — heavy rooms rise at the apex, calm

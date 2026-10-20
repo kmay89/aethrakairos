@@ -543,3 +543,217 @@ struct DanceBus {
         return step(inp, dt: dt)
     }
 }
+
+/* ================================================================
+   STEM LIGHT — the room hears the band, not the mix.
+   The web's @stem block (docs/index.html, §6c-ter) retold line for line:
+   the same constants, the same order of operations, Double throughout so
+   the two stages agree to the last digit. Demucs separated every track
+   offline (tools/stems.py → mix.stems, 12 Hz); this turns the four players
+   into what the light reads — the strike belongs to the kit, the body to
+   the bass, the mids and the saturation to the voice, the bleach to the
+   kit again, and the kit's RETURN after an absence is precognition: the
+   coil (the room inhales) and the landing (it arrives). With no stems,
+   paused, or unseparated, conf eases to 0 and every output is neutral.
+   ================================================================ */
+struct StemLight {
+    // MARK: STEM_LIGHT — the constants, one set on both stages
+    static let win = 0.7            // s — presence reads the trailing window
+    static let aheadA = 0.5         // s — the coil reads 0.5…
+    static let aheadB = 2.0         //     …to 2.0 s ahead
+    static let kitOn = 0.45         // the kit is PLAYING once its peak clears this…
+    static let kitOff = 0.30        // …and stops under this (hysteresis)
+    static let awayMin = 2.0        // s — away this long before a return is a drop
+    static let tauUp = 0.12, tauDown = 0.6
+    static let tauConf = 1.2
+    static let gateFloor = 0.35     // the beat channel with no kit at all
+
+    // (the web's 'break' is a Swift keyword; it is spelled `brk` here and its
+    //  rawValue is the web's name, so a log or a test reads the same word)
+    enum Band: String { case none, hush, brk = "break", groove, song, drop }
+
+    // MARK: the state (makeStemLightState)
+    var conf = 0.0, d = 0.0, b = 0.0, v = 0.0, o = 0.0
+    var kit = false
+    var away = 0.0
+    var coil = 0.0
+    var landed = false
+    var section: Band = .none
+    var pos = Double.nan
+
+    /// What the light reads (stemLightOut) — each lerped by conf.
+    struct Out: Equatable {
+        var beatGate = 1.0, bassMul = 1.0, midMul = 1.0
+        var chromaAdd = 0.0, lightMul = 1.0, whiteMul = 1.0
+        var coil = 0.0
+        var landed = false
+    }
+
+    static func digit(_ a: [Double], _ j: Int) -> Double {
+        guard !a.isEmpty else { return 0 }
+        return a[j < 0 ? 0 : (j < a.count ? j : a.count - 1)]
+    }
+    static func peak(_ a: [Double], _ i0: Int, _ i1: Int) -> Double {
+        guard !a.isEmpty, i1 >= i0 else { return 0 }
+        var p = 0.0
+        for j in i0...i1 { let x = digit(a, j); if x > p { p = x } }
+        return p
+    }
+    static func mean(_ a: [Double], _ i0: Int, _ i1: Int) -> Double {
+        guard !a.isEmpty, i1 >= i0 else { return 0 }
+        var s = 0.0
+        for j in i0...i1 { s += digit(a, j) }
+        return s / Double(i1 - i0 + 1)
+    }
+    static func band(kit: Bool, b: Double, v: Double) -> Band {
+        if !kit { return (v < 0.25 && b < 0.30) ? .hush : .brk }
+        if v >= 0.30 { return .song }
+        return b >= 0.50 ? .drop : .groove
+    }
+
+    /// stemLightStep. `pos` is the audible-aligned playhead (s), nil when none.
+    mutating func step(stems s: Stems?, pos posIn: Double?, playing: Bool, dt dtIn: Double) {
+        let K = StemLight.self
+        let dt = (dtIn > 0 && dtIn < 0.25) ? dtIn : (dtIn >= 0.25 ? 0.25 : 0)
+        let hz = (s?.hz ?? 0) > 0 ? s!.hz : 0
+        let pos = posIn ?? .nan
+        let hasAny = s.map { !($0.d.isEmpty && $0.b.isEmpty && $0.v.isEmpty && $0.o.isEmpty) } ?? false
+        let live = playing && hz > 0 && pos.isFinite && pos >= 0 && hasAny
+        func ease(_ x: Double, _ goal: Double, _ up: Double, _ down: Double) -> Double {
+            x + (goal - x) * (1 - exp(-dt / (goal > x ? up : down)))
+        }
+        landed = false
+        conf = ease(conf, live ? 1 : 0, K.tauConf, K.tauConf)
+        guard live, let s else {
+            d = ease(d, 0, K.tauUp, K.tauDown); b = ease(b, 0, K.tauUp, K.tauDown)
+            v = ease(v, 0, K.tauUp, K.tauDown); o = ease(o, 0, K.tauUp, K.tauDown)
+            coil = ease(coil, 0, 0.35, 0.25)
+            kit = false; away = 0; section = .none; self.pos = .nan
+            return
+        }
+        let i = Int(floor(min(pos * hz, 1.0e9)))
+        let w = max(1, Int((K.win * hz).rounded()))
+        let dNow = K.peak(s.d, i - w, i)
+        // a seek or a new track is a cut, not a performance
+        let jumped = !(abs(pos - self.pos - dt) < 1.5)
+        self.pos = pos
+        if jumped { kit = dNow > K.kitOn; away = 0; coil = 0 }
+        let bNow = min(1, K.mean(s.b, i - w, i) * 1.15)
+        let vNow = K.mean(s.v, i - w, i)
+        let oNow = K.mean(s.o, i - w, i)
+        d = ease(d, dNow, K.tauUp, K.tauDown); b = ease(b, bNow, K.tauUp, K.tauDown)
+        v = ease(v, vNow, K.tauUp, K.tauDown); o = ease(o, oNow, K.tauUp, K.tauDown)
+        let wasKit = kit
+        if kit && dNow < K.kitOff { kit = false }
+        else if !kit && dNow > K.kitOn { kit = true }
+        if kit && !wasKit && away >= K.awayMin { landed = true; coil = 0 }
+        away = kit ? 0 : away + dt
+        let soon = K.peak(s.d, i + Int((K.aheadA * hz).rounded()), i + Int((K.aheadB * hz).rounded()))
+        let coming = !kit && away >= K.awayMin && soon > K.kitOn
+        if !landed { coil = ease(coil, coming ? 1 : 0, 0.35, 0.25) }
+        section = K.band(kit: kit, b: b, v: v)
+    }
+
+    // MARK: the drum chart (the web's HIT_VOICES / hitsDecode / hitPulse / hitBlend)
+
+    static let hitKick = (amp: 1.00, tau: 0.16)     // the full strike
+    static let hitSnare = (amp: 0.80, tau: 0.14)    // the backbeat, a step under
+    static let hitHat = (amp: 0.25, tau: 0.06)      // a glint, light only
+    static let hitSkip = 36 * 36 - 1                // "zz": 12.95 s, no hit
+
+    /// Two base-36 digits per hit, the gap from the last in centiseconds;
+    /// stops at the first character outside [0-9a-z].
+    static func hitsDecode(_ code: String) -> [Double] {
+        var out: [Double] = []
+        var cs = 0
+        let u = Array(code.utf8)
+        func d36(_ c: UInt8) -> Int {
+            if c >= 48 && c <= 57 { return Int(c) - 48 }
+            if c >= 97 && c <= 122 { return Int(c) - 87 }
+            return -1
+        }
+        var i = 0
+        while i + 1 < u.count {
+            let a = d36(u[i]), b = d36(u[i + 1])
+            if a < 0 || b < 0 { break }
+            let d = a * 36 + b
+            cs += d
+            if d != hitSkip { out.append(Double(cs) / 100) }
+            i += 2
+        }
+        return out
+    }
+
+    /// The last hit at or before `pos` in a sorted array; -1 for none.
+    static func hitsLast(_ arr: [Double], _ pos: Double) -> Int {
+        var lo = 0, hi = arr.count - 1, at = -1
+        while lo <= hi {
+            let m = (lo + hi) >> 1
+            if arr[m] <= pos { at = m; lo = m + 1 } else { hi = m - 1 }
+        }
+        return at
+    }
+
+    /// The strike at `pos`: the loudest voice's amp × e^(−since/tau), each
+    /// voice reading its own last hit; 0 before the first and past four taus.
+    static func hitPulse(_ chart: Stems.HitChart?, _ pos: Double) -> Double {
+        guard let chart, pos.isFinite else { return 0 }
+        var p = 0.0
+        for (arr, v) in [(chart.k, hitKick), (chart.s, hitSnare), (chart.h, hitHat)] {
+            let i = hitsLast(arr, pos)
+            if i < 0 { continue }
+            let since = pos - arr[i]
+            if since < 4 * v.tau {
+                let x = v.amp * exp(-since / v.tau)
+                if x > p { p = x }
+            }
+        }
+        return p
+    }
+
+    /// With a chart the hit is the truth, the live detector a whisper (×0.6);
+    /// without one, exactly the gated channel.
+    static func hitBlend(_ gated: Double, _ pulse: Double, _ haveChart: Bool) -> Double {
+        haveChart ? max(gated * 0.6, pulse) : gated
+    }
+
+    // MARK: QUARTET's window (the web's QUARTET_N / QUARTET_WIN / quartetLane)
+
+    static let quartetN = 64          // samples across the window
+    static let quartetWin = 6.0       // s — three behind now, three ahead
+
+    /// Sample i of the window: time pos + ((i + ½)/N − ½)·WIN — each player's
+    /// envelope there, linear on the 12 Hz score, the drums beaded with the
+    /// chart's hits; silence outside the track. (drums, bass, voice, other).
+    static func quartetLane(_ i: Int, stems: Stems, chart: Stems.HitChart?,
+                            pos: Double, dur: Double) -> SIMD4<Double> {
+        let t = pos + ((Double(i) + 0.5) / Double(quartetN) - 0.5) * quartetWin
+        guard stems.hz > 0, t >= 0, !(dur > 0 && t > dur) else { return SIMD4<Double>(0, 0, 0, 0) }
+        let x = t * stems.hz
+        let j = Int(floor(min(x, 1.0e9)))
+        let fr = x - Double(j)
+        func at(_ a: [Double]) -> Double {
+            guard !a.isEmpty else { return 0 }
+            let p = digit(a, j), q = digit(a, j + 1)
+            return p + (q - p) * fr
+        }
+        let d = at(stems.d)
+        let drums = chart != nil ? max(d * 0.55, hitPulse(chart, t)) : d
+        return SIMD4<Double>(drums, at(stems.b), at(stems.v), at(stems.o))
+    }
+
+    /// stemLightOut — neutral (gates 1, adds 0) while conf is 0.
+    var out: Out {
+        func c01(_ x: Double) -> Double { x < 0 ? 0 : (x > 1 ? 1 : x) }
+        let c = c01(conf), dd = c01(d), bb = c01(b), vv = c01(v)
+        func mix(_ n: Double, _ x: Double) -> Double { n + (x - n) * c }
+        return Out(beatGate: mix(1, StemLight.gateFloor + (1 - StemLight.gateFloor) * dd),
+                   bassMul: mix(1, 0.70 + 0.55 * bb),
+                   midMul: mix(1, 0.85 + 0.30 * vv),
+                   chromaAdd: c * (0.20 * vv - 0.14 * (1 - dd) * (1 - vv)),
+                   lightMul: 1 + c * 0.05 * vv,
+                   whiteMul: mix(1, 0.55 + 0.45 * dd),
+                   coil: c * c01(coil),
+                   landed: landed && c > 0.5)
+    }
+}

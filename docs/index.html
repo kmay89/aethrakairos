@@ -1509,7 +1509,8 @@ body.boothdesk #transport{opacity:1!important;transform:translateX(-50%)!importa
 /* the transport keeps play, seek, volume and the mix chips; the room's own
    controls (scenes, lens, touch, comfort) belong to the screen the room is on */
 body.boothdesk #transport .hud > :not(.chipgroup[aria-label="The mix"]){display:none!important}
-body.boothdesk #boothCv{height:clamp(190px,calc(100vh - var(--desk-foot,160px) - 420px),480px)}
+body.boothdesk #boothCv{height:clamp(190px,calc(100vh - var(--desk-foot,160px) - 600px),480px)}
+body.boothdesk #boothWave{height:clamp(150px,22vh,260px)}
 body.boothdesk .booth-title{font-size:19px}
 body.boothdesk #boothPlan{font-size:10px}
 body.boothdesk .booth-deck .nm{font-size:14px}
@@ -2484,7 +2485,12 @@ body.clipping::after{
 .booth-deck .meta{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.03em;flex:none}
 .booth-deck .st{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);flex:none}
 .booth-deck .st.live{color:var(--accent,#6ee7ff)}
-#boothCv{width:100%;height:216px;display:block;border-radius:10px}
+/* the booth's canvas is an instrument (platters to scratch, lanes to scrub):
+   a finger on it is never the page scrolling, or the browser cancels the
+   gesture a few moves in and the record slips out of the hand */
+#boothCv{width:100%;height:216px;display:block;border-radius:10px;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* the two decks scrolling past the needle: an instrument too (drag to scratch, pinch to zoom) */
+#boothWave{width:100%;height:150px;display:block;border-radius:10px;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:grab}
 /* the pad row — the next-up crate, RGB performance pads */
 #boothPads{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .bpad{
@@ -2510,6 +2516,7 @@ body.clipping::after{
      them, above the two waveform lanes — the phone gets the real booth,
      not a stripped-down waveform strip */
   #boothCv{height:224px}
+  #boothWave{height:128px}
   #boothPads{grid-template-columns:repeat(4,1fr)}
   .bpad:nth-child(n+5){display:none}
 }
@@ -3247,6 +3254,7 @@ body.clipping::after{
     <span class="nm" id="boothNmA">—</span><span class="meta" id="boothMetaA"></span>
     <span class="st" id="boothStA"></span>
   </div>
+  <canvas id="boothWave" aria-label="The two decks scrolling past the needle — drag deck A to scratch, pinch or scroll to zoom" role="img"></canvas>
   <canvas id="boothCv" aria-hidden="true"></canvas>
   <div class="booth-deck">
     <span class="dk">B</span><span class="keychip" id="boothKeyB">—</span>
@@ -4264,6 +4272,36 @@ body.clipping::after{
     standing up like a crown's points; THE PENDANT, the jewel hung in three-quarter view, swinging
     slowly on its vertical axis.</p>
     <!-- ==== END ROOM MANUAL: SPECTRAL ==== -->
+    <!-- ==== ROOM MANUAL: FLUID ==== -->
+    <h3>The fluid</h3>
+    <p class="lede">Scene 123 is <b>FLUID</b>: the Navier–Stokes equations solved live, every frame, on the GPU — not the
+    handful of exact flows the NAVIER–STOKES room shows, but the real thing for whatever the music does
+    to the water. Jos Stam's stable scheme does it: each cell walks back along the velocity to fetch
+    what was there (so a frame of any length is safe), a pressure solve keeps the water incompressible,
+    and vorticity confinement hands the eddies back what the grid took. Three dancers trace
+    harmonograph figures across the tank at the song's pace, each dragging its ink behind it — the bass
+    in one ink, the mids in another, the treble in the third — and each ink is a place on the live chord
+    ramp rather than a colour, so a chord change recolours every drop already in the water. Every onset
+    is a splash: the dancers burst outward and the bass winds a whirl into the middle. The ink has a
+    surface lit from the upper left, what is bright blooms, and the light in the middle of the tank
+    throws rays through it. A hand in the water stirs it; a spun hand winds a whirl. Three faces: THE
+    DANCE, two dancers and a lively vorticity; THE STORM, three dancers, the vorticity high, the whirl
+    hard and the ink burned off fast; THE VEIL, one slow dancer laying wide sheets of all three inks
+    that last.</p>
+    <!-- ==== END ROOM MANUAL: FLUID ==== -->
+    <!-- ==== ROOM MANUAL: QUARTET ==== -->
+    <h3>The quartet</h3>
+    <p class="lede">Scene 124 is <b>QUARTET</b>: the band, seen. Every song here has been taken apart into its four
+    players — drums, bass, voice and everything else — by a source-separation network (Demucs), and the
+    drums charted hit by hit. Every other room hears the band through its light; this one shows it. Four
+    strands, one per player, each as broad and as bright as that player is loud, flow through a single
+    now, and a node lights where each crosses it. Because the score is known in advance, the strands do not
+    stop at now: the next three seconds are drawn ahead as a dotted ghost, so you see the drums coming back,
+    the voice coming in, the bass dropping out a moment before you hear it. The drum strand is beaded with
+    the drummer's real hits. Two faces: THE SCORE, the four strands running left to right; THE RINGS, four
+    concentric rings with now at the top and the future running clockwise. On the microphone or a file
+    nobody has separated, the strands are the live sound's own recent past, and the future is honestly dark.</p>
+    <!-- ==== END ROOM MANUAL: QUARTET ==== -->
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4914,6 +4952,10 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows',   // PLOTTER
                // ↑ plotter · spectral ↓
                'flows',   // SPECTRAL
+               // ↑ spectral · fluid ↓
+               'flows',   // FLUID — a hand in the water stirs it
+               // ↑ fluid · quartet ↓
+               'gathers', // QUARTET — a hand gathers the band
                ];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
@@ -5223,6 +5265,10 @@ function ghostPattern(sceneIdx, act, r, mood){
                'lissa',   // PLOTTER
                // ↑ plotter · spectral ↓
                'lissa',   // SPECTRAL
+               // ↑ spectral · fluid ↓
+               'paint',   // FLUID — the ghost paints in the water
+               // ↑ fluid · quartet ↓
+               'lissa',   // QUARTET — the ghost conducts in figures
                ];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
@@ -6437,7 +6483,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'maxwell', 'seventeen', 'minimal',
                     'minkowski', 'boltzmann',
                     'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta', 'aurora', 'cochlea', 'coriolis', 'seismic', 'tides', 'vortex', 'plateau', 'escapement', 'hubble',
-                    'nave', 'plotter', 'spectral'];
+                    'nave', 'plotter', 'spectral',
+                    'fluid', 'quartet'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6619,6 +6666,10 @@ const SCENE_TASTE = {
   plotter: { treble: 0.5, mid: 0.3, energy: 0.2, calm: 0.2, entropy: -0.3 },   // a pen drawing wants a bright, patterned line and room to read it
   // ↑ plotter · spectral ↓
   spectral: { treble: 0.5, bass: 0.4, mid: 0.3, energy: 0.3, beat: 0.2, entropy: -0.1 },   // a full spectrum wants to be sculpted: bright tops, a deep floor, a pulse to fall down the scales
+  // ↑ spectral · fluid ↓
+  fluid: { energy: 0.6, beat: 0.5, bass: 0.4, entropy: 0.3, calm: -0.2 },   // water wants to be stirred: energy to dance to, onsets to splash on, bass to whirl
+  // ↑ fluid · quartet ↓
+  quartet: { beat: 0.5, bass: 0.4, mid: 0.4, energy: 0.2, entropy: -0.2 },   // the band, seen: a kit to bead, a bassline and a voice to draw, an arrangement clear enough to read
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7910,6 +7961,10 @@ const SCENE_SIGS = {
   plotter: { kind: 'ring', h: 38, arms: 3 },   // three beads of the flake, drawn in outline
   // ↑ plotter · spectral ↓
   spectral: { kind: 'ring', h: 280, arms: 4, rainbow: 1 },   // a great ring carrying four, each scale its own band
+  // ↑ spectral · fluid ↓
+  fluid: { kind: 'ribbon', h: 200, arms: 3 },   // three ribbons of ink, curling
+  // ↑ fluid · quartet ↓
+  quartet: { kind: 'ribbon', h: 170, arms: 4 },   // four strands, one per player
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -9477,7 +9532,7 @@ const el = {
   seek: $('seek'), seekFill: document.querySelector('#seek .fill'),
   seekBuf: document.querySelector('#seek .buf'), seekKnob: document.querySelector('#seek .knob'),
   seekTip: $('seekTip'), waveCv: $('waveCv'),
-  booth: $('booth'), boothCv: $('boothCv'), boothClose: $('boothClose'), boothPads: $('boothPads'),
+  booth: $('booth'), boothCv: $('boothCv'), boothWave: $('boothWave'), boothClose: $('boothClose'), boothPads: $('boothPads'),
   boothPlan: $('boothPlan'), boothLock: $('boothLock'), chipBooth: $('chipBooth'),
   boothKeyA: $('boothKeyA'), boothNmA: $('boothNmA'), boothMetaA: $('boothMetaA'), boothStA: $('boothStA'),
   boothKeyB: $('boothKeyB'), boothNmB: $('boothNmB'), boothMetaB: $('boothMetaB'), boothStB: $('boothStB'),
@@ -16563,6 +16618,258 @@ function danceScoreRises(env, step, mem, out){
 // @dance-end
 
 /* ================================================================
+   §6c-ter · STEM LIGHT — the room hears the band, not the mix.
+   Demucs (tools/stems.py, offline, every track) separates each song into
+   its four players — drums, bass, voice, everything else — and the catalog
+   ships each one as a 12 Hz digit envelope (mix.stems). Until now only the
+   booth and the mixer read them; the light heard a bass/mid/treble split of
+   the WHOLE mix, which cannot tell a kick from a bassline or a hi-hat from a
+   breath. A pad swelled and the room struck as if a drum had landed.
+   The stepper turns the four into what a lighting designer would want:
+     beatGate   the strike belongs to the KIT — with no drums playing the
+                beat channel falls to a breath (0.35), and comes back the
+                moment sticks touch skins
+     bassMul    the body belongs to the BASS — a kick with no bassline under
+                it is a strike, not weight
+     midMul     the VOICE carries the mids: a singer lifts them
+     chromaAdd  the voice saturates the light; a hush (no kit, no voice)
+                cools it
+     lightMul   a held note brightens the chord a breath
+     whiteMul   no kit, no bleach: a breakdown stays dark however loud
+     coil       PRECOGNITION, by the instrument: the kit has been away at
+                least STEM_LIGHT.awayMin seconds and the score says it
+                returns inside the window — the room inhales (the colour
+                wash, the dancer's brace) and…
+     landed     …on the frame the drums come back, it lands. Every return
+                of the kit in the catalog is a real drop the eye can feel
+                coming, because the light read it two seconds early.
+     section    hush | break | groove | song | drop — what the band is
+                doing, named
+   Pure, deterministic, allocation-free past the state object, every value
+   finite and defined in silence. With no stems (or the mic) conf eases to
+   0 and every output reads neutral (gates 1, adds 0): the show is exactly
+   what it was before. Ported line for line to the TV as StemLight
+   (tvos/AethraKairosTV/Visualizer/Dance.swift) — one set of constants.
+   ================================================================ */
+// @stem-start
+const STEM_LIGHT = {
+  win: 0.7,          // s — presence reads the trailing window (a hit, not its gap)
+  aheadA: 0.5,       // s — the "soon" window opens…
+  aheadB: 2.0,       //     …and closes: the coil reads 0.5–2.0 s ahead
+  kitOn: 0.45,       // the kit is PLAYING once its peak clears this…
+  kitOff: 0.30,      // …and stops once it falls under this (hysteresis)
+  awayMin: 2.0,      // s — the kit must be gone this long before its return is a drop
+  tauUp: 0.12,       // s — levels rise fast…
+  tauDown: 0.6,      // …and let go slowly (a 12 Hz score never steps on screen)
+  tauConf: 1.2,      // s — stems fade in and out of authority, never pop
+  gateFloor: 0.35,   // the beat channel with no kit at all
+};
+// s — the kit's return may change the room only once the room has had its say
+const STEM_CUT_DWELL = 10;
+function makeStemLightState(){
+  return { conf: 0, d: 0, b: 0, v: 0, o: 0, kit: false, away: 0, coil: 0,
+           landed: false, section: 'none', pos: NaN };
+}
+function stemDigit(str, j){
+  const c = str.charCodeAt(j < 0 ? 0 : (j < str.length ? j : str.length - 1)) - 48;
+  return c >= 0 && c <= 9 ? c / 9 : 0;
+}
+// the PEAK of one envelope over samples [i0, i1] — a drum is its hits
+function stemPeak(str, i0, i1){
+  if (!str || !str.length) return 0;
+  let p = 0;
+  for (let j = i0; j <= i1; j++){ const x = stemDigit(str, j); if (x > p) p = x; }
+  return p;
+}
+// the MEAN over [i0, i1] — a voice, a bassline, a pad is its sustain
+function stemMean(str, i0, i1){
+  if (!str || !str.length || i1 < i0) return 0;
+  let s = 0;
+  for (let j = i0; j <= i1; j++) s += stemDigit(str, j);
+  return s / (i1 - i0 + 1);
+}
+function stemSection(kit, b, v){
+  if (!kit) return (v < 0.25 && b < 0.30) ? 'hush' : 'break';
+  if (v >= 0.30) return 'song';
+  return b >= 0.50 ? 'drop' : 'groove';
+}
+/* one step. inp = { stems, pos (s, audible-aligned playhead), playing }.
+   Returns the state, updated in place. */
+function stemLightStep(st, inp, dt){
+  const K = STEM_LIGHT;
+  dt = dt > 0 && dt < 0.25 ? dt : (dt >= 0.25 ? 0.25 : 0);
+  const s = inp && inp.stems;
+  const hz = s && s.hz > 0 ? s.hz : 0;
+  const pos = inp && isFinite(inp.pos) ? inp.pos : NaN;
+  const live = !!(inp && inp.playing && hz && isFinite(pos) && pos >= 0 && (s.d || s.b || s.v || s.o));
+  const ease = (x, goal, up, down) => x + (goal - x) * (1 - Math.exp(-dt / (goal > x ? up : down)));
+  st.landed = false;
+  st.conf = ease(st.conf, live ? 1 : 0, K.tauConf, K.tauConf);
+  if (!live){
+    st.d = ease(st.d, 0, K.tauUp, K.tauDown); st.b = ease(st.b, 0, K.tauUp, K.tauDown);
+    st.v = ease(st.v, 0, K.tauUp, K.tauDown); st.o = ease(st.o, 0, K.tauUp, K.tauDown);
+    st.coil = ease(st.coil, 0, 0.35, 0.25);
+    st.kit = false; st.away = 0; st.section = 'none'; st.pos = NaN;
+    return st;
+  }
+  const i = Math.floor(pos * hz), w = Math.max(1, Math.round(K.win * hz));
+  const dNow = stemPeak(s.d, i - w, i);
+  // a seek or a new track is a cut, not a performance: the kit is re-read
+  // where the needle landed and no landing can fire across the jump
+  const jumped = !(Math.abs(pos - st.pos - dt) < 1.5);
+  st.pos = pos;
+  if (jumped){ st.kit = dNow > K.kitOn; st.away = 0; st.coil = 0; }
+  const bNow = Math.min(1, stemMean(s.b, i - w, i) * 1.15);
+  const vNow = stemMean(s.v, i - w, i);
+  const oNow = stemMean(s.o, i - w, i);
+  st.d = ease(st.d, dNow, K.tauUp, K.tauDown); st.b = ease(st.b, bNow, K.tauUp, K.tauDown);
+  st.v = ease(st.v, vNow, K.tauUp, K.tauDown); st.o = ease(st.o, oNow, K.tauUp, K.tauDown);
+  // the kit, with hysteresis; a return after a real absence is the landing
+  const wasKit = st.kit;
+  if (st.kit && dNow < K.kitOff) st.kit = false;
+  else if (!st.kit && dNow > K.kitOn) st.kit = true;
+  if (st.kit && !wasKit && st.away >= K.awayMin){ st.landed = true; st.coil = 0; }
+  st.away = st.kit ? 0 : st.away + dt;
+  // the coil: the kit is away and the score says it is coming back
+  const soon = stemPeak(s.d, i + Math.round(K.aheadA * hz), i + Math.round(K.aheadB * hz));
+  const coming = !st.kit && st.away >= K.awayMin && soon > K.kitOn;
+  if (!st.landed) st.coil = ease(st.coil, coming ? 1 : 0, 0.35, 0.25);
+  st.section = stemSection(st.kit, st.b, st.v);
+  return st;
+}
+/* what the light reads: the derived multipliers, each lerped by conf so an
+   unseparated track (or the mic) reads exactly neutral. */
+function stemLightOut(st){
+  const c = clamp01(st.conf), d = clamp01(st.d), b = clamp01(st.b), v = clamp01(st.v);
+  const mix = (n, x) => n + (x - n) * c;
+  return {
+    beatGate: mix(1, STEM_LIGHT.gateFloor + (1 - STEM_LIGHT.gateFloor) * d),
+    bassMul: mix(1, 0.70 + 0.55 * b),
+    midMul: mix(1, 0.85 + 0.30 * v),
+    chromaAdd: c * (0.20 * v - 0.14 * (1 - d) * (1 - v)),
+    lightMul: 1 + c * 0.05 * v,
+    whiteMul: mix(1, 0.55 + 0.45 * d),
+    coil: c * clamp01(st.coil),
+    landed: !!st.landed && c > 0.5,
+  };
+}
+
+/* THE DRUM CHART (mix.stems.hits, sv >= 2): every kick, snare and hat onset,
+   detected offline on the SEPARATED drum stem (tools/stems.py drum_hits) —
+   the one moment true per-hit timing exists; a 12 Hz envelope cannot place
+   a hit inside its own 83 ms step. Each voice is a string of two-base-36-digit
+   gaps in centiseconds; "zz" advances 12.95 s with no hit. With a chart the
+   strike is no longer GUESSED from the mix's rises: it is the hit itself,
+   landing on the frame the drummer played it. */
+const HIT_VOICES = {
+  k: { amp: 1.00, tau: 0.16 },     // the kick: the full strike
+  s: { amp: 0.80, tau: 0.14 },     // the snare: the backbeat, a step under
+  h: { amp: 0.25, tau: 0.06 },     // the hat: a glint, light only (the classifier's hat cap)
+};
+const HIT_SKIP = 36 * 36 - 1;
+function hitsDecode(code){
+  const out = [];
+  if (typeof code !== 'string') return out;
+  const d36 = c => (c >= 48 && c <= 57) ? c - 48 : ((c >= 97 && c <= 122) ? c - 87 : -1);
+  let cs = 0;
+  for (let i = 0; i + 1 < code.length; i += 2){
+    const a = d36(code.charCodeAt(i)), b = d36(code.charCodeAt(i + 1));
+    if (a < 0 || b < 0) break;
+    const d = a * 36 + b;
+    cs += d;
+    if (d !== HIT_SKIP) out.push(cs / 100);
+  }
+  return out;
+}
+/* the chart, decoded once: { k, s, h } sorted second arrays, or null */
+function hitsChart(stems){
+  const h = stems && stems.hits;
+  if (!h || typeof h !== 'object') return null;
+  const c = { k: hitsDecode(h.k), s: hitsDecode(h.s), h: hitsDecode(h.h) };
+  return (c.k.length + c.s.length + c.h.length) ? c : null;
+}
+// the last hit at or before `pos` in a sorted array: its index, -1 for none
+function hitsLast(arr, pos){
+  let lo = 0, hi = arr.length - 1, at = -1;
+  while (lo <= hi){
+    const m = (lo + hi) >> 1;
+    if (arr[m] <= pos){ at = m; lo = m + 1; } else hi = m - 1;
+  }
+  return at;
+}
+/* the strike at `pos`: the loudest voice's amp × e^(−since/tau), each voice
+   reading its own last hit; 0 before the first hit and past four taus */
+function hitPulse(chart, pos){
+  if (!chart || !isFinite(pos)) return 0;
+  let p = 0;
+  for (const v of ['k', 's', 'h']){
+    const arr = chart[v], V = HIT_VOICES[v];
+    const i = hitsLast(arr, pos);
+    if (i < 0) continue;
+    const since = pos - arr[i];
+    if (since < 4 * V.tau){ const x = V.amp * Math.exp(-since / V.tau); if (x > p) p = x; }
+  }
+  return p;
+}
+/* the beat channel with a chart: the hit is the truth, the live detector a
+   whisper under it (×0.6, so a fill the chart lacks still reads); without
+   one, exactly the gated channel it was */
+function hitBlend(gated, pulse, haveChart){
+  return haveChart ? Math.max(gated * 0.6, pulse) : gated;
+}
+/* THE BAND NAMES THE MOMENT. roomMood reads the arc and the energy; the
+   stems say what the band is actually DOING, which the energy alone cannot
+   (a loud breakdown, a quiet drop). Once the stems have authority (conf >
+   0.5) the section refines the mood — never invents a peak the structure
+   did not earn (a drop over a capped ceiling stays where it was):
+     hush   nothing but air → adrift (the long way down stays dissolve)
+     break  no kit → an apex cools to dissolve, a drive drifts; a rise
+            keeps rising (a breakdown is often the build)
+     drop   kit and bass, no voice → a drive or rise becomes the apex
+            where the ceiling allows it; adrift wakes to drive
+     song   kit and voice → nothing is adrift while someone sings over drums
+     groove kit without much else → adrift wakes to drive
+   Mirrored by Director.stemMood on the TV. */
+function stemMood(mood, section, conf, ceil){
+  if (!(conf > 0.5)) return mood;
+  const c = ceil == null ? 1 : ceil;
+  switch (section){
+    case 'hush':   return mood === 'dissolve' ? 'dissolve' : 'adrift';
+    case 'break':  return mood === 'apex' ? 'dissolve' : (mood === 'drive' ? 'adrift' : mood);
+    case 'drop':   return (mood === 'drive' || mood === 'ascend') && c > 0.4 ? 'apex' : (mood === 'adrift' ? 'drive' : mood);
+    case 'song':   return mood === 'adrift' ? 'drive' : mood;
+    case 'groove': return mood === 'adrift' ? 'drive' : mood;
+    default:       return mood;
+  }
+}
+/* QUARTET's window (the room lives in its ROOM REGION; its sampler lives
+   here, where the tests can read it) */
+const QUARTET_N = 64;          // samples across the window
+const QUARTET_WIN = 6.0;       // s — three behind now, three ahead
+/* the lane at window sample i: time pos + ((i + ½)/N − ½)·WIN. With stems,
+   each player's envelope at that time (linear on the 12 Hz score), the
+   drums beaded with the chart's hits; outside the track, silence. Returns
+   [drums, bass, voice, other] 0..1 into `out` at offset 4i. Pure. */
+function quartetLane(out, i, stems, chart, pos, dur){
+  const t = pos + ((i + 0.5) / QUARTET_N - 0.5) * QUARTET_WIN;
+  const o = i * 4;
+  if (!stems || !(stems.hz > 0) || !(t >= 0) || (dur > 0 && t > dur)){
+    out[o] = out[o + 1] = out[o + 2] = out[o + 3] = 0; return out;
+  }
+  const x = t * stems.hz, j = Math.floor(x), fr = x - j;
+  const at = (str) => {
+    if (!str || !str.length) return 0;
+    const a = stemDigit(str, j), b = stemDigit(str, j + 1);
+    return a + (b - a) * fr;
+  };
+  const d = at(stems.d);
+  out[o] = chart ? Math.max(d * 0.55, hitPulse(chart, t)) : d;
+  out[o + 1] = at(stems.b); out[o + 2] = at(stems.v); out[o + 3] = at(stems.o);
+  return out;
+}
+// @stem-end
+
+/* ================================================================
    §6c-bis · ECHOES — passing thoughts. Hand-curated quotes from physicists,
    mathematicians, stoics and musicians drift through the field like clouds:
    spread out, timed to the calm passages, never over the drop. In MUSE mode
@@ -19494,6 +19801,7 @@ const PLATTER = {
   motorTau:    0.32,   // s — the motor reaching speed from rest (a direct drive, not a belt)
   brakeTau:    0.45,   // s — power off: the platter coasting down against its own friction
   handTau:     0.012,  // s — the record under a finger following the finger (the slipmat's give)
+  handLead:    0.024,  // s — how far behind the finger's PLACE the record may run (with handTau: ζ ≈ 0.7, ~9 Hz)
   releaseTau:  0.09,   // s — the finger lifted: the motor takes the record back through the mat
   backspin:   -3.5,    // × — the flick a backspin gives the platter
   backspinTau: 0.35,   // s — and how it dies away
@@ -19537,6 +19845,19 @@ function platterStep(S, dt, hand){
   if (S.rate > T.maxRate) S.rate = T.maxRate; else if (S.rate < -T.maxRate) S.rate = -T.maxRate;
   return S;
 }
+/* THE HAND BY PLACE. A finger on a record says where the record IS, not how
+   fast it goes: so the hand is a place on the tape (where the record was
+   grabbed, plus how far the finger has turned it since), and the platter is
+   steered to it, its rate the distance to go over handLead. With the slipmat's
+   own lag that is a damped spring, ζ about 0.7: a still finger is a still
+   record, a late burst of pointer events is a catch-up rather than a stall,
+   and the music under the finger stays under the finger. Units are the tape's
+   frames; `unit` is frames per second of music. */
+function platterHandFollow(S, unit){
+  if (S.handTo == null) return;
+  const r = (S.handTo - S.pos) / (unit * PLATTER.handLead);
+  S.hand = r > PLATTER.maxRate ? PLATTER.maxRate : r < -PLATTER.maxRate ? -PLATTER.maxRate : r;
+}
 // a turn of the platter is VINYL_REV_SEC of music: an angle moved in dt seconds is a rate
 function platterHandRate(dTheta, dt){
   if (!(dt > 0) || !isFinite(dTheta)) return 0;
@@ -19568,6 +19889,7 @@ function makeVinyl(sr, seconds){
     pos: 0,                               // the platter's read head, in the same count (fractional)
     engaged: false, gain: 0, gainStep: 1 / (VINYL_RAMP_SEC * rate),
     platter: makePlatter(), hand: null,
+    handFrom: 0, handTo: null,            // the hand by place: where it took the record, where it has it now
     snapFrom: -1, snapU: 0, snapStep: 1 / (VINYL_RAMP_SEC * rate),   // a head being crossed out of
     lpL: 0, lpR: 0,                       // the speed-following low-pass
   };
@@ -19602,6 +19924,7 @@ function vinylProcess(S, inL, inR, outL, outR, n){
     for (let i = 0; i < n; i++){ const xl = inL ? inL[i] : 0; outL[i] = xl; outR[i] = inR ? inR[i] : xl; }
     return S;
   }
+  platterHandFollow(S, S.sr);
   platterStep(S.platter, n / S.sr, S.hand);
   const rate = S.platter.rate;
   const ar = rate < 0 ? -rate : rate;
@@ -19644,10 +19967,17 @@ function vinylProcess(S, inL, inR, outL, outR, n){
 function vinylCommand(S, m){
   if (!m || !m.op) return S;
   const P = S.platter;
+  // every command but the hand-by-place itself lets go of the place
+  if (m.op !== 'handAt') S.handTo = null;
   if (m.op === 'engage'){
     if (!S.engaged){ S.engaged = true; S.pos = S.written - 3; S.hand = null; S.platter = makePlatter(); S.snapFrom = -1; S.snapU = 0; }
   } else if (m.op === 'release'){ S.engaged = false; S.hand = null; }
   else if (m.op === 'hand'){ S.hand = (typeof m.v === 'number' && isFinite(m.v)) ? m.v : null; }
+  else if (m.op === 'grab'){ S.handFrom = S.pos; S.handTo = S.pos; S.hand = 0; }
+  else if (m.op === 'handAt'){
+    // x: seconds of music the finger has turned the record since the grab
+    if (typeof m.x === 'number' && isFinite(m.x) && S.hand != null) S.handTo = S.handFrom + m.x * (S.tsr || S.sr);
+  }
   else if (m.op === 'lift'){ S.hand = null; }
   else if (m.op === 'motor'){
     P.motor = (typeof m.v === 'number' && isFinite(m.v)) ? m.v : 1;
@@ -19660,6 +19990,100 @@ function vinylCommand(S, m){
   }
   return S;
 }
+/* THE SONG TAPE. Where the music plays element-direct (iOS: the element goes
+   straight to the speaker so the lock screen keeps playing) there is no room
+   to record, so the platter reads the SONG instead: the track decoded once
+   into a compact 16-bit stereo tape, at whatever rate fits the budget. The
+   element plays on underneath, muted while the hand has the record, and it
+   is the live edge: `written` is its playhead in tape frames, carried forward
+   here between the main thread's clock messages at the deck's own rate.
+   Everything else (the platter, the Hermite read, the speed-following
+   low-pass, the commands) is the very arithmetic the room's tape runs. */
+const VINYL_SONG_FRAMES = 8e6;      // the tape's budget: 8 M stereo frames of int16, 32 MB
+const VINYL_SONG_MAX_SR = 32000;    // more than this buys nothing a scratch can be heard to need
+const VINYL_SONG_MIN_SR = 11025;    // less than this and the song is too long to hold
+// the tape's rate for a song this long: as fine as the budget allows, 0 when it cannot be held
+function vinylSongRate(duration){
+  if (!(duration > 0) || !isFinite(duration)) return 0;
+  const sr = Math.min(VINYL_SONG_MAX_SR, Math.floor(VINYL_SONG_FRAMES / duration));
+  return sr >= VINYL_SONG_MIN_SR ? sr : 0;
+}
+// float PCM to the tape's int16, clipped rather than wrapped
+function vinylToTape(ch){
+  const n = ch.length, o = new Int16Array(n);
+  for (let i = 0; i < n; i++){ const v = ch[i] * 32767; o[i] = v > 32767 ? 32767 : v < -32768 ? -32768 : v; }
+  return o;
+}
+function makeVinylSong(sr, L, R, tapeSr){
+  const S = makeVinyl(sr, 1e-3);        // the smallest room tape: the song is the tape here
+  S.ring = [L, R || L]; S.cap = L.length;
+  S.tsr = tapeSr > 0 ? tapeSr : S.sr;   // the tape's own rate
+  S.step = S.tsr / S.sr;                // tape frames per output frame at 1x
+  S.deckRate = 1;                       // the element's playbackRate: how fast the edge moves
+  S.k = 1 / 32768;
+  return S;
+}
+/* THE CLOCK. The element's playhead, in seconds, as the main thread last read
+   it. A hard clock (engaging, a seek) puts the edge there at once; a soft one
+   (the running resync) only leans it there, so the edge never jumps under a
+   head riding it. Everything else is the shared command set. */
+function vinylSongCommand(S, m){
+  if (!S || !m) return S;
+  if (m.op === 'clock'){
+    if (typeof m.rate === 'number' && m.rate > 0 && isFinite(m.rate)) S.deckRate = m.rate;
+    if (typeof m.at === 'number' && isFinite(m.at)){
+      let at = m.at * S.tsr; if (at < 0) at = 0; else if (at > S.cap - 3) at = S.cap - 3;
+      const d = at - S.written;
+      S.written = (m.hard || Math.abs(d) > 0.25 * S.tsr) ? at : S.written + d * 0.25;
+    }
+    return S;
+  }
+  return vinylCommand(S, m);
+}
+/* ONE BLOCK of the song tape. Silence while the platter is not engaged (the
+   element is what is heard then), the tape read by the platter while it is,
+   with the same VINYL_RAMP_SEC fade either way. The head can never pass the
+   element's playhead: the same law as the room's live edge. */
+function vinylSongProcess(S, outL, outR, n){
+  const cap = S.cap, L = S.ring[0], R = S.ring[1], k = S.k, st = S.step;
+  const adv = st * S.deckRate;
+  const w0 = S.written;
+  let w = w0 + n * adv; if (w > cap - 3) w = cap - 3;
+  S.written = w;
+  if (!S.engaged && S.gain <= 0){
+    for (let i = 0; i < n; i++){ outL[i] = 0; outR[i] = 0; }
+    return S;
+  }
+  platterHandFollow(S, S.tsr);
+  platterStep(S.platter, n / S.sr, S.hand);
+  const rate = S.platter.rate;
+  const ar = (rate < 0 ? -rate : rate) * st;      // tape frames per output frame
+  // read faster than one tape frame a sample and the tape's top end folds: follow it down
+  const lpK = ar > 1.02 ? 1 - Math.exp(-2 * Math.PI * 0.45 / ar) : 1;
+  let pos = S.pos, g = S.gain, lpL = S.lpL, lpR = S.lpR;
+  for (let i = 0; i < n; i++){
+    if (S.engaged){ if (g < 1){ g += S.gainStep; if (g > 1) g = 1; } }
+    else if (g > 0){ g -= S.gainStep; if (g < 0) g = 0; }
+    let live = w0 + i * adv - 2; if (live > cap - 3) live = cap - 3;
+    let p = pos; if (p > live) p = live; if (p < 0) p = 0;
+    let yl = vinylRead(L, cap, p) * k, yr = vinylRead(R, cap, p) * k;
+    if (S.snapFrom >= 0){                       // the old head fades out under the new one
+      let q = S.snapFrom; if (q > live) q = live; if (q < 0) q = 0;
+      const u = S.snapU;
+      yl = vinylRead(L, cap, q) * k * (1 - u) + yl * u;
+      yr = vinylRead(R, cap, q) * k * (1 - u) + yr * u;
+      S.snapFrom = q + rate * st; S.snapU = u + S.snapStep;
+      if (S.snapU >= 1){ S.snapFrom = -1; S.snapU = 0; }
+    }
+    if (lpK < 1){ lpL += (yl - lpL) * lpK; lpR += (yr - lpR) * lpK; yl = lpL; yr = lpR; }
+    else { lpL = yl; lpR = yr; }
+    outL[i] = yl * g; outR[i] = yr * g;
+    pos = p + rate * st;
+    if (pos > live + adv) pos = live + adv; else if (pos < 0) pos = 0;
+  }
+  S.pos = pos; S.gain = g; S.lpL = lpL; S.lpR = lpR;
+  return S;
+}
 /* THE WORKLET MODULE, written from the functions above so the audio thread
    runs exactly the arithmetic the suite ran. A string, because a worklet is
    loaded from a URL and this player is one file: the URL is a blob of this. */
@@ -19667,7 +20091,7 @@ function vinylWorkletSource(){
   return [
     'const PLATTER = ' + JSON.stringify(PLATTER) + ';',
     'const VINYL_REV_SEC = ' + VINYL_REV_SEC + ', VINYL_RING_SEC = ' + VINYL_RING_SEC + ', VINYL_RAMP_SEC = ' + VINYL_RAMP_SEC + ';',
-    makePlatter.toString(), platterStep.toString(), hermite4.toString(), makeVinyl.toString(),
+    makePlatter.toString(), platterStep.toString(), platterHandFollow.toString(), hermite4.toString(), makeVinyl.toString(),
     vinylRead.toString(), vinylProcess.toString(), vinylCommand.toString(),
     'class MB8Vinyl extends AudioWorkletProcessor {',
     '  constructor(o){ super(); const po = (o && o.processorOptions) || {}; this.S = makeVinyl(sampleRate, po.seconds); this.n = 0;',
@@ -19684,7 +20108,28 @@ function vinylWorkletSource(){
     '  }',
     '}',
     "registerProcessor('mb8-vinyl', MB8Vinyl);",
+    // the song tape's processor: no input (the element is not in the graph); the tape arrives by message
+    makeVinylSong.toString(), vinylSongCommand.toString(), vinylSongProcess.toString(),
+    'class MB8VinylSong extends AudioWorkletProcessor {',
+    '  constructor(){ super(); this.S = null; this.n = 0;',
+    '    this.port.onmessage = e => { const m = e.data || {};',
+    "      if (m.op === 'tape'){ this.S = (m.L && m.L.length) ? makeVinylSong(sampleRate, m.L, m.R, m.sr) : null; return; }",
+    "      if (m.op === 'eject'){ this.S = null; return; }",
+    '      vinylSongCommand(this.S, m); }; }',
+    '  process(inputs, outputs){',
+    '    const out = outputs[0];',
+    '    if (!out || !out.length) return true;',
+    '    const n = out[0].length, oR = out.length > 1 ? out[1] : out[0];',
+    '    if (!this.S){ out[0].fill(0); oR.fill(0); return true; }',
+    '    vinylSongProcess(this.S, out[0], oR, n);',
+    '    if ((++this.n & 7) === 0 && (this.S.engaged || this.S.gain > 0)){ const S = this.S;',
+    '      this.port.postMessage({ rate: S.platter.rate, mode: S.platter.mode, lag: (S.written - S.pos) / S.tsr, at: currentTime }); }',
+    '    return true;',
+    '  }',
+    '}',
+    "registerProcessor('mb8-vinyl-song', MB8VinylSong);",
   ].join('\n');
+
 }
 // @vinyl-end
 
@@ -21049,7 +21494,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '4eee6e05cc';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'c9e1d5e149';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -21860,6 +22305,37 @@ function skinCardOpen(open){
 /* ================================================================
    §7 · TRANSPORT UI — seek, volume, modes, chrome behaviour
    ================================================================ */
+/* OVERVIEW_CACHE — a whole-track strip painted once, as two layers (the
+   played part lit, the rest dimmed), and drawn each frame as two blits split
+   at the playhead. Keyed by everything the picture shows, so a change of
+   track, size, colour or structure repaints and nothing else does. */
+const OVERVIEW_CACHE = {
+  m: new Map(),
+  get(key, w, h, dpr, paint){
+    let e = this.m.get(key);
+    if (e){ this.m.delete(key); this.m.set(key, e); return e; }      // most recently used goes last
+    const layer = on => {
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(w * dpr)); cv.height = Math.max(1, Math.round(h * dpr));
+      const c = cv.getContext('2d');
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      paint(c, w, h, on);
+      return cv;
+    };
+    e = { lit: layer(true), dim: layer(false) };
+    this.m.set(key, e);
+    while (this.m.size > 8) this.m.delete(this.m.keys().next().value);
+    return e;
+  },
+  // the lit layer up to the playhead, the dimmed one after it, at (x, y) in the caller's units
+  blit(ctx, e, x, y, w, h, frac, dpr){
+    const W = e.lit.width, H = e.lit.height;
+    const sx = Math.max(0, Math.min(W, Math.round(clamp01(frac) * W)));
+    if (sx > 0) ctx.drawImage(e.lit, 0, 0, sx, H, x, y, sx / dpr, h);
+    if (sx < W) ctx.drawImage(e.dim, sx, 0, W - sx, H, x + sx / dpr, y, (W - sx) / dpr, h);
+  },
+};
+
 /* THE WAVEFORM — a live, frequency-coloured scope of the signal, the way a
    DJ deck shows it: newest at the right, low frequencies warm, mids in the
    track's key, highs bright. It is the instrument's pulse made visible; the
@@ -21898,16 +22374,52 @@ const WAVE = {
     if (tr && tr._peaks && tr._bands && !AE.mic.on) this._overview(ctx, w, h, tr._peaks, tr._bands, d, trackStems(tr), trackStructure(tr));
     else this._scope(ctx, w, h);
   },
+  /* THE OVERVIEW, PAINTED ONCE. This strip is on screen every frame of the
+     player's life, and it used to rebuild every bar with a fresh colour string
+     each frame. Now the bars, the drops and the section bands are painted once
+     per track, size and (quantised) accent into two layers, lit and dimmed,
+     and a frame is two blits split at the playhead plus the label and the
+     needle. Repainted only when something it shows has actually changed. */
   _overview(ctx, w, h, pk, bands, d, stems, struct){
-    const n = pk.length, mid = h * 0.5;
     const frac = (d && isFinite(d.a.duration) && d.a.duration > 0)
       ? clamp01(d.a.currentTime / d.a.duration) : 0;
+    const tr = player.tracks[player.cur];
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const aq = this.accent.map(v => (v & 0xF8) | 4);   // the accent drifts at 12 Hz: repaint on a visible step only
+    const key = 'seek|' + (tr ? (tr.url || tr.id) : '') + '|' + w + 'x' + h + '@' + dpr + '|' + aq.join(',') + '|' + pk.length
+      + '|' + (stems ? 's' : '') + '|' + (struct && struct.ok && struct.sections ? struct.sections.length : 0);
+    const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, lit) => this._overviewPaint(c, W, H, pk, bands, stems, struct, lit, aq));
+    OVERVIEW_CACHE.blit(ctx, e, 0, 0, w, h, frac, dpr);
+    const a = this.accent;
+    // (the label and the needle are the only per-frame strokes)
+    // SECTION LABEL: name where the playhead is — intro · build · peak · break ·
+    // drive · outro — a small honest tag, top-left. From the same structure.
+    const label = sectionLabel(struct, frac);
+    if (label){
+      ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.82)`;
+      ctx.fillText(label.toUpperCase(), 6, 5);
+    }
+    // the playhead: a bright line with a soft key-coloured bloom
+    const px = frac * w;
+    const grd = ctx.createLinearGradient(px - 14, 0, px + 14, 0);
+    grd.addColorStop(0, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    grd.addColorStop(0.5, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.35)`);
+    grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
+    ctx.fillStyle = grd; ctx.fillRect(px - 14, 0, 28, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.75, 0, 1.5, h);
+  },
+
+  // the static half of the overview, as one layer: every bar lit (on) or dimmed
+  _overviewPaint(ctx, w, h, pk, bands, stems, struct, on, acc){
     // the true DJ-deck read: every bar coloured by its content, lit ahead of
     // the playhead and dimmed behind. When the offline pipeline has separated
     // this track we colour by SOURCE — drums red, bass amber, vocals cyan,
     // other violet, so you see the actual arrangement; otherwise we fall back
     // to the spectral band split (warm lows · key on the mids · bright highs).
-    const warm = [255, 120, 58], acc = this.accent, bright = [140, 214, 255];
+    const n = pk.length, mid = h * 0.5;
+    const warm = [255, 120, 58], bright = [140, 214, 255];
     const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
     const cw = w / cols, bw = Math.max(1, cw * 0.72);
     for (let c = 0; c < cols; c++){
@@ -21917,7 +22429,7 @@ const WAVE = {
         if (pk[i] > mx) mx = pk[i];
         sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
       }
-      const played = (c + 0.5) / cols <= frac, dim = played ? 1 : 0.4;
+      const played = on, dim = played ? 1 : 0.4;
       let rgb = stems && stemRGB(stemsAt(stems, (c + 0.5) / cols));
       if (!rgb){
         const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
@@ -21930,7 +22442,7 @@ const WAVE = {
       ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.96 : 0.6})`;
       ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
     }
-    const a = this.accent;
+    const a = acc;
     // DROP MARKERS: where the track builds into a louder block — a thin lit tick
     // with a small wedge, brighter for a bigger drop, so you can see it coming as
     // you scrub. From the precomputed structure; nothing drawn when it's absent.
@@ -21956,23 +22468,6 @@ const WAVE = {
         ctx.fillRect(x0, by, Math.max(1, x1 - x0 - 0.5), 3);
       }
     }
-    // SECTION LABEL: name where the playhead is — intro · build · peak · break ·
-    // drive · outro — a small honest tag, top-left. From the same structure.
-    const label = sectionLabel(struct, frac);
-    if (label){
-      ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.82)`;
-      ctx.fillText(label.toUpperCase(), 6, 5);
-    }
-    // the playhead: a bright line with a soft key-coloured bloom
-    const px = frac * w;
-    const grd = ctx.createLinearGradient(px - 14, 0, px + 14, 0);
-    grd.addColorStop(0, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
-    grd.addColorStop(0.5, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0.35)`);
-    grd.addColorStop(1, `rgba(${a[0]|0},${a[1]|0},${a[2]|0},0)`);
-    ctx.fillStyle = grd; ctx.fillRect(px - 14, 0, 28, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.75, 0, 1.5, h);
   },
   /* the cinematic waveform behind zen: a ZOOMED, scrolling window around the
      playhead — the DJ-deck look, blown up to fill the room. Only drawn while
@@ -22302,6 +22797,167 @@ function driveFromEnvelope(dt, now){
 }
 
 /* ================================================================
+   THE DETAIL WAVEFORM — the song at DJ-deck resolution.
+
+   The overview and the score both read the song at 12 Hz, which draws a
+   whole track on a strip honestly and cannot draw a kick. A scrolling deck
+   needs the song at a hundred-odd columns a second, split the way an ear
+   splits it: the true peak, and three bands (below 200 Hz the kick and the
+   bass, 200 Hz to 2 kHz the body, above 2 kHz the hats and the air), each a
+   per-column RMS through Linkwitz-Riley crossovers (24 dB an octave), sharp
+   enough that a kick and a hat never bleed into each other's colour, and
+   cheap enough to run over a whole song in a worker in well under a second.
+
+   The peak is normalised against its own 99.5th percentile (one stray spike
+   must not flatten the song), the bands against one shared reference with a
+   pink-ish display tilt, so they stay comparable; each voice is stored as a
+   byte: a three-minute track is 108 KB of detail. Pure: the worker runs these
+   very functions.
+   ================================================================ */
+// @wave-start
+const WAVE_HZ = 150;              // detail columns per second of music
+const WAVE_SR = 16000;            // the rate the detail is decoded at: highs up to 8 kHz
+const WAVE_XO_LO = 200, WAVE_XO_HI = 2000;   // the crossovers, Hz
+// how much each band is lifted for display: music falls off with frequency, and a hat
+// that is a tenth of the kick's power must still read as a hat (a pink-ish tilt)
+const WAVE_TILT = [1, 1.6, 3];
+// a second-order Butterworth section (RBJ), as five numbers: [b0, b1, b2, a1, a2]
+function waveBiquad(type, f, sr){
+  const w = 2 * Math.PI * f / sr, c = Math.cos(w), al = Math.sin(w) / Math.SQRT2, a0 = 1 + al;
+  const lp = type === 'lp';
+  const b0 = (lp ? (1 - c) / 2 : (1 + c) / 2) / a0, b1 = (lp ? 1 - c : -(1 + c)) / a0;
+  return [b0, b1, b0, -2 * c / a0, (1 - al) / a0];
+}
+function waveDetail(chans, sr, hz){
+  hz = hz > 0 ? hz : WAVE_HZ;
+  const L = chans && chans[0], R = chans && chans[1] ? chans[1] : null;
+  const len = L ? L.length : 0;
+  if (!(sr > 0) || !len) return null;
+  const n = Math.max(1, Math.ceil(len * hz / sr));
+  const pk = new Float32Array(n), lo = new Float32Array(n), mi = new Float32Array(n), hi = new Float32Array(n);
+  /* Linkwitz-Riley crossovers: each band through two Butterworth sections
+     (24 dB an octave), so a 60 Hz kick leaves almost nothing in the mids and
+     a hat nothing in the lows. Eight sections a sample, state in plain locals. */
+  const F = [waveBiquad('lp', WAVE_XO_LO, sr), waveBiquad('hp', WAVE_XO_LO, sr),
+             waveBiquad('lp', WAVE_XO_HI, sr), waveBiquad('hp', WAVE_XO_HI, sr)];
+  const ch = [[0, 0], [1, 1, 2, 2], [3, 3]];      // low: LP·LP · mid: HP·HP·LP·LP · high: HP·HP
+  const st = ch.map(c => c.map(() => [0, 0, 0, 0]));   // x1 x2 y1 y2 per section
+  const run = (b, x) => {
+    let y = x;
+    for (let k = 0; k < ch[b].length; k++){
+      const f = F[ch[b][k]], z = st[b][k];
+      const o = f[0] * y + f[1] * z[0] + f[2] * z[1] - f[3] * z[2] - f[4] * z[3];
+      z[1] = z[0]; z[0] = y; z[3] = z[2]; z[2] = o; y = o;
+    }
+    return y;
+  };
+  let col = 0, end = Math.min(len, Math.round(sr / hz)), cnt = 0, mx = 0, sl = 0, sm = 0, sh = 0;
+  for (let i = 0; i < len; i++){
+    const x = R ? (L[i] + R[i]) * 0.5 : L[i];
+    const l = run(0, x), m = run(1, x), h = run(2, x);
+    const ax = x < 0 ? -x : x; if (ax > mx) mx = ax;
+    sl += l * l; sm += m * m; sh += h * h; cnt++;
+    if (i + 1 >= end){
+      if (col < n){ pk[col] = mx; lo[col] = Math.sqrt(sl / cnt); mi[col] = Math.sqrt(sm / cnt); hi[col] = Math.sqrt(sh / cnt); }
+      col++; end = Math.min(len, Math.round((col + 1) * sr / hz));
+      cnt = 0; mx = 0; sl = 0; sm = 0; sh = 0;
+    }
+  }
+  /* one reference for the three bands, so they stay comparable: a song with no
+     highs shows none, rather than its hiss blown up to full scale */
+  const ref = Math.max(wavePct(lo) * WAVE_TILT[0], wavePct(mi) * WAVE_TILT[1], wavePct(hi) * WAVE_TILT[2], 1e-6);
+  return { hz, n, dur: len / sr, pk: waveQuant(pk, wavePct(pk), 1),
+           lo: waveQuant(lo, ref / WAVE_TILT[0], 0.8), mi: waveQuant(mi, ref / WAVE_TILT[1], 0.8), hi: waveQuant(hi, ref / WAVE_TILT[2], 0.8) };
+}
+// a voice's 99.5th percentile: one stray spike must not flatten the song
+function wavePct(v){
+  const n = v.length;
+  if (!n) return 0;
+  const s = Float32Array.from(v).sort();
+  return s[Math.min(n - 1, Math.floor(n * 0.995))];
+}
+// a voice to bytes against a reference level, through a gentle display curve
+function waveQuant(v, ref, gamma){
+  const n = v.length, o = new Uint8Array(n);
+  ref = Math.max(1e-6, ref || 0);
+  for (let i = 0; i < n; i++){
+    const x = v[i] / ref;
+    o[i] = Math.round(255 * Math.pow(x > 1 ? 1 : x, gamma));
+  }
+  return o;
+}
+/* the detail a track that has not been decoded yet can already show: its
+   shipped 12 Hz score, in the same shape (the peak stands in as the bands'
+   power sum, as the overview has always read it) */
+function waveFromEnv(env){
+  if (!env || !(env.hz > 0) || !env.b || !env.m || !env.t) return null;
+  const n = Math.min(env.b.length, env.m.length, env.t.length);
+  if (!(n > 0)) return null;
+  const at = (s, j) => { const c = s.charCodeAt(j) - 48; return c >= 0 && c <= 9 ? c / 9 : 0; };
+  const pk = new Uint8Array(n), lo = new Uint8Array(n), mi = new Uint8Array(n), hi = new Uint8Array(n);
+  for (let j = 0; j < n; j++){
+    const b = at(env.b, j), m = at(env.m, j), t = at(env.t, j);
+    lo[j] = Math.round(b * 255); mi[j] = Math.round(m * 255); hi[j] = Math.round(t * 255);
+    pk[j] = Math.round(Math.min(1, Math.sqrt(b * b + m * m + t * t) / 1.2) * 255);
+  }
+  return { hz: env.hz, n, dur: n / env.hz, pk, lo, mi, hi, coarse: true };
+}
+// the loudest of each voice over [t0, t1) seconds, 0..1 (a column narrower than the detail reads the one it falls in)
+function waveRange(d, t0, t1, out){
+  out = out || { pk: 0, lo: 0, mi: 0, hi: 0 };
+  out.pk = out.lo = out.mi = out.hi = 0;
+  if (!d || !(t1 > 0) || t0 >= d.dur) return out;
+  let i0 = Math.floor(t0 * d.hz), i1 = Math.ceil(t1 * d.hz);
+  if (i0 < 0) i0 = 0;
+  if (i1 > d.n) i1 = d.n;
+  if (i1 <= i0) i1 = Math.min(d.n, i0 + 1);
+  let p = 0, l = 0, m = 0, h = 0;
+  for (let i = i0; i < i1; i++){
+    if (d.pk[i] > p) p = d.pk[i]; if (d.lo[i] > l) l = d.lo[i];
+    if (d.mi[i] > m) m = d.mi[i]; if (d.hi[i] > h) h = d.hi[i];
+  }
+  out.pk = p / 255; out.lo = l / 255; out.mi = m / 255; out.hi = h / 255;
+  return out;
+}
+/* THE GRID over [t0, t1]: every beat from the track's anchor at its tempo,
+   each knowing whether it is a bar line (every fourth from the anchor, which
+   the analysis places on a downbeat) or a phrase line, and which bar it
+   starts (1 at the anchor). Bounded: a pathological tempo cannot flood a frame. */
+function waveGrid(bpm, grid, t0, t1, phraseBars){
+  const out = [];
+  if (!(bpm > 0) || !isFinite(grid) || !(t1 > t0)) return out;
+  const spb = 60 / bpm, pb = phraseBars > 0 ? phraseBars : 8;
+  let k = Math.ceil((t0 - grid) / spb - 1e-9);
+  for (let n = 0; n < 512; n++, k++){
+    const t = grid + k * spb;
+    if (t > t1) break;
+    const b4 = ((k % 4) + 4) % 4;
+    const bar = Math.floor(k / 4);
+    out.push({ t, k, bar: b4 === 0, phrase: b4 === 0 && ((bar % pb) + pb) % pb === 0, barNo: bar + 1 });
+  }
+  return out;
+}
+// where a beat lands in its bar, 0 at the downbeat, 4 at the next: the phase meter's reading
+function waveBeatPos(bpm, grid, t){
+  if (!(bpm > 0) || !isFinite(grid) || !isFinite(t)) return null;
+  const b = (t - grid) * bpm / 60;
+  return ((b % 4) + 4) % 4;
+}
+// the worker that runs the detail off the main thread: these very functions, serialised
+function waveWorkerSource(){
+  return [
+    'const WAVE_HZ = ' + WAVE_HZ + ', WAVE_XO_LO = ' + WAVE_XO_LO + ', WAVE_XO_HI = ' + WAVE_XO_HI + ';',
+    'const WAVE_TILT = ' + JSON.stringify(WAVE_TILT) + ';',
+    waveBiquad.toString(), wavePct.toString(), waveQuant.toString(), waveDetail.toString(),
+    'onmessage = e => { const m = e.data || {}; let det = null;',
+    '  try { det = waveDetail(m.chans, m.sr, m.hz); } catch (err){ det = null; }',
+    '  const tr = det ? [det.pk.buffer, det.lo.buffer, det.mi.buffer, det.hi.buffer] : [];',
+    '  postMessage({ id: m.id, det }, tr); };',
+  ].join('\n');
+}
+// @wave-end
+
+/* ================================================================
    THE BOOTH (key D) — the engine's work, made watchable. The mixer
    has always run two decks, planned the seam on the bar line and
    phase-locked the blend; the booth just turns the lights on: both
@@ -22318,12 +22974,23 @@ function paintLane(ctx, x, y, w, h, tr, frac, accent){
     ctx.fillRect(x, mid - 0.5, w, 1);
     return false;
   }
+  // painted once per track, size and colour (OVERVIEW_CACHE); a frame is two blits
+  const dpr = (ctx.getTransform && ctx.getTransform().a) || 1;
+  const key = 'lane|' + (tr.url || tr.id) + '|' + w.toFixed(1) + 'x' + h.toFixed(1) + '@' + dpr + '|' + accent.join(',') + '|' + pk.length;
+  const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, on) => paintLaneBars(c, W, H, pk, bands, accent, on));
+  OVERVIEW_CACHE.blit(ctx, e, x, y, w, h, frac, dpr);
+  return true;
+}
+// one layer of a lane: every column lit (on, the played part) or dimmed
+function paintLaneBars(ctx, w, h, pk, bands, accent, on){
+  const mid = h / 2;
   // the Serato read, same as the seek: every column coloured by its
   // frequency makeup — warm lows, the key on the mids, bright highs
   const warm = [255, 120, 58], acc = accent, bright = [140, 214, 255];
   const n = pk.length;
   const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
   const cw = w / cols, bw = Math.max(1, cw * 0.72);
+  const dim = on ? 1 : 0.42;
   for (let c = 0; c < cols; c++){
     const s = Math.floor(c * n / cols), e = Math.max(s + 1, Math.floor((c + 1) * n / cols));
     let mx = 0, sl = 0, sm = 0, sh = 0;
@@ -22332,15 +22999,13 @@ function paintLane(ctx, x, y, w, h, tr, frac, accent){
       sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
     }
     const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
-    const played = (c + 0.5) / cols <= frac, dim = played ? 1 : 0.42;
     const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
     const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
     const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
     const bh = Math.max(0.6, Math.pow(mx, 0.9) * (h * 0.48));
-    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.95 : 0.55})`;
-    ctx.fillRect(x + c * cw, mid - bh, bw, bh * 2);
+    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${on ? 0.95 : 0.55})`;
+    ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
   }
-  return true;
 }
 
 /* ================================================================
@@ -23418,8 +24083,13 @@ function cueFmt(sec){
    A seam, a loop, a pause or a track change takes the platter away at once:
    the mixer and the tape own those moments, not the hand.
 
-   iOS plays element-direct — no graph, no tape, no platter — and the whole
-   layer stands down honestly: the pads say so, nothing pretends.
+   iOS plays element-direct (no graph, so no room to record), and there the
+   platter reads the SONG TAPE instead: the track pressed into a compact tape
+   while the booth is open, the element muted under the hand and running on
+   beneath it as the live edge. Slip is the element simply being heard again;
+   hold is one seek of the muted element before it is. Where even that cannot
+   be (AirPlay, no worklet, a song too long to hold) the layer stands down
+   honestly: the pads say so, nothing pretends.
    ================================================================ */
 const VINYL_BACK_LEAD = 0.12;       // the first guess at a deck's seek latency; learned from then on
 const VINYL = {
@@ -23427,7 +24097,10 @@ const VINYL = {
   engaged: false, armed: false, slip: true, held: false,
   rate: 1, mode: 'motor', lag: 0, _repAt: 0, _motor: 1,
   _ptr: null, _handAt: 0, _back: null, _seekLat: VINYL_BACK_LEAD, _oneShot: false, _engagedAt: 0, _stoppedAt: 0,
-  ok(){ return !!(AE.graphLive && AE.ctx && AE.fx && this.node && this.kind === 'worklet'); },
+  ok(){
+    if (this.songMode()) return this.songReady();
+    return !!(AE.graphLive && AE.ctx && AE.fx && this.node && this.kind === 'worklet');
+  },
   async install(){
     if (!AE.ctx || !AE.busGate || !AE.fx || !AE.analyser || this.node || this._busy) return;
     if (!(AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function' && typeof Blob === 'function'
@@ -23437,6 +24110,7 @@ const VINYL = {
     try {
       if (!this._url) this._url = URL.createObjectURL(new Blob([vinylWorkletSource()], { type: 'text/javascript' }));
       await ctx.audioWorklet.addModule(this._url);
+      this._modCtx = ctx;                                               // the song tape's processor came with it
       if (AE.ctx !== ctx || this.node){ this._busy = false; return; }   // the graph moved on while the module loaded
       const node = new AudioWorkletNode(ctx, 'mb8-vinyl', {
         numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
@@ -23472,10 +24146,122 @@ const VINYL = {
     window.__mb8Vinyl = 'none';
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
   },
+  /* ---- THE SONG TAPE, for a deck that plays element-direct (iOS). The arithmetic
+     is vinylSongProcess in the @vinyl block; this presses the record (fetch,
+     decode once at the tape's rate, hand the int16 channels to the worklet) and
+     seats a processor that plays straight to the output. While the hand has the
+     record the element is muted and plays on underneath as the live edge, so
+     a slip is free and a hold is one seek. Pressed while the booth is open,
+     ejected when it closes or the track changes: 32 MB at most, never two. */
+  songNode: null, _song: null, _songMuted: null, _clockAt: 0,
+  songMode(){ return !AE.graphLive; },
+  // the element-direct deck can scratch where the audio thread can run a worklet and the music is not out on AirPlay
+  canSong(){
+    return !!(IS_IOS && !AE.graphLive && AE.ctx && AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function'
+              && !(typeof AIRPLAY !== 'undefined' && AIRPLAY.out));
+  },
+  _songKey(){ const t = player.tracks[player.cur]; return t ? (t.url || String(t.id)) : ''; },
+  songReady(){ const s = this._song; return !!(this.songNode && s && s.state === 'ready' && s.key === this._songKey()); },
+  async _module(){
+    const ctx = AE.ctx;
+    if (!this._url) this._url = URL.createObjectURL(new Blob([vinylWorkletSource()], { type: 'text/javascript' }));
+    if (this._modCtx !== ctx){ await ctx.audioWorklet.addModule(this._url); this._modCtx = ctx; }
+  },
+  async _seatSong(){
+    if (this.songNode) return this.songNode;
+    await this._module();
+    if (this.songNode) return this.songNode;
+    const node = new AudioWorkletNode(AE.ctx, 'mb8-vinyl-song', {
+      numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
+    });
+    node.port.onmessage = e => {
+      const d = e.data || {};
+      if (!this.songMode()) return;
+      if (typeof d.rate === 'number') this.rate = d.rate;
+      if (d.mode) this.mode = d.mode;
+      if (typeof d.lag === 'number') this.lag = d.lag;
+      if (typeof d.at === 'number') this._repAt = d.at;
+    };
+    node.onprocessorerror = () => { this.drop(); this.songNode = null; this._song = null; };
+    // straight to the output: the element it stands in for never went through the rack either
+    node.connect(AE.out || AE.ctx.destination);
+    this.songNode = node;
+    return node;
+  },
+  // press the record now playing (idempotent: a frame may call it every time it draws)
+  pressSong(){
+    if (!this.canSong()) return;
+    const key = this._songKey(), tr = player.tracks[player.cur];
+    if (!key || !tr || (this._song && this._song.key === key)) return;
+    if (this._song) this.ejectSong();
+    const d = activeDeck();
+    const dur = (d && isFinite(d.a.duration) && d.a.duration > 0) ? d.a.duration : (tr.duration || 0);
+    if (!(dur > 0)) return;                       // not even the length is known yet: the next frame asks again
+    const tsr = vinylSongRate(dur);
+    const s = this._song = { key, state: tsr ? 'loading' : 'failed', sr: tsr };
+    if (!tsr) return;
+    // the ringer switch mutes web audio on iOS unless the session says this is playback, which it is
+    try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e){}
+    const url = tr.url;
+    // one decode at a time, on the same chain the waveforms use: never two songs of PCM in hand
+    _peaksChain = _peaksChain.then(async () => {
+      if (this._song !== s) return;
+      try {
+        await this._seatSong();
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('fetch ' + res.status);
+        let buf = await res.arrayBuffer();
+        if (this._song !== s) return;
+        const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        let ac = null; try { ac = Off ? new Off(2, 1, tsr) : null; } catch (e){ ac = null; }
+        let audio = await (ac || AE.ctx).decodeAudioData(buf);
+        buf = null;
+        if (this._song !== s) return;
+        const L = vinylToTape(audio.getChannelData(0));
+        const R = audio.numberOfChannels > 1 ? vinylToTape(audio.getChannelData(1)) : null;
+        const sr = audio.sampleRate, frames = L.length;
+        audio = null;                                   // the float PCM is done: only the tape stays
+        const tr2 = [L.buffer]; if (R) tr2.push(R.buffer);
+        this.songNode.port.postMessage({ op: 'tape', L, R, sr }, tr2);   // handed over, not copied
+        s.state = 'ready';
+        window.__mb8VinylSong = { key, sr, frames };    // the probes read the pressing
+        if (typeof FXPADS !== 'undefined') FXPADS.paint();
+      } catch (e){ if (this._song === s) s.state = 'failed'; }
+    }).catch(() => {});
+  },
+  ejectSong(){
+    if (this.songMode()) this.drop();
+    this._song = null;
+    window.__mb8VinylSong = null;
+    if (this.songNode) try { this.songNode.port.postMessage({ op: 'eject' }); } catch (e){}
+  },
+  // the element's playhead, to the tape: hard when the edge must be exactly there
+  _clock(hard){
+    const d = activeDeck();
+    if (!d || !this.songNode) return;
+    this._clockAt = performance.now();
+    this.post({ op: 'clock', at: d.a.currentTime, rate: d.a.playbackRate || 1, hard: !!hard });
+  },
+  _mute(on){
+    if (on){
+      const d = activeDeck();
+      if (d && !d.a.muted){ d.a.muted = true; this._songMuted = d; }
+    } else if (this._songMuted){
+      const d = this._songMuted; this._songMuted = null;
+      if (!d._seekPending) d.a.muted = false;    // a resume seek still landing keeps its own mute
+    }
+  },
   // the reasons the platter cannot be taken right now, in the order they are checked
   why(){
-    if (!AE.graphLive) return T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down');
-    if (!this.ok()) return T('The platter is still being seated — a moment');
+    if (this.songMode()){
+      if (!this.canSong()) return T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down');
+      if (!player.playing) return T('Press play first — a record needs to be turning');
+      const s = this._song;
+      if (!s || s.key !== this._songKey()){ this.pressSong(); return T('Pressing this record for the platter — a moment'); }
+      if (s.state === 'loading' || !this.songNode) return T('Pressing this record for the platter — a moment');
+      if (s.state === 'failed') return T('This record could not be pressed for the platter — the music plays on');
+    }
+    else if (!this.ok()) return T('The platter is still being seated — a moment');
     if (!player.playing) return T('Press play first — a record needs to be turning');
     if (AE.mic.on) return T('Not on the microphone');
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return T('The mixer owns the decks through a seam');
@@ -23483,13 +24269,21 @@ const VINYL = {
     return '';
   },
   canEngage(){ return this.why() === ''; },
-  post(m){ if (this.node) try { this.node.port.postMessage(m); } catch (e){} },
+  post(m){
+    const n = this.songMode() ? this.songNode : this.node;
+    if (n) try { n.port.postMessage(m); } catch (e){}
+  },
   engage(oneShot){
     if (this.engaged) return true;
     if (!this.canEngage()) return false;
     this.engaged = true; this._oneShot = !!oneShot; this._engagedAt = performance.now(); this._stoppedAt = 0;
     this.lag = 0; this.rate = 1; this.mode = 'motor'; this._motor = 1;
-    this.post({ op: 'engage' });
+    if (this.songMode()){
+      ensureResume();
+      this._clock(true);                          // the edge is where the element is, exactly
+      this.post({ op: 'engage' });
+      this._mute(true);                           // …and the tape takes over from it under a 6 ms fade
+    } else this.post({ op: 'engage' });
     if (typeof FX !== 'undefined') FX.hand();
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
     return true;
@@ -23499,6 +24293,7 @@ const VINYL = {
     if (!this.engaged) return;
     this.engaged = false; this._oneShot = false; this._back = null; this._ptr = null; this.held = false;
     this.post({ op: 'release' });
+    this._mute(false);                            // element-direct: the element is the room again
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
   },
   // let go MUSICALLY: slip snaps home first; hold fetches the deck to the platter first
@@ -23555,24 +24350,43 @@ const VINYL = {
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
   },
   // ---- the hand, from the booth's pointer events (x, y in canvas pixels; g = the platter's circle)
-  grab(x, y, g){
+  grab(x, y, g, t){
     if (!this.armed && !this.engage(true)){ toast(this.why()); return false; }
-    this._ptr = { a: Math.atan2(y - g.cy, x - g.cx), t: performance.now(), v: 0 };
+    this._ptr = { a: Math.atan2(y - g.cy, x - g.cx), t: t > 0 ? t : performance.now(), v: 0, x: 0 };
     this._handAt = performance.now();
-    this.post({ op: 'hand', v: 0 });
+    this.post({ op: 'grab' });                        // the record stops under the finger, here
     HAPTICS.pulse(false);
     return true;
   },
-  move(x, y, g){
+  move(x, y, g, t){
     const p = this._ptr;
     if (!p) return;
-    const a = Math.atan2(y - g.cy, x - g.cx), now = performance.now();
+    const a = Math.atan2(y - g.cy, x - g.cx), now = t > 0 ? t : performance.now();
     const dt = (now - p.t) / 1000;
-    if (dt < 0.004) return;
-    const v = platterHandRate(platterDelta(a, p.a), dt);
-    p.v += (v - p.v) * 0.6;                           // a touch of smoothing: pointer events are quantised
+    const dA = platterDelta(a, p.a);
+    // the record goes where the finger takes it: the place is exact, whatever the event timing
+    p.x += dA / (2 * Math.PI) * VINYL_REV_SEC;
+    if (dt > 0) p.v += (platterHandRate(dA, dt) - p.v) * 0.6;   // the speed, only for the probes and the HUD
     p.a = a; p.t = now; this._handAt = now;
-    this.post({ op: 'hand', v: p.v });
+    this.post({ op: 'handAt', x: p.x });
+  },
+  // ---- the hand on the scrolling wave (DECKWAVE): the same record, dragged in a straight line
+  grabLine(t){
+    if (!this.armed && !this.engage(true)){ toast(this.why()); return false; }
+    this._ptr = { a: 0, t: t > 0 ? t : performance.now(), v: 0, x: 0 };
+    this._handAt = performance.now();
+    this.post({ op: 'grab' });
+    HAPTICS.pulse(false);
+    return true;
+  },
+  // x: seconds of music the hand has moved the record since the grab (forward positive)
+  moveLine(x, t){
+    const p = this._ptr;
+    if (!p || !isFinite(x)) return;
+    const now = t > 0 ? t : performance.now(), dt = (now - p.t) / 1000;
+    if (dt > 0) p.v += ((x - p.x) / dt - p.v) * 0.6;   // the speed, only for the probes and the HUD
+    p.x = x; p.t = now; this._handAt = now;
+    this.post({ op: 'handAt', x });
   },
   lift(){
     if (!this._ptr) return;
@@ -23602,8 +24416,12 @@ const VINYL = {
     const now = performance.now();
     // the transport left, or the mixer took the decks: nothing to hold on to
     if (!player.playing || (typeof MIXER !== 'undefined' && MIXER.phase === 'running')){ this.drop(); return; }
-    // a finger holding the record still sends no events: still means still
-    if (this._ptr && now - this._handAt > 40 && this._ptr.v !== 0){ this._ptr.v = 0; this.post({ op: 'hand', v: 0 }); }
+    if (this.songMode()){
+      // the record in hand is the one that was pressed: a new track takes the platter away
+      if (!this.songReady()){ this.drop(); return; }
+      if (now - this._clockAt > 500) this._clock(false);   // keep the edge on the element's playhead
+    }
+    // a finger holding the record still sends no events, and needs none: the hand is a place
     // the tape has a reach: past it, slip snaps home and hold fetches the deck
     if (this.lag > VINYL_RING_SEC - 3 && !this._back){ if (this.slip) this.post({ op: 'snap' }); else this._handback(); }
     if (this._oneShot && !this._ptr && !this.held && !this._back){
@@ -23624,6 +24442,9 @@ const VINYL = {
     return 'vinyl ' + (r < 0 ? '−' : '') + Math.abs(r).toFixed(2) + '× · ' + this.lagNow().toFixed(2) + ' s back' + (this.slip ? ' · slip' : '');
   },
 };
+
+// a pocketed phone must never be left holding a muted element: hidden, the platter lets go
+document.addEventListener('visibilitychange', () => { if (document.hidden && VINYL.songMode()) VINYL.drop(); });
 
 const FXPADS = {
   bank: 'loop',
@@ -23791,7 +24612,7 @@ const FXPADS = {
             : key === 'quarter' ? (V.engaged && V._motor === 0.25)
             : false;
         // a bank the device cannot give is shown, honestly, as out of reach
-        const dead = !V.ok();
+        const dead = V.songMode() ? !V.canSong() : !V.ok();
         if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down') : ''; }
       }
       else if (this.bank === 'eq'){
@@ -23833,23 +24654,25 @@ function wireBoothScrub(){
      stays a scrub strip — a seek, not a scratch — because those are different
      gestures with different sounds. */
   let jog = null;
+  // which platter a pointer landed on, if any: deck A's is the record on air, B's only cues
   const onJog = ev => {
-    const g = BOOTH._jogA;
-    if (!g || !VINYL.ok()) return null;
     const r = cv.getBoundingClientRect();
     const x = ev.clientX - r.left, y = ev.clientY - r.top;
-    const dx = x - g.cx, dy = y - g.cy;
-    return dx * dx + dy * dy <= (g.r * 0.92) * (g.r * 0.92) ? { x, y, g } : null;
+    const hit = g => { if (!g) return false; const dx = x - g.cx, dy = y - g.cy; return dx * dx + dy * dy <= (g.r * 0.92) * (g.r * 0.92); };
+    if (hit(BOOTH._jogA)) return { x, y, g: BOOTH._jogA };
+    if (hit(BOOTH._jogB)) return { x, y, g: null };
+    return null;
   };
   cv.addEventListener('pointerdown', ev => {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     const j = onJog(ev);
     if (j){
-      if (VINYL.grab(j.x, j.y, j.g)){
+      ev.preventDefault();
+      if (!j.g){ toast(T('Scratch the left platter — that is the record on air')); return; }
+      if (VINYL.grab(j.x, j.y, j.g, ev.timeStamp)){
         jog = ev.pointerId;
         try { cv.setPointerCapture(jog); } catch (e){}
         cv.style.cursor = 'grabbing';
-        ev.preventDefault();
       }
       return;
     }
@@ -23863,7 +24686,13 @@ function wireBoothScrub(){
   cv.addEventListener('pointermove', ev => {
     if (ev.pointerId === jog){
       const g = BOOTH._jogA;
-      if (g){ const r = cv.getBoundingClientRect(); VINYL.move(ev.clientX - r.left, ev.clientY - r.top, g); }
+      if (g){
+        // every sample the hand made, at the time it made it: a 120 Hz finger is not a 60 Hz one
+        const r = cv.getBoundingClientRect();
+        const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
+        for (const e of (evs.length ? evs : [ev])) VINYL.move(e.clientX - r.left, e.clientY - r.top, g, e.timeStamp);
+      }
+      ev.preventDefault();
       return;
     }
     if (ev.pointerId !== id) return;
@@ -23921,6 +24750,377 @@ function ramp(param, to, secs){
   } catch (e){ try { param.value = to; } catch (e2){} }
 }
 
+/* ================================================================
+   DECKWAVE — the two decks, scrolling past a fixed needle.
+
+   The read every DJ already has: deck A above deck B, each its song at
+   deck resolution moving right to left under a playhead fixed in the
+   middle, three bands layered (the lows warm and wide, the body in the
+   track's key, the highs bright on top) so a kick, a snare and a hat are
+   three different shapes. Over it, live: the beat grid with bar numbers
+   and phrase lines, the hot cues, the loop, the planned seam and the drops
+   coming in from the right. Both decks are drawn in wall-clock time, so
+   when the mixer has matched them their grids line up on screen, and a
+   phase meter between them reads how far apart their beats are.
+
+   COST. The song is painted ONCE, into tiles of 256 device pixels at the
+   current zoom, and a frame is a few image blits plus a handful of lines.
+   Tiles are kept per deck, at most 48 in all; a zoom change paints the
+   handful the screen shows. The detail is decoded once per track, on the
+   waveform decoder's chain (never two songs of PCM in hand, never across a
+   seam) and analysed in a worker, so the main thread never runs the filters.
+
+   HANDS. Drag deck A's wave and the record goes with it (the VINYL hand, by
+   place: the music under the needle is the music under the finger). Wheel,
+   pinch or double-tap to zoom.
+   ================================================================ */
+const DECKWAVE_TILE = 256;                   // device pixels per cached tile
+const DECKWAVE = {
+  ZOOMS: [2, 4, 8, 16, 32],                  // seconds across the strip
+  zoom: 2,
+  _det: new Map(),                           // track key -> detail | { state }
+  _tiles: new Map(), _worker: null, _jobs: new Map(), _seq: 0, _broken: false,
+  _r: { pk: 0, lo: 0, mi: 0, hi: 0 },
+  key(tr){ return tr ? (tr.url || String(tr.id || '')) : ''; },
+  load(){ try { const z = +localStorage.getItem('mb8_wavezoom'); if (z >= 0 && z < this.ZOOMS.length) this.zoom = z; } catch (e){} },
+  setZoom(z){
+    z = Math.max(0, Math.min(this.ZOOMS.length - 1, z | 0));
+    if (z === this.zoom) return;
+    this.zoom = z; this._tiles.clear();
+    try { localStorage.setItem('mb8_wavezoom', String(z)); } catch (e){}
+  },
+  // what the strip can draw for this track right now: the detail, or the score until it lands
+  src(tr){
+    const d = this._det.get(this.key(tr));
+    if (d && d.pk) return d;
+    if (tr && tr.env){
+      if (!tr._waveEnv) tr._waveEnv = waveFromEnv(tr.env) || 0;
+      if (tr._waveEnv) return tr._waveEnv;
+    }
+    return null;
+  },
+  // ask for a track's detail (idempotent: the booth asks every frame)
+  need(tr){
+    const k = this.key(tr);
+    if (!k || !tr.url || this._det.has(k) || (AE.mic && AE.mic.on)) return;
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return;   // never across a live seam
+    const job = { state: 'pending' };
+    this._det.set(k, job);
+    _peaksChain = _peaksChain.then(() => this._build(tr, k, job)).catch(() => {});
+  },
+  // keep the detail for the songs on the decks and two more, no further back
+  _trim(keep){
+    for (const k of [...this._det.keys()]){
+      if (this._det.size <= 4) break;
+      if (!keep.includes(k)) { this._det.delete(k); this._dropTiles(k); }
+    }
+  },
+  _dropTiles(k){ for (const tk of [...this._tiles.keys()]) if (tk.startsWith(k + '|')) this._tiles.delete(tk); },
+  async _build(tr, k, job){
+    if (this._det.get(k) !== job) return;
+    try {
+      const res = await fetch(tr.url);
+      if (!res.ok) throw new Error('fetch ' + res.status);
+      let buf = await res.arrayBuffer();
+      const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      let ac = null; try { ac = Off ? new Off(1, 1, WAVE_SR) : null; } catch (e){ ac = null; }
+      if (!ac && !AE.ctx) throw new Error('no decoder');
+      let audio = await (ac || AE.ctx).decodeAudioData(buf);
+      buf = null;
+      const chans = [audio.getChannelData(0).slice()];
+      if (audio.numberOfChannels > 1) chans.push(audio.getChannelData(1).slice());
+      const sr = audio.sampleRate;
+      audio = null;                                   // the PCM goes to the worker; the decode is let go
+      const det = await this._analyse(chans, sr);
+      if (this._det.get(k) !== job) return;
+      if (!det) throw new Error('analysis');
+      this._det.set(k, det); this._dropTiles(k);
+      window.__mb8WaveDetail = { key: k, n: det.n, hz: det.hz };   // the probes read the landing
+    } catch (e){ if (this._det.get(k) === job) this._det.set(k, { state: 'err' }); }
+  },
+  _analyse(chans, sr){
+    if (!this._broken && typeof Worker === 'function'){
+      try {
+        if (!this._worker){
+          const url = URL.createObjectURL(new Blob([waveWorkerSource()], { type: 'text/javascript' }));
+          const wk = new Worker(url);
+          wk.onmessage = e => { const m = e.data || {}, f = this._jobs.get(m.id); if (f){ this._jobs.delete(m.id); f(m.det || null); } };
+          // a worker that cannot run is a worker never asked again: the jobs in flight come back empty
+          wk.onerror = () => { this._broken = true; this._worker = null; for (const f of this._jobs.values()) f(null); this._jobs.clear(); };
+          this._worker = wk;
+        }
+        const id = ++this._seq;
+        return new Promise(res => { this._jobs.set(id, res); this._worker.postMessage({ id, chans, sr, hz: WAVE_HZ }, chans.map(c => c.buffer)); });
+      } catch (e){ this._broken = true; this._worker = null; }
+    }
+    return Promise.resolve(waveDetail(chans, sr, WAVE_HZ));
+  },
+  /* ONE TILE: the song from tile i's first device pixel for TILE pixels, at pps
+     device pixels per second of music, painted as four constant-colour fills
+     (the faint true peak, then the body, the lows and the highs layered on it),
+     so a tile costs four fills however dense the song is. */
+  _tile(tr, src, i, pps, hd, acc){
+    const k = this.key(tr) + '|' + pps.toFixed(3) + '|' + hd + '|' + acc.join(',') + '|' + (src.coarse ? 'c' : 'd') + '|' + i;
+    let cv = this._tiles.get(k);
+    if (cv){ this._tiles.delete(k); this._tiles.set(k, cv); return cv; }   // most recently used goes last
+    cv = document.createElement('canvas');
+    cv.width = DECKWAVE_TILE; cv.height = hd;
+    const c = cv.getContext('2d');
+    const mid = hd / 2, amp = hd * 0.48, r = this._r;
+    const P = new Path2D(), Lo = new Path2D(), Mi = new Path2D(), Hi = new Path2D();
+    const t0 = i * DECKWAVE_TILE / pps, dt = 1 / pps;
+    for (let x = 0; x < DECKWAVE_TILE; x++){
+      const t = t0 + x * dt;
+      if (t < 0 || t >= src.dur) continue;
+      waveRange(src, t, t + dt, r);
+      const hp = r.pk * amp, hl = r.lo * amp, hm = r.mi * amp * 0.82, hh = r.hi * amp * 0.62;
+      if (hp > 0.4) P.rect(x, mid - hp, 1, hp * 2);
+      if (hl > 0.4) Lo.rect(x, mid - hl, 1, hl * 2);
+      if (hm > 0.4) Mi.rect(x, mid - hm, 1, hm * 2);
+      if (hh > 0.4) Hi.rect(x, mid - hh, 1, hh * 2);
+    }
+    // the body behind, the kick in front of it, the hats brightest on top: dense
+    // music keeps its kicks readable instead of burying them under the mids
+    c.fillStyle = 'rgba(233,237,246,0.14)'; c.fill(P);
+    c.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.62)`; c.fill(Mi);
+    c.fillStyle = 'rgba(255,112,52,0.94)'; c.fill(Lo);
+    c.fillStyle = 'rgba(232,248,255,0.95)'; c.fill(Hi);
+    this._tiles.set(k, cv);
+    while (this._tiles.size > 48) this._tiles.delete(this._tiles.keys().next().value);
+    return cv;
+  },
+  /* ONE STRIP. t = the song time under the needle; rate = the deck's playback
+     rate, so the strip is drawn in wall-clock time and matched grids line up */
+  _strip(ctx, x, y, w, h, dpr, tr, t, rate, acc, o){
+    const src = this.src(tr);
+    const cx = x + w / 2;
+    ctx.fillStyle = 'rgba(4,5,10,0.5)'; ctx.fillRect(x, y, w, h);
+    if (!src || !isFinite(t)){
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x, y + h / 2 - 0.5, w, 1);
+      return;
+    }
+    const secs = this.ZOOMS[this.zoom];
+    const ppsWall = w / secs;                         // css px per wall second
+    const r = rate > 0.05 ? rate : 1;
+    const pps = ppsWall / r;                          // css px per second of music
+    const ppsD = Math.round(ppsWall * dpr * 4) / 4;   // tiles are painted at the wall rate, quantised so they are reused
+    const hd = Math.max(8, Math.round(h * dpr));
+    const tLeft = t - (w / 2) / pps, tRight = t + (w / 2) / pps;
+    const tileSec = DECKWAVE_TILE / ppsD * 1;         // music seconds per tile at the painted rate
+    const scale = pps / (ppsD / dpr);                 // stretch from the painted rate to this deck's
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    for (let i = Math.floor(tLeft / tileSec); i <= Math.floor(tRight / tileSec); i++){
+      if ((i + 1) * tileSec < 0 || i * tileSec > src.dur) continue;
+      const tile = this._tile(tr, src, i, ppsD, hd, acc);
+      // snapped to the device pixel: crisp columns, never a smeared resample
+      const dx = Math.round((cx + (i * tileSec - t) * pps) * dpr) / dpr;
+      ctx.drawImage(tile, dx, y, DECKWAVE_TILE / dpr * scale, h);
+    }
+    // the played half sits back a little, the way the deck shows where it has been
+    ctx.fillStyle = 'rgba(3,4,9,0.30)'; ctx.fillRect(x, y, w / 2, h);
+    const X = tt => cx + (tt - t) * pps;
+    // the planned seam (and its beat ticks), shaded under everything else
+    if (o.seam){
+      const a = X(o.seam[0]), b = X(o.seam[1]);
+      if (b > x && a < x + w){
+        ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.10)`; ctx.fillRect(a, y, b - a, h);
+        ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.65)`; ctx.fillRect(a - 0.75, y, 1.5, h); ctx.fillRect(b - 0.75, y, 1.5, h);
+      }
+    }
+    // the loop the room is holding
+    if (o.loop){
+      const a = X(o.loop.start), b = X(o.loop.start + o.loop.len);
+      ctx.fillStyle = 'rgba(124,224,122,0.16)'; ctx.fillRect(a, y, b - a, h);
+      ctx.fillStyle = 'rgba(124,224,122,0.9)'; ctx.fillRect(a - 0.75, y, 1.5, h); ctx.fillRect(b - 0.75, y, 1.5, h);
+    }
+    // the grid: beats faint, bars clear and numbered, phrases in the key
+    const m = mixOf(tr);
+    if (m && m.bpm > 0 && isFinite(m.grid)){
+      ctx.font = '600 8px ui-monospace, monospace'; ctx.textBaseline = 'top';
+      for (const g of waveGrid(m.bpm, m.grid, tLeft, tRight, m.phrases > 0 ? m.phrases / 4 : 8)){
+        const gx = Math.round(X(g.t) * dpr) / dpr;
+        // every beat a tick at both edges (readable over any density), the bars a line
+        // through the wave, the phrases a line in the key
+        const tk = g.bar ? 9 : 5;
+        ctx.fillStyle = g.phrase ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.95)` : g.bar ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.55)';
+        ctx.fillRect(gx - 0.75, y, 1.5, tk); ctx.fillRect(gx - 0.75, y + h - tk, 1.5, tk);
+        if (g.phrase){ ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.7)`; ctx.fillRect(gx - 0.75, y, 1.5, h); }
+        else if (g.bar){ ctx.fillStyle = 'rgba(255,255,255,0.32)'; ctx.fillRect(gx - 0.5, y, 1, h); }
+        if (g.bar && g.barNo > 0 && pps * 240 / m.bpm > 18){
+          ctx.fillStyle = g.phrase ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.95)` : 'rgba(255,255,255,0.5)';
+          ctx.fillText(String(g.barNo), gx + 3, y + 1);
+        }
+      }
+    }
+    // the drops, riding in toward the needle
+    if (o.struct && src.dur > 0){
+      for (const dp of dropPoints(o.struct)){
+        const dx = X(dp.at * src.dur);
+        if (dx < x - 6 || dx > x + w + 6) continue;
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath(); ctx.moveTo(dx - 4, y + h); ctx.lineTo(dx + 4, y + h); ctx.lineTo(dx, y + h - 6); ctx.closePath(); ctx.fill();
+      }
+    }
+    // the hot cues, each in its pad's colour
+    if (o.cues){
+      for (let i = 0; i < o.cues.length; i++){
+        const v = o.cues[i];
+        if (v == null) continue;
+        const cxp = X(v);
+        if (cxp < x - 12 || cxp > x + w) continue;
+        ctx.fillStyle = CUE_COLORS[i]; ctx.fillRect(cxp - 0.75, y, 1.5, h);
+        ctx.beginPath(); ctx.moveTo(cxp, y + h); ctx.lineTo(cxp + 10, y + h); ctx.lineTo(cxp + 10, y + h - 10); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0a0d12'; ctx.font = 'bold 7px ui-monospace, monospace'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText(String(i + 1), cxp + 5, y + h - 2);
+      }
+    }
+    ctx.restore();
+    // the needle
+    ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.28)`; ctx.fillRect(cx - 4, y, 8, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(cx - 0.75, y, 1.5, h);
+    // the deck's read-out: letter, tempo as heard, time left
+    ctx.font = '600 9px ui-monospace, monospace'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(4,5,10,0.6)'; ctx.fillRect(x + 2, y + h - 13, 104, 12);
+    ctx.fillStyle = `rgb(${acc[0]},${acc[1]},${acc[2]})`;
+    const left = src.dur - t;
+    const bpm = m && m.bpm > 0 ? (m.bpm * r).toFixed(1) : '---.-';
+    ctx.fillText(o.label + '  ' + bpm + '  -' + Math.floor(Math.max(0, left) / 60) + ':' + String(Math.floor(Math.max(0, left) % 60)).padStart(2, '0'), x + 5, y + h - 12);
+    if (src.coarse){ ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillText('score', x + w - 34, y + h - 12); }
+  },
+  /* THE PHASE METER: each deck's place in its bar as four cells, and between
+     them the distance of B's beat from A's, centred when they agree */
+  _phase(ctx, x, y, w, h, pa, pb, accA, accB){
+    const cells = (p, yy, acc) => {
+      if (p == null) return;
+      const cw = w / 4;
+      for (let i = 0; i < 4; i++){
+        const on = Math.floor(p) === i;
+        ctx.fillStyle = on ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.9)` : 'rgba(255,255,255,0.08)';
+        ctx.fillRect(x + i * cw + 1, yy, cw - 2, h / 2 - 1);
+      }
+    };
+    cells(pa, y, accA);
+    if (pb != null){
+      cells(pb, y + h / 2, accB);
+      if (pa != null){
+        let d = (pb - pa) % 1; if (d > 0.5) d -= 1; if (d < -0.5) d += 1;   // within a beat: who is ahead, and by how much
+        const cx = x + w / 2, len = d * w;
+        ctx.fillStyle = Math.abs(d) < 0.03 ? 'rgba(124,224,122,0.95)' : 'rgba(255,190,74,0.95)';
+        ctx.fillRect(Math.min(cx, cx + len), y + h / 2 - 1.5, Math.max(1.5, Math.abs(len)), 3);
+      }
+    }
+  },
+  // the deck's song time as heard: deck A through the platter's hand when the vinyl layer has it
+  _timeOf(d, isA){
+    if (!d || !isFinite(d.a.currentTime)) return NaN;
+    let t = d.a.currentTime;
+    if (isA && typeof VINYL !== 'undefined' && VINYL.engaged) t -= VINYL.lagNow();
+    return t;
+  },
+  draw(dA, tA, dB, tB, accA, accB, plan, running){
+    const cv = el.boothWave;
+    if (!cv) return;
+    const ctx = this._ctx || (this._ctx = cv.getContext('2d'));
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h || !ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)){
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); this._tiles.clear();
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (tA) this.need(tA);
+    if (tB) this.need(tB);
+    this._trim([this.key(tA), this.key(tB)]);
+    const meterH = 10, gap = 4;
+    const sh = (h - meterH - gap * 2) / 2;
+    const tAt = this._timeOf(dA, true);
+    const durA = dA && isFinite(dA.a.duration) ? dA.a.duration : 0;
+    let seamA = null, seamB = null;
+    if (plan && plan.type === 'beatmix'){
+      seamA = [plan.startA, plan.startA + (plan.beats || 16) * 60 / plan.bpmA];
+      seamB = [plan.startB, plan.startB + (plan.beats || 16) * 60 / plan.bpmB];
+    } else if (plan && plan.type === 'fade' && durA > 0) seamA = [Math.max(0, durA - plan.seconds), durA];
+    const loop = !running && typeof FX !== 'undefined' && FX.loop ? FX.loop : null;
+    const cues = !running && typeof CUES !== 'undefined' ? CUES.slots : null;
+    const rA = dA ? (dA.a.playbackRate || 1) : 1;
+    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, accA, { label: 'A', seam: seamA, loop, cues, struct: trackStructure(tA) });
+    // deck B: playing through a seam, or cued where the plan will start it
+    let tBt = NaN;
+    if (tB && dB){
+      tBt = dB.a.currentTime;
+      if (!(tBt > 0.01) && plan && plan.type === 'beatmix') tBt = plan.startB;
+    }
+    const rB = dB ? (dB.a.playbackRate || 1) : 1;
+    this._strip(ctx, 0, sh + meterH + gap * 2, w, sh, dpr, tB, tBt, rB, accB, { label: 'B', seam: tB ? seamB : null, struct: tB ? trackStructure(tB) : null });
+    const mA = mixOf(tA), mB = mixOf(tB);
+    const pa = mA ? waveBeatPos(mA.bpm, mA.grid, tAt) : null;
+    const pb = tB && mB && isFinite(tBt) ? waveBeatPos(mB.bpm, mB.grid, tBt) : null;
+    this._phase(ctx, w / 2 - 60, sh + gap, 120, meterH, pa, pb, accA, accB);
+    this._geom = { w, sh, pps: w / this.ZOOMS[this.zoom] / (rA > 0.05 ? rA : 1) };
+  },
+};
+DECKWAVE.load();
+
+/* the strip's hands: deck A's wave is the record (drag it to scratch); wheel,
+   pinch and double-tap zoom. Deck B's says which record is on air. */
+function wireDeckWave(){
+  const cv = el.boothWave;
+  if (!cv || cv._wired) return;
+  cv._wired = true;
+  const ptrs = new Map();
+  let drag = null, pinch = null, lastTap = 0;
+  const rel = ev => { const r = cv.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+  cv.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    DECKWAVE.setZoom(DECKWAVE.zoom + (ev.deltaY > 0 ? 1 : -1));
+  }, { passive: false });
+  cv.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.preventDefault();
+    ptrs.set(ev.pointerId, rel(ev));
+    try { cv.setPointerCapture(ev.pointerId); } catch (e){}
+    if (ptrs.size === 2){
+      // a second finger is a pinch: whatever the first was doing, it gives the record back
+      if (drag){ VINYL.lift(); drag = null; }
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: DECKWAVE.zoom };
+      return;
+    }
+    const p = rel(ev), g = DECKWAVE._geom;
+    if (!g) return;
+    const now = performance.now();
+    if (now - lastTap < 300){ lastTap = 0; DECKWAVE.setZoom((DECKWAVE.zoom + 1) % DECKWAVE.ZOOMS.length); return; }
+    lastTap = now;
+    if (p.y > g.sh + 8){ toast(T('Scratch deck A — that is the record on air')); return; }
+    if (VINYL.grabLine(ev.timeStamp)) drag = { id: ev.pointerId, x0: p.x, pps: g.pps };
+  });
+  cv.addEventListener('pointermove', ev => {
+    if (!ptrs.has(ev.pointerId)) return;
+    ptrs.set(ev.pointerId, rel(ev));
+    if (pinch && ptrs.size === 2){
+      const [a, b] = [...ptrs.values()];
+      const ratio = (Math.hypot(a.x - b.x, a.y - b.y) || 1) / pinch.d;
+      // spreading the fingers zooms in (fewer seconds across); each doubling is one step
+      DECKWAVE.setZoom(pinch.z - Math.round(Math.log2(ratio)));
+      return;
+    }
+    if (drag && ev.pointerId === drag.id){
+      const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
+      const r = cv.getBoundingClientRect();
+      // dragging the wave left pulls the music forward under the needle, as on any deck
+      for (const e of (evs.length ? evs : [ev])) VINYL.moveLine(-(e.clientX - r.left - drag.x0) / drag.pps, e.timeStamp);
+    }
+  });
+  const up = ev => {
+    ptrs.delete(ev.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    if (drag && ev.pointerId === drag.id){ drag = null; VINYL.lift(); }
+  };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+
 const BOOTH = {
   open: false, _txt: {},
   toggle(on){
@@ -23934,7 +25134,7 @@ const BOOTH = {
     if (next){
       el.booth.classList.remove('closing');
       el.booth.classList.add('open');
-      if (!this._fxWired){ this._fxWired = true; wireFxRack(); }
+      if (!this._fxWired){ this._fxWired = true; wireFxRack(); wireDeckWave(); }
       FXPADS.render(); syncFxHud();
       this.draw();
     } else {
@@ -23942,6 +25142,8 @@ const BOOTH = {
       // panel stays in the DOM, then it's actually hidden
       el.booth.classList.remove('open');
       el.booth.classList.add('closing');
+      VINYL.ejectSong();                       // the pressed record is let go with the booth
+      DECKWAVE._tiles.clear();                 // and the painted tiles: the detail stays, the pixels go
       this._closeT = setTimeout(() => el.booth.classList.remove('closing'), 320);
     }
   },
@@ -24361,6 +25563,7 @@ const BOOTH = {
   },
   draw(){
     if (!this.open || !el.boothCv) return;
+    if (VINYL.songMode()) VINYL.pressSong();   // element-direct: the record is pressed while the booth is open
     const nowMs = performance.now();
     const dts = Math.min(0.1, (nowMs - (this._lastDraw || nowMs)) / 1000);
     this._lastDraw = nowMs;
@@ -24434,6 +25637,9 @@ const BOOTH = {
       }
     }
 
+    // ---- the scrolling decks above: their own canvas, their own cost (a few blits a frame)
+    DECKWAVE.draw(dA, tA, dB, tB, accA, accB, p, running);
+
     // ---- top strip: the red voice + the step row
     const master = running && f > 0.5 ? { d: dB, t: tB } : { d: dA, t: tA };
     const mm = master.t && mixOf(master.t);
@@ -24467,15 +25673,16 @@ const BOOTH = {
       this._jog(ctx, jog + 6, topH + hMid / 2, jog, dA, tA, accA, beat * aG, dts, '_angA');
       this._jog(ctx, w - jog - 6, topH + hMid / 2, jog, dB, tB, accB, beat * bG, dts, '_angB');
       this._jogA = { cx: jog + 6, cy: topH + hMid / 2, r: jog };        // remembered for the hand (VINYL)
+      this._jogB = { cx: w - jog - 6, cy: topH + hMid / 2, r: jog };
     } else if (compact){
       const cy0 = topH - cJog - 10;   // the platter row's vertical centre, below the step strip
       const cxA = 8 + cJog, cxB = w - 8 - cJog;
-      this._jogA = { cx: cxA, cy: cy0, r: cJog };
+      this._jogA = { cx: cxA, cy: cy0, r: cJog }; this._jogB = { cx: cxB, cy: cy0, r: cJog };
       this._jog(ctx, cxA, cy0, cJog, dA, tA, accA, beat * aG, dts, '_angA');
       this._jog(ctx, cxB, cy0, cJog, dB, tB, accB, beat * bG, dts, '_angB');
       this._monitor(ctx, cxA + cJog + 10, cxB - cJog - 10, cy0, cJog);
     }
-    if (!full && !compact) this._jogA = null;                           // no platter drawn: nothing to grab
+    if (!full && !compact) this._jogA = this._jogB = null;              // no platter drawn: nothing to grab
     const durA = dA && isFinite(dA.a.duration) && dA.a.duration > 0 ? dA.a.duration : (tA && tA.duration) || 0;
     if (durA > 0) this._structureOverlay(ctx, yA, laneH, laneW, tA, durA, laneX);
     paintLane(ctx, laneX, yA, laneW, laneH, tA, fracOf(dA), accA);
@@ -29322,6 +30529,12 @@ const CLOCK = {
   },
 };
 
+/* the STEM LIGHT conductor — one stepper (the @stem block), one reading a
+   frame, shared by the beat channel, the bands, the colour engine and the
+   dancer's brace. */
+const STEMS = { state: makeStemLightState(), out: stemLightOut(makeStemLightState()),
+  chart: null, _chartOf: null, hit: 0 };
+
 const DANCE = {
   on: true,
   /* v2 — the dance BUS (danceBusStep, below the moves) drives the ENGINE:
@@ -29934,9 +31147,12 @@ const COLOR = {
     // bloom is as it was.
     const bloomV = (typeof DANCE !== 'undefined' && DANCE.v2 && DANCE.bus && DANCE.bus[9] < 1)
       ? this.bloom * danceSmooth(0, 1, DANCE.bus[9]) : this.bloom;
+    // …and the BAND's: a singer saturates the light, a hush (no kit, no
+    // voice) cools it, a held note brightens the chord a breath (@stem)
+    const so = (typeof STEMS !== 'undefined') ? STEMS.out : null;
     const mulC = 0.88 + heat * 0.45 + bloomV * 0.35 + golden * 0.22 + moodC
-      + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0));
-    const mulL = 0.97 + heat * 0.05;
+      + (phase === 'peak' ? 0.15 : (phase === 'break' ? -0.10 : 0)) + (so ? so.chromaAdd : 0);
+    const mulL = (0.97 + heat * 0.05) * (so ? so.lightMul : 1);
     const w = this._wash;
     let lit = w > 0.01
       ? this.now.map(c => lerpOklch(c, { l: c.l * 0.94, c: c.c * 0.6, h: (c.h + 180) % 360 }, w))
@@ -29980,8 +31196,10 @@ const COLOR = {
        Eased over roughly a second — an order of magnitude slower than the
        governor's own rate limit, so the budget can never itself be a flash —
        and then ridden by the beat channel, which is already WCAG-gated. */
-    const wantW = whiteBudget({ act: heat, ceil: (typeof director !== 'undefined') ? director.ceil : 1,
+    // no kit, no bleach: a breakdown stays dark however loud it is (@stem)
+    const wantW0 = whiteBudget({ act: heat, ceil: (typeof director !== 'undefined') ? director.ceil : 1,
       energy: AE.f.energy, phase, calm: SAFE.calm });
+    const wantW = so ? Math.max(INK.whiteFloor, wantW0 * so.whiteMul) : wantW0;
     const wTau = wantW > this.white ? 0.9 : 1.8;     // opens slowly, closes slower
     this.white += (wantW - this.white) * (1 - Math.exp(-dt / wTau));
     U.uWhite.value = clamp01(this.white * (0.8 + 0.35 * U.uBeat.value));
@@ -30200,6 +31418,8 @@ const director = {
        dwell, a touch re-tune, a ghost re-deal, the colour's chroma. The mood
        changing is not itself an event — nothing cuts because a word changed. */
     this.mood = roomMood({ act: this.act, energy: f.energy, entropy: f.entropy, ceil: this.ceil });
+    if (typeof STEMS !== 'undefined')                        // …refined by what the band is doing
+      this.mood = stemMood(this.mood, STEMS.state.section, STEMS.state.conf, this.ceil);
     // the mood's chroma lean, eased — the colour engine reads this rather than
     // the word, so a mood flicking between two neighbours cannot flicker the light
     {
@@ -30421,6 +31641,22 @@ const SEGUE = {
         window.__mb8SeamScene = this.seams;
       }
     } else if (this.seam && !director.auto) this.seam = null;
+    /* THE KIT'S RETURN (@stem). The drums came back after an absence the
+       light saw coming two seconds early — the dancer braced, the colour
+       inhaled — and the room changes ON the landing, a cut on the one when
+       the song is hot, the segue's own form otherwise. Only a room that has
+       had its say (STEM_CUT_DWELL); a seam cue outranks it. */
+    if (director.auto && director.transT >= 1 && !this.seam && player.playing
+        && typeof STEMS !== 'undefined' && STEMS.out.landed && director.dwell >= STEM_CUT_DWELL){
+      const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: true });
+      director.transDur = reducedMotion ? Math.max(style.dur, 1.6) : style.dur;
+      director.transKind = reducedMotion ? 'dissolve' : style.kind;
+      director.setScene(director.pickScene(), false);
+      director.dwell = 0;
+      this.lastKind = director.transKind;
+      this.pending = false; this.big = false; this.waited = 0;
+      window.__mb8StemCue = (window.__mb8StemCue || 0) + 1;      // the probes count the landings
+    }
     const grid = typeof CLOCK !== 'undefined' && CLOCK.haveGrid;
     // has the song's STRUCTURE turned a page since last frame?
     let sectionBoundary = false;
@@ -58622,6 +59858,720 @@ function buildSpectral(){
 }
 /* ==== END ROOM REGION: SPECTRAL ==== */
 
+/* ==== ROOM REGION: FLUID — builder owns everything between these fences ==== */
+/* ================================================================
+   SCENE 123 · FLUID — the Navier–Stokes equations, solved live
+
+   The room next door (NAVIER–STOKES) shows the handful of flows the
+   equation yields exactly. This one SOLVES it — every frame, on the
+   GPU, for whatever the music does to the water. Stam's stable scheme:
+   a semi-Lagrangian advection step that walks each cell back along the
+   velocity to fetch what was there (unconditionally stable, which is
+   how a frame of any length can be taken), a Jacobi relaxation of the
+   pressure Poisson equation whose gradient is subtracted so the field
+   stays divergence-free, and vorticity confinement to hand the eddies
+   back what the coarse grid and the numerical viscosity took. The ink
+   rides the field on its own finer grid.
+
+   The music is the hand on the water. Three DANCERS trace harmonograph
+   figures across the tank at the song's pace and drag their ink behind
+   them — bass, mid and treble each in its own ink — and each ink is a
+   POSITION ON THE LIVE CHORD RAMP rather than a colour, so the water
+   never leaves the palette and a chord change recolours every drop
+   already in the tank. Every onset is a splash: the dancers burst
+   outward and the bass winds a whirl into the middle. The ink has a
+   surface, lit from the upper left; the light in the middle of the tank
+   throws rays through it; what is bright blooms. A hand in the water
+   stirs it, as a hand would, and a spun hand winds a whirl.
+
+   Three faces: THE DANCE (two dancers, a lively vorticity), THE STORM
+   (three, the vorticity high, the bass's whirl strong, the ink burned
+   off fast), THE VEIL (one slow dancer laying wide sheets of all three
+   inks that last, lit mostly by the rays).
+
+   PROVENANCE: Jos Stam, "Stable Fluids" (SIGGRAPH 1999); Mark Harris,
+   "Fast Fluid Dynamics Simulation on the GPU" (GPU Gems ch. 38, 2004);
+   vorticity confinement after Fedkiw, Stam and Jensen, "Visual
+   Simulation of Smoke" (SIGGRAPH 2001). Pavel Dobryakov's
+   WebGL-Fluid-Simulation (MIT) is the showcase that set the bar; it was
+   the idea's proof, not its source — the passes below are written here
+   from the papers, and the music drive, the three inks on the chord
+   ramp, the dancers and the faces are our own.
+
+   The TV's twin is Shaders43.metal (room_fluid, namespace rm_fl): a
+   stateless retelling — a divergence-free flow in closed form, the
+   same dancers' ink walked back along it.
+   ================================================================ */
+function buildFluid(){
+  const group = new THREE.Group();
+  group.visible = false; scene.add(group);
+
+  /* ---- the tank: two grids, half-float where the driver allows ---- */
+  const SIM_SHORT = IS_IOS ? 96 : 144;      // velocity, pressure, divergence, curl: cells on the short side
+  const DYE_SHORT = IS_IOS ? 360 : 576;     // the ink, finer
+  const NSPLAT = 8;                         // the most splats one pass carries
+  const PITER = IS_IOS ? 12 : 16;           // Jacobi sweeps of the pressure solve
+  const probeHalf = () => {
+    try {
+      const gl = renderer.getContext();
+      if (!(gl.getExtension('EXT_color_buffer_half_float') || gl.getExtension('EXT_color_buffer_float')
+            || gl.getExtension('OES_texture_half_float'))) return false;
+      const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType,
+        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false });
+      renderer.setRenderTarget(rt);
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      renderer.setRenderTarget(null);
+      rt.dispose();
+      return ok;
+    } catch (e){ return false; }
+  };
+  const half = probeHalf();
+  // byte-texture fallback: the signed fields ride packed around 0.5 with a
+  // fixed range, so a driver without float targets still has a tank
+  const PRE = half ? '' : '#define PACKED\n';
+  const rtOpt = () => {
+    const o = {
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping,
+      format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false,
+    };
+    if (half) o.type = THREE.HalfFloatType;
+    return o;
+  };
+  const T = { w: 1, h: 1, dw: 1, dh: 1, bw: 1, bh: 1, aspect: 0 };
+  let velA, velB, prsA, prsB, divT, curlT, dyeA, dyeB, bloomA, bloomB, raysT;
+  const mk = (w, h) => new THREE.WebGLRenderTarget(Math.max(2, w), Math.max(2, h), rtOpt());
+  const disposeAll = () => {
+    for (const r of [velA, velB, prsA, prsB, divT, curlT, dyeA, dyeB, bloomA, bloomB, raysT]) if (r) r.dispose();
+  };
+
+  /* ---- the compute stage: one big triangle, a bare camera, one material per pass ---- */
+  const simScene = new THREE.Scene();
+  const simCam = new THREE.Camera();
+  const triGeo = new THREE.BufferGeometry();
+  triGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
+  triGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 2, 0, 0, 2]), 2));
+  const SIM_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+  const v4s = n => { const a = []; for (let i = 0; i < n; i++) a.push(new THREE.Vector4()); return a; };
+  const simU = {
+    tVel: { value: null }, tSrc: { value: null }, tCurl: { value: null }, tDiv: { value: null }, tPrs: { value: null },
+    uTexel: { value: new THREE.Vector2(1, 1) },      // one cell of the velocity grid
+    uTexelD: { value: new THREE.Vector2(1, 1) },     // one cell of the ink
+    uTexelB: { value: new THREE.Vector2(1, 1) },     // one cell of the bloom
+    uAspect: { value: 1 }, uDt: { value: 1 / 60 },
+    uCurl: { value: 30 }, uDiss: { value: 0.2 }, uPKeep: { value: 0.8 },
+    uSwirl: { value: new THREE.Vector4(0.5, 0.5, 0, 6) },    // the bass's whirl: centre, strength, 1/radius²
+    uSwirlH: { value: new THREE.Vector4(0.5, 0.5, 0, 30) },  // the hand's
+    uSplatMode: { value: 0 }, uN: { value: 0 },
+    uSplatP: { value: v4s(NSPLAT) },                 // x, y, radius²
+    uSplatVel: { value: v4s(NSPLAT) },               // the push, in cells per second
+    uSplatInk: { value: v4s(NSPLAT) },               // the three inks
+    uDir: { value: new THREE.Vector2(0, 0) },
+    uLight: { value: new THREE.Vector2(0.5, 0.5) },
+  };
+  const HEAD = PRE + `
+    uniform vec2 uTexel;
+    varying vec2 vUv;
+    const float VR = 1024.0;
+    #ifdef PACKED
+      vec4 RD(sampler2D t, vec2 uv){ return (texture2D(t, uv) - 0.5) * (2.0 * VR); }
+      vec4 WR(vec4 v){ return clamp(v / (2.0 * VR) + 0.5, 0.0, 1.0); }
+    #else
+      vec4 RD(sampler2D t, vec2 uv){ return texture2D(t, uv); }
+      vec4 WR(vec4 v){ return v; }
+    #endif
+  `;
+  const pass = frag => new THREE.ShaderMaterial({
+    uniforms: simU, vertexShader: SIM_VERT, fragmentShader: HEAD + frag, depthTest: false, depthWrite: false,
+  });
+  /* THE SPLATS — the dancers' ink and push, the splashes, the hand: up to
+     eight gaussians in one pass, once into the velocity, once into the ink */
+  const splatMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec4 uSplatP[${NSPLAT}];
+    uniform vec4 uSplatVel[${NSPLAT}];
+    uniform vec4 uSplatInk[${NSPLAT}];
+    uniform float uAspect, uN, uSplatMode;
+    void main(){
+      vec4 base = uSplatMode < 0.5 ? RD(tSrc, vUv) : texture2D(tSrc, vUv);
+      vec3 add = vec3(0.0);
+      for (int i = 0; i < ${NSPLAT}; i++){
+        if (float(i) >= uN) break;
+        vec2 d = (vUv - uSplatP[i].xy) * vec2(uAspect, 1.0);
+        float g = exp(-dot(d, d) / uSplatP[i].z);
+        add += g * (uSplatMode < 0.5 ? uSplatVel[i].xyz : uSplatInk[i].xyz);
+      }
+      vec4 o = base + vec4(add, 0.0);
+      gl_FragColor = uSplatMode < 0.5 ? WR(vec4(o.xy, 0.0, 0.0)) : vec4(clamp(o.rgb, 0.0, 4.0), 1.0);
+    }`);
+  /* THE CURL — the vorticity, one central difference */
+  const curlMat = pass(`
+    uniform sampler2D tVel;
+    void main(){
+      float L = RD(tVel, vUv - vec2(uTexel.x, 0.0)).y;
+      float R = RD(tVel, vUv + vec2(uTexel.x, 0.0)).y;
+      float T = RD(tVel, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tVel, vUv - vec2(0.0, uTexel.y)).x;
+      gl_FragColor = WR(vec4(0.5 * (R - L - T + B), 0.0, 0.0, 0.0));
+    }`);
+  /* VORTICITY CONFINEMENT (Fedkiw, Stam, Jensen 2001): push along N × ω,
+     where N points up the gradient of |ω| — the eddies get back what the
+     grid dissipated. Plus the two whirls: the bass's, and the hand's. */
+  const vortMat = pass(`
+    uniform sampler2D tVel, tCurl;
+    uniform float uCurl, uDt, uAspect;
+    uniform vec4 uSwirl, uSwirlH;
+    void main(){
+      float L = RD(tCurl, vUv - vec2(uTexel.x, 0.0)).x;
+      float R = RD(tCurl, vUv + vec2(uTexel.x, 0.0)).x;
+      float T = RD(tCurl, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tCurl, vUv - vec2(0.0, uTexel.y)).x;
+      float C = RD(tCurl, vUv).x;
+      vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+      force /= length(force) + 0.0001;
+      force *= uCurl * C;
+      force.y *= -1.0;
+      vec2 vel = RD(tVel, vUv).xy + force * uDt;
+      // the whirls: a tangential push of one strength across the whirl's reach
+      // (not growing with the radius, which spun the whole tank into a ring)
+      vec2 d = (vUv - uSwirl.xy) * vec2(uAspect, 1.0);
+      vel += vec2(-d.y, d.x) / (length(d) + 0.02) * (uSwirl.z * exp(-dot(d, d) * uSwirl.w) * uDt);
+      vec2 e = (vUv - uSwirlH.xy) * vec2(uAspect, 1.0);
+      vel += vec2(-e.y, e.x) / (length(e) + 0.02) * (uSwirlH.z * exp(-dot(e, e) * uSwirlH.w) * uDt);
+      vel = clamp(vel, vec2(-1000.0), vec2(1000.0));
+      gl_FragColor = WR(vec4(vel, 0.0, 0.0));
+    }`);
+  /* THE DIVERGENCE — with the walls of the tank: the normal velocity
+     reflects at the edge, so nothing leaves and nothing arrives */
+  const divMat = pass(`
+    uniform sampler2D tVel;
+    void main(){
+      vec2 xl = vUv - vec2(uTexel.x, 0.0), xr = vUv + vec2(uTexel.x, 0.0);
+      vec2 yt = vUv + vec2(0.0, uTexel.y), yb = vUv - vec2(0.0, uTexel.y);
+      float L = RD(tVel, xl).x, R = RD(tVel, xr).x, T = RD(tVel, yt).y, B = RD(tVel, yb).y;
+      vec2 C = RD(tVel, vUv).xy;
+      if (xl.x < 0.0) L = -C.x;
+      if (xr.x > 1.0) R = -C.x;
+      if (yt.y > 1.0) T = -C.y;
+      if (yb.y < 0.0) B = -C.y;
+      gl_FragColor = WR(vec4(0.5 * (R - L + T - B), 0.0, 0.0, 0.0));
+    }`);
+  /* THE PRESSURE — one Jacobi sweep of ∇²p = ∇·v. The first sweep of a
+     frame keeps most of last frame's answer (a warm start), the rest keep all */
+  const prsMat = pass(`
+    uniform sampler2D tPrs, tDiv;
+    uniform float uPKeep;
+    void main(){
+      float L = RD(tPrs, vUv - vec2(uTexel.x, 0.0)).x;
+      float R = RD(tPrs, vUv + vec2(uTexel.x, 0.0)).x;
+      float T = RD(tPrs, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tPrs, vUv - vec2(0.0, uTexel.y)).x;
+      float div = RD(tDiv, vUv).x;
+      gl_FragColor = WR(vec4((uPKeep * (L + R + B + T) - div) * 0.25, 0.0, 0.0, 0.0));
+    }`);
+  /* THE PROJECTION — subtract the pressure gradient: what is left is divergence-free */
+  const gradMat = pass(`
+    uniform sampler2D tPrs, tVel;
+    void main(){
+      float L = RD(tPrs, vUv - vec2(uTexel.x, 0.0)).x;
+      float R = RD(tPrs, vUv + vec2(uTexel.x, 0.0)).x;
+      float T = RD(tPrs, vUv + vec2(0.0, uTexel.y)).x;
+      float B = RD(tPrs, vUv - vec2(0.0, uTexel.y)).x;
+      vec2 vel = RD(tVel, vUv).xy - vec2(R - L, T - B);
+      gl_FragColor = WR(vec4(vel, 0.0, 0.0));
+    }`);
+  /* THE ADVECTION (Stam 1999): walk back along the velocity, fetch what was
+     there. Once for the velocity itself, once for the ink. */
+  const ADV = src => `
+    uniform sampler2D tVel, tSrc;
+    uniform float uDt, uDiss, uAspect;
+    void main(){
+      vec2 coord = vUv - uDt * RD(tVel, vUv).xy * uTexel;
+      float keep = 1.0 / (1.0 + uDiss * uDt);
+      ${src === 'vel' ? '' :
+        // the rim of the tank drinks the ink: clamped sampling would otherwise
+        // pile it against the walls, and a wall of ink is not structure on void
+        'float rim = min(min(vUv.x, 1.0 - vUv.x) * uAspect, min(vUv.y, 1.0 - vUv.y)); keep *= 1.0 - (1.0 - smoothstep(0.0, 0.05, rim)) * 0.08;'}
+      ${src === 'vel'
+        ? 'vec4 r = RD(tSrc, coord); gl_FragColor = WR(vec4(r.xy * keep, 0.0, 0.0));'
+        : 'vec4 r = texture2D(tSrc, coord); vec3 o = r.rgb * keep;\n'
+        // byte-texture fallback: a 2% fade rounds back to the same byte, so dim
+        // ink would be immortal — a whisper of dither makes the rounding honest
+        + '#ifdef PACKED\n o -= (fract(sin(dot(gl_FragCoord.xy + uDt * 977.0, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * (1.0 / 255.0);\n#endif\n'
+        + 'gl_FragColor = vec4(max(o, 0.0), 1.0);'}
+    }`;
+  const advVelMat = pass(ADV('vel'));
+  const advDyeMat = pass(ADV('dye'));
+  /* THE LIGHT: what is bright blooms (a soft-knee prefilter, two blurs at a
+     quarter of the ink), and the light in the middle of the tank throws rays
+     through the ink (an occlusion walked toward the light) */
+  const bloomPreMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec2 uTexelD;
+    void main(){
+      vec3 c = texture2D(tSrc, vUv).rgb * 0.4
+             + (texture2D(tSrc, vUv + uTexelD * vec2(1.5, 1.5)).rgb + texture2D(tSrc, vUv + uTexelD * vec2(-1.5, 1.5)).rgb
+              + texture2D(tSrc, vUv + uTexelD * vec2(1.5, -1.5)).rgb + texture2D(tSrc, vUv + uTexelD * vec2(-1.5, -1.5)).rgb) * 0.15;
+      float br = max(c.r, max(c.g, c.b));
+      const float TH = 0.45, KNEE = 0.35;
+      float soft = clamp(br - TH + KNEE, 0.0, 2.0 * KNEE);
+      soft = soft * soft / (4.0 * KNEE + 0.0001);
+      float contrib = max(soft, br - TH) / max(br, 0.0001);
+      gl_FragColor = vec4(c * contrib, 1.0);
+    }`);
+  const blurMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec2 uDir;
+    void main(){
+      vec3 s = texture2D(tSrc, vUv).rgb * 0.227;
+      s += (texture2D(tSrc, vUv + uDir * 1.385).rgb + texture2D(tSrc, vUv - uDir * 1.385).rgb) * 0.316;
+      s += (texture2D(tSrc, vUv + uDir * 3.231).rgb + texture2D(tSrc, vUv - uDir * 3.231).rgb) * 0.070;
+      gl_FragColor = vec4(s, 1.0);
+    }`);
+  const raysMat = pass(`
+    uniform sampler2D tSrc;
+    uniform vec2 uLight;
+    float occl(vec2 uv){
+      vec3 c = texture2D(tSrc, uv).rgb;
+      float br = max(c.r, max(c.g, c.b));
+      return 1.0 - min(max(br * 5.0, 0.0), 0.8);
+    }
+    void main(){
+      vec2 dir = (vUv - uLight) * (0.5 / 16.0);
+      vec2 c = vUv; float w = 1.0, acc = 0.0;
+      for (int i = 0; i < 16; i++){ c -= dir; acc += occl(c) * w; w *= 0.94; }
+      gl_FragColor = vec4(acc / 10.48, 0.0, 0.0, 1.0);
+    }`);
+  const tri = new THREE.Mesh(triGeo, splatMat);
+  tri.frustumCulled = false;
+  simScene.add(tri);
+
+  /* ---- the display: three inks, each a place on the chord ramp ---- */
+  const varU = {
+    tDye: { value: null }, tBloom: { value: null }, tRays: { value: null },
+    uTexelD: { value: new THREE.Vector2(1, 1) },
+    uVoice: { value: new THREE.Vector3(0.08, 0.40, 0.72) },
+    uLook: { value: new THREE.Vector4(1, 0.7, 0.6, 0) },    // relief, bloom, rays
+    uDancer: { value: v4s(3) },                             // x, y, glow, on — the lights that carry the ink
+    uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const dispVert = `
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const dispFrag = GLSL_MPHI + `
+    uniform sampler2D tDye, tBloom, tRays;
+    uniform float uOpacity, uTime, uEnergy, uBeat;
+    uniform vec2 uTexelD;
+    uniform vec3 uVoice;
+    uniform vec4 uLook;
+    uniform vec4 uDancer[3];
+    uniform float uAspect;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the inks are not colours but places on the live ramp: the palette moves, the water follows
+    vec3 inkOf(vec3 d){ return ramp(uVoice.x) * d.r + ramp(uVoice.y) * d.g + ramp(uVoice.z) * d.b; }
+    /* the haze below a few percent is gated to the void (after gamma a 4%
+       wash reads as a quarter-bright wall), and dense ink saturates in COLOUR,
+       never bleaches: a knee on the density */
+    vec3 knee(vec3 d){ d = max(d - 0.035, 0.0) * 1.08; return 1.0 - exp(-d * 1.3); }
+    void main(){
+      vec3 d = texture2D(tDye, vUv).rgb;
+      vec3 col = inkOf(knee(d)) * 1.4;
+      // the ink has a surface: a normal from the density's slope, lit from the upper left
+      float dl = length(texture2D(tDye, vUv - vec2(uTexelD.x, 0.0)).rgb);
+      float dr = length(texture2D(tDye, vUv + vec2(uTexelD.x, 0.0)).rgb);
+      float db = length(texture2D(tDye, vUv - vec2(0.0, uTexelD.y)).rgb);
+      float dtp = length(texture2D(tDye, vUv + vec2(0.0, uTexelD.y)).rgb);
+      vec3 n = normalize(vec3(dr - dl, dtp - db, length(uTexelD) * 2.0));
+      float diff = clamp(dot(n, normalize(vec3(-0.4, 0.5, 0.75))) + 0.7, 0.7, 1.0);
+      col *= mix(1.0, diff, uLook.x);
+      vec3 b = texture2D(tBloom, vUv).rgb;
+      col += inkOf(b) * uLook.y * (0.8 + uBeat * 0.4);
+      float rays = texture2D(tRays, vUv).r;
+      col *= mix(1.0, 0.55 + 0.6 * rays, uLook.z);
+      // the dancers: three small lights, each wearing its own ink's colour
+      for (int k = 0; k < 3; k++){
+        if (uDancer[k].w < 0.5) continue;
+        vec2 dd = (vUv - uDancer[k].xy) * vec2(uAspect, 1.0);
+        float q = dot(dd, dd);
+        vec3 lc = k == 0 ? ramp(uVoice.x) : (k == 1 ? ramp(uVoice.y) : ramp(uVoice.z));
+        col += lc * (exp(-q * 9000.0) * 1.6 + exp(-q * 600.0) * 0.35) * uDancer[k].z;
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.012;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const dispMat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: dispVert, fragmentShader: dispFrag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), dispMat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh);
+
+  const alloc = (aspect) => {
+    disposeAll();
+    const a = Math.max(0.3, Math.min(3.5, aspect));
+    T.aspect = a;
+    T.w = Math.round(a >= 1 ? SIM_SHORT * a : SIM_SHORT); T.h = Math.round(a >= 1 ? SIM_SHORT : SIM_SHORT / a);
+    T.dw = Math.round(a >= 1 ? DYE_SHORT * a : DYE_SHORT); T.dh = Math.round(a >= 1 ? DYE_SHORT : DYE_SHORT / a);
+    T.bw = Math.round(T.dw / 4); T.bh = Math.round(T.dh / 4);
+    velA = mk(T.w, T.h); velB = mk(T.w, T.h); prsA = mk(T.w, T.h); prsB = mk(T.w, T.h);
+    divT = mk(T.w, T.h); curlT = mk(T.w, T.h);
+    dyeA = mk(T.dw, T.dh); dyeB = mk(T.dw, T.dh);
+    bloomA = mk(T.bw, T.bh); bloomB = mk(T.bw, T.bh); raysT = mk(T.bw, T.bh);
+    simU.uTexel.value.set(1 / T.w, 1 / T.h);
+    simU.uTexelD.value.set(1 / T.dw, 1 / T.dh);
+    simU.uTexelB.value.set(1 / T.bw, 1 / T.bh);
+    varU.uTexelD.value.set(1 / T.dw, 1 / T.dh);
+    varU.uAspect.value = a; simU.uAspect.value = a;
+    for (const d of st.dancers) d.has = false;
+    st.hon = false;
+  };
+  const run = (mat, target) => { tri.material = mat; renderer.setRenderTarget(target); renderer.render(simScene, simCam); };
+  const swapVel = () => { const t = velA; velA = velB; velB = t; };
+  const swapPrs = () => { const t = prsA; prsA = prsB; prsB = t; };
+  const swapDye = () => { const t = dyeA; dyeA = dyeB; dyeB = t; };
+  /* ONE STEP OF THE SOLVE: splat, confine, project, advect */
+  const solve = (F) => {
+    if (S.n > 0){
+      simU.uSplatMode.value = 0; simU.tSrc.value = velA.texture; run(splatMat, velB); swapVel();
+      simU.uSplatMode.value = 1; simU.tSrc.value = dyeA.texture; run(splatMat, dyeB); swapDye();
+    }
+    simU.tVel.value = velA.texture; run(curlMat, curlT);
+    simU.tCurl.value = curlT.texture; run(vortMat, velB); swapVel();
+    simU.tVel.value = velA.texture; run(divMat, divT);
+    simU.tDiv.value = divT.texture;
+    for (let i = 0; i < PITER; i++){
+      simU.uPKeep.value = i === 0 ? 0.8 : 1.0;
+      simU.tPrs.value = prsA.texture; run(prsMat, prsB); swapPrs();
+    }
+    simU.tPrs.value = prsA.texture; simU.tVel.value = velA.texture; run(gradMat, velB); swapVel();
+    simU.tVel.value = velA.texture; simU.tSrc.value = velA.texture; simU.uDiss.value = F.dissV; run(advVelMat, velB); swapVel();
+    simU.tVel.value = velA.texture; simU.tSrc.value = dyeA.texture; simU.uDiss.value = F.dissD; run(advDyeMat, dyeB); swapDye();
+  };
+  const light = () => {
+    simU.tSrc.value = dyeA.texture; run(bloomPreMat, bloomA);
+    simU.tSrc.value = bloomA.texture; simU.uDir.value.set(simU.uTexelB.value.x * 1.6, 0); run(blurMat, bloomB);
+    simU.tSrc.value = bloomB.texture; simU.uDir.value.set(0, simU.uTexelB.value.y * 1.6); run(blurMat, bloomA);
+    simU.tSrc.value = dyeA.texture; run(raysMat, raysT);
+  };
+
+  /* THE FACES: the dancers, the vorticity, how long the ink lasts */
+  const FACES = [
+    { name: 'THE DANCE', dancers: 2, blend: false, tempo: 1.0, reach: 0.34, radius: 0.0010, ink: 0.13, push: 0.55, splash: 260,
+      curl: 22, dissV: 0.35, dissD: 1.2, swirl: 0.5, relief: 1.0, bloom: 0.9, rays: 0.6 },
+    { name: 'THE STORM', dancers: 3, blend: false, tempo: 1.4, reach: 0.38, radius: 0.0012, ink: 0.15, push: 0.75, splash: 420,
+      curl: 36, dissV: 0.18, dissD: 1.8, swirl: 1.0, relief: 1.0, bloom: 1.0, rays: 0.5 },
+    { name: 'THE VEIL',  dancers: 1, blend: true,  tempo: 0.45, reach: 0.36, radius: 0.0040, ink: 0.055, push: 0.35, splash: 160,
+      curl: 10, dissV: 0.45, dissD: 0.55, swirl: 0.25, relief: 0.8, bloom: 0.7, rays: 1.0 },
+  ];
+  const st = { face: FACES[0], clock: 0, vdrift: Math.random(), lastOnset: 0, kick: 0, whirlDir: 1,
+               ready: false, hx: 0, hy: 0, hon: false, dancers: [] };
+  const S = { n: 0 };
+  const push = (x, y, r2, vx, vy, a, b, c) => {
+    if (S.n >= NSPLAT) return;
+    simU.uSplatP.value[S.n].set(x, y, r2, 0);
+    simU.uSplatVel.value[S.n].set(vx, vy, 0, 0);
+    simU.uSplatInk.value[S.n].set(a, b, c, 0);
+    S.n++;
+  };
+  const tmp = { x: 0, y: 0 };
+  // a harmonograph figure in the tank's own uv, round whatever the screen's shape
+  const dancerPos = (d, th, aspect, out) => {
+    const rx = st.face.reach / Math.max(aspect, 1), ry = st.face.reach * Math.min(1, aspect * 1.6);
+    out.x = 0.5 + rx * (0.8 * Math.sin(th * d.a + d.pa) + 0.2 * Math.sin(th * d.c + d.pc));
+    out.y = 0.5 + ry * (0.8 * Math.sin(th * d.b + d.pb) + 0.2 * Math.cos(th * d.c * 0.7 + d.pa));
+  };
+  const frac = x => x - Math.floor(x);
+
+  const api = {
+    name: 'FLUID', key: 'fluid', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      const aspect = (s && s.aspect) || 1;
+      if (!st.ready || Math.abs(aspect - T.aspect) > T.aspect * 0.08){ alloc(aspect); st.ready = true; }
+      dt = Math.min(Math.max(dt || 0, 1 / 240), 1 / 24);
+      const F = st.face;
+      const energy = Math.min(1, f.energy || 0), bass = f.bass || 0, mid = f.mid || 0, treble = f.treble || 0, beat = f.beat || 0;
+      // the song's pace: the dancers move to the energy; reduced motion slows them
+      st.clock += dt * F.tempo * (reducedMotion ? 0.35 : 0.55 + energy * 0.9);
+      st.vdrift += dt * 0.011;
+      varU.uVoice.value.set(frac(0.08 + st.vdrift), frac(0.40 + st.vdrift), frac(0.72 + st.vdrift));
+      // the onset is a splash
+      let burst = 0;
+      if (f.lastOnsetAt && f.lastOnsetAt !== st.lastOnset){
+        st.lastOnset = f.lastOnsetAt;
+        if (beat > 0.25) burst = beat;
+      }
+      S.n = 0;
+      const bands = [bass, mid, treble];
+      for (let k = 0; k < F.dancers; k++){
+        const d = st.dancers[k];
+        dancerPos(d, st.clock, aspect, tmp);
+        let vx = 0, vy = 0;
+        if (d.has){ vx = (tmp.x - d.x) / dt * T.w * F.push; vy = (tmp.y - d.y) / dt * T.h * F.push; }
+        const vl = Math.hypot(vx, vy);
+        if (vl > 700){ vx *= 700 / vl; vy *= 700 / vl; }
+        d.x = tmp.x; d.y = tmp.y; d.has = true;
+        const band = bands[k % 3];
+        const amt = F.ink * (0.25 + band * 0.9 + energy * 0.3);
+        // each dancer carries one ink; the veil's single dancer carries all three, by the bands
+        const a = F.blend ? F.ink * (0.5 + bass) : (k % 3 === 0 ? amt : 0);
+        const b = F.blend ? F.ink * (0.3 + mid)  : (k % 3 === 1 ? amt : 0);
+        const c = F.blend ? F.ink * (0.3 + treble) : (k % 3 === 2 ? amt : 0);
+        push(tmp.x, tmp.y, F.radius, vx, vy, a, b, c);
+        varU.uDancer.value[k].set(tmp.x, tmp.y, (0.5 + band * 0.6 + beat * 0.5) * (F.blend ? 0.7 : 1.0), 1);
+        if (burst > 0){
+          // the splash: outward from the middle, and a kick along the path
+          const ox = (tmp.x - 0.5) * aspect, oy = tmp.y - 0.5;
+          const ol = Math.hypot(ox, oy) + 1e-3;
+          const sp = F.splash * burst;
+          push(tmp.x, tmp.y, F.radius * 3.0, ox / ol * sp + vx * 0.5, oy / ol * sp + vy * 0.5, a * 1.5, b * 1.5, c * 1.5);
+        }
+      }
+      for (let k = F.dancers; k < 3; k++) varU.uDancer.value[k].w = 0;
+      // the bass's whirl, wound into the middle: a body force, kicked by the onset
+      if (burst > 0 && bass > 0.3) st.kick = Math.min(1.5, st.kick + burst * bass);
+      st.kick *= Math.exp(-dt / 0.5);
+      const whirl = F.swirl * (bass * 0.45 + st.kick) * st.whirlDir;
+      simU.uSwirl.value.set(0.5, 0.5, whirl * 90, 1.0 / 0.12);
+      // the hand stirs; a spun hand winds a whirl
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      if (force > 0.05){
+        const px = U.uPtr.value.x * 0.5 + 0.5, py = U.uPtr.value.y * 0.5 + 0.5;
+        if (st.hon){
+          let hvx = (px - st.hx) / dt * T.w * 0.9, hvy = (py - st.hy) / dt * T.h * 0.9;
+          const hl = Math.hypot(hvx, hvy);
+          if (hl > 900){ hvx *= 900 / hl; hvy *= 900 / hl; }
+          push(px, py, 0.0025, hvx, hvy, 0.12 * force, 0.12 * force, 0.35 * force);
+        }
+        st.hx = px; st.hy = py; st.hon = true;
+        const spin = (U.uPtrX.value && U.uPtrX.value.z) || 0;
+        simU.uSwirlH.value.set(px, py, spin * force * 300, 1.0 / 0.03);
+      } else { st.hon = false; simU.uSwirlH.value.z = 0; }
+      simU.uDt.value = dt;
+      simU.uCurl.value = F.curl * (0.7 + energy * 0.5);
+      simU.uN.value = S.n;
+      const prev = renderer.getRenderTarget();
+      solve(F);
+      light();
+      renderer.setRenderTarget(prev);
+      varU.tDye.value = dyeA.texture; varU.tBloom.value = bloomA.texture; varU.tRays.value = raysT.texture;
+      varU.uLook.value.set(F.relief, F.bloom * (0.8 + treble * 0.4), F.rays, 0);
+    },
+    roll(){
+      st.face = FACES[Math.floor(Math.random() * FACES.length)];
+      st.whirlDir = Math.random() < 0.5 ? -1 : 1;
+      st.dancers = [];
+      const figs = [[1, 2], [3, 2], [2, 3], [3, 4], [1, 3]];
+      for (let k = 0; k < 3; k++){
+        const fg = figs[Math.floor(Math.random() * figs.length)];
+        st.dancers.push({ a: fg[0], b: fg[1], c: 0.23 + Math.random() * 0.3,
+                          pa: Math.random() * 6.283, pb: Math.random() * 6.283, pc: Math.random() * 6.283,
+                          x: 0, y: 0, has: false });
+      }
+      api.name = 'FLUID · ' + st.face.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: FLUID ==== */
+
+/* ==== ROOM REGION: QUARTET — builder owns everything between these fences ==== */
+/* ================================================================
+   QUARTET — the band, seen.
+
+   Every song in the catalog has been taken apart by Demucs into its
+   four players — drums, bass, voice and everything else — and the
+   drums have been charted hit by hit (tools/stems.py). Every other room
+   hears the band through the light; this one SHOWS it. Four strands,
+   one per player, each as broad and as bright as that player is loud,
+   flowing through a single NOW. And because the score is known in
+   advance, the strands do not stop at now: the coming three seconds are
+   drawn ahead of it as a dotted ghost, so the eye sees the drums
+   returning, the voice coming in, the bass dropping out BEFORE the ear
+   does. The drum strand is beaded with the chart's real hits; every
+   strand lights a node where it crosses now.
+
+   Two faces: THE SCORE (four strands left to right, the past fading
+   behind, the future ghosted ahead) and THE RINGS (four concentric
+   rings, now at the top, the future running clockwise).
+
+   Without stems (the mic, a local file) the strands are the live
+   bands' own recent past — drums from the onset, bass, voice from the
+   mids, the rest from the highs — and the future is honestly dark.
+
+   Each strand is a place on the live chord ramp, never a colour. The
+   TV's twin is Shaders44.metal (room_quartet, namespace rm_qt), which
+   reads the same 64-sample lane texture.
+   ================================================================ */
+function buildQuartet(){
+  const group = new THREE.Group();
+  const N = QUARTET_N;
+  const data = new Uint8Array(N * 4);
+  const tex = new THREE.DataTexture(data, N, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter;
+  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.needsUpdate = true;
+  const varU = {
+    uLanes: { value: tex },
+    uFaceQt: { value: 0 },
+    uLive: { value: 1 },
+    uPhaseQt: { value: 0 },
+    uNowQt: { value: new THREE.Vector4(0, 0, 0, 0) },   // the four players' levels at now
+    uAspect: { value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBeat, uOpacity;
+    uniform sampler2D uLanes;
+    uniform float uFaceQt, uLive, uPhaseQt, uAspect;
+    uniform vec4 uNowQt;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // the lane texture: r drums, g bass, b voice, a everything else
+    vec4 lanes(float u){ return texture2D(uLanes, vec2(clamp(u, 0.0, 1.0), 0.5)); }
+    // bottom to top (or inner to outer): bass, drums, the rest, the voice
+    float laneOf(vec4 L, int k){ return k == 0 ? L.g : (k == 1 ? L.r : (k == 2 ? L.a : L.b)); }
+    // the four at now, in strand order (bass, drums, the rest, voice)
+    float nowOf(int k){ return k == 0 ? uNowQt.x : (k == 1 ? uNowQt.y : (k == 2 ? uNowQt.z : uNowQt.w)); }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      bool rings = uFaceQt > 0.5;
+      float th = atan(p.x, p.y);                       // 0 at the top, clockwise positive
+      float r = length(p);
+      // u: where in the window this pixel sits (½ is now)
+      float u = rings ? 0.5 + th / 6.2831853 : 0.5 + p.x / (2.0 * uAspect);
+      // how far from now, along the strand, in screen units
+      float nowd = rings ? abs(th) * r : abs(p.x);
+      vec4 L = lanes(u);
+      float fut = step(0.5, u);
+      float dist = abs(u - 0.5);
+      // the past fades behind; the future is a ghost (and dark live) whose
+      // CORE is dotted — the coming score, not yet played
+      float past = exp(-dist * 2.4);
+      float ghost = 0.50 * exp(-dist * 2.4) * (1.0 - uLive);
+      float dots = 0.25 + 0.75 * smoothstep(0.30, 0.42, fract(u * 110.0)) * (1.0 - smoothstep(0.80, 0.92, fract(u * 110.0)));
+      float fadeSoft = mix(past, ghost, fut);
+      float fadeCore = mix(past, ghost * dots, fut);
+      vec3 col = vec3(0.0);
+      float s = rings ? min(uAspect, 1.0) : 1.0;
+      for (int k = 0; k < 4; k++){
+        float fk = float(k);
+        float v = laneOf(L, k);
+        float vn = nowOf(k);
+        float base = rings ? (0.24 + 0.215 * fk) * s : -0.66 + 0.44 * fk;
+        float along = rings ? th * 2.2 : p.x * 2.6;
+        float wob = (rings ? 0.018 : 0.034) * sin(along + uPhaseQt * (0.55 + 0.12 * fk) + fk * 1.7) * (0.35 + v);
+        float d = (rings ? r : p.y) - (base + wob);
+        float w = 0.0035 + 0.046 * v;                  // the player's breadth
+        vec3 c = ramp(0.06 + 0.25 * fk);
+        float core = exp(-(d * d) / (w * w));
+        float glow = exp(-abs(d) / (w * 1.8 + 0.006)) * 0.20;   // a halo, held close: the void stays void
+        float staff = exp(-abs(d) * 420.0) * 0.07;     // the staff line, even in silence
+        float soft = glow * v + staff;
+        if (k == 3) soft += (1.0 - smoothstep(0.0, w * 1.9, abs(d))) * 0.16 * v;          // the voice: a ribbon
+        if (k == 2) soft += (exp(-abs(abs(d) - w * 1.25) * 380.0)) * 0.35 * v;    // the rest: fine threads
+        col += c * (core * (0.25 + 0.95 * v) * fadeCore + soft * fadeSoft);
+        // the node where the strand crosses now — the player, sounding
+        float nd = length(vec2(nowd, d));
+        float hit = k == 1 ? uBeat : 0.0;
+        col += c * exp(-nd * nd / (0.00025 + 0.0035 * vn)) * (0.20 + 1.1 * vn) * (1.0 + 0.7 * hit);
+      }
+      // now: a hairline of light, brighter on the strike
+      float nowLine = rings ? exp(-nowd * 260.0) * step(0.0, p.y) * (1.0 - smoothstep(0.15 * s, 1.05 * s, r))
+                            : exp(-nowd * 260.0);
+      col += ramp(0.5) * nowLine * (0.07 + 0.22 * uBeat);
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.010;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const FACES = [
+    { name: 'THE SCORE', m: 0 },
+    { name: 'THE RINGS', m: 1 },
+  ];
+  // the live fallback: the bands' own recent past, one sample per window step
+  const RING = N / 2, ring = new Float32Array(RING * 4);
+  const lanesF = new Float32Array(N * 4);
+  const st = { face: FACES[0], acc: 0, head: 0 };
+  const api = {
+    name: 'QUARTET', key: 'quartet', group,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      varU.uPhaseQt.value += dt * (reducedMotion ? 0.2 : 0.45 + (f.energy || 0) * 0.8);
+      const tr = player.tracks[player.cur], dk = activeDeck();
+      const stems = AE.mic.on ? null : trackStems(tr);
+      const pos = dk && dk.a && isFinite(dk.a.currentTime) ? dk.a.currentTime - CLOCK.latency() : NaN;
+      const dur = tr && tr.duration > 0 ? tr.duration : (dk && dk.a && dk.a.duration > 0 ? dk.a.duration : 0);
+      if (stems && isFinite(pos)){
+        const chart = (typeof STEMS !== 'undefined' && STEMS._chartOf === stems) ? STEMS.chart : hitsChart(stems);
+        for (let i = 0; i < N; i++) quartetLane(lanesF, i, stems, chart, pos, dur);
+        varU.uLive.value = 0;
+      } else {
+        // live: push the bands into the ring each window step; the past half reads it
+        st.acc += dt;
+        const step = QUARTET_WIN / N;
+        while (st.acc >= step){
+          st.acc -= step;
+          const o = st.head * 4;
+          ring[o] = Math.min(1, f.beat || 0); ring[o + 1] = f.bass || 0; ring[o + 2] = f.mid || 0; ring[o + 3] = f.treble || 0;
+          st.head = (st.head + 1) % RING;
+        }
+        for (let i = 0; i < N; i++){
+          const o = i * 4;
+          if (i < RING){
+            const k = ((st.head - RING + i) % RING + RING) % RING * 4;
+            lanesF[o] = ring[k]; lanesF[o + 1] = ring[k + 1]; lanesF[o + 2] = ring[k + 2]; lanesF[o + 3] = ring[k + 3];
+          } else lanesF[o] = lanesF[o + 1] = lanesF[o + 2] = lanesF[o + 3] = 0;
+        }
+        varU.uLive.value = 1;
+      }
+      for (let i = 0; i < N * 4; i++) data[i] = Math.round(clamp01(lanesF[i]) * 255);
+      tex.needsUpdate = true;
+      // the four at now (the centre of the window), for the nodes
+      const a = N / 2 - 1, b = N / 2;
+      varU.uNowQt.value.set(
+        (lanesF[a * 4 + 1] + lanesF[b * 4 + 1]) / 2,     // x: bass
+        (lanesF[a * 4] + lanesF[b * 4]) / 2,             // y: drums
+        (lanesF[a * 4 + 3] + lanesF[b * 4 + 3]) / 2,     // z: the rest
+        (lanesF[a * 4 + 2] + lanesF[b * 4 + 2]) / 2);    // w: voice
+    },
+    roll(){
+      st.face = FACES[Math.floor(Math.random() * FACES.length)];
+      varU.uFaceQt.value = st.face.m;
+      varU.uPhaseQt.value = Math.random() * 20;
+      api.name = 'QUARTET · ' + st.face.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: QUARTET ==== */
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -58668,7 +60618,8 @@ function initThree(){
               buildMaxwell(), buildSeventeen(), buildMinimal(),
               buildMinkowski(), buildBoltzmann(),
               buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta(), buildAurora(), buildCochlea(), buildCoriolis(), buildSeismic(), buildTides(), buildVortex(), buildPlateau(), buildEscapement(), buildHubble(),
-              buildNave(), buildPlotter(), buildSpectral());
+              buildNave(), buildPlotter(), buildSpectral(),
+              buildFluid(), buildQuartet());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
@@ -64267,6 +66218,34 @@ function frame(now){
   if (v2grid) DANCE._beatPost = AE.f.beat;   // the channel as the lattice left it: next frame's rise is read against this
 
   DANCE.update(dt, t);
+  /* STEM LIGHT — the band, read from the separated score (see @stem). The
+     kit's return is precognition the envelope split cannot see: the coil
+     feeds the dancer's brace (and through it the colour wash and CHOREO's
+     suspend), and the frame the drums come back is a landing — the same
+     shockwave, beat and bloom the bass-precognition already fires. */
+  {
+    const dk = activeDeck(), stTr = player.tracks[player.cur];
+    stemLightStep(STEMS.state, {
+      stems: AE.mic.on ? null : trackStems(stTr),
+      pos: dk && dk.a && isFinite(dk.a.currentTime) ? dk.a.currentTime + 0.08 : NaN,
+      playing: player.playing,
+    }, dt);
+    const so = STEMS.out = stemLightOut(STEMS.state);
+    // the drum chart: decoded once per track, read at the AUDIBLE instant
+    // (the media clock less the output path, the CLOCK's own compensation)
+    const sx = AE.mic.on ? null : trackStems(stTr);
+    if (sx !== STEMS._chartOf){ STEMS._chartOf = sx; STEMS.chart = hitsChart(sx); }
+    STEMS.hit = STEMS.chart && player.playing && dk && dk.a && isFinite(dk.a.currentTime)
+      ? hitPulse(STEMS.chart, dk.a.currentTime - CLOCK.latency()) : 0;
+    if (DANCE.on){
+      if (so.landed){
+        if (typeof INTERACT !== 'undefined') INTERACT.impulse = Math.max(INTERACT.impulse, 1);
+        AE.f.beat = Math.max(AE.f.beat, 1.2);
+        DANCE._hits = (DANCE._hits || 0) + 2;
+        DANCE.brace = 0;
+      } else if (so.coil > DANCE.brace) DANCE.brace = so.coil;
+    }
+  }
   if (typeof CHOREO !== 'undefined') CHOREO.update(dt);
 
   // feed uniforms — the beat channel carries the DANCED pulse (anticipation,
@@ -64276,11 +66255,18 @@ function frame(now){
   // safety disposes — the governor is always the last hand on the light.
   const f = AE.f;
   U.uTime.value = DANCE.time + DANCE.warp;
-  U.uBass.value = f.bass; U.uMid.value = f.mid; U.uTreble.value = f.treble; U.uEnergy.value = f.energy;
+  // the separated band leans on the bands: the bass stem owns the body, the
+  // voice the mids, and the strike belongs to the kit — gated BEFORE the
+  // governor, so safety is still the last hand on the light
+  const so = STEMS.out;
+  U.uBass.value = clamp01(f.bass * so.bassMul); U.uMid.value = clamp01(f.mid * so.midMul);
+  U.uTreble.value = f.treble; U.uEnergy.value = f.energy;
   U.uBeat.value = safeBeatStep(SAFE.beatState,
     // the live onset detector IS the music's own hit — it always punches
     // through; the danced grid pulse rides beneath it
-    DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat,
+    // …and with a DRUM CHART the strike is the drummer's own hit (@stem)
+    hitBlend((DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat) * so.beatGate,
+      STEMS.hit, !!STEMS.chart),
     dt, SAFE.tuning());
   // the beat SPRING: an under-damped mass chasing the governed beat. It overshoots
   // on the hit and rebounds — the elastic "boing" a plain decay envelope can't give.

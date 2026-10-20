@@ -208,6 +208,34 @@ jobs:
             echo "room-spectral-$N: rolls $ROLLS"
             N=$((N + 1))
           done
+          # FLUID, every face: r0 in thirds deals the face (THE DANCE, THE
+          # STORM, THE VEIL); r1 and r2 seed the dancers' figures and phases
+          # and r1's half picks the whirl's direction. Six frames, two seeds a
+          # face. --drive-demo runs a beat grid, so look for the splash — a
+          # heavier blob of ink riding each trail from the moment of the hit.
+          N=0
+          for ROLLS in 0.1667,0.25,0.3 0.1667,0.75,0.8 0.5,0.25,0.3 0.5,0.75,0.8 0.8333,0.25,0.3 0.8333,0.75,0.8; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room fluid --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-fluid-$N.png"
+            echo "room-fluid-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
+          # QUARTET, both faces: r0 in halves deals THE SCORE or THE RINGS.
+          # The drive demo has no stems, so the room shows the live past only
+          # (the future is honestly dark) — look for four strands through now.
+          N=0
+          for ROLLS in 0.25,0.3,0.3 0.75,0.6,0.6; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room quartet --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-quartet-$N.png"
+            echo "room-quartet-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
           # MOTION BURST — the TV's "before" for the dance layer (stage 2): six
           # rooms under the --drive-demo metronome (126 BPM, kick-class bass
           # pump), eight frames each as fast as simctl can take them, every shot
@@ -252,8 +280,18 @@ jobs:
           print(f"ICE-RING PIXELS (1/4 sampled): {ice}  ({w}x{h})")
           print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
           EOF
+          for PNG in shots/*.png; do
+            NAME="$(basename "$PNG" .png)"
+            case "$NAME" in burst-*) continue ;; esac   # the bursts travel as montages below
+            sips -Z 640 "$PNG" --out "shots/$NAME.jpg" \
+              -s format jpeg -s formatOptions 50 >/dev/null
+            echo "== BEGIN BASE64 JPEG ($NAME) =="
+            base64 -i "shots/$NAME.jpg" | fold -w 300
+            echo "== END BASE64 JPEG ($NAME) =="
+          done
           # THE MOTION REPORT (stage 2 of the dance layer; not gated until stage
-          # 6). For each burst: the frames greyscaled and downscaled to 160 px
+          # 6). It is printed LAST so the newest readout sits in the tail of the
+          # log that a reader with only the last few thousand lines can reach. For each burst: the frames greyscaled and downscaled to 160 px
           # wide, mean |delta| between consecutive frames in 0..1, the wall-clock
           # dt between shots, and peak/median of the deltas (a comb — one spike
           # over a still — reads high; a body — a delta that rises over frames
@@ -294,15 +332,6 @@ jobs:
                   print(b64[i:i + 300])
               print(f"== END BASE64 JPEG (burst-{room}-montage) ==")
           EOF
-          for PNG in shots/*.png; do
-            NAME="$(basename "$PNG" .png)"
-            case "$NAME" in burst-*) continue ;; esac   # the bursts travel as montages above
-            sips -Z 640 "$PNG" --out "shots/$NAME.jpg" \
-              -s format jpeg -s formatOptions 50 >/dev/null
-            echo "== BEGIN BASE64 JPEG ($NAME) =="
-            base64 -i "shots/$NAME.jpg" | fold -w 300
-            echo "== END BASE64 JPEG ($NAME) =="
-          done
 
       - uses: actions/upload-artifact@v7
         with:
