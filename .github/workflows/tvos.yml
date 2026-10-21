@@ -246,9 +246,11 @@ jobs:
           # CACurrentMediaTime × 2.1, the host's uptime, so the film's start
           # phase against the drive is unknown and the report folds the motion
           # at the drive's period instead) are each FILMED for 4 s by simctl's
-          # recorder, then split by ffmpeg into a constant 24 fps at 320 px
-          # wide: `fps=24` duplicates or drops to the grid, so every frame pair
-          # spans exactly 1/24 s and the deltas are time-normalised. The report
+          # recorder, then its first 5 s split by ffmpeg into a constant 24 fps
+          # at 320 px wide: `fps=24` duplicates or drops to the grid, so every
+          # frame pair spans exactly 1/24 s and the deltas are time-normalised
+          # (a recorder slow to flush keeps filming past the window; those
+          # frames are not the room's). The report
           # step turns the frames into per-frame mean |delta| (MOTION24
           # room=... lines), peak/median, the fold against the drive and ONE
           # 16-frame montage per room. Reported, not gated — stage 6 makes it
@@ -387,8 +389,11 @@ jobs:
             rm -f shots/burst-"$ROOM"-[0-9][0-9][0-9].png
             if [ -s "shots/burst-$ROOM.mov" ]; then
               if command -v ffmpeg >/dev/null 2>&1; then
+                # the film's first 5 s only: a recorder that takes long to flush keeps the film
+                # open past the 4 s window (815 frames, 90 % duplicates, for SPECTRAL in one run),
+                # and the frames past the window are the flush, not the room
                 ffmpeg -nostdin -hide_banner -loglevel error -y -i "shots/burst-$ROOM.mov" \
-                  -vf "fps=24,scale=320:-1" "shots/burst-$ROOM-%03d.png" >> "$LOG" 2>&1 \
+                  -t 5 -vf "fps=24,scale=320:-1" "shots/burst-$ROOM-%03d.png" >> "$LOG" 2>&1 \
                   || echo "[ci] ffmpeg could not split the $TRY_LABEL film (exit $?)" >> "$LOG"
               else
                 echo "[ci] ffmpeg absent; the film is not split" >> "$LOG"
