@@ -82,8 +82,8 @@ static_assert(sizeof(VizUniforms) == 192, "VizUniforms drifted: the CPU mirror u
 inline float danceBeatPhase_a(constant VizUniforms& U){ return fract(U.barPhase * 4.0); }
 // the count's weight: 1 on the one, 0.8 on the three, 0.6 on the two and the four; 0.8 without a bar (freewheel)
 inline float danceBeatWeight_a(constant VizUniforms& U){ if (U.dPeriod <= 0.0) return 0.8; float i = floor(U.barPhase * 4.0); return i < 0.5 ? 1.0 : (abs(i - 2.0) < 0.5 ? 0.8 : 0.6); }
-// the coil before the beat: loads over the last 40 % of the beat, unloads in the last 35 ms as dKick begins to rise; gated by stillness, 0.4 when freewheeling. Rooms subtract ~20 % of the hit's gain x lean: the form draws back before it moves
-inline float danceLean_a(constant VizUniforms& U, float ph){ return U.dStill * (0.6 + 0.4 * U.dStill) * smoothstep(0.60, 0.92, ph) * (1.0 - smoothstep(0.93, 1.0, ph)) * (U.dPeriod > 0.0 ? 1.0 : 0.4); }
+// the coil before the beat: loads over the last 40 % of the beat and unloads INTO the kick, not before it - 1 at ph -> 1 and at ph = 0 (continuous across the beat line), gone by 0.15 beat (75 ms at 120 BPM, inside the spring's 100 ms rise), 0 through the middle of the beat; gated by stillness, 0.4 when freewheeling. Rooms subtract ~20 % of the hit's gain x lean: the form draws back before it moves and lets go AS it moves, so the release is never its own step
+inline float danceLean_a(constant VizUniforms& U, float ph){ return U.dStill * (0.6 + 0.4 * U.dStill) * max(smoothstep(0.60, 0.92, ph), 1.0 - smoothstep(0.0, 0.15, ph)) * (U.dPeriod > 0.0 ? 1.0 : 0.4); }
 // the step: a C1 reshaping of the beat's progress - fastest on the count, dwelling at the half; slope 1 + A*cos >= 0.25 for A <= 0.75, so a walk on it never runs backwards (T += dPeriod * (danceStride(ph, A) - ph))
 inline float danceStride_a(float ph, float A){ return ph + (A / 6.2831853) * sin(6.2831853 * ph); }
 // a travelling head along x (0 near ... 1 far) that leaves at age 0 and arrives at age 1 - the beat as an event with a place

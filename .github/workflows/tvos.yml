@@ -78,7 +78,9 @@ jobs:
   # and photograph what a viewer actually sees. The launch frame proves the
   # focus engine is alive (the welcome's BEGIN chip renders its focus ring
   # only when focused) — the exact regression that reached hardware three
-  # times while every compile check stayed green.
+  # times while every compile check stayed green. Since stage 4 of the dance
+  # layer the job also FILMS six rooms under the drive-demo metronome (the
+  # MOTION FILM block below) so a beat landing is visible at 24 fps.
   sim-shots:
     name: simulator screenshots (focus smoke)
     if: inputs.channel != 'testflight'
@@ -236,27 +238,59 @@ jobs:
             echo "room-quartet-$N: rolls $ROLLS"
             N=$((N + 1))
           done
-          # MOTION BURST — the TV's "before" for the dance layer (stage 2): six
-          # rooms under the --drive-demo metronome (126 BPM, kick-class bass
-          # pump), eight frames each as fast as simctl can take them, every shot
-          # stamped with its wall time just before the capture. The report step
-          # turns the pairs into per-frame mean |delta| (MOTION room=... lines)
-          # and one base64 JPEG montage per room. Reported, not gated — stage 6
+          # MOTION FILM — the TV's dance readout (stage 4 of the dance layer).
+          # Stage 2's burst of eight simctl screenshots cost 0.45–2.3 s apiece
+          # and spanned 4–13 s against a 2.1 Hz drive: nothing at beat
+          # resolution. Now six rooms under the --drive-demo metronome (126 BPM
+          # = 2.1 Hz, a kick-class bass pump; its beats fall on
+          # CACurrentMediaTime × 2.1, the host's uptime, so the film's start
+          # phase against the drive is unknown and the report folds the motion
+          # at the drive's period instead) are each FILMED for 4 s by simctl's
+          # recorder (h264), then split by ffmpeg into a constant 24 fps at
+          # 320 px wide: `fps=24` duplicates or drops to the grid, so every
+          # frame pair spans exactly 1/24 s and the deltas are time-normalised.
+          # The report step turns the frames into per-frame mean |delta|
+          # (MOTION24 room=... lines), peak/median, the fold against the drive
+          # and ONE 16-frame montage per room. Reported, not gated — stage 6
           # makes it law (max delta > 0.002, peakToMedian < 8, a body after the
-          # hit). BSD date has no %N, so the stamp comes from gdate (coreutils,
-          # present on the GitHub macOS runners) or, failing that, perl.
-          now() { gdate +%s.%N 2>/dev/null || perl -MTime::HiRes=time -e 'printf "%.6f\n", time'; }
-          for ROOM in fractal nave plotter spectral spiral pulse; do
+          # hit: delta rising over >= 2 frames).
+          # Two traps of a scripted recorder: (1) a plain `cmd &` in a
+          # non-interactive bash runs with SIGINT IGNORED (the POSIX rule for
+          # asynchronous lists), so `kill -INT` would never reach simctl and
+          # the .mov would never be finalized — the subshell resets the
+          # disposition (trap - INT) before exec'ing the recorder; (2) the wait
+          # after SIGINT is bounded (40 × 0.25 s) and a recorder that will not
+          # stop is killed, so a room reports missing frames instead of
+          # hanging the job. ffmpeg ships on the GitHub macOS images; the brew
+          # fallback is for an image that lost it.
+          command -v ffmpeg >/dev/null 2>&1 || HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg \
+            || echo "::warning::ffmpeg unavailable — the motion films cannot be split into frames"
+          bytes() { if [ -f "$1" ]; then wc -c < "$1" | tr -d ' '; else echo 0; fi; }
+          for ROOM in spectral fractal nave plotter spiral pulse; do
             xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
             sleep 2
             xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room "$ROOM" --drive-demo
-            sleep 8
-            : > "shots/burst-$ROOM.times"
-            for N in 1 2 3 4 5 6 7 8; do
-              now >> "shots/burst-$ROOM.times"
-              xcrun simctl io "$UDID" screenshot "shots/burst-$ROOM-$N.png"
+            sleep 6
+            rm -f "shots/burst-$ROOM.mov" shots/burst-"$ROOM"-[0-9][0-9][0-9].png
+            ( trap - INT; exec xcrun simctl io "$UDID" recordVideo --codec h264 --force "shots/burst-$ROOM.mov" ) &
+            REC=$!
+            sleep 4
+            kill -INT "$REC" 2>/dev/null || true
+            for _ in {1..40}; do
+              kill -0 "$REC" 2>/dev/null || break
+              sleep 0.25
             done
-            echo "burst-$ROOM: 8 frames at $(tr '\n' ' ' < "shots/burst-$ROOM.times")"
+            if kill -0 "$REC" 2>/dev/null; then
+              echo "burst-$ROOM: the recorder did not stop on SIGINT within 10 s — killing it"
+              kill -KILL "$REC" 2>/dev/null || true
+            fi
+            wait "$REC" 2>/dev/null || true
+            if [ -s "shots/burst-$ROOM.mov" ] && command -v ffmpeg >/dev/null 2>&1; then
+              ffmpeg -nostdin -hide_banner -loglevel error -y -i "shots/burst-$ROOM.mov" \
+                -vf "fps=24,scale=320:-1" "shots/burst-$ROOM-%03d.png" \
+                || echo "burst-$ROOM: ffmpeg could not split the film"
+            fi
+            echo "burst-$ROOM: $(ls shots/burst-"$ROOM"-[0-9][0-9][0-9].png 2>/dev/null | wc -l | tr -d ' ') frames at 24 fps from $(bytes "shots/burst-$ROOM.mov") bytes of h264"
           done
 
       # The artifact store is unreachable from some review environments, so
@@ -280,53 +314,137 @@ jobs:
           print(f"ICE-RING PIXELS (1/4 sampled): {ice}  ({w}x{h})")
           print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
           EOF
-          for PNG in shots/*.png; do
-            NAME="$(basename "$PNG" .png)"
-            case "$NAME" in burst-*) continue ;; esac   # the bursts travel as montages below
-            sips -Z 640 "$PNG" --out "shots/$NAME.jpg" \
+          # The per-face dumps, in two passes so the rooms under review sit in
+          # the reachable tail of the log (a reader with get_job_logs sees the
+          # last ~5000 lines; a face costs 60–100 of them, a montage 40–80):
+          # first every face NOT under review in glob order, then the reviewed
+          # rooms in REVERSE priority, so the room of the current stage —
+          # spectral, first in priority — is the LAST of the faces, directly
+          # before the MOTION report that closes the log.
+          REVIEW="pulse spiral plotter nave fractal spectral"   # last = nearest the tail
+          dump_face() {
+            NAME="$(basename "$1" .png)"
+            sips -Z 640 "$1" --out "shots/$NAME.jpg" \
               -s format jpeg -s formatOptions 50 >/dev/null
             echo "== BEGIN BASE64 JPEG ($NAME) =="
             base64 -i "shots/$NAME.jpg" | fold -w 300
             echo "== END BASE64 JPEG ($NAME) =="
+          }
+          for PNG in shots/*.png; do
+            NAME="$(basename "$PNG" .png)"
+            case "$NAME" in
+              burst-*) continue ;;                      # the films travel as montages below
+              room-pulse|room-spiral|room-plotter-*|room-nave-*|room-fractal-*|room-spectral-*) continue ;;
+            esac
+            dump_face "$PNG"
           done
-          # THE MOTION REPORT (stage 2 of the dance layer; not gated until stage
-          # 6). It is printed LAST so the newest readout sits in the tail of the
-          # log that a reader with only the last few thousand lines can reach. For each burst: the frames greyscaled and downscaled to 160 px
-          # wide, mean |delta| between consecutive frames in 0..1, the wall-clock
-          # dt between shots, and peak/median of the deltas (a comb — one spike
-          # over a still — reads high; a body — a delta that rises over frames
-          # and falls — reads low). Then ONE montage per room: the eight frames
-          # in a row, 160 px wide each, as a base64 JPEG any reader can decode.
+          for ROOM in $REVIEW; do
+            for PNG in "shots/room-$ROOM.png" shots/room-"$ROOM"-*.png; do
+              [ -f "$PNG" ] || continue
+              dump_face "$PNG"
+            done
+          done
+          # THE MOTION REPORT (stage 4 of the dance layer; not gated until stage
+          # 6). Printed LAST so the newest readout sits in the tail of the log
+          # that a reader with only the last few thousand lines can reach. For
+          # each film: the 24 fps frames greyscaled and downscaled to 160 px
+          # wide; delta k = mean |frame k+1 − frame k| in 0..1, stamped at frame
+          # k+1's time (the moment the change is seen), every pair spanning
+          # exactly 1/24 s; peak/median of the deltas (a comb — one spike over a
+          # still — reads high; a body — a delta that rises over frames and
+          # falls — reads low); the FOLD of the deltas at the drive's period
+          # (1/2.1 s): lagMs is the phase of the folded maximum from the film's
+          # first frame (the drive's phase at that frame is unknown — it beats
+          # on the host's uptime — so lagMs places the beats inside THIS film
+          # and is not comparable across rooms or runs), lockR the share of the
+          # motion that sits at 2.1 Hz (the first-harmonic resultant, 0..1; a
+          # still or an unlocked drift reads near 0), fold the 12-bin profile
+          # normalised to its peak (a body is a hump, a spike one hot bin),
+          # beatFrames the frames nearest the folded peaks (1-based, as the
+          # PNGs are numbered) and rise the consecutive rising deltas into each
+          # — stage 6 wants >= 2 (a body, not a spike). dupes counts deltas of
+          # exactly zero (the simulator rendered below 24 fps and ffmpeg
+          # repeated a frame); gaps the frame numbers ffmpeg skipped (a delta
+          # across a gap is dropped, not stretched). Then ONE montage per room:
+          # the 16 frames from the last rest frame before the first folded beat
+          # inside the film, 160 px wide each, as a base64 JPEG any reader can
+          # decode; a missing frame is a dark tile.
           python3 - << 'EOF' || echo "motion report unavailable"
-          import base64, io, os, statistics
+          import base64, glob, io, math, re, statistics
           from PIL import Image, ImageChops, ImageStat
-          ROOMS = ["fractal", "nave", "plotter", "spectral", "spiral", "pulse"]
-          W = 160
+          ROOMS = ["spectral", "fractal", "nave", "plotter", "spiral", "pulse"]
+          FPS = 24.0
+          PERIOD = 1.0 / 2.1          # the drive: 126 BPM, beats at CACurrentMediaTime * 2.1
+          BINS = 12                   # the fold's resolution: 39.7 ms a bin (a 24 fps frame is 41.7 ms)
+          W, MONT, MAXRISE = 160, 16, 8
           for room in ROOMS:
-              paths = [f"shots/burst-{room}-{n}.png" for n in range(1, 9)]
-              if not all(os.path.exists(p) for p in paths):
-                  print(f"MOTION room={room} missing frames ({sum(os.path.exists(p) for p in paths)} of 8)")
+              idx = {}
+              for p in sorted(glob.glob(f"shots/burst-{room}-[0-9][0-9][0-9].png")):
+                  m = re.search(r"-(\d{3})\.png$", p)
+                  if m:
+                      idx[int(m.group(1)) - 1] = p          # burst-<room>-001.png is frame 0
+              n = len(idx)
+              if n < 2:
+                  print(f"MOTION24 room={room} frames={n} delta=[] peakToMedian=nan lagMs=nan lockR=nan dupes=0 gaps=0 fold=[] beatFrames=[] rise=[] (no film)")
                   continue
-              frames = [Image.open(p).convert("RGB") for p in paths]
-              w, h = frames[0].size
-              hh = max(1, round(h * W / w))
-              small = [f.convert("L").resize((W, hh), Image.BILINEAR) for f in frames]
-              deltas = [ImageStat.Stat(ImageChops.difference(a, b)).mean[0] / 255.0
-                        for a, b in zip(small, small[1:])]
-              try:
-                  times = [float(x) for x in open(f"shots/burst-{room}.times").read().split()]
-              except Exception:
-                  times = []
-              dts = [round(b - a, 3) for a, b in zip(times, times[1:])] if len(times) == 8 else []
-              med = statistics.median(deltas)
-              p2m = (max(deltas) / med) if med > 1e-9 else float("inf")
-              print(f"MOTION room={room} dt={dts} delta={[round(x, 5) for x in deltas]} peakToMedian={p2m:.2f}")
-              strip = Image.new("RGB", (W * 8, hh))
-              for i, f in enumerate(frames):
-                  strip.paste(f.resize((W, hh), Image.BILINEAR), (i * W, 0))
+              last = max(idx)
+              gaps = (last + 1) - n
+              small, size = {}, None
+              for k in sorted(idx):
+                  im = Image.open(idx[k]).convert("L")
+                  if size is None:
+                      w, h = im.size
+                      size = (W, max(1, round(h * W / w)))
+                  small[k] = im.resize(size, Image.BILINEAR)
+              deltas = {}
+              for k in range(last):
+                  if k in small and k + 1 in small:
+                      deltas[k + 1] = ImageStat.Stat(ImageChops.difference(small[k], small[k + 1])).mean[0] / 255.0
+              vals = [deltas[k] for k in sorted(deltas)]
+              med = statistics.median(vals)
+              p2m = (max(vals) / med) if med > 1e-9 else float("inf")
+              dupes = sum(1 for v in vals if v < 1e-6)
+              fold, cnt, re_, im_ = [0.0] * BINS, [0] * BINS, 0.0, 0.0
+              for k, v in deltas.items():
+                  ph = ((k / FPS) / PERIOD) % 1.0
+                  b = min(BINS - 1, int(ph * BINS))
+                  fold[b] += v
+                  cnt[b] += 1
+                  re_ += v * math.cos(2 * math.pi * ph)
+                  im_ += v * math.sin(2 * math.pi * ph)
+              prof = [(fold[b] / cnt[b]) if cnt[b] else 0.0 for b in range(BINS)]
+              top = max(prof)
+              bmax = max(range(BINS), key=lambda b: prof[b])
+              lag_ms = (bmax + 0.5) / BINS * PERIOD * 1000.0 if top > 0 else float("nan")  # a still has no beat to place
+              tot = sum(vals)
+              lock_r = math.hypot(re_, im_) / tot if tot > 1e-12 else 0.0
+              beat_frames, rise = [], []
+              for k in range(0, 64 if top > 0 else 0):     # 4 s of film holds ~8 beats; 64 is a hard ceiling
+                  f = int(round((lag_ms / 1000.0 + k * PERIOD) * FPS))
+                  if f > last:
+                      break
+                  if f < 1:
+                      continue
+                  beat_frames.append(f + 1)
+                  r, j = 0, f
+                  while r < MAXRISE and j - 1 in deltas and j in deltas and deltas[j] > deltas[j - 1]:
+                      r += 1
+                      j -= 1
+                  rise.append(r)
+              print(f"MOTION24 room={room} frames={n} delta={[round(x, 5) for x in vals]} peakToMedian={p2m:.2f} lagMs={lag_ms:.0f}"
+                    f" lockR={lock_r:.2f} dupes={dupes} gaps={gaps} fold={[round(x / top, 2) if top > 0 else 0.0 for x in prof]}"
+                    f" beatFrames={beat_frames} rise={rise}")
+              first = (beat_frames[0] - 2) if beat_frames else 0  # 0-based: the last rest frame before the first peak
+              first = max(0, min(first, last + 1 - MONT))
+              strip = Image.new("RGB", (W * MONT, size[1]), (24, 24, 24))
+              for i in range(MONT):
+                  k = first + i
+                  if k in idx:
+                      strip.paste(Image.open(idx[k]).convert("RGB").resize(size, Image.BILINEAR), (i * W, 0))
               buf = io.BytesIO()
               strip.save(buf, format="JPEG", quality=60)
               b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+              print(f"MONTAGE24 room={room} frames={first + 1}..{first + MONT} firstBeatFrame={beat_frames[0] if beat_frames else 'none'}")
               print(f"== BEGIN BASE64 JPEG (burst-{room}-montage) ==")
               for i in range(0, len(b64), 300):
                   print(b64[i:i + 300])
