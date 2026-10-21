@@ -8494,6 +8494,150 @@ test('SPECTRAL_FRAG keeps the ten laws: no raw band or live row on a displacemen
   assert.ok(/s \+= data\[AUDIO_LIVE \+ i\]; q \+= data\[i\];/.test(build), 'the live row and the slow row are both read');
 });
 
+/* THE TEN LAWS, GREPPED — PLOTTER, the second room re-choreographed on the dance
+   bus (stage 4). The beat is a stroke along the pen's depth: struck on the hit,
+   travelling near to far over the beat on every pen, weighted by the count and the
+   passage; the camera lunges on the count and strides with the beat. LAW checks,
+   never constant pins: the regexes allow any constant on a term, the gate decides
+   the amplitudes. Law 1 is the forbidden (raw input, target) pairs plus the stronger
+   claim that no raw band is read anywhere in the room; law 10's "the twin tells the
+   same story" is checked by finding the web's dance statements, whitespace aside, in
+   Shaders41.metal's room_plotter. */
+test('buildPlotter keeps the ten laws: the stroke on the beat\'s own age, no raw band anywhere, the dance helpers read, the twin the same text', () => {
+  const b0 = html.indexOf('function buildPlotter(){'), b1 = html.indexOf('/* ==== END ROOM REGION: PLOTTER', b0);
+  assert.ok(b0 >= 0 && b1 > b0, 'buildPlotter is in the player');
+  const build = html.slice(b0, b1);
+  const f0 = build.indexOf('const frag = '), f1 = build.indexOf('\n  `;', f0);
+  assert.ok(f0 >= 0 && f1 > f0, 'the fragment is inline in the builder');
+  const room = build.slice(f0, f1);
+  assert.ok(room.startsWith('const frag = GLSL_MPHI + GLSL_DANCE + `'), 'GLSL_DANCE is prepended after GLSL_MPHI');
+  assert.ok(!/uniform\s+float[^;]*\buBarPhase\b/.test(room), 'the room does not redeclare uBarPhase (the prelude declares it)');
+  const twelve = ['dHit', 'dAge', 'dKick', 'dMass', 'dArtic', 'dSpark', 'dSway', 'dLift', 'dBrace', 'dImpact', 'dStill', 'dPeriod'];
+  for (const n of twelve) assert.ok(!new RegExp('\\b(float|vec[234]|int|bool)\\s+' + n + '\\b').test(room), n + ' is a macro: never a local');
+  const stmts = room.split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').split(';');
+  const code = stmts.join(';');
+  // law 1 — no raw band, no beat envelope, no pulse anywhere in the room; and the pairs, so a future edit is named precisely
+  const RAW = ['uBass', 'uMid', 'uTreble', 'uEnergy', 'uBeat', 'uPulse', 'uBeatIdx', 'uAudio'];
+  for (const u of RAW) assert.ok(!new RegExp('\\b' + u + '\\b').test(code), u + ' is not read anywhere in the room');
+  const TARGETS = {
+    thickness: ['wOut', 'kP', 'hwMin', 'hwMaj', 'hw2', 'hw3', 'hwR', 'swell', 'wS', 'rim'],
+    position:  ['ang', 'f1', 'fl', 'tf', 'tL', 'headF', 'liftF', 'ro', 'ageS'],
+    camera:    ['az', 'el', 'dist', 'Tw', 'lunge'],
+    count:     ['lo', 'hi', 'th1', 'th2', 'fam', 'famCalm', 'dealt', 'barOn', 'halfs', 'ring2'],
+  };
+  for (const [kind, names] of Object.entries(TARGETS)) for (const n of names) {
+    const lhs = new RegExp('(^|[^\\w.])(float|vec[234])?\\s*' + n + '\\s*(=|\\+=|-=|\\*=)(?!=)');
+    for (const st of stmts) if (lhs.test(st)) for (const u of RAW.concat(['bass', 'mid', 'treble', 'energy', 'beat', 'pulse']))
+      assert.ok(!new RegExp('\\b' + u + '\\b').test(st), `${u} reaches the ${kind} term ${n}: ${st.trim().slice(0, 90)}`);
+  }
+  // law 5 — the hats are light: dSpark never in a width, a position or a count
+  for (const [kind, names] of Object.entries(TARGETS)) for (const n of names) {
+    const lhs = new RegExp('(^|[^\\w.])(float|vec[234])?\\s*' + n + '\\s*(=|\\+=|-=|\\*=)(?!=)');
+    for (const st of stmts) if (lhs.test(st)) assert.ok(!/\b(dSpark|hair)\b/.test(st), `the hats reach the ${kind} term ${n}: ${st.trim().slice(0, 90)}`);
+  }
+  assert.ok(/float hair = 1\.0 \+ 0\.\d+ \* dSpark;/.test(room), 'the hats: a hairline of light (law 5)');
+  // the helpers the retelling is built from, and the bus fields it reads
+  for (const h of ['danceLamp(dHit, ageS)', 'danceLean(', 'danceStride(', 'danceLand(dImpact', 'danceHeld(', 'danceBeatPhase()']) assert.ok(room.includes(h), 'reads ' + h);
+  for (const d of ['dStill', 'dKick', 'dMass', 'dBrace', 'dImpact', 'dSway', 'dLift', 'dSpark', 'dPeriod']) assert.ok(new RegExp('\\b' + d + '\\b').test(code), 'reads ' + d);
+  assert.ok(!/\bdArtic\b/.test(code), 'law 4: live dArtic is not read (the turn is held per bar through danceHeld)');
+  // law 6 — the beat is a stroke with a place: struck by danceLamp, placed by dAge along the pen's depth, on every pen
+  assert.ok(/float lamp = danceLamp\(dHit, ageS\) \* dStill \* heft \* cnt\b/.test(room), 'the lamp: danceLamp(dHit, the stroke\'s age) x dStill x the passage x the count (laws 6, 7, 8)');
+  assert.ok(/float tf = tC \+ tNear \+ \(tFar - tNear\) \* min\(ageS, 1\.0\);/.test(room), 'the stroke runs near to far along the ray over one beat, on the stroke\'s age');
+  // R1 (the refine): the stroke's clock is the beat's own age - a strike on the beat line restarts it, one inside a beat
+  // already struck (a roll's 8th or 16th) never rewinds it. Evaluated from the room's own two statements on rolls at 60 fps
+  const spM = room.match(/float sp = (fract\(bp - dAge[^;]+);/), agM = room.match(/float ageS = ([^;]+);/);
+  assert.ok(spM && agM && /\bdAge\b/.test(agM[1]) && /\bdPeriod > 0\.0\b/.test(agM[1]), 'the stroke\'s clock (sp, ageS) on dAge, freewheeling on dAge alone');
+  const js = e => e.replace(/\bfract\(/g, 'F(').replace(/\bsmoothstep\(/g, 'S(').replace(/\bmax\(/g, 'Math.max(').replace(/\bmin\(/g, 'Math.min(');
+  const ageOf = new Function('bp', 'dAge', 'dPeriod', 'F', 'S', 'const sp = ' + js(spM[1]) + '; return ' + js(agM[1]) + ';');
+  const Ff = x => x - Math.floor(x), Sf = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
+  for (const [step, early] of [[0.25, 0.02], [0.5, 0.02], [0.25, -0.05], [1.0, 0.03]]){
+    // strikes every `step` beat, rendered `early` beat before their grid line (negative: a frame's late detection)
+    let prev = null, last = -9;
+    for (let f = 0; f < 4 * 30; f++){
+      const t = f / 30, bp = Ff(t);
+      const k = Math.floor((t + early) / step + 1e-9), st = k * step - early;
+      const struck = st <= t + 1e-9 && st > last + 1e-9;
+      if (struck) last = st;
+      const dAge = Math.min(4, t - last), ageS = ageOf(bp, dAge, 0.5, Ff, Sf);
+      const onLine = Math.abs(Ff(last + early + 0.5) - 0.5) < 1e-6;
+      if (struck && prev != null && !onLine)
+        assert.ok(ageS >= prev - 1e-6, `a strike inside the beat (every ${step} beat) never rewinds the stroke: ${prev.toFixed(3)} -> ${ageS.toFixed(3)} at beat ${t.toFixed(3)}`);
+      if (struck && onLine) assert.ok(ageS < 0.1, `a strike on the beat line restarts the stroke (${ageS.toFixed(3)})`);
+      if (step === 1.0) assert.ok(Math.abs(ageS - dAge) < 1e-9, 'the groove (strikes on the beat lines only) runs on dAge itself');
+      prev = ageS;
+    }
+  }
+  assert.ok(ageOf(0.5, 0.3, 0.0, Ff, Sf) === 0.3, 'freewheeling, the stroke\'s clock is dAge');
+  assert.ok(/float band = ptKnee\(ptBand\(t, tf, bw\) \* lamp\);/.test(room) && /float ptKnee\(float x\)\{ return x < ([\d.]+) \? x : \1 \+ \(x - \1\) \/ \(1\.0 \+ [\d.]+ \* \(x - \1\)\); \}/.test(room), 'the stroke is heavier through a knee (C1, linear below it), never a fused band (R3)');
+  for (const st of stmts) if (/float swell = /.test(st)) assert.ok(/min\([^;]*, \d\.\d+\)/.test(st), 'the width swell is capped: ' + st.trim());
+  assert.ok(/ptBand\(t, tf, bw\) \* lamp/.test(room) && /ptBand\(grazeT, tf, bw\) \* lamp/.test(room) && /ptBand\(gminT, tf, bw\) \* lamp/.test(room), 'every pen takes the stroke at its own depth: the hit, the occlusion contour, the silhouette');
+  for (const st of stmts) if (/(^|\s)col \*=/.test(st)) assert.ok(!/\b(dHit|dKick|band|lamp|re|land|lunge|cnt)\b/.test(st), 'no whole-frame multiplier on the hit: ' + st.trim());
+  // laws 2 and 3 — one lunge toward the eye on the spring (read signed) and the struck decay, drawn back before the count; the field of view fixed
+  assert.ok(/float lunge = \(0\.\d+ \* dKick \+ 0\.\d+ \* ptStrike\(ageS\) \* dStill\) \* heft \* body;/.test(room), 'the lunge: dKick signed (one rebound) and the struck decay on the stroke\'s age (a roll never snaps it back), by the passage and the body\'s count');
+  assert.ok(!/(max|clamp)\(\s*dKick/.test(code), 'dKick is never clamped: the rebound is the body');
+  const distSt = stmts.find(st => /float dist = /.test(st)) || '';
+  assert.ok(/\(1\.0 - 0\.\d+ \* lunge\b/.test(distSt) && /\+ 0\.\d+ \* coil\b/.test(distSt) && /\+ 0\.\d+ \* lean\b/.test(distSt) && /- 0\.\d+ \* dLift\b/.test(distSt), 'one dolly: the lunge in, the coil and the lean back, the phrase\'s lift in (laws 2, 3, 7, 9)');
+  assert.ok(/const float FOV = 0\.80;/.test(room) && !/\bFOV\s*(=|\*=|\+=)/.test(code.replace('const float FOV = 0.80', '')), 'the field of view never moves');
+  for (const st of stmts) if (/\bFOV\b/.test(st)) assert.ok(!/\b(dHit|dAge|dKick|lunge|lamp|band|dMass|heft|cnt|dLift|dSway|coil|lean)\b/.test(st), 'the field of view never moves on the bus: ' + st.trim().slice(0, 90));
+  // law 7 — the count from the bar phase at the strike, the lean for the count ahead, the bar's nod, the phrase's lift
+  assert.ok(/float ptBeatW\(float age\)\{/.test(room) && /float cnt = ptBeatW\(ageS\)/.test(room), 'the count\'s weight read at the beat line the stroke belongs to (the stroke\'s age)');
+  const nudge = room.match(/fract\(uBarPhase - 0\.25 \* age \+ (0\.\d+)\)/);
+  assert.ok(nudge && +nudge[1] > 0.005 && +nudge[1] <= 0.04, 'the count rounds a read-ahead strike onto its beat and a roll\'s last 16th onto the four (nudge <= 0.15 beat): ' + (nudge && nudge[1]));
+  assert.ok(/float ptLeanW\(\)\{/.test(room) && /fract\(uBarPhase \+ 0\.1\)/.test(room), 'the lean\'s weight from the count ahead');
+  assert.ok(/float el = [^;]*\+ 0\.\d+ \* dSway;/.test(room), 'the bar nods the camera (dSway)');
+  // law 4 — the fold's turn re-sculpted once a bar through the prelude's hold, never on a hit
+  assert.ok(/ang \+= 0\.\d+ \* \([^;]*ptHeld\(bar8, barPh, [\d.]+\) - 0\.5\) \* dStill\)/.test(room) && /danceHeld\(bar8/.test(room), 'the turn is held per bar (danceHeld), still in a rest');
+  // law 8 — every beat-locked figure is still in a rest; the planes' tide on the phrase, never a beat
+  assert.ok(/float Tw = T \+ dPeriod \* \(danceStride\(bp, [^;]*\) - bp\) \* dStill;/.test(room) && /float az = TAU \* fract\(ph \+ Tw \/ \d+\.\d+\) \+ 0\.\d+ \* wave\(Tw,/.test(room), 'the stride warps the orbit\'s clock (seamless at the beat line), the whole azimuth on it');
+  const strideA = room.match(/float Tw = T \+ dPeriod \* \(danceStride\(bp, (\d\.\d+) \*/);
+  assert.ok(strideA && +strideA[1] <= 0.27, 'the walk never runs backwards while uTime runs at the rubato\'s measured floor (0.27 of the wall): stride amplitude ' + (strideA && strideA[1]));
+  assert.ok(/float f1 = [^;]*sin\(TAU \* uPhrasePhase\) \* dStill/.test(room) && /float fl = [^;]*sin\(TAU \* uPhrasePhase\) \* dStill/.test(room), 'the section planes and the rings ride the phrase\'s tide, still in a rest');
+  // law 9 — the coil tightens the pens, the pressure and the camera, and is released through the landing; the release is a swell along the stroke's parameter
+  assert.ok(/float coil = max\(dBrace, 0\.\d+ \* \(1\.0 - smoothstep\(0\.0, 2\.0, dImpact\)\)\);/.test(room), 'the coil: dBrace, released over the half-bar after the landing');
+  assert.ok(/float kP = kR \* \(1\.0 - 0\.\d+ \* coil\);/.test(room) && /float pressure = [^;]*\(1\.0 - 0\.\d+ \* coil\);/.test(room), 'the coil thins and dims the pens');
+  assert.ok(/float land = max\(danceLand\(dImpact\), 0\.0\);/.test(room) && /float tL = tC \+ tNear \+ \(tFar - tNear\) \* min\((0\.\d+ \* )?dImpact, 1\.0\);/.test(room) && /float rel = max\(danceLand\((0\.\d+ \* )?dImpact\), 0\.0\);/.test(room) && /float re = ptBand\(t, tL, bwL\) \* rel;/.test(room), 'the release re-inks the drawing near to far on the landing (danceLand on its own clock, clamped to light)');
+  // what is drawn is a section-level fact: the families on uCalm, re-dealt per bar along the stroke's parameter, never on a hit
+  assert.ok(/float famCalm = max\(smoothstep\([^;]*uCalm\), [^;]*dImpact[^;]*\);/.test(room) && /float fam = min\(famCalm \* \([^;]*dealt\), [\d.]+\);/.test(room) && /float headF = tC \+ tNear \+/.test(room), 'the families: the section\'s level (and the landing\'s), the bar\'s family on top');
+  // R2 (the refine): the bar breathes a family - dealt on the one behind the bar's head (the prelude's hold), lifted by a second
+  // head before the next one (so the deal only ever adds ink on the one), held while the beats are struck, still in a rest
+  assert.ok(/float dealt = [^;]*ptHeldB\(bar8, [\d.]+\)[^;]*ptBehind\(t, headF\)[^;]*ptBehind\(t, liftF\)[^;]*\* barOn;/.test(room), 'the bar\'s family: dealt behind the bar\'s head, lifted behind the lift\'s');
+  assert.ok(/float barOn = \(1\.0 - smoothstep\([^;]*ageS\)\) \* dStill \* \(1\.0 - dBrace\);/.test(room), 'the family is held while the beats are struck, still in a rest and through the brace');
+  const lift = room.match(/float liftF = tC \+ tNear \+ ([\d.]+) \* \(tFar - tNear\) \* \(barPh - ([\d.]+)\);/), head = room.match(/float headF = tC \+ tNear \+ ([\d.]+) \* \(tFar - tNear\) \* barPh;/);
+  assert.ok(lift && head && +lift[2] >= 0.5 && +lift[1] * (1 - +lift[2]) >= 1.0 && +head[1] >= 1.0, 'the lift runs near to far after the bar\'s middle and reaches the far side before the bar line; the head crosses within the bar');
+  for (const st of stmts) if (/(float halfs|float ring2) = /.test(st)) assert.ok(/\bdealt\b/.test(st), 'the half-steps and half-rings are the bar\'s family: ' + st.trim().slice(0, 90));
+  // every loop bounded by a compile-time literal
+  const loops = [...room.matchAll(/for\s*\(([^)]*)\)/g)].map(m => m[1]);
+  assert.ok(loops.length >= 4, 'the march, the flake, the trap and the close-in are loops');
+  for (const l of loops) assert.ok(/^\s*int \w+ = 0;\s*\w+ < \d+;\s*\w+\+\+\s*$/.test(l), 'literal-bounded loop: ' + l);
+  // the JS side: no pulse uniform, the dance clock never read here (the prelude's bar clock is the room's)
+  assert.ok(!/uPulse/.test(build) && !/DANCE\.phase/.test(build), 'no uPulse, no DANCE.phase in the builder');
+  // law 10 — the twin: the dance statements are the same text in Shaders41.metal's room_plotter (whitespace aside)
+  const metal = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Shaders41.metal'), 'utf8');
+  const m0 = metal.indexOf('fragment float4 room_plotter('), m1 = metal.indexOf('/* ==== END ROOM REGION: PLOTTER', m0);
+  assert.ok(m0 >= 0 && m1 > m0, 'room_plotter is in Shaders41.metal');
+  const ws = s => s.replace(/\s+/g, ' ').trim();
+  const strip = s => s.split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const twin = ws(strip(metal.slice(m0, m1))), twinAll = ws(strip(metal));
+  const KEY = /^(float|vec[234])\s+(bp|sp|ageS|lean|coil|land|heft|barPh|cnt|body|kP|pressure|wOut|hair|tf|bw|lamp|tL|bwL|rel|headF|liftF|barOn|band|re|swell|famCalm|dealt|fam|lo|f1|fl|Tw|az|el|lunge|dist|hwMin|hwR|hw2|hw3|rim|bandS|wS|bandG|halfs|ring2)\b/;
+  const keys = stmts.map(s => ws(s)).filter(s => KEY.test(s));
+  assert.ok(keys.length >= 30, 'the dance statements were found: ' + keys.length);
+  for (const k of keys) assert.ok(twin.includes(k + ';'), 'the twin carries the same line: ' + k.slice(0, 90));
+  for (const h of ['ptHeldA', 'ptHeldB', 'ptHeld', 'ptBand', 'ptStrike', 'ptKnee', 'ptBehind']) {
+    const m = room.match(new RegExp('float ' + h + '\\([^)]*\\)\\{[^\\n]*'));
+    assert.ok(m && twinAll.includes(ws(m[0])), 'the twin\'s ' + h + ' is the same text');
+  }
+  assert.ok(/#define ptBeatW\(a\) ptBeatW\(U, \(a\)\)/.test(metal) && /inline float ptBeatW\(constant VizUniforms& U, float age\)\{/.test(metal) && /#define ptLeanW\(\) ptLeanW\(U\)/.test(metal) && /return float4\(govern\(VOID \+ max\(col, float3\(0\.0\)\), U\.white\), 1\.0\);/.test(metal), 'the twin passes U to the count helpers and governs its exit');
+  // ...and the whole story, not only the dance statements: the room's body (from the bus read to the pens' last line), its helpers and
+  // its count helpers (through the accessor map) are the same lines on both stages, comments and whitespace aside (the parity law)
+  const lines = s => strip(s).split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const cut = (s, x, y) => { const i = s.indexOf(x), j = s.indexOf(y, i + 1); assert.ok(i >= 0 && j > i, 'found ' + x + ' .. ' + y); return s.slice(i, j); };
+  assert.deepStrictEqual(lines(cut(metal, 'float bp = danceBeatPhase();', 'col *= 1.7;')).filter(l => !l.startsWith('#undef ')), lines(cut(room, 'float bp = danceBeatPhase();', 'col *= 1.7;')), 'the twin\'s body is the web\'s, line for line');
+  assert.deepStrictEqual(lines(cut(metal, 'float wave(', 'inline float ptBeatW(')), lines(cut(room, 'float wave(', 'float ptBeatW(')), 'the twin\'s helpers are the web\'s, line for line');
+  const accessors = s => s.replace(/\bU\.dPeriod\b/g, 'dPeriod').replace(/\bU\.barPhase\b/g, 'uBarPhase').replace(/^inline float (pt\w+)\(constant VizUniforms& U(, )?/gm, 'float $1(');
+  assert.deepStrictEqual(lines(accessors(cut(metal, 'inline float ptBeatW(', '}  // namespace rm_pt'))), lines(cut(room, 'float ptBeatW(', 'void main')), 'the twin\'s count helpers are the web\'s through the accessor map');
+  assert.ok(/float uCalm = 1\.0 - U\.calm, uBarPhase = U\.barPhase, uPhrasePhase = U\.phrasePhase;/.test(metal), 'the TV reads the loudness in the web\'s sense (its analyser counts calm DOWN as the music gets loud)');
+});
+
 /* THE FROZEN TRACE. A fixed synthetic drive at 120 BPM and 60 Hz: one bar of
    count-in at rest (beats 0..3), eight beats of groove (kick on 1 and 3,
    snare on 2 and 4, hats on every eighth; the levels decay from each hit),
