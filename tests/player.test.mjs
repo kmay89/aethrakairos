@@ -36,7 +36,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' CUE_SLOTS, CUE_COLORS, cueSnap, autoCuePoints, AUTOCUE, cueJumpAt, cueJumpLand, beatJumpTarget, EQ_KILL_DB, EQ_BANDS, fxEqToggle, fxEqIsFlat,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
-  ' camelotHue, oklchToRgb, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
+  ' camelotHue, oklchToRgb, oklchToRgbFine, lerpOklch, colorPlan, PHI, intervalHue, goldenGate,' +
   ' INK, inkRolloff, whiteBudget, rampStops, buildRamp, RAMP_N,' +
   ' SAFE_TUNING, relLuma, redFraction, gateLuma, makeSafeColorState, safeColorStep,' +
   ' FITTS, fittsTime, fittsReach, rectGrow, rectOverlap, fittsBudget, fittsSteals, travelCost,' +
@@ -48,6 +48,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' STEM_LIGHT, STEM_CUT_DWELL, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
   ' HIT_VOICES, HIT_SKIP, hitsDecode, hitsChart, hitsLast, hitPulse, hitBlend, stemMood, QUARTET_N, QUARTET_WIN, quartetLane,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
+  ' danceWindowLevel, danceWarpSlew, danceSectionTurn, danceSilenceAhead, danceStemFeed, hitVoices,' +
   ' danceLeanJS, danceStrideJS, danceFrontJS, danceLampJS, danceLandJS, danceRingJS, danceBreathJS, danceBeatWeightJS,' +
   ' makeMediaClock, clockReset, clockSample, clockRead, tapTempo, phaseLock, planMixNow, envSample, peaksFromEnv,' +
   ' powerPlan, echoSignals, echoPick, echoCompose, ECHO_QUOTES, ECHO_PROMPTS, ECHO_ACK, ECHO_FRAGS, ECHO_TURN,' +
@@ -70,7 +71,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, cherenkovRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
-  ' pyroRate, pyroFire, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
+  ' pyroRate, pyroFire, pyroStillGain, pyroPick, pyroSalt, PYRO_SHOW, pyroLead, pyroProgram, flameSpectrum,' +
   ' CIE_LOBES, XYZ_TO_SRGB, xyzToLinearRGB, DISC_PITCH, AIRY_J1_ZERO, rayleighSep, DISP_WB,' +
   ' FILAMENT_FORMS, LORENZ, THOMAS_B, FILM_N, FILM_R0, FILM_AGES, filmState, TERRAIN_FORMS,' +
   ' CREATURE_FORMS, creatureGenome, creatureSeed, BARKLEY, BARKLEY_REGIMES, barkleyStep,' +
@@ -8135,7 +8136,7 @@ test('dance bus: the landing fires from a silent bar on the first loud frame, or
   st = S.makeDanceBusState(); landedAt = -1;
   for (let i = 0; i < 240; i++){
     const pos = i * BUS_DT;
-    const promise = pos >= 0.8 && pos < 0.9;
+    const promise = pos >= 0.8 && pos < 1.1;           // ≥ P/2 of promise: a passage, so the latch arms (landAt = 0.8 + la)
     const { state } = S.danceBusStep(st, busInp({
       bass: 0.05, energy: 0.04, ear: 0.3, pos,
       here: { bass: 0.05, punch: 0 }, soon: { bass: promise ? 0.9 : 0.05, punch: promise ? 0.8 : 0 },
@@ -8150,16 +8151,173 @@ test('dance bus: the landing fires from a silent bar on the first loud frame, or
     const { bus, state } = S.danceBusStep(st, busInp({ bass: 0.6, energy: 0.5 }), BUS_DT);
     assert.ok(!state.landed && bus[8] === 0 && bus[9] === 8, 'frame ' + i + ': no score, no landing');
   }
-  // D. the pure latch by itself: a seek backwards disarms it
-  const L = { armed: false, landAt: 0, landLevel: 0 };
-  assert.equal(S.danceLandingStep(L, { pos: 10, coming: 0.9, here: 0.1, soon: 1.5, P, lookahead: la }), false);
-  assert.ok(L.armed && Math.abs(L.landAt - 11.2) < 1e-9 && L.landLevel === 1.5, 'armed at pos + lookahead');
-  assert.equal(S.danceLandingStep(L, { pos: 11.0, coming: 0, here: 1.0, soon: 0, P, lookahead: la }), false, 'loud, but not yet within P/4 of the promised moment');
-  assert.equal(S.danceLandingStep(L, { pos: 11.1, coming: 0, here: 1.0, soon: 0, P, lookahead: la }), true, 'within P/4 and at 60% of the promise: land');
-  S.danceLandingStep(L, { pos: 10, coming: 0.9, here: 0.1, soon: 1.5, P, lookahead: la });
-  S.danceLandingStep(L, { pos: 2, coming: 0, here: 0, soon: 0, P, lookahead: la });
+  // D. the pure latch by itself: a promise must hold for P/2 (an instant is a kick,
+  // half a beat is a passage); landAt is the promise's FIRST moment + lookahead;
+  // a promise that lapses restarts its clock; a seek backwards disarms it
+  const L = { armed: false, landAt: 0, landLevel: 0, comingSince: NaN };
+  const say = (pos, coming, here, soon) => S.danceLandingStep(L, { pos, coming, here, soon, P, lookahead: la });
+  assert.equal(say(10, 0.9, 0.1, 1.5), false);
+  assert.ok(!L.armed, 'one frame of promise does not arm');
+  say(10.1, 0.9, 0.1, 1.5);
+  assert.ok(!L.armed, 'nor a fifth of a beat');
+  say(10.25, 0.9, 0.1, 1.5);
+  assert.ok(L.armed && Math.abs(L.landAt - 11.2) < 1e-9 && L.landLevel === 1.5, 'armed after P/2 of promise, landAt = its first moment + lookahead: ' + L.landAt);
+  assert.equal(say(11.0, 0, 1.0, 0), false, 'loud, but not yet within P/4 of the promised moment');
+  assert.equal(say(11.1, 0, 1.0, 0), true, 'within P/4 and at 60% of the promise: land');
+  say(20, 0.9, 0.1, 1.5); say(20.15, 0, 0.1, 0.1); say(20.2, 0.9, 0.1, 1.5); say(20.4, 0.9, 0.1, 1.5);
+  assert.ok(!L.armed, 'a promise that lapsed restarts its clock: 0.2 s since 20.2 is not P/2');
+  say(20.45, 0.9, 0.1, 1.5);
+  assert.ok(L.armed && Math.abs(L.landAt - 21.4) < 1e-9, 'armed from the renewed promise: landAt ' + L.landAt);
+  say(2, 0, 0, 0);
   assert.equal(L.armed, false, 'a seek backwards disarms the latch');
-  assert.equal(S.danceLandingStep(L, { pos: NaN, coming: 0.9, here: 0, soon: 1, P, lookahead: la }), false, 'no playhead, no landing');
+  assert.equal(say(NaN, 0.9, 0, 1), false, 'no playhead, no landing');
+});
+
+// a 48 Hz env of 0..9 digit strings (the pipeline's score format) from a function of time
+function digitEnv(hz, dur, fn){
+  const n = Math.ceil(dur * hz) + 1;
+  let b = '', m = '', t = '', o = '';
+  const dig = v => String.fromCharCode(48 + Math.max(0, Math.min(9, Math.round(v * 9))));
+  for (let i = 0; i < n; i++){ const s = fn(i / hz); b += dig(s.bass); m += dig(s.mid); t += dig(s.treble); o += dig(s.punch); }
+  return { hz, b, m, t, o };
+}
+// a four-on-the-floor groove: kicks on 1 and 3 (bass bump 0.6·e^(−d/0.1) on the floor, punch 0.9 in the kick's step),
+// `floor` the sustained bass; silent before t0
+function grooveFn(t0, floor, hz){
+  return t => {
+    if (t < t0) return { bass: 0, mid: 0, treble: 0, punch: 0 };
+    const d = (t - t0) % 1.0;                    // kicks every two beats at 120 BPM
+    return { bass: Math.min(1, floor + 0.6 * Math.exp(-d / 0.1)), mid: 0.22, treble: 0.12, punch: d < 1 / hz ? 0.9 : 0 };
+  };
+}
+
+test('dance bus: a steady 8-bar groove with kicks on 1 and 3 never arms the latch; the same kicks after two silent bars land on the first loud frame', () => {
+  const P = 0.5, la = S.danceLookahead(P), hz = 48;
+  // the engine's feed: pos = the playhead (read 80 ms ahead), here/soon the instants, hereW/soonW the beat means (danceWindowLevel)
+  const run = (env, secs, onFrame) => {
+    const st = S.makeDanceBusState();
+    let f = { bass: 0, mid: 0, treble: 0 };
+    for (let i = 0; i < Math.round(secs * BUS_FPS); i++){
+      const pos = i * BUS_DT + 0.08;
+      const here = S.envSample(env, pos), soon = S.envSample(env, pos + la);
+      f.bass = S.envFollow(f.bass, here.bass, BUS_DT, 0.018, 0.11);
+      f.mid = S.envFollow(f.mid, here.mid, BUS_DT, 0.018, 0.11);
+      f.treble = S.envFollow(f.treble, here.treble, BUS_DT, 0.016, 0.13);
+      const { state } = S.danceBusStep(st, busInp({
+        bass: f.bass, mid: f.mid, treble: f.treble, energy: Math.min(1, (f.bass * 1.25 + f.mid + f.treble * 0.8) / 2),
+        beatIdx: Math.floor(pos / P) % 4, barPhase: (pos / (4 * P)) % 1,
+        pos, here, soon, hereW: S.danceWindowLevel(env, pos, P), soonW: S.danceWindowLevel(env, pos + la, P),
+      }), BUS_DT);
+      onFrame(pos, state);
+    }
+  };
+  // A. the groove, from the first frame: 8 bars, no silence before it
+  const groove = digitEnv(hz, 20, grooveFn(0, 0.28, hz));
+  let armedFrames = 0, landings = 0, comingMax = 0;
+  run(groove, 16, (pos, st) => { if (st.armed) armedFrames++; if (st.landed) landings++; if (pos > 2) comingMax = Math.max(comingMax, st.coming); });
+  assert.equal(armedFrames, 0, 'the latch never armed through the groove');
+  assert.equal(landings, 0, 'and never landed (stage 1 saw a landing every other bar)');
+  assert.ok(comingMax < 0.42 * 0.75, 'the beat-mean `coming` of a steady groove stays well under the threshold: ' + comingMax.toFixed(3));
+  // B. the control: the SAME kicks arriving after two silent bars (a drop from silence) land on the first loud frame
+  const drop = digitEnv(hz, 12, grooveFn(4.0, 0.5, hz));
+  let landedPos = -1, count = 0;
+  run(drop, 10, (pos, st) => { if (st.landed){ count++; if (landedPos < 0) landedPos = pos; } });
+  assert.equal(count, 1, 'one landing');
+  // envSample interpolates the tonal bands between digits, so the drop's bass is read up to one env step (1/hz) early
+  assert.ok(landedPos >= 4.0 - 1 / hz - 1e-9 && landedPos < 4.0 + 2 * BUS_DT + 1e-9, 'on the first frame that reads the drop: pos ' + landedPos.toFixed(4));
+  // C. danceWindowLevel: a beat's mean of a steady groove is the same wherever the window sits; a drop lifts it; no env reads 0
+  const levels = [];
+  for (let t = 2; t < 10; t += 0.05) levels.push(S.danceWindowLevel(groove, t, P));
+  const spread = Math.max(...levels) - Math.min(...levels);
+  // kicks every two beats under a one-beat window: the mean does move as a kick enters and leaves the window,
+  // but by less than three quarters of the threshold — that spread IS the largest `coming` a groove can show
+  assert.ok(spread < 0.42 * 0.75, 'the groove\'s beat mean moves less than ¾ of the threshold with the window\'s position: spread ' + spread.toFixed(3));
+  assert.ok(S.danceWindowLevel(drop, 3.0, P) < 0.01 && S.danceWindowLevel(drop, 5.0, P) > 0.5, 'silence reads ~0, the drop reads its weight');
+  assert.equal(S.danceWindowLevel(null, 1, P), 0, 'no env, no level');
+});
+
+test('dance v2: the warp is slew-limited — uTime never runs backwards through a mass that fills in a frame or a phase that jumps', () => {
+  const P = 0.5, dt = 1 / 60;
+  let time = 0, warp = 0, prevU = null, prevRaw = null, minStep = Infinity, minRaw = Infinity;
+  for (let i = 0; i < 600; i++){
+    const rate = i < 300 ? 1 : 0.4;                       // the rubato at its floor for the second half
+    time += dt * rate;
+    let phi = ((i * dt) / P) % 1;
+    if (i >= 200) phi = (phi + 0.5) % 1;                  // the grid re-derived: a half-beat phase jump at frame 200
+    const mass = i < 90 ? 0 : 1;                          // the drop fills dMass in one frame, at phi = 0 (the surge's deepest point)
+    const target = S.danceTimeWarp(phi, P, mass);
+    warp = S.danceWarpSlew(warp, target, dt, rate);
+    const u = time + warp, raw = time + target;
+    if (prevU != null){ minStep = Math.min(minStep, u - prevU); minRaw = Math.min(minRaw, raw - prevRaw); }
+    prevU = u; prevRaw = raw;
+    assert.ok(Math.abs(warp) <= 0.045 + 1e-9, 'the warp stays within its 45 ms bound: ' + warp);
+  }
+  assert.ok(minRaw < 0, 'the unslewed warp DID run uTime backwards on this sequence (' + (minRaw * 1000).toFixed(1) + ' ms) — the test bites');
+  assert.ok(minStep > 0, 'slewed, uTime strictly increases: min step ' + (minStep * 1000).toFixed(3) + ' ms');
+  assert.ok(minStep >= 0.1 * dt * 0.4 - 1e-12, 'at least a tenth of the frame\'s musical time always survives');
+  // the pure limiter: ±0.9·dt·rate a frame, finite on junk
+  assert.ok(Math.abs(S.danceWarpSlew(0, -1, 1 / 60, 1) - (-0.9 / 60)) < 1e-12, 'a fall is held to 0.9·dt·rate');
+  assert.ok(Math.abs(S.danceWarpSlew(0, 1, 1 / 60, 0.5) - 0.45 / 60) < 1e-12, 'and scales with the rate');
+  assert.ok(Math.abs(S.danceWarpSlew(0.01, 0.012, 1 / 60, 1) - 0.012) < 1e-12, 'a small move passes through');
+  assert.ok(isFinite(S.danceWarpSlew(NaN, NaN, NaN, NaN)), 'finite on junk');
+});
+
+test('dance v2: danceSectionTurn — a quieter section within the last beat, or true silence; never a louder one, never an old turn', () => {
+  assert.equal(S.danceSectionTurn(0.7, 0.3, 0.4, 0.2), true, 'the new section at 0.43× within the beat');
+  assert.equal(S.danceSectionTurn(0.7, 0.42, 0.4, 0.99), true, 'exactly 0.6× still counts, right up to one beat');
+  assert.equal(S.danceSectionTurn(0.7, 0.5, 0.4, 0.2), false, 'not quiet enough (0.71×)');
+  assert.equal(S.danceSectionTurn(0.3, 0.7, 0.4, 0.2), false, 'a LOUDER section is not a held breath');
+  assert.equal(S.danceSectionTurn(0.7, 0.3, 0.4, 1.0), false, 'a turn a whole beat old has passed');
+  assert.equal(S.danceSectionTurn(0.7, 0.3, 0.4, -0.1), false, 'a turn still ahead is not yet');
+  assert.equal(S.danceSectionTurn(0.7, 0.7, 0.02, 0.5), true, 'true silence (energy < 0.05) is a quiet turn whatever the map says');
+  assert.equal(S.danceSectionTurn(0, 0, 0.02, 0.5), true, 'the silence path needs no levels');
+  assert.equal(S.danceSectionTurn(0, 0, 0.5, 0.5), false, 'no levels and no silence: nothing');
+  assert.equal(S.danceSectionTurn(NaN, NaN, NaN, NaN), false, 'junk: false');
+});
+
+test('dance v2: danceSilenceAhead — the score sees the silence start: fires on its first frame, never inside a groove, never on a sparse beat, never from silence', () => {
+  const P = 0.5, hz = 48;
+  // a groove that STOPS at 8.0 s (the harness piece's silent bar): kicks on 1 and 3 on a bass floor, mids and treble as a pad
+  const stop = digitEnv(hz, 12, t => { if (t >= 8) return { bass: 0, mid: 0, treble: 0, punch: 0 }; return grooveFn(0, 0.28, hz)(t); });
+  let first = -1, count = 0, inGroove = 0;
+  for (let t = 0.5; t < 11; t += 1 / 60){
+    const on = S.danceSilenceAhead(stop, t, P);
+    if (on){ count++; if (first < 0) first = t; if (t < 7.9) inGroove++; }
+  }
+  assert.equal(inGroove, 0, 'never through the groove');
+  /* WHERE THE FIRST TRUE FRAME MUST LAND (the function's comment, held to).
+     envSample interpolates the bands between digits, so the last sounding
+     digit (level L) bleeds into the first silent step as L·(1 − fr). The
+     function demands the FIRST step of the beat ahead — the tap at t + P/(2n),
+     n = P·hz = 24 — under the floor 0.05, which that tap reaches within
+     (0.05/L)/hz ≤ 1/hz of the first silent digit; so the first true frame
+     is never earlier than onset − 1/hz − P/(2n), and never later than the
+     first frame at or after the onset. (The mean alone would have admitted
+     ~0.05·n/L ≈ 2 steps of this 0.67 groove and fired at 7.9667: two frames
+     early, by an amount that depended on the groove's level.) */
+  const n = Math.ceil(P * hz);
+  assert.ok(first >= 8 - 1 / hz - P / (2 * n) - 1e-9 && first <= 8 + 1 / 60 + 1e-9, 'true on the silence\'s first frame: ' + first.toFixed(4));
+  // this groove's last digits read 3/9 + 2/9 + 1/9 = 0.667, so the first tap is under the floor only
+  // within 1.6 ms of the onset: on the 60 Hz lattice that is the frame AT the onset, 8.000
+  assert.ok(Math.abs(first - 8) < 1e-9, 'for a 0.67 groove the first true frame is the one at the onset: ' + first.toFixed(4));
+  assert.ok(count >= 6 && count <= 40, 'and for the beat the behind window still holds the groove (' + count + ' frames), then no more');
+  for (let t = 9.5; t < 11; t += 0.1) assert.equal(S.danceSilenceAhead(stop, t, P), false, 'a silence after a silence is no turn (' + t.toFixed(1) + ')');
+  // a SPARSE track: one bare kick every beat on no floor, nothing else — a beat with a hit in it is never "empty"
+  const sparse = digitEnv(hz, 10, t => { const d = t % P; return { bass: 0.6 * Math.exp(-d / 0.1), mid: 0, treble: 0, punch: d < 1 / hz ? 0.9 : 0 }; });
+  for (let t = 1; t < 9; t += 1 / 60) assert.equal(S.danceSilenceAhead(sparse, t, P), false, 'a kick every beat: never (' + t.toFixed(3) + ')');
+  // a snare-only beat after a loud beat: the mids are sound
+  const snareBeat = digitEnv(hz, 6, t => t < 2 ? { bass: 0.7, mid: 0.4, treble: 0.2, punch: t % P < 1 / hz ? 0.9 : 0 } : t < 2.5 ? { bass: 0, mid: 0.35, treble: 0.1, punch: 0 } : { bass: 0.7, mid: 0.4, treble: 0.2, punch: 0 });
+  for (let t = 1.5; t < 2.6; t += 1 / 60) assert.equal(S.danceSilenceAhead(snareBeat, t, P), false, 'the bass drops out for a beat but the snare plays: no turn (' + t.toFixed(3) + ')');
+  // the beat ahead with one lone hat in it: a gap, not a beat. (The sound after it returns at 2.6, not 2.5: envSample's
+  // interpolation lets the window's LAST tap read half a step into whatever follows — a loud section starting exactly at
+  // the window's end adds 0.028 to the mean, which with the hat's 0.032 is over the floor; a one-beat hole between two
+  // loud sections is not a silence to hold a breath for anyway, and never was: this assertion sat behind a failing one.)
+  const hatBeat = digitEnv(hz, 6, t => t < 2 ? { bass: 0.7, mid: 0.4, treble: 0.2, punch: 0 } : t < 2.6 ? { bass: 0, mid: 0, treble: Math.abs(t - 2.25) < 1 / hz ? 0.6 : 0, punch: Math.abs(t - 2.25) < 1 / hz ? 0.25 : 0 } : { bass: 0.7, mid: 0.4, treble: 0.2, punch: 0 });
+  assert.equal(S.danceSilenceAhead(hatBeat, 2.0, P), true, 'a single hat 21 ms wide in an otherwise empty beat reads under the floor: it IS a gap (one hit in 24 steps = 0.03)');
+  assert.equal(S.danceSilenceAhead(hatBeat, 1.9833, P), false, 'one frame earlier the first step still carries the pad: not yet');
+  assert.equal(S.danceSilenceAhead(null, 1, P), false, 'no env, no turn');
+  assert.equal(S.danceSilenceAhead(stop, NaN, P), false, 'no playhead, no turn');
+  assert.equal(S.danceSilenceAhead(stop, 8.0, 0), false, 'no period, no turn');
 });
 
 test('dance bus: the prelude shapes — stride monotone to A 0.75, the landing one rebound, the ring its series, the lamp held then let go', () => {
@@ -8459,6 +8617,384 @@ test('dance bus: the score path — a strike is read once per env step from the 
   }
   assert.equal(hitAt, 15, 'dHit lights on the frame the punch digit begins (frame 15)');
   assert.ok(peak > 1.1 && peak < 1.2 && peakF - 15 >= 4 && peakF - 15 <= 7, 'dKick peaks ' + peak.toFixed(3) + ' at +' + (peakF - 15) + ' frames');
+});
+
+// ---- TUNE 1: the bus hears the chart (I1) and the stem light owns the landing (I2); v2 off is byte-identical ----
+
+test('stem light: hitVoices — the chart as the bus\'s voices: one edge per hit, on the frame its audible instant passes, never on the frames between; nothing across a jump, a pause or a seek back', () => {
+  const chart = { k: [1.0, 2.0, 3.0], s: [1.5, 2.5], h: [1.0, 1.25, 1.5, 1.75, 2.0, 2.25] };
+  const dt = 1 / 60;
+  for (const fps of [60, 24]){
+    const step = 1 / fps, kicks = [], snares = [], hats = [];
+    let prev = NaN;
+    for (let i = 0; i < 4 * fps; i++){
+      const pos = i * step, v = S.hitVoices(chart, pos, prev);
+      assert.ok([0, 1].includes(v.kick) && [0, 1].includes(v.snare) && [0, 1].includes(v.hat), 'an edge is 0 or 1');
+      if (v.kick) kicks.push(pos); if (v.snare) snares.push(pos); if (v.hat) hats.push(pos);
+      prev = pos;
+    }
+    assert.equal(kicks.length, chart.k.length, fps + ' fps: one kick edge per charted kick (' + kicks.length + ')');
+    assert.equal(snares.length, chart.s.length, fps + ' fps: one snare edge per charted snare');
+    assert.equal(hats.length, chart.h.length, fps + ' fps: one hat edge per charted hat');
+    // each edge sits on the frame whose span (prev, pos] holds the hit — the audible instant, not a neighbour
+    for (const [arr, got] of [[chart.k, kicks], [chart.s, snares], [chart.h, hats]])
+      for (const h of arr) assert.ok(got.some(p => p - h >= -1e-9 && p - h < step), fps + ' fps: the hit at ' + h + ' edges on its own frame');
+  }
+  // two hits of one voice inside one frame's span edge ONCE (an edge, not a count)
+  const v2 = S.hitVoices({ k: [1.001, 1.009], s: [], h: [] }, 1.0167, 1.0);
+  assert.equal(v2.kick, 1);
+  // nothing: no chart, a dead clock, no previous read (the frame after a jump), a pause, a seek backwards
+  for (const [c, pos, prev] of [[null, 1.0, 0.98], [chart, NaN, 0.98], [chart, 1.0, NaN], [chart, 1.0, 1.0], [chart, 0.98, 1.0]]){
+    const v = S.hitVoices(c, pos, prev);
+    assert.ok(v.kick === 0 && v.snare === 0 && v.hat === 0, 'nothing for ' + JSON.stringify([!!c, pos, prev]));
+  }
+  // the out object is reused and cleared
+  const o = { kick: 1, snare: 1, hat: 1 };
+  assert.ok(S.hitVoices(chart, 0.5, 0.4, o) === o && o.kick === 0 && o.snare === 0 && o.hat === 0, 'cleared in place');
+  // the feed: v2 off → nothing, whatever is on offer; v2 on → the edges, authority, the coil, the landing; a jump strikes nothing
+  const inp = {};
+  let hp = S.danceStemFeed(inp, { v2: false, playing: true, heard: 1.0, heardPrev: 0.99, dt, chart, conf: 1, coil: 0.9, landed: true });
+  assert.ok(inp.chartVoices === null && inp.stemCoil === 0 && inp.stemLanded === false && inp.stemAuthority === false && hp === 1.0, 'v2 off: the four at their defaults, the clock still tracked');
+  hp = S.danceStemFeed(inp, { v2: true, playing: true, heard: 1.0, heardPrev: 0.99, dt, chart, conf: 0.5, coil: 0.9, landed: true, voices: o });
+  assert.ok(inp.chartVoices === o && o.kick === 1 && o.hat === 1 && o.snare === 0 && inp.stemAuthority && inp.stemCoil === 0.9 && inp.stemLanded === true, 'v2 on: the kick and hat at 1.0 edge, authority at conf 0.5, the coil and the landing through');
+  S.danceStemFeed(inp, { v2: true, playing: true, heard: 1.0, heardPrev: 0.99, dt, chart, conf: 0.49, coil: 0.9, landed: true, voices: o });
+  assert.ok(!inp.stemAuthority && inp.stemCoil === 0 && !inp.stemLanded && inp.chartVoices === o, 'under authority nothing but the chart');
+  S.danceStemFeed(inp, { v2: true, playing: true, heard: 5.0, heardPrev: 0.99, dt, chart, conf: 1, coil: 0, landed: false, voices: o });
+  assert.ok(o.kick === 0 && o.snare === 0 && o.hat === 0, 'a 4 s jump of the clock strikes nothing');
+  assert.ok(Number.isNaN(S.danceStemFeed(inp, { v2: true, playing: false, heard: 2.0, heardPrev: 1.99, dt, chart, conf: 1 })) && inp.chartVoices === null, 'a paused deck reads nothing and drops the clock');
+});
+
+test('dance v2: the bus hears the chart — the drummer\'s hits are the voices, struck once each at the audible instant whatever the bands say; without a chart the band-rise classifier stays', () => {
+  const P = 0.5;
+  const eighths = []; for (let t = 1.0; t < 3.9; t += 0.25) eighths.push(+t.toFixed(3));
+  const chart = { k: [1.0, 2.0, 3.0], s: [1.5, 2.5, 3.5], h: eighths };
+  // the bands: a flat quiet pad — no rises, no punch, the bass sitting ON its own floor (the classifier's gate reads 0)
+  const run = (withChart, rises) => {
+    const st = S.makeDanceBusState(), vo = { kick: 0, snare: 0, hat: 0 }, out = [];
+    for (let i = 0; i < 240; i++){
+      const pos = i * BUS_DT;
+      const voices = withChart ? S.hitVoices(chart, pos, i ? (i - 1) * BUS_DT : NaN, vo) : null;
+      const onK = rises && chart.k.some(h => pos - h >= -1e-9 && pos - h < BUS_DT);
+      const { bus, state } = S.danceBusStep(st, busInp({
+        bass: onK ? 0.8 : 0.3, mid: 0.2, treble: 0.1, energy: 0.3, beatIdx: Math.floor(pos / P) % 4, barPhase: (pos / (4 * P)) % 1,
+        rb: onK ? 0.8 : 0, punch: onK ? 0.9 : 0, chartVoices: voices,
+      }), BUS_DT);
+      out.push({ pos, bus: Array.from(bus), kick: state.kick, snare: state.snare, hat: state.hat, gate: state.gate });
+    }
+    return out;
+  };
+  const on = run(true, false), off = run(false, false);
+  // without a chart the pad is weight, not a strike
+  assert.ok(off.every(f => f.kick === 0 && f.snare === 0 && f.hat === 0 && f.bus[0] === 0), 'no chart, no rises: no voice, no light');
+  assert.ok(off[239].bus[1] === 4 && Math.abs(off[239].bus[2]) < 1e-6, 'no chart: dAge at four, the body at rest');
+  // with the chart: each kick is one frame of voice, on the frame its instant passes
+  const kickFrames = on.filter(f => f.kick > 0).map(f => f.pos);
+  assert.equal(kickFrames.length, 3, 'three kick frames: ' + kickFrames.map(p => p.toFixed(3)).join(' '));
+  for (const h of chart.k) assert.ok(kickFrames.some(p => p - h >= -1e-9 && p - h < BUS_DT), 'the kick at ' + h + ' is struck on its own frame');
+  assert.ok(on.every(f => f.kick === 0 || f.kick === 1), 'a chart kick is 1 on its frame, nothing on the frames between');
+  for (const h of chart.k){
+    const i = on.findIndex(f => f.pos - h >= -1e-9 && f.pos - h < BUS_DT);
+    assert.equal(on[i].bus[1], 0, 'kick at ' + h + ': dAge 0 on the strike');
+    assert.ok(on[i].bus[0] >= 1 || on[i + 1].bus[0] >= 1, 'kick at ' + h + ': dHit lights within a frame');
+    assert.equal(on[i].gate, 1, 'kick at ' + h + ': the bass floor has no say (gate 1)');
+    let peak = 0; for (let k = i + 1; k < i + 10; k++) peak = Math.max(peak, on[k].bus[2]);
+    assert.ok(peak > 0.85, 'kick at ' + h + ': the body is struck (dKick peak ' + peak.toFixed(3) + ')');
+    assert.ok(Math.abs(on[i].hat - 0.3) < 1e-9, 'kick at ' + h + ': the hat under it is treble-class (×0.3)');
+  }
+  for (const h of chart.s){
+    const i = on.findIndex(f => f.pos - h >= -1e-9 && f.pos - h < BUS_DT);
+    assert.ok(on[i].snare === 1 && on[i].bus[1] === 0 && on[i].bus[0] >= 0.85, 'snare at ' + h + ': a strike for the light and the age');
+    let peak = 0; for (let k = i + 1; k < i + 10; k++) peak = Math.max(peak, on[k].bus[2]);
+    assert.ok(peak > 0.3 && peak < 0.7, 'snare at ' + h + ': half a strike for the body (' + peak.toFixed(3) + ')');
+  }
+  // a bare hat (1.25, 1.75 …): light only — the age runs on, the spark flicks
+  const bare = on.find(f => Math.abs(f.pos - 1.25) < BUS_DT / 2);
+  assert.ok(bare.hat === 1 && bare.kick === 0 && bare.bus[1] > 0.4 && bare.bus[5] >= 0.8, 'a bare hat lights dSpark and never resets dAge');
+  // the chart WINS over the band classifier on the same frame set: rises on frames with no chart hit strike nothing
+  const mixed = run(true, true);
+  assert.deepEqual(mixed.map(f => f.kick), on.map(f => f.kick), 'with a chart the rises have no say in the voices');
+  const risesOnly = run(false, true);
+  assert.ok(risesOnly.some(f => f.kick > 0), 'without a chart the same rises would have struck (the test bites)');
+});
+
+test('dance v2: one landing — the stem light\'s kit return lands the bus once with the env latch held disarmed while the stems have authority; without authority the latch lands as before, from rest', () => {
+  const P = 0.5, la = S.danceLookahead(P);
+  // the drive of the landing test: a silent bar, the drop at 2.0 s (read 80 ms ahead); the stem light would see the drums at the same instant
+  const env = t => ({ bass: t < 2 ? 0.05 : 0.9, punch: (t >= 2 && t < 2.1) ? 0.9 : 0 });
+  const landFrame = (() => { for (let i = 0; ; i++) if (i * BUS_DT + 0.08 >= 2) return i; })();
+  const run = (stem) => {
+    const st = S.makeDanceBusState(), rows = [];
+    for (let i = 0; i < 240; i++){
+      const pos = i * BUS_DT, quiet = pos + 0.08 < 2;
+      const inp = busInp({
+        bass: quiet ? 0.05 : 0.9, mid: quiet ? 0.05 : 0.5, treble: 0.05, energy: quiet ? 0.04 : 0.8,
+        rb: (!quiet && pos + 0.08 < 2.02) ? 0.8 : 0, punch: (!quiet && pos + 0.08 < 2.02) ? 0.9 : 0,
+        ear: quiet ? 0.3 : 0.9, beatIdx: Math.floor(pos / P) % 4,
+        pos, here: env(pos + 0.08), soon: env(pos + la),
+      });
+      if (stem) stem(inp, i, pos);
+      const { bus, state } = S.danceBusStep(st, inp, BUS_DT);
+      rows.push({ i, pos, bus: Array.from(bus), landed: state.landed, armed: state.armed });
+    }
+    return rows;
+  };
+  const coilOf = pos => Math.max(0, Math.min(1, (pos - 1.0) / 0.5));       // the stem light's inhale: up from 1.0 s, full by 1.5 s
+  // A. authority throughout, the kit returns on the drop frame: ONE landing, the bus's own, on that frame
+  const A = run((inp, i, pos) => { inp.stemAuthority = true; inp.stemCoil = i < landFrame ? coilOf(pos) : 0; inp.stemLanded = i === landFrame; });
+  const landA = A.filter(r => r.landed);
+  assert.equal(landA.length, 1, 'one landing');
+  assert.equal(landA[0].i, landFrame, 'on the frame the kit returned');
+  assert.ok(A.every(r => !r.armed), 'the env latch never armed while the stems had authority');
+  const L = A[landFrame];
+  assert.ok(L.bus[9] === 0 && L.bus[1] === 0 && L.bus[8] === 0, 'dImpact 0, dAge 0, dBrace 0 on the landing frame');
+  assert.ok(L.bus[0] >= 1.25 - 1e-6 || A[landFrame + 1].bus[0] >= 1, 'the landing lights dHit');
+  let kickPeak = 0; for (let k = landFrame + 1; k <= landFrame + 8; k++) kickPeak = Math.max(kickPeak, A[k].bus[2]);
+  assert.ok(kickPeak > 1.0, 'the landing strikes the body at 1.25: dKick peaked ' + kickPeak.toFixed(3));
+  const braceBefore = Math.max(...A.filter(r => r.pos > 1.5 && r.pos < 1.9).map(r => r.bus[8]));
+  assert.ok(braceBefore > 0.9, 'the coil fed dBrace through the silent bar (max): ' + braceBefore.toFixed(3));
+  assert.ok(A.slice(landFrame + 1).every(r => r.bus[9] > 0), 'dImpact counts up from the one landing and never resets again');
+  // B. the same drive without the stems: the latch lands, once, on the same frame (test A of the landing test)
+  const B = run(null);
+  const landB = B.filter(r => r.landed);
+  assert.equal(landB.length, 1, 'without authority: one landing through the latch');
+  assert.equal(landB[0].i, landFrame, 'the latch lands on the first loud frame — the same frame');
+  assert.ok(B.some(r => r.armed), 'the latch did arm (the test bites)');
+  assert.ok(A[90].bus[8] > 0.99 && B[90].bus[8] < 0.9, 'at 1.5 s the coil (1.0) lifts dBrace by max where the follower alone read ' + B[90].bus[8].toFixed(3));
+  // C. authority held but the kit never returns: nothing lands however loud the drop is; the latch stays disarmed
+  const C = run((inp) => { inp.stemAuthority = true; });
+  assert.ok(C.every(r => !r.landed && !r.armed), 'no stem landing, no latch: no landing at all');
+  assert.ok(C.every(r => r.bus[9] === 8), 'dImpact stays at rest');
+  // D. authority lapses at 1.0 s: the latch runs again FROM REST — its promise clock restarts, so it arms half a beat
+  //    later and lands at landAt − P/4 once the drop is loud: later than B's frame, never earlier, exactly once
+  const D = run((inp, i, pos) => { inp.stemAuthority = pos < 1.0; });
+  const landD = D.filter(r => r.landed);
+  assert.equal(landD.length, 1, 'authority lapsed: the latch lands once');
+  const expectD = 1.0 + la - P / 4;                                         // comingSince restarts at 1.0 s → landAt 2.2 → arrival window opens at 2.075
+  assert.ok(landD[0].pos >= expectD - 1e-9 && landD[0].pos < expectD + 2 * BUS_DT, 'from rest: lands at ' + landD[0].pos.toFixed(4) + ' (window opens ' + expectD.toFixed(3) + ')');
+  assert.ok(landD[0].i > landFrame, 'later than the uninterrupted latch, never a second landing');
+  // E. the TV twin carries the same four inputs and the same two laws
+  const swift = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
+  for (const s of ['var chartVoices: DanceVoices? = nil', 'var stemCoil: Float = 0', 'var stemLanded: Bool = false', 'var stemAuthority: Bool = false',
+                   'if coil > brace { brace = coil }', 'landedNow = inp.stemLanded', 'static func hitVoices(_ chart: Stems.HitChart?, pos: Double, prev: Double) -> DanceVoices'])
+    assert.ok(swift.includes(s), 'Dance.swift carries: ' + s);
+});
+
+/* THE TABULATED COMPARE — the twelve with the flag off, before and after the
+   tune-1 edits. The drive below is the engine's own feed over 7 s at 60 Hz:
+   a count-in, a four-on-the-floor groove read through the analyser's
+   followers with the score's instants and beat means (the latch's path), a
+   silent bar the score promises a drop after, the drop (the latch lands on
+   frame 296), two bars of the drop. BUS_CMP_TABLE was printed from
+   danceBusStep BEFORE the edits (the same drive, this file's fixtures); the
+   test steps the drive bare and through danceStemFeed with v2 OFF and a
+   chart, authority and a landing on offer, and both must reproduce it. */
+const CMP_FRAMES = 420;
+function busCompareDrive(){
+  const P = 0.5, la = S.danceLookahead(P), hz = 48;
+  const env = t => {
+    if (t < 1.5 || (t >= 3.5 && t < 5.0)) return { bass: 0, mid: 0, treble: 0, punch: 0 };
+    const d = (t - 1.5) % P, floor = t >= 5 ? 0.55 : 0.28;
+    return { bass: Math.min(1, floor + 0.6 * Math.exp(-d / 0.1)), mid: t >= 5 ? 0.4 : 0.22, treble: t >= 5 ? 0.2 : 0.12, punch: d < 1 / hz ? 0.9 : 0 };
+  };
+  const level = t => { let s = 0; for (let k = 0; k < 5; k++){ const e = env(t - P / 2 + (k + 0.5) * P / 5); s += e.bass + 0.8 * e.punch; } return s / 5; };
+  const f = { bass: 0, mid: 0, treble: 0 }, out = [];
+  let prev = env(0.08);
+  for (let i = 0; i < CMP_FRAMES; i++){
+    const t = i * BUS_DT, pos = t + 0.08;
+    const here = env(pos), soon = env(pos + la);
+    f.bass = S.envFollow(f.bass, here.bass, BUS_DT, 0.018, 0.11);
+    f.mid = S.envFollow(f.mid, here.mid, BUS_DT, 0.018, 0.11);
+    f.treble = S.envFollow(f.treble, here.treble, BUS_DT, 0.016, 0.13);
+    const on = here.punch > 0 && prev.punch === 0;
+    out.push(busInp({
+      bass: f.bass, mid: f.mid, treble: f.treble, energy: Math.min(1, (f.bass * 1.25 + f.mid + f.treble * 0.8) / 2),
+      centroid: 0.4 + 0.05 * Math.sin(t * 2.1),
+      rb: on ? Math.max(0, here.bass - prev.bass) : 0, rm: on ? 0.1 : 0, rt: on ? 0.05 : 0, punch: on ? 0.9 : 0,
+      beatIdx: Math.floor(pos / P) % 4, barPhase: (pos / (4 * P)) % 1, phrasePhase: (pos / (32 * P)) % 1,
+      ear: here.bass > 0.1 ? 0.9 : 0.3, breath: Math.sin(t * 0.88) * 0.5,
+      pos, here, soon, hereW: level(pos), soonW: level(pos + la),
+    }));
+    prev = here;
+  }
+  return out;
+}
+// frame → the twelve [dHit dAge dKick dMass dArtic dSpark dSway dLift dBrace dImpact dStill dPeriod], printed before the tune-1 edits
+const BUS_CMP_TABLE = {
+  30: [0, 4, 0, 0, 0.108499, 0, 0.03964, 0.061526, 0.104802, 8, 0, 0.5],
+  90: [0.64118, 0.133333, 0.89646, 0.240424, 0.224865, 0.119344, -0.010222, 0.094626, 0.125363, 8, 1, 0.5],
+  91: [0.573753, 0.166667, 0.950036, 0.27559, 0.245916, 0.119768, -0.042699, 0.092937, 0.121928, 8, 1, 0.5],
+  93: [0.459426, 0.233333, 0.838271, 0.330747, 0.27743, 0.119971, -0.097431, 0.089871, 0.115339, 8, 1, 0.5],
+  96: [0.329193, 0.333333, 0.402224, 0.381396, 0.308127, 0.119999, -0.154773, 0.085951, 0.106117, 8, 1, 0.5],
+  120: [0.801475, 0.133333, 1.144923, 0.496835, 0.384698, 0.12, 0.139944, 0.078345, 0.054482, 8, 1, 0.5],
+  150: [0.64118, 0.133333, 0.92645, 0.55261, 0.35052, 0.12, 0.873277, 0.102299, 0.023678, 8, 1, 0.5],
+  180: [0.64118, 0.133333, 0.920231, 0.568468, 0.284137, 0.12, 0.462017, 0.138994, 0.01029, 8, 1, 0.5],
+  210: [0.022873, 1.133333, 0.023878, 0.494218, 0.349413, 0.06321, -0.376306, 0.175318, 0.004472, 8, 0.888889, 0.5],
+  240: [0.000816, 2.133333, -0.000466, 0.309548, 0.157842, 0.00135, -0.113622, 0.112869, 0.525065, 8, 0, 0.5],
+  270: [0.000029, 3.133333, -0.00002, 0.187854, 0.066062, 0.000029, -0.096009, 0.069767, 0.886181, 8, 0, 0.5],
+  280: [0.00001, 3.466667, 0.000007, 0.159016, 0.106127, 0.000008, -0.107587, 0.061517, 0.929302, 8, 0, 0.5],
+  290: [0.000003, 3.8, -0.000002, 0.134605, 0.138213, 0.000002, -0.119495, 0.055032, 0.927811, 8, 0, 0.5],
+  294: [0.000002, 3.933333, -0.000001, 0.125924, 0.146656, 0.000001, -0.123953, 0.052845, 0.830242, 8, 0, 0.5],
+  295: [0.000002, 3.966667, -0.000001, 0.123842, 0.148327, 0.000001, -0.125026, 0.052331, 0.807497, 8, 0, 0.5],
+  296: [1.25, 0, 0.042589, 0.16952, 0.206663, 0.129427, -0.124269, 0.055601, 0, 0, 0.266667, 0.5],
+  298: [1.000922, 0.066667, 0.649405, 0.29598, 0.33187, 0.191213, -0.126137, 0.077455, 0, 0.066667, 0.8, 0.5],
+  300: [0.801475, 0.133333, 1.179552, 0.402493, 0.418356, 0.198906, -0.142046, 0.110681, 0, 0.133333, 1, 0.5],
+  305: [0.459849, 0.3, 0.737316, 0.568391, 0.511575, 0.199994, -0.230863, 0.183978, 0, 0.3, 1, 0.5],
+  312: [0.211267, 0.533333, -0.261316, 0.640038, 0.533104, 0.2, -0.41963, 0.264552, 0, 0.533333, 1, 0.5],
+  330: [0.64118, 0.133333, 0.928498, 0.741774, 0.507673, 0.2, -0.829577, 0.398684, 0, 1.133333, 1, 0.5],
+  360: [0.801475, 0.133333, 1.144337, 0.806914, 0.454655, 0.2, -0.385095, 0.514138, 0, 2.133333, 1, 0.5],
+  419: [0.716531, 0.1, 0.778817, 0.822253, 0.512438, 0.2, 0.065652, 0.626414, 0, 4.1, 1, 0.5],
+};
+
+test('dance v2: with the flag off the twelve are unchanged — the pre-edit table, bare and through the stem feed with v2 off (a tabulated compare)', () => {
+  const drive = busCompareDrive();
+  const stepAll = (mod) => {
+    const st = S.makeDanceBusState(), frames = [], landed = [];
+    for (let i = 0; i < CMP_FRAMES; i++){
+      const inp = mod ? mod(Object.assign({}, drive[i]), i) : drive[i];
+      const { bus, state } = S.danceBusStep(st, inp, BUS_DT);
+      frames.push(Array.from(bus));
+      if (state.landed) landed.push(i);
+    }
+    return { frames, landed };
+  };
+  const chart = { k: [1.5, 2.0, 2.5, 3.0, 5.0, 5.5, 6.0, 6.5], s: [1.75, 2.25, 5.25, 5.75], h: [1.5, 1.625, 1.75, 1.875, 2.0] };
+  const vo = { kick: 0, snare: 0, hat: 0 };
+  let prev = NaN;
+  const offFeed = (v2) => (inp, i) => {
+    prev = S.danceStemFeed(inp, { v2, playing: true, heard: i * BUS_DT, heardPrev: prev, dt: BUS_DT, chart, conf: 1, coil: i < 290 ? 0.9 : 0, landed: i === 290, voices: vo });
+    if (!v2) assert.ok(inp.chartVoices === null && inp.stemCoil === 0 && inp.stemLanded === false && inp.stemAuthority === false, 'frame ' + i + ': v2 off, the four at their defaults');
+    return inp;
+  };
+  const bare = stepAll(null);
+  prev = NaN; const fed = stepAll(offFeed(false));
+  for (const [name, run] of [['bare', bare], ['fed v2-off', fed]]){
+    assert.deepEqual(run.landed, [296], name + ': the latch lands on frame 296 as before');
+    for (const f of Object.keys(BUS_CMP_TABLE)){
+      const want = BUS_CMP_TABLE[f];
+      for (let k = 0; k < 12; k++)
+        assert.ok(Math.abs(run.frames[f][k] - want[k]) <= 1e-6, name + ': frame ' + f + ' ' + S.DANCE_BUS.NAMES[k] + ': ' + run.frames[f][k].toFixed(6) + ' vs the pre-edit ' + want[k]);
+    }
+  }
+  for (let i = 0; i < CMP_FRAMES; i++) assert.deepEqual(fed.frames[i], bare.frames[i], 'frame ' + i + ': the feed with v2 off changes no float');
+  // and the same offer with v2 ON changes the story (the test bites): the stem light lands it on 290, the latch never does
+  prev = NaN; const on = stepAll(offFeed(true));
+  assert.deepEqual(on.landed, [290], 'v2 on: the kit\'s return is the landing, the latch is held');
+  assert.ok(on.frames[100][1] === 0 || on.frames[90][1] === 0, 'v2 on: a charted kick resets dAge');
+});
+
+test('dance v2: the frame loop — the stem light steps before the dance engine, its side effects after; the kit\'s cut, the beat channel\'s chart blend, the meter, the haptics and the uBeatIdx hold are as they were', () => {
+  const iStep = html.indexOf('stemLightStep(STEMS.state, {'), iUpd = html.indexOf('\n  DANCE.update(dt, t);');
+  const iSide = html.indexOf('const busTook = DANCE.v2 && STEMS.state.conf >= 0.5;'), iChor = html.indexOf("if (typeof CHOREO !== 'undefined') CHOREO.update(dt);");
+  assert.ok(iStep > 0 && iUpd > 0 && iSide > 0 && iChor > 0, 'all four anchors present');
+  assert.ok(iStep < iUpd && iUpd < iSide && iSide < iChor, 'stem light → DANCE.update → the stem light\'s side effects → CHOREO');
+  assert.equal((html.match(/stemLightStep\(STEMS\.state, \{/g) || []).length, 1, 'the stem light is stepped once a frame');
+  assert.ok(html.includes('STEMS.out.landed && director.dwell >= STEM_CUT_DWELL'), 'the kit\'s-return cut reads the stem light as before');
+  assert.ok(html.includes('hitBlend((DANCE.on ? Math.max(-0.25, f.beat * 0.95, DANCE.pulse) : f.beat) * so.beatGate,'), 'the beat channel\'s chart blend and kit gate are untouched');
+  assert.ok(html.includes('this._heardPrev = danceStemFeed(inp, {') && html.includes('heard: STEMS.heard'), 'the bus reads the stems through danceStemFeed at the audible instant');
+  assert.ok(html.includes('STEMS.hit = STEMS.chart && isFinite(STEMS.heard) ? hitPulse(STEMS.chart, STEMS.heard) : 0;'), 'hitPulse reads the same clock');
+  assert.ok(html.includes("const holdGrid = v2grid && stillGate < 0.5 && U.uBeatIdx.value >= 0;") && html.includes("if (!holdGrid){ U.uBeatIdx.value = idx % 4; U.uBarPhase.value = CLOCK.barPhase; }"), 'the uBeatIdx hold, and the bar phase held with it (both resume when the gate lifts)');
+  assert.ok(html.includes('if (beating){\n        METER.tick(idx % 4);\n        HAPTICS.pulse(idx % 4 === 0);'), 'the meter and the haptics key on the ear alone');
+  assert.ok(html.includes('DANCE.rate = Math.min(1.9, Math.max(0.4, this._rate * still));') && html.includes("const still = DANCE.v2 ? Math.min(this.stillGate(), this._silAhead ? 0 : 1) : 1;"), 'the rubato reads stillness under v2, floored at 0.4');
+  assert.ok(html.includes("&& !(DANCE.v2 && this.move.name === 'suspend' && DANCE.stillGate < 0.5)))"), 'a held breath that runs out in stillness is held');
+  assert.ok(html.includes('if (this._busWire) this._busWire = false;\n    else this._stepBus('), 'the stage wire still stands the local stepper down');
+});
+
+// ---------------------------------------------------------------- tune 2: the still bar's shiver, the sky, the sawtooth
+
+test('color v2: oklchToRgbFine — the gamut boundary is continuous in chroma (no 0.008 stair), inside the gamut the two mappers agree exactly, the output never leaves 0..1', () => {
+  const lum = rgb => 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+  // the olive the harness's chord holds through the silent bar (swatch B, L 0.57 at 84°): its chroma drifts slowly
+  // across the boundary as the chord cools — the old walk lands a whole 0.008 step every few frames
+  const steps = (fn, L, h) => { let worst = 0, prev = null; for (let C = 0.30; C >= 0; C -= 0.0005){ const o = fn(L, C, h); if (prev) for (let k = 0; k < 3; k++) worst = Math.max(worst, Math.abs(o[k] - prev[k]) * 255); prev = o; } return worst; };
+  for (const [L, h] of [[0.57, 84], [0.55, 267], [0.6, 5], [0.45, 150]]){
+    const old = steps(S.oklchToRgb, L, h), fine = steps(S.oklchToRgbFine, L, h);
+    assert.ok(old >= 2, `the old walk stairs by at least 2/255 somewhere on the sweep (L ${L} h ${h}): ${old.toFixed(2)}`);
+    // inside the gamut the mapper's own slope (the sRGB curve is steepest where a channel is near 0) is under 2.5/255 per 0.0005 of chroma — a continuous move, not a stair
+    assert.ok(fine < 2.5 && fine < old / 5, `the fine mapper moves under 2.5/255 per 0.0005 of chroma everywhere, and at least 5× less than the old stair (L ${L} h ${h}): ${fine.toFixed(3)} (old ${old.toFixed(2)})`);
+  }
+  // inside the gamut: identical arrays
+  for (const [L, C, h] of [[0.6, 0.05, 84], [0.5, 0.08, 267], [0.8, 0.03, 5], [0.3, 0.02, 150], [0.95, 0, 0], [0.22, 0, 0]])
+    assert.deepEqual(S.oklchToRgbFine(L, C, h), S.oklchToRgb(L, C, h), `in gamut the two agree exactly (L ${L} C ${C} h ${h})`);
+  // out of gamut: in 0..1, lightness still orders the result, and the fine colour sits within one old step of the old one
+  for (let h = 0; h < 360; h += 15){
+    const f = S.oklchToRgbFine(0.6, 0.4, h), o = S.oklchToRgb(0.6, 0.4, h);
+    assert.ok(f.every(v => v >= 0 && v <= 1), 'in range at ' + h);
+    // the fine colour sits ON the boundary, the old one up to 0.008 of chroma inside it: at least as saturated (the sRGB spread), and
+    // where a channel sits near 0 that one old step is worth up to ~9 % of luminance — the stair's own size, not a tolerance to assert
+    const sp = c => Math.max(...c) - Math.min(...c);
+    assert.ok(sp(f) >= sp(o) - 1e-6, 'at least as saturated as the old step at ' + h + ': ' + sp(f).toFixed(4) + ' vs ' + sp(o).toFixed(4));
+  }
+  assert.ok(lum(S.oklchToRgbFine(0.5, 0.3, 84)) < lum(S.oklchToRgbFine(0.7, 0.3, 84)), 'lighter in, lighter out');
+  assert.deepEqual(S.oklchToRgbFine(0.6, 0, 84), S.oklchToRgb(0.6, 0, 84), 'grey is grey');
+});
+
+test('safe v2: the governor\'s blend — a luminance held back arrives by crossfade: exactly the allowed luminance, never a channel past 1.0; where the gate does not bite the target passes; without the flag the old scale path, byte for byte', () => {
+  const dt = 1 / 60, grey = [0.85, 0.85, 0.85], red = [0.95, 0.05, 0.3];
+  const run = (blend) => {
+    const st = S.makeSafeColorState(1), out = [];
+    for (let i = 0; i < 30; i++) S.safeColorStep(st, [grey], dt, undefined, blend);
+    for (let i = 0; i < 180; i++) out.push({ rgb: S.safeColorStep(st, [red], dt, undefined, blend)[0], allowed: st.l[0] });
+    return out;
+  };
+  const old = run(false), v2 = run(true);
+  assert.ok(old.some(o => o.rgb.some(v => v > 1)), 'the old path scales a falling luminance up past 1.0 (the clipping the blend removes)');
+  const rate = 0.9 + (0.5 - 0.9) * ((0.95 - 0.3) / 0.95);     // the red rate for this target
+  let prevL = 0.85;
+  for (const o of v2){
+    assert.ok(o.rgb.every(v => v >= 0 && v <= 1), 'the blend never leaves 0..1: ' + o.rgb.map(v => v.toFixed(3)));
+    const L = S.relLuma(o.rgb);
+    assert.ok(Math.abs(L - o.allowed) < 1e-9, 'its luminance IS the allowed one: ' + L.toFixed(6) + ' vs ' + o.allowed.toFixed(6));
+    assert.ok(Math.abs(L - prevL) <= rate * dt + 1e-9, 'the rate holds frame to frame');
+    prevL = L;
+  }
+  assert.deepEqual(v2[v2.length - 1].rgb.map(v => +v.toFixed(9)), red, 'it arrives at the target');
+  assert.deepEqual(old.map(o => +o.allowed.toFixed(12)), v2.map(o => +o.allowed.toFixed(12)), 'the gate (state.l) walks the same path on both');
+  // a slow target: the gate does not bite, the colour passes on both paths
+  const stA = S.makeSafeColorState(1), stB = S.makeSafeColorState(1);
+  for (let i = 0; i < 40; i++){
+    const c = [0.5 + i * 0.002, 0.4, 0.3];
+    const a = S.safeColorStep(stA, [c], dt)[0], b = S.safeColorStep(stB, [c], dt, undefined, true)[0];
+    assert.deepEqual(a.map(v => +v.toFixed(12)), c.map(v => +v.toFixed(12)), 'old: passes');
+    assert.strictEqual(b, c, 'blend: the target itself');
+  }
+  // the old signature is the old path
+  const st4 = S.makeSafeColorState(1); S.safeColorStep(st4, [grey], dt); const k = S.safeColorStep(st4, [red], dt)[0];
+  assert.ok(Math.abs(k[0] / red[0] - k[1] / red[1]) < 1e-9 && k[0] > 1, 'four arguments: the scale path');
+  // black stays black
+  const stZ = S.makeSafeColorState(1); S.safeColorStep(stZ, [grey], dt, undefined, true);
+  assert.deepEqual(S.safeColorStep(stZ, [[0, 0, 0]], dt, undefined, true)[0], [0, 0, 0]);
+});
+
+test('flame v2: pyroStillGain — the sky dims out with the stillness over ~0.3 s and comes back the frame the music does; clamped; finite on junk', () => {
+  assert.equal(S.pyroStillGain(1, 1, 1 / 60), 1, 'lit, and the music is on: lit');
+  assert.ok(Math.abs(S.pyroStillGain(1, 0, 0.3) - Math.exp(-1)) < 1e-12, 'a stillness: e⁻¹ of the way after one time constant');
+  assert.ok(Math.abs(S.pyroStillGain(1, 0, 1 / 60) - Math.exp(-1 / 18)) < 1e-12, 'one frame of dimming');
+  assert.equal(S.pyroStillGain(0.1, 1, 1 / 60), 1, 'the music returns: lit on that frame');
+  assert.equal(S.pyroStillGain(0.3, 0.5, 1 / 60), 0.5, 'half open: at once');
+  let g = 1; for (let i = 0; i < 60; i++) g = S.pyroStillGain(g, 0, 1 / 60); assert.ok(g < 0.05, 'dark within a second: ' + g.toFixed(4));
+  for (const bad of [[NaN, 0, 1], [1, NaN, 1], [1, 0, NaN], [2, -1, -5], ['x', {}, null]]){ const v = S.pyroStillGain(...bad); assert.ok(isFinite(v) && v >= 0 && v <= 1, 'junk: ' + v); }
+});
+
+test('dance v2: tune 2 wire — the swatches through the fine mapper and the blend under v2 only; FLAME\'s launches, billows, onset shell and tour × the stillness gate, its sky dimmed by pyroStillGain and cleared once dark; the bar phase held with the index', () => {
+  assert.ok(html.includes("const v2c = typeof DANCE !== 'undefined' && DANCE.v2;") && html.includes('lit.slice(0, 3).map(c => (v2c ? oklchToRgbFine : oklchToRgb)(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),\n      dt, SAFE.tuning(), v2c);'), 'COLOR: the fine mapper and the blend, under v2');
+  assert.equal((html.match(/oklchToRgbFine\(/g) || []).length, 1, 'the fine mapper has one caller besides its definition: the swatches');
+  assert.ok(html.includes("const v2sky = typeof DANCE !== 'undefined' && DANCE.v2;") && html.includes('pyro.gain = v2sky ? pyroStillGain(pyro.gain, still, dt) : 1;'), 'FLAME: the sky\'s gain follows the gate under v2, 1 with the flag off');
+  assert.ok(html.includes('const rate = pyroRate({ energy: f.energy, mood, calm }) * lean * still;') && html.includes('const shot = pyroFire(pyro.acc, dt, rate, !!f.onset && (!v2sky || still >= 0.5));'), 'the launches and the onset shell × the gate');
+  assert.ok(html.includes('(PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean * still;'), 'the billows × the gate');
+  assert.ok(html.includes('if (v2sky && pyro.gain < 0.05) for (let i = 0; i < EV; i++) slots[i].t = -1;') && html.includes('evData[o + 3] = q(v2sky ? s.power * pyro.gain : s.power, 1);'), 'the sky dims by the gain and is cleared once dark');
+  assert.ok(html.includes('&& !(DANCE.v2 && DANCE.stillGate < 0.5)){'), 'the tour holds its light through a stillness');
+  assert.ok(html.includes('const pyro = { acc: 0, cold: 0, gain: 1 };'), 'the gain starts lit');
+  assert.ok(html.includes("const still = v2sky && typeof DANCE.stillGate === 'number' && isFinite(DANCE.stillGate) ? DANCE.stillGate : 1;"), 'the gate read is 1 with the flag off');
+});
+
+test('dance v2: the flag is ON by default on both stages (flipped together), ?v2=0 still turns it off, and a stage screen takes it off the wire from its booth', () => {
+  assert.equal((html.match(/\n  v2: true,\n/g) || []).length, 1, 'DANCE.v2 defaults to true (one such line)');
+  assert.ok(!/\n  v2: false,\n/.test(html), 'no "v2: false" default left in the page');
+  const swift = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
+  assert.ok(swift.includes('static let v2Default = true'), 'DanceBus.v2Default is true with it (the TV twin)');
+  assert.ok(html.includes("if (v2q != null) DANCE.v2 = !(v2q === '0' || v2q === 'false' || v2q === 'off' || v2q === 'no');"), '?v2=0 still turns it off');
+  assert.ok(html.includes('r: DANCE.rate, v2: !!DANCE.v2 };'), 'the booth puts the flag on the stage wire');
+  assert.ok(html.includes('if (p.dance.v2 != null) DANCE.v2 = !!p.dance.v2;'), 'and a screen takes it from the packet');
 });
 
 // ---------------------------------------------------------------- licensing

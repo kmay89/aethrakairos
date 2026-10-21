@@ -323,8 +323,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
     // THE DANCE BUS — the body between the music and the drawing (Dance.swift,
     // the web's danceBusStep line for line). Stepped once per draw() from the
-    // ears, written into VizUniforms bytes 144..191. Live but invisible until a
-    // room reads it: every room renders today what it rendered at stride 144.
+    // ears — after the stem light, whose coil, landing and chart it hears under
+    // DanceBus.v2 — written into VizUniforms bytes 144..191. Live but invisible
+    // until a room reads it: every room renders today what it rendered at
+    // stride 144.
     private var dance = DanceBus()
     // STEM LIGHT (Dance.swift): the separated band, read from the score, and
     // the colour engine's answer to it — the web COLOR's wash and bloom
@@ -907,6 +909,26 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         Self.ease(&dispTreble, toward: frame.treble, dt: dt)
         Self.ease(&dispEnergy, toward: frame.energy, dt: dt)
 
+        let busTrack = Self.demoTrack ?? player.current
+
+        // -- STEM LIGHT: the band, not the mix. The kit owns the strike, the
+        //    bass stem the body, the voice the mids and the saturation; the
+        //    kit's return after an absence is seen 0.5–2 s early (the coil)
+        //    and lands on the frame the drums come back. Neutral without
+        //    stems (the demo drive carries none, so CI's frames are unmoved).
+        //    Stepped BEFORE the bus: under DanceBus.v2 the bus reads THIS
+        //    frame's coil, landing and confidence (the web steps the stem
+        //    light ahead of _stepBus the same way), and nothing here reads the
+        //    bus, so the order costs nothing with the flag off. --
+        stemLight.step(stems: busTrack?.mix?.stems, pos: frame.playhead + 0.08,
+                       playing: player.isPlaying || Self.driveDemo, dt: dt)
+        let stemOut = stemLight.out
+        // …and with a DRUM CHART the strike is the drummer's own hit, read on
+        // the same playhead as the grid clock
+        let chart = busTrack?.mix?.stems?.hits
+        let hitNow = (player.isPlaying && chart != nil) ? StemLight.hitPulse(chart, frame.playhead) : 0
+        let gatedOnset = Float(StemLight.hitBlend(Double(frame.onsetEnv) * stemOut.beatGate, hitNow, chart != nil))
+
         // -- the dance bus: ONE body, stepped once per frame from the RAW ears
         //    (not the display ease — the classifier wants the rises as they
         //    land). The demo drive runs THROUGH it, so CI photographs a live
@@ -917,8 +939,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         //    authoritative (mix.bpm > 0). The downbeat is the count (floor of
         //    the running beats, mod 4) — 0 beats means no count at all. The
         //    brace reads the track's score at playhead + 0.08 and + 2P + 0.2;
-        //    the demo track carries no score, so its coil decays. --
-        let busTrack = Self.demoTrack ?? player.current
+        //    the demo track carries no score, so its coil decays. Under
+        //    DanceBus.v2 the bus also hears the drum chart (its voices, at the
+        //    playhead hitPulse reads) and the stem light's coil, landing and
+        //    confidence; with the flag off those three arguments are ignored. --
         let busPeriod: Float = frame.bpm > 0 ? 60 / frame.bpm : 0
         let busGrid = (busTrack?.mix?.bpm ?? 0) > 0
         let busBeats = frame.beats
@@ -932,21 +956,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                                   period: busPeriod, haveGrid: busGrid,
                                   downbeat: busDownbeat,
                                   playing: player.isPlaying || Self.driveDemo,
-                                  calm: calmNow)
-
-        // -- STEM LIGHT: the band, not the mix. The kit owns the strike, the
-        //    bass stem the body, the voice the mids and the saturation; the
-        //    kit's return after an absence is seen 0.5–2 s early (the coil)
-        //    and lands on the frame the drums come back. Neutral without
-        //    stems (the demo drive carries none, so CI's frames are unmoved). --
-        stemLight.step(stems: busTrack?.mix?.stems, pos: frame.playhead + 0.08,
-                       playing: player.isPlaying || Self.driveDemo, dt: dt)
-        let stemOut = stemLight.out
-        // …and with a DRUM CHART the strike is the drummer's own hit, read on
-        // the same playhead as the grid clock
-        let chart = busTrack?.mix?.stems?.hits
-        let hitNow = (player.isPlaying && chart != nil) ? StemLight.hitPulse(chart, frame.playhead) : 0
-        let gatedOnset = Float(StemLight.hitBlend(Double(frame.onsetEnv) * stemOut.beatGate, hitNow, chart != nil))
+                                  calm: calmNow,
+                                  chart: chart, stem: stemOut, stemConf: stemLight.conf)
 
         // the rubato: rooms run in musical time, clamped to the dance floor
         let rate = min(max(0.45 + 1.05 * Double(dispEnergy), 0.4), 1.9)
