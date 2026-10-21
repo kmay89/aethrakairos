@@ -107,13 +107,22 @@ jobs:
 
       - name: Boot, install, launch, photograph
         run: |
+          # The 1080p framing when the runner has it: the Apple TV 4K simulator
+          # draws a 3840x2160 framebuffer, and on the runner's paravirtualised
+          # GPU the ray-marched rooms then render at 1–2 fps (the motion film's
+          # 24 fps frames come back 90 % duplicates); the same device "(at
+          # 1080p)" is a quarter of the pixels. The stills are read at 640x360
+          # in this log either way.
           UDID="$(xcrun simctl list devices available --json | python3 -c '
           import json, sys
           devices = json.load(sys.stdin)["devices"]
-          for runtime, devs in devices.items():
-              if "tvOS" in runtime:
-                  for d in devs:
-                      print(d["udid"]); raise SystemExit
+          tv = [d for runtime, devs in devices.items() if "tvOS" in runtime for d in devs]
+          def rank(d):
+              name = d.get("name", "")
+              return 0 if "1080p" in name else 1 if name == "Apple TV" else 2
+          tv.sort(key=rank)
+          if tv:
+              print(tv[0]["udid"])
           ')"
           if [ -z "$UDID" ]; then
             RUNTIME="$(xcrun simctl list runtimes --json | python3 -c '
@@ -122,7 +131,8 @@ jobs:
           print(rts[-1]["identifier"] if rts else "")
           ')"
             [ -n "$RUNTIME" ] || { echo "::error::No tvOS simulator runtime on this runner."; exit 1; }
-            UDID="$(xcrun simctl create smoke-atv 'Apple TV 4K (3rd generation)' "$RUNTIME")"
+            UDID="$(xcrun simctl create smoke-atv 'Apple TV 4K (3rd generation) (at 1080p)' "$RUNTIME" 2>/dev/null \
+                    || xcrun simctl create smoke-atv 'Apple TV 4K (3rd generation)' "$RUNTIME")"
           fi
           echo "Simulator: $UDID"
           xcrun simctl boot "$UDID" || true
@@ -668,6 +678,11 @@ jobs:
                     f" lockR={lock_r:.2f} dupes={dupes} gaps={gaps} fold={[round(x / top, 2) if top > 0 else 0.0 for x in prof]}"
                     f" beatFrames={beat_frames} rise={rise}")
               rec24(room)
+              if n > 0 and dupes > n // 2:
+                  # the simulator drew fewer frames than the film holds: the deltas are the
+                  # recorder repeating a frame, not the room moving
+                  distinct = n - dupes
+                  print(f"REC24 room={room} | [ci] only {distinct} of {n} frames distinct (the simulator rendered ~{distinct / (n / FPS):.1f} fps): the statistics above are not the room's motion")
               first = (beat_frames[0] - 2) if beat_frames else 0  # 0-based: the last rest frame before the first peak
               first = max(0, min(first, last + 1 - MONT))
               strip = Image.new("RGB", (W * MONT, size[1]), (24, 24, 24))
