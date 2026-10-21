@@ -8367,10 +8367,24 @@ test('dance bus: the prelude shapes — stride monotone to A 0.75, the landing o
   // the front: the head is where the age says
   assert.ok(Math.abs(S.danceFrontJS(0, 0, 0.2) - 1) < 1e-12 && Math.abs(S.danceFrontJS(1, 1, 0.2) - 1) < 1e-12 && Math.abs(S.danceFrontJS(1, 3, 0.2) - 1) < 1e-12);
   assert.ok(S.danceFrontJS(0.5, 0, 0.2) < 0.01 && Math.abs(S.danceFrontJS(0.5, 0.5, 0.2) - 1) < 1e-12);
-  // the lean: nothing before 0.6, loaded near 0.92, gone at the hit; stillness and the grid scale it
+  // the lean: 0 through the middle of the beat, loaded by 0.92, carried ACROSS the beat line (1 at the wrap and at ph 0:
+  // the release is never its own step) and unloaded INTO the kick by 0.15 beat (75 ms at 120 BPM, inside the spring's
+  // 100 ms rise); monotone on each flank; stillness and the grid scale it
   assert.equal(S.danceLeanJS(0.5, 1, true), 0);
+  assert.equal(S.danceLeanJS(0.3, 1, true), 0, '0 through the middle of the beat');
   assert.ok(S.danceLeanJS(0.92, 1, true) > 0.95 && S.danceLeanJS(0.92, 1, true) <= 1);
-  assert.ok(S.danceLeanJS(0.999, 1, true) < 0.02 && S.danceLeanJS(1, 1, true) === 0, 'unloaded as the hit lands');
+  assert.ok(Math.abs(S.danceLeanJS(1, 1, true) - 1) < 1e-12 && Math.abs(S.danceLeanJS(0, 1, true) - 1) < 1e-12, '1 at the wrap: continuous across the beat line');
+  assert.ok(Math.abs(S.danceLeanJS(0.999, 1, true) - S.danceLeanJS(0.001, 1, true)) < 0.01, 'no step at the beat line');
+  assert.equal(S.danceLeanJS(0.15, 1, true), 0, 'unloaded by 0.15 beat');
+  assert.ok(S.danceLeanJS(0.075, 1, true) > 0.45 && S.danceLeanJS(0.075, 1, true) < 0.55, 'half gone at 0.075: ' + S.danceLeanJS(0.075, 1, true).toFixed(3));
+  for (let i = 1; i <= 30; i++){                           // monotone down on [0, 0.15]: it unloads, never twitches
+    const a = S.danceLeanJS((i - 1) * 0.005, 1, true), b = S.danceLeanJS(i * 0.005, 1, true);
+    assert.ok(b <= a + 1e-12, 'unloads monotonically: ' + a.toFixed(4) + ' -> ' + b.toFixed(4) + ' at ' + (i * 0.005).toFixed(3));
+  }
+  for (let i = 1; i <= 32; i++){                           // monotone up on [0.6, 0.92]: it loads
+    const a = S.danceLeanJS(0.6 + (i - 1) * 0.01, 1, true), b = S.danceLeanJS(0.6 + i * 0.01, 1, true);
+    assert.ok(b >= a - 1e-12, 'loads monotonically: ' + a.toFixed(4) + ' -> ' + b.toFixed(4) + ' at ' + (0.6 + i * 0.01).toFixed(2));
+  }
   assert.equal(S.danceLeanJS(0.92, 0, true), 0, 'still → no lean');
   assert.ok(Math.abs(S.danceLeanJS(0.92, 1, false) - 0.4 * S.danceLeanJS(0.92, 1, true)) < 1e-12, 'freewheel at 0.4');
   assert.ok(S.danceLeanJS(0.92, 0.5, true) < 0.5 * S.danceLeanJS(0.92, 1, true), 'a half-open gate leans less than half');
@@ -8409,6 +8423,75 @@ test('dance bus: the prelude is generated — the embedded GLSL and every marked
   const strip = s => s.split('\n').filter(l => l.startsWith('float ') || l.startsWith('inline float ') || l.startsWith('  float ')).map(l => l.trim().replace(/^inline /, '').replace(/constant VizUniforms& U, |constant VizUniforms& U/g, '').replace(/_a\(U\)/g, '()').replace(/_a\(/g, '(').replace(/U\.(\w+)/g, (_, f) => f === 'barPhase' ? 'uBarPhase' : f)).join('\n');
   assert.equal(strip(a), strip(glsl), 'GLSL and MSL helpers are one text');
   assert.throws(() => P.emitMSL({ mode: 'suffix', sfx: 'a' }), /suffix/, 'a suffix starts with _');
+});
+
+/* THE TEN LAWS, GREPPED — SPECTRAL, the first room re-choreographed on the dance
+   bus (stage 4). Law 1 (no raw band on any displacement) is checked as a list of
+   forbidden (uniform, target) pairs: every statement that assigns a radius,
+   thickness, position, scale, angle, count, threshold or camera term is read, and
+   none may contain a raw band or the live row. The rest: the prelude is prepended
+   (so the room must not declare uBarPhase or shadow the twelve), the helpers the
+   retelling is built from are read, every loop is literal-bounded, the whole-frame
+   factor is never a beat, and the slow row is the body while the live row is light. */
+test('SPECTRAL_FRAG keeps the ten laws: no raw band or live row on a displacement, the dance helpers read, loops literal-bounded', () => {
+  const s0 = html.indexOf('const SPECTRAL_FRAG = '), s1 = html.indexOf('\n`;', s0);
+  assert.ok(s0 >= 0 && s1 > s0, 'SPECTRAL_FRAG is in the player');
+  const room = html.slice(s0, s1);
+  assert.ok(room.startsWith('const SPECTRAL_FRAG = GLSL_MPHI + GLSL_DANCE + `'), 'GLSL_DANCE is prepended after GLSL_MPHI');
+  assert.ok(!/uniform\s+float[^;]*\buBarPhase\b/.test(room), 'the room does not redeclare uBarPhase (the prelude declares it)');
+  const twelve = ['dHit', 'dAge', 'dKick', 'dMass', 'dArtic', 'dSpark', 'dSway', 'dLift', 'dBrace', 'dImpact', 'dStill', 'dPeriod'];
+  for (const n of twelve) assert.ok(!new RegExp('\\b(float|vec[234]|int|bool)\\s+' + n + '\\b').test(room), n + ' is a macro: never a local');
+  // law 1 — the forbidden (raw input, displacement target) pairs
+  const RAW = ['uBeat', 'uEnergy', 'uBass', 'uMid', 'uTreble', 'uBeatIdx', 'uAudio', 'uLiveA', 'uLiveB', 'lA', 'lB'];
+  const TARGETS = {
+    radius:    ['R', 'Hc', 'rpx', 'r', 'rb', 'rt', 'wr'],
+    thickness: ['c.thA', 'c.thB', 'thA', 'thB', 'bodyA', 'bodyB', 'baseA', 'baseB', 'bell', 'swell', 'squash', 'th', 'fl'],
+    position:  ['ro', 'ta', 'rd', 'uv', 'drift', 'p', 'pq', 'z', 'q', 'landA', 'landB'],
+    scale:     ['reach', 'D', 'c.sc', 'c.lsc', 'c.lod', 's', 'c.pr', 'c.pa'],
+    angle:     ['A', 'B', 'th', 'ph', 'e', 'be', 'roll', 'c.w0', 'c.wd', 'c.u1', 'c.u2', 'c.u3', 'c.u4', 'sa', 'bs'],
+    count:     ['nF', 'qn', 'prim', 'frame', 'seed'],
+    threshold: ['bA', 'bB', 'f', 'g', 'lo'],
+    camera:    ['fw', 'rt0', 'up0', 'up', 'upH', 'dist', 'ldK', 'ldF'],
+  };
+  const pairs = [];
+  for (const [kind, names] of Object.entries(TARGETS)) for (const n of names) for (const u of RAW) pairs.push([u, n, kind]);
+  const esc = x => x.replace(/[.]/g, '\\.');
+  const stmts = room.split('\n').map(l => l.replace(/\/\/.*$/, '').replace(/\/\*[\s\S]*?\*\//g, '')).join('\n').split(';');
+  for (const [u, target, kind] of pairs){
+    const lhs = new RegExp('(^|[^\\w.])(float|vec[234])?\\s*' + esc(target) + '\\s*(=|\\+=|-=|\\*=)(?!=)');
+    const raw = new RegExp('\\b' + u + '\\b');
+    for (const st of stmts) if (lhs.test(st)) assert.ok(!raw.test(st), `${u} reaches the ${kind} term ${target}: ${st.trim().slice(0, 90)}`);
+  }
+  const code = stmts.join(';');   // the room without its comments
+  for (const u of ['uBeat', 'uEnergy', 'uBass', 'uMid', 'uTreble', 'uBeatIdx', 'uAudio']) assert.ok(!new RegExp('\\b' + u + '\\b').test(code), u + ' is not read anywhere in the room');
+  // the live row reaches light only: shaped into lA/lB, which feed the haze weight (c.bn*) and the lit gain (bl)
+  const liveUses = stmts.map(st => st.trim()).filter(st => /\b(uLiveA|uLiveB)\b/.test(st) && !st.startsWith('uniform'));
+  assert.ok(liveUses.length === 2 && liveUses.every(st => /^(vec4 )?l[AB] = vec4\(spShape\(uLive/.test(st)), 'uLiveA/B are read only into lA/lB: ' + liveUses.join(' | '));
+  const lUses = stmts.map(st => st.trim()).filter(st => /\bl[AB]\b/.test(st) && !/^(vec4 )?l[AB] = /.test(st));
+  assert.deepEqual(lUses, ['c.bnA = lA', 'c.bnB = lB', 'float bl = spPick(lA, lB, int(lv + 0.5))'], 'lA/lB reach the haze weight and the lit gain only');
+  assert.ok(/vec4 bA = vec4\(spShape\(uLvA\.x/.test(room) && /c\.thA = baseA \* bodyA/.test(room), 'the slow row (uLvA/B) is the body');
+  // laws 2, 3, 6, 7, 8, 9, 10 — the helpers the retelling is built from
+  for (const h of ['danceLamp(dHit, dAge)', 'danceLean(', 'danceStride(', 'danceLand(dImpact', 'danceFront(', 'danceBeatPhase()']) assert.ok(room.includes(h), 'reads ' + h);
+  for (const d of ['dStill', 'dKick', 'dMass', 'dBrace', 'dImpact', 'dSway', 'dLift']) assert.ok(new RegExp('\\b' + d + '\\b').test(room), 'reads ' + d);
+  assert.ok(/float pulseAmp = danceLamp\(dHit, dAge\) \* dStill \* heft/.test(room), 'the lamp: danceLamp(dHit, dAge) x dStill x heft (laws 6, 7, 8)');
+  // LAW checks, not pins: the gate decides the amplitudes (round 2, R6) - the regexes allow any constant on the term
+  assert.ok(/float kick = dKick \* heft;/.test(room) && /float swell = max\(kick, 0\.0\), squash = min\(kick, 0\.0\);/.test(room), 'the kick carries the count and the passage (heft) and the spring is read SIGNED: swell and squash (laws 2, 7)');
+  assert.ok(/float bell = 0\.\d+ \* swell \+ 0\.\d+ \* squash - 0\.\d+ \* lean;/.test(room), 'the bell: both lobes of one rebound on dKick, drawn back by the lean (laws 2, 3)');
+  assert.ok(/float reach = 1\.0 - 0\.\d+ \* kick\b[^;]*\+ 0\.\d+ \* lean\b/.test(room) && /const float TH = 0\.36;/.test(room), 'one dolly on dKick, signed, drawn back by the lean, the field of view a constant (laws 2, 3)');
+  assert.ok(/float spBeatW\(\)\{/.test(room) && /fract\(uBarPhase - 0\.25 \* dAge \+ 0\.1\)/.test(room), 'the count\'s weight from the bar phase at the strike (law 7, the room\'s own)');
+  assert.ok(!/\bTH\s*(=|\*=|\+=)/.test(room.replace('const float TH = 0.36;', '')), 'TH never moves');
+  assert.ok(/float roll = 0\.\d+ \* dSway/.test(room) && /dLift/.test(room), 'the bar rolls, the phrase lifts (law 7)');
+  // law 6's ban on the whole-frame multiplier: col's only whole-frame factor is the coil, never a hit
+  for (const st of stmts) if (/(^|\s)col \*=/.test(st)) assert.ok(!/\b(dHit|dKick|pulseAmp|pulse|uEnergy|uBeat)\b/.test(st), 'no whole-frame multiplier on the hit: ' + st.trim());
+  // every loop bounded by a compile-time literal
+  const loops = [...room.matchAll(/for\s*\(([^)]*)\)/g)].map(m => m[1]);
+  assert.ok(loops.length >= 2, 'the march and the fold are loops');
+  for (const l of loops) assert.ok(/^\s*int \w+ = 0;\s*\w+ < \d+;\s*\w+\+\+\s*$/.test(l), 'literal-bounded loop: ' + l);
+  // the JS side: the two rows read, the two uniform pairs set
+  const b0 = html.indexOf('function buildSpectral(){'), b1 = html.indexOf('/* ==== END ROOM REGION: SPECTRAL', b0);
+  const build = html.slice(b0, b1);
+  for (const u of ['uLvA', 'uLvB', 'uLiveA', 'uLiveB']) assert.ok(new RegExp(u + ':\\s*\\{ value: new THREE\\.Vector4').test(build) && build.includes('varU.' + u + '.value.set('), u + ' declared and written');
+  assert.ok(/s \+= data\[AUDIO_LIVE \+ i\]; q \+= data\[i\];/.test(build), 'the live row and the slow row are both read');
 });
 
 /* THE FROZEN TRACE. A fixed synthetic drive at 120 BPM and 60 Hz: one bar of

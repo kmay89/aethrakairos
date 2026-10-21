@@ -18,9 +18,13 @@ using namespace metal;
    THE SPECTRUM IS SCULPTED ACROSS SCALES: scale i reads the mean of the
    64 log bands [S_i, S_i+1) with S = 0, 9, 18, 27, 37, 46, 55, 64 (30 Hz to
    14 kHz), so the sub-bass thickens the great ring and the air above 6 kHz
-   the finest ones. The band strip is already eased (punch up 30 ms, grace
-   down 150 ms) and nine bands are averaged per scale, so no thickness
-   jitters on one bin. The web reads the same slices from uAudio's bytes.
+   lights the finest ones. The web keeps two readings of the same slices:
+   a SLOW row (the engine's per-bin follower, P/8 up, 0.4 P down) for the
+   BODY and the LIVE row for light only. The TV's strip is one copy, already
+   eased (punch up 30 ms, grace down 150 ms), so the twin reads the same
+   bands for both at the same gains; nine bands are averaged per scale, so
+   no thickness jitters on one bin, and slice 6 (hats, 5.9-14 kHz) never
+   touches a radius - sparkle is light.
 
    FACES (roll0..2, the same three dice the web's roll() deals): the fold
    THREEFOLD / FOURFOLD / FIVEFOLD; the primitive TORUS / BEADS; the framing
@@ -38,11 +42,28 @@ using namespace metal;
    spheres meet), a tube thinner than a pixel is a front layer the march
    goes on through (coverage, not a wall), AO is two DE taps along the
    normal, and shading walks the chord ramp to the rim tone instead of
-   blending two chord tones. The beat is a lamp falling down the scales from
-   the great ring into the dust before the next beat, positioned by the
-   grid's beat phase (the clock both stages share; the onset envelope when
-   there is no grid), plus a small key swell. Misses and spent marches go to
-   the void.
+   blending two chord tones.
+
+   THE DANCE (stage 4): the beat is a lamp struck on the great ring by the
+   HIT - danceLamp on dHit, clocked by dAge (beats since a real strike, never
+   the grid's sawtooth) - whose light runs OUTWARD from the ring to the
+   filigree's edge across the beat and stays there through its release
+   (spLampAt, a front on dAge), gated by stillness, a highlight where it
+   is and never a flash of the whole jewel. Everything
+   the kick drives, and the lamp, carries the HEFT: the count's weight
+   (spBeatW - the one 1.25, the three 0.5, the two and the four 0.35) times
+   the passage's (dMass; the landing is never a verse). The body takes the
+   kick as one bell with one rebound (dKick, signed: a swell on the hit, a
+   squash below rest on the rebound), drawn back by the lean before the
+   count and let go into the kick, its resting thickness from the passage's
+   weight (dMass); the
+   coil (dBrace) thins, dims and slows it toward the drop and the landing
+   (dImpact) swells it as a front down the scales over half a bar. The
+   children swing into the kick, draw back before it (the lean), lean with
+   the bar (dSway) and ride the stride's wobble. The camera dollies on the
+   kick (one zoom, one sign; the field of view never moves), leans before
+   the count, lifts through the phrase (dLift) and rolls with the bar
+   (dSway). Misses and spent marches go to the void.
 
    PROVENANCE: the distance-estimated IFS built from primitives ("mdifs"),
    Knighty, fractalforums.com, 2012 — fold by a symmetry group, scale toward
@@ -52,10 +73,15 @@ using namespace metal;
    the near-miss coverage after Sebastian Aaltonen's improved soft-shadow
    trick (GDC 2018). The threaded child frame, the cyclic fold, the
    pixel-footprint LOD and the one band per scale are our own. Clean-room
-   prototype: research/fractal-study/shaders/spectral.frag.
+   prototype: research/fractal-study/shaders/spectral.frag. The dance bus
+   and its prelude (danceLamp, danceFront, danceLean, danceStride,
+   danceLand) are the house's, emitted by tools/dance_prelude.mjs for both
+   stages from one source.
 
    Written once, in the house dialect — GLSL's words, mapped onto Metal's by
-   the macros below — so this file and the web's buildSpectral() carry the
+   the macros below, and the bus's twelve accessors (dHit .. dPeriod) plus
+   danceBeatPhase() / danceLean(ph) / spBeatW() / spLeanW() by the sixteen
+   #defines at the top of room_spectral — so this file and the web's buildSpectral() carry the
    same lines. Laws as ever: void ground, chord-only colour, govern() at the
    exit, roll0..2 the dice, every loop bounded by a compile-time literal. All
    helpers live in namespace rm_sp: a self-contained translation unit.
@@ -84,7 +110,7 @@ namespace rm_sp {
 // tools/dance_prelude.mjs in namespace mode (plain names, private to this
 // namespace); identical in meaning to the web's GLSL_DANCE and to the _a
 // copy in Shaders2 (node tools/dance_prelude.mjs --check refuses drift).
-// Nothing in this unit calls them yet: stage 2 makes the bus live but invisible.
+// room_spectral reads them (stage 4): the body, the lamp and the camera below.
 // @dance-prelude-begin(namespace)
 // THE DANCE BUS - generated by tools/dance_prelude.mjs (node tools/dance_prelude.mjs --write); never edit by hand.
 // Accessors: U.dHit ... U.dPeriod (VizUniforms bytes 144..191). Mode: namespace.
@@ -92,8 +118,8 @@ namespace rm_sp {
 inline float danceBeatPhase(constant VizUniforms& U){ return fract(U.barPhase * 4.0); }
 // the count's weight: 1 on the one, 0.8 on the three, 0.6 on the two and the four; 0.8 without a bar (freewheel)
 inline float danceBeatWeight(constant VizUniforms& U){ if (U.dPeriod <= 0.0) return 0.8; float i = floor(U.barPhase * 4.0); return i < 0.5 ? 1.0 : (abs(i - 2.0) < 0.5 ? 0.8 : 0.6); }
-// the coil before the beat: loads over the last 40 % of the beat, unloads in the last 35 ms as dKick begins to rise; gated by stillness, 0.4 when freewheeling. Rooms subtract ~20 % of the hit's gain x lean: the form draws back before it moves
-inline float danceLean(constant VizUniforms& U, float ph){ return U.dStill * (0.6 + 0.4 * U.dStill) * smoothstep(0.60, 0.92, ph) * (1.0 - smoothstep(0.93, 1.0, ph)) * (U.dPeriod > 0.0 ? 1.0 : 0.4); }
+// the coil before the beat: loads over the last 40 % of the beat and unloads INTO the kick, not before it - 1 at ph -> 1 and at ph = 0 (continuous across the beat line), gone by 0.15 beat (75 ms at 120 BPM, inside the spring's 100 ms rise), 0 through the middle of the beat; gated by stillness, 0.4 when freewheeling. Rooms subtract ~20 % of the hit's gain x lean: the form draws back before it moves and lets go AS it moves, so the release is never its own step
+inline float danceLean(constant VizUniforms& U, float ph){ return U.dStill * (0.6 + 0.4 * U.dStill) * max(smoothstep(0.60, 0.92, ph), 1.0 - smoothstep(0.0, 0.15, ph)) * (U.dPeriod > 0.0 ? 1.0 : 0.4); }
 // the step: a C1 reshaping of the beat's progress - fastest on the count, dwelling at the half; slope 1 + A*cos >= 0.25 for A <= 0.75, so a walk on it never runs backwards (T += dPeriod * (danceStride(ph, A) - ph))
 inline float danceStride(float ph, float A){ return ph + (A / 6.2831853) * sin(6.2831853 * ph); }
 // a travelling head along x (0 near ... 1 far) that leaves at age 0 and arrives at age 1 - the beat as an event with a place
@@ -164,11 +190,12 @@ float spPick(vec4 a, vec4 b, int i){
 }
 vec2 spCmul(vec2 a, vec2 b){ return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
 float spPh(float t, float P){ return 6.2831853 * fract(t / P); }
-/* the slice's level (0..1) shaped into a band: each finer slice is expected
-   quieter, the way music's spectrum falls, so the SHAPE is what shows */
+/* the slice's level (0..1) shaped into a band - CONTINUOUS: the groove floor already fills the rings a
+   little and a hit ADDS to that; each finer slice is expected a little quieter, the way a mastered
+   spectrum falls. (The 0.50 gate of the first cut made every slice 0 between hits and 1.0 on them.) */
 float spShape(float L, float i){
-    float lo = 0.50 - 0.045 * i;
-    return smoothstep(lo, lo + 0.36, L);
+    float lo = 0.15 - 0.015 * i;
+    return smoothstep(lo, lo + 0.70, L);
 }
 /* the cyclic fold: the nearest of the n sector axes, rotated onto +x */
 vec2 spFold(vec2 p, vec2 u1, vec2 u2, vec2 u3, vec2 u4){
@@ -178,6 +205,54 @@ vec2 spFold(vec2 p, vec2 u1, vec2 u2, vec2 u3, vec2 u4){
     d = dot(p, u3); if (d > m){ m = d; a = u3; }
     d = dot(p, u4); if (d > m){ m = d; a = u4; }
     return vec2(a.x * p.x + a.y * p.y, a.x * p.y - a.y * p.x);
+}
+/* THE LAMP'S PLACE. The beat is an event with a direction: a front that leaves the great ring (xr = 0) at
+   age 0 and runs OUTWARD to the filigree's edge (xr = 1: six tenths of the way from the ring to the rim, 1.57
+   ring radii - the outermost scale that is still a surface; past it the jewel is dust) by 0.6 beat - at the
+   children's inner arcs by G.4's frame 8 at 60 fps, their outer arcs by 0.5 beat - and STAYS there through
+   the lamp's release (danceFront holds its head at 1), so the added light's mean radius climbs across the beat
+   and does not fall back to the ring as the lamp dims. Width 0.24 of the way (5.6 px of a 41 px ring at the
+   analysis scale): narrower than the gap from the ring to the children's arcs, so the children light when the
+   front reaches them, not with the ring; an eighth as strong inward. A highlight that GROWS as it goes out -
+   0.2 on the great ring (the one surface that would light the whole jewel at once: the flash; its glow round
+   the ring is what the lit-area gate counts), flat to xr 0.3, then steeply: 1.0 at xr 0.5, 4.5 at the
+   filigree's edge where the scales are wire and thread - so the LAMP, not the body's thickening, carries the
+   hit outward and the whole frame's light is a swell across the beat, not a strike. The great ring is the
+   unit ring in the jewel's own frame; R is the jewel's outer radius. Early out (cost): more than 0.6 from the
+   head on either side the front is exp(-6.3) - dark - and the march's samples in the void and on the far side
+   of the jewel pay no exp, no smoothstep, no mix. */
+float spLampAt(vec3 q, float R, float age){
+    float xr = (length(q.xy) - 1.0) / (0.6 * (R - 1.0));
+    float ax = abs(xr), hd = min(age / 0.6, 1.0);
+    if (abs(ax - hd) > 0.6) return 0.0;
+    float f = danceFront(ax, hd, 0.24) * mix(0.08, 1.0, smoothstep(-0.1, 0.1, xr));
+    // the highlight grows as it goes out - steeply past the children's arcs - and the EDGE keeps the light the front
+    // brought it into the lamp's release (danceLamp lets go from 0.62: the ring and the children dim first; the edge
+    // crests at 0.7 beat and dims over the last quarter), so the eye has the second half of every beat to see WHERE
+    // the light went - a crest, never a plateau with a drop at the count (that drop read as flicker)
+    float far = smoothstep(0.3, 1.0, clamp(xr, 0.0, 1.0));
+    return f * (0.2 + 4.3 * far) * (1.0 + 0.6 * far * smoothstep(0.5, 0.8, age));
+}
+/* THE COUNT'S WEIGHT, the room's own (law 7: downbeats heavier): the count the strike belongs to is the bar
+   phase AT the strike (uBarPhase - dAge / 4; the analyser's 80 ms read-ahead lands a strike just before its
+   grid beat, so + 0.1 bar rounds it onto the count it is for) - the one 1.25, the three 0.5, the two and
+   the four 0.35; 0.8 freewheeling (the one above 1 and the two and the four under 0.4 since round 2: the lean's
+   release into every kick sharpened the twos' and fours' attacks until the downbeat lock fell under the all-beat lock). Constant through a strike's life (both clocks run on the same time), so
+   it never steps mid-beat; a new strike restarts the lamp from 0 and the spring is at its tail.
+   (A namespace helper has no U of its own: it takes the uniforms as the prelude's helpers do, and the
+   fragment's spBeatW() macro passes them - the web's uBarPhase / dAge / dPeriod are U's fields here.) */
+inline float spBeatW(constant VizUniforms& U){
+    if (U.dPeriod <= 0.0) return 0.8;
+    float i = floor(fract(U.barPhase - 0.25 * U.dAge + 0.1) * 4.0);
+    return i < 0.5 ? 1.25 : (abs(i - 2.0) < 0.5 ? 0.5 : 0.35);
+}
+/* the weight of the count AHEAD - the one the lean loads for: law 3 reads the lean against THAT hit's gain, so the
+   two and the four draw back 0.3 as far as the one - the same 1.25 / 0.35 / 0.5 / 0.35, read at the bar phase + 0.1
+   bar, which rounds the lean's window (the last 40 % of a beat) onto the next count. (U as spBeatW takes it.) */
+inline float spLeanW(constant VizUniforms& U){
+    if (U.dPeriod <= 0.0) return 0.8;
+    float i = floor(fract(U.barPhase + 0.1) * 4.0);
+    return i < 0.5 ? 1.25 : (abs(i - 2.0) < 0.5 ? 0.5 : 0.35);
 }
 
 /* THE JEWEL. prT/paT are the reference and real pixel footprints at this
@@ -248,9 +323,28 @@ fragment float4 room_spectral(float4 pos [[position]],
 {
     using namespace rm_sp;
 #define ramp(t) chordRamp(U, (t))
+    // the dance bus in the house dialect: the web's twelve accessors and its uniform-free helper calls
+    // (a function-like macro's own name is not re-expanded inside its replacement, so danceLean(ph)
+    // resolves to rm_sp's danceLean(U, ph); the body below never writes U.dHit itself)
+#define dHit U.dHit
+#define dAge U.dAge
+#define dKick U.dKick
+#define dMass U.dMass
+#define dArtic U.dArtic
+#define dSpark U.dSpark
+#define dSway U.dSway
+#define dLift U.dLift
+#define dBrace U.dBrace
+#define dImpact U.dImpact
+#define dStill U.dStill
+#define dPeriod U.dPeriod
+#define danceBeatPhase() danceBeatPhase(U)
+#define danceLean(ph) danceLean(U, (ph))
+#define spBeatW() spBeatW(U)
+#define spLeanW() spLeanW(U)
     // calm: the TV's analyser counts it DOWN from 1 as the music gets loud (1 - energy over 2.5 s);
     // the web's f.calm counts UP (energy over 2.5 s). This room reads the web's sense on both stages.
-    float uTime = U.time, uEnergy = U.energy, uBeat = U.onsetEnv, uCalm = 1.0 - U.calm;
+    float uTime = U.time, uCalm = 1.0 - U.calm;
     vec2 uRes = max(res, float2(1.0));
 
     // the faces: roll0 the fold, roll1 the primitive, roll2 the framing
@@ -294,57 +388,134 @@ fragment float4 room_spectral(float4 pos [[position]],
     c.lsc = log2(c.sc);
 
     float tc = uTime + seed * 977.0;
-    // structural life: the great ring turns once in 283 s; each finer scale rolls a little faster,
-    // and a sustained loud passage (calm, energy over seconds) winds the scales further round
+    // THE DANCE: the count's phase; the lean that loads before it; the coil - held through the landing and
+    // unwound over half a bar (dBrace itself is zeroed on the landing frame, which would be a lunge)
+    float beatPh = danceBeatPhase();
+    float lean = danceLean(beatPh) * spLeanW();
+    // the landing hands the coil to its own clock at 0.8 (the brace's follower lets go ~0.3 s before the
+    // landing as its lookahead window crosses the drop, so a hold at 1.0 would re-tighten on the landing frame)
+    float braceH = max(dBrace, 0.8 * (1.0 - smoothstep(0.0, 2.0, dImpact)));
+    // HEFT: the count's weight (the one 1.25, the three 0.5, the two and the four 0.35) times the passage's
+    // weight (a verse dances softly, a drop heavily: 0.36 at dMass 0.1, 1.0 at the groove's 0.5, 1.8 at the
+    // drop's 0.75 - the weight is CONVEX above the groove's level, so a drop is heavier than its energy alone would
+    // make it: drop / groove motion 1.21 at the straight line, 1.2996 at 1.6 x the excess and 1.32 at the 2.2 x written here; the gate asks 1.3) - on the bell, the dolly, the
+    // children's swing and the lamp alike, so the bar has a shape
+    // and a drop is heavier than a groove. The landing is never a verse: it lands at full weight whatever the silence
+    // before it left in dMass (the floor fades over the first beat, by when the drop's own weight has risen),
+    // and SWELLS with it - half again at 0.42 beat (danceLand's crest), so the drop is a swell, not a flash
+    float wB = spBeatW();
+    float heft = wB * (max(0.2 + 1.6 * dMass + 2.2 * max(dMass - 0.55, 0.0), 1.0 - smoothstep(0.0, 1.0, dImpact)) + 0.5 * max(danceLand(dImpact), 0.0));
+    float kick = dKick * heft;
+    // THE SQUASH: the spring is SIGNED (the bus's dKick swings to -0.19 of its peak at 0.6 beat - below rest is the
+    // squash) and the body reads both lobes; the squash is written heavier than the swell because two other body
+    // terms swell on the same kick with no rebound of their own - the slow row's band (released over 0.4 P) and
+    // dMass (up a third of a beat, down two: +0.17 on every kick) - and the ring must still go THINNER than rest
+    // through them at the trough (G.4's frame 14-20), not merely less thick. The dolly reads the spring plain:
+    // the squash is the body's, where the eye reads thickness
+    float swell = max(kick, 0.0), squash = min(kick, 0.0);
+    // structural life: the great ring turns once in 283 s; each finer scale rolls a little faster, a sustained
+    // loud passage (calm) winds the scales further round - and the children DANCE: they swing into the kick and
+    // settle (dKick: one rebound, 0.12 rad per scale), DRAW BACK before the count (the lean, half the swing:
+    // 3.4 degrees the other way at the children over the last third of the beat - the one place in this room
+    // the anticipation is big enough to see), lean with the bar (dSway: 2.9 degrees at the children, one way on
+    // the two, the other on the four - half the refine round's, see the roll below) and ride the stride's wobble (fastest on the count, dwelling at the half;
+    // zero-mean, so nothing ever wraps), gated by stillness and slowed by the coil
     float A = spPh(tc, 283.0);
-    float B = spPh(tc, 157.0) + 0.7 * uCalm;
+    float B = spPh(tc, 157.0) + 0.7 * uCalm
+            + (0.12 * kick - 0.06 * lean + 0.05 * dSway * dStill + 0.25 * (danceStride(beatPh, 0.6) - beatPh) * dStill)
+            * (1.0 - 0.5 * braceH);
     c.w0 = vec2(cos(A), sin(A));
     c.wd = vec2(cos(B), sin(B));
 
-    // the spectrum, one slice per scale
+    // the spectrum, one slice per scale: the SLOW levels are the body, the LIVE levels light.
+    // Slice 6 (hats, 5.9-14 kHz) never touches a radius.
     vec4 bA = vec4(spShape(lvl[0], 0.0), spShape(lvl[1], 1.0), spShape(lvl[2], 2.0), spShape(lvl[3], 3.0));
-    vec4 bB = vec4(spShape(lvl[4], 4.0), spShape(lvl[5], 5.0), spShape(lvl[6], 6.0), 0.0);
-    c.bnA = bA; c.bnB = bB;
+    vec4 bB = vec4(spShape(lvl[4], 4.0), spShape(lvl[5], 5.0), 0.0, 0.0);
+    vec4 lA = vec4(spShape(lvl[0], 0.0), spShape(lvl[1], 1.0), spShape(lvl[2], 2.0), spShape(lvl[3], 3.0));
+    vec4 lB = vec4(spShape(lvl[4], 4.0), spShape(lvl[5], 5.0), spShape(lvl[6], 6.0), 0.0);
+    c.bnA = lA; c.bnB = lB;
+    // THE BODY: resting thickness from the slow slices and the passage's weight (a drop is a fat jewel, a verse
+    // a thin one; the rest 0.49 + 0.18 x band + 0.45 x dMass keeps the between-hit rings at the old 0.75 of base in
+    // a groove - the march's cost is the pixels the rings cover - with the passage's weight carrying more of it:
+    // a drop rests at 0.92, a verse at 0.55; a hit still fills them); the kick's BELL on the four coarse slices -
+    // the swell 0.14 of base on the hit, the SQUASH 0.60 x the spring's negative lobe (one rebound, thinner than
+    // rest at the trough) - drawn back by the lean in the last eighth (the lean 0.08 of base: over half the
+    // swell, so the draw-back reads) and released INTO the kick over its first 0.15 beat, and ARRIVING down the
+    // scales as the lamp's front does (law 6 on the body too: the great ring takes it on the strike, the children
+    // over the first 0.2 beat, the grandchildren by 0.3, level 3 by 0.4 - so the children thicken AFTER the ring,
+    // not with it; the squash and the lean, at the beat's end, reach all four alike); the coil thins everything a
+    // little; the landing's swell runs down the scales, a third of a beat per scale, half a bar to the filigree.
+    // The band's share of the swell is half what it was (0.35 -> 0.18 of base) so the lamp, not the thickening,
+    // carries the hit outward (the travel gate) and the spring's squash shows through the band's own release -
+    // and no less, because the band's exponential release (0.4 P) is the beat-rate swell the luma-jitter gate
+    // measures the flicker against (at 0.10 the frame's luma went square and the ratio read 1.20)
+    float bell = 0.14 * swell + 0.60 * squash - 0.08 * lean;
+    vec4 bellA = bell * vec4(1.0, smoothstep(0.0, 0.2, dAge), smoothstep(0.1, 0.3, dAge), smoothstep(0.2, 0.4, dAge));
+    vec4 landA = vec4(max(danceLand(dImpact), 0.0), max(danceLand(dImpact - 0.3333333), 0.0),
+                      max(danceLand(dImpact - 0.6666667), 0.0), max(danceLand(dImpact - 1.0), 0.0));
+    vec4 landB = vec4(max(danceLand(dImpact - 1.3333333), 0.0), max(danceLand(dImpact - 1.6666667), 0.0),
+                      max(danceLand(dImpact - 2.0), 0.0), 0.0);
+    vec4 bodyA = (0.49 + 0.18 * bA + 0.45 * dMass + bellA) * (1.0 - 0.2 * braceH) * (1.0 + 0.35 * landA);
+    vec4 bodyB = (0.49 + 0.18 * bB + 0.45 * dMass + vec4(0.0, 0.0, 0.15, 0.0)) * (1.0 - 0.2 * braceH) * (1.0 + 0.35 * landB);
     vec4 baseA = vec4(0.050, 0.060, 0.068, 0.076), baseB = vec4(0.082, 0.088, 0.094, 0.094);
     if (prim < 0.5){
-        c.thA = baseA * (0.75 + bA); c.thB = baseB * (0.75 + bB);
+        c.thA = baseA * bodyA; c.thB = baseB * bodyB;
     } else {
-        c.thA = vec4(c.bmax) * (0.58 + 0.42 * bA); c.thB = vec4(c.bmax) * (0.58 + 0.42 * bB);
+        // beads: never touching - the thread must show between (0.97 of bmax at the most, whatever lands)
+        c.thA = vec4(c.bmax) * min(0.72 * bodyA, vec4(0.97)); c.thB = vec4(c.bmax) * min(0.72 * bodyB, vec4(0.97));
     }
 
-    // the camera: closed form in musical time, three framings
+    // the camera dances: ONE dolly with one sign - the kick brings the jewel to the eye and it settles with one
+    // rebound (the dolly reads the spring signed and plain: the squash is the body's, the thickness, where the eye
+    // reads it), the passage's weight holds it nearer (a drop 1.25 % nearer than a groove), the lean draws it back
+    // before the count (half the kick's gain: the lean unloads INTO the kick over its first 0.15 beat, inside the
+    // spring's rise, so the release is part of the kick's own motion and never a step of its own - the one thing
+    // that held this term at 0.010 in round 1), the coil holds it off until the landing lets go; the field of view
+    // (TH) never moves. The phrase lifts the eye (dLift); the bar rolls the framing (dSway), below.
+    float reach = 1.0 - 0.03 * kick - 0.05 * dMass + 0.015 * lean + 0.06 * braceH;
     float R = c.sc / (c.sc - 1.0);                    // the jewel's outer radius (great ring = 1)
     float Hc = 1.0 / (c.sc - 1.0);                    // how far the children stand off its plane
     vec3 ro, upH, ta = vec3(0.0);
     if (frame < 0.5){
-        // THE MANDALA: 7..27 degrees off the axis, wandering round it
-        float th = 0.30 + 0.12 * sin(spPh(tc, 173.0)) + 0.05 * sin(spPh(tc, 61.0) + 1.0);
+        // THE MANDALA: 7..27 degrees off the axis, wandering round it; the phrase lifts the eye toward the axis
+        // (7 degrees at the crest of a full phrase: the rose window seen face-on, which is the mandala's own)
+        float th = 0.30 + 0.12 * sin(spPh(tc, 173.0)) + 0.05 * sin(spPh(tc, 61.0) + 1.0) - 0.12 * dLift;
         float ph = spPh(tc, 397.0) + 0.4 * sin(spPh(tc, 89.0));
-        float D = R / (0.82 * TH) * (1.0 + 0.05 * sin(spPh(tc, 131.0)));
+        float D = R / (0.82 * TH) * (1.0 + 0.05 * sin(spPh(tc, 131.0))) * reach;
         ro = D * vec3(sin(th) * cos(ph), sin(th) * sin(ph), cos(th));
         upH = vec3(0.0, 1.0, 0.0);
     } else if (frame < 1.5){
-        // THE CROWN: a low orbit, 19..38 degrees above the great ring's plane
-        float e = 0.50 + 0.12 * sin(spPh(tc, 149.0)) + 0.04 * sin(spPh(tc, 53.0));
+        // THE CROWN: a low orbit, 19..38 degrees above the great ring's plane, 7 higher at the phrase's crest
+        float e = 0.50 + 0.12 * sin(spPh(tc, 149.0)) + 0.04 * sin(spPh(tc, 53.0)) + 0.12 * dLift;
         float ph = spPh(tc, 331.0);
-        float D = (R * sin(e) + Hc * cos(e)) / (0.86 * TH) * (1.0 + 0.04 * sin(spPh(tc, 113.0)));
+        float D = (R * sin(e) + Hc * cos(e)) / (0.86 * TH) * (1.0 + 0.04 * sin(spPh(tc, 113.0))) * reach;
         ta = vec3(0.0, 0.0, -0.16 * R);                 // aim a little below the plane: perspective drops the near rings
         ro = ta + D * vec3(cos(e) * cos(ph), cos(e) * sin(ph), sin(e));
         upH = vec3(0.0, 0.0, 1.0);
     } else {
         // THE PENDANT: the jewel hangs in three-quarter view and swings slowly on its vertical axis,
-        // 37..71 degrees from face-on (the seed picks the side): never face-on, never edge-on
+        // 37..71 degrees from face-on (the seed picks the side): never face-on, never edge-on;
+        // the eye 7 degrees higher at the phrase's crest
         float sd = seed < 0.5 ? -1.0 : 1.0;
         float be = sd * (0.94 + 0.24 * sin(spPh(tc, 211.0)) + 0.06 * sin(spPh(tc, 83.0) + 0.7));
-        float e = 0.16 * sin(spPh(tc, 167.0)) + 0.06 * sin(spPh(tc, 71.0));
-        float D = R / (0.82 * TH) * (1.0 + 0.04 * sin(spPh(tc, 127.0)));
+        float e = 0.16 * sin(spPh(tc, 167.0)) + 0.06 * sin(spPh(tc, 71.0)) + 0.12 * dLift;
+        float D = R / (0.82 * TH) * (1.0 + 0.04 * sin(spPh(tc, 127.0))) * reach;
         ro = D * vec3(sin(be) * cos(e), sin(e), cos(be) * cos(e));
         upH = vec3(0.0, 1.0, 0.0);
     }
     float dist = length(ro);
     vec3 fw = normalize(ta - ro);
-    vec3 rt = normalize(cross(fw, upH));
-    vec3 up = cross(rt, fw);
+    vec3 rt0 = normalize(cross(fw, upH));
+    vec3 up0 = cross(rt0, fw);
+    // the bar rolls the framing about the view axis: 2 degrees at full sway while the music counts (one way on
+    // the two, the other on the four), and only the gentle 0.9 of it on the breath the bus folds into dSway at
+    // rest (law 8: the counted part x dStill). Half the refine round's 4 degrees: a rigid roll displaces every
+    // structure against the kick's rest frame - fastest exactly at the one and the three, where dSway crosses
+    // zero - and at 4 degrees that floor was 40 % of a kick's added light by the end of its beat, more than the
+    // lamp could outshine at the filigree (the travel gate); the children's own lean with the bar (B) is halved alike
+    float roll = 0.015 * dSway + 0.02 * dSway * dStill;
+    vec3 rt = cos(roll) * rt0 + sin(roll) * up0;
+    vec3 up = cos(roll) * up0 - sin(roll) * rt0;
     float aspect = uRes.x / uRes.y;
     // the jewel drifts slowly off the centre line and back (a lens shift: the picture slides,
     // the perspective holds), as far as the screen is wider than it is tall allows
@@ -360,14 +531,13 @@ fragment float4 room_spectral(float4 pos [[position]],
 
     vec3 ldK = normalize(-0.55 * fw + 0.65 * up - 0.35 * rt);     // key: upper left, in front
     vec3 ldF = normalize(-0.30 * fw - 0.35 * up + 0.80 * rt);     // chord fill: lower right
-    // THE BEAT: a lamp struck on the great ring that falls down the scales into the dust before
-    // the next beat. With a grid it rides the beat phase, the clock both stages share; without
-    // one, the onset envelope. The hit lights it and a beating passage holds it up; silence never does.
-    // (The analyser holds barPhase and beatPhase at exactly 0 while it has no beats: that is "no grid".)
-    float bt = clamp(uBeat, 0.0, 1.0);
-    float bph = (U.barPhase + U.beatPhase > 0.0) ? fract(U.barPhase * 4.0) : 1.0 - bt;
-    float pulseAmp = (1.0 - bph) * mix(0.35 * smoothstep(0.12, 0.40, uEnergy), 1.0, bt);
-    float pulsePos = bph * 8.5 - 0.5;
+    // THE BEAT: a lamp struck on the great ring by the HIT - danceLamp: the body arriving over 0.12 beat, held
+    // through the fall, released in the last third - whose light runs OUTWARD from the ring to the filigree across
+    // the beat (spLampAt, the place). Its clock is dAge, beats since a real strike: no grid sawtooth, a bare hat
+    // never restarts it, and in stillness it does not light (x dStill); it carries the count's weight and the
+    // passage's (heft). Where it is, it is a highlight (gains 1.3 / 1.5 / 1.8 at the place's own profile),
+    // never a flash of the whole jewel.
+    float pulseAmp = danceLamp(dHit, dAge) * dStill * heft;
     float colPh = 0.06 * sin(spPh(tc, 241.0)) + 0.04 * uCalm;
 
     vec3 col = vec3(0.0);
@@ -385,7 +555,8 @@ fragment float4 room_spectral(float4 pos [[position]],
         float gA = 0.0, gS = 0.0;                       // the lamp's glow, and its weighted scale
         for (int i = 0; i < 100; i++){
             float prT = c.pr * t, paT = max(c.pa * t, 1e-7);
-            float d = spDE(ro + rd * t, prT, paT, c);
+            vec3 pq = ro + rd * t;
+            float d = spDE(pq, prT, paT, c);
             if (d < 0.5 * paT){
                 if (c.cov < 0.98 && fT < 0.0){
                     // a tube finer than a pixel is coverage, not a wall: keep it as the front layer
@@ -412,20 +583,20 @@ fragment float4 room_spectral(float4 pos [[position]],
                 rMin = 1e9;
             }
             dPrev = d; tPrev = t;
-            // the haze of the scales too fine to draw: a line integral of soft dust
+            // the haze of the scales too fine to draw: a line integral of soft dust, lit where the lamp's front is
             float hw = max(4.0 * prT, 1e-7);
             float stp = min(d, max(c.hz, hw));
+            float lf = pulseAmp > 0.01 ? spLampAt(pq, R, dAge) : 0.0;
             if (c.hzW > 0.0){
                 float hl = c.hzL;
-                float hp = pulseAmp * exp(-(hl - pulsePos) * (hl - pulsePos) * 0.45);
-                float wv = c.hzW * (1.0 + 5.0 * hp) * exp(-c.hz / hw) * (stp / hw);
+                float hp = pulseAmp * lf;
+                float wv = c.hzW * (1.0 + 2.5 * hp) * exp(-c.hz / hw) * (stp / hw);
                 hzA += wv; hzS += wv * hl;
             }
             // the lamp's glow: light scattered round the scale it is passing, where the void has the headroom
-            float gx = c.lv - pulsePos;
-            if (pulseAmp > 0.01 && abs(gx) < 3.0){
+            if (lf > 0.01){
                 float gw = max(0.10 * exp2(-c.lsc * c.lv), 2.0 * paT);
-                float gv = pulseAmp * exp(-gx * gx * 0.45 - d / gw) * (stp / gw);
+                float gv = pulseAmp * lf * exp(-d / gw) * (stp / gw);
                 gA += gv; gS += gv * c.lv;
             }
             t += stp * 0.92;
@@ -436,16 +607,16 @@ fragment float4 room_spectral(float4 pos [[position]],
             if (a > eA){ eA = a; eL = lvMin; eC = cvMin; eT = tMin; }
         }
         // the dust takes its scale's chord tone, resolved once (no texture fetch inside the march)
-        col += ramp(0.12 * hzS / max(hzA, 1e-6) + colPh + 0.04) * hzA * 0.026 * (0.6 + 0.7 * uEnergy);
+        col += ramp(0.12 * hzS / max(hzA, 1e-6) + colPh + 0.04) * hzA * 0.026 * (0.6 + 0.7 * uCalm);
         col += ramp(0.12 * gS / max(gA, 1e-6) + colPh + 0.33) * gA * 0.12;
-        float pulseE = pulseAmp * exp(-(eL - pulsePos) * (eL - pulsePos) * 0.45);
+        float pulseE = pulseAmp * spLampAt(ro + rd * eT, R, dAge);
         // a near miss is a silhouette: the thread's colour, at the coverage the thread earned
-        vec3 eCol = ramp(0.12 * eL + colPh + 0.33) * (0.95 + 0.35 * uEnergy + 4.0 * pulseE) * mix(1.0, 0.92, eL / 6.0)
+        vec3 eCol = ramp(0.12 * eL + colPh + 0.33) * (0.95 + 0.35 * uCalm + 3.0 * pulseE) * mix(1.0, 0.92, eL / 6.0)
                   * eC * exp(-0.35 * max(eT - dist + 0.6 * R, 0.0));
         // the front thread is a line finer than a pixel, lit as a thread the way a near miss is,
         // laid over what lies behind it at the share of the pixel it covers
-        float pulseF = pulseAmp * exp(-(fL - pulsePos) * (fL - pulsePos) * 0.45);
-        vec3 fCol = ramp(0.12 * fL + colPh + 0.33) * (0.95 + 0.35 * uEnergy + 4.0 * pulseF) * mix(1.0, 0.92, fL / 6.0)
+        float pulseF = pulseAmp * spLampAt(ro + rd * fT, R, dAge);
+        vec3 fCol = ramp(0.12 * fL + colPh + 0.33) * (0.95 + 0.35 * uCalm + 3.0 * pulseF) * mix(1.0, 0.92, fL / 6.0)
                   * exp(-0.35 * max(fT - dist + 0.6 * R, 0.0));
         if (hit){
             vec3 p = ro + rd * t;
@@ -461,9 +632,9 @@ fragment float4 room_spectral(float4 pos [[position]],
             float h1 = 0.30 / sl, h2 = 0.80 / sl;
             float o1 = spDE(p + n * h1, prT, paT, c), o2 = spDE(p + n * h2, prT, paT, c);
             float ao = clamp(1.0 - 0.55 * max(h1 - o1, 0.0) / h1 - 0.45 * max(h2 - o2, 0.0) / h2, 0.3, 1.0);
-            float bl = spPick(bA, bB, int(lv + 0.5));
+            float bl = spPick(lA, lB, int(lv + 0.5));
             float lt = lv / 6.0;
-            float pulse = pulseAmp * exp(-(lv - pulsePos) * (lv - pulsePos) * 0.45);
+            float pulse = pulseAmp * spLampAt(p, R, dAge);
             vec3 base = ramp(0.12 * lv + colPh);
             vec3 rim = ramp(0.12 * lv + colPh + 0.33);
             vec3 sky = ramp(0.12 * lv + colPh + 0.62);
@@ -476,15 +647,15 @@ fragment float4 room_spectral(float4 pos [[position]],
             float spc = pow(rl, 60.0), sheen = pow(rl, 10.0);
             // polished metal mirrors a chord sky: its third tone above, the void below
             float skyU = smoothstep(0.1, 0.9, 0.5 + 0.5 * dot(rf, up));
-            float key = 1.0 + 0.25 * pulseAmp;
+            float key = 1.0 + 0.25 * pulse;                       // the key swells where the lamp IS, not everywhere
             // the shadow side walks the ramp toward the rim tone: never a grey blend of two chord tones
             float kd = 0.35 + 0.65 * dif;
             vec3 body = ramp(0.12 * lv + colPh + 0.33 * (1.0 - kd)) * mix(0.65, 1.0, kd);
-            float gain = mix(1.0, 0.92, lt) * (1.0 + 0.35 * bl);
-            vec3 lit = body * (0.58 + 0.80 * dif * key) * (1.25 + 0.15 * uEnergy)
+            float gain = mix(1.0, 0.92, lt) * (1.0 + 0.25 * bl);   // the live row's hit gain, kept small: the LAMP carries the hit
+            vec3 lit = body * (0.58 + 0.80 * dif * key) * (1.25 + 0.15 * uCalm)
                      + base * 0.6 * sheen + sky * 0.45 * skyU
                      + rim * (0.36 * dif2 + 0.90 * fr + 0.30 * lt)      // the finer the scale, the surer its lit edge
-                     + (base * 0.5 + rim * (0.35 + 1.3 * fr)) * 3.2 * pulse;
+                     + (base * 0.5 + rim * (0.35 + 1.3 * fr)) * 1.3 * pulse;
             lit = lit * gain * ao + sky * spc * 0.6 * ao;
             float fade = exp(-0.35 * max(t - dist + 0.6 * R, 0.0));
             col += lit * fade * cvH;
@@ -495,8 +666,27 @@ fragment float4 room_spectral(float4 pos [[position]],
         if (fT >= 0.0) col = mix(col, fCol, fC);
         if (eA > 0.0 && eFr) col = mix(col, eCol, eA);
     }
+    // the coil dims the whole jewel toward the drop - a slow term (0.7 beat up, unwound over half a bar through
+    // the landing): the one whole-frame factor this room keeps, and it is never a beat
+    col *= 1.0 - 0.3 * braceH;
 #undef ramp
-    // a static dither, as the web's: the pixel's own hash
+#undef dHit
+#undef dAge
+#undef dKick
+#undef dMass
+#undef dArtic
+#undef dSpark
+#undef dSway
+#undef dLift
+#undef dBrace
+#undef dImpact
+#undef dStill
+#undef dPeriod
+#undef danceBeatPhase
+#undef danceLean
+#undef spBeatW
+#undef spLeanW
+    // a static dither, as the web's: the pixel's own hash, never the clock
     col += (spHash(pos.xy) - 0.5) * 0.006;
     return float4(govern(max(VOID + col, float3(0.0)), U.white), 1.0);
 }
