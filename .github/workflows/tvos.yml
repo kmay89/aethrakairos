@@ -246,51 +246,209 @@ jobs:
           # CACurrentMediaTime × 2.1, the host's uptime, so the film's start
           # phase against the drive is unknown and the report folds the motion
           # at the drive's period instead) are each FILMED for 4 s by simctl's
-          # recorder (h264), then split by ffmpeg into a constant 24 fps at
-          # 320 px wide: `fps=24` duplicates or drops to the grid, so every
-          # frame pair spans exactly 1/24 s and the deltas are time-normalised.
-          # The report step turns the frames into per-frame mean |delta|
-          # (MOTION24 room=... lines), peak/median, the fold against the drive
-          # and ONE 16-frame montage per room. Reported, not gated — stage 6
-          # makes it law (max delta > 0.002, peakToMedian < 8, a body after the
-          # hit: delta rising over >= 2 frames).
-          # Two traps of a scripted recorder: (1) a plain `cmd &` in a
-          # non-interactive bash runs with SIGINT IGNORED (the POSIX rule for
-          # asynchronous lists), so `kill -INT` would never reach simctl and
-          # the .mov would never be finalized — the subshell resets the
-          # disposition (trap - INT) before exec'ing the recorder; (2) the wait
-          # after SIGINT is bounded (40 × 0.25 s) and a recorder that will not
-          # stop is killed, so a room reports missing frames instead of
-          # hanging the job. ffmpeg ships on the GitHub macOS images; the brew
+          # recorder, then split by ffmpeg into a constant 24 fps at 320 px
+          # wide: `fps=24` duplicates or drops to the grid, so every frame pair
+          # spans exactly 1/24 s and the deltas are time-normalised. The report
+          # step turns the frames into per-frame mean |delta| (MOTION24
+          # room=... lines), peak/median, the fold against the drive and ONE
+          # 16-frame montage per room. Reported, not gated — stage 6 makes it
+          # law (max delta > 0.002, peakToMedian < 8, a body after the hit:
+          # delta rising over >= 2 frames).
+          # The recorder is scripted so that a room which films nothing says
+          # why (run 39533478950 filmed nothing in any room, and the reasons
+          # sat thousands of lines above the log tail a reviewer can reach):
+          # (1) simctl's documented option form, --codec=h264; a try that
+          # leaves no film ffmpeg can split is retried with --display=external
+          # (the only display simctl's usage grants a tvOS device), then once
+          # more with no options at all (the default codec, HEVC; ffmpeg
+          # splits either). (2) The 4 s
+          # window opens once the recorder prints "Recording started" (polled,
+          # 80 × 0.25 s); one that exits first is reported, one alive but
+          # silent is filmed anyway (a line that shows up late still sets
+          # started=yes, with a note).
+          # (3) A plain `cmd &` in a non-interactive bash runs with SIGINT
+          # IGNORED (the POSIX rule for asynchronous lists), so the subshell
+          # resets the disposition (trap - INT) and exec's the recorder: $! is
+          # the recorder itself, its ignored/caught signal masks are logged
+          # (SIGINT is 0x2) and `wait` returns its exit status. (4) simctl
+          # writes the .mov only when SIGINT finalises it ("Wrote video to:");
+          # the wait after SIGINT is bounded (40 × 0.25 s) and a recorder that
+          # will not stop is killed (exit 137), so a room reports missing
+          # frames instead of hanging the job. (5) A try costs at most 36 s
+          # (poll 20 + film 4 + SIGINT wait 10 + SIGKILL wait 2) and starts
+          # only while the loop is under its 270 s budget, so six rooms end
+          # under 6 min even if every recorder hangs; a try the budget skips
+          # says so in the room log. The evidence stays in shots/:
+          # burst-env.txt (the toolchain, once), burst-<room>.rec.log (recorder
+          # output, ffmpeg errors, [ci] notes) and burst-<room>.rec.status
+          # (key=value: attempt, exit, bytes, started); the report step, LAST
+          # in the job, prints it beside each MOTION24 line. No room's failure
+          # fails this step. ffmpeg ships on the GitHub macOS images; the brew
           # fallback is for an image that lost it.
           command -v ffmpeg >/dev/null 2>&1 || HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg \
             || echo "::warning::ffmpeg unavailable — the motion films cannot be split into frames"
           bytes() { if [ -f "$1" ]; then wc -c < "$1" | tr -d ' '; else echo 0; fi; }
+          {
+            echo "date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo "host: $(uname -srm), macOS $(sw_vers -productVersion 2>/dev/null || echo n/a)"
+            echo "bash: $BASH_VERSION"
+            xcodebuild -version 2>&1 | sed 's/^/xcodebuild: /'
+            xcrun simctl list devices --json 2>/dev/null | python3 -c '
+          import json, sys
+          for rt, devs in json.load(sys.stdin)["devices"].items():
+              for d in devs:
+                  if d.get("udid") == sys.argv[1]:
+                      print("simulator: %s, %s, %s, %s" % (d.get("name"), rt, sys.argv[1], d.get("state")))
+                      raise SystemExit
+          print("simulator: %s (not in simctl list)" % sys.argv[1])
+          ' "$UDID" 2>/dev/null || echo "simulator: $UDID (simctl list unreadable)"
+            if command -v ffmpeg >/dev/null 2>&1; then
+              echo "ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
+            else
+              echo "ffmpeg: absent"
+            fi
+          } > shots/burst-env.txt 2>&1 || true
+          sed 's/^/burst-env: /' shots/burst-env.txt || true
+          note() { echo "[ci] try $TRY_LABEL: $*" >> "shots/burst-$ROOM.notes"; }
+          # film_try LABEL [recorder options...] sets TRY_PID TRY_STARTED TRY_EXIT TRY_BYTES TRY_MSG
+          film_try() {
+            TRY_LABEL="$1"; shift
+            TRY_PID=na; TRY_STARTED=no; TRY_EXIT=na; TRY_BYTES=0; TRY_MSG=""
+            MOV="$PWD/shots/burst-$ROOM.mov"
+            rm -f "$MOV" "shots/burst-$ROOM.try" "shots/burst-$ROOM.notes"
+            echo "[ci] try $TRY_LABEL: xcrun simctl io $UDID recordVideo ${*:+$* }$MOV" >> "$LOG"
+            ( trap - INT; exec xcrun simctl io "$UDID" recordVideo "$@" "$MOV" ) > "shots/burst-$ROOM.try" 2>&1 &
+            TRY_PID=$!
+            T=0
+            while [ "$T" -lt 80 ]; do
+              if grep -q 'Recording started' "shots/burst-$ROOM.try" 2>/dev/null; then TRY_STARTED=yes; break; fi
+              kill -0 "$TRY_PID" 2>/dev/null || break
+              sleep 0.25
+              T=$((T + 1))
+            done
+            if [ "$TRY_STARTED" = no ] && grep -q 'Recording started' "shots/burst-$ROOM.try" 2>/dev/null; then
+              TRY_STARTED=yes
+            fi
+            if kill -0 "$TRY_PID" 2>/dev/null; then
+              note "pid $TRY_PID ignored/caught/command: $(ps -o ignored=,caught=,command= -p "$TRY_PID" 2>&1 | head -1)"
+              if [ "$TRY_STARTED" = yes ]; then
+                note "\"Recording started\" after $((T * 250)) ms; filming 4 s"
+              else
+                note "no \"Recording started\" within 20 s; filming 4 s anyway"
+              fi
+              sleep 4
+              kill -INT "$TRY_PID" 2>/dev/null || true
+              S=0
+              while [ "$S" -lt 40 ] && kill -0 "$TRY_PID" 2>/dev/null; do sleep 0.25; S=$((S + 1)); done
+              if kill -0 "$TRY_PID" 2>/dev/null; then
+                note "still running 10 s after SIGINT; SIGKILL"
+                kill -KILL "$TRY_PID" 2>/dev/null || true
+                S=0
+                while [ "$S" -lt 8 ] && kill -0 "$TRY_PID" 2>/dev/null; do sleep 0.25; S=$((S + 1)); done
+              else
+                note "stopped $((S * 250)) ms after SIGINT"
+              fi
+            elif [ "$TRY_STARTED" = yes ]; then
+              note "exited right after \"Recording started\", before SIGINT"
+            else
+              note "exited before \"Recording started\" ($((T * 250)) ms in)"
+            fi
+            if kill -0 "$TRY_PID" 2>/dev/null; then
+              note "survived SIGKILL; not waited for"
+            else
+              TRY_EXIT=0
+              wait "$TRY_PID" 2>> "shots/burst-$ROOM.notes" || TRY_EXIT=$?
+            fi
+            if [ "$TRY_STARTED" = no ] && grep -q 'Recording started' "shots/burst-$ROOM.try" 2>/dev/null; then
+              TRY_STARTED=yes
+              note "\"Recording started\" appeared only after the 20 s poll (late or buffered output)"
+            fi
+            TRY_BYTES="$(bytes "$MOV")"
+            # the recorder's most telling line: its first error-like line, else a usage line, else
+            # its first line ("Wrote video to: <path>" is skipped by the first two: the path is not a message)
+            TRY_MSG="$( { grep -v '^Wrote video to:' "shots/burst-$ROOM.try" | grep -i -E 'error|invalid|unrecogni|unknown|not supported|fail|denied|refus'
+                          grep -v '^Wrote video to:' "shots/burst-$ROOM.try" | grep -i 'usage'
+                          grep -v '^[[:space:]]*$' "shots/burst-$ROOM.try"; } 2>/dev/null | head -1 | cut -c1-120)" || true
+            note "exit $TRY_EXIT, film $TRY_BYTES bytes"
+            cat "shots/burst-$ROOM.try" "shots/burst-$ROOM.notes" >> "$LOG" 2>/dev/null || true
+            rm -f "shots/burst-$ROOM.try" "shots/burst-$ROOM.notes"
+            TRIES="$TRIES $TRY_LABEL: exit=$TRY_EXIT started=$TRY_STARTED bytes=$TRY_BYTES msg=\"$TRY_MSG\";"
+            echo "try_$TRY_LABEL=exit=$TRY_EXIT started=$TRY_STARTED bytes=$TRY_BYTES pid=$TRY_PID msg=$TRY_MSG" >> "shots/burst-$ROOM.tries"
+            return 0
+          }
+          # split_film sets FRAMES: the film's 24 fps frames (0 without a film or without ffmpeg)
+          split_film() {
+            rm -f shots/burst-"$ROOM"-[0-9][0-9][0-9].png
+            if [ -s "shots/burst-$ROOM.mov" ]; then
+              if command -v ffmpeg >/dev/null 2>&1; then
+                ffmpeg -nostdin -hide_banner -loglevel error -y -i "shots/burst-$ROOM.mov" \
+                  -vf "fps=24,scale=320:-1" "shots/burst-$ROOM-%03d.png" >> "$LOG" 2>&1 \
+                  || echo "[ci] ffmpeg could not split the $TRY_LABEL film (exit $?)" >> "$LOG"
+              else
+                echo "[ci] ffmpeg absent; the film is not split" >> "$LOG"
+              fi
+            fi
+            FRAMES="$(ls shots/burst-"$ROOM"-[0-9][0-9][0-9].png 2>/dev/null | wc -l | tr -d ' ')"
+            return 0
+          }
+          # filmed: the last try left a film ffmpeg could split (or there is no ffmpeg to ask)
+          filmed() { [ "$TRY_BYTES" -gt 0 ] 2>/dev/null && { [ "$FRAMES" -gt 1 ] 2>/dev/null || ! command -v ffmpeg >/dev/null 2>&1; }; }
+          # the loop's budget: a try costs at most 36 s (poll 20 + film 4 + SIGINT wait 10 + SIGKILL
+          # wait 2) and starts only while the loop is under 270 s, so six rooms end under 6 min even
+          # if every recorder hangs; a try the budget skips is noted in the room log (attempt=none)
+          FILM_T0=$SECONDS
+          film_budget_ok() {
+            if [ $((SECONDS - FILM_T0)) -lt 270 ]; then return 0; fi
+            echo "[ci] no $1 try: the film loop's 270 s budget is spent ($((SECONDS - FILM_T0)) s in)" >> "$LOG"
+            return 1
+          }
           for ROOM in spectral fractal nave plotter spiral pulse; do
+            LOG="shots/burst-$ROOM.rec.log"
+            rm -f "shots/burst-$ROOM.mov" "shots/burst-$ROOM.rec.status" "shots/burst-$ROOM.tries" shots/burst-"$ROOM"-[0-9][0-9][0-9].png
+            echo "[ci] room $ROOM, $(date -u '+%H:%M:%SZ')" > "$LOG"
             xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
             sleep 2
-            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room "$ROOM" --drive-demo
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room "$ROOM" --drive-demo >> "$LOG" 2>&1 \
+              || echo "[ci] launch failed (exit $?); filming whatever is on screen" >> "$LOG"
             sleep 6
-            rm -f "shots/burst-$ROOM.mov" shots/burst-"$ROOM"-[0-9][0-9][0-9].png
-            ( trap - INT; exec xcrun simctl io "$UDID" recordVideo --codec h264 --force "shots/burst-$ROOM.mov" ) &
-            REC=$!
-            sleep 4
-            kill -INT "$REC" 2>/dev/null || true
-            for _ in {1..40}; do
-              kill -0 "$REC" 2>/dev/null || break
-              sleep 0.25
-            done
-            if kill -0 "$REC" 2>/dev/null; then
-              echo "burst-$ROOM: the recorder did not stop on SIGINT within 10 s — killing it"
-              kill -KILL "$REC" 2>/dev/null || true
+            TRIES=""; TRY_PID=na; TRY_STARTED=no; TRY_EXIT=na; TRY_BYTES=0; FRAMES=0; ATTEMPT=none
+            # a try counts when it leaves a film ffmpeg can split (or there is no ffmpeg to ask);
+            # the last retry, without options, keeps its film whatever it holds
+            if film_budget_ok h264; then
+              film_try h264 --codec=h264 --force || true
+              split_film || true
             fi
-            wait "$REC" 2>/dev/null || true
-            if [ -s "shots/burst-$ROOM.mov" ] && command -v ffmpeg >/dev/null 2>&1; then
-              ffmpeg -nostdin -hide_banner -loglevel error -y -i "shots/burst-$ROOM.mov" \
-                -vf "fps=24,scale=320:-1" "shots/burst-$ROOM-%03d.png" \
-                || echo "burst-$ROOM: ffmpeg could not split the film"
+            if filmed; then
+              ATTEMPT=h264
+            else
+              # simctl's usage says a tvOS device records only its "external" display: the
+              # second try names it; the third drops every option (the default codec, HEVC)
+              if film_budget_ok external; then
+                film_try external --codec=h264 --display=external --force || true
+                split_film || true
+              fi
+              if filmed; then
+                ATTEMPT=external
+              elif film_budget_ok default; then
+                film_try default || true
+                split_film || true
+                if [ "$TRY_BYTES" -gt 0 ] 2>/dev/null; then ATTEMPT=default; fi
+              fi
             fi
-            echo "burst-$ROOM: $(ls shots/burst-"$ROOM"-[0-9][0-9][0-9].png 2>/dev/null | wc -l | tr -d ' ') frames at 24 fps from $(bytes "shots/burst-$ROOM.mov") bytes of h264"
+            echo "[ci] verdict: attempt=$ATTEMPT exit=$TRY_EXIT bytes=$(bytes "shots/burst-$ROOM.mov") started=$TRY_STARTED frames=$FRAMES;$TRIES" >> "$LOG"
+            {
+              echo "room=$ROOM"
+              echo "attempt=$ATTEMPT"
+              echo "exit=$TRY_EXIT"
+              echo "bytes=$(bytes "shots/burst-$ROOM.mov")"
+              echo "started=$TRY_STARTED"
+              echo "pid=$TRY_PID"
+              echo "frames=$FRAMES"
+              cat "shots/burst-$ROOM.tries" 2>/dev/null || true
+            } > "shots/burst-$ROOM.rec.status" || true
+            rm -f "shots/burst-$ROOM.tries"
+            echo "burst-$ROOM: $FRAMES frames at 24 fps from $(bytes "shots/burst-$ROOM.mov") bytes (attempt $ATTEMPT, recorder exit $TRY_EXIT)"
+            sed 's/^/  /' "$LOG" || true
           done
 
       # The artifact store is unreachable from some review environments, so
@@ -369,14 +527,75 @@ jobs:
           # the 16 frames from the last rest frame before the first folded beat
           # inside the film, 160 px wide each, as a base64 JPEG any reader can
           # decode; a missing frame is a dark tile.
+          # Around the films: first BURST24 env | lines (shots/burst-env.txt:
+          # date, host, bash, Xcode, simulator, ffmpeg) and BURST24 ls | lines
+          # (every burst file but the frames, which are counted per room);
+          # after each MOTION24 line, one line
+          #   REC24 room=<key> attempt=<h264|external|default|none> exit=<n|na> bytes=<n> started=<yes|no>
+          # and the last 12 lines of that room's recorder log, each as
+          # REC24 room=<key> | ..., so a room without a film says why in the
+          # same tail that carries its MOTION24 line.
           python3 - << 'EOF' || echo "motion report unavailable"
-          import base64, glob, io, math, re, statistics
+          import base64, glob, io, math, os, re, statistics, time
           from PIL import Image, ImageChops, ImageStat
           ROOMS = ["spectral", "fractal", "nave", "plotter", "spiral", "pulse"]
           FPS = 24.0
           PERIOD = 1.0 / 2.1          # the drive: 126 BPM, beats at CACurrentMediaTime * 2.1
           BINS = 12                   # the fold's resolution: 39.7 ms a bin (a 24 fps frame is 41.7 ms)
           W, MONT, MAXRISE = 160, 16, 8
+          def rec24(room):
+              # the recorder's facts beside a MOTION24 line: shots/burst-<room>.rec.status
+              # (key=value, first key wins) and the last 12 lines of shots/burst-<room>.rec.log
+              try:
+                  st = {}
+                  try:
+                      with open(f"shots/burst-{room}.rec.status", encoding="utf-8", errors="replace") as fh:
+                          for line in fh:
+                              k, sep, v = line.rstrip("\r\n").partition("=")
+                              if sep and k not in st:
+                                  st[k] = v
+                  except OSError:
+                      pass
+                  mov = f"shots/burst-{room}.mov"
+                  nbytes = os.path.getsize(mov) if os.path.isfile(mov) else 0
+                  print(f"REC24 room={room} attempt={st.get('attempt') or 'none'} exit={st.get('exit') or 'na'}"
+                        f" bytes={nbytes} started={st.get('started') or 'no'}")
+                  try:
+                      with open(f"shots/burst-{room}.rec.log", encoding="utf-8", errors="replace") as fh:
+                          tail = [ln.rstrip() for ln in fh.read().splitlines()][-12:] or ["(recorder log empty)"]
+                  except OSError:
+                      tail = ["(no recorder log: the film block never reached this room)"]
+                  if not st:
+                      tail.append("(no rec.status)")
+                  for ln in tail:
+                      print(f"REC24 room={room} | {ln[:500]}")
+              except Exception as e:  # the readout must never cost a MOTION24 line
+                  print(f"REC24 room={room} | (recorder readout failed: {e!r})")
+          try:
+              print("== BURST24 ENVIRONMENT (shots/burst-env.txt) ==")
+              try:
+                  with open("shots/burst-env.txt", encoding="utf-8", errors="replace") as fh:
+                      env = fh.read().splitlines() or ["(empty)"]
+              except OSError:
+                  env = ["(no shots/burst-env.txt: the film block never ran)"]
+              for ln in env:
+                  print(f"BURST24 env | {ln[:300]}")
+              print("== BURST24 FILES (shots/burst-*; the 24 fps frames counted per room) ==")
+              listing, frames = [], {}
+              for p in sorted(glob.glob("shots/burst-*")):
+                  s = os.stat(p)
+                  m = re.match(r"shots/burst-(.+)-\d{3}\.png$", p)
+                  if m:
+                      nf, nb = frames.get(m.group(1), (0, 0))
+                      frames[m.group(1)] = (nf + 1, nb + s.st_size)
+                  else:
+                      listing.append(f"{s.st_size:>10}  {time.strftime('%H:%M:%SZ', time.gmtime(s.st_mtime))}  {p}")
+              for r, (nf, nb) in sorted(frames.items()):
+                  listing.append(f"{nb:>10}  {nf} frames  shots/burst-{r}-NNN.png")
+              for ln in listing or ["no burst files"]:
+                  print(f"BURST24 ls | {ln}")
+          except Exception as e:
+              print(f"BURST24 ls | (environment/listing readout failed: {e!r})")
           for room in ROOMS:
               idx = {}
               for p in sorted(glob.glob(f"shots/burst-{room}-[0-9][0-9][0-9].png")):
@@ -386,6 +605,7 @@ jobs:
               n = len(idx)
               if n < 2:
                   print(f"MOTION24 room={room} frames={n} delta=[] peakToMedian=nan lagMs=nan lockR=nan dupes=0 gaps=0 fold=[] beatFrames=[] rise=[] (no film)")
+                  rec24(room)
                   continue
               last = max(idx)
               gaps = (last + 1) - n
@@ -434,6 +654,7 @@ jobs:
               print(f"MOTION24 room={room} frames={n} delta={[round(x, 5) for x in vals]} peakToMedian={p2m:.2f} lagMs={lag_ms:.0f}"
                     f" lockR={lock_r:.2f} dupes={dupes} gaps={gaps} fold={[round(x / top, 2) if top > 0 else 0.0 for x in prof]}"
                     f" beatFrames={beat_frames} rise={rise}")
+              rec24(room)
               first = (beat_frames[0] - 2) if beat_frames else 0  # 0-based: the last rest frame before the first peak
               first = max(0, min(first, last + 1 - MONT))
               strip = Image.new("RGB", (W * MONT, size[1]), (24, 24, 24))
