@@ -21664,7 +21664,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '740f5f9fda';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = 'ed9deebcd0';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -59100,15 +59100,34 @@ function buildNave(){
    pyramid of spheres) and CORAL (turned about a two-fold axis at a wider
    scale: a propeller of arms). A third number sets where the camera's orbit starts.
 
-   MUSIC. Bass pushes the section planes along their normal, never more
-   than half a spacing (and pushes the isolines out of their sockets); mids
-   wind the fold's turn tighter; treble opens the hatch into the half-light
-   and lays the cross-hatch; energy is pen pressure — wider pens, a lower
-   crowding threshold, so loud is denser, heavier engraving and quiet is
-   sparse index lines; the beat swells the outline pen, brightens the index
-   lines and sends a broad band of heavier, wider ink in at the nearest bead
-   and on to the back on the beat's own phase (INK: the echoes step outward
-   one spacing a beat, and glide on across the beat line).
+   MUSIC, from the dance bus (the twelve floats and the GLSL_DANCE prelude),
+   never from a raw band. THE BEAT IS THE STROKE: on every beat a pen of
+   heavier, wider ink is struck at the nearest bead and travels along the
+   ray's depth to the farthest the eye can see over one beat (danceLamp on
+   the beat's own age: a strike inside a beat already struck, a roll's 8th
+   or 16th, adds its weight and never restarts the stroke; the run fitted
+   to each flake), on every pen it crosses — sections, hatches, rings,
+   rims, the outline, the silhouette, INK's echoes — weighted by the count
+   read at the beat line (the one heaviest), the passage (dMass) and
+   stillness, heavier through a knee and never fused into a band. THE BAR
+   BREATHES A FAMILY: the one's stroke draws the bar's family in behind it
+   (the half-steps, the half-rings, INK's sections, as much as the bar
+   deals, in the bar's own pen) and the four's strike lifts it again, so
+   every one writes on a settled page. The section's loudness (uCalm,
+   2.5 s) is the pen pressure and how fine the slices go, never on a hit.
+   The section planes rise and fall with the phrase, a tide that never
+   moves on a beat; the fold re-sculpts once a bar, in the four
+   (danceHeld); the hats lay a hairline of light on the finest lines,
+   never a width. The camera dances: its orbit strides (fastest on the
+   count, a gentle walk that never runs backwards), it nods with the bar
+   (dSway), lunges toward the eye on the count (dKick's spring and a struck
+   decay, the one heaviest) and comes nearer with the phrase (dLift), draws
+   back before the one (danceLean) and through the coil before a drop
+   (dBrace); on the landing a swell re-inks the drawing near to far over
+   the half-bar (danceLand), the loud section's families are dealt at once
+   and the drop's first two bars hit harder. INK's echoes step outward one
+   spacing a beat on the stride and glide on across the beat
+   line. In a rest every beat-locked figure is still (dStill).
 
    EDGES. Where a line meets an outline it is lifted, never cut: every
    family fades within a pen's width of its bead's rim and of the edge a
@@ -59158,16 +59177,17 @@ function buildPlotter(){
     uVoc:   { value: 0 },
     uIfs:   { value: 1 },
     uPh:    { value: 0.5 },
-    uPulse: { value: 0 },
   };
   /* written once, in the house dialect, and spoken on both stages: the TV's
-     Shaders41.metal carries the same lines */
-  const frag = GLSL_MPHI + `
+     Shaders41.metal carries the same lines. The dance bus (GLSL_DANCE: the
+     twelve, uBarPhase and the shape helpers) is prepended; uCalm and
+     uPhrasePhase are the shared clock's, so the room adds no uniform of its own */
+  const frag = GLSL_MPHI + GLSL_DANCE + `
     #define INOUT(T, n) inout T n
-    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat;
+    uniform float uTime, uCalm, uPhrasePhase;
     uniform vec3 uColA, uColB, uColC;
     uniform vec2 uRes;
-    uniform float uVoc, uIfs, uPh, uPulse;
+    uniform float uVoc, uIfs, uPh;
     varying vec2 vUv;
     const float TAU = 6.2831853;
     const vec3 VOID = vec3(0.019608, 0.023529, 0.054902);
@@ -59279,39 +59299,79 @@ function buildPlotter(){
     /* INK's echoes: offset copies of the outer silhouette ringing out into the
        void, one spacing further each beat, in one pen. They fade with their
        distance from the drawing, never with the beat's phase, so a ring glides
-       on across the beat line instead of jumping; loud music lets them reach
-       farther */
-    vec3 echoes(float dpx, float w, float kR, float energy, float pulse, float beat, vec3 A){
+       on across the beat line instead of jumping, stepping outward fastest on
+       the count; the passage's weight lets them reach farther and lays them
+       heavier, and the stroke rides them as it passes */
+    vec3 echoes(float dpx, float w, float kR, float mass, float phase, float gain, vec3 A){
       float sp = 12.0 * kR;
       float u = dpx / sp;
-      float dl = abs(fract(u - pulse + 0.5) - 0.5) * sp;
-      float reach = 1.3 + 1.0 * energy;
+      float dl = abs(fract(u - phase + 0.5) - 0.5) * sp;
+      float reach = 1.3 + 0.8 * mass;
       float fadeQ = (1.0 - smoothstep(reach - 1.0, reach, u)) * smoothstep(0.35, 0.9, u);
-      return A * stroke(dl, w * 0.55) * fadeQ * (1.15 + 0.6 * beat);
+      return A * stroke(dl, w * 0.55) * fadeQ * (1.0 + 0.4 * mass + 0.6 * gain);
     }
+    /* the prelude's per-bar hold made wrap-safe over the phrase's eight bars: bar 0 eases from bar 7's value, never
+       from bar -1's (danceHeld(x, 0, s) is the hash of x - 1 and danceHeld(x, 1, s) the hash of x: the prelude's own
+       hash, so a bar line is continuous everywhere, the phrase's included). ptHeld re-sculpts once a bar, over half a
+       beat in the four (0.8..0.875 of the bar): the bar's articulation arrives ahead of its count and is held through
+       it, never inside a kick's stroke */
+    float ptHeldA(float bar8, float seed){ return danceHeld(bar8 < 0.5 ? 8.0 : bar8, 0.0, seed); }
+    float ptHeldB(float bar8, float seed){ return danceHeld(bar8, 1.0, seed); }
+    float ptHeld(float bar8, float barPh, float seed){ return mix(ptHeldA(bar8, seed), ptHeldB(bar8, seed), smoothstep(0.8, 0.875, barPh)); }
+    // the stroke: a pen of Gaussian section about tf along the ray; bw is its variance, in world units squared
+    float ptBand(float tt, float tf, float bw){ return exp(-((tt - tf) * (tt - tf)) / bw); }
+    /* the struck lunge on the stroke's age: up in a tenth of a beat, then a decay spent by the next count (0 from age 1 on), so the
+       camera's arrival is one frame's gesture and nothing is still travelling when the next count is read */
+    float ptStrike(float age){ return smoothstep(0.0, 0.1, age) * max(exp(-3.0 * age) - 0.05, 0.0) / 0.95; }
+    // the stroke's knee: a pen pressed harder is heavier, never a fused band - linear to 1.5 (the groove's one), easing toward 2.75 above
+    float ptKnee(float x){ return x < 1.5 ? x : 1.5 + (x - 1.5) / (1.0 + 0.8 * (x - 1.5)); }
+    // behind a head travelling along the ray (1: what it brings) or ahead of it (0), over a tenth of a unit of depth
+    float ptBehind(float tt, float head){ return 1.0 - smoothstep(-0.1, 0.1, tt - head); }
+    /* the count's weight, read at the BEAT LINE the stroke belongs to (uBarPhase - age / 4 on the stroke's age, nudged 0.15
+       beat forward: the analyser's read-ahead renders a strike just before its grid line) - the one 1.6, the three 0.6, the
+       two and the four 0.35, 0.8 freewheeling; constant through a stroke's life, so it never steps mid-beat, and a roll's
+       last 16th before the one is weighed as the four it belongs to. ptLeanW is the count AHEAD (the
+       bar phase + 0.1 bar rounds the lean's window, the last 40 % of a beat, onto the count it loads for) */
+    float ptBeatW(float age){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); return i < 0.5 ? 1.6 : (abs(i - 2.0) < 0.5 ? 0.6 : 0.35); }
+    float ptLeanW(){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase + 0.1) * 4.0); return i < 0.5 ? 1.6 : (abs(i - 2.0) < 0.5 ? 0.6 : 0.35); }
 
     void main(){
       vec2 uv = (vUv - 0.5) * vec2(uRes.x / max(uRes.y, 1.0), 1.0);
       float resY = max(uRes.y, 1.0);
       float T = uTime, ph = uPh;
-      float bass = clamp(uBass, 0.0, 1.0), mid = clamp(uMid, 0.0, 1.0), treble = clamp(uTreble, 0.0, 1.0);
-      float energy = clamp(uEnergy, 0.0, 1.0), beat = clamp(uBeat, 0.0, 1.0);
-      float voc = uVoc, ifs = uIfs, pulse = uPulse;
+      float voc = uVoc, ifs = uIfs;
       vec3 cA = uColA, cB = uColB, cC = uColC;
 
-      // ---- the flake (die 2): the fold's turn, the scale, and how it is framed ----
-      vec3 kAx = vec3(0.0, 1.0, 0.0); float ang = 0.10; float S = 2.0; float camR = 2.8; float el0 = 0.62; float stand = 0.0;
-      if (ifs < 0.5){ kAx = vec3(1.0, 1.0, 1.0); ang = 0.55; S = 2.15; camR = 2.95; el0 = 1.0; stand = 1.0; }   // WHORL
-      else if (ifs > 1.5){ kAx = vec3(1.0, -1.0, 0.0); ang = 0.70; S = 2.4; camR = 2.75; }                    // CORAL
+      // ---- the body: the count, the draw-back before it, the coil, the landing, the passage's weight, the bar in the phrase ----
+      float bp = danceBeatPhase();                        // 0 at the count, 1 at the next (four to the bar; held in a rest)
+      float sp = fract(bp - dAge + 0.15) - 0.15;          // the last strike's phase in its beat: -0.15..0.1 is the beat line itself (the read-ahead, a frame's detection)
+      float ageS = dAge + (dPeriod > 0.0 ? max(sp, 0.0) * smoothstep(0.1, 0.2, sp) : 0.0);   // THE STROKE'S CLOCK: a strike on the beat line restarts it; one inside a beat (a roll's 8th or 16th) carries on the beat's run
+      float lean = danceLean(bp);                         // the coil before the count, released INTO the kick (law 3)
+      float coil = max(dBrace, 0.6 * (1.0 - smoothstep(0.0, 2.0, dImpact)));   // the held breath before a landing, released over the half-bar after it, never in a frame (law 9); 0.6 sits under the brace's last value, so the landing frame steps forward, with the lunge
+      float land = max(danceLand(dImpact), 0.0);          // the landing's own body, clamped to light: 1 at 0.42 beat after it, gone by 1.06
+      float heft = max(0.2 + 1.6 * dMass + 3.0 * max(dMass - 0.55, 0.0), 1.8 * (1.0 - smoothstep(0.5, 2.0, dImpact))) * (1.0 + 0.15 * (1.0 - smoothstep(4.0, 8.0, dImpact))) + 0.8 * land;   // the passage's weight, convex above the groove: a verse ~0.7, the groove ~1.0, the drop ~1.8; the landing's first half-bar holds the drop's weight before dMass has risen, and the drop's first two bars hit harder (x1.15, gone by its eighth beat; the build never)
+      float barPh = uBarPhase, bar8 = mod(floor(uPhrasePhase * 8.0 - barPh + 0.5), 8.0);   // the phase in the bar, and the bar in the phrase (0..7) read against it, so the two clocks never disagree at a bar line
+      float cnt = ptBeatW(ageS), cntL = ptLeanW();            // the count's weight at the stroke's beat line, and the count's ahead: the one heaviest, the three next, the two and the four light (law 7)
+      float body = 0.5 * cnt * cnt + 0.32;                // the body's count, steeper than the light's: the one lunges (1.6), the three 0.5, the two and the four 0.38
+
+      // ---- the flake (die 2): the fold's turn, the scale, how it is framed, and the depth the eye can see (the stroke's run, about tC) ----
+      vec3 kAx = vec3(0.0, 1.0, 0.0); float ang = 0.10; float S = 2.0; float camR = 2.8; float el0 = 0.62; float stand = 0.0; float tNear = -0.5; float tFar = 0.1;
+      if (ifs < 0.5){ kAx = vec3(1.0, 1.0, 1.0); ang = 0.55; S = 2.15; camR = 2.95; el0 = 1.0; stand = 1.0; tNear = -0.75; tFar = 0.25; }   // WHORL
+      else if (ifs > 1.5){ kAx = vec3(1.0, -1.0, 0.0); ang = 0.70; S = 2.4; camR = 2.75; tNear = -0.9; tFar = 0.3; }                    // CORAL
       kAx = normalize(kAx);
       float R = (S - 1.0) / (S + 1.0) + 0.03;             // a sphere just kisses its children: every scale holds equal area
-      ang += 0.12 * mid;                                  // mids: the spiral winds tighter
+      ang += 0.12 * (0.5 * uCalm + 0.6 * (ptHeld(bar8, barPh, 2.0) - 0.5) * dStill);   // the section winds the spiral; the bar re-sculpts it once, in the four before the one (ptHeld) - never on a hit
       vec2 cs = vec2(cos(ang), sin(ang));
 
-      // ---- the camera: a slow orbit above the section planes, a wandering elevation, a long dolly ----
-      float az = TAU * fract(ph + T / 180.0) + 0.45 * wave(T, 77.0, ph);
-      float el = el0 + 0.20 * wave(T, 113.0, 0.37 + ph);
-      float dist = camR * (1.0 + 0.07 * wave(T, 149.0, 0.71 + ph));
+      // ---- the camera: the orbit's clock reshaped within each beat (the stride), a nod on the bar, one lunge on the count, drawn back by the coil and before the one ----
+      float Tw = T + dPeriod * (danceStride(bp, 0.25 * (1.0 - 0.5 * coil)) - bp) * dStill;   // fastest on the count, dwelling at the half; a gentle walk (slope 1 +- 0.25 of the clock), so it never runs backwards while uTime runs at a quarter of the wall or more (the rubato's floor measured 0.27); zero at both ends of the beat, so seamless; the coil evens the walk
+      float az = TAU * fract(ph + Tw / 120.0) + 0.45 * wave(Tw, 77.0, ph);
+      float el = el0 + 0.20 * wave(T, 113.0, 0.37 + ph) + 0.02 * dSway;
+      // the lunge: the spring (dKick, signed: one rebound) and the struck decay, by the passage and the body's count - toward the
+      // viewer, the field of view never moves; the lean loads for the count ahead, squared (the breath is drawn before the one)
+      float lunge = (0.4 * dKick + 0.6 * ptStrike(ageS) * dStill) * heft * body;
+      float dist = camR * (1.0 + 0.07 * wave(T, 149.0, 0.71 + ph))
+                 * (1.0 - 0.03 * lunge - 0.04 * dLift + 0.05 * coil + 0.01 * lean * 0.625 * cntL * cntL);
       vec3 tgt = vec3(0.0, -0.01, 0.0);
       vec3 ro = tgt + dist * vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
       vec3 fwd = normalize(tgt - ro);
@@ -59329,9 +59389,32 @@ function buildPlotter(){
       float lodF = pxR * (voc > 2.5 ? 1.5 : 1.0);         // INK's broad pen lets its beads go half as large again
       vec3 dx = rt * pxA, dy = up * pxA;
 
-      float pressure = 0.95 + 0.35 * energy;              // energy: pen pressure
-      float wOut = (0.75 + 0.7 * energy + 0.6 * beat) * kR * (voc > 2.5 ? 1.7 : 1.0);   // the outline pen, real px; the beat swells it
+      float kP = kR * (1.0 - 0.4 * coil);                 // every pen's width reference, real px: the coil thins the pens toward hairlines
+      float pressure = (0.95 + 0.3 * uCalm) * (1.0 - 0.3 * coil);   // the section's loudness is the pen pressure (2.5 s), never uEnergy (law 7); the coil dims it
+      float wOut = (0.75 + 0.3 * dMass + 0.35 * uCalm) * kP * (voc > 2.5 ? 1.7 : 1.0);   // the outline pen, real px: the passage's weight, no beat in it
+      float hair = 1.0 + 0.15 * dSpark;                    // the hats: a hairline of light on the finest structure, never a width (law 5)
       float tC = length(ro);
+      /* THE BEAT IS THE STROKE. The pen's progress is t along the ray; the band is a pen of Gaussian section travelling
+         from the nearest ink (tC + tNear) to the farthest the eye can see (tC + tFar) over one beat: struck on the hit,
+         held through the beat, released in its last third (danceLamp), weighted by the count, the passage and
+         stillness, its gain growing along the run against the depth fade so it reaches the back as heavy as it
+         entered; a pen pressed harder is heavier through a knee (ptKnee) and never more than 2.6 times as wide, so it never
+         fuses into a band. Its clock is the BEAT'S OWN AGE (ageS): a strike inside a beat already struck adds its weight
+         (danceLamp's hit term) and never restarts the run, nor the lunge; a hat never resets dAge: it lights nothing of its
+         own (its light is the hairline) */
+      float tf = tC + tNear + (tFar - tNear) * min(ageS, 1.0);
+      float bw = 0.045 * (tFar - tNear) * (tFar - tNear);   // a pen pressed, not a scratch: FWHM a third of the run, gentle per frame
+      float lamp = danceLamp(dHit, ageS) * dStill * heft * cnt * (0.8 + 0.8 * min(ageS, 1.0));
+      /* THE RELEASE: on the landing (dImpact = beats since it) the whole drawing is re-inked near to far over the half-bar
+         under its own struck mass (rel, danceLand on the half-bar: 1 at 0.84 beat, gone by 2.1), a swell twice the pen's width
+         crossing the stroke's parameter, heavier in ink, hardly wider; the drop behind it is heavier by heft and by the loud
+         section's families, dealt with the landing */
+      float tL = tC + tNear + (tFar - tNear) * min(0.5 * dImpact, 1.0);
+      float bwL = 4.0 * bw;
+      float rel = max(danceLand(0.5 * dImpact), 0.0);     // the release's own body: the landing's struck mass on the half-bar, clamped to light (1 at 0.84 beat, gone by 2.1)
+      float headF = tC + tNear + 4.0 * (tFar - tNear) * barPh;   // THE BAR'S HEAD: near to far over the bar's first beat (the one's own run); what the bar deals is drawn in behind it
+      float liftF = tC + tNear + 20.0 * (tFar - tNear) * (barPh - 0.75);   // ...and the head that lifts it again, near to far on the four's strike (0.75..0.8 of the bar), so the next one deals on a settled page
+      float barOn = (1.0 - smoothstep(1.3, 1.6, ageS)) * dStill * (1.0 - dBrace);   // the bar's family is held while the beats are struck: lifted when they stop, still in a rest and through the brace
 
       vec3 col = vec3(0.0);
       float b = dot(ro, rd), c = dot(ro, ro) - BR * BR, h = b * b - c;
@@ -59361,15 +59444,18 @@ function buildPlotter(){
         // creeping along an edge, and the outline is drawn there
         if (!hit && t < t1 && dl < 2.0 * pxR * t) hit = true;
         if (!hit){
+          // the silhouette's closest approach has a depth: the stroke and the release cross it there
+          float bandS = ptKnee(ptBand(gminT, tf, bw) * lamp), reS = ptBand(gminT, tL, bwL) * rel;
+          float wS = wOut * min(1.0 + 0.8 * bandS + 0.2 * reS, 2.6), gS = 0.9 * pressure * (1.0 + 0.6 * bandS + 0.8 * reS);
           if (t < t1){
-            col += cC * stroke(gmin / pxA, wOut) * 0.9 * pressure * exp(-1.2 * max(gminT - tC + 0.25, 0.0));
+            col += cC * stroke(gmin / pxA, wS) * gS * exp(-1.2 * max(gminT - tC + 0.25, 0.0));
           } else {
             // (2) the silhouette pen, from the march's closest approach
             float farG = exp(-1.2 * max(gminT - tC + 0.25, 0.0));
-            col += cC * stroke(gmin / pxA, wOut) * 0.9 * pressure * farG;
+            col += cC * stroke(gmin / pxA, wS) * gS * farG;
             if (voc > 2.5 && gmin < 32.0 * kR * pxA){
               vec2 g3 = closeIn(ro, rd, vec2(gmin, gminT), kAx, cs, S, R, lodF);
-              col += echoes(g3.x / pxA, wOut, kR, energy, pulse, beat, cA) * exp(-1.2 * max(g3.y - tC + 0.25, 0.0)) * pressure;
+              col += echoes(g3.x / pxA, wOut, kR, dMass, danceStride(bp, 0.6 * dStill), bandS + reS, cA) * exp(-1.2 * max(g3.y - tC + 0.25, 0.0)) * pressure;
             }
           }
         } else {
@@ -59398,62 +59484,72 @@ function buildPlotter(){
           float keep = smoothstep(0.3 * wOut, wOut + 1.2, min(edgeP, occl ? graze / pxA : 1e4));
           float ink0 = ink;
           ink *= keep;
-          /* the travelling pulse: on every beat a band of wider, heavier ink enters at the nearest bead and
-             runs to the back, carried on the onset's envelope (its square root, so it lasts the whole run) */
-          float tf = tC - 1.25 + 1.65 * pulse;
-          float band = exp(-((t - tf) * (t - tf)) / 0.03) * sqrt(beat);
-          float swell = 1.0 + 1.5 * band;
-          ink *= 1.0 + 1.2 * band;
+          /* the stroke at this hit's own depth: every pen it crosses is wider and heavier (the release's swell the same
+             way, twice as broad, more in its ink than in its width) */
+          float band = ptKnee(ptBand(t, tf, bw) * lamp);
+          float re = ptBand(t, tL, bwL) * rel;
+          float swell = min(1.0 + 1.4 * band + 0.3 * re, 2.6);
+          ink *= 1.0 + 1.4 * band + 1.6 * re;
 
-          // (1) the section planes: near-level, slowly leaning; bass sweeps them along their normal
+          // (1) the section planes: near-level, slowly leaning; they rise and fall a little under half a spacing with the phrase (a
+          // tide, never a beat: a line that moved on the kick would be the whole drawing flashing where the stroke should travel)
           vec3 n1 = turn(normalize(vec3(0.16 * wave(T, 131.0, ph), 1.0, 0.16 * wave(T, 97.0, 0.5 + ph))), pAx, pcs);
-          float f1 = dot(p, n1) / 0.026 + 0.45 * bass + 12.0 * fract(T / 100.0);
+          float f1 = dot(p, n1) / 0.026 + 0.4 * sin(TAU * uPhrasePhase) * dStill + 12.0 * fract(T / 100.0);
           float w1 = footprint(n1 / 0.026, N, rd, dx, dy, t);
-          float lo = 5.0 - 2.5 * energy, hi = lo * 2.0;     // loud: the crowding threshold drops, more slices hold
-          float hwMin = (0.42 + 0.25 * energy) * kR * swell, hwMaj = (0.7 + 0.55 * energy) * kR * swell;
+          /* WHAT IS DRAWN. The section's level (uCalm, 2.5 s) sets how fine the slices go: no family appears or vanishes in a
+             frame. THE BAR BREATHES A FAMILY: the one's own head (the stroke's run) draws the bar's family in behind it - the
+             half-steps, the half-rings, INK's sections; as much as the bar deals (the prelude's hold), in the bar's own pen - and
+             the four's strike lifts it again near to far, so a family appears as a stroke travelling through the flake and every
+             one writes on a settled page (the deal only ever adds ink on the one). Held while the beats are struck, lifted when
+             they stop, still in a rest and through the brace; never on a hit */
+          float famCalm = max(smoothstep(0.15, 0.85, uCalm), (1.0 - smoothstep(4.0, 8.0, dImpact)) * ptBehind(t, headF));   // the section's level; a landing deals the loud section's families at once, drawn in behind the bar's head (the drop's one)
+          float dealt = (0.75 + 0.25 * ptHeldB(bar8, 5.0)) * ptBehind(t, headF) * (1.0 - smoothstep(0.73, 0.75, barPh) * ptBehind(t, liftF)) * barOn;   // THE BAR'S FAMILY: dealt on the one behind the bar's head (how much, once a bar), lifted in the four
+          float fam = min(famCalm * (0.6 + 0.8 * dealt), 1.2);
+          float lo = max(6.0 - 4.0 * fam, 1.8), hi = lo * 2.0;   // loud sections hold more slices; the count changes with the bar's head, never on a hit
+          float hwMin = (0.42 + 0.15 * dMass + 0.1 * uCalm) * kP * swell, hwMaj = (0.7 + 0.35 * dMass + 0.2 * uCalm) * kP * swell;
           float fineL = lines(f1, w1, hwMin) * crowd(w1, kR, lo, hi);
-          float indexL = lines(f1 * 0.25, w1 * 0.25, hwMaj) * crowd(w1 * 0.25, kR, 3.0, 6.0) * (1.0 + 0.8 * beat);
+          float indexL = lines(f1 * 0.25, w1 * 0.25, hwMaj) * crowd(w1 * 0.25, kR, 3.0, 6.0);
           vec3 pc = pen3(floor(f1 * 0.25 + 0.5), cA, cB, cC);           // the pens change at every index line
 
           if (voc < 0.5){
-            // SECTIONS: the planes alone, four to an index line; loud music lays a half-step between
-            float halfs = lines(f1 + 0.5, w1, hwMin) * crowd(w1 * 2.0, kR, lo, hi) * smoothstep(0.35, 0.9, energy);
-            col += pc * ((1.0 + 0.4 * treble) * fineL + 0.9 * halfs + 1.8 * indexL) * ink;
+            // SECTIONS: the planes alone, four to an index line; the bar deals a half-step between, in its own pen, the hats a hairline on the fine lines
+            float halfs = lines(f1 + 0.5, w1, hwMin) * crowd(w1 * 2.0, kR, lo, hi) * dealt * (0.6 + 0.4 * famCalm);
+            col += (pc * (hair * fineL + 1.8 * indexL) + pen3(floor(f1 * 0.25 + 0.5) + 1.0 + mod(bar8, 2.0), cA, cB, cC) * (0.6 + 0.8 * famCalm) * halfs) * ink;
           } else if (voc < 1.5){
-            // ENGRAVING: scratchboard logic, the light cuts the lines and swells them where it falls;
-            // treble opens the hatch into the half-light and lays a cross-hatch over the highlights
+            // ENGRAVING: scratchboard logic, the light cuts the lines and swells them where it falls; a loud section
+            // opens the hatch into the half-light and lays a cross-hatch over the highlights, the hats glint on it
             col += pc * indexL * ink * 0.9;
-            float th1 = 0.42 - 0.30 * treble, th2 = 0.92 - 0.24 * treble;
+            float th1 = 0.42 - 0.30 * fam, th2 = 0.92 - 0.24 * fam;
             vec3 n2 = vec3(-0.6638, 0.3118, 0.6799);
             float w2 = footprint(n2 / 0.021, N, rd, dx, dy, t);
-            float hw2 = (0.22 + 0.7 * smoothstep(th1, 1.0, lam)) * (0.8 + 0.5 * energy) * kR * swell;
+            float hw2 = (0.22 + 0.7 * smoothstep(th1, 1.0, lam)) * (0.8 + 0.3 * dMass) * kP * swell;
             float hatch = hatchL(dot(p, n2) / 0.021, w2, hw2, kR) * smoothstep(th1, th1 + 0.14, lam);
-            col += cB * hatch * (0.7 + 0.6 * treble) * fade * pressure * (1.0 + 1.2 * band) * keep;
+            col += cB * hatch * (0.7 + 0.4 * dSpark) * fade * pressure * (1.0 + 1.2 * band + 1.6 * re) * keep;
             vec3 n3 = vec3(0.6142, 0.4457, 0.6513);
             float w3 = footprint(n3 / 0.021, N, rd, dx, dy, t);
-            float hw3 = (0.2 + 0.6 * smoothstep(th2, 1.0, lam)) * (0.8 + 0.5 * energy) * kR * swell;
+            float hw3 = (0.2 + 0.6 * smoothstep(th2, 1.0, lam)) * (0.8 + 0.3 * dMass) * kP * swell;
             float xh = hatchL(dot(p, n3) / 0.021, w3, hw3, kR) * smoothstep(th2, th2 + 0.1, lam);
-            col += cC * xh * (0.55 + 0.6 * treble) * fade * pressure * (1.0 + 1.2 * band) * keep;
+            col += cC * xh * (0.55 + 0.4 * dSpark) * fade * pressure * (1.0 + 1.2 * band + 1.6 * re) * keep;
           } else if (voc < 2.5){
             // ISOLINES: every bead ringed about its children's sockets, the same count at every scale and
-            // each level in its own pen; bass pushes the rings out of the sockets, loud music halves them
+            // each level in its own pen; the rings ride the phrase's tide, the bar deals the half-rings in its own pen
             vec3 gLat = (k0 * q0.y + k1 * q1.y + k2 * q2.y + k3 * q3.y) * (5.0 / (4.0 * e));
             float same = (abs(q0.x - qc.x) + abs(q1.x - qc.x) + abs(q2.x - qc.x) + abs(q3.x - qc.x)) < 0.5 ? 1.0 : 0.0;
             float wl = footprint(gLat, N, rd, dx, dy, t);
-            float fl = qc.y * 5.0 - 0.45 * bass - fract(T / 12.0);
-            float hwR = (0.5 + 0.45 * energy) * kR * swell;
+            float fl = qc.y * 5.0 - 0.2 * sin(TAU * uPhrasePhase) * dStill - fract(T / 12.0);
+            float hwR = (0.5 + 0.3 * dMass) * kP * swell;
             float ring = lines(fl, wl, hwR) * crowd(wl, kR, lo + 1.0, hi + 2.0);
-            float ring2 = lines(fl + 0.5, wl, hwR * 0.7) * crowd(wl * 2.0, kR, lo + 1.0, hi + 2.0) * smoothstep(0.4, 0.9, max(energy, treble));
-            col += pen3(qc.x, cA, cB, cC) * (1.6 * ring + 0.9 * ring2) * ink * same;
+            float ring2 = lines(fl + 0.5, wl, hwR * 0.7) * crowd(wl * 2.0, kR, lo + 1.0, hi + 2.0) * dealt * (0.6 + 0.4 * famCalm);
+            col += (pen3(qc.x, cA, cB, cC) * 1.6 * ring + pen3(qc.x + 1.0 + mod(bar8, 2.0), cA, cB, cC) * (0.55 + 0.8 * famCalm) * ring2 * hair) * ink * same;
             col += pc * indexL * ink * 0.3;
           } else {
             // INK: the outline pen carries the drawing; an inner rim on every bead, the creases where
-            // beads meet, the sections a whisper
-            col += pc * indexL * ink * 0.4;
+            // beads meet, the sections a whisper the bar deals
+            col += pc * indexL * ink * (0.25 + 0.25 * dealt);
             float nv = max(nv0, 0.02);
             float fwv = sqrt(max(1.0 - nv * nv, 0.0)) / max(Rs * nv, 1e-3);
-            float rim = stroke(abs(nv - 0.45) / max(fwv, 1e-5), (0.55 + 0.4 * max(energy, treble)) * kR) * smoothstep(8.0, 16.0, Rs / kR);
-            col += cB * rim * ink0 * 1.3;
+            float rim = stroke(abs(nv - 0.45) / max(fwv, 1e-5), (0.55 + 0.25 * dMass) * kP) * smoothstep(8.0, 16.0, Rs / kR);
+            col += cB * rim * ink0 * (1.0 + 1.2 * band + 1.6 * re) * 1.3 * hair;
             vec3 gz = (k0 * q0.z + k1 * q1.z + k2 * q2.z + k3 * q3.z) / (4.0 * e);
             float wz = footprint(gz, N, rd, dx, dy, t);
             // a true crease has a gradient of order one; a jump (where the descent stopped short) has a huge one
@@ -59463,10 +59559,11 @@ function buildPlotter(){
           }
           // (2) the outline: this bead's own rim, drawn a little way in, and the occlusion contour where
           // the ray grazed a nearer edge before it struck
-          col += cC * stroke(edgeP, 0.5 * wOut) * 0.9 * pressure * fade;
+          col += cC * stroke(edgeP, 0.5 * wOut * min(1.0 + 0.8 * band + 0.2 * re, 2.6)) * 0.9 * pressure * fade * (1.0 + 0.6 * band + 0.8 * re);
           if (occl){
             float farG = exp(-1.2 * max(grazeT - tC + 0.25, 0.0));
-            col += cC * stroke(graze / pxA, wOut) * 0.9 * pressure * farG;
+            float bandG = ptKnee(ptBand(grazeT, tf, bw) * lamp), reG = ptBand(grazeT, tL, bwL) * rel;
+            col += cC * stroke(graze / pxA, wOut * min(1.0 + 0.8 * bandG + 0.2 * reG, 2.6)) * 0.9 * pressure * farG * (1.0 + 0.6 * bandG + 0.8 * reG);
           }
         }
       }
@@ -59528,9 +59625,6 @@ function buildPlotter(){
     },
     update(dt){
       if (!group.visible) return;
-      // the travelling pulse rides the beat's own phase (the grid's, or the dance's freewheel)
-      const ph = (typeof DANCE !== 'undefined' && isFinite(DANCE.phase)) ? DANCE.phase : 0;
-      varU.uPulse.value = ph - Math.floor(ph);
       /* resolution, not frames: the same governor the heavy rooms answer to,
          run here for this room alone. The march's line budget walks in steps of
          90 between 540 and 1080 on the honest frame period — down at once when
