@@ -21664,7 +21664,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'ed9deebcd0';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '863161dc92';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -58645,15 +58645,41 @@ function buildHubble(){
    from a WIDE normal, so they trace the arches and never the bubbles pitting
    them, and only beyond arm's length; a two-tap occlusion. Every voice is
    walked from the three chord swatches in OKLCH — the same arithmetic on both
-   stages, so the TV's chord is this one exactly. Light fades to the void well
+   stages, so the TV's chord is this one exactly; two voices nearly opposite
+   always walk the wheel clockwise, eased in, so a chord gliding through the
+   half-turn dims a little and never cuts. Light fades to the void well
    before the march ends — no spherical front, nothing pops in — and a ray
    that slips past a crack is shaded where it came closest, weighted by how
    close it came, so silhouettes are feathered and the piers never tear.
 
-   The music: the BEAT is the light flaring (gain and reach), never the
-   geometry; BASS lets the light reach further down the nave; ENERGY sets
-   how deep the light goes before the void takes it; TREBLE lights the rims;
-   MID rolls the high fill a little along the chord.
+   The music, through the dance bus (the twelve floats and the shape helpers
+   of GLSL_DANCE; no raw band is read anywhere in the room). The WALK is
+   given to the count: the flight's clock strides inside each beat, fastest
+   on the count and dwelling at the half, a zero-mean wobble of 1 +- 0.22 of
+   the clock, so the walk never runs backwards while the engine's rubato
+   holds musical time at a quarter of the wall (the bay clock, the turns,
+   the box and the bearer all ride the one walked clock). The body steps on
+   it: the eye dips on the footfall (struck on the count, over the kick's
+   spring) and pushes a little down the aisle, rebounds once and is home by
+   the next count - a lunge on the one, a lighter step on the three, a
+   touch on the two and the four, heavier in a heavy passage; before the
+   count it breathes in - rises and draws back, deepest before the one, so
+   the footfall falls from a breath (the lean); it
+   sways and the frame leans across the bar, and it rises toward the vault
+   over the phrase. The BEAT is a FRONT of lantern light: planes across the
+   nave that leave the eye on the strike and reach the far crossing in 0.7
+   beat - near piers, the mid-aisle, then the crossing -
+   their light growing with the distance run, so the far stone is seen to
+   take the beat; struck, held and let go with the beat, heaviest on the
+   one, through a knee so it is never white; never a whole-frame flare.
+   The passage's weight and loudness set how far and how deep the lantern
+   reaches; the hats are glints on the rims and nowhere else; the
+   articulation turns the high fill a little along the chord. Before a drop
+   the lantern is drawn in, the far nave darkens and the walk evens; on the
+   landing a heavy step, then a wave of light runs the whole nave over the
+   first half-bar. In a rest every beat figure is still; the walk itself
+   goes on at the engine's slowest musical time, a slow breath under the
+   groove's.
 
    Faces (roll): the distance (PIERCED SHELLS / HANGING FILIGREE) x the path
    (THE AISLE / THE CROSSINGS) x the rig (LANTERN IN HAND / LANTERN AHEAD /
@@ -58694,9 +58720,11 @@ function buildNave(){
     uT0:     { value: 0 },
   };
 
-  const frag = GLSL_MPHI + `
+  /* the dance bus (GLSL_DANCE: the twelve, uBarPhase and the shape helpers) is prepended; uCalm is the shared clock's, so the
+     room adds no uniform of its own and reads no raw band */
+  const frag = GLSL_MPHI + GLSL_DANCE + `
     precision highp float;
-    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat;
+    uniform float uTime, uCalm;
     uniform float uAspect, uFace, uPath, uRoute, uT0;
     uniform vec3 uColA, uColB, uColC;
     varying vec2 vUv;
@@ -58712,6 +58740,7 @@ function buildNave(){
     const float NV_PX   = 1.0 / 1080.0;  // one pixel of a 1080-line frame: the level of detail
                                          // is fixed, so every screen resolves the same stone
     const float NV_LEAD = 11.0;         // LANTERN AHEAD: how far ahead the bearer walks, in seconds
+    const float NV_FAR  = 3.3;           // the lit nave's far end along the aisle (the depth fade takes the rest): the beat's front at x = 1
 
     /* a chord voice as LIGHT: the same hue, brought to full strength, so an olive
        or a deep blue chord lights the nave as well as a pink one does */
@@ -58735,11 +58764,11 @@ function buildNave(){
       float b = 0.0259040371 * m.x + 0.7827717662 * m.y - 0.8086757660 * m.z;
       return vec3(L, length(vec2(a, b)), nvAtan(b, a));
     }
-    vec3 nvRGB(vec3 q){
-      float a = q.y * cos(q.z), b = q.y * sin(q.z);
-      vec3 m = vec3(q.x + 0.3963377774 * a + 0.2158037573 * b,
-                    q.x - 0.1055613458 * a - 0.0638541728 * b,
-                    q.x - 0.0894841775 * a - 1.2914855480 * b);
+    /* OKLab to sRGB (Ottosson's published matrices), each channel clipped to the gamut: the last step of every walked voice */
+    vec3 nvLab(vec3 q){
+      vec3 m = vec3(q.x + 0.3963377774 * q.y + 0.2158037573 * q.z,
+                    q.x - 0.1055613458 * q.y - 0.0638541728 * q.z,
+                    q.x - 0.0894841775 * q.y - 1.2914855480 * q.z);
       m = m * m * m;
       vec3 l = vec3( 4.0767416621 * m.x - 3.3077115913 * m.y + 0.2309699292 * m.z,
                     -1.2684380046 * m.x + 2.6097574011 * m.y - 0.3413193965 * m.z,
@@ -58752,29 +58781,25 @@ function buildNave(){
       float hd = q.z * 57.29578;
       return smoothstep(35.0, 55.0, hd) * (1.0 - smoothstep(115.0, 135.0, hd)) * smoothstep(0.03, 0.08, q.y);
     }
-    /* x in voices: 0 = A, 1 = B, 2 = C, cyclic; between two voices, the shorter arc */
+    /* x in voices: 0 = A, 1 = B, 2 = C, cyclic; between two voices, the shorter arc - except NEAR-COMPLEMENTS, which always walk
+       CLOCKWISE. Two voices nearly opposite have no shorter arc worth the name: which way is shorter is a coin flip decided by float
+       noise, or by the chord's own glide through the half-turn, and a pier would swing through yellow on one frame and cyan the next,
+       or differ between stages. The third voice cannot settle it - a complement's accent shares one of the pair's hues, so its margin
+       is a hair and the chord's glide flips it. So the clockwise arc takes over from the shorter one as the gap opens past
+       152 deg, wholly from 169 deg, the two arcs' colours mixed in OKLab on the way: a chord gliding through the turn passes through
+       a little less chroma, never a cut. The fifth (149 deg) and every narrower gap keep the shorter arc, and the tritone (177 deg)
+       and the complement walk the same way on every frame and on both stages */
     vec3 nvWalk(vec3 q0, vec3 q1, vec3 q2, float x){
       x = x - 3.0 * floor(x / 3.0);
       vec3 a = x < 1.0 ? q0 : (x < 2.0 ? q1 : q2);
       vec3 b = x < 1.0 ? q1 : (x < 2.0 ? q2 : q0);
-      vec3 c = x < 1.0 ? q2 : (x < 2.0 ? q0 : q1);   // the third voice, not on this leg
       float f = x - floor(x);
       float dh = b.z - a.z;
-      dh = dh - 6.2831853 * floor((dh + 3.1415927) / 6.2831853);
-      // NEAR-COMPLEMENTS: when the two voices sit more than ~170 deg apart the
-      // "shorter" arc is a coin flip decided by float noise, so a pier could swing
-      // through yellow on one frame and cyan the next, or differ between stages.
-      // Decide it instead: take the arc whose midpoint stays farther from the third
-      // voice, so the walk goes round the wheel the same way every time.
-      if (abs(dh) > 2.967) {
-        float dp = dh >= 0.0 ? dh : dh + 6.2831853;   // counter-clockwise length
-        float dn = dp - 6.2831853;                     // clockwise length (negative)
-        float ep = c.z - (a.z + 0.5 * dp), en = c.z - (a.z + 0.5 * dn);
-        ep = abs(ep - 6.2831853 * floor((ep + 3.1415927) / 6.2831853));
-        en = abs(en - 6.2831853 * floor((en + 3.1415927) / 6.2831853));
-        dh = ep > en ? dp : dn;
-      }
-      return nvRGB(vec3(mix(a.x, b.x, f), mix(a.y, b.y, f), a.z + dh * f));
+      dh = dh - 6.2831853 * floor((dh + 3.1415927) / 6.2831853);       // the shorter arc, -pi..pi (counter-clockwise > 0)
+      float wl = dh > 0.0 ? smoothstep(2.65, 2.95, dh) : 0.0;                // how much of the walk goes the long way, clockwise
+      float hs = a.z + dh * f, hl = a.z + (dh - 6.2831853) * f;
+      vec2 ab = mix(a.y, b.y, f) * ((1.0 - wl) * vec2(cos(hs), sin(hs)) + wl * vec2(cos(hl), sin(hl)));
+      return nvLab(vec3(mix(a.x, b.x, f), ab));
     }
 
     /* the box half-size: not a cube (the aisles along x tall and narrow, the
@@ -58822,7 +58847,7 @@ function buildNave(){
        place seen from either end (one period apart), so consecutive bays join
        seamlessly. The bay clock breathes (0.7x..1.3x over ~100 s) and never runs
        backwards. */
-    void nvFlight(float T, vec3 C, float turning, out vec3 ro, out vec3 fw, out float roll, out float k){
+    void nvFlight(float T, vec3 C, float turning, out vec3 ro, out vec3 fw, out float roll, out float k, out vec3 hdg){
       float Tb = T + 4.7 * sin(T * 0.0628);
       k = floor(Tb / NV_TW);
       float u = Tb / NV_TW - k;
@@ -58842,6 +58867,7 @@ function buildNave(){
       } else pos = O + (R + s - s2) * db;
       // the gaze turns a little before the feet and settles a little after
       vec3 head = nvUnit(mix(da, db, smoothstep(s1 - 0.3, s2 + 0.3, s)));
+      hdg = head;                                    // the way down the nave (the front's planes stand across it)
       vec3 side = vec3(-head.y, head.x, 0.0);
       float lat = 0.08 * sin(T * 0.107) + 0.045 * sin(T * 0.043 + 2.0);
       float alt = 0.17 * sin(T * 0.029 + 1.0) + 0.08 * sin(T * 0.081 + 0.4);
@@ -58857,17 +58883,56 @@ function buildNave(){
       // a turn is banked into, and out of
       roll = (da.x * db.y - da.y * db.x) * 0.16 * smoothstep(s1 - 0.45, s1 + 0.15, s) * (1.0 - smoothstep(s2 - 0.15, s2 + 0.45, s));
     }
+    /* a knee on the hit's weight: linear to 1.2, compressing above, so the landing's one is heavy and never white */
+    float nvKnee(float x){ return x < 1.2 ? x : 1.2 + (x - 1.2) / (1.0 + 0.8 * (x - 1.2)); }
+    /* the footfall: struck on the count (up in 0.15 beat: it lands as a step, not a jolt), recovering over the beat, spent by the
+       next count */
+    float nvStrike(float age){ return smoothstep(0.0, 0.15, age) * max(exp(-3.0 * age) - 0.05, 0.0) / 0.95; }
+    /* the count a strike belongs to, read at its BEAT LINE (the bar phase less the strike's age, nudged 0.15 beat so a read-ahead
+       strike rounds onto its own beat and a roll's last 16th onto the four): 0 the one .. 3 the four, -1 freewheeling; constant
+       through a strike's life, so its weight never steps mid-beat */
+    float nvBeatI(float age){ if (dPeriod <= 0.0) return -1.0; return floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); }
+    /* the lean's weight, from the count AHEAD (the bar phase + 0.1 bar rounds the lean's window, the last 40 % of a beat, onto the
+       count it loads for): the breath is drawn deepest before the one */
+    float nvLeanW(){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase + 0.1) * 4.0); return i < 0.5 ? 1.0 : (abs(i - 2.0) < 0.5 ? 0.5 : 0.25); }
 
     void main(){
       vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0);
       vec3 col = vec3(0.0);
-      float T = uTime + uT0;
+      // THE BODY, read once from the bus: the count, the draw-back before it, the coil, the landing, the passage's weight
+      float ph = danceBeatPhase();                                              // 0 at the count, 1 at the next (four to the bar; held in a rest)
+      float lean = danceLean(ph) * nvLeanW();                                   // the coil before the count, deepest before the one, let go INTO the kick (law 3)
+      float coil = max(dBrace, 0.6 * (1.0 - smoothstep(0.0, 2.0, dImpact)));   // the held breath before a landing, released over the half-bar after it (law 9)
+      float land = max(danceLand(dImpact), 0.0);                                // the landing's own body, clamped to light: 1 at 0.42 beat, gone by a bar
+      float heft = max(0.2 + 1.6 * dMass + 2.2 * max(dMass - 0.55, 0.0), 1.0 - smoothstep(0.0, 1.0, dImpact)) + 0.5 * land;   // the passage's weight: a verse ~0.4, the groove 1.0, the drop ~1.8
+      // the strike's own clock: a strike on the beat line restarts it, one inside a beat already struck (a roll's 8th or 16th)
+      // carries on the beat's run - never a rewind; and the count it belongs to, in the light and in the step: the bar has a shape
+      float sp = fract(ph - dAge + 0.15) - 0.15;                               // the last strike's phase in its beat: -0.15..0.1 is the beat line itself (the read-ahead)
+      float ageS = dAge + (dPeriod > 0.0 ? max(sp, 0.0) * smoothstep(0.1, 0.2, sp) : 0.0);
+      float bi = nvBeatI(ageS);                                                // 0 the one .. 3 the four; -1 freewheeling
+      float cnt = bi < -0.5 ? 0.8 : (bi < 0.5 ? 1.4 : (abs(bi - 2.0) < 0.5 ? 0.6 : 0.25));     // the light's count (law 7)
+      float body = bi < -0.5 ? 0.65 : (bi < 0.5 ? 1.38 : (abs(bi - 2.0) < 0.5 ? 0.5 : 0.37));  // the step's count: the one a lunge, the others a step
+      // the footfall: struck on the count and recovering over the beat, over the kick's spring (SIGNED: one rebound under rest),
+      // heavier in a heavy passage
+      float kick = (0.4 * dKick + 0.6 * nvStrike(ageS) * dStill) * (0.5 + 0.5 * heft) * body;
+      // THE WALK, given to the count: musical time strides within each beat - fastest on the count, dwelling at the half - a
+      // zero-mean wobble of the clock (seamless at the beat line), slope 1 +- 0.216, so the walk never runs backwards while the
+      // engine's rubato holds musical time at a quarter of the wall or more (its measured floor 0.248, at the groove's entry: a
+      // margin of 0.032; the TV's 0.4); still in a rest, evened by the coil. The bay clock, the turns, the box and the bearer all
+      // ride this one walked clock
+      float T = uTime + uT0 + dPeriod * (danceStride(ph, 0.24 * dStill * (1.0 - 0.5 * coil)) - ph) * 0.9;
       vec3 C = nvBox(T);
-      vec3 ro = vec3(0.0), fw = vec3(1.0, 0.0, 0.0);
+      vec3 ro = vec3(0.0), fw = vec3(1.0, 0.0, 0.0), hdg = vec3(1.0, 0.0, 0.0);
       float roll = 0.0, bay = 0.0;
-      nvFlight(T, C, uPath, ro, fw, roll, bay);
+      nvFlight(T, C, uPath, ro, fw, roll, bay, hdg);
       vec3 rt0 = nvUnit(cross(fw, vec3(0.0, 0.0, 1.0)));
       vec3 up0 = cross(rt0, fw);
+      // THE STEP, on the walker only (the bearer is someone else): the eye dips on the footfall and pushes a little down the aisle,
+      // rebounds once and is home by the next count. Before the count it BREATHES IN - rises and draws back, by over half the
+      // plie, deepest before the one - and the footfall falls from there: the lean lets go into the strike, so the rise and the
+      // fall are one down-stroke. It sways across the bar (stilled by the coil) and rises toward the vault over the phrase
+      ro += hdg * (0.012 * kick - 0.006 * lean) + rt0 * (0.015 * dSway * (1.0 - coil)) + vec3(0.0, 0.0, -0.037 * kick + 0.022 * lean + 0.03 * dLift);
+      roll += 0.008 * dSway * (1.0 - coil);                                     // ...and the frame leans with the sway
       vec3 rt = rt0 * cos(roll) + up0 * sin(roll);
       vec3 up = up0 * cos(roll) - rt0 * sin(roll);
       vec3 rd = nvUnit(fw + uv.x * rt + uv.y * up);
@@ -58906,17 +58971,25 @@ function buildNave(){
       float x0 = uRoute < 1.5 ? uRoute : 0.0;
       float warmA = nvWarm(x0 < 0.5 ? q0 : q1), warmB = nvWarm(x0 < 0.5 ? q1 : q2);
       vec3 lampA = nvTone(nvWalk(q0, q1, q2, x0)), lampB = nvTone(nvWalk(q0, q1, q2, x0 + 1.0));
-      float swell = clamp(uBeat, 0.0, 1.2);         // the beat is the light flaring
-      // dim amber and olive read as mud: where the light is a warm voice it goes sooner
-      float kd0 = mix(0.44, 0.30, uEnergy);
-      float kd = kd0 + 0.16 * warmA * (0.4 + 0.6 * uEnergy);
+      // THE BEAT, A FRONT DOWN THE NAVE: struck, held and let go with the beat (danceLamp), on the strike's own clock, weighed by
+      // the count at its beat line (the one heaviest) and the passage through a knee, so the landing's one is heavy and never
+      // white; still in a rest. Its head leaves the eye on the strike and reaches the far crossing by 0.7 beat
+      float swell = danceLamp(dHit, ageS) * dStill * nvKnee(heft * cnt);
+      float hd = min(ageS / 0.7, 1.0);                                         // the front's head: 0 at the eye .. 1 at the lit nave's far end
+      float landF = (0.5 + 0.5 * land) * (1.0 - smoothstep(1.5, 2.5, dImpact)) * dStill;   // the landing's own wave, alive for its first half-bar
+      float xL = min(0.5 * dImpact, 1.0);                                      // ...its head runs the full nave over that half-bar
+      // how deep the light goes is the passage's (never the frame's energy); the coil darkens the far nave. Dim amber and olive
+      // read as mud: where the light is a warm voice it goes sooner
+      float kd0 = mix(0.44, 0.30, uCalm) + 0.25 * coil;
+      float kd = kd0 + 0.16 * warmA * (0.4 + 0.6 * uCalm);
       // LANTERN AHEAD: the bearer walks NV_LEAD seconds further along the same
       // path (moved back into this bay's frame once past the next crossing)
       vec3 bearer = ro;
       if (uRoute > 0.5 && uRoute < 1.5){
         vec3 lf = vec3(1.0, 0.0, 0.0);
         float lr = 0.0, lk = 0.0;
-        nvFlight(T + NV_LEAD, C, uPath, bearer, lf, lr, lk);
+        vec3 lh = vec3(1.0, 0.0, 0.0);
+        nvFlight(T + NV_LEAD, C, uPath, bearer, lf, lr, lk, lh);        // on the same walked clock: the two walkers keep step
         float hn = nvHead(bay + 1.0, uPath);
         if (lk > bay + 0.5) bearer += 2.0 * nvHalfBay(hn, C) * nvDir(hn);
         bearer += vec3(0.0, 0.0, 0.06);
@@ -58950,10 +59023,22 @@ function buildNave(){
         vec3 lv = lampP - p;
         float ld = max(length(lv), 1e-3);
         vec3 l = lv / ld;
-        float reach = max(0.32 - 0.15 * uBass - 0.08 * swell, 0.06);
-        // the filigree is thread, mostly in its own shadow: its light burns a little brighter
-        float gain = (1.9 + 0.45 * uBass - 0.4 * uEnergy + 0.65 * swell) * (1.0 + 0.3 * uFace);
-        float lampG = gain / (1.0 + reach * ld * ld);
+        // the resting pool: how far it reaches and how strong it burns are the passage's weight, drawn in and dimmed by the coil,
+        // let out by the landing (never the frame's bass or beat); the filigree is thread, mostly in its own shadow: its light
+        // burns a little brighter
+        float reach = max(0.32 - 0.15 * dMass + 0.2 * coil, 0.06);
+        float gain = (1.9 + 0.45 * dMass - 0.4 * uCalm) * (1.0 + 0.3 * uFace) * (1.0 - 0.3 * coil) * (1.0 + 0.3 * land);
+        // THE FRONT: the beat's light as planes across the nave, x = 0 at the eye .. 1 at the lit nave's far end along the aisle -
+        // a wave a third of the nave deep whose light grows with the distance it has run (the far stone is a twentieth of the near
+        // after the pool's falloff and the depth), so the crossing is SEEN to take the beat, entering the near stone gently; the
+        // landing's wave runs the same way over its first half-bar. Its own gentle falloff, added to the lamp's
+        float x = max(dot(p - ro, hdg), 0.0) / NV_FAR;
+        float front = 0.0, wave = 0.0;
+        if (swell > 0.01) front = danceFront(x, hd, 0.3);
+        if (landF > 0.01) wave = 1.2 * danceFront(x, xL, 0.35) * landF;
+        wave = (swell * front + wave) * (0.3 + 2.4 * x);
+        float lampF = wave / (1.0 + 0.05 * ld * ld);
+        float lampG = gain / (1.0 + reach * ld * ld) + lampF;
         float ndl = max(dot(n, l), 0.0);
         float diff = (0.03 + 0.97 * ndl * ndl) * lampG;
         float spec = pow(max(dot(n, nvUnit(l - rd)), 1e-6), 24.0) * lampG * (1.0 - uFace);
@@ -58961,7 +59046,7 @@ function buildNave(){
         // the stone burning with its own light, low in voice A and high in B
         float em = 0.0;
         if (uRoute > 1.5){
-          em = (1.0 - smoothstep(0.15, 0.75, occ)) * (0.55 + 0.45 * max(dot(n, -rd), 0.0)) * gain;
+          em = (1.0 - smoothstep(0.15, 0.75, occ)) * (0.55 + 0.45 * max(dot(n, -rd), 0.0)) * gain * (1.0 + 0.8 * wave);   // the votives take the front where they burn
           diff *= 0.12; spec *= 0.3;
         }
         float sky = 0.5 + 0.5 * nw.z;                // the high fill: what faces up catches it
@@ -58975,32 +59060,32 @@ function buildNave(){
         // depth: light gives out with distance, and is gone before the march stops
         float hz = smoothstep(-0.6, 0.6, p.z - C.z);
         float warm = mix(warmA, warmB, uRoute > 1.5 ? hz : smoothstep(0.7, 3.2, ld));
-        float depth = exp(-(kd0 + 0.16 * warm * (0.4 + 0.6 * uEnergy)) * t)
+        float depth = exp(-(kd0 + 0.16 * warm * (0.4 + 0.6 * uCalm)) * t)
                     * (1.0 - smoothstep(0.55 * NV_TMAX, 0.96 * NV_TMAX, t))
         // ...and where the step budget runs out in the far nave, the light has already gone
                     * (1.0 - smoothstep(0.6, 1.0, steps / 110.0) * smoothstep(1.5, 3.5, t));
 
         // the lamp's voice, walking to the next voice as its light travels
         vec3 lantern = nvTone(nvWalk(q0, q1, q2, x0 + smoothstep(0.7, 3.2, ld)));
-        vec3 skyC = nvTone(nvWalk(q0, q1, q2, x0 + 1.0 + 0.18 * uMid));    // the high fill, a voice along
+        vec3 skyC = nvTone(nvWalk(q0, q1, q2, x0 + 1.0 + 0.09 * dArtic));  // the high fill, a voice along; the articulation turns it, light only (law 4)
         vec3 rim = nvTone(nvWalk(q0, q1, q2, x0 + 2.0));                  // the rims, the third voice
         vec3 pale = nvTone(uColC);                                         // the gloss, the chord's pale voice
         col = lantern * diff * (0.25 + 0.75 * occ) * 1.15;
         col += lantern * back * 0.9;
         col += mix(lampA, lampB, hz) * em * 1.05;
         col += skyC * sky * occ * 0.3 * exp(-0.3 * t);
-        col += rim * fr * (0.35 + 0.9 * uTreble + 0.3 * swell) * 1.1;
+        col += rim * fr * (0.35 + 0.25 * dSpark + 0.3 * swell * front) * 1.1;   // the hats as glints (light only, law 5) and the front as it passes
         col += mix(lantern, pale, 0.6) * spec * occ * 1.2;
-        col *= depth * (1.0 + 0.2 * uEnergy) * cov;
+        col *= depth * (1.0 + 0.2 * uCalm) * cov;                                // the exposure is the section's (law 7), never the beat's
         float mxc = max(col.r, max(col.g, col.b));
-        col *= mxc / (mxc + 0.12 * warm * (0.4 + 0.6 * uEnergy) + 1e-4);   // a warm voice's dim tail drops to the void rather than to brown
+        col *= mxc / (mxc + 0.12 * warm * (0.4 + 0.6 * uCalm) + 1e-4);   // a warm voice's dim tail drops to the void rather than to brown
       }
 
-      // THE BEARER'S LANTERN ITSELF, wherever the eye sees it before any stone
-      float gw = 0.9 + 0.6 * swell;
+      // THE BEARER'S LANTERN ITSELF, wherever the eye sees it before any stone; it flares when the front reaches it, not before
       if (uRoute > 0.5 && uRoute < 1.5){
         float ts = dot(bearer - ro, rd);
         if (ts > 0.05 && ts < tEnd){
+          float gw = 0.9 + 0.6 * swell * danceFront(max(dot(bearer - ro, hdg), 0.0) / NV_FAR, hd, 0.24);
           float gd = length(ro + rd * ts - bearer), rad = 0.012 + 2.0 * NV_PX * ts;
           float g = exp(-gd * gd / (rad * rad)) + 0.15 / (1.0 + gd * gd / (9.0 * rad * rad));
           col += lampA * g * gw * exp(-kd * ts) * (1.0 - smoothstep(0.55 * NV_TMAX, 0.96 * NV_TMAX, ts));

@@ -8638,6 +8638,190 @@ test('buildPlotter keeps the ten laws: the stroke on the beat\'s own age, no raw
   assert.ok(/float uCalm = 1\.0 - U\.calm, uBarPhase = U\.barPhase, uPhrasePhase = U\.phrasePhase;/.test(metal), 'the TV reads the loudness in the web\'s sense (its analyser counts calm DOWN as the music gets loud)');
 });
 
+test('buildNave keeps the ten laws: the walk given to the count and never backwards, the beat a front down the nave, no raw band anywhere, the twin the same text', () => {
+  const b0 = html.indexOf('function buildNave(){'), b1 = html.indexOf('/* ==== END ROOM REGION: NAVE', b0);
+  assert.ok(b0 >= 0 && b1 > b0, 'buildNave is in the player');
+  const build = html.slice(b0, b1);
+  const f0 = build.indexOf('const frag = '), f1 = build.indexOf('\n  `;', f0);
+  assert.ok(f0 >= 0 && f1 > f0, 'the fragment is inline in the builder');
+  const room = build.slice(f0, f1);
+  assert.ok(room.startsWith('const frag = GLSL_MPHI + GLSL_DANCE + `'), 'GLSL_DANCE is prepended after GLSL_MPHI');
+  assert.ok(!/uniform\s+float[^;]*\buBarPhase\b/.test(room), 'the room does not redeclare uBarPhase (the prelude declares it)');
+  const twelve = ['dHit', 'dAge', 'dKick', 'dMass', 'dArtic', 'dSpark', 'dSway', 'dLift', 'dBrace', 'dImpact', 'dStill', 'dPeriod'];
+  for (const n of twelve) assert.ok(!new RegExp('\\b(float|vec[234]|int|bool)\\s+' + n + '\\b').test(room), n + ' is a macro: never a local');
+  for (const n of ['danceBeatPhase', 'danceLean', 'danceStride', 'danceFront', 'danceLamp', 'danceLand', 'danceHeld', 'danceRing', 'danceBreath'])
+    assert.ok(!new RegExp('\\b(float|vec[234]|int|bool)\\s+' + n + '\\b').test(room), n + ' is the prelude\'s: never redefined');
+  const strip = s => s.split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const stmts = strip(room).split(';');
+  const code = stmts.join(';');
+  const assigns = n => stmts.filter(st => new RegExp('(^|[^\\w.])(float|vec[234])?\\s*' + n + '\\s*(=|\\+=|-=|\\*=)(?!=)').test(st));
+  // law 1 - no raw band, no beat envelope, no live spectrum anywhere in the room
+  const RAW = ['uBass', 'uMid', 'uTreble', 'uEnergy', 'uBeat', 'uPulse', 'uBeatIdx', 'uAudio'];
+  for (const u of RAW) assert.ok(!new RegExp('\\b' + u + '\\b').test(code), u + ' is not read anywhere in the room');
+  // laws 1, 4, 5, 6 - the walk, the body and the resting pool never read the strike, its front, the hats or the articulation:
+  // the hit is light that travels, never a position and never the whole pool
+  const HIT = /\b(dHit|dAge|dSpark|dArtic|swell|front|wave|lampF|hd|cnt|landF|xL)\b/;
+  for (const n of ['T', 'C', 'ro', 'fw', 'roll', 'hdg', 'kick', 'body', 'heft', 'coil', 'lean', 'reach', 'gain', 'kd0', 'kd', 'depth'])
+    for (const st of assigns(n)) assert.ok(!HIT.test(st), `the strike reaches ${n}: ${st.trim().slice(0, 110)}`);
+  // law 5 - the hats are glints on the rims and nowhere else; law 4 - the live articulation turns the fill's hue (light) and nothing else
+  const spark = stmts.filter(st => /\bdSpark\b/.test(st)), artic = stmts.filter(st => /\bdArtic\b/.test(st));
+  assert.ok(spark.length === 1 && /col \+= rim \* fr \* \(0\.35 \+ 0\.\d+ \* dSpark \+ 0\.\d+ \* swell \* front\) \* 1\.1/.test(spark[0]), 'dSpark only lights the rims, with the front as it passes: ' + spark.map(s => s.trim()).join(' | '));
+  assert.ok(artic.length === 1 && /vec3 skyC = nvTone\(nvWalk\(q0, q1, q2, x0 \+ 1\.0 \+ 0\.\d+ \* dArtic\)\)/.test(artic[0]), 'dArtic only turns the high fill along the chord (light)');
+  // the helpers the retelling is built from, and the bus fields it reads
+  for (const h of ['danceBeatPhase()', 'danceLean(ph)', 'danceStride(ph, ', 'danceLamp(dHit, ageS)', 'danceFront(x, hd, ', 'danceFront(x, xL, ', 'danceLand(dImpact)', 'nvStrike(ageS)']) assert.ok(room.includes(h), 'reads ' + h);
+  for (const d of twelve) assert.ok(new RegExp('\\b' + d + '\\b').test(code), 'reads ' + d);
+  // ---- law 10 / 8 - THE WALK: musical time strides within the beat (the prelude's zero-mean form), all of the flight on it, never backwards
+  const tw = room.match(/float T = uTime \+ uT0 \+ dPeriod \* \(danceStride\(ph, (\d\.\d+) \* dStill \* \(1\.0 - (\d\.\d+) \* coil\)\) - ph\) \* (\d\.\d+);/);
+  assert.ok(tw, 'the walked clock: uTime + uT0 + dPeriod * (danceStride(ph, A * dStill * (1 - c * coil)) - ph) * K');
+  const A = +tw[1], cC = +tw[2], K = +tw[3];
+  assert.ok(A * K > 0.15, 'the stride is there (A x K = ' + (A * K).toFixed(3) + ')');
+  assert.ok(A * K <= 0.248 - 0.025, 'the walk never runs backwards while uTime runs at the rubato\'s measured floor (0.248 of the wall, at the groove\'s entry), with a margin: A x K = ' + (A * K).toFixed(3));
+  assert.strictEqual(assigns('T').length, 1, 'the walked clock is the only clock: T is written once');
+  assert.ok(/nvFlight\(T, C, uPath, ro, fw, roll, bay, hdg\);/.test(room) && /nvFlight\(T \+ NV_LEAD, C, uPath, bearer, lf, lr, lk, lh\);/.test(room) && /vec3 C = nvBox\(T\);/.test(room), 'the flight, the bearer and the box all ride the one walked clock');
+  const tb = room.match(/float Tb = T \+ ([\d.]+) \* sin\(T \* ([\d.]+)\);/);
+  assert.ok(tb && +tb[1] * +tb[2] < 0.75, 'the bay clock breathes on the walked clock and never runs backwards on it (slope >= ' + (tb && (1 - tb[1] * tb[2]).toFixed(3)) + ')');
+  // the pure form, on WALL time: the beat phase advances at 1/P (the media clock), musical time at r of the wall (the engine's rubato:
+  // its measured floor on the web 0.248, the TV's rate floor 0.4); the derivative and every discrete frame step stay positive
+  const walk = (u, ph, P, still, coil, a) => u + P * ((a * still * (1 - cC * coil)) / (2 * Math.PI)) * Math.sin(2 * Math.PI * ph) * K;
+  for (const r of [0.248, 0.4]) for (const still of [0, 0.5, 1]) for (const coil of [0, 1]) for (let ph = 0; ph < 1; ph += 1e-3)
+    assert.ok(r + K * A * still * (1 - cC * coil) * Math.cos(2 * Math.PI * ph) > 0, `d(T_walk)/dt > 0 at r ${r}, ph ${ph.toFixed(3)}, dStill ${still}, coil ${coil}`);
+  for (const r of [0.248, 0.4]) for (const fps of [24, 60]) for (const P of [0.3, 0.5, 1.0]) for (let k = 0; k < 40; k++){
+    const dt = 1 / fps; let u = 0, ph = k / 40, prev = walk(u, ph, P, 1, 0, A);
+    for (let f = 0; f < Math.ceil(2 * P * fps); f++){
+      u += r * dt; ph = (ph + dt / P) % 1;
+      const cur = walk(u, ph, P, 1, 0, A);
+      assert.ok(cur - prev > 0, `a frame of the walk steps forward (r ${r}, ${fps} fps, P ${P}): ${(cur - prev).toExponential(2)}`);
+      prev = cur;
+    }
+  }
+  // ...and the law has teeth: 2.9's literal amplitude (0.75 x 0.9) would walk backwards at the rubato's floor
+  assert.ok(0.248 - 0.75 * 0.9 < 0 && 0.248 - 0.28 * 0.9 < 0.025, 'the design\'s 0.75 x 0.9 reverses at the floor, and the first retelling\'s 0.28 x 0.9 kept a margin of only 0.002: the bound above is the law');
+  // ---- laws 2, 3, 7 - THE STEP: on the walker only, after the flight; the spring read SIGNED, the lean the other way, the bar, the phrase
+  const step = room.match(/ro \+= hdg \* \((0\.\d+) \* kick - (0\.\d+) \* lean\) \+ rt0 \* \((0\.\d+) \* dSway \* \(1\.0 - coil\)\) \+ vec3\(0\.0, 0\.0, -(0\.\d+) \* kick \+ (0\.\d+) \* lean \+ (0\.\d+) \* dLift\);/);
+  assert.ok(step, 'the step: a push-off down the aisle and a plie on the footfall, the lean back and up, the sway across the bar (stilled by the coil, law 9), the lift over the phrase');
+  assert.ok(+step[5] >= 0.4 * +step[4] - 1e-9 && +step[5] < +step[4] && +step[2] >= 0.2 * +step[1] - 1e-9, 'law 3: the breath before the count is SEEN - the eye rises by at least 40 % of the plie (never as far as the plie itself: the footfall stays the gesture) and draws back by at least a fifth of the push');
+  assert.ok(room.indexOf('ro += hdg * (') > room.indexOf('nvFlight(T, C, uPath, ro, fw, roll, bay, hdg);') && room.indexOf('ro += hdg * (') < room.indexOf('vec3 rd = nvUnit('), 'the step moves the walker after the flight and before the rays');
+  assert.ok(/float kick = \(0\.\d+ \* dKick \+ 0\.\d+ \* nvStrike\(ageS\) \* dStill\) \* \(0\.\d+ \+ 0\.\d+ \* heft\) \* body;/.test(room) && !/(max|clamp|min|abs)\(\s*dKick/.test(code), 'the footfall: struck on the strike\'s own clock (still in a rest) over dKick read signed (the rebound is the body), weighed by the passage and the bar');
+  const stk = room.match(/float nvStrike\(float age\)\{ return smoothstep\(0\.0, (0\.\d+), age\) \* max\(exp\(-(\d\.\d+) \* age\) - (0\.\d+), 0\.0\) \/ (0\.\d+); \}/);
+  assert.ok(stk && +stk[1] >= 0.1 && +stk[1] <= 0.15 && Math.exp(-stk[2]) - stk[3] <= 1e-3 && Math.abs(1 - stk[3] - stk[4]) < 0.02, 'the footfall lands in 0.1 to 0.15 beat (a step, not a jolt, not a drift) and is spent by the next count (0 from age 1, normalised to 1)');
+  assert.ok(/roll \+= 0\.\d+ \* dSway \* \(1\.0 - coil\);/.test(room), 'the frame leans with the bar, stilled by the coil');
+  assert.ok(/float lean = danceLean\(ph\) \* nvLeanW\(\);/.test(room) && /float ph = danceBeatPhase\(\);/.test(room), 'the lean is the prelude\'s, on the beat phase, weighed by the count it loads for');
+  const lw = room.match(/float nvLeanW\(\)\{ if \(dPeriod <= 0\.0\) return 0\.8; float i = floor\(fract\(uBarPhase \+ 0\.1\) \* 4\.0\); return i < 0\.5 \? (\d\.\d+) : \(abs\(i - 2\.0\) < 0\.5 \? (\d\.\d+) : (\d\.\d+)\); \}/);
+  assert.ok(lw && +lw[1] === 1.0 && +lw[1] > +lw[2] && +lw[2] >= +lw[3], 'the breath is drawn deepest before the one (the count ahead)');
+  // ---- law 6 - THE FRONT: struck by danceLamp on the strike's own clock, placed by its age along the aisle, narrower than the nave
+  assert.ok(/float swell = danceLamp\(dHit, ageS\) \* dStill \* nvKnee\(heft \* cnt\);/.test(room), 'the front\'s strength: danceLamp(dHit, the strike\'s age) x dStill x the passage and the count through a knee (laws 6, 7, 8)');
+  const hd = room.match(/float hd = min\(ageS \/ (\d\.\d+), 1\.0\);/);
+  assert.ok(hd && +hd[1] <= 0.8, 'the front\'s head reaches the far crossing inside the lamp\'s hold');
+  assert.ok(/float x = max\(dot\(p - ro, hdg\), 0\.0\) \/ NV_FAR;/.test(room) && /const float NV_FAR\s+= \d\.\d+;/.test(room), 'the front stands across the nave: x along the aisle\'s heading, 1 at the lit nave\'s far end');
+  const fw0 = room.match(/front = danceFront\(x, hd, (\d\.\d+)\)/);
+  assert.ok(fw0 && +fw0[1] <= 0.35, 'the front is narrower than the nave (a wave, not a flood): width ' + (fw0 && fw0[1]));
+  const ramp = room.match(/wave = \(swell \* front \+ wave\) \* \((\d\.\d+) \+ (\d\.\d+) \* x\);/);
+  assert.ok(ramp && +ramp[2] > +ramp[1], 'the front\'s light grows with the distance it has run, so the far crossing is seen to take it');
+  assert.ok(/float lampF = wave \/ \(1\.0 \+ 0\.\d+ \* ld \* ld\);/.test(room) && /float lampG = gain \/ \(1\.0 \+ reach \* ld \* ld\) \+ lampF;/.test(room), 'the front is light added to the lamp\'s, never a multiplier on the frame');
+  assert.ok(/float gw = 0\.\d+ \+ 0\.\d+ \* swell \* danceFront\(max\(dot\(bearer - ro, hdg\), 0\.0\) \/ NV_FAR, hd, /.test(room), 'the bearer\'s lantern flares when the front reaches it');
+  // ...and the strike's light reaches the picture ONLY through a front: every other reader of swell (the fill, the gloss, the votives,
+  // the back-rim) would be a whole-frame flash added in light, which no `col *=` check can see
+  for (const st of stmts) if (/\bswell\b/.test(st)){
+    const rest = st.replace(/\bfloat swell = /, '').replace(/\bswell > 0\.01\b/g, '').replace(/\bswell \* (front\b|danceFront\()/g, '');
+    assert.ok(!/\bswell\b/.test(rest), 'the strike\'s light travels: swell is read only times a front: ' + st.trim().slice(0, 110));
+  }
+  // the strike's clock: a strike on the beat line restarts the front, one inside a beat already struck never rewinds it
+  const spM = room.match(/float sp = (fract\(ph - dAge[^;]+);/), agM = room.match(/float ageS = ([^;]+);/);
+  assert.ok(spM && agM && /\bdAge\b/.test(agM[1]) && /\bdPeriod > 0\.0\b/.test(agM[1]), 'the front\'s clock (sp, ageS) on dAge, freewheeling on dAge alone');
+  const js = e => e.replace(/\bfract\(/g, 'F(').replace(/\bsmoothstep\(/g, 'S(').replace(/\bmax\(/g, 'Math.max(').replace(/\bmin\(/g, 'Math.min(');
+  const ageOf = new Function('ph', 'dAge', 'dPeriod', 'F', 'S', 'const sp = ' + js(spM[1]) + '; return ' + js(agM[1]) + ';');
+  const Ff = x => x - Math.floor(x), Sf = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
+  for (const [stp, early] of [[0.25, 0.02], [0.5, 0.02], [0.25, -0.05], [1.0, 0.03]]){
+    let prev = null, last = -9;
+    for (let f = 0; f < 4 * 30; f++){
+      const t = f / 30, ph = Ff(t);
+      const k = Math.floor((t + early) / stp + 1e-9), st = k * stp - early;
+      const struck = st <= t + 1e-9 && st > last + 1e-9;
+      if (struck) last = st;
+      const dAge = Math.min(4, t - last), ageS = ageOf(ph, dAge, 0.5, Ff, Sf);
+      const onLine = Math.abs(Ff(last + early + 0.5) - 0.5) < 1e-6;
+      if (struck && prev != null && !onLine) assert.ok(ageS >= prev - 1e-6, `a strike inside the beat (every ${stp} beat) never rewinds the front: ${prev.toFixed(3)} -> ${ageS.toFixed(3)}`);
+      if (struck && onLine) assert.ok(ageS < 0.1, `a strike on the beat line restarts the front (${ageS.toFixed(3)})`);
+      if (stp === 1.0) assert.ok(Math.abs(ageS - dAge) < 1e-9, 'the groove (strikes on the beat lines only) runs on dAge itself');
+      prev = ageS;
+    }
+  }
+  assert.ok(ageOf(0.5, 0.3, 0.0, Ff, Sf) === 0.3, 'freewheeling, the front\'s clock is dAge');
+  // law 7 - the count at the strike's beat line: the one heaviest, the three next, the two and the four light
+  const bw = room.match(/float nvBeatI\(float age\)\{ if \(dPeriod <= 0\.0\) return -1\.0; return floor\(fract\(uBarPhase - 0\.25 \* age \+ (0\.\d+)\) \* 4\.0\); \}/);
+  assert.ok(bw && +bw[1] > 0.005 && +bw[1] <= 0.04, 'the count is read at the strike\'s beat line (nudge <= 0.15 beat)');
+  assert.ok(/float bi = nvBeatI\(ageS\);/.test(room), 'the count is read at the strike\'s own beat line');
+  for (const n of ['cnt', 'body']){
+    const tb = room.match(new RegExp('float ' + n + ' = bi < -0\\.5 \\? (\\d\\.\\d+) : \\(bi < 0\\.5 \\? (\\d\\.\\d+) : \\(abs\\(bi - 2\\.0\\) < 0\\.5 \\? (\\d\\.\\d+) : (\\d\\.\\d+)\\)\\);'));
+    assert.ok(tb && +tb[2] > 1.0 && +tb[2] > +tb[3] && +tb[3] > +tb[4] && +tb[1] < +tb[2] && +tb[1] > +tb[4], 'the bar has a shape in the ' + (n === 'cnt' ? 'light' : 'step') + ': one > three > two/four, freewheeling between');
+  }
+  const kn = room.match(/float nvKnee\(float x\)\{ return x < ([\d.]+) \? x : \1 \+ \(x - \1\) \/ \(1\.0 \+ [\d.]+ \* \(x - \1\)\); \}/);
+  assert.ok(kn, 'the hit\'s weight passes a knee (C1, linear below it): heavy, never white');
+  // light budget - no whole-frame multiplier on the hit, the exposure and the depth the section's
+  for (const st of stmts) if (/(^|\s)col \*=/.test(st)) assert.ok(!/\b(dHit|dKick|kick|swell|front|wave|lampF|land|landF|cnt|ageS)\b/.test(st), 'no whole-frame multiplier on the hit: ' + st.trim());
+  assert.ok(/col \*= depth \* \(1\.0 \+ 0\.\d+ \* uCalm\) \* cov/.test(room), 'the exposure is the section\'s (uCalm, seconds)');
+  assert.ok(/float kd0 = mix\(0\.44, 0\.30, uCalm\) \+ 0\.\d+ \* coil;/.test(room), 'how deep the light goes is the passage\'s, the coil darkening the far nave');
+  // law 9 - the coil draws the lantern in, dims it, darkens the far nave and evens the walk; the landing a wave over its half-bar
+  assert.ok(/float coil = max\(dBrace, 0\.\d+ \* \(1\.0 - smoothstep\(0\.0, 2\.0, dImpact\)\)\);/.test(room), 'the coil: dBrace, released over the half-bar after the landing');
+  assert.ok(/float land = max\(danceLand\(dImpact\), 0\.0\);/.test(room) && /float heft = max\(0\.2 \+ 1\.6 \* dMass \+ [\d.]+ \* max\(dMass - 0\.55, 0\.0\), 1\.0 - smoothstep\(0\.0, 1\.0, dImpact\)\) \+ 0\.\d+ \* land;/.test(room), 'the passage\'s weight, the landing holding it');
+  assert.ok(/float reach = max\(0\.32 - 0\.\d+ \* dMass \+ 0\.\d+ \* coil, 0\.06\);/.test(room) && /float gain = \(1\.9 \+ 0\.\d+ \* dMass - 0\.4 \* uCalm\) \* \(1\.0 \+ 0\.3 \* uFace\) \* \(1\.0 - 0\.\d+ \* coil\) \* \(1\.0 \+ 0\.\d+ \* land\);/.test(room), 'the resting pool on the passage, drawn in and dimmed by the coil, let out by the landing');
+  assert.ok(/float landF = \(0\.5 \+ 0\.5 \* land\) \* \(1\.0 - smoothstep\([\d.]+, [\d.]+, dImpact\)\) \* dStill;/.test(room) && /float xL = min\(0\.5 \* dImpact, 1\.0\);/.test(room) && /wave = [\d.]+ \* danceFront\(x, xL, 0\.\d+\) \* landF;/.test(room), 'the landing\'s wave runs the whole nave over its first half-bar, still in a rest');
+  // every loop bounded by a compile-time literal
+  const loops = [...room.matchAll(/for\s*\(([^)]*)\)/g)].map(m => m[1]);
+  assert.ok(loops.length >= 2, 'the march and the folds are loops');
+  for (const l of loops) assert.ok(/^\s*int \w+ = 0;\s*\w+ < \d+;\s*\w+\+\+\s*$/.test(l), 'literal-bounded loop: ' + l);
+  // ---- law 10 - the twin: Shaders40.metal's room_nave carries the same story, line for line
+  const metal = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Shaders40.metal'), 'utf8');
+  const m0 = metal.indexOf('fragment float4 room_nave('), m1 = metal.indexOf('/* ==== END ROOM REGION: NAVE', m0);
+  assert.ok(m0 >= 0 && m1 > m0, 'room_nave is in Shaders40.metal');
+  const frag = metal.slice(m0, m1);
+  const lines = s => strip(s).split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const cut = (s, x, y) => { const i = s.indexOf(x), j = s.indexOf(y, i + 1); assert.ok(i >= 0 && j > i, 'found ' + x + ' .. ' + y); return s.slice(i, j); };
+  // the body: from the bus read to the bearer's lantern; the march's step cap (110 here, 96 on the TV) is the one accepted difference
+  const cap = l => l.replace('i < 96;', 'i < 110;').replace('steps / 96.0', 'steps / 110.0');
+  assert.deepStrictEqual(lines(cut(frag, 'float ph = danceBeatPhase();', '#undef dHit')).map(cap).slice(0, -1), lines(cut(room, 'float ph = danceBeatPhase();', 'col += (nvHash(')), 'the twin\'s body is the web\'s, line for line (the march cap aside)');
+  // the flight and the knee are the same text (GLSL's out = the house dialect's INOUT), the count through the accessor map
+  const dialect = s => s.replace(/INOUT\((\w+), (\w+)\)/g, 'out $1 $2');
+  assert.deepStrictEqual(lines(dialect(cut(metal, 'void nvFlight(', 'inline float nvBeatI('))), lines(cut(room, 'void nvFlight(', 'float nvBeatI(')), 'the twin\'s flight, knee and footfall are the web\'s');
+  const accessors = s => s.replace(/\bU\.dPeriod\b/g, 'dPeriod').replace(/\bU\.barPhase\b/g, 'uBarPhase').replace(/^inline float (nv\w+)\(constant VizUniforms& U(, )?/gm, 'float $1(');
+  assert.deepStrictEqual(lines(accessors(cut(metal, 'inline float nvBeatI(', '}  // namespace rm_nv'))), lines(cut(room, 'float nvBeatI(', 'void main')), 'the twin\'s count and lean weight are the web\'s through the accessor map');
+  // ...and so is EVERY helper and constant of the room (the stone, the flight, the chord, the front's NV_FAR): the whole namespace from
+  // nvAtan on is the web's text through the house dialect (GLSL's out / const / atan = Metal's INOUT / constant / atan2)
+  const house = s => accessors(dialect(s)).replace(/^constant float (\w+)/gm, 'const float $1').replace(/\batan2\(/g, 'atan(');
+  assert.deepStrictEqual(lines(house(cut(metal, 'float nvAtan(', '}  // namespace rm_nv'))), lines(cut(room, 'float nvAtan(', 'void main(){')), 'the twin\'s helpers and constants are the web\'s, line for line');
+  const defs = [...frag.matchAll(/^#define (\w+)/gm)].map(m => m[1]).sort(), undefs = [...frag.matchAll(/^#undef (\w+)/gm)].map(m => m[1]).sort();
+  assert.deepStrictEqual(undefs, defs, 'every macro the twin defines for its body is let go of before the exit');
+  for (const d of twelve) assert.ok(new RegExp('#define ' + d + ' U\\.' + d + '\\n').test(frag) && frag.includes('#undef ' + d + '\n'), 'the twin maps ' + d + ' onto the uniforms, and lets go of it');
+  assert.ok(/#define danceBeatPhase\(\) danceBeatPhase\(U\)/.test(frag) && /#define danceLean\(ph\) danceLean\(U, \(ph\)\)/.test(frag) && /#define nvBeatI\(a\) nvBeatI\(U, \(a\)\)/.test(frag) && /#define nvLeanW\(\) nvLeanW\(U\)/.test(frag), 'the twin passes U to the helpers that read the bus');
+  assert.ok(/float uCalm = 1\.0 - U\.calm, uTime = U\.time;/.test(frag), 'the TV reads the loudness in the web\'s sense (its analyser counts calm DOWN as the music gets loud)');
+  // ---- the chord's walk (chord-only colour): the same text on both stages, and CONTINUOUS. Two voices nearly opposite walk the
+  // wheel clockwise, eased in over the gap, the two arcs mixed in OKLab - so a chord gliding through the half-turn passes through a
+  // little less chroma and never cuts (the first retelling's third-voice switch cut ~160 deg in one frame, twice, in the drop)
+  assert.deepStrictEqual(lines(cut(metal, 'vec3 nvLab(vec3 q){', 'vec3 nvBox(float T){')), lines(cut(room, 'vec3 nvLab(vec3 q){', 'vec3 nvBox(float T){')), 'the twin walks the chord with the web\'s text, line for line');
+  assert.ok(!/\bnvRGB\b/.test(room) && !/\bep > en\b|\? dp : dn/.test(room), 'no hard switch between the two arcs');
+  const wk = room.match(/float wl = dh > 0\.0 \? smoothstep\((\d\.\d+), (\d\.\d+), dh\) : 0\.0;/);
+  assert.ok(wk && /float hs = a\.z \+ dh \* f, hl = a\.z \+ \(dh - 6\.2831853\) \* f;/.test(room) && /vec2 ab = mix\(a\.y, b\.y, f\) \* \(\(1\.0 - wl\) \* vec2\(cos\(hs\), sin\(hs\)\) \+ wl \* vec2\(cos\(hl\), sin\(hl\)\)\);/.test(room), 'the walk mixes the shorter and the clockwise arc in OKLab by a weight eased in over the gap');
+  const lo = +wk[1], hi = +wk[2];
+  assert.ok(lo >= 2.62 && hi <= 3.0 && hi - lo >= 0.25, `the fifth (149.4 deg) keeps its shorter arc, the tritone (177.1 deg) walks wholly clockwise, and the turn is eased over >= 14 deg of gap (${lo}..${hi} rad)`);
+  // the formula, driven by the shader's own constants: a chord gliding through the half-turn (B's hue 140 -> 220 deg from A's, in
+  // half-degree frames) moves the mid-walk colour smoothly - never more than a fifth of its chroma in a frame (a cut is twice it)
+  const S01 = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
+  const TAU = 6.2831853, walkAB = (dhRaw, f, Cc) => { const dh = dhRaw - TAU * Math.floor((dhRaw + 3.1415927) / TAU); const wl = dh > 0 ? S01(lo, hi, dh) : 0; const hs = dh * f, hl = (dh - TAU) * f; return [Cc * ((1 - wl) * Math.cos(hs) + wl * Math.cos(hl)), Cc * ((1 - wl) * Math.sin(hs) + wl * Math.sin(hl))]; };
+  for (const f of [0.2, 0.45, 0.5, 0.8]){
+    let prev = null, worst = 0;
+    for (let g = 140; g <= 220; g += 0.5){
+      const ab = walkAB(g * Math.PI / 180, f, 0.1);
+      if (prev) worst = Math.max(worst, Math.hypot(ab[0] - prev[0], ab[1] - prev[1]));
+      prev = ab;
+    }
+    assert.ok(worst < 0.2 * 0.1, `the walk at ${f} moves at most a fifth of its chroma per half-degree of the chord's glide (${(worst / 0.1).toFixed(3)})`);
+  }
+  for (const f of [0.25, 0.5, 0.75]) assert.ok(Math.hypot(...walkAB(Math.PI - 1e-4, f, 0.1).map((v, i) => v - walkAB(-Math.PI + 1e-4, f, 0.1)[i])) < 1e-3, 'either side of the exact half-turn walks the same way (no coin flip)');
+  for (const g of [30, 95, 120, 149.4]) assert.ok(Math.abs(Math.atan2(...walkAB(g * Math.PI / 180, 0.5, 0.1).slice().reverse()) - g * Math.PI / 360) < 1e-9, `a ${g} deg gap keeps the shorter arc exactly`);
+  assert.ok(!/\bU\.(bass|mid|treble|energy|onsetEnv|beatPhase)\b/.test(strip(frag)) && !/\b(spectrum|waveform)\.read\(/.test(frag), 'the twin reads no raw band, no live spectrum');
+  assert.ok(/return float4\(govern\(VOID \+ max\(col, float3\(0\.0\)\), U\.white\), 1\.0\);/.test(frag) && (frag.match(/\breturn\b/g) || []).length === 1, 'the twin governs its one exit');
+});
+
 /* THE FROZEN TRACE. A fixed synthetic drive at 120 BPM and 60 Hz: one bar of
    count-in at rest (beats 0..3), eight beats of groove (kick on 1 and 3,
    snare on 2 and 4, hats on every eighth; the levels decay from each hit),
