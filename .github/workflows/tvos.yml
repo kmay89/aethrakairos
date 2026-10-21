@@ -423,7 +423,10 @@ jobs:
             echo "[ci] no $1 try: the film loop's 330 s budget is spent ($((SECONDS - FILM_T0)) s in)" >> "$LOG"
             return 1
           }
-          for ROOM in spectral fractal nave plotter spiral pulse; do
+          # light rooms first: on a slow runner a ray-marched room renders at 1–2 fps and its
+          # recorder takes 20–30 s to flush, and the loop's budget must not let one of those cost
+          # the rooms after it
+          for ROOM in plotter spiral pulse fractal nave spectral; do
             LOG="shots/burst-$ROOM.rec.log"
             rm -f "shots/burst-$ROOM.mov" "shots/burst-$ROOM.rec.status" "shots/burst-$ROOM.tries" shots/burst-"$ROOM"-[0-9][0-9][0-9].png
             echo "[ci] room $ROOM, $(date -u '+%H:%M:%SZ')" > "$LOG"
