@@ -257,11 +257,13 @@ jobs:
           # The recorder is scripted so that a room which films nothing says
           # why (run 39533478950 filmed nothing in any room, and the reasons
           # sat thousands of lines above the log tail a reviewer can reach):
-          # (1) simctl's documented option form, --codec=h264; a try that
-          # leaves no film ffmpeg can split is retried with --display=external
-          # (the only display simctl's usage grants a tvOS device), then once
-          # more with no options at all (the default codec, HEVC; ffmpeg
-          # splits either). (2) The 4 s
+          # (1) --display=external, the only display simctl's usage grants a
+          # tvOS device (without it the recorder on an Apple TV simulator
+          # never starts and ignores SIGINT: PR #302's run, and #303's first,
+          # lost 36 s a room to that), with the documented --codec=h264; a try
+          # that leaves no film ffmpeg can split is retried once with no
+          # options at all (the default codec, HEVC; ffmpeg splits either).
+          # (2) The 4 s
           # window opens once the recorder prints "Recording started" (polled,
           # 80 × 0.25 s); one that exits first is reported, one alive but
           # silent is filmed anyway (a line that shows up late still sets
@@ -276,9 +278,10 @@ jobs:
           # will not stop is killed (exit 137), so a room reports missing
           # frames instead of hanging the job. (5) A try costs at most 36 s
           # (poll 20 + film 4 + SIGINT wait 10 + SIGKILL wait 2) and starts
-          # only while the loop is under its 270 s budget, so six rooms end
-          # under 6 min even if every recorder hangs; a try the budget skips
-          # says so in the room log. The evidence stays in shots/:
+          # only while the loop is under its 330 s budget (a filmed room costs
+          # 25–40 s, most of it ffmpeg's split), so six rooms end in about
+          # 6 min even if every recorder hangs; a try the budget skips says so
+          # in the room log. The evidence stays in shots/:
           # burst-env.txt (the toolchain, once), burst-<room>.rec.log (recorder
           # output, ffmpeg errors, [ci] notes) and burst-<room>.rec.status
           # (key=value: attempt, exit, bytes, started); the report step, LAST
@@ -330,7 +333,7 @@ jobs:
               TRY_STARTED=yes
             fi
             if kill -0 "$TRY_PID" 2>/dev/null; then
-              note "pid $TRY_PID ignored/caught/command: $(ps -o ignored=,caught=,command= -p "$TRY_PID" 2>&1 | head -1)"
+              note "pid $TRY_PID sigignore/sigcatch/command: $( { ps -o sigignore=,sigcatch=,command= -p "$TRY_PID" 2>/dev/null || ps -o stat=,command= -p "$TRY_PID" 2>&1; } | head -1)"
               if [ "$TRY_STARTED" = yes ]; then
                 note "\"Recording started\" after $((T * 250)) ms; filming 4 s"
               else
@@ -394,12 +397,12 @@ jobs:
           # filmed: the last try left a film ffmpeg could split (or there is no ffmpeg to ask)
           filmed() { [ "$TRY_BYTES" -gt 0 ] 2>/dev/null && { [ "$FRAMES" -gt 1 ] 2>/dev/null || ! command -v ffmpeg >/dev/null 2>&1; }; }
           # the loop's budget: a try costs at most 36 s (poll 20 + film 4 + SIGINT wait 10 + SIGKILL
-          # wait 2) and starts only while the loop is under 270 s, so six rooms end under 6 min even
+          # wait 2) and starts only while the loop is under 330 s, so six rooms end in about 6 min even
           # if every recorder hangs; a try the budget skips is noted in the room log (attempt=none)
           FILM_T0=$SECONDS
           film_budget_ok() {
-            if [ $((SECONDS - FILM_T0)) -lt 270 ]; then return 0; fi
-            echo "[ci] no $1 try: the film loop's 270 s budget is spent ($((SECONDS - FILM_T0)) s in)" >> "$LOG"
+            if [ $((SECONDS - FILM_T0)) -lt 330 ]; then return 0; fi
+            echo "[ci] no $1 try: the film loop's 330 s budget is spent ($((SECONDS - FILM_T0)) s in)" >> "$LOG"
             return 1
           }
           for ROOM in spectral fractal nave plotter spiral pulse; do
@@ -413,27 +416,19 @@ jobs:
             sleep 6
             TRIES=""; TRY_PID=na; TRY_STARTED=no; TRY_EXIT=na; TRY_BYTES=0; FRAMES=0; ATTEMPT=none
             # a try counts when it leaves a film ffmpeg can split (or there is no ffmpeg to ask);
-            # the last retry, without options, keeps its film whatever it holds
-            if film_budget_ok h264; then
-              film_try h264 --codec=h264 --force || true
+            # the retry, without options, keeps its film whatever it holds. simctl's usage says a
+            # tvOS device records only its "external" display, and the Apple TV simulator proved
+            # it: without --display=external the recorder never starts and ignores SIGINT
+            if film_budget_ok external; then
+              film_try external --codec=h264 --display=external --force || true
               split_film || true
             fi
             if filmed; then
-              ATTEMPT=h264
-            else
-              # simctl's usage says a tvOS device records only its "external" display: the
-              # second try names it; the third drops every option (the default codec, HEVC)
-              if film_budget_ok external; then
-                film_try external --codec=h264 --display=external --force || true
-                split_film || true
-              fi
-              if filmed; then
-                ATTEMPT=external
-              elif film_budget_ok default; then
-                film_try default || true
-                split_film || true
-                if [ "$TRY_BYTES" -gt 0 ] 2>/dev/null; then ATTEMPT=default; fi
-              fi
+              ATTEMPT=external
+            elif film_budget_ok default; then
+              film_try default || true
+              split_film || true
+              if [ "$TRY_BYTES" -gt 0 ] 2>/dev/null; then ATTEMPT=default; fi
             fi
             echo "[ci] verdict: attempt=$ATTEMPT exit=$TRY_EXIT bytes=$(bytes "shots/burst-$ROOM.mov") started=$TRY_STARTED frames=$FRAMES;$TRIES" >> "$LOG"
             {
@@ -531,7 +526,7 @@ jobs:
           # date, host, bash, Xcode, simulator, ffmpeg) and BURST24 ls | lines
           # (every burst file but the frames, which are counted per room);
           # after each MOTION24 line, one line
-          #   REC24 room=<key> attempt=<h264|external|default|none> exit=<n|na> bytes=<n> started=<yes|no>
+          #   REC24 room=<key> attempt=<external|default|none> exit=<n|na> bytes=<n> started=<yes|no>
           # and the last 12 lines of that room's recorder log, each as
           # REC24 room=<key> | ..., so a room without a film says why in the
           # same tail that carries its MOTION24 line.
