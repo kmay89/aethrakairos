@@ -274,13 +274,16 @@ jobs:
           # the recorder itself, its ignored/caught signal masks are logged
           # (SIGINT is 0x2) and `wait` returns its exit status. (4) simctl
           # writes the .mov only when SIGINT finalises it ("Wrote video to:");
-          # the wait after SIGINT is bounded (40 × 0.25 s) and a recorder that
-          # will not stop is killed (exit 137), so a room reports missing
-          # frames instead of hanging the job. (5) A try costs at most 36 s
-          # (poll 20 + film 4 + SIGINT wait 10 + SIGKILL wait 2) and starts
+          # the wait after SIGINT is bounded (120 × 0.25 s: under SPECTRAL's
+          # load the simulator took more than 10 s to flush a film) and a
+          # recorder that will not stop is killed (exit 137), so a room
+          # reports missing frames instead of hanging the job; a room whose
+          # first try left no splittable film gets the external display once
+          # more before the optionless try. (5) A try costs at most 56 s
+          # (poll 20 + film 4 + SIGINT wait 30 + SIGKILL wait 2) and starts
           # only while the loop is under its 330 s budget (a filmed room costs
-          # 25–40 s, most of it ffmpeg's split), so six rooms end in about
-          # 6 min even if every recorder hangs; a try the budget skips says so
+          # 25–40 s, most of it ffmpeg's split), so six rooms end in under
+          # 7 min even if every recorder hangs; a try the budget skips says so
           # in the room log. The evidence stays in shots/:
           # burst-env.txt (the toolchain, once), burst-<room>.rec.log (recorder
           # output, ffmpeg errors, [ci] notes) and burst-<room>.rec.status
@@ -342,9 +345,9 @@ jobs:
               sleep 4
               kill -INT "$TRY_PID" 2>/dev/null || true
               S=0
-              while [ "$S" -lt 40 ] && kill -0 "$TRY_PID" 2>/dev/null; do sleep 0.25; S=$((S + 1)); done
+              while [ "$S" -lt 120 ] && kill -0 "$TRY_PID" 2>/dev/null; do sleep 0.25; S=$((S + 1)); done
               if kill -0 "$TRY_PID" 2>/dev/null; then
-                note "still running 10 s after SIGINT; SIGKILL"
+                note "still running 30 s after SIGINT; SIGKILL"
                 kill -KILL "$TRY_PID" 2>/dev/null || true
                 S=0
                 while [ "$S" -lt 8 ] && kill -0 "$TRY_PID" 2>/dev/null; do sleep 0.25; S=$((S + 1)); done
@@ -396,8 +399,8 @@ jobs:
           }
           # filmed: the last try left a film ffmpeg could split (or there is no ffmpeg to ask)
           filmed() { [ "$TRY_BYTES" -gt 0 ] 2>/dev/null && { [ "$FRAMES" -gt 1 ] 2>/dev/null || ! command -v ffmpeg >/dev/null 2>&1; }; }
-          # the loop's budget: a try costs at most 36 s (poll 20 + film 4 + SIGINT wait 10 + SIGKILL
-          # wait 2) and starts only while the loop is under 330 s, so six rooms end in about 6 min even
+          # the loop's budget: a try costs at most 56 s (poll 20 + film 4 + SIGINT wait 30 + SIGKILL
+          # wait 2) and starts only while the loop is under 330 s, so six rooms end in under 7 min even
           # if every recorder hangs; a try the budget skips is noted in the room log (attempt=none)
           FILM_T0=$SECONDS
           film_budget_ok() {
@@ -425,10 +428,20 @@ jobs:
             fi
             if filmed; then
               ATTEMPT=external
-            elif film_budget_ok default; then
-              film_try default || true
-              split_film || true
-              if [ "$TRY_BYTES" -gt 0 ] 2>/dev/null; then ATTEMPT=default; fi
+            else
+              # the external display once more (a recorder that started but did not flush its
+              # film in time is this case), then the optionless try
+              if film_budget_ok external2; then
+                film_try external2 --codec=h264 --display=external --force || true
+                split_film || true
+              fi
+              if filmed; then
+                ATTEMPT=external2
+              elif film_budget_ok default; then
+                film_try default || true
+                split_film || true
+                if [ "$TRY_BYTES" -gt 0 ] 2>/dev/null; then ATTEMPT=default; fi
+              fi
             fi
             echo "[ci] verdict: attempt=$ATTEMPT exit=$TRY_EXIT bytes=$(bytes "shots/burst-$ROOM.mov") started=$TRY_STARTED frames=$FRAMES;$TRIES" >> "$LOG"
             {
@@ -526,7 +539,7 @@ jobs:
           # date, host, bash, Xcode, simulator, ffmpeg) and BURST24 ls | lines
           # (every burst file but the frames, which are counted per room);
           # after each MOTION24 line, one line
-          #   REC24 room=<key> attempt=<external|default|none> exit=<n|na> bytes=<n> started=<yes|no>
+          #   REC24 room=<key> attempt=<external|external2|default|none> exit=<n|na> bytes=<n> started=<yes|no>
           # and the last 12 lines of that room's recorder log, each as
           # REC24 room=<key> | ..., so a room without a film says why in the
           # same tail that carries its MOTION24 line.
