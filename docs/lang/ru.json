@@ -1970,5 +1970,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Синхронизировать свободную деку с той, что в эфире &nbsp;·&nbsp; <kbd>U</kbd> Загрузить на неё выбор планировщика",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Подтолкнуть кроссфейдер &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Резко на A / B &nbsp;·&nbsp; <kbd>\\</kbd> В центр",
  "PEAK": "ПИК",
- "DRIVE": "ДРАЙВ"
+ "DRIVE": "ДРАЙВ",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Винил — диск у тебя в руке. Тяни пластинку; отпусти — и она вернётся на бит.",
+ "Scratch — {name}": "Скретч — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Скретч — нажми, чтобы взять диск в руку; удерживай, чтобы вернуть комнату (продолжить)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Квантование <b>выключено</b> — холд приземляется там, где пластинка",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Квантование по <b>биту</b> — холд приземляется на следующую линию бита, слип отпускает там же",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Квантование по <b>такту</b> — холд приземляется на следующую линию такта, слип отпускает там же",
+ "Strip {d} — drag the wave as a record": "Полоса {d} — тяни волну как пластинку",
+ "Strip {d} — drag the wave to seek": "Полоса {d} — тяни волну для перемотки",
+ "On this device only the record on air has a platter": "На этом устройстве диск есть только у пластинки в эфире",
+ "Cut — hold for the crossfader's cut curve": "Cut — удерживай для кривой cut кроссфейдера",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fine — половина хода руки, для крэбов и скрибблов",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Скретч-паттерн {name} — нажми для одного раза, в бит; удерживай для повтора"
 }

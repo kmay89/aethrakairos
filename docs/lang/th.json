@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> ซิงก์เด็คที่ว่างกับเด็คที่ออนแอร์ &nbsp;·&nbsp; <kbd>U</kbd> โหลดเพลงของตัววางแผนลงเด็คนั้น",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ขยับครอสเฟดเดอร์ &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> ตัดไป A / B &nbsp;·&nbsp; <kbd>\\</kbd> กลับกลาง",
  "PEAK": "พีค",
- "DRIVE": "ไดรฟ์"
+ "DRIVE": "ไดรฟ์",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "ไวนิล — แพลตเตอร์อยู่ในมือคุณ ลากแผ่นเสียง ปล่อยแล้วมันจะกลับไปที่บีต",
+ "Scratch — {name}": "สแครตช์ — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "สแครตช์ — แตะเพื่อจับแพลตเตอร์ กดค้างเพื่อคืนห้อง (เล่นต่อ)",
+ "Quantise <b>off</b> — a hold lands where the record is": "ควอนไทซ์ <b>ปิด</b> — โฮลด์จะลงตรงที่แผ่นเสียงอยู่",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "ควอนไทซ์ไปที่<b>บีต</b> — โฮลด์จะลงที่เส้นบีตถัดไป สลิปปล่อยตรงนั้น",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "ควอนไทซ์ไปที่<b>ห้อง</b> — โฮลด์จะลงที่เส้นห้องถัดไป สลิปปล่อยตรงนั้น",
+ "Strip {d} — drag the wave as a record": "แถบ {d} — ลากคลื่นเหมือนแผ่นเสียง",
+ "Strip {d} — drag the wave to seek": "แถบ {d} — ลากคลื่นเพื่อค้นหาตำแหน่ง",
+ "On this device only the record on air has a platter": "บนอุปกรณ์นี้ มีเพียงแผ่นที่ออกอากาศอยู่เท่านั้นที่มีแพลตเตอร์",
+ "Cut — hold for the crossfader's cut curve": "คัต — กดค้างเพื่อใช้เส้นโค้งคัตของครอสเฟเดอร์",
+ "Fine — half the hand's reach, for crabs and scribbles": "ไฟน์ — ระยะมือครึ่งหนึ่ง สำหรับแครบและสคริบเบิล",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "รูปแบบสแครตช์ {name} — แตะเพื่อเล่นครั้งเดียวตามบีต กดค้างเพื่อเล่นซ้ำ"
 }

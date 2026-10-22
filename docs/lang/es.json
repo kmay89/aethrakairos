@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Sincronizar el deck libre con el que está al aire &nbsp;·&nbsp; <kbd>U</kbd> Cargar en él la elección del planificador",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Empujar el crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cortarlo a A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentrarlo",
  "PEAK": "PICO",
- "DRIVE": "EMPUJE"
+ "DRIVE": "EMPUJE",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinilo — el plato está en tu mano. Arrastra el disco; suéltalo y vuelve al beat.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — toca para tomar el plato en la mano; mantén para devolver la sala (reanudar)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Cuantización <b>apagada</b> — una retención aterriza donde está el disco",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Cuantizar al <b>beat</b> — una retención aterriza en la siguiente línea de beat, un slip suelta ahí",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Cuantizar al <b>compás</b> — una retención aterriza en la siguiente línea de compás, un slip suelta ahí",
+ "Strip {d} — drag the wave as a record": "Tira {d} — arrastra la onda como un disco",
+ "Strip {d} — drag the wave to seek": "Tira {d} — arrastra la onda para buscar",
+ "On this device only the record on air has a platter": "En este dispositivo solo el disco en el aire tiene plato",
+ "Cut — hold for the crossfader's cut curve": "Cut — mantén para la curva de corte del crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fino — la mitad del alcance de la mano, para crabs y scribbles",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Patrón de scratch {name} — toca para una vez, al beat; mantén para repetir"
 }

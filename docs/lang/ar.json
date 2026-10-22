@@ -1968,5 +1968,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> مزامنة المنصّة الحرّة مع التي على الهواء &nbsp;·&nbsp; <kbd>U</kbd> تحميل اختيار المخطِّط عليها",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> دفع الكروس فيدر &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> قطعه إلى A / B &nbsp;·&nbsp; <kbd>\\</kbd> توسيطه",
  "PEAK": "الذروة",
- "DRIVE": "اندفاع"
+ "DRIVE": "اندفاع",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "فينيل — الطبق في يدك. اسحب الأسطوانة؛ اتركها فتعود إلى الإيقاع.",
+ "Scratch — {name}": "سكراتش — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "سكراتش — انقر لتأخذ الطبق في يدك؛ اضغط مطولًا لتعيد الغرفة (استئناف)",
+ "Quantise <b>off</b> — a hold lands where the record is": "التكميم <b>متوقف</b> — الإمساك يحطّ حيث الأسطوانة",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "تكميم إلى <b>النبضة</b> — الإمساك يحطّ على خط النبضة التالي، والانزلاق يترك عنده",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "تكميم إلى <b>المازورة</b> — الإمساك يحطّ على خط المازورة التالي، والانزلاق يترك عنده",
+ "Strip {d} — drag the wave as a record": "الشريط {d} — اسحب الموجة كأسطوانة",
+ "Strip {d} — drag the wave to seek": "الشريط {d} — اسحب الموجة للتنقّل",
+ "On this device only the record on air has a platter": "على هذا الجهاز لا طبق إلا للأسطوانة التي على الهواء",
+ "Cut — hold for the crossfader's cut curve": "قطع — اضغط مطولًا لمنحنى القطع في الكروسفيدر",
+ "Fine — half the hand's reach, for crabs and scribbles": "دقيق — نصف مدى اليد، للكراب والخربشة",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "نمط سكراتش {name} — انقر لمرة واحدة على النبضة؛ اضغط مطولًا للتكرار"
 }

@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Linganisha deki iliyo wazi na ile iliyo hewani &nbsp;·&nbsp; <kbd>U</kbd> Pakia chaguo la mpangaji kwenye hiyo",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Sukuma crossfader kidogo &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Ikate hadi A / B &nbsp;·&nbsp; <kbd>\\</kbd> Irudishe katikati",
  "PEAK": "KILELE",
- "DRIVE": "MSUKUMO"
+ "DRIVE": "MSUKUMO",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinyl — sahani iko mkononi mwako. Buruta rekodi; iachie na inarudi kwenye mdundo.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — gusa kuchukua sahani mkononi; shikilia kurudisha chumba (endelea)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Quantise <b>imezimwa</b> — kushikilia kunatua pale rekodi ilipo",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Quantise kwa <b>mdundo</b> — kushikilia kunatua kwenye mstari wa mdundo unaofuata, slip inaachia hapo",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Quantise kwa <b>bar</b> — kushikilia kunatua kwenye mstari wa bar unaofuata, slip inaachia hapo",
+ "Strip {d} — drag the wave as a record": "Ukanda {d} — buruta wimbi kama rekodi",
+ "Strip {d} — drag the wave to seek": "Ukanda {d} — buruta wimbi kutafuta",
+ "On this device only the record on air has a platter": "Kwenye kifaa hiki ni rekodi iliyo hewani pekee yenye sahani",
+ "Cut — hold for the crossfader's cut curve": "Cut — shikilia kwa mkunjo wa cut wa crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fine — nusu ya ufikio wa mkono, kwa crab na scribble",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Mtindo wa scratch {name} — gusa kwa mara moja, kwenye mdundo; shikilia kurudia"
 }

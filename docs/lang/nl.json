@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Het vrije deck synchroniseren met het deck in de lucht &nbsp;·&nbsp; <kbd>U</kbd> De keuze van de planner erop laden",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> De crossfader duwen &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Hard naar A / B &nbsp;·&nbsp; <kbd>\\</kbd> Centreren",
  "PEAK": "PIEK",
- "DRIVE": "DRIVE"
+ "DRIVE": "DRIVE",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinyl — de platter ligt in je hand. Sleep de plaat; laat los en hij springt terug op de beat.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — tik om de platter in de hand te nemen; houd vast om de ruimte terug te geven (hervatten)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Kwantiseren <b>uit</b> — een hold landt waar de plaat is",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Kwantiseren op de <b>beat</b> — een hold landt op de volgende beatlijn, een slip laat daar los",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Kwantiseren op de <b>maat</b> — een hold landt op de volgende maatlijn, een slip laat daar los",
+ "Strip {d} — drag the wave as a record": "Strook {d} — sleep de golf als een plaat",
+ "Strip {d} — drag the wave to seek": "Strook {d} — sleep de golf om te zoeken",
+ "On this device only the record on air has a platter": "Op dit apparaat heeft alleen de plaat in de uitzending een platter",
+ "Cut — hold for the crossfader's cut curve": "Cut — houd vast voor de cut-curve van de crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fijn — de halve reikwijdte van de hand, voor crabs en scribbles",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Scratchpatroon {name} — tik voor één keer, op de beat; houd vast om te herhalen"
 }

@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Đồng bộ deck rảnh với deck đang lên sóng &nbsp;·&nbsp; <kbd>U</kbd> Tải lựa chọn của bộ lập kế hoạch lên đó",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Đẩy nhẹ crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cắt sang A / B &nbsp;·&nbsp; <kbd>\\</kbd> Về giữa",
  "PEAK": "ĐỈNH",
- "DRIVE": "DRIVE"
+ "DRIVE": "DRIVE",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinyl — mâm đĩa đang trong tay bạn. Kéo đĩa; buông ra và nó quay về đúng nhịp.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — chạm để cầm mâm đĩa; giữ để trả lại căn phòng (tiếp tục)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Lượng tử hóa <b>tắt</b> — giữ sẽ hạ xuống ngay chỗ đĩa đang ở",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Lượng tử hóa theo <b>nhịp</b> — giữ hạ xuống vạch nhịp kế tiếp, slip buông ở đó",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Lượng tử hóa theo <b>ô nhịp</b> — giữ hạ xuống vạch ô nhịp kế tiếp, slip buông ở đó",
+ "Strip {d} — drag the wave as a record": "Dải {d} — kéo sóng như một chiếc đĩa",
+ "Strip {d} — drag the wave to seek": "Dải {d} — kéo sóng để tua",
+ "On this device only the record on air has a platter": "Trên thiết bị này chỉ đĩa đang phát mới có mâm",
+ "Cut — hold for the crossfader's cut curve": "Cut — giữ để dùng đường cong cut của crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fine — nửa tầm với của tay, cho crab và scribble",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Mẫu scratch {name} — chạm để chơi một lần, đúng nhịp; giữ để lặp lại"
 }

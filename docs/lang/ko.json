@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> 비어 있는 덱을 온에어 덱에 동기화 &nbsp;·&nbsp; <kbd>U</kbd> 거기에 플래너의 선곡 불러오기",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> 크로스페이더 살짝 밀기 &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B로 컷 &nbsp;·&nbsp; <kbd>\\</kbd> 중앙으로",
  "PEAK": "피크",
- "DRIVE": "드라이브"
+ "DRIVE": "드라이브",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "바이닐 — 플래터가 당신 손에 있습니다. 레코드를 끌고, 놓으면 비트로 돌아갑니다.",
+ "Scratch — {name}": "스크래치 — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "스크래치 — 탭하면 플래터를 손에 쥡니다. 길게 누르면 룸을 돌려줍니다(재개)",
+ "Quantise <b>off</b> — a hold lands where the record is": "퀀타이즈 <b>꺼짐</b> — 홀드는 레코드가 있는 곳에 내려앉습니다",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "<b>비트</b>에 퀀타이즈 — 홀드는 다음 비트 선에 내려앉고, 슬립은 그곳에서 놓습니다",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "<b>마디</b>에 퀀타이즈 — 홀드는 다음 마디 선에 내려앉고, 슬립은 그곳에서 놓습니다",
+ "Strip {d} — drag the wave as a record": "스트립 {d} — 파형을 레코드처럼 끌기",
+ "Strip {d} — drag the wave to seek": "스트립 {d} — 파형을 끌어 탐색",
+ "On this device only the record on air has a platter": "이 기기에서는 온에어 중인 레코드만 플래터가 있습니다",
+ "Cut — hold for the crossfader's cut curve": "컷 — 길게 누르면 크로스페이더의 컷 커브",
+ "Fine — half the hand's reach, for crabs and scribbles": "파인 — 손의 가동 범위를 절반으로, 크랩과 스크리블용",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "스크래치 패턴 {name} — 탭하면 비트에 맞춰 한 번, 길게 누르면 반복"
 }

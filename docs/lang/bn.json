@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> খালি ডেককে সম্প্রচারে থাকা ডেকের সঙ্গে সিঙ্ক করুন &nbsp;·&nbsp; <kbd>U</kbd> তাতে পরিকল্পকের পছন্দ লোড করুন",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ক্রসফেডার হালকা ঠেলুন &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B-তে কাট &nbsp;·&nbsp; <kbd>\\</kbd> মাঝে",
  "PEAK": "শিখর",
- "DRIVE": "ড্রাইভ"
+ "DRIVE": "ড্রাইভ",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "ভিনাইল — প্ল্যাটার আপনার হাতে। রেকর্ডটি টানুন; ছেড়ে দিলে এটি বিটে ফিরে যায়।",
+ "Scratch — {name}": "স্ক্র্যাচ — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "স্ক্র্যাচ — প্ল্যাটার হাতে নিতে ট্যাপ করুন; ঘর ফিরিয়ে দিতে (রিজিউম) চেপে ধরুন",
+ "Quantise <b>off</b> — a hold lands where the record is": "কোয়ান্টাইজ <b>বন্ধ</b> — হোল্ড রেকর্ড যেখানে আছে সেখানেই নামে",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "<b>বিটে</b> কোয়ান্টাইজ — হোল্ড পরের বিট লাইনে নামে, স্লিপ সেখানেই ছাড়ে",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "<b>বারে</b> কোয়ান্টাইজ — হোল্ড পরের বার লাইনে নামে, স্লিপ সেখানেই ছাড়ে",
+ "Strip {d} — drag the wave as a record": "স্ট্রিপ {d} — ওয়েভটিকে রেকর্ডের মতো টানুন",
+ "Strip {d} — drag the wave to seek": "স্ট্রিপ {d} — খুঁজতে ওয়েভটি টানুন",
+ "On this device only the record on air has a platter": "এই ডিভাইসে কেবল অন-এয়ার রেকর্ডেরই প্ল্যাটার আছে",
+ "Cut — hold for the crossfader's cut curve": "কাট — ক্রসফেডারের কাট কার্ভের জন্য চেপে ধরুন",
+ "Fine — half the hand's reach, for crabs and scribbles": "ফাইন — হাতের নাগাল অর্ধেক, ক্র্যাব ও স্ক্রিবলের জন্য",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "স্ক্র্যাচ প্যাটার্ন {name} — বিটে একবারের জন্য ট্যাপ করুন; পুনরাবৃত্তি করতে চেপে ধরুন"
 }

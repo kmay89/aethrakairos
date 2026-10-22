@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> 把空闲唱机同步到直播中的那台 &nbsp;·&nbsp; <kbd>U</kbd> 把规划器的选曲载入它",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> 微调交叉推子 &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> 切到 A / B &nbsp;·&nbsp; <kbd>\\</kbd> 回中",
  "PEAK": "峰值",
- "DRIVE": "推进"
+ "DRIVE": "推进",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "黑胶 — 转盘在你手中。拖动唱片；松开，它就回到节拍上。",
+ "Scratch — {name}": "搓碟 — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "搓碟 — 轻点把转盘握在手里；长按把房间交还（继续）",
+ "Quantise <b>off</b> — a hold lands where the record is": "量化<b>关闭</b> — 按住松开时落在唱片所在处",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "量化到<b>拍</b> — 按住松开时落在下一条拍线上，滑动在那里松开",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "量化到<b>小节</b> — 按住松开时落在下一条小节线上，滑动在那里松开",
+ "Strip {d} — drag the wave as a record": "条带 {d} — 把波形当唱片拖动",
+ "Strip {d} — drag the wave to seek": "条带 {d} — 拖动波形以定位",
+ "On this device only the record on air has a platter": "在此设备上，只有正在播出的唱片才有转盘",
+ "Cut — hold for the crossfader's cut curve": "切 — 长按启用交叉推子的切割曲线",
+ "Fine — half the hand's reach, for crabs and scribbles": "精细 — 手的行程减半，用于 crab 和 scribble",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "搓碟模式 {name} — 轻点按拍播放一次；长按重复"
 }

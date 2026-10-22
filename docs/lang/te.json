@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> ఖాళీ డెక్‌ను ఆన్ ఎయిర్ డెక్‌తో సింక్ చేయండి &nbsp;·&nbsp; <kbd>U</kbd> దానిపై ప్లానర్ ఎంపికను లోడ్ చేయండి",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> క్రాస్‌ఫేడర్‌ను చిన్నగా తోయండి &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B కు కట్ &nbsp;·&nbsp; <kbd>\\</kbd> మధ్యకు",
  "PEAK": "శిఖరం",
- "DRIVE": "డ్రైవ్"
+ "DRIVE": "డ్రైవ్",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "వినైల్ — ప్లాటర్ మీ చేతిలో ఉంది. రికార్డును లాగండి; వదిలితే అది బీట్‌కు తిరిగి వస్తుంది.",
+ "Scratch — {name}": "స్క్రాచ్ — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "స్క్రాచ్ — ప్లాటర్‌ను చేతిలోకి తీసుకోవడానికి ట్యాప్ చేయండి; గదిని తిరిగి ఇవ్వడానికి (కొనసాగించడానికి) నొక్కి పట్టుకోండి",
+ "Quantise <b>off</b> — a hold lands where the record is": "క్వాంటైజ్ <b>ఆఫ్</b> — హోల్డ్ రికార్డు ఉన్న చోటే దిగుతుంది",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "<b>బీట్</b>కు క్వాంటైజ్ — హోల్డ్ తదుపరి బీట్ లైన్‌పై దిగుతుంది, స్లిప్ అక్కడే వదులుతుంది",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "<b>బార్</b>కు క్వాంటైజ్ — హోల్డ్ తదుపరి బార్ లైన్‌పై దిగుతుంది, స్లిప్ అక్కడే వదులుతుంది",
+ "Strip {d} — drag the wave as a record": "స్ట్రిప్ {d} — వేవ్‌ను రికార్డులా లాగండి",
+ "Strip {d} — drag the wave to seek": "స్ట్రిప్ {d} — వెతకడానికి వేవ్‌ను లాగండి",
+ "On this device only the record on air has a platter": "ఈ పరికరంలో ఆన్-ఎయిర్ రికార్డుకు మాత్రమే ప్లాటర్ ఉంది",
+ "Cut — hold for the crossfader's cut curve": "కట్ — క్రాస్‌ఫేడర్ కట్ కర్వ్ కోసం నొక్కి పట్టుకోండి",
+ "Fine — half the hand's reach, for crabs and scribbles": "ఫైన్ — చేతి పరిధి సగం, క్రాబ్ మరియు స్క్రిబుల్ కోసం",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "స్క్రాచ్ నమూనా {name} — బీట్‌పై ఒకసారి కోసం ట్యాప్ చేయండి; పునరావృతం చేయడానికి నొక్కి పట్టుకోండి"
 }

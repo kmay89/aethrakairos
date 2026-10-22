@@ -2,7 +2,9 @@
  *
  * vinyl_probe drives the layer through its own methods. This one does what a
  * listener does: a phone-sized page, real touch events dragged round deck A's
- * record, and an ear at the speaker. It runs twice:
+ * record (and, on the graph, deck B's — the record a hand loaded there — and
+ * both strips), an ear at the speaker, and the SCRATCH bank's CUT pad held
+ * against the crossfader. It runs twice:
  *
  *   graph   a phone whose music runs through the Web Audio graph (Android):
  *           the drag must survive (the canvas owns its touches — no
@@ -130,6 +132,95 @@ async function bench(label, ua){
   }
   const after = await page.evaluate(() => ({ e: VINYL.engaged, m: activeDeck().a.muted, p: player.playing }));
   R('lifted, the room is given back' + (direct ? ' and the element sounds again' : ''), !after.e && !after.m && after.p);
+  if (!direct){
+    // DECK B: the record a hand loaded onto the other deck has its own platter and its own strip
+    const bReady = await page.evaluate(async () => {
+      const wait = ms => new Promise(res => setTimeout(res, ms));
+      const ok = DECKS.load(1, player.tracks[player.cur]);
+      for (let k = 0; k < 60 && AE.decks[1].a.readyState < 2; k++) await wait(100);
+      const played = DECKS.play(1);
+      await wait(500);
+      BOOTH.draw();
+      const r = el.boothCv.getBoundingClientRect(), j = BOOTH._jogB;
+      return { ok, played, g: j && { x: r.left + j.cx, y: r.top + j.cy, r: j.r } };
+    });
+    R('deck B takes the record by hand and its platter is drawn to be touched', bReady.ok && bReady.played && !!bReady.g);
+    if (bReady.g){
+      const gb = bReady.g, ptB = a => ({ x: gb.x + Math.cos(a) * gb.r * 0.6, y: gb.y + Math.sin(a) * gb.r * 0.6 });
+      let minB = 9, engB = false, engA = false, focus = -1;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [ptB(0)] });
+      for (let i = 1; i <= 30; i++){
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [ptB(-i * 0.15)] });
+        await page.waitForTimeout(16);
+        const s = await page.evaluate(() => ({ r: VINYL.for(1).rate, e: VINYL.for(1).engaged, a: VINYL.for(0).engaged, f: DECKS.focus }));
+        minB = Math.min(minB, s.r); engB ||= s.e; engA ||= s.a; focus = s.f;
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await page.waitForTimeout(300);
+      R('a finger on deck B\'s platter takes B\'s record (the hand\'s focus follows) and turns it backwards — A\'s stays untouched', engB && !engA && focus === 1 && minB < -0.3, 'B min rate ' + minB.toFixed(2) + '×, focus ' + focus);
+      // the lower strip is deck B's record
+      const wvB = await page.evaluate(() => { const r = el.boothWave.getBoundingClientRect(), g = DECKWAVE._geom; return g && { x: r.left + r.width / 2, y: r.top + g.yB + g.sh / 2 }; });
+      let wMinB = 9, wEngB = false;
+      if (wvB){
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: wvB.x, y: wvB.y }] });
+        for (let i = 1; i <= 20; i++){
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: wvB.x + i * 6, y: wvB.y }] });
+          await page.waitForTimeout(16);
+          const s = await page.evaluate(() => ({ r: VINYL.for(1).rate, e: VINYL.for(1).engaged }));
+          wMinB = Math.min(wMinB, s.r); wEngB ||= s.e;
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await page.waitForTimeout(300);
+      }
+      R('dragging deck B\'s wave takes B\'s record, and pulls it backwards', !!wvB && wEngB && wMinB < -0.3, 'min rate ' + wMinB.toFixed(2) + '×');
+      // the strip's corner word switches it to a seek strip, and a drag then seeks instead of scratching
+      const scrub = await page.evaluate(async () => {
+        const wait = ms => new Promise(res => setTimeout(res, ms));
+        DECKWAVE.stripMode[1] = 'scrub';
+        BOOTH.draw(); await wait(50);
+        const r = el.boothWave.getBoundingClientRect(), g = DECKWAVE._geom, d = AE.decks[1];
+        const y = r.top + g.yB + g.sh / 2, x0 = r.left + r.width / 2;
+        const t0 = d.a.currentTime;
+        const down = new PointerEvent('pointerdown', { bubbles: true, clientX: x0, clientY: y, pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0 });
+        el.boothWave.dispatchEvent(down);
+        el.boothWave.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: x0 + 80, clientY: y, pointerId: 7, pointerType: 'touch', isPrimary: true }));
+        await wait(100);
+        const t1 = d.a.currentTime, eng = VINYL.for(1).engaged;
+        el.boothWave.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: x0 + 80, clientY: y, pointerId: 7, pointerType: 'touch', isPrimary: true }));
+        DECKWAVE.stripMode[1] = null;
+        return { t0, t1, eng, mode: DECKWAVE.stripModeOf(1) };
+      });
+      R('in scrub mode the same drag seeks deck B backwards instead of taking the record', scrub.t1 < scrub.t0 - 0.3 && !scrub.eng && scrub.mode === 'scratch', `${scrub.t0.toFixed(2)} → ${scrub.t1.toFixed(2)} s`);
+    }
+    // the SCRATCH bank's CUT pad: held, the crossfader wears the cut curve; let go, the law it had
+    const cut = await page.evaluate(async () => {
+      const wait = ms => new Promise(res => setTimeout(res, ms));
+      FXPADS.setBank('scratch');
+      const pad = [...document.querySelectorAll('#fxPads .fxp')].find(b => b.textContent === 'CUT');
+      if (!pad) return { pad: false };
+      const was = DECKS.fader.curve;
+      DECKS.faderGrab(0); DECKS.faderMove(0.9);
+      await wait(60);
+      const powerLaw = xfaderGains(0.9, 'power')[0], cutLaw = xfaderGains(0.9, 'cut')[0];
+      pad.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 9, pointerType: 'touch', isPrimary: true, button: 0 }));
+      await wait(120);
+      const held = { curve: DECKS.fader.curve, fA: AE.decks[0].fader.gain.value, lit: pad.classList.contains('lit') };
+      pad.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 9, pointerType: 'touch', isPrimary: true }));
+      await wait(120);
+      const after = { curve: DECKS.fader.curve, fA: AE.decks[0].fader.gain.value, lit: pad.classList.contains('lit') };
+      DECKS.faderMove(0); DECKS.faderRelease();
+      FXPADS.setBank('loop');
+      return { pad: true, was, powerLaw, cutLaw, held, after };
+    });
+    R('the CUT pad held puts the cut curve on the crossfader (the fader node follows the sharper law), and gives the old law back on the lift',
+      cut.pad && cut.held.curve === 'cut' && cut.held.lit && Math.abs(cut.held.fA - cut.cutLaw) < 0.02 && cut.after.curve === cut.was && !cut.after.lit && Math.abs(cut.after.fA - cut.powerLaw) < 0.02,
+      JSON.stringify({ held: cut.held, after: cut.after, cutLaw: cut.cutLaw, powerLaw: cut.powerLaw }));
+    await page.evaluate(() => { try { DECKS.pause(1); DECKS.eject(1); } catch (e){} });
+  } else {
+    // element-direct: the second platter stands down honestly — its hand says so, nothing pretends
+    const bWhy = await page.evaluate(() => VINYL.for(1).why());
+    R('element-direct, deck B\'s platter says it has none (only the record on air has one)', /only the record on air/.test(bWhy), bWhy);
+  }
   R('no page errors', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }

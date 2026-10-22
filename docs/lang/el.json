@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Συγχρόνισε το ελεύθερο deck με αυτό στον αέρα &nbsp;·&nbsp; <kbd>U</kbd> Φόρτωσε εκεί την επιλογή του σχεδιαστή",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Σπρώξε το crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Κόψ’ το στο A / B &nbsp;·&nbsp; <kbd>\\</kbd> Κεντράρισέ το",
  "PEAK": "ΚΟΡΥΦΗ",
- "DRIVE": "ΩΘΗΣΗ"
+ "DRIVE": "ΩΘΗΣΗ",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Βινύλιο — το πλατό είναι στο χέρι σου. Σύρε τον δίσκο· άφησέ τον και γυρίζει στον παλμό.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — πάτα για να πάρεις το πλατό στο χέρι· κράτα για να δώσεις πίσω τον χώρο (συνέχεια)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Κβαντισμός <b>κλειστός</b> — το κράτημα προσγειώνεται εκεί που είναι ο δίσκος",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Κβαντισμός στον <b>παλμό</b> — το κράτημα προσγειώνεται στην επόμενη γραμμή παλμού, το slip αφήνει εκεί",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Κβαντισμός στο <b>μέτρο</b> — το κράτημα προσγειώνεται στην επόμενη γραμμή μέτρου, το slip αφήνει εκεί",
+ "Strip {d} — drag the wave as a record": "Λωρίδα {d} — σύρε το κύμα σαν δίσκο",
+ "Strip {d} — drag the wave to seek": "Λωρίδα {d} — σύρε το κύμα για αναζήτηση",
+ "On this device only the record on air has a platter": "Σε αυτή τη συσκευή μόνο ο δίσκος που παίζει έχει πλατό",
+ "Cut — hold for the crossfader's cut curve": "Cut — κράτα για την καμπύλη cut του crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fine — η μισή εμβέλεια του χεριού, για crab και scribble",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Μοτίβο scratch {name} — πάτα για μία φορά, στον παλμό· κράτα για επανάληψη"
 }

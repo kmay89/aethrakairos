@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> အလွတ်ဒက်ကို ထုတ်လွှင့်နေသောဒက်နှင့် ချိန်ညှိ &nbsp;·&nbsp; <kbd>U</kbd> ၎င်းပေါ် Planner ၏ ရွေးချယ်မှုကို တင်",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Crossfader ကို အနည်းငယ် တွန်း &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B သို့ ဖြတ် &nbsp;·&nbsp; <kbd>\\</kbd> အလယ်သို့",
  "PEAK": "အထွတ်",
- "DRIVE": "မောင်းနှင်"
+ "DRIVE": "မောင်းနှင်",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "ဗီနိုင်း — ပလက်တာသည် သင့်လက်ထဲတွင် ရှိသည်။ ရီကော့ကို ဆွဲပါ၊ လွှတ်လိုက်လျှင် ဘိတ်သို့ ပြန်ရောက်သည်။",
+ "Scratch — {name}": "စကရက်ချ် — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "စကရက်ချ် — ပလက်တာကို လက်ထဲယူရန် တို့ပါ၊ အခန်းကို ပြန်ပေးရန် (ဆက်လုပ်ရန်) ဖိထားပါ",
+ "Quantise <b>off</b> — a hold lands where the record is": "ကွမ်တိုက်ဇ် <b>ပိတ်</b> — ဟိုးလ်သည် ရီကော့ရှိသည့်နေရာတွင် ဆင်းသည်",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "<b>ဘိတ်</b>သို့ ကွမ်တိုက်ဇ် — ဟိုးလ်သည် နောက်ဘိတ်မျဉ်းတွင် ဆင်းပြီး စလစ်က ထိုနေရာတွင် လွှတ်သည်",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "<b>ဘား</b>သို့ ကွမ်တိုက်ဇ် — ဟိုးလ်သည် နောက်ဘားမျဉ်းတွင် ဆင်းပြီး စလစ်က ထိုနေရာတွင် လွှတ်သည်",
+ "Strip {d} — drag the wave as a record": "စထရစ် {d} — လှိုင်းကို ရီကော့တစ်ချပ်လို ဆွဲပါ",
+ "Strip {d} — drag the wave to seek": "စထရစ် {d} — ရှာရန် လှိုင်းကို ဆွဲပါ",
+ "On this device only the record on air has a platter": "ဤစက်တွင် ထုတ်လွှင့်နေသော ရီကော့တွင်သာ ပလက်တာရှိသည်",
+ "Cut — hold for the crossfader's cut curve": "ကတ် — ခရော့စ်ဖေဒါ၏ ကတ်ကွေ့အတွက် ဖိထားပါ",
+ "Fine — half the hand's reach, for crabs and scribbles": "ဖိုင်း — လက်၏ အကွာအဝေး တစ်ဝက်၊ ခရပ်နှင့် စကရစ်ဘယ်အတွက်",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "စကရက်ချ် ပုံစံ {name} — ဘိတ်ပေါ် တစ်ကြိမ်အတွက် တို့ပါ၊ ထပ်လုပ်ရန် ဖိထားပါ"
 }

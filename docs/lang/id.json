@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Sinkronkan deck yang kosong dengan yang sedang siaran &nbsp;·&nbsp; <kbd>U</kbd> Muat pilihan perencana ke sana",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Geser crossfader sedikit &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Potong ke A / B &nbsp;·&nbsp; <kbd>\\</kbd> Ke tengah",
  "PEAK": "PUNCAK",
- "DRIVE": "DRIVE"
+ "DRIVE": "DRIVE",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinyl — platter ada di tanganmu. Tarik piringannya; lepaskan dan ia kembali ke beat.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — ketuk untuk memegang platter; tahan untuk mengembalikan ruangan (lanjutkan)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Kuantisasi <b>mati</b> — hold mendarat di tempat piringan berada",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Kuantisasi ke <b>beat</b> — hold mendarat di garis beat berikutnya, slip melepas di sana",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Kuantisasi ke <b>bar</b> — hold mendarat di garis bar berikutnya, slip melepas di sana",
+ "Strip {d} — drag the wave as a record": "Strip {d} — tarik gelombang seperti piringan",
+ "Strip {d} — drag the wave to seek": "Strip {d} — tarik gelombang untuk mencari",
+ "On this device only the record on air has a platter": "Di perangkat ini hanya piringan yang mengudara yang punya platter",
+ "Cut — hold for the crossfader's cut curve": "Cut — tahan untuk kurva cut crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fine — setengah jangkauan tangan, untuk crab dan scribble",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Pola scratch {name} — ketuk untuk sekali, pada beat; tahan untuk mengulang"
 }

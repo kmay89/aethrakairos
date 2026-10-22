@@ -91,6 +91,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
   ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
   ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' VINYL_CUT_SEC, vinylReadAir, vinylToneK, vinylCutSpec, vinylScriptStep, vinylScriptCut, vinylScriptBlock, vinylSnap, VINYL_PRESETS, vinylPresetSteps, vinylLanding, vinylNextLine, VINYL_SONG_LOW_SR,' +
   ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
@@ -10391,6 +10392,215 @@ await Promise.all(pending);
     p.port.onmessage({ data: { op: 'eject' } });
     p.process([], [out]);
     assert.ok(out[0].every(v => v === 0), 'ejected: silence');
+  });
+  /* ---- W3: two hands, the read above speed, the tone of speed, the brake's
+     friction, the throw, the feel, the scripts and their cuts, the slip on the
+     beat, the landing ---- */
+  // the energy of a windowed block above a frequency, by a plain DFT over the bins that matter (a test, not a hot path)
+  const bandEnergy = (x, from, n, sr, fLo) => {
+    let e = 0;
+    const k0 = Math.ceil(fLo / sr * n);
+    for (let k = k0; k < n / 2; k++){
+      let re = 0, im = 0;
+      for (let i = 0; i < n; i++){
+        const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n), v = x[from + i] * w, ph = 2 * Math.PI * k * i / n;
+        re += v * Math.cos(ph); im -= v * Math.sin(ph);
+      }
+      e += re * re + im * im;
+    }
+    return e;
+  };
+  // the tape run with the context's clock in hand (now = the block's first frame, in seconds)
+  const runT = (V, inL, blk, at) => {
+    const n = inL.length, outL = new Float32Array(n), outR = new Float32Array(n);
+    for (let i = 0; i < n; i += blk){
+      if (at) at(i, V.S, i / sr);
+      const m = Math.min(blk, n - i), oL = new Float32Array(m), oR = new Float32Array(m);
+      S.vinylProcess(V.S, inL.subarray(i, i + m), null, oL, oR, m, i / sr);
+      outL.set(oL, i); outR.set(oR, i);
+    }
+    return { outL, outR };
+  };
+  test('vinyl: the read above speed is widened — a 15 kHz tone read at 4× folds 20 dB quieter than the plain read', () => {
+    const x = new Float32Array(sr * 3);
+    for (let i = 0; i < x.length; i++) x[i] = Math.sin(2 * Math.PI * 15000 * i / sr);
+    const sweep = air => {
+      const V = { S: S.makeVinyl(sr, 4) }; V.S.air = air;
+      const { outL } = runT(V, x, 128, (i, st) => {
+        if (i === 96000) S.vinylCommand(st, { op: 'engage' });
+        if (i === 96128) S.vinylCommand(st, { op: 'hand', v: -4 });   // backwards through two seconds of tape at four times speed
+      });
+      return outL;
+    };
+    const plain = sweep(0), widened = sweep(1);
+    // the tone folds to 12 kHz in the output: everything above 6 kHz is what should not be there
+    const eP = bandEnergy(plain, 100000, 2048, sr, 6000), eW = bandEnergy(widened, 100000, 2048, sr, 6000);
+    const dB = 10 * Math.log10(eW / eP);
+    assert.ok(eP > 1e-3, 'the plain read folds the tone into the band: ' + eP.toExponential(2));
+    assert.ok(dB <= -20, 'the widened read takes it down by ' + (-dB).toFixed(1) + ' dB');
+    assert.equal(S.PLATTER.air, 1, 'the table carries the switch, so the module does');
+  });
+  test('vinyl: the tone follows the speed — open at speed, darker on the slow side, darker still past it', () => {
+    assert.equal(S.vinylToneK(1, sr), 1); assert.equal(S.vinylToneK(0.99, sr), 1); assert.equal(S.vinylToneK(1.01, sr), 1);
+    const k = ar => S.vinylToneK(ar, sr);
+    assert.ok(k(0.1) < k(0.3) && k(0.3) < k(0.6) && k(0.6) < k(0.9) && k(0.9) < 1, 'the slow side darkens with the speed');
+    assert.ok(Math.abs(k(0.5) - (1 - Math.exp(-2 * Math.PI * (400 + 0.5 * 20000) / sr))) < 1e-12, 'the legacy brake\'s law: 400 Hz plus 20 kHz per unit of speed');
+    assert.ok(k(8) < k(4) && k(4) < k(2) && k(2) < 1, 'the fast side follows the folding top end down');
+  });
+  test('platter: a brake is friction — the rate falls down a straight line to the crawl, then dies; a shorter brake is a steeper line', () => {
+    const P = S.makePlatter(); P.mode = 'brake';
+    const at = {};
+    let t = 0;
+    while (P.mode !== 'stopped' && t < 5){ S.platterStep(P, 1 / 400, null); t += 1 / 400; const k = Math.round(t * 400); if (k === 120 || k === 240 || k === 360) at[k] = P.rate; }
+    assert.ok(Math.abs((at[120] - at[240]) - (at[240] - at[360])) < 1e-6, 'the same loss every 0.3 s: ' + (at[120] - at[240]).toFixed(4) + ' vs ' + (at[240] - at[360]).toFixed(4));
+    assert.ok(Math.abs((at[120] - at[240]) - 0.3 / S.PLATTER.brakeSec) < 1e-6, 'the line is brakeSec long from 1×');
+    assert.ok(t > 1.1 && t < 1.7, 'stopped in ' + t.toFixed(2) + ' s — the line, then the crawl');
+    const Q = S.makePlatter(); S.vinylCommand({ platter: Q, engaged: true, written: 100, pos: 50 }, { op: 'brake', sec: 0.6 });
+    for (let i = 0; i < 120; i++) S.platterStep(Q, 1 / 400, null);
+    assert.ok(Math.abs(Q.rate - 0.5) < 1e-6, 'a 0.6 s brake is at half speed after 0.3 s: ' + Q.rate.toFixed(4));
+  });
+  test('vinyl: a throw keeps the hand\'s speed — backwards is a backspin the hand sized, forwards runs down to the motor', () => {
+    const St = S.makeVinyl(sr, 1); S.vinylCommand(St, { op: 'engage' });
+    S.vinylCommand(St, { op: 'throw', v: -3 });
+    assert.equal(St.platter.mode, 'backspin'); assert.equal(St.platter.rate, -3);
+    S.vinylCommand(St, { op: 'throw', v: 2.5 });
+    assert.equal(St.platter.mode, 'throw'); assert.equal(St.platter.rate, 2.5);
+    let t = 0, above = 0;
+    while (St.platter.mode !== 'motor' && t < 5){ S.platterStep(St.platter, 1 / 200, null); t += 1 / 200; if (St.platter.rate > 1.2) above += 1 / 200; }
+    assert.ok(above > 0.15 && t < 2.5 && Math.abs(St.platter.rate - 1) < 0.03, 'ran fast for ' + above.toFixed(2) + ' s and the motor had it by ' + t.toFixed(2) + ' s');
+    S.vinylCommand(St, { op: 'throw', v: 40 });
+    assert.equal(St.platter.rate, S.PLATTER.maxRate, 'a wild throw is clamped');
+    S.vinylCommand(St, { op: 'throw', v: 0 });
+    assert.equal(St.platter.rate, S.PLATTER.maxRate, 'a throw of nothing changes nothing');
+  });
+  test('vinyl: the feel is the hand\'s — a finger\'s spring is tighter than a mouse\'s, and the table\'s stands in', () => {
+    const St = S.makeVinyl(sr, 1);
+    S.vinylCommand(St, { op: 'feel', lead: 0.010, tau: 0.005 });
+    assert.equal(St.handLead, 0.010); assert.equal(St.handTau, 0.005);
+    S.vinylCommand(St, { op: 'feel', lead: 0.0001, tau: 99 });
+    assert.equal(St.handLead, 0.004); assert.equal(St.handTau, 0.05, 'clamped to a spring that can exist');
+    S.vinylCommand(St, { op: 'feel' });
+    assert.equal(St.handLead, 0); assert.equal(St.handTau, 0, 'no feel: the table\'s');
+    const tight = S.makePlatter(), loose = S.makePlatter();
+    for (let i = 0; i < 4; i++){ S.platterStep(tight, 1 / 400, -1, 0.005); S.platterStep(loose, 1 / 400, -1, 0.012); }
+    assert.ok(tight.rate < loose.rate, 'after 10 ms the tight spring is nearer the hand: ' + tight.rate.toFixed(3) + ' vs ' + loose.rate.toFixed(3));
+    const H = { pos: 0, hand: null, handTo: 480, handLead: 0.010 };
+    S.platterHandFollow(H, sr);
+    assert.ok(Math.abs(H.hand - 1) < 1e-9, 'a place 10 ms ahead over a 10 ms lead is the motor speed');
+  });
+  test('vinyl: a script lands its steps where the preset says, within a millisecond, on the clock it was given', () => {
+    const x = ramp(sr * 3);
+    const V = { S: S.makeVinyl(sr, 4) };
+    const p = S.vinylPresetSteps('baby', 0.5);     // 120 bpm: quarter-beat strokes of 90 ms of music, twice
+    const marks = {};
+    let from = null;
+    runT(V, x, 128, (i, st, now) => {
+      if (i === 48000) S.vinylCommand(st, { op: 'engage' });
+      if (i === 48128) S.vinylCommand(st, { op: 'script', steps: p.steps, loops: p.loops, at: 1.5 });
+      if (from == null && st.script && st.script.on) from = st.handFrom;
+      for (const t of [1.625, 1.75, 1.875, 2.0]) if (marks[t] == null && now >= t) marks[t] = { pos: st.pos, script: !!st.script, done: st.scriptDone | 0, hand: st.hand };
+    });
+    assert.ok(from != null, 'the script took the record at its time');
+    const ms = v => (v / sr * 1000).toFixed(2) + ' ms';
+    assert.ok(Math.abs(marks[1.625].pos - (from - 0.09 * sr)) < 0.001 * sr, 'the back stroke lands 90 ms behind: ' + ms(marks[1.625].pos - from));
+    assert.ok(Math.abs(marks[1.75].pos - from) < 0.001 * sr, 'the forward stroke lands home: ' + ms(marks[1.75].pos - from));
+    assert.ok(Math.abs(marks[1.875].pos - (from - 0.09 * sr)) < 0.001 * sr, 'the second loop too: ' + ms(marks[1.875].pos - from));
+    assert.ok(!marks[2.0].script && marks[2.0].done === 1 && marks[2.0].hand == null, 'two loops later the script is done and the hand has lifted');
+    // the controls: no steps is a stop, `finish` lets the loop in hand complete, a late `at` starts now, loops are bounded
+    const W = S.makeVinyl(sr, 1); S.vinylCommand(W, { op: 'engage' });
+    S.vinylCommand(W, { op: 'script', steps: p.steps, loops: 999, min: 2, at: -1 });
+    assert.equal(W.script.loops, 64, 'bounded');
+    S.vinylProcess(W, new Float32Array(128), null, new Float32Array(128), new Float32Array(128), 128, 7);
+    assert.ok(W.script.on && W.script.t0 === 7, 'no `at`: it starts on the block it lands in');
+    S.vinylCommand(W, { op: 'script', finish: true });
+    assert.equal(W.script.loops, 2, 'finish: the natural count, since nothing has looped yet');
+    S.vinylCommand(W, { op: 'script' });
+    assert.equal(W.script, null); assert.equal(W.scriptDone, 1);
+    const Z = S.makeVinyl(sr, 1);
+    S.vinylCommand(Z, { op: 'script', steps: p.steps });
+    assert.equal(Z.script, null, 'a platter not engaged runs no script');
+  });
+  test('vinyl: the fader\'s cut inside the processor is a 1 ms ramp — no step over 0.02, silence inside the chop, open outside it', () => {
+    const x = new Float32Array(sr); x.fill(0.5);
+    const V = { S: S.makeVinyl(sr, 2) };
+    const steps = [{ dx: 0, dur: 0.05, cut: 1 }, { dx: 0, dur: 0.05, cut: 0 }, { dx: 0, dur: 0.1, cut: [[0.25, 0.5]] }];
+    const { outL } = runT(V, x, 128, (i, st) => {
+      if (i === 9600) S.vinylCommand(st, { op: 'engage' });
+      if (i === 9728) S.vinylCommand(st, { op: 'script', steps, loops: 1, at: 0.25 });
+    });
+    let worst = 0;
+    for (let i = 10000; i < 24000; i++){ const d = Math.abs(outL[i] - outL[i - 1]); if (d > worst) worst = d; }
+    assert.ok(worst <= 0.02, 'worst step ' + worst.toFixed(4));
+    const at = t => outL[Math.round(t * sr)];
+    assert.ok(Math.abs(at(0.24)) > 0.49, 'open before the script: ' + at(0.24).toFixed(3));
+    assert.ok(Math.abs(at(0.28)) < 1e-3, 'shut through the first step: ' + at(0.28).toFixed(4));
+    assert.ok(Math.abs(at(0.33)) > 0.49, 'open through the second: ' + at(0.33).toFixed(3));
+    assert.ok(Math.abs(at(0.36)) > 0.49 && Math.abs(at(0.39)) < 1e-3 && Math.abs(at(0.44)) > 0.49, 'shut for the second quarter of the third, open either side');
+    assert.ok(Math.abs(at(0.48)) > 0.49, 'and open once the script is done');
+    assert.equal(S.vinylCutSpec(null), 0); assert.equal(S.vinylCutSpec(true), 1); assert.equal(S.vinylCutSpec([[0.1, 0.2]]).length, 2);
+    assert.equal(S.vinylCutSpec([[0, 1], 'x', [0.5]]).length, 2, 'a pair that is not a pair is dropped');
+    assert.equal(S.vinylCutSpec(Array.from({ length: 12 }, (_, i) => [i / 12, (i + 0.5) / 12])).length, 16, 'at most eight pairs');
+  });
+  test('vinyl: a slip can wait for the beat — scheduled on the clock, the head goes home in the block that reaches it, and lets go there when asked', () => {
+    const x = ramp(sr * 2);
+    const V = { S: S.makeVinyl(sr, 4) };
+    const seen = {};
+    runT(V, x, 128, (i, st, now) => {
+      if (i === 24064) S.vinylCommand(st, { op: 'engage' });
+      if (i === 24192) S.vinylCommand(st, { op: 'hand', v: 0 });                 // held still: the lag grows
+      if (i === 48000) S.vinylCommand(st, { op: 'snap', at: 1.25, release: true });
+      for (const t of [1.2, 1.26, 1.3]) if (seen[t] == null && now >= t) seen[t] = { lag: (st.written - st.pos) / sr, engaged: st.engaged, gain: st.gain };
+    });
+    assert.ok(seen[1.2].lag > 0.6 && seen[1.2].engaged, 'before the line the head is still far back: ' + seen[1.2].lag.toFixed(3) + ' s');
+    assert.ok(seen[1.26].lag < 0.01 && !seen[1.26].engaged, 'on the line it is home, and the room is let go of: lag ' + seen[1.26].lag.toFixed(4));
+    assert.ok(seen[1.3].gain === 0, 'and faded out by now');
+    const W = S.makeVinyl(sr, 1); S.vinylCommand(W, { op: 'engage' }); S.vinylCommand(W, { op: 'hand', v: 0 });
+    for (let k = 0; k < 40; k++) S.vinylProcess(W, new Float32Array(128), null, new Float32Array(128), new Float32Array(128), 128, k * 128 / sr);
+    S.vinylCommand(W, { op: 'snap', at: 0 });
+    assert.ok(W.written - W.pos < 4 && W.engaged, 'no time given: now, and still engaged');
+  });
+  test('vinyl: taking a platter still fading out crosses out of it — no step at a quick second press', () => {
+    const x = ramp(sr * 2);
+    const V = { S: S.makeVinyl(sr, 4) };
+    const { outL } = runT(V, x, 128, (i, st) => {
+      if (i === 24064) S.vinylCommand(st, { op: 'engage' });
+      if (i === 24192) S.vinylCommand(st, { op: 'hand', v: 0 });      // held still: the head falls behind
+      if (i === 25088) S.vinylCommand(st, { op: 'release' });
+      if (i === 25216) S.vinylCommand(st, { op: 'engage' });          // 2.7 ms later, mid-fade
+    });
+    let worst = 0;
+    for (let i = 25100; i < 26000; i++){ const d = Math.abs(outL[i] - outL[i - 1]); if (d > worst) worst = d; }
+    assert.ok(worst < 6, 'worst step across the second press ' + worst.toFixed(2) + ' on a ramp of 1 per sample');
+  });
+  test('vinyl: the presets are the strokes written down, and a let-go record lands on the grid when asked', () => {
+    const p = S.vinylPresetSteps('baby', 0.5);
+    assert.equal(p.loops, 2); assert.deepEqual(p.steps.map(s => s.dur), [0.125, 0.125]); assert.deepEqual(p.steps.map(s => s.dx), [-0.09, 0.09]);
+    assert.equal(S.vinylPresetSteps('nothing', 0.5), null);
+    for (const k of ['baby', 'chirp', 'transform', 'stab', 'flare', 'crab']){
+      const st = S.VINYL_PRESETS[k].steps;
+      assert.ok(st.length && st[0].dx < 0, k + ' pulls back first: the tape holds only the past');
+      assert.ok(Math.abs(st.reduce((a, s) => a + s.dx, 0)) < 1e-9, k + ' ends where it began');
+    }
+    assert.ok(S.vinylPresetSteps('stab', 0).steps[0].dur > 0, 'no tempo: a default beat');
+    assert.ok(Math.abs(S.vinylLanding(10.3, 'beat', 0.1, 120, 300) - 10.1) < 1e-9, 'the nearest beat line');
+    assert.ok(Math.abs(S.vinylLanding(10.4, 'beat', 0.1, 120, 300) - 10.6) < 1e-9);
+    assert.ok(Math.abs(S.vinylLanding(10.3, 'bar', 0.1, 120, 300) - 10.1) < 1e-9, 'the nearest bar line');
+    assert.equal(S.vinylLanding(10.3, 'off', 0.1, 120, 300), 10.3);
+    assert.equal(S.vinylLanding(10.3, 'beat', 0.1, 0, 300), 10.3, 'no tempo: where it is');
+    assert.equal(S.vinylLanding(299.9, 'beat', 0.1, 120, 300), 299.75, 'never off the end');
+    assert.ok(Math.abs(S.vinylNextLine(10.3, 'beat', 0.1, 120) - 10.6) < 1e-9);
+    assert.ok(Math.abs(S.vinylNextLine(10.6, 'beat', 0.1, 120) - 10.6) < 1e-9, 'a line is its own next line');
+    assert.ok(Math.abs(S.vinylNextLine(10.3, 'bar', 0.1, 120) - 12.1) < 1e-9);
+    assert.equal(S.vinylNextLine(10.3, 'beat', NaN, 120), 10.3);
+  });
+  test('song tape: a phone that reports little memory is pressed at 24 kHz, and the module carries what the hands read', () => {
+    assert.equal(S.vinylSongRate(180, S.VINYL_SONG_LOW_SR), 24000);
+    assert.equal(S.VINYL_SONG_LOW_SR, 24000);
+    assert.equal(S.vinylSongRate(180), 32000, 'no cap: the full rate');
+    assert.equal(S.vinylSongRate(180, 99000), 32000, 'a cap above the ceiling is the ceiling');
+    const src = S.vinylWorkletSource();
+    for (const f of ['function vinylReadAir(', 'function vinylToneK(', 'function vinylScriptStep(', 'function vinylScriptBlock(', 'function vinylSnap(', 'gen: S.gen | 0', 'done: this.done'])
+      assert.ok(src.includes(f), 'the module carries ' + f);
   });
 }
 

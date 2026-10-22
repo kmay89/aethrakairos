@@ -3364,7 +3364,8 @@ body.booth-open .trk .ld{display:inline-block}
       <button class="fxb"    id="fxBankJump"  data-bank="jump"  aria-pressed="false" title="Beat jump — whole beats forward or back, phase kept">JUMP</button>
       <button class="fxb"    id="fxBankEq"    data-bank="eq"    aria-pressed="false" title="EQ — kill or dip a band on the mix; press again to undo">EQ</button>
       <button class="fxb"    id="fxBankFx"    data-bank="fx"    aria-pressed="false">FX</button>
-      <button class="fxb"    id="fxBankVinyl" data-bank="vinyl" aria-pressed="false" title="Vinyl — scratch the platter, brake, backspin, reverse; slip or hold">VINYL</button>
+      <button class="fxb"    id="fxBankVinyl" data-bank="vinyl" aria-pressed="false" title="Vinyl — scratch the platter, brake, backspin, reverse; slip or hold; QUANT lands a let-go record on the beat">VINYL</button>
+      <button class="fxb"    id="fxBankScratch" data-bank="scratch" aria-pressed="false" title="Scratch — baby, chirp, transform, stab, flare, crab: the strokes, on the beat; CUT holds the fader's cut curve, FINE halves the hand">SCRATCH</button>
       <span class="spring"></span>
       <button class="fxb fx-auto on" id="fxAuto" aria-pressed="true"
         title="The room performs on its own, reading the song's structure — a hand always outranks it">✦ AUTO</button>
@@ -10640,7 +10641,6 @@ function ensureCtx(){
   AE.master.connect(AE.direct); AE.direct.connect(AE.out);
   AE.out.connect(AE.ctx.destination);
   MASTERLIM.install();
-  VINYL.install();                 // the platter takes its seat between the gate and the rack
   /* the analyser watches the bus gate, before the rack: the visuals follow the
      music, not the effect on top of it — a closed filter must not make the room
      go dark. AFTER the gate rather than before it, so that when a loop takes
@@ -10724,6 +10724,13 @@ function ensureCtx(){
     d.src.connect(d.shelf); d.shelf.connect(d.hp); d.hp.connect(d.filter); d.filter.connect(d.gain);
     d.gain.connect(d.fader); d.fader.connect(AE.bus);
     d.filter.connect(d.echoSend); d.echoSend.connect(AE.echo.in);
+    /* THE PLATTER'S SEAT is between the filter and the gain — the record
+       itself, before the mixer's curves and the fader have their say — and
+       the echo send moves after it so a trail follows a scratch. It is taken
+       later (VINYL.seatDeck, once the worklet module is loaded for this
+       context): born direct, so a deck plays whether or not a platter ever
+       arrives. */
+    d.vinyl = null;
     return d;
   };
   AE.decks = [0, 1].map(() => {
@@ -10737,6 +10744,7 @@ function ensureCtx(){
   });
   AE.graphLive = !IS_IOS;
   SPEED.apply();                 // decks are born at the listener's chosen speed
+  VINYL.install();               // the platters take their seats on the decks, one insert each (not on iOS: no graph)
   /* DECK EVENTS — filtered to the active deck. Held as a function rather than
      run inline because a route change builds new elements underneath the same
      deck objects, and a deck whose handlers were left behind on the discarded
@@ -10918,6 +10926,7 @@ function ensureCtx(){
 function applyVolume(){
   const v = AE.muted ? 0 : parseInt(el.vol.value, 10) / 100;
   if (AE.master) setMasterGain(v, 0.03);
+  if (typeof VINYL !== 'undefined') VINYL.songVolume();   // the song tape (iOS) answers the slider and the mute as the element does
   if (AE.decks && !AE.graphLive){
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'running'){
       MIXER.setVolumes(MIXER.lastF);         // the overlap owns the envelopes
@@ -11208,6 +11217,7 @@ const DECKS = {
     const d = AE.decks[slot], s = this.slots[slot];
     try { d.a.pause(); } catch (e){}
     if (typeof MIXER !== 'undefined') MIXER._clearPreloadListener(d);
+    if (typeof VINYL !== 'undefined') VINYL.drop(slot);   // a record changing on this deck takes its platter away
     d._warmed = true; d._seekTo = cue;
     try { if (d.a.preload !== 'auto') d.a.preload = 'auto'; } catch (e){}
     const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
@@ -11233,6 +11243,7 @@ const DECKS = {
     const d = AE.decks[slot], s = this.slots[slot];
     try { d.a.pause(); } catch (e){}
     if (typeof MIXER !== 'undefined') MIXER._clearPreloadListener(d);
+    if (typeof VINYL !== 'undefined') VINYL.drop(slot);
     try { d.a.removeAttribute('src'); d.a.load(); } catch (e){}
     this._gainTo(d, 0);
     s.trackIdx = -1; s.owner = 'free'; s.pitch = 1; s.synced = false; s.cue = 0;
@@ -17028,6 +17039,8 @@ const HAPTICS = {
   on: false,
   supported: typeof navigator !== 'undefined' && 'vibrate' in navigator,
   pulse(down){ if (this.on && this.supported){ try { navigator.vibrate(down ? 28 : 14); } catch (e){} } },
+  // a detent: the quarter turns under a scratching finger, a few milliseconds each
+  tick(ms){ if (this.on && this.supported){ try { navigator.vibrate(Math.max(1, Math.min(50, ms | 0))); } catch (e){} } },
   set(on, save){
     this.on = !!on && this.supported;
     const chip = document.getElementById('chipFeel');
@@ -18955,9 +18968,10 @@ const AIRPLAY = {
       if (typeof MIXER !== 'undefined' && MIXER.phase !== 'idle') MIXER.cancel('route');
       if (typeof DECKS !== 'undefined') DECKS.collapse();   // one deck from here: the idle one stops, the handle comes home
       AE.xfading = false;
-      AE.decks.forEach(dk => {
+      AE.decks.forEach((dk, k) => {
         try { dk.a.pause(); } catch (e){}
         AIRPLAY.unwatch(dk);
+        if (typeof VINYL !== 'undefined') VINYL.unseatDeck(dk, k, true);   // the platter goes with the chain it sat in
         for (const n of [dk.src, dk.shelf, dk.hp, dk.filter, dk.gain, dk.fader, dk.echoSend])
           { try { if (n) n.disconnect(); } catch (e){} }
         // let the old element go: an abandoned element still holding a decoder
@@ -18968,11 +18982,12 @@ const AIRPLAY = {
         // graph mode is the mode that reads the samples, so it is the mode
         // that needs the cross-origin opt-in; direct mode does not
         dk.a = AE._deckEl(!direct);
-        dk.src = dk.shelf = dk.hp = dk.filter = dk.gain = dk.fader = dk.echoSend = null;
+        dk.src = dk.shelf = dk.hp = dk.filter = dk.gain = dk.fader = dk.echoSend = dk.vinyl = null;
         if (direct) dk.a.volume = 0; else AE._deckGraph(dk);
         AE._wireDeck(dk, k);
       });
       AE.graphLive = !direct;
+      if (!direct && typeof VINYL !== 'undefined') VINYL.install();   // …and take their seats on the new chains
       SPEED.apply();
       applyVolume();
       if (url){
@@ -21302,50 +21317,68 @@ function autoCuePoints(o){
 const VINYL_REV_SEC = 1.8;          // a 12" at 33⅓ rpm: one turn of the platter is 1.8 s of music
 const VINYL_RING_SEC = 24;          // how much of the recent past the platter can reach back into
 const VINYL_RAMP_SEC = 0.006;       // the crossfade either side of taking the room, or leaving it
+const VINYL_CUT_SEC = 0.001;        // the fader's cut inside the processor: a 1 ms ramp, so a chop is a chop and never a click
 const PLATTER = {
   motorTau:    0.32,   // s — the motor reaching speed from rest (a direct drive, not a belt)
-  brakeTau:    0.45,   // s — power off: the platter coasting down against its own friction
-  handTau:     0.012,  // s — the record under a finger following the finger (the slipmat's give)
-  handLead:    0.024,  // s — how far behind the finger's PLACE the record may run (with handTau: ζ ≈ 0.7, ~9 Hz)
+  brakeSec:    1.2,    // s — power off: friction takes the platter from 1× to its crawl in this long, a straight line
+  brakeTail:   0.15,   // × — under this the stop is a crawl: the last turn of a real platter dies exponentially
+  brakeTau:    0.18,   // s — the crawl's own time constant
+  handTau:     0.007,  // s — the record under a finger following the finger (the slipmat's give)
+  handLead:    0.014,  // s — how far behind the finger's PLACE the record may run (with handTau: ζ ≈ 0.7, ~16 Hz — the mouse's feel; a finger is tighter, see VINYL.feel)
   releaseTau:  0.09,   // s — the finger lifted: the motor takes the record back through the mat
   backspin:   -3.5,    // × — the flick a backspin gives the platter
-  backspinTau: 0.35,   // s — and how it dies away
+  backspinTau: 0.35,   // s — and how it dies away (a thrown record is mostly air drag)
   maxRate:     8,      // × — nothing goes faster than this in either direction
   settle:      0.02,   // × — how close to its goal a rate must be to count as arrived
   caught:      0.12,   // × — a dying backspin slower than this is the motor's to catch
   stopped:     0.03,   // × — a coasting platter slower than this has stopped
+  air:         1,      // the read above 1× is oversampled (0: the plain read, for a test that wants to hear the difference)
 };
-function makePlatter(){ return { rate: 1, motor: 1, mode: 'motor' }; }
+function makePlatter(){ return { rate: 1, motor: 1, mode: 'motor', brakeSec: 0 }; }
 /* ONE STEP of dt seconds. `hand` is the finger's velocity in seconds of music
    per second (1 is the motor's own speed, −1 is the same speed backwards),
-   or null when nothing is touching the record. Modes:
+   or null when nothing is touching the record; `handTau` the mat's give for
+   this hand (a finger's, a mouse's), the table's when not given. Modes:
      motor     the motor drives the record toward `motor` (normally 1)
      hand      a finger owns it; the rate follows the finger through the mat
      release   the finger has just lifted; the motor is taking it back
-     brake     the power is off; it coasts to a stop
+     throw     the finger let go of a record it was pushing: it runs on under
+               air drag and the motor takes it up again
+     brake     the power is off; friction takes it down, then it crawls to a stop
      stopped   it has stopped, and stays stopped until the power returns
      backspin  flicked backwards; it dies away and the motor takes it up again */
-function platterStep(S, dt, hand){
+function platterStep(S, dt, hand, handTau){
   const T = PLATTER;
   if (!(dt > 0)) return S;
   if (hand != null && isFinite(hand)){
-    S.rate += (hand - S.rate) * (1 - Math.exp(-dt / T.handTau));
+    const tau = handTau > 0 ? handTau : T.handTau;
+    S.rate += (hand - S.rate) * (1 - Math.exp(-dt / tau));
     S.mode = 'hand';
   } else {
     if (S.mode === 'hand') S.mode = 'release';
-    const coasting = S.mode === 'brake' || S.mode === 'backspin' || S.mode === 'stopped';
-    const goal = coasting ? 0 : S.motor;
-    const tau = S.mode === 'brake' ? T.brakeTau : S.mode === 'backspin' ? T.backspinTau
-              : S.mode === 'release' ? T.releaseTau : T.motorTau;
-    S.rate += (goal - S.rate) * (1 - Math.exp(-dt / tau));
-    const near = Math.abs(S.rate - goal) < T.settle;
-    if (S.mode === 'release' && near) S.mode = 'motor';
-    // an exponential never quite arrives: a dying backspin is caught by the motor
-    // while still just creeping backwards, and a coasting platter below a crawl
-    // is a stopped one — the way the real thing is heard, not the way it is modelled
-    else if (S.mode === 'backspin' && Math.abs(S.rate) < T.caught) S.mode = 'motor';
-    else if (S.mode === 'brake' && Math.abs(S.rate) < T.stopped){ S.rate = 0; S.mode = 'stopped'; }
-    else if (S.mode === 'stopped') S.rate = 0;
+    const ar = S.rate < 0 ? -S.rate : S.rate;
+    if (S.mode === 'brake' && ar > T.brakeTail){
+      /* POWER OFF IS FRICTION, NOT A FADE. The rate loses the same amount every
+         second, so the pitch falls down a straight line and LANDS — the sound of
+         a platter losing power, which an exponential (never quite arriving)
+         is not. The last fraction of a turn is a crawl, below. */
+      const d = dt / (S.brakeSec > 0 ? S.brakeSec : T.brakeSec);
+      S.rate = S.rate > 0 ? Math.max(T.brakeTail, S.rate - d) : Math.min(-T.brakeTail, S.rate + d);
+    } else {
+      const coasting = S.mode === 'brake' || S.mode === 'backspin' || S.mode === 'stopped';
+      const goal = coasting ? 0 : S.motor;
+      const tau = S.mode === 'brake' ? T.brakeTau : (S.mode === 'backspin' || S.mode === 'throw') ? T.backspinTau
+                : S.mode === 'release' ? T.releaseTau : T.motorTau;
+      S.rate += (goal - S.rate) * (1 - Math.exp(-dt / tau));
+      const near = Math.abs(S.rate - goal) < T.settle;
+      if ((S.mode === 'release' || S.mode === 'throw') && near) S.mode = 'motor';
+      // an exponential never quite arrives: a dying backspin is caught by the motor
+      // while still just creeping backwards, and a crawling platter below a crawl
+      // is a stopped one — the way the real thing is heard, not the way it is modelled
+      else if (S.mode === 'backspin' && Math.abs(S.rate) < T.caught) S.mode = 'motor';
+      else if (S.mode === 'brake' && Math.abs(S.rate) < T.stopped){ S.rate = 0; S.mode = 'stopped'; }
+      else if (S.mode === 'stopped') S.rate = 0;
+    }
   }
   if (S.rate > T.maxRate) S.rate = T.maxRate; else if (S.rate < -T.maxRate) S.rate = -T.maxRate;
   return S;
@@ -21357,10 +21390,13 @@ function platterStep(S, dt, hand){
    own lag that is a damped spring, ζ about 0.7: a still finger is a still
    record, a late burst of pointer events is a catch-up rather than a stall,
    and the music under the finger stays under the finger. Units are the tape's
-   frames; `unit` is frames per second of music. */
+   frames; `unit` is frames per second of music. The lead is the hand's own
+   when a `feel` has been set (a finger wants a tighter spring than a mouse,
+   whose events come at sixty a second). */
 function platterHandFollow(S, unit){
   if (S.handTo == null) return;
-  const r = (S.handTo - S.pos) / (unit * PLATTER.handLead);
+  const lead = S.handLead > 0 ? S.handLead : PLATTER.handLead;
+  const r = (S.handTo - S.pos) / (unit * lead);
   S.hand = r > PLATTER.maxRate ? PLATTER.maxRate : r < -PLATTER.maxRate ? -PLATTER.maxRate : r;
 }
 // a turn of the platter is VINYL_REV_SEC of music: an angle moved in dt seconds is a rate
@@ -21395,8 +21431,13 @@ function makeVinyl(sr, seconds){
     engaged: false, gain: 0, gainStep: 1 / (VINYL_RAMP_SEC * rate),
     platter: makePlatter(), hand: null,
     handFrom: 0, handTo: null,            // the hand by place: where it took the record, where it has it now
+    handLead: 0, handTau: 0,              // this hand's feel (0: the table's)
     snapFrom: -1, snapU: 0, snapStep: 1 / (VINYL_RAMP_SEC * rate),   // a head being crossed out of
+    snapAt: -1, snapRelease: false,       // a slip scheduled for a beat line (ctx time), and whether it lets go there
     lpL: 0, lpR: 0,                       // the speed-following low-pass
+    cutG: 1, cutStep: 1 / (VINYL_CUT_SEC * rate),   // the fader's cut on the wet path, ramped
+    script: null, scriptDone: 0,          // a preset's hand running inside the processor (see vinylScriptStep)
+    air: PLATTER.air,
   };
 }
 // one channel of the tape read at a fractional frame count, wrapping the ring
@@ -21408,15 +21449,121 @@ function vinylRead(ring, cap, p){
   const k2 = k1 + 1 === cap ? 0 : k1 + 1;
   return hermite4(ring[km1], ring[k], ring[k1], ring[k2], fr);
 }
-/* ONE BLOCK. The input is the room (the decks, through the bus gate); the
-   output is the room untouched while the platter is not engaged, and the tape
-   read by the platter while it is, with a VINYL_RAMP_SEC crossfade either way.
-   The tape records on every block regardless, so the past is always there to
-   be reached for. The read head can never pass the live edge — a sample not
-   yet written is not music — so at 1× it rides the edge a couple of samples
-   behind the input, and a flick forward simply lands it back on the edge. */
-function vinylProcess(S, inL, inR, outL, outR, n){
-  const cap = S.cap, L = S.ring[0], R = S.ring[1];
+/* THE READ ABOVE 1×. Faster than written, the tape's top end folds back down
+   over the music — a hi-hat at four times speed is a metallic zing, not a
+   hi-hat — and no filter run on the output afterwards can unfold it. So the
+   read itself is widened: K Hermite taps `step` frames apart, back from the
+   head, under a raised-cosine weight. That is a short windowed average whose
+   first null sits at the output's own Nyquist (the window spans 2·rate
+   frames), so what would fold is exactly what it takes away, at −31 dB and
+   below, while the band that stays stays open to about 17 kHz. K is at most
+   eight: the loop is bounded, whatever the rate. */
+function vinylReadAir(ring, cap, p, step, K){
+  let acc = 0, wsum = 0;
+  for (let j = 0; j < K; j++){
+    const w = 1 - Math.cos(2 * Math.PI * (j + 0.5) / K);
+    acc += w * vinylRead(ring, cap, p - step * j); wsum += w;
+  }
+  return acc / wsum;
+}
+/* THE TONE OF SPEED, as a one-pole coefficient per block. Faster than written
+   the top end has moved past where the ear hears it and folds (the corner
+   follows the speed down: 0.45·sr/|rate|); slower, a record's air darkens
+   with it — the corner is 400 Hz plus 20 kHz per unit of speed, the very law
+   the booth's brake had on the master filter, now on the record itself, so
+   a brake and a slow drag sound like what they are. At speed, nothing. */
+function vinylToneK(ar, sr){
+  if (ar > 1.02) return 1 - Math.exp(-2 * Math.PI * 0.45 / ar);
+  if (ar < 0.98){ const fc = 400 + ar * 20000; return 1 - Math.exp(-2 * Math.PI * fc / (sr > 0 ? sr : 48000)); }
+  return 1;
+}
+// the fader of a preset's step: 0 open, 1 shut throughout, or [u0,u1] pairs (fractions of the step shut), flattened and bounded
+function vinylCutSpec(c){
+  if (c == null || c === 0 || c === false) return 0;
+  if (c === 1 || c === true) return 1;
+  if (!Array.isArray(c)) return 0;
+  const out = [];
+  for (let i = 0; i < c.length && i < 8; i++){
+    const p = c[i];
+    if (Array.isArray(p) && p.length >= 2 && isFinite(p[0]) && isFinite(p[1])) out.push(Math.max(0, +p[0]), Math.min(1, +p[1]));
+  }
+  return out.length ? out : 0;
+}
+/* THE SCRIPT'S STEP at time t, advancing through the steps and the loops as
+   far as t has come (bounded: never more than sixty-four steps a call), null
+   once the script is done — at which point the hand lifts, and the main
+   thread is told (scriptDone) so it can let go the way the hand would. */
+function vinylScriptStep(S, t){
+  const sc = S.script;
+  if (!sc || !sc.on) return null;
+  let guard = 0;
+  while (t >= sc.t0 + sc.steps[sc.i].dur && guard++ < 64){
+    sc.acc += sc.steps[sc.i].dx; sc.t0 += sc.steps[sc.i].dur; sc.i++;
+    if (sc.i >= sc.n){
+      sc.i = 0; sc.rep++;
+      if (sc.rep >= sc.loops){ S.script = null; S.hand = null; S.handTo = null; S.scriptDone = (S.scriptDone | 0) + 1; return null; }
+    }
+  }
+  return sc.steps[sc.i];
+}
+// is the fader shut at time t, in the script's current step
+function vinylScriptCut(sc, t){
+  const st = sc.steps[sc.i], c = st.cut;
+  if (!c) return 0;
+  if (c === 1) return 1;
+  const u = (t - sc.t0) / st.dur;
+  for (let k = 0; k + 1 < c.length; k += 2) if (u >= c[k] && u < c[k + 1]) return 1;
+  return 0;
+}
+/* ONE BLOCK OF THE SCRIPT, before the hand is followed: it starts when its
+   time comes (taking the record where it is, as a grab does), and places the
+   hand on a half-cosine through the current step — a hand never moves
+   linearly; it leans in and eases out — so the platter's spring has something
+   natural to chase. The place is read at the block's middle and led by what
+   the mat will cost: the spring is second order (the lead, then the mat's
+   own lag), so its exact inverse is the place plus lead × velocity plus
+   lead × tau × acceleration — the record is then where the stroke says, not
+   a breath behind it, and at a stroke's end, where both are nothing, the
+   strokes land. `unit` is frames per second of music. */
+function vinylScriptBlock(S, now, n, sr, unit){
+  const sc = S.script;
+  if (!sc) return;
+  if (!sc.on){
+    const tEnd = now + n / sr;
+    if (sc.at >= 0 && sc.at > tEnd) return;              // not yet: the motor has the record until the beat
+    sc.on = true; sc.t0 = (sc.at >= 0 && sc.at > now) ? sc.at : now;
+    S.handFrom = S.pos; S.handTo = S.pos; S.hand = 0;
+  }
+  const st = vinylScriptStep(S, now);
+  if (!st) return;
+  const mid = now + 0.5 * n / sr;
+  let u = (mid - sc.t0) / st.dur; if (u < 0) u = 0; else if (u > 1) u = 1;
+  const e = 0.5 - 0.5 * Math.cos(Math.PI * u);
+  const v = st.dx * 0.5 * Math.PI * Math.sin(Math.PI * u) / st.dur;                    // seconds of music per second, right now
+  const acc = st.dx * 0.5 * Math.PI * Math.PI * Math.cos(Math.PI * u) / (st.dur * st.dur);   // …and its change
+  const lead = S.handLead > 0 ? S.handLead : PLATTER.handLead, tau = S.handTau > 0 ? S.handTau : PLATTER.handTau;
+  S.handTo = S.handFrom + (sc.acc + st.dx * e + v * lead + acc * lead * tau) * unit;
+}
+// the slip: the head jumps home to the live edge under a short crossfade and the motor speed is restored at once
+function vinylSnap(S){
+  const P = S.platter;
+  S.snapFrom = S.pos; S.snapU = 0; S.pos = S.written - 3; P.rate = P.motor; P.mode = 'motor';
+  S.hand = null; S.handTo = null; S.snapAt = -1; S.script = null;
+  if (S.snapRelease){ S.snapRelease = false; S.engaged = false; }
+}
+/* ONE BLOCK. The input is the deck (post-filter, pre-gain: the record itself,
+   before the mixer's curves and the fader have their say); the output is the
+   deck untouched while the platter is not engaged, and the tape read by the
+   platter while it is, with a VINYL_RAMP_SEC crossfade either way. The tape
+   records on every block regardless, so the past is always there to be
+   reached for. The read head can never pass the live edge — a sample not yet
+   written is not music — so at 1× it rides the edge a couple of samples
+   behind the input, and a flick forward simply lands it back on the edge.
+   `now` is the context's clock at the block's first frame, for the things
+   scheduled against it (a script, a slip on the beat); the tape's own clock
+   stands in when none is given. */
+function vinylProcess(S, inL, inR, outL, outR, n, now){
+  const cap = S.cap, L = S.ring[0], R = S.ring[1], sr = S.sr;
   let w = S.written;
   for (let i = 0; i < n; i++){
     const k = w % cap;
@@ -21429,20 +21576,27 @@ function vinylProcess(S, inL, inR, outL, outR, n){
     for (let i = 0; i < n; i++){ const xl = inL ? inL[i] : 0; outL[i] = xl; outR[i] = inR ? inR[i] : xl; }
     return S;
   }
-  platterHandFollow(S, S.sr);
-  platterStep(S.platter, n / S.sr, S.hand);
+  const t0 = (typeof now === 'number' && isFinite(now)) ? now : (w - n) / sr;
+  if (S.snapAt >= 0 && t0 + n / sr >= S.snapAt) vinylSnap(S);     // the slip, on its beat
+  vinylScriptBlock(S, t0, n, sr, sr);
+  platterHandFollow(S, sr);
+  platterStep(S.platter, n / sr, S.hand, S.handTau);
   const rate = S.platter.rate;
   const ar = rate < 0 ? -rate : rate;
-  // faster than written means a lower Nyquist: a one-pole follows the speed down
-  const lpK = ar > 1.02 ? 1 - Math.exp(-2 * Math.PI * 0.45 / ar) : 1;
+  const lpK = vinylToneK(ar, sr);
+  const air = (S.air == null ? PLATTER.air : S.air) && ar > 1.02;
+  const K = air ? Math.min(8, 2 * Math.ceil(ar)) : 1, step = air ? 2 * ar / K : 0;
+  const sc = S.script;
   const oldest = Math.max(0, w - cap + 4);
-  let pos = S.pos, g = S.gain, lpL = S.lpL, lpR = S.lpR;
+  let pos = S.pos, g = S.gain, lpL = S.lpL, lpR = S.lpR, cg = S.cutG;
   for (let i = 0; i < n; i++){
     if (S.engaged){ if (g < 1){ g += S.gainStep; if (g > 1) g = 1; } }
     else if (g > 0){ g -= S.gainStep; if (g < 0) g = 0; }
     const live = w - n + i - 2;                 // the newest sample this frame may read through
     let p = pos; if (p > live) p = live; else if (p < oldest) p = oldest;
-    let yl = vinylRead(L, cap, p), yr = vinylRead(R, cap, p);
+    let yl, yr;
+    if (K > 1){ yl = vinylReadAir(L, cap, p, step, K); yr = vinylReadAir(R, cap, p, step, K); }
+    else { yl = vinylRead(L, cap, p); yr = vinylRead(R, cap, p); }
     if (S.snapFrom >= 0){                       // the old head fades out under the new one
       let q = S.snapFrom; if (q > live) q = live; else if (q < oldest) q = oldest;
       const u = S.snapU;
@@ -21453,47 +21607,145 @@ function vinylProcess(S, inL, inR, outL, outR, n){
     }
     if (lpK < 1){ lpL += (yl - lpL) * lpK; lpR += (yr - lpR) * lpK; yl = lpL; yr = lpR; }
     else { lpL = yl; lpR = yr; }
+    // the fader's cut, sample-exact and ramped: a script's chop lands here, not on a frame
+    const shut = (sc && sc.on && S.script === sc) ? vinylScriptCut(sc, t0 + i / sr) : 0;
+    if (shut){ if (cg > 0){ cg -= S.cutStep; if (cg < 0) cg = 0; } }
+    else if (cg < 1){ cg += S.cutStep; if (cg > 1) cg = 1; }
     const dl = inL ? inL[i] : 0, dr = inR ? inR[i] : dl;
-    outL[i] = dl * (1 - g) + yl * g;
-    outR[i] = dr * (1 - g) + yr * g;
+    const wg = g * cg;
+    outL[i] = dl * (1 - g) + yl * wg;
+    outR[i] = dr * (1 - g) + yr * wg;
     // the head moves with the platter, but never past the edge it will be allowed
     // to read next frame, and never off the back of the tape
     pos = p + rate;
     if (pos > live + 1) pos = live + 1; else if (pos < oldest) pos = oldest;
+    // a step boundary inside the block: the cut's step advances with the clock
+    if (sc && sc.on && S.script === sc && t0 + (i + 1) / sr >= sc.t0 + sc.steps[sc.i].dur) vinylScriptStep(S, t0 + (i + 1) / sr);
   }
-  S.pos = pos; S.gain = g; S.lpL = lpL; S.lpR = lpR;
+  S.pos = pos; S.gain = g; S.lpL = lpL; S.lpR = lpR; S.cutG = cg;
   return S;
 }
 /* THE COMMANDS, applied between blocks. `engage` takes the room at the live
    edge, so the first sample the platter plays is the one the deck was about
-   to; `snap` is the slip: the head jumps home to the live edge under a short
-   crossfade and the motor speed is restored at once, which is what a slipmat
-   does when the finger leaves. */
+   to (a platter still fading out is crossed out of, not jumped from: no tick
+   on a quick second press); `snap` is the slip: the head jumps home to the
+   live edge under a short crossfade and the motor speed is restored at once,
+   which is what a slipmat does when the finger leaves — given `at`, it waits
+   for that moment on the context's clock (a beat line), and lets go there
+   too when asked. `throw` is a finger leaving a record it was pushing: the
+   record keeps the hand's speed and runs down under air drag, backwards
+   included. `feel` is the hand's own spring. `script` is a preset's hand. */
 function vinylCommand(S, m){
   if (!m || !m.op) return S;
   const P = S.platter;
   // every command but the hand-by-place itself lets go of the place
   if (m.op !== 'handAt') S.handTo = null;
   if (m.op === 'engage'){
-    if (!S.engaged){ S.engaged = true; S.pos = S.written - 3; S.hand = null; S.platter = makePlatter(); S.snapFrom = -1; S.snapU = 0; }
-  } else if (m.op === 'release'){ S.engaged = false; S.hand = null; }
-  else if (m.op === 'hand'){ S.hand = (typeof m.v === 'number' && isFinite(m.v)) ? m.v : null; }
-  else if (m.op === 'grab'){ S.handFrom = S.pos; S.handTo = S.pos; S.hand = 0; }
+    if (!S.engaged){
+      S.engaged = true;
+      // a head still fading out is crossed out of under the new one: exactly the snap's own fade
+      if (S.gain > 0){ S.snapFrom = S.pos; S.snapU = 0; } else { S.snapFrom = -1; S.snapU = 0; }
+      S.pos = S.written - 3; S.hand = null; S.platter = makePlatter(); S.script = null; S.snapAt = -1; S.snapRelease = false; S.cutG = 1;
+      S.gen = m.gen | 0;                           // which engagement this is: a late report from the last one is not news
+    }
+  } else if (m.op === 'release'){ S.engaged = false; S.hand = null; S.script = null; S.snapAt = -1; S.snapRelease = false; }
+  else if (m.op === 'hand'){ S.hand = (typeof m.v === 'number' && isFinite(m.v)) ? m.v : null; S.script = null; }
+  else if (m.op === 'grab'){ S.handFrom = S.pos; S.handTo = S.pos; S.hand = 0; S.script = null; S.snapAt = -1; }
   else if (m.op === 'handAt'){
     // x: seconds of music the finger has turned the record since the grab
-    if (typeof m.x === 'number' && isFinite(m.x) && S.hand != null) S.handTo = S.handFrom + m.x * (S.tsr || S.sr);
+    if (typeof m.x === 'number' && isFinite(m.x) && S.hand != null && !S.script) S.handTo = S.handFrom + m.x * (S.tsr || S.sr);
   }
   else if (m.op === 'lift'){ S.hand = null; }
+  else if (m.op === 'throw'){
+    const v = (typeof m.v === 'number' && isFinite(m.v)) ? Math.max(-PLATTER.maxRate, Math.min(PLATTER.maxRate, m.v)) : 0;
+    S.hand = null; S.script = null;
+    if (v !== 0){ P.rate = v; P.mode = v < 0 ? 'backspin' : 'throw'; }
+  }
+  else if (m.op === 'feel'){
+    S.handLead = (typeof m.lead === 'number' && isFinite(m.lead)) ? Math.max(0.004, Math.min(0.08, m.lead)) : 0;
+    S.handTau = (typeof m.tau === 'number' && isFinite(m.tau)) ? Math.max(0.002, Math.min(0.05, m.tau)) : 0;
+  }
   else if (m.op === 'motor'){
     P.motor = (typeof m.v === 'number' && isFinite(m.v)) ? m.v : 1;
     if (P.mode !== 'hand') P.mode = 'motor';
     S.hand = null;
-  } else if (m.op === 'brake'){ S.hand = null; if (P.mode !== 'stopped') P.mode = 'brake'; }
-  else if (m.op === 'backspin'){ S.hand = null; P.rate = PLATTER.backspin; P.mode = 'backspin'; }
+  } else if (m.op === 'brake'){
+    S.hand = null; S.script = null;
+    P.brakeSec = (typeof m.sec === 'number' && m.sec > 0 && isFinite(m.sec)) ? m.sec : 0;
+    if (P.mode !== 'stopped') P.mode = 'brake';
+  }
+  else if (m.op === 'backspin'){ S.hand = null; S.script = null; P.rate = PLATTER.backspin; P.mode = 'backspin'; }
   else if (m.op === 'snap'){
-    if (S.engaged){ S.snapFrom = S.pos; S.snapU = 0; S.pos = S.written - 3; P.rate = P.motor; P.mode = 'motor'; S.hand = null; }
+    if (S.engaged){
+      if (typeof m.at === 'number' && isFinite(m.at) && m.at > 0){ S.snapAt = m.at; S.snapRelease = !!m.release; }
+      else { S.snapRelease = !!m.release; vinylSnap(S); }
+    }
+  }
+  else if (m.op === 'script'){
+    if (!m.steps || !m.steps.length){
+      // no steps is the end of one: `finish` lets the loop in hand complete, nothing stops it now
+      if (S.script){
+        if (m.finish) S.script.loops = Math.max(S.script.min, S.script.rep + 1);
+        else { S.script = null; S.hand = null; S.handTo = null; S.scriptDone = (S.scriptDone | 0) + 1; }
+      }
+    } else if (S.engaged){
+      const steps = [];
+      for (let i = 0; i < m.steps.length && i < 16; i++){
+        const st = m.steps[i] || {};
+        steps.push({ dx: (typeof st.dx === 'number' && isFinite(st.dx)) ? st.dx : 0, dur: Math.max(0.005, +st.dur || 0), cut: vinylCutSpec(st.cut) });
+      }
+      const loops = Math.max(1, Math.min(64, m.loops | 0 || 1));
+      S.script = { steps, n: steps.length, loops, min: Math.max(1, Math.min(loops, m.min | 0 || 1)),
+                   at: (typeof m.at === 'number' && isFinite(m.at)) ? m.at : -1, i: 0, rep: 0, t0: -1, acc: 0, on: false };
+      S.snapAt = -1;
+    }
   }
   return S;
+}
+/* THE PRESETS: a hand's strokes written down, the five every scratch DJ
+   learns first and the crab. dx is seconds of music (signed), dur is beats,
+   cut is the fader: 0 open, 1 shut through the step, or [u0,u1] pairs — the
+   fractions of the step it is shut. Every pattern PULLS BACK FIRST: the tape
+   holds only what has played, so a forward stroke must have something behind
+   the needle to push through — which is what a DJ's hand does too, the
+   record drawn back against the motor before the stroke. BABY is the stroke
+   itself, back and forward; CHIRP cuts the end of the back and the start of
+   the forward so each stroke is a clipped bird; TRANSFORM pulls back under
+   the closed fader and chops a long forward stroke on the eighths; STAB
+   draws the record back silently and throws it; FLARE clicks the fader twice
+   inside the throw; CRAB taps it four times. Each ends where it began. */
+const VINYL_PRESETS = {
+  baby:      { loops: 2, steps: [{ dx: -0.09, dur: 0.25 }, { dx: 0.09, dur: 0.25 }] },
+  chirp:     { loops: 2, steps: [{ dx: -0.07, dur: 0.125, cut: [[0.75, 1]] }, { dx: 0.07, dur: 0.125, cut: [[0, 0.25]] }] },
+  transform: { loops: 1, steps: [{ dx: -0.25, dur: 0.25, cut: 1 }, { dx: 0.25, dur: 1, cut: [[0, 0.125], [0.25, 0.375], [0.5, 0.625], [0.75, 0.875]] }] },
+  stab:      { loops: 1, steps: [{ dx: -0.5, dur: 0.25, cut: 1 }, { dx: 0.5, dur: 0.25 }] },
+  flare:     { loops: 1, steps: [{ dx: -0.3, dur: 0.25, cut: 1 }, { dx: 0.3, dur: 0.5, cut: [[0.3, 0.38], [0.62, 0.7]] }] },
+  crab:      { loops: 1, steps: [{ dx: -0.2, dur: 0.25, cut: 1 }, { dx: 0.2, dur: 0.5, cut: [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6], [0.7, 0.8]] }] },
+};
+// a preset at a tempo: its steps in seconds, ready for the processor
+function vinylPresetSteps(name, spb){
+  const p = VINYL_PRESETS[name];
+  if (!p) return null;
+  const b = spb > 0 && isFinite(spb) ? spb : 0.5;
+  return { loops: p.loops, steps: p.steps.map(s => ({ dx: s.dx, dur: s.dur * b, cut: s.cut == null ? 0 : s.cut })) };
+}
+/* THE LANDING of a hand let go: where the music resumes. `pos` is where the
+   record is (seconds of the song); `quant` rounds it to the nearest line of
+   the grid (`grid` the first beat, `bpm` the tempo), a beat or a bar, so the
+   record lands back on the 1 — or leaves it alone. */
+function vinylLanding(pos, quant, grid, bpm, dur){
+  if (!(pos >= 0) || !isFinite(pos)) return 0;
+  if ((quant !== 'beat' && quant !== 'bar') || !(bpm > 0) || !isFinite(grid)) return pos;
+  const unit = (quant === 'bar' ? 4 : 1) * 60 / bpm;
+  const t = grid + Math.round((pos - grid) / unit) * unit;
+  const top = dur > 0.3 ? dur - 0.25 : Infinity;
+  return Math.max(0, Math.min(top, t));
+}
+// the next line of the grid at or after t (a beat, or a bar), in song seconds
+function vinylNextLine(t, quant, grid, bpm){
+  if (!(bpm > 0) || !isFinite(grid) || !isFinite(t)) return t;
+  const unit = (quant === 'bar' ? 4 : 1) * 60 / bpm;
+  return grid + Math.ceil((t - grid) / unit - 1e-6) * unit;
 }
 /* THE SONG TAPE. Where the music plays element-direct (iOS: the element goes
    straight to the speaker so the lock screen keeps playing) there is no room
@@ -21506,11 +21758,13 @@ function vinylCommand(S, m){
    low-pass, the commands) is the very arithmetic the room's tape runs. */
 const VINYL_SONG_FRAMES = 8e6;      // the tape's budget: 8 M stereo frames of int16, 32 MB
 const VINYL_SONG_MAX_SR = 32000;    // more than this buys nothing a scratch can be heard to need
+const VINYL_SONG_LOW_SR = 24000;    // …and on a phone that reports little memory, this is the ceiling: the decode's float is the peak
 const VINYL_SONG_MIN_SR = 11025;    // less than this and the song is too long to hold
 // the tape's rate for a song this long: as fine as the budget allows, 0 when it cannot be held
-function vinylSongRate(duration){
+function vinylSongRate(duration, maxSr){
   if (!(duration > 0) || !isFinite(duration)) return 0;
-  const sr = Math.min(VINYL_SONG_MAX_SR, Math.floor(VINYL_SONG_FRAMES / duration));
+  const cap = maxSr > 0 ? Math.min(VINYL_SONG_MAX_SR, maxSr) : VINYL_SONG_MAX_SR;
+  const sr = Math.min(cap, Math.floor(VINYL_SONG_FRAMES / duration));
   return sr >= VINYL_SONG_MIN_SR ? sr : 0;
 }
 // float PCM to the tape's int16, clipped rather than wrapped
@@ -21549,8 +21803,8 @@ function vinylSongCommand(S, m){
    element is what is heard then), the tape read by the platter while it is,
    with the same VINYL_RAMP_SEC fade either way. The head can never pass the
    element's playhead: the same law as the room's live edge. */
-function vinylSongProcess(S, outL, outR, n){
-  const cap = S.cap, L = S.ring[0], R = S.ring[1], k = S.k, st = S.step;
+function vinylSongProcess(S, outL, outR, n, now){
+  const cap = S.cap, L = S.ring[0], R = S.ring[1], k = S.k, st = S.step, sr = S.sr;
   const adv = st * S.deckRate;
   const w0 = S.written;
   let w = w0 + n * adv; if (w > cap - 3) w = cap - 3;
@@ -21559,19 +21813,26 @@ function vinylSongProcess(S, outL, outR, n){
     for (let i = 0; i < n; i++){ outL[i] = 0; outR[i] = 0; }
     return S;
   }
+  const t0 = (typeof now === 'number' && isFinite(now)) ? now : w0 / S.tsr;
+  if (S.snapAt >= 0 && t0 + n / sr >= S.snapAt) vinylSnap(S);
+  vinylScriptBlock(S, t0, n, sr, S.tsr);
   platterHandFollow(S, S.tsr);
-  platterStep(S.platter, n / S.sr, S.hand);
+  platterStep(S.platter, n / sr, S.hand, S.handTau);
   const rate = S.platter.rate;
-  const ar = (rate < 0 ? -rate : rate) * st;      // tape frames per output frame
-  // read faster than one tape frame a sample and the tape's top end folds: follow it down
-  const lpK = ar > 1.02 ? 1 - Math.exp(-2 * Math.PI * 0.45 / ar) : 1;
-  let pos = S.pos, g = S.gain, lpL = S.lpL, lpR = S.lpR;
+  const arT = (rate < 0 ? -rate : rate) * st;      // tape frames per output frame: what folds is the tape's top end
+  const lpK = vinylToneK(arT > 1.02 ? arT : (rate < 0 ? -rate : rate), sr);
+  const air = (S.air == null ? PLATTER.air : S.air) && arT > 1.02;
+  const K = air ? Math.min(8, 2 * Math.ceil(arT)) : 1, stepA = air ? 2 * arT / K : 0;
+  const sc = S.script;
+  let pos = S.pos, g = S.gain, lpL = S.lpL, lpR = S.lpR, cg = S.cutG;
   for (let i = 0; i < n; i++){
     if (S.engaged){ if (g < 1){ g += S.gainStep; if (g > 1) g = 1; } }
     else if (g > 0){ g -= S.gainStep; if (g < 0) g = 0; }
     let live = w0 + i * adv - 2; if (live > cap - 3) live = cap - 3;
     let p = pos; if (p > live) p = live; if (p < 0) p = 0;
-    let yl = vinylRead(L, cap, p) * k, yr = vinylRead(R, cap, p) * k;
+    let yl, yr;
+    if (K > 1){ yl = vinylReadAir(L, cap, p, stepA, K) * k; yr = vinylReadAir(R, cap, p, stepA, K) * k; }
+    else { yl = vinylRead(L, cap, p) * k; yr = vinylRead(R, cap, p) * k; }
     if (S.snapFrom >= 0){                       // the old head fades out under the new one
       let q = S.snapFrom; if (q > live) q = live; if (q < 0) q = 0;
       const u = S.snapU;
@@ -21582,33 +21843,44 @@ function vinylSongProcess(S, outL, outR, n){
     }
     if (lpK < 1){ lpL += (yl - lpL) * lpK; lpR += (yr - lpR) * lpK; yl = lpL; yr = lpR; }
     else { lpL = yl; lpR = yr; }
-    outL[i] = yl * g; outR[i] = yr * g;
+    const shut = (sc && sc.on && S.script === sc) ? vinylScriptCut(sc, t0 + i / sr) : 0;
+    if (shut){ if (cg > 0){ cg -= S.cutStep; if (cg < 0) cg = 0; } }
+    else if (cg < 1){ cg += S.cutStep; if (cg > 1) cg = 1; }
+    const wg = g * cg;
+    outL[i] = yl * wg; outR[i] = yr * wg;
     pos = p + rate * st;
     if (pos > live + adv) pos = live + adv; else if (pos < 0) pos = 0;
+    if (sc && sc.on && S.script === sc && t0 + (i + 1) / sr >= sc.t0 + sc.steps[sc.i].dur) vinylScriptStep(S, t0 + (i + 1) / sr);
   }
-  S.pos = pos; S.gain = g; S.lpL = lpL; S.lpR = lpR;
+  S.pos = pos; S.gain = g; S.lpL = lpL; S.lpR = lpR; S.cutG = cg;
   return S;
 }
 /* THE WORKLET MODULE, written from the functions above so the audio thread
    runs exactly the arithmetic the suite ran. A string, because a worklet is
-   loaded from a URL and this player is one file: the URL is a blob of this. */
+   loaded from a URL and this player is one file: the URL is a blob of this.
+   One processor per deck now (the module is loaded once per context and the
+   node seated per deck); the report carries what the hand needs to know —
+   the rate, the mode, how far behind the live edge the head is, whether the
+   processor still holds the room, and a script's end. */
 function vinylWorkletSource(){
   return [
     'const PLATTER = ' + JSON.stringify(PLATTER) + ';',
-    'const VINYL_REV_SEC = ' + VINYL_REV_SEC + ', VINYL_RING_SEC = ' + VINYL_RING_SEC + ', VINYL_RAMP_SEC = ' + VINYL_RAMP_SEC + ';',
+    'const VINYL_REV_SEC = ' + VINYL_REV_SEC + ', VINYL_RING_SEC = ' + VINYL_RING_SEC + ', VINYL_RAMP_SEC = ' + VINYL_RAMP_SEC + ', VINYL_CUT_SEC = ' + VINYL_CUT_SEC + ';',
     makePlatter.toString(), platterStep.toString(), platterHandFollow.toString(), hermite4.toString(), makeVinyl.toString(),
-    vinylRead.toString(), vinylProcess.toString(), vinylCommand.toString(),
+    vinylRead.toString(), vinylReadAir.toString(), vinylToneK.toString(), vinylCutSpec.toString(), vinylScriptStep.toString(),
+    vinylScriptCut.toString(), vinylScriptBlock.toString(), vinylSnap.toString(), vinylProcess.toString(), vinylCommand.toString(),
     'class MB8Vinyl extends AudioWorkletProcessor {',
-    '  constructor(o){ super(); const po = (o && o.processorOptions) || {}; this.S = makeVinyl(sampleRate, po.seconds); this.n = 0;',
+    '  constructor(o){ super(); const po = (o && o.processorOptions) || {}; this.S = makeVinyl(sampleRate, po.seconds); this.n = 0; this.eng = false; this.done = 0;',
     '    this.port.onmessage = e => { vinylCommand(this.S, e.data); }; }',
     '  process(inputs, outputs){',
     '    const inp = inputs[0], out = outputs[0];',
     '    if (!out || !out.length) return true;',
     '    const n = out[0].length;',
     '    const inL = inp && inp.length ? inp[0] : null, inR = inp && inp.length > 1 ? inp[1] : inL;',
-    '    vinylProcess(this.S, inL, inR, out[0], out.length > 1 ? out[1] : out[0], n);',
-    '    if ((++this.n & 7) === 0 && (this.S.engaged || this.S.gain > 0)){ const S = this.S;',
-    '      this.port.postMessage({ rate: S.platter.rate, mode: S.platter.mode, lag: (S.written - S.pos) / S.sr, at: currentTime }); }',
+    '    vinylProcess(this.S, inL, inR, out[0], out.length > 1 ? out[1] : out[0], n, currentTime);',
+    '    const S = this.S, changed = S.engaged !== this.eng || (S.scriptDone | 0) !== this.done;',
+    '    if (changed || ((++this.n & 7) === 0 && (S.engaged || S.gain > 0))){ this.eng = S.engaged; this.done = S.scriptDone | 0;',
+    '      this.port.postMessage({ rate: S.platter.rate, mode: S.platter.mode, lag: (S.written - S.pos) / S.sr, at: currentTime, engaged: S.engaged, gen: S.gen | 0, script: S.script ? 1 : 0, done: this.done }); }',
     '    return true;',
     '  }',
     '}',
@@ -21616,7 +21888,7 @@ function vinylWorkletSource(){
     // the song tape's processor: no input (the element is not in the graph); the tape arrives by message
     makeVinylSong.toString(), vinylSongCommand.toString(), vinylSongProcess.toString(),
     'class MB8VinylSong extends AudioWorkletProcessor {',
-    '  constructor(){ super(); this.S = null; this.n = 0;',
+    '  constructor(){ super(); this.S = null; this.n = 0; this.eng = false; this.done = 0;',
     '    this.port.onmessage = e => { const m = e.data || {};',
     "      if (m.op === 'tape'){ this.S = (m.L && m.L.length) ? makeVinylSong(sampleRate, m.L, m.R, m.sr) : null; return; }",
     "      if (m.op === 'eject'){ this.S = null; return; }",
@@ -21626,9 +21898,10 @@ function vinylWorkletSource(){
     '    if (!out || !out.length) return true;',
     '    const n = out[0].length, oR = out.length > 1 ? out[1] : out[0];',
     '    if (!this.S){ out[0].fill(0); oR.fill(0); return true; }',
-    '    vinylSongProcess(this.S, out[0], oR, n);',
-    '    if ((++this.n & 7) === 0 && (this.S.engaged || this.S.gain > 0)){ const S = this.S;',
-    '      this.port.postMessage({ rate: S.platter.rate, mode: S.platter.mode, lag: (S.written - S.pos) / S.tsr, at: currentTime }); }',
+    '    vinylSongProcess(this.S, out[0], oR, n, currentTime);',
+    '    const S = this.S, changed = S.engaged !== this.eng || (S.scriptDone | 0) !== this.done;',
+    '    if (changed || ((++this.n & 7) === 0 && (S.engaged || S.gain > 0))){ this.eng = S.engaged; this.done = S.scriptDone | 0;',
+    '      this.port.postMessage({ rate: S.platter.rate, mode: S.platter.mode, lag: (S.written - S.pos) / S.tsr, at: currentTime, engaged: S.engaged, gen: S.gen | 0, script: S.script ? 1 : 0, done: this.done }); }',
     '    return true;',
     '  }',
     '}',
@@ -22236,7 +22509,8 @@ const MIXER = {
     // a hand on the handle (the poller can get here between a grab and the
     // next frame): the mix is theirs — the plan is dropped, not fired over them
     if (DECKS.fader.hand){ this.cancel('hand'); return; }
-    if (typeof VINYL !== 'undefined') VINYL.drop();    // the seam owns both decks from here
+    // (a hand on a platter keeps it: the vinyl insert sits before the gain, so
+    // the seam's curve shapes a scratch exactly as it shapes the deck)
     let p = this.plan;
     const od = AE.decks[AE.active];
     const nd = AE.decks[1 - AE.active];
@@ -25976,9 +26250,10 @@ const FX = {
     if (!d || !this._rolling(d)) return;
     /* THE REAL THING WHERE IT EXISTS. A platter that can stop — and start again
        with the motor's own spin-up — is a brake; the element-rate version below
-       is the memory of one, kept for the devices without a tape. (The platter
-       is the record on air's until it is per deck.) */
-    if (slot === AE.active && typeof VINYL !== 'undefined' && VINYL.canEngage()){ if (VINYL.brake()){ this.hand(); return; } }
+       is the memory of one, kept for the devices without a tape. Per deck: the
+       hand's platter, whichever that is. */
+    const hand = typeof VINYL !== 'undefined' ? VINYL.for(slot) : null;
+    if (hand && hand.canEngage()){ if (hand.brake(seconds)){ this.hand(); return; } }
     this.brakeT = 0; this._brakeSec = seconds || 1.1; this._brakeFrom = d.a.playbackRate || 1;
     this._brakeDeck = d;
     this._brakeT0 = performance.now();
@@ -26222,102 +26497,505 @@ function cueFmt(sec){
 
    A lit pad is a pad that is DOING something, never merely selected. */
 /* ================================================================
-   VINYL — the platter in the booth. The arithmetic is in the @vinyl block;
-   this is the hand that holds it, and the seat it takes in the graph.
+   VINYL — the platters in the booth. The arithmetic is in the @vinyl block;
+   this is the pair of HANDS that hold them, and the seats they take in the
+   graph.
 
-   THE SEAT. The worklet is an INSERT between the bus gate and the rack:
-   bus gate → vinyl → (rack, analyser). Disengaged it passes the room through
-   untouched and records it; engaged it plays the tape instead. Because the
-   room's dry signal and the platter's wet one are mixed inside the one
-   processor, taking the room and giving it back are sample-exact crossfades
-   that nothing on the main thread can stutter — and the analyser sits after
-   it, so the field scratches with the record.
+   THE SEAT IS PER DECK. Each deck wears its own processor, an INSERT between
+   its filter and its gain:
+     src → shelf → hp → filter → VINYL → gain → fader → bus
+   with the echo send tapped after it, so an echo trail follows a scratch.
+   Disengaged it passes the deck through untouched and records it; engaged it
+   plays the tape instead. Because the deck's dry signal and the platter's wet
+   one are mixed inside the one processor, taking the record and giving it
+   back are sample-exact crossfades that nothing on the main thread can
+   stutter. And because the tape is cut BEFORE the gain, everything downstream
+   keeps its say: the mixer's seam curve shapes a scratch exactly as it shapes
+   the deck, the loudness trim applies, and the crossfader decides whether it
+   is heard — a scratch on a deck whose fader is down is silent, which is
+   cueing, which is correct. The analyser on the bus gate sees the scratched
+   sum, so the field scratches with the record.
+
+   TWO HANDS, ONE OBJECT. VINYL.decks is a hand per slot (makeVinylHand),
+   each with its own node, state and gestures; VINYL.for(i) is the hand,
+   VINYL.focus the one the pads act on (DECKS.handSlot: the deck the hand last
+   touched). The single-platter names (VINYL.grab, VINYL.engaged, VINYL.slip…)
+   are kept as aliases onto the hand in focus, so a caller that still thinks
+   there is one platter — the brake, the probes, the HUD — is simply talking
+   to the one under the hand.
 
    THE DECK NEVER MOVES WHILE A HAND IS ON THE PLATTER. The element plays on
    underneath, feeding the tape; what changes is which part of the tape is
    heard. Letting go is one of two things:
-     SLIP   (the default, and what hardware calls slip) — the room snaps back
-            to where the track would have been. No seek, no cost, ever.
+     SLIP   (the default, and what hardware calls slip) — the record snaps
+            back to where the track would have been. No seek, no cost, ever.
+            Quantised (VINYL.quant), the snap waits for the next beat or bar
+            line, so the release itself lands on the beat.
      HOLD   — the track continues from where the record is: the deck is
-            seeked back to the platter's place first, under cover of the
-            platter still playing, and crossed over once it has landed. The
-            seek's latency is learned from each landing, so the first is
-            tight and the rest are tighter.
-   A seam, a loop, a pause or a track change takes the platter away at once:
-   the mixer and the tape own those moments, not the hand.
+            seeked back to the platter's place first — rounded to the nearest
+            beat or bar when quantised, so the record lands back on the 1 —
+            under cover of the platter still playing, and crossed over once
+            it has landed. The seek's latency is learned from each landing,
+            so the first is tight and the rest are tighter.
+   A loop, a pause or a track change takes the platter away at once: the tape
+   and the transport own those moments, not the hand.
+
+   THE AUTO-DJ AND THE HAND. A seam no longer takes the platter away: with the
+   insert pre-gain, a scratch during a blend is just the deck's signal under
+   the mixer's scheduled curve. Two rules keep them out of each other's way.
+   While the mixer's phase lock owns the playheads ('running', 'manual') every
+   hand is slip-only — a hold's seek would fight the lock — and the record on
+   the outgoing deck simply fades under the curve, scratched or not. An armed
+   hand on the incoming deck before the seam is cueing: silent until the fader
+   rises, which is what a DJ expects.
+
+   THE PRESETS are scripts run INSIDE the processor (BABY, CHIRP, TRANSFORM,
+   STAB, FLARE, CRAB): posted at the next beat line of their deck on the
+   audio clock, they land on the beat however late the main thread is, and
+   their fader chops are 1 ms ramps on the wet path, sample-exact.
 
    iOS plays element-direct (no graph, so no room to record), and there the
    platter reads the SONG TAPE instead: the track pressed into a compact tape
    while the booth is open, the element muted under the hand and running on
-   beneath it as the live edge. Slip is the element simply being heard again;
-   hold is one seek of the muted element before it is. Where even that cannot
-   be (AirPlay, no worklet, a song too long to hold) the layer stands down
-   honestly: the pads say so, nothing pretends.
+   beneath it as the live edge, the tape heard through a gain that mirrors the
+   player's volume and mute into the master so the limiter still stands. Only
+   the record on air has a platter there. Where even that cannot be (AirPlay,
+   no worklet, a song too long to hold) the layer stands down honestly: the
+   pads say so, nothing pretends.
    ================================================================ */
 const VINYL_BACK_LEAD = 0.12;       // the first guess at a deck's seek latency; learned from then on
+const VINYL_THROW = 1.8;            // × — a record let go of faster than this is thrown, not put down
+function makeVinylHand(i){
+  return {
+    i, node: null, kind: 'none',
+    engaged: false, armed: false, slip: true, held: false,
+    rate: 1, mode: 'motor', lag: 0, _repAt: 0, _motor: 1, _gen: 0,
+    _ptr: null, _handAt: 0, _back: null, _seekLat: VINYL_BACK_LEAD, _oneShot: false, _engagedAt: 0, _stoppedAt: 0,
+    _script: null, _done: 0, _gain: 1, _thrown: false, _nudgeT: 0, _snapT: 0,
+    letter(){ return this.i ? 'B' : 'A'; },
+    deck(){ return AE.decks ? AE.decks[this.i] : null; },
+    song(){ return VINYL.songMode(); },
+    ok(){
+      if (this.song()) return this.i === AE.active && VINYL.songReady();
+      return !!(AE.graphLive && AE.ctx && this.node && this.kind === 'worklet');
+    },
+    // this deck's element rolling — not the transport's word, which only the record on air has
+    rolling(){ const d = this.deck(); return !!(d && !d.a.paused && !d.a.ended); },
+    seam(){ return typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual'); },
+    // what the processor says, every twenty milliseconds while it has the room
+    _onReport(r){
+      if (!r) return;
+      if (typeof r.rate === 'number') this.rate = r.rate;
+      if (r.mode) this.mode = r.mode;
+      if (typeof r.lag === 'number') this.lag = r.lag;
+      if (typeof r.at === 'number') this._repAt = r.at;
+      // a script that ran its course: the hand lets go the way a finger would
+      if (typeof r.done === 'number' && r.done !== this._done){ this._done = r.done; if (this._script){ this._script = null; this._scriptEnded(); } }
+      // the processor let go on its own (a slip scheduled on a beat line): the hand follows it.
+      // Only a report from THIS engagement counts — one still in flight from the last fade is not news.
+      if (r.engaged === false && this.engaged && !this._back && r.gen === this._gen) this.drop();
+    },
+    // the reasons the platter cannot be taken right now, in the order they are checked
+    why(){
+      const d = this.deck();
+      if (!d) return T('The platter is still being seated — a moment');
+      if (this.song()){
+        if (!VINYL.canSong()) return T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down');
+        if (this.i !== AE.active) return T('On this device only the record on air has a platter');
+        if (!player.playing) return T('Press play first — a record needs to be turning');
+        const s = VINYL._song;
+        if (!s || s.key !== VINYL._songKey()){ VINYL.pressSong(); return T('Pressing this record for the platter — a moment'); }
+        if (s.state === 'loading' || !VINYL.songNode) return T('Pressing this record for the platter — a moment');
+        if (s.state === 'failed') return T('This record could not be pressed for the platter — the music plays on');
+      }
+      else if (!this.ok()) return T('The platter is still being seated — a moment');
+      if (!this.rolling() || d.a.readyState < 2) return T('Press play first — a record needs to be turning');
+      if (AE.mic.on) return T('Not on the microphone');
+      if ((typeof LOOPER !== 'undefined' && LOOPER.on) || (typeof FX !== 'undefined' && FX.loop)) return T('Let the loop go first — the tape is holding it');
+      return '';
+    },
+    canEngage(){ return this.why() === ''; },
+    post(m){
+      const n = this.song() ? VINYL.songNode : this.node;
+      if (n) try { n.port.postMessage(m); } catch (e){}
+    },
+    engage(oneShot){
+      if (this.engaged) return true;
+      if (!this.canEngage()) return false;
+      this.engaged = true; this._oneShot = !!oneShot; this._engagedAt = performance.now(); this._stoppedAt = 0;
+      this.lag = 0; this.rate = 1; this.mode = 'motor'; this._motor = 1; this._script = null; this._thrown = false;
+      this._gen++;
+      if (this.song()){
+        ensureResume();
+        VINYL._clock(true);                         // the edge is where the element is, exactly
+        this.post({ op: 'engage', gen: this._gen });
+        VINYL._mute(true);                          // …and the tape takes over from it under a 6 ms fade
+      } else this.post({ op: 'engage', gen: this._gen });
+      if (typeof FX !== 'undefined') FX.hand();
+      if (typeof FXPADS !== 'undefined') FXPADS.paint();
+      return true;
+    },
+    // let go NOW: the deck goes back to wherever the deck is (a slip, a loop, a track change)
+    drop(){
+      if (!this.engaged) return;
+      this.engaged = false; this._oneShot = false; this._back = null; this._ptr = null; this.held = false; this._script = null; this._thrown = false;
+      clearTimeout(this._snapT); this._snapT = 0;
+      clearTimeout(this._nudgeT); this._nudgeT = 0;
+      this.post({ op: 'release' });
+      if (this.song()) VINYL._mute(false);          // element-direct: the element is the room again
+      if (typeof FXPADS !== 'undefined') FXPADS.paint();
+    },
+    // let go MUSICALLY: slip snaps home first (on the beat, when quantised); hold fetches the deck to the platter first
+    release(){
+      if (!this.engaged) return;
+      if (this.slip || this.seam()){
+        const at = this._lineAt();
+        if (at > 0){
+          // the processor lets go ON the line; the main thread's side follows a breath after it
+          this.post({ op: 'snap', at, release: true });
+          clearTimeout(this._snapT);
+          this._snapT = setTimeout(() => { this._snapT = 0; if (this.engaged && !this._ptr){ this.drop(); HAPTICS.pulse(false); } },
+                                   Math.max(0, (at - AE.ctx.currentTime) * 1000) + 40);
+          return;
+        }
+        this.post({ op: 'snap' }); this.drop(); return;
+      }
+      if (this.lagNow() < 0.02 || !this.rolling()){ this.drop(); return; }
+      this._handback();
+    },
+    // the platter's distance behind the live edge, extrapolated from the last report
+    lagNow(){
+      const ctx = AE.ctx;
+      const since = ctx && this._repAt ? Math.max(0, ctx.currentTime - this._repAt) : 0;
+      return Math.max(0, this.lag + (1 - this.rate) * since);
+    },
+    /* HOLD: seek the deck to the platter's place under cover of the tape,
+       learning the seek latency; quantised, the place is rounded to the grid
+       first, so a hold-release lands the record back on the beat. Never under
+       the mixer's phase lock — a seek would fight it — where a hold is a slip. */
+    _handback(){
+      const d = this.deck();
+      if (!d || this._back){ if (!d) this.drop(); return; }
+      if (this.seam()){ this.post({ op: 'snap' }); this.drop(); return; }
+      const ctx = AE.ctx;
+      const place = Math.max(0, d.a.currentTime - this.lagNow());
+      const to = Math.max(0, this._landing(place) + this._seekLat);
+      const b = { t0: ctx.currentTime, to, done: false };
+      const landed = () => {
+        if (b.done) return;
+        b.done = true;
+        d.a.removeEventListener('seeked', landed);
+        const lat = ctx.currentTime - b.t0;
+        // learn this deck's seek latency, so the next landing is tighter than this one
+        if (lat > 0 && lat < 1) this._seekLat += (lat - this._seekLat) * 0.5;
+        this._back = null;
+        this.drop();
+        HAPTICS.pulse(false);
+        if (this.i === AE.active && typeof mediaSessionPosition === 'function') mediaSessionPosition();
+      };
+      d.a.addEventListener('seeked', landed);
+      this._back = b;
+      window.__mb8VinylBack = { to, lead: this._seekLat, deck: this.letter(), quant: VINYL.quant };
+      try { d.a.currentTime = to; } catch (e){ landed(); }
+      setTimeout(() => { if (!b.done) landed(); }, 1500);     // a seek that never reports still lets go
+    },
+    // where a held record lands: where it is, or the nearest beat/bar line of its deck's grid
+    _landing(place){
+      if (VINYL.quant === 'off' || typeof FX === 'undefined') return place;
+      const d = this.deck(), g = FX._gridOf(d);
+      if (!g.have) return place;
+      return vinylLanding(place, VINYL.quant, g.grid, g.bpm, d.a.duration);
+    },
+    // the context time of this deck's next grid line, for a slip that waits for the beat; 0 = now
+    _lineAt(){
+      if (VINYL.quant === 'off' || typeof FX === 'undefined' || !AE.ctx) return 0;
+      const d = this.deck();
+      if (!d) return 0;
+      const g = FX._gridOf(d);
+      if (!g.have) return 0;
+      const cur = d.a.currentTime, r = d.a.playbackRate || 1;
+      const ahead = (vinylNextLine(cur + 0.02, VINYL.quant, g.grid, g.bpm) - cur) / r;
+      if (!(ahead > 0.01) || ahead > 4.5) return 0;   // a line further off than a slow bar is not worth the wait
+      return AE.ctx.currentTime + ahead;
+    },
+    // the armed slip: home now, or on the line
+    _slipSnap(){
+      const at = this._lineAt();
+      if (at > 0){
+        this.post({ op: 'snap', at });
+        clearTimeout(this._snapT);
+        this._snapT = setTimeout(() => { this._snapT = 0; HAPTICS.pulse(false); }, Math.max(0, (at - AE.ctx.currentTime) * 1000));
+      } else this.post({ op: 'snap' });                 // (the lift itself was the pulse)
+    },
+    /* THE SCRATCH PAD. Armed, the platter stays in the hand between touches —
+       no handback after every lift, the record simply keeps turning from where
+       the finger left it (or snaps home, with slip) — until the pad is pressed
+       again, or held. */
+    arm(on){
+      if (on && !this.engage(false)){ this.armed = false; toast(this.why()); return; }
+      this.armed = !!on;
+      if (this.armed) toast(this.slip ? T('Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.')
+                                      : T('Vinyl — the platter is in your hand. Drag the record; let go and it keeps turning.'));
+      else { this.lift(); this.release(); }
+      VINYL._cursor();
+      if (typeof FXPADS !== 'undefined') FXPADS.paint();
+    },
+    setSlip(on){
+      this.slip = !!on;
+      toast(this.slip ? T('Slip <b>on</b> — let go and the room snaps back to where the track would have been')
+                      : T('Slip <b>off</b> — let go and the track carries on from where the record is'));
+      if (typeof FXPADS !== 'undefined') FXPADS.paint();
+    },
+    // the hand's spring, for the pointer that holds it (a finger is tighter than a mouse), and its reach (FINE halves it)
+    feel(kind){
+      const f = VINYL.feel[kind] || VINYL.feel.touch;
+      this._feelKind = kind;
+      this._gain = (f.gain || 1) * (VINYL.fine ? 0.5 : 1);
+      this.post({ op: 'feel', lead: f.lead, tau: f.tau });
+    },
+    // ---- the hand, from the booth's pointer events (x, y in canvas pixels; g = the platter's circle)
+    grab(x, y, g, t, kind, hold){
+      if (!this.armed && !this.engage(true)){ toast(this.why()); return false; }
+      this.feel(kind);
+      this._ptr = { a: Math.atan2(y - g.cy, x - g.cx), t: t > 0 ? t : performance.now(), v: 0, x: 0, det: 0, hold: !!hold };
+      this._handAt = performance.now(); this._thrown = false;
+      this.post({ op: 'grab' });                        // the record stops under the finger, here
+      HAPTICS.pulse(false);
+      VINYL._rim(this.i, 'grab');
+      return true;
+    },
+    move(x, y, g, t){
+      const p = this._ptr;
+      if (!p || p.hold) return;                         // a hand on the label holds the record still: no scratch
+      const a = Math.atan2(y - g.cy, x - g.cx), now = t > 0 ? t : performance.now();
+      const dt = (now - p.t) / 1000;
+      const dA = platterDelta(a, p.a);
+      // the record goes where the finger takes it: the place is exact, whatever the event timing
+      p.x += dA / (2 * Math.PI) * VINYL_REV_SEC * this._gain;
+      if (dt > 0) p.v += (platterHandRate(dA, dt) * this._gain - p.v) * 0.6;   // the speed: a throw's, and the HUD's
+      // a quarter turn is a detent under the finger: a tick each time the hand crosses one
+      const det = Math.floor(p.x / (VINYL_REV_SEC / 4));
+      if (det !== p.det){ p.det = det; HAPTICS.tick(6); }
+      p.a = a; p.t = now; this._handAt = now;
+      this.post({ op: 'handAt', x: p.x });
+    },
+    // ---- the hand on the scrolling wave (DECKWAVE): the same record, dragged in a straight line
+    grabLine(t, kind){
+      if (!this.armed && !this.engage(true)){ toast(this.why()); return false; }
+      this.feel(kind);
+      this._ptr = { a: 0, t: t > 0 ? t : performance.now(), v: 0, x: 0, det: 0, hold: false };
+      this._handAt = performance.now(); this._thrown = false;
+      this.post({ op: 'grab' });
+      HAPTICS.pulse(false);
+      VINYL._rim(this.i, 'grab');
+      return true;
+    },
+    // x: seconds of music the hand has moved the record since the grab (forward positive)
+    moveLine(x, t){
+      const p = this._ptr;
+      if (!p || !isFinite(x)) return;
+      const now = t > 0 ? t : performance.now(), dt = (now - p.t) / 1000;
+      const xg = x * this._gain;
+      if (dt > 0) p.v += ((xg - p.x) / dt - p.v) * 0.6;
+      p.x = xg; p.t = now; this._handAt = now;
+      const det = Math.floor(p.x / (VINYL_REV_SEC / 4));
+      if (det !== p.det){ p.det = det; HAPTICS.tick(6); }
+      this.post({ op: 'handAt', x: xg });
+    },
+    /* THE LIFT. A record let go of at speed, in hold mode, is THROWN: it keeps
+       the hand's speed and runs down under air drag (backwards is a backspin
+       the hand sized), and the hand lets go once the motor has it back. Put
+       down, it is given back musically: armed it stays in the hand (slip
+       snapping it home), a touch releases. */
+    lift(){
+      const p = this._ptr;
+      if (!p) return;
+      this._ptr = null;
+      const thrown = !this.slip && !this.seam() && !p.hold && Math.abs(p.v) > VINYL_THROW;
+      if (thrown) this.post({ op: 'throw', v: Math.max(-PLATTER.maxRate, Math.min(PLATTER.maxRate, p.v)) });
+      else this.post({ op: 'lift' });
+      HAPTICS.pulse(false);
+      VINYL._rim(this.i, 'lift');
+      if (!this.engaged) return;
+      if (this.armed){ if (this.slip) this._slipSnap(); return; }   // armed: stays in the hand
+      if (thrown){ this._thrown = true; return; }                     // tick lets go once the motor has it
+      this.release();
+    },
+    // ---- the one-shots and the momentary pads
+    brake(sec){
+      if (!this.engage(!this.armed)) return false;
+      if (this.mode === 'stopped') this.post({ op: 'motor', v: 1 });   // stopped: the power comes back on
+      else this.post({ op: 'brake', sec: sec > 0 ? sec : 0 });
+      return true;
+    },
+    backspin(){ if (!this.engage(!this.armed)) return false; this.post({ op: 'backspin' }); return true; },
+    motor(v, held){
+      if (!this.engage(!this.armed)) return false;
+      this._motor = v; this.held = !!held;
+      this.post({ op: 'motor', v });
+      if (typeof FXPADS !== 'undefined') FXPADS.paint();
+      return true;
+    },
+    // a wheel over the platter is a push of the record's edge: the motor briefly over or under speed, a pitch bend
+    nudge(dir){
+      if (!this.engage(!this.armed)) return false;
+      this.post({ op: 'motor', v: 1 + (dir > 0 ? 0.08 : -0.08) });
+      clearTimeout(this._nudgeT);
+      this._nudgeT = setTimeout(() => { this._nudgeT = 0; if (this.engaged) this.post({ op: 'motor', v: this._motor }); }, 120);
+      this._engagedAt = performance.now();
+      return true;
+    },
+    /* A PRESET, on the beat. The pad's strokes (VINYL_PRESETS) go to the
+       processor as a script timed to this deck's next beat line on the audio
+       clock, so the pattern lands on the beat however late the main thread
+       is; held, it repeats until the pad lifts (the stroke in hand completes
+       first). The record is taken one-shot unless the platter is armed; a
+       script that runs out lets go the way a finger would. */
+    script(name, opts){
+      const o = opts || {};
+      if (!VINYL_PRESETS[name]) return false;
+      if (!this.engage(!this.armed)) return false;
+      const d = this.deck(), g = (typeof FX !== 'undefined' && d) ? FX._gridOf(d) : { have: false, bpm: 120 };
+      const p = vinylPresetSteps(name, 60 / (g.bpm > 0 ? g.bpm : 120));
+      let at = 0;
+      if (g.have && d && AE.ctx){
+        const cur = d.a.currentTime, ahead = (vinylNextLine(cur + 0.03, 'beat', g.grid, g.bpm) - cur) / (d.a.playbackRate || 1);
+        if (ahead > 0.01 && ahead < 2.5) at = AE.ctx.currentTime + ahead;
+      }
+      this._script = { name, at: performance.now() };
+      this.post({ op: 'script', steps: p.steps, loops: o.hold ? 64 : p.loops, min: p.loops, at });
+      this._engagedAt = performance.now();
+      if (typeof FX !== 'undefined') FX.hand();
+      if (typeof FXPADS !== 'undefined') FXPADS.paint();
+      return true;
+    },
+    // the pad lifted: the stroke in hand completes, then the script is done
+    scriptEnd(){ if (this._script) this.post({ op: 'script', finish: true }); },
+    _scriptEnded(){
+      if (!this.engaged) return;
+      if (this.armed){ if (this.slip) this._slipSnap(); } else this.release();
+      if (typeof FXPADS !== 'undefined') FXPADS.paint();
+    },
+    tick(dt){
+      if (!this.engaged) return;
+      const now = performance.now();
+      // the deck stopped (a pause, an end, a track change): nothing to hold on to
+      if (!this.rolling() && !this._back){ this.drop(); return; }
+      if (this.song()){
+        // the record in hand is the one that was pressed, on the record on air: anything else takes the platter away
+        if (this.i !== AE.active || !VINYL.songReady()){ this.drop(); return; }
+        if (now - VINYL._clockAt > 500) VINYL._clock(false);   // keep the edge on the element's playhead
+      }
+      // a finger holding the record still sends no events, and needs none: the hand is a place
+      // the tape has a reach: past it, slip snaps home and hold fetches the deck
+      if (this.lag > VINYL_RING_SEC - 3 && !this._back){ if (this.slip || this.seam()) this.post({ op: 'snap' }); else this._handback(); }
+      // a thrown record is let go of once the motor has it back
+      if (this._thrown && !this._ptr && this.mode === 'motor' && Math.abs(this.rate - 1) < 0.03){ this._thrown = false; if (!this.armed) this.release(); }
+      if (this._oneShot && !this._ptr && !this.held && !this._back && !this._script && !this._nudgeT && !this._thrown){
+        // a brake that has stopped waits a breath, then the power comes back on
+        if (this.mode === 'stopped'){
+          if (!this._stoppedAt) this._stoppedAt = now;
+          else if (now - this._stoppedAt > 350){ this._stoppedAt = 0; this.post({ op: 'motor', v: 1 }); this._motor = 1; }
+        }
+        // …and a one-shot that has run its course lets go on its own
+        const settled = this.mode === 'motor' && this._motor === 1 && Math.abs(this.rate - 1) < 0.03;
+        if (settled && now - this._engagedAt > 150) this.release();
+      }
+    },
+    // ---- the HUD line in the booth header
+    status(){
+      if (!this.engaged) return '';
+      const r = this.rate;
+      return this.letter() + ' vinyl ' + (r < 0 ? '−' : '') + Math.abs(r).toFixed(2) + '× · ' + this.lagNow().toFixed(2) + ' s back'
+           + (this.slip ? ' · slip' : '') + (VINYL.quant !== 'off' ? ' · ' + VINYL.quant : '') + (this._script ? ' · ' + this._script.name : '');
+    },
+  };
+}
 const VINYL = {
-  node: null, kind: 'none', _url: '', _busy: false,
-  engaged: false, armed: false, slip: true, held: false,
-  rate: 1, mode: 'motor', lag: 0, _repAt: 0, _motor: 1,
-  _ptr: null, _handAt: 0, _back: null, _seekLat: VINYL_BACK_LEAD, _oneShot: false, _engagedAt: 0, _stoppedAt: 0,
-  ok(){
-    if (this.songMode()) return this.songReady();
-    return !!(AE.graphLive && AE.ctx && AE.fx && this.node && this.kind === 'worklet');
-  },
+  decks: [makeVinylHand(0), makeVinylHand(1)],
+  _url: '', _busy: false, _modCtx: null,
+  quant: 'off',                       // 'off' | 'beat' | 'bar' — where a let-go record lands
+  fine: false,                        // FINE: the hand's reach halved, for crabs and scribbles
+  /* the hand's spring per pointer. A finger's events come at 120 Hz on the
+     phones that matter and a pen's likewise, so they get the tight spring
+     (ζ ≈ 0.7, ~22 Hz: a chirp is a chirp); a mouse reports sixty times a
+     second and gets a touch more lead, so it never hunts between events. */
+  feel: { touch: { gain: 1, lead: 0.010, tau: 0.005 }, pen: { gain: 1, lead: 0.010, tau: 0.005 }, mouse: { gain: 1, lead: 0.014, tau: 0.007 } },
+  for(i){ return this.decks[i === 1 ? 1 : 0]; },
+  get focus(){ return (typeof DECKS !== 'undefined') ? DECKS.handSlot() : (AE.active || 0); },
+  hand(){ return this.for(this.focus); },
+  ok(){ return this.hand().ok(); },
+  songMode(){ return !AE.graphLive; },
+  /* THE SEATING. The module is loaded once per context (a blob of the @vinyl
+     block); then each deck gets its own processor between its filter and its
+     gain. Called when the graph is built and again when the booth opens, so a
+     context that was rebuilt (AirPlay back to the graph) is seated too; a
+     deck that is already seated is left alone. */
   async install(){
-    if (!AE.ctx || !AE.busGate || !AE.fx || !AE.analyser || this.node || this._busy) return;
+    if (!AE.ctx || !AE.decks || !AE.graphLive || this._busy) return;
     if (!(AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function' && typeof Blob === 'function'
           && window.URL && URL.createObjectURL)) return;
     const ctx = AE.ctx;
     this._busy = true;
     try {
-      if (!this._url) this._url = URL.createObjectURL(new Blob([vinylWorkletSource()], { type: 'text/javascript' }));
-      await ctx.audioWorklet.addModule(this._url);
-      this._modCtx = ctx;                                               // the song tape's processor came with it
-      if (AE.ctx !== ctx || this.node){ this._busy = false; return; }   // the graph moved on while the module loaded
-      const node = new AudioWorkletNode(ctx, 'mb8-vinyl', {
+      await this._module();
+      if (AE.ctx === ctx && AE.graphLive) for (let i = 0; i < 2; i++) this.seatDeck(AE.decks[i], i);
+    } catch (e){}
+    this._busy = false;
+    this._report();
+  },
+  seatDeck(d, i){
+    const k = (i === 0 || i === 1) ? i : (AE.decks ? AE.decks.indexOf(d) : -1);
+    const hand = this.decks[k];
+    if (!d || !hand || !d.filter || !d.gain || d.vinyl || !AE.ctx || this._modCtx !== AE.ctx) return false;
+    try {
+      const node = new AudioWorkletNode(AE.ctx, 'mb8-vinyl', {
         numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
         channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers',
         processorOptions: { seconds: VINYL_RING_SEC },
       });
-      node.port.onmessage = e => {
-        const d = e.data || {};
-        if (typeof d.rate === 'number') this.rate = d.rate;
-        if (d.mode) this.mode = d.mode;
-        if (typeof d.lag === 'number') this.lag = d.lag;
-        if (typeof d.at === 'number') this._repAt = d.at;
-      };
-      node.onprocessorerror = () => this.retire();
-      // the insert takes its seat: the gate used to feed the rack and the analyser directly
-      try { AE.busGate.disconnect(AE.fx.in); } catch (e){}
-      try { AE.busGate.disconnect(AE.analyser); } catch (e){}
-      AE.busGate.connect(node); node.connect(AE.fx.in); node.connect(AE.analyser);
-      this.node = node; this.kind = 'worklet';
+      node.port.onmessage = e => hand._onReport(e.data);
+      node.onprocessorerror = () => this.unseatDeck(d, k);
+      // the insert takes its seat: the filter used to feed the gain and the echo send directly
+      try { d.filter.disconnect(d.gain); } catch (e){}
+      try { d.filter.disconnect(d.echoSend); } catch (e){}
+      d.filter.connect(node); node.connect(d.gain); node.connect(d.echoSend);
+      d.vinyl = node; hand.node = node; hand.kind = 'worklet';
     } catch (e){
-      this.node = null; this.kind = 'none';
-      try { AE.busGate.connect(AE.fx.in); AE.busGate.connect(AE.analyser); } catch (e2){}
+      d.vinyl = null; hand.node = null; hand.kind = 'none';
+      try { d.filter.connect(d.gain); d.filter.connect(d.echoSend); } catch (e2){}
     }
-    this._busy = false;
-    window.__mb8Vinyl = this.kind;                   // the probes read whether the platter is seated
-  },
-  // a processor that threw is a processor no longer passing the room through: put the direct wiring back
-  retire(){
-    const n = this.node;
-    this.node = null; this.kind = 'none'; this.engaged = false; this.armed = false; this._back = null;
-    if (n) try { n.disconnect(); AE.busGate.disconnect(n); } catch (e){}
-    try { AE.busGate.connect(AE.fx.in); AE.busGate.connect(AE.analyser); } catch (e){}
-    window.__mb8Vinyl = 'none';
+    this._report();
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
+    return hand.kind === 'worklet';
+  },
+  // a processor that threw is a processor no longer passing the deck through: the direct wiring goes
+  // back (unless the whole chain is being torn down, `torn`, when there is nothing to wire to)
+  unseatDeck(d, i, torn){
+    const k = (i === 0 || i === 1) ? i : (AE.decks ? AE.decks.indexOf(d) : -1);
+    const hand = this.decks[k], n = d && d.vinyl;
+    if (hand){ hand.node = null; hand.kind = 'none'; hand.engaged = false; hand.armed = false; hand._back = null; hand._ptr = null; hand._script = null; }
+    if (d) d.vinyl = null;
+    if (n){ try { n.port.onmessage = null; n.disconnect(); } catch (e){} if (d && d.filter) try { d.filter.disconnect(n); } catch (e){} }
+    if (!torn && d && d.filter && d.gain){ try { d.filter.connect(d.gain); d.filter.connect(d.echoSend); } catch (e){} }
+    this._report();
+    if (typeof FXPADS !== 'undefined') FXPADS.paint();
+  },
+  // the probes read whether the platters are seated: per deck, and the one word they compare
+  _report(){
+    const A = this.decks[0].kind, B = this.decks[1].kind;
+    window.__mb8VinylDecks = { A, B };
+    window.__mb8Vinyl = (A === 'worklet' && B === 'worklet') ? 'worklet' : (A === 'worklet' || B === 'worklet') ? 'partial' : 'none';
   },
   /* ---- THE SONG TAPE, for a deck that plays element-direct (iOS). The arithmetic
      is vinylSongProcess in the @vinyl block; this presses the record (fetch,
      decode once at the tape's rate, hand the int16 channels to the worklet) and
-     seats a processor that plays straight to the output. While the hand has the
-     record the element is muted and plays on underneath as the live edge, so
-     a slip is free and a hold is one seek. Pressed while the booth is open,
-     ejected when it closes or the track changes: 32 MB at most, never two. */
-  songNode: null, _song: null, _songMuted: null, _clockAt: 0,
-  songMode(){ return !AE.graphLive; },
+     seats a processor that plays into the master through a gain mirroring the
+     player's own level. While the hand has the record the element is muted and
+     plays on underneath as the live edge, so a slip is free and a hold is one
+     seek. Pressed while the booth is open, ejected when it closes or the track
+     changes: 32 MB at most, never two. The record on air's hand alone has it. */
+  songNode: null, _songGain: null, _song: null, _songMuted: null, _clockAt: 0,
   // the element-direct deck can scratch where the audio thread can run a worklet and the music is not out on AirPlay
   canSong(){
     return !!(IS_IOS && !AE.graphLive && AE.ctx && AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function'
@@ -26337,19 +27015,24 @@ const VINYL = {
     const node = new AudioWorkletNode(AE.ctx, 'mb8-vinyl-song', {
       numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
     });
-    node.port.onmessage = e => {
-      const d = e.data || {};
-      if (!this.songMode()) return;
-      if (typeof d.rate === 'number') this.rate = d.rate;
-      if (d.mode) this.mode = d.mode;
-      if (typeof d.lag === 'number') this.lag = d.lag;
-      if (typeof d.at === 'number') this._repAt = d.at;
-    };
+    node.port.onmessage = e => { if (this.songMode()) this.for(AE.active)._onReport(e.data); };
     node.onprocessorerror = () => { this.drop(); this.songNode = null; this._song = null; };
-    // straight to the output: the element it stands in for never went through the rack either
-    node.connect(AE.out || AE.ctx.destination);
-    this.songNode = node;
+    /* into the master, through a gain that is the player's own level: the element
+       it stands in for answers the volume slider and the mute, so the tape does
+       too, and the limiter after the master is a rail the scratch cannot clear */
+    const gain = AE.ctx.createGain(); gain.gain.value = 0;
+    node.connect(gain); gain.connect(AE.master || AE.out || AE.ctx.destination);
+    this.songNode = node; this._songGain = gain;
+    this.songVolume();
     return node;
+  },
+  // the song tape's level mirrors the player's: the slider, the mute, the record's loudness trim — a 20 ms ramp
+  songVolume(){
+    const g = this._songGain;
+    if (!g || !AE.ctx) return;
+    const d = activeDeck();
+    const v = (AE.muted ? 0 : (el.vol ? parseInt(el.vol.value, 10) / 100 : 1)) * ((d && d.norm > 0) ? d.norm : 1);
+    try { g.gain.setTargetAtTime(Math.max(0, Math.min(1.5, v)), AE.ctx.currentTime, 0.02); } catch (e){}
   },
   /* PRESS THE RECORD NOW PLAYING. Called once when the booth opens and once
      per track change (not from every draw, as it used to be): what it costs
@@ -26357,11 +27040,13 @@ const VINYL = {
      path, i.e. on the phone, beside the element's own stream of the very
      same song. So it waits until that stream is done — the deck holds
      everything to its end — and declines outright on a device that reports
-     under 4 GB, where a song of PCM is what gets the page jettisoned. Not
-     ready yet is not never: while the booth is open it asks itself again in
-     a few seconds. The bytes come from the shared memo (the iOS warm has
-     often already fetched them), and a pressing that is overtaken by the next
-     track is aborted, not finished for nobody. */
+     under 4 GB, where a song of PCM is what gets the page jettisoned; a
+     device reporting 2 GB or less, were it ever to pass, would be pressed at
+     24 kHz, which halves the decode's float peak. Not ready yet is not never:
+     while the booth is open it asks itself again in a few seconds. The bytes
+     come from the shared memo (the iOS warm has often already fetched them),
+     and a pressing that is overtaken by the next track is aborted, not
+     finished for nobody. */
   pressSong(){
     clearTimeout(this._pressT); this._pressT = null;
     if (!this.canSong()) return;
@@ -26375,7 +27060,7 @@ const VINYL = {
     if (mem != null && isFinite(mem) && mem < 4){ this._song = { key, state: 'failed', sr: 0 }; return; }
     if (d && !/^(blob|data):/i.test(tr.url || '')
         && !seamBuffered(d.a.buffered, d.a.currentTime, dur - d.a.currentTime - 0.5)){ this._pressLater(); return; }
-    const tsr = vinylSongRate(dur);
+    const tsr = vinylSongRate(dur, (mem != null && isFinite(mem) && mem <= 2) ? VINYL_SONG_LOW_SR : 0);
     const ctl = new AbortController();
     const s = this._song = { key, state: tsr ? 'loading' : 'failed', sr: tsr, ac: ctl };
     if (!tsr) return;
@@ -26424,7 +27109,8 @@ const VINYL = {
     const d = activeDeck();
     if (!d || !this.songNode) return;
     this._clockAt = performance.now();
-    this.post({ op: 'clock', at: d.a.currentTime, rate: d.a.playbackRate || 1, hard: !!hard });
+    try { this.songNode.port.postMessage({ op: 'clock', at: d.a.currentTime, rate: d.a.playbackRate || 1, hard: !!hard }); } catch (e){}
+    this.songVolume();
   },
   _mute(on){
     if (on){
@@ -26435,197 +27121,39 @@ const VINYL = {
       if (!d._seekPending) d.a.muted = false;    // a resume seek still landing keeps its own mute
     }
   },
-  // the reasons the platter cannot be taken right now, in the order they are checked
-  why(){
-    if (this.songMode()){
-      if (!this.canSong()) return T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down');
-      if (!player.playing) return T('Press play first — a record needs to be turning');
-      const s = this._song;
-      if (!s || s.key !== this._songKey()){ this.pressSong(); return T('Pressing this record for the platter — a moment'); }
-      if (s.state === 'loading' || !this.songNode) return T('Pressing this record for the platter — a moment');
-      if (s.state === 'failed') return T('This record could not be pressed for the platter — the music plays on');
-    }
-    else if (!this.ok()) return T('The platter is still being seated — a moment');
-    if (!player.playing) return T('Press play first — a record needs to be turning');
-    if (AE.mic.on) return T('Not on the microphone');
-    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return T('The mixer owns the decks through a seam');
-    if (typeof FX !== 'undefined' && FX.loop) return T('Let the loop go first — the tape is holding it');
-    return '';
-  },
-  canEngage(){ return this.why() === ''; },
-  post(m){
-    const n = this.songMode() ? this.songNode : this.node;
-    if (n) try { n.port.postMessage(m); } catch (e){}
-  },
-  engage(oneShot){
-    if (this.engaged) return true;
-    if (!this.canEngage()) return false;
-    this.engaged = true; this._oneShot = !!oneShot; this._engagedAt = performance.now(); this._stoppedAt = 0;
-    this.lag = 0; this.rate = 1; this.mode = 'motor'; this._motor = 1;
-    if (this.songMode()){
-      ensureResume();
-      this._clock(true);                          // the edge is where the element is, exactly
-      this.post({ op: 'engage' });
-      this._mute(true);                           // …and the tape takes over from it under a 6 ms fade
-    } else this.post({ op: 'engage' });
-    if (typeof FX !== 'undefined') FX.hand();
-    if (typeof FXPADS !== 'undefined') FXPADS.paint();
-    return true;
-  },
-  // let go NOW: the room goes back to the deck wherever the deck is (a slip, a seam, a track change)
-  drop(){
-    if (!this.engaged) return;
-    this.engaged = false; this._oneShot = false; this._back = null; this._ptr = null; this.held = false;
-    this.post({ op: 'release' });
-    this._mute(false);                            // element-direct: the element is the room again
+  /* ---- the pair, addressed together ---- */
+  why(i){ return this.for(i == null ? this.focus : i).why(); },
+  canEngage(i){ return this.why(i) === ''; },
+  // let go of one platter, or both (a loop, a track change: the tape and the transport own those moments)
+  drop(i){ if (i === 0 || i === 1) this.for(i).drop(); else for (const h of this.decks) h.drop(); },
+  tick(dt){ for (const h of this.decks) h.tick(dt); },
+  status(){ return this.decks.map(h => h.status()).filter(Boolean).join('  ·  '); },
+  setQuant(q){
+    this.quant = q === 'beat' || q === 'bar' ? q : 'off';
+    toast(this.quant === 'off' ? T('Quantise <b>off</b> — a hold lands where the record is')
+        : this.quant === 'beat' ? T('Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it')
+        : T('Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it'));
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
   },
-  // let go MUSICALLY: slip snaps home first; hold fetches the deck to the platter first
-  release(){
-    if (!this.engaged) return;
-    if (this.slip){ this.post({ op: 'snap' }); this.drop(); return; }
-    if (this.lagNow() < 0.02 || !player.playing){ this.drop(); return; }
-    this._handback();
-  },
-  // the platter's distance behind the live edge, extrapolated from the last report
-  lagNow(){
-    const ctx = AE.ctx;
-    const since = ctx && this._repAt ? Math.max(0, ctx.currentTime - this._repAt) : 0;
-    return Math.max(0, this.lag + (1 - this.rate) * since);
-  },
-  _handback(){
-    const d = activeDeck();
-    if (!d || this._back){ if (!d) this.drop(); return; }
-    const ctx = AE.ctx;
-    const to = Math.max(0, d.a.currentTime - this.lagNow() + this._seekLat);
-    const b = { t0: ctx.currentTime, to, done: false };
-    const landed = () => {
-      if (b.done) return;
-      b.done = true;
-      d.a.removeEventListener('seeked', landed);
-      const lat = ctx.currentTime - b.t0;
-      // learn this deck's seek latency, so the next landing is tighter than this one
-      if (lat > 0 && lat < 1) this._seekLat += (lat - this._seekLat) * 0.5;
-      this._back = null;
-      this.drop();
-      if (typeof mediaSessionPosition === 'function') mediaSessionPosition();
-    };
-    d.a.addEventListener('seeked', landed);
-    this._back = b;
-    window.__mb8VinylBack = { to, lead: this._seekLat };
-    try { d.a.currentTime = to; } catch (e){ landed(); }
-    setTimeout(() => { if (!b.done) landed(); }, 1500);     // a seek that never reports still lets go
-  },
-  /* THE SCRATCH PAD. Armed, the platter stays in the hand between touches —
-     no handback after every lift, the record simply keeps turning from where
-     the finger left it — until the pad is pressed again. */
-  arm(on){
-    if (on && !this.engage(false)){ this.armed = false; toast(this.why()); return; }
-    this.armed = !!on;
-    if (this.armed) toast(T('Vinyl — the platter is in your hand. Drag the record; let go and it keeps turning.'));
-    else { this.lift(); this.release(); }
-    const cv = el.boothCv; if (cv) cv.style.cursor = this.armed ? 'grab' : '';
+  cycleQuant(){ this.setQuant(this.quant === 'off' ? 'beat' : this.quant === 'beat' ? 'bar' : 'off'); },
+  setFine(on){
+    this.fine = !!on;
+    for (const h of this.decks) if (h._ptr) h.feel(h._feelKind || 'touch');
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
   },
-  setSlip(on){
-    this.slip = !!on;
-    toast(this.slip ? T('Slip <b>on</b> — let go and the room snaps back to where the track would have been')
-                    : T('Slip <b>off</b> — let go and the track carries on from where the record is'));
-    if (typeof FXPADS !== 'undefined') FXPADS.paint();
-  },
-  // ---- the hand, from the booth's pointer events (x, y in canvas pixels; g = the platter's circle)
-  grab(x, y, g, t){
-    if (!this.armed && !this.engage(true)){ toast(this.why()); return false; }
-    this._ptr = { a: Math.atan2(y - g.cy, x - g.cx), t: t > 0 ? t : performance.now(), v: 0, x: 0 };
-    this._handAt = performance.now();
-    this.post({ op: 'grab' });                        // the record stops under the finger, here
-    HAPTICS.pulse(false);
-    return true;
-  },
-  move(x, y, g, t){
-    const p = this._ptr;
-    if (!p) return;
-    const a = Math.atan2(y - g.cy, x - g.cx), now = t > 0 ? t : performance.now();
-    const dt = (now - p.t) / 1000;
-    const dA = platterDelta(a, p.a);
-    // the record goes where the finger takes it: the place is exact, whatever the event timing
-    p.x += dA / (2 * Math.PI) * VINYL_REV_SEC;
-    if (dt > 0) p.v += (platterHandRate(dA, dt) - p.v) * 0.6;   // the speed, only for the probes and the HUD
-    p.a = a; p.t = now; this._handAt = now;
-    this.post({ op: 'handAt', x: p.x });
-  },
-  // ---- the hand on the scrolling wave (DECKWAVE): the same record, dragged in a straight line
-  grabLine(t){
-    if (!this.armed && !this.engage(true)){ toast(this.why()); return false; }
-    this._ptr = { a: 0, t: t > 0 ? t : performance.now(), v: 0, x: 0 };
-    this._handAt = performance.now();
-    this.post({ op: 'grab' });
-    HAPTICS.pulse(false);
-    return true;
-  },
-  // x: seconds of music the hand has moved the record since the grab (forward positive)
-  moveLine(x, t){
-    const p = this._ptr;
-    if (!p || !isFinite(x)) return;
-    const now = t > 0 ? t : performance.now(), dt = (now - p.t) / 1000;
-    if (dt > 0) p.v += ((x - p.x) / dt - p.v) * 0.6;   // the speed, only for the probes and the HUD
-    p.x = x; p.t = now; this._handAt = now;
-    this.post({ op: 'handAt', x });
-  },
-  lift(){
-    if (!this._ptr) return;
-    this._ptr = null;
-    this.post({ op: 'lift' });
-    if (!this.engaged) return;
-    if (this.armed){ if (this.slip) this.post({ op: 'snap' }); return; }   // armed: stays in the hand
-    this.release();                                   // a touch: give it back musically
-  },
-  // ---- the one-shots and the momentary pads
-  brake(){
-    if (!this.engage(!this.armed)) return false;
-    if (this.mode === 'stopped') this.post({ op: 'motor', v: 1 });   // stopped: the power comes back on
-    else this.post({ op: 'brake' });
-    return true;
-  },
-  backspin(){ if (!this.engage(!this.armed)) return false; this.post({ op: 'backspin' }); return true; },
-  motor(v, held){
-    if (!this.engage(!this.armed)) return false;
-    this._motor = v; this.held = !!held;
-    this.post({ op: 'motor', v });
-    if (typeof FXPADS !== 'undefined') FXPADS.paint();
-    return true;
-  },
-  tick(dt){
-    if (!this.engaged) return;
-    const now = performance.now();
-    // the transport left, or the mixer took the decks: nothing to hold on to
-    if (!player.playing || (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual'))){ this.drop(); return; }
-    if (this.songMode()){
-      // the record in hand is the one that was pressed: a new track takes the platter away
-      if (!this.songReady()){ this.drop(); return; }
-      if (now - this._clockAt > 500) this._clock(false);   // keep the edge on the element's playhead
-    }
-    // a finger holding the record still sends no events, and needs none: the hand is a place
-    // the tape has a reach: past it, slip snaps home and hold fetches the deck
-    if (this.lag > VINYL_RING_SEC - 3 && !this._back){ if (this.slip) this.post({ op: 'snap' }); else this._handback(); }
-    if (this._oneShot && !this._ptr && !this.held && !this._back){
-      // a brake that has stopped waits a breath, then the power comes back on
-      if (this.mode === 'stopped'){
-        if (!this._stoppedAt) this._stoppedAt = now;
-        else if (now - this._stoppedAt > 350){ this._stoppedAt = 0; this.post({ op: 'motor', v: 1 }); this._motor = 1; }
-      }
-      // …and a one-shot that has run its course lets go on its own
-      const settled = this.mode === 'motor' && this._motor === 1 && Math.abs(this.rate - 1) < 0.03;
-      if (settled && now - this._engagedAt > 150) this.release();
-    }
-  },
-  // ---- the HUD line in the booth header
-  status(){
-    if (!this.engaged) return '';
-    const r = this.rate;
-    return 'vinyl ' + (r < 0 ? '−' : '') + Math.abs(r).toFixed(2) + '× · ' + this.lagNow().toFixed(2) + ' s back' + (this.slip ? ' · slip' : '');
-  },
+  _cursor(){ const cv = el.boothCv; if (cv) cv.style.cursor = this.decks.some(h => h.armed) ? 'grab' : ''; },
+  // the platter's rim flashes on a grab and a lift (BOOTH._jog reads it)
+  _rim(i, kind){ if (typeof BOOTH !== 'undefined'){ (BOOTH._rim || (BOOTH._rim = [null, null]))[i] = { at: performance.now(), kind }; } },
 };
+/* THE SINGLE-PLATTER NAMES, kept: each is the hand in focus's. A caller that
+   says VINYL.grab or reads VINYL.rate (the brake, the probes, the HUD) is
+   talking to the platter under the hand — the record on air until a hand
+   touches the other — exactly as it did when there was one. */
+for (const m of ['engage', 'release', 'lagNow', 'arm', 'setSlip', 'grab', 'move', 'grabLine', 'moveLine', 'lift',
+                 'brake', 'backspin', 'motor', 'nudge', 'script', 'scriptEnd', 'rolling'])     // (not `feel`: that name is the table)
+  VINYL[m] = function(){ const h = this.hand(); return h[m].apply(h, arguments); };
+for (const p of ['engaged', 'armed', 'slip', 'held', 'rate', 'mode', 'lag', '_motor', '_ptr', '_script', 'node', 'kind'])
+  Object.defineProperty(VINYL, p, { get(){ return this.hand()[p]; }, set(v){ this.hand()[p] = v; }, configurable: true });
 
 // a pocketed phone must never be left holding a muted element: hidden, the platter lets go
 document.addEventListener('visibilitychange', () => { if (document.hidden && VINYL.songMode()) VINYL.drop(); });
@@ -26639,10 +27167,17 @@ const FXPADS = {
   // band and a value, and pressing what is already there undoes it
   EQS: [['lo', EQ_KILL_DB, 'KILL LOW'], ['mid', EQ_KILL_DB, 'KILL MID'], ['hi', EQ_KILL_DB, 'KILL HI'], ['flat', 0, 'FLAT'],
         ['lo', -6, 'LOW −6'], ['mid', -6, 'MID −6'], ['hi', -6, 'HI −6'], ['hi', 3, 'HI +3']],
-  // the vinyl bank: the platter's own hands. The first two latch, the next two
-  // are one-shots, the three speeds are held, and RESUME hands the room back.
+  // the vinyl bank: the platter's own hands, on the deck the hand last touched.
+  // The first two latch (SCRATCH held is RESUME: the room handed back), the
+  // next two are one-shots, the three speeds are held, and QUANT cycles where
+  // a let-go record lands — off, the beat, the bar.
   VINYLS: [['scratch', 'SCRATCH'], ['slip', 'SLIP'], ['backspin', 'BACKSPIN'], ['brake', 'BRAKE'],
-           ['reverse', 'REVERSE'], ['half', '½ SPEED'], ['quarter', '¼ SPEED'], ['resume', 'RESUME']],
+           ['reverse', 'REVERSE'], ['half', '½ SPEED'], ['quarter', '¼ SPEED'], ['quant', 'QUANT']],
+  // the scratch bank: the strokes a hand learns first, run by the processor on
+  // the beat (tap = once, hold = again and again); CUT is the crossfader's cut
+  // curve for as long as it is held, FINE halves the hand's reach
+  SCRATCHES: [['baby', 'BABY'], ['chirp', 'CHIRP'], ['transform', 'TRANSFORM'], ['stab', 'STAB'],
+              ['flare', 'FLARE'], ['crab', 'CRAB'], ['cut', 'CUT'], ['fine', 'FINE']],
   DIVS: [0.25, 0.5, 0.75, 1, 2, 4],
   _divI: 3,
   label(n){ return n < 1 ? '1/' + Math.round(1 / n) : String(n); },
@@ -26665,6 +27200,7 @@ const FXPADS = {
       : this.bank === 'jump' ? this.JUMPS.map(n => ({ key: n, text: this.jumpLabel(n) }))
       : this.bank === 'eq' ? this.EQS.map((e, i) => ({ key: i, text: e[2] }))
       : this.bank === 'vinyl' ? this.VINYLS.map(v => ({ key: v[0], text: v[1] }))
+      : this.bank === 'scratch' ? this.SCRATCHES.map(v => ({ key: v[0], text: v[1] }))
       : this.LOOPS.map(n => ({ key: n, text: this.label(n) }));
     if (host._sig !== this.bank + cells.length){
       host._sig = this.bank + cells.length;
@@ -26678,6 +27214,7 @@ const FXPADS = {
           : this.bank === 'jump' ? T('Jump {n} beats', { n: c.text })
           : this.bank === 'eq' ? c.text
           : this.bank === 'vinyl' ? T('Vinyl — {name}', { name: c.text })
+          : this.bank === 'scratch' ? T('Scratch — {name}', { name: c.text })
           : T('{n}-beat {bank}', { n: c.text, bank: this.bank }));
         this._bind(b, c.key);
         host.appendChild(b);
@@ -26730,24 +27267,78 @@ const FXPADS = {
       });
     } else if (this.bank === 'vinyl'){
       const speeds = { reverse: -1, half: 0.5, quarter: 0.25 };
+      const H = () => VINYL.hand();                  // the platter under the hand, read at the press
       if (key in speeds){
         /* HELD, like the hardware: the record runs at the pad's speed for as long
            as the pad is down and the motor takes it back the moment it lifts */
-        const down = ev => { ev.preventDefault(); if (!VINYL.motor(speeds[key], true)) toast(VINYL.why()); this.paint(); };
-        const up = () => { if (VINYL.engaged && VINYL.held){ VINYL.motor(1, false); } this.paint(); };
+        const down = ev => { ev.preventDefault(); const h = H(); if (!h.motor(speeds[key], true)) toast(h.why()); this.paint(); };
+        const up = () => { for (const h of VINYL.decks) if (h.engaged && h.held) h.motor(1, false); this.paint(); };
         b.addEventListener('pointerdown', down);
         b.addEventListener('pointerup', up);
         b.addEventListener('pointerleave', up);
         b.addEventListener('pointercancel', up);
+      } else if (key === 'scratch'){
+        /* TAP arms the platter (and disarms it); HOLD is RESUME — the room handed
+           back from whatever state the hand left it in. The hold is the pad's
+           own timer, like the cue pads': a completed hold swallows the click
+           that follows it. */
+        b.title = T('Scratch — tap to take the platter in hand; hold to hand the room back (resume)');
+        let held = 0, resumed = false;
+        const down = ev => {
+          if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+          resumed = false; clearTimeout(held);
+          held = setTimeout(() => { held = 0; const h = H(); h.armed = false; h.release(); VINYL._cursor(); resumed = true; HAPTICS.pulse(true); this.paint(); }, 600);
+        };
+        const up = () => { clearTimeout(held); held = 0; };
+        b.addEventListener('pointerdown', down);
+        b.addEventListener('pointerup', up);
+        b.addEventListener('pointerleave', up);
+        b.addEventListener('pointercancel', up);
+        b.addEventListener('click', () => { if (resumed){ resumed = false; return; } const h = H(); h.arm(!h.armed); this.paint(); });
       } else {
         b.addEventListener('click', () => {
-          if (key === 'scratch') VINYL.arm(!VINYL.armed);
-          else if (key === 'slip') VINYL.setSlip(!VINYL.slip);
-          else if (key === 'backspin'){ if (!VINYL.backspin()) toast(VINYL.why()); else HAPTICS.pulse(true); }
-          else if (key === 'brake'){ if (!VINYL.brake()) toast(VINYL.why()); else HAPTICS.pulse(true); }
-          else if (key === 'resume'){ VINYL.armed = false; VINYL.release(); const cv = el.boothCv; if (cv) cv.style.cursor = ''; }
+          const h = H();
+          if (key === 'slip') h.setSlip(!h.slip);
+          else if (key === 'backspin'){ if (!h.backspin()) toast(h.why()); else HAPTICS.pulse(true); }
+          else if (key === 'brake'){ if (!h.brake()) toast(h.why()); else HAPTICS.pulse(true); }
+          else if (key === 'quant') VINYL.cycleQuant();
           this.paint();
         });
+      }
+    } else if (this.bank === 'scratch'){
+      const H = () => VINYL.hand();
+      if (key === 'cut'){
+        /* MOMENTARY: the crossfader wears the cut curve for as long as the pad is
+           down — a transform's fader, for a thumb that has no second hand */
+        b.title = T('Cut — hold for the crossfader\'s cut curve');
+        const down = ev => {
+          ev.preventDefault(); DECKS.hand();
+          if (this._cutHeld) return;
+          this._cutWas = DECKS.fader.curve; this._cutHeld = true; DECKS.setCurve('cut');
+          if (typeof BOOTH !== 'undefined') BOOTH._syncHud(); this.paint();
+        };
+        const up = () => {
+          if (!this._cutHeld) return;
+          this._cutHeld = false; DECKS.setCurve(this._cutWas || 'power');
+          if (typeof BOOTH !== 'undefined') BOOTH._syncHud(); this.paint();
+        };
+        b.addEventListener('pointerdown', down);
+        b.addEventListener('pointerup', up);
+        b.addEventListener('pointerleave', up);
+        b.addEventListener('pointercancel', up);
+      } else if (key === 'fine'){
+        b.title = T('Fine — half the hand\'s reach, for crabs and scribbles');
+        b.addEventListener('click', () => { VINYL.setFine(!VINYL.fine); this.paint(); });
+      } else {
+        /* A PRESET: down fires it on the deck's next beat and keeps it going; up
+           lets the stroke in hand finish. A tap is the pattern once. */
+        b.title = T('Scratch pattern {name} — tap for once, on the beat; hold to repeat', { name: b.textContent });
+        const down = ev => { ev.preventDefault(); const h = H(); if (!h.script(key, { hold: true })) toast(h.why()); else HAPTICS.pulse(true); this.paint(); };
+        const up = () => { for (const h of VINYL.decks) h.scriptEnd(); this.paint(); };
+        b.addEventListener('pointerdown', down);
+        b.addEventListener('pointerup', up);
+        b.addEventListener('pointerleave', up);
+        b.addEventListener('pointercancel', up);
       }
     } else if (key === 'keylock'){
       b.title = T('Key lock — hold the pitch through a tempo match (on), or let it ride the tempo like vinyl (off)');
@@ -26766,7 +27357,7 @@ const FXPADS = {
     const kids = host.children;
     const cells = this.bank === 'fx' ? this.UNITS.map(u => u[0]).concat(['keylock']) : this.bank === 'cue' ? CUES.slots.map((_, i) => i)
       : this.bank === 'jump' ? this.JUMPS : this.bank === 'eq' ? this.EQS.map((_, i) => i)
-      : this.bank === 'vinyl' ? this.VINYLS.map(v => v[0]) : this.LOOPS;
+      : this.bank === 'vinyl' ? this.VINYLS.map(v => v[0]) : this.bank === 'scratch' ? this.SCRATCHES.map(v => v[0]) : this.LOOPS;
     for (let i = 0; i < kids.length; i++){
       const key = cells[i], k = kids[i];
       let lit;
@@ -26786,17 +27377,26 @@ const FXPADS = {
         lit = !!(FX.jump && v != null && Math.abs(FX.jump.to - v) < 1e-6);
       }
       else if (this.bank === 'jump') lit = false;
-      else if (this.bank === 'vinyl'){
-        const V = VINYL;
+      else if (this.bank === 'vinyl' || this.bank === 'scratch'){
+        const V = VINYL.hand();                    // the platter under the hand
+        if (key === 'quant'){
+          const txt = VINYL.quant === 'off' ? 'QUANT' : VINYL.quant === 'beat' ? 'Q · BEAT' : 'Q · BAR';
+          if (k.textContent !== txt) k.textContent = txt;
+        }
         lit = key === 'scratch' ? V.armed : key === 'slip' ? V.slip
             : key === 'backspin' ? (V.engaged && V.mode === 'backspin')
             : key === 'brake' ? (V.engaged && (V.mode === 'brake' || V.mode === 'stopped'))
             : key === 'reverse' ? (V.engaged && V._motor === -1)
             : key === 'half' ? (V.engaged && V._motor === 0.5)
             : key === 'quarter' ? (V.engaged && V._motor === 0.25)
+            : key === 'quant' ? VINYL.quant !== 'off'
+            : key === 'cut' ? !!this._cutHeld
+            : key === 'fine' ? VINYL.fine
+            : (key in VINYL_PRESETS) ? !!(V.engaged && V._script && V._script.name === key)
             : false;
-        // a bank the device cannot give is shown, honestly, as out of reach
-        const dead = V.songMode() ? !V.canSong() : !V.ok();
+        // a bank the device cannot give is shown, honestly, as out of reach (the
+        // fader's cut, QUANT and FINE are the booth's own settings: always there)
+        const dead = (key === 'cut' || key === 'quant' || key === 'fine') ? false : (VINYL.songMode() ? !VINYL.canSong() : !V.ok());
         if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down') : ''; }
       }
       else if (this.bank === 'eq'){
@@ -26835,21 +27435,25 @@ function wireBoothScrub(){
     }
     return null;
   };
-  /* THE PLATTER IS A RECORD. A pointer landing on deck A's jog wheel takes the
-     record in hand (the VINYL layer): drag it and the music follows the hand,
-     backwards included; let go and the motor takes it back. The lane below
-     stays a scrub strip — a seek, not a scratch — because those are different
-     gestures with different sounds. */
+  /* THE PLATTERS ARE RECORDS. A pointer landing on either jog wheel takes that
+     record in hand (its own VINYL hand): drag it and the music follows the
+     hand, backwards included; let go and the motor takes it back. The grab
+     makes its deck the hand's, so the pads follow. The hit circle is a little
+     wider than the drawn one (a thumb aims at the rim and lands past it), and
+     inside the label — the inner third — a touch HOLDS the record still
+     without scratching it, the way a hand flat on the label does; the rim
+     scratches. The lanes below stay scrub strips — a seek, not a scratch —
+     because those are different gestures with different sounds. */
   let jog = null;
-  // which platter a pointer landed on, if any: deck A's is the record on air, B's only cues
-  // the record on air's platter (slot 0 left, slot 1 right) is the record in hand; the other only says so
   const onJog = ev => {
     const r = cv.getBoundingClientRect();
     const x = ev.clientX - r.left, y = ev.clientY - r.top;
-    const hit = g => { if (!g) return false; const dx = x - g.cx, dy = y - g.cy; return dx * dx + dy * dy <= (g.r * 0.92) * (g.r * 0.92); };
-    const air = AE.active === 1 ? BOOTH._jogB : BOOTH._jogA, other = AE.active === 1 ? BOOTH._jogA : BOOTH._jogB;
-    if (hit(air)){ DECKS.focus = AE.active; DECKS.hand(); return { x, y, g: air }; }
-    if (hit(other)) return { x, y, g: null };
+    for (let i = 0; i < 2; i++){
+      const g = i ? BOOTH._jogB : BOOTH._jogA;
+      if (!g) continue;
+      const dx = x - g.cx, dy = y - g.cy, d2 = dx * dx + dy * dy;
+      if (d2 <= (g.r * 1.15) * (g.r * 1.15)) return { x, y, g, deck: i, hold: d2 <= (g.r * 0.35) * (g.r * 0.35) };
+    }
     return null;
   };
   cv.addEventListener('pointerdown', ev => {
@@ -26857,11 +27461,11 @@ function wireBoothScrub(){
     const j = onJog(ev);
     if (j){
       ev.preventDefault();
-      // (the words are the left platter's; they are only said while they are true)
-      if (!j.g){ if (AE.active === 0) toast(T('Scratch the left platter — that is the record on air')); return; }
-      if (VINYL.grab(j.x, j.y, j.g, ev.timeStamp)){
-        jog = ev.pointerId;
-        try { cv.setPointerCapture(jog); } catch (e){}
+      DECKS.focus = j.deck; DECKS.hand();           // the platter's deck is the hand's from here
+      const hand = VINYL.for(j.deck);
+      if (hand.grab(j.x, j.y, j.g, ev.timeStamp, ev.pointerType, j.hold)){
+        jog = { id: ev.pointerId, deck: j.deck };
+        try { cv.setPointerCapture(ev.pointerId); } catch (e){}
         cv.style.cursor = 'grabbing';
       }
       return;
@@ -26875,13 +27479,13 @@ function wireBoothScrub(){
     ev.preventDefault();
   });
   cv.addEventListener('pointermove', ev => {
-    if (ev.pointerId === jog){
-      const g = AE.active === 1 ? BOOTH._jogB : BOOTH._jogA;
+    if (jog && ev.pointerId === jog.id){
+      const g = jog.deck ? BOOTH._jogB : BOOTH._jogA, hand = VINYL.for(jog.deck);
       if (g){
         // every sample the hand made, at the time it made it: a 120 Hz finger is not a 60 Hz one
         const r = cv.getBoundingClientRect();
         const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
-        for (const e of (evs.length ? evs : [ev])) VINYL.move(e.clientX - r.left, e.clientY - r.top, g, e.timeStamp);
+        for (const e of (evs.length ? evs : [ev])) hand.move(e.clientX - r.left, e.clientY - r.top, g, e.timeStamp);
       }
       ev.preventDefault();
       return;
@@ -26891,11 +27495,20 @@ function wireBoothScrub(){
     if (p){ try { p.deck.a.currentTime = p.to; } catch (e){} }
   });
   const up = ev => {
-    if (ev.pointerId === jog){ jog = null; VINYL.lift(); cv.style.cursor = VINYL.armed ? 'grab' : ''; return; }
+    if (jog && ev.pointerId === jog.id){ const hand = VINYL.for(jog.deck); jog = null; hand.lift(); VINYL._cursor(); return; }
     if (ev.pointerId === id){ id = null; if (typeof mediaSessionPosition === 'function') mediaSessionPosition(); }
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
+  // a wheel over a platter is a push of the record's edge: the motor briefly over or under speed — a pitch bend
+  cv.addEventListener('wheel', ev => {
+    const j = onJog(ev);
+    if (!j) return;
+    ev.preventDefault();
+    DECKS.focus = j.deck; DECKS.hand();
+    const hand = VINYL.for(j.deck);
+    if (!hand.nudge(ev.deltaY < 0 ? 1 : -1) && performance.now() - (cv._nudgeWhy || 0) > 1500){ cv._nudgeWhy = performance.now(); toast(hand.why()); }
+  }, { passive: false });
 }
 /* THE DECK TRANSPORT, wired. Every press is a hand (DECKS.hand — the ghost
    stays off the field under a DJ) and makes its deck the hand's focus; and
@@ -27588,7 +28201,15 @@ const DECKWAVE = {
     const left = src.dur - t;
     const bpm = m && m.bpm > 0 ? (m.bpm * r).toFixed(1) : '---.-';
     ctx.fillText(o.label + '  ' + bpm + '  ' + waveClock(t) + '  -' + waveClock(left), x + 5, y + h - 12);
-    if (src.coarse){ ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillText('score', x + w - 34, y + h - 12); }
+    // the strip's hand, in the far corner: SCRATCH (the wave is a record) or SCRUB (a seek strip) — tap it to switch
+    if (o.mode){
+      const on = o.mode === 'scratch';
+      ctx.fillStyle = on ? rgba(acc, o.hand ? 0.55 : 0.22) : 'rgba(4,5,10,0.6)';
+      ctx.fillRect(x + w - 60, y + h - 13, 58, 12);
+      ctx.fillStyle = on ? (o.hand ? '#0a0d12' : `rgb(${acc[0]},${acc[1]},${acc[2]})`) : 'rgba(255,255,255,0.55)';
+      ctx.fillText(on ? 'SCRATCH' : 'SCRUB', x + w - (on ? 55 : 48), y + h - 12);
+    }
+    if (src.coarse){ ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillText('score', x + w - (o.mode ? 96 : 34), y + h - 12); }
   },
   /* THE PHASE METER: each deck's place in its bar as four cells, and between
      them the distance of B's beat from A's, centred when they agree */
@@ -27613,14 +28234,36 @@ const DECKWAVE = {
       }
     }
   },
-  /* the deck's song time AS HEARD: the record on air through the platter's hand
-     when the vinyl layer has it, and through the tape when a loop holds the
-     room — the deck free-runs muted past the out-point, and the needle must
-     not walk out of the loop the ear is inside */
-  _timeOf(d, onAir){
+  /* THE STRIP'S HAND, per deck: SCRATCH (the wave is the record — drag it and
+     the music follows, through the platter) or SCRUB (a seek strip — drag it
+     and the deck seeks). A hand's choice is kept (DB); unset, the strip is a
+     record wherever the platter can be taken and a seek strip where it
+     cannot (the direct path's idle deck, a platter not yet seated). */
+  stripMode: [null, null],
+  stripModeOf(i){
+    const m = this.stripMode[i === 1 ? 1 : 0];
+    if (m === 'scratch' || m === 'scrub') return m;
+    return (typeof VINYL !== 'undefined' && VINYL.for(i).ok()) ? 'scratch' : 'scrub';
+  },
+  toggleStripMode(i){
+    const k = i === 1 ? 1 : 0, m = this.stripModeOf(k) === 'scratch' ? 'scrub' : 'scratch';
+    this.stripMode[k] = m;
+    try { DB.kvSet('stripMode', JSON.stringify(this.stripMode)); } catch (e){}
+    toast(m === 'scratch' ? T('Strip {d} — drag the wave as a record', { d: k ? 'B' : 'A' }) : T('Strip {d} — drag the wave to seek', { d: k ? 'B' : 'A' }));
+  },
+  loadStripMode(){
+    const ok = v => (v === 'scratch' || v === 'scrub') ? v : null;
+    try { DB.kvGet('stripMode').then(v => { if (!v) return; const a = JSON.parse(v); if (Array.isArray(a)) this.stripMode = [ok(a[0]), ok(a[1])]; }).catch(() => {}); } catch (e){}
+  },
+  /* the deck's song time AS HEARD: through its platter's hand when the vinyl
+     layer has it (each deck its own), and, for the record on air, through the
+     tape when a loop holds the room — the deck free-runs muted past the
+     out-point, and the needle must not walk out of the loop the ear is inside */
+  _timeOf(d, i, onAir){
     if (!d || !isFinite(d.a.currentTime)) return NaN;
     let t = d.a.currentTime;
-    if (onAir && typeof VINYL !== 'undefined' && VINYL.engaged) t -= VINYL.lagNow();
+    const hand = typeof VINYL !== 'undefined' ? VINYL.for(i) : null;
+    if (hand && hand.engaged) t -= hand.lagNow();
     if (onAir && typeof LOOPER !== 'undefined' && LOOPER.on && AE.ctx) t = waveDeckTime(t, LOOPER, AE.ctx.currentTime);
     return t;
   },
@@ -27664,13 +28307,14 @@ const DECKWAVE = {
     };
     const cA = cuesOf(tA), cB = cuesOf(tB);
     // a deck's time as heard; the one a seam is entering is shown cued where the plan will start it
-    const timeOf = (d, i) => { let t = this._timeOf(d, i === ro.onAir); if (!(t > 0.01) && i === ro.inSlot && plan && plan.type === 'beatmix') t = plan.startB; return t; };
+    const timeOf = (d, i) => { let t = this._timeOf(d, i, i === ro.onAir); if (!(t > 0.01) && i === ro.inSlot && plan && plan.type === 'beatmix') t = plan.startB; return t; };
     const tAt = timeOf(dA, 0), tBt = tB && dB ? timeOf(dB, 1) : NaN;
     const rA = dA ? (dA.a.playbackRate || 1) : 1, rB = dB ? (dB.a.playbackRate || 1) : 1;
     const palA = WAVEPAL.for(tA), palB = WAVEPAL.for(tB);
     const yB = sh + meterH + gap * 2;
-    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, palA, { label: 'A', seam: tA ? seamFor(0) : null, loop: ro.onAir === 0 ? loop : null, cues: cA && cA.cues, labels: cA && cA.labels, struct: trackStructure(tA) });
-    this._strip(ctx, 0, yB, w, sh, dpr, tB, tBt, rB, palB, { label: 'B', seam: tB ? seamFor(1) : null, loop: ro.onAir === 1 ? loop : null, cues: cB && cB.cues, labels: cB && cB.labels, struct: tB ? trackStructure(tB) : null });
+    const handOn = i => typeof VINYL !== 'undefined' && VINYL.for(i).engaged;
+    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, palA, { label: 'A', seam: tA ? seamFor(0) : null, loop: ro.onAir === 0 ? loop : null, cues: cA && cA.cues, labels: cA && cA.labels, struct: trackStructure(tA), mode: tA ? this.stripModeOf(0) : null, hand: handOn(0) });
+    this._strip(ctx, 0, yB, w, sh, dpr, tB, tBt, rB, palB, { label: 'B', seam: tB ? seamFor(1) : null, loop: ro.onAir === 1 ? loop : null, cues: cB && cB.cues, labels: cB && cB.labels, struct: tB ? trackStructure(tB) : null, mode: tB ? this.stripModeOf(1) : null, hand: handOn(1) });
     const mA = mixOf(tA), mB = mixOf(tB);
     const pa = tA && mA && isFinite(tAt) ? waveBeatPos(mA.bpm, mA.grid, tAt) : null;
     const pb = tB && mB && isFinite(tBt) ? waveBeatPos(mB.bpm, mB.grid, tBt) : null;
@@ -27689,14 +28333,16 @@ const DECKWAVE = {
       }
     }
     this._phase(ctx, w / 2 - 60, sh + gap, 120, meterH, pa, pb, palA.mi, palB.mi);
-    const rOn = ro.onAir === 1 ? rB : rA;
-    this._geom = { w, sh, pps: w / this.ZOOMS[this.zoom] / (rOn > 0.05 ? rOn : 1), scale: this._scale || 1, smooth: false, dpr };
+    const rOn = ro.onAir === 1 ? rB : rA, ppsW = w / this.ZOOMS[this.zoom];
+    // the hands read this: each strip's own px per second of music, and where the lower one begins
+    this._geom = { w, sh, yB, pps: ppsW / (rOn > 0.05 ? rOn : 1), ppsA: ppsW / (rA > 0.05 ? rA : 1), ppsB: ppsW / (rB > 0.05 ? rB : 1), scale: this._scale || 1, smooth: false, dpr };
   },
 };
 DECKWAVE.load();
 
-/* the strip's hands: deck A's wave is the record (drag it to scratch); wheel,
-   pinch and double-tap zoom. Deck B's says which record is on air. */
+/* the strips' hands: each deck's wave is its own record (drag it to scratch)
+   or, in scrub mode, its own seek strip (drag it to seek) — the word in the
+   strip's corner is the toggle; wheel, pinch and double-tap zoom. */
 function wireDeckWave(){
   const cv = el.boothWave;
   if (!cv || cv._wired) return;
@@ -27704,6 +28350,12 @@ function wireDeckWave(){
   const ptrs = new Map();
   let drag = null, pinch = null, lastTap = 0;
   const rel = ev => { const r = cv.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+  const letGo = () => {
+    if (!drag) return;
+    if (drag.scrub){ if (drag.deck === AE.active && typeof mediaSessionPosition === 'function') mediaSessionPosition(); }
+    else VINYL.for(drag.deck).lift();
+    drag = null;
+  };
   cv.addEventListener('wheel', ev => {
     ev.preventDefault();
     DECKWAVE.setZoom(DECKWAVE.zoom + (ev.deltaY > 0 ? 1 : -1));
@@ -27715,7 +28367,7 @@ function wireDeckWave(){
     try { cv.setPointerCapture(ev.pointerId); } catch (e){}
     if (ptrs.size === 2){
       // a second finger is a pinch: whatever the first was doing, it gives the record back
-      if (drag){ VINYL.lift(); drag = null; }
+      letGo();
       const [a, b] = [...ptrs.values()];
       pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: DECKWAVE.zoom };
       return;
@@ -27725,10 +28377,24 @@ function wireDeckWave(){
     const now = performance.now();
     if (now - lastTap < 300){ lastTap = 0; DECKWAVE.setZoom((DECKWAVE.zoom + 1) % DECKWAVE.ZOOMS.length); return; }
     lastTap = now;
-    // the record on air's strip is the record (slot 0 above, slot 1 below); the other only says so
-    const onTop = p.y <= g.sh + 8, airOnTop = AE.active !== 1;
-    if (onTop !== airOnTop){ if (airOnTop) toast(T('Scratch deck A — that is the record on air')); return; }
-    if (VINYL.grabLine(ev.timeStamp)) drag = { id: ev.pointerId, x0: p.x, pps: g.pps };
+    // slot 0's strip above, slot 1's below: each is its own deck's, and the hand's from here
+    const deck = p.y <= g.sh + 8 ? 0 : 1, d = AE.decks ? AE.decks[deck] : null;
+    if (!d || !DECKS.track(deck)) return;
+    DECKS.focus = deck; DECKS.hand();
+    const yTop = deck ? g.yB : 0;
+    // the corner word is the strip's mode toggle
+    if (p.x >= g.w - 62 && p.y >= yTop + g.sh - 14 && p.y <= yTop + g.sh + 1){ DECKWAVE.toggleStripMode(deck); return; }
+    const pps = deck ? g.ppsB : g.ppsA;
+    if (DECKWAVE.stripModeOf(deck) === 'scrub'){
+      // a seek strip: never under a running seam (the playheads are the mixer's), never on a deck with no length yet
+      const seam = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
+      if (seam && (d === MIXER.outDeck || deck === AE.active)) return;
+      if (!isFinite(d.a.duration) || !(d.a.duration > 0)) return;
+      drag = { id: ev.pointerId, x0: p.x, t0: d.a.currentTime, pps, deck, scrub: true };
+      FX.hand();
+      return;
+    }
+    if (VINYL.for(deck).grabLine(ev.timeStamp, ev.pointerType)) drag = { id: ev.pointerId, x0: p.x, pps, deck, scrub: false };
   });
   cv.addEventListener('pointermove', ev => {
     if (!ptrs.has(ev.pointerId)) return;
@@ -27741,16 +28407,23 @@ function wireDeckWave(){
       return;
     }
     if (drag && ev.pointerId === drag.id){
-      const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
       const r = cv.getBoundingClientRect();
-      // dragging the wave left pulls the music forward under the needle, as on any deck
-      for (const e of (evs.length ? evs : [ev])) VINYL.moveLine(-(e.clientX - r.left - drag.x0) / drag.pps, e.timeStamp);
+      if (drag.scrub){
+        // dragging the wave left pulls the music forward under the needle, as on any deck — here by seeking
+        const d = AE.decks[drag.deck], to = drag.t0 - (ev.clientX - r.left - drag.x0) / drag.pps;
+        const top = isFinite(d.a.duration) && d.a.duration > 0.3 ? d.a.duration - 0.25 : Infinity;
+        try { d.a.currentTime = Math.max(0, Math.min(top, to)); } catch (e){}
+        return;
+      }
+      const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
+      const hand = VINYL.for(drag.deck);
+      for (const e of (evs.length ? evs : [ev])) hand.moveLine(-(e.clientX - r.left - drag.x0) / drag.pps, e.timeStamp);
     }
   });
   const up = ev => {
     ptrs.delete(ev.pointerId);
     if (ptrs.size < 2) pinch = null;
-    if (drag && ev.pointerId === drag.id){ drag = null; VINYL.lift(); }
+    if (drag && ev.pointerId === drag.id) letGo();
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
@@ -27774,6 +28447,7 @@ const BOOTH = {
       if (!this._fxWired){ this._fxWired = true; wireFxRack(); wireDeckWave(); }
       FXPADS.render(); syncFxHud();
       if (VINYL.songMode()) VINYL.pressSong();   // element-direct: the record is pressed while the booth is open
+      else VINYL.install();                     // …and on the graph, both platters are seated (a rebuilt context included)
       this.draw();
     } else {
       // a real close, not a snap to display:none — boothOut plays while the
@@ -28064,11 +28738,13 @@ const BOOTH = {
   _jog(ctx, cx, cy, r, deck, tr, rgb, pulse, dts, slot){
     const playing = deck && !deck.a.paused && isFinite(deck.a.duration) && deck.a.duration > 0;
     let rate = playing ? (deck.a.playbackRate || SPEED.rate) / SPEED.rate : 0;
-    // deck A's platter is the record in the hand: it turns at the platter's own
+    // each platter is its own record in a hand: it turns at its platter's own
     // rate while the vinyl layer has it — backwards through a scratch, down to
     // a stop through a brake — and its LED ring reads the platter's place
-    const vinyl = slot === (AE.active === 1 ? '_angB' : '_angA') && typeof VINYL !== 'undefined' && VINYL.engaged;
-    if (vinyl) rate = VINYL.rate;
+    const di = slot === '_angA' ? 0 : 1;
+    const hand = typeof VINYL !== 'undefined' ? VINYL.for(di) : null;
+    const vinyl = !!(hand && hand.engaged);
+    if (vinyl) rate = hand.rate;
     this[slot] = (this[slot] || 0) + dts * rate * (2 * PI * 33.333 / 60);
     const ang = this[slot];
     // platter: vinyl-dark with the key colour breathing at the rim
@@ -28117,7 +28793,7 @@ const BOOTH = {
     // the head LED rides the beat. Under a tape loop the head stays inside the
     // loop, where the ear is, not where the muted deck has run on to.
     const onAir = slot === (AE.active === 1 ? '_angB' : '_angA');
-    let pos = (deck ? deck.a.currentTime : 0) - (vinyl ? VINYL.lagNow() : 0);
+    let pos = (deck ? deck.a.currentTime : 0) - (vinyl ? hand.lagNow() : 0);
     if (onAir && typeof LOOPER !== 'undefined' && LOOPER.on && AE.ctx) pos = waveDeckTime(pos, LOOPER, AE.ctx.currentTime);
     const prog = playing || (deck && deck.a.currentTime > 0)
       ? clamp01(pos / (deck && isFinite(deck.a.duration) ? deck.a.duration : 1)) : 0;
@@ -28145,6 +28821,85 @@ const BOOTH = {
     hub.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
     ctx.fillStyle = hub;
     ctx.beginPath(); ctx.arc(cx, cy, r * 0.22 + pulse * 3, 0, 2 * PI); ctx.fill();
+    // the label: the inner third, where a hand holds the record still rather than scratching it
+    const holding = !!(hand && hand._ptr && hand._ptr.hold);
+    ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${holding ? 0.6 : 0.2})`;
+    ctx.lineWidth = holding ? 1.5 : 1;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, 2 * PI); ctx.stroke();
+    // the rim flashes when a hand takes the record (white) and when it lets go (the key)
+    const rim = this._rim && this._rim[di];
+    if (rim){
+      const a = 1 - (performance.now() - rim.at) / 260;
+      if (a > 0){
+        ctx.strokeStyle = rim.kind === 'grab' ? `rgba(255,255,255,${0.6 * a})` : `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.85 * a})`;
+        ctx.lineWidth = 2 + 2 * a;
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.84, 0, 2 * PI); ctx.stroke();
+      } else this._rim[di] = null;
+    }
+    if (this._layoutFull && r >= 40) this._arm(ctx, cx, cy, r, di ? -1 : 1, tr ? prog : -1, vinyl, vinyl ? hand.rate : 1, rgb);
+  },
+  /* THE TONE ARM. The pivot sits off the platter's shoulder, inboard, with the
+     counterweight behind it and the headshell on the groove. The needle rides
+     from the lead-in to the label with the song: the arm is one fixed length,
+     so its path across the record is the arc a real one sweeps, and with no
+     record on the deck it rests on its post beside the edge. While a hand has
+     the record the headshell shivers with the rate — a scratch is visibly on
+     the groove. Nothing here spins; the arm is the one still thing on a
+     turning record, which is what makes the record read as one. */
+  _arm(ctx, cx, cy, r, sx, prog, engaged, rate, rgb){
+    const px = cx + sx * r * 0.95, py = cy - r * 0.88;        // the pivot
+    const La = r * 1.25;                                      // pivot to stylus
+    const rr = r * (prog < 0 ? 0.87 : 0.78 - 0.43 * clamp01(prog));   // the groove under the needle (or the rest)
+    // where a circle of La about the pivot meets a circle of rr about the spindle: the stylus's place
+    const D = Math.hypot(px - cx, py - cy);
+    const a = (D * D + La * La - rr * rr) / (2 * D), h2 = La * La - a * a;
+    const h = h2 > 0 ? Math.sqrt(h2) : 0;
+    const ux = (cx - px) / D, uy = (cy - py) / D;              // pivot → spindle
+    const bx = px + ux * a, by = py + uy * a;
+    // of the two meetings, the one below the shoulder on the pivot's side: the arm comes in over the record
+    let th = Math.atan2(by - ux * h * sx - py, bx + uy * h * sx - px);
+    if (engaged) th += (Math.random() - 0.5) * 0.008 * Math.min(8, Math.abs(rate));   // the shiver of a scratch
+    const nx = px + Math.cos(th) * La, ny = py + Math.sin(th) * La;
+    ctx.save();
+    ctx.lineCap = 'round';
+    // the counterweight, behind the pivot on the arm's own line
+    const wx = px - Math.cos(th) * r * 0.2, wy = py - Math.sin(th) * r * 0.2;
+    ctx.strokeStyle = 'rgba(190,196,210,0.55)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(wx, wy); ctx.stroke();
+    ctx.fillStyle = 'rgba(30,33,44,0.96)';
+    ctx.beginPath(); ctx.arc(wx, wy, r * 0.08, 0, 2 * PI); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(wx, wy, r * 0.08, 0, 2 * PI); ctx.stroke();
+    // the arm: a tube, lit along its top
+    ctx.strokeStyle = 'rgba(14,16,24,0.9)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(nx, ny); ctx.stroke();
+    ctx.strokeStyle = 'rgba(214,220,235,0.85)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(nx, ny); ctx.stroke();
+    // the pivot's bearing
+    ctx.fillStyle = 'rgba(22,25,36,0.98)';
+    ctx.beginPath(); ctx.arc(px, py, r * 0.11, 0, 2 * PI); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(px, py, r * 0.11, 0, 2 * PI); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.arc(px, py, r * 0.03, 0, 2 * PI); ctx.fill();
+    // the headshell, angled off the arm the way a real one is
+    const hl = r * 0.17, hw = r * 0.075;
+    ctx.save();
+    ctx.translate(nx, ny); ctx.rotate(th + 0.42 * sx);
+    ctx.fillStyle = 'rgba(28,31,42,0.98)';
+    ctx.fillRect(-hl * 0.75, -hw / 2, hl, hw);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+    ctx.strokeRect(-hl * 0.75, -hw / 2, hl, hw);
+    ctx.restore();
+    // …and the stylus's point of light on the groove, in the key while a hand has the record
+    if (engaged){
+      const glow = ctx.createRadialGradient(nx, ny, 0, nx, ny, r * 0.12);
+      glow.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.5)`); glow.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(nx, ny, r * 0.12, 0, 2 * PI); ctx.fill();
+    }
+    ctx.fillStyle = engaged ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.95)` : 'rgba(255,255,255,0.8)';
+    ctx.beginPath(); ctx.arc(nx, ny, engaged ? 2.2 : 1.6, 0, 2 * PI); ctx.fill();
+    ctx.restore();
   },
   /* the little screen between the platters, compact/phone layout only: a
      live mirror of the visualizer itself, cropped to fill (never stretched)
@@ -28312,6 +29067,7 @@ const BOOTH = {
     // with a live monitor of the visualizer between them, instead of the
     // bare waveform-only strip this used to fall back to
     const compact = !full && h >= 190 && w >= 240;
+    this._layoutFull = full;                   // the tone arms need the room the full layout has
     const cJog = compact ? clamp(Math.min(w * 0.19, 50), 28, 50) : 0;
     const topH = full ? 40 : compact ? cJog * 2 + 26 : 22;
     const botH = full ? 34 : 26;
@@ -28388,7 +29144,8 @@ const BOOTH = {
 
     // ---- the decks: jogs flanking the two lanes (desktop), or stacked
     // above them with a live monitor between (compact/phone)
-    const jog = full ? Math.min(hMid / 2 - 4, 66) : 0;
+    // the platters take what height there is, to 110 px: a record is a thing for a hand, and the lanes take the rest
+    const jog = full ? Math.min(hMid / 2 - 4, 110) : 0;
     const laneX = full ? jog * 2 + 22 : 0;
     const laneW = w - laneX * 2;
     const laneH = (hMid - 8) / 2;
@@ -28628,7 +29385,7 @@ const BOOTH = {
         hand: handOn, handDeck: manual ? (AE.active === 1 ? 'B' : 'A') : null, done, audition, sync, cut: fd.curve === 'cut',
       })));
       this._set('boothLock', running && err != null ? 'lock ' + err.toFixed(1) + ' ms'
-        : (typeof VINYL !== 'undefined' && VINYL.engaged ? VINYL.status() : ''));
+        : (typeof VINYL !== 'undefined' ? VINYL.status() : ''));
     }
     /* each row's word, per slot — the transport row's last word, a live
        region. Through a seam the lane leaving is handing over and the lane
@@ -64313,6 +65070,7 @@ function initThree(){
   SAFE.set(SAFE.calm, false);              // paint the chip's initial state
   DB.kvGet('safeCalm').then(v => { if (v != null) SAFE.set(v === '1', false); }).catch(() => {});
   DB.kvGet('haptics').then(v => { if (v === '1') HAPTICS.set(true, false); }).catch(() => {});
+  if (typeof DECKWAVE !== 'undefined') DECKWAVE.loadStripMode();
   const bSleep = document.getElementById('btnSleep');
   if (bSleep) bSleep.addEventListener('click', () => SLEEP.cycle());
   const bSpeed = document.getElementById('btnSpeed');

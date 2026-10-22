@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Sincronizza il deck libero con quello in onda &nbsp;·&nbsp; <kbd>U</kbd> Caricaci la scelta del pianificatore",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Spingi il crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Taglialo su A / B &nbsp;·&nbsp; <kbd>\\</kbd> Ricentralo",
  "PEAK": "PICCO",
- "DRIVE": "SPINTA"
+ "DRIVE": "SPINTA",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinile — il piatto è nella tua mano. Trascina il disco; lascialo e torna sul beat.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — tocca per prendere il piatto in mano; tieni premuto per restituire la stanza (riprendi)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Quantizzazione <b>spenta</b> — un hold atterra dov'è il disco",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Quantizza al <b>beat</b> — un hold atterra sulla prossima linea di beat, uno slip lascia lì",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Quantizza alla <b>battuta</b> — un hold atterra sulla prossima linea di battuta, uno slip lascia lì",
+ "Strip {d} — drag the wave as a record": "Striscia {d} — trascina l'onda come un disco",
+ "Strip {d} — drag the wave to seek": "Striscia {d} — trascina l'onda per cercare",
+ "On this device only the record on air has a platter": "Su questo dispositivo solo il disco in onda ha un piatto",
+ "Cut — hold for the crossfader's cut curve": "Cut — tieni premuto per la curva cut del crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fine — metà della portata della mano, per crab e scribble",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Pattern di scratch {name} — tocca per una volta, sul beat; tieni premuto per ripetere"
 }

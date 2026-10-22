@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> I-sync ang bakanteng deck sa on air &nbsp;·&nbsp; <kbd>U</kbd> I-load doon ang pili ng planner",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Itulak ang crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> I-cut sa A / B &nbsp;·&nbsp; <kbd>\\</kbd> Igitna",
  "PEAK": "RUROK",
- "DRIVE": "DRIVE"
+ "DRIVE": "DRIVE",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinyl — nasa kamay mo ang platter. Hilahin ang plaka; bitawan at babalik ito sa beat.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — i-tap para hawakan ang platter; pindutin nang matagal para ibalik ang silid (resume)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Quantise <b>naka-off</b> — ang hold ay lalapag kung nasaan ang plaka",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Quantise sa <b>beat</b> — ang hold ay lalapag sa susunod na linya ng beat, ang slip ay bibitaw doon",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Quantise sa <b>bar</b> — ang hold ay lalapag sa susunod na linya ng bar, ang slip ay bibitaw doon",
+ "Strip {d} — drag the wave as a record": "Strip {d} — hilahin ang wave na parang plaka",
+ "Strip {d} — drag the wave to seek": "Strip {d} — hilahin ang wave para mag-seek",
+ "On this device only the record on air has a platter": "Sa device na ito, tanging ang plakang on air ang may platter",
+ "Cut — hold for the crossfader's cut curve": "Cut — pindutin nang matagal para sa cut curve ng crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fine — kalahati ng abot ng kamay, para sa crab at scribble",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Pattern ng scratch na {name} — i-tap para isang beses, sa beat; pindutin nang matagal para ulitin"
 }

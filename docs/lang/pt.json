@@ -1770,5 +1770,17 @@
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Sincronizar o deck livre com o que está no ar &nbsp;·&nbsp; <kbd>U</kbd> Carregar nele a escolha do planejador",
  "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Empurrar o crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cortá-lo para A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentrá-lo",
  "PEAK": "PICO",
- "DRIVE": "EMBALO"
+ "DRIVE": "EMBALO",
+ "Vinyl — the platter is in your hand. Drag the record; let go and it snaps back to the beat.": "Vinil — o prato está na tua mão. Arrasta o disco; solta-o e ele volta ao beat.",
+ "Scratch — {name}": "Scratch — {name}",
+ "Scratch — tap to take the platter in hand; hold to hand the room back (resume)": "Scratch — toca para pegar no prato; mantém premido para devolver a sala (retomar)",
+ "Quantise <b>off</b> — a hold lands where the record is": "Quantização <b>desligada</b> — um hold aterra onde o disco está",
+ "Quantise to the <b>beat</b> — a hold lands on the next beat line, a slip lets go on it": "Quantizar ao <b>beat</b> — um hold aterra na próxima linha de beat, um slip solta aí",
+ "Quantise to the <b>bar</b> — a hold lands on the next bar line, a slip lets go on it": "Quantizar ao <b>compasso</b> — um hold aterra na próxima linha de compasso, um slip solta aí",
+ "Strip {d} — drag the wave as a record": "Faixa {d} — arrasta a onda como um disco",
+ "Strip {d} — drag the wave to seek": "Faixa {d} — arrasta a onda para procurar",
+ "On this device only the record on air has a platter": "Neste dispositivo só o disco no ar tem prato",
+ "Cut — hold for the crossfader's cut curve": "Cut — mantém premido para a curva de corte do crossfader",
+ "Fine — half the hand's reach, for crabs and scribbles": "Fino — metade do alcance da mão, para crabs e scribbles",
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Padrão de scratch {name} — toca para uma vez, no beat; mantém premido para repetir"
 }
