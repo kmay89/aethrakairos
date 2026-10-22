@@ -1983,6 +1983,8 @@
  "Cut — hold for the crossfader's cut curve": "Cut — удерживай для кривой cut кроссфейдера",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — половина хода руки, для крэбов и скрибблов",
  "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Скретч-паттерн {name} — нажми для одного раза, в бит; удерживай для повтора",
+ "Scratch — baby, chirp, transform, stab, flare, crab: the strokes, on the beat; CUT holds the fader's cut curve, FINE halves the hand": "Скретч — baby, chirp, transform, stab, flare, crab: движения, в бит; CUT держит кривую cut фейдера, FINE вдвое уменьшает ход руки",
+ "Vinyl — scratch the platter, brake, backspin, reverse; slip or hold; QUANT lands a let-go record on the beat": "Винил — скретч на платтере, тормоз, бэкспин, реверс; slip или удержание; QUANT сажает отпущенную пластинку на бит",
  "Beat FX need the engine — on this device the music plays direct": "Beat FX нужен движок — на этом устройстве музыка играет напрямую",
  "Effect mix": "Микс эффекта",
  "Deck the filter acts on — A or B": "Дека, на которую действует фильтр — A или B",

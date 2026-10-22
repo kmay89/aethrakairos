@@ -1783,6 +1783,8 @@
  "Cut — hold for the crossfader's cut curve": "คัต — กดค้างเพื่อใช้เส้นโค้งคัตของครอสเฟเดอร์",
  "Fine — half the hand's reach, for crabs and scribbles": "ไฟน์ — ระยะมือครึ่งหนึ่ง สำหรับแครบและสคริบเบิล",
  "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "รูปแบบสแครตช์ {name} — แตะเพื่อเล่นครั้งเดียวตามบีต กดค้างเพื่อเล่นซ้ำ",
+ "Scratch — baby, chirp, transform, stab, flare, crab: the strokes, on the beat; CUT holds the fader's cut curve, FINE halves the hand": "สแครตช์ — baby, chirp, transform, stab, flare, crab: ท่าสแครตช์ตรงบีต; CUT คงเส้นโค้งคัตของเฟดเดอร์ไว้ FINE ลดระยะมือลงครึ่งหนึ่ง",
+ "Vinyl — scratch the platter, brake, backspin, reverse; slip or hold; QUANT lands a let-go record on the beat": "ไวนิล — สแครตช์บนแพลตเตอร์ เบรก แบ็กสปิน เล่นถอยหลัง; สลิปหรือค้าง; QUANT ให้แผ่นที่ปล่อยมือลงตรงบีต",
  "Beat FX need the engine — on this device the music plays direct": "Beat FX ต้องใช้เอนจิน — บนอุปกรณ์นี้เพลงเล่นแบบตรง",
  "Effect mix": "สัดส่วนผสมเอฟเฟกต์",
  "Deck the filter acts on — A or B": "เด็คที่ฟิลเตอร์ทำงาน — A หรือ B",

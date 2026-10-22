@@ -1783,6 +1783,8 @@
  "Cut — hold for the crossfader's cut curve": "切 — 长按启用交叉推子的切割曲线",
  "Fine — half the hand's reach, for crabs and scribbles": "精细 — 手的行程减半，用于 crab 和 scribble",
  "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "搓碟模式 {name} — 轻点按拍播放一次；长按重复",
+ "Scratch — baby, chirp, transform, stab, flare, crab: the strokes, on the beat; CUT holds the fader's cut curve, FINE halves the hand": "搓碟 — baby、chirp、transform、stab、flare、crab：按拍的手法；CUT 保持推子的切割曲线，FINE 将手的行程减半",
+ "Vinyl — scratch the platter, brake, backspin, reverse; slip or hold; QUANT lands a let-go record on the beat": "黑胶 — 搓转盘、刹车、倒旋、倒放；滑动或停住；QUANT 让放手的唱片落在拍上",
  "Beat FX need the engine — on this device the music plays direct": "节拍效果需要引擎 — 在此设备上音乐为直接播放",
  "Effect mix": "效果混合比",
  "Deck the filter acts on — A or B": "滤波器作用的唱机 — A 或 B",

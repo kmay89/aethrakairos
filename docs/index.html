@@ -11308,10 +11308,18 @@ const DECKS = {
     if (!AE.graphLive || !d || !d.gain) return;
     this.gainWrite(d.gain.gain, g, 0.006);
   },
-  // a hand on the decks is a human in the room: the ghost never plays the field under a DJ
+  /* a hand on the decks is a human in the room: the ghost never plays the field
+     under a DJ. handBusy yields a live stroke at once; handIdle is the booth's
+     own stillness, which the ghost reads beside the stage's (GHOST.allowed), so
+     a DJ who never touches the stage still holds the field for the whole wake.
+     Every booth control stamps it — the transport and the fader here, the FX
+     rack through FX.hand, a scratch on every move of the platter. It is kept
+     apart from INTERACT's idle clock on purpose: that clock also swells the
+     touch's presence at the last place a finger was on the stage. */
   _handAt: 0,
   hand(){ this._handAt = performance.now(); },
   handBusy(){ return this.fader.hand || performance.now() - this._handAt < 1500; },
+  handIdle(){ return this._handAt > 0 ? Math.max(0, (performance.now() - this._handAt) / 1000) : 999; },
   /* LOAD a record onto a slot. Refused where there is no graph (one deck on
      that device), on the on-air deck while it plays, and through a seam.
      The on-air deck paused is the transport's own cue-up (prepare). The
@@ -21058,6 +21066,40 @@ function seamPitchCarry(p, f){
   const k = (+p > 0 && isFinite(+p)) ? +p : 1;
   return k + (1 - k) * clamp01(f);
 }
+/* THE DOUBLE TAP. Two presses on the band are one recentre only when the
+   second lands within XF_DBL_MS of the first, close to where the first
+   landed (XF_DBL_REACH of the travel), and the first never travelled — and
+   never under the cut curve. There a fast pair of strokes IS the instrument
+   (a transform, a chirp, a hand tapping the ends), and a recentre would throw
+   both decks open on every other stroke and drop the drag in hand. `moved`
+   is whether the first press became a stroke; a press that never moved is a
+   tap. */
+const XF_DBL_MS = 320;
+const XF_DBL_REACH = 0.05;
+function xfaderDoubleTap(o){
+  const s = o || {};
+  const dt = +s.dtMs, x = +s.x, lx = +s.lastX;
+  if (s.curve === 'cut' || s.moved) return false;
+  if (!isFinite(dt) || dt < 0 || dt >= XF_DBL_MS) return false;
+  return isFinite(x) && isFinite(lx) && Math.abs(x - lx) < XF_DBL_REACH;
+}
+/* THE BOOTH'S FADER KEYS, by the character typed: [ ] nudge (they repeat),
+   { } cut hard to A / B, \ recentres. On most non-US layouts those
+   characters are typed with AltGr (Ctrl+Alt on Windows) or Option, so they
+   are read before the shortcut filter: Cmd never reaches them, and Ctrl only
+   as AltGr's half. null: not one of them. */
+function boothFaderKey(key, mods){
+  const m = mods || {};
+  if (m.meta || (m.ctrl && !m.alt)) return null;
+  switch (key){
+    case '[':  return { what: 'nudge', arg: -0.05, repeats: true };
+    case ']':  return { what: 'nudge', arg: 0.05, repeats: true };
+    case '{':  return { what: 'cut', arg: 0, repeats: false };
+    case '}':  return { what: 'cut', arg: 1, repeats: false };
+    case '\\': return { what: 'centre', arg: undefined, repeats: false };
+    default:   return null;
+  }
+}
 // @xfader-end
 
 /* ================================================================
@@ -26752,7 +26794,7 @@ const FX = {
      AUTO off and it STAYS off until the listener arms it again, which is one
      visible, deliberate tap. (Found by a probe whose gate measurement kept coming
      back bypassed: AUTO had reclaimed the unit mid-measurement.) */
-  hand(){ this._handT = 6; this.auto = false; },
+  hand(){ this._handT = 6; this.auto = false; DECKS.hand(); },   // …and a hand on the rack is a hand in the booth: the ghost waits
 
   /* ---- the EQ ---------------------------------------------------------- */
   setEq(band, val){
@@ -28175,7 +28217,7 @@ function makeVinylHand(i){
       // a quarter turn is a detent under the finger: a tick each time the hand crosses one
       const det = Math.floor(p.x / (VINYL_REV_SEC / 4));
       if (det !== p.det){ p.det = det; HAPTICS.tick(6); }
-      p.a = a; p.t = now; this._handAt = now;
+      p.a = a; p.t = now; this._handAt = now; DECKS.hand();   // a scratch held long is a hand the whole time
       this.post({ op: 'handAt', x: p.x });
     },
     // ---- the hand on the scrolling wave (DECKWAVE): the same record, dragged in a straight line
@@ -28196,7 +28238,7 @@ function makeVinylHand(i){
       const now = t > 0 ? t : performance.now(), dt = (now - p.t) / 1000;
       const xg = x * this._gain;
       if (dt > 0) p.v += ((xg - p.x) / dt - p.v) * 0.6;
-      p.x = xg; p.t = now; this._handAt = now;
+      p.x = xg; p.t = now; this._handAt = now; DECKS.hand();
       const det = Math.floor(p.x / (VINYL_REV_SEC / 4));
       if (det !== p.det){ p.det = det; HAPTICS.tick(6); }
       this.post({ op: 'handAt', x: xg });
@@ -28713,6 +28755,26 @@ const FXPADS = {
       }
     } else if (this.bank === 'scratch'){
       const H = () => VINYL.hand();
+      /* THE KEYBOARD'S HOLD. Space / Enter on a focused pad is the finger's
+         down and its lift, the way the deck CUE takes them; the press is the
+         pad's own (stopped, so Space is never the room's play / pause too).
+         Returns whether a key had the pad just now, so a click the key's own
+         activation might still send is not a second press. */
+      const padKeys = (b, down, up) => {
+        let kHeld = false, kUp = -1e9;
+        b.addEventListener('keydown', ev => {
+          if (ev.key !== ' ' && ev.key !== 'Enter') return;
+          ev.preventDefault(); ev.stopPropagation();
+          if (!ev.repeat && !kHeld){ kHeld = true; down(ev); }
+        });
+        b.addEventListener('keyup', ev => {
+          if (ev.key !== ' ' && ev.key !== 'Enter') return;
+          ev.preventDefault(); ev.stopPropagation();
+          if (kHeld){ kHeld = false; kUp = performance.now(); up(); }
+        });
+        b.addEventListener('blur', () => { if (kHeld){ kHeld = false; kUp = performance.now(); up(); } });
+        return () => kHeld || performance.now() - kUp < 400;
+      };
       if (key === 'cut'){
         /* MOMENTARY: the crossfader wears the cut curve for as long as the pad is
            down — a transform's fader, for a thumb that has no second hand */
@@ -28732,6 +28794,7 @@ const FXPADS = {
         b.addEventListener('pointerup', up);
         b.addEventListener('pointerleave', up);
         b.addEventListener('pointercancel', up);
+        padKeys(b, down, up);
       } else if (key === 'fine'){
         b.title = T('Fine — half the hand\'s reach, for crabs and scribbles');
         b.addEventListener('click', () => { VINYL.setFine(!VINYL.fine); this.paint(); });
@@ -28745,6 +28808,15 @@ const FXPADS = {
         b.addEventListener('pointerup', up);
         b.addEventListener('pointerleave', up);
         b.addEventListener('pointercancel', up);
+        const kAt = padKeys(b, down, up);
+        /* a screen reader's activation is a bare click (detail 0) with no key or
+           pointer before it: the pattern once, as a tap would play it */
+        b.addEventListener('click', ev => {
+          if (ev.detail !== 0 || kAt()) return;
+          const h = H();
+          if (!h.script(key, { hold: false })) toast(h.why()); else HAPTICS.pulse(true);
+          this.paint();
+        });
       }
     } else {
       b.addEventListener('click', () => {
@@ -29017,8 +29089,12 @@ function wireDeckTransport(){
     if (b){
       b.addEventListener('pointerdown', down);
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
-      b.addEventListener('keydown', ev => { if ((ev.key === ' ' || ev.key === 'Enter') && !ev.repeat){ ev.preventDefault(); down(); } });
-      b.addEventListener('keyup', ev => { if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); up(); } });
+      // the press is this button's alone: stopped here, Space never reaches the
+      // room's play / pause too (which would pause the deck under the tap and
+      // turn a jump-back into a new cue) — the repeats included
+      b.addEventListener('keydown', ev => { if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); ev.stopPropagation(); if (!ev.repeat) down(); } });
+      b.addEventListener('keyup', ev => { if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); ev.stopPropagation(); up(); } });
+      b.addEventListener('blur', up);            // focus gone mid-hold: the lift will never come here
       b.addEventListener('click', ev => ev.preventDefault());
       b.addEventListener('contextmenu', ev => ev.preventDefault());
     }
@@ -29078,7 +29154,8 @@ function wireDeckTransport(){
    every move is the law applied (faderMove), letting go is the arbiter's
    call (faderRelease: commit, abort, hold). From the slider the keyboard
    nudges it — ← → two percent, ten with shift, Home and End the two ends —
-   each nudge the whole gesture at once. A double tap recentres it, and
+   each nudge the whole gesture at once. A double tap — two still presses
+   in one place, never under the cut curve (xfaderDoubleTap) — recentres it, and
    cancels an armed seam first so nothing fires under the hand; the detent
    flashes white to say so. AUTO glides the handle home to the planner; CUT
    switches the curve. A refused grab says why (the direct path, a set's
@@ -29100,14 +29177,16 @@ function wireXfader(){
     return true;
   };
   BOOTH._recentre = recentre;
-  let id = null, lastDown = 0;
+  // the last press: when, where, and whether it became a stroke (xfaderDoubleTap)
+  let id = null, lastDown = -1e9, lastX = -1, lastMoved = false;
   xf.addEventListener('pointerdown', ev => {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     ev.preventDefault();
     try { xf.focus({ preventScroll: true }); } catch (e){}
     DECKS.hand();
-    const now = performance.now(), dbl = now - lastDown < 320;
-    lastDown = dbl ? 0 : now;
+    const now = performance.now(), x0 = posOf(ev);
+    const dbl = xfaderDoubleTap({ dtMs: now - lastDown, x: x0, lastX, moved: lastMoved, curve: DECKS.fader.curve });
+    lastDown = dbl ? -1e9 : now; lastX = x0; lastMoved = false;
     if (dbl){ recentre(); return; }
     DECKS.fader.glide = 0;
     if (!DECKS.faderGrab(posOf(ev))){ toast(BOOTH.faderWhy()); return; }
@@ -29118,7 +29197,9 @@ function wireXfader(){
     if (ev.pointerId !== id) return;
     ev.preventDefault();
     DECKS.fader.glide = 0;
-    DECKS.faderMove(posOf(ev));
+    const x = posOf(ev);
+    if (Math.abs(x - lastX) >= XF_DBL_REACH) lastMoved = true;   // a press that travelled is a stroke, not a tap
+    DECKS.faderMove(x);
   });
   const up = ev => {
     if (ev.pointerId !== id) return;
@@ -29954,12 +30035,24 @@ const BOOTH = {
       // panel stays in the DOM, then it's actually hidden
       el.booth.classList.remove('open');
       el.booth.classList.add('closing');
+      this.releaseCues();                      // a cue held as the booth goes is let go with it
       VINYL.ejectSong();                       // the pressed record is let go with the booth
       DECKWAVE._tiles.clear();                 // and the painted tiles: the detail stays, the pixels go
       this._closeT = setTimeout(() => el.booth.classList.remove('closing'), 320);
     }
   },
   keyRGB(tr){ return deckKeyRGB(tr); },
+  /* LET GO OF EVERY HELD CUE. A Z / V (or a CUE button) held while the booth
+     closes or the window loses focus never sees its lift: the browser drops
+     that keyup. A cue left held keeps the idle deck rolling from it, blocks
+     the idle stop and the auto-DJ's arm, and is hard-cut to when the record
+     on air ends. So the hold ends with whatever took the hand away — back on
+     the cue, paused, exactly as a lift would leave it. A cue not held is
+     untouched (up() is nothing without its down). */
+  releaseCues(){
+    const tr = this._tr;
+    if (tr && tr.cue) for (const c of tr.cue) c.up();
+  },
   /* a word held in a deck's state line for a moment — the answer to a press
      the engine refused (nothing to play, a seam in flight), written at once
      so it is part of the press, and kept over the frame's own word until it
@@ -31725,10 +31818,43 @@ if (el.fxOrb){
 }
 pokeChrome();
 
+/* WHO PUT THE FOCUS THERE. Chrome on Windows, Linux and ChromeOS focuses a
+   <button> the mouse clicks, so a DJ who clicks SYNC B and then taps Space to
+   pause the room would press SYNC B again instead. Only a booth button the
+   keys walked to owns its Space and Enter; one a pointer pressed hands them
+   back to the room. :focus-visible cannot tell us: Blink flips it to true on
+   the very keydown being asked about, before any listener runs. So the booth
+   keeps its own note: a pointer's press marks the button it lands on, the
+   focus that press brings keeps the mark, and any other focus (a Tab, a
+   pointer elsewhere) clears it. A key clears the pending press too, so a
+   Safari click (which presses without focusing) never brands a later Tab. */
+const boothFocus = { pressed: null, byPointer: null };
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target && ev.target.closest ? ev.target.closest('#booth button') : null;
+  boothFocus.pressed = b;
+  if (b && document.activeElement === b) boothFocus.byPointer = b;   // already focused: the pointer has it now
+}, true);
+document.addEventListener('focusin', ev => {
+  boothFocus.byPointer = (ev.target && ev.target === boothFocus.pressed) ? ev.target : null;
+  boothFocus.pressed = null;
+}, true);
+document.addEventListener('keydown', () => { boothFocus.pressed = null; }, true);
+
 /* keyboard */
 window.addEventListener('keydown', ev => {
   // (the crossfader's band is an input too, but the booth's keys are its keys: it stops the ones it takes)
   if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') && ev.target !== el.xfader) return;
+  // a booth button the keys walked to owns its Space and Enter: the press is its own, never the room's play / pause as well.
+  // One the mouse left focused does not: Space falls through to the room, whose preventDefault also keeps the button unpressed.
+  if ((ev.key === ' ' || ev.key === 'Enter') && ev.target && ev.target.closest && ev.target.closest('#booth button') && ev.target !== boothFocus.byPointer) return;
+  // the booth's fader keys, before the modifier filter: on most non-US layouts [ ] { } \ are typed with AltGr or Option
+  const fk = BOOTH.open ? boothFaderKey(ev.key, { meta: ev.metaKey, ctrl: ev.ctrlKey, alt: ev.altKey }) : null;
+  if (fk){
+    ev.preventDefault();
+    if (fk.repeats || !ev.repeat) BOOTH.key(fk.what, fk.arg);
+    pokeChrome();
+    return;
+  }
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const k = ev.key;
   if (k !== 'h' && k !== 'H') pokeChrome();
@@ -31763,19 +31889,15 @@ window.addEventListener('keydown', ev => {
     /* THE BOOTH'S KEYS, only while it is open: Q / O play or pause deck A / B,
        Z / V cue them (held: play from the cue, lifted: back to it — the keyup
        below), Y syncs the idle deck to the one on air, U loads the planner's
-       pick onto it, [ ] nudge the crossfader (they repeat), { } cut it hard to
-       A / B, \ recentres it. Space stays the room's play / pause. */
+       pick onto it. Space stays the room's play / pause. The fader's own keys
+       ([ ] nudge, { } cut, \ recentre) are read above the modifier filter
+       (boothFaderKey), so an AltGr or Option layout reaches them too. */
     case 'q': case 'Q': if (BOOTH.open && !ev.repeat) BOOTH.key('play', 0); break;
     case 'o': case 'O': if (BOOTH.open && !ev.repeat) BOOTH.key('play', 1); break;
     case 'z': case 'Z': if (BOOTH.open && !ev.repeat){ ev.preventDefault(); BOOTH.key('cueDown', 0); } break;
     case 'v': case 'V': if (BOOTH.open && !ev.repeat){ ev.preventDefault(); BOOTH.key('cueDown', 1); } break;
     case 'y': case 'Y': if (BOOTH.open && !ev.repeat) BOOTH.key('sync'); break;
     case 'u': case 'U': if (BOOTH.open && !ev.repeat) BOOTH.key('load'); break;
-    case '[': if (BOOTH.open) BOOTH.key('nudge', -0.05); break;
-    case ']': if (BOOTH.open) BOOTH.key('nudge', 0.05); break;
-    case '{': if (BOOTH.open && !ev.repeat) BOOTH.key('cut', 0); break;
-    case '}': if (BOOTH.open && !ev.repeat) BOOTH.key('cut', 1); break;
-    case '\\': if (BOOTH.open && !ev.repeat) BOOTH.key('centre'); break;
     case 'm': case 'M': toggleMute(); break;
     case 't': case 'T': TAP.hit(); break;
     case 'x': case 'X': CLIP.toggle(); break;
@@ -31812,13 +31934,18 @@ window.addEventListener('keydown', ev => {
 });
 
 // the cue keys lift: Z / V held play from the cue; let go, the record is back on it
+// — whether or not the booth is still open: a lift after the close still lets
+// go (up() is nothing without its down), and the window losing focus lets go
+// of every held cue, since the lift will never be delivered here
 window.addEventListener('keyup', ev => {
-  if (!BOOTH.open || !BOOTH._tr) return;
+  if (!BOOTH._tr) return;
   if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') && ev.target !== el.xfader) return;
-  const k = ev.key;
-  if (k === 'z' || k === 'Z') BOOTH.key('cueUp', 0);
-  else if (k === 'v' || k === 'V') BOOTH.key('cueUp', 1);
+  const k = ev.key, slot = (k === 'z' || k === 'Z') ? 0 : (k === 'v' || k === 'V') ? 1 : -1;
+  if (slot < 0) return;
+  if (BOOTH.open) BOOTH.key('cueUp', slot);
+  else BOOTH._tr.cue[slot].up();          // closed: only the lift, no fresh hand on the decks
 });
+window.addEventListener('blur', () => BOOTH.releaseCues());
 
 /* TAP — the listener's own beat, fed to the clock. Each tap is ground truth
    about where the beat is (a stronger signal than any onset), so it re-anchors
@@ -35389,8 +35516,8 @@ const GHOST = {
       hidden: !!document.hidden,
       eco: typeof POWER !== 'undefined' && POWER.mode === 'eco',
       human: INTERACT.dragging || INTERACT.second || (typeof DECKS !== 'undefined' && DECKS.handBusy()),
-      // whichever is shorter: the stillness, or the life of the session
-      idle: Math.min(INTERACT._idleT, this._age),
+      // whichever is shortest: the stage's stillness, the booth's, or the life of the session
+      idle: Math.min(INTERACT._idleT, this._age, typeof DECKS !== 'undefined' ? DECKS.handIdle() : 999),
     });
   },
   // the room changed: deal a new choreography, but never mid-stroke — a

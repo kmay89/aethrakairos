@@ -5,7 +5,7 @@
 //
 //   node tests/player.test.mjs
 
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import assert from 'assert';
@@ -30,7 +30,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
-  ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode, deckSlot, seamPitchCarry,' +
+  ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode, deckSlot, seamPitchCarry, XF_DBL_MS, XF_DBL_REACH, xfaderDoubleTap, boothFaderKey,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' FX_UNITS, FX_SENDS, FX_INSERTS, FX_AMT, FX_MIX, fxMix, FILTER_DETENT, fxFilterQ, qDb, Q_FLAT_DB, fxFilterArbiter, fxSeamHz,'  +
   ' GATE_FLOOR, gateEdge, gateCurve, gateEdgeSec, gateSchedule, gateAnchor, fxEchoGains, fxEchoGlide, ECHO_HOLD_FB, reverbIR,'  +
@@ -10897,6 +10897,101 @@ test('xfaderCancelMode: a parked hand blend survives the mixer stepping aside; a
   for (const ph of ['running', 'armed', 'idle']) assert.equal(S.xfaderCancelMode(ph, 'off', true), 'home', ph + ' is the mixer\'s own, never the hand\'s');
   assert.equal(S.xfaderCancelMode('running', 'manual', true), 'home');
   assert.ok(S.XFADER_STEP_ASIDE.includes('replan') && !S.XFADER_STEP_ASIDE.includes('manual'));
+});
+
+test('xfaderDoubleTap: two still presses in one place recentre — a stroke, a far press or the cut curve never do', () => {
+  const tap = { dtMs: 200, x: 0.50, lastX: 0.52, moved: false, curve: 'power' };
+  assert.equal(S.xfaderDoubleTap(tap), true);
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: S.XF_DBL_MS }), false, 'the window is open at its edge');
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: S.XF_DBL_MS - 1 }), true);
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: -5 }), false, 'a clock that went backwards is no tap');
+  assert.equal(S.xfaderDoubleTap({ ...tap, curve: 'cut' }), false, 'under CUT a fast pair of strokes is a transform, never a recentre');
+  assert.equal(S.xfaderDoubleTap({ ...tap, x: 0.02, lastX: 0.98 }), false, 'tapping the two ends is a cut, not a double tap');
+  assert.equal(S.xfaderDoubleTap({ ...tap, x: 0.5, lastX: 0.5 + S.XF_DBL_REACH }), false, 'the reach is exclusive');
+  assert.equal(S.xfaderDoubleTap({ ...tap, moved: true }), false, 'a first press that travelled was a stroke');
+  assert.equal(S.xfaderDoubleTap({ ...tap, lastX: -1 }), false, 'no first press yet (the sentinel is far off the band)');
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: NaN }), false);
+  assert.equal(S.xfaderDoubleTap(), false);
+  // the fader's own chirp: alternate presses at the two ends, 150 ms apart, under CUT and under power — no recentre anywhere
+  for (const curve of ['cut', 'power']){
+    let last = -1e9, lastX = -1;
+    for (let i = 0; i < 8; i++){
+      const now = i * 150, x = i % 2 ? 0.99 : 0.01;
+      assert.equal(S.xfaderDoubleTap({ dtMs: now - last, x, lastX, moved: false, curve }), false, curve + ' stroke ' + i);
+      last = now; lastX = x;
+    }
+  }
+  // …and a tapped transform in one spot under CUT: still never a recentre
+  for (let i = 1; i < 6; i++) assert.equal(S.xfaderDoubleTap({ dtMs: 120, x: 0.98, lastX: 0.98, moved: false, curve: 'cut' }), false);
+});
+
+test('boothFaderKey: [ ] { } \\ by the character typed, through AltGr and Option — never through Cmd or a bare Ctrl', () => {
+  assert.deepEqual(S.boothFaderKey('['), { what: 'nudge', arg: -0.05, repeats: true });
+  assert.deepEqual(S.boothFaderKey(']', {}), { what: 'nudge', arg: 0.05, repeats: true });
+  assert.deepEqual(S.boothFaderKey('{', { shift: true }), { what: 'cut', arg: 0, repeats: false });
+  assert.deepEqual(S.boothFaderKey('}'), { what: 'cut', arg: 1, repeats: false });
+  assert.equal(S.boothFaderKey('\\').what, 'centre');
+  assert.equal(S.boothFaderKey('\\').repeats, false);
+  // a German layout: AltGr+8 is Ctrl+Alt on Windows, Option+5 is Alt on a Mac — both still the booth's
+  assert.equal(S.boothFaderKey('[', { ctrl: true, alt: true }).what, 'nudge');
+  assert.equal(S.boothFaderKey('[', { alt: true }).what, 'nudge');
+  assert.equal(S.boothFaderKey('\\', { ctrl: true, alt: true }).what, 'centre');
+  // the system's own chords stay the system's
+  assert.equal(S.boothFaderKey('[', { meta: true }), null, 'Cmd+[ is the browser\'s back');
+  assert.equal(S.boothFaderKey('[', { meta: true, alt: true }), null);
+  assert.equal(S.boothFaderKey('[', { ctrl: true }), null, 'a bare Ctrl is a shortcut, not AltGr');
+  for (const k of ['a', ' ', 'Escape', '(', '8', '', undefined]) assert.equal(S.boothFaderKey(k), null, String(k));
+});
+
+test('the booth wiring: held cues let go with the booth and the window, booth buttons keep their own Space, the rack and the platter hold off the ghost, SCRATCH pads take the keyboard', () => {
+  const src = (a, b) => { const i = html.indexOf(a); assert.ok(i >= 0, 'anchor: ' + a); return html.slice(i, html.indexOf(b, i)); };
+  // R15: a cue held as the booth closes or the window blurs is let go; the lift is not gated on the booth being open
+  assert.ok(/releaseCues\(\)\{[\s\S]{0,120}for \(const c of tr\.cue\) c\.up\(\)/.test(html), 'BOOTH.releaseCues lifts every cue');
+  assert.ok(src("el.booth.classList.add('closing');", 'this._closeT').includes('this.releaseCues();'), 'the close lets go of a held cue');
+  assert.ok(html.includes("window.addEventListener('blur', () => BOOTH.releaseCues());"), 'and so does the window losing focus');
+  const ku = src("window.addEventListener('keyup', ev => {\n  if (!BOOTH._tr) return;", '\n});');
+  assert.ok(!ku.includes('BOOTH.open ||'), 'the Z / V lift is read with the booth closed too');
+  // R16: the CUE button stops its Space / Enter; the window leaves focused booth buttons their own keys
+  const cw = src('const cueWire = (b, slot) => {', 'return { down, up };');
+  assert.ok(cw.includes("b.addEventListener('keydown', ev => { if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); ev.stopPropagation(); if (!ev.repeat) down(); } });"), 'CUE keydown stops the press, repeats included');
+  assert.ok(cw.includes("b.addEventListener('blur', up);"), 'CUE lets go when focus leaves it');
+  const kd = src("/* keyboard */\nwindow.addEventListener('keydown', ev => {", 'switch (k){');
+  assert.ok(kd.includes("ev.target.closest('#booth button') && ev.target !== boothFocus.byPointer) return;"), 'Space on a keyboard-focused booth button is never the room\'s play / pause');
+  // R16 (follow-up): a booth button the mouse left focused hands Space back to the room. Not :focus-visible: Blink flips it on the keydown itself
+  assert.ok(!kd.includes(':focus-visible'), 'the guard does not ask :focus-visible, which every keydown makes true');
+  const bf = src('const boothFocus = { pressed: null, byPointer: null };', '/* keyboard */');
+  assert.ok(bf.includes("document.addEventListener('pointerdown', ev => {") && bf.includes('boothFocus.pressed = b;'), 'a pointer press marks the booth button it lands on');
+  assert.ok(bf.includes('if (b && document.activeElement === b) boothFocus.byPointer = b;'), 'pressing the already-focused button hands it to the pointer');
+  assert.ok(bf.includes('boothFocus.byPointer = (ev.target && ev.target === boothFocus.pressed) ? ev.target : null;'), 'only the focus a press brought is the pointer\'s; a Tab clears it');
+  assert.ok(bf.includes("document.addEventListener('keydown', () => { boothFocus.pressed = null; }, true);"), 'a key clears a press that brought no focus (Safari)');
+  // R35: the fader keys are read before the modifier filter
+  const fkAt = kd.indexOf('boothFaderKey(ev.key'), modAt = kd.indexOf('if (ev.metaKey || ev.ctrlKey || ev.altKey) return;');
+  assert.ok(fkAt > 0 && modAt > fkAt, 'the fader keys come before the modifier filter');
+  // R17: the band asks xfaderDoubleTap, and a travelled press is a stroke
+  const wx = src('function wireXfader(){', "xf.addEventListener('pointerup', up);");
+  assert.ok(wx.includes('xfaderDoubleTap({ dtMs: now - lastDown, x: x0, lastX, moved: lastMoved, curve: DECKS.fader.curve })'), 'the band asks the pure rule');
+  assert.ok(wx.includes('lastMoved = true'), 'a press that travels is marked a stroke');
+  // R33: every booth hand holds the ghost off for the whole wake
+  assert.ok(html.includes("idle: Math.min(INTERACT._idleT, this._age, typeof DECKS !== 'undefined' ? DECKS.handIdle() : 999),"), 'the ghost reads the booth\'s stillness');
+  assert.ok(/hand\(\)\{ this\._handT = 6; this\.auto = false; DECKS\.hand\(\); \}/.test(html), 'FX.hand is a hand in the booth');
+  assert.equal((html.match(/this\._handAt = now; DECKS\.hand\(\);/g) || []).length, 2, 'both platter moves (disc and lane) stamp the hand');
+  // R34: the SCRATCH pads take Space / Enter, and a screen reader's bare click plays a preset once
+  const sb = src("} else if (this.bank === 'scratch'){", '  paint(){');
+  assert.equal((sb.match(/padKeys\(b, down, up\)/g) || []).length, 2, 'CUT and every preset take the keyboard');
+  assert.ok(sb.includes('h.script(key, { hold: false })') && sb.includes('ev.detail !== 0 || kAt()'), 'a bare click (AT activation) plays the pattern once, a key\'s own click never twice');
+});
+
+test('i18n: the VINYL and SCRATCH bank tooltips are keys in every pack', () => {
+  const S1 = "Scratch — baby, chirp, transform, stab, flare, crab: the strokes, on the beat; CUT holds the fader's cut curve, FINE halves the hand";
+  const V1 = 'Vinyl — scratch the platter, brake, backspin, reverse; slip or hold; QUANT lands a let-go record on the beat';
+  assert.ok(html.includes('title="' + S1 + '"') && html.includes('title="' + V1 + '"'), 'the tooltips are still these words');
+  const dir = join(root, 'docs/lang');
+  const packs = readdirSync(dir).filter(f => f.endsWith('.json'));
+  assert.equal(packs.length, 31);
+  for (const f of packs){
+    const j = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    for (const k of [S1, V1]) assert.ok(typeof j[k] === 'string' && j[k].length > 20 && j[k] !== k, f + ': ' + k.slice(0, 12));
+  }
 });
 test('planMixNow startB: a hand-cued incoming enters from its cue, snapped to its own beat', () => {
   const mk = key => ({ bpm: 124, grid: 1.0, mixable: 0.9, key, in: { start: 32.0, beats: 32 }, out: { start: 200, beats: 32 } });

@@ -1783,6 +1783,8 @@
  "Cut — hold for the crossfader's cut curve": "カット — 長押しでクロスフェーダーのカットカーブ",
  "Fine — half the hand's reach, for crabs and scribbles": "ファイン — 手の可動域を半分に。クラブやスクリブル向け",
  "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "スクラッチパターン {name} — タップで一回、ビートに合わせて。長押しで繰り返し",
+ "Scratch — baby, chirp, transform, stab, flare, crab: the strokes, on the beat; CUT holds the fader's cut curve, FINE halves the hand": "スクラッチ — baby、chirp、transform、stab、flare、crab：ビートに合わせたストローク。CUTはフェーダーのカットカーブを保持、FINEは手の可動域を半分に",
+ "Vinyl — scratch the platter, brake, backspin, reverse; slip or hold; QUANT lands a let-go record on the beat": "ヴァイナル — プラッターでスクラッチ、ブレーキ、バックスピン、リバース。スリップかホールド。QUANTは手を離したレコードをビートに着地させる",
  "Beat FX need the engine — on this device the music plays direct": "ビートFXにはエンジンが必要です — この端末では音楽は直接再生されます",
  "Effect mix": "エフェクトのミックス",
  "Deck the filter acts on — A or B": "フィルターが効くデッキ — AかB",
