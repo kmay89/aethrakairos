@@ -11455,6 +11455,8 @@ test('the rack in the player: release walks FX_PARK, the gate is curves, the sea
                    "&& this._autoSt.unit === 'echo' && this.unit === 'echo'){",
                    // a hidden tab deals nothing on frozen inputs
                    'ceil: hidden ? 0 : director.ceil,',
+                   // …but a build sweep already on the audio clock plays to its release, not a false drop
+                   "if (hidden && this._autoSt.unit === 'filter' && AE.ctx.currentTime < this._sweepEnd) return;",
                    // the LFO: stopped late, swapped under a duck, glided on drift
                    'this._lfoEnd(U, o, at);', 'if (live){ this._w(U.lfoG.gain, 0, 0.01); this._lfoStop(u, 0.05); }',
                    'U.lfo.frequency.setTargetAtTime(fxFlangeParams(this.amount, this.div, bpm).rateHz, AE.ctx.currentTime, 0.05);',

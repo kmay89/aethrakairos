@@ -27281,8 +27281,14 @@ const FX = {
        whatever the auto-DJ mixed in next. So hidden, nothing has earned a
        gesture (ceil 0): no unit starts, and one already up winds down by the
        step's own rules — its held bars kept, the gate's chop not left running
-       for an hour in a pocket. */
+       for an hour in a pocket. The build sweep is the exception: it is a curve
+       already written on the audio clock, ending a beat before the drop, and
+       ending it early would drop the highpass back to the floor and slam the
+       bass in bars ahead of the real one — a false drop for the listener who
+       only switched tabs. So a sweep in flight plays to its own release, and
+       the step takes the room back once it has. */
     const hidden = typeof document !== 'undefined' && document.hidden;
+    if (hidden && this._autoSt.unit === 'filter' && AE.ctx.currentTime < this._sweepEnd) return;
     const o = {
       ceil: hidden ? 0 : director.ceil, act: director.act,
       phase: (lab === 'build' || lab === 'peak' || lab === 'break') ? lab : director.phase,
