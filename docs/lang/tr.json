@@ -1729,5 +1729,7 @@
  "LIFT": "ATAK",
  "BREAK": "BREAK",
  "DOWN": "İNİŞ",
- "OUTRO": "ÇIKIŞ"
+ "OUTRO": "ÇIKIŞ",
+ "PEAK": "DORUK",
+ "DRIVE": "SÜRÜŞ"
 }

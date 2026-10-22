@@ -24,7 +24,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' SIGNATURE_RE, isSignature, signatureFirst,' +
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
-  ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB, STEM_PAL, STEM_OKLCH,' +
   ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
@@ -91,7 +91,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
   ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
   ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
-  ' WAVE_HZ, WAVE_SR, WAVE_TILT, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
+  ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
+  ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
   ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead };';
 const S = new Function(code)();
@@ -9779,7 +9780,8 @@ test('flame v2: pyroStillGain — the sky dims out with the stillness over ~0.3 
 
 test('dance v2: tune 2 wire — the swatches through the fine mapper and the blend under v2 only; FLAME\'s launches, billows, onset shell and tour × the stillness gate, its sky dimmed by pyroStillGain and cleared once dark; the bar phase held with the index', () => {
   assert.ok(html.includes("const v2c = typeof DANCE !== 'undefined' && DANCE.v2;") && html.includes('lit.slice(0, 3).map(c => (v2c ? oklchToRgbFine : oklchToRgb)(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),\n      dt, SAFE.tuning(), v2c);'), 'COLOR: the fine mapper and the blend, under v2');
-  assert.equal((html.match(/oklchToRgbFine\(/g) || []).length, 1, 'the fine mapper has one caller besides its definition: the swatches');
+  // the fine mapper: its definition, and the waveform's three colour sites (the tilt LUT, the band palette, the stem palette) — the swatches reach it by reference, under v2
+  assert.equal((html.match(/oklchToRgbFine\(/g) || []).length, 4, 'the fine mapper has the waveform\'s three callers besides its definition; the swatches reach it by reference');
   assert.ok(html.includes("const v2sky = typeof DANCE !== 'undefined' && DANCE.v2;") && html.includes('pyro.gain = v2sky ? pyroStillGain(pyro.gain, still, dt) : 1;'), 'FLAME: the sky\'s gain follows the gate under v2, 1 with the flag off');
   assert.ok(html.includes('const rate = pyroRate({ energy: f.energy, mood, calm }) * lean * still;') && html.includes('const shot = pyroFire(pyro.acc, dt, rate, !!f.onset && (!v2sky || still >= 0.5));'), 'the launches and the onset shell × the gate');
   assert.ok(html.includes('(PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean * still;'), 'the billows × the gate');
@@ -9849,46 +9851,168 @@ await Promise.all(pending);
   const sr = 16000;
   const tone = (f, sec, amp) => { const x = new Float32Array(Math.round(sr * sec)); for (let i = 0; i < x.length; i++) x[i] = amp * Math.sin(2 * Math.PI * f * i / sr); return x; };
   const cat = (...a) => { const n = a.reduce((s, x) => s + x.length, 0), o = new Float32Array(n); let k = 0; for (const x of a){ o.set(x, k); k += x.length; } return o; };
-  test('wave detail: a kick reads low, a hat reads high, silence reads nothing — at 150 columns a second', () => {
+  const mix = (...a) => { const n = Math.max(...a.map(x => x.length)), o = new Float32Array(n); for (const x of a) for (let i = 0; i < x.length; i++) o[i] += x[i]; return o; };
+  test('wave detail (wave8): eight planes at 500 columns a second, a kick reads low, a hat reads high and bright, silence reads nothing', () => {
+    assert.equal(S.WAVE_V, 2); assert.equal(S.WAVE_HZ, 500); assert.equal(S.WAVE_PLANES.length, 8);
     // one second of 60 Hz (a kick's body), one of silence, one of 6 kHz (a hat's air)
     const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
-    const d = S.waveDetail([x], sr, 150);
-    assert.equal(d.n, 450, '150 columns a second: ' + d.n);
+    const d = S.waveDetail([x], sr);
+    assert.equal(d.v, 2); assert.equal(d.hz, 500);
+    assert.equal(d.n, 1500, '500 columns a second: ' + d.n);
     assert.ok(Math.abs(d.dur - 3) < 1e-9);
-    const at = (t) => { const r = S.waveRange(d, t, t + 0.2); return r; };
+    for (const p of S.WAVE_PLANES) assert.ok(d[p] instanceof Uint8Array && d[p].length === d.n && d[p].buffer === d.buf, p + ' is bytes on the one buffer');
+    assert.equal(d.buf.byteLength, 8 * (d.n + d.mips[0].n + d.mips[1].n), 'one buffer holds every level');
+    const at = (t) => S.waveRange(d, t, t + 0.2);
     const k = at(0.4), q = at(1.4), h = at(2.4);
-    assert.ok(k.lo > 0.8 && k.hi < 0.02 && k.mi < 0.1, 'the kick is in the lows, and only there: ' + JSON.stringify(k));
-    assert.ok(h.hi > 0.8 && h.lo < 0.02 && h.mi < 0.1, 'the hat is in the highs, and only there: ' + JSON.stringify(h));
-    // a song with no highs shows none: the bands share one reference
-    const dull = S.waveDetail([tone(60, 2, 0.8)], sr, 150);
-    assert.ok(S.waveRange(dull, 0.5, 1.5).hi < 0.02, 'no hiss blown up to full scale: hi ' + S.waveRange(dull, 0.5, 1.5).hi);
-    assert.ok(q.pk === 0 && q.lo === 0 && q.hi === 0, 'silence is silence');
+    assert.ok(k.lo > 0.6 && k.loPk > 0.9 && k.hi < 0.02 && k.mi < 0.1, 'the kick is in the lows, and only there: ' + JSON.stringify(k));
+    assert.ok(h.hi > 0.6 && h.hiPk > 0.9 && h.lo < 0.02 && h.mi < 0.1, 'the hat is in the highs, and only there: ' + JSON.stringify(h));
+    assert.ok(k.tilt < 0.1 && h.tilt > 0.9 && q.tilt === 0.5, 'the tilt colours the kick dark and the hat bright, silence sits mid: ' + k.tilt + ' ' + h.tilt);
+    assert.ok(q.pk === 0 && q.lo === 0 && q.hi === 0 && q.loPk === 0, 'silence is silence');
     assert.ok(k.pk > 0.9, 'the loudest thing in the song reads full scale: ' + k.pk);
     assert.ok(h.pk > 0.3 && h.pk < 0.45, 'the peak is linear: a 0.3 hat beside a 0.8 kick reads ' + h.pk.toFixed(2));
+    // a held tone's body fills its height and its cap meets it (the song's own crest is the norm)
+    assert.ok(k.lo > 0.9 && k.loPk > 0.9 && Math.abs(k.lo - k.loPk) < 0.08, 'a sine: body and cap together at full scale: ' + k.lo.toFixed(2) + ' / ' + k.loPk.toFixed(2));
+    // …and a column spikier than the song's norm has its cap clear of its body: where the tone strikes,
+    // the cap is up at once while the body (read over its window) is still filling
+    let si = -1; for (let i = 0; i < d.n; i++) if (d.loPk[i] > 128){ si = i; break; }
+    assert.ok(si >= 0 && si < 8 && d.loPk[si] > d.loRms[si] + 40, 'the strike\'s cap stands clear of its body: ' + d.loPk[si] + ' over ' + d.loRms[si] + ' at column ' + si);
+    // a song with no highs shows none: the bands share one reference
+    const dull = S.waveDetail([tone(60, 2, 0.8)], sr);
+    assert.ok(S.waveRange(dull, 0.5, 1.5).hi < 0.02, 'no hiss blown up to full scale: hi ' + S.waveRange(dull, 0.5, 1.5).hi);
+    // the body is read through a window: a bass note's own cycles do not read as a comb
+    let lo = 0, hi = 255;
+    for (let i = 300; i < 700; i++){ lo = Math.max(lo, dull.loRms[i]); hi = Math.min(hi, dull.loRms[i]); }
+    assert.ok((lo - hi) / lo < 0.12, 'the body of a held 60 Hz note is steady across columns: ' + hi + '..' + lo);
   });
   test('wave detail: stereo is folded to mono, one stray spike does not flatten the song, and nothing is NaN', () => {
     const L = tone(60, 2, 0.5), R = tone(60, 2, 0.5);
     L[1000] = 1; R[1000] = 1;                                // one sample's click
-    const d = S.waveDetail([L, R], sr, 150);
-    assert.ok(S.waveRange(d, 1, 1.5).lo > 0.9, 'the body of the song still reads near full scale under the click');
-    for (const v of ['pk', 'lo', 'mi', 'hi']) assert.ok(d[v] instanceof Uint8Array && d[v].length === d.n, v + ' is bytes');
+    const d = S.waveDetail([L, R], sr);
+    assert.ok(S.waveRange(d, 1, 1.5).lo > 0.9 && S.waveRange(d, 1, 1.5).loPk > 0.9, 'the body of the song still reads near full scale under the click');
     assert.equal(S.waveDetail([new Float32Array(0)], sr), null, 'no samples, no detail');
     assert.equal(S.waveDetail([L], 0), null, 'no rate, no detail');
-    const z = S.waveDetail([new Float32Array(sr)], sr, 150);
-    assert.ok(z.pk.every(v => v === 0) && z.lo.every(v => v === 0), 'a silent song is flat, not NaN');
+    const z = S.waveDetail([new Float32Array(sr)], sr);
+    assert.ok(z.pk.every(v => v === 0) && z.loRms.every(v => v === 0) && z.tilt.every(v => v === 128), 'a silent song is flat, not NaN');
+    // the legacy rate still works: the column count follows hz
+    assert.equal(S.waveDetail([L], sr, 150).n, 300);
   });
-  test('wave detail: the shipped 12 Hz score stands in until the decode lands, in the same shape', () => {
+  test('wave mips: two coarser levels, peaks by max and bodies by mean, and waveRange reads the coarsest level that fits the span', () => {
+    const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
+    const d = S.waveDetail([x], sr);
+    assert.deepEqual(S.WAVE_MIPS, [4, 16]);
+    assert.equal(d.mips.length, 2);
+    assert.equal(d.mips[0].hz, 125); assert.equal(d.mips[0].n, Math.ceil(d.n / 4));
+    assert.equal(d.mips[1].hz, 31.25); assert.equal(d.mips[1].n, Math.ceil(d.n / 16));
+    for (let i = 0; i < d.mips[0].n; i++){
+      let mx = 0, s = 0, c = 0;
+      for (let j = i * 4; j < Math.min(d.n, i * 4 + 4); j++){ mx = Math.max(mx, d.loPk[j]); s += d.loRms[j]; c++; }
+      assert.equal(d.mips[0].loPk[i], mx, 'mip peak is the max at ' + i);
+      assert.ok(Math.abs(d.mips[0].loRms[i] - s / c) <= 1.01, 'mip body is the mean at ' + i + ': ' + d.mips[0].loRms[i] + ' vs ' + (s / c));
+    }
+    assert.equal(S.waveLevel(d, 0.001).hz, 500, 'a span under a column reads the base');
+    assert.equal(S.waveLevel(d, 0.005).hz, 500);
+    assert.equal(S.waveLevel(d, 0.01).hz, 125, 'a 10 ms span reads the ÷4 level');
+    assert.equal(S.waveLevel(d, 0.04).hz, 31.25, 'a 40 ms span reads the ÷16 level');
+    // the pure mip on float planes
+    const lvl = { hz: 4, n: 4, pk: Float32Array.from([0.1, 0.9, 0.2, 0.4]), loPk: Float32Array.from([0.5, 0.7, 0, 0]), miPk: new Float32Array(4), hiPk: new Float32Array(4),
+      loRms: Float32Array.from([0.2, 0.4, 0, 0]), miRms: new Float32Array(4), hiRms: Float32Array.from([0, 0, 1, 1]), tilt: Float32Array.from([0, 0, 1, 1]) };
+    const m = S.waveMip(lvl, 2);
+    assert.equal(m.n, 2); assert.equal(m.hz, 2);
+    assert.ok(Math.abs(m.pk[0] - 0.9) < 1e-6 && Math.abs(m.loPk[0] - 0.7) < 1e-6, 'max');
+    assert.ok(Math.abs(m.loRms[0] - 0.3) < 1e-6, 'mean');
+    assert.ok(m.tilt[0] === 0 && m.tilt[1] === 1, 'the tilt is body-weighted');
+    // the whole-signal read at a wide span is the same kick the base holds
+    assert.ok(S.waveRange(d, 0, 1).loPk > 0.9 && S.waveRange(d, 2, 3).hiPk > 0.9);
+    // and a span shorter than a column reads between the columns, not a step: the
+    // centre of a column is that column, halfway to the next is halfway between
+    const c0 = d.loRms[200] / 255, c1 = d.loRms[201] / 255;
+    assert.ok(Math.abs(S.waveRange(d, 0.4009, 0.4011).lo - c0) < 1e-9, 'the centre of column 200 reads column 200');
+    assert.ok(Math.abs(S.waveRange(d, 0.4019, 0.4021).lo - (c0 + c1) / 2) < 1e-9, 'halfway to 201 reads the midpoint');
+    assert.ok(Math.abs(S.waveRangeAt(d, 0.401, {}).loPk - d.loPk[200] / 255) < 1e-9);
+  });
+  test('wave detail: the shipped 12 Hz score stands in until the decode lands, in the same names (v: 1), read between its steps', () => {
     const env = { hz: 12, b: '9900', m: '0990', t: '0009' };
     const d = S.waveFromEnv(env);
-    assert.equal(d.n, 4); assert.equal(d.hz, 12); assert.ok(d.coarse);
+    assert.equal(d.v, 1); assert.equal(d.n, 4); assert.equal(d.hz, 12); assert.ok(d.coarse);
+    for (const p of S.WAVE_PLANES) assert.ok(d[p] instanceof Uint8Array && d[p].length === 4, p + ' is there');
+    assert.equal(d.loPk, d.loRms, 'a score knows no peak from a body');
     assert.equal(d.lo[0], 255); assert.equal(d.hi[3], 255); assert.equal(d.mi[0], 0);
     assert.equal(S.waveFromEnv(null), null); assert.equal(S.waveFromEnv({ hz: 12, b: '', m: '', t: '' }), null);
     const r = S.waveRange(d, 0.1, 0.12);
-    assert.ok(r.lo === 1 && r.hi === 0, 'a column narrower than the detail reads the one it falls in');
-    assert.deepEqual(S.waveRange(d, 5, 6), { pk: 0, lo: 0, mi: 0, hi: 0 }, 'past the end is silence');
-    assert.deepEqual(S.waveRange(null, 0, 1), { pk: 0, lo: 0, mi: 0, hi: 0 });
+    assert.ok(r.lo === 1 && r.mi > 0.5 && r.mi < 1 && r.hi === 0, 'a span narrower than a step reads between the steps: ' + JSON.stringify(r));
+    assert.ok(S.waveRange(d, 0.0, 0.01).lo === 1 && S.waveRange(d, 0.3, 0.31).hi === 1, 'the ends hold their own step');
+    const past = S.waveRange(d, 5, 6);
+    assert.ok(past.pk === 0 && past.lo === 0 && past.hi === 0 && past.loPk === 0, 'past the end is silence');
+    assert.equal(S.waveRange(null, 0, 1).pk, 0);
+    const wide = S.waveRange(d, 0, 0.34);
+    assert.ok(wide.loPk === 1 && wide.hiPk === 1 && wide.lo === 0.5 && wide.hi === 0.25, 'a wide span holds the loudest cap of each band and the mean of its body: ' + JSON.stringify(wide));
   });
-  test('wave grid: beats from the anchor, bar lines every fourth, phrase lines every eight bars, bar numbers from 1', () => {
+  test('wave fold: a landed detail folds into the overview\'s shape (peaksFromEnv\'s), so a decoded song is never decoded again', () => {
+    const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
+    const d = S.waveDetail([x], sr);
+    const f = S.waveFoldPeaks(d, 480), g = S.peaksFromEnv({ hz: 12, b: '9900', m: '0990', t: '0009' }, 480);
+    assert.deepEqual(Object.keys(f), Object.keys(g)); assert.deepEqual(Object.keys(f.bands), Object.keys(g.bands)); assert.deepEqual(Object.keys(f.bmax), Object.keys(g.bmax));
+    assert.ok(f.pk instanceof Float32Array && f.pk.length === 480 && f.bands.l.length === 480);
+    assert.equal(Math.max(...f.pk), 1, 'peaks to 1.0');
+    assert.ok(f.bands.l[60] > 0.5 && f.bands.l[400] < 0.02 && f.bands.h[400] > 0.5 && f.bands.h[60] < 0.02, 'the kick folds into the first third, the hat into the last');
+    assert.ok(f.bmax.l > 0.5 && f.bmax.h > 0.5 && f.bmax.m > 0 && f.bmax.m < 0.1, 'the maxima alongside');
+    assert.equal(S.waveFoldPeaks(S.waveFromEnv({ hz: 12, b: '99', m: '00', t: '00' }), 8), null, 'a score is not a detail: the score\'s own fold stands');
+    assert.equal(S.waveFoldPeaks(null, 8), null);
+    assert.equal(S.waveFoldPeaks(d, 1).pk.length, 8, 'never fewer than eight columns');
+  });
+  test('wave onsets: a hit — a band peak clear of its body and rising — is flagged; a steady tone is not', () => {
+    const pk = new Float32Array(20).fill(0.8), rms = new Float32Array(20).fill(0.57);   // a sine: crest √2, under the bar
+    assert.equal([...S.waveOnsets(pk, rms, 20)].slice(1).join(''), '0'.repeat(19), 'a held tone is no onset');
+    const pk2 = Float32Array.from([0.1, 0.1, 0.1, 0.9, 0.8, 0.6, 0.4, 0.3]), rms2 = Float32Array.from([0.08, 0.08, 0.08, 0.3, 0.4, 0.4, 0.3, 0.25]);
+    assert.equal([...S.waveOnsets(pk2, rms2, 8)].join(''), '00010000', 'the hit is flagged where it strikes, not on its decay');
+    const quiet = Float32Array.from([0, 0.02, 0.04]), qr = new Float32Array(3);
+    assert.equal([...S.waveOnsets(quiet, qr, 3)].join(''), '000', 'noise under the floor is nothing');
+    const out = new Uint8Array(8);
+    assert.equal(S.waveOnsets(pk2, rms2, 8, out), out, 'a caller\'s buffer is used');
+    // and a real kick in the detail: the lows' peak jumps clear of their body at the strike
+    const d = S.waveDetail([cat(new Float32Array(sr / 2), tone(60, 0.5, 0.8))], sr);
+    const p = new Float32Array(d.n), b = new Float32Array(d.n);
+    for (let i = 0; i < d.n; i++){ p[i] = d.loPk[i] / 255; b[i] = d.loRms[i] / 255; }
+    const f = S.waveOnsets(p, b, d.n);
+    let first = -1; for (let i = 0; i < d.n; i++) if (f[i]){ first = i; break; }
+    assert.ok(first >= 248 && first <= 256, 'the strike is flagged at the half-second: column ' + first);
+  });
+  test('wave colour: three OKLCH band colours hung off the key, a tilt LUT in gamut with lightness climbing lows → highs, hues within the key\'s arc', () => {
+    const toLin = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    // OKLab lightness read back from sRGB (the inverse of the engine's matrices), to check the ladder survived the gamut
+    const okL = rgb => { const [r, g, b] = rgb.map(toLin); const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b), s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b); return 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s; };
+    const arc = (a, b) => { const d = Math.abs(((a - b) % 360 + 540) % 360 - 180); return d; };
+    for (const key of ['1A', '2B', '3A', '4B', '5A', '6B', '7A', '8B', '9A', '10B', '11A', '12B', null]){
+      const hue = key ? S.camelotHue(key) : null;
+      const cols = S.waveBandColours(hue);
+      const h0 = hue == null ? 200 : hue;
+      assert.ok(cols.lo.l < cols.mi.l && cols.mi.l < cols.hi.l && cols.lo.c > cols.mi.c && cols.mi.c > cols.hi.c, 'the lightness ladder climbs lows → highs as the chroma falls: ' + JSON.stringify(cols));
+      assert.ok(Math.abs(cols.mi.l - 0.72) < 1e-9 && Math.abs(cols.mi.c - 0.13) < 1e-9, 'the body is the deck\'s accent (keyRGB\'s L .72 C .13)');
+      assert.ok(arc(cols.lo.h, h0 - 50) < 1e-6 && arc(cols.mi.h, h0) < 1e-6 && arc(cols.hi.h, h0 + 40) < 1e-6, 'the hues hang off the key: ' + JSON.stringify(cols));
+      const lut = S.waveTiltLUT(cols, 33);
+      assert.ok(lut instanceof Uint8ClampedArray && lut.length === 99, 'an Int array of 33 triples');
+      let prev = -1;
+      for (let i = 0; i < 33; i++){
+        const rgb = [lut[i * 3] / 255, lut[i * 3 + 1] / 255, lut[i * 3 + 2] / 255];
+        for (const v of rgb) assert.ok(v >= 0 && v <= 1, 'in gamut');
+        const c = S.waveTiltAt(cols, i / 32);
+        assert.ok(arc(c.h, h0) <= 50 + 1e-6, 'hue within the key\'s ±50° arc at ' + i + ': ' + c.h + ' vs ' + h0);
+        assert.ok(Math.abs(okL(rgb) - c.l) < 0.02, 'the asked lightness survives the gamut map at ' + i + ' (' + key + '): ' + okL(rgb).toFixed(3) + ' vs ' + c.l.toFixed(3));
+        const Y = S.relLuma(rgb.map(toLin));
+        assert.ok(Y >= prev - 1e-6, 'lightness monotone lo → hi at ' + i + ' (' + key + ')');
+        prev = Y;
+      }
+      // the LUT's ends and middle are the band colours themselves
+      const mi = S.oklchToRgbFine(cols.mi.l, cols.mi.c, cols.mi.h).map(v => Math.round(v * 255));
+      assert.deepEqual([lut[48], lut[49], lut[50]], mi, 'the middle of the LUT is the body colour (the deck\'s accent)');
+    }
+    assert.equal(S.waveBandColours(null).mi.h, 200, 'no key: the fallback hue');
+    assert.equal(S.waveBandColours(370).mi.h, 10, 'hues wrap');
+    assert.equal(S.waveTiltLUT(S.waveBandColours(40), 0).length, 99, 'a bad size is the default');
+    // the stem palette lives in the same space now, and still reads as it did
+    assert.ok(S.STEM_PAL.d[0] > S.STEM_PAL.d[2] && S.STEM_PAL.v[2] > S.STEM_PAL.v[0] && S.STEM_PAL.b[0] > S.STEM_PAL.b[2], 'drums red-forward, vocals blue-forward, bass warm');
+  });
+  test('wave grid: beats from the anchor, bar lines every fourth, phrase lines every eight bars, bar numbers from 1, dressed by the downbeat\'s confidence', () => {
     const g = S.waveGrid(120, 2, 1, 20);           // a beat every half second from 2 s
     assert.equal(g[0].t, 1, 'it reaches back before the anchor, from the first beat in range');
     const a = g.find(x => x.t === 2);
@@ -9903,15 +10027,56 @@ await Promise.all(pending);
     assert.equal(S.waveBeatPos(120, 2, 2.75), 1.5);
     assert.equal(S.waveBeatPos(120, 2, 1.5), 3, 'before the anchor wraps into the bar before');
     assert.equal(S.waveBeatPos(0, 2, 3), null);
+    const sure = S.waveGridStyle(1, 40), unsure = S.waveGridStyle(0, 40), half = S.waveGridStyle(null, 40);
+    assert.ok(sure.bar > half.bar && half.bar > unsure.bar && unsure.bar > 0.1, 'a bar nobody is sure of is faint, never absent');
+    assert.ok(sure.tick > unsure.tick);
+    assert.equal(S.waveGridStyle(0.5, 24).numEvery, 1, 'a 24 px bar is numbered every bar');
+    assert.equal(S.waveGridStyle(0.5, 23).numEvery, 4, '…narrower, every fourth');
+    assert.equal(S.waveGridStyle(0.5, 8).numbers, false, 'and a bar too narrow to read is not numbered');
   });
-  test('wave worker: the module is the tested arithmetic and answers a job with the detail, transferred', () => {
+  test('wave deck time: under a tape loop the needle shows the loop\'s audible position; a roll and a free deck keep the deck\'s own time', () => {
+    const L = { on: true, mode: 'loop', start: 20, len: 0.5, handAt: 10, deckRate: 1 };
+    assert.ok(Math.abs(S.waveDeckTime(99, L, 11.3) - 20.3) < 1e-9, '1.3 s after the handover: 0.3 into the loop');
+    assert.ok(Math.abs(S.waveDeckTime(99, Object.assign({}, L, { deckRate: 1.03 }), 11.3) - (20 + (0.3 * 1.03) % 0.5)) < 1e-9, 'at the tape\'s rate: the phase scaled by the rate the tape was cut at');
+    assert.ok(Math.abs(S.waveDeckTime(99, L, 9) - 20) < 1e-9, 'before the handover is audible: the in-point');
+    assert.equal(S.waveDeckTime(99, Object.assign({}, L, { mode: 'roll' }), 11.3), 99, 'a roll runs on underneath');
+    assert.equal(S.waveDeckTime(99, Object.assign({}, L, { on: false }), 11.3), 99, 'no loop, the deck');
+    assert.equal(S.waveDeckTime(99, null, 11.3), 99);
+    assert.equal(S.waveDeckTime(99, Object.assign({}, L, { len: 0 }), 11.3), 99);
+    assert.equal(S.waveDeckTime(99, L, NaN), 99);
+  });
+  test('wave rate step: tiles are painted at the deck\'s own rate in 0.4 % steps, exactly 1 at rest, so a blit is never off 1:1 by more than a fifth of a percent', () => {
+    assert.equal(S.waveRateStep(1), 1); assert.equal(S.waveRateStep(1.001), 1); assert.equal(S.waveRateStep(0), 1); assert.equal(S.waveRateStep(NaN), 1);
+    for (const r of [0.5, 0.75, 0.97, 1.03, 1.25, 1.5, 2]) assert.ok(Math.abs(S.waveRateStep(r) / r - 1) <= 0.002 + 1e-9, 'within a fifth of a percent at ' + r + ': ' + S.waveRateStep(r));
+    let last = 0, steps = new Set();
+    for (let r = 1.0; r <= 1.06; r += 0.0005){ const q = S.waveRateStep(r); assert.ok(q >= last, 'monotone'); last = q; steps.add(q); }
+    assert.ok(steps.size >= 12 && steps.size <= 18, 'a 6 % glide repaints a dozen-odd times, not every frame: ' + steps.size);
+    assert.equal(S.waveClock(192.7), '3:12'); assert.equal(S.waveClock(-3), '0:00'); assert.equal(S.waveClock(NaN), '0:00');
+  });
+  test('wave worker: the module is the tested arithmetic and answers a job with the detail, in one transferred buffer', () => {
     const src = S.waveWorkerSource();
-    assert.ok(src.includes('function waveDetail(') && src.includes('function waveQuant('));
+    for (const f of ['waveDetail', 'waveMip', 'wavePack', 'waveTrailMean', 'waveTrailMax', 'waveTilt', 'waveNorm']) assert.ok(src.includes('function ' + f + '('), f + ' is in the worker');
+    assert.ok(src.includes('WAVE_PLANES = ["pk","loPk","miPk","hiPk","loRms","miRms","hiRms","tilt"]') && src.includes('WAVE_MIPS = [4,16]'));
     let posted = null;
     const scope = {};
-    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 7, chans: [tone(60, 1, 0.5)], sr, hz: 150 } });
-    assert.ok(posted && posted.m.id === 7 && posted.m.det.n === 150, 'the job comes back with its id');
-    assert.equal(posted.tr.length, 4, 'the four voices are transferred, not copied');
+    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 7, chans: [tone(60, 1, 0.5)], sr, hz: 500 } });
+    assert.ok(posted && posted.m.id === 7 && posted.m.det.n === 500 && posted.m.det.v === 2, 'the job comes back with its id');
+    assert.equal(posted.tr.length, 1, 'the whole detail is ONE buffer, transferred, not copied');
+    assert.equal(posted.tr[0], posted.m.det.buf);
+    assert.equal(posted.m.det.mips.length, 2);
+    // a broken job answers with nothing, not a throw
+    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 8 } });
+    assert.ok(posted.m.id === 8 && posted.m.det === null && posted.tr.length === 0);
+  });
+  test('wave trail: the body window and the peak hold are trailing — the onset edge stays put, only the decay lengthens', () => {
+    const v = Float32Array.from([0, 0, 1, 1, 1, 0, 0, 0]);
+    const m = S.waveTrailMean(Float32Array.from(v), 2);
+    assert.deepEqual([...m].map(x => +x.toFixed(2)), [0, 0, 0.5, 1, 1, 0.5, 0, 0], 'a 2-column mean');
+    assert.equal(m[1], 0, 'nothing before the edge');
+    const h = S.waveTrailMax(Float32Array.from([0, 1, 0, 0, 0, 0.5, 0]), 3);
+    assert.deepEqual([...h], [0, 1, 1, 1, 0, 0.5, 0.5], 'held for the window after the strike, never before it');
+    assert.deepEqual([...S.waveTrailMean(Float32Array.from([1, 2]), 1)], [1, 2], 'a window of one is the voice itself');
+    assert.equal(S.waveTilt(1, 0, 0), 0); assert.equal(S.waveTilt(0, 1, 0), 0.5); assert.equal(S.waveTilt(0, 0, 1), 1); assert.equal(S.waveTilt(0, 0, 0), 0.5);
   });
 }
 

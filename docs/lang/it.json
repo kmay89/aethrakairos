@@ -1729,5 +1729,7 @@
  "LIFT": "RILANCIO",
  "BREAK": "BREAK",
  "DOWN": "CALO",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "PEAK": "PICCO",
+ "DRIVE": "SPINTA"
 }

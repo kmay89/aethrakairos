@@ -1729,5 +1729,7 @@
  "LIFT": "REMONTE",
  "BREAK": "BREAK",
  "DOWN": "BAJADA",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "PEAK": "PICO",
+ "DRIVE": "EMPUJE"
 }

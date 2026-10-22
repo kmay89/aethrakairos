@@ -1729,5 +1729,7 @@
  "LIFT": "OPTILLING",
  "BREAK": "BREAK",
  "DOWN": "TERUGVAL",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "PEAK": "PIEK",
+ "DRIVE": "DRIVE"
 }

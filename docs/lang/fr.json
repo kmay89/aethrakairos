@@ -1729,5 +1729,7 @@
  "LIFT": "RELANCE",
  "BREAK": "BREAK",
  "DOWN": "DESCENTE",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "PEAK": "PIC",
+ "DRIVE": "ÉLAN"
 }

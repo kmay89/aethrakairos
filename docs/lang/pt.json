@@ -1729,5 +1729,7 @@
  "LIFT": "IMPULSO",
  "BREAK": "BREAK",
  "DOWN": "QUEDA",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "PEAK": "PICO",
+ "DRIVE": "EMBALO"
 }

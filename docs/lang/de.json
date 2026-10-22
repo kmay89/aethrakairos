@@ -1729,5 +1729,7 @@
  "LIFT": "ANHEBUNG",
  "BREAK": "BREAK",
  "DOWN": "ABFALL",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "PEAK": "PEAK",
+ "DRIVE": "DRIVE"
 }

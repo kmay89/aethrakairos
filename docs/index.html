@@ -15506,10 +15506,13 @@ function powerPlan(mode, dpr, ios){
   return { maxPR: autoMax, minPR: autoMin, pinPR: null,
            frameDiv: 1, lens: true, heavy: true, wake: false, govern: true, remember: true };
 }
-// the source palette for stem-coloured waveforms: drums run warm-red (the
-// transient hit), bass amber (the body), vocals cyan (the voice sits up and
-// bright), everything else violet. Chosen to stay legible when blended.
-const STEM_PAL = { d: [255, 96, 72], b: [255, 158, 64], v: [120, 222, 255], o: [176, 132, 255] };
+// the source palette for stem-coloured waveforms, in the engine's own space:
+// drums run warm-red (the transient hit), bass amber (the body), vocals cyan
+// (the voice sits up and bright), everything else violet — each an OKLCH
+// triple, converted once, so they sit on the same lightness ladder as the
+// band colours the un-separated tracks are drawn in. Legible when blended.
+const STEM_OKLCH = { d: { l: 0.66, c: 0.20, h: 28 }, b: { l: 0.78, c: 0.15, h: 72 }, v: { l: 0.86, c: 0.10, h: 212 }, o: { l: 0.70, c: 0.14, h: 300 } };
+const STEM_PAL = Object.fromEntries(Object.entries(STEM_OKLCH).map(([k, o]) => [k, oklchToRgbFine(o.l, o.c, o.h).map(v => Math.round(v * 255))]));
 // stemsAt — sample the four per-stem digit envelopes at a fraction 0..1 of the
 // track, each returned 0..1. The strings span the whole track, so the index is
 // just frac × length (linearly interpolated). Returns null when there are no
@@ -23810,12 +23813,15 @@ const OVERVIEW_CACHE = {
     while (this.m.size > 8) this.m.delete(this.m.keys().next().value);
     return e;
   },
-  // the lit layer up to the playhead, the dimmed one after it, at (x, y) in the caller's units
+  /* the DIMMED layer up to the playhead, the LIT one after it, at (x, y) in the
+     caller's units: what is ahead is lit and what is played sits back — the
+     deck's reading, the same on the strip, the lanes, the seek and the ring
+     (this used to be the other way round here alone) */
   blit(ctx, e, x, y, w, h, frac, dpr){
     const W = e.lit.width, H = e.lit.height;
     const sx = Math.max(0, Math.min(W, Math.round(clamp01(frac) * W)));
-    if (sx > 0) ctx.drawImage(e.lit, 0, 0, sx, H, x, y, sx / dpr, h);
-    if (sx < W) ctx.drawImage(e.dim, sx, 0, W - sx, H, x + sx / dpr, y, (W - sx) / dpr, h);
+    if (sx > 0) ctx.drawImage(e.dim, 0, 0, sx, H, x, y, sx / dpr, h);
+    if (sx < W) ctx.drawImage(e.lit, sx, 0, W - sx, H, x + sx / dpr, y, (W - sx) / dpr, h);
   },
 };
 
@@ -23869,9 +23875,10 @@ const WAVE = {
     const tr = player.tracks[player.cur];
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const aq = this.accent.map(v => (v & 0xF8) | 4);   // the accent drifts at 12 Hz: repaint on a visible step only
-    const key = 'seek|' + (tr ? (tr.url || tr.id) : '') + '|' + w + 'x' + h + '@' + dpr + '|' + aq.join(',') + '|' + pk.length
+    const pal = WAVEPAL.for(tr);
+    const key = 'seek|' + (tr ? (tr.url || tr.id) : '') + '|' + w + 'x' + h + '@' + dpr + '|' + aq.join(',') + '|' + pal.id + '|' + pk.length
       + '|' + (stems ? 's' : '') + '|' + (struct && struct.ok && struct.sections ? struct.sections.length : 0);
-    const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, lit) => this._overviewPaint(c, W, H, pk, bands, stems, struct, lit, aq));
+    const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, lit) => this._overviewPaint(c, W, H, pk, bands, stems, struct, lit, aq, pal, tr && tr._bmax));
     OVERVIEW_CACHE.blit(ctx, e, 0, 0, w, h, frac, dpr);
     const a = this.accent;
     // (the label and the needle are the only per-frame strokes)
@@ -23894,15 +23901,16 @@ const WAVE = {
     ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.75, 0, 1.5, h);
   },
 
-  // the static half of the overview, as one layer: every bar lit (on) or dimmed
-  _overviewPaint(ctx, w, h, pk, bands, stems, struct, on, acc){
+  // the static half of the overview, as one layer: every bar lit (on: ahead) or dimmed (played)
+  _overviewPaint(ctx, w, h, pk, bands, stems, struct, on, acc, pal, bmax){
     // the true DJ-deck read: every bar coloured by its content, lit ahead of
     // the playhead and dimmed behind. When the offline pipeline has separated
     // this track we colour by SOURCE — drums red, bass amber, vocals cyan,
-    // other violet, so you see the actual arrangement; otherwise we fall back
-    // to the spectral band split (warm lows · key on the mids · bright highs).
+    // other violet, so you see the actual arrangement; otherwise by the
+    // column's TILT through the key's LUT (dark lows · the key on the body ·
+    // bright highs), the same palette the strip and the ring read from.
     const n = pk.length, mid = h * 0.5;
-    const warm = [255, 120, 58], bright = [140, 214, 255];
+    const P = pal || WAVEPAL.at(null), bm = bmax || { l: 1, m: 1, h: 1 };
     const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
     const cw = w / cols, bw = Math.max(1, cw * 0.72);
     for (let c = 0; c < cols; c++){
@@ -23912,17 +23920,12 @@ const WAVE = {
         if (pk[i] > mx) mx = pk[i];
         sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
       }
-      const played = on, dim = played ? 1 : 0.4;
+      const lit = on, dim = lit ? 1 : 0.4;
       let rgb = stems && stemRGB(stemsAt(stems, (c + 0.5) / cols));
-      if (!rgb){
-        const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
-        rgb = [warm[0]*rL + acc[0]*rM + bright[0]*rH,
-               warm[1]*rL + acc[1]*rM + bright[1]*rH,
-               warm[2]*rL + acc[2]*rM + bright[2]*rH];
-      }
+      if (!rgb) rgb = WAVEPAL.tilt(P, waveTilt(sl / (bm.l || 1), sm / (bm.m || 1), sh / (bm.h || 1)));
       const r = rgb[0]*dim, g = rgb[1]*dim, b = rgb[2]*dim;
       const bh = Math.max(0.7, Math.pow(mx, 0.9) * (h * 0.5));
-      ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${played ? 0.96 : 0.6})`;
+      ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${lit ? 0.96 : 0.6})`;
       ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
     }
     const a = acc;
@@ -23945,7 +23948,7 @@ const WAVE = {
     if (struct && struct.ok && struct.sections && struct.sections.length){
       const by = h - 3;
       for (const sec of struct.sections){
-        const x0 = sec.s * w, x1 = sec.e * w, col = sec.loud ? a : warm;
+        const x0 = sec.s * w, x1 = sec.e * w, col = sec.loud ? a : P.lo;
         const lit = sec.loud ? 0.32 + sec.energy * 0.5 : 0.1 + sec.energy * 0.18;
         ctx.fillStyle = `rgba(${col[0]|0},${col[1]|0},${col[2]|0},${lit.toFixed(3)})`;
         ctx.fillRect(x0, by, Math.max(1, x1 - x0 - 0.5), 3);
@@ -24237,6 +24240,15 @@ function computePeaks(track){
       return;
     }
   }
+  // THE BOOTH MAY ALREADY HAVE THIS SONG — or be decoding it. A detail landed
+  // for the strip is the whole song in hand: fold it. One in flight is one
+  // decode too many to start another: mark the fold wanted, and the landing
+  // fills these in (a failure lets go, so the ask below can run next time).
+  if (typeof DECKWAVE !== 'undefined'){
+    const cur = DECKWAVE._det.get(DECKWAVE.key(track));
+    if (cur && cur.v >= 2 && DECKWAVE.adoptPeaks(track, cur)) return;
+    if (cur && cur.state === 'pending'){ track._peaksPending = true; cur.peaksWanted = true; return; }
+  }
   // NEVER ACROSS A LIVE SEAM. Drawing a track's waveform costs a whole-song
   // fetch — racing the incoming deck for the very bandwidth it is buffering
   // with — and a decodeAudioData that allocates a song of PCM on the main
@@ -24253,6 +24265,18 @@ function computePeaks(track){
 }
 async function _peaksDecode(track){
   if (track._peaks || track._peaksErr){ track._peaksPending = false; return; }
+  /* ONE DECODE PER SONG. The strip's detail carries everything this fold needs
+     and more, at a rate the worker produces off the main thread; so the song is
+     decoded ONCE, there, and folded here — the booth, opened later, finds its
+     detail already landed. The 12 kHz decode below remains for the day the
+     detail cannot be had (no worker, a decode the detail refused). */
+  if (typeof DECKWAVE !== 'undefined' && track.url){
+    let det = null;
+    try { det = await DECKWAVE.detailFor(track); } catch (e){ det = null; }
+    if (track._peaks || (det && DECKWAVE.adoptPeaks(track, det))){ track._peaksPending = false; return; }
+    // called off (a track change) is not a failure: nothing is held, and the next ask starts afresh
+    if (!DECKWAVE._det.has(DECKWAVE.key(track))){ track._peaksPending = false; return; }
+  }
   try {
     let buf = await BYTES.get(track.url);          // shared with the booth's readers of the same song
     const ac = peaksContext();
@@ -24352,30 +24376,57 @@ function driveFromEnvelope(dt, now){
 }
 
 /* ================================================================
-   THE DETAIL WAVEFORM — the song at DJ-deck resolution.
+   THE DETAIL WAVEFORM — the song at DJ-deck resolution ('wave8', v2).
 
    The overview and the score both read the song at 12 Hz, which draws a
    whole track on a strip honestly and cannot draw a kick. A scrolling deck
-   needs the song at a hundred-odd columns a second, split the way an ear
-   splits it: the true peak, and three bands (below 200 Hz the kick and the
-   bass, 200 Hz to 2 kHz the body, above 2 kHz the hats and the air), each a
-   per-column RMS through Linkwitz-Riley crossovers (24 dB an octave), sharp
-   enough that a kick and a hat never bleed into each other's colour, and
-   cheap enough to run over a whole song in a worker in well under a second.
+   needs the song at five hundred columns a second (two milliseconds: thirty-
+   two samples at 16 kHz, exactly), split the way an ear splits it: three
+   bands (below 200 Hz the kick and the bass, 200 Hz to 2 kHz the body, above
+   2 kHz the hats and the air) through Linkwitz-Riley crossovers (24 dB an
+   octave), sharp enough that a kick and a hat never bleed into each other's
+   colour, and cheap enough to run over a whole song in a worker in a second.
 
-   The peak is normalised against its own 99.5th percentile (one stray spike
-   must not flatten the song), the bands against one shared reference with a
-   pink-ish display tilt, so they stay comparable; each voice is stored as a
-   byte: a three-minute track is 108 KB of detail. Pure: the worker runs these
-   very functions.
+   EIGHT PLANES a column, each a byte: the whole signal's true peak; each
+   band's PEAK (the hit) and each band's RMS (the body under it, read through
+   a window a bass cycle long so a note is a body and not a comb); and the
+   TILT — where the column's energy sits between the lows and the highs,
+   which is what colours it, the way Serato's three-band read does. Two MIPS
+   (÷4 and ÷16: peaks by max, bodies by mean, tilt by body-weighted mean) so
+   a wide zoom reads a cheap level. The whole-signal peak is normalised
+   against its own 99.5th percentile (one stray spike must not flatten the
+   song); the bodies against one shared reference across the three bands
+   with a pink-ish display tilt, so they stay comparable, and the caps
+   against that bar times √2, so a held tone's cap meets its body and a hit's
+   stands clear of it by its crest. Every plane of every level is a view on ONE buffer: a seven-
+   minute track is 2.2 MB of detail, handed over in a single transfer. The
+   shipped 12 Hz score folds into the same names (v1) until it lands. Pure:
+   the worker runs these very functions.
    ================================================================ */
 // @wave-start
-const WAVE_HZ = 150;              // detail columns per second of music
+const WAVE_V = 2;                 // the detail's contract: 2 = 'wave8' (eight planes, two mips); 1 = the score's four, in the same names
+const WAVE_HZ = 500;              // detail columns per second of music: thirty-two samples a column at WAVE_SR, exactly
 const WAVE_SR = 16000;            // the rate the detail is decoded at: highs up to 8 kHz
 const WAVE_XO_LO = 200, WAVE_XO_HI = 2000;   // the crossovers, Hz
 // how much each band is lifted for display: music falls off with frequency, and a hat
 // that is a tenth of the kick's power must still read as a hat (a pink-ish tilt)
 const WAVE_TILT = [1, 1.6, 3];
+// the eight planes of a column, each a byte: the whole signal's true peak; each
+// band's peak (the hit) and each band's RMS (the body under it); and the TILT —
+// where the column's energy sits between the lows and the highs, which is what
+// colours it. Every level of the detail carries all eight.
+const WAVE_PLANES = ['pk', 'loPk', 'miPk', 'hiPk', 'loRms', 'miRms', 'hiRms', 'tilt'];
+const WAVE_MIPS = [4, 16];        // the coarser levels: ÷4 (125 Hz) and ÷16 (31.25 Hz), so a wide zoom reads a cheap level
+/* THE BODY IS READ THROUGH A WINDOW LONGER THAN THE COLUMN. A 2 ms column sees
+   an eighth of one 60 Hz cycle, so a bass note's own cycles would read along
+   the strip as a comb; the lows are read over 16 ms (one cycle of a 60 Hz note:
+   the ripple falls from 15 % to 4 %), the mids over 6, the highs over their own
+   column (they hold cycles enough). The window trails — the onset
+   edge stays exactly where the hit is, only the decay lengthens — and a band's
+   PEAK is held the same way, as a peak-hold meter does, so a cap is a line and
+   not a saw. All in columns, so the detail's rate is the only clock. */
+const WAVE_BODY_MS = [16, 6, 0];
+const WAVE_HOLD_MS = [16, 8, 0];   // never shorter than the body's window: a cap is over its body by construction
 // a second-order Butterworth section (RBJ), as five numbers: [b0, b1, b2, a1, a2]
 function waveBiquad(type, f, sr){
   const w = 2 * Math.PI * f / sr, c = Math.cos(w), al = Math.sin(w) / Math.SQRT2, a0 = 1 + al;
@@ -24383,13 +24434,74 @@ function waveBiquad(type, f, sr){
   const b0 = (lp ? (1 - c) / 2 : (1 + c) / 2) / a0, b1 = (lp ? 1 - c : -(1 + c)) / a0;
   return [b0, b1, b0, -2 * c / a0, (1 - al) / a0];
 }
+// a trailing mean over `win` columns, in place (win ≤ 1 leaves the voice as it is)
+function waveTrailMean(v, win){
+  const n = v.length; win = win | 0;
+  if (win <= 1 || n < 2) return v;
+  const ring = new Float32Array(win);
+  let sum = 0, cnt = 0;
+  for (let i = 0; i < n; i++){
+    const j = i % win;
+    if (cnt < win) cnt++; else sum -= ring[j];
+    ring[j] = v[i]; sum += v[i];
+    v[i] = sum > 0 ? sum / cnt : 0;      // a running sum drifts a hair under zero on silence: never a NaN downstream
+  }
+  return v;
+}
+// a trailing hold over `win` columns, in place: a peak stays up for `win` columns after it struck
+function waveTrailMax(v, win){
+  const n = v.length; win = win | 0;
+  if (win <= 1 || n < 2) return v;
+  const o = Float32Array.from(v);
+  for (let i = 0; i < n; i++){
+    let m = o[i];
+    for (let j = Math.max(0, i - win + 1); j < i; j++) if (o[j] > m) m = o[j];
+    v[i] = m;
+  }
+  return v;
+}
+// where a column's energy sits, lows to highs, 0..1 — the three band levels, already display-tilted
+function waveTilt(l, m, h){
+  const s = l + m + h;
+  return s > 1e-6 ? (2 * h + m) / s * 0.5 : 0.5;
+}
+/* ONE COARSER LEVEL from a finer one, float planes 0..1 in the eight names:
+   peaks by max (a kick in any of the folded columns is a kick), bodies by mean,
+   the tilt by the body-weighted mean, so a loud hat still tilts the colour and
+   silence does not. */
+function waveMip(lvl, f){
+  f = f > 1 ? f | 0 : 2;
+  const n = Math.max(1, Math.ceil(lvl.n / f)), hz = lvl.hz / f;
+  const out = { hz, n };
+  for (const p of WAVE_PLANES) out[p] = new Float32Array(n);
+  for (let i = 0; i < n; i++){
+    const s = i * f, e = Math.min(lvl.n, s + f), cnt = e - s || 1;
+    let pk = 0, lp = 0, mp = 0, hp = 0, ls = 0, ms = 0, hs = 0, ts = 0, tw = 0;
+    for (let j = s; j < e; j++){
+      if (lvl.pk[j] > pk) pk = lvl.pk[j];
+      if (lvl.loPk[j] > lp) lp = lvl.loPk[j]; if (lvl.miPk[j] > mp) mp = lvl.miPk[j]; if (lvl.hiPk[j] > hp) hp = lvl.hiPk[j];
+      const l = lvl.loRms[j], m = lvl.miRms[j], h = lvl.hiRms[j], w = l + m + h;
+      ls += l; ms += m; hs += h; ts += lvl.tilt[j] * w; tw += w;
+    }
+    out.pk[i] = pk; out.loPk[i] = lp; out.miPk[i] = mp; out.hiPk[i] = hp;
+    out.loRms[i] = ls / cnt; out.miRms[i] = ms / cnt; out.hiRms[i] = hs / cnt;
+    out.tilt[i] = tw > 1e-9 ? ts / tw : 0.5;
+  }
+  return out;
+}
+/* THE DETAIL of a song: `chans` is one or two Float32Arrays at `sr`, folded to
+   mono on the way through; `hz` columns a second. Returns the base level and
+   its two mips, every plane a byte, all of them views on ONE ArrayBuffer (buf)
+   so the worker hands the whole thing over in a single transfer. */
 function waveDetail(chans, sr, hz){
   hz = hz > 0 ? hz : WAVE_HZ;
   const L = chans && chans[0], R = chans && chans[1] ? chans[1] : null;
   const len = L ? L.length : 0;
   if (!(sr > 0) || !len) return null;
   const n = Math.max(1, Math.ceil(len * hz / sr));
-  const pk = new Float32Array(n), lo = new Float32Array(n), mi = new Float32Array(n), hi = new Float32Array(n);
+  const pk = new Float32Array(n);
+  const bp = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];   // each band's peak
+  const bs = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];   // each band's mean power
   /* Linkwitz-Riley crossovers: each band through two Butterworth sections
      (24 dB an octave), so a 60 Hz kick leaves almost nothing in the mids and
      a hat nothing in the lows. Eight sections a sample, state in plain locals. */
@@ -24406,23 +24518,82 @@ function waveDetail(chans, sr, hz){
     }
     return y;
   };
-  let col = 0, end = Math.min(len, Math.round(sr / hz)), cnt = 0, mx = 0, sl = 0, sm = 0, sh = 0;
+  let col = 0, end = Math.min(len, Math.round(sr / hz)), cnt = 0, mx = 0;
+  let p0 = 0, p1 = 0, p2 = 0, s0 = 0, s1 = 0, s2 = 0;
   for (let i = 0; i < len; i++){
     const x = R ? (L[i] + R[i]) * 0.5 : L[i];
     const l = run(0, x), m = run(1, x), h = run(2, x);
     const ax = x < 0 ? -x : x; if (ax > mx) mx = ax;
-    sl += l * l; sm += m * m; sh += h * h; cnt++;
+    const al = l < 0 ? -l : l, am = m < 0 ? -m : m, ah = h < 0 ? -h : h;
+    if (al > p0) p0 = al; if (am > p1) p1 = am; if (ah > p2) p2 = ah;
+    s0 += l * l; s1 += m * m; s2 += h * h; cnt++;
     if (i + 1 >= end){
-      if (col < n){ pk[col] = mx; lo[col] = Math.sqrt(sl / cnt); mi[col] = Math.sqrt(sm / cnt); hi[col] = Math.sqrt(sh / cnt); }
+      if (col < n){
+        pk[col] = mx; bp[0][col] = p0; bp[1][col] = p1; bp[2][col] = p2;
+        bs[0][col] = s0 / cnt; bs[1][col] = s1 / cnt; bs[2][col] = s2 / cnt;
+      }
       col++; end = Math.min(len, Math.round((col + 1) * sr / hz));
-      cnt = 0; mx = 0; sl = 0; sm = 0; sh = 0;
+      cnt = 0; mx = 0; p0 = p1 = p2 = 0; s0 = s1 = s2 = 0;
     }
   }
+  // the bodies through their windows (then the root: power to RMS), the peaks held —
+  // the whole signal's too, for as long as the lows', so its outline is an envelope
+  // and not the bass note's own cycles drawn as a saw
+  waveTrailMax(pk, Math.round(WAVE_HOLD_MS[0] * hz / 1000));
+  for (let b = 0; b < 3; b++){
+    waveTrailMean(bs[b], Math.round(WAVE_BODY_MS[b] * hz / 1000));
+    waveTrailMax(bp[b], Math.round(WAVE_HOLD_MS[b] * hz / 1000));
+    const v = bs[b]; for (let i = 0; i < n; i++) v[i] = v[i] > 0 ? Math.sqrt(v[i]) : 0;
+  }
   /* one reference for the three bands, so they stay comparable: a song with no
-     highs shows none, rather than its hiss blown up to full scale */
-  const ref = Math.max(wavePct(lo) * WAVE_TILT[0], wavePct(mi) * WAVE_TILT[1], wavePct(hi) * WAVE_TILT[2], 1e-6);
-  return { hz, n, dur: len / sr, pk: waveQuant(pk, wavePct(pk), 1),
-           lo: waveQuant(lo, ref / WAVE_TILT[0], 0.8), mi: waveQuant(mi, ref / WAVE_TILT[1], 0.8), hi: waveQuant(hi, ref / WAVE_TILT[2], 0.8) };
+     highs shows none, rather than its hiss blown up to full scale. The bodies
+     take it from the bands' bodies (as the strip always has: the song fills its
+     height); the caps take the SAME bar times √2 — a sine's crest — so a held
+     tone's cap meets its body and a hit's stands clear of it by its crest over a
+     sine's (a kick's, two to three, nearly twice as tall): a plateau for a pad, a
+     spike for a hit, on every track and not only the spikiest. (A percentile of
+     the peaks themselves would put every kick's cap back on its body: it is the
+     song's own kicks that set that percentile.) */
+  const ref = Math.max(wavePct(bs[0]) * WAVE_TILT[0], wavePct(bs[1]) * WAVE_TILT[1], wavePct(bs[2]) * WAVE_TILT[2], 1e-6);
+  const refC = ref * Math.SQRT2;
+  const refPk = Math.max(wavePct(pk), 1e-6);
+  const base = { hz, n };
+  base.pk = waveNorm(pk, refPk, 1);
+  base.loPk = waveNorm(bp[0], refC / WAVE_TILT[0], 0.8); base.miPk = waveNorm(bp[1], refC / WAVE_TILT[1], 0.8); base.hiPk = waveNorm(bp[2], refC / WAVE_TILT[2], 0.8);
+  base.loRms = waveNorm(bs[0], ref / WAVE_TILT[0], 0.8); base.miRms = waveNorm(bs[1], ref / WAVE_TILT[1], 0.8); base.hiRms = waveNorm(bs[2], ref / WAVE_TILT[2], 0.8);
+  base.tilt = new Float32Array(n);
+  for (let i = 0; i < n; i++) base.tilt[i] = waveTilt(base.loRms[i], base.miRms[i], base.hiRms[i]);
+  const levels = [base];
+  for (const f of WAVE_MIPS) levels.push(waveMip(base, f));
+  return wavePack(levels, len / sr);
+}
+// a voice against a reference level through a gentle display curve, to 0..1 floats
+function waveNorm(v, ref, gamma){
+  const n = v.length, o = new Float32Array(n);
+  ref = Math.max(1e-6, ref || 0);
+  for (let i = 0; i < n; i++){ const x = v[i] / ref; o[i] = x > 1 ? 1 : x > 0 ? Math.pow(x, gamma) : 0; }
+  return o;
+}
+/* the levels to bytes, in ONE buffer: [base planes][mip planes…], each plane
+   WAVE_PLANES-ordered. The views share the buffer, and a structured clone keeps
+   that sharing, so one transfer moves a whole song's detail. */
+function wavePack(levels, dur){
+  let total = 0;
+  for (const l of levels) total += l.n * WAVE_PLANES.length;
+  const buf = new ArrayBuffer(total);
+  let off = 0;
+  const packed = levels.map(l => {
+    const o = { hz: l.hz, n: l.n };
+    for (const p of WAVE_PLANES){
+      const u = new Uint8Array(buf, off, l.n), v = l[p];
+      for (let i = 0; i < l.n; i++) u[i] = Math.round(255 * (v[i] > 1 ? 1 : v[i] < 0 ? 0 : v[i]));
+      o[p] = u; off += l.n;
+    }
+    return o;
+  });
+  const det = { v: WAVE_V, hz: packed[0].hz, n: packed[0].n, dur, buf, mips: packed.slice(1) };
+  for (const p of WAVE_PLANES) det[p] = packed[0][p];
+  return det;
 }
 // a voice's 99.5th percentile: one stray spike must not flatten the song
 function wavePct(v){
@@ -24442,36 +24613,138 @@ function waveQuant(v, ref, gamma){
   return o;
 }
 /* the detail a track that has not been decoded yet can already show: its
-   shipped 12 Hz score, in the same shape (the peak stands in as the bands'
-   power sum, as the overview has always read it) */
+   shipped 12 Hz score, in the same names (v: 1 — a score knows no peak from a
+   body, so each band's cap IS its body; the peak stands in as the bands' power
+   sum, as the overview has always read it) so every reader of a detail reads
+   this too */
 function waveFromEnv(env){
   if (!env || !(env.hz > 0) || !env.b || !env.m || !env.t) return null;
   const n = Math.min(env.b.length, env.m.length, env.t.length);
   if (!(n > 0)) return null;
   const at = (s, j) => { const c = s.charCodeAt(j) - 48; return c >= 0 && c <= 9 ? c / 9 : 0; };
-  const pk = new Uint8Array(n), lo = new Uint8Array(n), mi = new Uint8Array(n), hi = new Uint8Array(n);
+  const pk = new Uint8Array(n), lo = new Uint8Array(n), mi = new Uint8Array(n), hi = new Uint8Array(n), tilt = new Uint8Array(n);
   for (let j = 0; j < n; j++){
     const b = at(env.b, j), m = at(env.m, j), t = at(env.t, j);
     lo[j] = Math.round(b * 255); mi[j] = Math.round(m * 255); hi[j] = Math.round(t * 255);
     pk[j] = Math.round(Math.min(1, Math.sqrt(b * b + m * m + t * t) / 1.2) * 255);
+    tilt[j] = Math.round(waveTilt(b, m, t) * 255);
   }
-  return { hz: env.hz, n, dur: n / env.hz, pk, lo, mi, hi, coarse: true };
+  return { v: 1, hz: env.hz, n, dur: n / env.hz, coarse: true, pk, lo, mi, hi, tilt,
+           loPk: lo, miPk: mi, hiPk: hi, loRms: lo, miRms: mi, hiRms: hi };
 }
-// the loudest of each voice over [t0, t1) seconds, 0..1 (a column narrower than the detail reads the one it falls in)
+// the coarsest level whose column still fits inside `span` seconds (the base when none does)
+function waveLevel(d, span){
+  let lvl = d;
+  if (d && d.mips) for (const m of d.mips){ if (m && m.hz > 0 && 1 / m.hz <= span + 1e-9) lvl = m; else break; }
+  return lvl;
+}
+/* what is in [t0, t1) seconds of a song, 0..1: the peaks as the loudest column
+   (a kick in any of them is a kick), the bodies as the mean, the tilt as the
+   body-weighted mean — read from the coarsest level whose column fits the
+   span, so a wide zoom costs what a wide zoom should. A span shorter than a
+   column reads BETWEEN the columns, so the closest zoom (and the 12 Hz score
+   before the detail lands) is a slope, not a staircase. */
 function waveRange(d, t0, t1, out){
-  out = out || { pk: 0, lo: 0, mi: 0, hi: 0 };
-  out.pk = out.lo = out.mi = out.hi = 0;
+  out = out || { pk: 0, lo: 0, mi: 0, hi: 0, loPk: 0, miPk: 0, hiPk: 0, tilt: 0.5 };
+  out.pk = out.lo = out.mi = out.hi = out.loPk = out.miPk = out.hiPk = 0; out.tilt = 0.5;
   if (!d || !(t1 > 0) || t0 >= d.dur) return out;
-  let i0 = Math.floor(t0 * d.hz), i1 = Math.ceil(t1 * d.hz);
+  const span = t1 - t0;
+  if (span < 0.75 / d.hz) return waveRangeAt(d, (t0 + t1) * 0.5, out);
+  const L = waveLevel(d, span), hz = L.hz, n = L.n;
+  let i0 = Math.floor(t0 * hz), i1 = Math.ceil(t1 * hz);
   if (i0 < 0) i0 = 0;
-  if (i1 > d.n) i1 = d.n;
-  if (i1 <= i0) i1 = Math.min(d.n, i0 + 1);
-  let p = 0, l = 0, m = 0, h = 0;
+  if (i1 > n) i1 = n;
+  if (i1 <= i0) i1 = Math.min(n, i0 + 1);
+  let p = 0, lp = 0, mp = 0, hp = 0, ls = 0, ms = 0, hs = 0, ts = 0, tw = 0;
   for (let i = i0; i < i1; i++){
-    if (d.pk[i] > p) p = d.pk[i]; if (d.lo[i] > l) l = d.lo[i];
-    if (d.mi[i] > m) m = d.mi[i]; if (d.hi[i] > h) h = d.hi[i];
+    if (L.pk[i] > p) p = L.pk[i];
+    if (L.loPk[i] > lp) lp = L.loPk[i]; if (L.miPk[i] > mp) mp = L.miPk[i]; if (L.hiPk[i] > hp) hp = L.hiPk[i];
+    const l = L.loRms[i], m = L.miRms[i], h = L.hiRms[i], w = l + m + h;
+    ls += l; ms += m; hs += h; ts += L.tilt[i] * w; tw += w;
   }
-  out.pk = p / 255; out.lo = l / 255; out.mi = m / 255; out.hi = h / 255;
+  const cnt = (i1 - i0) || 1;
+  out.pk = p / 255; out.loPk = lp / 255; out.miPk = mp / 255; out.hiPk = hp / 255;
+  out.lo = ls / cnt / 255; out.mi = ms / cnt / 255; out.hi = hs / cnt / 255;
+  out.tilt = tw > 0 ? ts / tw / 255 : 0.5;
+  return out;
+}
+// the song at one instant, read between the two columns either side of it
+function waveRangeAt(d, t, out){
+  const x = t * d.hz - 0.5, n = d.n;
+  let i = Math.floor(x); const fr = x - i;
+  if (i < 0) i = 0;
+  const j = Math.min(n - 1, i + 1), f = i === j ? 0 : (fr < 0 ? 0 : fr > 1 ? 1 : fr);
+  if (i >= n) return out;
+  const rd = p => (d[p][i] * (1 - f) + d[p][j] * f) / 255;
+  out.pk = rd('pk'); out.loPk = rd('loPk'); out.miPk = rd('miPk'); out.hiPk = rd('hiPk');
+  out.lo = rd('loRms'); out.mi = rd('miRms'); out.hi = rd('hiRms'); out.tilt = rd('tilt');
+  return out;
+}
+/* the song folded for the overview, the ring and the auto cues — the shape
+   peaksFromEnv and the old decoder produce (N columns of peak, band means and
+   their maxima), read from the detail's coarsest level: a track the booth has
+   decoded is never decoded twice */
+function waveFoldPeaks(det, N){
+  if (!det || !(det.v >= 2) || !det.pk) return null;
+  N = Math.max(8, Math.floor(Number(N) || 480));
+  const L = det.mips && det.mips.length ? det.mips[det.mips.length - 1] : det, n = L.n;
+  if (!(n > 0)) return null;
+  const pk = new Float32Array(N), bL = new Float32Array(N), bM = new Float32Array(N), bH = new Float32Array(N);
+  let mp = 0, mL = 1e-4, mM = 1e-4, mH = 1e-4;
+  for (let i = 0; i < N; i++){
+    const st = Math.floor(i * n / N), en = Math.max(st + 1, Math.floor((i + 1) * n / N));
+    let mx = 0, sl = 0, sm = 0, sh = 0, cnt = 0;
+    for (let j = st; j < en && j < n; j++){
+      if (L.pk[j] > mx) mx = L.pk[j];
+      sl += L.loRms[j]; sm += L.miRms[j]; sh += L.hiRms[j]; cnt++;
+    }
+    pk[i] = mx / 255;
+    bL[i] = cnt ? sl / cnt / 255 : 0; bM[i] = cnt ? sm / cnt / 255 : 0; bH[i] = cnt ? sh / cnt / 255 : 0;
+    if (pk[i] > mp) mp = pk[i];
+    if (bL[i] > mL) mL = bL[i]; if (bM[i] > mM) mM = bM[i]; if (bH[i] > mH) mH = bH[i];
+  }
+  if (mp > 1e-4) for (let i = 0; i < N; i++) pk[i] = Math.min(1, pk[i] / mp);
+  return { pk, bands: { l: bL, m: bM, h: bH }, bmax: { l: mL, m: mM, h: mH } };
+}
+/* ONSETS: a column whose band peak stands well above its body (a hit, not a
+   tone — a sine's crest is under the bar) AND is rising on the column before.
+   pk and rms are 0..1 per column; the flags come back as bytes. */
+function waveOnsets(pk, rms, n, out){
+  n = n == null ? Math.min(pk.length, rms.length) : n | 0;
+  out = out && out.length >= n ? out : new Uint8Array(n);
+  let prev = 0;
+  for (let i = 0; i < n; i++){
+    const p = pk[i];
+    out[i] = (p > 0.06 && p > 1.35 * rms[i] && p > prev + 8 / 255) ? 1 : 0;
+    prev = p;
+  }
+  return out;
+}
+/* THE BAND COLOURS, in the engine's law: three OKLCH triples hung off the
+   track's key hue — the lows dark and warm fifty degrees down the wheel, the
+   body the key itself (the deck's accent), the highs airy and near-white forty
+   degrees up. Lightness climbs lows → highs whatever the key, so 'dark warm
+   lows, keyed body, bright air' survives a red key as well as a blue one. */
+function waveBandColours(keyHue){
+  const h = keyHue == null || !isFinite(keyHue) ? 200 : ((keyHue % 360) + 360) % 360;
+  return { lo: { l: 0.56, c: 0.17, h: (h + 310) % 360 },
+           mi: { l: 0.72, c: 0.13, h: h },
+           hi: { l: 0.93, c: 0.04, h: (h + 40) % 360 } };
+}
+// the colour of a tilt t (0 = all lows, 1 = all highs): lo → mi over the first half, mi → hi over the second
+function waveTiltAt(cols, t){
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  return t < 0.5 ? lerpOklch(cols.lo, cols.mi, t * 2) : lerpOklch(cols.mi, cols.hi, (t - 0.5) * 2);
+}
+// the LUT a painter reads a column's colour from: N steps of tilt, each an sRGB byte triple, converted once
+function waveTiltLUT(cols, N){
+  N = N > 1 ? N | 0 : 33;
+  const out = new Uint8ClampedArray(N * 3);
+  for (let i = 0; i < N; i++){
+    const c = waveTiltAt(cols, i / (N - 1));
+    const rgb = oklchToRgbFine(c.l, c.c, c.h);
+    out[i * 3] = Math.round(rgb[0] * 255); out[i * 3 + 1] = Math.round(rgb[1] * 255); out[i * 3 + 2] = Math.round(rgb[2] * 255);
+  }
   return out;
 }
 /* THE GRID over [t0, t1]: every beat from the track's anchor at its tempo,
@@ -24492,22 +24765,57 @@ function waveGrid(bpm, grid, t0, t1, phraseBars){
   }
   return out;
 }
+/* how the grid is dressed: the bar lines carry the downbeat's CONFIDENCE (the
+   analysis says how sure it is the '1' is the one — a bar nobody is sure of
+   is drawn faint, never absent), and the bar numbers come every bar when a
+   bar is wide enough to read, every fourth otherwise */
+function waveGridStyle(downConf, barPx){
+  const c = downConf == null || !isFinite(downConf) ? 0.5 : (downConf < 0 ? 0 : downConf > 1 ? 1 : downConf);
+  return { bar: 0.16 + 0.46 * c, tick: 0.5 + 0.45 * c, numEvery: barPx >= 24 ? 1 : 4, numbers: barPx >= 11 };
+}
 // where a beat lands in its bar, 0 at the downbeat, 4 at the next: the phase meter's reading
 function waveBeatPos(bpm, grid, t){
   if (!(bpm > 0) || !isFinite(grid) || !isFinite(t)) return null;
   const b = (t - grid) * bpm / 60;
   return ((b % 4) + 4) % 4;
 }
+/* THE TIME UNDER THE NEEDLE while a tape loop holds the room. The deck runs on
+   muted past the out-point (the LOOPER's whole idea: no seek, ever), so its
+   clock is not what is heard; what is heard is the loop's phase since the
+   handover, at the rate the tape was cut, inside the loop. A roll keeps the
+   deck's own time: the track ran on underneath, and that is the roll's point. */
+function waveDeckTime(t, looper, ctxNow){
+  if (!looper || !looper.on || looper.mode !== 'loop' || !(looper.len > 0) || !isFinite(ctxNow)) return t;
+  const r = looper.deckRate > 0 ? looper.deckRate : 1;
+  const ph = loopPhaseAt(ctxNow, looper.handAt, looper.len) * r;
+  return looper.start + ph % looper.len;
+}
+/* the rate a strip's tiles are painted at: the deck's own, in steps of four
+   tenths of a percent (rate 1 exactly itself), so a tempo glide repaints its
+   few visible tiles a handful of times across the whole glide and the blit is
+   never more than a fifth of a percent from 1:1 — crisp either way */
+function waveRateStep(rate){
+  const r = rate > 0.05 ? rate : 1;
+  if (Math.abs(r - 1) < 0.002) return 1;
+  const s = Math.log(1.004);
+  return Math.exp(Math.round(Math.log(r) / s) * s);
+}
+// m:ss for a readout
+function waveClock(sec){
+  const s = Math.max(0, Math.floor(sec || 0));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
 // the worker that runs the detail off the main thread: these very functions, serialised
 function waveWorkerSource(){
   return [
-    'const WAVE_HZ = ' + WAVE_HZ + ', WAVE_XO_LO = ' + WAVE_XO_LO + ', WAVE_XO_HI = ' + WAVE_XO_HI + ';',
-    'const WAVE_TILT = ' + JSON.stringify(WAVE_TILT) + ';',
-    waveBiquad.toString(), wavePct.toString(), waveQuant.toString(), waveDetail.toString(),
+    'const WAVE_V = ' + WAVE_V + ', WAVE_HZ = ' + WAVE_HZ + ', WAVE_XO_LO = ' + WAVE_XO_LO + ', WAVE_XO_HI = ' + WAVE_XO_HI + ';',
+    'const WAVE_TILT = ' + JSON.stringify(WAVE_TILT) + ', WAVE_PLANES = ' + JSON.stringify(WAVE_PLANES) + ', WAVE_MIPS = ' + JSON.stringify(WAVE_MIPS) + ';',
+    'const WAVE_BODY_MS = ' + JSON.stringify(WAVE_BODY_MS) + ', WAVE_HOLD_MS = ' + JSON.stringify(WAVE_HOLD_MS) + ';',
+    waveBiquad.toString(), waveTrailMean.toString(), waveTrailMax.toString(), waveTilt.toString(), waveMip.toString(),
+    wavePct.toString(), waveNorm.toString(), wavePack.toString(), waveQuant.toString(), waveDetail.toString(),
     'onmessage = e => { const m = e.data || {}; let det = null;',
     '  try { det = waveDetail(m.chans, m.sr, m.hz); } catch (err){ det = null; }',
-    '  const tr = det ? [det.pk.buffer, det.lo.buffer, det.mi.buffer, det.hi.buffer] : [];',
-    '  postMessage({ id: m.id, det }, tr); };',
+    '  postMessage({ id: m.id, det }, det ? [det.buf] : []); };',
   ].join('\n');
 }
 // @wave-end
@@ -24521,6 +24829,39 @@ function waveWorkerSource(){
    and a resonance orb — the two keys orbit apart and FUSE as the
    phase error dies. A DJ booth where the DJ is the machine.
    ================================================================ */
+/* THE BAND PALETTE, once per key. The three band colours and the 33-step tilt
+   LUT (waveBandColours / waveTiltLUT) converted once per key hue and shared by
+   every painter that colours a column by what is in it — the strip's tiles,
+   the booth lanes, the seek overview and the jog ring — so they agree with
+   each other and with the room's chord. The deck's accent IS the mi colour. */
+const WAVEPAL = {
+  _m: new Map(),
+  hueOf(tr){ const m = tr && mixOf(tr); const h = m && m.key ? camelotHue(m.key) : null; return h == null ? null : h; },
+  // a track's palette, remembered on the track by its key (this is asked every frame)
+  for(tr){
+    if (!tr) return this.at(null);
+    const m = mixOf(tr), key = (m && m.key) || '';
+    if (tr._pal && tr._palKey === key) return tr._pal;
+    tr._palKey = key; tr._pal = this.at(key ? camelotHue(key) : null);
+    return tr._pal;
+  },
+  at(hue){
+    const id = hue == null ? 'none' : String(Math.round(hue));
+    let p = this._m.get(id);
+    if (p) return p;
+    const cols = waveBandColours(hue);
+    const rgb = o => oklchToRgbFine(Math.min(0.95, Math.max(0.22, o.l)), o.c, o.h).map(v => Math.round(v * 255));
+    const shade = (o, dl) => ({ l: o.l + dl, c: o.c, h: o.h });
+    p = { id, n: 33, cols, lut: waveTiltLUT(cols, 33),
+      lo: rgb(cols.lo), mi: rgb(cols.mi), hi: rgb(cols.hi),
+      loE: rgb(shade(cols.lo, -0.15)), miE: rgb(shade(cols.mi, -0.15)), hiE: rgb(shade(cols.hi, -0.15)),   // a body's edges
+      loC: rgb(shade(cols.lo, 0.14)), miC: rgb(shade(cols.mi, 0.12)), hiC: rgb(shade(cols.hi, 0.03)) };     // a band's cap
+    this._m.set(id, p);
+    return p;
+  },
+  // the LUT's colour for a tilt 0..1
+  tilt(p, t){ const j = Math.max(0, Math.min(p.n - 1, Math.round((t < 0 ? 0 : t > 1 ? 1 : t) * (p.n - 1)))) * 3; return [p.lut[j], p.lut[j + 1], p.lut[j + 2]]; },
+};
 function paintLane(ctx, x, y, w, h, tr, frac, accent){
   const pk = tr && tr._peaks, bands = tr && tr._bands;
   const mid = y + h / 2;
@@ -24529,20 +24870,21 @@ function paintLane(ctx, x, y, w, h, tr, frac, accent){
     ctx.fillRect(x, mid - 0.5, w, 1);
     return false;
   }
-  // painted once per track, size and colour (OVERVIEW_CACHE); a frame is two blits
+  // painted once per track, size and key (OVERVIEW_CACHE); a frame is two blits
   const dpr = (ctx.getTransform && ctx.getTransform().a) || 1;
-  const key = 'lane|' + (tr.url || tr.id) + '|' + w.toFixed(1) + 'x' + h.toFixed(1) + '@' + dpr + '|' + accent.join(',') + '|' + pk.length;
-  const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, on) => paintLaneBars(c, W, H, pk, bands, accent, on));
+  const pal = WAVEPAL.for(tr);
+  const key = 'lane|' + (tr.url || tr.id) + '|' + w.toFixed(1) + 'x' + h.toFixed(1) + '@' + dpr + '|' + pal.id + '|' + pk.length;
+  const e = OVERVIEW_CACHE.get(key, w, h, dpr, (c, W, H, on) => paintLaneBars(c, W, H, pk, bands, tr._bmax, pal, on));
   OVERVIEW_CACHE.blit(ctx, e, x, y, w, h, frac, dpr);
   return true;
 }
-// one layer of a lane: every column lit (on, the played part) or dimmed
-function paintLaneBars(ctx, w, h, pk, bands, accent, on){
+// one layer of a lane: every column lit (on: the road ahead) or dimmed (played)
+function paintLaneBars(ctx, w, h, pk, bands, bmax, pal, on){
   const mid = h / 2;
-  // the Serato read, same as the seek: every column coloured by its
-  // frequency makeup — warm lows, the key on the mids, bright highs
-  const warm = [255, 120, 58], acc = accent, bright = [140, 214, 255];
+  // the Serato read, same as the seek: every column coloured by its frequency
+  // makeup — its TILT between the lows and the highs, through the key's LUT
   const n = pk.length;
+  const bm = bmax || { l: 1, m: 1, h: 1 };
   const cols = Math.min(n, Math.max(40, Math.floor(w / 2)));
   const cw = w / cols, bw = Math.max(1, cw * 0.72);
   const dim = on ? 1 : 0.42;
@@ -24553,12 +24895,9 @@ function paintLaneBars(ctx, w, h, pk, bands, accent, on){
       if (pk[i] > mx) mx = pk[i];
       sl += bands.l[i]; sm += bands.m[i]; sh += bands.h[i];
     }
-    const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
-    const r = (warm[0]*rL + acc[0]*rM + bright[0]*rH) * dim;
-    const g = (warm[1]*rL + acc[1]*rM + bright[1]*rH) * dim;
-    const b = (warm[2]*rL + acc[2]*rM + bright[2]*rH) * dim;
+    const rgb = WAVEPAL.tilt(pal, waveTilt(sl / (bm.l || 1), sm / (bm.m || 1), sh / (bm.h || 1)));
     const bh = Math.max(0.6, Math.pow(mx, 0.9) * (h * 0.48));
-    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${on ? 0.95 : 0.55})`;
+    ctx.fillStyle = `rgba(${(rgb[0] * dim) | 0},${(rgb[1] * dim) | 0},${(rgb[2] * dim) | 0},${on ? 0.95 : 0.55})`;
     ctx.fillRect(c * cw, mid - bh, bw, bh * 2);
   }
 }
@@ -25573,6 +25912,27 @@ const CUES = {
      produced, on the track's own beat grid. Runs off a slow timer, so the
      booth needn't be open: by the time a hand reaches for the pads, the
      drop is already on one. */
+  /* a READ of a record's cues — the other deck's strip shows its own record's
+     cues while the pads belong to the hand's. The hand's record answers from
+     the live slots; another's from the store, asked once and remembered. */
+  peek(track){
+    const k = this.keyOf(track);
+    if (!k) return null;
+    if (k === this.key) return { slots: this.slots, labels: this.labels };
+    const got = this._cache.get(k);
+    if (got) return { slots: got, labels: this._lblCache.get(k) || new Array(CUE_SLOTS).fill(null) };
+    if (!this._peeking) this._peeking = new Set();
+    if (!this._peeking.has(k)){
+      this._peeking.add(k);
+      Promise.all([DB.kvGet('cues:' + k).catch(() => null), DB.kvGet('cuelbl:' + k).catch(() => null)]).then(([c, l]) => {
+        this._peeking.delete(k);
+        if (this._cache.has(k)) return;              // a hand set them meanwhile: that is newer
+        this._cache.set(k, Array.isArray(c) ? c.slice() : new Array(CUE_SLOTS).fill(null));
+        this._lblCache.set(k, Array.isArray(l) ? l.slice() : new Array(CUE_SLOTS).fill(null));
+      });
+    }
+    return null;
+  },
   // the pads act on the deck the hand last touched (DECKS.focus); the record on air by default
   _deck(){ return (typeof DECKS !== 'undefined' && AE.decks) ? AE.decks[DECKS.handSlot()] : activeDeck(); },
   _track(){ return (typeof DECKS !== 'undefined' && AE.decks) ? DECKS.track(DECKS.handSlot()) : (typeof player !== 'undefined' ? player.tracks[player.cur] : null); },
@@ -26383,20 +26743,32 @@ function ramp(param, to, secs){
 
    The read every DJ already has: deck A above deck B, each its song at
    deck resolution moving right to left under a playhead fixed in the
-   middle, three bands layered (the lows warm and wide, the body in the
-   track's key, the highs bright on top) so a kick, a snare and a hat are
-   three different shapes. Over it, live: the beat grid with bar numbers
-   and phrase lines, the hot cues, the loop, the planned seam and the drops
-   coming in from the right. Both decks are drawn in wall-clock time, so
-   when the mixer has matched them their grids line up on screen, and a
-   phase meter between them reads how far apart their beats are.
+   middle, three bands layered (the lows dark and wide, the body in the
+   track's key, the highs bright on top — the three colours hung off the key
+   in OKLCH, so a red key's lows are as dark and its highs as airy as a
+   blue key's) so a kick, a snare and a hat are three different shapes; each
+   band's peak a cap over its body, so a hit is a spike and a pad a plateau,
+   and a halo where a hit lands. Over it, live: the beat grid with bar
+   numbers (the bar lines as sure as the analysis is of the downbeat) and
+   phrase lines, the song's sections named along the top edge, each deck's
+   own hot cues with their names, the loop with its beat count, the planned
+   seam and the drops coming in from the right, and the record on air's bars
+   as faint columns down BOTH strips, so a mix that is out shows as two sets
+   of ticks. Both decks are drawn in wall-clock time, so when the mixer has
+   matched them their grids line up on screen, and a phase meter between
+   them reads how far apart their beats are. Ahead is lit, played sits back.
 
    COST. The song is painted ONCE, into tiles of 256 device pixels at the
-   current zoom, and a frame is a few image blits plus a handful of lines.
-   Tiles are kept per deck, at most 48 in all; a zoom change paints the
-   handful the screen shows. The detail is decoded once per track, on the
-   waveform decoder's chain (never two songs of PCM in hand, never across a
-   seam) and analysed in a worker, so the main thread never runs the filters.
+   deck's own rate (in 0.4 % steps, blitted 1:1 without smoothing, so a tempo
+   glide never smears a column), and a frame is a few image blits plus a
+   handful of lines; the gradients, the caps and the halos are baked into
+   the tiles. Tiles are kept per deck, at most 48 in all (24 at 3× pixel
+   ratio); a zoom change paints the handful the screen shows. The detail is
+   decoded once per track — folded to mono into one buffer, on the waveform
+   decoder's chain (never two songs of PCM in hand, never across a seam) and
+   analysed in a worker, so the main thread never runs the filters — and the
+   overview, the ring and the auto cues fold from that same decode. Until it
+   lands the shipped score draws, and the two dissolve into each other.
 
    HANDS. Drag deck A's wave and the record goes with it (the VINYL hand, by
    place: the music under the needle is the music under the finger). Wheel,
@@ -26404,12 +26776,16 @@ function ramp(param, to, secs){
    ================================================================ */
 const DECKWAVE_TILE = 256;                   // device pixels per cached tile
 const DECKWAVE_RETRIES = 3, DECKWAVE_RETRY_MS = 30000;   // a failed detail is asked for again, a few times, not never
+const DECKWAVE_FADE_MS = 300;                // the score's tiles dissolve into the detail's over this
 const DECKWAVE = {
   ZOOMS: [2, 4, 8, 16, 32],                  // seconds across the strip
   zoom: 2,
   _det: new Map(),                           // track key -> detail | { state }
   _tiles: new Map(), _worker: null, _jobs: new Map(), _seq: 0, _broken: false,
-  _r: { pk: 0, lo: 0, mi: 0, hi: 0 },
+  _cap: 48,                                  // tiles held: 48 at dpr ≤ 2, 24 at dpr 3 (a 3× tile is 2¼ times the bytes)
+  _r: { pk: 0, lo: 0, mi: 0, hi: 0, loPk: 0, miPk: 0, hiPk: 0, tilt: 0.5 },
+  _fade: new Map(),                          // track key -> when its detail landed (the score's tiles dissolve under it)
+  _last: { A: null, B: null },               // what each strip was handed last frame (the probes read it)
   key(tr){ return tr ? (tr.url || String(tr.id || '')) : ''; },
   load(){ try { const z = +localStorage.getItem('mb8_wavezoom'); if (z >= 0 && z < this.ZOOMS.length) this.zoom = z; } catch (e){} },
   setZoom(z){
@@ -26422,6 +26798,10 @@ const DECKWAVE = {
   src(tr){
     const d = this._det.get(this.key(tr));
     if (d && d.pk) return d;
+    return this.coarse(tr);
+  },
+  // the shipped score in the detail's shape (v: 1), folded once per track
+  coarse(tr){
     if (tr && tr.env){
       if (!tr._waveEnv) tr._waveEnv = waveFromEnv(tr.env) || 0;
       if (tr._waveEnv) return tr._waveEnv;
@@ -26454,9 +26834,39 @@ const DECKWAVE = {
       const t = d.a.currentTime;
       if (!seamBuffered(d.a.buffered, t, d.a.duration - t - 0.5)) return;
     }
-    const job = { state: 'pending', ac: new AbortController(), tries: ((cur && cur.tries) || 0) + 1 };
+    const job = this._job(cur);
     this._det.set(k, job);
     _peaksChain = _peaksChain.then(() => this._build(tr, k, job)).catch(() => {});
+  },
+  _job(prev){ return { state: 'pending', ac: new AbortController(), tries: ((prev && prev.tries) || 0) + 1, peaksWanted: false }; },
+  /* THE ONE DECODE, for a caller that already holds the decode chain (the
+     peaks fallback): the landed detail if there is one, else the build run
+     here and now — never queued behind itself — and what it lands. A job the
+     booth queued but has not reached yet is simply taken over: when its turn
+     comes, the detail is already in, and _build leaves at its first line. */
+  async detailFor(tr){
+    const k = this.key(tr);
+    if (!k || !tr.url) return null;
+    let cur = this._det.get(k);
+    if (cur && cur.v >= 2) return cur;
+    if (!cur || cur.state !== 'pending'){ cur = this._job(cur); this._det.set(k, cur); }
+    await this._build(tr, k, cur);
+    const got = this._det.get(k);
+    return got && got.v >= 2 ? got : null;
+  },
+  /* a landed detail IS the song decoded: what the overview, the ring, the
+     spectral drive and the auto cues read (the shape peaksFromEnv produces) is
+     folded from it, so a track the booth decoded is never decoded a second
+     time for its lane. A track that shipped a score keeps the score's fold —
+     the planner's structure and the lanes it drew are not re-dealt under it. */
+  adoptPeaks(tr, det){
+    if (!tr || !det || !(det.v >= 2) || tr._peaks) return false;
+    const f = waveFoldPeaks(det, 480);
+    if (!f) return false;
+    tr._peaks = f.pk; tr._bands = f.bands; tr._bmax = f.bmax;
+    try { tr._structure = analyzeStructure(f.pk); } catch (e){}
+    tr._peaksPending = false; tr._peaksErr = false;
+    return true;
   },
   // keep the detail for the songs on the decks and two more, no further back
   _trim(keep){
@@ -26468,7 +26878,7 @@ const DECKWAVE = {
   _forget(k){
     const v = this._det.get(k);
     if (v && v.ac){ try { v.ac.abort(); } catch (e){} }   // a fetch still in flight is called off with it
-    this._det.delete(k); this._dropTiles(k);
+    this._det.delete(k); this._fade.delete(k); this._dropTiles(k);
   },
   // a track change: every detail still being FETCHED for a song no longer on a deck is called off
   cancelAllBut(keys){
@@ -26477,7 +26887,10 @@ const DECKWAVE = {
       this._forget(k);
     }
   },
-  _dropTiles(k){ for (const tk of [...this._tiles.keys()]) if (tk.startsWith(k + '|')) this._tiles.delete(tk); },
+  // every tile of a track, or only its score's ('c') or its detail's ('d')
+  _dropTiles(k, kind){
+    for (const tk of [...this._tiles.keys()]) if (tk.startsWith(k + '|') && (!kind || tk.includes('|' + kind + '|'))) this._tiles.delete(tk);
+  },
   async _build(tr, k, job){
     if (this._det.get(k) !== job) return;
     try {
@@ -26489,23 +26902,54 @@ const DECKWAVE = {
       if (!ac && !AE.ctx) throw new Error('no decoder');
       let audio = await (ac || AE.ctx).decodeAudioData(buf);
       buf = null;
-      const chans = [audio.getChannelData(0).slice()];
-      if (audio.numberOfChannels > 1) chans.push(audio.getChannelData(1).slice());
+      if (this._det.get(k) !== job){ audio = null; return; }
+      const mono = await this._fold(audio);
       const sr = audio.sampleRate;
       audio = null;                                   // the PCM goes to the worker; the decode is let go
-      const det = await this._analyse(chans, sr);
+      const det = await this._analyse(mono, sr);
       if (this._det.get(k) !== job) return;
-      if (!det) throw new Error('analysis');
-      this._det.set(k, det); this._dropTiles(k);
-      window.__mb8WaveDetail = { key: k, n: det.n, hz: det.hz };   // the probes read the landing
+      if (!det || !(det.v >= 2)) throw new Error('analysis');
+      this._det.set(k, det);
+      // the score's tiles stay for a moment and the detail's fade in over them, instead of one frame's jolt
+      this._fade.set(k, performance.now());
+      this._dropTiles(k, 'd');
+      this.adoptPeaks(tr, det);                       // the overview's fold, from the same decode
+      if (typeof DECKS !== 'undefined' && AE.decks) this._trim([k, this.key(DECKS.track(0)), this.key(DECKS.track(1))]);
+      window.__mb8WaveDetail = { key: k, n: det.n, hz: det.hz, v: det.v, dur: det.dur,
+        planes: WAVE_PLANES.filter(p => det[p] instanceof Uint8Array && det[p].length === det.n).length,
+        mips: det.mips.map(m => m.hz) };               // the probes read the landing
     } catch (e){
       if (this._det.get(k) !== job) return;
+      if (job.peaksWanted && !tr._peaks) tr._peaksPending = false;   // the overview's fold was waiting on this: it may ask again
       // called off (a track change) is not a failure: the next ask starts afresh
       if (e && e.name === 'AbortError') this._det.delete(k);
       else this._det.set(k, { state: 'err', tries: job.tries, at: performance.now() });
     }
   },
-  _analyse(chans, sr){
+  /* FOLDED TO MONO INTO ONE BUFFER, a second at a time: copyFromChannel into
+     a one-second scratch, summed into the one Float32Array the worker gets.
+     A stereo song used to be two whole-channel .slice() copies alive beside
+     the AudioBuffer (a 7-minute track: a hundred megabytes on the main
+     thread, twice); now it is the buffer plus one mono, and the main thread
+     breathes between minutes of it. */
+  async _fold(audio){
+    const len = audio.length, nch = Math.max(1, audio.numberOfChannels | 0), g = 1 / nch;
+    const mono = new Float32Array(len);
+    const tmp = new Float32Array(Math.max(1, Math.min(len, audio.sampleRate | 0 || 16000)));
+    let chunks = 0;
+    for (let ch = 0; ch < nch; ch++){
+      for (let off = 0; off < len; off += tmp.length){
+        const n = Math.min(tmp.length, len - off);
+        if (typeof audio.copyFromChannel === 'function') audio.copyFromChannel(tmp, ch, off);
+        else { const src = audio.getChannelData(ch); for (let i = 0; i < n; i++) tmp[i] = src[off + i]; }
+        if (nch === 1) mono.set(n === tmp.length ? tmp : tmp.subarray(0, n), off);
+        else for (let i = 0; i < n; i++) mono[off + i] += tmp[i] * g;
+        if ((++chunks & 63) === 0) await new Promise(r => setTimeout(r));   // breathe, once a minute of song
+      }
+    }
+    return mono;
+  },
+  _analyse(mono, sr){
     if (!this._broken && typeof Worker === 'function'){
       try {
         if (!this._worker){
@@ -26517,51 +26961,101 @@ const DECKWAVE = {
           this._worker = wk;
         }
         const id = ++this._seq;
-        return new Promise(res => { this._jobs.set(id, res); this._worker.postMessage({ id, chans, sr, hz: WAVE_HZ }, chans.map(c => c.buffer)); });
+        return new Promise(res => { this._jobs.set(id, res); this._worker.postMessage({ id, chans: [mono], sr, hz: WAVE_HZ }, [mono.buffer]); });
       } catch (e){ this._broken = true; this._worker = null; }
     }
-    return Promise.resolve(waveDetail(chans, sr, WAVE_HZ));
+    return Promise.resolve(waveDetail([mono], sr, WAVE_HZ));
   },
-  /* ONE TILE: the song from tile i's first device pixel for TILE pixels, at pps
-     device pixels per second of music, painted as four constant-colour fills
-     (the faint true peak, then the body, the lows and the highs layered on it),
-     so a tile costs four fills however dense the song is. */
-  _tile(tr, src, i, pps, hd, acc){
-    const k = this.key(tr) + '|' + pps.toFixed(3) + '|' + hd + '|' + acc.join(',') + '|' + (src.coarse ? 'c' : 'd') + '|' + i;
+  /* ONE TILE: the song from tile i's first device pixel for TILE pixels, at
+     pps device pixels per second of music. Per column, from the detail's
+     level that fits the column: the whole signal's outline in the colour of
+     the column's tilt (the aura everything sits in), the three bands' BODIES
+     (lows full, mids at 0.82, highs at 0.62 — the lows in front of the mids,
+     so a kick stays readable under a wall of pad), each band's PEAK as a
+     one-pixel cap over its body (a hit is a spike, a tone a plateau), and a
+     HALO where a band's peak jumps clear of its body — a glow with no
+     ctx.filter. The bodies are each ONE vertical gradient per tile (the band's
+     colour at the centre line, a shade darker at the edges), so a tile costs
+     a handful of fills however dense the song is. Nothing per frame. */
+  _tile(tr, src, i, pps, hd, pal){
+    const k = this.key(tr) + '|' + pps.toFixed(3) + '|' + hd + '|' + pal.id + '|' + (src.coarse ? 'c' : 'd') + '|' + i;
     let cv = this._tiles.get(k);
     if (cv){ this._tiles.delete(k); this._tiles.set(k, cv); return cv; }   // most recently used goes last
     cv = document.createElement('canvas');
     cv.width = DECKWAVE_TILE; cv.height = hd;
     const c = cv.getContext('2d');
-    const mid = hd / 2, amp = hd * 0.48, r = this._r;
-    const P = new Path2D(), Lo = new Path2D(), Mi = new Path2D(), Hi = new Path2D();
-    const t0 = i * DECKWAVE_TILE / pps, dt = 1 / pps;
-    for (let x = 0; x < DECKWAVE_TILE; x++){
+    const W = DECKWAVE_TILE, mid = hd / 2, amp = hd * 0.48, r = this._r, N = pal.n;
+    const Lo = new Path2D(), Mi = new Path2D(), Hi = new Path2D();
+    const LoC = new Path2D(), MiC = new Path2D(), HiC = new Path2D();
+    const aura = new Array(N);                        // the outline, one path per LUT step
+    const bpk = this._col || (this._col = [new Float32Array(W), new Float32Array(W), new Float32Array(W), new Float32Array(W), new Float32Array(W), new Float32Array(W), new Float32Array(W), new Float32Array(W), new Float32Array(W)]);
+    const [pL, pM, pH, bL, bM, bH, cL, cM, cH] = bpk;
+    pL.fill(0); pM.fill(0); pH.fill(0); bL.fill(0); bM.fill(0); bH.fill(0);
+    const t0 = i * W / pps, dt = 1 / pps;
+    const SC = [1, 0.82, 0.62];
+    for (let x = 0; x < W; x++){
       const t = t0 + x * dt;
       if (t < 0 || t >= src.dur) continue;
       waveRange(src, t, t + dt, r);
-      const hp = r.pk * amp, hl = r.lo * amp, hm = r.mi * amp * 0.82, hh = r.hi * amp * 0.62;
-      if (hp > 0.4) P.rect(x, mid - hp, 1, hp * 2);
+      const hp = r.pk * amp;
+      if (hp > 0.4){
+        const j = Math.round(r.tilt * (N - 1));
+        (aura[j] || (aura[j] = new Path2D())).rect(x, mid - hp, 1, hp * 2);
+      }
+      const hl = r.lo * amp, hm = r.mi * amp * SC[1], hh = r.hi * amp * SC[2];
       if (hl > 0.4) Lo.rect(x, mid - hl, 1, hl * 2);
       if (hm > 0.4) Mi.rect(x, mid - hm, 1, hm * 2);
       if (hh > 0.4) Hi.rect(x, mid - hh, 1, hh * 2);
+      const cl = r.loPk * amp, cm = r.miPk * amp * SC[1], ch = r.hiPk * amp * SC[2];
+      if (cl > hl + 0.6){ LoC.rect(x, mid - cl, 1, 1); LoC.rect(x, mid + cl - 1, 1, 1); }
+      if (cm > hm + 0.6){ MiC.rect(x, mid - cm, 1, 1); MiC.rect(x, mid + cm - 1, 1, 1); }
+      if (ch > hh + 0.6){ HiC.rect(x, mid - ch, 1, 1); HiC.rect(x, mid + ch - 1, 1, 1); }
+      pL[x] = r.loPk; pM[x] = r.miPk; pH[x] = r.hiPk; bL[x] = r.lo; bM[x] = r.mi; bH[x] = r.hi;
+      cL[x] = cl; cM[x] = cm; cH[x] = ch;
     }
-    // the body behind, the kick in front of it, the hats brightest on top: dense
-    // music keeps its kicks readable instead of burying them under the mids
-    c.fillStyle = 'rgba(233,237,246,0.14)'; c.fill(P);
-    c.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.62)`; c.fill(Mi);
-    c.fillStyle = 'rgba(255,112,52,0.94)'; c.fill(Lo);
-    c.fillStyle = 'rgba(232,248,255,0.95)'; c.fill(Hi);
+    // the onsets, each band's, as a halo three pixels wide the height of the cap
+    const Halo = new Path2D();
+    let halos = 0;
+    for (const [pk, bd, cap] of [[pL, bL, cL], [pM, bM, cM], [pH, bH, cH]]){
+      const f = waveOnsets(pk, bd, W, this._on || (this._on = new Uint8Array(W)));
+      for (let x = 0; x < W; x++) if (f[x] && cap[x] > 1){ Halo.rect(x - 1, mid - cap[x], 3, cap[x] * 2); halos++; }
+    }
+    const lut = pal.lut;
+    for (let j = 0; j < N; j++) if (aura[j]){
+      const o = j * 3;
+      c.fillStyle = `rgba(${lut[o]},${lut[o + 1]},${lut[o + 2]},0.13)`; c.fill(aura[j]);
+    }
+    const body = (col, edge, a) => {
+      const g = c.createLinearGradient(0, 0, 0, hd);
+      g.addColorStop(0, `rgba(${edge[0]},${edge[1]},${edge[2]},${a})`);
+      g.addColorStop(0.5, `rgba(${col[0]},${col[1]},${col[2]},${a})`);
+      g.addColorStop(1, `rgba(${edge[0]},${edge[1]},${edge[2]},${a})`);
+      return g;
+    };
+    // the body behind, the kick in front of it, the hats brightest on top
+    c.fillStyle = body(pal.mi, pal.miE, 0.80); c.fill(Mi);
+    c.fillStyle = body(pal.lo, pal.loE, 0.94); c.fill(Lo);
+    c.fillStyle = body(pal.hi, pal.hiE, 0.95); c.fill(Hi);
+    c.globalAlpha = 0.45;
+    c.fillStyle = `rgb(${pal.miC[0]},${pal.miC[1]},${pal.miC[2]})`; c.fill(MiC);
+    c.fillStyle = `rgb(${pal.loC[0]},${pal.loC[1]},${pal.loC[2]})`; c.fill(LoC);
+    c.fillStyle = `rgb(${pal.hiC[0]},${pal.hiC[1]},${pal.hiC[2]})`; c.fill(HiC);
+    if (halos){ c.globalAlpha = 0.18; c.fillStyle = `rgb(${pal.hi[0]},${pal.hi[1]},${pal.hi[2]})`; c.fill(Halo); }
+    c.globalAlpha = 1;
     this._tiles.set(k, cv);
-    while (this._tiles.size > 48) this._tiles.delete(this._tiles.keys().next().value);
+    while (this._tiles.size > this._cap) this._tiles.delete(this._tiles.keys().next().value);
     return cv;
   },
   /* ONE STRIP. t = the song time under the needle; rate = the deck's playback
-     rate, so the strip is drawn in wall-clock time and matched grids line up */
-  _strip(ctx, x, y, w, h, dpr, tr, t, rate, acc, o){
+     rate, so the strip is drawn in wall-clock time and matched grids line up.
+     The tiles are painted at the deck's MUSIC rate, in steps (waveRateStep),
+     and blitted without smoothing: a column is a column through a tempo
+     glide, never a resample's smear. */
+  _strip(ctx, x, y, w, h, dpr, tr, t, rate, pal, o){
     const src = this.src(tr);
     const cx = x + w / 2;
     ctx.fillStyle = 'rgba(4,5,10,0.5)'; ctx.fillRect(x, y, w, h);
+    this._last[o.label] = { loop: o.loop || null, cues: o.cues ? o.cues.slice() : null, labels: o.labels ? o.labels.slice() : null, coarse: !!(src && src.coarse) };
     if (!src || !isFinite(t)){
       ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x, y + h / 2 - 0.5, w, 1);
       return;
@@ -26570,52 +27064,97 @@ const DECKWAVE = {
     const ppsWall = w / secs;                         // css px per wall second
     const r = rate > 0.05 ? rate : 1;
     const pps = ppsWall / r;                          // css px per second of music
-    const ppsD = Math.round(ppsWall * dpr * 4) / 4;   // tiles are painted at the wall rate, quantised so they are reused
+    const rq = waveRateStep(r);
+    const ppsD = Math.round(ppsWall * dpr * 4) / 4 / rq;   // the painted rate: the deck's own, quantised so a glide reuses its tiles
     const hd = Math.max(8, Math.round(h * dpr));
     const tLeft = t - (w / 2) / pps, tRight = t + (w / 2) / pps;
-    const tileSec = DECKWAVE_TILE / ppsD * 1;         // music seconds per tile at the painted rate
-    const scale = pps / (ppsD / dpr);                 // stretch from the painted rate to this deck's
+    const tileSec = DECKWAVE_TILE / ppsD;             // music seconds per tile at the painted rate
+    const scale = pps * dpr / ppsD;                   // within a fifth of a percent of 1:1 by construction
+    this._scale = scale;
+    const k = this.key(tr);
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-    for (let i = Math.floor(tLeft / tileSec); i <= Math.floor(tRight / tileSec); i++){
-      if ((i + 1) * tileSec < 0 || i * tileSec > src.dur) continue;
-      const tile = this._tile(tr, src, i, ppsD, hd, acc);
-      // snapped to the device pixel: crisp columns, never a smeared resample
-      const dx = Math.round((cx + (i * tileSec - t) * pps) * dpr) / dpr;
-      ctx.drawImage(tile, dx, y, DECKWAVE_TILE / dpr * scale, h);
+    ctx.imageSmoothingEnabled = false;
+    const blit = (s, alpha) => {
+      ctx.globalAlpha = alpha;
+      for (let i = Math.floor(tLeft / tileSec); i <= Math.floor(tRight / tileSec); i++){
+        if ((i + 1) * tileSec < 0 || i * tileSec > s.dur) continue;
+        const tile = this._tile(tr, s, i, ppsD, hd, pal);
+        // snapped to the device pixel: crisp columns, never a smeared resample
+        const dx = Math.round((cx + (i * tileSec - t) * pps) * dpr) / dpr;
+        ctx.drawImage(tile, dx, y, DECKWAVE_TILE / dpr * scale, h);
+      }
+      ctx.globalAlpha = 1;
+    };
+    // the detail landing: the score's tiles underneath, the detail's fading in over them
+    const landed = this._fade.get(k);
+    const age = landed == null ? Infinity : performance.now() - landed;
+    const under = !src.coarse && age < DECKWAVE_FADE_MS ? this.coarse(tr) : null;
+    if (under){ blit(under, 1); blit(src, Math.max(0, Math.min(1, age / DECKWAVE_FADE_MS))); }
+    else {
+      if (landed != null){ this._fade.delete(k); this._dropTiles(k, 'c'); }
+      blit(src, 1);
     }
-    // the played half sits back a little, the way the deck shows where it has been
+    ctx.imageSmoothingEnabled = true;
+    // the played half sits back a little, the way the deck shows where it has been: ahead is lit
     ctx.fillStyle = 'rgba(3,4,9,0.30)'; ctx.fillRect(x, y, w / 2, h);
     const X = tt => cx + (tt - t) * pps;
+    const acc = pal.mi;
+    const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
     // the planned seam (and its beat ticks), shaded under everything else
     if (o.seam){
       const a = X(o.seam[0]), b = X(o.seam[1]);
       if (b > x && a < x + w){
-        ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.10)`; ctx.fillRect(a, y, b - a, h);
-        ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.65)`; ctx.fillRect(a - 0.75, y, 1.5, h); ctx.fillRect(b - 0.75, y, 1.5, h);
+        ctx.fillStyle = rgba(acc, 0.10); ctx.fillRect(a, y, b - a, h);
+        ctx.fillStyle = rgba(acc, 0.65); ctx.fillRect(a - 0.75, y, 1.5, h); ctx.fillRect(b - 0.75, y, 1.5, h);
       }
     }
-    // the loop the room is holding
+    // the song's SCRIPT along the top edge: each section a 3-px band (loud in the
+    // key, quiet in the lows' colour) named where it starts
+    if (o.struct && o.struct.ok && o.struct.sections && src.dur > 0){
+      ctx.font = '600 7px ui-monospace, monospace'; ctx.textBaseline = 'top';
+      const secsS = o.struct.sections;
+      for (let si = 0; si < secsS.length; si++){
+        const s = secsS[si];
+        const x0 = X(s.s * src.dur), x1 = X(s.e * src.dur);
+        if (x1 < x || x0 > x + w) continue;
+        const col = s.loud ? acc : pal.lo;
+        ctx.fillStyle = rgba(col, s.loud ? 0.45 + clamp01(s.energy || 0) * 0.45 : 0.18 + clamp01(s.energy || 0) * 0.25);
+        ctx.fillRect(Math.max(x, x0), y, Math.min(x + w, x1) - Math.max(x, x0), 3);
+        if (x0 >= x - 1 && x1 - x0 > 28){
+          const name = sectionLabel(o.struct, (s.s + s.e) * 0.5);
+          if (name){ ctx.fillStyle = rgba(col, 0.85); ctx.fillText(T(name.toUpperCase()), x0 + 3, y + 4); }
+        }
+      }
+    }
+    // the loop the room is holding, with its length in beats
     if (o.loop){
       const a = X(o.loop.start), b = X(o.loop.start + o.loop.len);
-      ctx.fillStyle = 'rgba(124,224,122,0.16)'; ctx.fillRect(a, y, b - a, h);
+      ctx.fillStyle = 'rgba(124,224,122,0.09)'; ctx.fillRect(a, y, b - a, h);
       ctx.fillStyle = 'rgba(124,224,122,0.9)'; ctx.fillRect(a - 0.75, y, 1.5, h); ctx.fillRect(b - 0.75, y, 1.5, h);
+      ctx.fillStyle = 'rgba(124,224,122,0.5)'; ctx.fillRect(a, y + h - 2, b - a, 2);
+      if (o.loop.beats > 0 && b - a > 14){
+        ctx.font = '700 8px ui-monospace, monospace'; ctx.textBaseline = 'top';
+        ctx.fillStyle = 'rgba(124,224,122,0.95)';
+        ctx.fillText(String(o.loop.beats), a + 3, y + h - 22);
+      }
     }
-    // the grid: beats faint, bars clear and numbered, phrases in the key
+    // the grid: beats faint, bars as sure as the analysis is of the downbeat, phrases in the key
     const m = mixOf(tr);
     if (m && m.bpm > 0 && isFinite(m.grid)){
+      const barPx = pps * 240 / m.bpm, gs = waveGridStyle(m.downConf, barPx);
       ctx.font = '600 8px ui-monospace, monospace'; ctx.textBaseline = 'top';
       for (const g of waveGrid(m.bpm, m.grid, tLeft, tRight, m.phrases > 0 ? m.phrases / 4 : 8)){
         const gx = Math.round(X(g.t) * dpr) / dpr;
         // every beat a tick at both edges (readable over any density), the bars a line
         // through the wave, the phrases a line in the key
         const tk = g.bar ? 9 : 5;
-        ctx.fillStyle = g.phrase ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.95)` : g.bar ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.55)';
+        ctx.fillStyle = g.phrase ? rgba(acc, 0.95) : g.bar ? `rgba(255,255,255,${gs.tick})` : 'rgba(255,255,255,0.5)';
         ctx.fillRect(gx - 0.75, y, 1.5, tk); ctx.fillRect(gx - 0.75, y + h - tk, 1.5, tk);
-        if (g.phrase){ ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.7)`; ctx.fillRect(gx - 0.75, y, 1.5, h); }
-        else if (g.bar){ ctx.fillStyle = 'rgba(255,255,255,0.32)'; ctx.fillRect(gx - 0.5, y, 1, h); }
-        if (g.bar && g.barNo > 0 && pps * 240 / m.bpm > 18){
-          ctx.fillStyle = g.phrase ? `rgba(${acc[0]},${acc[1]},${acc[2]},0.95)` : 'rgba(255,255,255,0.5)';
-          ctx.fillText(String(g.barNo), gx + 3, y + 1);
+        if (g.phrase){ ctx.fillStyle = rgba(acc, 0.7); ctx.fillRect(gx - 0.75, y, 1.5, h); }
+        else if (g.bar){ ctx.fillStyle = `rgba(255,255,255,${gs.bar})`; ctx.fillRect(gx - 0.5, y, 1, h); }
+        if (g.bar && g.barNo > 0 && gs.numbers && (gs.numEvery === 1 || ((g.barNo - 1) % gs.numEvery) === 0)){
+          ctx.fillStyle = g.phrase ? rgba(acc, 0.95) : `rgba(255,255,255,${0.35 + gs.bar * 0.5})`;
+          ctx.fillText(String(g.barNo), gx + 3, y + 10);
         }
       }
     }
@@ -26628,8 +27167,9 @@ const DECKWAVE = {
         ctx.beginPath(); ctx.moveTo(dx - 4, y + h); ctx.lineTo(dx + 4, y + h); ctx.lineTo(dx, y + h - 6); ctx.closePath(); ctx.fill();
       }
     }
-    // the hot cues, each in its pad's colour
+    // the hot cues, each in its pad's colour, named when there is room for a name
     if (o.cues){
+      const named = h >= 80 && o.labels;
       for (let i = 0; i < o.cues.length; i++){
         const v = o.cues[i];
         if (v == null) continue;
@@ -26639,19 +27179,23 @@ const DECKWAVE = {
         ctx.beginPath(); ctx.moveTo(cxp, y + h); ctx.lineTo(cxp + 10, y + h); ctx.lineTo(cxp + 10, y + h - 10); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#0a0d12'; ctx.font = 'bold 7px ui-monospace, monospace'; ctx.textBaseline = 'alphabetic';
         ctx.fillText(String(i + 1), cxp + 5, y + h - 2);
+        if (named && o.labels[i]){
+          ctx.fillStyle = CUE_COLORS[i]; ctx.globalAlpha = 0.85; ctx.font = '600 7px ui-monospace, monospace';
+          ctx.fillText(T(o.labels[i]), cxp + 12, y + h - 3); ctx.globalAlpha = 1;
+        }
       }
     }
     ctx.restore();
     // the needle
-    ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},0.28)`; ctx.fillRect(cx - 4, y, 8, h);
+    ctx.fillStyle = rgba(acc, 0.28); ctx.fillRect(cx - 4, y, 8, h);
     ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(cx - 0.75, y, 1.5, h);
-    // the deck's read-out: letter, tempo as heard, time left
+    // the deck's read-out: letter, tempo as heard, time played, time left
     ctx.font = '600 9px ui-monospace, monospace'; ctx.textBaseline = 'top';
-    ctx.fillStyle = 'rgba(4,5,10,0.6)'; ctx.fillRect(x + 2, y + h - 13, 104, 12);
+    ctx.fillStyle = 'rgba(4,5,10,0.6)'; ctx.fillRect(x + 2, y + h - 13, 148, 12);
     ctx.fillStyle = `rgb(${acc[0]},${acc[1]},${acc[2]})`;
     const left = src.dur - t;
     const bpm = m && m.bpm > 0 ? (m.bpm * r).toFixed(1) : '---.-';
-    ctx.fillText(o.label + '  ' + bpm + '  -' + Math.floor(Math.max(0, left) / 60) + ':' + String(Math.floor(Math.max(0, left) % 60)).padStart(2, '0'), x + 5, y + h - 12);
+    ctx.fillText(o.label + '  ' + bpm + '  ' + waveClock(t) + '  -' + waveClock(left), x + 5, y + h - 12);
     if (src.coarse){ ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillText('score', x + w - 34, y + h - 12); }
   },
   /* THE PHASE METER: each deck's place in its bar as four cells, and between
@@ -26677,11 +27221,15 @@ const DECKWAVE = {
       }
     }
   },
-  // the deck's song time as heard: deck A through the platter's hand when the vinyl layer has it
-  _timeOf(d, isA){
+  /* the deck's song time AS HEARD: the record on air through the platter's hand
+     when the vinyl layer has it, and through the tape when a loop holds the
+     room — the deck free-runs muted past the out-point, and the needle must
+     not walk out of the loop the ear is inside */
+  _timeOf(d, onAir){
     if (!d || !isFinite(d.a.currentTime)) return NaN;
     let t = d.a.currentTime;
-    if (isA && typeof VINYL !== 'undefined' && VINYL.engaged) t -= VINYL.lagNow();
+    if (onAir && typeof VINYL !== 'undefined' && VINYL.engaged) t -= VINYL.lagNow();
+    if (onAir && typeof LOOPER !== 'undefined' && LOOPER.on && AE.ctx) t = waveDeckTime(t, LOOPER, AE.ctx.currentTime);
     return t;
   },
   // dA/tA are slot 0 and dB/tB slot 1 (the letters are fixed); `roles` says
@@ -26694,7 +27242,8 @@ const DECKWAVE = {
     const ctx = this._ctx || (this._ctx = cv.getContext('2d'));
     const w = cv.clientWidth, h = cv.clientHeight;
     if (!w || !h || !ctx) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);   // the strip alone goes to 3×: its cost is a few blits
+    this._cap = dpr >= 3 ? 24 : 48;
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)){
       cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); this._tiles.clear();
     }
@@ -26713,20 +27262,43 @@ const DECKWAVE = {
       seamIn = [plan.startB, plan.startB + (plan.beats || 16) * 60 / plan.bpmB];
     } else if (plan && plan.type === 'fade' && durOut > 0) seamOut = [Math.max(0, durOut - plan.seconds), durOut];
     const seamFor = i => i === ro.outSlot ? seamOut : (i === ro.inSlot ? seamIn : null);
-    const loop = !running && typeof FX !== 'undefined' && FX.loop ? FX.loop : null;    // the tape's, on the record on air
-    const cues = !running && typeof CUES !== 'undefined' ? CUES.slots : null;         // the hand's deck's
+    // the tape's loop belongs to the record on air; EACH deck's cues are its own
+    // record's — the hand's deck live from the pads, the other read from the store
+    const loop = typeof FX !== 'undefined' && FX.loop ? FX.loop : null;
+    const cuesOf = tr => {
+      if (!tr || typeof CUES === 'undefined') return null;
+      const c = CUES.peek(tr);
+      return c ? { cues: c.slots, labels: c.labels } : null;
+    };
+    const cA = cuesOf(tA), cB = cuesOf(tB);
     // a deck's time as heard; the one a seam is entering is shown cued where the plan will start it
     const timeOf = (d, i) => { let t = this._timeOf(d, i === ro.onAir); if (!(t > 0.01) && i === ro.inSlot && plan && plan.type === 'beatmix') t = plan.startB; return t; };
     const tAt = timeOf(dA, 0), tBt = tB && dB ? timeOf(dB, 1) : NaN;
     const rA = dA ? (dA.a.playbackRate || 1) : 1, rB = dB ? (dB.a.playbackRate || 1) : 1;
-    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, accA, { label: 'A', seam: tA ? seamFor(0) : null, loop: ro.onAir === 0 ? loop : null, cues: ro.hand === 0 ? cues : null, struct: trackStructure(tA) });
-    this._strip(ctx, 0, sh + meterH + gap * 2, w, sh, dpr, tB, tBt, rB, accB, { label: 'B', seam: tB ? seamFor(1) : null, loop: ro.onAir === 1 ? loop : null, cues: ro.hand === 1 ? cues : null, struct: tB ? trackStructure(tB) : null });
+    const palA = WAVEPAL.for(tA), palB = WAVEPAL.for(tB);
+    const yB = sh + meterH + gap * 2;
+    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, palA, { label: 'A', seam: tA ? seamFor(0) : null, loop: ro.onAir === 0 ? loop : null, cues: cA && cA.cues, labels: cA && cA.labels, struct: trackStructure(tA) });
+    this._strip(ctx, 0, yB, w, sh, dpr, tB, tBt, rB, palB, { label: 'B', seam: tB ? seamFor(1) : null, loop: ro.onAir === 1 ? loop : null, cues: cB && cB.cues, labels: cB && cB.labels, struct: tB ? trackStructure(tB) : null });
     const mA = mixOf(tA), mB = mixOf(tB);
     const pa = tA && mA && isFinite(tAt) ? waveBeatPos(mA.bpm, mA.grid, tAt) : null;
     const pb = tB && mB && isFinite(tBt) ? waveBeatPos(mB.bpm, mB.grid, tBt) : null;
-    this._phase(ctx, w / 2 - 60, sh + gap, 120, meterH, pa, pb, accA, accB);
+    /* THE BEAT MATCH: when both records carry a grid, the record on air's bar
+       lines run as faint columns down BOTH strips (and the meter between), so
+       the other deck's own bars either sit on them or visibly do not — two sets
+       of ticks is a mix that is out, before the ear has to say so */
+    if (pa != null && pb != null){
+      const on = ro.onAir === 1 ? { m: mB, t: tBt, r: rB, pal: palB } : { m: mA, t: tAt, r: rA, pal: palA };
+      const ppsWall = w / this.ZOOMS[this.zoom], half = (w / 2) / ppsWall * (on.r > 0.05 ? on.r : 1);
+      ctx.fillStyle = `rgba(${on.pal.mi[0]},${on.pal.mi[1]},${on.pal.mi[2]},0.09)`;
+      for (const g of waveGrid(on.m.bpm, on.m.grid, on.t - half, on.t + half, 8)){
+        if (!g.bar) continue;
+        const gx = Math.round((w / 2 + (g.t - on.t) / (on.r > 0.05 ? on.r : 1) * ppsWall) * dpr) / dpr;
+        ctx.fillRect(gx - 0.5, 0, 1, h);
+      }
+    }
+    this._phase(ctx, w / 2 - 60, sh + gap, 120, meterH, pa, pb, palA.mi, palB.mi);
     const rOn = ro.onAir === 1 ? rB : rA;
-    this._geom = { w, sh, pps: w / this.ZOOMS[this.zoom] / (rOn > 0.05 ? rOn : 1) };
+    this._geom = { w, sh, pps: w / this.ZOOMS[this.zoom] / (rOn > 0.05 ? rOn : 1), scale: this._scale || 1, smooth: false, dpr };
   },
 };
 DECKWAVE.load();
@@ -27031,10 +27603,11 @@ const BOOTH = {
      Cached on the track — computed once, spun forever. */
   _ring(tr, rgb){
     if (!tr) return null;
-    if (tr._ring48 && tr._ringRgb === rgb.join()) return tr._ring48;
+    const pal = WAVEPAL.for(tr);
+    if (tr._ring48 && tr._ringRgb === pal.id) return tr._ring48;
     const pk = tr._peaks, bands = tr._bands;
     if (!pk || !bands) return null;
-    const warm = [255, 120, 58], bright = [140, 214, 255];
+    const bm = tr._bmax || { l: 1, m: 1, h: 1 };
     const N = 48, n = pk.length, out = [];
     for (let i = 0; i < N; i++){
       const s = Math.floor(i * n / N), e = Math.max(s + 1, Math.floor((i + 1) * n / N));
@@ -27043,15 +27616,10 @@ const BOOTH = {
         if (pk[j] > mx) mx = pk[j];
         sl += bands.l[j]; sm += bands.m[j]; sh += bands.h[j];
       }
-      const tot = sl + sm + sh + 1e-6, rL = sl / tot, rM = sm / tot, rH = sh / tot;
-      out.push([
-        (warm[0] * rL + rgb[0] * rM + bright[0] * rH) | 0,
-        (warm[1] * rL + rgb[1] * rM + bright[1] * rH) | 0,
-        (warm[2] * rL + rgb[2] * rM + bright[2] * rH) | 0,
-        Math.pow(mx, 0.8),
-      ]);
+      const c = WAVEPAL.tilt(pal, waveTilt(sl / (bm.l || 1), sm / (bm.m || 1), sh / (bm.h || 1)));
+      out.push([c[0], c[1], c[2], Math.pow(mx, 0.8)]);
     }
-    tr._ring48 = out; tr._ringRgb = rgb.join();
+    tr._ring48 = out; tr._ringRgb = pal.id;
     return out;
   },
   _jog(ctx, cx, cy, r, deck, tr, rgb, pulse, dts, slot){
@@ -27105,15 +27673,20 @@ const BOOTH = {
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * r * 0.62, cy + Math.sin(ang) * r * 0.62, 2.2, 0, 2 * PI); ctx.fill();
     // THE RING IS THE SONG: each LED carries that slice of the track's own
-    // spectrum — you can see the drop coming around the wheel. Played arc
-    // burns bright, the road ahead sits dim; the head LED rides the beat.
+    // spectrum — you can see the drop coming around the wheel. The road ahead
+    // burns bright, the played arc sits dim (the deck's reading, everywhere);
+    // the head LED rides the beat. Under a tape loop the head stays inside the
+    // loop, where the ear is, not where the muted deck has run on to.
+    const onAir = slot === (AE.active === 1 ? '_angB' : '_angA');
+    let pos = (deck ? deck.a.currentTime : 0) - (vinyl ? VINYL.lagNow() : 0);
+    if (onAir && typeof LOOPER !== 'undefined' && LOOPER.on && AE.ctx) pos = waveDeckTime(pos, LOOPER, AE.ctx.currentTime);
     const prog = playing || (deck && deck.a.currentTime > 0)
-      ? clamp01(((deck ? deck.a.currentTime : 0) - (vinyl ? VINYL.lagNow() : 0)) / (deck && isFinite(deck.a.duration) ? deck.a.duration : 1)) : 0;
+      ? clamp01(pos / (deck && isFinite(deck.a.duration) ? deck.a.duration : 1)) : 0;
     const ring = this._ring(tr, rgb);
     const SEGS = 48;
     const head = Math.floor(prog * SEGS);
     for (let i = 0; i < SEGS; i++){
-      const lit = (i + 0.5) / SEGS <= prog;
+      const lit = (i + 0.5) / SEGS > prog;
       const a0 = -PI / 2 + (i / SEGS) * 2 * PI, a1 = a0 + (2 * PI / SEGS) * 0.7;
       const c = ring ? ring[i] : [rgb[0], rgb[1], rgb[2], 0.6];
       const amp = ring ? c[3] : 0.6;
@@ -27285,8 +27858,14 @@ const BOOTH = {
     const botH = full ? 34 : 26;
     const hMid = h - topH - botH;
     const accA = this.keyRGB(tA), accB = this.keyRGB(tB);
-    const fracOf = d => (d && isFinite(d.a.duration) && d.a.duration > 0)
-      ? clamp01(d.a.currentTime / d.a.duration) : 0;
+    // a lane's playhead: the record on air through the tape when a loop holds the
+    // room — the deck runs on muted past the out-point, the ear does not
+    const fracOf = (d, i) => {
+      if (!d || !isFinite(d.a.duration) || !(d.a.duration > 0)) return 0;
+      let t = d.a.currentTime;
+      if (i === AE.active && typeof LOOPER !== 'undefined' && LOOPER.on && AE.ctx) t = waveDeckTime(t, LOOPER, AE.ctx.currentTime);
+      return clamp01(t / d.a.duration);
+    };
     const p = MIXER.plan;
     const f = running ? MIXER.lastF : 0;
     // each lane's level is the crossfader's: at rest the on-air slot is 1 and
@@ -27376,7 +27955,7 @@ const BOOTH = {
       const d = i ? dB : dA, tr = i ? tB : tA, acc = i ? accB : accA;
       const dur = d && isFinite(d.a.duration) && d.a.duration > 0 ? d.a.duration : (tr && tr.duration) || 0;
       if (tr && dur > 0) this._structureOverlay(ctx, y, laneH, laneW, tr, dur, laneX);
-      paintLane(ctx, laneX, y, laneW, laneH, tr, fracOf(d), acc);
+      paintLane(ctx, laneX, y, laneW, laneH, tr, fracOf(d, i), acc);
       if (p && tr && dur > 0 && (i === outSlot || i === inSlot)){
         let s0 = null, s1 = null, spb = 0;
         if (i === outSlot){
@@ -27423,7 +28002,7 @@ const BOOTH = {
       // wireBoothScrub) — never under a running seam, never on an empty deck
       this[i ? '_laneB' : '_laneA'] = { x: laneX, y, w: laneW, h: laneH, slot: i,
         deck: (running && (i === outSlot || i === inSlot)) || !tr ? null : d, dur };
-      if (tr || i === AE.active) this._playhead(ctx, y, laneH, laneW, fracOf(d), acc, laneX);
+      if (tr || i === AE.active) this._playhead(ctx, y, laneH, laneW, fracOf(d, i), acc, laneX);
     };
     lane(0, yA); lane(1, yB2);
 
