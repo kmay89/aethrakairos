@@ -11581,7 +11581,9 @@ const DECKS = {
     AE.active = inSlot;
     player.commitMix(i, { keepRack: true });
     this.settle({ retired });
-    this.slots[1 - inSlot].owner = 'free';
+    // the deck the hand pulled the air from is the transport's again, and any
+    // SYNC it carried leaves with the air, as at a transport start (onPlayIndex)
+    { const r = this.slots[1 - inSlot]; r.owner = 'free'; r.pitch = 1; r.synced = false; }
     syncLoopFlag();
     clearTimeout(od._retireT);
     od._retireT = setTimeout(() => { if (AE.active === inSlot){ try { od.a.pause(); } catch (e){} } }, 80);
@@ -11649,15 +11651,28 @@ const DECKS = {
   // and the retired deck's fader follows once its fade-out has landed. A
   // hand's record started from its cue (cued) keeps its gain at its trim and
   // is faded in on the FADER instead, over the same fade the transport asked for.
-  onPlayIndex(newIdx, retired, fadeDur, cued){
+  onPlayIndex(newIdx, retired, fadeDur, cued, idx){
     const f = this.fader;
     f.hand = false; f.mode = 'rest'; f.x = newIdx; this.focus = -1;
     const s = this.slots[newIdx], r = this.slots[1 - newIdx];
+    // the slot names the record it now plays (`idx`, the row being started —
+    // player.cur is not moved until after this), so a SYNC pressed on the air
+    // belongs to THIS record and is not taken for a stale one's at the next settle
+    if (idx != null && idx >= 0) s.trackIdx = idx;
     s.owner = 'free'; s.cueHeld = false; s.silentFor = 0; s.stuckFor = 0; s.pitch = 1; s.synced = false;
     // the transport starts a record from its top, so that is its cue; a hand's
     // record started from its cue (cued) keeps the cue the hand set
     if (!cued) s.cue = 0;
-    if (retired != null && retired >= 0) r.trackIdx = retired;
+    /* the RETIRED deck's sync retires with it. Its slot kept pitch and SYNC
+       after the air left it: the booth went on saying "SYNC · B matched" for a
+       deck no longer in play, and the next record the auto-DJ put there was
+       written at the old match (a cancel or SPEED.apply set its element to
+       rate × pitch with the key lock off) and faded in slow and flat. Only the
+       slot is cleared — its element is fading out at the rate it has, and a
+       rate written mid-fade would be heard; it is paused once the fade lands.
+       (A deck the transport merely reused, retired < 0, is the other deck's
+       business — a hand's synced cue there is left exactly as it was.) */
+    if (retired != null && retired >= 0){ r.trackIdx = retired; r.pitch = 1; r.synced = false; }
     r.silentFor = 0;
     if (!AE.decks) return;
     const d = AE.decks[newIdx];
@@ -12633,7 +12648,7 @@ const player = {
     }
     AE.active = newIdx;
     // the handle rests at the new deck's end; its fader opens now (inaudible: its gain is at zero)
-    if (typeof DECKS !== 'undefined') DECKS.onPlayIndex(newIdx, od === nd ? -1 : retiredCur, AE.graphLive ? fadeDur : 0, cued);
+    if (typeof DECKS !== 'undefined') DECKS.onPlayIndex(newIdx, od === nd ? -1 : retiredCur, AE.graphLive ? fadeDur : 0, cued, i);
     applyVolume();                       // element-volume routing follows the deck swap
     syncLoopFlag();                      // the newly active deck picks up repeat-one, natively
     clearTimeout(this._fadeT);
@@ -13055,9 +13070,20 @@ const player = {
     const at = Math.min(this.cur + 1, this.tracks.length);
     this.tracks.splice(at, 0, track);
     this.history = [];                       // old indices are meaningless now
+    this._upNextReplan();
     this.renderList();
     toast(T('Up next: <b>{title}</b>', { title: escapeHTML(track.title) }));
     PERSIST.poke();
+  },
+  /* "UP NEXT" IS A PROMISE, and an armed seam had already chosen. The seam
+     holds its record (MIXER.next), so a row moved under it can no longer put
+     the wrong title on air — but left armed it would play the record it drew
+     and the listener's pick one song later, under a toast that said "up next".
+     The plan is let go; the mixer's next update re-arms from the queue as it
+     now stands (a hand's record on the idle deck is still the next, and is
+     re-planned against, not reloaded). Inaudible: an armed deck is silent. */
+  _upNextReplan(){
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('replan');
   },
   /* Queue-next for a whole list: drop these tracks, in order, into the seats
      right after the current one — the same "up next" contract playNext honors,
@@ -13077,6 +13103,7 @@ const player = {
     this.tracks.splice(at, 0, ...incoming);
     if (cur) this.cur = this.tracks.indexOf(cur);
     this.history = [];                       // indices shifted — old history is void
+    this._upNextReplan();
     if (this.cur < 0 && this.tracks.length){ this.renderList(); this.playIndex(0); }
     else this.renderList();
     toast(T(incoming.length === 1 ? 'Queued next: <b>{label}</b> — {n} track' : 'Queued next: <b>{label}</b> — {n} tracks',
@@ -20871,8 +20898,10 @@ function faderIdleStop(o){
    and a hand's commit put the wrong title on air. So the slot keeps the
    record itself (`rec`), and `trackIdx` is READ through the queue as it
    stands now — -1 when the record has left it. Writing `trackIdx` seats the
-   record at that row; a different record on the slot clears the cue point,
-   which belonged to the record it was set on. `queueOf` returns the queue
+   record at that row; a different record on the slot clears the cue point
+   and the sync (pitch, synced), which belonged to the record they were set
+   on — a SYNC is a match between two records, and the next one on the deck
+   was never matched to anything. `queueOf` returns the queue
    (read lazily, on every access — never captured). */
 function deckSlot(queueOf){
   const q = () => (queueOf && queueOf()) || [];
@@ -20881,7 +20910,7 @@ function deckSlot(queueOf){
     get trackIdx(){ return this.rec ? q().indexOf(this.rec) : -1; },
     set trackIdx(i){
       const t = (i >= 0 && q()[i]) || null;
-      if (t !== this.rec){ this.rec = t; this.cue = 0; }
+      if (t !== this.rec){ this.rec = t; this.cue = 0; this.pitch = 1; this.synced = false; }
     },
   };
 }
@@ -22697,7 +22726,19 @@ const MIXER = {
   _seamBy: 'auto',               // who is mixing the seam in flight: 'auto', or 'hand' once yielded
   style: 'adaptive',             // adaptive | musical | club (MIX_STYLES) — manual default
   _seamStyle: null,              // the style frozen for the seam in flight (mixset may override per-section)
-  plan: null, next: -1,
+  plan: null,
+  /* THE ARMED SEAM HOLDS ITS RECORD, as a deck slot does (deckSlot). `next`
+     used to be the row the plan was made against, and the queue moves under
+     an armed seam the same way it moves under a deck: an album queued next,
+     a row removed above, a sort. The idle deck went on holding the planned
+     record while `next` named another, and fire() committed THAT one — the
+     title, the history and the grid followed a song that was not playing.
+     So the record is kept (`_nextRec`) and `next` is read through the queue
+     as it stands: -1 once the record has left it, which fire() treats as a
+     plan with nothing to play. Writing `next` seats the record at that row. */
+  _nextRec: null,
+  get next(){ return this._nextRec ? player.tracks.indexOf(this._nextRec) : -1; },
+  set next(i){ this._nextRec = (i >= 0 && player.tracks[i]) || null; },
   outDeck: null, startedAt: 0, overlap: 0,
   lastF: 0, trim: 0, trimI: 0, lastBeatCheck: 0,
   _latched: false, _aligns: 0, _bT: -1,   // the latch: see run()
@@ -22935,12 +22976,11 @@ const MIXER = {
       }
       return true;
     }
-    {
-      const ws = DECKS.slots[1 - AE.active], had = ws.rec;
-      ws.trackIdx = player.tracks.indexOf(B);                          // the lane shows what the deck holds
-      // a new record on the deck takes its own auto-cue (its mix-in, as load() gives it) — never the last one's
-      if (ws.rec !== had){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }
-    }
+    const ws = DECKS.slots[1 - AE.active], had = ws.rec;
+    ws.trackIdx = player.tracks.indexOf(B);                            // the lane shows what the deck holds
+    const fresh = ws.rec !== had;                                      // (the slot's setter has cleared cue and sync)
+    // a new record on the deck takes its own auto-cue (its mix-in, as load() gives it) — never the last one's
+    if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }
     /* IDEMPOTENT ON THE SOURCE. A style chip or MIX NOW inside the armed
        window cancels and re-arms with the SAME track; assigning the same src
        again (and load()) threw away every byte B had and started its download
@@ -22961,6 +23001,17 @@ const MIXER = {
       try { nd.a.load(); } catch (e){}
     } else if (nd._warmed && Math.abs(nd.a.currentTime - seekTo) > 0.05){
       try { nd.a.currentTime = seekTo; } catch (e){}
+    }
+    /* …and its ELEMENT is the new record's too: the listener's rate, the
+       listener's key lock. A deck left synced and retired still ran at the old
+       match with the stretcher off, and a fade or gapless seam never writes
+       the incoming's rate — the next record faded in at it, slow and flat,
+       until finish() snapped it home at full level. Written only while the
+       deck is paused (a new src's load() pauses it), so no fading tail of the
+       last record is ever re-pitched in the hearing. */
+    if (fresh && nd.a.paused){
+      try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}
+      setPitchLock(nd.a, SPEED.keyLock);
     }
     return true;
   },

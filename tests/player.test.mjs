@@ -11431,6 +11431,17 @@ test('deckSlot: the record is held by identity — play-next, a queued album, a 
   assert.equal(t.trackIdx, -1, 'no queue yet: nothing');
   const a = S.deckSlot(() => q), b = S.deckSlot(() => q);
   a.trackIdx = 0; assert.equal(b.trackIdx, -1, 'two slots, two states');
+  // a SYNC belongs to the record it was set on, as the cue does (R13)
+  a.pitch = 0.968; a.synced = true; a.cue = 12;
+  a.trackIdx = 0;                                          // the same record re-seated (settle after a hand's commit)
+  assert.equal(a.pitch, 0.968); assert.equal(a.synced, true, 'the same record keeps its match');
+  q.push(mk(20)); q.splice(0, 0, mk(21));                   // the queue moves under it: still the same record
+  assert.equal(a.pitch, 0.968); assert.equal(a.synced, true);
+  a.trackIdx = q.length - 1;                               // another record seated (the auto-DJ's preload)
+  assert.equal(a.pitch, 1); assert.equal(a.synced, false, 'a new record is matched to nothing');
+  assert.equal(a.cue, 0);
+  a.pitch = 1.03; a.synced = true; a.trackIdx = -1;
+  assert.equal(a.pitch, 1); assert.equal(a.synced, false, 'nothing on the deck, nothing synced');
 });
 test('seamPitchCarry: a synced record starts the seam at its own pitch and lands at 1× — both decks alike, the plan\'s ratio kept', () => {
   assert.equal(S.seamPitchCarry(0.968, 0), 0.968, 'the on-air record exactly where it plays');
@@ -11471,13 +11482,47 @@ test('the decks in the player: slots by identity, the restore onto the idle deck
   assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = g.rateA * k * SPEED.rate;') && mixer.includes('nd.a.playbackRate = this._lastRateB = g.rateB * k * SPEED.rate;'), 'R13: fire carries it');
   assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = g.rateA * k * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate;'), 'R13: the glide carries it home');
   assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
-  assert.ok(mixer.includes('if (ws.rec !== had){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
+  assert.ok(mixer.includes('const fresh = ws.rec !== had;') && mixer.includes('if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
+  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}\n      setPitchLock(nd.a, SPEED.keyLock);'),
+    'R13: a new record on the idle deck plays at the listener\'s rate, never a retired match');
+  assert.ok(decks.includes('if (retired != null && retired >= 0){ r.trackIdx = retired; r.pitch = 1; r.synced = false; }'), 'R13: the retired deck\'s sync retires with it');
+  assert.ok(decks.includes('onPlayIndex(newIdx, retired, fadeDur, cued, idx){') && decks.includes('if (idx != null && idx >= 0) s.trackIdx = idx;'), 'R13: the on-air slot names the record it plays');
+  assert.ok(html.includes('DECKS.onPlayIndex(newIdx, od === nd ? -1 : retiredCur, AE.graphLive ? fadeDur : 0, cued, i);'), 'R13: playIndex says which');
+  assert.ok(decks.includes("{ const r = this.slots[1 - inSlot]; r.owner = 'free'; r.pitch = 1; r.synced = false; }"), 'R13: a hand\'s commit retires the old air\'s sync too');
   assert.equal((mixer.match(/if \(hs\.owner === 'hand' && !held\)\{ if \(!hd\.a\.paused && !hd\.a\.ended\) return/g) || []).length, 2, 'R9: a hand\'s record that left the queue never leaves the deck half-claimed');
   const tr = html.slice(html.indexOf('function wireDeckTransport(){'), html.indexOf('function wireDeckTransport(){') + 6000);
   const ld = tr.slice(tr.indexOf('const load = slot => {'));
   assert.ok(ld.indexOf('if (!AE.ctx){ try { ensureCtx(); } catch (e){} }') >= 0 && ld.indexOf('if (!AE.ctx){ try { ensureCtx(); } catch (e){} }') < ld.indexOf('if (!AE.graphLive || !AE.decks)'),
     'R31: the booth LOAD births the decks before it judges them');
   assert.ok(html.includes('if (!running && !armed) for (let i = 0; i < 2 && !sync; i++) if (DECKS.slots[i].synced){'), 'R32: the booth says SYNC only with no seam planned');
+});
+test('the armed seam holds its record: MIXER.next is read through the queue as it stands, and an "up next" re-plans it (R9)', () => {
+  const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
+  assert.ok(!/\bnext: -1,/.test(mixer.slice(0, 2000)), 'no row-number field left');
+  const g = mixer.match(/  get next\(\)\{[^\n]*\},\n  set next\(i\)\{[^\n]*\},/);
+  assert.ok(g, 'next is an accessor over the record');
+  const player = { tracks: [] };
+  const M = new Function('player', 'return { _nextRec: null,\n' + g[0] + ' };')(player);
+  const mk = n => ({ id: n });
+  player.tracks = [mk(0), mk(1), mk(2), mk(3)];
+  assert.equal(M.next, -1, 'nothing armed');
+  M.next = 2; const B = player.tracks[2];
+  assert.equal(M._nextRec, B);
+  player.tracks.splice(1, 0, mk(10), mk(11), mk(12));      // an album queued next, under the armed seam
+  assert.equal(M.next, 5); assert.equal(player.tracks[M.next], B, 'fire() commits the record the deck holds, not its old row');
+  player.tracks.sort((a, b) => b.id - a.id);
+  assert.equal(player.tracks[M.next], B);
+  player.tracks = player.tracks.filter(t => t !== B);      // its row removed (or a new list played over it)
+  assert.equal(M.next, -1, 'gone from the queue: nothing to fire — never its neighbour');
+  M.next = -1; assert.equal(M._nextRec, null, 'cancel and finish let it go');
+  M.next = 99; assert.equal(M._nextRec, null);
+  // fire() reads the record through the accessor and gives up on one that left
+  assert.ok(mixer.includes('const B = player.tracks[this.next];\n    if (!B){ this.cancel(); return; }'));
+  assert.equal((mixer.match(/this\.plan = null; this\.next = -1;/g) || []).length, 2, 'cancel and finish clear it');
+  // "up next" while armed: the plan is let go and re-armed from the queue as it now stands
+  const pl = html.slice(html.indexOf('  playNext(i){'), html.indexOf('  remove(i){'));
+  assert.ok(pl.includes("_upNextReplan(){\n    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('replan');"));
+  assert.equal((pl.match(/this\._upNextReplan\(\);/g) || []).length, 2, 'play-next and queue-next both re-plan');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
