@@ -32,6 +32,11 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
+  ' FX_UNITS, FX_SENDS, FX_INSERTS, FX_AMT, FX_MIX, fxMix, FILTER_DETENT, fxFilterQ, fxFilterArbiter, fxSeamHz,'  +
+  ' GATE_FLOOR, gateEdge, gateCurve, gateEdgeSec, gateSchedule, gateAnchor, fxEchoGains, fxEchoGlide, reverbIR,'  +
+  ' fxFlangeParams, fxLfoWave, fxPhaserStages, fxPhaserShape, crushBits, crushCurve, crushTone,'  +
+  ' driveCurve, drivePre, driveTiltDb, driveTrimDb, drivePinkRef, driveMakeup, FX_AUTO, makeFxAuto, fxAutoStep, fxAutoSweep,'  +
+  ' FX_GAIN_DB, FX_BUDGET_DB, fxGainBudget, FX_PARK,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
   ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
   ' TEAR_HOLD, TEAR_MIN, makeTearWatch, tapeTearStep, tapeTearSilent, ringTornIn, loopDeckReady, loopHandbackAt,' +
@@ -5812,8 +5817,8 @@ test('fxFilter: one bipolar knob, a real detent, and hearing-shaped travel', () 
   assert.ok(mid.lp >= 22000 - 1 && mid.hp <= 20, 'and both corners are out of the way');
   assert.equal(S.fxFilter(0.04, nyq).active, false, 'the detent is real — a nudge does nothing');
   const lo = S.fxFilter(-1, nyq), hi = S.fxFilter(1, nyq);
-  assert.ok(lo.active && lo.lp < 300, 'hard left is a closed lowpass, got ' + lo.lp);
-  assert.ok(hi.active && hi.hp > 6000, 'hard right is a high highpass, got ' + hi.hp);
+  assert.ok(lo.active && lo.lp < 100, 'hard left is a closed lowpass — the kick leaves too, got ' + lo.lp);
+  assert.ok(hi.active && hi.hp > 12000, 'hard right is a high highpass — the air leaves too, got ' + hi.hp);
   // exponential, so the knob feels even end to end rather than doing everything
   // in the last inch
   const a = S.fxFilter(-0.5, nyq).lp, b = S.fxFilter(-0.75, nyq).lp;
@@ -10726,6 +10731,261 @@ test('pickLens hysteresis: the held look is sticky by ±0.08 of energy; a differ
   // a lens swap and a mixset's room are minor changes: the act's own gap
   for (const k of ['lens', 'mixset'])
     assert.equal(S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: k }).gap, S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: 'dwell' }).gap, k + ' takes the dwell\'s gap');
+});
+
+// ---------------------------------------------------------------- the rack, second pass
+/* eight units, two knobs, one law each — every number the rack is built on,
+   held here without a browser: the knob laws, the gate's edges, the echo's
+   gain invariant, the reverb's impulse, the drive's loudness table, the
+   performer's patience, the limiter budget, and the parked table release()
+   walks. */
+test('fxMix: the reverb rides a cubic (a wash is fine control), the echo and the inserts a capped line (a colour must be heard at half travel)', () => {
+  assert.equal(S.FX_MIX.reverb.law, 'cubic'); assert.ok(Math.abs(S.fxMix('reverb', 0.5) - 0.125 * S.FX_MIX.reverb.cap) < 1e-9, 'half travel of the wash is a whisper');
+  assert.equal(S.FX_MIX.echo.law, 'linear'); assert.ok(S.fxMix('echo', 0.5) >= 0.5, 'a tapped ECHO is heard: its loop already shapes the tail');
+  for (const u of S.FX_INSERTS){ assert.equal(S.FX_MIX[u].law, 'linear'); assert.ok(S.fxMix(u, 0.5) >= 0.3, u + ' half travel is audible, got ' + S.fxMix(u, 0.5)); assert.ok(S.fxMix(u, 1) <= S.FX_MIX[u].cap + 1e-9, u + ' never past its cap'); }
+  for (const u of S.FX_UNITS){
+    const hasMix = S.FX_SENDS.indexOf(u) >= 0 || S.FX_INSERTS.indexOf(u) >= 0;
+    assert.equal(!!S.FX_MIX[u], hasMix, u + (hasMix ? ' has a MIX' : ' has no MIX (filter and gate are their own blend)'));
+    assert.ok(S.FX_AMT[u] > 0 && S.FX_AMT[u] <= 1, u + ' has a resting AMOUNT');
+    if (hasMix) assert.ok(S.FX_MIX[u].def > 0 && S.FX_MIX[u].def <= 1, u + ' has a resting MIX');
+  }
+  assert.equal(S.fxMix('filter', 1), 0); assert.equal(S.fxMix('echo', -1), 0); assert.equal(S.fxMix('drive', 7), S.fxMix('drive', 1));
+  assert.equal(S.FX_UNITS.length, 8, 'eight pads');
+});
+test('fxFilterQ: flat on the detent, squelching toward the ends, never past 3', () => {
+  assert.ok(Math.abs(S.fxFilterQ(0) - 0.7) < 1e-9 && Math.abs(S.fxFilterQ(0.05) - 0.7) < 1e-9, 'Butterworth inside the detent — the centre is honestly bypass');
+  let prev = 0;
+  for (let x = 0; x <= 1.0001; x += 0.05){ const q = S.fxFilterQ(x); assert.ok(q >= prev - 1e-12, 'monotone'); prev = q; }
+  assert.ok(Math.abs(S.fxFilterQ(1) - 3) < 1e-9 && Math.abs(S.fxFilterQ(-1) - 3) < 1e-9, 'three at either end');
+  assert.ok(S.fxFilterQ(0.5) < 1.6, 'and most of the squelch lives in the last third, got ' + S.fxFilterQ(0.5));
+  // the corners went where a DJ filter goes: the kick leaves on the left, the air on the right
+  assert.ok(S.fxFilter(-1, 22050).lp < 100 && S.fxFilter(1, 22050).hp > 12000);
+});
+test('fxFilterArbiter / fxSeamHz: the more closed hand wins, the highpass is the hand\'s alone, the seam reads back as a number', () => {
+  assert.deepEqual(S.fxFilterArbiter({ lp: 800, hp: 20 }, 22000, 0), { lp: 800, hp: 20 }, 'a hand alone');
+  assert.deepEqual(S.fxFilterArbiter(null, 300, 0), { lp: 300, hp: 20 }, 'a seam alone');
+  assert.equal(S.fxFilterArbiter({ lp: 800, hp: 2000 }, 300, 0).lp, 300, 'the seam closes further: it wins the lowpass');
+  assert.equal(S.fxFilterArbiter({ lp: 800, hp: 2000 }, 300, 0).hp, 2000, '…and the hand keeps its highpass');
+  assert.equal(S.fxFilterArbiter({ lp: 800, hp: 20 }, 22000, 500).lp, 500, 'the brake darkens past the hand');
+  assert.equal(S.fxFilterArbiter(null, 0, 0).lp, 22000, 'nothing on it: open');
+  const c = { t0: 10, hold: 0.6, t1: 15, from: 22000, to: 300 };
+  assert.equal(S.fxSeamHz(c, 9), 22000); assert.equal(S.fxSeamHz(c, 10.5), 22000, 'held through the lead-in');
+  assert.ok(Math.abs(S.fxSeamHz(c, 12.8) - Math.sqrt(22000 * 300)) < 1, 'the geometric midpoint half way down — exponential, as the scheduled curve is');
+  assert.equal(S.fxSeamHz(c, 15), 300); assert.equal(S.fxSeamHz(c, 99), 300); assert.equal(S.fxSeamHz(null, 1), 22000);
+});
+test('gateSchedule: raised-cosine edges, a −60 dB floor, and never a step across a sample, for every division at 174 BPM', () => {
+  const sr = 48000;
+  const edge = S.gateEdge(32);
+  assert.equal(edge[0], 0); assert.ok(Math.abs(edge[31] - 1) < 1e-6); assert.ok(Math.abs(edge[16] - 0.5) < 0.06, 'cosine through the middle');
+  assert.ok(Math.abs(S.GATE_FLOOR - 0.001) < 1e-12, '−60 dB: taken away, not turned down');
+  const render = (events, dur) => {
+    const n = Math.ceil(dur * sr), v = new Float32Array(n);
+    let cur = S.GATE_FLOOR, ei = 0;
+    for (let i = 0; i < n; i++){
+      const t = i / sr;
+      while (ei < events.length && t >= events[ei].at + events[ei].dur){ cur = events[ei].to; ei++; }
+      if (ei < events.length && t >= events[ei].at){
+        const e = events[ei], c = S.gateCurve(e.from, e.to, 32);
+        const k = (t - e.at) / e.dur * (c.length - 1), i0 = Math.floor(k), f = k - i0;
+        v[i] = c[i0] + (c[Math.min(c.length - 1, i0 + 1)] - c[i0]) * f;
+      } else v[i] = cur;
+    }
+    return v;
+  };
+  for (const div of S.FX_DIVS){
+    const step = S.fxTime(div, 174), hold = S.fxGateHold(1), E = S.gateEdgeSec(step);
+    const ev = S.gateSchedule(0, step, hold, E);
+    assert.equal(ev.length, 2);
+    assert.ok(ev[0].at + ev[0].dur <= ev[1].at + 1e-9, 'the open has finished before the close begins at div ' + div);
+    assert.ok(ev[1].at + ev[1].dur < step, 'and the close has finished before the next slice at div ' + div);
+    assert.equal(ev[0].from, S.GATE_FLOOR); assert.equal(ev[0].to, 1); assert.equal(ev[1].from, 1); assert.equal(ev[1].to, S.GATE_FLOOR);
+    const v = render(ev, step);
+    let worst = 0;
+    for (let i = 1; i < v.length; i++) worst = Math.max(worst, Math.abs(v[i] - v[i - 1]));
+    assert.ok(worst < 0.5, 'no step across a sample at div ' + div + ', worst ' + worst);
+    assert.ok(worst < 0.05, '…and in truth far gentler than that, worst ' + worst);
+    assert.ok(Math.abs(v[Math.round((ev[0].at + ev[0].dur) * sr) + 1] - 1) < 1e-3, 'fully open after the edge');
+    assert.ok(v[v.length - 1] <= S.GATE_FLOOR + 1e-6, 'and at the floor by the slice end');
+  }
+  // the grid is kept across a stall: the first slice after `now` is still on the lattice the bar anchored
+  assert.ok(Math.abs(S.gateAnchor(10.0, 3.0, 0.5) - 10.0) < 1e-9);
+  assert.ok(Math.abs(S.gateAnchor(10.1, 3.0, 0.5) - 10.5) < 1e-9);
+  assert.ok(Math.abs(S.gateAnchor(10.0, 12.3, 0.5) - 10.3) < 1e-9, 'a bar line still ahead: counted back from it');
+});
+test('fxEchoGains: send/(1 − fb) never exceeds 1.2 anywhere on the knob, and the tail grows with it', () => {
+  let prevFb = -1;
+  for (let a = 0; a <= 1.0001; a += 0.01){
+    const g = S.fxEchoGains(a);
+    assert.ok(g.fb < 1 && g.fb >= 0.25, 'a feedback that always decays');
+    assert.ok(g.send / (1 - g.fb) <= 1.2 + 1e-9, 'the invariant at ' + a.toFixed(2) + ': ' + (g.send / (1 - g.fb)).toFixed(3));
+    assert.ok(g.fb >= prevFb, 'more knob, longer tail'); prevFb = g.fb;
+  }
+  assert.equal(S.fxEchoGains(0).send, 0, 'nothing sent at zero');
+  assert.ok(S.fxEchoGains(0.6).send > 0.3, 'the room\'s own echo is a real send, got ' + S.fxEchoGains(0.6).send);
+  assert.ok(S.fxEchoGains(0.6).send * S.fxMix('echo', S.FX_MIX.echo.def) > 0.15, 'and at the resting knobs the first repeat is well within hearing');
+  // the warp is bounded: a 1/8 → 4-beat change glides over 0.6 s, a small one is quick
+  assert.ok(Math.abs(S.fxEchoGlide(0.125, 2) - 0.6) < 1e-9); assert.ok(Math.abs(S.fxEchoGlide(0.5, 0.52) - 0.25) < 1e-9);
+  assert.ok(S.fxEchoGlide(0.5, 1) >= 0.25 && S.fxEchoGlide(0.5, 1) <= 0.6 && S.fxEchoGlide(0.5, 1.4) > 0.25);
+});
+test('reverbIR: RT60 within a tenth of the request, no DC, two different channels, and no click at the onset', () => {
+  const sr = 48000;
+  for (const [secs, seed] of [[1.2, 41], [2.6, 97]]){
+    const ir = S.reverbIR(sr, secs, 60, seed);
+    assert.equal(ir.length, 2);
+    const L = ir[0], R = ir[1];
+    assert.equal(L.length, Math.round(sr * secs));
+    const rms = (a, i0, i1) => { let s2 = 0; for (let i = i0; i < i1; i++) s2 += a[i] * a[i]; return Math.sqrt(s2 / (i1 - i0)); };
+    // the energy ratio between a window near the start and one near the end fits an exponential to −60 dB at T
+    const w = Math.round(sr * 0.05), a0 = Math.round(sr * 0.1), a1 = Math.round(sr * (secs - 0.1)) - w;
+    const slope = 20 * Math.log10(rms(L, a0, a0 + w) / rms(L, a1, a1 + w)) / ((a1 - a0) / sr);   // dB per second
+    const rt60 = 60 / slope;
+    assert.ok(Math.abs(rt60 - secs) / secs < 0.1, 'RT60 ' + rt60.toFixed(2) + ' s for a ' + secs + ' s room');
+    let mean = 0; for (let i = 0; i < L.length; i++) mean += L[i]; mean /= L.length;
+    assert.ok(Math.abs(mean) < 1e-3, 'no DC, mean ' + mean);
+    let same = 0; for (let i = 0; i < 2000; i++) if (L[i] === R[i]) same++;
+    assert.ok(same < 10, 'left and right are different noise — that is the width');
+    assert.ok(Math.abs(L[0]) < 1e-6 && Math.abs(L[10]) < 0.1, 'the onset rises, it does not slam');
+    assert.ok(Math.max.apply(null, Array.from(L.subarray(0, 4000)).map(Math.abs)) <= 1, 'bounded');
+  }
+});
+test('fxFlangeParams / fxLfoWave / fxPhaserStages: beat-synced sweeps whose bottom lands on the bar', () => {
+  const p = S.fxFlangeParams(1, 1, 120);
+  assert.ok(Math.abs(p.rateHz - 1 / 2) < 1e-9, 'one sweep per four beats at 120 BPM is a two-second cycle');
+  assert.ok(Math.abs(S.fxFlangeParams(0.5, 0.5, 120).rateHz - 1) < 1e-9, 'a half-beat division sweeps twice as fast');
+  assert.ok(p.fb <= 0.55 && S.fxFlangeParams(0, 1, 120).fb >= 0.25, 'feedback inside the budget');
+  assert.equal(S.fxFlangeParams(0, 1, 120).depthSec, 0); assert.ok(p.depthSec > 0.001 && p.baseSec === 0.0015);
+  // the wave: real·cos + imag·sin evaluated at θ = 2π·frac must be the minimum
+  for (const frac of [0, 0.25, 0.6, 0.99]){
+    const w = S.fxLfoWave(frac), th = 2 * Math.PI * frac;
+    const at = w.real[1] * Math.cos(th) + w.imag[1] * Math.sin(th);
+    assert.ok(Math.abs(at + 1) < 1e-6, 'bottom on the bar for frac ' + frac + ', got ' + at);
+    assert.ok(Math.abs(w.real[1] * w.real[1] + w.imag[1] * w.imag[1] - 1) < 1e-6, 'unit amplitude');
+    assert.equal(w.real[0], 0); assert.equal(w.imag[0], 0);
+  }
+  const st = S.fxPhaserStages(1, 6);
+  assert.equal(st.base.length, 6);
+  for (let k = 1; k < 6; k++) assert.ok(Math.abs(st.base[k] / st.base[k - 1] - Math.SQRT2) < 1e-9, 'half an octave apart');
+  assert.equal(st.base[0], 250); assert.equal(st.fb, 0.3); assert.equal(st.depth[0], 2); assert.equal(S.fxPhaserStages(0, 6).depth[3], 0);
+  const sh = S.fxPhaserShape(1025, 2);
+  assert.ok(Math.abs(sh[512]) < 1e-9, 'no sweep at rest'); assert.ok(Math.abs(sh[1024] - 3) < 1e-9 && Math.abs(sh[0] + 0.75) < 1e-9, '±2 octaves at the ends');
+});
+test('crushBits / crushCurve / crushTone: twelve bits of grit to three bits of the sound everybody means', () => {
+  assert.equal(S.crushBits(0), 12); assert.equal(S.crushBits(1), 3); assert.equal(S.crushBits(0.5), 7.5);
+  const c = S.crushCurve(3, 1025);
+  const levels = new Set(Array.from(c).map(v => Math.round(v * 1e6)));
+  assert.ok(levels.size <= 9 && levels.size >= 7, 'three bits is a handful of steps, got ' + levels.size);
+  assert.ok(Math.abs(c[1024] - 1) < 1e-9 && Math.abs(c[0] + 1) < 1e-9 && c[512] === 0, 'full scale and silence are exact');
+  assert.ok(S.crushTone(0) > 15000 && S.crushTone(1) < 2500 && S.crushTone(0.5) < S.crushTone(0.2), 'the top goes with the bits');
+});
+test('driveMakeup: driven or clean, the room is the same loudness within a dB across the whole knob', () => {
+  const curve = S.driveCurve(4096);
+  assert.ok(Math.abs(curve[4095] - 1) < 1e-9 && Math.abs(curve[0] + 1) < 1e-9 && Math.abs(curve[2047] + curve[2048]) < 1e-3, 'normalised, odd');
+  // a tanh(3x)/tanh(3) shaper has a small-signal slope of three: even at unity pre-gain it lifts
+  // programme material by several dB (less than the full slope — at −9 dBFS the peaks are already
+  // into the knee), which is exactly what the table exists to take back
+  assert.ok(S.driveMakeup(1) > 1.5 && S.driveMakeup(1) < 3.05, 'unity makeup is the shaper\'s own lift, got ' + S.driveMakeup(1));
+  // a DIFFERENT pink reference than the table was built from
+  const ref = S.drivePinkRef(16384, 0.355, 777), t3 = Math.tanh(3);
+  let inSq = 0; for (let i = 0; i < ref.length; i++) inSq += ref[i] * ref[i];
+  for (let k = 1; k <= 8; k += 0.5){
+    const post = 1 / S.driveMakeup(k);
+    let sq = 0;
+    for (let i = 0; i < ref.length; i++){ const y = Math.tanh(3 * Math.max(-1, Math.min(1, k * ref[i]))) / t3 * post; sq += y * y; }
+    const db = 10 * Math.log10(sq / inSq);
+    assert.ok(Math.abs(db) < 1, 'k=' + k + ' lands within a dB of clean, got ' + db.toFixed(2) + ' dB');
+  }
+  assert.ok(S.driveMakeup(8) > S.driveMakeup(1), 'more drive, more makeup to take back');
+  assert.equal(S.drivePre(0), 1); assert.equal(S.drivePre(1), 8); assert.equal(S.driveTiltDb(1), -3);
+  // the graph's own loss (tilt, pre-highpass, the 4× band limit) is given back with the pre-gain: nothing at unity, under 2 dB at full
+  assert.equal(S.driveTrimDb(1), 0); assert.ok(S.driveTrimDb(8) > 1 && S.driveTrimDb(8) < 2); assert.ok(S.driveTrimDb(4) > S.driveTrimDb(2)); assert.equal(S.driveTrimDb(99), S.driveTrimDb(8));
+});
+test('fxAutoStep: a decision a bar, hysteresis on the line, two bars held, eight of rest, the gate rationed', () => {
+  const base = { ceil: 1, act: 2, phase: 'peak', bar: 2, toSeam: null };
+  // a peak hovering on the gate's line: 0.84–0.88 around 0.86 — without hysteresis this flickered every frame
+  let st = S.makeFxAuto(), changes = [];
+  for (let bars = 0; bars < 64; bars += 0.01){
+    const e = 0.86 + 0.02 * Math.sin(bars * 7.3);
+    const r = S.fxAutoStep(st, { ...base, energy: e }, ((bars % 1) + 1) % 1, bars);
+    if (r.change) changes.push(bars);
+    st = r.st;
+  }
+  assert.equal(changes.length, 0, 'a wobble on the line is not a decision: ' + changes.length + ' changes');
+  // a real peak: the gate comes in on a bar line, stays four bars, rests, and is not dealt again for 32
+  st = S.makeFxAuto(); changes = [];
+  for (let bars = 0; bars < 80; bars += 0.01){
+    const r = S.fxAutoStep(st, { ...base, energy: 0.95 }, ((bars % 1) + 1) % 1, bars);
+    if (r.change) changes.push({ bars: Math.round(bars * 100) / 100, unit: r.unit });
+    st = r.st;
+  }
+  assert.ok(changes.length >= 2, 'the gate was dealt, ' + JSON.stringify(changes));
+  for (const c of changes) assert.ok(c.bars % 1 < 0.05, 'every change at the top of a bar: ' + c.bars);
+  assert.equal(changes[0].unit, 'gate'); assert.equal(changes[1].unit, 'none');
+  assert.ok(changes[1].bars - changes[0].bars >= 4 && changes[1].bars - changes[0].bars < 5, 'four bars of gate, got ' + (changes[1].bars - changes[0].bars));
+  if (changes[2]) assert.ok(changes[2].bars - changes[0].bars >= 32, 'and not again inside thirty-two bars');
+  for (let i = 1; i < changes.length; i++) assert.ok(changes[i].bars - changes[i - 1].bars >= 2, 'never two changes inside two bars');
+  // a build then a drop: the sweep holds two bars at least, and after it ends the room rests eight bars before the next unit
+  st = S.makeFxAuto(); changes = [];
+  for (let bars = 0; bars < 40; bars += 0.01){
+    const o = bars < 8 ? { ...base, phase: 'build', act: 1, energy: 0.7 } : bars < 9 ? { ...base, phase: 'flow', energy: 0.4 } : { ...base, energy: 0.95 };
+    const r = S.fxAutoStep(st, o, ((bars % 1) + 1) % 1, bars);
+    if (r.change) changes.push({ bars: Math.round(bars * 100) / 100, unit: r.unit });
+    st = r.st;
+  }
+  assert.equal(changes[0].unit, 'filter'); assert.equal(changes[1].unit, 'none');
+  assert.ok(changes[1].bars - changes[0].bars >= 2);
+  assert.equal(changes[2].unit, 'gate'); assert.ok(changes[2].bars - changes[1].bars >= 8, 'eight bars of rest, got ' + (changes[2].bars - changes[1].bars));
+  // the hand-off echo is the exception: it may interrupt a held unit without the rest
+  st = S.makeFxAuto();
+  st = S.fxAutoStep(st, { ...base, phase: 'build', act: 1, energy: 0.7 }, 0.01, 4).st;
+  assert.equal(st.unit, 'filter');
+  const r = S.fxAutoStep(st, { ...base, phase: 'build', act: 1, energy: 0.7, toSeam: 1.5 }, 0.01, 5);
+  assert.equal(r.unit, 'echo'); assert.ok(r.change);
+  // and never a change off the bar line, never twice in one bar
+  const r2 = S.fxAutoStep(r.st, { ...base, energy: 0.95 }, 0.5, 5.5);
+  assert.ok(!r2.change && r2.unit === 'echo');
+  assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 1 }), 'reverb', 'a break\'s first bars are a wash');
+  assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 3 }), 'none', '…and only its first bars');
+});
+test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
+  const s = S.fxAutoSweep(16, 120, 0.9);
+  assert.ok(s.hzTop >= 900 && s.hzTop <= 1400, 'the top sits under the vocals, got ' + s.hzTop);
+  assert.ok(Math.abs(s.seconds - 32) < 1e-9, 'sixteen bars at 120 BPM');
+  assert.ok(Math.abs(s.release - 0.5) < 1e-9, 'one beat');
+  assert.ok(S.fxAutoSweep(1, 120, 0.9).seconds >= 8 && S.fxAutoSweep(999, 120, 0.9).seconds <= 128, 'clamped to a phrase and to a minute');
+  assert.ok(S.fxAutoSweep(16, 120, 0.5).hzTop < S.fxAutoSweep(16, 120, 1).hzTop, 'a bigger build, a thinner room');
+  assert.equal(s.qTop, 2.5);
+});
+test('fxGainBudget: everything that can sound at once stays under +6 dB, so the limiter is a rail nobody hears', () => {
+  assert.equal(S.FX_BUDGET_DB, 6);
+  for (const u of S.FX_UNITS) assert.ok(S.FX_GAIN_DB[u] != null, u + ' has a documented worst case');
+  // a deck's filter, one master unit, and the previous unit's tail still ringing out
+  for (const u of S.FX_UNITS) if (u !== 'filter') for (const tail of ['echo', 'reverb'])
+    assert.ok(S.fxGainBudget(['filter', u, tail]) <= S.FX_BUDGET_DB, 'filter + ' + u + ' + a ' + tail + ' tail: ' + S.fxGainBudget(['filter', u, tail]) + ' dB');
+  assert.equal(S.fxGainBudget([]), 0); assert.equal(S.fxGainBudget(['nothing']), 0); assert.equal(S.fxGainBudget(null), 0);
+  // the parked table carries what the first rack forgot
+  assert.equal(S.FX_PARK.fb, 0); assert.equal(S.FX_PARK.fbX, 0); assert.equal(S.FX_PARK.wet, 0); assert.equal(S.FX_PARK.send, 0);
+  assert.equal(S.FX_PARK.gate, 1); assert.equal(S.FX_PARK.insDry, 1); assert.equal(S.FX_PARK.insWet, 0); assert.equal(S.FX_PARK.lp, 22000);
+});
+test('the rack in the player: release walks FX_PARK, the gate is curves, the seam goes through the arbiter, nothing assigns a param', () => {
+  const fx = html.slice(html.indexOf('const FX = {'), html.indexOf('const CUES = {'));
+  for (const s of ['for (const k in FX_PARK){', "if (hold && (k === 'send' || k === 'fb' || k === 'fbX' || k === 'wet')) continue;",
+                   'AE.fx.gate.gain.setValueCurveAtTime(gateCurve(ev.from, ev.to, 32), ev.at, ev.dur);', 'if (this._gateFresh && ev.to === 1) continue;',
+                   'this._gateAt = b ? gateAnchor(t, b.at, step) : t;', 'd._fxBrake = 400 + r * 20000;',
+                   'const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : 0.7;',
+                   'd.filter.frequency.setTargetAtTime(a.lp, now, tau);', 'if (d._fxSched) continue;',
+                   'p.exponentialRampToValueAtTime(to, t + fxEchoGlide(from, to));', 'conv.normalize = true;',
+                   'const r = fxAutoStep(this._autoSt, o, barPhase, bars);', 'f.hp.frequency.exponentialRampToValueAtTime(sw.hzTop, tRel);',
+                   'this._w(U.post.gain, Math.pow(10, driveTrimDb(k) / 20) / driveMakeup(k), R);'])
+    assert.ok(fx.includes(s), 'FX carries: ' + s);
+  assert.ok(!/\.(gain|frequency|Q|delayTime)\.value\s*=[^=]/.test(fx), 'no param in the rack is assigned — every write is a ramp or a target');
+  assert.ok(!fx.includes('ramp(AE.fx.lp.frequency'), 'the brake no longer writes the master lowpass');
+  // the mixer declares its sweep to the arbiter; the hidden-tab timer keeps the booth\'s clocks
+  for (const s of ['FX.seamOpen(nd); FX.seamSweep(od, t0, sweep);', "if (typeof FX !== 'undefined') FX.seamOpen(d);",
+                   "if (document.hidden && typeof FX !== 'undefined'){ try { FX.tick(0.3); } catch (e){} }",
+                   "insIn, insWet, insDry, units, insert: ''", 'xSplit.connect(xMerge, 0, 1); xSplit.connect(xMerge, 1, 0);',
+                   "T('Beat FX need the engine — on this device the music plays direct')", 'id="fxMix"', 'id="fxHold"', 'id="fxKey"', 'id="fxGr"'])
+    assert.ok(html.includes(s), 'the player carries: ' + s);
+  assert.ok(!html.includes("{ key: 'keylock', text: 'KEY LOCK' }"), 'KEY LOCK left the pads for the knob row');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -1729,5 +1729,10 @@
  "LIFT": "ลิฟต์",
  "BREAK": "เบรก",
  "DOWN": "ดาวน์",
- "OUTRO": "เอาท์โทร"
+ "OUTRO": "เอาท์โทร",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX ต้องใช้เอนจิน — บนอุปกรณ์นี้เพลงเล่นแบบตรง",
+ "Effect mix": "สัดส่วนผสมเอฟเฟกต์",
+ "Deck the filter acts on — A or B": "เด็คที่ฟิลเตอร์ทำงาน — A หรือ B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — หยุดหางเสียงไว้แล้วปล่อยให้ก้อง กดอีกครั้งเพื่อปล่อย",
+ "Double-tap to centre": "แตะสองครั้งเพื่อกลับตรงกลาง"
 }

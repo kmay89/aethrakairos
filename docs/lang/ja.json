@@ -1729,5 +1729,10 @@
  "LIFT": "リフト",
  "BREAK": "ブレイク",
  "DOWN": "ダウン",
- "OUTRO": "アウトロ"
+ "OUTRO": "アウトロ",
+ "Beat FX need the engine — on this device the music plays direct": "ビートFXにはエンジンが必要です — この端末では音楽は直接再生されます",
+ "Effect mix": "エフェクトのミックス",
+ "Deck the filter acts on — A or B": "フィルターが効くデッキ — AかB",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "エコーホールド — 残響を固定して鳴らし続ける。もう一度押すと解除",
+ "Double-tap to centre": "ダブルタップで中央に戻す"
 }

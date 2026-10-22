@@ -1729,5 +1729,10 @@
  "LIFT": "లిఫ్ట్",
  "BREAK": "బ్రేక్",
  "DOWN": "డౌన్",
- "OUTRO": "ఔట్రో"
+ "OUTRO": "ఔట్రో",
+ "Beat FX need the engine — on this device the music plays direct": "బీట్ FXకి ఇంజిన్ కావాలి — ఈ పరికరంలో సంగీతం నేరుగా ప్లే అవుతుంది",
+ "Effect mix": "ఎఫెక్ట్ మిశ్రమం",
+ "Deck the filter acts on — A or B": "ఫిల్టర్ పనిచేసే డెక్ — A లేదా B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "ఎకో హోల్డ్ — తోకను నిలిపి మోగనివ్వండి; వదలడానికి మళ్ళీ నొక్కండి",
+ "Double-tap to centre": "మధ్యకు తేవడానికి రెండుసార్లు ట్యాప్ చేయండి"
 }

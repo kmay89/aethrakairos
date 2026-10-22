@@ -1729,5 +1729,10 @@
  "LIFT": "KUINUKA",
  "BREAK": "MAPUMZIKO",
  "DOWN": "KUSHUKA",
- "OUTRO": "MWISHO"
+ "OUTRO": "MWISHO",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX zinahitaji injini — kwenye kifaa hiki muziki unacheza moja kwa moja",
+ "Effect mix": "Mchanganyiko wa athari",
+ "Deck the filter acts on — A or B": "Deki ambayo kichujio kinafanya kazi juu yake — A au B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Shikilia mwangwi — gandisha mkia na uache ulie; bonyeza tena kuachilia",
+ "Double-tap to centre": "Gonga mara mbili kurudi katikati"
 }

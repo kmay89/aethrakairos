@@ -1729,5 +1729,10 @@
  "LIFT": "ATAK",
  "BREAK": "BREAK",
  "DOWN": "İNİŞ",
- "OUTRO": "ÇIKIŞ"
+ "OUTRO": "ÇIKIŞ",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX motoru gerektirir — bu cihazda müzik doğrudan çalar",
+ "Effect mix": "Efekt karışımı",
+ "Deck the filter acts on — A or B": "Filtrenin etki ettiği deck — A veya B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — kuyruğu dondur ve çınlamaya bırak; bırakmak için tekrar bas",
+ "Double-tap to centre": "Ortaya dönmek için iki kez dokun"
 }

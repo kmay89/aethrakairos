@@ -1729,5 +1729,10 @@
  "LIFT": "LIFT",
  "BREAK": "BREAK",
  "DOWN": "DOWN",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX cần có engine — trên thiết bị này nhạc phát trực tiếp",
+ "Effect mix": "Tỷ lệ trộn hiệu ứng",
+ "Deck the filter acts on — A or B": "Deck mà bộ lọc tác động — A hoặc B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Giữ echo — đóng băng đuôi vang và để nó ngân; nhấn lần nữa để thả",
+ "Double-tap to centre": "Chạm hai lần để về giữa"
 }

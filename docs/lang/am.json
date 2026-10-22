@@ -1729,5 +1729,10 @@
  "LIFT": "መነሳት",
  "BREAK": "እረፍት",
  "DOWN": "መውረድ",
- "OUTRO": "መዝጊያ"
+ "OUTRO": "መዝጊያ",
+ "Beat FX need the engine — on this device the music plays direct": "የቢት ኤፍኤክስ ሞተሩን ይፈልጋሉ — በዚህ መሣሪያ ላይ ሙዚቃው በቀጥታ ይጫወታል",
+ "Effect mix": "የውጤት ቅልቅል",
+ "Deck the filter acts on — A or B": "ማጣሪያው የሚሠራበት ዴክ — A ወይም B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "የኢኮ መያዣ — ጭራውን አቁመህ እንዲያስተጋባ ተወው፤ ለመልቀቅ እንደገና ተጫን",
+ "Double-tap to centre": "ወደ መሃል ለመመለስ ሁለቴ ንካ"
 }

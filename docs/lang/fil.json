@@ -1729,5 +1729,10 @@
  "LIFT": "LIFT",
  "BREAK": "BREAK",
  "DOWN": "DOWN",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "Beat FX need the engine — on this device the music plays direct": "Kailangan ng Beat FX ang engine — sa device na ito direktang tumutugtog ang musika",
+ "Effect mix": "Halo ng Effect",
+ "Deck the filter acts on — A or B": "Deck na pinapatakbo ng filter — A o B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — i-freeze ang buntot at hayaang tumunog; pindutin muli para bitawan",
+ "Double-tap to centre": "I-double-tap para bumalik sa gitna"
 }

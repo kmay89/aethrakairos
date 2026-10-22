@@ -1729,5 +1729,10 @@
  "LIFT": "IMPULSO",
  "BREAK": "BREAK",
  "DOWN": "QUEDA",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "Beat FX need the engine — on this device the music plays direct": "Os FX de beat precisam do motor — neste dispositivo a música toca direto",
+ "Effect mix": "Mistura do efeito",
+ "Deck the filter acts on — A or B": "Deck sobre o qual o filtro atua — A ou B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — congela a cauda e deixa-a soar; pressione de novo para soltar",
+ "Double-tap to centre": "Toque duas vezes para voltar ao centro"
 }

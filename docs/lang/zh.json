@@ -1729,5 +1729,10 @@
  "LIFT": "抬升",
  "BREAK": "间奏",
  "DOWN": "回落",
- "OUTRO": "尾奏"
+ "OUTRO": "尾奏",
+ "Beat FX need the engine — on this device the music plays direct": "节拍效果需要引擎 — 在此设备上音乐为直接播放",
+ "Effect mix": "效果混合比",
+ "Deck the filter acts on — A or B": "滤波器作用的唱机 — A 或 B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "回声保持 — 冻结尾音并让其回荡；再按一次释放",
+ "Double-tap to centre": "双击回到中点"
 }

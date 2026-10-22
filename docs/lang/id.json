@@ -1729,5 +1729,10 @@
  "LIFT": "LIFT",
  "BREAK": "BREAK",
  "DOWN": "DOWN",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX membutuhkan mesin — di perangkat ini musik diputar langsung",
+ "Effect mix": "Campuran efek",
+ "Deck the filter acts on — A or B": "Deck tempat filter bekerja — A atau B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — bekukan ekornya dan biarkan berdengung; tekan lagi untuk melepas",
+ "Double-tap to centre": "Ketuk dua kali untuk kembali ke tengah"
 }

@@ -1729,5 +1729,10 @@
  "LIFT": "ANHEBUNG",
  "BREAK": "BREAK",
  "DOWN": "ABFALL",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "Beat FX need the engine — on this device the music plays direct": "Beat-FX brauchen die Engine — auf diesem Gerät spielt die Musik direkt",
+ "Effect mix": "Effektanteil",
+ "Deck the filter acts on — A or B": "Deck, auf das der Filter wirkt — A oder B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo-Hold — die Fahne einfrieren und klingen lassen; erneut drücken zum Loslassen",
+ "Double-tap to centre": "Doppeltippen für die Mitte"
 }

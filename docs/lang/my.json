@@ -1729,5 +1729,10 @@
  "LIFT": "LIFT",
  "BREAK": "BREAK",
  "DOWN": "DOWN",
- "OUTRO": "OUTRO"
+ "OUTRO": "OUTRO",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX တွေအတွက် အင်ဂျင် လိုအပ်တယ် — ဒီစက်မှာ ဂီတကို တိုက်ရိုက် ဖွင့်နေတာပါ",
+ "Effect mix": "အကျိုးသက်ရောက်မှု ရောစပ်မှု",
+ "Deck the filter acts on — A or B": "စစ်ထုတ်ကိရိယာ အလုပ်လုပ်တဲ့ Deck — A သို့မဟုတ် B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "ပဲ့တင်သံ ထိန်းထား — အမြီးကို ရပ်ထားပြီး ဆက်ထွက်ပါစေ၊ လွှတ်ဖို့ ထပ်နှိပ်ပါ",
+ "Double-tap to centre": "အလယ်ကို ပြန်သွားဖို့ နှစ်ချက် တို့ပါ"
 }

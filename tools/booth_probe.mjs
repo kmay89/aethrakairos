@@ -39,7 +39,9 @@
  * timed check now runs under deck(), which fails loudly if the track changed
  * underneath it rather than quietly reporting the wrong number.
  *
- *   node tools/booth_probe.mjs /tmp/mb8-mix
+ *   node tools/booth_probe.mjs /tmp/mb8-mix                   # measurement conditions
+ *   MB8_PROBE_RENDER=1 node tools/booth_probe.mjs /tmp/mb8-mix  # with the visualizer running
+ *   MB8_CHROME=/path/to/chromium …                              # another browser binary
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
@@ -75,7 +77,7 @@ const server = createServer((req, res) => {
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}/`;
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
+const browser = await chromium.launch({ executablePath: process.env.MB8_CHROME || '/opt/pw-browsers/chromium',
   args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=swiftshader',
     '--enable-unsafe-swiftshader'] });
 const page = await (await browser.newContext()).newPage();
@@ -95,11 +97,24 @@ const errs = [];
 const NOISE = /404|Failed to fetch|net::ERR|NotAllowedError|The play\(\) request/;
 page.on('pageerror', e => { const m = String(e).split('\n')[0]; if (!NOISE.test(m.slice(0, 60))) errs.push(m); });
 await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+await page.addInitScript(v => { window.__probeRender = v; }, process.env.MB8_PROBE_RENDER === '1');
 await page.goto(base, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 40000 });
 await page.evaluate(() => {
   for (const id of ['firstRun', 'help', 'coach', 'onboard', 'library', 'console', 'playlist', 'emptyState', 'splash'])
     { const n = document.getElementById(id); if (n) n.style.display = 'none'; }
+  /* QUIET THE RENDERER, as mix_probe does. Under SwiftShader the visualizer
+   * pins the main thread to a few frames a second and this run never finished
+   * on a software GPU — it hung between the brake and the parked-state check.
+   * Everything measured here is scheduled on the audio clock, so starving the
+   * draw changes what can be SEEN, not what plays. MB8_PROBE_RENDER=1 leaves it
+   * running, for the cases where frame rate is the thing under test. */
+  if (!window.__probeRender){
+    if (typeof POWER !== 'undefined') POWER.set('eco', false);
+    const cv = document.getElementById('glcanvas');
+    if (cv) cv.style.display = 'none';
+    try { if (typeof renderer !== 'undefined' && renderer && renderer.render) renderer.render = () => {}; } catch (e){}
+  }
 });
 
 const started = await page.evaluate(() => {
@@ -117,8 +132,8 @@ const started = await page.evaluate(() => {
 if (!started){ console.log('fixture has no tracks'); await browser.close(); server.close(); process.exit(1); }
 await page.waitForFunction('player.playing && AE.fx && activeDeck() && activeDeck().a.currentTime > 0.5',
   null, { timeout: 40000 });
-R('the FX rack is inserted on the master', await page.evaluate(() => !!(AE.fx && AE.fx.out)),
-  'bus → filter → gate → drive → echo → master');
+R('the FX rack is inserted on the master', await page.evaluate(() => !!(AE.fx && AE.fx.out && AE.fx.insIn && AE.fx.rvSend)),
+  'bus → eq → filter → gate → insert slot → echo/reverb returns → master');
 
 /* KEEP THE FIXTURE FROM RUNNING OUT UNDER A MEASUREMENT. Every track here is
    20-30 s and this run is minutes; a track that ends calls playIndex, which calls
@@ -198,7 +213,13 @@ await page.evaluate(() => {
      seconds differ only by what the rack did to them. Everything under test —
      nodes, params, FX.apply() — is the shipping rack; only the source changes.
      The generator is seeded, so the same signal is measured every run. */
-  window.__benchOn = mode => {
+  /* TWO BENCHES. The master units are measured with the bench on the rack's
+     input, as before. The FILTER moved onto the deck strip (the DJ norm: one
+     per channel, driven by the hand on that deck through an arbiter), so it is
+     measured with the bench on the hand deck's own chain — the element's source
+     stepped off the strip, the bench in its place, the whole strip and the rack
+     after it under test. */
+  window.__benchOn = (mode, where) => {
     const ctx = AE.ctx, sr = ctx.sampleRate, len = Math.floor(sr * 2);
     const buf = ctx.createBuffer(1, len, sr);
     const d = buf.getChannelData(0);
@@ -214,13 +235,23 @@ await page.evaluate(() => {
         b0 = 0.99765 * b0 + w * 0.0990460;
         b1 = 0.96300 * b1 + w * 0.2965164;
         b2 = 0.57000 * b2 + w * 1.0526913;
-        d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.22;
+        d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.22;     // ≈ −8.6 dBFS: programme level at this rack
       }
     }
     const src = ctx.createBufferSource();
     src.buffer = buf; src.loop = true;
-    src.connect(AE.fx.in); src.start();
-    try { AE.bus.disconnect(AE.fx.in); } catch (e){}   // the music steps aside
+    /* THE MUSIC STEPS ASIDE — off the strips, not off the bus. Since the
+       platter took its seat the rack is fed by busGate → vinyl → fx.in, so
+       `AE.bus.disconnect(AE.fx.in)` throws (caught, and silently) and the
+       first version of this bench measured pink noise WITH the fixture's
+       synth underneath it. Lifting each deck's source off its own strip is
+       exact on both paths. */
+    for (const d of AE.decks) if (d && d.src && d.shelf){ try { d.src.disconnect(d.shelf); } catch (e){} }
+    if (where === 'deck'){
+      const d = AE.decks[DECKS.handSlot()];
+      src.connect(d.shelf);
+    } else src.connect(AE.fx.in);
+    src.start();
     window.__masterWas = AE.master.gain.value;
     AE.master.gain.value = 0;                          // measured at fx.out, not heard
     window.__bench = src;
@@ -228,7 +259,7 @@ await page.evaluate(() => {
   window.__benchOff = () => {
     try { window.__bench.stop(); window.__bench.disconnect(); } catch (e){}
     window.__bench = null;
-    try { AE.bus.connect(AE.fx.in); } catch (e){}
+    for (const d of AE.decks) if (d && d.src && d.shelf){ try { d.src.connect(d.shelf); } catch (e){} }
     if (window.__masterWas != null) AE.master.gain.value = window.__masterWas;
   };
   window.__deckId = () => {
@@ -274,11 +305,11 @@ const floor = a => {
   return hi > 0 ? s[Math.floor(a.length * 0.05)] / hi : 1;
 };
 
-const setFx = (unit, amount, div) => page.evaluate(([u, a, d]) => {
+const setFx = (unit, amount, div, mix) => page.evaluate(([u, a, d, m]) => {
   FX.auto = false;
   if (d) FX.div = d;
-  FX.set(u, a);
-}, [unit, amount, div || null]);
+  FX.set(u, a, m == null ? undefined : m);
+}, [unit, amount, div || null, mix == null ? null : mix]);
 // restart the fixture's first track so a timed section has runway; these tracks
 // are 20-30 s and a track change parks the rack
 const freshTrack = async () => {
@@ -304,7 +335,8 @@ const deckHeld = async id => {
 };
 
 console.log('\nthe rack — each unit measured against a signal that holds still');
-await page.evaluate(() => window.__benchOn('pink'));
+// the FILTER lives on the deck strip now: its bench goes through the hand deck's chain
+await page.evaluate(() => window.__benchOn('pink', 'deck'));
 await setFx('', 0);
 await page.waitForTimeout(400);
 const dry = await spec(500);
@@ -340,6 +372,20 @@ const bands = ['lo', 'mid', 'hi'].map(k => Math.abs(centre[k] - dryNow[k]) / Mat
 const worst = Math.max.apply(null, bands);
 R('filter: the centre detent is genuinely bypass', worst < 0.03,
   'lo/mid/hi within ' + bands.map(x => (x * 100).toFixed(1) + '%').join(' / ') + ' of bypass');
+// the resonance law: a half-closed lowpass lifts the band just under its corner (Q 1.5 at x = −0.5), and the detent is Butterworth
+const qRead = await page.evaluate(() => {
+  const d = AE.decks[DECKS.handSlot()];
+  return { q: +d.filter.Q.value.toFixed(2), hpq: +d.hp.Q.value.toFixed(2), lp: Math.round(d.filter.frequency.value), hp: Math.round(d.hp.frequency.value),
+    want: +fxFilterQ(0).toFixed(2) };
+});
+R('filter: the detent is Butterworth on both biquads, wide open', Math.abs(qRead.q - 0.7) < 0.05 && Math.abs(qRead.hpq - 0.7) < 0.05 && qRead.lp > 18000 && qRead.hp < 40,
+  JSON.stringify(qRead));
+await setFx('filter', 0.25); await page.waitForTimeout(350);
+const qHalf = await page.evaluate(() => { const d = AE.decks[DECKS.handSlot()]; return { q: +d.filter.Q.value.toFixed(2), lp: Math.round(d.filter.frequency.value), want: +fxFilterQ(-0.5).toFixed(2) }; });
+R('filter: half way left the corner squelches — the Q law reaches the deck', Math.abs(qHalf.q - qHalf.want) < 0.08 && qHalf.lp < 3000 && qHalf.lp > 300, JSON.stringify(qHalf));
+await setFx('', 0); await page.waitForTimeout(300);
+await page.evaluate(() => { window.__benchOff(); window.__benchOn('pink'); });   // the master units: the bench on the rack's input
+await page.waitForTimeout(300);
 
 // THE EQ: a kill must take its band out of the room and leave the others alone;
 // FLAT must be bypass to the same standard as the filter's detent
@@ -375,6 +421,40 @@ const upTop = x => x.all > 0 ? x.hi / x.all : 0;
 R('drive: saturation puts energy up top that was not there', upTop(driven) > upTop(clean) * 4,
   'above 4k: ' + (upTop(clean) * 100).toFixed(3) + '% of a clean 900 Hz tone → '
     + (upTop(driven) * 100).toFixed(3) + '% driven');
+/* …AND AT THE SAME LOUDNESS, measured on programme-shaped material: the makeup
+   table is RMS-matched on a pink reference at programme level, which is what
+   music is. A 0.9-peak sine is hotter than any mastered record and a
+   saturator squashes it (that is a limiter's behaviour, not a volume jump),
+   so the loudness question is asked of the pink bench, not the tone. */
+const lvl = x => 10 * Math.log10(Math.max(1e-12, x.all));
+await page.evaluate(() => { window.__benchOff(); window.__benchOn('pink'); });
+await setFx('', 0); await page.waitForTimeout(400);
+const pinkClean = await spec(1020);
+await setFx('drive', 1); await page.waitForTimeout(400);
+const pinkDriven = await spec(1020);
+R('drive: and at the same loudness — a colour, not a volume jump', Math.abs(lvl(pinkDriven) - lvl(pinkClean)) < 1.5,
+  (lvl(pinkDriven) - lvl(pinkClean)).toFixed(2) + ' dB driven against clean, on pink at programme level');
+// the insert slot is exact bypass: with DRIVE parked the unit is not even connected
+await setFx('', 0); await page.waitForTimeout(400);
+const slot = await page.evaluate(() => ({ insert: AE.fx.insert, wet: +AE.fx.insWet.gain.value.toFixed(3), dry: +AE.fx.insDry.gain.value.toFixed(3) }));
+R('the insert slot is empty and dry when no unit is up', slot.insert === '' && slot.wet < 0.01 && Math.abs(slot.dry - 1) < 0.01, JSON.stringify(slot));
+// ECHO: a real tail that the parked rack does not carry — fed a sine, then the send pulled, the return keeps ringing and then dies
+await setFx('echo', 0.7, null, 0.5); await page.waitForTimeout(900);
+const echoed = await page.evaluate(() => ({ send: +AE.fx.send.gain.value.toFixed(3), fb: +Math.max(AE.fx.fb.gain.value, AE.fx.fbX.gain.value).toFixed(3), wet: +AE.fx.wet.gain.value.toFixed(3),
+  law: fxEchoGains(0.7), delay: +AE.fx.delay.delayTime.value.toFixed(3), want: +fxTime(FX.div, FX.bpm()).toFixed(3) }));
+R('echo: the gain law reaches the nodes — send, feedback and the return, on the beat', Math.abs(echoed.send - echoed.law.send) < 0.02 && Math.abs(echoed.fb - echoed.law.fb) < 0.02
+  && echoed.wet > 0.05 && Math.abs(echoed.delay - echoed.want) < 0.01, JSON.stringify(echoed));
+await setFx('', 0);
+await page.waitForTimeout(1500);
+const rung = await page.evaluate(() => ({ fb: +Math.max(AE.fx.fb.gain.value, AE.fx.fbX.gain.value).toFixed(3), wet: +AE.fx.wet.gain.value.toFixed(3), send: +AE.fx.send.gain.value.toFixed(3) }));
+R('echo: switched off, the feedback and the return are parked — no tail outlives the unit', rung.fb < 0.02 && rung.wet < 0.02 && rung.send < 0.01, JSON.stringify(rung));
+// REVERB: the convolver is seated only while the unit is up, and gone after
+await setFx('reverb', 0.5, null, 0.6); await page.waitForTimeout(600);
+const rvOn = await page.evaluate(() => ({ on: !!AE.fx.rvOn, conv: !!(AE.fx.rvConv && AE.fx.rvConv.buffer), len: AE.fx.rvConv ? +(AE.fx.rvConv.buffer.duration).toFixed(2) : 0, wet: +AE.fx.rvWet.gain.value.toFixed(3) }));
+R('reverb: the room is built on first use and seated while REVERB is up', rvOn.on && rvOn.conv && rvOn.len > 1 && rvOn.wet > 0.05, JSON.stringify(rvOn));
+await setFx('', 0); await page.waitForTimeout(3000);
+const rvOff = await page.evaluate(() => ({ on: !!AE.fx.rvOn, wet: +AE.fx.rvWet.gain.value.toFixed(3) }));
+R('reverb: and unseated once its tail has gone', !rvOff.on && rvOff.wet < 0.02, JSON.stringify(rvOff));
 
 /* GATE: the point is not that it is quieter, it is that the sound is
    PERIODICALLY taken away — a fader lowers the level, a gate removes it and
@@ -538,23 +618,37 @@ R('a roll returns the playhead to real time, not to the loop',
 /* ---- safety: a booth may never strand the music ---- */
 console.log('\nsafety — the booth hands everything back');
 id = await freshTrack();
+/* THE BRAKE RUNS WHERE THE PLATTER IS. With the vinyl worklet seated the brake
+   is the platter's (VINYL.brake — the element keeps rolling at 1× underneath
+   the tape), so the rate to read is the platter's; the element's rate is the
+   fallback path's, taken only where there is no worklet. The first version of
+   this check read the element every time, and a seated platter made it fail
+   on a brake that was audibly working. */
 const braked = await page.evaluate(() => new Promise(res => {
   const d = activeDeck();
   FX.brake(0.8);
-  setTimeout(() => res({ mid: d.a.playbackRate, playing: !d.a.paused }), 400);
+  setTimeout(() => res({ mid: VINYL.engaged ? VINYL.rate : d.a.playbackRate, playing: !d.a.paused, where: VINYL.engaged ? 'platter' : 'element' }), 400);
 }));
 R('brake: the deck slows without ever pausing',
-  braked.mid < 0.85 && braked.mid > 0.05 && braked.playing,
-  'rate ' + braked.mid.toFixed(3) + ' · still rolling ' + braked.playing);
-await page.waitForTimeout(1600);
+  braked.mid < 0.85 && braked.mid > -0.05 && braked.playing,
+  'rate ' + braked.mid.toFixed(3) + ' on the ' + braked.where + ' · still rolling ' + braked.playing);
+// the fallback brake darkens the DECK's filter through the arbiter, never the master pair
+const braking = await page.evaluate(() => { const d = activeDeck(); return { where: VINYL.engaged ? 'platter' : 'element', deckLp: Math.round(d.filter.frequency.value), masterLp: Math.round(AE.fx.lp.frequency.value), brake: d._fxBrake || 0 }; });
+R('brake: the tone follows on the deck strip, and the master lowpass stays open', braking.masterLp > 18000 && (braking.where === 'platter' || (braking.deckLp < 15000 && braking.brake > 0)),
+  JSON.stringify(braking));
+await page.waitForFunction(() => !VINYL.engaged && FX.brakeT < 0 && Math.abs(activeDeck().a.playbackRate - 1) < 0.02, null, { timeout: 6000 }).catch(() => {});
+await page.waitForTimeout(400);
 const after = await page.evaluate(() => ({
-  rate: activeDeck().a.playbackRate, playing: !activeDeck().a.paused, brakeT: FX.brakeT,
+  rate: activeDeck().a.playbackRate, platter: VINYL.engaged ? VINYL.rate : 1, playing: !activeDeck().a.paused, brakeT: FX.brakeT,
+  deckLp: Math.round(activeDeck().filter.frequency.value),
 }));
-R('brake: and comes back to unity on its own',
-  (await deckHeld(id)) && Math.abs(after.rate - 1) < 0.02 && after.playing && after.brakeT < 0,
-  'rate ' + after.rate.toFixed(3));
+R('brake: and comes back to unity on its own, the filter open again',
+  (await deckHeld(id)) && Math.abs(after.rate - 1) < 0.02 && Math.abs(after.platter - 1) < 0.03 && after.playing && after.brakeT < 0 && after.deckLp > 18000,
+  'rate ' + after.rate.toFixed(3) + ' · platter ' + after.platter.toFixed(3) + ' · deck lp ' + after.deckLp);
 
 await setFx('filter', 0.02);
+await page.waitForTimeout(300);
+await setFx('echo', 0.9);
 await page.waitForTimeout(300);
 await page.evaluate(() => FX.release());
 await page.waitForTimeout(500);
@@ -562,10 +656,15 @@ const parked = await page.evaluate(() => ({
   lp: Math.round(AE.fx.lp.frequency.value), hp: Math.round(AE.fx.hp.frequency.value),
   gate: +AE.fx.gate.gain.value.toFixed(3), send: +AE.fx.send.gain.value.toFixed(3),
   wet: +AE.fx.driveWet.gain.value.toFixed(3), unit: FX.unit, loop: !!FX.loop,
+  // the first rack forgot these: a 0.62 feedback rang the last track under the next for half a minute
+  fb: +Math.max(AE.fx.fb.gain.value, AE.fx.fbX.gain.value).toFixed(3), echoWet: +AE.fx.wet.gain.value.toFixed(3),
+  rvWet: +AE.fx.rvWet.gain.value.toFixed(3), insert: AE.fx.insert,
+  deckLp: Math.round(AE.decks[DECKS.handSlot()].filter.frequency.value), deckHp: Math.round(AE.decks[DECKS.handSlot()].hp.frequency.value),
 }));
-R('release parks the whole rack at bypass',
+R('release parks the whole rack at bypass — the echo\'s feedback and return included',
   parked.lp > 18000 && parked.hp < 40 && parked.gate > 0.95 && parked.send < 0.02
-    && parked.wet < 0.02 && !parked.unit && !parked.loop,
+    && parked.wet < 0.02 && parked.fb < 0.02 && parked.echoWet < 0.02 && parked.rvWet < 0.02 && !parked.insert
+    && parked.deckLp > 18000 && parked.deckHp < 40 && !parked.unit && !parked.loop,
   JSON.stringify(parked));
 const audible = await page.evaluate(() => new Promise(res => {
   const v = []; let n = 0;
@@ -583,10 +682,11 @@ await page.evaluate(() => player.playIndex(1));
 await page.waitForTimeout(1200);
 const handed = await page.evaluate(() => ({
   unit: FX.unit, loop: !!FX.loop, send: +AE.fx.send.gain.value.toFixed(3),
+  fb: +Math.max(AE.fx.fb.gain.value, AE.fx.fbX.gain.value).toFixed(3),
   rate: activeDeck().a.playbackRate,
 }));
 R('a new track never inherits the last one\'s booth',
-  !handed.unit && !handed.loop && handed.send < 0.02 && Math.abs(handed.rate - 1) < 0.02,
+  !handed.unit && !handed.loop && handed.send < 0.02 && handed.fb < 0.05 && Math.abs(handed.rate - 1) < 0.02,
   JSON.stringify(handed));
 
 /* ---- the room's own hands ---- */

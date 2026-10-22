@@ -1729,5 +1729,10 @@
  "LIFT": "리프트",
  "BREAK": "브레이크",
  "DOWN": "다운",
- "OUTRO": "아웃트로"
+ "OUTRO": "아웃트로",
+ "Beat FX need the engine — on this device the music plays direct": "비트 FX에는 엔진이 필요합니다 — 이 기기에서는 음악이 직접 재생됩니다",
+ "Effect mix": "이펙트 믹스",
+ "Deck the filter acts on — A or B": "필터가 작용하는 덱 — A 또는 B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "에코 홀드 — 꼬리를 고정해 울리게 두기; 다시 누르면 해제",
+ "Double-tap to centre": "두 번 탭하면 가운데로"
 }

@@ -1927,5 +1927,10 @@
  "LIFT": "رفعة",
  "BREAK": "استراحة",
  "DOWN": "هبوط",
- "OUTRO": "خاتمة"
+ "OUTRO": "خاتمة",
+ "Beat FX need the engine — on this device the music plays direct": "مؤثرات الإيقاع تحتاج إلى المحرّك — على هذا الجهاز تُشغَّل الموسيقى مباشرة",
+ "Effect mix": "مزج المؤثر",
+ "Deck the filter acts on — A or B": "المنصّة التي يعمل عليها الفلتر — A أو B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "تثبيت الصدى — جمّد الذيل ودعه يرنّ؛ اضغط مرة أخرى لتحريره",
+ "Double-tap to centre": "انقر مرتين للعودة إلى المنتصف"
 }

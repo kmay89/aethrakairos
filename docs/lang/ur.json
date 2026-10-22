@@ -1729,5 +1729,10 @@
  "LIFT": "ابھار",
  "BREAK": "وقفہ",
  "DOWN": "اتار",
- "OUTRO": "اختتام"
+ "OUTRO": "اختتام",
+ "Beat FX need the engine — on this device the music plays direct": "بیٹ FX کو انجن درکار ہے — اس ڈیوائس پر موسیقی براہِ راست بجتی ہے",
+ "Effect mix": "اثر کا امتزاج",
+ "Deck the filter acts on — A or B": "وہ ڈیک جس پر فلٹر کام کرتا ہے — A یا B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "ایکو ہولڈ — دم کو روک کر گونجنے دیں؛ چھوڑنے کے لیے دوبارہ دبائیں",
+ "Double-tap to centre": "درمیان میں لانے کے لیے دو بار ٹیپ کریں"
 }

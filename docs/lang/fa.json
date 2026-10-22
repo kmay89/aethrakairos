@@ -1729,5 +1729,10 @@
  "LIFT": "خیزش",
  "BREAK": "وقفه",
  "DOWN": "فرود",
- "OUTRO": "پایان"
+ "OUTRO": "پایان",
+ "Beat FX need the engine — on this device the music plays direct": "افکت‌های بیت به موتور نیاز دارند — در این دستگاه موسیقی مستقیم پخش می‌شود",
+ "Effect mix": "میزانِ ترکیب افکت",
+ "Deck the filter acts on — A or B": "دکی که فیلتر روی آن اثر می‌گذارد — A یا B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "نگه‌داشتن اکو — دنباله را ثابت کن و بگذار بپیچد؛ برای رها کردن دوباره بزن",
+ "Double-tap to centre": "برای بازگشت به وسط دو بار ضربه بزن"
 }
