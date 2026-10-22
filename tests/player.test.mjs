@@ -30,7 +30,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
-  ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop,' +
+  ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, deckSlot, seamPitchCarry,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' FX_UNITS, FX_SENDS, FX_INSERTS, FX_AMT, FX_MIX, fxMix, FILTER_DETENT, fxFilterQ, fxFilterArbiter, fxSeamHz,'  +
   ' GATE_FLOOR, gateEdge, gateCurve, gateEdgeSec, gateSchedule, gateAnchor, fxEchoGains, fxEchoGlide, reverbIR,'  +
@@ -11395,6 +11395,89 @@ test('the rack in the player: release walks FX_PARK, the gate is curves, the sea
                    "T('Beat FX need the engine — on this device the music plays direct')", 'id="fxMix"', 'id="fxHold"', 'id="fxKey"', 'id="fxGr"'])
     assert.ok(html.includes(s), 'the player carries: ' + s);
   assert.ok(!html.includes("{ key: 'keylock', text: 'KEY LOCK' }"), 'KEY LOCK left the pads for the knob row');
+});
+
+// ---- a deck holds a record, not a row number (R9/R29); a synced record through a seam (R13) ----
+test('deckSlot: the record is held by identity — play-next, a queued album, a removal, a sort and a new queue all leave the deck naming what it holds', () => {
+  const mk = n => ({ id: n, title: 'T' + n });
+  let q = [mk(0), mk(1), mk(2), mk(3), mk(4)];
+  const s = S.deckSlot(() => q);
+  assert.equal(s.trackIdx, -1, 'empty');
+  assert.equal(s.owner, 'free'); assert.equal(s.pitch, 1); assert.equal(s.cue, 0); assert.equal(s.synced, false);
+  s.trackIdx = 3; s.cue = 64;
+  const held = q[3];
+  assert.equal(s.rec, held); assert.equal(s.trackIdx, 3);
+  q.splice(1, 0, mk(10), mk(11), mk(12));                 // an album queued after the current track
+  assert.equal(s.trackIdx, 6, 'the index follows the record'); assert.equal(q[s.trackIdx], held);
+  const [x] = q.splice(7, 1); q.splice(0, 0, x);          // play-next lifts a row from below to the top
+  assert.equal(q[s.trackIdx], held);
+  q.splice(0, 2);                                          // rows removed above it
+  assert.equal(q[s.trackIdx], held);
+  q.sort((a, b) => b.id - a.id);                           // a sort
+  assert.equal(q[s.trackIdx], held);
+  q = q.slice().reverse();                                 // the queue REPLACED by a list that keeps it
+  assert.equal(q[s.trackIdx], held, 'read lazily: the queue as it stands now, never a captured array');
+  assert.equal(s.cue, 64, 'no record change, no cue change');
+  s.trackIdx = s.trackIdx;                                 // re-seating the same record keeps its cue
+  assert.equal(s.cue, 64);
+  q.splice(q.indexOf(held), 1);                            // its own row removed
+  assert.equal(s.trackIdx, -1, 'a record that left the queue reads as -1, never as its neighbour');
+  assert.equal(s.rec, held, 'the deck still physically holds it');
+  s.trackIdx = 0;                                          // another record seated (the transport, the auto-DJ)
+  assert.equal(s.rec, q[0]); assert.equal(s.cue, 0, 'a new record does not inherit the last one\'s cue');
+  s.trackIdx = -1; assert.equal(s.rec, null); assert.equal(s.trackIdx, -1);
+  s.trackIdx = 99; assert.equal(s.rec, null, 'past the end is nothing');
+  const t = S.deckSlot(() => null); t.trackIdx = 0;
+  assert.equal(t.trackIdx, -1, 'no queue yet: nothing');
+  const a = S.deckSlot(() => q), b = S.deckSlot(() => q);
+  a.trackIdx = 0; assert.equal(b.trackIdx, -1, 'two slots, two states');
+});
+test('seamPitchCarry: a synced record starts the seam at its own pitch and lands at 1× — both decks alike, the plan\'s ratio kept', () => {
+  assert.equal(S.seamPitchCarry(0.968, 0), 0.968, 'the on-air record exactly where it plays');
+  assert.equal(S.seamPitchCarry(0.968, 1), 1, 'home at the seam\'s end');
+  assert.ok(Math.abs(S.seamPitchCarry(0.968, 0.5) - 0.984) < 1e-12, 'linear across the overlap');
+  assert.equal(S.seamPitchCarry(1.04, 2), 1); assert.equal(S.seamPitchCarry(1.04, -1), 1.04, 'f clamped');
+  for (const bad of [0, -1, NaN, Infinity, undefined, null, 'x']) assert.equal(S.seamPitchCarry(bad, 0), 1, 'no pitch reads as 1: ' + bad);
+  assert.equal(S.seamPitchCarry(1, 0.3), 1, 'an unsynced record: the seam is exactly what it was');
+  let prev = S.seamPitchCarry(0.95, 0), maxStep = 0;
+  for (let i = 1; i <= 100; i++){ const k = S.seamPitchCarry(0.95, i / 100); maxStep = Math.max(maxStep, Math.abs(k - prev)); assert.ok(k >= prev); prev = k; }
+  assert.ok(maxStep < 0.001, 'a glide, never a step: ' + maxStep);
+  // the seam's first write: A at p (no snap), B matched to A's sounding tempo — the ratio is glideRates' own
+  const g = S.glideRates(124, 120, 0), k = S.seamPitchCarry(0.968, 0);
+  assert.ok(Math.abs(g.rateA * k - 0.968) < 1e-12);
+  assert.ok(Math.abs((g.rateB * k) / (g.rateA * k) - g.rateB / g.rateA) < 1e-12);
+});
+test('mix narration: a planned or playing seam outranks a deck left synced; SYNC still speaks when nothing is planned (R32)', () => {
+  const sync = { deck: 'B', bpm: 120 };
+  assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', seamSec: 5, sync }), /^CUED/);
+  assert.match(S.mixNarration({ on: true, phase: 'running', planType: 'fade', pct: 10, sync }), /^MIXING/);
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', sync }), 'SYNC · B matched at 120');
+  assert.match(S.mixNarration({ on: true, phase: 'planning', planType: 'fade', seamSec: 50, sync }), /^SYNC/, 'a peek ahead does not outrank it');
+  assert.match(S.mixNarration({ on: false, phase: 'running', sync }), /^SYNC/, 'MIX off: no seam line to outrank it');
+  assert.match(S.mixNarration({ on: false, phase: 'armed' }), /MIX is off/, 'MIX off still reads as off');
+  assert.match(S.mixNarration({ on: true, phase: 'manual', pct: 30, handDeck: 'B', sync }), /^HAND · you took/, 'a hand on a seam outranks all of it');
+});
+test('the decks in the player: slots by identity, the restore onto the idle deck, a cue per record, the element rate on a transport start, the carried pitch, the booth LOAD', () => {
+  const decks = html.slice(html.indexOf('const DECKS = {'), html.indexOf('window.__mb8Decks'));
+  assert.ok(decks.includes('slots: [deckSlot(() => player.tracks), deckSlot(() => player.tracks)],'), 'R9: slots hold records');
+  assert.ok(!decks.includes('{ trackIdx: -1, owner:'), 'R9: no index-only slot left');
+  assert.ok(decks.includes("this.load(this.idle(), t, { at: r.cue, by: 'restore' });"), 'R10: the hand\'s record returns to the idle deck');
+  assert.ok(!decks.includes('const slot = r.slot === 1 ? 1 : 0;'), 'R10: the saved letter is not where it goes');
+  assert.ok(decks.includes('if (!cued) s.cue = 0;'), 'R29: a transport start cues the record at its top');
+  assert.ok(decks.includes('try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}\n    setPitchLock(d.a, SPEED.keyLock);'),
+    'R13: the element follows the slot it resets');
+  const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
+  assert.ok(mixer.includes("this._pA = (typeof DECKS !== 'undefined') ? DECKS.pitch(AE.active) : 1;"), 'R13: the on-air pitch is read at fire');
+  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = g.rateA * k * SPEED.rate;') && mixer.includes('nd.a.playbackRate = this._lastRateB = g.rateB * k * SPEED.rate;'), 'R13: fire carries it');
+  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = g.rateA * k * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate;'), 'R13: the glide carries it home');
+  assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
+  assert.ok(mixer.includes('if (ws.rec !== had){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
+  assert.equal((mixer.match(/if \(hs\.owner === 'hand' && !held\)\{ if \(!hd\.a\.paused && !hd\.a\.ended\) return/g) || []).length, 2, 'R9: a hand\'s record that left the queue never leaves the deck half-claimed');
+  const tr = html.slice(html.indexOf('function wireDeckTransport(){'), html.indexOf('function wireDeckTransport(){') + 6000);
+  const ld = tr.slice(tr.indexOf('const load = slot => {'));
+  assert.ok(ld.indexOf('if (!AE.ctx){ try { ensureCtx(); } catch (e){} }') >= 0 && ld.indexOf('if (!AE.ctx){ try { ensureCtx(); } catch (e){} }') < ld.indexOf('if (!AE.graphLive || !AE.decks)'),
+    'R31: the booth LOAD births the decks before it judges them');
+  assert.ok(html.includes('if (!running && !armed) for (let i = 0; i < 2 && !sync; i++) if (DECKS.slots[i].synced){'), 'R32: the booth says SYNC only with no seam planned');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
