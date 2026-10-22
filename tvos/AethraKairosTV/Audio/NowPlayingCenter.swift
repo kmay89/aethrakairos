@@ -20,7 +20,9 @@ import Combine
     private var lastPlaying = false
     private var lastRate: Double = 0
     private var lastElapsed: Double = 0
-    private var lastPushDate = Date()
+    // systemUptime at the last push (monotonic): the drift prediction below
+    // measures a duration, and a wall-clock step must not read as a seek.
+    private var lastPushUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
     private var syncQueued = false
 
     init(player: Player) {
@@ -44,7 +46,7 @@ import Combine
             lastPlaying = false
             lastRate = 0
             lastElapsed = 0
-            lastPushDate = Date()
+            lastPushUptime = ProcessInfo.processInfo.systemUptime
             return
         }
         let artist = player?.catalog?.artist ?? "Aethra Kairos"
@@ -69,7 +71,7 @@ import Combine
         lastPlaying = playing
         lastRate = playing ? 1 : 0
         lastElapsed = pos
-        lastPushDate = Date()
+        lastPushUptime = ProcessInfo.processInfo.systemUptime
     }
 
     /// Position/rate push — called on play, pause, and seek; never on a poll.
@@ -84,7 +86,7 @@ import Combine
         lastPlaying = playing
         lastRate = playing ? rate : 0
         lastElapsed = position
-        lastPushDate = Date()
+        lastPushUptime = ProcessInfo.processInfo.systemUptime
     }
 
     // MARK: - remote commands
@@ -184,8 +186,8 @@ import Combine
         // Seek detection: the scrubber only lies when the playhead jumps away
         // from what the last push implied. Anything within tolerance is the
         // system's own extrapolation working as designed — no push.
-        let predicted = lastElapsed
-            + (lastPlaying ? Date().timeIntervalSince(lastPushDate) * max(lastRate, 0) : 0)
+        let sincePush = max(0, ProcessInfo.processInfo.systemUptime - lastPushUptime)
+        let predicted = lastElapsed + (lastPlaying ? sincePush * max(lastRate, 0) : 0)
         if playing != lastPlaying || abs(pos - predicted) > 2.0 {
             playbackStateDidChange(playing: playing, position: pos,
                                    duration: track?.duration, rate: 1.0)

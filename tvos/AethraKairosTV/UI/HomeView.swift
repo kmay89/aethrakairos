@@ -566,7 +566,10 @@ struct HomeView: View {
                 alignment: .leading,
                 spacing: 48
             ) {
-                ForEach(catalog.albums) { album in
+                // identity by position: the parser keeps whatever the catalog
+                // ships, and two albums under one tag would be two views with
+                // one id — undefined results on tvOS, not a warning
+                ForEach(Array(catalog.albums.enumerated()), id: \.offset) { _, album in
                     albumTile(album, catalog: catalog)
                 }
             }
@@ -620,7 +623,9 @@ struct HomeView: View {
             shelfTitle(title)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 28) {
-                    ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                    // identity by position, as the albums: a track listed twice
+                    // (one file, two shelves) is two chips, never one id twice
+                    ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
                         trackChip(track) {
                             player.setQueue(tracks, startAt: index, autoplay: true)
                             dismissShelves()
@@ -666,6 +671,10 @@ struct HomeView: View {
             guard !seen.contains(event.key) else { continue }
             seen.insert(event.key)
             guard let track = catalog.track(forKey: event.key) else { continue }
+            // a track remembered under two keys (its hash and its url, across
+            // a republish) is still one track on the shelf
+            guard !seen.contains(track.id) else { continue }
+            seen.insert(track.id)
             out.append(track)
             if out.count >= 12 { break }
         }

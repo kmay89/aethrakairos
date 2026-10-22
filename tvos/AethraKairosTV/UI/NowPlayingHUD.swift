@@ -162,7 +162,9 @@ struct NowPlayingHUD: View {
     /// A 132 pt sliver, not a scrubber: enough to feel where the ritual is.
     private func progressSliver(for track: Track) -> some View {
         let duration = track.duration ?? 0
-        let fraction = duration > 0 ? min(max(player.position / duration, 0), 1) : 0
+        let ratio = duration > 0 ? player.position / duration : 0
+        // min/max let a NaN through, and Int() of one (the percent below) traps
+        let fraction = ratio.isFinite ? min(max(ratio, 0), 1) : 0
         return ZStack(alignment: .leading) {
             Capsule()
                 .fill(Color.white.opacity(0.16))

@@ -184,7 +184,10 @@ struct JourneyConsole: View {
                 .foregroundStyle(Color.akDim)
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 10) {
-                    ForEach(elig) { track in
+                    // identity by position: the pool is the catalog's own
+                    // order, duplicates and all, and one id on two rows is
+                    // undefined results on tvOS
+                    ForEach(Array(elig.enumerated()), id: \.offset) { _, track in
                         trackRow(track)
                     }
                 }
@@ -588,7 +591,10 @@ struct JourneyConsole: View {
     }
 
     private func clock(_ sec: Double) -> String {
-        let m = Int((sec / 60).rounded())
+        // a total is a sum of catalog durations: finite by the parser, but
+        // nothing bounds its size, and Int() of a NaN or of 1e300 is a trap
+        guard sec.isFinite else { return "—" }
+        let m = Int(min(max((sec / 60).rounded(), 0), 1.0e6))
         if m >= 60 { return "\(m / 60)H \(m % 60)M" }
         return "\(m)M"
     }

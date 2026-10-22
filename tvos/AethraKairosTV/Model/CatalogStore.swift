@@ -36,31 +36,49 @@ import Combine
         loading = true
         defer { loading = false }
 
+        /* THE PARSE IS NOT MAIN-THREAD WORK. catalog.json is ~5 MB — 267
+           tracks, each with mix + env + stems digit strings decoded one
+           Double per character — and this class is main-actor. Parsed here
+           it froze the whole UI (focus engine included) for up to a second
+           and a half at launch and again when the network copy landed, on
+           top of the first Metal pipeline compile. CatalogParser is a pure
+           enum and Catalog a value type, so both bodies parse on a detached
+           task and only the result crosses back. */
+        let url = Self.defaultURL
+        let fileURL = cacheFileURL
+
         // 1) the cached copy is the instant boot — parsed with the same strict
         //    rules as a fresh one (a corrupt cache is a missing cache)
-        if catalog == nil, let cachedData = try? Data(contentsOf: cacheFileURL),
-           let cached = try? CatalogParser.parse(cachedData, catalogURL: Self.defaultURL) {
-            catalog = cached
-            statusLine = "\(cached.tracks.count) tracks (cached) — refreshing…"
-        } else if catalog == nil {
-            statusLine = "loading catalog…"
+        if catalog == nil {
+            let cached: Catalog? = await Task.detached(priority: .userInitiated) { () -> Catalog? in
+                guard let data = try? Data(contentsOf: fileURL) else { return nil }
+                return try? CatalogParser.parse(data, catalogURL: url)
+            }.value
+            if let cached {
+                catalog = cached
+                statusLine = "\(cached.tracks.count) tracks (cached) — refreshing…"
+            } else {
+                statusLine = "loading catalog…"
+            }
         }
 
         // 2) revalidate — bypass every intermediate cache, same as the web's
         //    fetch(url, { cache: 'no-cache' })
         do {
-            var request = URLRequest(url: Self.defaultURL)
+            var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.timeoutInterval = 30
             let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 throw CatalogError.malformed("HTTP \(http.statusCode)")
             }
-            let fresh = try CatalogParser.parse(data, catalogURL: Self.defaultURL)
-
-            // only a catalog that PARSED may touch the cache — a bad deploy
-            // must not poison the next offline boot
-            try? data.write(to: cacheFileURL, options: .atomic)
+            let fresh: Catalog = try await Task.detached(priority: .userInitiated) { () throws -> Catalog in
+                let parsed = try CatalogParser.parse(data, catalogURL: url)
+                // only a catalog that PARSED may touch the cache — a bad deploy
+                // must not poison the next offline boot
+                try? data.write(to: fileURL, options: .atomic)
+                return parsed
+            }.value
             catalog = fresh
             let label = fresh.label.isEmpty ? "catalog" : fresh.label
             statusLine = fresh.albums.count == 1

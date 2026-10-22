@@ -193,6 +193,9 @@ struct Structure: Codable, Equatable {
     }
 
     static func clamp01(_ v: Double) -> Double {
+        // NaN compares false both ways and would pass through; the callers
+        // that index arrays from the result (Stems.sample) must never see it.
+        if v.isNaN { return 0 }
         return v < 0 ? 0 : (v > 1 ? 1 : v)
     }
 }

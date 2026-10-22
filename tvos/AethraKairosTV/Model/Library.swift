@@ -54,9 +54,11 @@ struct SavedJourney: Codable, Equatable, Identifiable {
     private var transportURL: URL { dirURL.appendingPathComponent("transport.json") }
 
     // transport throttle state: the LAST snapshot always lands, just not
-    // more than once a second
+    // more than once a second. The clock is systemUptime (monotonic): a
+    // wall-clock step backwards (an NTP correction after a cold boot) must
+    // never stretch the throttle into a stall. nil = never written.
     private var pendingTransport: TransportSnapshot?
-    private var lastTransportWrite: Date = .distantPast
+    private var lastTransportWrite: TimeInterval?
     private var transportFlushScheduled = false
 
     private static let encoder: JSONEncoder = {
@@ -145,14 +147,19 @@ struct SavedJourney: Codable, Equatable, Identifiable {
     /// latest snapshot is never dropped — a trailing flush catches it.
     func saveTransport(_ s: TransportSnapshot) {
         pendingTransport = s
-        let elapsed = Date().timeIntervalSince(lastTransportWrite)
+        let now = ProcessInfo.processInfo.systemUptime
+        let elapsed = lastTransportWrite.map { now - $0 } ?? Double.infinity
         if elapsed >= Self.transportThrottle {
             flushTransport()
             return
         }
         guard !transportFlushScheduled else { return }
         transportFlushScheduled = true
-        let wait = max(0.05, Self.transportThrottle - elapsed)
+        // Bounded both ways: never shorter than 50 ms, never longer than the
+        // throttle itself — and finite by construction before the UInt64.
+        var wait = max(0.05, Self.transportThrottle - elapsed)
+        wait = min(wait, Self.transportThrottle)
+        if !wait.isFinite { wait = Self.transportThrottle }
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
             guard let self else { return }
@@ -170,7 +177,7 @@ struct SavedJourney: Codable, Equatable, Identifiable {
     private func flushTransport() {
         guard let snapshot = pendingTransport else { return }
         pendingTransport = nil
-        lastTransportWrite = Date()
+        lastTransportWrite = ProcessInfo.processInfo.systemUptime
         write(snapshot, to: transportURL)
     }
 
