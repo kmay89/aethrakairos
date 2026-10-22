@@ -94,8 +94,12 @@ final class StageRenderer: NSObject, MTKViewDelegate {
 
     private var device: MTLDevice?
     private var queue: MTLCommandQueue?
-    private var roomPipelines: [MTLRenderPipelineState] = []
+    /// One slot per room in Rooms.all order; nil while a room is still
+    /// compiling behind the first frame, or forever when this GPU refused it.
+    private var roomPipelines: [MTLRenderPipelineState?] = []
     private var gradePipeline: MTLRenderPipelineState?
+    /// Where the rooms compile, behind the first frame (see configure).
+    private static let buildQueue = DispatchQueue(label: "aethra.stage.pipelines", qos: .utility)
 
     // one offscreen the room paints into (rgba16Float so the GRADE reads it
     // filterable, exactly as the standalone renderer feeds grade_pass)
@@ -143,20 +147,35 @@ final class StageRenderer: NSObject, MTKViewDelegate {
         assert(MemoryLayout<VizUniforms>.stride == 192,
                "VizUniforms drifted: the Metal TUs read 192 bytes, the mirror uploads \(MemoryLayout<VizUniforms>.stride)")
 
-        // one pipeline per room — the whole shipped roster, rendered into the
-        // rgba16Float offscreen. A missing function parks the screen in the void
-        // (same guard as the standalone renderer), never a half-built roster.
-        var pipelines: [MTLRenderPipelineState] = []
-        for room in Rooms.all {
-            guard let frag = library.makeFunction(name: room.fragmentFunction) else { return }
-            let desc = MTLRenderPipelineDescriptor()
-            desc.vertexFunction = vertexFn
-            desc.fragmentFunction = frag
-            desc.colorAttachments[0].pixelFormat = .rgba16Float
-            guard let state = try? device.makeRenderPipelineState(descriptor: desc) else { return }
-            pipelines.append(state)
+        /* THE ROOMS ARE BUILT BEHIND THE FIRST FRAME, NOT IN FRONT OF IT —
+           the same law the standalone renderer learned (VizRenderer.configure).
+           This used to compile every room's pipeline here, synchronously, on
+           the main thread, the moment the first packet arrived and SwiftUI
+           made this view: on a Mac's GPU a shrug, on an Apple TV a frozen
+           screen for as long as a hundred-odd compiles take, and a freeze the
+           listener backgrounds out of is a watchdog kill. And one room this
+           GPU refused parked the WHOLE stage in black — no grade either.
+
+           Now the roster is a table of optionals filled in from a serial
+           utility queue, starting at the room the booth is in right now and
+           wrapping, so the booth's room is the first to arrive; a room still
+           compiling clears its target to the void and the GRADE still draws
+           the starfield floor over it — an honest frame, never a frozen one.
+           One broken room costs one room. The loop stops dealing the moment
+           this renderer is gone. */
+        let n = Rooms.all.count
+        roomPipelines = Array(repeating: nil, count: n)
+        let builder = PipelineBuilder(device: device, library: library, vertexFn: vertexFn)
+        let rooms = Rooms.all.map { (key: $0.key, fn: $0.fragmentFunction) }
+        let first = n > 0 ? ((client.latest.scene % n) + n) % n : 0
+        let order = (0..<n).map { (first + $0) % n }
+        Self.buildQueue.async { [weak self] in
+            for i in order {
+                if self == nil { return }                 // the screen left; stop compiling for it
+                let state = builder.room(key: rooms[i].key, function: rooms[i].fn)
+                Task { @MainActor in self?.installRoom(i, state) }
+            }
         }
-        roomPipelines = pipelines
 
         // the GRADE — the shared final composite to the drawable's own format
         if let gradeFn = library.makeFunction(name: "grade_pass") {
@@ -171,6 +190,13 @@ final class StageRenderer: NSObject, MTKViewDelegate {
         waveformTex = makeStrip(device: device)
         wordTex = makeWordTex(device: device)
         rebuildTargets(size: view.drawableSize)
+    }
+
+    /// A room finished compiling behind the first frame: it becomes a door the
+    /// booth may open — or, refused by this GPU, one that stays the void.
+    private func installRoom(_ i: Int, _ state: MTLRenderPipelineState?) {
+        guard roomPipelines.indices.contains(i) else { return }
+        roomPipelines[i] = state
     }
 
     private func makeStrip(device: MTLDevice) -> MTLTexture? {
@@ -202,7 +228,22 @@ final class StageRenderer: NSObject, MTKViewDelegate {
         return tex
     }
 
-    private func rebuildTargets(size: CGSize) {
+    /// The ART resolution, the standalone renderer's law: the rooms are
+    /// procedural fields watched from a couch, rendered at 1440p (1080p while
+    /// a heavy room is on stage) and upscaled by the GRADE's linear sampler —
+    /// native 4K is 8.3M fragments a pass and the raymarchers cannot hold 60
+    /// there on the TV's chip. A 1080p TV renders native.
+    private var heavyOnStage = false
+
+    private func internalSize(for drawable: CGSize) -> CGSize {
+        let cap: CGFloat = heavyOnStage ? 1080 : 1440
+        guard drawable.height > cap, drawable.height > 0 else { return drawable }
+        let sc = cap / drawable.height
+        return CGSize(width: (drawable.width * sc).rounded(), height: cap)
+    }
+
+    private func rebuildTargets(size drawable: CGSize) {
+        let size = internalSize(for: drawable)
         guard let device, size.width >= 1, size.height >= 1 else { return }
         let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
                                                             width: Int(size.width),
@@ -228,7 +269,22 @@ final class StageRenderer: NSObject, MTKViewDelegate {
 
         let size = view.drawableSize
         guard size.width >= 1, size.height >= 1 else { return }
-        if sceneTex == nil || sceneTex?.width != Int(size.width) || sceneTex?.height != Int(size.height) {
+
+        // the booth deals the room (the decoder bounded the index; the wrap
+        // keeps any roster honest); a scene change re-deals the three dice
+        let n = roomPipelines.count
+        let idx = ((client.latest.scene % n) + n) % n
+        if idx != currentScene {
+            currentScene = idx
+            rolls = SIMD3<Float>(Float.random(in: 0..<1),
+                                 Float.random(in: 0..<1),
+                                 Float.random(in: 0..<1))
+        }
+        // a heavy room drops the art resolution a step; the switch happens on
+        // a scene change (rare), so the reallocation never runs per-frame
+        heavyOnStage = Rooms.all.indices.contains(idx) && Rooms.all[idx].heavy
+        let want = internalSize(for: size)
+        if sceneTex == nil || sceneTex?.width != Int(want.width) || sceneTex?.height != Int(want.height) {
             rebuildTargets(size: size)
         }
         guard let scene = sceneTex else { return }
@@ -260,16 +316,6 @@ final class StageRenderer: NSObject, MTKViewDelegate {
         let whiteTarget = whiteFromBooth * (1 - heldFade) + 0.10 * heldFade
         whiteEased += (whiteTarget - whiteEased) * (1 - exp(-dt / 2.0))
         whiteEased = min(max(whiteEased, 0.05), 0.92)
-
-        // the booth deals the room; a scene change re-deals the three dice
-        let n = roomPipelines.count
-        let idx = ((packet.scene % n) + n) % n
-        if idx != currentScene {
-            currentScene = idx
-            rolls = SIMD3<Float>(Float.random(in: 0..<1),
-                                 Float.random(in: 0..<1),
-                                 Float.random(in: 0..<1))
-        }
 
         // the light: finished OKLCH → sRGB, cooled toward ice while held
         let chord = packet.chordRGB
@@ -363,7 +409,11 @@ final class StageRenderer: NSObject, MTKViewDelegate {
                                                             blue: 14.0 / 255.0,
                                                             alpha: 1.0)
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return }
-        encoder.setRenderPipelineState(roomPipelines[index])
+        // a room still compiling, or one this GPU refused, still clears its
+        // target to the void, so the GRADE downstream reads an honest frame
+        guard roomPipelines.indices.contains(index),
+              let pipeline = roomPipelines[index] else { encoder.endEncoding(); return }
+        encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<VizUniforms>.stride, index: 0)
         var res = SIMD2<Float>(Float(target.width), Float(target.height))
         encoder.setFragmentBytes(&res, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)

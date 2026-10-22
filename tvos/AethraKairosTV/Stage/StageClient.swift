@@ -161,7 +161,10 @@ final class StageClient: ObservableObject {
     private func startWatchdog() {
         watchdog?.invalidate()
         tick = 0
-        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] t in
+            // the client is gone: the timer goes with it, instead of ticking
+            // the main run loop forever on a dead reference
+            guard self != nil else { t.invalidate(); return }
             Task { @MainActor in self?.watch() }
         }
         RunLoop.main.add(timer, forMode: .common)

@@ -448,10 +448,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let xformNames = ["xform_luma", "xform_scatter", "xform_defocus", "xform_prism", "xform_ember"]
         Self.buildQueue.async { [weak self] in
             /* the XFORM composites first — every handover needs one, and they
-               land together so xformMode indexes the same five in order.
+               land together so xformMode indexes the same five in order: a
+               form this GPU refused is stood in for by the first that built
+               (the index space must hold, or mode 4 would deal form 3), and
+               none at all means no handover composite — the live room cuts.
                Then the LENS and the FIELD, each guarded: nil means the pass
                never runs, exactly as a missing function always meant. */
-            let xf = xformNames.compactMap { builder.pass($0) }
+            let built = xformNames.map { builder.pass($0) }
+            let xf: [MTLRenderPipelineState]
+            if let standIn = built.compactMap({ $0 }).first {
+                xf = built.map { $0 ?? standIn }
+            } else {
+                xf = []
+            }
             let lens = builder.pass("lens_pass")
             let field = builder.pass("field_pass")
             Task { @MainActor in
@@ -461,6 +470,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                 self.fieldPipeline = field
             }
             for i in order {
+                if self == nil { return }                 // the field left; stop compiling for it
                 let state = builder.room(key: rooms[i].key, function: rooms[i].fn)
                 Task { @MainActor in self?.installRoom(i, state) }
             }
@@ -716,6 +726,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// The act-heat curve sampled at the eased (fractional) act.
     private func actHeat(_ a: Double) -> Double {
         let t = Self.actHeatTable
+        guard a.isFinite else { return t[0] }             // a NaN act would trap inside Int()
         let x = min(max(a, 0), Double(t.count - 1))
         let i0 = Int(floor(x))
         let i1 = min(i0 + 1, t.count - 1)
@@ -1400,7 +1411,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             qtBytes[64 * 4] = 255
         }
         for i in 0..<(n * 4) {
-            qtBytes[i] = UInt8(min(max(qtLanes[i], 0), 1) * 255 + 0.5)
+            // min/max pass a NaN through (every comparison with it is false),
+            // and UInt8(NaN) is a trap: a lane that is not a number reads dark
+            let v = qtLanes[i]
+            let c: Float = v.isFinite ? min(max(v, 0), 1) : 0
+            qtBytes[i] = UInt8(c * 255 + 0.5)
         }
         qtBytes.withUnsafeBytes { buffer in
             if let base = buffer.baseAddress {
@@ -1536,10 +1551,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     }
 }
 
-/// Compiles pipelines for the renderer — off the main actor on purpose, so the
-/// build can run behind the first frame (see VizRenderer.configure). Holds only
-/// Metal objects, which Metal documents as safe to use from any thread.
-private struct PipelineBuilder {
+/// Compiles pipelines for the renderers — off the main actor on purpose, so the
+/// build can run behind the first frame (see VizRenderer.configure, and the
+/// stage screen's StageRenderer.configure, which shares it). Holds only Metal
+/// objects, which Metal documents as safe to use from any thread.
+struct PipelineBuilder {
     let device: MTLDevice
     let library: MTLLibrary
     let vertexFn: MTLFunction

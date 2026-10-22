@@ -208,10 +208,15 @@ struct StagePacket: Codable, Equatable {
         // p.dance.v spells it; absent holds last good (the law of arrival)
         let dance = parseDance(dict["dance"], base: base.dance)
 
-        // scene: a non-negative room index; absent holds last good
+        // scene: a non-negative room index; absent holds last good. The relay
+        // is a third party on the network: a NaN, an infinity or 1e30 would
+        // trap inside Int(), so the conversion is exact-or-nothing and the
+        // result bounded (any roster is far smaller than sceneMax). Anything
+        // else holds the last good scene — a packet is a snapshot, not a command.
         let scene: Int
-        if let n = number(dict["scene"]) {
-            scene = max(0, Int(n.rounded()))
+        if let n = number(dict["scene"]), let i = Int(exactly: n.rounded()),
+           i >= 0, i < StagePacket.sceneMax {
+            scene = i
         } else {
             scene = base.scene
         }
@@ -242,6 +247,10 @@ struct StagePacket: Codable, Equatable {
             camera: camera
         )
     }
+
+    /// The ceiling on a wire-borne scene index — a bound, not a roster size
+    /// (the renderer still wraps it modulo Rooms.all.count).
+    static let sceneMax = 100_000
 
     // MARK: - the dance bus, clamped
 
@@ -293,24 +302,45 @@ struct StagePacket: Codable, Equatable {
 
     // MARK: - parse helpers (JSONSerialization is NSNumber-shaped)
 
+    /// A FINITE number or nil. `Double("nan")`, `Double("inf")` and
+    /// `Double("1e999")` all parse in Swift, and a non-finite value would walk
+    /// straight through every min/max clamp below (comparisons with NaN are
+    /// false) into a uniform or an Int() — so the gate is here, once, for
+    /// every consumer.
     private static func number(_ v: Any?) -> Double? {
-        if let n = v as? NSNumber { return n.doubleValue }
-        if let dd = v as? Double { return dd }
-        if let ii = v as? Int { return Double(ii) }
-        if let s = v as? String { return Double(s) }
-        return nil
+        let d: Double?
+        if let n = v as? NSNumber { d = n.doubleValue }
+        else if let dd = v as? Double { d = dd }
+        else if let ii = v as? Int { d = Double(ii) }
+        else if let s = v as? String { d = Double(s) }
+        else { d = nil }
+        guard let value = d, value.isFinite else { return nil }
+        return value
+    }
+
+    /// An OKLCH stop the colour engine can be handed: lightness 0…1, chroma
+    /// 0…1 (every sRGB colour sits under ~0.4; the gamut walk steps chroma
+    /// down from here, so an unbounded value would be an unbounded loop), hue
+    /// normalised to 0…360. Each coordinate falls back on its own.
+    private static func stop(l: Double?, c: Double?, h: Double?) -> OKLCH {
+        let lv = l.map { min(max($0, 0), 1) } ?? 0.7
+        let cv = c.map { min(max($0, 0), 1) } ?? 0.1
+        let hv: Double
+        if let h {
+            let m = h.truncatingRemainder(dividingBy: 360)
+            hv = m < 0 ? m + 360 : m
+        } else {
+            hv = 225
+        }
+        return OKLCH(l: lv, c: cv, h: hv)
     }
 
     private static func parseStop(_ v: Any) -> OKLCH {
         if let o = v as? [String: Any] {
-            return OKLCH(l: number(o["l"]) ?? 0.7,
-                         c: number(o["c"]) ?? 0.1,
-                         h: number(o["h"]) ?? 225)
+            return stop(l: number(o["l"]), c: number(o["c"]), h: number(o["h"]))
         }
         if let arr = v as? [Any], arr.count >= 3 {
-            return OKLCH(l: number(arr[0]) ?? 0.7,
-                         c: number(arr[1]) ?? 0.1,
-                         h: number(arr[2]) ?? 225)
+            return stop(l: number(arr[0]), c: number(arr[1]), h: number(arr[2]))
         }
         return OKLCH(l: 0.72, c: 0.11, h: 225)
     }

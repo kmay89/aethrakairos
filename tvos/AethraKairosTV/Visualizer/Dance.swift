@@ -356,7 +356,10 @@ struct DanceBus {
     /// so a long frame gap can never make it diverge. Velocity, then position.
     static func springStep(x x0: Float, v v0: Float, drive: Float, dt: Float,
                            k: Float, c: Float) -> (x: Float, v: Float) {
-        let steps = max(1, min(8, Int((dt * 240).rounded(.up))))
+        // dt arrives clamped 0..0.25 from the bus; the guard keeps Int() honest
+        // for any other caller — a non-finite or huge dt would trap inside it
+        let sub = dt.isFinite ? min(max(dt * 240, 1), 8) : 1
+        let steps = max(1, min(8, Int(sub.rounded(.up))))
         let h = dt / Float(steps)
         var x = x0
         var v = v0
@@ -659,6 +662,11 @@ struct StemLight {
     static let tauUp = 0.12, tauDown = 0.6
     static let tauConf = 1.2
     static let gateFloor = 0.35     // the beat channel with no kit at all
+    /// The highest score rate the light will read (tools/stems.py writes 12
+    /// Hz). CatalogParser bounds stems.hz to this at parse; the step and the
+    /// lane re-check it so a rate that reached here any other way can never
+    /// overflow the Int() conversions below (0.7 * 1e300 has no Int).
+    static let hzMax = 1000.0
 
     // (the web's 'break' is a Swift keyword; it is spelled `brk` here and its
     //  rawValue is the web's name, so a log or a test reads the same word)
@@ -707,7 +715,8 @@ struct StemLight {
     mutating func step(stems s: Stems?, pos posIn: Double?, playing: Bool, dt dtIn: Double) {
         let K = StemLight.self
         let dt = (dtIn > 0 && dtIn < 0.25) ? dtIn : (dtIn >= 0.25 ? 0.25 : 0)
-        let hz = (s?.hz ?? 0) > 0 ? s!.hz : 0
+        let hzRaw = s?.hz ?? 0
+        let hz = (hzRaw.isFinite && hzRaw > 0 && hzRaw <= K.hzMax) ? hzRaw : 0
         let pos = posIn ?? .nan
         let hasAny = s.map { !($0.d.isEmpty && $0.b.isEmpty && $0.v.isEmpty && $0.o.isEmpty) } ?? false
         let live = playing && hz > 0 && pos.isFinite && pos >= 0 && hasAny
@@ -842,7 +851,8 @@ struct StemLight {
     static func quartetLane(_ i: Int, stems: Stems, chart: Stems.HitChart?,
                             pos: Double, dur: Double) -> SIMD4<Double> {
         let t = pos + ((Double(i) + 0.5) / Double(quartetN) - 0.5) * quartetWin
-        guard stems.hz > 0, t >= 0, !(dur > 0 && t > dur) else { return SIMD4<Double>(0, 0, 0, 0) }
+        guard stems.hz.isFinite, stems.hz > 0, stems.hz <= hzMax,
+              t.isFinite, t >= 0, !(dur > 0 && t > dur) else { return SIMD4<Double>(0, 0, 0, 0) }
         let x = t * stems.hz
         let j = Int(floor(min(x, 1.0e9)))
         let fr = x - Double(j)

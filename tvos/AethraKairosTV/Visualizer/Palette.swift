@@ -30,10 +30,22 @@ enum Palette {
     /// cube; linear sRGB from M2; gamma-encode on the 2.4 curve. Out-of-gamut
     /// colours walk chroma down in 0.008 steps until every channel sits
     /// within [−0.0005, 1.0005] — hue and lightness survive, saturation pays.
+    ///
+    /// The walk is BOUNDED: chroma enters clamped to 0…1 (every sRGB colour
+    /// sits under ~0.4, so nothing above 1 could ever land in gamut) and the
+    /// loop is capped at `gamutSteps`, which is more than the 125 steps the
+    /// clamp can need. A non-finite coordinate (a stage packet, a NaN from
+    /// upstream math) takes the achromatic answer at once instead of spinning
+    /// the render thread on a comparison that is false forever.
+    static let gamutSteps = 140
     static func oklchToRGB(l: Double, c: Double, h: Double) -> SIMD3<Float> {
+        guard l.isFinite, c.isFinite, h.isFinite else {
+            let lv = l.isFinite ? min(max(l, 0), 1) : 0.5
+            return SIMD3<Float>(gammaEncode(lv), gammaEncode(lv), gammaEncode(lv))
+        }
         let hr = h * Double.pi / 180
-        var chroma = max(0, c)
-        while true {
+        var chroma = min(max(0, c), 1)
+        for _ in 0..<gamutSteps {
             let a = chroma * cos(hr)
             let b = chroma * sin(hr)
             let l_ = l + 0.3963377774 * a + 0.2158037573 * b
@@ -53,6 +65,13 @@ enum Palette {
             }
             chroma -= 0.008
         }
+        // the cap was reached (unreachable from a clamped start, kept honest):
+        // the achromatic colour at this lightness, exactly what chroma 0 gives
+        let l3 = l * l * l
+        let r = 4.0767416621 * l3 - 3.3077115913 * l3 + 0.2309699292 * l3
+        let g = -1.2684380046 * l3 + 2.6097574011 * l3 - 0.3413193965 * l3
+        let bl = -0.0041960863 * l3 - 0.7034186147 * l3 + 1.7076147010 * l3
+        return SIMD3<Float>(gammaEncode(r), gammaEncode(g), gammaEncode(bl))
     }
 
     // MARK: - the plan (the web's colorPlan, ported whole)
@@ -136,7 +155,10 @@ enum Palette {
     /// resolve cools again — as a pull toward a pole, scaled by the ceiling.
     static let actWarmthTable: [Double] = [-0.22, 0.0, 0.30, 0.14, -0.30]
     static func actWarmth(act: Double, heat: Double) -> Double {
-        let i = min(max(Int(act.rounded(.down)), 0), actWarmthTable.count - 1)
+        // an eased act is a Double on its way somewhere; a NaN here would trap
+        // inside Int(), so a non-finite arc reads as RISING (no pull)
+        guard act.isFinite else { return 0 }
+        let i = min(max(Int(min(max(act.rounded(.down), 0), 8)), 0), actWarmthTable.count - 1)
         return actWarmthTable[i] * clamp01(heat)
     }
 

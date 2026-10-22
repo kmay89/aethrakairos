@@ -41,8 +41,12 @@ enum CoverArt {
         // energy passes through as analysed — a 0-energy track keeps e = 0
         // and the motifs degrade gracefully (amplitudes just shrink);
         // only a MISSING analysis takes the 0.5 default.
-        let e = first?.features?.energy ?? 0.5
-        let bpm = first?.mix?.bpm ?? 120
+        let eRaw = first?.features?.energy ?? 0.5
+        let e = eRaw.isFinite ? min(max(eRaw, 0), 1) : 0.5
+        // the sleeve prints the tempo as an integer; the parser keeps any
+        // positive finite bpm, and Int() of a huge one is a trap, not a number
+        let bpmRaw = first?.mix?.bpm ?? 120
+        let bpm = bpmRaw.isFinite ? min(max(bpmRaw, 0), 999) : 120
 
         // key → hue, the colour engine's wheel. An unparseable key spends
         // exactly one rng call on a random hue — the sequence must not drift.
