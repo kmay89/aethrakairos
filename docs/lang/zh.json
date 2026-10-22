@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> 在 DJ 台中：播放 / 暂停唱机 A / 唱机 B",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> 唱机 A / 唱机 B 的 Cue——点按：回到 Cue；长按：从那里播放",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> 把空闲唱机同步到直播中的那台 &nbsp;·&nbsp; <kbd>U</kbd> 把规划器的选曲载入它",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> 微调交叉推子 &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> 切到 A / B &nbsp;·&nbsp; <kbd>\\</kbd> 回中"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> 微调交叉推子 &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> 切到 A / B &nbsp;·&nbsp; <kbd>\\</kbd> 回中",
+ "PEAK": "峰值",
+ "DRIVE": "推进"
 }

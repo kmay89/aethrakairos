@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> बूथमध्ये: डेक A / डेक B वाजवा / थांबवा",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> डेक A / डेक B चा Cue — टॅप: cue वर परत; दाबून ठेवा: तिथूनच वाजवा",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> रिकामा डेक प्रसारणातल्या डेकशी सिंक करा &nbsp;·&nbsp; <kbd>U</kbd> त्यावर प्लॅनरची निवड लोड करा",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> क्रॉसफेडरला हलका धक्का &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B वर कट &nbsp;·&nbsp; <kbd>\\</kbd> मध्यभागी"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> क्रॉसफेडरला हलका धक्का &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B वर कट &nbsp;·&nbsp; <kbd>\\</kbd> मध्यभागी",
+ "PEAK": "शिखर",
+ "DRIVE": "ड्राइव्ह"
 }

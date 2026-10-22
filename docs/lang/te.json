@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> బూత్‌లో: డెక్ A / డెక్ B ప్లే / పాజ్",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> డెక్ A / డెక్ B Cue — తట్టు: cueకు వెనక్కి; నొక్కి ఉంచు: అక్కడి నుంచి ప్లే",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> ఖాళీ డెక్‌ను ఆన్ ఎయిర్ డెక్‌తో సింక్ చేయండి &nbsp;·&nbsp; <kbd>U</kbd> దానిపై ప్లానర్ ఎంపికను లోడ్ చేయండి",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> క్రాస్‌ఫేడర్‌ను చిన్నగా తోయండి &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B కు కట్ &nbsp;·&nbsp; <kbd>\\</kbd> మధ్యకు"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> క్రాస్‌ఫేడర్‌ను చిన్నగా తోయండి &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B కు కట్ &nbsp;·&nbsp; <kbd>\\</kbd> మధ్యకు",
+ "PEAK": "శిఖరం",
+ "DRIVE": "డ్రైవ్"
 }

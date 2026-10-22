@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> ในบูธ: เล่น / หยุดเด็ค A / เด็ค B",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue เด็ค A / เด็ค B — แตะ: กลับไป cue; กดค้าง: เล่นจากตรงนั้น",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> ซิงก์เด็คที่ว่างกับเด็คที่ออนแอร์ &nbsp;·&nbsp; <kbd>U</kbd> โหลดเพลงของตัววางแผนลงเด็คนั้น",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ขยับครอสเฟดเดอร์ &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> ตัดไป A / B &nbsp;·&nbsp; <kbd>\\</kbd> กลับกลาง"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ขยับครอสเฟดเดอร์ &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> ตัดไป A / B &nbsp;·&nbsp; <kbd>\\</kbd> กลับกลาง",
+ "PEAK": "พีค",
+ "DRIVE": "ไดรฟ์"
 }

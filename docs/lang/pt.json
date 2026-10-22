@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> Na cabine: tocar / pausar o deck A / o deck B",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue do deck A / do deck B — toque: volta ao cue; segure: toca a partir dele",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Sincronizar o deck livre com o que está no ar &nbsp;·&nbsp; <kbd>U</kbd> Carregar nele a escolha do planejador",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Empurrar o crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cortá-lo para A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentrá-lo"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Empurrar o crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cortá-lo para A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentrá-lo",
+ "PEAK": "PICO",
+ "DRIVE": "EMBALO"
 }

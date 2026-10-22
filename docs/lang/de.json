@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> In der Kabine: Deck A / Deck B abspielen / pausieren",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue Deck A / Deck B — tippen: zurück zum Cue; halten: von dort abspielen",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Das freie Deck mit dem on air synchronisieren &nbsp;·&nbsp; <kbd>U</kbd> Die Wahl des Planers darauf laden",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Crossfader schubsen &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Hart auf A / B &nbsp;·&nbsp; <kbd>\\</kbd> Zentrieren"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Crossfader schubsen &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Hart auf A / B &nbsp;·&nbsp; <kbd>\\</kbd> Zentrieren",
+ "PEAK": "PEAK",
+ "DRIVE": "DRIVE"
 }

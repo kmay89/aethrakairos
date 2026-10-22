@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> In de cabine: deck A / deck B afspelen / pauzeren",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tik: terug naar de cue; houd vast: speel vanaf daar",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Het vrije deck synchroniseren met het deck in de lucht &nbsp;·&nbsp; <kbd>U</kbd> De keuze van de planner erop laden",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> De crossfader duwen &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Hard naar A / B &nbsp;·&nbsp; <kbd>\\</kbd> Centreren"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> De crossfader duwen &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Hard naar A / B &nbsp;·&nbsp; <kbd>\\</kbd> Centreren",
+ "PEAK": "PIEK",
+ "DRIVE": "DRIVE"
 }

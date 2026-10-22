@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> ခန်းလေးထဲတွင်: ဒက် A / ဒက် B ဖွင့် / ခဏရပ်",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> ဒက် A / ဒက် B ၏ Cue — တို့ပါ: cue သို့ ပြန်သွားမည်၊ ဖိထားပါ: ထိုနေရာမှ ဖွင့်မည်",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> အလွတ်ဒက်ကို ထုတ်လွှင့်နေသောဒက်နှင့် ချိန်ညှိ &nbsp;·&nbsp; <kbd>U</kbd> ၎င်းပေါ် Planner ၏ ရွေးချယ်မှုကို တင်",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Crossfader ကို အနည်းငယ် တွန်း &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B သို့ ဖြတ် &nbsp;·&nbsp; <kbd>\\</kbd> အလယ်သို့"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Crossfader ကို အနည်းငယ် တွန်း &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B သို့ ဖြတ် &nbsp;·&nbsp; <kbd>\\</kbd> အလယ်သို့",
+ "PEAK": "အထွတ်",
+ "DRIVE": "မောင်းနှင်"
 }

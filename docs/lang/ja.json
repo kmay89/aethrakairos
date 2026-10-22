@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> ブースで: デッキA / デッキBを再生 / 一時停止",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> デッキA / デッキBのCue — タップ: キューに戻る／長押し: そこから再生",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> 空いているデッキをオンエア中のデッキに同期 &nbsp;·&nbsp; <kbd>U</kbd> そこにプランナーの選曲をロード",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> クロスフェーダーを少し動かす &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / Bへカット &nbsp;·&nbsp; <kbd>\\</kbd> 中央へ"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> クロスフェーダーを少し動かす &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / Bへカット &nbsp;·&nbsp; <kbd>\\</kbd> 中央へ",
+ "PEAK": "ピーク",
+ "DRIVE": "ドライブ"
 }

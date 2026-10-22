@@ -3,9 +3,17 @@
  * Plays a real catalog track (the media host is answered from docs/audio, so
  * no network is needed), opens the booth, and checks what a unit test cannot:
  * that the detail is decoded and analysed off the main thread and lands at
- * deck resolution; that the strips are drawn from it at every zoom; and that
- * a whole booth frame stays inside its budget, which is the point of painting
- * the song into tiles once instead of every bar every frame.
+ * deck resolution in the shape the page says it has (hz, v, the eight planes);
+ * that the strips are drawn from it at every zoom; that deck B's strip is
+ * handed its own record's cues; that a deck off rate 1 is still blitted crisp;
+ * and that a whole booth frame stays inside its budget, which is the point of
+ * painting the song into tiles once instead of every bar every frame.
+ *
+ * THE BUDGET IS RELATIVE. The bench this runs on is a software rasteriser
+ * whose speed is nobody's guarantee, so a frame WITH the strips is held to
+ * 1.5× a frame without them measured in the same run (or 4 ms, whichever is
+ * kinder; MB8_BUDGET_MS pins an absolute), which is what the strips may cost
+ * the booth, wherever the booth is drawn.
  *
  *   node tools/deckwave_probe.mjs
  */
@@ -31,7 +39,7 @@ const R = (name, ok, detail) => {
   if (ok) pass++; else fail++;
   console.log((ok ? '  ok   ' : '  FAIL ') + name + (detail ? ' — ' + detail : ''));
 };
-const BUDGET_MS = 4;                       // a whole booth frame, p95, on this bench's CPU
+const BUDGET_MS = +process.env.MB8_BUDGET_MS || 0;   // an absolute budget, when the bench is known; else relative (see the header)
 
 for (const [label, vw, vh] of [['desktop', 1280, 900], ['phone', 390, 844]]){
   console.log(label);
@@ -70,19 +78,31 @@ for (const [label, vw, vh] of [['desktop', 1280, 900], ['phone', 390, 844]]){
   const coarse = await page.evaluate(() => { const s = DECKWAVE.src(player.tracks[player.cur]); return s ? !!s.coarse : null; });
   R('before the decode lands, the strip already draws from the shipped score', coarse === true);
   const det = await page.waitForFunction('window.__mb8WaveDetail', null, { timeout: 60000 }).then(h => h.jsonValue()).catch(() => null);
-  const dur = await page.evaluate(() => activeDeck().a.duration);
-  R('the detail lands at deck resolution', det && det.hz === 150 && Math.abs(det.n / det.hz - dur) < 1,
-    det ? det.n + ' columns for ' + dur.toFixed(1) + ' s' : 'never landed');
+  const page_ = await page.evaluate(() => ({ hz: WAVE_HZ, v: WAVE_V, planes: WAVE_PLANES.length, mips: WAVE_MIPS.slice(), dur: activeDeck().a.duration }));
+  const dur = page_.dur;
+  R('the detail lands at deck resolution, in the contract the page declares', det && det.hz === page_.hz && det.v === page_.v && Math.abs(det.n / det.hz - dur) < 1,
+    det ? det.n + ' columns at ' + det.hz + ' Hz (v' + det.v + ') for ' + dur.toFixed(1) + ' s' : 'never landed');
+  R('…with its eight planes and two mips', det && det.planes === page_.planes && det.planes === 8 && det.mips.length === page_.mips.length && det.mips[0] === page_.hz / page_.mips[0],
+    det ? det.planes + ' planes, mips at ' + det.mips.join(' / ') + ' Hz' : '');
   const worker = await page.evaluate(() => !!DECKWAVE._worker && !DECKWAVE._broken);
   R('…analysed in a worker, off the main thread', worker);
   const shape = await page.evaluate(() => {
     const s = DECKWAVE.src(player.tracks[player.cur]);
-    let lo = 0, hi = 0, mx = 0;
-    for (let i = 0; i < s.n; i++){ lo += s.lo[i]; hi += s.hi[i]; if (s.pk[i] > mx) mx = s.pk[i]; }
-    return { coarse: !!s.coarse, lo: lo / s.n / 255, hi: hi / s.n / 255, mx };
+    let lo = 0, hi = 0, mx = 0, loCap = 0, clear = 0, tiltSpread = 0, onBuf = 0, bytes = 0, tmin = 255, tmax = 0;
+    for (let i = 0; i < s.n; i++){
+      lo += s.loRms[i]; hi += s.hiRms[i]; loCap += s.loPk[i]; if (s.pk[i] > mx) mx = s.pk[i];
+      if (s.loPk[i] > s.loRms[i] + 25) clear++;                       // a hit: the cap clear of its body
+      if (s.tilt[i] < tmin) tmin = s.tilt[i]; if (s.tilt[i] > tmax) tmax = s.tilt[i];
+    }
+    tiltSpread = (tmax - tmin) / 255;
+    for (const p of WAVE_PLANES) if (s[p].buffer === s.buf) onBuf++;
+    bytes = s.buf.byteLength;
+    return { coarse: !!s.coarse, lo: lo / s.n / 255, hi: hi / s.n / 255, loCap: loCap / s.n / 255, mx, clear: clear / s.n, tiltSpread, onBuf, bytes, perMin: bytes / (s.dur / 60) };
   });
-  R('…and it is real music, every band alive', !shape.coarse && shape.lo > 0.05 && shape.hi > 0.01 && shape.mx === 255,
-    'mean low ' + shape.lo.toFixed(2) + ', mean high ' + shape.hi.toFixed(2));
+  R('…and it is real music: every band alive, the caps a reading of their own (hits clear of their bodies), the tilt moving, on one buffer',
+    !shape.coarse && shape.lo > 0.05 && shape.hi > 0.01 && shape.mx === 255 && shape.clear > 0.02 && shape.loCap > 0.01 && shape.tiltSpread > 0.3 && shape.onBuf === 8,
+    'mean low ' + shape.lo.toFixed(2) + ', mean high ' + shape.hi.toFixed(2) + ', hits on ' + (shape.clear * 100).toFixed(0) + ' % of columns, tilt spread ' + shape.tiltSpread.toFixed(2) + ', ' + (shape.bytes / 1048576).toFixed(2) + ' MB (' + (shape.perMin / 1024).toFixed(0) + ' KB a minute)');
+  R('…within the memory the design allows (2.5 MB for seven minutes)', shape.perMin * 7 <= 2.5 * 1048576);
   await page.waitForTimeout(800);
   const zooms = await page.evaluate(() => {
     const out = [];
@@ -91,19 +111,60 @@ for (const [label, vw, vh] of [['desktop', 1280, 900], ['phone', 390, 844]]){
     return out;
   });
   R('every zoom draws, from close to wide', zooms[0] > zooms[1] && zooms[1] > zooms[2], zooms.join(' > ') + ' px/s');
-  // the tiles at this zoom are warm; scroll on through the song and measure every frame
-  const cost = await page.evaluate(async () => {
-    const ts = [];
-    for (let i = 0; i < 180; i++){
-      await new Promise(r => requestAnimationFrame(r));
-      const a = performance.now(); BOOTH.draw(); ts.push(performance.now() - a);
-    }
-    ts.sort((a, b) => a - b);
-    return { med: ts[90], p95: ts[171], tiles: DECKWAVE._tiles.size };
+  // deck B's strip is its OWN record's: load one by hand, cue it, and both strips get what is theirs
+  const stripB = await page.evaluate(async () => {
+    const t = player.tracks.find((x, i) => i !== player.cur && x.url && !x.demo && x.mix && x.mix.bpm > 0);
+    if (!t || typeof DECKS === 'undefined' || !DECKS.load(1, t)) return { loaded: false };
+    await new Promise(r => setTimeout(r, 500));
+    DECKS.focus = 1; await CUES.follow(t); const at = CUES.set(2, 12.5);   // the hand on B sets a cue on B's record (snapped to B's grid)
+    BOOTH.draw();
+    const hand = { A: DECKWAVE._last.A, B: DECKWAVE._last.B };
+    DECKS.focus = 0; await CUES.follow(DECKS.track(0));                // the hand back on A: B's strip still reads B's cues
+    BOOTH.draw(); await new Promise(r => setTimeout(r, 200)); BOOTH.draw();
+    const back = { A: DECKWAVE._last.A, B: DECKWAVE._last.B };
+    const own = a => a && a.cues ? a.cues.filter(v => v != null).length : 0;
+    return { loaded: true, hand, back, at,
+      bHasCue: at != null && !!(hand.B && hand.B.cues && Math.abs(hand.B.cues[2] - at) < 1e-6),
+      aNotB: !(hand.A && hand.A.cues && hand.A.cues[2] != null && Math.abs(hand.A.cues[2] - at) < 1e-6),
+      stillB: at != null && !!(back.B && back.B.cues && Math.abs(back.B.cues[2] - at) < 1e-6), aOwn: own(back.A) };
   });
-  R('a booth frame stays inside its budget while the song scrolls', cost.p95 < BUDGET_MS,
-    'median ' + cost.med.toFixed(2) + ' ms, p95 ' + cost.p95.toFixed(2) + ' ms, ' + cost.tiles + ' tiles held');
-  R('the tile cache is bounded', cost.tiles <= 48);
+  R('strip B receives its own record\'s cues — from the pads while the hand is on B, from the store once it leaves',
+    stripB.loaded && stripB.bHasCue && stripB.aNotB && stripB.stillB, stripB.loaded ? JSON.stringify({ set: stripB.at, hand: stripB.hand.B && stripB.hand.B.cues, back: stripB.back.B && stripB.back.B.cues, aOwn: stripB.aOwn }) : 'deck B could not be loaded');
+  // a deck off rate 1 is painted at its own rate and blitted 1:1 without smoothing
+  const crisp = await page.evaluate(() => {
+    const d = activeDeck(), was = d.a.playbackRate;
+    d.a.playbackRate = 1.03; BOOTH.draw();
+    const g = Object.assign({}, DECKWAVE._geom);
+    const keys = [...DECKWAVE._tiles.keys()].filter(k => k.startsWith(DECKWAVE.key(player.tracks[player.cur]) + '|'));
+    d.a.playbackRate = was; BOOTH.draw();
+    return { scale: g.scale, smooth: g.smooth, painted: keys.length };
+  });
+  R('tiles are crisp at rate 1.03: painted at the deck\'s rate, blitted within 0.2 % of 1:1, no smoothing', Math.abs(crisp.scale - 1) <= 0.002 && crisp.smooth === false && crisp.painted > 0,
+    'scale ' + crisp.scale.toFixed(4) + ', ' + crisp.painted + ' tiles at that rate');
+  // the tiles at this zoom are warm; scroll on through the song and measure every frame —
+  // first the booth WITHOUT its strips (the bench's own speed), then with them
+  const cost = await page.evaluate(async () => {
+    const run = async () => {
+      const ts = [];
+      for (let i = 0; i < 180; i++){
+        await new Promise(r => requestAnimationFrame(r));
+        const a = performance.now(); BOOTH.draw(); ts.push(performance.now() - a);
+      }
+      ts.sort((a, b) => a - b);
+      return { med: ts[90], p95: ts[171] };
+    };
+    const real = DECKWAVE.draw;
+    DECKWAVE.draw = () => {};
+    const base = await run();
+    DECKWAVE.draw = real;
+    BOOTH.draw();
+    const full = await run();
+    return { base, full, tiles: DECKWAVE._tiles.size, cap: DECKWAVE._cap };
+  });
+  const budget = BUDGET_MS > 0 ? BUDGET_MS : Math.max(4, 1.5 * cost.base.p95);
+  R('a booth frame stays inside its budget while the song scrolls (the strips ≤ 1.5× the rest of the booth, or 4 ms)', cost.full.p95 <= budget,
+    'median ' + cost.full.med.toFixed(2) + ' ms, p95 ' + cost.full.p95.toFixed(2) + ' ms (without the strips: p95 ' + cost.base.p95.toFixed(2) + ' ms; budget ' + budget.toFixed(2) + ' ms), ' + cost.tiles + ' tiles held');
+  R('the tile cache is bounded', cost.tiles <= cost.cap && cost.cap <= 48, cost.tiles + ' ≤ ' + cost.cap);
   await page.evaluate(() => BOOTH.toggle(false));
   R('closing the booth lets the painted tiles go', await page.evaluate(() => DECKWAVE._tiles.size === 0));
   R('no page errors', errs.length === 0, errs.join(' | '));

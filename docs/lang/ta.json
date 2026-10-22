@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> பூத்தில்: டெக் A / டெக் B இயக்கு / இடைநிறுத்து",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> டெக் A / டெக் B Cue — தட்டு: cue-க்குத் திரும்பு; அழுத்திப் பிடி: அங்கிருந்து இயக்கு",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> காலி டெக்கை ஒலிபரப்பில் உள்ளதுடன் ஒத்திசை &nbsp;·&nbsp; <kbd>U</kbd> அதில் திட்டமிடுபவரின் தேர்வை ஏற்று",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> கிராஸ்ஃபேடரைச் சிறிது தள்ளு &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B-க்கு கட் &nbsp;·&nbsp; <kbd>\\</kbd> நடுவுக்கு"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> கிராஸ்ஃபேடரைச் சிறிது தள்ளு &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B-க்கு கட் &nbsp;·&nbsp; <kbd>\\</kbd> நடுவுக்கு",
+ "PEAK": "உச்சம்",
+ "DRIVE": "டிரைவ்"
 }

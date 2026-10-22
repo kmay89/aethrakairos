@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> 부스에서: 덱 A / 덱 B 재생 / 일시정지",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> 덱 A / 덱 B 큐 — 탭: 큐로 돌아가기, 길게: 거기서부터 재생",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> 비어 있는 덱을 온에어 덱에 동기화 &nbsp;·&nbsp; <kbd>U</kbd> 거기에 플래너의 선곡 불러오기",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> 크로스페이더 살짝 밀기 &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B로 컷 &nbsp;·&nbsp; <kbd>\\</kbd> 중앙으로"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> 크로스페이더 살짝 밀기 &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B로 컷 &nbsp;·&nbsp; <kbd>\\</kbd> 중앙으로",
+ "PEAK": "피크",
+ "DRIVE": "드라이브"
 }

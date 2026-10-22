@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> Di booth: putar / jeda deck A / deck B",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — ketuk: kembali ke cue; tahan: putar dari sana",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Sinkronkan deck yang kosong dengan yang sedang siaran &nbsp;·&nbsp; <kbd>U</kbd> Muat pilihan perencana ke sana",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Geser crossfader sedikit &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Potong ke A / B &nbsp;·&nbsp; <kbd>\\</kbd> Ke tengah"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Geser crossfader sedikit &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Potong ke A / B &nbsp;·&nbsp; <kbd>\\</kbd> Ke tengah",
+ "PEAK": "PUNCAK",
+ "DRIVE": "DRIVE"
 }

@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> ਬੂਥ ਵਿੱਚ: ਡੈੱਕ A / ਡੈੱਕ B ਵਜਾਓ / ਰੋਕੋ",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> ਡੈੱਕ A / ਡੈੱਕ B ਦਾ Cue — ਟੈਪ: cue ਉੱਤੇ ਵਾਪਸ; ਦਬਾਈ ਰੱਖੋ: ਉੱਥੋਂ ਹੀ ਵਜਾਓ",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> ਖ਼ਾਲੀ ਡੈੱਕ ਨੂੰ ਹਵਾ ਵਾਲੇ ਨਾਲ ਸਿੰਕ ਕਰੋ &nbsp;·&nbsp; <kbd>U</kbd> ਉਸ ਉੱਤੇ ਯੋਜਨਾਕਾਰ ਦੀ ਚੋਣ ਲੋਡ ਕਰੋ",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ਕਰਾਸਫ਼ੇਡਰ ਨੂੰ ਹਲਕਾ ਧੱਕਾ &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B ਉੱਤੇ ਕੱਟ &nbsp;·&nbsp; <kbd>\\</kbd> ਵਿਚਕਾਰ"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ਕਰਾਸਫ਼ੇਡਰ ਨੂੰ ਹਲਕਾ ਧੱਕਾ &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B ਉੱਤੇ ਕੱਟ &nbsp;·&nbsp; <kbd>\\</kbd> ਵਿਚਕਾਰ",
+ "PEAK": "ਸਿਖਰ",
+ "DRIVE": "ਡਰਾਈਵ"
 }

@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> A cikin booth: kunna / dakatar da deck A / deck B",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue na deck A / deck B — taɓa: koma wurin cue; riƙe: kunna daga nan",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Daidaita deck ɗin da ba ya aiki da wanda ke kan iska &nbsp;·&nbsp; <kbd>U</kbd> Loda zaɓin mai shiryawa a kansa",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Tura crossfader kaɗan &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Yanke shi zuwa A / B &nbsp;·&nbsp; <kbd>\\</kbd> Komar da shi tsakiya"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Tura crossfader kaɗan &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Yanke shi zuwa A / B &nbsp;·&nbsp; <kbd>\\</kbd> Komar da shi tsakiya",
+ "PEAK": "KOLOLUWA",
+ "DRIVE": "TUƘI"
 }

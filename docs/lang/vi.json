@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> Trong cabin: phát / tạm dừng deck A / deck B",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — chạm: về cue; giữ: phát từ đó",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> Đồng bộ deck rảnh với deck đang lên sóng &nbsp;·&nbsp; <kbd>U</kbd> Tải lựa chọn của bộ lập kế hoạch lên đó",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Đẩy nhẹ crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cắt sang A / B &nbsp;·&nbsp; <kbd>\\</kbd> Về giữa"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> Đẩy nhẹ crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cắt sang A / B &nbsp;·&nbsp; <kbd>\\</kbd> Về giữa",
+ "PEAK": "ĐỈNH",
+ "DRIVE": "DRIVE"
 }

@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> বুথে: ডেক A / ডেক B বাজান / থামান",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> ডেক A / ডেক B-এর Cue — ট্যাপ: cue-এ ফেরা; চেপে ধরুন: সেখান থেকে বাজান",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> খালি ডেককে সম্প্রচারে থাকা ডেকের সঙ্গে সিঙ্ক করুন &nbsp;·&nbsp; <kbd>U</kbd> তাতে পরিকল্পকের পছন্দ লোড করুন",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ক্রসফেডার হালকা ঠেলুন &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B-তে কাট &nbsp;·&nbsp; <kbd>\\</kbd> মাঝে"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ক্রসফেডার হালকা ঠেলুন &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B-তে কাট &nbsp;·&nbsp; <kbd>\\</kbd> মাঝে",
+ "PEAK": "শিখর",
+ "DRIVE": "ড্রাইভ"
 }

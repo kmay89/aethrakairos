@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> በካቢናው ውስጥ፡ ዴክ A / ዴክ B አጫውት / አቁም",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> የዴክ A / ዴክ B Cue — መንካት፡ ወደ cue መመለስ፤ ተጭኖ መያዝ፡ ከዚያ ማጫወት",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> ባዶውን ዴክ አየር ላይ ካለው ጋር አመሳስል &nbsp;·&nbsp; <kbd>U</kbd> የአቀናባሪውን ምርጫ በላዩ ላይ ጫን",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ክሮስፌደሩን በጥቂቱ ግፋ &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> ወደ A / B ቁረጥ &nbsp;·&nbsp; <kbd>\\</kbd> ወደ መሃል"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> ክሮስፌደሩን በጥቂቱ ግፋ &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> ወደ A / B ቁረጥ &nbsp;·&nbsp; <kbd>\\</kbd> ወደ መሃል",
+ "PEAK": "ጫፍ",
+ "DRIVE": "መንዳት"
 }

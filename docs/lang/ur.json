@@ -1768,5 +1768,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> بوتھ میں: ڈیک A / ڈیک B چلائیں / روکیں",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> ڈیک A / ڈیک B کا Cue — تھپتھپائیں: cue پر واپس؛ دبائے رکھیں: وہیں سے چلائیں",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> خالی ڈیک کو نشر ہونے والے سے ہم آہنگ کریں &nbsp;·&nbsp; <kbd>U</kbd> اس پر منصوبہ ساز کا انتخاب لوڈ کریں",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> کراس فیڈر کو ہلکا دھکا &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B پر کٹ &nbsp;·&nbsp; <kbd>\\</kbd> درمیان میں"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> کراس فیڈر کو ہلکا دھکا &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> A / B پر کٹ &nbsp;·&nbsp; <kbd>\\</kbd> درمیان میں",
+ "PEAK": "عروج",
+ "DRIVE": "ڈرائیو"
 }

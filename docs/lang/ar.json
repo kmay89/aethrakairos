@@ -1966,5 +1966,7 @@
  "<kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B": "<kbd>Q</kbd> / <kbd>O</kbd> في الكابينة: تشغيل / إيقاف المنصّة A / المنصّة B",
  "<kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it": "<kbd>Z</kbd> / <kbd>V</kbd> Cue المنصّة A / المنصّة B — نقرة: عودة إلى الـ cue؛ ضغط مطوّل: تشغيل منها",
  "<kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it": "<kbd>Y</kbd> مزامنة المنصّة الحرّة مع التي على الهواء &nbsp;·&nbsp; <kbd>U</kbd> تحميل اختيار المخطِّط عليها",
- "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> دفع الكروس فيدر &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> قطعه إلى A / B &nbsp;·&nbsp; <kbd>\\</kbd> توسيطه"
+ "<kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\\</kbd> Recentre it": "<kbd>[</kbd> <kbd>]</kbd> دفع الكروس فيدر &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> قطعه إلى A / B &nbsp;·&nbsp; <kbd>\\</kbd> توسيطه",
+ "PEAK": "الذروة",
+ "DRIVE": "اندفاع"
 }
