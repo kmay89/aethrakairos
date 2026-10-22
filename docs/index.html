@@ -31384,12 +31384,35 @@ if (el.fxOrb){
 }
 pokeChrome();
 
+/* WHO PUT THE FOCUS THERE. Chrome on Windows, Linux and ChromeOS focuses a
+   <button> the mouse clicks, so a DJ who clicks SYNC B and then taps Space to
+   pause the room would press SYNC B again instead. Only a booth button the
+   keys walked to owns its Space and Enter; one a pointer pressed hands them
+   back to the room. :focus-visible cannot tell us: Blink flips it to true on
+   the very keydown being asked about, before any listener runs. So the booth
+   keeps its own note: a pointer's press marks the button it lands on, the
+   focus that press brings keeps the mark, and any other focus (a Tab, a
+   pointer elsewhere) clears it. A key clears the pending press too, so a
+   Safari click (which presses without focusing) never brands a later Tab. */
+const boothFocus = { pressed: null, byPointer: null };
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target && ev.target.closest ? ev.target.closest('#booth button') : null;
+  boothFocus.pressed = b;
+  if (b && document.activeElement === b) boothFocus.byPointer = b;   // already focused: the pointer has it now
+}, true);
+document.addEventListener('focusin', ev => {
+  boothFocus.byPointer = (ev.target && ev.target === boothFocus.pressed) ? ev.target : null;
+  boothFocus.pressed = null;
+}, true);
+document.addEventListener('keydown', () => { boothFocus.pressed = null; }, true);
+
 /* keyboard */
 window.addEventListener('keydown', ev => {
   // (the crossfader's band is an input too, but the booth's keys are its keys: it stops the ones it takes)
   if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') && ev.target !== el.xfader) return;
-  // a focused booth button owns its Space and Enter: the press is its own, never the room's play / pause as well
-  if ((ev.key === ' ' || ev.key === 'Enter') && ev.target && ev.target.closest && ev.target.closest('#booth button')) return;
+  // a booth button the keys walked to owns its Space and Enter: the press is its own, never the room's play / pause as well.
+  // One the mouse left focused does not: Space falls through to the room, whose preventDefault also keeps the button unpressed.
+  if ((ev.key === ' ' || ev.key === 'Enter') && ev.target && ev.target.closest && ev.target.closest('#booth button') && ev.target !== boothFocus.byPointer) return;
   // the booth's fader keys, before the modifier filter: on most non-US layouts [ ] { } \ are typed with AltGr or Option
   const fk = BOOTH.open ? boothFaderKey(ev.key, { meta: ev.metaKey, ctrl: ev.ctrlKey, alt: ev.altKey }) : null;
   if (fk){

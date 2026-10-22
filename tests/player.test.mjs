@@ -10919,7 +10919,14 @@ test('the booth wiring: held cues let go with the booth and the window, booth bu
   assert.ok(cw.includes("b.addEventListener('keydown', ev => { if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); ev.stopPropagation(); if (!ev.repeat) down(); } });"), 'CUE keydown stops the press, repeats included');
   assert.ok(cw.includes("b.addEventListener('blur', up);"), 'CUE lets go when focus leaves it');
   const kd = src("/* keyboard */\nwindow.addEventListener('keydown', ev => {", 'switch (k){');
-  assert.ok(kd.includes("ev.target.closest('#booth button')) return;"), 'Space on a booth button is never the room\'s play / pause');
+  assert.ok(kd.includes("ev.target.closest('#booth button') && ev.target !== boothFocus.byPointer) return;"), 'Space on a keyboard-focused booth button is never the room\'s play / pause');
+  // R16 (follow-up): a booth button the mouse left focused hands Space back to the room. Not :focus-visible: Blink flips it on the keydown itself
+  assert.ok(!kd.includes(':focus-visible'), 'the guard does not ask :focus-visible, which every keydown makes true');
+  const bf = src('const boothFocus = { pressed: null, byPointer: null };', '/* keyboard */');
+  assert.ok(bf.includes("document.addEventListener('pointerdown', ev => {") && bf.includes('boothFocus.pressed = b;'), 'a pointer press marks the booth button it lands on');
+  assert.ok(bf.includes('if (b && document.activeElement === b) boothFocus.byPointer = b;'), 'pressing the already-focused button hands it to the pointer');
+  assert.ok(bf.includes('boothFocus.byPointer = (ev.target && ev.target === boothFocus.pressed) ? ev.target : null;'), 'only the focus a press brought is the pointer\'s; a Tab clears it');
+  assert.ok(bf.includes("document.addEventListener('keydown', () => { boothFocus.pressed = null; }, true);"), 'a key clears a press that brought no focus (Safari)');
   // R35: the fader keys are read before the modifier filter
   const fkAt = kd.indexOf('boothFaderKey(ev.key'), modAt = kd.indexOf('if (ev.metaKey || ev.ctrlKey || ev.altKey) return;');
   assert.ok(fkAt > 0 && modAt > fkAt, 'the fader keys come before the modifier filter');
