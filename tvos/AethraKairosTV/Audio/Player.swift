@@ -389,6 +389,12 @@ enum MixStyle: String, CaseIterable {
         // never starts a second download of the same track.
         if materializing, currentIndex >= 0 {
             wantsPlayback.toggle()
+            // the FACT follows a pause: a skip leaves isPlaying true from the
+            // track it left, and a HUD, Now Playing and the idle lock that
+            // still say "playing" invite a second press that undoes the pause.
+            // Nothing that needs a deck reads it mid-download (deckReady is
+            // false), and the landing sets it from the intent either way.
+            if !wantsPlayback { isPlaying = false }
             statusLine = wantsPlayback ? "materializing…" : "paused"
             return
         }

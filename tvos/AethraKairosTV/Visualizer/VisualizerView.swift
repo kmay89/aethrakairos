@@ -227,6 +227,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var transitionStart: Double = 0          // CACurrentMediaTime() when it opened: the progress is derived, never integrated
     private var outgoingIndex: Int = 0
     private var lastRoomStep: Int?
+    // the moment as the last frame read it, for a swipe's dwell: the act and
+    // the bar the director paced the room by (a swipe lands between frames)
+    private var paceAct: Int = 1
+    private var paceBarLen: Double = 2.0
     private var currentXformMode: Int = 0
     private var lastXformMode: Int = -1
     private static let xformMinDur: [Double] = [0.55, 0.9, 0.8, 0.7, 1.4]
@@ -678,9 +682,13 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // a hand is on the remote — the ghost yields at once
         idleTime = 0
         let before = director.currentIndex
-        director.step(delta)
+        // the swiped-to room's dwell is read from the moment, exactly as a
+        // dealt room's is — the act, the bar, the energy and the calm tier's
+        // longer stay — not from a fixed one-act, 120-BPM guess
+        let calmNow = reduceMotion || VizSettings.shared.calm
+        director.step(delta, act: paceAct, energy: Double(dispEnergy), barLen: paceBarLen, reduced: calmNow)
         if director.currentIndex != before {
-            beginTransition(from: before)
+            beginTransition(from: before, manual: true)
             publishRoomName()
         }
     }
@@ -690,9 +698,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// duration from the moment (the web's segueStyle, in bars — never under
     /// the form's own floor), and re-deal the arriving room's face plus a
     /// fresh ghost choreography — a room never wears the same face on re-entry.
-    /// A swipe passes nothing and gets the defaults (a one-bar blend).
+    /// A swipe is MANUAL: a hand on the remote gets the web's snappy blend
+    /// (a hand on the wheel: 1.0 s, never under the composite's own floor;
+    /// 1.6 s under the calm tier), not the music's segue length.
     private func beginTransition(from oldIndex: Int, act: Int = 1, energy: Double = 0.5,
-                                 big: Bool = false, barLen: Double = 2.0) {
+                                 big: Bool = false, barLen: Double = 2.0, manual: Bool = false) {
         outgoingIndex = oldIndex
         transitionProgress = 0
         transitionStart = CACurrentMediaTime()
@@ -712,8 +722,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // turn — never shorter than the composite's own floor, and never
         // shorter than 1.6 s under the calm tier, where the hard cut is the
         // motion being refused
-        let style = Director.segueStyle(act: act, energy: energy, big: big, barLen: barLen, reduced: calmNow)
-        transitionDuration = max(calmNow ? Director.segueReducedFloor : Self.xformMinDur[mode], style.dur)
+        if manual {
+            transitionDuration = calmNow ? Director.segueReducedFloor : max(Self.xformMinDur[mode], 1.0)
+        } else {
+            let style = Director.segueStyle(act: act, energy: energy, big: big, barLen: barLen, reduced: calmNow)
+            transitionDuration = max(calmNow ? Director.segueReducedFloor : Self.xformMinDur[mode], style.dur)
+        }
 
         outgoingRolls = currentRolls
         currentRolls = Self.freshRolls()
@@ -1121,6 +1135,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         chordRGB = safeColorStep(chordRGB, dt: dt, calm: calmNow)
 
         // -- the director --
+        paceAct = actTarget
+        paceBarLen = barLen
         let before = director.currentIndex
         // (a deal that lands on the room already showing — possible while the
         // house is still compiling and the opening room is the only door — is
@@ -1146,10 +1162,16 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // -- the room's second act (the web's rollEased): fresh dice, eased over
         //    two bars (τ = ease / 3), so the live room breathes into another of
         //    its faces instead of being cut to a new room; the glass is re-dealt
-        //    with the step --
+        //    with the step. Only the dice Director.developDice lists for the
+        //    room are eased (the rest hold: a floored, stepped or hashed die
+        //    strobes through a sweep), and never roll2, the lens's fold --
         if let dev = director.takeDevelop() {
-            rollTarget = Self.freshRolls()
-            rollTau = max(0.5, dev.ease / 3)
+            let i = director.currentIndex
+            let mask = Rooms.all.indices.contains(i) ? Director.developMask(key: Rooms.all[i].key) : SIMD3<Float>(0, 0, 0)
+            if mask != SIMD3<Float>(0, 0, 0) {
+                rollTarget = currentRolls + (Self.freshRolls() - currentRolls) * mask
+                rollTau = max(0.5, dev.ease / 3)
+            }
             lensHold = 0
         }
         if let target = rollTarget {
