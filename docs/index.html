@@ -4302,6 +4302,17 @@ body.clipping::after{
     concentric rings with now at the top and the future running clockwise. On the microphone or a file
     nobody has separated, the strands are the live sound's own recent past, and the future is honestly dark.</p>
     <!-- ==== END ROOM MANUAL: QUARTET ==== -->
+    <!-- ==== ROOM MANUAL: GLASS ==== -->
+    <h3>The glasshouse</h3>
+    <p class="lede">Scene 125 is <b>GLASS</b> — a polyhedron built the way a glassblower would
+    build it: every edge a clear tube, every vertex a lit bead, the whole cage nested three frames
+    deep so the eye falls through it toward a warm core. The glass is honest optics in miniature:
+    each ray is marched <i>through</i> every tube it meets, and at each surface Schlick's Fresnel
+    decides how much of the studio it reflects — nearly invisible face-on, bright at the grazing
+    edge, exactly as real glass is. THE CAGE is the dodecahedron, THE CUBE the infinity cube, THE
+    STAR the icosidodecahedron; the beads flash on the beat and the inner frames breathe on the
+    bass. Touch the field and the cage turns toward your hand.</p>
+    <!-- ==== END ROOM MANUAL: GLASS ==== -->
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -4956,6 +4967,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows',   // FLUID — a hand in the water stirs it
                // ↑ fluid · quartet ↓
                'gathers', // QUARTET — a hand gathers the band
+               // ↑ quartet · glass ↓
+               'flows',   // GLASS — a hand turns the cage toward itself
                ];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
@@ -5269,6 +5282,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'paint',   // FLUID — the ghost paints in the water
                // ↑ fluid · quartet ↓
                'lissa',   // QUARTET — the ghost conducts in figures
+               // ↑ quartet · glass ↓
+               'lissa',   // GLASS — the ghost walks the cage in figures
                ];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
@@ -6493,7 +6508,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'minkowski', 'boltzmann',
                     'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta', 'aurora', 'cochlea', 'coriolis', 'seismic', 'tides', 'vortex', 'plateau', 'escapement', 'hubble',
                     'nave', 'plotter', 'spectral',
-                    'fluid', 'quartet'];
+                    'fluid', 'quartet',
+                    'glass'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6679,6 +6695,8 @@ const SCENE_TASTE = {
   fluid: { energy: 0.6, beat: 0.5, bass: 0.4, entropy: 0.3, calm: -0.2 },   // water wants to be stirred: energy to dance to, onsets to splash on, bass to whirl
   // ↑ fluid · quartet ↓
   quartet: { beat: 0.5, bass: 0.4, mid: 0.4, energy: 0.2, entropy: -0.2 },   // the band, seen: a kit to bead, a bassline and a voice to draw, an arrangement clear enough to read
+  // ↑ quartet · glass ↓
+  glass: { calm: 0.6, treble: 0.6, entropy: -0.4 },   // clear glass wants clear air and sparkle
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -7974,6 +7992,8 @@ const SCENE_SIGS = {
   fluid: { kind: 'ribbon', h: 200, arms: 3 },   // three ribbons of ink, curling
   // ↑ fluid · quartet ↓
   quartet: { kind: 'ribbon', h: 170, arms: 4 },   // four strands, one per player
+  // ↑ quartet · glass ↓
+  glass: { kind: 'ring', h: 300, twist: 1 },   // a cage of rods and beads
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -61301,6 +61321,228 @@ function buildQuartet(){
 }
 /* ==== END ROOM REGION: QUARTET ==== */
 
+/* ==== ROOM REGION: GLASS — builder owns everything between these fences ==== */
+/* =========================================================
+   SCENE 125 · GLASS — the lattice you can see through
+
+   A polyhedron built the way a glassblower would build it:
+   every edge a clear tube, every vertex a lit bead, and the
+   whole cage nested inside itself so the eye falls through
+   frame after frame toward a warm core. Nothing here is a
+   texture — the tubes are signed distances folded through the
+   polyhedral mirror group (one edge and one bead stand for all
+   of them), and the glass is honest optics in miniature: the
+   ray is marched THROUGH each tube, entering and leaving, and
+   at every surface Schlick's Fresnel decides how much of the
+   studio it reflects, so the tubes are nearly invisible face-on
+   and bright at the grazing edge, exactly as glass is. THE CAGE
+   is the dodecahedron, THE CUBE the infinity cube, THE STAR the
+   icosidodecahedron — each three frames deep. The TV's twin is
+   Shaders45.metal (room_glass, namespace rm_gl).
+   ========================================================= */
+function buildGlass(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeGl:{ value: 0 },
+    uSpin:  { value: 0 },
+    uBreath:{ value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeGl, uVarA, uAspect, uSpin, uBreath;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    mat3 rotY(float a){ float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
+    mat3 rotX(float a){ float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
+
+    // the mirror group: N = 5 icosahedral, N = 4 octahedral (Knighty's fold)
+    vec3 gNc, gV, gE, gU1, gU2;
+    float gTube, gBead, gBund, gL;
+    mat3 gR[3];
+    float gS[3];
+    // one frame: fold into the fundamental domain, then ONE vertex stands
+    // for every vertex and ONE half-edge — a bundle of three glass rods
+    // running to the mirror, where its reflection meets it — for every edge
+    vec2 frame(vec3 p){
+      for (int i = 0; i < 5; i++){
+        p.xy = abs(p.xy);
+        p -= 2.0 * min(0.0, dot(p, gNc)) * gNc;
+      }
+      vec3 q = p - gV;
+      float along = clamp(-dot(q, gE), 0.0, gL);
+      vec3 w = q + along * gE;
+      vec2 c = vec2(dot(w, gU1), dot(w, gU2));
+      float tube = 1e5;
+      for (int k = 0; k < 3; k++){
+        float th = float(k) * 2.0943951 + 0.5;
+        tube = min(tube, length(c - gBund * vec2(cos(th), sin(th))));
+      }
+      tube -= gTube;
+      float bead = length(q) - gBead;
+      return tube < bead ? vec2(tube, 0.0) : vec2(bead, 1.0);
+    }
+    // three frames deep: x = distance, y = 0 tube / 1 bead, z = depth
+    vec3 mapG(vec3 p){
+      vec3 best = vec3(1e5, 0.0, 0.0);
+      for (int l = 0; l < 3; l++){
+        vec2 d = frame(gR[l] * p / gS[l]) * gS[l];
+        if (d.x < best.x) best = vec3(d, float(l));
+      }
+      return best;
+    }
+    vec3 nrmG(vec3 p){
+      const vec2 e = vec2(0.0025, -0.0025);
+      return normalize(e.xyy * mapG(p + e.xyy).x + e.yyx * mapG(p + e.yyx).x
+                     + e.yxy * mapG(p + e.yxy).x + e.xxx * mapG(p + e.xxx).x);
+    }
+    // the studio the glass reflects: dark, with softboxes — chord light only
+    vec3 studio(vec3 r){
+      vec3 c = ramp(0.60 + 0.08 * r.y) * 0.05;
+      c += ramp(0.82) * exp(-abs(r.y - 0.62) * 9.0) * 1.1;
+      c += ramp(0.35) * exp(-abs(r.x + 0.70) * 8.0) * smoothstep(-0.3, 0.7, r.y + 0.4) * 0.8;
+      c += ramp(0.70) * exp(-abs(r.x - 0.75) * 10.0) * smoothstep(-0.6, 0.4, -r.y) * 0.6;
+      c += vec3(1.0) * pow(max(dot(r, normalize(vec3(0.45, 0.55, 0.70))), 0.0), 60.0) * 1.6;
+      return c;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float m = uModeGl;
+      float N = m > 0.5 && m < 1.5 ? 4.0 : 5.0;
+      float cs = cos(PI / N), ss = sqrt(max(0.75 - cs * cs, 0.0));
+      gNc = vec3(-0.5, -cs, ss);
+      vec3 pab = vec3(0.0, 0.0, 1.0);
+      vec3 pbc = normalize(vec3(ss, 0.0, 0.5));
+      vec3 pca = normalize(vec3(0.0, ss, cs));
+      // which vertex of the domain carries the bead decides the solid
+      gV = m < 1.5 ? pca : pab;
+      // the one live edge of that vertex: toward the y-mirror for the cage and
+      // the cube, toward the third mirror for the star
+      gE = m < 1.5 ? vec3(0.0, 1.0, 0.0) : gNc;
+      gL = dot(gV, gE);
+      gU1 = normalize(gV - gL * gE);
+      gU2 = cross(gE, gU1);
+      gBund = m > 1.5 ? 0.030 : 0.040;
+      gTube = m > 1.5 ? 0.013 : 0.017;
+      gBead = gBund + gTube * 2.3;
+      // the frames nest, each counter-turned; the bass breathes the inner ones
+      float br = uBreath;
+      gS[0] = 1.0;
+      gS[1] = 0.56 * (1.0 + br * 0.10);
+      gS[2] = 0.31 * (1.0 + br * 0.18);
+      float a = uVarA * 6.2831853;
+      gR[0] = mat3(1.0);
+      gR[1] = rotY(0.6 + a * 0.3 - uSpin * 0.9) * rotX(0.35);
+      gR[2] = rotY(-0.9 + uSpin * 1.7) * rotX(-0.5 + a * 0.1);
+
+      // the camera orbits; a hand turns the cage toward itself
+      float yaw = uSpin + a + uHand.x * uHand.z * 1.2;
+      float pit = 0.35 + 0.18 * sin(uSpin * 0.7) - uHand.y * uHand.z * 0.9;
+      mat3 cam = rotY(yaw) * rotX(pit) * rotY(0.52);
+      vec3 ro = cam * vec3(0.0, 0.0, 3.3);
+      vec3 rd = cam * normalize(vec3(p, -2.8));
+
+      vec3 col = vec3(0.0);
+      // one bounding sphere: most of the screen is void and pays nothing
+      float bb = dot(ro, rd), cc = dot(ro, ro) - 1.21;
+      float disc = bb * bb - cc;
+      if (disc > 0.0){
+        float sq = sqrt(disc);
+        float t = max(-bb - sq, 0.0), tEnd = -bb + sq;
+        float trans = 1.0, side = 1.0;
+        vec3 warm = ramp(0.12 + uVarA * 0.1);
+        for (int i = 0; i < 96; i++){
+          vec3 pos = ro + rd * t;
+          vec3 h = mapG(pos);
+          float d = h.x * side;
+          if (d < 0.0012){
+            vec3 n = nrmG(pos) * side;
+            float cosi = clamp(-dot(rd, n), 0.0, 1.0);
+            float F = 0.04 + 0.96 * pow(1.0 - cosi, 5.0);
+            vec3 refl = studio(reflect(rd, n));
+            float depth = h.z;
+            if (h.y > 0.5){
+              // a bead: a lit glass marble, banded like cane
+              float band = pow(0.5 + 0.5 * sin(dot(n, normalize(vec3(0.3, 1.0, 0.2))) * 9.0 + uTime * 0.6), 3.0);
+              vec3 bc = ramp(0.86 - depth * 0.30 + uVarA * 0.05);
+              float lit = 0.8 + uBeat * 0.6 + uTreble * 0.3;
+              vec3 e = bc * (0.30 + 0.9 * band) * lit;
+              e = mix(e, vec3(1.0), 0.35 * band * cosi * cosi);
+              col += trans * (e * (0.35 + 0.65 * cosi) + refl * F * 1.4 + bc * pow(1.0 - cosi, 3.0) * 0.5);
+              trans *= 0.45;
+            } else {
+              // a tube: clear glass — the studio at the grazing edge, a whisper of tint
+              vec3 tint = ramp(0.78 - depth * 0.28);
+              float rim = pow(1.0 - cosi, 2.0);
+              col += trans * (refl * F * (side > 0.0 ? 1.3 : 0.8) + tint * (0.03 + rim * 0.30));
+              trans *= side > 0.0 ? 0.90 : 0.94;
+            }
+            side = -side;
+            t += 0.004;
+          } else {
+            float st = max(d * 0.85, 0.004);
+            // the warm core the frames fall toward
+            float r2 = dot(pos, pos);
+            col += trans * warm * (exp(-r2 * 30.0) * 2.2 + exp(-r2 * 6.0) * 0.25) * st * (1.0 + uBass * 1.2);
+            t += st;
+          }
+          if (t > tEnd || trans < 0.03) break;
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.010;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE CAGE', m: 0 },
+    { name: 'THE CUBE', m: 1 },
+    { name: 'THE STAR', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'GLASS', key: 'glass', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the cage turns with the phrase; the inner frames breathe on the bass
+      varU.uSpin.value += dt * (0.10 + (f.energy || 0) * 0.16);
+      varU.uBreath.value += ((f.bass || 0) - varU.uBreath.value) * Math.min(1, dt * 3);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 4), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeGl.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'GLASS · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: GLASS ==== */
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -61348,7 +61590,8 @@ function initThree(){
               buildMinkowski(), buildBoltzmann(),
               buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta(), buildAurora(), buildCochlea(), buildCoriolis(), buildSeismic(), buildTides(), buildVortex(), buildPlateau(), buildEscapement(), buildHubble(),
               buildNave(), buildPlotter(), buildSpectral(),
-              buildFluid(), buildQuartet());
+              buildFluid(), buildQuartet(),
+              buildGlass());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder
