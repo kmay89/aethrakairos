@@ -6733,25 +6733,108 @@ function roomMood(o){
    leans the hand and the ghost take when the mood overrules the scene's own
    map, and `chroma` is what the colour engine adds to its saturation. */
 const MOODS = {
-  adrift:   { bias: { calm: 1.2, energy: -0.8 },   dwell: 1.35, touch: 'flows',     ghost: 'drift',  chroma: -0.10 },
+  adrift:   { bias: { calm: 1.2, energy: -0.8 },   dwell: 1.50, touch: 'flows',     ghost: 'drift',  chroma: -0.10 },
   ascend:   { bias: { energy: 0.8, beat: 0.5 },    dwell: 0.95, touch: 'gathers',   ghost: 'lissa',  chroma:  0.05 },
   drive:    { bias: { beat: 1.0, bass: 0.6 },      dwell: 1.00, touch: 'blackhole', ghost: 'bounce', chroma:  0.00 },
-  apex:     { bias: { energy: 1.4, beat: 1.0 },    dwell: 0.60, touch: 'grows',     ghost: 'drift',  chroma:  0.14 },
-  swarm:    { bias: { entropy: 1.4, treble: 0.5 }, dwell: 0.85, touch: 'flows',     ghost: 'paint',  chroma:  0.07 },
-  dissolve: { bias: { calm: 1.0, entropy: 0.4 },   dwell: 1.45, touch: 'flows',     ghost: 'snake',  chroma: -0.06 },
+  apex:     { bias: { energy: 1.4, beat: 1.0 },    dwell: 0.80, touch: 'grows',     ghost: 'drift',  chroma:  0.14 },
+  swarm:    { bias: { entropy: 1.4, treble: 0.5 }, dwell: 0.90, touch: 'flows',     ghost: 'paint',  chroma:  0.07 },
+  dissolve: { bias: { calm: 1.0, entropy: 0.4 },   dwell: 1.60, touch: 'flows',     ghost: 'snake',  chroma: -0.06 },
 };
 
 /* HOW LONG A ROOM HOLDS. Busy material turns over faster than quiet material;
    the mood scales that; and a section the structure has capped stretches it,
    because a passage the music is holding back is the last thing that should be
    cut to pieces by a timer which cannot hear it. */
-const ROOM_DWELL = { min: 16, max: 46, floor: 7 };
+const ROOM_DWELL = { min: 24, max: 64, floor: 14 };
 function roomDwell(o){
   const s = o || {};
   const m = MOODS[s.mood] || MOODS.drive;
   const base = ROOM_DWELL.max - (ROOM_DWELL.max - ROOM_DWELL.min) * clamp01(s.energy || 0);
   const held = 1.25 - 0.25 * clamp01(s.ceil == null ? 1 : s.ceil);
-  return Math.max(ROOM_DWELL.floor, base * m.dwell * held);
+  const sec = Math.max(ROOM_DWELL.floor, base * m.dwell * held);
+  // a reduced-motion viewer asked for less happening, which includes fewer rooms
+  return s.reduced ? sec * 1.5 : sec;
+}
+
+/* …AND IN WHOLE PHRASES. A dwell measured in seconds ends somewhere in the
+   middle of a phrase, and a change that lands mid-phrase reads as a timer
+   going off whatever the segue does to dress it. So the want is rounded to
+   the nearest whole phrase (eight bars; two seconds a bar when the song has
+   no grid) and never fewer than two of them: the shortest room anyone sees
+   is a verse's worth, even at the apex. `actDwell` is the story's own
+   multiplier (ACTS[act].dwell), folded in here so the rounding sees the
+   whole want and not a part of it. */
+function roomDwellBars(o){
+  const s = o || {};
+  const sec = roomDwell(s) * (s.actDwell == null ? 1 : Math.max(0.1, s.actDwell));
+  const bar = s.barLen > 0 ? s.barLen : 2.0;
+  const phrase = 8 * bar;
+  return Math.max(2 * phrase, Math.round(sec / phrase) * phrase);
+}
+
+/* THE PACE — the one rule every automatic room change answers to.
+
+   Six different things can ask for a new room (the dwell clock, a section
+   turning, a drop, the kit's return, the mixer's seam, a surge, the idle
+   gallery) and until this gate nothing coordinated them: each one checked
+   only that the last crossfade had finished, so three rooms in three seconds
+   was legal around every structural change. The gate is a minimum GAP since
+   the last change, in bars, by act: the calm edges of the arc hold a whole
+   phrase (8 bars), the rising and turning acts half of one, and the apex two
+   bars — the drop may cut, but the drop is one event, not a strobe. A few
+   kinds bend it: a classified drop may come as soon as two bars after
+   anything (the music asked); the mixer's seam IS the boundary (the music
+   changed hands) and keeps only the hard floor; the idle gallery, with
+   nothing playing, waits a minute. The minor changes — a lens swap ('lens'),
+   a mixset's planned room ('mixset') — take the act's own gap. Reduced
+   motion widens every gap by half. Returns { ok, gap, wait } so a caller
+   that is refused knows how long. */
+const PACE = { minGapBars: [8, 4, 2, 4, 8], minGapSec: 6, hardFloorSec: 3, idleDwell: 90, idleGapSec: 60 };
+function paceGate(o){
+  const s = o || {};
+  const bar = s.barLen > 0 ? s.barLen : 2.0;
+  const act = s.act == null || !(s.act >= 0) ? 1 : Math.min(4, s.act | 0);
+  let gap = Math.max(PACE.minGapSec, PACE.minGapBars[act] * bar);
+  if (s.kind === 'drop') gap = Math.min(gap, 2 * bar);
+  else if (s.kind === 'seam') gap = PACE.hardFloorSec;
+  else if (s.kind === 'idle') gap = PACE.idleGapSec;
+  if (s.reduced && s.kind !== 'seam') gap *= 1.5;
+  gap = Math.max(PACE.hardFloorSec, gap);
+  const since = s.since == null ? Infinity : Math.max(0, s.since);
+  return { ok: since >= gap, gap, wait: since >= gap ? 0 : gap - since };
+}
+
+/* THE SURGE — a jump in the short energy against the long one used to ask
+   for a room the moment it crossed 1.35, six seconds into any dwell, which
+   is a crash cymbal's worth of evidence. Now it takes a real surge (1.6×), a
+   room that has had two phrases, a section the structure lets run hot — and
+   not when a loud page is already on its way, because the conductor owns that
+   moment and would deal a second room a bar later. */
+const SURGE = { ratio: 1.6, minPhrases: 2, minCeil: 0.7 };
+function surgeShouldRequest(o){
+  const s = o || {};
+  if (!s.auto || s.phase !== 'peak' || s.aheadLoud) return false;
+  const bar = s.barLen > 0 ? s.barLen : 2.0;
+  const ceil = s.ceil == null ? 1 : s.ceil;
+  return (s.ratio || 0) >= SURGE.ratio && (s.since || 0) >= SURGE.minPhrases * 8 * bar && ceil >= SURGE.minCeil;
+}
+
+/* DEVELOP — a room's second act. A room used to get one roll on the way in
+   and then stand still until it was swapped, which is why the dwells were
+   tuned short: the only way a room could change was to leave it. Now a room
+   that is staying a while is asked to DEVELOP twice on the way through its
+   dwell — at 45 % and at 80 % of the want — easing its variation over two
+   bars rather than snapping, so the eye reads a space evolving and not a
+   cut. `done` is how many steps have fired already; null means not yet. */
+const DEVELOP = { at: [0.45, 0.8], easeBars: 2, lensEveryPhrases: 2 };
+function developPlan(o){
+  const s = o || {};
+  const k = Math.max(0, s.done | 0);
+  if (k >= DEVELOP.at.length) return null;
+  const t = s.want > 0 ? (s.dwell || 0) / s.want : 0;
+  if (!(t >= DEVELOP.at[k])) return null;
+  const bar = s.barLen > 0 ? s.barLen : 2.0;
+  return { step: k, ease: DEVELOP.easeBars * bar };
 }
 
 /* THE DEAL. Weighted by appetite, leaned by the mood, damped by memory, gated
@@ -14265,33 +14348,50 @@ function structureCeiling(struct, p, floor){
 //   iris · bokeh = focus (a gentler build)
 //   iris · rain · transpose = the comedown — focus, weather, a modulation
 // The summit (no ceiling, real heat) deals a STACK. A strained device: always clean.
+//
+// HYSTERESIS. The shelves are read against a live energy that crosses 0.8 or
+// 0.93 many times a minute, and every crossing used to be a new look. With
+// `prev` (the look being held) and `hyst` (LENS_HYST, ±0.08), the look holds
+// unless the energy has moved PAST its threshold by the margin: the shelves
+// are read again at energy ± hyst, and if either reading is still the held
+// look, the held look stands. The salt is the same for all three readings, so
+// the same shelf deals the same member — a change means a different shelf.
+const LENS_HYST = 0.08;
 function pickLens(ctx){
   ctx = ctx || {};
   if (ctx.struggling) return 'none';                        // never tax a strained device
   const ceil = ctx.ceil == null ? 1 : ctx.ceil;
-  const act = ctx.act, energy = ctx.energy == null ? 0 : ctx.energy;
+  const act = ctx.act, live = ctx.energy == null ? 0 : ctx.energy;
   const major = ctx.major !== false;                        // unknown key → treat as bright/major
   const salt = Math.max(0, Math.floor(ctx.salt || 0));
   const deal = shelf => shelf[salt % shelf.length];
-  if (ceil < 0.55 || act === 0 || act === 4) return 'none';  // the hard gate + the arc's edges
-  if (act === 2){                                           // APEX
-    if (ceil > 0.92 && energy > 0.85)                       // THE SUMMIT: two lenses at once
-      return major ? deal(['wave+mirrors', 'mirrors+echo', 'droste+transpose'])
-                   : deal(['mirrors+moire', 'hyperbolic+contour']);
-    if (ceil > 0.72){                                       // …with real headroom
-      if (!major && energy > 0.66) return deal(['moire', 'contour']);   // tense + truly intense
-      if (energy > 0.93) return deal(['prism', 'grating']);             // the hottest bright peak
-      return energy > 0.8 ? deal(['mirrors', 'echo', 'hyperbolic'])     // hypnotic order
-                          : deal(['mirrors', 'hyperbolic']);
+  // the shelves, read at ONE energy
+  const at = energy => {
+    if (ceil < 0.55 || act === 0 || act === 4) return 'none';  // the hard gate + the arc's edges
+    if (act === 2){                                           // APEX
+      if (ceil > 0.92 && energy > 0.85)                       // THE SUMMIT: two lenses at once
+        return major ? deal(['wave+mirrors', 'mirrors+echo', 'droste+transpose'])
+                     : deal(['mirrors+moire', 'hyperbolic+contour']);
+      if (ceil > 0.72){                                       // …with real headroom
+        if (!major && energy > 0.66) return deal(['moire', 'contour']);   // tense + truly intense
+        if (energy > 0.93) return deal(['prism', 'grating']);             // the hottest bright peak
+        return energy > 0.8 ? deal(['mirrors', 'echo', 'hyperbolic'])     // hypnotic order
+                            : deal(['mirrors', 'hyperbolic']);
+      }
+      return deal(['tile', 'stained']);                       // an apex the section holds back
     }
-    return deal(['tile', 'stained']);                       // an apex the section holds back
-  }
-  if (act === 1 && ceil > 0.60){                            // RISING
-    if (energy > 0.72) return deal(['wave', 'droste', 'halftone', 'halftone+prism']);   // a driving build
-    return deal(['iris', 'bokeh']);                                     // a gentler build
-  }
-  if (act === 3 && ceil > 0.60) return deal(['iris', 'rain', 'transpose', 'stained+rain']);  // the comedown
-  return 'none';
+    if (act === 1 && ceil > 0.60){                            // RISING
+      if (energy > 0.72) return deal(['wave', 'droste', 'halftone', 'halftone+prism']);   // a driving build
+      return deal(['iris', 'bokeh']);                                     // a gentler build
+    }
+    if (act === 3 && ceil > 0.60) return deal(['iris', 'rain', 'transpose', 'stained+rain']);  // the comedown
+    return 'none';
+  };
+  const want = at(live);
+  const h = ctx.hyst == null ? 0 : Math.max(0, ctx.hyst);
+  const prev = ctx.prev;
+  if (h > 0 && prev && prev !== want && (at(live + h) === prev || at(live - h) === prev)) return prev;
+  return want;
 }
 
 /* THE SEGUE — a transition manager's two decisions, made pure so the taste is
@@ -14304,14 +14404,26 @@ function pickLens(ctx){
 // (land hard on the hit); the calm edges MELT (a long dissolve); a section
 // change with room to breathe gets a MORPH-length blend; otherwise the blend
 // quickens as the music heats up. Returns { kind, dur } (seconds).
+//
+// The lengths are BARS, not seconds. A morph that took 1.6 s whether the song
+// ran at 84 or 172 BPM was one bar at one tempo and half a bar at the other,
+// and never read as "one phrase becoming the next" at either. Now a cut is a
+// quarter bar, a morph and a running dissolve a bar, a melt two bars — and the
+// seconds follow the tempo (`barLen`; two seconds without a grid). A cut is
+// never shorter than 0.35 s and nothing runs longer than 8 s. Reduced motion
+// lengthens every blend by half and floors a cut at 1.6 s, because the hard
+// cut is the one motion that setting most wants refused.
+const SEGUE_BARS = { cut: 0.25, morph: 1.0, dissolve: 1.0, melt: 2.0, min: 0.35, max: 8 };
 function segueStyle(ctx){
   ctx = ctx || {};
   const act = ctx.act, e = ctx.energy == null ? 0.5 : ctx.energy;
-  if (act === 2 && e > 0.60) return { kind: 'cut', dur: 0.35 };          // the drop: punch on the beat
-  if (act === 0 || act === 4 || e < 0.30) return { kind: 'dissolve', dur: 3.4 };  // calm: melt
-  if (ctx.big) return { kind: 'morph', dur: 1.6 };                        // a section turn: a morph-length blend
-  const dur = Math.max(0.9, Math.min(3.0, 2.6 - e * 1.4));               // hotter → quicker
-  return { kind: 'dissolve', dur };
+  const bar = ctx.barLen > 0 ? ctx.barLen : 2.0;
+  const B = b => Math.max(SEGUE_BARS.min, Math.min(SEGUE_BARS.max, b * bar));
+  const R = d => ctx.reduced ? Math.min(SEGUE_BARS.max, Math.max(1.6, d * 1.5)) : d;
+  if (act === 2 && e > 0.60) return { kind: 'cut', dur: ctx.reduced ? Math.max(1.6, B(SEGUE_BARS.cut)) : B(SEGUE_BARS.cut) };  // the drop: punch on the beat
+  if (act === 0 || act === 4 || e < 0.30) return { kind: 'dissolve', dur: R(B(SEGUE_BARS.melt)) };  // calm: melt
+  if (ctx.big) return { kind: 'morph', dur: R(B(SEGUE_BARS.morph)) };     // a section turn: a morph-length blend
+  return { kind: 'dissolve', dur: R(B(SEGUE_BARS.dissolve * (1.6 - 0.8 * e))) };   // hotter → quicker
 }
 
 /* ---------------------------------------------------------------------------
@@ -14502,6 +14614,22 @@ function dropPoints(struct){
   }
   return out.sort((a, b) => b.strength - a.strength);
 }
+// sectionChangeClass — what KIND of page turn this is, so the director can
+// answer it in proportion. Every boundary used to deal a new room, including
+// a ten-second wobble the hysteresis called a block and the fall into a
+// break where the music is asking for stillness. Now a rise of more than
+// 0.28 into a loud page is a DROP (a cut may come early for it); a change of
+// 0.22 either way, or any loud/quiet flip, is MAJOR (a big change on the
+// phrase); anything smaller is MINOR (a small change that waits its turn);
+// and no page at all is NONE. Pure; the thresholds are the structure's own.
+const SECTION_CHANGE = { major: 0.22, drop: 0.28 };
+function sectionChangeClass(prev, next){
+  if (!prev || !next) return 'none';
+  const rise = (next.energy || 0) - (prev.energy || 0);
+  if (next.loud && rise > SECTION_CHANGE.drop) return 'drop';
+  if (Math.abs(rise) >= SECTION_CHANGE.major || !!prev.loud !== !!next.loud) return 'major';
+  return 'minor';
+}
 // nextDropAfter — the fractional position (0..1) of the first drop strictly
 // ahead of `frac`, or null if none remain. Powers "jump to the next drop". Pure.
 function nextDropAfter(struct, frac){
@@ -14638,12 +14766,20 @@ function stemRGB(w){
    ================================================================ */
 // @syn-start
 const SYN_TUNING = {
-  lookahead: 2.4,      // s — how far ahead of the playhead the script is read
+  lookahead: 2.4,      // s — how far ahead of the playhead the script is read (at least)
+  lookaheadBars: 1.75, // …or this many bars, whichever is longer: a one-bar morph must fit
   dropRise: 0.28,      // the energy rise that makes a boundary a drop (dropPoints' own threshold)
   cutStrength: 0.42,   // a rise this strong lands as a cut; a gentler one morphs
-  cutDur: 0.7,         // s — what a cut actually takes on the glass (the transition forms' own floors)
+  cutDur: 0.7,         // s — what a cut takes with no beat grid to measure it in
   morphDur: 1.4,       // s — and a morph
+  cutBars: 0.25,       // with a grid the cut and the morph are BARS, so they are
+  morphBars: 0.75,     //     the same musical length at every tempo
 };
+/* how far ahead the script is read: the fixed window, or enough bars for a
+   morph to begin a bar early and still complete on the turn */
+function synLookahead(barLen){
+  return Math.max(SYN_TUNING.lookahead, SYN_TUNING.lookaheadBars * (barLen > 0 ? barLen : 0));
+}
 /* the section the playhead is in, named */
 function synSectionAt(struct, frac){
   if (!struct || !struct.ok || !struct.sections || !struct.sections.length) return null;
@@ -14699,7 +14835,9 @@ function synCue(o){
   const a = o && o.ahead;
   if (!a || o.reduced || !a.loud || !(a.rise > 0)) return { fire: false };
   const cut = a.rise >= SYN_TUNING.cutStrength;
-  const dur = cut ? SYN_TUNING.cutDur : SYN_TUNING.morphDur;
+  const bar = o.barLen > 0 ? o.barLen : 0;
+  const dur = bar > 0 ? Math.max(0.35, Math.min(5, (cut ? SYN_TUNING.cutBars : SYN_TUNING.morphBars) * bar))
+                      : (cut ? SYN_TUNING.cutDur : SYN_TUNING.morphDur);
   const slack = o.frame == null ? 0.02 : Math.max(0, Math.min(0.1, o.frame));
   if (a.inSec > dur + slack) return { fire: false, kind: cut ? 'cut' : 'morph', dur, wait: a.inSec - dur };
   return { fire: true, big: true, kind: cut ? 'cut' : 'morph', dur: Math.max(0.2, Math.min(dur, a.inSec + slack)) };
@@ -16818,11 +16956,19 @@ const STEM_LIGHT = {
   tauConf: 1.2,      // s — stems fade in and out of authority, never pop
   gateFloor: 0.35,   // the beat channel with no kit at all
 };
-// s — the kit's return may change the room only once the room has had its say
-const STEM_CUT_DWELL = 10;
+/* THE ROOM'S CUT ON THE KIT'S RETURN is stricter than the LIGHT's landing.
+   The light coils and braces for any return after two seconds away — that is
+   right for a dancer, who should lean into a one-bar fill. A ROOM change on
+   the same evidence cut the field on every fill and every two-bar break,
+   up to thirteen times in a track. So the room asks for a real absence
+   (`away` seconds — a breakdown, not a fill) and a room that has had its
+   say (`dwell`), and then still answers to the pace gate. STEM_CUT_DWELL
+   stays as the name the TV's twin and its parity test know. */
+const STEM_CUT = { dwell: 24, away: 6.0 };
+const STEM_CUT_DWELL = STEM_CUT.dwell;
 function makeStemLightState(){
   return { conf: 0, d: 0, b: 0, v: 0, o: 0, kit: false, away: 0, coil: 0,
-           landed: false, section: 'none', pos: NaN };
+           landed: false, awayAtLand: 0, section: 'none', pos: NaN };
 }
 function stemDigit(str, j){
   const c = str.charCodeAt(j < 0 ? 0 : (j < str.length ? j : str.length - 1)) - 48;
@@ -16882,7 +17028,7 @@ function stemLightStep(st, inp, dt){
   const wasKit = st.kit;
   if (st.kit && dNow < K.kitOff) st.kit = false;
   else if (!st.kit && dNow > K.kitOn) st.kit = true;
-  if (st.kit && !wasKit && st.away >= K.awayMin){ st.landed = true; st.coil = 0; }
+  if (st.kit && !wasKit && st.away >= K.awayMin){ st.landed = true; st.coil = 0; st.awayAtLand = st.away; }
   st.away = st.kit ? 0 : st.away + dt;
   // the coil: the kit is away and the score says it is coming back
   const soon = stemPeak(s.d, i + Math.round(K.aheadA * hz), i + Math.round(K.aheadB * hz));
@@ -16905,6 +17051,7 @@ function stemLightOut(st){
     whiteMul: mix(1, 0.55 + 0.45 * d),
     coil: c * clamp01(st.coil),
     landed: !!st.landed && c > 0.5,
+    awayAtLand: st.awayAtLand > 0 ? st.awayAtLand : 0,   // how long the kit was gone before this landing
   };
 }
 
@@ -21325,7 +21472,13 @@ const MIXSET = {
     if (!cue) return;
     if (cue.scene){
       const i = scenes.findIndex(s => s.key === cue.scene);
-      if (i >= 0 && i !== director.active) director.setScene(i, false);
+      // the plan is a request like any other automatic change: it lands on
+      // the phrase, through the pace gate, with the planned room as its
+      // target — unless AUTO is off, when the plan is the only director left
+      if (i >= 0 && i !== director.active){
+        if (director.auto && typeof SEGUE !== 'undefined') SEGUE.request(true, 'mixset', i);
+        else director.setScene(i, false, 'mixset');
+      }
     }
     if (cue.lens && typeof LENS !== 'undefined' && LENS.labels && (cue.lens in LENS.labels))
       LENS.set(cue.lens, false);
@@ -30148,11 +30301,11 @@ function buildParlor(){
    even in the same scene.
    ================================================================ */
 const ACTS = [
-  { name: 'OVERTURE', heat: 0.15, cam: 1.15, spin: 0.60, dwell: 1.35, warm: -0.05 },
+  { name: 'OVERTURE', heat: 0.15, cam: 1.15, spin: 0.60, dwell: 1.60, warm: -0.05 },
   { name: 'RISING',   heat: 0.45, cam: 1.00, spin: 1.00, dwell: 1.00, warm:  0.00 },
-  { name: 'APEX',     heat: 1.00, cam: 0.82, spin: 1.60, dwell: 0.62, warm:  0.06 },
-  { name: 'TURN',     heat: 0.65, cam: 0.95, spin: 1.20, dwell: 0.85, warm:  0.03 },
-  { name: 'RESOLVE',  heat: 0.25, cam: 1.18, spin: 0.55, dwell: 1.45, warm: -0.07 },
+  { name: 'APEX',     heat: 1.00, cam: 0.82, spin: 1.60, dwell: 0.80, warm:  0.06 },
+  { name: 'TURN',     heat: 0.65, cam: 0.95, spin: 1.20, dwell: 0.95, warm:  0.03 },
+  { name: 'RESOLVE',  heat: 0.25, cam: 1.18, spin: 0.55, dwell: 1.70, warm: -0.07 },
 ];
 
 /* ================================================================
@@ -31621,6 +31774,61 @@ const COLOR = {
 };
 
 /* ================================================================
+   DEVELOP — how a room changes WITHOUT being left.
+   Every room rolls its variation (uVarA/B/C, the dice its shader reads)
+   once on the way in and then stood still until the director swapped
+   it, which is why the dwells were tuned short: the only change on
+   offer was a cut. sceneDevelop gives every room a second way:
+   rollEased(sec) deals fresh dice and TWEENS the uniforms toward them
+   over `sec` seconds (τ = sec/3, so the move is all but done at `sec`
+   and never snaps), inside the room's own update — the room breathes
+   into another of its forms while the music plays on. It is generic
+   and safe for every room: the dice are found by walking the room's
+   materials (matU keeps them by reference), a room that owns none gets
+   a rollEased that does nothing and says so, the room's own roll() on
+   entry cancels a tween in flight, and the tween steps BEFORE the
+   room's update so a room that drives a die itself each frame keeps
+   the last word. The dice are the ONLY road, on purpose: the TV's
+   Director tweens the same three values (VizUniforms roll0..2), so a
+   development here is a development there.
+   ================================================================ */
+function sceneDevelop(s){
+  if (!s || typeof s.rollEased === 'function' || !s.group || typeof s.group.traverse !== 'function') return;
+  const dice = [], seen = new Set();
+  s.group.traverse(o => {
+    const u = o.material && o.material.uniforms;
+    if (!u) return;
+    for (const k of ['uVarA', 'uVarB', 'uVarC']){
+      const v = u[k];
+      if (v && typeof v.value === 'number' && !seen.has(v)){ seen.add(v); dice.push(v); }
+    }
+  });
+  let tween = null;                                    // { to: [...], tau } while a second act is in flight
+  const update = s.update;
+  s.update = function(dt){
+    if (tween){
+      const k = 1 - Math.exp(-(dt > 0 ? dt : 0) / tween.tau);
+      let settled = true;
+      for (let i = 0; i < dice.length; i++){
+        const v = dice[i], t = tween.to[i];
+        v.value += (t - v.value) * k;
+        if (Math.abs(t - v.value) > 0.002) settled = false;
+      }
+      if (settled) tween = null;
+    }
+    return typeof update === 'function' ? update.apply(this, arguments) : undefined;
+  };
+  const roll = s.roll;
+  if (typeof roll === 'function') s.roll = function(){ tween = null; return roll.apply(this, arguments); };
+  s.rollEased = function(sec){
+    if (!dice.length) return false;
+    tween = { to: dice.map(() => Math.random()), tau: Math.max(0.5, (sec > 0 ? sec : 4) / 3) };
+    return true;
+  };
+  s.developDice = dice.length;                         // the probes read how many dice a room owns
+}
+
+/* ================================================================
    DIRECTOR — reads AE.f, chooses scene / palette / camera
    ================================================================ */
 const director = {
@@ -31630,7 +31838,12 @@ const director = {
   // is built hidden, so that early return used to leave the field empty.
   active: -1, prev: -1,
   transT: 1,                 // 0→1 opacity crossfade progress
-  dwell: 0, minDwell: 18, maxDwell: 45,
+  dwell: 0,                  // seconds in this room; the want is roomDwellBars (ROOM_DWELL × mood × act, in phrases)
+  dwellWant: 0,              // that want, kept for the develop plan and the probes
+  sinceChange: 0,            // seconds since the last room change, whoever asked — the pace gate's clock (PACE)
+  _developed: 0, _developPend: null, _developWait: 0,   // the room's second act (DEVELOP / developTick)
+  _aheadLoud: false,         // a loud page within the conductor's window — the surge stands down for it
+  wallDt: 0, _lastA: NaN, _lastW: NaN,   // the pacing clock's last step and its two readings (see _tickClock)
   pal: 0, palFrom: 0, palTo: 0, palT: 1,
   phase: 'flow',             // flow | peak | break
   camTheta: 0, camPhi: 1.2, camRadius: 30, camTargetR: 30,
@@ -31652,7 +31865,7 @@ const director = {
     el.chipAuto.classList.toggle('on', on);
     if (on){ this.dwell = 0; toast(T('Auto director on')); }
   },
-  setScene(i, manual){
+  setScene(i, manual, kind){
     if (i === this.active && this.transT >= 1) { if (manual) this.setAuto(false); return; }
     if (manual) this.transDur = 1.0;           // a hand on the wheel gets a snappy blend; the SEGUE sets its own
     /* THE CUT IS DECIDED BEFORE ANYTHING MOVES. XFORM has to photograph the
@@ -31669,6 +31882,22 @@ const director = {
        one second of double work rather than three and a half. */
     else if ((typeof PERF !== 'undefined' && PERF.struggling) || (typeof POWER !== 'undefined' && !POWER.heavyOK))
       this.transDur = Math.min(this.transDur, 1.1);
+    /* REDUCED MOTION FLOORS EVERY CUT, on every path. The stem path used to be
+       the only one that did, so an apex page turn still landed as a 0.35-s
+       opacity cut on a viewer who asked for less motion. XFORM has already
+       stood down here (it never takes a cut under reduced motion), so this is
+       the plain crossfade, and 1.6 s is the shortest it gets. */
+    if (!hard && reducedMotion) this.transDur = Math.max(this.transDur, 1.6);
+    /* THE PROBES' LEDGER: when, why, how long since the last one and how long
+       it takes — what a pacing probe asserts against. Capped; a night is long. */
+    try {
+      const log = window.__mb8Changes || (window.__mb8Changes = []);
+      log.push({ t: performance.now() / 1000, kind: manual ? 'manual' : (kind || 'auto'),
+                 gap: this.active < 0 ? 0 : this.sinceChange, dur: this.transDur, from: this.active, to: i });
+      if (log.length > 400) log.splice(0, log.length - 400);
+    } catch (e){}
+    this.sinceChange = 0;                              // every gate counts from here
+    this._developed = 0; this._developPend = null;     // a new room tells its own story from the start
     this.prev = this.active;
     this.active = i;
     this.transT = 0;
@@ -31707,6 +31936,55 @@ const director = {
   rotatePalette(to){
     this.palFrom = this.pal; this.palTo = to; this.palT = 0;
   },
+  /* THE PACING CLOCK. The frame's dt is clamped to a tenth of a second (a
+     tab-away must not integrate an hour), so on a slow renderer — one frame a
+     second on a software GPU — everything integrated from it ran at a tenth
+     of wall time: a dwell of thirty seconds took five minutes, a cut sized
+     to land on the drop landed long after it. The dwell, the gap since the
+     last change, the queue's patience, the crossfade and the lens hold all
+     step by THIS instead: the audio clock's own delta while it runs (the
+     music's time is the only time a cut can land on), the wall clock when
+     there is no context or it is suspended, bounded to a second so a
+     resumed tab is not a time machine. Rooms' motion keeps the frame dt. */
+  _tickClock(){
+    const ctx = typeof AE !== 'undefined' ? AE.ctx : null;
+    const w = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    const a = ctx && ctx.state === 'running' ? ctx.currentTime : NaN;
+    const d = isFinite(a) && isFinite(this._lastA) ? a - this._lastA
+            : (isFinite(this._lastW) ? w - this._lastW : 0);
+    this._lastA = a; this._lastW = w;
+    this.wallDt = Math.min(1.0, Math.max(0, d));
+    return this.wallDt;
+  },
+  /* THE BAR, in seconds — the unit every pacing rule is written in. Four beats
+     of the media clock's period under a grid; two seconds (a 120-BPM bar) when
+     the song has none, so the rules still mean something for a local file. */
+  barLen(){
+    return (typeof CLOCK !== 'undefined' && CLOCK.haveGrid && CLOCK.period > 0.1) ? CLOCK.period * 4 : 2.0;
+  },
+  /* THE ROOM'S SECOND ACT lands here, phrase-locked. developPlan (in update)
+     decided a step is owed; this applies it on the next phrase wrap — the next
+     onset with no grid, or after eight bars of waiting — so the room breathes
+     into its new form on the music's own line. The step always acts through
+     the room's shared variation dice (sceneDevelop's rollEased over uVarA/B/C,
+     which the TV's VizUniforms roll0..2 mirror), never through anything only
+     one stage could do; and the lens and the ghost are re-dealt with it, so
+     the glass and the phantom hand move with the room's story rather than on
+     clocks of their own. */
+  developTick(dt, phraseWrapped, grid){
+    const dp = this._developPend;
+    if (!dp) return;
+    this._developWait += dt;
+    const onset = typeof AE !== 'undefined' && AE.f && AE.f.onset;
+    if (!(phraseWrapped || (!grid && onset) || this._developWait >= 8 * this.barLen())) return;
+    this._developPend = null;
+    const s = scenes[this.active];
+    if (!s) return;
+    if (typeof s.rollEased === 'function') s.rollEased(dp.ease);
+    if (typeof LENS !== 'undefined' && LENS.active === 'auto') LENS._holdT = 0;   // the glass is re-dealt with the step
+    if (typeof GHOST !== 'undefined') GHOST.autoRoll(this.active);               // …and the ghost's choreography
+    window.__mb8Develops = (window.__mb8Develops || 0) + 1;                      // the probes count the steps
+  },
 
   /* WHICH ROOM NEXT. All the taste is in the pure block now (dealScene): each
      scene's declared appetite, scored against the live features, leaned by the
@@ -31724,7 +32002,7 @@ const director = {
     const ad = activeDeck();
     const dur = ad && isFinite(ad.a.duration) && ad.a.duration > 0 ? ad.a.duration : (tr && tr.duration) || 0;
     const prog = this.trackProg == null ? 0.5 : this.trackProg;
-    const ahead = st ? synAhead(st, prog, dur, SYN_TUNING.lookahead) : null;
+    const ahead = st ? synAhead(st, prog, dur, synLookahead(this.barLen())) : null;   // the SEGUE's own window
     const here = st ? synSectionAt(st, prog) : null;
     const feat = ahead ? synFeatAhead(AE.f, ahead) : AE.f;
     const sec = ahead ? ahead.i : (here ? here.i : 0);
@@ -31746,6 +32024,7 @@ const director = {
 
   update(dt){
     const f = AE.f;
+    const wdt = this._tickClock();   // the pacing clock's step this frame (not the clamped dt)
 
     // ---- story acts: where are we in this track's ACTUAL arc? ----
     // The song's structure (read from the waveform) says where the drop really
@@ -31768,10 +32047,15 @@ const director = {
         const a = st.apex;                             // centre the acts on the real climax
         na = prog < a - 0.28 ? 0 : prog < a - 0.05 ? 1 : prog < a + 0.12 ? 2 : prog < a + 0.30 ? 3 : 4;
         ceil = structureCeiling(st, prog);             // the intensity the music actually earns here
+        // is a loud page already on its way? then the surge stands down for the conductor
+        const dd = ad && isFinite(ad.a.duration) && ad.a.duration > 0 ? ad.a.duration : 0;
+        const ah = synAhead(st, prog, dd, synLookahead(this.barLen()));
+        this._aheadLoud = !!(ah && ah.loud);
       } else {
         const push = clamp((f.eShort / Math.max(0.0001, f.eLong) - 1) * 0.12, -0.08, 0.08);
         const p = clamp(prog + push, 0, 1);
         na = p < 0.10 ? 0 : p < 0.42 ? 1 : p < 0.70 ? 2 : p < 0.88 ? 3 : 4;
+        this._aheadLoud = false;
       }
       this.ceil = ceil;
       if (na !== this.act){
@@ -31808,13 +32092,18 @@ const director = {
     const newPhase = ratio > 1.35 ? 'peak' : ratio < 0.7 ? 'break' : 'flow';
     if (newPhase !== this.phase){
       this.phase = newPhase;
-      // a surge into a peak WANTS a fresh scene — but the SEGUE lands it on the
-      // music (the next downbeat), not the instant the ratio crossed
-      if (this.auto && newPhase === 'peak' && this.dwell > 6) SEGUE.request(false);
+      // a surge into a peak WANTS a fresh scene — but only a real surge, in a
+      // room that has had two phrases, under a ceiling the structure lets run
+      // hot, and never with a loud page already on its way (the conductor owns
+      // that moment); the SEGUE still lands it on the music, through the gate
+      if (surgeShouldRequest({ auto: this.auto, phase: newPhase, ratio, since: this.sinceChange,
+                               barLen: this.barLen(), ceil: this.ceil, aheadLoud: this._aheadLoud }))
+        SEGUE.request(false, 'surge');
     }
-    // scene crossfade
+    // scene crossfade — on the pacing clock, so a cut sized to land on the
+    // drop lands on it however slowly the renderer is drawing
     if (this.transT < 1){
-      this.transT = Math.min(1, this.transT + dt / Math.max(0.2, this.transDur || 2.5));
+      this.transT = Math.min(1, this.transT + wdt / Math.max(0.2, this.transDur || 2.5));
       if (this.prev >= 0 && this.transT >= 1){ scenes[this.prev].group.visible = false; this.prev = -1; }
       if (this.transT >= 1) XFORM.end();
     }
@@ -31856,14 +32145,34 @@ const director = {
     }
     // auto scene switching: the dwell decides a change is DUE; the SEGUE decides
     // the moment (the next downbeat / phrase / section) and the feel — so cuts
-    // land on the music, not mid-phrase
-    this.dwell += dt;
+    // land on the music, not mid-phrase. The range is ROOM_DWELL (24–64 s by
+    // energy, floored at 14), scaled by the mood and the act and rounded to
+    // whole phrases (roomDwellBars); the gap between ANY two changes, from
+    // whatever asked, is PACE's (paceGate, read in the SEGUE).
+    this.dwell += wdt;
+    this.sinceChange += wdt;
     if (this.auto){
+      const barLen = this.barLen();
+      // the music is live when it plays, or when the mic is the music
+      const live = player.playing || !!(typeof AE !== 'undefined' && AE.mic && AE.mic.on);
       // how long this room deserves: the mood sets the pace, the energy sets the
-      // turnover, and the structure's ceiling stretches a passage being held back
-      const want = roomDwell({ mood: this.mood, energy: f.energy, ceil: this.ceil })
-        * ACTS[this.act >= 0 ? this.act : 1].dwell;
-      if (this.dwell > want || !player.playing) SEGUE.request(false);
+      // turnover, the structure's ceiling stretches a passage being held back,
+      // the act lingers or presses — and the whole want is a count of phrases
+      const want = roomDwellBars({ mood: this.mood, energy: f.energy, ceil: this.ceil, reduced: reducedMotion,
+                                   actDwell: ACTS[this.act >= 0 ? this.act : 1].dwell, barLen });
+      this.dwellWant = want;
+      /* PAUSED IS NOT A REASON. The old clause asked for a change on every
+         frame the music was not playing, and the four-second max-wait then
+         toured the gallery at a walk — the opposite of letting a room be. An
+         idle field changes at most every PACE.idleDwell, and even that goes
+         through the gate's own idle gap. */
+      if (live ? this.dwell > want : this.dwell > PACE.idleDwell) SEGUE.request(false, live ? 'dwell' : 'idle');
+      // the room's second act: owed at 45 % and 80 % of the way through the
+      // want, applied by developTick on the next phrase line
+      if (live && !this._developPend){
+        const dp = developPlan({ dwell: this.dwell, want, barLen, done: this._developed });
+        if (dp){ this._developed++; this._developPend = dp; this._developWait = 0; }
+      }
       // palette drift
       this.palDwell = (this.palDwell || 0) + dt;
       if (this.palDwell > 22 && this.palT >= 1 && !COLOR.on){
@@ -31871,7 +32180,7 @@ const director = {
         this.palDwell = 0;
       }
     }
-    SEGUE.tick(dt);   // fire any queued scene change when the music says it's time
+    SEGUE.tick(wdt);  // fire any queued scene change when the music says it's time (its patience runs on the pacing clock)
     // palette lerp
     if (this.palT < 1){
       this.palT = Math.min(1, this.palT + dt / 4);
@@ -31975,12 +32284,41 @@ const director = {
    unit-tested segueStyle / segueShouldFire. ================ */
 const SEGUE = {
   pending: false, big: false, waited: 0, lastKind: '',
+  kind: 'dwell',                             // WHY the queued change was asked for — the pace gate reads it
+  target: -1,                                // WHICH room, when the asker named one (a mixset's plan); else the deal's
   _lastBar: 0, _lastPhrase: 0, _lastSection: -1,
   seam: null, seams: 0,                      // a change cued on the audio clock by the mixer
 
-  request(big){
-    if (!this.pending){ this.pending = true; this.big = !!big; this.waited = 0; }
-    else if (big){ this.big = true; }        // an upgrade to a bigger change keeps the queue
+  /* a change is asked for WITH A REASON (dwell | section | drop | stem | seam |
+     surge | idle), because the pace gate answers each reason differently. An
+     upgrade to a bigger change keeps the queue and takes the bigger reason. */
+  request(big, kind, target){
+    if (!this.pending){
+      this.pending = true; this.big = !!big; this.waited = 0; this.kind = kind || (big ? 'section' : 'dwell');
+      this.target = target == null ? -1 : target;
+    } else if (big){
+      if (!this.big || kind === 'drop') this.kind = kind || 'section';
+      this.big = true;
+      if (target != null) this.target = target;
+    }
+  },
+  /* THE GOVERNOR, asked for this frame: has enough music gone by since the
+     last change for THIS kind of change? (paceGate, in the pure block.) Every
+     automatic path below asks it; none of them used to. */
+  _gate(kind, barLen){
+    return paceGate({ since: director.sinceChange, act: director.act, barLen, kind, reduced: reducedMotion });
+  },
+  /* ONE LANDING, whoever asked. The length and the FORM are set, the room is
+     dealt (with the reason, for the probes' ledger), the dwell starts again
+     and the queue is cleared — the same lines every path used to carry. */
+  _land(kind, formKind, dur){
+    director.transDur = dur;
+    director.transKind = formKind;
+    const to = this.target >= 0 && this.target < scenes.length ? this.target : director.pickScene();
+    director.setScene(to, false, kind);
+    director.dwell = 0;
+    this.lastKind = formKind;
+    this.pending = false; this.big = false; this.waited = 0; this.target = -1;
   },
   /* THE MIXER'S CUE. `at` is the seam's origin on the audio clock; the change
      lands `delay` after it. Null withdraws a cue (the seam was cancelled). */
@@ -31991,26 +32329,27 @@ const SEGUE = {
     this.seam = { at: (at != null ? at : AE.ctx.currentTime) + cue.delay, big: cue.big, dur: cue.dur, type: plan.type };
   },
   tick(dt){
+    const barLen = director.barLen();
     // a seam's cue outranks the dwell clock and the bar wait: the music itself
     // is the boundary, and it is on the grid by construction. A crossfade still
     // running when the cue lands is let finish first — it advances by frame
     // time, and on a slow renderer a three-second dissolve is seven seconds of
-    // wall clock — and only a cue nobody could take for twelve seconds is dropped
+    // wall clock — and only a cue nobody could take for thirty seconds is dropped.
+    // The gate keeps its hard floor even here: the music changed hands, but two
+    // rooms three seconds apart are still two rooms.
     if (this.seam && director.auto && AE.ctx && AE.ctx.currentTime >= this.seam.at){
       if (!this.seam.due){ this.seam.due = true; this.seam.waited = director.transT < 1; this.seam.dueT = director.transT; }
-      if (director.transT < 1 && AE.ctx.currentTime <= this.seam.at + 30) return;   // let the running crossfade finish
+      const sg = this._gate('seam', barLen);
+      if ((director.transT < 1 || !sg.ok) && AE.ctx.currentTime <= this.seam.at + 30) return;   // let the running crossfade finish
       const sm = this.seam; this.seam = null;
-      window.__mb8SeamCue = { late: AE.ctx.currentTime - sm.at, waited: sm.waited, transT: sm.dueT, fired: director.transT >= 1 };
-      if (director.transT >= 1){
+      const took = director.transT >= 1 && sg.ok;
+      window.__mb8SeamCue = { late: AE.ctx.currentTime - sm.at, waited: sm.waited, transT: sm.dueT, fired: took };
+      if (took){
         window.__mb8SeamSceneLate = AE.ctx.currentTime - sm.at;   // how far past the cue it landed
         window.__mb8SeamSceneWaited = !!sm.waited;                // …because a crossfade was still running
-        const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: sm.big });
-        director.transDur = sm.dur;
-        director.transKind = sm.big ? style.kind : 'dissolve';
-        director.setScene(director.pickScene(), false);
-        director.dwell = 0;
-        this.lastKind = director.transKind; this.seams++;
-        this.pending = false; this.big = false; this.waited = 0;
+        const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: sm.big, barLen, reduced: reducedMotion });
+        this._land('seam', sm.big ? style.kind : 'dissolve', sm.dur);
+        this.seams++;
         window.__mb8SeamScene = this.seams;
       }
     } else if (this.seam && !director.auto) this.seam = null;
@@ -32018,16 +32357,14 @@ const SEGUE = {
        light saw coming two seconds early — the dancer braced, the colour
        inhaled — and the room changes ON the landing, a cut on the one when
        the song is hot, the segue's own form otherwise. Only a room that has
-       had its say (STEM_CUT_DWELL); a seam cue outranks it. */
+       had its say (STEM_CUT_DWELL), only after a real absence (STEM_CUT.away:
+       a breakdown, not a fill — the light lands on less, the room does not),
+       and only through the gate; a seam cue outranks it. */
     if (director.auto && director.transT >= 1 && !this.seam && player.playing
-        && typeof STEMS !== 'undefined' && STEMS.out.landed && director.dwell >= STEM_CUT_DWELL){
-      const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: true });
-      director.transDur = reducedMotion ? Math.max(style.dur, 1.6) : style.dur;
-      director.transKind = reducedMotion ? 'dissolve' : style.kind;
-      director.setScene(director.pickScene(), false);
-      director.dwell = 0;
-      this.lastKind = director.transKind;
-      this.pending = false; this.big = false; this.waited = 0;
+        && typeof STEMS !== 'undefined' && STEMS.out.landed && director.dwell >= STEM_CUT_DWELL
+        && STEMS.out.awayAtLand >= STEM_CUT.away && this._gate('stem', barLen).ok){
+      const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: true, barLen, reduced: reducedMotion });
+      this._land('stem', reducedMotion ? 'dissolve' : style.kind, style.dur);
       window.__mb8StemCue = (window.__mb8StemCue || 0) + 1;      // the probes count the landings
     }
     const grid = typeof CLOCK !== 'undefined' && CLOCK.haveGrid;
@@ -32036,35 +32373,45 @@ const SEGUE = {
     const tr = player.tracks[player.cur];
     const st = tr && trackStructure(tr);
     const trId = tr ? (tr.sha256 || tr.url || tr.id) : null;
-    if (trId !== this._cuedTrack){ this._cuedTrack = trId; this._cuedSection = -1; }
+    // a new track is a new script: no page of it has been left yet, so its
+    // first section is not a turn (the mixer's seam cue owns the handover)
+    if (trId !== this._cuedTrack){ this._cuedTrack = trId; this._cuedSection = -1; this._lastSection = -1; }
     if (st && st.ok && st.sections && st.sections.length){
       const p = director.trackProg == null ? 0.5 : director.trackProg;
       let si = -1;
       for (let k = 0; k < st.sections.length; k++){ const s = st.sections[k]; if (p >= s.s && p < s.e){ si = k; break; } }
       if (si !== -1){
-        if (this._lastSection !== -1 && si !== this._lastSection){ sectionBoundary = true; this.request(true); }
+        /* WHAT KIND OF PAGE. Every boundary used to deal a room, including the
+           ten-second wobble and the fall into a break. sectionChangeClass says
+           which it is: a drop or a major turn asks for a big change (on the
+           phrase, or now if the gate is open); a minor one asks for a small
+           change that waits its turn; and a request the gate refuses stays
+           queued — it lands on the first line after the gate opens. */
+        if (this._lastSection !== -1 && si !== this._lastSection){
+          const cls = sectionChangeClass(st.sections[this._lastSection], st.sections[si]);
+          if (cls === 'drop' || cls === 'major'){ sectionBoundary = true; this.request(true, cls === 'drop' ? 'drop' : 'section'); }
+          else if (cls === 'minor') this.request(false, 'section');
+        }
         this._lastSection = si;
       }
       /* THE CONDUCTOR'S CUE. A drop is not reacted to at the boundary; it is
          arrived WITH. The script ahead says a louder page is coming and how
          soon (synAhead); synCue says whether a change fired on this frame
          would LAND on it — a strong rise as a cut on the one, a gentler one as
-         a morph that completes as the page turns. Fired, the boundary itself
-         is spent: the page turn must not deal a second room a second later. */
+         a morph that completes as the page turns, both measured in bars.
+         Fired, the boundary itself is spent: the page turn must not deal a
+         second room a second later. Refused by the gate, the early cut is
+         simply not taken and the boundary is left to its own rules. */
       if (director.auto && director.transT >= 1 && !this.seam && player.playing){
         const d = activeDeck();
         const dur = d && isFinite(d.a.duration) && d.a.duration > 0 ? d.a.duration : 0;
-        const ahead = synAhead(st, p, dur, SYN_TUNING.lookahead);
+        const ahead = synAhead(st, p, dur, synLookahead(barLen));
         if (ahead && ahead.i !== this._cuedSection){
-          const cue = synCue({ ahead, reduced: reducedMotion, frame: (typeof PERF !== 'undefined' ? PERF.periodMs : 16) / 1000 });
-          if (cue.fire){
+          const cue = synCue({ ahead, reduced: reducedMotion, barLen, frame: (typeof PERF !== 'undefined' ? PERF.periodMs : 16) / 1000 });
+          const why = ahead.drop ? 'drop' : 'section';
+          if (cue.fire && this._gate(why, barLen).ok){
             this._cuedSection = ahead.i;
-            director.transDur = cue.dur;
-            director.transKind = cue.kind;
-            director.setScene(director.pickScene(), false);
-            director.dwell = 0;
-            this.lastKind = cue.kind;
-            this.pending = false; this.big = false; this.waited = 0;
+            this._land(why, cue.kind, cue.dur);
             this._lastSection = ahead.i;
             window.__mb8SynCue = (window.__mb8SynCue || 0) + 1;      // the probes count the landings
           }
@@ -32077,24 +32424,25 @@ const SEGUE = {
     const barWrapped = grid && bar < this._lastBar - 0.30;
     const phraseWrapped = grid && phr < this._lastPhrase - 0.10;
     this._lastBar = bar; this._lastPhrase = phr;
+    // the room's second act lands on the same line a change would
+    director.developTick(dt, phraseWrapped, grid);
 
     if (!director.auto){ this.pending = false; return; }
     if (!this.pending) return;
-    this.waited += dt;
-    const fire = segueShouldFire({
-      big: this.big, grid, barWrapped, phraseWrapped, sectionBoundary,
+    const g = this._gate(this.big ? (this.kind === 'drop' ? 'drop' : 'section') : (this.kind || 'dwell'), barLen);
+    // a refused request keeps its place but not its patience: `waited` only
+    // counts while the gate is open, so the change lands on the first bar or
+    // phrase AFTER the gate opens rather than the instant it does
+    if (g.ok) this.waited += dt;
+    const fire = g.ok && segueShouldFire({
+      big: this.big, grid, barWrapped, phraseWrapped, sectionBoundary: sectionBoundary && g.ok,
       onset: AE.f.onset, waited: this.waited, maxWait: this.big ? 8 : 4,
     });
     if (fire && director.transT >= 1){
-      const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: this.big });
-      director.transDur = style.dur;
+      const style = segueStyle({ act: director.act, energy: AE.f.energy, ceil: director.ceil, big: this.big, barLen, reduced: reducedMotion });
       // the FORM of the cut comes from the same style the duration does, so a
       // drop gets a drop's transition rather than whatever was next in a list
-      director.transKind = style.kind;
-      director.setScene(director.pickScene(), false);
-      director.dwell = 0;
-      this.lastKind = style.kind;
-      this.pending = false; this.big = false; this.waited = 0;
+      this._land(this.kind || (this.big ? 'section' : 'dwell'), style.kind, style.dur);
     }
   },
 };
@@ -61356,6 +61704,10 @@ function initThree(){
      the table gets no taste and scores a flat 1, which is exactly what should
      happen to a scene somebody added and has not characterised yet. */
   scenes.forEach(s => { s.taste = SCENE_TASTE[s.key] || null; });
+  /* …AND LEARNS TO DEVELOP. Every room is given rollEased(sec) — the generic
+     second act the director asks for mid-dwell (developTick) — by sceneDevelop,
+     which finds the variation dice the room's own materials read. */
+  scenes.forEach(sceneDevelop);
 
   // scene dots
   scenes.forEach((s, i) => {
@@ -62775,7 +63127,8 @@ const LENS = {
     'wave+mirrors': ['wave', 'mirrors'], 'tile+prism': ['tile', 'prism'],
     ...Object.fromEntries(LENS2_META.stacks.map(l => [l.key, l.members])) },
   scale: 0.7,
-  _resolved: 'none', _holdT: 0,      // AUTO: the lens the director has settled on, and how long to hold it
+  _resolved: 'none', _holdT: 0,      // AUTO: the lens the director has settled on, and when it reads the song again
+  _lookT: 1e9,                       // …and how long the look has been held (a swap needs two phrases)
   _ready: false, _hdr: false, _rtA: null, _rtB: null, _tri: null, _fs: null, _cam: null, _mats: null,
   /* ECHO keeps its own last frame: two targets it ping-pongs between, never
      touched by the chain's ordinary ping-pong, so the history cannot be
@@ -62881,7 +63234,8 @@ const LENS = {
         || (typeof POWER !== 'undefined' && !POWER.lensOK),
       ceil: director.ceil, act: director.act, energy: AE.f.energy,
       major: cam ? cam.l === 'B' : true,                      // B = major/brighter; unknown → treat as bright
-      salt: this._deals++,                                    // equal choices take turns, look after look
+      salt: this._deals,                                      // equal choices take turns, look after look (autoTick advances it on a swap)
+      prev: this._resolved, hyst: LENS_HYST,                  // …and the held look is sticky by ±0.08 of energy
     });
   },
   // the kaleido's fold count is a musical judgement too: a major key opens
@@ -62896,17 +63250,35 @@ const LENS = {
     this._mats.mirrors.uniforms.uSectors.value = major ? 8 : 6;
     this._keyN.value = cam ? cam.n : 0;
   },
+  /* A LENS SWAP IS A MINOR CHANGE, and it is paced like one. The song is read
+     every half phrase (with hysteresis around the look being held, so a
+     wobble of the energy reads as the same look); a different answer swaps
+     the glass only once the look has been held two phrases
+     (DEVELOP.lensEveryPhrases) AND the pace gate allows a minor change this
+     far from the last room change — and the room's second act zeroes the
+     read-clock so the glass is re-dealt with it. There is no fade: the lens
+     passes replace the frame outright and own no blend, so the swap stays
+     instant and is made rare instead. The clocks run on the pacing clock
+     (director.wallDt), not the frame's clamped dt. */
   autoTick(dt){
     if (this.active !== 'auto') return;
-    this._holdT -= dt;
-    if (this._holdT > 0) return;                              // hold the current look; don't flicker
+    const wdt = (typeof director !== 'undefined' && director.wallDt != null) ? director.wallDt : dt;
+    this._holdT -= wdt;
+    this._lookT += wdt;
+    if (this._holdT > 0) return;
+    const barLen = typeof director !== 'undefined' && director.barLen ? director.barLen() : 2.0;
+    const phrase = 8 * barLen;
+    this._holdT = 0.5 * phrase;                               // the next read, half a phrase on
     const want = this.autoPick();
-    this._holdT = want === 'none' ? 3.0 : 9.0;               // linger on a look; re-check clean state sooner
-    if (want !== this._resolved){
-      this._resolved = want;
-      this._dealSectors();                                    // the fold and the blades, dealt with the look
-      this.paint();
-    }
+    if (want === this._resolved) return;
+    if (this._lookT < DEVELOP.lensEveryPhrases * phrase) return;   // the look has not had its two phrases
+    if (typeof director !== 'undefined' && director.sinceChange != null
+        && !paceGate({ since: director.sinceChange, act: director.act, barLen, kind: 'lens', reduced: reducedMotion }).ok) return;
+    this._resolved = want;
+    this._lookT = 0;
+    this._deals++;                                            // the next equal choice takes its turn — on a swap, not on a read
+    this._dealSectors();                                      // the fold and the blades, dealt with the look
+    this.paint();
   },
   set(key, save){
     if (!(key in this.labels)) key = 'none';
@@ -63548,7 +63920,7 @@ const STAGE = {
         // take the booth's transition rather than rolling one — see the packet
         XFORM.force = p.dir.xk ? { kind: p.dir.xk, seed: Number(p.dir.xs) || 0 } : null;
         if (Number(p.dir.xd) > 0) director.transDur = Number(p.dir.xd);
-        director.setScene(p.dir.s, false);
+        director.setScene(p.dir.s, false, 'follow');   // the booth decided; a follower never re-gates it
         XFORM.force = null;
       }
     }
@@ -66177,7 +66549,7 @@ const CROWD = {
        rolls its own — same moment, same room, its own way in. */
     if (typeof director !== 'undefined' && typeof scenes !== 'undefined'
       && p.s < scenes.length && p.s !== director.active && director.transT >= 1)
-      director.setScene(p.s, false);
+      director.setScene(p.s, false, 'follow');         // the booth decided; a follower never re-gates it
   },
 };
 

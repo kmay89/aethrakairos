@@ -670,6 +670,7 @@ struct StemLight {
     var away = 0.0
     var coil = 0.0
     var landed = false
+    var awayAtLand = 0.0                // how long the kit was gone before the last landing
     var section: Band = .none
     var pos = Double.nan
 
@@ -679,6 +680,7 @@ struct StemLight {
         var chromaAdd = 0.0, lightMul = 1.0, whiteMul = 1.0
         var coil = 0.0
         var landed = false
+        var awayAtLand = 0.0            // the room's cut asks for a real absence (Director.stemCutAway)
     }
 
     static func digit(_ a: [Double], _ j: Int) -> Double {
@@ -738,7 +740,7 @@ struct StemLight {
         let wasKit = kit
         if kit && dNow < K.kitOff { kit = false }
         else if !kit && dNow > K.kitOn { kit = true }
-        if kit && !wasKit && away >= K.awayMin { landed = true; coil = 0 }
+        if kit && !wasKit && away >= K.awayMin { landed = true; coil = 0; awayAtLand = away }
         away = kit ? 0 : away + dt
         let soon = K.peak(s.d, i + Int((K.aheadA * hz).rounded()), i + Int((K.aheadB * hz).rounded()))
         let coming = !kit && away >= K.awayMin && soon > K.kitOn
@@ -868,6 +870,7 @@ struct StemLight {
                    lightMul: 1 + c * 0.05 * vv,
                    whiteMul: mix(1, 0.55 + 0.45 * dd),
                    coil: c * c01(coil),
-                   landed: landed && c > 0.5)
+                   landed: landed && c > 0.5,
+                   awayAtLand: awayAtLand > 0 ? awayAtLand : 0)
     }
 }
