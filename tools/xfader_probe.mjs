@@ -297,6 +297,38 @@ R('PLAY A starts the retired record by hand, the row answers inside the Doherty 
   tr.ms <= 400 && tr.lit && tr.pressed === 'true' && /playing \(silent\)/.test(tr.word) && /fader is on B/.test(tr.word) && tr.rolling && tr.owner === 'hand' && tr.paused, JSON.stringify(tr));
 R('CUT flips the curve and its lamp, and back', tr.cut === 'cut' && tr.cutLit && tr.back === 'power', JSON.stringify({ cut: tr.cut, lit: tr.cutLit, back: tr.back }));
 
+// ---- 11 · a HELD LOOP across a hand commit: the loop is the outgoing record's (cut in its timeline), so the
+//          commit lets it go while that record is still on air — the handback lands on the deck it belongs
+//          to, and the incoming record runs on from where it was, never yanked into the old one's loop time
+const held = await page.evaluate(async () => {
+  MIXER.setOn(false);
+  const on = AE.active, other = 1 - on, od = AE.decks[on], nd = AE.decks[other];
+  DECKS.focus = on;                               // the hand on the record on air: the tape is its
+  FX.setLoop(4, false);
+  const t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 15000) await new Promise(r => setTimeout(r, 30));
+  const tape = LOOPER.on, loopStart = FX.loop ? FX.loop.start : null;
+  DECKS.load(other, player.tracks[other === 0 ? 0 : 1]);
+  await new Promise(r => setTimeout(r, 400));
+  DECKS.play(other);
+  await new Promise(r => setTimeout(r, 400));
+  DECKS.faderGrab(on); DECKS.faderMove(0.5);
+  await new Promise(r => setTimeout(r, 80));
+  DECKS.faderMove(other);
+  const ctBefore = nd.a.currentTime, t0 = performance.now();
+  const v = DECKS.faderRelease();
+  const after = { loop: !!FX.loop, on: LOOPER.on, backDeck: LOOPER.backing ? AE.decks.indexOf(LOOPER.backing.deck) : null };
+  await new Promise(r => setTimeout(r, 600));
+  const dt = (performance.now() - t0) / 1000;
+  return { tape, loopStart, act: v.act, active: AE.active, on, other, after, ctBefore, ctAfter: nd.a.currentTime, dt,
+    loopNow: !!FX.loop, looperNow: LOOPER.on, gate: AE.busGate ? AE.busGate.gain.value : 1 };
+});
+R('a loop held on the record on air, the other pushed across: the commit lets the loop go ON THE OUTGOING DECK, and the incoming record runs on from where it was',
+  held.tape && held.act === 'commit' && held.active === held.other && !held.after.loop
+  && (!held.after.on || held.after.backDeck === held.on) && !held.loopNow && !held.looperNow
+  && held.ctAfter > held.ctBefore && held.ctAfter - held.ctBefore < held.dt + 0.3 && held.gate > 0.9,
+  JSON.stringify(held));
+
 R('no page errors', errors === 0, errors + ' errors');
 console.log(`\n${results.filter(Boolean).length}/${results.length} crossfader checks passed`);
 await browser.close(); server.close();

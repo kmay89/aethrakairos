@@ -11580,6 +11580,18 @@ const DECKS = {
     if (!player.tracks[i] || nd.a.paused || nd.a.ended) return false;
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('hand');   // the auto plan onto this deck is overtaken
     const retired = player.cur;
+    /* A HELD LOOP IS CUT FROM THE OUTGOING RECORD'S TIMELINE. Its in-point,
+       its length and the rate the tape was cut at are all the retired deck's
+       (setLoop takes a loop on the record on air and nowhere else), and every
+       reader — the tick, the handback, the strip, the lanes, the jog — finds
+       the loop's deck by asking which record is on air. Kept across the
+       commit, the new record would be drawn at the old one's loop time and
+       the handback would seek it minutes away. So it is let go HERE, while
+       the outgoing record is still activeDeck(): the handback lands on the
+       deck it belongs to (whose fader the hand has already pulled to zero),
+       a roll returns that deck to real time, and the incoming record takes
+       the air with nothing of the old one's tape on it. */
+    if (typeof FX !== 'undefined' && FX.loop) FX.clearLoop();
     AE.active = inSlot;
     player.commitMix(i, { keepRack: true });
     this.settle({ retired });
@@ -19097,10 +19109,16 @@ const AIRPLAY = {
         // that needs the cross-origin opt-in; direct mode does not
         dk.a = AE._deckEl(!direct);
         dk.src = dk.shelf = dk.hp = dk.filter = dk.gain = dk.fader = dk.echoSend = dk.vinyl = null;
+        // the filter tick's cache described the old nodes; the new ones are born open, and a cache
+        // still holding the hand's corner would let the tick think there was nothing left to write
+        dk._fxLast = null; dk._fxSched = false;
         if (direct) dk.a.volume = 0; else AE._deckGraph(dk);
         AE._wireDeck(dk, k);
       });
       AE.graphLive = !direct;
+      // …and the tick, which let itself go while there was no graph, is woken once there is one
+      // again: a filter the hand still holds (or a brake) is written onto the new chain
+      if (!direct && typeof FX !== 'undefined') FX._ftStart();
       if (!direct && typeof VINYL !== 'undefined') VINYL.install();   // …and take their seats on the new chains
       SPEED.apply();
       applyVolume();
@@ -22347,8 +22365,11 @@ function vinylWorkletSource(){
     vinylScriptCut.toString(), vinylScriptBlock.toString(), vinylSnap.toString(), vinylProcess.toString(), vinylCommand.toString(),
     'class MB8Vinyl extends AudioWorkletProcessor {',
     '  constructor(o){ super(); const po = (o && o.processorOptions) || {}; this.S = makeVinyl(sampleRate, po.seconds); this.n = 0; this.eng = false; this.done = 0;',
-    '    this.port.onmessage = e => { vinylCommand(this.S, e.data); }; }',
+    // 'bye' is the deck's chain being torn down (AirPlay out and home again): the rings are let go and
+    // process answers false, so a processor nothing feeds any more stops running and can be collected
+    "    this.port.onmessage = e => { const m = e.data || {}; if (this.dead) return; if (m.op === 'bye'){ this.dead = true; this.S = null; return; } vinylCommand(this.S, m); }; }",
     '  process(inputs, outputs){',
+    '    if (this.dead) return false;',
     '    const inp = inputs[0], out = outputs[0];',
     '    if (!out || !out.length) return true;',
     '    const n = out[0].length;',
@@ -27956,7 +27977,11 @@ const VINYL = {
     const hand = this.decks[k], n = d && d.vinyl;
     if (hand){ hand.node = null; hand.kind = 'none'; hand.engaged = false; hand.armed = false; hand._back = null; hand._ptr = null; hand._script = null; }
     if (d) d.vinyl = null;
-    if (n){ try { n.port.onmessage = null; n.disconnect(); } catch (e){} if (d && d.filter) try { d.filter.disconnect(n); } catch (e){} }
+    /* THE PROCESSOR IS TOLD, not just unplugged. One that keeps answering true
+       stays an active source on the audio thread whether anything feeds it or
+       not — two 24 s rings and a vinylProcess a quantum, per deck, per AirPlay
+       round trip. 'bye' frees the rings and lets process() return false. */
+    if (n){ try { n.port.postMessage({ op: 'bye' }); n.port.onmessage = null; n.disconnect(); } catch (e){} if (d && d.filter) try { d.filter.disconnect(n); } catch (e){} }
     if (!torn && d && d.filter && d.gain){ try { d.filter.connect(d.gain); d.filter.connect(d.echoSend); } catch (e){} }
     this._report();
     if (typeof FXPADS !== 'undefined') FXPADS.paint();
@@ -28966,7 +28991,23 @@ const DECKWAVE = {
   _dropTiles(k, kind){
     for (const tk of [...this._tiles.keys()]) if (tk.startsWith(k + '|') && (!kind || tk.includes('|' + kind + '|'))) this._tiles.delete(tk);
   },
+  /* A FOLD WAITING ON A JOB IS LET GO HOWEVER THE JOB ENDS. computePeaks,
+     finding this song's detail already in flight, queues no decode of its own:
+     it marks the job peaksWanted and leaves the track _peaksPending for the
+     landing to fill in. A landing does (adoptPeaks). But a job called off by a
+     track change (cancelAllBut, _trim) leaves _buildJob by one of its "is this
+     still my job" doors — before the fetch, after it, after the decode, after
+     the analysis, or at the top of the catch on the abort — and every one of
+     them used to return before the only line that let the fold go. The track
+     then stayed pending for the session: no overview, no AUTO cues, and on iOS
+     no envelope drive. So the release is here, around all of them. (Nothing
+     else is cut off by it: peaksWanted is only ever set while the track was
+     NOT pending, so no _peaksDecode of this track is running.) */
   async _build(tr, k, job){
+    try { await this._buildJob(tr, k, job); }
+    finally { if (job.peaksWanted && !tr._peaks) tr._peaksPending = false; }
+  },
+  async _buildJob(tr, k, job){
     if (this._det.get(k) !== job) return;
     try {
       // shared with the pressing and the overview of the same song; its own copy, so the decode may detach it
@@ -28995,7 +29036,6 @@ const DECKWAVE = {
         mips: det.mips.map(m => m.hz) };               // the probes read the landing
     } catch (e){
       if (this._det.get(k) !== job) return;
-      if (job.peaksWanted && !tr._peaks) tr._peaksPending = false;   // the overview's fold was waiting on this: it may ask again
       // called off (a track change) is not a failure: the next ask starts afresh
       if (e && e.name === 'AbortError') this._det.delete(k);
       else this._det.set(k, { state: 'err', tries: job.tries, at: performance.now() });
