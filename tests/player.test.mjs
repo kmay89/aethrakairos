@@ -9885,6 +9885,81 @@ test('licensing: no GPL fractal-renderer identifiers in the web player or the tv
   assert.deepEqual(hits, [], 'GPL renderer identifiers found (see THIRD-PARTY-NOTICES): ' + hits.slice(0, 12).join(', '));
 });
 
+test('a crossfader commit lets the rack\'s loop go without touching its AUTO; a hand on the loop still takes AUTO off', () => {
+  const t0 = html.indexOf('  /* `byCommit`: the loop is being let go by a DECK action'), t1 = html.indexOf('  loopTick(){', t0);
+  assert.ok(t0 > 0 && t1 > t0, 'FX.clearLoop is where the test looks');
+  const c0 = html.indexOf('  _commitHand(inSlot){'), c1 = html.indexOf('  },', c0);
+  assert.ok(c0 > 0 && /FX\.clearLoop\(\{ byCommit: true \}\)/.test(html.slice(c0, c1)), '_commitHand lets the loop go as a deck action');
+  const run = (looperOn, opts) => {
+    const log = [];
+    const LOOPER = { on: looperOn, armed: false, engaged: () => false, handBack(){ log.push('handBack'); }, cancel(){ log.push('cancel'); } };
+    const deck = { a: { currentTime: 10, duration: 200 } };
+    const methods = new Function('LOOPER', 'activeDeck', 'rollReturn', 'return {' + html.slice(t0, t1) + '};')(
+      LOOPER, () => deck, () => 9);
+    const fx = Object.assign({ auto: true, _handT: 0, loop: { start: 8, len: 1, beats: 2, roll: !looperOn },
+      bpm: () => 120, hand(){ this._handT = 6; this.auto = false; } }, methods);
+    fx.clearLoop(opts);
+    return { fx, log, deck };
+  };
+  for (const on of [true, false]){
+    const c = run(on, { byCommit: true });
+    assert.equal(c.fx.loop, null, 'the loop is let go');
+    assert.equal(c.fx.auto, true, 'AUTO survives a commit (looper ' + on + ')');
+    assert.equal(c.fx._handT, 0, 'and no hand is shown on the HUD');
+    if (on) assert.deepEqual(c.log, ['handBack']); else assert.equal(c.deck.a.currentTime, 9, 'a roll still returns to real time');
+    const h = run(on);
+    assert.equal(h.fx.loop, null);
+    assert.equal(h.fx.auto, false, 'a hand on the loop button still takes AUTO off (looper ' + on + ')');
+  }
+});
+
+test('a fold waiting on a booth detail is let go however the job ends — called off before, during or after the fetch, or landed', async () => {
+  const t0 = html.indexOf('  /* A FOLD WAITING ON A JOB IS LET GO'), t1 = html.indexOf('  /* FOLDED TO MONO INTO ONE BUFFER', t0);
+  assert.ok(t0 > 0 && t1 > t0, 'DECKWAVE._build and _buildJob are where the test looks');
+  const abortErr = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
+  const BYTES = { get: (url, o) => new Promise((res, rej) => {
+    if (BYTES.hold){ o.signal.addEventListener('abort', () => rej(abortErr())); return; }
+    res(new ArrayBuffer(8));
+  }) };
+  const win = { OfflineAudioContext: class { decodeAudioData(){ return Promise.resolve({ sampleRate: 16000 }); } } };
+  const methods = new Function('BYTES', 'AE', 'DECKS', 'WAVE_SR', 'WAVE_PLANES', 'performance', 'window', 'return {' + html.slice(t0, t1) + '};')(
+    BYTES, {}, undefined, 16000, [], { now: () => 0 }, win);
+  const mk = () => Object.assign(Object.create(methods), {
+    _det: new Map(), _fade: new Map(), _dropTiles(){}, _trim(){}, key(){ return 'k'; },
+    _fold: async () => new Float32Array(4),
+    _analyse: async () => ({ v: 2, n: 4, hz: 500, dur: 1, mips: [] }),
+    adoptPeaks(tr){ tr._peaks = [1]; tr._peaksPending = false; return true; },
+  });
+  const job = wanted => ({ state: 'pending', ac: new AbortController(), tries: 1, peaksWanted: wanted });
+  // called off before its turn came: _buildJob leaves at its first line
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    await W._build(tr, 'k', j);
+    assert.equal(tr._peaksPending, false, 'forgotten before it ran: the fold may ask again'); }
+  // called off while the fetch was in flight: the abort lands in the catch, which leaves at its top
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    W._det.set('k', j); BYTES.hold = true;
+    const p = W._build(tr, 'k', j);
+    W._det.delete('k'); j.ac.abort();
+    await p; BYTES.hold = false;
+    assert.equal(tr._peaksPending, false, 'aborted mid-fetch: the fold may ask again'); }
+  // called off during the analysis: the post-analysis door
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    W._det.set('k', j); W._analyse = async () => { W._det.delete('k'); return { v: 2, n: 4, hz: 500, dur: 1, mips: [] }; };
+    await W._build(tr, 'k', j);
+    assert.equal(tr._peaksPending, false, 'forgotten during the analysis: the fold may ask again');
+    assert.equal(tr._peaks, undefined, 'and nothing was adopted from a job no longer its own'); }
+  // a landing fills the fold in, and the release leaves it be
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    W._det.set('k', j);
+    await W._build(tr, 'k', j);
+    assert.deepEqual(tr._peaks, [1], 'landed: adopted'); assert.equal(tr._peaksPending, false);
+    assert.equal(W._det.get('k').v, 2, 'the detail is in'); }
+  // a job nobody's fold was waiting on leaves the flag to whoever owns it (a _peaksDecode of its own)
+  { const W = mk(), j = job(false), tr = { url: 'u', _peaksPending: true };
+    await W._build(tr, 'k', j);
+    assert.equal(tr._peaksPending, true, 'not wanted: not ours to let go'); }
+});
+
 await Promise.all(pending);
 // ---------------------------------------------------------------- the detail waveform (the scrolling deck)
 {
@@ -10397,6 +10472,22 @@ await Promise.all(pending);
     p.port.onmessage({ data: { op: 'eject' } });
     p.process([], [out]);
     assert.ok(out[0].every(v => v === 0), 'ejected: silence');
+  });
+  test('deck processor: a torn-down chain says bye, and the processor lets its rings go and stops running', () => {
+    const src = S.vinylWorkletSource();
+    const reg = {};
+    class AWP { constructor(){ this.port = { postMessage(){}, onmessage: null }; } }
+    new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src)(AWP, (n, c) => { reg[n] = c; }, sr, 0);
+    const p = new reg['mb8-vinyl']({ processorOptions: { seconds: 1 } });
+    const inL = new Float32Array(128).fill(0.25), out = [new Float32Array(128), new Float32Array(128)];
+    assert.equal(p.process([[inL, inL]], [out]), true, 'seated: it passes the deck through and stays alive');
+    p.port.onmessage({ data: { op: 'engage', gen: 1 } });   // an ordinary command still reaches vinylCommand
+    assert.ok(p.S && p.S.engaged, 'still holding its rings, and still listening');
+    p.port.onmessage({ data: { op: 'bye' } });
+    assert.equal(p.S, null, 'bye: the rings are let go');
+    assert.equal(p.process([[inL, inL]], [out]), false, 'bye: process answers false, so the node can be collected');
+    p.port.onmessage({ data: { op: 'engage' } });       // a late message after bye is not a crash
+    assert.equal(p.process([[inL, inL]], [out]), false);
   });
   /* ---- W3: two hands, the read above speed, the tone of speed, the brake's
      friction, the throw, the feel, the scripts and their cuts, the slip on the
