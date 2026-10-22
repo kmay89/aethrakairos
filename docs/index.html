@@ -11590,8 +11590,9 @@ const DECKS = {
        the outgoing record is still activeDeck(): the handback lands on the
        deck it belongs to (whose fader the hand has already pulled to zero),
        a roll returns that deck to real time, and the incoming record takes
-       the air with nothing of the old one's tape on it. */
-    if (typeof FX !== 'undefined' && FX.loop) FX.clearLoop();
+       the air with nothing of the old one's tape on it. It is a deck action,
+       not a hand on the rack, so the rack's AUTO is left as the user set it. */
+    if (typeof FX !== 'undefined' && FX.loop) FX.clearLoop({ byCommit: true });
     AE.active = inSlot;
     player.commitMix(i, { keepRack: true });
     this.settle({ retired });
@@ -27069,15 +27070,20 @@ const FX = {
     this.loop.len = len;
     this.hand();
   },
-  clearLoop(){
+  /* `byCommit`: the loop is being let go by a DECK action (a crossfader
+     commit), not by a hand on this rack — so the rack's AUTO is left exactly
+     as the user set it. A hand on the fader never touched the FX unit, and
+     its lamp should not go dark because a seam happened to cross a loop. */
+  clearLoop(opts){
     const L = this.loop;
+    const byHand = !(opts && opts.byCommit);
     this.loop = null;
     if (!L) return;
     /* THE TAPE IS PLAYING, so letting go is a handback rather than a seek: the
        deck is put where the music should continue from while the loop is still
        covering, and the two are crossed over on the audio clock. A roll needs no
        seek at all — the deck ran on underneath the whole time. */
-    if (LOOPER.on){ LOOPER.handBack(); this.hand(); return; }
+    if (LOOPER.on){ LOOPER.handBack(); if (byHand) this.hand(); return; }
     if (LOOPER.engaged() || LOOPER.armed){ LOOPER.cancel(); }
     // A ROLL RETURNS YOU TO REAL TIME. The track ran on underneath while the
     // music stalled, so releasing lands where it would have been — the phrase
@@ -27089,7 +27095,7 @@ const FX = {
       if (isFinite(back) && isFinite(d.a.duration) && back < d.a.duration - 0.2)
         { try { d.a.currentTime = back; } catch (e){} }
     }
-    this.hand();
+    if (byHand) this.hand();
   },
   loopTick(){
     const L = this.loop, d = activeDeck();

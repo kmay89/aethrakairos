@@ -9885,6 +9885,34 @@ test('licensing: no GPL fractal-renderer identifiers in the web player or the tv
   assert.deepEqual(hits, [], 'GPL renderer identifiers found (see THIRD-PARTY-NOTICES): ' + hits.slice(0, 12).join(', '));
 });
 
+test('a crossfader commit lets the rack\'s loop go without touching its AUTO; a hand on the loop still takes AUTO off', () => {
+  const t0 = html.indexOf('  /* `byCommit`: the loop is being let go by a DECK action'), t1 = html.indexOf('  loopTick(){', t0);
+  assert.ok(t0 > 0 && t1 > t0, 'FX.clearLoop is where the test looks');
+  const c0 = html.indexOf('  _commitHand(inSlot){'), c1 = html.indexOf('  },', c0);
+  assert.ok(c0 > 0 && /FX\.clearLoop\(\{ byCommit: true \}\)/.test(html.slice(c0, c1)), '_commitHand lets the loop go as a deck action');
+  const run = (looperOn, opts) => {
+    const log = [];
+    const LOOPER = { on: looperOn, armed: false, engaged: () => false, handBack(){ log.push('handBack'); }, cancel(){ log.push('cancel'); } };
+    const deck = { a: { currentTime: 10, duration: 200 } };
+    const methods = new Function('LOOPER', 'activeDeck', 'rollReturn', 'return {' + html.slice(t0, t1) + '};')(
+      LOOPER, () => deck, () => 9);
+    const fx = Object.assign({ auto: true, _handT: 0, loop: { start: 8, len: 1, beats: 2, roll: !looperOn },
+      bpm: () => 120, hand(){ this._handT = 6; this.auto = false; } }, methods);
+    fx.clearLoop(opts);
+    return { fx, log, deck };
+  };
+  for (const on of [true, false]){
+    const c = run(on, { byCommit: true });
+    assert.equal(c.fx.loop, null, 'the loop is let go');
+    assert.equal(c.fx.auto, true, 'AUTO survives a commit (looper ' + on + ')');
+    assert.equal(c.fx._handT, 0, 'and no hand is shown on the HUD');
+    if (on) assert.deepEqual(c.log, ['handBack']); else assert.equal(c.deck.a.currentTime, 9, 'a roll still returns to real time');
+    const h = run(on);
+    assert.equal(h.fx.loop, null);
+    assert.equal(h.fx.auto, false, 'a hand on the loop button still takes AUTO off (looper ' + on + ')');
+  }
+});
+
 test('a fold waiting on a booth detail is let go however the job ends — called off before, during or after the fetch, or landed', async () => {
   const t0 = html.indexOf('  /* A FOLD WAITING ON A JOB IS LET GO'), t1 = html.indexOf('  /* FOLDED TO MONO INTO ONE BUFFER', t0);
   assert.ok(t0 > 0 && t1 > t0, 'DECKWAVE._build and _buildJob are where the test looks');
