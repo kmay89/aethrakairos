@@ -180,17 +180,19 @@ async function bench(label, ua){
         BOOTH.draw(); await wait(50);
         const r = el.boothWave.getBoundingClientRect(), g = DECKWAVE._geom, d = AE.decks[1];
         const y = r.top + g.yB + g.sh / 2, x0 = r.left + r.width / 2;
-        const t0 = d.a.currentTime;
+        const t0 = d.a.currentTime, w0 = performance.now();
         const down = new PointerEvent('pointerdown', { bubbles: true, clientX: x0, clientY: y, pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0 });
         el.boothWave.dispatchEvent(down);
         el.boothWave.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: x0 + 80, clientY: y, pointerId: 7, pointerType: 'touch', isPrimary: true }));
         await wait(100);
-        const t1 = d.a.currentTime, eng = VINYL.for(1).engaged;
+        // the deck plays on while we wait, so what it gained in that time is taken out of the reading:
+        // a busy machine's 100 ms can be 400, and a fixed margin then reads a real seek as none
+        const t1 = d.a.currentTime, played = (performance.now() - w0) / 1000 * (d.a.paused ? 0 : (d.a.playbackRate || 1)), eng = VINYL.for(1).engaged;
         el.boothWave.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: x0 + 80, clientY: y, pointerId: 7, pointerType: 'touch', isPrimary: true }));
         DECKWAVE.stripMode[1] = null;
-        return { t0, t1, eng, mode: DECKWAVE.stripModeOf(1) };
+        return { t0, t1, played, eng, mode: DECKWAVE.stripModeOf(1) };
       });
-      R('in scrub mode the same drag seeks deck B backwards instead of taking the record', scrub.t1 < scrub.t0 - 0.3 && !scrub.eng && scrub.mode === 'scratch', `${scrub.t0.toFixed(2)} → ${scrub.t1.toFixed(2)} s`);
+      R('in scrub mode the same drag seeks deck B backwards instead of taking the record', scrub.t1 < scrub.t0 + scrub.played - 0.25 && !scrub.eng && scrub.mode === 'scratch', `${scrub.t0.toFixed(2)} → ${scrub.t1.toFixed(2)} s (played ${scrub.played.toFixed(2)} s meanwhile)`);
     }
     // the SCRATCH bank's CUT pad: held, the crossfader wears the cut curve; let go, the law it had
     const cut = await page.evaluate(async () => {

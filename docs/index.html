@@ -12678,7 +12678,7 @@ const player = {
     // the seam hands the booth over too: a loop or an effect belonged to the
     // track that just left, and carrying it into the next one is a fault —
     // unless the hand did the mixing (keepRack): then the rack is the hand's
-    if (typeof FX !== 'undefined' && !(opts && opts.keepRack)) FX.release();
+    if (typeof FX !== 'undefined' && !(opts && opts.keepRack)) FX.release({ keepPlatters: true });
     HIST.leave(this.tracks[this.cur], 'ended');
     if (this.cur !== -1 && this.cur !== i) this.history.push(this.cur);
     if (this.history.length > 64) this.history.shift();
@@ -27255,9 +27255,16 @@ const FX = {
      ever inherits a booth the last one left switched on. The one thing that
      may outlive a track is the performer's held echo tail at the cut: that
      IS the hand-off, and it lets itself go two bars in. */
-  release(){
+  release(opts){
     const braking = this.brakeT >= 0;
-    if (typeof VINYL !== 'undefined') VINYL.drop();    // a track changing hands takes the platter away
+    /* A TRACK CHANGING HANDS TAKES THE PLATTER AWAY — but a seam is not a
+       track change for the hands. The platters sit before the seam's gain
+       curve, so a record in a hand through an auto blend is shaped by the
+       curve like the rest of its deck and no element is replaced; dropping
+       it at the commit yanked a scratch (or a preset mid-stroke) out from
+       under the hand the moment the auto-DJ chose to mix. The seam's commit
+       keeps them; the hand lets go itself when its deck stops. */
+    if (typeof VINYL !== 'undefined' && !(opts && opts.keepPlatters)) VINYL.drop();
     this.loop = null; this.jump = null; clearTimeout(this._jumpT); this.brakeT = -1;
     this.unit = ''; this.amount = 0; this.wet = 0; this._autoUnit = '';
     this._autoSt = makeFxAuto(); this._sweepEnd = 0;
