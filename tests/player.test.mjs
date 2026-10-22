@@ -8822,6 +8822,375 @@ test('buildNave keeps the ten laws: the walk given to the count and never backwa
   assert.ok(/return float4\(govern\(VOID \+ max\(col, float3\(0\.0\)\), U\.white\), 1\.0\);/.test(frag) && (frag.match(/\breturn\b/g) || []).length === 1, 'the twin governs its one exit');
 });
 
+test('buildFractalField keeps the ten laws: one zoom toward the viewer on the rig\'s radius, the hit a key light that crosses the relief, the walk on the bar, no raw band anywhere, the twin the same text', () => {
+  const r0 = html.indexOf('/* ==== ROOM REGION: FRACTAL'), r1 = html.indexOf('/* ==== END ROOM REGION: FRACTAL', r0);
+  assert.ok(r0 >= 0 && r1 > r0, 'the FRACTAL region is fenced in the player');
+  const region = html.slice(r0, r1);
+  const f0 = region.indexOf('const MARCH_FRAG = '), f1 = region.indexOf('\n`;', f0);
+  assert.ok(f0 >= 0 && f1 > f0, 'the march fragment is in the region');
+  const room = region.slice(f0, f1);
+  const b0 = region.indexOf('function buildFractalField(){');
+  assert.ok(b0 > f1, 'the builder follows the fragment');
+  const build = region.slice(b0), u0 = build.indexOf('    update(dt){'), drv = build.slice(u0, build.indexOf('      const w = Math.max(64,', u0));
+  assert.ok(u0 > 0 && drv.length > 2000, 'the drivers are update(dt)');
+  assert.ok(room.startsWith('const MARCH_FRAG = GLSL_DANCE + GLSL_FRACTAL + `'), 'GLSL_DANCE is prepended');
+  assert.ok(!/uniform\s+float[^;]*\buBarPhase\b/.test(room), 'the room does not redeclare uBarPhase (the prelude declares it)');
+  const twelve = ['dHit', 'dAge', 'dKick', 'dMass', 'dArtic', 'dSpark', 'dSway', 'dLift', 'dBrace', 'dImpact', 'dStill', 'dPeriod'];
+  for (const n of [...twelve, 'danceBeatPhase', 'danceLean', 'danceStride', 'danceFront', 'danceLamp', 'danceLand', 'danceHeld', 'danceRing', 'danceBreath'])
+    assert.ok(!new RegExp('\\b(float|vec[234]|int|bool)\\s+' + n + '\\b').test(room), n + ' is the prelude\'s: never a local, never redefined');
+  const strip = s => s.split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const stmts = strip(room).split(';'), code = stmts.join(';');
+  const dstm = strip(drv).split(';'), dcode = dstm.join(';');
+  const assigns = (ss, n) => ss.filter(st => new RegExp('(^|[^\\w.])(float|vec[234]|const|let)?\\s*' + n + '\\s*(=|\\+=|-=|\\*=)(?!=)').test(st));
+  // ---- law 1 - no raw band, no beat envelope, no live spectrum: not in the fragment, not in the drivers
+  for (const u of ['uBass', 'uMid', 'uTreble', 'uEnergy', 'uBeat', 'uBeatSpring', 'uCoupling', 'uEntropy', 'uCentroid', 'uAudio', 'uPulse', 'uBeatIdx'])
+    assert.ok(!new RegExp('\\b' + u + '\\b').test(code), u + ' is not read by the fragment');
+  assert.ok(!/\bAE\.f\b|\bf\.(bass|mid|treble|energy|beat|coupling|onset|entropy|centroid)\b|\bDANCE\.(pulse|bus)\b/.test(dcode), 'the drivers read no band, no envelope, and the bus only as the fragment does (U.uDance0..2)');
+  assert.ok(/const d0 = U\.uDance0\.value, d2 = U\.uDance2\.value;/.test(drv), 'the drivers read the twelve the fragment reads, this frame');
+  for (const d of twelve.filter(d => !['dArtic', 'dSway', 'dLift'].includes(d))) assert.ok(new RegExp('\\b' + d + '\\b').test(code + dcode), 'reads ' + d);
+  // the bar's sway and the phrase's lift arrive on the web through the rig's own camera (its head-tilt in the basis, its FOV): never read twice
+  assert.ok(!/\bdSway\b|\bdLift\b/.test(code + dcode) && /u\.uCamMat\.value\.setFromMatrix4\(camera\.matrixWorld\);/.test(drv) && /u\.uTanFov\.value = Math\.tan\(camera\.fov/.test(drv), 'dSway and dLift reach the web room only through the rig\'s camera (basis and FOV), one owner each');
+  // law 4 - the live articulation moves nothing: the room's articulation is dealt per bar and held
+  assert.ok(!/\bdArtic\b/.test(code + dcode), 'dArtic (live) reaches no shape and no term of this room');
+  // ---- laws 2, 6 - the hit (dHit, its age, its lamp, the key light) never reaches the camera, the rays or the set
+  const HIT = /\b(dHit|lampK|hq|hd|hx|xr|Lh|kf)\b/;
+  for (const n of ['ph', 'lean', 'coil', 'sp', 'ageS', 'one', 'kick', 'distK', 'ro', 'roL', 'fl', 'ex', 'nod', 'cn', 'sn', 'cR', 'cU', 'cW', 'rd', 'pixAng'])
+    for (const st of assigns(stmts, n)) assert.ok(!HIT.test(st), `the strike's light reaches ${n}: ${st.trim().slice(0, 110)}`);
+  // the strike's age reaches the drivers in one statement only: the walk's gate (is this the one's own strike?), never a shape or a clock
+  const SB = 'const sb = barPh - 0.25 * d0.y + 0.0375, struck = d0.y < 0.4 && Math.floor((sb - Math.floor(sb)) * 4) === 0';
+  assert.ok(dcode.split(SB).length === 2, 'the walk is gated on the one\'s own strike, read at its beat line');
+  // ...and the breath's live-beat gate, the fragment's own arithmetic on the strike's age (A1: no breath on an empty lattice)
+  const LGJS = /const lean = danceLeanJS\(ph, dStill, dPeriod > 0\) \* frLeanWJS\(barPh, dPeriod\) \* \(1 - danceSmooth\((\d\.\d+), (\d\.\d+), d0\.y\)\)/;
+  assert.ok(LGJS.test(dcode), 'the drivers\' breath is drawn on a live beat only, as the fragment\'s');
+  const dOther = dcode.split(SB).join('').replace(LGJS, '');
+  assert.ok(!/\bd0\.[xy]\b|\bdHit\b|\bdAge\b|\bsb\b/.test(dOther), 'the drivers read neither the strike nor its age elsewhere: the set and the camera move on the spring, the passage, the bar and the coil');
+  assert.ok(dOther.split(';').filter(st => /\bstruck\b/.test(st)).every(st => /^\s*frRungStep\(dim, \{/.test(st)), 'the strike gates the walk and nothing else');
+  for (const st of stmts) if (/\bdHit\b/.test(st)) assert.ok(/float lampK = danceLamp\(dHit, min\(ageS, 0\.\d+\)\) \* \(1\.0 - smoothstep\(0\.\d+, 1\.0, ageS\)\) \* frBeatW\(ageS\) \* dStill/.test(st), 'dHit is read only through danceLamp, on the strike\'s own clock: ' + st.trim().slice(0, 110));
+  // dKick is SIGNED wherever it moves something (the rebound is the body): never clamped, never folded
+  assert.ok(!/(max|min|clamp|abs)\(\s*dKick/.test(code) && !/(max|min|clamp|abs)\(\s*dKick/.test(dcode), 'dKick is read signed');
+  // ---- law 2 - ONE ZOOM, ONE SIGN. The rig's radius arrives (its one spring and every figure's dr), compressed; never CHOREO.base
+  const rig = drv.match(/const rq = \(\(typeof director !== 'undefined' \? director\.camRadius : 30\) \/ (\d+) - 1\) \/ (0\.\d+), rigK = Math\.sqrt\(1 \+ \2 \* rq \/ Math\.sqrt\(1 \+ rq \* rq\)\);/);
+  assert.ok(rig, 'the rig\'s FIGURES (director.camRadius: every figure\'s dr inside it) over its boot radius, softly clamped (x / sqrt(1 + x^2)) and square-rooted');
+  assert.ok(!/camera\.position\.length\(\)/.test(drv) && /const dir = camera\.position\.lengthSq\(\) > 1e-6/.test(drv), 'the rig\'s sprung radius (camRadius - 3 dKick - dMass) is not read: the kick has one owner, the room\'s lunge; camera.position gives the direction only');
+  assert.ok(!/CHOREO\.base/.test(dcode), 'the ratio is never taken against CHOREO.base.r (re-dealt at every figure\'s handover: the ratio would cut there)');
+  const boot = html.match(/camRadius: (\d+), camTargetR: \1\b/) || html.match(/camRadius:\s*(\d+)/);
+  assert.ok(+rig[1] === 30 && (!boot || +boot[1] === 30), 'the home is the rig\'s boot radius (30)');
+  const softK = q => { const x = (q - 1) / +rig[2]; return Math.sqrt(1 + +rig[2] * x / Math.sqrt(1 + x * x)); };
+  let prevK = 0; for (let q = 0.3; q <= 1.7; q += 0.01){ const k = softK(q); assert.ok(k > prevK && k > Math.sqrt(0.7) - 1e-9 && k < Math.sqrt(1.3) + 1e-9, 'rigK rises with the radius and stays inside sqrt(0.7..1.3): ' + q.toFixed(2)); prevK = k; }
+  assert.ok((1 - softK(0.8) ** 2) / 0.2 > 0.8 && softK(0.8) < 1, 'a push-in of 6 of 30 arrives at better than four fifths of its depth through the soft clamp (then the square root halves it)');
+  assert.ok(/u\.uCamPos\.value\.copy\(dir\.multiplyScalar\(base \* rigK \* \(1 \+ 0\.05 \* Math\.sin\(t \* 0\.05\)\)\)\);/.test(drv), 'the camera sits at the form\'s framing distance times the rig\'s ratio, the slow sine kept');
+  const dk = room.match(/float distK = 1\.0 - (0\.\d+) \* kick \+ (0\.\d+) \* lean - (0\.\d+) \* danceLand\(dImpact\) - (0\.\d+) \* dMass \+ (0\.\d+) \* dBrace;/);
+  assert.ok(dk, 'the body\'s zoom: the lunge nearer, the breath back, the landing\'s lunge nearer, the passage nearer, the coil back');
+  const km = room.match(/float kick = \((0\.\d+) \* dKick \+ (0\.\d+) \* frStrike\(ageS, one\) \* dStill\) \* frBodyW\(ageS\);/);
+  assert.ok(km && Math.abs(+km[1] + +km[2] - 1) < 1e-9 && +km[1] >= 0.2, 'the lunge: struck on the strike\'s clock (still in a rest) over the body\'s spring read signed, shares summing to 1');
+  assert.ok(/float one = step\(1\.0, frBeatW\(ageS\)\);/.test(room), 'the count the strike belongs to, read at its beat line');
+  const bd = room.match(/float frBodyW\(float age\)\{ if \(dPeriod <= 0\.0\) return (0\.\d+); float i = floor\(fract\(uBarPhase - 0\.25 \* age \+ 0\.0375\) \* 4\.0\); return i < 0\.5 \? (\d\.\d+) : \(abs\(i - 2\.0\) < 0\.5 \? (\d\.\d+) : (\d\.\d+)\); \}/);
+  assert.ok(bd && +bd[2] > 1 && +bd[2] > +bd[3] && +bd[3] > +bd[4], 'law 7: the body\'s bar has a shape - the one\'s lunge heaviest, the three\'s next, the two and the four light');
+  const kickOne = +dk[1] * +bd[2], kickThree = +dk[1] * +bd[3];
+  assert.ok(kickOne >= 0.04 && kickOne <= 0.08 && kickThree >= 0.025, `a kick brings the form 2.5 to 8 % nearer (the one ${kickOne.toFixed(3)}, the three ${kickThree.toFixed(3)}): 2 to 4 % of the frame at the silhouette`);
+  assert.ok(+dk[2] >= 0.2 * kickOne && +dk[2] < kickOne, 'law 3: the breath draws the form back by at least a fifth of the one\'s lunge (and never as far)');
+  // the two envelopes, the pure form: up in a fifth to a third of a beat (a body arriving, not a snap), peak 1, spent by the next count
+  const env = name => new Function('smoothstep', 'mix', 'exp', 'max', strip(room.slice(room.indexOf('float ' + name + '('), room.indexOf('}', room.indexOf('float ' + name + '(')) + 1)).replace(/^float /, 'function ').replace(/\(float age, float one\)/, '(age, one)').replace(/float /g, 'let ') + '; return ' + name + ';')(
+    (a, b, x) => { const q = Math.min(1, Math.max(0, (x - a) / (b - a))); return q * q * (3 - 2 * q); }, (a, b, t) => a + (b - a) * t, Math.exp, Math.max);
+  for (const [name, lo, hi] of [['frStrike', 0.15, 0.4], ['frNod', 0.05, 0.25]]) for (const one of [0, 1]){
+    const f = env(name); let pk = 0, pa = 0; for (let a = 0; a <= 1.2; a += 1e-3){ const v = f(a, one); if (v > pk){ pk = v; pa = a; } }
+    assert.ok(Math.abs(pk - 1) < 0.02 && pa >= lo * 0.6 && pa <= hi, `${name} (one ${one}) peaks at 1 (${pk.toFixed(3)}) at age ${pa.toFixed(3)}`);
+    assert.ok(Math.abs(f(1.0, one)) < 1e-6 && Math.abs(f(1.3, one)) < 1e-6 && f(0, one) === 0, `${name} (one ${one}) is spent by the next count and starts from rest`);
+    if (one) assert.ok(pa > (() => { let p0 = 0, a0 = 0; for (let a = 0; a <= 1; a += 1e-3){ const v = f(a, 0); if (v > p0){ p0 = v; a0 = a; } } return a0; })(), `${name}: the one lands later than the other counts (it carries more mass)`);
+  }
+  // law 2, lesson 3 - THE REBOUND. The struck lunge lets go THROUGH rest by half the beat into ONE rebound past it and is home by 0.8
+  // beat (a body landing, not a mass let down on a string): the struck share alone crosses rest and dips (it is the body that rebounds,
+  // not only the spring under it), and is spent from 0.8; the kick line - its spring share driven by the bus's own unit spring, its
+  // struck share frStrike - crosses rest at 0.4..0.55 beat, dips ONCE by a tenth to a fifth of its peak at 0.5..0.75 and is within 5 %
+  // of rest from 0.8 beat, at any tempo, on the one and off it (the room's round-3 lunge never crossed rest: +0.7 px at the next count)
+  for (const one of [0, 1]){
+    const f = env('frStrike');
+    let cr = null, mn = 0, mnA = 0; for (let a = 0.3; a <= 1.2; a += 1e-3){ const v = f(a, one); if (cr == null && v <= 0) cr = a; if (v < mn){ mn = v; mnA = a; } }
+    assert.ok(cr != null && cr >= 0.4 && cr <= 0.55 && mn <= -0.05 && mnA > 0.5 && mnA < 0.75, `frStrike (one ${one}) lets go through rest (at ${cr == null ? 'never' : cr.toFixed(3)}) into its own rebound (${mn.toFixed(3)} at ${mnA.toFixed(3)})`);
+    for (let a = 0.8; a <= 1.3; a += 0.01) assert.ok(Math.abs(f(a, one)) < 1e-9, `frStrike (one ${one}) is spent from 0.8 beat (${a.toFixed(2)}: ${f(a, one)})`);
+    for (const bpm of [90, 120, 174]){
+      const P = 60 / bpm, ks = S.makeDanceKick(); S.danceKickStrike(ks, 1);
+      const xs = []; for (let i = 1; i <= Math.round(P * 240); i++){ const b = i / 240 / P; xs.push({ b, x: +km[1] * S.danceKickStep(ks, 1 / 240, P, false) + +km[2] * f(b, one) }); }
+      let pk = xs[0]; for (const o of xs) if (o.x > pk.x) pk = o;
+      const c0 = xs.find(o => o.b > pk.b && o.x <= 0);
+      const mins = xs.filter((o, i) => i > 0 && i < xs.length - 1 && o.b > pk.b && o.x < xs[i - 1].x && o.x <= xs[i + 1].x && o.x < 0);
+      assert.ok(c0 && c0.b >= 0.4 && c0.b <= 0.55, `${bpm} BPM, one ${one}: the lunge crosses rest at ${c0 ? c0.b.toFixed(3) : 'never'} beat (0.4..0.55)`);
+      assert.equal(mins.length, 1, `${bpm} BPM, one ${one}: exactly one rebound below rest`);
+      const reb = mins[0].x / pk.x;
+      assert.ok(reb <= -0.1 && reb >= -0.2 && mins[0].b > 0.5 && mins[0].b < 0.75, `${bpm} BPM, one ${one}: the rebound is ${(100 * reb).toFixed(1)}% of the peak at ${mins[0].b.toFixed(2)} beat (a tenth to a fifth, at 0.5..0.75)`);
+      const tail = Math.max(...xs.filter(o => o.b >= 0.8).map(o => Math.abs(o.x)));
+      assert.ok(tail <= 0.05 * pk.x, `${bpm} BPM, one ${one}: home by 0.8 beat (worst ${(100 * tail / pk.x).toFixed(1)}% of the peak after it)`);
+    }
+  }
+  assert.ok(/float roL = max\(length\(ro\), 1e-4\), fl = uBound \* 1\.14, ex = roL - fl;/.test(room) && /ro \*= \(fl \+ 0\.5 \* \(ex \+ sqrt\(ex \* ex \+ 0\.01 \* uBound \* uBound\)\)\) \/ roL;/.test(room) && !/max\(\s*F\.bound \* 1\.14/.test(drv), 'the marching sphere\'s floor is soft (a smooth ReLU): no velocity kink when a lunge bites it');
+  const nod = room.match(/float nod = -(0\.\d+) \* frNod\(ageS, one\) \* frBeatW\(ageS\) \* \(1\.0 \+ (0\.\d+) \* one\) \* dStill, cn = cos\(nod\), sn = sin\(nod\);/);
+  assert.ok(nod && +nod[1] * 1.25 * (1 + +nod[2]) <= 0.05 && /vec3 cR = uCamR, cU = uCamU \* cn \+ uCamW \* sn, cW = uCamW \* cn - uCamU \* sn;/.test(room), 'the view nods into every count (a pitch about its right axis, at most 0.05 rad on the one), weighed by the count, still in a rest');
+  assert.ok(/vec3 rd = normalize\(cR \* \(uv\.x \* uTanFov\) \+ cU \* \(uv\.y \* uTanFov\) - cW\);/.test(room) && /u\.uTanFov\.value = Math\.tan\(camera\.fov \* 0\.5 \* PI \/ 180\) \* lensMul;/.test(drv), 'the FOV is the rig\'s, perspective only');
+  // ---- law 6 - THE HIT IS A TRAVELLING KEY LIGHT: a band of light with a place, struck by danceLamp on the strike's clock, run across the form
+  assert.ok(/float lampK = danceLamp\(dHit, min\(ageS, 0\.62\)\) \* \(1\.0 - smoothstep\(0\.8, 1\.0, ageS\)\) \* frBeatW\(ageS\) \* dStill;/.test(room), 'the lamp: struck (danceLamp\'s attack) on the strike\'s own clock, held to the last fifth of the beat and let go before the next count, weighed by the count, still in a rest');
+  const hq = room.match(/float hq = 1\.0 - clamp\(\(ageS - (0\.\d+) \* \(1\.0 - one\)\) \/ (0\.\d+), 0\.0, 1\.0\), hd = 1\.0 - hq \* hq;/);
+  const hx = room.match(/float hx = (0\.\d+) \+ (0\.\d+) \* \(frDir\(ageS\) > 0\.0 \? hd : 1\.0 - hd\);/);
+  assert.ok(hq && hx && +hq[1] <= 0.15 && +hq[2] <= 0.75, 'the run: off the strike on the one, after the body on the other counts, across the form by three quarters of the beat');
+  assert.ok(+hx[1] >= 0 && +hx[1] + +hx[2] <= 1 && +hx[2] >= 0.5, 'the head crosses at least half the form and stays on it');
+  assert.ok(/float xr = 0\.5 \+ dot\(p, cR\) \/ \(1\.5 \* uBound\);/.test(room), 'the band stands across the form along the view\'s right axis (in the form\'s own frame, so it rides the orbit)');
+  assert.ok(/vec3 Lh = normalize\(cR \* \(1\.6 \* hx - 0\.8\) \+ cU \* 0\.\d+ \+ cW \* 0\.\d+\);/.test(room), 'the band\'s key comes from where the head is (the nodded camera basis)');
+  const kw = room.match(/float kf = danceFront\(xr, hx, (0\.\d+)\) \* \(0\.\d+ \+ 0\.\d+ \* clamp\(dot\(n, Lh\), 0\.0, 1\.0\)\);/);
+  assert.ok(kw && +kw[1] <= 0.25, 'the band is narrower than the form (a ridge, not a flood): width ' + (kw && kw[1]));
+  const rmp = room.match(/outc \+= \(col \* 0\.\d+ \+ glowCol \* \(0\.\d+ \* fres\)\) \* \(kf \* lampK \* \((0\.\d+) \+ (0\.\d+) \* hd\) \* \(0\.6 \+ 0\.4 \* ao\)\);/);
+  assert.ok(rmp && +rmp[2] > +rmp[1], 'the band is ADDED in the chord\'s own colours and brightens as it runs, so the far side is seen to take it - never a multiplier');
+  const dir = room.match(/float frDir\(float age\)\{ if \(dPeriod <= 0\.0\) return 1\.0; float i = floor\(fract\(uBarPhase - 0\.25 \* age \+ 0\.0375\) \* 4\.0\); return abs\(i - 1\.0\) < 0\.5 \|\| abs\(i - 3\.0\) < 0\.5 \? -1\.0 : 1\.0; \}/);
+  assert.ok(dir, 'the run\'s direction, read at the strike\'s beat line: a pendulum across the bar');
+  // the pure form: the head's place across the form through the beat, on every count - monotone, at least half the form, and the
+  // pendulum's turn: the next count's run starts where this one ended (the ridge is on another face at x.2 than at x.1, nothing jumps)
+  const head = (age, one, d) => { const q = 1 - Math.min(1, Math.max(0, (age - +hq[1] * (1 - one)) / +hq[2])), h = 1 - q * q; return +hx[1] + +hx[2] * (d > 0 ? h : 1 - h); };
+  for (const [one, d] of [[1, 1], [0, -1], [0, 1]]){
+    let prev = null; for (let a = 0; a <= 1; a += 0.01){ const x = head(a, one, d); if (prev != null) assert.ok(d * (x - prev) >= -1e-12, 'the head never walks back inside the beat'); prev = x; }
+    assert.ok(Math.abs(head(1, one, d) - head(0, one, d)) >= 0.5, 'the run crosses at least half the form');
+  }
+  assert.ok(Math.abs(head(1, 1, 1) - head(0, 0, -1)) < 1e-9 && Math.abs(head(1, 0, -1) - head(0, 0, 1)) < 1e-9, 'the pendulum: each count\'s run starts where the last one ended');
+  // the hit's light only travels: every statement that sets the light (outc, g, lit, col, oc, veinCol, hg, glowCol) and reads the strike,
+  // its clock or the body's beat goes through the band (kf * lampK) or is the orbs' lamp - no additive whole-frame flash, no hue on the beat
+  const BEAT = /\b(dHit|dAge|ageS|lampK|kick|one|dKick|hq|hd|hx|nod|distK)\b/;
+  for (const st of stmts) if (/(^|[\s;{}])(vec3\s+)?(outc|g|lit|col|oc|veinCol|hg|glowCol)\s*(\+|-|\*)?=(?!=)/.test(st) && BEAT.test(st)) assert.ok(/kf \* lampK|vec3 oc = mix\(uColC, uColB, 0\.35\) \* \(1\.0 \+ 0\.\d+ \* lampK\)/.test(st), 'the strike\'s light only travels: ' + st.trim().slice(0, 110));
+  // the strike's light reaches the picture only through the lobe and the orbs' lamps: every other reader would be a flash in place
+  for (const st of stmts) if (/\blampK\b/.test(st) && !/float lampK = /.test(st)) assert.ok(/kf \* lampK|1\.0 \+ 0\.\d+ \* lampK/.test(st), 'the lamp lights the travelling band and the orbs, nothing else: ' + st.trim().slice(0, 110));
+  // the strike's clock: a strike on the beat line restarts the light, one inside a beat already struck never rewinds it
+  const spM = room.match(/float sp = (fract\(ph - dAge[^;]+);/), agM = room.match(/float ageS = ([^;]+);/);
+  assert.ok(spM && agM && /\bdAge\b/.test(agM[1]) && /\bdPeriod > 0\.0\b/.test(agM[1]), 'the lamp\'s clock (sp, ageS) on dAge, freewheeling on dAge alone');
+  const js = e => e.replace(/\bfract\(/g, 'F(').replace(/\bsmoothstep\(/g, 'S(').replace(/\bmax\(/g, 'Math.max(').replace(/\bmin\(/g, 'Math.min(');
+  const ageOf = new Function('ph', 'dAge', 'dPeriod', 'F', 'S', 'const sp = ' + js(spM[1]) + '; return ' + js(agM[1]) + ';');
+  const Ff = x => x - Math.floor(x), Sf = (e0, e1, x) => { const q = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return q * q * (3 - 2 * q); };
+  for (const [stp, early] of [[0.25, 0.02], [0.5, 0.02], [0.25, -0.05], [1.0, 0.03]]){
+    let prev = null, last = -9;
+    for (let f = 0; f < 4 * 30; f++){
+      const t = f / 30, ph = Ff(t), k = Math.floor((t + early) / stp + 1e-9), st = k * stp - early;
+      const struck = st <= t + 1e-9 && st > last + 1e-9;
+      if (struck) last = st;
+      const dAge = Math.min(4, t - last), ageS = ageOf(ph, dAge, 0.5, Ff, Sf), onLine = Math.abs(Ff(last + early + 0.5) - 0.5) < 1e-6;
+      if (struck && prev != null && !onLine) assert.ok(ageS >= prev - 1e-6, `a strike inside the beat (every ${stp} beat) never rewinds the light: ${prev.toFixed(3)} -> ${ageS.toFixed(3)}`);
+      if (struck && onLine) assert.ok(ageS < 0.1, `a strike on the beat line restarts the light (${ageS.toFixed(3)})`);
+      if (stp === 1.0) assert.ok(Math.abs(ageS - dAge) < 1e-9, 'the groove (strikes on the beat lines only) runs on dAge itself');
+      prev = ageS;
+    }
+  }
+  assert.ok(ageOf(0.5, 0.3, 0.0, Ff, Sf) === 0.3, 'freewheeling, the lamp\'s clock is dAge');
+  // ---- law 7 - the count: the one heaviest, the three next, the two and the four light; the breath deepest before the one
+  const bw = room.match(/float frBeatW\(float age\)\{ if \(dPeriod <= 0\.0\) return (0\.\d+); float i = floor\(fract\(uBarPhase - 0\.25 \* age \+ (0\.\d+)\) \* 4\.0\); return i < 0\.5 \? (\d\.\d+) : \(abs\(i - 2\.0\) < 0\.5 \? (\d\.\d+) : (\d\.\d+)\); \}/);
+  assert.ok(bw && +bw[2] > 0.005 && +bw[2] <= 0.04 && +bw[3] > 1 && +bw[3] > +bw[4] && +bw[4] > +bw[5] && +bw[1] < +bw[3] && +bw[1] > +bw[5], 'the strike is weighed at its own beat line: one > three > two/four, freewheeling between');
+  const lw = room.match(/float frLeanW\(\)\{ if \(dPeriod <= 0\.0\) return 0\.8; float i = floor\(fract\(uBarPhase \+ 0\.1\) \* 4\.0\); return i < 0\.5 \? (\d\.\d+) : \(abs\(i - 2\.0\) < 0\.5 \? (\d\.\d+) : (\d\.\d+)\); \}/);
+  assert.ok(lw && +lw[1] === 1.0 && +lw[1] > +lw[2] && +lw[2] >= +lw[3], 'the breath is drawn deepest before the one');
+  const lg = room.match(/float lean = danceLean\(ph\) \* frLeanW\(\) \* \(1\.0 - smoothstep\((\d\.\d+), (\d\.\d+), dAge\)\);/);
+  assert.ok(/float ph = danceBeatPhase\(\);/.test(room) && lg, 'the lean is the prelude\'s, on the beat phase, weighed by the count it loads for, on a live beat only');
+  // A1 - no breath on an empty lattice: a groove's last strike before a count is at most a beat old (the read-ahead included), so the
+  // gate is whole past a beat; an outro's pad holds the lattice three or four beats after its last strike, so it is shut by 2.5
+  assert.ok(+lg[1] >= 1.1 && +lg[2] > +lg[1] && +lg[2] <= 2.5, `the breath's live-beat gate: whole to ${lg[1]} beat after the last strike, shut by ${lg[2]}`);
+  const lgj = dcode.match(LGJS);
+  assert.ok(lgj && +lgj[1] === +lg[1] && +lgj[2] === +lg[2], 'the drivers\' live-beat gate is the fragment\'s, constant for constant');
+  assert.ok(/function frLeanWJS\(barPh, dPeriod\)\{\s*if \(!\(dPeriod > 0\)\) return 0\.8;\s*const q = barPh \+ 0\.1, i = Math\.floor\(\(q - Math\.floor\(q\)\) \* 4\);\s*return i < 0\.5 \? 1\.0 : \(Math\.abs\(i - 2\) < 0\.5 \? 0\.5 : 0\.25\);\s*\}/.test(region)
+    && new RegExp('return i < 0\\.5 \\? ' + lw[1].replace('.', '\\.') + ' : \\(Math\\.abs\\(i - 2\\) < 0\\.5 \\? ' + lw[2].replace('.', '\\.') + ' : ' + lw[3].replace('.', '\\.') + '\\);').test(region), 'the drivers\' breath weight is the fragment\'s');
+  assert.ok(LGJS.test(drv) && /const coil = Math\.max\(dBrace, 0\.6 \* \(1 - danceSmooth\(0, 2, dImpact\)\)\);/.test(drv) && /float coil = max\(dBrace, 0\.6 \* \(1\.0 - smoothstep\(0\.0, 2\.0, dImpact\)\)\);/.test(room), 'the drivers\' breath and coil are the fragment\'s arithmetic');
+  // ---- laws 5, 6 - the light budget: the exposure is the section's; the hats are glints on the limb and the veins; no flash in place
+  const ex = room.match(/outc \*= \(0\.9 \+ 0\.3 \* uAct \* uCalm\) \* \(1\.0 - (0\.\d+) \* dBrace\) \* \(1\.0 - (0\.\d+) \* lean\);/);
+  assert.ok(ex && +ex[2] <= 0.1, 'the exposure: the section\'s loudness (uCalm, seconds) through the story clock, dimmer in the coil, a breath drawn in before the count');
+  for (const st of stmts) if (/(^|\s)(outc|g|gl_FragColor) \*=/.test(st)) assert.ok(!/\b(dHit|dAge|ageS|lampK|kick|one|kf|dKick|dSpark|dSway|dLift)\b/.test(st), 'no whole-frame multiplier on the beat: ' + st.trim().slice(0, 110));
+  assert.ok(/g \*= 0\.85 \+ 0\.15 \* dMass;/.test(room), 'the corona and the halo on the passage\'s weight');
+  const spark = stmts.filter(st => /\bdSpark\b/.test(st));
+  assert.ok(spark.length === 2 && spark.every(st => /outc \+= col \* fres \* \(0\.45 \+ 0\.\d+ \* dSpark\)|outc \+= veinCol \* vein \* uBand \* \(1\.0 \+ 0\.\d+ \* dMass \+ 0\.\d+ \* dSpark\)/.test(st)), 'dSpark only glints the limb and the veins (light only): ' + spark.map(s => s.trim().slice(0, 60)).join(' | '));
+  assert.ok(/float bx = clamp\(gTrapN, 0\.0, 4\.0\) \* uBandK \+ uBandPhase \+ 0\.\d+ \* dKick;/.test(room), 'the veins step with the kick, signed (they settle back on the rebound)');
+  assert.ok(/vec3 oc = mix\(uColC, uColB, 0\.35\) \* \(1\.0 \+ 0\.5 \* lampK\);/.test(room) && /lit = col \* \(0\.12 \+ d1 \* 0\.62\) \+ uColB \* d2 \* 0\.\d+;/.test(room), 'the orbs brighten with the lamp; the second light\'s fill is a constant (chord-only colour)');
+  // ---- laws 1, 2, 4, 9 - the set on a slow leash: the spring and the breath on x, the held articulation on y, nothing on z
+  const off = drv.match(/off\.set\(\s*Math\.sin\(t \* 0\.11\) \* 0\.055 \* \(1 - (0\.\d+) \* coil\) \+ (0\.\d+) \* \(dKick - (0\.\d+) \* lean\),\s*Math\.cos\(t \* 0\.09\) \* 0\.055 \* \(1 - \1 \* coil\) \+ (0\.\d+) \* artH,\s*Math\.sin\(t \* 0\.07 \+ 1\.7\) \* 0\.055 \* \(1 - \1 \* coil\)\s*\);/);
+  assert.ok(off && +off[3] >= 0.2 && +off[2] <= 0.04, 'the set: its sines drawn in by the coil, the kick\'s compress on x (the breath a fifth of it the other way), the bar on y, nothing on z');
+  // laws 4, 8, 15 - THE HELD ARTICULATION READS ONE CLOCK: the bar it deals and the ease it deals it over come from the same clock (the
+  // phrase's own bar and its phase inside it), so a rest that holds the engine's bar phase while the phrase runs on can never deal it
+  // mid-silence (it did: every form that reads it twitched once inside the silent bar, and back on the landing). Every reader of the
+  // deal (the set's y, OCTA's fold, JULIA's c, WEAVE's cage) takes it through that one pair; held once dealt, still in a rest
+  const clk = dstm.find(st => /\bbar8\s*=(?!=)/.test(st)), clkNames = clk ? [...clk.matchAll(/\b(\w+)\s*=(?!=)/g)].map(m => m[1]) : [];
+  assert.ok(clk && /\buPhrasePhase\b/.test(clk) && !/\b(barPh|uBarPhase|uBeatIdx|ph|d0|d2|t|dtm|time)\b/.test(clk), 'the bar in the phrase and the phase inside it are read off ONE clock, the phrase\'s: ' + (clk || '').trim().slice(0, 110));
+  const heldCalls = [...dcode.matchAll(/frHeldJS\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\d+\.\d+)\s*\)/g)];
+  assert.ok(heldCalls.length >= 2 && heldCalls.length === (dcode.match(/frHeldJS\(/g) || []).length && heldCalls.every(m => m[1] === 'bar8' && m[2] !== 'bar8' && clkNames.includes(m[2])), 'every deal reads its bar and its ease from that one clock: ' + heldCalls.map(m => m[0]).join(' | '));
+  const artSt = dstm.find(st => /\bconst artH\s*=/.test(st));
+  assert.ok(artSt && /^\s*const artH = frHeldJS\([^)]*\) \* dStill\s*$/.test(artSt), 'the articulation is the bar\'s deal, held, still in a rest');
+  // the pure form, driven: a groove (both clocks run), then a rest that HOLDS the bar phase while the phrase runs on (the silent bar
+  // before a drop, the stillness still open), its release, and a longer hold across bar lines - at 24, 60 and 120 frames a second and
+  // for several held phases. No frame steps any deal further than the groove's own eased re-deal does at that frame rate, and in the
+  // groove the deal moves inside the bar's first fifth only
+  {
+    const hJS = new Function('danceSmooth', strip(region.slice(region.indexOf('function frHeldJS('), region.indexOf('function buildFractalField(){'))) + '; return frHeldJS;')((p, q, x) => { const r = Math.min(1, Math.max(0, (x - p) / (q - p))); return r * r * (3 - 2 * r); });
+    const deal = new Function('U', 'barPh', 'frHeldJS', clk + '; return [' + heldCalls.map(m => m[0]).join(', ') + '];');
+    for (const fps of [24, 60, 120]) for (const h0 of [0.05, 0.164, 0.5, 0.93]){
+      const Pb = 0.5, dt = 1 / fps, bar = 4 * Pb, phrase = 32 * Pb;   // 120 BPM, four to the bar, 32 beats to the phrase
+      const holds = [[(5 + h0) * bar, (6.8 + h0) * bar], [(19 + h0) * bar, (22.2 + h0) * bar]];
+      let prev = null, grooveMax = 0, worst = 0, worstAt = 0, heldPh = null;
+      for (let f = 0; f < 32 * bar * fps; f++){
+        const time = f * dt, live = (time / bar) % 1, held = holds.some(([x, y]) => time >= x && time < y);
+        heldPh = held ? (heldPh == null ? live : heldPh) : null;
+        const v = deal({ uPhrasePhase: { value: (time / phrase) % 1 } }, held ? heldPh : live, hJS);
+        if (prev){
+          const st = Math.max(...v.map((x, i) => Math.abs(x - prev[i])));
+          if (time < holds[0][0]){ grooveMax = Math.max(grooveMax, st); if (live >= 0.2 + 1.5 * dt / bar) assert.ok(st < 1e-12, `the groove's deal moves in the bar's first fifth only (${fps} fps, bar phase ${live.toFixed(3)}: ${st})`); }
+          else if (st > worst){ worst = st; worstAt = time; }
+        }
+        prev = v;
+      }
+      assert.ok(grooveMax > 0 && worst <= grooveMax * (1 + 1e-9), `a held bar phase never steps the deal past the groove's eased re-deal (${fps} fps, held at ${h0}: ${worst.toFixed(4)} at ${worstAt.toFixed(3)} s against ${grooveMax.toFixed(4)})`);
+    }
+  }
+  assert.ok(/const s = b \+ sgn \* \(Math\.sin\(t \* 0\.06\) \* 0\.22 \+ (0\.\d+) \* dMass \+ (0\.\d+) \* dKick \+ 0\.05\);/.test(drv), 'CUBE / VOID: the scale breathes on the passage, the kick\'s spring inside it');
+  assert.ok(/u\.uBoxScale\.value = -1\.5 - \(Math\.sin\(t \* 0\.05\) \* 0\.05 \+ 0\.\d+ \* dMass\) - 0\.\d+ \* frHeldJS\(bar8, (\w+), 4\.0\) \* dStill;/.test(drv) && clkNames.includes(drv.match(/frHeldJS\(bar8, (\w+), 4\.0\)/)[1]), 'WEAVE: the cage re-knits once per bar on the one clock, held, still in a rest');
+  assert.ok(/u\.uFold\.value = 0\.22 \+ Math\.sin\(t \* 0\.07\) \* 0\.06 \+ 0\.\d+ \* artH;/.test(drv), 'OCTA: the twist turns once per bar');
+  assert.ok(/0\.62 \+ Math\.sin\(t \* 0\.08\) \* 0\.07 \+ 0\.\d+ \* dMass,\s*0\.62 \+ Math\.cos\(t \* 0\.06\) \* 0\.07 \+ 0\.\d+ \* artH,\s*-0\.28 \+ Math\.sin\(t \* 0\.05 \+ 2\.2\) \* 0\.07\);/.test(drv), 'JULIA: c on the passage and the bar, the hats out of z');
+  // law 8 - stillness: the integrated clocks crawl in a rest; the orbs swell with the spring (signed), fall inward in the coil
+  const orb = drv.match(/orbT \+= dtm \* \((0\.\d+) \+ (0\.\d+) \* dStill\) \* \(1 - 0\.\d+ \* coil\);/);
+  assert.ok(orb && +orb[1] <= 0.3 && Math.abs(+orb[1] + +orb[2] - 1) < 1e-9, 'the orbs\' clock slows to a crawl when the music stops (a rate, never a jump)');
+  assert.ok(/const R = F\.bound \* 0\.78 \* \(1 \+ 0\.\d+ \* dKick\) \* \(1 - 0\.\d+ \* coil\);/.test(drv) && /u\.uOrbR\.value = F\.bound \* 0\.062 \* P\.orbMul \* \(1 \+ 0\.\d+ \* dKick\);/.test(drv), 'the orbs swell with the body\'s spring, never the onset envelope');
+  assert.ok(/bandPhase = \(bandPhase \+ dtm \* \(0\.035 \+ 0\.\d+ \* dMass\) \* \(0\.3 \+ 0\.7 \* dStill\) \* \(1 - 0\.5 \* coil\)/.test(drv), 'the veins\' flow is the passage\'s, stilled in a rest, slower in the coil');
+  // ---- law 15 - the bar-held articulation, the pure form: constant after the bar's first fifth, no step at any bar line (the phrase's wrap too)
+  const held = new Function('danceSmooth', strip(region.slice(region.indexOf('function frHeldJS('), region.indexOf('function buildFractalField(){'))) + '; return frHeldJS;')((a, b, x) => { const q = Math.min(1, Math.max(0, (x - a) / (b - a))); return q * q * (3 - 2 * q); });
+  for (let bar = 0; bar < 8; bar++){
+    const v = held(bar, 0.2, 3.0);
+    for (let bp = 0.2; bp < 1; bp += 0.05) assert.ok(Math.abs(held(bar, bp, 3.0) - v) < 1e-12, 'held through the bar');
+    const next = (bar + 1) % 8;
+    assert.ok(Math.abs(held(next, 0, 3.0) - held(bar, 0.999, 3.0)) < 1e-6, `no step at the bar line (3π/4 to eight digits: the phrase wrap within 1e-7) ${bar} -> ${next}`);
+    assert.ok(Math.abs(held(bar, 0.5, 3.0)) <= 1 + 1e-12, 'within -1..1');
+  }
+  // ---- law 15 - THE WALK ON THE BAR, the pure form: driven through a groove with a held rest and a release
+  const rungSrc = region.slice(region.indexOf('function frRungStep('), region.indexOf('function frLeanWJS('));
+  const rungStep = new Function('danceSmooth', strip(rungSrc) + '; return frRungStep;')((a, b, x) => { const q = Math.min(1, Math.max(0, (x - a) / (b - a))); return q * q * (3 - 2 * q); });
+  // A1 - the walk ARMS on the phrase's bars COUNTED (two whole bars standing; the phrase runs on through a held rest), so neither the
+  // frame grid nor the rubato (the musical dt the drivers integrate) can move which line it takes: driven under a rubato, the same
+  // bar lines at 24, 30, 60 and 120 frames a second
+  const startBars = {};
+  for (const fps of [24, 30, 60, 120]) for (const P of [0.4, 0.5, 0.6]){
+    const dim = { a: 4, b: 4, t: null, wait: 0, bars: 0, bar: null, dir: 1, k: 0, pb: null, onBar: false }, dt = 1 / fps;
+    let bar = 0, held = false, starts = [], lastK = 0, lastStart = -1e9, inMorph = false, pbarT = null, lines = 0;
+    const sb = startBars[P] = startBars[P] || {}; sb[fps] = [];
+    for (let f = 0; f < fps * 60; f++){
+      const time = f * dt, rest = time > 20 && time < 26;   // six seconds of a held rest: the bar phase frozen, the stillness down
+      if (!rest) bar = time / (4 * P);
+      const barPh = bar - Math.floor(bar), still = rest ? 0 : (time >= 26 && time < 26.5 ? (time - 26) / 0.5 : 1);
+      const was = dim.t != null;
+      // the one's own strike: on the bar line in the groove; none in the rest and none in a silent bar (40..44 s) whose
+      // bar line is passed by a roll's last 16th - the walk must not start a morph into silence
+      const silent = time > 40 && time < 44, struck = !rest && !silent && (barPh < 0.1 || barPh > 0.95);
+      const pbar = Math.floor(time / (4 * P) + 1e-9);   // the phrase's own bar: it runs on through the rest
+      if (pbarT != null && pbar !== pbarT) lines++;
+      pbarT = pbar;
+      rungStep(dim, { dt: dt * (1 + 0.45 * Math.sin(time * 0.9 + 7 * P)), period: P, grid: true, barPh, bar: pbar % 8, still, struck });   // the musical dt, under a rubato
+      if (dim.t != null && !was){
+        starts.push(time); sb[fps].push(Math.round(bar));
+        assert.ok(lines >= 3, `two whole bars stand on a rung: the walk starts no sooner than the phrase's third bar line after the last morph (${fps} fps, P ${P}, t ${time.toFixed(3)}: line ${lines})`);
+        lines = 0;
+        assert.ok(barPh < 0.25 && still > 0.9, `a morph starts on a live bar line, never in a rest or on its release (${fps} fps, P ${P}, t ${time.toFixed(3)}, bar phase ${barPh.toFixed(3)})`);
+        assert.ok(!silent, `no morph starts in a silent bar: a bar line passed with no strike of its own (${fps} fps, P ${P}, t ${time.toFixed(3)})`);
+        assert.ok(time - lastStart >= 8 * P - 1e-9, 'eight beats stand on a rung before the walk moves');
+        lastStart = time; lastK = 0; inMorph = true;
+      }
+      if (dim.t != null){
+        assert.ok(dim.k >= lastK - 1e-12 && Math.abs(dim.b - dim.a) === 1, 'the morph travels one rung, one way');
+        if (barPh >= 0.25) assert.ok(false, 'the morph is done by the bar\'s second beat');
+        lastK = dim.k;
+      } else if (inMorph){ inMorph = false; assert.ok(barPh >= 0.25 - 1e-9 && barPh < 0.35, 'the morph lands on the bar\'s second beat'); }
+      assert.ok(dim.a >= 3 && dim.a <= 9 && dim.k >= 0 && dim.k <= 1, 'the ladder stays 3..9');
+      if (rest) assert.ok(dim.t == null || dim.k === lastK, 'a held bar holds the morph');
+    }
+    assert.ok(starts.length >= 5, `the walk walks (${starts.length} morphs in a minute at ${fps} fps, P ${P})`);
+  }
+  for (const P of Object.keys(startBars)) for (const fps of [30, 60, 120]) assert.deepStrictEqual(startBars[P][fps], startBars[P][24], `the walk takes the same bar lines at ${fps} and at 24 frames a second (P ${P})`);
+  // ...and with no grid it keeps the old clock: eight beats of dt standing, two of travel
+  { const dim = { a: 8, b: 8, t: null, wait: 0, bars: 0, bar: null, dir: -1, k: 0, pb: null, onBar: false }; let n = 0, was = false;
+    for (let f = 0; f < 24 * 30; f++){ rungStep(dim, { dt: 1 / 24, period: 0.5, grid: false, barPh: 0.37, still: 1, struck: false }); if (dim.t != null && !was) n++; was = dim.t != null; }
+    assert.ok(n >= 5 && n <= 7, 'freewheeling, a morph every ten beats (' + n + ' in 30 s)'); }
+  assert.ok(/frRungStep\(dim, \{ dt: dtm, period: \(typeof DANCE !== 'undefined'\) \? DANCE\.period : 0, grid: dPeriod > 0, barPh, bar: bar8, still: dStill, struck \}\);/.test(drv) && clkNames.includes('bar8') && /u\.uPowA\.value = dim\.a; u\.uPowB\.value = dim\.b; u\.uPowT\.value = dim\.k;/.test(drv), 'the bulbs walk on frRungStep');
+  // every loop of the march bounded by a compile-time literal
+  const loops = [...room.matchAll(/for\s*\(([^)]*)\)/g)].map(m => m[1]);
+  assert.ok(loops.length >= 6, 'the march, the DEs and the folds are loops');
+  for (const l of loops) assert.ok(/^\s*int \w+ = 0;\s*\w+ < \d+;\s*\w+\+\+\s*$/.test(l), 'literal-bounded loop: ' + l);
+
+  // ---- law 10 - the twin: Shaders2.metal's room_fractal and rm_fr carry the same dance, the same text
+  const metal = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Shaders2.metal'), 'utf8');
+  const m0 = metal.indexOf('/* ==== ROOM REGION: FRACTAL'), m1 = metal.indexOf('/* ==== END ROOM REGION: FRACTAL', m0);
+  assert.ok(m0 >= 0 && m1 > m0, 'the FRACTAL region is fenced in Shaders2.metal');
+  const mreg = metal.slice(m0, m1);
+  const e0 = mreg.indexOf('fragment float4 room_fractal('), entry = mreg.slice(e0), fc0 = mreg.indexOf('inline float3 fieldColor('), fcol = mreg.slice(fc0, mreg.indexOf('}  // namespace rm_fr', fc0));
+  assert.ok(e0 > 0 && fc0 > 0, 'the entry and fieldColor<F> are in the region');
+  const lines = s => strip(s).split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const cut = (s, x, y) => { const i = s.indexOf(x), j = s.indexOf(y, i + 1); assert.ok(i >= 0 && j > i, 'found ' + x + ' .. ' + y); return s.slice(i, j); };
+  const cutTo = (s, x, y) => { const i = s.indexOf(x), j = s.indexOf(y, i + 1); assert.ok(i >= 0 && j > i, 'found ' + x + ' .. ' + y); return s.slice(i, s.indexOf('\n', j)); };
+  // the body, the camera block, the strike's clock and the lamp, the key light and the exposure: the web's lines, through no map at all
+  assert.deepStrictEqual(lines(cutTo(entry, 'float ph = danceBeatPhase();', 'float kick = ')), lines(cutTo(room, 'float ph = danceBeatPhase();', 'float kick = ')), 'the twin\'s body (the count, the breath, the coil, the strike\'s clock, the lunge) is the web\'s, line for line');
+  assert.deepStrictEqual(lines(cutTo(entry, 'float distK = ', 'vec3 rd = normalize(')), lines(cutTo(room, 'float distK = ', 'vec3 rd = normalize(')), 'the twin\'s camera block (the zoom, the soft floor, the nod, the rays) is the web\'s, line for line');
+  assert.deepStrictEqual(lines(cutTo(fcol, 'float hq = ', 'outc *= (0.9')), lines(cutTo(room, 'float hq = ', 'outc *= (0.9')), 'the twin\'s travelling key light and exposure are the web\'s, line for line');
+  for (const one of ['float lampK = ', 'vec3 oc = mix(uColC, uColB, 0.35)', 'lit = col * (0.12 + d1 * 0.62) + uColB', 'outc += col * fres * (0.45', 'float bx = clamp(gTrapN', 'outc += veinCol * vein * uBand', 'g *= 0.85 + 0.15 * dMass'])
+    assert.deepStrictEqual(lines(cutTo(fcol, one, ';')), lines(cutTo(room, one, ';')), 'the twin\'s ' + one + ' … is the web\'s');
+  // the count helpers through the accessor map (a namespace helper takes the uniforms as the prelude's helpers do)
+  const acc = s => s.replace(/^inline float (fr\w+)\(constant VizUniforms& U(, )?/gm, 'float $1(').replace(/^inline float (fr\w+)\(/gm, 'float $1(');
+  for (const fn of ['frBeatW', 'frLeanW', 'frBodyW', 'frStrike', 'frNod', 'frDir']) assert.deepStrictEqual(lines(acc(cutTo(mreg, 'inline float ' + fn + '(', '}'))), lines(cutTo(room, 'float ' + fn + '(', '}')), 'the twin\'s ' + fn + ' is the web\'s');
+  // ...and no dance line lives on one stage only: every line of the web's fragment that reads the bus, the prelude or the body's terms is
+  // a line of the twin, and every such line of the twin's shading and entry is a line of the web's fragment. What one stage keeps for
+  // itself is named here, and each is checked above: the web's uniform lines; the TV's closed-form drivers (constant for constant, term
+  // for term), its camera inputs (the rig's constants), its hue stand-in and its plumbing (the switch, fieldColor's new parameters)
+  const DT = /\b(d(Hit|Age|Kick|Mass|Artic|Spark|Sway|Lift|Brace|Impact|Still|Period)|dance[A-Z]\w*|fr[A-Z]\w*|lampK|ageS|lean|coil|kick|distK|nod|hq|hd|hx|xr|Lh|kf|one|artH|bar8|uCalm|uAct)\b/;
+  const tvAll = new Set(lines(acc(mreg))), webAll = new Set(lines(room));
+  for (const l of lines(room)) if (DT.test(l) && !/^uniform /.test(l)) assert.ok(tvAll.has(l), 'the twin carries the web\'s dance line: ' + l.slice(0, 110));
+  const TV_OWN = ['float q8 = ', 'float artH = ', 'float3 off = float3(', 'cos(T * 0.09)', 'sin(T * 0.07 + 1.7)', 'float s = b + sgn * (', 'P.boxScale = -1.5', 'P.fold = 0.22', 'P.juliaC = float3(', '0.62 + cos(T * 0.06)', 'float R = P.bound * 0.78', 'P.orbR = P.bound', 'float roll = ', 'float uTanFov = ', 'float hueDrift = ', 'case ', 'default: col = fieldColor<', 'float3 cR, float3 cU, float3 cW, float ageS, float one, float lean) {'];
+  for (const l of lines(acc(fcol + entry))) if (DT.test(l) && !/^#(define|undef) /.test(l) && !TV_OWN.some(p => l.startsWith(p))) assert.ok(webAll.has(l), 'the web carries the twin\'s dance line: ' + l.slice(0, 110));
+  const hueTV = cut(entry, 'float hueDrift = ', ';');
+  assert.ok(/\buCalm\b/.test(hueTV) && !/\bd[A-Z]\w*|\b(ageS|lampK|kick|one|lean|coil|artH)\b|\bU\.(bass|mid|treble|energy|onsetEnv|beatPhase)\b/.test(hueTV), 'the TV\'s hue stand-in is the section\'s loudness, slow: no beat, no body, no band');
+  // the drivers: the web's JS arithmetic in closed form, constant for constant
+  const num = s => (s.replace(/[A-Za-z_]\w*/g, ' ').match(/\d+\.\d+|\d+/g) || []).map(Number);   // identifiers out first (float3, sin)
+  // ...and term for term: the bus readings in the same places (a TV that drops a stillness, or reads the strike or the live articulation
+  // where the web reads the spring or the held bar, keeps every constant and still is another room)
+  const ids = s => (s.match(/\b(d[A-Z]\w*|lean|coil|kick|artH|bar8|barQ|q8|frHeld(?:JS)?|barPh|uBarPhase|phrasePhase|uPhrasePhase)\b/g) || []).map(x => ({ frHeldJS: 'frHeld', barPh: 'uBarPhase', uPhrasePhase: 'phrasePhase' })[x] || x);
+  const eqNums = (a, b, what) => { assert.deepStrictEqual(num(a), num(b), what + ': ' + a.trim().slice(0, 80) + ' | ' + b.trim().slice(0, 80)); assert.deepStrictEqual(ids(a), ids(b), what + ' reads the same bus terms in the same places: ' + a.trim().slice(0, 80) + ' | ' + b.trim().slice(0, 80)); };
+  const tvOff = cut(entry, 'float3 off = float3(', ';'), webOff = cut(drv, 'off.set(', ';');
+  eqNums(tvOff, webOff, 'the set\'s leash on both stages');
+  eqNums(cut(entry, 'float s = b + sgn * (', ';'), cut(drv, 'const s = b + sgn * (', ';'), 'CUBE / VOID');
+  eqNums(cut(entry, 'P.boxScale = -1.5 - (', ';'), cut(drv, 'u.uBoxScale.value = -1.5 - (', ';'), 'WEAVE');
+  eqNums(cut(entry, 'P.fold = 0.22 + ', ';'), cut(drv, 'u.uFold.value = 0.22 + ', ';'), 'OCTA');
+  eqNums(cut(entry, 'P.juliaC = float3(', ';'), cut(drv, 'u.uJuliaC.value.set(', ';'), 'JULIA');
+  eqNums(cut(entry, 'float R = P.bound * 0.78', ';'), cut(drv, 'const R = F.bound * 0.78', ';'), 'the orbs\' orbit');
+  eqNums(cut(entry, 'P.orbR = P.bound * 0.062', ';'), cut(drv, 'u.uOrbR.value = F.bound * 0.062', ';'), 'the orbs\' radius');
+  eqNums(cut(entry, 'float artH = ', ';'), cut(drv, 'const artH = ', ';'), 'the held articulation');
+  eqNums(cut(entry, 'float q8 = ', ';'), cut(drv, 'const q8 = ', ';'), 'the bar in the phrase and the phase inside it, one clock');
+  assert.ok(!/\buBarPhase\b/.test(cut(entry, 'float q8 = ', ';')), 'the twin\'s deal reads the phrase\'s clock alone, as the web\'s');
+  assert.ok(/inline float frHeld\(float bi, float bp, float seed\)\{ return mix\(sin\(\(bi - 1\.0\) \* 2\.3561945 \+ seed\), sin\(bi \* 2\.3561945 \+ seed\), smoothstep\(0\.0, 0\.2, bp\)\); \}/.test(mreg) && /const a = Math\.sin\(\(bi - 1\) \* 2\.3561945 \+ seed\), b = Math\.sin\(bi \* 2\.3561945 \+ seed\);\s*return a \+ \(b - a\) \* danceSmooth\(0, 0\.2, bp\);/.test(region), 'the twin\'s held articulation is the web\'s arithmetic');
+  // the camera: the TV has no rig figures (its rigK is 1: the lunge, the room's, is the same text on both stages); the web rig's
+  // head-tilt and its phrase FOV, retold with the rig's own constants (read from the director)
+  const wt = html.match(/camera\.rotation\.z \+= sway \* (0\.\d+)/), wf = html.match(/const goalFov = \(v2 \? (\d+) \+ (\d+) \* db\[7\]/);
+  assert.ok(/float3 uCamPos = dir \* \(base \* \(1\.0 \+ 0\.05 \* sin\(T \* 0\.05\)\)\);/.test(entry) && !/\brigK\b|\brigR\b/.test(strip(entry)), 'the TV\'s camera sits at the form\'s framing distance and the slow sine: no rig ratio, no second spring');
+  const troll = entry.match(/float roll = (0\.\d+) \* dSway, cr = cos\(roll\), sr = sin\(roll\);/), tfov = entry.match(/float uTanFov = tan\(\((\d+\.\d+) \+ (\d\.\d+) \* dLift\) \* \(PI_A \/ 180\.0\)\) \* lensMul;/);
+  assert.ok(wt && troll && +troll[1] === +wt[1], 'the TV rolls with the bar as the web rig\'s head tilts');
+  assert.ok(wf && tfov && +tfov[1] * 2 === +wf[1] && +tfov[2] * 2 === +wf[2], 'the TV\'s FOV is the web rig\'s, half-angle, the phrase only: the bass is out');
+  assert.ok(/float3 uCamR = right0 \* cr \+ up0 \* sr, uCamU = up0 \* cr - right0 \* sr, uCamW = -fwd;/.test(entry), 'the TV builds the web\'s camera inputs');
+  assert.ok(/fieldColor<0>\(ro, rd, pixAng, pos\.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean\)/.test(entry) && /float3 cR, float3 cU, float3 cW, float ageS, float one, float lean\)/.test(mreg), 'the nodded basis, the strike\'s clock, its count and the breath reach the hit\'s shading');
+  // the macros: the twelve onto the uniforms, the helpers passed U, the slow voices in the web's sense; all let go of before the region ends
+  const defs = [...mreg.matchAll(/^#define (\w+)/gm)].map(m => m[1]).sort(), undefs = [...mreg.matchAll(/^#undef (\w+)/gm)].map(m => m[1]).sort();
+  assert.deepStrictEqual(undefs, defs, 'every macro the twin defines is let go of');
+  for (const d of twelve) assert.ok(new RegExp('#define ' + d + ' U\\.' + d + '\\n').test(mreg), 'the twin maps ' + d + ' onto the uniforms');
+  assert.ok(/#define danceBeatPhase\(\) danceBeatPhase_a\(U\)\n/.test(mreg) && /#define danceLean\(p\) danceLean_a\(U, \(p\)\)\n/.test(mreg) && /#define danceLamp danceLamp_a\n/.test(mreg) && /#define danceLand danceLand_a\n/.test(mreg) && /#define frBeatW\(a\) frBeatW\(U, \(a\)\)\n/.test(mreg) && /#define frLeanW\(\) frLeanW\(U\)\n/.test(mreg) && /#define frBodyW\(a\) frBodyW\(U, \(a\)\)\n/.test(mreg) && /#define frDir\(a\) frDir\(U, \(a\)\)\n/.test(mreg) && /#define danceFront danceFront_a\n/.test(mreg), 'the twin calls the _a prelude and passes U to the helpers that read the bus');
+  assert.ok(/#define uCalm \(1\.0 - U\.calm\)\n/.test(mreg) && /#define uBarPhase U\.barPhase\n/.test(mreg), 'the TV reads the loudness in the web\'s sense (its analyser counts calm DOWN)');
+  // the story clock in the web's sense: the web's uAct is the director's actT, eased toward the act's HEAT (an arc that peaks at the
+  // apex); the TV's U.act is the eased act INDEX 0..4, so the twin reads the web's heat curve at it - point for point at every act
+  const a0 = html.indexOf('const ACTS = ['), acts = html.slice(a0, html.indexOf('];', a0)), heat = [...acts.matchAll(/\bheat: (\d+\.\d+)/g)].map(m => +m[1]);
+  assert.ok(heat.length === 5 && /U\.uAct\.value = this\.actT;/.test(html) && /const heatGoal = Math\.min\(ACTS\[this\.act\]\.heat, ceil \+ 0\.05\);/.test(html) && /this\.actT \+= \(heatGoal - this\.actT\)/.test(html), 'the web\'s uAct is the eased act heat');
+  assert.ok(/#define uAct frActHeat\(U\.act\)\n/.test(mreg), 'the TV reads the act through the web\'s heat curve');
+  const fahSrc = strip(cutTo(mreg, 'inline float frActHeat(float a){', '}')).replace(/^[\s\S]*?frActHeat\(float a\)\{/, '').replace(/\}\s*$/, '').replace(/\bfloat\b/g, 'let');
+  const fah = new Function('clamp', 'floor', 'min', 'mix', 'return function(a){' + fahSrc + '};')((x, lo, hi) => Math.min(hi, Math.max(lo, x)), Math.floor, Math.min, (p, q, t) => p + (q - p) * t);
+  for (let a = 0; a <= 4 + 1e-9; a += 0.125){ const i = Math.min(Math.floor(a), 3), want = heat[i] + (heat[i + 1] - heat[i]) * (a - i); assert.ok(Math.abs(fah(a) - want) < 1e-9, `the TV's act heat at act ${a} is the web's (${fah(a)} against ${want})`); }
+  const tvHeat = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8').match(/actHeatTable: \[Double\] = \[([^\]]+)\]/);
+  assert.ok(tvHeat && tvHeat[1].split(',').map(Number).join() === heat.join(), 'the TV app\'s own act-heat table is the web\'s');
+  // no struct member wears a macro's name, so no U.U. can form when the header expands
+  const members = [...mreg.matchAll(/struct (Params|Look) \{([\s\S]*?)\};/g)].map(m => m[2]).join(' ');
+  for (const d of defs) assert.ok(!new RegExp('\\b' + d + '\\b').test(strip(members)), 'no member is named ' + d);
+  for (const d of defs.filter(d => !/^(vec3|frBeatW|frLeanW|frBodyW|frDir|danceBeatPhase|danceLean|danceLamp|danceLand|danceFront)$/.test(d))) assert.ok(!new RegExp('\\.' + d + '\\b').test(strip(mreg).split('\n').filter(l => !/^\s*#(define|undef)\b/.test(l)).join('\n')), 'no accessor .' + d + ' is written by hand inside the dialect');
+  assert.ok(!/\bU\.(bass|mid|treble|energy|onsetEnv|beatPhase)\b/.test(strip(mreg)) && !/\b(spectrum|waveform)\.read\(/.test(mreg), 'the twin reads no raw band, no live spectrum');
+  assert.ok(!/\bCOUPLING\b|\bL\.(energy|beat)\b/.test(strip(mreg)), 'the twin\'s neutral coupling and its band-fed look are gone');
+  const tloops = [...mreg.matchAll(/for\s*\(([^)]*)\)/g)].map(m => m[1]);
+  for (const l of tloops) assert.ok(/^\s*int \w+ = 0;\s*\w+ < \d+;\s*\w+\+\+\s*$/.test(l), 'the twin\'s literal-bounded loop: ' + l);
+  assert.ok(/return float4\(rm_fr::govern\(VOID_A \+ max\(col, float3\(0\.0\)\), U\.white\), 1\.0\);/.test(entry) && (strip(entry).match(/\breturn\b/g) || []).length === 1, 'the twin governs its one exit');
+});
+
 /* THE FROZEN TRACE. A fixed synthetic drive at 120 BPM and 60 Hz: one bar of
    count-in at rest (beats 0..3), eight beats of groove (kick on 1 and 3,
    snare on 2 and 4, hats on every eighth; the levels decay from each hit),
