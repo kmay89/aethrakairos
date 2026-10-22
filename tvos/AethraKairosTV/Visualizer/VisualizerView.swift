@@ -307,6 +307,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         "fluid": 3,
         // ↑ fluid · quartet ↓
         "quartet": 2,     // gathers, the web's QUARTET touch
+        // ↑ quartet · glass ↓
+        "glass": 3,       // flows, the web's GLASS touch
     ]
 
     private var specScratch = [Float](repeating: 0, count: 256)
