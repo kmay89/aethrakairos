@@ -305,7 +305,7 @@ enum Story {
     /// The web ACTS table: how hot the shaders run per act.
     static let actHeat: [Double] = [0.15, 0.45, 1.00, 0.65, 0.25]
     /// …how long a room dwells per act.
-    static let actDwell: [Double] = [1.35, 1.00, 0.62, 0.85, 1.45]
+    static let actDwell: [Double] = [1.6, 1.0, 0.8, 0.95, 1.7]
     /// …and the palette's temperature pull per act (ACT_WARMTH).
     static let actWarmth: [Double] = [-0.22, 0.0, 0.30, 0.14, -0.30]
 

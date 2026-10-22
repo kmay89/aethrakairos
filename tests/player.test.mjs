@@ -25,6 +25,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' SIGNATURE_RE, isSignature, signatureFirst,' +
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
@@ -46,7 +47,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GESTALT, proximityOk, parkinsonBudget, teslerShare, occamPick, postelUrl,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
-  ' STEM_LIGHT, STEM_CUT_DWELL, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
+  ' STEM_LIGHT, STEM_CUT_DWELL, STEM_CUT, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
   ' HIT_VOICES, HIT_SKIP, hitsDecode, hitsChart, hitsLast, hitPulse, hitBlend, stemMood, QUARTET_N, QUARTET_WIN, quartetLane,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
   ' danceWindowLevel, danceWarpSlew, danceSectionTurn, danceSilenceAhead, danceStemFeed, hitVoices,' +
@@ -69,6 +70,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
+  ' roomDwellBars, PACE, paceGate, SURGE, surgeShouldRequest, DEVELOP, developPlan,' +
   ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, cherenkovRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
@@ -91,7 +93,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
   ' WAVE_HZ, WAVE_SR, WAVE_TILT, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
-  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed };';
+  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -10455,6 +10457,275 @@ test('planMixNow startB: a hand-cued incoming enters from its cue, snapped to it
   assert.ok(Math.abs(cued.startB - (1.0 + 17 * spb)) < 1e-3, 'the cue, on its nearest beat line: ' + cued.startB);
   assert.equal(S.planMixNow(A, B, 33.33, { durA: 240, startB: NaN }).startB, 32, 'an unusable cue falls back');
   assert.equal(S.planMixNow(A, B, 33.33, { durA: 240, startB: -5 }).startB, 0, 'never before the top of the file');
+});
+
+// ---- PACING: let the rooms develop and change with the music (W6) ----
+// The pure governor every automatic room change answers to, the dwell in
+// phrases, the drop/major/minor page classifier, the rate-limited stem cut,
+// the phrase-aware surge, transitions in bars, the mid-dwell develop plan —
+// and the tvOS twins, read out of the Swift source so both stages pace alike.
+test('paceGate: a minimum gap in bars by act, floored in seconds — no two changes one cut apart', () => {
+  const g = S.paceGate({ since: 1, act: 2, barLen: 1.9 });
+  assert.equal(g.ok, false, 'one second after a change is too soon, even at the apex');
+  assert.ok(Math.abs(g.gap - 6) < 1e-9, 'two bars at 126 BPM (3.8 s) is under the 6-s floor: the floor holds');
+  assert.ok(Math.abs(g.wait - 5) < 1e-9, 'and the caller is told how long');
+  assert.equal(S.paceGate({ since: 6.1, act: 2, barLen: 1.9 }).ok, true);
+  const calm = S.paceGate({ since: 10, act: 0, barLen: 1.9 });
+  assert.equal(calm.ok, false); assert.ok(Math.abs(calm.gap - 15.2) < 1e-9, 'the overture holds a whole phrase (8 bars)');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 1, barLen: 1.9 }).gap - 7.6) < 1e-9, 'rising: half a phrase');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 3, barLen: 1.9 }).gap - 7.6) < 1e-9, 'the turn: half a phrase');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 4, barLen: 1.9 }).gap - 15.2) < 1e-9, 'the resolve: a phrase');
+  assert.equal(S.paceGate({ since: 3, act: 0, barLen: 1.9, kind: 'seam' }).ok, true, 'the mixer\'s seam IS the boundary: only the hard floor');
+  assert.equal(S.paceGate({ since: 2.9, act: 0, barLen: 1.9, kind: 'seam' }).ok, false, '…but the floor is a floor');
+  const drop = S.paceGate({ since: 4, act: 0, barLen: 1.9, kind: 'drop' });
+  assert.equal(drop.ok, true); assert.ok(Math.abs(drop.gap - 3.8) < 1e-9, 'a classified drop may come after two bars, whatever the act');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 2, barLen: 1.0, kind: 'drop' }).gap - 3) < 1e-9, 'never inside the hard floor');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 1, barLen: 1.9, kind: 'idle' }).gap - 60) < 1e-9, 'the idle gallery waits a minute');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 2, barLen: 1.9, reduced: true }).gap - 9) < 1e-9, 'reduced motion widens every gap by half');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: 'seam', reduced: true }).gap - 3) < 1e-9, '…except the seam');
+  assert.equal(S.paceGate({ act: 2, barLen: 1.9 }).ok, true, 'no clock at all (the first room) passes');
+  assert.ok(Math.abs(S.paceGate({ since: 0, barLen: 0 }).gap - 8) < 1e-9, 'no act, no grid: act 1 at a two-second bar');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 9, barLen: 2 }).gap - 16) < 1e-9, 'an act past the arc reads as the last');
+  assert.deepEqual(S.PACE.minGapBars, [8, 4, 2, 4, 8]);
+  assert.equal(S.PACE.minGapSec, 6); assert.equal(S.PACE.hardFloorSec, 3); assert.equal(S.PACE.idleDwell, 90);
+});
+test('roomDwell: 24–64 s by energy, floored at 14, half as long again under reduced motion', () => {
+  assert.deepEqual(S.ROOM_DWELL, { min: 24, max: 64, floor: 14 });
+  assert.ok(Math.abs(S.roomDwell({ mood: 'drive', energy: 0.7 }) - 36) < 1e-9, '64 − 40 × 0.7 = 36 s');
+  assert.ok(Math.abs(S.roomDwell({ mood: 'drive', energy: 0.7, reduced: true }) - 54) < 1e-9, '× 1.5 reduced');
+  assert.ok(Math.abs(S.roomDwell({ mood: 'apex', energy: 1, ceil: 1 }) - Math.max(14, 24 * 0.8)) < 1e-9, 'apex at full energy: 19.2 s, above the floor');
+  assert.equal(S.MOODS.adrift.dwell, 1.5); assert.equal(S.MOODS.ascend.dwell, 0.95); assert.equal(S.MOODS.drive.dwell, 1.0);
+  assert.equal(S.MOODS.apex.dwell, 0.8); assert.equal(S.MOODS.swarm.dwell, 0.9); assert.equal(S.MOODS.dissolve.dwell, 1.6);
+  const a0 = html.indexOf('const ACTS = ['), acts = html.slice(a0, html.indexOf('];', a0));
+  const dwell = [...acts.matchAll(/\bdwell: (\d+\.\d+)/g)].map(m => +m[1]);
+  assert.deepEqual(dwell, [1.6, 1.0, 0.8, 0.95, 1.7], 'ACTS.dwell: the edges linger, the apex presses but never collapses');
+  assert.ok(!/\b(minDwell|maxDwell): \d/.test(html), 'the dead director fields are gone (SEAM_SCENE.minDwellGapless is another thing)');
+});
+test('roomDwellBars: a dwell is a whole number of phrases, never fewer than two', () => {
+  const bar = 60 / 126 * 4, phrase = 8 * bar;
+  const apex = S.roomDwellBars({ mood: 'apex', energy: 0.7, ceil: 1, actDwell: 0.8, barLen: bar });
+  assert.ok(Math.abs(apex - 2 * phrase) < 1e-9, `the apex at 126 BPM: 36 × 0.8 × 0.8 ≈ 23 s rounds up to two phrases (${(2 * phrase).toFixed(1)} s)`);
+  const rising = S.roomDwellBars({ mood: 'drive', energy: 0.7, ceil: 1, actDwell: 1.0, barLen: bar });
+  assert.ok(Math.abs(rising - 2 * phrase) < 1e-9, 'rising at e 0.7: 36 s → two phrases');
+  const overture = S.roomDwellBars({ mood: 'adrift', energy: 0.25, ceil: 0.4, actDwell: 1.6, barLen: bar });
+  assert.ok(overture >= 8 * phrase, 'an overture adrift is left alone for many phrases: ' + overture.toFixed(1));
+  for (const o of [apex, rising, overture]) assert.ok(Math.abs(o / phrase - Math.round(o / phrase)) < 1e-9, 'whole phrases');
+  assert.ok(Math.abs(S.roomDwellBars({ mood: 'apex', energy: 1, ceil: 1, actDwell: 0.8 }) - 32) < 1e-9, 'no grid: two 16-s phrases is the floor');
+  assert.ok(S.roomDwellBars({ mood: 'drive', energy: 0.5, barLen: bar, reduced: true }) > S.roomDwellBars({ mood: 'drive', energy: 0.5, barLen: bar }), 'reduced motion dwells longer');
+});
+test('sectionChangeClass: a drop, a major turn, a minor nudge, or no page at all', () => {
+  assert.equal(S.sectionChangeClass({ energy: 0.6, loud: true }, { energy: 0.7, loud: true }), 'minor', 'a 0.10 wobble loud→loud is minor');
+  assert.equal(S.sectionChangeClass({ energy: 0.7, loud: true }, { energy: 0.5, loud: false }), 'major', 'a fall into a break is major (a melt, not nothing)');
+  assert.equal(S.sectionChangeClass({ energy: 0.3, loud: false }, { energy: 0.6, loud: true }), 'drop', 'a 0.30 rise into a loud page is the drop');
+  assert.equal(S.sectionChangeClass({ energy: 0.3, loud: false }, { energy: 0.6, loud: false }), 'major', 'the same rise into a quiet page is only major');
+  assert.equal(S.sectionChangeClass({ energy: 0.9, loud: true }, { energy: 0.65, loud: true }), 'major', 'a 0.25 fall loud→loud is major');
+  assert.equal(S.sectionChangeClass(null, { energy: 0.6, loud: true }), 'none');
+  assert.equal(S.sectionChangeClass({ energy: 0.6, loud: true }, undefined), 'none');
+  assert.deepEqual(S.SECTION_CHANGE, { major: 0.22, drop: 0.28 });
+  assert.equal(S.SECTION_CHANGE.drop, S.SYN_TUNING.dropRise, 'the drop threshold is the conductor\'s own');
+});
+test('surgeShouldRequest: a real surge, two phrases in, under a hot ceiling, with no loud page already coming', () => {
+  const ok = { auto: true, phase: 'peak', ratio: 1.7, since: 31, barLen: 1.9, ceil: 0.9, aheadLoud: false };
+  assert.equal(S.surgeShouldRequest(ok), true);
+  assert.equal(S.surgeShouldRequest({ ...ok, ratio: 1.4, since: 10 }), false, 'a crash cymbal six seconds in is not a surge');
+  assert.equal(S.surgeShouldRequest({ ...ok, ratio: 1.59 }), false, 'the ratio is 1.6');
+  assert.equal(S.surgeShouldRequest({ ...ok, since: 30 }), false, 'two phrases at 126 BPM is 30.4 s');
+  assert.equal(S.surgeShouldRequest({ ...ok, ceil: 0.6 }), false, 'a section the structure holds back does not surge');
+  assert.equal(S.surgeShouldRequest({ ...ok, aheadLoud: true }), false, 'the conductor owns the drop ahead');
+  assert.equal(S.surgeShouldRequest({ ...ok, phase: 'flow' }), false);
+  assert.equal(S.surgeShouldRequest({ ...ok, auto: false }), false);
+  assert.equal(S.surgeShouldRequest(null), false);
+  assert.deepEqual(S.SURGE, { ratio: 1.6, minPhrases: 2, minCeil: 0.7 });
+});
+test('segue style: the lengths are BARS — the same musical length at every tempo, with floors and a ceiling', () => {
+  const b126 = 60 / 126 * 4, b90 = 60 / 90 * 4;
+  const cut = S.segueStyle({ act: 2, energy: 0.8, barLen: b126 });
+  assert.equal(cut.kind, 'cut'); assert.ok(Math.abs(cut.dur - 0.25 * b126) < 1e-9, 'a quarter bar at 126 BPM ≈ 0.48 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 2, energy: 0.8, barLen: 1.0 }).dur - 0.35) < 1e-9, 'a cut is never under 0.35 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 1, energy: 0.5, big: true, barLen: b126 }).dur - b126) < 1e-9, 'a morph is one bar');
+  assert.ok(Math.abs(S.segueStyle({ act: 0, energy: 0.5, barLen: b126 }).dur - 2 * b126) < 1e-9, 'a melt is two bars');
+  assert.ok(Math.abs(S.segueStyle({ act: 4, energy: 0.5, barLen: b90 }).dur - 2 * b90) < 1e-9, '…and longer at 90 BPM (5.3 s)');
+  assert.equal(S.segueStyle({ act: 4, energy: 0.5, barLen: 5 }).dur, 8, 'nothing runs past 8 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 1, energy: 0.75, barLen: b126 }).dur - (1.6 - 0.8 * 0.75) * b126) < 1e-9, 'a running dissolve: a bar that quickens with the heat');
+  assert.equal(S.segueStyle({ act: 2, energy: 0.8 }).dur, 0.5, 'no grid: a two-second bar');
+  const r = S.segueStyle({ act: 2, energy: 0.8, barLen: b126, reduced: true });
+  assert.ok(r.dur >= 1.6, 'reduced motion floors the cut at 1.6 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 1, energy: 0.5, big: true, barLen: b126, reduced: true }).dur - 1.5 * b126) < 1e-9, '…and lengthens a blend by half');
+  assert.deepEqual(S.SEGUE_BARS, { cut: 0.25, morph: 1.0, dissolve: 1.0, melt: 2.0, min: 0.35, max: 8 });
+});
+test('synCue in bars: the conductor\'s cut and morph scale with the tempo; the lookahead grows to fit a morph', () => {
+  const b126 = 60 / 126 * 4;
+  const drop = { i: 2, inSec: 0.25 * b126, rise: 0.43, loud: true };
+  const c = S.synCue({ ahead: drop, barLen: b126 });
+  assert.ok(c.fire && c.kind === 'cut' && Math.abs(c.dur - 0.25 * b126) < 1e-3, 'a quarter-bar cut lands on the one');
+  const m = S.synCue({ ahead: { i: 1, inSec: 0.75 * b126, rise: 0.35, loud: true }, barLen: b126 });
+  assert.ok(m.fire && m.kind === 'morph' && Math.abs(m.dur - 0.75 * b126) < 1e-3, 'a three-quarter-bar morph');
+  assert.ok(!S.synCue({ ahead: { ...drop, inSec: 1.0 }, barLen: b126 }).fire, 'too early: waits for the bar');
+  assert.ok(Math.abs(S.synCue({ ahead: { ...drop, inSec: 2 } }).wait - (2 - S.SYN_TUNING.cutDur)) < 1e-9, 'no grid: the fixed seconds as before');
+  assert.ok(Math.abs(S.synCue({ ahead: { ...drop, inSec: 0.3 }, barLen: 0.8 }).dur - 0.3) < 1e-3 || S.synCue({ ahead: { ...drop, inSec: 0.3 }, barLen: 0.8 }).dur >= 0.2, 'a very fast bar still floors the cut sensibly');
+  assert.ok(Math.abs(S.synLookahead(b126) - 1.75 * b126) < 1e-9, 'the window is 1.75 bars at 126 BPM (3.3 s)');
+  assert.equal(S.synLookahead(0), 2.4, '…and never under the fixed 2.4 s');
+  assert.equal(S.synLookahead(1.0), 2.4);
+  assert.equal(S.SYN_TUNING.cutBars, 0.25); assert.equal(S.SYN_TUNING.morphBars, 0.75);
+});
+test('stem cut: the room asks for a real absence (6 s) and a room that has had its say (24 s); the light still lands on 2 s', () => {
+  assert.deepEqual(S.STEM_CUT, { dwell: 24, away: 6.0 });
+  assert.equal(S.STEM_CUT_DWELL, S.STEM_CUT.dwell, 'the old name is the new value');
+  // a fill: the kit drops out for 3 s and returns — the light lands, the room may not cut
+  const fill = { sv: 1, hz: STEM_HZ, d: kitBars(6) + flat('0', 3) + kitBars(6), b: flat('5', 15), v: flat('0', 15), o: flat('3', 15) };
+  const fr = runStems(fill, 0, 14);
+  const land = fr.filter(f => f.out.landed);
+  assert.ok(land.length >= 1, 'the light lands on the return');
+  assert.ok(land[0].out.awayAtLand > 2 && land[0].out.awayAtLand < S.STEM_CUT.away, 'the absence was a fill\'s: ' + land[0].out.awayAtLand.toFixed(2));
+  // a breakdown: eight seconds without the kit — the room may cut
+  const brk = { sv: 1, hz: STEM_HZ, d: kitBars(6) + flat('0', 8) + kitBars(6), b: flat('5', 20), v: flat('0', 20), o: flat('3', 20) };
+  const fr2 = runStems(brk, 0, 19);
+  const land2 = fr2.filter(f => f.out.landed);
+  assert.ok(land2.length >= 1 && land2[0].out.awayAtLand >= S.STEM_CUT.away, 'eight seconds away clears the room\'s bar: ' + (land2[0] && land2[0].out.awayAtLand));
+  assert.equal(S.stemLightOut(S.makeStemLightState()).awayAtLand, 0, 'nothing landed yet reads 0');
+  // the wiring: the landing is still the light's; the room's cut reads the absence and the gate
+  assert.ok(html.includes('STEMS.out.landed && director.dwell >= STEM_CUT_DWELL'), 'the kit\'s-return cut as before…');
+  assert.ok(html.includes("STEMS.out.awayAtLand >= STEM_CUT.away && this._gate('stem', barLen).ok"), '…and stricter');
+  assert.ok(html.includes('if (st.kit && !wasKit && st.away >= K.awayMin){ st.landed = true; st.coil = 0; st.awayAtLand = st.away; }'), 'the light\'s own landing is untouched');
+});
+test('developPlan: a room\'s second act at 45 % and 80 % of the want, eased over two bars', () => {
+  const bar = 1.9;
+  assert.equal(S.developPlan({ dwell: 10, want: 30, barLen: bar, done: 0 }), null, 'not yet');
+  const a = S.developPlan({ dwell: 14, want: 30, barLen: bar, done: 0 });
+  assert.ok(a && a.step === 0 && Math.abs(a.ease - 2 * bar) < 1e-9, 'the first step at 45 %');
+  assert.equal(S.developPlan({ dwell: 20, want: 30, barLen: bar, done: 1 }), null, 'the second not before 80 %');
+  const b = S.developPlan({ dwell: 24, want: 30, barLen: bar, done: 1 });
+  assert.ok(b && b.step === 1, 'the second step at 80 %');
+  assert.equal(S.developPlan({ dwell: 29, want: 30, barLen: bar, done: 2 }), null, 'two is all');
+  assert.equal(S.developPlan({ dwell: 29, want: 0, done: 0 }), null, 'no want, no plan');
+  assert.ok(Math.abs(S.developPlan({ dwell: 29, want: 30, done: 0 }).ease - 4) < 1e-9, 'no grid: two two-second bars');
+  assert.deepEqual(S.DEVELOP, { at: [0.45, 0.8], easeBars: 2, lensEveryPhrases: 2 });
+});
+test('pacing wiring: every automatic path goes through the gate, the dwell is phrases, paused is not a reason, rooms develop', () => {
+  for (const s of ["this._gate('seam', barLen)", "this._gate('stem', barLen).ok",
+                   'sectionChangeClass(st.sections[this._lastSection], st.sections[si])',
+                   "this.request(true, cls === 'drop' ? 'drop' : 'section')", "else if (cls === 'minor') this.request(false, 'section');",
+                   'synAhead(st, p, dur, synLookahead(barLen))', "const why = ahead.drop ? 'drop' : 'section';", 'cue.fire && this._gate(why, barLen).ok',
+                   "const g = this._gate(this.big ? (this.kind === 'drop' ? 'drop' : 'section') : (this.kind || 'dwell'), barLen);",
+                   'if (g.ok) this.waited += dt;', 'sectionBoundary: sectionBoundary && g.ok',
+                   'surgeShouldRequest({ auto: this.auto, phase: newPhase, ratio, since: this.sinceChange,',
+                   'const want = roomDwellBars({ mood: this.mood, energy: f.energy, ceil: this.ceil, reduced: reducedMotion,',
+                   "if (live ? this.dwell > want : this.dwell > PACE.idleDwell) SEGUE.request(false, live ? 'dwell' : 'idle');",
+                   'const dp = developPlan({ dwell: this.dwell, want, barLen, done: this._developed });',
+                   'director.developTick(dt, phraseWrapped, grid);', 'scenes.forEach(sceneDevelop);',
+                   'if (!hard && reducedMotion) this.transDur = Math.max(this.transDur, 1.6);',
+                   'const log = window.__mb8Changes || (window.__mb8Changes = []);', 'this.sinceChange = 0;',
+                   'const to = this.target >= 0 && this.target < scenes.length ? this.target : director.pickScene();',
+                   'director.setScene(to, false, kind);',
+                   // the seventh caller: a mixset's planned room is a request with a target, through the gate
+                   "if (director.auto && typeof SEGUE !== 'undefined') SEGUE.request(true, 'mixset', i);",
+                   "else director.setScene(i, false, 'mixset');",
+                   // the followers inherit the booth's decision and never re-gate it
+                   "director.setScene(p.dir.s, false, 'follow');", "director.setScene(p.s, false, 'follow');",
+                   // the pacing clock: the audio clock's own delta, the wall when it is not running, bounded, never the clamped dt
+                   'const wdt = this._tickClock();', "const a = ctx && ctx.state === 'running' ? ctx.currentTime : NaN;",
+                   'this.wallDt = Math.min(1.0, Math.max(0, d));',
+                   'this.transT = Math.min(1, this.transT + wdt / Math.max(0.2, this.transDur || 2.5));',
+                   'this.dwell += wdt;', 'this.sinceChange += wdt;', 'SEGUE.tick(wdt);',
+                   // the lens: read every half phrase with hysteresis, swapped after two phrases through the gate, the salt on a swap only
+                   "const wdt = (typeof director !== 'undefined' && director.wallDt != null) ? director.wallDt : dt;",
+                   'this._holdT = 0.5 * phrase;', 'if (this._lookT < DEVELOP.lensEveryPhrases * phrase) return;',
+                   "kind: 'lens', reduced: reducedMotion }).ok) return;",
+                   'salt: this._deals,', 'prev: this._resolved, hyst: LENS_HYST,', 'this._deals++;'])
+    assert.ok(html.includes(s), 'the player carries: ' + s);
+  assert.ok(!html.includes('if (this.dwell > want || !player.playing) SEGUE.request(false);'), 'the every-frame-while-paused request is gone');
+  assert.ok(!html.includes('this.dwell > 6) SEGUE.request(false)'), 'the six-second surge is gone');
+  assert.ok(!html.includes('salt: this._deals++'), 'the salt no longer rotates on every read');
+  assert.ok(!html.includes("typeof s.develop === 'function'"), 'no web-only develop hook: development acts through the shared dice only');
+  assert.equal((html.match(/director\.setScene\(to, false, kind\)/g) || []).length, 1, 'one landing, in SEGUE._land');
+  assert.equal((html.match(/director\.pickScene\(\)/g) || []).length, 1, '…and the deal is drawn there only');
+  // the generic second act: dice found by walking the materials, a tween that steps before the room's own update
+  const dev = html.slice(html.indexOf('function sceneDevelop(s){'), html.indexOf('const director = {'));
+  for (const s of ["for (const k of ['uVarA', 'uVarB', 'uVarC'])", 'const k = 1 - Math.exp(-(dt > 0 ? dt : 0) / tween.tau);',
+                   "return typeof update === 'function' ? update.apply(this, arguments) : undefined;",
+                   'tau: Math.max(0.5, (sec > 0 ? sec : 4) / 3)', 'if (!dice.length) return false;'])
+    assert.ok(dev.includes(s), 'sceneDevelop: ' + s);
+});
+test('pacing parity: the TV\'s Director carries the web\'s PACE, ROOM_DWELL, MOODS.dwell, ACTS.dwell, STEM_CUT, SECTION_CHANGE, SEGUE_BARS, SURGE and DEVELOP', () => {
+  const rooms = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Rooms.swift'), 'utf8');
+  const struct = readFileSync(join(root, 'tvos/AethraKairosTV/Model/Structure.swift'), 'utf8');
+  const view = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8');
+  const dance = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
+  const num = (src, name) => { const m = src.match(new RegExp(`\\b${name}: Double = ([0-9.]+)`)); assert.ok(m, name + ' declared'); return Number(m[1]); };
+  const arr = (src, name) => { const m = src.match(new RegExp(`\\b${name}: \\[Double\\] = \\[([^\\]]+)\\]`)); assert.ok(m, name + ' declared'); return m[1].split(',').map(x => Number(x.trim())); };
+  assert.deepEqual(arr(rooms, 'paceMinGapBars'), S.PACE.minGapBars, 'PACE.minGapBars');
+  assert.equal(num(rooms, 'paceMinGapSec'), S.PACE.minGapSec); assert.equal(num(rooms, 'paceHardFloorSec'), S.PACE.hardFloorSec);
+  assert.equal(num(rooms, 'paceIdleDwell'), S.PACE.idleDwell); assert.equal(num(rooms, 'paceIdleGapSec'), S.PACE.idleGapSec);
+  assert.equal(num(rooms, 'roomDwellMin'), S.ROOM_DWELL.min); assert.equal(num(rooms, 'roomDwellMax'), S.ROOM_DWELL.max); assert.equal(num(rooms, 'roomDwellFloor'), S.ROOM_DWELL.floor);
+  for (const mood of Object.keys(S.MOODS)){
+    const m = rooms.match(new RegExp(`case \\.${mood}:\\s+return ([0-9.]+)`));
+    assert.ok(m, 'moodDwellMult.' + mood);
+    assert.equal(Number(m[1]), S.MOODS[mood].dwell, 'MOODS.' + mood + '.dwell');
+  }
+  const a0 = html.indexOf('const ACTS = ['), acts = html.slice(a0, html.indexOf('];', a0));
+  const dwell = [...acts.matchAll(/\bdwell: (\d+\.\d+)/g)].map(m => +m[1]);
+  assert.deepEqual(arr(rooms, 'actDwell'), dwell, 'Director.actDwell is ACTS.dwell');
+  assert.deepEqual(arr(struct, 'actDwell'), dwell, 'Story.actDwell is ACTS.dwell');
+  assert.equal(num(rooms, 'stemCutDwell'), S.STEM_CUT.dwell); assert.equal(num(rooms, 'stemCutAway'), S.STEM_CUT.away);
+  assert.equal(num(rooms, 'sectionMajor'), S.SECTION_CHANGE.major); assert.equal(num(rooms, 'sectionDrop'), S.SECTION_CHANGE.drop);
+  for (const [k, name] of [['cut', 'segueBarsCut'], ['morph', 'segueBarsMorph'], ['dissolve', 'segueBarsDissolve'], ['melt', 'segueBarsMelt'], ['min', 'segueBarsMin'], ['max', 'segueBarsMax']])
+    assert.equal(num(rooms, name), S.SEGUE_BARS[k], 'SEGUE_BARS.' + k);
+  assert.equal(num(rooms, 'segueReducedFloor'), 1.6);
+  assert.equal(num(rooms, 'surgeRatio'), S.SURGE.ratio); assert.equal(num(rooms, 'surgeMinPhrases'), S.SURGE.minPhrases); assert.equal(num(rooms, 'surgeMinCeil'), S.SURGE.minCeil);
+  assert.deepEqual(arr(rooms, 'developAt'), S.DEVELOP.at); assert.equal(num(rooms, 'developEaseBars'), S.DEVELOP.easeBars); assert.equal(num(rooms, 'developLensEveryPhrases'), S.DEVELOP.lensEveryPhrases);
+  // the laws, line for line
+  for (const s of ['let base = roomDwellMax - (roomDwellMax - roomDwellMin) * e', 'let held = 1.25 - 0.25 * min(max(ceil, 0), 1)', 'return reduced ? sec * 1.5 : sec',
+                   'return max(2 * phrase, (sec / phrase).rounded() * phrase)',
+                   'case .drop: gap = min(gap, 2 * bar)', 'case .seam: gap = paceHardFloorSec', 'case .idle: gap = paceIdleGapSec', 'if reduced && kind != .seam { gap *= 1.5 }',
+                   'if next.loud && rise > sectionDrop { return .drop }', 'if abs(rise) >= sectionMajor || prev.loud != next.loud { return .major }',
+                   'return ratio >= surgeRatio && since >= surgeMinPhrases * 8 * bar && ceil >= surgeMinCeil',
+                   'if act == 2 && energy > 0.60 {', 'if act == 0 || act == 4 || energy < 0.30 { return (.dissolve, slow(bars(segueBarsMelt))) }',
+                   'return (.dissolve, slow(bars(segueBarsDissolve * (1.6 - 0.8 * energy))))',
+                   'kitReturn && sinceEntry >= Director.stemCutDwell && kitAway >= Director.stemCutAway',
+                   'let due = playing ? (sinceEntry >= dwellWant) : (sinceEntry >= Director.paceIdleDwell)',
+                   'if gateOK { waited += dtClamped }', 'let boundary = pendingBig ? (phraseWrapped || barWrapped) : barWrapped'])
+    assert.ok(rooms.includes(s), 'Rooms.swift carries: ' + s);
+  assert.ok(!/Double\.random\(in: 0\.\.\.1\)/.test(rooms.slice(rooms.indexOf('struct Director'))), 'the random dwell draw is gone: the two stages pace alike');
+  // the renderer: segueStyle sets the length, the develop step eases the dice, the lens holds phrases
+  for (const s of ['Director.segueStyle(act: act, energy: energy, big: big, barLen: barLen, reduced: calmNow)',
+                   'transitionDuration = max(calmNow ? Director.segueReducedFloor : Self.xformMinDur[mode], style.dur)',
+                   'if let dev = director.takeDevelop() {', 'rollTau = max(0.5, dev.ease / 3)', 'currentRolls += (target - currentRolls) * k',
+                   'kitAway: stemOut.awayAtLand', 'barLen: barLen, reduced: calmNow,', 'big: director.lastChangeBig, barLen: barLen)',
+                   // the lens: half-phrase reads with hysteresis, a two-phrase hold, the gate, the salt on a swap only
+                   'lensHold = 0.5 * phrase', 'prev: lensChoice, hyst: Self.lensHyst',
+                   'guard lensLookT >= Director.developLensEveryPhrases * phrase,',
+                   'Director.paceGate(since: director.sinceChange, act: act, barLen: barLen, kind: .lens, reduced: calm).ok',
+                   'lensDeals += 1                                // the next equal choice takes its turn — on a swap, not on a read',
+                   // the clocks: the director and the lens step by the wall (bounded), the handover is derived from its start
+                   'let wallDt = min(max(dt, 0), 1.0)', 'if director.tick(dt: wallDt, frame: frame',
+                   'transitionStart = CACurrentMediaTime()',
+                   'transitionProgress = min(1, (now - transitionStart) / max(transitionDuration, 0.05))',
+                   'autoLens(dt: wallDt, act: actTarget'])
+    assert.ok(view.includes(s), 'VisualizerView.swift carries: ' + s);
+  const hy = view.match(/lensHyst = ([0-9.]+)/);
+  assert.ok(hy && Number(hy[1]) === S.LENS_HYST, 'the TV\'s lens hysteresis is LENS_HYST');
+  assert.ok(!view.includes('transitionProgress + dt /'), 'the handover is no longer integrated from the clamped dt');
+  assert.ok(rooms.includes('enum PaceKind { case dwell, section, drop, stem, seam, surge, idle, lens, mixset }'), 'the TV gate knows the minor kinds');
+  assert.ok(dance.includes('landed = true; coil = 0; awayAtLand = away'), 'the TV\'s StemLight records the absence at the landing');
+});
+
+test('pickLens hysteresis: the held look is sticky by ±0.08 of energy; a different shelf still changes it', () => {
+  const base = { act: 2, ceil: 0.8, major: true, salt: 1 };
+  assert.equal(S.LENS_HYST, 0.08);
+  assert.equal(S.pickLens({ ...base, energy: 0.78 }), 'hyperbolic');
+  assert.equal(S.pickLens({ ...base, energy: 0.82 }), 'echo', 'without hysteresis 0.82 is over the 0.8 line');
+  assert.equal(S.pickLens({ ...base, energy: 0.82, prev: 'hyperbolic', hyst: S.LENS_HYST }), 'hyperbolic', 'with it, a wobble over the line holds the look');
+  assert.equal(S.pickLens({ ...base, energy: 0.89, prev: 'hyperbolic', hyst: S.LENS_HYST }), 'echo', 'past the margin it changes');
+  assert.equal(S.pickLens({ ...base, energy: 0.78, prev: 'echo', hyst: S.LENS_HYST }), 'echo', 'and holds on the way down too');
+  assert.equal(S.pickLens({ ...base, energy: 0.70, prev: 'echo', hyst: S.LENS_HYST }), 'hyperbolic', '…until the energy has really left');
+  assert.equal(S.pickLens({ ...base, energy: 0.96, prev: 'none', hyst: S.LENS_HYST }), 'grating', 'from clean glass the hottest shelf deals at once');
+  assert.equal(S.pickLens({ ...base, energy: 0.96, prev: 'echo', hyst: S.LENS_HYST }), 'echo', 'from the shelf below, the 0.93 line is inside the margin of the top of the range: the look holds');
+  assert.equal(S.pickLens({ act: 2, ceil: 0.5, energy: 0.9, prev: 'echo', hyst: S.LENS_HYST }), 'none', 'the hard gate is not hysteresis: a capped section goes clean at once');
+  assert.equal(S.pickLens({ ...base, energy: 0.82, prev: 'hyperbolic' }), 'echo', 'no hyst, no stickiness');
+  assert.equal(S.pickLens({ ...base, energy: 0.82, prev: 'hyperbolic', hyst: 0 }), 'echo');
+  // a lens swap and a mixset's room are minor changes: the act's own gap
+  for (const k of ['lens', 'mixset'])
+    assert.equal(S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: k }).gap, S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: 'dwell' }).gap, k + ' takes the dwell\'s gap');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
