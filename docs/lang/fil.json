@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Sa device na ito, tanging ang plakang on air ang may platter",
  "Cut — hold for the crossfader's cut curve": "Cut — pindutin nang matagal para sa cut curve ng crossfader",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — kalahati ng abot ng kamay, para sa crab at scribble",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Pattern ng scratch na {name} — i-tap para isang beses, sa beat; pindutin nang matagal para ulitin"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Pattern ng scratch na {name} — i-tap para isang beses, sa beat; pindutin nang matagal para ulitin",
+ "Beat FX need the engine — on this device the music plays direct": "Kailangan ng Beat FX ang engine — sa device na ito direktang tumutugtog ang musika",
+ "Effect mix": "Halo ng Effect",
+ "Deck the filter acts on — A or B": "Deck na pinapatakbo ng filter — A o B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — i-freeze ang buntot at hayaang tumunog; pindutin muli para bitawan",
+ "Double-tap to centre": "I-double-tap para bumalik sa gitna"
 }

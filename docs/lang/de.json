@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Auf diesem Gerät hat nur die Platte auf Sendung einen Teller",
  "Cut — hold for the crossfader's cut curve": "Cut — halten für die Cut-Kurve des Crossfaders",
  "Fine — half the hand's reach, for crabs and scribbles": "Fein — die halbe Reichweite der Hand, für Crabs und Scribbles",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Scratch-Muster {name} — tippen für einmal, auf den Beat; halten zum Wiederholen"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Scratch-Muster {name} — tippen für einmal, auf den Beat; halten zum Wiederholen",
+ "Beat FX need the engine — on this device the music plays direct": "Beat-FX brauchen die Engine — auf diesem Gerät spielt die Musik direkt",
+ "Effect mix": "Effektanteil",
+ "Deck the filter acts on — A or B": "Deck, auf das der Filter wirkt — A oder B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo-Hold — die Fahne einfrieren und klingen lassen; erneut drücken zum Loslassen",
+ "Double-tap to centre": "Doppeltippen für die Mitte"
 }

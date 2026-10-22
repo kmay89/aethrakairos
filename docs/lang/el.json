@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Σε αυτή τη συσκευή μόνο ο δίσκος που παίζει έχει πλατό",
  "Cut — hold for the crossfader's cut curve": "Cut — κράτα για την καμπύλη cut του crossfader",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — η μισή εμβέλεια του χεριού, για crab και scribble",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Μοτίβο scratch {name} — πάτα για μία φορά, στον παλμό· κράτα για επανάληψη"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Μοτίβο scratch {name} — πάτα για μία φορά, στον παλμό· κράτα για επανάληψη",
+ "Beat FX need the engine — on this device the music plays direct": "Τα Beat FX χρειάζονται τη μηχανή — σε αυτή τη συσκευή η μουσική παίζει απευθείας",
+ "Effect mix": "Μείξη εφέ",
+ "Deck the filter acts on — A or B": "Το deck στο οποίο δρα το φίλτρο — A ή B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Κράτημα echo — πάγωσε την ουρά κι άσ' την να ηχεί· πάτα ξανά για να την αφήσεις",
+ "Double-tap to centre": "Διπλό πάτημα για επιστροφή στο κέντρο"
 }

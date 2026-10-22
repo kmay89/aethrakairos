@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Neste dispositivo só o disco no ar tem prato",
  "Cut — hold for the crossfader's cut curve": "Cut — mantém premido para a curva de corte do crossfader",
  "Fine — half the hand's reach, for crabs and scribbles": "Fino — metade do alcance da mão, para crabs e scribbles",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Padrão de scratch {name} — toca para uma vez, no beat; mantém premido para repetir"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Padrão de scratch {name} — toca para uma vez, no beat; mantém premido para repetir",
+ "Beat FX need the engine — on this device the music plays direct": "Os FX de beat precisam do motor — neste dispositivo a música toca direto",
+ "Effect mix": "Mistura do efeito",
+ "Deck the filter acts on — A or B": "Deck sobre o qual o filtro atua — A ou B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — congela a cauda e deixa-a soar; pressione de novo para soltar",
+ "Double-tap to centre": "Toque duas vezes para voltar ao centro"
 }

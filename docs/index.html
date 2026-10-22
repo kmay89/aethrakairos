@@ -255,9 +255,21 @@ body.zen #eqStrip{opacity:.85;height:18px}
 /* a pad the device cannot give (the vinyl bank on an element-direct deck) is
    shown, honestly, as out of reach — present, so the listener learns it exists */
 .fxp.dead{opacity:.38;cursor:not-allowed}
-.fxk{display:flex;align-items:center;gap:6px;flex:1;
+.fxk{display:flex;align-items:center;gap:6px;flex:1;min-width:0;
   font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--dim)}
-.fxk input{flex:1;accent-color:var(--accent)}
+.fxk input{flex:1;min-width:0;accent-color:var(--accent)}
+.fxk span{white-space:nowrap}
+/* the FILTER's knob is bipolar: a tick marks the detent at the centre */
+.fxk input.bipolar{background:linear-gradient(var(--dim),var(--dim)) center/2px 14px no-repeat}
+.fxk-mix{flex:.7}
+.fxk-mix.off{opacity:.35}
+.fx-knobs2{flex-wrap:wrap;row-gap:5px}
+.fx-knobs2 .fxb{padding:6px 7px}
+/* the rail, visible in the rack: dark is the expectation */
+.fx-gr{font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--dim);opacity:.45;
+  min-width:52px;text-align:right;transition:color .2s,opacity .2s}
+.fx-gr.hot{color:#ffbe4a;opacity:1}
+.fx-gr.rail{color:#ff5c4a;opacity:1}
 @media (max-width:520px){ .fxp{min-height:44px} }
 
 /* ============ THE ORB OF ENTROPY — the immersive view's one control, and the
@@ -3354,8 +3366,9 @@ body.booth-open .trk .ld{display:inline-block}
 
   <!-- THE PERFORMANCE LAYER. Laid out the way hardware is, because that layout is
        already in a player's hands: a bank selector, eight pads, and the beat-FX
-       unit with its own division. AUTO is lit by default — the room performs on
-       its own until a hand takes over, and hands it back a few seconds later. -->
+       unit with its two knobs and its division. AUTO is lit by default — the room
+       performs on its own until a hand takes over, and stays out until AUTO is
+       armed again. -->
   <div class="fx-rack" role="group" aria-label="Booth performance — loops, rolls and beat FX">
     <div class="fx-row fx-banks">
       <button class="fxb on" id="fxBankLoop"  data-bank="loop"  aria-pressed="true">LOOP</button>
@@ -3371,12 +3384,24 @@ body.booth-open .trk .ld{display:inline-block}
         title="The room performs on its own, reading the song's structure — a hand always outranks it">✦ AUTO</button>
     </div>
     <div class="fx-pads" id="fxPads" role="group" aria-label="Performance pads"></div>
+    <!-- two knobs: AMOUNT is a unit's character, MIX how much of it is heard; each
+         unit remembers both. The FILTER's AMOUNT is bipolar with a centre detent
+         (double-tap returns to it) and acts on the deck the hand is on (A | B). -->
     <div class="fx-row fx-knobs">
-      <label class="fxk"><span id="fxUnitLbl">FILTER</span>
+      <label class="fxk" id="fxAmtK"><span id="fxUnitLbl">FILTER</span>
         <input type="range" id="fxAmt" min="0" max="100" value="50" aria-label="Effect amount"></label>
+      <label class="fxk fxk-mix" id="fxMixK"><span>MIX</span>
+        <input type="range" id="fxMix" min="0" max="100" value="50" aria-label="Effect mix"></label>
+    </div>
+    <div class="fx-row fx-knobs fx-knobs2">
+      <button class="fxb" id="fxDeck" title="Deck the filter acts on — A or B">A</button>
       <button class="fxb" id="fxDiv" title="Beat division — every effect time is a fraction of a beat">1/1</button>
+      <button class="fxb" id="fxHold" title="Echo hold — freeze the tail and let it ring; press again to let go" aria-pressed="false">HOLD</button>
       <button class="fxb" id="fxBrake" title="A turntable losing power">BRAKE</button>
+      <button class="fxb" id="fxKey" title="Key lock — hold the pitch through a tempo match (on), or let it ride the tempo like vinyl (off)" aria-pressed="true">KEY</button>
       <button class="fxb" id="fxClear" title="Everything back to bypass">CLEAR</button>
+      <span class="spring"></span>
+      <span class="fx-gr" id="fxGr">LIM</span>
     </div>
   </div>
 </aside>
@@ -10197,7 +10222,7 @@ const IS_MAC = !IS_IOS && !IS_NATIVE && /Mac/i.test(navigator.userAgent + ' ' + 
 
 // the per-deck sweep filter: parked wide open (≈bypass), driven down to the
 // floor on a fading-out deck so a crossfade becomes a pro "filter out"
-const FILTER_OPEN = 20000, FILTER_FLOOR = 300;
+const FILTER_OPEN = 22000, FILTER_FLOOR = 300;
 // the one-bass rule for fades: the outgoing low shelf is pulled down this many
 // dB across the seam so two basslines never stack into mud (beatmix already
 // swaps bass live; this brings the same discipline to the FILTERED fade)
@@ -10567,11 +10592,15 @@ function ensureCtx(){
   AE.analyser.smoothingTimeConstant = 0.72;
   /* THE BEAT-FX UNIT, inserted on the master exactly where a mixer puts it: after
      the decks, before the room. Everything the booth performs lands here, so an
-     effect is heard on the MIX rather than on one deck — which is what makes a
-     filter sweep read as the room closing in rather than as one track changing.
-     Serial, because that is how the hardware chains them and how the ear expects
-     them to stack; parked at bypass, so a booth nobody opens costs one gain node
-     of silence. */
+     effect is heard on the MIX rather than on one deck — which is what makes an
+     echo tail the whole hand-off rather than one track. The DJM layout, which
+     is also what two decks need: the channel FILTER lives on each deck strip
+     (AE._deckGraph, below) and this unit is the master's — a 3-band EQ, the
+     performer's own filter pair, the gate, ONE serial insert slot (FLANGER,
+     PHASER, CRUSH or DRIVE, whichever is up — a unit not in the slot is not
+     even connected, so it costs nothing) and two parallel send/returns (ECHO,
+     REVERB) whose MIX knob is the return. Parked at bypass, so a booth nobody
+     opens costs one gain node of silence. */
   {
     const inn = AE.ctx.createGain();
     // the EQ: a channel strip's three bands on the mix, parked flat — a lowshelf,
@@ -10579,38 +10608,120 @@ function ensureCtx(){
     const eqLo = AE.ctx.createBiquadFilter(); eqLo.type = 'lowshelf';  eqLo.frequency.value = EQ_BANDS.lo;  eqLo.gain.value = 0;
     const eqMid = AE.ctx.createBiquadFilter(); eqMid.type = 'peaking'; eqMid.frequency.value = EQ_BANDS.mid; eqMid.Q.value = 0.9; eqMid.gain.value = 0;
     const eqHi = AE.ctx.createBiquadFilter(); eqHi.type = 'highshelf'; eqHi.frequency.value = EQ_BANDS.hi;  eqHi.gain.value = 0;
-    // the DJ filter: a lowpass and a highpass in series driven from one bipolar
-    // value, so the centre detent is genuinely both wide open (see fxFilter)
-    const lp = AE.ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 22000; lp.Q.value = 0.9;
-    const hp = AE.ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 20;    hp.Q.value = 0.9;
+    // the master filter pair: the room's own hands sweep it on a build (the
+    // auto performer); a hand's FILTER is per deck, on the strip. Butterworth
+    // at rest so the centre is honestly bypass.
+    const lp = AE.ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 22000; lp.Q.value = 0.7;
+    const hp = AE.ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 20;    hp.Q.value = 0.7;
     // the gate: one gain the beat clock chops, so a trans is rhythm rather than
     // an LFO that drifts against the music
     const gate = AE.ctx.createGain();
-    // drive: a soft-knee waveshaper, dry by default. Cheap, and the only
-    // saturation available without an AudioWorklet on the boot path.
-    const drive = AE.ctx.createWaveShaper();
-    const curve = new Float32Array(1024);
-    for (let i = 0; i < 1024; i++){
-      const x = (i / 1023) * 2 - 1;
-      // driven hard enough to be heard as drive (tanh ×5 — the harmonics a 900 Hz
-      // tone grows above 4 kHz go up ~24×, where ×2.2 barely doubled them) and
-      // scaled so that at full knob, with the dry pulled right back, the room is
-      // the same loudness driven as clean (measured 1.03×; ×2.2 over a 56 % dry
-      // made full drive a 42 % volume jump instead of a colour)
-      curve[i] = Math.tanh(x * 5) * 0.72;
-    }
-    drive.curve = curve; drive.oversample = '2x';
-    const driveWet = AE.ctx.createGain(); driveWet.gain.value = 0;
-    const driveDry = AE.ctx.createGain(); driveDry.gain.value = 1;
-    // the beat echo: its own delay, kept separate from the seam's echo unit so a
-    // performed echo and a hand-off can never fight over the same feedback path
-    const send = AE.ctx.createGain(); send.gain.value = 0;
-    const delay = AE.ctx.createDelay(4); delay.delayTime.value = 0.5;
-    const fb = AE.ctx.createGain(); fb.gain.value = 0.45;         // <1: the tail always decays
-    const damp = AE.ctx.createBiquadFilter();                     // each repeat darker than the last
-    damp.type = 'lowpass'; damp.frequency.value = 3200;
-    const wet = AE.ctx.createGain(); wet.gain.value = 1;
+    /* THE INSERT SLOT: dry and wet gains either side of whichever unit is up.
+       Bypass is exact (wet 0, dry 1, the unit disconnected); a switch ramps
+       the outgoing unit to its park before the incoming one is connected. */
+    const insIn = AE.ctx.createGain();
+    const insWet = AE.ctx.createGain(); insWet.gain.value = 0;
+    const insDry = AE.ctx.createGain(); insDry.gain.value = 1;
     const out = AE.ctx.createGain();
+    const units = {};
+    // DRIVE: pre-gain → a highpass that keeps the sub out of the shaper (tanh
+    // on a kick is a square thump) → normalised tanh at 4× → a high shelf
+    // that takes the fizz off as the knob rises → the loudness makeup
+    {
+      const pre = AE.ctx.createGain(); pre.gain.value = 1;
+      const hpPre = AE.ctx.createBiquadFilter(); hpPre.type = 'highpass'; hpPre.frequency.value = 50; hpPre.Q.value = 0.5;
+      const shaper = AE.ctx.createWaveShaper(); shaper.curve = driveCurve(4096); shaper.oversample = '4x';
+      const tilt = AE.ctx.createBiquadFilter(); tilt.type = 'highshelf'; tilt.frequency.value = 6000; tilt.gain.value = 0;
+      const post = AE.ctx.createGain(); post.gain.value = 1;
+      pre.connect(hpPre); hpPre.connect(shaper); shaper.connect(tilt); tilt.connect(post);
+      units.drive = { in: pre, out: post, pre, hpPre, shaper, tilt, post };
+    }
+    // FLANGER: a short delay the LFO sweeps, fed back on itself, summed with
+    // the dry inside the unit (the comb IS that sum), trimmed to the budget
+    {
+      const fin = AE.ctx.createGain();
+      const delay = AE.ctx.createDelay(0.05); delay.delayTime.value = 0.0015;
+      const fbG = AE.ctx.createGain(); fbG.gain.value = 0;
+      const lfoG = AE.ctx.createGain(); lfoG.gain.value = 0;
+      const mix = AE.ctx.createGain(); mix.gain.value = 0.5;
+      fin.connect(delay); delay.connect(fbG); fbG.connect(fin);
+      fin.connect(mix); delay.connect(mix);
+      lfoG.connect(delay.delayTime);
+      units.flanger = { in: fin, out: mix, delay, fbG, lfoG, lfo: null };
+    }
+    // PHASER: six allpass stages a half-octave apart, one LFO through an
+    // exponential shaper into every stage's corner, feedback from the last
+    // stage to the first, the dry summed in — the notches are the sum
+    {
+      const pin = AE.ctx.createGain();
+      const st = fxPhaserStages(0, 6), stages = [], stageG = [];
+      let prev = pin;
+      for (let k = 0; k < st.base.length; k++){
+        const s = AE.ctx.createBiquadFilter(); s.type = 'allpass'; s.frequency.value = st.base[k]; s.Q.value = st.q;
+        prev.connect(s); prev = s; stages.push(s);
+        const g = AE.ctx.createGain(); g.gain.value = st.base[k]; g.connect(s.frequency); stageG.push(g);
+      }
+      // a cycle needs a delay in it or the graph mutes the loop: one render
+      // quantum's worth, which is what an analogue phaser's feedback path costs
+      const fbD = AE.ctx.createDelay(0.01); fbD.delayTime.value = 0;
+      const fbG = AE.ctx.createGain(); fbG.gain.value = st.fb;
+      prev.connect(fbD); fbD.connect(fbG); fbG.connect(stages[0]);
+      const shaper = AE.ctx.createWaveShaper(); shaper.curve = fxPhaserShape(1025, 2); shaper.oversample = 'none';
+      const lfoG = AE.ctx.createGain(); lfoG.gain.value = 0;
+      lfoG.connect(shaper);
+      for (const g of stageG) shaper.connect(g);
+      const mix = AE.ctx.createGain(); mix.gain.value = 0.5;
+      pin.connect(mix); prev.connect(mix);
+      units.phaser = { in: pin, out: mix, stages, stageG, fbG, lfoG, shaper, lfo: null };
+    }
+    // CRUSH: a staircase transfer curve and a lowpass that goes with it
+    {
+      const cin = AE.ctx.createGain();
+      const shaper = AE.ctx.createWaveShaper(); shaper.curve = crushCurve(12, 8192); shaper.oversample = 'none';
+      const tone = AE.ctx.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 18000; tone.Q.value = 0.7;
+      cin.connect(shaper); shaper.connect(tone);
+      units.crush = { in: cin, out: tone, shaper, tone, bits: 12 };
+    }
+    /* THE BEAT ECHO, a send/return with the loop a DJM has: a highpass into
+       the line so the kick never stacks on itself, two lines (left and right)
+       with the feedback either straight or CROSSED for ping-pong, a lowpass
+       in the loop so each repeat is darker, and a return the MIX knob rides.
+       Mode is chosen by gains, never by rewiring, so it switches without a
+       click. Kept separate from the seam's echo unit so a performed echo and
+       a hand-off can never fight over one feedback path. */
+    const send = AE.ctx.createGain(); send.gain.value = 0;
+    const hpLoop = AE.ctx.createBiquadFilter(); hpLoop.type = 'highpass'; hpLoop.frequency.value = 180; hpLoop.Q.value = 0.7;
+    hpLoop.channelCount = 1; hpLoop.channelCountMode = 'explicit';     // one line in, the image is made by L/R
+    const inL = AE.ctx.createGain(); inL.gain.value = 1;
+    const inR = AE.ctx.createGain(); inR.gain.value = 1;
+    const inMerge = AE.ctx.createChannelMerger(2);
+    const delay = AE.ctx.createDelay(4); delay.delayTime.value = 0.5;
+    delay.channelCount = 2; delay.channelCountMode = 'explicit';
+    const lpLoop = AE.ctx.createBiquadFilter(); lpLoop.type = 'lowpass'; lpLoop.frequency.value = 4500; lpLoop.Q.value = 0.7;
+    const fb = AE.ctx.createGain(); fb.gain.value = 0;             // straight: L→L, R→R
+    const fbX = AE.ctx.createGain(); fbX.gain.value = 0;           // crossed: L→R, R→L (ping-pong)
+    const xSplit = AE.ctx.createChannelSplitter(2);
+    const xMerge = AE.ctx.createChannelMerger(2);
+    const wet = AE.ctx.createGain(); wet.gain.value = 0;
+    send.connect(hpLoop);
+    hpLoop.connect(inL); hpLoop.connect(inR);
+    inL.connect(inMerge, 0, 0); inR.connect(inMerge, 0, 1);
+    inMerge.connect(delay); delay.connect(lpLoop);
+    lpLoop.connect(fb); fb.connect(delay);
+    lpLoop.connect(fbX); fbX.connect(xSplit);
+    xSplit.connect(xMerge, 0, 1); xSplit.connect(xMerge, 1, 0); xMerge.connect(delay);
+    delay.connect(wet); wet.connect(out);
+    /* THE REVERB send: a highpass so the room never booms, a pre-delay so the
+       dry stays in front, the convolver (built lazily on first use, and only
+       connected while REVERB is the unit — a 2.6 s convolution is the one
+       expensive thing in this rack), a lowpass on the wet. */
+    const rvSend = AE.ctx.createGain(); rvSend.gain.value = 0;
+    const rvHp = AE.ctx.createBiquadFilter(); rvHp.type = 'highpass'; rvHp.frequency.value = 200; rvHp.Q.value = 0.7;
+    const rvPre = AE.ctx.createDelay(0.1); rvPre.delayTime.value = 0.02;
+    const rvLp = AE.ctx.createBiquadFilter(); rvLp.type = 'lowpass'; rvLp.frequency.value = 6000; rvLp.Q.value = 0.7;
+    const rvWet = AE.ctx.createGain(); rvWet.gain.value = 0;
+    rvSend.connect(rvHp); rvHp.connect(rvPre);
+    rvLp.connect(rvWet); rvWet.connect(out);
 
     /* ONE GATE BETWEEN THE DECKS AND THE ROOM, and it exists for exactly one
        reason: the seamless loop (LOOPER) needs to take the room away from the
@@ -10624,13 +10735,16 @@ function ensureCtx(){
     AE.busGate.connect(inn);
     inn.connect(eqLo); eqLo.connect(eqMid); eqMid.connect(eqHi); eqHi.connect(hp);
     hp.connect(lp); lp.connect(gate);
-    gate.connect(driveDry); driveDry.connect(out);
-    gate.connect(drive); drive.connect(driveWet); driveWet.connect(out);
+    gate.connect(insDry); insDry.connect(out);
+    gate.connect(insIn); insWet.connect(out);          // the unit itself is connected between these when it is up
     gate.connect(send);
-    send.connect(delay); delay.connect(damp); damp.connect(fb); fb.connect(delay);
-    delay.connect(wet); wet.connect(out);
+    gate.connect(rvSend);
     out.connect(AE.master);
-    AE.fx = { in: inn, eqLo, eqMid, eqHi, lp, hp, gate, drive, driveWet, driveDry, send, delay, fb, damp, wet, out };
+    AE.fx = { in: inn, eqLo, eqMid, eqHi, lp, hp, gate, out,
+      insIn, insWet, insDry, units, insert: '',
+      driveWet: insWet, driveDry: insDry, drive: units.drive.shaper,   // the names the probes read
+      send, hpLoop, inL, inR, delay, lpLoop, damp: lpLoop, fb, fbX, wet,
+      rvSend, rvHp, rvPre, rvLp, rvWet, rvConv: null, rvPreset: '' };
   }
   /* THE OUTPUT STAGE: master → (direct | limiter) → out → speaker. The direct
      path is live from the first sample; the limiter takes the seat the moment
@@ -20992,17 +21106,19 @@ function fxWet(x, cap){
   return v * v * v * (cap == null ? 0.92 : cap);
 }
 /* THE DJ FILTER, as one bipolar knob — the single most-used control on any
-   mixer. Centre is bypass; left sweeps a lowpass down from open, right sweeps a
-   highpass up from silent. Exponential in frequency because hearing is, so the
-   knob feels even end to end. Returns the two corner frequencies to drive. */
+   mixer. Centre is bypass; left sweeps a lowpass down from open to 60 Hz (the
+   kick leaves too — a floor that keeps the bass is a tone control), right
+   sweeps a highpass up from silent to 14 kHz. Exponential in frequency because
+   hearing is, so the knob feels even end to end. Returns the two corner
+   frequencies to drive; the resonance that goes with them is fxFilterQ. */
 function fxFilter(x, nyq){
   const v = x < -1 ? -1 : x > 1 ? 1 : (x || 0);
   const top = Math.min(nyq || 22050, 22000);
   const dead = 0.06;                               // a real detent at the centre
   if (Math.abs(v) < dead) return { lp: top, hp: 20, active: false };
   const t = (Math.abs(v) - dead) / (1 - dead);
-  if (v < 0) return { lp: top * Math.pow(180 / top, t), hp: 20, active: true };
-  return { lp: top, hp: 20 * Math.pow(9000 / 20, t), active: true };
+  if (v < 0) return { lp: top * Math.pow(60 / top, t), hp: 20, active: true };
+  return { lp: top, hp: 20 * Math.pow(14000 / 20, t), active: true };
 }
 /* A BEAT-SYNCED TIME, quantised to the ladder. An echo whose delay is not a
    beat division is a smear; on the grid it is a rhythm. */
@@ -21035,6 +21151,8 @@ function brakeRate(elapsed, seconds, from){
      filter  a build — the sweep IS the rise, and everybody's hands know it
      gate    a genuinely intense peak, where a chop reads as energy; anywhere
              calmer it reads as a fault
+     reverb  the first two bars of a break — a wash where the floor has
+             just been pulled out, fading as the break settles
    Silence is the default and the most common answer. */
 function fxAutoPick(o){
   const s = o || {};
@@ -21043,6 +21161,7 @@ function fxAutoPick(o){
   if (s.toSeam != null && s.toSeam <= s.bar) return 'echo';
   if (s.phase === 'build' && s.energy > 0.5) return 'filter';
   if (s.phase === 'peak' && s.act === 2 && s.energy > 0.86) return 'gate';
+  if (s.phase === 'break' && s.barsIn != null && s.barsIn < 2) return 'reverb';
   return 'none';
 }
 /* HOT CUES, BEAT JUMPS, and the EQ — the rest of what two hands do.
@@ -21285,6 +21404,363 @@ function autoCuePoints(o){
     rise: Math.round(c.rise * 100) / 100,
   }));
 }
+/* ================================================================
+   THE RACK, SECOND PASS — eight units, two knobs, one law each.
+
+   The first rack was four units on one knob, and the knob meant a
+   different thing on every pad: 0.5 was bypass on FILTER and an eleven
+   per cent send on ECHO. A beginner tapped ECHO and heard nothing,
+   tapped FILTER and the bass vanished. So: AMOUNT is a unit's CHARACTER
+   (where the filter sits, how long the echo rings, how deep the flange,
+   how few the bits, how hard the drive) and MIX is how much of it is
+   heard — and each unit remembers both, so flipping between pads
+   mid-phrase lands on the value that pad was left at, never on a number
+   that meant something else on the last one.
+
+   Everything below is arithmetic over plain numbers, so the tests can
+   hold it without a browser: the knob laws, the gate's edges, the echo's
+   gain invariant, the reverb's impulse, the drive's loudness table, the
+   performer's restraint, and the limiter budget the whole rack is held
+   under. The node graph that plays it lives in ensureCtx.
+   ================================================================ */
+const FX_UNITS = ['filter', 'echo', 'reverb', 'flanger', 'phaser', 'crush', 'drive', 'gate'];
+const FX_SENDS = ['echo', 'reverb'];                            // parallel send/return — MIX is the return
+const FX_INSERTS = ['flanger', 'phaser', 'crush', 'drive'];     // the serial insert slot, one at a time
+// AMOUNT at rest, per unit: the filter on its detent, everything else at a
+// setting that is unmistakably heard the first time its pad is tapped
+const FX_AMT = { filter: 0.5, echo: 0.6, reverb: 0.5, flanger: 0.5, phaser: 0.5, crush: 0.5, drive: 0.5, gate: 0.6 };
+/* THE MIX LAW, per unit. A send's return is a TAIL under the music, and the
+   cubic buys fine control where a tail lives (the first two thirds of the
+   travel are a whisper to a presence). An insert is a COLOUR on the music
+   itself, and a cubic there put the whole effect in the last inch of the
+   slider — a flanger at half travel was eleven per cent wet and inaudible.
+   Inserts are linear, each capped where the unit stops being a colour and
+   starts being a replacement; the caps are also the limiter budget's
+   numbers (fxGainBudget). The echo is the exception among the sends: its
+   loop already shapes the tail (fxEchoGains), so its return is a plain
+   level — cubic on top of cubic put a tapped ECHO thirty dB down. */
+const FX_MIX = {
+  echo:    { law: 'linear', cap: 1.0, def: 0.50 },
+  reverb:  { law: 'cubic',  cap: 0.8, def: 0.60 },
+  flanger: { law: 'linear', cap: 0.7, def: 0.50 },
+  phaser:  { law: 'linear', cap: 0.6, def: 0.50 },
+  crush:   { law: 'linear', cap: 1.0, def: 0.60 },
+  drive:   { law: 'linear', cap: 1.0, def: 0.70 },
+};
+function fxMix(unit, x){
+  const m = FX_MIX[unit];
+  if (!m) return 0;
+  const v = x < 0 ? 0 : x > 1 ? 1 : (x || 0);
+  return m.law === 'cubic' ? fxWet(v, m.cap) : v * m.cap;
+}
+/* THE FILTER'S RESONANCE. A DJ filter squelches as it closes — the corner
+   rises as the knob leaves the detent, which is what makes a sweep sound
+   like a sweep rather than a tone control. Flat (0.7, Butterworth) on the
+   detent so the centre is honestly bypass; 3.0 at either end. Written to
+   both biquads' Q, so the highpass side squelches the same way. */
+const FILTER_DETENT = 0.06;
+function fxFilterQ(x){
+  const v = Math.min(1, Math.abs(x || 0));
+  const t = Math.max(0, v - FILTER_DETENT) / (1 - FILTER_DETENT);
+  return 0.7 + 2.3 * Math.pow(t, 1.6);
+}
+/* THE ARBITER (one deck's filter, three hands on it). The hand's knob, the
+   seam's filter-out, and the brake's darkening all want the same lowpass;
+   the law is that the MORE CLOSED wins, and the highpass is the hand's
+   alone. Each is a number in Hz (open = 22 kHz); the deck's node is written
+   from a tick that reads all three, never from any of them directly, so no
+   writer can ever step on another's curve. */
+function fxFilterArbiter(hand, seam, brake){
+  const h = hand || { lp: 22000, hp: 20 };
+  const lp = Math.min(h.lp > 0 ? h.lp : 22000, seam > 0 ? seam : 22000, brake > 0 ? brake : 22000);
+  return { lp: Math.max(40, lp), hp: Math.max(20, Math.min(16000, h.hp > 0 ? h.hp : 20)) };
+}
+/* the seam's own sweep as a NUMBER at time t — the curve it would have
+   scheduled (hold, then an exponential dive), read back so the arbiter can
+   honour it under a hand that cancelled the scheduled version */
+function fxSeamHz(c, t){
+  if (!c) return 22000;
+  const from = c.from > 0 ? c.from : 22000, to = c.to > 0 ? c.to : from;
+  const a = c.t0 + (c.hold > 0 ? c.hold : 0), b = c.t1;
+  if (!(t > a)) return from;
+  if (!(b > a) || t >= b) return to;
+  return from * Math.pow(to / from, (t - a) / (b - a));
+}
+
+/* THE GATE'S EDGES. The first gate opened with a zero-length step from
+   0.06 to 1 — a click on every slice, worst on sustained bass, and the
+   probe never saw it because it measured contrast, not edges. A slice is
+   now two raised-cosine edges: open across E at the slice's start, close
+   across E at the end of the hold, floor −60 dB between — taken away, not
+   turned down. E is 3 ms, or a tenth of the slice when the slice is shorter
+   than 30 ms, so a 1/8 at 174 BPM still has a hold between its edges. */
+const GATE_FLOOR = 0.001;                          // −60 dB
+function gateEdge(n){
+  const N = Math.max(2, n | 0), v = new Float32Array(N);
+  for (let i = 0; i < N; i++) v[i] = 0.5 - 0.5 * Math.cos(Math.PI * i / (N - 1));
+  return v;
+}
+function gateCurve(from, to, n){
+  const e = gateEdge(n), v = new Float32Array(e.length);
+  for (let i = 0; i < e.length; i++) v[i] = from + (to - from) * e[i];
+  return v;
+}
+function gateEdgeSec(step){ return Math.min(0.003, (step > 0 ? step : 0.01) * 0.1); }
+// one slice's events, in time order: { at, dur, from, to } — the gain is
+// held at `to` after each, so the floor between slices is the close's end
+function gateSchedule(t0, step, hold, E){
+  const s = step > 0 ? step : 0.01;
+  const h = Math.max(0.05, Math.min(0.98, hold || 1));
+  const e = Math.max(0.0005, Math.min(E > 0 ? E : gateEdgeSec(s), s * h * 0.45));
+  return [{ at: t0, dur: e, from: GATE_FLOOR, to: 1 },
+          { at: t0 + s * h - e, dur: e, from: 1, to: GATE_FLOOR }];
+}
+// the first slice at or after `now`, on the grid a bar line anchors
+function gateAnchor(now, barAt, step){
+  const s = step > 0 ? step : 0.01;
+  const k = Math.ceil((now - barAt) / s - 1e-9);
+  return barAt + k * s;
+}
+
+/* THE ECHO'S GAIN LAW. A feedback delay's steady state on a held note is
+   send/(1 − fb), and the first rack let that reach +7 dB on top of the dry
+   — which is what pushed the limiter and turned long echoes into mud. The
+   invariant here is send/(1 − fb) ≤ 1.2: more knob is a longer tail, the
+   send gives way as the feedback grows, and the return never carries more
+   than +1.6 dB into the room however the knob is set. */
+function fxEchoGains(amount){
+  const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0);
+  const fb = 0.25 + 0.45 * a;
+  const send = Math.min(0.9 * Math.pow(a, 1.5), 1.2 * (1 - fb));
+  return { send, fb };
+}
+/* A DIVISION CHANGE WARPS THE TAIL — that is the DJM sound, and it is only a
+   sound when it is bounded. A linear ramp of delayTime resamples the line by
+   Δ/ramp: 2 s → 1/8 beat in 120 ms read the tail four octaves up. An
+   exponential glide over a time that grows with the change keeps the warp
+   inside an octave or so, and short changes stay quick under the hand. */
+function fxEchoGlide(from, to){
+  const d = Math.abs((to > 0 ? to : 0) - (from > 0 ? from : 0));
+  return Math.max(0.25, Math.min(0.6, d * 0.5));
+}
+
+/* THE REVERB'S ROOM, generated. Exponentially decaying noise is a fair
+   late field — what a convolver needs to sound like a space rather than a
+   delay. RT60 is `seconds` exactly (−60 dB there, so the buffer ends where
+   hearing does), a 4 ms onset keeps the first reflections from being a
+   click, the two channels are different noise (that is the width), and the
+   mean is removed so the convolver can never carry DC into the limiter.
+   Returns [L, R] at the context rate. Pure, so a test can measure the RT60. */
+function reverbIR(sr, seconds, decayDb, seed){
+  const rate = sr > 0 ? sr : 48000, T = seconds > 0 ? seconds : 1.2;
+  const db = decayDb > 0 ? decayDb : 60;
+  const n = Math.max(64, Math.round(rate * T));
+  const k = -Math.log(10) * db / 20 / T;              // −db dB at T
+  const out = [];
+  let s = ((seed == null ? 1234567 : seed) >>> 0) || 1;
+  const env = i => { const t = i / rate; return Math.exp(k * t) * Math.min(1, t / 0.004); };
+  for (let ch = 0; ch < 2; ch++){
+    const d = new Float32Array(n);
+    let sum = 0, sumEnv = 0;
+    for (let i = 0; i < n; i++){
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const w = s / 4294967296 * 2 - 1, e = env(i);
+      d[i] = w * e; sum += d[i]; sumEnv += e;
+    }
+    // the DC goes out under the envelope's own shape, so the onset stays at zero and the tail stays a tail
+    const dc = sum / sumEnv;
+    for (let i = 0; i < n; i++) d[i] -= dc * env(i);
+    out.push(d);
+  }
+  return out;
+}
+
+/* THE FLANGER: a short delay swept by an LFO and fed back on itself, mixed
+   with the dry. Beat-synced — one sweep per 4·div beats — and the LFO is
+   (re)started so its BOTTOM lands on the bar line (fxLfoWave). Feedback
+   stays under 0.55: the comb's peaks are 1/(1 − fb), and the unit's output
+   is trimmed so a full sweep sits inside the limiter budget. */
+function fxFlangeParams(amount, div, bpm){
+  const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0);
+  const d = div > 0 ? div : 1;
+  return { baseSec: 0.0015, depthSec: 0.0012 * a, rateHz: 1 / fxTime(4 * d, bpm), fb: 0.25 + 0.3 * a };
+}
+/* AN OSCILLATOR CANNOT BE RE-PHASED, so the phase is built into the wave:
+   −cos(θ − ψ) has its minimum at θ = ψ. With ψ the fraction of a cycle
+   between now and the bar line, an oscillator started NOW bottoms out ON
+   the bar — no waiting a bar for the sweep to begin. Returns the Fourier
+   pair createPeriodicWave takes. */
+function fxLfoWave(cycleFrac){
+  const f = (cycleFrac || 0) - Math.floor(cycleFrac || 0), psi = 2 * Math.PI * f;
+  return { real: new Float32Array([0, -Math.cos(psi)]), imag: new Float32Array([0, -Math.sin(psi)]) };
+}
+/* THE PHASER: six allpass stages, a half-octave apart from 250 Hz, swept
+   together by one LFO through an exponential shaper so the notches glide
+   evenly across the spectrum (±`depth` octaves at full amount). The dry is
+   summed with the chain inside the unit — the notches ARE that sum. */
+function fxPhaserStages(amount, n){
+  const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0);
+  const N = n > 0 ? n | 0 : 6, base = [], depth = [];
+  for (let k = 0; k < N; k++){ base.push(250 * Math.pow(2, k * 0.5)); depth.push(2 * a); }
+  return { base, depth, fb: 0.3, q: 0.5 };
+}
+// the shaper that turns a −1..1 LFO into a frequency MULTIPLIER −1 ≤ y:
+// f = base·(1 + y) = base·2^(oct·x), so the sweep is exponential in pitch
+function fxPhaserShape(n, octaves){
+  const N = Math.max(3, n | 0), v = new Float32Array(N), o = octaves > 0 ? octaves : 2;
+  for (let i = 0; i < N; i++){ const x = i / (N - 1) * 2 - 1; v[i] = Math.pow(2, o * x) - 1; }
+  return v;
+}
+
+/* THE CRUSH: bit depth as a staircase transfer curve. Twelve bits is a
+   whisper of grit, three is the sound everybody means; a lowpass tracks
+   the knob so the top end goes with the resolution, as it would at a lower
+   sample rate. Bits are quantised to halves so the curve is rebuilt a few
+   times across a sweep, not on every pixel. */
+function crushBits(amount){
+  const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0);
+  return Math.round((12 - 9 * a) * 2) / 2;
+}
+function crushCurve(bits, n){
+  const N = Math.max(3, n | 0), v = new Float32Array(N);
+  const levels = Math.pow(2, Math.max(1, bits) - 1);
+  for (let i = 0; i < N; i++){ const x = i / (N - 1) * 2 - 1; v[i] = Math.round(x * levels) / levels; }
+  return v;
+}
+function crushTone(amount){
+  const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0);
+  return 18000 * Math.pow(2200 / 18000, a);
+}
+
+/* THE DRIVE, loudness-matched. The first shaper was tanh(5x)·0.72 — a +11 dB
+   small-signal gain whose "same loudness" held only at full scale: quiet,
+   dynamic material jumped six dB. Now the shaper is a normalised tanh(3x),
+   the knob is a PRE-gain k = 1 + 7·amount into it, and the wet path is
+   divided by driveMakeup(k): the RMS gain the shaper gives a pink reference
+   at programme level — −9 dBFS, which is what a normalised record measures
+   at this rack — tabled once. Driven or clean, music is the same loudness
+   within a dB; what changes is the harmonics. (Hotter than programme the
+   shaper squashes, as any saturator does; quieter, it lifts a little — a
+   static shaper can only be matched at one level, and the limiter is the
+   rail for the rest.) */
+function driveCurve(n){
+  const N = Math.max(3, n | 0), v = new Float32Array(N), t3 = Math.tanh(3);
+  for (let i = 0; i < N; i++){ const x = i / (N - 1) * 2 - 1; v[i] = Math.tanh(3 * x) / t3; }
+  return v;
+}
+function drivePre(amount){ const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0); return 1 + 7 * a; }
+function driveTiltDb(amount){ const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0); return -3 * a; }
+/* WHAT THE GRAPH TAKES THAT THE TABLE CANNOT SEE. The table is matched on the
+   raw shaper; in the graph the wet path also has the 50 Hz pre-highpass, the
+   high shelf, and the 4× oversampler's band limit, and each takes more as the
+   knob rises — measured on the booth probe's pink bench at −2.3 dB at full
+   knob, nothing at unity. So the post gain carries this back, scaled with the
+   pre-gain: a driven room sits within a dB of the clean one end to end. */
+function driveTrimDb(k){ const kk = Math.max(1, Math.min(8, k > 0 ? k : 1)); return 1.6 * (kk - 1) / 7; }
+// a pink reference at a given RMS, seeded — the same filter the probes bench with
+function drivePinkRef(n, rms, seed){
+  const N = n > 0 ? n | 0 : 8192, d = new Float32Array(N);
+  let s = ((seed == null ? 12345 : seed) >>> 0) || 1, b0 = 0, b1 = 0, b2 = 0, sq = 0;
+  for (let i = 0; i < N; i++){
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const w = s / 0x40000000 - 1;
+    b0 = 0.99765 * b0 + w * 0.0990460; b1 = 0.96300 * b1 + w * 0.2965164; b2 = 0.57000 * b2 + w * 1.0526913;
+    d[i] = b0 + b1 + b2 + w * 0.1848; sq += d[i] * d[i];
+  }
+  const g = (rms > 0 ? rms : 0.2) / Math.sqrt(sq / N);
+  for (let i = 0; i < N; i++) d[i] *= g;
+  return d;
+}
+let DRIVE_MAKEUP = null;
+const DRIVE_K = [1, 8], DRIVE_K_STEP = 0.25;
+function driveMakeupTable(){
+  const ref = drivePinkRef(8192, 0.355, 12345), t3 = Math.tanh(3), out = [];
+  let inSq = 0; for (let i = 0; i < ref.length; i++) inSq += ref[i] * ref[i];
+  for (let k = DRIVE_K[0]; k <= DRIVE_K[1] + 1e-9; k += DRIVE_K_STEP){
+    let sq = 0;
+    for (let i = 0; i < ref.length; i++){ const y = Math.tanh(3 * Math.max(-1, Math.min(1, k * ref[i]))) / t3; sq += y * y; }
+    out.push(Math.sqrt(sq / inSq));
+  }
+  return out;
+}
+function driveMakeup(k){
+  if (!DRIVE_MAKEUP) DRIVE_MAKEUP = driveMakeupTable();
+  const kk = Math.max(DRIVE_K[0], Math.min(DRIVE_K[1], k > 0 ? k : 1));
+  const p = (kk - DRIVE_K[0]) / DRIVE_K_STEP, i = Math.floor(p), f = p - i;
+  const a = DRIVE_MAKEUP[i], b = DRIVE_MAKEUP[Math.min(DRIVE_MAKEUP.length - 1, i + 1)];
+  return a + (b - a) * f;
+}
+
+/* THE PERFORMER'S RESTRAINT. fxAutoPick is the taste; this is the patience.
+   The first room re-decided every frame against raw energy, so a peak that
+   hovered on the threshold flicked the gate in and out mid-beat. Now a
+   decision is taken once per bar, at the top of it; the energy it reads is
+   biased ±0.06 toward staying where it is; a unit holds for at least two
+   bars; after a unit ends the room rests eight bars; the gate is allowed
+   four bars at a time and once per thirty-two. The one thing that may
+   interrupt all of that is the hand-off echo, because the seam comes once.
+   Returns { st, change, unit }. */
+const FX_AUTO = { hyst: 0.06, holdBars: 2, restBars: 8, gateBars: 4, gateEvery: 32, barTop: 0.05 };
+function makeFxAuto(){ return { unit: 'none', since: -1e9, endedAt: -1e9, gateAt: -1e9, bar: -1 }; }
+function fxAutoStep(st, o, barPhase, nowBars){
+  const s = st || makeFxAuto();
+  const bar = Math.floor(nowBars > 0 ? nowBars : 0);
+  if (!(barPhase < FX_AUTO.barTop) || bar === s.bar) return { st: s, change: false, unit: s.unit };
+  const on = s.unit !== 'none';
+  const inp = Object.assign({}, o || {});
+  inp.energy = (inp.energy || 0) + (on ? FX_AUTO.hyst : -FX_AUTO.hyst);
+  let want = fxAutoPick(inp);
+  const seamEcho = want === 'echo';
+  if (want === 'gate' && !(s.unit === 'gate') && bar - s.gateAt < FX_AUTO.gateEvery) want = 'none';
+  if (on){
+    if (s.unit === 'gate' && bar - s.since >= FX_AUTO.gateBars && want === 'gate') want = 'none';
+    else if (want !== s.unit && !seamEcho && bar - s.since < FX_AUTO.holdBars) want = s.unit;
+  }
+  const next = { unit: s.unit, since: s.since, endedAt: s.endedAt, gateAt: s.gateAt, bar };
+  if (want === s.unit) return { st: next, change: false, unit: s.unit };
+  if (want !== 'none' && !seamEcho){
+    // a unit may follow another only after the rest, counted from the last end
+    const restFrom = on ? bar : s.endedAt;
+    if (on){ next.unit = 'none'; next.endedAt = bar; return { st: next, change: true, unit: 'none' }; }
+    if (bar - restFrom < FX_AUTO.restBars) return { st: next, change: false, unit: 'none' };
+  }
+  if (on && want === 'none'){ next.unit = 'none'; next.endedAt = bar; return { st: next, change: true, unit: 'none' }; }
+  next.unit = want; next.since = bar;
+  if (want === 'gate') next.gateAt = bar;
+  if (on) next.endedAt = bar;
+  return { st: next, change: true, unit: want };
+}
+/* THE BUILD SWEEP: a highpass from the bottom of hearing to just under the
+   vocal range over the bars the build has left, resonance rising with it,
+   let go a beat before the drop so the bass lands ON the one. The top goes
+   up with the energy: a bigger build earns a thinner room. */
+function fxAutoSweep(barsLeft, bpm, energy){
+  const bars = Math.max(4, Math.min(64, barsLeft > 0 ? barsLeft : 16));
+  const e = energy < 0 ? 0 : energy > 1 ? 1 : (energy || 0);
+  const hzTop = 900 + 500 * Math.max(0, Math.min(1, (e - 0.5) / 0.5));
+  return { hzTop, seconds: beatLen(4 * bars, bpm), qTop: 2.5, release: beatLen(1, bpm) };
+}
+
+/* THE LIMITER BUDGET. MASTERLIM is a rail nobody should hear, and the way
+   to keep it that way is to never ask it to work: each unit's worst-case
+   broadband gain is written down here, and the sum of everything that can
+   be sounding at once — a deck's filter, one master unit, the tail of the
+   last one ringing out — is held under +6 dB by a test. (A resonant filter
+   lifts a note AT its corner by its Q, which is narrowband and the rail's
+   job; the number here is the broadband worst case on pink material.) */
+const FX_GAIN_DB = { filter: 2.5, echo: 1.6, reverb: 0, flanger: 1.5, phaser: 1.0, crush: 0, drive: 1.0, gate: 0 };
+const FX_BUDGET_DB = 6;
+function fxGainBudget(active){
+  let sum = 0;
+  for (const u of (active || [])) sum += FX_GAIN_DB[u] || 0;
+  return sum;
+}
+/* WHERE EVERYTHING RESTS. release() walks this table rather than a list it
+   might forget to extend — the first rack forgot the echo's feedback, and a
+   0.62 loop rang the last track's rhythm under the next one for half a
+   minute. Keys are the rack's node names; values are the parked setting. */
+const FX_PARK = { lp: 22000, hp: 20, lpQ: 0.7, hpQ: 0.7, gate: 1, send: 0, fb: 0, fbX: 0, wet: 0,
+                  rvSend: 0, rvWet: 0, insWet: 0, insDry: 1, eqLo: 0, eqMid: 0, eqHi: 0 };
 // @fx-end
 
 /* ================================================================
@@ -22599,12 +23075,12 @@ const MIXER = {
     if (p.type === 'fade' && AE.ctx && od.filter && nd.filter){
       const t0 = seamT0, sweep = Math.max(0.5, this.overlap);
       try {
-        nd.filter.frequency.cancelScheduledValues(t0);
-        nd.filter.frequency.setValueAtTime(FILTER_OPEN, t0);      // the incoming comes in clean
-        od.filter.frequency.cancelScheduledValues(t0);
-        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
-        od.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);   // hold, then dive
-        od.filter.frequency.exponentialRampToValueAtTime(FILTER_FLOOR, t0 + sweep);
+        /* THE FILTER IS SHARED WITH A HAND, so the seam declares its sweep
+           to the arbiter (FX.seamSweep) rather than writing the node: with
+           nobody's hand on that deck it is the same sample-accurate curve
+           as ever; under a hand the more closed of the two is what plays,
+           and the hand's own setting is never overwritten. */
+        if (typeof FX !== 'undefined'){ FX.seamOpen(nd); FX.seamSweep(od, t0, sweep); }   // the incoming comes in clean
         // BASS SWAP: the one-bass rule, brought to fades. A lowpass keeps the
         // outgoing LOWS while it fades, so without this two kicks/basslines
         // stack into mud through the crossover. Pull the outgoing low shelf down
@@ -23054,8 +23530,10 @@ const MIXER = {
     const t = AE.ctx.currentTime;
     for (const d of AE.decks){
       if (!d) continue;
+      // the seam's number clears; a hand's filter on that deck stands (the arbiter's tick writes the node)
       if (d.filter){
-        try { d.filter.frequency.cancelScheduledValues(t); d.filter.frequency.setValueAtTime(FILTER_OPEN, t); } catch (e){}
+        if (typeof FX !== 'undefined') FX.seamOpen(d);
+        else { try { d.filter.frequency.cancelScheduledValues(t); d.filter.frequency.setValueAtTime(FILTER_OPEN, t); } catch (e){} }
       }
       // clear any scheduled bass-swap ramp so a fade's shelf automation can't
       // keep pulling the low end down after the seam has ended
@@ -23073,6 +23551,13 @@ const MIXER = {
 setInterval(() => {
   if (document.hidden) MIXER.update(performance.now() / 1000, 0.5);
 }, 500);
+/* and the booth's clocks survive a hidden tab the same way: the gate's slice
+   queue, the beat-synced LFOs, the brake and the performer are refilled from a
+   coarse timer when there are no frames (FX.tick is idempotent on the audio
+   clock, so a tick that finds nothing to do costs nothing) */
+setInterval(() => {
+  if (document.hidden && typeof FX !== 'undefined'){ try { FX.tick(0.3); } catch (e){} }
+}, 300);
 /* AND THE PREFETCH RUNS ON A TIMER, not on the animation loop — the one moment
    it matters most is a phone in a pocket with the screen off, where there is no
    rAF at all and the element-direct hand-off is the only thing happening. Two
@@ -25878,28 +26363,47 @@ const LOOPER = {
        the shaders and the haptics follow
      · a brake is a turntable losing power, not a fade
 
+   The rack, second pass — a DJM's shape: the FILTER lives on each deck's
+   strip (the DJ norm, with a resonance law and an arbiter so a hand, the
+   seam's filter-out and the brake share one node without a fight); the
+   master unit is one serial insert slot (FLANGER, PHASER, CRUSH, DRIVE),
+   the GATE on the grid, and two send/returns (ECHO with ping-pong and a
+   HOLD, REVERB from a generated room). Two knobs — AMOUNT is a unit's
+   character, MIX how much of it is heard — remembered per unit, so a pad
+   always comes up where it was left. The laws are the @fx block's.
+
    And the magical half: AUTO gives the same hands to the director, so a
-   listener who never opens the booth still hears the echo bloom into a
-   hand-off and the filter open across a build — chosen from the song's
-   own structure (fxAutoPick), never from a timer.
+   listener who never opens the booth still hears the echo hang into a
+   hand-off and the highpass climb across a build — chosen from the song's
+   own structure (fxAutoPick), paced by fxAutoStep, and played as curves on
+   the audio clock that last bars, never from a timer.
 
    Safety first, always: nothing here can stop, mute or strand playback.
-   Every unit is parked at bypass, every automation is bounded, and
-   release() puts the whole rack and the deck back exactly as it found
-   them. On iOS the graph is not live and the whole layer stands down —
-   the loop and roll still work, because those are transport, not audio. */
+   Every unit is parked at bypass, every automation is bounded, every
+   param write is a ramp or a target, the whole rack is held under a
+   limiter budget (fxGainBudget), and release() puts the rack and the
+   decks back exactly as it found them. On iOS the graph is not live and
+   the whole layer stands down — the pads say so — while the loop and roll
+   still work, because those are transport, not audio. */
 // how far ahead the gate keeps its slices queued on the audio clock — see tick()
 const GATE_AHEAD = 1.0;
+// (the rack's units, knob laws and parked values are the @fx block's: FX_UNITS, FX_MIX, FX_PARK)
 const FX = {
-  ACTIVE: ['filter', 'echo', 'gate', 'drive'],
+  ACTIVE: FX_UNITS, INSERTS: FX_INSERTS, SENDS: FX_SENDS,
   auto: true,                    // the director performs unless a hand takes over
-  unit: '', amount: 0, div: 1,   // the live effect, its knob, its beat division
+  unit: '', amount: 0, wet: 0, div: 1,   // the live effect, its two knobs, its beat division
+  amt: Object.assign({}, FX_AMT),        // AMOUNT remembered per unit
+  mix: Object.keys(FX_MIX).reduce((o, k) => { o[k] = FX_MIX[k].def; return o; }, {}),   // MIX remembered per unit
+  filterX: [0, 0],               // the FILTER's bipolar position, per deck (the detent is 0)
+  room: 'room',                  // the reverb's preset: a short room or a long hall
+  hold: false, pingpong: true,   // the echo: a held tail; left-right repeats
   loop: null,                    // { start, len, beats, roll, heldFrom }
   eq: { lo: 0, mid: 0, hi: 0 },  // the three bands, in dB — flat until a hand
   jump: null,                    // a quantised cue jump waiting for its beat line
   brakeT: -1, _brakeFrom: 1,
   _handT: 0,                     // how long ago a hand last touched something (display only)
-  _autoUnit: '', _gateAt: 0, _pads: 'loop',
+  _autoUnit: '', _autoSt: makeFxAuto(), _tailHold: false, _gateAt: 0, _pads: 'loop',
+  _ft: 0, _ftIdle: 0, _switchT: 0, _echoBpm: 0, _sweepEnd: 0,
 
   live(){ return !!(AE.graphLive && AE.ctx && AE.fx); },
   bpm(){ return (CLOCK.haveGrid && CLOCK.bpm > 0) ? CLOCK.bpm : (AE.f.bpm > 0 ? AE.f.bpm : 120); },
@@ -26014,76 +26518,429 @@ const FX = {
   },
 
   /* ---- the rack ------------------------------------------------------- */
-  set(unit, amount){
-    if (!this.live()) return;
-    this.unit = this.ACTIVE.indexOf(unit) >= 0 ? unit : '';
-    this.amount = clamp01(amount);
-    this.apply();
+  /* TWO KNOBS, REMEMBERED PER UNIT. set() is the one door: a pad tap, a knob
+     move, the room's own hands and the probes all come through here. A unit
+     change is two-phase — the outgoing unit is ramped to its park, and only
+     after it has settled (100 ms) is the incoming one engaged — so flipping
+     pads mid-phrase is a hand-over, never a collision of two ramps on one
+     node. A knob move on the same unit is a plain apply(). */
+  set(unit, amount, mix){
+    if (!this.live()){ this.unit = ''; return; }
+    const u = this.ACTIVE.indexOf(unit) >= 0 ? unit : '';
+    const was = this.unit;
+    if (u){
+      if (amount != null) this.amt[u] = clamp01(amount);
+      if (mix != null) this.mix[u] = clamp01(mix);
+    }
+    this.amount = u ? this.amt[u] : 0;
+    this.wet = u ? (this.mix[u] != null ? this.mix[u] : 0) : 0;
+    if (u === was){ if (u) this.apply(); return; }
+    this.unit = u;
+    clearTimeout(this._switchT); this._switchT = 0;
+    if (this.hold && u !== 'echo') this.echoHold(false);   // any unit change lets a held tail go
+    if (was) this._park(was);
+    if (!u) return;
+    if (was){ this._switchT = setTimeout(() => { this._switchT = 0; if (this.unit === u) this._engage(u); }, 100); return; }
+    this._engage(u);
   },
+  setMix(x){ if (!this.unit) return; this.mix[this.unit] = clamp01(x); this.wet = this.mix[this.unit]; this.apply(); },
+  // the beat division: an echo glides, an LFO restarts on the bar, a gate re-anchors
+  setDiv(div, by){
+    if (!(div > 0)) return;
+    this.div = div;
+    if (!this.live()) return;
+    if (this.unit === 'echo') this._echoTime(by);
+    else if (this.unit === 'flanger' || this.unit === 'phaser') this._lfoStart(this.unit);
+    else if (this.unit === 'gate') this.apply();
+  },
+  // the reverb's room: the division button cycles it while REVERB is up
+  setRoom(preset){
+    this.room = preset === 'hall' ? 'hall' : 'room';
+    if (this.live() && this.unit === 'reverb') this._reverbUp(true);
+  },
+  /* THE ONE WRITER for a param that may be carrying a curve (the gate's edges,
+     a seam's sweep): hold where it is, then move — the measured AudioParam law
+     (DECKS.gainWrite). ramp() is kept for params nothing else ever schedules. */
+  _w(p, v, tau){
+    if (!p) return;
+    if (typeof DECKS !== 'undefined' && DECKS.gainWrite) DECKS.gainWrite(p, v, tau || 0.02);
+    else ramp(p, v, tau || 0.02);
+  },
+  // put a unit to its park. Tails are let ring (an echo switched off is an
+  // echo OUT); the inserts drop out of the slot once their wet has settled.
+  _park(u){
+    const f = AE.fx;
+    if (u === 'filter'){ for (const d of AE.decks) if (d) d._fxHand = null; this._ftStart(); }
+    else if (u === 'echo'){
+      if (this.hold) this.echoHold(false);
+      this._w(f.send.gain, 0, 0.03); this._w(f.fb.gain, 0, 0.2); this._w(f.fbX.gain, 0, 0.2); this._w(f.wet.gain, 0, 0.4);
+    }
+    else if (u === 'reverb'){ this._w(f.rvSend.gain, 0, 0.03); this._w(f.rvWet.gain, 0, 0.5); this._reverbDrop(false); }
+    else if (u === 'gate'){
+      const t = AE.ctx.currentTime, step = fxTime(this.div, this.bpm());
+      if (this._gateAt > t){
+        // slices are queued: let the running one finish its edge, then open from the next boundary
+        const next = this._gateAt - Math.floor((this._gateAt - t) / step) * step;
+        try { f.gate.gain.cancelScheduledValues(next); f.gate.gain.setValueAtTime(GATE_FLOOR, next); f.gate.gain.setTargetAtTime(1, next, 0.02); }
+        catch (e){ this._w(f.gate.gain, 1, 0.02); }
+      } else this._w(f.gate.gain, 1, 0.02);
+      this._gateAt = t;
+    }
+    else if (this.INSERTS.indexOf(u) >= 0){
+      this._w(f.insWet.gain, 0, 0.025); this._w(f.insDry.gain, 1, 0.025);
+      this._lfoStop(u);
+      this._insertDrop(false);
+    }
+    if (typeof FXPADS !== 'undefined') FXPADS.paint();
+  },
+  _engage(u){
+    const f = AE.fx;
+    if (this.INSERTS.indexOf(u) >= 0){ this._insertUp(u); }
+    else if (u === 'echo'){
+      this._echoTime('engage');
+      // the mode is gains, so ping-pong and straight switch without a click
+      this._w(f.inL.gain, 1, 0.02); this._w(f.inR.gain, this.pingpong ? 0 : 1, 0.02);
+    }
+    else if (u === 'reverb'){ this._reverbUp(false); }
+    else if (u === 'gate'){
+      // the first slice lands on the bar line, every slice after on the grid it anchors
+      const t = AE.ctx.currentTime, step = fxTime(this.div, this.bpm()), b = this.barLineAt();
+      this._gateAt = b ? gateAnchor(t, b.at, step) : t;
+      this._gateFresh = true;                          // the gain is open: the first slice only closes
+      this._w(f.gate.gain, 1, 0.01);
+    }
+    this.apply();
+    if (u === 'flanger' || u === 'phaser') this._lfoStart(u);
+    if (typeof FXPADS !== 'undefined') FXPADS.paint();
+  },
+  /* THE KNOB LAWS, applied. Every write is a ramp or a target; nothing here
+     assigns .value to a param that could be carrying automation. */
   apply(){
     if (!this.live()) return;
-    const f = AE.fx, t = AE.ctx.currentTime, R = 0.05;   // one short ramp: no zipper, no click
-    const nyq = AE.ctx.sampleRate / 2;
-    const on = u => this.unit === u ? this.amount : 0;
-    // FILTER — one bipolar knob mapped from a 0..1 amount, centre at 0.5
-    const fv = this.unit === 'filter' ? (this.amount * 2 - 1) : 0;
-    const ff = fxFilter(fv, nyq);
-    ramp(f.lp.frequency, ff.lp, R); ramp(f.hp.frequency, ff.hp, R);
-    // ECHO — beat-synced, and the wet is what the knob rides
-    ramp(f.delay.delayTime, fxTime(this.div, this.bpm()), 0.12);
-    ramp(f.send.gain, fxWet(on('echo'), 0.85), R);
-    ramp(f.fb.gain, 0.30 + on('echo') * 0.32, R);        // more knob, longer tail — never >1
-    // DRIVE — a wet/dry pair, so bypass is exact rather than nearly
-    const dw = fxWet(on('drive'), 0.8);
-    ramp(f.driveWet.gain, dw, R); ramp(f.driveDry.gain, 1 - dw, R);
-    /* GATE is scheduled on the beat, not held here — see tick(). The queue it
-       fills reaches a second into the future, so a knob moved while the gate is
-       running drops its new setting in at the NEXT slice rather than the next
-       second: the phase is kept and the change lands on a beat, which is what
-       turning a division knob does on hardware. */
-    if (this.unit !== 'gate'){ ramp(f.gate.gain, 1, R); this._gateAt = t; }
-    else if (this._gateAt > t){
-      const step = fxTime(this.div, this.bpm());
-      const next = this._gateAt - Math.floor((this._gateAt - t) / step) * step;
-      try { f.gate.gain.cancelScheduledValues(next); } catch (e){}
-      this._gateAt = next;
+    const f = AE.fx, t = AE.ctx.currentTime, R = 0.05, u = this.unit;
+    if (!u) return;
+    if (u === 'filter'){
+      // one bipolar knob on the deck the hand last touched; the arbiter's tick writes the node
+      const slot = this.filterSlot(), d = AE.decks ? AE.decks[slot] : null;
+      const x = this.amount * 2 - 1;
+      this.filterX[slot] = x;
+      this._handOn(d, x);
+      return;
     }
+    if (u === 'echo'){
+      const g = fxEchoGains(this.amount);
+      const fbS = this.hold ? 0.97 : g.fb;
+      this._w(f.send.gain, this.hold ? 0 : g.send, R);
+      this._w(f.fb.gain, this.pingpong ? 0 : fbS, R); this._w(f.fbX.gain, this.pingpong ? fbS : 0, R);
+      this._w(f.wet.gain, fxMix('echo', this.wet), R);
+      return;
+    }
+    if (u === 'reverb'){
+      // AMOUNT is the wet's tone and distance: darker and closer at the bottom, bright and far at the top
+      this._w(f.rvLp.frequency, 2000 * Math.pow(9000 / 2000, this.amount), R);
+      this._w(f.rvPre.delayTime, 0.01 + 0.03 * this.amount, R);
+      this._w(f.rvSend.gain, 1, R);
+      this._w(f.rvWet.gain, fxMix('reverb', this.wet), R);
+      return;
+    }
+    if (u === 'gate'){
+      /* GATE is scheduled on the beat, not held here — see tick(). The queue it
+         fills reaches a second into the future, so a knob moved while the gate is
+         running drops its new setting in at the NEXT slice rather than the next
+         second: the phase is kept and the change lands on a beat, which is what
+         turning a division knob does on hardware. */
+      if (this._gateAt > t){
+        const step = fxTime(this.div, this.bpm());
+        const next = this._gateAt - Math.floor((this._gateAt - t) / step) * step;
+        try { f.gate.gain.cancelScheduledValues(next); } catch (e){}
+        this._gateAt = next;
+      }
+      return;
+    }
+    // the serial inserts: the unit's character on AMOUNT, the slot's blend on MIX
+    const U = f.units[u];
+    if (!U) return;
+    const m = fxMix(u, this.wet);
+    this._w(f.insWet.gain, m, R); this._w(f.insDry.gain, 1 - m, R);
+    if (u === 'drive'){
+      const k = drivePre(this.amount);
+      this._w(U.pre.gain, k, R); this._w(U.tilt.gain, driveTiltDb(this.amount), R);
+      this._w(U.post.gain, Math.pow(10, driveTrimDb(k) / 20) / driveMakeup(k), R);
+    } else if (u === 'flanger'){
+      const p = fxFlangeParams(this.amount, this.div, this.bpm());
+      this._w(U.fbG.gain, p.fb, R); this._w(U.lfoG.gain, p.depthSec, R);
+      this._w(U.delay.delayTime, p.baseSec + p.depthSec, R);           // the LFO swings ±depth about this
+    } else if (u === 'phaser'){
+      const p = fxPhaserStages(this.amount, 6);
+      this._w(U.fbG.gain, p.fb, R); this._w(U.lfoG.gain, Math.max(0, Math.min(1, p.depth[0] / 2)), R);
+    } else if (u === 'crush'){
+      const bits = crushBits(this.amount);
+      if (bits !== U.bits){ U.bits = bits; try { U.shaper.curve = crushCurve(bits, 8192); } catch (e){} }
+      this._w(U.tone.frequency, crushTone(this.amount), R);
+    }
+  },
+  /* ---- the inserts and the sends, as plumbing -------------------------- */
+  _insertUp(u){
+    const f = AE.fx, U = f.units[u];
+    if (!U) return;
+    if (f.insert && f.insert !== u) this._insertDrop(true);
+    if (f.insert === u) return;
+    clearTimeout(this._insDropT);
+    try { f.insIn.connect(U.in); U.out.connect(f.insWet); f.insert = u; } catch (e){}
+  },
+  // out of the slot — after the wet has settled, unless told to go now
+  _insertDrop(now){
+    const f = AE.fx;
+    const go = () => {
+      this._insDropT = 0;
+      const u = f.insert; if (!u) return;
+      if (this.unit === u) return;                       // re-engaged while the wet was settling
+      const U = f.units[u];
+      try { f.insIn.disconnect(U.in); } catch (e){}
+      try { U.out.disconnect(f.insWet); } catch (e){}
+      f.insert = '';
+    };
+    clearTimeout(this._insDropT);
+    if (now) go(); else this._insDropT = setTimeout(go, 160);
+  },
+  /* THE REVERB'S ROOM, made the first time it is asked for: a generated
+     impulse (reverbIR), a few milliseconds of arithmetic, kept per preset
+     for the life of the context. The convolver is only in the graph while
+     REVERB is up — it is the one unit in this rack that costs anything. */
+  _reverbUp(swap){
+    const f = AE.fx, ctx = AE.ctx, preset = this.room;
+    if (f.rvConv && f.rvPreset === preset && f.rvOn) return;
+    const build = () => {
+      const sr = ctx.sampleRate, secs = preset === 'hall' ? 2.6 : 1.2;
+      const ir = reverbIR(sr, secs, 60, preset === 'hall' ? 97 : 41);
+      const buf = ctx.createBuffer(2, ir[0].length, sr);
+      buf.copyToChannel(ir[0], 0); buf.copyToChannel(ir[1], 1);
+      const conv = ctx.createConvolver(); conv.normalize = true; conv.buffer = buf;
+      return conv;
+    };
+    const seat = () => {
+      if (f.rvOn && f.rvConv){ try { f.rvPre.disconnect(f.rvConv); f.rvConv.disconnect(f.rvLp); } catch (e){} f.rvOn = false; }
+      if (!f.rvConv || f.rvPreset !== preset){ try { f.rvConv = build(); f.rvPreset = preset; } catch (e){ f.rvConv = null; return; } }
+      try { f.rvPre.connect(f.rvConv); f.rvConv.connect(f.rvLp); f.rvOn = true; } catch (e){}
+    };
+    clearTimeout(this._rvDropT);
+    if (swap && f.rvOn){
+      // a preset change while the room rings: duck the wet, swap, bring it back
+      const w = f.rvWet.gain.value;
+      this._w(f.rvWet.gain, 0, 0.03);
+      setTimeout(() => { if (this.unit !== 'reverb') return; seat(); this._w(f.rvWet.gain, w, 0.06); }, 140);
+    } else seat();
+  },
+  _reverbDrop(now){
+    const f = AE.fx;
+    const go = () => {
+      this._rvDropT = 0;
+      if (this.unit === 'reverb' || !f.rvOn) return;
+      try { f.rvPre.disconnect(f.rvConv); f.rvConv.disconnect(f.rvLp); } catch (e){}
+      f.rvOn = false;
+    };
+    clearTimeout(this._rvDropT);
+    if (now) go(); else this._rvDropT = setTimeout(go, 2600);     // after the longest tail has gone
+  },
+  /* THE ECHO'S TIME. A division change on a ringing line is a warp — bounded
+     (fxEchoGlide) so it is the DJM chirp, never four octaves. A line with
+     nothing in it (the unit just engaged, or parked) just takes the time. */
+  _echoTime(by){
+    const f = AE.fx, to = fxTime(this.div, this.bpm()), p = f.delay.delayTime;
+    const from = Math.max(1e-4, p.value), t = AE.ctx.currentTime;
+    this._echoBpm = this.bpm();
+    if (Math.abs(to - from) < 1e-4) return;
+    const quiet = by === 'engage' || this.unit !== 'echo' || (f.send.gain.value < 0.01 && f.wet.gain.value < 0.01);
+    try {
+      p.cancelScheduledValues(t); p.setValueAtTime(from, t);
+      if (quiet) p.setTargetAtTime(to, t, 0.008);
+      else p.exponentialRampToValueAtTime(to, t + fxEchoGlide(from, to));
+    } catch (e){}
+  },
+  /* ECHO HOLD — kill the feed, let the loop run at 0.97 and darken like tape:
+     the tail hangs in the room with the deck gone from under it. A second
+     press, or any unit change, lets it go. */
+  echoHold(on){
+    if (!this.live()) return false;
+    const f = AE.fx, want = !!on;
+    if (want === this.hold) return this.hold;
+    this.hold = want;
+    const fbS = want ? 0.97 : (this.unit === 'echo' ? fxEchoGains(this.amount).fb : 0);
+    this._w(f.send.gain, want ? 0 : (this.unit === 'echo' ? fxEchoGains(this.amount).send : 0), 0.03);
+    this._w(f.fb.gain, this.pingpong ? 0 : fbS, 0.08); this._w(f.fbX.gain, this.pingpong ? fbS : 0, 0.08);
+    this._w(f.hpLoop.frequency, want ? 300 : 180, 0.1); this._w(f.lpLoop.frequency, want ? 3000 : 4500, 0.1);
+    if (want && this.unit !== 'echo') this._w(f.wet.gain, Math.max(f.wet.gain.value, fxMix('echo', this.mix.echo)), 0.05);
+    if (!want && this.unit !== 'echo') this._w(f.wet.gain, 0, 0.6);
+    if (!want) this._tailHold = false;
+    if (typeof syncFxHud === 'function') syncFxHud();
+    return this.hold;
+  },
+  setPingPong(on){ this.pingpong = !!on; if (this.unit === 'echo'){ this._w(AE.fx.inR.gain, this.pingpong ? 0 : 1, 0.02); this.apply(); } },
+  /* THE LFOs, beat-synced and phased to the bar. An oscillator cannot be
+     re-phased, so each (re)start is a new one with the phase baked into its
+     wave (fxLfoWave): the sweep's bottom lands on the next bar line whatever
+     instant the pad was pressed. Rebuilt on a division or tempo change. */
+  _lfoStart(u){
+    const f = AE.fx, U = f.units[u];
+    if (!U || !f.insert) return;
+    this._lfoStop(u);
+    const bpm = this.bpm(), t = AE.ctx.currentTime;
+    const rate = fxFlangeParams(this.amount, this.div, bpm).rateHz;
+    const b = this.barLineAt();
+    const frac = b ? (b.at - t) * rate : 0;
+    try {
+      const o = AE.ctx.createOscillator();
+      const w = fxLfoWave(frac);
+      o.setPeriodicWave(AE.ctx.createPeriodicWave(w.real, w.imag, { disableNormalization: true }));
+      o.frequency.setValueAtTime(rate, t);
+      o.connect(U.lfoG);
+      o.start(t);
+      U.lfo = o; U.lfoBpm = bpm; U.lfoDiv = this.div;
+    } catch (e){ U.lfo = null; }
+  },
+  _lfoStop(u){
+    const U = AE.fx && AE.fx.units[u];
+    if (!U || !U.lfo) return;
+    try { U.lfo.stop(); U.lfo.disconnect(); } catch (e){}
+    U.lfo = null;
+  },
+  /* ---- the deck filter — the DJ norm, with an arbiter ------------------ */
+  // the deck a FILTER acts on: the one the hand last touched (the record on air by default)
+  filterSlot(){ return (typeof DECKS !== 'undefined' && AE.decks) ? DECKS.handSlot() : AE.active; },
+  handHolds(d){ return !!(d && d._fxHand); },
+  /* a hand on a deck's filter: its corners and Q become that deck's HAND
+     number; the tick writes the node. If the seam's own curve was on the
+     node, it is taken in hand first (held where it is — the AudioParam law)
+     and from then on the seam's number rides the tick like everyone else's. */
+  _handOn(d, x){
+    if (!d || !d.filter || !d.hp || !AE.ctx) return;
+    const ff = fxFilter(x, AE.ctx.sampleRate / 2);
+    if (!ff.active) d._fxHand = null;
+    else {
+      d._fxHand = { x, lp: ff.lp, hp: ff.hp, q: fxFilterQ(x) };
+      if (d._fxSched){ this._w(d.filter.frequency, null); d._fxSched = false; d._fxLast = null; }
+    }
+    this._ftStart();
+  },
+  /* THE SEAM'S SIDE. A fade's filter-out used to write its curve straight on
+     the node; now it declares its number (the curve as a function of time)
+     and writes the sample-accurate version only while no hand holds that
+     deck. seamOpen clears the number when the seam lets go, leaving a hand's
+     value alone. */
+  seamSweep(d, t0, sweep){
+    if (!d || !d.filter || !AE.ctx) return;
+    d._fxSeam = { t0, hold: sweep * 0.12, t1: t0 + sweep, from: FILTER_OPEN, to: FILTER_FLOOR };
+    if (d._fxHand || d._fxBrake){ this._ftStart(); return; }
+    try {
+      this._w(d.filter.frequency, null);                 // whatever the tick left in flight is held first
+      d.filter.frequency.setValueAtTime(FILTER_OPEN, t0);
+      d.filter.frequency.setValueAtTime(FILTER_OPEN, t0 + sweep * 0.12);   // hold, then dive
+      d.filter.frequency.exponentialRampToValueAtTime(FILTER_FLOOR, t0 + sweep);
+      d._fxSched = true;
+    } catch (e){ d._fxSched = false; this._ftStart(); }
+  },
+  seamOpen(d){
+    if (!d || !d.filter) return;
+    d._fxSeam = null;
+    if (d._fxSched){
+      d._fxSched = false;
+      // fast enough that a cancelled fade is never left muffled, slow enough to be a ramp;
+      // the tick's own cache is told, so it does not write the same thing again slower
+      this._w(d.filter.frequency, d._fxHand ? null : FILTER_OPEN, 0.012);
+      d._fxLast = d._fxHand ? null : { lp: FILTER_OPEN, hp: d._fxLast ? d._fxLast.hp : 0, q: d._fxLast ? d._fxLast.q : 0 };
+    }
+    this._ftStart();
+  },
+  _ftStart(){ if (!this._ft) this._ft = setInterval(() => this._filterTick(), 16); this._ftIdle = 0; },
+  _ftStop(){ if (this._ft){ clearInterval(this._ft); this._ft = 0; } },
+  /* THE TICK — the only thing that writes a deck's filter nodes. Reads the
+     three numbers (hand, seam, brake), takes the more closed, writes it as a
+     short exponential target; skips a deck while the seam's own curve is on
+     it; lets itself go once nothing has moved for a moment. 60 Hz on its own
+     timer rather than the frame, so a starved renderer cannot stall a sweep. */
+  _filterTick(){
+    if (!this.live() || !AE.decks){ this._ftStop(); return; }
+    const now = AE.ctx.currentTime;
+    let busy = false;
+    for (const d of AE.decks){
+      if (!d || !d.filter || !d.hp) continue;
+      const hand = d._fxHand, seam = d._fxSeam ? fxSeamHz(d._fxSeam, now) : 0, brake = d._fxBrake || 0;
+      if (hand || d._fxSeam || brake) busy = true;
+      if (d._fxSched) continue;
+      const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : 0.7;
+      const tau = d._fxTau || 0.03;
+      const L = d._fxLast || (d._fxLast = { lp: 0, hp: 0, q: 0 });
+      try {
+        if (Math.abs(a.lp - L.lp) > L.lp * 0.002){ d.filter.frequency.setTargetAtTime(a.lp, now, tau); L.lp = a.lp; busy = true; }
+        if (Math.abs(a.hp - L.hp) > L.hp * 0.002){ d.hp.frequency.setTargetAtTime(a.hp, now, tau); L.hp = a.hp; busy = true; }
+        if (Math.abs(q - L.q) > 0.002){ d.filter.Q.setTargetAtTime(q, now, tau); d.hp.Q.setTargetAtTime(q, now, tau); L.q = q; busy = true; }
+      } catch (e){}
+    }
+    if (busy) this._ftIdle = 0;
+    else if (++this._ftIdle > 40) this._ftStop();          // ~0.6 s after the last move: the parked values have landed
+  },
+  /* THE NEXT BAR LINE, on the audio clock, from the deck's own playhead and
+     the healed lattice — what a gate's first slice, an LFO's bottom and the
+     performer's decisions are anchored to. null without a grid. */
+  barLineAt(d){
+    const dk = d || activeDeck();
+    if (!dk || !dk.a || !AE.ctx) return null;
+    const g = this._gridOf(dk);
+    if (!g.have || !(g.bpm > 0)) return null;
+    const rate = dk.a.playbackRate || 1;
+    const nominal = dk === activeDeck() ? g.bpm / rate : g.bpm;   // the clock's tempo rides the rate; a record's own grid does not
+    const spb = 60 / nominal, pos = dk.a.currentTime;
+    const beat = (pos - g.grid) / spb;
+    const nb = Math.ceil(beat / 4 - 1e-6) * 4;
+    return { at: AE.ctx.currentTime + (g.grid + nb * spb - pos) / rate, beat: nb, beatNow: beat, spb: spb / rate };
   },
   /* THE GATE, chopped on the grid rather than by an LFO. An oscillator drifts
      against the music within a bar; the beat clock does not. Each slice is
-     scheduled ahead on the audio clock, so the chop is sample-accurate however
-     busy the animation loop is.
+     two raised-cosine edges scheduled ahead on the audio clock (gateSchedule),
+     so the chop is sample-accurate and clickless however busy the animation
+     loop is.
 
      GATE_AHEAD is a second because the thing refilling this queue is the
      animation frame, and an animation frame is not a clock — measured on the
      probe's software renderer at 63 ms median one run and 197 ms the next, and
      a weak phone is no better. At the original 250 ms horizon a single slow
      frame left a hole, and a hole in this queue does not sound like a glitch:
-     gain is parked at 1 by the last event, so the gate silently STOPS. The probe
-     found it as a gate reading as bypass on one run in two. Everything below is
-     on the audio clock and sample-accurate, so a deeper horizon costs nothing
-     and buys immunity to a stall four times longer than the worst frame seen. */
+     gain is parked by the last event, so the gate silently STOPS. The probe
+     found it as a gate reading as bypass on one run in two. A hidden tab has
+     no frames at all, so a coarse timer calls this too (below the MIXER's). */
   tick(dt){
     if (this._handT > 0) this._handT -= dt;      // only so the HUD can show a recent touch
-    if (this.live() && this.unit === 'gate' && this.amount > 0.02){
-      const t = AE.ctx.currentTime, step = fxTime(this.div, this.bpm());
-      if (this._gateAt < t) this._gateAt = t;
+    if (this.live() && this.unit === 'gate' && !this._switchT && this.amount > 0.02){
+      const t = AE.ctx.currentTime, step = fxTime(this.div, this.bpm()), E = gateEdgeSec(step);
+      if (this._gateAt < t) this._gateAt = gateAnchor(t, this._gateAt, step);   // a stall keeps the phase, not the slices it missed
       while (this._gateAt < t + GATE_AHEAD){
         const at = this._gateAt, hold = fxGateHold(this.amount);
         try {
-          AE.fx.gate.gain.setValueAtTime(1, at);
-          AE.fx.gate.gain.setTargetAtTime(0.06, at + step * hold, 0.008);
-          AE.fx.gate.gain.setValueAtTime(1, at + step);
+          for (const ev of gateSchedule(at, step, hold, E)){
+            // the first slice after engaging finds the gain already open: its open edge would be a step down to the floor
+            if (this._gateFresh && ev.to === 1) continue;
+            AE.fx.gate.gain.setValueCurveAtTime(gateCurve(ev.from, ev.to, 32), ev.at, ev.dur);
+          }
         } catch (e){}
+        this._gateFresh = false;
         this._gateAt = at + step;
       }
     } else if (this.live()){
       this._gateAt = AE.ctx.currentTime;
     }
+    // the beat-synced units follow the tempo: a drift of a percent restarts the LFO on the next bar
+    if (this.live() && (this.unit === 'flanger' || this.unit === 'phaser')){
+      const U = AE.fx.units[this.unit], bpm = this.bpm();
+      if (U && U.lfo && U.lfoBpm > 0 && Math.abs(bpm - U.lfoBpm) / U.lfoBpm > 0.01) this._lfoStart(this.unit);
+    }
+    if (this.live() && this.unit === 'echo' && this._echoBpm > 0 && Math.abs(this.bpm() - this._echoBpm) / this._echoBpm > 0.01) this._echoTime('tempo');
     // loopTick and jumpTick run from preFrame() — the top of the frame, where
     // a deck's playhead reads fresh (see MIXER.preFrame)
     this.brakeTick(dt);
     this.autoTick(dt);
+    // the rail, visible in the rack: the limiter's reading, a few times a second
+    this._grT = (this._grT || 0) + dt;
+    if (this._grT > 0.15){ this._grT = 0; if (typeof BOOTH !== 'undefined' && BOOTH.open && typeof paintFxGr === 'function') paintFxGr(); }
     /* THE TAPE IS NOT FREE TO LEAVE RUNNING. It is nine megabytes of ring and a
        hop to the main thread every eighty milliseconds, which is nothing on a
        desk and not nothing on a phone in somebody's pocket. So it rolls while
@@ -26269,43 +27126,142 @@ const FX = {
     this.brakeT = (performance.now() - (this._brakeT0 || performance.now())) / 1000;
     const r = brakeRate(this.brakeT, this._brakeSec, this._brakeFrom);
     try { d.a.playbackRate = r; } catch (e){}
-    // a lowpass follows the speed down, which is what a room full of air does
-    if (this.live()) ramp(AE.fx.lp.frequency, 400 + r * 20000, 0.05);
+    // a lowpass follows the speed down, which is what a room full of air does —
+    // the DECK's own filter, through the arbiter, so a hand's FILTER and a
+    // seam's sweep on the same node are honoured rather than overwritten
+    if (this.live() && d.filter){ d._fxBrake = 400 + r * 20000; this._ftStart(); }
     if (r <= 0.07){
       this.brakeT = -1; this._brakeDeck = null;
       try { d.a.playbackRate = SPEED.rate * DECKS.pitch(AE.decks.indexOf(d)); } catch (e){}
-      if (this.live()) ramp(AE.fx.lp.frequency, 22000, 0.35);
+      if (this.live() && d.filter){
+        d._fxBrake = 0; d._fxTau = 0.12;                  // the air comes back slower than it left
+        clearTimeout(d._fxTauT); d._fxTauT = setTimeout(() => { d._fxTau = 0; }, 700);
+        this._ftStart();
+      }
     }
   },
 
   /* ---- the room's own hands ------------------------------------------- */
+  /* THE PERFORMER. fxAutoPick is its taste and fxAutoStep its patience; what
+     is new is that its gestures are REAL — curves scheduled on the audio
+     clock that last bars, not a static set() that sat there for a phrase:
+       BUILD     the master highpass sweeps from the bottom of hearing to
+                 just under the vocals across the bars the build has left,
+                 resonance rising, let go a beat before the drop
+       HAND-OFF  the last bar before a cut or a beatmix: a dotted echo at a
+                 real send, HELD at the cut so the old record hangs in its
+                 own tail under the new one (a fade has its own echo-out)
+       BREAK     the first two bars: a reverb wash that fades over four
+       PEAK      act two only: a quarter-note gate, four bars, once per 32
+     Never under a loop, a scratch, or a seam in flight — those are a hand's
+     or the mixer's, and the room keeps its hands still. */
   autoTick(dt){
     if (!this.auto || !this.live() || !player.playing) return;
+    const d = activeDeck();
+    const b = d ? this.barLineAt(d) : null;
+    if (!b) return;                                   // no grid, no gestures: a beat the room cannot find is not one it may play on
+    const running = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
+    const busy = !!this.loop || (typeof VINYL !== 'undefined' && VINYL.engaged) || running;
+    if (busy){
+      if (this._autoSt.unit !== 'none' && this._autoSt.unit !== 'echo') this._autoEnd();
+      else if (this._autoSt.unit === 'echo' && running && !this._tailHold) this._autoEnd();   // the cut: hold the tail
+      return;
+    }
+    const bars = b.beatNow / 4, barPhase = ((bars % 1) + 1) % 1;
     const bar = beatLen(4, this.bpm());
-    // the script's own word for where we are: a BUILD is a sweep and a PEAK a
-    // chop; the energy-ratio phase (flow/peak/break) stands in where the
-    // structure has no word, which is also the only vocabulary it used to have
-    const lab = sectionLabel(trackStructure(player.tracks[player.cur]), director.trackProg == null ? 0.5 : director.trackProg);
-    const want = fxAutoPick({
-      ceil: director.ceil, act: director.act, phase: (lab === 'build' || lab === 'peak') ? lab : director.phase,
-      energy: AE.f.energy, bar,
-      toSeam: (MIXER.phase === 'armed' && BOOTH._seamSec != null) ? BOOTH._seamSec : null,
+    const track = player.tracks[player.cur];
+    const st = trackStructure(track), prog = director.trackProg == null ? 0.5 : director.trackProg;
+    const lab = sectionLabel(st, prog);
+    // bars since this section began, for the break's first two
+    let barsIn = null, barsLeft = null;
+    if (st && st.ok && st.sections && isFinite(d.a.duration) && d.a.duration > 0){
+      const sec = st.sections.find(s => prog >= s.s && prog < s.e);
+      if (sec){ barsIn = (prog - sec.s) * d.a.duration / bar; barsLeft = (sec.e - prog) * d.a.duration / bar; }
+    }
+    // the seam's distance, read from the mixer itself rather than the booth's
+    // narration (which is only refreshed while the booth is open — and the
+    // room must perform for a listener who never opens it). A fade has its own
+    // echo-out; the performer's is for the cut and the beatmix.
+    let toSeam = null;
+    if (MIXER.phase === 'armed' && MIXER.plan && MIXER.plan.type !== 'fade' && isFinite(d.a.duration))
+      toSeam = Math.max(0, MIXER.exitTime(d.a.duration, MIXER.plan, track) - d.a.currentTime);
+    const o = {
+      ceil: director.ceil, act: director.act,
+      phase: (lab === 'build' || lab === 'peak' || lab === 'break') ? lab : director.phase,
+      energy: AE.f.energy, bar, barsIn, toSeam,
       struggling: (typeof PERF !== 'undefined' && PERF.struggling),
-    });
-    if (want === this._autoUnit) return;
-    this._autoUnit = want;
-    if (want === 'none'){ this.set('', 0); return; }
-    this.div = want === 'gate' ? 0.5 : want === 'echo' ? 0.75 : 1;
-    // the room performs at a fraction of what a hand would: present, never in
-    // front of the music
-    this.set(want, want === 'filter' ? 0.72 : 0.45);
+    };
+    const r = fxAutoStep(this._autoSt, o, barPhase, bars);
+    this._autoSt = r.st;
+    if (!r.change) return;
+    if (r.unit === 'none'){ this._autoEnd(); return; }
+    this._autoBegin(r.unit, { barsLeft, energy: AE.f.energy, bar });
+  },
+  _autoBegin(unit, o){
+    this._autoUnit = unit;
+    const f = AE.fx, t = AE.ctx.currentTime;
+    if (unit === 'filter'){
+      // the build sweep, on the master pair (the deck filters are a hand's)
+      const sw = fxAutoSweep(o.barsLeft, this.bpm(), o.energy);
+      const tEnd = t + sw.seconds, tRel = Math.max(t + 0.1, tEnd - sw.release);
+      try {
+        this._w(f.hp.frequency, null); this._w(f.hp.Q, null);
+        f.hp.frequency.setValueAtTime(Math.max(20, f.hp.frequency.value), t);
+        f.hp.frequency.exponentialRampToValueAtTime(sw.hzTop, tRel);
+        f.hp.frequency.setTargetAtTime(20, tRel, 0.05);
+        f.hp.Q.setValueAtTime(f.hp.Q.value, t);
+        f.hp.Q.linearRampToValueAtTime(sw.qTop, tRel);
+        f.hp.Q.setTargetAtTime(0.7, tRel, 0.05);
+      } catch (e){}
+      this._sweepEnd = tEnd;
+      return;
+    }
+    if (unit === 'echo'){ this.div = 0.75; this.set('echo', 0.65, 0.55); return; }
+    if (unit === 'reverb'){
+      this.room = 'hall';
+      this.set('reverb', 0.55, 0.72);                  // fxMix: 0.72³·0.8 ≈ 0.3 — the wash
+      try {
+        const w = f.rvWet.gain, tStart = t + o.bar * 0.5;
+        w.cancelScheduledValues(tStart);
+        w.setValueAtTime(fxMix('reverb', 0.72), tStart);
+        w.linearRampToValueAtTime(0, tStart + 4 * o.bar);   // fading over four bars
+      } catch (e){}
+      return;
+    }
+    if (unit === 'gate'){ this.div = 0.25; this.set('gate', 0.6); }
+  },
+  _autoEnd(){
+    const u = this._autoSt.unit !== 'none' ? this._autoSt.unit : this._autoUnit;
+    const f = AE.fx;
+    this._autoSt = Object.assign(makeFxAuto(), { endedAt: this._autoSt.bar, gateAt: this._autoSt.gateAt, bar: this._autoSt.bar });
+    this._autoUnit = '';
+    if (!this.live()) return;
+    if (u === 'filter'){ this._w(f.hp.frequency, 20, 0.05); this._w(f.hp.Q, 0.7, 0.05); this._sweepEnd = 0; return; }
+    if (u === 'echo'){
+      const running = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
+      if (running && this.unit === 'echo'){
+        // the cut: the tail hangs, held, under the incoming record, then lets go on its own
+        this._tailHold = true;
+        this.echoHold(true);
+        clearTimeout(this._holdT);
+        this._holdT = setTimeout(() => { if (this._tailHold) this.echoHold(false); }, Math.round(2 * beatLen(4, this.bpm()) * 1000));
+        if (this.unit === 'echo'){ this.unit = ''; this.amount = 0; this.wet = 0; }
+        return;
+      }
+    }
+    if (this.unit === u) this.set('', 0);
   },
   /* put EVERYTHING back — called whenever a track changes hands, so no seam
-     ever inherits a booth the last one left switched on */
+     ever inherits a booth the last one left switched on. The one thing that
+     may outlive a track is the performer's held echo tail at the cut: that
+     IS the hand-off, and it lets itself go two bars in. */
   release(){
     const braking = this.brakeT >= 0;
     if (typeof VINYL !== 'undefined') VINYL.drop();    // a track changing hands takes the platter away
-    this.loop = null; this.jump = null; clearTimeout(this._jumpT); this.brakeT = -1; this.unit = ''; this.amount = 0; this._autoUnit = '';
+    this.loop = null; this.jump = null; clearTimeout(this._jumpT); this.brakeT = -1;
+    this.unit = ''; this.amount = 0; this.wet = 0; this._autoUnit = '';
+    this._autoSt = makeFxAuto(); this._sweepEnd = 0;
+    clearTimeout(this._switchT); this._switchT = 0;
     this.eq.lo = this.eq.mid = this.eq.hi = 0;
     // nothing the tape is holding may outlive the track it was cut from
     LOOPER.cancel();
@@ -26326,12 +27282,22 @@ const FX = {
     }
     this._brakeDeck = null;
     if (!this.live()) return;
-    const f = AE.fx, t = AE.ctx.currentTime;
-    for (const [p, v] of [[f.lp.frequency, 22000], [f.hp.frequency, 20], [f.gate.gain, 1],
-                          [f.send.gain, 0], [f.driveWet.gain, 0], [f.driveDry.gain, 1],
-                          [f.eqLo && f.eqLo.gain, 0], [f.eqMid && f.eqMid.gain, 0], [f.eqHi && f.eqHi.gain, 0]]){
+    // the deck filters: every hand off, every brake gone; the tick ramps them open
+    // (the seam's side is the MIXER's — _resetFilters clears it)
+    for (const d of AE.decks){ if (!d) continue; d._fxHand = null; d._fxBrake = 0; }
+    this._ftStart();
+    this._lfoStop('flanger'); this._lfoStop('phaser');
+    this._insertDrop(false); this._reverbDrop(false);
+    const f = AE.fx, t = AE.ctx.currentTime, hold = !!this._tailHold;
+    if (!hold && this.hold) this.echoHold(false);
+    const map = { lp: f.lp.frequency, hp: f.hp.frequency, lpQ: f.lp.Q, hpQ: f.hp.Q, gate: f.gate.gain,
+      send: f.send.gain, fb: f.fb.gain, fbX: f.fbX.gain, wet: f.wet.gain, rvSend: f.rvSend.gain, rvWet: f.rvWet.gain,
+      insWet: f.insWet.gain, insDry: f.insDry.gain, eqLo: f.eqLo && f.eqLo.gain, eqMid: f.eqMid && f.eqMid.gain, eqHi: f.eqHi && f.eqHi.gain };
+    for (const k in FX_PARK){
+      const p = map[k];
       if (!p) continue;
-      try { p.cancelScheduledValues(t); ramp(p, v, 0.08); } catch (e){}
+      if (hold && (k === 'send' || k === 'fb' || k === 'fbX' || k === 'wet')) continue;   // the held tail is the hand-off
+      this._w(p, FX_PARK[k], 0.03);
     }
     this._gateAt = t;
   },
@@ -26589,6 +27555,7 @@ function makeVinylHand(i){
       if (r.mode) this.mode = r.mode;
       if (typeof r.lag === 'number') this.lag = r.lag;
       if (typeof r.at === 'number') this._repAt = r.at;
+      if (r.gen === this._gen) this._repGen = this._gen;   // the platter has spoken since THIS engagement
       // a script that ran its course: the hand lets go the way a finger would
       if (typeof r.done === 'number' && r.done !== this._done){ this._done = r.done; if (this._script){ this._script = null; this._scriptEnded(); } }
       // the processor let go on its own (a slip scheduled on a beat line): the hand follows it.
@@ -26898,7 +27865,13 @@ function makeVinylHand(i){
           else if (now - this._stoppedAt > 350){ this._stoppedAt = 0; this.post({ op: 'motor', v: 1 }); this._motor = 1; }
         }
         // …and a one-shot that has run its course lets go on its own
-        const settled = this.mode === 'motor' && this._motor === 1 && Math.abs(this.rate - 1) < 0.03;
+        /* SETTLED MEANS THE PLATTER SAID SO, since this engagement. Until its
+           first report the hand still holds the values engage() wrote (motor,
+           1×), which read as settled — and on a slow main thread a brake was
+           let go before it had begun. The report carries the engagement it
+           belongs to, so a late one from the last is not mistaken for news. */
+        const reported = this.song() || this._repGen === this._gen;
+        const settled = reported && this.mode === 'motor' && this._motor === 1 && Math.abs(this.rate - 1) < 0.03;
         if (settled && now - this._engagedAt > 150) this.release();
       }
     },
@@ -27161,7 +28134,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && VIN
 const FXPADS = {
   bank: 'loop',
   LOOPS: [0.125, 0.25, 0.5, 1, 2, 4, 8, 16],
-  UNITS: [['filter', 'FILTER'], ['echo', 'ECHO'], ['gate', 'GATE'], ['drive', 'DRIVE']],
+  UNITS: [['filter', 'FILTER'], ['echo', 'ECHO'], ['reverb', 'REVERB'], ['flanger', 'FLANGER'],
+          ['phaser', 'PHASER'], ['crush', 'CRUSH'], ['drive', 'DRIVE'], ['gate', 'GATE']],
   JUMPS: [-16, -8, -4, -1, 1, 4, 8, 16],
   // the EQ bank: three kills, a reset, three dips and a lift — each pad is a
   // band and a value, and pressing what is already there undoes it
@@ -27195,7 +28169,7 @@ const FXPADS = {
     const host = document.getElementById('fxPads');
     if (!host) return;
     const cells = this.bank === 'fx'
-      ? this.UNITS.map(u => ({ key: u[0], text: u[1] })).concat([{ key: 'keylock', text: 'KEY LOCK' }])
+      ? this.UNITS.map(u => ({ key: u[0], text: u[1] }))
       : this.bank === 'cue' ? CUES.slots.map((_, i) => ({ key: i, text: CUES.label(i) }))
       : this.bank === 'jump' ? this.JUMPS.map(n => ({ key: n, text: this.jumpLabel(n) }))
       : this.bank === 'eq' ? this.EQS.map((e, i) => ({ key: i, text: e[2] }))
@@ -27340,13 +28314,12 @@ const FXPADS = {
         b.addEventListener('pointerleave', up);
         b.addEventListener('pointercancel', up);
       }
-    } else if (key === 'keylock'){
-      b.title = T('Key lock — hold the pitch through a tempo match (on), or let it ride the tempo like vinyl (off)');
-      b.addEventListener('click', () => { SPEED.setKeyLock(!SPEED.keyLock); this.paint(); });
     } else {
       b.addEventListener('click', () => {
+        // a bank the device cannot give says so, rather than lighting a pad that does nothing
+        if (!FX.live()){ toast(T('Beat FX need the engine — on this device the music plays direct')); return; }
         FX.hand();
-        FX.set(FX.unit === key ? '' : key, FX.amount || 0.5);
+        FX.set(FX.unit === key ? '' : key);               // each unit comes up at its own remembered knobs
         this.paint(); syncFxHud();
       });
     }
@@ -27355,13 +28328,20 @@ const FXPADS = {
     const host = document.getElementById('fxPads');
     if (!host) return;
     const kids = host.children;
-    const cells = this.bank === 'fx' ? this.UNITS.map(u => u[0]).concat(['keylock']) : this.bank === 'cue' ? CUES.slots.map((_, i) => i)
+    const cells = this.bank === 'fx' ? this.UNITS.map(u => u[0]) : this.bank === 'cue' ? CUES.slots.map((_, i) => i)
       : this.bank === 'jump' ? this.JUMPS : this.bank === 'eq' ? this.EQS.map((_, i) => i)
       : this.bank === 'vinyl' ? this.VINYLS.map(v => v[0]) : this.bank === 'scratch' ? this.SCRATCHES.map(v => v[0]) : this.LOOPS;
     for (let i = 0; i < kids.length; i++){
       const key = cells[i], k = kids[i];
       let lit;
-      if (this.bank === 'fx') lit = key === 'keylock' ? SPEED.keyLock : FX.unit === key;
+      if (this.bank === 'fx'){
+        lit = FX.unit === key;
+        // the FILTER is per deck: its pad names the deck the hand is on
+        if (key === 'filter'){ const txt = 'FILTER ' + (FX.filterSlot() === 1 ? 'B' : 'A'); if (k.textContent !== txt) k.textContent = txt; }
+        // a rack the device cannot give (element-direct playback) is shown, honestly, as out of reach
+        const dead = !FX.live();
+        if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('Beat FX need the engine — on this device the music plays direct') : ''; }
+      }
       else if (this.bank === 'cue'){
         // a set cue wears its colour; an empty pad is a number in the dark
         const v = CUES.slots[key], col = CUE_COLORS[key];
@@ -27410,11 +28390,53 @@ const FXPADS = {
 };
 function syncFxHud(){
   const lbl = document.getElementById('fxUnitLbl');
-  if (lbl) lbl.textContent = (FX.unit || 'FILTER').toUpperCase();
+  const unitName = FX.unit === 'filter' ? 'FILTER ' + (FX.filterSlot() === 1 ? 'B' : 'A')
+    : FX.unit ? FX.unit.toUpperCase() : FX._autoUnit === 'filter' ? '✦ SWEEP' : 'FILTER';
+  if (lbl && lbl.textContent !== unitName) lbl.textContent = unitName;
+  // the knobs show the unit's own remembered values — never while a finger is on them
+  const amt = document.getElementById('fxAmt'), mixK = document.getElementById('fxMixK'), mix = document.getElementById('fxMix');
+  const u = FX.unit || 'filter';
+  if (amt && !amt._drag){
+    const v = u === 'filter' ? (FX.filterX[FX.filterSlot()] + 1) / 2 : (FX.amt[u] != null ? FX.amt[u] : 0.5);
+    const want = String(Math.round(v * 100));
+    if (amt.value !== want) amt.value = want;
+    const bip = u === 'filter';
+    if (amt._bip !== bip){ amt._bip = bip; amt.classList.toggle('bipolar', bip); amt.title = bip ? T('Double-tap to centre') : ''; }
+  }
+  const hasMix = !!FX_MIX[u];
+  if (mixK && mixK._off !== !hasMix){ mixK._off = !hasMix; mixK.classList.toggle('off', !hasMix); }
+  if (mix && !mix._drag){
+    const want = String(Math.round((hasMix ? (FX.mix[u] != null ? FX.mix[u] : FX_MIX[u].def) : 0) * 100));
+    if (mix.value !== want) mix.value = want;
+    if (mix.disabled !== !hasMix) mix.disabled = !hasMix;
+  }
   const d = document.getElementById('fxDiv');
-  if (d) d.textContent = FXPADS.label(FX.div);
+  if (d){
+    const txt = FX.unit === 'reverb' ? (FX.room === 'hall' ? 'HALL' : 'ROOM') : FXPADS.label(FX.div);
+    if (d.textContent !== txt) d.textContent = txt;
+  }
+  const dk = document.getElementById('fxDeck');
+  if (dk){ const s = FX.filterSlot() === 1 ? 'B' : 'A'; if (dk.textContent !== s) dk.textContent = s; }
+  const h = document.getElementById('fxHold');
+  if (h){ h.classList.toggle('on', !!FX.hold); h.setAttribute('aria-pressed', FX.hold ? 'true' : 'false'); }
+  const k = document.getElementById('fxKey');
+  if (k){ k.classList.toggle('on', !!SPEED.keyLock); k.setAttribute('aria-pressed', SPEED.keyLock ? 'true' : 'false'); }
   const a = document.getElementById('fxAuto');
   if (a){ a.classList.toggle('on', FX.auto); a.setAttribute('aria-pressed', FX.auto ? 'true' : 'false'); }
+}
+/* THE RAIL, in the rack: the limiter's gain reduction, read a few times a
+   second (FX.tick). Dark is the honest expectation; amber is a hand leaning
+   on the rail, red is the rail doing the work. */
+function paintFxGr(){
+  const g = document.getElementById('fxGr');
+  if (!g) return;
+  const gr = (typeof MASTERLIM !== 'undefined' && MASTERLIM.ready()) ? MASTERLIM.grDb() : 0;
+  const on = clamp01(-gr / 6);
+  g._hot = Math.max(on, (g._hot || 0) * 0.8);
+  const txt = g._hot > 0.02 ? 'LIM ' + gr.toFixed(1) : 'LIM';
+  if (g.textContent !== txt) g.textContent = txt;
+  const cls = g._hot > 0.5 ? 'rail' : g._hot > 0.05 ? 'hot' : '';
+  if (g._cls !== cls){ g._cls = cls; g.classList.toggle('hot', cls === 'hot'); g.classList.toggle('rail', cls === 'rail'); }
 }
 /* THE WAVE IS A SCRUB STRIP. A finger or a mouse on lane A seeks the deck that
    owns the room — a drag follows it — and the seek keeps a held loop the way a
@@ -27703,20 +28725,61 @@ function wireFxRack(){
   wireXfader();
   for (const b of document.querySelectorAll('.fx-banks .fxb[data-bank]'))
     b.addEventListener('click', () => FXPADS.setBank(b.dataset.bank));
+  // a finger on a knob owns it: the HUD never writes a slider that is being dragged
+  const grab = s => {
+    if (!s) return;
+    s.addEventListener('pointerdown', () => { s._drag = true; });
+    const drop = () => { s._drag = false; };
+    s.addEventListener('pointerup', drop); s.addEventListener('pointercancel', drop); s.addEventListener('blur', drop);
+  };
   const amt = document.getElementById('fxAmt');
+  grab(amt);
   if (amt) amt.addEventListener('input', () => {
     FX.hand();
     FX.set(FX.unit || 'filter', +amt.value / 100);
     syncFxHud(); FXPADS.paint();
   });
+  // the filter's detent, by hand: a double-tap puts the knob back on centre
+  if (amt){
+    let lastTap = 0;
+    amt.addEventListener('pointerdown', ev => {
+      const now = ev.timeStamp || performance.now();
+      if (now - lastTap < 320 && (FX.unit || 'filter') === 'filter'){
+        lastTap = 0; amt._drag = false;
+        FX.hand(); FX.set('filter', 0.5); syncFxHud(); FXPADS.paint();
+        ev.preventDefault();
+      } else lastTap = now;
+    });
+  }
+  const mix = document.getElementById('fxMix');
+  grab(mix);
+  if (mix) mix.addEventListener('input', () => { FX.hand(); FX.setMix(+mix.value / 100); });
   const div = document.getElementById('fxDiv');
   if (div) div.addEventListener('click', () => {
+    FX.hand();
+    if (FX.unit === 'reverb'){ FX.setRoom(FX.room === 'hall' ? 'room' : 'hall'); syncFxHud(); return; }
     FXPADS._divI = (FXPADS._divI + 1) % FXPADS.DIVS.length;
-    FX.div = FXPADS.DIVS[FXPADS._divI];
-    FX.hand(); FX.apply(); syncFxHud();
+    FX.setDiv(FXPADS.DIVS[FXPADS._divI], 'hand'); syncFxHud();
+  });
+  // the deck a FILTER acts on: a tap moves the hand's attention to the other deck
+  const dk = document.getElementById('fxDeck');
+  if (dk) dk.addEventListener('click', () => {
+    if (!AE.decks) return;
+    const to = 1 - FX.filterSlot();
+    if (typeof DECKS !== 'undefined'){ DECKS.focus = to; DECKS.hand(); }
+    FX.hand();
+    if (FX.unit === 'filter') FX.set('filter', (FX.filterX[FX.filterSlot()] + 1) / 2);
+    syncFxHud(); FXPADS.paint();
+  });
+  const hold = document.getElementById('fxHold');
+  if (hold) hold.addEventListener('click', () => {
+    if (!FX.live()){ toast(T('Beat FX need the engine — on this device the music plays direct')); return; }
+    FX.hand(); FX.echoHold(!FX.hold); HAPTICS.pulse(!!FX.hold); syncFxHud();
   });
   const br = document.getElementById('fxBrake');
   if (br) br.addEventListener('click', () => { FX.brake(1.1); HAPTICS.pulse(true); });
+  const key = document.getElementById('fxKey');
+  if (key) key.addEventListener('click', () => { SPEED.setKeyLock(!SPEED.keyLock); syncFxHud(); });
   const cl = document.getElementById('fxClear');
   // CLEAR is a hand like any other: it takes the booth as well as emptying it,
   // so the room cannot reach straight back in behind the tap

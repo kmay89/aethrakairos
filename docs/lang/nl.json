@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Op dit apparaat heeft alleen de plaat in de uitzending een platter",
  "Cut — hold for the crossfader's cut curve": "Cut — houd vast voor de cut-curve van de crossfader",
  "Fine — half the hand's reach, for crabs and scribbles": "Fijn — de halve reikwijdte van de hand, voor crabs en scribbles",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Scratchpatroon {name} — tik voor één keer, op de beat; houd vast om te herhalen"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Scratchpatroon {name} — tik voor één keer, op de beat; houd vast om te herhalen",
+ "Beat FX need the engine — on this device the music plays direct": "Beat-FX hebben de engine nodig — op dit apparaat speelt de muziek direct",
+ "Effect mix": "Effectmix",
+ "Deck the filter acts on — A or B": "Deck waarop het filter werkt — A of B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — bevries de staart en laat hem doorklinken; druk nogmaals om los te laten",
+ "Double-tap to centre": "Dubbeltik om terug naar het midden te gaan"
 }

@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "या डिव्हाइसवर फक्त ऑन-एअर रेकॉर्डलाच प्लॅटर आहे",
  "Cut — hold for the crossfader's cut curve": "कट — क्रॉसफेडरच्या कट कर्व्हसाठी दाबून धरा",
  "Fine — half the hand's reach, for crabs and scribbles": "फाइन — हाताची पोहोच निम्मी, क्रॅब आणि स्क्रिबलसाठी",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "स्क्रॅच पॅटर्न {name} — बीटवर एकदा वाजवण्यासाठी टॅप करा; पुन्हा करण्यासाठी दाबून धरा"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "स्क्रॅच पॅटर्न {name} — बीटवर एकदा वाजवण्यासाठी टॅप करा; पुन्हा करण्यासाठी दाबून धरा",
+ "Beat FX need the engine — on this device the music plays direct": "बीट FX ला इंजिन लागतं — या डिव्हाइसवर संगीत थेट वाजतं",
+ "Effect mix": "इफेक्टचं मिश्रण",
+ "Deck the filter acts on — A or B": "फिल्टर ज्या डेकवर काम करतो — A किंवा B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "इको होल्ड — शेपूट थांबवून घुमू द्या; सोडण्यासाठी पुन्हा दाबा",
+ "Double-tap to centre": "मध्यभागी आणण्यासाठी दोनदा टॅप करा"
 }

@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "このデバイスではオンエア中のレコードだけにプラッターがあります",
  "Cut — hold for the crossfader's cut curve": "カット — 長押しでクロスフェーダーのカットカーブ",
  "Fine — half the hand's reach, for crabs and scribbles": "ファイン — 手の可動域を半分に。クラブやスクリブル向け",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "スクラッチパターン {name} — タップで一回、ビートに合わせて。長押しで繰り返し"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "スクラッチパターン {name} — タップで一回、ビートに合わせて。長押しで繰り返し",
+ "Beat FX need the engine — on this device the music plays direct": "ビートFXにはエンジンが必要です — この端末では音楽は直接再生されます",
+ "Effect mix": "エフェクトのミックス",
+ "Deck the filter acts on — A or B": "フィルターが効くデッキ — AかB",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "エコーホールド — 残響を固定して鳴らし続ける。もう一度押すと解除",
+ "Double-tap to centre": "ダブルタップで中央に戻す"
 }

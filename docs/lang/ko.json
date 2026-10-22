@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "이 기기에서는 온에어 중인 레코드만 플래터가 있습니다",
  "Cut — hold for the crossfader's cut curve": "컷 — 길게 누르면 크로스페이더의 컷 커브",
  "Fine — half the hand's reach, for crabs and scribbles": "파인 — 손의 가동 범위를 절반으로, 크랩과 스크리블용",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "스크래치 패턴 {name} — 탭하면 비트에 맞춰 한 번, 길게 누르면 반복"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "스크래치 패턴 {name} — 탭하면 비트에 맞춰 한 번, 길게 누르면 반복",
+ "Beat FX need the engine — on this device the music plays direct": "비트 FX에는 엔진이 필요합니다 — 이 기기에서는 음악이 직접 재생됩니다",
+ "Effect mix": "이펙트 믹스",
+ "Deck the filter acts on — A or B": "필터가 작용하는 덱 — A 또는 B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "에코 홀드 — 꼬리를 고정해 울리게 두기; 다시 누르면 해제",
+ "Double-tap to centre": "두 번 탭하면 가운데로"
 }

@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Di perangkat ini hanya piringan yang mengudara yang punya platter",
  "Cut — hold for the crossfader's cut curve": "Cut — tahan untuk kurva cut crossfader",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — setengah jangkauan tangan, untuk crab dan scribble",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Pola scratch {name} — ketuk untuk sekali, pada beat; tahan untuk mengulang"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Pola scratch {name} — ketuk untuk sekali, pada beat; tahan untuk mengulang",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX membutuhkan mesin — di perangkat ini musik diputar langsung",
+ "Effect mix": "Campuran efek",
+ "Deck the filter acts on — A or B": "Deck tempat filter bekerja — A atau B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — bekukan ekornya dan biarkan berdengung; tekan lagi untuk melepas",
+ "Double-tap to centre": "Ketuk dua kali untuk kembali ke tengah"
 }

@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Kwenye kifaa hiki ni rekodi iliyo hewani pekee yenye sahani",
  "Cut — hold for the crossfader's cut curve": "Cut — shikilia kwa mkunjo wa cut wa crossfader",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — nusu ya ufikio wa mkono, kwa crab na scribble",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Mtindo wa scratch {name} — gusa kwa mara moja, kwenye mdundo; shikilia kurudia"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Mtindo wa scratch {name} — gusa kwa mara moja, kwenye mdundo; shikilia kurudia",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX zinahitaji injini — kwenye kifaa hiki muziki unacheza moja kwa moja",
+ "Effect mix": "Mchanganyiko wa athari",
+ "Deck the filter acts on — A or B": "Deki ambayo kichujio kinafanya kazi juu yake — A au B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Shikilia mwangwi — gandisha mkia na uache ulie; bonyeza tena kuachilia",
+ "Double-tap to centre": "Gonga mara mbili kurudi katikati"
 }

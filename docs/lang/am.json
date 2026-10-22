@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "በዚህ መሣሪያ ላይ በአየር ላይ ያለው ሪከርድ ብቻ ሳህን አለው",
  "Cut — hold for the crossfader's cut curve": "ካት — ለክሮስፌደሩ የካት ከርቭ ተጭነህ ያዝ",
  "Fine — half the hand's reach, for crabs and scribbles": "ፋይን — የእጁ ርቀት ግማሽ፣ ለክራብ እና ለስክሪብል",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "የስክራች ንድፍ {name} — አንድ ጊዜ በምቱ ላይ ለማጫወት ንካ፤ ለመድገም ተጭነህ ያዝ"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "የስክራች ንድፍ {name} — አንድ ጊዜ በምቱ ላይ ለማጫወት ንካ፤ ለመድገም ተጭነህ ያዝ",
+ "Beat FX need the engine — on this device the music plays direct": "የቢት ኤፍኤክስ ሞተሩን ይፈልጋሉ — በዚህ መሣሪያ ላይ ሙዚቃው በቀጥታ ይጫወታል",
+ "Effect mix": "የውጤት ቅልቅል",
+ "Deck the filter acts on — A or B": "ማጣሪያው የሚሠራበት ዴክ — A ወይም B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "የኢኮ መያዣ — ጭራውን አቁመህ እንዲያስተጋባ ተወው፤ ለመልቀቅ እንደገና ተጫን",
+ "Double-tap to centre": "ወደ መሃል ለመመለስ ሁለቴ ንካ"
 }

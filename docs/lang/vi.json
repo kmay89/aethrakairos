@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Trên thiết bị này chỉ đĩa đang phát mới có mâm",
  "Cut — hold for the crossfader's cut curve": "Cut — giữ để dùng đường cong cut của crossfader",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — nửa tầm với của tay, cho crab và scribble",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Mẫu scratch {name} — chạm để chơi một lần, đúng nhịp; giữ để lặp lại"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Mẫu scratch {name} — chạm để chơi một lần, đúng nhịp; giữ để lặp lại",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX cần có engine — trên thiết bị này nhạc phát trực tiếp",
+ "Effect mix": "Tỷ lệ trộn hiệu ứng",
+ "Deck the filter acts on — A or B": "Deck mà bộ lọc tác động — A hoặc B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Giữ echo — đóng băng đuôi vang và để nó ngân; nhấn lần nữa để thả",
+ "Double-tap to centre": "Chạm hai lần để về giữa"
 }

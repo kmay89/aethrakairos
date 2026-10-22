@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "Bu cihazda yalnızca yayındaki plağın tablası var",
  "Cut — hold for the crossfader's cut curve": "Cut — crossfader'ın cut eğrisi için basılı tut",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — elin erişiminin yarısı, crab ve scribble için",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Scratch deseni {name} — bir kez için dokun, vuruşta; tekrarlamak için basılı tut"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Scratch deseni {name} — bir kez için dokun, vuruşta; tekrarlamak için basılı tut",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX motoru gerektirir — bu cihazda müzik doğrudan çalar",
+ "Effect mix": "Efekt karışımı",
+ "Deck the filter acts on — A or B": "Filtrenin etki ettiği deck — A veya B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — kuyruğu dondur ve çınlamaya bırak; bırakmak için tekrar bas",
+ "Double-tap to centre": "Ortaya dönmek için iki kez dokun"
 }

@@ -1982,5 +1982,10 @@
  "On this device only the record on air has a platter": "На цьому пристрої диск має лише платівка в ефірі",
  "Cut — hold for the crossfader's cut curve": "Cut — утримуй для кривої cut кросфейдера",
  "Fine — half the hand's reach, for crabs and scribbles": "Fine — половина ходу руки, для крабів і скрибблів",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Скретч-патерн {name} — торкнися для одного разу, в біт; утримуй для повтору"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "Скретч-патерн {name} — торкнися для одного разу, в біт; утримуй для повтору",
+ "Beat FX need the engine — on this device the music plays direct": "Beat FX потребують рушія — на цьому пристрої музика грає напряму",
+ "Effect mix": "Мікс ефекту",
+ "Deck the filter acts on — A or B": "Дека, на яку діє фільтр — A або B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "Echo hold — заморозити хвіст і дати йому звучати; натисніть ще раз, щоб відпустити",
+ "Double-tap to centre": "Подвійний дотик — у центр"
 }

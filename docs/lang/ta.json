@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "இந்தச் சாதனத்தில் ஒலிபரப்பில் உள்ள ரெக்கார்டுக்கு மட்டுமே பிளாட்டர் உண்டு",
  "Cut — hold for the crossfader's cut curve": "கட் — கிராஸ்ஃபேடரின் கட் வளைவுக்கு அழுத்திப் பிடிக்கவும்",
  "Fine — half the hand's reach, for crabs and scribbles": "ஃபைன் — கையின் எட்டும் தூரம் பாதி, கிராப் மற்றும் ஸ்கிரிபிளுக்கு",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "ஸ்கிராட்ச் பேட்டர்ன் {name} — பீட்டில் ஒரு முறைக்குத் தட்டவும்; மீண்டும் செய்ய அழுத்திப் பிடிக்கவும்"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "ஸ்கிராட்ச் பேட்டர்ன் {name} — பீட்டில் ஒரு முறைக்குத் தட்டவும்; மீண்டும் செய்ய அழுத்திப் பிடிக்கவும்",
+ "Beat FX need the engine — on this device the music plays direct": "பீட் FX-க்கு எஞ்சின் தேவை — இந்தச் சாதனத்தில் இசை நேரடியாக ஒலிக்கிறது",
+ "Effect mix": "விளைவு கலவை",
+ "Deck the filter acts on — A or B": "வடிகட்டி செயல்படும் டெக் — A அல்லது B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "எதிரொலி பிடிப்பு — வாலை உறையவைத்து ஒலிக்க விடுங்கள்; விடுவிக்க மீண்டும் அழுத்துங்கள்",
+ "Double-tap to centre": "நடுவிற்குத் திரும்ப இருமுறை தட்டுங்கள்"
 }

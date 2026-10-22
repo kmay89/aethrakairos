@@ -1782,5 +1782,10 @@
  "On this device only the record on air has a platter": "روی این دستگاه فقط صفحهٔ روی آنتن صفحه‌گردان دارد",
  "Cut — hold for the crossfader's cut curve": "کات — برای منحنی کات کراس‌فیدر نگه دار",
  "Fine — half the hand's reach, for crabs and scribbles": "ظریف — نصف دامنهٔ دست، برای کرب و اسکریبل",
- "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "الگوی اسکرچ {name} — برای یک بار روی ضرب ضربه بزن؛ برای تکرار نگه دار"
+ "Scratch pattern {name} — tap for once, on the beat; hold to repeat": "الگوی اسکرچ {name} — برای یک بار روی ضرب ضربه بزن؛ برای تکرار نگه دار",
+ "Beat FX need the engine — on this device the music plays direct": "افکت‌های بیت به موتور نیاز دارند — در این دستگاه موسیقی مستقیم پخش می‌شود",
+ "Effect mix": "میزانِ ترکیب افکت",
+ "Deck the filter acts on — A or B": "دکی که فیلتر روی آن اثر می‌گذارد — A یا B",
+ "Echo hold — freeze the tail and let it ring; press again to let go": "نگه‌داشتن اکو — دنباله را ثابت کن و بگذار بپیچد؛ برای رها کردن دوباره بزن",
+ "Double-tap to centre": "برای بازگشت به وسط دو بار ضربه بزن"
 }
