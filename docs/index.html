@@ -238,11 +238,11 @@ body.zen #eqStrip{opacity:.85;height:18px}
 .fx-banks{flex-wrap:wrap;row-gap:5px}
 .fx-banks .fxb{padding:6px 7px}
 .fx-row .spring{flex:1}
-.fxb{font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--dim);
+.fxb,.dbtn{font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--dim);
   background:rgba(233,237,246,.05);border:1px solid rgba(233,237,246,.14);border-radius:7px;
   padding:6px 9px;cursor:pointer;transition:color .16s,border-color .16s,background .16s}
-.fxb:hover{color:var(--ink);border-color:rgba(233,237,246,.3)}
-.fxb.on{color:#0a0d12;background:var(--accent);border-color:var(--accent)}
+.fxb:hover,.dbtn:hover{color:var(--ink);border-color:rgba(233,237,246,.3)}
+.fxb.on,.dbtn.on{color:#0a0d12;background:var(--accent);border-color:var(--accent)}
 .fx-auto.on{background:color-mix(in oklab,var(--accent) 70%,#fff)}
 .fx-pads{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
 .fxp{font:600 10px/1 'IBM Plex Mono',monospace;color:var(--dim);min-height:38px;
@@ -1113,10 +1113,10 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
    ============================================================ */
 :root{ --hit:24px; }
 @media (pointer:coarse){ :root{ --hit:44px; } }
-.hud .chip,.sdot,.tbtn,.fxb,.fxp,.tapbtn,.pl-x,.sortbtn,.fr-mini,.ob-dot,.btn,.con-mode,.lg-opt,.pn-ghost,.pn-primary,.pn-midi,.pn-tabs button{
+.hud .chip,.sdot,.tbtn,.fxb,.dbtn,.fxp,.tapbtn,.pl-x,.sortbtn,.fr-mini,.ob-dot,.btn,.con-mode,.lg-opt,.pn-ghost,.pn-primary,.pn-midi,.pn-tabs button{
   position:relative;
 }
-.hud .chip::before,.sdot::before,.tbtn::before,.fxb::before,.fxp::before,.tapbtn::before,
+.hud .chip::before,.sdot::before,.tbtn::before,.fxb::before,.dbtn::before,.fxp::before,.tapbtn::before,
 .pl-x::before,.sortbtn::before,.fr-mini::before,.ob-dot::before,.btn::before,.con-mode::before,
 .pn-ghost::before,.pn-primary::before,.pn-midi::before,.pn-tabs button::before{
   content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -1516,6 +1516,9 @@ body.boothdesk #boothPlan{font-size:10px}
 body.boothdesk .booth-deck .nm{font-size:14px}
 body.boothdesk .booth-deck .meta{font-size:11px}
 body.boothdesk .bpad{min-height:58px}
+body.boothdesk .dbtn{font-size:12px;min-height:40px;padding:8px 14px}
+body.boothdesk .deck-tr .dstate{font-size:10px}
+body.boothdesk #xfader{--band:56px}
 body.boothdesk .bpad .bt{font-size:11.5px}
 body.boothdesk .bpad .bk{font-size:9px}
 /* the head's own door: visuals to the other screen, and back */
@@ -2460,6 +2463,9 @@ body.clipping::after{
   transition:box-shadow .9s ease;
   backdrop-filter:blur(30px) saturate(1.45);-webkit-backdrop-filter:blur(30px) saturate(1.45);
 }
+/* three rows taller than it was (the two transports and the fader's switches):
+   on a short viewport the panel scrolls rather than losing its head above the top */
+#booth{max-height:calc(100vh - 104px - env(safe-area-inset-bottom));overflow-y:auto;overflow-x:hidden}
 #booth.open{display:flex;animation:boothIn .5s cubic-bezier(.16,1,.3,1) both}
 #booth.closing{display:flex;animation:boothOut .3s cubic-bezier(.4,0,1,1) both}
 @keyframes boothIn{
@@ -2485,6 +2491,40 @@ body.clipping::after{
 .booth-deck .meta{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.03em;flex:none}
 .booth-deck .st{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);flex:none}
 .booth-deck .st.live{color:var(--accent,#6ee7ff)}
+/* THE DECK TRANSPORT ROWS. The rack's own button language (.fxb) under each
+   deck; the state is the row's last word. PLAY lights in the record's key
+   (--deck-c, set from the track like the pads' --pad-c), SYNC in the accent,
+   CUE brightens only while it is held — a lamp here switches, it never
+   animates (the page's one ring is the invitation's). */
+.deck-tr{display:flex;align-items:center;gap:6px;min-width:0}
+.deck-tr .spring{flex:1;min-width:6px}
+.dbtn{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;white-space:nowrap}
+.dbtn.play.on{color:#0a0d12;background:var(--deck-c,var(--accent));border-color:var(--deck-c,var(--accent))}
+.dbtn.cue.held{color:var(--ink);border-color:var(--deck-c,var(--accent));background:rgba(233,237,246,.14)}
+.deck-tr .dstate{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
+  min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.deck-tr .dstate.live{color:var(--accent,#6ee7ff)}
+/* THE CROSSFADER'S HAND: a range input the size a thumb needs, laid over the
+   painted rail by BOOTH._placeFader (left/top/width follow the rail; --band
+   is its height). It draws nothing — appearance none, a transparent track,
+   a one-pixel transparent thumb — so the canvas keeps the ink and the input
+   keeps the reach, the focus ring (the page's own) and the accessible name.
+   touch-action none, or the first vertical wobble of a thumb scrolls the panel. */
+.booth-stage{position:relative;min-width:0}
+#xfader{--band:44px;position:absolute;left:0;top:0;width:120px;height:var(--band);margin:0;padding:0;border:0;
+  -webkit-appearance:none;appearance:none;background:transparent;touch-action:none;cursor:ew-resize;border-radius:8px}
+#xfader::-webkit-slider-runnable-track{height:var(--band);background:transparent;border:0}
+#xfader::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:1px;height:1px;background:transparent;border:0}
+#xfader::-moz-range-track{height:var(--band);background:transparent;border:0}
+#xfader::-moz-range-thumb{width:1px;height:1px;background:transparent;border:0;opacity:0}
+#xfader[aria-disabled="true"]{cursor:not-allowed}
+.xf-row{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:-3px}
+/* the playlist's LOAD → A / B: shown only while the booth is open (the default
+   path stays "tap the row"), the letter in the deck's key, a dot on the air */
+.trk .ld{display:none;font:600 10px/1 var(--mono);letter-spacing:.06em;color:var(--pad-c,var(--faint));padding:4px 6px}
+body.booth-open .trk .ld{display:inline-block}
+.trk .ld.air::after{content:'·';margin-left:1px;color:var(--accent,#6ee7ff)}
+.trk .ld:hover{color:var(--ink);background:rgba(233,237,246,.08)}
 /* the booth's canvas is an instrument (platters to scratch, lanes to scrub):
    a finger on it is never the page scrolling, or the browser cancels the
    gesture a few moves in and the record slips out of the hand */
@@ -2495,6 +2535,7 @@ body.clipping::after{
 #boothPads{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .bpad{
   position:relative;min-height:44px;border-radius:9px;text-align:left;cursor:pointer;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
   border:1px solid var(--line);padding:6px 8px 9px;overflow:hidden;
   background:rgba(255,255,255,.03);transition:transform .1s,border-color .15s,background .15s;
 }
@@ -2519,6 +2560,14 @@ body.clipping::after{
   #boothWave{height:128px}
   #boothPads{grid-template-columns:repeat(4,1fr)}
   .bpad:nth-child(n+5){display:none}
+  /* the transport: four equal thumbs' worth per row, the state word beneath */
+  .deck-tr{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .deck-tr .spring{display:none}
+  .deck-tr .dbtn{min-height:44px;padding:6px 4px}
+  .deck-tr .dstate{grid-column:1/-1;text-align:left}
+}
+@media(max-width:359px){
+  .deck-tr{grid-template-columns:repeat(2,1fr)}
 }
 
 /* ============ Journey Console (J) ============ */
@@ -2763,7 +2812,9 @@ body.clipping::after{
 @media (pointer:coarse){
   .hud{gap:10px 16px}
   .hud .chip{padding:7px 10px}
-  .fxb{padding:9px 11px}
+  .fxb,.dbtn{padding:9px 11px}
+  /* a thumb cannot hover: the playlist's row actions are simply there */
+  .trk .rm{opacity:1}
   .tapbtn{padding:6px 9px}
   .topactions{gap:10px}
   .btn{min-height:44px}
@@ -3252,14 +3303,52 @@ body.clipping::after{
   <div class="booth-deck">
     <span class="dk">A</span><span class="keychip" id="boothKeyA">—</span>
     <span class="nm" id="boothNmA">—</span><span class="meta" id="boothMetaA"></span>
-    <span class="st" id="boothStA"></span>
+  </div>
+  <!-- THE TRANSPORT, one row per deck — the four buttons every deck has had
+       since the CDJ. PLAY lights in the record's own key while it rolls; CUE is
+       a tap (set it, or jump back to it) or a hold (play from it, return on
+       release); SYNC matches this deck's tempo to the other's; LOAD puts the
+       planner's next pick on this deck, cued. The row's last word is the
+       deck's state, spoken as it changes (a live region), so a press is
+       answered where the eye already is. -->
+  <div class="deck-tr" id="deckTrA" data-deck="0" role="group" aria-label="Deck A transport">
+    <button type="button" class="dbtn play" id="deckPlayA" aria-pressed="false" aria-label="Play deck A">▶ PLAY</button>
+    <button type="button" class="dbtn cue" id="deckCueA" aria-label="Cue deck A — tap: back to the cue point; hold: play from it">CUE</button>
+    <button type="button" class="dbtn sync" id="deckSyncA" aria-pressed="false" aria-label="Sync deck A to the other deck">SYNC</button>
+    <button type="button" class="dbtn load" id="deckLoadA" aria-label="Load the planner's next pick onto deck A">LOAD</button>
+    <span class="spring"></span>
+    <span class="dstate" id="boothStA" aria-live="polite"></span>
   </div>
   <canvas id="boothWave" aria-label="The two decks scrolling past the needle — drag deck A to scratch, pinch or scroll to zoom" role="img"></canvas>
-  <canvas id="boothCv" aria-hidden="true"></canvas>
+  <!-- the mixer's surface, with the crossfader's HAND laid over its painted
+       rail: a 44 px band (an invisible range input — the ink stays on the
+       canvas, where the rail, the detent and the handle are drawn) that a
+       pointer drags and a keyboard nudges. Under it, the rail's own two
+       switches: AUTO hands the fader back to the planner, CUT makes it a
+       switch for scratching. -->
+  <div class="booth-stage">
+    <canvas id="boothCv" aria-hidden="true"></canvas>
+    <input type="range" id="xfader" min="0" max="1000" step="1" value="0"
+      aria-label="Crossfader — A to B" aria-valuetext="A"
+      title="Crossfader — drag it · [ ] nudge · { } cut to A / B · \ recentre · double-tap: centre">
+  </div>
+  <div class="xf-row" role="group" aria-label="Crossfader">
+    <button type="button" class="fxb fx-auto on" id="xfAuto" aria-pressed="true"
+      title="AUTO — the planner has the fader; a hand takes it">✦ AUTO</button>
+    <button type="button" class="fxb" id="xfCut" aria-pressed="false"
+      title="CUT curve — the fader is a switch; scratch with it">CUT</button>
+  </div>
   <div class="booth-deck">
     <span class="dk">B</span><span class="keychip" id="boothKeyB">—</span>
     <span class="nm" id="boothNmB">—</span><span class="meta" id="boothMetaB"></span>
-    <span class="st" id="boothStB"></span>
+  </div>
+  <div class="deck-tr" id="deckTrB" data-deck="1" role="group" aria-label="Deck B transport">
+    <button type="button" class="dbtn play" id="deckPlayB" aria-pressed="false" aria-label="Play deck B">▶ PLAY</button>
+    <button type="button" class="dbtn cue" id="deckCueB" aria-label="Cue deck B — tap: back to the cue point; hold: play from it">CUE</button>
+    <button type="button" class="dbtn sync" id="deckSyncB" aria-pressed="false" aria-label="Sync deck B to the other deck">SYNC</button>
+    <button type="button" class="dbtn load" id="deckLoadB" aria-label="Load the planner's next pick onto deck B">LOAD</button>
+    <span class="spring"></span>
+    <span class="dstate" id="boothStB" aria-live="polite"></span>
   </div>
   <div id="boothPads" role="group" aria-label="Next up — tap a pad to mix it in; the auto-mix continues after"></div>
 
@@ -3518,6 +3607,10 @@ body.clipping::after{
       <div class="keyrow"><kbd>B</kbd> Library</div>
       <div class="keyrow"><kbd>J</kbd> Journey console</div>
       <div class="keyrow"><kbd>D</kbd> The booth — watch the engine mix &nbsp;·&nbsp; its VINYL bank is a real platter: drag deck A's record to scratch, brake, backspin, reverse — slip or hold</div>
+      <div class="keyrow"><kbd>Q</kbd> / <kbd>O</kbd> In the booth: play / pause deck A / deck B</div>
+      <div class="keyrow"><kbd>Z</kbd> / <kbd>V</kbd> Cue deck A / deck B — tap: back to the cue; hold: play from it</div>
+      <div class="keyrow"><kbd>Y</kbd> Sync the idle deck to the one on air &nbsp;·&nbsp; <kbd>U</kbd> Load the planner's pick onto it</div>
+      <div class="keyrow"><kbd>[</kbd> <kbd>]</kbd> Nudge the crossfader &nbsp;·&nbsp; <kbd>{</kbd> <kbd>}</kbd> Cut it to A / B &nbsp;·&nbsp; <kbd>\</kbd> Recentre it</div>
       <div class="keyrow"><kbd>M</kbd> Mute</div>
       <div class="keyrow"><kbd>T</kbd> Tap the beat — lock the grid to your tap if it ever drifts</div>
       <div class="keyrow"><kbd>G</kbd> Skip to the next drop</div>
@@ -9578,8 +9671,21 @@ function boothNarrateT(txt){
     'direct-to-output here — clean, instant handover; no live blend',
     'MIX is off — transitions play plain',
     'watching the clock — the planner arms 90 s before the end',
+    'HAND on the fader — both decks are yours · tap AUTO to hand it back',
+    'CUT curve — the fader is a switch; scratch with it',
   ];
   for (const f of FULL) if (txt === f) return T(f);
+  // the hand's lines that carry a number or a deck letter: read back, then re-said
+  const TPL = [
+    [/^HAND · you took the blend at (\d+)% — park the fader on (A|B) to finish it$/, 'HAND · you took the blend at {pct}% — park the fader on {deck} to finish it', ['pct', 'deck']],
+    [/^done — (A|B) is on air · the planner has the room again$/, 'done — {deck} is on air · the planner has the room again', ['deck']],
+    [/^(A|B) playing under the fader — bring it in when it feels right$/, '{deck} playing under the fader — bring it in when it feels right', ['deck']],
+    [/^SYNC · (A|B) matched at (\d+)$/, 'SYNC · {deck} matched at {bpm}', ['deck', 'bpm']],
+  ];
+  for (const [re, key, names] of TPL){
+    const m = txt.match(re);
+    if (m){ const vars = {}; names.forEach((n, i) => { vars[n] = m[i + 1]; }); return T(key, vars); }
+  }
   txt = txt.replace(/^(MIXING |CUED |PLANNING )/, m0 => T(m0));
   const PH = ['gapless · album order', 'the next track', 'filtered fade', 'a transition',
     ' · seam in ', ' · arms in ', 'beat-locked', 'bass swap', 'B leads', 'seamless',
@@ -9628,6 +9734,9 @@ const el = {
   boothPlan: $('boothPlan'), boothLock: $('boothLock'), chipBooth: $('chipBooth'),
   boothKeyA: $('boothKeyA'), boothNmA: $('boothNmA'), boothMetaA: $('boothMetaA'), boothStA: $('boothStA'),
   boothKeyB: $('boothKeyB'), boothNmB: $('boothNmB'), boothMetaB: $('boothMetaB'), boothStB: $('boothStB'),
+  deckPlayA: $('deckPlayA'), deckCueA: $('deckCueA'), deckSyncA: $('deckSyncA'), deckLoadA: $('deckLoadA'),
+  deckPlayB: $('deckPlayB'), deckCueB: $('deckCueB'), deckSyncB: $('deckSyncB'), deckLoadB: $('deckLoadB'),
+  xfader: $('xfader'), xfAuto: $('xfAuto'), xfCut: $('xfCut'),
   libFresh: $('libFresh'),
   beatDot: $('beatDot'), btnShuffle: $('btnShuffle'), btnRepeat: $('btnRepeat'), rep1: $('rep1'),
   vol: $('vol'),
@@ -11259,7 +11368,7 @@ const DECKS = {
     }
     const f = this.fader;
     this.hand();
-    f.hand = true; f.handAt = performance.now();
+    f.hand = true; f.handAt = performance.now(); f.glide = 0;   // a hand landing ends an AUTO glide
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'running'){
       const outSlot = AE.decks.indexOf(MIXER.outDeck);
       const sf = MIXER.yield();
@@ -11294,6 +11403,39 @@ const DECKS = {
     }
     if (v.act === 'hold' || v.act === 'none') f.mode = 'rest';   // where the hand left it; the auto-DJ arms only from an end
     return v;
+  },
+  /* AUTO — THE HANDLE GOES BACK TO THE PLANNER. Wherever the hand left it,
+     it glides home (a third of a second across the whole rail, cosine-eased,
+     so the level moves as a fade and never a step) and is let go of there,
+     through the arbiter like any release: a yielded seam parks at the
+     incoming's end and finishes (MIXER.finish, by hand); a hand's blend
+     parked mid-way resolves to the end it was nearer — the record on air
+     comes back to full, or the other record commits; and from an end the
+     auto-DJ arms again on its own. A pointer landing on the handle meanwhile
+     ends the glide where it is (faderGrab clears the token). Returns false
+     where there is nothing to give back: no graph, a seam's own AUTO, or a
+     handle already at rest at the on-air end. */
+  faderAuto(){
+    if (!AE.graphLive || !AE.decks) return false;
+    const f = this.fader;
+    if (f.mode === 'auto') return false;
+    const manual = typeof MIXER !== 'undefined' && MIXER.phase === 'manual';
+    const to = manual ? AE.active : (Math.abs(f.x - AE.active) <= 0.5 ? AE.active : 1 - AE.active);
+    if (!f.hand && f.mode === 'rest' && Math.abs(f.x - to) < 1e-6) return false;
+    if (!f.hand && !this.faderGrab(f.x)) return false;
+    const x0 = f.x, t0 = performance.now(), token = (f.glide = t0 || 1);
+    const dur = Math.max(80, 350 * Math.abs(to - x0));
+    const step = () => {
+      if (f.glide !== token) return;
+      const k = clamp01((performance.now() - t0) / dur);
+      this.faderMove(x0 + (to - x0) * (0.5 - 0.5 * Math.cos(k * Math.PI)));
+      if (k < 1){ requestAnimationFrame(step); return; }
+      f.glide = 0;
+      const v = this.faderRelease();
+      if (v.act === 'commit' && typeof BOOTH !== 'undefined') BOOTH.handDone(v.slot);
+    };
+    step();
+    return true;
   },
   // NEXT while a hand's record rolls: a cut to it (the law's 6 ms ramp), and the commit that follows
   cutTo(slot){
@@ -13018,6 +13160,21 @@ const player = {
       sub.textContent = bits.join('  ·  ');
       meta.appendChild(nm); meta.appendChild(sub);
 
+      // LOAD → A / B: the record straight onto a deck, cued, while the booth is
+      // open (body.booth-open shows them). The letter wears the deck's key; the
+      // deck on air carries a dot.
+      const lds = [0, 1].map(k => {
+        const L = k ? 'B' : 'A', b = document.createElement('button');
+        b.className = 'rm ld' + (AE.decks && k === AE.active ? ' air' : ''); b.type = 'button';
+        b.textContent = L; b.dataset.deck = k;
+        b.title = T('Load to deck {d}', { d: L });
+        b.setAttribute('aria-label', T('Load {title} to deck {d}', { title: t.title, d: L }));
+        const dt = AE.decks ? DECKS.track(k) : null;
+        if (dt){ const c = deckKeyRGB(dt); b.style.setProperty('--pad-c', `rgb(${c[0]},${c[1]},${c[2]})`); }
+        b.addEventListener('click', ev => { ev.stopPropagation(); loadToDeck(k, t); });
+        return b;
+      });
+
       const up = document.createElement('button');
       up.className = 'rm upnext'; up.textContent = '⤴';
       up.title = T('Play next');
@@ -13036,6 +13193,7 @@ const player = {
       rm.addEventListener('click', ev => { ev.stopPropagation(); this.remove(i); });
 
       row.appendChild(idx); row.appendChild(art); row.appendChild(meta);
+      row.appendChild(lds[0]); row.appendChild(lds[1]);
       row.appendChild(up); row.appendChild(addPl); row.appendChild(rm);
       row.addEventListener('click', () => this.playIndex(i));
 
@@ -15375,6 +15533,20 @@ function mixNarration(st){
   // never arrive: a live-looking countdown to a mix that can't happen reads
   // as broken, not as "working great on this platform".
   if (st.direct) return 'direct-to-output here — clean, instant handover; no live blend';
+  /* A HAND IS IN THE ROOM — said before anything the planner has to say,
+     MIX off included: the DJ with the handle is the one reading this line.
+     `manual`: a running seam the hand took (handDeck is the incoming's letter,
+     where parking the fader finishes it); `hand`: the handle held, or parked
+     mid-way, with no seam — both decks are the hand's until AUTO; `done`: the
+     letter of a deck a hand just committed (said for a few seconds); `audition`:
+     the letter of a hand's record rolling under the handle while the other is on
+     air; `sync`: {deck, bpm} of a deck matched to the other; `cut`: the switch curve. */
+  const hd = st.handDeck || 'B';
+  if (st.phase === 'manual') return 'HAND · you took the blend at ' + (st.pct == null ? 0 : st.pct) + '% — park the fader on ' + hd + ' to finish it';
+  if (st.hand) return 'HAND on the fader — both decks are yours · tap AUTO to hand it back';
+  if (st.done) return 'done — ' + st.done + ' is on air · the planner has the room again';
+  if (st.audition) return st.audition + ' playing under the fader — bring it in when it feels right';
+  if (st.sync && st.sync.deck) return 'SYNC · ' + st.sync.deck + ' matched at ' + Math.round(st.sync.bpm || 0);
   if (!st.on) return 'MIX is off — transitions play plain';
   const label = st.planType === 'beatmix' ? ((st.beats || 16) + '-beat blend')
     : st.planType === 'gapless' ? 'gapless · album order'
@@ -15387,6 +15559,7 @@ function mixNarration(st){
     return 'MIXING ' + to + ' · ' + (tech || label) + (st.pct != null ? ' · ' + st.pct + '%' : '');
   }
   if (st.phase === 'armed') return 'CUED ' + to + ' · ' + label + key + (st.seamSec != null ? ' · seam in ' + mixFmtDur(st.seamSec) : '');
+  if (st.cut) return 'CUT curve — the fader is a switch; scratch with it';
   if (st.phase === 'planning') return 'PLANNING ' + to + ' · ' + label + key + (st.seamSec != null ? ' · arms in ' + mixFmtDur(st.seamSec) : '');
   return 'watching the clock — the planner arms 90 s before the end';
 }
@@ -19415,6 +19588,36 @@ function crateMixNext(t, opts){
     toast(T('<b>{title}</b> is next', { title }));
   }
   PERSIST.poke(); deckPadsPaint();
+}
+/* the deck letter's colour: its record's key (the booth's pads, the playlist's
+   LOAD letters and the deck rows all read the same hue, so one key is one
+   colour wherever it is written); the room's cyan with no key to read */
+function deckKeyRGB(tr){
+  const m = tr && mixOf(tr);
+  const hue = m && m.key ? camelotHue(m.key) : null;
+  if (hue == null) return [110, 231, 255];
+  return oklchToRgb(0.72, 0.13, hue).map(v => Math.round(v * 255));
+}
+/* LOAD TO A DECK, by hand — from a playlist row, a deck's LOAD button, a
+   pad held down. The record goes onto the named deck cued (DECKS.load),
+   nothing is armed, the pin follows it so the planner's "next" and the deck
+   agree; and where it cannot (the direct path, a seam in flight, the deck
+   on air and rolling) the reason is said. The decks are born here if the
+   room has not played yet, exactly as the transport's own prepare does. */
+function loadToDeck(slot, t){
+  const L = slot ? 'B' : 'A';
+  if (typeof DECKS === 'undefined' || !t) return false;
+  DECKS.hand();
+  if (!AE.ctx){ try { ensureCtx(); } catch (e){} }
+  if (!AE.graphLive || !AE.decks){ toast(T('direct-to-output — no second deck here')); return false; }
+  if (MIXER.phase === 'running' || MIXER.phase === 'manual'){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
+  if (slot === AE.active && player.playing){ toast(T('Deck {d} is on air — load the other one', { d: L })); return false; }
+  if (!DECKS.load(slot, t, { by: 'hand' })) return false;
+  DECKS.focus = slot;
+  if (slot !== AE.active) player._committedNext = player.tracks.indexOf(t);
+  toast(T('<b>{title}</b> loaded to deck {d} · cued at {time}', { title: escapeHTML(t.title), d: L, time: fmtTime(DECKS.slots[slot].cue) }));
+  deckPadsPaint(); PERSIST.poke();
+  return true;
 }
 /* which pad is on deck — repainted whenever the pick or the plan moves */
 function deckPadsPaint(){
@@ -26334,8 +26537,197 @@ function wireBoothScrub(){
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
 }
+/* THE DECK TRANSPORT, wired. Every press is a hand (DECKS.hand — the ghost
+   stays off the field under a DJ) and makes its deck the hand's focus; and
+   every press is answered inside itself: a lamp or the row's state word
+   changes on the next frame, and a refusal is said where the state word sits
+   (BOOTH.holdState) — nothing waits for the audio to agree. */
+function wireDeckTransport(){
+  const letter = i => i ? 'B' : 'A';
+  const seam = () => MIXER.phase === 'running' || MIXER.phase === 'manual';
+  for (let i = 0; i < 2; i++){
+    const L = letter(i), row = document.getElementById('deckTr' + L);
+    if (row) row.setAttribute('aria-label', T('Deck {d} transport', { d: L }));
+    if (el['deckCue' + L]) el['deckCue' + L].setAttribute('aria-label', T('Cue deck {d} — tap: back to the cue point; hold: play from it', { d: L }));
+    if (el['deckSync' + L]) el['deckSync' + L].setAttribute('aria-label', T('Sync deck {d} to the other deck', { d: L }));
+    if (el['deckLoad' + L]) el['deckLoad' + L].setAttribute('aria-label', T('Load the planner\'s next pick onto deck {d}', { d: L }));
+  }
+  // PLAY / PAUSE: a rolling deck pauses; a cued one starts (the on-air deck through the transport)
+  const play = slot => {
+    DECKS.hand(); DECKS.focus = slot;
+    const d = AE.decks && AE.decks[slot];
+    if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended){ DECKS.pause(slot); return true; }
+    if (!DECKS.track(slot)){ BOOTH.holdState(slot, T('nothing to play — LOAD a pick, or a pad')); return false; }
+    if (!DECKS.play(slot)){
+      BOOTH.holdState(slot, seam() ? T('busy — a blend is running') : T('direct-to-output — no second deck here'));
+      return false;
+    }
+    return true;
+  };
+  /* CUE, the CDJ way, from one button: down starts a 150 ms clock; a lift
+     before it is a TAP (set the cue on a paused deck, jump back to it on a
+     rolling one); past it the record plays from the cue for as long as the
+     button is down and returns there, paused, on the lift. The keyboard's
+     Z / V ride the same pair (keydown = down, keyup = up). */
+  const cueWire = (b, slot) => {
+    let held = 0, pressed = false;
+    const refuse = () => BOOTH.holdState(slot, !DECKS.track(slot) ? T('nothing to cue — LOAD a pick, or a pad')
+      : seam() ? T('busy — a blend is running') : T('loading…'));
+    const down = ev => {
+      if (ev && ev.pointerType === 'mouse' && ev.button !== 0) return;
+      if (pressed) return;
+      pressed = true; DECKS.hand(); DECKS.focus = slot;
+      clearTimeout(held);
+      held = setTimeout(() => { held = 0; if (pressed && !DECKS.cue(slot, true)) refuse(); }, 150);
+    };
+    const up = () => {
+      if (!pressed) return;
+      pressed = false;
+      if (held){ clearTimeout(held); held = 0; if (!DECKS.cue(slot)) refuse(); }
+      else DECKS.cue(slot, false);
+    };
+    if (b){
+      b.addEventListener('pointerdown', down);
+      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
+      b.addEventListener('keydown', ev => { if ((ev.key === ' ' || ev.key === 'Enter') && !ev.repeat){ ev.preventDefault(); down(); } });
+      b.addEventListener('keyup', ev => { if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); up(); } });
+      b.addEventListener('click', ev => ev.preventDefault());
+      b.addEventListener('contextmenu', ev => ev.preventDefault());
+    }
+    return { down, up };
+  };
+  // SYNC: match this deck's tempo to the other's; pressed again, let it go
+  const sync = slot => {
+    DECKS.hand(); DECKS.focus = slot;
+    const was = DECKS.slots[slot].synced;
+    DECKS.sync(slot);
+    const now = DECKS.slots[slot].synced;
+    if (was && !now) return true;
+    if (!now){
+      BOOTH.holdState(slot, !AE.graphLive ? T('direct-to-output — no second deck here')
+        : seam() ? T('busy — a blend is running') : T('SYNC needs a tempo on both decks'));
+      return false;
+    }
+    const mm = mixOf(DECKS.track(1 - slot));
+    toast(T('SYNC · {deck} matched at {bpm}', { deck: letter(slot), bpm: Math.round((mm && mm.bpm) || 0) }));
+    return true;
+  };
+  /* LOAD: the planner's next pick onto this deck. The pick is what the
+     auto-DJ would play next (PREFETCH.next — the draw is committed, never
+     spent twice); when that is the record already on this deck (a hand's
+     record IS the next), the pads' top pick that is on neither deck instead. */
+  const load = slot => {
+    DECKS.hand(); DECKS.focus = slot;
+    const L = letter(slot);
+    if (!AE.graphLive || !AE.decks){ toast(T('direct-to-output — no second deck here')); return false; }
+    if (seam()){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
+    if (slot === AE.active && player.playing){ toast(T('Deck {d} is on air — load the other one', { d: L })); return false; }
+    const here = DECKS.track(slot);
+    let t = (typeof PREFETCH !== 'undefined') ? PREFETCH.next() : null;
+    if (!t || t === here){
+      const onDecks = new Set([DECKS.track(0), DECKS.track(1)].filter(Boolean));
+      const pad = el.boothPads && [...el.boothPads.children].find(b => b._track && !onDecks.has(b._track));
+      t = pad ? pad._track : null;
+    }
+    if (!t){ toast(T('Nothing left to load — the queue is at its end')); return false; }
+    return loadToDeck(slot, t);
+  };
+  for (let i = 0; i < 2; i++){
+    const L = letter(i);
+    if (el['deckPlay' + L]) el['deckPlay' + L].addEventListener('click', () => play(i));
+    if (el['deckSync' + L]) el['deckSync' + L].addEventListener('click', () => sync(i));
+    if (el['deckLoad' + L]) el['deckLoad' + L].addEventListener('click', () => load(i));
+  }
+  BOOTH._tr = { play, sync, load, cue: [cueWire(el.deckCueA, 0), cueWire(el.deckCueB, 1)] };
+}
+/* THE CROSSFADER'S HAND. The band is an invisible range input the size a
+   thumb needs, laid over the painted rail (BOOTH._placeFader). A pointer on
+   it takes the handle (DECKS.faderGrab — a running seam is yielded to it),
+   every move is the law applied (faderMove), letting go is the arbiter's
+   call (faderRelease: commit, abort, hold). From the slider the keyboard
+   nudges it — ← → two percent, ten with shift, Home and End the two ends —
+   each nudge the whole gesture at once. A double tap recentres it, and
+   cancels an armed seam first so nothing fires under the hand; the detent
+   flashes white to say so. AUTO glides the handle home to the planner; CUT
+   switches the curve. A refused grab says why (the direct path, a set's
+   anchor on air). */
+function wireXfader(){
+  const xf = el.xfader;
+  if (!xf) return;
+  const posOf = ev => {
+    const r = xf.getBoundingClientRect();
+    return clamp01((ev.clientX - r.left - XF_REACH) / Math.max(1, r.width - XF_REACH * 2));
+  };
+  const recentre = () => {
+    DECKS.hand(); DECKS.fader.glide = 0;
+    if (MIXER.phase === 'armed') MIXER.cancel('hand');       // nothing fires under the hand
+    if (!DECKS.faderGrab(0.5)){ toast(BOOTH.faderWhy()); return false; }
+    DECKS.faderMove(0.5);
+    DECKS.faderRelease();
+    BOOTH._xfFlash = performance.now();
+    return true;
+  };
+  BOOTH._recentre = recentre;
+  let id = null, lastDown = 0;
+  xf.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.preventDefault();
+    try { xf.focus({ preventScroll: true }); } catch (e){}
+    DECKS.hand();
+    const now = performance.now(), dbl = now - lastDown < 320;
+    lastDown = dbl ? 0 : now;
+    if (dbl){ recentre(); return; }
+    DECKS.fader.glide = 0;
+    if (!DECKS.faderGrab(posOf(ev))){ toast(BOOTH.faderWhy()); return; }
+    id = ev.pointerId; xf._drag = true;
+    try { xf.setPointerCapture(id); } catch (e){}
+  });
+  xf.addEventListener('pointermove', ev => {
+    if (ev.pointerId !== id) return;
+    ev.preventDefault();
+    DECKS.fader.glide = 0;
+    DECKS.faderMove(posOf(ev));
+  });
+  const up = ev => {
+    if (ev.pointerId !== id) return;
+    id = null; xf._drag = false;
+    const v = DECKS.faderRelease();
+    if (v.act === 'commit') BOOTH.handDone(v.slot);
+  };
+  xf.addEventListener('pointerup', up);
+  xf.addEventListener('pointercancel', up);
+  xf.addEventListener('keydown', ev => {
+    const k = ev.key, x = DECKS.fader.x, step = ev.shiftKey ? 0.10 : 0.02;
+    let to = null;
+    if (k === 'ArrowLeft' || k === 'ArrowDown') to = x - step;
+    else if (k === 'ArrowRight' || k === 'ArrowUp') to = x + step;
+    else if (k === 'PageDown') to = x - 0.10;
+    else if (k === 'PageUp') to = x + 0.10;
+    else if (k === 'Home') to = 0;
+    else if (k === 'End') to = 1;
+    else if (k === '\\'){ ev.preventDefault(); ev.stopPropagation(); recentre(); return; }
+    else return;                                            // the booth's own keys bubble to the window
+    ev.preventDefault(); ev.stopPropagation();
+    BOOTH.nudgeFader(to);
+  });
+  // a change the handlers above did not make (assistive tech stepping the slider): follow it
+  xf.addEventListener('input', () => { if (!xf._drag) BOOTH.nudgeFader(+xf.value / 1000); });
+  xf.addEventListener('contextmenu', ev => ev.preventDefault());
+  if (el.xfAuto) el.xfAuto.addEventListener('click', () => {
+    DECKS.hand();
+    if (!AE.graphLive){ toast(T('direct-to-output — no second deck here')); return; }
+    if (!DECKS.faderAuto()) toast(T('AUTO — the planner has the fader; a hand takes it'));
+  });
+  if (el.xfCut) el.xfCut.addEventListener('click', () => {
+    DECKS.hand();
+    DECKS.setCurve(DECKS.fader.curve === 'cut' ? 'power' : 'cut');
+    BOOTH._syncHud(); PERSIST.poke();
+  });
+}
 function wireFxRack(){
   wireBoothScrub();
+  wireDeckTransport();
+  wireXfader();
   for (const b of document.querySelectorAll('.fx-banks .fxb[data-bank]'))
     b.addEventListener('click', () => FXPADS.setBank(b.dataset.bank));
   const amt = document.getElementById('fxAmt');
@@ -26792,6 +27184,7 @@ function wireDeckWave(){
   cv.addEventListener('pointercancel', up);
 }
 
+const XF_REACH = 22;     // the hand's band reaches this far past each end of the rail, so the stops are under a thumb
 const BOOTH = {
   open: false, _txt: {},
   toggle(on){
@@ -26802,6 +27195,7 @@ const BOOTH = {
     clearTimeout(this._closeT);
     this.open = next;
     el.chipBooth.classList.toggle('on', next);
+    document.body.classList.toggle('booth-open', next);   // the playlist's LOAD → A / B letters show while it is
     if (next){
       el.booth.classList.remove('closing');
       el.booth.classList.add('open');
@@ -26819,11 +27213,56 @@ const BOOTH = {
       this._closeT = setTimeout(() => el.booth.classList.remove('closing'), 320);
     }
   },
-  keyRGB(tr){
-    const m = tr && mixOf(tr);
-    const hue = m && m.key ? camelotHue(m.key) : null;
-    if (hue == null) return [110, 231, 255];
-    return oklchToRgb(0.72, 0.13, hue).map(v => Math.round(v * 255));
+  keyRGB(tr){ return deckKeyRGB(tr); },
+  /* a word held in a deck's state line for a moment — the answer to a press
+     the engine refused (nothing to play, a seam in flight), written at once
+     so it is part of the press, and kept over the frame's own word until it
+     has been read */
+  holdState(slot, text, ms){
+    this._stHold = { side: slot, text, until: performance.now() + (ms || 1800) };
+    this._set('boothSt' + (slot ? 'B' : 'A'), text);
+  },
+  // a hand just committed a deck: the plan line says so, for a few seconds
+  handDone(slot){ this._handDone = { deck: slot ? 'B' : 'A', until: performance.now() + 4000 }; },
+  /* a nudge from a key is the hand's whole gesture at once — take the handle,
+     move it, let go — so the arbiter reads every key the way it reads a finger */
+  nudgeFader(to){
+    DECKS.hand(); DECKS.fader.glide = 0;
+    // an armed plan is let go of first: the mixer's own cancel would send the
+    // handle home on its next update, undoing a nudge that had already let go
+    if (MIXER.phase === 'armed') MIXER.cancel('hand');
+    if (!DECKS.faderGrab(DECKS.fader.x)){ toast(this.faderWhy()); return false; }
+    DECKS.faderMove(clamp01(to));
+    const v = DECKS.faderRelease();
+    if (v.act === 'commit') this.handDone(v.slot);
+    return true;
+  },
+  // why the handle refused a hand
+  faderWhy(){
+    return !AE.decks ? T('Play something first — the decks wake with the first track')
+      : !AE.graphLive ? T('direct-to-output — no second deck here')
+      : T('The set pinned this song to play in full — the fader waits for it');
+  },
+  /* the booth's keys (window keydown/keyup route here while the booth is open):
+     play / cue / sync / load per deck, the fader's nudge, cut and centre */
+  key(what, arg){
+    const tr = this._tr;
+    if (!tr) return;
+    DECKS.hand();
+    if (what === 'play') tr.play(arg);
+    else if (what === 'cueDown') tr.cue[arg].down();
+    else if (what === 'cueUp') tr.cue[arg].up();
+    else if (what === 'sync') tr.sync(DECKS.idle());
+    else if (what === 'load') tr.load(DECKS.idle());
+    else if (what === 'nudge') this.nudgeFader(DECKS.fader.x + arg);
+    else if (what === 'cut'){
+      // a cut to a deck with nothing rolling is silence: say what would fill it instead
+      const d = AE.decks && AE.decks[arg], rolling = !!(d && DECKS.track(arg) && !d.a.paused && !d.a.ended);
+      if (arg !== AE.active && !rolling){ this.holdState(arg, T('nothing to play — LOAD a pick, or a pad')); return; }
+      DECKS.fader.glide = 0;
+      if (DECKS.cutTo(arg)) this.handDone(arg); else if (!AE.graphLive) toast(this.faderWhy());
+    }
+    else if (what === 'centre' && this._recentre) this._recentre();
   },
   _set(id, s){                       // guarded DOM writes — draw runs per frame
     if (this._txt[id] === s) return;
@@ -27206,7 +27645,24 @@ const BOOTH = {
       b._track = t; b._label = bk.textContent;
       const glow = document.createElement('i');
       b.append(bt, bk, glow);
-      b.addEventListener('click', () => this._padPlay(t));
+      /* a tap puts the record ON DECK the planner's way (loaded, armed); a
+         long press (the cue pads' own hold) loads it onto the idle deck by
+         hand and arms nothing — the DJ's record, cued, to start or to fade in
+         when it feels right. The click that follows a completed hold is swallowed. */
+      let held = 0, loaded = false;
+      b.addEventListener('pointerdown', ev => {
+        if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+        loaded = false; clearTimeout(held);
+        held = setTimeout(() => {
+          held = 0;
+          if (!AE.decks || !AE.graphLive) return;
+          if (loadToDeck(DECKS.idle(), t)){ loaded = true; HAPTICS.pulse(true); }
+        }, 600);
+      });
+      const lift = () => { clearTimeout(held); held = 0; };
+      b.addEventListener('pointerup', lift); b.addEventListener('pointerleave', lift); b.addEventListener('pointercancel', lift);
+      b.addEventListener('contextmenu', ev => ev.preventDefault());
+      b.addEventListener('click', () => { if (loaded){ loaded = false; return; } this._padPlay(t); });
       el.boothPads.appendChild(b);
     }
     this.paintOnDeck(true);
@@ -27232,7 +27688,10 @@ const BOOTH = {
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
       const bk = b.querySelector('.bk');
       if (bk) bk.textContent = on
-        ? (MIXER.phase === 'armed' ? T('ON DECK · tap = now') : T('ON DECK · after this blend'))
+        ? (MIXER.phase === 'armed' ? T('ON DECK · tap = now')
+          : (MIXER.phase === 'running' || MIXER.phase === 'manual') ? T('ON DECK · after this blend')
+          : i === hi ? T('ON {deck} · cued', { deck: (1 - AE.active) ? 'B' : 'A' })
+          : T('ON DECK · after this blend'))
         : (b._label || bk.textContent);
     }
   },
@@ -27289,6 +27748,7 @@ const BOOTH = {
       ? clamp01(d.a.currentTime / d.a.duration) : 0;
     const p = MIXER.plan;
     const f = running ? MIXER.lastF : 0;
+    const fd = DECKS.fader;
     // each lane's level is the crossfader's: at rest the on-air slot is 1 and
     // the other 0; through a seam the handle is painted from f, so these ARE
     // the seam's equal-power gains, on whichever slot is leaving
@@ -27487,19 +27947,34 @@ const BOOTH = {
     rail.addColorStop(1, tB ? `rgba(${accB[0]},${accB[1]},${accB[2]},0.55)` : 'rgba(255,255,255,0.12)');
     ctx.fillStyle = rail;
     ctx.fillRect(xf0, cy - 1.5, xf1 - xf0, 3);
-    // centre detent tick, like the hardware
+    // the cut curve's dead zones, as brighter end caps: inside them the fader
+    // is a switch, and the eye should see where the switch begins
+    if (fd.curve === 'cut'){
+      const cap = (xf1 - xf0) * XFADER_CUT_EDGE;
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillRect(xf0, cy - 2.5, cap, 5); ctx.fillRect(xf1 - cap, cy - 2.5, cap, 5);
+    }
+    // centre detent tick, like the hardware — and the white flash of a hand recentring it
     ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.fillRect(w * 0.5 - 0.5, cy - 4, 1, 8);
+    if (this._xfFlash && nowMs - this._xfFlash < 360){
+      ctx.fillStyle = `rgba(255,255,255,${(0.9 * (1 - (nowMs - this._xfFlash) / 360)).toFixed(3)})`;
+      ctx.fillRect(w * 0.5 - 1.5, cy - 9, 3, 18);
+    }
     // the handle is where the law says it is: painted from the seam through
-    // an auto blend, held by the hand under one, at rest at the on-air end
-    const hx = xf0 + (xf1 - xf0) * clamp01(DECKS.fader.x);
+    // an auto blend, held by the hand under one, at rest at the on-air end —
+    // solid white under a hand, a shade softer when the room paints it
+    const hx = xf0 + (xf1 - xf0) * clamp01(fd.x);
     this._xfader = { x0: xf0, x1: xf1, cy, h: 14 };      // remembered for the hand (the rail's hit test)
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    this._placeFader(xf0, xf1, cy, w);                    // …and the band that IS the hand, over it
+    ctx.fillStyle = fd.hand ? '#fff' : 'rgba(255,255,255,0.92)';
     ctx.fillRect(hx - 2, cy - 7, 4, 14);
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(hx - 0.5, cy - 5, 1, 10);
     ctx.font = '8px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillText('A', xf0 - 12, cy + 3); ctx.fillText('B', xf1 + 5, cy + 3);
+    // the direct path (iOS, AirPlay): one deck, the rail is a drawing — say so under the detent
+    if (!AE.graphLive){ ctx.font = '7px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillText('DIRECT', w * 0.5 - 12, cy + 13); }
 
     // the orb: two keys orbiting; phase error is DISTANCE; lock is fusion
     const err = running && p && p.type === 'beatmix' && window.__mixPhaseErrMs != null
@@ -27531,7 +28006,8 @@ const BOOTH = {
       // gather the plan state, then let the pure narrator phrase it
       const A = outT;                                       // the outgoing / current
       let phase = 'idle', B = null, plan = p, pct = null, seamSec = null;
-      if (running && p){ phase = 'running'; B = inT; pct = Math.round(f * 100); }
+      const manual = MIXER.phase === 'manual';
+      if (running && p){ phase = manual ? 'manual' : 'running'; B = inT; pct = Math.round(f * 100); }
       else if (armed && p){
         phase = 'armed'; B = inT;
         const dOn = activeDeck();
@@ -27556,35 +28032,119 @@ const BOOTH = {
         if (kA || kB){ keys = (kA || '?') + '→' + (kB || '?'); compat = camelotCompat(kA, kB); }
       }
       this._seamSec = seamSec; this._seamPhase = phase;
+      // the hand's own state, for the narrator: the handle held or parked
+      // mid-way (no seam), a deck a hand just committed, a hand's record
+      // rolling under the handle, a synced deck, the switch curve
+      const handOn = !manual && (fd.hand || (fd.mode !== 'auto' && fd.x > 0.02 && fd.x < 0.98));
+      const done = this._handDone && nowMs < this._handDone.until ? this._handDone.deck : null;
+      const audition = !running && !armed && !handOn && DECKS.handRolling() ? (AE.active === 1 ? 'A' : 'B') : null;
+      let sync = null;
+      for (let i = 0; i < 2 && !sync; i++) if (DECKS.slots[i].synced){
+        const mm = mixOf(DECKS.track(1 - i));
+        if (mm && mm.bpm > 0) sync = { deck: i ? 'B' : 'A', bpm: mm.bpm };
+      }
       this._set('boothPlan', boothNarrateT(mixNarration({
         on: MIXER.on, direct: !AE.graphLive, phase, nextTitle: B && B.title, pct, seamSec, keys, compat,
         planType: plan && plan.type, beats: plan && plan.beats, seconds: plan && plan.seconds,
+        hand: handOn, handDeck: manual ? (AE.active === 1 ? 'B' : 'A') : null, done, audition, sync, cut: fd.curve === 'cut',
       })));
       this._set('boothLock', running && err != null ? 'lock ' + err.toFixed(1) + ' ms'
         : (typeof VINYL !== 'undefined' && VINYL.engaged ? VINYL.status() : ''));
     }
-    /* each row's word, per slot: through a seam the lane leaving is handing
-       over and the lane arriving is on air; armed, the record on air and the
-       one loaded; otherwise the record on air (or paused), a hand's record
-       (rolling and heard, rolling under the handle, or cued), a free deck's
-       last record (paused), or what an empty deck is waiting for */
+    /* each row's word, per slot — the transport row's last word, a live
+       region. Through a seam the lane leaving is handing over and the lane
+       arriving is on air (in the hand's, under a yielded seam); armed, the
+       record on air and the one loaded, cued where it waits; a hand on the
+       handle makes both rolling decks the hand's; a hand's record rolling
+       under a shut handle is playing (silent), cued it waits for PLAY; a
+       free deck's last record is paused; an empty deck says what fills it.
+       A word the engine answered a press with (holdState) outranks the
+       frame's own for a moment. */
     const rowState = i => {
       const onAir = i === AE.active, d = i ? dB : dA, tr = i ? tB : tA, g = i ? gB : gA, s = DECKS.slots[i];
-      if (running && p) return [onAir ? T('on air — blending') : T('handing over'), onAir];
-      if (armed && p) return onAir ? [T('on air'), true] : [d && d.a.readyState >= 2 ? T('loaded · cued') : T('loading…'), false];
-      if (onAir) return [player.playing ? T('on air') : T('paused'), player.playing];
-      if (tr && s.owner === 'hand'){
-        if (d && !d.a.paused && !d.a.ended) return g > 0.01 ? [T('on air — blending'), true] : [T('loaded · cued'), false];
-        return [d && d.a.readyState >= 2 ? T('loaded · cued') : T('loading…'), false];
+      const hold = this._stHold;
+      if (hold && hold.side === i && nowMs < hold.until) return [hold.text, false];
+      const rolling = !!(d && tr && !d.a.paused && !d.a.ended);
+      const handOn = fd.hand || (fd.mode !== 'auto' && fd.x > 0.02 && fd.x < 0.98);
+      if (running && p){
+        if (MIXER.phase === 'manual') return onAir ? [T('playing · in your hands'), true] : [T('handing over'), false];
+        return [onAir ? T('on air — blending') : T('handing over'), onAir];
       }
-      if (tr) return [T('paused'), false];
+      if (armed && p){
+        if (onAir) return [T('on air'), true];
+        if (!(d && d.a.readyState >= 2)) return [T('loading…'), false];
+        const at = s.owner === 'hand' ? s.cue : (p.type === 'beatmix' && p.startB != null ? p.startB : d.a.currentTime);
+        return [T('loaded · cued at {time}', { time: fmtTime(at) }), false];
+      }
+      if (onAir){
+        if (!player.playing) return [T('paused'), false];
+        return [handOn && tr ? T('playing · in your hands') : T('on air'), true];
+      }
+      if (tr && s.owner === 'hand'){
+        if (rolling) return g > 0.01 ? [T('playing · in your hands'), true] : [T('playing (silent) — fader is on {other}', { other: i ? 'A' : 'B' }), false];
+        return [d && d.a.readyState >= 2 ? T('cued · PLAY to audition') : T('loading…'), false];
+      }
+      if (tr) return rolling ? [T('playing · in your hands'), g > 0.01] : [T('paused'), false];
       return [!player.playing ? '' :
-        !AE.graphLive ? T('direct-to-output — no second deck here') :
-        MIXER.on ? (hasNext ? T('empty — arms 90 s out') : T('end of the queue')) : T('MIX is off'), false];
+        !AE.graphLive ? T('direct-to-output — no second deck here') : T('empty — LOAD a pick, or a pad'), false];
     };
     const sA = rowState(0), sB = rowState(1);
     this._deckRow('A', tA, dA, sA[0], sA[1]);
     this._deckRow('B', tB, dB, sB[0], sB[1]);
+    this._syncHud([accA, accB]);
+  },
+  /* THE HAND'S BAND over the painted rail: positioned only when the rail
+     moves (a resize, the desk's bigger band) — a DOM write costs, and on
+     nearly every frame the rail is exactly where it was. XF_REACH past each
+     end so the two stops are under a thumb, not at the edge of one. */
+  _placeFader(x0, x1, cy, w){
+    const xf = el.xfader;
+    if (!xf) return;
+    const key = x0 + '|' + x1 + '|' + cy + '|' + w + '|' + (document.body.classList.contains('boothdesk') ? 1 : 0);
+    if (key === this._xfKey) return;
+    this._xfKey = key;
+    const band = parseFloat(getComputedStyle(xf).getPropertyValue('--band')) || 44;
+    xf.style.left = (x0 - XF_REACH) + 'px';
+    xf.style.width = (x1 - x0 + XF_REACH * 2) + 'px';
+    xf.style.top = (cy - band / 2) + 'px';
+  },
+  /* THE LAMPS AND THE BUTTONS, written only when they change: PLAY lit in
+     the record's key while its deck rolls, SYNC while matched, CUE while
+     held; the fader's AUTO lamp lit while the planner has the handle (a
+     seam's own, or at rest at an end — dark under a hand, or parked mid-way,
+     which is the hand's blend), CUT under the cut curve; the band's value
+     and its spoken position follow the handle, and it is disabled where the
+     path is direct. Lamps switch. Nothing here animates. */
+  _syncHud(acc){
+    const fd = DECKS.fader;
+    const lamp = (b, on) => { if (b && b._on !== on){ b._on = on; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); } };
+    lamp(el.xfAuto, fd.mode === 'auto' || (!fd.hand && (fd.x <= 0.02 || fd.x >= 0.98)));
+    lamp(el.xfCut, fd.curve === 'cut');
+    const xf = el.xfader;
+    if (xf){
+      const dis = !AE.graphLive;
+      if (xf._dis !== dis){ xf._dis = dis; xf.setAttribute('aria-disabled', dis ? 'true' : 'false'); }
+      const v = Math.round(clamp01(fd.x) * 1000);
+      if (xf._v !== v && !xf._drag){
+        xf._v = v; xf.value = v;
+        xf.setAttribute('aria-valuetext', v <= 20 ? 'A' : v >= 980 ? 'B' : T('fader {pct}% to B', { pct: Math.round(v / 10) }));
+      }
+    }
+    for (let i = 0; i < 2; i++){
+      const L = i ? 'B' : 'A', d = AE.decks ? AE.decks[i] : null, s = DECKS.slots[i], tr = DECKS.track(i);
+      const rolling = !!(d && tr && !d.a.paused && !d.a.ended);
+      const play = el['deckPlay' + L];
+      if (play){
+        lamp(play, rolling);
+        const lbl = rolling ? T('Pause deck {d}', { d: L }) : T('Play deck {d}', { d: L });
+        if (play._lbl !== lbl){ play._lbl = lbl; play.setAttribute('aria-label', lbl); }
+        const rgb = acc ? acc[i] : this.keyRGB(tr), c = tr ? `rgb(${rgb[0]},${rgb[1]},${rgb[2]})` : '';
+        if (play._c !== c){ play._c = c; play.style.setProperty('--deck-c', c); }
+      }
+      lamp(el['deckSync' + L], !!s.synced);
+      const cue = el['deckCue' + L];
+      if (cue && cue._held !== !!s.cueHeld){ cue._held = !!s.cueHeld; cue.classList.toggle('held', !!s.cueHeld); }
+    }
   },
 };
 
@@ -28327,7 +28887,8 @@ pokeChrome();
 
 /* keyboard */
 window.addEventListener('keydown', ev => {
-  if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA')) return;
+  // (the crossfader's band is an input too, but the booth's keys are its keys: it stops the ones it takes)
+  if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') && ev.target !== el.xfader) return;
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const k = ev.key;
   if (k !== 'h' && k !== 'H') pokeChrome();
@@ -28359,6 +28920,22 @@ window.addEventListener('keydown', ev => {
     case 'c': case 'C': openCrate(!CRATE.open); break;
     case 'j': case 'J': openConsole(!CON.open); break;
     case 'd': case 'D': BOOTH.toggle(); break;
+    /* THE BOOTH'S KEYS, only while it is open: Q / O play or pause deck A / B,
+       Z / V cue them (held: play from the cue, lifted: back to it — the keyup
+       below), Y syncs the idle deck to the one on air, U loads the planner's
+       pick onto it, [ ] nudge the crossfader (they repeat), { } cut it hard to
+       A / B, \ recentres it. Space stays the room's play / pause. */
+    case 'q': case 'Q': if (BOOTH.open && !ev.repeat) BOOTH.key('play', 0); break;
+    case 'o': case 'O': if (BOOTH.open && !ev.repeat) BOOTH.key('play', 1); break;
+    case 'z': case 'Z': if (BOOTH.open && !ev.repeat){ ev.preventDefault(); BOOTH.key('cueDown', 0); } break;
+    case 'v': case 'V': if (BOOTH.open && !ev.repeat){ ev.preventDefault(); BOOTH.key('cueDown', 1); } break;
+    case 'y': case 'Y': if (BOOTH.open && !ev.repeat) BOOTH.key('sync'); break;
+    case 'u': case 'U': if (BOOTH.open && !ev.repeat) BOOTH.key('load'); break;
+    case '[': if (BOOTH.open) BOOTH.key('nudge', -0.05); break;
+    case ']': if (BOOTH.open) BOOTH.key('nudge', 0.05); break;
+    case '{': if (BOOTH.open && !ev.repeat) BOOTH.key('cut', 0); break;
+    case '}': if (BOOTH.open && !ev.repeat) BOOTH.key('cut', 1); break;
+    case '\\': if (BOOTH.open && !ev.repeat) BOOTH.key('centre'); break;
     case 'm': case 'M': toggleMute(); break;
     case 't': case 'T': TAP.hit(); break;
     case 'x': case 'X': CLIP.toggle(); break;
@@ -28392,6 +28969,15 @@ window.addEventListener('keydown', ev => {
       else if (k === 'e' || k === 'E') DWELL.fire();   // switch-access nudge: one key, asked for
       else if (k === 'i' || k === 'I') GHOST.toggle();  // let the field play itself when idle, or don't
   }
+});
+
+// the cue keys lift: Z / V held play from the cue; let go, the record is back on it
+window.addEventListener('keyup', ev => {
+  if (!BOOTH.open || !BOOTH._tr) return;
+  if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') && ev.target !== el.xfader) return;
+  const k = ev.key;
+  if (k === 'z' || k === 'Z') BOOTH.key('cueUp', 0);
+  else if (k === 'v' || k === 'V') BOOTH.key('cueUp', 1);
 });
 
 /* TAP — the listener's own beat, fed to the clock. Each tap is ground truth

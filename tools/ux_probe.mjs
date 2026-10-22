@@ -112,7 +112,7 @@ const INSTRUMENT = () => {
        cannot give every dot forty-four pixels and remain one strip, the
        considered path to a scene is the look grid, and pretending otherwise
        would be a passing number bought with a worse interface. */
-    VITAL: '#btnPlay,#btnPrev,#btnNext,#seek,#vol,#btnLibrary,#btnPlaylist,#btnMore,#btnUpdate,.hud .chip,.lg-opt,.tbtn.play',
+    VITAL: '#btnPlay,#btnPrev,#btnNext,#seek,#vol,#btnLibrary,#btnPlaylist,#btnMore,#btnUpdate,.hud .chip,.lg-opt,.tbtn.play,#xfader,.dbtn,#xfAuto,#xfCut',
     isVital(e){ try { return e.matches(this.VITAL); } catch (err){ return false; } },
     reach(){
       const min = this.floor(), bad = [];
@@ -282,6 +282,13 @@ const ack = await page.evaluate(async () => {
   out.push(await press('chipLens', () => document.getElementById('chipLens').textContent));
   out.push(await press('btnPlaylist', () => document.getElementById('playlist').className));
   out.push(await press('chipBooth', () => document.getElementById('booth').className));
+  /* THE BOOTH'S OWN CONTROLS answer inside the press too. With nothing on
+     the decks a PLAY is refused — and a refusal that says nothing is the
+     worst kind of silence, so the row's state word is what must change: it
+     names what would fill the deck. The fader's switches flip their lamps. */
+  await new Promise(r => setTimeout(r, 450));            // the panel's own entrance
+  out.push(await press('deckPlayB', () => document.getElementById('boothStB').textContent));
+  out.push(await press('xfCut', () => document.getElementById('xfCut').className));
   return out.filter(Boolean);
 });
 R('a press is answered inside the Doherty threshold, so the answer is still part of the press',

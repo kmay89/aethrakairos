@@ -2050,6 +2050,40 @@ test('mix narration: MIXING a fade surfaces the live technique', () => {
   const s = S.mixNarration({ on: true, phase: 'running', nextTitle: 'Pulse', planType: 'fade', seconds: 6, pct: 60 });
   assert.match(s, /MIXING/); assert.match(s, /echo/); assert.match(s, /60%/);
 });
+// ---- the hand's phases: a DJ on the crossfader outranks the planner's line ----
+test('mix narration: a hand on the fader (no seam) says both decks are the hand\'s, even with MIX off', () => {
+  const s = S.mixNarration({ on: true, phase: 'idle', hand: true });
+  assert.match(s, /^HAND on the fader/); assert.match(s, /tap AUTO to hand it back/);
+  assert.match(S.mixNarration({ on: false, hand: true }), /^HAND on the fader/, 'the DJ holding the handle is who reads this');
+  assert.match(S.mixNarration({ on: true, direct: true, hand: true }), /direct-to-output/, 'but the direct path has no handle');
+});
+test('mix narration: a yielded seam (manual) names the blend taken and where parking the fader finishes it', () => {
+  const s = S.mixNarration({ on: true, phase: 'manual', pct: 37, handDeck: 'B', nextTitle: 'Pulse', planType: 'beatmix' });
+  assert.equal(s, 'HAND · you took the blend at 37% — park the fader on B to finish it');
+  assert.match(S.mixNarration({ on: true, phase: 'manual', handDeck: 'A' }), /at 0% — park the fader on A/, 'no pct reads as 0; the letter is the incoming deck\'s');
+});
+test('mix narration: a hand\'s commit is said as done; an audition names the deck under the handle', () => {
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', done: 'B' }), 'done — B is on air · the planner has the room again');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', audition: 'B' }), 'B playing under the fader — bring it in when it feels right');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', audition: 'A' }), 'A playing under the fader — bring it in when it feels right');
+  // precedence: the handle in hand outranks a finished commit and an audition
+  assert.match(S.mixNarration({ on: true, hand: true, done: 'B', audition: 'A' }), /^HAND on the fader/);
+  assert.match(S.mixNarration({ on: true, phase: 'manual', hand: true, done: 'B' }), /^HAND · you took/);
+});
+test('mix narration: SYNC names the matched deck and tempo; CUT names the switch; the planner\'s plan still outranks CUT', () => {
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', sync: { deck: 'B', bpm: 123.6 } }), 'SYNC · B matched at 124');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', cut: true }), 'CUT curve — the fader is a switch; scratch with it');
+  assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', seamSec: 5, cut: true }), /^CUED/, 'an armed seam is the line that matters');
+  assert.match(S.mixNarration({ on: true, phase: 'running', planType: 'fade', pct: 10, cut: true }), /^MIXING/);
+  assert.match(S.mixNarration({ on: true, phase: 'planning', planType: 'fade', seamSec: 50, cut: true }), /^CUT curve/, 'a peek ahead does not');
+  assert.match(S.mixNarration({ on: false, cut: true }), /MIX is off/, 'MIX off is the status; the curve is a detail');
+  assert.match(S.mixNarration({ on: false, sync: { deck: 'A', bpm: 120 } }), /^SYNC · A matched at 120/, 'a synced deck is worth saying with MIX off');
+});
+test('mix narration: without any hand flag the planner\'s lines are exactly what they were', () => {
+  assert.equal(S.mixNarration({ on: true, phase: 'idle' }), 'watching the clock — the planner arms 90 s before the end');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', hand: false, done: null, audition: null, sync: null, cut: false }),
+    'watching the clock — the planner arms 90 s before the end');
+});
 
 // ---- per-stem waveform: sample the envelopes, blend the source palette ----
 test('stemsAt: no stems → null (caller falls back to the band split)', () => {

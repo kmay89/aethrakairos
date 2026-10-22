@@ -16,6 +16,9 @@
 //   commit     pushed across with no seam in flight, the hand's record takes the
 //              air without the rack being wiped
 //   idle stop  a record faded out and left is stopped after the idle clock
+//   the hand   the booth's band over the painted rail, dragged with a real
+//              pointer: takes, blends, commits — and the keys, AUTO, CUT,
+//              the transport row answering inside the press
 //
 //   python3 tools/make_mix_fixture.py /tmp/mb8-mix && cp docs/three.min.js /tmp/mb8-mix/
 //   cp docs/index.html /tmp/mb8-mix/ && node tools/xfader_probe.mjs /tmp/mb8-mix
@@ -211,6 +214,88 @@ const idle = await page.evaluate(async () => {
 });
 R('a hand\'s record rolling silently under a shut handle is stopped after the idle clock, its slot free; the record on air plays on',
   idle.rolling && idle.silent < 0.01 && idle.paused && idle.owner === 'free' && idle.active === 0 && idle.aRolling, JSON.stringify(idle));
+
+// ---- 8 · THE HAND ITSELF: the booth's band over the painted rail, dragged with a real pointer
+//         (beta back onto B, rolling; the mouse lands on the band, crosses to the middle,
+//          parks at B's end and lets go — the same commit as check 2, through the DOM)
+await page.evaluate(() => {
+  // the dialogs a first visit raises sit over the booth; a real pointer must reach the band
+  const b = document.querySelector('#langGate .lg-opt.lean'); if (b) b.click();
+  for (const id of ['onboard', 'firstRun', 'coach']){ const e = document.getElementById(id); if (e){ e.classList.remove('open', 'on'); e.style.display = 'none'; } }
+});
+await page.waitForTimeout(500);
+const dom = await page.evaluate(async () => {
+  DECKS.idleStopSec = 0;
+  DECKS.load(1, player.tracks[1]);
+  await new Promise(r => setTimeout(r, 400));
+  DECKS.play(1);
+  await new Promise(r => setTimeout(r, 400));
+  const xf = document.getElementById('xfader'), r = xf.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height, reach: XF_REACH, rolling: !AE.decks[1].a.paused,
+    band: r.height, lamp: document.getElementById('xfAuto').classList.contains('on'), disabled: xf.getAttribute('aria-disabled') };
+});
+R('the band sits where a thumb needs it: 44 px tall, with reach past both ends, lit AUTO, enabled on the graph path',
+  dom.band >= 44 && dom.w > 100 && dom.lamp && dom.disabled === 'false' && dom.rolling, JSON.stringify(dom));
+const cy = dom.y + dom.h / 2, xA = dom.x + dom.reach + 1, xMid = dom.x + dom.w / 2, xB = dom.x + dom.w - dom.reach - 1;
+await page.mouse.move(xA, cy); await page.mouse.down();
+await page.mouse.move(xMid, cy, { steps: 6 });
+await page.waitForTimeout(150);
+const mid = await page.evaluate(() => ({ hand: DECKS.fader.hand, mode: DECKS.fader.mode, x: DECKS.fader.x,
+  fA: AE.decks[0].fader.gain.value, fB: AE.decks[1].fader.gain.value, lamp: document.getElementById('xfAuto').classList.contains('on'),
+  stA: document.getElementById('boothStA').textContent, stB: document.getElementById('boothStB').textContent,
+  plan: document.getElementById('boothPlan').textContent, pressed: document.getElementById('xfAuto').getAttribute('aria-pressed') }));
+R('a mouse on the band takes the handle: both fader nodes at the power law mid-way, the AUTO lamp dark, both rows in the hand\'s',
+  mid.hand && mid.mode === 'hand' && Math.abs(mid.x - 0.5) < 0.04 && Math.abs(mid.fA - Math.cos(mid.x * Math.PI / 2)) < 0.03 && Math.abs(mid.fB - Math.sin(mid.x * Math.PI / 2)) < 0.03
+  && !mid.lamp && mid.pressed === 'false' && /in your hands/.test(mid.stA) && /in your hands/.test(mid.stB) && /^HAND on the fader/.test(mid.plan), JSON.stringify(mid));
+await page.mouse.move(xB, cy, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(300);
+const park = await page.evaluate(() => ({ active: AE.active, cur: player.tracks[player.cur].title, x: DECKS.fader.x, mode: DECKS.fader.mode, hand: DECKS.fader.hand,
+  aPaused: AE.decks[0].a.paused, lamp: document.getElementById('xfAuto').classList.contains('on'), plan: document.getElementById('boothPlan').textContent,
+  value: +document.getElementById('xfader').value, vt: document.getElementById('xfader').getAttribute('aria-valuetext') }));
+R('…parked at B\'s end and let go: B commits through the DOM exactly as through the API, the lamp relights, the line says done',
+  park.active === 1 && park.cur === 'beta' && park.x === 1 && park.mode === 'rest' && !park.hand && park.aPaused && park.lamp && /^done — B is on air/.test(park.plan)
+  && park.value === 1000 && park.vt === 'B', JSON.stringify(park));
+
+// ---- 9 · the keys: [ nudges, \ recentres (and flashes the detent), AUTO glides the handle home
+await page.keyboard.press('[');
+await page.waitForTimeout(80);
+const nudged = await page.evaluate(() => ({ x: DECKS.fader.x, mode: DECKS.fader.mode }));
+await page.keyboard.press('\\');
+await page.waitForTimeout(120);
+const centred = await page.evaluate(() => ({ x: DECKS.fader.x, flash: !!BOOTH._xfFlash, lamp: document.getElementById('xfAuto').classList.contains('on'),
+  fA: AE.decks[0].fader.gain.value, plan: document.getElementById('boothPlan').textContent }));
+R('[ nudges the handle five percent; \\ recentres it and the detent flashes, the lamp dark — the hand\'s blend',
+  Math.abs(nudged.x - 0.95) < 1e-6 && nudged.mode === 'rest' && Math.abs(centred.x - 0.5) < 1e-6 && centred.flash && !centred.lamp && Math.abs(centred.fA - Math.SQRT1_2) < 0.03,
+  JSON.stringify({ nudged, centred }));
+await page.click('#xfAuto');
+await page.waitForTimeout(700);
+const home = await page.evaluate(() => ({ x: DECKS.fader.x, mode: DECKS.fader.mode, hand: DECKS.fader.hand, active: AE.active,
+  lamp: document.getElementById('xfAuto').classList.contains('on'), fB: AE.decks[1].fader.gain.value }));
+R('AUTO glides the handle home to the record on air and relights', home.x === 1 && home.mode === 'rest' && !home.hand && home.active === 1 && home.lamp && Math.abs(home.fB - 1) < 0.02,
+  JSON.stringify(home));
+
+// ---- 10 · the transport row: PLAY A starts the retired record under the shut handle, the row says so inside 400 ms; CUT flips the curve
+const tr = await page.evaluate(async () => {
+  const st = document.getElementById('boothStA'), before = st.textContent, t0 = performance.now();
+  document.getElementById('deckPlayA').click();
+  let ms = Infinity;
+  for (let k = 0; k < 60; k++){ await new Promise(r => setTimeout(r, 16)); if (st.textContent !== before){ ms = performance.now() - t0; break; } }
+  await new Promise(r => setTimeout(r, 200));
+  const lit = document.getElementById('deckPlayA').classList.contains('on');
+  const pressed = document.getElementById('deckPlayA').getAttribute('aria-pressed');
+  const word = st.textContent, rolling = !AE.decks[0].a.paused, owner = DECKS.slots[0].owner;
+  document.getElementById('deckPlayA').click();
+  await new Promise(r => setTimeout(r, 200));
+  const paused = AE.decks[0].a.paused;
+  document.getElementById('xfCut').click();
+  const cut = DECKS.fader.curve, cutLit = document.getElementById('xfCut').classList.contains('on');
+  document.getElementById('xfCut').click();
+  return { ms, lit, pressed, word, rolling, owner, paused, cut, cutLit, back: DECKS.fader.curve };
+});
+R('PLAY A starts the retired record by hand, the row answers inside the Doherty threshold and names the shut fader; PLAY again pauses it',
+  tr.ms <= 400 && tr.lit && tr.pressed === 'true' && /playing \(silent\)/.test(tr.word) && /fader is on B/.test(tr.word) && tr.rolling && tr.owner === 'hand' && tr.paused, JSON.stringify(tr));
+R('CUT flips the curve and its lamp, and back', tr.cut === 'cut' && tr.cutLit && tr.back === 'power', JSON.stringify({ cut: tr.cut, lit: tr.cutLit, back: tr.back }));
 
 R('no page errors', errors === 0, errors + ' errors');
 console.log(`\n${results.filter(Boolean).length}/${results.length} crossfader checks passed`);
