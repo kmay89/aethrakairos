@@ -203,6 +203,7 @@ inline float3 pickChord_a(constant VizUniforms& U, float h) {
 // these rooms reuse that vertex stage — no vertex function here.
 // ---------------------------------------------------------------
 
+/* ==== ROOM REGION: FRACTAL — builder owns everything between these fences ==== */
 // ---------------------------------------------------------------
 // FRACTAL FIELD — three ten-sided dice: the web room, retold.
 //
@@ -230,9 +231,36 @@ inline float3 pickChord_a(constant VizUniforms& U, float h) {
 //   forms use no trig, so their scale and twist breathe continuously.
 //
 //   STATELESS. Everything the web's update() integrates on the CPU is a
-//   closed form here, in U.time (the monotone rubato clock), the bands,
-//   the onset envelope and the dice: the walk, the c offsets, the box
-//   breathing, the julia drift, the vein phase, the orbs, the camera.
+//   closed form here, in U.time (the monotone rubato clock), the dance
+//   bus and the dice: the walk, the c offsets, the box breathing, the
+//   julia drift, the vein phase, the orbs, the camera.
+//
+//   THE DANCE (stage 4). The room reads the dance bus — the web's twelve
+//   accessors and its prelude, through the macro header above
+//   fieldColor<F> — and no band, envelope or spectrum. The body, the
+//   camera block, the travelling key light, the count, the light's slow
+//   voices and the vein step are the web's MARCH_FRAG text, line for
+//   line; the drivers are the web's JS arithmetic in closed form. ONE
+//   ZOOM: the body's lunge — struck on the strike's own clock, let go
+//   through rest into one rebound past it and home by 0.8 beat, over the
+//   signed spring, weighed by the count, the one's later and heavier —
+//   the breath before the count (on a live beat only: none on an empty
+//   lattice), the landing's lunge, the passage and
+//   the coil, over a soft floor (the web adds its rig's figures, which
+//   the TV does not have); the view nods into every count and rolls
+//   with the bar (0.035 dSway, the web rig's head-tilt); the FOV
+//   breathes on the phrase (dLift) only. THE HIT IS A TRAVELLING KEY
+//   LIGHT: a band of light with a place, struck with the beat and run
+//   across the form along the view's right axis — left to right on the
+//   one and the three, back on the two and the four — its key swinging
+//   with it, brighter as it runs. Two
+//   clocks stay on rubato seconds, as a stateless twin must: the power
+//   walk (the web arms it after two whole bars, counted, and starts it
+//   on a struck bar line) and the orbs' and veins' flow (the web slows
+//   them to a crawl in a rest); the engine's held bar counter would
+//   close both. The held articulation reads ONE clock, the phrase's own
+//   bar and its phase inside it (the web's text), so a bar phase held
+//   through a rest can never deal it mid-silence.
 //
 //   THE PIXEL FOOTPRINT. foot = t × (the angle one pixel spans). The hit
 //   test, the normal's tap radius and every level-of-detail cut are
@@ -298,8 +326,7 @@ constant float SPACE_ORBMUL[10] = { 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.65, 1.0
 constant float LENS_MUL[3]      = { 0.80, 1.0, 1.25 };
 
 constant float FOOT_LINES = 720.0;   // the footprint's line count ceiling (see THE PIXEL FOOTPRINT)
-constant float RUNG_SEC   = 5.0;     // one rung of the power walk, in rubato seconds (the web: 10 beats)
-constant float COUPLING   = 0.5;     // the web's pi/e coherence; the TV has no such band — held neutral
+constant float RUNG_SEC   = 5.0;     // one rung of the power walk, in rubato seconds (the web: a rung every three bars, counted, on a bar line)
 
 // Everything the web feeds its march as uniforms, built once per pixel
 // from the closed-form drivers and passed down by reference — nothing at
@@ -320,7 +347,6 @@ struct Params {
 struct Look {
     float3 c0, c1, glowCol;
     float  shine, hueAll, glow, halo, band, bandK, body, bandPhase;
-    float  energy, beat;
     int    light, inv;
 };
 
@@ -639,6 +665,67 @@ inline float3 envCol(float3 d, constant VizUniforms& U) {
     return c + U.colC.rgb * (s32 * s8 * 0.5);            // s^40, by squaring
 }
 
+// THE DANCE BUS IN THE HOUSE DIALECT: the web's twelve accessors, its uniform-free helper calls, the light's slow voices in the
+// web's sense (the TV's analyser counts calm DOWN as the music gets loud; U.act is the eased act INDEX 0..4, where the web's uAct is
+// the eased act HEAT, so the twin reads it through the web's act-heat curve, frActHeat below) and the few uniform names
+// the shared text reads, so the dance terms below are the web's MARCH_FRAG text line for line. Every one is let go of after the
+// entry's exit. (A struct member never takes one of these names, so no U.U. can form.)
+#define dHit U.dHit
+#define dAge U.dAge
+#define dKick U.dKick
+#define dMass U.dMass
+#define dArtic U.dArtic
+#define dSpark U.dSpark
+#define dSway U.dSway
+#define dLift U.dLift
+#define dBrace U.dBrace
+#define dImpact U.dImpact
+#define dStill U.dStill
+#define dPeriod U.dPeriod
+#define uBarPhase U.barPhase
+#define uCalm (1.0 - U.calm)
+#define uAct frActHeat(U.act)
+#define danceBeatPhase() danceBeatPhase_a(U)
+#define danceLean(p) danceLean_a(U, (p))
+#define danceLamp danceLamp_a
+#define danceLand danceLand_a
+#define danceFront danceFront_a
+#define vec3 float3
+#define uBound P.bound
+#define uColB U.colB.rgb
+#define uColC U.colC.rgb
+#define uBand L.band
+#define uBandK L.bandK
+#define uBandPhase L.bandPhase
+#define gTrapN trapN
+
+// THE STORY CLOCK in the web's sense: the web's uAct is the director's actT, eased toward the act's HEAT (ACTS[].heat: 0.15 0.45
+// 1.0 0.65 0.25, the overture to the resolve) - an arc that peaks at the apex, not a ramp through the track. The TV's U.act is the
+// eased act index, so the twin reads the same heat curve at it, linear between the acts (the TV's own actHeatTable, point for point)
+inline float frActHeat(float a){ float x = clamp(a, 0.0, 4.0), i = min(floor(x), 3.0), f = x - i; float h0 = i < 0.5 ? 0.15 : (i < 1.5 ? 0.45 : (i < 2.5 ? 1.0 : 0.65)); float h1 = i < 0.5 ? 0.45 : (i < 1.5 ? 1.0 : (i < 2.5 ? 0.65 : 0.25)); return mix(h0, h1, f); }
+
+// THE COUNT (PLOTTER's text, SPECTRAL r2's weights; the web's two helpers, which take the uniforms as the prelude's do): a strike's
+// weight read at its own BEAT LINE — the one heaviest, the three next, the two and the four light, 0.8 freewheeling — and the
+// breath's weight from the count AHEAD
+inline float frBeatW(constant VizUniforms& U, float age){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); return i < 0.5 ? 1.25 : (abs(i - 2.0) < 0.5 ? 0.5 : 0.35); }
+inline float frLeanW(constant VizUniforms& U){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase + 0.1) * 4.0); return i < 0.5 ? 1.0 : (abs(i - 2.0) < 0.5 ? 0.5 : 0.25); }
+// the body's count, read at the strike's beat line as frBeatW is: the one's lunge heaviest, the three's next, the two and the four light
+inline float frBodyW(constant VizUniforms& U, float age){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); return i < 0.5 ? 1.35 : (abs(i - 2.0) < 0.5 ? 0.8 : 0.4); }
+// the lunge: struck on the count (up in a quarter of a beat), its peak 1, then let go THROUGH rest by half the beat into ONE rebound
+// past it (deepest at 0.6 beat), home by 0.8 beat and spent from there; the one's lands later and heavier (up in 0.35 beat)
+inline float frStrike(float age, float one){ return smoothstep(0.0, mix(0.25, 0.35, one), age) * (exp(-2.5 * age) - 0.0821) * (1.0 - smoothstep(0.3, 0.6, age) * (1.35 - 0.35 * smoothstep(0.6, 0.8, age))) * mix(2.103, 2.692, one); }
+// the nod: a crisp pitch into the count (up in a tenth of a beat; the one's in a fifth), let go over the beat, its peak 1
+inline float frNod(float age, float one){ return smoothstep(0.0, mix(0.1, 0.2, one), age) * max(exp(-3.0 * age) - 0.0498, 0.0) * mix(1.434, 1.929, one); }
+// the run's direction, read at the strike's beat line: left to right on the one and the three, back on the two and the four
+inline float frDir(constant VizUniforms& U, float age){ if (dPeriod <= 0.0) return 1.0; float i = floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); return abs(i - 1.0) < 0.5 || abs(i - 3.0) < 0.5 ? -1.0 : 1.0; }
+// a bar-held articulation, -1..1: re-dealt in the first fifth of a bar, then held — a walk of eight values around the circle,
+// periodic over the phrase's eight bars so the phrase's wrap is no step (the web's frHeldJS, the same arithmetic)
+inline float frHeld(float bi, float bp, float seed){ return mix(sin((bi - 1.0) * 2.3561945 + seed), sin(bi * 2.3561945 + seed), smoothstep(0.0, 0.2, bp)); }
+#define frBeatW(a) frBeatW(U, (a))
+#define frLeanW() frLeanW(U)
+#define frBodyW(a) frBodyW(U, (a))
+#define frDir(a) frDir(U, (a))
+
 // fieldColor<F>: the web's MARCH_FRAG main() for one form — the sphere
 // trace with its three glows, then the hit's shading. Returns the light
 // this pixel adds over the void (the sky passed in already includes the
@@ -646,7 +733,8 @@ inline float3 envCol(float3 d, constant VizUniforms& U) {
 template <int F>
 inline float3 fieldColor(float3 ro, float3 rd, float pixAng, float2 fragXY,
                          thread const Params& P, thread const Look& L,
-                         constant VizUniforms& U, float3 sky) {
+                         constant VizUniforms& U, float3 sky,
+                         float3 cR, float3 cU, float3 cW, float ageS, float one, float lean) {
     float t0 = 0.0, t1 = 0.0;
     if (!hitSphere(ro, rd, P.bound, t0, t1)) return sky;
 
@@ -708,7 +796,7 @@ inline float3 fieldColor(float3 ro, float3 rd, float pixAng, float2 fragXY,
         // g + stars·(1 − a). The alpha is the governed glow's, as there; the
         // light itself goes out raw so the exit governs it exactly once.
         float3 g = hg + L.glowCol * (corona * 0.2);
-        g *= 0.8 + L.energy * 0.3 + L.beat * 0.15;
+        g *= 0.85 + 0.15 * dMass;                                                   // the corona and the halo on the passage's weight, never the beat
         float3 gg = govern(g, U.white);
         float a = clamp(max(max(gg.r, gg.g), gg.b) * 1.5, 0.0, 1.0);
         if (a < 0.004) return sky;
@@ -743,10 +831,13 @@ inline float3 fieldColor(float3 ro, float3 rd, float pixAng, float2 fragXY,
     float3 n = (nl > 1e-24) ? nn * rsqrt(nl) : -rd;
     float ndv = clamp(dot(n, -rd), 0.0, 1.0);
     float omn = 1.0 - ndv;
+    // the lamp: struck with the beat on the strike's own clock (the entry's ageS), held to the last fifth of the beat, weighed by the
+    // count, still in a rest (the web's text)
+    float lampK = danceLamp(dHit, min(ageS, 0.62)) * (1.0 - smoothstep(0.8, 1.0, ageS)) * frBeatW(ageS) * dStill;
 
     if (matId > 0.5) {
         // the orbs are lamps: a dim core and a bright limb, like a lit bubble
-        float3 oc = mix(U.colC.rgb, U.colB.rgb, 0.35) * (1.0 + L.beat * 0.6);
+        vec3 oc = mix(uColC, uColB, 0.35) * (1.0 + 0.5 * lampK);                     // they brighten with the strike's lamp (light only)
         return oc * (0.22 + ndv * 0.28 + omn * omn * 1.25) + hg * 0.5;
     }
 
@@ -767,7 +858,7 @@ inline float3 fieldColor(float3 ro, float3 rd, float pixAng, float2 fragXY,
     } else {
         float3 L2 = normalize(float3(-0.7, 0.25, -0.55));
         float d2 = clamp(dot(n, L2), 0.0, 1.0);
-        lit = col * (0.12 + d1 * 0.62) + U.colB.rgb * (d2 * 0.30 * (0.5 + COUPLING));
+        lit = col * (0.12 + d1 * 0.62) + uColB * d2 * 0.21;                          // the second light's fill: the web's coupling folded at its groove mean, (0.5 + 0.2) x 0.30
     }
 
     float specPow = mix(10.0, 110.0, L.shine);
@@ -778,15 +869,25 @@ inline float3 fieldColor(float3 ro, float3 rd, float pixAng, float2 fragXY,
 
     float3 outc = lit * ((0.35 + ao * 0.75) * L.body);
     outc += U.colC.rgb * (spec * specAmt);
-    outc += col * (fres * (0.45 + L.beat * 0.8));
+    outc += col * fres * (0.45 + 0.15 * dSpark);                                   // the limb: the hats glint on it (light only, law 5)
     if (P.mirror != 0) outc = mix(outc, envCol(reflect(rd, n), U), 0.18 + L.shine * 0.32);
-    outc *= 0.85 + L.energy * 0.5;
+    // THE HIT IS A TRAVELLING KEY LIGHT (law 6): the web's band of light with a place, run across the form along the view's right
+    // axis over the beat, its key swinging with it, brighter as it runs - a pendulum across the bar
+    float3 glowCol = L.glowCol;
+    float hq = 1.0 - clamp((ageS - 0.12 * (1.0 - one)) / 0.6, 0.0, 1.0), hd = 1.0 - hq * hq;   // the run: off the strike on the one, after the body on the other counts; quick, easing into its far side
+    float hx = 0.12 + 0.73 * (frDir(ageS) > 0.0 ? hd : 1.0 - hd);                 // the head across the form: left to right on the one and the three, back on the two and the four
+    float xr = 0.5 + dot(p, cR) / (1.5 * uBound);                                  // this point across the form, along the view's right
+    vec3 Lh = normalize(cR * (1.6 * hx - 0.8) + cU * 0.45 + cW * 0.6);            // the key comes from where the head is
+    float kf = danceFront(xr, hx, 0.16) * (0.35 + 0.65 * clamp(dot(n, Lh), 0.0, 1.0));
+    outc += (col * 0.8 + glowCol * (0.5 * fres)) * (kf * lampK * (0.3 + 0.9 * hd) * (0.6 + 0.4 * ao));
+    // the exposure is the section's through the story clock, dimmer in the coil, drawn in before the count — never per-frame energy
+    outc *= (0.9 + 0.3 * uAct * uCalm) * (1.0 - 0.15 * dBrace) * (1.0 - 0.06 * lean);
 
     // BANDS — the shallow trap at the hit (filtered over the taps), wrapped
     // into narrow self-lit veins; fw = how far the vein coordinate moves per
     // pixel, which widens a vein that would fall under a pixel and fades the
     // veins where even that would alias
-    float bx = clamp(trapN, 0.0, 4.0) * L.bandK + L.bandPhase;
+    float bx = clamp(gTrapN, 0.0, 4.0) * uBandK + uBandPhase + 0.12 * dKick;     // the veins step forward with the kick and settle back on its rebound (signed)
     float fw = length(trapG) * foot * L.bandK;
     float bs = abs(fract(bx) - 0.5);
     float bw = 0.09;
@@ -794,7 +895,7 @@ inline float3 fieldColor(float3 ro, float3 rd, float pixAng, float2 fragXY,
     float vein = exp(-bs * bs / (bwe * bwe)) * (bw / bwe) * (1.0 - smoothstep(0.2, 0.5, fw));
     // self-lit, in the pair's saturated member (the glow colour), so they read
     float3 veinCol = hueShift(L.glowCol, L.hueAll);
-    outc += veinCol * (vein * L.band * (1.0 + L.energy * 0.35 + L.beat * 0.25) * (0.6 + 0.4 * ao));
+    outc += veinCol * vein * uBand * (1.0 + 0.35 * dMass + 0.15 * dSpark) * (0.6 + 0.4 * ao);   // brighter on the passage, a glint on the hats
     // the light the ray gathered on its way in, and a corona on the limb
     outc += hg * (omn * omn * 0.7);
     outc += L.glowCol * (corona * fres * 0.5);
@@ -812,10 +913,10 @@ fragment float4 room_fractal(float4 pos [[position]],
                              texture2d<float, access::read> waveform [[texture(1)]])
 {
     using namespace rm_fr;
-    float2 uv = pos.xy / max(res, float2(1.0));
+    float2 suv = pos.xy / max(res, float2(1.0));
     float2 p = centered_a(pos.xy, res, U.aspect);
     p = ghostWarp_a(p, U);                          // the phantom leans the camera
-    float2 sp = float2(p.x, -p.y);                  // y up, as the web's vUv
+    float2 uv = float2(p.x, -p.y);                  // y up, as the web's vUv
 
     // ---- the three dice ----
     int form  = clamp(int(U.roll0 * 10.0), 0, 9);
@@ -823,8 +924,26 @@ fragment float4 room_fractal(float4 pos [[position]],
     int space = clamp(int(U.roll2 * 10.0), 0, 9);
 
     float T = U.time;
-    float bass = U.bass, mid = U.mid, treble = U.treble;
-    float energy = U.energy, beat = U.onsetEnv;
+    // THE BODY, read once from the bus (the web's main() text): the count, the breath before it, the coil — and the bar in the
+    // phrase with its held articulation (the web's JS drivers, the same arithmetic)
+    float ph = danceBeatPhase();                                                   // 0 at the count, 1 at the next (four to the bar; held in a rest)
+    // the breath before the count, deepest before the one, let go INTO the kick (law 3) - and drawn only on a LIVE beat: the last
+    // strike at most a beat and a quarter old (a groove's always is, the read-ahead included), none on an empty lattice under a pad
+    float lean = danceLean(ph) * frLeanW() * (1.0 - smoothstep(1.25, 2.0, dAge));
+    float coil = max(dBrace, 0.6 * (1.0 - smoothstep(0.0, 2.0, dImpact)));        // the held breath before a landing, let go over the half-bar after it (law 9)
+    // THE STRIKE'S OWN CLOCK (law 12, PLOTTER's and NAVE's text): a strike on the beat line restarts the beat's gesture; a roll's 8ths
+    // inside a beat already struck add weight and never rewind it
+    float sp = fract(ph - dAge + 0.15) - 0.15;                                     // the last strike's phase in its beat: -0.15..0.1 is the beat line itself (the read-ahead)
+    float ageS = dAge + (dPeriod > 0.0 ? max(sp, 0.0) * smoothstep(0.1, 0.2, sp) : 0.0);
+    float one = step(1.0, frBeatW(ageS));                                          // the count the strike belongs to: 1 on the one
+    // THE BODY'S LUNGE (laws 2, 7): a struck step toward the viewer on the strike's clock that lets go THROUGH rest into one rebound
+    // past it and is home by 0.8 beat (frStrike), over the body's spring (dKick, signed), weighed by the count - the one heaviest,
+    // and later: it carries more mass - still in a rest; a hat strikes nothing
+    float kick = (0.35 * dKick + 0.65 * frStrike(ageS, one) * dStill) * frBodyW(ageS);
+    // the bar in the phrase and the phase inside it, from ONE clock (the phrase's), so the deal's bar and its ease never disagree (the
+    // web's engine holds the bar phase through a rest while the phrase runs on; a bar read off the one against the other dealt mid-silence)
+    float q8 = U.phrasePhase * 8.0, bar8 = floor(q8), barQ = q8 - bar8;
+    float artH = frHeld(bar8, barQ, 3.0) * dStill;                                 // re-dealt once per bar, eased over its first fifth, held; still in a rest (law 4, law 8)
 
     // ---- apply(): the faces' constants ----
     Params P;
@@ -841,7 +960,8 @@ fragment float4 room_fractal(float4 pos [[position]],
     // THE DIMENSIONAL WALK: a rung every RUNG_SEC rubato seconds, held for
     // 80% of it, the last 20% a smoothstep blend into the next rung. Each
     // bulb form's ladder is phased so its clock's zero sits on its home rung
-    // (BULB / JULIA 8 going down, QUARTZ 4 and SPIRE 3 going up).
+    // (BULB / JULIA 8 going down, QUARTZ 4 and SPIRE 3 going up). The web
+    // starts each morph on a bar line, which a stateless twin cannot latch.
     P.powA = 8.0;
     P.powB = 8.0;
     P.powT = 0.0;
@@ -854,61 +974,75 @@ fragment float4 room_fractal(float4 pos [[position]],
         P.powT = smoothstep(0.8, 1.0, wc - rung);
     }
 
-    float3 off = float3(sin(T * 0.11) * 0.055 + bass * 0.05,
-                        cos(T * 0.09) * 0.055 + mid * 0.04,
-                        sin(T * 0.07 + 1.7) * 0.055 + treble * 0.03);
+    // THE SET ON A SLOW LEASH: its own slow sines, drawn toward the canonical set in the coil; the body's compress on x (dKick
+    // signed, the breath the other way); the bar-held articulation on y; nothing on z (the hats are light, never shape)
+    float3 off = float3(sin(T * 0.11) * 0.055 * (1.0 - 0.5 * coil) + 0.025 * (dKick - 0.2 * lean),
+                        cos(T * 0.09) * 0.055 * (1.0 - 0.5 * coil) + 0.015 * artH,
+                        sin(T * 0.07 + 1.7) * 0.055 * (1.0 - 0.5 * coil));
     if (form == 3 || form == 4) {
-        // box forms: no branch cut, so the scale can breathe; CUBE keeps its
+        // box forms: no branch cut, so the scale can breathe — on the passage, the kick's spring inside it; CUBE keeps its
         // outline by sampling at q = p·H(s)/H(2.5)
         off *= 0.6;
         float b = (form == 4) ? -2.2 : 2.5;
         float sgn = (b < 0.0) ? -1.0 : 1.0;
-        float s = b + sgn * (sin(T * 0.06) * 0.22 + bass * 0.14 + COUPLING * 0.10);
+        float s = b + sgn * (sin(T * 0.06) * 0.22 + 0.14 * dMass + 0.06 * dKick + 0.05);
         P.boxScale = s;
         P.boxNorm = (form == 3) ? boxHalf(s) / boxHalf(2.5) : 1.0;
     } else if (form == 9) {
-        off *= 0.5;                                 // WEAVE: the hybrid's box half breathes a little
-        P.boxScale = -1.5 - (sin(T * 0.05) * 0.05 + bass * 0.04);
+        off *= 0.5;                                 // WEAVE: the cage re-knits once per bar (its box half, eased over the bar's first fifth, held)
+        P.boxScale = -1.5 - (sin(T * 0.05) * 0.05 + 0.03 * dMass) - 0.08 * frHeld(bar8, barQ, 4.0) * dStill;
     } else if (form == 8) {
-        P.fold = 0.22 + sin(T * 0.07) * 0.06 + mid * 0.05;   // OCTA: the twist breathes with the mids
+        P.fold = 0.22 + sin(T * 0.07) * 0.06 + 0.05 * artH;   // OCTA: the twist turns once per bar, held
     }
     P.off = off;
-    // JULIA: |c| ~ 0.95 keeps it an open cage of branches
-    P.juliaC = float3(0.62 + sin(T * 0.08) * 0.07 + bass * 0.03,
-                      0.62 + cos(T * 0.06) * 0.07 + mid * 0.03,
-                      -0.28 + sin(T * 0.05 + 2.2) * 0.07 + treble * 0.03);
+    // JULIA: |c| ~ 0.95 keeps it an open cage of branches; c on the passage's weight and the bar, the hats out
+    P.juliaC = float3(0.62 + sin(T * 0.08) * 0.07 + 0.03 * dMass,
+                      0.62 + cos(T * 0.06) * 0.07 + 0.03 * artH,
+                      -0.28 + sin(T * 0.05 + 2.2) * 0.07);
 
-    // the orbs (only read when the space has them)
-    float R = P.bound * 0.78;
-    float osc = 1.0 + beat * 0.12;
-    P.orb0 = float3(cos(T * 0.50) * R, sin(T * 0.37) * R * 0.5, sin(T * 0.50) * R) * osc;
-    P.orb1 = float3(cos(T * 0.31 + 2.1) * R * 0.8, cos(T * 0.43) * R * 0.6, sin(T * 0.31 + 2.1) * R * 0.8) * osc;
-    P.orb2 = float3(sin(T * 0.23 + 4.2) * R * 0.9, sin(T * 0.29 + 1.0) * R * 0.45, cos(T * 0.23 + 4.2) * R * 0.9) * osc;
-    P.orbR = P.bound * 0.062 * SPACE_ORBMUL[space] * (1.0 + beat * 0.35);
+    // the orbs (only read when the space has them): the orbit swells with the body's spring (signed) and falls inward in the coil
+    float R = P.bound * 0.78 * (1.0 + 0.12 * dKick) * (1.0 - 0.15 * coil);
+    P.orb0 = float3(cos(T * 0.50) * R, sin(T * 0.37) * R * 0.5, sin(T * 0.50) * R);
+    P.orb1 = float3(cos(T * 0.31 + 2.1) * R * 0.8, cos(T * 0.43) * R * 0.6, sin(T * 0.31 + 2.1) * R * 0.8);
+    P.orb2 = float3(sin(T * 0.23 + 4.2) * R * 0.9, sin(T * 0.29 + 1.0) * R * 0.45, cos(T * 0.23 + 4.2) * R * 0.9);
+    P.orbR = P.bound * 0.062 * SPACE_ORBMUL[space] * (1.0 + 0.10 * dKick);
 
     // ---- the camera. LENS as perspective, not zoom: distance divided by the
     //      factor that scales the FOV, so framing holds and only the
-    //      compression changes. The web's camera dollies in on the bass and
-    //      breathes its FOV with it. Its wandering orbit is retold as a slow
+    //      compression changes. The web's wandering orbit is retold as a slow
     //      closed-form pendulum, phased by the dice so a re-entry is a new
     //      angle, that swings ±72° about the key light's azimuth (L1 lies at
     //      atan2(0.4, 0.6) = 0.588 rad in xz) and rides a little above the
-    //      equator, so the camera never parks on the form's unlit side ----
+    //      equator, so the camera never parks on the form's unlit side. The
+    //      web's radius carries its rig's figures (push-ins, strut dips, the
+    //      drop's lunge), which have no TV twin; the body's lunge is the
+    //      room's own, the same text; the roll is the rig's head-tilt, the
+    //      FOV the phrase's (perspective only) ----
     float lensMul = LENS_MUL[SPACE_LENS[space]];
     float base = FORM_DIST[form] / lensMul;
-    float D = base - bass * (base * 0.07) - beat * (base * 0.024) + sin(T * 0.05) * (base * 0.05);
-    float camR = max(P.bound * 1.14, D);
     float az0 = fract(U.roll0 * 31.7 + U.roll1 * 17.3 + U.roll2 * 7.1) * TAU_A;
     float theta = 0.588 + 1.25 * sin(T * 0.035 + az0);
     float polar = 1.30 + 0.45 * sin(T * 0.021 + 1.3 * az0);          // from +y, as the web's camPhi
     float3 dir = normalize(float3(sin(polar) * cos(theta), cos(polar) * 0.6, sin(polar) * sin(theta)));
-    float3 ro = dir * camR;
+    float3 uCamPos = dir * (base * (1.0 + 0.05 * sin(T * 0.05)));                // the web's rigK = 1: the TV has no figures (its spring is the room's lunge)
     float3 fwd = -dir;
-    float3 right = normalize(cross(fwd, float3(0.0, 1.0, 0.0)));
-    float3 up = cross(right, fwd);
-    float tanFov = tan((31.0 + 4.0 * bass) * (PI_A / 180.0)) * lensMul;   // 62° + 8°·bass, full angle
-    float3 rd = normalize(fwd + (right * sp.x + up * sp.y) * tanFov);
-    float pixAng = 2.0 * tanFov / min(max(res.y, 1.0), FOOT_LINES);   // the angle one pixel spans
+    float3 right0 = normalize(cross(fwd, float3(0.0, 1.0, 0.0)));
+    float3 up0 = cross(right0, fwd);
+    float roll = 0.035 * dSway, cr = cos(roll), sr = sin(roll);                    // the web rig's head-tilt: camera.rotation.z += 0.035 dSway
+    float3 uCamR = right0 * cr + up0 * sr, uCamU = up0 * cr - right0 * sr, uCamW = -fwd;
+    float uTanFov = tan((31.0 + 1.5 * dLift) * (PI_A / 180.0)) * lensMul;        // 62° + 3° dLift, full angle: the bass is out
+    // ONE ZOOM, ONE SIGN (law 2): the web's text (the web's uCamPos adds its rig's figures; the body owns the kick on both stages)
+    float distK = 1.0 - 0.043 * kick + 0.025 * lean - 0.05 * danceLand(dImpact) - 0.03 * dMass + 0.03 * dBrace;
+    vec3 ro = uCamPos * distK;
+    // the marching sphere's floor, soft: a smooth ReLU with a knee of 0.1 bound (a hard max() is a velocity kink when a lunge bites it)
+    float roL = max(length(ro), 1e-4), fl = uBound * 1.14, ex = roL - fl;
+    ro *= (fl + 0.5 * (ex + sqrt(ex * ex + 0.01 * uBound * uBound))) / roL;
+    // the nod: the view pitches into every count about its right axis - a crisp attack, the one's slower and deeper - and lets go
+    // over the beat (its own envelope, weighed by the count; still in a rest)
+    float nod = -0.03 * frNod(ageS, one) * frBeatW(ageS) * (1.0 + 0.2 * one) * dStill, cn = cos(nod), sn = sin(nod);
+    vec3 cR = uCamR, cU = uCamU * cn + uCamW * sn, cW = uCamW * cn - uCamU * sn;
+    vec3 rd = normalize(cR * (uv.x * uTanFov) + cU * (uv.y * uTanFov) - cW);
+    float pixAng = 2.0 * uTanFov / min(max(res.y, 1.0), FOOT_LINES);   // the angle one pixel spans
 
     // ---- the surface's light, routed through a pair of chord colours ----
     int route = SURF_ROUTE[surf];
@@ -922,42 +1056,76 @@ fragment float4 room_fractal(float4 pos [[position]],
     L.shine = SURF_SHINE[surf];
     L.light = SURF_LIGHT[surf];
     L.inv = SURF_INV[surf];
-    // the web's uHue (spectral centroid + coupling) has no TV band; the
-    // treble-over-bass tilt stands in for the centroid, coupling held neutral
-    float hueDrift = 0.125 + 0.20 * (treble - bass);
+    // the web's uHue (spectral centroid + coupling, eased) has no TV band;
+    // the section's loudness stands in for it, slow and continuous — never
+    // a band at the frame rate on the hue
+    float hueDrift = 0.125 + 0.10 * (uCalm - 0.5);
     L.hueAll = hueDrift * 0.7 + SURF_HUE[surf];
     L.glow = SURF_GLOW[surf];
     L.halo = SURF_HALO[surf];
     L.band = SURF_BAND[surf];
     L.bandK = SURF_BANDK[surf];
     L.body = SURF_BODY[surf];
-    // the veins' phase flows with the music: the web advances it at
-    // (0.035 + 0.11·energy)/s, which is ~0.09 per rubato second at any energy
+    // the veins' phase flows: the web integrates (0.035 + 0.07·dMass) per
+    // musical second, stilled in a rest; a stateless twin keeps ~0.09 per
+    // rubato second, which the rubato itself slows in a rest
     L.bandPhase = fract(T * 0.09);
-    L.energy = energy;
-    L.beat = beat;
 
     // the void sky: the static starfield, tinted by the chord
-    float3 sky = starLayer_a(uv) * mix(float3(0.75), cC, 0.55);
+    float3 sky = starLayer_a(suv) * mix(float3(0.75), cC, 0.55);
 
     // ---- ONE switch: the dealt form's instance, and only it, runs ----
     float3 col;
     switch (form) {
-        case 0:  col = fieldColor<0>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 1:  col = fieldColor<1>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 2:  col = fieldColor<2>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 3:  col = fieldColor<3>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 4:  col = fieldColor<4>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 5:  col = fieldColor<5>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 6:  col = fieldColor<6>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 7:  col = fieldColor<7>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        case 8:  col = fieldColor<8>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
-        default: col = fieldColor<9>(ro, rd, pixAng, pos.xy, P, L, U, sky); break;
+        case 0:  col = fieldColor<0>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 1:  col = fieldColor<1>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 2:  col = fieldColor<2>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 3:  col = fieldColor<3>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 4:  col = fieldColor<4>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 5:  col = fieldColor<5>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 6:  col = fieldColor<6>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 7:  col = fieldColor<7>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        case 8:  col = fieldColor<8>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
+        default: col = fieldColor<9>(ro, rd, pixAng, pos.xy, P, L, U, sky, cR, cU, cW, ageS, one, lean); break;
     }
 
     col += (hash21_a(pos.xy) - 0.5) * 0.004;         // grain against banding
     return float4(rm_fr::govern(VOID_A + max(col, float3(0.0)), U.white), 1.0);
+// the dance bus's dialect, let go of: every macro the header defined
+#undef dHit
+#undef dAge
+#undef dKick
+#undef dMass
+#undef dArtic
+#undef dSpark
+#undef dSway
+#undef dLift
+#undef dBrace
+#undef dImpact
+#undef dStill
+#undef dPeriod
+#undef uBarPhase
+#undef uCalm
+#undef uAct
+#undef danceBeatPhase
+#undef danceLean
+#undef danceLamp
+#undef danceLand
+#undef danceFront
+#undef vec3
+#undef uBound
+#undef uColB
+#undef uColC
+#undef uBand
+#undef uBandK
+#undef uBandPhase
+#undef gTrapN
+#undef frBeatW
+#undef frLeanW
+#undef frBodyW
+#undef frDir
 }
+/* ==== END ROOM REGION: FRACTAL ==== */
 
 // ---------------------------------------------------------------
 // FIREWORKS — stateless closed-form ballistics. Up to eight shells are

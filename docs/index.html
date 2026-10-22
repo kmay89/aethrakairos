@@ -21664,7 +21664,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = '863161dc92';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '56bf24c5b7';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -27965,6 +27965,7 @@ function buildRibbons(){
   };
 }
 
+/* ==== ROOM REGION: FRACTAL — builder owns everything between these fences ==== */
 /* =========================================================
    Scene 08 — FRACTAL FIELD  ·  three ten-sided dice
 
@@ -28014,6 +28015,49 @@ function buildRibbons(){
                 of the surface's chord pair; the phase flows with the music.
    The SURFACE die scales all three, so NEON / PRISM / INK burn while
    SLATE / BONE keep their restraint.
+
+   THE DANCE (stage 4: the room reads the dance bus, GLSL_DANCE prepended;
+   no raw band, no beat envelope reaches it). ONE ZOOM: the rig's FIGURES
+   arrive — director.camRadius (every figure's dr inside it) over the
+   rig's boot radius (30), softly clamped and square-rooted, so the
+   push-ins, the strut dips and the drop's lunge point TOWARD the viewer
+   — and the body owns the kick: a struck lunge on the strike's own
+   clock that lets go THROUGH rest by half the beat into one rebound
+   past it and is home by 0.8 beat (a body landing, not a mass let down
+   on a string), over the signed spring (dKick), weighed by the count
+   (the one heaviest, and later: it carries more mass), the breath
+   before the count the other way (danceLean, deepest before the one,
+   and drawn only on a live beat: an empty lattice under a pad draws
+   none), the landing's lunge (danceLand), the passage nearer (dMass)
+   and the coil drawn back (dBrace), over a soft floor; the view nods into
+   every count, the one's nod slower and deeper. The FOV is the rig's,
+   perspective only. THE HIT IS A TRAVELLING KEY LIGHT: a band of light
+   with a place, struck with the beat (danceLamp on the strike's own
+   clock, weighed by the count, held until the last fifth of the beat)
+   and run across the form along the view's right axis, its key swinging
+   with it, brighter as it runs — left to right on the one and the
+   three, back on the two and the four, so the bright ridge is on a
+   different face at x.2 than at x.1; quick off the strike on the one,
+   after the body on the other counts. A key light swung about the view
+   lights facets all over a fractal relief, so the light that moves is
+   the band's; the base key light L1 stays where it was.
+   The exposure is the section's (uCalm through the story clock uAct),
+   dimmer in the coil, drawn in before the count; the hats are glints on
+   the limb and the veins (dSpark); the veins step with the kick and
+   flow on the passage, still in a rest. The set itself is on a slow
+   leash: its sines, the kick's compress on x, a bar-held articulation
+   on y (re-dealt in the first fifth of a bar, then held), nothing on z;
+   CUBE / VOID breathe their scale on the passage with the kick inside
+   it, JULIA's c on the passage and the bar, OCTA's twist and WEAVE's
+   cage turn once per bar; SPONGE and TETRA dance with the camera and the
+   light alone. The power walk ARMS after two whole bars (the phrase's
+   bars, counted, so no frame rate and no rubato moves the line it takes),
+   starts only on a struck bar line and lands on the bar's second beat
+   (frRungStep). The held articulation reads the phrase's own bar and
+   its phase inside it — one clock — so a rest that holds the bar phase
+   can never deal it mid-silence. The orbs
+   circle on a clock that slows to a crawl in a rest and swell with the
+   spring.
 
    SOURCES — the mathematics, cited:
      Mandelbulb — Daniel White and Paul Nylander, 2009 (fractalforums.com,
@@ -28125,7 +28169,7 @@ const MARCH_VERT = `varying vec2 vUv; uniform vec4 uSlice; void main(){ vUv = uS
    screen's slab — slicing it twice would slice it twice */
 const MARCH_BLIT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
-const MARCH_FRAG = GLSL_FRACTAL + `
+const MARCH_FRAG = GLSL_DANCE + GLSL_FRACTAL + `
   precision highp float;
   uniform vec2  uRes;
   uniform vec3  uCamPos;
@@ -28138,7 +28182,7 @@ const MARCH_FRAG = GLSL_FRACTAL + `
   uniform float uBoxNorm, uFold, uEpsPx;   // CUBE size-lock, OCTA twist, hit radius (px)
   uniform float uGlow, uHaloAmt, uBand, uBandK, uBandPhase, uBody;   // the surface's light
   uniform vec3  uOrb0, uOrb1, uOrb2;
-  uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uCoupling, uEntropy, uCentroid, uHue;
+  uniform float uTime, uHue, uCalm, uAct;   // the light's slow voices: the section's loudness (seconds) and the story clock
   uniform vec3  uColA, uColB, uColC;
   uniform float uWhite;             // the march builds its own prelude, so ink comes in by hand
   varying vec2 vUv;
@@ -28365,11 +28409,55 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     return c + uColC * s * 0.5;
   }
 
+  // THE COUNT (PLOTTER's text, SPECTRAL r2's weights): a strike's weight read at its own BEAT LINE (the bar phase less the strike's
+  // age, nudged so a read-ahead strike rounds onto its own beat) - the one heaviest, the three next, the two and the four light, 0.8
+  // freewheeling - and the breath's weight from the count AHEAD (the lean's window rounds onto the count it loads for)
+  float frBeatW(float age){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); return i < 0.5 ? 1.25 : (abs(i - 2.0) < 0.5 ? 0.5 : 0.35); }
+  float frLeanW(){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase + 0.1) * 4.0); return i < 0.5 ? 1.0 : (abs(i - 2.0) < 0.5 ? 0.5 : 0.25); }
+  // the body's count, read at the strike's beat line as frBeatW is: the one's lunge heaviest, the three's next, the two and the four light
+  float frBodyW(float age){ if (dPeriod <= 0.0) return 0.8; float i = floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); return i < 0.5 ? 1.35 : (abs(i - 2.0) < 0.5 ? 0.8 : 0.4); }
+  // the lunge: struck on the count (up in a quarter of a beat: the body arriving, not a snap), its peak 1, then let go THROUGH rest
+  // by half the beat into ONE rebound past it (deepest at 0.6 beat: a body landing, not a mass let down on a string), home by 0.8
+  // beat and spent from there; the one's lands later and heavier (up in 0.35 beat: the downbeat carries more mass)
+  float frStrike(float age, float one){ return smoothstep(0.0, mix(0.25, 0.35, one), age) * (exp(-2.5 * age) - 0.0821) * (1.0 - smoothstep(0.3, 0.6, age) * (1.35 - 0.35 * smoothstep(0.6, 0.8, age))) * mix(2.103, 2.692, one); }
+  // the nod: a crisp pitch into the count (up in a tenth of a beat; the one's in a fifth), let go over the beat, spent by the next, its peak 1
+  float frNod(float age, float one){ return smoothstep(0.0, mix(0.1, 0.2, one), age) * max(exp(-3.0 * age) - 0.0498, 0.0) * mix(1.434, 1.929, one); }
+  // the run's direction, read at the strike's beat line: left to right on the one and the three, back on the two and the four - a
+  // pendulum of light across the bar, so the ridge is on another face at x.2 than at x.1
+  float frDir(float age){ if (dPeriod <= 0.0) return 1.0; float i = floor(fract(uBarPhase - 0.25 * age + 0.0375) * 4.0); return abs(i - 1.0) < 0.5 || abs(i - 3.0) < 0.5 ? -1.0 : 1.0; }
+
   void main(){
     vec2 uv = vUv * 2.0 - 1.0;
     uv.x *= uRes.x / uRes.y;
-    vec3 rd = normalize(uCamMat * vec3(uv * uTanFov, -1.0));
-    vec3 ro = uCamPos;
+    vec3 uCamR = uCamMat[0], uCamU = uCamMat[1], uCamW = uCamMat[2];   // the rig's basis (right, up, back): it carries the head-tilt, the roll's one owner on the web
+    // THE BODY, read once from the bus (the same text on both stages): the count, the breath before it, the coil
+    float ph = danceBeatPhase();                                                   // 0 at the count, 1 at the next (four to the bar; held in a rest)
+    // the breath before the count, deepest before the one, let go INTO the kick (law 3) - and drawn only on a LIVE beat: the last
+    // strike at most a beat and a quarter old (a groove's always is, the read-ahead included), none on an empty lattice under a pad
+    float lean = danceLean(ph) * frLeanW() * (1.0 - smoothstep(1.25, 2.0, dAge));
+    float coil = max(dBrace, 0.6 * (1.0 - smoothstep(0.0, 2.0, dImpact)));        // the held breath before a landing, let go over the half-bar after it (law 9)
+    // THE STRIKE'S OWN CLOCK (law 12, PLOTTER's and NAVE's text): a strike on the beat line restarts the beat's gesture; a roll's 8ths
+    // inside a beat already struck add weight and never rewind it
+    float sp = fract(ph - dAge + 0.15) - 0.15;                                     // the last strike's phase in its beat: -0.15..0.1 is the beat line itself (the read-ahead)
+    float ageS = dAge + (dPeriod > 0.0 ? max(sp, 0.0) * smoothstep(0.1, 0.2, sp) : 0.0);
+    float one = step(1.0, frBeatW(ageS));                                          // the count the strike belongs to: 1 on the one
+    // THE BODY'S LUNGE (laws 2, 7): a struck step toward the viewer on the strike's clock that lets go THROUGH rest into one rebound
+    // past it and is home by 0.8 beat (frStrike), over the body's spring (dKick, signed), weighed by the count - the one heaviest,
+    // and later: it carries more mass - still in a rest; a hat strikes nothing
+    float kick = (0.35 * dKick + 0.65 * frStrike(ageS, one) * dStill) * frBodyW(ageS);
+    // ONE ZOOM, ONE SIGN (law 2). uCamPos carries the rig's FIGURES - its push-ins, strut dips and the drop's lunge, all TOWARD the
+    // viewer - and the slow sine; the body owns the kick: its lunge (struck, with its one rebound past rest; the spring inside it),
+    // the breath the other way, the landing's lunge past rest with its one rebound, the passage's weight nearer, the coil drawn back
+    float distK = 1.0 - 0.043 * kick + 0.025 * lean - 0.05 * danceLand(dImpact) - 0.03 * dMass + 0.03 * dBrace;
+    vec3 ro = uCamPos * distK;
+    // the marching sphere's floor, soft: a smooth ReLU with a knee of 0.1 bound (a hard max() is a velocity kink when a lunge bites it)
+    float roL = max(length(ro), 1e-4), fl = uBound * 1.14, ex = roL - fl;
+    ro *= (fl + 0.5 * (ex + sqrt(ex * ex + 0.01 * uBound * uBound))) / roL;
+    // the nod: the view pitches into every count about its right axis - a crisp attack, the one's slower and deeper - and lets go
+    // over the beat (its own envelope, weighed by the count; still in a rest)
+    float nod = -0.03 * frNod(ageS, one) * frBeatW(ageS) * (1.0 + 0.2 * one) * dStill, cn = cos(nod), sn = sin(nod);
+    vec3 cR = uCamR, cU = uCamU * cn + uCamW * sn, cW = uCamW * cn - uCamU * sn;
+    vec3 rd = normalize(cR * (uv.x * uTanFov) + cU * (uv.y * uTanFov) - cW);
     float pixAng = 2.0 * uTanFov / uRes.y;      // the angle one pixel spans
     gFoot = 0.001;
 
@@ -28443,7 +28531,7 @@ const MARCH_FRAG = GLSL_FRACTAL + `
 
     if (!hit){
       vec3 g = hg + glowCol * (corona * 0.2);
-      g *= 0.8 + uEnergy * 0.3 + uBeat * 0.15;
+      g *= 0.85 + 0.15 * dMass;                                                   // the corona and the halo on the passage's weight, never the beat
       g = inkRolloff(g);
       float a = clamp(max(max(g.r, g.g), g.b) * 1.5, 0.0, 1.0);
       if (a < 0.004){ gl_FragColor = vec4(0.0); return; }
@@ -28456,11 +28544,14 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     gFoot = t * pixAng;
     vec3 n = calcNormal(p, gFoot * (0.5 + uEpsPx));
     float ndv = clamp(dot(n, -rd), 0.0, 1.0);
+    // the lamp: struck with the beat (danceLamp's 0.12-beat attack) on the strike's own clock, HELD to the last fifth of the beat so the
+    // run is seen to arrive, let go before the next count; weighed by the count at the strike's beat line (law 7), still in a rest (law 8)
+    float lampK = danceLamp(dHit, min(ageS, 0.62)) * (1.0 - smoothstep(0.8, 1.0, ageS)) * frBeatW(ageS) * dStill;
 
     if (matId > 0.5){
       // the orbs are lamps: a dim core and a bright limb, like a lit bubble
       float fr = pow(1.0 - ndv, 2.0);
-      vec3 oc = mix(uColC, uColB, 0.35) * (1.0 + uBeat * 0.6);
+      vec3 oc = mix(uColC, uColB, 0.35) * (1.0 + 0.5 * lampK);                     // they brighten with the strike's lamp (light only)
       gl_FragColor = vec4(inkRolloff(oc * (0.22 + ndv * 0.28 + fr * 1.25) + hg * 0.5), 1.0);
       return;
     }
@@ -28481,7 +28572,7 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     } else {
       vec3 L2 = normalize(vec3(-0.7, 0.25, -0.55));
       float d2 = clamp(dot(n, L2), 0.0, 1.0);
-      lit = col * (0.12 + d1 * 0.62) + uColB * d2 * 0.30 * (0.5 + uCoupling);
+      lit = col * (0.12 + d1 * 0.62) + uColB * d2 * 0.21;                          // the second light's fill: the coupling folded at its groove mean, (0.5 + 0.2) x 0.30
     }
 
     float specPow = mix(10.0, 110.0, uShine);
@@ -28492,23 +28583,36 @@ const MARCH_FRAG = GLSL_FRACTAL + `
 
     vec3 outc = lit * (0.35 + ao * 0.75) * uBody;
     outc += uColC * spec * specAmt;
-    outc += col * fres * (0.45 + uBeat * 0.8);
+    outc += col * fres * (0.45 + 0.15 * dSpark);                                   // the limb: the hats glint on it (light only, law 5)
     if (uMirror > 0.5) outc = mix(outc, envCol(reflect(rd, n)), 0.18 + uShine * 0.32);
-    outc *= 0.85 + uEnergy * 0.5;
+    // THE HIT IS A TRAVELLING KEY LIGHT (law 6): a band of light with a PLACE, struck with the beat and run across the form along the
+    // view's right axis, lighting the relief that faces it as it passes (its key swings with it) and brighter as it runs - a pendulum
+    // across the bar, so the bright ridge is on a different face at x.2 than at x.1. Nothing snaps: the lamp is 0 when the head goes
+    // home. (A key light swung about the view lights facets all over a fractal relief: its added light never left the form's middle.)
+    // L1 stays where it was
+    float hq = 1.0 - clamp((ageS - 0.12 * (1.0 - one)) / 0.6, 0.0, 1.0), hd = 1.0 - hq * hq;   // the run: off the strike on the one, after the body on the other counts; quick, easing into its far side
+    float hx = 0.12 + 0.73 * (frDir(ageS) > 0.0 ? hd : 1.0 - hd);                 // the head across the form: left to right on the one and the three, back on the two and the four
+    float xr = 0.5 + dot(p, cR) / (1.5 * uBound);                                  // this point across the form, along the view's right
+    vec3 Lh = normalize(cR * (1.6 * hx - 0.8) + cU * 0.45 + cW * 0.6);            // the key comes from where the head is
+    float kf = danceFront(xr, hx, 0.16) * (0.35 + 0.65 * clamp(dot(n, Lh), 0.0, 1.0));
+    outc += (col * 0.8 + glowCol * (0.5 * fres)) * (kf * lampK * (0.3 + 0.9 * hd) * (0.6 + 0.4 * ao));
+    // the exposure is the section's (uCalm, seconds) through the story clock (uAct), never per-frame energy; dimmer in the coil
+    // (law 9), a breath of light drawn in before the count (law 3)
+    outc *= (0.9 + 0.3 * uAct * uCalm) * (1.0 - 0.15 * dBrace) * (1.0 - 0.06 * lean);
 
     // BANDS — the SHALLOW trap at the hit (filtered over the normal's taps),
     // wrapped into narrow self-lit veins. The full trap changes faster than
     // the pixels across fine relief; its first two levels draw smooth contours.
     // fw = how far the vein coordinate moves per pixel: it widens a vein that
     // would fall under a pixel and fades veins where even that would alias.
-    float bx = clamp(gTrapN, 0.0, 4.0) * uBandK + uBandPhase;
+    float bx = clamp(gTrapN, 0.0, 4.0) * uBandK + uBandPhase + 0.12 * dKick;     // the veins step forward with the kick and settle back on its rebound (signed)
     float fw = length(gTrapG) * gFoot * uBandK;
     float bs = abs(fract(bx) - 0.5);
     float bw = 0.09, bwe = sqrt(bw * bw + 0.25 * fw * fw);
     float vein = exp(-bs * bs / (bwe * bwe)) * (bw / bwe) * smoothstep(0.5, 0.2, fw);
     // self-lit, in the pair's saturated member (the glow colour), so they read
     vec3 veinCol = hueShift(glowCol, uHue * 0.7 + uSurfHue);
-    outc += veinCol * vein * uBand * (1.0 + uEnergy * 0.35 + uBeat * 0.25) * (0.6 + 0.4 * ao);
+    outc += veinCol * vein * uBand * (1.0 + 0.35 * dMass + 0.15 * dSpark) * (0.6 + 0.4 * ao);   // brighter on the passage, a glint on the hats
     // the light the ray gathered on its way in, and a corona on the limb
     outc += hg * (1.0 - ndv) * (1.0 - ndv) * 0.7;
     outc += glowCol * corona * fres * 0.5;
@@ -28517,6 +28621,47 @@ const MARCH_FRAG = GLSL_FRACTAL + `
     gl_FragColor = vec4(inkRolloff(outc * (0.35 + fog * 0.65)), 1.0);
   }
 `;
+
+/* THE DIMENSIONAL WALK ON THE BAR (law 15) — pure, so the test can drive it. Two whole bars standing on a rung ARM the walk, and the
+   bars are COUNTED on the phrase's own bar (inp.bar: the drivers' bar8, the clock the held articulation reads, which runs on through
+   a held rest), so neither the frame grid nor the rubato can move the line it takes: the third bar line after the last morph started
+   is the earliest, at 24 Hz and at 120 alike. It starts only on a true bar line (the bar phase wrapping on a live bar — dStill > 0.9,
+   so never on the release of a phase held through a rest, never on a threshold crossed in some frame — and struck: the one's own
+   strike, never a roll's last 16th running into a silence) and travels to the next rung over the first beat of that bar on the bar's
+   own phase: stateless inside the bar, so a held bar holds the morph and no strike restarts it. Without a grid, the old clock (eight
+   beats of dt standing, two of travel). dim = { a, b, t, wait, bars, bar, dir, k, pb, onBar };
+   inp = { dt, period, grid, barPh, bar, still, struck }. */
+function frRungStep(dim, inp){
+  const beat = inp.period > 0.2 ? inp.period : 0.5, bp = inp.barPh;
+  const line = inp.grid && dim.pb != null && dim.pb > 0.75 && bp < 0.25 && inp.still > 0.9 && inp.struck;
+  dim.pb = bp;
+  if (dim.bar != null && inp.bar !== dim.bar) dim.bars = (dim.bars || 0) + ((inp.bar - dim.bar) % 8 + 8) % 8;   // the phrase's bars, counted
+  dim.bar = inp.bar;
+  if (dim.t == null){
+    dim.wait += inp.dt;
+    if (inp.grid ? line && dim.bars >= 3 : dim.wait > beat * 8){
+      if (dim.a >= 9) dim.dir = -1; else if (dim.a <= 3) dim.dir = 1;
+      dim.b = dim.a + dim.dir; dim.t = 0; dim.wait = 0; dim.bars = 0; dim.onBar = inp.grid;
+    }
+  }
+  if (dim.t == null){ dim.k = 0; return dim; }
+  dim.t = dim.onBar && inp.grid ? Math.max(dim.t, Math.min(1, bp / 0.25)) : dim.t + inp.dt / (beat * 2);
+  if (dim.t >= 1){ dim.a = dim.b; dim.t = null; dim.k = 0; return dim; }
+  dim.k = danceSmooth(0, 1, dim.t);
+  return dim;
+}
+/* the fragment's frLeanW, said in JS (the drivers' breath is the fragment's, the same count ahead) */
+function frLeanWJS(barPh, dPeriod){
+  if (!(dPeriod > 0)) return 0.8;
+  const q = barPh + 0.1, i = Math.floor((q - Math.floor(q)) * 4);
+  return i < 0.5 ? 1.0 : (Math.abs(i - 2) < 0.5 ? 0.5 : 0.25);
+}
+/* a bar-held articulation, -1..1 (law 4): re-dealt in the first fifth of a bar, then held. A walk of eight values around the circle
+   (3/8 of a turn a bar), periodic over the phrase's eight bars, so the phrase's wrap is no step; the MSL twin is the same arithmetic */
+function frHeldJS(bi, bp, seed){
+  const a = Math.sin((bi - 1) * 2.3561945 + seed), b = Math.sin(bi * 2.3561945 + seed);
+  return a + (b - a) * danceSmooth(0, 0.2, bp);
+}
 
 function buildFractalField(){
   const group = new THREE.Group();
@@ -28551,7 +28696,7 @@ function buildFractalField(){
     uPowA:   { value: 8 }, uPowB: { value: 8 }, uPowT: { value: 0 },
   };
   // the dimensional walk's state: current rung, destination, morph progress
-  const dim = { a: 8, b: 8, t: null, wait: 0, dir: -1 };
+  const dim = { a: 8, b: 8, t: null, wait: 0, bars: 0, bar: null, dir: -1, k: 0, pb: null, onBar: false };
 
   bulbMats = FORMS.map((f, i) => new THREE.ShaderMaterial({
     uniforms: Object.assign({}, U, bulbU),
@@ -28596,7 +28741,7 @@ function buildFractalField(){
 
   const off = new THREE.Vector3();
   let D = [0, 0, 0];
-  let bandPhase = 0;
+  let bandPhase = 0, orbT = null;
 
   const api = {
     name: 'FRACTAL FIELD', key: 'fractal', group, heavy: true,
@@ -28617,7 +28762,7 @@ function buildFractalField(){
       bulbU.uBoxNorm.value = 1; bulbU.uFold.value = 0.22;
       // each bulb form starts the walk at its home rung
       dim.a = dim.b = [8, 4, 3, 0, 0, 0, 0, 8][D[0]] || 8;
-      dim.t = null; dim.wait = 0; dim.dir = dim.a >= 8 ? -1 : 1;
+      dim.t = null; dim.wait = 0; dim.bars = 0; dim.bar = null; dim.dir = dim.a >= 8 ? -1 : 1; dim.k = 0; dim.pb = null;
       bulbU.uPowA.value = dim.a; bulbU.uPowB.value = dim.a; bulbU.uPowT.value = 0;
       api.name = (D[0] + 1) + '·' + (D[1] + 1) + '·' + (D[2] + 1) +
                  '  ' + F.key + ' · ' + S.key + ' · ' + P.key;
@@ -28633,88 +28778,94 @@ function buildFractalField(){
 
     update(dt){
       if (!group.visible) return;
-      const f = AE.f, u = bulbU, t = U.uTime.value;
+      const u = bulbU, t = U.uTime.value;
       const F = FORMS[D[0]], P = SPACES[D[2]];
+      // THE BUS as the fragment reads it (U.uDance0..2: the same twelve, this frame), and the body's readings the drivers share with
+      // the fragment, in the same arithmetic: the breath before the count, the coil, the bar in the phrase, the held articulation
+      const d0 = U.uDance0.value, d2 = U.uDance2.value;
+      const dKick = d0.z, dMass = d0.w, dBrace = d2.x, dImpact = d2.y, dStill = d2.z, dPeriod = d2.w;
+      const barPh = U.uBarPhase.value, ph = barPh * 4 - Math.floor(barPh * 4);
+      const lean = danceLeanJS(ph, dStill, dPeriod > 0) * frLeanWJS(barPh, dPeriod) * (1 - danceSmooth(1.25, 2.0, d0.y));   // on a live beat only (the fragment's gate on dAge)
+      const coil = Math.max(dBrace, 0.6 * (1 - danceSmooth(0, 2, dImpact)));
+      // the bar in the phrase and the phase inside it, from ONE clock (the phrase's), so the deal's bar and its ease never disagree: the
+      // engine holds uBarPhase through a rest while the phrase runs on, and a bar read off the one against the other dealt mid-silence
+      const q8 = U.uPhrasePhase.value * 8, bar8 = Math.floor(q8), barQ = q8 - bar8;
+      const artH = frHeldJS(bar8, barQ, 3.0) * dStill;    // re-dealt once per bar, eased over its first fifth, held; still in a rest (law 4, law 8)
+      const dtm = Math.min(Math.max(dt, 0), 0.1);         // musical time (dt x DANCE.rate): the integrated clocks below ride it
 
-      // THE DIMENSIONAL WALK — the bulb rotates through its dimensionality.
-      // Powers stay integers (the branch cut stays invisible); the WALK
-      // blends two integer-power fields, one rung at a time, 3..9 and back:
-      // eight beats standing on a rung, two beats travelling to the next.
-      // Between morphs uPowT is 0 and the second field costs nothing.
+      // THE DIMENSIONAL WALK — the bulb rotates through its dimensionality. Powers stay integers (the branch cut stays invisible);
+      // the walk blends two integer-power fields one rung at a time, 3..9 and back, two whole bars of the phrase standing (counted),
+      // then a morph that STARTS ON A BAR LINE and travels over the bar's first beat (frRungStep). Between morphs uPowT is 0 and the
+      // second field costs nothing.
       if (D[0] === 0 || D[0] === 1 || D[0] === 2 || D[0] === 7){
-        const beatSec = (typeof DANCE !== 'undefined' && DANCE.period > 0.2) ? DANCE.period : 0.5;
-        if (dim.t == null){
-          dim.wait += dt;
-          if (dim.wait > beatSec * 8){
-            dim.wait = 0;
-            if (dim.a >= 9) dim.dir = -1;
-            else if (dim.a <= 3) dim.dir = 1;
-            dim.b = dim.a + dim.dir;
-            dim.t = 0;
-          }
-        } else {
-          dim.t += dt / (beatSec * 2);
-          if (dim.t >= 1){
-            dim.a = dim.b; dim.t = null;
-            u.uPowA.value = dim.a; u.uPowT.value = 0;
-          } else {
-            const k = dim.t * dim.t * (3 - 2 * dim.t);
-            u.uPowB.value = dim.b; u.uPowT.value = k;
-          }
-        }
+        // struck: the last strike is the one's own (read at its beat line, as the fragment's count reads it), not a roll into a silence
+        const sb = barPh - 0.25 * d0.y + 0.0375, struck = d0.y < 0.4 && Math.floor((sb - Math.floor(sb)) * 4) === 0;
+        frRungStep(dim, { dt: dtm, period: (typeof DANCE !== 'undefined') ? DANCE.period : 0, grid: dPeriod > 0, barPh, bar: bar8, still: dStill, struck });
+        u.uPowA.value = dim.a; u.uPowB.value = dim.b; u.uPowT.value = dim.k;
       }
 
+      // THE SET ON A SLOW LEASH (laws 1, 4, 5): its own slow sines, drawn toward the canonical set in the coil; the body's compress on
+      // x (dKick signed, the breath the other way); the bar-held articulation on y; nothing on z (the hats are light, never shape)
       off.set(
-        Math.sin(t * 0.11) * 0.055 + f.bass * 0.05,
-        Math.cos(t * 0.09) * 0.055 + f.mid * 0.04,
-        Math.sin(t * 0.07 + 1.7) * 0.055 + f.treble * 0.03
+        Math.sin(t * 0.11) * 0.055 * (1 - 0.5 * coil) + 0.025 * (dKick - 0.2 * lean),
+        Math.cos(t * 0.09) * 0.055 * (1 - 0.5 * coil) + 0.015 * artH,
+        Math.sin(t * 0.07 + 1.7) * 0.055 * (1 - 0.5 * coil)
       );
-      if (D[0] === 3 || D[0] === 4){              // box forms: no branch cut, so scale can breathe
+      if (D[0] === 3 || D[0] === 4){              // box forms: no branch cut, so scale can breathe — on the passage, the kick's spring inside it
         off.multiplyScalar(0.6);
         const b = D[0] === 4 ? -2.2 : 2.5;
         const sgn = b < 0 ? -1 : 1;
-        const s = b + sgn * (Math.sin(t * 0.06) * 0.22 + f.bass * 0.14 + f.coupling * 0.1);
+        const s = b + sgn * (Math.sin(t * 0.06) * 0.22 + 0.14 * dMass + 0.06 * dKick + 0.05);
         u.uBoxScale.value = s;
         // CUBE keeps its outline: sample at q = p·H(s)/H(2.5)
         u.uBoxNorm.value = D[0] === 3 ? boxHalf(s) / boxHalf(2.5) : 1;
-      } else if (D[0] === 9){                     // WEAVE: the hybrid's box half breathes a little
+      } else if (D[0] === 9){                     // WEAVE: the cage re-knits once per bar (its box half, eased over the bar's first fifth, held)
         off.multiplyScalar(0.5);
-        u.uBoxScale.value = -1.5 - (Math.sin(t * 0.05) * 0.05 + f.bass * 0.04);
-      } else if (D[0] === 8){                     // OCTA: the twist breathes with the mids
-        u.uFold.value = 0.22 + Math.sin(t * 0.07) * 0.06 + f.mid * 0.05;
+        u.uBoxScale.value = -1.5 - (Math.sin(t * 0.05) * 0.05 + 0.03 * dMass) - 0.08 * frHeldJS(bar8, barQ, 4.0) * dStill;
+      } else if (D[0] === 8){                     // OCTA: the twist turns once per bar, eased over the bar's first fifth, held
+        u.uFold.value = 0.22 + Math.sin(t * 0.07) * 0.06 + 0.05 * artH;
       }
       u.uOff.value.copy(off);
-      if (D[0] === 7){                            // julia c drift = whole-form morph
+      if (D[0] === 7){                            // julia c drift = whole-form morph: on the passage's weight and the bar, the hats out
         // |c| ~ 0.95 keeps the julia an open cage of branches; nearer the
         // origin it closes into a ball, on an axis it turns into a lathe-spool
         u.uJuliaC.value.set(
-          0.62 + Math.sin(t * 0.08) * 0.07 + f.bass * 0.03,
-          0.62 + Math.cos(t * 0.06) * 0.07 + f.mid * 0.03,
-          -0.28 + Math.sin(t * 0.05 + 2.2) * 0.07 + f.treble * 0.03);
+          0.62 + Math.sin(t * 0.08) * 0.07 + 0.03 * dMass,
+          0.62 + Math.cos(t * 0.06) * 0.07 + 0.03 * artH,
+          -0.28 + Math.sin(t * 0.05 + 2.2) * 0.07);
       }
-      // the veins' phase flows with the music: slow at rest, quicker when loud
-      bandPhase = (bandPhase + dt * (0.035 + 0.11 * f.energy) * (reducedMotion ? 0.35 : 1)) % 1;
+      // the veins' flow: slow, on the passage's weight, stilled in a rest (law 8), slower in the coil, quick for the bar after a landing
+      bandPhase = (bandPhase + dtm * (0.035 + 0.07 * dMass) * (0.3 + 0.7 * dStill) * (1 - 0.5 * coil)
+        * (1 + 1.5 * Math.max(danceLandJS(dImpact), 0)) * (reducedMotion ? 0.35 : 1)) % 1;
       u.uBandPhase.value = bandPhase;
 
       if (P.orbs){
-        const R = F.bound * 0.78, s = 1 + f.beat * 0.12;
-        u.uOrb0.value.set(Math.cos(t * 0.50) * R, Math.sin(t * 0.37) * R * 0.5, Math.sin(t * 0.50) * R).multiplyScalar(s);
-        u.uOrb1.value.set(Math.cos(t * 0.31 + 2.1) * R * 0.8, Math.cos(t * 0.43) * R * 0.6, Math.sin(t * 0.31 + 2.1) * R * 0.8).multiplyScalar(s);
-        u.uOrb2.value.set(Math.sin(t * 0.23 + 4.2) * R * 0.9, Math.sin(t * 0.29 + 1.0) * R * 0.45, Math.cos(t * 0.23 + 4.2) * R * 0.9).multiplyScalar(s);
-        u.uOrbR.value = F.bound * 0.062 * P.orbMul * (1 + f.beat * 0.35);
+        // the orbs' clock: integrated, so it slows to a crawl when the music stops and in the coil (a rate change is never a jump);
+        // the orbit swells with the body's spring (signed: in a hair on the rebound) and falls inward in the coil
+        if (orbT == null) orbT = t;
+        orbT += dtm * (0.3 + 0.7 * dStill) * (1 - 0.3 * coil);
+        const R = F.bound * 0.78 * (1 + 0.12 * dKick) * (1 - 0.15 * coil);
+        u.uOrb0.value.set(Math.cos(orbT * 0.50) * R, Math.sin(orbT * 0.37) * R * 0.5, Math.sin(orbT * 0.50) * R);
+        u.uOrb1.value.set(Math.cos(orbT * 0.31 + 2.1) * R * 0.8, Math.cos(orbT * 0.43) * R * 0.6, Math.sin(orbT * 0.31 + 2.1) * R * 0.8);
+        u.uOrb2.value.set(Math.sin(orbT * 0.23 + 4.2) * R * 0.9, Math.sin(orbT * 0.29 + 1.0) * R * 0.45, Math.cos(orbT * 0.23 + 4.2) * R * 0.9);
+        u.uOrbR.value = F.bound * 0.062 * P.orbMul * (1 + 0.10 * dKick);
       }
 
-      // LENS as perspective, not zoom: dividing distance by the same factor that
-      // scales the FOV holds the framing and changes only the compression.
+      // LENS as perspective, not zoom: dividing distance by the same factor that scales the FOV holds the framing and changes only the
+      // compression. THE RIG'S RADIUS ARRIVES (law 10): director.camRadius is the rig's radius with every figure's dr inside it (its
+      // spring is the room's own: the fragment's lunge) - its ratio to the rig's boot radius, softly clamped to 0.7..1.3
+      // (x / sqrt(1 + x^2)) and square-rooted, so the push-ins, the strut dips and the drop's lunge point TOWARD the viewer at half their
+      // depth. (Not CHOREO.base.r: it is re-dealt at each figure's handover, and the ratio would cut there.) The body, the floor and
+      // the nod are the fragment's; camera.position gives the direction only
       const lensMul = [0.80, 1.0, 1.25][P.lens];
       const dir = camera.position.lengthSq() > 1e-6
         ? camera.position.clone().normalize()
         : new THREE.Vector3(0, 0, 1);
+      const rq = ((typeof director !== 'undefined' ? director.camRadius : 30) / 30 - 1) / 0.3, rigK = Math.sqrt(1 + 0.3 * rq / Math.sqrt(1 + rq * rq));
       const base = F.dist / lensMul;
-      const dist = base - f.bass * (base * 0.07) - f.beat * (base * 0.024) + Math.sin(t * 0.05) * (base * 0.05);
-      u.uCamPos.value.copy(dir.multiplyScalar(Math.max(F.bound * 1.14, dist)));
-      u.uCamMat.value.setFromMatrix4(camera.matrixWorld);
-      u.uTanFov.value = Math.tan(camera.fov * 0.5 * PI / 180) * lensMul;
+      u.uCamPos.value.copy(dir.multiplyScalar(base * rigK * (1 + 0.05 * Math.sin(t * 0.05))));
+      u.uCamMat.value.setFromMatrix4(camera.matrixWorld);                         // the rig's head-tilt (0.035 dSway) arrives in it
+      u.uTanFov.value = Math.tan(camera.fov * 0.5 * PI / 180) * lensMul;          // v2's rig FOV: 62 + 3 dLift + the figure's dfov - perspective only
 
       const w = Math.max(64, Math.floor(renderer.domElement.width * bulbScale));
       const h = Math.max(64, Math.floor(renderer.domElement.height * bulbScale));
@@ -28738,6 +28889,7 @@ function buildFractalField(){
   api.apply();
   return api;
 }
+/* ==== END ROOM REGION: FRACTAL ==== */
 
 
 /* ---------- starfield: a true BACKDROP ----------
