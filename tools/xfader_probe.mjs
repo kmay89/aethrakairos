@@ -21,7 +21,9 @@
 //              the transport row answering inside the press
 //   the hand's handle left at a silent far end keeps the auto-DJ off and AUTO
 //              brings it home; a parked yield survives MIX going off as the
-//              hand's blend (its room cue withdrawn); a pause stops both records
+//              hand's blend (its room cue withdrawn, its tempo kept); a pause stops both records
+//   the transport's own crossfade refuses a hand; PLAY under a handle resting at
+//              that deck's end takes the air
 //
 //   python3 tools/make_mix_fixture.py /tmp/mb8-mix && cp docs/three.min.js /tmp/mb8-mix/
 //   cp docs/index.html /tmp/mb8-mix/ && node tools/xfader_probe.mjs /tmp/mb8-mix
@@ -325,9 +327,16 @@ const fix = await page.evaluate(async () => {
   const hold = DECKS.faderRelease().act;
   const b = { now, outSlot, hold, manual: MIXER.phase, scene: typeof SEGUE !== 'undefined' ? !!SEGUE.seam : false };
   await sleep(150);
+  // the fixture's 124 → 126 pair can sit at native tempo where it was parked: give it the glide a
+  // 124 → 128 blend holds mid-way (written in the same task as the cancel, so no frame rewrites it)
+  if (AE.decks.every(d => Math.abs(d.a.playbackRate - SPEED.rate) < 1e-6)){
+    AE.decks[outSlot].a.playbackRate = SPEED.rate * 1.016; AE.decks[1 - outSlot].a.playbackRate = SPEED.rate * 0.984;
+  }
+  const rPre = AE.decks.map(d => d.a.playbackRate);
   MIXER.setOn(false);
+  const rPost = AE.decks.map(d => d.a.playbackRate);
   await sleep(300);
-  Object.assign(b, { phase: MIXER.phase, outRolling: !od.a.paused, owner: DECKS.slots[outSlot].owner, x: DECKS.fader.x, mode: DECKS.fader.mode,
+  Object.assign(b, { rPre, rPost, rLate: AE.decks.map(d => d.a.playbackRate), speed: SPEED.rate, phase: MIXER.phase, outRolling: !od.a.paused, owner: DECKS.slots[outSlot].owner, x: DECKS.fader.x, mode: DECKS.fader.mode,
     gOut: od.gain.gain.value, nOut: od.norm, fOut: od.fader.gain.value });
   // (c) the transport paused under that held blend: both records stop, the hand's keeps its slot
   player.pause();
@@ -342,8 +351,49 @@ R('a running seam yielded and parked mid-way: a hold, the seam\'s room cue withd
 R('…MIX switched off hands the outgoing record to the hand: still playing at its trim, the handle and its fader where the hand left them',
   fix.b.phase === 'idle' && fix.b.outRolling && fix.b.owner === 'hand' && Math.abs(fix.b.x - 0.5) < 1e-6 && fix.b.mode === 'rest'
   && Math.abs(fix.b.gOut - fix.b.nOut) < 0.03 && Math.abs(fix.b.fOut - Math.SQRT1_2) < 0.03, JSON.stringify(fix.b));
+R('…and keeps its tempo: neither record\'s rate moves when the mixer steps aside (the seam\'s glide carried into the decks\' pitch)',
+  [0, 1].every(i => Math.abs(fix.b.rPost[i] - fix.b.rPre[i]) < 1e-6 && Math.abs(fix.b.rLate[i] - fix.b.rPre[i]) < 1e-6),
+  JSON.stringify({ pre: fix.b.rPre, post: fix.b.rPost, late: fix.b.rLate, speed: fix.b.speed }));
+// (the same check run on the previous commit's player fails: both rates snap back to SPEED.rate)
 R('the transport paused under a held blend stops both records; the hand keeps its deck', fix.c.onPaused && fix.c.handPaused && fix.c.owner === 'hand' && !fix.c.playing,
   JSON.stringify(fix.c));
+
+// ---- 12 · the transport's own crossfade is not the hand's to take; a record started under the handle takes the air
+const own = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  player.resume();
+  for (let k = 0; k < 40 && !player.playing; k++) await sleep(50);
+  await sleep(300);
+  const nextI = player.tracks.findIndex((t, k) => k !== player.cur && t !== DECKS.track(0) && t !== DECKS.track(1));
+  player.playIndex(nextI >= 0 ? nextI : (player.cur + 1) % player.tracks.length, { xfade: true, fadeSec: 3 });
+  await sleep(250);
+  const on = AE.active, r = 1 - on, rd = AE.decks[r];
+  const d = { on, r, xfading: !!AE.xfading, retiringRolling: !rd.a.paused };
+  d.grab = DECKS.faderGrab(r);
+  BOOTH.key('cut', r);
+  d.afterCut = { active: AE.active, x: DECKS.fader.x, mode: DECKS.fader.mode, hand: DECKS.fader.hand };
+  const st = document.getElementById('boothSt' + (r ? 'B' : 'A'));
+  BOOTH._tr.cue[r].down(); BOOTH._tr.cue[r].up();
+  d.cueWord = st.textContent;
+  await sleep(3400);
+  Object.assign(d, { landed: !AE.xfading, active: AE.active, onRolling: !AE.decks[on].a.paused, playing: player.playing, rPaused: rd.a.paused });
+  // the handle let go at the idle deck's end with nothing rolling there; PLAY on that deck commits it
+  DECKS.faderGrab(DECKS.fader.x); DECKS.faderMove(r);
+  const f = { rel: DECKS.faderRelease().act, x: DECKS.fader.x, mode: DECKS.fader.mode, want: DECKS.slots[r].trackIdx };
+  f.play = DECKS.play(r);
+  f.activeNow = AE.active; f.cur = player.cur;
+  await sleep(300);
+  Object.assign(f, { onPaused: AE.decks[on].a.paused, rRolling: !rd.a.paused, playing: player.playing, owner: DECKS.slots[r].owner });
+  return { d, f };
+});
+R('the transport\'s own crossfade refuses the hand: no grab, CUT to the retiring deck leaves the handle at the incoming\'s end, CUE says busy',
+  own.d.xfading && own.d.retiringRolling && own.d.grab === false && own.d.afterCut.active === own.d.on && own.d.afterCut.x === own.d.on
+  && own.d.afterCut.mode === 'rest' && !own.d.afterCut.hand && /busy/.test(own.d.cueWord), JSON.stringify(own.d));
+R('…and the fade lands on the incoming, still sounding, the retired record stopped', own.d.landed && own.d.active === own.d.on && own.d.onRolling && own.d.playing && own.d.rPaused,
+  JSON.stringify(own.d));
+R('PLAY on the deck the handle rests on takes the air at once: the transport\'s record follows, the silenced one stops',
+  own.f.rel === 'hold' && own.f.x === own.d.r && own.f.play && own.f.activeNow === own.d.r && own.f.cur === own.f.want && own.f.onPaused && own.f.rRolling && own.f.playing
+  && own.f.owner === 'free', JSON.stringify(own.f));
 
 R('no page errors', errors === 0, errors + ' errors');
 console.log(`\n${results.filter(Boolean).length}/${results.length} crossfader checks passed`);

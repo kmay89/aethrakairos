@@ -11391,6 +11391,18 @@ const DECKS = {
     ensureResume();
     this._gainTo(d, d.norm || 1);
     d.a.play().catch(() => {});
+    /* a record started UNDER the handle — the handle already let go at this
+       deck's end, the record on air silenced by it — is the only one heard:
+       it takes the air at once, exactly as a push of the handle onto a
+       rolling record would make it (el.paused is already false here, so the
+       commit accepts it). Left as a bare start, the title, the seek bar, the
+       media session and the beat clock the rooms dance to all stayed on the
+       silent record until it ran out — minutes, perhaps, with the auto-DJ
+       held off the whole time by the handle that caused it. */
+    const f = this.fader;
+    if (!f.hand && f.mode === 'rest' && Math.abs(f.x - slot) <= XFADER_PARK){
+      if (this._commitHand(slot) && typeof BOOTH !== 'undefined') BOOTH.handDone(slot);
+    }
     return true;
   },
   pause(slot){
@@ -11515,6 +11527,13 @@ const DECKS = {
      and from here every move is the law applied to the hand's x. */
   faderGrab(x){
     if (!AE.graphLive || !AE.decks) return false;
+    /* the transport's own crossfade (a pad, a skip that could not beatmix) is
+       not a seam a hand can yield: the retiring record's gain is on rampGain's
+       curve to zero and its fade timer will stop it. A hand that committed it
+       back on air put a deck on the air that was already leaving it, and the
+       record actually sounding was paused under it — dead air under a
+       transport that says it plays. The handle waits the few seconds out. */
+    if (AE.xfading) return false;
     // a mixset's anchor — a song the set pinned to play in full — is not the hand's to fade out
     if (typeof MIXSET !== 'undefined' && MIXSET.active){
       const cur = player.tracks[player.cur];
@@ -11613,6 +11632,7 @@ const DECKS = {
     const nd = AE.decks[inSlot], od = AE.decks[1 - inSlot];
     const i = this.slots[inSlot].trackIdx;
     if (!player.tracks[i] || nd.a.paused || nd.a.ended) return false;
+    if (this.retiring(inSlot)) return false;                // its gain is still fading out: nothing commits a record that is leaving
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('hand');   // the auto plan onto this deck is overtaken
     const retired = player.cur;
     AE.active = inSlot;
@@ -22807,6 +22827,18 @@ const MIXER = {
     if (typeof DECKS !== 'undefined'){
       DECKS.settle({ retired, keepHandle: mode !== 'home' });
       if (mode === 'hand'){ const hs = DECKS.slots[oSlot]; hs.owner = 'hand'; hs.silentFor = 0; hs.cueHeld = false; }
+      /* the blend is handed over AS IT IS HEARD — the level and the tempo. The
+         seam's glide had both records off their native tempos to meet in the
+         middle; the per-deck loop below writes SPEED × pitch, and pitch was 1
+         on both, so a MIX-chip tap snapped both back home (and, with key lock
+         off, both pitches by a few percent) and the parked blend flammed within
+         a bar. Each deck keeps the rate it has, as its pitch — where a mixer's
+         auto-sync switched off leaves the tempo faders — and the next track
+         start (onPlayIndex), a load, or SYNC sets it again. */
+      if (mode === 'hand' && AE.decks) AE.decks.forEach((d, i) => {
+        const r = d.a.playbackRate || SPEED.rate;
+        DECKS.slots[i].pitch = r / (SPEED.rate || 1);
+      });
     }
     /* a cancel mid-blend used to leave the outgoing element decoding at gain
        zero until its own end — a decoder burned, an 'ended' nobody wanted. It
@@ -28700,7 +28732,8 @@ function wireBoothScrub(){
    (BOOTH.holdState) — nothing waits for the audio to agree. */
 function wireDeckTransport(){
   const letter = i => i ? 'B' : 'A';
-  const seam = () => MIXER.phase === 'running' || MIXER.phase === 'manual';
+  // a deck is busy under a seam, or while the transport's own crossfade is still fading it out (DECKS.retiring)
+  const seam = slot => MIXER.phase === 'running' || MIXER.phase === 'manual' || (slot != null && DECKS.retiring(slot));
   for (let i = 0; i < 2; i++){
     const L = letter(i), row = document.getElementById('deckTr' + L);
     if (row) row.setAttribute('aria-label', T('Deck {d} transport', { d: L }));
@@ -28715,7 +28748,7 @@ function wireDeckTransport(){
     if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended){ DECKS.pause(slot); return true; }
     if (!DECKS.track(slot)){ BOOTH.holdState(slot, T('nothing to play — LOAD a pick, or a pad')); return false; }
     if (!DECKS.play(slot)){
-      BOOTH.holdState(slot, seam() ? T('busy — a blend is running') : T('direct-to-output — no second deck here'));
+      BOOTH.holdState(slot, seam(slot) ? T('busy — a blend is running') : T('direct-to-output — no second deck here'));
       return false;
     }
     return true;
@@ -28728,7 +28761,7 @@ function wireDeckTransport(){
   const cueWire = (b, slot) => {
     let held = 0, pressed = false;
     const refuse = () => BOOTH.holdState(slot, !DECKS.track(slot) ? T('nothing to cue — LOAD a pick, or a pad')
-      : seam() ? T('busy — a blend is running') : T('loading…'));
+      : seam(slot) ? T('busy — a blend is running') : T('loading…'));
     const down = ev => {
       if (ev && ev.pointerType === 'mouse' && ev.button !== 0) return;
       if (pressed) return;
@@ -28761,7 +28794,7 @@ function wireDeckTransport(){
     if (was && !now) return true;
     if (!now){
       BOOTH.holdState(slot, !AE.graphLive ? T('direct-to-output — no second deck here')
-        : seam() ? T('busy — a blend is running') : T('SYNC needs a tempo on both decks'));
+        : seam(slot) ? T('busy — a blend is running') : T('SYNC needs a tempo on both decks'));
       return false;
     }
     const mm = mixOf(DECKS.track(1 - slot));
@@ -28776,7 +28809,7 @@ function wireDeckTransport(){
     DECKS.hand(); DECKS.focus = slot;
     const L = letter(slot);
     if (!AE.graphLive || !AE.decks){ toast(T('direct-to-output — no second deck here')); return false; }
-    if (seam()){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
+    if (seam(slot)){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
     if (slot === AE.active && player.playing){ toast(T('Deck {d} is on air — load the other one', { d: L })); return false; }
     const here = DECKS.track(slot);
     let t = (typeof PREFETCH !== 'undefined') ? PREFETCH.next() : null;
@@ -29711,6 +29744,7 @@ const BOOTH = {
   faderWhy(){
     return !AE.decks ? T('Play something first — the decks wake with the first track')
       : !AE.graphLive ? T('direct-to-output — no second deck here')
+      : AE.xfading ? T('Deck {d} is busy — a blend is running', { d: AE.active ? 'A' : 'B' })
       : T('The set pinned this song to play in full — the fader waits for it');
   },
   /* the booth's keys (window keydown/keyup route here while the booth is open):
@@ -29730,7 +29764,7 @@ const BOOTH = {
       const d = AE.decks && AE.decks[arg], rolling = !!(d && DECKS.track(arg) && !d.a.paused && !d.a.ended);
       if (arg !== AE.active && !rolling){ this.holdState(arg, T('nothing to play — LOAD a pick, or a pad')); return; }
       DECKS.fader.glide = 0;
-      if (DECKS.cutTo(arg)) this.handDone(arg); else if (!AE.graphLive) toast(this.faderWhy());
+      if (DECKS.cutTo(arg)) this.handDone(arg); else if (!AE.graphLive || AE.xfading) toast(this.faderWhy());
     }
     else if (what === 'centre' && this._recentre) this._recentre();
   },
