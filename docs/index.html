@@ -9803,10 +9803,25 @@ function loadAndLandAt(el, url, at, done){
      is a slow pipe, never a dead one, and is left alone.
    A track that keeps starving after four reloads with no motion in between
    is given up on — skipped, so the set keeps going. `s` is the watchdog's own
-   memory and is mutated; the return is what to do now. */
-const STARVE_RELOAD_S = 12, STARVE_GIVE_UP = 4;
+   memory and is mutated; the return is what to do now.
+   THE HEAL IS GRADED. A reload (el.load()) empties the element — every
+   buffered byte gone, a fresh request from byte zero for the metadata, then
+   the ranged request for the spot — and the listener hears all of it: a
+   blink of silence, the loading word, the song back from the mark. That was
+   the first and only thing a starving stream got, and on a pipe that is slow
+   rather than dead it was the "jitter halfway through the song". So the
+   first verdict at twelve seconds is now 'reseek': a seek of a millisecond
+   makes the browser open a fresh ranged request from the playhead while
+   keeping everything it has, which is all a stalled-but-healthy stream
+   needs. Only when a further eight seconds bring no new bytes does the
+   verdict escalate to the hard reload; growth after the reseek resets the
+   whole count, so a pipe that merely hiccupped never pays for a reload.
+   `o.moved` is an optional override for the liveness read (the caller counts
+   timeupdate events, which a tight loop keeps firing while the position
+   stays inside the 40 ms window); absent, the position delta decides. */
+const STARVE_RELOAD_S = 12, STARVE_RESEEK_S = 8, STARVE_GIVE_UP = 4;
 function watchdogStep(s, o){
-  const moved = s.lastT >= 0 && Math.abs(o.t - s.lastT) > 0.04;
+  const moved = o.moved != null ? !!o.moved : (s.lastT >= 0 && Math.abs(o.t - s.lastT) > 0.04);
   const grew = o.buf > s.lastBuf + 0.05;
   const first = s.lastT < 0;
   s.lastT = o.t; s.lastBuf = o.buf;
@@ -9814,12 +9829,14 @@ function watchdogStep(s, o){
   if (o.rs < 3){
     s.stall = 0;
     // not under way yet → the start backstop's; filling → just slow
-    if (first || !o.played || moved || grew){ s.starve = 0; return 'ok'; }
+    if (first || !o.played || moved || grew){ s.starve = 0; s.reseeks = 0; return 'ok'; }
     // offline, nothing can refill it: wait without spending the give-up budget
     if (o.online === false){ s.starve = 0; return 'wait'; }
     s.starve = (s.starve || 0) + 1;
-    if (s.starve < STARVE_RELOAD_S) return 'wait';
+    if (s.starve < (s.reseeks ? STARVE_RESEEK_S : STARVE_RELOAD_S)) return 'wait';
     s.starve = 0;
+    if (!s.reseeks){ s.reseeks = 1; return 'reseek'; }   // the cheap heal first
+    s.reseeks = 0;
     s.heals = (s.heals || 0) + 1;
     return s.heals > STARVE_GIVE_UP ? 'skip' : 'reload';
   }
@@ -9829,6 +9846,44 @@ function watchdogStep(s, o){
   if (s.stall === 3) return 'nudge';
   if (s.stall >= 7){ s.stall = 0; return 'reload'; }
   return 'wait';
+}
+
+/* HOW FAR THE PLAYHEAD CAN GO ON WHAT IS IN HAND: the end of the buffered
+   range that CONTAINS `t`, from a list of [start, end] pairs. The watchdog
+   used to read the end of the LAST range, which is the wrong number the
+   moment the buffer is in pieces: after a scrub back into a hole between two
+   islands the browser fills a NEW range around the playhead while the old
+   tail sits where it was, so "the buffer" never moved, the stream read as
+   starved, and twelve seconds later a healthy download was reloaded. Zero
+   when no range holds the playhead — nothing ahead of it yet — so the first
+   bytes to arrive there register as growth. The 20 ms tolerance is the same
+   one seamBuffered uses: a range's edge is never exactly the playhead. */
+function bufferedEndAt(ranges, t){
+  if (!ranges || !ranges.length) return 0;
+  const eps = 0.02;
+  for (let i = 0; i < ranges.length; i++){
+    const s = ranges[i][0], e = ranges[i][1];
+    if (t >= s - eps && t < e + eps) return e;
+  }
+  return 0;
+}
+
+/* MAY THE WARM TAKE A BITE OF THE PIPE RIGHT NOW? The element-direct
+   prefetch (iOS) shares one connection with the element that is playing,
+   and a full-speed download of the next song is exactly what starves the
+   current one on cellular. So the warm proceeds a chunk at a time, and
+   between chunks asks this: the deck must own `need` seconds past its
+   playhead (or the browser must already promise play-through, readyState 4,
+   or the rest of the song must be in hand), and an element that has just
+   reported 'waiting' holds the warm outright — it is the one that needs the
+   bytes. The caller keeps a floor rate so a long "no" still lands. */
+const PREFETCH_AHEAD_S = 20;
+function prefetchMayRun(o){
+  if (o.waiting) return false;
+  if ((o.readyState | 0) >= 4) return true;
+  const ahead = +o.bufAhead || 0;
+  if (o.left != null && isFinite(o.left) && ahead >= o.left - 0.5) return true;
+  return ahead >= (o.need != null ? o.need : PREFETCH_AHEAD_S);
 }
 // @media-end
 
@@ -10613,6 +10668,7 @@ function ensureCtx(){
     d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall();
       player._stallSkips = 0; player._netSkips = 0; } });   // audio flowed: the pipe is alive
     d.a.addEventListener('timeupdate', () => {
+      d._tu = (d._tu | 0) + 1;                   // the watchdog counts these: the clock's own pulse
       if (i !== AE.active) return;
       const ct = d.a.currentTime;
       if (ct > 0.05){
@@ -10633,7 +10689,11 @@ function ensureCtx(){
         if (t && t._netTries && ct > (t._errPos || 0) + 2){ t._netTries = 0; }
       }
     });
-    d.a.addEventListener('waiting', () => { if (i === AE.active && player.playing) LOADER.begin(T('buffering…')); });
+    d.a.addEventListener('waiting', () => {
+      if (i !== AE.active) return;
+      if (typeof PREFETCH !== 'undefined') PREFETCH._waitAt = performance.now();   // the warm yields the pipe
+      if (player.playing) LOADER.begin(T('buffering…'));
+    });
   };
   AE.decks.forEach(AE._wireDeck);
   applyVolume();
@@ -11543,6 +11603,8 @@ const player = {
        "it stopped and reloaded" gap. Anything not warmed, or warmed for a
        different track, falls back to the network URL exactly as before. */
     const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
+    // a cancelled arm can leave this deck at preload='metadata' (MIXER._preload)
+    try { if (nd.a.preload !== 'auto') nd.a.preload = 'auto'; } catch (e){}
     nd.a.src = src;
     // the warmed copy has been spent; hold nothing we are already playing
     if (typeof PREFETCH !== 'undefined' && src !== track.url) PREFETCH.spend();
@@ -11615,6 +11677,7 @@ const player = {
     this.autoFadeDone = false;
     this._trackStarted();                  // the first-run lessons watch track changes
     HIST.start(track);
+    this._decksChanged([track]);
     this.refreshTitle();
     this.renderList();
     updatePlayIcon();
@@ -11622,11 +11685,25 @@ const player = {
     PERSIST.poke();
   },
 
+  /* A TRACK CHANGE CALLS OFF WHAT IS NO LONGER WANTED: the booth's detail
+     fetches and the shared bytes of every song not on a deck any more, so a
+     skip never leaves a download of the last song racing the stream of this
+     one; and on the element-direct path the record now playing is pressed
+     for the platter (gated inside, see VINYL.pressSong). `keep` is what is
+     on the decks from here on. */
+  _decksChanged(keep){
+    const ts = (keep || []).filter(Boolean);
+    if (typeof DECKWAVE !== 'undefined') DECKWAVE.cancelAllBut(ts.map(t => DECKWAVE.key(t)));
+    if (typeof BYTES !== 'undefined') BYTES.abortAllBut(ts.map(t => t.url).filter(Boolean));
+    if (typeof BOOTH !== 'undefined' && BOOTH.open && typeof VINYL !== 'undefined' && VINYL.songMode()) VINYL.pressSong();
+  },
+
   /* the mixer already started the incoming deck — this is the bookkeeping
      half of playIndex, with no element operations at all */
   commitMix(i){
     const track = this.tracks[i];
     if (!track) return;
+    const leaving = this.tracks[this.cur];   // still sounding through the seam: its bytes stay wanted
     // the seam hands the booth over too: a loop or an effect belonged to the
     // track that just left, and carrying it into the next one is a fault
     if (typeof FX !== 'undefined') FX.release();
@@ -11641,6 +11718,7 @@ const player = {
     this.autoFadeDone = true;              // the legacy crossfader stands down
     this._trackStarted();                  // the first-run lessons watch track changes
     HIST.start(track);
+    this._decksChanged([track, leaving]);
     this.refreshTitle();
     this.renderList();
     updatePlayIcon();
@@ -12302,6 +12380,20 @@ const PREFETCH = {
      late window is only a backstop for tracks shorter than that. */
   SETTLE: 12,                   // seconds into the current track before we start
   LEAD: 45,                     // ...or this close to its end, whichever comes first
+  /* PACED, NOT RACED. The warm shares one pipe with the element that is
+     playing, and iOS buffers that element conservatively, in ranged pieces:
+     a full-speed 10-30 MB download beside it starved the current song on
+     cellular from 0:12 until the warm landed — the middle of a three-minute
+     track — and the watchdog then reloaded the starving element. So the
+     bytes are read a chunk at a time and between chunks the warm asks
+     prefetchMayRun (tested) whether the deck can spare the pipe: AHEAD_S of
+     audio in hand past the playhead, or the browser's own play-through
+     promise. A 'waiting' from the element holds the warm for WAIT_HOLD_MS
+     outright. The floor keeps the whole thing honest — however long the
+     answer is no, the warm never falls below FLOOR_BPS, so it still lands
+     before the hand-off it exists for. The start itself is gated the same
+     way (START_AHEAD_S) until the LEAD backstop, which starts regardless. */
+  AHEAD_S: 25, START_AHEAD_S: 20, FLOOR_BPS: 64 * 1024, WAIT_HOLD_MS: 4000, _waitAt: 0,
   /* `id` is what we HOLD; `_want` is what we are FETCHING. They have to be
      separate fields, and the first version conflated them: the guard against
      re-entering read `id`, which is only assigned once a fetch completes, so
@@ -12378,18 +12470,56 @@ const PREFETCH = {
       if (!r.ok) throw new Error('http ' + r.status);
       const len = +(r.headers.get('content-length') || 0);
       if (len > this.CAP) throw new Error('too big');
-      const blob = await r.blob();
+      const parts = await this._drain(r, ac);
       if (ac.signal.aborted) return;
+      const blob = new Blob(parts, { type: r.headers.get('content-type') || '' });
       if (blob.size > this.CAP) throw new Error('too big');
       this.url = URL.createObjectURL(blob);
       this.id = id;
       this._fail = 0;
+      // the booth's decoders (the pressing, the detail wave) read these same bytes — never the network again
+      if (typeof BYTES !== 'undefined') BYTES.put(track.url, blob);
     } catch (e){
       // AbortError is our own doing (the draw moved on) and is not a failure
       if (!(e && e.name === 'AbortError')) this._fail++;
       this.url = ''; this.id = null;
     } finally {
       if (this._ac === ac){ this._ac = null; this._busy = false; this._want = null; }
+    }
+  },
+  // the body, a chunk at a time, yielding the pipe between chunks (see AHEAD_S)
+  async _drain(r, ac){
+    if (!r.body || typeof r.body.getReader !== 'function') return [await r.blob()];   // no streams: the old read
+    const reader = r.body.getReader();
+    const parts = []; let size = 0;
+    for (;;){
+      if (ac.signal.aborted){ try { reader.cancel(); } catch (e){} return parts; }
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value); size += value.byteLength;
+      if (size > this.CAP){ try { reader.cancel(); } catch (e){} throw new Error('too big'); }
+      await this._pace(ac, value.byteLength);
+    }
+    return parts;
+  },
+  // what the deck under the music can spare, read fresh, in prefetchMayRun's terms
+  _room(need){
+    const d = typeof activeDeck === 'function' ? activeDeck() : null;
+    if (!d || typeof player === 'undefined' || !player.playing) return { bufAhead: Infinity, readyState: 4, left: Infinity, waiting: false, need };
+    const t = d.a.currentTime;
+    const left = isFinite(d.a.duration) ? d.a.duration - t : Infinity;
+    const bufAhead = (typeof WATCHDOG !== 'undefined' ? WATCHDOG.bufEnd(d.a) : 0) - t;
+    const waiting = performance.now() - (this._waitAt || 0) < this.WAIT_HOLD_MS;
+    return { bufAhead, readyState: d.a.readyState, left, waiting, need };
+  },
+  async _pace(ac, bytes){
+    const until = performance.now() + bytes / this.FLOOR_BPS * 1000;   // the floor: a long "no" still lands
+    for (;;){
+      if (ac.signal.aborted) return;
+      const room = this._room(this.AHEAD_S);
+      if (prefetchMayRun(room)) return;
+      if (!room.waiting && performance.now() >= until) return;
+      await new Promise(res => setTimeout(res, 200));
     }
   },
   /* WHOSE TURN IS IT NEXT — asked without disturbing anything. pickNext() is
@@ -12420,6 +12550,9 @@ const PREFETCH = {
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
     const played = d.a.currentTime, left = d.a.duration - played;
     if (played < this.SETTLE && left > this.LEAD) return;
+    // settled — but only once the deck is far enough ahead to spare the pipe
+    // (re-asked every tick; inside LEAD the backstop starts regardless)
+    if (left > this.LEAD && !prefetchMayRun(this._room(this.START_AHEAD_S))) return;
     const t = this.next();
     if (t) this.want(t);
   },
@@ -17431,23 +17564,58 @@ function initMediaSession(){
    a gentle re-nudge, then — if it's still frozen — reload the source at the very
    spot it stalled and resume. The listener hears a blink, never a dead stop. */
 const WATCHDOG = {
-  s: { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0 },
-  reset(){ this.s = { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0 }; },
-  bufEnd(a){ try { return (a.buffered && a.buffered.length) ? a.buffered.end(a.buffered.length - 1) : 0; } catch (e){ return 0; } },
+  s: { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0, reseeks: 0, lastTu: -1 },
+  reset(){ this.s = { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0, reseeks: 0, lastTu: -1 }; },
+  // the buffer that matters is the one under the playhead (bufferedEndAt, tested), never the last island
+  bufEnd(a){
+    try {
+      const b = a.buffered, r = [];
+      for (let i = 0; i < (b ? b.length : 0); i++) r.push([b.start(i), b.end(i)]);
+      return bufferedEndAt(r, a.currentTime);
+    } catch (e){ return 0; }
+  },
   check(){
     if (!player.playing){ this.reset(); return; }
     const d = activeDeck();
     if (!d || d.a.paused || AE.xfading){ this.reset(); return; }
     if (d._healing) return;                          // a reload of ours is landing — judge what it lands on
+    /* A HELD LOOP IS NOT A FROZEN DECK. On the element-direct path every loop
+       is the per-frame re-seek, and a 1/8-beat pad at 128 BPM is a 59 ms loop:
+       the 1 Hz position samples all fall inside the 40 ms "moved" window, the
+       file is fully buffered so nothing "grows", and seven such looks earned
+       the pad a reload that emptied the element. The loop is a hand on the
+       controls; the watchdog stands down until it lets go. */
+    if (typeof FX !== 'undefined' && FX.loop && FX.loop.len < 0.5){ this.s.stall = 0; this.s.starve = 0; return; }
     const t = d.a.currentTime;
+    /* LIVENESS FROM THE ELEMENT'S OWN PULSE. timeupdate fires only while the
+       clock advances — four times a second and more while playing, once for a
+       seek, never while stalled — so three or more ticks since the last look
+       is motion whatever the position delta says (a tight loop moves the
+       clock without moving the number). A single tick is a seek (our own
+       reseek among them) and proves nothing, so it falls through to the
+       position delta the verdict has always used. */
+    const tu = d._tu | 0;
+    const ticked = this.s.lastTu >= 0 && tu - this.s.lastTu >= 3;
+    this.s.lastTu = tu;
     /* The verdict is watchdogStep's (tested). A track is only STARVED once it
        has been under way — before that the start backstop owns it, and a
        reload there restarts the download and, on a weak pipe, loops forever
        ("tuning the first track…" that never plays). */
     const played = t > 0.5 || (isFinite(AE._lastGoodT) && AE._lastGoodT > 0.5);
-    const v = watchdogStep(this.s, { t, buf: this.bufEnd(d.a), rs: d.a.readyState, played, online: navigator.onLine });
+    const v = watchdogStep(this.s, { t, buf: this.bufEnd(d.a), rs: d.a.readyState, played, online: navigator.onLine,
+                                     moved: ticked ? true : undefined });
     if (v === 'nudge'){
       d.a.play().catch(() => {});                    // ~3 s truly frozen (has data, not playing): a gentle re-nudge
+    } else if (v === 'reseek'){
+      /* THE CHEAP HEAL. A seek of one millisecond makes the browser open a
+         fresh ranged request from the playhead — and keeps every byte it
+         already has, so nothing is heard. If the stream was merely stuck
+         behind a dead connection this is the whole cure; the verdict escalates
+         to the reload below only when eight more seconds bring nothing. */
+      if (typeof ACTIVITY !== 'undefined')
+        ACTIVITY.log('system', T('The stream ran dry mid-track — reconnecting at the same spot'));
+      try { d.a.currentTime = d.a.currentTime + 0.001; } catch (e){}
+      d.a.play().catch(() => {});
     } else if (v === 'reload'){
       const tr = player.tracks[player.cur];
       const starved = d.a.readyState < 3;
@@ -19248,6 +19416,17 @@ function seamBuffered(ranges, from, need){
   }
   return false;
 }
+// WHEN THE INCOMING DECK MAY TAKE THE PIPE. The arm only fetches headers;
+// the real warm (preload 'auto' + the pre-seek) is due once the outgoing deck
+// holds everything to its own end — then B costs A nothing — or when the
+// exit is within reach: twenty seconds, or the seam's own length plus ten,
+// whichever is longer, so B still has time to own its window at fire().
+const SEAM_WARM_S = 20;
+function seamWarmDue(o){
+  if (o && o.aDone) return true;
+  const exitIn = o ? +o.exitIn : NaN;
+  return isFinite(exitIn) && exitIn < Math.max(SEAM_WARM_S, (o && +o.seconds || 0) + 10);
+}
 // Is the incoming deck REALLY ready to carry this seam? `readyState >= 2`
 // (HAVE_CURRENT_DATA) promises only the single frame under the playhead —
 // enough to start, never enough to play through, which is exactly how a
@@ -20600,9 +20779,13 @@ const MIXER = {
     clockReset(this._clkA); clockReset(this._clkB);
     const tc = AE.ctx ? AE.ctx.currentTime : 0;
     if (AE.decks) AE.decks.forEach((d, i) => {
-      try { d.a.playbackRate = SPEED.rate; } catch (e){}
-      setPitchLock(d.a, SPEED.keyLock);
-      if (d.shelf) d.shelf.gain.value = 0;
+      // guarded by equality: a 'manual' cancel runs on EVERY track change, and
+      // a rate written to a playing element re-seats its resampler even when
+      // the value is the one it already has — nothing here may touch a deck
+      // that is already where it should be
+      try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}
+      setPitchLock(d.a, SPEED.keyLock);                 // (already equality-guarded)
+      if (d.shelf && d.shelf.gain.value !== 0) d.shelf.gain.value = 0;
       // kill any scheduled crossfade ramp and settle each deck: the surviving
       // (active) deck back to full, the other silent — else a cancel mid-blend
       // could freeze a deck at a partial gain.
@@ -20641,6 +20824,7 @@ const MIXER = {
     }
     if (this.phase === 'armed'){
       const exitAt = this.exitTime(d.a.duration, this.plan, player.tracks[player.cur]);
+      this._warmB(exitAt - t);                   // the second stage of the warm, once, when A can spare the pipe
       /* THE SEAM FIRES FROM A FRESH READ. Here, inside the animation frame, A's
          currentTime was cached at the top of the frame (the beat clock read it
          first) — up to a frame's work stale, and fire() places B from it, so
@@ -20715,6 +20899,20 @@ const MIXER = {
     syncMixHud();
   },
 
+  /* THE WARM HAS TWO STAGES. arm() runs ninety seconds before the end — the
+     exact middle of a three-minute song — and the first version loaded deck B
+     with preload='auto' there and pre-seeked it mid-file: a full-rate second
+     download, then a ranged stream from the seam point to the end, on the
+     same pipe deck A was still filling from. On anything slower than a good
+     wire A ran dry a minute from the end, readyState fell, the watchdog
+     counted twelve seconds and reloaded it — the "it jitters halfway through
+     the song, like it's loading" report, to the second. So the arm fetches
+     HEADERS ONLY (preload='metadata': enough for the duration, enough for the
+     plan to validate), and the real warm — 'auto' plus the pre-seek — waits
+     for _warmB: once A holds everything to its own end, or when the exit is
+     close enough that B must be rolling whatever the pipe is doing. The
+     seam-readiness gate at fire() (seamStreamReady) is untouched: B must own
+     its window before the blend starts, as it always had to. */
   _preload(B, plan){
     const nd = AE.decks[1 - AE.active];
     // a prior arm()/replan on this SAME deck may still have an unfired
@@ -20724,21 +20922,55 @@ const MIXER = {
     // Clearing any pending listener before attaching a new one keeps exactly
     // one in flight per deck, always.
     this._clearPreloadListener(nd);
-    nd.a.src = B.url;
     // PRE-SEEK WHERE THE SEAM WILL ACTUALLY ROLL FROM, lead-in included. Parking
     // the deck on plan.startB instead meant fire() had to move it again, and a
     // second seek is a second decoder flush at the least forgiving moment there
     // is — the deck then spends the lead-in refilling rather than rolling. Same
     // point, warmed once, so a punctual seam's placement costs nothing.
     const seekTo = plan.type === 'beatmix' ? Math.max(0, plan.startB - seamLeadFor(plan)) : 0;
-    const once = () => {
-      nd.a.removeEventListener('loadedmetadata', once);
-      nd._preloadOnce = null;
+    nd._seekTo = seekTo;
+    /* IDEMPOTENT ON THE SOURCE. A style chip or MIX NOW inside the armed
+       window cancels and re-arms with the SAME track; assigning the same src
+       again (and load()) threw away every byte B had and started its download
+       over from zero, while A played — more contention at the worst moment.
+       A deck already on this URL is only moved, and only if it is somewhere
+       else; the seek waits for the warm when that has not happened yet. */
+    if (!this._sameSrc(nd.a, B.url) || nd.a.readyState === 0){
+      nd._warmed = false;
+      try { nd.a.preload = 'metadata'; } catch (e){}
+      nd.a.src = B.url;
+      const once = () => {
+        nd.a.removeEventListener('loadedmetadata', once);
+        nd._preloadOnce = null;
+        if (nd._warmed){ try { nd.a.currentTime = nd._seekTo || 0; } catch (e){} }
+      };
+      nd._preloadOnce = once;
+      nd.a.addEventListener('loadedmetadata', once);
+      try { nd.a.load(); } catch (e){}
+    } else if (nd._warmed && Math.abs(nd.a.currentTime - seekTo) > 0.05){
       try { nd.a.currentTime = seekTo; } catch (e){}
-    };
-    nd._preloadOnce = once;
-    nd.a.addEventListener('loadedmetadata', once);
-    try { nd.a.load(); } catch (e){}
+    }
+  },
+  // an element reports its src resolved; the catalog may carry it relative
+  _sameSrc(a, url){
+    if (!url) return false;
+    if (a.src === url) return true;
+    try { return a.src === new URL(url, location.href).href; } catch (e){ return false; }
+  },
+  /* THE SECOND STAGE, exactly once per arm. The decision is seamWarmDue's
+     (tested): A fully buffered to its end, or the exit within reach. `force`
+     is fire()'s: whatever the pipe is doing, a seam that is starting needs
+     its deck at full preload now. The pre-seek is issued here when the
+     metadata has landed, else by the one-shot listener when it does. */
+  _warmB(exitIn, force){
+    const nd = AE.decks && AE.decks[1 - AE.active], d = activeDeck();
+    if (!nd || nd._warmed || !d) return;
+    const t = d.a.currentTime, dur = d.a.duration;
+    const aDone = isFinite(dur) && dur > 0 && seamBuffered(d.a.buffered, t, dur - t - 0.5);
+    if (!force && !seamWarmDue({ aDone, exitIn, seconds: this.plan ? this.plan.seconds : 0 })) return;
+    nd._warmed = true;
+    try { if (nd.a.preload !== 'auto') nd.a.preload = 'auto'; } catch (e){}
+    if (nd.a.readyState >= 1){ try { nd.a.currentTime = nd._seekTo || 0; } catch (e){} }
   },
 
   _clearPreloadListener(d){
@@ -20796,6 +21028,7 @@ const MIXER = {
     const nd = AE.decks[1 - AE.active];
     const B = player.tracks[this.next];
     if (!B){ this.cancel(); return; }
+    this._warmB(0, true);                      // never judge readiness on a deck still at 'metadata'
     // READY MEANS READY. The incoming deck must own the whole window it is
     // about to play — not merely the frame under its playhead — or the blend
     // starts and stalls two beats in, which is the "buffering" a listener
@@ -22820,6 +23053,80 @@ const EQ = {
    each decodeAudioData allocates a whole song's PCM, and a pile of them is
    what makes an extended session go sluggish then stop. */
 let _peaksChain = Promise.resolve();
+/* ONE FETCH PER URL, SHARED AND ABORTABLE. Four things used to download a
+   whole song for themselves — the booth's detail wave for each deck, the
+   overview peaks for a track without a shipped score, the vinyl pressing on
+   the element-direct path, the iOS warm — and the moment the mixer armed the
+   SAME file could be on the wire three times over, beside the element's own
+   stream of it, with no way to call any of it off when the draw moved on.
+   This is the one place bytes come from now. A URL is fetched at most once
+   per session; every reader holds a reference while it waits; a reader that
+   leaves (its signal) lets go, and the last one out of a fetch still in
+   flight aborts it; a track change aborts and drops everything not on a deck
+   any more (abortAllBut). Finished bytes stay, within KEEP_B, for the next
+   reader of the same song — the detail wave, then the pressing — newest
+   kept. Each reader gets its OWN ArrayBuffer (decodeAudioData detaches what
+   it is handed); the blob underneath is shared. */
+const BYTES = {
+  KEEP_B: 64 * 1024 * 1024,         // finished bytes held for later readers, at most
+  _m: new Map(),                    // url -> { promise: Promise<Blob>, refs, ac, done, size, at }
+  _abortErr(){ try { return new DOMException('aborted', 'AbortError'); } catch (e){ const x = new Error('aborted'); x.name = 'AbortError'; return x; } },
+  _entry(url){
+    let e = this._m.get(url);
+    if (e) return e;
+    const ac = new AbortController();
+    e = { refs: 0, ac, done: false, size: 0, at: performance.now(), promise: null };
+    e.promise = fetch(url, { signal: ac.signal })
+      .then(r => { if (!r.ok) throw new Error('fetch ' + r.status); return r.blob(); })
+      .then(b => { e.done = true; e.size = b.size; this._trim(); return b; });
+    e.promise.catch(() => { if (this._m.get(url) === e) this._m.delete(url); });   // a failure is not remembered
+    this._m.set(url, e);
+    return e;
+  },
+  get(url, opts){
+    const signal = opts && opts.signal;
+    if (!url) return Promise.reject(new Error('no url'));
+    if (signal && signal.aborted) return Promise.reject(this._abortErr());
+    const e = this._entry(url);
+    e.refs++;
+    let left = false;
+    const leave = () => { if (!left){ left = true; this.release(url, e); } };
+    return new Promise((res, rej) => {
+      const onAbort = () => { leave(); rej(this._abortErr()); };
+      if (signal) signal.addEventListener('abort', onAbort, { once: true });
+      const off = () => { if (signal) signal.removeEventListener('abort', onAbort); leave(); };
+      e.promise.then(b => b.arrayBuffer()).then(v => { off(); res(v); }, err => { off(); rej(err); });
+    });
+  },
+  // bytes that arrived some other way (the iOS warm) are shared from here on
+  put(url, blob){
+    if (!url || !blob) return;
+    const old = this._m.get(url);
+    if (old && !old.done){ try { old.ac.abort(); } catch (e){} }
+    this._m.set(url, { refs: 0, ac: null, done: true, size: blob.size || 0, at: performance.now(), promise: Promise.resolve(blob) });
+    this._trim();
+  },
+  release(url, e){
+    const cur = this._m.get(url);
+    if (!cur || (e && cur !== e)) return;
+    cur.refs = Math.max(0, cur.refs - 1);
+    if (cur.refs === 0 && !cur.done){ try { cur.ac && cur.ac.abort(); } catch (e2){} this._m.delete(url); }
+  },
+  abortAllBut(keys){
+    for (const [url, e] of [...this._m]){
+      if (keys && keys.includes(url)) continue;
+      if (!e.done){ try { e.ac && e.ac.abort(); } catch (e2){} }
+      this._m.delete(url);
+    }
+  },
+  _trim(){
+    let total = 0;
+    for (const e of this._m.values()) if (e.done) total += e.size;
+    if (total <= this.KEEP_B) return;
+    const done = [...this._m].filter(([, e]) => e.done && e.refs === 0).sort((a, b) => a[1].at - b[1].at);
+    for (const [url, e] of done){ if (total <= this.KEEP_B) break; this._m.delete(url); total -= e.size; }
+  },
+};
 /* THE DECODER'S OWN CONTEXT. decodeAudioData resamples to the rate of the
    context it is called on, so a 12 kHz offline context hands back a song at
    under a third of the PCM a 44.1 kHz decode does — and the band split below
@@ -22867,9 +23174,7 @@ function computePeaks(track){
 async function _peaksDecode(track){
   if (track._peaks || track._peaksErr){ track._peaksPending = false; return; }
   try {
-    const res = await fetch(track.url);
-    if (!res.ok) throw new Error('fetch ' + res.status);
-    let buf = await res.arrayBuffer();
+    let buf = await BYTES.get(track.url);          // shared with the booth's readers of the same song
     const ac = peaksContext();
     if (!ac) throw new Error('no audio context to decode with');
     let audio = await ac.decodeAudioData(buf);
@@ -22915,7 +23220,7 @@ async function _peaksDecode(track){
     track._bands = { l: bL, m: bM, h: bH };
     track._bmax = { l: mL, m: mM, h: mH };
     audio = null;                                   // release the full decoded PCM at once
-  } catch (e){ track._peaksErr = true; }
+  } catch (e){ if (!(e && e.name === 'AbortError')) track._peaksErr = true; }   // called off is not failed: asked again later
   track._peaksPending = false;
 }
 
@@ -23913,8 +24218,54 @@ const FX = {
     const b = loopInPoint(d.a.currentTime, this.grid(), this.bpm(), beats, tape);
     this.loop = { start: b.start, len: b.len, beats, roll: !!roll, heldFrom: d.a.currentTime };
     LOOPER.arm(b.start, b.len, roll ? 'roll' : 'loop');
+    this._legacyPoll();
     this.hand();
     HAPTICS.pulse(true);
+  },
+  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK. Where the tape cannot hold the
+     loop (iOS, or a LOOPER that could not open) the wrap is a seek on the
+     audible element, and from the animation frame it landed as late as the
+     frame was long — a janky frame spliced a stutter into every lap. Like the
+     seam's _armFirePoll, a 4 ms timer is its own task and reads the deck
+     fresh; loopTick stays as the floor for when timers are throttled. The
+     timer lets itself go the moment there is no loop to hold. */
+  _legacyPoll(){
+    if (this._loopT) return;
+    this._loopT = setInterval(() => {
+      const L = this.loop, d = activeDeck();
+      if (!L || !d || !player.playing){ clearInterval(this._loopT); this._loopT = null; return; }
+      if (LOOPER.on) return;                        // the tape holds it: nothing is done to the playhead
+      this._wrapLegacy(L, d);
+    }, 4);
+  },
+  _wrapLegacy(L, d){
+    /* THE LAST LAP BEFORE A HANDOVER IS NOT WRAPPED. A source has already been
+       scheduled to come in exactly when the deck reaches the out-point, so
+       pulling the playhead back twelve milliseconds early — which is what this
+       loop does, and rightly, when it is the thing holding the loop — would
+       splice those twelve milliseconds into the join and undo the whole point of
+       the exercise. Let it run to the out-point; the tape is waiting there. */
+    /* …BUT ONLY THE LAST LAP. A handover the tape had to push on by whole
+       loops (loopLateHandover) lands a lap or more away, and the deck must
+       still wrap at the out-point in between — the push assumed exactly that
+       ("one more perfectly ordinary cycle"). Suppressing the wrap for the whole
+       wait let the deck run straight past the loop, audibly, for a lap, on any
+       renderer slow enough for the tape's poll to beat the frame to the
+       out-point. */
+    if (LOOPER.pending && AE.ctx && LOOPER.handAt - AE.ctx.currentTime < L.len * 0.5) return;
+    const ct = d.a.currentTime;
+    if (ct >= L.start + L.len - 0.012){
+      // a roll's held time is counted along the playhead; the lap's last
+      // stretch is booked here, before the wrap moves the mark (loopTick books
+      // the rest, from the same mark, on the frame)
+      if (L.roll && L._last != null) L.heldFor = (L.heldFor || 0) + Math.max(0, ct - L._last);
+      // carry the overshoot across the wrap so the loop cannot drift late — see
+      // loopWrap. A tick that fires 40 ms after the end is not an excuse to make
+      // this cycle 40 ms longer than the last one.
+      const to = loopWrap(ct, L.start, L.len);
+      try { d.a.currentTime = to; } catch (e){}
+      L._last = to;
+    }
   },
   resizeLoop(dir){
     if (!this.loop) return;
@@ -23981,28 +24332,8 @@ const FX = {
     }
     if (L.roll) L.heldFor = (L.heldFor || 0) + (L._last != null ? Math.max(0, d.a.currentTime - L._last) : 0);
     L._last = d.a.currentTime;
-    /* THE LAST LAP BEFORE A HANDOVER IS NOT WRAPPED. A source has already been
-       scheduled to come in exactly when the deck reaches the out-point, so
-       pulling the playhead back twelve milliseconds early — which is what this
-       loop does, and rightly, when it is the thing holding the loop — would
-       splice those twelve milliseconds into the join and undo the whole point of
-       the exercise. Let it run to the out-point; the tape is waiting there. */
-    /* …BUT ONLY THE LAST LAP. A handover the tape had to push on by whole
-       loops (loopLateHandover) lands a lap or more away, and the deck must
-       still wrap at the out-point in between — the push assumed exactly that
-       ("one more perfectly ordinary cycle"). Suppressing the wrap for the whole
-       wait let the deck run straight past the loop, audibly, for a lap, on any
-       renderer slow enough for the tape's poll to beat the frame to the
-       out-point. */
-    if (LOOPER.pending && AE.ctx && LOOPER.handAt - AE.ctx.currentTime < L.len * 0.5) return;
-    if (d.a.currentTime >= L.start + L.len - 0.012){
-      // carry the overshoot across the wrap so the loop cannot drift late — see
-      // loopWrap. A tick that fires 40 ms after the end is not an excuse to make
-      // this cycle 40 ms longer than the last one.
-      const to = loopWrap(d.a.currentTime, L.start, L.len);
-      try { d.a.currentTime = to; } catch (e){}
-      L._last = to;
-    }
+    this._legacyPoll();                             // (re)armed here too: a loop that outlived a pause gets its clock back
+    this._wrapLegacy(L, d);                         // the frame is the floor; the 4 ms poll usually got here first
   },
 
   /* ---- the brake ------------------------------------------------------ */
@@ -24358,17 +24689,33 @@ const VINYL = {
     this.songNode = node;
     return node;
   },
-  // press the record now playing (idempotent: a frame may call it every time it draws)
+  /* PRESS THE RECORD NOW PLAYING. Called once when the booth opens and once
+     per track change (not from every draw, as it used to be): what it costs
+     is a whole-song download and a whole-song decode on the element-direct
+     path, i.e. on the phone, beside the element's own stream of the very
+     same song. So it waits until that stream is done — the deck holds
+     everything to its end — and declines outright on a device that reports
+     under 4 GB, where a song of PCM is what gets the page jettisoned. Not
+     ready yet is not never: while the booth is open it asks itself again in
+     a few seconds. The bytes come from the shared memo (the iOS warm has
+     often already fetched them), and a pressing that is overtaken by the next
+     track is aborted, not finished for nobody. */
   pressSong(){
+    clearTimeout(this._pressT); this._pressT = null;
     if (!this.canSong()) return;
     const key = this._songKey(), tr = player.tracks[player.cur];
     if (!key || !tr || (this._song && this._song.key === key)) return;
     if (this._song) this.ejectSong();
     const d = activeDeck();
     const dur = (d && isFinite(d.a.duration) && d.a.duration > 0) ? d.a.duration : (tr.duration || 0);
-    if (!(dur > 0)) return;                       // not even the length is known yet: the next frame asks again
+    if (!(dur > 0)){ this._pressLater(); return; }   // not even the length is known yet
+    const mem = navigator.deviceMemory;
+    if (mem != null && isFinite(mem) && mem < 4){ this._song = { key, state: 'failed', sr: 0 }; return; }
+    if (d && !/^(blob|data):/i.test(tr.url || '')
+        && !seamBuffered(d.a.buffered, d.a.currentTime, dur - d.a.currentTime - 0.5)){ this._pressLater(); return; }
     const tsr = vinylSongRate(dur);
-    const s = this._song = { key, state: tsr ? 'loading' : 'failed', sr: tsr };
+    const ctl = new AbortController();
+    const s = this._song = { key, state: tsr ? 'loading' : 'failed', sr: tsr, ac: ctl };
     if (!tsr) return;
     // the ringer switch mutes web audio on iOS unless the session says this is playback, which it is
     try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e){}
@@ -24378,9 +24725,7 @@ const VINYL = {
       if (this._song !== s) return;
       try {
         await this._seatSong();
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('fetch ' + res.status);
-        let buf = await res.arrayBuffer();
+        let buf = await BYTES.get(url, { signal: ctl.signal });   // its own copy: the decode may detach it
         if (this._song !== s) return;
         const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
         let ac = null; try { ac = Off ? new Off(2, 1, tsr) : null; } catch (e){ ac = null; }
@@ -24399,7 +24744,14 @@ const VINYL = {
       } catch (e){ if (this._song === s) s.state = 'failed'; }
     }).catch(() => {});
   },
+  // not ready to press yet: ask again shortly, for as long as the booth is open
+  _pressLater(){
+    clearTimeout(this._pressT); this._pressT = null;
+    if (typeof BOOTH !== 'undefined' && BOOTH.open) this._pressT = setTimeout(() => this.pressSong(), 5000);
+  },
   ejectSong(){
+    clearTimeout(this._pressT); this._pressT = null;
+    if (this._song && this._song.ac){ try { this._song.ac.abort(); } catch (e){} }   // a pressing overtaken is called off
     if (this.songMode()) this.drop();
     this._song = null;
     window.__mb8VinylSong = null;
@@ -24945,6 +25297,7 @@ function ramp(param, to, secs){
    pinch or double-tap to zoom.
    ================================================================ */
 const DECKWAVE_TILE = 256;                   // device pixels per cached tile
+const DECKWAVE_RETRIES = 3, DECKWAVE_RETRY_MS = 30000;   // a failed detail is asked for again, a few times, not never
 const DECKWAVE = {
   ZOOMS: [2, 4, 8, 16, 32],                  // seconds across the strip
   zoom: 2,
@@ -24972,9 +25325,30 @@ const DECKWAVE = {
   // ask for a track's detail (idempotent: the booth asks every frame)
   need(tr){
     const k = this.key(tr);
-    if (!k || !tr.url || this._det.has(k) || (AE.mic && AE.mic.on)) return;
+    if (!k || !tr.url || (AE.mic && AE.mic.on)) return;
+    const cur = this._det.get(k);
+    // held, pending, or failed too recently / too often: nothing to do. An
+    // 'err' used to block a track for the whole session — one bad response
+    // at the wrong moment and that lane never drew again.
+    if (cur && !(cur.state === 'err' && (cur.tries || 0) < DECKWAVE_RETRIES
+                 && performance.now() - (cur.at || 0) > DECKWAVE_RETRY_MS)) return;
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return;   // never across a live seam
-    const job = { state: 'pending' };
+    /* NOT WHILE THE MUSIC IS STILL ARRIVING. This fetch is a second full
+       download of a song — of the song that is PLAYING, for lane A, and of
+       the one the mixer just armed, for lane B, on the same pipe as the
+       element's own stream of A, which is exactly what ran A dry halfway
+       through. So no detail is fetched over the network until the active
+       deck holds everything to its own end; the lane draws from the shipped
+       score (waveFromEnv) meanwhile, and the booth asks again every frame,
+       so the detail starts itself the moment the pipe is free. Object URLs
+       (local files, the iOS warm) cost no network and are not held. */
+    if (!/^(blob|data):/i.test(tr.url)){
+      const d = activeDeck();
+      if (!d || !isFinite(d.a.duration) || !(d.a.duration > 0)) return;
+      const t = d.a.currentTime;
+      if (!seamBuffered(d.a.buffered, t, d.a.duration - t - 0.5)) return;
+    }
+    const job = { state: 'pending', ac: new AbortController(), tries: ((cur && cur.tries) || 0) + 1 };
     this._det.set(k, job);
     _peaksChain = _peaksChain.then(() => this._build(tr, k, job)).catch(() => {});
   },
@@ -24982,16 +25356,28 @@ const DECKWAVE = {
   _trim(keep){
     for (const k of [...this._det.keys()]){
       if (this._det.size <= 4) break;
-      if (!keep.includes(k)) { this._det.delete(k); this._dropTiles(k); }
+      if (!keep.includes(k)) this._forget(k);
+    }
+  },
+  _forget(k){
+    const v = this._det.get(k);
+    if (v && v.ac){ try { v.ac.abort(); } catch (e){} }   // a fetch still in flight is called off with it
+    this._det.delete(k); this._dropTiles(k);
+  },
+  // a track change: every detail still being FETCHED for a song no longer on a deck is called off
+  cancelAllBut(keys){
+    for (const [k, v] of [...this._det]){
+      if (!v || v.state !== 'pending' || (keys && keys.includes(k))) continue;
+      this._forget(k);
     }
   },
   _dropTiles(k){ for (const tk of [...this._tiles.keys()]) if (tk.startsWith(k + '|')) this._tiles.delete(tk); },
   async _build(tr, k, job){
     if (this._det.get(k) !== job) return;
     try {
-      const res = await fetch(tr.url);
-      if (!res.ok) throw new Error('fetch ' + res.status);
-      let buf = await res.arrayBuffer();
+      // shared with the pressing and the overview of the same song; its own copy, so the decode may detach it
+      let buf = await BYTES.get(tr.url, { signal: job.ac.signal });
+      if (this._det.get(k) !== job) return;
       const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
       let ac = null; try { ac = Off ? new Off(1, 1, WAVE_SR) : null; } catch (e){ ac = null; }
       if (!ac && !AE.ctx) throw new Error('no decoder');
@@ -25006,7 +25392,12 @@ const DECKWAVE = {
       if (!det) throw new Error('analysis');
       this._det.set(k, det); this._dropTiles(k);
       window.__mb8WaveDetail = { key: k, n: det.n, hz: det.hz };   // the probes read the landing
-    } catch (e){ if (this._det.get(k) === job) this._det.set(k, { state: 'err' }); }
+    } catch (e){
+      if (this._det.get(k) !== job) return;
+      // called off (a track change) is not a failure: the next ask starts afresh
+      if (e && e.name === 'AbortError') this._det.delete(k);
+      else this._det.set(k, { state: 'err', tries: job.tries, at: performance.now() });
+    }
   },
   _analyse(chans, sr){
     if (!this._broken && typeof Worker === 'function'){
@@ -25306,6 +25697,7 @@ const BOOTH = {
       el.booth.classList.add('open');
       if (!this._fxWired){ this._fxWired = true; wireFxRack(); wireDeckWave(); }
       FXPADS.render(); syncFxHud();
+      if (VINYL.songMode()) VINYL.pressSong();   // element-direct: the record is pressed while the booth is open
       this.draw();
     } else {
       // a real close, not a snap to display:none — boothOut plays while the
@@ -25733,7 +26125,6 @@ const BOOTH = {
   },
   draw(){
     if (!this.open || !el.boothCv) return;
-    if (VINYL.songMode()) VINYL.pressSong();   // element-direct: the record is pressed while the booth is open
     const nowMs = performance.now();
     const dts = Math.min(0.1, (nowMs - (this._lastDraw || nowMs)) / 1000);
     this._lastDraw = nowMs;

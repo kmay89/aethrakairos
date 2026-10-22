@@ -19,7 +19,7 @@ function block(name){
   return m[1];
 }
 const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
-  '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_GIVE_UP, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
+  '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_RESEEK_S, STARVE_GIVE_UP, bufferedEndAt, prefetchMayRun, PREFETCH_AHEAD_S, seamWarmDue, SEAM_WARM_S, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' SIGNATURE_RE, isSignature, signatureFirst,' +
@@ -6621,12 +6621,29 @@ test('watchdogStep: frozen with data — nudge at 3 s, reload at 7 s', () => {
   assert.equal(v[3], 'nudge');
   assert.equal(v[7], 'reload');
 });
-test('watchdogStep: a stream starved mid-track is reloaded, not left spinning', () => {
+test('watchdogStep: a stream starved mid-track is healed, not left spinning — the cheap heal first', () => {
   const s = wdState();
   wdRun(s, [{ t: 91, buf: 91, rs: 4 }]);            // playing, then the bytes stop
   const v = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91, buf: 91, rs: 2 })));
-  assert.equal(v[v.length - 1], 'reload', 'the old watchdog waved readyState < 3 through forever');
+  assert.equal(v[v.length - 1], 'reseek', 'the old watchdog waved readyState < 3 through forever; the first heal is a reseek, never the reload');
   assert.ok(v.slice(0, -1).every(x => x === 'wait'));
+  // …and only a further STARVE_RESEEK_S seconds with nothing new earn the hard reload
+  const w = wdRun(s, Array.from({ length: S.STARVE_RESEEK_S }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.ok(w.slice(0, -1).every(x => x === 'wait'), 'no reload inside the reseek window: ' + w.join(','));
+  assert.equal(w[w.length - 1], 'reload');
+  assert.equal(s.heals, 1, 'reseeks do not spend the give-up budget; reloads do');
+});
+test('watchdogStep: growth after the reseek is a cured stream — the count starts over, no reload', () => {
+  const s = wdState();
+  wdRun(s, [{ t: 91, buf: 91, rs: 4 }]);
+  const v = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.equal(v[v.length - 1], 'reseek');
+  assert.equal(wdRun(s, [{ t: 91.001, buf: 93, rs: 2 }])[0], 'ok', 'the fresh ranged request is landing: a slow pipe, never a dead one');
+  assert.equal(s.heals, 0);
+  // a second starvation is judged from scratch: twelve seconds, then a reseek again — not a reload
+  const w = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91.001, buf: 93, rs: 2 })));
+  assert.equal(w.filter(x => x === 'reload').length, 0);
+  assert.equal(w[w.length - 1], 'reseek');
 });
 test('watchdogStep: a starved buffer that is still GROWING is a slow pipe, never reloaded', () => {
   const s = wdState();
@@ -6646,14 +6663,16 @@ test('watchdogStep: offline, a starved deck waits without spending its budget', 
 });
 test('watchdogStep: a track that keeps starving with no motion is skipped so the set goes on', () => {
   const s = wdState();
-  const n = S.STARVE_RELOAD_S * (S.STARVE_GIVE_UP + 1);
+  // each round is a reseek, then — nothing having come of it — a reload
+  const n = (S.STARVE_RELOAD_S + S.STARVE_RESEEK_S) * (S.STARVE_GIVE_UP + 1);
   const v = wdRun(s, Array.from({ length: n + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.equal(v.filter(x => x === 'reseek').length, S.STARVE_GIVE_UP + 1);
   assert.equal(v.filter(x => x === 'reload').length, S.STARVE_GIVE_UP);
   assert.equal(v.filter(x => x === 'skip').length, 1);
 });
 test('watchdogStep: motion after a reload refills the give-up budget', () => {
   const s = wdState();
-  wdRun(s, Array.from({ length: S.STARVE_RELOAD_S + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
+  wdRun(s, Array.from({ length: S.STARVE_RELOAD_S + S.STARVE_RESEEK_S + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
   assert.equal(s.heals, 1);
   wdRun(s, [{ t: 92, buf: 100, rs: 4 }]);
   assert.equal(s.heals, 0);
@@ -10268,6 +10287,73 @@ await Promise.all(pending);
     for (const v of [a, c, d, S.synDealSeed(null, 0), S.synDealSeed('', 99)]) assert.ok(v >= 0 && v < 1);
   });
 }
+
+// ---- mid-track stability: liveness, the buffer under the playhead, the paced warm, the two-stage warm ----
+test('watchdogStep: a tight loop with the clock ticking is never reloaded (liveness from timeupdate)', () => {
+  /* a 1/8-beat pad at 128 BPM is a 59 ms loop: every 1 Hz position sample
+     lands inside the 40 ms "moved" window, the file is fully buffered so
+     nothing grows, and seven such looks used to earn the pad a reload */
+  const s = wdState();
+  const v = wdRun(s, Array.from({ length: 40 }, (_, k) => ({ t: 50 + (k % 2) * 0.03, buf: 200, rs: 4, moved: true })));
+  assert.ok(v.every(x => x === 'ok'), 'ticking timeupdates are motion: ' + v.join(','));
+  // and the same frames WITHOUT the override still read as frozen — the delta path is the fallback
+  const s2 = wdState();
+  const w = wdRun(s2, Array.from({ length: 8 }, (_, k) => ({ t: 50 + (k % 2) * 0.03, buf: 200, rs: 4 })));
+  assert.equal(w[7], 'reload', 'the delta-only path is unchanged for callers that do not count ticks');
+});
+test('watchdogStep: a false "moved" cannot hide a starved stream, a true one cannot be overridden by the delta', () => {
+  const s = wdState();
+  wdRun(s, [{ t: 91, buf: 91, rs: 4 }]);
+  const v = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91, buf: 91, rs: 2, moved: false })));
+  assert.equal(v[v.length - 1], 'reseek');
+  const s2 = wdState();
+  wdRun(s2, [{ t: 10, buf: 30, rs: 4 }]);
+  assert.equal(wdRun(s2, [{ t: 10, buf: 30, rs: 4, moved: true }])[0], 'ok');
+});
+test('bufferedEndAt: the range under the playhead, not the last island', () => {
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 10), 30);
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 120), 140);
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 60), 0, 'in a hole: nothing ahead of the playhead yet');
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 30.01), 30, 'the edge is within tolerance');
+  assert.equal(S.bufferedEndAt([], 5), 0);
+  assert.equal(S.bufferedEndAt(null, 5), 0);
+});
+test('bufferedEndAt + watchdogStep: a scrub into a hole on a slow pipe is a filling buffer, never a reload', () => {
+  /* ranges [[0,30],[100,140]], the listener scrubbed to 60: the browser fills
+     a NEW range around the playhead while the old tail sits at 140. Read by
+     the last range the buffer "never grew" and twelve seconds later a healthy
+     download was reloaded; read under the playhead it is plainly growing. */
+  const frames = [[[0, 30], [100, 140]]];
+  // the ranged request starts at the seek point, so the new island grows from the playhead outward
+  for (let k = 1; k <= 14; k++) frames.push([[0, 30], [59.9, 59.9 + k * 1.5], [100, 140]]);
+  const s = wdState(), old = wdState();
+  wdRun(s, [{ t: 59.9, buf: 30, rs: 4 }]); wdRun(old, [{ t: 59.9, buf: 30, rs: 4 }]);
+  const v = frames.map(r => S.watchdogStep(s, { t: 60, buf: S.bufferedEndAt(r, 60), rs: 2, played: true, online: true }));
+  const w = frames.map(r => S.watchdogStep(old, { t: 60, buf: r[r.length - 1][1], rs: 2, played: true, online: true }));
+  assert.ok(v.slice(1).every(x => x === 'ok'), 'growth under the playhead is a slow pipe: ' + v.join(','));
+  assert.ok(w.includes('reseek'), 'the last-range read is what used to heal a healthy stream: ' + w.join(','));
+});
+test('prefetchMayRun: the warm takes the pipe only when the deck can spare it', () => {
+  assert.equal(S.prefetchMayRun({ bufAhead: 30, readyState: 3, left: 120 }), true, 'ahead enough');
+  assert.equal(S.prefetchMayRun({ bufAhead: 8, readyState: 3, left: 120 }), false, 'the deck needs the pipe more');
+  assert.equal(S.prefetchMayRun({ bufAhead: 8, readyState: 4, left: 120 }), true, 'the browser promises play-through');
+  assert.equal(S.prefetchMayRun({ bufAhead: 8, readyState: 3, left: 8.2 }), true, 'the rest of the song is in hand');
+  assert.equal(S.prefetchMayRun({ bufAhead: 30, readyState: 4, left: 120, waiting: true }), false, 'a waiting element holds the warm outright');
+  assert.equal(S.prefetchMayRun({ bufAhead: 22, readyState: 3, left: 120, need: 25 }), false, 'between chunks the bar is higher');
+  assert.equal(S.prefetchMayRun({ bufAhead: 22, readyState: 3, left: 120, need: 20 }), true, 'at the start it is PREFETCH_AHEAD_S');
+  assert.equal(S.PREFETCH_AHEAD_S, 20);
+  assert.equal(S.prefetchMayRun({}), false, 'nothing known about the deck: hold');
+});
+test('seamWarmDue: deck B takes the pipe once A is done with it, or when the exit is in reach', () => {
+  assert.equal(S.seamWarmDue({ aDone: true, exitIn: 85, seconds: 16 }), true, 'A fully buffered: warm now');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 85, seconds: 16 }), false, 'A still filling, exit far: headers only');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 19, seconds: 4 }), true, 'inside the floor');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 25, seconds: 16 }), true, 'a long seam needs its length plus ten');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 27, seconds: 16 }), false);
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: NaN }), false);
+  assert.equal(S.seamWarmDue(null), false);
+  assert.equal(S.SEAM_WARM_S, 20);
+});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
