@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { auditDevelop, dieVerdict } from '../tools/develop_audit.mjs';
 import { dirname, join } from 'path';
 import assert from 'assert';
 
@@ -75,7 +76,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
-  ' roomDwellBars, PACE, paceGate, SURGE, surgeShouldRequest, DEVELOP, developPlan,' +
+  ' roomDwellBars, PACE, paceGate, SURGE, surgeShouldRequest, DEVELOP, developPlan, DEVELOP_DICE, developDice,' +
   ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, cherenkovRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
@@ -11015,6 +11016,107 @@ test('developPlan: a room\'s second act at 45 % and 80 % of the want, eased over
   assert.ok(Math.abs(S.developPlan({ dwell: 29, want: 30, done: 0 }).ease - 4) < 1e-9, 'no grid: two two-second bars');
   assert.deepEqual(S.DEVELOP, { at: [0.45, 0.8], easeBars: 2, lensEveryPhrases: 2 });
 });
+test('develop dice: opt-in by an audited table — a die a shader floors, tests, hashes or spins with the clock is never swept', () => {
+  // the reader, on the shapes the review found strobing through a two-bar sweep…
+  for (const [src, die, why] of [
+    ['float teeth = 22.0 + floor(uVarA * 14.0);', 'uVarA', 'a tooth count'],
+    ['float spin = uTime * 0.3 * (uVarC < 0.5 ? -1.0 : 1.0);', 'uVarC', 'a spin sign'],
+    ['float h = hash21(cell + floor(uVarA * 53.0));', 'uVarA', 'SILICON\'s re-deal'],
+    ['float ang = aT * 6.28 + uTime * 0.05 * (uVarB * 2.0 - 1.0) * 2.0;', 'uVarB', 'a rate times the clock'],
+    ['float t = uTime * 0.2; float a = t * (0.5 + uVarA);', 'uVarA', '…through a local'],
+    ['int form = int(U.roll0 * 3.999);', 'roll0', 'a Metal form'],
+    ['float dir = mix(-1.0, 1.0, step(0.5, U.roll1));', 'roll1', 'a Metal direction'],
+    ['float k = U.roll2 < 0.5 ? 6.0 : 8.0;', 'roll2', 'the lens fold'],
+    ['if (U.roll0 > 0.4) col = float3(1.0);', 'roll0', 'a brace-less switch'],
+    ['col *= 0.5 + 0.5 * sin(uVarA * 50.0 + vUv.x);', 'uVarA', 'a steep periodic read flickers'],
+    ['inline float hsh(float x) { return fract(sin(x * 12.9898) * 43758.5); }\nfragment float4 f() { float g = hsh(U.roll0 * 7.0); }', 'roll0', 'a hash behind a helper'],
+  ]) assert.equal(dieVerdict(src, die).smooth, false, 'discrete: ' + why);
+  // …and on the ones that breathe
+  for (const [src, die, why] of [
+    ['float R = 6.5 + uVarA * 3.0 + sin(ang * 3.0 + uTime * 0.3) * 0.4;', 'uVarA', 'a radius beside the clock'],
+    ['float lean = (U.roll0 - 0.5) * 0.5; float2 s2 = float2(lean * v * v, v * 1.5);', 'roll0', 'a lean'],
+    ['p.x += sin(uTime * 0.6 + p.y * 0.25 + uVarB * 6.2831853) * 0.05;', 'uVarB', 'a phase inside a bounded sway'],
+    ['float u = dot(pos.xy, d); if (u > 0.3 + U.roll0 * 0.2) continue;', 'roll0', 'an edge that slides across the pixels'],
+  ]) assert.equal(dieVerdict(src, die).smooth, true, 'smooth: ' + why);
+  assert.equal(dieVerdict('const varU = { uVarA: { value: Math.random() } }; varU.uVarA.value = Math.random();', 'uVarA').smooth, false,
+    'a die that is only declared and dealt is not read — nothing to breathe');
+  // the table: rooms with a smooth die on BOTH stages, each stage easing its own; never C
+  const audit = auditDevelop(root);
+  const keys = Object.keys(S.DEVELOP_DICE);
+  for (const k of keys){
+    const row = S.DEVELOP_DICE[k];
+    assert.ok(S.SCENE_KEYS.includes(k), k + ' is a room');
+    assert.ok(row.web && row.tv, k + ' develops on both stages or on neither');
+    for (const [stage, letters] of [['web', row.web], ['tv', row.tv]])
+      for (const L of letters){
+        assert.ok(L === 'A' || L === 'B', k + '.' + stage + ': only A and B are ever eased (the TV\'s roll2 deals the lens fold)');
+        assert.ok((audit.smooth[stage][k] || '').includes(L), `${k}.${stage}.${L} is read smoothly — ` + JSON.stringify(audit.detail[k][L][stage]));
+      }
+  }
+  // the rooms the review named stay out, on the reader's own say-so
+  assert.equal(audit.detail.circuit.A.web.smooth, false, 'SILICON\'s uVarA is a hash seed');
+  assert.equal(audit.detail.circuit.B.web.smooth, false, 'SILICON\'s uVarB is a grid offset');
+  assert.equal(audit.detail.spiral.A.tv.smooth, false, 'room_spiral\'s roll0 is an arm count');
+  assert.equal(audit.detail.spiral.B.tv.smooth, false, 'room_spiral\'s roll1 is a direction');
+  // the accessor
+  assert.deepEqual(S.developDice('fern', 'web'), S.DEVELOP_DICE.fern.web.split(''));
+  assert.deepEqual(S.developDice('circuit', 'web'), [], 'a room not listed keeps its face');
+  assert.deepEqual(S.developDice('toString', 'web'), [], 'no prototype key is a room');
+  assert.deepEqual(S.developDice('fern', 'nowhere'), []);
+  // parity: the TV's table is the web's `tv` column, key for key
+  const rooms = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Rooms.swift'), 'utf8');
+  const m = rooms.match(/static let developDice: \[String: String\] = \[([\s\S]*?)\n\s*\]/);
+  assert.ok(m, 'Director.developDice declared');
+  const tv = Object.fromEntries([...m[1].matchAll(/"([a-z0-9]+)":\s*"([AB]*)"/g)].map(x => [x[1], x[2]]));
+  assert.deepEqual(Object.keys(tv).sort(), keys.slice().sort(), 'the same rooms develop on both stages');
+  for (const k of keys) assert.equal(tv[k], S.DEVELOP_DICE[k].tv, k + ': the TV eases the web table\'s tv dice');
+  assert.ok(rooms.includes('return SIMD3<Float>(s.contains("A") ? 1 : 0, s.contains("B") ? 1 : 0, 0)'), 'the TV mask never eases roll2');
+});
+test('LENS auto: a strained device drops the glass at once — the two-phrase hold and the pace gate are for musical swaps', () => {
+  const at = html.indexOf("  autoTick(dt){\n    if (this.active !== 'auto') return;\n    const wdt = (typeof director");
+  assert.ok(at > 0, 'LENS.autoTick found');
+  const end = html.indexOf('\n  },\n', at);
+  const body = html.slice(at + '  autoTick'.length, end + 4);
+  const make = new Function('PERF', 'director', 'DEVELOP', 'paceGate', 'reducedMotion', 'return function' + body + ';');
+  const DEV = { lensEveryPhrases: 2 };
+  const dir = { wallDt: 0.016, barLen: () => 2.0, sinceChange: 3, act: 2 };
+  const gate = () => ({ ok: false });
+  const lens = over => Object.assign({ active: 'auto', _holdT: 5, _lookT: 0, _resolved: 'wave+mirrors', _deals: 4,
+    autoPick(){ return 'none'; }, sectors: 0, _dealSectors(){ this.sectors++; }, painted: 0, paint(){ this.painted++; } }, over);
+  // strained: the glass goes at once, held look or not, gate shut or not
+  let L = lens(), tick = make({ struggling: true }, dir, DEV, gate, false);
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'none', 'the stack stands down on the first tick');
+  assert.equal(L._lookT, 0, 'and the look clock restarts');
+  assert.equal(L._deals, 4, 'not a dealt look: no salt');
+  assert.equal(L.painted, 1);
+  tick.call(L, 0.016);
+  assert.equal(L.painted, 1, 'once: clean glass stays clean, no repaint per frame');
+  // healthy: the same answer waits out the hold, the look and the gate exactly as before
+  L = lens(); tick = make({ struggling: false }, dir, DEV, gate, false);
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'wave+mirrors', 'a musical change still waits its turn');
+  L = lens({ _holdT: 0, _lookT: 1e9 });
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'wave+mirrors', '…and still answers the pace gate');
+  L = lens({ _holdT: 0, _lookT: 1e9 }); tick = make({ struggling: false }, dir, DEV, () => ({ ok: true }), false);
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'none', 'with the gate open and the look held, it swaps');
+  assert.equal(L._deals, 5, 'and a dealt swap salts');
+});
+test('tvOS: the RECENT shelf dedupes in its own set, a refreshed album tile redraws its sleeve, a pause mid-download is a pause', () => {
+  const home = readFileSync(join(root, 'tvos/AethraKairosTV/UI/HomeView.swift'), 'utf8');
+  const rt = home.slice(home.indexOf('private func recentTracks(in catalog: Catalog)'), home.indexOf('// MARK: - shared bits'));
+  assert.ok(rt.includes('guard shown.insert(track.id).inserted else { continue }'), 'one tile per track, counted in its own set');
+  assert.ok(!rt.includes('seen.contains(track.id)'), 'never in `seen`, which already holds the key that IS the id — that emptied the shelf');
+  const cover = home.slice(home.indexOf('private struct HomeAlbumCover: View'));
+  assert.ok(cover.includes('.onAppear { drawSleeve() }') && cover.includes('.onChange(of: album.tag) { _, _ in drawSleeve() }'),
+    'the sleeve follows the album at an offset-keyed slot, not the tile\'s lifetime');
+  const player = readFileSync(join(root, 'tvos/AethraKairosTV/Audio/Player.swift'), 'utf8');
+  const tg = player.slice(player.indexOf('    func toggle() {'), player.indexOf('    func play() {'));
+  assert.ok(/wantsPlayback\.toggle\(\)[\s\S]*if !wantsPlayback \{ isPlaying = false \}[\s\S]*return\n\s*\}/.test(tg),
+    'the materializing branch brings the fact (isPlaying) in step with a pause');
+});
 test('pacing wiring: every automatic path goes through the gate, the dwell is phrases, paused is not a reason, rooms develop', () => {
   for (const s of ["this._gate('seam', barLen)", "this._gate('stem', barLen).ok",
                    'sectionChangeClass(st.sections[this._lastSection], st.sections[si])',
@@ -11026,6 +11128,7 @@ test('pacing wiring: every automatic path goes through the gate, the dwell is ph
                    'const want = roomDwellBars({ mood: this.mood, energy: f.energy, ceil: this.ceil, reduced: reducedMotion,',
                    "if (live ? this.dwell > want : this.dwell > PACE.idleDwell) SEGUE.request(false, live ? 'dwell' : 'idle');",
                    'const dp = developPlan({ dwell: this.dwell, want, barLen, done: this._developed });',
+                   'if (live && !reducedMotion && !this._developPend){',
                    'director.developTick(dt, phraseWrapped, grid);', 'scenes.forEach(sceneDevelop);',
                    'if (!hard && reducedMotion) this.transDur = Math.max(this.transDur, 1.6);',
                    'const log = window.__mb8Changes || (window.__mb8Changes = []);', 'this.sinceChange = 0;',
@@ -11055,10 +11158,12 @@ test('pacing wiring: every automatic path goes through the gate, the dwell is ph
   assert.equal((html.match(/director\.pickScene\(\)/g) || []).length, 1, '…and the deal is drawn there only');
   // the generic second act: dice found by walking the materials, a tween that steps before the room's own update
   const dev = html.slice(html.indexOf('function sceneDevelop(s){'), html.indexOf('const director = {'));
-  for (const s of ["for (const k of ['uVarA', 'uVarB', 'uVarC'])", 'const k = 1 - Math.exp(-(dt > 0 ? dt : 0) / tween.tau);',
+  for (const s of ["const names = developDice(s.key, 'web').map(L => 'uVar' + L);", 'for (const k of names){',
+                   'const k = 1 - Math.exp(-(dt > 0 ? dt : 0) / tween.tau);',
                    "return typeof update === 'function' ? update.apply(this, arguments) : undefined;",
                    'tau: Math.max(0.5, (sec > 0 ? sec : 4) / 3)', 'if (!dice.length) return false;'])
     assert.ok(dev.includes(s), 'sceneDevelop: ' + s);
+  assert.ok(!dev.includes("['uVarA', 'uVarB', 'uVarC']"), 'no longer every die the materials own: only the audited ones');
 });
 test('pacing parity: the TV\'s Director carries the web\'s PACE, ROOM_DWELL, MOODS.dwell, ACTS.dwell, STEM_CUT, SECTION_CHANGE, SEGUE_BARS, SURGE and DEVELOP', () => {
   const rooms = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Rooms.swift'), 'utf8');
@@ -11104,6 +11209,12 @@ test('pacing parity: the TV\'s Director carries the web\'s PACE, ROOM_DWELL, MOO
   for (const s of ['Director.segueStyle(act: act, energy: energy, big: big, barLen: barLen, reduced: calmNow)',
                    'transitionDuration = max(calmNow ? Director.segueReducedFloor : Self.xformMinDur[mode], style.dur)',
                    'if let dev = director.takeDevelop() {', 'rollTau = max(0.5, dev.ease / 3)', 'currentRolls += (target - currentRolls) * k',
+                   'Director.developMask(key: Rooms.all[i].key)', 'rollTarget = currentRolls + (Self.freshRolls() - currentRolls) * mask',
+                   // a swipe is manual: the web's snappy 1.0 s (1.6 s calm), and the dwell read from the moment
+                   'transitionDuration = calmNow ? Director.segueReducedFloor : max(Self.xformMinDur[mode], 1.0)',
+                   'beginTransition(from: before, manual: true)',
+                   'director.step(delta, act: paceAct, energy: Double(dispEnergy), barLen: paceBarLen, reduced: calmNow)',
+                   'paceAct = actTarget', 'paceBarLen = barLen',
                    'kitAway: stemOut.awayAtLand', 'barLen: barLen, reduced: calmNow,', 'big: director.lastChangeBig, barLen: barLen)',
                    // the lens: half-phrase reads with hysteresis, a two-phrase hold, the gate, the salt on a swap only
                    'lensHold = 0.5 * phrase', 'prev: lensChoice, hyst: Self.lensHyst',
@@ -11119,6 +11230,12 @@ test('pacing parity: the TV\'s Director carries the web\'s PACE, ROOM_DWELL, MOO
   const hy = view.match(/lensHyst = ([0-9.]+)/);
   assert.ok(hy && Number(hy[1]) === S.LENS_HYST, 'the TV\'s lens hysteresis is LENS_HYST');
   assert.ok(!view.includes('transitionProgress + dt /'), 'the handover is no longer integrated from the clamped dt');
+  assert.ok(!/rollTarget = Self\.freshRolls\(\)\s*\n\s*rollTau/.test(view), 'the develop no longer deals all three dice');
+  assert.ok(!view.includes('beginTransition(from: before)\n'), 'a swipe no longer takes the music\'s segue length');
+  assert.ok(rooms.includes('if playing, !reduced, developPend == nil,'), 'the TV stands the develop down under reduce motion / calm');
+  assert.ok(rooms.includes('move(to: next, mood: moodNow, act: act, energy: energy, barLen: barLen, reduced: reduced)'), 'a swipe\'s dwell is read from the moment');
+  assert.ok(!rooms.includes('act: 1, energy: 0.5, barLen: 2.0, reduced: false)'), 'the fixed one-act, 120-BPM swipe dwell is gone');
+  assert.ok(html.includes('if (manual) this.transDur = 1.0;'), 'the web\'s manual blend the TV mirrors is still 1.0 s');
   assert.ok(rooms.includes('enum PaceKind { case dwell, section, drop, stem, seam, surge, idle, lens, mixset }'), 'the TV gate knows the minor kinds');
   assert.ok(dance.includes('landed = true; coil = 0; awayAtLand = away'), 'the TV\'s StemLight records the absence at the landing');
 });

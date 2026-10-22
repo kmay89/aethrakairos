@@ -809,8 +809,10 @@ struct Director {
 
         // THE ROOM'S SECOND ACT (developPlan): owed at 45 % and 80 % of the
         // want, handed to the renderer on the next phrase line (or after eight
-        // bars of waiting) so the room evolves on the music
-        if playing, developPend == nil,
+        // bars of waiting) so the room evolves on the music. Never under
+        // reduce motion or calm (`reduced`): a room changing its face unbidden
+        // is what those turn down — the web stands it down the same way
+        if playing, !reduced, developPend == nil,
            let dp = Director.developPlan(dwell: sinceEntry, want: dwellWant, barLen: bar, done: developed) {
             developed += 1
             developPend = dp
@@ -867,7 +869,9 @@ struct Director {
 
     /// Manual swipe: force the switch now, resetting the dwell. The person
     /// in the room outranks the director — no boundary gating, no taste math.
-    mutating func step(_ delta: Int) {
+    /// The swiped-to room's dwell is read from the moment the renderer passes
+    /// (the act, the energy, the bar, the calm tier), as a dealt room's is.
+    mutating func step(_ delta: Int, act: Int = 1, energy: Double = 0.5, barLen: Double = 2.0, reduced: Bool = false) {
         let n = Rooms.all.count
         guard n > 0, delta != 0 else { return }
         // walk one door at a time in the swipe's direction, passing straight
@@ -882,7 +886,7 @@ struct Director {
         }
         pending = nil
         lastChangeBig = false
-        move(to: next, mood: moodNow, act: 1, energy: 0.5, barLen: 2.0, reduced: false)
+        move(to: next, mood: moodNow, act: act, energy: energy, barLen: barLen, reduced: reduced)
     }
 
     // MARK: - internals
@@ -1033,6 +1037,27 @@ struct Director {
         let t = want > 0 ? dwell / want : 0
         guard t >= developAt[k] else { return nil }
         return (k, developEaseBars * (barLen > 0 ? barLen : 2.0))
+    }
+
+    /// WHICH DICE MAY BREATHE — the web's DEVELOP_DICE, its `tv` column. A
+    /// develop eases the dice over two bars, which is only a breath where the
+    /// room's Metal reads a die SMOOTHLY: `int(U.roll0 * 3.999)` forms,
+    /// `step(0.5, U.roll1)` directions and `hash11(U.roll1 * 13)` seeds strobe
+    /// through the sweep instead. So the develop is opt-in, per room, by this
+    /// table (tools/develop_audit.mjs reads every room on both stages; the
+    /// unit suite pins this table to the web's and to the audit). A room
+    /// develops on both stages or on neither; each stage eases its own smooth
+    /// dice. roll2 is never eased: it also deals the MIRRORS lens's fold
+    /// (Lens.metal), and a fold that flips mid-look is a cut.
+    static let developDice: [String: String] = [
+        "fern": "A",                                   // the stem's lean
+    ]
+
+    /// The develop's mask for the room `key`: 1 = ease toward the fresh deal,
+    /// 0 = hold. All zero for a room that keeps its face.
+    static func developMask(key: String) -> SIMD3<Float> {
+        let s = developDice[key] ?? ""
+        return SIMD3<Float>(s.contains("A") ? 1 : 0, s.contains("B") ? 1 : 0, 0)
     }
 
     // MARK: - the segue's length (the web's SEGUE_BARS / segueStyle)

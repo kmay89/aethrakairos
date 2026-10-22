@@ -6955,6 +6955,31 @@ function developPlan(o){
   const bar = s.barLen > 0 ? s.barLen : 2.0;
   return { step: k, ease: DEVELOP.easeBars * bar };
 }
+/* WHICH DICE MAY BREATHE. A develop eases the room's dice over two bars, and
+   that is only a breath where the shader reads a die SMOOTHLY — a radius, a
+   lean, a phase. Most rooms do not: a die floored into a tooth count, tested
+   against 0.5 for a spin sign, fed to a hash, or multiplied into the running
+   clock re-deals the whole field a dozen times a second while it is swept,
+   flips a direction with a hard jump of angle, or spins the room at strobe
+   speed — above the 3 Hz flash line, reduced motion or not. So the develop is
+   OPT-IN, by this table, which tools/develop_audit.mjs derives by reading
+   every room's shaders on both stages (and the unit suite re-reads, so a
+   shader edit that makes a listed die discrete fails). A room is listed only
+   when both stages hold a smooth die in it — it develops on both or on
+   neither — and each stage eases its own: the web's uVarA and the TV's roll0
+   are separate translations that deal different things in most rooms. Only
+   A and B are ever candidates: the TV's third die also deals the MIRRORS
+   lens's fold for every room, and a fold that flips mid-look is the cut a
+   develop exists to avoid. A room not listed still has its second act — the
+   lens and the ghost are re-dealt with the step — it just keeps its face. */
+const DEVELOP_DICE = {
+  fern: { web: 'B', tv: 'A' },   // web: the sway's phase; TV: the stem's lean
+};
+function developDice(key, stage){
+  const row = Object.prototype.hasOwnProperty.call(DEVELOP_DICE, key) ? DEVELOP_DICE[key] : null;
+  const s = row && typeof row[stage] === 'string' ? row[stage] : '';
+  return s.split('').filter(L => L === 'A' || L === 'B');
+}
 
 /* THE DEAL. Weighted by appetite, leaned by the mood, damped by memory, gated
    by the device — and then drawn with one number, so a test can hold the whole
@@ -36152,10 +36177,13 @@ const COLOR = {
    rollEased(sec) deals fresh dice and TWEENS the uniforms toward them
    over `sec` seconds (τ = sec/3, so the move is all but done at `sec`
    and never snaps), inside the room's own update — the room breathes
-   into another of its forms while the music plays on. It is generic
-   and safe for every room: the dice are found by walking the room's
-   materials (matU keeps them by reference), a room that owns none gets
-   a rollEased that does nothing and says so, the room's own roll() on
+   into another of its forms while the music plays on. It is generic,
+   and safe because it is OPT-IN: only the dice DEVELOP_DICE lists for
+   the room's key are eased (a die its shader floors, tests, hashes or
+   multiplies into the clock would strobe through the sweep, not
+   breathe); they are found by walking the room's materials (matU keeps
+   them by reference), a room with none listed gets a rollEased that
+   does nothing and says so, the room's own roll() on
    entry cancels a tween in flight, and the tween steps BEFORE the
    room's update so a room that drives a die itself each frame keeps
    the last word. The dice are the ONLY road, on purpose: the TV's
@@ -36165,10 +36193,11 @@ const COLOR = {
 function sceneDevelop(s){
   if (!s || typeof s.rollEased === 'function' || !s.group || typeof s.group.traverse !== 'function') return;
   const dice = [], seen = new Set();
+  const names = developDice(s.key, 'web').map(L => 'uVar' + L);   // the audited, smooth ones only
   s.group.traverse(o => {
     const u = o.material && o.material.uniforms;
     if (!u) return;
-    for (const k of ['uVarA', 'uVarB', 'uVarC']){
+    for (const k of names){
       const v = u[k];
       if (v && typeof v.value === 'number' && !seen.has(v)){ seen.add(v); dice.push(v); }
     }
@@ -36538,8 +36567,11 @@ const director = {
          through the gate's own idle gap. */
       if (live ? this.dwell > want : this.dwell > PACE.idleDwell) SEGUE.request(false, live ? 'dwell' : 'idle');
       // the room's second act: owed at 45 % and 80 % of the way through the
-      // want, applied by developTick on the next phrase line
-      if (live && !this._developPend){
+      // want, applied by developTick on the next phrase line. Not for a
+      // viewer who asked for less motion: a room that changes its face
+      // unbidden is exactly what reduced motion turns down (the TV's
+      // Director stands it down on its calm flag the same way)
+      if (live && !reducedMotion && !this._developPend){
         const dp = developPlan({ dwell: this.dwell, want, barLen, done: this._developed });
         if (dp){ this._developed++; this._developPend = dp; this._developWait = 0; }
       }
@@ -67636,6 +67668,20 @@ const LENS = {
     const wdt = (typeof director !== 'undefined' && director.wallDt != null) ? director.wallDt : dt;
     this._holdT -= wdt;
     this._lookT += wdt;
+    /* A STRAINED DEVICE DROPS THE GLASS NOW. The two-phrase hold and the pace
+       gate are for MUSICAL swaps; pickLens already answers 'none' to a device
+       that is struggling, and making that answer wait out the look (up to two
+       phrases and an act's gap — half a minute and more of extra full-screen
+       passes on a device already dropping frames) taxes exactly the machine
+       it exists to spare. Not a dealt look, so no salt; and the look clock
+       restarts, so a recovered device still waits two phrases for its glass. */
+    if (typeof PERF !== 'undefined' && PERF.struggling && this._resolved !== 'none'){
+      this._resolved = 'none';
+      this._lookT = 0;
+      this._dealSectors();
+      this.paint();
+      return;
+    }
     if (this._holdT > 0) return;
     const barLen = typeof director !== 'undefined' && director.barLen ? director.barLen() : 2.0;
     const phrase = 8 * barLen;
