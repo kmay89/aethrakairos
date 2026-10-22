@@ -19,6 +19,9 @@
 //   the hand   the booth's band over the painted rail, dragged with a real
 //              pointer: takes, blends, commits — and the keys, AUTO, CUT,
 //              the transport row answering inside the press
+//   the hand's handle left at a silent far end keeps the auto-DJ off and AUTO
+//              brings it home; a parked yield survives MIX going off as the
+//              hand's blend (its room cue withdrawn); a pause stops both records
 //
 //   python3 tools/make_mix_fixture.py /tmp/mb8-mix && cp docs/three.min.js /tmp/mb8-mix/
 //   cp docs/index.html /tmp/mb8-mix/ && node tools/xfader_probe.mjs /tmp/mb8-mix
@@ -296,6 +299,51 @@ const tr = await page.evaluate(async () => {
 R('PLAY A starts the retired record by hand, the row answers inside the Doherty threshold and names the shut fader; PLAY again pauses it',
   tr.ms <= 400 && tr.lit && tr.pressed === 'true' && /playing \(silent\)/.test(tr.word) && /fader is on B/.test(tr.word) && tr.rolling && tr.owner === 'hand' && tr.paused, JSON.stringify(tr));
 R('CUT flips the curve and its lamp, and back', tr.cut === 'cut' && tr.cutLit && tr.back === 'power', JSON.stringify({ cut: tr.cut, lit: tr.cutLit, back: tr.back }));
+
+// ---- 11 · the hand's mix stays the hand's: a handle left at a silent far end, a parked yield the
+//          mixer steps away from, and a pause that stops both records of a held blend
+const fix = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // (a) the far end with nothing rolling there: the hand silenced the record on air; the auto-DJ keeps off it, AUTO brings it back
+  if (MIXER.phase === 'armed') MIXER.cancel('hand');
+  const far = 1 - AE.active;
+  try { AE.decks[far].a.pause(); } catch (e){}
+  DECKS.faderGrab(DECKS.fader.x); DECKS.faderMove(far);
+  const rel = DECKS.faderRelease();
+  await sleep(700);
+  const a = { act: rel.act, x: DECKS.fader.x, far, mode: DECKS.fader.mode, phase: MIXER.phase, on: MIXER.on };
+  a.auto = DECKS.faderAuto();
+  await sleep(700);
+  a.home = DECKS.fader.x === AE.active && DECKS.fader.mode === 'rest'; a.fOn = AE.decks[AE.active].fader.gain.value;
+  // (b) a seam yielded and parked mid-way, then MIX switched off: the outgoing record is handed to the hand, still playing
+  for (let k = 0; k < 40 && MIXER.phase !== 'armed'; k++) await sleep(100);
+  const now = MIXER.tryMixNow();
+  for (let k = 0; k < 120 && MIXER.phase !== 'running'; k++) await sleep(100);
+  for (let k = 0; k < 100 && !(MIXER.lastF > 0.15); k++) await sleep(50);
+  const outSlot = AE.decks.indexOf(MIXER.outDeck), od = AE.decks[outSlot];
+  DECKS.faderGrab(); DECKS.faderMove(0.5);
+  const hold = DECKS.faderRelease().act;
+  const b = { now, outSlot, hold, manual: MIXER.phase, scene: typeof SEGUE !== 'undefined' ? !!SEGUE.seam : false };
+  await sleep(150);
+  MIXER.setOn(false);
+  await sleep(300);
+  Object.assign(b, { phase: MIXER.phase, outRolling: !od.a.paused, owner: DECKS.slots[outSlot].owner, x: DECKS.fader.x, mode: DECKS.fader.mode,
+    gOut: od.gain.gain.value, nOut: od.norm, fOut: od.fader.gain.value });
+  // (c) the transport paused under that held blend: both records stop, the hand's keeps its slot
+  player.pause();
+  await sleep(200);
+  const c = { onPaused: AE.decks[AE.active].a.paused, handPaused: od.a.paused, owner: DECKS.slots[outSlot].owner, playing: player.playing };
+  return { a, b, c };
+});
+R('a handle left at the far end with nothing rolling there is a hold, and the auto-DJ does not arm over the silenced record',
+  fix.a.act === 'hold' && fix.a.x === fix.a.far && fix.a.mode === 'rest' && fix.a.on && fix.a.phase === 'idle', JSON.stringify(fix.a));
+R('…AUTO from there brings the handle home to the record on air, its fader open', fix.a.auto && fix.a.home && Math.abs(fix.a.fOn - 1) < 0.02, JSON.stringify(fix.a));
+R('a running seam yielded and parked mid-way: a hold, the seam\'s room cue withdrawn', fix.b.now && fix.b.hold === 'hold' && fix.b.manual === 'manual' && !fix.b.scene, JSON.stringify(fix.b));
+R('…MIX switched off hands the outgoing record to the hand: still playing at its trim, the handle and its fader where the hand left them',
+  fix.b.phase === 'idle' && fix.b.outRolling && fix.b.owner === 'hand' && Math.abs(fix.b.x - 0.5) < 1e-6 && fix.b.mode === 'rest'
+  && Math.abs(fix.b.gOut - fix.b.nOut) < 0.03 && Math.abs(fix.b.fOut - Math.SQRT1_2) < 0.03, JSON.stringify(fix.b));
+R('the transport paused under a held blend stops both records; the hand keeps its deck', fix.c.onPaused && fix.c.handPaused && fix.c.owner === 'hand' && !fix.c.playing,
+  JSON.stringify(fix.c));
 
 R('no page errors', errors === 0, errors + ' errors');
 console.log(`\n${results.filter(Boolean).length}/${results.length} crossfader checks passed`);
