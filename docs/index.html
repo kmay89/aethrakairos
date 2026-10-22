@@ -11276,6 +11276,10 @@ const DECKS = {
     const i = this.idle(), s = this.slots[i], d = AE.decks[i];
     return s.owner === 'hand' && !!player.tracks[s.trackIdx] && !d.a.paused && !d.a.ended;
   },
+  // the transport's own crossfade (playIndex, xfade) is still fading the
+  // record on this deck out: it is audible, and it is not the hand's to take
+  // until the fade has landed (a load there cut it mid-fade with a click)
+  retiring(i){ return !!AE.xfading && i !== AE.active; },
 
   /* ---- loading, starting, stopping a deck by hand --------------------- */
   /* THE ONE WAY TO WRITE A DECK GAIN. Measured (headless Chromium, offline
@@ -11287,8 +11291,10 @@ const DECKS = {
      where the browser has it, the read-then-pin pair where it does not), and
      only then does the param move, on a short exponential. Every write to a
      gain or a shelf that may be under a curve goes through here: a hand taking
-     a seam, a seam ending, a cancel. The fader nodes are never under a curve
-     and take a plain setTargetAtTime. */
+     a seam, a seam ending, a cancel — and the FADER nodes: never under a
+     curve, but under a ramp (a hand's cued record faded in by the transport,
+     onPlayIndex), and a bare cancel of a ramp in flight drops the param back
+     to the value before it — the incoming record's fader snapped to zero. */
   gainWrite(param, target, tau){
     if (!param || !AE.ctx) return false;
     const now = AE.ctx.currentTime;
@@ -11319,6 +11325,7 @@ const DECKS = {
     const o = opts || {};
     if (!AE.graphLive || !AE.ctx || !AE.decks || !track || !(slot === 0 || slot === 1)) return false;
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    if (this.retiring(slot)) return false;
     if (o.by !== 'restore') this.hand();
     let i = player.tracks.indexOf(track);
     if (i === -1){ player.tracks.push(track); i = player.tracks.length - 1; player.renderList(); }
@@ -11354,6 +11361,7 @@ const DECKS = {
     if (!AE.decks || !(slot === 0 || slot === 1)) return false;
     if (slot === AE.active && player.playing) return false;
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    if (this.retiring(slot)) return false;
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed' && slot !== AE.active) MIXER.cancel('deck-taken');
     this.hand();
     const d = AE.decks[slot], s = this.slots[slot];
@@ -11374,7 +11382,7 @@ const DECKS = {
     if (!AE.decks || !(slot === 0 || slot === 1)) return false;
     this.hand();
     if (slot === AE.active){ if (!player.playing) player.resume(); return true; }
-    if (!AE.graphLive) return false;
+    if (!AE.graphLive || this.retiring(slot)) return false;
     const d = AE.decks[slot], s = this.slots[slot];
     if (!d.a.src || !player.tracks[s.trackIdx]) return false;
     if (typeof MIXER !== 'undefined'){
@@ -11385,6 +11393,18 @@ const DECKS = {
     ensureResume();
     this._gainTo(d, d.norm || 1);
     d.a.play().catch(() => {});
+    /* a record started UNDER the handle — the handle already let go at this
+       deck's end, the record on air silenced by it — is the only one heard:
+       it takes the air at once, exactly as a push of the handle onto a
+       rolling record would make it (el.paused is already false here, so the
+       commit accepts it). Left as a bare start, the title, the seek bar, the
+       media session and the beat clock the rooms dance to all stayed on the
+       silent record until it ran out — minutes, perhaps, with the auto-DJ
+       held off the whole time by the handle that caused it. */
+    const f = this.fader;
+    if (!f.hand && f.mode === 'rest' && Math.abs(f.x - slot) <= XFADER_PARK){
+      if (this._commitHand(slot) && typeof BOOTH !== 'undefined') BOOTH.handDone(slot);
+    }
     return true;
   },
   pause(slot){
@@ -11393,6 +11413,16 @@ const DECKS = {
     const s = this.slots[slot];
     s.cueHeld = false;
     if (slot === AE.active){ if (player.playing) player.pause(); return true; }
+    /* the record a yielded seam was leaving, stopped by hand, is that record
+       finishing: the incoming keeps the air and the seam ends there. Left as
+       a bare pause it parked the seam on a dead deck — and the incoming's end
+       later "undid" the seam onto it: silence under a playing transport. */
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'manual' && AE.decks[slot] === MIXER.outDeck){
+      this.fader.hand = false; this.fader.glide = 0;
+      MIXER.finish({ by: 'hand' });                      // pauses it, the handle home at the incoming's end
+      if (typeof BOOTH !== 'undefined') BOOTH.handDone(AE.active);
+      return true;
+    }
     try { AE.decks[slot].a.pause(); } catch (e){}
     return true;
   },
@@ -11406,6 +11436,7 @@ const DECKS = {
     const d = AE.decks[slot], s = this.slots[slot], onAir = slot === AE.active;
     if (!d.a.src || !isFinite(d.a.duration) || !(d.a.duration > 0)) return false;
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    if (this.retiring(slot)) return false;
     this.hand();
     if (held === true){
       if (!onAir){
@@ -11450,6 +11481,7 @@ const DECKS = {
     this.hand();
     if (s.synced){ s.synced = false; s.pitch = 1; SPEED.apply(); return false; }
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    if (this.retiring(slot)) return false;              // its phase take would seek a record still fading out
     const mixS = mixOf(this.track(slot)), mixM = mixOf(this.track(m));
     if (!mixS || !mixM || !(mixS.bpm > 0) || !(mixM.bpm > 0)) return false;
     s.pitch = syncRateFor(mixM.bpm, mixS.bpm); s.synced = true;
@@ -11468,13 +11500,22 @@ const DECKS = {
     this.fader.curve = c === 'cut' ? 'cut' : 'power';
     if (this.fader.mode !== 'auto') this.applyFaderGains();
   },
-  // the fader nodes take the law from x — never in 'auto', where the seam's curves own the level
+  /* the fader nodes take the law from x — never in 'auto', where the seam's
+     curves own the level. Through the arbiter (held, then moved): a fader can
+     be mid-way up onPlayIndex's ramp. And while the transport's own crossfade
+     runs, the retiring deck's fader is left alone — its gain is fading it out,
+     and the fade timer sends its fader home once that has landed — and a
+     fader still riding that ramp up to full is let land where the law agrees
+     it should be (full), so a CUT tap or a pad load does not cut the fade-in short. */
   applyFaderGains(){
     if (!AE.graphLive || !AE.ctx || !AE.decks || this.fader.mode === 'auto') return;
     const g = xfaderGains(this.fader.x, this.fader.curve), now = AE.ctx.currentTime;
     AE.decks.forEach((d, i) => {
       if (!d.fader) return;
-      try { d.fader.gain.cancelScheduledValues(now); d.fader.gain.setTargetAtTime(g[i], now, 0.006); } catch (e){}
+      if (AE.xfading && i !== AE.active) return;
+      if (g[i] >= 0.999 && d._faderRampTo > now) return;
+      d._faderRampTo = 0;
+      this.gainWrite(d.fader.gain, g[i], 0.006);
     });
   },
   // the mixer paints x from its seam ('auto'); anything else moves the level
@@ -11488,6 +11529,13 @@ const DECKS = {
      and from here every move is the law applied to the hand's x. */
   faderGrab(x){
     if (!AE.graphLive || !AE.decks) return false;
+    /* the transport's own crossfade (a pad, a skip that could not beatmix) is
+       not a seam a hand can yield: the retiring record's gain is on rampGain's
+       curve to zero and its fade timer will stop it. A hand that committed it
+       back on air put a deck on the air that was already leaving it, and the
+       record actually sounding was paused under it — dead air under a
+       transport that says it plays. The handle waits the few seconds out. */
+    if (AE.xfading) return false;
     // a mixset's anchor — a song the set pinned to play in full — is not the hand's to fade out
     if (typeof MIXSET !== 'undefined' && MIXSET.active){
       const cur = player.tracks[player.cur];
@@ -11520,15 +11568,16 @@ const DECKS = {
     if (!f.hand) return { act: 'none', slot: -1 };
     const manual = typeof MIXER !== 'undefined' && MIXER.phase === 'manual';
     const outSlot = manual ? 1 - AE.active : AE.active, inSlot = 1 - outSlot;
-    const v = xfaderArbiter({ phase: MIXER.phase, hand: false, x: f.x, outSlot, inSlot, parkAt: XFADER_PARK });
+    let v = xfaderArbiter({ phase: MIXER.phase, hand: false, x: f.x, outSlot, inSlot, parkAt: XFADER_PARK });
     f.hand = false;
     if (v.act === 'commit'){
       if (manual) MIXER.finish({ by: 'hand' });
       else if (!this._commitHand(inSlot)) v.act = 'hold';   // nothing rolling there: the handle simply stays
     } else if (v.act === 'abort'){
-      this._abortHand(outSlot);
+      // the record the seam was leaving may already be stopped: then the abort is a commit (see _abortHand)
+      if (this._abortHand(outSlot) === 'commit') v = { act: 'commit', slot: inSlot };
     }
-    if (v.act === 'hold' || v.act === 'none') f.mode = 'rest';   // where the hand left it; the auto-DJ arms only from an end
+    if (v.act === 'hold' || v.act === 'none') f.mode = 'rest';   // where the hand left it; the auto-DJ arms only from home (xfaderHeld)
     return v;
   },
   /* AUTO — THE HANDLE GOES BACK TO THE PLANNER. Wherever the hand left it,
@@ -11539,7 +11588,10 @@ const DECKS = {
      parked mid-way resolves to the end it was nearer — the record on air
      comes back to full, or the other record commits; and from an end the
      auto-DJ arms again on its own. A pointer landing on the handle meanwhile
-     ends the glide where it is (faderGrab clears the token). Returns false
+     ends the glide where it is (faderGrab clears the token). The far end is
+     a destination only while a record rolls there (xfaderAutoTo): a handle
+     left at the idle deck's end with nothing playing has silenced the record
+     on air, and AUTO from there brings that record back. Returns false
      where there is nothing to give back: no graph, a seam's own AUTO, or a
      handle already at rest at the on-air end. */
   faderAuto(){
@@ -11547,7 +11599,9 @@ const DECKS = {
     const f = this.fader;
     if (f.mode === 'auto') return false;
     const manual = typeof MIXER !== 'undefined' && MIXER.phase === 'manual';
-    const to = manual ? AE.active : (Math.abs(f.x - AE.active) <= 0.5 ? AE.active : 1 - AE.active);
+    const far = 1 - AE.active, fd = AE.decks[far];
+    const farRolling = !!(this.track(far) && fd && !fd.a.paused && !fd.a.ended);
+    const to = xfaderAutoTo({ manual, x: f.x, active: AE.active, farRolling });
     if (!f.hand && f.mode === 'rest' && Math.abs(f.x - to) < 1e-6) return false;
     if (!f.hand && !this.faderGrab(f.x)) return false;
     const x0 = f.x, t0 = performance.now(), token = (f.glide = t0 || 1);
@@ -11580,6 +11634,7 @@ const DECKS = {
     const nd = AE.decks[inSlot], od = AE.decks[1 - inSlot];
     const i = this.slots[inSlot].trackIdx;
     if (!player.tracks[i] || nd.a.paused || nd.a.ended) return false;
+    if (this.retiring(inSlot)) return false;                // its gain is still fading out: nothing commits a record that is leaving
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('hand');   // the auto plan onto this deck is overtaken
     const retired = player.cur;
     AE.active = inSlot;
@@ -11597,9 +11652,19 @@ const DECKS = {
      stopped and parked a lead-in before its entry, and the mixer is left
      idle — its next update re-arms against the same record from HERE, which
      is the re-aim the plan needs (arm() already plans from the playhead when
-     the seam's bar line has passed). */
+     the seam's bar line has passed). Unless that record is no longer rolling
+     — stopped by a hand, or run out: putting a stopped deck back on air is
+     dead air under a transport that says it plays. Then the seam is finished
+     onto the incoming instead (and, if that one has run out too, the queue
+     moves on). Returns what it did: 'abort' or 'commit'. */
   _abortHand(outSlot){
     const M = MIXER, p = M.plan, od = AE.decks[outSlot], nd = AE.decks[1 - outSlot];
+    if (od && (od.a.paused || od.a.ended)){
+      const inEnded = !!(nd && nd.a.ended);
+      M.finish({ by: 'hand' });
+      if (inEnded) player.onEnded();
+      return 'commit';
+    }
     const retired = M.next;
     player.uncommitMix();
     AE.active = outSlot;
@@ -11609,13 +11674,17 @@ const DECKS = {
     M.cancel('abort');                                       // rates, pitch lock, shelves, filters, gains, the handle home
     if (retired >= 0) this.slots[1 - outSlot].trackIdx = retired;
     syncLoopFlag();
+    return 'abort';
   },
   /* THE HANDLE COMES HOME. Called wherever the record on air changes hands —
      a track start, a seam's end, a cancel, a hand's commit: the on-air slot
      is the transport's (owner 'free', its record player.cur), the retired
      slot remembers what it holds, and the handle rests at the on-air end
      unless a hand is still holding it. Inaudible by construction: the
-     retired deck is paused at gain zero, the on-air deck's fader was 1. */
+     retired deck is paused at gain zero, the on-air deck's fader was 1.
+     o.keepHandle: the bookkeeping only — the handle and both faders stay
+     where the hand left them (a cancel that hands a parked blend over, or a
+     skip out of one: see xfaderCancelMode). */
   settle(o){
     o = o || {};
     if (!AE.decks) return;
@@ -11626,27 +11695,28 @@ const DECKS = {
     if (o.retired != null && o.retired >= 0) r.trackIdx = o.retired;
     r.silentFor = 0;
     if (this.fader.hand && !o.force) return;
+    if (o.keepHandle){ this.fader.mode = 'rest'; return; }
     this.fader.hand = false;
     this.fader.x = on; this.fader.mode = 'rest';
     this.applyFaderGains();
   },
-  // a seam fires: the mixer's curves take the level. Both faders go to 1 at
-  // the seam's origin — inaudible, because the incoming's gain curve starts
-  // at 0 there and the outgoing's fader was already 1 (the handle was at its
-  // end: the auto-DJ never arms from anywhere else)
+  // a seam fires: the mixer's curves take the level. The INCOMING's fader
+  // opens at the seam's origin — inaudible, because its gain curve starts at
+  // 0 there. The outgoing's keeps the level the handle gave it: 1 when the
+  // handle was home (the auto-DJ arms from nowhere else), and if it ever was
+  // not, a record the DJ had silenced is not stepped back to full for its
+  // fade-out. (fire() flips AE.active first: the on-air slot is the incoming.)
   autoStart(t0){
     const f = this.fader;
     f.prevX = f.x; f.mode = 'auto'; f.hand = false;
     if (!AE.graphLive || !AE.ctx || !AE.decks) return;
     const now = AE.ctx.currentTime;
-    for (const d of AE.decks){
-      if (!d.fader) continue;
-      try {
-        d.fader.gain.cancelScheduledValues(now);
-        d.fader.gain.setValueAtTime(d.fader.gain.value, now);
-        d.fader.gain.setValueAtTime(1, Math.max(now, t0));
-      } catch (e){}
-    }
+    AE.decks.forEach((d, i) => {
+      if (!d.fader) return;
+      d._faderRampTo = 0;
+      this.gainWrite(d.fader.gain, null);                   // held where it is
+      if (i === AE.active){ try { d.fader.gain.setValueAtTime(1, Math.max(now, t0)); } catch (e){} }
+    });
   },
   // a track start by the transport: the new deck's fader opens at once (its
   // gain is zero, so nothing is heard), the handle rests at that deck's end,
@@ -11664,12 +11734,11 @@ const DECKS = {
     const d = AE.decks[newIdx];
     if (!d.fader) return;
     const now = AE.ctx.currentTime;
+    this.gainWrite(d.fader.gain, null);                     // held where it is (a ramp of its own may be in flight)
+    d._faderRampTo = 0;
     try {
-      d.fader.gain.cancelScheduledValues(now);
-      if (cued && fadeDur > 0.02){
-        d.fader.gain.setValueAtTime(d.fader.gain.value, now);
-        d.fader.gain.linearRampToValueAtTime(1, now + fadeDur);
-      } else d.fader.gain.setValueAtTime(1, now);
+      if (cued && fadeDur > 0.02){ d.fader.gain.linearRampToValueAtTime(1, now + fadeDur); d._faderRampTo = now + fadeDur; }
+      else d.fader.gain.setValueAtTime(1, now);
     } catch (e){}
   },
 
@@ -12628,6 +12697,8 @@ const player = {
       // the fade has landed: the retired deck's fader follows the handle home (it is silent either way)
       if (typeof DECKS !== 'undefined') DECKS.applyFaderGains();
       if (od === nd) return;              // same-element advance (locked iOS): never touch the sounding deck
+      // a hand that took this deck after the fade began holds a record of its own there now
+      if (typeof DECKS !== 'undefined' && DECKS.slots[oldIdx].owner === 'hand') return;
       od.a.pause();
       // iOS budgets audio decoders HARD — a long session of src-swaps starves
       // the media stack until playback just stops and next-track goes flaky.
@@ -12737,6 +12808,17 @@ const player = {
     this._clearStall();
     this.playing = false;
     d.a.pause();
+    /* …and a hand's record rolling on the other deck. A pause is the music
+       stopping — the button, a headset key, the media session, another tab
+       taking over — and a blend held mid-way used to keep its second record
+       sounding under a player that said it was paused. It stays the hand's,
+       at its place: PLAY on that deck picks it up again; resume() brings back
+       the record on air. (A yielded seam's outgoing is stopped by the
+       mixer's own cancel on its next update.) */
+    if (typeof DECKS !== 'undefined' && AE.decks && AE.graphLive){
+      const j = DECKS.idle(), hs = DECKS.slots[j];
+      if (hs.owner === 'hand'){ try { AE.decks[j].a.pause(); } catch (e){} hs.cueHeld = false; hs.silentFor = 0; }
+    }
     updatePlayIcon(); this.renderList();
     mediaSessionPlaybackState(); PERSIST.poke();
   },
@@ -19709,9 +19791,11 @@ function crateMixNext(t, opts){
      onto the idle deck, by hand, paused at its cue — so the booth shows it,
      the hand can cue or start it, and the auto-DJ plans against exactly that
      record (arm's held branch). The direct path keeps the pin alone. */
-  if (AE.graphLive && typeof DECKS !== 'undefined' && AE.decks) DECKS.load(1 - AE.active, t);
+  // (while the transport's own crossfade is still fading the last record out
+  // of that deck, the pick is only pinned: the deck is not free yet)
+  if (AE.graphLive && typeof DECKS !== 'undefined' && AE.decks && !AE.xfading) DECKS.load(1 - AE.active, t);
   player._committedNext = i;
-  if (MIXER.on && player.playing && AE.graphLive) MIXER.arm();
+  if (MIXER.on && player.playing && AE.graphLive && !AE.xfading) MIXER.arm();
   if (MIXER.phase === 'armed' && MIXER.next === i && MIXER.plan){
     const d = activeDeck(), p = MIXER.plan;
     const at = MIXER.exitTime(d && d.a.duration, p, player.tracks[player.cur]);
@@ -19744,7 +19828,7 @@ function loadToDeck(slot, t){
   DECKS.hand();
   if (!AE.ctx){ try { ensureCtx(); } catch (e){} }
   if (!AE.graphLive || !AE.decks){ toast(T('direct-to-output — no second deck here')); return false; }
-  if (MIXER.phase === 'running' || MIXER.phase === 'manual'){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
+  if (MIXER.phase === 'running' || MIXER.phase === 'manual' || DECKS.retiring(slot)){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
   if (slot === AE.active && player.playing){ toast(T('Deck {d} is on air — load the other one', { d: L })); return false; }
   if (!DECKS.load(slot, t, { by: 'hand' })) return false;
   DECKS.focus = slot;
@@ -20844,6 +20928,51 @@ function faderIdleStop(o){
   const s = o || {};
   const after = s.after == null ? FADER_IDLE_S : s.after;
   return !s.onAir && !s.hand && !s.cueHeld && (+s.gain || 0) < 0.01 && (+s.silentFor || 0) >= after;
+}
+// how close to the on-air end still counts as home for the auto-DJ
+const XFADER_HOME = 0.02;
+/* THE HANDLE IS THE DJ'S whenever it is anywhere but home. A hand on it, a
+   blend parked mid-way — and the handle left at the OTHER end, which is the
+   most deliberate move of the three: the record on air is silenced. This
+   used to read "mid-rail" only (0.02 < x < 0.98), so a handle released at
+   the idle deck's end with nothing rolling there passed as home: the
+   auto-DJ armed over a silent record and its seam stepped that record's
+   fader from nothing to full at the seam's origin. Home is the on-air end,
+   whichever slot that is. */
+function xfaderHeld(hand, x, active){
+  if (hand) return true;
+  const home = active === 1 ? 1 : 0;
+  const v = isFinite(+x) ? clamp01(+x) : home;            // an unknown position reads as home
+  return Math.abs(v - home) > XFADER_HOME;
+}
+/* WHERE AUTO SENDS THE HANDLE. A yielded seam glides to the incoming's end
+   (the record on air) and finishes; a hand's blend goes to the end it was
+   nearer — but only toward a record that is actually rolling. The far end
+   with nothing playing there is not a destination, it is silence: AUTO from
+   there brings the record on air back. */
+function xfaderAutoTo(o){
+  const s = o || {};
+  const home = s.active === 1 ? 1 : 0, far = 1 - home;
+  if (s.manual || !s.farRolling) return home;
+  const x = isFinite(+s.x) ? clamp01(+s.x) : home;
+  return Math.abs(x - home) <= 0.5 ? home : far;
+}
+/* WHAT A CANCEL DOES TO A HAND'S BLEND. A seam a hand took over ('manual')
+   and parked is the DJ's mix, not the mixer's. When the mixer only steps
+   aside — MIX switched off, a re-plan after a grid nudge or a pair fix, a set
+   starting, repeat-one — the outgoing record stays up as the HAND's record
+   ('hand'): playing, at the level the handle gives it, and from there the
+   hand's own rules (push to an end to commit, the idle stop) take it. A
+   track change out of a held blend ('stay') leaves both faders where the hand
+   had them: the transport fades the record on air out from the level that
+   is actually heard, and a settle that opened its fader first was a jump on
+   every skip. Everything else — a running seam, a stopped transport, the
+   graph going away, an undo — tears the seam down and brings the handle home. */
+const XFADER_STEP_ASIDE = ['off', 'replan', 'mixset', 'repeat', 'restyle'];
+function xfaderCancelMode(phase, reason, outRolling){
+  if (phase !== 'manual') return 'home';
+  if (reason === 'manual') return 'stay';
+  return outRolling && XFADER_STEP_ASIDE.indexOf(reason) >= 0 ? 'hand' : 'home';
 }
 // @xfader-end
 
@@ -22702,24 +22831,57 @@ const MIXER = {
     PERSIST.poke();
   },
 
-  cancel(){
+  cancel(reason){
     this._stopSampler();
     if (this._fireT){ clearInterval(this._fireT); this._fireT = null; }
     this._fireAt = null;
     if (this.phase === 'idle'){ syncMixHud(); return; }
     if (typeof SEGUE !== 'undefined') SEGUE.cueSeam(null);
     const blending = this.phase === 'running' || this.phase === 'manual';
-    // a cancel mid-blend used to leave the outgoing element decoding at gain
-    // zero until its own end — a decoder burned, an 'ended' nobody wanted. It is stopped.
-    if (blending && this.outDeck){ try { this.outDeck.a.pause(); } catch (e){} }
+    const od = this.outDeck, oSlot = od && AE.decks ? AE.decks.indexOf(od) : -1;
+    /* A HAND'S PARKED BLEND IS THE DJ'S (xfaderCancelMode). The mixer stepping
+       aside hands the outgoing record to the hand — still playing, at the
+       level the handle gives it; a skip out of it leaves the faders where the
+       hand had them for the transport's own fade; anything else tears the
+       seam down. A held blend used to be cut dead by a MIX-chip tap or a grid
+       nudge: the outgoing stopped mid-level, the incoming jumped to full. */
+    const mode = xfaderCancelMode(this.phase, reason, oSlot >= 0 && !!this.outTrack && !od.a.paused && !od.a.ended);
     const retired = blending && this.outTrack ? player.tracks.indexOf(this.outTrack) : null;
-    this.plan = null; this.next = -1; this.phase = 'idle'; this._seamBy = 'auto';
+    this.plan = null; this.next = -1; this.phase = 'idle'; this._seamBy = 'auto'; this._sceneHeld = false;
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     this.audioT0 = null; this._shelfScheduled = false;
     this._latched = false; this._aligns = 0; this._bT = -1; this._errs = []; this._pull = 0;
     clockReset(this._clkA); clockReset(this._clkB);
     // the handle comes home to the committed deck's end before the gains settle
-    if (typeof DECKS !== 'undefined') DECKS.settle({ retired });
+    // (or stays where the hand left it, for a blend that is the hand's)
+    if (typeof DECKS !== 'undefined'){
+      DECKS.settle({ retired, keepHandle: mode !== 'home' });
+      if (mode === 'hand'){ const hs = DECKS.slots[oSlot]; hs.owner = 'hand'; hs.silentFor = 0; hs.cueHeld = false; }
+      /* the blend is handed over AS IT IS HEARD — the level and the tempo. The
+         seam's glide had both records off their native tempos to meet in the
+         middle; the per-deck loop below writes SPEED × pitch, and pitch was 1
+         on both, so a MIX-chip tap snapped both back home (and, with key lock
+         off, both pitches by a few percent) and the parked blend flammed within
+         a bar. Each deck keeps the rate it has, as its pitch — where a mixer's
+         auto-sync switched off leaves the tempo faders — and the next track
+         start (onPlayIndex), a load, or SYNC sets it again. */
+      if (mode === 'hand' && AE.decks) AE.decks.forEach((d, i) => {
+        const r = d.a.playbackRate || SPEED.rate;
+        DECKS.slots[i].pitch = r / (SPEED.rate || 1);
+      });
+    }
+    /* a cancel mid-blend used to leave the outgoing element decoding at gain
+       zero until its own end — a decoder burned, an 'ended' nobody wanted. It
+       is stopped — once the gain below has taken it to zero (a pause at
+       whatever level the seam had reached was a click), and only if it is
+       still the retired record: a track change may already have loaded the
+       next one onto that deck, a hand may have started it. */
+    if (blending && od && mode !== 'hand'){
+      clearTimeout(od._retireT);
+      od._retireT = setTimeout(() => {
+        if (AE.decks && AE.decks[AE.active] !== od && DECKS.slots[oSlot].owner !== 'hand'){ try { od.a.pause(); } catch (e){} }
+      }, 80);
+    }
     if (AE.decks) AE.decks.forEach((d, i) => {
       // guarded by equality: a 'manual' cancel runs on EVERY track change, and
       // a rate written to a playing element re-seats its resampler even when
@@ -22759,17 +22921,19 @@ const MIXER = {
     // pocketed phone playing. This is exactly what lets auto-mix default ON.
     if (!AE.graphLive){ if (this.phase !== 'idle') this.cancel('direct'); return; }
     if (!player.playing || AE.mic.on || player.repeat === 'one'){
-      if (this.phase !== 'idle') this.cancel();
+      // a stop tears a seam down; repeat-one only steps the mixer aside (a hand's parked blend stands)
+      if (this.phase !== 'idle') this.cancel(player.playing && !AE.mic.on ? 'repeat' : 'stopped');
       return;
     }
     const d = activeDeck();
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
     const t = d.a.currentTime;
 
-    // a hand on the handle, or a blend left mid-way, is the DJ's mix: the
-    // auto-DJ never arms over it, and a plan it had armed is let go of — when
-    // the handle rests at an end again, the next update plans afresh from there
-    const held = DECKS.fader.hand || (DECKS.fader.x > 0.02 && DECKS.fader.x < 0.98);
+    // a hand on the handle, a blend left mid-way, or the handle left at the
+    // OTHER end (the record on air silenced) is the DJ's mix: the auto-DJ never
+    // arms over it, and a plan it had armed is let go of — when the handle is
+    // home at the on-air end again, the next update plans afresh from there
+    const held = xfaderHeld(DECKS.fader.hand, DECKS.fader.x, AE.active);
     if (this.phase === 'idle'){
       if (held) return;
       if (d.a.duration - t < 90 && player.hasNext()) this.arm();
@@ -22976,6 +23140,9 @@ const MIXER = {
     const idle = 1 - AE.active, hs = DECKS.slots[idle], hd = AE.decks[idle];
     const held = hs.owner === 'hand' && !!player.tracks[hs.trackIdx];
     if (held && !hd.a.paused && !hd.a.ended){ if (this.phase === 'armed') this.cancel('hand'); return DECKS.cutTo(idle); }
+    // a handle the DJ left anywhere but home is not the planner's to blend from
+    // (a seam fired from the far end would open the silenced record on air): the plain path
+    if (xfaderHeld(DECKS.fader.hand, DECKS.fader.x, AE.active)) return false;
     const i = held ? hs.trackIdx : (this.phase === 'armed' && this.next >= 0 ? this.next : player.pickNext());
     if (i === -1 || !player.tracks[i]){ return false; }
     const B = player.tracks[i];
@@ -23350,9 +23517,16 @@ const MIXER = {
      is too; run()'s per-frame shelf fallback follows the hand from here. Phase
      becomes 'manual': run() reads f back from the handle and never finishes by
      the clock; what the hand does next is the arbiter's call (DECKS.faderRelease
-     — commit through finish({by:'hand'}), abort, or hold). Returns the seam's
-     f at the moment of the take, so the handle can land exactly on the
-     audible blend, or false when there was nothing to take. */
+     — commit through finish({by:'hand'}), abort, or hold). A FADE's other
+     half — the outgoing's filter dive, its bass cut, its echo bloom — was
+     scheduled on the audio clock too, and nothing under a hand would ever
+     drive it from the handle: a record pulled back stayed muffled and
+     smeared at full level. So it is let go of the way a cancel lets go of
+     it (the deck opens, the echo stops being fed and rings out). And the
+     ROOM's cue is withdrawn: the scene changes hands when the hand commits
+     (finish), not on the clock of a seam nobody is running any more.
+     Returns the seam's f at the moment of the take, so the handle can land
+     exactly on the audible blend, or false when there was nothing to take. */
   yield(){
     if (this.phase !== 'running' || !AE.graphLive || !AE.ctx) return false;
     const od = this.outDeck, nd = AE.decks[AE.active];
@@ -23363,6 +23537,14 @@ const MIXER = {
     if (od.shelf) DECKS.gainWrite(od.shelf.gain, null);
     if (nd.shelf) DECKS.gainWrite(nd.shelf.gain, null);
     this._shelfScheduled = false;
+    if (this.plan && this.plan.type === 'fade'){
+      if (typeof FX !== 'undefined') FX.seamOpen(od);              // clears the seam's number, opens over 12 ms; a hand's filter stands
+      if (od.shelf) DECKS.gainWrite(od.shelf.gain, 0, 0.05);       // the fade's bass cut
+      if (od.echoSend) DECKS.gainWrite(od.echoSend.gain, 0, 0.05); // the delay's own feedback rings the tail out
+    }
+    // the room waits for the hand: a cue still pending is withdrawn, and re-cued at the commit
+    this._sceneHeld = typeof SEGUE !== 'undefined' && !!SEGUE.seam;
+    if (this._sceneHeld) SEGUE.cueSeam(null);
     if (this._fireT){ clearInterval(this._fireT); this._fireT = null; }
     this._fireAt = null;
     this.lastF = f;
@@ -23519,6 +23701,8 @@ const MIXER = {
      fader was already open. */
   finish(opts){
     const by = (opts && opts.by) || 'auto';
+    const plan = this.plan, sceneHeld = !!this._sceneHeld;
+    this._sceneHeld = false;
     this._stopSampler();
     const od = this.outDeck, nd = AE.decks[AE.active];
     const retired = this.outTrack ? player.tracks.indexOf(this.outTrack) : -1;
@@ -23547,6 +23731,8 @@ const MIXER = {
     // Mix-engine rot is cumulative; a seam must hand back exactly what it borrowed.
     this.trimI = 0; this._latched = false; this._aligns = 0; this._bT = -1; this._errs = []; this._pull = 0;
     this.phase = 'idle'; this._seamBy = 'auto';
+    // a hand's commit is the music changing hands: the room the yield held back changes now
+    if (by === 'hand' && sceneHeld && plan && typeof SEGUE !== 'undefined' && AE.ctx) SEGUE.cueSeam(plan, 0, AE.ctx.currentTime);
     applyVolume();
     syncMixHud();
     window.__mixCompleted = (window.__mixCompleted || 0) + 1;   // acceptance probe
@@ -28665,7 +28851,8 @@ function wireBoothScrub(){
    (BOOTH.holdState) — nothing waits for the audio to agree. */
 function wireDeckTransport(){
   const letter = i => i ? 'B' : 'A';
-  const seam = () => MIXER.phase === 'running' || MIXER.phase === 'manual';
+  // a deck is busy under a seam, or while the transport's own crossfade is still fading it out (DECKS.retiring)
+  const seam = slot => MIXER.phase === 'running' || MIXER.phase === 'manual' || (slot != null && DECKS.retiring(slot));
   for (let i = 0; i < 2; i++){
     const L = letter(i), row = document.getElementById('deckTr' + L);
     if (row) row.setAttribute('aria-label', T('Deck {d} transport', { d: L }));
@@ -28680,7 +28867,7 @@ function wireDeckTransport(){
     if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended){ DECKS.pause(slot); return true; }
     if (!DECKS.track(slot)){ BOOTH.holdState(slot, T('nothing to play — LOAD a pick, or a pad')); return false; }
     if (!DECKS.play(slot)){
-      BOOTH.holdState(slot, seam() ? T('busy — a blend is running') : T('direct-to-output — no second deck here'));
+      BOOTH.holdState(slot, seam(slot) ? T('busy — a blend is running') : T('direct-to-output — no second deck here'));
       return false;
     }
     return true;
@@ -28693,7 +28880,7 @@ function wireDeckTransport(){
   const cueWire = (b, slot) => {
     let held = 0, pressed = false;
     const refuse = () => BOOTH.holdState(slot, !DECKS.track(slot) ? T('nothing to cue — LOAD a pick, or a pad')
-      : seam() ? T('busy — a blend is running') : T('loading…'));
+      : seam(slot) ? T('busy — a blend is running') : T('loading…'));
     const down = ev => {
       if (ev && ev.pointerType === 'mouse' && ev.button !== 0) return;
       if (pressed) return;
@@ -28726,7 +28913,7 @@ function wireDeckTransport(){
     if (was && !now) return true;
     if (!now){
       BOOTH.holdState(slot, !AE.graphLive ? T('direct-to-output — no second deck here')
-        : seam() ? T('busy — a blend is running') : T('SYNC needs a tempo on both decks'));
+        : seam(slot) ? T('busy — a blend is running') : T('SYNC needs a tempo on both decks'));
       return false;
     }
     const mm = mixOf(DECKS.track(1 - slot));
@@ -28741,7 +28928,7 @@ function wireDeckTransport(){
     DECKS.hand(); DECKS.focus = slot;
     const L = letter(slot);
     if (!AE.graphLive || !AE.decks){ toast(T('direct-to-output — no second deck here')); return false; }
-    if (seam()){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
+    if (seam(slot)){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
     if (slot === AE.active && player.playing){ toast(T('Deck {d} is on air — load the other one', { d: L })); return false; }
     const here = DECKS.track(slot);
     let t = (typeof PREFETCH !== 'undefined') ? PREFETCH.next() : null;
@@ -29676,6 +29863,7 @@ const BOOTH = {
   faderWhy(){
     return !AE.decks ? T('Play something first — the decks wake with the first track')
       : !AE.graphLive ? T('direct-to-output — no second deck here')
+      : AE.xfading ? T('Deck {d} is busy — a blend is running', { d: AE.active ? 'A' : 'B' })
       : T('The set pinned this song to play in full — the fader waits for it');
   },
   /* the booth's keys (window keydown/keyup route here while the booth is open):
@@ -29695,7 +29883,7 @@ const BOOTH = {
       const d = AE.decks && AE.decks[arg], rolling = !!(d && DECKS.track(arg) && !d.a.paused && !d.a.ended);
       if (arg !== AE.active && !rolling){ this.holdState(arg, T('nothing to play — LOAD a pick, or a pad')); return; }
       DECKS.fader.glide = 0;
-      if (DECKS.cutTo(arg)) this.handDone(arg); else if (!AE.graphLive) toast(this.faderWhy());
+      if (DECKS.cutTo(arg)) this.handDone(arg); else if (!AE.graphLive || AE.xfading) toast(this.faderWhy());
     }
     else if (what === 'centre' && this._recentre) this._recentre();
   },

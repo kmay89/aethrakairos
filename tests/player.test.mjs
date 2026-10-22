@@ -31,6 +31,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop,' +
+  ' XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' FX_UNITS, FX_SENDS, FX_INSERTS, FX_AMT, FX_MIX, fxMix, FILTER_DETENT, fxFilterQ, qDb, Q_FLAT_DB, fxFilterArbiter, fxSeamHz,'  +
   ' GATE_FLOOR, gateEdge, gateCurve, gateEdgeSec, gateSchedule, gateAnchor, fxEchoGains, fxEchoGlide, ECHO_HOLD_FB, reverbIR,'  +
@@ -10861,6 +10862,42 @@ test('faderIdleStop: twenty silent seconds off air, no hand, no cue held — and
   assert.equal(S.faderIdleStop({ ...base, cueHeld: true }), false, 'a cue held is a hand on the deck');
   assert.equal(S.faderIdleStop({ ...base, silentFor: 2, after: 1.5 }), true, 'a test\'s shorter clock');
   assert.equal(S.faderIdleStop(null), false);
+});
+test('xfaderHeld: home is the on-air end, whichever slot — the far end is the DJ\'s, not the auto-DJ\'s', () => {
+  assert.equal(S.XFADER_HOME, 0.02);
+  assert.equal(S.xfaderHeld(false, 0, 0), false, 'A on air, the handle at A: home');
+  assert.equal(S.xfaderHeld(false, 1, 1), false, 'B on air, the handle at B: home');
+  assert.equal(S.xfaderHeld(false, 0.015, 0), false, 'inside the home tolerance');
+  assert.equal(S.xfaderHeld(false, 0.985, 1), false);
+  assert.equal(S.xfaderHeld(false, 0.5, 0), true, 'parked mid-way');
+  assert.equal(S.xfaderHeld(false, 1, 0), true, 'R4: left at the IDLE end — the record on air is silenced, the auto-DJ must not arm');
+  assert.equal(S.xfaderHeld(false, 0, 1), true, '…and mirrored with B on air');
+  assert.equal(S.xfaderHeld(false, 0.99, 0), true, 'the old mid-rail test let 0.98–1 through as home');
+  assert.equal(S.xfaderHeld(true, 0, 0), true, 'a hand on it is held wherever it is');
+  assert.equal(S.xfaderHeld(false, NaN, 1), false, 'an unknown position reads as home');
+  assert.equal(S.xfaderHeld(false, 7, 1), false, 'clamped');
+});
+test('xfaderAutoTo: AUTO goes home unless a rolling record waits at the nearer far end', () => {
+  const st = o => Object.assign({ manual: false, x: 0, active: 0, farRolling: true }, o);
+  assert.equal(S.xfaderAutoTo(st({ x: 0.3 })), 0, 'nearer home: home');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.7 })), 1, 'nearer the rolling far record: it commits');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.5 })), 0, 'the middle is home\'s');
+  assert.equal(S.xfaderAutoTo(st({ x: 1, farRolling: false })), 0, 'R11: at the far end with nothing rolling there, AUTO brings the record on air back');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.8, farRolling: false })), 0);
+  assert.equal(S.xfaderAutoTo(st({ x: 0.9, manual: true })), 0, 'a yielded seam always glides to the record on air');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.2, active: 1 })), 0, 'B on air: the far end is A');
+  assert.equal(S.xfaderAutoTo(st({ x: 0, active: 1, farRolling: false })), 1, '…and home is B');
+  assert.equal(S.xfaderAutoTo(null), 0);
+});
+test('xfaderCancelMode: a parked hand blend survives the mixer stepping aside; a skip keeps the faders; the rest come home', () => {
+  for (const r of ['off', 'replan', 'mixset', 'repeat']) assert.equal(S.xfaderCancelMode('manual', r, true), 'hand', 'R6: ' + r + ' hands the blend over');
+  assert.equal(S.xfaderCancelMode('manual', 'off', false), 'home', 'an outgoing record that is not rolling has nothing to hand over');
+  assert.equal(S.xfaderCancelMode('manual', 'manual', true), 'stay', 'R30: a track change out of a held blend leaves the faders where the hand had them');
+  assert.equal(S.xfaderCancelMode('manual', 'manual', false), 'stay');
+  for (const r of ['stopped', 'abort', 'direct', 'route', 'now', 'hand', undefined]) assert.equal(S.xfaderCancelMode('manual', r, true), 'home', String(r) + ' tears the seam down');
+  for (const ph of ['running', 'armed', 'idle']) assert.equal(S.xfaderCancelMode(ph, 'off', true), 'home', ph + ' is the mixer\'s own, never the hand\'s');
+  assert.equal(S.xfaderCancelMode('running', 'manual', true), 'home');
+  assert.ok(S.XFADER_STEP_ASIDE.includes('replan') && !S.XFADER_STEP_ASIDE.includes('manual'));
 });
 test('planMixNow startB: a hand-cued incoming enters from its cue, snapped to its own beat', () => {
   const mk = key => ({ bpm: 124, grid: 1.0, mixable: 0.9, key, in: { start: 32.0, beats: 32 }, out: { start: 200, beats: 32 } });
