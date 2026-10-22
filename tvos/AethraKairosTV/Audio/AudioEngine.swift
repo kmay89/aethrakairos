@@ -18,8 +18,14 @@ final class DeckEngine {
     private let decks: [AKDeck]
     private let rampQueue = DispatchQueue(label: "aethra.deck.ramps", qos: .userInteractive)
     private var tapInstalled = false
+    /// The one tap consumer's handler, kept so a restart after an output
+    /// change can put the tap back without the Player re-supplying it.
+    private var tapHandler: ((AVAudioPCMBuffer, AVAudioTime) -> Void)?
 
-    private enum DeckError: Error { case badIndex, badFile }
+    /// A verdict about the TRACK (no such deck, a file that will not open or
+    /// has no frames) — the Player counts these toward its three strikes;
+    /// an engine that will not start is never one of these.
+    enum DeckError: Error { case badIndex, badFile }
 
     /// Called on the main queue when the engine stopped itself because the
     /// output hardware changed under it (see init).
@@ -87,22 +93,104 @@ final class DeckEngine {
         return engine.isRunning && d.player.isPlaying
     }
 
+    /// The engine's own word: false before the first start, after a failed
+    /// start, and after an output change stopped it.
+    var isEngineRunning: Bool { engine.isRunning }
+
+    /// Starts the engine when it is not running — every cold start first makes
+    /// the graph honest (reconfigureAfterOutputChange: a stopped engine may
+    /// have been stopped by an output change nobody acted on, e.g. while the
+    /// transport was paused) — and, on any start, puts the analysis tap back
+    /// if that evicted it. Main thread only — every start, stop and connect
+    /// in this class is.
     func startEngineIfNeeded() throws {
         if !engine.isRunning {
+            reconfigureAfterOutputChange()
             try engine.start()
         }
+        if !tapInstalled, let handler = tapHandler {
+            // Installed AFTER the start, so format:nil binds to the mixer's
+            // freshly negotiated output format and never to a stale one.
+            engine.mainMixerNode.installTap(onBus: 0, bufferSize: 1024, format: nil, block: handler)
+            tapInstalled = true
+        }
+    }
+
+    /// THE OUTPUT CHANGED; MAKE THE GRAPH HONEST BEFORE THE RESTART. After an
+    /// AVAudioEngineConfigurationChange the main mixer's output format may
+    /// have moved (44.1 <-> 48 kHz, 2 <-> 6/8 channels on an HDMI receiver,
+    /// an AirPlay speaker), and a tap bound to the OLD format is one of the
+    /// documented ways to hit AVFAudio's uncatchable "required condition is
+    /// false" abort on the next start — the living-room crash. So: drop the
+    /// tap (startEngineIfNeeded re-installs it after the start), re-assert
+    /// any deck -> main mixer connection the change dissolved, and prepare()
+    /// again. A running engine has a valid graph by definition and is left
+    /// alone.
+    func reconfigureAfterOutputChange() {
+        guard !engine.isRunning else { return }
+        let main = engine.mainMixerNode
+        if tapInstalled {
+            main.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        for d in decks where engine.outputConnectionPoints(for: d.mixer, outputBus: 0).isEmpty {
+            engine.connect(d.mixer, to: main, format: nil)
+        }
+        engine.prepare()
+    }
+
+    /// For a media-services reset: every AVFAudio object is dead and the
+    /// owner is about to build a fresh DeckEngine. Let go of the tap and the
+    /// callback and stop what can still be stopped, so the old graph is never
+    /// touched again.
+    func teardown() {
+        onConfigurationChange = nil
+        if tapInstalled {
+            engine.mainMixerNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        tapHandler = nil
+        engine.stop()
     }
 
     // MARK: - Transport (deck indices 0/1)
 
+    /// Opens a file for a deck and forces its frame count. Static and free of
+    /// engine state on purpose: the Player calls it from a detached task, so
+    /// an MP3 header/VBR scan (`length` on a file without a Xing frame walks
+    /// every packet) never stalls the main thread. A file that will not open
+    /// or has no frames is a bad TRACK and says so.
+    static func openFile(_ url: URL) throws -> AVAudioFile {
+        let file: AVAudioFile
+        do {
+            file = try AVAudioFile(forReading: url)
+        } catch {
+            NSLog("AethraKairos: cannot open %@ — %@", url.lastPathComponent, String(describing: error))
+            throw DeckError.badFile
+        }
+        guard file.processingFormat.sampleRate > 0, file.length > 0 else { throw DeckError.badFile }
+        return file
+    }
+
     /// Opens the file and rewires the deck chain to its native format so the
     /// player never resamples behind our back. Returns the duration in seconds.
+    /// (The synchronous form; the Player opens off-main and uses load(deck:file:).)
     func load(deck i: Int, fileURL: URL) throws -> Double {
+        let file = try Self.openFile(fileURL)
+        return try load(deck: i, file: file)
+    }
+
+    /// Takes an already-open file (see openFile) and rewires the deck chain to
+    /// its native format. Main thread only — the connects are graph updates.
+    /// The caller has ramped a still-audible deck to silence first (the
+    /// Player's quiesce); the stop here claims a new play, so a completion
+    /// the stop fires is stale by the time anyone reads it.
+    func load(deck i: Int, file: AVAudioFile) throws -> Double {
         guard let d = deck(i) else { throw DeckError.badIndex }
-        let file = try AVAudioFile(forReading: fileURL)
         let fmt = file.processingFormat
         guard fmt.sampleRate > 0, file.length > 0 else { throw DeckError.badFile }
 
+        d.playClaim &+= 1
         d.player.stop()
         let matches = d.connectedFormat.map {
             $0.sampleRate == fmt.sampleRate && $0.channelCount == fmt.channelCount
@@ -129,7 +217,13 @@ final class DeckEngine {
     /// the web's.
     func play(deck i: Int, atOffset offset: Double, in when: Double) {
         guard let d = deck(i), let file = d.file else { return }
-        try? startEngineIfNeeded()
+        do {
+            try startEngineIfNeeded()
+        } catch {
+            // Not swallowed: a start that keeps failing is the story the
+            // crash log needs, and the guard below declines on its behalf.
+            NSLog("AethraKairos: engine start failed before play on deck %d — %@", i, String(describing: error))
+        }
         /* A PLAYER NEVER STARTS ON A STOPPED ENGINE. AVAudioPlayerNode.play()
            on an engine that is not running raises an Objective-C exception — a
            hard crash no Swift code can catch — and the engine can be stopped
@@ -144,25 +238,65 @@ final class DeckEngine {
         }
         let sr = file.processingFormat.sampleRate
         guard sr > 0 else { return }
-        let startFrame = AVAudioFramePosition(max(0, offset) * sr)
-        guard startFrame < file.length else { return }
-        let count = AVAudioFrameCount(file.length - startFrame)
+        let length = file.length
+        // A NaN or infinite offset is a bug upstream, never a frame number:
+        // it plays from the top rather than trapping in the conversion.
+        let seconds = offset.isFinite ? max(0, offset) : 0
+        let frames = seconds * sr
+        let startFrame: AVAudioFramePosition
+        if frames < Double(length) {
+            startFrame = AVAudioFramePosition(frames)
+        } else {
+            // Past the end of the decoded file (a republished, shorter encode
+            // under a catalog in-point): play from the top, audibly, instead
+            // of scheduling nothing and leaving the seam a silent deck.
+            NSLog("AethraKairos: offset %.2f s is past the end of deck %d (%.2f s) — playing from 0",
+                  seconds, i, Double(length) / sr)
+            startFrame = 0
+        }
+        let remaining = length - startFrame
+        guard remaining > 0 else { return }
+        let count = AVAudioFrameCount(clamping: remaining)
 
+        // EVERY SCHEDULED PLAY CARRIES A CLAIM. The completion below hands it
+        // back once the data has PLAYED (not merely been consumed), and
+        // didFinish believes a claim only while it is still the current one —
+        // a completion fired by this stop, or by a later re-schedule, is
+        // stale by construction and never advances the transport.
+        d.playClaim &+= 1
+        let claim = d.playClaim
+        d.finishedClaim = 0
         d.player.stop()
+        // The engine can stop itself on the audio thread at any moment; the
+        // window between the guard above and the calls that would raise is
+        // narrowed by asking again right before each one. Only an Objective-C
+        // @try could close it entirely.
+        guard engine.isRunning else {
+            NSLog("AethraKairos: engine stopped before schedule on deck %d — deferring", i)
+            return
+        }
         d.player.scheduleSegment(file, startingFrame: startFrame, frameCount: count, at: nil,
-                                 completionHandler: nil)
+                                 completionCallbackType: .dataPlayedBack) { [weak d] _ in
+            d?.finishedClaim = claim
+        }
         d.segmentBase = Double(startFrame) / sr
         d.lastKnownPosition = d.segmentBase
 
-        if when > 0 {
+        guard engine.isRunning else {
+            NSLog("AethraKairos: engine stopped before play on deck %d — deferring", i)
+            return
+        }
+        // A delay that is not a number, or longer than any seam, starts now.
+        let delay = when.isFinite ? min(max(0, when), 3600) : 0
+        if delay > 0 {
             // Delayed starts live on the render clock so both decks share one
             // origin; host time is the fallback before the first render.
             if let rt = d.player.lastRenderTime, rt.isSampleTimeValid {
                 let rsr = rt.sampleRate > 0 ? rt.sampleRate : sr
-                let at = AVAudioTime(sampleTime: rt.sampleTime + AVAudioFramePosition(when * rsr), atRate: rsr)
+                let at = AVAudioTime(sampleTime: rt.sampleTime + AVAudioFramePosition(delay * rsr), atRate: rsr)
                 d.player.play(at: at)
             } else {
-                let at = AVAudioTime(hostTime: mach_absolute_time() + AVAudioTime.hostTime(forSeconds: when))
+                let at = AVAudioTime(hostTime: mach_absolute_time() + AVAudioTime.hostTime(forSeconds: delay))
                 d.player.play(at: at)
             }
         } else {
@@ -182,9 +316,21 @@ final class DeckEngine {
 
     func stop(deck i: Int) {
         guard let d = deck(i) else { return }
+        d.playClaim &+= 1            // a completion this stop fires is stale
         d.player.stop()
         d.lastKnownPosition = nil
         d.segmentBase = 0
+    }
+
+    /// True once the deck's CURRENT scheduled segment has been played back to
+    /// its last frame — the deck's own word that the track is over, which the
+    /// transport advances on instead of waiting for a clock to reach a
+    /// catalog figure the file may never contain. A stopped or re-scheduled
+    /// segment never reports: its claim is old.
+    func didFinish(deck i: Int) -> Bool {
+        guard let d = deck(i) else { return false }
+        let claim = d.playClaim
+        return claim > 0 && d.finishedClaim == claim
     }
 
     func isPlaying(deck i: Int) -> Bool {
@@ -319,6 +465,7 @@ final class DeckEngine {
     /// Installs the analysis tap on mainMixerNode (4096-frame buffers) —
     /// exactly one consumer, so a re-install evicts the previous tap.
     func installTap(_ handler: @escaping (AVAudioPCMBuffer, AVAudioTime) -> Void) {
+        tapHandler = handler
         let main = engine.mainMixerNode
         if tapInstalled {
             main.removeTap(onBus: 0)
@@ -355,6 +502,25 @@ private final class AKDeck {
     var connectedFormat: AVAudioFormat?
     var segmentBase: Double = 0
     var lastKnownPosition: Double?
+
+    /// The claim of the most recent schedule or stop (caller's thread), and
+    /// the claim the player's completion handed back — lock-guarded, because
+    /// the completion fires on an AVFAudio internal queue, never ours.
+    var playClaim: Int = 0
+    private let finishLock = NSLock()
+    private var finishedClaimStorage = 0
+    var finishedClaim: Int {
+        get {
+            finishLock.lock()
+            defer { finishLock.unlock() }
+            return finishedClaimStorage
+        }
+        set {
+            finishLock.lock()
+            finishedClaimStorage = newValue
+            finishLock.unlock()
+        }
+    }
 
     // Ramp-queue-confined.
     var norm: Float = 1
