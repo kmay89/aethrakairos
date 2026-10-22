@@ -372,16 +372,17 @@ const bands = ['lo', 'mid', 'hi'].map(k => Math.abs(centre[k] - dryNow[k]) / Mat
 const worst = Math.max.apply(null, bands);
 R('filter: the centre detent is genuinely bypass', worst < 0.03,
   'lo/mid/hi within ' + bands.map(x => (x * 100).toFixed(1) + '%').join(' / ') + ' of bypass');
-// the resonance law: a half-closed lowpass lifts the band just under its corner (Q 1.5 at x = −0.5), and the detent is Butterworth
+// the resonance law: a half-closed lowpass lifts the band just under its corner (Q 1.5 at x = −0.5), and the detent is Butterworth.
+// A LP/HP biquad reads its Q in dB, so the node carries qDb of the linear law (Butterworth = −3.01 dB)
 const qRead = await page.evaluate(() => {
   const d = AE.decks[DECKS.handSlot()];
   return { q: +d.filter.Q.value.toFixed(2), hpq: +d.hp.Q.value.toFixed(2), lp: Math.round(d.filter.frequency.value), hp: Math.round(d.hp.frequency.value),
-    want: +fxFilterQ(0).toFixed(2) };
+    want: +Q_FLAT_DB.toFixed(2) };
 });
-R('filter: the detent is Butterworth on both biquads, wide open', Math.abs(qRead.q - 0.7) < 0.05 && Math.abs(qRead.hpq - 0.7) < 0.05 && qRead.lp > 18000 && qRead.hp < 40,
+R('filter: the detent is Butterworth on both biquads, wide open', Math.abs(qRead.q - qRead.want) < 0.05 && Math.abs(qRead.hpq - qRead.want) < 0.05 && qRead.lp > 18000 && qRead.hp < 40,
   JSON.stringify(qRead));
 await setFx('filter', 0.25); await page.waitForTimeout(350);
-const qHalf = await page.evaluate(() => { const d = AE.decks[DECKS.handSlot()]; return { q: +d.filter.Q.value.toFixed(2), lp: Math.round(d.filter.frequency.value), want: +fxFilterQ(-0.5).toFixed(2) }; });
+const qHalf = await page.evaluate(() => { const d = AE.decks[DECKS.handSlot()]; return { q: +d.filter.Q.value.toFixed(2), lp: Math.round(d.filter.frequency.value), want: +qDb(fxFilterQ(-0.5)).toFixed(2) }; });
 R('filter: half way left the corner squelches — the Q law reaches the deck', Math.abs(qHalf.q - qHalf.want) < 0.08 && qHalf.lp < 3000 && qHalf.lp > 300, JSON.stringify(qHalf));
 await setFx('', 0); await page.waitForTimeout(300);
 await page.evaluate(() => { window.__benchOff(); window.__benchOn('pink'); });   // the master units: the bench on the rack's input

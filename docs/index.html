@@ -10610,9 +10610,9 @@ function ensureCtx(){
     const eqHi = AE.ctx.createBiquadFilter(); eqHi.type = 'highshelf'; eqHi.frequency.value = EQ_BANDS.hi;  eqHi.gain.value = 0;
     // the master filter pair: the room's own hands sweep it on a build (the
     // auto performer); a hand's FILTER is per deck, on the strip. Butterworth
-    // at rest so the centre is honestly bypass.
-    const lp = AE.ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 22000; lp.Q.value = 0.7;
-    const hp = AE.ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 20;    hp.Q.value = 0.7;
+    // at rest so the centre is honestly bypass — in dB, the unit a LP/HP reads (qDb)
+    const lp = AE.ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 22000; lp.Q.value = Q_FLAT_DB;
+    const hp = AE.ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 20;    hp.Q.value = Q_FLAT_DB;
     // the gate: one gain the beat clock chops, so a trans is rhythm rather than
     // an LFO that drifts against the music
     const gate = AE.ctx.createGain();
@@ -10640,7 +10640,7 @@ function ensureCtx(){
     // the dry inside the unit (the comb IS that sum), trimmed to the budget
     {
       const fin = AE.ctx.createGain();
-      const delay = AE.ctx.createDelay(0.05); delay.delayTime.value = 0.0015;
+      const delay = AE.ctx.createDelay(0.05); delay.delayTime.value = 0.003;   // above the cycle's one-quantum floor (fxFlangeParams)
       const fbG = AE.ctx.createGain(); fbG.gain.value = 0;
       const lfoG = AE.ctx.createGain(); lfoG.gain.value = 0;
       const mix = AE.ctx.createGain(); mix.gain.value = 0.5;
@@ -10678,7 +10678,7 @@ function ensureCtx(){
     {
       const cin = AE.ctx.createGain();
       const shaper = AE.ctx.createWaveShaper(); shaper.curve = crushCurve(12, 8192); shaper.oversample = 'none';
-      const tone = AE.ctx.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 18000; tone.Q.value = 0.7;
+      const tone = AE.ctx.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 18000; tone.Q.value = Q_FLAT_DB;
       cin.connect(shaper); shaper.connect(tone);
       units.crush = { in: cin, out: tone, shaper, tone, bits: 12 };
     }
@@ -10690,14 +10690,16 @@ function ensureCtx(){
        click. Kept separate from the seam's echo unit so a performed echo and
        a hand-off can never fight over one feedback path. */
     const send = AE.ctx.createGain(); send.gain.value = 0;
-    const hpLoop = AE.ctx.createBiquadFilter(); hpLoop.type = 'highpass'; hpLoop.frequency.value = 180; hpLoop.Q.value = 0.7;
+    const hpLoop = AE.ctx.createBiquadFilter(); hpLoop.type = 'highpass'; hpLoop.frequency.value = 180; hpLoop.Q.value = Q_FLAT_DB;
     hpLoop.channelCount = 1; hpLoop.channelCountMode = 'explicit';     // one line in, the image is made by L/R
     const inL = AE.ctx.createGain(); inL.gain.value = 1;
     const inR = AE.ctx.createGain(); inR.gain.value = 1;
     const inMerge = AE.ctx.createChannelMerger(2);
     const delay = AE.ctx.createDelay(4); delay.delayTime.value = 0.5;
     delay.channelCount = 2; delay.channelCountMode = 'explicit';
-    const lpLoop = AE.ctx.createBiquadFilter(); lpLoop.type = 'lowpass'; lpLoop.frequency.value = 4500; lpLoop.Q.value = 0.7;
+    // a TRUE Butterworth inside the loop: |H| never rises above one, so the
+    // loop gain is the feedback and nothing more (ECHO_HOLD_FB, qDb)
+    const lpLoop = AE.ctx.createBiquadFilter(); lpLoop.type = 'lowpass'; lpLoop.frequency.value = 4500; lpLoop.Q.value = Q_FLAT_DB;
     const fb = AE.ctx.createGain(); fb.gain.value = 0;             // straight: L→L, R→R
     const fbX = AE.ctx.createGain(); fbX.gain.value = 0;           // crossed: L→R, R→L (ping-pong)
     const xSplit = AE.ctx.createChannelSplitter(2);
@@ -10716,9 +10718,9 @@ function ensureCtx(){
        connected while REVERB is the unit — a 2.6 s convolution is the one
        expensive thing in this rack), a lowpass on the wet. */
     const rvSend = AE.ctx.createGain(); rvSend.gain.value = 0;
-    const rvHp = AE.ctx.createBiquadFilter(); rvHp.type = 'highpass'; rvHp.frequency.value = 200; rvHp.Q.value = 0.7;
+    const rvHp = AE.ctx.createBiquadFilter(); rvHp.type = 'highpass'; rvHp.frequency.value = 200; rvHp.Q.value = Q_FLAT_DB;
     const rvPre = AE.ctx.createDelay(0.1); rvPre.delayTime.value = 0.02;
-    const rvLp = AE.ctx.createBiquadFilter(); rvLp.type = 'lowpass'; rvLp.frequency.value = 6000; rvLp.Q.value = 0.7;
+    const rvLp = AE.ctx.createBiquadFilter(); rvLp.type = 'lowpass'; rvLp.frequency.value = 6000; rvLp.Q.value = Q_FLAT_DB;
     const rvWet = AE.ctx.createGain(); rvWet.gain.value = 0;
     rvSend.connect(rvHp); rvHp.connect(rvPre);
     rvLp.connect(rvWet); rvWet.connect(out);
@@ -10816,11 +10818,11 @@ function ensureCtx(){
     // on a fading-out deck so a plain crossfade reads as a pro "filter out": the
     // old track sinks away under the filter instead of just getting quieter
     d.filter = AE.ctx.createBiquadFilter();
-    d.filter.type = 'lowpass'; d.filter.frequency.value = FILTER_OPEN; d.filter.Q.value = 0.7;
+    d.filter.type = 'lowpass'; d.filter.frequency.value = FILTER_OPEN; d.filter.Q.value = Q_FLAT_DB;
     // …and its highpass twin, parked at the bottom of hearing (≈bypass): the
     // other half of a per-deck channel filter, waiting for a hand
     d.hp = AE.ctx.createBiquadFilter();
-    d.hp.type = 'highpass'; d.hp.frequency.value = 20; d.hp.Q.value = 0.7;
+    d.hp.type = 'highpass'; d.hp.frequency.value = 20; d.hp.Q.value = Q_FLAT_DB;
     d.gain = AE.ctx.createGain();
     d.gain.gain.value = 0;
     /* THE CROSSFADER'S NODE, after the mixer's. `gain` belongs to the seam
@@ -21457,13 +21459,24 @@ function fxMix(unit, x){
    rises as the knob leaves the detent, which is what makes a sweep sound
    like a sweep rather than a tone control. Flat (0.7, Butterworth) on the
    detent so the centre is honestly bypass; 3.0 at either end. Written to
-   both biquads' Q, so the highpass side squelches the same way. */
+   both biquads' Q, so the highpass side squelches the same way.
+   The law is in LINEAR Q, the way every filter book writes it — and Web
+   Audio does not take it that way: a lowpass or highpass BiquadFilterNode
+   reads its Q in dB (the spec's alpha_QdB), while a peaking or shelf reads
+   it linearly. So 0.7 written straight to a lowpass is not Butterworth but
+   a linear 1.08, a +1.7 dB hump just under the corner — on every deck,
+   every master corner, and inside the echo's loop, where that hump times a
+   held feedback of 0.97 is a loop gain of 1.19 and a tail that grows into a
+   howl. Every LP/HP write therefore goes through qDb; Q_FLAT_DB is the true
+   Butterworth (−3.01 dB = 1/√2), whose response never rises above unity. */
 const FILTER_DETENT = 0.06;
 function fxFilterQ(x){
   const v = Math.min(1, Math.abs(x || 0));
   const t = Math.max(0, v - FILTER_DETENT) / (1 - FILTER_DETENT);
   return 0.7 + 2.3 * Math.pow(t, 1.6);
 }
+function qDb(q){ return 20 * Math.log10(q > 0 ? q : Math.SQRT1_2); }
+const Q_FLAT_DB = qDb(Math.SQRT1_2);               // −3.0103: Butterworth, in the unit a LP/HP biquad reads
 /* THE ARBITER (one deck's filter, three hands on it). The hand's knob, the
    seam's filter-out, and the brake's darkening all want the same lowpass;
    the law is that the MORE CLOSED wins, and the highpass is the hand's
@@ -21543,6 +21556,13 @@ function fxEchoGlide(from, to){
   const d = Math.abs((to > 0 ? to : 0) - (from > 0 ? from : 0));
   return Math.max(0.25, Math.min(0.6, d * 0.5));
 }
+/* THE HELD TAIL'S FEEDBACK. HOLD kills the feed and lets the loop carry the
+   tail on its own, so the loop gain IS the decay: under one or the tail
+   grows. The loop's lowpass is a true Butterworth (|H| ≤ 1), and this sits
+   far enough under unity that the line's own interpolation and float
+   rounding cannot tip it over — about −0.5 dB a repeat, a long hang that
+   still dies. Both writers (apply and echoHold) read it from here. */
+const ECHO_HOLD_FB = 0.94;
 
 /* THE REVERB'S ROOM, generated. Exponentially decaying noise is a fair
    late field — what a convolver needs to sound like a space rather than a
@@ -21579,11 +21599,17 @@ function reverbIR(sr, seconds, decayDb, seed){
    with the dry. Beat-synced — one sweep per 4·div beats — and the LFO is
    (re)started so its BOTTOM lands on the bar line (fxLfoWave). Feedback
    stays under 0.55: the comb's peaks are 1/(1 − fb), and the unit's output
-   is trimmed so a full sweep sits inside the limiter budget. */
+   is trimmed so a full sweep sits inside the limiter budget.
+   The swept line is INSIDE the feedback cycle, and a DelayNode in a cycle is
+   clamped to at least one render quantum — 128 frames, 2.90 ms at 44.1 kHz.
+   The first base (1.5 ms) put the whole default sweep under that floor: a
+   static comb on any engine that applies the clamp. The sweep now starts at
+   3 ms, clear of the floor at every rate a context runs at, and reaches
+   5.4 ms at full amount, still squarely in a flanger's range. */
 function fxFlangeParams(amount, div, bpm){
   const a = amount < 0 ? 0 : amount > 1 ? 1 : (amount || 0);
   const d = div > 0 ? div : 1;
-  return { baseSec: 0.0015, depthSec: 0.0012 * a, rateHz: 1 / fxTime(4 * d, bpm), fb: 0.25 + 0.3 * a };
+  return { baseSec: 0.003, depthSec: 0.0012 * a, rateHz: 1 / fxTime(4 * d, bpm), fb: 0.25 + 0.3 * a };
 }
 /* AN OSCILLATOR CANNOT BE RE-PHASED, so the phase is built into the wave:
    −cos(θ − ψ) has its minimum at θ = ψ. With ψ the fraction of a cycle
@@ -21694,13 +21720,17 @@ function driveMakeup(k){
 /* THE PERFORMER'S RESTRAINT. fxAutoPick is the taste; this is the patience.
    The first room re-decided every frame against raw energy, so a peak that
    hovered on the threshold flicked the gate in and out mid-beat. Now a
-   decision is taken once per bar, at the top of it; the energy it reads is
+   decision is taken once per bar, at the first tick inside its first
+   quarter — a window of 5% was 97 ms at 124 BPM, and a single slow frame or
+   the hidden tab's 300 ms timer stepped clean over it, last-bar echo and
+   all; `bar === s.bar` keeps it to one decision however wide the window
+   is — and the energy it reads is
    biased ±0.06 toward staying where it is; a unit holds for at least two
    bars; after a unit ends the room rests eight bars; the gate is allowed
    four bars at a time and once per thirty-two. The one thing that may
    interrupt all of that is the hand-off echo, because the seam comes once.
    Returns { st, change, unit }. */
-const FX_AUTO = { hyst: 0.06, holdBars: 2, restBars: 8, gateBars: 4, gateEvery: 32, barTop: 0.05 };
+const FX_AUTO = { hyst: 0.06, holdBars: 2, restBars: 8, gateBars: 4, gateEvery: 32, barTop: 0.25 };
 function makeFxAuto(){ return { unit: 'none', since: -1e9, endedAt: -1e9, gateAt: -1e9, bar: -1 }; }
 function fxAutoStep(st, o, barPhase, nowBars){
   const s = st || makeFxAuto();
@@ -21759,7 +21789,7 @@ function fxGainBudget(active){
    might forget to extend — the first rack forgot the echo's feedback, and a
    0.62 loop rang the last track's rhythm under the next one for half a
    minute. Keys are the rack's node names; values are the parked setting. */
-const FX_PARK = { lp: 22000, hp: 20, lpQ: 0.7, hpQ: 0.7, gate: 1, send: 0, fb: 0, fbX: 0, wet: 0,
+const FX_PARK = { lp: 22000, hp: 20, lpQ: Q_FLAT_DB, hpQ: Q_FLAT_DB, gate: 1, send: 0, fb: 0, fbX: 0, wet: 0,
                   rvSend: 0, rvWet: 0, insWet: 0, insDry: 1, eqLo: 0, eqMid: 0, eqHi: 0 };
 // @fx-end
 
@@ -26577,11 +26607,11 @@ const FX = {
     }
     else if (u === 'reverb'){ this._w(f.rvSend.gain, 0, 0.03); this._w(f.rvWet.gain, 0, 0.5); this._reverbDrop(false); }
     else if (u === 'gate'){
-      const t = AE.ctx.currentTime, step = fxTime(this.div, this.bpm());
+      const t = AE.ctx.currentTime, step = this._gateStep > 0 ? this._gateStep : fxTime(this.div, this.bpm());
       if (this._gateAt > t){
         // slices are queued: let the running one finish its edge, then open from the next boundary
         const next = this._gateAt - Math.floor((this._gateAt - t) / step) * step;
-        try { f.gate.gain.cancelScheduledValues(next); f.gate.gain.setValueAtTime(GATE_FLOOR, next); f.gate.gain.setTargetAtTime(1, next, 0.02); }
+        try { f.gate.gain.cancelScheduledValues(Math.max(t, next - 1e-6)); f.gate.gain.setValueAtTime(GATE_FLOOR, next); f.gate.gain.setTargetAtTime(1, next, 0.02); }
         catch (e){ this._w(f.gate.gain, 1, 0.02); }
       } else this._w(f.gate.gain, 1, 0.02);
       this._gateAt = t;
@@ -26606,6 +26636,7 @@ const FX = {
       // the first slice lands on the bar line, every slice after on the grid it anchors
       const t = AE.ctx.currentTime, step = fxTime(this.div, this.bpm()), b = this.barLineAt();
       this._gateAt = b ? gateAnchor(t, b.at, step) : t;
+      this._gateStep = step;
       this._gateFresh = true;                          // the gain is open: the first slice only closes
       this._w(f.gate.gain, 1, 0.01);
     }
@@ -26629,7 +26660,7 @@ const FX = {
     }
     if (u === 'echo'){
       const g = fxEchoGains(this.amount);
-      const fbS = this.hold ? 0.97 : g.fb;
+      const fbS = this.hold ? ECHO_HOLD_FB : g.fb;
       this._w(f.send.gain, this.hold ? 0 : g.send, R);
       this._w(f.fb.gain, this.pingpong ? 0 : fbS, R); this._w(f.fbX.gain, this.pingpong ? fbS : 0, R);
       this._w(f.wet.gain, fxMix('echo', this.wet), R);
@@ -26649,10 +26680,28 @@ const FX = {
          running drops its new setting in at the NEXT slice rather than the next
          second: the phase is kept and the change lands on a beat, which is what
          turning a division knob does on hardware. */
+      if (!(this.amount > 0.02)){
+        /* THE KNOB'S ZERO END IS BYPASS (fxGateHold) — and tick() stops
+           filling the queue there, so whatever the queue last said is what
+           the room hears. Cancelling at the next slice left the running
+           slice's close edge as that last word: the whole master parked at
+           −60 dB for as long as GATE stayed selected. So the room opens
+           here, held where it is first and then a short glide (the
+           AudioParam law), and the next slice after the knob comes back
+           finds the gain open, so it only closes. */
+        this._w(f.gate.gain, 1, 0.02);
+        this._gateFresh = true; this._gateAt = t;
+        return;
+      }
       if (this._gateAt > t){
-        const step = fxTime(this.div, this.bpm());
+        /* re-anchored on the grid the queue was BUILT on (a division change
+           has already moved this.div), and cancelled a hair before that
+           boundary, so the slice that opens there goes whichever side of it
+           the float arithmetic put its start: the new pattern begins on a
+           boundary where the gain already sits at the floor */
+        const step = this._gateStep > 0 ? this._gateStep : fxTime(this.div, this.bpm());
         const next = this._gateAt - Math.floor((this._gateAt - t) / step) * step;
-        try { f.gate.gain.cancelScheduledValues(next); } catch (e){}
+        try { f.gate.gain.cancelScheduledValues(Math.max(t, next - 1e-6)); } catch (e){}
         this._gateAt = next;
       }
       return;
@@ -26757,15 +26806,16 @@ const FX = {
       else p.exponentialRampToValueAtTime(to, t + fxEchoGlide(from, to));
     } catch (e){}
   },
-  /* ECHO HOLD — kill the feed, let the loop run at 0.97 and darken like tape:
-     the tail hangs in the room with the deck gone from under it. A second
-     press, or any unit change, lets it go. */
+  /* ECHO HOLD — kill the feed, let the loop run at ECHO_HOLD_FB and darken
+     like tape: the tail hangs in the room with the deck gone from under it,
+     and still decays (the loop's lowpass is a true Butterworth, so the
+     feedback IS the loop gain). A second press, or any unit change, lets it go. */
   echoHold(on){
     if (!this.live()) return false;
     const f = AE.fx, want = !!on;
     if (want === this.hold) return this.hold;
     this.hold = want;
-    const fbS = want ? 0.97 : (this.unit === 'echo' ? fxEchoGains(this.amount).fb : 0);
+    const fbS = want ? ECHO_HOLD_FB : (this.unit === 'echo' ? fxEchoGains(this.amount).fb : 0);
     this._w(f.send.gain, want ? 0 : (this.unit === 'echo' ? fxEchoGains(this.amount).send : 0), 0.03);
     this._w(f.fb.gain, this.pingpong ? 0 : fbS, 0.08); this._w(f.fbX.gain, this.pingpong ? fbS : 0, 0.08);
     this._w(f.hpLoop.frequency, want ? 300 : 180, 0.1); this._w(f.lpLoop.frequency, want ? 3000 : 4500, 0.1);
@@ -26779,30 +26829,53 @@ const FX = {
   /* THE LFOs, beat-synced and phased to the bar. An oscillator cannot be
      re-phased, so each (re)start is a new one with the phase baked into its
      wave (fxLfoWave): the sweep's bottom lands on the next bar line whatever
-     instant the pad was pressed. Rebuilt on a division or tempo change. */
+     instant the pad was pressed. Rebuilt on a division change (a tempo drift
+     only glides the running one's rate — tick()).
+     A swap is never a jump. The LFO IS the flanger's read head, so a new
+     oscillator at a new phase steps the delay time — a discontinuity in the
+     waveform that the feedback then recirculates. A sweep already running
+     (or still dying from a park) is ducked to no depth first; the new one
+     starts under the duck, and apply() brings the depth back over it. */
   _lfoStart(u){
     const f = AE.fx, U = f.units[u];
     if (!U || !f.insert) return;
-    this._lfoStop(u);
-    const bpm = this.bpm(), t = AE.ctx.currentTime;
+    const t = AE.ctx.currentTime, live = !!(U.lfo || U.lfoDying);
+    if (live){ this._w(U.lfoG.gain, 0, 0.01); this._lfoStop(u, 0.05); }
+    const t0 = live ? t + 0.05 : t;
+    this._lfoEnd(U, U.lfoDying, t0);                                 // never two sweeps summed into one depth
+    const bpm = this.bpm();
     const rate = fxFlangeParams(this.amount, this.div, bpm).rateHz;
     const b = this.barLineAt();
-    const frac = b ? (b.at - t) * rate : 0;
+    const frac = b ? (b.at - t0) * rate : 0;
     try {
       const o = AE.ctx.createOscillator();
       const w = fxLfoWave(frac);
       o.setPeriodicWave(AE.ctx.createPeriodicWave(w.real, w.imag, { disableNormalization: true }));
-      o.frequency.setValueAtTime(rate, t);
+      o.frequency.setValueAtTime(rate, t0);
       o.connect(U.lfoG);
-      o.start(t);
+      o.start(t0);
       U.lfo = o; U.lfoBpm = bpm; U.lfoDiv = this.div;
     } catch (e){ U.lfo = null; }
+    if (live){ clearTimeout(this._lfoT); this._lfoT = setTimeout(() => { this._lfoT = 0; if (this.unit === u) this.apply(); }, 60); }
   },
-  _lfoStop(u){
+  /* stopped LATE, not now: a park fades the wet over ~0.1 s, and a sweep cut
+     from under an audible wet is a read-head jump. It runs on under the fade
+     and lets go of the graph when it has actually ended. */
+  _lfoStop(u, late){
     const U = AE.fx && AE.fx.units[u];
     if (!U || !U.lfo) return;
-    try { U.lfo.stop(); U.lfo.disconnect(); } catch (e){}
+    const o = U.lfo, at = AE.ctx.currentTime + (late != null ? late : 0.15);
     U.lfo = null;
+    this._lfoEnd(U, U.lfoDying, at);                    // an older one still dying goes no later than this one
+    U.lfoDying = o;
+    o.onended = () => { try { o.disconnect(); } catch (e){} if (U.lfoDying === o) U.lfoDying = null; };
+    this._lfoEnd(U, o, at);
+  },
+  // an oscillator's stop, only ever moved EARLIER (a second stop() replaces the first)
+  _lfoEnd(U, o, at){
+    if (!o || o._stopAt <= at) return;
+    try { o.stop(at); o._stopAt = at; }
+    catch (e){ try { o.disconnect(); } catch (e2){} if (U.lfoDying === o) U.lfoDying = null; }
   },
   /* ---- the deck filter — the DJ norm, with an arbiter ------------------ */
   // the deck a FILTER acts on: the one the hand last touched (the record on air by default)
@@ -26867,13 +26940,13 @@ const FX = {
       const hand = d._fxHand, seam = d._fxSeam ? fxSeamHz(d._fxSeam, now) : 0, brake = d._fxBrake || 0;
       if (hand || d._fxSeam || brake) busy = true;
       if (d._fxSched) continue;
-      const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : 0.7;
+      const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : Math.SQRT1_2;   // linear; written in dB (qDb)
       const tau = d._fxTau || 0.03;
       const L = d._fxLast || (d._fxLast = { lp: 0, hp: 0, q: 0 });
       try {
         if (Math.abs(a.lp - L.lp) > L.lp * 0.002){ d.filter.frequency.setTargetAtTime(a.lp, now, tau); L.lp = a.lp; busy = true; }
         if (Math.abs(a.hp - L.hp) > L.hp * 0.002){ d.hp.frequency.setTargetAtTime(a.hp, now, tau); L.hp = a.hp; busy = true; }
-        if (Math.abs(q - L.q) > 0.002){ d.filter.Q.setTargetAtTime(q, now, tau); d.hp.Q.setTargetAtTime(q, now, tau); L.q = q; busy = true; }
+        if (Math.abs(q - L.q) > 0.002){ const qd = qDb(q); d.filter.Q.setTargetAtTime(qd, now, tau); d.hp.Q.setTargetAtTime(qd, now, tau); L.q = q; busy = true; }
       } catch (e){}
     }
     if (busy) this._ftIdle = 0;
@@ -26919,19 +26992,35 @@ const FX = {
           for (const ev of gateSchedule(at, step, hold, E)){
             // the first slice after engaging finds the gain already open: its open edge would be a step down to the floor
             if (this._gateFresh && ev.to === 1) continue;
-            AE.fx.gate.gain.setValueCurveAtTime(gateCurve(ev.from, ev.to, 32), ev.at, ev.dur);
+            /* the raised cosine is a curve, and a curve is only safe on a param
+               whose writers can HOLD it (cancelAndHoldAtTime). Where the
+               browser lacks that (Firefox), gainWrite's fallback cancels from
+               now and pins — and a curve already running survives that cancel
+               there, so the pin throws and the park never lands: a release
+               inside a 3 ms close edge left the master at −60 dB for the whole
+               next track. There the edge is a set and a linear ramp instead,
+               an event the cancel does take; over 3 ms the ear cannot tell. */
+            const g = AE.fx.gate.gain;
+            if (g.cancelAndHoldAtTime) g.setValueCurveAtTime(gateCurve(ev.from, ev.to, 32), ev.at, ev.dur);
+            else { g.setValueAtTime(ev.from, ev.at); g.linearRampToValueAtTime(ev.to, ev.at + ev.dur); }
           }
         } catch (e){}
         this._gateFresh = false;
+        this._gateStep = step;                        // the grid the queue is on (apply's re-anchor reads it)
         this._gateAt = at + step;
       }
     } else if (this.live()){
       this._gateAt = AE.ctx.currentTime;
     }
-    // the beat-synced units follow the tempo: a drift of a percent restarts the LFO on the next bar
+    // the beat-synced units follow the tempo: a drift of a percent GLIDES the
+    // running LFO's rate (a restart would be a new phase, a jump in the sweep);
+    // the bar re-lock is left to the next division change or engage
     if (this.live() && (this.unit === 'flanger' || this.unit === 'phaser')){
       const U = AE.fx.units[this.unit], bpm = this.bpm();
-      if (U && U.lfo && U.lfoBpm > 0 && Math.abs(bpm - U.lfoBpm) / U.lfoBpm > 0.01) this._lfoStart(this.unit);
+      if (U && U.lfo && U.lfoBpm > 0 && Math.abs(bpm - U.lfoBpm) / U.lfoBpm > 0.01){
+        try { U.lfo.frequency.setTargetAtTime(fxFlangeParams(this.amount, this.div, bpm).rateHz, AE.ctx.currentTime, 0.05); } catch (e){}
+        U.lfoBpm = bpm;
+      }
     }
     if (this.live() && this.unit === 'echo' && this._echoBpm > 0 && Math.abs(this.bpm() - this._echoBpm) / this._echoBpm > 0.01) this._echoTime('tempo');
     // loopTick and jumpTick run from preFrame() — the top of the frame, where
@@ -27185,8 +27274,17 @@ const FX = {
     let toSeam = null;
     if (MIXER.phase === 'armed' && MIXER.plan && MIXER.plan.type !== 'fade' && isFinite(d.a.duration))
       toSeam = Math.max(0, MIXER.exitTime(d.a.duration, MIXER.plan, track) - d.a.currentTime);
+    /* A HIDDEN TAB HAS NO FRAMES, and everything this reads but the seam
+       distance is written by one: the director's progress, ceiling, act and
+       phase, the analysis's energy, the beat clock's grid. Frozen where the
+       tab was left, they would deal a build sweep, a gate or a wash onto
+       whatever the auto-DJ mixed in next. So hidden, nothing has earned a
+       gesture (ceil 0): no unit starts, and one already up winds down by the
+       step's own rules — its held bars kept, the gate's chop not left running
+       for an hour in a pocket. */
+    const hidden = typeof document !== 'undefined' && document.hidden;
     const o = {
-      ceil: director.ceil, act: director.act,
+      ceil: hidden ? 0 : director.ceil, act: director.act,
       phase: (lab === 'build' || lab === 'peak' || lab === 'break') ? lab : director.phase,
       energy: AE.f.energy, bar, barsIn, toSeam,
       struggling: (typeof PERF !== 'undefined' && PERF.struggling),
@@ -27210,8 +27308,8 @@ const FX = {
         f.hp.frequency.exponentialRampToValueAtTime(sw.hzTop, tRel);
         f.hp.frequency.setTargetAtTime(20, tRel, 0.05);
         f.hp.Q.setValueAtTime(f.hp.Q.value, t);
-        f.hp.Q.linearRampToValueAtTime(sw.qTop, tRel);
-        f.hp.Q.setTargetAtTime(0.7, tRel, 0.05);
+        f.hp.Q.linearRampToValueAtTime(qDb(sw.qTop), tRel);       // the law is linear Q; the node reads dB
+        f.hp.Q.setTargetAtTime(Q_FLAT_DB, tRel, 0.05);
       } catch (e){}
       this._sweepEnd = tEnd;
       return;
@@ -27236,7 +27334,7 @@ const FX = {
     this._autoSt = Object.assign(makeFxAuto(), { endedAt: this._autoSt.bar, gateAt: this._autoSt.gateAt, bar: this._autoSt.bar });
     this._autoUnit = '';
     if (!this.live()) return;
-    if (u === 'filter'){ this._w(f.hp.frequency, 20, 0.05); this._w(f.hp.Q, 0.7, 0.05); this._sweepEnd = 0; return; }
+    if (u === 'filter'){ this._w(f.hp.frequency, 20, 0.05); this._w(f.hp.Q, Q_FLAT_DB, 0.05); this._sweepEnd = 0; return; }
     if (u === 'echo'){
       const running = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
       if (running && this.unit === 'echo'){
@@ -27257,6 +27355,21 @@ const FX = {
      IS the hand-off, and it lets itself go two bars in. */
   release(opts){
     const braking = this.brakeT >= 0;
+    /* THE SEAM'S COMMIT IS WHERE THE HAND-OFF ECHO IS HELD. MIXER.fire()
+       commits (and so calls this) while its phase still reads 'armed', so the
+       performer's own "the cut: hold the tail" branch never sees the seam —
+       by the time it looks, the reset below has already taken its echo away,
+       and the park would choke the return in under a tenth of a second, a
+       bar of echo cut off at the very cut it was dealt for. So the hold
+       starts HERE, before anything is reset: the park below then leaves the
+       loop alone (hold), and the tail lets itself go two bars in. */
+    if (opts && opts.keepPlatters && this.auto && this.live() && !this._tailHold
+        && this._autoSt.unit === 'echo' && this.unit === 'echo'){
+      this._tailHold = true;
+      this.echoHold(true);
+      clearTimeout(this._holdT);
+      this._holdT = setTimeout(() => { if (this._tailHold) this.echoHold(false); }, Math.round(2 * beatLen(4, this.bpm()) * 1000));
+    }
     /* A TRACK CHANGING HANDS TAKES THE PLATTER AWAY — but a seam is not a
        track change for the hands. The platters sit before the seam's gain
        curve, so a record in a hand through an auto blend is shaped by the

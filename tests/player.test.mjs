@@ -32,8 +32,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
-  ' FX_UNITS, FX_SENDS, FX_INSERTS, FX_AMT, FX_MIX, fxMix, FILTER_DETENT, fxFilterQ, fxFilterArbiter, fxSeamHz,'  +
-  ' GATE_FLOOR, gateEdge, gateCurve, gateEdgeSec, gateSchedule, gateAnchor, fxEchoGains, fxEchoGlide, reverbIR,'  +
+  ' FX_UNITS, FX_SENDS, FX_INSERTS, FX_AMT, FX_MIX, fxMix, FILTER_DETENT, fxFilterQ, qDb, Q_FLAT_DB, fxFilterArbiter, fxSeamHz,'  +
+  ' GATE_FLOOR, gateEdge, gateCurve, gateEdgeSec, gateSchedule, gateAnchor, fxEchoGains, fxEchoGlide, ECHO_HOLD_FB, reverbIR,'  +
   ' fxFlangeParams, fxLfoWave, fxPhaserStages, fxPhaserShape, crushBits, crushCurve, crushTone,'  +
   ' driveCurve, drivePre, driveTiltDb, driveTrimDb, drivePinkRef, driveMakeup, FX_AUTO, makeFxAuto, fxAutoStep, fxAutoSweep,'  +
   ' FX_GAIN_DB, FX_BUDGET_DB, fxGainBudget, FX_PARK,'  +
@@ -11170,6 +11170,48 @@ test('fxFilterQ: flat on the detent, squelching toward the ends, never past 3', 
   // the corners went where a DJ filter goes: the kick leaves on the left, the air on the right
   assert.ok(S.fxFilter(-1, 22050).lp < 100 && S.fxFilter(1, 22050).hp > 12000);
 });
+/* Web Audio's LP/HP biquad, as the spec writes it: the RBJ cookbook with Q read in dB
+   (alpha = sin(w0) / (2·10^(Q/20))). The magnitude at f, so a test can see a hump. */
+const biquadMag = (type, f, fc, qDbVal, sr) => {
+  const w0 = 2 * Math.PI * fc / sr, al = Math.sin(w0) / (2 * Math.pow(10, qDbVal / 20)), c = Math.cos(w0);
+  const b = type === 'lowpass' ? [(1 - c) / 2, 1 - c, (1 - c) / 2] : [(1 + c) / 2, -(1 + c), (1 + c) / 2];
+  const a = [1 + al, -2 * c, 1 - al];
+  const w = 2 * Math.PI * f / sr;
+  const re = (k) => k[0] + k[1] * Math.cos(-w) + k[2] * Math.cos(-2 * w), im = (k) => k[1] * Math.sin(-w) + k[2] * Math.sin(-2 * w);
+  return Math.hypot(re(b), im(b)) / Math.hypot(re(a), im(a));
+};
+test('qDb / Q_FLAT_DB: a LP/HP biquad reads Q in dB, so the rack writes the linear law through qDb and parks at a hump-free Butterworth', () => {
+  assert.ok(Math.abs(S.Q_FLAT_DB - (-3.0103)) < 1e-3, 'Butterworth is −3.01 dB, got ' + S.Q_FLAT_DB);
+  assert.ok(Math.abs(S.qDb(1) - 0) < 1e-12 && Math.abs(S.qDb(3) - 9.5424) < 1e-3, 'the linear law in the node\'s unit');
+  assert.ok(Math.abs(S.qDb(0) - S.Q_FLAT_DB) < 1e-12 && Math.abs(S.qDb(-1) - S.Q_FLAT_DB) < 1e-12, 'nonsense in, Butterworth out');
+  const sr = 48000;
+  let flat = 0, old = 0;
+  for (let f = 20; f < 20000; f *= 1.01){
+    flat = Math.max(flat, biquadMag('lowpass', f, 3000, S.Q_FLAT_DB, sr));
+    old = Math.max(old, biquadMag('lowpass', f, 3000, 0.7, sr));
+  }
+  assert.ok(flat <= 1 + 1e-9, 'a dB Butterworth never rises above unity, peak ' + flat);
+  assert.ok(old > 1.2, 'and the 0.7 that was written "as Butterworth" was a +1.7 dB hump, peak ' + old.toFixed(3));
+  // the parked deck highpass and the master's, in series at 20 Hz: no sub-bass bump anywhere below 60 Hz
+  for (let f = 15; f <= 60; f += 1){
+    const g = Math.pow(biquadMag('highpass', f, 20, S.Q_FLAT_DB, sr), 2);
+    assert.ok(g <= 1 + 1e-9, 'deck hp × master hp adds nothing at ' + f + ' Hz, got ' + (20 * Math.log10(g)).toFixed(2) + ' dB');
+  }
+  // the filter's ends are a real squelch once the node is told in its own unit
+  assert.ok(S.qDb(S.fxFilterQ(1)) > 9 && S.qDb(S.fxFilterQ(0)) < S.Q_FLAT_DB + 0.2);
+});
+test('ECHO_HOLD_FB: a held tail decays — the loop gain (feedback × the in-loop Butterworth) stays under one at every frequency', () => {
+  assert.ok(S.ECHO_HOLD_FB > 0.9 && S.ECHO_HOLD_FB < 0.97, 'a long hang, but with margin under unity: ' + S.ECHO_HOLD_FB);
+  assert.ok(S.ECHO_HOLD_FB > S.fxEchoGains(1).fb, 'HOLD hangs longer than the knob at full');
+  for (const sr of [44100, 48000]) for (const fc of [3000, 4500]){
+    let peak = 0, at = 0;
+    for (let f = 20; f < sr / 2; f *= 1.005){ const g = S.ECHO_HOLD_FB * biquadMag('lowpass', f, fc, S.Q_FLAT_DB, sr); if (g > peak){ peak = g; at = f; } }
+    assert.ok(peak < 0.95, 'held loop gain ' + peak.toFixed(4) + ' at ' + Math.round(at) + ' Hz (lp ' + fc + ', ' + sr + ' Hz) — every repeat quieter than the last');
+    // and what the first build had: 0.97 through a 0.7 dB "Butterworth" — a loop that grows
+    let was = 0; for (let f = 20; f < sr / 2; f *= 1.005) was = Math.max(was, 0.97 * biquadMag('lowpass', f, fc, 0.7, sr));
+    assert.ok(was > 1.1, 'the old loop really did gain on itself: ' + was.toFixed(3));
+  }
+});
 test('fxFilterArbiter / fxSeamHz: the more closed hand wins, the highpass is the hand\'s alone, the seam reads back as a number', () => {
   assert.deepEqual(S.fxFilterArbiter({ lp: 800, hp: 20 }, 22000, 0), { lp: 800, hp: 20 }, 'a hand alone');
   assert.deepEqual(S.fxFilterArbiter(null, 300, 0), { lp: 300, hp: 20 }, 'a seam alone');
@@ -11262,7 +11304,15 @@ test('fxFlangeParams / fxLfoWave / fxPhaserStages: beat-synced sweeps whose bott
   assert.ok(Math.abs(p.rateHz - 1 / 2) < 1e-9, 'one sweep per four beats at 120 BPM is a two-second cycle');
   assert.ok(Math.abs(S.fxFlangeParams(0.5, 0.5, 120).rateHz - 1) < 1e-9, 'a half-beat division sweeps twice as fast');
   assert.ok(p.fb <= 0.55 && S.fxFlangeParams(0, 1, 120).fb >= 0.25, 'feedback inside the budget');
-  assert.equal(S.fxFlangeParams(0, 1, 120).depthSec, 0); assert.ok(p.depthSec > 0.001 && p.baseSec === 0.0015);
+  assert.equal(S.fxFlangeParams(0, 1, 120).depthSec, 0); assert.ok(p.depthSec > 0.001 && p.baseSec === 0.003);
+  // the swept line sits inside the feedback cycle, where a DelayNode is clamped to one render quantum
+  // (128 frames): the WHOLE sweep, at every amount, must stay above that floor at 44.1 kHz or it is a static comb
+  for (let a = 0; a <= 1.0001; a += 0.05){
+    const q = S.fxFlangeParams(a, 1, 128);
+    // apply() centres delayTime at base + depth and the LFO swings ±depth: the sweep is [base, base + 2·depth]
+    assert.ok(q.baseSec > 128 / 44100, 'sweep bottom above the cycle floor at amount ' + a.toFixed(2) + ': ' + (q.baseSec * 1000).toFixed(2) + ' ms');
+    assert.ok(q.baseSec + 2 * q.depthSec <= 0.006, '…and the top still a flanger, not a slapback');
+  }
   // the wave: real·cos + imag·sin evaluated at θ = 2π·frac must be the minimum
   for (const frac of [0, 0.25, 0.6, 0.99]){
     const w = S.fxLfoWave(frac), th = 2 * Math.PI * frac;
@@ -11352,6 +11402,20 @@ test('fxAutoStep: a decision a bar, hysteresis on the line, two bars held, eight
   // and never a change off the bar line, never twice in one bar
   const r2 = S.fxAutoStep(r.st, { ...base, energy: 0.95 }, 0.5, 5.5);
   assert.ok(!r2.change && r2.unit === 'echo');
+  // a late tick (a slow frame, the hidden tab's 300 ms timer) still decides, once, inside the bar's first quarter
+  let late = S.fxAutoStep(S.makeFxAuto(), { ...base, energy: 0.95 }, 0.2, 12.2);
+  assert.ok(late.change && late.unit === 'gate', 'a tick a fifth of a bar late still takes the decision');
+  assert.ok(!S.fxAutoStep(late.st, { ...base, energy: 0.95 }, 0.22, 12.22).change, '…once');
+  assert.ok(!S.fxAutoStep(S.makeFxAuto(), { ...base, energy: 0.95 }, 0.3, 12.3).change, 'but past the first quarter it waits for the next bar');
+  assert.ok(S.FX_AUTO.barTop * S.beatLen(4, 174) > 0.3, 'the window outlasts the hidden tab\'s 300 ms tick even at 174 BPM');
+  // a hidden tab feeds the step ceil 0: nothing is dealt, and a running unit winds down by the rules
+  let hid = S.fxAutoStep(S.makeFxAuto(), { ...base, energy: 0.95 }, 0.01, 20);
+  assert.equal(hid.unit, 'gate');
+  hid = S.fxAutoStep(hid.st, { ...base, ceil: 0, energy: 0.95 }, 0.01, 21);
+  assert.ok(!hid.change && hid.unit === 'gate', 'held its two bars');
+  hid = S.fxAutoStep(hid.st, { ...base, ceil: 0, energy: 0.95 }, 0.01, 22);
+  assert.ok(hid.change && hid.unit === 'none', 'then let go, nothing new dealt');
+  assert.equal(S.fxAutoPick({ ...base, ceil: 0, toSeam: 0.5 }), 'none', 'not even the seam echo on frozen inputs');
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 1 }), 'reverb', 'a break\'s first bars are a wash');
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 3 }), 'none', '…and only its first bars');
 });
@@ -11374,13 +11438,29 @@ test('fxGainBudget: everything that can sound at once stays under +6 dB, so the 
   // the parked table carries what the first rack forgot
   assert.equal(S.FX_PARK.fb, 0); assert.equal(S.FX_PARK.fbX, 0); assert.equal(S.FX_PARK.wet, 0); assert.equal(S.FX_PARK.send, 0);
   assert.equal(S.FX_PARK.gate, 1); assert.equal(S.FX_PARK.insDry, 1); assert.equal(S.FX_PARK.insWet, 0); assert.equal(S.FX_PARK.lp, 22000);
+  assert.equal(S.FX_PARK.lpQ, S.Q_FLAT_DB); assert.equal(S.FX_PARK.hpQ, S.Q_FLAT_DB, 'the master corners park at a TRUE Butterworth, in dB');
 });
 test('the rack in the player: release walks FX_PARK, the gate is curves, the seam goes through the arbiter, nothing assigns a param', () => {
   const fx = html.slice(html.indexOf('const FX = {'), html.indexOf('const CUES = {'));
   for (const s of ['for (const k in FX_PARK){', "if (hold && (k === 'send' || k === 'fb' || k === 'fbX' || k === 'wet')) continue;",
-                   'AE.fx.gate.gain.setValueCurveAtTime(gateCurve(ev.from, ev.to, 32), ev.at, ev.dur);', 'if (this._gateFresh && ev.to === 1) continue;',
+                   'if (g.cancelAndHoldAtTime) g.setValueCurveAtTime(gateCurve(ev.from, ev.to, 32), ev.at, ev.dur);',
+                   'else { g.setValueAtTime(ev.from, ev.at); g.linearRampToValueAtTime(ev.to, ev.at + ev.dur); }',
+                   'if (this._gateFresh && ev.to === 1) continue;',
+                   // the knob's zero end reopens the room; the re-anchor is on the queue's own grid, a hair early
+                   "if (!(this.amount > 0.02)){", 'this._w(f.gate.gain, 1, 0.02);', 'this._gateStep = step;',
+                   'const step = this._gateStep > 0 ? this._gateStep : fxTime(this.div, this.bpm());',
+                   'try { f.gate.gain.cancelScheduledValues(Math.max(t, next - 1e-6)); } catch (e){}',
+                   // the held tail: from the constant, and started at the seam's commit before the reset
+                   'const fbS = this.hold ? ECHO_HOLD_FB : g.fb;', 'const fbS = want ? ECHO_HOLD_FB :',
+                   "&& this._autoSt.unit === 'echo' && this.unit === 'echo'){",
+                   // a hidden tab deals nothing on frozen inputs
+                   'ceil: hidden ? 0 : director.ceil,',
+                   // the LFO: stopped late, swapped under a duck, glided on drift
+                   'this._lfoEnd(U, o, at);', 'if (live){ this._w(U.lfoG.gain, 0, 0.01); this._lfoStop(u, 0.05); }',
+                   'U.lfo.frequency.setTargetAtTime(fxFlangeParams(this.amount, this.div, bpm).rateHz, AE.ctx.currentTime, 0.05);',
+                   'f.hp.Q.linearRampToValueAtTime(qDb(sw.qTop), tRel);', 'const qd = qDb(q); d.filter.Q.setTargetAtTime(qd, now, tau);',
                    'this._gateAt = b ? gateAnchor(t, b.at, step) : t;', 'd._fxBrake = 400 + r * 20000;',
-                   'const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : 0.7;',
+                   'const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : Math.SQRT1_2;',
                    'd.filter.frequency.setTargetAtTime(a.lp, now, tau);', 'if (d._fxSched) continue;',
                    'p.exponentialRampToValueAtTime(to, t + fxEchoGlide(from, to));', 'conv.normalize = true;',
                    'const r = fxAutoStep(this._autoSt, o, barPhase, bars);', 'f.hp.frequency.exponentialRampToValueAtTime(sw.hzTop, tRel);',
@@ -11388,6 +11468,10 @@ test('the rack in the player: release walks FX_PARK, the gate is curves, the sea
     assert.ok(fx.includes(s), 'FX carries: ' + s);
   assert.ok(!/\.(gain|frequency|Q|delayTime)\.value\s*=[^=]/.test(fx), 'no param in the rack is assigned — every write is a ramp or a target');
   assert.ok(!fx.includes('ramp(AE.fx.lp.frequency'), 'the brake no longer writes the master lowpass');
+  assert.ok(!fx.includes('U.lfo.stop(); U.lfo.disconnect();'), 'no LFO is cut from under an audible wet');
+  // no lowpass or highpass anywhere in the player is told 0.7 as if Q were linear
+  assert.ok(!/type = '(lowpass|highpass)';[^\n]*Q\.value = 0\.7;/.test(html.slice(html.indexOf('const inn = AE.ctx.createGain();'), html.indexOf('AE.out = AE.ctx.createGain();'))), 'the rack\'s LP/HP biquads are Butterworth in dB');
+  assert.ok(html.includes("d.hp.type = 'highpass'; d.hp.frequency.value = 20; d.hp.Q.value = Q_FLAT_DB;"), 'the deck highpass parks without a sub-bass hump');
   // the mixer declares its sweep to the arbiter; the hidden-tab timer keeps the booth\'s clocks
   for (const s of ['FX.seamOpen(nd); FX.seamSweep(od, t0, sweep);', "if (typeof FX !== 'undefined') FX.seamOpen(d);",
                    "if (document.hidden && typeof FX !== 'undefined'){ try { FX.tick(0.3); } catch (e){} }",
