@@ -10511,13 +10511,26 @@ function ensureCtx(){
     // old track sinks away under the filter instead of just getting quieter
     d.filter = AE.ctx.createBiquadFilter();
     d.filter.type = 'lowpass'; d.filter.frequency.value = FILTER_OPEN; d.filter.Q.value = 0.7;
+    // …and its highpass twin, parked at the bottom of hearing (≈bypass): the
+    // other half of a per-deck channel filter, waiting for a hand
+    d.hp = AE.ctx.createBiquadFilter();
+    d.hp.type = 'highpass'; d.hp.frequency.value = 20; d.hp.Q.value = 0.7;
     d.gain = AE.ctx.createGain();
     d.gain.gain.value = 0;
+    /* THE CROSSFADER'S NODE, after the mixer's. `gain` belongs to the seam
+       engine — its sample-accurate curves, playIndex's ramps, the loudness
+       trim; `fader` belongs to the crossfader law (DECKS). They multiply, so
+       neither ever has to know what the other is doing, and a hand on the
+       handle never fights a scheduled curve. Born at 1: a deck is as loud as
+       its gain says until the handle says otherwise. */
+    d.fader = AE.ctx.createGain();
+    d.fader.gain.value = 1;
     // a post-filter tap into the shared echo, silent by default; the mixer blooms
     // it on a fading-out deck so the track leaves in a trail of echoes
     d.echoSend = AE.ctx.createGain();
     d.echoSend.gain.value = 0;
-    d.src.connect(d.shelf); d.shelf.connect(d.filter); d.filter.connect(d.gain); d.gain.connect(AE.bus);
+    d.src.connect(d.shelf); d.shelf.connect(d.hp); d.hp.connect(d.filter); d.filter.connect(d.gain);
+    d.gain.connect(d.fader); d.fader.connect(AE.bus);
     d.filter.connect(d.echoSend); d.echoSend.connect(AE.echo.in);
     return d;
   };
@@ -10526,7 +10539,7 @@ function ensureCtx(){
     if (IS_IOS){
       // direct to output — the element IS the playback path, always
       a.volume = 0;
-      return { a, src: null, shelf: null, filter: null, gain: null, echoSend: null };
+      return { a, src: null, shelf: null, hp: null, filter: null, gain: null, fader: null, echoSend: null };
     }
     return AE._deckGraph({ a });
   });
@@ -10538,9 +10551,19 @@ function ensureCtx(){
      element is a deck that never reports an end, an error or a stall. */
   AE._wireDeck = (d, i) => {
     AIRPLAY.watch(d);
-    d.a.addEventListener('ended', () => { if (!d.priming && i === AE.active && !AE.xfading) player.onEnded(); });
+    /* THE GUARD IS A ROLE, NOT A SLOT. "i === AE.active" used to be the only
+       deck anybody listened to; with a hand able to play the other deck, a
+       record can end or fail on a deck that is LIVE without being on air — a
+       hand's record under the handle, a yielded seam's outgoing. What its end
+       means is DECKS's decision. The media session, the loader word and the
+       progress bookkeeping below stay the on-air deck's alone. */
+    d.a.addEventListener('ended', () => {
+      if (d.priming || AE.xfading) return;
+      if (i === AE.active || DECKS.isLive(i)) DECKS.onEnded(i);
+    });
     d.a.addEventListener('error', () => {
-      if (d.priming || i !== AE.active) return;
+      if (d.priming) return;
+      if (i !== AE.active){ DECKS.onError(i); return; }
       const t = player.tracks[player.cur];
       // the shipped demo file didn't load (missing/undecodable/offline cold
       // cache) — synthesize a loop instead of a dead end
@@ -10708,7 +10731,7 @@ function applyVolume(){
       MIXER.setVolumes(MIXER.lastF);         // the overlap owns the envelopes
       return;
     }
-    AE.decks.forEach((d, i) => { d.a.volume = i === AE.active ? v : 0; });
+    DECKS.applyElementVolumes(v);          // one deck audible on the direct path: the one on air
   }
 }
 
@@ -10807,7 +10830,7 @@ function reconcileOnReturn(){
   //     the element, not our last belief (never mid-transition)
   const d = (typeof activeDeck === 'function') ? activeDeck() : null;
   const settling = (typeof AE !== 'undefined' && AE.xfading)
-    || (typeof MIXER !== 'undefined' && MIXER.phase === 'running');
+    || (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual'));
   if (typeof player !== 'undefined' && d && d.a && player.cur >= 0 && !d.priming && !settling){
     const reallyPlaying = !d.a.paused && !d.a.ended;
     if (reallyPlaying !== player.playing){
@@ -10857,6 +10880,578 @@ function rampGain(gain, to, dur, shape){
 }
 
 function activeDeck(){ return AE.decks ? AE.decks[AE.active] : null; }
+
+/* ================================================================
+   DECKS — two decks, one handle, and who owns what.
+
+   The web player has always had two physical decks, but as a HAND-OFF pair:
+   AE.active is the deck that owns the room, and the other exists so the
+   auto-DJ can pre-load its next pick and blend into it. This is the DJ pair
+   on top of that. The letters are fixed to the slots — A is AE.decks[0], B
+   is AE.decks[1] — and the ON-AIR badge (AE.active: the deck the transport,
+   beat clock, seek bar, media session, persistence and history follow) moves
+   between them. After an auto blend A→B the record on air is on B and the
+   handle rests at B's end; the next blend goes B→A, as autoplay on any pair
+   of decks alternates.
+
+   OWNERSHIP, in three places:
+     · a SLOT's owner is 'free' (the transport's and the auto-DJ's) or 'hand'
+       (a record somebody loaded, cued or started by hand). The auto-DJ never
+       reloads a hand's deck; it plans AGAINST it when the deck is paused at
+       its cue, and stays out of the way when it is rolling.
+     · the HANDLE's mode is 'rest' (no blend; the handle sits at the on-air
+       end), 'auto' (the mixer is running a seam — its sample-accurate curves
+       own the level and the handle is only painted from them) or 'hand' (a
+       pointer holds it). A hand landing on a running seam YIELDS it
+       (MIXER.yield): the mixer keeps the tempo lock, the hand takes the level.
+     · the FOCUS is the deck the hand last touched — the pads, the brake and
+       the cues act on it. activeDeck() keeps meaning the on-air deck.
+
+   THE LEVEL IS A PRODUCT. Each deck's `gain` node is the seam engine's (its
+   curves, the loudness trim); each deck's `fader` node is this object's, set
+   from the crossfader law (xfaderGains). Loading or starting a hand's deck
+   sets its gain to its trim and nothing else — whether it can be HEARD is
+   the handle's business alone. The law is pure (@xfader) and tested.
+   ================================================================ */
+const DECKS = {
+  slots: [
+    { trackIdx: -1, owner: 'free', pitch: 1, cue: 0, synced: false, silentFor: 0, cueHeld: false, stuckFor: 0 },
+    { trackIdx: -1, owner: 'free', pitch: 1, cue: 0, synced: false, silentFor: 0, cueHeld: false, stuckFor: 0 },
+  ],
+  fader: { x: 0, mode: 'rest', hand: false, curve: 'power', handAt: 0, prevX: 0 },
+  focus: -1,                                  // the deck the hand last touched; -1 = none, the air's
+  idleStopSec: 0,                             // 0 = the law's own clock (FADER_IDLE_S); the probes shorten it
+
+  master(){ return AE.active; },               // the record on air
+  idle(){ return 1 - AE.active; },
+  // the deck the hand last touched — the record on air until a hand says
+  // otherwise, and again whenever that deck is empty
+  handSlot(){
+    const f = (this.focus === 0 || this.focus === 1) ? this.focus : AE.active;
+    return (f !== AE.active && !this.track(f)) ? AE.active : f;
+  },
+  pitch(i){ const s = this.slots[i]; return s && s.pitch > 0 ? s.pitch : 1; },
+  /* what is on a slot: the on-air slot carries player.cur; a hand's slot its
+     own record; the mixer's idle slot the retiring record through a seam or
+     the armed next; a free slot whatever it last held (paused) */
+  track(i){
+    if (!AE.decks || !(i === 0 || i === 1)) return null;
+    if (i === AE.active) return player.tracks[player.cur] || null;
+    const s = this.slots[i];
+    if (s.owner === 'hand') return player.tracks[s.trackIdx] || null;
+    if (typeof MIXER !== 'undefined'){
+      if ((MIXER.phase === 'running' || MIXER.phase === 'manual') && AE.decks[i] === MIXER.outDeck) return MIXER.outTrack || null;
+      if (MIXER.phase === 'armed' && MIXER.next >= 0) return player.tracks[MIXER.next] || null;
+    }
+    return player.tracks[s.trackIdx] || null;
+  },
+  // live = audible, or about to be: on air, a hand's record, a seam's outgoing, or up on the handle
+  isLive(i){
+    if (!AE.decks || !(i === 0 || i === 1)) return false;
+    if (i === AE.active) return true;
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual') && AE.decks[i] === MIXER.outDeck) return true;
+    if (this.slots[i].owner === 'hand') return true;
+    return xfaderGains(this.fader.x, this.fader.curve)[i] > 0.01;
+  },
+  // a hand's record rolling on the idle deck: a blend already in progress
+  handRolling(){
+    if (!AE.decks || !AE.graphLive) return false;
+    const i = this.idle(), s = this.slots[i], d = AE.decks[i];
+    return s.owner === 'hand' && !!player.tracks[s.trackIdx] && !d.a.paused && !d.a.ended;
+  },
+
+  /* ---- loading, starting, stopping a deck by hand --------------------- */
+  /* THE ONE WAY TO WRITE A DECK GAIN. Measured (headless Chromium, offline
+     context): a write that overlaps an in-flight setValueCurveAtTime throws
+     NotSupportedError, and cancelScheduledValues(now) does not throw but
+     first SNAPS the param to its pre-curve value (0.48 → 0.037 inside 10 ms)
+     — a hard step at exactly the moment a hand asks for a smooth one. So the
+     current value is read first and held where it is (cancelAndHoldAtTime
+     where the browser has it, the read-then-pin pair where it does not), and
+     only then does the param move, on a short exponential. Every write to a
+     gain or a shelf that may be under a curve goes through here: a hand taking
+     a seam, a seam ending, a cancel. The fader nodes are never under a curve
+     and take a plain setTargetAtTime. */
+  gainWrite(param, target, tau){
+    if (!param || !AE.ctx) return false;
+    const now = AE.ctx.currentTime;
+    try {
+      const v = param.value;
+      if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(now);
+      else { param.cancelScheduledValues(now); param.setValueAtTime(v, now); }
+      if (target != null) param.setTargetAtTime(target, now, tau || 0.006);
+      return true;
+    } catch (e){ return false; }
+  },
+  _gainTo(d, g){
+    if (!AE.graphLive || !d || !d.gain) return;
+    this.gainWrite(d.gain.gain, g, 0.006);
+  },
+  // a hand on the decks is a human in the room: the ghost never plays the field under a DJ
+  _handAt: 0,
+  hand(){ this._handAt = performance.now(); },
+  handBusy(){ return this.fader.hand || performance.now() - this._handAt < 1500; },
+  /* LOAD a record onto a slot. Refused where there is no graph (one deck on
+     that device), on the on-air deck while it plays, and through a seam.
+     The on-air deck paused is the transport's own cue-up (prepare). The
+     auto-DJ's plan onto the idle deck is dropped — the deck is taken. The
+     record is pushed into the queue if it is not there, loaded at its cue
+     (opts.at, else its mix-in start), paused, at its loudness trim; whether
+     it is heard is the handle's business. */
+  load(slot, track, opts){
+    const o = opts || {};
+    if (!AE.graphLive || !AE.ctx || !AE.decks || !track || !(slot === 0 || slot === 1)) return false;
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    if (o.by !== 'restore') this.hand();
+    let i = player.tracks.indexOf(track);
+    if (i === -1){ player.tracks.push(track); i = player.tracks.length - 1; player.renderList(); }
+    const m = mixOf(track);
+    const cue = o.at != null && isFinite(o.at) ? Math.max(0, o.at) : ((m && m.in && m.in.start) || 0);
+    if (slot === AE.active){
+      if (player.playing) return false;
+      player.prepare(i, cue);                          // the on-air deck, paused: cued up where it stands
+      return true;
+    }
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('deck-taken');
+    const d = AE.decks[slot], s = this.slots[slot];
+    try { d.a.pause(); } catch (e){}
+    if (typeof MIXER !== 'undefined') MIXER._clearPreloadListener(d);
+    d._warmed = true; d._seekTo = cue;
+    try { if (d.a.preload !== 'auto') d.a.preload = 'auto'; } catch (e){}
+    const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
+    if (typeof PREFETCH !== 'undefined' && src !== track.url) PREFETCH.spend();
+    d.norm = normLin(track);
+    s.trackIdx = i; s.owner = 'hand'; s.cue = cue; s.pitch = 1; s.synced = false;
+    s.silentFor = 0; s.cueHeld = false; s.stuckFor = 0;
+    this._gainTo(d, d.norm);                           // audible only as far as the handle says
+    AE._loadAt(d.a, src, cue, () => {});
+    try { d.a.playbackRate = SPEED.rate; } catch (e){}
+    setPitchLock(d.a, SPEED.keyLock);
+    this.applyFaderGains();
+    PERSIST.poke();
+    return true;
+  },
+  // take the record off a deck that is not on air (or is on air and paused)
+  eject(slot){
+    if (!AE.decks || !(slot === 0 || slot === 1)) return false;
+    if (slot === AE.active && player.playing) return false;
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed' && slot !== AE.active) MIXER.cancel('deck-taken');
+    this.hand();
+    const d = AE.decks[slot], s = this.slots[slot];
+    try { d.a.pause(); } catch (e){}
+    if (typeof MIXER !== 'undefined') MIXER._clearPreloadListener(d);
+    try { d.a.removeAttribute('src'); d.a.load(); } catch (e){}
+    this._gainTo(d, 0);
+    s.trackIdx = -1; s.owner = 'free'; s.pitch = 1; s.synced = false; s.cue = 0;
+    s.silentFor = 0; s.cueHeld = false; s.stuckFor = 0;
+    if (slot === AE.active){ player.cur = -1; player.refreshTitle(); player.renderList(); }
+    PERSIST.poke();
+    return true;
+  },
+  // start a deck: the on-air one through the transport; the other by hand,
+  // which makes it the hand's (the auto-DJ's plan onto it is dropped)
+  play(slot){
+    if (!AE.decks || !(slot === 0 || slot === 1)) return false;
+    this.hand();
+    if (slot === AE.active){ if (!player.playing) player.resume(); return true; }
+    if (!AE.graphLive) return false;
+    const d = AE.decks[slot], s = this.slots[slot];
+    if (!d.a.src || !player.tracks[s.trackIdx]) return false;
+    if (typeof MIXER !== 'undefined'){
+      if (MIXER.phase === 'running' || MIXER.phase === 'manual') return false;   // the seam owns both playheads
+      if (MIXER.phase === 'armed') MIXER.cancel('deck-taken');
+    }
+    s.owner = 'hand'; s.silentFor = 0; s.stuckFor = 0;
+    ensureResume();
+    this._gainTo(d, d.norm || 1);
+    d.a.play().catch(() => {});
+    return true;
+  },
+  pause(slot){
+    if (!AE.decks || !(slot === 0 || slot === 1)) return false;
+    this.hand();
+    const s = this.slots[slot];
+    s.cueHeld = false;
+    if (slot === AE.active){ if (player.playing) player.pause(); return true; }
+    try { AE.decks[slot].a.pause(); } catch (e){}
+    return true;
+  },
+  /* CUE, as a CDJ means it. A tap while the deck is paused sets the cue
+     where it stands (on the beat, when the record has a grid); a tap while
+     it plays jumps back to the cue and keeps going. Held (held === true)
+     the record plays from the cue for as long as the finger is down and
+     returns there, paused, on release (held === false). */
+  cue(slot, held){
+    if (!AE.decks || !(slot === 0 || slot === 1)) return false;
+    const d = AE.decks[slot], s = this.slots[slot], onAir = slot === AE.active;
+    if (!d.a.src || !isFinite(d.a.duration) || !(d.a.duration > 0)) return false;
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    this.hand();
+    if (held === true){
+      if (!onAir){
+        if (!AE.graphLive) return false;
+        if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('deck-taken');
+        s.owner = 'hand'; this._gainTo(d, d.norm || 1);
+      }
+      s.cueHeld = true;
+      try { d.a.currentTime = s.cue; } catch (e){}
+      if (onAir) player.resume(); else d.a.play().catch(() => {});
+      return true;
+    }
+    if (held === false){
+      if (!s.cueHeld) return false;
+      s.cueHeld = false;
+      if (onAir) player.pause(); else { try { d.a.pause(); } catch (e){} }
+      try { d.a.currentTime = s.cue; } catch (e){}
+      return true;
+    }
+    if (d.a.paused){
+      const m = mixOf(this.track(slot)), have = !!(m && m.bpm > 0);
+      s.cue = cueSnap(d.a.currentTime, have ? (m.grid || 0) : 0, have ? m.bpm : 0, have);
+      return true;
+    }
+    if (onAir) FX._seek(d, s.cue); else { try { d.a.currentTime = s.cue; } catch (e){} }
+    return true;
+  },
+  /* SYNC: the other deck is the master. The slave's pitch becomes the folded
+     tempo ratio (syncRateFor) and SPEED.apply composes it with the listener's
+     speed; the key lock comes off while synced — the measured vinyl rule the
+     seam already rides (the stretcher smears transients ±15 ms, and a lock
+     cannot steer by a clock that is wrong). The PHASE take is one seek, and
+     only while the slave cannot be heard (its fader gain under 0.06, the
+     seam's own audibleAt); after that the beat is the hand's to hold with
+     the nudge. A continuous lock (the seam's sampler run against this pair)
+     would need _sample/_applyRates lifted out of the MIXER's own state —
+     left as the note it is until a hand asks for it. Pressing SYNC on a
+     synced deck lets it go. */
+  sync(slot){
+    if (!AE.decks || !AE.graphLive || !(slot === 0 || slot === 1)) return false;
+    const s = this.slots[slot], d = AE.decks[slot], m = 1 - slot, dm = AE.decks[m];
+    this.hand();
+    if (s.synced){ s.synced = false; s.pitch = 1; SPEED.apply(); return false; }
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
+    const mixS = mixOf(this.track(slot)), mixM = mixOf(this.track(m));
+    if (!mixS || !mixM || !(mixS.bpm > 0) || !(mixM.bpm > 0)) return false;
+    s.pitch = syncRateFor(mixM.bpm, mixS.bpm); s.synced = true;
+    SPEED.apply();
+    const g = xfaderGains(this.fader.x, this.fader.curve);
+    if (g[slot] < 0.06 && isFinite(d.a.duration) && !dm.a.paused && mixS.grid != null && mixM.grid != null){
+      const plan = { type: 'beatmix', bpmA: mixM.bpm, bpmB: mixS.bpm, startA: mixM.grid, startB: mixS.grid };
+      const err = seamPhaseErr(dm.a.currentTime, d.a.currentTime, plan);   // positive: the slave is behind
+      if (err != null && Math.abs(err) > 0.003){ try { d.a.currentTime = d.a.currentTime + err; } catch (e){} }
+    }
+    return true;
+  },
+
+  /* ---- the handle ----------------------------------------------------- */
+  setCurve(c){
+    this.fader.curve = c === 'cut' ? 'cut' : 'power';
+    if (this.fader.mode !== 'auto') this.applyFaderGains();
+  },
+  // the fader nodes take the law from x — never in 'auto', where the seam's curves own the level
+  applyFaderGains(){
+    if (!AE.graphLive || !AE.ctx || !AE.decks || this.fader.mode === 'auto') return;
+    const g = xfaderGains(this.fader.x, this.fader.curve), now = AE.ctx.currentTime;
+    AE.decks.forEach((d, i) => {
+      if (!d.fader) return;
+      try { d.fader.gain.cancelScheduledValues(now); d.fader.gain.setTargetAtTime(g[i], now, 0.006); } catch (e){}
+    });
+  },
+  // the mixer paints x from its seam ('auto'); anything else moves the level
+  setFader(x, by){
+    this.fader.x = clamp01(x);
+    if (by === 'auto') return;
+    this.applyFaderGains();
+  },
+  /* A HAND LANDS. A seam in flight is yielded — the mixer keeps the tempo
+     lock, the handle takes the level exactly where the audible blend is —
+     and from here every move is the law applied to the hand's x. */
+  faderGrab(x){
+    if (!AE.graphLive || !AE.decks) return false;
+    // a mixset's anchor — a song the set pinned to play in full — is not the hand's to fade out
+    if (typeof MIXSET !== 'undefined' && MIXSET.active){
+      const cur = player.tracks[player.cur];
+      if (cur && MIXSET.playInFullKeys.has(trackKey(cur))) return false;
+    }
+    const f = this.fader;
+    this.hand();
+    f.hand = true; f.handAt = performance.now();
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'running'){
+      const outSlot = AE.decks.indexOf(MIXER.outDeck);
+      const sf = MIXER.yield();
+      if (sf !== false) f.x = xfaderPosFromSeam(sf, outSlot);
+    }
+    f.mode = 'hand';
+    if (x != null && isFinite(x)) f.x = clamp01(x);
+    this.applyFaderGains();
+    return true;
+  },
+  faderMove(x){
+    const f = this.fader;
+    if (!f.hand) return false;
+    this.hand();
+    f.x = clamp01(x);
+    this.applyFaderGains();
+    return true;
+  },
+  // the hand leaves: the arbiter (pure) says what that meant
+  faderRelease(){
+    const f = this.fader;
+    if (!f.hand) return { act: 'none', slot: -1 };
+    const manual = typeof MIXER !== 'undefined' && MIXER.phase === 'manual';
+    const outSlot = manual ? 1 - AE.active : AE.active, inSlot = 1 - outSlot;
+    const v = xfaderArbiter({ phase: MIXER.phase, hand: false, x: f.x, outSlot, inSlot, parkAt: XFADER_PARK });
+    f.hand = false;
+    if (v.act === 'commit'){
+      if (manual) MIXER.finish({ by: 'hand' });
+      else if (!this._commitHand(inSlot)) v.act = 'hold';   // nothing rolling there: the handle simply stays
+    } else if (v.act === 'abort'){
+      this._abortHand(outSlot);
+    }
+    if (v.act === 'hold' || v.act === 'none') f.mode = 'rest';   // where the hand left it; the auto-DJ arms only from an end
+    return v;
+  },
+  // NEXT while a hand's record rolls: a cut to it (the law's 6 ms ramp), and the commit that follows
+  cutTo(slot){
+    if (!this.faderGrab(this.fader.x)) return false;
+    this.faderMove(slot === 1 ? 1 : 0);
+    return this.faderRelease().act === 'commit';
+  },
+  /* THE PURE MANUAL COMMIT — no seam in flight: the record the hand pushed
+     the handle to takes the air. The bookkeeping half of a seam (commitMix)
+     without the mixer's release of the rack: the rack is the hand's, and
+     only an auto seam wipes it. The retired record's fader is already at
+     zero; it is stopped once that ramp has landed. */
+  _commitHand(inSlot){
+    if (!AE.decks || !AE.graphLive) return false;
+    const nd = AE.decks[inSlot], od = AE.decks[1 - inSlot];
+    const i = this.slots[inSlot].trackIdx;
+    if (!player.tracks[i] || nd.a.paused || nd.a.ended) return false;
+    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('hand');   // the auto plan onto this deck is overtaken
+    const retired = player.cur;
+    AE.active = inSlot;
+    player.commitMix(i, { keepRack: true });
+    this.settle({ retired });
+    this.slots[1 - inSlot].owner = 'free';
+    syncLoopFlag();
+    clearTimeout(od._retireT);
+    od._retireT = setTimeout(() => { if (AE.active === inSlot){ try { od.a.pause(); } catch (e){} } }, 80);
+    applyVolume();
+    return true;
+  },
+  /* A YIELDED SEAM PULLED BACK to the outgoing end: the commit is undone
+     (uncommitMix), the outgoing record is on air again, the incoming is
+     stopped and parked a lead-in before its entry, and the mixer is left
+     idle — its next update re-arms against the same record from HERE, which
+     is the re-aim the plan needs (arm() already plans from the playhead when
+     the seam's bar line has passed). */
+  _abortHand(outSlot){
+    const M = MIXER, p = M.plan, od = AE.decks[outSlot], nd = AE.decks[1 - outSlot];
+    const retired = M.next;
+    player.uncommitMix();
+    AE.active = outSlot;
+    M.outDeck = null; M.outTrack = null;                   // cancel() must not stop the record coming back on air
+    try { nd.a.pause(); } catch (e){}
+    if (p && p.type === 'beatmix' && !nd.a.ended){ try { nd.a.currentTime = Math.max(0, p.startB - seamLeadFor(p)); } catch (e){} }
+    M.cancel('abort');                                       // rates, pitch lock, shelves, filters, gains, the handle home
+    if (retired >= 0) this.slots[1 - outSlot].trackIdx = retired;
+    syncLoopFlag();
+  },
+  /* THE HANDLE COMES HOME. Called wherever the record on air changes hands —
+     a track start, a seam's end, a cancel, a hand's commit: the on-air slot
+     is the transport's (owner 'free', its record player.cur), the retired
+     slot remembers what it holds, and the handle rests at the on-air end
+     unless a hand is still holding it. Inaudible by construction: the
+     retired deck is paused at gain zero, the on-air deck's fader was 1. */
+  settle(o){
+    o = o || {};
+    if (!AE.decks) return;
+    const on = AE.active, off = 1 - on, s = this.slots[on], r = this.slots[off];
+    s.owner = 'free'; s.trackIdx = player.cur; s.cueHeld = false; s.silentFor = 0; s.stuckFor = 0;
+    this.focus = -1;                                        // the hand's attention follows the air until it lands again
+    if (o.resetPitch){ s.pitch = 1; s.synced = false; r.pitch = 1; r.synced = false; }
+    if (o.retired != null && o.retired >= 0) r.trackIdx = o.retired;
+    r.silentFor = 0;
+    if (this.fader.hand && !o.force) return;
+    this.fader.hand = false;
+    this.fader.x = on; this.fader.mode = 'rest';
+    this.applyFaderGains();
+  },
+  // a seam fires: the mixer's curves take the level. Both faders go to 1 at
+  // the seam's origin — inaudible, because the incoming's gain curve starts
+  // at 0 there and the outgoing's fader was already 1 (the handle was at its
+  // end: the auto-DJ never arms from anywhere else)
+  autoStart(t0){
+    const f = this.fader;
+    f.prevX = f.x; f.mode = 'auto'; f.hand = false;
+    if (!AE.graphLive || !AE.ctx || !AE.decks) return;
+    const now = AE.ctx.currentTime;
+    for (const d of AE.decks){
+      if (!d.fader) continue;
+      try {
+        d.fader.gain.cancelScheduledValues(now);
+        d.fader.gain.setValueAtTime(d.fader.gain.value, now);
+        d.fader.gain.setValueAtTime(1, Math.max(now, t0));
+      } catch (e){}
+    }
+  },
+  // a track start by the transport: the new deck's fader opens at once (its
+  // gain is zero, so nothing is heard), the handle rests at that deck's end,
+  // and the retired deck's fader follows once its fade-out has landed. A
+  // hand's record started from its cue (cued) keeps its gain at its trim and
+  // is faded in on the FADER instead, over the same fade the transport asked for.
+  onPlayIndex(newIdx, retired, fadeDur, cued){
+    const f = this.fader;
+    f.hand = false; f.mode = 'rest'; f.x = newIdx; this.focus = -1;
+    const s = this.slots[newIdx], r = this.slots[1 - newIdx];
+    s.owner = 'free'; s.cueHeld = false; s.silentFor = 0; s.stuckFor = 0; s.pitch = 1; s.synced = false;
+    if (retired != null && retired >= 0) r.trackIdx = retired;
+    r.silentFor = 0;
+    if (!AE.graphLive || !AE.ctx || !AE.decks) return;
+    const d = AE.decks[newIdx];
+    if (!d.fader) return;
+    const now = AE.ctx.currentTime;
+    try {
+      d.fader.gain.cancelScheduledValues(now);
+      if (cued && fadeDur > 0.02){
+        d.fader.gain.setValueAtTime(d.fader.gain.value, now);
+        d.fader.gain.linearRampToValueAtTime(1, now + fadeDur);
+      } else d.fader.gain.setValueAtTime(1, now);
+    } catch (e){}
+  },
+
+  /* ---- what a deck reports -------------------------------------------- */
+  /* A RECORD RAN OUT. Through an auto seam the mixer's clock decides (the
+     outgoing's end is ignored as it always was; the incoming's is the
+     queue's). Under a yielded seam the arbiter reads it: the outgoing
+     ending hands the air over, the incoming ending undoes the seam. The
+     record on air ending while a hand's record rolls beside it is that
+     record's commit — the hand's blend finishes itself. A hand's record
+     ending off air simply sends the handle home. */
+  onEnded(i){
+    if (!AE.decks) return;
+    const M = typeof MIXER !== 'undefined' ? MIXER : null, other = 1 - i;
+    if (M && M.phase === 'running'){ if (i === AE.active) player.onEnded(); return; }
+    if (M && M.phase === 'manual'){
+      const outSlot = AE.decks.indexOf(M.outDeck);
+      const v = xfaderArbiter({ phase: 'manual', hand: this.fader.hand, x: this.fader.x, outSlot, inSlot: 1 - outSlot,
+        aEnded: i === 0, bEnded: i === 1, parkAt: XFADER_PARK });
+      this.fader.hand = false;
+      if (v.act === 'commit') M.finish({ by: 'hand' });
+      else if (v.act === 'abort') this._abortHand(outSlot);
+      return;
+    }
+    if (i === AE.active){
+      const od = AE.decks[other];
+      if (this.slots[other].owner === 'hand' && !od.a.paused && !od.a.ended){
+        this.fader.hand = false;
+        if (this._commitHand(other)) return;
+      }
+      player.onEnded();
+      return;
+    }
+    const s = this.slots[i];
+    s.owner = 'free'; s.cueHeld = false; s.silentFor = 0;
+    if (!this.fader.hand){ this.fader.x = AE.active; this.fader.mode = 'rest'; this.applyFaderGains(); }
+  },
+  // a deck that is not on air failed to load: the auto-DJ's plan is dropped
+  // and the record is not pre-armed again this session (the plain path still
+  // tries it when its turn comes); a hand's record is let go of
+  onError(i){
+    if (!AE.decks) return;
+    const d = AE.decks[i], s = this.slots[i];
+    const M = typeof MIXER !== 'undefined' ? MIXER : null;
+    const t = this.track(i);
+    const name = t ? escapeHTML(t.title) : 'track';
+    if (M && M.phase === 'armed' && AE.decks[1 - AE.active] === d && M.next >= 0){
+      if (t) t._preloadErr = true;
+      M.cancel('preload-error');
+      player._committedNext = null;
+      toast(T('Couldn\'t play <b>{name}</b> — skipping', { name }));
+      return;
+    }
+    if (s.owner === 'hand'){
+      s.owner = 'free'; s.cueHeld = false;
+      toast(T('Couldn\'t play <b>{name}</b> — skipping', { name }));
+    }
+  },
+  /* THE FRAME: the idle-stop clock (faderIdleStop, tested) for a record
+     that was faded out and left, and a stall nudge for a hand's deck that
+     was started and never produced a sample. */
+  tick(){
+    // on the wall clock, not the frame's dt: that is clamped at a tenth of a
+    // second, and a renderer running slow would stretch twenty seconds of
+    // silence into minutes (measured: six counted seconds in twenty-seven)
+    const nowMs = performance.now();
+    const dt = Math.min(1, (nowMs - (this._tickAt || nowMs)) / 1000);
+    this._tickAt = nowMs;
+    if (!AE.graphLive || !AE.decks || !(dt > 0)) return;
+    const auto = this.fader.mode === 'auto';
+    const g = xfaderGains(this.fader.x, this.fader.curve);
+    AE.decks.forEach((d, i) => {
+      const s = this.slots[i], onAir = i === AE.active;
+      const rolling = !d.a.paused && !d.a.ended;
+      s.silentFor = (rolling && !onAir && !auto && g[i] < 0.01) ? s.silentFor + dt : 0;
+      if (faderIdleStop({ gain: auto ? 1 : g[i], silentFor: s.silentFor, onAir, hand: this.fader.hand, cueHeld: s.cueHeld,
+                          after: this.idleStopSec > 0 ? this.idleStopSec : undefined })){
+        try { d.a.pause(); } catch (e){}
+        s.owner = 'free'; s.silentFor = 0;
+      }
+      // a hand's record asked to roll and nothing flows: nudge once, then let it go
+      if (!onAir && s.owner === 'hand' && rolling && d.a.readyState < 3 && !(d.a.currentTime > (s._t0 || 0) + 0.05)){
+        s.stuckFor += dt;
+        if (s.stuckFor > 8 && !s._nudged){ s._nudged = true; ensureResume(); d.a.play().catch(() => {}); }
+        if (s.stuckFor > 20){ try { d.a.pause(); } catch (e){} s.stuckFor = 0; s._nudged = false; }
+      } else { s.stuckFor = 0; s._nudged = false; s._t0 = d.a.currentTime; }
+    });
+  },
+
+  /* ---- one deck ------------------------------------------------------- */
+  // the direct path (iOS, AirPlay): the record on air is the only audible one
+  applyElementVolumes(v){
+    if (!AE.decks) return;
+    AE.decks.forEach((d, i) => { d.a.volume = i === this.master() ? v : 0; });
+  },
+  // the graph is going away (AirPlay): the idle deck stops, the handle comes home
+  collapse(){
+    if (!AE.decks) return;
+    const i = this.idle(), s = this.slots[i];
+    try { AE.decks[i].a.pause(); } catch (e){}
+    s.owner = 'free'; s.cueHeld = false; s.silentFor = 0;
+    this.fader.hand = false; this.fader.x = AE.active; this.fader.mode = 'rest';
+    this.applyFaderGains();
+  },
+
+  /* ---- what survives a reload ----------------------------------------- */
+  snapshot(){
+    const i = this.idle(), s = this.slots[i];
+    const t = AE.decks && s.owner === 'hand' ? this.track(i) : null;
+    return { fader: { curve: this.fader.curve },
+      idle: t && trackKey(t) ? { slot: i, key: trackKey(t), cue: s.cue } : null };
+  },
+  // the on-air record is PERSIST's own (prepare); a hand's record comes back beside it, paused at its cue
+  restore(o){
+    if (!o) return;
+    if (o.fader && o.fader.curve) this.setCurve(o.fader.curve);
+    const r = o.idle;
+    if (!r || !AE.graphLive || !AE.decks) return;
+    const slot = r.slot === 1 ? 1 : 0;
+    const t = player.tracks.find(x => trackKey(x) === r.key);
+    if (!t || slot === AE.active) return;
+    this.load(slot, t, { at: r.cue, by: 'restore' });
+  },
+};
+// the probes read the pair: which slot is on air, what each holds, where the handle is
+window.__mb8Decks = () => ({
+  active: AE.active, phase: (typeof MIXER !== 'undefined') ? MIXER.phase : '',
+  slots: DECKS.slots.map((s, i) => ({ owner: s.owner, trackIdx: s.trackIdx, pitch: s.pitch, synced: s.synced, cue: s.cue,
+    silentFor: s.silentFor, paused: AE.decks ? AE.decks[i].a.paused : true,
+    gain: AE.decks && AE.decks[i].gain ? AE.decks[i].gain.gain.value : -1,
+    fader: AE.decks && AE.decks[i].fader ? AE.decks[i].fader.gain.value : -1,
+    title: DECKS.track(i) ? DECKS.track(i).title : null })),
+  fader: Object.assign({}, DECKS.fader), focus: DECKS.handSlot(),
+});
 /* repeat-one used to restart a finished track by hand: reseek to 0, call
    play() again, on the 'ended' event. That's a real gap — decode restart,
    a fresh buffering pass, sometimes an audible click — nothing like a real
@@ -11465,6 +12060,7 @@ const player = {
     applyVolume();
     this.cur = i;
     this.playing = false;
+    if (typeof DECKS !== 'undefined') DECKS.settle();   // the handle rests at this deck's end
     const bi = this._bag.indexOf(track.id);
     if (bi >= 0) this._bag.splice(bi, 1);
     syncLoopFlag();                      // a restored repeat-one queue resumes seamless, not reseeking
@@ -11570,8 +12166,11 @@ const player = {
     ACTIVITY.log('play', track.title || 'Untitled');
     HIST.leave(this.tracks[this.cur], opts && opts.ended ? 'ended' : 'skip');
     const xfade = !!(opts && opts.xfade) && this.playing && this.cur !== -1 && AE.graphLive;
-    const fadeDur = xfade ? XFADE : (this.playing ? 0.25 : 0.06);
+    // the planner's own quick fade (MIX NOW on a pair that cannot beatmix) is
+    // performed at its length; the legacy crossfader keeps its four seconds
+    const fadeDur = xfade ? ((opts && opts.fadeSec > 0) ? opts.fadeSec : XFADE) : (this.playing ? 0.25 : 0.06);
     const oldIdx = AE.active;
+    const retiredCur = this.cur;
     // iOS gives background-audio privilege to the ONE element that holds the
     // session. Moving playback to the OTHER deck is an un-gestured start that
     // iOS blocks outright when the screen is locked — and even in the
@@ -11583,7 +12182,18 @@ const player = {
     // element — load the next src into it and play. Non-iOS keeps the two-deck
     // swap the WebAudio crossfade needs.
     const stayPut = IS_IOS && !xfade && this.playing;
-    const newIdx = stayPut ? oldIdx : 1 - oldIdx;
+    /* WHICH DECK. Playing, the record goes to the other deck so the two can
+       overlap — unless the hand already has THIS record cued on it, in which
+       case that deck is the one (it is not reloaded, only started from its
+       cue). Paused, there is no overlap to carry, so the record goes onto the
+       deck that already owns the air: the first start of a session lands on
+       A, a paused skip never takes a hand's deck, and the direct path stays
+       on its one blessed element either way. */
+    const other = 1 - oldIdx;
+    const cued = AE.graphLive && typeof DECKS !== 'undefined' && DECKS.slots[other].owner === 'hand'
+      && DECKS.slots[other].trackIdx === i && AE.decks[other].a.paused
+      && (typeof MIXER !== 'undefined') && MIXER._sameSrc(AE.decks[other].a, track.url);
+    const newIdx = stayPut ? oldIdx : cued ? other : (!this.playing && !xfade) ? oldIdx : other;
     const nd = AE.decks[newIdx], od = AE.decks[oldIdx];
 
     AE.xfading = xfade;
@@ -11605,15 +12215,22 @@ const player = {
     const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
     // a cancelled arm can leave this deck at preload='metadata' (MIXER._preload)
     try { if (nd.a.preload !== 'auto') nd.a.preload = 'auto'; } catch (e){}
-    nd.a.src = src;
-    // the warmed copy has been spent; hold nothing we are already playing
-    if (typeof PREFETCH !== 'undefined' && src !== track.url) PREFETCH.spend();
+    if (cued){
+      // the hand's record, already on this deck: start it from the cue it was
+      // left at (its gain is at its trim; the fade-in rides its fader, see DECKS.onPlayIndex)
+      const cue = DECKS.slots[newIdx].cue || 0;
+      if (Math.abs(nd.a.currentTime - cue) > 0.05){ try { nd.a.currentTime = cue; } catch (e){} }
+    } else {
+      nd.a.src = src;
+      // the warmed copy has been spent; hold nothing we are already playing
+      if (typeof PREFETCH !== 'undefined' && src !== track.url) PREFETCH.spend();
+    }
     nd.norm = normLin(track);
     /* A freshly-assigned src is ALREADY at zero. Writing currentTime = 0 here
        queued a seek the element could not act on until metadata had arrived, and
        on the single-element iOS hand-off that sits directly in the gap between
        two tracks. Only a deck that was left somewhere else needs moving. */
-    if (nd.a.currentTime > 0.01){ try { nd.a.currentTime = 0; } catch (e){} }
+    if (!cued && nd.a.currentTime > 0.01){ try { nd.a.currentTime = 0; } catch (e){} }
     // an HONEST loading word: "the first track" only the very first time this
     // session, else name the track we're cueing — never claim "first track"
     // after it has come and gone
@@ -11646,14 +12263,18 @@ const player = {
     });
     if (AE.graphLive){
       rampGain(nd.gain, nd.norm, fadeDur, 'in');
-      rampGain(od.gain, 0, fadeDur, 'out');
+      if (od !== nd) rampGain(od.gain, 0, fadeDur, 'out');   // the same deck reused (paused): one ramp, not two that cancel
     }
     AE.active = newIdx;
+    // the handle rests at the new deck's end; its fader opens now (inaudible: its gain is at zero)
+    if (typeof DECKS !== 'undefined') DECKS.onPlayIndex(newIdx, od === nd ? -1 : retiredCur, AE.graphLive ? fadeDur : 0, cued);
     applyVolume();                       // element-volume routing follows the deck swap
     syncLoopFlag();                      // the newly active deck picks up repeat-one, natively
     clearTimeout(this._fadeT);
     this._fadeT = setTimeout(() => {
       AE.xfading = false;
+      // the fade has landed: the retired deck's fader follows the handle home (it is silent either way)
+      if (typeof DECKS !== 'undefined') DECKS.applyFaderGains();
       if (od === nd) return;              // same-element advance (locked iOS): never touch the sounding deck
       od.a.pause();
       // iOS budgets audio decoders HARD — a long session of src-swaps starves
@@ -11700,13 +12321,14 @@ const player = {
 
   /* the mixer already started the incoming deck — this is the bookkeeping
      half of playIndex, with no element operations at all */
-  commitMix(i){
+  commitMix(i, opts){
     const track = this.tracks[i];
     if (!track) return;
     const leaving = this.tracks[this.cur];   // still sounding through the seam: its bytes stay wanted
     // the seam hands the booth over too: a loop or an effect belonged to the
-    // track that just left, and carrying it into the next one is a fault
-    if (typeof FX !== 'undefined') FX.release();
+    // track that just left, and carrying it into the next one is a fault —
+    // unless the hand did the mixing (keepRack): then the rack is the hand's
+    if (typeof FX !== 'undefined' && !(opts && opts.keepRack)) FX.release();
     HIST.leave(this.tracks[this.cur], 'ended');
     if (this.cur !== -1 && this.cur !== i) this.history.push(this.cur);
     if (this.history.length > 64) this.history.shift();
@@ -11724,6 +12346,29 @@ const player = {
     updatePlayIcon();
     updateMediaSession();
     PERSIST.poke();
+  },
+  /* THE INVERSE OF commitMix: a hand pulled a yielded seam back to the
+     record it was leaving. That record is current again (it never stopped),
+     the one that was committed goes back to being the next, and the lists,
+     the title and the Now Playing card follow. The history entry the commit
+     pushed is popped; the listen the commit started is left as the short
+     skip it was. */
+  uncommitMix(){
+    const i = this.cur;
+    const back = this.history.length ? this.history.pop() : -1;
+    if (back < 0 || !this.tracks[back]) return false;
+    HIST.leave(this.tracks[i], 'skip');
+    this.cur = back;
+    this._committedNext = this.tracks[i] ? i : null;
+    this.playing = true;
+    HIST.start(this.tracks[back]);
+    this._decksChanged([this.tracks[back], this.tracks[i]]);
+    this.refreshTitle();
+    this.renderList();
+    updatePlayIcon();
+    updateMediaSession();
+    PERSIST.poke();
+    return true;
   },
 
   toggle(){
@@ -11760,7 +12405,10 @@ const player = {
       LOADER.begin(T('picking up where you left off…'));   // graph owns volume on
     }                                                   // desktop, nothing owns muted
     d.a.play().catch(() => {});
-    if (AE.graphLive) rampGain(d.gain, 1, 0.08, 'in');
+    // back to the deck's loudness TRIM, not to 1: a track normalised to -6 dB
+    // used to come back +6 dB louder than it paused (and the next seam's first
+    // curve point then stepped it back down, audibly)
+    if (AE.graphLive) rampGain(d.gain, d.norm || 1, 0.08, 'in');
     applyVolume();
     this.playing = true;
     updatePlayIcon(); this.renderList();
@@ -11768,6 +12416,11 @@ const player = {
   },
 
   hasNext(){
+    // a record the hand loaded onto the idle deck is a next, before any draw
+    if (typeof DECKS !== 'undefined' && AE.decks && AE.graphLive){
+      const hs = DECKS.slots[1 - AE.active];
+      if (hs.owner === 'hand' && this.tracks[hs.trackIdx]) return true;
+    }
     // a track put ON DECK (a pad, the crate) is a next, wherever it sits in the list
     if (this._committedNext != null && this.tracks[this._committedNext]) return true;
     if (this.shuffle) return this.tracks.length > 1;
@@ -11821,6 +12474,12 @@ const player = {
   },
 
   pickNext(){
+    // a record the hand loaded onto the idle deck IS the next — the auto-DJ
+    // plans against what is actually on the deck, and a skip plays it
+    if (typeof DECKS !== 'undefined' && AE.decks && AE.graphLive){
+      const hs = DECKS.slots[1 - AE.active];
+      if (hs.owner === 'hand' && this.tracks[hs.trackIdx]){ this._committedNext = null; return hs.trackIdx; }
+    }
     // the mixer pre-commits the next pick when it arms a transition, so the
     // draw it planned is the draw that plays — manual skip included
     if (this._committedNext != null){
@@ -11881,6 +12540,9 @@ const player = {
       const d = activeDeck(); if (d){ d.a.currentTime = 0; d.a.play().catch(()=>{}); }
       return;
     }
+    // a hand's record already rolling on the other deck is a blend in
+    // progress: "next" is the cut to it, mixer or no mixer
+    if (typeof DECKS !== 'undefined' && DECKS.handRolling() && DECKS.cutTo(1 - AE.active)) return;
     // the listener said "next": if the mixer can blend from here — the next
     // bar line, the incoming's own downbeat, sixteen beats of seam — the
     // blend owns the transition and the cut never happens
@@ -12817,6 +13479,7 @@ const PERSIST = {
       mixOn: MIXER.on, mixStyle: MIXER.style,
       mixset: (typeof MIXSET !== 'undefined') ? MIXSET.snapshot() : null,
       journey: CON.lastDeal ? { mode: CON.lastDeal.mode, dials: CON.lastDeal.dials, seed: CON.lastDeal.seed } : null,
+      decks: (typeof DECKS !== 'undefined') ? DECKS.snapshot() : null,   // a hand's record on the idle deck, and the handle's law
     };
   },
   save(){ if (!this.restoring) DB.kvSet('transport', this.snapshot()).catch(() => {}); },
@@ -12850,6 +13513,7 @@ const PERSIST = {
       // the restore renders ready-to-resume: one tap.
       const i = player.tracks.indexOf(curTrack);
       player.prepare(i, s.pos || 0);
+      if (s.decks && typeof DECKS !== 'undefined') DECKS.restore(s.decks);   // the hand's record comes back beside it, cued
       /* THE ONE RELOAD THAT MAY RESUME ITSELF. Restore-paused is right for
          every reload the app did not choose — a browser will not let a page
          that just appeared start making sound, and pretending otherwise
@@ -13531,13 +14195,18 @@ const SPEED = {
     // a running beatmix owns both decks' rates and pitch mode (it multiplies
     // SPEED.rate in on its next retune, and restores the lock when it ends) —
     // writing them here mid-blend would snap the glide and re-engage the stretcher
-    const seam = typeof MIXER !== 'undefined' && MIXER.phase === 'running';
-    if (AE.decks && !seam) for (const d of AE.decks){
+    const seam = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
+    if (AE.decks && !seam) AE.decks.forEach((d, i) => {
       try {
-        d.a.playbackRate = this.rate;
-        setPitchLock(d.a, this.keyLock);
+        // each deck composes the listener's speed with its own pitch (SYNC),
+        // and a synced deck rides vinyl: the stretcher's smear is what SYNC
+        // cannot afford (see DECKS.sync)
+        const s = (typeof DECKS !== 'undefined') ? DECKS.slots[i] : null;
+        const r = this.rate * (s && s.pitch > 0 ? s.pitch : 1);
+        if (d.a.playbackRate !== r) d.a.playbackRate = r;
+        setPitchLock(d.a, this.keyLock && !(s && s.synced));
       } catch (e){}
-    }
+    });
     const b = document.getElementById('btnSpeed');
     if (b){ b.textContent = this.rate + '×'; b.classList.toggle('on', this.rate !== 1); }
   },
@@ -15828,7 +16497,11 @@ function planMixNow(A, B, pos, opts){
   if (startA + 4 * spbA > durA - 0.3)
     return Object.assign(quick, { why: 'no room to mix' });
   while (beats > 4 && startA + beats * spbA > durA - 0.3) beats -= 4;
-  const startB = B.in ? B.in.start : B.grid;
+  // a hand-cued incoming enters from its cue, on the nearest beat line of its
+  // own grid: the lock measures phase against startB, so it must BE a beat
+  let startB = B.in ? B.in.start : B.grid;
+  if (o.startB != null && isFinite(o.startB))
+    startB = Math.max(0, B.grid + Math.round((o.startB - B.grid) / spbB) * spbB);
   return {
     type: 'beatmix', now: true, beats,
     startA: Math.round(startA * 1000) / 1000,
@@ -17564,8 +18237,10 @@ function initMediaSession(){
    a gentle re-nudge, then — if it's still frozen — reload the source at the very
    spot it stalled and resume. The listener hears a blink, never a dead stop. */
 const WATCHDOG = {
-  s: { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0, reseeks: 0, lastTu: -1 },
-  reset(){ this.s = { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0, reseeks: 0, lastTu: -1 }; },
+  // one memory per deck: a hand's record rolling beside the one on air is judged on its own
+  s: [null, null],
+  _fresh(){ return { lastT: -1, lastBuf: -1, stall: 0, starve: 0, heals: 0, reseeks: 0, lastTu: -1 }; },
+  reset(i){ if (i == null) this.s = [this._fresh(), this._fresh()]; else this.s[i] = this._fresh(); },
   // the buffer that matters is the one under the playhead (bufferedEndAt, tested), never the last island
   bufEnd(a){
     try {
@@ -17576,8 +18251,17 @@ const WATCHDOG = {
   },
   check(){
     if (!player.playing){ this.reset(); return; }
-    const d = activeDeck();
-    if (!d || d.a.paused || AE.xfading){ this.reset(); return; }
+    if (!AE.decks) return;
+    // every LIVE deck is judged: the record on air, and a hand's record rolling beside it
+    AE.decks.forEach((d, i) => {
+      const onAir = i === AE.active;
+      if (!onAir && !(typeof DECKS !== 'undefined' && DECKS.isLive(i))){ this.reset(i); return; }
+      if (d.a.paused || (onAir && AE.xfading)){ this.reset(i); return; }
+      this._judge(d, i, onAir);
+    });
+  },
+  _judge(d, i, onAir){
+    const s = this.s[i] || (this.s[i] = this._fresh());
     if (d._healing) return;                          // a reload of ours is landing — judge what it lands on
     /* A HELD LOOP IS NOT A FROZEN DECK. On the element-direct path every loop
        is the per-frame re-seek, and a 1/8-beat pad at 128 BPM is a 59 ms loop:
@@ -17585,7 +18269,7 @@ const WATCHDOG = {
        file is fully buffered so nothing "grows", and seven such looks earned
        the pad a reload that emptied the element. The loop is a hand on the
        controls; the watchdog stands down until it lets go. */
-    if (typeof FX !== 'undefined' && FX.loop && FX.loop.len < 0.5){ this.s.stall = 0; this.s.starve = 0; return; }
+    if (onAir && typeof FX !== 'undefined' && FX.loop && FX.loop.len < 0.5){ s.stall = 0; s.starve = 0; return; }
     const t = d.a.currentTime;
     /* LIVENESS FROM THE ELEMENT'S OWN PULSE. timeupdate fires only while the
        clock advances — four times a second and more while playing, once for a
@@ -17595,15 +18279,15 @@ const WATCHDOG = {
        reseek among them) and proves nothing, so it falls through to the
        position delta the verdict has always used. */
     const tu = d._tu | 0;
-    const ticked = this.s.lastTu >= 0 && tu - this.s.lastTu >= 3;
-    this.s.lastTu = tu;
+    const ticked = s.lastTu >= 0 && tu - s.lastTu >= 3;
+    s.lastTu = tu;
     /* The verdict is watchdogStep's (tested). A track is only STARVED once it
        has been under way — before that the start backstop owns it, and a
        reload there restarts the download and, on a weak pipe, loops forever
        ("tuning the first track…" that never plays). */
-    const played = t > 0.5 || (isFinite(AE._lastGoodT) && AE._lastGoodT > 0.5);
-    const v = watchdogStep(this.s, { t, buf: this.bufEnd(d.a), rs: d.a.readyState, played, online: navigator.onLine,
-                                     moved: ticked ? true : undefined });
+    const played = t > 0.5 || (onAir && isFinite(AE._lastGoodT) && AE._lastGoodT > 0.5);
+    const v = watchdogStep(s, { t, buf: this.bufEnd(d.a), rs: d.a.readyState, played, online: navigator.onLine,
+                                moved: ticked ? true : undefined });
     if (v === 'nudge'){
       d.a.play().catch(() => {});                    // ~3 s truly frozen (has data, not playing): a gentle re-nudge
     } else if (v === 'reseek'){
@@ -17612,20 +18296,20 @@ const WATCHDOG = {
          already has, so nothing is heard. If the stream was merely stuck
          behind a dead connection this is the whole cure; the verdict escalates
          to the reload below only when eight more seconds bring nothing. */
-      if (typeof ACTIVITY !== 'undefined')
+      if (onAir && typeof ACTIVITY !== 'undefined')
         ACTIVITY.log('system', T('The stream ran dry mid-track — reconnecting at the same spot'));
       try { d.a.currentTime = d.a.currentTime + 0.001; } catch (e){}
       d.a.play().catch(() => {});
     } else if (v === 'reload'){
-      const tr = player.tracks[player.cur];
+      const tr = onAir ? player.tracks[player.cur] : DECKS.track(i);
       const starved = d.a.readyState < 3;
       /* A starved deck reading a WARMED COPY (a blob the prefetcher handed
          over) comes back from the network URL: the copy is what failed it.
          Otherwise it reloads what it had — a fresh connection to the same file. */
       const src = d.a.currentSrc || d.a.src || '';
       const url = (starved && tr && !tr.local && tr.url && /^blob:/i.test(src) && src !== tr.url) ? tr.url : '';
-      const at = isFinite(AE._lastGoodT) && AE._lastGoodT > t ? AE._lastGoodT : t;
-      if (typeof ACTIVITY !== 'undefined')
+      const at = onAir && isFinite(AE._lastGoodT) && AE._lastGoodT > t ? AE._lastGoodT : t;
+      if (onAir && typeof ACTIVITY !== 'undefined')
         ACTIVITY.log('system', starved
           ? T('The stream ran dry mid-track — reconnecting at the same spot')
           : T('The audio froze — reloading at the same spot'));
@@ -17643,7 +18327,9 @@ const WATCHDOG = {
     } else if (v === 'skip'){
       // the same track starved five times running with no motion between —
       // the file or its pipe is not coming back; the set must not end here
-      this.reset();
+      this.reset(i);
+      // a hand's record off air is simply stopped; the set is the on-air deck's
+      if (!onAir){ try { d.a.pause(); } catch (e){} DECKS.slots[i].owner = 'free'; return; }
       if (typeof ACTIVITY !== 'undefined')
         ACTIVITY.log('system', T('A track kept starving — skipped so the set keeps going'));
       toast(T('That track kept dropping out — skipping ahead'));
@@ -17944,11 +18630,12 @@ const AIRPLAY = {
       const url = cur ? (cur.a.currentSrc || cur.a.src || '') : '';
       // a seam in flight has nowhere to land once the graph goes
       if (typeof MIXER !== 'undefined' && MIXER.phase !== 'idle') MIXER.cancel('route');
+      if (typeof DECKS !== 'undefined') DECKS.collapse();   // one deck from here: the idle one stops, the handle comes home
       AE.xfading = false;
       AE.decks.forEach(dk => {
         try { dk.a.pause(); } catch (e){}
         AIRPLAY.unwatch(dk);
-        for (const n of [dk.src, dk.shelf, dk.filter, dk.gain, dk.echoSend])
+        for (const n of [dk.src, dk.shelf, dk.hp, dk.filter, dk.gain, dk.fader, dk.echoSend])
           { try { if (n) n.disconnect(); } catch (e){} }
         // let the old element go: an abandoned element still holding a decoder
         // is exactly what costs a mobile browser its next one
@@ -17958,7 +18645,7 @@ const AIRPLAY = {
         // graph mode is the mode that reads the samples, so it is the mode
         // that needs the cross-origin opt-in; direct mode does not
         dk.a = AE._deckEl(!direct);
-        dk.src = dk.shelf = dk.filter = dk.gain = dk.echoSend = null;
+        dk.src = dk.shelf = dk.hp = dk.filter = dk.gain = dk.fader = dk.echoSend = null;
         if (direct) dk.a.volume = 0; else AE._deckGraph(dk);
         AE._wireDeck(dk, k);
       });
@@ -18557,13 +19244,18 @@ function crateMixNext(t, opts){
     player.playIndex(i, { xfade: true });
     return;
   }
-  if (MIXER.phase === 'running'){
+  if (MIXER.phase === 'running' || MIXER.phase === 'manual'){
     player._committedNext = i;
     toast(T('<b>{title}</b> is on deck — it follows this blend', { title }));
     PERSIST.poke(); deckPadsPaint();
     return;
   }
   if (MIXER.phase === 'armed') MIXER.cancel('replan');
+  /* ON DECK means ON THE DECK: where the graph is live the record is loaded
+     onto the idle deck, by hand, paused at its cue — so the booth shows it,
+     the hand can cue or start it, and the auto-DJ plans against exactly that
+     record (arm's held branch). The direct path keeps the pin alone. */
+  if (AE.graphLive && typeof DECKS !== 'undefined' && AE.decks) DECKS.load(1 - AE.active, t);
   player._committedNext = i;
   if (MIXER.on && player.playing && AE.graphLive) MIXER.arm();
   if (MIXER.phase === 'armed' && MIXER.next === i && MIXER.plan){
@@ -19559,6 +20251,117 @@ function seamSceneCue(o){
   return out;
 }
 // @mix-end
+
+/* ================================================================
+   @xfader — THE CROSSFADER'S LAW, as pure arithmetic.
+
+   The booth has two decks with fixed letters — A is AE.decks[0], B is
+   AE.decks[1] — and one handle between them. Everything a hand on that
+   handle means is decided here, over plain numbers, so the booth's pointer
+   code and the mixer's seam code ask the same functions and both can be
+   tested without a browser:
+
+     · the GAIN LAW: what each deck's fader node is at a handle position x
+       (0 = A full, 1 = B full). 'power' is the seam's own equal-power
+       cosine/sine, so a hand mid-way hears what an auto blend mid-way
+       sounds like; 'cut' is the scratch curve — full until the last few
+       percent of travel, so a transform is a cut, with a short ramp so it
+       is never a click.
+     · the TWO MAPS between the seam's f (0 = outgoing full) and the handle's
+       x, which depend on which SLOT is outgoing, and back from a pair of
+       live gains, so a hand that takes a running seam lands exactly where
+       the audible blend is.
+     · the ARBITER: what letting go means — commit the far deck, abort a
+       yielded seam back to the outgoing one, or hold a blend mid-way.
+     · SYNC's rate, and the idle-stop rule that gives the auto-DJ a faded-out
+       deck back.
+   ================================================================ */
+// @xfader-start
+// the 'cut' curve's dead zones, either side: a transform is a cut, never a click
+const XFADER_CUT_EDGE = 0.03;
+// the arbiter's park tolerance: this close to an end IS the end
+const XFADER_PARK = 0.03;
+// a deck inaudible this long, off air, with no hand on it, has played its part
+const FADER_IDLE_S = 20;
+
+// [gA, gB] for a handle position x in [0,1] under the named curve. 'power'
+// keeps gA² + gB² == 1 everywhere (constant acoustic power through the
+// middle); 'cut' holds each side at full until XFADER_CUT_EDGE from its own
+// end and follows the same cosine/sine across what travel is left, so the
+// two laws agree at the ends and the cut is continuous everywhere.
+function xfaderGains(x, curve){
+  const v = clamp01(x);
+  if (curve === 'cut'){
+    const e = XFADER_CUT_EDGE, u = clamp01((v - e) / (1 - 2 * e));
+    return [v <= e ? 1 : v >= 1 - e ? 0 : Math.cos(u * Math.PI / 2),
+            v >= 1 - e ? 1 : v <= e ? 0 : Math.sin(u * Math.PI / 2)];
+  }
+  const g = equalPowerXfade(v);
+  return [g.a, g.b];
+}
+// the handle's place for a seam at position f (0 = outgoing full): the
+// outgoing deck's end is where the handle starts, whichever slot that is.
+// The map is its own inverse, so it also reads a handle position back as f.
+function xfaderPosFromSeam(f, outSlot){
+  const v = clamp01(f);
+  return outSlot === 1 ? 1 - v : v;
+}
+// the handle position that would produce a pair of live gains under the
+// power law — the inverse of xfaderGains(x, 'power'), for a hand that takes
+// over a seam and must appear exactly where the audible blend is
+function xfaderPosFromGains(gA, gB){
+  const a = Math.max(0, +gA || 0), b = Math.max(0, +gB || 0);
+  if (a <= 0 && b <= 0) return 0;
+  return clamp01(Math.atan2(b, a) * 2 / Math.PI);
+}
+/* WHAT LETTING GO MEANS. The whole crossfader policy as one function over a
+   plain state: the mixer's phase ('idle' | 'armed' | 'running' | 'manual' —
+   the last is a seam a hand took over), whether a hand is still on the
+   handle, where the handle is, which slot is OUTGOING (the record on air, or
+   the one a yielded seam was leaving) and which is INCOMING, and whether
+   either record has run out. One of:
+     commit  the incoming slot takes the air — the handle is parked at its
+             end, or the outgoing record ended while the incoming is up
+     abort   a yielded seam was pulled back to the outgoing end: undo it
+     hold    released mid-way — both decks keep playing at the hand's blend;
+             the DJ is mid-mix and nothing is decided for them
+     none    nothing to do: a hand still holding, or back at the outgoing
+             end with no seam to undo
+   `parkAt` is how close to an end counts as the end (XFADER_PARK). */
+function xfaderArbiter(s){
+  const o = s || {};
+  const outSlot = o.outSlot === 1 ? 1 : 0, inSlot = 1 - outSlot;
+  const ended = [!!o.aEnded, !!o.bEnded];
+  const park = o.parkAt == null ? XFADER_PARK : o.parkAt;
+  const x = clamp01(isFinite(+o.x) ? +o.x : outSlot);   // an unknown position reads as the on-air end: nothing to do
+  // a record that ran out decides for the hand: the outgoing one finishing
+  // hands the air to the incoming; the incoming one finishing sends the
+  // handle home — a yielded seam is undone, else there is nothing to commit
+  if (ended[outSlot] && !ended[inSlot]) return { act: 'commit', slot: inSlot };
+  if (ended[inSlot]) return { act: o.phase === 'manual' ? 'abort' : 'none', slot: outSlot };
+  if (o.hand) return { act: 'none', slot: -1 };
+  if (Math.abs(x - inSlot) <= park) return { act: 'commit', slot: inSlot };
+  if (Math.abs(x - outSlot) <= park) return { act: o.phase === 'manual' ? 'abort' : 'none', slot: outSlot };
+  return { act: 'hold', slot: -1 };
+}
+// SYNC: the rate the slave deck plays at to sit on the master's tempo,
+// folded into [1/√2, √2) — 62 under 124 is half-time, not twice as fast.
+// It is glideRates(master, slave, 0).rateB: the rate a seam starts B on.
+function syncRateFor(bpmMaster, bpmSlave){
+  if (!(bpmMaster > 0) || !(bpmSlave > 0)) return 1;
+  return tempoFoldRatio(bpmMaster, bpmSlave);
+}
+// THE IDLE STOP. A deck whose fader gain has been under 1 % for FADER_IDLE_S
+// seconds, while it is not the record on air, with no hand on the handle
+// and no cue held, is finished: the record the DJ faded out has played its
+// part, and stopping it hands the deck back to the auto-DJ. `after` is a
+// test's shorter clock.
+function faderIdleStop(o){
+  const s = o || {};
+  const after = s.after == null ? FADER_IDLE_S : s.after;
+  return !s.onAir && !s.hand && !s.cueHeld && (+s.gain || 0) < 0.01 && (+s.silentFor || 0) >= after;
+}
+// @xfader-end
 
 /* ================================================================
    @fx — THE BOOTH'S PERFORMANCE LAYER, as pure arithmetic.
@@ -20733,7 +21536,8 @@ const MIXER = {
                                  // agree, an honest crossfade when they don't — the
                                  // planner (planTransition) refuses anything that
                                  // wouldn't be great, so ON is always safe
-  phase: 'idle',                 // idle | armed | running
+  phase: 'idle',                 // idle | armed | running | manual (a running seam a hand took: see yield)
+  _seamBy: 'auto',               // who is mixing the seam in flight: 'auto', or 'hand' once yielded
   style: 'adaptive',             // adaptive | musical | club (MIX_STYLES) — manual default
   _seamStyle: null,              // the style frozen for the seam in flight (mixset may override per-section)
   plan: null, next: -1,
@@ -20772,25 +21576,37 @@ const MIXER = {
     this._fireAt = null;
     if (this.phase === 'idle'){ syncMixHud(); return; }
     if (typeof SEGUE !== 'undefined') SEGUE.cueSeam(null);
-    this.plan = null; this.next = -1; this.phase = 'idle';
+    const blending = this.phase === 'running' || this.phase === 'manual';
+    // a cancel mid-blend used to leave the outgoing element decoding at gain
+    // zero until its own end — a decoder burned, an 'ended' nobody wanted. It is stopped.
+    if (blending && this.outDeck){ try { this.outDeck.a.pause(); } catch (e){} }
+    const retired = blending && this.outTrack ? player.tracks.indexOf(this.outTrack) : null;
+    this.plan = null; this.next = -1; this.phase = 'idle'; this._seamBy = 'auto';
     this.outDeck = null; this.outTrack = null; this.trim = 0; this.trimI = 0;
     this.audioT0 = null; this._shelfScheduled = false;
     this._latched = false; this._aligns = 0; this._bT = -1; this._errs = []; this._pull = 0;
     clockReset(this._clkA); clockReset(this._clkB);
-    const tc = AE.ctx ? AE.ctx.currentTime : 0;
+    // the handle comes home to the committed deck's end before the gains settle
+    if (typeof DECKS !== 'undefined') DECKS.settle({ retired });
     if (AE.decks) AE.decks.forEach((d, i) => {
       // guarded by equality: a 'manual' cancel runs on EVERY track change, and
       // a rate written to a playing element re-seats its resampler even when
       // the value is the one it already has — nothing here may touch a deck
       // that is already where it should be
-      try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}
-      setPitchLock(d.a, SPEED.keyLock);                 // (already equality-guarded)
-      if (d.shelf && d.shelf.gain.value !== 0) d.shelf.gain.value = 0;
-      // kill any scheduled crossfade ramp and settle each deck: the surviving
-      // (active) deck back to full, the other silent — else a cancel mid-blend
-      // could freeze a deck at a partial gain.
+      const s = DECKS.slots[i], r = SPEED.rate * DECKS.pitch(i);
+      try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
+      setPitchLock(d.a, SPEED.keyLock && !s.synced);     // (already equality-guarded)
+      if (d.shelf && d.shelf.gain.value !== 0) DECKS.gainWrite(d.shelf.gain, 0, 0.006);
+      /* kill any scheduled crossfade ramp and settle each deck: the surviving
+         (active) deck back to full, a hand's deck too (its level is the
+         handle's business), the other silent — else a cancel mid-blend could
+         freeze a deck at a partial gain. Through the gain arbiter: cancelling a
+         curve in flight and writing a value snapped the param to its pre-curve
+         value first — a hard step on every cancel mid-blend — and the arbiter
+         holds it where it is before it moves. */
       if (AE.graphLive && d.gain){
-        try { d.gain.gain.cancelScheduledValues(tc); d.gain.gain.setValueAtTime(i === AE.active ? (d.norm || 1) : 0, tc); } catch (e){}
+        const keep = i === AE.active || s.owner === 'hand';
+        DECKS.gainWrite(d.gain.gain, keep ? (d.norm || 1) : 0, 0.006);
       }
       this._clearPreloadListener(d);                    // an unfired preload seek must die with the plan it belonged to
     });
@@ -20818,11 +21634,17 @@ const MIXER = {
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
     const t = d.a.currentTime;
 
+    // a hand on the handle, or a blend left mid-way, is the DJ's mix: the
+    // auto-DJ never arms over it, and a plan it had armed is let go of — when
+    // the handle rests at an end again, the next update plans afresh from there
+    const held = DECKS.fader.hand || (DECKS.fader.x > 0.02 && DECKS.fader.x < 0.98);
     if (this.phase === 'idle'){
+      if (held) return;
       if (d.a.duration - t < 90 && player.hasNext()) this.arm();
       return;
     }
     if (this.phase === 'armed'){
+      if (held){ this.cancel('hand'); return; }
       const exitAt = this.exitTime(d.a.duration, this.plan, player.tracks[player.cur]);
       this._warmB(exitAt - t);                   // the second stage of the warm, once, when A can spare the pipe
       /* THE SEAM FIRES FROM A FRESH READ. Here, inside the animation frame, A's
@@ -20841,7 +21663,7 @@ const MIXER = {
       if (t >= exitAt) this.fire(now);
       return;
     }
-    if (this.phase === 'running') this.run(now);
+    if (this.phase === 'running' || this.phase === 'manual') this.run(now);
   },
 
   // WHEN to leave the outgoing track. Beatmix leaves on its grid-anchored seam
@@ -20862,8 +21684,17 @@ const MIXER = {
 
   arm(){
     const A = player.tracks[player.cur];
-    const i = player.pickNext();
+    /* THE IDLE DECK MAY BE THE HAND'S. Paused at its cue, the plan is made
+       AGAINST that record and the deck is only moved to the seam's warm point
+       — never reloaded; rolling, it is the hand's mix and not ours to arm
+       (the handle, pushed, commits it; D6). A record whose stream failed under
+       an earlier arm is not pre-armed again: the plain path tries it at the end. */
+    const idle = 1 - AE.active, hs = DECKS.slots[idle], hd = AE.decks[idle];
+    const held = hs.owner === 'hand' && !!player.tracks[hs.trackIdx];
+    if (held && !hd.a.paused) return;
+    const i = held ? hs.trackIdx : player.pickNext();
     if (i === -1 || !player.tracks[i]){ return; }
+    if (player.tracks[i]._preloadErr) return;
     player._committedNext = i;               // the planned draw is the real draw
     const B = player.tracks[i];
     // a loaded mixset sets the feel per section (and lets a play-in-full anchor
@@ -20894,7 +21725,7 @@ const MIXER = {
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
     this.plan = plan;
     this.next = i;
-    this._preload(B, plan);
+    this._preload(B, plan, held);
     this.phase = 'armed';
     syncMixHud();
   },
@@ -20913,8 +21744,11 @@ const MIXER = {
      close enough that B must be rolling whatever the pipe is doing. The
      seam-readiness gate at fire() (seamStreamReady) is untouched: B must own
      its window before the blend starts, as it always had to. */
-  _preload(B, plan){
+  _preload(B, plan, seekOnly){
     const nd = AE.decks[1 - AE.active];
+    // a hand's record is never reloaded by the auto-DJ — only moved, and only
+    // when arm() asks for exactly that (seekOnly)
+    if (DECKS.slots[1 - AE.active].owner === 'hand' && !seekOnly) return false;
     // a prior arm()/replan on this SAME deck may still have an unfired
     // 'loadedmetadata' listener attached (cancel()/replan doesn't touch the
     // DOM) — left alone, it stacks with this one and BOTH fire on whatever
@@ -20929,6 +21763,17 @@ const MIXER = {
     // point, warmed once, so a punctual seam's placement costs nothing.
     const seekTo = plan.type === 'beatmix' ? Math.max(0, plan.startB - seamLeadFor(plan)) : 0;
     nd._seekTo = seekTo;
+    if (seekOnly){
+      nd._warmed = true;
+      if (nd.a.readyState >= 1){ if (Math.abs(nd.a.currentTime - seekTo) > 0.05){ try { nd.a.currentTime = seekTo; } catch (e){} } }
+      else {
+        const once = () => { nd.a.removeEventListener('loadedmetadata', once); nd._preloadOnce = null; try { nd.a.currentTime = nd._seekTo || 0; } catch (e){} };
+        nd._preloadOnce = once;
+        nd.a.addEventListener('loadedmetadata', once);
+      }
+      return true;
+    }
+    DECKS.slots[1 - AE.active].trackIdx = player.tracks.indexOf(B);   // the lane shows what the deck holds
     /* IDEMPOTENT ON THE SOURCE. A style chip or MIX NOW inside the armed
        window cancels and re-arms with the SAME track; assigning the same src
        again (and load()) threw away every byte B had and started its download
@@ -20950,6 +21795,7 @@ const MIXER = {
     } else if (nd._warmed && Math.abs(nd.a.currentTime - seekTo) > 0.05){
       try { nd.a.currentTime = seekTo; } catch (e){}
     }
+    return true;
   },
   // an element reports its src resolved; the catalog may carry it relative
   _sameSrc(a, url){
@@ -20990,17 +21836,29 @@ const MIXER = {
     if (!this.on || !player.playing || AE.mic.on || document.hidden) return false;
     const d = activeDeck();
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return false;
-    if (this.phase === 'running') return false;        // one seam at a time
+    if (this.phase === 'running' || this.phase === 'manual') return false;   // one seam at a time
     const A = player.tracks[player.cur];
-    const i = this.phase === 'armed' && this.next >= 0 ? this.next : player.pickNext();
+    // a hand's record on the idle deck is the next, and the blend enters from
+    // ITS cue (snapped to its grid by the planner); rolling already, it is a
+    // blend in progress and "now" is the cut to it
+    const idle = 1 - AE.active, hs = DECKS.slots[idle], hd = AE.decks[idle];
+    const held = hs.owner === 'hand' && !!player.tracks[hs.trackIdx];
+    if (held && !hd.a.paused && !hd.a.ended){ if (this.phase === 'armed') this.cancel('hand'); return DECKS.cutTo(idle); }
+    const i = held ? hs.trackIdx : (this.phase === 'armed' && this.next >= 0 ? this.next : player.pickNext());
     if (i === -1 || !player.tracks[i]){ return false; }
     const B = player.tracks[i];
     const plan = planMixNow(mixOf(A), mixOf(B), d.a.currentTime,
       // the bar it picks must be at least a lead-in away, or the seam is already
       // late the moment it is planned and the fader opens past the bar line
-      { durA: d.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD });
+      { durA: d.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD, startB: held ? hs.cue : undefined });
     if (plan.type !== 'beatmix'){
       player._committedNext = i;                        // same draw, plain path
+      // …and the planner's quick fade is PERFORMED, at its length: a pair that
+      // cannot beatmix used to get playIndex's quarter-second cut instead
+      if (plan.type === 'fade' && AE.graphLive && plan.seconds > 0){
+        player.playIndex(i, { xfade: true, fadeSec: plan.seconds });
+        return true;
+      }
       return false;
     }
     if (this.phase === 'armed') this.cancel('replan');
@@ -21019,9 +21877,12 @@ const MIXER = {
        the draw twice, which surfaces as a track playing over itself. In an engine
        this timing-sensitive the invariant belongs where it cannot be refactored
        away, not in the caller that happens to hold it. */
-    if (this.phase === 'running') return;
+    if (this.phase === 'running' || this.phase === 'manual') return;
     if (this._fireT){ clearInterval(this._fireT); this._fireT = null; }
     this._fireAt = null;
+    // a hand on the handle (the poller can get here between a grab and the
+    // next frame): the mix is theirs — the plan is dropped, not fired over them
+    if (DECKS.fader.hand){ this.cancel('hand'); return; }
     if (typeof VINYL !== 'undefined') VINYL.drop();    // the seam owns both decks from here
     let p = this.plan;
     const od = AE.decks[AE.active];
@@ -21153,8 +22014,13 @@ const MIXER = {
     });
     this.outDeck = od;
     this.outTrack = player.tracks[player.cur] || null;   // the booth watches the handover
+    this._seamBy = 'auto';
     AE.active = 1 - AE.active;
     player.commitMix(this.next);
+    // the handle: the seam's curves own the level from here (both faders open
+    // at the seam's origin — inaudible, see DECKS.autoStart), and run() paints
+    // the handle from f so what is drawn is what is heard
+    DECKS.autoStart(seamT0);
     // Schedule the whole loudness crossfade NOW, sample-accurate on the audio
     // clock, so a slow animation frame can never step or zipper it. The rAF
     // run() no longer touches gain — it only reads f for the HUD and trims tempo.
@@ -21247,11 +22113,20 @@ const MIXER = {
     // not audio-alignment, the thing that matters there.
     const live = AE.graphLive && AE.ctx && this.audioT0 != null;
     const dur = Math.max(this.overlap, 0.05);
-    const f = clamp01(((live ? AE.ctx.currentTime - this.audioT0 : now - this.startedAt)) / dur);
+    /* UNDER A HAND ('manual') the seam's position is wherever the handle is:
+       the same map that paints the handle from f, run backwards. The tempo
+       lock below keeps holding against that f (the bass handover follows it
+       too), and the seam ends when the hand says so — never by the clock. */
+    const manual = this.phase === 'manual';
+    const outSlot = AE.decks.indexOf(od);
+    const f = manual ? xfaderPosFromSeam(DECKS.fader.x, outSlot)
+      : clamp01(((live ? AE.ctx.currentTime - this.audioT0 : now - this.startedAt)) / dur);
     // The loudness crossfade was scheduled sample-accurately at fire() (graph
     // path); on iOS the mixer never runs, so setVolumes only matters if the
     // graph scheduling threw. Here we just track f for the HUD.
     if (AE.graphLive) this.lastF = f; else this.setVolumes(f);
+    // …and the painted handle moves with the audible blend
+    if (!manual) DECKS.setFader(xfaderPosFromSeam(f, outSlot), 'auto');
     if (p.type === 'beatmix'){
       // Retune at most ~10x/sec: a multi-second tempo glide stays smooth
       // without the element's resampler being re-set every frame.
@@ -21265,8 +22140,10 @@ const MIXER = {
       if (AE.graphLive && od.shelf && nd.shelf && !this._shelfScheduled){
         const swapBeats = 2 / Math.max(4, p.beats || 16);
         const k = clamp01((f - 0.5) / swapBeats + 0.5);
-        od.shelf.gain.value = BEATMIX_BASS_DUCK * k;
-        nd.shelf.gain.value = BEATMIX_BASS_DUCK * (1 - k);
+        // under a hand the shelves were held mid-ramp (yield): they move on
+        // through the arbiter, on a short exponential, never a step
+        if (manual){ DECKS.gainWrite(od.shelf.gain, BEATMIX_BASS_DUCK * k, 0.02); DECKS.gainWrite(nd.shelf.gain, BEATMIX_BASS_DUCK * (1 - k), 0.02); }
+        else { od.shelf.gain.value = BEATMIX_BASS_DUCK * k; nd.shelf.gain.value = BEATMIX_BASS_DUCK * (1 - k); }
       }
       // the phase lock: both decks feed regression-filtered media clocks
       // every frame (raw currentTime is quantized and jittery), and once a
@@ -21328,7 +22205,39 @@ const MIXER = {
         }
       }
     }
-    if (f >= 1) this.finish();
+    if (f >= 1 && !manual) this.finish();
+  },
+
+  /* A HAND TAKES A RUNNING SEAM. The seam keeps everything that holds the
+     TEMPO lock — plan, outDeck, next, the latch, the trim, the sampler — and
+     gives up everything that holds the LEVEL: the scheduled gain curves are
+     stopped where they stand (the gain arbiter: held, never snapped) and both
+     decks eased to their loudness trim, so from here the fader nodes — the
+     hand's law — carry the blend. The scheduled bass handover is held where it
+     is too; run()'s per-frame shelf fallback follows the hand from here. Phase
+     becomes 'manual': run() reads f back from the handle and never finishes by
+     the clock; what the hand does next is the arbiter's call (DECKS.faderRelease
+     — commit through finish({by:'hand'}), abort, or hold). Returns the seam's
+     f at the moment of the take, so the handle can land exactly on the
+     audible blend, or false when there was nothing to take. */
+  yield(){
+    if (this.phase !== 'running' || !AE.graphLive || !AE.ctx) return false;
+    const od = this.outDeck, nd = AE.decks[AE.active];
+    if (!od || !nd) return false;
+    const f = this.audioT0 != null ? clamp01((AE.ctx.currentTime - this.audioT0) / Math.max(this.overlap, 0.05)) : this.lastF;
+    DECKS.gainWrite(od.gain.gain, od.norm || 1, 0.006);
+    DECKS.gainWrite(nd.gain.gain, nd.norm || 1, 0.006);
+    if (od.shelf) DECKS.gainWrite(od.shelf.gain, null);
+    if (nd.shelf) DECKS.gainWrite(nd.shelf.gain, null);
+    this._shelfScheduled = false;
+    if (this._fireT){ clearInterval(this._fireT); this._fireT = null; }
+    this._fireAt = null;
+    this.lastF = f;
+    this.phase = 'manual';
+    this._seamBy = 'hand';
+    syncMixHud();
+    window.__mixYielded = (window.__mixYielded || 0) + 1;   // the probes count the hand-overs
+    return f;
   },
 
   /* THE SEAM'S SAMPLER — see run(). One timer per running beatmix, each tick
@@ -21348,7 +22257,7 @@ const MIXER = {
       if (d && player.playing && d.a.currentTime >= this._fireAt) this.fire(now);
       return;
     }
-    if (this.phase === 'running') this._sample();
+    if (this.phase === 'running' || this.phase === 'manual') this._sample();
   },
   _armFirePoll(exitAt){
     this._fireAt = exitAt;
@@ -21371,7 +22280,7 @@ const MIXER = {
   },
   _sample(){
     const p = this.plan, od = this.outDeck, nd = AE.decks && AE.decks[AE.active];
-    if (this.phase !== 'running' || !p || p.type !== 'beatmix' || !od || !nd){ this._stopSampler(); return; }
+    if (!(this.phase === 'running' || this.phase === 'manual') || !p || p.type !== 'beatmix' || !od || !nd){ this._stopSampler(); return; }
     const bNow = nd.a.currentTime, aNow = od.a.currentTime;   // first reads of this task: fresh
     const moving = !nd.a.paused && !od.a.paused && bNow !== this._bRead;
     this._bRead = bNow;
@@ -21405,8 +22314,7 @@ const MIXER = {
        the quieter deck, it is simply moved: the same fresh-read seek the take
        uses, now a tiny one under A's full level. */
     if (this._latched && !this._rescued && this._errs.length >= 3){
-      const live = AE.graphLive && AE.ctx && this.audioT0 != null;
-      const f = live ? clamp01((AE.ctx.currentTime - this.audioT0) / Math.max(this.overlap, 0.05)) : 1;
+      const f = this._fNow();
       const big = median(this._errs);
       if (Math.abs(big) > 0.05 && f < 0.35){
         this._rescued = true;
@@ -21419,8 +22327,7 @@ const MIXER = {
       }
     }
     if (!this._latched && this._errs.length >= 2){
-      const live = AE.graphLive && AE.ctx && this.audioT0 != null;
-      const f = live ? clamp01((AE.ctx.currentTime - this.audioT0) / Math.max(this.overlap, 0.05)) : 1;
+      const f = this._fNow();
       // the NEWEST read steers the take (fresh reads are good to ~1 ms; a
       // median would be steering by where B was a few frames ago, mid-pull)
       const errSec = this._errs[this._errs.length - 1];
@@ -21450,6 +22357,12 @@ const MIXER = {
       }
     }
   },
+  // where the seam is, for the sampler: the audio clock, or the handle under a hand
+  _fNow(){
+    if (this.phase === 'manual') return xfaderPosFromSeam(DECKS.fader.x, AE.decks.indexOf(this.outDeck));
+    const live = AE.graphLive && AE.ctx && this.audioT0 != null;
+    return live ? clamp01((AE.ctx.currentTime - this.audioT0) / Math.max(this.overlap, 0.05)) : 1;
+  },
   /* both decks' rates for seam position f: the master glide, B's servo trim,
      and — only while the lock is being TAKEN — the pull */
   _applyRates(f){
@@ -21461,22 +22374,34 @@ const MIXER = {
     if (Math.abs(rB - this._lastRateB) > 0.0002){ try { nd.a.playbackRate = rB; } catch (e){} this._lastRateB = rB; }
   },
 
-  finish(){
+  /* THE SEAM ENDS — by the clock (f reached 1), or by a hand pushing a
+     yielded seam to the far end ({by:'hand'}). The same tidy-up either way:
+     the outgoing record stops, both decks get their own tempo and the
+     listener's key lock back, the shelves and filters open, and the gains
+     settle through the arbiter (a value written over a finished curve used
+     to step; held first, it does not). The rack was released at the commit
+     (fire → commitMix) for an auto seam; a hand's seam keeps what the hand
+     set. The handle comes to rest at the committed deck's end — inaudible,
+     because the retired deck is paused at gain zero and the committed one's
+     fader was already open. */
+  finish(opts){
+    const by = (opts && opts.by) || 'auto';
     this._stopSampler();
     const od = this.outDeck, nd = AE.decks[AE.active];
-    const tc = AE.ctx ? AE.ctx.currentTime : 0;
+    const retired = this.outTrack ? player.tracks.indexOf(this.outTrack) : -1;
+    if (typeof DECKS !== 'undefined') DECKS.settle({ retired, resetPitch: true, force: by === 'hand' });
     if (od){
       od.a.pause();
       try { od.a.playbackRate = SPEED.rate; } catch (e){}
       setPitchLock(od.a, SPEED.keyLock);
-      if (od.shelf) od.shelf.gain.value = 0;
-      if (AE.graphLive && od.gain){ od.gain.gain.cancelScheduledValues(tc); od.gain.gain.setValueAtTime(0, tc); }
+      if (od.shelf) DECKS.gainWrite(od.shelf.gain, 0, 0.006);
+      if (AE.graphLive && od.gain) DECKS.gainWrite(od.gain.gain, 0, 0.006);
     }
     if (nd){
       try { nd.a.playbackRate = SPEED.rate; } catch (e){}
       setPitchLock(nd.a, SPEED.keyLock);                // the blend rode vinyl; the listener's lock returns
-      if (nd.shelf) nd.shelf.gain.value = 0;
-      if (AE.graphLive && nd.gain){ nd.gain.gain.cancelScheduledValues(tc); nd.gain.gain.setValueAtTime(nd.norm || 1, tc); }
+      if (nd.shelf) DECKS.gainWrite(nd.shelf.gain, 0, 0.006);
+      if (AE.graphLive && nd.gain) DECKS.gainWrite(nd.gain.gain, nd.norm || 1, 0.006);
     }
     this._resetFilters();                              // both decks back to wide-open
     this._lastRateA = this._lastRateB = 1;
@@ -21488,11 +22413,11 @@ const MIXER = {
     // hazard in a new form: left set, the next seam would skip the align it needs.
     // Mix-engine rot is cumulative; a seam must hand back exactly what it borrowed.
     this.trimI = 0; this._latched = false; this._aligns = 0; this._bT = -1; this._errs = []; this._pull = 0;
-    this.phase = 'idle';
+    this.phase = 'idle'; this._seamBy = 'auto';
     applyVolume();
     syncMixHud();
     window.__mixCompleted = (window.__mixCompleted || 0) + 1;   // acceptance probe
-    if (typeof ACHIEVE !== 'undefined') ACHIEVE.earn('first_mix');   // the room mixed for them
+    if (by === 'auto' && typeof ACHIEVE !== 'undefined') ACHIEVE.earn('first_mix');   // the room mixed for them
   },
 
   // park every deck's sweep filter wide open (≈bypass) — called whenever a seam
@@ -21720,7 +22645,7 @@ function syncMixHud(){
     txt = p.type === 'beatmix'
       ? T('→ beatmix {n}', { n: p.beats }) + ' · ' + p.bpmA + '→' + p.bpmB + ' · ' + p.keys
       : p.type === 'gapless' ? T('→ gapless') : T('→ fade {s} s', { s: p.seconds });
-    if (MIXER.phase === 'running') txt = T('≈ mixing · ') + txt.slice(2);
+    if (MIXER.phase === 'running' || MIXER.phase === 'manual') txt = T('≈ mixing · ') + txt.slice(2);
   } else if (MIXER.on){
     txt = T('mix armed');
   }
@@ -21757,7 +22682,9 @@ function conMixPair(){
   const A = player.tracks[player.cur];
   if (!A) return null;
   let B = null;
-  if (MIXER.next !== -1 && player.tracks[MIXER.next]) B = player.tracks[MIXER.next];
+  const hs = (typeof DECKS !== 'undefined' && AE.decks) ? DECKS.slots[1 - AE.active] : null;
+  if (hs && hs.owner === 'hand' && player.tracks[hs.trackIdx]) B = player.tracks[hs.trackIdx];   // what is physically on the other deck
+  else if (MIXER.next !== -1 && player.tracks[MIXER.next]) B = player.tracks[MIXER.next];
   else if (player._committedNext != null) B = player.tracks[player._committedNext];
   else if (player.cur < player.tracks.length - 1) B = player.tracks[player.cur + 1];
   return B ? { A, B } : null;
@@ -23166,7 +24093,7 @@ function computePeaks(track){
   // before the seam. Every caller redraws continuously, so a decode deferred
   // here starts by itself the moment the seam ends, and the live scope covers
   // the gap as it always has.
-  if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return;
+  if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return;
   track._peaksPending = true;
   _peaksChain = _peaksChain.then(() => _peaksDecode(track)).catch(() => {});
   return _peaksChain;
@@ -24037,20 +24964,29 @@ const FX = {
      the loop with it — the loop is let go, the deck moves, the same length is
      latched again at the new place — so the hand never has to choose between
      the two. A roll simply ends: the track was running on underneath anyway. */
+  // the grid a deck's jumps and cues snap to: the clock's for the record on air, the record's own otherwise
+  _gridOf(d){
+    if (!d || d === activeDeck()) return { grid: this.grid(), bpm: this.bpm(), have: CLOCK.haveGrid };
+    const m = mixOf(DECKS.track(AE.decks.indexOf(d)));
+    return (m && m.bpm > 0) ? { grid: m.grid || 0, bpm: m.bpm, have: true } : { grid: 0, bpm: this.bpm(), have: false };
+  },
+  // is this deck rolling — the transport's word for the record on air, the element's for a hand's
+  _rolling(d){ return !!d && (d === activeDeck() ? player.playing : !d.a.paused); },
   _seek(d, to){
-    const L = this.loop;
-    const keep = L && !L.roll ? L.beats : 0;
-    if (L) this.clearLoop();
+    const L = this.loop, onAir = d === activeDeck();
+    // the tape holds the record on air only: a seek on the other deck leaves the loop be
+    const keep = onAir && L && !L.roll ? L.beats : 0;
+    if (L && onAir) this.clearLoop();
     try { d.a.currentTime = Math.max(0, to); } catch (e){}
     window.__mb8LastSeek = { to: Math.max(0, to), ctx: AE.ctx ? AE.ctx.currentTime : 0 };   // the probes read where it aimed
     if (keep) this.setLoop(keep, false);
     if (typeof mediaSessionPosition === 'function') mediaSessionPosition();
   },
   beatJump(beats){
-    const d = activeDeck();
+    const d = AE.decks ? AE.decks[DECKS.handSlot()] : null;   // the deck the hand last touched
     if (!d || !isFinite(d.a.duration) || !(d.a.duration > 0)) return;
     if (this.jump) this.jump = null;          // a jump in hand outranks one waiting
-    const to = beatJumpTarget(d.a.currentTime, beats, this.bpm(), d.a.duration);
+    const to = beatJumpTarget(d.a.currentTime, beats, this._gridOf(d).bpm, d.a.duration);
     this._seek(d, to);
     this.hand();
     HAPTICS.pulse(false);
@@ -24058,11 +24994,12 @@ const FX = {
   /* the cue jump: quantised to the next beat line when a grid is known (the
      tick below fires it), immediate when it is not */
   cueJump(cue){
-    const d = activeDeck();
+    const d = AE.decks ? AE.decks[DECKS.handSlot()] : null;
     if (!d || !isFinite(d.a.duration) || !(d.a.duration > 0)) return;
-    const j = cueJumpAt(d.a.currentTime, cue, this.grid(), this.bpm(), CLOCK.haveGrid && player.playing);
+    const g = this._gridOf(d), rolling = this._rolling(d);
+    const j = cueJumpAt(d.a.currentTime, cue, g.grid, g.bpm, g.have && rolling);
     this.hand();
-    if (j.fireAt <= d.a.currentTime + 0.012 || !player.playing){ this.jump = null; this._seek(d, j.to); return; }
+    if (j.fireAt <= d.a.currentTime + 0.012 || !rolling){ this.jump = null; this._seek(d, j.to); return; }
     this.jump = { fireAt: j.fireAt, to: j.to, deck: d, armedAt: performance.now() };
     /* AIMED BY A TIMER, NOT A FRAME. The animation frame is the wrong clock to
        fire a beat-line on: under load it runs at five or six a second, and
@@ -24078,8 +25015,8 @@ const FX = {
   _jumpPoll(){
     const j = this.jump;
     if (!j) return;
-    const d = activeDeck();
-    if (!d || d !== j.deck || !player.playing){ this.jump = null; return; }
+    const d = j.deck;
+    if (!d || !this._rolling(d)){ this.jump = null; return; }
     const pos = d.a.currentTime;
     if (pos >= j.fireAt - 0.004){ this.jump = null; this._seek(d, cueJumpLand(pos, j.fireAt, j.to)); return; }
     this._jumpT = setTimeout(() => this._jumpPoll(), 4);
@@ -24087,9 +25024,9 @@ const FX = {
   jumpTick(){
     const j = this.jump;
     if (!j) return;
-    const d = activeDeck();
-    // the deck changed hands, or the wait went stale (a pause, a seek away): drop it
-    if (!d || d !== j.deck || !player.playing || performance.now() - j.armedAt > 4000){ this.jump = null; clearTimeout(this._jumpT); return; }
+    const d = j.deck;
+    // the deck stopped, or the wait went stale (a pause, a seek away): drop it
+    if (!d || !this._rolling(d) || performance.now() - j.armedAt > 4000){ this.jump = null; clearTimeout(this._jumpT); return; }
     const pos = d.a.currentTime;
     /* THE NEXT LOOK MAY BE A WHOLE FRAME AWAY. This runs at the top of each
        frame (a fresh read — see preFrame); when the frame clock is slow, waiting
@@ -24206,6 +25143,8 @@ const FX = {
   setLoop(beats, roll){
     const d = activeDeck();
     if (!d || !player.playing) return;
+    // the tape is one, and it records the room: a loop belongs to the record on air
+    if (typeof DECKS !== 'undefined' && DECKS.handSlot() !== AE.active) return;
     if (typeof VINYL !== 'undefined') VINYL.drop();    // the tape is about to be the loop's
     /* WHERE THE LOOP MAY BEGIN depends on how much tape there is. The in-point
        is the last grid line at or BEFORE the playhead, which is up to a beat in
@@ -24338,19 +25277,21 @@ const FX = {
 
   /* ---- the brake ------------------------------------------------------ */
   brake(seconds){
-    const d = activeDeck();
-    if (!d || !player.playing) return;
+    const slot = DECKS.handSlot(), d = AE.decks ? AE.decks[slot] : null;   // the deck the hand last touched
+    if (!d || !this._rolling(d)) return;
     /* THE REAL THING WHERE IT EXISTS. A platter that can stop — and start again
        with the motor's own spin-up — is a brake; the element-rate version below
-       is the memory of one, kept for the devices without a tape. */
-    if (typeof VINYL !== 'undefined' && VINYL.canEngage()){ if (VINYL.brake()){ this.hand(); return; } }
+       is the memory of one, kept for the devices without a tape. (The platter
+       is the record on air's until it is per deck.) */
+    if (slot === AE.active && typeof VINYL !== 'undefined' && VINYL.canEngage()){ if (VINYL.brake()){ this.hand(); return; } }
     this.brakeT = 0; this._brakeSec = seconds || 1.1; this._brakeFrom = d.a.playbackRate || 1;
+    this._brakeDeck = d;
     this._brakeT0 = performance.now();
     this.hand();
   },
   brakeTick(dt){
     if (this.brakeT < 0) return;
-    const d = activeDeck();
+    const d = this._brakeDeck || activeDeck();
     if (!d){ this.brakeT = -1; return; }
     // on the wall clock, not the sum of frame dts: those are clamped at 0.1 s,
     // so a renderer running under ten frames a second stretched a 1.1 s brake
@@ -24361,8 +25302,8 @@ const FX = {
     // a lowpass follows the speed down, which is what a room full of air does
     if (this.live()) ramp(AE.fx.lp.frequency, 400 + r * 20000, 0.05);
     if (r <= 0.07){
-      this.brakeT = -1;
-      try { d.a.playbackRate = SPEED.rate; } catch (e){}
+      this.brakeT = -1; this._brakeDeck = null;
+      try { d.a.playbackRate = SPEED.rate * DECKS.pitch(AE.decks.indexOf(d)); } catch (e){}
       if (this.live()) ramp(AE.fx.lp.frequency, 22000, 0.35);
     }
   },
@@ -24410,9 +25351,10 @@ const FX = {
        chasing rather than shrugging at. On the track-change path nothing is
        lost: playIndex() calls MIXER.cancel() first, which settles every deck. */
     if (braking){
-      const d = activeDeck();
-      if (d){ try { d.a.playbackRate = SPEED.rate; } catch (e){} }
+      const d = this._brakeDeck || activeDeck();
+      if (d){ try { d.a.playbackRate = SPEED.rate * DECKS.pitch(AE.decks.indexOf(d)); } catch (e){} }
     }
+    this._brakeDeck = null;
     if (!this.live()) return;
     const f = AE.fx, t = AE.ctx.currentTime;
     for (const [p, v] of [[f.lp.frequency, 22000], [f.hp.frequency, 20], [f.gate.gain, 1],
@@ -24478,14 +25420,17 @@ const CUES = {
      produced, on the track's own beat grid. Runs off a slow timer, so the
      booth needn't be open: by the time a hand reaches for the pads, the
      drop is already on one. */
+  // the pads act on the deck the hand last touched (DECKS.focus); the record on air by default
+  _deck(){ return (typeof DECKS !== 'undefined' && AE.decks) ? AE.decks[DECKS.handSlot()] : activeDeck(); },
+  _track(){ return (typeof DECKS !== 'undefined' && AE.decks) ? DECKS.track(DECKS.handSlot()) : (typeof player !== 'undefined' ? player.tracks[player.cur] : null); },
   autoTick(){
-    const cur = typeof player !== 'undefined' ? player.tracks[player.cur] : null;
+    const cur = this._track();
     if (cur) this.follow(cur);
     const t = this._autoFor;
     if (!t || t !== cur) return;
     if (t._peaksErr){ this._autoFor = null; return; }
     if (!t._bands){ if (!t._peaksPending && t.url) computePeaks(t); return; }
-    const d = activeDeck();
+    const d = this._deck();
     const dur = d && isFinite(d.a.duration) && d.a.duration > 0 ? d.a.duration : (t.duration || 0);
     if (!(dur > 0)) return;
     this._autoFor = null;
@@ -24503,13 +25448,14 @@ const CUES = {
   },
   // the cues belong to the playing track, booth open or not — a keyboard cue
   // with the booth closed must still land in the right track's store
-  _here(){ if (typeof player !== 'undefined') this.follow(player.tracks[player.cur]); },
+  _here(){ if (typeof player !== 'undefined') this.follow(this._track()); },
   set(i, pos){
     if (i < 0 || i >= CUE_SLOTS) return null;
     this._here();
-    const d = activeDeck();
+    const d = this._deck();
     const at = pos != null ? pos : (d ? d.a.currentTime : 0);
-    const snapped = cueSnap(at, FX.grid(), FX.bpm(), CLOCK.haveGrid);
+    const g = FX._gridOf(d);
+    const snapped = cueSnap(at, g.grid, g.bpm, g.have);
     this.slots[i] = snapped;                  // full precision: a beat line is not a millisecond
     this.labels[i] = null;                    // a hand's cue has no name but its time
     this._autoFor = null;                     // …and the hand owns this track's pads from here
@@ -24526,7 +25472,7 @@ const CUES = {
   /* THE PAD'S ONE RULE: empty takes the playhead, set jumps to it. */
   press(i){
     this._here();
-    if (!player.playing && this.slots[i] == null) return;
+    if (!FX._rolling(this._deck()) && this.slots[i] == null) return;
     if (this.slots[i] == null){
       const at = this.set(i);
       if (at != null){ HAPTICS.pulse(true); toast(T('Cue {n} set · {t}', { n: i + 1, t: cueFmt(at) })); }
@@ -24786,7 +25732,7 @@ const VINYL = {
     else if (!this.ok()) return T('The platter is still being seated — a moment');
     if (!player.playing) return T('Press play first — a record needs to be turning');
     if (AE.mic.on) return T('Not on the microphone');
-    if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return T('The mixer owns the decks through a seam');
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return T('The mixer owns the decks through a seam');
     if (typeof FX !== 'undefined' && FX.loop) return T('Let the loop go first — the tape is holding it');
     return '';
   },
@@ -24937,7 +25883,7 @@ const VINYL = {
     if (!this.engaged) return;
     const now = performance.now();
     // the transport left, or the mixer took the decks: nothing to hold on to
-    if (!player.playing || (typeof MIXER !== 'undefined' && MIXER.phase === 'running')){ this.drop(); return; }
+    if (!player.playing || (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual'))){ this.drop(); return; }
     if (this.songMode()){
       // the record in hand is the one that was pressed: a new track takes the platter away
       if (!this.songReady()){ this.drop(); return; }
@@ -25162,13 +26108,16 @@ function wireBoothScrub(){
   const cv = el.boothCv;
   if (!cv) return;
   let id = null;
+  // both lanes are scrub strips — a seek on their own deck, never under a running seam
   const at = ev => {
-    const L = BOOTH._laneA;
-    if (!L || !L.deck || !(L.dur > 0)) return null;
     const r = cv.getBoundingClientRect();
     const x = ev.clientX - r.left, y = ev.clientY - r.top;
-    if (y < L.y || y > L.y + L.h) return null;
-    return { deck: L.deck, to: clamp01((x - L.x) / L.w) * L.dur };
+    for (const L of [BOOTH._laneA, BOOTH._laneB]){
+      if (!L || !L.deck || !(L.dur > 0)) continue;
+      if (y < L.y || y > L.y + L.h) continue;
+      return { deck: L.deck, slot: L.slot, to: clamp01((x - L.x) / L.w) * L.dur };
+    }
+    return null;
   };
   /* THE PLATTER IS A RECORD. A pointer landing on deck A's jog wheel takes the
      record in hand (the VINYL layer): drag it and the music follows the hand,
@@ -25177,12 +26126,14 @@ function wireBoothScrub(){
      gestures with different sounds. */
   let jog = null;
   // which platter a pointer landed on, if any: deck A's is the record on air, B's only cues
+  // the record on air's platter (slot 0 left, slot 1 right) is the record in hand; the other only says so
   const onJog = ev => {
     const r = cv.getBoundingClientRect();
     const x = ev.clientX - r.left, y = ev.clientY - r.top;
     const hit = g => { if (!g) return false; const dx = x - g.cx, dy = y - g.cy; return dx * dx + dy * dy <= (g.r * 0.92) * (g.r * 0.92); };
-    if (hit(BOOTH._jogA)) return { x, y, g: BOOTH._jogA };
-    if (hit(BOOTH._jogB)) return { x, y, g: null };
+    const air = AE.active === 1 ? BOOTH._jogB : BOOTH._jogA, other = AE.active === 1 ? BOOTH._jogA : BOOTH._jogB;
+    if (hit(air)){ DECKS.focus = AE.active; DECKS.hand(); return { x, y, g: air }; }
+    if (hit(other)) return { x, y, g: null };
     return null;
   };
   cv.addEventListener('pointerdown', ev => {
@@ -25190,7 +26141,8 @@ function wireBoothScrub(){
     const j = onJog(ev);
     if (j){
       ev.preventDefault();
-      if (!j.g){ toast(T('Scratch the left platter — that is the record on air')); return; }
+      // (the words are the left platter's; they are only said while they are true)
+      if (!j.g){ if (AE.active === 0) toast(T('Scratch the left platter — that is the record on air')); return; }
       if (VINYL.grab(j.x, j.y, j.g, ev.timeStamp)){
         jog = ev.pointerId;
         try { cv.setPointerCapture(jog); } catch (e){}
@@ -25202,12 +26154,13 @@ function wireBoothScrub(){
     if (!p) return;
     id = ev.pointerId;
     try { cv.setPointerCapture(id); } catch (e){}
+    DECKS.focus = p.slot; DECKS.hand();           // the lane's deck is the hand's from here
     FX._seek(p.deck, p.to); FX.hand();
     ev.preventDefault();
   });
   cv.addEventListener('pointermove', ev => {
     if (ev.pointerId === jog){
-      const g = BOOTH._jogA;
+      const g = AE.active === 1 ? BOOTH._jogB : BOOTH._jogA;
       if (g){
         // every sample the hand made, at the time it made it: a 120 Hz finger is not a 60 Hz one
         const r = cv.getBoundingClientRect();
@@ -25332,7 +26285,7 @@ const DECKWAVE = {
     // at the wrong moment and that lane never drew again.
     if (cur && !(cur.state === 'err' && (cur.tries || 0) < DECKWAVE_RETRIES
                  && performance.now() - (cur.at || 0) > DECKWAVE_RETRY_MS)) return;
-    if (typeof MIXER !== 'undefined' && MIXER.phase === 'running') return;   // never across a live seam
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return;   // never across a live seam
     /* NOT WHILE THE MUSIC IS STILL ARRIVING. This fetch is a second full
        download of a song — of the song that is PLAYING, for lane A, and of
        the one the mixer just armed, for lane B, on the same pipe as the
@@ -25578,7 +26531,11 @@ const DECKWAVE = {
     if (isA && typeof VINYL !== 'undefined' && VINYL.engaged) t -= VINYL.lagNow();
     return t;
   },
-  draw(dA, tA, dB, tB, accA, accB, plan, running){
+  // dA/tA are slot 0 and dB/tB slot 1 (the letters are fixed); `roles` says
+  // which slot a seam is leaving (outSlot) and entering (inSlot), which is on
+  // air and which the hand has — the seam marks, the loop and the cues follow
+  draw(dA, tA, dB, tB, accA, accB, plan, running, roles){
+    const ro = roles || { outSlot: 0, inSlot: 1, onAir: 0, hand: 0 };
     const cv = el.boothWave;
     if (!cv) return;
     const ctx = this._ctx || (this._ctx = cv.getContext('2d'));
@@ -25595,30 +26552,28 @@ const DECKWAVE = {
     this._trim([this.key(tA), this.key(tB)]);
     const meterH = 10, gap = 4;
     const sh = (h - meterH - gap * 2) / 2;
-    const tAt = this._timeOf(dA, true);
-    const durA = dA && isFinite(dA.a.duration) ? dA.a.duration : 0;
-    let seamA = null, seamB = null;
+    const dOut = ro.outSlot === 1 ? dB : dA;
+    const durOut = dOut && isFinite(dOut.a.duration) ? dOut.a.duration : 0;
+    let seamOut = null, seamIn = null;
     if (plan && plan.type === 'beatmix'){
-      seamA = [plan.startA, plan.startA + (plan.beats || 16) * 60 / plan.bpmA];
-      seamB = [plan.startB, plan.startB + (plan.beats || 16) * 60 / plan.bpmB];
-    } else if (plan && plan.type === 'fade' && durA > 0) seamA = [Math.max(0, durA - plan.seconds), durA];
-    const loop = !running && typeof FX !== 'undefined' && FX.loop ? FX.loop : null;
-    const cues = !running && typeof CUES !== 'undefined' ? CUES.slots : null;
-    const rA = dA ? (dA.a.playbackRate || 1) : 1;
-    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, accA, { label: 'A', seam: seamA, loop, cues, struct: trackStructure(tA) });
-    // deck B: playing through a seam, or cued where the plan will start it
-    let tBt = NaN;
-    if (tB && dB){
-      tBt = dB.a.currentTime;
-      if (!(tBt > 0.01) && plan && plan.type === 'beatmix') tBt = plan.startB;
-    }
-    const rB = dB ? (dB.a.playbackRate || 1) : 1;
-    this._strip(ctx, 0, sh + meterH + gap * 2, w, sh, dpr, tB, tBt, rB, accB, { label: 'B', seam: tB ? seamB : null, struct: tB ? trackStructure(tB) : null });
+      seamOut = [plan.startA, plan.startA + (plan.beats || 16) * 60 / plan.bpmA];
+      seamIn = [plan.startB, plan.startB + (plan.beats || 16) * 60 / plan.bpmB];
+    } else if (plan && plan.type === 'fade' && durOut > 0) seamOut = [Math.max(0, durOut - plan.seconds), durOut];
+    const seamFor = i => i === ro.outSlot ? seamOut : (i === ro.inSlot ? seamIn : null);
+    const loop = !running && typeof FX !== 'undefined' && FX.loop ? FX.loop : null;    // the tape's, on the record on air
+    const cues = !running && typeof CUES !== 'undefined' ? CUES.slots : null;         // the hand's deck's
+    // a deck's time as heard; the one a seam is entering is shown cued where the plan will start it
+    const timeOf = (d, i) => { let t = this._timeOf(d, i === ro.onAir); if (!(t > 0.01) && i === ro.inSlot && plan && plan.type === 'beatmix') t = plan.startB; return t; };
+    const tAt = timeOf(dA, 0), tBt = tB && dB ? timeOf(dB, 1) : NaN;
+    const rA = dA ? (dA.a.playbackRate || 1) : 1, rB = dB ? (dB.a.playbackRate || 1) : 1;
+    this._strip(ctx, 0, 0, w, sh, dpr, tA, tAt, rA, accA, { label: 'A', seam: tA ? seamFor(0) : null, loop: ro.onAir === 0 ? loop : null, cues: ro.hand === 0 ? cues : null, struct: trackStructure(tA) });
+    this._strip(ctx, 0, sh + meterH + gap * 2, w, sh, dpr, tB, tBt, rB, accB, { label: 'B', seam: tB ? seamFor(1) : null, loop: ro.onAir === 1 ? loop : null, cues: ro.hand === 1 ? cues : null, struct: tB ? trackStructure(tB) : null });
     const mA = mixOf(tA), mB = mixOf(tB);
-    const pa = mA ? waveBeatPos(mA.bpm, mA.grid, tAt) : null;
+    const pa = tA && mA && isFinite(tAt) ? waveBeatPos(mA.bpm, mA.grid, tAt) : null;
     const pb = tB && mB && isFinite(tBt) ? waveBeatPos(mB.bpm, mB.grid, tBt) : null;
     this._phase(ctx, w / 2 - 60, sh + gap, 120, meterH, pa, pb, accA, accB);
-    this._geom = { w, sh, pps: w / this.ZOOMS[this.zoom] / (rA > 0.05 ? rA : 1) };
+    const rOn = ro.onAir === 1 ? rB : rA;
+    this._geom = { w, sh, pps: w / this.ZOOMS[this.zoom] / (rOn > 0.05 ? rOn : 1) };
   },
 };
 DECKWAVE.load();
@@ -25653,7 +26608,9 @@ function wireDeckWave(){
     const now = performance.now();
     if (now - lastTap < 300){ lastTap = 0; DECKWAVE.setZoom((DECKWAVE.zoom + 1) % DECKWAVE.ZOOMS.length); return; }
     lastTap = now;
-    if (p.y > g.sh + 8){ toast(T('Scratch deck A — that is the record on air')); return; }
+    // the record on air's strip is the record (slot 0 above, slot 1 below); the other only says so
+    const onTop = p.y <= g.sh + 8, airOnTop = AE.active !== 1;
+    if (onTop !== airOnTop){ if (airOnTop) toast(T('Scratch deck A — that is the record on air')); return; }
     if (VINYL.grabLine(ev.timeStamp)) drag = { id: ev.pointerId, x0: p.x, pps: g.pps };
   });
   cv.addEventListener('pointermove', ev => {
@@ -25950,7 +26907,7 @@ const BOOTH = {
     // deck A's platter is the record in the hand: it turns at the platter's own
     // rate while the vinyl layer has it — backwards through a scratch, down to
     // a stop through a brake — and its LED ring reads the platter's place
-    const vinyl = slot === '_angA' && typeof VINYL !== 'undefined' && VINYL.engaged;
+    const vinyl = slot === (AE.active === 1 ? '_angB' : '_angA') && typeof VINYL !== 'undefined' && VINYL.engaged;
     if (vinyl) rate = VINYL.rate;
     this[slot] = (this[slot] || 0) + dts * rate * (2 * PI * 33.333 / 60);
     const ang = this[slot];
@@ -26108,9 +27065,12 @@ const BOOTH = {
      follow a running blend — lit, and saying what the next tap will do */
   paintOnDeck(force){
     if (!el.boothPads) return;
-    const i = MIXER.phase === 'armed' ? MIXER.next : (player._committedNext != null ? player._committedNext : -1);
+    // the record physically on the idle deck first, then the armed next, then the pin
+    const hs = AE.decks ? DECKS.slots[1 - AE.active] : null;
+    const hi = hs && hs.owner === 'hand' && player.tracks[hs.trackIdx] ? hs.trackIdx : -1;
+    const i = MIXER.phase === 'armed' ? MIXER.next : hi >= 0 ? hi : (player._committedNext != null ? player._committedNext : -1);
     const t = i >= 0 ? player.tracks[i] : null;
-    const key = (t ? (trackKey(t) || t.url) : '') + '|' + MIXER.phase;
+    const key = (t ? (trackKey(t) || t.url) : '') + '|' + MIXER.phase + '|' + hi;
     if (!force && key === this._deckKey) return;
     this._deckKey = key;
     for (const b of el.boothPads.children){
@@ -26128,23 +27088,31 @@ const BOOTH = {
     const nowMs = performance.now();
     const dts = Math.min(0.1, (nowMs - (this._lastDraw || nowMs)) / 1000);
     this._lastDraw = nowMs;
-    const running = MIXER.phase === 'running';
+    const running = MIXER.phase === 'running' || MIXER.phase === 'manual';
     const armed = MIXER.phase === 'armed';
-    // lane A is always the deck that OWNS the room; B is the challenger.
-    // during a running seam the player has already committed to the incoming
-    // track, so the outgoing pair is the mixer's snapshot.
-    const dA = running ? MIXER.outDeck : activeDeck();
-    const tA = running ? MIXER.outTrack : player.tracks[player.cur];
-    const dB = running ? (AE.decks && AE.decks[AE.active]) : (armed ? AE.decks[1 - AE.active] : null);
-    const tB = running ? player.tracks[player.cur] : (armed ? player.tracks[MIXER.next] : null);
-    if (tB && tB.url && !tB._peaks && !tB._peaksPending && !tB._peaksErr) computePeaks(tB);
+    /* THE LETTERS ARE FIXED TO THE SLOTS: lane A is AE.decks[0], lane B is
+       AE.decks[1], whichever is on air — a record stays on the deck it was
+       put on, as on any pair of decks, and the ON-AIR badge (AE.active) is
+       what moves. What each lane holds is DECKS's word (a hand's record, the
+       seam's outgoing, the armed next, the record on air). The seam's ROLES
+       on those slots — which lane it is leaving, which it is entering — are
+       what the marks, the lamps and the words follow. */
+    const dA = AE.decks ? AE.decks[0] : null, dB = AE.decks ? AE.decks[1] : null;
+    const tA = DECKS.track(0), tB = DECKS.track(1);
+    const outSlot = running ? AE.decks.indexOf(MIXER.outDeck) : (armed ? AE.active : -1);
+    const inSlot = outSlot < 0 ? -1 : 1 - outSlot;
+    const outT = running ? MIXER.outTrack : player.tracks[player.cur];        // the record leaving (or on air)
+    const inT = running ? player.tracks[player.cur] : (armed ? player.tracks[MIXER.next] : null);   // the one arriving
+    const tIdle = DECKS.track(1 - AE.active);
+    if (tIdle && tIdle.url && !tIdle._peaks && !tIdle._peaksPending && !tIdle._peaksErr) computePeaks(tIdle);
 
-    // the pad row follows what's playing — and so do the cues
+    // the pad row follows what's playing; the cues follow the hand's deck
     const pcur = player.tracks[player.cur];
     const pkey = pcur ? (trackKey(pcur) || pcur.url || String(pcur.id)) : null;
     if (pkey !== this._padKey){ this._padKey = pkey; this.refreshPads(); }
     else this.paintOnDeck(false);
-    if (typeof CUES !== 'undefined') CUES.follow(pcur);
+    const handSlot = DECKS.handSlot();
+    if (typeof CUES !== 'undefined') CUES.follow(DECKS.track(handSlot));
 
     const cv = el.boothCv, ctx = this._ctx || (this._ctx = cv.getContext('2d'));
     const w = cv.clientWidth, h = cv.clientHeight;
@@ -26168,14 +27136,17 @@ const BOOTH = {
       ? clamp01(d.a.currentTime / d.a.duration) : 0;
     const p = MIXER.plan;
     const f = running ? MIXER.lastF : 0;
-    const aG = Math.cos(clamp01(f) * PI / 2), bG = Math.sin(clamp01(f) * PI / 2);
+    // each lane's level is the crossfader's: at rest the on-air slot is 1 and
+    // the other 0; through a seam the handle is painted from f, so these ARE
+    // the seam's equal-power gains, on whichever slot is leaving
+    const [gA, gB] = xfaderGains(DECKS.fader.x, DECKS.fader.curve);
     const beat = clamp01(AE.f.beat);
 
     // ---- the room's own light: the panel's ambient glow blends toward
     // whichever deck owns the room and breathes gently with the beat — DJ
     // booth colour, kept low and slow so it reads as mood lighting
     {
-      const wA = running ? aG : 1, wB = running ? bG : 0, wSum = wA + wB || 1;
+      const wA = gA, wB = tB ? gB : 0, wSum = wA + wB || 1;
       const gr = Math.round((accA[0] * wA + accB[0] * wB) / wSum);
       const gg = Math.round((accA[1] * wA + accB[1] * wB) / wSum);
       const gb = Math.round((accA[2] * wA + accB[2] * wB) / wSum);
@@ -26186,23 +27157,23 @@ const BOOTH = {
     // left, deck B's from the right, each weighted by who owns the room —
     // the whole surface leans toward whichever track is louder
     {
-      const gA = ctx.createLinearGradient(0, 0, w * 0.55, 0);
-      gA.addColorStop(0, `rgba(${accA[0]},${accA[1]},${accA[2]},${0.055 * (running ? 0.35 + aG * 0.65 : 1)})`);
-      gA.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gA; ctx.fillRect(0, 0, w * 0.55, h);
+      const wsA = ctx.createLinearGradient(0, 0, w * 0.55, 0);
+      wsA.addColorStop(0, `rgba(${accA[0]},${accA[1]},${accA[2]},${0.055 * (tA ? 0.35 + gA * 0.65 : 0.35)})`);
+      wsA.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = wsA; ctx.fillRect(0, 0, w * 0.55, h);
       if (tB){
-        const gB = ctx.createLinearGradient(w, 0, w * 0.45, 0);
-        gB.addColorStop(0, `rgba(${accB[0]},${accB[1]},${accB[2]},${0.055 * (running ? 0.35 + bG * 0.65 : 0.5)})`);
-        gB.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = gB; ctx.fillRect(w * 0.45, 0, w * 0.55, h);
+        const wsB = ctx.createLinearGradient(w, 0, w * 0.45, 0);
+        wsB.addColorStop(0, `rgba(${accB[0]},${accB[1]},${accB[2]},${0.055 * (0.35 + gB * 0.65)})`);
+        wsB.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = wsB; ctx.fillRect(w * 0.45, 0, w * 0.55, h);
       }
     }
 
     // ---- the scrolling decks above: their own canvas, their own cost (a few blits a frame)
-    DECKWAVE.draw(dA, tA, dB, tB, accA, accB, p, running);
+    DECKWAVE.draw(dA, tA, dB, tB, accA, accB, p, running, { outSlot, inSlot, onAir: AE.active, hand: handSlot });
 
-    // ---- top strip: the red voice + the step row
-    const master = running && f > 0.5 ? { d: dB, t: tB } : { d: dA, t: tA };
+    // ---- top strip: the red voice + the step row — the louder deck's tempo
+    const master = gB > gA ? { d: dB, t: tB } : { d: dA, t: tA };
     const mm = master.t && mixOf(master.t);
     let bpmEff = 0;
     if (mm && mm.bpm > 0 && master.d && master.d.a.playbackRate)
@@ -26231,76 +27202,77 @@ const BOOTH = {
     const laneH = (hMid - 8) / 2;
     const yA = topH, yB2 = topH + laneH + 8;
     if (full){
-      this._jog(ctx, jog + 6, topH + hMid / 2, jog, dA, tA, accA, beat * aG, dts, '_angA');
-      this._jog(ctx, w - jog - 6, topH + hMid / 2, jog, dB, tB, accB, beat * bG, dts, '_angB');
+      this._jog(ctx, jog + 6, topH + hMid / 2, jog, dA, tA, accA, beat * gA, dts, '_angA');
+      this._jog(ctx, w - jog - 6, topH + hMid / 2, jog, dB, tB, accB, beat * gB, dts, '_angB');
       this._jogA = { cx: jog + 6, cy: topH + hMid / 2, r: jog };        // remembered for the hand (VINYL)
       this._jogB = { cx: w - jog - 6, cy: topH + hMid / 2, r: jog };
     } else if (compact){
       const cy0 = topH - cJog - 10;   // the platter row's vertical centre, below the step strip
       const cxA = 8 + cJog, cxB = w - 8 - cJog;
       this._jogA = { cx: cxA, cy: cy0, r: cJog }; this._jogB = { cx: cxB, cy: cy0, r: cJog };
-      this._jog(ctx, cxA, cy0, cJog, dA, tA, accA, beat * aG, dts, '_angA');
-      this._jog(ctx, cxB, cy0, cJog, dB, tB, accB, beat * bG, dts, '_angB');
+      this._jog(ctx, cxA, cy0, cJog, dA, tA, accA, beat * gA, dts, '_angA');
+      this._jog(ctx, cxB, cy0, cJog, dB, tB, accB, beat * gB, dts, '_angB');
       this._monitor(ctx, cxA + cJog + 10, cxB - cJog - 10, cy0, cJog);
     }
     if (!full && !compact) this._jogA = this._jogB = null;              // no platter drawn: nothing to grab
-    const durA = dA && isFinite(dA.a.duration) && dA.a.duration > 0 ? dA.a.duration : (tA && tA.duration) || 0;
-    if (durA > 0) this._structureOverlay(ctx, yA, laneH, laneW, tA, durA, laneX);
-    paintLane(ctx, laneX, yA, laneW, laneH, tA, fracOf(dA), accA);
-    if (p && dA && isFinite(dA.a.duration) && dA.a.duration > 0){
-      const dur = dA.a.duration;
-      let s0 = null, s1 = null, spb = 0;
-      if (p.type === 'beatmix'){ spb = 60 / p.bpmA; s0 = p.startA; s1 = p.startA + (p.beats || 16) * spb; }
-      else if (p.type === 'fade'){ s0 = Math.max(0, dur - p.seconds); s1 = dur; }
-      if (s0 != null){
-        ctx.save(); ctx.beginPath(); ctx.rect(laneX, yA, laneW, laneH); ctx.clip();
-        this._seam(ctx, yA, laneH, laneW, s0 / dur, s1 / dur, spb / dur, accA, laneX);
-        // the countdown to the seam, printed AT the seam — timing tied to place.
-        // it pulses as it nears so the eye catches "here it comes"
-        if (armed && this._seamSec != null){
-          const sx = laneX + clamp01(s0 / dur) * laneW;
-          const soon = this._seamSec < 10;
-          const a = soon ? 0.6 + 0.4 * Math.abs(Math.sin(nowMs / 300)) : 0.7;
-          ctx.font = 'bold 9px monospace';
-          ctx.fillStyle = `rgba(${accA[0]},${accA[1]},${accA[2]},${a})`;
-          ctx.fillText('▸ ' + mixFmtDur(this._seamSec), Math.min(sx + 3, laneX + laneW - 40), yA + 10);
+    /* THE TWO LANES, one routine each: the song's script, the waveform lit to
+       the playhead, the seam the plan has drawn on it (the leaving lane's
+       side with its countdown, the arriving lane's side), the hot cues on
+       the hand's lane, the playhead — and the rect the hand scrubs by. */
+    const lane = (i, y) => {
+      const d = i ? dB : dA, tr = i ? tB : tA, acc = i ? accB : accA;
+      const dur = d && isFinite(d.a.duration) && d.a.duration > 0 ? d.a.duration : (tr && tr.duration) || 0;
+      if (tr && dur > 0) this._structureOverlay(ctx, y, laneH, laneW, tr, dur, laneX);
+      paintLane(ctx, laneX, y, laneW, laneH, tr, fracOf(d), acc);
+      if (p && tr && dur > 0 && (i === outSlot || i === inSlot)){
+        let s0 = null, s1 = null, spb = 0;
+        if (i === outSlot){
+          if (p.type === 'beatmix'){ spb = 60 / p.bpmA; s0 = p.startA; s1 = p.startA + (p.beats || 16) * spb; }
+          else if (p.type === 'fade'){ s0 = Math.max(0, dur - p.seconds); s1 = dur; }
+        } else if (p.type === 'beatmix'){ spb = 60 / p.bpmB; s0 = p.startB; s1 = p.startB + (p.beats || 16) * spb; }
+        if (s0 != null){
+          ctx.save(); ctx.beginPath(); ctx.rect(laneX, y, laneW, laneH); ctx.clip();
+          this._seam(ctx, y, laneH, laneW, s0 / dur, s1 / dur, spb / dur, acc, laneX);
+          // the countdown to the seam, printed AT the seam — timing tied to place.
+          // it pulses as it nears so the eye catches "here it comes"
+          if (i === outSlot && armed && this._seamSec != null){
+            const sx = laneX + clamp01(s0 / dur) * laneW;
+            const soon = this._seamSec < 10;
+            const a = soon ? 0.6 + 0.4 * Math.abs(Math.sin(nowMs / 300)) : 0.7;
+            ctx.font = 'bold 9px monospace';
+            ctx.fillStyle = `rgba(${acc[0]},${acc[1]},${acc[2]},${a})`;
+            ctx.fillText('▸ ' + mixFmtDur(this._seamSec), Math.min(sx + 3, laneX + laneW - 40), y + 10);
+          }
+          ctx.restore();
         }
-        ctx.restore();
       }
-    }
-    // HOT CUES on the lane that owns the room: a flag in the slot's colour at
-    // the beat it marks, numbered, so a pad and a place on the wave agree
-    if (!running && durA > 0 && typeof CUES !== 'undefined'){
-      for (let i = 0; i < CUE_SLOTS; i++){
-        const v = CUES.slots[i];
-        if (v == null || v > durA) continue;
-        const x = laneX + (v / durA) * laneW, col = CUE_COLORS[i];
-        ctx.fillStyle = col; ctx.globalAlpha = 0.9;
-        ctx.fillRect(x - 0.5, yA, 1, laneH);
-        ctx.beginPath(); ctx.moveTo(x, yA); ctx.lineTo(x + 9, yA); ctx.lineTo(x + 9, yA + 9); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#0a0d12'; ctx.font = 'bold 7px monospace';
-        ctx.fillText(String(i + 1), x + 3.5, yA + 6.5);
-        // an auto cue says what it found there
-        if (CUES.labels[i]){
-          ctx.fillStyle = col; ctx.globalAlpha = 0.8; ctx.font = 'bold 7px monospace';
-          ctx.fillText(T(CUES.labels[i]), Math.min(x + 11, laneX + laneW - 30), yA + 7);
+      // HOT CUES on the hand's lane: a flag in the slot's colour at the beat
+      // it marks, numbered, so a pad and a place on the wave agree
+      if (!running && i === handSlot && dur > 0 && typeof CUES !== 'undefined'){
+        for (let k = 0; k < CUE_SLOTS; k++){
+          const v = CUES.slots[k];
+          if (v == null || v > dur) continue;
+          const x = laneX + (v / dur) * laneW, col = CUE_COLORS[k];
+          ctx.fillStyle = col; ctx.globalAlpha = 0.9;
+          ctx.fillRect(x - 0.5, y, 1, laneH);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 9, y); ctx.lineTo(x + 9, y + 9); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#0a0d12'; ctx.font = 'bold 7px monospace';
+          ctx.fillText(String(k + 1), x + 3.5, y + 6.5);
+          // an auto cue says what it found there
+          if (CUES.labels[k]){
+            ctx.fillStyle = col; ctx.globalAlpha = 0.8; ctx.font = 'bold 7px monospace';
+            ctx.fillText(T(CUES.labels[k]), Math.min(x + 11, laneX + laneW - 30), y + 7);
+          }
+          ctx.globalAlpha = 1;
         }
-        ctx.globalAlpha = 1;
       }
-    }
-    // remembered for the hand: the lane is a scrub strip (see wireBoothScrub)
-    this._laneA = { x: laneX, y: yA, w: laneW, h: laneH, deck: running ? null : dA, dur: durA };
-    this._playhead(ctx, yA, laneH, laneW, fracOf(dA), accA, laneX);
-    const durB = dB && isFinite(dB.a.duration) && dB.a.duration > 0 ? dB.a.duration : (tB && tB.duration) || 0;
-    if (tB && durB > 0) this._structureOverlay(ctx, yB2, laneH, laneW, tB, durB, laneX);
-    paintLane(ctx, laneX, yB2, laneW, laneH, tB, fracOf(dB), accB);
-    if (p && p.type === 'beatmix' && tB && dB && isFinite(dB.a.duration) && dB.a.duration > 0){
-      const dur = dB.a.duration, spb = 60 / p.bpmB;
-      ctx.save(); ctx.beginPath(); ctx.rect(laneX, yB2, laneW, laneH); ctx.clip();
-      this._seam(ctx, yB2, laneH, laneW, p.startB / dur, (p.startB + (p.beats || 16) * spb) / dur, spb / dur, accB, laneX);
-      ctx.restore();
-    }
-    if (tB) this._playhead(ctx, yB2, laneH, laneW, fracOf(dB), accB, laneX);
+      // remembered for the hand: each lane is a scrub strip on its own deck (see
+      // wireBoothScrub) — never under a running seam, never on an empty deck
+      this[i ? '_laneB' : '_laneA'] = { x: laneX, y, w: laneW, h: laneH, slot: i,
+        deck: (running && (i === outSlot || i === inSlot)) || !tr ? null : d, dur };
+      if (tr || i === AE.active) this._playhead(ctx, y, laneH, laneW, fracOf(d), acc, laneX);
+    };
+    lane(0, yA); lane(1, yB2);
 
     // ---- bottom strip: channel levels, the LOW handover, the crossfader, the orb
     const cy = h - botH / 2;
@@ -26323,8 +27295,8 @@ const BOOTH = {
         ctx.globalAlpha = 0.4; ctx.font = '7px monospace'; ctx.fillStyle = '#fff';
         ctx.fillText(label, x, cy - 8); ctx.globalAlpha = 1;
       };
-      drawVu(laneX, running ? aG : 1, 'CH A');
-      drawVu(w - laneX - vuW, running ? bG : 0, 'CH B');
+      drawVu(laneX, tA ? gA : 0, 'CH A');
+      drawVu(w - laneX - vuW, tB ? gB : 0, 'CH B');
       // THE RAIL, visible. A lamp that lights only while the master limiter is
       // holding the peak down — the honest expectation is that it stays dark
       if (typeof MASTERLIM !== 'undefined' && MASTERLIM.ready()){
@@ -26349,8 +27321,9 @@ const BOOTH = {
           ctx.globalAlpha = 0.4; ctx.font = '7px monospace';
           ctx.fillText('LOW', x + 7, cy + 2.5); ctx.globalAlpha = 1;
         };
-        lamp(laneX + vuW + 14, 1 - k);
-        lamp(w - laneX - vuW - 40, k);
+        // k is the arriving deck's share of the low end; each lamp reads its own slot's
+        lamp(laneX + vuW + 14, outSlot === 0 ? 1 - k : k);
+        lamp(w - laneX - vuW - 40, outSlot === 1 ? 1 - k : k);
       }
     }
     // crossfader — the rail itself blends A's colour into B's, so the
@@ -26364,7 +27337,10 @@ const BOOTH = {
     // centre detent tick, like the hardware
     ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.fillRect(w * 0.5 - 0.5, cy - 4, 1, 8);
-    const hx = xf0 + (xf1 - xf0) * clamp01(f);
+    // the handle is where the law says it is: painted from the seam through
+    // an auto blend, held by the hand under one, at rest at the on-air end
+    const hx = xf0 + (xf1 - xf0) * clamp01(DECKS.fader.x);
+    this._xfader = { x0: xf0, x1: xf1, cy, h: 14 };      // remembered for the hand (the rail's hit test)
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
     ctx.fillRect(hx - 2, cy - 7, 4, 14);
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -26400,13 +27376,14 @@ const BOOTH = {
     const hasNext = player.hasNext();
     {
       // gather the plan state, then let the pure narrator phrase it
-      const A = running ? tA : player.tracks[player.cur];   // the outgoing / current
+      const A = outT;                                       // the outgoing / current
       let phase = 'idle', B = null, plan = p, pct = null, seamSec = null;
-      if (running && p){ phase = 'running'; B = tB; pct = Math.round(f * 100); }
+      if (running && p){ phase = 'running'; B = inT; pct = Math.round(f * 100); }
       else if (armed && p){
-        phase = 'armed'; B = tB;
-        if (dA && isFinite(dA.a.duration))
-          seamSec = Math.max(0, MIXER.exitTime(dA.a.duration, p, A) - dA.a.currentTime);
+        phase = 'armed'; B = inT;
+        const dOn = activeDeck();
+        if (dOn && isFinite(dOn.a.duration))
+          seamSec = Math.max(0, MIXER.exitTime(dOn.a.duration, p, A) - dOn.a.currentTime);
       } else if (MIXER.on && hasNext && AE.graphLive){
         // idle → PLANNING: peek ahead at the likely next merge and when it arms
         const pair = conMixPair();
@@ -26433,18 +27410,28 @@ const BOOTH = {
       this._set('boothLock', running && err != null ? 'lock ' + err.toFixed(1) + ' ms'
         : (typeof VINYL !== 'undefined' && VINYL.engaged ? VINYL.status() : ''));
     }
-    if (running && p){
-      this._deckRow('A', tA, dA, T('handing over'), false);
-      this._deckRow('B', tB, dB, T('on air — blending'), true);
-    } else if (armed && p){
-      this._deckRow('A', tA, dA, T('on air'), true);
-      this._deckRow('B', tB, dB, dB && dB.a.readyState >= 2 ? T('loaded · cued') : T('loading…'), false);
-    } else {
-      this._deckRow('A', tA, dA, player.playing ? T('on air') : T('paused'), player.playing);
-      this._deckRow('B', null, null, !player.playing ? '' :
+    /* each row's word, per slot: through a seam the lane leaving is handing
+       over and the lane arriving is on air; armed, the record on air and the
+       one loaded; otherwise the record on air (or paused), a hand's record
+       (rolling and heard, rolling under the handle, or cued), a free deck's
+       last record (paused), or what an empty deck is waiting for */
+    const rowState = i => {
+      const onAir = i === AE.active, d = i ? dB : dA, tr = i ? tB : tA, g = i ? gB : gA, s = DECKS.slots[i];
+      if (running && p) return [onAir ? T('on air — blending') : T('handing over'), onAir];
+      if (armed && p) return onAir ? [T('on air'), true] : [d && d.a.readyState >= 2 ? T('loaded · cued') : T('loading…'), false];
+      if (onAir) return [player.playing ? T('on air') : T('paused'), player.playing];
+      if (tr && s.owner === 'hand'){
+        if (d && !d.a.paused && !d.a.ended) return g > 0.01 ? [T('on air — blending'), true] : [T('loaded · cued'), false];
+        return [d && d.a.readyState >= 2 ? T('loaded · cued') : T('loading…'), false];
+      }
+      if (tr) return [T('paused'), false];
+      return [!player.playing ? '' :
         !AE.graphLive ? T('direct-to-output — no second deck here') :
-        MIXER.on ? (hasNext ? T('empty — arms 90 s out') : T('end of the queue')) : T('MIX is off'), false);
-    }
+        MIXER.on ? (hasNext ? T('empty — arms 90 s out') : T('end of the queue')) : T('MIX is off'), false];
+    };
+    const sA = rowState(0), sB = rowState(1);
+    this._deckRow('A', tA, dA, sA[0], sA[1]);
+    this._deckRow('B', tB, dB, sB[0], sB[1]);
   },
 };
 
@@ -30822,7 +31809,7 @@ const GHOST = {
       reduced: reducedMotion,
       hidden: !!document.hidden,
       eco: typeof POWER !== 'undefined' && POWER.mode === 'eco',
-      human: INTERACT.dragging || INTERACT.second,
+      human: INTERACT.dragging || INTERACT.second || (typeof DECKS !== 'undefined' && DECKS.handBusy()),
       // whichever is shorter: the stillness, or the life of the session
       idle: Math.min(INTERACT._idleT, this._age),
     });
@@ -67555,6 +68542,7 @@ function frame(now){
     }
   }
   MIXER.update(now / 1000, dt);
+  DECKS.tick(dt);                                            // the idle stop, a hand's stalled deck
   drawSafe('fx', () => { FX.tick(dt); VINYL.tick(dt); });   // loops, rolls, the gate's grid, the brake, the room's own hands
 
   // the memories substrate accrues wall-clock playing time

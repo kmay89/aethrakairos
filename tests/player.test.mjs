@@ -18,7 +18,7 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('xfader') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
   '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_RESEEK_S, STARVE_GIVE_UP, bufferedEndAt, prefetchMayRun, PREFETCH_AHEAD_S, seamWarmDue, SEAM_WARM_S, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
@@ -29,6 +29,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
+  ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
   ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
@@ -10353,6 +10354,107 @@ test('seamWarmDue: deck B takes the pipe once A is done with it, or when the exi
   assert.equal(S.seamWarmDue({ aDone: false, exitIn: NaN }), false);
   assert.equal(S.seamWarmDue(null), false);
   assert.equal(S.SEAM_WARM_S, 20);
+});
+
+// ---- the crossfader's law (@xfader): the gain curves, the two maps, the arbiter, SYNC's rate, the idle stop ----
+test('xfaderGains power: constant acoustic power at every handle position, full at the ends', () => {
+  for (let i = 0; i <= 40; i++){
+    const x = i / 40, [a, b] = S.xfaderGains(x, 'power');
+    assert.ok(Math.abs(a * a + b * b - 1) < 1e-9, `a²+b²==1 at x=${x}`);
+    assert.ok(a >= 0 && b >= 0);
+  }
+  assert.deepEqual(S.xfaderGains(0, 'power'), [1, 0]);
+  assert.ok(S.xfaderGains(1, 'power')[0] < 1e-9 && Math.abs(S.xfaderGains(1, 'power')[1] - 1) < 1e-9);
+  assert.deepEqual(S.xfaderGains(-3, 'power'), S.xfaderGains(0, 'power'), 'clamps below');
+  assert.deepEqual(S.xfaderGains(7, 'power'), S.xfaderGains(1, 'power'), 'clamps above');
+  assert.deepEqual(S.xfaderGains(0.3), S.xfaderGains(0.3, 'power'), 'power is the default law');
+});
+test('xfaderGains cut: full to the edge, nothing past the far edge, continuous, mirrored', () => {
+  const e = S.XFADER_CUT_EDGE;
+  assert.equal(e, 0.03);
+  for (const x of [0, 0.01, 0.02, 0.03]) assert.equal(S.xfaderGains(x, 'cut')[0], 1, 'A full at ' + x);
+  for (const x of [0.97, 0.98, 0.99, 1]) assert.equal(S.xfaderGains(x, 'cut')[0], 0, 'A gone at ' + x);
+  for (const x of [0, 0.03]) assert.equal(S.xfaderGains(x, 'cut')[1], 0);
+  for (const x of [0.97, 1]) assert.equal(S.xfaderGains(x, 'cut')[1], 1);
+  let prev = S.xfaderGains(0, 'cut'), maxStep = 0;
+  for (let i = 1; i <= 1000; i++){
+    const g = S.xfaderGains(i / 1000, 'cut');
+    maxStep = Math.max(maxStep, Math.abs(g[0] - prev[0]), Math.abs(g[1] - prev[1]));
+    assert.ok(g[0] <= prev[0] + 1e-12 && g[1] >= prev[1] - 1e-12, 'monotone');
+    prev = g;
+  }
+  assert.ok(maxStep < 0.004, 'a cut is never a click: max step ' + maxStep);
+  for (let i = 0; i <= 20; i++){
+    const x = i / 20, g = S.xfaderGains(x, 'cut'), m = S.xfaderGains(1 - x, 'cut');
+    assert.ok(Math.abs(g[0] - m[1]) < 1e-12 && Math.abs(g[1] - m[0]) < 1e-12, 'mirrored at ' + x);
+  }
+  const mid = S.xfaderGains(0.5, 'cut');
+  assert.ok(Math.abs(mid[0] - mid[1]) < 1e-12 && Math.abs(mid[0] * mid[0] + mid[1] * mid[1] - 1) < 1e-9, 'equal power through the middle');
+});
+test('xfaderPosFromGains inverts the power law; xfaderPosFromSeam maps both slots and is its own inverse', () => {
+  for (let i = 0; i <= 20; i++){
+    const x = i / 20, [a, b] = S.xfaderGains(x, 'power');
+    assert.ok(Math.abs(S.xfaderPosFromGains(a, b) - x) < 1e-9, 'round trip at ' + x);
+  }
+  assert.equal(S.xfaderPosFromGains(0, 0), 0, 'silence reads as A');
+  assert.equal(S.xfaderPosFromGains(0.5, 0), 0); assert.equal(S.xfaderPosFromGains(0, 0.2), 1);
+  for (const f of [0, 0.25, 0.5, 1]){
+    assert.equal(S.xfaderPosFromSeam(f, 0), f, 'A leaving: the handle walks A→B');
+    assert.equal(S.xfaderPosFromSeam(f, 1), 1 - f, 'B leaving: the handle walks B→A');
+    assert.equal(S.xfaderPosFromSeam(S.xfaderPosFromSeam(f, 1), 1), f, 'an involution');
+  }
+  assert.equal(S.xfaderPosFromSeam(2, 0), 1); assert.equal(S.xfaderPosFromSeam(-1, 1), 1);
+});
+test('xfaderArbiter: commit at the far end, abort a yielded seam at the near end, hold mid-way, none under a hand', () => {
+  const st = o => Object.assign({ phase: 'idle', hand: false, x: 0, outSlot: 0, inSlot: 1 }, o);
+  assert.deepEqual(S.xfaderArbiter(st({ x: 1 })), { act: 'commit', slot: 1 });
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.98 })), { act: 'commit', slot: 1 }, 'within the park tolerance');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0, outSlot: 1, inSlot: 0 })), { act: 'commit', slot: 0 }, 'B on air: the far end is A');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.5 })), { act: 'hold', slot: -1 }, 'mid-way: the DJ is mid-mix');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.96 })), { act: 'hold', slot: -1 }, 'just short of the end is still a hold');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.01 })), { act: 'none', slot: 0 }, 'back at the on-air end with nothing to undo');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 0.02 })), { act: 'abort', slot: 0 }, 'a yielded seam pulled home is undone');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 1 })), { act: 'commit', slot: 1 }, 'a yielded seam pushed across commits');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 0.5 })), { act: 'hold', slot: -1 });
+  assert.deepEqual(S.xfaderArbiter(st({ hand: true, x: 1 })), { act: 'none', slot: -1 }, 'a hand still holding decides nothing');
+  assert.deepEqual(S.xfaderArbiter(st({ hand: true, x: 0.4, aEnded: true })), { act: 'commit', slot: 1 }, 'the outgoing record ended: the incoming takes the air, hand or no hand');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 0.6, bEnded: true })), { act: 'abort', slot: 0 }, 'the incoming ended under a yielded seam: undone');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.6, bEnded: true })), { act: 'none', slot: 0 }, '…and with no seam there is nothing to commit');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.9, parkAt: 0.12 })), { act: 'commit', slot: 1 }, 'the park tolerance is the caller\'s');
+  assert.equal(S.xfaderArbiter(null).act, 'none');
+  assert.equal(S.XFADER_PARK, 0.03);
+});
+test('syncRateFor folds the tempo ratio: half-time is 1×, a near tempo is the plain ratio', () => {
+  assert.ok(Math.abs(S.syncRateFor(124, 62) - 1) < 1e-9, '62 under 124 is half-time');
+  assert.ok(Math.abs(S.syncRateFor(62, 124) - 1) < 1e-9);
+  assert.ok(Math.abs(S.syncRateFor(128, 126) - 128 / 126) < 1e-9);
+  assert.ok(Math.abs(S.syncRateFor(126, 128) - 126 / 128) < 1e-9);
+  assert.ok(Math.abs(S.syncRateFor(100, 70) - 100 / 140) < 1e-9, '70 under 100 is half of 140');
+  assert.equal(S.syncRateFor(0, 120), 1); assert.equal(S.syncRateFor(120, NaN), 1);
+  assert.ok(Math.abs(S.syncRateFor(124, 126) - S.glideRates(124, 126, 0).rateB) < 1e-9, 'the rate a seam starts B on');
+});
+test('faderIdleStop: twenty silent seconds off air, no hand, no cue held — and not a second sooner', () => {
+  const base = { gain: 0, silentFor: 20, onAir: false, hand: false, cueHeld: false };
+  assert.equal(S.FADER_IDLE_S, 20);
+  assert.equal(S.faderIdleStop(base), true);
+  assert.equal(S.faderIdleStop({ ...base, silentFor: 19.9 }), false);
+  assert.equal(S.faderIdleStop({ ...base, gain: 0.02 }), false, 'audible, however faintly');
+  assert.equal(S.faderIdleStop({ ...base, gain: 0.009 }), true);
+  assert.equal(S.faderIdleStop({ ...base, onAir: true }), false, 'the record on air is never stopped by this');
+  assert.equal(S.faderIdleStop({ ...base, hand: true }), false, 'a hand on the handle holds it');
+  assert.equal(S.faderIdleStop({ ...base, cueHeld: true }), false, 'a cue held is a hand on the deck');
+  assert.equal(S.faderIdleStop({ ...base, silentFor: 2, after: 1.5 }), true, 'a test\'s shorter clock');
+  assert.equal(S.faderIdleStop(null), false);
+});
+test('planMixNow startB: a hand-cued incoming enters from its cue, snapped to its own beat', () => {
+  const mk = key => ({ bpm: 124, grid: 1.0, mixable: 0.9, key, in: { start: 32.0, beats: 32 }, out: { start: 200, beats: 32 } });
+  const A = mk('8A'), B = mk('9A'), spb = 60 / 124;
+  const plain = S.planMixNow(A, B, 33.33, { durA: 240 });
+  assert.equal(plain.startB, 32, 'no cue: the mix-in start');
+  const cued = S.planMixNow(A, B, 33.33, { durA: 240, startB: 1.0 + 17 * spb + 0.1 });
+  assert.ok(Math.abs(cued.startB - (1.0 + 17 * spb)) < 1e-3, 'the cue, on its nearest beat line: ' + cued.startB);
+  assert.equal(S.planMixNow(A, B, 33.33, { durA: 240, startB: NaN }).startB, 32, 'an unusable cue falls back');
+  assert.equal(S.planMixNow(A, B, 33.33, { durA: 240, startB: -5 }).startB, 0, 'never before the top of the file');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
