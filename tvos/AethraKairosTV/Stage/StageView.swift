@@ -20,6 +20,10 @@ struct StageView: View {
 
     @StateObject private var client = StageClient()
     @State private var letters: [Character] = []
+    // The field stops drawing whenever the app is not the active scene —
+    // a stage screen plays no audio, so it is suspended in the background,
+    // and GPU work is never submitted on the way there.
+    @Environment(\.scenePhase) private var scenePhase
 
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
@@ -33,7 +37,7 @@ struct StageView: View {
             case .joining:
                 joiningView
             case .live, .held:
-                StageMetalView(client: client)
+                StageMetalView(client: client, paused: scenePhase != .active)
                     .ignoresSafeArea()
                 if client.state == .held {
                     heldOverlay
@@ -255,6 +259,7 @@ struct StageView: View {
 /// same StageClient the view observes — one renderer for the life of the field.
 private struct StageMetalView: UIViewRepresentable {
     let client: StageClient
+    let paused: Bool
 
     func makeCoordinator() -> StageRenderer {
         StageRenderer(client: client)
@@ -269,12 +274,15 @@ private struct StageMetalView: UIViewRepresentable {
         view.clearColor = MTLClearColor(red: 5.0 / 255.0, green: 6.0 / 255.0,
                                         blue: 14.0 / 255.0, alpha: 1.0)
         view.framebufferOnly = true
+        view.isPaused = paused
         view.delegate = context.coordinator
         context.coordinator.configure(view: view)
         return view
     }
 
-    func updateUIView(_ uiView: MTKView, context: Context) { }
+    func updateUIView(_ uiView: MTKView, context: Context) {
+        if uiView.isPaused != paused { uiView.isPaused = paused }
+    }
 }
 
 // Identity tokens (DESIGN §2) — the same void / ink / axis palette the shelves

@@ -14,6 +14,10 @@ struct HomeView: View {
     // reflect the live state — the shared instance the field reads each frame.
     @ObservedObject private var viz = VizSettings.shared
 
+    // The scene's own word on whether anyone is looking: the field pauses
+    // outside .active, and coming back asks again for a library that never came.
+    @Environment(\.scenePhase) private var scenePhase
+
     // Shelves open at boot: nothing plays until a ritual or album is chosen.
     @State private var shelvesShown = true
     // The welcome speaks exactly once — four lines on why this exists — and
@@ -51,7 +55,12 @@ struct HomeView: View {
     var body: some View {
         ZStack {
             Color.akVoid.ignoresSafeArea()
-            VisualizerView(player: player, roomStep: roomStep, roomName: $roomName)
+            // Paused while the app is not the active scene (no GPU work from
+            // the background) and under the console and the stage, which are
+            // opaque covers — the stage would otherwise share the GPU with a
+            // hidden field drawing the same rooms.
+            VisualizerView(player: player, roomStep: roomStep, roomName: $roomName,
+                           paused: scenePhase != .active || showConsole || showStage)
                 .ignoresSafeArea()
             // The field's remote grammar is a LAYER, not a wrapper: it is in
             // the hierarchy only while the field owns the screen. While the
@@ -89,6 +98,15 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showStage) {
             StageView(isPresented: $showStage)
         }
+        .onChange(of: scenePhase) { _, phase in
+            // tvOS keeps a suspended app for days, so an offline first launch
+            // stayed "Catalog failed" until a force-quit: the boot .task never
+            // runs again. Coming back to the app asks again (load() refuses
+            // to overlap itself, and never blanks a library it already has).
+            if phase == .active, catalogStore.catalog == nil {
+                Task { await catalogStore.load() }
+            }
+        }
     }
 
     // MARK: - shelves
@@ -107,7 +125,9 @@ struct HomeView: View {
                     stageShelf
                     settingsShelf
                 } else if bootGraceOver {
-                    // the library never came — the room can still be tuned
+                    // the library never came — it can be asked for again
+                    // without leaving the app, and the room can still be tuned
+                    retryShelf
                     stageShelf
                     settingsShelf
                 } else {
@@ -487,6 +507,25 @@ struct HomeView: View {
                 }
                 .frame(width: 560, alignment: .leading)
                 .padding(.vertical, 8)
+            }
+            .buttonStyle(ShelfChipStyle())
+        }
+        .focusSection()
+    }
+
+    // MARK: - the library, asked for again
+
+    /// The way out of an offline first launch: one press asks for the catalog
+    /// again (the wordmark's status line reports how it went). Shown only
+    /// while there is no library at all.
+    private var retryShelf: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            shelfTitle("LIBRARY")
+            Button {
+                Task { await catalogStore.load() }
+            } label: {
+                settingLabel("TRY AGAIN", "The library hasn't arrived — check the connection, then ask for it once more.")
+                    .frame(width: 560, alignment: .leading)
             }
             .buttonStyle(ShelfChipStyle())
         }
