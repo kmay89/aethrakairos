@@ -566,7 +566,10 @@ struct HomeView: View {
                 alignment: .leading,
                 spacing: 48
             ) {
-                ForEach(catalog.albums) { album in
+                // identity by position: the parser keeps whatever the catalog
+                // ships, and two albums under one tag would be two views with
+                // one id — undefined results on tvOS, not a warning
+                ForEach(Array(catalog.albums.enumerated()), id: \.offset) { _, album in
                     albumTile(album, catalog: catalog)
                 }
             }
@@ -620,7 +623,9 @@ struct HomeView: View {
             shelfTitle(title)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 28) {
-                    ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                    // identity by position, as the albums: a track listed twice
+                    // (one file, two shelves) is two chips, never one id twice
+                    ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
                         trackChip(track) {
                             player.setQueue(tracks, startAt: index, autoplay: true)
                             dismissShelves()
@@ -661,11 +666,17 @@ struct HomeView: View {
     /// keys the catalog no longer knows vanish quietly.
     private func recentTracks(in catalog: Catalog) -> [Track] {
         var seen = Set<String>()
+        var shown = Set<String>()
         var out: [Track] = []
         for event in library.history.reversed() {
             guard !seen.contains(event.key) else { continue }
             seen.insert(event.key)
             guard let track = catalog.track(forKey: event.key) else { continue }
+            // one track, one tile — counted in its OWN set: `seen` already
+            // holds event.key, and track(forKey:) only answers a track whose
+            // id IS that key, so asking `seen` would refuse every track and
+            // empty the shelf
+            guard shown.insert(track.id).inserted else { continue }
             out.append(track)
             if out.count >= 12 { break }
         }
@@ -742,14 +753,20 @@ private struct HomeAlbumCover: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .onAppear {
-            guard covers[album.tag] == nil else { return }
-            // Deterministic sleeve: same album, same face — draw once, keep.
-            let image = album.tracks.isEmpty
-                ? CoverArt.monogram(title: album.title, size: 400)
-                : CoverArt.draw(album: album, artist: artist, label: label, size: 400)
-            covers[album.tag] = image
-        }
+        .onAppear { drawSleeve() }
+        // the grid keys its tiles by POSITION, so a catalog refresh that
+        // inserts an album hands this tile a different album without a new
+        // appearance — the sleeve follows the album, not the tile's lifetime
+        .onChange(of: album.tag) { _, _ in drawSleeve() }
+    }
+
+    private func drawSleeve() {
+        guard covers[album.tag] == nil else { return }
+        // Deterministic sleeve: same album, same face — draw once, keep.
+        let image = album.tracks.isEmpty
+            ? CoverArt.monogram(title: album.title, size: 400)
+            : CoverArt.draw(album: album, artist: artist, label: label, size: 400)
+        covers[album.tag] = image
     }
 }
 

@@ -271,18 +271,24 @@ const booth = await page.evaluate(() => {
   let lit = 0; for (let i = 3; i < px.length; i += 40) if (px[i] > 12) lit++;
   const g = id => document.getElementById(id).textContent;
   const out = { plan: g('boothPlan'), nmA: g('boothNmA'), nmB: g('boothNmB'),
-    stB: g('boothStB'), lit, running: MIXER.phase === 'running' };
+    stA: g('boothStA'), stB: g('boothStB'), lit, running: MIXER.phase === 'running' };
   BOOTH.toggle(false);
   return out;
 });
 // The narrator names the move that is happening RIGHT NOW (mixTechnique:
 // 'beat-locked', 'bass swap', 'B leads') rather than repeating the static
 // plan label — so the running seam is asserted on the narrator's own verb,
-// MIXING, while the deck state still has to read 'on air — blending'.
+// MIXING, while the deck states still have to read the handover.
+// THE LETTERS ARE FIXED TO THE SLOTS (DECKS): the record on air sits on
+// whichever lane it was put on, so the seam is read by ROLE — the lane
+// holding the outgoing record says 'handing over', the lane holding the
+// incoming says 'on air' — not by letter.
+const lanes = [[booth.nmA, booth.stA], [booth.nmB, booth.stB]];
+const outLane = lanes.find(l => l[0] === 'beta'), inLane = lanes.find(l => l[0] === 'alpha');
 R('the booth watches the live seam — outgoing named, incoming on air, painted',
-  !booth.running || (/MIXING/.test(booth.plan) && booth.nmA === 'beta'
-    && booth.nmB === 'alpha' && /on air/.test(booth.stB) && booth.lit > 30),
-  booth.nmA + ' → ' + booth.nmB + ' · plan=' + booth.plan + ' · stB=' + booth.stB
+  !booth.running || (/MIXING/.test(booth.plan) && !!outLane && !!inLane
+    && /handing over/.test(outLane[1]) && /on air/.test(inLane[1]) && booth.lit > 30),
+  'A=' + booth.nmA + ' (' + booth.stA + ') · B=' + booth.nmB + ' (' + booth.stB + ') · plan=' + booth.plan
   + ' · ' + booth.lit + ' lit'
   + (booth.running ? '' : ' (seam already handed over — skipped)'));
 const nowErr = await page.evaluate(() => new Promise(res => {

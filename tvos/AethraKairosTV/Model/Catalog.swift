@@ -262,7 +262,7 @@ enum CatalogParser {
                 // env kept only when the bass string exists — no bass, no score
                 var env: Env?
                 if let e = t["env"] as? [String: Any], let bStr = str(e["b"]) {
-                    env = Env(hz: num(e["hz"]) ?? 0,
+                    env = Env(hz: scoreRate(num(e["hz"])),
                               b: digits(bStr),
                               m: digits(str(e["m"]) ?? ""),
                               t: digits(str(e["t"]) ?? ""),
@@ -381,6 +381,21 @@ enum CatalogParser {
         return nil
     }
 
+    /// A score's sample rate (env.hz / stems.hz), bounded at the door. The
+    /// pipeline writes 12 Hz; `num` already refuses NaN and the infinities,
+    /// but a finite 1e300 is still a number that Dance.swift multiplies and
+    /// hands to Int() (StemLight.step's window, quartetLane's index) — and
+    /// Int(1e300) is a trap, not a value. Out of (0, scoreRateMax] reads as
+    /// 0: no clock, so the score and the stems are simply inert, exactly as
+    /// a catalog that shipped no rate. (The web's stemLightStep / envSample
+    /// should mirror this bound; noted here, docs/ is not touched by this
+    /// change.)
+    static let scoreRateMax = 1000.0
+    private static func scoreRate(_ v: Double?) -> Double {
+        guard let hz = v, hz.isFinite, hz > 0, hz <= scoreRateMax else { return 0 }
+        return hz
+    }
+
     /// Number(x) || null — zero and NaN both fall back.
     private static func positiveInt(_ v: Double?) -> Int? {
         guard let v, v != 0, let i = Int(exactly: v.rounded()) else { return nil }
@@ -431,7 +446,7 @@ enum CatalogParser {
         let vocals = digits(str(d["v"]) ?? "")
         let other = digits(str(d["o"]) ?? "")
         guard !(drums.isEmpty && bass.isEmpty && vocals.isEmpty && other.isEmpty) else { return nil }
-        var out = Stems(hz: num(d["hz"]) ?? 0, d: drums, b: bass, v: vocals, o: other)
+        var out = Stems(hz: scoreRate(num(d["hz"])), d: drums, b: bass, v: vocals, o: other)
         // the drum chart (sv >= 2) — the web's hitsChart: decoded once, here
         if let h = d["hits"] as? [String: Any] {
             let chart = Stems.HitChart(k: StemLight.hitsDecode(str(h["k"]) ?? ""),

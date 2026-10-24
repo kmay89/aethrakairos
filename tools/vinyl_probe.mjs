@@ -1,25 +1,36 @@
-/* VINYL PROBE — is the platter really in the signal path, and does it scratch?
+/* VINYL PROBE — are the platters really in the signal path, and do they scratch?
  *
  * The platter's arithmetic is pure and unit-tested. What a unit test cannot
- * see is whether the worklet took its seat on a real graph, whether taking
- * the room and giving it back are silent at the speaker, and whether a
- * backspin actually runs the music backwards out of AE.out. So this listens
- * at the speaker while driving the layer the way the booth's hands would.
+ * see is whether the worklets took their seats on a real graph — one per
+ * deck — whether taking a record and giving it back are silent at the
+ * speaker, whether a backspin actually runs the music backwards out of
+ * AE.out, and whether a scratch on deck B leaves deck A's signal alone. So
+ * this listens at the speaker while driving the layer the way the booth's
+ * hands would.
  *
- *   node tools/vinyl_probe.mjs
+ *   node tools/vinyl_probe.mjs              the shipped player, the synthesized demo
+ *   node tools/vinyl_probe.mjs <fixture>    …and, on the mix fixture, a scratch through a running seam
+ *                                           (python3 tools/make_mix_fixture.py DIR && cp docs/three.min.js docs/index.html docs/sw.js DIR/)
  */
 import { chromium } from 'playwright';
 import { createServer } from 'http';
 import { readFileSync, existsSync, statSync } from 'fs';
 import { join, extname } from 'path';
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.js': 'text/javascript' };
+const DIR = process.argv[2] || '';
+const MIME = { '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.js': 'text/javascript', '.png': 'image/png', '.mp3': 'audio/wav' };
 const server = createServer((req, res) => {
   const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  const f = join('docs', p === '/' ? 'index.html' : p.slice(1));
+  const f = join(DIR || 'docs', p === '/' ? 'index.html' : p.slice(1));
   if (!existsSync(f) || statSync(f).isDirectory()){ res.writeHead(404); res.end(); return; }
-  res.writeHead(200, { 'Content-Type': MIME[extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-  res.end(readFileSync(f));
+  const data = readFileSync(f);
+  const headers = { 'Content-Type': MIME[extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache', 'Accept-Ranges': 'bytes' };
+  const range = req.headers.range && req.headers.range.match(/bytes=(\d+)-(\d*)/);
+  if (range){
+    const s0 = +range[1], e = range[2] ? +range[2] : data.length - 1;
+    res.writeHead(206, { ...headers, 'Content-Range': `bytes ${s0}-${e}/${data.length}`, 'Content-Length': e - s0 + 1 });
+    res.end(data.subarray(s0, e + 1));
+  } else { res.writeHead(200, { ...headers, 'Content-Length': data.length }); res.end(data); }
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -33,6 +44,7 @@ const R = (name, ok, detail) => {
 };
 const ctx = await browser.newContext({ viewport: { width: 240, height: 180 } });
 const page = await ctx.newPage();
+await ctx.addInitScript(fx => { window.__fixture = fx; try { localStorage.setItem('mb8_lang', 'en'); } catch (e){} }, !!DIR);
 const errs = [];
 page.on('pageerror', e => errs.push(e.message.split('\n')[0]));
 await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
@@ -43,7 +55,12 @@ await page.evaluate(async () => {
   director.setAuto(false);
   ensureCtx();
   if (AE.ctx.state !== 'running') await AE.ctx.resume().catch(() => {});
-  await player.synthesizeDemo();
+  if (window.__fixture){
+    // the fixture's records, the auto-DJ off until the seam check wants it
+    const byTitle = new Map(allTracks().map(t => [t.title, t]));
+    player.tracks = ['alpha', 'beta'].map(n => byTitle.get(n)).filter(Boolean);
+    player.cur = -1; player._bag = []; MIXER.setOn(false); player.playIndex(0);
+  } else await player.synthesizeDemo();
 });
 const live = await page.waitForFunction(
   '!!(AE.ctx && AE.ctx.state === "running" && player.playing && activeDeck() && activeDeck().a.currentTime > 0.4)',
@@ -53,8 +70,16 @@ if (!live){ await browser.close(); server.close(); process.exit(1); }
 
 const seat = await page.waitForFunction('window.__mb8Vinyl && window.__mb8Vinyl !== "none"', null, { timeout: 10000 })
   .then(() => page.evaluate('window.__mb8Vinyl')).catch(() => 'none');
-R('the platter took its seat between the gate and the rack', seat === 'worklet', 'seat=' + seat);
+const decks = await page.evaluate('window.__mb8VinylDecks');
+R('both platters took their seats — one insert per deck, between the filter and the gain', seat === 'worklet' && decks && decks.A === 'worklet' && decks.B === 'worklet', 'seat=' + seat + ' ' + JSON.stringify(decks));
 if (seat !== 'worklet'){ await browser.close(); server.close(); process.exit(1); }
+const seated = await page.evaluate(() => {
+  const d = AE.decks, ok = d.every(k => k.vinyl && k.vinyl === (typeof VINYL !== 'undefined' && VINYL.for(d.indexOf(k)).node));
+  return { ok, aliases: VINYL.engaged === false && typeof VINYL.grab === 'function' && VINYL.for(0) !== VINYL.for(1) && VINYL.focus === AE.active };
+});
+R('…each deck wears its own node, and the single-platter names still answer for the hand in focus', seated.ok && seated.aliases, JSON.stringify(seated));
+// the demo is sixteen seconds and the probe is not: the record on air loops (the fixture's thirty-second records too)
+await page.evaluate(() => { activeDeck().a.loop = true; });
 
 /* the instrument: a recorder at AE.out that keeps the samples, so the music
    can be compared against itself — a backspin is the same music, backwards */
@@ -164,6 +189,126 @@ const brake = await page.evaluate(async () => {
 });
 R('the brake goes through the platter and reaches a real stop', brake.stopped && brake.minRate < 0.02, `min rate ${brake.minRate.toFixed(3)}`);
 R('…the power comes back and the room is given back', brake.released && brake.playing, `${brake.took.toFixed(0)} ms`);
+
+// 6. two hands: deck B scratched while A plays leaves A's signal alone — a steady tone on A, read at the speaker
+const two = await page.evaluate(async () => {
+  const wait = ms => new Promise(res => setTimeout(res, ms));
+  const tr = player.tracks[player.cur];
+  const loaded = DECKS.load(1, tr);
+  for (let k = 0; k < 60 && AE.decks[1].a.readyState < 2; k++) await wait(100);
+  const played = DECKS.play(1);
+  await wait(400);
+  // a 1 kHz tone into deck A's own chain (after the element), the element itself muted so the tone IS deck A
+  const osc = AE.ctx.createOscillator(); osc.frequency.value = 1000;
+  const og = AE.ctx.createGain(); og.gain.value = 0.2;
+  osc.connect(og); og.connect(AE.decks[0].shelf); osc.start();
+  AE.decks[0].a.muted = true;
+  await wait(500);
+  const r = window.__rec();
+  await wait(500);                                           // the tone alone: the level before
+  const h = VINYL.for(1), g = { cx: 50, cy: 50, r: 40 };
+  const why = h.why(), grabbed = h.grab(90, 50, g, 0, 'mouse', false);
+  let minRate = 9, aEngaged = false;
+  for (let i = 1; i <= 25; i++){
+    await wait(20);
+    const a = -i * (Math.PI / 2) / 15; h.move(50 + 40 * Math.cos(a), 50 + 40 * Math.sin(a), g);
+    if (h.rate < minRate) minRate = h.rate; aEngaged ||= VINYL.for(0).engaged;
+  }
+  await wait(200);
+  const bEngagedDuring = h.engaged;
+  h.lift();
+  await wait(300);
+  const x = r.stop();
+  osc.stop(); AE.decks[0].a.muted = false;
+  DECKS.pause(1); DECKS.eject(1);
+  // the tone's level, by Goertzel at 1 kHz, before the grab and during the drag
+  const sr = AE.ctx.sampleRate;
+  const tone = (a, n) => { const w = 2 * Math.PI * 1000 / sr; let s0 = 0, s1 = 0, s2 = 0; const c = 2 * Math.cos(w);
+    for (let i = a; i < a + n; i++){ s0 = x[i] + c * s1 - s2; s2 = s1; s1 = s0; }
+    return Math.sqrt(Math.max(1e-20, s1 * s1 + s2 * s2 - c * s1 * s2)) / n; };
+  const n = Math.floor(sr * 0.3);
+  const before = tone(Math.floor(sr * 0.1), n), during = tone(Math.floor(sr * 0.7), n);
+  return { loaded, played, why, grabbed, minRate, aEngaged, bEngagedDuring, before, during, dB: 20 * Math.log10(during / before), released: !h.engaged, playing: player.playing };
+});
+R('deck B, loaded and rolling by hand, can be taken: its own platter, under the fader', two.loaded && two.played && two.why === '' && two.grabbed, 'why=' + JSON.stringify(two.why));
+R('…dragged backwards it goes backwards, while A\'s hand stays off its record', two.minRate < -0.3 && !two.aEngaged && two.bEngagedDuring, `B rate ${two.minRate.toFixed(2)}×`);
+R('…and A\'s tone at the speaker is untouched, within half a dB', Math.abs(two.dB) < 0.5 && two.before > 1e-4, `${two.dB.toFixed(2)} dB (before ${two.before.toExponential(2)})`);
+R('…lifted, B\'s hand lets go and A plays on', two.released && two.playing);
+
+// 7. a preset: the pad's strokes run inside the processor, on the beat, and the hand lets go on its own
+const pre = await page.evaluate(async () => {
+  const wait = ms => new Promise(res => setTimeout(res, ms));
+  const h = VINYL.for(0);
+  const beat = 60 / FX.bpm();
+  const t0 = performance.now();
+  const why = h.why(), paused = AE.decks[0].a.paused, engaged0 = h.engaged;
+  const ok = h.script('baby');
+  const armedScript = !!h._script;
+  let minRate = 9, started = 0, ended = 0;
+  for (let i = 0; i < 100 && !ended; i++){
+    await wait(25);
+    if (h.rate < minRate) minRate = h.rate;
+    if (!started && h.rate < -0.2) started = performance.now() - t0;
+    if (!h._script) ended = performance.now() - t0;
+  }
+  await wait(400);
+  return { ok, why, paused, engaged0, armedScript, beat, minRate, started, ended, released: !h.engaged, playing: player.playing };
+});
+R('a preset takes the record and pulls back first (the tape holds only the past)', pre.ok && pre.armedScript && pre.minRate < -0.2, `min rate ${pre.minRate.toFixed(2)}× · ok=${pre.ok} why=${JSON.stringify(pre.why)} paused=${pre.paused} engaged=${pre.engaged0}`);
+R('…it starts within a beat and runs its course (BABY: one beat), then the hand lets go', pre.started > 0 && pre.started < pre.beat * 1000 + 150 && pre.ended > 0 && pre.ended < pre.beat * 2500 + 600 && pre.released && pre.playing,
+  `started ${pre.started.toFixed(0)} ms, done ${pre.ended.toFixed(0)} ms (beat ${(pre.beat * 1000).toFixed(0)} ms)`);
+
+// 8. quantised slip: the snap waits for the next beat line (only where a grid is known)
+const qnt = await page.evaluate(async () => {
+  const wait = ms => new Promise(res => setTimeout(res, ms));
+  const have = FX._gridOf(activeDeck()).have;
+  VINYL.setQuant('beat');
+  const h = VINYL.for(0); h.slip = true;
+  const g = { cx: 50, cy: 50, r: 40 };
+  h.grab(90, 50, g, 0, 'touch', false);
+  await wait(400);
+  const t0 = performance.now(), ctx0 = AE.ctx.currentTime;
+  h.lift();
+  const pending = !!h._snapT, engagedAfterLift = h.engaged;
+  while (h.engaged && performance.now() - t0 < 3000) await wait(10);
+  const took = performance.now() - t0;
+  VINYL.setQuant('off');
+  return { have, pending, engagedAfterLift, took, released: !h.engaged };
+});
+R('quantised to the beat, a slip waits for the line' + (qnt.have ? '' : ' (no grid on this record: it lets go at once)'),
+  qnt.released && (qnt.have ? (qnt.pending && qnt.engagedAfterLift && qnt.took > 20) : !qnt.pending), `${qnt.took.toFixed(0)} ms`);
+
+// 9. (fixture) a scratch through a running seam: the hand keeps the record, the mixer keeps the phase, a hold is a slip
+if (DIR){
+  const seam = await page.evaluate(async () => {
+    const wait = ms => new Promise(res => setTimeout(res, ms));
+    activeDeck().a.loop = false;
+    MIXER.setOn(true);
+    for (let k = 0; k < 80 && MIXER.phase !== 'armed'; k++) await wait(100);
+    const now = MIXER.tryMixNow();
+    for (let k = 0; k < 150 && MIXER.phase !== 'running'; k++) await wait(100);
+    for (let k = 0; k < 100 && !(MIXER.lastF > 0.15); k++) await wait(50);
+    const phase0 = MIXER.phase;
+    const outSlot = AE.decks.indexOf(MIXER.outDeck), h = VINYL.for(outSlot);
+    h.slip = false;                                            // hold mode: through a seam it must behave as slip
+    const why = h.why(), g = { cx: 50, cy: 50, r: 40 };
+    const grabbed = h.grab(90, 50, g, 0, 'mouse', false);
+    let minRate = 9;
+    for (let i = 1; i <= 15; i++){ await wait(20); const a = -i * (Math.PI / 2) / 15; h.move(50 + 40 * Math.cos(a), 50 + 40 * Math.sin(a), g); if (h.rate < minRate) minRate = h.rate; }
+    await wait(300);
+    const phase1 = MIXER.phase, engaged = h.engaged;
+    const backBefore = window.__mb8VinylBack ? window.__mb8VinylBack.to : null;
+    h.lift();
+    await wait(300);
+    const backAfter = window.__mb8VinylBack ? window.__mb8VinylBack.to : null;
+    const phase2 = MIXER.phase;
+    h.slip = true;
+    return { now, phase0, outSlot, why, grabbed, minRate, phase1, engaged, phase2, released: !h.engaged, seeked: backAfter !== backBefore };
+  });
+  R('(fixture) a beatmix runs, and the outgoing record can still be taken in hand through it', seam.now && seam.phase0 === 'running' && seam.why === '' && seam.grabbed, JSON.stringify({ phase: seam.phase0, why: seam.why }));
+  R('…the scratch runs under the seam\'s curve: the mixer stays \'running\', the hand has the record', seam.phase1 === 'running' && seam.engaged && seam.minRate < -0.3, `phase ${seam.phase1}, rate ${seam.minRate.toFixed(2)}×`);
+  R('…and letting go is a slip, never a seek — the phase lock owns the playheads', seam.phase2 === 'running' && seam.released && !seam.seeked, `phase ${seam.phase2}, seeked=${seam.seeked}`);
+} else console.log('  (no fixture dir given: the seam check is skipped — node tools/vinyl_probe.mjs <fixture>)');
 
 R('no page errors throughout', errs.length === 0, errs.join(' | '));
 console.log(`\n  ${pass} passed, ${fail} failed`);

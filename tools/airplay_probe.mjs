@@ -65,6 +65,16 @@ check('a track is really playing through the graph',
   before.playing && before.graphLive && before.hasGraph && before.t > 0.3 && !before.paused,
   JSON.stringify(before));
 
+// a hand's FILTER on the deck before the music leaves: the chain it sits on is torn down and rebuilt
+const filt0 = await page.evaluate(async () => {
+  FX.set('filter', 0.25); FX.hand();                  // the knob at -0.5: a lowpass
+  await new Promise(r => setTimeout(r, 400));
+  const d = activeDeck();
+  return { hand: d._fxHand ? d._fxHand.lp : null, node: d.filter ? d.filter.frequency.value : null };
+});
+check('a hand\'s lowpass is on the deck filter before the route change', filt0.hand && filt0.hand < 2000 && Math.abs(filt0.node - filt0.hand) < filt0.hand * 0.1,
+  JSON.stringify(filt0));
+
 // --- go element-direct, the way the route button does ---
 const direct = await page.evaluate(async () => {
   const ok = await AIRPLAY.setDirect(true);
@@ -101,6 +111,16 @@ check('setDirect(false) rebuilds the graph', backT.graphLive && backT.hasGraph &
   JSON.stringify(backT));
 check('same track, still playing, after coming home', backT.playing && !backT.paused && backT.src === before.src);
 check('position survived the round trip', backT.t > moved - 3, `${moved.toFixed(2)} -> ${backT.t.toFixed(2)}`);
+// the rebuilt chain is born open; the filter the hand still holds must be written onto it, not lost to a stale cache
+const filt1 = await page.evaluate(async () => {
+  await new Promise(r => setTimeout(r, 400));
+  const d = activeDeck();
+  const out = { hand: d._fxHand ? d._fxHand.lp : null, node: d.filter ? d.filter.frequency.value : null, x: FX.amount };
+  FX.set('filter', 0.5); FX.set('');                 // centred and let go
+  return out;
+});
+check('…and after coming home the hand\'s lowpass is on the NEW filter node, not just on the knob',
+  filt1.hand && Math.abs(filt1.node - filt1.hand) < filt1.hand * 0.1, JSON.stringify(filt1));
 
 // --- the button must not appear with nothing to send to ---
 const btn = await page.evaluate(() => {

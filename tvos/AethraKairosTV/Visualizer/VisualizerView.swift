@@ -224,8 +224,13 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     // the handover
     private var transitionProgress: Double = 1.0     // >= 1 means at rest
     private var transitionDuration: Double = 0.9
+    private var transitionStart: Double = 0          // CACurrentMediaTime() when it opened: the progress is derived, never integrated
     private var outgoingIndex: Int = 0
     private var lastRoomStep: Int?
+    // the moment as the last frame read it, for a swipe's dwell: the act and
+    // the bar the director paced the room by (a swipe lands between frames)
+    private var paceAct: Int = 1
+    private var paceBarLen: Double = 2.0
     private var currentXformMode: Int = 0
     private var lastXformMode: Int = -1
     private static let xformMinDur: [Double] = [0.55, 0.9, 0.8, 0.7, 1.4]
@@ -233,6 +238,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     // the per-entry dice — the live room's face and the room it is leaving
     private var currentRolls = SIMD3<Float>(0.5, 0.5, 0.5)
     private var outgoingRolls = SIMD3<Float>(0.5, 0.5, 0.5)
+    // the room's second act (Director.developPlan, the web's rollEased): the
+    // face the live room is easing toward and how fast — nil while it rests
+    private var rollTarget: SIMD3<Float>? = nil
+    private var rollTau: Double = 1
 
     // the ghost — a phantom hand after 22 s of stillness
     private var idleTime: Double = 0
@@ -253,7 +262,9 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var lensTex: MTLTexture?
     private var lensChoice: Int = -1
     private var lensRenderMode: Int = -1
-    private var lensHold: Double = 0
+    private var lensHold: Double = 0                  // until the song is read again (half a phrase)
+    private var lensLookT: Double = 1.0e9             // how long the look has been held (a swap needs two phrases)
+    private static let lensHyst = 0.08                // the web's LENS_HYST: the held look is sticky by this much energy
     private var lensAmt: Double = 0
     // ECHO keeps its own last frame: echoTex holds it between frames, written
     // by a blit after the echo leg, read back as the lens pass's texture(1).
@@ -448,10 +459,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let xformNames = ["xform_luma", "xform_scatter", "xform_defocus", "xform_prism", "xform_ember"]
         Self.buildQueue.async { [weak self] in
             /* the XFORM composites first — every handover needs one, and they
-               land together so xformMode indexes the same five in order.
+               land together so xformMode indexes the same five in order: a
+               form this GPU refused is stood in for by the first that built
+               (the index space must hold, or mode 4 would deal form 3), and
+               none at all means no handover composite — the live room cuts.
                Then the LENS and the FIELD, each guarded: nil means the pass
                never runs, exactly as a missing function always meant. */
-            let xf = xformNames.compactMap { builder.pass($0) }
+            let built = xformNames.map { builder.pass($0) }
+            let xf: [MTLRenderPipelineState]
+            if let standIn = built.compactMap({ $0 }).first {
+                xf = built.map { $0 ?? standIn }
+            } else {
+                xf = []
+            }
             let lens = builder.pass("lens_pass")
             let field = builder.pass("field_pass")
             Task { @MainActor in
@@ -461,6 +481,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                 self.fieldPipeline = field
             }
             for i in order {
+                if self == nil { return }                 // the field left; stop compiling for it
                 let state = builder.room(key: rooms[i].key, function: rooms[i].fn)
                 Task { @MainActor in self?.installRoom(i, state) }
             }
@@ -661,20 +682,30 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // a hand is on the remote — the ghost yields at once
         idleTime = 0
         let before = director.currentIndex
-        director.step(delta)
+        // the swiped-to room's dwell is read from the moment, exactly as a
+        // dealt room's is — the act, the bar, the energy and the calm tier's
+        // longer stay — not from a fixed one-act, 120-BPM guess
+        let calmNow = reduceMotion || VizSettings.shared.calm
+        director.step(delta, act: paceAct, energy: Double(dispEnergy), barLen: paceBarLen, reduced: calmNow)
         if director.currentIndex != before {
-            beginTransition(from: before)
+            beginTransition(from: before, manual: true)
             publishRoomName()
         }
     }
 
     /// Open a handover: freeze the room being left, pick the composite form
-    /// (never the same twice; always luma under the calm tier), set its min
-    /// duration, and re-deal the arriving room's face plus a fresh ghost
-    /// choreography — a room never wears the same face on re-entry.
-    private func beginTransition(from oldIndex: Int) {
+    /// (never the same twice; always luma under the calm tier), set its
+    /// duration from the moment (the web's segueStyle, in bars — never under
+    /// the form's own floor), and re-deal the arriving room's face plus a
+    /// fresh ghost choreography — a room never wears the same face on re-entry.
+    /// A swipe is MANUAL: a hand on the remote gets the web's snappy blend
+    /// (a hand on the wheel: 1.0 s, never under the composite's own floor;
+    /// 1.6 s under the calm tier), not the music's segue length.
+    private func beginTransition(from oldIndex: Int, act: Int = 1, energy: Double = 0.5,
+                                 big: Bool = false, barLen: Double = 2.0, manual: Bool = false) {
         outgoingIndex = oldIndex
         transitionProgress = 0
+        transitionStart = CACurrentMediaTime()
 
         let calmNow = reduceMotion || VizSettings.shared.calm
         if calmNow {
@@ -686,10 +717,21 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
         lastXformMode = currentXformMode
         let mode = min(max(currentXformMode, 0), Self.xformMinDur.count - 1)
-        transitionDuration = calmNow ? 0.9 : Self.xformMinDur[mode]
+        // the LENGTH is the web's segueStyle, in bars: a quarter-bar cut at a
+        // hot apex, a two-bar melt at the calm edges, a bar for a section
+        // turn — never shorter than the composite's own floor, and never
+        // shorter than 1.6 s under the calm tier, where the hard cut is the
+        // motion being refused
+        if manual {
+            transitionDuration = calmNow ? Director.segueReducedFloor : max(Self.xformMinDur[mode], 1.0)
+        } else {
+            let style = Director.segueStyle(act: act, energy: energy, big: big, barLen: barLen, reduced: calmNow)
+            transitionDuration = max(calmNow ? Director.segueReducedFloor : Self.xformMinDur[mode], style.dur)
+        }
 
         outgoingRolls = currentRolls
         currentRolls = Self.freshRolls()
+        rollTarget = nil                              // the new face is dealt, not eased into
         ghostChoreo = Int.random(in: 0...3)
     }
 
@@ -716,6 +758,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// The act-heat curve sampled at the eased (fractional) act.
     private func actHeat(_ a: Double) -> Double {
         let t = Self.actHeatTable
+        guard a.isFinite else { return t[0] }             // a NaN act would trap inside Int()
         let x = min(max(a, 0), Double(t.count - 1))
         let i0 = Int(floor(x))
         let i1 = min(i0 + 1, t.count - 1)
@@ -807,31 +850,46 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// 6 wave+mirrors, 7 mirrors+moire, 18 mirrors+echo, 19 droste+transpose,
     /// 20 stained+rain, 21 halftone+prism, 22 hyperbolic+contour.
     /// tests/player.test.mjs holds these shelves to the web's, code for key.
-    private func pickLens(act: Int, energy: Double, minor: Bool, ceil: Double, salt: Int) -> Int {
+    /// `prev` and `hyst` are the web's hysteresis: the shelves are read again
+    /// at energy ± hyst, and if either reading is still the held look, the
+    /// held look stands — the same salt deals the same member, so a change
+    /// means a different shelf, not a wobble of the energy.
+    private func pickLens(act: Int, energy: Double, minor: Bool, ceil: Double, salt: Int,
+                          prev: Int? = nil, hyst: Double = 0) -> Int {
         func deal(_ shelf: [Int]) -> Int { return shelf[max(salt, 0) % shelf.count] }
-        if ceil < 0.55 || act == 0 || act == 4 { return -1 }   // the hard gate + the arc's edges
-        if act == 2 {                                          // APEX
-            if ceil > 0.92 && energy > 0.85 {                  // THE SUMMIT: two lenses at once
-                return minor ? deal([7, 22]) : deal([6, 18, 19])
+        func at(_ energy: Double) -> Int {
+            if ceil < 0.55 || act == 0 || act == 4 { return -1 }   // the hard gate + the arc's edges
+            if act == 2 {                                          // APEX
+                if ceil > 0.92 && energy > 0.85 {                  // THE SUMMIT: two lenses at once
+                    return minor ? deal([7, 22]) : deal([6, 18, 19])
+                }
+                if ceil > 0.72 {                                   // …with real headroom
+                    if minor && energy > 0.66 { return deal([5, 17]) }   // tense + truly intense
+                    if energy > 0.93 { return deal([2, 15]) }             // the hottest bright peak
+                    return energy > 0.8 ? deal([0, 9, 11]) : deal([0, 11])   // hypnotic order
+                }
+                return deal([4, 12])                               // an apex the section holds back
             }
-            if ceil > 0.72 {                                   // …with real headroom
-                if minor && energy > 0.66 { return deal([5, 17]) }   // tense + truly intense
-                if energy > 0.93 { return deal([2, 15]) }             // the hottest bright peak
-                return energy > 0.8 ? deal([0, 9, 11]) : deal([0, 11])   // hypnotic order
+            if act == 1 && ceil > 0.60 {                           // RISING
+                if energy > 0.72 { return deal([1, 10, 13, 21]) }  // a driving build
+                return deal([3, 16])                               // a gentler build
             }
-            return deal([4, 12])                               // an apex the section holds back
+            if act == 3 && ceil > 0.60 { return deal([3, 14, 8, 20]) }   // the comedown
+            return -1
         }
-        if act == 1 && ceil > 0.60 {                           // RISING
-            if energy > 0.72 { return deal([1, 10, 13, 21]) }  // a driving build
-            return deal([3, 16])                               // a gentler build
+        let want = at(energy)
+        if let prev, hyst > 0, prev != want, at(energy + hyst) == prev || at(energy - hyst) == prev {
+            return prev
         }
-        if act == 3 && ceil > 0.60 { return deal([3, 14, 8, 20]) }   // the comedown
-        return -1
+        return want
     }
 
-    /// The auto-picker over the pure rule: it holds a chosen lens ~9 s and
-    /// `none` ~3 s so the look never flickers, and returns -1 ALWAYS under
-    /// Reduce Motion (calm is clean glass). The engage ramp lives in draw().
+    /// The auto-picker over the pure rule: the song is read every half phrase
+    /// (with hysteresis around the held look), a different answer swaps the
+    /// glass only once the look has been held two phrases AND the pace gate
+    /// allows a minor change this far from the last room change — the web's
+    /// LENS.autoTick, law for law — and it returns -1 ALWAYS under Reduce
+    /// Motion (calm is clean glass). The engage ramp lives in draw().
     /// A stack code names its members in playing order; a single names itself.
     private func lensStackKinds(_ code: Int) -> [Int] {
         switch code {
@@ -846,18 +904,32 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
     }
 
-    private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool, ceil: Double, enabled: Bool) -> Int {
+    private func autoLens(dt: Double, act: Int, energy: Double, minor: Bool, ceil: Double, enabled: Bool,
+                          barLen: Double = 2.0, calm: Bool = false) -> Int {
         if reduceMotion || !enabled {
             lensChoice = -1
             lensHold = 0
             return -1
         }
-        lensHold -= max(dt, 0)
-        if lensHold <= 0 {
-            lensChoice = pickLens(act: act, energy: energy, minor: minor, ceil: ceil, salt: lensDeals)
-            lensDeals += 1
-            lensHold = lensChoice >= 0 ? 9.0 : 3.0
-        }
+        let step = max(dt, 0)
+        lensHold -= step
+        lensLookT += step
+        guard lensHold <= 0 else { return lensChoice }
+        let phrase = 8 * (barLen > 0 ? barLen : 2.0)
+        lensHold = 0.5 * phrase                       // the next read, half a phrase on
+        let want = pickLens(act: act, energy: energy, minor: minor, ceil: ceil, salt: lensDeals,
+                            prev: lensChoice, hyst: Self.lensHyst)
+        guard want != lensChoice else { return lensChoice }
+        // a lens swap is a MINOR change: the look holds two phrases (the web's
+        // DEVELOP.lensEveryPhrases) and the swap answers the pace gate like
+        // every other automatic change; the room's second act zeroes lensHold
+        // so the glass is re-dealt with it, under the same two rules
+        guard lensLookT >= Director.developLensEveryPhrases * phrase,
+              Director.paceGate(since: director.sinceChange, act: act, barLen: barLen, kind: .lens, reduced: calm).ok
+        else { return lensChoice }
+        lensChoice = want
+        lensLookT = 0
+        lensDeals += 1                                // the next equal choice takes its turn — on a swap, not on a read
         return lensChoice
     }
 
@@ -893,6 +965,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         let now = CACurrentMediaTime()
         var dt = lastDrawTime == 0 ? 1.0 / 60.0 : now - lastDrawTime
         lastDrawTime = now
+        // the PACING clock: the director's dwell, gap and patience and the lens
+        // hold step by the wall (bounded to a second), never by the clamped
+        // frame dt below — on a slow renderer the clamp would run them at a
+        // fraction of real time and a cut aimed at the drop would land late
+        let wallDt = min(max(dt, 0), 1.0)
         dt = min(max(dt, 0), 0.25)                     // a resumed app is not a time machine
 
         // -- settings, read live on the main actor --
@@ -945,6 +1022,9 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         //    confidence; with the flag off those three arguments are ignored. --
         let busPeriod: Float = frame.bpm > 0 ? 60 / frame.bpm : 0
         let busGrid = (busTrack?.mix?.bpm ?? 0) > 0
+        // the bar in seconds — the unit every pacing rule is written in; two
+        // seconds (a 120-BPM bar) when the song has no grid (the web's barLen)
+        let barLen: Double = (busGrid && busPeriod > 0) ? Double(busPeriod) * 4 : 2.0
         let busBeats = frame.beats
         var busDownbeat = false
         if busBeats != 0, busBeats.isFinite, abs(busBeats) < 1.0e9 {
@@ -1055,19 +1135,53 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         chordRGB = safeColorStep(chordRGB, dt: dt, calm: calmNow)
 
         // -- the director --
+        paceAct = actTarget
+        paceBarLen = barLen
         let before = director.currentIndex
         // (a deal that lands on the room already showing — possible while the
         // house is still compiling and the opening room is the only door — is
         // no handover at all, exactly as a swipe that goes nowhere is not)
-        if director.tick(dt: dt, frame: frame, act: actTarget, ceil: ceil,
-                         kitReturn: stemOut.landed,
-                         band: stemLight.section, bandConf: stemLight.conf) != nil,
+        if director.tick(dt: wallDt, frame: frame, act: actTarget, ceil: ceil,
+                         kitReturn: stemOut.landed, kitAway: stemOut.awayAtLand,
+                         band: stemLight.section, bandConf: stemLight.conf,
+                         barLen: barLen, reduced: calmNow,
+                         structure: structure, prog: prog, duration: dur,
+                         trackId: player.current?.id,
+                         playing: player.isPlaying || Self.driveDemo) != nil,
            director.currentIndex != before {
-            beginTransition(from: before)
+            beginTransition(from: before, act: actTarget, energy: Double(dispEnergy),
+                            big: director.lastChangeBig, barLen: barLen)
             publishRoomName()
         }
+        // the handover's progress is DERIVED from when it opened, never
+        // integrated from the frame dt: a cut sized to land on the drop lands
+        // on it however slowly the device is drawing
         if transitionProgress < 1 {
-            transitionProgress = min(1, transitionProgress + dt / max(transitionDuration, 0.05))
+            transitionProgress = min(1, (now - transitionStart) / max(transitionDuration, 0.05))
+        }
+        // -- the room's second act (the web's rollEased): fresh dice, eased over
+        //    two bars (τ = ease / 3), so the live room breathes into another of
+        //    its faces instead of being cut to a new room; the glass is re-dealt
+        //    with the step. Only the dice Director.developDice lists for the
+        //    room are eased (the rest hold: a floored, stepped or hashed die
+        //    strobes through a sweep), and never roll2, the lens's fold --
+        if let dev = director.takeDevelop() {
+            let i = director.currentIndex
+            let mask = Rooms.all.indices.contains(i) ? Director.developMask(key: Rooms.all[i].key) : SIMD3<Float>(0, 0, 0)
+            if mask != SIMD3<Float>(0, 0, 0) {
+                rollTarget = currentRolls + (Self.freshRolls() - currentRolls) * mask
+                rollTau = max(0.5, dev.ease / 3)
+            }
+            lensHold = 0
+        }
+        if let target = rollTarget {
+            let k = Float(1 - exp(-dt / rollTau))
+            currentRolls += (target - currentRolls) * k
+            let d = target - currentRolls
+            if d.x * d.x + d.y * d.y + d.z * d.z < 1.0e-5 {
+                currentRolls = target
+                rollTarget = nil
+            }
         }
 
         // -- the ghost state machine --
@@ -1115,9 +1229,9 @@ final class VizRenderer: NSObject, MTKViewDelegate {
            k.hasSuffix("A") || k.hasSuffix("B"), let n = Int(k.dropLast()), (1...12).contains(n) {
             camNum = n
         }
-        let pickedLens = autoLens(dt: dt, act: actTarget, energy: Double(dispEnergy),
+        let pickedLens = autoLens(dt: wallDt, act: actTarget, energy: Double(dispEnergy),
                                   minor: minorNow, ceil: ceil,
-                                  enabled: VizSettings.shared.lensAuto)
+                                  enabled: VizSettings.shared.lensAuto, barLen: barLen, calm: calmNow)
         let lensAmtTarget: Double = pickedLens >= 0 ? (0.45 + 0.50 * Double(dispEnergy)) : 0.0
         lensAmt += (lensAmtTarget - lensAmt) * (1 - exp(-dt / 0.6))
         lensAmt = min(max(lensAmt, 0), 1)
@@ -1400,7 +1514,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             qtBytes[64 * 4] = 255
         }
         for i in 0..<(n * 4) {
-            qtBytes[i] = UInt8(min(max(qtLanes[i], 0), 1) * 255 + 0.5)
+            // min/max pass a NaN through (every comparison with it is false),
+            // and UInt8(NaN) is a trap: a lane that is not a number reads dark
+            let v = qtLanes[i]
+            let c: Float = v.isFinite ? min(max(v, 0), 1) : 0
+            qtBytes[i] = UInt8(c * 255 + 0.5)
         }
         qtBytes.withUnsafeBytes { buffer in
             if let base = buffer.baseAddress {
@@ -1536,10 +1654,11 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     }
 }
 
-/// Compiles pipelines for the renderer — off the main actor on purpose, so the
-/// build can run behind the first frame (see VizRenderer.configure). Holds only
-/// Metal objects, which Metal documents as safe to use from any thread.
-private struct PipelineBuilder {
+/// Compiles pipelines for the renderers — off the main actor on purpose, so the
+/// build can run behind the first frame (see VizRenderer.configure, and the
+/// stage screen's StageRenderer.configure, which shares it). Holds only Metal
+/// objects, which Metal documents as safe to use from any thread.
+struct PipelineBuilder {
     let device: MTLDevice
     let library: MTLLibrary
     let vertexFn: MTLFunction

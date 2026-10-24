@@ -302,7 +302,10 @@ enum JourneyEngine {
     /// supplied rng that returns exactly 1.0; mulberry32 never does, so the
     /// deterministic path is untouched.
     private static func boundedIndex(_ r: Double, _ count: Int) -> Int {
-        let i = Int(r * Double(count))
+        // Int(NaN) and Int(inf) trap; a caller-supplied rng that misbehaves
+        // gets the first slot, never a crash. mulberry32 is always finite.
+        guard r.isFinite else { return 0 }
+        let i = Int(min(max(r, 0), 1) * Double(count))
         return min(max(i, 0), count - 1)
     }
 

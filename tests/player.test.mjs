@@ -5,8 +5,9 @@
 //
 //   node tests/player.test.mjs
 
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { auditDevelop, dieVerdict } from '../tools/develop_audit.mjs';
 import { dirname, join } from 'path';
 import assert from 'assert';
 
@@ -18,18 +19,25 @@ function block(name){
   if (!m) throw new Error(`marker block ${name} not found`);
   return m[1];
 }
-const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
-  '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_GIVE_UP, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
+const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('xfader') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
+  '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_RESEEK_S, STARVE_GIVE_UP, bufferedEndAt, prefetchMayRun, PREFETCH_AHEAD_S, seamWarmDue, SEAM_WARM_S, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' SIGNATURE_RE, isSignature, signatureFirst,' +
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
-  ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB,' +
+  ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB, STEM_PAL, STEM_OKLCH,' +
+  ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
+  ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode, deckSlot, seamPitchCarry, XF_DBL_MS, XF_DBL_REACH, xfaderDoubleTap, boothFaderKey,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
+  ' FX_UNITS, FX_SENDS, FX_INSERTS, FX_AMT, FX_MIX, fxMix, FILTER_DETENT, fxFilterQ, qDb, Q_FLAT_DB, fxFilterArbiter, fxSeamHz,'  +
+  ' GATE_FLOOR, gateEdge, gateCurve, gateEdgeSec, gateSchedule, gateAnchor, fxEchoGains, fxEchoGlide, ECHO_HOLD_FB, reverbIR,'  +
+  ' fxFlangeParams, fxLfoWave, fxPhaserStages, fxPhaserShape, crushBits, crushCurve, crushTone,'  +
+  ' driveCurve, drivePre, driveTiltDb, driveTrimDb, drivePinkRef, driveMakeup, FX_AUTO, makeFxAuto, fxAutoStep, fxAutoSweep,'  +
+  ' FX_GAIN_DB, FX_BUDGET_DB, fxGainBudget, FX_PARK,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
   ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
   ' TEAR_HOLD, TEAR_MIN, makeTearWatch, tapeTearStep, tapeTearSilent, ringTornIn, loopDeckReady, loopHandbackAt,' +
@@ -45,7 +53,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GESTALT, proximityOk, parkinsonBudget, teslerShare, occamPick, postelUrl,' +
   ' makeSafeBeatState, safeBeatStep, countFlashes,' +
   ' dancePulse, danceSway, danceTimeWarp, DANCE_MOVES, danceDeal, danceMovePose, onsetEnergy, envFollow, beatSpringStep, beatGate,' +
-  ' STEM_LIGHT, STEM_CUT_DWELL, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
+  ' STEM_LIGHT, STEM_CUT_DWELL, STEM_CUT, makeStemLightState, stemDigit, stemPeak, stemMean, stemSection, stemLightStep, stemLightOut,' +
   ' HIT_VOICES, HIT_SKIP, hitsDecode, hitsChart, hitsLast, hitPulse, hitBlend, stemMood, QUARTET_N, QUARTET_WIN, quartetLane,' +
   ' DANCE_BUS, dancePeriod, danceLookahead, danceClassify, makeDanceKick, danceKickStrike, danceKickStep, danceLandingStep, makeDanceBusState, danceBusStep, danceBusApply, danceScoreRises,' +
   ' danceWindowLevel, danceWarpSlew, danceSectionTurn, danceSilenceAhead, danceStemFeed, hitVoices,' +
@@ -68,6 +76,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' GHOST_TUNING, GHOST_KINDS, ghostRand, ghostFold, ghostSnake, ghostPaint, ghostPath, ghostPhrase,' +
   ' ghostAmp, ghostShould, ghostPattern, ghostSplit, ghostMirror,' +
   ' SCENE_KEYS, SCENE_TASTE, MOODS, ROOM_DWELL, sceneScore, recencyPenalty, roomMood, roomDwell, dealScene,' +
+  ' roomDwellBars, PACE, paceGate, SURGE, surgeShouldRequest, DEVELOP, developPlan, DEVELOP_DICE, developDice,' +
   ' cieXYZBar, blackbodyXYZ, kelvinRGB, wavelengthRGB, cherenkovRGB, rgbHex, FLAME_SOURCES, FLAME_RAMP_N,' +
   ' flamePuff, flameRGB, flameTemp, flameRamp, flameBandU, flameLabel, flameRoll,' +
   ' PYRO_STARS, PYRO_SHELLS, PYRO_TUNING, pyroStarRGB, pyroShell, pyroFlight,' +
@@ -88,9 +97,11 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
   ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
   ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
-  ' WAVE_HZ, WAVE_SR, WAVE_TILT, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
+  ' VINYL_CUT_SEC, vinylReadAir, vinylToneK, vinylCutSpec, vinylScriptStep, vinylScriptCut, vinylScriptBlock, vinylSnap, VINYL_PRESETS, vinylPresetSteps, vinylLanding, vinylNextLine, VINYL_SONG_LOW_SR,' +
+  ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
+  ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
-  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed };';
+  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -2046,6 +2057,40 @@ test('mix technique: beatmix hands the bass over near the midpoint; only while r
 test('mix narration: MIXING a fade surfaces the live technique', () => {
   const s = S.mixNarration({ on: true, phase: 'running', nextTitle: 'Pulse', planType: 'fade', seconds: 6, pct: 60 });
   assert.match(s, /MIXING/); assert.match(s, /echo/); assert.match(s, /60%/);
+});
+// ---- the hand's phases: a DJ on the crossfader outranks the planner's line ----
+test('mix narration: a hand on the fader (no seam) says both decks are the hand\'s, even with MIX off', () => {
+  const s = S.mixNarration({ on: true, phase: 'idle', hand: true });
+  assert.match(s, /^HAND on the fader/); assert.match(s, /tap AUTO to hand it back/);
+  assert.match(S.mixNarration({ on: false, hand: true }), /^HAND on the fader/, 'the DJ holding the handle is who reads this');
+  assert.match(S.mixNarration({ on: true, direct: true, hand: true }), /direct-to-output/, 'but the direct path has no handle');
+});
+test('mix narration: a yielded seam (manual) names the blend taken and where parking the fader finishes it', () => {
+  const s = S.mixNarration({ on: true, phase: 'manual', pct: 37, handDeck: 'B', nextTitle: 'Pulse', planType: 'beatmix' });
+  assert.equal(s, 'HAND · you took the blend at 37% — park the fader on B to finish it');
+  assert.match(S.mixNarration({ on: true, phase: 'manual', handDeck: 'A' }), /at 0% — park the fader on A/, 'no pct reads as 0; the letter is the incoming deck\'s');
+});
+test('mix narration: a hand\'s commit is said as done; an audition names the deck under the handle', () => {
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', done: 'B' }), 'done — B is on air · the planner has the room again');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', audition: 'B' }), 'B playing under the fader — bring it in when it feels right');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', audition: 'A' }), 'A playing under the fader — bring it in when it feels right');
+  // precedence: the handle in hand outranks a finished commit and an audition
+  assert.match(S.mixNarration({ on: true, hand: true, done: 'B', audition: 'A' }), /^HAND on the fader/);
+  assert.match(S.mixNarration({ on: true, phase: 'manual', hand: true, done: 'B' }), /^HAND · you took/);
+});
+test('mix narration: SYNC names the matched deck and tempo; CUT names the switch; the planner\'s plan still outranks CUT', () => {
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', sync: { deck: 'B', bpm: 123.6 } }), 'SYNC · B matched at 124');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', cut: true }), 'CUT curve — the fader is a switch; scratch with it');
+  assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', seamSec: 5, cut: true }), /^CUED/, 'an armed seam is the line that matters');
+  assert.match(S.mixNarration({ on: true, phase: 'running', planType: 'fade', pct: 10, cut: true }), /^MIXING/);
+  assert.match(S.mixNarration({ on: true, phase: 'planning', planType: 'fade', seamSec: 50, cut: true }), /^CUT curve/, 'a peek ahead does not');
+  assert.match(S.mixNarration({ on: false, cut: true }), /MIX is off/, 'MIX off is the status; the curve is a detail');
+  assert.match(S.mixNarration({ on: false, sync: { deck: 'A', bpm: 120 } }), /^SYNC · A matched at 120/, 'a synced deck is worth saying with MIX off');
+});
+test('mix narration: without any hand flag the planner\'s lines are exactly what they were', () => {
+  assert.equal(S.mixNarration({ on: true, phase: 'idle' }), 'watching the clock — the planner arms 90 s before the end');
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', hand: false, done: null, audition: null, sync: null, cut: false }),
+    'watching the clock — the planner arms 90 s before the end');
 });
 
 // ---- per-stem waveform: sample the envelopes, blend the source palette ----
@@ -5809,8 +5854,8 @@ test('fxFilter: one bipolar knob, a real detent, and hearing-shaped travel', () 
   assert.ok(mid.lp >= 22000 - 1 && mid.hp <= 20, 'and both corners are out of the way');
   assert.equal(S.fxFilter(0.04, nyq).active, false, 'the detent is real — a nudge does nothing');
   const lo = S.fxFilter(-1, nyq), hi = S.fxFilter(1, nyq);
-  assert.ok(lo.active && lo.lp < 300, 'hard left is a closed lowpass, got ' + lo.lp);
-  assert.ok(hi.active && hi.hp > 6000, 'hard right is a high highpass, got ' + hi.hp);
+  assert.ok(lo.active && lo.lp < 100, 'hard left is a closed lowpass — the kick leaves too, got ' + lo.lp);
+  assert.ok(hi.active && hi.hp > 12000, 'hard right is a high highpass — the air leaves too, got ' + hi.hp);
   // exponential, so the knob feels even end to end rather than doing everything
   // in the last inch
   const a = S.fxFilter(-0.5, nyq).lp, b = S.fxFilter(-0.75, nyq).lp;
@@ -6621,12 +6666,29 @@ test('watchdogStep: frozen with data — nudge at 3 s, reload at 7 s', () => {
   assert.equal(v[3], 'nudge');
   assert.equal(v[7], 'reload');
 });
-test('watchdogStep: a stream starved mid-track is reloaded, not left spinning', () => {
+test('watchdogStep: a stream starved mid-track is healed, not left spinning — the cheap heal first', () => {
   const s = wdState();
   wdRun(s, [{ t: 91, buf: 91, rs: 4 }]);            // playing, then the bytes stop
   const v = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91, buf: 91, rs: 2 })));
-  assert.equal(v[v.length - 1], 'reload', 'the old watchdog waved readyState < 3 through forever');
+  assert.equal(v[v.length - 1], 'reseek', 'the old watchdog waved readyState < 3 through forever; the first heal is a reseek, never the reload');
   assert.ok(v.slice(0, -1).every(x => x === 'wait'));
+  // …and only a further STARVE_RESEEK_S seconds with nothing new earn the hard reload
+  const w = wdRun(s, Array.from({ length: S.STARVE_RESEEK_S }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.ok(w.slice(0, -1).every(x => x === 'wait'), 'no reload inside the reseek window: ' + w.join(','));
+  assert.equal(w[w.length - 1], 'reload');
+  assert.equal(s.heals, 1, 'reseeks do not spend the give-up budget; reloads do');
+});
+test('watchdogStep: growth after the reseek is a cured stream — the count starts over, no reload', () => {
+  const s = wdState();
+  wdRun(s, [{ t: 91, buf: 91, rs: 4 }]);
+  const v = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.equal(v[v.length - 1], 'reseek');
+  assert.equal(wdRun(s, [{ t: 91.001, buf: 93, rs: 2 }])[0], 'ok', 'the fresh ranged request is landing: a slow pipe, never a dead one');
+  assert.equal(s.heals, 0);
+  // a second starvation is judged from scratch: twelve seconds, then a reseek again — not a reload
+  const w = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91.001, buf: 93, rs: 2 })));
+  assert.equal(w.filter(x => x === 'reload').length, 0);
+  assert.equal(w[w.length - 1], 'reseek');
 });
 test('watchdogStep: a starved buffer that is still GROWING is a slow pipe, never reloaded', () => {
   const s = wdState();
@@ -6646,14 +6708,16 @@ test('watchdogStep: offline, a starved deck waits without spending its budget', 
 });
 test('watchdogStep: a track that keeps starving with no motion is skipped so the set goes on', () => {
   const s = wdState();
-  const n = S.STARVE_RELOAD_S * (S.STARVE_GIVE_UP + 1);
+  // each round is a reseek, then — nothing having come of it — a reload
+  const n = (S.STARVE_RELOAD_S + S.STARVE_RESEEK_S) * (S.STARVE_GIVE_UP + 1);
   const v = wdRun(s, Array.from({ length: n + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
+  assert.equal(v.filter(x => x === 'reseek').length, S.STARVE_GIVE_UP + 1);
   assert.equal(v.filter(x => x === 'reload').length, S.STARVE_GIVE_UP);
   assert.equal(v.filter(x => x === 'skip').length, 1);
 });
 test('watchdogStep: motion after a reload refills the give-up budget', () => {
   const s = wdState();
-  wdRun(s, Array.from({ length: S.STARVE_RELOAD_S + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
+  wdRun(s, Array.from({ length: S.STARVE_RELOAD_S + S.STARVE_RESEEK_S + 1 }, () => ({ t: 91, buf: 91, rs: 2 })));
   assert.equal(s.heals, 1);
   wdRun(s, [{ t: 92, buf: 100, rs: 4 }]);
   assert.equal(s.heals, 0);
@@ -9757,7 +9821,8 @@ test('flame v2: pyroStillGain — the sky dims out with the stillness over ~0.3 
 
 test('dance v2: tune 2 wire — the swatches through the fine mapper and the blend under v2 only; FLAME\'s launches, billows, onset shell and tour × the stillness gate, its sky dimmed by pyroStillGain and cleared once dark; the bar phase held with the index', () => {
   assert.ok(html.includes("const v2c = typeof DANCE !== 'undefined' && DANCE.v2;") && html.includes('lit.slice(0, 3).map(c => (v2c ? oklchToRgbFine : oklchToRgb)(lClamp(c.l * mulL), Math.max(0, c.c * mulC), c.h)),\n      dt, SAFE.tuning(), v2c);'), 'COLOR: the fine mapper and the blend, under v2');
-  assert.equal((html.match(/oklchToRgbFine\(/g) || []).length, 1, 'the fine mapper has one caller besides its definition: the swatches');
+  // the fine mapper: its definition, and the waveform's three colour sites (the tilt LUT, the band palette, the stem palette) — the swatches reach it by reference, under v2
+  assert.equal((html.match(/oklchToRgbFine\(/g) || []).length, 4, 'the fine mapper has the waveform\'s three callers besides its definition; the swatches reach it by reference');
   assert.ok(html.includes("const v2sky = typeof DANCE !== 'undefined' && DANCE.v2;") && html.includes('pyro.gain = v2sky ? pyroStillGain(pyro.gain, still, dt) : 1;'), 'FLAME: the sky\'s gain follows the gate under v2, 1 with the flag off');
   assert.ok(html.includes('const rate = pyroRate({ energy: f.energy, mood, calm }) * lean * still;') && html.includes('const shot = pyroFire(pyro.acc, dt, rate, !!f.onset && (!v2sky || still >= 0.5));'), 'the launches and the onset shell × the gate');
   assert.ok(html.includes('(PYRO_TUNING.smokeRate + f.energy * PYRO_TUNING.smokeGain) * lean * still;'), 'the billows × the gate');
@@ -9821,52 +9886,249 @@ test('licensing: no GPL fractal-renderer identifiers in the web player or the tv
   assert.deepEqual(hits, [], 'GPL renderer identifiers found (see THIRD-PARTY-NOTICES): ' + hits.slice(0, 12).join(', '));
 });
 
+test('a crossfader commit lets the rack\'s loop go without touching its AUTO; a hand on the loop still takes AUTO off', () => {
+  const t0 = html.indexOf('  /* `byCommit`: the loop is being let go by a DECK action'), t1 = html.indexOf('  loopTick(){', t0);
+  assert.ok(t0 > 0 && t1 > t0, 'FX.clearLoop is where the test looks');
+  const c0 = html.indexOf('  _commitHand(inSlot){'), c1 = html.indexOf('  },', c0);
+  assert.ok(c0 > 0 && /FX\.clearLoop\(\{ byCommit: true \}\)/.test(html.slice(c0, c1)), '_commitHand lets the loop go as a deck action');
+  const run = (looperOn, opts) => {
+    const log = [];
+    const LOOPER = { on: looperOn, armed: false, engaged: () => false, handBack(){ log.push('handBack'); }, cancel(){ log.push('cancel'); } };
+    const deck = { a: { currentTime: 10, duration: 200 } };
+    const methods = new Function('LOOPER', 'activeDeck', 'rollReturn', 'return {' + html.slice(t0, t1) + '};')(
+      LOOPER, () => deck, () => 9);
+    const fx = Object.assign({ auto: true, _handT: 0, loop: { start: 8, len: 1, beats: 2, roll: !looperOn },
+      bpm: () => 120, hand(){ this._handT = 6; this.auto = false; } }, methods);
+    fx.clearLoop(opts);
+    return { fx, log, deck };
+  };
+  for (const on of [true, false]){
+    const c = run(on, { byCommit: true });
+    assert.equal(c.fx.loop, null, 'the loop is let go');
+    assert.equal(c.fx.auto, true, 'AUTO survives a commit (looper ' + on + ')');
+    assert.equal(c.fx._handT, 0, 'and no hand is shown on the HUD');
+    if (on) assert.deepEqual(c.log, ['handBack']); else assert.equal(c.deck.a.currentTime, 9, 'a roll still returns to real time');
+    const h = run(on);
+    assert.equal(h.fx.loop, null);
+    assert.equal(h.fx.auto, false, 'a hand on the loop button still takes AUTO off (looper ' + on + ')');
+  }
+});
+
+test('a fold waiting on a booth detail is let go however the job ends — called off before, during or after the fetch, or landed', async () => {
+  const t0 = html.indexOf('  /* A FOLD WAITING ON A JOB IS LET GO'), t1 = html.indexOf('  /* FOLDED TO MONO INTO ONE BUFFER', t0);
+  assert.ok(t0 > 0 && t1 > t0, 'DECKWAVE._build and _buildJob are where the test looks');
+  const abortErr = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
+  const BYTES = { get: (url, o) => new Promise((res, rej) => {
+    if (BYTES.hold){ o.signal.addEventListener('abort', () => rej(abortErr())); return; }
+    res(new ArrayBuffer(8));
+  }) };
+  const win = { OfflineAudioContext: class { decodeAudioData(){ return Promise.resolve({ sampleRate: 16000 }); } } };
+  const methods = new Function('BYTES', 'AE', 'DECKS', 'WAVE_SR', 'WAVE_PLANES', 'performance', 'window', 'return {' + html.slice(t0, t1) + '};')(
+    BYTES, {}, undefined, 16000, [], { now: () => 0 }, win);
+  const mk = () => Object.assign(Object.create(methods), {
+    _det: new Map(), _fade: new Map(), _dropTiles(){}, _trim(){}, key(){ return 'k'; },
+    _fold: async () => new Float32Array(4),
+    _analyse: async () => ({ v: 2, n: 4, hz: 500, dur: 1, mips: [] }),
+    adoptPeaks(tr){ tr._peaks = [1]; tr._peaksPending = false; return true; },
+  });
+  const job = wanted => ({ state: 'pending', ac: new AbortController(), tries: 1, peaksWanted: wanted });
+  // called off before its turn came: _buildJob leaves at its first line
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    await W._build(tr, 'k', j);
+    assert.equal(tr._peaksPending, false, 'forgotten before it ran: the fold may ask again'); }
+  // called off while the fetch was in flight: the abort lands in the catch, which leaves at its top
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    W._det.set('k', j); BYTES.hold = true;
+    const p = W._build(tr, 'k', j);
+    W._det.delete('k'); j.ac.abort();
+    await p; BYTES.hold = false;
+    assert.equal(tr._peaksPending, false, 'aborted mid-fetch: the fold may ask again'); }
+  // called off during the analysis: the post-analysis door
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    W._det.set('k', j); W._analyse = async () => { W._det.delete('k'); return { v: 2, n: 4, hz: 500, dur: 1, mips: [] }; };
+    await W._build(tr, 'k', j);
+    assert.equal(tr._peaksPending, false, 'forgotten during the analysis: the fold may ask again');
+    assert.equal(tr._peaks, undefined, 'and nothing was adopted from a job no longer its own'); }
+  // a landing fills the fold in, and the release leaves it be
+  { const W = mk(), j = job(true), tr = { url: 'u', _peaksPending: true };
+    W._det.set('k', j);
+    await W._build(tr, 'k', j);
+    assert.deepEqual(tr._peaks, [1], 'landed: adopted'); assert.equal(tr._peaksPending, false);
+    assert.equal(W._det.get('k').v, 2, 'the detail is in'); }
+  // a job nobody's fold was waiting on leaves the flag to whoever owns it (a _peaksDecode of its own)
+  { const W = mk(), j = job(false), tr = { url: 'u', _peaksPending: true };
+    await W._build(tr, 'k', j);
+    assert.equal(tr._peaksPending, true, 'not wanted: not ours to let go'); }
+});
+
 await Promise.all(pending);
 // ---------------------------------------------------------------- the detail waveform (the scrolling deck)
 {
   const sr = 16000;
   const tone = (f, sec, amp) => { const x = new Float32Array(Math.round(sr * sec)); for (let i = 0; i < x.length; i++) x[i] = amp * Math.sin(2 * Math.PI * f * i / sr); return x; };
   const cat = (...a) => { const n = a.reduce((s, x) => s + x.length, 0), o = new Float32Array(n); let k = 0; for (const x of a){ o.set(x, k); k += x.length; } return o; };
-  test('wave detail: a kick reads low, a hat reads high, silence reads nothing — at 150 columns a second', () => {
+  const mix = (...a) => { const n = Math.max(...a.map(x => x.length)), o = new Float32Array(n); for (const x of a) for (let i = 0; i < x.length; i++) o[i] += x[i]; return o; };
+  test('wave detail (wave8): eight planes at 500 columns a second, a kick reads low, a hat reads high and bright, silence reads nothing', () => {
+    assert.equal(S.WAVE_V, 2); assert.equal(S.WAVE_HZ, 500); assert.equal(S.WAVE_PLANES.length, 8);
     // one second of 60 Hz (a kick's body), one of silence, one of 6 kHz (a hat's air)
     const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
-    const d = S.waveDetail([x], sr, 150);
-    assert.equal(d.n, 450, '150 columns a second: ' + d.n);
+    const d = S.waveDetail([x], sr);
+    assert.equal(d.v, 2); assert.equal(d.hz, 500);
+    assert.equal(d.n, 1500, '500 columns a second: ' + d.n);
     assert.ok(Math.abs(d.dur - 3) < 1e-9);
-    const at = (t) => { const r = S.waveRange(d, t, t + 0.2); return r; };
+    for (const p of S.WAVE_PLANES) assert.ok(d[p] instanceof Uint8Array && d[p].length === d.n && d[p].buffer === d.buf, p + ' is bytes on the one buffer');
+    assert.equal(d.buf.byteLength, 8 * (d.n + d.mips[0].n + d.mips[1].n), 'one buffer holds every level');
+    const at = (t) => S.waveRange(d, t, t + 0.2);
     const k = at(0.4), q = at(1.4), h = at(2.4);
-    assert.ok(k.lo > 0.8 && k.hi < 0.02 && k.mi < 0.1, 'the kick is in the lows, and only there: ' + JSON.stringify(k));
-    assert.ok(h.hi > 0.8 && h.lo < 0.02 && h.mi < 0.1, 'the hat is in the highs, and only there: ' + JSON.stringify(h));
-    // a song with no highs shows none: the bands share one reference
-    const dull = S.waveDetail([tone(60, 2, 0.8)], sr, 150);
-    assert.ok(S.waveRange(dull, 0.5, 1.5).hi < 0.02, 'no hiss blown up to full scale: hi ' + S.waveRange(dull, 0.5, 1.5).hi);
-    assert.ok(q.pk === 0 && q.lo === 0 && q.hi === 0, 'silence is silence');
+    assert.ok(k.lo > 0.6 && k.loPk > 0.9 && k.hi < 0.02 && k.mi < 0.1, 'the kick is in the lows, and only there: ' + JSON.stringify(k));
+    assert.ok(h.hi > 0.6 && h.hiPk > 0.9 && h.lo < 0.02 && h.mi < 0.1, 'the hat is in the highs, and only there: ' + JSON.stringify(h));
+    assert.ok(k.tilt < 0.1 && h.tilt > 0.9 && q.tilt === 0.5, 'the tilt colours the kick dark and the hat bright, silence sits mid: ' + k.tilt + ' ' + h.tilt);
+    assert.ok(q.pk === 0 && q.lo === 0 && q.hi === 0 && q.loPk === 0, 'silence is silence');
     assert.ok(k.pk > 0.9, 'the loudest thing in the song reads full scale: ' + k.pk);
     assert.ok(h.pk > 0.3 && h.pk < 0.45, 'the peak is linear: a 0.3 hat beside a 0.8 kick reads ' + h.pk.toFixed(2));
+    // a held tone's body fills its height and its cap meets it (the song's own crest is the norm)
+    assert.ok(k.lo > 0.9 && k.loPk > 0.9 && Math.abs(k.lo - k.loPk) < 0.08, 'a sine: body and cap together at full scale: ' + k.lo.toFixed(2) + ' / ' + k.loPk.toFixed(2));
+    // …and a column spikier than the song's norm has its cap clear of its body: where the tone strikes,
+    // the cap is up at once while the body (read over its window) is still filling
+    let si = -1; for (let i = 0; i < d.n; i++) if (d.loPk[i] > 128){ si = i; break; }
+    assert.ok(si >= 0 && si < 8 && d.loPk[si] > d.loRms[si] + 40, 'the strike\'s cap stands clear of its body: ' + d.loPk[si] + ' over ' + d.loRms[si] + ' at column ' + si);
+    // a song with no highs shows none: the bands share one reference
+    const dull = S.waveDetail([tone(60, 2, 0.8)], sr);
+    assert.ok(S.waveRange(dull, 0.5, 1.5).hi < 0.02, 'no hiss blown up to full scale: hi ' + S.waveRange(dull, 0.5, 1.5).hi);
+    // the body is read through a window: a bass note's own cycles do not read as a comb
+    let lo = 0, hi = 255;
+    for (let i = 300; i < 700; i++){ lo = Math.max(lo, dull.loRms[i]); hi = Math.min(hi, dull.loRms[i]); }
+    assert.ok((lo - hi) / lo < 0.12, 'the body of a held 60 Hz note is steady across columns: ' + hi + '..' + lo);
   });
   test('wave detail: stereo is folded to mono, one stray spike does not flatten the song, and nothing is NaN', () => {
     const L = tone(60, 2, 0.5), R = tone(60, 2, 0.5);
     L[1000] = 1; R[1000] = 1;                                // one sample's click
-    const d = S.waveDetail([L, R], sr, 150);
-    assert.ok(S.waveRange(d, 1, 1.5).lo > 0.9, 'the body of the song still reads near full scale under the click');
-    for (const v of ['pk', 'lo', 'mi', 'hi']) assert.ok(d[v] instanceof Uint8Array && d[v].length === d.n, v + ' is bytes');
+    const d = S.waveDetail([L, R], sr);
+    assert.ok(S.waveRange(d, 1, 1.5).lo > 0.9 && S.waveRange(d, 1, 1.5).loPk > 0.9, 'the body of the song still reads near full scale under the click');
     assert.equal(S.waveDetail([new Float32Array(0)], sr), null, 'no samples, no detail');
     assert.equal(S.waveDetail([L], 0), null, 'no rate, no detail');
-    const z = S.waveDetail([new Float32Array(sr)], sr, 150);
-    assert.ok(z.pk.every(v => v === 0) && z.lo.every(v => v === 0), 'a silent song is flat, not NaN');
+    const z = S.waveDetail([new Float32Array(sr)], sr);
+    assert.ok(z.pk.every(v => v === 0) && z.loRms.every(v => v === 0) && z.tilt.every(v => v === 128), 'a silent song is flat, not NaN');
+    // the legacy rate still works: the column count follows hz
+    assert.equal(S.waveDetail([L], sr, 150).n, 300);
   });
-  test('wave detail: the shipped 12 Hz score stands in until the decode lands, in the same shape', () => {
+  test('wave mips: two coarser levels, peaks by max and bodies by mean, and waveRange reads the coarsest level that fits the span', () => {
+    const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
+    const d = S.waveDetail([x], sr);
+    assert.deepEqual(S.WAVE_MIPS, [4, 16]);
+    assert.equal(d.mips.length, 2);
+    assert.equal(d.mips[0].hz, 125); assert.equal(d.mips[0].n, Math.ceil(d.n / 4));
+    assert.equal(d.mips[1].hz, 31.25); assert.equal(d.mips[1].n, Math.ceil(d.n / 16));
+    for (let i = 0; i < d.mips[0].n; i++){
+      let mx = 0, s = 0, c = 0;
+      for (let j = i * 4; j < Math.min(d.n, i * 4 + 4); j++){ mx = Math.max(mx, d.loPk[j]); s += d.loRms[j]; c++; }
+      assert.equal(d.mips[0].loPk[i], mx, 'mip peak is the max at ' + i);
+      assert.ok(Math.abs(d.mips[0].loRms[i] - s / c) <= 1.01, 'mip body is the mean at ' + i + ': ' + d.mips[0].loRms[i] + ' vs ' + (s / c));
+    }
+    assert.equal(S.waveLevel(d, 0.001).hz, 500, 'a span under a column reads the base');
+    assert.equal(S.waveLevel(d, 0.005).hz, 500);
+    assert.equal(S.waveLevel(d, 0.01).hz, 125, 'a 10 ms span reads the ÷4 level');
+    assert.equal(S.waveLevel(d, 0.04).hz, 31.25, 'a 40 ms span reads the ÷16 level');
+    // the pure mip on float planes
+    const lvl = { hz: 4, n: 4, pk: Float32Array.from([0.1, 0.9, 0.2, 0.4]), loPk: Float32Array.from([0.5, 0.7, 0, 0]), miPk: new Float32Array(4), hiPk: new Float32Array(4),
+      loRms: Float32Array.from([0.2, 0.4, 0, 0]), miRms: new Float32Array(4), hiRms: Float32Array.from([0, 0, 1, 1]), tilt: Float32Array.from([0, 0, 1, 1]) };
+    const m = S.waveMip(lvl, 2);
+    assert.equal(m.n, 2); assert.equal(m.hz, 2);
+    assert.ok(Math.abs(m.pk[0] - 0.9) < 1e-6 && Math.abs(m.loPk[0] - 0.7) < 1e-6, 'max');
+    assert.ok(Math.abs(m.loRms[0] - 0.3) < 1e-6, 'mean');
+    assert.ok(m.tilt[0] === 0 && m.tilt[1] === 1, 'the tilt is body-weighted');
+    // the whole-signal read at a wide span is the same kick the base holds
+    assert.ok(S.waveRange(d, 0, 1).loPk > 0.9 && S.waveRange(d, 2, 3).hiPk > 0.9);
+    // and a span shorter than a column reads between the columns, not a step: the
+    // centre of a column is that column, halfway to the next is halfway between
+    const c0 = d.loRms[200] / 255, c1 = d.loRms[201] / 255;
+    assert.ok(Math.abs(S.waveRange(d, 0.4009, 0.4011).lo - c0) < 1e-9, 'the centre of column 200 reads column 200');
+    assert.ok(Math.abs(S.waveRange(d, 0.4019, 0.4021).lo - (c0 + c1) / 2) < 1e-9, 'halfway to 201 reads the midpoint');
+    assert.ok(Math.abs(S.waveRangeAt(d, 0.401, {}).loPk - d.loPk[200] / 255) < 1e-9);
+  });
+  test('wave detail: the shipped 12 Hz score stands in until the decode lands, in the same names (v: 1), read between its steps', () => {
     const env = { hz: 12, b: '9900', m: '0990', t: '0009' };
     const d = S.waveFromEnv(env);
-    assert.equal(d.n, 4); assert.equal(d.hz, 12); assert.ok(d.coarse);
+    assert.equal(d.v, 1); assert.equal(d.n, 4); assert.equal(d.hz, 12); assert.ok(d.coarse);
+    for (const p of S.WAVE_PLANES) assert.ok(d[p] instanceof Uint8Array && d[p].length === 4, p + ' is there');
+    assert.equal(d.loPk, d.loRms, 'a score knows no peak from a body');
     assert.equal(d.lo[0], 255); assert.equal(d.hi[3], 255); assert.equal(d.mi[0], 0);
     assert.equal(S.waveFromEnv(null), null); assert.equal(S.waveFromEnv({ hz: 12, b: '', m: '', t: '' }), null);
     const r = S.waveRange(d, 0.1, 0.12);
-    assert.ok(r.lo === 1 && r.hi === 0, 'a column narrower than the detail reads the one it falls in');
-    assert.deepEqual(S.waveRange(d, 5, 6), { pk: 0, lo: 0, mi: 0, hi: 0 }, 'past the end is silence');
-    assert.deepEqual(S.waveRange(null, 0, 1), { pk: 0, lo: 0, mi: 0, hi: 0 });
+    assert.ok(r.lo === 1 && r.mi > 0.5 && r.mi < 1 && r.hi === 0, 'a span narrower than a step reads between the steps: ' + JSON.stringify(r));
+    assert.ok(S.waveRange(d, 0.0, 0.01).lo === 1 && S.waveRange(d, 0.3, 0.31).hi === 1, 'the ends hold their own step');
+    const past = S.waveRange(d, 5, 6);
+    assert.ok(past.pk === 0 && past.lo === 0 && past.hi === 0 && past.loPk === 0, 'past the end is silence');
+    assert.equal(S.waveRange(null, 0, 1).pk, 0);
+    const wide = S.waveRange(d, 0, 0.34);
+    assert.ok(wide.loPk === 1 && wide.hiPk === 1 && wide.lo === 0.5 && wide.hi === 0.25, 'a wide span holds the loudest cap of each band and the mean of its body: ' + JSON.stringify(wide));
   });
-  test('wave grid: beats from the anchor, bar lines every fourth, phrase lines every eight bars, bar numbers from 1', () => {
+  test('wave fold: a landed detail folds into the overview\'s shape (peaksFromEnv\'s), so a decoded song is never decoded again', () => {
+    const x = cat(tone(60, 1, 0.8), new Float32Array(sr), tone(6000, 1, 0.3));
+    const d = S.waveDetail([x], sr);
+    const f = S.waveFoldPeaks(d, 480), g = S.peaksFromEnv({ hz: 12, b: '9900', m: '0990', t: '0009' }, 480);
+    assert.deepEqual(Object.keys(f), Object.keys(g)); assert.deepEqual(Object.keys(f.bands), Object.keys(g.bands)); assert.deepEqual(Object.keys(f.bmax), Object.keys(g.bmax));
+    assert.ok(f.pk instanceof Float32Array && f.pk.length === 480 && f.bands.l.length === 480);
+    assert.equal(Math.max(...f.pk), 1, 'peaks to 1.0');
+    assert.ok(f.bands.l[60] > 0.5 && f.bands.l[400] < 0.02 && f.bands.h[400] > 0.5 && f.bands.h[60] < 0.02, 'the kick folds into the first third, the hat into the last');
+    assert.ok(f.bmax.l > 0.5 && f.bmax.h > 0.5 && f.bmax.m > 0 && f.bmax.m < 0.1, 'the maxima alongside');
+    assert.equal(S.waveFoldPeaks(S.waveFromEnv({ hz: 12, b: '99', m: '00', t: '00' }), 8), null, 'a score is not a detail: the score\'s own fold stands');
+    assert.equal(S.waveFoldPeaks(null, 8), null);
+    assert.equal(S.waveFoldPeaks(d, 1).pk.length, 8, 'never fewer than eight columns');
+  });
+  test('wave onsets: a hit — a band peak clear of its body and rising — is flagged; a steady tone is not', () => {
+    const pk = new Float32Array(20).fill(0.8), rms = new Float32Array(20).fill(0.57);   // a sine: crest √2, under the bar
+    assert.equal([...S.waveOnsets(pk, rms, 20)].slice(1).join(''), '0'.repeat(19), 'a held tone is no onset');
+    const pk2 = Float32Array.from([0.1, 0.1, 0.1, 0.9, 0.8, 0.6, 0.4, 0.3]), rms2 = Float32Array.from([0.08, 0.08, 0.08, 0.3, 0.4, 0.4, 0.3, 0.25]);
+    assert.equal([...S.waveOnsets(pk2, rms2, 8)].join(''), '00010000', 'the hit is flagged where it strikes, not on its decay');
+    const quiet = Float32Array.from([0, 0.02, 0.04]), qr = new Float32Array(3);
+    assert.equal([...S.waveOnsets(quiet, qr, 3)].join(''), '000', 'noise under the floor is nothing');
+    const out = new Uint8Array(8);
+    assert.equal(S.waveOnsets(pk2, rms2, 8, out), out, 'a caller\'s buffer is used');
+    // and a real kick in the detail: the lows' peak jumps clear of their body at the strike
+    const d = S.waveDetail([cat(new Float32Array(sr / 2), tone(60, 0.5, 0.8))], sr);
+    const p = new Float32Array(d.n), b = new Float32Array(d.n);
+    for (let i = 0; i < d.n; i++){ p[i] = d.loPk[i] / 255; b[i] = d.loRms[i] / 255; }
+    const f = S.waveOnsets(p, b, d.n);
+    let first = -1; for (let i = 0; i < d.n; i++) if (f[i]){ first = i; break; }
+    assert.ok(first >= 248 && first <= 256, 'the strike is flagged at the half-second: column ' + first);
+  });
+  test('wave colour: three OKLCH band colours hung off the key, a tilt LUT in gamut with lightness climbing lows → highs, hues within the key\'s arc', () => {
+    const toLin = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    // OKLab lightness read back from sRGB (the inverse of the engine's matrices), to check the ladder survived the gamut
+    const okL = rgb => { const [r, g, b] = rgb.map(toLin); const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b), s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b); return 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s; };
+    const arc = (a, b) => { const d = Math.abs(((a - b) % 360 + 540) % 360 - 180); return d; };
+    for (const key of ['1A', '2B', '3A', '4B', '5A', '6B', '7A', '8B', '9A', '10B', '11A', '12B', null]){
+      const hue = key ? S.camelotHue(key) : null;
+      const cols = S.waveBandColours(hue);
+      const h0 = hue == null ? 200 : hue;
+      assert.ok(cols.lo.l < cols.mi.l && cols.mi.l < cols.hi.l && cols.lo.c > cols.mi.c && cols.mi.c > cols.hi.c, 'the lightness ladder climbs lows → highs as the chroma falls: ' + JSON.stringify(cols));
+      assert.ok(Math.abs(cols.mi.l - 0.72) < 1e-9 && Math.abs(cols.mi.c - 0.13) < 1e-9, 'the body is the deck\'s accent (keyRGB\'s L .72 C .13)');
+      assert.ok(arc(cols.lo.h, h0 - 50) < 1e-6 && arc(cols.mi.h, h0) < 1e-6 && arc(cols.hi.h, h0 + 40) < 1e-6, 'the hues hang off the key: ' + JSON.stringify(cols));
+      const lut = S.waveTiltLUT(cols, 33);
+      assert.ok(lut instanceof Uint8ClampedArray && lut.length === 99, 'an Int array of 33 triples');
+      let prev = -1;
+      for (let i = 0; i < 33; i++){
+        const rgb = [lut[i * 3] / 255, lut[i * 3 + 1] / 255, lut[i * 3 + 2] / 255];
+        for (const v of rgb) assert.ok(v >= 0 && v <= 1, 'in gamut');
+        const c = S.waveTiltAt(cols, i / 32);
+        assert.ok(arc(c.h, h0) <= 50 + 1e-6, 'hue within the key\'s ±50° arc at ' + i + ': ' + c.h + ' vs ' + h0);
+        assert.ok(Math.abs(okL(rgb) - c.l) < 0.02, 'the asked lightness survives the gamut map at ' + i + ' (' + key + '): ' + okL(rgb).toFixed(3) + ' vs ' + c.l.toFixed(3));
+        const Y = S.relLuma(rgb.map(toLin));
+        assert.ok(Y >= prev - 1e-6, 'lightness monotone lo → hi at ' + i + ' (' + key + ')');
+        prev = Y;
+      }
+      // the LUT's ends and middle are the band colours themselves
+      const mi = S.oklchToRgbFine(cols.mi.l, cols.mi.c, cols.mi.h).map(v => Math.round(v * 255));
+      assert.deepEqual([lut[48], lut[49], lut[50]], mi, 'the middle of the LUT is the body colour (the deck\'s accent)');
+    }
+    assert.equal(S.waveBandColours(null).mi.h, 200, 'no key: the fallback hue');
+    assert.equal(S.waveBandColours(370).mi.h, 10, 'hues wrap');
+    assert.equal(S.waveTiltLUT(S.waveBandColours(40), 0).length, 99, 'a bad size is the default');
+    // the stem palette lives in the same space now, and still reads as it did
+    assert.ok(S.STEM_PAL.d[0] > S.STEM_PAL.d[2] && S.STEM_PAL.v[2] > S.STEM_PAL.v[0] && S.STEM_PAL.b[0] > S.STEM_PAL.b[2], 'drums red-forward, vocals blue-forward, bass warm');
+  });
+  test('wave grid: beats from the anchor, bar lines every fourth, phrase lines every eight bars, bar numbers from 1, dressed by the downbeat\'s confidence', () => {
     const g = S.waveGrid(120, 2, 1, 20);           // a beat every half second from 2 s
     assert.equal(g[0].t, 1, 'it reaches back before the anchor, from the first beat in range');
     const a = g.find(x => x.t === 2);
@@ -9881,15 +10143,56 @@ await Promise.all(pending);
     assert.equal(S.waveBeatPos(120, 2, 2.75), 1.5);
     assert.equal(S.waveBeatPos(120, 2, 1.5), 3, 'before the anchor wraps into the bar before');
     assert.equal(S.waveBeatPos(0, 2, 3), null);
+    const sure = S.waveGridStyle(1, 40), unsure = S.waveGridStyle(0, 40), half = S.waveGridStyle(null, 40);
+    assert.ok(sure.bar > half.bar && half.bar > unsure.bar && unsure.bar > 0.1, 'a bar nobody is sure of is faint, never absent');
+    assert.ok(sure.tick > unsure.tick);
+    assert.equal(S.waveGridStyle(0.5, 24).numEvery, 1, 'a 24 px bar is numbered every bar');
+    assert.equal(S.waveGridStyle(0.5, 23).numEvery, 4, '…narrower, every fourth');
+    assert.equal(S.waveGridStyle(0.5, 8).numbers, false, 'and a bar too narrow to read is not numbered');
   });
-  test('wave worker: the module is the tested arithmetic and answers a job with the detail, transferred', () => {
+  test('wave deck time: under a tape loop the needle shows the loop\'s audible position; a roll and a free deck keep the deck\'s own time', () => {
+    const L = { on: true, mode: 'loop', start: 20, len: 0.5, handAt: 10, deckRate: 1 };
+    assert.ok(Math.abs(S.waveDeckTime(99, L, 11.3) - 20.3) < 1e-9, '1.3 s after the handover: 0.3 into the loop');
+    assert.ok(Math.abs(S.waveDeckTime(99, Object.assign({}, L, { deckRate: 1.03 }), 11.3) - (20 + (0.3 * 1.03) % 0.5)) < 1e-9, 'at the tape\'s rate: the phase scaled by the rate the tape was cut at');
+    assert.ok(Math.abs(S.waveDeckTime(99, L, 9) - 20) < 1e-9, 'before the handover is audible: the in-point');
+    assert.equal(S.waveDeckTime(99, Object.assign({}, L, { mode: 'roll' }), 11.3), 99, 'a roll runs on underneath');
+    assert.equal(S.waveDeckTime(99, Object.assign({}, L, { on: false }), 11.3), 99, 'no loop, the deck');
+    assert.equal(S.waveDeckTime(99, null, 11.3), 99);
+    assert.equal(S.waveDeckTime(99, Object.assign({}, L, { len: 0 }), 11.3), 99);
+    assert.equal(S.waveDeckTime(99, L, NaN), 99);
+  });
+  test('wave rate step: tiles are painted at the deck\'s own rate in 0.4 % steps, exactly 1 at rest, so a blit is never off 1:1 by more than a fifth of a percent', () => {
+    assert.equal(S.waveRateStep(1), 1); assert.equal(S.waveRateStep(1.001), 1); assert.equal(S.waveRateStep(0), 1); assert.equal(S.waveRateStep(NaN), 1);
+    for (const r of [0.5, 0.75, 0.97, 1.03, 1.25, 1.5, 2]) assert.ok(Math.abs(S.waveRateStep(r) / r - 1) <= 0.002 + 1e-9, 'within a fifth of a percent at ' + r + ': ' + S.waveRateStep(r));
+    let last = 0, steps = new Set();
+    for (let r = 1.0; r <= 1.06; r += 0.0005){ const q = S.waveRateStep(r); assert.ok(q >= last, 'monotone'); last = q; steps.add(q); }
+    assert.ok(steps.size >= 12 && steps.size <= 18, 'a 6 % glide repaints a dozen-odd times, not every frame: ' + steps.size);
+    assert.equal(S.waveClock(192.7), '3:12'); assert.equal(S.waveClock(-3), '0:00'); assert.equal(S.waveClock(NaN), '0:00');
+  });
+  test('wave worker: the module is the tested arithmetic and answers a job with the detail, in one transferred buffer', () => {
     const src = S.waveWorkerSource();
-    assert.ok(src.includes('function waveDetail(') && src.includes('function waveQuant('));
+    for (const f of ['waveDetail', 'waveMip', 'wavePack', 'waveTrailMean', 'waveTrailMax', 'waveTilt', 'waveNorm']) assert.ok(src.includes('function ' + f + '('), f + ' is in the worker');
+    assert.ok(src.includes('WAVE_PLANES = ["pk","loPk","miPk","hiPk","loRms","miRms","hiRms","tilt"]') && src.includes('WAVE_MIPS = [4,16]'));
     let posted = null;
     const scope = {};
-    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 7, chans: [tone(60, 1, 0.5)], sr, hz: 150 } });
-    assert.ok(posted && posted.m.id === 7 && posted.m.det.n === 150, 'the job comes back with its id');
-    assert.equal(posted.tr.length, 4, 'the four voices are transferred, not copied');
+    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 7, chans: [tone(60, 1, 0.5)], sr, hz: 500 } });
+    assert.ok(posted && posted.m.id === 7 && posted.m.det.n === 500 && posted.m.det.v === 2, 'the job comes back with its id');
+    assert.equal(posted.tr.length, 1, 'the whole detail is ONE buffer, transferred, not copied');
+    assert.equal(posted.tr[0], posted.m.det.buf);
+    assert.equal(posted.m.det.mips.length, 2);
+    // a broken job answers with nothing, not a throw
+    new Function('postMessage', 'self', src + '\nreturn onmessage;')((m, tr) => { posted = { m, tr }; }, scope)({ data: { id: 8 } });
+    assert.ok(posted.m.id === 8 && posted.m.det === null && posted.tr.length === 0);
+  });
+  test('wave trail: the body window and the peak hold are trailing — the onset edge stays put, only the decay lengthens', () => {
+    const v = Float32Array.from([0, 0, 1, 1, 1, 0, 0, 0]);
+    const m = S.waveTrailMean(Float32Array.from(v), 2);
+    assert.deepEqual([...m].map(x => +x.toFixed(2)), [0, 0, 0.5, 1, 1, 0.5, 0, 0], 'a 2-column mean');
+    assert.equal(m[1], 0, 'nothing before the edge');
+    const h = S.waveTrailMax(Float32Array.from([0, 1, 0, 0, 0, 0.5, 0]), 3);
+    assert.deepEqual([...h], [0, 1, 1, 1, 0, 0.5, 0.5], 'held for the window after the strike, never before it');
+    assert.deepEqual([...S.waveTrailMean(Float32Array.from([1, 2]), 1)], [1, 2], 'a window of one is the voice itself');
+    assert.equal(S.waveTilt(1, 0, 0), 0); assert.equal(S.waveTilt(0, 1, 0), 0.5); assert.equal(S.waveTilt(0, 0, 1), 1); assert.equal(S.waveTilt(0, 0, 0), 0.5);
   });
 }
 
@@ -10171,6 +10474,231 @@ await Promise.all(pending);
     p.process([], [out]);
     assert.ok(out[0].every(v => v === 0), 'ejected: silence');
   });
+  test('deck processor: a torn-down chain says bye, and the processor lets its rings go and stops running', () => {
+    const src = S.vinylWorkletSource();
+    const reg = {};
+    class AWP { constructor(){ this.port = { postMessage(){}, onmessage: null }; } }
+    new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src)(AWP, (n, c) => { reg[n] = c; }, sr, 0);
+    const p = new reg['mb8-vinyl']({ processorOptions: { seconds: 1 } });
+    const inL = new Float32Array(128).fill(0.25), out = [new Float32Array(128), new Float32Array(128)];
+    assert.equal(p.process([[inL, inL]], [out]), true, 'seated: it passes the deck through and stays alive');
+    p.port.onmessage({ data: { op: 'engage', gen: 1 } });   // an ordinary command still reaches vinylCommand
+    assert.ok(p.S && p.S.engaged, 'still holding its rings, and still listening');
+    p.port.onmessage({ data: { op: 'bye' } });
+    assert.equal(p.S, null, 'bye: the rings are let go');
+    assert.equal(p.process([[inL, inL]], [out]), false, 'bye: process answers false, so the node can be collected');
+    p.port.onmessage({ data: { op: 'engage' } });       // a late message after bye is not a crash
+    assert.equal(p.process([[inL, inL]], [out]), false);
+  });
+  /* ---- W3: two hands, the read above speed, the tone of speed, the brake's
+     friction, the throw, the feel, the scripts and their cuts, the slip on the
+     beat, the landing ---- */
+  // the energy of a windowed block above a frequency, by a plain DFT over the bins that matter (a test, not a hot path)
+  const bandEnergy = (x, from, n, sr, fLo) => {
+    let e = 0;
+    const k0 = Math.ceil(fLo / sr * n);
+    for (let k = k0; k < n / 2; k++){
+      let re = 0, im = 0;
+      for (let i = 0; i < n; i++){
+        const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n), v = x[from + i] * w, ph = 2 * Math.PI * k * i / n;
+        re += v * Math.cos(ph); im -= v * Math.sin(ph);
+      }
+      e += re * re + im * im;
+    }
+    return e;
+  };
+  // the tape run with the context's clock in hand (now = the block's first frame, in seconds)
+  const runT = (V, inL, blk, at) => {
+    const n = inL.length, outL = new Float32Array(n), outR = new Float32Array(n);
+    for (let i = 0; i < n; i += blk){
+      if (at) at(i, V.S, i / sr);
+      const m = Math.min(blk, n - i), oL = new Float32Array(m), oR = new Float32Array(m);
+      S.vinylProcess(V.S, inL.subarray(i, i + m), null, oL, oR, m, i / sr);
+      outL.set(oL, i); outR.set(oR, i);
+    }
+    return { outL, outR };
+  };
+  test('vinyl: the read above speed is widened — a 15 kHz tone read at 4× folds 20 dB quieter than the plain read', () => {
+    const x = new Float32Array(sr * 3);
+    for (let i = 0; i < x.length; i++) x[i] = Math.sin(2 * Math.PI * 15000 * i / sr);
+    const sweep = air => {
+      const V = { S: S.makeVinyl(sr, 4) }; V.S.air = air;
+      const { outL } = runT(V, x, 128, (i, st) => {
+        if (i === 96000) S.vinylCommand(st, { op: 'engage' });
+        if (i === 96128) S.vinylCommand(st, { op: 'hand', v: -4 });   // backwards through two seconds of tape at four times speed
+      });
+      return outL;
+    };
+    const plain = sweep(0), widened = sweep(1);
+    // the tone folds to 12 kHz in the output: everything above 6 kHz is what should not be there
+    const eP = bandEnergy(plain, 100000, 2048, sr, 6000), eW = bandEnergy(widened, 100000, 2048, sr, 6000);
+    const dB = 10 * Math.log10(eW / eP);
+    assert.ok(eP > 1e-3, 'the plain read folds the tone into the band: ' + eP.toExponential(2));
+    assert.ok(dB <= -20, 'the widened read takes it down by ' + (-dB).toFixed(1) + ' dB');
+    assert.equal(S.PLATTER.air, 1, 'the table carries the switch, so the module does');
+  });
+  test('vinyl: the tone follows the speed — open at speed, darker on the slow side, darker still past it', () => {
+    assert.equal(S.vinylToneK(1, sr), 1); assert.equal(S.vinylToneK(0.99, sr), 1); assert.equal(S.vinylToneK(1.01, sr), 1);
+    const k = ar => S.vinylToneK(ar, sr);
+    assert.ok(k(0.1) < k(0.3) && k(0.3) < k(0.6) && k(0.6) < k(0.9) && k(0.9) < 1, 'the slow side darkens with the speed');
+    assert.ok(Math.abs(k(0.5) - (1 - Math.exp(-2 * Math.PI * (400 + 0.5 * 20000) / sr))) < 1e-12, 'the legacy brake\'s law: 400 Hz plus 20 kHz per unit of speed');
+    assert.ok(k(8) < k(4) && k(4) < k(2) && k(2) < 1, 'the fast side follows the folding top end down');
+  });
+  test('platter: a brake is friction — the rate falls down a straight line to the crawl, then dies; a shorter brake is a steeper line', () => {
+    const P = S.makePlatter(); P.mode = 'brake';
+    const at = {};
+    let t = 0;
+    while (P.mode !== 'stopped' && t < 5){ S.platterStep(P, 1 / 400, null); t += 1 / 400; const k = Math.round(t * 400); if (k === 120 || k === 240 || k === 360) at[k] = P.rate; }
+    assert.ok(Math.abs((at[120] - at[240]) - (at[240] - at[360])) < 1e-6, 'the same loss every 0.3 s: ' + (at[120] - at[240]).toFixed(4) + ' vs ' + (at[240] - at[360]).toFixed(4));
+    assert.ok(Math.abs((at[120] - at[240]) - 0.3 / S.PLATTER.brakeSec) < 1e-6, 'the line is brakeSec long from 1×');
+    assert.ok(t > 1.1 && t < 1.7, 'stopped in ' + t.toFixed(2) + ' s — the line, then the crawl');
+    const Q = S.makePlatter(); S.vinylCommand({ platter: Q, engaged: true, written: 100, pos: 50 }, { op: 'brake', sec: 0.6 });
+    for (let i = 0; i < 120; i++) S.platterStep(Q, 1 / 400, null);
+    assert.ok(Math.abs(Q.rate - 0.5) < 1e-6, 'a 0.6 s brake is at half speed after 0.3 s: ' + Q.rate.toFixed(4));
+  });
+  test('vinyl: a throw keeps the hand\'s speed — backwards is a backspin the hand sized, forwards runs down to the motor', () => {
+    const St = S.makeVinyl(sr, 1); S.vinylCommand(St, { op: 'engage' });
+    S.vinylCommand(St, { op: 'throw', v: -3 });
+    assert.equal(St.platter.mode, 'backspin'); assert.equal(St.platter.rate, -3);
+    S.vinylCommand(St, { op: 'throw', v: 2.5 });
+    assert.equal(St.platter.mode, 'throw'); assert.equal(St.platter.rate, 2.5);
+    let t = 0, above = 0;
+    while (St.platter.mode !== 'motor' && t < 5){ S.platterStep(St.platter, 1 / 200, null); t += 1 / 200; if (St.platter.rate > 1.2) above += 1 / 200; }
+    assert.ok(above > 0.15 && t < 2.5 && Math.abs(St.platter.rate - 1) < 0.03, 'ran fast for ' + above.toFixed(2) + ' s and the motor had it by ' + t.toFixed(2) + ' s');
+    S.vinylCommand(St, { op: 'throw', v: 40 });
+    assert.equal(St.platter.rate, S.PLATTER.maxRate, 'a wild throw is clamped');
+    S.vinylCommand(St, { op: 'throw', v: 0 });
+    assert.equal(St.platter.rate, S.PLATTER.maxRate, 'a throw of nothing changes nothing');
+  });
+  test('vinyl: the feel is the hand\'s — a finger\'s spring is tighter than a mouse\'s, and the table\'s stands in', () => {
+    const St = S.makeVinyl(sr, 1);
+    S.vinylCommand(St, { op: 'feel', lead: 0.010, tau: 0.005 });
+    assert.equal(St.handLead, 0.010); assert.equal(St.handTau, 0.005);
+    S.vinylCommand(St, { op: 'feel', lead: 0.0001, tau: 99 });
+    assert.equal(St.handLead, 0.004); assert.equal(St.handTau, 0.05, 'clamped to a spring that can exist');
+    S.vinylCommand(St, { op: 'feel' });
+    assert.equal(St.handLead, 0); assert.equal(St.handTau, 0, 'no feel: the table\'s');
+    const tight = S.makePlatter(), loose = S.makePlatter();
+    for (let i = 0; i < 4; i++){ S.platterStep(tight, 1 / 400, -1, 0.005); S.platterStep(loose, 1 / 400, -1, 0.012); }
+    assert.ok(tight.rate < loose.rate, 'after 10 ms the tight spring is nearer the hand: ' + tight.rate.toFixed(3) + ' vs ' + loose.rate.toFixed(3));
+    const H = { pos: 0, hand: null, handTo: 480, handLead: 0.010 };
+    S.platterHandFollow(H, sr);
+    assert.ok(Math.abs(H.hand - 1) < 1e-9, 'a place 10 ms ahead over a 10 ms lead is the motor speed');
+  });
+  test('vinyl: a script lands its steps where the preset says, within a millisecond, on the clock it was given', () => {
+    const x = ramp(sr * 3);
+    const V = { S: S.makeVinyl(sr, 4) };
+    const p = S.vinylPresetSteps('baby', 0.5);     // 120 bpm: quarter-beat strokes of 90 ms of music, twice
+    const marks = {};
+    let from = null;
+    runT(V, x, 128, (i, st, now) => {
+      if (i === 48000) S.vinylCommand(st, { op: 'engage' });
+      if (i === 48128) S.vinylCommand(st, { op: 'script', steps: p.steps, loops: p.loops, at: 1.5 });
+      if (from == null && st.script && st.script.on) from = st.handFrom;
+      for (const t of [1.625, 1.75, 1.875, 2.0]) if (marks[t] == null && now >= t) marks[t] = { pos: st.pos, script: !!st.script, done: st.scriptDone | 0, hand: st.hand };
+    });
+    assert.ok(from != null, 'the script took the record at its time');
+    const ms = v => (v / sr * 1000).toFixed(2) + ' ms';
+    assert.ok(Math.abs(marks[1.625].pos - (from - 0.09 * sr)) < 0.001 * sr, 'the back stroke lands 90 ms behind: ' + ms(marks[1.625].pos - from));
+    assert.ok(Math.abs(marks[1.75].pos - from) < 0.001 * sr, 'the forward stroke lands home: ' + ms(marks[1.75].pos - from));
+    assert.ok(Math.abs(marks[1.875].pos - (from - 0.09 * sr)) < 0.001 * sr, 'the second loop too: ' + ms(marks[1.875].pos - from));
+    assert.ok(!marks[2.0].script && marks[2.0].done === 1 && marks[2.0].hand == null, 'two loops later the script is done and the hand has lifted');
+    // the controls: no steps is a stop, `finish` lets the loop in hand complete, a late `at` starts now, loops are bounded
+    const W = S.makeVinyl(sr, 1); S.vinylCommand(W, { op: 'engage' });
+    S.vinylCommand(W, { op: 'script', steps: p.steps, loops: 999, min: 2, at: -1 });
+    assert.equal(W.script.loops, 64, 'bounded');
+    S.vinylProcess(W, new Float32Array(128), null, new Float32Array(128), new Float32Array(128), 128, 7);
+    assert.ok(W.script.on && W.script.t0 === 7, 'no `at`: it starts on the block it lands in');
+    S.vinylCommand(W, { op: 'script', finish: true });
+    assert.equal(W.script.loops, 2, 'finish: the natural count, since nothing has looped yet');
+    S.vinylCommand(W, { op: 'script' });
+    assert.equal(W.script, null); assert.equal(W.scriptDone, 1);
+    const Z = S.makeVinyl(sr, 1);
+    S.vinylCommand(Z, { op: 'script', steps: p.steps });
+    assert.equal(Z.script, null, 'a platter not engaged runs no script');
+  });
+  test('vinyl: the fader\'s cut inside the processor is a 1 ms ramp — no step over 0.02, silence inside the chop, open outside it', () => {
+    const x = new Float32Array(sr); x.fill(0.5);
+    const V = { S: S.makeVinyl(sr, 2) };
+    const steps = [{ dx: 0, dur: 0.05, cut: 1 }, { dx: 0, dur: 0.05, cut: 0 }, { dx: 0, dur: 0.1, cut: [[0.25, 0.5]] }];
+    const { outL } = runT(V, x, 128, (i, st) => {
+      if (i === 9600) S.vinylCommand(st, { op: 'engage' });
+      if (i === 9728) S.vinylCommand(st, { op: 'script', steps, loops: 1, at: 0.25 });
+    });
+    let worst = 0;
+    for (let i = 10000; i < 24000; i++){ const d = Math.abs(outL[i] - outL[i - 1]); if (d > worst) worst = d; }
+    assert.ok(worst <= 0.02, 'worst step ' + worst.toFixed(4));
+    const at = t => outL[Math.round(t * sr)];
+    assert.ok(Math.abs(at(0.24)) > 0.49, 'open before the script: ' + at(0.24).toFixed(3));
+    assert.ok(Math.abs(at(0.28)) < 1e-3, 'shut through the first step: ' + at(0.28).toFixed(4));
+    assert.ok(Math.abs(at(0.33)) > 0.49, 'open through the second: ' + at(0.33).toFixed(3));
+    assert.ok(Math.abs(at(0.36)) > 0.49 && Math.abs(at(0.39)) < 1e-3 && Math.abs(at(0.44)) > 0.49, 'shut for the second quarter of the third, open either side');
+    assert.ok(Math.abs(at(0.48)) > 0.49, 'and open once the script is done');
+    assert.equal(S.vinylCutSpec(null), 0); assert.equal(S.vinylCutSpec(true), 1); assert.equal(S.vinylCutSpec([[0.1, 0.2]]).length, 2);
+    assert.equal(S.vinylCutSpec([[0, 1], 'x', [0.5]]).length, 2, 'a pair that is not a pair is dropped');
+    assert.equal(S.vinylCutSpec(Array.from({ length: 12 }, (_, i) => [i / 12, (i + 0.5) / 12])).length, 16, 'at most eight pairs');
+  });
+  test('vinyl: a slip can wait for the beat — scheduled on the clock, the head goes home in the block that reaches it, and lets go there when asked', () => {
+    const x = ramp(sr * 2);
+    const V = { S: S.makeVinyl(sr, 4) };
+    const seen = {};
+    runT(V, x, 128, (i, st, now) => {
+      if (i === 24064) S.vinylCommand(st, { op: 'engage' });
+      if (i === 24192) S.vinylCommand(st, { op: 'hand', v: 0 });                 // held still: the lag grows
+      if (i === 48000) S.vinylCommand(st, { op: 'snap', at: 1.25, release: true });
+      for (const t of [1.2, 1.26, 1.3]) if (seen[t] == null && now >= t) seen[t] = { lag: (st.written - st.pos) / sr, engaged: st.engaged, gain: st.gain };
+    });
+    assert.ok(seen[1.2].lag > 0.6 && seen[1.2].engaged, 'before the line the head is still far back: ' + seen[1.2].lag.toFixed(3) + ' s');
+    assert.ok(seen[1.26].lag < 0.01 && !seen[1.26].engaged, 'on the line it is home, and the room is let go of: lag ' + seen[1.26].lag.toFixed(4));
+    assert.ok(seen[1.3].gain === 0, 'and faded out by now');
+    const W = S.makeVinyl(sr, 1); S.vinylCommand(W, { op: 'engage' }); S.vinylCommand(W, { op: 'hand', v: 0 });
+    for (let k = 0; k < 40; k++) S.vinylProcess(W, new Float32Array(128), null, new Float32Array(128), new Float32Array(128), 128, k * 128 / sr);
+    S.vinylCommand(W, { op: 'snap', at: 0 });
+    assert.ok(W.written - W.pos < 4 && W.engaged, 'no time given: now, and still engaged');
+  });
+  test('vinyl: taking a platter still fading out crosses out of it — no step at a quick second press', () => {
+    const x = ramp(sr * 2);
+    const V = { S: S.makeVinyl(sr, 4) };
+    const { outL } = runT(V, x, 128, (i, st) => {
+      if (i === 24064) S.vinylCommand(st, { op: 'engage' });
+      if (i === 24192) S.vinylCommand(st, { op: 'hand', v: 0 });      // held still: the head falls behind
+      if (i === 25088) S.vinylCommand(st, { op: 'release' });
+      if (i === 25216) S.vinylCommand(st, { op: 'engage' });          // 2.7 ms later, mid-fade
+    });
+    let worst = 0;
+    for (let i = 25100; i < 26000; i++){ const d = Math.abs(outL[i] - outL[i - 1]); if (d > worst) worst = d; }
+    assert.ok(worst < 6, 'worst step across the second press ' + worst.toFixed(2) + ' on a ramp of 1 per sample');
+  });
+  test('vinyl: the presets are the strokes written down, and a let-go record lands on the grid when asked', () => {
+    const p = S.vinylPresetSteps('baby', 0.5);
+    assert.equal(p.loops, 2); assert.deepEqual(p.steps.map(s => s.dur), [0.125, 0.125]); assert.deepEqual(p.steps.map(s => s.dx), [-0.09, 0.09]);
+    assert.equal(S.vinylPresetSteps('nothing', 0.5), null);
+    for (const k of ['baby', 'chirp', 'transform', 'stab', 'flare', 'crab']){
+      const st = S.VINYL_PRESETS[k].steps;
+      assert.ok(st.length && st[0].dx < 0, k + ' pulls back first: the tape holds only the past');
+      assert.ok(Math.abs(st.reduce((a, s) => a + s.dx, 0)) < 1e-9, k + ' ends where it began');
+    }
+    assert.ok(S.vinylPresetSteps('stab', 0).steps[0].dur > 0, 'no tempo: a default beat');
+    assert.ok(Math.abs(S.vinylLanding(10.3, 'beat', 0.1, 120, 300) - 10.1) < 1e-9, 'the nearest beat line');
+    assert.ok(Math.abs(S.vinylLanding(10.4, 'beat', 0.1, 120, 300) - 10.6) < 1e-9);
+    assert.ok(Math.abs(S.vinylLanding(10.3, 'bar', 0.1, 120, 300) - 10.1) < 1e-9, 'the nearest bar line');
+    assert.equal(S.vinylLanding(10.3, 'off', 0.1, 120, 300), 10.3);
+    assert.equal(S.vinylLanding(10.3, 'beat', 0.1, 0, 300), 10.3, 'no tempo: where it is');
+    assert.equal(S.vinylLanding(299.9, 'beat', 0.1, 120, 300), 299.75, 'never off the end');
+    assert.ok(Math.abs(S.vinylNextLine(10.3, 'beat', 0.1, 120) - 10.6) < 1e-9);
+    assert.ok(Math.abs(S.vinylNextLine(10.6, 'beat', 0.1, 120) - 10.6) < 1e-9, 'a line is its own next line');
+    assert.ok(Math.abs(S.vinylNextLine(10.3, 'bar', 0.1, 120) - 12.1) < 1e-9);
+    assert.equal(S.vinylNextLine(10.3, 'beat', NaN, 120), 10.3);
+  });
+  test('song tape: a phone that reports little memory is pressed at 24 kHz, and the module carries what the hands read', () => {
+    assert.equal(S.vinylSongRate(180, S.VINYL_SONG_LOW_SR), 24000);
+    assert.equal(S.VINYL_SONG_LOW_SR, 24000);
+    assert.equal(S.vinylSongRate(180), 32000, 'no cap: the full rate');
+    assert.equal(S.vinylSongRate(180, 99000), 32000, 'a cap above the ceiling is the ceiling');
+    const src = S.vinylWorkletSource();
+    for (const f of ['function vinylReadAir(', 'function vinylToneK(', 'function vinylScriptStep(', 'function vinylScriptBlock(', 'function vinylSnap(', 'gen: S.gen | 0', 'done: this.done'])
+      assert.ok(src.includes(f), 'the module carries ' + f);
+  });
 }
 
 // ---------------------------------------------------------------- syn: the conductor reads ahead
@@ -10268,6 +10796,1159 @@ await Promise.all(pending);
     for (const v of [a, c, d, S.synDealSeed(null, 0), S.synDealSeed('', 99)]) assert.ok(v >= 0 && v < 1);
   });
 }
+
+// ---- mid-track stability: liveness, the buffer under the playhead, the paced warm, the two-stage warm ----
+test('watchdogStep: a tight loop with the clock ticking is never reloaded (liveness from timeupdate)', () => {
+  /* a 1/8-beat pad at 128 BPM is a 59 ms loop: every 1 Hz position sample
+     lands inside the 40 ms "moved" window, the file is fully buffered so
+     nothing grows, and seven such looks used to earn the pad a reload */
+  const s = wdState();
+  const v = wdRun(s, Array.from({ length: 40 }, (_, k) => ({ t: 50 + (k % 2) * 0.03, buf: 200, rs: 4, moved: true })));
+  assert.ok(v.every(x => x === 'ok'), 'ticking timeupdates are motion: ' + v.join(','));
+  // and the same frames WITHOUT the override still read as frozen — the delta path is the fallback
+  const s2 = wdState();
+  const w = wdRun(s2, Array.from({ length: 8 }, (_, k) => ({ t: 50 + (k % 2) * 0.03, buf: 200, rs: 4 })));
+  assert.equal(w[7], 'reload', 'the delta-only path is unchanged for callers that do not count ticks');
+});
+test('watchdogStep: a false "moved" cannot hide a starved stream, a true one cannot be overridden by the delta', () => {
+  const s = wdState();
+  wdRun(s, [{ t: 91, buf: 91, rs: 4 }]);
+  const v = wdRun(s, Array.from({ length: S.STARVE_RELOAD_S }, () => ({ t: 91, buf: 91, rs: 2, moved: false })));
+  assert.equal(v[v.length - 1], 'reseek');
+  const s2 = wdState();
+  wdRun(s2, [{ t: 10, buf: 30, rs: 4 }]);
+  assert.equal(wdRun(s2, [{ t: 10, buf: 30, rs: 4, moved: true }])[0], 'ok');
+});
+test('bufferedEndAt: the range under the playhead, not the last island', () => {
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 10), 30);
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 120), 140);
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 60), 0, 'in a hole: nothing ahead of the playhead yet');
+  assert.equal(S.bufferedEndAt([[0, 30], [100, 140]], 30.01), 30, 'the edge is within tolerance');
+  assert.equal(S.bufferedEndAt([], 5), 0);
+  assert.equal(S.bufferedEndAt(null, 5), 0);
+});
+test('bufferedEndAt + watchdogStep: a scrub into a hole on a slow pipe is a filling buffer, never a reload', () => {
+  /* ranges [[0,30],[100,140]], the listener scrubbed to 60: the browser fills
+     a NEW range around the playhead while the old tail sits at 140. Read by
+     the last range the buffer "never grew" and twelve seconds later a healthy
+     download was reloaded; read under the playhead it is plainly growing. */
+  const frames = [[[0, 30], [100, 140]]];
+  // the ranged request starts at the seek point, so the new island grows from the playhead outward
+  for (let k = 1; k <= 14; k++) frames.push([[0, 30], [59.9, 59.9 + k * 1.5], [100, 140]]);
+  const s = wdState(), old = wdState();
+  wdRun(s, [{ t: 59.9, buf: 30, rs: 4 }]); wdRun(old, [{ t: 59.9, buf: 30, rs: 4 }]);
+  const v = frames.map(r => S.watchdogStep(s, { t: 60, buf: S.bufferedEndAt(r, 60), rs: 2, played: true, online: true }));
+  const w = frames.map(r => S.watchdogStep(old, { t: 60, buf: r[r.length - 1][1], rs: 2, played: true, online: true }));
+  assert.ok(v.slice(1).every(x => x === 'ok'), 'growth under the playhead is a slow pipe: ' + v.join(','));
+  assert.ok(w.includes('reseek'), 'the last-range read is what used to heal a healthy stream: ' + w.join(','));
+});
+test('prefetchMayRun: the warm takes the pipe only when the deck can spare it', () => {
+  assert.equal(S.prefetchMayRun({ bufAhead: 30, readyState: 3, left: 120 }), true, 'ahead enough');
+  assert.equal(S.prefetchMayRun({ bufAhead: 8, readyState: 3, left: 120 }), false, 'the deck needs the pipe more');
+  assert.equal(S.prefetchMayRun({ bufAhead: 8, readyState: 4, left: 120 }), true, 'the browser promises play-through');
+  assert.equal(S.prefetchMayRun({ bufAhead: 8, readyState: 3, left: 8.2 }), true, 'the rest of the song is in hand');
+  assert.equal(S.prefetchMayRun({ bufAhead: 30, readyState: 4, left: 120, waiting: true }), false, 'a waiting element holds the warm outright');
+  assert.equal(S.prefetchMayRun({ bufAhead: 22, readyState: 3, left: 120, need: 25 }), false, 'between chunks the bar is higher');
+  assert.equal(S.prefetchMayRun({ bufAhead: 22, readyState: 3, left: 120, need: 20 }), true, 'at the start it is PREFETCH_AHEAD_S');
+  assert.equal(S.PREFETCH_AHEAD_S, 20);
+  assert.equal(S.prefetchMayRun({}), false, 'nothing known about the deck: hold');
+});
+test('seamWarmDue: deck B takes the pipe once A is done with it, or when the exit is in reach', () => {
+  assert.equal(S.seamWarmDue({ aDone: true, exitIn: 85, seconds: 16 }), true, 'A fully buffered: warm now');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 85, seconds: 16 }), false, 'A still filling, exit far: headers only');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 19, seconds: 4 }), true, 'inside the floor');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 25, seconds: 16 }), true, 'a long seam needs its length plus ten');
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: 27, seconds: 16 }), false);
+  assert.equal(S.seamWarmDue({ aDone: false, exitIn: NaN }), false);
+  assert.equal(S.seamWarmDue(null), false);
+  assert.equal(S.SEAM_WARM_S, 20);
+});
+
+// ---- the crossfader's law (@xfader): the gain curves, the two maps, the arbiter, SYNC's rate, the idle stop ----
+test('xfaderGains power: constant acoustic power at every handle position, full at the ends', () => {
+  for (let i = 0; i <= 40; i++){
+    const x = i / 40, [a, b] = S.xfaderGains(x, 'power');
+    assert.ok(Math.abs(a * a + b * b - 1) < 1e-9, `a²+b²==1 at x=${x}`);
+    assert.ok(a >= 0 && b >= 0);
+  }
+  assert.deepEqual(S.xfaderGains(0, 'power'), [1, 0]);
+  assert.ok(S.xfaderGains(1, 'power')[0] < 1e-9 && Math.abs(S.xfaderGains(1, 'power')[1] - 1) < 1e-9);
+  assert.deepEqual(S.xfaderGains(-3, 'power'), S.xfaderGains(0, 'power'), 'clamps below');
+  assert.deepEqual(S.xfaderGains(7, 'power'), S.xfaderGains(1, 'power'), 'clamps above');
+  assert.deepEqual(S.xfaderGains(0.3), S.xfaderGains(0.3, 'power'), 'power is the default law');
+});
+test('xfaderGains cut: full to the edge, nothing past the far edge, continuous, mirrored', () => {
+  const e = S.XFADER_CUT_EDGE;
+  assert.equal(e, 0.03);
+  for (const x of [0, 0.01, 0.02, 0.03]) assert.equal(S.xfaderGains(x, 'cut')[0], 1, 'A full at ' + x);
+  for (const x of [0.97, 0.98, 0.99, 1]) assert.equal(S.xfaderGains(x, 'cut')[0], 0, 'A gone at ' + x);
+  for (const x of [0, 0.03]) assert.equal(S.xfaderGains(x, 'cut')[1], 0);
+  for (const x of [0.97, 1]) assert.equal(S.xfaderGains(x, 'cut')[1], 1);
+  let prev = S.xfaderGains(0, 'cut'), maxStep = 0;
+  for (let i = 1; i <= 1000; i++){
+    const g = S.xfaderGains(i / 1000, 'cut');
+    maxStep = Math.max(maxStep, Math.abs(g[0] - prev[0]), Math.abs(g[1] - prev[1]));
+    assert.ok(g[0] <= prev[0] + 1e-12 && g[1] >= prev[1] - 1e-12, 'monotone');
+    prev = g;
+  }
+  assert.ok(maxStep < 0.004, 'a cut is never a click: max step ' + maxStep);
+  for (let i = 0; i <= 20; i++){
+    const x = i / 20, g = S.xfaderGains(x, 'cut'), m = S.xfaderGains(1 - x, 'cut');
+    assert.ok(Math.abs(g[0] - m[1]) < 1e-12 && Math.abs(g[1] - m[0]) < 1e-12, 'mirrored at ' + x);
+  }
+  const mid = S.xfaderGains(0.5, 'cut');
+  assert.ok(Math.abs(mid[0] - mid[1]) < 1e-12 && Math.abs(mid[0] * mid[0] + mid[1] * mid[1] - 1) < 1e-9, 'equal power through the middle');
+});
+test('xfaderPosFromGains inverts the power law; xfaderPosFromSeam maps both slots and is its own inverse', () => {
+  for (let i = 0; i <= 20; i++){
+    const x = i / 20, [a, b] = S.xfaderGains(x, 'power');
+    assert.ok(Math.abs(S.xfaderPosFromGains(a, b) - x) < 1e-9, 'round trip at ' + x);
+  }
+  assert.equal(S.xfaderPosFromGains(0, 0), 0, 'silence reads as A');
+  assert.equal(S.xfaderPosFromGains(0.5, 0), 0); assert.equal(S.xfaderPosFromGains(0, 0.2), 1);
+  for (const f of [0, 0.25, 0.5, 1]){
+    assert.equal(S.xfaderPosFromSeam(f, 0), f, 'A leaving: the handle walks A→B');
+    assert.equal(S.xfaderPosFromSeam(f, 1), 1 - f, 'B leaving: the handle walks B→A');
+    assert.equal(S.xfaderPosFromSeam(S.xfaderPosFromSeam(f, 1), 1), f, 'an involution');
+  }
+  assert.equal(S.xfaderPosFromSeam(2, 0), 1); assert.equal(S.xfaderPosFromSeam(-1, 1), 1);
+});
+test('xfaderArbiter: commit at the far end, abort a yielded seam at the near end, hold mid-way, none under a hand', () => {
+  const st = o => Object.assign({ phase: 'idle', hand: false, x: 0, outSlot: 0, inSlot: 1 }, o);
+  assert.deepEqual(S.xfaderArbiter(st({ x: 1 })), { act: 'commit', slot: 1 });
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.98 })), { act: 'commit', slot: 1 }, 'within the park tolerance');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0, outSlot: 1, inSlot: 0 })), { act: 'commit', slot: 0 }, 'B on air: the far end is A');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.5 })), { act: 'hold', slot: -1 }, 'mid-way: the DJ is mid-mix');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.96 })), { act: 'hold', slot: -1 }, 'just short of the end is still a hold');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.01 })), { act: 'none', slot: 0 }, 'back at the on-air end with nothing to undo');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 0.02 })), { act: 'abort', slot: 0 }, 'a yielded seam pulled home is undone');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 1 })), { act: 'commit', slot: 1 }, 'a yielded seam pushed across commits');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 0.5 })), { act: 'hold', slot: -1 });
+  assert.deepEqual(S.xfaderArbiter(st({ hand: true, x: 1 })), { act: 'none', slot: -1 }, 'a hand still holding decides nothing');
+  assert.deepEqual(S.xfaderArbiter(st({ hand: true, x: 0.4, aEnded: true })), { act: 'commit', slot: 1 }, 'the outgoing record ended: the incoming takes the air, hand or no hand');
+  assert.deepEqual(S.xfaderArbiter(st({ phase: 'manual', x: 0.6, bEnded: true })), { act: 'abort', slot: 0 }, 'the incoming ended under a yielded seam: undone');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.6, bEnded: true })), { act: 'none', slot: 0 }, '…and with no seam there is nothing to commit');
+  assert.deepEqual(S.xfaderArbiter(st({ x: 0.9, parkAt: 0.12 })), { act: 'commit', slot: 1 }, 'the park tolerance is the caller\'s');
+  assert.equal(S.xfaderArbiter(null).act, 'none');
+  assert.equal(S.XFADER_PARK, 0.03);
+});
+test('syncRateFor folds the tempo ratio: half-time is 1×, a near tempo is the plain ratio', () => {
+  assert.ok(Math.abs(S.syncRateFor(124, 62) - 1) < 1e-9, '62 under 124 is half-time');
+  assert.ok(Math.abs(S.syncRateFor(62, 124) - 1) < 1e-9);
+  assert.ok(Math.abs(S.syncRateFor(128, 126) - 128 / 126) < 1e-9);
+  assert.ok(Math.abs(S.syncRateFor(126, 128) - 126 / 128) < 1e-9);
+  assert.ok(Math.abs(S.syncRateFor(100, 70) - 100 / 140) < 1e-9, '70 under 100 is half of 140');
+  assert.equal(S.syncRateFor(0, 120), 1); assert.equal(S.syncRateFor(120, NaN), 1);
+  assert.ok(Math.abs(S.syncRateFor(124, 126) - S.glideRates(124, 126, 0).rateB) < 1e-9, 'the rate a seam starts B on');
+});
+test('faderIdleStop: twenty silent seconds off air, no hand, no cue held — and not a second sooner', () => {
+  const base = { gain: 0, silentFor: 20, onAir: false, hand: false, cueHeld: false };
+  assert.equal(S.FADER_IDLE_S, 20);
+  assert.equal(S.faderIdleStop(base), true);
+  assert.equal(S.faderIdleStop({ ...base, silentFor: 19.9 }), false);
+  assert.equal(S.faderIdleStop({ ...base, gain: 0.02 }), false, 'audible, however faintly');
+  assert.equal(S.faderIdleStop({ ...base, gain: 0.009 }), true);
+  assert.equal(S.faderIdleStop({ ...base, onAir: true }), false, 'the record on air is never stopped by this');
+  assert.equal(S.faderIdleStop({ ...base, hand: true }), false, 'a hand on the handle holds it');
+  assert.equal(S.faderIdleStop({ ...base, cueHeld: true }), false, 'a cue held is a hand on the deck');
+  assert.equal(S.faderIdleStop({ ...base, silentFor: 2, after: 1.5 }), true, 'a test\'s shorter clock');
+  assert.equal(S.faderIdleStop(null), false);
+});
+test('xfaderHeld: home is the on-air end, whichever slot — the far end is the DJ\'s, not the auto-DJ\'s', () => {
+  assert.equal(S.XFADER_HOME, 0.02);
+  assert.equal(S.xfaderHeld(false, 0, 0), false, 'A on air, the handle at A: home');
+  assert.equal(S.xfaderHeld(false, 1, 1), false, 'B on air, the handle at B: home');
+  assert.equal(S.xfaderHeld(false, 0.015, 0), false, 'inside the home tolerance');
+  assert.equal(S.xfaderHeld(false, 0.985, 1), false);
+  assert.equal(S.xfaderHeld(false, 0.5, 0), true, 'parked mid-way');
+  assert.equal(S.xfaderHeld(false, 1, 0), true, 'R4: left at the IDLE end — the record on air is silenced, the auto-DJ must not arm');
+  assert.equal(S.xfaderHeld(false, 0, 1), true, '…and mirrored with B on air');
+  assert.equal(S.xfaderHeld(false, 0.99, 0), true, 'the old mid-rail test let 0.98–1 through as home');
+  assert.equal(S.xfaderHeld(true, 0, 0), true, 'a hand on it is held wherever it is');
+  assert.equal(S.xfaderHeld(false, NaN, 1), false, 'an unknown position reads as home');
+  assert.equal(S.xfaderHeld(false, 7, 1), false, 'clamped');
+});
+test('xfaderAutoTo: AUTO goes home unless a rolling record waits at the nearer far end', () => {
+  const st = o => Object.assign({ manual: false, x: 0, active: 0, farRolling: true }, o);
+  assert.equal(S.xfaderAutoTo(st({ x: 0.3 })), 0, 'nearer home: home');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.7 })), 1, 'nearer the rolling far record: it commits');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.5 })), 0, 'the middle is home\'s');
+  assert.equal(S.xfaderAutoTo(st({ x: 1, farRolling: false })), 0, 'R11: at the far end with nothing rolling there, AUTO brings the record on air back');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.8, farRolling: false })), 0);
+  assert.equal(S.xfaderAutoTo(st({ x: 0.9, manual: true })), 0, 'a yielded seam always glides to the record on air');
+  assert.equal(S.xfaderAutoTo(st({ x: 0.2, active: 1 })), 0, 'B on air: the far end is A');
+  assert.equal(S.xfaderAutoTo(st({ x: 0, active: 1, farRolling: false })), 1, '…and home is B');
+  assert.equal(S.xfaderAutoTo(null), 0);
+});
+test('xfaderCancelMode: a parked hand blend survives the mixer stepping aside; a skip keeps the faders; the rest come home', () => {
+  for (const r of ['off', 'replan', 'mixset', 'repeat']) assert.equal(S.xfaderCancelMode('manual', r, true), 'hand', 'R6: ' + r + ' hands the blend over');
+  assert.equal(S.xfaderCancelMode('manual', 'off', false), 'home', 'an outgoing record that is not rolling has nothing to hand over');
+  assert.equal(S.xfaderCancelMode('manual', 'manual', true), 'stay', 'R30: a track change out of a held blend leaves the faders where the hand had them');
+  assert.equal(S.xfaderCancelMode('manual', 'manual', false), 'stay');
+  for (const r of ['stopped', 'abort', 'direct', 'route', 'now', 'hand', undefined]) assert.equal(S.xfaderCancelMode('manual', r, true), 'home', String(r) + ' tears the seam down');
+  for (const ph of ['running', 'armed', 'idle']) assert.equal(S.xfaderCancelMode(ph, 'off', true), 'home', ph + ' is the mixer\'s own, never the hand\'s');
+  assert.equal(S.xfaderCancelMode('running', 'manual', true), 'home');
+  assert.ok(S.XFADER_STEP_ASIDE.includes('replan') && !S.XFADER_STEP_ASIDE.includes('manual'));
+});
+
+test('xfaderDoubleTap: two still presses in one place recentre — a stroke, a far press or the cut curve never do', () => {
+  const tap = { dtMs: 200, x: 0.50, lastX: 0.52, moved: false, curve: 'power' };
+  assert.equal(S.xfaderDoubleTap(tap), true);
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: S.XF_DBL_MS }), false, 'the window is open at its edge');
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: S.XF_DBL_MS - 1 }), true);
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: -5 }), false, 'a clock that went backwards is no tap');
+  assert.equal(S.xfaderDoubleTap({ ...tap, curve: 'cut' }), false, 'under CUT a fast pair of strokes is a transform, never a recentre');
+  assert.equal(S.xfaderDoubleTap({ ...tap, x: 0.02, lastX: 0.98 }), false, 'tapping the two ends is a cut, not a double tap');
+  assert.equal(S.xfaderDoubleTap({ ...tap, x: 0.5, lastX: 0.5 + S.XF_DBL_REACH }), false, 'the reach is exclusive');
+  assert.equal(S.xfaderDoubleTap({ ...tap, moved: true }), false, 'a first press that travelled was a stroke');
+  assert.equal(S.xfaderDoubleTap({ ...tap, lastX: -1 }), false, 'no first press yet (the sentinel is far off the band)');
+  assert.equal(S.xfaderDoubleTap({ ...tap, dtMs: NaN }), false);
+  assert.equal(S.xfaderDoubleTap(), false);
+  // the fader's own chirp: alternate presses at the two ends, 150 ms apart, under CUT and under power — no recentre anywhere
+  for (const curve of ['cut', 'power']){
+    let last = -1e9, lastX = -1;
+    for (let i = 0; i < 8; i++){
+      const now = i * 150, x = i % 2 ? 0.99 : 0.01;
+      assert.equal(S.xfaderDoubleTap({ dtMs: now - last, x, lastX, moved: false, curve }), false, curve + ' stroke ' + i);
+      last = now; lastX = x;
+    }
+  }
+  // …and a tapped transform in one spot under CUT: still never a recentre
+  for (let i = 1; i < 6; i++) assert.equal(S.xfaderDoubleTap({ dtMs: 120, x: 0.98, lastX: 0.98, moved: false, curve: 'cut' }), false);
+});
+
+test('boothFaderKey: [ ] { } \\ by the character typed, through AltGr and Option — never through Cmd or a bare Ctrl', () => {
+  assert.deepEqual(S.boothFaderKey('['), { what: 'nudge', arg: -0.05, repeats: true });
+  assert.deepEqual(S.boothFaderKey(']', {}), { what: 'nudge', arg: 0.05, repeats: true });
+  assert.deepEqual(S.boothFaderKey('{', { shift: true }), { what: 'cut', arg: 0, repeats: false });
+  assert.deepEqual(S.boothFaderKey('}'), { what: 'cut', arg: 1, repeats: false });
+  assert.equal(S.boothFaderKey('\\').what, 'centre');
+  assert.equal(S.boothFaderKey('\\').repeats, false);
+  // a German layout: AltGr+8 is Ctrl+Alt on Windows, Option+5 is Alt on a Mac — both still the booth's
+  assert.equal(S.boothFaderKey('[', { ctrl: true, alt: true }).what, 'nudge');
+  assert.equal(S.boothFaderKey('[', { alt: true }).what, 'nudge');
+  assert.equal(S.boothFaderKey('\\', { ctrl: true, alt: true }).what, 'centre');
+  // the system's own chords stay the system's
+  assert.equal(S.boothFaderKey('[', { meta: true }), null, 'Cmd+[ is the browser\'s back');
+  assert.equal(S.boothFaderKey('[', { meta: true, alt: true }), null);
+  assert.equal(S.boothFaderKey('[', { ctrl: true }), null, 'a bare Ctrl is a shortcut, not AltGr');
+  for (const k of ['a', ' ', 'Escape', '(', '8', '', undefined]) assert.equal(S.boothFaderKey(k), null, String(k));
+});
+
+test('the booth wiring: held cues let go with the booth and the window, booth buttons keep their own Space, the rack and the platter hold off the ghost, SCRATCH pads take the keyboard', () => {
+  const src = (a, b) => { const i = html.indexOf(a); assert.ok(i >= 0, 'anchor: ' + a); return html.slice(i, html.indexOf(b, i)); };
+  // R15: a cue held as the booth closes or the window blurs is let go; the lift is not gated on the booth being open
+  assert.ok(/releaseCues\(\)\{[\s\S]{0,120}for \(const c of tr\.cue\) c\.up\(\)/.test(html), 'BOOTH.releaseCues lifts every cue');
+  assert.ok(src("el.booth.classList.add('closing');", 'this._closeT').includes('this.releaseCues();'), 'the close lets go of a held cue');
+  assert.ok(html.includes("window.addEventListener('blur', () => BOOTH.releaseCues());"), 'and so does the window losing focus');
+  const ku = src("window.addEventListener('keyup', ev => {\n  if (!BOOTH._tr) return;", '\n});');
+  assert.ok(!ku.includes('BOOTH.open ||'), 'the Z / V lift is read with the booth closed too');
+  // R16: the CUE button stops its Space / Enter; the window leaves focused booth buttons their own keys
+  const cw = src('const cueWire = (b, slot) => {', 'return { down, up };');
+  assert.ok(cw.includes("b.addEventListener('keydown', ev => { if (ev.key === ' ' || ev.key === 'Enter'){ ev.preventDefault(); ev.stopPropagation(); if (!ev.repeat) down(); } });"), 'CUE keydown stops the press, repeats included');
+  assert.ok(cw.includes("b.addEventListener('blur', up);"), 'CUE lets go when focus leaves it');
+  const kd = src("/* keyboard */\nwindow.addEventListener('keydown', ev => {", 'switch (k){');
+  assert.ok(kd.includes("ev.target.closest('#booth button') && ev.target !== boothFocus.byPointer) return;"), 'Space on a keyboard-focused booth button is never the room\'s play / pause');
+  // R16 (follow-up): a booth button the mouse left focused hands Space back to the room. Not :focus-visible: Blink flips it on the keydown itself
+  assert.ok(!kd.includes(':focus-visible'), 'the guard does not ask :focus-visible, which every keydown makes true');
+  const bf = src('const boothFocus = { pressed: null, byPointer: null };', '/* keyboard */');
+  assert.ok(bf.includes("document.addEventListener('pointerdown', ev => {") && bf.includes('boothFocus.pressed = b;'), 'a pointer press marks the booth button it lands on');
+  assert.ok(bf.includes('if (b && document.activeElement === b) boothFocus.byPointer = b;'), 'pressing the already-focused button hands it to the pointer');
+  assert.ok(bf.includes('boothFocus.byPointer = (ev.target && ev.target === boothFocus.pressed) ? ev.target : null;'), 'only the focus a press brought is the pointer\'s; a Tab clears it');
+  assert.ok(bf.includes("document.addEventListener('keydown', () => { boothFocus.pressed = null; }, true);"), 'a key clears a press that brought no focus (Safari)');
+  // R35: the fader keys are read before the modifier filter
+  const fkAt = kd.indexOf('boothFaderKey(ev.key'), modAt = kd.indexOf('if (ev.metaKey || ev.ctrlKey || ev.altKey) return;');
+  assert.ok(fkAt > 0 && modAt > fkAt, 'the fader keys come before the modifier filter');
+  // R17: the band asks xfaderDoubleTap, and a travelled press is a stroke
+  const wx = src('function wireXfader(){', "xf.addEventListener('pointerup', up);");
+  assert.ok(wx.includes('xfaderDoubleTap({ dtMs: now - lastDown, x: x0, lastX, moved: lastMoved, curve: DECKS.fader.curve })'), 'the band asks the pure rule');
+  assert.ok(wx.includes('lastMoved = true'), 'a press that travels is marked a stroke');
+  // R33: every booth hand holds the ghost off for the whole wake
+  assert.ok(html.includes("idle: Math.min(INTERACT._idleT, this._age, typeof DECKS !== 'undefined' ? DECKS.handIdle() : 999),"), 'the ghost reads the booth\'s stillness');
+  assert.ok(/hand\(\)\{ this\._handT = 6; this\.auto = false; DECKS\.hand\(\); \}/.test(html), 'FX.hand is a hand in the booth');
+  assert.equal((html.match(/this\._handAt = now; DECKS\.hand\(\);/g) || []).length, 2, 'both platter moves (disc and lane) stamp the hand');
+  // R34: the SCRATCH pads take Space / Enter, and a screen reader's bare click plays a preset once
+  const sb = src("} else if (this.bank === 'scratch'){", '  paint(){');
+  assert.equal((sb.match(/padKeys\(b, down, up\)/g) || []).length, 2, 'CUT and every preset take the keyboard');
+  assert.ok(sb.includes('h.script(key, { hold: false })') && sb.includes('ev.detail !== 0 || kAt()'), 'a bare click (AT activation) plays the pattern once, a key\'s own click never twice');
+});
+
+test('i18n: the VINYL and SCRATCH bank tooltips are keys in every pack', () => {
+  const S1 = "Scratch — baby, chirp, transform, stab, flare, crab: the strokes, on the beat; CUT holds the fader's cut curve, FINE halves the hand";
+  const V1 = 'Vinyl — scratch the platter, brake, backspin, reverse; slip or hold; QUANT lands a let-go record on the beat';
+  assert.ok(html.includes('title="' + S1 + '"') && html.includes('title="' + V1 + '"'), 'the tooltips are still these words');
+  const dir = join(root, 'docs/lang');
+  const packs = readdirSync(dir).filter(f => f.endsWith('.json'));
+  assert.equal(packs.length, 31);
+  for (const f of packs){
+    const j = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    for (const k of [S1, V1]) assert.ok(typeof j[k] === 'string' && j[k].length > 20 && j[k] !== k, f + ': ' + k.slice(0, 12));
+  }
+});
+test('planMixNow startB: a hand-cued incoming enters from its cue, snapped to its own beat', () => {
+  const mk = key => ({ bpm: 124, grid: 1.0, mixable: 0.9, key, in: { start: 32.0, beats: 32 }, out: { start: 200, beats: 32 } });
+  const A = mk('8A'), B = mk('9A'), spb = 60 / 124;
+  const plain = S.planMixNow(A, B, 33.33, { durA: 240 });
+  assert.equal(plain.startB, 32, 'no cue: the mix-in start');
+  const cued = S.planMixNow(A, B, 33.33, { durA: 240, startB: 1.0 + 17 * spb + 0.1 });
+  assert.ok(Math.abs(cued.startB - (1.0 + 17 * spb)) < 1e-3, 'the cue, on its nearest beat line: ' + cued.startB);
+  assert.equal(S.planMixNow(A, B, 33.33, { durA: 240, startB: NaN }).startB, 32, 'an unusable cue falls back');
+  assert.equal(S.planMixNow(A, B, 33.33, { durA: 240, startB: -5 }).startB, 0, 'never before the top of the file');
+});
+
+// ---- PACING: let the rooms develop and change with the music (W6) ----
+// The pure governor every automatic room change answers to, the dwell in
+// phrases, the drop/major/minor page classifier, the rate-limited stem cut,
+// the phrase-aware surge, transitions in bars, the mid-dwell develop plan —
+// and the tvOS twins, read out of the Swift source so both stages pace alike.
+test('paceGate: a minimum gap in bars by act, floored in seconds — no two changes one cut apart', () => {
+  const g = S.paceGate({ since: 1, act: 2, barLen: 1.9 });
+  assert.equal(g.ok, false, 'one second after a change is too soon, even at the apex');
+  assert.ok(Math.abs(g.gap - 6) < 1e-9, 'two bars at 126 BPM (3.8 s) is under the 6-s floor: the floor holds');
+  assert.ok(Math.abs(g.wait - 5) < 1e-9, 'and the caller is told how long');
+  assert.equal(S.paceGate({ since: 6.1, act: 2, barLen: 1.9 }).ok, true);
+  const calm = S.paceGate({ since: 10, act: 0, barLen: 1.9 });
+  assert.equal(calm.ok, false); assert.ok(Math.abs(calm.gap - 15.2) < 1e-9, 'the overture holds a whole phrase (8 bars)');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 1, barLen: 1.9 }).gap - 7.6) < 1e-9, 'rising: half a phrase');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 3, barLen: 1.9 }).gap - 7.6) < 1e-9, 'the turn: half a phrase');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 4, barLen: 1.9 }).gap - 15.2) < 1e-9, 'the resolve: a phrase');
+  assert.equal(S.paceGate({ since: 3, act: 0, barLen: 1.9, kind: 'seam' }).ok, true, 'the mixer\'s seam IS the boundary: only the hard floor');
+  assert.equal(S.paceGate({ since: 2.9, act: 0, barLen: 1.9, kind: 'seam' }).ok, false, '…but the floor is a floor');
+  const drop = S.paceGate({ since: 4, act: 0, barLen: 1.9, kind: 'drop' });
+  assert.equal(drop.ok, true); assert.ok(Math.abs(drop.gap - 3.8) < 1e-9, 'a classified drop may come after two bars, whatever the act');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 2, barLen: 1.0, kind: 'drop' }).gap - 3) < 1e-9, 'never inside the hard floor');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 1, barLen: 1.9, kind: 'idle' }).gap - 60) < 1e-9, 'the idle gallery waits a minute');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 2, barLen: 1.9, reduced: true }).gap - 9) < 1e-9, 'reduced motion widens every gap by half');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: 'seam', reduced: true }).gap - 3) < 1e-9, '…except the seam');
+  assert.equal(S.paceGate({ act: 2, barLen: 1.9 }).ok, true, 'no clock at all (the first room) passes');
+  assert.ok(Math.abs(S.paceGate({ since: 0, barLen: 0 }).gap - 8) < 1e-9, 'no act, no grid: act 1 at a two-second bar');
+  assert.ok(Math.abs(S.paceGate({ since: 0, act: 9, barLen: 2 }).gap - 16) < 1e-9, 'an act past the arc reads as the last');
+  assert.deepEqual(S.PACE.minGapBars, [8, 4, 2, 4, 8]);
+  assert.equal(S.PACE.minGapSec, 6); assert.equal(S.PACE.hardFloorSec, 3); assert.equal(S.PACE.idleDwell, 90);
+});
+test('roomDwell: 24–64 s by energy, floored at 14, half as long again under reduced motion', () => {
+  assert.deepEqual(S.ROOM_DWELL, { min: 24, max: 64, floor: 14 });
+  assert.ok(Math.abs(S.roomDwell({ mood: 'drive', energy: 0.7 }) - 36) < 1e-9, '64 − 40 × 0.7 = 36 s');
+  assert.ok(Math.abs(S.roomDwell({ mood: 'drive', energy: 0.7, reduced: true }) - 54) < 1e-9, '× 1.5 reduced');
+  assert.ok(Math.abs(S.roomDwell({ mood: 'apex', energy: 1, ceil: 1 }) - Math.max(14, 24 * 0.8)) < 1e-9, 'apex at full energy: 19.2 s, above the floor');
+  assert.equal(S.MOODS.adrift.dwell, 1.5); assert.equal(S.MOODS.ascend.dwell, 0.95); assert.equal(S.MOODS.drive.dwell, 1.0);
+  assert.equal(S.MOODS.apex.dwell, 0.8); assert.equal(S.MOODS.swarm.dwell, 0.9); assert.equal(S.MOODS.dissolve.dwell, 1.6);
+  const a0 = html.indexOf('const ACTS = ['), acts = html.slice(a0, html.indexOf('];', a0));
+  const dwell = [...acts.matchAll(/\bdwell: (\d+\.\d+)/g)].map(m => +m[1]);
+  assert.deepEqual(dwell, [1.6, 1.0, 0.8, 0.95, 1.7], 'ACTS.dwell: the edges linger, the apex presses but never collapses');
+  assert.ok(!/\b(minDwell|maxDwell): \d/.test(html), 'the dead director fields are gone (SEAM_SCENE.minDwellGapless is another thing)');
+});
+test('roomDwellBars: a dwell is a whole number of phrases, never fewer than two', () => {
+  const bar = 60 / 126 * 4, phrase = 8 * bar;
+  const apex = S.roomDwellBars({ mood: 'apex', energy: 0.7, ceil: 1, actDwell: 0.8, barLen: bar });
+  assert.ok(Math.abs(apex - 2 * phrase) < 1e-9, `the apex at 126 BPM: 36 × 0.8 × 0.8 ≈ 23 s rounds up to two phrases (${(2 * phrase).toFixed(1)} s)`);
+  const rising = S.roomDwellBars({ mood: 'drive', energy: 0.7, ceil: 1, actDwell: 1.0, barLen: bar });
+  assert.ok(Math.abs(rising - 2 * phrase) < 1e-9, 'rising at e 0.7: 36 s → two phrases');
+  const overture = S.roomDwellBars({ mood: 'adrift', energy: 0.25, ceil: 0.4, actDwell: 1.6, barLen: bar });
+  assert.ok(overture >= 8 * phrase, 'an overture adrift is left alone for many phrases: ' + overture.toFixed(1));
+  for (const o of [apex, rising, overture]) assert.ok(Math.abs(o / phrase - Math.round(o / phrase)) < 1e-9, 'whole phrases');
+  assert.ok(Math.abs(S.roomDwellBars({ mood: 'apex', energy: 1, ceil: 1, actDwell: 0.8 }) - 32) < 1e-9, 'no grid: two 16-s phrases is the floor');
+  assert.ok(S.roomDwellBars({ mood: 'drive', energy: 0.5, barLen: bar, reduced: true }) > S.roomDwellBars({ mood: 'drive', energy: 0.5, barLen: bar }), 'reduced motion dwells longer');
+});
+test('sectionChangeClass: a drop, a major turn, a minor nudge, or no page at all', () => {
+  assert.equal(S.sectionChangeClass({ energy: 0.6, loud: true }, { energy: 0.7, loud: true }), 'minor', 'a 0.10 wobble loud→loud is minor');
+  assert.equal(S.sectionChangeClass({ energy: 0.7, loud: true }, { energy: 0.5, loud: false }), 'major', 'a fall into a break is major (a melt, not nothing)');
+  assert.equal(S.sectionChangeClass({ energy: 0.3, loud: false }, { energy: 0.6, loud: true }), 'drop', 'a 0.30 rise into a loud page is the drop');
+  assert.equal(S.sectionChangeClass({ energy: 0.3, loud: false }, { energy: 0.6, loud: false }), 'major', 'the same rise into a quiet page is only major');
+  assert.equal(S.sectionChangeClass({ energy: 0.9, loud: true }, { energy: 0.65, loud: true }), 'major', 'a 0.25 fall loud→loud is major');
+  assert.equal(S.sectionChangeClass(null, { energy: 0.6, loud: true }), 'none');
+  assert.equal(S.sectionChangeClass({ energy: 0.6, loud: true }, undefined), 'none');
+  assert.deepEqual(S.SECTION_CHANGE, { major: 0.22, drop: 0.28 });
+  assert.equal(S.SECTION_CHANGE.drop, S.SYN_TUNING.dropRise, 'the drop threshold is the conductor\'s own');
+});
+test('surgeShouldRequest: a real surge, two phrases in, under a hot ceiling, with no loud page already coming', () => {
+  const ok = { auto: true, phase: 'peak', ratio: 1.7, since: 31, barLen: 1.9, ceil: 0.9, aheadLoud: false };
+  assert.equal(S.surgeShouldRequest(ok), true);
+  assert.equal(S.surgeShouldRequest({ ...ok, ratio: 1.4, since: 10 }), false, 'a crash cymbal six seconds in is not a surge');
+  assert.equal(S.surgeShouldRequest({ ...ok, ratio: 1.59 }), false, 'the ratio is 1.6');
+  assert.equal(S.surgeShouldRequest({ ...ok, since: 30 }), false, 'two phrases at 126 BPM is 30.4 s');
+  assert.equal(S.surgeShouldRequest({ ...ok, ceil: 0.6 }), false, 'a section the structure holds back does not surge');
+  assert.equal(S.surgeShouldRequest({ ...ok, aheadLoud: true }), false, 'the conductor owns the drop ahead');
+  assert.equal(S.surgeShouldRequest({ ...ok, phase: 'flow' }), false);
+  assert.equal(S.surgeShouldRequest({ ...ok, auto: false }), false);
+  assert.equal(S.surgeShouldRequest(null), false);
+  assert.deepEqual(S.SURGE, { ratio: 1.6, minPhrases: 2, minCeil: 0.7 });
+});
+test('segue style: the lengths are BARS — the same musical length at every tempo, with floors and a ceiling', () => {
+  const b126 = 60 / 126 * 4, b90 = 60 / 90 * 4;
+  const cut = S.segueStyle({ act: 2, energy: 0.8, barLen: b126 });
+  assert.equal(cut.kind, 'cut'); assert.ok(Math.abs(cut.dur - 0.25 * b126) < 1e-9, 'a quarter bar at 126 BPM ≈ 0.48 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 2, energy: 0.8, barLen: 1.0 }).dur - 0.35) < 1e-9, 'a cut is never under 0.35 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 1, energy: 0.5, big: true, barLen: b126 }).dur - b126) < 1e-9, 'a morph is one bar');
+  assert.ok(Math.abs(S.segueStyle({ act: 0, energy: 0.5, barLen: b126 }).dur - 2 * b126) < 1e-9, 'a melt is two bars');
+  assert.ok(Math.abs(S.segueStyle({ act: 4, energy: 0.5, barLen: b90 }).dur - 2 * b90) < 1e-9, '…and longer at 90 BPM (5.3 s)');
+  assert.equal(S.segueStyle({ act: 4, energy: 0.5, barLen: 5 }).dur, 8, 'nothing runs past 8 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 1, energy: 0.75, barLen: b126 }).dur - (1.6 - 0.8 * 0.75) * b126) < 1e-9, 'a running dissolve: a bar that quickens with the heat');
+  assert.equal(S.segueStyle({ act: 2, energy: 0.8 }).dur, 0.5, 'no grid: a two-second bar');
+  const r = S.segueStyle({ act: 2, energy: 0.8, barLen: b126, reduced: true });
+  assert.ok(r.dur >= 1.6, 'reduced motion floors the cut at 1.6 s');
+  assert.ok(Math.abs(S.segueStyle({ act: 1, energy: 0.5, big: true, barLen: b126, reduced: true }).dur - 1.5 * b126) < 1e-9, '…and lengthens a blend by half');
+  assert.deepEqual(S.SEGUE_BARS, { cut: 0.25, morph: 1.0, dissolve: 1.0, melt: 2.0, min: 0.35, max: 8 });
+});
+test('synCue in bars: the conductor\'s cut and morph scale with the tempo; the lookahead grows to fit a morph', () => {
+  const b126 = 60 / 126 * 4;
+  const drop = { i: 2, inSec: 0.25 * b126, rise: 0.43, loud: true };
+  const c = S.synCue({ ahead: drop, barLen: b126 });
+  assert.ok(c.fire && c.kind === 'cut' && Math.abs(c.dur - 0.25 * b126) < 1e-3, 'a quarter-bar cut lands on the one');
+  const m = S.synCue({ ahead: { i: 1, inSec: 0.75 * b126, rise: 0.35, loud: true }, barLen: b126 });
+  assert.ok(m.fire && m.kind === 'morph' && Math.abs(m.dur - 0.75 * b126) < 1e-3, 'a three-quarter-bar morph');
+  assert.ok(!S.synCue({ ahead: { ...drop, inSec: 1.0 }, barLen: b126 }).fire, 'too early: waits for the bar');
+  assert.ok(Math.abs(S.synCue({ ahead: { ...drop, inSec: 2 } }).wait - (2 - S.SYN_TUNING.cutDur)) < 1e-9, 'no grid: the fixed seconds as before');
+  assert.ok(Math.abs(S.synCue({ ahead: { ...drop, inSec: 0.3 }, barLen: 0.8 }).dur - 0.3) < 1e-3 || S.synCue({ ahead: { ...drop, inSec: 0.3 }, barLen: 0.8 }).dur >= 0.2, 'a very fast bar still floors the cut sensibly');
+  assert.ok(Math.abs(S.synLookahead(b126) - 1.75 * b126) < 1e-9, 'the window is 1.75 bars at 126 BPM (3.3 s)');
+  assert.equal(S.synLookahead(0), 2.4, '…and never under the fixed 2.4 s');
+  assert.equal(S.synLookahead(1.0), 2.4);
+  assert.equal(S.SYN_TUNING.cutBars, 0.25); assert.equal(S.SYN_TUNING.morphBars, 0.75);
+});
+test('stem cut: the room asks for a real absence (6 s) and a room that has had its say (24 s); the light still lands on 2 s', () => {
+  assert.deepEqual(S.STEM_CUT, { dwell: 24, away: 6.0 });
+  assert.equal(S.STEM_CUT_DWELL, S.STEM_CUT.dwell, 'the old name is the new value');
+  // a fill: the kit drops out for 3 s and returns — the light lands, the room may not cut
+  const fill = { sv: 1, hz: STEM_HZ, d: kitBars(6) + flat('0', 3) + kitBars(6), b: flat('5', 15), v: flat('0', 15), o: flat('3', 15) };
+  const fr = runStems(fill, 0, 14);
+  const land = fr.filter(f => f.out.landed);
+  assert.ok(land.length >= 1, 'the light lands on the return');
+  assert.ok(land[0].out.awayAtLand > 2 && land[0].out.awayAtLand < S.STEM_CUT.away, 'the absence was a fill\'s: ' + land[0].out.awayAtLand.toFixed(2));
+  // a breakdown: eight seconds without the kit — the room may cut
+  const brk = { sv: 1, hz: STEM_HZ, d: kitBars(6) + flat('0', 8) + kitBars(6), b: flat('5', 20), v: flat('0', 20), o: flat('3', 20) };
+  const fr2 = runStems(brk, 0, 19);
+  const land2 = fr2.filter(f => f.out.landed);
+  assert.ok(land2.length >= 1 && land2[0].out.awayAtLand >= S.STEM_CUT.away, 'eight seconds away clears the room\'s bar: ' + (land2[0] && land2[0].out.awayAtLand));
+  assert.equal(S.stemLightOut(S.makeStemLightState()).awayAtLand, 0, 'nothing landed yet reads 0');
+  // the wiring: the landing is still the light's; the room's cut reads the absence and the gate
+  assert.ok(html.includes('STEMS.out.landed && director.dwell >= STEM_CUT_DWELL'), 'the kit\'s-return cut as before…');
+  assert.ok(html.includes("STEMS.out.awayAtLand >= STEM_CUT.away && this._gate('stem', barLen).ok"), '…and stricter');
+  assert.ok(html.includes('if (st.kit && !wasKit && st.away >= K.awayMin){ st.landed = true; st.coil = 0; st.awayAtLand = st.away; }'), 'the light\'s own landing is untouched');
+});
+test('developPlan: a room\'s second act at 45 % and 80 % of the want, eased over two bars', () => {
+  const bar = 1.9;
+  assert.equal(S.developPlan({ dwell: 10, want: 30, barLen: bar, done: 0 }), null, 'not yet');
+  const a = S.developPlan({ dwell: 14, want: 30, barLen: bar, done: 0 });
+  assert.ok(a && a.step === 0 && Math.abs(a.ease - 2 * bar) < 1e-9, 'the first step at 45 %');
+  assert.equal(S.developPlan({ dwell: 20, want: 30, barLen: bar, done: 1 }), null, 'the second not before 80 %');
+  const b = S.developPlan({ dwell: 24, want: 30, barLen: bar, done: 1 });
+  assert.ok(b && b.step === 1, 'the second step at 80 %');
+  assert.equal(S.developPlan({ dwell: 29, want: 30, barLen: bar, done: 2 }), null, 'two is all');
+  assert.equal(S.developPlan({ dwell: 29, want: 0, done: 0 }), null, 'no want, no plan');
+  assert.ok(Math.abs(S.developPlan({ dwell: 29, want: 30, done: 0 }).ease - 4) < 1e-9, 'no grid: two two-second bars');
+  assert.deepEqual(S.DEVELOP, { at: [0.45, 0.8], easeBars: 2, lensEveryPhrases: 2 });
+});
+test('develop dice: opt-in by an audited table — a die a shader floors, tests, hashes or spins with the clock is never swept', () => {
+  // the reader, on the shapes the review found strobing through a two-bar sweep…
+  for (const [src, die, why] of [
+    ['float teeth = 22.0 + floor(uVarA * 14.0);', 'uVarA', 'a tooth count'],
+    ['float spin = uTime * 0.3 * (uVarC < 0.5 ? -1.0 : 1.0);', 'uVarC', 'a spin sign'],
+    ['float h = hash21(cell + floor(uVarA * 53.0));', 'uVarA', 'SILICON\'s re-deal'],
+    ['float ang = aT * 6.28 + uTime * 0.05 * (uVarB * 2.0 - 1.0) * 2.0;', 'uVarB', 'a rate times the clock'],
+    ['float t = uTime * 0.2; float a = t * (0.5 + uVarA);', 'uVarA', '…through a local'],
+    ['int form = int(U.roll0 * 3.999);', 'roll0', 'a Metal form'],
+    ['float dir = mix(-1.0, 1.0, step(0.5, U.roll1));', 'roll1', 'a Metal direction'],
+    ['float k = U.roll2 < 0.5 ? 6.0 : 8.0;', 'roll2', 'the lens fold'],
+    ['if (U.roll0 > 0.4) col = float3(1.0);', 'roll0', 'a brace-less switch'],
+    ['col *= 0.5 + 0.5 * sin(uVarA * 50.0 + vUv.x);', 'uVarA', 'a steep periodic read flickers'],
+    ['inline float hsh(float x) { return fract(sin(x * 12.9898) * 43758.5); }\nfragment float4 f() { float g = hsh(U.roll0 * 7.0); }', 'roll0', 'a hash behind a helper'],
+  ]) assert.equal(dieVerdict(src, die).smooth, false, 'discrete: ' + why);
+  // …and on the ones that breathe
+  for (const [src, die, why] of [
+    ['float R = 6.5 + uVarA * 3.0 + sin(ang * 3.0 + uTime * 0.3) * 0.4;', 'uVarA', 'a radius beside the clock'],
+    ['float lean = (U.roll0 - 0.5) * 0.5; float2 s2 = float2(lean * v * v, v * 1.5);', 'roll0', 'a lean'],
+    ['p.x += sin(uTime * 0.6 + p.y * 0.25 + uVarB * 6.2831853) * 0.05;', 'uVarB', 'a phase inside a bounded sway'],
+    ['float u = dot(pos.xy, d); if (u > 0.3 + U.roll0 * 0.2) continue;', 'roll0', 'an edge that slides across the pixels'],
+  ]) assert.equal(dieVerdict(src, die).smooth, true, 'smooth: ' + why);
+  assert.equal(dieVerdict('const varU = { uVarA: { value: Math.random() } }; varU.uVarA.value = Math.random();', 'uVarA').smooth, false,
+    'a die that is only declared and dealt is not read — nothing to breathe');
+  // the table: rooms with a smooth die on BOTH stages, each stage easing its own; never C
+  const audit = auditDevelop(root);
+  const keys = Object.keys(S.DEVELOP_DICE);
+  for (const k of keys){
+    const row = S.DEVELOP_DICE[k];
+    assert.ok(S.SCENE_KEYS.includes(k), k + ' is a room');
+    assert.ok(row.web && row.tv, k + ' develops on both stages or on neither');
+    for (const [stage, letters] of [['web', row.web], ['tv', row.tv]])
+      for (const L of letters){
+        assert.ok(L === 'A' || L === 'B', k + '.' + stage + ': only A and B are ever eased (the TV\'s roll2 deals the lens fold)');
+        assert.ok((audit.smooth[stage][k] || '').includes(L), `${k}.${stage}.${L} is read smoothly — ` + JSON.stringify(audit.detail[k][L][stage]));
+      }
+  }
+  // the rooms the review named stay out, on the reader's own say-so
+  assert.equal(audit.detail.circuit.A.web.smooth, false, 'SILICON\'s uVarA is a hash seed');
+  assert.equal(audit.detail.circuit.B.web.smooth, false, 'SILICON\'s uVarB is a grid offset');
+  assert.equal(audit.detail.spiral.A.tv.smooth, false, 'room_spiral\'s roll0 is an arm count');
+  assert.equal(audit.detail.spiral.B.tv.smooth, false, 'room_spiral\'s roll1 is a direction');
+  // the accessor
+  assert.deepEqual(S.developDice('fern', 'web'), S.DEVELOP_DICE.fern.web.split(''));
+  assert.deepEqual(S.developDice('circuit', 'web'), [], 'a room not listed keeps its face');
+  assert.deepEqual(S.developDice('toString', 'web'), [], 'no prototype key is a room');
+  assert.deepEqual(S.developDice('fern', 'nowhere'), []);
+  // parity: the TV's table is the web's `tv` column, key for key
+  const rooms = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Rooms.swift'), 'utf8');
+  const m = rooms.match(/static let developDice: \[String: String\] = \[([\s\S]*?)\n\s*\]/);
+  assert.ok(m, 'Director.developDice declared');
+  const tv = Object.fromEntries([...m[1].matchAll(/"([a-z0-9]+)":\s*"([AB]*)"/g)].map(x => [x[1], x[2]]));
+  assert.deepEqual(Object.keys(tv).sort(), keys.slice().sort(), 'the same rooms develop on both stages');
+  for (const k of keys) assert.equal(tv[k], S.DEVELOP_DICE[k].tv, k + ': the TV eases the web table\'s tv dice');
+  assert.ok(rooms.includes('return SIMD3<Float>(s.contains("A") ? 1 : 0, s.contains("B") ? 1 : 0, 0)'), 'the TV mask never eases roll2');
+});
+test('LENS auto: a strained device drops the glass at once — the two-phrase hold and the pace gate are for musical swaps', () => {
+  const at = html.indexOf("  autoTick(dt){\n    if (this.active !== 'auto') return;\n    const wdt = (typeof director");
+  assert.ok(at > 0, 'LENS.autoTick found');
+  const end = html.indexOf('\n  },\n', at);
+  const body = html.slice(at + '  autoTick'.length, end + 4);
+  const make = new Function('PERF', 'director', 'DEVELOP', 'paceGate', 'reducedMotion', 'return function' + body + ';');
+  const DEV = { lensEveryPhrases: 2 };
+  const dir = { wallDt: 0.016, barLen: () => 2.0, sinceChange: 3, act: 2 };
+  const gate = () => ({ ok: false });
+  const lens = over => Object.assign({ active: 'auto', _holdT: 5, _lookT: 0, _resolved: 'wave+mirrors', _deals: 4,
+    autoPick(){ return 'none'; }, sectors: 0, _dealSectors(){ this.sectors++; }, painted: 0, paint(){ this.painted++; } }, over);
+  // strained: the glass goes at once, held look or not, gate shut or not
+  let L = lens(), tick = make({ struggling: true }, dir, DEV, gate, false);
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'none', 'the stack stands down on the first tick');
+  assert.equal(L._lookT, 0, 'and the look clock restarts');
+  assert.equal(L._deals, 4, 'not a dealt look: no salt');
+  assert.equal(L.painted, 1);
+  tick.call(L, 0.016);
+  assert.equal(L.painted, 1, 'once: clean glass stays clean, no repaint per frame');
+  // healthy: the same answer waits out the hold, the look and the gate exactly as before
+  L = lens(); tick = make({ struggling: false }, dir, DEV, gate, false);
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'wave+mirrors', 'a musical change still waits its turn');
+  L = lens({ _holdT: 0, _lookT: 1e9 });
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'wave+mirrors', '…and still answers the pace gate');
+  L = lens({ _holdT: 0, _lookT: 1e9 }); tick = make({ struggling: false }, dir, DEV, () => ({ ok: true }), false);
+  tick.call(L, 0.016);
+  assert.equal(L._resolved, 'none', 'with the gate open and the look held, it swaps');
+  assert.equal(L._deals, 5, 'and a dealt swap salts');
+});
+test('tvOS: the RECENT shelf dedupes in its own set, a refreshed album tile redraws its sleeve, a pause mid-download is a pause', () => {
+  const home = readFileSync(join(root, 'tvos/AethraKairosTV/UI/HomeView.swift'), 'utf8');
+  const rt = home.slice(home.indexOf('private func recentTracks(in catalog: Catalog)'), home.indexOf('// MARK: - shared bits'));
+  assert.ok(rt.includes('guard shown.insert(track.id).inserted else { continue }'), 'one tile per track, counted in its own set');
+  assert.ok(!rt.includes('seen.contains(track.id)'), 'never in `seen`, which already holds the key that IS the id — that emptied the shelf');
+  const cover = home.slice(home.indexOf('private struct HomeAlbumCover: View'));
+  assert.ok(cover.includes('.onAppear { drawSleeve() }') && cover.includes('.onChange(of: album.tag) { _, _ in drawSleeve() }'),
+    'the sleeve follows the album at an offset-keyed slot, not the tile\'s lifetime');
+  const player = readFileSync(join(root, 'tvos/AethraKairosTV/Audio/Player.swift'), 'utf8');
+  const tg = player.slice(player.indexOf('    func toggle() {'), player.indexOf('    func play() {'));
+  assert.ok(/wantsPlayback\.toggle\(\)[\s\S]*if !wantsPlayback \{ isPlaying = false \}[\s\S]*return\n\s*\}/.test(tg),
+    'the materializing branch brings the fact (isPlaying) in step with a pause');
+});
+test('pacing wiring: every automatic path goes through the gate, the dwell is phrases, paused is not a reason, rooms develop', () => {
+  for (const s of ["this._gate('seam', barLen)", "this._gate('stem', barLen).ok",
+                   'sectionChangeClass(st.sections[this._lastSection], st.sections[si])',
+                   "this.request(true, cls === 'drop' ? 'drop' : 'section')", "else if (cls === 'minor') this.request(false, 'section');",
+                   'synAhead(st, p, dur, synLookahead(barLen))', "const why = ahead.drop ? 'drop' : 'section';", 'cue.fire && this._gate(why, barLen).ok',
+                   "const g = this._gate(this.big ? (this.kind === 'drop' ? 'drop' : 'section') : (this.kind || 'dwell'), barLen);",
+                   'if (g.ok) this.waited += dt;', 'sectionBoundary: sectionBoundary && g.ok',
+                   'surgeShouldRequest({ auto: this.auto, phase: newPhase, ratio, since: this.sinceChange,',
+                   'const want = roomDwellBars({ mood: this.mood, energy: f.energy, ceil: this.ceil, reduced: reducedMotion,',
+                   "if (live ? this.dwell > want : this.dwell > PACE.idleDwell) SEGUE.request(false, live ? 'dwell' : 'idle');",
+                   'const dp = developPlan({ dwell: this.dwell, want, barLen, done: this._developed });',
+                   'if (live && !reducedMotion && !this._developPend){',
+                   'director.developTick(dt, phraseWrapped, grid);', 'scenes.forEach(sceneDevelop);',
+                   'if (!hard && reducedMotion) this.transDur = Math.max(this.transDur, 1.6);',
+                   'const log = window.__mb8Changes || (window.__mb8Changes = []);', 'this.sinceChange = 0;',
+                   'const to = this.target >= 0 && this.target < scenes.length ? this.target : director.pickScene();',
+                   'director.setScene(to, false, kind);',
+                   // the seventh caller: a mixset's planned room is a request with a target, through the gate
+                   "if (director.auto && typeof SEGUE !== 'undefined') SEGUE.request(true, 'mixset', i);",
+                   "else director.setScene(i, false, 'mixset');",
+                   // the followers inherit the booth's decision and never re-gate it
+                   "director.setScene(p.dir.s, false, 'follow');", "director.setScene(p.s, false, 'follow');",
+                   // the pacing clock: the audio clock's own delta, the wall when it is not running, bounded, never the clamped dt
+                   'const wdt = this._tickClock();', "const a = ctx && ctx.state === 'running' ? ctx.currentTime : NaN;",
+                   'this.wallDt = Math.min(1.0, Math.max(0, d));',
+                   'this.transT = Math.min(1, this.transT + wdt / Math.max(0.2, this.transDur || 2.5));',
+                   'this.dwell += wdt;', 'this.sinceChange += wdt;', 'SEGUE.tick(wdt);',
+                   // the lens: read every half phrase with hysteresis, swapped after two phrases through the gate, the salt on a swap only
+                   "const wdt = (typeof director !== 'undefined' && director.wallDt != null) ? director.wallDt : dt;",
+                   'this._holdT = 0.5 * phrase;', 'if (this._lookT < DEVELOP.lensEveryPhrases * phrase) return;',
+                   "kind: 'lens', reduced: reducedMotion }).ok) return;",
+                   'salt: this._deals,', 'prev: this._resolved, hyst: LENS_HYST,', 'this._deals++;'])
+    assert.ok(html.includes(s), 'the player carries: ' + s);
+  assert.ok(!html.includes('if (this.dwell > want || !player.playing) SEGUE.request(false);'), 'the every-frame-while-paused request is gone');
+  assert.ok(!html.includes('this.dwell > 6) SEGUE.request(false)'), 'the six-second surge is gone');
+  assert.ok(!html.includes('salt: this._deals++'), 'the salt no longer rotates on every read');
+  assert.ok(!html.includes("typeof s.develop === 'function'"), 'no web-only develop hook: development acts through the shared dice only');
+  assert.equal((html.match(/director\.setScene\(to, false, kind\)/g) || []).length, 1, 'one landing, in SEGUE._land');
+  assert.equal((html.match(/director\.pickScene\(\)/g) || []).length, 1, '…and the deal is drawn there only');
+  // the generic second act: dice found by walking the materials, a tween that steps before the room's own update
+  const dev = html.slice(html.indexOf('function sceneDevelop(s){'), html.indexOf('const director = {'));
+  for (const s of ["const names = developDice(s.key, 'web').map(L => 'uVar' + L);", 'for (const k of names){',
+                   'const k = 1 - Math.exp(-(dt > 0 ? dt : 0) / tween.tau);',
+                   "return typeof update === 'function' ? update.apply(this, arguments) : undefined;",
+                   'tau: Math.max(0.5, (sec > 0 ? sec : 4) / 3)', 'if (!dice.length) return false;'])
+    assert.ok(dev.includes(s), 'sceneDevelop: ' + s);
+  assert.ok(!dev.includes("['uVarA', 'uVarB', 'uVarC']"), 'no longer every die the materials own: only the audited ones');
+});
+test('pacing parity: the TV\'s Director carries the web\'s PACE, ROOM_DWELL, MOODS.dwell, ACTS.dwell, STEM_CUT, SECTION_CHANGE, SEGUE_BARS, SURGE and DEVELOP', () => {
+  const rooms = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Rooms.swift'), 'utf8');
+  const struct = readFileSync(join(root, 'tvos/AethraKairosTV/Model/Structure.swift'), 'utf8');
+  const view = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/VisualizerView.swift'), 'utf8');
+  const dance = readFileSync(join(root, 'tvos/AethraKairosTV/Visualizer/Dance.swift'), 'utf8');
+  const num = (src, name) => { const m = src.match(new RegExp(`\\b${name}: Double = ([0-9.]+)`)); assert.ok(m, name + ' declared'); return Number(m[1]); };
+  const arr = (src, name) => { const m = src.match(new RegExp(`\\b${name}: \\[Double\\] = \\[([^\\]]+)\\]`)); assert.ok(m, name + ' declared'); return m[1].split(',').map(x => Number(x.trim())); };
+  assert.deepEqual(arr(rooms, 'paceMinGapBars'), S.PACE.minGapBars, 'PACE.minGapBars');
+  assert.equal(num(rooms, 'paceMinGapSec'), S.PACE.minGapSec); assert.equal(num(rooms, 'paceHardFloorSec'), S.PACE.hardFloorSec);
+  assert.equal(num(rooms, 'paceIdleDwell'), S.PACE.idleDwell); assert.equal(num(rooms, 'paceIdleGapSec'), S.PACE.idleGapSec);
+  assert.equal(num(rooms, 'roomDwellMin'), S.ROOM_DWELL.min); assert.equal(num(rooms, 'roomDwellMax'), S.ROOM_DWELL.max); assert.equal(num(rooms, 'roomDwellFloor'), S.ROOM_DWELL.floor);
+  for (const mood of Object.keys(S.MOODS)){
+    const m = rooms.match(new RegExp(`case \\.${mood}:\\s+return ([0-9.]+)`));
+    assert.ok(m, 'moodDwellMult.' + mood);
+    assert.equal(Number(m[1]), S.MOODS[mood].dwell, 'MOODS.' + mood + '.dwell');
+  }
+  const a0 = html.indexOf('const ACTS = ['), acts = html.slice(a0, html.indexOf('];', a0));
+  const dwell = [...acts.matchAll(/\bdwell: (\d+\.\d+)/g)].map(m => +m[1]);
+  assert.deepEqual(arr(rooms, 'actDwell'), dwell, 'Director.actDwell is ACTS.dwell');
+  assert.deepEqual(arr(struct, 'actDwell'), dwell, 'Story.actDwell is ACTS.dwell');
+  assert.equal(num(rooms, 'stemCutDwell'), S.STEM_CUT.dwell); assert.equal(num(rooms, 'stemCutAway'), S.STEM_CUT.away);
+  assert.equal(num(rooms, 'sectionMajor'), S.SECTION_CHANGE.major); assert.equal(num(rooms, 'sectionDrop'), S.SECTION_CHANGE.drop);
+  for (const [k, name] of [['cut', 'segueBarsCut'], ['morph', 'segueBarsMorph'], ['dissolve', 'segueBarsDissolve'], ['melt', 'segueBarsMelt'], ['min', 'segueBarsMin'], ['max', 'segueBarsMax']])
+    assert.equal(num(rooms, name), S.SEGUE_BARS[k], 'SEGUE_BARS.' + k);
+  assert.equal(num(rooms, 'segueReducedFloor'), 1.6);
+  assert.equal(num(rooms, 'surgeRatio'), S.SURGE.ratio); assert.equal(num(rooms, 'surgeMinPhrases'), S.SURGE.minPhrases); assert.equal(num(rooms, 'surgeMinCeil'), S.SURGE.minCeil);
+  assert.deepEqual(arr(rooms, 'developAt'), S.DEVELOP.at); assert.equal(num(rooms, 'developEaseBars'), S.DEVELOP.easeBars); assert.equal(num(rooms, 'developLensEveryPhrases'), S.DEVELOP.lensEveryPhrases);
+  // the laws, line for line
+  for (const s of ['let base = roomDwellMax - (roomDwellMax - roomDwellMin) * e', 'let held = 1.25 - 0.25 * min(max(ceil, 0), 1)', 'return reduced ? sec * 1.5 : sec',
+                   'return max(2 * phrase, (sec / phrase).rounded() * phrase)',
+                   'case .drop: gap = min(gap, 2 * bar)', 'case .seam: gap = paceHardFloorSec', 'case .idle: gap = paceIdleGapSec', 'if reduced && kind != .seam { gap *= 1.5 }',
+                   'if next.loud && rise > sectionDrop { return .drop }', 'if abs(rise) >= sectionMajor || prev.loud != next.loud { return .major }',
+                   'return ratio >= surgeRatio && since >= surgeMinPhrases * 8 * bar && ceil >= surgeMinCeil',
+                   'if act == 2 && energy > 0.60 {', 'if act == 0 || act == 4 || energy < 0.30 { return (.dissolve, slow(bars(segueBarsMelt))) }',
+                   'return (.dissolve, slow(bars(segueBarsDissolve * (1.6 - 0.8 * energy))))',
+                   'kitReturn && sinceEntry >= Director.stemCutDwell && kitAway >= Director.stemCutAway',
+                   'let due = playing ? (sinceEntry >= dwellWant) : (sinceEntry >= Director.paceIdleDwell)',
+                   'if gateOK { waited += dtClamped }', 'let boundary = pendingBig ? (phraseWrapped || barWrapped) : barWrapped'])
+    assert.ok(rooms.includes(s), 'Rooms.swift carries: ' + s);
+  assert.ok(!/Double\.random\(in: 0\.\.\.1\)/.test(rooms.slice(rooms.indexOf('struct Director'))), 'the random dwell draw is gone: the two stages pace alike');
+  // the renderer: segueStyle sets the length, the develop step eases the dice, the lens holds phrases
+  for (const s of ['Director.segueStyle(act: act, energy: energy, big: big, barLen: barLen, reduced: calmNow)',
+                   'transitionDuration = max(calmNow ? Director.segueReducedFloor : Self.xformMinDur[mode], style.dur)',
+                   'if let dev = director.takeDevelop() {', 'rollTau = max(0.5, dev.ease / 3)', 'currentRolls += (target - currentRolls) * k',
+                   'Director.developMask(key: Rooms.all[i].key)', 'rollTarget = currentRolls + (Self.freshRolls() - currentRolls) * mask',
+                   // a swipe is manual: the web's snappy 1.0 s (1.6 s calm), and the dwell read from the moment
+                   'transitionDuration = calmNow ? Director.segueReducedFloor : max(Self.xformMinDur[mode], 1.0)',
+                   'beginTransition(from: before, manual: true)',
+                   'director.step(delta, act: paceAct, energy: Double(dispEnergy), barLen: paceBarLen, reduced: calmNow)',
+                   'paceAct = actTarget', 'paceBarLen = barLen',
+                   'kitAway: stemOut.awayAtLand', 'barLen: barLen, reduced: calmNow,', 'big: director.lastChangeBig, barLen: barLen)',
+                   // the lens: half-phrase reads with hysteresis, a two-phrase hold, the gate, the salt on a swap only
+                   'lensHold = 0.5 * phrase', 'prev: lensChoice, hyst: Self.lensHyst',
+                   'guard lensLookT >= Director.developLensEveryPhrases * phrase,',
+                   'Director.paceGate(since: director.sinceChange, act: act, barLen: barLen, kind: .lens, reduced: calm).ok',
+                   'lensDeals += 1                                // the next equal choice takes its turn — on a swap, not on a read',
+                   // the clocks: the director and the lens step by the wall (bounded), the handover is derived from its start
+                   'let wallDt = min(max(dt, 0), 1.0)', 'if director.tick(dt: wallDt, frame: frame',
+                   'transitionStart = CACurrentMediaTime()',
+                   'transitionProgress = min(1, (now - transitionStart) / max(transitionDuration, 0.05))',
+                   'autoLens(dt: wallDt, act: actTarget'])
+    assert.ok(view.includes(s), 'VisualizerView.swift carries: ' + s);
+  const hy = view.match(/lensHyst = ([0-9.]+)/);
+  assert.ok(hy && Number(hy[1]) === S.LENS_HYST, 'the TV\'s lens hysteresis is LENS_HYST');
+  assert.ok(!view.includes('transitionProgress + dt /'), 'the handover is no longer integrated from the clamped dt');
+  assert.ok(!/rollTarget = Self\.freshRolls\(\)\s*\n\s*rollTau/.test(view), 'the develop no longer deals all three dice');
+  assert.ok(!view.includes('beginTransition(from: before)\n'), 'a swipe no longer takes the music\'s segue length');
+  assert.ok(rooms.includes('if playing, !reduced, developPend == nil,'), 'the TV stands the develop down under reduce motion / calm');
+  assert.ok(rooms.includes('move(to: next, mood: moodNow, act: act, energy: energy, barLen: barLen, reduced: reduced)'), 'a swipe\'s dwell is read from the moment');
+  assert.ok(!rooms.includes('act: 1, energy: 0.5, barLen: 2.0, reduced: false)'), 'the fixed one-act, 120-BPM swipe dwell is gone');
+  assert.ok(html.includes('if (manual) this.transDur = 1.0;'), 'the web\'s manual blend the TV mirrors is still 1.0 s');
+  assert.ok(rooms.includes('enum PaceKind { case dwell, section, drop, stem, seam, surge, idle, lens, mixset }'), 'the TV gate knows the minor kinds');
+  assert.ok(dance.includes('landed = true; coil = 0; awayAtLand = away'), 'the TV\'s StemLight records the absence at the landing');
+});
+
+test('pickLens hysteresis: the held look is sticky by ±0.08 of energy; a different shelf still changes it', () => {
+  const base = { act: 2, ceil: 0.8, major: true, salt: 1 };
+  assert.equal(S.LENS_HYST, 0.08);
+  assert.equal(S.pickLens({ ...base, energy: 0.78 }), 'hyperbolic');
+  assert.equal(S.pickLens({ ...base, energy: 0.82 }), 'echo', 'without hysteresis 0.82 is over the 0.8 line');
+  assert.equal(S.pickLens({ ...base, energy: 0.82, prev: 'hyperbolic', hyst: S.LENS_HYST }), 'hyperbolic', 'with it, a wobble over the line holds the look');
+  assert.equal(S.pickLens({ ...base, energy: 0.89, prev: 'hyperbolic', hyst: S.LENS_HYST }), 'echo', 'past the margin it changes');
+  assert.equal(S.pickLens({ ...base, energy: 0.78, prev: 'echo', hyst: S.LENS_HYST }), 'echo', 'and holds on the way down too');
+  assert.equal(S.pickLens({ ...base, energy: 0.70, prev: 'echo', hyst: S.LENS_HYST }), 'hyperbolic', '…until the energy has really left');
+  assert.equal(S.pickLens({ ...base, energy: 0.96, prev: 'none', hyst: S.LENS_HYST }), 'grating', 'from clean glass the hottest shelf deals at once');
+  assert.equal(S.pickLens({ ...base, energy: 0.96, prev: 'echo', hyst: S.LENS_HYST }), 'echo', 'from the shelf below, the 0.93 line is inside the margin of the top of the range: the look holds');
+  assert.equal(S.pickLens({ act: 2, ceil: 0.5, energy: 0.9, prev: 'echo', hyst: S.LENS_HYST }), 'none', 'the hard gate is not hysteresis: a capped section goes clean at once');
+  assert.equal(S.pickLens({ ...base, energy: 0.82, prev: 'hyperbolic' }), 'echo', 'no hyst, no stickiness');
+  assert.equal(S.pickLens({ ...base, energy: 0.82, prev: 'hyperbolic', hyst: 0 }), 'echo');
+  // a lens swap and a mixset's room are minor changes: the act's own gap
+  for (const k of ['lens', 'mixset'])
+    assert.equal(S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: k }).gap, S.paceGate({ since: 0, act: 2, barLen: 1.9, kind: 'dwell' }).gap, k + ' takes the dwell\'s gap');
+});
+
+// ---------------------------------------------------------------- the rack, second pass
+/* eight units, two knobs, one law each — every number the rack is built on,
+   held here without a browser: the knob laws, the gate's edges, the echo's
+   gain invariant, the reverb's impulse, the drive's loudness table, the
+   performer's patience, the limiter budget, and the parked table release()
+   walks. */
+test('fxMix: the reverb rides a cubic (a wash is fine control), the echo and the inserts a capped line (a colour must be heard at half travel)', () => {
+  assert.equal(S.FX_MIX.reverb.law, 'cubic'); assert.ok(Math.abs(S.fxMix('reverb', 0.5) - 0.125 * S.FX_MIX.reverb.cap) < 1e-9, 'half travel of the wash is a whisper');
+  assert.equal(S.FX_MIX.echo.law, 'linear'); assert.ok(S.fxMix('echo', 0.5) >= 0.5, 'a tapped ECHO is heard: its loop already shapes the tail');
+  for (const u of S.FX_INSERTS){ assert.equal(S.FX_MIX[u].law, 'linear'); assert.ok(S.fxMix(u, 0.5) >= 0.3, u + ' half travel is audible, got ' + S.fxMix(u, 0.5)); assert.ok(S.fxMix(u, 1) <= S.FX_MIX[u].cap + 1e-9, u + ' never past its cap'); }
+  for (const u of S.FX_UNITS){
+    const hasMix = S.FX_SENDS.indexOf(u) >= 0 || S.FX_INSERTS.indexOf(u) >= 0;
+    assert.equal(!!S.FX_MIX[u], hasMix, u + (hasMix ? ' has a MIX' : ' has no MIX (filter and gate are their own blend)'));
+    assert.ok(S.FX_AMT[u] > 0 && S.FX_AMT[u] <= 1, u + ' has a resting AMOUNT');
+    if (hasMix) assert.ok(S.FX_MIX[u].def > 0 && S.FX_MIX[u].def <= 1, u + ' has a resting MIX');
+  }
+  assert.equal(S.fxMix('filter', 1), 0); assert.equal(S.fxMix('echo', -1), 0); assert.equal(S.fxMix('drive', 7), S.fxMix('drive', 1));
+  assert.equal(S.FX_UNITS.length, 8, 'eight pads');
+});
+test('fxFilterQ: flat on the detent, squelching toward the ends, never past 3', () => {
+  assert.ok(Math.abs(S.fxFilterQ(0) - 0.7) < 1e-9 && Math.abs(S.fxFilterQ(0.05) - 0.7) < 1e-9, 'Butterworth inside the detent — the centre is honestly bypass');
+  let prev = 0;
+  for (let x = 0; x <= 1.0001; x += 0.05){ const q = S.fxFilterQ(x); assert.ok(q >= prev - 1e-12, 'monotone'); prev = q; }
+  assert.ok(Math.abs(S.fxFilterQ(1) - 3) < 1e-9 && Math.abs(S.fxFilterQ(-1) - 3) < 1e-9, 'three at either end');
+  assert.ok(S.fxFilterQ(0.5) < 1.6, 'and most of the squelch lives in the last third, got ' + S.fxFilterQ(0.5));
+  // the corners went where a DJ filter goes: the kick leaves on the left, the air on the right
+  assert.ok(S.fxFilter(-1, 22050).lp < 100 && S.fxFilter(1, 22050).hp > 12000);
+});
+/* Web Audio's LP/HP biquad, as the spec writes it: the RBJ cookbook with Q read in dB
+   (alpha = sin(w0) / (2·10^(Q/20))). The magnitude at f, so a test can see a hump. */
+const biquadMag = (type, f, fc, qDbVal, sr) => {
+  const w0 = 2 * Math.PI * fc / sr, al = Math.sin(w0) / (2 * Math.pow(10, qDbVal / 20)), c = Math.cos(w0);
+  const b = type === 'lowpass' ? [(1 - c) / 2, 1 - c, (1 - c) / 2] : [(1 + c) / 2, -(1 + c), (1 + c) / 2];
+  const a = [1 + al, -2 * c, 1 - al];
+  const w = 2 * Math.PI * f / sr;
+  const re = (k) => k[0] + k[1] * Math.cos(-w) + k[2] * Math.cos(-2 * w), im = (k) => k[1] * Math.sin(-w) + k[2] * Math.sin(-2 * w);
+  return Math.hypot(re(b), im(b)) / Math.hypot(re(a), im(a));
+};
+test('qDb / Q_FLAT_DB: a LP/HP biquad reads Q in dB, so the rack writes the linear law through qDb and parks at a hump-free Butterworth', () => {
+  assert.ok(Math.abs(S.Q_FLAT_DB - (-3.0103)) < 1e-3, 'Butterworth is −3.01 dB, got ' + S.Q_FLAT_DB);
+  assert.ok(Math.abs(S.qDb(1) - 0) < 1e-12 && Math.abs(S.qDb(3) - 9.5424) < 1e-3, 'the linear law in the node\'s unit');
+  assert.ok(Math.abs(S.qDb(0) - S.Q_FLAT_DB) < 1e-12 && Math.abs(S.qDb(-1) - S.Q_FLAT_DB) < 1e-12, 'nonsense in, Butterworth out');
+  const sr = 48000;
+  let flat = 0, old = 0;
+  for (let f = 20; f < 20000; f *= 1.01){
+    flat = Math.max(flat, biquadMag('lowpass', f, 3000, S.Q_FLAT_DB, sr));
+    old = Math.max(old, biquadMag('lowpass', f, 3000, 0.7, sr));
+  }
+  assert.ok(flat <= 1 + 1e-9, 'a dB Butterworth never rises above unity, peak ' + flat);
+  assert.ok(old > 1.2, 'and the 0.7 that was written "as Butterworth" was a +1.7 dB hump, peak ' + old.toFixed(3));
+  // the parked deck highpass and the master's, in series at 20 Hz: no sub-bass bump anywhere below 60 Hz
+  for (let f = 15; f <= 60; f += 1){
+    const g = Math.pow(biquadMag('highpass', f, 20, S.Q_FLAT_DB, sr), 2);
+    assert.ok(g <= 1 + 1e-9, 'deck hp × master hp adds nothing at ' + f + ' Hz, got ' + (20 * Math.log10(g)).toFixed(2) + ' dB');
+  }
+  // the filter's ends are a real squelch once the node is told in its own unit
+  assert.ok(S.qDb(S.fxFilterQ(1)) > 9 && S.qDb(S.fxFilterQ(0)) < S.Q_FLAT_DB + 0.2);
+});
+test('ECHO_HOLD_FB: a held tail decays — the loop gain (feedback × the in-loop Butterworth) stays under one at every frequency', () => {
+  assert.ok(S.ECHO_HOLD_FB > 0.9 && S.ECHO_HOLD_FB < 0.97, 'a long hang, but with margin under unity: ' + S.ECHO_HOLD_FB);
+  assert.ok(S.ECHO_HOLD_FB > S.fxEchoGains(1).fb, 'HOLD hangs longer than the knob at full');
+  for (const sr of [44100, 48000]) for (const fc of [3000, 4500]){
+    let peak = 0, at = 0;
+    for (let f = 20; f < sr / 2; f *= 1.005){ const g = S.ECHO_HOLD_FB * biquadMag('lowpass', f, fc, S.Q_FLAT_DB, sr); if (g > peak){ peak = g; at = f; } }
+    assert.ok(peak < 0.95, 'held loop gain ' + peak.toFixed(4) + ' at ' + Math.round(at) + ' Hz (lp ' + fc + ', ' + sr + ' Hz) — every repeat quieter than the last');
+    // and what the first build had: 0.97 through a 0.7 dB "Butterworth" — a loop that grows
+    let was = 0; for (let f = 20; f < sr / 2; f *= 1.005) was = Math.max(was, 0.97 * biquadMag('lowpass', f, fc, 0.7, sr));
+    assert.ok(was > 1.1, 'the old loop really did gain on itself: ' + was.toFixed(3));
+  }
+});
+test('fxFilterArbiter / fxSeamHz: the more closed hand wins, the highpass is the hand\'s alone, the seam reads back as a number', () => {
+  assert.deepEqual(S.fxFilterArbiter({ lp: 800, hp: 20 }, 22000, 0), { lp: 800, hp: 20 }, 'a hand alone');
+  assert.deepEqual(S.fxFilterArbiter(null, 300, 0), { lp: 300, hp: 20 }, 'a seam alone');
+  assert.equal(S.fxFilterArbiter({ lp: 800, hp: 2000 }, 300, 0).lp, 300, 'the seam closes further: it wins the lowpass');
+  assert.equal(S.fxFilterArbiter({ lp: 800, hp: 2000 }, 300, 0).hp, 2000, '…and the hand keeps its highpass');
+  assert.equal(S.fxFilterArbiter({ lp: 800, hp: 20 }, 22000, 500).lp, 500, 'the brake darkens past the hand');
+  assert.equal(S.fxFilterArbiter(null, 0, 0).lp, 22000, 'nothing on it: open');
+  const c = { t0: 10, hold: 0.6, t1: 15, from: 22000, to: 300 };
+  assert.equal(S.fxSeamHz(c, 9), 22000); assert.equal(S.fxSeamHz(c, 10.5), 22000, 'held through the lead-in');
+  assert.ok(Math.abs(S.fxSeamHz(c, 12.8) - Math.sqrt(22000 * 300)) < 1, 'the geometric midpoint half way down — exponential, as the scheduled curve is');
+  assert.equal(S.fxSeamHz(c, 15), 300); assert.equal(S.fxSeamHz(c, 99), 300); assert.equal(S.fxSeamHz(null, 1), 22000);
+});
+test('gateSchedule: raised-cosine edges, a −60 dB floor, and never a step across a sample, for every division at 174 BPM', () => {
+  const sr = 48000;
+  const edge = S.gateEdge(32);
+  assert.equal(edge[0], 0); assert.ok(Math.abs(edge[31] - 1) < 1e-6); assert.ok(Math.abs(edge[16] - 0.5) < 0.06, 'cosine through the middle');
+  assert.ok(Math.abs(S.GATE_FLOOR - 0.001) < 1e-12, '−60 dB: taken away, not turned down');
+  const render = (events, dur) => {
+    const n = Math.ceil(dur * sr), v = new Float32Array(n);
+    let cur = S.GATE_FLOOR, ei = 0;
+    for (let i = 0; i < n; i++){
+      const t = i / sr;
+      while (ei < events.length && t >= events[ei].at + events[ei].dur){ cur = events[ei].to; ei++; }
+      if (ei < events.length && t >= events[ei].at){
+        const e = events[ei], c = S.gateCurve(e.from, e.to, 32);
+        const k = (t - e.at) / e.dur * (c.length - 1), i0 = Math.floor(k), f = k - i0;
+        v[i] = c[i0] + (c[Math.min(c.length - 1, i0 + 1)] - c[i0]) * f;
+      } else v[i] = cur;
+    }
+    return v;
+  };
+  for (const div of S.FX_DIVS){
+    const step = S.fxTime(div, 174), hold = S.fxGateHold(1), E = S.gateEdgeSec(step);
+    const ev = S.gateSchedule(0, step, hold, E);
+    assert.equal(ev.length, 2);
+    assert.ok(ev[0].at + ev[0].dur <= ev[1].at + 1e-9, 'the open has finished before the close begins at div ' + div);
+    assert.ok(ev[1].at + ev[1].dur < step, 'and the close has finished before the next slice at div ' + div);
+    assert.equal(ev[0].from, S.GATE_FLOOR); assert.equal(ev[0].to, 1); assert.equal(ev[1].from, 1); assert.equal(ev[1].to, S.GATE_FLOOR);
+    const v = render(ev, step);
+    let worst = 0;
+    for (let i = 1; i < v.length; i++) worst = Math.max(worst, Math.abs(v[i] - v[i - 1]));
+    assert.ok(worst < 0.5, 'no step across a sample at div ' + div + ', worst ' + worst);
+    assert.ok(worst < 0.05, '…and in truth far gentler than that, worst ' + worst);
+    assert.ok(Math.abs(v[Math.round((ev[0].at + ev[0].dur) * sr) + 1] - 1) < 1e-3, 'fully open after the edge');
+    assert.ok(v[v.length - 1] <= S.GATE_FLOOR + 1e-6, 'and at the floor by the slice end');
+  }
+  // the grid is kept across a stall: the first slice after `now` is still on the lattice the bar anchored
+  assert.ok(Math.abs(S.gateAnchor(10.0, 3.0, 0.5) - 10.0) < 1e-9);
+  assert.ok(Math.abs(S.gateAnchor(10.1, 3.0, 0.5) - 10.5) < 1e-9);
+  assert.ok(Math.abs(S.gateAnchor(10.0, 12.3, 0.5) - 10.3) < 1e-9, 'a bar line still ahead: counted back from it');
+});
+test('fxEchoGains: send/(1 − fb) never exceeds 1.2 anywhere on the knob, and the tail grows with it', () => {
+  let prevFb = -1;
+  for (let a = 0; a <= 1.0001; a += 0.01){
+    const g = S.fxEchoGains(a);
+    assert.ok(g.fb < 1 && g.fb >= 0.25, 'a feedback that always decays');
+    assert.ok(g.send / (1 - g.fb) <= 1.2 + 1e-9, 'the invariant at ' + a.toFixed(2) + ': ' + (g.send / (1 - g.fb)).toFixed(3));
+    assert.ok(g.fb >= prevFb, 'more knob, longer tail'); prevFb = g.fb;
+  }
+  assert.equal(S.fxEchoGains(0).send, 0, 'nothing sent at zero');
+  assert.ok(S.fxEchoGains(0.6).send > 0.3, 'the room\'s own echo is a real send, got ' + S.fxEchoGains(0.6).send);
+  assert.ok(S.fxEchoGains(0.6).send * S.fxMix('echo', S.FX_MIX.echo.def) > 0.15, 'and at the resting knobs the first repeat is well within hearing');
+  // the warp is bounded: a 1/8 → 4-beat change glides over 0.6 s, a small one is quick
+  assert.ok(Math.abs(S.fxEchoGlide(0.125, 2) - 0.6) < 1e-9); assert.ok(Math.abs(S.fxEchoGlide(0.5, 0.52) - 0.25) < 1e-9);
+  assert.ok(S.fxEchoGlide(0.5, 1) >= 0.25 && S.fxEchoGlide(0.5, 1) <= 0.6 && S.fxEchoGlide(0.5, 1.4) > 0.25);
+});
+test('reverbIR: RT60 within a tenth of the request, no DC, two different channels, and no click at the onset', () => {
+  const sr = 48000;
+  for (const [secs, seed] of [[1.2, 41], [2.6, 97]]){
+    const ir = S.reverbIR(sr, secs, 60, seed);
+    assert.equal(ir.length, 2);
+    const L = ir[0], R = ir[1];
+    assert.equal(L.length, Math.round(sr * secs));
+    const rms = (a, i0, i1) => { let s2 = 0; for (let i = i0; i < i1; i++) s2 += a[i] * a[i]; return Math.sqrt(s2 / (i1 - i0)); };
+    // the energy ratio between a window near the start and one near the end fits an exponential to −60 dB at T
+    const w = Math.round(sr * 0.05), a0 = Math.round(sr * 0.1), a1 = Math.round(sr * (secs - 0.1)) - w;
+    const slope = 20 * Math.log10(rms(L, a0, a0 + w) / rms(L, a1, a1 + w)) / ((a1 - a0) / sr);   // dB per second
+    const rt60 = 60 / slope;
+    assert.ok(Math.abs(rt60 - secs) / secs < 0.1, 'RT60 ' + rt60.toFixed(2) + ' s for a ' + secs + ' s room');
+    let mean = 0; for (let i = 0; i < L.length; i++) mean += L[i]; mean /= L.length;
+    assert.ok(Math.abs(mean) < 1e-3, 'no DC, mean ' + mean);
+    let same = 0; for (let i = 0; i < 2000; i++) if (L[i] === R[i]) same++;
+    assert.ok(same < 10, 'left and right are different noise — that is the width');
+    assert.ok(Math.abs(L[0]) < 1e-6 && Math.abs(L[10]) < 0.1, 'the onset rises, it does not slam');
+    assert.ok(Math.max.apply(null, Array.from(L.subarray(0, 4000)).map(Math.abs)) <= 1, 'bounded');
+  }
+});
+test('fxFlangeParams / fxLfoWave / fxPhaserStages: beat-synced sweeps whose bottom lands on the bar', () => {
+  const p = S.fxFlangeParams(1, 1, 120);
+  assert.ok(Math.abs(p.rateHz - 1 / 2) < 1e-9, 'one sweep per four beats at 120 BPM is a two-second cycle');
+  assert.ok(Math.abs(S.fxFlangeParams(0.5, 0.5, 120).rateHz - 1) < 1e-9, 'a half-beat division sweeps twice as fast');
+  assert.ok(p.fb <= 0.55 && S.fxFlangeParams(0, 1, 120).fb >= 0.25, 'feedback inside the budget');
+  assert.equal(S.fxFlangeParams(0, 1, 120).depthSec, 0); assert.ok(p.depthSec > 0.001 && p.baseSec === 0.003);
+  // the swept line sits inside the feedback cycle, where a DelayNode is clamped to one render quantum
+  // (128 frames): the WHOLE sweep, at every amount, must stay above that floor at 44.1 kHz or it is a static comb
+  for (let a = 0; a <= 1.0001; a += 0.05){
+    const q = S.fxFlangeParams(a, 1, 128);
+    // apply() centres delayTime at base + depth and the LFO swings ±depth: the sweep is [base, base + 2·depth]
+    assert.ok(q.baseSec > 128 / 44100, 'sweep bottom above the cycle floor at amount ' + a.toFixed(2) + ': ' + (q.baseSec * 1000).toFixed(2) + ' ms');
+    assert.ok(q.baseSec + 2 * q.depthSec <= 0.006, '…and the top still a flanger, not a slapback');
+  }
+  // the wave: real·cos + imag·sin evaluated at θ = 2π·frac must be the minimum
+  for (const frac of [0, 0.25, 0.6, 0.99]){
+    const w = S.fxLfoWave(frac), th = 2 * Math.PI * frac;
+    const at = w.real[1] * Math.cos(th) + w.imag[1] * Math.sin(th);
+    assert.ok(Math.abs(at + 1) < 1e-6, 'bottom on the bar for frac ' + frac + ', got ' + at);
+    assert.ok(Math.abs(w.real[1] * w.real[1] + w.imag[1] * w.imag[1] - 1) < 1e-6, 'unit amplitude');
+    assert.equal(w.real[0], 0); assert.equal(w.imag[0], 0);
+  }
+  const st = S.fxPhaserStages(1, 6);
+  assert.equal(st.base.length, 6);
+  for (let k = 1; k < 6; k++) assert.ok(Math.abs(st.base[k] / st.base[k - 1] - Math.SQRT2) < 1e-9, 'half an octave apart');
+  assert.equal(st.base[0], 250); assert.equal(st.fb, 0.3); assert.equal(st.depth[0], 2); assert.equal(S.fxPhaserStages(0, 6).depth[3], 0);
+  const sh = S.fxPhaserShape(1025, 2);
+  assert.ok(Math.abs(sh[512]) < 1e-9, 'no sweep at rest'); assert.ok(Math.abs(sh[1024] - 3) < 1e-9 && Math.abs(sh[0] + 0.75) < 1e-9, '±2 octaves at the ends');
+});
+test('crushBits / crushCurve / crushTone: twelve bits of grit to three bits of the sound everybody means', () => {
+  assert.equal(S.crushBits(0), 12); assert.equal(S.crushBits(1), 3); assert.equal(S.crushBits(0.5), 7.5);
+  const c = S.crushCurve(3, 1025);
+  const levels = new Set(Array.from(c).map(v => Math.round(v * 1e6)));
+  assert.ok(levels.size <= 9 && levels.size >= 7, 'three bits is a handful of steps, got ' + levels.size);
+  assert.ok(Math.abs(c[1024] - 1) < 1e-9 && Math.abs(c[0] + 1) < 1e-9 && c[512] === 0, 'full scale and silence are exact');
+  assert.ok(S.crushTone(0) > 15000 && S.crushTone(1) < 2500 && S.crushTone(0.5) < S.crushTone(0.2), 'the top goes with the bits');
+});
+test('driveMakeup: driven or clean, the room is the same loudness within a dB across the whole knob', () => {
+  const curve = S.driveCurve(4096);
+  assert.ok(Math.abs(curve[4095] - 1) < 1e-9 && Math.abs(curve[0] + 1) < 1e-9 && Math.abs(curve[2047] + curve[2048]) < 1e-3, 'normalised, odd');
+  // a tanh(3x)/tanh(3) shaper has a small-signal slope of three: even at unity pre-gain it lifts
+  // programme material by several dB (less than the full slope — at −9 dBFS the peaks are already
+  // into the knee), which is exactly what the table exists to take back
+  assert.ok(S.driveMakeup(1) > 1.5 && S.driveMakeup(1) < 3.05, 'unity makeup is the shaper\'s own lift, got ' + S.driveMakeup(1));
+  // a DIFFERENT pink reference than the table was built from
+  const ref = S.drivePinkRef(16384, 0.355, 777), t3 = Math.tanh(3);
+  let inSq = 0; for (let i = 0; i < ref.length; i++) inSq += ref[i] * ref[i];
+  for (let k = 1; k <= 8; k += 0.5){
+    const post = 1 / S.driveMakeup(k);
+    let sq = 0;
+    for (let i = 0; i < ref.length; i++){ const y = Math.tanh(3 * Math.max(-1, Math.min(1, k * ref[i]))) / t3 * post; sq += y * y; }
+    const db = 10 * Math.log10(sq / inSq);
+    assert.ok(Math.abs(db) < 1, 'k=' + k + ' lands within a dB of clean, got ' + db.toFixed(2) + ' dB');
+  }
+  assert.ok(S.driveMakeup(8) > S.driveMakeup(1), 'more drive, more makeup to take back');
+  assert.equal(S.drivePre(0), 1); assert.equal(S.drivePre(1), 8); assert.equal(S.driveTiltDb(1), -3);
+  // the graph's own loss (tilt, pre-highpass, the 4× band limit) is given back with the pre-gain: nothing at unity, under 2 dB at full
+  assert.equal(S.driveTrimDb(1), 0); assert.ok(S.driveTrimDb(8) > 1 && S.driveTrimDb(8) < 2); assert.ok(S.driveTrimDb(4) > S.driveTrimDb(2)); assert.equal(S.driveTrimDb(99), S.driveTrimDb(8));
+});
+test('fxAutoStep: a decision a bar, hysteresis on the line, two bars held, eight of rest, the gate rationed', () => {
+  const base = { ceil: 1, act: 2, phase: 'peak', bar: 2, toSeam: null };
+  // a peak hovering on the gate's line: 0.84–0.88 around 0.86 — without hysteresis this flickered every frame
+  let st = S.makeFxAuto(), changes = [];
+  for (let bars = 0; bars < 64; bars += 0.01){
+    const e = 0.86 + 0.02 * Math.sin(bars * 7.3);
+    const r = S.fxAutoStep(st, { ...base, energy: e }, ((bars % 1) + 1) % 1, bars);
+    if (r.change) changes.push(bars);
+    st = r.st;
+  }
+  assert.equal(changes.length, 0, 'a wobble on the line is not a decision: ' + changes.length + ' changes');
+  // a real peak: the gate comes in on a bar line, stays four bars, rests, and is not dealt again for 32
+  st = S.makeFxAuto(); changes = [];
+  for (let bars = 0; bars < 80; bars += 0.01){
+    const r = S.fxAutoStep(st, { ...base, energy: 0.95 }, ((bars % 1) + 1) % 1, bars);
+    if (r.change) changes.push({ bars: Math.round(bars * 100) / 100, unit: r.unit });
+    st = r.st;
+  }
+  assert.ok(changes.length >= 2, 'the gate was dealt, ' + JSON.stringify(changes));
+  for (const c of changes) assert.ok(c.bars % 1 < 0.05, 'every change at the top of a bar: ' + c.bars);
+  assert.equal(changes[0].unit, 'gate'); assert.equal(changes[1].unit, 'none');
+  assert.ok(changes[1].bars - changes[0].bars >= 4 && changes[1].bars - changes[0].bars < 5, 'four bars of gate, got ' + (changes[1].bars - changes[0].bars));
+  if (changes[2]) assert.ok(changes[2].bars - changes[0].bars >= 32, 'and not again inside thirty-two bars');
+  for (let i = 1; i < changes.length; i++) assert.ok(changes[i].bars - changes[i - 1].bars >= 2, 'never two changes inside two bars');
+  // a build then a drop: the sweep holds two bars at least, and after it ends the room rests eight bars before the next unit
+  st = S.makeFxAuto(); changes = [];
+  for (let bars = 0; bars < 40; bars += 0.01){
+    const o = bars < 8 ? { ...base, phase: 'build', act: 1, energy: 0.7 } : bars < 9 ? { ...base, phase: 'flow', energy: 0.4 } : { ...base, energy: 0.95 };
+    const r = S.fxAutoStep(st, o, ((bars % 1) + 1) % 1, bars);
+    if (r.change) changes.push({ bars: Math.round(bars * 100) / 100, unit: r.unit });
+    st = r.st;
+  }
+  assert.equal(changes[0].unit, 'filter'); assert.equal(changes[1].unit, 'none');
+  assert.ok(changes[1].bars - changes[0].bars >= 2);
+  assert.equal(changes[2].unit, 'gate'); assert.ok(changes[2].bars - changes[1].bars >= 8, 'eight bars of rest, got ' + (changes[2].bars - changes[1].bars));
+  // the hand-off echo is the exception: it may interrupt a held unit without the rest
+  st = S.makeFxAuto();
+  st = S.fxAutoStep(st, { ...base, phase: 'build', act: 1, energy: 0.7 }, 0.01, 4).st;
+  assert.equal(st.unit, 'filter');
+  const r = S.fxAutoStep(st, { ...base, phase: 'build', act: 1, energy: 0.7, toSeam: 1.5 }, 0.01, 5);
+  assert.equal(r.unit, 'echo'); assert.ok(r.change);
+  // and never a change off the bar line, never twice in one bar
+  const r2 = S.fxAutoStep(r.st, { ...base, energy: 0.95 }, 0.5, 5.5);
+  assert.ok(!r2.change && r2.unit === 'echo');
+  // a late tick (a slow frame, the hidden tab's 300 ms timer) still decides, once, inside the bar's first quarter
+  let late = S.fxAutoStep(S.makeFxAuto(), { ...base, energy: 0.95 }, 0.2, 12.2);
+  assert.ok(late.change && late.unit === 'gate', 'a tick a fifth of a bar late still takes the decision');
+  assert.ok(!S.fxAutoStep(late.st, { ...base, energy: 0.95 }, 0.22, 12.22).change, '…once');
+  assert.ok(!S.fxAutoStep(S.makeFxAuto(), { ...base, energy: 0.95 }, 0.3, 12.3).change, 'but past the first quarter it waits for the next bar');
+  assert.ok(S.FX_AUTO.barTop * S.beatLen(4, 174) > 0.3, 'the window outlasts the hidden tab\'s 300 ms tick even at 174 BPM');
+  // a hidden tab feeds the step ceil 0: nothing is dealt, and a running unit winds down by the rules
+  let hid = S.fxAutoStep(S.makeFxAuto(), { ...base, energy: 0.95 }, 0.01, 20);
+  assert.equal(hid.unit, 'gate');
+  hid = S.fxAutoStep(hid.st, { ...base, ceil: 0, energy: 0.95 }, 0.01, 21);
+  assert.ok(!hid.change && hid.unit === 'gate', 'held its two bars');
+  hid = S.fxAutoStep(hid.st, { ...base, ceil: 0, energy: 0.95 }, 0.01, 22);
+  assert.ok(hid.change && hid.unit === 'none', 'then let go, nothing new dealt');
+  assert.equal(S.fxAutoPick({ ...base, ceil: 0, toSeam: 0.5 }), 'none', 'not even the seam echo on frozen inputs');
+  assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 1 }), 'reverb', 'a break\'s first bars are a wash');
+  assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 3 }), 'none', '…and only its first bars');
+});
+test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
+  const s = S.fxAutoSweep(16, 120, 0.9);
+  assert.ok(s.hzTop >= 900 && s.hzTop <= 1400, 'the top sits under the vocals, got ' + s.hzTop);
+  assert.ok(Math.abs(s.seconds - 32) < 1e-9, 'sixteen bars at 120 BPM');
+  assert.ok(Math.abs(s.release - 0.5) < 1e-9, 'one beat');
+  assert.ok(S.fxAutoSweep(1, 120, 0.9).seconds >= 8 && S.fxAutoSweep(999, 120, 0.9).seconds <= 128, 'clamped to a phrase and to a minute');
+  assert.ok(S.fxAutoSweep(16, 120, 0.5).hzTop < S.fxAutoSweep(16, 120, 1).hzTop, 'a bigger build, a thinner room');
+  assert.equal(s.qTop, 2.5);
+});
+test('fxGainBudget: everything that can sound at once stays under +6 dB, so the limiter is a rail nobody hears', () => {
+  assert.equal(S.FX_BUDGET_DB, 6);
+  for (const u of S.FX_UNITS) assert.ok(S.FX_GAIN_DB[u] != null, u + ' has a documented worst case');
+  // a deck's filter, one master unit, and the previous unit's tail still ringing out
+  for (const u of S.FX_UNITS) if (u !== 'filter') for (const tail of ['echo', 'reverb'])
+    assert.ok(S.fxGainBudget(['filter', u, tail]) <= S.FX_BUDGET_DB, 'filter + ' + u + ' + a ' + tail + ' tail: ' + S.fxGainBudget(['filter', u, tail]) + ' dB');
+  assert.equal(S.fxGainBudget([]), 0); assert.equal(S.fxGainBudget(['nothing']), 0); assert.equal(S.fxGainBudget(null), 0);
+  // the parked table carries what the first rack forgot
+  assert.equal(S.FX_PARK.fb, 0); assert.equal(S.FX_PARK.fbX, 0); assert.equal(S.FX_PARK.wet, 0); assert.equal(S.FX_PARK.send, 0);
+  assert.equal(S.FX_PARK.gate, 1); assert.equal(S.FX_PARK.insDry, 1); assert.equal(S.FX_PARK.insWet, 0); assert.equal(S.FX_PARK.lp, 22000);
+  assert.equal(S.FX_PARK.lpQ, S.Q_FLAT_DB); assert.equal(S.FX_PARK.hpQ, S.Q_FLAT_DB, 'the master corners park at a TRUE Butterworth, in dB');
+});
+test('the rack in the player: release walks FX_PARK, the gate is curves, the seam goes through the arbiter, nothing assigns a param', () => {
+  const fx = html.slice(html.indexOf('const FX = {'), html.indexOf('const CUES = {'));
+  for (const s of ['for (const k in FX_PARK){', "if (hold && (k === 'send' || k === 'fb' || k === 'fbX' || k === 'wet')) continue;",
+                   'if (g.cancelAndHoldAtTime) g.setValueCurveAtTime(gateCurve(ev.from, ev.to, 32), ev.at, ev.dur);',
+                   'else { g.setValueAtTime(ev.from, ev.at); g.linearRampToValueAtTime(ev.to, ev.at + ev.dur); }',
+                   'if (this._gateFresh && ev.to === 1) continue;',
+                   // the knob's zero end reopens the room; the re-anchor is on the queue's own grid, a hair early
+                   "if (!(this.amount > 0.02)){", 'this._w(f.gate.gain, 1, 0.02);', 'this._gateStep = step;',
+                   'const step = this._gateStep > 0 ? this._gateStep : fxTime(this.div, this.bpm());',
+                   'try { f.gate.gain.cancelScheduledValues(Math.max(t, next - 1e-6)); } catch (e){}',
+                   // the held tail: from the constant, and started at the seam's commit before the reset
+                   'const fbS = this.hold ? ECHO_HOLD_FB : g.fb;', 'const fbS = want ? ECHO_HOLD_FB :',
+                   "&& this._autoSt.unit === 'echo' && this.unit === 'echo'){",
+                   // a hidden tab deals nothing on frozen inputs
+                   'ceil: hidden ? 0 : director.ceil,',
+                   // …but a build sweep already on the audio clock plays to its release, not a false drop
+                   "if (hidden && this._autoSt.unit === 'filter' && AE.ctx.currentTime < this._sweepEnd) return;",
+                   // the LFO: stopped late, swapped under a duck, glided on drift
+                   'this._lfoEnd(U, o, at);', 'if (live){ this._w(U.lfoG.gain, 0, 0.01); this._lfoStop(u, 0.05); }',
+                   'U.lfo.frequency.setTargetAtTime(fxFlangeParams(this.amount, this.div, bpm).rateHz, AE.ctx.currentTime, 0.05);',
+                   'f.hp.Q.linearRampToValueAtTime(qDb(sw.qTop), tRel);', 'const qd = qDb(q); d.filter.Q.setTargetAtTime(qd, now, tau);',
+                   'this._gateAt = b ? gateAnchor(t, b.at, step) : t;', 'd._fxBrake = 400 + r * 20000;',
+                   'const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : Math.SQRT1_2;',
+                   'd.filter.frequency.setTargetAtTime(a.lp, now, tau);', 'if (d._fxSched) continue;',
+                   'p.exponentialRampToValueAtTime(to, t + fxEchoGlide(from, to));', 'conv.normalize = true;',
+                   'const r = fxAutoStep(this._autoSt, o, barPhase, bars);', 'f.hp.frequency.exponentialRampToValueAtTime(sw.hzTop, tRel);',
+                   'this._w(U.post.gain, Math.pow(10, driveTrimDb(k) / 20) / driveMakeup(k), R);'])
+    assert.ok(fx.includes(s), 'FX carries: ' + s);
+  assert.ok(!/\.(gain|frequency|Q|delayTime)\.value\s*=[^=]/.test(fx), 'no param in the rack is assigned — every write is a ramp or a target');
+  assert.ok(!fx.includes('ramp(AE.fx.lp.frequency'), 'the brake no longer writes the master lowpass');
+  assert.ok(!fx.includes('U.lfo.stop(); U.lfo.disconnect();'), 'no LFO is cut from under an audible wet');
+  // no lowpass or highpass anywhere in the player is told 0.7 as if Q were linear
+  assert.ok(!/type = '(lowpass|highpass)';[^\n]*Q\.value = 0\.7;/.test(html.slice(html.indexOf('const inn = AE.ctx.createGain();'), html.indexOf('AE.out = AE.ctx.createGain();'))), 'the rack\'s LP/HP biquads are Butterworth in dB');
+  assert.ok(html.includes("d.hp.type = 'highpass'; d.hp.frequency.value = 20; d.hp.Q.value = Q_FLAT_DB;"), 'the deck highpass parks without a sub-bass hump');
+  // the mixer declares its sweep to the arbiter; the hidden-tab timer keeps the booth\'s clocks
+  for (const s of ['FX.seamOpen(nd); FX.seamSweep(od, t0, sweep);', "if (typeof FX !== 'undefined') FX.seamOpen(d);",
+                   "if (document.hidden && typeof FX !== 'undefined'){ try { FX.tick(0.3); } catch (e){} }",
+                   "insIn, insWet, insDry, units, insert: ''", 'xSplit.connect(xMerge, 0, 1); xSplit.connect(xMerge, 1, 0);',
+                   "T('Beat FX need the engine — on this device the music plays direct')", 'id="fxMix"', 'id="fxHold"', 'id="fxKey"', 'id="fxGr"'])
+    assert.ok(html.includes(s), 'the player carries: ' + s);
+  assert.ok(!html.includes("{ key: 'keylock', text: 'KEY LOCK' }"), 'KEY LOCK left the pads for the knob row');
+});
+
+// ---- a deck holds a record, not a row number (R9/R29); a synced record through a seam (R13) ----
+test('deckSlot: the record is held by identity — play-next, a queued album, a removal, a sort and a new queue all leave the deck naming what it holds', () => {
+  const mk = n => ({ id: n, title: 'T' + n });
+  let q = [mk(0), mk(1), mk(2), mk(3), mk(4)];
+  const s = S.deckSlot(() => q);
+  assert.equal(s.trackIdx, -1, 'empty');
+  assert.equal(s.owner, 'free'); assert.equal(s.pitch, 1); assert.equal(s.cue, 0); assert.equal(s.synced, false);
+  s.trackIdx = 3; s.cue = 64;
+  const held = q[3];
+  assert.equal(s.rec, held); assert.equal(s.trackIdx, 3);
+  q.splice(1, 0, mk(10), mk(11), mk(12));                 // an album queued after the current track
+  assert.equal(s.trackIdx, 6, 'the index follows the record'); assert.equal(q[s.trackIdx], held);
+  const [x] = q.splice(7, 1); q.splice(0, 0, x);          // play-next lifts a row from below to the top
+  assert.equal(q[s.trackIdx], held);
+  q.splice(0, 2);                                          // rows removed above it
+  assert.equal(q[s.trackIdx], held);
+  q.sort((a, b) => b.id - a.id);                           // a sort
+  assert.equal(q[s.trackIdx], held);
+  q = q.slice().reverse();                                 // the queue REPLACED by a list that keeps it
+  assert.equal(q[s.trackIdx], held, 'read lazily: the queue as it stands now, never a captured array');
+  assert.equal(s.cue, 64, 'no record change, no cue change');
+  s.trackIdx = s.trackIdx;                                 // re-seating the same record keeps its cue
+  assert.equal(s.cue, 64);
+  q.splice(q.indexOf(held), 1);                            // its own row removed
+  assert.equal(s.trackIdx, -1, 'a record that left the queue reads as -1, never as its neighbour');
+  assert.equal(s.rec, held, 'the deck still physically holds it');
+  s.trackIdx = 0;                                          // another record seated (the transport, the auto-DJ)
+  assert.equal(s.rec, q[0]); assert.equal(s.cue, 0, 'a new record does not inherit the last one\'s cue');
+  s.trackIdx = -1; assert.equal(s.rec, null); assert.equal(s.trackIdx, -1);
+  s.trackIdx = 99; assert.equal(s.rec, null, 'past the end is nothing');
+  const t = S.deckSlot(() => null); t.trackIdx = 0;
+  assert.equal(t.trackIdx, -1, 'no queue yet: nothing');
+  const a = S.deckSlot(() => q), b = S.deckSlot(() => q);
+  a.trackIdx = 0; assert.equal(b.trackIdx, -1, 'two slots, two states');
+  // a SYNC belongs to the record it was set on, as the cue does (R13)
+  a.pitch = 0.968; a.synced = true; a.cue = 12;
+  a.trackIdx = 0;                                          // the same record re-seated (settle after a hand's commit)
+  assert.equal(a.pitch, 0.968); assert.equal(a.synced, true, 'the same record keeps its match');
+  q.push(mk(20)); q.splice(0, 0, mk(21));                   // the queue moves under it: still the same record
+  assert.equal(a.pitch, 0.968); assert.equal(a.synced, true);
+  a.trackIdx = q.length - 1;                               // another record seated (the auto-DJ's preload)
+  assert.equal(a.pitch, 1); assert.equal(a.synced, false, 'a new record is matched to nothing');
+  assert.equal(a.cue, 0);
+  a.pitch = 1.03; a.synced = true; a.trackIdx = -1;
+  assert.equal(a.pitch, 1); assert.equal(a.synced, false, 'nothing on the deck, nothing synced');
+});
+test('seamPitchCarry: a synced record starts the seam at its own pitch and lands at 1× — both decks alike, the plan\'s ratio kept', () => {
+  assert.equal(S.seamPitchCarry(0.968, 0), 0.968, 'the on-air record exactly where it plays');
+  assert.equal(S.seamPitchCarry(0.968, 1), 1, 'home at the seam\'s end');
+  assert.ok(Math.abs(S.seamPitchCarry(0.968, 0.5) - 0.984) < 1e-12, 'linear across the overlap');
+  assert.equal(S.seamPitchCarry(1.04, 2), 1); assert.equal(S.seamPitchCarry(1.04, -1), 1.04, 'f clamped');
+  for (const bad of [0, -1, NaN, Infinity, undefined, null, 'x']) assert.equal(S.seamPitchCarry(bad, 0), 1, 'no pitch reads as 1: ' + bad);
+  assert.equal(S.seamPitchCarry(1, 0.3), 1, 'an unsynced record: the seam is exactly what it was');
+  let prev = S.seamPitchCarry(0.95, 0), maxStep = 0;
+  for (let i = 1; i <= 100; i++){ const k = S.seamPitchCarry(0.95, i / 100); maxStep = Math.max(maxStep, Math.abs(k - prev)); assert.ok(k >= prev); prev = k; }
+  assert.ok(maxStep < 0.001, 'a glide, never a step: ' + maxStep);
+  // the seam's first write: A at p (no snap), B matched to A's sounding tempo — the ratio is glideRates' own
+  const g = S.glideRates(124, 120, 0), k = S.seamPitchCarry(0.968, 0);
+  assert.ok(Math.abs(g.rateA * k - 0.968) < 1e-12);
+  assert.ok(Math.abs((g.rateB * k) / (g.rateA * k) - g.rateB / g.rateA) < 1e-12);
+});
+test('mix narration: a planned or playing seam outranks a deck left synced; SYNC still speaks when nothing is planned (R32)', () => {
+  const sync = { deck: 'B', bpm: 120 };
+  assert.match(S.mixNarration({ on: true, phase: 'armed', planType: 'fade', seamSec: 5, sync }), /^CUED/);
+  assert.match(S.mixNarration({ on: true, phase: 'running', planType: 'fade', pct: 10, sync }), /^MIXING/);
+  assert.equal(S.mixNarration({ on: true, phase: 'idle', sync }), 'SYNC · B matched at 120');
+  assert.match(S.mixNarration({ on: true, phase: 'planning', planType: 'fade', seamSec: 50, sync }), /^SYNC/, 'a peek ahead does not outrank it');
+  assert.match(S.mixNarration({ on: false, phase: 'running', sync }), /^SYNC/, 'MIX off: no seam line to outrank it');
+  assert.match(S.mixNarration({ on: false, phase: 'armed' }), /MIX is off/, 'MIX off still reads as off');
+  assert.match(S.mixNarration({ on: true, phase: 'manual', pct: 30, handDeck: 'B', sync }), /^HAND · you took/, 'a hand on a seam outranks all of it');
+});
+test('the decks in the player: slots by identity, the restore onto the idle deck, a cue per record, the element rate on a transport start, the carried pitch, the booth LOAD', () => {
+  const decks = html.slice(html.indexOf('const DECKS = {'), html.indexOf('window.__mb8Decks'));
+  assert.ok(decks.includes('slots: [deckSlot(() => player.tracks), deckSlot(() => player.tracks)],'), 'R9: slots hold records');
+  assert.ok(!decks.includes('{ trackIdx: -1, owner:'), 'R9: no index-only slot left');
+  assert.ok(decks.includes("this.load(this.idle(), t, { at: r.cue, by: 'restore' });"), 'R10: the hand\'s record returns to the idle deck');
+  assert.ok(!decks.includes('const slot = r.slot === 1 ? 1 : 0;'), 'R10: the saved letter is not where it goes');
+  assert.ok(decks.includes('if (!cued) s.cue = 0;'), 'R29: a transport start cues the record at its top');
+  assert.ok(decks.includes('try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}\n    setPitchLock(d.a, SPEED.keyLock);'),
+    'R13: the element follows the slot it resets');
+  const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
+  assert.ok(mixer.includes("this._pA = (typeof DECKS !== 'undefined') ? DECKS.pitch(AE.active) : 1;"), 'R13: the on-air pitch is read at fire');
+  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = g.rateA * k * SPEED.rate;') && mixer.includes('nd.a.playbackRate = this._lastRateB = g.rateB * k * SPEED.rate;'), 'R13: fire carries it');
+  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = g.rateA * k * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate;'), 'R13: the glide carries it home');
+  assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
+  assert.ok(mixer.includes('const fresh = ws.rec !== had;') && mixer.includes('if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
+  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}\n      setPitchLock(nd.a, SPEED.keyLock);'),
+    'R13: a new record on the idle deck plays at the listener\'s rate, never a retired match');
+  assert.ok(decks.includes('if (retired != null && retired >= 0){ r.trackIdx = retired; r.pitch = 1; r.synced = false; }'), 'R13: the retired deck\'s sync retires with it');
+  assert.ok(decks.includes('onPlayIndex(newIdx, retired, fadeDur, cued, idx){') && decks.includes('if (idx != null && idx >= 0) s.trackIdx = idx;'), 'R13: the on-air slot names the record it plays');
+  assert.ok(html.includes('DECKS.onPlayIndex(newIdx, od === nd ? -1 : retiredCur, AE.graphLive ? fadeDur : 0, cued, i);'), 'R13: playIndex says which');
+  assert.ok(decks.includes("{ const r = this.slots[1 - inSlot]; r.owner = 'free'; r.pitch = 1; r.synced = false; }"), 'R13: a hand\'s commit retires the old air\'s sync too');
+  assert.equal((mixer.match(/if \(hs\.owner === 'hand' && !held\)\{ if \(!hd\.a\.paused && !hd\.a\.ended\) return/g) || []).length, 2, 'R9: a hand\'s record that left the queue never leaves the deck half-claimed');
+  const tr = html.slice(html.indexOf('function wireDeckTransport(){'), html.indexOf('function wireDeckTransport(){') + 6000);
+  const ld = tr.slice(tr.indexOf('const load = slot => {'));
+  assert.ok(ld.indexOf('if (!AE.ctx){ try { ensureCtx(); } catch (e){} }') >= 0 && ld.indexOf('if (!AE.ctx){ try { ensureCtx(); } catch (e){} }') < ld.indexOf('if (!AE.graphLive || !AE.decks)'),
+    'R31: the booth LOAD births the decks before it judges them');
+  assert.ok(html.includes('if (!running && !armed) for (let i = 0; i < 2 && !sync; i++) if (DECKS.slots[i].synced){'), 'R32: the booth says SYNC only with no seam planned');
+});
+test('the armed seam holds its record: MIXER.next is read through the queue as it stands, and an "up next" re-plans it (R9)', () => {
+  const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
+  assert.ok(!/\bnext: -1,/.test(mixer.slice(0, 2000)), 'no row-number field left');
+  const g = mixer.match(/  get next\(\)\{[^\n]*\},\n  set next\(i\)\{[^\n]*\},/);
+  assert.ok(g, 'next is an accessor over the record');
+  const player = { tracks: [] };
+  const M = new Function('player', 'return { _nextRec: null,\n' + g[0] + ' };')(player);
+  const mk = n => ({ id: n });
+  player.tracks = [mk(0), mk(1), mk(2), mk(3)];
+  assert.equal(M.next, -1, 'nothing armed');
+  M.next = 2; const B = player.tracks[2];
+  assert.equal(M._nextRec, B);
+  player.tracks.splice(1, 0, mk(10), mk(11), mk(12));      // an album queued next, under the armed seam
+  assert.equal(M.next, 5); assert.equal(player.tracks[M.next], B, 'fire() commits the record the deck holds, not its old row');
+  player.tracks.sort((a, b) => b.id - a.id);
+  assert.equal(player.tracks[M.next], B);
+  player.tracks = player.tracks.filter(t => t !== B);      // its row removed (or a new list played over it)
+  assert.equal(M.next, -1, 'gone from the queue: nothing to fire — never its neighbour');
+  M.next = -1; assert.equal(M._nextRec, null, 'cancel and finish let it go');
+  M.next = 99; assert.equal(M._nextRec, null);
+  // fire() reads the record through the accessor and gives up on one that left
+  assert.ok(mixer.includes('const B = player.tracks[this.next];\n    if (!B){ this.cancel(); return; }'));
+  assert.equal((mixer.match(/this\.plan = null; this\.next = -1;/g) || []).length, 2, 'cancel and finish clear it');
+  // "up next" while armed: the plan is let go and re-armed from the queue as it now stands
+  const pl = html.slice(html.indexOf('  playNext(i){'), html.indexOf('  remove(i){'));
+  assert.ok(pl.includes("_upNextReplan(){\n    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('replan');"));
+  assert.equal((pl.match(/this\._upNextReplan\(\);/g) || []).length, 2, 'play-next and queue-next both re-plan');
+});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures

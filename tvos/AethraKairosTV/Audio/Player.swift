@@ -121,10 +121,13 @@ enum MixPlanner {
 }
 
 /// Seam choreography sleeps on wall clock; sub-frame precision belongs to the
-/// engine's render-clock scheduling, not to these timers.
+/// engine's render-clock scheduling, not to these timers. A request that is
+/// not a number, or longer than an hour, is clamped rather than converted:
+/// UInt64(inf) is a trap, and nothing here legitimately sleeps that long.
 private func sleepSeconds(_ s: Double) async {
-    guard s > 0 else { return }
-    try? await Task.sleep(nanoseconds: UInt64(s * 1_000_000_000))
+    guard s.isFinite, s > 0 else { return }
+    let clamped = min(s, 3600)
+    try? await Task.sleep(nanoseconds: UInt64(clamped * 1_000_000_000))
 }
 
 // MARK: - Mix style
@@ -207,7 +210,10 @@ enum MixStyle: String, CaseIterable {
     /// NowPlayingCenter reads artist/label/albums from here).
     private(set) var catalog: Catalog?
 
-    private let engine = DeckEngine()
+    /// A var, not a let: a media-services reset kills every AVFAudio object,
+    /// and the only cure Apple offers is a new engine (see
+    /// rebuildAudioAfterMediaServicesReset). Touched on the main actor only.
+    private var engine = DeckEngine()
     private let loader = TrackLoader()
     private let library: Library
 
@@ -225,7 +231,25 @@ enum MixStyle: String, CaseIterable {
     private var generation = 0              // one materialization wins; stale loads drop out
     private var playedSecondsThisTrack: Double = 0
     private var failureStreak = 0
-    private var suppressPositionUntil = Date.distantPast
+    /// systemUptime seconds (monotonic — a wall-clock step must never freeze
+    /// the position readout) before which the poll leaves `position` alone.
+    private var suppressPositionUntil: TimeInterval = 0
+
+    /// THE LISTENER'S INTENT, kept apart from the fact. True from play() until
+    /// pause() — through a download still on its way, an engine that will
+    /// not start, a media-services reset. The fact (isPlaying) follows the
+    /// engine; the intent decides what happens when the load lands or the
+    /// engine comes back.
+    private var wantsPlayback = false
+    /// A materialize is in flight: the download or decode has not landed.
+    private var materializing = false
+    /// recoverAudio attempts in a row that could not start the engine, and
+    /// the count at which the transport stops claiming to play (~10 s at the
+    /// liveness guard's 0.5 s cadence) — the HUD and the idle timer stop
+    /// lying, the intent stays, and the poll keeps asking every ~2 s.
+    private var recoveryFailures = 0
+    private static let maxRecoveryFailures = 20
+    private var retryPolls = 0
 
     /// Polls in a row the transport has believed "playing" while the active
     /// deck was not actually rendering — the liveness guard's evidence.
@@ -234,6 +258,7 @@ enum MixStyle: String, CaseIterable {
     /// playing; if the system says so when it ends, the music comes back.
     private var resumeAfterInterruption = false
     private var interruptionObserver: NSObjectProtocol?
+    private var mediaResetObserver: NSObjectProtocol?
 
     private var pollTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
@@ -276,14 +301,7 @@ enum MixStyle: String, CaseIterable {
            `.playback` category every earlier working build shipped with is
            back — the system's default output is what it plays to. */
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-        // Exactly one tap consumer: the analyzer is the ears; nothing else listens.
-        let analyzer = self.analyzer
-        engine.installTap { buffer, when in
-            analyzer.ingest(buffer: buffer, when: when)
-        }
-        engine.onConfigurationChange = { [weak self] in
-            Task { @MainActor in self?.recoverAudio() }
-        }
+        wireEngine()
         interruptionObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance(), queue: .main
@@ -295,7 +313,35 @@ enum MixStyle: String, CaseIterable {
                 rawValue: (info[AVAudioSessionInterruptionOptionKey] as? UInt) ?? 0)
             Task { @MainActor in self?.handleInterruption(type, shouldResume: opts.contains(.shouldResume)) }
         }
+        // mediaserverd can die (memory pressure, a failed AirPlay handshake);
+        // when it does every AVFAudio object is an orphan and the engine will
+        // never start again. The only cure is a fresh one.
+        mediaResetObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification,
+            object: AVAudioSession.sharedInstance(), queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.rebuildAudioAfterMediaServicesReset() }
+        }
         startPollLoop()
+    }
+
+    /// Exactly one tap consumer (the analyzer is the ears; nothing else
+    /// listens) and the engine's one word back (the output changed). Run once
+    /// at birth and again for every engine a media-services reset rebuilds.
+    private func wireEngine() {
+        let analyzer = self.analyzer
+        engine.installTap { buffer, when in
+            analyzer.ingest(buffer: buffer, when: when)
+        }
+        engine.onConfigurationChange = { [weak self] in
+            // One run-loop turn later, never inside the notification: AVFAudio
+            // is still unwinding its own graph state when it posts, and a
+            // start or play from inside that window is the abort this whole
+            // path exists to avoid. All engine work stays on the main thread.
+            DispatchQueue.main.async {
+                Task { @MainActor in self?.recoverAudio() }
+            }
+        }
     }
 
     // MARK: transport
@@ -305,11 +351,13 @@ enum MixStyle: String, CaseIterable {
         cancelSeam()
         stopActiveDeckDeferred()
         isPlaying = false
+        failureStreak = 0            // a new queue is a fresh verdict
         queue = tracks
         guard !tracks.isEmpty else {
             currentIndex = -1
             position = 0
             deckReady = false
+            wantsPlayback = false
             statusLine = ""
             return
         }
@@ -337,12 +385,33 @@ enum MixStyle: String, CaseIterable {
     }
 
     func toggle() {
+        // A press while the track is still on its way flips the INTENT; it
+        // never starts a second download of the same track.
+        if materializing, currentIndex >= 0 {
+            wantsPlayback.toggle()
+            // the FACT follows a pause: a skip leaves isPlaying true from the
+            // track it left, and a HUD, Now Playing and the idle lock that
+            // still say "playing" invite a second press that undoes the pause.
+            // Nothing that needs a deck reads it mid-download (deckReady is
+            // false), and the landing sets it from the intent either way.
+            if !wantsPlayback { isPlaying = false }
+            statusLine = wantsPlayback ? "materializing…" : "paused"
+            return
+        }
         if isPlaying { pause() } else { play() }
     }
 
     func play() {
+        wantsPlayback = true
+        recoveryFailures = 0
+        retryPolls = 0
         if currentIndex < 0 {
             if !queue.isEmpty { materialize(index: 0, startAt: 0, autoplay: true) }
+            return
+        }
+        if materializing {
+            // The download is already on its way; the intent above is enough.
+            statusLine = "materializing…"
             return
         }
         if !deckReady {
@@ -354,19 +423,31 @@ enum MixStyle: String, CaseIterable {
         var offset = position
         if let dur = currentDuration, offset >= dur - 0.5 { offset = 0; position = 0 }
         try? AVAudioSession.sharedInstance().setActive(true)
-        try? engine.startEngineIfNeeded()
+        do {
+            try engine.startEngineIfNeeded()
+        } catch {
+            NSLog("AethraKairos: engine start failed in play() — %@", String(describing: error))
+        }
         // A paused deck is inaudible, so re-scheduling from the held position is
         // not a seek of an audible deck.
         engine.stop(deck: activeDeck)
         engine.rampVolume(deck: activeDeck, to: 1, over: 0.06)
         engine.play(deck: activeDeck, atOffset: offset, in: 0)
         isPlaying = true
-        statusLine = ""
+        // An engine that would not start declined the play above; the
+        // liveness guard picks it up and recoverAudio keeps asking.
+        statusLine = engine.isEngineRunning ? "" : "audio output unavailable — retrying"
         analyzer.setClock(playhead: offset, mix: current?.mix, rate: speed)
     }
 
     func pause() {
-        guard isPlaying else { return }
+        wantsPlayback = false
+        guard isPlaying else {
+            // Pressed while the track is still on its way: the load lands
+            // PARKED at the position, not playing at full volume.
+            if materializing { statusLine = "paused" }
+            return
+        }
         cancelSeam()   // seam timers run on wall clock; a paused seam would fire wrongly
         if let p = engine.position(deck: activeDeck) { position = p }
         engine.pause(deck: activeDeck)
@@ -390,7 +471,7 @@ enum MixStyle: String, CaseIterable {
     }
 
     func seek(to seconds: Double) {
-        guard currentIndex >= 0 else { return }
+        guard currentIndex >= 0, seconds.isFinite else { return }
         cancelSeam()   // the playhead moved; any armed plan is stale
         var s = max(0, seconds)
         if let dur = currentDuration { s = min(s, max(0, dur - 0.25)) }
@@ -399,7 +480,7 @@ enum MixStyle: String, CaseIterable {
         if isPlaying {
             let deck = activeDeck
             let gen = generation
-            suppressPositionUntil = Date().addingTimeInterval(0.4)
+            suppressPositionUntil = ProcessInfo.processInfo.systemUptime + 0.4
             pendingOpTask?.cancel()
             // The law: a deck must be inaudible before its playhead moves.
             engine.rampVolume(deck: deck, to: 0, over: 0.04)
@@ -455,10 +536,20 @@ enum MixStyle: String, CaseIterable {
 
     // MARK: - internals
 
+    /// THE TRANSPORT'S TRUTH ABOUT LENGTH. The catalog figure is display
+    /// metadata rounded to one decimal; the decoded file is sample-exact, and
+    /// CoreAudio's gapless trim can leave it tens of milliseconds SHORTER than
+    /// the catalog says. The position clamps to the decoded length, so an
+    /// advance that waits for the catalog figure can wait forever — silence,
+    /// the HUD saying playing, the screen never sleeping: the end-of-track
+    /// hang. The shorter of the two is the authority; the deck's own
+    /// finished signal (pollTick) is the other half of the cure.
     private var currentDuration: Double? {
-        if let d = current?.duration, d > 0 { return d }
-        let d = deckDuration[activeDeck]
-        return d > 0 ? d : nil
+        let decoded = deckDuration.indices.contains(activeDeck) ? deckDuration[activeDeck] : 0
+        let catalog = current?.duration ?? 0
+        if catalog > 0, decoded > 0 { return min(catalog, decoded) }
+        if decoded > 0 { return decoded }
+        return catalog > 0 ? catalog : nil
     }
 
     private func peekNext() -> Track? {
@@ -535,9 +626,12 @@ enum MixStyle: String, CaseIterable {
         let deck = activeDeck
         deckClaim[deck] += 1
         currentIndex = index
-        position = max(0, offset)
+        position = (offset.isFinite && offset > 0) ? offset : 0
         deckReady = false
+        deckDuration[deck] = 0       // the catalog figure stands in until the decode lands
         playedSecondsThisTrack = 0
+        wantsPlayback = autoplay
+        materializing = true
         let track = queue[index]
         statusLine = "materializing…"
         loadTask?.cancel()
@@ -546,23 +640,51 @@ enum MixStyle: String, CaseIterable {
             do {
                 let url = try await self.loader.localFile(for: track)
                 guard gen == self.generation, !Task.isCancelled else { return }
-                try self.engine.startEngineIfNeeded()
-                let dur = try self.engine.load(deck: deck, fileURL: url)
-                guard gen == self.generation else { return }
+                // THE DECODE IS NOT MAIN-THREAD WORK. Opening the file and
+                // forcing its frame count (an MP3 without a Xing frame is a
+                // walk over every packet) runs on a detached task; only the
+                // rewire below — a graph update — runs here on the main actor.
+                let file = try await Task.detached(priority: .userInitiated) {
+                    try DeckEngine.openFile(url)
+                }.value
+                guard gen == self.generation, !Task.isCancelled else { return }
+                await self.quiesce(deck: deck)
+                guard gen == self.generation, !Task.isCancelled else { return }
+                let dur = try self.engine.load(deck: deck, file: file)
+                self.materializing = false
                 self.deckDuration[deck] = dur
                 self.restDeck(deck)
                 self.engine.setNorm(deck: deck, track.normLin)
                 self.deckReady = true
                 self.failureStreak = 0
                 self.statusLine = ""
-                if autoplay {
+                // The INTENT decides, not the argument: a pause during the
+                // download parks an autoplay; a play press during a parked
+                // load (toggle flips the intent) starts it.
+                if self.wantsPlayback {
                     try? AVAudioSession.sharedInstance().setActive(true)
+                    // AN ENGINE THAT WILL NOT START IS NOT A BAD TRACK. It used
+                    // to share the load's catch and burn three tracks in two
+                    // seconds whenever the session was not yet ours (waking the
+                    // Apple TV, Siri just finished, HDMI mid-handshake). Now the
+                    // track stays loaded and ready, the transport says playing,
+                    // and the liveness guard's recoverAudio keeps asking.
+                    var engineUp = true
+                    do {
+                        try self.engine.startEngineIfNeeded()
+                    } catch {
+                        engineUp = false
+                        NSLog("AethraKairos: engine start failed after load — %@", String(describing: error))
+                    }
                     self.engine.rampVolume(deck: deck, to: 1, over: 0.06)
                     self.engine.play(deck: deck, atOffset: self.position, in: 0)
                     self.isPlaying = true
+                    self.statusLine = engineUp ? "" : "audio output unavailable — retrying"
                 } else {
+                    // Parked: restored-paused, or paused while the download ran.
                     self.engine.rampVolume(deck: deck, to: 1, over: 0.005)
                     self.isPlaying = false
+                    if autoplay { self.statusLine = "paused" }   // the pause overtook the play
                 }
                 self.activeRate = 1
                 self.analyzer.setClock(playhead: self.position, mix: track.mix,
@@ -571,16 +693,35 @@ enum MixStyle: String, CaseIterable {
                 self.library.saveTransport(self.snapshot())
             } catch {
                 guard gen == self.generation, !Task.isCancelled else { return }
+                self.materializing = false
+                // A cancelled download is not a bad track: a newer intent
+                // simply overtook this one.
+                if let le = error as? TrackLoader.LoaderError, case .cancelled = le { return }
                 self.isPlaying = false
                 self.statusLine = "couldn't load — \(track.title)"
-                // Three strikes then stop honestly, instead of marching silently
-                // through the whole catalog.
-                if autoplay, self.failureStreak < 3, self.hasNext() {
+                // Only a verdict about the TRACK (unreachable, corrupt, will
+                // not open) counts toward the three strikes; anything else
+                // keeps the track for the next play(). Three strikes then stop
+                // honestly, instead of marching silently through the catalog.
+                let badTrack = error is TrackLoader.LoaderError || error is DeckEngine.DeckError
+                if badTrack, autoplay, self.failureStreak < 3, self.hasNext() {
                     self.failureStreak += 1
                     self.hardSwitch(to: self.currentIndex + 1, startAt: 0, autoplay: true)
+                } else {
+                    self.wantsPlayback = false
                 }
             }
         }
+    }
+
+    /// The law: a deck must be inaudible before its transport is touched. A
+    /// deck still fading out (a skip inside a skip; a seam preload landing on
+    /// a deck whose deferred stop was overtaken by a newer claim) is ramped to
+    /// silence over the minimum ramp before load() stops it — never a click.
+    private func quiesce(deck: Int) async {
+        guard engine.isPlaying(deck: deck) else { return }
+        engine.rampVolume(deck: deck, to: 0, over: 0.005)
+        await sleepSeconds(0.012)
     }
 
     private func hardSwitch(to index: Int, startAt: Double, autoplay: Bool, fade: Double = 0.25) {
@@ -623,8 +764,10 @@ enum MixStyle: String, CaseIterable {
     private func handleInterruption(_ type: AVAudioSession.InterruptionType?, shouldResume: Bool) {
         switch type {
         case .began?:
-            resumeAfterInterruption = isPlaying
-            if isPlaying { pause() }
+            // The intent counts too: a track still downloading, or an engine
+            // we are still trying to start, comes back when the system says so.
+            resumeAfterInterruption = isPlaying || wantsPlayback
+            if isPlaying { pause() } else { wantsPlayback = false }
         case .ended?:
             let resume = resumeAfterInterruption && shouldResume
             resumeAfterInterruption = false
@@ -642,25 +785,87 @@ enum MixStyle: String, CaseIterable {
     /// the end-of-track logic then advances as it always does.
     private func recoverAudio() {
         deadPolls = 0
-        guard isPlaying, deckReady, currentIndex >= 0 else { return }
+        // The output may have renegotiated under the engine: drop the stale
+        // tap, re-assert the graph and prepare() now — BEFORE any start, and
+        // whatever the transport wants, so a paused player's next play() never
+        // starts a stale graph either. A running engine makes this a no-op;
+        // the start below re-installs the tap against the new format.
+        engine.reconfigureAfterOutputChange()
+        // Wanted: the transport says playing, or it gave up saying so (below)
+        // while the listener's intent still stands.
+        let wanted = isPlaying || (wantsPlayback && recoveryFailures > 0)
+        guard wanted, deckReady, currentIndex >= 0 else { return }
         let deck = activeDeck
         let at = engine.position(deck: deck) ?? position
         // At the very end, the next poll's end-of-track advance is the cure.
-        if let dur = currentDuration, at >= dur - 0.30 { return }
+        if isPlaying, let dur = currentDuration, at >= dur - 0.30 { return }
         cancelSeam()
         try? AVAudioSession.sharedInstance().setActive(true)
         do {
             try engine.startEngineIfNeeded()
         } catch {
-            statusLine = "audio output unavailable — retrying"
+            recoveryFailures += 1
+            NSLog("AethraKairos: audio recovery %d failed — %@", recoveryFailures, String(describing: error))
+            if recoveryFailures >= Self.maxRecoveryFailures, isPlaying {
+                // ~10 s of silence: stop telling the HUD, Now Playing and the
+                // idle timer that music plays. The position and the intent
+                // stay; the poll asks again every ~2 s, a press asks at once.
+                isPlaying = false
+                position = at
+                analyzer.setClock(playhead: at, mix: current?.mix, rate: 0)
+            }
+            statusLine = recoveryFailures > 1
+                ? "audio output unavailable — retrying (\(recoveryFailures))"
+                : "audio output unavailable — retrying"
             return   // the liveness guard asks again on the next polls
         }
+        recoveryFailures = 0
+        retryPolls = 0
         engine.stop(deck: deck)
         engine.rampVolume(deck: deck, to: 1, over: 0.06)
         engine.play(deck: deck, atOffset: at, in: 0)
+        isPlaying = true
         position = at
         statusLine = ""
         analyzer.setClock(playhead: at, mix: current?.mix, rate: clockRate)
+    }
+
+    /// mediaserverd died and took every AVFAudio object with it. Apple's law
+    /// for AVAudioSessionMediaServicesWereReset is to throw the orphans away
+    /// and build new ones, which this does: a fresh DeckEngine, the tap and
+    /// the session category re-asserted, and the deck re-materialized from
+    /// the same cached file at the same spot with the same intent. Without
+    /// this the recovery loop retried a dead engine forever — silent, with
+    /// "retrying" on screen until a force-quit.
+    private func rebuildAudioAfterMediaServicesReset() {
+        NSLog("AethraKairos: media services were reset — rebuilding the audio engine")
+        let wanted = isPlaying || wantsPlayback
+        // The polled position is the last honest word; the dead engine is not asked.
+        let at = position
+        loadTask?.cancel()
+        loadTask = nil
+        pendingOpTask?.cancel()
+        pendingOpTask = nil
+        engine.teardown()
+        engine = DeckEngine()
+        wireEngine()
+        // Seam bookkeeping is reset against the NEW engine — its decks are idle,
+        // so the stops and rests inside are harmless no-ops.
+        cancelSeam()
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+        isPlaying = false
+        deckReady = false
+        materializing = false
+        deadPolls = 0
+        recoveryFailures = 0
+        retryPolls = 0
+        deckDuration = [0, 0]
+        deckGlide = [1, 1]
+        activeRate = 1
+        position = (at.isFinite && at > 0) ? at : 0
+        analyzer.setClock(playhead: position, mix: current?.mix, rate: 0)
+        guard currentIndex >= 0 else { return }
+        materialize(index: currentIndex, startAt: position, autoplay: wanted)
     }
 
     // MARK: the 4 Hz poll — position, clock truth, transport save, seam lifecycle
@@ -677,6 +882,15 @@ enum MixStyle: String, CaseIterable {
 
     private func pollTick() {
         guard currentIndex >= 0, deckReady else { return }
+        // Gave up saying "playing" (recoverAudio) while the intent stands:
+        // ask again every ~2 s, honestly paused in between.
+        if !isPlaying, wantsPlayback, recoveryFailures > 0 {
+            retryPolls += 1
+            if retryPolls >= 8 {
+                retryPolls = 0
+                recoverAudio()
+            }
+        }
         // THE LIVENESS GUARD: "playing" must mean the active deck is rendering.
         // Every transport path starts the deck in the same step it sets
         // isPlaying, so two polls (~0.5 s) of disagreement is a deck the
@@ -688,7 +902,8 @@ enum MixStyle: String, CaseIterable {
             deadPolls = 0
         }
         if isPlaying {
-            if Date() >= suppressPositionUntil, let p = engine.position(deck: activeDeck) {
+            if ProcessInfo.processInfo.systemUptime >= suppressPositionUntil,
+               let p = engine.position(deck: activeDeck) {
                 position = p
             }
             playedSecondsThisTrack += 0.25
@@ -706,6 +921,11 @@ enum MixStyle: String, CaseIterable {
 
         guard isPlaying, let dur = currentDuration, dur > 0 else { return }
 
+        // THE DECK'S OWN WORD THAT IT FINISHED: the scheduled data played to
+        // its last frame. Believed only while the engine runs — an engine the
+        // output change stopped is the liveness guard's case, not this one.
+        let finished = engine.didFinish(deck: activeDeck) && engine.isEngineRunning
+
         // Arm the planned transition once, 90 s out. The plan is computed once
         // and never re-litigated.
         if autoMix, !seamRunning, seamPlan == nil, hasNext(), dur - position <= 90 {
@@ -717,7 +937,15 @@ enum MixStyle: String, CaseIterable {
             beginSeam(plan, duration: dur)
         }
         if !seamRunning {
-            if hasNext(), seamPlan == nil || !seamNextReady, position >= dur - 0.30 {
+            if finished {
+                // The music is over whatever the clocks say; a seam that never
+                // fired (its cue past the real end) is abandoned honestly.
+                if hasNext() {
+                    hardSwitch(to: currentIndex + 1, startAt: 0, autoplay: true)
+                } else {
+                    endOfQueue(duration: dur)
+                }
+            } else if hasNext(), seamPlan == nil || !seamNextReady, position >= dur - 0.30 {
                 // No seam became ready (auto-mix off, or a slow download):
                 // an honest hard advance at the end.
                 hardSwitch(to: currentIndex + 1, startAt: 0, autoplay: true)
@@ -732,6 +960,7 @@ enum MixStyle: String, CaseIterable {
         cancelSeam()
         engine.stop(deck: activeDeck)
         isPlaying = false
+        wantsPlayback = false
         position = dur
         statusLine = ""
         analyzer.setClock(playhead: dur, mix: current?.mix, rate: 0)
@@ -785,9 +1014,31 @@ enum MixStyle: String, CaseIterable {
             do {
                 let url = try await self.loader.localFile(for: b)
                 guard !Task.isCancelled, gen == self.generation, self.seamPlan != nil else { return }
-                try self.engine.startEngineIfNeeded()
-                let durB = try self.engine.load(deck: other, fileURL: url)
+                // Decoded off the main actor, like materialize: the seam's
+                // preload was the other visible hitch, ~90 s before every end.
+                let file = try await Task.detached(priority: .userInitiated) {
+                    try DeckEngine.openFile(url)
+                }.value
+                guard !Task.isCancelled, gen == self.generation, self.seamPlan != nil else { return }
+                // The idle deck is re-purposed here: a deferred stop still
+                // aimed at it (a skip's fade on a short track) is now stale,
+                // and the quiesce + load below are its honest replacement.
+                self.deckClaim[other] += 1
+                await self.quiesce(deck: other)
+                guard !Task.isCancelled, gen == self.generation, self.seamPlan != nil else { return }
+                let durB = try self.engine.load(deck: other, file: file)
                 self.deckDuration[other] = durB
+                // The catalog's in-point against the decoded file: a start at
+                // or past the real end would be a silent B, so it is held at
+                // least a second inside the file.
+                if case .beatmix(let beats, let startA, let startB, let bpmA, let bpmB, let fold, let secs)? = self.seamPlan,
+                   durB > 0 {
+                    let clamped = min(startB, max(0, durB - 1.0))
+                    if clamped < startB {
+                        self.seamPlan = .beatmix(beats: beats, startA: startA, startB: clamped,
+                                                 bpmA: bpmA, bpmB: bpmB, fold: fold, seconds: secs)
+                    }
+                }
                 self.restDeck(other)
                 self.engine.setNorm(deck: other, b.normLin)
                 self.engine.rampVolume(deck: other, to: 0, over: 0.005)
@@ -887,10 +1138,11 @@ enum MixStyle: String, CaseIterable {
     private func runGlide(bpmA: Double, bpmB: Double, seconds: Double,
                           outDeck: Int, inDeck: Int) -> Task<Void, Never> {
         Task { [weak self] in
-            let t0 = Date()
+            // Monotonic: a wall-clock step mid-blend must never stall or snap the glide.
+            let t0 = ProcessInfo.processInfo.systemUptime
             while !Task.isCancelled {
                 guard let self else { return }
-                let f = Date().timeIntervalSince(t0) / max(0.05, seconds)
+                let f = (ProcessInfo.processInfo.systemUptime - t0) / max(0.05, seconds)
                 let r = MixPlanner.glideRates(bpmA: bpmA, bpmB: bpmB, f: f)
                 self.applyDeckRate(deck: outDeck, rate: r.rateA)
                 self.applyDeckRate(deck: inDeck, rate: r.rateB)
@@ -947,6 +1199,7 @@ enum MixStyle: String, CaseIterable {
         seamNextReady = false
         seamRunning = false
         guard hadSeam else { return }
+        deckClaim[other] += 1        // this stop is the authority; a deferred one is stale
         engine.stop(deck: other)
         restDeck(other)
         if wasRunning {
