@@ -33,15 +33,22 @@ struct VisualizerView: View {
     @ObservedObject var player: Player
     var roomStep: Int                    // bumped ±1 by remote swipes upstream
     @Binding var roomName: String        // published back for the HUD label
+    /// True while nobody can see the field: the app is not the active scene
+    /// (backgrounded with the music still playing, the system's own overlay
+    /// up) or an opaque full-screen cover sits over it. The MTKView stops
+    /// drawing — no GPU work is submitted from the background, and the stage
+    /// screen is never fighting a hidden field for the same GPU.
+    var paused: Bool
 
-    init(player: Player, roomStep: Int, roomName: Binding<String>) {
+    init(player: Player, roomStep: Int, roomName: Binding<String>, paused: Bool = false) {
         self.player = player
         self.roomStep = roomStep
         self._roomName = roomName
+        self.paused = paused
     }
 
     var body: some View {
-        MetalSurface(player: player, roomStep: roomStep, roomName: $roomName)
+        MetalSurface(player: player, roomStep: roomStep, roomName: $roomName, paused: paused)
             .ignoresSafeArea()
     }
 }
@@ -52,6 +59,7 @@ private struct MetalSurface: UIViewRepresentable {
     let player: Player
     let roomStep: Int
     @Binding var roomName: String
+    let paused: Bool
 
     func makeCoordinator() -> VizRenderer {
         VizRenderer(player: player, roomName: $roomName)
@@ -66,6 +74,7 @@ private struct MetalSurface: UIViewRepresentable {
         view.clearColor = MTLClearColor(red: 5.0 / 255.0, green: 6.0 / 255.0,
                                         blue: 14.0 / 255.0, alpha: 1.0)
         view.framebufferOnly = true
+        view.isPaused = paused
         view.delegate = context.coordinator
         context.coordinator.configure(view: view)
         return view
@@ -75,6 +84,14 @@ private struct MetalSurface: UIViewRepresentable {
         // SwiftUI may rebuild this struct; keep the renderer's binding fresh
         context.coordinator.roomName = $roomName
         context.coordinator.roomStepChanged(to: roomStep)
+        if uiView.isPaused != paused {
+            uiView.isPaused = paused
+            // a field nobody sees holds no offscreen art: the five render
+            // targets (~150 MB at 1440p) go back to the system while the app
+            // sits in the background, and draw() rebuilds them on the first
+            // frame back, exactly as after a size change
+            if paused { context.coordinator.releaseTargets() }
+        }
     }
 }
 
@@ -663,6 +680,18 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         texC = device.makeTexture(descriptor: desc)
         lensTex = device.makeTexture(descriptor: desc)   // the LENS output, same size
         echoTex = device.makeTexture(descriptor: desc)   // ECHO's memory, same size
+        echoLive = false
+    }
+
+    /// Lets the offscreen chain go while the view is paused. Command buffers
+    /// still in flight hold their own references, and draw() reallocates the
+    /// chain the moment it finds texA missing.
+    func releaseTargets() {
+        texA = nil
+        texB = nil
+        texC = nil
+        lensTex = nil
+        echoTex = nil
         echoLive = false
     }
 
