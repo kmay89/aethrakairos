@@ -13249,7 +13249,7 @@ const player = {
     if (track === this.demoTrack) this.demoTrack = null;
     this.history = this.history.filter(h => h !== i).map(h => h > i ? h - 1 : h);
     if (wasCur){
-      if (AE.decks) AE.decks.forEach(d => { if (d.a.src === track.url){ d.a.pause(); d.a.src = ''; } });
+      if (AE.decks) AE.decks.forEach(d => { if (d.a.src === track.url || (typeof MIXER !== 'undefined' && MIXER._sameSrc(d.a, track.url))){ d.a.pause(); d.a.src = ''; } });
       this.playing = false; this.cur = -1;
       if (this.tracks.length) this.playIndex(Math.min(i, this.tracks.length - 1));
       else this.stopAll();
@@ -13602,11 +13602,27 @@ const PREFETCH = {
      download that was halfway there, and started it again. Measured, before the
      split: 61 requests and 120 MB served for a warm that never once landed. */
   id: null, url: '', _want: null, _ac: null, _busy: false, _fail: 0, _spent: [],
+  /* A RECORD THAT WILL NOT COPY IS NOT ASKED AGAIN. The mixer asks every frame
+     (MIXER._warmB), so a file over CAP, or one the server refuses, would be
+     re-requested on every frame until the session-wide _fail gave up on every
+     record after it. Remembered per track instead: that one streams, the next
+     one still gets its copy. (A dropped connection is not remembered — that
+     is the network's answer, and _fail already keeps count of it.) */
+  _no: new Set(),
 
   // is a warmed copy of THIS track ready? Anything else gets the network URL,
   // so a stale or missing prefetch can never send playback somewhere wrong.
   playable(track){
     return (track && this.id != null && track.id === this.id && this.url) ? this.url : (track ? track.url : '');
+  },
+  // the mixer's two questions (MIXER._warmB): is THIS record in hand, or on its way?
+  holds(track){ return !!(track && this.id != null && track.id === this.id && this.url); },
+  fetching(track){ return !!(track && this._busy && this._want === track.id); },
+  // seconds until the copy in flight lands, at the rate it has actually been arriving (Infinity: unknown)
+  eta(track){
+    if (!this.fetching(track) || !(this._len > 0) || !(this._got > 0)) return Infinity;
+    const el = (performance.now() - this._t0) / 1000;
+    return el > 0 ? Math.max(0, this._len - this._got) / (this._got / el) : Infinity;
   },
   // Metered connections are not ours to spend. Save-Data is an explicit request
   // and 2g/3g is a plain statement about the pipe; on either, the stall is the
@@ -13615,6 +13631,7 @@ const PREFETCH = {
     if (!track || !track.url || track.local || track.demo) return false;
     if (/^(blob|data):/i.test(track.url)) return false;
     if (this._fail >= 3) return false;               // this network is not having it
+    if (this._no.has(track.id)) return false;        // this record is not having it
     const c = navigator.connection;
     if (c && (c.saveData || /^(slow-)?2g$/.test(c.effectiveType || ''))) return false;
     return true;
@@ -13670,7 +13687,8 @@ const PREFETCH = {
       const r = await fetch(track.url, { signal: ac.signal });
       if (!r.ok) throw new Error('http ' + r.status);
       const len = +(r.headers.get('content-length') || 0);
-      if (len > this.CAP) throw new Error('too big');
+      if (len > this.CAP){ try { ac.abort(); } catch (e2){} throw new Error('too big'); }   // never left downloading unread
+      this._len = len; this._got = 0; this._t0 = performance.now();
       const parts = await this._drain(r, ac);
       if (ac.signal.aborted) return;
       const blob = new Blob(parts, { type: r.headers.get('content-type') || '' });
@@ -13682,7 +13700,11 @@ const PREFETCH = {
       if (typeof BYTES !== 'undefined') BYTES.put(track.url, blob);
     } catch (e){
       // AbortError is our own doing (the draw moved on) and is not a failure
-      if (!(e && e.name === 'AbortError')) this._fail++;
+      if (!(e && e.name === 'AbortError')){
+        this._fail++;
+        // a file too big or refused outright is this record's answer; a dropped connection is the network's
+        if (e && /^(too big|http 4)/.test(e.message || '')) this._no.add(id);
+      }
       this.url = ''; this.id = null;
     } finally {
       if (this._ac === ac){ this._ac = null; this._busy = false; this._want = null; }
@@ -13694,11 +13716,13 @@ const PREFETCH = {
     const reader = r.body.getReader();
     const parts = []; let size = 0;
     for (;;){
-      if (ac.signal.aborted){ try { reader.cancel(); } catch (e){} return parts; }
+      // (cancel() on a stream the abort already errored REJECTS — caught, or it surfaces as an unhandled page error)
+      if (ac.signal.aborted){ try { reader.cancel().catch(() => {}); } catch (e){} return parts; }
       const { done, value } = await reader.read();
       if (done) break;
       parts.push(value); size += value.byteLength;
-      if (size > this.CAP){ try { reader.cancel(); } catch (e){} throw new Error('too big'); }
+      if (this._ac === ac) this._got = size;
+      if (size > this.CAP){ try { reader.cancel().catch(() => {}); } catch (e){} throw new Error('too big'); }
       await this._pace(ac, value.byteLength);
     }
     return parts;
@@ -13740,12 +13764,15 @@ const PREFETCH = {
     player._committedNext = i;                     // the draw we warmed is the draw that plays
     return player.tracks[i];
   },
-  /* Only the element-direct path pays for this. Where the graph is live the
-     mixer arms 90 s out and loads the incoming deck itself, and a second full
-     fetch of the same bytes would be pure waste. */
+  /* Only the element-direct path is scheduled from here. Where the graph is
+     live the mixer arms 90 s out and asks for the incoming record itself
+     (MIXER._warmB → want), once A no longer needs the pipe. */
   tick(){
-    if (typeof AE === 'undefined' || AE.graphLive) return;
-    if (this._spent.length) this._sweep();          // a finished track's copy goes once its deck moves on
+    if (typeof AE === 'undefined') return;
+    // a finished track's copy goes once its deck moves on — on every path:
+    // where the graph is live the mixer seats copies on the idle deck too
+    if (this._spent.length) this._sweep();
+    if (AE.graphLive) return;
     if (typeof player === 'undefined' || !player.playing) return;
     const d = typeof activeDeck === 'function' ? activeDeck() : null;
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
@@ -20785,6 +20812,40 @@ function seamWarmDue(o){
   const exitIn = o ? +o.exitIn : NaN;
   return isFinite(exitIn) && exitIn < Math.max(SEAM_WARM_S, (o && +o.seconds || 0) + 10);
 }
+/* WHERE THE INCOMING DECK'S BYTES COME FROM. A paused element is the worst
+   place to keep a record waiting. Measured on a throttled link
+   (tools/soak_probe.mjs): the browser buffers a few megabytes of the idle
+   deck, closes the connection, and when the seam calls play() asks for the
+   file again FROM BYTE ZERO — so the incoming record went on air cold off the
+   network, waited at its own entry, could run dry mid-blend, and every record
+   crossed the pipe 1.7 times. So once A holds everything to its own end (the
+   pipe is free), B's record is fetched ONCE, whole, into memory (PREFETCH:
+   paced, capped, shared with the booth's decoders through BYTES) and seated on
+   the idle deck as an object URL; from then on nothing at the seam touches the
+   network at all. The stream warm stays for the case it was built for: the
+   exit is in reach, or fire() is asking, and no copy has landed — then the
+   network window, now, and the half-fetched copy is called off so the two
+   never split the pipe at the least forgiving moment.
+   A copy already on its way is not thrown away at the backstop, though, if
+   it will land with SEAM_COPY_MARGIN_S to spare (eta: seconds until it lands,
+   from its own measured rate) — on a slow link that is most of a download
+   saved, and the stream would only have split the same pipe with it.
+     seat    a copy is in hand: put it on the deck
+     stream  out of runway, or no copy can be made: the old preload='auto' warm
+     fetch   the pipe is free and a copy can be made: fetch it (idempotent)
+     wait    headers only, as the arm left it */
+const SEAM_COPY_MARGIN_S = 4;
+function deckWarmRoute(o){
+  const s = o || {};
+  if (s.landed) return 'seat';
+  if (s.force) return 'stream';
+  if (seamWarmDue({ aDone: false, exitIn: s.exitIn, seconds: s.seconds })){
+    const eta = +s.eta;
+    return (s.ramOk && isFinite(eta) && eta >= 0 && eta < +s.exitIn - SEAM_COPY_MARGIN_S) ? 'fetch' : 'stream';
+  }
+  if (!s.aDone) return 'wait';
+  return s.ramOk ? 'fetch' : 'stream';
+}
 // Is the incoming deck REALLY ready to carry this seam? `readyState >= 2`
 // (HAVE_CURRENT_DATA) promises only the single frame under the playhead —
 // enough to start, never enough to play through, which is exactly how a
@@ -23302,6 +23363,8 @@ const MIXER = {
   _sameSrc(a, url){
     if (!url) return false;
     if (a.src === url) return true;
+    // the record warmed into memory and seated (_seat) IS this record
+    if (a._warmOf === url && a._warmSrc && a.src === a._warmSrc) return true;
     try { return a.src === new URL(url, location.href).href; } catch (e){ return false; }
   },
   /* THE SECOND STAGE, exactly once per arm. The decision is seamWarmDue's
@@ -23314,10 +23377,47 @@ const MIXER = {
     if (!nd || nd._warmed || !d) return;
     const t = d.a.currentTime, dur = d.a.duration;
     const aDone = isFinite(dur) && dur > 0 && seamBuffered(d.a.buffered, t, dur - t - 0.5);
-    if (!force && !seamWarmDue({ aDone, exitIn, seconds: this.plan ? this.plan.seconds : 0 })) return;
+    // the copy in memory is for the auto-DJ's own draw, on the deck it loaded
+    // (a hand's record streams as the hand loaded it)
+    const B = this.next != null ? player.tracks[this.next] : null;
+    const ram = !!(B && typeof PREFETCH !== 'undefined' && DECKS.slots[1 - AE.active].owner !== 'hand'
+      && this._sameSrc(nd.a, B.url) && PREFETCH.allowed(B));
+    const route = deckWarmRoute({ landed: ram && PREFETCH.holds(B), force, aDone, exitIn,
+      seconds: this.plan ? this.plan.seconds : 0, ramOk: ram, eta: ram ? PREFETCH.eta(B) : Infinity });
+    if (route === 'wait') return;
+    if (route === 'fetch'){ PREFETCH.want(B); return; }
     nd._warmed = true;
+    if (route === 'seat' && this._seat(nd, B)) return;
+    if (ram && PREFETCH.fetching(B)) PREFETCH.drop();      // never two copies of one record on the pipe
     try { if (nd.a.preload !== 'auto') nd.a.preload = 'auto'; } catch (e){}
     if (nd.a.readyState >= 1){ try { nd.a.currentTime = nd._seekTo || 0; } catch (e){} }
+  },
+  /* THE COPY, SEATED. The idle deck is paused and silent, so the swap is
+     unheard: the object URL replaces the network one, the warm's pre-seek is
+     replayed once the metadata (from memory, at once) has landed, and the
+     listener's rate and key lock are written again — load() puts an element's
+     rate back to its default. spend() hands the URL to the element, which
+     keeps it until no deck reads it any more (PREFETCH._inUse). _warmOf lets
+     _sameSrc still recognise the record by its catalog URL. */
+  _seat(nd, B){
+    const url = PREFETCH.holds(B) ? PREFETCH.url : '';
+    if (!url || !nd.a.paused) return false;
+    this._clearPreloadListener(nd);
+    try { nd.a.preload = 'auto'; } catch (e){}
+    nd.a.src = url;
+    nd.a._warmOf = B.url; nd.a._warmSrc = nd.a.src;
+    PREFETCH.spend();
+    const once = () => {
+      nd.a.removeEventListener('loadedmetadata', once);
+      nd._preloadOnce = null;
+      try { nd.a.currentTime = nd._seekTo || 0; } catch (e){}
+    };
+    nd._preloadOnce = once;
+    nd.a.addEventListener('loadedmetadata', once);
+    try { nd.a.load(); } catch (e){}
+    try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}
+    setPitchLock(nd.a, SPEED.keyLock);
+    return true;
   },
 
   _clearPreloadListener(d){
