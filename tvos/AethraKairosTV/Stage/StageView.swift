@@ -36,6 +36,7 @@ struct StageView: View {
                 codeEntry
             case .joining:
                 joiningView
+                menuHold
             case .live, .held:
                 StageMetalView(client: client, paused: scenePhase != .active)
                     .ignoresSafeArea()
@@ -44,12 +45,29 @@ struct StageView: View {
                 } else {
                     liveWhisper
                 }
+                menuHold
             case .error:
                 errorView
             }
         }
         .onExitCommand { back() }
         .onDisappear { client.leave() }
+    }
+
+    /// The joining, live and held screens carry no control, and a remote
+    /// command reaches only a FOCUSED view (the field's FieldRemoteLayer
+    /// learned the same on hardware). With nothing to focus, Menu skipped
+    /// back() above and fell through to the system, which closed the whole
+    /// stage instead of dropping to the code entry these screens promise
+    /// ("Menu to cancel", "MENU TO LEAVE"). This clear layer holds the focus
+    /// so the press arrives; it draws nothing and takes no other command.
+    private var menuHold: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .focusable()
+            .ignoresSafeArea()
     }
 
     // MARK: - the door
