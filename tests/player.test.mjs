@@ -30,6 +30,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
+  ' SEAM_CUE_S, SEAM_CUE_MIN, SEAM_CUE_TOL, SEAM_CUE_LAT, seamCueTarget, seamCuePoint, seamCueDue, seamCueStep, seamCueHolds, seamCueLearn,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode, deckSlot, seamPitchCarry, XF_DBL_MS, XF_DBL_REACH, xfaderDoubleTap, boothFaderKey,' +
   ' FX_DIVS, beatLen, loopBounds, loopWrap, loopResize, rollReturn, rollPos, fxWet, fxFilter, fxTime, fxGateHold, brakeRate, fxAutoPick,'  +
@@ -11948,6 +11949,183 @@ test('the armed seam holds its record: MIXER.next is read through the queue as i
   const pl = html.slice(html.indexOf('  playNext(i){'), html.indexOf('  remove(i){'));
   assert.ok(pl.includes("_upNextReplan(){\n    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('replan');"));
   assert.equal((pl.match(/this\._upNextReplan\(\);/g) || []).length, 2, 'play-next and queue-next both re-plan');
+});
+
+// ------------------------------------------------- the cued deck (@mix, seamCue*)
+// the runway pair the mix fixture builds for it: tau enters at its 8 s downbeat
+const CUE_PLAN = { type: 'beatmix', beats: 8, bpmA: 124, bpmB: 126, startA: 25.66, startB: 8.0, seconds: 3.84 };
+test('seamCueTarget: the cue follows the plan\'s own grid relation — phase-true, not one-for-one', () => {
+  const p = CUE_PLAN;
+  assert.equal(S.seamCueTarget(p, p.startA), p.startB, 'on the bar line, B is on its downbeat');
+  const per = S.glideRates(p.bpmA, p.bpmB, 0).rateB;
+  assert.ok(per < 1 && Math.abs(per - 124 / 126) < 1e-12, 'B covers rateB of its seconds per one of A\'s');
+  // anywhere along the map the beat-phase error the seam measures is zero —
+  // which seamEntry's one-for-one slip is not, once the tempos differ
+  for (const tA of [19.1, 21.37, 23.9, 24.66]){
+    const e = S.seamPhaseErr(tA, S.seamCueTarget(p, tA), p);
+    assert.ok(Math.abs(e) < 1e-9, 'phase-true at ' + tA + ': ' + e);
+  }
+  const lead = S.seamLeadFor(p);
+  assert.ok(Math.abs(S.seamPhaseErr(p.startA - lead, S.seamEntry(p, p.startA - lead), p)) > 0.01,
+    'the slip a seek can afford is ~16 ms off phase across a 1 s lead at 124→126 — a roll would carry it into the blend');
+  assert.ok(Number.isNaN(S.seamCueTarget({ type: 'fade', seconds: 3 }, 10)), 'only a beatmix has a grid to cue onto');
+  assert.ok(Number.isNaN(S.seamCueTarget(p, NaN)));
+  assert.ok(Number.isNaN(S.seamCueTarget(null, 10)));
+  // half time folds: 62 under 124 rides at twice the rate, as the glide does
+  const half = { type: 'beatmix', bpmA: 124, bpmB: 62, startA: 50, startB: 10 };
+  assert.ok(Math.abs(S.seamCueTarget(half, 51) - 10 - S.glideRates(124, 62, 0).rateB) < 1e-12);
+});
+test('seamCuePoint: park B a pre-roll short of its entry where the file and the clock allow; decline where they do not', () => {
+  const p = CUE_PLAN, lead = S.seamLeadFor(p), exitAt = p.startA - lead;
+  const per = S.glideRates(p.bpmA, p.bpmB, 0).rateB;
+  const entry = S.seamCueTarget(p, exitAt);
+  assert.ok(Math.abs(entry - (p.startB - lead * per)) < 1e-12, 'the entry is the lead-in short of the downbeat, on the grid');
+  const at = S.seamCuePoint(p, { tA: 1, rA: 1 });
+  assert.ok(Math.abs(at - (entry - S.SEAM_CUE_S * per)) < 1e-9, 'a full pre-roll: ' + at);
+  assert.ok(at > 0 && at < entry);
+  // THE FIXTURE'S OLD PAIR, and why the cue could never be exercised on it:
+  // beta enters at 0.50 s, the lead-in takes all of that, and there is no runway left
+  assert.equal(S.seamCuePoint({ ...p, startB: 0.5 }, { tA: 1 }), null, 'no runway → no cue, the old park stands');
+  assert.equal(S.seamCuePoint({ ...p, startB: 0 }, { tA: 1 }), null);
+  // a short runway shortens the pre-roll to the top of the file — and declines under SEAM_CUE_MIN
+  const short = S.seamCuePoint({ ...p, startB: 3.0 }, { tA: 1 });
+  assert.equal(short, 0, 'parked at the very top: ' + short);
+  assert.equal(S.seamCuePoint({ ...p, startB: 1.0 + S.SEAM_CUE_MIN * per * 0.9 }, { tA: 1 }), null, 'less than SEAM_CUE_MIN of runway: not worth a cue');
+  // the clock: a seam due sooner than a park can settle keeps the old park
+  assert.equal(S.seamCuePoint(p, { tA: exitAt - 1.5 }), null, 'no time to park and roll');
+  const squeezed = S.seamCuePoint(p, { tA: exitAt - 3.2, lat: 0.3 });
+  assert.ok(squeezed > at && squeezed < entry, 'a little time: a shorter pre-roll, parked later — ' + squeezed);
+  // MIX NOW fires a bar from now and keeps the park it always had; other seams have no grid
+  assert.equal(S.seamCuePoint({ ...p, now: true }, { tA: 1 }), null);
+  assert.equal(S.seamCuePoint({ type: 'fade', seconds: 4 }, { tA: 1 }), null);
+  assert.equal(S.seamCuePoint({ type: 'gapless' }, { tA: 1 }), null);
+  assert.equal(S.seamCuePoint(null), null);
+  // the window is wall time: at 1.25× the same 2.5 s covers more of both records
+  const fast = S.seamCuePoint(p, { tA: 1, rA: 1.25 });
+  assert.ok(Math.abs(fast - (entry - S.SEAM_CUE_S * 1.25 * per)) < 1e-9);
+});
+test('seamCueDue: let go so B begins moving exactly on the grid — and the arrival is time-invariant', () => {
+  const p = CUE_PLAN, lead = S.seamLeadFor(p), exitAt = p.startA - lead;
+  const per = S.glideRates(p.bpmA, p.bpmB, 0).rateB, lat = 0.3;
+  const at = S.seamCuePoint(p, { tA: 1, lat });
+  // far off: wait, and say how long
+  const early = S.seamCueDue(p, { tA: 15, rA: 1, at, lat, exitAt });
+  assert.equal(early.act, 'wait');
+  assert.ok(Math.abs(early.in - ((exitAt - S.SEAM_CUE_S - lat) - 15)) < 1e-6, 'due in ' + early.in);
+  // the moment: A at exitAt − window − lat → roll, from where it is parked
+  const tGo = exitAt - S.SEAM_CUE_S - lat;
+  const go = S.seamCueDue(p, { tA: tGo + 0.001, rA: 1, at, lat, exitAt });
+  assert.equal(go.act, 'roll');
+  assert.ok(Math.abs(go.left - (S.SEAM_CUE_S + lat - 0.001)) < 1e-6);
+  // …and it ARRIVES: B starts moving lat later at the seam's B rate; at the
+  // fire point it is exactly on the entry, with A anywhere in between on the map
+  for (const rA of [1, 1.25, 0.75]){
+    const atR = S.seamCuePoint(p, { tA: 1, rA, lat });
+    const t0 = exitAt - (S.SEAM_CUE_S + lat) * rA;            // A where the poll lets go
+    assert.equal(S.seamCueDue(p, { tA: t0, rA, at: atR, lat, exitAt }).act, 'roll', 'rate ' + rA);
+    for (const wall of [lat, lat + 0.7, S.SEAM_CUE_S + lat]){
+      const tA = t0 + wall * rA, tB = atR + (wall - lat) * rA * per;
+      assert.ok(Math.abs(S.seamCueTarget(p, tA) - tB) < 1e-9, 'aligned at ' + wall + ' s, rate ' + rA);
+    }
+  }
+  // its moment passed (a seek on A, a re-cue a bar later): move on to `to`, then let go
+  const late = S.seamCueDue(p, { tA: tGo + 0.6, rA: 1, at, lat, exitAt });
+  assert.equal(late.act, 'late');
+  assert.ok(Math.abs(late.to - S.seamCueTarget(p, tGo + 0.6 + lat)) < 1e-12 && late.to > at);
+  // inside the tolerance it is still a roll — the pull takes a few ms, a seek would cost a rebuffer
+  assert.equal(S.seamCueDue(p, { tA: tGo + 0.02, rA: 1, at, lat, exitAt }).act, 'roll');
+  // too close to the seam to be worth it: the seam places B as it always has
+  assert.equal(S.seamCueDue(p, { tA: exitAt - S.SEAM_CUE_MIN, rA: 1, at, lat, exitAt }).act, 'miss');
+  assert.equal(S.seamCueDue(p, { tA: exitAt + 1, rA: 1, at, lat, exitAt }).act, 'miss');
+  assert.equal(S.seamCueDue({ type: 'fade' }, { tA: 1, at: 0 }).act, 'miss');
+  assert.equal(S.seamCueDue(p, { tA: 10, at: NaN }).act, 'miss');
+});
+test('seamCueStep: steer a silent deck by tempo; seek only a miss no pull could close in time; drop when out of time', () => {
+  assert.deepEqual(S.seamCueStep(0.001, { left: 2 }), { act: 'hold', pull: 0 }, 'on the grid: leave it alone');
+  const behind = S.seamCueStep(0.05, { left: 2 });
+  assert.equal(behind.act, 'pull'); assert.ok(behind.pull > 0, 'B behind → faster');
+  assert.ok(S.seamCueStep(-0.05, { left: 2 }).pull < 0, 'B ahead → slower');
+  assert.equal(S.seamCueStep(0.2, { left: 2 }).pull, 0.5, 'a silent deck may be leaned on hard — and no harder than half');
+  assert.ok(Math.abs(S.seamCueStep(0.02, { left: 2 }).pull - 0.08) < 1e-12, 'a quarter second to close the gap');
+  // a start a third of a second off, or A seeked: one jump while there is time to roll on afterwards
+  assert.equal(S.seamCueStep(0.4, { left: 2, seeks: 0 }).act, 'seek');
+  assert.equal(S.seamCueStep(-3.0, { left: 2, seeks: 1 }).act, 'seek');
+  assert.equal(S.seamCueStep(0.4, { left: 2, seeks: 2 }).act, 'drop', 'seeks are bounded');
+  assert.equal(S.seamCueStep(0.4, { left: S.SEAM_CUE_MIN - 0.1 }).act, 'drop', 'no time to roll on: the seam places B');
+  assert.equal(S.seamCueStep(NaN, {}).act, 'hold');
+  // CLOSED LOOP, under a busy main thread: reads every 8-40 ms, the rate
+  // landing a render buffer after it is written, a start 200 ms late. The cue
+  // must be on the grid well inside its window, never overshooting by more
+  // than it started with — the law is re-decided on every read.
+  let err = 0.2, rate = 0, t = 0, worst = 0, landed = null;
+  const rng = S.mulberry32(7);
+  while (t < S.SEAM_CUE_S){
+    const dt = 0.008 + rng() * 0.032;
+    err -= rate * dt;                                       // B gains `rate` of a second per second on its target
+    t += dt;
+    const st = S.seamCueStep(err, { left: S.SEAM_CUE_S - t });
+    assert.notEqual(st.act, 'seek', 'a 200 ms start is pulled, not seeked');
+    rate = st.pull * (126 / 124);                           // the pull scales B's own rate
+    if (err < 0) worst = Math.max(worst, -err);
+    if (landed == null && Math.abs(err) < S.SEAM_CUE_TOL) landed = t;
+  }
+  assert.ok(landed != null && landed < 1.0, 'inside the fire tolerance after ' + landed + ' s');
+  assert.ok(Math.abs(err) < 0.003, 'on the grid at fire: ' + err);
+  assert.ok(worst < 0.02, 'overshoot bounded: ' + worst);
+});
+test('seamCueHolds and seamCueLearn: fire skips the placement only for a cue that is rolling and on the grid', () => {
+  assert.ok(S.SEAM_CUE_TOL < 0.040, 'the tolerance sits under the take\'s seek threshold — the residual is pulled, never seeked');
+  assert.equal(S.seamTake(S.SEAM_CUE_TOL, 0, 0).act, 'pull', 'the latch pulls a residual at the tolerance');
+  assert.ok(S.seamCueHolds({ rolling: true, err: 0.004 }));
+  assert.ok(S.seamCueHolds({ rolling: true, err: -S.SEAM_CUE_TOL }));
+  assert.ok(!S.seamCueHolds({ rolling: true, err: S.SEAM_CUE_TOL + 0.001 }), 'too far: the placement path');
+  assert.ok(!S.seamCueHolds({ rolling: false, err: 0 }), 'a stalled or paused cue is not a rolling deck');
+  assert.ok(!S.seamCueHolds({ rolling: true, err: NaN }));
+  assert.ok(!S.seamCueHolds(null));
+  assert.ok(Math.abs(S.seamCueLearn(0.3, 0.5) - 0.36) < 1e-12, 'learned slowly');
+  assert.equal(S.seamCueLearn(0.3, NaN), 0.3);
+  assert.equal(S.seamCueLearn(NaN, -1), S.SEAM_CUE_LAT);
+  assert.equal(S.seamCueLearn(0.8, 5), 0.8, 'bounded: one pathological start cannot teach the next to let go a second early');
+  assert.equal(S.seamCueLearn(0.05, 0.001), 0.05);
+});
+test('the cued deck in the player: parked by the warm, rolled silent, skipped by fire, let go by cancel — and no reader mistakes it for music', () => {
+  const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
+  const fire = mixer.slice(mixer.indexOf('  fire(now){'), mixer.indexOf('  setVolumes(f){'));
+  assert.ok(fire.includes('let cue = this._cueHolds(p, od, nd) ? this._cue : null;'), 'fire asks the cue first');
+  assert.ok(fire.includes("if (this._cue && !cue) this._uncue('missed at fire', { park: false });"), 'a cue that does not hold falls back to the placement path');
+  assert.ok(fire.includes('if (!cue) try {\n      nd.a.currentTime = p.type === \'beatmix\''), 'no placement seek for a cue');
+  assert.ok(fire.includes('if (!cue) nd.a.play().catch('), 'no play() for a cue');
+  assert.ok(fire.includes('this._firstErr = !cue;'), 'a cue\'s first error is no start latency');
+  assert.ok(fire.includes("if (cue){ this._uncue('deferred'); cue = null; }") && fire.includes('this._cueDone = false;'), 'a deferred seam re-cues');
+  assert.ok(fire.indexOf('this._cueHolds(') < fire.indexOf('seamStreamReady('), 'the cue is judged before readiness');
+  const cancel = mixer.slice(mixer.indexOf('  cancel(reason){'), mixer.indexOf('  update(now, dt){'));
+  assert.ok(cancel.indexOf("this._uncue('cancel:'") < cancel.indexOf("if (this.phase === 'idle'){ syncMixHud(); return; }"), 'cancel parks the cue before anything else meets the deck');
+  const uncue = mixer.slice(mixer.indexOf('  _uncue(why, o){'), mixer.indexOf('  _cueStop(){'));
+  assert.ok(uncue.includes('d.a.pause();') && uncue.includes('d.a.currentTime = d._seekTo;'), 'paused and put back where the warm parked it');
+  assert.ok(uncue.includes('setPitchLock(d.a, SPEED.keyLock && !DECKS.slots[i].synced);'), 'its own rate and key lock back');
+  const roll = mixer.slice(mixer.indexOf('  _cueRoll(nd, to){'), mixer.indexOf('  _cueRate(){'));
+  assert.ok(roll.includes('DECKS.gainWrite(nd.gain.gain, 0, 0.002);') && roll.includes('DECKS.gainWrite(nd.fader.gain, 0, 0.002);'),
+    'silent on both nodes, through the arbiter');
+  assert.ok(roll.indexOf('DECKS.gainWrite(nd.fader.gain') < roll.indexOf('nd.a.play()'), 'silent before it rolls');
+  const ok = mixer.slice(mixer.indexOf('  _cueOk(nd){'), mixer.indexOf('  _cueWatch('));
+  for (const must of ['AE.graphLive', 'document.hidden', "s.owner === 'hand'", 'DECKS.fader.hand', 'xfaderHeld(', 'this._cueVetoRec', 'nd._warmed', 'this._sameSrc(nd.a, B.url)', '.engaged', 'FX.loop'])
+    assert.ok(ok.includes(must), 'a cue never rolls without checking ' + must);
+  assert.ok(mixer.includes('this._cueWatch(d, t, exitAt);'), 'update() drives it');
+  assert.ok(mixer.includes('const cueAt = seekOnly ? null : this._cuePark(plan);') && mixer.includes('nd._seekTo = seekTo;\n    nd._cueAt = cueAt;'),
+    'the one warm parks it; a hand\'s record never cues');
+  const warm = mixer.slice(mixer.indexOf('  _warmB(exitIn, force){'), mixer.indexOf('  _clearPreloadListener(d){'));
+  assert.ok(!/cue/i.test(warm.replace(/\/\*[\s\S]*?\*\//g, '')), 'the warm itself is untouched — it seeks to the park it is given');
+  // every reader that took "not paused" for "a hand's record is playing" asks first
+  const decks = html.slice(html.indexOf('const DECKS = {'), html.indexOf('window.__mb8Decks = () =>'));
+  assert.ok(decks.includes("if (typeof MIXER !== 'undefined' && MIXER.cueing(AE.decks[i])) return false;"), 'isLive: the watchdog and an ended leave it be');
+  assert.ok(decks.includes('const gi = (typeof MIXER !== \'undefined\' && MIXER.cueing(d)) ? 0 : g[i];'), 'the fader law keeps it at zero');
+  assert.ok(decks.includes("MIXER._uncue('hand on the handle');"), 'a hand on the handle meets the parked deck');
+  assert.ok(decks.includes("MIXER._uncue('hand on the cue', { veto: true });") && decks.includes("MIXER._uncue('hand on sync', { veto: true });"), 'CUE and SYNC take the deck');
+  assert.ok(decks.includes("if (typeof MIXER !== 'undefined' && MIXER.cueing(nd)) return false;   // a silent cue"), 'never committed on air by a hand');
+  assert.ok(decks.includes("const rolling = !d.a.paused && !d.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(d));"), 'never idle-stopped');
+  assert.ok(html.includes("rolling(){ const d = this.deck(); return !!(d && !d.a.paused && !d.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(d))); },"), 'the platter waits for PLAY');
+  assert.ok(html.includes("if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended && !MIXER.cueing(d)){ DECKS.pause(slot); return true; }"), 'PLAY starts it by hand');
+  assert.ok(html.includes("if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) return;   // a rolling cue takes its rate from the seam"), 'SPEED leaves its rate to the seam');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
