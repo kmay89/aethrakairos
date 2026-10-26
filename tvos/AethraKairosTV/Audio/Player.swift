@@ -797,8 +797,19 @@ enum MixStyle: String, CaseIterable {
         guard wanted, deckReady, currentIndex >= 0 else { return }
         let deck = activeDeck
         let at = engine.position(deck: deck) ?? position
-        // At the very end, the next poll's end-of-track advance is the cure.
-        if isPlaying, let dur = currentDuration, at >= dur - 0.30 { return }
+        // At the very end, the next poll's end-of-track advance is the cure —
+        // when there IS a next track (the poll hard-advances or begins the
+        // armed seam from dur - 0.30). The LAST track has no such cure: the
+        // poll ends the queue only at dur - 0.05, and the deck's finished
+        // word is believed only while the engine runs, so an engine that
+        // stopped in a last track's final 0.3 s left the transport "playing"
+        // silence forever (the HUD lit, the idle timer held off), this guard
+        // returning every half second. There is nothing left to resume: the
+        // queue ends here, honestly.
+        if isPlaying, let dur = currentDuration, at >= dur - 0.30 {
+            if !hasNext() { endOfQueue(duration: dur) }
+            return
+        }
         cancelSeam()
         try? AVAudioSession.sharedInstance().setActive(true)
         do {
