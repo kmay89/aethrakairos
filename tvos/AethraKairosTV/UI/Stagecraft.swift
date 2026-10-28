@@ -298,12 +298,12 @@ struct AuroraGlow: View {
 
     var body: some View {
         ZStack {
-            pool(.scIce, at: UnitPoint(x: 0.80, y: 0.30), radius: 620, strength: 0.30)
-            pool(.scBeat, at: UnitPoint(x: 0.96, y: 0.82), radius: 520, strength: 0.20)
-            pool(.scAmber, at: UnitPoint(x: 0.60, y: 0.95), radius: 460, strength: 0.16)
+            pool(.scIce, at: UnitPoint(x: 0.78, y: 0.30), radius: 700, strength: 0.50)
+            pool(.scBeat, at: UnitPoint(x: 0.96, y: 0.80), radius: 600, strength: 0.38)
+            pool(.scAmber, at: UnitPoint(x: 0.62, y: 0.96), radius: 520, strength: 0.28)
         }
         .blendMode(.screen)
-        .opacity(breathe ? 1 : 0.55)
+        .opacity(breathe ? 1 : 0.72)
         .scaleEffect(breathe ? 1.06 : 1, anchor: .trailing)
         .animation(.easeInOut(duration: 7).repeatForever(autoreverses: true), value: breathe)
         .onAppear { breathe = true }
