@@ -254,6 +254,12 @@ enum MixStyle: String, CaseIterable {
     private var recoveryFailures = 0
     private static let maxRecoveryFailures = 20
     private var retryPolls = 0
+    /// Recoveries in a row whose engine STARTED but whose deck still would not
+    /// play (AVFAudio raised; see AKCatch.h). Three of them and the engine is
+    /// thrown away and built fresh, as after a media-services reset — at most
+    /// once every 30 s, so a device that refuses every engine is not churned.
+    private var playRefusals = 0
+    private var lastRebuildAt: TimeInterval = -1_000
 
     /// Polls in a row the transport has believed "playing" while the active
     /// deck was not actually rendering — the liveness guard's evidence.
@@ -864,11 +870,26 @@ enum MixStyle: String, CaseIterable {
         retryPolls = 0
         engine.stop(deck: deck)
         engine.rampVolume(deck: deck, to: 1, over: 0.06)
-        engine.play(deck: deck, atOffset: at, in: 0)
+        let started = engine.play(deck: deck, atOffset: at, in: 0)
         isPlaying = true
         position = at
         statusLine = ""
         analyzer.setClock(playhead: at, mix: current?.mix, rate: clockRate)
+        guard !started else {
+            playRefusals = 0
+            return
+        }
+        // The engine runs but the deck refused: AVFAudio raised (now caught)
+        // or the engine fell over between the start and the play. The guard
+        // asks again in half a second; a third refusal replaces the engine.
+        playRefusals += 1
+        let now = ProcessInfo.processInfo.systemUptime
+        if playRefusals >= 3, now - lastRebuildAt >= 30 {
+            playRefusals = 0
+            lastRebuildAt = now
+            NSLog("AethraKairos: the deck keeps refusing to play — building a fresh audio engine")
+            rebuildAudioAfterMediaServicesReset()
+        }
     }
 
     /// mediaserverd died and took every AVFAudio object with it. Apple's law
@@ -900,6 +921,7 @@ enum MixStyle: String, CaseIterable {
         deadPolls = 0
         recoveryFailures = 0
         retryPolls = 0
+        playRefusals = 0
         deckDuration = [0, 0]
         deckGlide = [1, 1]
         activeRate = 1
