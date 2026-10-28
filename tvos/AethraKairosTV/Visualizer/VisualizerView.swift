@@ -212,6 +212,14 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// so motion breathes with the track and speed changes never teleport
     /// time-driven geometry.
     private var musicalTime: Double = 0
+    /// The rooms read `time` as a Float, and a Float past a few thousand
+    /// seconds steps in milliseconds: hours into a night every time-driven
+    /// motion would start to judder. So the clock starts over at a room
+    /// handover once it passes an hour (the incoming room is dealt a fresh
+    /// face anyway), and the departing room keeps its own clock — this shift
+    /// — for the length of the blend, so nothing on screen jumps.
+    private var outgoingTimeShift: Double = 0
+    private static let musicalTimeWrap: Double = 3600
 
     // the story arc, eased
     private var actEased: Double = 0
@@ -677,6 +685,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                                                             mipmapped: false)
         desc.usage = [.renderTarget, .shaderRead]
         desc.storageMode = .private
+        // let the old chain go FIRST: a resize between the 1440p and 1080p
+        // art sizes (a heavy room arriving or leaving) otherwise held both
+        // chains at once, ~230 MB at the peak
+        releaseTargets()
         texA = device.makeTexture(descriptor: desc)
         texB = device.makeTexture(descriptor: desc)
         texC = device.makeTexture(descriptor: desc)
@@ -737,6 +749,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         outgoingIndex = oldIndex
         transitionProgress = 0
         transitionStart = CACurrentMediaTime()
+        if musicalTime > Self.musicalTimeWrap {
+            outgoingTimeShift = musicalTime
+            musicalTime = 0
+        } else {
+            outgoingTimeShift = 0
+        }
 
         let calmNow = reduceMotion || VizSettings.shared.calm
         if calmNow {
@@ -1338,6 +1356,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
            roomPipelines.indices.contains(outgoingIndex),
            !xformPipelines.isEmpty {
             var ug = u
+            ug.time = Float(musicalTime + outgoingTimeShift)
             ug.roll0 = outgoingRolls.x
             ug.roll1 = outgoingRolls.y
             ug.roll2 = outgoingRolls.z

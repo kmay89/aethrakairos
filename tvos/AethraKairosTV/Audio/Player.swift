@@ -228,6 +228,10 @@ enum MixStyle: String, CaseIterable {
     private var deckDuration: [Double] = [0, 0]
     private var deckClaim = [0, 0]          // stale deferred stops must not kill a re-used deck
     private var shuffle = false
+    /// The queue is the NONSTOP MIX (playEverything): when it runs low a fresh
+    /// shuffle of the whole library is dealt onto its end, so the music never
+    /// stops on its own. Any other choice of what to play turns it off.
+    private(set) var endless = false
     private var generation = 0              // one materialization wins; stale loads drop out
     private var playedSecondsThisTrack: Double = 0
     private var failureStreak = 0
@@ -250,6 +254,12 @@ enum MixStyle: String, CaseIterable {
     private var recoveryFailures = 0
     private static let maxRecoveryFailures = 20
     private var retryPolls = 0
+    /// Recoveries in a row whose engine STARTED but whose deck still would not
+    /// play (AVFAudio raised; see AKCatch.h). Three of them and the engine is
+    /// thrown away and built fresh, as after a media-services reset — at most
+    /// once every 30 s, so a device that refuses every engine is not churned.
+    private var playRefusals = 0
+    private var lastRebuildAt: TimeInterval = -1_000
 
     /// Polls in a row the transport has believed "playing" while the active
     /// deck was not actually rendering — the liveness guard's evidence.
@@ -347,6 +357,7 @@ enum MixStyle: String, CaseIterable {
     // MARK: transport
 
     func setQueue(_ tracks: [Track], startAt index: Int, autoplay: Bool) {
+        endless = false
         recordHistoryForCurrent()
         cancelSeam()
         stopActiveDeckDeferred()
@@ -373,6 +384,7 @@ enum MixStyle: String, CaseIterable {
         let tracks = keys.compactMap { catalog.track(forKey: $0) }
         guard !tracks.isEmpty else { return }
         shuffle = false
+        endless = false
         if let cur = current, let slot = tracks.firstIndex(where: { $0.id == cur.id }) {
             cancelSeam()               // next-up changed; the old plan is void
             queue = tracks
@@ -382,6 +394,30 @@ enum MixStyle: String, CaseIterable {
         } else {
             setQueue(tracks, startAt: 0, autoplay: true)
         }
+    }
+
+    /// ONE PRESS, MUSIC: the whole library, shuffled, played nonstop — the
+    /// welcome's PLAY and the shelves' PLAY land here. The auto-mixer blends
+    /// each seam as it always does; the queue re-deals itself at its end.
+    func playEverything(in catalog: Catalog) {
+        let deck = catalog.tracks.shuffled()
+        guard !deck.isEmpty else { return }
+        setQueue(deck, startAt: 0, autoplay: true)
+        endless = true
+    }
+
+    /// The nonstop mix never reaches its end: two tracks out, another pass of
+    /// the library is dealt on. Appending never moves the current or the next
+    /// track, so an armed seam stays valid.
+    private func extendEndlessIfNeeded() {
+        guard endless, let catalog, currentIndex >= 0, currentIndex >= queue.count - 2 else { return }
+        var more = catalog.tracks.shuffled()
+        guard !more.isEmpty else { return }
+        // never the same song twice in a row across the pass boundary
+        if more.count > 1, let last = queue.last, more[0].id == last.id {
+            more.swapAt(0, more.count - 1)
+        }
+        queue.append(contentsOf: more)
     }
 
     func toggle() {
@@ -834,11 +870,26 @@ enum MixStyle: String, CaseIterable {
         retryPolls = 0
         engine.stop(deck: deck)
         engine.rampVolume(deck: deck, to: 1, over: 0.06)
-        engine.play(deck: deck, atOffset: at, in: 0)
+        let started = engine.play(deck: deck, atOffset: at, in: 0)
         isPlaying = true
         position = at
         statusLine = ""
         analyzer.setClock(playhead: at, mix: current?.mix, rate: clockRate)
+        guard !started else {
+            playRefusals = 0
+            return
+        }
+        // The engine runs but the deck refused: AVFAudio raised (now caught)
+        // or the engine fell over between the start and the play. The guard
+        // asks again in half a second; a third refusal replaces the engine.
+        playRefusals += 1
+        let now = ProcessInfo.processInfo.systemUptime
+        if playRefusals >= 3, now - lastRebuildAt >= 30 {
+            playRefusals = 0
+            lastRebuildAt = now
+            NSLog("AethraKairos: the deck keeps refusing to play — building a fresh audio engine")
+            rebuildAudioAfterMediaServicesReset()
+        }
     }
 
     /// mediaserverd died and took every AVFAudio object with it. Apple's law
@@ -870,6 +921,7 @@ enum MixStyle: String, CaseIterable {
         deadPolls = 0
         recoveryFailures = 0
         retryPolls = 0
+        playRefusals = 0
         deckDuration = [0, 0]
         deckGlide = [1, 1]
         activeRate = 1
@@ -919,6 +971,8 @@ enum MixStyle: String, CaseIterable {
             }
             playedSecondsThisTrack += 0.25
         }
+        extendEndlessIfNeeded()
+        if Self.soak { soakTick() }
         // The clock truth flows one way: latency-compensated playhead into the
         // analyzer, every poll — the beat grid is authoritative when mix exists.
         // The same latency is handed over for onset visuals: a detected hit is
@@ -1219,5 +1273,65 @@ enum MixStyle: String, CaseIterable {
             engine.rampVolume(deck: activeDeck, to: 1, over: 0.2)
             activeRate = 1
         }
+    }
+
+    // MARK: - the soak (CI only)
+
+    /// CI's endurance run: `--soak` starts the nonstop mix as soon as the
+    /// library lands and then hurries the transport — four seconds into each
+    /// track it jumps to 28 s before the end (every fourth track it skips
+    /// instead), so a seam or a hard switch fires every ~30 s and an hour of
+    /// track changes fits in a CI job. Never on for a listener.
+    static let soak = ProcessInfo.processInfo.arguments.contains("--soak")
+    private var soakStarted = false
+    private var soakTracks = 0
+    private var soakKey: String?
+    private var soakEnteredAt: TimeInterval = 0
+    private var soakJumped = false
+    private var soakReportAt: TimeInterval = 0
+
+    func startSoakIfAsked(catalog: Catalog) {
+        guard Self.soak, !soakStarted else { return }
+        soakStarted = true
+        NSLog("AethraKairos soak: starting the nonstop mix over %d tracks", catalog.tracks.count)
+        playEverything(in: catalog)
+    }
+
+    private func soakTick() {
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - soakReportAt >= 30 {
+            soakReportAt = now
+            NSLog("AethraKairos soak: footprint %.0f MB, engine %@, playing %@, track %d, status '%@'",
+                  Self.footprintMB(), engine.isEngineRunning ? "running" : "stopped",
+                  isPlaying ? "yes" : "no", soakTracks, statusLine)
+        }
+        guard isPlaying, !seamRunning, let t = current, let dur = currentDuration else { return }
+        if t.id != soakKey {
+            soakKey = t.id
+            soakTracks += 1
+            soakEnteredAt = now
+            soakJumped = false
+            NSLog("AethraKairos soak: track %d - %@ (%.0f s)", soakTracks, t.title, dur)
+            return
+        }
+        guard !soakJumped, now - soakEnteredAt >= 4, position < dur - 32 else { return }
+        soakJumped = true
+        if soakTracks % 4 == 0, hasNext() {
+            next()
+        } else {
+            seek(to: dur - 28)
+        }
+    }
+
+    /// The process's physical footprint — the number jetsam judges an app by.
+    static func footprintMB() -> Double {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) { p in
+            p.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return kr == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
     }
 }

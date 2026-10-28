@@ -13,6 +13,7 @@
 		AEC0FFEE0000000000000008 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000007 /* Library.swift */; };
 		AEC0FFEE000000000000000A /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000009 /* AudioEngine.swift */; };
 		AEC0FFEE000000000000000C /* TrackLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000000B /* TrackLoader.swift */; };
+		AEC0FFEE0000000000ACA002 /* AKCatch.m in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000ACA001 /* AKCatch.m */; };
 		AEC0FFEE000000000000000E /* Analyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000000D /* Analyzer.swift */; };
 		AEC0FFEE0000000000000010 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE000000000000000F /* Player.swift */; };
 		AEC0FFEE0000000000000012 /* NowPlayingCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC0FFEE0000000000000011 /* NowPlayingCenter.swift */; };
@@ -90,6 +91,8 @@
 		AEC0FFEE0000000000000007 /* Library.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000009 /* AudioEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
 		AEC0FFEE000000000000000B /* TrackLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TrackLoader.swift; sourceTree = "<group>"; };
+		AEC0FFEE0000000000ACA001 /* AKCatch.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AKCatch.m; sourceTree = "<group>"; };
+		AEC0FFEE0000000000ACA003 /* AKCatch.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AKCatch.h; sourceTree = "<group>"; };
 		AEC0FFEE000000000000000D /* Analyzer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Analyzer.swift; sourceTree = "<group>"; };
 		AEC0FFEE000000000000000F /* Player.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
 		AEC0FFEE0000000000000011 /* NowPlayingCenter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowPlayingCenter.swift; sourceTree = "<group>"; };
@@ -231,6 +234,8 @@
 			children = (
 				AEC0FFEE0000000000000009 /* AudioEngine.swift */,
 				AEC0FFEE000000000000000B /* TrackLoader.swift */,
+				AEC0FFEE0000000000ACA003 /* AKCatch.h */,
+				AEC0FFEE0000000000ACA001 /* AKCatch.m */,
 				AEC0FFEE000000000000000D /* Analyzer.swift */,
 				AEC0FFEE000000000000000F /* Player.swift */,
 				AEC0FFEE0000000000000011 /* NowPlayingCenter.swift */,
@@ -411,6 +416,7 @@
 				AEC0FFEE0000000000000008 /* Library.swift in Sources */,
 				AEC0FFEE000000000000000A /* AudioEngine.swift in Sources */,
 				AEC0FFEE000000000000000C /* TrackLoader.swift in Sources */,
+				AEC0FFEE0000000000ACA002 /* AKCatch.m in Sources */,
 				AEC0FFEE000000000000000E /* Analyzer.swift in Sources */,
 				AEC0FFEE0000000000000010 /* Player.swift in Sources */,
 				AEC0FFEE0000000000000012 /* NowPlayingCenter.swift in Sources */,
@@ -559,6 +565,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.aethrakairos.tv;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = AethraKairosTV/Audio/AKCatch.h;
 				TARGETED_DEVICE_FAMILY = 3;
 			};
 			name = Debug;
@@ -579,6 +586,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.aethrakairos.tv;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = AethraKairosTV/Audio/AKCatch.h;
 				TARGETED_DEVICE_FAMILY = 3;
 			};
 			name = Release;
