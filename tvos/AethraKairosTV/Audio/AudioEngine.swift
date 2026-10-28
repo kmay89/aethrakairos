@@ -195,6 +195,8 @@ final class DeckEngine {
         let matches = d.connectedFormat.map {
             $0.sampleRate == fmt.sampleRate && $0.channelCount == fmt.channelCount
         } ?? false
+        NSLog("AethraKairos: deck %d loads %.0f Hz / %u ch%@", i, fmt.sampleRate, fmt.channelCount,
+              matches ? "" : (engine.isRunning ? " — REWIRING LIVE" : " — rewiring (engine stopped)"))
         if !matches {
             engine.disconnectNodeOutput(d.player)
             engine.disconnectNodeOutput(d.timePitch)
