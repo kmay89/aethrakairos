@@ -76,7 +76,7 @@ jobs:
 
   # Eyes before shipping: boot a tvOS Simulator, install the app, launch it,
   # and photograph what a viewer actually sees. The launch frame proves the
-  # focus engine is alive (the welcome's BEGIN chip renders its focus ring
+  # focus engine is alive (the welcome's PLAY chip renders its focus ring
   # only when focused) — the exact regression that reached hardware three
   # times while every compile check stayed green. Since stage 4 of the dance
   # layer the job also FILMS six rooms under the drive-demo metronome (the
@@ -144,7 +144,7 @@ jobs:
           sleep 14
           mkdir -p shots
           xcrun simctl io "$UDID" screenshot shots/01-launch-welcome.png
-          echo "The welcome should show BEGIN carrying its focus ring (ice outline, lifted)."
+          echo "The welcome should show PLAY carrying its focus ring (ice outline, lifted)."
           # Live rooms, via the CI camera hooks: -introSeen YES skips the
           # welcome (read natively by @AppStorage), --field starts with the
           # shelves down, --start-room opens on a named room. Two frames:

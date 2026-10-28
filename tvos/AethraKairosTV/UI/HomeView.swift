@@ -39,6 +39,9 @@ struct HomeView: View {
     // can find. After the grace, a genuinely catalog-less session (offline
     // first launch) still gets its shelves: a room can be tuned in silence.
     @State private var bootGraceOver = false
+    // PLAY was pressed before the library arrived: the nonstop mix starts the
+    // moment the catalog lands, instead of the press being lost.
+    @State private var playWhenReady = false
 
     // Generative sleeves drawn once per album tag, kept for the app's life so
     // the grid scrolls without redrawing 5200 grain dots per tile.
@@ -98,6 +101,12 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showStage) {
             StageView(isPresented: $showStage)
         }
+        .onChange(of: catalogStore.catalog) { _, catalog in
+            // a PLAY that was waiting on the library plays now
+            guard playWhenReady, let catalog else { return }
+            playWhenReady = false
+            startNonstop(in: catalog)
+        }
         .onChange(of: scenePhase) { _, phase in
             // tvOS keeps a suspended app for days, so an offline first launch
             // stayed "Catalog failed" until a force-quit: the boot .task never
@@ -115,6 +124,9 @@ struct HomeView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 52) {
                 wordmarkHeader
+                if let catalog = catalogStore.catalog {
+                    frontDoor(catalog)
+                }
                 nowRow
                 if let catalog = catalogStore.catalog {
                     journeyShelf
@@ -157,7 +169,11 @@ struct HomeView: View {
         // the hierarchy while browsing, play/pause is answered here instead.
         .onPlayPauseCommand {
             activity += 1
-            player.toggle()
+            if player.current == nil, let catalog = catalogStore.catalog {
+                startNonstop(in: catalog)      // nothing queued yet: the key means PLAY
+            } else {
+                player.toggle()
+            }
         }
         .task {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
@@ -188,10 +204,12 @@ struct HomeView: View {
 
     // MARK: - the welcome
 
-    /// The thirty-second introduction, in the house voice: what this is, what
-    /// it's for, and the two facts that make it unlike anything else on the
-    /// shelf. Four rows, one button, no scroll — Menu skips it, SETTINGS can
-    /// replay it, and it never interrupts twice.
+    /// The welcome, built around ONE press. PLAY is the first thing on the
+    /// screen and so the button focus lands on: click it (or the remote's
+    /// play/pause key) and the whole library starts as a nonstop mix, straight
+    /// onto the field. BROWSE opens the shelves instead. The four lines on what
+    /// this is sit below, for whoever wants to read them; Menu skips to the
+    /// shelves, SETTINGS can replay it, and it never interrupts twice.
     private var introOverlay: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer()
@@ -210,43 +228,167 @@ struct HomeView: View {
                 .foregroundStyle(Color.akDim)
                 .padding(.top, 10)
 
-            VStack(alignment: .leading, spacing: 30) {
+            HStack(alignment: .center, spacing: 32) {
+                Button {
+                    startFromWelcome()
+                } label: {
+                    HStack(spacing: 20) {
+                        Text("▶")
+                            .font(.system(size: 40, weight: .regular))
+                            .foregroundStyle(Color.akIce)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("PLAY")
+                                .font(.system(size: 40, weight: .bold))
+                                .tracking(6)
+                                .foregroundStyle(Color.akInk)
+                            Text("Nonstop music and light. Click once.")
+                                .font(.system(size: 19))
+                                .foregroundStyle(Color.akDim)
+                        }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(ShelfChipStyle())
+
+                Button {
+                    withAnimation { introSeen = true }
+                } label: {
+                    Text("BROWSE")
+                        .font(.system(size: 24, weight: .semibold))
+                        .tracking(4)
+                        .foregroundStyle(Color.akInk)
+                }
+                .buttonStyle(ShelfChipStyle())
+            }
+            .padding(.top, 48)
+
+            if playWhenReady {
+                // the press was heard; the library is still on its way
+                Text(catalogStore.statusLine.isEmpty ? "Tuning the library…" : catalogStore.statusLine)
+                    .font(.system(size: 19, design: .monospaced))
+                    .foregroundStyle(Color.akDim)
+                    .padding(.top, 18)
+            }
+
+            VStack(alignment: .leading, spacing: 22) {
                 introRow("∞", "NONSTOP MUSIC",
                          "Original songs that blend into each other — like a DJ who never takes a break.")
                 introRow("✦", "125 LIGHT SHOWS",
                          "Oceans, lightning, fireflies, and more — the picture dances along with the music.")
                 introRow("◈", "PICK A MOOD",
-                         "Working out, dinner, focus, or bedtime — one click plays music that fits.")
+                         "Working out, dinner, focus, or bedtime — BROWSE has a mix for each.")
                 introRow("♥", "FREE FOR EVERYONE",
                          "No account, no ads, no cost — and nothing you do is tracked or shared.")
             }
-            .padding(.top, 56)
+            .padding(.top, 52)
 
-            Button {
-                withAnimation { introSeen = true }
-            } label: {
-                Text("BEGIN")
-                    .font(.system(size: 27, weight: .semibold))
-                    .tracking(5)
-                    .foregroundStyle(Color.akInk)
-                    .padding(.horizontal, 26)
-                    .padding(.vertical, 2)
-            }
-            .buttonStyle(ShelfChipStyle())
-            .padding(.top, 56)
-
-            Text("MENU = BROWSE · MENU AGAIN = HOME      CLICK = PLAY / PAUSE      SWIPE ↑ ↓ = CHANGE THE PICTURE")
+            Text("CLICK = PLAY / PAUSE      SWIPE ↑ ↓ = CHANGE THE PICTURE      MENU = BROWSE")
                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
                 .tracking(3)
                 .foregroundStyle(Color.akDim)
-                .padding(.top, 44)
+                .padding(.top, 40)
             Spacer()
         }
         .padding(.horizontal, 120)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(.ultraThinMaterial)
         .background(Color.akVoid.opacity(0.55).ignoresSafeArea())
+        // the remote's play/pause key is PLAY here too
+        .onPlayPauseCommand { startFromWelcome() }
         .onExitCommand { withAnimation { introSeen = true } }
+    }
+
+    /// The welcome's PLAY: the nonstop mix (or the session already on the
+    /// deck), straight onto the field. Before the library has landed the
+    /// press is held, not dropped — see playWhenReady.
+    private func startFromWelcome() {
+        guard let catalog = catalogStore.catalog else {
+            playWhenReady = true
+            return
+        }
+        startNonstop(in: catalog)
+    }
+
+    /// One press, music: resume what is on the deck if something is, else
+    /// deal the whole library as the nonstop mix — then give the screen to
+    /// the field.
+    private func startNonstop(in catalog: Catalog) {
+        withAnimation { introSeen = true }
+        if player.current == nil {
+            player.playEverything(in: catalog)
+        } else if !player.isPlaying {
+            player.play()
+        }
+        dismissShelves()
+    }
+
+    // MARK: - the front door
+
+    /// The first row of the shelves, and so the button focus lands on: PLAY
+    /// when nothing is on the deck (the nonstop mix), RESUME when a session
+    /// is paused or was restored, BACK TO THE FIELD while music plays. NEW
+    /// MIX beside it re-deals the whole library at any time.
+    private func frontDoor(_ catalog: Catalog) -> some View {
+        let track = player.current
+        let title: String
+        let line: String
+        if let track {
+            title = player.isPlaying ? "BACK TO THE FIELD" : "RESUME"
+            line = track.title
+        } else {
+            title = "PLAY"
+            line = "Nonstop music and light — the whole library, mixed."
+        }
+        return HStack(alignment: .center, spacing: 28) {
+            Button {
+                if track == nil {
+                    startNonstop(in: catalog)
+                } else {
+                    if !player.isPlaying { player.play() }
+                    dismissShelves()
+                }
+            } label: {
+                HStack(spacing: 22) {
+                    Text(player.isPlaying && track != nil ? "◉" : "▶")
+                        .font(.system(size: 40, weight: .regular))
+                        .foregroundStyle(Color.akIce)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(title)
+                            .font(.system(size: 36, weight: .bold))
+                            .tracking(5)
+                            .foregroundStyle(Color.akInk)
+                        Text(line)
+                            .font(.system(size: 20))
+                            .foregroundStyle(Color.akDim)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(width: 640, alignment: .leading)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(ShelfChipStyle())
+
+            if track != nil {
+                Button {
+                    player.playEverything(in: catalog)
+                    dismissShelves()
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("NEW MIX")
+                            .font(.system(size: 26, weight: .semibold))
+                            .tracking(4)
+                            .foregroundStyle(Color.akInk)
+                        Text("Shuffle the whole library, nonstop.")
+                            .font(.system(size: 18))
+                            .foregroundStyle(Color.akDim)
+                    }
+                    .frame(width: 420, alignment: .leading)
+                }
+                .buttonStyle(ShelfChipStyle())
+            }
+        }
+        .focusSection()
     }
 
     private func introRow(_ glyph: String, _ title: String, _ line: String) -> some View {
@@ -321,17 +463,6 @@ struct HomeView: View {
                     .font(.system(size: 19, weight: .semibold, design: .monospaced))
                     .tracking(5)
                     .foregroundStyle(Color.akAmber)
-                // the way back to the picture — Menu on the shelves now leaves
-                // the app, so returning to the field is a button you can see
-                Button {
-                    dismissShelves()
-                } label: {
-                    Text("BACK TO THE FIELD")
-                        .font(.system(size: 19, weight: .semibold))
-                        .tracking(4)
-                        .foregroundStyle(Color.akInk)
-                }
-                .buttonStyle(ShelfChipStyle())
                 Spacer(minLength: 32)
                 Text(track.title)
                     .font(.system(size: 24, design: .serif))
