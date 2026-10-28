@@ -191,7 +191,26 @@ struct FrontDoorRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 12)
+        // the sleeve's own light, thrown big and soft behind the row — the
+        // billboard is lit by what is playing (the emblem's colours when
+        // nothing is), as an album page is lit by its cover
+        .background(alignment: .leading) {
+            bloom(album)
+                .frame(width: 620, height: 620)
+                .blur(radius: 110)
+                .opacity(0.55)
+                .offset(x: -120)
+                .allowsHitTesting(false)
+        }
         .focusSection()
+    }
+
+    @ViewBuilder private func bloom(_ album: Album?) -> some View {
+        if let album {
+            AlbumSleeve(album: album, artist: catalog.artist, label: catalog.label, size: 660, corner: 18)
+        } else {
+            Circle().fill(AngularGradient(colors: [.scIce, .scAmber, .scBeat, .scIce], center: .center))
+        }
     }
 
     @ViewBuilder private func sleeve(_ album: Album?) -> some View {
@@ -265,6 +284,36 @@ struct HouseEmblem: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - the aurora
+
+/// The welcome's light before the music starts: three soft pools of the
+/// house colours on the open side of the screen, breathing over seven
+/// seconds. Gradients and one repeating animation, so it costs the GPU
+/// next to nothing — the field underneath is still the real show.
+struct AuroraGlow: View {
+    @State private var breathe = false
+
+    var body: some View {
+        ZStack {
+            pool(.scIce, at: UnitPoint(x: 0.80, y: 0.30), radius: 620, strength: 0.30)
+            pool(.scBeat, at: UnitPoint(x: 0.96, y: 0.82), radius: 520, strength: 0.20)
+            pool(.scAmber, at: UnitPoint(x: 0.60, y: 0.95), radius: 460, strength: 0.16)
+        }
+        .blendMode(.screen)
+        .opacity(breathe ? 1 : 0.55)
+        .scaleEffect(breathe ? 1.06 : 1, anchor: .trailing)
+        .animation(.easeInOut(duration: 7).repeatForever(autoreverses: true), value: breathe)
+        .onAppear { breathe = true }
+        .allowsHitTesting(false)
+        .ignoresSafeArea()
+    }
+
+    private func pool(_ color: Color, at center: UnitPoint, radius: CGFloat, strength: Double) -> some View {
+        RadialGradient(colors: [color.opacity(strength), color.opacity(0)],
+                       center: center, startRadius: 0, endRadius: radius)
     }
 }
 

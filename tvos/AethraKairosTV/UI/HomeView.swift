@@ -225,12 +225,14 @@ struct HomeView: View {
     /// SETTINGS can replay it, and it never interrupts twice.
     private var introOverlay: some View {
         ZStack(alignment: .leading) {
+            // light on the open side before a note has played
+            AuroraGlow()
             // the scrim: dark where the words are, open where the light is
             LinearGradient(stops: [
-                .init(color: Color.akVoid.opacity(0.97), location: 0),
-                .init(color: Color.akVoid.opacity(0.86), location: 0.36),
-                .init(color: Color.akVoid.opacity(0.32), location: 0.72),
-                .init(color: Color.akVoid.opacity(0.08), location: 1),
+                .init(color: Color.akVoid.opacity(0.96), location: 0),
+                .init(color: Color.akVoid.opacity(0.82), location: 0.34),
+                .init(color: Color.akVoid.opacity(0.18), location: 0.70),
+                .init(color: Color.akVoid.opacity(0), location: 1),
             ], startPoint: .leading, endPoint: .trailing)
             .ignoresSafeArea()
             LinearGradient(colors: [.clear, Color.akVoid.opacity(0.88)],
