@@ -11356,9 +11356,12 @@ test('tvOS: the RECENT shelf dedupes in its own set, a refreshed album tile redr
   const rt = home.slice(home.indexOf('private func recentTracks(in catalog: Catalog)'), home.indexOf('// MARK: - shared bits'));
   assert.ok(rt.includes('guard shown.insert(track.id).inserted else { continue }'), 'one tile per track, counted in its own set');
   assert.ok(!rt.includes('seen.contains(track.id)'), 'never in `seen`, which already holds the key that IS the id — that emptied the shelf');
-  const cover = home.slice(home.indexOf('private struct HomeAlbumCover: View'));
-  assert.ok(cover.includes('.onAppear { drawSleeve() }') && cover.includes('.onChange(of: album.tag) { _, _ in drawSleeve() }'),
-    'the sleeve follows the album at an offset-keyed slot, not the tile\'s lifetime');
+  const craft = readFileSync(join(root, 'tvos/AethraKairosTV/UI/Stagecraft.swift'), 'utf8');
+  const cover = craft.slice(craft.indexOf('struct AlbumSleeve: View'));
+  assert.ok(home.includes('AlbumSleeve(album: album, artist: catalog.artist, label: catalog.label)'),
+    'the album grid draws its tiles through AlbumSleeve');
+  assert.ok(cover.includes('.task(id: CoverCache.key(album, size))') && cover.includes('image = nil'),
+    'the sleeve follows the album at an offset-keyed slot, not the tile\'s lifetime: a new album restarts the draw and drops the old face');
   const player = readFileSync(join(root, 'tvos/AethraKairosTV/Audio/Player.swift'), 'utf8');
   const tg = player.slice(player.indexOf('    func toggle() {'), player.indexOf('    func play() {'));
   assert.ok(/wantsPlayback\.toggle\(\)[\s\S]*if !wantsPlayback \{ isPlaying = false \}[\s\S]*return\n\s*\}/.test(tg),

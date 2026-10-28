@@ -39,16 +39,22 @@ struct VisualizerView: View {
     /// drawing — no GPU work is submitted from the background, and the stage
     /// screen is never fighting a hidden field for the same GPU.
     var paused: Bool
+    /// True while the field is backdrop (the welcome and the shelves cover it):
+    /// it draws at 30 fps, and the GPU it frees keeps the glass above at 60.
+    var lowPower: Bool
 
-    init(player: Player, roomStep: Int, roomName: Binding<String>, paused: Bool = false) {
+    init(player: Player, roomStep: Int, roomName: Binding<String>, paused: Bool = false,
+         lowPower: Bool = false) {
         self.player = player
         self.roomStep = roomStep
         self._roomName = roomName
         self.paused = paused
+        self.lowPower = lowPower
     }
 
     var body: some View {
-        MetalSurface(player: player, roomStep: roomStep, roomName: $roomName, paused: paused)
+        MetalSurface(player: player, roomStep: roomStep, roomName: $roomName, paused: paused,
+                     lowPower: lowPower)
             .ignoresSafeArea()
     }
 }
@@ -60,6 +66,7 @@ private struct MetalSurface: UIViewRepresentable {
     let roomStep: Int
     @Binding var roomName: String
     let paused: Bool
+    let lowPower: Bool
 
     func makeCoordinator() -> VizRenderer {
         VizRenderer(player: player, roomName: $roomName)
@@ -68,7 +75,7 @@ private struct MetalSurface: UIViewRepresentable {
     func makeUIView(context: Context) -> MTKView {
         let view = MTKView()
         view.device = MTLCreateSystemDefaultDevice()
-        view.preferredFramesPerSecond = 60
+        view.preferredFramesPerSecond = lowPower ? 30 : 60
         view.colorPixelFormat = .bgra8Unorm
         // even a dropped frame shows the void, never a flash of anything else
         view.clearColor = MTLClearColor(red: 5.0 / 255.0, green: 6.0 / 255.0,
@@ -84,6 +91,8 @@ private struct MetalSurface: UIViewRepresentable {
         // SwiftUI may rebuild this struct; keep the renderer's binding fresh
         context.coordinator.roomName = $roomName
         context.coordinator.roomStepChanged(to: roomStep)
+        let fps = lowPower ? 30 : 60
+        if uiView.preferredFramesPerSecond != fps { uiView.preferredFramesPerSecond = fps }
         if uiView.isPaused != paused {
             uiView.isPaused = paused
             // a field nobody sees holds no offscreen art: the five render

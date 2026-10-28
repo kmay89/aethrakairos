@@ -722,6 +722,88 @@ jobs:
           path: shots/
           retention-days: 7
 
+  # The front of the house, photographed fast: the welcome on a fresh install
+  # and the shelves (-introSeen YES) a few seconds after the library lands,
+  # each printed into the log as a 960 px JPEG so a design pass can be judged
+  # in minutes rather than after the room films. The welcome is also scanned
+  # for PLAY's focus ring.
+  ui-shots:
+    name: welcome and shelves screenshots
+    if: inputs.channel != 'testflight'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest stable Xcode on the runner
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Build for the tvOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project tvos/AethraKairos.xcodeproj \
+            -scheme AethraKairosTV \
+            -destination 'generic/platform=tvOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tail -5
+
+      - name: Photograph the welcome and the shelves
+        run: |
+          UDID="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          tv = [d for runtime, devs in devices.items() if "tvOS" in runtime for d in devs]
+          def rank(d):
+              name = d.get("name", "")
+              return 0 if "1080p" in name else 1 if name == "Apple TV" else 2
+          tv.sort(key=rank)
+          if tv:
+              print(tv[0]["udid"])
+          ')"
+          [ -n "$UDID" ] || { echo "::error::No tvOS simulator on this runner."; exit 1; }
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name '*.app' -type d | head -1)"
+          [ -n "$APP" ] || { echo "::error::Built .app not found."; exit 1; }
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p ui
+          xcrun simctl launch "$UDID" com.aethrakairos.tv
+          sleep 16
+          xcrun simctl io "$UDID" screenshot ui/welcome.png
+          xcrun simctl terminate "$UDID" com.aethrakairos.tv || true
+          xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES
+          sleep 22
+          xcrun simctl io "$UDID" screenshot ui/shelves.png
+          pip3 install --quiet pillow 2>/dev/null || pip3 install --quiet --break-system-packages pillow 2>/dev/null || true
+          python3 - << 'PY' || echo "pixel scan unavailable"
+          from PIL import Image
+          im = Image.open('ui/welcome.png').convert('RGB')
+          w, h = im.size
+          px = im.load()
+          ice = sum(1 for y in range(0, h, 2) for x in range(0, w, 2)
+                    if abs(px[x, y][0]-110) < 50 and abs(px[x, y][1]-231) < 45 and abs(px[x, y][2]-255) < 45)
+          print(f"ICE PIXELS (1/4 sampled): {ice}  ({w}x{h})")
+          print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
+          PY
+          for NAME in welcome shelves; do
+            sips -Z 960 "ui/$NAME.png" --out "ui/$NAME.jpg" -s format jpeg -s formatOptions 60 >/dev/null
+            echo "== BEGIN BASE64 JPEG ($NAME) =="
+            base64 -i "ui/$NAME.jpg" | fold -w 300
+            echo "== END BASE64 JPEG ($NAME) =="
+          done
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ui-shots
+          path: ui/
+          retention-days: 7
+
   # Endurance before shipping: the listener's report was "it crashes after a
   # song or a few songs", and every check above runs for seconds. This job
   # PLAYS the real library in the simulator for twelve minutes under --soak:

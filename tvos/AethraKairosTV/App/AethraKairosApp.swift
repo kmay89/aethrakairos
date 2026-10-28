@@ -25,7 +25,7 @@ struct AethraKairosApp: App {
 
     var body: some Scene {
         WindowGroup {
-            HomeView()
+            HomeView(player: player)
                 .environmentObject(catalogStore)
                 .environmentObject(library)
                 .environmentObject(player)
