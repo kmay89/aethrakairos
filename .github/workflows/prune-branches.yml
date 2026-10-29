@@ -1,0 +1,91 @@
+# Keeps the branch list down to work that is still alive.
+#
+# Two jobs, one rule — a branch goes only once nothing on it can be lost:
+#   - after-merge: when a PR from this repo merges, its head branch is deleted
+#     (the "Automatically delete head branches" setting, done from here).
+#   - sweep: run by hand (Actions → prune-branches → Run workflow). Deletes every
+#     branch already contained in the default branch or whose PR merged. Branches
+#     with an open PR, protected branches and the default branch are never
+#     touched; anything else is listed and kept. Dry run by default — read the
+#     log, then run again with dry_run unticked.
+name: prune-branches
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only list what would be deleted'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  after-merge:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+    steps:
+      - name: Delete the merged head branch
+        run: |
+          open=$(gh pr list -R "$REPO" --state open --head "$BRANCH" --json number -q length)
+          if [ "$open" != "0" ]; then
+            echo "keep $BRANCH: another open PR still uses it"
+            exit 0
+          fi
+          gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" \
+            && echo "deleted $BRANCH" \
+            || echo "$BRANCH was already gone"
+
+  sweep:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Sweep finished branches
+        run: |
+          set -euo pipefail
+          base=$(gh api "repos/$REPO" -q .default_branch)
+          gh pr list -R "$REPO" --state open --limit 1000 --json headRefName -q '.[].headRefName' > open.txt
+          gh api --paginate "repos/$REPO/branches?per_page=100" \
+            -q '.[] | select(.protected | not) | "\(.name) \(.commit.sha)"' > branches.txt
+          deleted=0; kept=0
+          while read -r b tip <&3; do
+            [ "$b" = "$base" ] && continue
+            if grep -qxF "$b" open.txt; then
+              echo "keep    $b  (open PR)"; kept=$((kept+1)); continue
+            fi
+            # no shared history (main was rewritten once) reads as "?"; the merged-PR check decides
+            ahead=$(gh api "repos/$REPO/compare/$base...$b" -q .ahead_by 2>/dev/null || echo "?")
+            # a merged PR counts only if it merged this exact tip, so later pushes are never lost
+            merged=$(gh pr list -R "$REPO" --state merged --head "$b" --limit 100 --json headRefOid -q '.[].headRefOid')
+            if [ "$ahead" = "0" ]; then
+              why="contained in $base"
+            elif grep -qxF "$tip" <<< "$merged"; then
+              why="PR merged"
+            else
+              echo "keep    $b  ($ahead commits not in $base, tip not merged by any PR)"; kept=$((kept+1)); continue
+            fi
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "would   $b  ($why)"
+            else
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$b" > /dev/null
+              echo "deleted $b  ($why)"
+            fi
+            deleted=$((deleted+1))
+          done 3< branches.txt
+          verb=$([ "$DRY_RUN" = "true" ] && echo "would delete" || echo "deleted")
+          echo "::notice::$verb $deleted branches, kept $kept"
