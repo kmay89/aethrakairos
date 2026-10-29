@@ -462,7 +462,7 @@ struct AlbumSleeve: View {
         // keyed by album AND size: the grid reuses tiles by position, so a
         // catalog refresh can hand this tile a different album
         .task(id: CoverCache.key(album, size)) {
-            if let hit = await CoverCache.shared.cached(album, size: size) {
+            if let hit = CoverCache.shared.cached(album, size: size) {
                 image = hit
                 return
             }

@@ -1543,8 +1543,13 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 
         // every frame held on screen for at least one display interval: a
         // frame that finishes early never jumps the queue and is never shown
-        // for half a slot, so the cadence stays even
+        // for half a slot, so the cadence stays even. The tvOS Simulator's
+        // SDK has no paced present; CI's simulator builds take the plain one.
+        #if targetEnvironment(simulator)
+        commandBuffer.present(drawable)
+        #else
         commandBuffer.present(drawable, afterMinimumDuration: displayInterval(view))
+        #endif
         let clock = gpuClock
         commandBuffer.addCompletedHandler { cb in
             clock.record(cb.gpuEndTime - cb.gpuStartTime)
@@ -1823,7 +1828,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 /// The GPU's own word on how long each frame took, smoothed. Written from
 /// Metal's completion thread, read on the main thread: one lock, a few
 /// scalars, never held across anything.
-final class GPUFrameClock {
+final class GPUFrameClock: @unchecked Sendable {   // every field behind the lock
     private let lock = NSLock()
     private var ewma: Double = 0
     private var samples = 0
