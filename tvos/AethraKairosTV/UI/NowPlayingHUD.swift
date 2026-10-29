@@ -233,19 +233,44 @@ private struct ZenWaveform: View {
     private static let fadeIn: Double = 0.45
     private static let fadeOut: Double = 0.85
 
+    /* THE FIGURE IS BUILT AT THE PLAYHEAD'S PACE, NOT THE SCREEN'S. The bars
+       (a thousand of them, three bands, both sides) used to be rebuilt inside
+       the 60 fps timeline — every frame of every bloom, on the main thread,
+       which is also the thread the field draws on: the light show stuttered
+       for 2.4 s after every track change and every press of the remote. Now
+       the paths are built when the playhead moves (this body re-runs at the
+       position's 4 Hz) and each frame only fills them, faded and grown by a
+       transform. The picture is the same; the work is a fifteenth. */
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let t = timeline.date.timeIntervalSince(startedAt)
-            let op = envelope(t)
-            // The bloom grows into place: bars rise from a hush to full height
-            // across the fade-in, then hold.
-            let grow = 0.55 + 0.45 * smooth(min(max(t, 0) / Self.fadeIn, 1))
-            Canvas { context, size in
-                guard op > 0.001 else { return }
-                draw(&context, size: size, grow: CGFloat(grow))
+        GeometryReader { geo in
+            let figure = buildFigure(size: geo.size)
+            TimelineView(.animation) { timeline in
+                let t = timeline.date.timeIntervalSince(startedAt)
+                let op = envelope(t)
+                // The bloom grows into place: bars rise from a hush to full
+                // height across the fade-in, then hold — about the midline.
+                let grow = 0.55 + 0.45 * smooth(min(max(t, 0) / Self.fadeIn, 1))
+                Canvas { context, _ in
+                    guard op > 0.001 else { return }
+                    for layer in figure { context.fill(layer.path, with: .color(layer.color)) }
+                }
+                .scaleEffect(x: 1, y: CGFloat(grow), anchor: .center)
+                .opacity(op)
             }
-            .opacity(op)
         }
+    }
+
+    /// One filled layer of the figure.
+    private struct Layer {
+        let path: Path
+        let color: Color
+    }
+
+    /// The bars at full height for the current playhead, as filled layers.
+    private func buildFigure(size: CGSize) -> [Layer] {
+        var layers: [Layer] = []
+        draw(into: &layers, size: size, grow: 1)
+        return layers
     }
 
     // MARK: bloom envelope
@@ -266,7 +291,7 @@ private struct ZenWaveform: View {
 
     // MARK: drawing
 
-    private func draw(_ ctx: inout GraphicsContext, size: CGSize, grow: CGFloat) {
+    private func draw(into layers: inout [Layer], size: CGSize, grow: CGFloat) {
         let w = size.width
         let h = size.height
         guard w > 8, h > 12 else { return }
@@ -321,12 +346,12 @@ private struct ZenWaveform: View {
                 }
             }
 
-            ctx.fill(amberPlayed, with: .color(Color.akAmber.opacity(0.95)))
-            ctx.fill(midPlayed, with: .color(accent.opacity(0.95)))
-            ctx.fill(icePlayed, with: .color(Color.akIce.opacity(0.95)))
-            ctx.fill(amberAhead, with: .color(Color.akAmber.opacity(0.55)))
-            ctx.fill(midAhead, with: .color(accent.opacity(0.55)))
-            ctx.fill(iceAhead, with: .color(Color.akIce.opacity(0.55)))
+            layers.append(Layer(path: amberPlayed, color: Color.akAmber.opacity(0.95)))
+            layers.append(Layer(path: midPlayed, color: accent.opacity(0.95)))
+            layers.append(Layer(path: icePlayed, color: Color.akIce.opacity(0.95)))
+            layers.append(Layer(path: amberAhead, color: Color.akAmber.opacity(0.55)))
+            layers.append(Layer(path: midAhead, color: accent.opacity(0.55)))
+            layers.append(Layer(path: iceAhead, color: Color.akIce.opacity(0.55)))
         } else {
             // No env: a single-colour figure hashed from the track key.
             let seed = Self.hashSeed(track.id)
@@ -346,8 +371,8 @@ private struct ZenWaveform: View {
                     addBand(&ahead, x0: x0, barW: barW, midY: midY, inner: 0, outer: height)
                 }
             }
-            ctx.fill(played, with: .color(accent.opacity(0.95)))
-            ctx.fill(ahead, with: .color(accent.opacity(0.55)))
+            layers.append(Layer(path: played, color: accent.opacity(0.95)))
+            layers.append(Layer(path: ahead, color: accent.opacity(0.55)))
         }
     }
 

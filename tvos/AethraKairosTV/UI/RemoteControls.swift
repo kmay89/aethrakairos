@@ -26,8 +26,11 @@ enum ZenLaw {
 ///
 /// The keys, in field mode: play/pause toggles; select wakes the HUD first
 /// and only an already-lit HUD treats a press as transport; select HELD
-/// toggles the heart on the playing track; left/right nudge the playhead
-/// ∓/±10 s; up/down step rooms; Menu raises the shelves.
+/// toggles the heart on the playing track; left/right are the previous and
+/// next track (back restarts a track more than three seconds in, and a skip
+/// crossfades — see Player.skip); up/down step rooms; Menu raises the
+/// shelves. The ±10 s nudge lives on the system's skip commands (the Remote
+/// app, Control Center), where a scrub is what the listener asked for.
 struct FieldRemoteLayer: View {
     @ObservedObject var player: Player
     // The heart hold is a no-op without a library; the layer only writes
@@ -55,8 +58,8 @@ struct FieldRemoteLayer: View {
             .onMoveCommand { direction in
                 bump()
                 switch direction {
-                case .left: player.nudge(-10)
-                case .right: player.nudge(10)
+                case .left: player.prev()
+                case .right: player.next()
                 case .up: roomStep += 1
                 case .down: roomStep -= 1
                 default: break
@@ -91,7 +94,7 @@ struct FieldRemoteLayer: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(fieldLabel)
             .accessibilityValue(Text(player.isPlaying ? "Playing" : "Paused"))
-            .accessibilityHint(Text("Play or pause with the play button. Swipe left or right to move ten seconds. Swipe up or down to change rooms. Press and hold to save the track to hearts. Press Menu for the shelves."))
+            .accessibilityHint(Text("Play or pause with the play button. Swipe left or right for the previous or next track. Swipe up or down to change rooms. Press and hold to save the track to hearts. Press Menu for the shelves."))
     }
 
     private var fieldLabel: Text {

@@ -73,7 +73,8 @@ struct HomeView: View {
             // every focus animation over it at a full 60.
             VisualizerView(player: player, roomStep: roomStep, roomName: $roomName,
                            paused: scenePhase != .active || showConsole || showStage,
-                           lowPower: !introSeen || shelvesShown)
+                           lowPower: !introSeen || shelvesShown,
+                           purge: scenePhase == .background)
                 .ignoresSafeArea()
             // The field's remote grammar is a LAYER, not a wrapper: it is in
             // the hierarchy only while the field owns the screen. While the
@@ -308,7 +309,7 @@ struct HomeView: View {
                 }
                 .entrance(entered, delay: 1.0)
 
-                Text("CLICK = PLAY / PAUSE      SWIPE ↑ ↓ = CHANGE THE PICTURE      MENU = BROWSE")
+                Text("CLICK = PLAY / PAUSE     ← → = SKIP     ↑ ↓ = CHANGE THE PICTURE     MENU = BROWSE")
                     .font(.system(size: 16, weight: .semibold, design: .monospaced))
                     .tracking(3)
                     .foregroundStyle(Color.akDim.opacity(0.8))
