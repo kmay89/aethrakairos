@@ -712,6 +712,14 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var overBudgetFor: Double = 0
     private var underBudgetFor: Double = 0
     private var lastArtChange: CFTimeInterval = 0
+    /// How long the art must run calm before it is allowed back UP a rung.
+    /// It doubles (to two minutes) whenever a step up is undone within 30 s —
+    /// a room that sits right at the edge would otherwise ping-pong a rung
+    /// every few seconds, and each change reallocates the chain — and halves
+    /// back after five minutes without a step down.
+    private var calmNeeded: Double = 8
+    private var lastStepUp: CFTimeInterval = -1_000
+    private var lastStepDown: CFTimeInterval = -1_000
 
     /* THE PACED CLOCK. Animation advanced by the wall time between draw
        calls, and a draw call's moment is the main thread's (a SwiftUI update
@@ -753,10 +761,17 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // backdrop's 30 fps under the shelves must not talk the art up only
         // to drop it again the moment the field is uncovered
         let budget = 1.0 / 60.0
+        if now - lastStepDown > 300, calmNeeded > 8 {
+            calmNeeded = max(8, calmNeeded / 2)
+            lastStepDown = now - 150             // halve again only after another 2.5 min
+        }
         if gpu > budget * 0.9 {
             overBudgetFor += dt
             underBudgetFor = 0
-        } else if gpu < budget * 0.6 {
+        } else if gpu < budget * 0.6, gpu > 0.0005 {
+            // (a reading under half a millisecond is not a real frame — a
+            // device or simulator that reports no GPU time never talks the
+            // art up on it)
             underBudgetFor += dt
             overBudgetFor = 0
         } else {
@@ -765,16 +780,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         }
         if overBudgetFor > 0.75, artStep < Self.artSteps.count - 1, now - lastArtChange > 1.5 {
             artStep += 1
-        } else if underBudgetFor > 8, artStep > 0, now - lastArtChange > 8 {
+            if now - lastStepUp < 30 { calmNeeded = min(calmNeeded * 2, 120) }
+            lastStepDown = now
+        } else if underBudgetFor > calmNeeded, artStep > 0, now - lastArtChange > calmNeeded {
             artStep -= 1
+            lastStepUp = now
         } else {
             return
         }
         lastArtChange = now
         overBudgetFor = 0
         underBudgetFor = 0
-        NSLog("AethraKairos: art step %d (%.0f %% of the cap), gpu %.1f ms", artStep,
-              Double(Self.artSteps[artStep]) * 100, gpu * 1000)
+        NSLog("AethraKairos: art step %d (%.0f %% of the cap), gpu %.1f ms, calm needed %.0f s", artStep,
+              Double(Self.artSteps[artStep]) * 100, gpu * 1000, calmNeeded)
         gpuClock.reset()                  // the new size earns its own record
     }
 
