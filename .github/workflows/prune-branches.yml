@@ -7,7 +7,8 @@
 #     branch already contained in the default branch or whose PR merged. Branches
 #     with an open PR, protected branches and the default branch are never
 #     touched; anything else is listed and kept. Dry run by default — read the
-#     log, then run again with dry_run unticked.
+#     log, then run again with dry_run unticked. A kept branch someone has
+#     checked by hand and found superseded can be named in also_delete.
 name: prune-branches
 
 on:
@@ -19,6 +20,10 @@ on:
         description: 'Only list what would be deleted'
         type: boolean
         default: true
+      also_delete:
+        description: 'Space-separated branches checked by hand as superseded (still never default, protected or open-PR)'
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -54,6 +59,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       DRY_RUN: ${{ inputs.dry_run }}
+      ALSO_DELETE: ${{ inputs.also_delete }}
     steps:
       - name: Sweep finished branches
         run: |
@@ -76,6 +82,8 @@ jobs:
               why="contained in $base"
             elif grep -qxF "$tip" <<< "$merged"; then
               why="PR merged"
+            elif [[ " $ALSO_DELETE " == *" $b "* ]]; then
+              why="named in also_delete, tip $tip"
             else
               echo "keep    $b  ($ahead commits not in $base, tip not merged by any PR)"; kept=$((kept+1)); continue
             fi
