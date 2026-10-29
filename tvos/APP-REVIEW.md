@@ -217,7 +217,7 @@ Aethra Kairos is a music player and Metal audio-visualizer for Apple TV.
 VoiceOver on tvOS can describe now-playing state:
 
 - The player field announces the current track, whether it is **Playing** or
-  **Paused**, and a hint describing the Siri Remote grammar (play/pause, ±10 s,
+  **Paused**, and a hint describing the Siri Remote grammar (play/pause, previous/next track,
   room up/down, press-and-hold to love, Menu for shelves). See
   `UI/RemoteControls.swift`.
 - The now-playing card exposes the **Favorite** control (value *Loved / Not

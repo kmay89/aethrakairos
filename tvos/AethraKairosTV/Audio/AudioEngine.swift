@@ -459,6 +459,23 @@ final class DeckEngine {
         }
     }
 
+    /// Set a deck's v at once, cancelling any ramp in flight — for a deck that
+    /// is about to start (it is not yet audible, so a jump is not a click),
+    /// so the ramp that follows rises from true silence rather than from
+    /// wherever the deck's last ramp left it.
+    func setVolume(deck i: Int, to v: Float) {
+        guard let d = deck(i) else { return }
+        let target = max(0, min(1, v))
+        // synchronous: the jump must land before the play that follows it.
+        // Safe from the main thread — the ramp queue never waits on main.
+        rampQueue.sync {
+            d.volumeRamp.jump(to: target) { [weak d] val in
+                guard let d else { return }
+                d.mixer.outputVolume = sinf(val * .pi / 2) * d.norm
+            }
+        }
+    }
+
     /// The one-bass rule's lever: -14 dB duck during a beatmix, -22 dB on a
     /// filtered fade, 0 dB at rest.
     func setLowShelfGain(deck i: Int, dB: Float, over seconds: Double) {
@@ -593,6 +610,14 @@ private final class AKParamRamp {
     init(initial: Float, queue: DispatchQueue) {
         self.value = initial
         self.queue = queue
+    }
+
+    /// Stop any ramp and stand at `target` now.
+    func jump(to target: Float, apply: (Float) -> Void) {
+        timer?.cancel()
+        timer = nil
+        value = target
+        apply(target)
     }
 
     func ramp(to target: Float, over seconds: Double, curve: Curve, apply: @escaping (Float) -> Void) {

@@ -913,7 +913,7 @@ jobs:
           ls "$REPORTS" 2>/dev/null | grep -i aethra > soak/reports-after.txt || true
           NEW="$(comm -13 <(sort soak/reports-before.txt) <(sort soak/reports-after.txt) || true)"
           echo "===== the soak, in the app's own words ====="
-          grep -E 'soak:|REWIRING|rewiring|exception|engine|recovery|media services|cannot open|deferring' soak/app.log | tail -250 || true
+          grep -E 'soak:|REWIRING|rewiring|exception|engine|recovery|media services|cannot open|deferring|skip crossfade|art step' soak/app.log | tail -250 || true
           echo "===== summary ====="
           echo "tracks reached:  $(grep -c 'soak: track' soak/app.log || true)"
           echo "deck loads:      $(grep -c 'loads .* Hz' soak/app.log || true)"
@@ -921,6 +921,8 @@ jobs:
           echo "  at 48000 Hz:   $(grep -c 'loads 48000 Hz' soak/app.log || true)"
           echo "live rewires:    $(grep -c 'REWIRING LIVE' soak/app.log || true)"
           echo "caught raises:   $(grep -c 'AVFAudio raised' soak/app.log || true)"
+          echo "skip crossfades: $(grep -c 'skip crossfade' soak/app.log || true)"
+          echo "art steps:       $(grep -c 'art step' soak/app.log || true)  (last: $(grep 'art step' soak/app.log | tail -1 | sed 's/.*art step/art step/'))"
           echo "engine running in reports: $(grep -c 'engine running' soak/app.log || true) / $(grep -c 'soak: footprint' soak/app.log || true)"
           echo "process alive at the end: $ALIVE"
           CRASHED=no
