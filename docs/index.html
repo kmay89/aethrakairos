@@ -20378,7 +20378,16 @@ const DECKROUTE = {
       empty();
       const src = D.a.currentSrc || D.a.src, at = D.a.currentTime;
       this._seat(k, this._takeTwin(), 0);
-      if (src) AE._loadAt(AE.decks[k].a, /^blob:/i.test(src) ? src : (tr ? tr.url : src), at);
+      if (src){
+        // waiting at its spot exactly as a restored deck waits (prepare): a ▶ before the seek lands plays muted, not from the top
+        const d = AE.decks[k], a = d.a;
+        if (at > 0.2){
+          d._seekPending = true; a.muted = true;
+          const rel = () => { a.removeEventListener('seeked', rel); clearTimeout(d._seekT); if (!d._seekPending) return; d._seekPending = false; if (d.a === a) a.muted = false; };
+          a.addEventListener('seeked', rel); d._seekT = setTimeout(rel, 8000);
+        }
+        AE._loadAt(a, /^blob:/i.test(src) ? src : (tr ? tr.url : src), at);
+      }
       this._finishGive();
       return true;
     }

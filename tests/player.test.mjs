@@ -12339,6 +12339,54 @@ test('sentinelTrip: only 2-10 s after a load, only an advancing open deck, under
   assert.equal(S.sentinelTrip({ ...b, gateOpen: false }), false, 'a held loop owns the bus');
 });
 
+/* A1: EVERY DECK RATE GOES THROUGH ONE DOOR. On an iPhone with the decks in
+   the graph a captured element plays choppy at any rate but 1 (WebKit
+   240405), so every write of a deck element's playbackRate — SPEED, SYNC's
+   pitch, a seam's glide and phase lock, the cue's steering, finish/cancel,
+   the element brake — must pass through deckRate(), which asks iosRatesOk.
+   A new write that bypasses it would put a choppy record on air; this finds
+   it. (DECKROUTE's own copies of the on-air rate onto an element not yet in
+   the graph, or a direct twin, are the route's and are left out.) */
+test('A1: every deck element rate write passes through deckRate (the one decider, iosRatesOk)', () => {
+  const lines = html.split('\n');
+  const r0 = lines.findIndex(l => l.startsWith('const DECKROUTE = {'));
+  const r1 = lines.findIndex(l => l.startsWith('window.__mb8Route = () =>'));
+  assert.ok(r0 > 0 && r1 > r0, 'the route module is where it is expected');
+  let n = 0;
+  lines.forEach((l, i) => {
+    const m = l.match(/\.a\.playbackRate\s*=\s*([^;=][^;]*);/);
+    if (!m || (i > r0 && i < r1)) return;
+    n++;
+    const rhs = m[1].trim();
+    if (/deckRate\(/.test(rhs) || /deckRate\(/.test(l)) return;
+    const v = rhs.match(/^([A-Za-z_$][\w$]*)$/);
+    assert.ok(v, 'line ' + (i + 1) + ' writes a rate that is neither deckRate(...) nor a variable: ' + l.trim());
+    let found = false;
+    for (let k = i; k >= Math.max(0, i - 15) && !found; k--){
+      if (new RegExp('\\b(const|let)\\s[^;]*\\b' + v[1] + '\\s*=').test(lines[k])){
+        assert.ok(/deckRate\(/.test(lines[k]), 'line ' + (i + 1) + ': `' + v[1] + '` is not computed through deckRate: ' + lines[k].trim());
+        found = true;
+      }
+    }
+    assert.ok(found, 'line ' + (i + 1) + ': could not find where `' + v[1] + '` is computed');
+  });
+  assert.ok(n >= 15, 'the deck rate writes were all found (' + n + ')');
+});
+test('the route in the player: gated, opt-in, and today\'s code wherever it is not on', () => {
+  assert.ok(html.includes('const IOS_GRAPH_DEFAULT = false;'), 'A4: the route ships off');
+  const boothToggle = html.slice(html.indexOf('const BOOTH = {'), html.indexOf('const BOOTH = {') + 2500);
+  assert.ok(boothToggle.includes('if (IOS_GRAPH) DECKROUTE.boothOpened();\n      else if (VINYL.songMode()) VINYL.pressSong();'), 'the booth takes the decks only where the gate is open, today\'s song tape otherwise');
+  assert.ok(boothToggle.includes('if (IOS_GRAPH) DECKROUTE.boothClosed();'), '…and gives them back on close');
+  assert.ok(html.includes("return !!(IS_IOS && !IOS_GRAPH && !AE.graphLive && AE.ctx"), 'no song tape where the route can run');
+  const route = html.slice(html.indexOf('const DECKROUTE = {'), html.indexOf('window.__mb8Route = () =>'));
+  assert.ok(/onGesture\(ev\)\{\n    if \(!IOS_GRAPH\) return;/.test(route), 'gestures do nothing for the route where the gate is shut');
+  assert.ok(route.indexOf("navigator.audioSession.type = 'playback'") < route.indexOf('this._capture('), 'A3: the session says playback before anything is captured');
+  assert.ok(route.includes("const playing = !!(player.playing && D.a.src && !D.a.paused && !D.a.ended);"), 'the hand-back reads whether the record is rolling');
+  assert.ok(html.includes("const stayPut = stayPutRule({ ios: IS_IOS, xfade, playing: this.playing, cued, graph: AE.graphLive,"), 'playIndex asks the tested rule');
+  assert.ok(html.includes('plan = iosSeamPlan(plan, !ratesHeld());'), 'A1: the auto-DJ\'s seam meets two tempi in the fade on held rates');
+  assert.ok(html.includes('if (ratesHeld()) return false;\n    if (typeof MIXER !== \'undefined\' && (MIXER.phase === \'running\''), 'A1: SYNC stands down on held rates');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
    and exited 0, so `node tests/player.test.mjs` — the whole of the `unit`

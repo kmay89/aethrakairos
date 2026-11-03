@@ -460,6 +460,19 @@ if (!ONLY || ONLY === 'variants'){
     }, iT);
     R('S5 a hand\'s record cued on deck B at the hand-back plays next, from its cue, on the direct path',
       woke && cued.ok && nx.committed === iT && nx.keep === 6 && nx.title === 'tau' && nx.t > 5.8 && nx.t < 9 && nx.playing && !nx.graph, JSON.stringify({ cued, nx }));
+    // paused: the hand-back has no overlap to carry — the twin waits at the spot, and ▶ picks it up there
+    await page.evaluate(() => { if (!BOOTH.open) BOOTH.toggle(true); });
+    await page.touchscreen.tap(box.x, box.y);
+    const woke2 = await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).then(() => true).catch(() => false);
+    await page.waitForFunction('activeDeck().a.currentTime > 9', null, { timeout: 15000 }).catch(() => {});
+    const spot = await page.evaluate(() => { player.pause(); return activeDeck().a.currentTime; });
+    await tapBooth(page);
+    await page.waitForFunction('DECKROUTE.phase === "direct" && !AE.graphLive', null, { timeout: 8000 }).catch(() => {});
+    await pressPlay(page);
+    await wait(1500);
+    const pz = await page.evaluate(() => { const d = activeDeck(); return { t: d.a.currentTime, playing: player.playing, paused: d.a.paused, muted: d.a.muted, graph: AE.graphLive, cors: d.a.crossOrigin }; });
+    R('S5 paused at the hand-back: the twin waits at the spot, and ▶ picks it up there, direct', woke2 && !pz.graph && !pz.cors && pz.playing && !pz.paused && !pz.muted
+      && pz.t >= spot - 0.3 && pz.t < spot + 2.5, JSON.stringify({ spot, ...pz }));
   } else R('S5 variants: the decks were taken', false, JSON.stringify(await page.evaluate(() => window.__mb8Route())));
   R('no page errors on the variants bench', errs.length === 0, errs.slice(0, 3).join(' | '));
   await ctx.close();
