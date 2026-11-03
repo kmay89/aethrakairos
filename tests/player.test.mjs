@@ -12319,6 +12319,14 @@ test('the rates, held from the moment a take starts; and ?worklets=0 loads no Au
   assert.ok(ml.includes('const noWorklet = IS_IOS && IOS_GRAPH && !IOS_WORKLETS;') && ml.includes('if (!noWorklet && ctx.audioWorklet'), 'the limiter takes the compressor seat on that run');
   const ad = html.slice(html.indexOf('  async setDirect(direct){'), html.indexOf('  async setDirect(direct){') + 9000);
   assert.ok(ad.includes("if (!direct && d.gain && onAir()) rampGain(d.gain, d.norm || 1, 0.25, 'in');"), 'AirPlay home: the gain opens only on a deck that still holds the air');
+  // …and "the same record" is the record, not its queue index (a move, sort or remove above re-indexes it)
+  assert.ok(ad.includes('player.tracks[player.cur] === rec0') && !ad.includes('player.cur === cur0'), 'AirPlay home compares the record');
+  const em = html.slice(html.indexOf('  emergency(why, pos'), html.indexOf('  emergency(why, pos') + 6000);
+  assert.ok(em.includes('player.tracks[player.cur] !== rec0') && !em.includes('player.cur !== cur0'), 'the emergency compares the record');
+  assert.ok(em.includes("if (MIXER.phase !== 'idle') MIXER.cancel('route');"), 'an emergency stands down any seam, so a running one cannot reopen the captured deck');
+  const rh = html.slice(html.indexOf('  resumeHook(d){'), html.indexOf('  resumeHook(d){') + 2500);
+  assert.ok(rh.includes('const refused = asleep && !!(t && this._noGraph.has(t.id));') && rh.includes('if (refused ||'), 'a refused record paused asleep takes the emergency on ▶');
+  assert.ok(rh.includes("if (AE.ctx.state === 'running'){ this._lost = null; return false; }"), 'a running context drops a stale saved spot');
 });
 test('pickOverride / lagOverride: the address bar wins and is remembered, auto clears, nonsense falls back', () => {
   const A = ['graph', 'direct'];

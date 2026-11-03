@@ -19815,8 +19815,9 @@ const AIRPLAY = {
            land the old record's spot on it, open its gain — is only for a deck
            that still holds the same record on air; a deck the transport has
            retired has had its gain set (to zero) and is stopped by it. */
-        const cur0 = (typeof player !== 'undefined') ? player.cur : -1;
-        const same = () => d.a === a && AE.active === i && (typeof player === 'undefined' || player.cur === cur0);
+        // the RECORD, not its index: a queue edit during the wait (move, sort, remove above) re-indexes it
+        const rec0 = (typeof player !== 'undefined') ? player.tracks[player.cur] : null;
+        const same = () => d.a === a && AE.active === i && (typeof player === 'undefined' || player.tracks[player.cur] === rec0);
         const onAir = () => same() && AE.graphLive === !direct && !AE.xfading
           && (typeof MIXER === 'undefined' || (MIXER.phase !== 'running' && MIXER.phase !== 'manual'));
         /* PLAY FIRST, IN THE GESTURE THAT ASKED — then land the seek, silently.
@@ -20615,6 +20616,7 @@ const DECKROUTE = {
   // playIndex, before it loads anything: a take or a give in flight is settled, a waiting take lands
   onTrack(i){
     if (!IOS_GRAPH) return;
+    this._lost = null;                   // a spot saved for one record is never another record's
     if (this.phase === 'taking'){
       const xo = this._xo;
       if (xo && xo.swapped){ if (xo.tail) xo.tail(); }
@@ -20737,10 +20739,12 @@ const DECKROUTE = {
     if (!Tw){ this._sleep(pos); return false; }
     this.phase = 'giving';
     this._gv = { tok, k, D, Tw, emergency: true };
-    const cur0 = player.cur, Da = D.a;
+    const rec0 = player.tracks[player.cur], Da = D.a;   // the record, not its index (a queue edit re-indexes it)
     // I4: the deck that is neither on air nor incoming lets go before the twin loads (as give()'s empty()) —
     // an armed plan first, so nothing can fire onto the emptied deck
-    if (MIXER.phase === 'armed') MIXER.cancel('route');
+    // any seam, not only an armed one: a running seam's finish() would reopen the captured deck's gain
+    // after the silencing below, and the same record would play twice (cancel('route') keeps AE.active)
+    if (MIXER.phase !== 'idle') MIXER.cancel('route');
     const I = AE.decks[1 - k];
     if (I && I !== D && I.a.src){
       DECKS.collapse();
@@ -20768,7 +20772,7 @@ const DECKROUTE = {
       if (tok !== this._seq) return;
       if (!ok) return this._emergencyFail(tok, pos);
       // the air moved meanwhile (a hand's commit, a cut — anything that is not playIndex, which settles it in onTrack): this twin's record is not on air
-      if (AE.active !== k || D.a !== Da || player.cur !== cur0) return this._emergencyDrop(true);
+      if (AE.active !== k || D.a !== Da || player.tracks[player.cur] !== rec0) return this._emergencyDrop(true);
       this._seat(k, Tw, 120);
       if (!player.playing){ player.playing = true; updatePlayIcon(); player.renderList(); }
       this._finishGive();
@@ -20822,10 +20826,21 @@ const DECKROUTE = {
   resumeHook(d){
     if (!IOS_GRAPH || !AE.graphLive || !AE.ctx) return false;
     const pos = this._lost && isFinite(this._lost.pos) ? this._lost.pos : Math.max(0, d.a.currentTime - IOS_TAP_LAG);
-    if (AE.ctx.state !== 'running' && (document.hidden || (this._lost && this._lost.asleep))){
+    /* A RECORD THE GRAPH REFUSED STAYS REFUSED. A pause during a CORS or
+       'silent' emergency drops the hand-off back into the graph, on a captured
+       element the graph cannot play (CORS failed it, or it was heard silent).
+       A ▶ there called play() on that element — rejected, swallowed — and the
+       transport said playing over silence with nothing left to notice. So a
+       record in _noGraph, paused asleep, takes the emergency on ▶ whatever the
+       context's state: the press is a gesture, so a fresh twin can be blessed. */
+    const t = player.tracks[player.cur], asleep = !!(this._lost && this._lost.asleep);
+    const refused = asleep && !!(t && this._noGraph.has(t.id));
+    if (refused || (AE.ctx.state !== 'running' && (document.hidden || asleep))){
       if (this.emergency('resume', pos)){ player.playing = true; updatePlayIcon(); player.renderList(); mediaSessionPlaybackState(); }
       return true;                       // either way the press was this (an emergency that could not start paused honestly)
     }
+    // a running context carries the music again: any spot an earlier loss saved is history
+    if (AE.ctx.state === 'running'){ this._lost = null; return false; }
     if (AE.ctx.state !== 'running'){
       clearTimeout(this._resT);
       this._resT = setTimeout(() => {

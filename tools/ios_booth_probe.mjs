@@ -34,7 +34,7 @@
  *   S9  a CORS failure mid-track hands that record back direct from its spot
  *   S10 NEXT during a take calls it off; the music never stops
  *   S11 decks=direct, and an iOS the gate leaves out, behave as today
- *   E1-E7 the hand-off's corners: NEXT during an emergency hand-back, a pause
+ *   E1-E8 the hand-off's corners: NEXT during an emergency hand-back, a pause
  *       during a hand-back (both kinds), the idle deck let go before an
  *       emergency's twin, a paused record CORS refuses at the booth's open,
  *       SPEED held from the start of a take, a booth that waited on SPEED
@@ -717,6 +717,7 @@ if (!ONLY || ONLY === 'edges'){
   const e2b = await page.evaluate(() => { const d = activeDeck(); return { playing: player.playing, paused: d.a.paused, muted: d.a.muted, t: d.a.currentTime, n: window.__heard().length }; });
   R('E2 …and one ▶ plays it on from there', e2b.playing && !e2b.paused && !e2b.muted && e2b.n === 1 && e2b.t >= spot2 - 0.3 && e2b.t < spot2 + 2.5, JSON.stringify(e2b));
 
+
   // E3 + E7 — behind a lock with the graph kept, a hand's record on the idle deck: the context lets go, and pause while the twin loads
   await tapBooth(page);
   const live3 = await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).then(() => true).catch(() => false);
@@ -775,6 +776,46 @@ if (!ONLY || ONLY === 'edges'){
   await wait(1500);
   const e4b = await page.evaluate(() => { const d = activeDeck(); return { playing: player.playing, paused: d.a.paused, muted: d.a.muted, t: d.a.currentTime, graph: AE.graphLive }; });
   R('E4 …and one ▶ plays it from there, direct', e4b.playing && !e4b.paused && !e4b.muted && !e4b.graph && e4b.t >= spot4 - 0.3 && e4b.t < spot4 + 2.5, JSON.stringify(e4b));
+
+  /* E8 — paused during a CORS hand-off, then ▶. The refused record must never be
+     replayed through the graph: on an iPhone a CORS-failed element REJECTS play()
+     (NotSupportedError) and nothing sounds, while a resume that swallowed the
+     rejection still said playing. Chromium's element would play on, so the probe
+     gives it WebKit's answer. Before the fix this read playing with nothing heard. */
+  // a clean start: E4 left its refused record behind, and a refused record never takes the graph
+  // …and E4 ends on a record served without CORS, which a take rightly will not capture mid-play: start a clean one
+  await page.evaluate(i => { DECKROUTE._noGraph.clear(); player.playIndex(i); }, iB);
+  await page.waitForFunction('player.playing && activeDeck().a.currentTime > 1', null, { timeout: 15000 }).catch(() => {});
+  if (!(await page.evaluate(() => DECKROUTE.phase === 'graph' && player.playing))){
+    await page.evaluate(() => { if (!BOOTH.open) BOOTH.toggle(true); if (!player.playing) player.resume(); });
+    await touch(page); await page.evaluate(() => DECKROUTE.take('probe'));
+    await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).catch(() => {});
+  }
+  await page.evaluate(() => { const d = activeDeck(); if (d.a.duration - d.a.currentTime < 12) d.a.currentTime = 3; });
+  await wait(1200);
+  const e8pre = await page.evaluate(async () => {
+    const d = activeDeck(), el = d.a;
+    window.__e8el = el;
+    el.play = () => Promise.reject(new DOMException('the source failed CORS', 'NotSupportedError'));
+    const graph = AE.graphLive;
+    DECKROUTE.onCorsError(player.tracks[player.cur]);
+    const em = !!(DECKROUTE._gv && DECKROUTE._gv.emergency);
+    await new Promise(r => setTimeout(r, 120));          // ⏸ before the twin is moving
+    player.pause();
+    return { graph, em };
+  });
+  await wait(1200);
+  await pressPlay(page);
+  await wait(2500);
+  const e8 = await page.evaluate(() => {
+    const out = { playing: player.playing, heard: window.__heard(), graph: AE.graphLive, phase: DECKROUTE.phase,
+      onStub: activeDeck().a === window.__e8el };
+    if (window.__e8el){ delete window.__e8el.play; window.__e8el = null; }
+    const t = player.tracks[player.cur]; if (t) DECKROUTE._noGraph.delete(t.id);   // leave the bench as it was found
+    return out;
+  });
+  R('E8 paused during a CORS hand-off, then ▶: the record plays direct — never "playing" over silence',
+    e8pre.graph && e8pre.em && e8.playing && e8.heard.length === 1 && !e8.heard[0].graph && !e8.onStub, JSON.stringify({ ...e8pre, ...e8 }));
 
   R('no page errors on the edges bench', errs.length === 0, errs.slice(0, 3).join(' | '));
   await ctx.close();
