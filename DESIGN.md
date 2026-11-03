@@ -351,6 +351,28 @@ build (`docs/index.html`, 7,189 lines, one file) already contains:
   first attempt needed. Three failures for one idea is enough signal to stop
   attempting it in passing: the lead-in covers the common case, and the residue is a
   soft entry the level envelope cannot see (first fifth 116%, second 108%).
+- **…and then shipped, with the fixture it was waiting for.** The runway came the
+  way a real catalog gets one, not by editing a number: the pipeline's mix-in is
+  always the lattice's first downbeat (the beat tracker counts through any intro),
+  and what moves an entry later is a canon pair fix — so the mix fixture gained
+  `tau` (a hats-and-chord intro, the kick from bar five) and a `mixfix.json` that
+  enters it on that kick, seven seconds in. The warm parks B at the cue point (one
+  ranged stream, or the RAM copy seated there), the cue lets it go silently while
+  the seam is armed and steers it onto the grid by tempo alone, and `fire()` finds
+  it rolling and does nothing — no seek, no `play()`. The part that was missing
+  last time was everyone else: an unpaused idle element under an armed plan reads
+  as "a hand's record is playing" to a dozen readers (the booth's PLAY and lamps,
+  the platters, the idle stop, the watchdog, AUTO's far end, the hand's commit),
+  and each now asks `MIXER.cueing()` first. Measured: B already rolling at the call
+  on every run, under 5 ms off the grid at fire, and moving 910-980 ms before the
+  fader (250-970 ms as seen with the renderer at load, where the probe's own watcher
+  starves) — against "started 580-1048 ms after the call" before, and 4029 ms on
+  the zero-runway pair with the renderer at load.
+  On the soak's throttled link, with runway, the on-air deck stopped waiting at
+  each entry: the start-up wait now happens off air, in the silent pre-roll. Where
+  a record enters on its first downbeat — most of the real catalog, median 0.99 s
+  — there is still nothing to pre-roll from, and that pair stays OPEN in
+  `mix_probe` with its number.
 
 ### 1.2f The update that would not stop offering itself
 - **The report:** a card reading `05d9b7a1af → new`, on a listener already running
