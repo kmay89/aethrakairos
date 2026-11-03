@@ -6,22 +6,32 @@
  * moment to have audio again. Nothing in a unit test can see that, because the
  * arithmetic it produces is perfect. You have to listen.
  *
- * So this listens. A second recorder is hung on the master, the real player
- * plays real (synthesized, deterministic, no network) music, a real loop is
- * pressed, and the OUTPUT is measured:
+ * AND LISTEN TO THE SPEAKER, NOT TO THE CODE. The first seamless loop was a
+ * tape on the master bus whose blocks went through the main thread; this probe
+ * inspected the buffer it cut and found the join perfect, while under a busy
+ * renderer the cut itself was taken 130–150 ms off its in-point and the room
+ * heard a splice on every lap. So nothing here is read off the loop's own state
+ * where the output can answer instead. The output is recorded by an AudioWorklet
+ * on AE.out — frames stamped on the audio thread, messages queued rather than
+ * dropped, so the recorder has no seams of its own — and measured:
  *
  *   seeks          how many times the playhead was written to while a loop was
- *                  held. The old path does this every cycle. The new one must
- *                  do it exactly zero times — that is the whole claim, and it
- *                  is the one number that cannot be argued with.
- *   discontinuity  the largest sample-to-sample step in the recorded output,
- *                  against the largest step the music itself contains. A splice
- *                  in the wrong place is a step far outside the music's own
- *                  distribution; a seamless one is inside it.
- *   silence        a decoder re-priming leaves a hole. Holes are counted.
- *   period         the loop's cycle length, taken off the buffer the audio
- *                  thread is actually looping, against the beats that were
- *                  asked for.
+ *                  held. The re-seek path does this every cycle. The deck's tape
+ *                  must do it exactly zero times — the one number that cannot be
+ *                  argued with.
+ *   laps           every lap after the handover against the lap before it,
+ *                  sample for sample. A loop that holds the music is a signal
+ *                  that repeats exactly; a re-seek loop never does.
+ *   steps, holes   the largest sample-to-sample step against the music's own
+ *                  99.99th percentile, and runs of near-silence: a splice is a
+ *                  step far outside the music's distribution, a decoder
+ *                  re-priming is a hole.
+ *   the strip      a loop lives at the head of its deck's strip now, so the
+ *                  deck's filter must reach it, and nothing on the bus — the
+ *                  other deck, the echo — may be taken away by it.
+ *   the handback   letting go of a latched loop lands the deck where the loop
+ *                  was; the music after the handback is compared with the lap
+ *                  before it, and how far apart they sit is the landing error.
  *
  * And the two paths are measured on the SAME music with the SAME loop, because
  * a click you cannot compare to anything is a number, not a finding.
@@ -44,7 +54,7 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
+const browser = await chromium.launch({ executablePath: process.env.MB8_CHROME || '/opt/pw-browsers/chromium',
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader',
          '--autoplay-policy=no-user-gesture-required'] });
 
@@ -54,10 +64,9 @@ const R = (name, ok, detail) => {
   console.log((ok ? '  ok   ' : '  FAIL ') + name + (detail ? ' — ' + detail : ''));
 };
 
-/* A SMALL WINDOW, ON PURPOSE. Everything here — the recorder, the tape, the
-   render loop — shares one main thread, and a software rasteriser filling 640×420
-   starves it badly enough to become the thing being measured. The visuals are not
-   under test; the audio is. */
+/* A SMALL WINDOW, ON PURPOSE. The visuals are not under test; the audio is, and
+   a software rasteriser filling a big canvas starves the one main thread that
+   the handback and the probe's own bookkeeping share. */
 const ctx = await browser.newContext({ viewport: { width: 240, height: 180 } });
 const page = await ctx.newPage();
 const errs = [];
@@ -81,13 +90,15 @@ const live = await page.waitForFunction(
   null, { timeout: 30000 }).then(() => true).catch(() => false);
 R('the bench is playing real music into a live graph', live);
 if (!live){ console.log('\n  cannot measure a loop with nothing playing'); await browser.close(); server.close(); process.exit(1); }
+// the tapes are seated with the platters, once the worklet module has loaded
+await page.waitForFunction('AE.decks.every(d => d.tape)', null, { timeout: 15000 }).catch(() => {});
 
 /* THE INSTRUMENTS.
    · every write to the playhead is counted, by shadowing the element's own
      accessor — a seek that happens is a seek that shows up, wherever it came from
-   · the master is recorded through a second processor, so what is measured is
-     what a listener would have heard rather than what the code believes it did */
-await page.evaluate(() => {
+   · the finished mix is recorded on the audio thread, so what is measured is what
+     a listener would have heard rather than what the code believes it did */
+await page.evaluate(async () => {
   window.__seeks = 0;
   const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
   for (const d of AE.decks) Object.defineProperty(d.a, 'currentTime', {
@@ -95,320 +106,375 @@ await page.evaluate(() => {
     get(){ return desc.get.call(this); },
     set(v){ window.__seeks++; desc.set.call(this, v); },
   });
-  window.__rec = null;
-  window.recStart = () => {
-    const sp = AE.ctx.createScriptProcessor(4096, 2, 1);
-    const chunks = [];
-    sp.onaudioprocess = e => chunks.push(Float32Array.from(e.inputBuffer.getChannelData(0)));
-    const z = AE.ctx.createGain(); z.gain.value = 0;
-    AE.master.connect(sp); sp.connect(z); z.connect(AE.ctx.destination);
-    window.__rec = { sp, z, chunks };
-  };
-  /* WHAT A SPLICE LOOKS LIKE. Music is continuous: adjacent samples differ by a
-     little, and how little depends on how bright the music is. A join in the
-     wrong place is a STEP — one pair of samples far outside everything around
-     them. So the measure is the largest step, reported against the 99.99th
-     percentile of all of them, which is the music's own idea of "large". A
-     decoder re-priming instead leaves a HOLE, so runs of near-silence are
-     counted too: the old path could show either. */
-  window.recStop = () => {
-    const r = window.__rec; if (!r) return null;
-    try { AE.master.disconnect(r.sp); r.sp.disconnect(); r.z.disconnect(); } catch (e){}
-    r.sp.onaudioprocess = null; window.__rec = null;
-    let n = 0; for (const c of r.chunks) n += c.length;
-    const x = new Float32Array(n);
-    /* THE INSTRUMENT'S OWN SEAMS ARE NOT THE MUSIC'S. This recorder is a
-       ScriptProcessorNode on the same starved main thread as the render loop,
-       and a block it fails to service in time is a block that never reaches the
-       array — leaving a step between two chunks that was never in the audio.
-       Measured on plain playback with no loop at all, those artefacts run three
-       times the music's own 99.99th percentile, which is larger than the fault
-       this probe exists to find. They fall at chunk boundaries and nowhere else,
-       so the boundaries are excluded and everything inside a chunk is kept. */
-    const edges = new Set();
-    let w = 0;
-    for (const c of r.chunks){ x.set(c, w); w += c.length; edges.add(w); }
+  const src = `class ProbeEar extends AudioWorkletProcessor {
+    constructor(){ super(); this.on = false; this.buf = new Float32Array(1024); this.n = 0; this.f = 0;
+      this.port.onmessage = e => { this.on = !!e.data; if (!this.on && this.n){ this.port.postMessage({ f: this.f, x: this.buf.slice(0, this.n) }); this.n = 0; } }; }
+    process(inputs){
+      if (!this.on) return true;
+      const ch = inputs[0] && inputs[0][0];
+      for (let i = 0; i < 128; i++){
+        if (this.n === 0) this.f = currentFrame + i;
+        this.buf[this.n++] = ch ? ch[i] : 0;
+        if (this.n === 1024){ this.port.postMessage({ f: this.f, x: this.buf }); this.buf = new Float32Array(1024); this.n = 0; }
+      }
+      return true;
+    }
+  }
+  registerProcessor('probe-ear', ProbeEar);`;
+  await AE.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  const ear = new AudioWorkletNode(AE.ctx, 'probe-ear', { numberOfInputs: 1, numberOfOutputs: 0, channelCount: 1, channelCountMode: 'explicit' });
+  AE.out.connect(ear);
+  const chunks = [];
+  ear.port.onmessage = e => chunks.push(e.data);
+  window.frameNow = () => Math.round(AE.ctx.currentTime * AE.ctx.sampleRate);
+  window.recStart = () => { chunks.length = 0; ear.port.postMessage(true); };
+  window.recStop = () => new Promise(res => { ear.port.postMessage(false); setTimeout(() => {
+    const ch = chunks.slice().sort((p, q) => p.f - q.f);
+    if (!ch.length) return res(null);
+    const f0 = ch[0].f, last = ch[ch.length - 1];
+    const x = new Float32Array(last.f + last.x.length - f0);
+    let gaps = 0, want = f0;
+    for (const c of ch){ if (c.f !== want) gaps++; x.set(c.x, c.f - f0); want = c.f + c.x.length; }
+    window.__rec = { f0, x, gaps };
+    res({ f0, n: x.length, gaps });
+  }, 400); });
+  /* THE MEASURES, all on the last recording, between context frames a and b.
+     A SPLICE is a step far outside the music's own distribution of steps; a
+     HOLE is 5 ms or more with nothing in it; a LOOP is a signal that repeats
+     every n frames. */
+  const span = (a, b) => { const r = window.__rec; return [Math.max(1, a - r.f0), Math.min(r.x.length, b - r.f0)]; };
+  window.measure = (a, b, n) => {
+    const r = window.__rec, x = r.x, [i0, i1] = span(a, b), sr = AE.ctx.sampleRate;
     const steps = [];
-    let rms = 0, worst = 0, worstAt = 0;
-    for (let i = 1; i < n; i++){
-      rms += x[i] * x[i];
-      if (edges.has(i)) continue;
-      const s = Math.abs(x[i] - x[i - 1]);
-      steps.push(s);
-      if (s > worst){ worst = s; worstAt = i; }
-    }
-    rms = Math.sqrt(rms / Math.max(1, n - 1));
+    let worst = 0, rms = 0, peak = 0;
+    for (let i = i0; i < i1; i++){ const s = Math.abs(x[i] - x[i - 1]); steps.push(s); if (s > worst) worst = s; rms += x[i] * x[i]; peak = Math.max(peak, Math.abs(x[i])); }
+    rms = Math.sqrt(rms / Math.max(1, i1 - i0));
     const sorted = Float32Array.from(steps).sort();
-    const q = f => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))] : 0;
-    /* A HOLE is 5 ms or more with nothing in it. A decoder re-priming after a
-       seek leaves one; so, sometimes, does the music. The two are told apart by
-       WHERE they fall: a fault sits at the loop's wrap, so its distance from the
-       wrap is the same every time, while the music's own gaps sit wherever the
-       music put them. Both are reported, and the caller decides. */
-    const sr = AE.ctx.sampleRate, win = Math.round(0.005 * sr);
-    const holes = [];
-    let run = 0;
-    for (let i = 0; i < n; i++){
-      if (Math.abs(x[i]) < 1e-4){ if (++run === win) holes.push((i - win) / sr); } else run = 0;
+    const p9999 = sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(0.9999 * sorted.length))] : 0;
+    let holes = 0, run = 0; const w = Math.round(0.005 * sr);
+    for (let i = i0; i < i1; i++){ if (Math.abs(x[i]) < 1e-4){ if (++run === w) holes++; } else run = 0; }
+    let lap = null;
+    if (n > 0){ let d = 0; for (let i = i0 + n; i < i1; i++) d = Math.max(d, Math.abs(x[i] - x[i - n])); lap = peak > 0 ? d / peak : 1; }
+    return { sec: (i1 - i0) / sr, rms, peak, worst, p9999, holes, lap, gaps: r.gaps };
+  };
+  // the music's energy in one narrow band (Goertzel), and its high end (a first difference)
+  window.tone = (a, b, hz) => {
+    const x = window.__rec.x, [i0, i1] = span(a, b), k = 2 * Math.cos(2 * Math.PI * hz / AE.ctx.sampleRate);
+    let s1 = 0, s2 = 0;
+    for (let i = i0; i < i1; i++){ const s = x[i] + k * s1 - s2; s2 = s1; s1 = s; }
+    return (s1 * s1 + s2 * s2 - k * s1 * s2) / Math.max(1, (i1 - i0) * (i1 - i0));
+  };
+  window.bright = (a, b) => { const x = window.__rec.x, [i0, i1] = span(a, b); let e = 0; for (let i = i0; i < i1; i++){ const d = x[i] - x[i - 1]; e += d * d; } return e / Math.max(1, i1 - i0); };
+  /* WHERE THE MUSIC AFTER A HANDBACK SITS against the lap it continues: the
+     stretch from `a` is slid across the same stretch one loop earlier, and the
+     lag that matches best is how far from the loop's own place the deck came back. */
+  window.landing = (a, w, n, maxLag) => {
+    const x = window.__rec.x, i = a - window.__rec.f0;
+    let best = 0, bestE = Infinity, norm = 0;
+    for (let j = 0; j < w; j++) norm += x[i + j] * x[i + j];
+    for (let lag = -maxLag; lag <= maxLag; lag++){
+      let e = 0;
+      for (let j = 0; j < w; j++){ const d = x[i + j] - x[i - n + lag + j]; e += d * d; }
+      if (e < bestE){ bestE = e; best = lag; }
     }
-    return { n, sec: n / sr, rms, worst, worstAt: worstAt / sr,
-             p9999: q(0.9999), p999: q(0.999), holes };
+    return { lag: best, fit: norm > 0 ? bestE / norm : 1 };
   };
 });
 
-// how many seconds a `beats`-beat loop lasts here, from the app's own clock
+/* AND THE SAME GRID. The beat analyser is still settling on this track and
+   reports a different tempo every few seconds, so without pinning it two runs
+   cut two different bars of two different lengths and the comparison says
+   nothing. Redefined rather than assigned, because the analyser writes to it on
+   every frame. */
+await page.evaluate(() => {
+  Object.defineProperty(CLOCK, 'bpm', { get(){ return 120; }, set(){}, configurable: true });
+  Object.defineProperty(CLOCK, 'grid', { get(){ return 0; }, set(){}, configurable: true });
+  Object.defineProperty(CLOCK, 'haveGrid', { get(){ return true; }, set(){}, configurable: true });
+  LOOPER.__ok = LOOPER.ok;
+});
+
 const LOOP_BEATS = 2;
-const measure = async (legacy) => {
-  /* THE SAME BAR, BOTH TIMES. Two loops cut from two different parts of a track
-     are two different pieces of music, and comparing a click in one against a
-     click in the other is comparing nothing. So the deck is put back to the same
-     place before each run — which also keeps the whole measurement well clear of
-     the end of a sixteen-second demo, where the booth's end-guard would
-     legitimately move a (muted) playhead and muddy the seek count. */
-  await page.evaluate(() => {
-    FX.clearLoop(); LOOPER.cancel(); LOOPER.close();
-    /* AND THE SAME GRID. The beat analyser is still settling on this track and
-       reports a different tempo every few seconds, so without pinning it the two
-       runs cut two different bars of two different lengths and the comparison
-       says nothing. Redefined rather than assigned, because the analyser writes
-       to it on every frame. */
-    if (!CLOCK.__pinned){
-      Object.defineProperty(CLOCK, 'bpm', { get(){ return 120; }, set(){}, configurable: true });
-      Object.defineProperty(CLOCK, 'grid', { get(){ return 0; }, set(){}, configurable: true });
-      Object.defineProperty(CLOCK, 'haveGrid', { get(){ return true; }, set(){}, configurable: true });
-      CLOCK.__pinned = true;
-    }
-    activeDeck().a.currentTime = 1.0;
-  });
-  await page.waitForTimeout(500);
+// THE SAME BAR, BOTH TIMES: the deck is put back to the same place before each run
+const reset = async () => {
+  await page.evaluate(() => { FX.clearLoop(); LOOPER.cancel(); activeDeck().a.currentTime = 1.0; });
+  await page.waitForTimeout(700);
+};
+const measureLoop = async legacy => {
+  await reset();
   const setup = await page.evaluate(({ legacy, beats }) => {
     LOOPER.ok = legacy ? () => false : LOOPER.__ok;
-    window.__seeks = 0;
+    window.recStart();
     FX.setLoop(beats, false);
-    return { len: FX.loop ? FX.loop.len : 0, bpm: FX.bpm(), at: activeDeck().a.currentTime };
+    const d = activeDeck(), sr = AE.ctx.sampleRate, rate = d.a.playbackRate || 1;
+    return { len: FX.loop ? FX.loop.len : 0, rate, sr, taped: LOOPER.engaged(), N: LOOPER.engaged() ? LOOPER.N : Math.round(FX.loop.len / rate * sr) };
   }, { legacy, beats: LOOP_BEATS });
-  /* WAIT FOR THE HANDOVER RATHER THAN GUESSING AT IT. It takes one out-point on
-     a healthy machine and a lap or two on this one (a software rasteriser with
-     60–200 ms frames), and which of those happened is not the claim under test —
-     the claim is what happens AFTER. Everything measured below is measured from
-     the moment the loop is genuinely in the audio thread. */
-  if (!legacy) await page.waitForFunction('LOOPER.on', null, { timeout: 20000 }).catch(() => {});
+  /* WAIT FOR THE HANDOVER RATHER THAN GUESSING AT IT: the out-point of the first
+     pass, which the tape takes by itself. Everything measured below is measured
+     from a whole lap after it. */
+  if (!legacy) await page.waitForFunction('LOOPER.on', null, { timeout: 8000 }).catch(() => {});
   else await page.waitForTimeout(Math.round(setup.len * 1000) + 900);
-  const engaged = await page.evaluate(() => {
-    /* THE WRAP, MEASURED WHERE IT ACTUALLY HAPPENS. Everything the recorder sees
-       is filtered through a starved main thread; the WRAP is not, because the
-       audio thread loops the buffer bit-exactly between loopEnd and loopStart.
-       So the honest question is whether the buffer's last sample and its first
-       sample are neighbours — and that is answered inside the buffer, with no
-       instrument in the way and no run-to-run noise at all. If they are, the
-       output cannot click, whatever a jittery recording of it looks like. */
-    let wrap = null;
-    if (LOOPER.src && LOOPER.src.buffer){
-      const b = LOOPER.src.buffer.getChannelData(0), n = b.length;
-      const st = new Float32Array(n - 1);
-      for (let i = 1; i < n; i++) st[i - 1] = Math.abs(b[i] - b[i - 1]);
-      const sorted = Float32Array.from(st).sort();
-      wrap = { step: Math.abs(b[0] - b[n - 1]),
-               p9999: sorted[Math.floor(0.9999 * sorted.length)],
-               median: sorted[sorted.length >> 1], max: sorted[sorted.length - 1] };
-    }
-    return {
-      on: LOOPER.on, armed: LOOPER.armed, K: LOOPER.K, laps: LOOPER.laps, wrap,
-      loopEnd: LOOPER.src ? LOOPER.src.loopEnd : 0,
-      bufLen: LOOPER.src ? LOOPER.src.buffer.length : 0,
-      sr: AE.ctx.sampleRate, gate: AE.busGate.gain.value, out: LOOPER.out ? LOOPER.out.gain.value : 0,
-    };
-  });
-  await page.evaluate(() => { window.__seeks = 0; window.recStart(); });
+  await page.waitForTimeout(Math.round(setup.len * 1000) + 100);
+  const a = await page.evaluate(() => { window.__seeks = 0; return window.frameNow(); });
   await page.waitForTimeout(Math.round(setup.len * 4000) + 300);
-  const out = await page.evaluate(() => {
-    const r = window.recStop();
-    /* AND WHAT THE LOOP ITSELF CONTAINS. If the cut holds a quiet stretch then
-       the recording will hold one every cycle and that is the music, not a
-       fault — the only way to tell is to look inside the buffer the audio thread
-       is actually looping. */
-    let quiet = 0;
-    if (LOOPER.src && LOOPER.src.buffer){
-      const b = LOOPER.src.buffer.getChannelData(0), w = Math.round(0.005 * AE.ctx.sampleRate);
-      let run = 0;
-      for (let i = 0; i < b.length; i++){ if (Math.abs(b[i]) < 1e-4){ if (++run === w) quiet++; } else run = 0; }
-    }
-    return { r, quiet, seeks: window.__seeks, playing: player.playing,
-             pos: activeDeck().a.currentTime };
-  });
-  await page.evaluate(() => FX.clearLoop());
+  const b = await page.evaluate(() => ({ f: window.frameNow(), seeks: window.__seeks, on: LOOPER.on, deck: LOOPER.deck, active: AE.active,
+    N: LOOPER.N, playing: player.playing, rep: LOOPER.rep }));
+  await page.evaluate(() => window.recStop());
+  const m = await page.evaluate(([a, b, n]) => window.measure(a, b, n), [a, b.f, setup.N]);
+  await page.evaluate(() => { FX.clearLoop(); LOOPER.ok = LOOPER.__ok; });
   await page.waitForTimeout(500);
-  return { setup, engaged, ...out };
+  return { setup, a, b, m };
 };
 
-// keep a pristine copy of the real ok() so `legacy` can be switched back off
-await page.evaluate(() => { LOOPER.__ok = LOOPER.ok; });
-
-/* THE INSTRUMENT, MEASURED FIRST. The recorder is a ScriptProcessorNode on the
-   same main thread as everything else, and a main thread that misses a block
-   puts a step or a gap into the RECORDING that was never in the audio. Measuring
-   plain playback — no loop, nothing spliced, nothing to find — says how much of
-   what follows is the microphone rather than the room. Every number below is
-   read against this one. */
+/* THE INSTRUMENT, MEASURED FIRST: plain playback, no loop, nothing spliced and
+   nothing to find. Every number below is read against this one. */
 console.log('\n  · the instrument itself, on plain playback');
-await page.evaluate(() => { FX.clearLoop(); LOOPER.cancel(); activeDeck().a.currentTime = 1.0; });
-await page.waitForTimeout(500);
+await reset();
 await page.evaluate(() => window.recStart());
 await page.waitForTimeout(4200);
-const base = await page.evaluate(() => window.recStop());
-console.log(`    ${base.sec.toFixed(1)} s recorded, rms ${base.rms.toFixed(3)}, ` +
-            `worst step ${base.worst.toFixed(4)} (${(base.worst / base.p9999).toFixed(2)}× its own 99.99th), ` +
-            `holes ${base.holes.length}`);
+const baseRec = await page.evaluate(() => window.recStop());
+const base = await page.evaluate(r => window.measure(r.f0 + 4410, r.f0 + r.n, 0), baseRec);
+console.log(`    ${base.sec.toFixed(1)} s recorded, rms ${base.rms.toFixed(3)}, worst step ${base.worst.toFixed(4)} ` +
+            `(${(base.worst / base.p9999).toFixed(2)}× its own 99.99th), holes ${base.holes}, recorder gaps ${base.gaps}`);
+R('the recorder has no seams of its own', base.gaps === 0 && base.holes === 0, `gaps ${base.gaps}, holes ${base.holes}`);
 
-console.log('\n  · the loop that seeks (what shipped before)');
-const old = await measure(true);
-console.log(`    ${old.r.sec.toFixed(1)} s recorded, rms ${old.r.rms.toFixed(3)}, ` +
-            `worst step ${old.r.worst.toFixed(4)} (music's own 99.99th: ${old.r.p9999.toFixed(4)}), ` +
-            `holes ${old.r.holes.length}, seeks ${old.seeks}`);
-
+console.log('\n  · the loop that seeks (the fallback: iOS, no worklet, a cut the tape refused)');
+const old = await measureLoop(true);
+console.log(`    ${old.m.sec.toFixed(1)} s, lap against lap ${(old.m.lap * 100).toFixed(1)}% of peak, worst step ` +
+            `${(old.m.worst / old.m.p9999).toFixed(2)}× the music's 99.99th, holes ${old.m.holes}, seeks ${old.b.seeks}`);
 console.log('\n  · the loop that does not');
-const neu = await measure(false);
-console.log(`    ${neu.r.sec.toFixed(1)} s recorded, rms ${neu.r.rms.toFixed(3)}, ` +
-            `worst step ${neu.r.worst.toFixed(4)} (music's own 99.99th: ${neu.r.p9999.toFixed(4)}), ` +
-            `holes ${neu.r.holes.length} (${neu.quiet} of them in the loop's own audio), seeks ${neu.seeks}`);
+const neu = await measureLoop(false);
+console.log(`    ${neu.m.sec.toFixed(1)} s, lap against lap ${(neu.m.lap * 100).toFixed(3)}% of peak, worst step ` +
+            `${(neu.m.worst / neu.m.p9999).toFixed(2)}× the music's 99.99th, holes ${neu.m.holes}, seeks ${neu.b.seeks}`);
 console.log('');
 
-/* THE CLAIM, one assertion at a time. */
-R('the tape calibrated itself against this device', neu.engaged.K != null,
-  'K=' + (neu.engaged.K == null ? 'null' : neu.engaged.K.toFixed(4)));
-R('the loop handed over to the audio thread', neu.engaged.on,
-  `on=${neu.engaged.on} armed=${neu.engaged.armed} after ${neu.engaged.laps} lap(s)`);
-/* THE PERIOD IS THE PERIOD. A buffer source loops between two sample indices,
-   so the cycle cannot drift — but it can be the WRONG length if the cut was cut
+R('each deck carries its own loop tape, seated at the head of its strip', await page.evaluate(() => AE.decks.every(d => !!d.tape) && LOOPER.ok(0) && LOOPER.ok(1)));
+R('the loop handed over to the deck\'s tape — on the record on air', neu.setup.taped && neu.b.on && neu.b.deck === neu.b.active,
+  `taped=${neu.setup.taped} on=${neu.b.on} deck=${neu.b.deck} on air=${neu.b.active}`);
+/* THE PERIOD IS THE PERIOD. The tape loops between two frame counts, so the
+   cycle cannot drift — but it can be the WRONG length if the loop was sized
    wrong, and that is a loop that slides off the phrase over a minute. */
-const wantN = Math.round(neu.setup.len * neu.engaged.sr);
-R('…and the cycle it loops is exactly the loop that was asked for',
-  Math.abs(neu.engaged.bufLen - wantN) <= 1 &&
-  Math.abs(neu.engaged.loopEnd - neu.setup.len) < 2 / neu.engaged.sr,
-  `${neu.engaged.bufLen} samples vs ${wantN} wanted (${neu.setup.len.toFixed(4)} s at ${neu.setup.bpm.toFixed(1)} bpm)`);
-R('the room was taken from the decks, not muted at them',
-  neu.engaged.gate < 0.01 && neu.engaged.out > 0.99,
-  `busGate=${neu.engaged.gate.toFixed(3)} loop=${neu.engaged.out.toFixed(3)}`);
+const wantN = Math.round(neu.setup.len / neu.setup.rate * neu.setup.sr);
+R('…and the cycle it loops is exactly the loop that was asked for, at the rate the deck is playing',
+  neu.b.N === wantN && neu.b.rep && neu.b.rep.N === wantN,
+  `${neu.b.N} frames (processor: ${neu.b.rep && neu.b.rep.N}) vs ${wantN} wanted — ${neu.setup.len.toFixed(4)} s at ×${neu.setup.rate}`);
+R('every lap after the handover is the same audio as the one before it, sample for sample',
+  neu.m.lap != null && neu.m.lap < 0.005, `lap against lap ${(neu.m.lap * 100).toFixed(3)}% of peak, over ${neu.m.sec.toFixed(1)} s`);
+R('…where the re-seek loop never once repeats itself', old.m.lap > 0.05, `${(old.m.lap * 100).toFixed(1)}% of peak`);
+/* THE ONE NUMBER. Every cycle of the old loop wrote the playhead; the tape must
+   not write it at all, for as long as it is held. */
+R('NOT ONE SEEK while the loop is held', neu.b.seeks === 0, 'seeks=' + neu.b.seeks);
+R('…where the old path seeks every single cycle', old.b.seeks >= 3, `${old.b.seeks} seeks in ${old.m.sec.toFixed(1)} s of a ${old.setup.len.toFixed(2)} s loop`);
+R('no step in the held output the music does not already contain',
+  neu.m.worst / neu.m.p9999 <= Math.max(2.5, (base.worst / base.p9999) * 1.3),
+  `held ${(neu.m.worst / neu.m.p9999).toFixed(2)}×, re-seeking ${(old.m.worst / old.m.p9999).toFixed(2)}×, plain playback ${(base.worst / base.p9999).toFixed(2)}×`);
+R('no hole anywhere in it', neu.m.holes === 0 && neu.m.gaps === 0, `holes ${neu.m.holes}`);
+R('the music never stopped for any of it', neu.b.playing && neu.m.rms > 0.01, `rms=${neu.m.rms.toFixed(3)}`);
 
-/* THE ONE NUMBER. Every cycle of the old loop wrote the playhead; the new one
-   must not write it at all, for as long as it is held. */
-R('NOT ONE SEEK while the loop is held', neu.seeks === 0, 'seeks=' + neu.seeks);
-R('…where the old path seeks every single cycle', old.seeks >= 3,
-  `${old.seeks} seeks in ${old.r.sec.toFixed(1)} s of a ${old.setup.len.toFixed(2)} s loop`);
+/* THE LOOP IS THE DECK'S, NOT THE ROOM'S. The old tape closed a gate on the
+   whole bus to play itself back, so a loop took away everything else the room
+   was hearing — the other deck under the handle, an echo's tail. A tone is put
+   on the bus beside the decks, and it must come through a held loop exactly as
+   it came through before it. And the deck's own filter, which the old tape sat
+   AFTER, must now reach the loop. */
+const strip = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 1.0;
+  await new Promise(r => setTimeout(r, 700));
+  const osc = AE.ctx.createOscillator(), g = AE.ctx.createGain();
+  osc.frequency.value = 2600; g.gain.value = 0.08;
+  osc.connect(g); g.connect(AE.bus); osc.start();
+  window.recStart();
+  await new Promise(r => setTimeout(r, 900));
+  const f0 = window.frameNow();
+  FX.setLoop(2, false);
+  const t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 8000) await new Promise(r => setTimeout(r, 30));
+  await new Promise(r => setTimeout(r, 300));
+  const f1 = window.frameNow();
+  await new Promise(r => setTimeout(r, 900));
+  const f2 = window.frameNow();
+  osc.stop(); osc.disconnect(); g.disconnect();          // (the tone is on the bus, past the deck's filter: out of the way of it)
+  FX.auto = false; FX.set('filter', 0.02);              // the hand's filter, hard left, on the deck holding the loop
+  await new Promise(r => setTimeout(r, 600));
+  const f3 = window.frameNow();
+  await new Promise(r => setTimeout(r, 900));
+  const f4 = window.frameNow();
+  FX.set('', 0);
+  await window.recStop();
+  FX.clearLoop();
+  const sr = AE.ctx.sampleRate, w = Math.round(0.8 * sr);
+  return { held: LOOPER.on, before: window.tone(f0 - w, f0, 2600), during: window.tone(f1, f1 + w, 2600),
+           open: window.bright(f1, f2), shut: window.bright(f3, f4), gate: AE.busGate.gain.value };
+});
+await page.waitForTimeout(600);
+R('a loop leaves the rest of the room alone — what else is on the bus comes through it untouched',
+  strip.during > strip.before * 0.7 && strip.during < strip.before * 1.4 && strip.gate > 0.99,
+  `a 2.6 kHz tone on the bus: ${(10 * Math.log10(strip.during / strip.before)).toFixed(2)} dB through the held loop · busGate ${strip.gate.toFixed(2)}`);
+R('the deck\'s own filter reaches the loop it is holding — the tape sits at the head of the strip',
+  strip.shut < strip.open * 0.2, `high end under the loop ${(100 * strip.shut / strip.open).toFixed(1)}% of open with the filter hard left`);
 
-/* AND WHAT THAT SOUNDS LIKE. The wrap is between two samples that were adjacent
-   on the tape, so the output should contain no step the music does not already
-   contain. This is measured rather than reasoned about because the reasoning is
-   exactly what was wrong last time. */
-/* THE SEAM ITSELF, measured where it actually happens. The loop's last sample
-   and its first are neighbours in the recording the tape made, because the head
-   of the buffer was blended with the audio that really did follow the out-point.
-   So the wrap must be no larger a step than the music's own largest — checked in
-   the buffer, where the audio thread's wrap is bit-exact and there is no
-   instrument in the way and no run-to-run noise at all. */
-const W = neu.engaged.wrap;
-R('the wrap is a step the music itself already contains', !!W && W.step <= W.p9999,
-  W ? `wrap ${W.step.toFixed(5)} vs the loop's own 99.99th ${W.p9999.toFixed(5)}` : 'no buffer');
-R('…and not merely a quiet passage where anything would join cleanly',
-  !!W && W.max > 0.01, W ? "the loop's largest step is " + W.max.toFixed(4) : '');
-/* The RECORDED output is reported rather than asserted on. The recorder is a
-   main-thread processor sharing a starved thread with the render loop, and the
-   baseline above — plain playback, no loop, nothing spliced — shows its own
-   artefacts running three to four times the music's 99.99th percentile, which is
-   larger than the fault this is looking for. So it is held to the instrument's
-   own floor, and the claims that matter are carried by the wrap, the holes and
-   the seek count, none of which jitter can fake. */
-R('the recorded output is no rougher than plain playback through the same recorder',
-  neu.r.worst / neu.r.p9999 <= Math.max(2.5, (base.worst / base.p9999) * 1.3),
-  `taped ${(neu.r.worst / neu.r.p9999).toFixed(2)}×, seeking ${(old.r.worst / old.r.p9999).toFixed(2)}×, ` +
-  `instrument ${(base.worst / base.p9999).toFixed(2)}×`);
-/* A HOLE PER CYCLE that is also in the buffer is the music being quiet; a hole
-   the buffer does not contain is the seam. Only the second kind is a fault. */
-const perCycle = Math.ceil(neu.r.sec / neu.setup.len);
-R('no hole the loop\'s own audio does not already have',
-  neu.r.holes.length <= neu.quiet * perCycle,
-  `${neu.r.holes.length} in the output, ${neu.quiet} in the buffer × ${perCycle} cycles`);
-R('the music never stopped for any of it', neu.playing && neu.r.rms > 0.01,
-  `rms=${neu.r.rms.toFixed(3)}`);
+/* HALVE AND DOUBLE, FROM THE SAME IN-POINT. Halved, the music must repeat every
+   half-loop; doubled back, it must be the ORIGINAL loop again, sample for sample —
+   the proof the in-point never moved, and that the second half was taken from
+   the deck's own run-on, not invented. */
+const resize = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 0.3;                     // the run-on must not reach the end guard inside this test
+  await new Promise(r => setTimeout(r, 700));
+  window.__seeks = 0;
+  window.recStart();
+  FX.setLoop(2, false);
+  const t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 8000) await new Promise(r => setTimeout(r, 30));
+  const N = LOOPER.N, sr = AE.ctx.sampleRate, lap = N / sr * 1000;
+  await new Promise(r => setTimeout(r, lap * 1.1));
+  const fA = window.frameNow();
+  await new Promise(r => setTimeout(r, lap * 2.1));
+  const fB = window.frameNow();
+  FX.resizeLoop(-1);
+  await new Promise(r => setTimeout(r, 150));
+  const fC = window.frameNow(), halfN = LOOPER.N;
+  await new Promise(r => setTimeout(r, lap * 1.1));
+  const fD = window.frameNow();
+  FX.resizeLoop(1);
+  const t2 = Date.now();
+  while (LOOPER.N !== N && Date.now() - t2 < 3000) await new Promise(r => setTimeout(r, 20));
+  await new Promise(r => setTimeout(r, lap * 1.1));
+  const fE = window.frameNow();
+  await new Promise(r => setTimeout(r, lap * 2.1));
+  const fF = window.frameNow();
+  const seeks = window.__seeks, beats = FX.loop ? FX.loop.beats : 0;
+  await window.recStop();
+  FX.clearLoop();
+  const before = window.measure(fA, fB, N), half = window.measure(fC, fD, halfN), back = window.measure(fE, fF, N);
+  /* the doubled loop against the ORIGINAL laps, a whole number of loops earlier.
+     Where in the doubled loop the head sits depends on which half it was in when
+     the length came back — a CDJ's doubling is the same — so the original is
+     allowed either alignment, half a loop apart; anything else is not the loop. */
+  const x = window.__rec.x, f0 = window.__rec.f0;
+  const sameAt = off => {
+    let d = 0, peak = 0;
+    for (let f = fE; f < fF; f++){
+      const g = fA + ((f - fA + off) % N + N) % N;           // the same place in an original lap
+      d = Math.max(d, Math.abs(x[f - f0] - x[g - f0])); peak = Math.max(peak, Math.abs(x[f - f0]));
+    }
+    return peak > 0 ? d / peak : 1;
+  };
+  return { N, halfN, beats, seeks, before: before.lap, half: half.lap, back: back.lap, same: Math.min(sameAt(0), sameAt(halfN)), holes: half.holes + back.holes };
+});
+await page.waitForTimeout(500);
+R('halving is at once and exact: the music repeats every half-loop',
+  resize.halfN === Math.round(resize.N / 2) && resize.half < 0.005,
+  `${resize.halfN} frames of ${resize.N} · lap against lap ${(resize.half * 100).toFixed(3)}%`);
+R('…and doubling back takes the deck\'s own run-on: the ORIGINAL loop again, sample for sample, the in-point never moved',
+  resize.beats === 2 && resize.back < 0.005 && resize.same < 0.005 && resize.holes === 0 && resize.seeks === 0,
+  `lap ${(resize.back * 100).toFixed(3)}% · against the loop before the halving ${(resize.same * 100).toFixed(3)}% · seeks ${resize.seeks}`);
 
-/* LETTING GO. A handback is a splice too, and it is the one place the new path
-   DOES seek — once, early, while the loop is still covering for it. */
-const after = await page.evaluate(() => ({
-  gate: AE.busGate.gain.value, out: LOOPER.out ? LOOPER.out.gain.value : 0,
-  on: LOOPER.on, loop: !!FX.loop, playing: player.playing,
-}));
-R('letting go gives the room back to the decks', after.gate > 0.99 && after.out < 0.01 && !after.on,
-  `busGate=${after.gate.toFixed(3)} loop=${after.out.toFixed(3)}`);
-R('…with the music still playing afterwards', after.playing && !after.loop);
+/* LETTING GO OF A LATCHED LOOP lands the deck inside it, where the loop was —
+   the one splice the tape cannot make alone, because the deck ran on and has to
+   be seeked back. The music after the handback continues the lap it left, so it
+   is compared with that lap: the lag that matches best is how far from the
+   loop's own place the deck came back. */
+const backs = [];
+for (let k = 0; k < 3; k++){
+  const hb = await page.evaluate(async () => {
+    FX.clearLoop(); LOOPER.cancel();
+    activeDeck().a.currentTime = 1.0;
+    await new Promise(r => setTimeout(r, 700));
+    window.recStart();
+    FX.setLoop(4, false);                               // two seconds: room for a handback inside one lap
+    const t = Date.now();
+    while (!LOOPER.on && Date.now() - t < 8000) await new Promise(r => setTimeout(r, 30));
+    const N = LOOPER.N, sr = AE.ctx.sampleRate;
+    await new Promise(r => setTimeout(r, 300 + Math.random() * 600));
+    window.__seeks = 0;
+    FX.clearLoop();
+    const t2 = Date.now();
+    while ((LOOPER.backing || LOOPER.on) && Date.now() - t2 < 4000) await new Promise(r => setTimeout(r, 10));
+    const at = Math.round(LOOPER.backAt * sr);
+    await new Promise(r => setTimeout(r, 700));
+    await window.recStop();
+    const ramp = Math.round(0.015 * sr);           // the crossover (6 ms) and the limiter's lookahead (3 ms), well clear
+    // judged only where the lap it continues was still inside the loop
+    const phase = ((at - (LOOPER.A + LOOPER.N)) % N + N) % N, room = N - phase - ramp - Math.round(0.06 * sr);
+    const w = Math.min(Math.round(0.05 * sr), room);
+    const land = w > 200 ? window.landing(at + ramp, w, N, Math.round(0.03 * sr)) : null;
+    return { land, w, seeks: window.__seeks, err: LOOPER.lastErr, late: LOOPER.backLate, sr, on: LOOPER.on, playing: player.playing };
+  });
+  backs.push(hb);
+}
+const lands = backs.filter(b => b.land).map(b => b.land.lag / b.sr * 1000);
+console.log('    handback landings, from the audio: ' + lands.map(v => v.toFixed(1) + ' ms').join(', ')
+  + ' · fit ' + backs.filter(b => b.land).map(b => b.land.fit.toFixed(3)).join('/')
+  + ' · the deck\'s own word ' + backs.map(b => b.err == null ? '–' : (b.err * 1000).toFixed(1) + ' ms').join('/')
+  + ' · seeks ' + backs.map(b => b.seeks).join('/'));
+R('letting go of a latched loop lands the deck where the loop was — within a seek\'s latency, never a lap out',
+  lands.length >= 2 && lands.every(v => Math.abs(v) <= 12) && backs.every(b => !b.on && b.playing && b.seeks >= 1 && b.seeks <= 4),
+  lands.map(v => v.toFixed(1) + ' ms').join(', '));
 
 /* A ROLL IS STILL A ROLL. It stalls the music while the track runs on
    underneath, and now it does that literally: the deck is never touched, so on
    release it is already exactly where it would have been. */
 const roll = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 1.0;
+  await new Promise(r => setTimeout(r, 700));
   FX.setLoop(1, true);
   const t = Date.now();
-  while (!LOOPER.on && Date.now() - t < 15000) await new Promise(r => setTimeout(r, 30));
+  while (!LOOPER.on && Date.now() - t < 8000) await new Promise(r => setTimeout(r, 30));
   const held = LOOPER.on;
-  // measured from the handover, because before it the booth's own re-seek loop
-  // is legitimately holding the loop and legitimately seeking to do so
   const d = activeDeck(), t0 = d.a.currentTime;
   window.__seeks = 0;
   await new Promise(r => setTimeout(r, 2200));
   const ran = d.a.currentTime - t0, during = window.__seeks;
   FX.clearLoop();
   await new Promise(r => setTimeout(r, 400));
-  return { held, ran, during, onRelease: window.__seeks - during, after: d.a.currentTime - t0 };
+  return { held, ran, during, onRelease: window.__seeks - during, on: LOOPER.on };
 });
 R('a roll engages the same way', roll.held);
 R('…and the track really did run on underneath it, untouched', roll.ran > 2.0 && roll.during === 0,
   `advanced ${roll.ran.toFixed(2)} s in 2.2 s, ${roll.during} seeks`);
-/* THE ROLL'S RELEASE IS THE ONE HANDBACK THAT COSTS NOTHING. A latched loop has
-   to put the deck back inside itself; a roll does not, because the deck was
-   never held — it ran on underneath, which is the roll's whole idea, and now it
-   does that literally rather than by arithmetic. */
-R('…so releasing it needs no seek at all', roll.onRelease === 0, 'seeks=' + roll.onRelease);
+R('…so releasing it needs no seek at all', roll.onRelease === 0 && !roll.on, 'seeks=' + roll.onRelease);
 
-/* THE TAPE THAT TORE. A recorder block the main thread failed to collect is a
-   hole in the ring, and a loop cut across it carries the splice on every lap.
-   The recorder notes tears off the processor's own clock; nothing in this
-   sandbox can be made to drop a block on demand, so one is planted by hand in
-   the exact slice the next loop wants — and the cut must refuse it, then take
-   the following lap, whose tape is whole. */
-const torn = await page.evaluate(async () => {
-  if (FX.loop) FX.clearLoop();
-  await new Promise(r => setTimeout(r, 400));
-  const refusedBefore = LOOPER.refused || 0;
-  const tearsBefore = LOOPER.torn;
-  // arm, then plant a tear where the first cut will be taken from
-  FX.setLoop(1, false);
-  const i0 = Math.round((LOOPER.tIn - LOOPER.K) * LOOPER.sr);
-  LOOPER.tears.push(i0 + Math.round(0.5 * LOOPER.sr));
-  const t = Date.now();
-  while (!LOOPER.on && Date.now() - t < 15000) await new Promise(r => setTimeout(r, 30));
-  const on = LOOPER.on;
-  const refused = (LOOPER.refused || 0) - refusedBefore;
-  // the cut it finally took must not span the tear
-  const cutFrom = Math.round((LOOPER.tIn - LOOPER.K) * LOOPER.sr);
-  const spans = ringTornIn(LOOPER.tears, cutFrom, LOOPER.src ? LOOPER.src.buffer.length : 0);
-  const period = LOOPER.src ? LOOPER.src.buffer.length : 0;
-  const laps = LOOPER.laps;
+/* A CUT THE TAPE CANNOT HOLD IS NOT A LOOP OF NOTHING. The tapes are reopened
+   (their past starts now) and the booth is lied to about how much past there is,
+   so the in-point falls before the tape began. The processor must refuse the
+   cut — and the loop must still loop, on the re-seek path, rather than play a
+   lap of silence or run straight past its out-point. */
+const refuse = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 2.3;
+  await new Promise(r => setTimeout(r, 900));
+  LOOPER.close(); LOOPER.open();
+  const have = LOOPER.have; LOOPER.have = () => 30;
+  const before = LOOPER.refused;
+  window.__seeks = 0;
+  FX.setLoop(2, false);
+  LOOPER.have = have;
+  const L = FX.loop;
+  await new Promise(r => setTimeout(r, 3200));
+  const d = activeDeck(), pos = d.a.currentTime;
+  const out = { refused: LOOPER.refused - before, engaged: LOOPER.engaged(), loop: !!FX.loop, seeks: window.__seeks,
+    inside: L && pos >= L.start - 0.02 && pos <= L.start + L.len + 0.15, pos, start: L && L.start, len: L && L.len };
   FX.clearLoop();
-  await new Promise(r => setTimeout(r, 500));
-  return { on, refused, spans, period, want: Math.round(LOOPER.len * LOOPER.sr), laps, tears: LOOPER.torn - tearsBefore };
+  return out;
 });
-R('a cut across a tear in the tape is refused', torn.refused >= 1, `${torn.refused} refusal(s)`);
-R('…and the loop is taken from a later lap instead, whole', torn.on && !torn.spans && torn.period === torn.want,
-  `on=${torn.on} spans=${torn.spans} ${torn.period} vs ${torn.want} samples after ${torn.laps} lap(s)`);
-console.log(`    (the recorder itself reported ${torn.tears} tear(s) during the run)`);
+await page.waitForTimeout(500);
+R('a cut reaching before the tape\'s past is refused by the processor, not made from whatever was there', refuse.refused === 1 && !refuse.engaged,
+  `refused ${refuse.refused}, engaged ${refuse.engaged}`);
+R('…and the loop still loops, on the re-seek path', refuse.loop && refuse.seeks >= 2 && refuse.inside,
+  `seeks ${refuse.seeks}, playhead ${refuse.pos.toFixed(2)} in [${refuse.start.toFixed(2)}, ${(refuse.start + refuse.len).toFixed(2)}]`);
 
 /* THE HANDBACK ASKS THE DECK. The deck is seeked early and the loop covers;
-   the crossover used to be scheduled at a fixed lead regardless of whether the
-   deck had anything to play there. The deck is made to report an empty buffer
-   for a while, and the handback must wait for it — then go the moment it can. */
+   the deck is made to report an empty buffer for a while, and the handback must
+   wait for it — then go the moment it can. */
 const wait = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 1.0;
+  await new Promise(r => setTimeout(r, 700));
   FX.setLoop(1, false);
   const t = Date.now();
-  while (!LOOPER.on && Date.now() - t < 15000) await new Promise(r => setTimeout(r, 30));
+  while (!LOOPER.on && Date.now() - t < 8000) await new Promise(r => setTimeout(r, 30));
   if (!LOOPER.on) return { on: false };
   const d = activeDeck();
   const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'buffered');
@@ -419,7 +485,7 @@ const wait = await page.evaluate(async () => {
   const lead = LOOPER.handBack();
   const waiting = !!LOOPER.backing && LOOPER.on;
   await new Promise(r => setTimeout(r, 450));
-  const stillWaiting = !!LOOPER.backing && LOOPER.on && LOOPER.out.gain.value > 0.99;
+  const stillWaiting = !!LOOPER.backing && LOOPER.on;
   starve = false;                        // the bytes arrive
   const t1 = Date.now();
   while (LOOPER.backing && Date.now() - t1 < 3000) await new Promise(r => setTimeout(r, 20));
@@ -428,39 +494,12 @@ const wait = await page.evaluate(async () => {
   Object.defineProperty(d.a, 'buffered', { configurable: true, get(){ return desc.get.call(this); } });
   FX.loop = null;
   await new Promise(r => setTimeout(r, 400));
-  return { on: true, lead, waiting, stillWaiting, went, at, playing: player.playing, gate: AE.busGate.gain.value, waits: LOOPER.waits };
+  return { on: true, lead, waiting, stillWaiting, went, at, playing: player.playing, waits: LOOPER.waits };
 });
 R('a handback into an unbuffered deck waits, with the loop still covering', wait.on && wait.waiting && wait.stillWaiting,
   `waiting=${wait.waiting} still=${wait.stillWaiting} after 450 ms`);
-R('…and goes the moment the deck has the bytes — late, never empty', wait.went && wait.at > 0.4 && wait.at < 2.0 && wait.gate > 0.99 && wait.playing,
-  `handed back ${(wait.at * 1000).toFixed(0)} ms after the call (fixed lead was ${(wait.lead * 1000).toFixed(0)} ms) · busGate=${wait.gate.toFixed(3)}`);
-
-/* THE ROOM CHANGED SHAPE. K is a measurement of one output device; a route
-   change is another device. The tape must measure again — when idle at once,
-   under a held loop only once the loop is let go. */
-const recal = await page.evaluate(async () => {
-  const k0 = LOOPER.K, before = LOOPER.recals || 0;
-  LOOPER.routeChanged();
-  const t = Date.now();
-  while (LOOPER.K == null && Date.now() - t < 5000) await new Promise(r => setTimeout(r, 30));
-  const idle = (LOOPER.recals || 0) - before;
-  const k1 = LOOPER.K;
-  // now under a held loop: deferred, and the loop keeps its K
-  FX.setLoop(1, false);
-  const t2 = Date.now();
-  while (!LOOPER.on && Date.now() - t2 < 15000) await new Promise(r => setTimeout(r, 30));
-  const kHeld = LOOPER.K;
-  LOOPER.routeChanged();
-  const deferred = LOOPER._recal === true && LOOPER.on && LOOPER.K === kHeld;
-  FX.clearLoop();
-  const t3 = Date.now();
-  while ((LOOPER._recal || LOOPER.K == null) && Date.now() - t3 < 6000) await new Promise(r => setTimeout(r, 40));
-  const later = (LOOPER.recals || 0) - before;
-  return { k0, k1, idle, deferred, later, kNow: LOOPER.K };
-});
-R('a route change re-measures an idle tape at once', recal.idle === 1 && recal.k1 != null, `K ${recal.k0 && recal.k0.toFixed(4)} → ${recal.k1 && recal.k1.toFixed(4)}`);
-R('…and waits for a held loop to let go before touching its K', recal.deferred && recal.later === 2 && recal.kNow != null,
-  `deferred=${recal.deferred} recals=${recal.later}`);
+R('…and goes the moment the deck has the bytes — late, never empty', wait.went && wait.at > 0.4 && wait.at < 2.0 && wait.playing,
+  `handed back ${(wait.at * 1000).toFixed(0)} ms after the call (planned lead was ${(wait.lead * 1000).toFixed(0)} ms)`);
 
 /* THE STAND-DOWN. Where there is no live graph there is no tape, and the booth
    must keep the loop it has always had rather than losing the feature. */
