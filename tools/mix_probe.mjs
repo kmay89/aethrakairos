@@ -521,7 +521,11 @@ R('…the transport never blinked: no paused frame, no pause the system did not 
   `paused frames ${s1.cue.flips}/${s2.cue.flips}/${s3.cue.flips} · system pauses logged ${s1.cue.sys}/${s2.cue.sys}/${s3.cue.sys} (seams 1/2/3)`);
 R('fallback: the beat lock holds inside its 40 ms contract', s3.m.phase != null && s3.m.phase < 40,
   s3.m.phase == null ? 'not measured' : s3.m.phase.toFixed(1) + ' ms');
-R('fallback: the blend never drops to silence mid-seam', s3.m.zero === 0, s3.m.zero + ' silent frames');
+// silence is only "none" over a blend that was actually heard: every fifth must hold samples
+R('fallback: the blend never drops to silence mid-seam',
+  s3.m.n > 0 && s3.rel.every(v => v != null) && s3.m.zero === 0,
+  s3.m.zero + ' silent frames over ' + s3.m.n + ' · fifths ' + s3.rel.map(pct).join(' ')
+    + (s3.rel.some(v => v == null) ? ' — not measured: a fifth has no samples' : ''));
 
 /* THE CUE LET GO OF. A cue is an optimisation; the deck under it must come
  * back exactly as the paused, parked deck everything else has always met —

@@ -30626,6 +30626,8 @@ function wireDeckWave(){
       if (drag.scrub){
         // dragging the wave left pulls the music forward under the needle, as on any deck — here by seeking
         const d = AE.decks[drag.deck], to = drag.t0 - (ev.clientX - r.left - drag.x0) / drag.pps;
+        // a hand scrubbing the cued deck has it, as FX._seek takes it: parked, and never rolled under that hand
+        if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) MIXER._uncue('hand scrub', { veto: true });
         const top = isFinite(d.a.duration) && d.a.duration > 0.3 ? d.a.duration - 0.25 : Infinity;
         try { d.a.currentTime = Math.max(0, Math.min(top, to)); } catch (e){}
         return;
