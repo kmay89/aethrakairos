@@ -23682,7 +23682,14 @@ const MIXER = {
      the old way); only on the auto-DJ's own record, warmed, parked where this
      plan put it, on the source the plan names; never under a hand — on the
      handle, on either platter, holding a loop — and never on a record a hand
-     touched while it was cued. */
+     touched while it was cued.
+     WARMED MEANS LANDED. _warmB leaves `_warmed` false for as long as B's copy
+     is on its way into memory (deckWarmRoute 'fetch') and sets it only as it
+     seats that copy or gives up on it for the stream — and from then on never
+     touches the deck again. So a cue can never play() a deck whose copy is
+     still in flight (where _seat, which takes only a paused deck, would fall
+     back to streaming and the record would cross the pipe twice), and nothing
+     the warm does can swap a source out from under a cue that is rolling. */
   _cueOk(nd){
     const p = this.plan, od = activeDeck();
     if (!this.on || this.phase !== 'armed' || !p || p.type !== 'beatmix' || !nd || !od || nd === od) return false;
@@ -23723,7 +23730,9 @@ const MIXER = {
     const c = this._cue, now = performance.now();
     if (!c){
       if (this._cueRolls >= 2){ this._cueDone = true; this._cueStop(); return; }
-      if (!nd.a.paused || nd.a.seeking) return;                  // a park still landing waits for it
+      // a park still landing waits for it — the seek in flight, or the one a
+      // fresh source (a seated copy) is still to make once its metadata lands
+      if (!nd.a.paused || nd.a.seeking || nd._preloadOnce) return;
       const due = seamCueDue(p, { tA, rA, at: tB, lat: this._cueLat, exitAt });
       if (due.act === 'miss'){ this._cueDone = true; this._cueStop(); return; }
       if (due.act === 'wait'){ if (due.in > SEAM_CUE_S + 2) this._cueStop(); return; }   // far off (A was taken back): update() wakes it again

@@ -12139,9 +12139,15 @@ test('the cued deck in the player: parked by the warm, rolled silent, skipped by
   for (const must of ['AE.graphLive', 'document.hidden', "s.owner === 'hand'", 'DECKS.fader.hand', 'xfaderHeld(', 'this._cueVetoRec', 'nd._warmed', 'this._sameSrc(nd.a, B.url)', '.engaged', 'FX.loop'])
     assert.ok(ok.includes(must), 'a cue never rolls without checking ' + must);
   assert.ok(mixer.includes('this._cueWatch(d, t, exitAt);'), 'update() drives it');
+  assert.ok(mixer.includes('if (!nd.a.paused || nd.a.seeking || nd._preloadOnce) return;'), 'never let go before the park (or a seated copy\'s pre-seek) has landed');
+  // the RAM warm: `_warmed` stays false while the copy is on its way (route 'fetch'), so a cue can never
+  // play() a deck whose copy is in flight — and once warmed, _warmB never touches the deck again
+  const warmB = mixer.slice(mixer.indexOf('  _warmB(exitIn, force){'), mixer.indexOf('  _seat(nd, B){'));
+  assert.ok(warmB.indexOf("if (route === 'fetch'){ PREFETCH.want(B); return; }") < warmB.indexOf('nd._warmed = true;')
+    && warmB.includes('if (!nd || nd._warmed || !d) return;'), 'the cue\'s _warmed gate means landed');
   assert.ok(mixer.includes('const cueAt = seekOnly ? null : this._cuePark(plan);') && mixer.includes('nd._seekTo = seekTo;\n    nd._cueAt = cueAt;'),
     'the one warm parks it; a hand\'s record never cues');
-  const warm = mixer.slice(mixer.indexOf('  _warmB(exitIn, force){'), mixer.indexOf('  _clearPreloadListener(d){'));
+  const warm = mixer.slice(mixer.indexOf('  _warmB(exitIn, force){'), mixer.indexOf('  _clearPreloadListener(d){'));   // (the RAM warm and its _seat included)
   assert.ok(!/cue/i.test(warm.replace(/\/\*[\s\S]*?\*\//g, '')), 'the warm itself is untouched — it seeks to the park it is given');
   // every reader that took "not paused" for "a hand's record is playing" asks first
   const decks = html.slice(html.indexOf('const DECKS = {'), html.indexOf('window.__mb8Decks = () =>'));
