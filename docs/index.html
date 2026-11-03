@@ -10854,8 +10854,15 @@ function ensureCtx(){
   // the tested helper above the AE block; decks reach it through AE like everything else
   AE._loadAt = loadAndLandAt;
   /* …and one graph factory, so the chain a deck wears is described once. Direct
-     mode simply never calls it. */
-  AE._deckGraph = (d) => {
+     mode simply never calls it.
+     THE GAIN IT IS BORN AT IS THE CALLER'S TO SAY. Zero is right for a deck
+     that is about to be faded in by whoever starts it (playIndex, resume,
+     prepare) — and it is SILENCE for a deck that is already on air when its
+     chain is built under it: the return from AirPlay rebuilt the graph with
+     the record playing, advancing, and at gain zero until the next track or
+     the next press of play. So every caller now names it (`gain0`), and the
+     default stays the old one. */
+  AE._deckGraph = (d, gain0) => {
     d.src = AE.ctx.createMediaElementSource(d.a);
     d.shelf = AE.ctx.createBiquadFilter();
     d.shelf.type = 'lowshelf'; d.shelf.frequency.value = 200; d.shelf.gain.value = 0;
@@ -10869,7 +10876,7 @@ function ensureCtx(){
     d.hp = AE.ctx.createBiquadFilter();
     d.hp.type = 'highpass'; d.hp.frequency.value = 20; d.hp.Q.value = Q_FLAT_DB;
     d.gain = AE.ctx.createGain();
-    d.gain.gain.value = 0;
+    d.gain.gain.value = gain0 > 0 ? gain0 : 0;
     /* THE CROSSFADER'S NODE, after the mixer's. `gain` belongs to the seam
        engine — its sample-accurate curves, playIndex's ramps, the loudness
        trim; `fader` belongs to the crossfader law (DECKS). They multiply, so
@@ -10901,7 +10908,7 @@ function ensureCtx(){
       a.volume = 0;
       return { a, src: null, shelf: null, hp: null, filter: null, gain: null, fader: null, echoSend: null };
     }
-    return AE._deckGraph({ a });
+    return AE._deckGraph({ a }, 0);
   });
   AE.graphLive = !IS_IOS;
   SPEED.apply();                 // decks are born at the listener's chosen speed
@@ -10912,6 +10919,20 @@ function ensureCtx(){
      element is a deck that never reports an end, an error or a stall. */
   AE._wireDeck = (d, i) => {
     AIRPLAY.watch(d);
+    /* A LISTENER SPEAKS FOR THE ELEMENT IT WAS WIRED TO, AND NO OTHER. These
+       are never removed, and every one of them used to read `d.a` when it
+       fired — so when a route change built a new element under the same deck
+       object, the OLD element's own pause (the rebuild pausing it) arrived,
+       read the NEW element through `d.a`, passed every guard and told the
+       transport the system had paused the music: player.playing false, a
+       "the system paused the audio" line in the log, and a play button that
+       lied until the next tap. Each element is captured here, once, and a
+       listener whose element is no longer the deck's is a listener with
+       nothing to say. `_joining` is the same silence for a deck that is
+       rolling muted on its way into the graph (DECKROUTE): what it does is
+       the route's business until it is on air. */
+    const a = d.a;
+    const stale = () => d.a !== a || !!d._joining;
     /* THE GUARD IS A ROLE, NOT A SLOT. "i === AE.active" used to be the only
        deck anybody listened to; with a hand able to play the other deck, a
        record can end or fail on a deck that is LIVE without being on air — a
@@ -10919,11 +10940,11 @@ function ensureCtx(){
        means is DECKS's decision. The media session, the loader word and the
        progress bookkeeping below stay the on-air deck's alone. */
     d.a.addEventListener('ended', () => {
-      if (d.priming || AE.xfading) return;
+      if (stale() || d.priming || AE.xfading) return;
       if (i === AE.active || DECKS.isLive(i)) DECKS.onEnded(i);
     });
     d.a.addEventListener('error', () => {
-      if (d.priming) return;
+      if (stale() || d.priming) return;
       if (i !== AE.active){ DECKS.onError(i); return; }
       const t = player.tracks[player.cur];
       // the shipped demo file didn't load (missing/undecodable/offline cold
@@ -10978,7 +10999,7 @@ function ensureCtx(){
           toast(T('Weak signal — holding <b>{title}</b>…', { title: escapeHTML(t.title) }));
           clearTimeout(d._reT);
           d._reT = setTimeout(() => {
-            if (i !== AE.active) return;
+            if (i !== AE.active || d.a !== a) return;
             d._healing = true;                       // the reload's pause is ours — don't flip the UI to paused
             /* Rebuffer AT THE SPOT IT DROPPED, which means waiting for the
                element to know where its spots are. Seeking straight after
@@ -11027,7 +11048,7 @@ function ensureCtx(){
     // audio-session interruptions (phone call, Siri, another app): the system
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
-      if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
+      if (stale() || d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
       /* A PAUSE THE ELEMENT HAS ALREADY BEEN PLAYED OUT OF IS STALE. The event
          is queued, not dispatched: a deck paused and started again in one task
          — a pre-rolled cue let go at fire() and placed the old way, or parked
@@ -11045,7 +11066,7 @@ function ensureCtx(){
       }
     });
     d.a.addEventListener('play', () => {
-      if (d.priming) return;
+      if (stale() || d.priming) return;
       d.primed = true;               // a real play blesses the element too
       if (i !== AE.active) return;
       ensureResume();
@@ -11053,13 +11074,14 @@ function ensureCtx(){
       if (typeof TABSYNC !== 'undefined') TABSYNC.announce();   // claim the single audio floor; older tabs stand down
       mediaSessionPlaybackState();
     });
-    d.a.addEventListener('loadedmetadata', () => { if (i === AE.active) mediaSessionPosition(); });
-    d.a.addEventListener('seeked', () => { if (i === AE.active) mediaSessionPosition(); });
-    d.a.addEventListener('ratechange', () => { if (i === AE.active) mediaSessionPosition(); });
+    d.a.addEventListener('loadedmetadata', () => { if (!stale() && i === AE.active) mediaSessionPosition(); });
+    d.a.addEventListener('seeked', () => { if (!stale() && i === AE.active) mediaSessionPosition(); });
+    d.a.addEventListener('ratechange', () => { if (!stale() && i === AE.active) mediaSessionPosition(); });
     // the loading spin clears the instant true audio flows (or stalls again)
-    d.a.addEventListener('playing', () => { if (i === AE.active){ LOADER.done(); player._clearStall();
+    d.a.addEventListener('playing', () => { if (!stale() && i === AE.active){ LOADER.done(); player._clearStall();
       player._stallSkips = 0; player._netSkips = 0; } });   // audio flowed: the pipe is alive
     d.a.addEventListener('timeupdate', () => {
+      if (stale()) return;
       d._tu = (d._tu | 0) + 1;                   // the watchdog counts these: the clock's own pulse
       if (i !== AE.active) return;
       const ct = d.a.currentTime;
@@ -11082,7 +11104,7 @@ function ensureCtx(){
       }
     });
     d.a.addEventListener('waiting', () => {
-      if (i !== AE.active) return;
+      if (stale() || i !== AE.active) return;
       if (typeof PREFETCH !== 'undefined') PREFETCH._waitAt = performance.now();   // the warm yields the pipe
       if (player.playing) LOADER.begin(T('buffering…'));
     });
@@ -11155,27 +11177,47 @@ const LOADER = {
    plays a 44-byte silent WAV, muted, and pauses — position untouched,
    listeners guarded by d.priming. A failed attempt retries next gesture. */
 const PRIME_SRC = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+/* THE BLESSING IS THE ELEMENT'S, so the prime closes over the element it
+   blesses. done() used to read `d.a` when the silent WAV settled — and
+   pointerdown primes in the same gesture just before the click that may put
+   a NEW element under the deck (a route change, the booth handing the decks
+   back). The prime then paused, unmuted and emptied the element that had
+   just been installed, and wrote `primed` for one it never touched. Now it
+   strips only what it put there (the src still the silent WAV), and writes
+   the deck's flag only while that element is still the deck's.
+   UNDER THE GRAPH an idle deck usually holds a record (a hand's load, the
+   mixer's warm, the record just retired), so it never qualified for the
+   silent WAV and could reach its first un-gestured start unblessed. iOS
+   lifts the restriction for good on any muted toggle made inside a gesture
+   (removeBehaviorRestrictionsAfterFirstUserGesture), so a paused deck with
+   content is blessed by flicking its mute twice — synchronously, inside this
+   gesture, never by swapping its src. */
 function primeDecks(){
   if (!IS_IOS || !AE.decks) return;
   for (const d of AE.decks){
     if (d.primed || d.priming) continue;
+    const a = d.a;
     // NEVER touch a deck holding real content. Priming's muted play→pause
     // raced the real play() riding the SAME gesture and paused the music
     // the listener had just started — "press next and it pauses". A deck
     // with a src is blessed by its own real play (the 'play' listener
     // marks it primed); only an EMPTY deck needs the silent-WAV blessing.
-    if (d.a.src) continue;
+    if (a.src){
+      if (AE.graphLive && a.paused){ try { a.muted = !a.muted; a.muted = !a.muted; d.primed = true; } catch (e){} }
+      continue;
+    }
     d.priming = true;
-    d.a.src = PRIME_SRC;
-    d.a.muted = true;
+    a.src = PRIME_SRC;
+    a.muted = true;
     const done = ok => {
-      try { d.a.pause(); } catch (e){}
-      d.a.muted = false;
-      d.a.removeAttribute('src'); try { d.a.load(); } catch (e){}
-      d.primed = ok;
-      d.priming = false;
+      if (a.src === PRIME_SRC){
+        try { a.pause(); } catch (e){}
+        a.muted = false;
+        a.removeAttribute('src'); try { a.load(); } catch (e){}
+      }
+      if (d.a === a){ d.primed = ok; d.priming = false; }
     };
-    d.a.play().then(() => done(true), () => done(false));
+    a.play().then(() => done(true), () => done(false));
   }
 }
 ['pointerdown', 'keydown', 'touchend'].forEach(evName =>
@@ -12731,18 +12773,24 @@ const player = {
     // second deck buys nothing here: keep EVERY hand-off on the one blessed
     // element — load the next src into it and play. Non-iOS keeps the two-deck
     // swap the WebAudio crossfade needs.
-    const stayPut = IS_IOS && !xfade && this.playing;
     /* WHICH DECK. Playing, the record goes to the other deck so the two can
        overlap — unless the hand already has THIS record cued on it, in which
        case that deck is the one (it is not reloaded, only started from its
        cue). Paused, there is no overlap to carry, so the record goes onto the
        deck that already owns the air: the first start of a session lands on
        A, a paused skip never takes a hand's deck, and the direct path stays
-       on its one blessed element either way. */
+       on its one blessed element either way.
+       The hand's cue is decided FIRST, because it outranks the same-element
+       advance: computed after it, a skip onto the record a hand had cued on
+       the other deck reloaded nothing, seeked the record on air to the on-air
+       slot's cue and titled it as the hand's — the wrong song from the top,
+       under the right name. (Nothing on the element-direct path can have a
+       hand's cue, so this changes no phone that plays direct.) */
     const other = 1 - oldIdx;
     const cued = AE.graphLive && typeof DECKS !== 'undefined' && DECKS.slots[other].owner === 'hand'
       && DECKS.slots[other].trackIdx === i && AE.decks[other].a.paused
       && (typeof MIXER !== 'undefined') && MIXER._sameSrc(AE.decks[other].a, track.url);
+    const stayPut = IS_IOS && !xfade && this.playing && !cued;
     const newIdx = stayPut ? oldIdx : cued ? other : (!this.playing && !xfade) ? oldIdx : other;
     const nd = AE.decks[newIdx], od = AE.decks[oldIdx];
 
@@ -12834,7 +12882,9 @@ const player = {
       // The retired deck is fully faded and idle here (crossfades are off on
       // iOS, so nothing is mid-blend), so free its decoder. It re-blesses on
       // the next gesture (foreground) or its own next real play().
-      if (IS_IOS){
+      // (Element-direct only: under the graph two decoders are the norm, and a
+      // deck emptied here is a deck the booth still names, its record gone.)
+      if (IS_IOS && !AE.graphLive){
         try { od.a.removeAttribute('src'); od.a.load(); } catch (e){}
         od.primed = false;
       }
@@ -19258,12 +19308,15 @@ const AIRPLAY = {
   watch(d){
     if (!d || !d.a) return;
     const a = d.a;
+    // an element the deck has let go of no longer speaks for the room (see _wireDeck)
     a.addEventListener('webkitplaybacktargetavailabilitychanged', e => {
+      if (d.a !== a) return;
       AIRPLAY.told = true;
       AIRPLAY.avail = e.availability === 'available';
       syncAirplayButton();
     });
     a.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+      if (d.a !== a) return;
       AIRPLAY.routeChanged(!!a.webkitCurrentPlaybackTargetIsWireless);
     });
   },
@@ -19366,7 +19419,15 @@ const AIRPLAY = {
         // the filter tick's cache described the old nodes; the new ones are born open, and a cache
         // still holding the hand's corner would let the tick think there was nothing left to write
         dk._fxLast = null; dk._fxSched = false;
-        if (direct) dk.a.volume = 0; else AE._deckGraph(dk);
+        /* A NEW ELEMENT IS AN UNBLESSED ONE, and the deck's flags described the
+           old. A stale `primed` kept primeDecks off an element no gesture had
+           touched; the old element's timers and swap flags (a rebuffer due, a
+           seek being waited on, a src-swap's window) belong to an element that
+           is gone, and left armed they act on this one. */
+        dk.primed = false; dk.priming = false;
+        clearTimeout(dk._reT); clearTimeout(dk._seekT); clearTimeout(dk._swapT);
+        dk._seekPending = false; dk._healing = false; dk._swapping = false;
+        if (direct) dk.a.volume = 0; else AE._deckGraph(dk, 0);
         AE._wireDeck(dk, k);
       });
       AE.graphLive = !direct;
@@ -19376,19 +19437,46 @@ const AIRPLAY = {
       if (!direct && typeof VINYL !== 'undefined') VINYL.install();   // …and take their seats on the new chains
       SPEED.apply();
       applyVolume();
+      syncLoopFlag();                    // repeat-one lives on the element, and this is a new one
       if (url){
-        const a = AE.decks[i].a;
+        const d = AE.decks[i], a = d.a;
+        /* PLAY FIRST, IN THE GESTURE THAT ASKED — then land the seek, silently.
+           The old order awaited loadedmetadata (up to four seconds) and only
+           then called play(): by then the click that asked for the route had
+           been spent, and a browser that wants a gesture refused the start.
+           So the element starts now, muted, exactly as player.resume() starts
+           a restored deck; the position lands on loadedmetadata and the mute
+           comes off on 'seeked' — or after four seconds regardless, because a
+           player that is silent while saying it plays is the worse bug. */
+        a.muted = true;
+        a.src = url;
+        if (wasPlaying) a.play().catch(() => {});
+        let unmuted = false;
+        const unmute = () => {
+          if (unmuted) return;
+          unmuted = true; clearTimeout(muteT);
+          a.removeEventListener('seeked', unmute);
+          if (d.a === a) a.muted = false;
+        };
+        const muteT = setTimeout(unmute, 4000);
         await new Promise(res => {
           let done = false;
-          const go = () => { if (done) return; done = true; try { a.currentTime = at; } catch (e){} res(); };
+          const go = () => {
+            if (done) return; done = true;
+            if (at > 0.2){ a.addEventListener('seeked', unmute); try { a.currentTime = at; } catch (e){ unmute(); } }
+            else unmute();
+            res();
+          };
           a.addEventListener('loadedmetadata', go, { once: true });
-          a.addEventListener('error', () => { if (!done){ done = true; res(); } }, { once: true });
+          a.addEventListener('error', () => { if (!done){ done = true; unmute(); res(); } }, { once: true });
           // a stalled load must never leave the app wedged mid-route
           setTimeout(() => { if (!done){ done = true; res(); } }, 4000);
-          a.src = url;
         });
+        /* AND HEARD. The chain was born at zero (AE._deckGraph) under a record
+           that is already on air; nothing else would open it until the next
+           track or the next press of play — the silent return from AirPlay. */
+        if (!direct && d.gain) rampGain(d.gain, d.norm || 1, 0.25, 'in');
         applyVolume();
-        if (wasPlaying) try { await AE.decks[i].a.play(); } catch (e){}
       }
       syncMixHud();
       return true;
@@ -23928,6 +24016,12 @@ const MIXER = {
     const nd = AE.decks[1 - AE.active];
     const B = player.tracks[this.next];
     if (!B){ this.cancel(); return; }
+    /* AN UNBLESSED DECK IS NOT STARTED FROM A TIMER. iOS refuses a play() on
+       an element no gesture has touched, and a seam is the one start that
+       never has a gesture behind it. Refused here, before anything moves, the
+       plain path takes the transition at the end of the record (the plan is
+       let go, the draw stays committed) — refused after, it is dead air. */
+    if (IS_IOS && !nd.primed && !this._cueHolds(p, od, nd)){ this.cancel('unblessed'); return; }
     /* THE CUED DECK, if there is one (seamCueHolds): B already rolling,
        silent, within a few milliseconds of the grid. Then there is nothing to
        place and nothing to start — the seek and the play() below are skipped,
@@ -24069,9 +24163,18 @@ const MIXER = {
       // AbortError = our own cancel/replan interrupted the load — the
       // listener asked for something else; nothing is wrong. Only a real
       // refusal (autoplay policy, unblessed element) on a STILL-RUNNING
-      // seam warrants collapsing the overlap and saying so.
+      // seam warrants doing something about it.
       if (err && err.name === 'AbortError') return;
-      if (this.phase !== 'running') return;
+      if (this.phase !== 'running' || this.outDeck !== od) return;
+      /* A REFUSED START IS UNDONE, NOT SHORTENED. By the time the refusal
+         arrives, the air has already moved (AE.active, commitMix) and the
+         scheduled curve is taking the outgoing record to zero — so the old
+         answer, a shorter overlap and a toast, was dead air under a transport
+         that said it was playing. While the outgoing record is still rolling
+         the seam is taken back: that record is on air again at its own level,
+         the incoming is stopped, and its draw stays the next, for the plain
+         path at the end. */
+      if (err && err.name === 'NotAllowedError' && !od.a.paused && !od.a.ended){ this._refused(od, nd); return; }
       this.overlap = 0.05;
       toast(T('The blend was refused — tap play if the music pauses'));
     });
@@ -24136,6 +24239,18 @@ const MIXER = {
     if (typeof SEGUE !== 'undefined') SEGUE.cueSeam(p, this.overlap, seamT0);
     // …and the LIGHT crosses with the blend rather than eight beats after the commit
     if (typeof COLOR !== 'undefined') COLOR.seam(B, p, this.overlap);
+  },
+
+  // fire()'s rescue: the incoming deck refused to start, the outgoing still rolls (see fire)
+  _refused(od, nd){
+    const out = AE.decks.indexOf(od);
+    if (out < 0) return;
+    player.uncommitMix();                       // the record leaving is current again; the drawn one is next again
+    AE.active = out;
+    this.outDeck = null; this.outTrack = null;  // cancel() must not stop the record coming back on air
+    try { nd.a.pause(); } catch (e){}
+    this.cancel('refused');                     // gains, rates, shelves, filters and the handle, settled on the air
+    toast(T('The blend was refused — the next record follows this one'));
   },
 
   setVolumes(f){
