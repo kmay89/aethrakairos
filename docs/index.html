@@ -20327,6 +20327,14 @@ const DECKROUTE = {
     const on = AE.active, off = 1 - on, s = DECKS.slots[off], d = AE.decks[off];
     const w = giveWinner({ phase: MIXER.phase, gains: xfaderGains(DECKS.fader.x, DECKS.fader.curve), active: on,
       idleOwner: s.owner, idleRolling: !d.a.paused && !d.a.ended, idleTrack: s.trackIdx, idleCue: s.cue });
+    // the hand's record waiting on the idle deck, read before anything moves (an armed plan made against it keeps its draw, and its cue)
+    const handNext = (s.owner === 'hand' && s.trackIdx >= 0 && d.a.paused) ? { next: s.trackIdx, cue: +s.cue || 0 } : null;
+    const playNext = (i, cue) => {
+      try { d.a.pause(); } catch (e){}
+      const tr = player.tracks[i];
+      if (tr){ player._committedNext = i; (player._nextCue || (player._nextCue = {}))[tr.id] = cue; }
+      toast(T("Deck B's record plays next, from its cue"));
+    };
     let wait = 0;
     if (w.action === 'finish'){
       const od = MIXER.outDeck, nd = AE.decks[AE.active];
@@ -20337,14 +20345,9 @@ const DECKROUTE = {
     }
     else if (w.action === 'finish-hand') MIXER.finish({ by: 'hand' });
     else if (w.action === 'abort-hand') DECKS._abortHand(w.slot);
-    else if (w.action === 'cancel') MIXER.cancel('route');
+    else if (w.action === 'cancel'){ MIXER.cancel('route'); if (handNext) playNext(handNext.next, handNext.cue); }
     else if (w.action === 'commit'){ DECKS.fader.hand = false; DECKS._commitHand(w.slot); wait = 120; }
-    else if (w.action === 'next'){
-      try { d.a.pause(); } catch (e){}
-      const tr = player.tracks[w.next];
-      if (tr){ player._committedNext = w.next; (player._nextCue || (player._nextCue = {}))[tr.id] = w.cue; }
-      toast(T("Deck B's record plays next, from its cue"));
-    }
+    else if (w.action === 'next') playNext(w.next, w.cue);
     if (!wait) DECKS.collapse();
     return wait;
   },
@@ -30356,7 +30359,7 @@ const VINYL = {
   async install(){
     if (!AE.ctx || !AE.decks || !AE.graphLive || this._busy) return;
     // '?worklets=0': the diagnostic A/B for an iPhone's dropouts — no platter is seated (IOS_WORKLETS)
-    if (IS_IOS && !IOS_WORKLETS) return;
+    if (IS_IOS && !IOS_WORKLETS){ this._report(); return; }
     if (!(AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function' && typeof Blob === 'function'
           && window.URL && URL.createObjectURL)) return;
     const ctx = AE.ctx;
